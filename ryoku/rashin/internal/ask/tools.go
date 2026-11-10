@@ -51,11 +51,7 @@ func (f *Factory) runTool(ctx context.Context, call llm.ToolCall, terminal *prot
 		if err := decodeArgs(call.Arguments, &args); err != nil {
 			return "", nil, err
 		}
-		if !command.ReadOnly(args.Command) {
-			_, reason := command.Classify(args.Command)
-			if reason == "" {
-				reason = i18n.T("the command may change the machine")
-			}
+		if reason := command.WhyNotReadOnly(args.Command); reason != "" {
 			return i18n.Tf("Refused: %s. Use propose so the user can review and run this command.", reason), nil, nil
 		}
 		out, err := runBounded(ctx, 15*time.Second, cwd, 16*1024, "sh", "-c", args.Command)
@@ -549,7 +545,10 @@ func runDoctor(ctx context.Context) (string, error) {
 	return out, fmt.Errorf(i18n.T("Ryoku doctor returned invalid JSON: %v"), err)
 }
 
-func toolPresentation(call llm.ToolCall) (string, string) {
+// toolPresentation is how a read tool's call reads in the transcript: what it
+// is doing, its kind, and its input. A command is shown as the command, the
+// way a person would type it, and every other call as its arguments.
+func toolPresentation(call llm.ToolCall) (title, kind, input string) {
 	var args map[string]any
 	_ = json.Unmarshal([]byte(call.Arguments), &args)
 	value := func(key string) string {
@@ -558,24 +557,26 @@ func toolPresentation(call llm.ToolCall) (string, string) {
 		}
 		return ""
 	}
+	input = truncateRunes(compactInput(call.Arguments), 400)
 	switch call.Name {
 	case "system_query":
-		return i18n.Tf("Checking %s", value("command")), protocol.ToolExecute
+		command, _ := args["command"].(string)
+		return i18n.T("Checking"), protocol.ToolExecute, truncateRunes(command, 400)
 	case "read_file":
-		return i18n.Tf("Reading %s", value("path")), protocol.ToolRead
+		return i18n.Tf("Reading %s", value("path")), protocol.ToolRead, input
 	case "list_dir":
-		return i18n.Tf("Listing %s", value("path")), protocol.ToolRead
+		return i18n.Tf("Listing %s", value("path")), protocol.ToolRead, input
 	case "search_system", "search_code":
-		return i18n.Tf("Searching for %s", value("query")), protocol.ToolSearch
+		return i18n.Tf("Searching for %s", value("query")), protocol.ToolSearch, input
 	case "read_wiki":
-		return i18n.Tf("Reading wiki page %s", value("page")), protocol.ToolRead
+		return i18n.Tf("Reading wiki page %s", value("page")), protocol.ToolRead, input
 	case "fetch_url":
-		return i18n.Tf("Fetching %s", value("url")), protocol.ToolFetch
+		return i18n.Tf("Fetching %s", value("url")), protocol.ToolFetch, input
 	case "doctor":
-		return i18n.T("Checking Ryoku health"), protocol.ToolExecute
+		return i18n.T("Checking Ryoku health"), protocol.ToolExecute, ""
 	case "propose":
-		return i18n.T("Preparing a command plan"), protocol.ToolThink
+		return i18n.T("Preparing a command plan"), protocol.ToolThink, input
 	default:
-		return call.Name, protocol.ToolOther
+		return call.Name, protocol.ToolOther, input
 	}
 }

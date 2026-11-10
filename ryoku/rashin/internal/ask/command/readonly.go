@@ -594,7 +594,7 @@ func roReadWord(runes []rune, i int) (word string, newi int, reason string) {
 			return "", i, "expands a shell variable"
 		case r == '*' || r == '?' || r == '[':
 			return "", i, "uses an unquoted glob"
-		case r == '~' && b.Len() == 0 && i+1 < n && runes[i+1] != '/':
+		case r == '~' && b.Len() == 0 && i+1 < n && runes[i+1] != '/' && !roWordEnd(runes[i+1]):
 			return "", i, "expands another user's home"
 		default:
 			b.WriteRune(r)
@@ -1088,10 +1088,43 @@ func roIdentByte(value byte) bool {
 }
 
 func roHeadTail(tool string) roRule {
-	return roSimple(tool,
+	rule := roSimple(tool,
 		[]string{"-q", "-v", "-z", "--quiet", "--silent", "--verbose", "--zero-terminated"},
 		[]string{"-c", "-n", "--bytes", "--lines"},
 	)
+	return func(args []string) (bool, string) {
+		return rule(withoutLegacyCount(tool, args))
+	}
+}
+
+// withoutLegacyCount drops the count written the old way, `head -20` or
+// `tail +3`, which every head and tail still takes and most people type.
+func withoutLegacyCount(tool string, args []string) []string {
+	kept := make([]string, 0, len(args))
+	for index, arg := range args {
+		if arg == "--" {
+			return append(kept, args[index:]...)
+		}
+		if len(arg) > 1 && (arg[0] == '-' || arg[0] == '+' && tool == "tail") && roDigits(arg[1:]) {
+			continue
+		}
+		kept = append(kept, arg)
+	}
+	return kept
+}
+
+// roWordEnd reports a rune that ends a shell word, so a ~ before it stands alone.
+func roWordEnd(r rune) bool {
+	return strings.ContainsRune(" \t\n|&;<>(){}", r)
+}
+
+func roDigits(text string) bool {
+	for index := 0; index < len(text); index++ {
+		if text[index] < '0' || text[index] > '9' {
+			return false
+		}
+	}
+	return text != ""
 }
 
 func roNoFollow(args []string) (bool, string) {
@@ -2305,4 +2338,15 @@ func roShellIpcRead(rest []string) bool {
 func ReadOnly(cmd string) bool {
 	ok, _ := readOnlyCommand(cmd)
 	return ok
+}
+
+// WhyNotReadOnly says in a few words why ReadOnly turned cmd down, "" when it
+// did not. A model told the real reason can ask another way; one told only
+// that the command "may change the machine" repeats that to the user even
+// when the command was turned down for reading a secret.
+func WhyNotReadOnly(cmd string) string {
+	if ok, reason := readOnlyCommand(cmd); !ok {
+		return reason
+	}
+	return ""
 }

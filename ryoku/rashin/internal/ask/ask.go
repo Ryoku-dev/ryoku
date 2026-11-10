@@ -149,8 +149,7 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 		}
 
 		for _, call := range calls {
-			title, kind := toolPresentation(call)
-			input := truncateRunes(compactInput(call.Arguments), 400)
+			title, kind, input := toolPresentation(call)
 			sink.Emit(protocol.EvTool, protocol.ToolData{
 				Call: call.ID, Title: title, Kind: kind, Status: protocol.ToolRunning, Input: input,
 			})

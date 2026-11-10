@@ -158,7 +158,7 @@ func classify(cmd string) (dangerTier, string) {
 			}
 		}
 		// Redirects escalate an otherwise read-only segment.
-		if dst := redirectTarget(seg.text); dst != "" {
+		if dst := redirectTarget(seg.text); dst != "" && dst != "/dev/null" {
 			switch {
 			case strings.HasPrefix(dst, "/dev/sd"), strings.HasPrefix(dst, "/dev/nvme"),
 				strings.HasPrefix(dst, "/dev/vd"), strings.HasPrefix(dst, "/dev/mmcblk"):
@@ -555,6 +555,11 @@ func splitSegments(cmd string) []segment {
 		case r == ';' || r == '\n':
 			flush(false)
 		case r == '&':
+			// 2>&1 and &> point a stream somewhere, they end nothing
+			if i > 0 && runes[i-1] == '>' || i+1 < len(runes) && runes[i+1] == '>' {
+				cur.WriteRune(r)
+				continue
+			}
 			if i+1 < len(runes) && runes[i+1] == '&' {
 				i++
 			}
@@ -648,8 +653,18 @@ func redirectTarget(seg string) string {
 				return ""
 			}
 			f := shellFields(rest)
-			if len(f) == 0 || strings.HasPrefix(f[0], "&") {
+			if len(f) == 0 {
 				return ""
+			}
+			// >&2 copies a stream, >& file and >&file write one
+			if target, both := strings.CutPrefix(f[0], "&"); both {
+				switch {
+				case target == "" && len(f) > 1:
+					return expandHomeRef(f[1])
+				case target == "" || target == "-" || roDigits(target):
+					return ""
+				}
+				return expandHomeRef(target)
 			}
 			return expandHomeRef(f[0])
 		}
@@ -700,6 +715,19 @@ func home() string {
 	}
 	value, _ := os.UserHomeDir()
 	return value
+}
+
+// Elevates reports whether cmd runs something through sudo, doas or su, each
+// of which asks for a password on a terminal. pkexec and run0 are left out:
+// they ask through the desktop's own prompt.
+func Elevates(cmd string) bool {
+	for _, seg := range splitSegments(cmd) {
+		argv := stripEnvAssignments(shellFields(seg.text))
+		if len(argv) != 0 && (argv[0] == "sudo" || argv[0] == "doas" || argv[0] == "su") {
+			return true
+		}
+	}
+	return false
 }
 
 // Classify returns the highest safety tier across a shell command and a short reason.

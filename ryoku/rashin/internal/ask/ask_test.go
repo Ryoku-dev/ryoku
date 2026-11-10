@@ -234,6 +234,31 @@ func TestExtractActions(t *testing.T) {
 	}
 }
 
+// An answer that says which filesystems a command skips used to offer each of
+// them twice: as a folder to open and as a command to run.
+func TestExtractActionsLeavesNamedSystemRootsAlone(t *testing.T) {
+	text := "It excludes virtual filesystems (`/proc`, `/sys`, `/dev`, `/run`), drops errors into /dev/null and reads `/etc/os-release`."
+	for _, action := range extractActions(text) {
+		if action.Kind == protocol.ActCmd {
+			t.Errorf("%q was offered as a command to run", action.Value)
+		}
+		if action.Kind == protocol.ActDir {
+			t.Errorf("%q was offered as a folder to open", action.Value)
+		}
+		if action.Value == "/dev/null" {
+			t.Error("a device was offered as a file to open")
+		}
+	}
+	program := filepath.Join(t.TempDir(), "report")
+	if err := os.WriteFile(program, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	actions := extractActions("Run `" + program + " --all` to see it.")
+	if len(actions) == 0 || actions[len(actions)-1].Kind != protocol.ActCmd {
+		t.Fatalf("a program named by its path is still a command: %#v", actions)
+	}
+}
+
 func TestReadFileRefusesSecrets(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

@@ -122,7 +122,8 @@ func extractActions(text string) []protocol.Action {
 			value = filepath.Join(paths.Home(), strings.TrimPrefix(value, "~/"))
 		}
 		info, err := os.Stat(value)
-		if err != nil {
+		// a device or a socket exists and is nothing to open
+		if err != nil || systemRoot(value) || !info.IsDir() && !info.Mode().IsRegular() {
 			continue
 		}
 		kind := protocol.ActFile
@@ -147,10 +148,18 @@ func extractActions(text string) []protocol.Action {
 	return actions
 }
 
+// systemRoot reports / and the directories right under it. An answer names
+// them to say where it looked, never as somewhere worth opening.
+func systemRoot(path string) bool {
+	clean := filepath.Clean(path)
+	return clean == "/" || filepath.Dir(clean) == "/"
+}
+
 func commandLike(first string) bool {
 	if strings.Contains(first, "/") {
-		_, err := os.Stat(first)
-		return err == nil
+		// a path is a command only when it is a program, not any file or folder that exists
+		info, err := os.Stat(first)
+		return err == nil && info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0
 	}
 	if _, err := exec.LookPath(first); err == nil {
 		return true

@@ -79,6 +79,13 @@
   (`rashin/internal/app/chat/scroll.go`).
 - **Settings scrolls from anywhere in its pane.** The wheel only moved it
   with the pointer over the middle column.
+- **Ask runs the everyday read commands itself.** `head -20`, `tail -5`,
+  `2>/dev/null`, `2>&1` and a bare `~` were taken for changes, so a question
+  like which file is largest ended in a command for you to run, marked
+  Changes files (`rashin/internal/ask/command`).
+- **An answer no longer offers a folder as a command.** Naming `/proc` or
+  `/dev/null` in passing made buttons that opened or ran them
+  (`rashin/internal/ask/answer.go`).
 - **Ryotunes picks floating or tiled itself.** Its own setting decides on niri
   and Hyprland alike, and its mini player always floats, so the desktop no
   longer forces a floating rule on it (`wm/niri/config_rules.go`,
