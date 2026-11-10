@@ -152,12 +152,22 @@ Singleton {
     // A file from before the open set was saved has no cards key, so seed it
     // once from the pins, or with the card the bar used to open on.
     Component.onCompleted: {
-        const text = file.text();
-        if (text && text.indexOf("\"cards\"") !== -1)
-            return;
-        const opened = root.asList(root.opened);
-        if (opened.length > 0)
-            return;
+        let saved = null;
+        try {
+            saved = JSON.parse(file.text() || "null");
+        } catch (e) {
+            saved = null;
+        }
+        // JsonAdapter hands nested lists back as QML sequences, which asList rejects
+        if (saved && typeof saved === "object") {
+            const lists = ["pinned", "cards", "layout", "sizes"];
+            for (let i = 0; i < lists.length; i++) {
+                if (Array.isArray(saved[lists[i]]))
+                    adapter[lists[i]] = saved[lists[i]];
+            }
+            if ("cards" in saved)
+                return;
+        }
         const pinned = root.asList(root.pinned);
         root.opened = pinned.length > 0 ? pinned.slice() : [root.defaultCard];
         file.writeAdapter();
