@@ -37,12 +37,16 @@ Item {
         preferredRendererType: Shape.CurveRenderer
 
         ShapePath {
+            startX: 0
+            startY: root.height
             strokeColor: "transparent"
             fillColor: Qt.rgba(root.color.r, root.color.g, root.color.b, 0.5)
             PathPolyline { path: root.areaPoints }
         }
 
         ShapePath {
+            startX: root.points.length > 0 ? root.points[0].x : 0
+            startY: root.points.length > 0 ? root.points[0].y : 0
             strokeColor: root.color
             strokeWidth: 2
             fillColor: "transparent"
