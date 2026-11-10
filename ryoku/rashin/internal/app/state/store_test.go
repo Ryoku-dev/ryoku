@@ -79,6 +79,65 @@ func TestStoreAttachResumesWithoutResettingTranscript(t *testing.T) {
 	}
 }
 
+func streamed(t *testing.T, store *Store, session string, seq int64, kind string, data any) {
+	t.Helper()
+	raw, err := json.Marshal(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wire, err := json.Marshal(protocol.SessionEventData{Session: session, SessionEvent: protocol.SessionEvent{Seq: seq, Kind: kind, Data: raw}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Apply(protocol.Event{Event: protocol.EvtSessionEvent, Data: wire}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// The replay that opens a session is applied by whoever asked for it, and
+// what the session streams by the reader of the connection. A new question is
+// sent the moment its session exists, so its first events can be read before
+// the replay is applied. The replay from zero then wiped them, and the
+// question vanished from its own transcript.
+func TestWhatStreamsBeforeTheReplayLandsIsKept(t *testing.T) {
+	info := protocol.SessionInfo{ID: "ask-new", Kind: protocol.KindAsk}
+	asked := protocol.UserData{Text: "Which step failed?"}
+	prompts := func(store *Store) []string { return store.Snapshot().Attached[info.ID].Model.Prompts() }
+
+	// attached before the question was asked: an empty replay, then the stream
+	store := New(nil)
+	store.Open(info.ID)
+	streamed(t, store, info.ID, 1, protocol.EvUser, asked)
+	streamed(t, store, info.ID, 2, protocol.EvTurnStart, protocol.TurnStartData{Turn: 1})
+	store.ApplyAttach(0, protocol.SessionAttachResult{Info: info})
+	if got := prompts(store); len(got) != 1 || got[0] != asked.Text {
+		t.Fatalf("after an empty replay landed late the transcript holds the prompts %q", got)
+	}
+	streamed(t, store, info.ID, 3, protocol.EvText, protocol.TextData{Message: "m", Delta: "Step 3."})
+	if seq := store.Snapshot().Attached[info.ID].Model.LastSeq(); seq != 3 {
+		t.Fatalf("after the replay landed the stream stopped at %d", seq)
+	}
+
+	// attached after it was asked: the question is in the replay, the stream begins behind it
+	store = New(nil)
+	store.Open(info.ID)
+	streamed(t, store, info.ID, 2, protocol.EvTurnStart, protocol.TurnStartData{Turn: 1})
+	raw, _ := json.Marshal(asked)
+	store.ApplyAttach(0, protocol.SessionAttachResult{Info: info, Events: []protocol.SessionEvent{{Seq: 1, Kind: protocol.EvUser, Data: raw}}})
+	if got := prompts(store); len(got) != 1 || store.Snapshot().Attached[info.ID].Model.LastSeq() != 2 {
+		t.Fatalf("a replay that landed after the stream began left prompts %q at seq %d", got, store.Snapshot().Attached[info.ID].Model.LastSeq())
+	}
+
+	// a replay that never comes must not hold the stream back for good
+	store = New(nil)
+	store.Open(info.ID)
+	streamed(t, store, info.ID, 1, protocol.EvUser, asked)
+	store.Opened(info.ID)
+	if got := prompts(store); len(got) != 1 {
+		t.Fatalf("after a failed attach the transcript holds the prompts %q", got)
+	}
+}
+
 func TestStoreReducesWorkCollectionsAndGitChanged(t *testing.T) {
 	store := New(nil)
 	project := protocol.ProjectInfo{ID: "hyperion", Name: "Hyperion"}

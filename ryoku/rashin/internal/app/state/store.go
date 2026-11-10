@@ -68,6 +68,8 @@ type Store struct {
 	reviews    map[string][]protocol.ReviewComment
 	progress   map[string]protocol.IndexProgress
 	attached   map[string]*chat.Model
+	// what a session streamed while the replay that opens it was still on its way
+	arriving   map[string]*arrival
 	focus      protocol.UIOpenParams
 	notices    []protocol.Notice
 	gitNext    uint64
@@ -80,6 +82,7 @@ func New(invalidate func()) *Store {
 		sessions:   make(map[string]protocol.SessionInfo),
 		progress:   make(map[string]protocol.IndexProgress),
 		attached:   make(map[string]*chat.Model),
+		arriving:   make(map[string]*arrival),
 		worktrees:  make(map[string][]protocol.WorktreeInfo),
 		tasks:      make(map[string][]protocol.TaskInfo),
 		reviews:    make(map[string][]protocol.ReviewComment),
@@ -142,7 +145,12 @@ func (s *Store) ApplySnapshot(snapshot protocol.Snapshot) {
 	}
 }
 
-// Open marks a session as attached and returns the last applied sequence.
+// Open marks a session as attached and returns the last applied sequence. The
+// replay asked for with it is applied by whoever asked, while the events the
+// session streams after it are applied by the reader of the connection, and
+// the two do not wait for each other. So from here until the replay is in,
+// or Opened says it never will be, live events are held: a replay from zero
+// that lands late would otherwise wipe everything that arrived before it.
 func (s *Store) Open(id string) int64 {
 	s.mu.Lock()
 	model := s.attached[id]
@@ -150,6 +158,10 @@ func (s *Store) Open(id string) int64 {
 		model = chat.NewModel(s.sessions[id])
 		s.attached[id] = model
 	}
+	if s.arriving[id] == nil {
+		s.arriving[id] = new(arrival)
+	}
+	s.arriving[id].replays++
 	seq := model.LastSeq()
 	invalidate := s.changedLocked()
 	s.mu.Unlock()
@@ -159,8 +171,46 @@ func (s *Store) Open(id string) int64 {
 	return seq
 }
 
+// Opened ends the wait Open began when the replay will not come, as after a
+// failed attach, so what the session streams is shown again.
+func (s *Store) Opened(id string) {
+	s.mu.Lock()
+	s.landLocked(id)
+	invalidate := s.changedLocked()
+	s.mu.Unlock()
+	if invalidate != nil {
+		invalidate()
+	}
+}
+
+// arrival is a session being opened: how many replays are still on their way
+// and what it streamed in the meantime.
+type arrival struct {
+	replays int
+	held    []protocol.SessionEvent
+}
+
+// landLocked counts one replay in. After the last one it applies what was
+// held, in the order it arrived; the model drops whatever a replay covered.
+func (s *Store) landLocked(id string) {
+	arriving := s.arriving[id]
+	if arriving == nil {
+		return
+	}
+	if arriving.replays--; arriving.replays > 0 {
+		return
+	}
+	delete(s.arriving, id)
+	if model := s.attached[id]; model != nil {
+		for _, event := range arriving.held {
+			model.Apply(event)
+		}
+	}
+}
+
 func (s *Store) Close(id string) {
 	s.mu.Lock()
+	delete(s.arriving, id)
 	if _, ok := s.attached[id]; !ok {
 		s.mu.Unlock()
 		return
@@ -201,6 +251,10 @@ func (s *Store) ApplyAttach(since int64, result protocol.SessionAttachResult) {
 			model.Apply(event)
 		}
 	}
+	// the live stream starts after the last page, so only then is what was held next in line
+	if !result.More {
+		s.landLocked(result.Info.ID)
+	}
 	s.sessions[result.Info.ID] = result.Info
 	s.rebuildOrderLocked()
 	invalidate := s.changedLocked()
@@ -219,7 +273,9 @@ func (s *Store) Apply(event protocol.Event) error {
 	case protocol.EvtSessionEvent:
 		var data protocol.SessionEventData
 		if err = json.Unmarshal(event.Data, &data); err == nil {
-			if model := s.attached[data.Session]; model != nil {
+			if arriving := s.arriving[data.Session]; arriving != nil {
+				arriving.held = append(arriving.held, data.SessionEvent)
+			} else if model := s.attached[data.Session]; model != nil {
 				model.Apply(data.SessionEvent)
 			}
 		}
@@ -238,6 +294,7 @@ func (s *Store) Apply(event protocol.Event) error {
 			for _, id := range change.Removed {
 				delete(s.sessions, id)
 				delete(s.attached, id)
+				delete(s.arriving, id)
 			}
 			s.rebuildOrderLocked()
 		}

@@ -106,6 +106,7 @@ func (c *Client) attachPages(ctx context.Context, call caller, id string, since 
 	for {
 		var result protocol.SessionAttachResult
 		if err := call(ctx, protocol.MSessionAttach, protocol.SessionAttachParams{ID: id, Since: since}, &result); err != nil {
+			c.store.Opened(id)
 			return err
 		}
 		c.store.ApplyAttach(since, result)
