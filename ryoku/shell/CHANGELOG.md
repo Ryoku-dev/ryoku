@@ -42,6 +42,10 @@
   putting one wallpaper everywhere and forgetting the per-monitor choices.
 - **`ryogami wallpaper set` without `--screen` follows the picker monitor setting.**
   With it on it sets the focused monitor only; `--screen '*'` sets every monitor.
+- **Desktops without a built-in screen no longer show a Built-in display slider.**
+  With no backlight to find, brightness control fell back to whatever device it
+  found first, often a keyboard LED, and offered it as a display. Controls and the
+  bar brightness widgets now show only real backlights and external monitors.
 - **Windows reach the Shima dock again.** Under the Shima bar style the frame and
   the dock both reserved the dock's band, which left a dock-tall gap between
   windows and the dock. The frame's reservation is now the only one there.
