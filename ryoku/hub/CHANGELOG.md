@@ -3,6 +3,11 @@
 ## Unreleased
 
 ### Fixed
+- **Connections notices networks saved or forgotten elsewhere.** The saved
+  list was read when the page opened and after its own actions, so a network
+  forgotten from the bar still showed as saved until the page was reopened. It
+  is now re-read when the network list changes and after a scan
+  (`pages/ConnectionsPage.qml`).
 - **A saved Wi-Fi network asks for its password again when it stops working.**
   Clicking a saved network whose stored password was wrong (changed on the
   router, or another network with the same name) failed on every click with no

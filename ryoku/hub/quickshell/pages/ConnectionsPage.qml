@@ -731,6 +731,7 @@ Item {
         Process {
             id: rescanProc
             command: ["nmcli", "dev", "wifi", "rescan"]
+            onExited: wifi.refresh()
         }
 
         Process {
@@ -871,7 +872,9 @@ Item {
         Timer {
             id: secRefresh
             interval: 1200
-            onTriggered: if (wifi.active) secProc.running = true
+            // a network saved or forgotten elsewhere (the bar, nmcli) shows up
+            // as a network-list change; re-read the saved profiles with it
+            onTriggered: if (wifi.active) { secProc.running = true; profProc.running = true; }
         }
 
         // Read the current NM Wi-Fi backend through the host seam.
