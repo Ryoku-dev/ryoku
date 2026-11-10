@@ -21,6 +21,9 @@ const (
 	SelectQuiet
 )
 
+// detail is a second line under the label in the opened list
+type SelectOption struct{ Label, Detail string }
+
 // the menu opens in window coordinates so it works inside clipped and scrolling parents
 type Select struct {
 	Label   string
@@ -29,9 +32,12 @@ type Select struct {
 	Preview kit.State
 	// takes the keyboard when the menu closes: nil is the select itself, one in a composer hands it to the text
 	Return any
+	// a quiet select whose value is itself a state worth seeing, such as one that stops asking
+	Tone palette.Tone
 
 	click   kit.Click
 	menu    kit.Menu
+	picker  picker
 	hover   anim.Tween
 	focus   anim.Tween
 	size    image.Point
@@ -52,6 +58,20 @@ func (selection *Select) Layout(
 	options []string,
 	selected int,
 ) layout.Dimensions {
+	described := make([]SelectOption, len(options))
+	for index, option := range options {
+		described[index].Label = option
+	}
+	return selection.LayoutOptions(gtx, th, overlays, described, selected)
+}
+
+func (selection *Select) LayoutOptions(
+	gtx layout.Context,
+	th *Theme,
+	overlays *Overlays,
+	options []SelectOption,
+	selected int,
+) layout.Dimensions {
 	tag := &selection.click.Clickable
 	if selection.click.Clicked(gtx) && overlays != nil {
 		if overlays.IsOpen(tag) {
@@ -62,7 +82,7 @@ func (selection *Select) Layout(
 	}
 	label := ""
 	if selected >= 0 && selected < len(options) {
-		label = options[selected]
+		label = options[selected].Label
 	}
 	open := overlays != nil && overlays.IsOpen(tag)
 	anchor := func(gtx layout.Context) layout.Dimensions {
@@ -103,12 +123,34 @@ func (selection *Select) cut(th *Theme) unit.Dp {
 	return th.Cut.Mid
 }
 
-func (selection *Select) open(gtx layout.Context, th *Theme, overlays *Overlays, options []string, selected int) {
+func (selection *Select) open(gtx layout.Context, th *Theme, overlays *Overlays, options []SelectOption, selected int) {
 	tag := &selection.click.Clickable
+	placement := Placement{Return: tag}
+	if selection.Return != nil {
+		placement.Return = selection.Return
+	}
+	listed := len(options) >= pickerSearchFrom
+	for _, option := range options {
+		listed = listed || option.Detail != ""
+	}
+	if listed {
+		selection.picker.open()
+		placement.Frame, placement.Width = true, 340
+		placement.Focus = selection.picker.focus(len(options) >= pickerSearchFrom)
+		overlays.Open(tag, overlays.AnchorOf(tag, selection.size), placement, func(gtx layout.Context) layout.Dimensions {
+			dimensions, picked := selection.picker.Layout(gtx, th, options, selected)
+			if picked >= 0 {
+				selection.value, selection.changed = picked, true
+				overlays.Close(tag)
+			}
+			return dimensions
+		})
+		return
+	}
 	items := make([]kit.MenuItem, len(options))
 	for index, option := range options {
 		// every row gets the column so the names line up under the checked one
-		items[index] = kit.MenuItem{Label: option, Icon: Icon.Blank}
+		items[index] = kit.MenuItem{Label: option.Label, Icon: Icon.Blank}
 		if index == selected {
 			items[index].Icon = Icon.Check
 		}
@@ -122,10 +164,6 @@ func (selection *Select) open(gtx layout.Context, th *Theme, overlays *Overlays,
 			gtx.Execute(op.InvalidateCmd{})
 		}
 		return dimensions
-	}
-	placement := Placement{Return: tag}
-	if selection.Return != nil {
-		placement.Return = selection.Return
 	}
 	if selection.Form == SelectField {
 		placement.MinWidth = unit.Dp(float32(selection.size.X) / gtx.Metric.PxPerDp)
@@ -171,6 +209,9 @@ func (selection *Select) layoutQuiet(gtx layout.Context, th *Theme, label string
 	hover := selection.hoverValue(gtx, th, open)
 	height := gtx.Dp(32)
 	ink := palette.Mix(th.R.Fg2, th.R.Fg, hover)
+	if selection.Tone != palette.Idle {
+		ink = th.R.Stone(selection.Tone)
+	}
 	record := op.Record(gtx.Ops)
 	content := gtx
 	content.Constraints = layout.Constraints{Max: image.Pt(gtx.Constraints.Max.X, height)}

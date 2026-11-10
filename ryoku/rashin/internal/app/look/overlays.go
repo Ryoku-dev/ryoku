@@ -39,6 +39,8 @@ type Placement struct {
 	MinWidth unit.Dp
 	Passive  bool
 	Return   any
+	// what holds the keyboard while it is open: nil is the overlay layer, a list with a field names the field
+	Focus any
 	// a slab and hairline around content that brings none, a menu frames itself
 	Frame bool
 }
@@ -219,8 +221,12 @@ func (overlays *Overlays) Layout(gtx layout.Context, th *Theme) {
 	top, hasTop := overlays.Top()
 	if hasTop {
 		event.Op(gtx.Ops, &overlays.focus)
-		if !gtx.Focused(&overlays.focus) {
-			gtx.Execute(key.FocusCmd{Tag: &overlays.focus})
+		var holder any = &overlays.focus
+		if entry := overlays.entry(top); entry != nil && entry.placement.Focus != nil {
+			holder = entry.placement.Focus
+		}
+		if !gtx.Focused(holder) {
+			gtx.Execute(key.FocusCmd{Tag: holder})
 		}
 	}
 
