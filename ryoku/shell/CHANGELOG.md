@@ -25,6 +25,9 @@
 - **Plugin settings changed from a desktop tile's menu are saved.** Chips,
   sliders and switches in the right-click menu now reach the plugin, number
   settings get a stepper there, and clicking blank space in a menu keeps it open.
+- **Library desktop widgets keep the size you give them.** The resource cards,
+  clocks and the rest of the added widget library no longer snap back to 100%
+  after a corner drag or a change in the Size control.
 - **Windows reach the Shima dock again.** Under the Shima bar style the frame and
   the dock both reserved the dock's band, which left a dock-tall gap between
   windows and the dock. The frame's reservation is now the only one there.

@@ -1496,6 +1496,7 @@ Scope {
                             IiFaceWidget {
                                 faceId: iiLoader.modelData.id
                                 prefix: iiLoader.modelData.prefix
+                                scaleCfg: root.widgetValue(iiLoader.modelData.prefix, "Scale")
                                 screen: root.screen
                             }
                         }
