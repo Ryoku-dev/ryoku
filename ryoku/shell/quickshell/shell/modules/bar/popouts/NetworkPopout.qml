@@ -186,7 +186,7 @@ Item {
     function join(ap, pw) {
         root.setSt(ap.ssid, { connecting: true, error: false });
         const id = Network.connectWifi(ap.ssid, pw, ap.bssid);
-        root.pendingJoins[id] = { ssid: ap.ssid };
+        root.pendingJoins[id] = { ssid: ap.ssid, wasSaved: !!ap.saved };
     }
     Connections {
         target: Network
@@ -200,9 +200,11 @@ Item {
             // never left for the next attempt to be typed onto
             const epoch = (root.st(j.ssid).pwEpoch || 0) + 1;
             if (ok) {
-                root.setSt(j.ssid, { connecting: false, expanded: false, error: false, pwEpoch: epoch });
+                root.setSt(j.ssid, { connecting: false, expanded: false, error: false, reprompt: false, pwEpoch: epoch });
             } else {
-                root.setSt(j.ssid, { connecting: false, error: true, pwEpoch: epoch });
+                // a saved network's stored password failed: ask for it again
+                root.setSt(j.ssid, { connecting: false, expanded: true, error: true,
+                    reprompt: j.wasSaved || !!root.st(j.ssid).reprompt, pwEpoch: epoch });
                 root.focusSsid = j.ssid;
             }
         }
@@ -218,7 +220,8 @@ Item {
         readonly property bool connecting: !!apr.rs.connecting
         readonly property bool errorShown: !!apr.rs.error
         readonly property bool sec: root.secured(apr.ap)
-        readonly property bool needsPw: apr.sec && !apr.ap.saved
+        readonly property bool reprompt: !!apr.rs.reprompt
+        readonly property bool needsPw: apr.sec && (!apr.ap.saved || apr.reprompt)
         property int seenEpoch: 0
 
         width: parent ? parent.width : 0
@@ -326,7 +329,7 @@ Item {
             }
         }
 
-        // inline password (secured, unsaved).
+        // inline password (secured and unsaved, or saved with a failed password)
         Column {
             width: parent.width
             spacing: 4 * root.s
@@ -379,7 +382,9 @@ Item {
             Text {
                 width: parent.width
                 visible: apr.errorShown
-                text: I18n.tr("Wrong password or connection failed")
+                text: apr.ap.saved
+                    ? I18n.tr("Wrong password, or a different network with the same name?")
+                    : I18n.tr("Wrong password or connection failed")
                 color: Theme.error
                 wrapMode: Text.WordWrap
                 font.family: Theme.fontPrimary

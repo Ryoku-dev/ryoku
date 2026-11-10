@@ -1,6 +1,12 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **A saved Wi-Fi network asks for its password again when it stops working.**
+  The bar only showed a password field for unsaved networks, so a saved one
+  whose password changed, or another network with the same name, failed on
+  every tap with no way to type a new password. A failed join of a saved
+  secured network now reopens the field with "Wrong password, or a different
+  network with the same name?", and the new password replaces the stored one.
 - **The bar's Wi-Fi rows keep their password field through network updates.**
   The list is rebuilt on every network frame, which threw away a row's field,
   its pending join and its error; a retry after a wrong password could also
