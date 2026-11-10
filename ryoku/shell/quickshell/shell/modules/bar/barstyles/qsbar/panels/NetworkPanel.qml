@@ -981,18 +981,36 @@ PanelWindow {
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onEntered: netPanel.keyboardIndex = netTile.index
-                                    onClicked: netPanel.activateNetwork(modelData)
+                                    // right-click opens the drawer too
+                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                    onClicked: (mouse) => {
+                                        if (mouse.button === Qt.RightButton)
+                                            netPanel.selectNetwork(modelData)
+                                        else
+                                            netPanel.activateNetwork(modelData)
+                                    }
                                 }
 
+                                // the drawer toggle (Forget, details): full ink and a hover
+                                // well, since a small dimmed glyph read as invisible
+                                Rectangle {
+                                    anchors.right: parent.right; anchors.rightMargin: 4
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 24; height: 22
+                                    radius: root.panelButtonRadius
+                                    color: detailMa.containsMouse ? root.fillHover : "transparent"
+                                    border.width: detailMa.containsMouse || netTile.expanded ? 1 : 0
+                                    border.color: root.seal
+                                }
                                 UiText {
                                     id: detailButton
-                                    anchors.right: parent.right; anchors.rightMargin: 7
+                                    anchors.right: parent.right; anchors.rightMargin: 4
                                     anchors.verticalCenter: parent.verticalCenter
-                                    width: 16
+                                    width: 24
                                     horizontalAlignment: Text.AlignHCenter
                                     text: netTile.expanded ? "⌃" : "›"
-                                    color: detailMa.containsMouse || netTile.expanded ? root.seal : root.sumiHi
-                                    font.family: root.mono; font.pixelSize: 13
+                                    color: detailMa.containsMouse || netTile.expanded ? root.seal : root.ink
+                                    font.family: root.mono; font.pixelSize: 18
                                     MouseArea {
                                         id: detailMa
                                         anchors.fill: parent
@@ -1292,12 +1310,16 @@ PanelWindow {
                     }
 
                     Row {
+                        id: passwordButtons
                         width: parent.width
                         height: 22
                         spacing: 6
+                        // a saved network can be forgotten from the prompt that just failed
+                        readonly property bool canForget: !!netPanel.nmPasswordNetwork && netPanel.nmPasswordNetwork.known
+                        readonly property real buttonWidth: canForget ? (width - 12) / 3 : (width - 6) / 2
 
                         Rectangle {
-                            width: (parent.width - 6) / 2
+                            width: passwordButtons.buttonWidth
                             height: parent.height
                             radius: root.panelButtonRadius
                             color: passwordSubmitMa.enabled
@@ -1324,7 +1346,36 @@ PanelWindow {
                         }
 
                         Rectangle {
-                            width: (parent.width - 6) / 2
+                            visible: passwordButtons.canForget
+                            width: passwordButtons.buttonWidth
+                            height: parent.height
+                            radius: root.panelButtonRadius
+                            color: passwordForgetMa.containsMouse ? Qt.rgba(root.seal.r, root.seal.g, root.seal.b, 0.18) : root.fillIdle
+                            border.color: passwordForgetMa.containsMouse ? root.seal : root.sep
+                            border.width: 1
+                            Behavior on color { ColorAnimation { duration: 120 } }
+                            UiText {
+                                anchors.centerIn: parent
+                                text: I18n.tr("forget")
+                                color: passwordForgetMa.containsMouse ? root.seal : root.sumi
+                                font.family: root.mono
+                                font.pixelSize: 10
+                            }
+                            MouseArea {
+                                id: passwordForgetMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    if (netPanel.nmAdapterReady && netPanel.nmPasswordNetwork)
+                                        nmAdapter.item.forgetNetwork({ known: true, network: netPanel.nmPasswordNetwork, profileUuid: "" })
+                                    netPanel.clearNmPassword()
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            width: passwordButtons.buttonWidth
                             height: parent.height
                             radius: root.panelButtonRadius
                             color: passwordCancelMa.containsMouse ? root.fillHover : root.fillIdle

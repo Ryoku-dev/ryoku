@@ -1,6 +1,10 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **QS Bar's Wi-Fi panel makes Forget easy to reach.** A network's drawer, where
+  Forget lives, opened only from a small dimmed › at the row's edge. The toggle
+  now has full contrast and a hover well, right-clicking a row opens the drawer,
+  and the password prompt of a saved network has its own Forget.
 - **QS Bar's Wi-Fi panel asks again when a saved password fails.** A saved
   network whose secret was wrong failed silently on every tap. It now reopens
   the password prompt ("Wrong password, or a different network with the same
