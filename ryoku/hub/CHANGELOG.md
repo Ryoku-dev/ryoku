@@ -101,6 +101,9 @@
   `../shell/matugen/config.toml`).
 
 ### Added
+- **Credits names the Game Bar's sources.** The ii-p3drovfx row now covers the
+  Discord Voice widget it is based on, and end-4's illogical-impulse is credited
+  for the overlay design (`quickshell/pages/CreditsPage.qml`, `../../NOTICE`).
 - **Bar Studio opens Orpheus settings.** With Orpheus as the bar, an ORPHEUS
   card offers OPEN ORPHEUS SETTINGS, as the QS BAR card does for QS Bar
   (`quickshell/pages/BarStudioPage.qml`).

@@ -155,3 +155,19 @@ none of that ships in a Ryoku package. It is released under the MIT License,
 which ships unchanged beside it and is installed as
 /usr/share/licenses/ryoku-desktop/LICENSE.ryoku-discord; that license is
 compatible with Ryoku's GPL-3 distribution.
+
+The Game Bar's Discord Voice widget
+(ryoku/shell/quickshell/shell/modules/gamebar/discordVoice/ and
+ryoku/shell/quickshell/shell/services/DiscordVoice.qml) is based on the Discord
+Voice overlay widget, its RPC bridge and its Vencord companion from
+ii-p3drovfx by P3DROVFX and contributors
+(https://github.com/P3DROVFX/ii-p3drovfx, compared at commit 78e333e), where
+the widget is credited to xephy and the end4-pC contributors and its Discord RPC
+approach to dms-discord-widget by PandorasFox
+(https://github.com/PandorasFox/dms-discord-widget). It is a modified version:
+Ryoku draws it as a Game Bar card in its own look, renames the companion and its
+socket, and leaves out the bar widget and the install path for the official
+client with Vencord. The rest of the Game Bar follows the layout of end-4's
+illogical-impulse overlay (https://github.com/end-4/dots-hyprland) without
+copying its code. ii-p3drovfx is released under the GNU General Public License
+version 3; the ported portions keep that license, compatible with Ryoku's GPL-3.
