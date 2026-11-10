@@ -34,6 +34,8 @@ near(rows[3].cpu, 16.666666666666668, "short lived process still gets a rate");
 eq(isProtected("niri"), true, "compositor is protected");
 eq(isProtected("ryoku-shell"), true, "shell is protected");
 eq(isProtected("firefox"), false, "an app is not protected");
+eq(isProtected("wayfire"), true, "every compositor is protected");
+eq(isProtected("gpu-screen-reco"), true, "the recorder is protected by its 15 character comm");
 eq(top(sample, 2, "dodo").map((r) => r.name), ["firefox", "Web Content"], "top sorts by cpu then memory");
 eq(top(sample, 5, "dodo").length, 3, "top keeps only the current user");
 eq(top(sample, 5, "root").map((r) => r.name), ["systemd"], "top can select the owner");

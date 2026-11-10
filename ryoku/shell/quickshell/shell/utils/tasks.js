@@ -7,12 +7,14 @@
 // seconds over the process lifetime, which is the average load, not an
 // instantaneous sample: good enough for a short list.
 
+// names are the kernel's comm, cut at 15 characters
 const PROTECTED = [
     "systemd", "systemd-logind", "logind", "dbus-daemon", "dbus-broker",
-    "niri", "hyprland", "xwayland", "xorg", "qs", "quickshell",
+    "niri", "hyprland", "wayfire", "xwayland", "xwayland-satell", "xorg",
+    "qs", "quickshell",
     "ryoku-shell", "ryoku-wm", "ryoku-wm-niri", "ryoku-host",
-    "pipewire", "pipewire-pulse", "wireplumber", "gnome-keyring",
-    "polkitd", "swaybg", "mpvpaper", "prowl", "gpu-screen-rec"
+    "pipewire", "pipewire-pulse", "wireplumber", "gnome-keyring-d",
+    "polkitd", "swaybg", "mpvpaper", "prowl", "gpu-screen-reco"
 ];
 
 // `started` is the process start as an absolute epoch second. A pid alone does
