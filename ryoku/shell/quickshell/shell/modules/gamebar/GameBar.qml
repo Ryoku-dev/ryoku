@@ -238,9 +238,9 @@ PanelWindow {
             }
         }
 
-        if (!foundX)
+        if (!foundX && win.gridStep > 0)
             sx = Math.round(x / win.gridStep) * win.gridStep;
-        if (!foundY)
+        if (!foundY && win.gridStep > 0)
             sy = Math.round(y / win.gridStep) * win.gridStep;
 
         return win.clampPos(id, sx, sy);
