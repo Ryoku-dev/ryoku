@@ -100,6 +100,10 @@
   `../shell/matugen/config.toml`).
 
 ### Added
+- **Connections can show each Wi-Fi network's access points.** A Details toggle
+  next to Scan adds a line under every row with each band's BSSID, marking the
+  one you are connected to, so two networks sharing a name can be told apart.
+  It is off by default (`pages/ConnectionsPage.qml`, #776).
 - **Connections lists saved Wi-Fi networks first.** Saved networks in range,
   the connected one on top, sit under a Saved heading above Other networks
   (`pages/ConnectionsPage.qml`).

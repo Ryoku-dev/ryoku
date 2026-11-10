@@ -495,6 +495,20 @@ Item {
         // the user's per-SSID pick ("" means let NM choose, which favours the
         // 2.4 GHz AP at any range).
         property var bandMap: ({})
+        // Details shows each row's access points, so two networks sharing a
+        // name can be told apart; off by default, not persisted
+        property bool showDetails: false
+        function detailsLine(ssid) {
+            var entries = wifi.bandMap[ssid] || [];
+            var parts = [];
+            for (var i = 0; i < entries.length; i++) {
+                if (!entries[i].bssid.length)
+                    continue;
+                parts.push(wifi.bandLabel(entries[i].band) + " " + entries[i].bssid
+                    + (entries[i].active ? " " + I18n.tr("(connected)") : ""));
+            }
+            return parts.join("  \u00b7  ");
+        }
         property var selectedBands: ({})
 
         property string expandedSsid: ""
@@ -762,7 +776,7 @@ Item {
 
         Process {
             id: secProc
-            command: ["nmcli", "-t", "-f", "SSID,SECURITY,FREQ", "dev", "wifi", "list"]
+            command: ["nmcli", "-t", "-f", "SSID,SECURITY,FREQ,BSSID,SIGNAL,ACTIVE", "dev", "wifi", "list"]
             stdout: StdioCollector {
                 onStreamFinished: {
                     var secs = {};
@@ -779,15 +793,21 @@ Item {
                         var band = wifi.bandForFreq(mhz);
                         if (!band.length)
                             continue;
+                        // one entry per band: the connected AP, else the strongest,
+                        // whose BSSID the Details view shows
+                        var ap = { band: band, freq: mhz, bssid: f[3] || "",
+                            signal: parseInt(f[4], 10) || 0, active: f[5] === "yes" };
                         var entries = bands[f[0]] || [];
-                        var seen = false;
+                        var at = -1;
                         for (var j = 0; j < entries.length; j++)
                             if (entries[j].band === band) {
-                                seen = true;
+                                at = j;
                                 break;
                             }
-                        if (!seen)
-                            entries.push({ band: band, freq: mhz });
+                        if (at < 0)
+                            entries.push(ap);
+                        else if (ap.active || (!entries[at].active && ap.signal > entries[at].signal))
+                            entries[at] = ap;
                         bands[f[0]] = entries;
                     }
                     for (var s in bands)
@@ -975,11 +995,22 @@ Item {
                 Rectangle {
                     anchors.left: wifiSecLabel.right
                     anchors.leftMargin: Tokens.s3
-                    anchors.right: scanBtn.visible ? scanBtn.left : parent.right
-                    anchors.rightMargin: scanBtn.visible ? Tokens.s3 : 0
+                    anchors.right: detailsBtn.visible ? detailsBtn.left : parent.right
+                    anchors.rightMargin: detailsBtn.visible ? Tokens.s3 : 0
                     anchors.verticalCenter: parent.verticalCenter
                     height: 1
                     color: Tokens.lineSoft
+                }
+
+                Btn {
+                    id: detailsBtn
+                    anchors.right: scanBtn.left
+                    anchors.rightMargin: Tokens.s2
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: wifi.wifiOn
+                    text: I18n.tr("Details")
+                    primary: wifi.showDetails
+                    onAct: wifi.showDetails = !wifi.showDetails
                 }
 
                 Btn {
@@ -1143,8 +1174,9 @@ Item {
                             // Wi-Fi set, so it inverts to bone (DESIGN section 1).
                             Rectangle {
                                 id: rowBg
+                                readonly property string details: wifi.showDetails ? wifi.detailsLine(netItem.ssid) : ""
                                 width: parent.width
-                                height: 46
+                                height: details.length ? 60 : 46
                                 radius: Tokens.radius
                                 color: netItem.isActive
                                     ? Tokens.bone
@@ -1192,6 +1224,16 @@ Item {
                                         font.family: Tokens.ui
                                         font.pixelSize: Tokens.fMicro
                                         font.weight: Font.Medium
+                                        elide: Text.ElideRight
+                                    }
+
+                                    Text {
+                                        visible: rowBg.details.length > 0
+                                        width: parent.width
+                                        text: rowBg.details
+                                        color: netItem.isActive ? Tokens.inkOnBoneDim : Tokens.inkMuted
+                                        font.family: Tokens.mono
+                                        font.pixelSize: Tokens.fMicro
                                         elide: Text.ElideRight
                                     }
                                 }
