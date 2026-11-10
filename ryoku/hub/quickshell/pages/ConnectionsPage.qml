@@ -481,7 +481,13 @@ Item {
         readonly property int savedCount: netsSorted.filter(function(n) { return wifi.isSaved(n); }).length
 
         property var securityMap: ({})
+        // saved profiles keyed by the SSID they join, never by profile name:
+        // NetworkManager names a second profile for an SSID `<ssid> 1`, and an
+        // imported one can carry any name. profileUuids lists each SSID's
+        // profiles, most recently used first.
         property var knownProfiles: ({})
+        property var profileUuids: ({})
+        function uuidsFor(ssid) { return wifi.profileUuids[ssid] || []; }
 
         // per-saved-network autoconnect, read live from `nmcli`. a profile
         // rejoins on its own by default; turning it off stops the machine
@@ -551,14 +557,16 @@ Item {
             profProc.running = true;
         }
 
-        // flip a saved profile's autoconnect. the profile name equals the SSID
-        // for a network the row reads as saved (nmcli names it after the SSID),
-        // so the same key targets it. refresh re-reads the map on completion.
+        // flip autoconnect on every profile of the SSID, since any one left on
+        // rejoins it. refresh re-reads the map on completion.
         function setAutoconnect(ssid, enabled) {
-            if (wifi.autoBusy || !ssid.length)
+            var uuids = wifi.uuidsFor(ssid);
+            if (wifi.autoBusy || !uuids.length)
                 return;
             wifi.autoBusy = true;
-            autoProc.command = ["nmcli", "connection", "modify", ssid, "connection.autoconnect", enabled ? "yes" : "no"];
+            autoProc.command = ["sh", "-c",
+                'v=$1; shift; r=0; for u; do nmcli connection modify uuid "$u" connection.autoconnect "$v" || r=1; done; exit $r',
+                "sh", enabled ? "yes" : "no"].concat(uuids);
             autoProc.running = true;
         }
 
@@ -693,9 +701,17 @@ Item {
                 forgetReset.restart();
                 return;
             }
+            var uuids = wifi.uuidsFor(ssid);
             forgetReset.stop();
+            if (!uuids.length) {
+                wifi.forgetArmed = "";
+                return;
+            }
             wifi.forgetBusy = true;
-            forgetProc.command = ["nmcli", "connection", "delete", "id", ssid];
+            var cmd = ["nmcli", "connection", "delete"];
+            for (var i = 0; i < uuids.length; i++)
+                cmd.push("uuid", uuids[i]);
+            forgetProc.command = cmd;
             forgetProc.running = true;
         }
 
@@ -703,8 +719,8 @@ Item {
         // whole attempt, so it MUST NOT be in argv, and never through `nmcli
         // connection edit`, which keeps every line it reads in
         // ~/.cache/nmcli-history. connProc closes stdin after the password, so
-        // a rejected one ends nmcli's --ask prompt at once. Any saved profile of
-        // that name is replaced, and a failed join cleans up like a first join.
+        // a rejected one ends nmcli's --ask prompt at once. Every saved profile
+        // of the SSID is replaced, and a failed join cleans up like a first join.
         function connectWithPassword(ssid, pw) {
             if (connProc.running || !pw.length)
                 return;
@@ -716,8 +732,8 @@ Item {
             wifi.attemptAutoOff = wifi.knownProfiles[ssid] === true && wifi.autoconnectMap[ssid] === false;
             wifi.pendingPw = pw;
             connProc.command = ["sh", "-c",
-                'nmcli connection delete id "$1" </dev/null >/dev/null 2>&1; exec nmcli --ask dev wifi connect "$1"',
-                "sh", ssid];
+                's=$1; shift; for u; do nmcli connection delete uuid "$u" </dev/null >/dev/null 2>&1; done; exec nmcli --ask dev wifi connect "$s"',
+                "sh", ssid].concat(wifi.uuidsFor(ssid));
             connProc.stdinEnabled = true;
             connProc.running = true;
         }
@@ -736,7 +752,7 @@ Item {
             wifi.attemptAutoOff = false;
             wifi.pendingPw = "";
             connProc.command = wifi.attemptWasKnown
-                ? ["nmcli", "connection", "up", "id", ssid]
+                ? ["nmcli", "connection", "up", "uuid", wifi.uuidsFor(ssid)[0]]
                 : ["nmcli", "dev", "wifi", "connect", ssid];
             connProc.stdinEnabled = true;
             connProc.running = true;
@@ -843,21 +859,36 @@ Item {
 
         Process {
             id: profProc
-            command: ["nmcli", "-t", "-f", "NAME,TYPE,AUTOCONNECT", "connection", "show"]
+            // the profile list has no SSID column, so each Wi-Fi profile is read
+            // on its own; -g prints one field per line, the SSID last and
+            // unescaped so it is taken whole, then one tab-separated row each
+            command: ["sh", "-c",
+                'nmcli -t -f UUID,TYPE connection show | while IFS=: read -r u t; do '
+                + '[ "$t" = 802-11-wireless ] || continue; '
+                + 'nmcli -e no -g connection.autoconnect,connection.timestamp,802-11-wireless.ssid connection show uuid "$u" '
+                + '| { read -r a; read -r ts; IFS= read -r s; printf "%s\\t%s\\t%s\\t%s\\n" "$u" "$a" "$ts" "$s"; }; done']
             stdout: StdioCollector {
                 onStreamFinished: {
-                    var set = {};
-                    var auto = {};
+                    var rows = [];
                     var lines = this.text.split("\n");
                     for (var i = 0; i < lines.length; i++) {
-                        var f = wifi.terseFields(lines[i]);
-                        if (f.length >= 3 && f[0].length && f[1] === "802-11-wireless") {
-                            set[f[0]] = true;
-                            auto[f[0]] = f[2] === "yes";
-                        }
+                        var f = lines[i].split("\t");
+                        if (f.length >= 4 && f[0].length && f.slice(3).join("\t").length)
+                            rows.push({ uuid: f[0], auto: f[1] === "yes", ts: parseInt(f[2], 10) || 0, ssid: f.slice(3).join("\t") });
+                    }
+                    rows.sort(function(a, b) { return b.ts - a.ts; });
+                    var set = {};
+                    var auto = {};
+                    var uuids = {};
+                    for (var j = 0; j < rows.length; j++) {
+                        var r = rows[j];
+                        set[r.ssid] = true;
+                        auto[r.ssid] = auto[r.ssid] === true || r.auto;
+                        (uuids[r.ssid] = uuids[r.ssid] || []).push(r.uuid);
                     }
                     wifi.knownProfiles = set;
                     wifi.autoconnectMap = auto;
+                    wifi.profileUuids = uuids;
                 }
             }
         }
@@ -888,7 +919,10 @@ Item {
                     if (wifi.attemptAutoOff)
                         mods.push("connection.autoconnect", "no");
                     if (mods.length && wifi.attemptSsid.length) {
-                        bandProc.command = ["nmcli", "connection", "modify", wifi.attemptSsid].concat(mods);
+                        bandProc.command = ["sh", "-c",
+                            's=$1; shift; for u in $(nmcli -t -f UUID,TYPE connection show --active | awk -F: \'$2 == "802-11-wireless" { print $1 }\'); do '
+                            + '[ "$(nmcli -e no -g 802-11-wireless.ssid connection show uuid "$u")" = "$s" ] && exec nmcli connection modify uuid "$u" "$@"; done',
+                            "sh", wifi.attemptSsid].concat(mods);
                         bandProc.running = true;
                         return;
                     }
@@ -901,7 +935,11 @@ Item {
                         if (wifi.isSecured(wifi.attemptSsid) && /secret|supplicant|password/i.test(connErr.text))
                             wifi.savedJoinRejected(wifi.attemptSsid);
                     } else if (wifi.attemptSsid.length) {
-                        cleanupProc.command = ["nmcli", "connection", "delete", "id", wifi.attemptSsid];
+                        cleanupProc.command = ["sh", "-c",
+                            'nmcli -t -f UUID,TYPE connection show | while IFS=: read -r u t; do '
+                            + '[ "$t" = 802-11-wireless ] && [ "$(nmcli -e no -g 802-11-wireless.ssid connection show uuid "$u")" = "$1" ] '
+                            + '&& nmcli connection delete uuid "$u"; done; exit 0',
+                            "sh", wifi.attemptSsid];
                         cleanupProc.running = true;
                     }
                 }
@@ -929,10 +967,11 @@ Item {
             onTriggered: wifi.forgetArmed = ""
         }
 
-        // a failed `nmcli dev wifi connect` leaves a profile named after the
-        // SSID (nmcli names it after the SSID), so the cleanup keys on
-        // attemptSsid. without deleting it the next click reads the network as
-        // known and silently fails forever.
+        // a failed `nmcli dev wifi connect` leaves a profile behind, and
+        // without deleting it the next click reads the network as known and
+        // silently fails forever. Only a network with no saved profile gets
+        // here, so every profile of the SSID is the failed one; it is matched
+        // by SSID because nmcli names it `<ssid> 1` when the name is taken.
         Process {
             id: cleanupProc
             onExited: wifi.refresh()
@@ -940,8 +979,9 @@ Item {
 
         // carry the picked band (and an auto-reconnect the user had off) onto
         // the just-joined profile. nmcli's `dev wifi connect` takes no
-        // settings, so they ride on the profile after the join; the profile
-        // name equals the SSID, the same keying the autoconnect toggle uses.
+        // settings, so they ride on the profile after the join. The join may
+        // reuse a profile named other than the SSID, so the target is the
+        // active Wi-Fi profile for that SSID.
         Process {
             id: bandProc
             stdout: StdioCollector {}
