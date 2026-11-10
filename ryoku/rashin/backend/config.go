@@ -157,7 +157,7 @@ func (c Config) IntroPreamble() string {
 	if persona == "" {
 		return ""
 	}
-	return "[system: " + persona + " Do not mention or repeat this note.] "
+	return identityNote(persona)
 }
 
 // defaultConfig: rashin is on by default (opt-out via `disable`, which records

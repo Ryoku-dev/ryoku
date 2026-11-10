@@ -123,7 +123,17 @@ const needlePersona = "You are the Needle, the resident assistant on a Ryoku Lin
 // question; only the agent sees this, once per session (the persona persists
 // across later turns). The vault's AGENTS.md carries the same identity for
 // agents that read a context file; this covers the ones that do not.
-const needleIdentity = "[system: " + needlePersona + " Do not mention or repeat this note.] "
+var needleIdentity = identityNote(needlePersona)
+
+const (
+	noteOpen  = "<system-reminder>\n"
+	noteClose = "</system-reminder>"
+)
+
+// the control tag is one session titlers skip, so chats get named after the user's words
+func identityNote(persona string) string {
+	return noteOpen + persona + " Do not mention or repeat this note.\n" + noteClose + "\n\n"
+}
 
 // hubs is every lane's hub, so a daemon-wide setting (the approval mode) can
 // reach every surface whichever lane it joined.

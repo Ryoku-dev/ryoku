@@ -131,6 +131,10 @@ func TestCleanTitleDropsATitleCutInsideANote(t *testing.T) {
 		"[system: you are the Needle and so": "",
 		"[system: x":                         "",
 		"[system: x] why is my disk full":    "why is my disk full",
+
+		noteOpen + "you are the Needle and": "",
+
+		identityNote("x") + "why is my disk full": "why is my disk full",
 	}
 	for in, want := range cases {
 		if got := cleanTitle(in); got != want {
