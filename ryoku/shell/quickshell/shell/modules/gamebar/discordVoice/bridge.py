@@ -78,6 +78,7 @@ class VoiceBridge:
     def save_token(self, token: str) -> None:
         self.token_file.parent.mkdir(parents=True, exist_ok=True)
         fd = os.open(self.token_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        os.fchmod(fd, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             json.dump({"access_token": token}, handle)
 
