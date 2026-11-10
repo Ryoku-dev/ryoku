@@ -274,10 +274,8 @@ def resolve_rate(prices, model, context_input=0, service_tier="standard"):
             return None
     for tier in rate.get("tiers", []):
         if context_input > tier["above"]:
-            if tier.get("unsupported"):
-                return None
             rate = tier
-    return rate
+    return None if rate.get("unsupported") else rate
 
 
 def download(url):

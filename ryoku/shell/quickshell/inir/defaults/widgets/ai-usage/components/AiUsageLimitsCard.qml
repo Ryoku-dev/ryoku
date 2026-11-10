@@ -106,7 +106,7 @@ AiUsageGlassCard {
                 width: parent.width
                 label: modelData.label
                 caption: modelData.caption
-                share: modelData.pct + "% used"
+                share: Translation.tr("%1% used").arg(modelData.pct)
                 proportion: modelData.pct / 100
                 resetLabel: modelData.resetTs > 0 ? card.usage.resetAt(modelData.resetTs, page.translateTime)
                     : page.activeTool === "claude" ? Translation.tr("reset time unavailable") : ""

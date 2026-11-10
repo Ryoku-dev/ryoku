@@ -86,7 +86,7 @@ def stale_last() -> None:
         return
     try:
         cur = json.loads(CACHE_FILE.read_text())
-        cur["_source"] = "stale"
+        cur["_stale"] = True
         publish_cache(cur)
     except Exception:
         pass
@@ -476,7 +476,7 @@ def load_messages(horizon_s: float = WINDOW_HORIZON_S) -> list[dict]:
         # loaded message horizon, or when its creation time is unknown.
         if rows and agg.get("_history_complete", False):
             balance_session(rows, agg)
-        elif not rows and sid not in covered:
+        elif not rows and sid not in covered and agg.get("_history_complete", False):
             msgs.append(agg)
     msgs.sort(key=lambda m: m["time"])
     return msgs
@@ -756,7 +756,7 @@ def merge_day_history(days: list[dict], previous: dict) -> list[dict]:
     if not isinstance(previous, dict):
         return days
     old_days = previous.get("_days")
-    if previous.get("_source") not in ("storage", "storage+v2") or not isinstance(old_days, list):
+    if previous.get("_source") not in ("storage", "storage+v2", "stale") or not isinstance(old_days, list):
         return days
     by_date: dict[str, dict] = {str(d["date"]): d for d in days}
     for old in old_days:
@@ -790,7 +790,7 @@ def merge_hour_history(hours: list[dict], previous: dict) -> list[dict]:
     if not isinstance(previous, dict) or not hours:
         return hours
     old_hours = previous.get("_hours")
-    if previous.get("_source") not in ("storage", "storage+v2") or not isinstance(old_hours, list):
+    if previous.get("_source") not in ("storage", "storage+v2", "stale") or not isinstance(old_hours, list):
         return hours
     first = as_int(hours[0].get("start"))
     last = as_int(hours[-1].get("start"))

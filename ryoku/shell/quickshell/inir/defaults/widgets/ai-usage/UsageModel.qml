@@ -215,7 +215,7 @@ Item {
             root.has = true
             const age = Date.now() / 1000 - modifiedAt
             root.fresh = modifiedAt > 0 && age >= -120 && age < 900
-                && data._source !== "stale"
+                && data._source !== "stale" && data._stale !== true
             root.pct5h = root.pct(data["5h-utilization"])
             root.percent7d = root.pct(data["7d-utilization"])
             root.reset5hTs = parseInt(data["5h-reset"]) || 0

@@ -10,8 +10,7 @@ fi
 
 bin_dir="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 cache_dir="$HOME/.cache/ai-usage"
-# A visible Claude page needs short lifecycle refreshes. Keep those local to
-# Claude so they never start Codex RPC or the OpenCode collector every 5s.
+# An explicit Claude-only refresh must not start the other collectors.
 if [[ ${1:-} == --claude-only ]]; then
     mkdir -p -- "$cache_dir"
     exec "$bin_dir/claude-usage" --cache "$cache_dir/claude-usage.json"
@@ -36,7 +35,12 @@ if command -v codex >/dev/null 2>&1 || [[ -d "$codex_data" ]]; then
 fi
 
 claude_data="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-if [[ -d "$claude_data/projects" ]]; then
+claude_profile="$claude_data/.claude.json"
+if [[ "${claude_data%/}" == "$HOME/.claude" ]]; then
+    claude_profile="$HOME/.claude.json"
+fi
+if [[ -d "$claude_data/projects" || -d "$claude_data/sessions" \
+        || -f "$claude_data/.credentials.json" || -f "$claude_profile" ]]; then
     "$bin_dir/claude-usage" --cache "$cache_dir/claude-usage.json" || result=$?
 fi
 

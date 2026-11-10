@@ -23,6 +23,8 @@ caption. Today keeps local calendar-hour bins.
 Settings control card width, the number of top models and the default period.
 The same module provides a compact desktop tile. Existing user-installed copies
 take precedence over the built-in copy when they provide an Island entry.
+After collection, the tile keeps an available selected agent or falls back to
+another available agent without overwriting the saved selection.
 
 ## Collection and refresh
 
@@ -32,6 +34,9 @@ Opening the page requests an earlier collection. An active collection is shared
 instead of starting overlapping processes; private-lock contention retries.
 The worker ends with the shell and starts again when the module first loads in
 the next session. It does not start a separate login daemon.
+
+A configured Claude login can provide quota data before the first local project
+exists. Machines without Claude state do not gain an empty Claude entry.
 
 Each collector uses the files and authentication already available to its agent:
 

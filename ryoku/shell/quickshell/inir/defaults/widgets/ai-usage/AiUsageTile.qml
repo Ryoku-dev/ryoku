@@ -9,6 +9,7 @@ import inir.modules.common
 import inir.modules.common.widgets
 import inir.modules.common.functions
 import inir.modules.background.widgets
+import "components"
 
 AbstractBackgroundWidget {
     id: root
@@ -17,7 +18,12 @@ AbstractBackgroundWidget {
 
     readonly property string tool: CustomWidgets.getConfigValue("ai-usage", "tool", "opencode")
     readonly property var labels: ({ opencode: "OpenCode", claude: "Claude", codex: "Codex" })
-    readonly property string toolLabel: root.labels[root.tool] ?? root.tool
+    readonly property string activeTool: {
+        if (!availability.ready || !usage.collectionReady) return root.tool
+        const available = ["opencode", "codex", "claude"].filter(tool => availability[tool])
+        return available.includes(root.tool) ? root.tool : String(available[0] ?? "opencode")
+    }
+    readonly property string toolLabel: root.labels[root.activeTool] ?? root.activeTool
 
     implicitWidth: Math.round(172 * scaleFactor)
     implicitHeight: Math.round(64 * scaleFactor)
@@ -25,9 +31,14 @@ AbstractBackgroundWidget {
     resizeMinWidth: 120
     resizeMinHeight: 48
 
+    AgentAvailability {
+        id: availability
+    }
+
     UsageModel {
         id: usage
-        tool: root.tool
+        tool: root.activeTool
+        onCollected: availability.reloadAll()
     }
 
     Rectangle {
