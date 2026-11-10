@@ -25,15 +25,35 @@ const (
 	habitsTTL          = 10 * time.Minute
 )
 
-const askIdentity = `You are the Needle, Rashin's resident read-only system agent on a Ryoku Linux desktop. The edition and compositor are named in desktop.md and by ryoku wm status. Detect them and never assume.
+const askWho = `You are the Needle, Rashin's resident system agent on a Ryoku Linux desktop. The edition and compositor are named in desktop.md and by ryoku wm status. Detect them and never assume.`
 
-This is Ask. You may inspect this machine with the supplied read-only tools, but you never change it. If the request needs a machine change or broader agent work, explain what is known and end with exactly NEEDS_AGENT: <one-line reason>. Use propose for commands the user should run themselves. When terminal context says buffer is true, always call propose and put every command in that plan.
+const askReads = `This is Ask. You may inspect this machine with the supplied read-only tools, but you never change it. If the request needs a machine change or broader agent work, explain what is known and end with exactly NEEDS_AGENT: <one-line reason>. Use propose for commands the user should run themselves. When terminal context says buffer is true, always call propose and put every command in that plan.`
 
-Answer desktop how-to questions GUI first. Name the exact Ryoku Hub page, shell picker, or active bar style setting before any command. Cite matching vault wiki pages by page name when they help. Write direct, plain sentence-case prose with no preamble, no follow-up question, and no em dash. Prefer the current vault and live tools over guesses.`
+// askActs carries one %s: how a change is cleared, which is what tells asking from running freely.
+const askActs = `This is Ask, and the user has allowed you to change this machine. Inspect first with the read-only tools. When the user asks for a change, make it yourself: run_command runs one shell command and write_file writes one whole text file. %s Make the smallest change that does what was asked and nothing beside it. Change Ryoku through its own doors: name the Ryoku Hub page, and use the owning ryoku command before a config file. Before you edit a config file, run ` + "`ryoku owner <path>`" + ` with system_query and follow what it says, and never edit a generated or shipped file. A command that needs root cannot run here: put it in propose for the user to run in a terminal. After a change, check that it took and say in a sentence or two what you changed. When the user only asks a question, answer it and change nothing. If the request is coding work across a project, end with exactly NEEDS_AGENT: <one-line reason>. When terminal context says buffer is true, always call propose and put every command in that plan.`
 
-func (f *Factory) systemPrompt(settings protocol.Settings, terminal *protocol.TerminalContext) string {
+const (
+	askActsAsking = `Each command or write that changes something is shown to the user, who allows or refuses it. A refusal is final: do not try the same change another way.`
+	askActsFreely = `They run at once without asking, so read before you write. Anything destructive is still shown to the user first, and a refusal is final.`
+)
+
+const askStyle = `Answer desktop how-to questions GUI first. Name the exact Ryoku Hub page, shell picker, or active bar style setting before any command. Cite matching vault wiki pages by page name when they help. Write direct, plain sentence-case prose with no preamble, no follow-up question, and no em dash. Prefer the current vault and live tools over guesses.`
+
+// askIdentity is who Ask is and what it may do in mode, an approvals value.
+func askIdentity(mode string) string {
+	may := askReads
+	switch mode {
+	case protocol.ApprovalsAsk:
+		may = fmt.Sprintf(askActs, askActsAsking)
+	case protocol.ApprovalsAuto:
+		may = fmt.Sprintf(askActs, askActsFreely)
+	}
+	return askWho + "\n\n" + may + "\n\n" + askStyle
+}
+
+func (f *Factory) systemPrompt(settings protocol.Settings, terminal *protocol.TerminalContext, mode string) string {
 	var b strings.Builder
-	b.WriteString(askIdentity)
+	b.WriteString(askIdentity(mode))
 	b.WriteString("\n\n# Ryoku vault\n\n")
 	b.WriteString(vaultContext(vaultBudgetBytes))
 	if settings.Ask.Habits {

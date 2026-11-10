@@ -34,7 +34,14 @@ var askToolset = []llm.Tool{
 	{Name: "propose", Description: "Propose exact commands for the user to run. This tool never runs them.", Parameters: schema(`{"type":"object","properties":{"summary":{"type":"string"},"commands":{"type":"array","items":{"type":"object","properties":{"command":{"type":"string"},"why":{"type":"string"}},"required":["command"],"additionalProperties":false}}},"required":["commands"],"additionalProperties":false}`)},
 }
 
-func askTools() []llm.Tool { return askToolset }
+// askTools is what Ask is handed in mode: the tools that change the machine
+// only when the session allows it.
+func askTools(mode string) []llm.Tool {
+	if !acts(mode) {
+		return askToolset
+	}
+	return append(append(make([]llm.Tool, 0, len(askToolset)+len(actToolset)), askToolset...), actToolset...)
+}
 
 func schema(value string) json.RawMessage { return json.RawMessage(value) }
 

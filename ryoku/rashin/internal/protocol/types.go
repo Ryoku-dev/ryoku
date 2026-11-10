@@ -116,8 +116,11 @@ type SessionNewParams struct {
 	Harness string      `json:"harness,omitempty"`
 	Cwd     string      `json:"cwd,omitempty"`
 	Model   string      `json:"model,omitempty"`
-	Title   string      `json:"title,omitempty"`
-	Origin  string      `json:"origin,omitempty"`
+	// Mode is what a new Ask session may do: an Approvals value. Empty is
+	// read-only.
+	Mode   string `json:"mode,omitempty"`
+	Title  string `json:"title,omitempty"`
+	Origin string `json:"origin,omitempty"`
 	// Project binds an Agent session to a project. Worktree is "" (the project
 	// root, or Cwd without a project), "new" (create one from Base, named Name,
 	// on Branch or the project's prefix plus Name), or an existing worktree path.
@@ -179,7 +182,8 @@ type SetModelParams struct {
 	Model string `json:"model"`
 }
 
-// SetModeParams picks a harness mode for a session.
+// SetModeParams picks a mode for a session: one the harness offers, or for
+// Ask an Approvals value.
 type SetModeParams struct {
 	ID   string `json:"id"`
 	Mode string `json:"mode"`
@@ -639,10 +643,17 @@ const (
 	ApprovalsAuto     = "auto"
 )
 
-// AskSettings configures Ask.
+// KnownApprovals reports whether value is one of the three approval policies.
+func KnownApprovals(value string) bool {
+	return value == ApprovalsReadOnly || value == ApprovalsAsk || value == ApprovalsAuto
+}
+
+// AskSettings configures Ask. Approvals is what a new Ask in the app may do;
+// asks from the bar and the terminal stay read-only.
 type AskSettings struct {
-	Model  string `json:"model"`
-	Habits bool   `json:"habits"`
+	Model     string `json:"model"`
+	Habits    bool   `json:"habits"`
+	Approvals string `json:"approvals"`
 }
 
 // AgentSettings configures Agent sessions.

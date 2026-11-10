@@ -169,7 +169,7 @@ var Methods = []Method{
 	m(MSessionCancel, SessionRef{}, Empty{}, "Cancel the running turn."),
 	m(MSessionPermission, PermissionParams{}, Empty{}, "Answer a permission request."),
 	m(MSessionSetModel, SetModelParams{}, Empty{}, "Pick the session's model."),
-	m(MSessionSetMode, SetModeParams{}, Empty{}, "Pick the session's harness mode."),
+	m(MSessionSetMode, SetModeParams{}, Empty{}, "Pick the session's mode: a harness mode, or what Ask may do."),
 	m(MSessionRename, RenameParams{}, SessionInfo{}, "Rename a session."),
 	m(MSessionDelete, SessionRef{}, Empty{}, "Delete a session and its log."),
 	m(MSessionStop, SessionRef{}, Empty{}, "Stop the session's agent process; the session stays resumable."),

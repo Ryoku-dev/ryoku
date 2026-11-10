@@ -1385,3 +1385,34 @@ func TestTheLastExchangeKeepsWhatTheQuestionCarried(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 }
+
+// Only the client that can answer a request may say an Ask is allowed to act.
+// An ask from the bar or a terminal names no mode and stays read-only, and an
+// agent session takes its modes from its harness.
+func TestOnlyAnAskThatSaysSoMayAct(t *testing.T) {
+	manager, fromTerminal := testManager(t, &fakeRunner{})
+	if fromTerminal.Mode != "" {
+		t.Fatalf("an ask from a terminal has mode %q", fromTerminal.Mode)
+	}
+	acting, err := manager.create(protocol.SessionNewParams{Kind: protocol.KindAsk, Mode: protocol.ApprovalsAuto})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if acting.Mode != protocol.ApprovalsAuto {
+		t.Fatalf("an ask made to act has mode %q", acting.Mode)
+	}
+	unknown, err := manager.create(protocol.SessionNewParams{Kind: protocol.KindAsk, Mode: "anything"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if unknown.Mode != "" {
+		t.Fatalf("an unknown mode was kept as %q", unknown.Mode)
+	}
+	agent, err := manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent, Mode: protocol.ApprovalsAuto})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if agent.Mode != "" {
+		t.Fatalf("an agent session took an Ask mode: %q", agent.Mode)
+	}
+}

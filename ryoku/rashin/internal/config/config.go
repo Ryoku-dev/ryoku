@@ -25,7 +25,7 @@ const Version = 2
 func Defaults() protocol.Settings {
 	return protocol.Settings{
 		Enabled: false,
-		Ask:     protocol.AskSettings{Model: protocol.RouteAuto, Habits: true},
+		Ask:     protocol.AskSettings{Model: protocol.RouteAuto, Habits: true, Approvals: protocol.ApprovalsReadOnly},
 		Agent: protocol.AgentSettings{
 			Approvals:       protocol.ApprovalsReadOnly,
 			IdleStopMinutes: 10,
@@ -53,9 +53,10 @@ func Validate(s *protocol.Settings) {
 	if !validModel(s.Ask.Model) {
 		s.Ask.Model = d.Ask.Model
 	}
-	switch s.Agent.Approvals {
-	case protocol.ApprovalsReadOnly, protocol.ApprovalsAsk, protocol.ApprovalsAuto:
-	default:
+	if !protocol.KnownApprovals(s.Ask.Approvals) {
+		s.Ask.Approvals = d.Ask.Approvals
+	}
+	if !protocol.KnownApprovals(s.Agent.Approvals) {
 		s.Agent.Approvals = d.Agent.Approvals
 	}
 	s.Agent.Harness = strings.TrimSpace(s.Agent.Harness)

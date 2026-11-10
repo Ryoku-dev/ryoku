@@ -1,4 +1,6 @@
-// Package ask runs Rashin's read-only system agent on the built-in model router.
+// Package ask runs Rashin's system agent on the built-in model router. It
+// reads the machine to answer, and changes it only in a session the user set
+// to allow that.
 package ask
 
 import (
@@ -14,10 +16,15 @@ import (
 	i18n "ryoku-i18n"
 	"ryoku-rashin/internal/core"
 	"ryoku-rashin/internal/llm"
+	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 )
 
-const maxRounds = 8
+const (
+	maxRounds = 8
+	// a change is read, cleared, made and checked, which takes more rounds than a look
+	maxActRounds = 14
+)
 
 // Factory creates independent Ask session runners.
 type Factory struct {
@@ -32,9 +39,15 @@ func New(client llm.Client, idx core.Indexer) *Factory {
 	return &Factory{client: client, index: idx}
 }
 
-// NewAsk creates one stateful Ask session.
+// NewAsk creates one stateful Ask session. A session whose mode is not a known
+// approvals value, which is every session made before modes and every one
+// asked from the bar or a terminal, is read-only.
 func (f *Factory) NewAsk(opts core.AskOptions) core.Runner {
-	return &runner{factory: f, opts: opts, model: opts.Session.Model}
+	mode := opts.Session.Mode
+	if !protocol.KnownApprovals(mode) {
+		mode = protocol.ApprovalsReadOnly
+	}
+	return &runner{factory: f, opts: opts, model: opts.Session.Model, mode: mode}
 }
 
 type runner struct {
@@ -45,6 +58,14 @@ type runner struct {
 	model  string
 	strict bool
 	cancel context.CancelFunc
+
+	// mode is an approvals value: what this session may do to the machine
+	mode string
+	// allowed is set once the user allows changes for the whole conversation
+	allowed bool
+	pending map[string]pendingRequest
+	asked   int
+	kept    int
 }
 
 func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink) (core.TurnResult, error) {
@@ -75,16 +96,27 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 	if err != nil {
 		return core.TurnResult{Stop: protocol.StopError}, err
 	}
-	messages := []llm.Message{{Role: llm.RoleSystem, Content: r.factory.systemPrompt(settings, in.Terminal)}}
+	// the mode is read once a turn: what Ask was told it may do and the tools
+	// it was handed have to agree for the whole of it
+	mode := r.currentMode()
+	rounds := maxRounds
+	if acts(mode) {
+		rounds = maxActRounds
+	}
+	cwd := paths.Home()
+	if in.Terminal != nil && in.Terminal.Cwd != "" {
+		cwd = in.Terminal.Cwd
+	}
+	messages := []llm.Message{{Role: llm.RoleSystem, Content: r.factory.systemPrompt(settings, in.Terminal, mode)}}
 	messages = append(messages, historyMessages(in.History, historyBudgetBytes)...)
 	messages = append(messages, asked)
 
 	var usage protocol.TokenUsage
 	var last llm.Final
 	var plan *protocol.CommandPlan
-	for round := range maxRounds {
+	for round := range rounds {
 		stream, err := r.factory.client.Stream(ctx, llm.Request{
-			Model: model, Strict: strict, Messages: messages, Tools: askTools(), MaxTokens: 4096,
+			Model: model, Strict: strict, Messages: messages, Tools: askTools(mode), MaxTokens: 4096,
 		})
 		if err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
@@ -149,6 +181,16 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 		}
 
 		for _, call := range calls {
+			if actTool(call.Name) {
+				output, _ := r.act(ctx, call, sink, cwd)
+				messages = append(messages, llm.Message{
+					Role: llm.RoleTool, ToolCallID: call.ID, Name: call.Name, Content: output,
+				})
+				if ctx.Err() != nil {
+					return core.TurnResult{Stop: protocol.StopCancelled, Usage: usagePtr(usage)}, nil
+				}
+				continue
+			}
 			title, kind, input := toolPresentation(call)
 			sink.Emit(protocol.EvTool, protocol.ToolData{
 				Call: call.ID, Title: title, Kind: kind, Status: protocol.ToolRunning, Input: input,
@@ -179,7 +221,7 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 		}
 	}
 
-	note := i18n.T("I stopped after eight read-only tool rounds. Narrow the question or hand it to an Agent.")
+	note := i18n.Tf("I stopped after %d rounds of tools. Narrow the question or hand it to an Agent.", rounds)
 	messageID := fmt.Sprintf("ask-%d-limit", in.Turn)
 	sink.Emit(protocol.EvText, protocol.TextData{Message: messageID, Delta: note})
 	sink.Emit(protocol.EvAnswer, protocol.AnswerData{Actions: extractActions(note), Plan: plan, Via: via(last)})
@@ -195,8 +237,31 @@ func (r *runner) Cancel() {
 	}
 }
 
-func (r *runner) Permission(_, _ string) error {
-	return protocol.Errorf(protocol.CodeUnsupported, "%s", i18n.T("Ask has no permissions because its tools are read only."))
+func (r *runner) Permission(request, option string) error {
+	r.mu.Lock()
+	open, ok := r.pending[request]
+	if !ok {
+		r.mu.Unlock()
+		return protocol.Errorf(protocol.CodeNotFound, "%s", i18n.T("This request is no longer open. Ask again."))
+	}
+	kind := ""
+	for _, offered := range open.options {
+		if offered.ID == option {
+			kind = offered.Kind
+		}
+	}
+	if kind == "" {
+		r.mu.Unlock()
+		return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("This answer is not one of the choices. Pick one of those shown."))
+	}
+	delete(r.pending, request)
+	if kind == protocol.OptAllowAlways {
+		r.allowed = true
+	}
+	r.mu.Unlock()
+	open.sink.Emit(protocol.EvPermissionResolved, protocol.PermissionResolvedData{Request: request, Option: option, Outcome: "selected", By: "user"})
+	open.answer <- option
+	return nil
 }
 
 func (r *runner) SetModel(_ context.Context, model string, sink core.Sink) error {
@@ -208,8 +273,20 @@ func (r *runner) SetModel(_ context.Context, model string, sink core.Sink) error
 	return nil
 }
 
-func (r *runner) SetMode(_ context.Context, _ string, _ core.Sink) error {
-	return protocol.Errorf(protocol.CodeUnsupported, "%s", i18n.T("Ask does not have modes."))
+// SetMode sets what this session may do. Going back to read-only also takes
+// back an earlier "allow in this conversation".
+func (r *runner) SetMode(_ context.Context, mode string, sink core.Sink) error {
+	if !protocol.KnownApprovals(mode) {
+		return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Ask can be read-only, ask first, or act without asking."))
+	}
+	r.mu.Lock()
+	r.mode = mode
+	if !acts(mode) {
+		r.allowed = false
+	}
+	r.mu.Unlock()
+	sink.Update(func(info *protocol.SessionInfo) { info.Mode = mode })
+	return nil
 }
 
 func (r *runner) Alive() bool            { return false }

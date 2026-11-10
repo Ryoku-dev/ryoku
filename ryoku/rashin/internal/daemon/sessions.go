@@ -171,6 +171,11 @@ func (m *sessionManager) create(p protocol.SessionNewParams) (protocol.SessionIn
 	if info.Model == "" && info.Kind == protocol.KindAsk {
 		info.Model = m.settings().Ask.Model
 	}
+	// only the client says an Ask may change the machine: the bar and the
+	// terminal never do, so theirs stay read-only whatever the default is
+	if info.Kind == protocol.KindAsk && protocol.KnownApprovals(p.Mode) {
+		info.Mode = p.Mode
+	}
 	log, err := store.Create(info, nil)
 	if err != nil {
 		return protocol.SessionInfo{}, err
