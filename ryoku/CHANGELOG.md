@@ -36,6 +36,8 @@
 - **A waiting agent can be answered from the keyboard.** With nothing typed,
   Enter allows once and Escape refuses, and the composer says so. Words in the
   field are still a message (`rashin/internal/app/chat/permission.go`).
+- **`ryoku-app` hands a target to any role.** `ryoku-app files -- ~/Work` opens
+  the chosen file manager at that folder (`shell/scripts/ryoku-app`).
 - **Prowl and the Rashin 1 lanes are removed.** Rashin no longer carries the
   Prowl gateway, web dashboard, Hermes setup, terminal recipes or command
   learning.

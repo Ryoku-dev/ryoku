@@ -3,6 +3,7 @@
 #
 #	ryoku-app terminal              open the terminal
 #	ryoku-app terminal -- btop      run btop inside it
+#	ryoku-app files -- ~/Work       open the file manager at a folder
 #
 # The choice lives in the Hub's store (~/.config/ryoku/desktop.json,
 # "desktop.apps"); the Default Apps page (Ryoku Settings) writes it. Reading it
@@ -19,14 +20,14 @@ unset __QUICKSHELL_CRASH_INFO_FD __QUICKSHELL_CRASH_DUMP_PID \
 	__QUICKSHELL_CRASH_DUMP_FD __QUICKSHELL_CRASH_LOG_FD __QUICKSHELL_CRASH_SIGNAL
 
 role="${1:-}"
-[ -n "$role" ] || { echo "usage: ryoku-app <role> [-- <program> [arg...]]" >&2; exit 2; }
+[ -n "$role" ] || { echo "usage: ryoku-app <role> [-- <program or target> [arg...]]" >&2; exit 2; }
 shift
 
 inner=()
 if [ "${1:-}" = "--" ]; then
 	shift
 	inner=("$@")
-	[ ${#inner[@]} -gt 0 ] || { echo "ryoku-app: -- needs a program to run" >&2; exit 2; }
+	[ ${#inner[@]} -gt 0 ] || { echo "ryoku-app: -- needs something to hand over" >&2; exit 2; }
 fi
 
 conf="${XDG_CONFIG_HOME:-$HOME/.config}/ryoku"
@@ -85,11 +86,15 @@ if [ ${#inner[@]} -eq 0 ]; then
 	exec sh -c "$cmd"
 fi
 
-# Handing a program over is per-emulator: kitty and foot take trailing argv.
+# What follows -- is handed to the app. A terminal runs it as a program, and how
+# it takes one is per-emulator: kitty and foot take trailing argv. Every other
+# role takes it as plain arguments: a folder for files, an address for browser.
 read -r -a argv <<<"$cmd"
-case "${argv[0]##*/}" in
-kitty | foot) ;;
-wezterm) argv+=(start --) ;;
-*) argv+=(-e) ;;
-esac
+if [ "$role" = terminal ]; then
+	case "${argv[0]##*/}" in
+	kitty | foot) ;;
+	wezterm) argv+=(start --) ;;
+	*) argv+=(-e) ;;
+	esac
+fi
 exec "${argv[@]}" "${inner[@]}"

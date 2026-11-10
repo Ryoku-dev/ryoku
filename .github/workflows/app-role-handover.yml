@@ -1,0 +1,40 @@
+name: App role handover
+
+# ryoku-app (shell/scripts/ryoku-app) launches the user's app for a role and
+# hands it what follows --: a program for the terminal, in the form that
+# emulator takes, and plain arguments for every other role, which is how the
+# file manager opens at a folder. tests stub the apps and check each form. see
+# tests/app-role-handover.sh.
+
+on:
+  pull_request:
+    paths:
+      - 'ryoku/shell/scripts/ryoku-app'
+      - 'tests/app-role-handover.sh'
+      - '.github/workflows/app-role-handover.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'ryoku/shell/scripts/ryoku-app'
+      - 'tests/app-role-handover.sh'
+      - '.github/workflows/app-role-handover.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  app-role-handover:
+    name: A role hands its app a program or a target
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install jq, which the script reads the role store with
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Role handover
+        shell: bash
+        run: bash tests/app-role-handover.sh
