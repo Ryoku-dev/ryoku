@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Fixed
+- **Fastfetch reads the wallpaper-tinted config again.** The effective config
+  keeps the `// ryoku:` header comments from `config.jsonc`, so it is now
+  cached as `fastfetch-effective.jsonc`; fastfetch rejects comments in a
+  `.json` file and every terminal opened with a parse error (#746).
 - Fix with AI can use Codex with a repair-specific model and reasoning effort.
   Terminal launches now precede the health scan so progress and errors stay visible.
 - **Adaptive sync keeps its saved state in Displays.** Hyprland and niri now
