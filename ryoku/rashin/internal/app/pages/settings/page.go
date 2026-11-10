@@ -7,6 +7,7 @@ import (
 	"image"
 
 	"gioui.org/layout"
+	"gioui.org/op"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"ryoku-i18n"
@@ -152,8 +153,8 @@ func (p *Page) layoutBody(gtx layout.Context, e *env.Env) layout.Dimensions {
 			return p.index.Layout(gtx, th.Theme, labels, p.current, kit.FrameExpanded)
 		})
 		p.choose()
-		look.Place(gtx, image.Rect(left+rail+gap, 0, left+rail+gap+column, size.Y), func(gtx layout.Context) layout.Dimensions {
-			return p.layoutSections(gtx, e)
+		look.Place(gtx, image.Rect(left+rail+gap, 0, size.X, size.Y), func(gtx layout.Context) layout.Dimensions {
+			return p.layoutSections(gtx, e, 0, column)
 		})
 		return layout.Dimensions{Size: size}
 	}
@@ -167,8 +168,8 @@ func (p *Page) layoutBody(gtx layout.Context, e *env.Env) layout.Dimensions {
 		}).Size.Y + gtx.Dp(13)
 		p.choose()
 	}
-	look.Place(gtx, image.Rect(left, chips, left+width, size.Y), func(gtx layout.Context) layout.Dimensions {
-		return p.layoutSections(gtx, e)
+	look.Place(gtx, image.Rect(0, chips, size.X, size.Y), func(gtx layout.Context) layout.Dimensions {
+		return p.layoutSections(gtx, e, left, width)
 	})
 	return layout.Dimensions{Size: size}
 }
@@ -189,7 +190,8 @@ func (p *Page) choose() {
 	}
 }
 
-func (p *Page) layoutSections(gtx layout.Context, e *env.Env) layout.Dimensions {
+// the list takes the pane out to its edge so the wheel works beside the column and the thumb stands at the edge
+func (p *Page) layoutSections(gtx layout.Context, e *env.Env, inset, width int) layout.Dimensions {
 	th := e.Theme
 	return p.scroll.Layout(gtx, th, sectionCount, func(gtx layout.Context, index int) layout.Dimensions {
 		top, bottom := th.Sp.S5, th.Sp.S1
@@ -197,7 +199,10 @@ func (p *Page) layoutSections(gtx layout.Context, e *env.Env) layout.Dimensions 
 			// room under the last section so it can still reach the top
 			bottom = th.Sp.S6
 		}
-		return layout.Inset{Top: top, Bottom: bottom}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		full := gtx.Constraints.Max.X
+		gtx.Constraints.Min.X, gtx.Constraints.Max.X = min(gtx.Constraints.Min.X, width), width
+		defer op.Offset(image.Pt(inset, 0)).Push(gtx.Ops).Pop()
+		dimensions := layout.Inset{Top: top, Bottom: bottom}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			switch index {
 			case sectionRashin:
 				return p.layoutRashin(gtx, e)
@@ -217,6 +222,7 @@ func (p *Page) layoutSections(gtx layout.Context, e *env.Env) layout.Dimensions 
 				return p.layoutKeys(gtx, e)
 			}
 		})
+		return layout.Dimensions{Size: image.Pt(full, dimensions.Size.Y)}
 	})
 }
 

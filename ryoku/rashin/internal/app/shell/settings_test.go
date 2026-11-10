@@ -4,6 +4,9 @@ import (
 	"image"
 	"testing"
 
+	"gioui.org/f32"
+	"gioui.org/io/pointer"
+
 	"ryoku-rashin/internal/protocol"
 )
 
@@ -69,4 +72,26 @@ func TestSettingsSteppersChangeWhatTheyName(t *testing.T) {
 	stage.await("the idle stop grows by a minute", func() bool {
 		return stage.runtime.store.Snapshot().Settings.Agent.IdleStopMinutes == before+1
 	})
+}
+
+// The sections stand in a column in the middle of the pane. The wheel used
+// to move them only with the pointer over that column.
+func TestTheWheelMovesSettingsFromBesideItsColumn(t *testing.T) {
+	for _, size := range []image.Point{{1440, 900}, {700, 800}} {
+		stage := newStage(t, size)
+		stage.open("settings")
+		top, ok := stage.named("Rashin is on")
+		if !ok {
+			t.Fatalf("at %v Settings does not open on its first switch: %v", size, stage.names())
+		}
+		beside := f32.Pt(float32(size.X-12), float32(size.Y/2))
+		stage.queue(
+			pointer.Event{Kind: pointer.Move, Position: beside},
+			pointer.Event{Kind: pointer.Scroll, Position: beside, Scroll: f32.Pt(0, 240)},
+		)
+		stage.settle()
+		if moved, still := stage.named("Rashin is on"); still && moved.Desc.Bounds.Min.Y >= top.Desc.Bounds.Min.Y {
+			t.Fatalf("at %v the wheel beside the column left the first switch at %d", size, moved.Desc.Bounds.Min.Y)
+		}
+	}
 }
