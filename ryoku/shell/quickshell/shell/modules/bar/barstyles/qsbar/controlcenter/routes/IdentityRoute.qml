@@ -304,10 +304,37 @@ Item {
             }
 
 
-            // ── PREVIEW ──
+            // ── workspaces: ISOLATE ──
             Entrance {
                 width: page.colW
                 index: 4
+                SettingCard {
+                    width: page.colW
+                    title: I18n.tr("ISOLATE")
+                    kana: "\u5206"
+
+                    SettingRow {
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        label: I18n.tr("Per-monitor")
+                        desc: I18n.tr("Each bar shows only the workspaces on its own screen.")
+                        source: "shell.json"
+                        controlWidth: Math.max(120, 62 * 2)
+                        Seg {
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            options: [I18n.tr("Off"), I18n.tr("On")]
+                            current: page.root && page.root.isolateMonitors ? I18n.tr("On") : I18n.tr("Off")
+                            onChose: (key) => { if (page.root) page.root.isolateMonitors = (key === I18n.tr("On")) }
+                        }
+                    }
+                }
+            }
+
+            // ── PREVIEW ──
+            Entrance {
+                width: page.colW
+                index: 5
                 SettingCard {
                     width: page.colW
                     title: I18n.tr("PREVIEW")

@@ -2,7 +2,11 @@
   { "id": "launcher",   "gid": "G1",  "label": "Launcher",        "gloss": "起動", "category": "Bar",
     "desc": "The mark that opens the launcher and this panel. Choose it in Identity." },
   { "id": "workspaces", "gid": "G2",  "label": "Workspaces",      "gloss": "間",   "category": "Bar",
-    "desc": "The workspace row. Its count and marker are set in Identity." },
+    "desc": "The workspace row. Its count and marker are set in Identity.",
+    "settings": [
+      { "key": "workspaceMode",   "type": "choice", "label": "Shown",            "options": ["active", "5", "10"] },
+      { "key": "workspaceStyle",  "type": "choice", "label": "Marker",           "options": ["default", "numbers", "magic", "kanji", "rings", "aurora", "pacman"] },
+      { "key": "isolateMonitors", "type": "toggle", "label": "Isolate monitors" } ] },
   { "id": "status",     "gid": "G3",  "label": "Status",          "visKey": "status",   "desc": "Arch update, tray, notifications" },
   { "id": "memory",     "gid": "G4",  "label": "Memory",          "visKey": "memory" },
   { "id": "cpu",        "gid": "G5",  "label": "CPU",             "visKey": "cpu" },

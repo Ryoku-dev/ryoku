@@ -2342,6 +2342,8 @@ Item {
     // ── workspace display style (orthogonal to mode; persisted) ──
     // "rings" is the stable cache token for the user-facing Frame style.
     property string workspaceStyle: "default"   // default, numbers, magic, kanji, rings, aurora
+// Workspace monitor isolation (persisted)
+    property bool isolateMonitors: false
     // The marker styles this variant offers (continuous V2 adds Kanji, Frame,
     // Aurora; "rings" is the persisted cache token for the Frame style).
     readonly property var workspaceStyleOptions: [
@@ -2713,6 +2715,7 @@ Item {
     onLauncherLogoIconChanged: if (_widgetsLoaded) saveWidgets()
     onWeatherImperialChanged: if (_widgetsLoaded) saveWidgets()
     onWorkspaceStyleChanged:   if (_widgetsLoaded) saveWidgets()
+    onIsolateMonitorsChanged:  if (_widgetsLoaded) persistWidgetsToConfig()
     onBarPositionChanged:      if (_widgetsLoaded) saveWidgets()
     onBarScaleChanged:         if (_widgetsLoaded) saveWidgets()
     onBarShellStyleChanged:    if (_widgetsLoaded) saveWidgets()
@@ -3010,6 +3013,7 @@ Item {
         q.barPosition = barPosition
         q.workspaceMode = workspaceMode
         q.workspaceStyle = workspaceStyle
+        q.isolateMonitors = isolateMonitors
         q.pickerStyle = pickerStyle
         q.launcherLogoMode = launcherLogoMode
         q.aiTools = serializeAiTools()
@@ -3079,6 +3083,7 @@ Item {
         if (q.barPosition === "top" || q.barPosition === "bottom") barPosition = q.barPosition
         if (q.workspaceMode !== undefined) workspaceMode = q.workspaceMode
         if (q.workspaceStyle  !== undefined) workspaceStyle  = q.workspaceStyle
+        if (q.isolateMonitors !== undefined) isolateMonitors = q.isolateMonitors === true
         if (q.pickerStyle     !== undefined) pickerStyle     = q.pickerStyle
         if (q.launcherLogoMode !== undefined) launcherLogoMode = q.launcherLogoMode
         if (q.aiTools !== undefined) parseAiTools(q.aiTools)
