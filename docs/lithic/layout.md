@@ -315,6 +315,21 @@ view follows the end while an answer is still arriving, until the reader
 scrolls away. When they have, one small icon plaque above the composer returns
 to the end.
 
+**What is said is never cut.** A line of an answer breaks; it does not end in
+an ellipsis. An address or a command longer than the column breaks where it
+must, code that fits on a line stays whole on one, and a table gives its
+narrow columns their width and wraps the wide ones. Code inside a sentence
+stands on a `stone3` plate cut 3 with 6 either side of it. A face that has no
+italic leans its emphasis rather than drop it.
+
+**Text can be marked.** Every paragraph, question and block of code can be
+selected with the pointer and copied, with `sel` at 60% under the marked
+words. A second press takes a word, or all of a piece of code, since that is
+what gets copied whole. One stretch is marked at a time, and only while the
+transcript holds the keyboard: marks that stay lit after the keyboard has
+gone look like something a copy would take. The message menu offers the
+marked words first: to copy, or to quote in the reply.
+
 **Work between question and answer** is one line, not a card: a 16 icon, what
 was done in `label`, the literal part in `monoSm`, and its claim only while it
 runs or when it failed. Steps that ran back to back fold into one line with a
@@ -328,6 +343,12 @@ column: its claim, what is asked in `title`, the literal command or path in
 `mono`, then one gold plaque for the narrowest consent, a line plaque for a
 wider one and a quiet plaque to refuse. Once answered it folds to one line
 that records the answer.
+A request can be answered from the composer too, since that is where the
+keyboard is: with nothing typed, Enter gives the narrowest consent and Escape
+refuses, and the composer's hint line says so for as long as that holds.
+Words in the field are a message, so neither key answers then. A key never
+answers a request that is off screen, or one that has been on screen for less
+than half a second: it was pressed before anyone could have read it.
 
 **The composer** is one field with its controls inside: `stone3`, cut 7, the
 text in `proof` with 16 around it, and under the text a row of small plaques,
@@ -342,8 +363,10 @@ queue the message or steer the turn instead.
 
 The keyboard belongs to the composer. It has it when its page opens, and
 gets it back when a menu in its own row, the search field or a dialog closes,
-and after an action in the transcript such as copying an answer. Nobody
-should have to press the field before they can type again.
+and after an action in the transcript such as copying an answer. Marked
+text is the one thing in the transcript that takes it, for as long as it is
+marked; Escape, or a press that marked nothing, hands it back. Nobody should
+have to press the field before they can type again.
 
 **A new conversation** opens on the composer, not on an empty transcript: one
 `sentence` that says what can be asked, one `proof` line under it, the

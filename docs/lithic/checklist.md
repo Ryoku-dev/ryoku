@@ -93,6 +93,13 @@ and in a light Ryoku palette and go down the list. Every "no" is a defect.
 - [ ] Escape closes the topmost thing first and nothing else.
 - [ ] Popover's full-window catcher and Dialog's scrim swallow the outside
       press that closes them; input beneath stays blocked through the exit.
+- [ ] In a conversation no line of an answer ends in an ellipsis: text
+      wraps, long addresses and commands break, tables wrap their wide
+      columns.
+- [ ] Text in a conversation can be marked and copied; the marks go when the
+      keyboard leaves them.
+- [ ] A key answers a waiting request only from an empty composer, only for a
+      request on screen, and the composer says which key does what.
 - [ ] Tab reaches every control; the ring shows only for keyboard focus; icon
       plaques have descriptions.
 - [ ] Polling and repainting stop for what is hidden.
