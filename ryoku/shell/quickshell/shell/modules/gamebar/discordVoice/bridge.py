@@ -212,7 +212,10 @@ class VoiceBridge:
                 pass
             else:
                 existing.close()
-                await existing.wait_closed()
+                try:
+                    await asyncio.wait_for(existing.wait_closed(), COMPANION_WRITE_TIMEOUT)
+                except (asyncio.TimeoutError, OSError):
+                    pass
                 emit("companion_error", message="A Ryoku voice bridge is already running")
                 return
             self.companion_path.unlink(missing_ok=True)
