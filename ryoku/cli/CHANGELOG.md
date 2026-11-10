@@ -15,6 +15,8 @@
   the installer gave the first account; a brand-new account starts on the default rice.
 - **Doctor no longer locks other accounts out of snapshots.** Granting snapshot
   read access adds the account beside the ones snapper already allows.
+- **Accounts added in Ryoku Hub log into the administrator's shell.** They used
+  to get bash, which skips Ryoku's terminal setup.
 - **Doctor recognizes the shell's own visualizer and file watchers.** Memory
   checks no longer report those helpers as user apps left inside the desktop
   service (`internal/doctor/memory.go`).

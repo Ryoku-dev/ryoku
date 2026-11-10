@@ -264,7 +264,8 @@ func (a *App) usersAdd(args []string) int {
 			return a.usersFail(err.Error())
 		}
 	}
-	useradd := []string{"--user-group", "--shell", "/bin/bash", "--comment", fullName, "--home-dir", home}
+	shell := newAccountShell(users, currentUserName(a, users))
+	useradd := []string{"--user-group", "--shell", shell, "--comment", fullName, "--home-dir", home}
 	if storageCaps.Subvolumes {
 		useradd = append(useradd, "--no-create-home")
 	} else {
@@ -750,6 +751,20 @@ func realLoginShell(shell string) bool {
 	}
 	base := filepath.Base(shell)
 	return base != "false" && base != "nologin"
+}
+
+// the installer gives every account it creates the same login shell, so an
+// account added later follows the administrator adding it
+func newAccountShell(users []localUser, caller string) string {
+	for _, user := range users {
+		if user.Name != caller || !realLoginShell(user.Shell) {
+			continue
+		}
+		if info, err := os.Stat(user.Shell); err == nil && info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0 {
+			return user.Shell
+		}
+	}
+	return "/bin/bash"
 }
 
 func userInGroup(user localUser, group *localGroup) bool {
