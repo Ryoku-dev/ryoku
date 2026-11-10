@@ -22,6 +22,8 @@ import (
 type Navigate func(tab, session string)
 type WorkNavigate func(project, tab, worktree string)
 
+// Env is what the frame hands a page each frame: the theme, the store, the
+// daemon client, and the few frame facilities a page may use.
 type Env struct {
 	Theme        *look.Theme
 	Store        *state.Store
@@ -30,6 +32,18 @@ type Env struct {
 	Navigate     Navigate
 	NavigateWork WorkNavigate
 	Post         func(func())
+	Class        look.Class
+	// PanelOpen says whether the side panel is shown; TogglePanel flips it.
+	PanelOpen   bool
+	TogglePanel func()
+	// Notify shows a transient result at the foot of the content pane.
+	Notify func(text string)
+	// Zoom is the app's zoom in percent and SetZoom changes it; ReduceMotion
+	// and SetReduceMotion do the same for the app's own motion setting.
+	Zoom            int
+	SetZoom         func(percent int)
+	ReduceMotion    bool
+	SetReduceMotion func(bool)
 }
 
 func (e *Env) Snapshot() state.Snapshot { return e.Store.Snapshot() }
@@ -144,8 +158,37 @@ func HandleChatActions(gtx layout.Context, e *Env, id string, actions []chat.Act
 			})
 		case chat.ActCancel:
 			e.Call(protocol.MSessionCancel, protocol.SessionRef{ID: id}, new(protocol.Empty), nil)
+		case chat.ActRetry:
+			if action.Value != "" {
+				e.Submit(id, false, chat.Submission{Text: action.Value})
+			}
+		case chat.ActUnqueue:
+			e.Call(protocol.MSessionUnqueue, protocol.UnqueueParams{ID: id, Queue: action.Value}, new(protocol.SessionInfo), nil)
 		}
 	}
+}
+
+// Submit sends what the composer produced: a prompt to an idle session, a
+// queued follow-up to a busy one, or a steer that replaces the running turn.
+func (e *Env) Submit(id string, busy bool, submission chat.Submission) {
+	report := func(err error) {
+		if err != nil && e.Notify != nil {
+			e.Notify(err.Error())
+		}
+	}
+	if busy && !submission.Steer {
+		e.Call(protocol.MSessionQueue, protocol.QueueParams{ID: id, Text: submission.Text}, new(protocol.SessionInfo), report)
+		return
+	}
+	images := make([]protocol.Attachment, len(submission.Images))
+	for index, path := range submission.Images {
+		images[index] = protocol.Attachment{Path: path}
+	}
+	method := protocol.MSessionPrompt
+	if submission.Steer {
+		method = protocol.MSessionSteer
+	}
+	e.Call(method, protocol.PromptParams{ID: id, Text: submission.Text, Images: images}, new(protocol.PromptResult), report)
 }
 
 func Spawn(name string, args ...string) { spawn(name, args...) }

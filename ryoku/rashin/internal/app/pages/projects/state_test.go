@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"ryoku-rashin/internal/app/env"
 	appstate "ryoku-rashin/internal/app/state"
 	"ryoku-rashin/internal/protocol"
 )
@@ -114,40 +115,81 @@ func TestProjectLoadsRetryAfterConnectionBecomesReady(t *testing.T) {
 	}
 }
 
-func TestGroupTasksUsesBoardStatus(t *testing.T) {
-	tasks := []protocol.TaskInfo{
+func TestTaskListPutsWhatNeedsTheReaderFirstAndDropsEmptyGroups(t *testing.T) {
+	items := taskItems([]protocol.TaskInfo{
 		{ID: "one", Status: protocol.TaskBacklog},
 		{ID: "two", Status: protocol.TaskWorking},
 		{ID: "three", Status: protocol.TaskBacklog},
 		{ID: "four", Status: protocol.TaskNeedsYou},
+	})
+	var order []string
+	for _, item := range items {
+		if item.header != "" {
+			order = append(order, "#"+item.header)
+			if item.count == 0 {
+				t.Fatalf("group %q is shown with nothing in it", item.header)
+			}
+			continue
+		}
+		order = append(order, item.task.ID)
 	}
-	groups := groupTasks(tasks)
-	if len(groups[protocol.TaskBacklog]) != 2 || groups[protocol.TaskBacklog][0].ID != "one" || groups[protocol.TaskBacklog][1].ID != "three" {
-		t.Fatalf("backlog = %#v", groups[protocol.TaskBacklog])
+	want := []string{"#Needs you", "four", "#Working", "two", "#Backlog", "one", "three"}
+	if len(order) != len(want) {
+		t.Fatalf("task list = %v, want %v", order, want)
 	}
-	if len(groups[protocol.TaskWorking]) != 1 || groups[protocol.TaskWorking][0].ID != "two" {
-		t.Fatalf("working = %#v", groups[protocol.TaskWorking])
-	}
-	if len(groups[protocol.TaskNeedsYou]) != 1 || groups[protocol.TaskNeedsYou][0].ID != "four" {
-		t.Fatalf("needs you = %#v", groups[protocol.TaskNeedsYou])
-	}
-	for _, status := range boardStatuses {
-		if _, ok := groups[status]; !ok {
-			t.Fatalf("missing board column %q", status)
+	for index := range want {
+		if order[index] != want[index] {
+			t.Fatalf("task list = %v, want %v", order, want)
 		}
 	}
 }
 
-func TestRemoveParamsRequiresForceFromPreview(t *testing.T) {
-	clean := removeParams(protocol.RemovePreview{Path: "/work/clean", NeedsForce: false}, false, false)
-	if clean.Force {
-		t.Fatal("clean preview unexpectedly forces removal")
+func TestRemovingAWorktreeThatHoldsWorkTakesItsName(t *testing.T) {
+	clean := protocol.RemovePreview{Path: "/work/clean", CanRemove: true}
+	dirty := protocol.RemovePreview{Path: "/work/dirty", CanRemove: true, NeedsForce: true}
+	blocked := protocol.RemovePreview{Path: "/work/main"}
+	if !removeReady(clean, "clean", "") {
+		t.Fatal("a worktree with nothing to lose asked for its name")
 	}
-	dirty := removeParams(protocol.RemovePreview{Path: "/work/dirty", NeedsForce: true}, true, true)
-	if !dirty.Force {
-		t.Fatal("preview that needs force did not set Force")
+	if removeReady(dirty, "dirty", "") || removeReady(dirty, "dirty", "dirt") {
+		t.Fatal("a worktree that holds work could be removed without typing its name")
 	}
-	if !dirty.DeleteBranch || !dirty.ForceBranch {
-		t.Fatalf("branch choices were lost: %#v", dirty)
+	if !removeReady(dirty, "dirty", " dirty ") {
+		t.Fatal("typing the name did not allow the removal")
+	}
+	if removeReady(blocked, "main", "main") {
+		t.Fatal("a worktree that cannot be removed was allowed to be")
+	}
+
+	if removeParams(clean, false, false).Force {
+		t.Fatal("a clean removal was forced")
+	}
+	params := removeParams(dirty, true, true)
+	if !params.Force || !params.DeleteBranch || !params.ForceBranch {
+		t.Fatalf("a forced removal with its branch lost a choice: %#v", params)
+	}
+	if removeParams(dirty, false, true).ForceBranch {
+		t.Fatal("a branch that stays was marked to be force deleted")
+	}
+}
+
+func TestProjectsOpenAtTheProjectLastShownWhileItStillExists(t *testing.T) {
+	store := appstate.New(nil)
+	e := &env.Env{Store: store}
+	page := New()
+	if _, _, _, ok := page.Home(e); ok {
+		t.Fatal("Projects named a home with no project to show")
+	}
+	store.ApplySnapshot(protocol.Snapshot{Projects: []protocol.ProjectInfo{{ID: "hyperion"}, {ID: "ryotunes"}}})
+	if project, view, _, ok := page.Home(e); !ok || project != "hyperion" || view != TabOverview {
+		t.Fatalf("first home = %q %q %v, want the first project's overview", project, view, ok)
+	}
+	page.state.project, page.state.tab, page.state.worktree = "ryotunes", TabChanges, "/w/tune"
+	if project, view, worktree, ok := page.Home(e); !ok || project != "ryotunes" || view != TabChanges || worktree != "/w/tune" {
+		t.Fatalf("home = %q %q %q %v, want where the reader left", project, view, worktree, ok)
+	}
+	store.ApplySnapshot(protocol.Snapshot{Projects: []protocol.ProjectInfo{{ID: "hyperion"}}})
+	if project, _, _, ok := page.Home(e); !ok || project != "hyperion" {
+		t.Fatalf("home after the last project was forgotten = %q %v, want the one that is left", project, ok)
 	}
 }

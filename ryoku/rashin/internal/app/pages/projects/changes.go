@@ -1,202 +1,195 @@
 package projects
 
 import (
+	"fmt"
+	"image"
 	"path/filepath"
 	"strings"
 
 	"gioui.org/layout"
+	"gioui.org/op"
 
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 	"ryoku-i18n"
 
+	"ryoku-rashin/internal/app/chat"
 	"ryoku-rashin/internal/app/diffview"
 	"ryoku-rashin/internal/app/env"
+	"ryoku-rashin/internal/app/look"
 	"ryoku-rashin/internal/protocol"
 )
 
 const (
-	changeStaged = iota
+	changeConflicted = iota
+	changeStaged
 	changeUnstaged
 	changeUntracked
-	changeConflicted
+	changeGroups
 )
 
-type changeListItem struct {
-	group int
-	file  *protocol.FileChange
+const (
+	scopeUncommitted = iota
+	scopeBranch
+)
+
+type changesState struct {
+	worktree look.Select
+	scope    kit.Filters
+	files    look.Scroller
+	rows     map[string]*changeRow
+	groups   [changeGroups]changeGroup
+	view     diffview.View
+
+	status                 protocol.GitStatusResult
+	diff                   protocol.DiffResult
+	loadedPath, loadedMode string
+	loading                bool
+	selectedPath           string
+
+	message                  kit.TextField
+	amend                    kit.Toggle
+	commit, push, pull       kit.Plaque
+	fetch, review            kit.Plaque
+	abort, proceed, resolver kit.Plaque
+	discard                  kit.Confirm
+	discardFiles             []string
+	force                    kit.Confirm
 }
 
-func (c *changesState) layout(
-	gtx layout.Context,
-	e *env.Env,
-	page *pageState,
-) layout.Dimensions {
-	worktrees := e.Snapshot().Worktrees[page.project]
-	if len(worktrees) == 0 {
-		empty := kit.Empty{
-			Title: i18n.T("No worktrees"),
-			Body:  i18n.T("Create a worktree to review changes."),
-		}
-		return empty.Layout(gtx, e.Theme.Theme)
+type changeRow struct {
+	click          kit.Click
+	hover          look.Hover
+	press          anim.Tween
+	stage, discard look.IconAction
+	tips           [2]look.Tip
+}
+
+type changeGroup struct {
+	hover          look.Hover
+	stage, discard look.IconAction
+	tips           [2]look.Tip
+}
+
+type changeItem struct {
+	group  int
+	header bool
+	file   protocol.FileChange
+}
+
+func (c *changesState) init() { c.rows = make(map[string]*changeRow) }
+
+func (c *changesState) layout(gtx layout.Context, e *env.Env, page *pageState) layout.Dimensions {
+	th := e.Theme
+	worktree, ok := page.selectedWorktree(e)
+	if !ok {
+		return kit.Empty{Icon: look.Icon.Diff, Title: i18n.T("No worktrees"), Body: i18n.T("Changes are read from a worktree.")}.Layout(gtx, th.Theme)
 	}
-	selected := selectedWorktree(worktrees, page.worktree)
-	if page.worktree == "" {
-		page.worktree = worktrees[selected].Path
-	}
+	page.worktree = worktree.Path
 	c.handleActions(gtx, e, page)
-	mode := c.selectedDiffMode()
-	if c.loadedPath != page.worktree || c.loadedMode != mode {
+	if mode := c.diffMode(); c.loadedPath != page.worktree || c.loadedMode != mode {
 		c.load(e, page, mode)
 	}
+	files := func(gtx layout.Context) layout.Dimensions { return c.layoutFiles(gtx, e, page) }
+	diff := func(gtx layout.Context) layout.Dimensions { return c.layoutDiff(gtx, e, page) }
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return c.layoutHeader(gtx, e, page, worktrees, selected)
-		}),
-		layout.Rigid(layout.Spacer{Height: 8}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.layoutBar(gtx, e, page, worktree) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return look.Rule(gtx, th) }),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return c.layoutReview(gtx, e, page)
-		}),
-		layout.Rigid(layout.Spacer{Height: 8}.Layout),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return c.layoutGitActions(gtx, e, page)
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return c.layoutConfirms(gtx, e, page)
+			if gtx.Constraints.Max.X < gtx.Dp(overviewSplit) {
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						gtx.Constraints.Max.Y = min(gtx.Constraints.Max.Y, gtx.Dp(300))
+						return files(gtx)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return look.Rule(gtx, th) }),
+					layout.Flexed(1, diff),
+				)
+			}
+			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					width := gtx.Dp(340)
+					gtx.Constraints.Min.X, gtx.Constraints.Max.X = width, width
+					return files(gtx)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					size := image.Pt(max(1, gtx.Dp(1)), gtx.Constraints.Max.Y)
+					look.FillRect(gtx, image.Rectangle{Max: size}, th.R.Vein)
+					return layout.Dimensions{Size: size}
+				}),
+				layout.Flexed(1, diff),
+			)
 		}),
 	)
 }
 
-func selectedWorktree(worktrees []protocol.WorktreeInfo, path string) int {
-	for index, worktree := range worktrees {
-		if worktree.Path == path {
-			return index
+func (c *changesState) layoutBar(gtx layout.Context, e *env.Env, page *pageState, worktree protocol.WorktreeInfo) layout.Dimensions {
+	th := e.Theme
+	worktrees := e.Snapshot().Worktrees[page.project]
+	labels, selected := make([]string, len(worktrees)), 0
+	for index, candidate := range worktrees {
+		labels[index] = candidate.Name
+		if candidate.Path == worktree.Path {
+			selected = index
 		}
 	}
-	return 0
-}
-
-func (c *changesState) layoutHeader(
-	gtx layout.Context,
-	e *env.Env,
-	page *pageState,
-	worktrees []protocol.WorktreeInfo,
-	selected int,
-) layout.Dimensions {
-	labels := make([]string, len(worktrees))
-	for index, worktree := range worktrees {
-		labels[index] = worktree.Name + " · " + worktree.Branch
-	}
-	c.modeTabs.Labels = []string{i18n.T("Working tree"), i18n.T("Branch vs base")}
-	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-		layout.Flexed(.32, func(gtx layout.Context) layout.Dimensions {
-			dimensions := c.worktreeChoice.Layout(gtx, e.Theme, e.Overlays, labels, selected)
-			if index, changed := c.worktreeChoice.Changed(); changed &&
-				index >= 0 && index < len(worktrees) {
-				page.worktree = worktrees[index].Path
+	c.worktree.Form, c.worktree.Icon, c.worktree.Label = look.SelectQuiet, look.Icon.Branch, i18n.T("Worktree")
+	c.scope.Labels = []string{i18n.T("Uncommitted"), i18n.T("Whole branch")}
+	status := c.status.Status
+	children := []layout.FlexChild{
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			dimensions := c.worktree.Layout(gtx, th, e.Overlays, labels, selected)
+			if index, changed := c.worktree.Changed(); changed && index < len(worktrees) {
 				c.selectedPath = ""
-				c.loadedPath = ""
-				e.LoadReviews(page.worktree, nil)
+				e.NavigateWork(page.project, TabChanges, worktrees[index].Path)
 			}
 			return dimensions
 		}),
-		layout.Rigid(layout.Spacer{Width: 8}.Layout),
-		layout.Flexed(.68, func(gtx layout.Context) layout.Dimensions {
-			return c.layoutStatus(gtx, e)
-		}),
-		layout.Rigid(layout.Spacer{Width: 8}.Layout),
+		layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
+		layout.Rigid(look.TokenChip(th, worktreeBranch(worktree))),
+	}
+	if status.Upstream != "" {
+		children = append(children,
+			layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
+			layout.Rigid(kit.Text(th.Theme, th.T.MonoSm, th.R.Fg3, fmt.Sprintf("↑%d ↓%d", status.Ahead, status.Behind))),
+		)
+	}
+	if status.Operation != "" {
+		children = append(children,
+			layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
+			layout.Rigid(kit.Claim(th.Theme, palette.Attention, i18n.Tf("%s in progress", status.Operation))),
+			layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.layoutOperation(gtx, th) }),
+		)
+	}
+	children = append(children,
+		layout.Flexed(1, layout.Spacer{}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			dimensions := c.modeTabs.Layout(gtx, e.Theme.Theme)
-			if _, changed := c.modeTabs.Changed(); changed {
-				c.selectedPath = ""
-				c.loadedMode = ""
+			dimensions := c.scope.Layout(gtx, th.Theme)
+			if _, changed := c.scope.Changed(); changed {
+				c.selectedPath, c.loadedMode = "", ""
 			}
 			return dimensions
 		}),
 	)
+	return layout.Inset{Top: th.Sp.S2, Bottom: th.Sp.S2, Left: th.Sp.S3, Right: th.Sp.S3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children...)
+	})
 }
 
-func (c *changesState) load(
-	e *env.Env,
-	page *pageState,
-	mode string,
-) {
-	if c.loading || page.worktree == "" {
-		return
-	}
-	c.loading, c.loadedPath, c.loadedMode = true, page.worktree, mode
-	var status protocol.GitStatusResult
-	e.Call(
-		protocol.MGitStatus,
-		protocol.WorktreeRef{Path: page.worktree},
-		&status,
-		func(err error) {
-			if err != nil {
-				c.error = err.Error()
-				c.loading = false
-				return
-			}
-			c.status = status
-			if c.modeTabs.Selected == 0 && !c.statusHasPath(c.selectedPath) {
-				c.selectedPath = firstChangedPath(status.Files)
-			}
-			params := protocol.DiffParams{
-				Project:  page.project,
-				Worktree: page.worktree,
-				Mode:     mode,
-				Context:  4,
-			}
-			var result protocol.DiffResult
-			e.Call(protocol.MGitDiff, params, &result, func(err error) {
-				c.loading = false
-				if err != nil {
-					c.error = err.Error()
-					return
-				}
-				c.diff = result
-				if c.modeTabs.Selected == 1 && !diffHasPath(result, c.selectedPath) {
-					c.selectedPath = firstDiffPath(result)
-				}
-			})
-		},
-	)
-	e.LoadReviews(page.worktree, nil)
+func (c *changesState) layoutOperation(gtx layout.Context, th *look.Theme) layout.Dimensions {
+	c.proceed.Kind, c.proceed.Small, c.proceed.Label = kit.PlaqueLine, true, i18n.T("Continue")
+	c.resolver.Kind, c.resolver.Small, c.resolver.Label = kit.PlaqueQuiet, true, i18n.T("Resolve with an agent")
+	c.abort.Kind, c.abort.Small, c.abort.Label = kit.PlaqueQuiet, true, i18n.T("Abort")
+	plaques := [...]*kit.Plaque{&c.proceed, &c.resolver, &c.abort}
+	return look.Flow{Gap: 4}.Layout(gtx, len(plaques), func(gtx layout.Context, index int) layout.Dimensions {
+		return plaques[index].Layout(gtx, th.Theme)
+	})
 }
 
-func firstChangedPath(files []protocol.FileChange) string {
-	for _, file := range files {
-		return file.Path
-	}
-	return ""
-}
-
-func firstDiffPath(result protocol.DiffResult) string {
-	for _, file := range result.Files {
-		return file.Path
-	}
-	return ""
-}
-
-func diffHasPath(result protocol.DiffResult, path string) bool {
-	for _, file := range result.Files {
-		if file.Path == path {
-			return true
-		}
-	}
-	return false
-}
-
-func (c *changesState) statusHasPath(path string) bool {
-	for _, file := range c.status.Files {
-		if file.Path == path {
-			return true
-		}
-	}
-	return false
-}
-
-func (c *changesState) selectedDiffMode() string {
-	if c.modeTabs.Selected == 1 {
+func (c *changesState) diffMode() string {
+	if c.scope.Selected == scopeBranch {
 		return protocol.DiffBase
 	}
 	for _, file := range c.status.Files {
@@ -207,677 +200,534 @@ func (c *changesState) selectedDiffMode() string {
 	return protocol.DiffWorking
 }
 
-func (c *changesState) handleActions(
-	gtx layout.Context,
-	e *env.Env,
-	page *pageState,
-) {
-	if c.commit.Clicked(gtx) {
-		message := strings.TrimSpace(c.commitMessage.Text())
-		if message != "" {
-			var result protocol.GitOpResult
-			params := protocol.GitCommitWriteParams{
-				Path:    page.worktree,
-				Message: message,
-				Amend:   c.amend.Value,
+func (c *changesState) load(e *env.Env, page *pageState, mode string) {
+	if c.loading || page.worktree == "" {
+		return
+	}
+	c.loading, c.loadedPath, c.loadedMode = true, page.worktree, mode
+	worktree := page.worktree
+	var status protocol.GitStatusResult
+	e.Call(protocol.MGitStatus, protocol.WorktreeRef{Path: worktree}, &status, func(err error) {
+		if err != nil {
+			c.loading = false
+			page.fail(err)
+			return
+		}
+		c.status = status
+		if c.scope.Selected == scopeUncommitted && !c.hasFile(c.selectedPath) && len(status.Files) > 0 {
+			c.selectedPath = c.items()[1].file.Path
+		}
+		params := protocol.DiffParams{Project: page.project, Worktree: worktree, Mode: c.diffMode(), Context: 4}
+		c.loadedMode = params.Mode
+		var result protocol.DiffResult
+		e.Call(protocol.MGitDiff, params, &result, func(err error) {
+			c.loading = false
+			if err != nil {
+				page.fail(err)
+				return
 			}
-			e.Call(protocol.MGitCommit, params, &result, func(err error) {
-				if err != nil {
-					c.error = err.Error()
-					return
-				}
-				c.commitMessage.SetText("")
-				c.loadedPath = ""
-			})
-		}
-	}
-	if c.push.Clicked(gtx) {
-		if c.status.Status.Behind > 0 {
-			c.forcePush, c.pushConfirm.Danger, c.pushConfirm.Dialog.Open = true, true, true
-		} else {
-			c.pushNow(e, page, false)
-		}
-	}
-	if c.fetch.Clicked(gtx) {
-		var result protocol.GitOpResult
-		e.Call(
-			protocol.MGitFetch,
-			protocol.ProjectRef{Project: page.project},
-			&result,
-			func(err error) {
-				if err != nil {
-					c.error = err.Error()
-				}
-				c.loadedPath = ""
-			},
-		)
-	}
-	if c.pull.Clicked(gtx) {
-		var result protocol.GitOpResult
-		e.Call(
-			protocol.MGitPull,
-			protocol.WorktreeRef{Path: page.worktree},
-			&result,
-			func(err error) {
-				if err != nil {
-					c.error = err.Error()
-				}
-				c.loadedPath = ""
-			},
-		)
-	}
-	if c.sendReview.Clicked(gtx) {
-		var info protocol.SessionInfo
-		e.Call(
-			protocol.MReviewSend,
-			protocol.ReviewSendParams{Worktree: page.worktree},
-			&info,
-			func(err error) {
-				if err != nil {
-					c.error = err.Error()
-					return
-				}
-				e.Attach(info.ID, nil)
-				if e.Navigate != nil {
-					e.Navigate(protocol.TabAgent, info.ID)
-				}
-			},
-		)
-	}
-	if c.abort.Clicked(gtx) {
-		var result protocol.GitOpResult
-		e.Call(
-			protocol.MGitAbort,
-			protocol.WorktreeRef{Path: page.worktree},
-			&result,
-			func(error) { c.loadedPath = "" },
-		)
-	}
-	if c.continueOp.Clicked(gtx) {
-		var result protocol.GitOpResult
-		e.Call(
-			protocol.MGitContinue,
-			protocol.WorktreeRef{Path: page.worktree},
-			&result,
-			func(error) { c.loadedPath = "" },
-		)
-	}
-	if c.resolveAgent.Clicked(gtx) {
-		c.resolveWithAgent(e, page)
-	}
-}
-
-func (c *changesState) layoutStatus(
-	gtx layout.Context,
-	e *env.Env,
-) layout.Dimensions {
-	status := c.status.Status
-	upstream := status.Upstream
-	if upstream == "" {
-		upstream = i18n.T("no upstream")
-	}
-	parts := []string{
-		c.status.Branch,
-		i18n.Tf("→ %s", upstream),
-		i18n.Tf("+%d -%d", status.Ahead, status.Behind),
-	}
-	if status.Operation != "" {
-		parts = append(parts, i18n.Tf("%s in progress", status.Operation))
-	}
-	children := []layout.FlexChild{
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			label := kit.Label{
-				Style:    e.Theme.T.MonoSm,
-				Color:    e.Theme.R.Fg2,
-				MaxLines: 1,
+			c.diff = result
+			if c.scope.Selected == scopeBranch && !diffHas(result, c.selectedPath) && len(result.Files) > 0 {
+				c.selectedPath = result.Files[0].Path
 			}
-			return label.Layout(gtx, e.Theme.Theme, strings.Join(parts, " · "))
-		}),
-	}
-	if status.Operation != "" {
-		c.abort.Kind, c.abort.Label, c.abort.Small = kit.PlaqueDangerLine, i18n.T("Abort"), true
-		c.continueOp.Kind, c.continueOp.Label, c.continueOp.Small = kit.PlaqueQuiet, i18n.T("Continue"), true
-		c.resolveAgent.Kind, c.resolveAgent.Label, c.resolveAgent.Small =
-			kit.PlaqueQuiet, i18n.T("Resolve with agent"), true
-		children = append(
-			children,
-			layout.Rigid(layout.Spacer{Width: 4}.Layout),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return c.abort.Layout(gtx, e.Theme.Theme)
-			}),
-			layout.Rigid(layout.Spacer{Width: 4}.Layout),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return c.continueOp.Layout(gtx, e.Theme.Theme)
-			}),
-			layout.Rigid(layout.Spacer{Width: 4}.Layout),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return c.resolveAgent.Layout(gtx, e.Theme.Theme)
-			}),
-		)
-	}
-	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children...)
-}
-
-func (c *changesState) layoutReview(
-	gtx layout.Context,
-	e *env.Env,
-	page *pageState,
-) layout.Dimensions {
-	files := func(gtx layout.Context) layout.Dimensions {
-		return c.layoutFileList(gtx, e, page)
-	}
-	diff := func(gtx layout.Context) layout.Dimensions {
-		options := diffview.Options{
-			Comments:    e.Snapshot().Reviews[page.worktree],
-			Commentable: true,
-			FileActions: false,
-			Staged:      c.selectedDiffMode() == protocol.DiffStaged,
-			FoldOver:    240,
-			Wrap:        true,
-		}
-		dimensions := c.view.Layout(gtx, e.Theme.Theme, c.selectedDiff(), options)
-		c.handleDiffActions(e, page, c.view.Actions())
-		return dimensions
-	}
-	if gtx.Constraints.Max.X >= gtx.Dp(1100) {
-		return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				width := min(gtx.Dp(320), gtx.Constraints.Max.X)
-				gtx.Constraints.Min.X, gtx.Constraints.Max.X = width, width
-				return files(gtx)
-			}),
-			layout.Rigid(layout.Spacer{Width: 13}.Layout),
-			layout.Flexed(1, diff),
-		)
-	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Max.Y = min(gtx.Constraints.Max.Y, gtx.Dp(210))
-			return files(gtx)
-		}),
-		layout.Rigid(layout.Spacer{Height: 8}.Layout),
-		layout.Flexed(1, diff),
-	)
-}
-
-func (c *changesState) layoutFileList(
-	gtx layout.Context,
-	e *env.Env,
-	page *pageState,
-) layout.Dimensions {
-	items := c.changeListItems()
-	if len(items) == 0 {
-		empty := kit.Empty{
-			Title: i18n.T("No changes"),
-			Body:  i18n.T("This worktree has no files to review."),
-		}
-		return empty.Layout(gtx, e.Theme.Theme)
-	}
-	return c.fileList.Layout(gtx, len(items), func(gtx layout.Context, index int) layout.Dimensions {
-		item := items[index]
-		if item.file == nil {
-			return c.layoutGroupHeader(gtx, e, page, item.group)
-		}
-		return c.layoutFileRow(gtx, e, page, *item.file)
+		})
 	})
+	e.LoadReviews(worktree, nil)
 }
 
-func (c *changesState) changeListItems() []changeListItem {
-	if c.modeTabs.Selected == 1 {
-		items := []changeListItem{{group: -1}}
-		for index := range c.diff.Files {
-			file := c.diff.Files[index]
-			change := protocol.FileChange{
-				Path:    file.Path,
-				OldPath: file.OldPath,
-				Status:  file.Status,
-				Added:   file.Added,
-				Removed: file.Removed,
-				Binary:  file.Binary,
-			}
-			items = append(items, changeListItem{group: -1, file: &change})
+func (c *changesState) hasFile(path string) bool {
+	for _, file := range c.status.Files {
+		if file.Path == path {
+			return true
+		}
+	}
+	return false
+}
+
+func diffHas(result protocol.DiffResult, path string) bool {
+	for _, file := range result.Files {
+		if file.Path == path {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *changesState) items() []changeItem {
+	if c.scope.Selected == scopeBranch {
+		items := make([]changeItem, 0, len(c.diff.Files))
+		for _, file := range c.diff.Files {
+			change := protocol.FileChange{Path: file.Path, OldPath: file.OldPath, Status: file.Status, Added: file.Added, Removed: file.Removed}
+			items = append(items, changeItem{group: -1, file: change})
 		}
 		return items
 	}
-	groups := c.groupedChanges()
-	items := make([]changeListItem, 0, len(c.status.Files)+4)
-	for group := changeStaged; group <= changeConflicted; group++ {
-		if len(groups[group]) == 0 {
+	var groups [changeGroups][]protocol.FileChange
+	for _, file := range c.status.Files {
+		groups[changeGroupOf(file)] = append(groups[changeGroupOf(file)], file)
+	}
+	items := make([]changeItem, 0, len(c.status.Files)+changeGroups)
+	for group, files := range groups {
+		if len(files) == 0 {
 			continue
 		}
-		items = append(items, changeListItem{group: group})
-		for index := range groups[group] {
-			file := groups[group][index]
-			items = append(items, changeListItem{group: group, file: &file})
+		items = append(items, changeItem{group: group, header: true})
+		for _, file := range files {
+			items = append(items, changeItem{group: group, file: file})
 		}
 	}
 	return items
 }
 
-func (c *changesState) groupedChanges() [4][]protocol.FileChange {
-	var groups [4][]protocol.FileChange
+func changeGroupOf(file protocol.FileChange) int {
+	switch {
+	case file.Status == protocol.ChangeConflict:
+		return changeConflicted
+	case file.Staged:
+		return changeStaged
+	case file.Status == protocol.ChangeUntracked:
+		return changeUntracked
+	default:
+		return changeUnstaged
+	}
+}
+
+func (c *changesState) groupFiles(group int) []string {
+	paths := make([]string, 0, 8)
 	for _, file := range c.status.Files {
-		group := changeUnstaged
-		switch {
-		case file.Status == protocol.ChangeConflict:
-			group = changeConflicted
-		case file.Staged:
-			group = changeStaged
-		case file.Status == protocol.ChangeUntracked:
-			group = changeUntracked
+		if changeGroupOf(file) == group {
+			paths = append(paths, file.Path)
 		}
-		groups[group] = append(groups[group], file)
-	}
-	return groups
-}
-
-func (c *changesState) layoutGroupHeader(
-	gtx layout.Context,
-	e *env.Env,
-	page *pageState,
-	group int,
-) layout.Dimensions {
-	if group < 0 {
-		return kit.GroupHeader(e.Theme.Theme, i18n.T("Branch vs base"), len(c.diff.Files))(gtx)
-	}
-	groups := c.groupedChanges()
-	files := groups[group]
-	row := &c.groupRows[group]
-	paths := fileChangePaths(files)
-	if row.stage.Clicked(gtx) {
-		c.gitPaths(e, page, protocol.MGitStage, paths, false)
-	}
-	if row.unstage.Clicked(gtx) {
-		c.gitPaths(e, page, protocol.MGitUnstage, paths, false)
-	}
-	if row.discard.Clicked(gtx) {
-		c.discardFiles = paths
-		c.discardConfirm.Danger, c.discardConfirm.Dialog.Open = true, true
-	}
-	row.stage.Kind, row.stage.Label, row.stage.Small = kit.PlaqueQuiet, i18n.T("Stage all"), true
-	row.unstage.Kind, row.unstage.Label, row.unstage.Small = kit.PlaqueQuiet, i18n.T("Unstage all"), true
-	row.discard.Kind, row.discard.Label, row.discard.Small =
-		kit.PlaqueDangerLine, i18n.T("Discard all"), true
-	title := []string{
-		i18n.T("Staged"),
-		i18n.T("Unstaged"),
-		i18n.T("Untracked"),
-		i18n.T("Conflicted"),
-	}[group]
-	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-		layout.Flexed(1, kit.GroupHeader(e.Theme.Theme, title, len(files))),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			if group == changeStaged {
-				return row.unstage.Layout(gtx, e.Theme.Theme)
-			}
-			return row.stage.Layout(gtx, e.Theme.Theme)
-		}),
-		layout.Rigid(layout.Spacer{Width: 4}.Layout),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			if group == changeStaged {
-				return layout.Dimensions{}
-			}
-			return row.discard.Layout(gtx, e.Theme.Theme)
-		}),
-	)
-}
-
-func fileChangePaths(files []protocol.FileChange) []string {
-	paths := make([]string, len(files))
-	for index, file := range files {
-		paths[index] = file.Path
 	}
 	return paths
 }
 
-func (c *changesState) layoutFileRow(
-	gtx layout.Context,
-	e *env.Env,
-	page *pageState,
-	file protocol.FileChange,
-) layout.Dimensions {
-	row := c.fileRows[file.Path]
-	if row == nil {
-		row = new(changeFileRow)
-		c.fileRows[file.Path] = row
-	}
-	if row.selectFile.Clicked(gtx) {
-		c.selectedPath = file.Path
-		c.loadedMode = ""
-		c.view.ScrollToFile(file.Path)
-	}
-	if row.stage.Clicked(gtx) {
-		c.gitPaths(e, page, protocol.MGitStage, []string{file.Path}, false)
-	}
-	if row.unstage.Clicked(gtx) {
-		c.gitPaths(e, page, protocol.MGitUnstage, []string{file.Path}, false)
-	}
-	if row.discard.Clicked(gtx) {
-		c.discardFiles = []string{file.Path}
-		c.discardConfirm.Danger, c.discardConfirm.Dialog.Open = true, true
-	}
-	row.stage.Kind, row.stage.Label, row.stage.Small = kit.PlaqueQuiet, i18n.T("Stage"), true
-	row.unstage.Kind, row.unstage.Label, row.unstage.Small = kit.PlaqueQuiet, i18n.T("Unstage"), true
-	row.discard.Kind, row.discard.Label, row.discard.Small =
-		kit.PlaqueDangerLine, i18n.T("Discard"), true
-	return layout.Inset{Bottom: 4}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return row.selectFile.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			fill := e.Theme.R.Stone1
-			if c.selectedPath == file.Path {
-				fill = e.Theme.R.Stone3
-			} else if row.selectFile.Hovered() {
-				fill = palette.Mix(fill, e.Theme.R.Fg, .06)
-			}
-			return kit.Slab(gtx, fill, e.Theme.Cut.Small, func(gtx layout.Context) layout.Dimensions {
-				return layout.Inset{Top: 5, Right: 7, Bottom: 5, Left: 7}.Layout(
-					gtx,
-					func(gtx layout.Context) layout.Dimensions {
-						return c.layoutFileRowContent(gtx, e, row, file)
-					},
-				)
-			})
-		})
-	})
-}
-
-func (c *changesState) layoutFileRowContent(
-	gtx layout.Context,
-	e *env.Env,
-	row *changeFileRow,
-	file protocol.FileChange,
-) layout.Dimensions {
-	counts := i18n.Tf("+%d -%d", file.Added, file.Removed)
-	children := []layout.FlexChild{
-		layout.Rigid(kit.Text(e.Theme.Theme, e.Theme.T.MonoSm, e.Theme.R.Fg3, changeLetter(file.Status))),
-		layout.Rigid(layout.Spacer{Width: 6}.Layout),
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			label := kit.Label{Style: e.Theme.T.MonoSm, Color: e.Theme.R.Fg, MaxLines: 1}
-			return label.Layout(gtx, e.Theme.Theme, file.Path)
-		}),
-		layout.Rigid(layout.Spacer{Width: 6}.Layout),
-		layout.Rigid(kit.Text(e.Theme.Theme, e.Theme.T.MonoSm, e.Theme.R.Fg3, counts)),
-	}
-	if row.selectFile.Hovered() && c.modeTabs.Selected == 0 {
-		children = append(children, layout.Rigid(layout.Spacer{Width: 4}.Layout))
-		if file.Staged {
-			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return row.unstage.Layout(gtx, e.Theme.Theme)
-			}))
-		} else {
-			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return row.stage.Layout(gtx, e.Theme.Theme)
-			}))
-		}
-		children = append(
-			children,
-			layout.Rigid(layout.Spacer{Width: 4}.Layout),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return row.discard.Layout(gtx, e.Theme.Theme)
-			}),
-		)
-	}
-	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children...)
-}
-
-func changeLetter(status string) string {
-	switch status {
-	case protocol.ChangeAdded:
-		return "A"
-	case protocol.ChangeDeleted:
-		return "D"
-	case protocol.ChangeRenamed:
-		return "R"
-	case protocol.ChangeCopied:
-		return "C"
-	case protocol.ChangeType:
-		return "T"
-	case protocol.ChangeConflict:
-		return "!"
-	case protocol.ChangeUntracked:
-		return "?"
-	default:
-		return "M"
-	}
-}
-
-func (c *changesState) selectedDiff() protocol.DiffResult {
-	result := protocol.DiffResult{Truncated: c.diff.Truncated}
-	for _, file := range c.diff.Files {
-		if c.selectedPath == "" || file.Path == c.selectedPath {
-			result.Files = append(result.Files, file)
-		}
-	}
-	return result
-}
-
-func (c *changesState) layoutGitActions(
-	gtx layout.Context,
-	e *env.Env,
-	page *pageState,
-) layout.Dimensions {
-	c.commitMessage.Label = i18n.T("Commit message")
-	c.commitMessage.Placeholder = i18n.T("Describe the staged change")
-	c.amend.Label = i18n.T("Amend")
-	c.commit.Kind, c.commit.Label = kit.PlaqueGold, i18n.T("Commit")
-	c.push.Kind, c.push.Label, c.push.Small = kit.PlaqueQuiet, i18n.T("Push"), true
-	c.fetch.Kind, c.fetch.Label, c.fetch.Small = kit.PlaqueQuiet, i18n.T("Fetch"), true
-	c.pull.Kind, c.pull.Label, c.pull.Small = kit.PlaqueQuiet, i18n.T("Pull"), true
-	c.sendReview.Kind, c.sendReview.Label, c.sendReview.Small =
-		kit.PlaqueQuiet, i18n.T("Send review to agent"), true
+func (c *changesState) layoutFiles(gtx layout.Context, e *env.Env, page *pageState) layout.Dimensions {
+	th := e.Theme
+	items := c.items()
+	gtx.Constraints.Min = gtx.Constraints.Max
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.End}.Layout(gtx,
-				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-					return c.commitMessage.Layout(gtx, e.Theme.Theme)
-				}),
-				layout.Rigid(layout.Spacer{Width: 8}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return c.amend.Layout(gtx, e.Theme.Theme)
-				}),
-				layout.Rigid(layout.Spacer{Width: 8}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return c.commit.Layout(gtx, e.Theme.Theme)
-				}),
-			)
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Min = gtx.Constraints.Max
+			if len(items) == 0 {
+				return c.layoutNoFiles(gtx, th)
+			}
+			return layout.Inset{Top: th.Sp.S1, Left: th.Sp.S2, Right: th.Sp.S2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				c.files.Gap = gtx.Dp(2)
+				return c.files.Layout(gtx, th, len(items), func(gtx layout.Context, index int) layout.Dimensions {
+					item := items[index]
+					if item.header {
+						return c.layoutGroup(gtx, e, page, item.group)
+					}
+					return c.layoutFile(gtx, e, page, item)
+				})
+			})
 		}),
-		layout.Rigid(layout.Spacer{Height: 4}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return c.fetch.Layout(gtx, e.Theme.Theme)
-				}),
-				layout.Rigid(layout.Spacer{Width: 4}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return c.pull.Layout(gtx, e.Theme.Theme)
-				}),
-				layout.Rigid(layout.Spacer{Width: 4}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return c.push.Layout(gtx, e.Theme.Theme)
-				}),
-				layout.Rigid(layout.Spacer{Width: 4}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return c.sendReview.Layout(gtx, e.Theme.Theme)
-				}),
-			)
+			if c.scope.Selected == scopeBranch {
+				return layout.Dimensions{}
+			}
+			return c.layoutCommit(gtx, e)
 		}),
 	)
 }
 
-func (c *changesState) layoutConfirms(
-	gtx layout.Context,
-	e *env.Env,
-	page *pageState,
-) layout.Dimensions {
-	if c.discardConfirm.Dialog.Open {
-		confirmed := c.discardConfirm.Layout(
-			gtx,
-			e.Theme.Theme,
-			i18n.T("Discard changes"),
-			i18n.Tf("Discard changes in %d files? This cannot be undone.", len(c.discardFiles)),
-			i18n.T("Discard"),
-			"",
-		)
-		if confirmed {
-			c.gitPaths(e, page, protocol.MGitDiscard, c.discardFiles, false)
+func (c *changesState) layoutNoFiles(gtx layout.Context, th *look.Theme) layout.Dimensions {
+	body := i18n.T("Everything in this worktree is committed.")
+	if c.scope.Selected == scopeBranch {
+		body = i18n.T("This branch has nothing its base does not.")
+	}
+	if c.loading {
+		return look.SkeletonRows(gtx, th, 5, false)
+	}
+	return kit.Empty{Icon: look.Icon.Check, Title: i18n.T("Nothing changed"), Body: body}.Layout(gtx, th.Theme)
+}
+
+func changeGroupTitle(group int) string {
+	switch group {
+	case changeConflicted:
+		return i18n.T("In conflict")
+	case changeStaged:
+		return i18n.T("Staged")
+	case changeUntracked:
+		return i18n.T("Untracked")
+	default:
+		return i18n.T("Changed")
+	}
+}
+
+func (c *changesState) layoutGroup(gtx layout.Context, e *env.Env, page *pageState, group int) layout.Dimensions {
+	th := e.Theme
+	state := &c.groups[group]
+	paths := c.groupFiles(group)
+	stageTip, stageIcon, method := i18n.T("Stage all"), look.Icon.Add, protocol.MGitStage
+	if group == changeStaged {
+		stageTip, stageIcon, method = i18n.T("Unstage all"), look.Icon.Remove, protocol.MGitUnstage
+	}
+	state.stage.Icon, state.stage.Description = stageIcon, stageTip
+	state.discard.Icon, state.discard.Description = look.Icon.Undo, i18n.T("Discard all")
+	if state.stage.Clicked(gtx) {
+		c.gitPaths(e, page, method, paths)
+	}
+	if state.discard.Clicked(gtx) {
+		c.askDiscard(paths)
+	}
+	size := image.Pt(gtx.Constraints.Max.X, gtx.Dp(32))
+	gtx.Constraints = layout.Exact(size)
+	_, hover := state.hover.Layout(gtx, th, func(gtx layout.Context) layout.Dimensions {
+		look.MiddleLeft(gtx, gtx.Dp(8), size.Y, func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Baseline}.Layout(gtx,
+				layout.Rigid(kit.RawText(th.Theme, th.T.Group, th.R.Fg3, changeGroupTitle(group))),
+				layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
+				layout.Rigid(kit.RawText(th.Theme, th.T.MonoSm, th.R.Fg3, fmt.Sprint(len(paths)))),
+			)
+		})
+		return layout.Dimensions{Size: size}
+	})
+	if hover > 0 {
+		box := gtx.Dp(28)
+		actions := []*look.IconAction{&state.stage}
+		if group != changeStaged {
+			actions = append(actions, &state.discard)
+		}
+		for index, action := range actions {
+			at := image.Pt(size.X-gtx.Dp(2)-(len(actions)-index)*box, (size.Y-box)/2)
+			look.Place(gtx, image.Rectangle{Min: at, Max: at.Add(image.Pt(box, box))}, func(gtx layout.Context) layout.Dimensions {
+				return state.tips[index].Layout(gtx, th, e.Overlays, action.Description, func(gtx layout.Context) layout.Dimensions {
+					return action.Layout(gtx, th, th.R.Fg2)
+				})
+			})
+		}
+	}
+	return layout.Dimensions{Size: size}
+}
+
+func (c *changesState) layoutFile(gtx layout.Context, e *env.Env, page *pageState, item changeItem) layout.Dimensions {
+	th := e.Theme
+	file := item.file
+	key := fmt.Sprint(item.group, "\x00", file.Path)
+	row := c.rows[key]
+	if row == nil {
+		row = new(changeRow)
+		c.rows[key] = row
+	}
+	if row.click.Clicked(gtx) {
+		c.selectedPath, c.loadedMode = file.Path, ""
+	}
+	stageTip, stageIcon, method := i18n.T("Stage"), look.Icon.Add, protocol.MGitStage
+	if file.Staged {
+		stageTip, stageIcon, method = i18n.T("Unstage"), look.Icon.Remove, protocol.MGitUnstage
+	}
+	row.stage.Icon, row.stage.Description = stageIcon, stageTip
+	row.discard.Icon, row.discard.Description = look.Icon.Undo, i18n.T("Discard changes")
+	if row.stage.Clicked(gtx) {
+		c.gitPaths(e, page, method, []string{file.Path})
+	}
+	if row.discard.Clicked(gtx) {
+		c.askDiscard([]string{file.Path})
+	}
+	selected := file.Path == c.selectedPath && (item.group < 0 || changeGroupOf(file) == item.group)
+	size := image.Pt(gtx.Constraints.Max.X, gtx.Dp(32))
+	gtx.Constraints = layout.Exact(size)
+	record := op.Record(gtx.Ops)
+	_, hover := row.hover.Layout(gtx, th, func(gtx layout.Context) layout.Dimensions {
+		return row.click.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			c.drawFile(gtx, e, row, item, selected)
+			return layout.Dimensions{Size: size}
+		})
+	})
+	call := record.Stop()
+	bounds := image.Rectangle{Max: size}
+	cut := gtx.Dp(th.Cut.Small)
+	switch {
+	case selected:
+		kit.FillCut(gtx.Ops, bounds, cut, th.R.Sel)
+	case hover > 0:
+		kit.FillCut(gtx.Ops, bounds, cut, palette.WithAlpha(th.R.Stone3, hover))
+	}
+	if press := look.Transition(gtx, &row.press, row.click.Pressed(), th.Motion.Press, th.Motion.Press); press > 0 {
+		kit.FillCut(gtx.Ops, bounds, cut, palette.WithAlpha(th.R.Fg, .08*press))
+	}
+	call.Add(gtx.Ops)
+	return layout.Dimensions{Size: size}
+}
+
+func (c *changesState) drawFile(gtx layout.Context, e *env.Env, row *changeRow, item changeItem, selected bool) {
+	th := e.Theme
+	file := item.file
+	size := gtx.Constraints.Max
+	letter, letterInk := diffview.StatusMark(th, file.Status)
+	ink := th.R.Fg
+	if selected {
+		ink, letterInk = th.R.OnSel, th.R.OnSel
+	}
+	look.MiddleLeft(gtx, gtx.Dp(8), size.Y, kit.RawText(th.Theme, th.T.Mono, letterInk, letter))
+	right := size.X - gtx.Dp(8)
+	if row.hover.Hovered() && item.group >= 0 {
+		box := gtx.Dp(28)
+		actions := [...]*look.IconAction{&row.stage, &row.discard}
+		right -= len(actions)*box - gtx.Dp(6)
+		for index, action := range actions {
+			at := image.Pt(right+index*box, (size.Y-box)/2)
+			look.Place(gtx, image.Rectangle{Min: at, Max: at.Add(image.Pt(box, box))}, func(gtx layout.Context) layout.Dimensions {
+				return row.tips[index].Layout(gtx, th, e.Overlays, action.Description, func(gtx layout.Context) layout.Dimensions {
+					return action.Layout(gtx, th, ink)
+				})
+			})
+		}
+	} else if file.Added+file.Removed > 0 {
+		record := op.Record(gtx.Ops)
+		counts := gtx
+		counts.Constraints = layout.Constraints{Max: image.Pt(size.X/2, size.Y)}
+		dimensions := look.DiffCount(th, file.Added, file.Removed, selected)(counts)
+		call := record.Stop()
+		right -= dimensions.Size.X
+		offset := op.Offset(image.Pt(right, (size.Y-dimensions.Size.Y)/2)).Push(gtx.Ops)
+		call.Add(gtx.Ops)
+		offset.Pop()
+	}
+	left := gtx.Dp(28)
+	room := max(0, right-gtx.Dp(8)-left)
+	character := max(1, gtx.Sp(th.T.Mono.Size)*3/5)
+	label := gtx
+	label.Constraints = layout.Constraints{Max: image.Pt(room, size.Y)}
+	look.MiddleLeft(label, left, size.Y, kit.RawText(th.Theme, th.T.Mono, ink, look.ElidePath(file.Path, room/character)))
+}
+
+func (c *changesState) layoutDiff(gtx layout.Context, e *env.Env, page *pageState) layout.Dimensions {
+	th := e.Theme
+	gtx.Constraints.Min = gtx.Constraints.Max
+	result := protocol.DiffResult{Truncated: c.diff.Truncated}
+	for _, file := range c.diff.Files {
+		if file.Path == c.selectedPath {
+			result.Files = append(result.Files, file)
+		}
+	}
+	if len(result.Files) == 0 {
+		if c.selectedPath == "" || c.loading {
+			return layout.Dimensions{Size: gtx.Constraints.Max}
+		}
+		return kit.Empty{
+			Icon: look.Icon.File, Title: i18n.T("Nothing to show as text"),
+			Body: i18n.T("This file is binary, or it changed in a way that has no lines to compare."),
+		}.Layout(gtx, th.Theme)
+	}
+	options := diffview.Options{
+		Overlays: e.Overlays, Comments: e.Snapshot().Reviews[page.worktree], Commentable: true,
+		FoldOver: 400, Headless: true,
+	}
+	layout.Inset{Top: th.Sp.S2, Left: th.Sp.S2, Right: th.Sp.S1}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return c.view.Layout(gtx, th, result, options)
+	})
+	c.handleDiffActions(e, page, c.view.Actions())
+	return layout.Dimensions{Size: gtx.Constraints.Max}
+}
+
+func (c *changesState) layoutCommit(gtx layout.Context, e *env.Env) layout.Dimensions {
+	th := e.Theme
+	c.message.Placeholder = i18n.T("Describe what is staged")
+	c.amend.Label = i18n.T("Amend")
+	c.commit.Kind, c.commit.Small, c.commit.Label = kit.PlaqueGold, true, i18n.T("Commit")
+	c.fetch.Kind, c.fetch.Small, c.fetch.Label = kit.PlaqueQuiet, true, i18n.T("Fetch")
+	c.pull.Kind, c.pull.Small, c.pull.Label = kit.PlaqueQuiet, true, i18n.T("Pull")
+	c.push.Kind, c.push.Small, c.push.Label = kit.PlaqueQuiet, true, i18n.T("Push")
+	c.review.Kind, c.review.Small, c.review.Label = kit.PlaqueLine, true, i18n.T("Send comments to the agent")
+	staged := len(c.groupFiles(changeStaged)) > 0 || c.amend.Value
+	ready := staged && strings.TrimSpace(c.message.Text()) != ""
+	moves := [...]*kit.Plaque{&c.fetch, &c.pull, &c.push}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return look.Rule(gtx, th) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.UniformInset(th.Sp.S3).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.message.Layout(gtx, th.Theme) }),
+					layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						gtx.Constraints.Min.X = gtx.Constraints.Max.X
+						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Spacing: layout.SpaceBetween}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.amend.Layout(gtx, th.Theme) }),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								if !ready {
+									gtx = gtx.Disabled()
+								}
+								return c.commit.Layout(gtx, th.Theme)
+							}),
+						)
+					}),
+					layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return look.Flow{Gap: 4, LineGap: 4}.Layout(gtx, len(moves)+1, func(gtx layout.Context, index int) layout.Dimensions {
+							if index < len(moves) {
+								return moves[index].Layout(gtx, th.Theme)
+							}
+							return layout.Inset{Left: th.Sp.S1}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								return c.review.Layout(gtx, th.Theme)
+							})
+						})
+					}),
+				)
+			})
+		}),
+	)
+}
+
+func (c *changesState) handleActions(gtx layout.Context, e *env.Env, page *pageState) {
+	reload := func(err error) {
+		page.fail(err)
+		c.loadedPath = ""
+	}
+	worktree := protocol.WorktreeRef{Path: page.worktree}
+	if c.commit.Clicked(gtx) {
+		if message := strings.TrimSpace(c.message.Text()); message != "" {
+			params := protocol.GitCommitWriteParams{Path: page.worktree, Message: message, Amend: c.amend.Value}
+			e.Call(protocol.MGitCommit, params, new(protocol.GitOpResult), func(err error) {
+				if err == nil {
+					c.message.SetText("")
+					c.amend.Value = false
+					e.Notify(i18n.T("Committed."))
+				}
+				reload(err)
+			})
+		}
+	}
+	if c.push.Clicked(gtx) {
+		// behind its upstream means replacing what's there, so it takes asking by name
+		if c.status.Status.Behind > 0 {
+			c.force.Danger, c.force.Dialog.Open = true, true
+		} else {
+			c.pushNow(e, page, false)
+		}
+	}
+	if c.fetch.Clicked(gtx) {
+		e.Call(protocol.MGitFetch, protocol.ProjectRef{Project: page.project}, new(protocol.GitOpResult), reload)
+	}
+	if c.pull.Clicked(gtx) {
+		e.Call(protocol.MGitPull, worktree, new(protocol.GitOpResult), reload)
+	}
+	if c.review.Clicked(gtx) {
+		var info protocol.SessionInfo
+		e.Call(protocol.MReviewSend, protocol.ReviewSendParams{Worktree: page.worktree}, &info, func(err error) {
+			if err != nil {
+				page.fail(err)
+				return
+			}
+			e.Attach(info.ID, nil)
+			e.Navigate(protocol.TabAgent, info.ID)
+		})
+	}
+	if c.abort.Clicked(gtx) {
+		e.Call(protocol.MGitAbort, worktree, new(protocol.GitOpResult), reload)
+	}
+	if c.proceed.Clicked(gtx) {
+		e.Call(protocol.MGitContinue, worktree, new(protocol.GitOpResult), reload)
+	}
+	if c.resolver.Clicked(gtx) {
+		c.resolveWithAgent(e, page)
+	}
+}
+
+func (c *changesState) askDiscard(paths []string) {
+	c.discardFiles = paths
+	c.discard.Danger, c.discard.Dialog.Open = true, true
+}
+
+func (c *changesState) layoutConfirms(gtx layout.Context, e *env.Env, page *pageState) {
+	if len(c.discardFiles) > 0 {
+		title := i18n.Tf("Discard changes to %d files?", len(c.discardFiles))
+		if len(c.discardFiles) == 1 {
+			title = i18n.Tf("Discard changes to %s?", filepath.Base(c.discardFiles[0]))
+		}
+		if c.discard.Layout(gtx, e.Theme.Theme, title, i18n.T("What you changed is lost. This cannot be undone."), i18n.T("Discard"), "") {
+			c.gitPaths(e, page, protocol.MGitDiscard, c.discardFiles)
+		}
+		if c.discard.Closed() {
 			c.discardFiles = nil
 		}
 	}
-	if c.pushConfirm.Dialog.Open {
-		confirmed := c.pushConfirm.Layout(
-			gtx,
-			e.Theme.Theme,
-			i18n.T("Force push with lease"),
-			i18n.T(
-				"The branch is behind its upstream. Force push only if you intend to replace those remote commits.",
-			),
-			i18n.T("Force push with lease"),
-			c.status.Branch,
-		)
-		if confirmed {
+	if c.force.Dialog.Open {
+		body := i18n.T("The branch is behind its upstream. Pushing replaces the commits that are there, unless someone pushed since you last fetched.")
+		if c.force.Layout(gtx, e.Theme.Theme, i18n.T("Replace the upstream branch?"), body, i18n.T("Force push"), c.status.Branch) {
 			c.pushNow(e, page, true)
-			c.forcePush = false
 		}
 	}
-	return layout.Dimensions{}
 }
 
-func (c *changesState) handleDiffActions(
-	e *env.Env,
-	page *pageState,
-	actions []diffview.Action,
-) {
-	refreshReviews := func(error) { e.LoadReviews(page.worktree, nil) }
+func (c *changesState) handleDiffActions(e *env.Env, page *pageState, actions []diffview.Action) {
+	refresh := func(err error) {
+		page.fail(err)
+		e.LoadReviews(page.worktree, nil)
+	}
 	for _, action := range actions {
 		switch action.Kind {
 		case diffview.ActComment:
-			var result protocol.ReviewComment
-			params := protocol.ReviewAddParams{
-				Worktree: page.worktree,
-				Path:     action.Path,
-				Line:     action.Line,
-				Side:     action.Side,
-				Text:     action.Text,
-			}
-			e.Call(protocol.MReviewAdd, params, &result, refreshReviews)
+			params := protocol.ReviewAddParams{Worktree: page.worktree, Path: action.Path, Line: action.Line, Side: action.Side, Text: action.Text}
+			e.Call(protocol.MReviewAdd, params, new(protocol.ReviewComment), refresh)
 		case diffview.ActResolve:
-			comment := findComment(e.Snapshot().Reviews[page.worktree], action.ID)
-			var result protocol.ReviewComment
-			params := protocol.ReviewRef{
-				Worktree: page.worktree,
-				ID:       action.ID,
-				Resolved: !comment.Resolved,
+			resolved := false
+			for _, comment := range e.Snapshot().Reviews[page.worktree] {
+				if comment.ID == action.ID {
+					resolved = comment.Resolved
+				}
 			}
-			e.Call(protocol.MReviewResolve, params, &result, refreshReviews)
+			params := protocol.ReviewRef{Worktree: page.worktree, ID: action.ID, Resolved: !resolved}
+			e.Call(protocol.MReviewResolve, params, new(protocol.ReviewComment), refresh)
 		case diffview.ActDelete:
-			params := protocol.ReviewRef{Worktree: page.worktree, ID: action.ID}
-			e.Call(protocol.MReviewDelete, params, new(protocol.Empty), refreshReviews)
+			e.Call(protocol.MReviewDelete, protocol.ReviewRef{Worktree: page.worktree, ID: action.ID}, new(protocol.Empty), refresh)
 		case diffview.ActStage:
-			c.gitPaths(e, page, protocol.MGitStage, []string{action.Path}, false)
+			c.gitPaths(e, page, protocol.MGitStage, []string{action.Path})
 		case diffview.ActUnstage:
-			c.gitPaths(e, page, protocol.MGitUnstage, []string{action.Path}, false)
+			c.gitPaths(e, page, protocol.MGitUnstage, []string{action.Path})
 		case diffview.ActDiscard:
-			c.discardFiles = []string{action.Path}
-			c.discardConfirm.Danger, c.discardConfirm.Dialog.Open = true, true
+			c.askDiscard([]string{action.Path})
 		case diffview.ActOpen:
 			env.Spawn("xdg-open", filepath.Join(page.worktree, action.Path))
 		}
 	}
 }
 
-func (c *changesState) gitPaths(
-	e *env.Env,
-	page *pageState,
-	method string,
-	files []string,
-	all bool,
-) {
+func (c *changesState) gitPaths(e *env.Env, page *pageState, method string, files []string) {
 	var result protocol.GitStatusResult
-	params := protocol.GitPathsParams{Path: page.worktree, Files: files, All: all}
-	e.Call(method, params, &result, func(err error) {
+	e.Call(method, protocol.GitPathsParams{Path: page.worktree, Files: files}, &result, func(err error) {
 		if err != nil {
-			c.error = err.Error()
+			page.fail(err)
 			return
 		}
-		c.status = result
-		c.loadedPath = ""
+		c.status, c.loadedPath = result, ""
 	})
 }
 
-func (c *changesState) pushNow(
-	e *env.Env,
-	page *pageState,
-	force bool,
-) {
-	var result protocol.GitOpResult
-	params := protocol.GitPushParams{
-		Path:           page.worktree,
-		SetUpstream:    c.status.Status.Upstream == "",
-		ForceWithLease: force,
-	}
-	e.Call(protocol.MGitPush, params, &result, func(err error) {
-		if err != nil {
-			c.error = err.Error()
+func (c *changesState) pushNow(e *env.Env, page *pageState, force bool) {
+	params := protocol.GitPushParams{Path: page.worktree, SetUpstream: c.status.Status.Upstream == "", ForceWithLease: force}
+	e.Call(protocol.MGitPush, params, new(protocol.GitOpResult), func(err error) {
+		if err == nil {
+			e.Notify(i18n.T("Pushed."))
 		}
+		page.fail(err)
 		c.loadedPath = ""
 	})
 }
 
 func (c *changesState) resolveWithAgent(e *env.Env, page *pageState) {
-	conflicts := make([]string, 0)
-	for _, file := range c.status.Files {
-		if file.Status == protocol.ChangeConflict {
-			conflicts = append(conflicts, file.Path)
-		}
+	prompt := i18n.Tf("Resolve the %s conflicts in this worktree. Conflicted files:\n%s",
+		c.status.Status.Operation, strings.Join(c.groupFiles(changeConflicted), "\n"))
+	send := func(session string) {
+		e.Submit(session, false, chat.Submission{Text: prompt})
+		e.Attach(session, nil)
+		e.Navigate(protocol.TabAgent, session)
 	}
-	prompt := i18n.Tf(
-		"Resolve the %s conflicts in this worktree. Conflicted files:\n%s",
-		c.status.Status.Operation,
-		strings.Join(conflicts, "\n"),
-	)
-	var session string
 	for _, info := range e.Snapshot().Sessions {
 		if info.Worktree == page.worktree && info.Kind == protocol.KindAgent {
-			session = info.ID
-			break
-		}
-	}
-	if session == "" {
-		var info protocol.SessionInfo
-		params := protocol.SessionNewParams{
-			Kind:     protocol.KindAgent,
-			Origin:   protocol.OriginApp,
-			Project:  page.project,
-			Worktree: page.worktree,
-		}
-		e.Call(protocol.MSessionNew, params, &info, func(err error) {
-			if err == nil {
-				c.promptSession(e, info.ID, prompt)
-			}
-		})
-		return
-	}
-	c.promptSession(e, session, prompt)
-}
-
-func (c *changesState) promptSession(e *env.Env, session, text string) {
-	var result protocol.PromptResult
-	params := protocol.PromptParams{ID: session, Text: text}
-	e.Call(protocol.MSessionPrompt, params, &result, func(err error) {
-		if err != nil {
+			send(info.ID)
 			return
 		}
-		e.Attach(session, nil)
-		if e.Navigate != nil {
-			e.Navigate(protocol.TabAgent, session)
-		}
-	})
-}
-
-func findComment(comments []protocol.ReviewComment, id string) protocol.ReviewComment {
-	for _, comment := range comments {
-		if comment.ID == id {
-			return comment
-		}
 	}
-	return protocol.ReviewComment{}
+	var info protocol.SessionInfo
+	params := protocol.SessionNewParams{Kind: protocol.KindAgent, Origin: protocol.OriginApp, Project: page.project, Worktree: page.worktree}
+	e.Call(protocol.MSessionNew, params, &info, func(err error) {
+		if err != nil {
+			page.fail(err)
+			return
+		}
+		send(info.ID)
+	})
 }

@@ -1,46 +1,163 @@
 package shell
 
 import (
+	"strings"
+
 	"gioui.org/io/event"
 	"gioui.org/io/key"
 	"gioui.org/layout"
-
-	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
-	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/look"
 	"ryoku-rashin/internal/protocol"
 )
 
-var shellKeys = []event.Filter{
+// escape isn't one of these, the frame only asks for it while it has something to close so pages still hear it
+var shortcutKeys = []event.Filter{
 	key.Filter{Name: "K", Required: key.ModShortcut},
-	key.Filter{Name: key.NameEscape},
+	key.Filter{Name: "N", Required: key.ModShortcut},
+	key.Filter{Name: "B", Required: key.ModShortcut},
+	key.Filter{Name: "1", Required: key.ModShortcut},
+	key.Filter{Name: "2", Required: key.ModShortcut},
+	key.Filter{Name: "3", Required: key.ModShortcut},
+	key.Filter{Name: "4", Required: key.ModShortcut},
+	key.Filter{Name: ",", Required: key.ModShortcut},
+	key.Filter{Name: "\\", Required: key.ModShortcut},
+	key.Filter{Name: "+", Required: key.ModShortcut},
+	key.Filter{Name: "=", Required: key.ModShortcut},
+	key.Filter{Name: "-", Required: key.ModShortcut},
+	key.Filter{Name: "0", Required: key.ModShortcut},
+	key.Filter{Name: key.NameLeftArrow, Required: key.ModAlt},
+	key.Filter{Name: key.NameRightArrow, Required: key.ModAlt},
 }
 
-// Router owns tab selection and the shell's Escape stack.
+var escapeKey = key.Filter{Name: key.NameEscape}
+
+type Place struct {
+	Tab             string
+	Session         string
+	Project         string
+	ProjectView     string
+	Worktree        string
+	SettingsSection string
+}
+
+// a project's tabs share one key
+func (place Place) key() string {
+	return strings.Join([]string{place.Tab, place.Session, place.Project}, "\x00")
+}
+
+// sessions of one destination share it, their page moves between them itself and a first question must not blink the pane
+func (place Place) arrival() string {
+	return place.Tab + "\x00" + place.Project
+}
+
 type Router struct {
 	Tab         string
 	Session     string
 	NeedsYou    int
 	PaletteOpen bool
-	invalidate  func()
-	paletteTag  any
-	tabs        [5]kit.Plaque
+	// a page had a dialog open last frame, so the frame's shortcuts stand down and can't change what's under it
+	Modal bool
+
+	invalidate func()
+	paletteTag any
+	history    []Place
+	historyAt  int
+	applying   bool
+
+	OnPlace       func(Place)
+	OnNew         func()
+	OnToggleFold  func()
+	OnTogglePanel func()
+	OnZoom        func(int)
+	// CanEscape says whether OnEscape would close anything
+	CanEscape func() bool
+	OnEscape  func() bool
 }
 
 func NewRouter(tab, session string, invalidate func()) *Router {
 	if !validTab(tab) {
 		tab = protocol.TabAsk
 	}
-	return &Router{Tab: tab, Session: session, invalidate: invalidate}
+	place := Place{Tab: tab, Session: session}
+	return &Router{Tab: tab, Session: session, invalidate: invalidate, history: []Place{place}}
+}
+
+func (r *Router) Current() Place {
+	if len(r.history) == 0 {
+		return Place{Tab: r.Tab, Session: r.Session}
+	}
+	return r.history[r.historyAt]
 }
 
 func (r *Router) Navigate(tab, session string) {
+	place := r.Current()
 	if validTab(tab) {
-		r.Tab = tab
+		place.Tab = tab
 	}
-	if session != "" {
-		r.Session = session
+	place.Session = session
+	if place.Tab != protocol.TabProjects {
+		place.Project, place.ProjectView, place.Worktree = "", "", ""
+	}
+	r.Push(place)
+}
+
+func (r *Router) Push(place Place) {
+	if !validTab(place.Tab) {
+		place.Tab = protocol.TabAsk
+	}
+	if current := r.Current(); current == place {
+		r.apply(place)
+		return
+	}
+	if r.historyAt+1 < len(r.history) {
+		r.history = append([]Place(nil), r.history[:r.historyAt+1]...)
+	}
+	r.history = append(r.history, place)
+	r.historyAt = len(r.history) - 1
+	r.apply(place)
+}
+
+func (r *Router) Replace(place Place) {
+	if !validTab(place.Tab) {
+		place.Tab = protocol.TabAsk
+	}
+	if len(r.history) == 0 {
+		r.history = []Place{place}
+		r.historyAt = 0
+	} else {
+		r.history[r.historyAt] = place
+	}
+	r.apply(place)
+}
+
+func (r *Router) CanBack() bool    { return r.historyAt > 0 }
+func (r *Router) CanForward() bool { return r.historyAt+1 < len(r.history) }
+
+func (r *Router) Back() bool {
+	if !r.CanBack() {
+		return false
+	}
+	r.historyAt--
+	r.apply(r.history[r.historyAt])
+	return true
+}
+
+func (r *Router) Forward() bool {
+	if !r.CanForward() {
+		return false
+	}
+	r.historyAt++
+	r.apply(r.history[r.historyAt])
+	return true
+}
+
+func (r *Router) apply(place Place) {
+	r.Tab, r.Session = place.Tab, place.Session
+	if r.OnPlace != nil && !r.applying {
+		r.applying = true
+		r.OnPlace(place)
+		r.applying = false
 	}
 	if r.invalidate != nil {
 		r.invalidate()
@@ -61,25 +178,48 @@ func (r *Router) Dismiss(overlays *look.Overlays) bool {
 			if tag == r.paletteTag {
 				r.PaletteOpen = false
 			}
-			if r.invalidate != nil {
-				r.invalidate()
-			}
+			r.invalidateNow()
 			return true
 		}
 	}
 	if r.PaletteOpen {
 		r.PaletteOpen = false
-		if r.invalidate != nil {
-			r.invalidate()
-		}
+		r.invalidateNow()
+		return true
+	}
+	if r.OnEscape != nil && r.OnEscape() {
+		r.invalidateNow()
 		return true
 	}
 	return false
 }
 
+func (r *Router) invalidateNow() {
+	if r.invalidate != nil {
+		r.invalidate()
+	}
+}
+
 func (r *Router) HandleKeys(gtx layout.Context, overlays *look.Overlays) {
+	menu := false
+	if overlays != nil {
+		_, menu = overlays.Top()
+	}
+	var filters []event.Filter
+	switch {
+	case r.Modal && !menu:
+		// a dialog owns the keyboard, escape included
+		return
+	case r.Modal:
+		// only a menu opened from inside the dialog stands above it
+		filters = []event.Filter{escapeKey}
+	case menu || r.PaletteOpen || (r.CanEscape != nil && r.CanEscape()):
+		filters = append(append(filters, shortcutKeys...), escapeKey)
+	default:
+		filters = shortcutKeys
+	}
 	for {
-		raw, ok := gtx.Event(shellKeys...)
+		raw, ok := gtx.Event(filters...)
 		if !ok {
 			return
 		}
@@ -87,61 +227,35 @@ func (r *Router) HandleKeys(gtx layout.Context, overlays *look.Overlays) {
 		if !ok || e.State != key.Press {
 			continue
 		}
+		shortcut := e.Modifiers.Contain(key.ModShortcut)
 		switch {
-		case e.Name == "K" && e.Modifiers == key.ModShortcut:
+		case e.Name == "K" && shortcut:
 			r.OpenPalette()
+		case e.Name == "N" && shortcut && r.OnNew != nil:
+			r.OnNew()
+		case e.Name == "B" && shortcut && r.OnToggleFold != nil:
+			r.OnToggleFold()
+		case e.Name == "\\" && shortcut && r.OnTogglePanel != nil:
+			r.OnTogglePanel()
+		case shortcut && e.Name >= "1" && e.Name <= "4":
+			tabs := []string{protocol.TabAsk, protocol.TabAgent, protocol.TabProjects, protocol.TabIndex}
+			r.Navigate(tabs[int(e.Name[0]-'1')], "")
+		case e.Name == "," && shortcut:
+			r.Navigate(protocol.TabSettings, "")
+		case (e.Name == "+" || e.Name == "=") && shortcut && r.OnZoom != nil:
+			r.OnZoom(10)
+		case e.Name == "-" && shortcut && r.OnZoom != nil:
+			r.OnZoom(-10)
+		case e.Name == "0" && shortcut && r.OnZoom != nil:
+			r.OnZoom(0)
+		case e.Name == key.NameLeftArrow && e.Modifiers.Contain(key.ModAlt):
+			r.Back()
+		case e.Name == key.NameRightArrow && e.Modifiers.Contain(key.ModAlt):
+			r.Forward()
 		case e.Name == key.NameEscape:
 			r.Dismiss(overlays)
 		}
 	}
-}
-
-func (r *Router) LayoutRail(gtx layout.Context, th *look.Theme, class kit.FrameClass) layout.Dimensions {
-	ids := []string{protocol.TabAsk, protocol.TabAgent, protocol.TabProjects, protocol.TabIndex, protocol.TabSettings}
-	labels := []string{i18n.T("Ask"), i18n.T("Agents"), i18n.T("Projects"), i18n.T("Index"), i18n.T("Settings")}
-	children := make([]layout.FlexChild, len(ids))
-	for index := range ids {
-		index := index
-		button := &r.tabs[index]
-		button.Label = labels[index]
-		button.Kind = kit.PlaqueQuiet
-		if r.Tab == ids[index] {
-			button.Kind = kit.PlaqueOn
-		}
-		if button.Clicked(gtx) {
-			r.Navigate(ids[index], "")
-		}
-		layoutButton := func(gtx layout.Context) layout.Dimensions {
-			if index != 1 || r.NeedsYou <= 0 {
-				return button.Layout(gtx, th.Theme)
-			}
-			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-					return button.Layout(gtx, th.Theme)
-				}),
-				layout.Rigid(layout.Spacer{Width: 4}.Layout),
-				layout.Rigid(kit.Text(th.Theme, th.T.Label, th.R.Amber, i18n.Tf("%d", r.NeedsYou))),
-			)
-		}
-		widget := func(gtx layout.Context) layout.Dimensions {
-			if class == kit.FrameCompact {
-				return layout.Inset{Left: 4, Right: 4}.Layout(gtx, layoutButton)
-			}
-			return layout.Inset{Top: 8, Left: 8, Right: 8}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				gtx.Constraints.Min.X = gtx.Constraints.Max.X
-				return layoutButton(gtx)
-			})
-		}
-		if class == kit.FrameCompact {
-			children[index] = layout.Flexed(1, widget)
-		} else {
-			children[index] = layout.Rigid(widget)
-		}
-	}
-	if class == kit.FrameCompact {
-		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children...)
-	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
 func validTab(tab string) bool {

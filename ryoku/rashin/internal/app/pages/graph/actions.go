@@ -38,9 +38,9 @@ type pendingOperation struct {
 	cancel      kit.Plaque
 	name        kit.TextField
 	branch      kit.TextField
-	mode        look.Choice
+	mode        look.Select
 	modeIndex   int
-	target      look.Choice
+	target      look.Select
 	targetIndex int
 	running     bool
 	error       string

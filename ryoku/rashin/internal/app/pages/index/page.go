@@ -1,11 +1,21 @@
+// Package index is the Index destination: the folders Rashin has read, and
+// search across what it found in them.
 package index
 
 import (
+	"fmt"
+	"image"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gioui.org/layout"
+	"gioui.org/op"
+	"gioui.org/op/clip"
+	"gioui.org/op/paint"
 	"gioui.org/widget"
+
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
@@ -13,269 +23,590 @@ import (
 
 	"ryoku-rashin/internal/app/env"
 	"ryoku-rashin/internal/app/look"
+	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 )
 
 type Page struct {
-	selected     string
-	showList     bool
-	rows         map[string]*look.SummaryRow
-	results      []protocol.SearchHit
-	resultRows   []look.SummaryRow
-	scroll       look.Scroller
-	searchScroll look.Scroller
-	addField     kit.TextField
-	add          kit.Plaque
-	refresh      kit.Plaque
-	remove       kit.Plaque
-	toggle       kit.Plaque
-	search       kit.Search
-	confirm      kit.Confirm
-	confirmID    string
-	error        string
-	focusSearch  bool
+	selected string
+
+	list    look.SideList
+	rowMenu kit.Menu
+	header  look.PaneHeader
+	rise    look.Rise
+
+	search  kit.Search
+	modes   kit.Filters
+	lift    anim.Tween
+	scroll  look.Scroller
+	query   string
+	asked   string
+	loading bool
+	hits    []protocol.SearchHit
+	rows    map[int]*hitRow
+	open    int
+	focus   bool
+
+	add    addDialog
+	remove removeDialog
+	start  kit.Plaque
 }
 
-func (p *Page) FocusSearch() { p.focusSearch = true }
+type hitRow struct {
+	click  kit.Click
+	hover  look.Hover
+	unfold look.Unfold
+	file   kit.Plaque
+}
 
-func (p *Page) Layout(gtx layout.Context, e *env.Env, class kit.FrameClass) layout.Dimensions {
-	if p.rows == nil {
-		p.rows = make(map[string]*look.SummaryRow)
-	}
-	if p.toggle.Clicked(gtx) {
-		p.showList = !p.showList
-	}
+var searchModes = [...]string{protocol.SearchHybrid, protocol.SearchLexical, protocol.SearchSemantic}
+
+func New() *Page { return &Page{open: -1} }
+
+func (p *Page) New(*env.Env) { p.add.open() }
+
+func (p *Page) NewLabel() string { return i18n.T("Add folder") }
+
+func (p *Page) Overlay(gtx layout.Context, e *env.Env) bool {
+	p.add.layout(gtx, e, p)
+	p.remove.layout(gtx, e, p)
+	return look.AnyOpen(&p.add.dialog, &p.remove.confirm.Dialog)
+}
+
+func (p *Page) selectedIndex(e *env.Env) (protocol.IndexInfo, bool) {
 	indexes := e.Snapshot().Indexes
-	if p.selected == "" && len(indexes) > 0 {
-		p.selected = indexes[0].ID
-	}
-	if class == kit.FrameExpanded {
-		return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				gtx.Constraints.Min.X, gtx.Constraints.Max.X = gtx.Dp(384), gtx.Dp(384)
-				return p.list(gtx, e, indexes)
-			}),
-			layout.Rigid(layout.Spacer{Width: 8}.Layout),
-			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return p.work(gtx, e, indexes, class) }),
-		)
-	}
-	if p.showList || p.selected == "" {
-		return p.list(gtx, e, indexes)
-	}
-	return p.work(gtx, e, indexes, class)
-}
-
-func (p *Page) Overlay(gtx layout.Context, e *env.Env) layout.Dimensions {
-	if p.confirmID == "" {
-		return layout.Dimensions{}
-	}
-	name := p.confirmID
-	for _, info := range e.Snapshot().Indexes {
-		if info.ID == p.confirmID {
-			name = info.Name
+	for _, info := range indexes {
+		if info.ID == p.selected {
+			return info, true
 		}
 	}
-	p.confirm.Danger = true
-	p.confirm.Dialog.Open = true
-	if p.confirm.Layout(gtx, e.Theme.Theme, i18n.T("Remove index"), i18n.Tf("This removes %s and its saved index data.", name), i18n.T("Remove"), "") {
-		id := p.confirmID
-		p.confirmID = ""
-		e.Call(protocol.MIndexRemove, protocol.IndexRef{ID: id}, new(protocol.Empty), func(err error) {
-			if err != nil {
-				p.error = err.Error()
-			} else if p.selected == id {
-				p.selected = ""
-			}
-		})
+	if len(indexes) > 0 {
+		p.selected = indexes[0].ID
+		return indexes[0], true
 	}
-	if p.confirm.Closed() {
-		p.confirmID = ""
-	}
-	return layout.Dimensions{Size: gtx.Constraints.Max}
+	return protocol.IndexInfo{}, false
 }
 
-func (p *Page) list(gtx layout.Context, e *env.Env, indexes []protocol.IndexInfo) layout.Dimensions {
-	return (kit.Pane{Kind: kit.PaneList}).Layout(gtx, e.Theme.Theme, func(gtx layout.Context) layout.Dimensions {
-		return layout.Inset{Top: 21, Right: 10, Bottom: 13, Left: 10}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-				layout.Rigid(kit.Text(e.Theme.Theme, e.Theme.T.Section, e.Theme.R.Fg, i18n.T("Indexes"))),
-				layout.Rigid(layout.Spacer{Height: 13}.Layout),
-				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-					return p.scroll.Layout(gtx, e.Theme, len(indexes), func(gtx layout.Context, index int) layout.Dimensions {
-						info := indexes[index]
-						row := p.rows[info.ID]
-						if row == nil {
-							row = new(look.SummaryRow)
-							p.rows[info.ID] = row
-						}
-						if row.Clicked(gtx) || row.DoubleClicked(gtx) {
-							p.selected, p.showList = info.ID, false
-						}
-						row.Title = info.Name
-						row.State = indexState(info.State)
-						row.Meta = info.Root
-						row.Excerpt = i18n.Tf("%d files, %d symbols", info.Files, info.Symbols)
-						row.Tone = indexTone(info.State)
-						return layout.Inset{Bottom: 4}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							return row.Layout(gtx, e.Theme, info.ID == p.selected)
-						})
-					})
-				}),
-			)
-		})
+func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
+	snapshot := e.Snapshot()
+	selected, _ := p.selectedIndex(e)
+	rows := make([]look.SideRow, 0, len(snapshot.Indexes))
+	for _, info := range snapshot.Indexes {
+		row := look.SideRow{ID: info.ID, Title: info.Name, Facts: i18n.Tf("%s files", grouped(info.Files)), Menu: true}
+		switch info.State {
+		case protocol.IndexIndexing:
+			row.Working = true
+			if progress, ok := snapshot.Progress[info.ID]; ok && progress.Total > 0 {
+				row.Facts = i18n.Tf("%s of %s files", grouped(progress.Done), grouped(progress.Total))
+			}
+		case protocol.IndexError:
+			row.Tone = palette.Failed
+		}
+		rows = append(rows, row)
+	}
+	dimensions := p.list.Layout(gtx, e.Theme, e.Overlays, []look.SideGroup{{Title: i18n.T("Indexes"), Rows: rows}}, selected.ID)
+	for _, event := range p.list.Events() {
+		switch event.Kind {
+		case look.SideOpen:
+			if p.selected != event.ID {
+				p.selected, p.hits, p.asked, p.open = event.ID, nil, "", -1
+				p.runSearch(e)
+			}
+			p.focus = true
+			e.Navigate(protocol.TabIndex, "")
+		case look.SideMenu:
+			p.openRowMenu(e, event.ID, event.Anchor)
+		}
+	}
+	return dimensions
+}
+
+func (p *Page) openRowMenu(e *env.Env, id string, anchor image.Rectangle) {
+	items := []kit.MenuItem{
+		{Icon: look.Icon.Retry, Label: i18n.T("Read it again")},
+		{Icon: look.Icon.Folder, Label: i18n.T("Open folder")},
+		{Divider: true},
+		{Icon: look.Icon.Delete, Label: i18n.T("Remove"), Danger: true},
+	}
+	tag := &p.rowMenu
+	e.Overlays.Open(tag, anchor, look.Placement{}, func(gtx layout.Context) layout.Dimensions {
+		dimensions := p.rowMenu.Layout(gtx, e.Theme.Theme, items)
+		item, ok := p.rowMenu.Clicked(gtx)
+		if !ok {
+			return dimensions
+		}
+		e.Overlays.Close(tag)
+		for _, info := range e.Snapshot().Indexes {
+			if info.ID != id {
+				continue
+			}
+			switch item {
+			case 0:
+				refresh(e, id)
+			case 1:
+				env.Spawn("xdg-open", info.Root)
+			case 3:
+				p.remove.open(info)
+			}
+		}
+		return dimensions
 	})
 }
 
-func (p *Page) work(gtx layout.Context, e *env.Env, indexes []protocol.IndexInfo, class kit.FrameClass) layout.Dimensions {
-	return (kit.Pane{Kind: kit.PaneWork}).Layout(gtx, e.Theme.Theme, func(gtx layout.Context) layout.Dimensions {
-		return layout.Inset{Top: 21, Right: 34, Bottom: 13, Left: 34}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-						layout.Flexed(1, kit.Text(e.Theme.Theme, e.Theme.T.Title, e.Theme.R.Fg, i18n.T("Code index"))),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							if class == kit.FrameExpanded {
-								return layout.Dimensions{}
-							}
-							p.toggle.Kind, p.toggle.Label = kit.PlaqueQuiet, i18n.T("Indexes")
-							return p.toggle.Layout(gtx, e.Theme.Theme)
-						}),
-					)
-				}),
-				layout.Rigid(layout.Spacer{Height: 13}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.addRow(gtx, e) }),
-				layout.Rigid(layout.Spacer{Height: 21}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.searchRow(gtx, e) }),
-				layout.Rigid(layout.Spacer{Height: 13}.Layout),
-				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return p.resultsList(gtx, e, indexes) }),
-			)
-		})
+func refresh(e *env.Env, id string) {
+	e.Call(protocol.MIndexRefresh, protocol.IndexRef{ID: id}, new(protocol.IndexInfo), func(err error) {
+		if err != nil {
+			e.Notify(err.Error())
+		}
 	})
 }
 
-func (p *Page) addRow(gtx layout.Context, e *env.Env) layout.Dimensions {
-	p.addField.Label, p.addField.Placeholder = i18n.T("Folder"), i18n.T("Choose a project folder")
-	p.add.Kind, p.add.Label, p.add.Small = kit.PlaqueGold, i18n.T("Add"), true
-	if p.add.Clicked(gtx) && strings.TrimSpace(p.addField.Text()) != "" {
-		var info protocol.IndexInfo
-		e.Call(protocol.MIndexAdd, protocol.IndexAddParams{Path: strings.TrimSpace(p.addField.Text())}, &info, func(err error) {
-			if err != nil {
-				p.error = err.Error()
-				return
-			}
-			p.selected = info.ID
-			p.addField.SetText("")
-		})
+func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
+	info, ok := p.selectedIndex(e)
+	if !ok {
+		return p.layoutEmpty(gtx, e)
 	}
-	p.refresh.Kind, p.refresh.Label, p.refresh.Small = kit.PlaqueLine, i18n.T("Refresh"), true
-	p.remove.Kind, p.remove.Label, p.remove.Small = kit.PlaqueDangerLine, i18n.T("Remove"), true
-	if p.refresh.Clicked(gtx) && p.selected != "" {
-		var info protocol.IndexInfo
-		e.Call(protocol.MIndexRefresh, protocol.IndexRef{ID: p.selected}, &info, nil)
-	}
-	if p.remove.Clicked(gtx) && p.selected != "" {
-		p.confirmID = p.selected
-	}
-	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.End}.Layout(gtx,
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return p.addField.Layout(gtx, e.Theme.Theme) }),
-		layout.Rigid(layout.Spacer{Width: 8}.Layout),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.add.Layout(gtx, e.Theme.Theme) }),
-		layout.Rigid(layout.Spacer{Width: 8}.Layout),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.refresh.Layout(gtx, e.Theme.Theme) }),
-		layout.Rigid(layout.Spacer{Width: 8}.Layout),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.remove.Layout(gtx, e.Theme.Theme) }),
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.layoutHeader(gtx, e, info) }),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			return p.rise.Layout(gtx, e.Theme, info.ID, 8, func(gtx layout.Context) layout.Dimensions {
+				return p.layoutBody(gtx, e, info)
+			})
+		}),
 	)
 }
 
-func (p *Page) searchRow(gtx layout.Context, e *env.Env) layout.Dimensions {
-	p.search.Placeholder, p.search.Hint = i18n.T("Search indexed code"), i18n.T("Enter")
-	if p.focusSearch {
-		p.focusSearch = false
+func (p *Page) layoutEmpty(gtx layout.Context, e *env.Env) layout.Dimensions {
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return p.header.Layout(gtx, e.Theme, e.Overlays, look.PaneHeaderContent{Title: i18n.T("Index")})
+		}),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			p.start.Kind, p.start.Label = kit.PlaqueGold, i18n.T("Add folder")
+			if p.start.Clicked(gtx) {
+				p.add.open()
+			}
+			return kit.Empty{
+				Icon: look.Icon.Index, Title: i18n.T("Nothing is indexed yet"),
+				Body:    i18n.T("Add a folder and Rashin reads its files, so you and the agents can search it by words or by meaning."),
+				Actions: []*kit.Plaque{&p.start},
+			}.Layout(gtx, e.Theme.Theme)
+		}),
+	)
+}
+
+func (p *Page) layoutHeader(gtx layout.Context, e *env.Env, info protocol.IndexInfo) layout.Dimensions {
+	content := look.PaneHeaderContent{
+		Title: info.Name, Scrolled: p.scroll.Position.First > 0 || p.scroll.Position.Offset > 0,
+		Facts:   indexFacts(gtx.Now, info),
+		Actions: []look.HeaderAction{{Icon: look.Icon.Retry, Description: i18n.T("Read it again"), Disabled: info.State == protocol.IndexIndexing}},
+		Menu: []kit.MenuItem{
+			{Icon: look.Icon.Folder, Label: i18n.T("Open folder")},
+			{Divider: true},
+			{Icon: look.Icon.Delete, Label: i18n.T("Remove"), Danger: true},
+		},
+	}
+	switch info.State {
+	case protocol.IndexIndexing:
+		content.Claim, content.ClaimTone = i18n.T("Reading"), palette.Becoming
+	case protocol.IndexError:
+		content.Claim, content.ClaimTone = i18n.T("Failed"), palette.Failed
+	}
+	dimensions := p.header.Layout(gtx, e.Theme, e.Overlays, content)
+	if _, ok := p.header.ActionClicked(); ok {
+		refresh(e, info.ID)
+	}
+	if item, ok := p.header.MenuClicked(); ok {
+		if item == 0 {
+			env.Spawn("xdg-open", info.Root)
+		} else {
+			p.remove.open(info)
+		}
+	}
+	return dimensions
+}
+
+func indexFacts(now time.Time, info protocol.IndexInfo) []look.HeaderFact {
+	facts := make([]look.HeaderFact, 0, 4)
+	if info.Root != "" {
+		facts = append(facts, look.HeaderFact{Text: shortPath(info.Root), Kind: look.FactToken})
+	}
+	facts = append(facts, look.HeaderFact{Text: i18n.Tf("%s files", grouped(info.Files))})
+	if info.Symbols > 0 {
+		facts = append(facts, look.HeaderFact{Text: i18n.Tf("%s symbols", grouped(info.Symbols))})
+	}
+	if info.Updated != nil {
+		facts = append(facts, look.HeaderFact{Text: i18n.Tf("read %s", ago(now, *info.Updated))})
+	}
+	return facts
+}
+
+// matches a new ask so the two homes line up, results use the reading column
+const homeColumn = 680
+
+func (p *Page) layoutBody(gtx layout.Context, e *env.Env, info protocol.IndexInfo) layout.Dimensions {
+	th := e.Theme
+	size := gtx.Constraints.Max
+	// the sentence leaves under the header's edge, not over the header
+	defer clip.Rect(image.Rectangle{Max: size}).Push(gtx.Ops).Pop()
+	inset := gtx.Dp(look.ContentInset(e.Class))
+	column := min(size.X-2*inset, gtx.Dp(look.ReadingColumnWidth))
+	home := min(size.X-2*inset, gtx.Dp(homeColumn))
+	lift := look.Transition(gtx, &p.lift, p.asked != "", th.Motion.Select, th.Motion.Select)
+
+	width := home + int(float32(column-home)*lift+.5)
+	record := op.Record(gtx.Ops)
+	block := gtx
+	block.Constraints = layout.Constraints{Min: image.Pt(width, 0), Max: image.Pt(width, size.Y)}
+	search := p.layoutSearch(block, e, info)
+	searchCall := record.Stop()
+
+	top := gtx.Dp(21)
+	lead := gtx.Sp(th.T.Sentence.Line) + gtx.Dp(8) + gtx.Sp(th.T.Proof.Line) + gtx.Dp(21)
+	centre := min(max(size.Y*42/100, lead+top), max(lead, size.Y-search.Size.Y-top))
+	y := centre + int(float32(top-centre)*lift+.5)
+	x := (size.X - width) / 2
+
+	if lift > 0 {
+		p.layoutResults(gtx, e, info, image.Rect(0, y+search.Size.Y, size.X, size.Y), lift)
+	}
+	if lift < 1 {
+		p.layoutHome(gtx, e, image.Rect(x, y, x+width, y+search.Size.Y), 1-lift)
+	}
+	offset := op.Offset(image.Pt(x, y)).Push(gtx.Ops)
+	searchCall.Add(gtx.Ops)
+	offset.Pop()
+	return layout.Dimensions{Size: size}
+}
+
+func (p *Page) layoutHome(gtx layout.Context, e *env.Env, field image.Rectangle, alpha float32) {
+	th := e.Theme
+	opacity := paint.PushOpacity(gtx.Ops, alpha)
+	defer opacity.Pop()
+	proof, sentence := gtx.Sp(th.T.Proof.Line), gtx.Sp(th.T.Sentence.Line)
+	proofTop := field.Min.Y - gtx.Dp(21) - proof
+	sentenceTop := proofTop - gtx.Dp(8) - sentence
+	look.Place(gtx, image.Rect(field.Min.X, sentenceTop, field.Max.X, sentenceTop+sentence),
+		kit.Text(th.Theme, th.T.Sentence, th.R.Fg, i18n.T("Search what Rashin has read")))
+	look.Place(gtx, image.Rect(field.Min.X, proofTop, field.Max.X, proofTop+proof),
+		kit.Text(th.Theme, th.T.Proof, th.R.Fg2, i18n.T("By a name, by the words in a file, or by what the code does.")))
+}
+
+func (p *Page) layoutResults(gtx layout.Context, e *env.Env, info protocol.IndexInfo, area image.Rectangle, alpha float32) {
+	th := e.Theme
+	opacity := paint.PushOpacity(gtx.Ops, alpha)
+	defer opacity.Pop()
+	look.Place(gtx, area, func(gtx layout.Context) layout.Dimensions {
+		if len(p.hits) == 0 {
+			return look.ReadingColumn(gtx, e.Class, func(gtx layout.Context) layout.Dimensions {
+				return p.layoutNoHits(gtx, e, info)
+			})
+		}
+		return p.scroll.Layout(gtx, th, len(p.hits), func(gtx layout.Context, index int) layout.Dimensions {
+			return look.ReadingColumn(gtx, e.Class, func(gtx layout.Context) layout.Dimensions {
+				bottom := th.Sp.S1
+				if index == len(p.hits)-1 {
+					bottom = th.Sp.S5
+				}
+				return layout.Inset{Bottom: bottom}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return p.layoutHit(gtx, e, info, index)
+				})
+			})
+		})
+	})
+}
+
+func (p *Page) layoutSearch(gtx layout.Context, e *env.Env, info protocol.IndexInfo) layout.Dimensions {
+	th := e.Theme
+	p.search.Placeholder, p.search.Hint = i18n.Tf("Search %s", info.Name), "Enter"
+	p.search.Editor.Submit = true
+	if p.focus {
+		p.focus = false
 		p.search.Focus(gtx)
 	}
-	p.search.Editor.Submit = true
-	dimensions := p.search.Layout(gtx, e.Theme.Theme)
 	for {
 		raw, ok := p.search.Update(gtx)
 		if !ok {
 			break
 		}
 		if submit, ok := raw.(widget.SubmitEvent); ok {
-			p.runSearch(e, strings.TrimSpace(submit.Text))
+			p.query = strings.TrimSpace(submit.Text)
+			p.runSearch(e)
 		}
 	}
-	return dimensions
+	p.modes.Labels = []string{i18n.T("Words and meaning"), i18n.T("Words"), i18n.T("Meaning")}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Min.X = gtx.Constraints.Max.X
+			return p.search.Layout(gtx, th.Theme)
+		}),
+		layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					dimensions := p.modes.Layout(gtx, th.Theme)
+					if _, changed := p.modes.Changed(); changed {
+						p.runSearch(e)
+					}
+					return dimensions
+				}),
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					return layout.E.Layout(gtx, p.resultNote(th))
+				}),
+			)
+		}),
+		layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
+	)
 }
 
-func (p *Page) runSearch(e *env.Env, query string) {
-	if query == "" {
-		p.results = nil
+func (p *Page) resultNote(th *look.Theme) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		switch {
+		case p.loading:
+			return kit.Working{Active: true, Size: 16}.Layout(gtx, th.Theme)
+		case p.asked == "" || len(p.hits) == 0:
+			return layout.Dimensions{}
+		case len(p.hits) == 1:
+			return kit.Text(th.Theme, th.T.Caption, th.R.Fg3, i18n.T("One result"))(gtx)
+		default:
+			return kit.Text(th.Theme, th.T.Caption, th.R.Fg3, i18n.Tf("%d results", len(p.hits)))(gtx)
+		}
+	}
+}
+
+func (p *Page) layoutNoHits(gtx layout.Context, e *env.Env, info protocol.IndexInfo) layout.Dimensions {
+	th := e.Theme
+	if p.loading {
+		return look.SkeletonRows(gtx, th, 4, true)
+	}
+	body := i18n.Tf("Nothing in %s matches “%s”.", info.Name, p.asked)
+	if p.modes.Selected != 0 {
+		body += " " + i18n.T("Words and meaning looks wider.")
+	}
+	gtx.Constraints.Max.Y = min(gtx.Constraints.Max.Y, gtx.Dp(260))
+	gtx.Constraints.Min.Y = gtx.Constraints.Max.Y
+	return kit.Empty{Icon: look.Icon.Search, Title: i18n.T("No results"), Body: body}.Layout(gtx, th.Theme)
+}
+
+func (p *Page) layoutHit(gtx layout.Context, e *env.Env, info protocol.IndexInfo, index int) layout.Dimensions {
+	th := e.Theme
+	hit := p.hits[index]
+	row := p.rows[index]
+	if row == nil {
+		row = new(hitRow)
+		p.rows[index] = row
+	}
+	if row.click.Clicked(gtx) {
+		if p.open == index {
+			p.open = -1
+		} else {
+			p.open = index
+		}
+	}
+	row.file.Kind, row.file.Small, row.file.Icon, row.file.Label = kit.PlaqueLine, true, look.Icon.OpenInNew, i18n.T("Open file")
+	if row.file.Clicked(gtx) {
+		env.Spawn("xdg-open", filepath.Join(info.Root, hit.Path))
+	}
+	height := gtx.Dp(look.SideRowTall)
+	head := func(gtx layout.Context) layout.Dimensions {
+		size := image.Pt(gtx.Constraints.Max.X, height)
+		gtx.Constraints = layout.Exact(size)
+		dimensions, hover := row.hover.Layout(gtx, th, func(gtx layout.Context) layout.Dimensions {
+			return row.click.Layout(gtx, func(gtx layout.Context) layout.Dimensions { return layout.Dimensions{Size: size} })
+		})
+		if fill := max(hover, boolFloat(p.open == index)); fill > 0 {
+			kit.FillCut(gtx.Ops, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Small), palette.WithAlpha(th.R.Stone3, fill))
+		}
+		inset := gtx.Dp(13)
+		text := gtx
+		text.Constraints = layout.Constraints{Max: image.Pt(size.X-2*inset, size.Y)}
+		look.MiddleLeft(text, inset, size.Y, func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Baseline}.Layout(gtx,
+						layout.Rigid(kit.RawText(th.Theme, th.T.Mono, th.R.Fg, fmt.Sprintf("%s:%d", hit.Path, hit.Start))),
+						layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
+						layout.Flexed(1, kit.RawText(th.Theme, th.T.Label, th.R.Fg2, hit.Symbol)),
+					)
+				}),
+				layout.Rigid(kit.RawText(th.Theme, th.T.Caption, th.R.Fg3, firstLine(hit.Snippet))),
+			)
+		})
+		return dimensions
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(head),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return row.unfold.Layout(gtx, th, p.open == index, func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Top: th.Sp.S1, Bottom: th.Sp.S2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return kit.Slab(gtx, th.R.Stone1, th.Cut.Mid, func(gtx layout.Context) layout.Dimensions {
+						return layout.UniformInset(13).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							gtx.Constraints.Min.X = gtx.Constraints.Max.X
+							return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+								layout.Rigid(look.Paragraph(th, th.T.Mono, th.R.Fg2, strings.TrimRight(hit.Snippet, "\n"))),
+								layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions { return row.file.Layout(gtx, th.Theme) }),
+							)
+						})
+					})
+				})
+			})
+		}),
+	)
+}
+
+func boolFloat(value bool) float32 {
+	if value {
+		return 1
+	}
+	return 0
+}
+
+func firstLine(text string) string {
+	for _, line := range strings.Split(text, "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			return line
+		}
+	}
+	return ""
+}
+
+func (p *Page) runSearch(e *env.Env) {
+	if p.query == "" {
+		p.hits, p.asked, p.open = nil, "", -1
 		return
 	}
+	query := p.query
+	params := protocol.SearchParams{
+		IndexRef: protocol.IndexRef{ID: p.selected}, Query: query, Limit: 40,
+		Mode: searchModes[min(p.modes.Selected, len(searchModes)-1)],
+	}
+	p.loading, p.asked = true, query
 	var result protocol.SearchResult
-	e.Call(protocol.MIndexSearch, protocol.SearchParams{IndexRef: protocol.IndexRef{ID: p.selected}, Query: query, Limit: 40, Mode: protocol.SearchHybrid}, &result, func(err error) {
+	e.Call(protocol.MIndexSearch, params, &result, func(err error) {
+		p.loading = false
 		if err != nil {
-			p.error = err.Error()
+			e.Notify(err.Error())
 			return
 		}
-		p.results = result.Hits
-		p.resultRows = make([]look.SummaryRow, len(result.Hits))
+		p.hits, p.rows, p.open = result.Hits, make(map[int]*hitRow), -1
+		p.scroll.ScrollTo(0)
 	})
 }
 
-func (p *Page) resultsList(gtx layout.Context, e *env.Env, indexes []protocol.IndexInfo) layout.Dimensions {
-	if len(p.results) == 0 {
-		body := i18n.T("Search an index to open a matching file.")
-		if p.error != "" {
-			body = p.error
-		}
-		return (kit.Empty{Title: i18n.T("No search results"), Body: body}).Layout(gtx, e.Theme.Theme)
+func shortPath(path string) string {
+	if home := paths.Home(); home != "" && strings.HasPrefix(path, home+"/") {
+		return "~" + path[len(home):]
 	}
-	root := ""
-	for _, info := range indexes {
-		if info.ID == p.selected {
-			root = info.Root
+	return path
+}
+
+func grouped(value int) string {
+	text := fmt.Sprint(value)
+	for index := len(text) - 3; index > 0; index -= 3 {
+		text = text[:index] + "," + text[index:]
+	}
+	return text
+}
+
+func ago(now, when time.Time) string {
+	elapsed := now.Sub(when)
+	switch {
+	case elapsed < time.Minute:
+		return i18n.T("just now")
+	case elapsed < time.Hour:
+		return i18n.Tf("%d min ago", int(elapsed.Minutes()))
+	case elapsed < 24*time.Hour:
+		return i18n.Tf("%d h ago", int(elapsed.Hours()))
+	default:
+		return i18n.Tf("%d d ago", int(elapsed.Hours()/24))
+	}
+}
+
+type addDialog struct {
+	shown       bool
+	dialog      kit.Dialog
+	path        kit.TextField
+	add, cancel kit.Plaque
+}
+
+func (d *addDialog) open() {
+	d.shown, d.dialog.Open = true, true
+	d.path.Editor.Submit = true
+}
+
+func (d *addDialog) layout(gtx layout.Context, e *env.Env, page *Page) {
+	if !d.shown {
+		return
+	}
+	th := e.Theme
+	submitted := false
+	for {
+		event, ok := d.path.Editor.Update(gtx)
+		if !ok {
+			break
+		}
+		if _, ok := event.(widget.SubmitEvent); ok {
+			submitted = true
 		}
 	}
-	return p.searchScroll.Layout(gtx, e.Theme, len(p.results), func(gtx layout.Context, index int) layout.Dimensions {
-		hit := p.results[index]
-		row := &p.resultRows[index]
-		if row.Clicked(gtx) || row.DoubleClicked(gtx) {
-			env.Spawn("xdg-open", filepath.Join(root, hit.Path))
-		}
-		row.Title = hit.Path
-		row.State = i18n.Tf("Lines %d to %d", hit.Start, hit.End)
-		row.Meta = hit.Symbol
-		row.Excerpt = hit.Snippet
-		row.Tone = palette.Alive
-		return layout.Inset{Bottom: 4}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return row.Layout(gtx, e.Theme, false)
+	d.path.Label, d.path.Placeholder, d.path.Mono = i18n.T("Folder"), paths.Home()+"/Work/project", true
+	d.path.Help = i18n.T("Its files are read on this machine. Nothing leaves it.")
+	d.cancel.Kind, d.cancel.Label = kit.PlaqueQuiet, i18n.T("Cancel")
+	d.add.Kind, d.add.Label = kit.PlaqueGold, i18n.T("Add folder")
+	folder := strings.TrimSpace(d.path.Text())
+	if d.cancel.Clicked(gtx) {
+		d.dialog.Dismiss(gtx)
+	}
+	if (d.add.Clicked(gtx) || submitted) && folder != "" {
+		var info protocol.IndexInfo
+		e.Call(protocol.MIndexAdd, protocol.IndexAddParams{Path: folder}, &info, func(err error) {
+			if err != nil {
+				e.Notify(err.Error())
+				return
+			}
+			d.path.SetText("")
+			page.selected = info.ID
 		})
-	})
-}
-
-func indexTone(state string) palette.Tone {
-	switch state {
-	case protocol.IndexIndexing:
-		return palette.Becoming
-	case protocol.IndexError:
-		return palette.Failed
-	case protocol.IndexReady:
-		return palette.Alive
-	default:
-		return palette.Idle
+		d.dialog.Dismiss(gtx)
+	}
+	d.dialog.Layout(gtx, th.Theme, i18n.T("Index a folder"),
+		func(gtx layout.Context) layout.Dimensions { return d.path.Layout(gtx, th.Theme) },
+		func(gtx layout.Context) layout.Dimensions { return d.cancel.Layout(gtx, th.Theme) },
+		func(gtx layout.Context) layout.Dimensions { return d.add.Layout(gtx, th.Theme) },
+	)
+	if d.dialog.Closed() {
+		d.shown = false
 	}
 }
 
-func indexState(state string) string {
-	switch state {
-	case protocol.IndexIndexing:
-		return i18n.T("Indexing")
-	case protocol.IndexError:
-		return i18n.T("Failed")
-	case protocol.IndexReady:
-		return i18n.T("Ready")
-	default:
-		return i18n.T("Empty")
+type removeDialog struct {
+	info    protocol.IndexInfo
+	confirm kit.Confirm
+}
+
+func (d *removeDialog) open(info protocol.IndexInfo) {
+	d.info, d.confirm.Dialog.Open, d.confirm.Danger = info, true, true
+}
+
+func (d *removeDialog) layout(gtx layout.Context, e *env.Env, page *Page) {
+	if d.info.ID == "" {
+		return
+	}
+	body := i18n.Tf("What Rashin read from %s is deleted. The folder and its files stay.", d.info.Name)
+	if d.confirm.Layout(gtx, e.Theme.Theme, i18n.T("Remove this index?"), body, i18n.T("Remove"), "") {
+		id := d.info.ID
+		e.Call(protocol.MIndexRemove, protocol.IndexRef{ID: id}, new(protocol.Empty), func(err error) {
+			if err != nil {
+				e.Notify(err.Error())
+				return
+			}
+			if page.selected == id {
+				page.selected, page.hits, page.asked = "", nil, ""
+			}
+		})
+	}
+	if d.confirm.Closed() {
+		d.info = protocol.IndexInfo{}
 	}
 }

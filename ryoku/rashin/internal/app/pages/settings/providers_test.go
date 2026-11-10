@@ -7,7 +7,7 @@ import (
 	"ryoku-rashin/internal/protocol"
 )
 
-func TestOrderedProvidersPrioritizesAvailableKeyedThenKeyless(t *testing.T) {
+func TestOrderedProvidersPutsAnsweringKeyedThenKeylessFirst(t *testing.T) {
 	providers := []protocol.ProviderInfo{
 		{ID: "zulu", Name: "Zulu", Configured: true},
 		{ID: "ovh", Name: "OVHcloud", Keyless: true, Enabled: true, Configured: true, Available: 2},
@@ -33,15 +33,19 @@ func TestOrderedProvidersPrioritizesAvailableKeyedThenKeyless(t *testing.T) {
 	}
 }
 
-func TestProviderMetaReportsKeyAndModelCounts(t *testing.T) {
-	provider := protocol.ProviderInfo{Models: 7, Keys: []protocol.KeyInfo{{}, {}}}
-	if got, want := providerMeta(provider), "2 keys · 7 models"; got != want {
-		t.Fatalf("providerMeta() = %q, want %q", got, want)
+func TestProviderStateNamesWhatStandsBetweenTheReaderAndAnAnswer(t *testing.T) {
+	cases := []struct {
+		provider protocol.ProviderInfo
+		want     string
+	}{
+		{protocol.ProviderInfo{Available: 3}, "Off"},
+		{protocol.ProviderInfo{Enabled: true, Available: 3}, "Ready"},
+		{protocol.ProviderInfo{Enabled: true}, "Needs a key"},
+		{protocol.ProviderInfo{Enabled: true, Configured: true}, "Not answering"},
 	}
-
-	provider.Models = 1
-	provider.Keys = provider.Keys[:1]
-	if got, want := providerMeta(provider), "1 key · 1 model"; got != want {
-		t.Fatalf("providerMeta() = %q, want %q", got, want)
+	for _, test := range cases {
+		if got, _ := providerState(test.provider); got != test.want {
+			t.Fatalf("providerState(%+v) = %q, want %q", test.provider, got, test.want)
+		}
 	}
 }

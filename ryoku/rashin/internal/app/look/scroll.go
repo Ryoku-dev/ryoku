@@ -4,6 +4,7 @@ import (
 	"image"
 	"math"
 	"os"
+	"time"
 
 	"gioui.org/io/event"
 	"gioui.org/io/pointer"
@@ -11,166 +12,337 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/clip"
 
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 )
 
-const scrollRangeLimit = 1 << 30
+const (
+	x11Notch   = 10
+	x11NotchDP = 48
+	thumbIdle  = 600 * time.Millisecond
+)
 
 var scrollOnX11 = os.Getenv("WAYLAND_DISPLAY") == ""
 
-// Scroller virtualises a vertical list and reapplies every physical scroll
-// delta immediately. Measured item sizes keep mixed-height rows exact.
 type Scroller struct {
 	layout.List
-	tag             struct{}
-	fraction        float32
+	Preview kit.State
+
+	tag          struct{}
+	fraction     float32
+	hovered      bool
+	lastScroll   time.Time
+	thumb        anim.Tween
+	thumbOn      bool
+	thumbReady   bool
+	userScrolled bool
+	listGesture  bool
+
+	inputOps     *op.Ops
+	inputAt      time.Time
+	inputReady   bool
+	inputBefore  layout.Position
+	inputApplied int
+
 	probeOps        op.Ops
 	itemSizes       []image.Point
 	itemCount       int
 	cacheReady      bool
 	listConstraints layout.Constraints
-	inputOps        *op.Ops
-	inputReady      bool
-	inputAt         int64
-	userScrolled    bool
+	programmatic    bool
+
+	spring        anim.Spring
+	springActive  bool
+	springApplied float32
 }
 
 func mapScrollDelta(delta, pixelsPerDP float32, x11 bool) float32 {
 	if x11 {
-		notches := float32(math.Round(float64(delta / 10)))
-		if notches != 0 && float32(math.Abs(float64(delta-notches*10))) <= .5 {
-			return notches * 48 * pixelsPerDP
+		notches := float32(math.Round(float64(delta / x11Notch)))
+		if notches != 0 && float32(math.Abs(float64(delta-notches*x11Notch))) <= .5 {
+			return notches * x11NotchDP * pixelsPerDP
 		}
 	}
 	return delta * pixelsPerDP
 }
 
-func verticalScrollRange(position layout.Position) pointer.ScrollRange {
-	var bounds pointer.ScrollRange
-	if position.First > 0 || position.Offset > 0 {
-		bounds.Min = -scrollRangeLimit
+func addListOffset(position *layout.Position, fraction *float32, delta float32) int {
+	if delta < 0 {
+		position.BeforeEnd = true
 	}
-	if position.BeforeEnd {
-		bounds.Max = scrollRangeLimit
-	}
-	return bounds
-}
-
-func addOffset(position *layout.Position, fraction *float32, delta float32) {
 	total := *fraction + delta
 	whole := int(total)
 	*fraction = total - float32(whole)
 	position.Offset += whole
-	if delta < 0 {
-		position.BeforeEnd = true
-	}
+	return whole
 }
 
-func itemExtent(sizes []image.Point, index, fallback int) int {
-	if index >= 0 && index < len(sizes) && sizes[index].Y > 0 {
-		return sizes[index].Y
+func sameListPosition(a, b layout.Position) bool {
+	return a.First == b.First && a.Offset == b.Offset
+}
+
+func itemExtent(sizes []image.Point, index, fallback int, axis layout.Axis) int {
+	if index >= 0 && index < len(sizes) {
+		size := axis.Convert(sizes[index]).X
+		if size > 0 {
+			return size
+		}
 	}
 	return max(1, fallback)
 }
 
-func positionDelta(before, after layout.Position, sizes []image.Point, fallback, gap int) int {
+func listPositionDelta(
+	before, after layout.Position,
+	sizes []image.Point,
+	fallback, gap int,
+	axis layout.Axis,
+) int {
 	delta := after.Offset - before.Offset
 	if after.First > before.First {
 		for index := before.First; index < after.First; index++ {
-			delta += itemExtent(sizes, index, fallback) + gap
+			delta += itemExtent(sizes, index, fallback, axis) + gap
 		}
 	} else {
 		for index := after.First; index < before.First; index++ {
-			delta -= itemExtent(sizes, index, fallback) + gap
+			delta -= itemExtent(sizes, index, fallback, axis) + gap
 		}
 	}
 	return delta
 }
 
-func samePosition(left, right layout.Position) bool {
-	return left.First == right.First && left.Offset == right.Offset
+func scrollThumb(viewport, content, first, offset, count, minimum int) (top, height int, ok bool) {
+	if viewport <= 0 || content <= viewport || count <= 0 {
+		return 0, 0, false
+	}
+	height = max(minimum, viewport*viewport/content)
+	height = min(viewport, height)
+	travel := viewport - height
+	average := float64(content) / float64(count)
+	scrolled := float64(first)*average + float64(offset)
+	maximum := float64(content - viewport)
+	if maximum > 0 {
+		top = int(math.Round(float64(travel) * min(max(scrolled/maximum, 0), 1)))
+	}
+	return top, height, true
 }
 
-func (s *Scroller) updateInput(gtx layout.Context) {
-	stamp := gtx.Now.UnixNano()
-	if s.inputReady && s.inputOps == gtx.Ops && s.inputAt == stamp {
-		return
+func (scroller *Scroller) setThumb(gtx layout.Context, th *Theme, shown bool) float32 {
+	duration := th.Motion.HoverOut
+	if shown {
+		duration = th.Motion.HoverIn
 	}
-	s.inputReady, s.inputOps, s.inputAt = true, gtx.Ops, stamp
-	if !s.cacheReady || s.itemCount == 0 {
-		return
+	scroller.thumb.Duration = duration
+	scroller.thumb.Ease = anim.EaseChisel
+	if !scroller.thumbReady {
+		scroller.thumb.Set(gtx, 0)
+		scroller.thumbReady = true
 	}
-	before := s.Position
-	fallback := max(1, before.Length/max(s.itemCount, 1))
-	s.probeOps.Reset()
+	if shown != scroller.thumbOn {
+		scroller.thumbOn = shown
+		if shown {
+			scroller.thumb.Set(gtx, 1)
+		} else {
+			scroller.thumb.Set(gtx, 0)
+		}
+	}
+	return scroller.thumb.Value(gtx)
+}
+
+func (scroller *Scroller) stopSpring() {
+	if scroller.springActive {
+		scroller.spring.Snap(scroller.springApplied)
+		scroller.springActive = false
+	}
+}
+
+func (scroller *Scroller) updateHover(gtx layout.Context) {
+	for {
+		raw, ok := gtx.Event(pointer.Filter{Target: &scroller.tag, Kinds: pointer.Enter | pointer.Leave})
+		if !ok {
+			return
+		}
+		e, ok := raw.(pointer.Event)
+		if !ok {
+			continue
+		}
+		switch e.Kind {
+		case pointer.Enter:
+			scroller.hovered = true
+		case pointer.Leave:
+			scroller.hovered = false
+		}
+	}
+}
+
+func (scroller *Scroller) probeInput(gtx layout.Context) int {
+	if !scroller.cacheReady || scroller.itemCount <= 0 {
+		return 0
+	}
+	before := scroller.Position
+	fallback := max(1, before.Length/max(scroller.itemCount, 1))
+	scroller.probeOps.Reset()
 	probe := gtx
-	probe.Ops = &s.probeOps
-	probe.Constraints = s.listConstraints
-	s.List.Layout(probe, s.itemCount, func(_ layout.Context, index int) layout.Dimensions {
-		size := image.Pt(1, fallback)
-		if index < len(s.itemSizes) && s.itemSizes[index].Y > 0 {
-			size = s.itemSizes[index]
+	probe.Ops = &scroller.probeOps
+	probe.Constraints = scroller.listConstraints
+	scroller.List.Layout(probe, scroller.itemCount, func(_ layout.Context, index int) layout.Dimensions {
+		size := image.Point{}
+		if index >= 0 && index < len(scroller.itemSizes) {
+			size = scroller.itemSizes[index]
+		}
+		if size.Y <= 0 {
+			size.Y = fallback
 		}
 		return layout.Dimensions{Size: size}
 	})
-	after := s.Position
-	if samePosition(before, after) {
-		return
+	after := scroller.Position
+	if sameListPosition(before, after) {
+		if !scroller.List.Dragging() {
+			scroller.listGesture = false
+		}
+		return 0
 	}
-	delta := float32(positionDelta(before, after, s.itemSizes, fallback, s.Gap))
-	if !s.List.Dragging() {
-		delta = mapScrollDelta(delta, gtx.Metric.PxPerDp, scrollOnX11)
+	raw := float32(listPositionDelta(before, after, scroller.itemSizes, fallback, scroller.Gap, layout.Vertical))
+	dragging := scroller.List.Dragging()
+	if !dragging && !scroller.listGesture {
+		raw = mapScrollDelta(raw, gtx.Metric.PxPerDp, scrollOnX11)
 	}
-	s.Position = before
-	addOffset(&s.Position, &s.fraction, delta)
-	s.userScrolled = true
+	scroller.Position = before
+	addListOffset(&scroller.Position, &scroller.fraction, raw)
+	scroller.listGesture = dragging || scroller.listGesture
+	if !scroller.programmatic {
+		scroller.stopSpring()
+		scroller.userScrolled = true
+		scroller.lastScroll = gtx.Now
+		gtx.Execute(op.InvalidateCmd{At: gtx.Now.Add(thumbIdle)})
+	}
+	return 1
 }
 
-func (s *Scroller) Layout(gtx layout.Context, th *Theme, count int, element layout.ListElement) layout.Dimensions {
-	s.Axis = layout.Vertical
-	s.updateInput(gtx)
-	s.listConstraints = gtx.Constraints
+func (scroller *Scroller) UpdateInput(gtx layout.Context) {
+	if scroller.inputReady && scroller.inputOps == gtx.Ops && scroller.inputAt == gtx.Now {
+		return
+	}
+	scroller.inputOps, scroller.inputAt, scroller.inputReady = gtx.Ops, gtx.Now, true
+	scroller.inputBefore = scroller.Position
+	scroller.updateHover(gtx)
+	scroller.inputApplied = scroller.probeInput(gtx)
+	scroller.inputApplied += scroller.advanceSpring(gtx)
+}
+
+func (scroller *Scroller) advanceSpring(gtx layout.Context) int {
+	if !scroller.springActive {
+		return 0
+	}
+	value := scroller.spring.Value(gtx)
+	delta := value - scroller.springApplied
+	scroller.springApplied = value
+	applied := addListOffset(&scroller.Position, &scroller.fraction, delta)
+	if !scroller.spring.Moving() {
+		scroller.springActive = false
+	}
+	return applied
+}
+
+func (scroller *Scroller) Layout(
+	gtx layout.Context,
+	th *Theme,
+	count int,
+	element layout.ListElement,
+) layout.Dimensions {
+	scroller.Axis = layout.Vertical
+	scroller.UpdateInput(gtx)
+	scroller.listConstraints = gtx.Constraints
 	pass := pointer.PassOp{}.Push(gtx.Ops)
 	area := clip.Rect(image.Rectangle{Max: gtx.Constraints.Max}).Push(gtx.Ops)
-	event.Op(gtx.Ops, &s.tag)
+	event.Op(gtx.Ops, &scroller.tag)
 	area.Pop()
 	pass.Pop()
-	if len(s.itemSizes) < count {
-		s.itemSizes = append(s.itemSizes, make([]image.Point, count-len(s.itemSizes))...)
+
+	beforeList := scroller.Position
+	if len(scroller.itemSizes) < count {
+		scroller.itemSizes = append(scroller.itemSizes, make([]image.Point, count-len(scroller.itemSizes))...)
 	}
-	s.itemCount = count
-	dimensions := s.List.Layout(gtx, count, func(gtx layout.Context, index int) layout.Dimensions {
+	scroller.itemCount = count
+	dimensions := scroller.List.Layout(gtx, count, func(gtx layout.Context, index int) layout.Dimensions {
 		dimensions := element(gtx, index)
-		s.itemSizes[index] = dimensions.Size
+		scroller.itemSizes[index] = dimensions.Size
 		return dimensions
 	})
-	s.cacheReady = true
-	if dimensions.Size.Y > 0 && s.Position.Length > dimensions.Size.Y {
-		viewport, content := dimensions.Size.Y, s.Position.Length
-		height := max(gtx.Dp(32), viewport*viewport/content)
-		travel := viewport - height
-		average := float64(content) / float64(max(count, 1))
-		scrolled := float64(s.Position.First)*average + float64(s.Position.Offset)
-		maximum := float64(content - viewport)
-		top := 0
-		if maximum > 0 {
-			top = int(float64(travel) * min(max(scrolled/maximum, 0), 1))
-		}
-		width := max(1, gtx.Dp(3))
-		kit.FillCut(gtx.Ops, image.Rect(max(0, dimensions.Size.X-width-4), top, max(0, dimensions.Size.X-4), top+height), min(width/2, height/2), th.R.Vein)
+	scroller.cacheReady = true
+	dragging := scroller.List.Dragging()
+	movedByList := !sameListPosition(beforeList, scroller.Position)
+	if !scroller.programmatic && movedByList && (dragging || scroller.listGesture) {
+		scroller.stopSpring()
+		scroller.userScrolled = true
+		scroller.lastScroll = gtx.Now
+		gtx.Execute(op.InvalidateCmd{At: gtx.Now.Add(thumbIdle)})
 	}
+	if dragging {
+		scroller.listGesture = true
+	} else if !movedByList {
+		scroller.listGesture = false
+	}
+	if scroller.inputApplied != 0 && sameListPosition(scroller.inputBefore, scroller.Position) {
+		scroller.fraction = 0
+		scroller.stopSpring()
+	}
+	scroller.programmatic = false
+
+	shown := scroller.hovered || (!scroller.lastScroll.IsZero() && gtx.Now.Before(scroller.lastScroll.Add(thumbIdle)))
+	if scroller.Preview == kit.StateHover || scroller.Preview == kit.StatePressed {
+		shown = true
+	}
+	alpha := scroller.setThumb(gtx, th, shown)
+	if alpha <= 0 {
+		return dimensions
+	}
+	DrawThumb(gtx, th, dimensions.Size, scroller.Position, count, alpha)
 	return dimensions
 }
 
-func (s *Scroller) ScrollTo(index int) {
-	s.Position.First = max(0, index)
-	s.Position.Offset = 0
-	s.Position.BeforeEnd = true
-	s.fraction = 0
+func DrawThumb(gtx layout.Context, th *Theme, size image.Point, position layout.Position, count int, alpha float32) {
+	top, height, ok := scrollThumb(size.Y, position.Length, position.First, position.Offset, count, gtx.Dp(12))
+	if !ok || alpha <= 0 {
+		return
+	}
+	width := max(1, gtx.Dp(3))
+	x := max(0, size.X-gtx.Dp(4)-width)
+	kit.FillCut(gtx.Ops, image.Rect(x, top, x+width, top+height), min(width/2, height/2), palette.WithAlpha(th.R.Vein, alpha))
 }
 
-func (s *Scroller) UserScrolled() bool {
-	value := s.userScrolled
-	s.userScrolled = false
-	return value
+func (scroller *Scroller) AnchorTo(index, offsetPx int) {
+	scroller.stopSpring()
+	scroller.Position.First = max(index, 0)
+	scroller.Position.Offset = -offsetPx
+	scroller.Position.BeforeEnd = true
+	scroller.fraction = 0
+	scroller.programmatic = true
+}
+
+func (scroller *Scroller) ScrollTo(index int) { scroller.AnchorTo(index, 0) }
+
+func (scroller *Scroller) SpringBy(deltaPx int) {
+	scroller.stopSpring()
+	if anim.Reduced() {
+		addListOffset(&scroller.Position, &scroller.fraction, float32(deltaPx))
+		scroller.programmatic = true
+		return
+	}
+	scroller.spring = anim.Spring{Omega: 4 / .240, Rest: .25}
+	scroller.spring.Snap(0)
+	scroller.spring.Set(float32(deltaPx))
+	scroller.springApplied = 0
+	scroller.springActive = scroller.spring.Moving()
+	scroller.programmatic = true
+}
+
+func (scroller *Scroller) UserScrolled() bool {
+	scrolled := scroller.userScrolled
+	scroller.userScrolled = false
+	return scrolled
+}
+
+func (scroller *Scroller) Offset() (first, px int) {
+	return scroller.Position.First, scroller.Position.Offset
 }

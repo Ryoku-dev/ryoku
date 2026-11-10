@@ -9,6 +9,8 @@ import (
 	libtheme "github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme"
 )
 
+type TextStyle = libtheme.TextStyle
+
 // Theme embeds the shared Lithic theme. Rashin adds no private colours.
 type Theme struct {
 	*libtheme.Theme

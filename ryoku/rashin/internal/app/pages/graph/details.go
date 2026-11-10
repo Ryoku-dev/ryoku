@@ -14,289 +14,295 @@ import (
 
 	"ryoku-rashin/internal/app/diffview"
 	"ryoku-rashin/internal/app/env"
+	"ryoku-rashin/internal/app/look"
+	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 )
 
 func (v *viewState) layoutDetails(gtx layout.Context, e *env.Env) layout.Dimensions {
-	return kit.Slab(gtx, e.Theme.R.Stone2, e.Theme.Cut.Mid, func(gtx layout.Context) layout.Dimensions {
-		return layout.Inset{Top: 10, Right: 10, Bottom: 10, Left: 10}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			if !v.sideDetails {
-				v.detailsBack.Kind, v.detailsBack.Label, v.detailsBack.Small = kit.PlaqueQuiet, i18n.T("Back"), true
-				if v.detailsBack.Clicked(gtx) {
-					v.detailOpen = false
-					v.focusGraph = true
-				}
+	th := e.Theme
+	body := func(gtx layout.Context) layout.Dimensions {
+		switch {
+		case v.selected.kind == 0:
+			return kit.Empty{
+				Icon: look.Icon.Graph, Title: i18n.T("Nothing selected"), Body: i18n.T("Choose a commit to read what it changed."),
+			}.Layout(gtx, th.Theme)
+		case v.detailError != "":
+			return kit.Empty{Icon: look.Icon.Warning, Title: i18n.T("The details could not be read"), Body: v.detailError}.Layout(gtx, th.Theme)
+		}
+		key := fmt.Sprint(v.selected.kind, "\x00", v.selected.hash, "\x00", v.selected.worktree)
+		return v.rise.Layout(gtx, th, key, 8, func(gtx layout.Context) layout.Dimensions {
+			if v.selected.kind == rowWIP {
+				return v.layoutWIPDetails(gtx, e)
 			}
-			body := func(gtx layout.Context) layout.Dimensions {
-				if v.selected.kind == 0 {
-					return (kit.Empty{
-						Title: i18n.T("Commit details"),
-						Body:  i18n.T("Select a commit or uncommitted changes row."),
-					}).Layout(gtx, e.Theme.Theme)
-				}
-				if v.detailLoading {
-					working := kit.Working{Active: true}
-					return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-							layout.Rigid(func(gtx layout.Context) layout.Dimensions { return working.Layout(gtx, e.Theme.Theme) }),
-							layout.Rigid(layout.Spacer{Width: 8}.Layout),
-							layout.Rigid(kit.Text(e.Theme.Theme, e.Theme.T.Label, e.Theme.R.Fg2, i18n.T("Loading details"))),
-						)
-					})
-				}
-				if v.detailError != "" {
-					return (kit.Empty{Title: i18n.T("Details unavailable"), Body: v.detailError}).Layout(gtx, e.Theme.Theme)
-				}
-				if v.selected.kind == rowWIP {
-					return v.layoutWIPDetails(gtx, e)
-				}
-				return v.layoutCommitDetails(gtx, e)
-			}
-			if v.sideDetails {
-				return body(gtx)
-			}
-			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return v.detailsBack.Layout(gtx, e.Theme.Theme)
-				}),
-				layout.Rigid(layout.Spacer{Height: 6}.Layout),
-				layout.Flexed(1, body),
-			)
+			return v.layoutCommitDetails(gtx, e)
 		})
-	})
+	}
+	if v.sideDetails {
+		return body(gtx)
+	}
+	v.detailsBack.Kind, v.detailsBack.Small, v.detailsBack.Icon, v.detailsBack.Label = kit.PlaqueQuiet, true, look.Icon.Back, i18n.T("Graph")
+	if v.detailsBack.Clicked(gtx) {
+		v.detailOpen, v.focusGraph = false, true
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Left: th.Sp.S3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return v.detailsBack.Layout(gtx, th.Theme)
+			})
+		}),
+		layout.Flexed(1, body),
+	)
+}
+
+func (v *viewState) layoutDetailFrame(gtx layout.Context, e *env.Env, head layout.Widget, none string) layout.Dimensions {
+	th := e.Theme
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: th.Sp.S4, Right: th.Sp.S4, Bottom: th.Sp.S3, Left: th.Sp.S4}.Layout(gtx, head)
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return look.Rule(gtx, th) }),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			if len(v.diff.Files) == 0 && !v.diffLoading {
+				return kit.Empty{Icon: look.Icon.Diff, Title: i18n.T("No changes"), Body: none}.Layout(gtx, th.Theme)
+			}
+			return layout.Inset{Top: th.Sp.S2, Right: th.Sp.S2, Left: th.Sp.S2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				if len(v.diff.Files) == 0 {
+					return look.SkeletonRows(gtx, th, 4, false)
+				}
+				// fills the pane so the wheel works anywhere in it
+				gtx.Constraints.Min = gtx.Constraints.Max
+				v.diffView.Layout(gtx, th, v.diff, diffview.Options{Overlays: e.Overlays, Collapsed: true, FoldOver: 200})
+				return layout.Dimensions{Size: gtx.Constraints.Max}
+			})
+		}),
+	)
+}
+
+// from its details once they arrive, from its row until then
+func (v *viewState) selectedCommit() protocol.GitCommit {
+	if v.detail.Commit.Hash != "" {
+		return v.detail.Commit
+	}
+	for _, candidate := range v.commits {
+		if candidate.Hash == v.selected.hash {
+			return candidate
+		}
+	}
+	return protocol.GitCommit{Hash: v.selected.hash}
 }
 
 func (v *viewState) layoutCommitDetails(gtx layout.Context, e *env.Env) layout.Dimensions {
-	commit := v.detail.Commit
-	if commit.Hash == "" {
-		commit.Hash = v.selected.hash
-		for _, candidate := range v.commits {
-			if candidate.Hash == commit.Hash {
-				commit = candidate
-				break
-			}
+	th := e.Theme
+	commit := v.selectedCommit()
+	head := func(gtx layout.Context) layout.Dimensions {
+		children := []layout.FlexChild{
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return kit.Label{Style: th.T.Title, Color: th.R.Fg, MaxLines: 3}.Layout(gtx, th.Theme, commit.Subject)
+			}),
 		}
+		if body := strings.TrimSpace(v.detail.Body); body != "" {
+			children = append(children,
+				layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return kit.Label{Style: th.T.Body, Color: th.R.Fg2, MaxLines: 6}.Layout(gtx, th.Theme, body)
+				}),
+			)
+		}
+		children = append(children,
+			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return look.Facts(gtx, th, v.commitFacts(gtx, e, commit)) }),
+		)
+		refs := v.detail.Refs
+		if len(refs) == 0 {
+			refs = v.refsFor(commit.Hash)
+		}
+		if len(refs) > 0 {
+			children = append(children,
+				layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return v.layoutRefChips(gtx, e, refs, v.commitColor(commit.Hash), &v.detailRefTip)
+				}),
+			)
+		}
+		if v.compareWith != "" {
+			children = append(children,
+				layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+				layout.Rigid(kit.Claim(th.Theme, palette.Attention, i18n.Tf("Compared with %s", v.compareWith))),
+			)
+		}
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	}
-	committer := strings.TrimSpace(v.detail.Committer)
-	meta := commit.Author
-	if committer != "" && committer != commit.Author {
-		meta += " · " + i18n.T("committed by") + " " + committer
+	return v.layoutDetailFrame(gtx, e, head, i18n.T("This commit changed no files."))
+}
+
+func (v *viewState) commitFacts(gtx layout.Context, e *env.Env, commit protocol.GitCommit) []look.FactRow {
+	th := e.Theme
+	rows := make([]look.FactRow, 0, 5)
+	if commit.Author != "" {
+		rows = append(rows, look.FactRow{Label: i18n.T("Author"), Value: commit.Author})
+	}
+	if committer := strings.TrimSpace(v.detail.Committer); committer != "" && committer != commit.Author {
+		rows = append(rows, look.FactRow{Label: i18n.T("Committed by"), Value: committer})
 	}
 	if !commit.Time.IsZero() {
-		meta += " · " + commit.Time.Local().Format("2006-01-02 15:04")
+		rows = append(rows, look.FactRow{Label: i18n.T("Date"), Value: commit.Time.Local().Format("2 Jan 2006, 15:04")})
 	}
-	v.copyHash.Kind, v.copyHash.Label, v.copyHash.Small = kit.PlaqueQuiet, i18n.T("Copy"), true
+	v.copyHash.Icon, v.copyHash.Description = look.Icon.Copy, i18n.T("Copy the full hash")
 	if v.copyHash.Clicked(gtx) {
 		gtx.Execute(clipboard.WriteCmd{Type: "text/plain", Data: io.NopCloser(strings.NewReader(commit.Hash))})
+		e.Notify(i18n.T("Copied the commit hash"))
 	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(kit.Text(e.Theme.Theme, e.Theme.T.Title, e.Theme.R.Fg, commit.Subject)),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			body := strings.TrimSpace(v.detail.Body)
-			if body == "" {
-				return layout.Dimensions{}
-			}
-			return layout.Inset{Top: 4}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return (kit.Label{
-					Style:    e.Theme.T.Body,
-					Color:    e.Theme.R.Fg2,
-					MaxLines: 4,
-				}).Layout(gtx, e.Theme.Theme, body)
-			})
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Top: 6}.Layout(gtx, kit.Text(e.Theme.Theme, e.Theme.T.Caption, e.Theme.R.Fg2, meta))
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Top: 5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-					layout.Flexed(1, kit.Text(e.Theme.Theme, e.Theme.T.MonoSm, e.Theme.R.Fg, commit.Hash)),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return v.copyHash.Layout(gtx, e.Theme.Theme) }),
+	rows = append(rows, look.FactRow{Label: i18n.T("Commit"), Widget: func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+			layout.Rigid(look.TokenChip(th, shortHash(commit.Hash))),
+			layout.Rigid(layout.Spacer{Width: th.Sp.S1}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return v.copyTip.Layout(gtx, th, e.Overlays, v.copyHash.Description, func(gtx layout.Context) layout.Dimensions {
+					return v.copyHash.Layout(gtx, th, th.R.Fg3)
+				})
+			}),
+		)
+	}})
+	if len(commit.Parents) > 0 {
+		label := i18n.T("Parent")
+		if len(commit.Parents) > 1 {
+			label = i18n.T("Parents")
+		}
+		rows = append(rows, look.FactRow{Label: label, Widget: func(gtx layout.Context) layout.Dimensions {
+			children := make([]layout.FlexChild, 0, 2*len(commit.Parents))
+			for _, hash := range commit.Parents {
+				button := v.parentButton(hash)
+				button.Kind, button.Small, button.Label = kit.PlaqueQuiet, true, shortHash(hash)
+				if button.Clicked(gtx) {
+					v.selected = selection{kind: rowCommit, hash: hash}
+					v.loadCommit(e, hash)
+				}
+				children = append(children,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return button.Layout(gtx, th.Theme) }),
+					layout.Rigid(layout.Spacer{Width: th.Sp.S1}.Layout),
 				)
-			})
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			if len(commit.Parents) == 0 {
-				return layout.Dimensions{}
 			}
-			return layout.Inset{Top: 5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				children := []layout.FlexChild{
-					layout.Rigid(kit.Text(e.Theme.Theme, e.Theme.T.Caption, e.Theme.R.Fg3, i18n.T("Parents"))),
-				}
-				for _, hash := range commit.Parents {
-					hash := hash
-					button := v.parentButton(hash)
-					button.Kind, button.Label, button.Small = kit.PlaqueQuiet, shortHash(hash), true
-					if button.Clicked(gtx) {
-						v.selected = selection{kind: rowCommit, hash: hash}
-						v.loadCommit(e, hash)
-					}
-					children = append(children,
-						layout.Rigid(layout.Spacer{Width: 3}.Layout),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions { return button.Layout(gtx, e.Theme.Theme) }),
-					)
-				}
-				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children...)
-			})
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			refs := v.detail.Refs
-			if len(refs) == 0 {
-				refs = v.refsFor(commit.Hash)
-			}
-			if len(refs) == 0 {
-				return layout.Dimensions{}
-			}
-			return layout.Inset{Top: 5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return v.layoutRefChips(gtx, e, refs, v.commitColor(commit.Hash), &v.detailRefTip)
-			})
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return v.layoutFileSummary(gtx, e, v.detail.Files)
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			if v.compareWith == "" {
-				return layout.Dimensions{}
-			}
-			return layout.Inset{Top: 5, Bottom: 3}.Layout(gtx, kit.Claim(e.Theme.Theme, palette.Attention, i18n.T("Compared with")+" "+v.compareWith))
-		}),
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return v.layoutSelectedDiff(gtx, e, i18n.T("Select a file to inspect its diff."))
-		}),
-	)
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children...)
+		}})
+	}
+	return rows
 }
 
 func (v *viewState) layoutWIPDetails(gtx layout.Context, e *env.Env) layout.Dimensions {
+	th := e.Theme
 	path := v.selected.worktree
 	worktree, _ := v.worktree(path)
-	name := v.worktreeLabel(path)
 	status := v.status.Status
 	staged, modified, untracked, conflicted := status.Staged, status.Modified, status.Untracked, status.Conflicted
+	agent := ""
 	for _, row := range v.wip {
 		if row.Worktree == path {
 			staged, modified, untracked, conflicted = row.Staged, row.Modified, row.Untracked, row.Conflicted
+			agent = strings.TrimSpace(row.Agent)
 			break
 		}
 	}
-	counts := strings.Join(nonZeroCounts(staged, modified, untracked, conflicted), " · ")
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(kit.Text(e.Theme.Theme, e.Theme.T.Title, e.Theme.R.Fg, i18n.T("Uncommitted changes")+" · "+name)),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			meta := strings.Trim(strings.Join([]string{v.status.Branch, path}, " · "), " ·")
-			return layout.Inset{Top: 5}.Layout(gtx, kit.Text(e.Theme.Theme, e.Theme.T.MonoSm, e.Theme.R.Fg2, meta))
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			if counts == "" {
-				return layout.Dimensions{}
-			}
-			return layout.Inset{Top: 5}.Layout(gtx, kit.Text(e.Theme.Theme, e.Theme.T.MonoSm, e.Theme.R.Fg2, counts))
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return v.layoutWIPActions(gtx, e, worktree) }),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return v.layoutConflict(gtx, e) }),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return v.layoutFileSummary(gtx, e, v.status.Files) }),
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return v.layoutSelectedDiff(gtx, e, i18n.T("Select a file to inspect its diff."))
-		}),
-	)
+	counts := strings.Join(nonZeroCounts(staged, modified, untracked, conflicted), ", ")
+	facts := []look.FactRow{{Label: i18n.T("Worktree"), Value: v.worktreeLabel(path)}}
+	if v.status.Branch != "" {
+		facts = append(facts, look.FactRow{Label: i18n.T("Branch"), Widget: look.TokenChip(th, v.status.Branch)})
+	}
+	facts = append(facts, look.FactRow{Label: i18n.T("Folder"), Value: shortPath(path), Mono: true})
+	if agent != "" {
+		facts = append(facts, look.FactRow{Label: i18n.T("Agent"), Widget: kit.Claim(th.Theme, agentTone(agent), agentLabel(agent))})
+	}
+	head := func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(kit.Text(th.Theme, th.T.Title, th.R.Fg, i18n.T("Uncommitted changes"))),
+			layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, counts)),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return look.Facts(gtx, th, facts) }),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return v.layoutWIPActions(gtx, e, worktree) }),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return v.layoutConflict(gtx, e) }),
+		)
+	}
+	return v.layoutDetailFrame(gtx, e, head, i18n.T("Everything in this worktree is committed."))
 }
 
 func (v *viewState) layoutWIPActions(gtx layout.Context, e *env.Env, worktree protocol.WorktreeInfo) layout.Dimensions {
-	open := v.button("open-worktree")
-	changes := v.button("open-changes")
-	newSession := v.button("new-session")
-	open.Kind, open.Label, open.Small = kit.PlaqueQuiet, i18n.T("Open worktree"), true
-	changes.Kind, changes.Label, changes.Small = kit.PlaqueLine, i18n.T("Open changes"), true
-	newSession.Kind, newSession.Label, newSession.Small = kit.PlaqueQuiet, i18n.T("New session"), true
-	if open.Clicked(gtx) {
-		v.actions = append(v.actions, Action{Kind: ActOpenWorktree, Project: v.project, Worktree: v.selected.worktree})
+	th := e.Theme
+	type act struct {
+		button *kit.Plaque
+		action Action
 	}
-	if changes.Clicked(gtx) {
-		v.actions = append(v.actions, Action{Kind: ActOpenChanges, Project: v.project, Worktree: v.selected.worktree})
+	target := Action{Project: v.project, Worktree: v.selected.worktree}
+	plaque := func(id, label string, kind kit.PlaqueKind) *kit.Plaque {
+		button := v.button(id)
+		button.Kind, button.Small, button.Label = kind, true, label
+		return button
 	}
-	if newSession.Clicked(gtx) {
-		v.actions = append(v.actions, Action{Kind: ActNewSession, Project: v.project, Worktree: v.selected.worktree})
+	acts := []act{
+		{plaque("open-changes", i18n.T("Open changes"), kit.PlaqueLine), target.as(ActOpenChanges)},
+		{plaque("new-session", i18n.T("New session"), kit.PlaqueQuiet), target.as(ActNewSession)},
 	}
-	var sessionButton *kit.Plaque
-	if len(worktree.Sessions) > 0 {
-		session := worktree.Sessions[len(worktree.Sessions)-1]
-		sessionButton = v.button("open-session:" + session)
-		sessionButton.Kind, sessionButton.Label, sessionButton.Small = kit.PlaqueQuiet, i18n.T("Open session"), true
-		if sessionButton.Clicked(gtx) {
-			v.actions = append(v.actions, Action{Kind: ActOpenSession, Project: v.project, Worktree: v.selected.worktree, Session: session})
+	if count := len(worktree.Sessions); count > 0 {
+		session := target.as(ActOpenSession)
+		session.Session = worktree.Sessions[count-1]
+		acts = append(acts, act{plaque("open-session", i18n.T("Open session"), kit.PlaqueQuiet), session})
+	}
+	acts = append(acts, act{plaque("open-worktree", i18n.T("Open worktree"), kit.PlaqueQuiet), target.as(ActOpenWorktree)})
+	for _, item := range acts {
+		if item.button.Clicked(gtx) {
+			v.actions = append(v.actions, item.action)
 		}
 	}
-	return layout.Inset{Top: 8, Bottom: 4}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return changes.Layout(gtx, e.Theme.Theme) }),
-					layout.Rigid(layout.Spacer{Width: 6}.Layout),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return open.Layout(gtx, e.Theme.Theme) }),
-				)
-			}),
-			layout.Rigid(layout.Spacer{Height: 6}.Layout),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				children := []layout.FlexChild{layout.Rigid(func(gtx layout.Context) layout.Dimensions { return newSession.Layout(gtx, e.Theme.Theme) })}
-				if sessionButton != nil {
-					children = append(children,
-						layout.Rigid(layout.Spacer{Width: 6}.Layout),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions { return sessionButton.Layout(gtx, e.Theme.Theme) }),
-					)
-				}
-				return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, children...)
-			}),
-		)
+	return look.Flow{Gap: 8, LineGap: 8}.Layout(gtx, len(acts), func(gtx layout.Context, index int) layout.Dimensions {
+		return acts[index].button.Layout(gtx, th.Theme)
 	})
+}
+
+func (action Action) as(kind ActionKind) Action {
+	action.Kind = kind
+	return action
 }
 
 func (v *viewState) layoutConflict(gtx layout.Context, e *env.Env) layout.Dimensions {
 	if len(v.opResult.Conflicts) == 0 || v.selected.worktree == "" || v.selected.worktree != v.conflictWorktree {
 		return layout.Dimensions{}
 	}
+	th := e.Theme
+	proceed := v.conflictButton("continue", i18n.T("Continue"), kit.PlaqueLine)
 	abort := v.conflictButton("abort", i18n.T("Abort"), kit.PlaqueDangerLine)
-	continueButton := v.conflictButton("continue", i18n.T("Continue"), kit.PlaqueLine)
 	changes := v.conflictButton("conflict-changes", i18n.T("Open changes"), kit.PlaqueQuiet)
-	resolve := v.conflictButton("resolve-agent", i18n.T("Resolve with agent"), kit.PlaqueQuiet)
+	resolve := v.conflictButton("resolve-agent", i18n.T("Resolve with an agent"), kit.PlaqueQuiet)
 	if abort.Clicked(gtx) {
 		v.runConflictAction(e, protocol.MGitAbort)
 	}
-	if continueButton.Clicked(gtx) {
+	if proceed.Clicked(gtx) {
 		v.runConflictAction(e, protocol.MGitContinue)
 	}
+	target := Action{Project: v.project, Worktree: v.selected.worktree}
 	if changes.Clicked(gtx) {
-		v.actions = append(v.actions, Action{Kind: ActOpenChanges, Project: v.project, Worktree: v.selected.worktree})
+		v.actions = append(v.actions, target.as(ActOpenChanges))
 	}
 	if resolve.Clicked(gtx) {
-		v.actions = append(v.actions, Action{Kind: ActNewSession, Project: v.project, Worktree: v.selected.worktree})
+		v.actions = append(v.actions, target.as(ActNewSession))
 	}
-	body := i18n.Tf("%s stopped with conflicts in %s.", i18n.T(v.opResult.Operation), strings.Join(v.opResult.Conflicts, ", "))
-	return layout.Inset{Top: 8, Bottom: 8}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return kit.SlabContent(gtx, e.Theme.Theme, func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-				layout.Rigid(kit.Claim(e.Theme.Theme, palette.Attention, i18n.T("Conflicts"))),
-				layout.Rigid(layout.Spacer{Height: 6}.Layout),
-				layout.Rigid(kit.Text(e.Theme.Theme, e.Theme.T.Body, e.Theme.R.Fg, body)),
-				layout.Rigid(layout.Spacer{Height: 8}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-								layout.Rigid(func(gtx layout.Context) layout.Dimensions { return abort.Layout(gtx, e.Theme.Theme) }),
-								layout.Rigid(layout.Spacer{Width: 6}.Layout),
-								layout.Rigid(func(gtx layout.Context) layout.Dimensions { return continueButton.Layout(gtx, e.Theme.Theme) }),
-							)
-						}),
-						layout.Rigid(layout.Spacer{Height: 6}.Layout),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-								layout.Rigid(func(gtx layout.Context) layout.Dimensions { return changes.Layout(gtx, e.Theme.Theme) }),
-								layout.Rigid(layout.Spacer{Width: 6}.Layout),
-								layout.Rigid(func(gtx layout.Context) layout.Dimensions { return resolve.Layout(gtx, e.Theme.Theme) }),
-							)
-						}),
-					)
-				}),
-			)
+	buttons := [...]*kit.Plaque{proceed, abort, changes, resolve}
+	body := i18n.Tf("%s stopped on conflicts in %s.", i18n.T(v.opResult.Operation), strings.Join(v.opResult.Conflicts, ", "))
+	return layout.Inset{Top: th.Sp.S3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return kit.Slab(gtx, th.R.Stone1, th.Cut.Mid, func(gtx layout.Context) layout.Dimensions {
+			return layout.UniformInset(th.Sp.S3).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				gtx.Constraints.Min.X = gtx.Constraints.Max.X
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					layout.Rigid(kit.Claim(th.Theme, palette.Attention, i18n.T("Conflicts"))),
+					layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
+					layout.Rigid(look.Paragraph(th, th.T.Body, th.R.Fg, body)),
+					layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return look.Flow{Gap: 8, LineGap: 8}.Layout(gtx, len(buttons), func(gtx layout.Context, index int) layout.Dimensions {
+							return buttons[index].Layout(gtx, th.Theme)
+						})
+					}),
+				)
+			})
 		})
 	})
 }
@@ -311,82 +317,6 @@ func (v *viewState) conflictButton(id, label string, kind kit.PlaqueKind) *kit.P
 	return button
 }
 
-func (v *viewState) layoutFileSummary(gtx layout.Context, e *env.Env, files []protocol.FileChange) layout.Dimensions {
-	if len(files) == 0 {
-		return layout.Dimensions{}
-	}
-	return layout.Inset{Top: 7, Bottom: 5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(kit.Text(e.Theme.Theme, e.Theme.T.Group, e.Theme.R.Fg3, i18n.Tf("Files · %d", len(files)))),
-			layout.Rigid(layout.Spacer{Height: 3}.Layout),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				rowHeight := gtx.Dp(24)
-				gtx.Constraints.Min.Y = 0
-				gtx.Constraints.Max.Y = min(gtx.Constraints.Max.Y, rowHeight*min(5, len(files)))
-				return v.fileScroll.Layout(gtx, e.Theme, len(files), func(gtx layout.Context, index int) layout.Dimensions {
-					return v.layoutFileRow(gtx, e, files[index])
-				})
-			}),
-		)
-	})
-}
-
-func (v *viewState) layoutFileRow(gtx layout.Context, e *env.Env, file protocol.FileChange) layout.Dimensions {
-	control := v.fileRows[file.Path]
-	if control == nil {
-		control = new(kit.Click)
-		v.fileRows[file.Path] = control
-	}
-	if control.Clicked(gtx) {
-		v.selectedFile = file.Path
-	}
-	height := gtx.Dp(24)
-	gtx.Constraints.Min.Y, gtx.Constraints.Max.Y = height, height
-	return control.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		background := e.Theme.R.Stone2
-		if file.Path == v.selectedFile {
-			background = e.Theme.R.Stone3
-		} else if control.Hovered() {
-			background = palette.Mix(e.Theme.R.Stone2, e.Theme.R.Fg, .06)
-		}
-		return kit.Slab(gtx, background, e.Theme.Cut.Token, func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Right: 6, Left: 6}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						gtx.Constraints.Min.X, gtx.Constraints.Max.X = gtx.Dp(18), gtx.Dp(18)
-						ink := e.Theme.R.Fg3
-						if file.Status == protocol.ChangeConflict {
-							ink = e.Theme.R.Jasper
-						}
-						return kit.Text(e.Theme.Theme, e.Theme.T.MonoSm, ink, file.Status)(gtx)
-					}),
-					layout.Flexed(1, kit.Text(e.Theme.Theme, e.Theme.T.MonoSm, e.Theme.R.Fg, file.Path)),
-					layout.Rigid(layout.Spacer{Width: 6}.Layout),
-					layout.Rigid(kit.Text(e.Theme.Theme, e.Theme.T.MonoSm, e.Theme.R.Fg2, fmt.Sprintf("+%d -%d", file.Added, file.Removed))),
-				)
-			})
-		})
-	})
-}
-
-func (v *viewState) layoutSelectedDiff(gtx layout.Context, e *env.Env, empty string) layout.Dimensions {
-	if v.selectedFile == "" {
-		return (kit.Empty{Title: i18n.T("No file selected"), Body: empty}).Layout(gtx, e.Theme.Theme)
-	}
-	for _, file := range v.diff.Files {
-		if file.Path == v.selectedFile {
-			return v.diffView.Layout(gtx, e.Theme.Theme, protocol.DiffResult{
-				Files:     []protocol.FileDiff{file},
-				Truncated: v.diff.Truncated,
-			}, diffview.Options{FoldOver: 300})
-		}
-	}
-	return (kit.Empty{
-		Title: i18n.T("No text diff"),
-		Body:  i18n.T("This file has no text diff to show."),
-	}).Layout(gtx, e.Theme.Theme)
-}
-
 func (v *viewState) commitColor(hash string) int {
 	for index, commit := range v.commits {
 		if commit.Hash == hash && index < len(v.commitLayouts) {
@@ -394,4 +324,11 @@ func (v *viewState) commitColor(hash string) int {
 		}
 	}
 	return 0
+}
+
+func shortPath(path string) string {
+	if home := paths.Home(); home != "" && strings.HasPrefix(path, home+"/") {
+		return "~" + path[len(home):]
+	}
+	return path
 }

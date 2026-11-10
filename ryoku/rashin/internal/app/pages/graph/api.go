@@ -1,10 +1,7 @@
 // Package graph is the commit graph of a project in the Rashin app: lanes laid
-// out by internal/gitgraph, ref labels, worktree badges, a WIP row per
-// worktree, the details panel, search, the ref finder, scopes and the row
-// actions with their confirmations.
-//
-// This file is the seam the projects page codes against; the package owner
-// replaces the bodies.
+// out by internal/gitgraph, a chip for every ref, a row for the uncommitted
+// changes of each worktree, the details of what is selected, search, scopes
+// and the git actions of a row with their confirmations.
 package graph
 
 import (
@@ -58,6 +55,13 @@ func (v *View) Actions() []Action {
 	actions := v.state.actions
 	v.state.actions = nil
 	return actions
+}
+
+// Overlay draws the dialog of a git action over the whole window and
+// reports whether it is open.
+func (v *View) Overlay(gtx layout.Context, e *env.Env) bool {
+	v.state.layoutOperationDialog(gtx, e)
+	return v.state.operation.dialog.Open
 }
 
 // Refresh reloads refs, WIP rows and the first page (after git.changed).

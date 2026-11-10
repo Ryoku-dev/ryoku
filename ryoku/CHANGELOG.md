@@ -4,6 +4,9 @@
 - **Rashin is rebuilt as Ryoku's optional AI system.** Its free-model router,
   read-only Ask agent, external coding harnesses, project and system Index,
   command line and Lithic app now share one socket-activated daemon.
+- **Rashin's app has a new layout.** A sidebar that folds to a rail, one
+  reading column for questions and answers, and every page in the same frame
+  with one search field (`rashin/internal/app`).
 - **Prowl and the Rashin 1 lanes are removed.** Rashin no longer carries the
   Prowl gateway, web dashboard, Hermes setup, terminal recipes or command
   learning.

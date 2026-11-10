@@ -1,15 +1,18 @@
 package shell
 
 import (
-	"os/exec"
+	"image"
 	"sync"
+	"time"
 
 	gioapp "gioui.org/app"
+	"gioui.org/io/system"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
 
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"ryoku-i18n"
 
@@ -21,7 +24,6 @@ import (
 	projectspage "ryoku-rashin/internal/app/pages/projects"
 	settingspage "ryoku-rashin/internal/app/pages/settings"
 	"ryoku-rashin/internal/app/state"
-	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 )
 
@@ -54,16 +56,38 @@ func (q *postQueue) Drain() {
 }
 
 type uiShell struct {
-	runtime        *runtime
-	router         *Router
-	posts          postQueue
-	overlay        look.Overlays
-	ask            askpage.Page
-	agent          agentpage.Page
-	projects       *projectspage.Page
-	index          indexpage.Page
-	settings       settingspage.Page
-	palette        commandPalette
+	runtime  *runtime
+	router   *Router
+	posts    postQueue
+	overlay  look.Overlays
+	ask      *askpage.Page
+	agent    *agentpage.Page
+	projects *projectspage.Page
+	index    *indexpage.Page
+	settings *settingspage.Page
+	palette  commandPalette
+
+	topBar     topBar
+	sidebar    sidebar
+	sheetBar   sidebar
+	bottom     bottomBar
+	sheet      sideSheet
+	panelScrim sideSheet
+	fold       anim.Tween
+	panel      anim.Tween
+	rise       look.Rise
+	placards   look.Placards
+	// whose list the sidebar shows, settings keeps the list of where you came from
+	listTab string
+
+	preferences  state.AppPreferences
+	windowAction func(system.Action)
+	maximized    bool
+	decorated    bool
+	class        look.Class
+	widthDp      float32
+	now          time.Time
+
 	turnOn         kit.Plaque
 	retry          kit.Plaque
 	lastFocus      protocol.UIOpenParams
@@ -71,16 +95,29 @@ type uiShell struct {
 }
 
 func newShell(r *runtime, options Options) *uiShell {
+	preferences := options.Preferences.Normalize()
 	route := options.Route
+	if !validTab(route) {
+		route = protocol.TabAsk
+	}
 	if options.Project != "" {
 		route = protocol.TabProjects
 	}
-	s := &uiShell{runtime: r, router: NewRouter(route, options.Session, r.hub.Invalidate), projects: projectspage.New()}
-	s.router.paletteTag = &s.palette
-	s.posts.invalidate = r.hub.Invalidate
-	if options.SettingsSection >= 0 {
-		s.settings.OpenSection(options.SettingsSection)
+	s := &uiShell{
+		runtime: r, router: NewRouter(route, options.Session, r.hub.Invalidate), preferences: preferences,
+		ask: askpage.New(), agent: agentpage.New(), projects: projectspage.New(),
+		index: indexpage.New(), settings: settingspage.New(), listTab: protocol.TabAsk,
 	}
+	s.router.paletteTag = &s.palette
+	s.router.OnNew = func() { s.newCurrent(s.environment()) }
+	s.router.OnToggleFold = s.toggleSidebar
+	s.router.OnTogglePanel = s.togglePanel
+	s.router.OnZoom = s.changeZoom
+	s.router.CanEscape = s.canEscape
+	s.router.OnEscape = s.escape
+	s.router.OnPlace = s.applyPlace
+	s.posts.invalidate = r.hub.Invalidate
+	s.settings.OpenSection(options.SettingsSection)
 	if options.Project != "" {
 		s.navigateWork(options.Project, options.WorkTab, options.Worktree)
 	}
@@ -89,65 +126,152 @@ func newShell(r *runtime, options Options) *uiShell {
 
 func (r *runtime) runWindow(options Options) error {
 	shell := newShell(r, options)
+	anim.SetReduce(shell.preferences.ReduceMotion)
 	window := new(gioapp.Window)
 	creation := []gioapp.Option{
-		gioapp.Title(i18n.T("Rashin")),
+		gioapp.Title(i18n.T("Rashin")), gioapp.Decorated(false),
 		gioapp.Size(unit.Dp(options.Width), unit.Dp(options.Height)),
-		gioapp.MinSize(640, 520),
-		gioapp.MaxSize(1048576, 1048576),
+		gioapp.MinSize(640, 520), gioapp.MaxSize(1048576, 1048576),
 	}
 	window.Option(creation...)
+	shell.windowAction = func(action system.Action) {
+		remaining := action
+		if action&system.ActionMaximize != 0 {
+			window.Option(gioapp.Maximized.Option())
+			remaining &^= system.ActionMaximize
+		}
+		if action&system.ActionUnmaximize != 0 {
+			window.Option(gioapp.Windowed.Option())
+			remaining &^= system.ActionUnmaximize
+		}
+		if remaining != 0 {
+			window.Perform(remaining)
+		}
+	}
 	remove := r.hub.Add(window.Invalidate)
 	defer remove()
 	var operations op.Ops
 	reissued := false
-	last := windowState{Width: options.Width, Height: options.Height}
+	preferences := shell.preferences
+	preferences.Width, preferences.Height = options.Width, options.Height
 	for {
 		raw := window.Event()
 		switch event := raw.(type) {
 		case gioapp.ConfigEvent:
+			shell.decorated = event.Config.Decorated
+			shell.maximized = event.Config.Mode == gioapp.Maximized
+			// the compositor may ignore options sent before the first configure so they go out once more after it
 			if !reissued {
 				reissued = true
 				window.Option(creation...)
 			}
 		case gioapp.FrameEvent:
 			shell.posts.Drain()
-			last.Width = int(event.Metric.PxToDp(event.Size.X) + .5)
-			last.Height = int(event.Metric.PxToDp(event.Size.Y) + .5)
+			if !shell.maximized {
+				preferences.Width = int(event.Metric.PxToDp(event.Size.X) + .5)
+				preferences.Height = int(event.Metric.PxToDp(event.Size.Y) + .5)
+			}
 			gtx := gioapp.NewContext(&operations, event)
+			shell.applyZoom(&gtx)
 			shell.Frame(gtx)
 			event.Frame(&operations)
 		case gioapp.DestroyEvent:
-			_ = saveWindowState(last)
+			_ = state.SaveAppPreferences(shell.persistedPreferences(preferences))
 			return event.Err
 		}
 	}
+}
+
+// scales the metric so every dp and sp follows and the size classes see the zoomed width
+func (s *uiShell) applyZoom(gtx *layout.Context) {
+	scale := float32(s.preferences.ZoomPercent) / 100
+	gtx.Metric.PxPerDp *= scale
+	gtx.Metric.PxPerSp *= scale
+}
+
+func (s *uiShell) persistedPreferences(preferences state.AppPreferences) state.AppPreferences {
+	preferences.ZoomPercent = s.preferences.ZoomPercent
+	preferences.SidebarFolded = s.preferences.SidebarFolded
+	preferences.SidePanelOpen = s.preferences.SidePanelOpen
+	preferences.ReduceMotion = s.preferences.ReduceMotion
+	return preferences
 }
 
 func (s *uiShell) environment() *env.Env {
 	return &env.Env{
 		Theme: s.runtime.Theme(), Store: s.runtime.store, Client: s.runtime.client, Overlays: &s.overlay,
 		Navigate: s.navigate, NavigateWork: s.navigateWork, Post: s.posts.Post,
+		Class: s.class, PanelOpen: s.preferences.SidePanelOpen, TogglePanel: s.togglePanel,
+		Notify: func(text string) { s.placards.Push(s.now, text, "") },
+		Zoom:   s.preferences.ZoomPercent, SetZoom: s.setZoom,
+		ReduceMotion: s.preferences.ReduceMotion, SetReduceMotion: s.setReduceMotion,
+	}
+}
+
+func (s *uiShell) page(tab string) env.Page {
+	switch tab {
+	case protocol.TabAgent:
+		return s.agent
+	case protocol.TabProjects:
+		return s.projects
+	case protocol.TabIndex:
+		return s.index
+	case protocol.TabSettings:
+		return s.settings
+	default:
+		return s.ask
 	}
 }
 
 func (s *uiShell) navigate(tab, session string) {
 	s.router.Navigate(tab, session)
-	if session == "" {
-		return
-	}
+}
+
+func (s *uiShell) navigateWork(project, view, worktree string) {
+	s.router.Push(Place{
+		Tab: protocol.TabProjects, Project: project, ProjectView: normalizeProjectView(view),
+		Worktree: worktree,
+	})
+}
+
+func (s *uiShell) openDestination(tab string) {
+	s.router.Push(Place{Tab: tab})
+}
+
+func (s *uiShell) applyPlace(place Place) {
 	e := s.environment()
-	switch tab {
+	s.sheet.open = false
+	if place.Tab != protocol.TabSettings {
+		s.listTab = place.Tab
+	}
+	if place.Tab != protocol.TabProjects {
+		s.projects.Hidden(e)
+	}
+	switch place.Tab {
 	case protocol.TabAgent:
-		s.agent.Select(e, session)
-	default:
-		s.ask.Select(e, session)
+		s.agent.Select(e, place.Session)
+	case protocol.TabAsk:
+		s.ask.Select(e, place.Session)
+	case protocol.TabProjects:
+		place = s.projectsHome(e, place)
+		s.projects.Open(e, place.Project, normalizeProjectView(place.ProjectView), place.Worktree)
+	case protocol.TabSettings:
+		s.settings.OpenSection(place.SettingsSection)
 	}
 }
 
-func (s *uiShell) navigateWork(project, tab, worktree string) {
-	s.router.Navigate(protocol.TabProjects, "")
-	s.projects.Open(s.environment(), project, normalizeProjectView(tab), worktree)
+// projects has no page above its projects so I swap the bare place for the one it opens at, there's nothing else to go back to
+func (s *uiShell) projectsHome(e *env.Env, place Place) Place {
+	if place.Project != "" {
+		return place
+	}
+	project, view, worktree, ok := s.projects.Home(e)
+	if !ok {
+		return place
+	}
+	place = Place{Tab: protocol.TabProjects, Project: project, ProjectView: view, Worktree: worktree}
+	s.router.Replace(place)
+	return place
 }
 
 func normalizeProjectView(view string) string {
@@ -157,122 +281,69 @@ func normalizeProjectView(view string) string {
 	return view
 }
 
-func (s *uiShell) Frame(gtx layout.Context) layout.Dimensions {
-	e := s.environment()
-	s.router.NeedsYou = s.agent.NeedsYou(e)
-	s.applyFocus(e)
-	width := gtx.Metric.PxToDp(gtx.Constraints.Max.X)
-	class := kit.ClassForWidth(width)
-	paint.Fill(gtx.Ops, e.Theme.R.Ground)
-	s.router.HandleKeys(gtx, &s.overlay)
-	if s.router.PaletteOpen && !s.overlay.IsOpen(&s.palette) {
-		s.openPalette(gtx, e)
+func (s *uiShell) newCurrent(e *env.Env) {
+	if s.router.Tab == protocol.TabSettings {
+		s.openDestination(s.listTab)
 	}
-	if !s.router.PaletteOpen && s.overlay.IsOpen(&s.palette) {
-		s.overlay.Close(&s.palette)
-	}
-	if class == kit.FrameCompact {
-		s.layoutCompact(gtx, e, class)
+	s.page(s.listTab).New(e)
+}
+
+func (s *uiShell) toggleSidebar() {
+	if s.class == look.Expanded {
+		s.preferences.SidebarFolded = !s.preferences.SidebarFolded
 	} else {
-		s.layoutWide(gtx, e, class)
+		s.sheet.open = !s.sheet.open
 	}
-	s.layoutPageOverlays(gtx, e)
-	s.overlay.Layout(gtx, e.Theme)
-	return layout.Dimensions{Size: gtx.Constraints.Max}
+	s.runtime.hub.Invalidate()
 }
 
-func (s *uiShell) layoutWide(gtx layout.Context, e *env.Env, class kit.FrameClass) {
-	railWidth := gtx.Dp(128)
-	if class == kit.FrameExpanded {
-		railWidth = gtx.Dp(168)
-	}
-	layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Min.X, gtx.Constraints.Max.X = railWidth, railWidth
-			return layout.Inset{Top: 10}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return (kit.Pane{Kind: kit.PaneList}).Layout(gtx, e.Theme.Theme, func(gtx layout.Context) layout.Dimensions {
-					return s.router.LayoutRail(gtx, e.Theme, class)
-				})
-			})
-		}),
-		layout.Rigid(layout.Spacer{Width: 8}.Layout),
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Top: 10}.Layout(gtx, func(gtx layout.Context) layout.Dimensions { return s.layoutPage(gtx, e, class) })
-		}),
-	)
+func (s *uiShell) togglePanel() {
+	s.preferences.SidePanelOpen = !s.preferences.SidePanelOpen
+	s.runtime.hub.Invalidate()
 }
 
-func (s *uiShell) layoutCompact(gtx layout.Context, e *env.Env, class kit.FrameClass) {
-	barHeight, gap := gtx.Dp(64), gtx.Dp(8)
-	layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Top: 10, Bottom: unit.Dp(float32(gap) / gtx.Metric.PxPerDp)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions { return s.layoutPage(gtx, e, class) })
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Min.Y, gtx.Constraints.Max.Y = barHeight, barHeight
-			return s.router.LayoutRail(gtx, e.Theme, class)
-		}),
-	)
+func (s *uiShell) canEscape() bool {
+	return s.sheet.open || (s.preferences.SidePanelOpen && s.panelSheet())
 }
 
-func (s *uiShell) layoutPage(gtx layout.Context, e *env.Env, class kit.FrameClass) layout.Dimensions {
-	connection := e.Snapshot().Connection
-	if connection != state.Ready {
-		return s.layoutConnection(gtx, e, connection)
-	}
-	if s.router.Tab != protocol.TabProjects {
-		s.projects.Hidden(e)
-	}
-	switch s.router.Tab {
-	case protocol.TabAgent:
-		return s.agent.Layout(gtx, e, class)
-	case protocol.TabProjects:
-		return s.projects.Layout(gtx, e, class)
-	case protocol.TabIndex:
-		return s.index.Layout(gtx, e, class)
-	case protocol.TabSettings:
-		return s.settings.Layout(gtx, e, class)
+func (s *uiShell) escape() bool {
+	switch {
+	case s.sheet.open:
+		s.sheet.open = false
+	case s.preferences.SidePanelOpen && s.panelSheet():
+		s.preferences.SidePanelOpen = false
 	default:
-		return s.ask.Layout(gtx, e, class)
+		return false
+	}
+	return true
+}
+
+func (s *uiShell) changeZoom(delta int) {
+	if delta == 0 {
+		s.setZoom(state.DefaultZoom)
+	} else {
+		s.setZoom(s.preferences.ZoomPercent + delta)
 	}
 }
 
-func (s *uiShell) layoutConnection(gtx layout.Context, e *env.Env, connection state.Connection) layout.Dimensions {
-	if s.turnOn.Clicked(gtx) {
-		go func() {
-			_ = exec.Command("rashin", "on").Run()
-			s.runtime.client.Reconnect()
-		}()
-	}
-	if s.retry.Clicked(gtx) {
-		s.runtime.client.Reconnect()
-	}
-	var empty kit.Empty
-	switch connection {
-	case state.Off:
-		s.turnOn.Kind, s.turnOn.Label = kit.PlaqueGold, i18n.T("Turn on")
-		empty = kit.Empty{Title: i18n.T("Rashin is off"), Body: i18n.T("Turn it on to use Ask, Agent and the code index."), Actions: []*kit.Plaque{&s.turnOn}}
-	case state.Unreachable:
-		s.retry.Kind, s.retry.Label = kit.PlaqueGold, i18n.T("Try again")
-		empty = kit.Empty{Title: i18n.T("Rashin is unreachable"), Body: i18n.Tf("The daemon did not answer. Check %s, then try again.", paths.DaemonLog()), Actions: []*kit.Plaque{&s.retry}}
-	default:
-		empty = kit.Empty{Title: i18n.T("Connecting to Rashin"), Body: i18n.T("Your sessions will appear when the daemon answers.")}
-	}
-	return (kit.Pane{Kind: kit.PaneWork}).Layout(gtx, e.Theme.Theme, func(gtx layout.Context) layout.Dimensions { return empty.Layout(gtx, e.Theme.Theme) })
+func (s *uiShell) setZoom(percent int) {
+	s.preferences.ZoomPercent = min(state.MaxZoom, max(state.MinZoom, percent))
+	s.runtime.hub.Invalidate()
 }
 
-func (s *uiShell) layoutPageOverlays(gtx layout.Context, e *env.Env) {
-	s.agent.Overlay(gtx, e)
-	s.ask.Overlay(gtx, e)
-	s.index.Overlay(gtx, e)
+func (s *uiShell) setReduceMotion(reduce bool) {
+	s.preferences.ReduceMotion = reduce
+	anim.SetReduce(reduce)
+	s.runtime.hub.Invalidate()
 }
 
+// ui.open from the daemon, a second launch, the bar or the command line asking the running app to show something
 func (s *uiShell) applyFocus(e *env.Env) {
 	focus := e.Snapshot().Focus
 	if focus == s.lastFocus {
-		if !s.initialApplied && s.router.Session != "" && e.Snapshot().Connection == state.Ready {
+		if !s.initialApplied && e.Snapshot().Connection == state.Ready {
 			s.initialApplied = true
-			s.navigate(s.router.Tab, s.router.Session)
+			s.applyPlace(s.router.Current())
 		}
 		return
 	}
@@ -281,15 +352,45 @@ func (s *uiShell) applyFocus(e *env.Env) {
 		s.navigateWork(focus.Project, focus.View, focus.Worktree)
 		return
 	}
-	if focus.Tab != "" || focus.Session != "" {
-		tab := focus.Tab
-		if tab == "" {
-			if info, ok := e.Snapshot().Sessions[focus.Session]; ok && info.Kind == protocol.KindAgent {
-				tab = protocol.TabAgent
-			} else {
-				tab = protocol.TabAsk
-			}
-		}
-		s.navigate(tab, focus.Session)
+	if focus.Tab == "" && focus.Session == "" {
+		return
 	}
+	tab := focus.Tab
+	if tab == "" {
+		tab = protocol.TabAsk
+		if info, ok := e.Snapshot().Sessions[focus.Session]; ok && info.Kind == protocol.KindAgent {
+			tab = protocol.TabAgent
+		}
+	}
+	s.navigate(tab, focus.Session)
+}
+
+func (s *uiShell) Frame(gtx layout.Context) layout.Dimensions {
+	s.now, s.widthDp = gtx.Now, float32(gtx.Metric.PxToDp(gtx.Constraints.Max.X))
+	s.class = look.ClassFor(s.widthDp)
+	e := s.environment()
+	s.router.NeedsYou = s.agent.NeedsYou(e)
+	// the project list can arrive after projects was opened without one
+	if current := s.router.Current(); current.Tab == protocol.TabProjects && current.Project == "" {
+		if _, _, _, ok := s.projects.Home(e); ok {
+			s.applyPlace(current)
+		}
+	}
+	s.applyFocus(e)
+	paint.Fill(gtx.Ops, e.Theme.R.Ground)
+	s.router.HandleKeys(gtx, &s.overlay)
+	s.syncPalette(gtx, e)
+
+	ready := e.Snapshot().Connection == state.Ready
+	if ready {
+		s.layoutFrame(gtx, e)
+	} else {
+		s.layoutNotReady(gtx, e)
+	}
+	s.overlay.Layout(gtx, e.Theme)
+	return layout.Dimensions{Size: gtx.Constraints.Max}
+}
+
+type frameRects struct {
+	sidebar, content, panel image.Rectangle
 }

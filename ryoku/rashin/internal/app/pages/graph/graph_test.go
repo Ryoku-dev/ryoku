@@ -14,6 +14,7 @@ import (
 
 	"gioui.org/f32"
 	"gioui.org/io/input"
+	"gioui.org/io/key"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -208,7 +209,7 @@ func TestSelectingWIPDoesNotRequestGitShow(t *testing.T) {
 		Wip:     []protocol.WipRow{{Worktree: "/tmp/worktree", Head: "head", Modified: 1}},
 	}, true)
 	view.state.selectEntry(e, view.state.entries[0])
-	waitGraph(t, posts, func() bool { return !view.state.detailLoading })
+	waitGraph(t, posts, func() bool { return !view.state.diffLoading })
 	for {
 		select {
 		case method := <-server.methods:
@@ -266,53 +267,61 @@ func TestLaneCollapseMarkerAppearsPastTwentyFourLanes(t *testing.T) {
 	}
 }
 
-func TestGraphRowsAreThirtyDPAndDefaultViewShowsTwentyTwo(t *testing.T) {
-	e := &env.Env{Theme: look.New(0), Overlays: new(look.Overlays)}
+func TestArrowKeysWalkTheSelectionOnceTheGraphHasFocus(t *testing.T) {
+	server, socket := newFakeGraphServer(t, nil)
+	defer server.close()
+	e, connection, _ := fakeGraphEnv(t, socket)
+	defer connection.Close()
 	view := New()
 	view.state.reset("project")
 	commits := make([]protocol.GitCommit, 60)
 	for index := range commits {
-		commits[index] = protocol.GitCommit{
-			Hash:    fmt.Sprintf("commit-%02d", index),
-			Author:  "Mika",
-			Subject: "Keep the history dense and readable",
-		}
+		commits[index] = protocol.GitCommit{Hash: fmt.Sprintf("commit-%02d", index), Author: "Ren", Subject: "Keep the history readable"}
 	}
 	view.state.applyPage(protocol.GitLogResult{Commits: commits}, true)
 	view.state.loaded = true
-
-	rowFrame := graphTestFrame{now: time.Unix(400, 0), size: image.Pt(900, 80)}
-	rowDimensions := view.state.layoutEntry(rowFrame.context(), e, 0)
-	rowFrame.finish()
-	if rowDimensions.Size.Y != graphRowHeight {
-		t.Fatalf("graph row height = %d, want %d", rowDimensions.Size.Y, graphRowHeight)
-	}
+	view.state.selectEntry(e, view.state.entries[0])
 
 	frame := graphTestFrame{now: time.Unix(500, 0), size: image.Pt(1280, 820)}
-	gtx := frame.context()
-	view.Layout(gtx, e, "project")
-	e.Overlays.Layout(gtx, e.Theme)
-	frame.finish()
-	if visible := view.state.scroll.Position.Count; visible < 22 {
-		t.Fatalf("visible graph rows at 1280x820 = %d, want at least 22", visible)
+	layoutFrame := func() {
+		gtx := frame.context()
+		view.Layout(gtx, e, "project")
+		e.Overlays.Layout(gtx, e.Theme)
+		frame.finish()
+	}
+	press := func(name key.Name) {
+		frame.router.Queue(key.Event{Name: name, State: key.Press})
+		layoutFrame()
+		layoutFrame()
+	}
+	// the graph asks for focus when it opens and has it one frame later
+	layoutFrame()
+	layoutFrame()
+
+	press(key.NameDownArrow)
+	if view.state.selected.hash != "commit-01" {
+		t.Fatalf("Down selected %q, want the second commit", view.state.selected.hash)
+	}
+	if position := view.state.scroll.Position; position.First != 0 || position.Offset != 0 {
+		t.Fatalf("the list moved to %#v for a row that was already on screen", position)
+	}
+	press(key.NameEnd)
+	if view.state.selected.hash != "commit-59" {
+		t.Fatalf("End selected %q, want the last commit", view.state.selected.hash)
+	}
+	if position := view.state.scroll.Position; position.First+position.Count < len(commits) {
+		t.Fatalf("the last commit was selected but left off screen: %#v", position)
 	}
 }
 
-func TestDetailPanePlacementByWidth(t *testing.T) {
-	tests := []struct {
-		width int
-		side  bool
-		pane  int
-	}{
-		{width: 999},
-		{width: 1000, side: true, pane: 400},
-		{width: 1280, side: true, pane: 512},
-		{width: 1600, side: true, pane: 560},
+func TestDetailsStandBesideTheGraphOnlyWithRoomForBoth(t *testing.T) {
+	if side, _ := detailPanePlacement(999); side {
+		t.Fatal("a narrow view put the details beside the graph")
 	}
-	for _, test := range tests {
-		side, pane := detailPanePlacement(test.width)
-		if side != test.side || pane != test.pane {
-			t.Errorf("detailPanePlacement(%d) = (%t, %d), want (%t, %d)", test.width, side, pane, test.side, test.pane)
+	for _, width := range []int{1000, 1280, 1600, 2400} {
+		side, pane := detailPanePlacement(width)
+		if !side || pane < 380 || width-pane < 600 {
+			t.Errorf("at %d dp: beside %v, details %d dp, graph %d dp", width, side, pane, width-pane)
 		}
 	}
 }

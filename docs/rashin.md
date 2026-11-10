@@ -582,10 +582,11 @@ checkpoint refs.
 
 ### Tasks
 
-- Board columns: backlog, ready (dependencies done), working, needs you (an
-  open permission or gate), review (a turn ended with changes), done, blocked.
-  The daemon moves a task between working, needs you and review as its session
-  changes; the user moves it anywhere else and marks it done.
+- States: backlog, ready (dependencies done), working, needs you (an open
+  permission or gate), review (a turn ended with changes), done, blocked. The
+  app lists tasks grouped by state, what needs you first. The daemon moves a
+  task between working, needs you and review as its session changes; the user
+  moves it anywhere else and marks it done.
 - Starting a task creates a worktree from the base, named from the title, and an
   Agent session in it prompted with the goal; tasks run in parallel, each in its
   own worktree. A task with unfinished dependencies is blocked.
@@ -608,47 +609,68 @@ branch and opens the session. Stop all ends every running turn.
 
 `rashin-app` is a Gio client drawn with the Lithic library
 (`docs/lithic/library/go`), built the way Ryotunes 2 is: a connection and
-reducer store over the protocol, a shell that owns windows and overlays, pages,
-and a demo daemon for headless renders.
+reducer store over the protocol, a shell that owns the window and overlays,
+pages, and a demo daemon for headless renders. Its window is Lithic's
+conversation window (`docs/lithic/layout.md`); that page owns every number.
 
 - **Window**: title `Rashin`, app id `dev.ryoku.rashin`, 1280x820 by default,
-  size persisted; compositor rules float it. One instance (`app.lock`): a
-  second launch sends `ui.open` to the daemon and exits; the running app
-  switches to the session it names.
-- **Layout**: rail (Ask, Agents, Projects, Index, Settings) with Ask as home
-  and a Needs you count on Agents; then a list pane and the work pane, with a
-  details pane on wide windows. Expanded at 1280 dp and above, medium from
-  760 dp (rail plus one pane with a list toggle), compact below (bottom bar,
-  one pane).
-- **Projects**: the project list (add a folder), then a project with tabs
-  Overview (worktrees as cards with status, setup, ports and sessions; New
-  worktree; Clean up), Graph, Changes, Tasks and Activity.
-- **Agent sessions** carry a header with project, worktree, branch, harness,
-  model and mode, and Open folder, Open terminal and Stop.
-- **Ask**: sessions newest first with their origin, transcript, composer, model
-  choice (Auto, Fast, Smart, or a free model), answer actions (copy, open file,
-  folder or link, run the plan in a terminal), Move to Agent.
-- **Agents**: the hub board and every Agent session; New session asks for a
-  project and worktree (or a plain folder) and a harness. Transcript with tool
-  calls, diffs, terminal output and the plan; permission prompts (Allow once,
-  Always allow, Deny); model and mode choice; queue and steer; each turn's
-  changes with Revert files; fork from here; Stop.
-- **Index**: indexes with their state, add folder, refresh, remove, and a
-  search field whose results open the file.
-- **Settings**: Providers (catalogue, keyless marks, add, test and remove keys,
-  sign-up links), Ask (model, habits), Agent (default harness, approvals, idle
-  stop, custom harness instances), Projects (worktree folder, branch prefix,
-  setup, files copied into new worktrees, cleanup policy), Index (system index,
-  semantic vectors), About (version, on/off).
-- **Palette**: Ctrl+K lists every action. Escape closes the topmost overlay.
-- **Off or unreachable**: one plate saying so with the next step; no retry
+  size, sidebar fold and zoom persisted; compositor rules float it. One
+  instance (`app.lock`): a second launch sends `ui.open` to the daemon and
+  exits; the running app switches to what it names.
+- **Frame**: a top bar on the ground (mark, sidebar toggle, back and forward,
+  the one search field, window controls), a sidebar that folds to a rail
+  (the New plaque, the destinations Ask, Agents, Projects and Index, the
+  current destination's list, Settings at the foot), the content pane with a
+  header and a body, and a side panel beside a conversation that changes
+  files. Expanded from 1100 dp, medium from 760 (rail, the sidebar as a
+  sheet), compact below (bottom bar for the destinations, the list as a
+  sheet).
+- **Ask** is home and opens on a new conversation: one sentence, the composer
+  and things to try; no session exists until the first message is sent, and
+  sending it moves the composer to the foot of the column. Its list groups
+  asks by day. An open ask shows the transcript in the reading column with the
+  composer at its foot, the route choice (Auto, Fast, Smart or one free
+  model), answer actions and Move to Agent.
+- **Agents** opens on its Now board: what needs you in one sentence, a
+  composer that starts a session in a project and worktree with a harness, then
+  the sessions that need you, are working or finished recently. Its list groups
+  sessions by Needs you, Working, Done and Idle. A session shows its project,
+  worktree, branch and harness in the header, the transcript (work as single
+  lines that unfold, permission requests, plans, diffs), queue and steer, each
+  turn's changes with Revert files, fork from here, and the Changes side panel.
+- **Projects** lists projects with their worktrees in the sidebar and opens
+  on the project last shown. A project has the tabs Overview (worktrees with
+  their status, setup, ports, sessions and actions), Graph (the commit graph
+  with the details of what is selected beside it), Changes, Tasks (grouped by
+  state, what needs you first) and Activity (the ledger in plain words).
+- **Index** searches one index at a time, the one selected in the sidebar: a
+  field that travels from the centre of the pane to its top with the first
+  search, a choice between words, meaning or both, and results that unfold to
+  their lines.
+- **Settings** is a full page with a section index: Rashin (on and off,
+  version, the log), Providers (each unfolds to its keys), Ask, Agents (the
+  default harness, approvals, the idle stop, your own harnesses), Index and
+  Appearance (zoom, reduce motion). Project settings live with the project.
+- **Search**: the top bar field (Ctrl+K) finds sessions, projects, worktrees
+  and commands; its results open under it at its width.
+- **Keys**: Ctrl+N new, Ctrl+B the sidebar, Ctrl+\ the side panel, Ctrl+1 to 4
+  the destinations, Ctrl+, Settings, Ctrl +, - and 0 zoom, Alt+Left and Right
+  history. Escape closes the topmost thing the frame has open and is otherwise
+  left to the page: it denies an open permission request. While a dialog is
+  open the frame's shortcuts stand down.
+- **Motion** follows `docs/lithic/motion.md`; an idle window draws no frames.
+- **Off or unreachable**: one pane saying so with the next step; no retry
   loop faster than the client's 2 s reconnect.
-- `rashin-app --demo [--png out.png --size WxH --mode dark|light --route ...]`
-  renders against an in-process demo daemon.
+- `rashin-app --demo --png out.png [--size WxH --mode dark|light --route ...
+  --zoom N]` renders against an in-process demo daemon; with `--script` and
+  `--shots` it plays a motion story and returns its frames side by side. The
+  stories live in `internal/app/shell/testdata/motion`.
 
-Chat widgets the Lithic library does not have (multi-line composer, Markdown,
-code blocks, tool cards, diffs, terminal output, transcript scrolling) live in
-`internal/app/chat`, built from Lithic roles, tokens and kit parts.
+Widgets the Lithic library does not have live in the app, built from Lithic
+roles, tokens and kit parts: the frame's own parts in `internal/app/look`
+(the folding sidebar's rows, the pane header, motion helpers) and the
+conversation in `internal/app/chat` (composer, Markdown, work lines, the
+transcript).
 
 ## The bar
 

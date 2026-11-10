@@ -161,7 +161,7 @@ func (state *modelState) apply(model *Model, event protocol.SessionEvent) {
 	case protocol.EvTurnEnd:
 		var data protocol.TurnEndData
 		if decodeEvent(event, &data) {
-			state.finishTurn(data)
+			state.finishTurn(data, event.Seq)
 		}
 	case protocol.EvError:
 		var data protocol.ErrorData
@@ -338,7 +338,7 @@ func (state *modelState) applyAnswer(data protocol.AnswerData) {
 	state.rows = append(state.rows, transcriptRow{kind: rowAnswer, answer: &copy})
 }
 
-func (state *modelState) finishTurn(data protocol.TurnEndData) {
+func (state *modelState) finishTurn(data protocol.TurnEndData, seq int64) {
 	turn := state.turns[data.Turn]
 	if turn == nil {
 		turn = &turnState{number: data.Turn, start: protocol.TurnStartData{Turn: data.Turn}, planRow: -1, answerRow: -1}
@@ -352,7 +352,7 @@ func (state *modelState) finishTurn(data protocol.TurnEndData) {
 	}
 	if !turn.footerAdded {
 		turn.footerAdded = true
-		state.rows = append(state.rows, transcriptRow{kind: rowTurnEnd, turn: turn})
+		state.rows = append(state.rows, transcriptRow{kind: rowTurnEnd, seq: seq, turn: turn})
 	}
 }
 

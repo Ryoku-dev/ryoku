@@ -4,20 +4,37 @@ import (
 	"image"
 	"math"
 	"os"
+	"time"
 
 	"gioui.org/io/event"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
+	"gioui.org/op"
 	"gioui.org/op/clip"
 )
 
 var transcriptScrollOnX11 = os.Getenv("WAYLAND_DISPLAY") == ""
 
+const thumbIdle = 600 * time.Millisecond
+
 type transcriptScroller struct {
 	layout.List
-	tag          struct{}
-	fraction     float32
-	userScrolled bool
+	tag           struct{}
+	fraction      float32
+	userScrolled  bool
+	follow        bool
+	overflowKnown bool
+	lastScroll    time.Time
+}
+
+// asks for one more frame when the moment ends so the thumb can leave
+func (scroller *transcriptScroller) Active(gtx layout.Context) bool {
+	until := scroller.lastScroll.Add(thumbIdle)
+	if scroller.lastScroll.IsZero() || !gtx.Now.Before(until) {
+		return false
+	}
+	gtx.Execute(op.InvalidateCmd{At: until})
+	return true
 }
 
 func transcriptScrollDelta(delta, pixelsPerDP float32) float32 {
@@ -58,21 +75,35 @@ func (scroller *transcriptScroller) updateInput(gtx layout.Context) {
 		}
 		delta := transcriptScrollDelta(scroll.Scroll.Y, gtx.Metric.PxPerDp)
 		addTranscriptOffset(&scroller.Position, &scroller.fraction, delta)
-		scroller.userScrolled = true
+		scroller.userScrolled, scroller.lastScroll = true, gtx.Now
 	}
 }
 
 func (scroller *transcriptScroller) Layout(gtx layout.Context, count int, element layout.ListElement) layout.Dimensions {
 	scroller.Axis = layout.Vertical
-	scroller.ScrollToEnd = true
+	scroller.ScrollToEnd = scroller.follow && scroller.overflowKnown
 	scroller.updateInput(gtx)
 
 	source := gtx.Source
 	listGTX := gtx.Disabled()
-	dimensions := scroller.List.Layout(listGTX, count, func(child layout.Context, index int) layout.Dimensions {
-		child.Source = source
-		return element(child, index)
-	})
+	list := func() (layout.Dimensions, op.CallOp) {
+		record := op.Record(gtx.Ops)
+		dimensions := scroller.List.Layout(listGTX, count, func(child layout.Context, index int) layout.Dimensions {
+			child.Source = source
+			return element(child, index)
+		})
+		return dimensions, record.Stop()
+	}
+	dimensions, call := list()
+	// a short transcript stays at the top, so the first frame that overflows is laid out twice and I never show it from the top
+	if !scroller.overflowKnown && count > 0 && (scroller.Position.Count < count || scroller.Position.BeforeEnd) {
+		scroller.overflowKnown = true
+		if scroller.follow {
+			scroller.ScrollToEnd, scroller.Position.BeforeEnd = true, false
+			dimensions, call = list()
+		}
+	}
+	call.Add(gtx.Ops)
 
 	pass := pointer.PassOp{}.Push(gtx.Ops)
 	area := clip.Rect(image.Rectangle{Max: dimensions.Size}).Push(gtx.Ops)
@@ -89,10 +120,15 @@ func (scroller *transcriptScroller) UserScrolled() bool {
 }
 
 func (scroller *transcriptScroller) AtEnd() bool {
-	return !scroller.Position.BeforeEnd
+	return !scroller.overflowKnown || !scroller.Position.BeforeEnd
+}
+
+func (scroller *transcriptScroller) SetFollow(follow bool) {
+	scroller.follow = follow
 }
 
 func (scroller *transcriptScroller) JumpToEnd() {
+	scroller.follow = true
 	scroller.Position.BeforeEnd = false
 	scroller.fraction = 0
 }

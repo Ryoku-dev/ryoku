@@ -5,105 +5,197 @@ import (
 	"testing"
 	"time"
 
-	"gioui.org/f32"
 	"gioui.org/io/input"
 	"gioui.org/io/key"
-	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/unit"
 
-	"ryoku-rashin/internal/app/look"
 	"ryoku-rashin/internal/protocol"
 )
 
-func TestRouterRailSwitchesTabsThroughInputRouter(t *testing.T) {
-	var operations op.Ops
-	var inputRouter input.Router
-	router := NewRouter(protocol.TabAsk, "", nil)
-	theme := look.New(0)
-	now := time.Unix(100, 0)
-	frame := func() {
-		operations.Reset()
-		gtx := layout.Context{Ops: &operations, Source: inputRouter.Source(), Now: now, Metric: unit.Metric{PxPerDp: 1, PxPerSp: 1}, Constraints: layout.Exact(image.Pt(88, 400))}
-		router.LayoutRail(gtx, theme, 2)
-		inputRouter.Frame(&operations)
-		now = now.Add(time.Millisecond)
+// stands in for a page that asks for keys of its own, between the router and the end of the frame
+type keyboard struct {
+	operations op.Ops
+	input      input.Router
+	router     *Router
+	now        time.Time
+	after      func(layout.Context)
+}
+
+func newKeyboard(router *Router) *keyboard {
+	board := &keyboard{router: router, now: time.Unix(100, 0)}
+	board.frame()
+	return board
+}
+
+func (board *keyboard) frame() {
+	board.operations.Reset()
+	gtx := layout.Context{
+		Ops: &board.operations, Source: board.input.Source(), Now: board.now,
+		Metric: unit.Metric{PxPerDp: 1, PxPerSp: 1}, Constraints: layout.Exact(image.Pt(800, 600)),
 	}
-	frame()
-	point := f32.Pt(44, 72)
-	inputRouter.Queue(pointer.Event{Kind: pointer.Press, Source: pointer.Mouse, PointerID: 1, Buttons: pointer.ButtonPrimary, Position: point})
-	frame()
-	inputRouter.Queue(pointer.Event{Kind: pointer.Release, Source: pointer.Mouse, PointerID: 1, Position: point})
-	frame()
-	frame()
-	if router.Tab != protocol.TabAgent {
-		t.Fatalf("tab = %q, want %q", router.Tab, protocol.TabAgent)
+	board.router.HandleKeys(gtx, nil)
+	if board.after != nil {
+		board.after(gtx)
+	}
+	board.input.Frame(&board.operations)
+	board.now = board.now.Add(time.Millisecond)
+}
+
+func (board *keyboard) press(name key.Name, modifiers key.Modifiers) {
+	board.input.Queue(key.Event{Name: name, Modifiers: modifiers, State: key.Press})
+	board.frame()
+}
+
+func TestRouterHistoryBackAndForward(t *testing.T) {
+	router := NewRouter(protocol.TabAsk, "ask-one", nil)
+	router.Navigate(protocol.TabAgent, "agent-one")
+	router.Push(Place{Tab: protocol.TabProjects, Project: "hyperion", ProjectView: "changes"})
+	if !router.Back() || router.Tab != protocol.TabAgent || router.Session != "agent-one" {
+		t.Fatalf("back = %#v", router.Current())
+	}
+	if !router.Back() || router.Tab != protocol.TabAsk || router.Session != "ask-one" {
+		t.Fatalf("second back = %#v", router.Current())
+	}
+	if router.Back() {
+		t.Fatal("back walked before the first place")
+	}
+	if !router.Forward() || router.Tab != protocol.TabAgent {
+		t.Fatalf("forward = %#v", router.Current())
+	}
+	router.Navigate(protocol.TabIndex, "")
+	if router.CanForward() {
+		t.Fatal("new navigation did not truncate forward history")
 	}
 }
 
-func TestRouterRailSwitchesToProjectsAndBack(t *testing.T) {
-	var operations op.Ops
-	var inputRouter input.Router
+func TestReplaceStandsInForThePlaceWithoutGrowingHistory(t *testing.T) {
 	router := NewRouter(protocol.TabAsk, "", nil)
-	theme := look.New(0)
-	now := time.Unix(150, 0)
-	frame := func() {
-		operations.Reset()
-		gtx := layout.Context{Ops: &operations, Source: inputRouter.Source(), Now: now, Metric: unit.Metric{PxPerDp: 1, PxPerSp: 1}, Constraints: layout.Exact(image.Pt(88, 480))}
-		router.LayoutRail(gtx, theme, 2)
-		inputRouter.Frame(&operations)
-		now = now.Add(time.Millisecond)
+	router.Push(Place{Tab: protocol.TabProjects})
+	router.Replace(Place{Tab: protocol.TabProjects, Project: "hyperion", ProjectView: "overview"})
+	if current := router.Current(); current.Project != "hyperion" {
+		t.Fatalf("current place = %#v", current)
 	}
-	click := func(point f32.Point) {
-		inputRouter.Queue(pointer.Event{Kind: pointer.Press, Source: pointer.Mouse, PointerID: 1, Buttons: pointer.ButtonPrimary, Position: point})
-		frame()
-		inputRouter.Queue(pointer.Event{Kind: pointer.Release, Source: pointer.Mouse, PointerID: 1, Position: point})
-		frame()
-		frame()
-	}
-	frame()
-	click(f32.Pt(44, 120))
-	if router.Tab != protocol.TabProjects {
-		t.Fatalf("tab = %q, want %q", router.Tab, protocol.TabProjects)
-	}
-	click(f32.Pt(44, 24))
-	if router.Tab != protocol.TabAsk {
-		t.Fatalf("tab = %q, want %q", router.Tab, protocol.TabAsk)
+	if !router.Back() || router.Tab != protocol.TabAsk {
+		t.Fatalf("back from a replaced place went to %#v, want Ask", router.Current())
 	}
 }
 
-func TestRouterEscapeClosesPalette(t *testing.T) {
-	var operations op.Ops
-	var inputRouter input.Router
-	router := NewRouter(protocol.TabAsk, "", nil)
-	overlays := new(look.Overlays)
-	now := time.Unix(200, 0)
-	frame := func() {
-		operations.Reset()
-		gtx := layout.Context{Ops: &operations, Source: inputRouter.Source(), Now: now, Metric: unit.Metric{PxPerDp: 1, PxPerSp: 1}, Constraints: layout.Exact(image.Pt(800, 600))}
-		router.HandleKeys(gtx, overlays)
-		inputRouter.Frame(&operations)
-		now = now.Add(time.Millisecond)
+func TestPaneArrivesAfreshOnlyForAnotherDestinationOrProject(t *testing.T) {
+	home := Place{Tab: protocol.TabAsk}
+	first := Place{Tab: protocol.TabAsk, Session: "ask-one"}
+	if home.arrival() != first.arrival() {
+		t.Fatal("a first question becoming a session would make the pane arrive again")
 	}
-	frame()
-	inputRouter.Queue(key.Event{Name: "K", Modifiers: key.ModShortcut, State: key.Press})
-	frame()
+	if first.key() == home.key() {
+		t.Fatal("a session and its destination's home are told apart nowhere")
+	}
+	overview := Place{Tab: protocol.TabProjects, Project: "hyperion", ProjectView: "overview"}
+	changes := Place{Tab: protocol.TabProjects, Project: "hyperion", ProjectView: "changes"}
+	other := Place{Tab: protocol.TabProjects, Project: "ryotunes"}
+	if overview.arrival() != changes.arrival() || overview.arrival() == other.arrival() {
+		t.Fatal("a project's views must share an arrival that another project does not")
+	}
+}
+
+func TestShortcutsReachTheirActions(t *testing.T) {
+	router := NewRouter(protocol.TabAsk, "", nil)
+	var newCount, foldCount, panelCount, zoom int
+	router.OnNew = func() { newCount++ }
+	router.OnToggleFold = func() { foldCount++ }
+	router.OnTogglePanel = func() { panelCount++ }
+	router.OnZoom = func(delta int) { zoom = delta }
+	board := newKeyboard(router)
+
+	board.press("K", key.ModShortcut)
 	if !router.PaletteOpen {
-		t.Fatal("Ctrl+K did not open the command palette")
+		t.Fatal("Ctrl K did not open search")
 	}
-	inputRouter.Queue(key.Event{Name: key.NameEscape, State: key.Press})
-	frame()
+	board.frame()
+	board.press(key.NameEscape, 0)
 	if router.PaletteOpen {
-		t.Fatal("Escape did not close the command palette")
+		t.Fatal("Escape did not close search")
+	}
+	board.press("N", key.ModShortcut)
+	board.press("B", key.ModShortcut)
+	board.press("\\", key.ModShortcut)
+	if newCount != 1 || foldCount != 1 || panelCount != 1 {
+		t.Fatalf("shortcut callbacks = new %d, fold %d, panel %d", newCount, foldCount, panelCount)
+	}
+	for index, tab := range []string{protocol.TabAsk, protocol.TabAgent, protocol.TabProjects, protocol.TabIndex} {
+		board.press(key.Name('1'+rune(index)), key.ModShortcut)
+		if router.Tab != tab {
+			t.Fatalf("Ctrl %d tab = %q, want %q", index+1, router.Tab, tab)
+		}
+	}
+	board.press(",", key.ModShortcut)
+	if router.Tab != protocol.TabSettings {
+		t.Fatalf("Ctrl comma tab = %q", router.Tab)
+	}
+	board.press("+", key.ModShortcut)
+	if zoom != 10 {
+		t.Fatalf("Ctrl plus zoom delta = %d", zoom)
+	}
+	board.press("0", key.ModShortcut)
+	if zoom != 0 {
+		t.Fatalf("Ctrl 0 zoom delta = %d", zoom)
 	}
 }
 
-func TestNormalizeProjectViewDefaultsToOverview(t *testing.T) {
-	if got := normalizeProjectView(""); got != "overview" {
-		t.Fatalf("normalizeProjectView(\"\") = %q, want overview", got)
+func escapes(board *keyboard) *int {
+	heard := 0
+	board.after = func(gtx layout.Context) {
+		for {
+			raw, ok := gtx.Event(key.Filter{Name: key.NameEscape})
+			if !ok {
+				return
+			}
+			if pressed, ok := raw.(key.Event); ok && pressed.State == key.Press {
+				heard++
+			}
+		}
 	}
-	if got := normalizeProjectView("changes"); got != "changes" {
-		t.Fatalf("normalizeProjectView(\"changes\") = %q, want changes", got)
+	board.frame()
+	return &heard
+}
+
+func TestEscapeIsLeftToThePageUnlessTheFrameHasSomethingToClose(t *testing.T) {
+	router := NewRouter(protocol.TabAsk, "", nil)
+	sheet := false
+	router.CanEscape = func() bool { return sheet }
+	router.OnEscape = func() bool { closed := sheet; sheet = false; return closed }
+	board := newKeyboard(router)
+	heard := escapes(board)
+
+	board.press(key.NameEscape, 0)
+	if *heard != 1 {
+		t.Fatalf("the page heard %d Escapes with nothing of the frame's open, want 1", *heard)
+	}
+	sheet = true
+	board.frame()
+	board.press(key.NameEscape, 0)
+	if sheet || *heard != 1 {
+		t.Fatalf("Escape with a sheet open: sheet still open %v, page heard %d, want closed and 1", sheet, *heard)
+	}
+}
+
+func TestOpenDialogKeepsTheFramesShortcutsOut(t *testing.T) {
+	router := NewRouter(protocol.TabAsk, "", nil)
+	created := 0
+	router.OnNew = func() { created++ }
+	board := newKeyboard(router)
+	heard := escapes(board)
+
+	router.Modal = true
+	board.frame()
+	board.press("N", key.ModShortcut)
+	board.press("2", key.ModShortcut)
+	board.press(key.NameEscape, 0)
+	if created != 0 || router.Tab != protocol.TabAsk {
+		t.Fatalf("shortcuts acted under a dialog: new %d, tab %q", created, router.Tab)
+	}
+	if *heard != 1 {
+		t.Fatalf("the dialog heard %d Escapes, want 1", *heard)
 	}
 }

@@ -16,10 +16,10 @@ import (
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
+	"gioui.org/widget"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
-	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme"
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/env"
@@ -31,9 +31,41 @@ import (
 const (
 	lanePitch         = 14
 	graphRowHeight    = 30
-	graphHeaderHeight = 26
+	graphHeaderHeight = 28
 	maxRefChips       = 3
+	// room between a row's slab and the list's right edge
+	rowEdge = 8
 )
+
+type columns struct {
+	lanes, text, author, date, hash, end int
+}
+
+func (v *viewState) columns(gtx layout.Context, width int) columns {
+	author, date, hash := commitColumnWidths(gtx, width)
+	lanes := v.laneColumnWidth(gtx)
+	result := columns{lanes: lanes, text: lanes + gtx.Dp(8), end: width - gtx.Dp(rowEdge) - gtx.Dp(8)}
+	result.hash = result.end - hash
+	result.date = result.hash - date
+	result.author = result.date - author
+	return result
+}
+
+// end sets the widget against the right edge by laying it out twice, so it's for text only
+func cell(gtx layout.Context, left, right, height int, end bool, widget layout.Widget) {
+	if right <= left {
+		return
+	}
+	child := gtx
+	child.Constraints = layout.Constraints{Max: image.Pt(right-left, height)}
+	x := left
+	if end {
+		record := op.Record(gtx.Ops)
+		x = right - widget(child).Size.X
+		record.Stop()
+	}
+	look.MiddleLeft(child, x, height, widget)
+}
 
 type rowInput struct {
 	tag       struct{}
@@ -114,14 +146,16 @@ const (
 type refChip struct {
 	label string
 	kind  refChipKind
-	agent string
+	// a worktree of the same name has this branch checked out
+	checkedOut bool
 }
 
 func (v *viewState) layoutEntry(gtx layout.Context, e *env.Env, index int) layout.Dimensions {
+	th := e.Theme
 	entry := v.entries[index]
 	row := v.row(entry.id())
-	height := gtx.Dp(graphRowHeight)
-	gtx.Constraints.Min.Y, gtx.Constraints.Max.Y = height, height
+	size := image.Pt(gtx.Constraints.Max.X, gtx.Dp(graphRowHeight))
+	gtx.Constraints = layout.Exact(size)
 	selected := entry.kind == v.selected.kind &&
 		((entry.kind == rowCommit && entry.commit.Hash == v.selected.hash) ||
 			(entry.kind == rowWIP && entry.wip.Worktree == v.selected.worktree))
@@ -137,131 +171,108 @@ func (v *viewState) layoutEntry(gtx layout.Context, e *env.Env, index int) layou
 		gtx.Execute(key.FocusCmd{Tag: &v.keyTag})
 	})
 
-	bounds := image.Rect(0, 0, gtx.Constraints.Max.X, height)
-	if selected {
-		paint.FillShape(gtx.Ops, e.Theme.R.Stone3, clip.Rect(bounds).Op())
-		bar := max(1, gtx.Dp(3))
-		paint.FillShape(gtx.Ops, e.Theme.R.Vein, clip.Rect(image.Rect(0, 0, bar, height)).Op())
-	} else if row.input.hovered {
-		hover := palette.Mix(e.Theme.R.Stone2, e.Theme.R.Fg, .06)
-		paint.FillShape(gtx.Ops, hover, clip.Rect(bounds).Op())
+	cols := v.columns(gtx, size.X)
+	hover := look.Transition(gtx, &row.hover, row.input.hovered && !selected, th.Motion.HoverIn, th.Motion.HoverOut)
+	if hover > 0 {
+		inset := max(1, gtx.Dp(1))
+		slab := image.Rect(cols.lanes, inset, size.X-gtx.Dp(rowEdge), size.Y-inset)
+		kit.FillCut(gtx.Ops, slab, gtx.Dp(th.Cut.Small), palette.WithAlpha(th.R.Stone3, hover))
 	}
-	row.input.register(gtx, bounds.Max)
+	row.input.register(gtx, size)
 
-	ink, quiet := e.Theme.R.Fg, e.Theme.R.Fg2
+	look.Place(gtx, image.Rect(0, 0, cols.lanes, size.Y), func(gtx layout.Context) layout.Dimensions {
+		return v.layoutLanes(gtx, e, row, entry)
+	})
+	ink, quiet, faint := th.R.Fg, th.R.Fg2, th.R.Fg3
 	if selected {
-		ink, quiet = e.Theme.R.Fg, e.Theme.R.Fg2
+		ink, quiet, faint = th.R.OnSel, th.R.OnSel2, th.R.OnSel2
 	}
-	laneWidth := v.laneColumnWidth(gtx)
-	authorWidth, dateWidth, hashWidth := commitColumnWidths(gtx)
 	if entry.kind == rowWIP {
-		authorWidth, dateWidth, hashWidth = 0, 0, 0
+		cell(gtx, cols.text, cols.end, size.Y, false, func(gtx layout.Context) layout.Dimensions {
+			return v.layoutWIPText(gtx, e, entry.wip, selected)
+		})
+		return layout.Dimensions{Size: size}
 	}
-	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Min.X, gtx.Constraints.Max.X = laneWidth, laneWidth
-			if entry.kind == rowWIP {
-				v.drawWIPGraph(gtx, e, entry, row)
-			} else {
-				v.drawCommitGraph(gtx, e, entry.layout, row)
-			}
-			if !v.expandedLanes && entry.layout.Width > collapsedLanes {
-				v.laneMarkerVisible = true
-				if row.expand.Clicked(gtx) {
-					v.expandedLanes = true
-					gtx.Execute(op.InvalidateCmd{})
-				}
-				hidden := entry.layout.Width - collapsedLanes
-				return layout.Stack{}.Layout(gtx,
-					layout.Expanded(func(gtx layout.Context) layout.Dimensions {
-						return layout.Dimensions{Size: image.Pt(laneWidth, height)}
-					}),
-					layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-						markerWidth := gtx.Dp(30)
-						offset := op.Offset(image.Pt(max(0, laneWidth-markerWidth-3), gtx.Dp(6))).Push(gtx.Ops)
-						child := gtx
-						child.Constraints.Min = image.Pt(markerWidth, gtx.Dp(18))
-						child.Constraints.Max = child.Constraints.Min
-						dimensions := row.expand.Layout(child, func(gtx layout.Context) layout.Dimensions {
-							return drawChip(gtx, e, i18n.Tf("+%d", hidden), e.Theme.R.Stone4, quiet, e.Theme.R.Vein)
-						})
-						offset.Pop()
-						return dimensions
-					}),
-				)
-			}
-			return layout.Dimensions{Size: image.Pt(laneWidth, height)}
-		}),
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			if entry.kind == rowWIP {
-				return v.layoutWIPText(gtx, e, entry.wip, ink, quiet)
-			}
-			return v.layoutCommitDescription(gtx, e, row, entry, ink)
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			if entry.kind == rowWIP {
-				return layout.Dimensions{Size: image.Pt(authorWidth, height)}
-			}
-			return columnText(gtx, e, authorWidth, e.Theme.T.Caption, ink, entry.commit.Author)
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			if entry.kind == rowWIP {
-				return layout.Dimensions{Size: image.Pt(dateWidth, height)}
-			}
-			return columnText(gtx, e, dateWidth, e.Theme.T.MonoSm, quiet, relativeTime(entry.commit.Time, time.Now()))
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			if entry.kind == rowWIP {
-				return layout.Dimensions{Size: image.Pt(hashWidth, height)}
-			}
-			return columnText(gtx, e, hashWidth, e.Theme.T.MonoSm, quiet, shortHash(entry.commit.Hash))
-		}),
-	)
+	gap := gtx.Dp(13)
+	cell(gtx, cols.text, cols.author-gap, size.Y, false, func(gtx layout.Context) layout.Dimensions {
+		return v.layoutCommitDescription(gtx, e, row, entry, ink)
+	})
+	cell(gtx, cols.author, cols.date-gap, size.Y, false, kit.RawText(th.Theme, th.T.Caption, quiet, entry.commit.Author))
+	cell(gtx, cols.date, cols.hash-gap, size.Y, true, kit.RawText(th.Theme, th.T.Caption, faint, relativeTime(entry.commit.Time, gtx.Now)))
+	cell(gtx, cols.hash, cols.end, size.Y, false, kit.RawText(th.Theme, th.T.MonoSm, faint, shortHash(entry.commit.Hash)))
+	return layout.Dimensions{Size: size}
+}
+
+func (v *viewState) layoutLanes(gtx layout.Context, e *env.Env, row *rowState, entry graphEntry) layout.Dimensions {
+	size := gtx.Constraints.Max
+	if entry.kind == rowWIP {
+		v.drawWIPGraph(gtx, e, entry, row)
+	} else {
+		v.drawCommitGraph(gtx, e, entry.layout, row)
+	}
+	if v.expandedLanes || entry.layout.Width <= collapsedLanes {
+		return layout.Dimensions{Size: size}
+	}
+	v.laneMarkerVisible = true
+	if row.expand.Clicked(gtx) {
+		v.expandedLanes = true
+		gtx.Execute(op.InvalidateCmd{})
+	}
+	hidden := entry.layout.Width - collapsedLanes
+	marker := image.Pt(gtx.Dp(30), gtx.Dp(18))
+	at := image.Pt(max(0, size.X-marker.X-gtx.Dp(3)), (size.Y-marker.Y)/2)
+	look.Place(gtx, image.Rectangle{Min: at, Max: at.Add(marker)}, func(gtx layout.Context) layout.Dimensions {
+		return row.expand.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return drawChip(gtx, e, nil, i18n.Tf("+%d", hidden), e.Theme.R.Stone4, e.Theme.R.Fg2, color.NRGBA{})
+		})
+	})
+	return layout.Dimensions{Size: size}
 }
 
 func (v *viewState) layoutCommitDescription(gtx layout.Context, e *env.Env, row *rowState, entry graphEntry, ink color.NRGBA) layout.Dimensions {
+	th := e.Theme
 	refs := v.refsFor(entry.commit.Hash)
-	maxChips := min(gtx.Constraints.Max.X/2, gtx.Dp(360))
-	return layout.Inset{Right: 8}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				gtx.Constraints.Max.X = max(0, maxChips)
-				return v.layoutRefChips(gtx, e, refs, entry.layout.Color, &row.refTip)
-			}),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				if len(refs) == 0 {
-					return layout.Dimensions{}
-				}
-				return layout.Spacer{Width: 6}.Layout(gtx)
-			}),
-			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-				return kit.Text(e.Theme.Theme, e.Theme.T.Row, ink, entry.commit.Subject)(gtx)
-			}),
-		)
-	})
+	gtx.Constraints.Min.X = gtx.Constraints.Max.X
+	maxChips := min(gtx.Constraints.Max.X*3/5, gtx.Dp(420))
+	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Max.X = max(0, maxChips)
+			return v.layoutRefChips(gtx, e, refs, entry.layout.Color, &row.refTip)
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if len(refs) == 0 {
+				return layout.Dimensions{}
+			}
+			return layout.Spacer{Width: th.Sp.S2}.Layout(gtx)
+		}),
+		layout.Flexed(1, kit.RawText(th.Theme, th.T.Body, ink, entry.commit.Subject)),
+	)
 }
 
-func (v *viewState) layoutWIPText(gtx layout.Context, e *env.Env, wip protocol.WipRow, ink, quiet color.NRGBA) layout.Dimensions {
-	name := v.worktreeLabel(wip.Worktree)
-	counts := strings.Join(nonZeroCounts(wip.Staged, wip.Modified, wip.Untracked, wip.Conflicted), " · ")
+func (v *viewState) layoutWIPText(gtx layout.Context, e *env.Env, wip protocol.WipRow, selected bool) layout.Dimensions {
+	th := e.Theme
+	ink, faint := th.R.Fg2, th.R.Fg3
+	if selected {
+		ink, faint = th.R.OnSel, th.R.OnSel2
+	}
+	counts := strings.Join(nonZeroCounts(wip.Staged, wip.Modified, wip.Untracked, wip.Conflicted), ", ")
 	agent := strings.TrimSpace(wip.Agent)
-	return layout.Inset{Right: 8}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-			layout.Flexed(1, kit.Text(e.Theme.Theme, e.Theme.T.Row, ink, i18n.T("Uncommitted changes")+" · "+name)),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				if counts == "" {
-					return layout.Dimensions{}
-				}
-				return layout.Inset{Left: 8}.Layout(gtx, kit.Text(e.Theme.Theme, e.Theme.T.MonoSm, quiet, counts))
-			}),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				if agent == "" {
-					return layout.Dimensions{}
-				}
-				return layout.Inset{Left: 8}.Layout(gtx, kit.Text(e.Theme.Theme, e.Theme.T.Label, agentColor(e, agent), agentLabel(agent)))
-			}),
-		)
-	})
+	gtx.Constraints.Min.X = gtx.Constraints.Max.X
+	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+		layout.Rigid(kit.RawText(th.Theme, th.T.Body, ink, i18n.Tf("Uncommitted in %s", v.worktreeLabel(wip.Worktree)))),
+		layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
+		layout.Flexed(1, kit.RawText(th.Theme, th.T.Caption, faint, counts)),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			switch {
+			case agent == "":
+				return layout.Dimensions{}
+			case selected:
+				return kit.RawText(th.Theme, th.T.Label, th.R.OnSel2, agentLabel(agent))(gtx)
+			default:
+				return kit.Claim(th.Theme, agentTone(agent), agentLabel(agent))(gtx)
+			}
+		}),
+	)
 }
 
 func nonZeroCounts(staged, modified, untracked, conflicted int) []string {
@@ -307,7 +318,7 @@ func (v *viewState) layoutRefChips(gtx layout.Context, e *env.Env, refs []protoc
 			layout.Rigid(layout.Spacer{Width: 3}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				body := func(gtx layout.Context) layout.Dimensions {
-					return drawChip(gtx, e, i18n.Tf("+%d", len(rest)), e.Theme.R.Stone4, e.Theme.R.Fg2, e.Theme.R.Vein)
+					return drawChip(gtx, e, nil, i18n.Tf("+%d", len(rest)), e.Theme.R.Stone4, e.Theme.R.Fg2, color.NRGBA{})
 				}
 				return tip.Layout(gtx, e.Theme, e.Overlays, strings.Join(labels, " · "), body)
 			}),
@@ -328,13 +339,17 @@ func (v *viewState) refChips(refs []protocol.GitRef) []refChip {
 		if ref.Kind != protocol.RefBranch {
 			continue
 		}
-		chips = append(chips, refChip{label: ref.Name, kind: chipBranch})
-		if ref.Worktree != "" {
-			chips = append(chips, refChip{
-				label: v.worktreeLabel(ref.Worktree),
-				kind:  chipWorktree,
-				agent: v.worktreeAgent(ref.Worktree),
-			})
+		chip := refChip{label: ref.Name, kind: chipBranch}
+		if ref.Worktree == "" {
+			chips = append(chips, chip)
+			continue
+		}
+		// a worktree named after its branch is a mark on the branch chip, a second chip would just repeat it
+		name := v.worktreeLabel(ref.Worktree)
+		chip.checkedOut = name == ref.Name || strings.HasSuffix(ref.Name, "/"+name)
+		chips = append(chips, chip)
+		if !chip.checkedOut {
+			chips = append(chips, refChip{label: name, kind: chipWorktree})
 		}
 	}
 	for _, ref := range refs {
@@ -350,43 +365,48 @@ func (v *viewState) refChips(refs []protocol.GitRef) []refChip {
 	return chips
 }
 
+// opaque fill so a chip reads the same on the pane and on the selected row's slab
 func (v *viewState) layoutRefChip(gtx layout.Context, e *env.Env, chip refChip, lane int) layout.Dimensions {
-	fill, ink, outline := color.NRGBA{}, e.Theme.R.Fg2, color.NRGBA{}
+	th := e.Theme
+	fill, ink, outline := th.R.Stone1, th.R.Fg2, color.NRGBA{}
+	var icon *widget.Icon
 	switch chip.kind {
 	case chipBranch:
 		ink = laneColor(e, lane)
-		fill = palette.WithAlpha(ink, .16)
-	case chipRemote:
-		ink, outline = e.Theme.R.Fg2, e.Theme.R.Vein
-	case chipTag:
-		fill = e.Theme.R.Field(palette.Attention)
-		ink = e.Theme.R.Amber
-	case chipHead:
-		fill, ink = e.Theme.R.Fg, e.Theme.R.Stone1
-	case chipWorktree:
-		ink = e.Theme.R.Fg2
-		fill = e.Theme.R.Stone4
-		if chip.agent != "" {
-			ink = agentColor(e, chip.agent)
-			fill = palette.WithAlpha(ink, .14)
-			chip.label += " · " + agentLabel(chip.agent)
+		fill = palette.Mix(th.R.Stone1, ink, .18)
+		if chip.checkedOut {
+			icon = look.Icon.Folder
 		}
+	case chipRemote:
+		outline = th.R.Vein
+	case chipTag:
+		ink = th.R.Amber
+		fill = palette.Mix(th.R.Stone1, ink, .18)
+	case chipHead:
+		fill, ink = th.R.Fg, th.R.Stone1
+	case chipWorktree:
+		fill, icon = th.R.Stone4, look.Icon.Folder
 	}
-	return drawChip(gtx, e, chip.label, fill, ink, outline)
+	return drawChip(gtx, e, icon, chip.label, fill, ink, outline)
 }
 
-func drawChip(gtx layout.Context, e *env.Env, label string, fill, ink, outline color.NRGBA) layout.Dimensions {
-	height := gtx.Dp(18)
+func drawChip(gtx layout.Context, e *env.Env, icon *widget.Icon, label string, fill, ink, outline color.NRGBA) layout.Dimensions {
+	th := e.Theme
+	height, inset := gtx.Dp(18), gtx.Dp(6)
+	lead := 0
+	if icon != nil {
+		lead = gtx.Dp(12 + 4)
+	}
 	child := gtx
-	child.Constraints.Min.Y, child.Constraints.Max.Y = height, height
-	child.Constraints.Max.X = min(child.Constraints.Max.X, gtx.Dp(132))
+	child.Constraints = layout.Constraints{Max: image.Pt(max(0, min(gtx.Constraints.Max.X, gtx.Dp(168))-2*inset-lead), height)}
 	record := op.Record(gtx.Ops)
-	dimensions := layout.Inset{Right: 5, Left: 5}.Layout(child, func(gtx layout.Context) layout.Dimensions {
-		return layout.Center.Layout(gtx, kit.Text(e.Theme.Theme, e.Theme.T.MonoSm, ink, label))
-	})
+	text := look.MiddleLeft(child, inset+lead, height, kit.RawText(th.Theme, th.T.MonoSm, ink, label))
+	if icon != nil {
+		look.PlaceIcon(gtx, icon, image.Pt(inset, (height-gtx.Dp(12))/2), 12, ink)
+	}
 	call := record.Stop()
-	bounds := image.Rectangle{Max: dimensions.Size}
-	cut := min(gtx.Dp(3), dimensions.Size.Y/2)
+	bounds := image.Rect(0, 0, text.Size.X+2*inset+lead, height)
+	cut := gtx.Dp(th.Cut.Token)
 	if fill.A != 0 {
 		kit.FillCut(gtx.Ops, bounds, cut, fill)
 	}
@@ -394,7 +414,7 @@ func drawChip(gtx layout.Context, e *env.Env, label string, fill, ink, outline c
 		kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(1)), outline)
 	}
 	call.Add(gtx.Ops)
-	return dimensions
+	return layout.Dimensions{Size: bounds.Max}
 }
 
 func (v *viewState) drawCommitGraph(gtx layout.Context, e *env.Env, graph gitgraph.Row, row *rowState) {
@@ -583,27 +603,18 @@ func (v *viewState) worktreeLabel(path string) string {
 	return name
 }
 
-func (v *viewState) worktreeAgent(path string) string {
-	for _, row := range v.wip {
-		if row.Worktree == path {
-			return row.Agent
-		}
-	}
-	return ""
-}
-
-func agentColor(e *env.Env, state string) color.NRGBA {
+func agentTone(state string) palette.Tone {
 	switch strings.ToLower(strings.TrimSpace(state)) {
 	case "working", "starting", "creating", "running":
-		return e.Theme.R.Lapis
+		return palette.Becoming
 	case "waiting", "paused", "needs you":
-		return e.Theme.R.Amber
+		return palette.Attention
 	case "failed", "error", "stopped unexpectedly":
-		return e.Theme.R.Jasper
+		return palette.Failed
 	case "ready", "connected", "online":
-		return e.Theme.R.Jade
+		return palette.Alive
 	default:
-		return e.Theme.R.Fg2
+		return palette.Idle
 	}
 }
 
@@ -632,23 +643,16 @@ func laneColor(e *env.Env, index int) color.NRGBA {
 	return colors[index%len(colors)]
 }
 
-func commitColumnWidths(gtx layout.Context) (author, date, hash int) {
-	width := gtx.Constraints.Max.X
+// a narrow graph drops the author before it squeezes the description
+func commitColumnWidths(gtx layout.Context, width int) (author, date, hash int) {
 	switch {
 	case width >= gtx.Dp(700):
-		return gtx.Dp(140), gtx.Dp(96), gtx.Dp(72)
-	case width >= gtx.Dp(560):
-		return gtx.Dp(112), gtx.Dp(88), gtx.Dp(68)
+		return gtx.Dp(132), gtx.Dp(100), gtx.Dp(76)
+	case width >= gtx.Dp(520):
+		return gtx.Dp(104), gtx.Dp(96), gtx.Dp(72)
 	default:
-		return gtx.Dp(96), gtx.Dp(78), gtx.Dp(64)
+		return 0, gtx.Dp(92), gtx.Dp(72)
 	}
-}
-
-func columnText(gtx layout.Context, e *env.Env, width int, style theme.TextStyle, ink color.NRGBA, value string) layout.Dimensions {
-	gtx.Constraints.Min.X, gtx.Constraints.Max.X = width, width
-	return layout.Inset{Right: 8}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return layout.Center.Layout(gtx, kit.Text(e.Theme.Theme, style, ink, value))
-	})
 }
 
 func relativeTime(value, now time.Time) string {

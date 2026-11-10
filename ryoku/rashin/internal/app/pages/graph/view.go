@@ -9,7 +9,6 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
-	"gioui.org/op/paint"
 	"gioui.org/unit"
 	"gioui.org/widget"
 
@@ -17,11 +16,13 @@ import (
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/env"
+	"ryoku-rashin/internal/app/look"
 	"ryoku-rashin/internal/gitgraph"
 	"ryoku-rashin/internal/protocol"
 )
 
 func (v *viewState) layout(gtx layout.Context, e *env.Env, project string) layout.Dimensions {
+	th := e.Theme
 	if project != v.project {
 		v.reset(project)
 	}
@@ -36,35 +37,25 @@ func (v *viewState) layout(gtx layout.Context, e *env.Env, project string) layou
 	v.sideDetails, widthDP = detailPanePlacement(widthDP)
 	v.detailWidth = gtx.Dp(unit.Dp(widthDP))
 	v.handleKeys(gtx, e)
-
-	body := func(gtx layout.Context) layout.Dimensions {
-		return (kit.Pane{Kind: kit.PaneWork}).Layout(gtx, e.Theme.Theme, func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Top: 13, Right: 13, Bottom: 13, Left: 13}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return v.layoutControls(gtx, e) }),
-					layout.Rigid(layout.Spacer{Height: 8}.Layout),
-					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return v.layoutContent(gtx, e) }),
-				)
-			})
-		})
-	}
-	return layout.Stack{}.Layout(gtx,
-		layout.Expanded(body),
-		layout.Stacked(func(gtx layout.Context) layout.Dimensions { return v.layoutOperationDialog(gtx, e) }),
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: th.Sp.S3, Right: th.Sp.S3, Bottom: th.Sp.S2, Left: th.Sp.S3}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions { return v.layoutControls(gtx, e) })
+		}),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return v.layoutContent(gtx, e) }),
 	)
 }
 
 func (v *viewState) layoutControls(gtx layout.Context, e *env.Env) layout.Dimensions {
+	th := e.Theme
 	labels, scopes, selected := v.scopeOptions()
-	height := gtx.Dp(40)
-	gtx.Constraints.Min.Y, gtx.Constraints.Max.Y = height, height
 	search := func(gtx layout.Context) layout.Dimensions {
-		v.search.Placeholder, v.search.Hint = i18n.T("Search commits"), i18n.T("Enter")
+		v.search.Placeholder, v.search.Hint = i18n.T("Search commits"), "Enter"
 		if v.focusSearch {
 			v.focusSearch = false
 			v.search.Focus(gtx)
 		}
-		dimensions := v.search.Layout(gtx, e.Theme.Theme)
+		dimensions := v.search.Layout(gtx, th.Theme)
 		for {
 			raw, ok := v.search.Update(gtx)
 			if !ok {
@@ -78,8 +69,8 @@ func (v *viewState) layoutControls(gtx layout.Context, e *env.Env) layout.Dimens
 		return dimensions
 	}
 	finder := func(gtx layout.Context) layout.Dimensions {
-		v.finder.Placeholder, v.finder.Hint = i18n.T("Find ref or worktree"), i18n.T("Enter")
-		dimensions := v.finder.Layout(gtx, e.Theme.Theme)
+		v.finder.Placeholder, v.finder.Hint = i18n.T("Go to a branch"), "Enter"
+		dimensions := v.finder.Layout(gtx, th.Theme)
 		for {
 			raw, ok := v.finder.Update(gtx)
 			if !ok {
@@ -94,7 +85,8 @@ func (v *viewState) layoutControls(gtx layout.Context, e *env.Env) layout.Dimens
 		return dimensions
 	}
 	scope := func(gtx layout.Context) layout.Dimensions {
-		dimensions := v.scopeChoice.Layout(gtx, e.Theme, e.Overlays, labels, selected)
+		v.scopeChoice.Form, v.scopeChoice.Icon, v.scopeChoice.Label = look.SelectQuiet, look.Icon.Branch, i18n.T("Show")
+		dimensions := v.scopeChoice.Layout(gtx, th, e.Overlays, labels, selected)
 		if index, changed := v.scopeChoice.Changed(); changed && index >= 0 && index < len(scopes) {
 			option := scopes[index]
 			v.scope, v.scopeRef, v.scopeWorktree = option.scope, option.ref, option.worktree
@@ -102,45 +94,50 @@ func (v *viewState) layoutControls(gtx layout.Context, e *env.Env) layout.Dimens
 		}
 		return dimensions
 	}
-	scopeWidth := min(gtx.Dp(220), max(gtx.Dp(160), gtx.Constraints.Max.X/4))
-	finderWidth := min(gtx.Dp(260), max(gtx.Dp(180), gtx.Constraints.Max.X/3))
-	fixed := func(width int, body layout.Widget) layout.Widget {
-		return func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Min.X, gtx.Constraints.Max.X = width, width
-			return body(gtx)
-		}
-	}
-	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-		layout.Rigid(fixed(scopeWidth, scope)),
-		layout.Rigid(layout.Spacer{Width: 6}.Layout),
+	finderWidth := min(gtx.Dp(260), max(gtx.Dp(180), gtx.Constraints.Max.X/4))
+	children := []layout.FlexChild{
+		layout.Rigid(scope),
+		layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
 		layout.Flexed(1, search),
-		layout.Rigid(layout.Spacer{Width: 6}.Layout),
-		layout.Rigid(fixed(finderWidth, finder)),
-	)
+	}
+	// narrow keeps the commit search only, the scope still reaches every branch and worktree
+	if gtx.Constraints.Max.X >= gtx.Dp(640) {
+		children = append(children,
+			layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				gtx.Constraints.Min.X, gtx.Constraints.Max.X = finderWidth, finderWidth
+				return finder(gtx)
+			}),
+		)
+	}
+	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children...)
 }
 
 func (v *viewState) layoutContent(gtx layout.Context, e *env.Env) layout.Dimensions {
+	th := e.Theme
 	if !v.loaded && v.loading {
-		working := kit.Working{Active: true}
-		return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions { return working.Layout(gtx, e.Theme.Theme) }),
-				layout.Rigid(layout.Spacer{Width: 8}.Layout),
-				layout.Rigid(kit.Text(e.Theme.Theme, e.Theme.T.Label, e.Theme.R.Fg2, i18n.T("Loading history"))),
-			)
+		return layout.Inset{Left: th.Sp.S3, Right: th.Sp.S3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return look.SkeletonRows(gtx, th, 12, false)
 		})
 	}
 	if len(v.entries) == 0 {
-		body := i18n.T("This scope has no commits.")
-		if v.error != "" {
+		body := i18n.T("Nothing here has been committed yet.")
+		switch {
+		case v.error != "":
 			body = v.error
+		case strings.TrimSpace(v.search.Text()) != "":
+			body = i18n.Tf("No commit matches “%s”.", strings.TrimSpace(v.search.Text()))
 		}
-		return (kit.Empty{Title: i18n.T("No history"), Body: body}).Layout(gtx, e.Theme.Theme)
+		return kit.Empty{Icon: look.Icon.Graph, Title: i18n.T("No history"), Body: body}.Layout(gtx, th.Theme)
 	}
 	if v.sideDetails {
 		return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return v.layoutGraph(gtx, e) }),
-			layout.Rigid(layout.Spacer{Width: 8}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				size := image.Pt(max(1, gtx.Dp(1)), gtx.Constraints.Max.Y)
+				look.FillRect(gtx, image.Rectangle{Max: size}, th.R.Vein)
+				return layout.Dimensions{Size: size}
+			}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				width := min(v.detailWidth, gtx.Constraints.Max.X)
 				gtx.Constraints.Min.X, gtx.Constraints.Max.X = width, width
@@ -155,81 +152,90 @@ func (v *viewState) layoutContent(gtx layout.Context, e *env.Env) layout.Dimensi
 }
 
 func (v *viewState) layoutGraph(gtx layout.Context, e *env.Env) layout.Dimensions {
+	th := e.Theme
 	v.laneMarkerVisible = false
-	return kit.Slab(gtx, e.Theme.R.Stone1, e.Theme.Cut.Mid, func(gtx layout.Context) layout.Dimensions {
-		area := clip.Rect(image.Rectangle{Max: gtx.Constraints.Max}).Push(gtx.Ops)
-		event.Op(gtx.Ops, &v.keyTag)
-		if v.focusGraph {
-			v.focusGraph = false
-			gtx.Execute(key.FocusCmd{Tag: &v.keyTag})
-		}
-		area.Pop()
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return v.layoutGraphHeader(gtx, e) }),
-			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-				count := len(v.entries)
-				if v.loading && v.loaded {
-					count++
-				}
-				dimensions := v.scroll.Layout(gtx, e.Theme, count, func(gtx layout.Context, index int) layout.Dimensions {
-					if index == len(v.entries) {
-						return v.layoutPageWorking(gtx, e)
-					}
-					return v.layoutEntry(gtx, e, index)
-				})
-				if v.next != "" && !v.loading && v.scroll.Position.First+v.scroll.Position.Count >= len(v.entries)-20 {
-					v.loadPage(e, false)
-				}
-				return dimensions
-			}),
-		)
-	})
-}
-
-func (v *viewState) layoutGraphHeader(gtx layout.Context, e *env.Env) layout.Dimensions {
-	height := gtx.Dp(graphHeaderHeight)
-	gtx.Constraints.Min.Y, gtx.Constraints.Max.Y = height, height
-	laneWidth := v.laneColumnWidth(gtx)
-	authorWidth, dateWidth, hashWidth := commitColumnWidths(gtx)
-	paint.FillShape(gtx.Ops, e.Theme.R.Stone2, clip.Rect(image.Rectangle{Max: gtx.Constraints.Max}).Op())
-	line := max(1, gtx.Dp(1))
-	paint.FillShape(gtx.Ops, e.Theme.R.Vein, clip.Rect(image.Rect(0, height-line, gtx.Constraints.Max.X, height)).Op())
-	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return headerCell(gtx, e, laneWidth, i18n.T("Graph"))
-		}),
+	area := clip.Rect(image.Rectangle{Max: gtx.Constraints.Max}).Push(gtx.Ops)
+	event.Op(gtx.Ops, &v.keyTag)
+	if v.focusGraph {
+		v.focusGraph = false
+		gtx.Execute(key.FocusCmd{Tag: &v.keyTag})
+	}
+	area.Pop()
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return v.layoutGraphHeader(gtx, e) }),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return headerCell(gtx, e, gtx.Constraints.Max.X, i18n.T("Description"))
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return headerCell(gtx, e, authorWidth, i18n.T("Author"))
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return headerCell(gtx, e, dateWidth, i18n.T("Date"))
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return headerCell(gtx, e, hashWidth, i18n.T("Commit"))
+			count := len(v.entries)
+			if v.loading && v.loaded {
+				count++
+			}
+			// drawn under the rows but placed from where they ended up this frame so it never trails a scroll
+			record := op.Record(gtx.Ops)
+			dimensions := v.scroll.Layout(gtx, th, count, func(gtx layout.Context, index int) layout.Dimensions {
+				if index == len(v.entries) {
+					return v.layoutPageWorking(gtx, e)
+				}
+				return v.layoutEntry(gtx, e, index)
+			})
+			rows := record.Stop()
+			v.drawSelection(gtx, th, dimensions.Size)
+			rows.Add(gtx.Ops)
+			if v.next != "" && !v.loading && v.scroll.Position.First+v.scroll.Position.Count >= len(v.entries)-20 {
+				v.loadPage(e, false)
+			}
+			return dimensions
 		}),
 	)
 }
 
-func headerCell(gtx layout.Context, e *env.Env, width int, label string) layout.Dimensions {
-	gtx.Constraints.Min.X, gtx.Constraints.Max.X = width, width
-	return layout.Inset{Right: 8, Left: 8}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return layout.Center.Layout(gtx, kit.Text(e.Theme.Theme, e.Theme.T.Group, e.Theme.R.Fg3, label))
-	})
+func (v *viewState) drawSelection(gtx layout.Context, th *look.Theme, size image.Point) {
+	index := v.selectedIndex()
+	if index < 0 {
+		return
+	}
+	height := gtx.Dp(graphRowHeight)
+	top := (index-v.scroll.Position.First)*height - v.scroll.Position.Offset
+	inset := max(1, gtx.Dp(1))
+	target := image.Rect(v.laneColumnWidth(gtx), top+inset, size.X-gtx.Dp(rowEdge), top+height-inset)
+	rect := v.slab.Rect(gtx, v.entries[index].id(), target, th.Motion.Select)
+	area := clip.Rect(image.Rectangle{Max: size}).Push(gtx.Ops)
+	kit.FillCut(gtx.Ops, rect, gtx.Dp(th.Cut.Small), th.R.Sel)
+	area.Pop()
+}
+
+func (v *viewState) layoutGraphHeader(gtx layout.Context, e *env.Env) layout.Dimensions {
+	th := e.Theme
+	size := image.Pt(gtx.Constraints.Max.X, gtx.Dp(graphHeaderHeight))
+	columns := v.columns(gtx, size.X)
+	head := func(left, right int, label string, end bool) {
+		if right <= left {
+			return
+		}
+		cell := gtx
+		cell.Constraints = layout.Constraints{Max: image.Pt(right-left, size.Y)}
+		text := kit.RawText(th.Theme, th.T.Caption, th.R.Fg3, label)
+		x := left
+		if end {
+			record := op.Record(gtx.Ops)
+			x = right - text(cell).Size.X
+			record.Stop()
+		}
+		look.MiddleLeft(cell, x, size.Y, text)
+	}
+	head(gtx.Dp(13), columns.lanes, i18n.T("Graph"), false)
+	head(columns.text, columns.author, i18n.T("Description"), false)
+	head(columns.author, columns.date, i18n.T("Author"), false)
+	head(columns.date, columns.hash-gtx.Dp(13), i18n.T("Date"), true)
+	head(columns.hash, columns.end, i18n.T("Commit"), false)
+	line := max(1, gtx.Dp(1))
+	look.FillRect(gtx, image.Rect(0, size.Y-line, size.X, size.Y), th.R.Vein)
+	return layout.Dimensions{Size: size}
 }
 
 func (v *viewState) layoutPageWorking(gtx layout.Context, e *env.Env) layout.Dimensions {
-	height := gtx.Dp(graphRowHeight)
-	gtx.Constraints.Min.Y, gtx.Constraints.Max.Y = height, height
-	working := kit.Working{Active: true, Size: 7}
+	size := image.Pt(gtx.Constraints.Max.X, gtx.Dp(graphRowHeight))
+	gtx.Constraints = layout.Exact(size)
 	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return working.Layout(gtx, e.Theme.Theme) }),
-			layout.Rigid(layout.Spacer{Width: 6}.Layout),
-			layout.Rigid(kit.Text(e.Theme.Theme, e.Theme.T.Caption, e.Theme.R.Fg2, i18n.T("Loading more commits"))),
-		)
+		return kit.Working{Active: true, Size: 16}.Layout(gtx, e.Theme.Theme)
 	})
 }
 
@@ -237,11 +243,13 @@ func detailPanePlacement(width int) (side bool, pane int) {
 	if width < 1000 {
 		return false, 0
 	}
-	return true, min(560, max(380, width*40/100))
+	return true, min(520, max(380, width*36/100))
 }
 
 func (v *viewState) handleKeys(gtx layout.Context, e *env.Env) {
+	// the keys below never arrived without this, gio only gives focus to a tag that asks for it
 	filters := []event.Filter{
+		key.FocusFilter{Target: &v.keyTag},
 		key.Filter{Focus: &v.keyTag, Name: key.NameUpArrow},
 		key.Filter{Focus: &v.keyTag, Name: key.NameDownArrow},
 		key.Filter{Focus: &v.keyTag, Name: key.NamePageUp},
@@ -294,8 +302,19 @@ func (v *viewState) handleKeys(gtx layout.Context, e *env.Env) {
 			index = len(v.entries) - 1
 		}
 		index = min(max(index, 0), len(v.entries)-1)
-		v.scroll.ScrollTo(index)
+		v.reveal(index)
 		v.selectEntry(e, v.entries[index])
+	}
+}
+
+// scrolls only as far as it takes, so the list holds still while the selection walks what's on screen
+func (v *viewState) reveal(index int) {
+	first, count := v.scroll.Position.First, v.scroll.Position.Count
+	switch {
+	case index <= first:
+		v.scroll.ScrollTo(index)
+	case index >= first+count-1:
+		v.scroll.ScrollTo(max(0, index-max(1, count-2)))
 	}
 }
 
@@ -431,76 +450,67 @@ func (v *viewState) findRef(e *env.Env, query string) bool {
 	return true
 }
 
-func (v *viewState) loadCommit(e *env.Env, hash string) {
+// returns the token the answers must still hold when they arrive
+func (v *viewState) clearDetails() uint64 {
 	v.detailToken++
-	token := v.detailToken
-	v.detailLoading = true
+	v.diffLoading = true
 	v.detailError = ""
 	v.detail = protocol.GitCommitDetail{}
 	v.status = protocol.GitStatusResult{}
 	v.diff = protocol.DiffResult{}
 	v.compareWith = ""
-	v.selectedFile = ""
-	v.fileScroll.ScrollTo(0)
+	return v.detailToken
+}
+
+func (v *viewState) loadCommit(e *env.Env, hash string) {
+	token := v.clearDetails()
+	current := func() bool { return token == v.detailToken && v.selected.kind == rowCommit && v.selected.hash == hash }
 	var detail protocol.GitCommitDetail
 	e.Call(protocol.MGitShow, protocol.GitCommitParams{Project: v.project, Hash: hash}, &detail, func(err error) {
-		if token != v.detailToken || v.selected.kind != rowCommit || v.selected.hash != hash {
+		if !current() {
 			return
 		}
-		v.detailLoading = false
 		if err != nil {
 			v.detailError = err.Error()
 			return
 		}
 		v.detail = detail
-		if len(detail.Files) != 0 {
-			v.selectedFile = detail.Files[0].Path
-		}
 	})
 	var diff protocol.DiffResult
-	e.Call(protocol.MGitDiff, protocol.DiffParams{Project: v.project, Mode: protocol.DiffCommit, Commit: hash, Context: 3}, &diff, func(err error) {
-		if token == v.detailToken && err == nil && v.selected.kind == rowCommit && v.selected.hash == hash {
+	params := protocol.DiffParams{Project: v.project, Mode: protocol.DiffCommit, Commit: hash, Context: 3}
+	e.Call(protocol.MGitDiff, params, &diff, func(err error) {
+		if !current() {
+			return
+		}
+		v.diffLoading = false
+		if err == nil {
 			v.diff = diff
-			if v.selectedFile == "" && len(diff.Files) != 0 {
-				v.selectedFile = diff.Files[0].Path
-			}
 		}
 	})
 }
 
 func (v *viewState) loadWIP(e *env.Env, path string) {
-	v.detailToken++
-	token := v.detailToken
-	v.detailLoading = true
-	v.detailError = ""
-	v.detail = protocol.GitCommitDetail{}
-	v.status = protocol.GitStatusResult{}
-	v.diff = protocol.DiffResult{}
-	v.compareWith = ""
-	v.selectedFile = ""
-	v.fileScroll.ScrollTo(0)
+	token := v.clearDetails()
+	current := func() bool { return token == v.detailToken && v.selected.kind == rowWIP && v.selected.worktree == path }
 	var status protocol.GitStatusResult
 	e.Call(protocol.MGitStatus, protocol.WorktreeRef{Path: path}, &status, func(err error) {
-		if token != v.detailToken || v.selected.kind != rowWIP || v.selected.worktree != path {
+		if !current() {
 			return
 		}
-		v.detailLoading = false
 		if err != nil {
 			v.detailError = err.Error()
 			return
 		}
 		v.status = status
-		if len(status.Files) != 0 {
-			v.selectedFile = status.Files[0].Path
-		}
 	})
 	var diff protocol.DiffResult
 	e.Call(protocol.MGitDiff, protocol.DiffParams{Worktree: path, Mode: protocol.DiffWorking, Context: 3}, &diff, func(err error) {
-		if token == v.detailToken && err == nil && v.selected.kind == rowWIP && v.selected.worktree == path {
+		if !current() {
+			return
+		}
+		v.diffLoading = false
+		if err == nil {
 			v.diff = diff
-			if v.selectedFile == "" && len(diff.Files) != 0 {
-				v.selectedFile = diff.Files[0].Path
-			}
 		}
 	})
 }

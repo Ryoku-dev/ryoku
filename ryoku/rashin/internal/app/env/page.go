@@ -1,0 +1,42 @@
+package env
+
+import (
+	"gioui.org/layout"
+
+	"ryoku-rashin/internal/app/look"
+)
+
+// Page is what the frame asks of a destination. The frame owns the panes, the
+// top bar and the sidebar's own rows; a page fills the regions it is given and
+// never draws a pane.
+type Page interface {
+	// List draws the destination's list in the sidebar and reports where its
+	// selected row stands, so the sidebar can move its one selection slab there.
+	List(gtx layout.Context, e *Env) look.ListDimensions
+	// Content draws the content pane: the page's header and its body.
+	Content(gtx layout.Context, e *Env) layout.Dimensions
+	// New starts the destination's new thing; NewLabel names it on the
+	// sidebar's New plaque.
+	New(e *Env)
+	NewLabel() string
+	// Overlay draws the dialogs the page owns, above the frame, and reports
+	// whether one is open: the frame keeps its shortcuts out of a dialog.
+	Overlay(gtx layout.Context, e *Env) bool
+}
+
+// Paneled is a page that can show work beside its content.
+type Paneled interface {
+	// HasPanel reports whether what the page shows now has a side panel.
+	HasPanel(e *Env) bool
+	// Panel draws it; the frame docks it or raises it as a sheet.
+	Panel(gtx layout.Context, e *Env) layout.Dimensions
+}
+
+// Views of a project, as NavigateWork names them.
+const (
+	ViewOverview = "overview"
+	ViewGraph    = "graph"
+	ViewChanges  = "changes"
+	ViewTasks    = "tasks"
+	ViewActivity = "activity"
+)

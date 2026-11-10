@@ -1,0 +1,66 @@
+package state
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+
+	"ryoku-rashin/internal/paths"
+)
+
+const (
+	DefaultZoom = 100
+	MinZoom     = 80
+	MaxZoom     = 150
+	ZoomStep    = 10
+)
+
+// window and frame state only, nothing the daemon owns
+type AppPreferences struct {
+	Width         int  `json:"width,omitempty"`
+	Height        int  `json:"height,omitempty"`
+	ZoomPercent   int  `json:"zoomPercent,omitempty"`
+	SidebarFolded bool `json:"sidebarFolded,omitempty"`
+	SidePanelOpen bool `json:"sidePanelOpen,omitempty"`
+	ReduceMotion  bool `json:"reduceMotion,omitempty"`
+}
+
+func (p AppPreferences) Normalize() AppPreferences {
+	if p.ZoomPercent == 0 {
+		p.ZoomPercent = DefaultZoom
+	}
+	p.ZoomPercent = min(MaxZoom, max(MinZoom, p.ZoomPercent))
+	return p
+}
+
+func LoadAppPreferences() AppPreferences {
+	data, err := os.ReadFile(paths.AppState())
+	if err != nil {
+		return (AppPreferences{}).Normalize()
+	}
+	var preferences AppPreferences
+	if json.Unmarshal(data, &preferences) != nil {
+		return (AppPreferences{}).Normalize()
+	}
+	return preferences.Normalize()
+}
+
+func SaveAppPreferences(preferences AppPreferences) error {
+	preferences = preferences.Normalize()
+	if preferences.Width <= 0 || preferences.Height <= 0 {
+		return nil
+	}
+	path := paths.AppState()
+	if err := paths.EnsureDir(filepath.Dir(path)); err != nil {
+		return err
+	}
+	data, err := json.Marshal(preferences)
+	if err != nil {
+		return err
+	}
+	temporary := path + ".tmp"
+	if err := os.WriteFile(temporary, data, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(temporary, path)
+}

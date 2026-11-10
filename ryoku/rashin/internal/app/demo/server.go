@@ -51,12 +51,13 @@ type server struct {
 
 func (s *server) serve(ctx context.Context, connection net.Conn) {
 	defer connection.Close()
-	decoder, encoder := protocol.NewDecoder(connection), protocol.NewEncoder(connection)
+	decoder := protocol.NewDecoder(connection)
+	out := &outbox{encoder: protocol.NewEncoder(connection)}
 	for {
 		frame, err := decoder.Next()
 		if err != nil {
 			if !errors.Is(err, io.EOF) && ctx.Err() == nil {
-				_ = encoder.Encode(protocol.Response{Error: protocol.AsError(err)})
+				_ = out.send(protocol.Response{Error: protocol.AsError(err)})
 			}
 			return
 		}
@@ -70,8 +71,11 @@ func (s *server) serve(ctx context.Context, connection net.Conn) {
 		} else if response.Result, methodErr = json.Marshal(result); methodErr != nil {
 			response.Error = protocol.AsError(methodErr)
 		}
-		if encoder.Encode(response) != nil {
+		if out.send(response) != nil {
 			return
+		}
+		if frame.Method == protocol.MSessionPrompt && response.Error == nil {
+			go s.playTurn(ctx, out, frame.Params)
 		}
 	}
 }
@@ -245,7 +249,16 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 		if !ok {
 			return nil, notFound("session")
 		}
-		info := s.newSession(source.Kind, source.Harness, source.Cwd, source.Project, source.Worktree, source.Branch, source.Task, source.ID)
+		info := s.newSession(
+			source.Kind,
+			source.Harness,
+			source.Cwd,
+			source.Project,
+			source.Worktree,
+			source.Branch,
+			source.Task,
+			source.ID,
+		)
 		info.Title = source.Title + " copy"
 		s.replaceSession(info)
 		return info, nil
@@ -286,7 +299,15 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 		for index := range s.data.snapshot.Providers {
 			if s.data.snapshot.Providers[index].ID == params.Provider {
 				provider := &s.data.snapshot.Providers[index]
-				provider.Keys = append(provider.Keys, protocol.KeyInfo{ID: fmt.Sprintf("demo-%d", len(provider.Keys)+1), Label: params.Label, Status: protocol.KeyUnknown, Masked: "••••demo"})
+				provider.Keys = append(
+					provider.Keys,
+					protocol.KeyInfo{
+						ID:     fmt.Sprintf("demo-%d", len(provider.Keys)+1),
+						Label:  params.Label,
+						Status: protocol.KeyUnknown,
+						Masked: "••••demo",
+					},
+				)
 				provider.Configured = true
 				return *provider, nil
 			}
@@ -314,7 +335,28 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 	case protocol.MProvidersTest:
 		return protocol.ProviderTestResult{Provider: "demo", OK: true, Model: "free", LatencyMs: 84, Message: i18n.T("Ready")}, nil
 	case protocol.MIndexSearch:
-		return protocol.SearchResult{Index: demoProjectHyperion, Semantic: true, Hits: []protocol.SearchHit{{Path: "ryoku/rashin/internal/app/shell/run.go", Start: 42, End: 78, Score: .94, Symbol: "Run", Snippet: i18n.T("Run owns the Rashin client until its window closes.")}, {Path: "docs/rashin.md", Start: 591, End: 635, Score: .87, Symbol: i18n.T("The app"), Snippet: i18n.T("rashin-app is a Gio client drawn with the Lithic library.")}}}, nil
+		return protocol.SearchResult{
+			Index:    demoProjectHyperion,
+			Semantic: true,
+			Hits: []protocol.SearchHit{
+				{
+					Path:    "ryoku/rashin/internal/app/shell/run.go",
+					Start:   42,
+					End:     78,
+					Score:   .94,
+					Symbol:  "Run",
+					Snippet: i18n.T("Run owns the Rashin client until its window closes."),
+				},
+				{
+					Path:    "docs/rashin.md",
+					Start:   591,
+					End:     635,
+					Score:   .87,
+					Symbol:  i18n.T("The app"),
+					Snippet: i18n.T("rashin-app is a Gio client drawn with the Lithic library."),
+				},
+			},
+		}, nil
 	case protocol.MIndexAdd, protocol.MIndexRefresh:
 		if len(s.data.snapshot.Indexes) == 0 {
 			return protocol.IndexInfo{}, nil
@@ -329,7 +371,16 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 		if err := decode(raw, &params); err != nil {
 			return nil, err
 		}
-		info := protocol.ProjectInfo{ID: "demo-added", Name: params.Name, Root: params.Path, Git: true, BaseRef: "origin/main", Branch: "main", Created: time.Now(), Activity: time.Now()}
+		info := protocol.ProjectInfo{
+			ID:       "demo-added",
+			Name:     params.Name,
+			Root:     params.Path,
+			Git:      true,
+			BaseRef:  "origin/main",
+			Branch:   "main",
+			Created:  time.Now(),
+			Activity: time.Now(),
+		}
 		if info.Name == "" {
 			info.Name = filepath.Base(params.Path)
 		}
@@ -362,8 +413,18 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 		if err := decode(raw, &params); err != nil {
 			return nil, err
 		}
-		root := "/home/nero/.local/share/ryoku/worktrees/" + params.Project + "/" + params.Name
-		info := protocol.WorktreeInfo{Path: root, Project: params.Project, Name: params.Name, Branch: params.Branch, Head: "demo-new", Owned: true, Base: params.Base, Setup: protocol.SetupNone, Status: &protocol.WorktreeStatus{Checked: time.Now()}}
+		root := demoWorktrees + "/" + params.Project + "/" + params.Name
+		info := protocol.WorktreeInfo{
+			Path:    root,
+			Project: params.Project,
+			Name:    params.Name,
+			Branch:  params.Branch,
+			Head:    "demo-new",
+			Owned:   true,
+			Base:    params.Base,
+			Setup:   protocol.SetupNone,
+			Status:  &protocol.WorktreeStatus{Checked: time.Now()},
+		}
 		if info.Branch == "" {
 			info.Branch = "rashin/" + params.Name
 		}
@@ -377,7 +438,14 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 		if err := decode(raw, &params); err != nil {
 			return nil, err
 		}
-		return protocol.RemovePreview{Path: params.Path, Branch: s.worktree(params.Path).Branch, Dirty: []string{"router.go"}, Untracked: []string{"capture.png"}, NeedsForce: true, CanRemove: true}, nil
+		return protocol.RemovePreview{
+			Path:       params.Path,
+			Branch:     s.worktree(params.Path).Branch,
+			Dirty:      []string{"router.go"},
+			Untracked:  []string{"capture.png"},
+			NeedsForce: true,
+			CanRemove:  true,
+		}, nil
 	case protocol.MWorktreesRemove:
 		var params protocol.WorktreeRemoveParams
 		if err := decode(raw, &params); err != nil {
@@ -399,7 +467,10 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 		if err := decode(raw, &params); err != nil {
 			return nil, err
 		}
-		return s.updateWorktree(params.Path, func(info *protocol.WorktreeInfo) { info.Locked, info.LockReason = params.Lock, params.Reason }), nil
+		return s.updateWorktree(
+			params.Path,
+			func(info *protocol.WorktreeInfo) { info.Locked, info.LockReason = params.Lock, params.Reason },
+		), nil
 	case protocol.MWorktreesMove:
 		var params protocol.WorktreeMoveParams
 		if err := decode(raw, &params); err != nil {
@@ -424,7 +495,10 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 			if worktree.Main {
 				continue
 			}
-			result.Items = append(result.Items, protocol.CleanupItem{Path: worktree.Path, Removed: false, Reason: i18n.T("Kept because it has local work")})
+			result.Items = append(
+				result.Items,
+				protocol.CleanupItem{Path: worktree.Path, Removed: false, Reason: i18n.T("Kept because it has local work")},
+			)
 		}
 		return result, nil
 	case protocol.MWorktreesSetup:
@@ -502,7 +576,9 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 			return nil, err
 		}
 		return s.data.status[params.Path], nil
-	case protocol.MGitCommit, protocol.MGitPush, protocol.MGitFetch, protocol.MGitPull, protocol.MGitBranchCreate, protocol.MGitBranchDelete, protocol.MGitCheckout, protocol.MGitMerge, protocol.MGitCherryPick, protocol.MGitRevert, protocol.MGitRebase, protocol.MGitAbort, protocol.MGitContinue:
+	case protocol.MGitCommit, protocol.MGitPush, protocol.MGitFetch, protocol.MGitPull,
+		protocol.MGitBranchCreate, protocol.MGitBranchDelete, protocol.MGitCheckout, protocol.MGitMerge,
+		protocol.MGitCherryPick, protocol.MGitRevert, protocol.MGitRebase, protocol.MGitAbort, protocol.MGitContinue:
 		return protocol.GitOpResult{OK: true, Output: i18n.T("The demo operation completed.")}, nil
 	case protocol.MReviewList:
 		var params protocol.WorktreeRef
@@ -517,7 +593,15 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 		if err := decode(raw, &params); err != nil {
 			return nil, err
 		}
-		comment := protocol.ReviewComment{ID: fmt.Sprintf("review-%d", len(s.data.reviews[params.Worktree].Comments)+1), Worktree: params.Worktree, Path: params.Path, Line: params.Line, Side: params.Side, Text: params.Text, Created: time.Now()}
+		comment := protocol.ReviewComment{
+			ID:       fmt.Sprintf("review-%d", len(s.data.reviews[params.Worktree].Comments)+1),
+			Worktree: params.Worktree,
+			Path:     params.Path,
+			Line:     params.Line,
+			Side:     params.Side,
+			Text:     params.Text,
+			Created:  time.Now(),
+		}
 		result := s.data.reviews[params.Worktree]
 		result.Worktree = params.Worktree
 		result.Comments = append(result.Comments, comment)
@@ -574,7 +658,17 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 		if err := decode(raw, &params); err != nil {
 			return nil, err
 		}
-		task := protocol.TaskInfo{ID: fmt.Sprintf("task-%d", len(s.data.tasks[params.Project].Tasks)+1), Project: params.Project, Title: params.Title, Goal: params.Goal, Status: protocol.TaskBacklog, Deps: params.Deps, Harness: params.Harness, Created: time.Now(), Updated: time.Now()}
+		task := protocol.TaskInfo{
+			ID:      fmt.Sprintf("task-%d", len(s.data.tasks[params.Project].Tasks)+1),
+			Project: params.Project,
+			Title:   params.Title,
+			Goal:    params.Goal,
+			Status:  protocol.TaskBacklog,
+			Deps:    params.Deps,
+			Harness: params.Harness,
+			Created: time.Now(),
+			Updated: time.Now(),
+		}
 		result := s.data.tasks[params.Project]
 		result.Tasks = append(result.Tasks, task)
 		s.data.tasks[params.Project] = result
@@ -622,8 +716,25 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 		if !ok {
 			return nil, notFound("task")
 		}
-		worktree := protocol.WorktreeInfo{Path: "/home/nero/.local/share/ryoku/worktrees/" + task.Project + "/" + task.ID, Project: task.Project, Name: task.ID, Branch: "rashin/" + task.ID, Head: "demo-task", Owned: true}
-		session := s.newSession(protocol.KindAgent, params.Harness, worktree.Path, task.Project, worktree.Path, worktree.Branch, task.ID, "")
+		path := demoWorktrees + "/" + task.Project + "/" + task.ID
+		worktree := protocol.WorktreeInfo{
+			Path:    path,
+			Project: task.Project,
+			Name:    task.ID,
+			Branch:  "rashin/" + task.ID,
+			Head:    "demo-task",
+			Owned:   true,
+		}
+		session := s.newSession(
+			protocol.KindAgent,
+			params.Harness,
+			worktree.Path,
+			task.Project,
+			worktree.Path,
+			worktree.Branch,
+			task.ID,
+			"",
+		)
 		task.Status, task.Worktree, task.Sessions = protocol.TaskWorking, worktree.Path, []string{session.ID}
 		s.replaceTask(task)
 		return protocol.TaskStartResult{Task: task, Worktree: worktree, Session: session}, nil
@@ -636,7 +747,15 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 		if !ok {
 			return nil, notFound("task")
 		}
-		task.Gates = append(task.Gates, protocol.Gate{ID: fmt.Sprintf("gate-%d", len(task.Gates)+1), Question: params.Question, Options: params.Options, Created: time.Now()})
+		task.Gates = append(
+			task.Gates,
+			protocol.Gate{
+				ID:       fmt.Sprintf("gate-%d", len(task.Gates)+1),
+				Question: params.Question,
+				Options:  params.Options,
+				Created:  time.Now(),
+			},
+		)
 		task.Status = protocol.TaskNeedsYou
 		s.replaceTask(task)
 		return task, nil
@@ -658,7 +777,13 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 		s.replaceTask(task)
 		return task, nil
 	case protocol.MTasksPlan:
-		return protocol.TaskPlanResult{Via: "demo/free", Drafts: []protocol.TaskDraft{{Title: i18n.T("Map the existing flow"), Goal: i18n.T("Read the current implementation.")}, {Title: i18n.T("Build the change"), Goal: i18n.T("Implement and review the requested behavior."), Deps: []int{0}}}}, nil
+		return protocol.TaskPlanResult{
+			Via: "demo/free",
+			Drafts: []protocol.TaskDraft{
+				{Title: i18n.T("Map the existing flow"), Goal: i18n.T("Read the current implementation.")},
+				{Title: i18n.T("Build the change"), Goal: i18n.T("Implement and review the requested behavior."), Deps: []int{0}},
+			},
+		}, nil
 	case protocol.MActivityList:
 		var params protocol.ActivityParams
 		if err := decode(raw, &params); err != nil {
@@ -748,12 +873,29 @@ func (s *server) deleteSession(id string) {
 func (s *server) newSession(kind protocol.SessionKind, harness, cwd, project, worktree, branch, task, parent string) protocol.SessionInfo {
 	id := fmt.Sprintf("%s-demo-%d", kind, len(s.data.snapshot.Sessions)+1)
 	if worktree == "new" {
-		worktree = "/home/nero/.local/share/ryoku/worktrees/" + project + "/demo-new"
+		worktree = demoWorktrees + "/" + project + "/demo-new"
 	}
 	if cwd == "" {
 		cwd = worktree
 	}
-	info := protocol.SessionInfo{ID: id, Kind: kind, Title: i18n.T("New session"), Harness: harness, Model: "default", Mode: "default", Cwd: cwd, Origin: protocol.OriginApp, State: protocol.StateIdle, Created: time.Now(), Updated: time.Now(), Project: project, Worktree: worktree, Branch: branch, Task: task, Parent: parent}
+	info := protocol.SessionInfo{
+		ID:       id,
+		Kind:     kind,
+		Title:    i18n.T("New session"),
+		Harness:  harness,
+		Model:    "default",
+		Mode:     "default",
+		Cwd:      cwd,
+		Origin:   protocol.OriginApp,
+		State:    protocol.StateIdle,
+		Created:  time.Now(),
+		Updated:  time.Now(),
+		Project:  project,
+		Worktree: worktree,
+		Branch:   branch,
+		Task:     task,
+		Parent:   parent,
+	}
 	s.data.snapshot.Sessions = append([]protocol.SessionInfo{info}, s.data.snapshot.Sessions...)
 	s.data.events[id] = []protocol.SessionEvent{event(1, protocol.EvTitle, protocol.TitleData{Title: info.Title})}
 	return info
@@ -766,7 +908,16 @@ func (s *server) syncCustomHarnesses() {
 		}
 	}
 	for _, instance := range s.data.snapshot.Settings.Agent.Instances {
-		builtins = append(builtins, protocol.HarnessInfo{ID: instance.ID, Name: instance.Name, Installed: len(instance.Command) > 0, Command: append([]string(nil), instance.Command...), Custom: true})
+		builtins = append(
+			builtins,
+			protocol.HarnessInfo{
+				ID:        instance.ID,
+				Name:      instance.Name,
+				Installed: len(instance.Command) > 0,
+				Command:   append([]string(nil), instance.Command...),
+				Custom:    true,
+			},
+		)
 	}
 	s.data.snapshot.Harnesses = builtins
 }

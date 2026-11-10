@@ -13,9 +13,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/unit"
 
-	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
-	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme"
-
+	"ryoku-rashin/internal/app/look"
 	"ryoku-rashin/internal/protocol"
 )
 
@@ -70,53 +68,78 @@ type diffFrame struct {
 	ops    op.Ops
 	router input.Router
 	now    time.Time
-	theme  *theme.Theme
+	theme  *look.Theme
+	view   View
+	result protocol.DiffResult
 }
 
-func newDiffFrame() *diffFrame {
-	return &diffFrame{now: time.Unix(100, 0), theme: theme.New(palette.Signature(true))}
+func newDiffFrame(files ...protocol.FileDiff) *diffFrame {
+	return &diffFrame{now: time.Unix(100, 0), theme: look.New(0), result: protocol.DiffResult{Files: files}}
 }
 
-func (f *diffFrame) context() layout.Context {
+func (f *diffFrame) layout(options Options) {
 	f.ops.Reset()
-	return layout.Context{
-		Ops:    &f.ops,
-		Now:    f.now,
-		Source: f.router.Source(),
-		Metric: unit.Metric{PxPerDp: 1, PxPerSp: 1},
-		Constraints: layout.Exact(
-			image.Pt(760, 420),
-		),
+	gtx := layout.Context{
+		Ops: &f.ops, Now: f.now, Source: f.router.Source(),
+		Metric: unit.Metric{PxPerDp: 1, PxPerSp: 1}, Constraints: layout.Exact(image.Pt(760, 420)),
 	}
-}
-
-func (f *diffFrame) finish() {
+	f.view.Layout(gtx, f.theme, f.result, options)
 	f.router.Frame(&f.ops)
 	f.now = f.now.Add(time.Millisecond)
 }
 
-func TestCommentGutterProducesActionThroughRouter(t *testing.T) {
-	frame := newDiffFrame()
-	var view View
-	result := protocol.DiffResult{Files: []protocol.FileDiff{FromTexts("file.go", "a\n", "a\nb\n")}}
-	render := func() {
-		view.Layout(frame.context(), frame.theme, result, Options{Commentable: true, Wrap: true})
-		frame.finish()
+func (f *diffFrame) click(at f32.Point, options Options) {
+	f.router.Queue(pointer.Event{Kind: pointer.Press, Source: pointer.Mouse, PointerID: 1, Buttons: pointer.ButtonPrimary, Position: at})
+	f.layout(options)
+	f.router.Queue(pointer.Event{Kind: pointer.Release, Source: pointer.Mouse, PointerID: 1, Position: at})
+	f.layout(options)
+}
+
+func TestGutterPressOpensACommentThatEnterSends(t *testing.T) {
+	frame := newDiffFrame(FromTexts("file.go", "a\n", "a\nb\n"))
+	options := Options{Commentable: true}
+	frame.layout(options)
+	// walk down the gutter until a line takes the press so this doesn't depend on the rows above
+	for y := float32(4); y < 200 && frame.view.commentLine == 0; y += 6 {
+		frame.click(f32.Pt(8, y), options)
 	}
-	render()
-	point := f32.Pt(28, 66)
-	frame.router.Queue(pointer.Event{Kind: pointer.Press, Source: pointer.Mouse, PointerID: 1, Buttons: pointer.ButtonPrimary, Position: point})
-	render()
-	frame.router.Queue(pointer.Event{Kind: pointer.Release, Source: pointer.Mouse, PointerID: 1, Position: point})
-	render()
-	if view.commentLine == 0 {
-		t.Fatal("gutter click did not open the comment field")
+	if frame.view.commentLine == 0 {
+		t.Fatal("no line's gutter opened a comment field")
 	}
-	view.commentField.SetText("Please keep this name")
+	line := frame.view.commentLine
+	frame.view.commentField.SetText("Please keep this name")
 	frame.router.Queue(key.Event{Name: key.NameReturn, State: key.Press})
-	render()
-	actions := view.Actions()
-	if len(actions) != 1 || actions[0].Kind != ActComment || actions[0].Path != "file.go" || actions[0].Text != "Please keep this name" {
+	frame.layout(options)
+	actions := frame.view.Actions()
+	if len(actions) != 1 || actions[0].Kind != ActComment || actions[0].Path != "file.go" ||
+		actions[0].Line != line || actions[0].Text != "Please keep this name" {
 		t.Fatalf("actions = %#v", actions)
+	}
+	if frame.view.commentLine != 0 {
+		t.Fatal("the comment field stayed open after it sent")
+	}
+}
+
+func TestGutterIsInertWhereCommentsAreNotTaken(t *testing.T) {
+	frame := newDiffFrame(FromTexts("file.go", "a\n", "a\nb\n"))
+	frame.layout(Options{})
+	for y := float32(4); y < 200; y += 6 {
+		frame.click(f32.Pt(8, y), Options{})
+	}
+	if frame.view.commentLine != 0 {
+		t.Fatal("a diff that takes no comments opened a comment field")
+	}
+}
+
+func TestCollapsedFileUnfoldsWhenItsRowIsPressed(t *testing.T) {
+	frame := newDiffFrame(FromTexts("file.go", "a\n", "a\nb\n"))
+	options := Options{Collapsed: true}
+	frame.layout(options)
+	if frame.view.unfolded("file.go", options) {
+		t.Fatal("a collapsed diff started with its file unfolded")
+	}
+	frame.click(f32.Pt(200, 12), options)
+	if !frame.view.unfolded("file.go", options) {
+		t.Fatal("pressing a file's row did not unfold it")
 	}
 }

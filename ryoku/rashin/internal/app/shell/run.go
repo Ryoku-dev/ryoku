@@ -36,7 +36,11 @@ type Options struct {
 	Project         string
 	WorkTab         string
 	Worktree        string
-	SettingsSection int
+	SettingsSection string
+	ZoomPercent     int
+	Script          string
+	Shots           []int
+	Preferences     state.AppPreferences
 }
 
 type invalidationHub struct {
@@ -99,13 +103,17 @@ func Run(options Options) error {
 		return err
 	}
 	defer r.Close()
+	preferences := state.LoadAppPreferences()
+	if options.ZoomPercent != 0 {
+		preferences.ZoomPercent = options.ZoomPercent
+	}
+	options.Preferences = preferences.Normalize()
 	width, height := options.Width, options.Height
-	persisted := loadWindowState()
 	if width <= 0 {
-		width = persisted.Width
+		width = preferences.Width
 	}
 	if height <= 0 {
-		height = persisted.Height
+		height = preferences.Height
 	}
 	if width <= 0 {
 		width = 1280

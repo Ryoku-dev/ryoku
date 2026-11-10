@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"ryoku-i18n"
 
@@ -41,6 +42,7 @@ func (entry graphEntry) id() string {
 
 type rowState struct {
 	input   rowInput
+	hover   anim.Tween
 	menu    kit.Menu
 	menuTag struct{}
 	expand  kit.Click
@@ -71,11 +73,11 @@ type viewState struct {
 	error            string
 	rows             map[string]*rowState
 	scroll           look.Scroller
-	fileScroll       look.Scroller
+	slab             look.Selection
 	search           kit.Search
 	finder           kit.Search
 
-	scopeChoice       look.Choice
+	scopeChoice       look.Select
 	scope             string
 	scopeRef          string
 	scopeWorktree     string
@@ -89,18 +91,19 @@ type viewState struct {
 	detailWidth       int
 	detailOpen        bool
 
-	detail        protocol.GitCommitDetail
-	status        protocol.GitStatusResult
-	diff          protocol.DiffResult
-	compareWith   string
-	selectedFile  string
-	detailLoading bool
+	detail      protocol.GitCommitDetail
+	status      protocol.GitStatusResult
+	diff        protocol.DiffResult
+	compareWith string
+	// holds the files' place until the diff of the selection arrives
+	diffLoading   bool
 	detailError   string
 	detailToken   uint64
 	diffView      diffview.View
-	fileRows      map[string]*kit.Click
+	rise          look.Rise
 	detailRefTip  look.Tip
-	copyHash      kit.Plaque
+	copyHash      look.IconAction
+	copyTip       look.Tip
 	detailsBack   kit.Plaque
 	parentButtons map[string]*kit.Plaque
 	detailButtons map[string]*kit.Plaque
@@ -141,10 +144,8 @@ func (v *viewState) reset(project string) {
 	v.status = protocol.GitStatusResult{}
 	v.diff = protocol.DiffResult{}
 	v.compareWith = ""
-	v.selectedFile = ""
-	v.detailLoading = false
+	v.diffLoading = false
 	v.detailError = ""
-	v.fileRows = make(map[string]*kit.Click)
 	v.parentButtons = make(map[string]*kit.Plaque)
 	v.detailButtons = make(map[string]*kit.Plaque)
 	v.opResult = protocol.GitOpResult{}

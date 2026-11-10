@@ -57,11 +57,22 @@ func TestParseRouteTargetSupportsWorkAndSettings(t *testing.T) {
 		t.Fatalf("work route = %#v", work)
 	}
 	settings := parseRouteTarget("settings/agent")
-	if settings.tab != protocol.TabSettings || settings.settingsSection != 2 {
+	if settings.tab != protocol.TabSettings || settings.settingsSection != "agent" {
 		t.Fatalf("settings route = %#v", settings)
 	}
 	agent := parseRouteTarget("agent/agent-working")
 	if agent.tab != protocol.TabAgent || agent.session != "agent-working" {
 		t.Fatalf("agent route = %#v", agent)
+	}
+}
+
+func TestParseRouteTargetSupportsNewAskAndAgentBoard(t *testing.T) {
+	newAsk := parseRouteTarget("ask/new")
+	if newAsk.tab != protocol.TabAsk || newAsk.session != "" {
+		t.Fatalf("new ask route = %#v", newAsk)
+	}
+	board := parseRouteTarget("agent")
+	if board.tab != protocol.TabAgent || board.session != "" {
+		t.Fatalf("agent board route = %#v", board)
 	}
 }

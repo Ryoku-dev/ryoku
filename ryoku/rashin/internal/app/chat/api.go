@@ -12,8 +12,7 @@ import (
 	"gioui.org/layout"
 	"sync"
 
-	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme"
-
+	"ryoku-rashin/internal/app/look"
 	"ryoku-rashin/internal/protocol"
 )
 
@@ -43,6 +42,8 @@ const (
 	ActRevertTurn
 	// ActFork forks the session at event Seq.
 	ActFork
+	// ActRetry asks again what the reader asked in Turn; Value is that question.
+	ActRetry
 )
 
 // Action is one user request raised by the view.
@@ -177,15 +178,25 @@ type View struct {
 	state *viewState
 }
 
-// Layout draws m and records the actions the user took this frame.
-func (v *View) Layout(gtx layout.Context, th *theme.Theme, m *Model) layout.Dimensions {
+// Layout draws m and records the actions the user took this frame. Menus and
+// tooltips open through overlays.
+func (v *View) Layout(gtx layout.Context, th *look.Theme, overlays *look.Overlays, m *Model) layout.Dimensions {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return v.ensureState().layout(gtx, th, m.info, m.state)
+	state := v.ensureState()
+	state.overlays = overlays
+	return state.layout(gtx, th, m.info, m.state)
 }
 
 // Actions returns and clears the actions recorded since the last call.
 func (v *View) Actions() []Action { return v.ensureState().takeActions() }
+
+// Scrolled reports whether the transcript has moved beneath its top edge, so
+// the header above it can draw its vein.
+func (v *View) Scrolled() bool {
+	position := v.ensureState().scroller.Position
+	return position.First > 0 || position.Offset > 0
+}
 
 // ComposerOptions configure one frame of the composer.
 type ComposerOptions struct {
@@ -194,15 +205,16 @@ type ComposerOptions struct {
 	Busy bool
 	// Queue lists follow-up prompts waiting for the running turn to end.
 	Queue []protocol.QueuedPrompt
-	// ModelLabel names the current model on the built-in model chip.
-	ModelLabel string
-	// Controls replace the built-in model chip with caller-owned compact
-	// controls, such as model and mode choices.
+	// Controls are the caller's compact controls beside the attach control,
+	// such as the model and mode choices.
 	Controls []layout.Widget
 	// CanAttach shows the attach control.
 	CanAttach bool
 	// Disabled greys the composer (Rashin off or no session).
 	Disabled bool
+	// DropActive shows the field's image drop target. Pages can set this while
+	// their platform drop bridge is active; native URI drops are also handled.
+	DropActive bool
 }
 
 // Submission is what the user sent. Steer cancels the running turn and sends
@@ -219,9 +231,9 @@ type Composer struct {
 	state *composerState
 }
 
-// Layout draws the composer.
-func (c *Composer) Layout(gtx layout.Context, th *theme.Theme, opts ComposerOptions) layout.Dimensions {
-	return c.ensureState().layout(gtx, th, opts)
+// Layout draws the composer at the width it is given.
+func (c *Composer) Layout(gtx layout.Context, th *look.Theme, opts ComposerOptions) layout.Dimensions {
+	return c.ensureState().layout(gtx, th.Theme, opts)
 }
 
 // Submitted returns a submission made since the last call.
@@ -236,11 +248,16 @@ func (c *Composer) Actions() []Action { return c.ensureState().takeActions() }
 // StopClicked reports a press of Stop since the last call.
 func (c *Composer) StopClicked() bool { return c.ensureState().takeStop() }
 
-// ModelClicked reports a press of the model chip since the last call.
-func (c *Composer) ModelClicked() bool { return c.ensureState().takeModel() }
-
 // Focus asks for keyboard focus on the next frame.
-func (c *Composer) Focus() { c.ensureState().focus = true }
+func (c *Composer) Focus() { c.ensureState().wantFocus = true }
 
 // SetText replaces the composer's text (used to prefill a follow-up).
 func (c *Composer) SetText(text string) { c.ensureState().editor.SetText(text) }
+
+// AddAttachment adds an image or file path to the composer.
+func (c *Composer) AddAttachment(path string) { c.ensureState().addAttachment(path) }
+
+// Attachments returns a copy of the paths currently held by the composer.
+func (c *Composer) Attachments() []string {
+	return append([]string(nil), c.ensureState().images...)
+}
