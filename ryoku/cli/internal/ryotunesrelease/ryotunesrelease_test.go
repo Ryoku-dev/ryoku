@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -17,20 +18,29 @@ import (
 	"time"
 )
 
-// fixture is a stand-in for the Ryotunes GitHub release: one server that answers
-// the release-metadata lookup and the two asset downloads, with knobs for the
-// error shapes the client must handle.
+// fixture is a stand-in for the Ryotunes GitHub releases: one server that answers
+// the paginated release list and the two asset downloads of f.tag, with knobs
+// for the error shapes the client must handle.
 type fixture struct {
 	repo        string
 	tag         string
 	pkgAsset    string
 	assets      []string // exact asset-name list to serve; nil => [pkgAsset, pkgAsset+".sha256"]
+	listing     []fakeRelease
 	pkgBytes    []byte
 	shaOverride string // when set, the sha256 sidecar hex is this instead of the real one
 	draft       bool
 	prerelease  bool
 	redirectPkg bool  // package download 302s to an untrusted host
 	hits        int32 // total requests served
+}
+
+// fakeRelease is one entry of the release list, newest-created first.
+type fakeRelease struct {
+	tag        string
+	assets     []string
+	draft      bool
+	prerelease bool
 }
 
 func (f *fixture) assetList() []string {
@@ -40,30 +50,59 @@ func (f *fixture) assetList() []string {
 	return []string{f.pkgAsset, f.pkgAsset + ".sha256"}
 }
 
+// releaseList is the full listing; nil listing => the single release f describes.
+func (f *fixture) releaseList() []fakeRelease {
+	if f.listing != nil {
+		return f.listing
+	}
+	return []fakeRelease{{tag: f.tag, assets: f.assetList(), draft: f.draft, prerelease: f.prerelease}}
+}
+
+// publishedRelease is a release entry carrying a well-formed package, sidecar and
+// source tarball, whatever its major version.
+func publishedRelease(version string) fakeRelease {
+	pkg := "ryotunes-" + version + "-1-x86_64.pkg.tar.zst"
+	return fakeRelease{tag: "v" + version, assets: []string{pkg, pkg + ".sha256", "ryotunes-" + version + ".tar.gz"}}
+}
+
 func (f *fixture) server() *httptest.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&f.hits, 1)
-		switch {
-		case strings.HasSuffix(r.URL.Path, "/releases/latest"):
-			assets := make([]map[string]string, 0)
-			for _, name := range f.assetList() {
-				assets = append(assets, map[string]string{"name": name})
+		download := "/" + f.repo + "/releases/download/" + f.tag + "/"
+		switch r.URL.Path {
+		case "/repos/" + f.repo + "/releases":
+			perPage, _ := strconv.Atoi(r.URL.Query().Get("per_page"))
+			page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+			if perPage < 1 {
+				perPage = 30
 			}
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"tag_name":   f.tag,
-				"draft":      f.draft,
-				"prerelease": f.prerelease,
-				"assets":     assets,
-			})
-		case strings.HasSuffix(r.URL.Path, f.pkgAsset+".sha256"):
+			if page < 1 {
+				page = 1
+			}
+			all := f.releaseList()
+			out := make([]map[string]any, 0)
+			for i := (page - 1) * perPage; i < len(all) && i < page*perPage; i++ {
+				assets := make([]map[string]string, 0)
+				for _, name := range all[i].assets {
+					assets = append(assets, map[string]string{"name": name})
+				}
+				out = append(out, map[string]any{
+					"tag_name":   all[i].tag,
+					"draft":      all[i].draft,
+					"prerelease": all[i].prerelease,
+					"assets":     assets,
+				})
+			}
+			_ = json.NewEncoder(w).Encode(out)
+		case download + f.pkgAsset + ".sha256":
 			sum := f.shaOverride
 			if sum == "" {
 				d := sha256.Sum256(f.pkgBytes)
 				sum = hex.EncodeToString(d[:])
 			}
 			fmt.Fprintf(w, "%s  %s\n", sum, f.pkgAsset)
-		case strings.HasSuffix(r.URL.Path, f.pkgAsset):
+		case download + f.pkgAsset:
 			if f.redirectPkg {
 				http.Redirect(w, r, "http://untrusted.example/evil.pkg.tar.zst", http.StatusFound)
 				return
@@ -157,10 +196,10 @@ func newClient(t *testing.T, srv *httptest.Server, f *fixture, installed string,
 }
 
 func stableFixture() *fixture {
-	pkg := "ryotunes-2.5.0-1-x86_64.pkg.tar.zst"
+	pkg := "ryotunes-1.2.5-1-x86_64.pkg.tar.zst"
 	return &fixture{
 		repo:     "ryoku-dev/ryotunes",
-		tag:      "v2.5.0",
+		tag:      "v1.2.5",
 		pkgAsset: pkg,
 		pkgBytes: []byte("fake ryotunes package payload"),
 	}
@@ -193,13 +232,13 @@ func TestCheckReportsAvailable(t *testing.T) {
 	srv := f.server()
 	defer srv.Close()
 	var rec recorder
-	c := newClient(t, srv, f, "2.4.0-1", pkgMeta{}, nil, &rec)
+	c := newClient(t, srv, f, "1:1.2.4-1", pkgMeta{}, nil, &rec)
 
 	st, err := c.Check(context.Background())
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
-	want := Status{Installed: "2.4.0-1", Latest: "1:2.5.0-1", Available: true}
+	want := Status{Installed: "1:1.2.4-1", Latest: "1:1.2.5-1", Available: true}
 	if st != want {
 		t.Fatalf("Check: got %+v, want %+v", st, want)
 	}
@@ -211,7 +250,7 @@ func TestCheckOfflineCacheThenError(t *testing.T) {
 	f := stableFixture()
 	srv := f.server()
 	var rec recorder
-	c := newClient(t, srv, f, "2.4.0-1", pkgMeta{}, nil, &rec)
+	c := newClient(t, srv, f, "1:1.2.4-1", pkgMeta{}, nil, &rec)
 
 	if _, err := c.Check(context.Background()); err != nil {
 		t.Fatalf("warm Check: %v", err)
@@ -225,13 +264,13 @@ func TestCheckOfflineCacheThenError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("offline Check with cache: unexpected error: %v", err)
 	}
-	if st.Latest != "1:2.5.0-1" {
-		t.Fatalf("offline Check: want cached Latest 1:2.5.0-1, got %q", st.Latest)
+	if st.Latest != "1:1.2.5-1" {
+		t.Fatalf("offline Check: want cached Latest 1:1.2.5-1, got %q", st.Latest)
 	}
 
 	// A fresh client with no cache and no server must surface the error, never a
 	// false "up to date".
-	c2 := newClient(t, srv, f, "2.4.0-1", pkgMeta{}, nil, &rec)
+	c2 := newClient(t, srv, f, "1:1.2.4-1", pkgMeta{}, nil, &rec)
 	st2, err := c2.Check(context.Background())
 	if err == nil {
 		t.Fatalf("offline Check without cache: want error, got Status %+v", st2)
@@ -249,13 +288,13 @@ func TestCheckRejectsPoisonedCache(t *testing.T) {
 	srv := f.server()
 	srv.Close() // force reliance on cache
 	var rec recorder
-	c := newClient(t, srv, f, "2.4.0-1", pkgMeta{}, nil, &rec)
+	c := newClient(t, srv, f, "1:1.2.4-1", pkgMeta{}, nil, &rec)
 
 	poison := relInfo{
-		Tag:      "v2.5.0",
-		Version:  "1:2.5.0-1",
-		PkgAsset: "ryotunes-2.5.0-1-x86_64.pkg.tar.zst/../../etc/evil",
-		ShaAsset: "ryotunes-2.5.0-1-x86_64.pkg.tar.zst.sha256",
+		Tag:      "v1.2.5",
+		Version:  "1:1.2.5-1",
+		PkgAsset: "ryotunes-1.2.5-1-x86_64.pkg.tar.zst/../../etc/evil",
+		ShaAsset: "ryotunes-1.2.5-1-x86_64.pkg.tar.zst.sha256",
 	}
 	b, _ := json.Marshal(poison)
 	if err := os.MkdirAll(c.cacheDir, 0o755); err != nil {
@@ -280,11 +319,11 @@ func TestCheckRejectsPoisonedCache(t *testing.T) {
 func TestDiscoveryRejectsMalformedAssets(t *testing.T) {
 	cases := map[string][]string{
 		"tag/version mismatch": {"ryotunes-9.9.9-1-x86_64.pkg.tar.zst", "ryotunes-9.9.9-1-x86_64.pkg.tar.zst.sha256"},
-		"path traversal":       {"ryotunes-2.5.0-../../evil-x86_64.pkg.tar.zst", "ryotunes-2.5.0-../../evil-x86_64.pkg.tar.zst.sha256"},
-		"zero pkgrel":          {"ryotunes-2.5.0-0-x86_64.pkg.tar.zst", "ryotunes-2.5.0-0-x86_64.pkg.tar.zst.sha256"},
-		"nonnumeric pkgrel":    {"ryotunes-2.5.0-1a-x86_64.pkg.tar.zst", "ryotunes-2.5.0-1a-x86_64.pkg.tar.zst.sha256"},
-		"wrong arch":           {"ryotunes-2.5.0-1-aarch64.pkg.tar.zst", "ryotunes-2.5.0-1-aarch64.pkg.tar.zst.sha256"},
-		"ambiguous pkgrel":     {"ryotunes-2.5.0-1-x86_64.pkg.tar.zst", "ryotunes-2.5.0-2-x86_64.pkg.tar.zst", "ryotunes-2.5.0-1-x86_64.pkg.tar.zst.sha256"},
+		"path traversal":       {"ryotunes-1.2.5-../../evil-x86_64.pkg.tar.zst", "ryotunes-1.2.5-../../evil-x86_64.pkg.tar.zst.sha256"},
+		"zero pkgrel":          {"ryotunes-1.2.5-0-x86_64.pkg.tar.zst", "ryotunes-1.2.5-0-x86_64.pkg.tar.zst.sha256"},
+		"nonnumeric pkgrel":    {"ryotunes-1.2.5-1a-x86_64.pkg.tar.zst", "ryotunes-1.2.5-1a-x86_64.pkg.tar.zst.sha256"},
+		"wrong arch":           {"ryotunes-1.2.5-1-aarch64.pkg.tar.zst", "ryotunes-1.2.5-1-aarch64.pkg.tar.zst.sha256"},
+		"ambiguous pkgrel":     {"ryotunes-1.2.5-1-x86_64.pkg.tar.zst", "ryotunes-1.2.5-2-x86_64.pkg.tar.zst", "ryotunes-1.2.5-1-x86_64.pkg.tar.zst.sha256"},
 	}
 	for name, assets := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -293,7 +332,7 @@ func TestDiscoveryRejectsMalformedAssets(t *testing.T) {
 			srv := f.server()
 			defer srv.Close()
 			var rec recorder
-			c := newClient(t, srv, f, "2.4.0-1", pkgMeta{}, nil, &rec)
+			c := newClient(t, srv, f, "1:1.2.4-1", pkgMeta{}, nil, &rec)
 
 			st, err := c.Check(context.Background())
 			if err == nil {
@@ -313,7 +352,7 @@ func TestDiscoveryRejectsPrerelease(t *testing.T) {
 	srv := f.server()
 	defer srv.Close()
 	var rec recorder
-	c := newClient(t, srv, f, "2.4.0-1", pkgMeta{}, nil, &rec)
+	c := newClient(t, srv, f, "1:1.2.4-1", pkgMeta{}, nil, &rec)
 
 	if st, err := c.Check(context.Background()); err == nil {
 		t.Fatalf("Check: want prerelease rejection, got %+v", st)
@@ -328,7 +367,7 @@ func TestUpgradeChecksumMismatch(t *testing.T) {
 	srv := f.server()
 	defer srv.Close()
 	var rec recorder
-	c := newClient(t, srv, f, "2.4.0-1", pkgMeta{}, nil, &rec)
+	c := newClient(t, srv, f, "1:1.2.4-1", pkgMeta{}, nil, &rec)
 
 	st, err := c.Upgrade(context.Background())
 	if err == nil {
@@ -349,8 +388,8 @@ func TestUpgradeChecksumMismatch(t *testing.T) {
 // before pacman runs, even when its checksum is correct.
 func TestUpgradeWrongPackageIdentity(t *testing.T) {
 	cases := map[string]pkgMeta{
-		"wrong name":    {Name: "notryotunes", Version: "1:2.5.0-1", Arch: wantArch},
-		"wrong arch":    {Name: pkgName, Version: "1:2.5.0-1", Arch: "aarch64"},
+		"wrong name":    {Name: "notryotunes", Version: "1:1.2.5-1", Arch: wantArch},
+		"wrong arch":    {Name: pkgName, Version: "1:1.2.5-1", Arch: "aarch64"},
 		"wrong version": {Name: pkgName, Version: "1:9.9.9-1", Arch: wantArch},
 	}
 	for name, meta := range cases {
@@ -359,7 +398,7 @@ func TestUpgradeWrongPackageIdentity(t *testing.T) {
 			srv := f.server()
 			defer srv.Close()
 			var rec recorder
-			c := newClient(t, srv, f, "2.4.0-1", meta, nil, &rec)
+			c := newClient(t, srv, f, "1:1.2.4-1", meta, nil, &rec)
 
 			st, err := c.Upgrade(context.Background())
 			if err == nil {
@@ -375,9 +414,9 @@ func TestUpgradeWrongPackageIdentity(t *testing.T) {
 // Upgrade never installs a build that is not strictly newer than what is
 // installed: no download, no pacman, Updated false.
 func TestUpgradeNoDowngrade(t *testing.T) {
-	for _, installed := range []string{"1:2.5.0-1", "1:2.6.0-1"} {
+	for _, installed := range []string{"1:1.2.5-1", "1:1.2.6-1"} {
 		t.Run("installed_"+installed, func(t *testing.T) {
-			f := stableFixture() // latest is 2.5.0-1
+			f := stableFixture() // latest is 1:1.2.5-1
 			srv := f.server()
 			defer srv.Close()
 			var rec recorder
@@ -401,20 +440,20 @@ func TestUpgradeNoDowngrade(t *testing.T) {
 // upgraded past the candidate), the install is abandoned rather than resurrecting
 // or downgrading it.
 func TestUpgradeAbortsOnInstalledChange(t *testing.T) {
-	for name, second := range map[string]string{"removed": "", "upgraded past": "1:2.9.0-1"} {
+	for name, second := range map[string]string{"removed": "", "upgraded past": "1:1.2.9-1"} {
 		t.Run(name, func(t *testing.T) {
 			f := stableFixture()
 			srv := f.server()
 			defer srv.Close()
 			var rec recorder
-			c := newClient(t, srv, f, "2.4.0-1", pkgMeta{}, nil, &rec)
+			c := newClient(t, srv, f, "1:1.2.4-1", pkgMeta{}, nil, &rec)
 
 			// First read (upgrade decision) sees the old version; the read just
 			// before install sees the changed state.
 			var calls int32
 			c.installedVersion = func(string) string {
 				if atomic.AddInt32(&calls, 1) == 1 {
-					return "2.4.0-1"
+					return "1:1.2.4-1"
 				}
 				return second
 			}
@@ -438,7 +477,7 @@ func TestUpgradeRefusesUntrustedRedirect(t *testing.T) {
 	srv := f.server()
 	defer srv.Close()
 	var rec recorder
-	c := newClient(t, srv, f, "2.4.0-1", pkgMeta{}, nil, &rec)
+	c := newClient(t, srv, f, "1:1.2.4-1", pkgMeta{}, nil, &rec)
 
 	st, err := c.Upgrade(context.Background())
 	if err == nil {
@@ -446,6 +485,131 @@ func TestUpgradeRefusesUntrustedRedirect(t *testing.T) {
 	}
 	if st.Updated || atomic.LoadInt32(&rec.installs) != 0 {
 		t.Fatalf("Upgrade: installed across an untrusted redirect (%+v)", st)
+	}
+}
+
+func v1LineFixture(listing []fakeRelease) *fixture {
+	f := stableFixture()
+	f.tag = "v1.2.7"
+	f.pkgAsset = "ryotunes-1.2.7-1-x86_64.pkg.tar.zst"
+	f.listing = listing
+	return f
+}
+
+// A Ryotunes 2 release that GitHub marks latest, the retired 2.x tags, drafts and
+// prereleases never reach a v1 box: the highest stable 1.x release is installed.
+func TestDiscoveryFollowsOnlyV1Line(t *testing.T) {
+	draft := publishedRelease("1.3.0")
+	draft.draft = true
+	pre := publishedRelease("1.2.9")
+	pre.prerelease = true
+	f := v1LineFixture([]fakeRelease{
+		publishedRelease("2.0.0"),
+		draft,
+		pre,
+		publishedRelease("1.2.6"),
+		publishedRelease("1.2.7"),
+		{tag: "v2.5.1", assets: []string{"ryotunes-2.5.1.tar.gz", "ryotunes-2.5.1.tar.gz.sha256"}},
+	})
+	srv := f.server()
+	defer srv.Close()
+	var rec recorder
+	c := newClient(t, srv, f, "1:1.2.6-1", pkgMeta{}, nil, &rec)
+
+	st, err := c.Check(context.Background())
+	if err != nil {
+		t.Fatalf("Check: %v", err)
+	}
+	if want := (Status{Installed: "1:1.2.6-1", Latest: "1:1.2.7-1", Available: true}); st != want {
+		t.Fatalf("Check: got %+v, want %+v", st, want)
+	}
+	st, err = c.Upgrade(context.Background())
+	if err != nil {
+		t.Fatalf("Upgrade: %v", err)
+	}
+	if want := (Status{Installed: "1:1.2.7-1", Latest: "1:1.2.7-1", Updated: true}); st != want {
+		t.Fatalf("Upgrade: got %+v, want %+v", st, want)
+	}
+	if n := atomic.LoadInt32(&rec.installs); n != 1 {
+		t.Fatalf("Upgrade: installer ran %d time(s), want 1", n)
+	}
+}
+
+// A page full of newer 2.x releases does not hide the 1.x line.
+func TestDiscoveryPagesPastV2Releases(t *testing.T) {
+	var listing []fakeRelease
+	for i := range releasePageSize {
+		listing = append(listing, publishedRelease(fmt.Sprintf("2.0.%d", releasePageSize-i)))
+	}
+	f := v1LineFixture(append(listing, publishedRelease("1.2.7"), publishedRelease("1.2.6")))
+	srv := f.server()
+	defer srv.Close()
+	var rec recorder
+	c := newClient(t, srv, f, "1:1.2.6-1", pkgMeta{}, nil, &rec)
+
+	st, err := c.Check(context.Background())
+	if err != nil {
+		t.Fatalf("Check: %v", err)
+	}
+	if st.Latest != "1:1.2.7-1" || !st.Available {
+		t.Fatalf("Check: got %+v, want Latest 1:1.2.7-1 available", st)
+	}
+}
+
+// A cache left by an older client that followed GitHub's latest release can hold
+// a Ryotunes 2 entry; offline, it is refused rather than reported as available.
+func TestCheckRefusesCachedV2Release(t *testing.T) {
+	f := stableFixture()
+	srv := f.server()
+	srv.Close()
+	var rec recorder
+	c := newClient(t, srv, f, "1:1.2.6-1", pkgMeta{}, nil, &rec)
+	b, _ := json.Marshal(relInfo{
+		Tag:      "v2.0.0",
+		Version:  "1:2.0.0-1",
+		PkgAsset: "ryotunes-2.0.0-1-x86_64.pkg.tar.zst",
+		ShaAsset: "ryotunes-2.0.0-1-x86_64.pkg.tar.zst.sha256",
+	})
+	if err := os.MkdirAll(c.cacheDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(c.cacheDir, "latest.json"), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	st, err := c.Check(context.Background())
+	if err == nil || st.Available || st.Latest != "" {
+		t.Fatalf("Check: want an error and no 2.x Latest, got %+v, %v", st, err)
+	}
+}
+
+// With only 2.x releases published the installed build stays and the caller gets
+// ErrNoRelease, never a v2 install or a cached guess.
+func TestDiscoveryWithoutV1ReleaseKeepsInstalled(t *testing.T) {
+	f := v1LineFixture([]fakeRelease{
+		publishedRelease("2.0.0"),
+		{tag: "v2.5.1", assets: []string{"ryotunes-2.5.1.tar.gz", "ryotunes-2.5.1.tar.gz.sha256"}},
+	})
+	srv := f.server()
+	defer srv.Close()
+	var rec recorder
+	c := newClient(t, srv, f, "1:1.2.6-1", pkgMeta{}, nil, &rec)
+
+	for name, run := range map[string]func(context.Context) (Status, error){
+		"check":   c.Check,
+		"upgrade": c.Upgrade,
+		"ensure":  c.Ensure,
+	} {
+		st, err := run(context.Background())
+		if !errors.Is(err, ErrNoRelease) {
+			t.Fatalf("%s: want ErrNoRelease, got %v", name, err)
+		}
+		if want := (Status{Installed: "1:1.2.6-1"}); st != want {
+			t.Fatalf("%s: got %+v, want %+v", name, st, want)
+		}
+	}
+	if n := atomic.LoadInt32(&rec.installs); n != 0 {
+		t.Fatalf("installer ran %d time(s) with no 1.x release", n)
 	}
 }
 
@@ -488,7 +652,7 @@ func TestEnsure(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Ensure: %v", err)
 		}
-		want := Status{Installed: "1:2.5.0-1", Latest: "1:2.5.0-1", Updated: true}
+		want := Status{Installed: "1:1.2.5-1", Latest: "1:1.2.5-1", Updated: true}
 		if st != want {
 			t.Fatalf("Ensure: got %+v, want %+v", st, want)
 		}
@@ -501,7 +665,7 @@ func TestEnsure(t *testing.T) {
 		srv := f.server()
 		defer srv.Close()
 		var rec recorder
-		c := newClient(t, srv, f, "1:2.5.0-1", pkgMeta{}, nil, &rec)
+		c := newClient(t, srv, f, "1:1.2.5-1", pkgMeta{}, nil, &rec)
 
 		st, err := c.Ensure(context.Background())
 		if err != nil {

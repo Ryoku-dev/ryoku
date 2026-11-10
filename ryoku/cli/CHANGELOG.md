@@ -7,6 +7,9 @@
 - **The keymap heal no longer hangs `ryoku update` on a Limine box.** The boot
   image rebuild prefers `limine-mkinitcpio`, never reads the terminal and gives
   up after ten minutes; a rebuild with unchanged content now clears the finding.
+- **`ryoku update` and doctor follow only the Ryotunes 1.x line.** They pick the
+  newest stable `v1.Y.Z` release instead of GitHub's latest, so a Ryotunes 2
+  release never installs here; with no 1.x release the installed build stays.
 - **Doctor recognizes the shell's own visualizer and file watchers.** Memory
   checks no longer report those helpers as user apps left inside the desktop
   service (`internal/doctor/memory.go`).
