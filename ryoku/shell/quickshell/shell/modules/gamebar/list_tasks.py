@@ -56,7 +56,7 @@ def status(pid: int) -> tuple[int, int] | None:
     uid = -1
     rss = 0
     try:
-        with open(f"/proc/{pid}/status", "r", encoding="utf-8") as handle:
+        with open(f"/proc/{pid}/status", "r", encoding="utf-8", errors="replace") as handle:
             for line in handle:
                 if line.startswith("Uid:"):
                     uid = int(line.split()[1])
