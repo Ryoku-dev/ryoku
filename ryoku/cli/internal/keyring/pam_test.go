@@ -109,6 +109,58 @@ func TestApplyPAMTextDeduplicatesAndKeepsStockLines(t *testing.T) {
 	}
 }
 
+func TestPamHealDuplicatesOnlyDropsSetupLines(t *testing.T) {
+	fedora := "#%PAM-1.0\n" +
+		"auth     [success=done ignore=ignore default=bad] pam_selinux_permit.so\n" +
+		"auth        substack      password-auth\n" +
+		"-auth       optional      pam_gnome_keyring.so\n" +
+		"auth optional pam_gnome_keyring.so\n" +
+		"session     include       password-auth\n" +
+		"-session    optional      pam_gnome_keyring.so auto_start\n"
+	for _, tc := range []struct {
+		name, in, want string
+		ok             bool
+	}{
+		{
+			name: "bracket controls parse",
+			in:   fedora,
+			want: strings.Replace(fedora, "auth optional pam_gnome_keyring.so\n", "", 1),
+			ok:   true,
+		},
+		{
+			name: "two setup copies keep one",
+			in:   "auth include system-login\nauth optional pam_gnome_keyring.so\nauth   optional   pam_gnome_keyring.so\nsession include system-login\nsession optional pam_gnome_keyring.so auto_start\n",
+			want: "auth include system-login\nauth optional pam_gnome_keyring.so\nsession include system-login\nsession optional pam_gnome_keyring.so auto_start\n",
+			ok:   true,
+		},
+		{
+			name: "two stack lines are the user's",
+			in:   archSDDM + "-auth optional pam_gnome_keyring.so\nauth sufficient pam_gnome_keyring.so\n-session optional pam_gnome_keyring.so auto_start\n",
+		},
+		{
+			name: "unknown rule type",
+			in:   fedora + "authx optional pam_foo.so\n",
+		},
+		{
+			name: "no duplicates",
+			in:   archSDDM,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			out, ok := pamHealDuplicates(tc.in)
+			if ok != tc.ok {
+				t.Fatalf("ok = %v, want %v:\n%s", ok, tc.ok, out)
+			}
+			if !tc.ok {
+				tc.want = tc.in
+			}
+			if out != tc.want {
+				t.Fatalf("got:\n%s\nwant:\n%s", out, tc.want)
+			}
+		})
+	}
+}
+
 func TestApplyPAMTextStrip(t *testing.T) {
 	wired, _ := applyPAMText(archSDDM, true)
 	stripped, _ := applyPAMText(wired, false)
