@@ -65,8 +65,10 @@ GameBarCard {
         && !Presence.dark && !card.saverIdle
     onPollingChanged: {
         card.syncFeed();
-        if (!card.polling)
+        if (!card.polling) {
             modeRestart.stop();
+            modeRead.running = false;
+        }
     }
 
     Timer {
