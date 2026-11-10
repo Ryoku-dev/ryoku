@@ -313,11 +313,11 @@ class VoiceBridge:
         emit("voice_settings", mute=self.muted, deaf=self.deafened)
 
     async def companion_command(self, **fields: bool) -> None:
-        if not self.companion or self.companion.is_closing():
-            return
         writer = self.companion
-        writer.write((json.dumps({"type": "command", **fields}, separators=(",", ":")) + "\n").encode())
+        if not writer or writer.is_closing():
+            return
         try:
+            writer.write((json.dumps({"type": "command", **fields}, separators=(",", ":")) + "\n").encode())
             await asyncio.wait_for(writer.drain(), COMPANION_WRITE_TIMEOUT)
         except (asyncio.TimeoutError, OSError):
             emit("companion_error", message="The Vesktop companion stopped reading")
