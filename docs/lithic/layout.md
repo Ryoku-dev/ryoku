@@ -332,16 +332,25 @@ that records the answer.
 **The composer** is one field with its controls inside: `stone3`, cut 7, the
 text in `proof` with 16 around it, and under the text a row of small plaques,
 what to send with on the left (attach, the model, the mode) and the one gold
-icon plaque on the right. It is at least 96 high, grows a line at a time to
-eight lines and then scrolls. Send is the standing gold action of a
-conversation window. While a turn runs the same plaque is Stop, and with text
-in the field it offers to queue the message or steer the turn instead.
+icon plaque on the right. It stands straight on the pane, one role away, so it
+keeps a 1 dp `vein` hairline at rest and the hairline turns `fg2` with the
+keyboard (see [what one step of the ramp can carry](palette.md#what-one-step-of-the-ramp-can-carry)).
+It is at least 96 high, grows a line at a time to eight lines and then
+scrolls. Send is the standing gold action of a conversation window. While a
+turn runs the same plaque is Stop, and with text in the field it offers to
+queue the message or steer the turn instead.
+
+The keyboard belongs to the composer. It has it when its page opens, and
+gets it back when a menu in its own row, the search field or a dialog closes,
+and after an action in the transcript such as copying an answer. Nobody
+should have to press the field before they can type again.
 
 **A new conversation** opens on the composer, not on an empty transcript: one
 `sentence` that says what can be asked, one `proof` line under it, the
-composer 680 wide at the optical centre of the pane, and up to four things to
-try as quiet small plaques. Sending the first message moves the composer to
-the foot of the column.
+composer 680 wide at the optical centre of the pane, up to four things to
+try as quiet small plaques, and under them one line that says what will
+answer: a claim, a `caption`, and the way to change it. Sending the first
+message moves the composer to the foot of the column.
 
 **The header** is 52 high and holds the name of what is open in `title`, its
 facts in `caption`, and its actions as small icon plaques at the trailing
@@ -354,7 +363,12 @@ status letter, path and counts in `mono`, each unfolding to its diff. The
 panel never takes gold; committing belongs to the full review.
 
 A destination with nothing open shows its Now board in the content pane: the
-`sentence`, one `proof` line, then what needs the reader first.
+`sentence`, one `proof` line, then what needs the reader first. A board with
+nothing to report does not stand empty. It says where work can start, on
+`stone1` slabs under a `title`: the places to work in with the one action
+that picks each, or, when the thing every action needs is missing, the way
+to get it. A list in the sidebar that has no rows yet says in one `caption`
+line what will stand there.
 
 Search has one entry point, the top bar field. It finds conversations,
 projects and commands, and Ctrl K focuses it. Its results open under the

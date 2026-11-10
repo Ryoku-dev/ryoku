@@ -93,6 +93,31 @@ When the user **forces** dark or light in the app, the neutrals stay the
 signature set for that mode; only the accents below are taken from the
 palette. This keeps a forced light app readable on a dark wallpaper.
 
+### What one step of the ramp can carry
+
+The five neutrals are not evenly spaced. A wallpaper palette writes the three
+containers in the middle of the ramp close together, so `stone2` and `stone3`,
+taken from neighbouring containers, read as one plane on most screens. The
+signature fallback is spaced wider and hides this: judge a surface under a
+real wallpaper palette, in follow mode.
+
+So one step is enough for a change and not for an edge:
+
+- **A change** is seen because it happens. A row that goes from `stone2` to
+  `stone3` under the pointer is read as hovered. Hover, press and the tracks
+  inside a control need one step and nothing else.
+- **An edge that has to be seen at rest** needs more. A thing that must read
+  as its own object either stands two roles from the plane under it (a
+  `stone1` slab on the `stone2` work pane, a `stone3` field on that slab or
+  in a `stone4` dialog), or, when it is only one role away, carries a 1 dp
+  `vein` hairline. Menus and dialogs over the work pane already do, and so
+  does the off track of a toggle. A field, search or picker that stands
+  straight on the work pane does too; keyboard focus turns that hairline
+  `fg2`.
+
+A page that leaves a `stone3` field alone on `stone2` has drawn a field
+nobody can find until they press it.
+
 ### Accents (always)
 
 | Lithic role | Palette | Note |

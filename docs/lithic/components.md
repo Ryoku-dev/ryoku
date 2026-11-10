@@ -123,6 +123,13 @@ An error turns that stroke and help text `jasper`. Secret fields mask with
 `•` and place a 32 quiet reveal plaque 6 from the trailing edge. Reference:
 `ui/kit/textfield.go`.
 
+A field is one role above the work pane, which a wallpaper palette does not
+show as an edge. On a `stone1` slab or in a dialog it needs nothing more.
+Standing straight on the work pane it takes a 1 dp `vein` hairline at rest,
+which the page draws around it, since the library does not know what the field
+stands on. The same holds for Search and Picker. See
+[what one step of the ramp can carry](palette.md#what-one-step-of-the-ramp-can-carry).
+
 Library: QML Lithic.TextField, web .l-text-field, Go kit.TextField, terminal term.RenderTextField
 
 ### Search

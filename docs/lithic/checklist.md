@@ -25,6 +25,9 @@ and in a light Ryoku palette and go down the list. Every "no" is a defect.
 - [ ] Disabled controls use alpha 0.5 and do not hover.
 - [ ] Rows on `stone4` hover with `fg` at alpha 0.06 and press at 0.08.
       They never step down to `stone3`; lower planes keep the plane-up recipe.
+- [ ] Nothing relies on one tone step to be found at rest. Under a wallpaper
+      palette, every field, slab and overlay either stands two roles from its
+      plane or carries a `vein` hairline.
 
 ## Shape
 
