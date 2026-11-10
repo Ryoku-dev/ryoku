@@ -158,6 +158,15 @@ class VoiceBridge:
         roots = (runtime, f"{runtime}/app/com.discordapp.Discord", "/tmp")
         return [f"{root}/discord-ipc-{index}" for root in roots for index in range(10)]
 
+    @staticmethod
+    def own_socket(path: str) -> bool:
+        # /tmp is shared: another user's socket there would receive the token
+        try:
+            info = os.stat(path)
+        except OSError:
+            return False
+        return stat.S_ISSOCK(info.st_mode) and info.st_uid == os.getuid()
+
     async def connect(self) -> bool:
         if self.companion_active and self.companion and not self.companion.is_closing():
             return True
@@ -165,7 +174,7 @@ class VoiceBridge:
             return True
 
         for path in self.candidates():
-            if path in self.rejected or not os.path.exists(path):
+            if path in self.rejected or not self.own_socket(path):
                 continue
             writer = None
             try:
