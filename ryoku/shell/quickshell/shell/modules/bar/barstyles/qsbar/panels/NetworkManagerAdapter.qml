@@ -302,12 +302,14 @@ Item {
         onTriggered: {
             var net = adapter.pskRetryNetwork
             adapter.pskRetryTicks++
-            if (!net || (net.known && adapter.pskRetryTicks < 20))
+            if (net && net.known && adapter.pskRetryTicks < 20)
                 return
             stop()
             var psk = adapter.pskRetryValue
             adapter.pskRetryNetwork = null
             adapter.pskRetryValue = ""
+            if (!net)
+                return
             net.connectWithPsk(psk)
             refreshAfterAction.restart()
         }
