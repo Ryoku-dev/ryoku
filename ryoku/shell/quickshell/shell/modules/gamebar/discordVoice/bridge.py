@@ -145,6 +145,10 @@ class VoiceBridge:
         await self.unsubscribe_channel()
         for event in VOICE_EVENTS:
             await self.subscribe(event, channel_id)
+            # A failed write closes the socket; a reconnect starts the
+            # subscriptions again, so do not record the channel as done.
+            if not self.writer or self.writer.is_closing():
+                return
         self.subscribed_channel = channel_id
 
     @staticmethod
