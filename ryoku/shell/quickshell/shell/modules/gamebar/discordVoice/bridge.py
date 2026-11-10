@@ -207,7 +207,14 @@ class VoiceBridge:
                 emit("companion_error", message="Refusing an unsafe Ryoku voice socket path")
                 return
             try:
-                _, existing = await asyncio.open_unix_connection(self.companion_path)
+                _, existing = await asyncio.wait_for(
+                    asyncio.open_unix_connection(self.companion_path),
+                    COMPANION_WRITE_TIMEOUT)
+            except asyncio.TimeoutError:
+                # A listener with a full backlog accepts no probe without
+                # dropping it; leave its socket alone and report the instance.
+                emit("companion_error", message="The Ryoku voice socket did not answer")
+                return
             except (ConnectionRefusedError, FileNotFoundError):
                 pass
             else:
