@@ -21,9 +21,6 @@
 - **Switch layouts says what Super+Space costs.** Picking it now notes that it
   takes over the Space key, so Persian ZWNJ on Shift+Space and AltGr+Space stop
   working, and that Alt+Shift keeps them (#781).
-- **Saved Wi-Fi networks can be forgotten, and a rejected saved password asks
-  for a new one.** Connections shows Forget on saved rows, and a saved network
-  whose stored password fails reopens the password field with a same-name hint.
 - **Clicking a saved Wi-Fi network notices when its password is rejected.** The
   page relied on Quickshell's per-network failure signal, which is not always
   emitted, so a stale saved password sometimes failed with nothing shown. A
