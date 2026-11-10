@@ -37,6 +37,13 @@ changing a page's look.
     prunes it: `prune` drops every unstarred entry with its files and prints the
     refreshed report. The daemon owns the entries, so the Hub never measures or
     deletes around it.
+  - `ryoku-hub wifi connect <ssid>` joins a Wi-Fi network with the passphrase
+    read from stdin, through the shell daemon's `network.wifiConnect` (the
+    bar's join). The SSID's saved profiles, which the new passphrase replaces,
+    are deleted only once the daemon answers. It exits 1 when the join is
+    rejected, which is how Connections reopens the password row, and 3 when
+    the daemon never answered, with nothing touched, so Connections can join
+    through nmcli instead.
   - `ryoku-hub lock list|set|apply-greeter` manages installed qylock themes:
     `list` is the local inventory, `set` writes the in-session preference and
     applies the SDDM greeter, and `apply-greeter` carries the global 12/24-hour

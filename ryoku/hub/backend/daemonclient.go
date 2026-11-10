@@ -11,6 +11,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -23,16 +24,40 @@ import (
 // daemonCall runs one control method on the shell daemon and decodes its result
 // into out (nil to discard it). The reply is one JSON line: {ok,result,error}.
 func daemonCall(method string, args any, out any) error {
+	return daemonCallWithin(method, args, out, 3*time.Second)
+}
+
+// daemonCallWithin is daemonCall for a method that takes longer than a quick
+// read to answer, such as a Wi-Fi join the daemon holds until it settles.
+func daemonCallWithin(method string, args any, out any, timeout time.Duration) error {
+	conn, err := dialDaemon()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	return callOn(conn, method, args, out, timeout)
+}
+
+// errDaemonDown is the daemon not answering at all, as opposed to a call it
+// answered with an error.
+var errDaemonDown = errors.New("the shell daemon is not answering; is the Ryoku session running?")
+
+// dialDaemon opens the control socket. A caller that must not act unless the
+// daemon is up dials first and sends its call on the open connection.
+func dialDaemon() (net.Conn, error) {
 	base := os.Getenv("XDG_RUNTIME_DIR")
 	if base == "" {
 		base = os.TempDir()
 	}
 	conn, err := net.DialTimeout("unix", filepath.Join(base, "ryoku-shell.sock"), 3*time.Second)
 	if err != nil {
-		return fmt.Errorf("the shell daemon is not answering; is the Ryoku session running?")
+		return nil, errDaemonDown
 	}
-	defer conn.Close()
-	_ = conn.SetDeadline(time.Now().Add(3 * time.Second))
+	return conn, nil
+}
+
+func callOn(conn net.Conn, method string, args any, out any, timeout time.Duration) error {
+	_ = conn.SetDeadline(time.Now().Add(timeout))
 	line := "call " + method
 	if args != nil {
 		b, err := json.Marshal(args)
