@@ -12,6 +12,9 @@ shows the active workspace name for the monitor where the picker opened. With
 **Apply only on the picker monitor** on, a plain pick and its hover preview
 both stay on the picker's monitor.
 
+Random rotation keeps per-display choices: once a display has its own
+wallpaper, each display gets its own pick on every tick.
+
 The effective wallpaper on each display is resolved in this order:
 
 1. the active workspace assignment;

@@ -37,6 +37,9 @@
 - **Ryogami hover previews no longer stick on other monitors.** With Apply only
   on the picker monitor on, the preview stays on the picker's monitor, and a pick
   there puts each other monitor's own wallpaper back.
+- **Random auto-rotate gives every monitor its own pick.** Once a monitor has
+  its own wallpaper, rotation changes each monitor separately instead of
+  putting one wallpaper everywhere and forgetting the per-monitor choices.
 - **Windows reach the Shima dock again.** Under the Shima bar style the frame and
   the dock both reserved the dock's band, which left a dock-tall gap between
   windows and the dock. The frame's reservation is now the only one there.

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"maps"
 	"math/rand/v2"
 	"path/filepath"
 	"sort"
@@ -217,26 +218,31 @@ func typeOf(path string) string {
 
 // pickRandom returns a random source path different from the current one.
 func (d *daemon) pickRandom(types []string, favouritesOnly bool) string {
+	return d.pickRandomAvoiding(types, favouritesOnly, map[string]bool{d.currentName(): true})
+}
+
+func (d *daemon) pickRandomAvoiding(types []string, favouritesOnly bool, avoid ...map[string]bool) string {
 	candidates := d.candidatePaths(types, favouritesOnly)
 	// "Favourites only" is on by default, so a library without favourites would
 	// leave rotation running with nothing to show. The whole pool stands in.
 	if len(candidates) == 0 && favouritesOnly {
 		candidates = d.candidatePaths(types, false)
 	}
-	current := d.currentName()
-	filtered := candidates[:0]
-	for _, c := range candidates {
-		if filepath.Base(c) != current {
-			filtered = append(filtered, c)
-		}
-	}
-	if len(filtered) == 0 {
-		filtered = candidates
-	}
-	if len(filtered) == 0 {
+	if len(candidates) == 0 {
 		return ""
 	}
-	return filtered[rand.IntN(len(filtered))]
+	for _, skip := range avoid {
+		var filtered []string
+		for _, c := range candidates {
+			if !skip[filepath.Base(c)] {
+				filtered = append(filtered, c)
+			}
+		}
+		if len(filtered) > 0 {
+			return filtered[rand.IntN(len(filtered))]
+		}
+	}
+	return candidates[rand.IntN(len(candidates))]
 }
 
 // pickNext advances to the file after the current one in name order, wrapping.
@@ -272,7 +278,57 @@ func (d *daemon) candidatePaths(types []string, favouritesOnly bool) []string {
 }
 
 func (d *daemon) randomPick(types []string, favouritesOnly bool) {
+	if shows := d.perOutputWallpapers(); shows != nil {
+		names := make([]string, 0, len(shows))
+		for name := range shows {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		taken := map[string]bool{}
+		for _, name := range names {
+			own := map[string]bool{filepath.Base(shows[name]): true}
+			both := maps.Clone(taken)
+			both[filepath.Base(shows[name])] = true
+			pick := d.pickRandomAvoiding(types, favouritesOnly, both, own)
+			if pick == "" {
+				return
+			}
+			taken[filepath.Base(pick)] = true
+			_ = d.applyWallpaperReason("random", typeOf(pick), pick, "set", []string{name}, nil, nil)
+		}
+		return
+	}
 	if pick := d.pickRandom(types, favouritesOnly); pick != "" {
 		_ = d.applyWallpaperReason("random", typeOf(pick), pick, "set", nil, nil, nil)
 	}
+}
+
+// nil until a connected output has its own outputs.json entry
+func (d *daemon) perOutputWallpapers() map[string]string {
+	names := connectedOutputNames()
+	if len(names) < 2 {
+		return nil
+	}
+	state := map[string]map[string]interface{}{}
+	loadJSON(filepath.Join(d.config().cacheDir(), "outputs.json"), &state)
+	own := false
+	for _, name := range names {
+		if _, ok := state[name]; ok {
+			own = true
+			break
+		}
+	}
+	if !own {
+		return nil
+	}
+	current := d.outputsState()
+	shows := make(map[string]string, len(names))
+	for _, name := range names {
+		path := ""
+		if e, ok := current[name].(map[string]interface{}); ok {
+			path, _ = e["path"].(string)
+		}
+		shows[name] = path
+	}
+	return shows
 }
