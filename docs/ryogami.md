@@ -8,7 +8,9 @@ Unix socket; they never write wallpaper state themselves.
 
 A wallpaper can target every display, one display, or one workspace. The picker
 exposes **All**, **This monitor**, and **This workspace**. The workspace choice
-shows the active workspace name for the monitor where the picker opened.
+shows the active workspace name for the monitor where the picker opened. With
+**Apply only on the picker monitor** on, a plain pick and its hover preview
+both stay on the picker's monitor.
 
 The effective wallpaper on each display is resolved in this order:
 
@@ -60,10 +62,11 @@ assignment changes, no apply count moves, no applied event fires, and the
 palette stays with the committed wallpaper. The frame entries a preview
 publishes carry a `preview` flag, so the shell and its readers can tell the
 paint apart from a commit. Previewing another still replaces the preview,
-and applying a wallpaper supersedes it. Closing the picker clears the
-preview (`wall.preview.clear`, or `ryogami wallpaper preview-clear`) and
-repaints each covered output's committed wallpaper. Only stills preview;
-videos and Wallpaper Engine scenes apply directly.
+and applying a wallpaper supersedes it. An apply that covers fewer displays
+than the preview puts the committed wallpaper back on the rest. Closing the
+picker clears the preview (`wall.preview.clear`, or `ryogami wallpaper
+preview-clear`) and repaints each covered output's committed wallpaper. Only
+stills preview; videos and Wallpaper Engine scenes apply directly.
 
 ## Image optimisation
 

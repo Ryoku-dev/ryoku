@@ -34,6 +34,9 @@
 - **Python's media and visualizer modules can hide while nothing plays.** Both
   cards in the Python guide gain a "Hide when nothing is playing" switch, and
   "Fit to the track" shrinks the media title area to the song, up to its width.
+- **Ryogami hover previews no longer stick on other monitors.** With Apply only
+  on the picker monitor on, the preview stays on the picker's monitor, and a pick
+  there puts each other monitor's own wallpaper back.
 - **Windows reach the Shima dock again.** Under the Shima bar style the frame and
   the dock both reserved the dock's band, which left a dock-tall gap between
   windows and the dock. The frame's reservation is now the only one there.

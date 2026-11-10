@@ -225,8 +225,22 @@ func (w *wallSurface) snapshot() wallFrame {
 }
 
 func (w *wallSurface) restorePreview(saved wallFrame, outputs []string) {
+	w.restorePreviewKeeping(saved, outputs, nil)
+}
+
+// keep holds the preview paint for the commit landing next, so it needs no second reveal
+func (w *wallSurface) restorePreviewKeeping(saved wallFrame, outputs, keep []string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	all := len(outputs) == 0 || contains(outputs, "*")
+	held := make(map[string]frameEntry, len(keep))
+	for _, output := range keep {
+		if entry, ok := w.outputs[output]; ok {
+			held[output] = entry
+		} else if all && output != "" && output != "*" {
+			held[output] = w.def
+		}
+	}
 	restore := func(e frameEntry) frameEntry {
 		w.seq++
 		e.Revision = w.seq
@@ -234,7 +248,7 @@ func (w *wallSurface) restorePreview(saved wallFrame, outputs []string) {
 		e.Preview = false
 		return e
 	}
-	if len(outputs) == 0 || contains(outputs, "*") {
+	if all {
 		w.def = restore(saved.Default)
 		w.outputs = make(map[string]frameEntry, len(saved.Outputs))
 		for output, entry := range saved.Outputs {
@@ -248,6 +262,9 @@ func (w *wallSurface) restorePreview(saved wallFrame, outputs []string) {
 				delete(w.outputs, output)
 			}
 		}
+	}
+	for output, entry := range held {
+		w.outputs[output] = entry
 	}
 	w.publishLocked()
 }
