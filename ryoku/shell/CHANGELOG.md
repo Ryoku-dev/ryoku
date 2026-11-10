@@ -1,6 +1,10 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Saved Wi-Fi networks can be forgotten from the bar.** A saved row has a ⋯
+  button that opens Forget network, and the connected network's card has one
+  too, armed by a first press because forgetting it also disconnects. Before,
+  the only way to drop a saved network was `nmcli connection delete`.
 - **A saved Wi-Fi network asks for its password again when it stops working.**
   The bar only showed a password field for unsaved networks, so a saved one
   whose password changed, or another network with the same name, failed on

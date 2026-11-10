@@ -170,6 +170,12 @@ Item {
     property var pendingJoins: ({})
     readonly property var pwDrafts: ({})
     property string focusSsid: ""
+    property bool heroOpen: false
+    property bool heroConfirm: false
+    onActiveSsidChanged: {
+        root.heroOpen = false;
+        root.heroConfirm = false;
+    }
 
     function st(ssid) { return root.rowState[ssid] || ({}); }
     function setSt(ssid, patch) {
@@ -187,6 +193,11 @@ Item {
         root.setSt(ap.ssid, { connecting: true, error: false });
         const id = Network.connectWifi(ap.ssid, pw, ap.bssid);
         root.pendingJoins[id] = { ssid: ap.ssid, wasSaved: !!ap.saved };
+    }
+    function forget(ssid) {
+        root.setSt(ssid, { expanded: false, reprompt: false, error: false, connecting: false });
+        root.pwDrafts[ssid] = "";
+        Network.forgetWifi(ssid);
     }
     Connections {
         target: Network
@@ -288,7 +299,7 @@ Item {
             Row {
                 id: apMeta
                 anchors.right: parent.right
-                anchors.rightMargin: 8 * root.s
+                anchors.rightMargin: (apr.ap.saved ? 30 : 8) * root.s
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 5 * root.s
                 Text {
@@ -327,15 +338,43 @@ Item {
                         apr.doConnect();
                 }
             }
+            // a saved row's drawer holds Forget; above the row's tap area
+            Rectangle {
+                visible: apr.ap.saved
+                z: 2
+                anchors.right: parent.right
+                anchors.rightMargin: 3 * root.s
+                anchors.verticalCenter: parent.verticalCenter
+                width: 24 * root.s
+                height: 20 * root.s
+                radius: 3 * root.s
+                color: optMa.containsMouse || apr.expanded ? Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.14) : "transparent"
+                Text {
+                    anchors.centerIn: parent
+                    text: "\u22EF"
+                    color: root.ink
+                    font.family: Theme.fontPrimary
+                    font.pixelSize: 14 * root.s
+                }
+                MouseArea {
+                    id: optMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.toggleExpanded(apr.ap.ssid)
+                }
+            }
         }
 
-        // inline password (secured and unsaved, or saved with a failed password)
+        // the drawer: the password (secured and unsaved, or saved with a failed
+        // password) and, for a saved network, Forget
         Column {
             width: parent.width
             spacing: 4 * root.s
-            visible: apr.needsPw && apr.expanded
+            visible: apr.expanded && (apr.needsPw || apr.ap.saved)
 
             Rectangle {
+                visible: apr.needsPw
                 width: parent.width
                 height: 26 * root.s
                 radius: 3 * root.s
@@ -391,11 +430,24 @@ Item {
                 font.pixelSize: 9.5 * root.s
             }
             PopoutAction {
+                visible: apr.needsPw
                 width: parent.width
                 s: root.s
                 enabled: !apr.connecting
                 label: apr.connecting ? I18n.tr("Connecting…") : I18n.tr("Connect")
                 onClicked: apr.doConnect()
+            }
+            PopoutAction {
+                visible: apr.ap.saved
+                width: parent.width
+                s: root.s
+                destructive: true
+                enabled: !apr.connecting
+                label: I18n.tr("Forget network")
+                onClicked: {
+                    pwField.text = "";
+                    root.forget(apr.ap.ssid);
+                }
             }
         }
     }
@@ -500,9 +552,37 @@ Item {
                     color: (root.wiredUp || root.wifiUp) ? root.ink : root.inkDim
                 }
             }
+            Rectangle {
+                id: heroOpt
+                visible: root.wifiUp
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                width: 22 * root.s
+                height: 22 * root.s
+                radius: 3 * root.s
+                color: heroOptMa.containsMouse || root.heroOpen ? Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.14) : "transparent"
+                Text {
+                    anchors.centerIn: parent
+                    text: "\u22EF"
+                    color: root.ink
+                    font.family: Theme.fontPrimary
+                    font.pixelSize: 14 * root.s
+                }
+                MouseArea {
+                    id: heroOptMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        root.heroOpen = !root.heroOpen;
+                        root.heroConfirm = false;
+                    }
+                }
+            }
             PopoutAction {
                 id: disc
-                anchors.right: parent.right
+                anchors.right: heroOpt.visible ? heroOpt.left : parent.right
+                anchors.rightMargin: heroOpt.visible ? 4 * root.s : 0
                 anchors.verticalCenter: parent.verticalCenter
                 visible: root.wifiUp
                 s: root.s
@@ -544,6 +624,30 @@ Item {
                     font.pixelSize: 9 * root.s
                     elide: Text.ElideRight
                 }
+            }
+        }
+        // forgetting the network you are on also disconnects, so it is armed
+        // by a first press
+        PopoutAction {
+            width: parent.width
+            visible: root.wifiUp && root.heroOpen
+            s: root.s
+            destructive: true
+            label: root.heroConfirm ? I18n.tr("Press again to forget %1").arg(root.activeSsid) : I18n.tr("Forget network")
+            onClicked: {
+                if (!root.heroConfirm) {
+                    root.heroConfirm = true;
+                    heroDisarm.restart();
+                    return;
+                }
+                root.heroConfirm = false;
+                root.heroOpen = false;
+                root.forget(root.activeSsid);
+            }
+            Timer {
+                id: heroDisarm
+                interval: 3000
+                onTriggered: root.heroConfirm = false
             }
         }
 
