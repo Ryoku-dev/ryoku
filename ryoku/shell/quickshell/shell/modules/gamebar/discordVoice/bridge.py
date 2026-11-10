@@ -162,6 +162,7 @@ class VoiceBridge:
         for path in self.candidates():
             if path in self.rejected or not os.path.exists(path):
                 continue
+            writer = None
             try:
                 try:
                     reader, writer = await asyncio.wait_for(
@@ -176,6 +177,8 @@ class VoiceBridge:
                         self.receive(reader), HANDSHAKE_TIMEOUT)
                 except asyncio.TimeoutError as error:
                     raise ConnectionError("the RPC handshake timed out") from error
+                if self.writer is not writer or self.companion_active:
+                    return True
                 if opcode == CLOSE or ready.get("evt") != "READY":
                     raise ConnectionError("the client rejected the RPC handshake")
                 emit("backend", backend="discord")
@@ -189,7 +192,8 @@ class VoiceBridge:
                     emit("auth_required")
                 return True
             except (OSError, ConnectionError, asyncio.IncompleteReadError, ValueError):
-                self.close_native()
+                if writer is not None and self.writer is writer:
+                    self.close_native()
 
         emit("unavailable", message="Discord is not running")
         return False
