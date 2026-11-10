@@ -9,6 +9,9 @@
   `.json` file and every terminal opened with a parse error (#746).
 - Fix with AI can use Codex with a repair-specific model and reasoning effort.
   Terminal launches now precede the health scan so progress and errors stay visible.
+- **Fix with AI keeps user unit overrides working for every account.** The
+  repair playbook tells the agent to write `%h` in a user unit drop-in instead
+  of one user's home path, which another user cannot read.
 - **Adaptive sync keeps its saved state in Displays.** Hyprland and niri now
   report the configured choice instead of whether the panel happens to be using
   adaptive sync at that moment, so a later Apply cannot turn it off.
