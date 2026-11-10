@@ -1,6 +1,9 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The battery list widget's percentages read cleanly at any charge.** Below a
+  full charge the dark text meant for the fill was drawn over the whole row, so
+  the numbers on the empty part looked smudged; it now stops at the fill edge (#791).
 - **Brightness no longer pins the shell daemon at 100% CPU after resume.** A
   driver that re-registers its backlight across suspend (nvidia) left the OSD
   watcher polling the removed sysfs node, which fails every read and wakes
