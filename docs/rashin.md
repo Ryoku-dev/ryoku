@@ -4,9 +4,10 @@ Rashin (羅針, "compass needle") is Ryoku's optional AI system. It is one Go
 daemon with three clients:
 
 - **Ask**: questions about this machine, or plain chat, answered by free models
-  through Rashin's built-in model router. Ask reads the machine; it never
-  changes it. It proposes commands for you to run, or hands the work to an
-  Agent.
+  through Rashin's built-in model router. Ask reads the machine and, unless
+  told otherwise, never changes it: it proposes commands for you to run, or
+  hands the work to an Agent. A conversation in the app can be told it may
+  act, asking first or not.
 - **Agent**: an external coding harness you already use (Hermes, Claude Code,
   Codex, OpenCode, Gemini CLI, omp and more) driven over the Agent Client
   Protocol, with Rashin owning the sessions, files, terminals and approvals.
@@ -32,10 +33,15 @@ This page is the contract the implementation follows. The wire reference is
    Sessions live on disk and resume on the next prompt. One exception is asked
    for by name: a daemon that serves the local API stays up, because other
    programs hold its address.
-4. **Ask reads, Agent acts.** Ask has read-only tools. Anything that changes the
-   machine is a proposed command the user runs, or a handoff to an Agent.
+4. **Ask reads unless told otherwise.** Ask starts read-only: anything that
+   changes the machine is a proposed command the user runs, or a handoff to
+   an Agent. A conversation changes the machine only after the user set that
+   conversation to, and an ask from the bar or a terminal never does.
 5. **One owner per fact.** The daemon is the only writer of Rashin state. The
    vault is Ryoku's. Harnesses keep their own model choices.
+6. **Nobody starts as a stranger.** Every request is told about Ryoku, the
+   Ryoku vault and Rashin (`internal/brief`): Ask in its prompt, an agent
+   ahead of its first prompt.
 
 ## Pieces
 
@@ -65,6 +71,8 @@ ryoku/rashin/
   internal/session/     event log store
   internal/gateway/     built-in free-model router
   internal/ask/         native Ask runner, tools, command safety
+  internal/attachment/  what an attached file is, read for a model
+  internal/brief/       what every request is told about Ryoku, the vault and Rashin
   internal/harness/     ACP adapters for external harnesses
   internal/index/       index engine, embedding model, queries
   internal/app/         Gio client (shell, state, pages, chat widgets, desktop, demo)
@@ -182,7 +190,7 @@ XDG variables; `RASHIN_SOCKET` overrides the socket for a client.
 {
   "version": 2,
   "enabled": true,
-  "ask":    {"model": "auto", "habits": true},
+  "ask":    {"model": "auto", "habits": true, "approvals": "read-only"},
   "agent":  {"harness": "", "approvals": "read-only", "idleStopMinutes": 10},
   "daemon": {"idleExitMinutes": 5},
   "index":  {"system": true, "semantic": true},
@@ -193,6 +201,12 @@ XDG variables; `RASHIN_SOCKET` overrides the socket for a client.
 - `ask.model`: `auto`, `auto:fast`, `auto:smart`, or `<provider>/<model>`.
 - `ask.habits`: include a short summary of the user's shell habits (tools,
   frequent commands, secrets filtered) in Ask prompts.
+- `ask.approvals`: what a new ask in the app starts with: `read-only`
+  (proposes, changes nothing), `ask` (may change the machine, each change
+  waits for the user) or `auto` (changes it without asking; a destructive
+  command still waits). The daemon does not apply it by itself: the app
+  passes it when it creates a session, so an ask from the bar or a terminal
+  stays read-only.
 - `agent.harness`: default harness id for new Agent sessions; empty picks the
   first installed one in the table order below.
 - `agent.approvals`: `read-only` (reads run, writes ask), `ask` (everything
@@ -224,8 +238,9 @@ every method with its params and result types and every event; `rashin call
 <method> [json]` and `rashin events` reach any of them.
 
 Method groups: `hello status subscribe shutdown`, `session.*` (list, new,
-attach, detach, prompt, cancel, permission, set_model, set_mode, rename,
-delete, stop, handoff, queue, unqueue, steer, fork, read, revert_turn), `ask`
+attach, detach, prompt, cancel, permission, set_model, set_mode, set_option,
+start, rename, delete, stop, handoff, queue, unqueue, steer, fork, read,
+revert_turn), `ask`
 (new session, attach, prompt in one call), `providers.*`, `models.list`,
 `gateway.usage|api|api_key`, `harnesses.*`, `index.*`, `settings.get|set`,
 `ui.open`, and
@@ -265,6 +280,7 @@ session id for resume). Both are written by the daemon only.
 | `error` | message, code |
 | `model` | current model, options |
 | `mode` | current mode, options |
+| `options` | every other choice the harness offers: id, name, category, current value, choices |
 | `commands` | slash commands the harness offers |
 | `answer` | Ask only, before `turn_end`: actions, command plan, `needsAgent` and reason, `via` (provider/model) |
 | `title` | new title |
@@ -288,6 +304,13 @@ Rules:
   a prompt that waits in the queue keeps its own.
 - `SessionInfo.state`: `idle`, `working`, `waiting` (open permission),
   `stopped` (agent process not running), `failed`.
+- `SessionInfo.mode` is the harness's mode for an Agent session. For an Ask
+  session it is that conversation's approvals value, set at `session.new`
+  (`mode`) and changed with `session.set_mode`; empty reads as `read-only`.
+- `session.start` brings an Agent session's process up with no prompt, so its
+  `model`, `mode` and `options` events exist before the first one. The idle
+  stop takes it down again if nothing follows. `ui.open` with only a session
+  is completed by the daemon with the tab that session lives in.
 
 Ids are `<kind>-<yyyymmdd>-<hhmmss>-<4 hex>`, which sort by creation.
 
@@ -383,29 +406,54 @@ has the same under Settings > Local API.
 
 The Ask runner (`internal/ask`) is Rashin's own agent loop on the gateway.
 
-- **Prompt**: Ryoku identity, the vault contract and `desktop.md` map from the
-  Ryoku vault (trimmed to budget), the user's habits when enabled, the terminal
-  context when the ask came from a terminal, and the rules: answer GUI first
-  (name the Hub page, shell picker or bar style setting before any command),
-  cite vault wiki pages by name, plain sentence-case prose, no em dashes.
-- **Tools** (all read-only, at most 8 rounds per turn):
+- **Prompt**: Ryoku identity, what this conversation may do, the vault
+  contract and `desktop.md` map from the Ryoku vault (trimmed to budget), what
+  Rashin itself is and how it is reached (`internal/brief`), the user's habits
+  when enabled, the terminal context when the ask came from a terminal, and
+  the rules: answer GUI first (name the Hub page, shell picker or bar style
+  setting before any command), cite vault wiki pages by name, plain
+  sentence-case prose, no em dashes.
+- **Tools** (read-only, at most 8 rounds per turn):
   `system_query` (a shell command that the command classifier rates
-  read-only; anything else is refused with "propose it instead"),
+  read-only; anything else is refused with the reason and "propose it
+  instead"),
   `read_file` (bounded, refuses secrets: keys, tokens, credential stores,
   `~/.ssh`, browser profiles), `list_dir`, `search_system` (the system index),
   `search_code` (a project index), `read_wiki` (a vault wiki page),
   `fetch_url` (GET over http(s), text only, 200 KiB, public addresses only),
   `doctor` (`ryoku doctor --json`, cached 2 min), and `propose` (a command plan
   for the user: commands with a why and a tier).
+- **Acting** (`internal/ask/act.go`): a conversation whose mode is `ask` or
+  `auto` is also handed `run_command` (one shell command, 2 min, 24 KiB of
+  output) and `write_file` (one whole text file up to 256 KiB, written beside
+  the old one and renamed over it, through a link without replacing the link,
+  never a secret path), gets 14 rounds, and is told so in its prompt: make the
+  smallest change, go through Ryoku's own commands and `ryoku owner <path>`
+  before a config file, check that the change took. A command that only reads
+  runs at once in every mode. In `ask` each change is a `permission` event
+  (allow once, allow in this conversation, refuse) and the turn waits; a
+  refusal is told to the model as final. In `auto` changes run unasked, except
+  a command of the `danger` tier, which always waits and is never offered
+  "allow in this conversation". A file's change is shown as a diff before the
+  answer is given, and what the file held before is kept in the session's
+  `before/` folder. `sudo`, `doas` and `su` are refused: they ask for a
+  password on a terminal Ask does not have, so they stay proposals. A
+  read-only conversation is not handed either tool, and a model that calls
+  one anyway is refused.
 - **Command classifier**: tiers `read`, `write`, `system` (root or package
   manager), `danger` (destructive or irreversible). Wrappers, pipes, segments,
   redirects, substitutions and `find -exec` are classified by their worst part;
-  `sudo`, `doas`, `pkexec`, `su`, `run0` are never read-only.
+  `sudo`, `doas`, `pkexec`, `su`, `run0` are never read-only. Throwing a
+  stream away (`2>/dev/null`, `&>/dev/null`) or copying one (`2>&1`) is not a
+  write, `head -20` and `tail +3` count as the reads they are, and `~` alone
+  is the user's own home.
 - **Answer**: the streamed text, then one `answer` event with actions extracted
   from the final text (paths to files and folders that exist, URLs, colours,
-  commands) and the plan when `propose` ran. When the work needs changes the
-  model ends with `NEEDS_AGENT: <reason>`; the runner strips it and sets
-  `needsAgent`.
+  commands) and the plan when `propose` ran. `/` and the directories right
+  under it, and devices such as `/dev/null`, are named in passing and offered
+  as nothing; a path is a command only when it is a program. When the work
+  needs changes the model ends with `NEEDS_AGENT: <reason>`; the runner strips
+  it and sets `needsAgent`.
 - **Attachments** (`internal/ask/attach.go`, `internal/attachment`): what a
   file is comes from its first bytes, never its name. A picture (PNG, JPEG,
   GIF, WebP, up to 8 MB) rides on the message, which routes the turn to a
@@ -464,14 +512,41 @@ terminal, killed on release or session stop).
   advertised `promptCapabilities.image`. Every other file, and a picture for
   an agent that takes none or one over 8 MB, goes as a `resource_link` to the
   file, which every agent takes and opens with its own tools.
-- **Approvals** follow `agent.approvals`. Under `read-only`, tool calls of kind
-  `read`, `search`, `fetch` and `think` are allowed at once; the rest ask.
+- **Approvals** follow `agent.approvals`, read at each request, so a change
+  made in a composer or in Settings holds for every session from then on.
+  Under `read-only`, tool calls of kind `read`, `search`, `fetch` and `think`
+  are allowed at once; the rest ask.
 - **Permissions** arrive as `permission` events; a client answers with
   `session.permission`. A request that arrives before its tool call carries the
   tool call and is shown at once.
-- **Models and modes**: legacy `models` and `configOptions` (category `model`)
-  are both read; choosing one uses `session/set_config_option` when the harness
-  exposes the option, else `session/set_model`. Modes use `session/set_mode`.
+- **Models, modes and options**: the agent's `configOptions` are read whole,
+  flat or grouped. The one of category `model` is the session's model (the
+  legacy `models` list is read too), one of category `mode` is its mode unless
+  the agent also listed `modes` the older way, and every other select (how
+  hard to think, and whatever a harness adds) is an `options` event. Each is
+  set with `session/set_config_option` where the agent offers the option, else
+  `session/set_model` and `session/set_mode`, and the agent's answer is the
+  new state. An agent repeats its whole list on every change, so an event is
+  written only when what it says changed: a model list runs to hundreds.
+- **Before the first prompt**: `session.start` runs `initialize` and
+  `session/new` and stops there. The app calls it when a session that never
+  ran is opened, so the composer shows the model, mode and options the
+  harness will really use, and stops the agent again if the session is left
+  with nothing asked.
+- **The brief** (`internal/brief`, `internal/daemon/brief.go`): the first
+  prompt of an agent session carries one text block ahead of the user's own:
+  that it runs inside Rashin on Ryoku, the session's folder, project and
+  branch, where the Ryoku vault is and how to use it, what Rashin is, and the
+  code search commands over its folder. A session the agent loads back is not
+  briefed again; one that had to start over is. The folder's repository is
+  indexed when the session's agent is created (see Index), so the search is
+  there when the agent looks.
+- **Its own setup**: `harnesses.list` carries what a harness will run with.
+  `setup` is read from the harness's own files where Rashin knows them (omp:
+  the model behind each role and the thinking level, from
+  `~/.omp/agent/config.yml`), and `capabilities.started` is the model and
+  option values it came up with the last time it ran. Both are shown, never
+  written.
 - **Resume**: the harness's session id is kept in `meta.json`. A stopped
   session restarts its agent on the next prompt with `session/load` when the
   agent advertised `loadSession`, otherwise with a new session and a `notice`.
@@ -487,10 +562,12 @@ The index engine (`internal/index`) is pure Go.
   backups, browser and chat-app profiles, keyrings, credential files,
   databases and files over 512 KiB), `/usr/share/ryoku` and `/etc/ryoku`; a
   config file identical to its shipped copy is indexed once. A project is any
-  directory added with `rashin index add` or registered as a Work project, and
-  the index commands of the command line register the git root of the current
-  directory on first use. `/`, the home directory and its ancestors are never
-  an index root, and roots are absolute.
+  directory added with `rashin index add` or registered as a Work project.
+  The repository an agent session works in is registered and refreshed when
+  the session's agent is created, and the index commands of the command line
+  register the git root of the current directory on first use, so the search
+  answers wherever an agent or a person asks. `/`, the home directory and its
+  ancestors are never an index root, and roots are absolute.
 - **Walk**: `.gitignore` at every level, extra ignores, symlinks that escape
   the root are skipped, binary files are skipped. Projects also skip vendored
   and generated trees (`vendor/`, `node_modules/`, build outputs, virtual
@@ -709,15 +786,27 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
   session exists until the first message is sent, and sending it moves the
   composer to the foot of the column. Its list groups asks by day. An open ask
   shows the transcript in the reading column with the composer at its foot,
-  the route choice (Auto, Fast, Smart or one free model), answer actions and
-  Move to Agent. An answer that was stopped or cut off says so under it.
+  the route choice (Auto, Fast, Smart or one free model), what the
+  conversation may do (Read only, Ask first or YOLO, see Ask), answer actions
+  and Move to Agent. With no conversation open that choice is what the next
+  one starts with and is `ask.approvals`; the line over the composer says it
+  in words, and YOLO is drawn in the attention tone wherever it shows. A
+  change Ask asks for is a request card like an agent's. An answer that was
+  stopped or cut off says so under it.
 - **Agents** opens on its Now board: what needs you in one sentence, a
   composer that starts a session in a project and worktree with a harness, then
   the sessions that need you, are working or finished recently. A board with no
   session lists the projects a session can work in and the way to add one;
   with no harness installed it lists the harnesses Rashin knows, each with its
   install page, in place of the composer. The harness picked for a session
-  becomes `agent.harness`, so the board, the dialogs and Settings always agree.
+  becomes `agent.harness`, so the board, the dialogs and Settings always agree,
+  and so does the asking choice beside it (`agent.approvals`: ask before
+  changes, ask every time, YOLO). Under the board's composer stands what the
+  picked harness will run with (its own setup, see Agent). A session's
+  composer carries the model, the mode and every option its harness offers,
+  each as a select, and the asking choice; opening a session that never ran
+  brings its harness up to learn them, with "Starting" in their place
+  meanwhile (`pages/agent/controls.go`).
   Its list groups sessions by Needs you, Working, Done and Idle. A session
   shows its project, worktree, branch and harness in the header, the transcript
   (work as single lines that unfold, permission requests, plans, diffs), queue
@@ -730,7 +819,16 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
   commands the harness offers, and what is typed and not sent stays with its
   conversation. Asking again sends the question with what was attached to it.
   It has the keyboard when its page opens and gets it back when a menu in its
-  row, the search field or a dialog closes.
+  row, the search field or a dialog closes. The selects in its row stand at
+  their own widths and, when the row is too narrow for that, the widest give
+  way first, each cutting its own label (`shareRow`).
+- **A select's list** (`internal/app/look/picker.go`): a short list of plain
+  names is a menu. One whose options carry a second line, or that has nine or
+  more, opens as a list instead: the second line wraps and is never cut, a
+  field at the top narrows the list as you type (every word has to match the
+  name or the second line), the arrow keys and Enter pick, and it opens on
+  the current choice. That is what makes a harness's hundreds of models
+  usable.
 - **A waiting request** is answered with its plaques, or from the composer:
   with nothing typed, Enter allows once and Escape refuses, and the composer's
   hint says so. Words in the field are a message, so Enter sends them and
@@ -771,16 +869,28 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
 - **Settings** is a full page with a section index: Rashin (on and off,
   version, the log), Providers (each unfolds to its keys and says what it
   answered this week), Local API (the switch, the address, the key, the port),
-  Ask, Agents (the default harness, approvals, notices, the idle stop, the
-  harnesses found and how to install the rest, your own harnesses), Index,
+  Ask (the model route, what a new ask may do, shell habits), Agents (the
+  default harness, approvals, notices, the idle stop, the harnesses found with
+  what each will run with, how to install the rest, your own harnesses), Index,
   Appearance (zoom, reduce motion) and Keyboard (every shortcut). Its list
   runs to the pane's edge, so the wheel moves it from beside the column too.
   Project settings live with the project.
 - **The desktop** is reached through `internal/app/desktop` only: the file
   chooser (XDG portal `FileChooser`), the clipboard's image (`wl-paste`),
-  notices (`org.freedesktop.Notifications`) and starting other programs
-  (`xdg-open`, the terminal, `rashin on|off`). The frame hands these to pages
-  as `env.Desktop`; a render without a window has none, so it opens nothing.
+  notices (`org.freedesktop.Notifications`) and starting other programs: the
+  user's terminal and file manager through `ryoku-app terminal|files`, what
+  opens a file or an address through `xdg-open`, and `rashin on|off`. The
+  frame hands these to pages as `env.Desktop`; a render without a window has
+  none, so it opens nothing.
+- **In front** (`internal/app/desktop/front.go`): a desktop that floats this
+  window opens whatever the app starts in the layer underneath, where it takes
+  the keyboard and cannot be seen. So when this window floats, the window that
+  appears after a terminal, a folder, a file or the file chooser was asked for
+  is placed in front of it, centred on it and kept on its screen. The
+  compositor is asked through `ryoku wm state` and `ryoku wm act
+  window.place`, so the app names none, and without that door nothing is
+  placed. A web address is left to the browser's own window; a floating
+  Rashin says "Opened in your browser".
 - **Notices**: while the window is not in front, a desktop notification says
   when an agent starts needing you, fails or finishes; pressing it opens the
   session. It follows the store and not the frames, and what already stood so

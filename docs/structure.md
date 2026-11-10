@@ -187,7 +187,7 @@ truth for the live desktop.
 - `rashin/` the optional Rashin system in one Go module: `cmd/rashind/` is the
   daemon, `cmd/rashin/` the command line, and `cmd/rashin-app/` the Gio Lithic
   app. `internal/` holds the socket protocol, session event log, free-model
-  router, read-only Ask agent, ACP harness adapters and potion-backed code
+  router, the Ask agent, ACP harness adapters and potion-backed code
   index. `systemd/` ships socket activation and `usage/` the coding-agent usage
   collectors. The Hub owns the opt-in switch and the shell's Alt+Space bar is a
   thin socket client. See `docs/rashin.md` and `docs/rashin-terminal.md`.

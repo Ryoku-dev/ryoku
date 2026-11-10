@@ -7,17 +7,24 @@ available at `~/.local/share/ryoku/vault/` whether Rashin is installed or on.
 ## Ask, Agent, and Index
 
 **Ask** answers system questions and general prompts through Rashin's built-in
-free-model router. Its tools are read only. It can inspect the vault, system,
-projects, wiki, and doctor results, but it never changes the machine. Work that
-needs a change becomes a proposed command or an explicit handoff to Agent.
+free-model router. It starts read only: it can inspect the vault, system,
+projects, wiki, and doctor results, and work that needs a change becomes a
+proposed command or an explicit handoff to Agent. In the app a conversation can
+be set to Ask first, where each command or file change waits for you, or to
+YOLO, where changes run without asking and only a destructive command still
+waits. An ask from the bar or a terminal never changes the machine.
 
 **Agent** runs an external coding harness through ACP. Rashin owns the persistent
 session, event log, files, terminal, approvals, and process lifecycle, so closing
-the app does not lose the conversation. Each harness keeps its own model choice.
+the app does not lose the conversation. Each harness keeps its own model choice,
+and its session shows the model, mode, and options it offers. Every agent
+session is told where it runs before its first prompt: Ryoku, this vault,
+Rashin, and the code search over its folder.
 
 **Index** covers the system and registered projects with the potion embedding
-model. The command line exposes cited `search`, `find`, `def`, `outline`, and
-`references` queries.
+model, which is built into the daemon. A project added to Rashin and the
+repository an agent session works in are indexed by themselves. The command
+line exposes cited `search`, `find`, `def`, `outline`, and `references` queries.
 
 The full architecture and protocol contract is in `docs/rashin.md` in the Ryoku
 source tree.
@@ -29,8 +36,10 @@ source tree.
 - `rashin <question>` asks from a terminal.
 - Ryoku Hub > Rashin turns the system on or off.
 
-All clients use the daemon's Unix socket. There is no web dashboard and no
-loopback HTTP port.
+All clients use the daemon's Unix socket. There is no web dashboard. The one
+port Rashin can open is its local API, which serves the router to other
+programs and stays closed until you turn it on in Rashin > Settings > Local API
+or with `rashin api on`.
 
 ## Models and harnesses
 
