@@ -16,6 +16,9 @@ The bar has no close key of its own; press `Super+Shift+G` again, or use the
 same shortcut from the keybind catalogue (`ryoku-shell gamebar` toggles it from
 a terminal).
 
+Nothing of the bar exists while it is closed and no card is pinned: the shortcut
+builds the surface, and closing it tears the surface down once the fade ends.
+
 ## The strip
 
 The strip is centred at the top of the screen. Each button shows one widget;

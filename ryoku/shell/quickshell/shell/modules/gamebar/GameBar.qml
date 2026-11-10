@@ -438,6 +438,8 @@ PanelWindow {
     // pointer back at once while the strip may still be fading out. A pinned
     // card left after close takes nothing.
     readonly property bool takingInput: win.wanted && GameBarStore.open
+    // the loader keeps the surface through a fade and a recording it must restore
+    readonly property bool holding: win.live || win.recordingCycle || win.suppressed
 
     screen: modelData
     visible: win.live && !win.suppressed

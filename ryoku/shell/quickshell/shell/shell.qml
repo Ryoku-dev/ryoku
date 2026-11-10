@@ -269,10 +269,15 @@ ShellRoot {
                 dockLaneCenter: dockLoader.item ? dockLoader.item.bandCenter : 0
             }
 
-            // The Game Bar: a passive Overlay surface per output. The store
-            // decides whether this monitor is the one showing it.
-            GameBar {
-                modelData: perScreen.modelData
+            // nothing of the Game Bar exists while it is closed with no pins
+            LazyLoader {
+                id: gameBarLoader
+                activeAsync: (Config.gamebar.enabled
+                        && (GameBarStore.open || GameBarStore.asList(GameBarStore.pinned).length > 0))
+                    || (gameBarLoader.item ? gameBarLoader.item.holding : false)
+                GameBar {
+                    modelData: perScreen.modelData
+                }
             }
 
             LazyLoader {
