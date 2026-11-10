@@ -773,7 +773,8 @@ quiet. `tests/ryoku-discord.sh` builds every kind of message offline.
   theme, the shipped boot configs and lockscreen bundle, Wayfire's baseline
   config, portal routing, window-decoration plugin and plugin metadata (a
   checkout box has no Wayfire variant package), the boot hook, the modules-load
-  and udev rules, the default-apps mimeapps map, and the logind lid-switch
+  and udev rules, the default-apps mimeapps map, the keyring's D-Bus
+  environment drop-in and Secret Service override, and the logind lid-switch
   drop-in `/etc/systemd/logind.conf.d/10-ryoku-lid.conf`. An unowned
   copy collides with the package on the next transaction ("exists in
   filesystem") and aborts the whole atomic `-Syu`, so every ryoku pacman
@@ -783,7 +784,10 @@ quiet. `tests/ryoku-discord.sh` builds every kind of message offline.
   the same paths on a box already wedged (`reconcileConflictingRyokuFiles`,
   `ryokuSystemGlobs` -- the glob itself, split). Either way the package adopts
   the path and later updates own it normally; `deploy.sh` keeps its own copy of
-  the list (`_rovw`) in sync.
+  the list (`_rovw`) in sync. A plain `sudo pacman -Syu` passes no glob, so on
+  a box with `ryoku-desktop` installed `deploy.sh` lays a new path through
+  `_desktop_install` only once the installed package owns it, and clears an
+  unowned copy an earlier deploy left; the package upgrade brings the file.
 - **Generated power policy and long-running helpers must be adopted as one live
   transaction.** `hypridle.conf` is rendered state, not materialized payload,
   and a running shell-script daemon keeps executing its old file after the

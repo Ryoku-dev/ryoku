@@ -1,6 +1,9 @@
 # Ryoku CLI Changelog
 
 ## Unreleased
+- **Updates adopt the keyring's D-Bus files left behind by a deploy.** The
+  update overwrite list and the doctor's stray cleanup now cover
+  `/usr/lib/environment.d` and the Secret Service override.
 - **Doctor recognizes the shell's own visualizer and file watchers.** Memory
   checks no longer report those helpers as user apps left inside the desktop
   service (`internal/doctor/memory.go`).

@@ -733,7 +733,8 @@ func unownedFiles(paths []string) []string {
 // drop-in names, the shipped boot configs under /usr/share/ryoku/boot, the
 // Wayfire plugin and its metadata, the logind lid-switch drop-in, the boot hook,
 // the uinput modules-load drop-in, the backlight udev rule, the lockscreen
-// greeter bundle, and the default-apps mimeapps map. Every ryoku-desktop
+// greeter bundle, the default-apps mimeapps map, and the keyring's D-Bus
+// environment drop-in and Secret Service override. Every ryoku-desktop
 // (re)install --overwrites these, or the first upgrade that starts owning a
 // seeded path aborts the whole transaction
 // ("exists in filesystem") and blocks every update until the files are removed
@@ -755,7 +756,9 @@ const RyokuOverwriteGlob = "/usr/bin/ryoku-*," +
 	"/etc/boot/hooks/post.d/*ryoku*," +
 	"/etc/modules-load.d/*ryoku*," +
 	"/usr/lib/udev/rules.d/*ryoku*.rules," +
-	"/usr/local/share/applications/mimeapps.list"
+	"/usr/local/share/applications/mimeapps.list," +
+	"/usr/lib/environment.d/*ryoku*," +
+	"/usr/share/ryoku/xdg/dbus-1/services/*"
 
 // systemUpgradeArgs is the user's lane, run only by `ryoku update --system`:
 // the full sysupgrade, kernel included, exactly what `sudo pacman -Syu` does

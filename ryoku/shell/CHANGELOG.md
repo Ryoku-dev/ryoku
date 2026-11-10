@@ -12,6 +12,10 @@
 - **QS Bar's GPU widget stays on NVIDIA cards that report a decimal
   temperature.** Newer drivers print readings like `42.67`, which the telemetry
   check refused, so the widget vanished; decimals are accepted now (#769).
+- **A plain `sudo pacman -Syu` no longer stops on the keyring files.** A deploy
+  on a box with the Ryoku package left the D-Bus drop-in and Secret Service
+  override unowned, so the next upgrade refused them; deploy now leaves both to
+  the package and clears the copies an earlier deploy left.
 - **Windows reach the Shima dock again.** Under the Shima bar style the frame and
   the dock both reserved the dock's band, which left a dock-tall gap between
   windows and the dock. The frame's reservation is now the only one there.
