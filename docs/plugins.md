@@ -458,7 +458,10 @@ them from `Theme`. The vermillion accent is the one accent - use it sparingly.
 
 Your **settings are not QML** - you declare them as a `metadata.settings` schema
 in the manifest (below) and Ryoku renders native controls for them, both in
-Ryoku Settings and in the desktop widget's right-click menu.
+Ryoku Settings and in the desktop widget's right-click menu. The tile menu draws
+`choice` (chips), `toggle`, `slider`, `int` (a stepper with `min`/`max` and an
+optional `step`) and `image`; a `text` field is edited in Ryoku Settings only,
+and a group made only of text fields shows no header in the menu.
 
 ---
 

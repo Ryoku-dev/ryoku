@@ -93,6 +93,12 @@ Item {
             Behavior on yScale { NumberAnimation { duration: Theme.quick; easing.type: Theme.ease } }
         }
 
+        // a press on blank card space must not reach the click-away catcher
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+        }
+
         // masthead eyebrow: the route's kanji gloss, its tracked Latin scope, and
         // a hairline leader running to the card edge. Pinned above the scroller.
         Row {
