@@ -6,6 +6,9 @@
   backslash Ask creates the same client only when used, and pinned answers stay
   readable without a background connection (`quickshell/shell/modules/ask/`,
   `quickshell/shell/modules/launcher/shared/AskPanel.qml`).
+- **Notification toasts stop feeding their own layout.** The popup list no longer sizes
+  itself from its cards or re-lays out on every resize, and the countdown frame no longer
+  repaints a canvas each frame. Image toasts hold their thumbnail's room while it loads.
 - **Power Saver now trims laptop display power on battery.** The daemon lowers
   keyboard and screen backlights and asks built-in panels for about 60 Hz, then
   restores values the user did not change. The new `output.refresh` WM action
