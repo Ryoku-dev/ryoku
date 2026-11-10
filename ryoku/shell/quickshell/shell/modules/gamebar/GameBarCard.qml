@@ -5,9 +5,9 @@ import shell.services
 import "../../components"
 import "look"
 
-// end-4's StyledOverlayWidget: an 8px grab margin, an 18px panel with a 1px
-// outline, a 30px title bar and a 12px content area. The widget drags from its
-// surface; the body is the default property.
+// The card frame: an 8px grab margin, an 18px panel with a 1px outline, a
+// 30px title bar and a 12px content area. The widget drags from its surface;
+// the body is the default property.
 Item {
     id: root
 
