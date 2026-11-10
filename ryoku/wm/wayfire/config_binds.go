@@ -53,7 +53,7 @@ var wayfireKeys = map[string]string{
 
 	"XF86AudioRaiseVolume": "KEY_VOLUMEUP", "XF86AudioLowerVolume": "KEY_VOLUMEDOWN",
 	"XF86AudioMute": "KEY_MUTE", "XF86AudioMicMute": "KEY_MICMUTE",
-	"XF86AudioPlay": "KEY_PLAYPAUSE",
+	"XF86AudioPlay": "KEY_PLAYPAUSE", "XF86AudioPause": "KEY_PAUSECD",
 	"XF86AudioNext": "KEY_NEXTSONG", "XF86AudioPrev": "KEY_PREVIOUSSONG",
 	"XF86MonBrightnessUp": "KEY_BRIGHTNESSUP", "XF86MonBrightnessDown": "KEY_BRIGHTNESSDOWN",
 	"XF86TouchpadToggle": "KEY_TOUCHPAD_TOGGLE",
@@ -327,7 +327,8 @@ func shippedBinds() map[string]wayfireBind {
 		"media.volumeDown": {key: "media_volume_down", cmd: "ryoku-volume down", repeatable: true},
 		"media.mute":       {key: "media_mute", cmd: "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle", always: true},
 		"media.micMute":    {key: "media_mic_mute", cmd: "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle", always: true},
-		"media.play":       {key: "media_play", cmd: "playerctl play-pause", always: true},
+		"media.play":       {key: "media_play", cmd: "ryoku-media play-pause", always: true, extra: "KEY_PLAYCD"},
+		"media.pause":      {key: "media_pause", cmd: "ryoku-media play-pause", always: true},
 		"media.next":       {key: "media_next", cmd: "playerctl next", always: true},
 		"media.prev":       {key: "media_prev", cmd: "playerctl previous", always: true},
 

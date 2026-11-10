@@ -236,6 +236,7 @@ var catalogue = []CatalogBind{
 	{ID: "media.mute", Category: "Media", Label: "Mute", Chord: "XF86AudioMute", Kind: BindShell, Locked: true},
 	{ID: "media.micMute", Category: "Media", Label: "Mute microphone", Chord: "XF86AudioMicMute", Kind: BindShell, Locked: true},
 	{ID: "media.play", Category: "Media", Label: "Play or pause", Chord: "XF86AudioPlay", Kind: BindShell, Locked: true},
+	{ID: "media.pause", Category: "Media", Label: "Play or pause", Chord: "XF86AudioPause", Kind: BindShell, Locked: true},
 	{ID: "media.next", Category: "Media", Label: "Next track", Chord: "XF86AudioNext", Kind: BindShell, Locked: true},
 	{ID: "media.prev", Category: "Media", Label: "Previous track", Chord: "XF86AudioPrev", Kind: BindShell, Locked: true},
 
@@ -380,6 +381,7 @@ var displayNames = map[string]string{
 	"XF86AudioMute":         "Mute",
 	"XF86AudioMicMute":      "Mic mute",
 	"XF86AudioPlay":         "Play",
+	"XF86AudioPause":        "Pause",
 	"XF86AudioNext":         "Next",
 	"XF86AudioPrev":         "Prev",
 	"XF86MonBrightnessUp":   "Brightness +",

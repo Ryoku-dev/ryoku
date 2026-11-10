@@ -25,6 +25,9 @@
   (`modules/binds.lua`, `modules/ryoshot.lua`).
 
 ### Fixed
+- **Headphone pause works on the first tap.** The pause media key is bound on
+  Hyprland, niri and Wayfire, and play and pause both go through
+  `ryoku-media`, so a tap that sends both keys toggles once (#764).
 - **Translucent tiled windows blur again.** The default near-opaque tiles keep
   their cheaper path while lower opacity from the Hub restores blur.
 - **Hyprland 0.57 desktops keep drawing on older Intel and NVIDIA displays.**

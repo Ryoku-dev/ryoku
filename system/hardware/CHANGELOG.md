@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Added
+- `audio/ryoku-media`: **one toggle per media tap.** Runs `playerctl` and drops
+  a second call within 200 ms, for headphones that send play and pause together.
 - `display/ryoku-monitor`: **a hand-entered resolution is forced, not ignored.**
   When a layout carries a `WxH@rate` mode the panel does not advertise (the Hub's
   new Displays "Custom…" entry), `apply`/`save` generate a CVT reduced-blanking
