@@ -1,6 +1,11 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **QS Bar's Wi-Fi panel asks again when a saved password fails.** A saved
+  network whose secret was wrong failed silently on every tap. It now reopens
+  the password prompt ("Wrong password, or a different network with the same
+  name?"), a new passphrase replaces the stale profile, and a failed or timed-out
+  attempt empties the field (`barstyles/qsbar/panels/`).
 - **A dual-band Wi-Fi network shows once in the bar.** The list had a row per
   network and band, so the same name could appear twice. It now has one row per
   name, the strongest signal standing for it, and a join leaves the band to

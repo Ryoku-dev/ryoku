@@ -401,12 +401,24 @@ PanelWindow {
             return
 
         var name = network.name || ""
-        if (name !== nmPasswordSsid)
+        if (name !== nmPasswordSsid) {
+            // a saved passphrase network whose secret failed would otherwise
+            // retry it on every tap; ask again unless it just went out of range
+            if (!nmAdapterReady || nmAdapter.item.isOutOfRange(reason))
+                return
+            if (nmAdapter.item.securityName(network) !== "psk")
+                return
+            beginNmPassword({ ssid: name, network: network })
+            nmConnectionError = I18n.tr("Wrong password, or a different network with the same name?")
             return
+        }
 
         nmConnecting = false
         nmConnectTimeout.stop()
         nmConnectionError = I18n.tr("Connection failed")
+        // empty the field so the next password isn't typed onto the rejected one
+        nmPasswordText = ""
+        nmPasswordInput.text = ""
         Qt.callLater(function() {
             if (nmPasswordInput.visible)
                 nmPasswordInput.forceActiveFocus()
@@ -1529,6 +1541,8 @@ PanelWindow {
 
             netPanel.nmConnecting = false
             netPanel.nmConnectionError = I18n.tr("Connection timed out")
+            netPanel.nmPasswordText = ""
+            nmPasswordInput.text = ""
             Qt.callLater(function() {
                 if (nmPasswordInput.visible)
                     nmPasswordInput.forceActiveFocus()
