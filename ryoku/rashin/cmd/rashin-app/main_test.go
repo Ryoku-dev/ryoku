@@ -76,3 +76,19 @@ func TestParseRouteTargetSupportsNewAskAndAgentBoard(t *testing.T) {
 		t.Fatalf("agent board route = %#v", board)
 	}
 }
+
+func TestASessionNamedAloneOpensInItsOwnTab(t *testing.T) {
+	for _, check := range []struct {
+		route, tab, session, want string
+	}{
+		{session: "agent-20261110-171755-5b30", want: protocol.TabAgent},
+		{session: "ask-20261110-094200-a17c", want: protocol.TabAsk},
+		{session: "agent-20261110-171755-5b30", tab: protocol.TabAsk, want: protocol.TabAsk},
+		{route: "agent", want: protocol.TabAgent},
+		{want: ""},
+	} {
+		if got := launchTarget(check.route, check.tab, check.session, "", "", "").tab; got != check.want {
+			t.Errorf("route %q tab %q session %q opens tab %q, want %q", check.route, check.tab, check.session, got, check.want)
+		}
+	}
+}

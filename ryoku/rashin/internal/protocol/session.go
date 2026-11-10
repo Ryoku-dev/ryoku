@@ -13,6 +13,18 @@ const (
 	KindAgent SessionKind = "agent"
 )
 
+// KindOfSession reads the kind out of a session id. Ids are
+// <kind>-<yyyymmdd>-<hhmmss>-<4 hex>, so the kind is known before anything
+// else about the session is.
+func KindOfSession(id string) (SessionKind, bool) {
+	for _, kind := range []SessionKind{KindAsk, KindAgent} {
+		if len(id) > len(kind) && id[:len(kind)] == string(kind) && id[len(kind)] == '-' {
+			return kind, true
+		}
+	}
+	return "", false
+}
+
 // SessionState is where a session stands right now.
 type SessionState string
 

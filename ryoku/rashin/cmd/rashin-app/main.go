@@ -55,10 +55,7 @@ func execute() (int, error) {
 			return 2, err
 		}
 	}
-	target := applyLaunchTarget(parseRouteTarget(*route), *tab, *session, *project, *view, *worktree)
-	if *route == "" && *tab == "" && *session == "" && *project == "" {
-		target.tab = ""
-	}
+	target := launchTarget(*route, *tab, *session, *project, *view, *worktree)
 	shots, err := parseShots(*shotText)
 	if err != nil {
 		return 2, err
@@ -125,6 +122,23 @@ func exitAfterShell(options shell.Options, lock *state.AppLock) {
 type routeTarget struct {
 	tab, session, project, workTab, worktree string
 	settingsSection                          string
+}
+
+// launchTarget is the place the flags name. With no flag the place is left to
+// the app, which goes back to where it was. A session named alone opens in the
+// tab its kind lives in: an agent session used to open as an empty ask.
+func launchTarget(route, tab, session, project, view, worktree string) routeTarget {
+	target := applyLaunchTarget(parseRouteTarget(route), tab, session, project, view, worktree)
+	switch {
+	case route != "" || tab != "" || project != "":
+	case session == "":
+		target.tab = ""
+	default:
+		if kind, ok := protocol.KindOfSession(session); ok && kind == protocol.KindAgent {
+			target.tab = protocol.TabAgent
+		}
+	}
+	return target
 }
 
 func applyLaunchTarget(target routeTarget, tab, session, project, view, worktree string) routeTarget {

@@ -382,7 +382,8 @@ func (s *uiShell) applyFocus(e *env.Env) {
 	tab := focus.Tab
 	if tab == "" {
 		tab = protocol.TabAsk
-		if info, ok := e.Snapshot().Sessions[focus.Session]; ok && info.Kind == protocol.KindAgent {
+		// the id says the kind, also for a session the list has not heard of yet
+		if kind, ok := protocol.KindOfSession(focus.Session); ok && kind == protocol.KindAgent {
 			tab = protocol.TabAgent
 		}
 	}

@@ -606,7 +606,7 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 		if err != nil {
 			return nil, err
 		}
-		return protocol.UIOpenResult{Delivered: d.focusApps(p)}, nil
+		return protocol.UIOpenResult{Delivered: d.focusApps(d.openTarget(p))}, nil
 	case protocol.MProjectsAdd:
 		if d.deps.Work == nil {
 			return nil, protocol.Errorf(protocol.CodeUnavailable, "%s", i18n.T("Work is not available."))
@@ -835,6 +835,22 @@ func (d *Daemon) broadcastProviders(ctx context.Context) {
 	if p, err := d.deps.Gateway.Providers(ctx); err == nil {
 		d.Broadcast(protocol.EvtProvidersChanged, protocol.ProvidersResult{Providers: p})
 	}
+}
+
+// openTarget completes a request that names only a session with the tab that
+// session lives in. The caller means "show it", and the daemon is the one that
+// knows where: the app may not have heard of the session yet, and guessed Ask.
+func (d *Daemon) openTarget(p protocol.UIOpenParams) protocol.UIOpenParams {
+	if p.Tab != "" || p.Session == "" {
+		return p
+	}
+	if info, ok := d.manager.Info(p.Session); ok {
+		p.Tab = protocol.TabAsk
+		if info.Kind == protocol.KindAgent {
+			p.Tab = protocol.TabAgent
+		}
+	}
+	return p
 }
 
 func (d *Daemon) focusApps(p protocol.UIOpenParams) bool {

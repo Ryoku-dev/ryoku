@@ -93,6 +93,8 @@
 - **An answer no longer offers a folder as a command.** Naming `/proc` or
   `/dev/null` in passing made buttons that opened or ran them
   (`rashin/internal/ask/answer.go`).
+- **Opening an agent session by its id opens it in Agents.** `rashin-app
+  --session <id>` and `rashin open --session <id>` showed it as an empty ask.
 - **Ryotunes picks floating or tiled itself.** Its own setting decides on niri
   and Hyprland alike, and its mini player always floats, so the desktop no
   longer forces a floating rule on it (`wm/niri/config_rules.go`,
