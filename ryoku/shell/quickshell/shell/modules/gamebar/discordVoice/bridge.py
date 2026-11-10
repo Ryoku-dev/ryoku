@@ -92,14 +92,20 @@ class VoiceBridge:
         return str(self.nonce)
 
     async def send_frame(self, payload: dict[str, Any], opcode: int = FRAME) -> bool:
-        if not self.writer or self.writer.is_closing():
+        writer = self.writer
+        if not writer or writer.is_closing():
             return False
         body = json.dumps(payload).encode()
-        self.writer.write(struct.pack("<II", opcode, len(body)) + body)
+        writer.write(struct.pack("<II", opcode, len(body)) + body)
         try:
-            await asyncio.wait_for(self.writer.drain(), NATIVE_WRITE_TIMEOUT)
+            await asyncio.wait_for(writer.drain(), NATIVE_WRITE_TIMEOUT)
         except (asyncio.TimeoutError, OSError):
-            self.close_native()
+            # The drain yields: a companion can take over or a reconnect can
+            # replace the socket meanwhile. Close the writer that failed, and
+            # clear the bridge's state only when it is still the current one.
+            writer.close()
+            if self.writer is writer:
+                self.close_native()
             return False
         return True
 
