@@ -742,6 +742,19 @@ func (c *acpConn) ListSessions() []SessionMeta {
 	return list
 }
 
+// RenameSession retitles a stored session. ACP has no rename, so only agents
+// with their own session store can do it.
+func (c *acpConn) RenameSession(id, title string) error {
+	title = strings.Join(strings.Fields(title), " ")
+	if title == "" {
+		return errors.New("a session needs a title")
+	}
+	if c.backend() != "hermes" {
+		return errors.New("this agent cannot rename sessions")
+	}
+	return renameHermesSession(id, title)
+}
+
 func mergeHermesSessions(agent, stored []SessionMeta) []SessionMeta {
 	if len(stored) == 0 {
 		return agent
