@@ -95,9 +95,17 @@ func (f *fakeWork) Close() error { return nil }
 type fakeIndexer struct {
 	added              []protocol.IndexAddParams
 	conflictAfterFirst bool
+
+	mu        sync.Mutex
+	indexes   []protocol.IndexInfo
+	refreshed []protocol.IndexRef
 }
 
-func (f *fakeIndexer) List(context.Context) ([]protocol.IndexInfo, error) { return nil, nil }
+func (f *fakeIndexer) List(context.Context) ([]protocol.IndexInfo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]protocol.IndexInfo(nil), f.indexes...), nil
+}
 func (f *fakeIndexer) Add(_ context.Context, p protocol.IndexAddParams) (protocol.IndexInfo, error) {
 	f.added = append(f.added, p)
 	if f.conflictAfterFirst && len(f.added) > 1 {
@@ -106,7 +114,10 @@ func (f *fakeIndexer) Add(_ context.Context, p protocol.IndexAddParams) (protoco
 	return protocol.IndexInfo{Root: p.Path, Name: p.Name}, nil
 }
 func (f *fakeIndexer) Remove(context.Context, protocol.IndexRef) error { return nil }
-func (f *fakeIndexer) Refresh(context.Context, protocol.IndexRef) (protocol.IndexInfo, error) {
+func (f *fakeIndexer) Refresh(_ context.Context, ref protocol.IndexRef) (protocol.IndexInfo, error) {
+	f.mu.Lock()
+	f.refreshed = append(f.refreshed, ref)
+	f.mu.Unlock()
 	return protocol.IndexInfo{}, nil
 }
 func (f *fakeIndexer) Status(context.Context, protocol.IndexRef) (protocol.IndexInfo, error) {

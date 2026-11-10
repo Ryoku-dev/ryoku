@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"ryoku-rashin/internal/brief"
 	"ryoku-rashin/internal/llm"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
@@ -55,7 +56,9 @@ func (f *Factory) systemPrompt(settings protocol.Settings, terminal *protocol.Te
 	var b strings.Builder
 	b.WriteString(askIdentity(mode))
 	b.WriteString("\n\n# Ryoku vault\n\n")
-	b.WriteString(vaultContext(vaultBudgetBytes))
+	b.WriteString(brief.Vault(vaultBudgetBytes))
+	b.WriteString("\n\n# Rashin\n\n")
+	b.WriteString(brief.Rashin())
 	if settings.Ask.Habits {
 		b.WriteString("\n\n# User habits\n\n")
 		b.WriteString(f.habits.summary())
@@ -77,46 +80,6 @@ func (f *Factory) systemPrompt(settings protocol.Settings, terminal *protocol.Te
 		fmt.Fprintf(&b, "- buffer plan requested: %t\n", terminal.Buffer)
 	}
 	return b.String()
-}
-
-func vaultContext(budget int) string {
-	root := paths.VaultDir()
-	if _, err := os.Stat(root); err != nil {
-		root = paths.LegacyVaultDir()
-	}
-	remaining := budget
-	var b strings.Builder
-	for _, name := range []string{"AGENTS.md", "desktop.md"} {
-		if remaining <= 0 {
-			break
-		}
-		body, err := readAtMost(filepath.Join(root, name), remaining)
-		if err != nil {
-			continue
-		}
-		fmt.Fprintf(&b, "## %s\n%s\n\n", name, strings.TrimSpace(body))
-		remaining -= len(body)
-	}
-	if b.Len() == 0 {
-		b.WriteString("The Ryoku vault is not available yet. Use read-only tools for live facts.\n")
-	}
-	return strings.TrimSpace(b.String())
-}
-
-func readAtMost(path string, limit int) (string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-	body, err := io.ReadAll(io.LimitReader(file, int64(limit)+1))
-	if err != nil {
-		return "", err
-	}
-	if len(body) > limit {
-		return string(body[:limit]) + "\n[trimmed]", nil
-	}
-	return string(body), nil
 }
 
 type habitCache struct {

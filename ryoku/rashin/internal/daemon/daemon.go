@@ -58,6 +58,8 @@ func New(deps Deps) *Daemon {
 	}
 	d := &Daemon{deps: deps, started: time.Now(), clients: make(map[*connection]struct{}), events: events, stop: make(chan struct{})}
 	d.manager = newSessionManager(deps.Asker, deps.Harnesses, deps.Work, d.Settings, d.Broadcast, d.stateChanged, d.warn)
+	d.manager.brief = d.agentBrief
+	d.manager.prepare = d.indexSession
 	if deps.Work != nil {
 		deps.Work.Bind(d.manager)
 	}

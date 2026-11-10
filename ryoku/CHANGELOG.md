@@ -36,6 +36,13 @@
 - **A waiting agent can be answered from the keyboard.** With nothing typed,
   Enter allows once and Escape refuses, and the composer says so. Words in the
   field are still a message (`rashin/internal/app/chat/permission.go`).
+- **Every Rashin request knows where it runs.** Ask is told what Rashin is and
+  how it is reached, and an agent hears before its first prompt that it runs
+  on Ryoku, where the vault is, and that its folder has a built-in code search
+  with the commands to use it (`rashin/internal/brief`).
+- **The folder an agent works in is indexed by itself.** Starting a session in
+  a repository registers and refreshes its index, so `rashin search` answers
+  there at once, by meaning too (`rashin/internal/daemon/brief.go`).
 - **`ryoku-app` hands a target to any role.** `ryoku-app files -- ~/Work` opens
   the chosen file manager at that folder (`shell/scripts/ryoku-app`).
 - **Prowl and the Rashin 1 lanes are removed.** Rashin no longer carries the

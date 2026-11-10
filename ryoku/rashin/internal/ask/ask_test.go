@@ -495,3 +495,30 @@ func TestDoctorSingleFlightWaitRespectsContext(t *testing.T) {
 		t.Fatalf("first doctor failed: %v", err)
 	}
 }
+
+// Every ask is told the three things it cannot work out: what Ryoku and its
+// vault are, and what Rashin, the system it runs in, is and how it is reached.
+func TestAskIsToldAboutRyokuTheVaultAndRashin(t *testing.T) {
+	client := &scriptedClient{streams: []*scriptedStream{finalStream(llm.Delta{Text: "Hello."})}}
+	runner := testRunner(t, client)
+	vault := filepath.Join(os.Getenv("XDG_DATA_HOME"), "ryoku", "vault")
+	if err := os.MkdirAll(vault, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(vault, "AGENTS.md"), []byte("Read desktop.md before searching."), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runner.Prompt(context.Background(), core.PromptInput{Turn: 1, Text: "What is Rashin?"}, &recordingSink{}); err != nil {
+		t.Fatal(err)
+	}
+	prompt := client.calls[0].Messages[0].Content
+	for _, want := range []string{
+		"on a Ryoku Linux desktop",
+		"# Ryoku vault", "Read desktop.md before searching.",
+		"# Rashin", "Rashin is Ryoku's optional assistant", "rashin search", "Rashin > Settings > Providers",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Errorf("the prompt does not say %q", want)
+		}
+	}
+}

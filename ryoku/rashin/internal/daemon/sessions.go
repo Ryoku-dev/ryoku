@@ -59,6 +59,10 @@ type sessionManager struct {
 	broadcast func(string, any)
 	changed   func()
 	warn      func(string, ...any)
+	// brief is what an agent session is told ahead of its first prompt, and
+	// prepare readies its folder; the daemon sets both, tests leave them nil
+	brief   func(protocol.SessionInfo) string
+	prepare func(protocol.SessionInfo)
 }
 
 func newSessionManager(asker core.Asker, harnesses core.Harnesses, work core.Work, settings func() protocol.Settings, broadcast func(string, any), changed func(), warn func(string, ...any)) *sessionManager {
@@ -443,7 +447,14 @@ func (m *sessionManager) ensureRunner(ctx context.Context, s *managedSession) (c
 		if info.Kind == protocol.KindAsk {
 			runner = m.asker.NewAsk(core.AskOptions{Session: info, Settings: m.settings})
 		} else {
-			runner, err = m.harnesses.NewAgent(ctx, core.HarnessOptions{Session: info, Harness: harness, Cwd: info.Cwd, Approvals: func() string { return m.settings().Agent.Approvals }, Resume: resume})
+			options := core.HarnessOptions{Session: info, Harness: harness, Cwd: info.Cwd, Approvals: func() string { return m.settings().Agent.Approvals }, Resume: resume}
+			if m.brief != nil {
+				options.Brief = func() string { return m.brief(s.log.Info()) }
+			}
+			runner, err = m.harnesses.NewAgent(ctx, options)
+			if err == nil && m.prepare != nil {
+				go m.prepare(info)
+			}
 		}
 		var alive bool
 		var state json.RawMessage

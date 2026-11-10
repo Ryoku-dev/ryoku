@@ -421,7 +421,7 @@ func runFakeAgent(mode string) {
 		}
 		switch message.Method {
 		case "initialize":
-			load := mode == "resume-load" || mode == "capabilities" || mode == "load-replay" || mode == "generation"
+			load := mode == "resume-load" || mode == "capabilities" || mode == "load-replay" || mode == "generation" || mode == "echo-load"
 			promptCapabilities := map[string]bool{"image": mode != "echo-no-pictures"}
 			if mode == "capabilities" {
 				promptCapabilities["audio"] = true
@@ -470,7 +470,7 @@ func runFakeAgent(mode string) {
 			prompts++
 			promptID = append(json.RawMessage(nil), message.ID...)
 			switch mode {
-			case "echo", "echo-no-pictures":
+			case "echo", "echo-no-pictures", "echo-load":
 				var params struct {
 					Prompt json.RawMessage `json:"prompt"`
 				}

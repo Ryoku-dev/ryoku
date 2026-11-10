@@ -89,6 +89,9 @@ type HarnessOptions struct {
 	Harness   string
 	Cwd       string
 	Approvals func() string
+	// Brief is what the agent is told about where it runs: Ryoku, the vault,
+	// Rashin and this session. It is sent once, ahead of the first prompt.
+	Brief func() string
 	// Resume is the State a previous runner of this session returned.
 	Resume json.RawMessage
 }

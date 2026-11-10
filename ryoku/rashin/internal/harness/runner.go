@@ -31,6 +31,8 @@ type resumeState struct {
 	ACPSession string `json:"acpSession"`
 	Load       bool   `json:"loadSession"`
 	Generation uint64 `json:"generation,omitempty"`
+	// Briefed is the agent session that was already told where it runs.
+	Briefed string `json:"briefed,omitempty"`
 }
 
 type permissionRequest struct {
@@ -78,6 +80,7 @@ type runner struct {
 	options       []protocol.SessionOption
 	model         string
 	mode          string
+	briefed       string
 	usage         *protocol.TokenUsage
 	turnCancelled bool
 
@@ -123,6 +126,7 @@ func newRunner(opts core.HarnessOptions, argv []string, options ...runnerOption)
 	var resume resumeState
 	if json.Unmarshal(opts.Resume, &resume) == nil {
 		r.generation = resume.Generation
+		r.briefed = resume.Briefed
 	}
 	for _, option := range options {
 		option(r)
@@ -143,8 +147,17 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 	conn := r.conn
 	r.usage = nil
 	r.turnCancelled = false
+	briefed := r.briefed == sessionID
+	r.briefed = sessionID
 	r.mu.Unlock()
-	blocks := make([]map[string]any, 0, len(in.Images)+1)
+	blocks := make([]map[string]any, 0, len(in.Images)+2)
+	// an agent session hears where it runs once, ahead of its first prompt;
+	// one the agent loaded back already has it in its own history
+	if !briefed && r.opts.Brief != nil {
+		if brief := r.opts.Brief(); brief != "" {
+			blocks = append(blocks, map[string]any{"type": "text", "text": brief})
+		}
+	}
 	if in.Text != "" {
 		blocks = append(blocks, map[string]any{"type": "text", "text": in.Text})
 	}
@@ -415,7 +428,7 @@ func (r *runner) Alive() bool {
 
 func (r *runner) State() json.RawMessage {
 	r.mu.Lock()
-	state := resumeState{ACPSession: r.sessionID, Load: r.loadSession, Generation: r.generation}
+	state := resumeState{ACPSession: r.sessionID, Load: r.loadSession, Generation: r.generation, Briefed: r.briefed}
 	if state.ACPSession == "" && len(r.opts.Resume) != 0 {
 		_ = json.Unmarshal(r.opts.Resume, &state)
 	}

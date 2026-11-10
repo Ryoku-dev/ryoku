@@ -388,6 +388,22 @@ func readWiki(page string) (string, error) {
 	return "", fmt.Errorf(i18n.T("Wiki page %q was not found. Available pages: %s"), page, strings.Join(pages, ", "))
 }
 
+func readAtMost(path string, limit int) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	body, err := io.ReadAll(io.LimitReader(file, int64(limit)+1))
+	if err != nil {
+		return "", err
+	}
+	if len(body) > limit {
+		return string(body[:limit]) + "\n[trimmed]", nil
+	}
+	return string(body), nil
+}
+
 func proposedPlan(raw string) (*protocol.CommandPlan, error) {
 	var args struct {
 		Summary  string `json:"summary"`
