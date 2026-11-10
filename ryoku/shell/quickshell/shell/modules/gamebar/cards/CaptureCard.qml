@@ -65,21 +65,24 @@ GameBarCard {
                 }
 
                 Text {
-                    text: Recorder.anyActive ? Recorder.elapsedText : I18n.tr("Idle")
-                    color: Recorder.anyActive ? GameBarLook.accent : GameBarLook.fg
+                    text: Recorder.countingDown
+                        ? I18n.tr("Starting in %1").arg(Recorder.countdownSec)
+                        : (Recorder.anyActive ? Recorder.elapsedText : I18n.tr("Idle"))
+                    color: Recorder.anyActive || Recorder.countingDown ? GameBarLook.accent : GameBarLook.fg
                     font.family: GameBarLook.face
                     font.pixelSize: GameBarLook.huge * card.s
                 }
 
                 GameBarTextButton {
                     s: card.s
-                    label: Recorder.anyActive ? I18n.tr("Stop") : I18n.tr("Record")
-                    primary: !Recorder.anyActive
-                    danger: Recorder.anyActive
+                    label: Recorder.countingDown ? I18n.tr("Cancel")
+                        : (Recorder.anyActive ? I18n.tr("Stop") : I18n.tr("Record"))
+                    primary: !Recorder.anyActive && !Recorder.countingDown
+                    danger: Recorder.anyActive || Recorder.countingDown
                     onClicked: {
                         if (!card.host)
                             return;
-                        if (Recorder.anyActive)
+                        if (Recorder.anyActive || Recorder.countingDown)
                             Recorder.stop();
                         else
                             card.host.startRecording();

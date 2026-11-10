@@ -698,12 +698,24 @@ PanelWindow {
         // itself as soon as the recorder is actually active.
         win.sawSelecting = false;
         win.suppressed = true;
+        // A shot taken during a take must not put the bar back into the rest of
+        // the recording. Hold it until the take ends; opening the bar again is
+        // the explicit request to show it.
+        if (win.recordingCycle) {
+            win.hidingForRecording = true;
+            if (GameBarStore.open)
+                GameBarStore.closeBar();
+        }
         Capture.shoot(mode);
         if (mode === "all" || Capture.selecting === "")
             win.restoreAfter(Capture.delay * 1000 + 800);
     }
 
     function startRecording() {
+        if (Recorder.anyActive || Recorder.countingDown) {
+            Recorder.stop();
+            return;
+        }
         restoreDelay.stop();
         recordStartFallback.stop();
         const plan = Recording.begin(GameBarStore.open);
