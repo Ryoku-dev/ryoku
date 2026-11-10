@@ -361,6 +361,25 @@ scrolls. Send is the standing gold action of a conversation window. While a
 turn runs the same plaque is Stop, and with text in the field it offers to
 queue the message or steer the turn instead.
 
+**The choices in the composer's row** are quiet selects: the value itself and
+a small arrow, 32 high, with an icon only where the value alone would not say
+what it chooses. Each stands at its own width. When the row is too narrow for
+that, the hint line goes first, then the widest choices give way and cut
+their own labels; none is dropped. How far the conversation may go without
+asking is one of these choices, beside the model. The value that stops the
+asking is written in amber with an open lock, here and in every line that
+restates it: a state the reader has to see is never only a word inside a
+closed menu.
+
+**A list in a select.** A short list of plain names is a Menu. When an option
+needs a second line to be understood, the list shows it under the name in
+`caption` and lets it wrap: an explanation cut to an ellipsis explains
+nothing. From nine options on, a search field stands at the top and narrows
+the list as the reader types, Up, Down and Enter pick, and the list opens on
+the current choice with its check. The list is `stone4`, cut 8, 340 wide and
+at most 336 high before it scrolls; a row is 36 high, or as tall as its two
+lines with 8 above and below.
+
 The keyboard belongs to the composer. It has it when its page opens, and
 gets it back when a menu in its own row, the search field or a dialog closes,
 and after an action in the transcript such as copying an answer. Marked

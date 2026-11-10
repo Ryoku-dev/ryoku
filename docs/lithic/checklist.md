@@ -100,6 +100,10 @@ and in a light Ryoku palette and go down the list. Every "no" is a defect.
       keyboard leaves them.
 - [ ] A key answers a waiting request only from an empty composer, only for a
       request on screen, and the composer says which key does what.
+- [ ] A select with nine or more options is searched by typing, and an
+      option's second line wraps instead of being cut.
+- [ ] The choice that stops the asking shows in amber in the composer, not
+      only inside its menu.
 - [ ] Tab reaches every control; the ring shows only for keyboard focus; icon
       plaques have descriptions.
 - [ ] Polling and repainting stop for what is hidden.
