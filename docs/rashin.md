@@ -415,8 +415,8 @@ The Ask runner (`internal/ask`) is Rashin's own agent loop on the gateway.
   sentence-case prose, no em dashes.
 - **Tools** (read-only, at most 8 rounds per turn):
   `system_query` (a shell command that the command classifier rates
-  read-only; anything else is refused with the reason and "propose it
-  instead"),
+  read-only, given two minutes; in a read-only conversation anything else is
+  refused with the reason and "propose it instead"),
   `read_file` (bounded, refuses secrets: keys, tokens, credential stores,
   `~/.ssh`, browser profiles), `list_dir`, `search_system` (the system index),
   `search_code` (a project index), `read_wiki` (a vault wiki page),
@@ -440,13 +440,24 @@ The Ask runner (`internal/ask`) is Rashin's own agent loop on the gateway.
   password on a terminal Ask does not have, so they stay proposals. A
   read-only conversation is not handed either tool, and a model that calls
   one anyway is refused.
+  Once a conversation may act, the mode decides, not the tool the model
+  happened to pick. A `system_query` that is more than a read is cleared and
+  run like `run_command`, where it used to be turned down toward `propose`. A
+  `propose` whose commands all run as the user is handed back once with "run
+  them yourself", so the answer carries no plan; a plan that needs root, or a
+  second proposal, stands. A command that names a credential file or sweeps a
+  tree that holds them (`command.ReadsSecret`) never runs in any mode, since
+  what it prints is sent to the model.
 - **Command classifier**: tiers `read`, `write`, `system` (root or package
   manager), `danger` (destructive or irreversible). Wrappers, pipes, segments,
   redirects, substitutions and `find -exec` are classified by their worst part;
   `sudo`, `doas`, `pkexec`, `su`, `run0` are never read-only. Throwing a
   stream away (`2>/dev/null`, `&>/dev/null`) or copying one (`2>&1`) is not a
   write, `head -20` and `tail +3` count as the reads they are, and `~` alone
-  is the user's own home.
+  is the user's own home. `find -exec` and `xargs` are reads when what they
+  run only says something about each name (`du`, `ls`, `stat`, `file`, `wc`,
+  a checksum) and never prints the file, so a walk over a whole tree cannot
+  spill a secret; `{}` alone is their placeholder, any other brace a group.
 - **Answer**: the streamed text, then one `answer` event with actions extracted
   from the final text (paths to files and folders that exist, URLs, colours,
   commands) and the plan when `propose` ran. `/` and the directories right
@@ -845,6 +856,19 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
   Nothing an answer says is cut to an ellipsis. A paragraph that reads right
   to left is set as plain text, since spans set one at a time would come out
   in the wrong order. Only what is on screen keeps its set lines.
+  An answer is set for reading (`chat/reading.go`): proof type on a 24 line,
+  list items 8 apart. Code in a sentence is told apart by its face alone, at
+  13 so it stands as tall as the words around it, and takes no room of its
+  own: a plate with room either side pushed brackets and commas off the names
+  they belong to, and on a palette whose stones stand close the plate did not
+  show, only the gaps.
+- **A command the answer offers to run** stands once (`chat/answer.go`): one
+  slab with the command, why, how far it reaches and Run in terminal. When the
+  text shows the same command in a block of code, the slab takes that block's
+  place; otherwise it stands under the answer. Run in terminal shows the
+  command in the terminal as if typed, runs it from the home folder, says the
+  exit status when it failed, and leaves the user's shell
+  (`env.RunInTerminal`).
 - **Marked text**: every paragraph, question and block of code can be marked
   with the pointer and copied with Ctrl C or from the message menu, which
   also quotes it into the reply (`chat.ActQuote`). A second
