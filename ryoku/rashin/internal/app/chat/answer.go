@@ -6,6 +6,8 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/op/clip"
+	"gioui.org/op/paint"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
@@ -49,7 +51,8 @@ func (state *viewState) layoutPlan(gtx layout.Context, th *look.Theme, entries [
 	})
 }
 
-func (state *viewState) layoutAnswer(gtx layout.Context, th *look.Theme, answer *protocol.AnswerData, key string) layout.Dimensions {
+// offeredInText says the turn's text already carries the slab of commands
+func (state *viewState) layoutAnswer(gtx layout.Context, th *look.Theme, answer *protocol.AnswerData, key string, offeredInText bool) layout.Dimensions {
 	if answer == nil {
 		return layout.Dimensions{}
 	}
@@ -65,7 +68,7 @@ func (state *viewState) layoutAnswer(gtx layout.Context, th *look.Theme, answer 
 			return state.layoutAnswerActions(gtx, th, answer.Actions, key)
 		})
 	}
-	if answer.Plan != nil && len(answer.Plan.Commands) > 0 {
+	if answer.Plan != nil && len(answer.Plan.Commands) > 0 && !offeredInText {
 		add(func(gtx layout.Context) layout.Dimensions {
 			return state.layoutCommands(gtx, th, answer.Plan, key+":commands")
 		})
@@ -115,27 +118,37 @@ func answerAction(action protocol.Action) Action {
 	return result
 }
 
-// each command stands on its own slab with how far it reaches, so nothing runs without that being seen
+// what an answer offers to run stands in one slab: the command, why, how far it reaches and the way to run it
 func (state *viewState) layoutCommands(gtx layout.Context, th *look.Theme, plan *protocol.CommandPlan, key string) layout.Dimensions {
-	return slab(gtx, th, th.R.Stone1, 16, func(gtx layout.Context) layout.Dimensions {
+	return slab(gtx, th, th.R.Stone1, 13, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
-		children := []layout.FlexChild{layout.Rigid(kit.Text(th.Theme, th.T.Title, th.R.Fg, i18n.T("Commands you can run")))}
-		if plan.Summary != "" {
-			children = append(children,
-				layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
-				layout.Rigid(look.Paragraph(th, th.T.Body, th.R.Fg2, plan.Summary)),
-			)
+		several := len(plan.Commands) > 1
+		children := make([]layout.FlexChild, 0, len(plan.Commands)*4+2)
+		// with one command its own line says why, and a heading over it would say the same again
+		if several && plan.Summary != "" {
+			children = append(children, layout.Rigid(look.Paragraph(th, th.T.Title, th.R.Fg, plan.Summary)))
 		}
 		for index, command := range plan.Commands {
-			commandKey := key + ":" + strconv.Itoa(index)
-			gap := th.Sp.S2
-			if index == 0 {
-				gap = th.Sp.S3
+			if !several && command.Why == "" {
+				command.Why = plan.Summary
 			}
-			children = append(children,
-				layout.Rigid(layout.Spacer{Height: gap}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions { return state.layoutCommand(gtx, th, command, commandKey) }),
-			)
+			if index > 0 {
+				children = append(children,
+					layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						size := image.Pt(gtx.Constraints.Max.X, max(1, gtx.Dp(1)))
+						paint.FillShape(gtx.Ops, th.R.Vein, clip.Rect(image.Rectangle{Max: size}).Op())
+						return layout.Dimensions{Size: size}
+					}),
+				)
+			}
+			if len(children) > 0 {
+				children = append(children, layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout))
+			}
+			commandKey := key + ":" + strconv.Itoa(index)
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return state.layoutCommand(gtx, th, command, commandKey)
+			}))
 		}
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	})
@@ -147,43 +160,36 @@ func (state *viewState) layoutCommand(gtx layout.Context, th *look.Theme, comman
 	if run.Clicked(gtx) {
 		state.act(Action{Kind: ActRunCommand, Value: command.Command})
 	}
-	record := op.Record(gtx.Ops)
-	dimensions := layout.Inset{Top: 13, Bottom: 8, Left: 13, Right: 8}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		gtx.Constraints.Min.X = gtx.Constraints.Max.X
-		children := []layout.FlexChild{
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return state.selectable(gtx, th, key, th.T.Mono, th.R.Fg, command.Command)
-			}),
-		}
-		if command.Why != "" {
-			children = append(children,
-				layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
-				layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg2, command.Why)),
-			)
-		}
+	gtx.Constraints.Min.X = gtx.Constraints.Max.X
+	children := []layout.FlexChild{
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return state.selectable(gtx, th, key, th.T.Mono, th.R.Fg, command.Command)
+		}),
+	}
+	if command.Why != "" {
 		children = append(children,
-			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-					layout.Flexed(1, tierClaim(th, command.Tier)),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						dimensions, clicked := state.icon(gtx, th, key+":copy", look.Icon.Copy, i18n.T("Copy"))
-						if clicked {
-							state.act(Action{Kind: ActCopy, Value: command.Command})
-						}
-						return dimensions
-					}),
-					layout.Rigid(layout.Spacer{Width: th.Sp.S1}.Layout),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return run.Layout(gtx, th.Theme) }),
-				)
-			}),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
+			layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg2, command.Why)),
 		)
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
-	})
-	call := record.Stop()
-	kit.FillCut(gtx.Ops, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Small), th.R.Stone2)
-	call.Add(gtx.Ops)
-	return dimensions
+	}
+	children = append(children,
+		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+				layout.Flexed(1, tierClaim(th, command.Tier)),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					dimensions, clicked := state.icon(gtx, th, key+":copy", look.Icon.Copy, i18n.T("Copy"))
+					if clicked {
+						state.act(Action{Kind: ActCopy, Value: command.Command})
+					}
+					return dimensions
+				}),
+				layout.Rigid(layout.Spacer{Width: th.Sp.S1}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions { return run.Layout(gtx, th.Theme) }),
+			)
+		}),
+	)
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
 func tierClaim(th *look.Theme, tier string) layout.Widget {

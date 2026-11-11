@@ -224,7 +224,7 @@ func (state *viewState) layoutRow(gtx layout.Context, th *look.Theme, block bloc
 	case rowText:
 		return state.layoutMessage(gtx, th, "text:"+row.key, row.seq, row.text, block.info.Kind == protocol.KindAgent,
 			func(gtx layout.Context) layout.Dimensions {
-				return state.layoutMarkdown(gtx, th, "text:"+row.key, row.text)
+				return state.layoutMarkdown(gtx, th, "text:"+row.key, row.text, offered(row.turn))
 			})
 	case rowThought:
 		// only live while it's the newest row
@@ -239,7 +239,7 @@ func (state *viewState) layoutRow(gtx layout.Context, th *look.Theme, block bloc
 	case rowTerminal:
 		return state.layoutTerminal(gtx, th, row.terminal, "terminal:"+row.key)
 	case rowAnswer:
-		return state.layoutAnswer(gtx, th, row.answer, "answer:"+key)
+		return state.layoutAnswer(gtx, th, row.answer, "answer:"+key, row.turn != nil && row.turn.offeredInText)
 	case rowError:
 		return state.layoutError(gtx, th, block, "error:"+key)
 	case rowTurnEnd:

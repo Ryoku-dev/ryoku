@@ -116,7 +116,7 @@ func (state *viewState) measureTable(gtx layout.Context, th *look.Theme, head []
 		if len(spans) == 0 {
 			return 0
 		}
-		faces := inlineFaces{base: style, mono: th.T.Mono, pad: 6}
+		faces := inlineFaces{base: style, mono: codeStyle(th)}
 		return setInline(th.Shaper, gtx.Metric, gtx.Locale, faces, spans, unwrapped).size.X
 	}
 	for column := range head {

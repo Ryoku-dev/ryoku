@@ -27,8 +27,6 @@ type inlineSet struct {
 	lines           []inlineLine
 	size            image.Point
 	baseline, pitch int
-	// how far code reaches above and below its baseline
-	monoRise, monoDrop int
 	// the face has no italic, so emphasis is leaned by hand
 	lean bool
 }
@@ -36,9 +34,8 @@ type inlineSet struct {
 type inlineLine struct {
 	start, end int
 	// edges[i] is where rune start+i begins; the last is where the line's text ends
-	edges  []fixed.Int26_6
-	runs   []inlineRun
-	plates []inlinePlate
+	edges []fixed.Int26_6
+	runs  []inlineRun
 }
 
 type inlineRun struct {
@@ -47,14 +44,7 @@ type inlineRun struct {
 	glyphs   []text.Glyph
 }
 
-// the ground under a stretch of code
-type inlinePlate struct{ from, to fixed.Int26_6 }
-
-type inlineFaces struct {
-	base, mono look.TextStyle
-	// room either side of code inside its plate
-	pad unit.Dp
-}
+type inlineFaces struct{ base, mono look.TextStyle }
 
 func (faces inlineFaces) of(style inlineStyle) look.TextStyle {
 	face := faces.base
@@ -116,7 +106,6 @@ type inlineSetter struct {
 	locale system.Locale
 	faces  inlineFaces
 	limit  fixed.Int26_6
-	pad    fixed.Int26_6
 	blanks map[look.TextStyle]fixed.Int26_6
 
 	set  *inlineSet
@@ -125,8 +114,6 @@ type inlineSetter struct {
 	x    fixed.Int26_6
 	// where the last glyph on the line ends, blanks after it hang past the edge
 	inked fixed.Int26_6
-	// the code span whose plate is open on this line, or -1
-	plate int
 }
 
 // lines break where Unicode allows, and inside a word only when the word alone is too long
@@ -140,9 +127,9 @@ func setInline(shaper *text.Shaper, metric unit.Metric, locale system.Locale, fa
 	set.label = string(set.text)
 	setter := inlineSetter{
 		shaper: shaper, metric: metric, locale: locale, faces: faces,
-		limit: fixed.I(max(1, width)), pad: fixed.I(metric.Dp(faces.pad)),
+		limit:  fixed.I(max(1, width)),
 		blanks: make(map[look.TextStyle]fixed.Int26_6, 2),
-		set:    set, plate: -1, line: inlineLine{edges: []fixed.Int26_6{0}},
+		set:    set, line: inlineLine{edges: []fixed.Int26_6{0}},
 	}
 	rest := setter.shape(faces.base, []rune{'n'})
 	var ascent, descent fixed.Int26_6
@@ -150,9 +137,6 @@ func setInline(shaper *text.Shaper, metric unit.Metric, locale system.Locale, fa
 		ascent, descent = rest.glyphs[0].Ascent, rest.glyphs[0].Descent
 	}
 	set.baseline, set.pitch = ascent.Ceil(), max(1, metric.Sp(faces.base.Line))
-	if code := setter.shape(faces.mono, []rune{'n'}); len(code.glyphs) > 0 {
-		set.monoRise, set.monoDrop = code.glyphs[0].Ascent.Ceil(), code.glyphs[0].Descent.Ceil()
-	}
 	// asked for an italic it does not have, the shaper answers with the upright glyph
 	if soft := setter.shape(faces.of(inlineEmphasis), []rune{'n'}); len(soft.glyphs) > 0 && len(rest.glyphs) > 0 {
 		set.lean = soft.glyphs[0].ID == rest.glyphs[0].ID
@@ -169,9 +153,6 @@ func setInline(shaper *text.Shaper, metric unit.Metric, locale system.Locale, fa
 	for _, line := range set.lines {
 		for _, run := range line.runs {
 			set.size.X = max(set.size.X, run.to.Ceil())
-		}
-		for _, plate := range line.plates {
-			set.size.X = max(set.size.X, plate.to.Ceil())
 		}
 	}
 	set.size.Y = set.baseline + (len(set.lines)-1)*set.pitch + descent.Ceil()
@@ -265,7 +246,7 @@ func (setter *inlineSetter) fitsWhole(span int) bool {
 	set := setter.set
 	style := setter.faces.of(set.spans[span].style)
 	shaped := setter.shape(style, set.text[set.bounds[span]:set.bounds[span+1]])
-	return shaped.edges[shaped.runes()]+2*setter.pad <= setter.limit
+	return shaped.edges[shaped.runes()] <= setter.limit
 }
 
 func (setter *inlineSetter) pieces(from, to int) []inlinePiece {
@@ -299,28 +280,12 @@ func (setter *inlineSetter) empty() bool { return setter.line.end == setter.line
 
 // the blanks after the last piece may hang past the edge, so they are not counted
 func (setter *inlineSetter) need(pieces []inlinePiece) fixed.Int26_6 {
-	need, plate := fixed.Int26_6(0), setter.plate
+	need := fixed.Int26_6(0)
 	for index, piece := range pieces {
-		if piece.shaped.runes() > 0 {
-			switch code := setter.code(piece.span); {
-			case code && plate != piece.span:
-				if plate >= 0 {
-					need += setter.pad
-				}
-				need += setter.pad
-				plate = piece.span
-			case !code && plate >= 0:
-				need += setter.pad
-				plate = -1
-			}
-			need += piece.shaped.edges[piece.shaped.runes()]
-		}
+		need += piece.shaped.edges[piece.shaped.runes()]
 		if index < len(pieces)-1 {
 			need += piece.blank * fixed.Int26_6(piece.blanks)
 		}
-	}
-	if plate >= 0 {
-		need += setter.pad
 	}
 	return need
 }
@@ -336,19 +301,13 @@ func (setter *inlineSetter) place(pieces []inlinePiece) {
 
 // a piece longer than a line is set over as many as it takes
 func (setter *inlineSetter) put(piece inlinePiece) {
-	code := setter.code(piece.span)
-	setter.plateFor(piece.span, code)
 	for from, runes := 0, piece.shaped.runes(); from < runes; {
 		room := setter.limit - setter.x
-		if code {
-			room -= setter.pad
-		}
 		to := runes
 		if piece.shaped.edges[runes]-piece.shaped.edges[from] > room {
 			if to = piece.shaped.fit(from, room); to == from {
 				if !setter.empty() {
 					setter.breakLine()
-					setter.plateFor(piece.span, code)
 					continue
 				}
 				to = piece.shaped.next(from)
@@ -357,7 +316,6 @@ func (setter *inlineSetter) put(piece inlinePiece) {
 		setter.add(piece, from, to)
 		if from = to; from < runes {
 			setter.breakLine()
-			setter.plateFor(piece.span, code)
 		}
 	}
 	setter.addBlanks(piece)
@@ -401,36 +359,7 @@ func (setter *inlineSetter) addBlanks(piece inlinePiece) {
 	}
 }
 
-func (setter *inlineSetter) plateFor(span int, code bool) {
-	if code && setter.plate == span {
-		return
-	}
-	if setter.plate >= 0 {
-		setter.closePlate(setter.x)
-		setter.x += setter.pad
-	}
-	if code {
-		setter.line.plates = append(setter.line.plates, inlinePlate{from: setter.x})
-		setter.x += setter.pad
-		setter.plate = span
-	}
-}
-
-// a plate nothing was set on is dropped rather than left as an empty stub
-func (setter *inlineSetter) closePlate(end fixed.Int26_6) {
-	plates := setter.line.plates
-	if plate := &plates[len(plates)-1]; setter.inked > plate.from {
-		plate.to = end + setter.pad
-	} else {
-		setter.line.plates = plates[:len(plates)-1]
-	}
-	setter.plate = -1
-}
-
 func (setter *inlineSetter) endLine() {
-	if setter.plate >= 0 {
-		setter.closePlate(setter.inked)
-	}
 	if last := len(setter.line.runs) - 1; last >= 0 {
 		setter.line.runs[last].to = min(setter.line.runs[last].to, setter.inked)
 	}

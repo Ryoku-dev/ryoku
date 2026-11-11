@@ -57,6 +57,11 @@
 - **The folder an agent works in is indexed by itself.** Starting a session in
   a repository registers and refreshes its index, so `rashin search` answers
   there at once, by meaning too (`rashin/internal/daemon/brief.go`).
+- **Answers read more calmly.** Lines stand further apart, list items too,
+  and a name written as code sits in the sentence without gaps around it. A
+  command an answer offers to run is shown once, in one slab with its Run
+  button, where the text mentions it (`rashin/internal/app/chat/reading.go`,
+  `answer.go`).
 - **`ryoku-app` hands a target to any role.** `ryoku-app files -- ~/Work` opens
   the chosen file manager at that folder (`shell/scripts/ryoku-app`).
 - **Prowl and the Rashin 1 lanes are removed.** Rashin no longer carries the

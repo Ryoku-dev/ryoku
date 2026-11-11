@@ -14,6 +14,7 @@ import (
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/look"
+	"ryoku-rashin/internal/protocol"
 )
 
 type markdownState struct {
@@ -26,7 +27,8 @@ type codeVisual struct {
 	scroll layout.List
 }
 
-func (state *viewState) layoutMarkdown(gtx layout.Context, th *look.Theme, key, source string) layout.Dimensions {
+// plan is what the turn's answer offers to run, nil when it offers nothing
+func (state *viewState) layoutMarkdown(gtx layout.Context, th *look.Theme, key, source string, plan *protocol.CommandPlan) layout.Dimensions {
 	markdown := state.markdown[key]
 	if markdown == nil {
 		markdown = new(markdownState)
@@ -36,13 +38,26 @@ func (state *viewState) layoutMarkdown(gtx layout.Context, th *look.Theme, key, 
 		markdown.source, markdown.blocks = source, parseMarkdown(source)
 	}
 	children := make([]layout.FlexChild, 0, len(markdown.blocks)*2)
+	placed := false
 	for index, block := range markdown.blocks {
-		if index > 0 {
+		// a command the answer offers to run stands once: the slab that runs it takes the place of the first block that shows it
+		runs := block.kind == markdownCode && restates(block.text, plan)
+		if runs && placed {
+			continue
+		}
+		if len(children) > 0 {
 			gap := th.Sp.S3
 			if block.kind == markdownHeading {
 				gap = th.Sp.S4
 			}
 			children = append(children, layout.Rigid(layout.Spacer{Height: gap}.Layout))
+		}
+		if runs {
+			placed = true
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return state.layoutCommands(gtx, th, plan, key+":commands")
+			}))
+			continue
 		}
 		blockKey := key + ":" + strconv.Itoa(index)
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -74,16 +89,17 @@ func (state *viewState) layoutMarkdownBlock(gtx layout.Context, th *look.Theme, 
 		paint.FillShape(gtx.Ops, th.R.Vein, clip.Rect(image.Rectangle{Max: size}).Op())
 		return layout.Dimensions{Size: size}
 	default:
-		return state.layoutInline(gtx, th, key, th.T.Proof, th.R.Fg, block.text)
+		return state.layoutInline(gtx, th, key, readingStyle(th), th.R.Fg, block.text)
 	}
 }
 
 func (state *viewState) layoutMarkdownList(gtx layout.Context, th *look.Theme, key string, items []markdownListItem) layout.Dimensions {
-	line := gtx.Sp(th.T.Proof.Line)
+	style := readingStyle(th)
+	line := gtx.Sp(style.Line)
 	children := make([]layout.FlexChild, 0, len(items)*2)
 	for index, item := range items {
 		if index > 0 {
-			children = append(children, layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout))
+			children = append(children, layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout))
 		}
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			indent := gtx.Dp(21) * item.depth
@@ -103,7 +119,7 @@ func (state *viewState) layoutMarkdownList(gtx layout.Context, th *look.Theme, k
 			body := gtx
 			body.Constraints.Max.X = max(0, gtx.Constraints.Max.X-indent-gutter)
 			body.Constraints.Min.X = 0
-			dimensions := state.layoutInline(body, th, key+":"+strconv.Itoa(index), th.T.Proof, th.R.Fg, item.text)
+			dimensions := state.layoutInline(body, th, key+":"+strconv.Itoa(index), style, th.R.Fg, item.text)
 			offset.Pop()
 			return layout.Dimensions{Size: image.Pt(gtx.Constraints.Max.X, dimensions.Size.Y)}
 		}))
@@ -117,7 +133,7 @@ func (state *viewState) layoutMarkdownQuote(gtx layout.Context, th *look.Theme, 
 	body := gtx
 	body.Constraints.Min.X = 0
 	body.Constraints.Max.X = max(0, gtx.Constraints.Max.X-bar-gap)
-	dimensions := state.layoutInline(body, th, key, th.T.Proof, th.R.Fg2, value)
+	dimensions := state.layoutInline(body, th, key, readingStyle(th), th.R.Fg2, value)
 	call := record.Stop()
 	paint.FillShape(gtx.Ops, th.R.Vein, clip.Rect(image.Rect(0, 0, bar, dimensions.Size.Y)).Op())
 	offset := op.Offset(image.Pt(bar+gap, 0)).Push(gtx.Ops)
@@ -171,6 +187,34 @@ func (state *viewState) layoutCodeBlock(gtx layout.Context, th *look.Theme, key,
 		opacity.Pop()
 	}
 	return dimensions
+}
+
+func offered(turn *turnState) *protocol.CommandPlan {
+	if turn == nil || turn.answer == nil {
+		return nil
+	}
+	return turn.answer.Plan
+}
+
+func restates(code string, plan *protocol.CommandPlan) bool {
+	if plan == nil {
+		return false
+	}
+	code = asTyped(code)
+	all := make([]string, 0, len(plan.Commands))
+	for _, command := range plan.Commands {
+		typed := asTyped(command.Command)
+		if code == typed {
+			return true
+		}
+		all = append(all, typed)
+	}
+	return len(all) > 1 && code == strings.Join(all, "\n")
+}
+
+// a model writes the same command with or without a prompt mark before it
+func asTyped(command string) string {
+	return strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(command), "$ "))
 }
 
 func languageLabel(language string) string {

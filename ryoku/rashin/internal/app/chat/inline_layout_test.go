@@ -7,7 +7,6 @@ import (
 	"gioui.org/io/system"
 	"gioui.org/layout"
 	"gioui.org/unit"
-	"golang.org/x/image/math/fixed"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 
@@ -15,7 +14,7 @@ import (
 )
 
 func setAt(theme *look.Theme, width int, spans ...inlineSpan) *inlineSet {
-	faces := inlineFaces{base: theme.T.Proof, mono: theme.T.Mono, pad: 6}
+	faces := inlineFaces{base: theme.T.Proof, mono: theme.T.Mono}
 	return setInline(theme.Shaper, unit.Metric{PxPerDp: 1, PxPerSp: 1}, system.Locale{}, faces, spans, width)
 }
 
@@ -48,11 +47,6 @@ func TestEveryRuneIsSetAndNoLineRunsPastTheEdge(t *testing.T) {
 						t.Fatalf("%s at %d: line %d runs to %d", name, width, index, run.to.Ceil())
 					}
 				}
-				for _, plate := range line.plates {
-					if plate.from < 0 || plate.to.Ceil() > width || plate.to <= plate.from {
-						t.Fatalf("%s at %d: line %d has a plate from %v to %v", name, width, index, plate.from, plate.to)
-					}
-				}
 				next = line.end
 			}
 			if next != len(set.text) {
@@ -82,19 +76,18 @@ func TestAStyledParagraphStandsLikeAPlainOne(t *testing.T) {
 	}
 }
 
-func TestCodeStandsOnAPlateWithRoomEitherSide(t *testing.T) {
-	set := setAt(look.New(0), 640, parseInline("run `rashin api on` now")...)
-	if len(set.lines) != 1 || len(set.lines[0].plates) != 1 || len(set.lines[0].runs) != 3 {
+// Code in a sentence takes no room of its own. Room either side of it pushed
+// a bracket or a comma off the name it belongs to, and read as stray blanks.
+func TestCodeSitsFlushWithWhatSurroundsIt(t *testing.T) {
+	set := setAt(look.New(0), 640, parseInline("the rules (`AGENTS.md`, `prowlrc`) apply")...)
+	if len(set.lines) != 1 || len(set.lines[0].runs) != 5 {
 		t.Fatalf("lines = %#v", set.lines)
 	}
-	line := set.lines[0]
-	plate, code, after := line.plates[0], line.runs[1], line.runs[2]
-	pad := fixed.I(6)
-	if code.glyphs[0].X != plate.from+pad || plate.to != code.to+pad {
-		t.Fatalf("code from %v to %v stands on a plate from %v to %v", code.glyphs[0].X, code.to, plate.from, plate.to)
-	}
-	if after.glyphs[0].X <= plate.to {
-		t.Fatalf("the word after the code starts at %v, on its plate that ends at %v", after.glyphs[0].X, plate.to)
+	runs := set.lines[0].runs
+	for index := 1; index < len(runs); index++ {
+		if runs[index].glyphs[0].X != runs[index-1].to {
+			t.Fatalf("run %d starts at %v, the one before it ends at %v", index, runs[index].glyphs[0].X, runs[index-1].to)
+		}
 	}
 }
 
@@ -110,18 +103,6 @@ func TestCodeThatFitsOnALineIsNeverParted(t *testing.T) {
 					t.Fatalf("at %d line %d ends inside %q", width, index, spans[span].text)
 				}
 			}
-		}
-	}
-}
-
-func TestCodeLongerThanALineKeepsAPlateOnEachLine(t *testing.T) {
-	set := setAt(look.New(0), 260, parseInline("`journalctl --user -u rashind -f --since yesterday --no-pager --output short-precise`")...)
-	if len(set.lines) < 2 {
-		t.Fatalf("a long command stayed on %d line", len(set.lines))
-	}
-	for index, line := range set.lines {
-		if len(line.plates) != 1 {
-			t.Fatalf("line %d has %d plates", index, len(line.plates))
 		}
 	}
 }

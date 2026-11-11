@@ -17,7 +17,6 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 
-	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 
 	"ryoku-rashin/internal/app/look"
@@ -73,7 +72,7 @@ func (state *viewState) layoutInline(
 	if inline.plain != "" {
 		return state.selectable(gtx, th, key, style, ink, inline.plain)
 	}
-	faces := inlineFaces{base: style, mono: th.T.Mono, pad: 6}
+	faces := inlineFaces{base: style, mono: codeStyle(th)}
 	width := gtx.Constraints.Max.X
 	if inline.set == nil || inline.width != width || inline.faces != faces || inline.metric != gtx.Metric {
 		inline.set = setInline(th.Shaper, gtx.Metric, gtx.Locale, faces, inline.spans, width)
@@ -179,14 +178,9 @@ func (state *viewState) layoutLinks(gtx layout.Context, inline *inlineState, mar
 func (state *viewState) paintInline(gtx layout.Context, th *look.Theme, inline *inlineState, ink color.NRGBA, hovered int) {
 	set := inline.set
 	from, to := inline.selection.stretch()
-	rise, drop := set.monoRise+gtx.Dp(2), set.monoDrop+gtx.Dp(2)
 	for index := range set.lines {
 		line := &set.lines[index]
 		baseline := set.baseline + index*set.pitch
-		for _, plate := range line.plates {
-			bounds := image.Rect(plate.from.Floor(), baseline-rise, plate.to.Ceil(), baseline+drop)
-			kit.FillCut(gtx.Ops, bounds, gtx.Dp(3), th.R.Stone3)
-		}
 		if first, last := max(from, line.start), min(to, line.end); last > first {
 			left, right := line.edges[first-line.start].Floor(), min(line.edges[last-line.start].Ceil(), max(inline.width, set.size.X))
 			bounds := image.Rect(left, index*set.pitch, right, (index+1)*set.pitch)

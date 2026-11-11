@@ -49,13 +49,15 @@ type terminalState struct {
 }
 
 type turnState struct {
-	number      int
-	start       protocol.TurnStartData
-	end         *protocol.TurnEndData
-	answer      *protocol.AnswerData
-	planRow     int
-	answerRow   int
-	footerAdded bool
+	number int
+	start  protocol.TurnStartData
+	end    *protocol.TurnEndData
+	answer *protocol.AnswerData
+	// the text of the turn shows a command the answer offers to run, so the slab that runs it stands there
+	offeredInText bool
+	planRow       int
+	answerRow     int
+	footerAdded   bool
 }
 
 type modelState struct {
@@ -121,7 +123,7 @@ func (state *modelState) apply(model *Model, event protocol.SessionEvent) {
 			state.rows[index].seq = event.Seq
 		} else {
 			state.messages[key] = len(state.rows)
-			state.rows = append(state.rows, transcriptRow{kind: kind, key: key, seq: event.Seq, text: data.Delta})
+			state.rows = append(state.rows, transcriptRow{kind: kind, key: key, seq: event.Seq, text: data.Delta, turn: state.activeTurn})
 		}
 	case protocol.EvTool:
 		state.applyTool(event)
@@ -338,6 +340,7 @@ func (state *modelState) applyAnswer(data protocol.AnswerData) {
 	if turn != nil {
 		copy := data
 		turn.answer = &copy
+		turn.offeredInText = state.textRestates(turn, copy.Plan)
 		if turn.answerRow >= 0 {
 			state.rows[turn.answerRow].answer = turn.answer
 			return
@@ -348,6 +351,22 @@ func (state *modelState) applyAnswer(data protocol.AnswerData) {
 	}
 	copy := data
 	state.rows = append(state.rows, transcriptRow{kind: rowAnswer, answer: &copy})
+}
+
+func (state *modelState) textRestates(turn *turnState, plan *protocol.CommandPlan) bool {
+	if plan == nil {
+		return false
+	}
+	for index := range state.rows {
+		if row := &state.rows[index]; row.kind == rowText && row.turn == turn {
+			for _, block := range parseMarkdown(row.text) {
+				if block.kind == markdownCode && restates(block.text, plan) {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func (state *modelState) finishTurn(data protocol.TurnEndData, seq int64) {
