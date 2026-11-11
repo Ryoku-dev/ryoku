@@ -7,6 +7,9 @@
 - **The keyboard layout you switched to is still active after you log back in.**
   Every session started on the first configured layout, so a second layout
   picked from the bar was back to the first one after a login (#665).
+- **Python's network popup connects Bluetooth devices and follows them again.**
+  The Serpantinum 2.3.1 sync renamed the popup but left Ryoku's own lines on the
+  old name, so device clicks, connect results and status updates silently failed.
 - **Nomarchy's work Wi-Fi join keeps the password out of nmcli's history.** The
   802.1X password went through `nmcli connection edit`, which saves every line
   it reads to `~/.cache/nmcli-history`; it now reaches nmcli on a pipe.
