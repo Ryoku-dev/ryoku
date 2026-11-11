@@ -172,7 +172,10 @@ Column {
             root.actionError = "";
             root.closeDialogs();
         } else {
-            root.actionError = root.parseError(output, I18n.tr("The account change could not be completed."));
+            // pkexec exits 126 when the authentication prompt is dismissed
+            root.actionError = root.parseError(output, exitCode === 126
+                ? I18n.tr("Authentication was cancelled. Nothing was changed.")
+                : I18n.tr("The account change could not be completed."));
         }
         root.refresh();
     }
@@ -251,6 +254,8 @@ Column {
             if (hasSecret) {
                 write(pendingSecret + "\n");
                 pendingSecret = "";
+                // an open pipe left ryoku-host waiting for end of input forever
+                stdinEnabled = false;
             }
         }
         onExited: function(exitCode) {

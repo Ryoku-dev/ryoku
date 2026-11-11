@@ -6,6 +6,10 @@
 - **Graphics & Power offers Performance on laptops with a monitor port on the
   discrete GPU.** The page says it applies only while a monitor is plugged in
   there at login, and that the built-in screen can then stay dark after sleep.
+- **Resetting a password in Users no longer hangs on "Saving" (#798).** The
+  password pipe stayed open, so the helper waited for more input forever and
+  every later account change, removing a person included, stayed busy too.
+  A dismissed authentication prompt now says nothing was changed.
 - **Connections sees every saved profile of a Wi-Fi network.** Saved networks
   were matched by profile name, so a second profile NetworkManager named
   `<ssid> 1`, or one imported under another name, was invisible: Forget left

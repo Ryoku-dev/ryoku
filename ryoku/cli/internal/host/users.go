@@ -1019,9 +1019,10 @@ func (a *App) changeUserPassword(name, password string) error {
 	return nil
 }
 
+// the caller may keep stdin open after the password line, so stop at the newline
 func readUserPassword(input io.Reader) (string, error) {
-	data, err := io.ReadAll(io.LimitReader(input, 4098))
-	if err != nil {
+	data, err := bufio.NewReader(io.LimitReader(input, 4098)).ReadString('\n')
+	if err != nil && err != io.EOF {
 		return "", fmt.Errorf(i18n.T("Read the password: %v"), err)
 	}
 	if len(data) > 4096 {

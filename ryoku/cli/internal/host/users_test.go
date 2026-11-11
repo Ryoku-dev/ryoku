@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 const usersPasswdFixture = `root:x:0:0:root:/root:/bin/bash
@@ -259,6 +260,30 @@ func TestUsersPasswordTravelsOnStdin(t *testing.T) {
 		if strings.Contains(strings.Join(command.Args, " "), "correct horse") {
 			t.Fatalf("password leaked into argv: %#v", command)
 		}
+	}
+}
+
+// The Hub writes the password line and may keep the pipe open; waiting for
+// end of input left the Hub on "Saving" forever.
+func TestUsersPasswordDoesNotWaitForEndOfInput(t *testing.T) {
+	passwdPath, groupPath := writeUsersFixtures(t)
+	runner := &fakeRunner{}
+	app, stdout, _ := testApp(runner, nil)
+	app.cfg.PasswdPath, app.cfg.GroupPath = passwdPath, groupPath
+	app.cfg.UID, app.cfg.UIDSet = 0, true
+	input, writer := io.Pipe()
+	defer writer.Close()
+	app.cfg.Stdin = input
+	go func() { _, _ = writer.Write([]byte("hunter2\n")) }()
+	done := make(chan int, 1)
+	go func() { done <- app.Users([]string{"set-password", "bob"}) }()
+	select {
+	case code := <-done:
+		if code != ExitOK {
+			t.Fatalf("set-password exit = %d, output = %s", code, stdout.String())
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("set-password waited for stdin to close")
 	}
 }
 
