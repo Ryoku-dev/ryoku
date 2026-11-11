@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"strconv"
 	"strings"
+	"time"
 
 	"gioui.org/io/event"
 	"gioui.org/io/pointer"
@@ -288,6 +289,13 @@ func (state *viewState) layoutTail(gtx layout.Context, th *look.Theme, model *mo
 		return layout.Spacer{Height: th.Sp.S5}.Layout(gtx)
 	}
 	shown, label := tailMark(model)
+	// a long quiet stretch between steps reads as a hang unless the turn's time shows
+	if turn := model.activeTurn; shown && label != "" && turn != nil && !turn.began.IsZero() {
+		if worked := gtx.Now.Sub(turn.began); worked >= waitedFrom {
+			label = i18n.Tf("Working for %s", waitedFor(worked))
+		}
+		gtx.Execute(op.InvalidateCmd{At: gtx.Now.Add(time.Second)})
+	}
 	return layout.Inset{Top: th.Sp.S3, Bottom: th.Sp.S5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return look.ReadingColumn(gtx, class, func(gtx layout.Context) layout.Dimensions {
 			// same height with or without the mark so the column doesn't jump as steps start and end

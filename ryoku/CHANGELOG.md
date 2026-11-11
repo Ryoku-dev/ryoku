@@ -180,6 +180,9 @@
 - **A finished turn folds its work.** "Worked for 2 min 14 s" stands for the
   steps, thoughts and subagents behind the answer and unfolds to them
   (`rashin/internal/app/chat/fold.go`).
+- **A running turn says how long it has worked.** From three seconds on the
+  mark under the transcript reads "Working for 12 s", so a quiet stretch
+  between steps no longer looks hung (`rashin/internal/app/chat/view.go`).
 - **A row in Rashin stops glowing when the pointer leaves the window.** The
   hover stayed lit until the pointer came back (`rashin/internal/app/look`).
 - **Ryotunes picks floating or tiled itself.** Its own setting decides on niri

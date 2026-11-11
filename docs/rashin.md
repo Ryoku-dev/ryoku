@@ -965,7 +965,9 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
 - **A finished turn** (`chat/fold.go`) folds its work behind one line, "Worked
   for 2 min 14 s" with its steps and thoughts, or "You stopped it after ..."
   when it was stopped, when that work shows more than one line; the answer
-  stays open under it.
+  stays open under it. While a turn runs, the mark at its foot says how long
+  it has worked from three seconds on ("Working for 12 s"), so a quiet stretch
+  between steps does not read as a hang.
 - **A goal** (`pages/agent/goal.go`, `chat/goal.go`) stands in a strip over
   the composer with its turn count and Pause or Resume and Stop goal or Clear;
   the sidebar row says "Goal, turn N of M", and `/goal` is in the command
