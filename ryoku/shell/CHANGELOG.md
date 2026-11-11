@@ -1,6 +1,9 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Python's blurred bar background is back (#802).** The Serpantinum 2.3.1
+  sync took its new mask default but kept the old checks, so the Blur style
+  drew nothing and the bar showed plain transparency; Liquid glass was fine.
 - **Lyrics are shown as plain text.** LRCLIB lyrics are written by anyone, and
   the lyric sheet and the tall music widget read markup in them, so a line could
   restyle itself or pull an image from the web; tags now show as typed.
