@@ -9,6 +9,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 )
@@ -145,6 +146,14 @@ func main() {
 			fmt.Fprintln(os.Stderr, "ryoku-hub:", err)
 			os.Exit(1)
 		}
+	case "wifi":
+		if err := runWifi(args[1:], os.Stdin); err != nil {
+			fmt.Fprintln(os.Stderr, "ryoku-hub:", err)
+			if errors.Is(err, errDaemonDown) || errors.Is(err, errJoinNotRun) {
+				os.Exit(wifiExitDaemonDown)
+			}
+			os.Exit(1)
+		}
 	default:
 		usage()
 		os.Exit(2)
@@ -194,6 +203,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  ryoku-hub desktop plugins remove <id>")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub rashin status|on|off")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub phone status|on|off|plan-enable|plan-disable|devices|pair|unpair")
+	fmt.Fprintln(os.Stderr, "  ryoku-hub wifi connect <ssid>   (passphrase on stdin)")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub wm list")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub wm preview <name>")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub outputs [list]")

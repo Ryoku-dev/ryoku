@@ -10,6 +10,14 @@
   by the SSID they join, and Forget, auto-reconnect, and a new password apply
   to all of them; a hotspot profile that shares the name is left alone
   (`pages/ConnectionsPage.qml`).
+- **A wrong Wi-Fi password fails in seconds again in Connections.** The
+  password join ran `nmcli --ask`, which NetworkManager asks for a new secret
+  after a rejected one, so a wrong password waited out nmcli's 90-second
+  timeout. Connections now joins through the shell daemon like the bar does
+  (`ryoku-hub wifi connect`), so a rejected password fails as soon as
+  NetworkManager drops the join; the passphrase still travels on stdin and
+  never reaches argv or `~/.cache/nmcli-history`. When the daemon is not
+  running or cannot run the join, it falls back to nmcli as before.
 - **Shift plus a number key records in the shortcut recorder (#788).** The
   number row is read by key position, so Super+Shift+1 records as itself
   instead of being ignored, on any keyboard layout.
