@@ -119,6 +119,14 @@ func AppState() string { return filepath.Join(StateHome(), "ryoku", "rashin-app.
 // PastedDir holds images pasted into a composer until the session ends.
 func PastedDir() string { return filepath.Join(RuntimeDir(), "pasted") }
 
+// ScreensDir holds the agent screens: each one's nested session and its
+// latest frame.
+func ScreensDir() string { return filepath.Join(RuntimeDir(), "screens") }
+
+// ScreenHome is the HOME of the apps agents open on their screens, kept apart
+// from the user's and kept between screens so a login made there lasts.
+func ScreenHome() string { return filepath.Join(DataHome(), "ryoku", "rashin", "screen-home") }
+
 // SystemConfig is Ryoku's system-wide configuration directory.
 func SystemConfig() string { return "/etc/ryoku" }
 

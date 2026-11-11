@@ -7,6 +7,7 @@ import (
 	"gioui.org/op"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/chat"
@@ -20,6 +21,7 @@ const (
 	actionChanges = iota
 	actionTerminal
 	actionFolder
+	actionScreen
 )
 
 const (
@@ -37,6 +39,13 @@ func (p *Page) layoutSession(gtx layout.Context, e *env.Env, info protocol.Sessi
 			if !open {
 				return layout.Dimensions{Size: gtx.Constraints.Max}
 			}
+			if screen, ok := e.Snapshot().Screens[info.ID]; ok && p.screen.large {
+				return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(1100))
+					return p.screen.layout(gtx, e, screen)
+				})
+			}
+			p.screen.large = false
 			return p.layoutConversation(gtx, e, attached)
 		}),
 	)
@@ -50,9 +59,26 @@ func (p *Page) layoutHeader(gtx layout.Context, e *env.Env, info protocol.Sessio
 	}
 	worktree, tracked := worktreeOf(snapshot, info)
 	folder := sessionFolder(info)
-	actions := make([]int, 0, 3)
+	actions := make([]int, 0, 4)
+	screen, screened := snapshot.Screens[info.ID]
+	if screened {
+		if screen.Ask != "" && screen.Ask != p.asked {
+			p.asked = screen.Ask
+			p.side = sideScreen
+			if !e.PanelOpen {
+				e.TogglePanel()
+			}
+		}
+		action := look.HeaderAction{Icon: look.Icon.Screen, Label: i18n.T("Screen"), Description: i18n.T("Watch the agent's screen"), On: e.PanelOpen && (p.side == sideScreen || !tracked)}
+		if screen.Ask != "" {
+			action.Trail = func(gtx layout.Context) layout.Dimensions {
+				return kit.Flake(gtx, e.Theme.Theme, palette.Attention, 1, 9)
+			}
+		}
+		content.Actions, actions = append(content.Actions, action), append(actions, actionScreen)
+	}
 	if tracked {
-		change := look.HeaderAction{Icon: look.Icon.Diff, Label: i18n.T("Changes"), Description: i18n.T("Show what changed") + "  Ctrl \\", On: e.PanelOpen}
+		change := look.HeaderAction{Icon: look.Icon.Diff, Label: i18n.T("Changes"), Description: i18n.T("Show what changed") + "  Ctrl \\", On: e.PanelOpen && (p.side == sideChanges || !screened)}
 		if status := worktree.Status; status != nil && status.Added+status.Removed > 0 {
 			change.Trail = look.DiffCount(e.Theme, status.Added, status.Removed, e.PanelOpen)
 		}
@@ -75,8 +101,10 @@ func (p *Page) layoutHeader(gtx layout.Context, e *env.Env, info protocol.Sessio
 	dimensions := p.header.Layout(gtx, e.Theme, e.Overlays, content)
 	if index, ok := p.header.ActionClicked(); ok && index < len(actions) {
 		switch actions[index] {
+		case actionScreen:
+			p.showSide(e, sideScreen)
 		case actionChanges:
-			e.TogglePanel()
+			p.showSide(e, sideChanges)
 		case actionTerminal:
 			e.OpenTerminal(folder)
 		case actionFolder:
@@ -128,11 +156,27 @@ func (p *Page) layoutConversation(gtx layout.Context, e *env.Env, attached state
 	call := record.Stop()
 	y := size.Y - gtx.Dp(21) - composer.Size.Y
 
+	// the goal stands on the composer, both outside the scrolling transcript
+	top := y
+	record = op.Record(gtx.Ops)
+	stripGtx := gtx
+	stripGtx.Constraints = layout.Constraints{Min: image.Pt(width, 0), Max: image.Pt(width, size.Y)}
+	strip := p.goal.layout(stripGtx, e, attached.Info)
+	stripCall := record.Stop()
+	if strip.Size.Y > 0 {
+		top = y - gtx.Dp(8) - strip.Size.Y
+	}
+
 	view := gtx
-	view.Constraints = layout.Exact(image.Pt(size.X, max(0, y-gtx.Dp(8))))
+	view.Constraints = layout.Exact(image.Pt(size.X, max(0, top-gtx.Dp(8))))
 	p.view.Layout(view, e.Theme, e.Overlays, attached.Model)
 	p.handleActions(gtx, e, attached.Info, p.view.Actions())
 
+	if strip.Size.Y > 0 {
+		offset := op.Offset(image.Pt((size.X-width)/2, top)).Push(gtx.Ops)
+		stripCall.Add(gtx.Ops)
+		offset.Pop()
+	}
 	offset := op.Offset(image.Pt((size.X-width)/2, y)).Push(gtx.Ops)
 	call.Add(gtx.Ops)
 	offset.Pop()
@@ -146,7 +190,7 @@ func (p *Page) layoutComposer(gtx layout.Context, e *env.Env, attached state.Att
 	p.controls.wake(e, info)
 	options := chat.ComposerOptions{
 		Placeholder: i18n.T("Tell the agent what to do"), Busy: busy, Queue: info.Queue, CanAttach: true,
-		History: attached.Model.Prompts, Commands: attached.Model.Commands,
+		History: attached.Model.Prompts, Commands: func() []protocol.Command { return sessionCommands(attached.Model.Commands()) },
 		Controls: p.controls.widgets(e, e.Snapshot(), info, p.composer.FocusTag()),
 	}
 	options.Answer = p.view.Asking(attached.Model)

@@ -42,6 +42,10 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
 | `session.delete` | `SessionRef` | |
 | `session.stop` | `SessionRef` | |
 | `session.handoff` | `HandoffParams` | `SessionInfo` (the new Agent session) |
+| `session.goal` | `GoalParams` (set, pause, resume, stop, turns, get, complete, block, clear) | `SessionInfo` |
+| `screen.list` | | `ScreensResult` |
+| `screen.act` | `ScreenActParams` (by the agent or the user) | `ScreenActResult` (`waiting` when an agent's action was not done yet) |
+| `screen.control` | `ScreenControlParams` (take, release, ask, watch, unwatch, stop) | `ScreenState` |
 | `ask` | `AskParams` | `AskResult`, caller attached |
 | `providers.list` | | `ProvidersResult` |
 | `providers.add_key` | `AddKeyParams` | `ProviderInfo` |
@@ -87,6 +91,7 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
 | `index.changed` | `IndexInfo` | subscribers |
 | `ui.focus` | `UIOpenParams` | app subscribers |
 | `notice` | `Notice` | subscribers |
+| `screen` | `ScreenState` (`stopped` when it ended) | subscribers |
 
 ## Session events
 
@@ -114,3 +119,4 @@ The connection receives live `session.event`s only after the last page.
 | `commands` | `CommandsData` |
 | `answer` | `AnswerData` |
 | `title` | `TitleData` |
+| `goal` | `GoalData` (the goal as it now stands) |

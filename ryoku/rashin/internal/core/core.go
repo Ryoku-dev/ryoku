@@ -96,6 +96,16 @@ type HarnessOptions struct {
 	Brief func() string
 	// Resume is the State a previous runner of this session returned.
 	Resume json.RawMessage
+	// Tools are the MCP servers handed to the agent with its session.
+	Tools []MCPServer
+}
+
+// MCPServer is a stdio MCP server an agent starts for its session.
+type MCPServer struct {
+	Name    string
+	Command string
+	Args    []string
+	Env     map[string]string
 }
 
 // Harnesses discovers external harnesses and starts their runners.

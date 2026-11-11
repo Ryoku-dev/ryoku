@@ -27,6 +27,12 @@ type Page struct {
 	composer chat.Composer
 	controls harnessControls
 	panel    changesPanel
+	goal     goalStrip
+	screen   screenPanel
+	// side is what the side panel shows: the session's changes or its screen
+	side int
+	// the agent's last request for help on its screen, so each opens the panel once
+	asked string
 
 	create createDialog
 	rename renameDialog

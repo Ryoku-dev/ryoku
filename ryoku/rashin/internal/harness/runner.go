@@ -596,7 +596,7 @@ func (r *runner) initialize(ctx context.Context) error {
 		resume = resumeState{ACPSession: previousSession, Load: previousLoad, Generation: r.generation}
 	}
 	method := "session/new"
-	params := map[string]any{"cwd": r.opts.Cwd, "mcpServers": []any{}}
+	params := map[string]any{"cwd": r.opts.Cwd, "mcpServers": mcpServers(r.opts.Tools)}
 	if resume.ACPSession != "" && resume.Load && initialized.AgentCapabilities.LoadSession {
 		method = "session/load"
 		params["sessionId"] = resume.ACPSession

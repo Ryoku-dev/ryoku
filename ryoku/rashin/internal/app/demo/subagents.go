@@ -1,22 +1,37 @@
 package demo
 
 import (
+	"time"
+
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/protocol"
 )
 
-// subagentEvents is a turn that hands work to helpers: three running side by
-// side the way omp reports them and one whose own calls Claude Code reports
-func subagentEvents(after int64) []protocol.SessionEvent {
+// demoGoal is the goal the working demo session follows
+func demoGoal(now time.Time) *protocol.Goal {
+	return &protocol.Goal{Objective: i18n.T("Map the IPC server, then make the help output match the registered commands."), Status: protocol.GoalActive, Turns: 1, MaxTurns: 30, Started: now.Add(-6 * time.Minute)}
+}
+
+// subagentEvents is a goal at work: the turn it was set in, then a turn Rashin
+// sent on that hands work to helpers, three running side by side the way omp
+// reports them and one whose own calls Claude Code reports
+func subagentEvents(after int64, now time.Time) []protocol.SessionEvent {
 	seq := after
 	next := func(kind string, data any) protocol.SessionEvent {
 		seq++
 		return event(seq, kind, data)
 	}
+	set := *demoGoal(now)
+	set.Turns = 0
 	return []protocol.SessionEvent{
-		next(protocol.EvUser, protocol.UserData{Text: i18n.T("Map the IPC server, then make the help output match the registered commands.")}),
+		next(protocol.EvGoal, protocol.GoalData{Goal: set}),
+		next(protocol.EvUser, protocol.UserData{Text: set.Objective}),
 		next(protocol.EvTurnStart, protocol.TurnStartData{Turn: 2}),
+		next(protocol.EvText, protocol.TextData{Message: "goal-1", Delta: i18n.T("I read the IPC service and the help builder. Next I map every registered command.")}),
+		next(protocol.EvTurnEnd, protocol.TurnEndData{Turn: 2, Stop: protocol.StopEnd}),
+		next(protocol.EvUser, protocol.UserData{Text: i18n.Tf("Continuing the goal, turn %d of %d", 2, 30), Goal: true}),
+		next(protocol.EvTurnStart, protocol.TurnStartData{Turn: 3}),
 		next(protocol.EvTool, protocol.ToolData{
 			Call: "task-ipc", Title: "task", Kind: protocol.ToolOther, Status: protocol.ToolRunning,
 			Agents: []protocol.AgentWork{

@@ -233,6 +233,9 @@ func (state *viewState) layoutRow(gtx layout.Context, th *look.Theme, block bloc
 	row, key := block.row, block.key()
 	switch row.kind {
 	case rowUser:
+		if row.user.Goal {
+			return state.layoutGoalTurn(gtx, th, row.user.Text)
+		}
 		return state.layoutMessage(gtx, th, "user:"+row.key, row.seq, row.user.Text+row.user.Run, block.info.Kind == protocol.KindAgent,
 			func(gtx layout.Context) layout.Dimensions { return state.layoutQuestion(gtx, th, row.user, row.key) })
 	case rowText:
@@ -273,6 +276,8 @@ func (state *viewState) layoutRow(gtx layout.Context, th *look.Theme, block bloc
 		return state.layoutError(gtx, th, block, "error:"+key)
 	case rowTurnEnd:
 		return state.layoutTurnFoot(gtx, th, block)
+	case rowGoal:
+		return state.layoutGoalEvent(gtx, th, row.goal, "goal:"+row.key)
 	default:
 		return layout.Dimensions{}
 	}

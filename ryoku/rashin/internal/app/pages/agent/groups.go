@@ -64,6 +64,12 @@ func needsYou(snapshot state.Snapshot, info protocol.SessionInfo) bool {
 	if info.Pending > 0 || info.State == protocol.StateWaiting || info.State == protocol.StateFailed {
 		return true
 	}
+	if info.Goal != nil && info.Goal.Status == protocol.GoalBlocked {
+		return true
+	}
+	if screen, ok := snapshot.Screens[info.ID]; ok && screen.Ask != "" && screen.Holder == protocol.HolderAgent {
+		return true
+	}
 	if info.Task != "" {
 		for _, task := range snapshot.Tasks[info.Project] {
 			if task.ID != info.Task {

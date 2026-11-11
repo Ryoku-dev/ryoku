@@ -414,6 +414,7 @@ func runFakeAgent(mode string) {
 	chosen := map[string]string{"mode": "default", "model": "big", "thinking": "auto"}
 	terminalID := ""
 	terminalBase := 0
+	var servers []fakeMCPServer
 	for scanner.Scan() {
 		var message rpcMessage
 		if json.Unmarshal(scanner.Bytes(), &message) != nil {
@@ -432,6 +433,7 @@ func runFakeAgent(mode string) {
 				"agentCapabilities": map[string]any{"loadSession": load, "promptCapabilities": promptCapabilities},
 			}})
 		case "session/new", "session/load":
+			servers = fakeMCPServers(message.Params)
 			title := "new"
 			if message.Method == "session/load" {
 				title = "loaded"
@@ -485,6 +487,12 @@ func runFakeAgent(mode string) {
 				writePromptResult(write, promptID, "end_turn")
 			case "subagents-claude":
 				fakeSubagentsClaude(write)
+				writePromptResult(write, promptID, "end_turn")
+			case "goal":
+				fakeGoalTurn(write, servers, prompts)
+				writePromptResult(write, promptID, "end_turn")
+			case "screen":
+				fakeScreenTurn(write, servers)
 				writePromptResult(write, promptID, "end_turn")
 			case "permissions":
 				writePermission(write, 100, "read-1", "read")

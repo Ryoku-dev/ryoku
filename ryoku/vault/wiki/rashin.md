@@ -19,11 +19,17 @@ session, event log, files, terminal, approvals, and process lifecycle, so closin
 the app does not lose the conversation. Each harness keeps its own model choice,
 and its session shows the model, mode, and options it offers. Every agent
 session is told where it runs before its first prompt: Ryoku, this vault,
-Rashin, and the code search over its folder.
+Rashin, and the code search over its folder, which it also gets as tools from
+Rashin's own MCP server.
 
 An agent session also shows the subagents its harness runs, each in a box that
 unfolds to what it did, and folds a finished turn's work behind one "Worked
-for" line.
+for" line. `/goal <what>` sets a goal Rashin keeps the agent on, turn after
+turn, until it reports the goal done or blocked or its turn budget runs out;
+pause, stop, or clear it from the strip over the composer. On niri an agent
+that needs a graphical app can be given a hidden screen of its own, once you
+agree: you can watch it, take it over, and hand it back, and the agent hands it
+to you for things like signing in. Nothing on it reaches your desktop.
 
 **Index** covers the system and registered projects with the potion embedding
 model, which is built into the daemon. A project added to Rashin and the

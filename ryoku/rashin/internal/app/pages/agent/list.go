@@ -22,7 +22,7 @@ func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 		rows := make([]look.SideRow, 0, len(sessions[at]))
 		for _, info := range sessions[at] {
 			row := look.SideRow{
-				ID: info.ID, Title: sessionTitle(info), Facts: sessionPlace(snapshot, info),
+				ID: info.ID, Title: sessionTitle(info), Facts: goalFact(info) + sessionPlace(snapshot, info),
 				Working: at == groupWorking, Strong: at == groupDone, Menu: true,
 			}
 			// only a session that wants attention gets a mark

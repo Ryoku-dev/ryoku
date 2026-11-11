@@ -39,11 +39,19 @@ func (panel *changesPanel) showTurn(turn int) {
 	panel.tabs.Selected = scopeTurn
 }
 
+const (
+	sideChanges = iota
+	sideScreen
+)
+
 func (p *Page) HasPanel(e *env.Env) bool {
 	snapshot := e.Snapshot()
 	info, ok := snapshot.Sessions[p.selected]
 	if !ok {
 		return false
+	}
+	if _, screen := snapshot.Screens[info.ID]; screen && !p.screen.large {
+		return true
 	}
 	_, tracked := worktreeOf(snapshot, info)
 	return tracked
@@ -52,8 +60,24 @@ func (p *Page) HasPanel(e *env.Env) bool {
 func (p *Page) Panel(gtx layout.Context, e *env.Env) layout.Dimensions {
 	snapshot := e.Snapshot()
 	info := snapshot.Sessions[p.selected]
-	worktree, _ := worktreeOf(snapshot, info)
+	worktree, tracked := worktreeOf(snapshot, info)
+	if screen, ok := snapshot.Screens[info.ID]; ok && !p.screen.large && (p.side == sideScreen || !tracked) {
+		return p.screen.layout(gtx, e, screen)
+	}
 	return p.panel.layout(gtx, e, info, worktree)
+}
+
+// showSide opens the side panel on one view, or closes it when that view is
+// already open
+func (p *Page) showSide(e *env.Env, side int) {
+	if e.PanelOpen && p.side == side {
+		e.TogglePanel()
+		return
+	}
+	p.side = side
+	if !e.PanelOpen {
+		e.TogglePanel()
+	}
 }
 
 func (panel *changesPanel) layout(gtx layout.Context, e *env.Env, info protocol.SessionInfo, worktree protocol.WorktreeInfo) layout.Dimensions {

@@ -47,6 +47,8 @@ type Snapshot struct {
 	Attached   map[string]Attached
 	Focus      protocol.UIOpenParams
 	Notices    []protocol.Notice
+	// Screens are the agent screens that are up, by session.
+	Screens map[string]protocol.ScreenState
 }
 
 // Store reduces daemon snapshots and events into one app state.
@@ -72,6 +74,7 @@ type Store struct {
 	arriving   map[string]*arrival
 	focus      protocol.UIOpenParams
 	notices    []protocol.Notice
+	screens    map[string]protocol.ScreenState
 	gitNext    uint64
 	gitChanged map[string]map[uint64]func()
 	invalidate func()
@@ -130,6 +133,10 @@ func (s *Store) ApplySnapshot(snapshot protocol.Snapshot) {
 	s.indexes = cloneIndexes(snapshot.Indexes)
 	s.projects = cloneProjects(snapshot.Projects)
 	s.tasks = groupTasks(snapshot.Tasks)
+	s.screens = make(map[string]protocol.ScreenState, len(snapshot.Screens))
+	for _, screen := range snapshot.Screens {
+		s.screens[screen.Session] = screen
+	}
 	s.sessions = make(map[string]protocol.SessionInfo, len(snapshot.Sessions))
 	for _, info := range snapshot.Sessions {
 		s.sessions[info.ID] = info
@@ -367,6 +374,18 @@ func (s *Store) Apply(event protocol.Event) error {
 		}
 	case protocol.EvtUIFocus:
 		err = json.Unmarshal(event.Data, &s.focus)
+	case protocol.EvtScreen:
+		var screen protocol.ScreenState
+		if err = json.Unmarshal(event.Data, &screen); err == nil {
+			if s.screens == nil {
+				s.screens = make(map[string]protocol.ScreenState)
+			}
+			if screen.State == protocol.ScreenStopped {
+				delete(s.screens, screen.Session)
+			} else {
+				s.screens[screen.Session] = screen
+			}
+		}
 	case protocol.EvtNotice:
 		var notice protocol.Notice
 		if err = json.Unmarshal(event.Data, &notice); err == nil {
@@ -413,9 +432,13 @@ func (s *Store) Snapshot() Snapshot {
 		Attached:   make(map[string]Attached, len(s.attached)),
 		Focus:      s.focus,
 		Notices:    append([]protocol.Notice(nil), s.notices...),
+		Screens:    make(map[string]protocol.ScreenState, len(s.screens)),
 	}
 	for id, info := range s.sessions {
 		result.Sessions[id] = info
+	}
+	for id, screen := range s.screens {
+		result.Screens[id] = screen
 	}
 	for id, progress := range s.progress {
 		result.Progress[id] = progress

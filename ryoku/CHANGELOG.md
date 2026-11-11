@@ -162,10 +162,21 @@
   as C++, and `find` giving the definition before the declaration. An index
   built before rereads only those files on its next refresh
   (`rashin/internal/index/extract/cfamily.go`).
+- **Agents get Rashin's tools.** Every agent session is handed Rashin's own
+  MCP server with the code search, its goal and its screen, and its brief says
+  which languages the index holds (`rashin/cmd/rashin/mcp.go`).
 - **An agent's subagents stand in a box of their own.** Running or done, it
   says how many work, finished or failed and for how long, and unfolds to each
   subagent's steps and answer, from omp's task tool and Claude Code's Agent
   calls (`rashin/internal/app/chat/agents.go`).
+- **`/goal` keeps an agent at work until the goal is done.** Rashin starts the
+  next turn itself until the agent reports the goal done or blocked or the
+  turn budget runs out; pause, stop and clear sit over the composer
+  (`rashin/internal/daemon/goals.go`).
+- **An agent can use apps on a screen of its own.** Once you agree it gets a
+  hidden desktop where it opens, clicks and types; you can watch it in the
+  side panel or full size, take it over and hand it back, and it hands it to
+  you for a sign-in (`rashin/internal/screen`, `wm/niri/nest.go`).
 - **A finished turn folds its work.** "Worked for 2 min 14 s" stands for the
   steps, thoughts and subagents behind the answer and unfolds to them
   (`rashin/internal/app/chat/fold.go`).

@@ -37,6 +37,8 @@ func TestAnAgentIsToldAboutRyokuTheVaultRashinAndCodeSearch(t *testing.T) {
 		Project:  "app",
 		Index:    &protocol.IndexInfo{Root: "/work/app", Files: 412, Languages: []protocol.Count{{Name: "cpp", Count: 300}, {Name: "c", Count: 100}, {Name: "bash", Count: 12}}},
 		Semantic: true,
+		Tools:    true,
+		Screen:   true,
 	})
 	for _, want := range []string{
 		"The user did not write this part",
@@ -46,6 +48,7 @@ func TestAnAgentIsToldAboutRyokuTheVaultRashinAndCodeSearch(t *testing.T) {
 		"Rashin is Ryoku's optional assistant", "Rashin > Settings > Providers",
 		"an index of /work/app (412 files: 300 C++, 100 C, 12 shell) with search by meaning built in",
 		"when another code index or search skill you carry finds little here",
+		"from the rashin MCP server", "a hidden desktop of your own",
 		"rashin search", "rashin find <name>", "rashin references <name>",
 		"End of context from Rashin.",
 	} {

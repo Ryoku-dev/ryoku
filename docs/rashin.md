@@ -578,6 +578,13 @@ terminal, killed on release or session stop).
   here. A session the agent loads back is not briefed again; one that had to
   start over is. The folder's repository is indexed when the session's agent
   is created (see Index), so the search is there when the agent looks.
+- **Rashin's tools** (`internal/mcp`, `cmd/rashin/mcp*.go`,
+  `internal/daemon/tools.go`): every agent session is handed one stdio MCP
+  server, `rashin mcp`, in the `mcpServers` of `session/new` and
+  `session/load`, since every ACP agent takes stdio MCP. It serves the code
+  search (`search`, `find`, `def`, `outline`, `references`, `impact`,
+  `peek`), the session's `goal`, and, where the desktop can host one, the
+  screen tools. `RASHIN_SESSION` and `RASHIN_CWD` tell it its session.
 - **Subagents** (`internal/harness/subagents.go`): omp's task tool reports its
   subagents in the call's `rawOutput.details` (progress while they run,
   results after), and Claude Code reports an Agent or Task call and then each
@@ -588,6 +595,31 @@ terminal, killed on release or session stop).
   are its steps, never transcript rows of their own. An omp subagent with no
   description is named by the ID the model gave it, since omp's task text
   opens with its template.
+- **Goals** (`internal/daemon/goals.go`, `protocol/goal.go`): `/goal <what>`
+  in an agent session sets a goal that Rashin follows itself, since a
+  harness's own goal loop does not run over ACP. After each turn under an
+  active goal the daemon prompts the next one ("Continuing the goal, turn N of
+  M") until the agent calls the `goal` tool to mark it done or blocked, the
+  turn budget (30 by default, `/goal turns <n>`) runs out, a turn fails or is
+  stopped, or two turns in a row do nothing. `/goal pause`, `resume`, `stop`
+  and `clear` count only as the whole message, so a goal that starts with one
+  of those words is still a goal. A blocked goal needs the user.
+- **The agent's screen** (`internal/screen`, `internal/daemon/screens.go`): an
+  agent that needs a graphical app gets a hidden desktop of its own, a nested
+  session of the user's compositor started through `ryoku wm nest` where the
+  provider claims `nestedSession` (see [compositors.md](compositors.md)). Its
+  apps run with their own home folder and a private session bus; the screen
+  takes a virtual pointer (pure Go) and `wtype`, and is read with `grim`, all
+  of which ryoku-desktop brings. The first screen tool asks the user with a
+  request card Rashin draws itself. The user can watch the screen (frames once
+  a second, only while a client watches and only when they changed), take it
+  over and hand it back, and the agent can ask them for something only they
+  should do, such as a sign-in (`screen_ask_user`). An agent's action waits
+  while the user has the screen. Harnesses give up on a tool call after half
+  a minute or so, so a call that waits on the user returns after 20 s saying
+  nothing was done yet, and the agent calls again; the request, the hand-over
+  and the ask stay up meanwhile. A screen ends with its session, after ten
+  idle minutes, or on Close the screen.
 - **Its own setup**: `harnesses.list` carries what a harness will run with.
   `setup` is read from the harness's own files where Rashin knows them (omp:
   the model behind each role and the thinking level, from
@@ -934,6 +966,19 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
   for 2 min 14 s" with its steps and thoughts, or "You stopped it after ..."
   when it was stopped, when that work shows more than one line; the answer
   stays open under it.
+- **A goal** (`pages/agent/goal.go`, `chat/goal.go`) stands in a strip over
+  the composer with its turn count and Pause or Resume and Stop goal or Clear;
+  the sidebar row says "Goal, turn N of M", and `/goal` is in the command
+  list. Each turn the goal starts is drawn quietly, without the prompt Rashin
+  wrote.
+- **The agent's screen** (`pages/agent/screen.go`): the header's Screen action
+  opens it in the side panel, and it opens there by itself when the agent asks
+  for help. Its enlarge action shows it in place of the conversation, as large
+  as the pane allows, until Back to the conversation. It shows the latest frame, what the agent did last, and what
+  it asks; Take control turns the frame's outline to the attention tone and
+  sends clicks, drags, the wheel, typing and chords to it in order, and Hand
+  back returns it. A session whose agent waits on the user there is in Needs
+  you.
 - **A redraw is never lost** (`shell/redraw.go`): the toolkit ignores a
   redraw asked for while a frame is being drawn, so the last event of an
   answer, or a daemon coming back, could stay off screen until the pointer

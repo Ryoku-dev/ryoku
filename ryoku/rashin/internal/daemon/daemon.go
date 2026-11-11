@@ -45,6 +45,7 @@ type Daemon struct {
 	lock       *os.File
 	clients    map[*connection]struct{}
 	manager    *sessionManager
+	screens    *screenManager
 	events     *Broadcaster
 	removeFeed func()
 	stop       chan struct{}
@@ -64,7 +65,10 @@ func New(deps Deps) *Daemon {
 	d := &Daemon{deps: deps, started: time.Now(), clients: make(map[*connection]struct{}), events: events, stop: make(chan struct{})}
 	d.manager = newSessionManager(deps.Asker, deps.Harnesses, deps.Work, d.Settings, d.Broadcast, d.stateChanged, d.warn)
 	d.manager.brief = d.agentBrief
+	d.manager.tools = d.agentTools
 	d.manager.prepare = d.indexSession
+	d.screens = newScreenManager(d.Broadcast, d.manager.ask, screenable)
+	d.manager.ended = d.screens.stop
 	if deps.Work != nil {
 		deps.Work.Bind(d.manager)
 	}
@@ -311,6 +315,7 @@ func (d *Daemon) closeAll() error {
 	go func() {
 		defer close(done)
 		d.manager.shutdown(shutdownTimeout - time.Second)
+		d.screens.stopAll()
 		if d.deps.Work != nil {
 			_ = d.deps.Work.Close()
 		}
@@ -385,6 +390,7 @@ func (d *Daemon) stateChanged() {
 
 func (d *Daemon) onIdleDeadline() {
 	d.manager.idleStop(time.Now())
+	d.screens.idleStop(time.Now())
 	if !d.Idle() {
 		d.stateChanged()
 		return
@@ -404,5 +410,5 @@ func (d *Daemon) Idle() bool {
 	d.mu.RLock()
 	connections := len(d.clients)
 	d.mu.RUnlock()
-	return connections == 0 && !d.manager.busy() && (d.deps.Indexer == nil || !d.deps.Indexer.Busy()) && (d.deps.Work == nil || !d.deps.Work.Busy())
+	return connections == 0 && !d.manager.busy() && !d.screens.busy() && (d.deps.Indexer == nil || !d.deps.Indexer.Busy()) && (d.deps.Work == nil || !d.deps.Work.Busy())
 }

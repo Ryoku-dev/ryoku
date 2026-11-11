@@ -30,7 +30,12 @@ const (
 	MSessionFork       = "session.fork"
 	MSessionRead       = "session.read"
 	MSessionRevertTurn = "session.revert_turn"
+	MSessionGoal       = "session.goal"
 	MAsk               = "ask"
+
+	MScreenList    = "screen.list"
+	MScreenAct     = "screen.act"
+	MScreenControl = "screen.control"
 
 	MProvidersList      = "providers.list"
 	MProvidersAddKey    = "providers.add_key"
@@ -141,6 +146,7 @@ const (
 	EvtGitChanged       = "git.changed"       // GitChanged, watchers of the project
 	EvtReviewChanged    = "review.changed"    // ReviewResult
 	EvtAPIChanged       = "api.changed"       // APIInfo
+	EvtScreen           = "screen"            // ScreenState
 )
 
 // Method is one entry of the registry: its name, the Go types of its params and
@@ -183,6 +189,11 @@ var Methods = []Method{
 	m(MSessionSteer, PromptParams{}, PromptResult{}, "Cancel the running turn and prompt at once."),
 	m(MSessionFork, ForkParams{}, SessionInfo{}, "Copy a session up to an event into a new session."),
 	m(MSessionRead, SessionRef{}, Empty{}, "Mark a session's finished turns as seen."),
+	m(MSessionGoal, GoalParams{}, SessionInfo{}, "Set, pause, resume, end or report an Agent session's goal."),
+
+	m(MScreenList, Empty{}, ScreensResult{}, "The agent screens that are up."),
+	m(MScreenAct, ScreenActParams{}, ScreenActResult{}, "Act on an Agent session's screen, starting it once the user agrees."),
+	m(MScreenControl, ScreenControlParams{}, ScreenState{}, "Take, hand back, watch or stop a session's screen, or have the agent ask the user."),
 	m(MSessionRevertTurn, TurnParams{}, GitOpResult{}, "Restore the worktree files to the checkpoint taken before a turn."),
 	m(MAsk, AskParams{}, AskResult{}, "Create or continue an Ask session, attach and prompt."),
 

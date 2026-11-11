@@ -376,6 +376,29 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 			return nil, err
 		}
 		return d.manager.queue(ctx, p)
+	case protocol.MSessionGoal:
+		p, err := unmarshal[protocol.GoalParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.manager.goal(ctx, p)
+	case protocol.MScreenList:
+		return d.screens.list(), nil
+	case protocol.MScreenAct:
+		p, err := unmarshal[protocol.ScreenActParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := d.manager.get(p.ID); err != nil {
+			return nil, err
+		}
+		return d.screens.act(ctx, p)
+	case protocol.MScreenControl:
+		p, err := unmarshal[protocol.ScreenControlParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.screens.control(ctx, p)
 	case protocol.MSessionUnqueue:
 		p, err := unmarshal[protocol.UnqueueParams](raw)
 		if err != nil {
@@ -823,7 +846,7 @@ func (d *Daemon) snapshot(ctx context.Context) (protocol.Snapshot, error) {
 	if err != nil {
 		return protocol.Snapshot{}, err
 	}
-	snapshot := protocol.Snapshot{Status: d.status(ctx), Sessions: sessions.Sessions, Settings: d.Settings(), Providers: providers, Harnesses: harnesses, Indexes: indexes}
+	snapshot := protocol.Snapshot{Status: d.status(ctx), Sessions: sessions.Sessions, Settings: d.Settings(), Providers: providers, Harnesses: harnesses, Indexes: indexes, Screens: d.screens.list().Screens}
 	if d.deps.Work != nil {
 		snapshot.Projects = d.deps.Work.Projects(ctx)
 		snapshot.Tasks = d.deps.Work.Tasks(ctx)

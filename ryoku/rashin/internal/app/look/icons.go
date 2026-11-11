@@ -15,7 +15,7 @@ var Icon struct {
 	Diff, Graph, Tasks, Activity, Lock, Unlock, Check                *widget.Icon
 	Error, Warning, Fork, Undo, ArrowDown, Key, Link, Play, Filter   *widget.Icon
 	Thought, Steps, File, Remove, FolderOpen, Blank, Show, Hide      *widget.Icon
-	Quote                                                            *widget.Icon
+	Quote, Goal, Pause, Screen                                       *widget.Icon
 }
 
 func init() {
@@ -72,4 +72,7 @@ func init() {
 	Icon.Show = kit.Icon(mdicons.ActionVisibility)
 	Icon.Hide = kit.Icon(mdicons.ActionVisibilityOff)
 	Icon.Quote = kit.Icon(mdicons.EditorFormatQuote)
+	Icon.Goal = kit.Icon(mdicons.DeviceGPSFixed)
+	Icon.Pause = kit.Icon(mdicons.AVPause)
+	Icon.Screen = kit.Icon(mdicons.HardwareDesktopWindows)
 }

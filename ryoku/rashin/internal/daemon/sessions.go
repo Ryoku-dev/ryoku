@@ -48,6 +48,25 @@ type managedSession struct {
 	tools        map[string]string
 	forkHandoff  *protocol.Handoff
 	lastActivity time.Time
+	// calls are the tool calls of the running turn; turnCalls counts the
+	// last finished turn's, and goalIdle the goal turns in a row with none
+	calls     map[string]struct{}
+	turnCalls int
+	goalIdle  int
+	// goalTurn is set while a turn that started under an active goal runs
+	goalTurn bool
+	// asks are Rashin's own open questions, by request, waiting for an option
+	asks map[string]chan string
+}
+
+// promptTurn is how a turn starts: reserved when the caller already holds
+// the session, goal when Rashin sends it on toward the goal, say when the
+// agent is sent other text than the transcript shows
+type promptTurn struct {
+	handoff  *protocol.Handoff
+	reserved bool
+	goal     bool
+	say      string
 }
 
 type sessionManager struct {
@@ -64,6 +83,10 @@ type sessionManager struct {
 	// prepare readies its folder; the daemon sets both, tests leave them nil
 	brief   func(protocol.SessionInfo) string
 	prepare func(protocol.SessionInfo)
+	// tools are the MCP servers an agent session is handed
+	tools func(protocol.SessionInfo) []core.MCPServer
+	// ended hears that a session was stopped or deleted, so what it held ends too
+	ended func(id string)
 }
 
 func newSessionManager(asker core.Asker, harnesses core.Harnesses, work core.Work, settings func() protocol.Settings, broadcast func(string, any), changed func(), warn func(string, ...any)) *sessionManager {
@@ -222,6 +245,10 @@ func (m *sessionManager) persist(s *managedSession, kind string, data any) error
 			if s.tools == nil {
 				s.tools = make(map[string]string)
 			}
+			if s.calls == nil {
+				s.calls = make(map[string]struct{})
+			}
+			s.calls[tool.Call] = struct{}{}
 			if tool.Title != "" {
 				s.tools[tool.Call] = tool.Title
 			}
@@ -262,6 +289,7 @@ func (m *sessionManager) persist(s *managedSession, kind string, data any) error
 		}
 	case protocol.EvTurnEnd:
 		s.tools = nil
+		s.turnCalls, s.calls = len(s.calls), nil
 		_ = s.log.Update(func(i *protocol.SessionInfo) { i.Unread = true; i.Activity = "" }, nil)
 		infoChanged = true
 	}
@@ -452,6 +480,9 @@ func (m *sessionManager) ensureRunner(ctx context.Context, s *managedSession) (c
 			if m.brief != nil {
 				options.Brief = func() string { return m.brief(s.log.Info()) }
 			}
+			if m.tools != nil {
+				options.Tools = m.tools(info)
+			}
 			runner, err = m.harnesses.NewAgent(ctx, options)
 			if err == nil && m.prepare != nil {
 				go m.prepare(info)
@@ -490,6 +521,9 @@ func (m *sessionManager) ensureRunner(ctx context.Context, s *managedSession) (c
 }
 
 func (m *sessionManager) prompt(ctx context.Context, p protocol.PromptParams, handoff *protocol.Handoff) (protocol.PromptResult, int64, error) {
+	if handled, err := m.goalCommand(ctx, p.ID, p.Text); handled {
+		return protocol.PromptResult{}, 0, err
+	}
 	s, err := m.get(p.ID)
 	if err != nil {
 		return protocol.PromptResult{}, 0, err
@@ -519,10 +553,11 @@ func (m *sessionManager) prompt(ctx context.Context, p protocol.PromptParams, ha
 			return protocol.PromptResult{}, 0, ctx.Err()
 		}
 	}
-	return m.startPrompt(ctx, s, p, handoff, false)
+	return m.startPrompt(ctx, s, p, promptTurn{handoff: handoff})
 }
 
-func (m *sessionManager) startPrompt(ctx context.Context, s *managedSession, p protocol.PromptParams, handoff *protocol.Handoff, reserved bool) (protocol.PromptResult, int64, error) {
+func (m *sessionManager) startPrompt(ctx context.Context, s *managedSession, p protocol.PromptParams, turnOptions promptTurn) (protocol.PromptResult, int64, error) {
+	handoff, reserved := turnOptions.handoff, turnOptions.reserved
 	if reserved {
 		defer func() {
 			s.mu.Lock()
@@ -573,6 +608,7 @@ func (m *sessionManager) startPrompt(ctx context.Context, s *managedSession, p p
 		s.forkHandoff = nil
 	}
 	turn := info.Turns + 1
+	s.goalTurn = info.Goal != nil && info.Goal.Status == protocol.GoalActive
 	s.mu.Unlock()
 	if info.Kind == protocol.KindAgent && m.work != nil {
 		checkpointed, checkpointErr := m.work.BeforeTurn(ctx, info, turn)
@@ -590,7 +626,7 @@ func (m *sessionManager) startPrompt(ctx context.Context, s *managedSession, p p
 	}
 
 	before := info.LastSeq
-	if err := s.coalescer.Emit(protocol.EvUser, protocol.UserData{Text: p.Text, Images: p.Images, Terminal: p.Terminal, Handoff: handoff, Run: p.Run}); err != nil {
+	if err := s.coalescer.Emit(protocol.EvUser, protocol.UserData{Text: p.Text, Images: p.Images, Terminal: p.Terminal, Handoff: handoff, Run: p.Run, Goal: turnOptions.goal}); err != nil {
 		s.mu.Lock()
 		s.running = false
 		s.cancel = nil
@@ -634,6 +670,9 @@ func (m *sessionManager) startPrompt(ctx context.Context, s *managedSession, p p
 		return protocol.PromptResult{}, before, err
 	}
 	input := core.PromptInput{Turn: turn, Text: p.Text, Images: p.Images, Terminal: p.Terminal, Handoff: handoff, Origin: info.Origin, Run: p.Run, History: history}
+	if turnOptions.say != "" {
+		input.Text = turnOptions.say
+	}
 	go m.runTurn(turnCtx, s, runner, input, done)
 	m.changed()
 	return protocol.PromptResult{Turn: turn}, before, nil
@@ -708,8 +747,13 @@ func (m *sessionManager) runTurn(ctx context.Context, s *managedSession, runner 
 	if m.work != nil && info.Kind == protocol.KindAgent {
 		m.work.AfterTurn(context.Background(), info, input.Turn)
 	}
+	s.mu.Lock()
+	calls := s.turnCalls
+	s.mu.Unlock()
+	onward := m.goalAfterTurn(s, stop, calls)
 
 	var queued *protocol.QueuedPrompt
+	var goal *protocol.Goal
 	s.mu.Lock()
 	if !s.steering && !s.stopping && !s.running {
 		current := s.log.Info()
@@ -721,6 +765,11 @@ func (m *sessionManager) runTurn(ctx context.Context, s *managedSession, runner 
 			_ = s.log.Update(func(i *protocol.SessionInfo) {
 				i.Queue = append([]protocol.QueuedPrompt(nil), i.Queue[1:]...)
 			}, nil)
+		} else if onward && current.Goal != nil && current.Goal.Status == protocol.GoalActive {
+			next := *current.Goal
+			goal = &next
+			s.running = true
+			s.reserveDone = make(chan struct{})
 		}
 	}
 	close(done)
@@ -730,8 +779,14 @@ func (m *sessionManager) runTurn(ctx context.Context, s *managedSession, runner 
 	info = s.log.Info()
 	s.mu.Unlock()
 	if queued != nil {
-		if _, _, promptErr := m.startPrompt(context.Background(), s, protocol.PromptParams{ID: info.ID, Text: queued.Text, Images: queued.Images}, nil, true); promptErr != nil && m.warn != nil {
+		if _, _, promptErr := m.startPrompt(context.Background(), s, protocol.PromptParams{ID: info.ID, Text: queued.Text, Images: queued.Images}, promptTurn{reserved: true}); promptErr != nil && m.warn != nil {
 			m.warn("queued prompt session %s: %v", info.ID, promptErr)
+		}
+	}
+	if goal != nil {
+		shown, say := goalTurn(*goal)
+		if _, _, promptErr := m.startPrompt(context.Background(), s, protocol.PromptParams{ID: info.ID, Text: shown}, promptTurn{reserved: true, goal: goal.Turns > 0, say: say}); promptErr != nil && m.warn != nil {
+			m.warn("goal turn session %s: %v", info.ID, promptErr)
 		}
 	}
 	m.changed()
@@ -778,6 +833,13 @@ func (m *sessionManager) cancel(id string) error {
 }
 
 func (m *sessionManager) queue(ctx context.Context, p protocol.QueueParams) (protocol.SessionInfo, error) {
+	if handled, err := m.goalCommand(ctx, p.ID, p.Text); handled {
+		if err != nil {
+			return protocol.SessionInfo{}, err
+		}
+		info, _ := m.Info(p.ID)
+		return info, nil
+	}
 	s, err := m.get(p.ID)
 	if err != nil {
 		return protocol.SessionInfo{}, err
@@ -1050,6 +1112,12 @@ func (m *sessionManager) permission(p protocol.PermissionParams) error {
 		return err
 	}
 	s.mu.Lock()
+	if answer, ok := s.asks[p.Request]; ok {
+		delete(s.asks, p.Request)
+		s.mu.Unlock()
+		answer <- p.Option
+		return nil
+	}
 	if _, ok := s.permissions[p.Request]; !ok {
 		s.mu.Unlock()
 		return protocol.Errorf(protocol.CodeNotFound, "%s", i18n.Tf("No open permission %s.", p.Request))
@@ -1209,6 +1277,9 @@ func (m *sessionManager) stop(id string) error {
 	}
 	if runner != nil {
 		runner.Cancel()
+	}
+	if m.ended != nil {
+		m.ended(id)
 	}
 	var stopErr error
 	if runner != nil {

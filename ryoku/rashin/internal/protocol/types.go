@@ -95,6 +95,8 @@ type Snapshot struct {
 	Indexes   []IndexInfo    `json:"indexes"`
 	Projects  []ProjectInfo  `json:"projects"`
 	Tasks     []TaskInfo     `json:"tasks"`
+	// Screens are the agent screens that are up.
+	Screens []ScreenState `json:"screens,omitempty"`
 }
 
 // SessionListParams filters session.list. Before is a session id: only older

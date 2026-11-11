@@ -132,6 +132,7 @@ func makeFixtures() fixtures {
 		Task:        "task-graph",
 		Activity:    i18n.T("Reading git graph rows"),
 		Checkpoints: true,
+		Goal:        demoGoal(now),
 	}
 	done := protocol.SessionInfo{
 		ID:       "agent-done",
@@ -645,7 +646,7 @@ func makeFixtures() fixtures {
 	result.events[askEarlier.ID] = askEvents(askEarlier)
 	result.events[needs.ID] = agentEvents(needs, true)
 	result.events[working.ID] = agentEvents(working, false)
-	result.events[working.ID] = append(result.events[working.ID], subagentEvents(int64(len(result.events[working.ID])))...)
+	result.events[working.ID] = append(result.events[working.ID], subagentEvents(int64(len(result.events[working.ID])), now)...)
 	result.events[done.ID] = agentEvents(done, false)
 	result.events[done.ID] = append(result.events[done.ID], event(int64(len(result.events[done.ID])+1), protocol.EvTurnEnd, protocol.TurnEndData{Turn: 1, Stop: protocol.StopEnd}))
 	result.events[idle.ID] = agentEvents(idle, false)

@@ -21,6 +21,7 @@ const (
 	rowAnswer
 	rowError
 	rowTurnEnd
+	rowGoal
 )
 
 type transcriptRow struct {
@@ -36,6 +37,7 @@ type transcriptRow struct {
 	terminal   *terminalState
 	answer     *protocol.AnswerData
 	err        protocol.ErrorData
+	goal       protocol.Goal
 	turn       *turnState
 }
 
@@ -209,6 +211,11 @@ func (state *modelState) apply(model *Model, event protocol.SessionEvent) {
 		var data protocol.TitleData
 		if decodeEvent(event, &data) {
 			model.info.Title = data.Title
+		}
+	case protocol.EvGoal:
+		var data protocol.GoalData
+		if decodeEvent(event, &data) {
+			state.rows = append(state.rows, transcriptRow{kind: rowGoal, key: strconv.FormatInt(event.Seq, 10), seq: event.Seq, goal: data.Goal})
 		}
 	}
 }

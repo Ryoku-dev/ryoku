@@ -68,6 +68,10 @@ type Session struct {
 	Index *protocol.IndexInfo
 	// Semantic says the index also searches by meaning.
 	Semantic bool
+	// Tools says the agent was handed Rashin's MCP server, and Screen that
+	// the server offers it a screen of its own.
+	Tools  bool
+	Screen bool
 }
 
 // Agent is the text an external agent hears once, ahead of its first prompt.
@@ -122,6 +126,13 @@ func Agent(session Session) string {
 		b.WriteString("- rashin impact <file>  what depends on a file\n")
 		b.WriteString("- rashin peek <file:start-end>  those lines\n")
 		b.WriteString("Add --format json for structured output.\n")
+		if session.Tools {
+			b.WriteString("The same search is in your tool list from the rashin MCP server, as its search, find, def, outline, references, impact and peek tools; prefer those to the shell.\n")
+		}
+	}
+	if session.Screen {
+		b.WriteString("\nYour screen\n")
+		b.WriteString("When the work needs a graphical app, such as a web page to check or a program with no command line, the rashin screen tools give you a hidden desktop of your own to open apps on, look at, click and type into. The first use asks the user; they can watch it and take it over, and screen_ask_user hands it to them for sign-ins.\n")
 	}
 
 	b.WriteString("\nEnd of context from Rashin.")

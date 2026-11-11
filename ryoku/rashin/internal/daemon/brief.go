@@ -19,7 +19,8 @@ import (
 func (d *Daemon) agentBrief(info protocol.SessionInfo) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	session := brief.Session{Info: info, Semantic: d.Settings().Index.Semantic}
+	tools := len(d.agentTools(info)) > 0
+	session := brief.Session{Info: info, Semantic: d.Settings().Index.Semantic, Tools: tools, Screen: tools && screenable()}
 	if d.deps.Work != nil && info.Project != "" {
 		for _, project := range d.deps.Work.Projects(ctx) {
 			if project.ID == info.Project {

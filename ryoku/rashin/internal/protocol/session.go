@@ -83,6 +83,8 @@ type SessionInfo struct {
 	Queue []QueuedPrompt `json:"queue,omitempty"`
 	// Checkpoints is true when the session's turns have file checkpoints.
 	Checkpoints bool `json:"checkpoints,omitempty"`
+	// Goal is the objective the agent keeps working toward across turns.
+	Goal *Goal `json:"goal,omitempty"`
 }
 
 // SessionEvent is one line of a session log and one session.event on the wire.
@@ -118,6 +120,7 @@ const (
 	EvCommands           = "commands"
 	EvAnswer             = "answer"
 	EvTitle              = "title"
+	EvGoal               = "goal"
 )
 
 // Attachment is a file on this machine sent with a prompt.
@@ -154,6 +157,9 @@ type UserData struct {
 	Handoff  *Handoff         `json:"handoff,omitempty"`
 	// Run is the command the user ran in this turn in place of a question.
 	Run string `json:"run,omitempty"`
+	// Goal marks a turn Rashin started itself to keep working toward the
+	// session's goal; Text is what the agent was sent.
+	Goal bool `json:"goal,omitempty"`
 }
 
 // TextData is the data of text and thought events: a delta of one message.
