@@ -318,9 +318,23 @@ to the end.
 **What is said is never cut.** A line of an answer breaks; it does not end in
 an ellipsis. An address or a command longer than the column breaks where it
 must, code that fits on a line stays whole on one, and a table gives its
-narrow columns their width and wraps the wide ones. Code inside a sentence
-stands on a `stone3` plate cut 3 with 6 either side of it. A face that has no
+narrow columns their width and wraps the wide ones. A face that has no
 italic leans its emphasis rather than drop it.
+
+**An answer is set for reading.** Its `proof` lines stand on a 24 line, not
+the 21 of proof text that is glanced at, paragraphs 13 apart and list items
+8. Code inside a sentence is told apart by its face alone: mono in `fg2`,
+one step up at 13 so it stands as tall as the words beside it, with no plate
+and no room of its own. A bracket or a comma belongs to the name it touches,
+and a plate one stone step from the pane does not show on every palette,
+which leaves only its gaps. A block of code keeps its `stone1` slab.
+
+**A command is shown once.** When an answer offers a command to run, one
+`stone1` slab cut 7 carries it: the command in `mono`, why in `caption`, its
+claim (how far it reaches) and one line plaque that runs it. The slab stands
+where the text shows the command, in place of the block of code, and never
+again under it. Several commands share one slab under a `title`, a `vein`
+hairline between them.
 
 **Text can be marked.** Every paragraph, question and block of code can be
 selected with the pointer and copied, with `sel` at 60% under the marked

@@ -98,6 +98,8 @@ and in a light Ryoku palette and go down the list. Every "no" is a defect.
       columns.
 - [ ] Text in a conversation can be marked and copied; the marks go when the
       keyboard leaves them.
+- [ ] Code inside a sentence takes no room of its own, and a command an
+      answer offers to run is shown once.
 - [ ] A key answers a waiting request only from an empty composer, only for a
       request on screen, and the composer says which key does what.
 - [ ] A select with nine or more options is searched by typing, and an
