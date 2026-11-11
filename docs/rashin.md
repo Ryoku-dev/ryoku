@@ -127,6 +127,14 @@ turns Rashin on at first login.
   (default 10) without a turn, even while the app shows it. The next prompt
   starts it again and resumes the session (`session/load` when the harness
   supports it).
+- **Making way for an update** (`internal/daemon/replaced.go`): an update
+  installs a new `rashind` while the old one runs on for as long as an app is
+  connected, and that app would then talk to code older than itself. The
+  daemon watches the file it was started from (inotify on its folder, no
+  poll). Once another program has stood at that path for two seconds and
+  nothing is running (no turn, no agent process, no index job), it exits; the
+  next connection starts the new one, and clients reconnect by themselves. A
+  path that is gone or holds no program is an uninstall and changes nothing.
 - **Shutdown** (`shutdown` method, `rashin off`, SIGTERM): cancel running turns
   (each ends with `turn_end` stop `cancelled`), stop agent processes, flush
   logs, close stores, remove the socket when the daemon bound it, exit 0.
@@ -267,7 +275,7 @@ session id for resume). Both are written by the daemon only.
 
 | Kind | Data |
 |---|---|
-| `user` | text, attached files (`images`: paths, of any kind), terminal context, handoff |
+| `user` | text, attached files (`images`: paths, of any kind), terminal context, handoff; or `run`, the command the user ran in place of a question |
 | `text` | message id, delta: visible answer text |
 | `thought` | message id, delta: reasoning text |
 | `tool` | call id, title, kind, status, input, output, diff, terminal, locations; later events for the same call id overwrite the fields they carry |
@@ -448,6 +456,23 @@ The Ask runner (`internal/ask`) is Rashin's own agent loop on the gateway.
   second proposal, stands. A command that names a credential file or sweeps a
   tree that holds them (`command.ReadsSecret`) never runs in any mode, since
   what it prints is sent to the model.
+- **Running where it can be watched** (`internal/ask/run.go`): a command
+  that says nothing until it ends reads as a hang, so its output is a
+  `terminal` of the session, named after the tool call that owns it and sent
+  on as it comes (whole characters only, up to 256 KiB). A command Ask runs
+  itself becomes one after 700 ms, so a quick look stays a plain result; one
+  the user started is one from the start.
+- **A run by the user**: `session.prompt` with `run` in place of text is a
+  turn whose question is a command. It works in every mode, since the user
+  started it: the daemon refuses it before the turn exists when the session
+  is not an Ask or the command needs a terminal (`command.NeedsTerminal`: it
+  asks for a password, or names a credential), so the client can still send
+  it to one. The command runs as the user from the home folder with ten
+  minutes and no keyboard, `session.cancel` kills its process group, and
+  when it ends Ask is handed the command, its exit status and what it printed
+  and answers from that. A later turn's history holds "I ran this command
+  myself" and the answer. A proposed plan marks each command that needs a
+  terminal (`terminal: true`).
 - **Command classifier**: tiers `read`, `write`, `system` (root or package
   manager), `danger` (destructive or irreversible). Wrappers, pipes, segments,
   redirects, substitutions and `find -exec` are classified by their worst part;
@@ -863,12 +888,28 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
   they belong to, and on a palette whose stones stand close the plate did not
   show, only the gaps.
 - **A command the answer offers to run** stands once (`chat/answer.go`): one
-  slab with the command, why, how far it reaches and Run in terminal. When the
-  text shows the same command in a block of code, the slab takes that block's
-  place; otherwise it stands under the answer. Run in terminal shows the
-  command in the terminal as if typed, runs it from the home folder, says the
-  exit status when it failed, and leaves the user's shell
-  (`env.RunInTerminal`).
+  slab with the command, why, how far it reaches and Run. When the text shows
+  the same command in a block of code, the slab takes that block's place;
+  otherwise it stands under the answer. **Run** runs it in the conversation,
+  in the background (`chat.ActRunHere`, `session.prompt` with `run`): the
+  command stands where a question would, its output shows under a Running
+  line as it comes, the composer's Stop ends it, and Ask answers from what it
+  printed. Asking that turn again runs the command again, and Run waits while
+  a turn is running. A small terminal icon beside it opens the command in the
+  user's terminal instead, and a command that needs a terminal (a password, a
+  credential) has only that, as Run in terminal: it is shown in the terminal
+  as if typed, runs from the home folder, says its exit status when it
+  failed, and leaves the user's shell (`env.RunInTerminal`).
+- **A running command** (`chat/work.go`): its line carries the Working flakes
+  and, from three seconds on, how long it has run, so a silent minute does
+  not read as a hang. While it runs the unfolded output shows its last twelve
+  lines, and its first twelve once it has finished.
+- **A redraw is never lost** (`shell/redraw.go`): the toolkit ignores a
+  redraw asked for while a frame is being drawn, so the last event of an
+  answer, or a daemon coming back, could stay off screen until the pointer
+  moved. A change that lands mid-frame is asked for again, every 20 ms and at
+  most five times, until a frame has started after it; a hidden window that
+  draws nothing is then left alone.
 - **Marked text**: every paragraph, question and block of code can be marked
   with the pointer and copied with Ctrl C or from the message menu, which
   also quotes it into the reply (`chat.ActQuote`). A second

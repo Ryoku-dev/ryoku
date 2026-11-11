@@ -73,8 +73,10 @@ rashin search "where is the dock state written?"
 rashin sessions
 ```
 
-Ask can answer directly or propose a command for review. Agent work remains in a
-separate persistent session and can be resumed from the app or command line.
+Ask can answer directly or propose a command for review. In the app, Run on a
+proposed command runs it in the conversation: you watch its output, can stop
+it, and Ask answers from what it printed. Agent work remains in a separate
+persistent session and can be resumed from the app or command line.
 
 Return to the [desktop tour](desktop.md), or read [Linux basics](linux-basics.md)
 for services, logs, updates, and config ownership.
