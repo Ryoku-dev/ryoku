@@ -187,7 +187,7 @@ function setupRowList(list) {
   const items = list.querySelector(':scope > .l-row-list__items') || list;
   const documentRoot = documentFor(list);
   const slab = documentRoot.createElement('span');
-  slab.className = 'l-row-list__slab';
+  slab.className = 'l-row-list__slab l-place-row';
   slab.setAttribute('aria-hidden', 'true');
   items.prepend(slab);
 

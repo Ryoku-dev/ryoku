@@ -15,6 +15,8 @@ import (
 
 func main() {
 	modeName := flag.String("mode", "follow", "follow, dark or light")
+	contrastName := flag.String("contrast", "standard", "standard or high")
+	tintName := flag.String("tint", "off", "off, low or medium")
 	flag.Parse()
 
 	modes := map[string]palette.Mode{"follow": palette.Follow, "dark": palette.Dark, "light": palette.Light}
@@ -23,9 +25,17 @@ func main() {
 		fmt.Fprintf(os.Stderr, "lithic-roles: unknown mode %q\n", *modeName)
 		os.Exit(2)
 	}
+	if *contrastName != "standard" && *contrastName != "high" {
+		fmt.Fprintf(os.Stderr, "lithic-roles: unknown contrast %q\n", *contrastName)
+		os.Exit(2)
+	}
+	if *tintName != "off" && *tintName != "low" && *tintName != "medium" {
+		fmt.Fprintf(os.Stderr, "lithic-roles: unknown tint %q\n", *tintName)
+		os.Exit(2)
+	}
 
 	loaded := palette.Load(mode)
-	roles := palette.FromPalette(loaded)
+	roles := palette.FromPalette(loaded, palette.ParseLook(*contrastName, *tintName))
 	out := map[string]string{"source": loaded.Source}
 	value := reflect.ValueOf(roles)
 	for i := range value.NumField() {

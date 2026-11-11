@@ -19,5 +19,5 @@ func RenderMineralField(th Theme, field MineralField) string {
 	if field.Disabled {
 		foreground = th.Roles.Fg3
 	}
-	return renderPlaneText(max(1, lipgloss.Width(field.Content)), th.Roles.Field(field.Tone), foreground, field.Content, false)
+	return renderPlaneText(max(1, lipgloss.Width(field.Content)), th.Roles.MineralField(field.Tone), foreground, field.Content, false)
 }

@@ -11,6 +11,9 @@ Glyph 1.0 Glyph.qml
 Hatch 1.0 Hatch.qml
 Label 1.0 Label.qml
 Notch 1.0 Notch.qml
+PlaceBlade 1.0 PlaceBlade.qml
+internal FieldSurface FieldSurface.qml
+internal PlaqueRecipe PlaqueRecipe.qml
 
 # components
 AppFrame 1.0 AppFrame.qml
@@ -45,6 +48,7 @@ RowList 1.0 RowList.qml
 Search 1.0 Search.qml
 Section 1.0 Section.qml
 SectionIndex 1.0 SectionIndex.qml
+Segmented 1.0 Segmented.qml
 Sentence 1.0 Sentence.qml
 Skeleton 1.0 Skeleton.qml
 Slab 1.0 Slab.qml

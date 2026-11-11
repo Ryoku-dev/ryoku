@@ -16,21 +16,19 @@ func Aside(gtx layout.Context, th *theme.Theme, title string, rows ...layout.Wid
 	minimum := min(width, gtx.Dp(tokens.SizeDraftAsideMin))
 	gtx.Constraints.Max.X = width
 	gtx.Constraints.Min.X = max(minimum, min(gtx.Constraints.Min.X, width))
-	return Slab(gtx, th.R.Stone1, th.Cut.Mid, func(gtx layout.Context) layout.Dimensions {
+	return SlabContent(gtx, th, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
-		return layout.UniformInset(tokens.SizeSlabInset).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			children := []layout.FlexChild{layout.Rigid(Text(th, th.T.Title, th.R.Fg, title))}
-			for _, row := range rows {
-				if row == nil {
-					continue
-				}
-				children = append(children,
-					layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
-					layout.Rigid(row),
-				)
+		children := []layout.FlexChild{layout.Rigid(Text(th, th.T.Title, th.R.Fg, title))}
+		for _, row := range rows {
+			if row == nil {
+				continue
 			}
-			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
-		})
+			children = append(children,
+				layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
+				layout.Rigid(row),
+			)
+		}
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	})
 }
 
@@ -53,16 +51,16 @@ func AsideFact(th *theme.Theme, label, value string) layout.Widget {
 // AsideNote is supporting draft copy.
 func AsideNote(th *theme.Theme, value string) layout.Widget {
 	return func(gtx layout.Context) layout.Dimensions {
-		return Label{Style: th.T.Caption, Color: th.R.Fg2, MaxLines: 4}.Layout(gtx, th, value)
+		return Label{Style: th.T.Detail, Color: th.R.Fg2, MaxLines: 4}.Layout(gtx, th, value)
 	}
 }
 
-// AsidePreview displays literal text on an inner stone2 slab.
+// AsidePreview displays literal text on an inner field slab.
 func AsidePreview(th *theme.Theme, value string) layout.Widget {
 	lines := strings.Split(strings.TrimRight(value, "\n"), "\n")
 	return func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
-		return Slab(gtx, th.R.Stone2, th.Cut.Small, func(gtx layout.Context) layout.Dimensions {
+		return Slab(gtx, th.R.Field, th.Cut.Small, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = gtx.Constraints.Max.X
 			return layout.UniformInset(th.Sp.S3).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				children := make([]layout.FlexChild, len(lines))

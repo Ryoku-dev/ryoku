@@ -124,6 +124,7 @@ func (tablet *Tablet) Layout(gtx layout.Context, th *theme.Theme, content Tablet
 			if press > 0 {
 				FillCut(gtx.Ops, image.Rect(0, 0, width, height), 0, palette.WithAlpha(th.R.OnSel, tokens.AlphaPressRow*press))
 			}
+			PlaceBlade(gtx, th, image.Rect(0, 0, width, height), 0, layout.Vertical)
 		} else {
 			fill := palette.Mix(th.R.Stone2, th.R.Stone3, hover)
 			fill = palette.Mix(fill, th.R.Fg, tokens.AlphaPressRow*press)

@@ -30,6 +30,7 @@ type Type struct {
 	Body     TextStyle
 	Proof    TextStyle
 	Label    TextStyle
+	Detail   TextStyle
 	Caption  TextStyle
 	Group    TextStyle
 	Mono     TextStyle
@@ -49,6 +50,7 @@ type Cut struct {
 	Tooltip     unit.Dp
 	ToggleTrack unit.Dp
 	ToggleKnob  unit.Dp
+	Segment     unit.Dp
 }
 
 // Space is the non-linear spacing run.
@@ -138,7 +140,7 @@ func New(roles palette.Roles, options ...Option) *Theme {
 			Token: tokens.CutToken, Small: tokens.CutSmall, Mid: tokens.CutMid,
 			Large: tokens.CutLarge, Notch: tokens.CutNotch, Menu: tokens.CutMenu,
 			Overlay: tokens.CutOverlay, Placard: tokens.CutPlacard, Tooltip: tokens.CutTooltip,
-			ToggleTrack: tokens.CutToggleTrack, ToggleKnob: tokens.CutToggleKnob,
+			ToggleTrack: tokens.CutToggleTrack, ToggleKnob: tokens.CutToggleKnob, Segment: tokens.CutSegment,
 		},
 		Sp: Space{S1: tokens.SpaceS1, S2: tokens.SpaceS2, S3: tokens.SpaceS3, S4: tokens.SpaceS4, S5: tokens.SpaceS5, S6: tokens.SpaceS6},
 		Motion: Motion{
@@ -188,7 +190,7 @@ func defaultType() Type {
 	return Type{
 		Name: style(tokens.TypeName), Sentence: style(tokens.TypeSentence), Section: style(tokens.TypeSection),
 		Title: style(tokens.TypeTitle), Row: style(tokens.TypeRow), Body: style(tokens.TypeBody),
-		Proof: style(tokens.TypeProof), Label: style(tokens.TypeLabel), Caption: style(tokens.TypeCaption),
+		Proof: style(tokens.TypeProof), Label: style(tokens.TypeLabel), Detail: style(tokens.TypeDetail), Caption: style(tokens.TypeCaption),
 		Group: style(tokens.TypeGroup), Mono: style(tokens.TypeMono), MonoSm: style(tokens.TypeMonoSm),
 	}
 }

@@ -51,7 +51,6 @@ T.Slider {
             anchors.fill: parent
             fraction: root.visualPosition
             fill: Lithic.fg2
-            track: Lithic.stone3
         }
     }
 

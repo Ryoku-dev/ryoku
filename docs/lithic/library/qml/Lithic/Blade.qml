@@ -9,7 +9,7 @@ Item {
     property alias progress: root.fraction
     property color fill: Lithic.fg2
     property alias bladeColor: root.fill
-    property color track: Lithic.stone3
+    property color track: Lithic.field
     property alias trackColor: root.track
     readonly property real bladeWidth: Math.max(0, Math.min(width,
         explicitWidth >= 0 ? explicitWidth : fraction * width))

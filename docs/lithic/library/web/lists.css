@@ -183,7 +183,6 @@
   z-index: 0;
   inset: 0 0 auto;
   block-size: var(--l-selection-height, var(--lithic-size-tablet-height));
-  background: var(--lithic-sel);
   transform: translateY(var(--l-selection-offset, 0px));
   pointer-events: none;
 }
@@ -419,10 +418,19 @@
   }
 }
 
-.l-slab {
-  --l-fill: var(--lithic-stone1);
+.l-slab,
+.l-aside {
+  --l-fill: var(--lithic-slab);
+  --l-stroke: var(--lithic-vein);
+  --l-stroke-width: var(--lithic-size-hairline);
   --l-cut: var(--lithic-cut-mid);
   padding: var(--lithic-size-slab-inset);
+}
+
+.l-slab-row + .l-slab-row {
+  margin-block-start: var(--lithic-space-s3);
+  padding-block-start: var(--lithic-space-s3);
+  border-block-start: var(--lithic-size-hairline) solid var(--lithic-vein);
 }
 
 .l-section + .l-section {
@@ -476,10 +484,7 @@
 }
 
 .l-aside {
-  --l-fill: var(--lithic-stone1);
-  --l-cut: var(--lithic-cut-mid);
   align-self: start;
-  padding: var(--lithic-size-slab-inset);
 }
 
 .l-aside__title {
@@ -488,7 +493,7 @@
 }
 
 .l-aside__preview {
-  --l-fill: var(--lithic-stone2);
+  --l-fill: var(--lithic-field);
   --l-cut: var(--lithic-cut-small);
   margin-block-start: var(--lithic-space-s3);
   padding: var(--lithic-space-s3);

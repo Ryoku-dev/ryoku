@@ -32,6 +32,8 @@ The named scheme is first, a wallpaper palette is second when wallpaper followin
 
 The QML names are types from `import Lithic`. Web names are classes, with state carried by ARIA and `data-*` attributes. Go names are exported types or functions in package `kit`. Terminal names are pure render functions in package `term`; `-` means that stack has no terminal form. A terminal render function takes the corresponding data type when the component has data, and interactive components also expose a Bubble Tea model such as `term.TextFieldModel` or `term.MenuModel`. Reference paths are relative to Ryoport.
 
+Icons are Material Symbols Sharp in every stack. QML and the web set the font's ligatures. Gio draws them from package `symbols`, IconVG data generated from `symbols/list.txt` by `go run ./cmd/lithic-symbols` in `library/go` (`-check` reports a stale `symbols.go`); add a name to the list to use a new icon.
+
 ### Foundation
 
 | Component | What it is for | Spec | QML type | Web class | Go name in `kit` | Terminal render function | Ryoport reference file |
@@ -40,6 +42,7 @@ The QML names are types from `import Lithic`. Web names are classes, with state 
 | CutRect | Draw a filled or stroked plane with independent 45 degree corner cuts. | [CutRect](components.md#cutrect) | `CutRect` | `l-cut` | `kit.FillCut`, `kit.StrokeCut` | `-` | `ui/kit/draw.go` |
 | Notch | Mark one state or pending change at a corner. | [Notch](components.md#notch) | `Notch` | `l-notch` | `kit.Notch` | `term.RenderNotch` | `ui/kit/token.go` |
 | Blade | Draw a bar with a 45 degree leading edge. | [Blade](components.md#blade) | `Blade` | `l-blade` | `kit.Blade` | `term.RenderBlade` | `ui/kit/blade.go` |
+| PlaceBlade | Mark a selected row, chip or segment with its `onSel` blade. | [PlaceBlade](components.md#placeblade) | `PlaceBlade` | `l-place-row`, `l-place-chip` | `kit.PlaceBlade` | `-` | `-` |
 | Flake | Show a state mineral or a fraction of becoming. | [Flake](components.md#flake) | `Flake` | `l-flake` | `kit.Flake` | `term.RenderFlake` | `ui/kit/token.go` |
 | Hatch | Engrave a static 45 degree field. | [Hatch](components.md#hatch) | `Hatch` | `l-hatch` | `kit.Hatch` | `-` | `ui/kit/chart.go` |
 | FocusRing | Show keyboard focus outside a cut control. | [FocusRing](components.md#focusring) | `FocusRing` | `l-focus-ring` | `kit.FocusRing` | `-` | `ui/kit/focus.go` |
@@ -48,7 +51,7 @@ The QML names are types from `import Lithic`. Web names are classes, with state 
 
 | Component | What it is for | Spec | QML type | Web class | Go name in `kit` | Terminal render function | Ryoport reference file |
 |---|---|---|---|---|---|---|---|
-| Plaque | Run one labelled action with gold, line, quiet, selected or danger treatment. | [Plaque](components.md#plaque) | `Plaque` | `l-plaque` | `kit.Plaque` | `term.RenderPlaque` | `ui/kit/button.go` |
+| Plaque | Run one labelled action with gold, line, tonal, quiet, selected or danger treatment. | [Plaque](components.md#plaque) | `Plaque` | `l-plaque` | `kit.Plaque` | `term.RenderPlaque` | `ui/kit/button.go` |
 | SplitPlaque | Pair a main action with a menu of alternatives. | [SplitPlaque](components.md#splitplaque) | `SplitPlaque` | `l-split-plaque` | `kit.SplitPlaque` | `term.RenderSplitPlaque` | `ui/kit/splitbutton.go` |
 | IconPlaque | Run a compact action whose glyph has an accessible description. | [IconPlaque](components.md#iconplaque) | `IconPlaque` | `l-icon-plaque` | `kit.IconPlaque` | `-` | `ui/kit/iconbutton.go` |
 | TextField | Enter or edit text, with label, help, error and secret states. | [TextField](components.md#textfield) | `TextField` | `l-text-field` | `kit.TextField` | `term.RenderTextField` | `ui/kit/textfield.go` |
@@ -57,6 +60,7 @@ The QML names are types from `import Lithic`. Web names are classes, with state 
 | Slider | Change a bounded quantity by feel. | [Slider](components.md#slider) | `Slider` | `l-slider` | `kit.Slider` | `-` | `ui/kit/slider.go` |
 | Stepper | Change a bounded number in exact steps. | [Stepper](components.md#stepper) | `Stepper` | `l-stepper` | `kit.Stepper` | `term.RenderStepper` | `ui/kit/stepper.go` |
 | Filters | Narrow a list with exclusive chips and live counts. | [Filters](components.md#filters) | `Filters` | `l-filters` | `kit.Filters` | `term.RenderFilters` | `ui/kit/filters.go` |
+| Segmented | Pick one of two to five options shown at once. | [Segmented](components.md#segmented) | `Segmented` | `l-segmented` | `kit.Segmented` | `-` | `-` |
 | Tabs | Switch among a few views of the same resource. | [Tabs](components.md#tabs) | `Tabs` | `l-tabs` | `kit.Tabs` | `term.RenderTabs` | `ui/kit/tabs.go` |
 | Disclosure | Reveal optional or advanced content in place. | [Disclosure](components.md#disclosure) | `Disclosure` | `l-disclosure` | `kit.Disclosure` | `term.RenderDisclosure` | `ui/kit/disclosure.go` |
 
@@ -99,7 +103,7 @@ The QML names are types from `import Lithic`. Web names are classes, with state 
 | Rail | Navigate the main destinations of an app. | [Rail](components.md#rail) | `Rail` | `l-rail` | `kit.Rail` | `-` | `ui/app/rail.go` |
 | BrandMark | Return to Home from the first rail destination. | [BrandMark](components.md#brandmark) | `BrandMark` | `l-brand-mark` | `kit.BrandMark` | `-` | `ui/kit/brand.go` |
 | NewPlaque | Open the New menu from the rail's one gold action. | [NewPlaque](components.md#newplaque) | `NewPlaque` | `l-new-plaque` | `kit.NewPlaque` | `-` | `ui/kit/newplaque.go` |
-| SectionIndex | Follow and navigate a settings page's sections. | [SectionIndex](components.md#sectionindex) | `SectionIndex` | `l-section-index` | `kit.SectionIndex` | `-` | `ui/pages/settings/view.go` |
+| SectionIndex | Follow and navigate a settings page's sections, as a side list or a Picker. | [SectionIndex](components.md#sectionindex) | `SectionIndex` | `l-section-index` | `kit.SectionIndex` | `-` | `ui/pages/settings/view.go` |
 | EngravedChart | Show a small series as a line over static hatch. | [EngravedChart](components.md#engravedchart) | `EngravedChart` | `l-engraved-chart` | `kit.EngravedChart` | `-` | `ui/kit/chart.go` |
 | AppFrame | Arrange the ground, panes and size class of a window. | [AppFrame](components.md#appframe) | `AppFrame` | `l-app-frame` | `kit.AppFrame` | `-` | `ui/app/layout.go` |
 
@@ -107,13 +111,14 @@ The QML names are types from `import Lithic`. Web names are classes, with state 
 
 | Intent | Choose |
 |---|---|
-| The one consequential action in the task | A gold [Plaque](components.md#plaque). |
-| Actions beside the consequential action | Line plaques. |
+| The one consequential action in the view | A gold [Plaque](components.md#plaque). |
+| Actions beside the consequential action | Line plaques, or tonal plaques for secondary verbs. |
 | A rare or destructive action | A quiet overflow [IconPlaque](components.md#iconplaque) and [Menu](components.md#menu), then [Confirm](components.md#confirm) before an irreversible change. |
 | A state | [Notch](components.md#notch), [Claim](components.md#claim) or [Flake](components.md#flake), always with a word and proof nearby. |
 | Switch among views of one resource | [Tabs](components.md#tabs). |
 | Narrow a list | [Filters](components.md#filters), or [Search](components.md#search) when the set is large. |
 | Choose one of many values | [Picker](components.md#picker). |
+| Choose one of two to five options worth seeing at once | [Segmented](components.md#segmented). |
 | Turn one setting on or off | [Toggle](components.md#toggle). |
 | Change a bounded number exactly | [Stepper](components.md#stepper). |
 | Change a bounded number by feel | [Slider](components.md#slider). |
@@ -136,7 +141,7 @@ The archetypes define composition. [Layout](layout.md) owns their geometry and s
 | List and detail window | `AppFrame`, `Rail`, a list `Pane` with `Search`, `Filters` and `RowList`, then a work `Pane` with `MineralField`, `Header` and `Tabs`. | [List pane and work pane](layout.md#the-list-pane) | [Fleet](media/sheet-fleet.png) |
 | The Now board | `AppFrame`, `Sentence`, attention `Section`, `Claim`, one gold `Plaque` and `BladeProgress`. | [The work pane](layout.md#the-work-pane) | [Now](media/sheet-now.png) |
 | A draft with its aside | `DraftColumns` with a `Section` and `Slab` of fields beside an `Aside`; optional settings go in `Disclosure`. | [The work pane](layout.md#the-work-pane) | [Draft](media/sheet-draft.png) |
-| A settings page with a section index | `AppFrame`, `SectionIndex`, repeated `Section` and `Slab` groups, then the appropriate controls. | [Full pages](layout.md#full-pages) | [Settings](media/sheet-settings.png) |
+| A settings page with a section index | `AppFrame`, `SectionIndex` (a Picker below expanded), repeated `Section` and `Slab` groups, then the appropriate controls. | [Full pages](layout.md#full-pages) | [Settings](media/sheet-settings.png) |
 | A dialog flow | `Dialog`, plain copy, fields when required, line Cancel and one gold or danger action; use `Confirm` for irreversible work. | [Overlays and the Escape stack](layout.md#overlays-and-the-escape-stack) | [Memento](media/sheet-memento.png) |
 | The compact class | One `Pane`, a 64 high bottom form of `Rail`, full-width content, and Back when detail replaces a list. | [Size classes](layout.md#size-classes) | [Tile](media/sheet-tile.png) |
 

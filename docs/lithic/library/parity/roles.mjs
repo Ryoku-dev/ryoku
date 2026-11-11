@@ -1,10 +1,10 @@
 // Prints the roles the web library resolves for one palette object, as JSON.
-// Usage: node roles.mjs <palette.json> <follow|dark|light>
+// Usage: node roles.mjs <palette.json> <follow|dark|light> [standard|high] [off|low|medium]
 import { readFileSync } from 'node:fs';
 import { rolesFromPalette } from '../web/palette.js';
 
-const [file, mode] = process.argv.slice(2);
-const roles = rolesFromPalette(JSON.parse(readFileSync(file, 'utf8')), { mode });
+const [file, mode, contrast = 'standard', tint = 'off'] = process.argv.slice(2);
+const roles = rolesFromPalette(JSON.parse(readFileSync(file, 'utf8')), { mode, contrast, tint });
 
 function hex(value) {
   const text = String(value).trim();

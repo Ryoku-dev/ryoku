@@ -26,6 +26,7 @@ const (
 	CutNotch       = 12
 	CutOverlay     = 8
 	CutPlacard     = 8
+	CutSegment     = 5
 	CutSmall       = 6
 	CutToggleKnob  = 2
 	CutToggleTrack = 4
@@ -203,6 +204,9 @@ const (
 	SizeSectionIndexRow            = 48
 	SizeSectionIndexRowGap         = 4
 	SizeSectionIndexWidth          = 200
+	SizeSegmentHeight              = 36
+	SizeSegmentInset               = 4
+	SizeSelBlade                   = 3
 	SizeSettingsControlMax         = 320
 	SizeSettingsDetailGap          = 2
 	SizeSettingsExpandedMax        = 994
@@ -298,19 +302,25 @@ const (
 var MotionCurve = [4]float32{0.2, 0, 0, 1}
 
 const (
-	AlphaDisabled    float32 = 0.5
-	AlphaHatch       float32 = 0.3
-	AlphaHoverFill   float32 = 0.1
-	AlphaHoverInk    float32 = 0.1
-	AlphaHoverPlane  float32 = 0.06
-	AlphaMineral     float32 = 0.15
-	AlphaMineralJade float32 = 0.17
-	AlphaOnSel2      float32 = 0.45
-	AlphaPressPlane  float32 = 0.06
-	AlphaPressRow    float32 = 0.08
-	AlphaScrimDark   float32 = 0.62
-	AlphaScrimLight  float32 = 0.45
-	AlphaWorkingBase float32 = 0.55
+	AlphaContrastHigh    float32 = 0.6
+	AlphaContrastHighFg3 float32 = 0.3
+	AlphaDisabled        float32 = 0.5
+	AlphaEdge            float32 = 0.5
+	AlphaHatch           float32 = 0.3
+	AlphaHoverFill       float32 = 0.1
+	AlphaHoverInk        float32 = 0.1
+	AlphaHoverPlane      float32 = 0.06
+	AlphaMineral         float32 = 0.15
+	AlphaMineralJade     float32 = 0.17
+	AlphaOnSel2          float32 = 0.45
+	AlphaPressPlane      float32 = 0.06
+	AlphaPressRow        float32 = 0.08
+	AlphaScrimDark       float32 = 0.62
+	AlphaScrimLight      float32 = 0.45
+	AlphaSelMix          float32 = 0.5
+	AlphaTintLow         float32 = 0.06
+	AlphaTintMedium      float32 = 0.1
+	AlphaWorkingBase     float32 = 0.55
 )
 
 const (
@@ -326,6 +336,7 @@ var (
 var (
 	TypeBody     = Type{Family: "sans", Weight: 400, Size: 14, Line: 20}
 	TypeCaption  = Type{Family: "sans", Weight: 400, Size: 12, Line: 16}
+	TypeDetail   = Type{Family: "sans", Weight: 400, Size: 13, Line: 18}
 	TypeGroup    = Type{Family: "sans", Weight: 500, Size: 12, Line: 16}
 	TypeLabel    = Type{Family: "sans", Weight: 500, Size: 13, Line: 16}
 	TypeMono     = Type{Family: "mono", Weight: 400, Size: 12, Line: 16}
@@ -342,6 +353,7 @@ var SignatureDark = map[string]string{
 	"fg":      "#e3e3e3",
 	"fg2":     "#c6c6c6",
 	"fg3":     "#8f8f8f",
+	"field":   "#393939",
 	"gold":    "#c9a861",
 	"goldInk": "#d6b877",
 	"ground":  "#0e0e0e",
@@ -351,17 +363,19 @@ var SignatureDark = map[string]string{
 	"onSel2":  "#474747",
 	"scrim":   "#0000009e",
 	"sel":     "#e3e3e3",
+	"slab":    "#232323",
 	"stone1":  "#141414",
 	"stone2":  "#1b1b1b",
 	"stone3":  "#232323",
 	"stone4":  "#2c2c2c",
-	"vein":    "#393939",
+	"vein":    "#444444",
 }
 
 var SignatureLight = map[string]string{
 	"fg":      "#1d1b18",
 	"fg2":     "#4a4640",
 	"fg3":     "#6f6a62",
+	"field":   "#e9e5de",
 	"gold":    "#c9a45a",
 	"goldInk": "#85651f",
 	"ground":  "#e2ddd4",
@@ -371,6 +385,7 @@ var SignatureLight = map[string]string{
 	"onSel2":  "#b9b2a7",
 	"scrim":   "#00000073",
 	"sel":     "#1d1b18",
+	"slab":    "#fbf9f5",
 	"stone1":  "#eae6df",
 	"stone2":  "#f4f1eb",
 	"stone3":  "#e9e5de",
@@ -397,25 +412,31 @@ var PaletteAccents = map[string]string{
 	"onSel":  "onSecondaryContainer",
 	"scrim":  "scrim",
 	"sel":    "secondaryContainer",
+	"selMix": "primaryContainer",
+	"tint":   "primaryContainer",
 }
 
 var PaletteDark = map[string]string{
 	"fg":     "onSurface",
 	"fg2":    "onSurfaceVariant",
 	"fg3":    "outline",
+	"field":  "surfaceContainerHighest",
 	"ground": "surfaceContainerLowest",
+	"slab":   "surfaceContainer",
 	"stone1": "surface",
 	"stone2": "surfaceContainerLow",
 	"stone3": "surfaceContainer",
 	"stone4": "surfaceContainerHigh",
-	"vein":   "surfaceContainerHighest",
+	"vein":   "outlineVariant",
 }
 
 var PaletteLight = map[string]string{
 	"fg":     "onSurface",
 	"fg2":    "onSurfaceVariant",
 	"fg3":    "outline",
+	"field":  "surfaceContainerHighest",
 	"ground": "surfaceContainerHighest",
+	"slab":   "surfaceContainerLowest",
 	"stone1": "surfaceContainerHigh",
 	"stone2": "surfaceContainerLowest",
 	"stone3": "surfaceContainer",

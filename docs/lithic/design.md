@@ -31,22 +31,34 @@ Read this page first. The companion pages go deeper on one subject each:
    rounded. The cut follows the scale of the thing: 16 dp on panes and
    dialogs, 12 dp for a row's state notch, 7 dp on buttons and fields, 6 dp on
    small controls, 4 dp on a toggle track, 3 dp on tokens. Only content
-   (logos, charts) may curve.
+   (logos, charts) may curve. **Fill shows the cut:** a chamfer reads only
+   from a silhouette, so a cut control has a fill or an edge that stands off
+   its plane, and a tonal fill shows it better than an outline. A cut nested
+   inside another cut is concentric with it.
 
-2. **Flat planes.** Every surface is one flat tone. Depth is only the order of
-   tones: ground, stone 1, stone 2, stone 3, stone 4, then bone. No gradients,
-   glow, inner shadows, inset wells or drop shadows. Overlays are a scrim and
-   a solid slab one tone up with a hairline. Blur can be used where it fits
-   and looks good, as a hint on a plane (see Blur, where it fits).
+2. **Flat planes, lifted, never sunk.** Every surface is one flat tone. Depth
+   is only the order of tones: ground, stone 1, stone 2, stone 3, stone 4,
+   then bone. No gradients, glow, inner shadows, inset wells or drop shadows.
+   A thing contained in a plane lifts from it: slabs, dialogs and menus are
+   lighter than their plane or equal to it in dark mode, and set off by a
+   hairline in light mode. A container darker than its plane reads as a hole.
+   Overlays are a scrim and a solid slab one tone up with a hairline. Blur can
+   be used where it fits and looks good, as a hint on a plane (see Blur, where
+   it fits).
 
 3. **Bone is where you are.** The selected row, the current rail destination,
-   the current filter, the on half of a toggle: all are selection slabs in the
-   `sel` role with `onSel` ink. Nothing else uses that role.
+   the current filter or segment: each is a `sel` fill with `onSel` ink and a
+   place blade. The on half of a toggle is `sel` too. Nothing else uses that
+   role.
 
 4. **Gold is what you can do.** The `gold` role fills consequential actions
-   only (connect, start, stop, create, save, sign in). Secondary actions use a
-   gold hairline and gold ink. Navigation, view controls and anything you can
-   only watch are stone. Gold never decorates and never shows status.
+   only (connect, start, stop, create, save, sign in), and a view spends it on
+   one action. Actions beside it are line plaques (a gold hairline and gold
+   ink) or tonal plaques (a filled stone with `fg` ink). Navigation, view
+   controls and anything you can only watch are stone. The standing action of
+   a window's frame (New on the rail, play in a player bar, Send in a
+   composer) belongs to the frame, not to the view. Gold never decorates and
+   never shows status.
 
 5. **Stones are states, beside their word.** Jade is alive, lapis is becoming,
    amber needs you, jasper failed, and idle is a vein outline. A state is
@@ -54,7 +66,11 @@ Read this page first. The companion pages go deeper on one subject each:
    field) and a plain word. Colour never carries state alone.
 
 6. **The blade marks progress and place.** A bar whose leading edge is cut at
-   45 degrees: the current tab's underline, a job's progress, a meter.
+   45 degrees: the current tab's underline, a job's progress, a meter. Place
+   carries a blade everywhere: a selected row, chip or segment holds a 3 dp
+   `onSel` place blade, on the leading edge of a row and along the bottom of a
+   chip or segment, so the selection reads even where its fill is close to the
+   plane.
 
 7. **Engraved data.** Charts are a fine foreground line over a 45 degree
    hatch, labels in Space Mono, no coloured area fills.
@@ -75,18 +91,20 @@ comments and in reviews so everyone means the same thing.
 | Word | What it is |
 |---|---|
 | **ground** | The exposed plane behind the panes. The darkest tone in dark mode, the darkest stone in light mode. |
-| **stone 1 to 4** | The ordered stack of flat planes: rail and list pane (1), work pane and row tablets (2), hover, fields and tracks (3), menus and dialogs (4). |
+| **stone 1 to 4** | The ordered stack of flat planes: rail and list pane (1), work pane and row tablets (2), hover (3), menus and dialogs (4). |
 | **vein** | The hairline tone: quiet outlines, separators, idle flakes, chart baselines. |
-| **bone** | The selection slab (`sel`) and its ink (`onSel`, quiet ink `onSel2`). Where you are. |
+| **field and edge** | The fill of a thing you type into, choose from or slide along (`field`), and the 1 dp hairline that sets a field off at rest (`edge`, between `vein` and `fg3`). |
+| **bone** | The selection fill (`sel`), its place blade and its ink (`onSel`, quiet ink `onSel2`). Where you are. |
 | **gold** | The action fill (`gold`, `onGold`) and the action ink on stone (`goldInk`). What you can do. |
 | **mineral, stone (of a state)** | Jade, lapis, amber, jasper. The colour half of a state. |
-| **plaque** | A button: a cut slab you can press. Pressing chips the corners deeper. |
+| **plaque** | A button: a cut slab you can press. Pressing chips the corners deeper. Its tiers run gold, line, tonal, quiet. |
+| **tonal** | The middle plaque tier: a `field` fill with `fg` ink and no hairline, for secondary verbs. |
 | **tablet** | A resource row: a flat stone 2 slab, square apart from its notch. |
 | **notch** | The 45 degree cut at a tablet's top-left corner, filled with the state's mineral. Also the amber update marker on the Settings rail tile. |
 | **flake** | The standalone state token: a short slanted quadrilateral. Outlined when idle, filled by its mineral when active, part filled while becoming. |
 | **mineral field** | The header slab of the selected thing, tinted by mixing its state's mineral into stone 2. |
-| **blade** | A progress or selection bar with a cut leading edge. |
-| **slab** | A stone 1 container inside a page (a settings section). Also any bone selection surface. |
+| **blade** | A progress bar with a cut leading edge. The **place blade** is the 3 dp `onSel` bar a selection carries. |
+| **slab** | A container inside a pane (a settings section): the `slab` role with a 1 dp `vein` hairline, lifted from its plane. Also, loosely, any bone selection surface. |
 | **claim and proof** | A state word and the fact that backs it: "Online" over "23 ms". |
 | **chisel** | The one easing curve, `cubic-bezier(.2, 0, 0, 1)`. |
 | **knapping** | Lithic's motion as a whole: short, decisive, no bounce. |
@@ -103,12 +121,14 @@ the user's desktop, so an app matches the wallpaper and changes with it.
 | `ground` | `surfaceContainerLowest` | behind the panes |
 | `stone1` | `surface` | rail, list pane |
 | `stone2` | `surfaceContainerLow` | work pane, tablets |
-| `stone3` | `surfaceContainer` | hover, fields, tracks |
+| `stone3` | `surfaceContainer` | hover |
 | `stone4` | `surfaceContainerHigh` | menus, dialogs, tooltips |
-| `vein` | `surfaceContainerHighest` | hairlines, quiet outlines |
+| `slab` | `surfaceContainer` | slabs inside a pane |
+| `field` | `surfaceContainerHighest` | fields, tracks, tonal plaques, chips at rest |
+| `vein` | `outlineVariant` | hairlines, quiet outlines |
+| `edge` | `vein` mixed halfway toward `fg3` | the hairline around a field |
 | `fg`, `fg2`, `fg3` | `onSurface`, `onSurfaceVariant`, `outline` | type, strong to faint |
-| `sel`, `onSel` | `secondaryContainer`, `onSecondaryContainer` | where you are |
-| `onSel2` | `onSel` mixed 45 percent toward `sel` | quiet text on a selection |
+| `sel`, `onSel` | `secondaryContainer` mixed halfway toward `primaryContainer`, `onSecondaryContainer` | where you are |
 | `gold`, `onGold` | `primary`, `onPrimary` | what you can do |
 | `goldInk` | `primary`, re-toned to 4.5:1 on `stone2` | gold type and hairlines |
 | `jasper` | `error`, re-toned to 4.5:1 on `stone2` | failed, unreachable, destructive |
@@ -116,9 +136,16 @@ the user's desktop, so an app matches the wallpaper and changes with it.
 | `scrim` | `scrim` at 0.62 (dark) or 0.45 (light) | behind dialogs |
 
 Light palettes map from the other end of the surface ramp, so the ground is
-the darkest stone and the work pane the lightest. Jade, lapis and amber do
-not follow the palette because they carry meaning; a Ryoku user must read
-"alive" the same way on every wallpaper.
+the darkest stone and the work pane the lightest; there a slab takes the work
+pane's tone and its hairline sets it off. Jade, lapis and amber do not follow
+the palette because they carry meaning; a Ryoku user must read "alive" the
+same way on every wallpaper.
+
+The reader sets the look on top: **Contrast** (standard or high) spreads the
+stones, slab, field and vein further from the ground and lifts `fg3`, and
+**Tint** (off, low or medium) mixes a touch of the palette's
+`primaryContainer` into the ground, stones, slab and field.
+[palette.md](palette.md#contrast-and-tint) has the recipe.
 
 Two named rules govern the roles:
 
@@ -135,6 +162,8 @@ Derived tones are computed, never picked:
 | mineral field | `mix(stone2, mineral, 0.17)` for jade, `0.15` for lapis, amber, jasper; idle field is `stone3` |
 | hover on a filled plaque | `mix(fill, white, 0.10)` |
 | hover on a transparent plaque | ink at alpha `0.10` |
+| hover on a tonal plaque | `mix(field, fg, 0.06)` |
+| selected row, chip or segment | `sel` fill plus a 3 dp `onSel` place blade, clipped to its cut |
 | hover on a tablet or rail tile below `stone4` | step one plane up (`stone2` to `stone3`, `stone1` to `stone3`) |
 | hover on a row on `stone4` | `mix(stone4, fg, 0.06)`; nothing is above `stone4`, so it must not step down |
 | press on a tablet or menu row | add `fg` at alpha `0.08` |
@@ -190,8 +219,9 @@ The scale, in sp (size / line height):
 | `row` | 15 / 20 | Medium | row names |
 | `body` | 14 / 20 | Regular | prose, form content |
 | `proof` | 15 / 21 | Regular | the sentence under a name |
-| `label` | 13 / 16 | Medium | buttons, tabs, filters, controls |
-| `caption` | 12 / 16 | Regular | facts, secondary lines |
+| `label` | 13 / 16 | Medium | buttons, tabs, filters, segments, controls |
+| `detail` | 13 / 18 | Regular | setting details, field labels, card secondary lines |
+| `caption` | 12 / 16 | Regular | timestamps, counts, hints, placeholders, rail labels |
 | `group` | 12 / 16 | Medium | list group headers |
 | `mono` | 12 / 16 | Regular (Space Mono) | data |
 | `monoSm` | 11 / 15 | Regular (Space Mono) | proofs, counts, chart ticks |
@@ -202,6 +232,10 @@ Rules:
 stays at working size.
 
 **The literal data rule.** Space Mono only where the characters are data.
+
+**The readable detail rule.** A secondary line someone reads to decide is
+`detail` in `fg2`. As a secondary line, `caption` in `fg3` is only for
+timestamps, counts, hints and placeholders.
 
 Sentence case everywhere. Never all caps, not even for group headers.
 
@@ -220,8 +254,9 @@ Each corner may take its own cut; a pane cuts only its two top corners.
 |---|---|---|
 | `token` | 3 | flakes, chart handles, tooltip and small tokens |
 | `toggle` | 4 | the toggle track (its knob cuts 2) |
+| `segment` | 5 | the selected segment inside a segmented track |
 | `small` | 6 | small plaques (32 dp), filter chips, icon buttons, compact rail tiles |
-| `mid` (control) | 7 | plaques (40 dp), fields, pickers, settings slabs, rail tiles |
+| `mid` (control) | 7 | plaques (40 dp), fields, pickers, slabs, segmented tracks, rail tiles |
 | `notch` | 12 | a tablet's state corner, the rail's update marker |
 | `large` | 16 | panes (top corners only), dialogs |
 | menus, placards, tooltips | 8, 8, 4 | overlays one tone up, with a 1 dp vein hairline |
@@ -231,6 +266,17 @@ A press deepens a control's cut by **4 dp** and sinks its content by **1 dp**.
 Hairlines are **1 dp**, drawn wholly inside the outline. When a cut outline is
 stroked, the inner path's cut shrinks by `width × (2 − √2)` so the stroke
 stays an even width around the chamfer.
+
+A cut nested inside another cut is **concentric** with it, by the same
+correction: `inner = outer − inset × (2 − √2)`, rounded. The selected segment
+sits 4 dp inside a 7 dp track, so it cuts 5. A nested cut never takes a size
+of its own.
+
+A cut shows only as a silhouette, so every control with a cut has a fill or a
+hairline that clears APCA Lc 15 against its plane. A lone hairline on a small
+control blurs into a soft stadium at 1x; a fill keeps the chamfer sharp. A
+quiet plaque is the one control that draws no cut at rest: it reads as ink,
+and its cut appears with its hover fill.
 
 Other cut shapes:
 
@@ -284,7 +330,8 @@ rows expose one action. Host CPU, memory and VM disk use quiet `fg2` meters
 that turn amber at 90 percent.
 
 Full pages such as Settings use a 760 dp content column. At expanded width a
-200 dp SectionIndex sits 34 dp to its left inside a centred 994 dp region.
+200 dp SectionIndex sits 34 dp to its left inside a centred 994 dp region;
+narrower, a Picker at the top of the column takes its place.
 
 [layout.md](layout.md) has every number, the rail, overlays and the keyboard.
 
@@ -299,25 +346,27 @@ family:
 |---|---|---|---|
 | plaque, gold | `gold` fill, `onGold` ink | 7 | 40 (small: 6, 32) |
 | plaque, line | transparent, `goldInk` ink and 1 dp hairline | 7 | 40 |
-| plaque, quiet | transparent, `fg2` ink, `vein` hairline | 7 | 40 |
+| plaque, tonal | `field` fill, `fg` ink, no hairline | 7 | 40 |
+| plaque, quiet | transparent, `fg2` ink, no hairline; its cut shows with the hover fill | 7 | 40 |
 | plaque, on | `sel` fill, `onSel` ink | 7 | 40 |
 | plaque, danger / danger line | `jasper` fill with `inkOn(jasper)` / `jasper` ink and hairline | 7 | 40 |
 | split plaque | two plaques 2 dp apart sharing one outline; the trailing one is 40 wide | 7 | 40 |
 | icon plaque | square 40 (small 32), icon 20 (18) | 6 | 40 / 32 |
-| field, search | `stone3`, `fg` ink, focus 1 dp `fg2` inner stroke, error `jasper` | 7 | 44 |
-| picker | `stone3` anchor opening a menu | 7 | 44 |
+| field, search | `field` fill, 1 dp `edge` hairline, `fg` ink; focus turns the hairline `fg2`, error `jasper` | 7 | 44 |
+| picker | a field anchor opening a menu; the chosen option carries a check | 7 | 44 |
+| segmented | `field` track with a 1 dp `vein` hairline; the selected segment is `sel` with a bottom place blade, 4 inside | 7 (segment 5) | 36 |
 | toggle | track `stone4` + vein hairline off, `sel` on; knob 14 | 4 (knob 2) | 22 × 40 |
-| slider | `stone3` track 6, `fg2` blade, `sel` handle 8 × 20 | handle cut min(w/2, h/4) | 32 |
-| stepper | two small quiet icon plaques around a value | 6 | 32 |
-| filter chip | quiet at rest, `sel` when on, count in `monoSm` | 6 | 32 |
+| slider | `field` track 6, `fg2` blade, `sel` handle 8 × 20 | handle cut min(w/2, h/4) | 32 |
+| stepper | two small quiet icon plaques around a value in a field | 6 | 32 |
+| filter chip | tonal at rest, `sel` with a bottom place blade when on, count in `monoSm` | 6 | 32 |
 | tabs | labels in a 44 dp strip over a 1 dp vein baseline; 3 dp `fg` blade moves | blade | 44 |
-| tablet | `stone2`, square with a 12 dp notch; `sel` slab when selected | notch | 56 / 48 |
+| tablet | `stone2`, square with a 12 dp notch; `sel` with a leading place blade when selected | notch | 56 / 48 |
 | group header | `group` title and `monoSm` count in `fg3` | none | 36 |
-| slab | `stone1`, 21 dp inset | 7 | content |
-| mineral field | `field(tone)` behind a header | none | content |
-| blade meter / progress | `stone3` track 6, fill by role; progress is `lapis` | blade | 6 |
+| slab | `slab` fill, 1 dp `vein` hairline, 21 dp inset | 7 | content |
+| mineral field | `mineralField(tone)` behind a header | none | content |
+| blade meter / progress | `field` track 6, fill by role; progress is `lapis` | blade | 6 |
 | flake and claim | mineral token beside its word | 45° sides | about 13 × 6 at nominal 9 dp |
-| menu | `stone4`, vein hairline, 40 dp rows, 220 to 360 wide | 8 | content |
+| menu | `stone4`, vein hairline, 40 dp rows, 220 to 360 wide; a checked item shows a trailing check | 8 | content |
 | dialog | `stone4`, vein hairline, 520 default width or a caller width such as 720 for catalogue, 34 dp padding, scrim behind | 16 | content |
 | placard | `sel` slab 48 high, `onSel` text and action, drains over 5 s | 8 | 48 |
 | tooltip | `stone4`, vein hairline, after 600 ms | 4 | content |
@@ -335,7 +384,7 @@ One curve: **chisel**, `cubic-bezier(.2, 0, 0, 1)`. No bounce, no overshoot.
 | press: plaque cuts deepen 4 dp and content sinks 1 dp; rows and menu items dip | 90 ms | you pressed it |
 | hover: a plane fades up one tone; a tablet's claim gives way to its action | 160 ms in, 100 ms out | this is what Enter will do |
 | focus ring fade | 120 ms in, 100 ms out | the keyboard is here |
-| selection and filter slabs, tab blade and rail tile glide | 240 ms | you are here now |
+| selection, filter and segment fills, tab blade and rail tile glide | 240 ms | you are here now |
 | mineral field changes stone | 320 ms | its state changed |
 | notch and disclosure unfold | 200 ms | state or detail changed |
 | new work pane content fades in, rising 8 dp | 200 ms | you went somewhere |
@@ -363,7 +412,12 @@ Mono wraps only the literal parts. [copy.md](copy.md) has the word lists.
 Do:
 
 - Use roles, never colour values, so the live palette can fill them.
-- Keep one consequential gold action visible in the current task.
+- Spend gold on one action per view; give the actions beside it line or
+  tonal plaques.
+- Lift a container from its plane: lighter or equal in dark mode, set off by
+  its hairline in light mode.
+- Give every cut control a fill or a hairline that clears Lc 15 (a quiet
+  plaque shows its cut only on hover), and nest cuts concentrically.
 - Pair every state colour with a word and a notch or flake.
 - Use the cut scale and the spacing run as given.
 - Stop animating and stop requesting frames as soon as a transition settles.
@@ -376,7 +430,7 @@ Do:
 Don't:
 
 - Round a corner or draw a pill.
-- Add a shadow, gradient, glow or inset well.
+- Add a shadow, gradient, glow or inset well, or sink a slab below its plane.
 - Blur a control, type or a state, or use blur in place of a tone step.
 - Use gold for status, decoration or navigation; use bone for anything but the current place.
 - Use Space Mono for prose or labels.

@@ -1,0 +1,92 @@
+.l-segmented {
+  --l-fill: var(--lithic-field);
+  --l-stroke: var(--lithic-vein);
+  --l-stroke-width: var(--lithic-size-hairline);
+  --l-cut: var(--lithic-cut-mid);
+  --l-segment-count: 2;
+  --l-segment-index: 0;
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  height: var(--lithic-size-segment-height);
+  padding: var(--lithic-size-segment-inset);
+  vertical-align: middle;
+}
+
+.l-segmented::before {
+  transition: background-color var(--lithic-motion-focus-out) var(--lithic-motion-curve);
+}
+
+[data-l-keyboard] .l-segmented:focus-within,
+.l-segmented[data-l-state="focus"] {
+  --l-stroke: var(--lithic-fg2);
+}
+
+[data-l-keyboard] .l-segmented:focus-within::before,
+.l-segmented[data-l-state="focus"]::before {
+  transition-duration: var(--lithic-motion-focus-in);
+}
+
+.l-segmented-thumb {
+  --l-cut: var(--lithic-cut-segment);
+  position: absolute;
+  z-index: 0;
+  inset-block-start: var(--lithic-size-segment-inset);
+  inset-inline-start: var(--lithic-size-segment-inset);
+  width: calc((100% - 2 * var(--lithic-size-segment-inset)) / var(--l-segment-count));
+  height: calc(100% - 2 * var(--lithic-size-segment-inset));
+  transform: translateX(calc(100% * var(--l-segment-index)));
+  pointer-events: none;
+}
+
+.l-segmented[data-l-selection-ready="true"] .l-segmented-thumb {
+  transition: transform var(--lithic-motion-select) var(--lithic-motion-curve);
+}
+
+.l-segment {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 0 var(--lithic-space-s4);
+  border: 0;
+  background: transparent;
+  color: var(--lithic-fg2);
+  clip-path: polygon(
+    var(--lithic-cut-segment) 0,
+    calc(100% - var(--lithic-cut-segment)) 0,
+    100% var(--lithic-cut-segment),
+    100% calc(100% - var(--lithic-cut-segment)),
+    calc(100% - var(--lithic-cut-segment)) 100%,
+    var(--lithic-cut-segment) 100%,
+    0 calc(100% - var(--lithic-cut-segment)),
+    0 var(--lithic-cut-segment)
+  );
+  font: var(--lithic-type-label-weight) var(--lithic-type-label-size)/var(--lithic-type-label-line) var(--lithic-type-label-family);
+  white-space: nowrap;
+  outline: none;
+  cursor: pointer;
+  transition: color var(--lithic-motion-select) var(--lithic-motion-curve), background-color var(--lithic-motion-hover-out) var(--lithic-motion-curve);
+}
+
+.l-segment:is(:hover, [data-l-state="hover"]):not([aria-checked="true"]):not(:disabled):not([aria-disabled="true"]) {
+  background: color-mix(in srgb, var(--lithic-fg2) calc(var(--lithic-alpha-hover-fill) * 100%), transparent);
+  transition-duration: var(--lithic-motion-select), var(--lithic-motion-hover-in);
+}
+
+.l-segment[aria-checked="true"] {
+  color: var(--lithic-on-sel);
+  cursor: default;
+}
+
+.l-segmented:is([aria-disabled="true"], [data-disabled="true"]),
+.l-segment:is(:disabled, [aria-disabled="true"]) {
+  opacity: var(--lithic-alpha-disabled);
+  pointer-events: none;
+}
+
+.l-segmented:is([aria-disabled="true"], [data-disabled="true"]) .l-segment {
+  opacity: 1;
+}

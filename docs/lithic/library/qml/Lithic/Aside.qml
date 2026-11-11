@@ -29,7 +29,7 @@ Slab {
         Slab {
             visible: root.preview !== ""
             width: parent.width
-            fill: Lithic.stone2
+            fill: Lithic.field
             cut: LithicTokens.cut.small
             inset: LithicTokens.space.s3
 

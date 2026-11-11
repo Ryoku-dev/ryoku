@@ -18,7 +18,7 @@ T.Control {
     implicitWidth: Math.max(LithicTokens.size.pickerWidthMin, contentItem.implicitWidth)
     implicitHeight: LithicTokens.size.pickerHeight
                     + (label.length > 0
-                       ? Lithic.type.caption.lineHeight + LithicTokens.space.s1 : 0)
+                       ? Lithic.type.detail.lineHeight + LithicTokens.space.s1 : 0)
     activeFocusOnTab: true
     Accessible.role: Accessible.ComboBox
     Accessible.name: label
@@ -35,7 +35,8 @@ T.Control {
         const result = []
         for (let index = 0; index < options.length; ++index) {
             const option = options[index]
-            result.push(typeof option === "string" ? { label: option } : option)
+            const entry = typeof option === "string" ? { label: option } : option
+            result.push(Object.assign({}, entry, { checked: index === currentIndex }))
         }
         return result
     }
@@ -67,25 +68,17 @@ T.Control {
             x: 0
             y: 0
             text: root.label
-            typeRole: "caption"
-            inkRole: "fg3"
+            typeRole: "detail"
         }
 
-        CutRect {
+        FieldSurface {
             id: field
             x: 0
             y: root.label.length > 0
-               ? Lithic.type.caption.lineHeight + LithicTokens.space.s1 : 0
+               ? Lithic.type.detail.lineHeight + LithicTokens.space.s1 : 0
             width: parent.width
             height: LithicTokens.size.pickerHeight
-            fill: hover.hovered || root.previewState === "hover"
-                  ? Lithic.hoverPlane(Lithic.stone3, 1) : Lithic.stone3
-            cut: LithicTokens.cut.mid
-            ChiselColorBehavior on fill {
-                duration: hover.hovered || root.previewState === "hover"
-                          ? LithicTokens.motion.hoverIn
-                          : LithicTokens.motion.hoverOut
-            }
+            hovered: hover.hovered || root.previewState === "hover"
 
             FocusRing {
                 x: -outset

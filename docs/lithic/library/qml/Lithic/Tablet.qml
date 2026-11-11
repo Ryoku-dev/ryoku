@@ -57,6 +57,11 @@ T.AbstractButton {
                 ? LithicTokens.motion.hoverIn
                 : LithicTokens.motion.hoverOut
         }
+
+        PlaceBlade {
+            anchors.fill: parent
+            visible: root.selected
+        }
     }
 
     contentItem: Item {

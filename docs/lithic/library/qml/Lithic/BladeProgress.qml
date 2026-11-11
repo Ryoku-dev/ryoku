@@ -14,7 +14,7 @@ Item {
 
     CutRect {
         anchors.fill: parent
-        fill: Lithic.stone3
+        fill: Lithic.field
     }
 
     Blade {

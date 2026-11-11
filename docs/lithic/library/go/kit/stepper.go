@@ -5,16 +5,17 @@ import (
 	"strconv"
 
 	"gioui.org/layout"
+	"gioui.org/op"
 	"gioui.org/unit"
-	material "golang.org/x/exp/shiny/materialdesign/icons"
 
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/symbols"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 )
 
 var (
-	iconStepRemove = Icon(material.ContentRemove)
-	iconStepAdd    = Icon(material.ContentAdd)
+	iconStepRemove = Icon(symbols.Remove)
+	iconStepAdd    = Icon(symbols.Add)
 )
 
 // Stepper changes an integer value between bounds.
@@ -95,7 +96,18 @@ func (s *Stepper) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions 
 				children[count] = layout.Rigid(rawText(th, th.T.Caption, disabledInk(gtx, th.R.Fg3), s.Unit))
 				count++
 			}
-			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Baseline}.Layout(gtx, children[:count]...)
+			height := gtx.Dp(unit.Dp(tokens.SizeIconPlaqueSmall))
+			valueGTX := gtx
+			valueGTX.Constraints.Max.Y = height
+			record := op.Record(gtx.Ops)
+			value := layout.Flex{Axis: layout.Horizontal, Alignment: layout.Baseline}.Layout(valueGTX, children[:count]...)
+			call := record.Stop()
+			size := constrainSize(gtx, image.Pt(value.Size.X+2*gtx.Dp(th.Sp.S2), height))
+			drawFieldSurface(gtx, th, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Small), th.R.Field, 0, false)
+			offset := op.Offset(image.Pt((size.X-value.Size.X)/2, (size.Y-value.Size.Y)/2)).Push(gtx.Ops)
+			call.Add(gtx.Ops)
+			offset.Pop()
+			return layout.Dimensions{Size: size}
 		}),
 		layout.Rigid(func(layout.Context) layout.Dimensions {
 			return s.plus.Layout(plusGTX, th)

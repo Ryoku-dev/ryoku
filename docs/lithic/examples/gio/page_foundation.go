@@ -53,7 +53,8 @@ func foundationRoles(th *theme.Theme) layout.Widget {
 	}
 	roles := []role{
 		{"Planes", "ground", th.R.Ground}, {"Planes", "stone1", th.R.Stone1}, {"Planes", "stone2", th.R.Stone2},
-		{"Planes", "stone3", th.R.Stone3}, {"Planes", "stone4", th.R.Stone4}, {"Planes", "vein", th.R.Vein},
+		{"Planes", "stone3", th.R.Stone3}, {"Planes", "stone4", th.R.Stone4}, {"Planes", "slab", th.R.Slab},
+		{"Planes", "field", th.R.Field}, {"Lines", "vein", th.R.Vein}, {"Lines", "edge", th.R.Edge},
 		{"Ink", "fg", th.R.Fg}, {"Ink", "fg2", th.R.Fg2}, {"Ink", "fg3", th.R.Fg3},
 		{"Selection", "sel", th.R.Sel}, {"Selection", "onSel", th.R.OnSel}, {"Selection", "onSel2", th.R.OnSel2},
 		{"Action", "gold", th.R.Gold}, {"Action", "onGold", th.R.OnGold}, {"Action", "goldInk", th.R.GoldInk},
@@ -100,6 +101,7 @@ func foundationType(th *theme.Theme) layout.Widget {
 		{"Section", "Fleet", th.T.Section}, {"Title", "Connection", th.T.Title},
 		{"Row", "mika-server", th.T.Row}, {"Body", "Reached over SSH from ally.", th.T.Body},
 		{"Proof", "Online in 23 ms", th.T.Proof}, {"Label", "Connect", th.T.Label},
+		{"Detail", "Wakes ally before the console opens", th.T.Detail},
 		{"Caption", "Last checked now", th.T.Caption}, {"Group", "Needs you", th.T.Group},
 		{"Mono", "ops@127.0.0.1", th.T.Mono}, {"Mono small", "/dev/ttyUSB0", th.T.MonoSm},
 	}
@@ -123,8 +125,8 @@ func foundationCutScale(th *theme.Theme) layout.Widget {
 		name string
 		cut  unit.Dp
 	}{
-		{"Token", th.Cut.Token}, {"Small", th.Cut.Small}, {"Mid", th.Cut.Mid},
-		{"Overlay", th.Cut.Overlay}, {"Notch", th.Cut.Notch}, {"Large", th.Cut.Large},
+		{"Token", th.Cut.Token}, {"Small", th.Cut.Small}, {"Segment", th.Cut.Segment},
+		{"Mid", th.Cut.Mid}, {"Overlay", th.Cut.Overlay}, {"Notch", th.Cut.Notch}, {"Large", th.Cut.Large},
 	}
 	return section(th, "Cut scale", func(gtx layout.Context) layout.Dimensions {
 		widgets := make([]layout.Widget, 0, len(items))
@@ -225,7 +227,7 @@ func foundationBlade(th *theme.Theme) layout.Widget {
 			widgets = append(widgets, specimen(th, item.name, func(gtx layout.Context) layout.Dimensions {
 				return canvas(gtx, 240, 48, func(ops *op.Ops, bounds image.Rectangle) {
 					track := image.Rect(8, 20, bounds.Dx()-8, 28)
-					paint.FillShape(ops, th.R.Stone3, clip.Rect(track).Op())
+					paint.FillShape(ops, th.R.Field, clip.Rect(track).Op())
 					fill := track
 					fill.Max.X = fill.Min.X + fill.Dx()*item.part/100
 					kit.Blade(ops, fill, th.R.Lapis)
@@ -294,7 +296,8 @@ func focusCanvas(th *theme.Theme, alpha float32) layout.Widget {
 	return func(gtx layout.Context) layout.Dimensions {
 		return canvas(gtx, 260, 92, func(ops *op.Ops, bounds image.Rectangle) {
 			control := image.Rect(24, 24, bounds.Dx()-24, bounds.Dy()-24)
-			kit.FillCut(ops, control, gtx.Dp(th.Cut.Mid), th.R.Stone3)
+			kit.FillCut(ops, control, gtx.Dp(th.Cut.Mid), th.R.Field)
+			kit.StrokeCut(ops, control, gtx.Dp(th.Cut.Mid), max(1, gtx.Dp(1)), th.R.Edge)
 			kit.FocusRingAlpha(gtx, th, control, gtx.Dp(th.Cut.Mid), alpha)
 		})
 	}
@@ -332,7 +335,7 @@ func foundationMotion(th *theme.Theme) layout.Widget {
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return canvas(gtx, 220, 12, func(ops *op.Ops, bounds image.Rectangle) {
-							paint.FillShape(ops, th.R.Stone3, clip.Rect(bounds).Op())
+							paint.FillShape(ops, th.R.Field, clip.Rect(bounds).Op())
 							fill := bounds
 							fill.Max.X = fill.Min.X + fill.Dx()*3/5
 							kit.Blade(ops, fill, th.R.Lapis)
@@ -370,7 +373,7 @@ func tile(th *theme.Theme, body layout.Widget) layout.Widget {
 		dimensions := layout.Inset{Top: th.Sp.S3, Right: th.Sp.S3, Bottom: th.Sp.S3, Left: th.Sp.S3}.Layout(gtx, body)
 		call := record.Stop()
 		bounds := image.Rectangle{Max: dimensions.Size}
-		kit.FillCut(gtx.Ops, bounds, gtx.Dp(th.Cut.Mid), th.R.Stone1)
+		kit.FillCut(gtx.Ops, bounds, gtx.Dp(th.Cut.Mid), th.R.Slab)
 		kit.StrokeCut(gtx.Ops, bounds, gtx.Dp(th.Cut.Mid), max(1, gtx.Dp(1)), th.R.Vein)
 		call.Add(gtx.Ops)
 		return dimensions

@@ -81,6 +81,7 @@ T.Control {
                 readonly property bool danger: !!modelData.danger
                 readonly property string glyphName: modelData.glyph || ""
                 readonly property string shortcutText: modelData.shortcut || ""
+                readonly property bool isChecked: !!modelData.checked
                 readonly property bool forcedHover: root.previewIndex === index
                                                       && root.previewState === "hover"
                 readonly property bool forcedPress: root.previewIndex === index
@@ -93,6 +94,8 @@ T.Control {
                 hoverEnabled: true
                 activeFocusOnTab: enabled
                 Accessible.name: text
+                Accessible.checkable: isChecked
+                Accessible.checked: isChecked
 
                 onTriggered: root.triggered(index)
                 onActiveFocusChanged: {
@@ -146,8 +149,8 @@ T.Control {
                                             + (itemGlyph.visible
                                                ? LithicTokens.size.menuIcon
                                                  + LithicTokens.size.menuIconGap : 0)
-                        anchors.right: shortcut.left
-                        anchors.rightMargin: menuItem.shortcutText.length > 0
+                        anchors.right: menuItem.isChecked ? checkGlyph.left : shortcut.left
+                        anchors.rightMargin: menuItem.isChecked || menuItem.shortcutText.length > 0
                                              ? LithicTokens.size.menuShortcutGap : 0
                         anchors.verticalCenter: parent.verticalCenter
                         text: menuItem.text
@@ -160,12 +163,24 @@ T.Control {
 
                     Label {
                         id: shortcut
+                        visible: !menuItem.isChecked
                         anchors.right: parent.right
                         anchors.rightMargin: LithicTokens.size.menuInset
                         anchors.verticalCenter: parent.verticalCenter
                         text: menuItem.shortcutText
                         typeRole: "monoSm"
                         inkRole: "fg3"
+                    }
+
+                    Glyph {
+                        id: checkGlyph
+                        visible: menuItem.isChecked
+                        anchors.right: parent.right
+                        anchors.rightMargin: LithicTokens.size.menuInset
+                        anchors.verticalCenter: parent.verticalCenter
+                        name: "check"
+                        size: LithicTokens.size.menuIcon
+                        ink: Lithic.fg2
                     }
                 }
 

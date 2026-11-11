@@ -4,7 +4,7 @@ pragma Singleton
 import QtQuick
 
 QtObject {
-    readonly property var alpha: ({"disabled":0.5,"hatch":0.3,"hoverFill":0.1,"hoverInk":0.1,"hoverPlane":0.06,"mineral":0.15,"mineralJade":0.17,"onSel2":0.45,"pressPlane":0.06,"pressRow":0.08,"scrimDark":0.62,"scrimLight":0.45,"workingBase":0.55})
+    readonly property var alpha: ({"contrastHigh":0.6,"contrastHighFg3":0.3,"disabled":0.5,"edge":0.5,"hatch":0.3,"hoverFill":0.1,"hoverInk":0.1,"hoverPlane":0.06,"mineral":0.15,"mineralJade":0.17,"onSel2":0.45,"pressPlane":0.06,"pressRow":0.08,"scrimDark":0.62,"scrimLight":0.45,"selMix":0.5,"tintLow":0.06,"tintMedium":0.1,"workingBase":0.55})
     readonly property QtObject breakpoint: QtObject {
         readonly property int expanded: 1280
         readonly property int medium: 760
@@ -19,6 +19,7 @@ QtObject {
         readonly property int notch: 12
         readonly property int overlay: 8
         readonly property int placard: 8
+        readonly property int segment: 5
         readonly property int small: 6
         readonly property int toggleKnob: 2
         readonly property int toggleTrack: 4
@@ -56,8 +57,8 @@ QtObject {
         readonly property int wheel: 140
         readonly property int working: 900
     }
-    readonly property var palette: ({"accents":{"gold":"primary","jasper":"error","onGold":"onPrimary","onSel":"onSecondaryContainer","scrim":"scrim","sel":"secondaryContainer"},"dark":{"fg":"onSurface","fg2":"onSurfaceVariant","fg3":"outline","ground":"surfaceContainerLowest","stone1":"surface","stone2":"surfaceContainerLow","stone3":"surfaceContainer","stone4":"surfaceContainerHigh","vein":"surfaceContainerHighest"},"light":{"fg":"onSurface","fg2":"onSurfaceVariant","fg3":"outline","ground":"surfaceContainerHighest","stone1":"surfaceContainerHigh","stone2":"surfaceContainerLowest","stone3":"surfaceContainer","stone4":"surfaceContainerLowest","vein":"outlineVariant"},"toned":{"goldInk":"gold","jasper":"jasper"}})
-    readonly property var signature: ({"dark":{"fg":"#e3e3e3","fg2":"#c6c6c6","fg3":"#8f8f8f","gold":"#c9a861","goldInk":"#d6b877","ground":"#0e0e0e","jasper":"#e0553a","onGold":"#17120a","onSel":"#121212","onSel2":"#474747","scrim":"#9e000000","sel":"#e3e3e3","stone1":"#141414","stone2":"#1b1b1b","stone3":"#232323","stone4":"#2c2c2c","vein":"#393939"},"light":{"fg":"#1d1b18","fg2":"#4a4640","fg3":"#6f6a62","gold":"#c9a45a","goldInk":"#85651f","ground":"#e2ddd4","jasper":"#b8321e","onGold":"#1d1b18","onSel":"#f4f1eb","onSel2":"#b9b2a7","scrim":"#73000000","sel":"#1d1b18","stone1":"#eae6df","stone2":"#f4f1eb","stone3":"#e9e5de","stone4":"#fbf9f5","vein":"#cbc4b8"}})
+    readonly property var palette: ({"accents":{"gold":"primary","jasper":"error","onGold":"onPrimary","onSel":"onSecondaryContainer","scrim":"scrim","sel":"secondaryContainer","selMix":"primaryContainer","tint":"primaryContainer"},"dark":{"fg":"onSurface","fg2":"onSurfaceVariant","fg3":"outline","field":"surfaceContainerHighest","ground":"surfaceContainerLowest","slab":"surfaceContainer","stone1":"surface","stone2":"surfaceContainerLow","stone3":"surfaceContainer","stone4":"surfaceContainerHigh","vein":"outlineVariant"},"light":{"fg":"onSurface","fg2":"onSurfaceVariant","fg3":"outline","field":"surfaceContainerHighest","ground":"surfaceContainerHighest","slab":"surfaceContainerLowest","stone1":"surfaceContainerHigh","stone2":"surfaceContainerLowest","stone3":"surfaceContainer","stone4":"surfaceContainerLowest","vein":"outlineVariant"},"toned":{"goldInk":"gold","jasper":"jasper"}})
+    readonly property var signature: ({"dark":{"fg":"#e3e3e3","fg2":"#c6c6c6","fg3":"#8f8f8f","field":"#393939","gold":"#c9a861","goldInk":"#d6b877","ground":"#0e0e0e","jasper":"#e0553a","onGold":"#17120a","onSel":"#121212","onSel2":"#474747","scrim":"#9e000000","sel":"#e3e3e3","slab":"#232323","stone1":"#141414","stone2":"#1b1b1b","stone3":"#232323","stone4":"#2c2c2c","vein":"#444444"},"light":{"fg":"#1d1b18","fg2":"#4a4640","fg3":"#6f6a62","field":"#e9e5de","gold":"#c9a45a","goldInk":"#85651f","ground":"#e2ddd4","jasper":"#b8321e","onGold":"#1d1b18","onSel":"#f4f1eb","onSel2":"#b9b2a7","scrim":"#73000000","sel":"#1d1b18","slab":"#fbf9f5","stone1":"#eae6df","stone2":"#f4f1eb","stone3":"#e9e5de","stone4":"#fbf9f5","vein":"#cbc4b8"}})
     readonly property QtObject size: QtObject {
         readonly property real bladeIndeterminateFraction: 0.25
         readonly property int bladeMarker: 2
@@ -223,6 +224,9 @@ QtObject {
         readonly property int sectionIndexRow: 48
         readonly property int sectionIndexRowGap: 4
         readonly property int sectionIndexWidth: 200
+        readonly property int segmentHeight: 36
+        readonly property int segmentInset: 4
+        readonly property int selBlade: 3
         readonly property int settingsControlMax: 320
         readonly property int settingsDetailGap: 2
         readonly property int settingsExpandedMax: 994
@@ -309,6 +313,12 @@ QtObject {
             readonly property string family: "sans"
             readonly property int line: 16
             readonly property int size: 12
+            readonly property int weight: 400
+        }
+        readonly property QtObject detail: QtObject {
+            readonly property string family: "sans"
+            readonly property int line: 18
+            readonly property int size: 13
             readonly property int weight: 400
         }
         readonly property QtObject group: QtObject {

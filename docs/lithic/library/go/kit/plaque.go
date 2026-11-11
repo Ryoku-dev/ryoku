@@ -23,6 +23,7 @@ type PlaqueKind uint8
 const (
 	PlaqueGold PlaqueKind = iota
 	PlaqueLine
+	PlaqueTonal
 	PlaqueQuiet
 	PlaqueOn
 	PlaqueDanger
@@ -143,8 +144,10 @@ func plaquePalette(th *theme.Theme, kind PlaqueKind) plaqueColors {
 	switch kind {
 	case PlaqueLine:
 		return plaqueColors{ink: th.R.GoldInk, outline: th.R.GoldInk, stroke: true}
+	case PlaqueTonal:
+		return plaqueColors{fill: th.R.Field, ink: th.R.Fg}
 	case PlaqueQuiet:
-		return plaqueColors{ink: th.R.Fg2, outline: th.R.Vein, stroke: true}
+		return plaqueColors{ink: th.R.Fg2}
 	case PlaqueOn:
 		return plaqueColors{fill: th.R.Sel, ink: th.R.OnSel}
 	case PlaqueDanger:
@@ -159,11 +162,14 @@ func plaquePalette(th *theme.Theme, kind PlaqueKind) plaqueColors {
 func interactivePlaqueColors(gtx layout.Context, th *theme.Theme, kind PlaqueKind, hover float32) plaqueColors {
 	colors := plaquePalette(th, kind)
 	if hover > 0 {
-		amount := tokens.AlphaHoverFill * min(hover, 1)
-		if colors.fill.A == 0 {
-			colors.fill = palette.WithAlpha(colors.ink, amount)
-		} else {
-			colors.fill = palette.Mix(colors.fill, color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff}, amount)
+		amount := min(hover, 1)
+		switch {
+		case kind == PlaqueTonal:
+			colors.fill = palette.Mix(colors.fill, th.R.Fg, tokens.AlphaHoverPlane*amount)
+		case colors.fill.A == 0:
+			colors.fill = palette.WithAlpha(colors.ink, tokens.AlphaHoverFill*amount)
+		default:
+			colors.fill = palette.Mix(colors.fill, color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff}, tokens.AlphaHoverFill*amount)
 		}
 	}
 	colors.fill = disabledInk(gtx, colors.fill)

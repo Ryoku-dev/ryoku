@@ -8,17 +8,17 @@ import (
 	"gioui.org/op"
 	"gioui.org/unit"
 	"gioui.org/widget"
-	material "golang.org/x/exp/shiny/materialdesign/icons"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/symbols"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 )
 
 var (
-	iconExpandMore = Icon(material.NavigationExpandMore)
-	iconExpandLess = Icon(material.NavigationExpandLess)
+	iconExpandMore = Icon(symbols.ExpandMore)
+	iconExpandLess = Icon(symbols.ExpandLess)
 )
 
 // SplitPlaque joins a primary action and an independent menu action.

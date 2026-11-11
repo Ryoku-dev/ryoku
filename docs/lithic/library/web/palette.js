@@ -1,12 +1,14 @@
 import tokens from './tokens.js';
 
 const ROLE_KEYS = Object.freeze([
-  'ground', 'stone1', 'stone2', 'stone3', 'stone4', 'vein',
+  'ground', 'stone1', 'stone2', 'stone3', 'stone4', 'slab', 'field', 'vein', 'edge',
   'fg', 'fg2', 'fg3', 'sel', 'onSel', 'onSel2',
   'gold', 'onGold', 'goldInk', 'jade', 'lapis', 'amber', 'jasper', 'scrim',
 ]);
 
 const MODES = new Set(['follow', 'dark', 'light']);
+const CONTRASTS = Object.freeze(['standard', 'high']);
+const TINTS = Object.freeze(['off', 'low', 'medium']);
 const TONES = new Set(['idle', 'alive', 'becoming', 'attention', 'paused', 'failed']);
 const BLACK = Object.freeze({r: 0, g: 0, b: 0, a: 255});
 const WHITE = Object.freeze({r: 255, g: 255, b: 255, a: 255});
@@ -173,14 +175,39 @@ export function stone(roles, tone) {
   return roles.vein;
 }
 
-export function field(roles, tone) {
+export function mineralField(roles, tone) {
   if (!TONES.has(tone)) throw new TypeError(`Unknown Lithic tone: ${tone}`);
   if (tone === 'idle') return roles.stone3;
   return mix(roles.stone2, stone(roles, tone), tone === 'alive' ? tokens.alpha.mineralJade : tokens.alpha.mineral);
 }
 
-export function rolesFromPalette(palette = {}, {mode = 'follow'} = {}) {
+// Moves a colour away from the ground by factor per channel, rounded half up and clamped to a byte.
+function away(color, ground, factor) {
+  const channel = key => Math.min(Math.max(Math.round(ground[key] + factor * (color[key] - ground[key])), 0), 255);
+  return {r: channel('r'), g: channel('g'), b: channel('b'), a: color.a};
+}
+
+// Runs the look's contrast step, then its tint step, on mapped roles. The tint applies only when the palette has a tint role.
+function applyLook(result, contrast, tint, tintRole) {
+  if (contrast === 'high') {
+    const factor = 1 + tokens.alpha.contrastHigh;
+    for (const name of ['stone1', 'stone2', 'stone3', 'stone4', 'slab', 'field', 'vein']) {
+      result[name] = away(result[name], result.ground, factor);
+    }
+    result.fg3 = mixColor(result.fg3, result.fg, tokens.alpha.contrastHighFg3);
+  }
+  const amount = tint === 'low' ? tokens.alpha.tintLow : tint === 'medium' ? tokens.alpha.tintMedium : 0;
+  if (tintRole && amount > 0) {
+    for (const name of ['ground', 'stone1', 'stone2', 'stone3', 'stone4', 'slab', 'field']) {
+      result[name] = mixColor(result[name], tintRole, amount);
+    }
+  }
+}
+
+export function rolesFromPalette(palette = {}, {mode = 'follow', contrast = 'standard', tint = 'off'} = {}) {
   if (!MODES.has(mode)) throw new TypeError(`Unknown Lithic mode: ${mode}`);
+  if (!CONTRASTS.includes(contrast)) throw new TypeError(`Unknown Lithic contrast: ${contrast}`);
+  if (!TINTS.includes(tint)) throw new TypeError(`Unknown Lithic tint: ${tint}`);
   const {roles: paletteRoles, source, edition} = descriptor(palette);
   const forced = mode !== 'follow';
   const surface = paletteRoles.surface;
@@ -192,16 +219,19 @@ export function rolesFromPalette(palette = {}, {mode = 'follow'} = {}) {
   const mapping = modeObject(tokens.palette, resolvedMode);
   const result = parsedRoles(signature);
   Object.assign(result, parsedRoles(minerals));
+  let goldInk = result.goldInk;
+  let tintRole = null;
 
   const editionKey = typeof edition === 'string' ? edition.toLowerCase() : null;
   const hasEditionAccent = source === 'signature' && editionKey && tokens.edition?.[editionKey];
   if (hasEditionAccent) {
     result.gold = asColor(tokens.edition[editionKey], 'rolesFromPalette');
     result.onGold = asColor(inkOn(result.gold), 'rolesFromPalette');
+    goldInk = result.gold;
   }
 
   if ((source === 'wallpaper' || source === 'scheme') && !forced) {
-    for (const name of ['ground', 'stone1', 'stone2', 'stone3', 'stone4', 'vein', 'fg', 'fg2', 'fg3']) {
+    for (const name of ['ground', 'stone1', 'stone2', 'stone3', 'stone4', 'slab', 'field', 'vein', 'fg', 'fg2', 'fg3']) {
       result[name] = mappedRole(mapping, name, paletteRoles, result[name]);
     }
   }
@@ -211,17 +241,24 @@ export function rolesFromPalette(palette = {}, {mode = 'follow'} = {}) {
     const toned = tokens.palette.toned;
     result.gold = mappedRole(accents, 'gold', paletteRoles, result.gold);
     result.onGold = mappedRole(accents, 'onGold', paletteRoles, result.onGold);
-    result.sel = mappedRole(accents, 'sel', paletteRoles, result.sel);
+    goldInk = result[toned.goldInk];
+    const sel = paletteRoles[accents.sel];
+    if (sel) {
+      const toward = paletteRoles[accents.selMix];
+      result.sel = toward ? mixColor(sel, toward, tokens.alpha.selMix) : sel;
+    }
     result.onSel = mappedRole(accents, 'onSel', paletteRoles, result.onSel);
-    result.jasper = mappedRole(accents, 'jasper', paletteRoles, result.jasper);
+    result.jasper = mappedRole(accents, toned.jasper, paletteRoles, result.jasper);
     const scrim = mappedRole(accents, 'scrim', paletteRoles, result.scrim);
     result.scrim = asColor(withAlpha(scrim, dark ? tokens.alpha.scrimDark : tokens.alpha.scrimLight), 'rolesFromPalette');
     result.onSel2 = mixColor(result.onSel, result.sel, tokens.alpha.onSel2);
-    result.goldInk = asColor(contrastTone(result[toned.goldInk], result.stone2, dark), 'rolesFromPalette');
-    result.jasper = asColor(contrastTone(result[toned.jasper], result.stone2, dark), 'rolesFromPalette');
-  } else if (hasEditionAccent) {
-    result.goldInk = asColor(contrastTone(result.gold, result.stone2, dark), 'rolesFromPalette');
+    tintRole = paletteRoles[accents.tint] ?? null;
   }
+
+  applyLook(result, contrast, tint, tintRole);
+  result.edge = mixColor(result.vein, result.fg3, tokens.alpha.edge);
+  result.goldInk = asColor(contrastTone(goldInk, result.stone2, dark), 'rolesFromPalette');
+  result.jasper = asColor(contrastTone(result.jasper, result.stone2, dark), 'rolesFromPalette');
 
   return Object.fromEntries(ROLE_KEYS.map(key => [key, toCSS(result[key])]).concat([['dark', dark], ['jasperInk', inkOn(result.jasper)]]));
 }
@@ -249,4 +286,4 @@ export function applyRoles(roles, element = document.documentElement) {
   return element;
 }
 
-export {ROLE_KEYS};
+export {CONTRASTS, ROLE_KEYS, TINTS};

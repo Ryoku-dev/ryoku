@@ -40,16 +40,10 @@ T.TextField {
         event.accepted = true;
     }
 
-    background: CutRect {
-        fill: root._hoverActive ? Lithic.hoverPlane(Lithic.stone3) : Lithic.stone3
-        strokeColor: Lithic.fg2
-        strokeWidth: root._focusActive ? LithicTokens.size.textFieldStroke : 0
-        cut: LithicTokens.cut.mid + (root._pressActive ? Lithic.pressCutGrow : 0)
-
-        ChiselColorBehavior on fill {
-            duration: root._hoverActive ? LithicTokens.motion.hoverIn : LithicTokens.motion.hoverOut
-        }
-        ChiselNumberBehavior on cut { duration: LithicTokens.motion.press }
+    background: FieldSurface {
+        hovered: root._hoverActive
+        pressed: root._pressActive
+        focused: root._focusActive
     }
 
     Glyph {

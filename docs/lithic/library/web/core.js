@@ -1,7 +1,9 @@
 import {
   applyRoles as writeRoles,
+  CONTRASTS,
   loadPalette,
   rolesFromPalette,
+  TINTS,
 } from './palette.js';
 
 const MODES = new Set(['follow', 'dark', 'light']);
@@ -11,6 +13,7 @@ const initialized = new WeakMap();
 const keyboardTracked = new WeakSet();
 const motionTracked = new WeakSet();
 let mode = 'follow';
+let look = {contrast: 'standard', tint: 'off'};
 let reduceOverride = null;
 
 function contextFor(root) {
@@ -88,7 +91,7 @@ function runModule(name, initFn, root) {
 }
 
 function renderState(state) {
-  const roles = rolesFromPalette(state.palette, {mode});
+  const roles = rolesFromPalette(state.palette, {mode, ...look});
   writeSnappedRoles(roles, state.element);
   state.element.dataset.lPalette = state.source;
   state.element.dataset.lRequestedMode = mode;
@@ -111,6 +114,10 @@ export async function init(root = document) {
   const url = new URL(documentRoot.defaultView?.location?.href ?? 'http://localhost/');
   const requestedMode = url.searchParams.get('mode');
   if (MODES.has(requestedMode)) mode = requestedMode;
+  const requestedContrast = url.searchParams.get('contrast');
+  const requestedTint = url.searchParams.get('tint');
+  if (CONTRASTS.includes(requestedContrast)) look = {...look, contrast: requestedContrast};
+  if (TINTS.includes(requestedTint)) look = {...look, tint: requestedTint};
   const paletteURL = url.searchParams.get('palette');
   const state = {
     root,
@@ -141,6 +148,14 @@ export function setMode(nextMode) {
   return mode;
 }
 
+export function setLook({contrast = look.contrast, tint = look.tint} = {}) {
+  if (!CONTRASTS.includes(contrast)) throw new TypeError(`Unknown Lithic contrast: ${contrast}`);
+  if (!TINTS.includes(tint)) throw new TypeError(`Unknown Lithic tint: ${tint}`);
+  look = {contrast, tint};
+  for (const state of roots.values()) state.roles = renderState(state);
+  return {...look};
+}
+
 export function setReduce(on = null) {
   if (on !== null && typeof on !== 'boolean') throw new TypeError('Lithic.setReduce expects true, false, or null');
   reduceOverride = on;
@@ -156,6 +171,7 @@ const Lithic = Object.freeze({
   init,
   register,
   setMode,
+  setLook,
   setReduce,
   applyRoles,
   rolesFromPalette,

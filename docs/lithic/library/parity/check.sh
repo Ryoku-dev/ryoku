@@ -16,20 +16,22 @@ trap 'rm -rf "$work"' EXIT
 
 failed=0
 
-# run <case> <mode> <web input file, or - when the case is a loader rule a browser never sees>
+# run <case> <mode> <web input file, or - when the case is a loader rule a browser never sees> [contrast] [tint]
 run() {
-	local name=$1 mode=$2 web=$3 dir=$work/$1
+	local name=$1 mode=$2 web=$3 contrast=${4:-standard} tint=${5:-off} dir=$work/$1
+	local look=$mode-$contrast-$tint
 	export XDG_CONFIG_HOME=$dir/config XDG_CACHE_HOME=$dir/cache
-	"$work/lithic-roles" --mode "$mode" >"$dir/go-$mode.json"
+	"$work/lithic-roles" --mode "$mode" --contrast "$contrast" --tint "$tint" >"$dir/go-$look.json"
 	QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=offscreen QML_XHR_ALLOW_FILE_READ=1 LITHIC_MODE=$mode \
+		LITHIC_CONTRAST=$contrast LITHIC_TINT=$tint \
 		timeout 30 "$qml" -I "$library/qml" "$here/Roles.qml" 2>&1 |
-		sed -n 's/.*ROLES //p' >"$dir/qml-$mode.json"
-	local sets=("go=$dir/go-$mode.json" "qml=$dir/qml-$mode.json")
+		sed -n 's/.*ROLES //p' >"$dir/qml-$look.json"
+	local sets=("go=$dir/go-$look.json" "qml=$dir/qml-$look.json")
 	if [[ $web != - ]]; then
-		"$js" "$here/roles.mjs" "$web" "$mode" >"$dir/web-$mode.json"
-		sets+=("web=$dir/web-$mode.json")
+		"$js" "$here/roles.mjs" "$web" "$mode" "$contrast" "$tint" >"$dir/web-$look.json"
+		sets+=("web=$dir/web-$look.json")
 	fi
-	"$js" "$here/compare.mjs" "$name $mode" "${sets[@]}" || failed=1
+	"$js" "$here/compare.mjs" "$name $mode $contrast $tint" "${sets[@]}" || failed=1
 }
 
 # fresh <case>: an empty config and cache tree for one case
@@ -40,18 +42,23 @@ for name in wallpaper-dark wallpaper-light; do
 	cp "$here/testdata/$name.json" "$work/$name/cache/ryoku/colors.json"
 	for mode in follow dark light; do run "$name" "$mode" "$here/testdata/$name.json"; done
 done
+run wallpaper-dark follow "$here/testdata/wallpaper-dark.json" high medium
+run wallpaper-light follow "$here/testdata/wallpaper-light.json" high low
 
 fresh scheme
 printf '{"themePalette": %s}\n' "$(cat "$here/testdata/scheme.json")" >"$work/scheme/config/ryoku/shell.json"
 for mode in follow dark light; do run scheme "$mode" "$work/scheme/config/ryoku/shell.json"; done
+run scheme follow "$work/scheme/config/ryoku/shell.json" standard low
 
 fresh signature
 printf '{"roles": {}, "source": "signature", "edition": "%s"}\n' "$edition" >"$work/signature/web.json"
 for mode in follow dark light; do run signature "$mode" "$work/signature/web.json"; done
+for mode in follow light; do run signature "$mode" "$work/signature/web.json" high; done
 
 fresh unfollowed
 printf '{"followWallpaper": false}\n' >"$work/unfollowed/config/ryoku/theme.json"
 cp "$here/testdata/wallpaper-dark.json" "$work/unfollowed/cache/ryoku/colors.json"
 for mode in follow dark light; do run unfollowed "$mode" -; done
+run unfollowed dark "$here/testdata/wallpaper-dark.json" standard low
 
 exit "$failed"

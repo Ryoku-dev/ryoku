@@ -5,7 +5,7 @@ Item {
 
     property string tone: "idle"
     property real inset: 0
-    property color fieldColor: Lithic.field(tone)
+    property color fieldColor: Lithic.mineralField(tone)
     default property alias content: contentItem.data
     readonly property alias bodyItem: contentItem
     property bool _animateTone: false
@@ -28,12 +28,12 @@ Item {
 
     function _snapField() {
         _animateTone = false;
-        fieldColor = Lithic.field(tone);
+        fieldColor = Lithic.mineralField(tone);
     }
 
     onToneChanged: {
         _animateTone = true;
-        fieldColor = Lithic.field(tone);
+        fieldColor = Lithic.mineralField(tone);
     }
 
     Component.onCompleted: _snapField()

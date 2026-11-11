@@ -7,15 +7,15 @@ import (
 	"gioui.org/io/semantic"
 	"gioui.org/layout"
 	"gioui.org/unit"
-	material "golang.org/x/exp/shiny/materialdesign/icons"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/symbols"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 )
 
-var pickerArrow = Icon(material.NavigationExpandMore)
+var pickerArrow = Icon(symbols.ExpandMore)
 
 // Picker is a labelled field that opens its options as a popover menu.
 type Picker struct {
@@ -56,15 +56,21 @@ func (p *Picker) Layout(gtx layout.Context, th *theme.Theme, label string, optio
 		children := make([]layout.FlexChild, 0, 3)
 		if label != "" {
 			children = append(children,
-				layout.Rigid(Text(th, th.T.Caption, th.R.Fg3, label)),
+				layout.Rigid(Text(th, th.T.Detail, th.R.Fg2, label)),
 				layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
 			)
 		}
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			finalCut := gtx.Dp(th.Cut.Mid)
+			focused := gtx.Focused(&p.button.Clickable) || p.Preview == StateFocus
+			focus := focusValue(gtx, th, &p.focus, focused)
 			dimensions := p.button.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				semantic.Button.Add(gtx.Ops)
-				semantic.LabelOp(label + ": " + value).Add(gtx.Ops)
+				name := value
+				if label != "" {
+					name = label + ": " + value
+				}
+				semantic.LabelOp(name).Add(gtx.Ops)
 				semantic.EnabledOp(gtx.Source.Enabled()).Add(gtx.Ops)
 				height := gtx.Dp(tokens.SizePickerHeight)
 				width := max(gtx.Constraints.Min.X, gtx.Dp(tokens.SizePickerWidthMin))
@@ -75,8 +81,7 @@ func (p *Picker) Layout(gtx layout.Context, th *theme.Theme, label string, optio
 					hovered = true
 				}
 				hover := hoverValue(gtx, th, &p.hover, hovered)
-				fill := palette.Mix(th.R.Stone3, th.R.Fg, tokens.AlphaHoverPlane*hover)
-				FillCut(gtx.Ops, bounds, finalCut, fill)
+				drawFieldSurface(gtx, th, bounds, finalCut, palette.Mix(th.R.Field, th.R.Fg, tokens.AlphaHoverPlane*hover), focus, false)
 				gtx.Constraints = layout.Exact(bounds.Max)
 				return layout.Inset{Left: unit.Dp(tokens.SizePickerInset), Right: unit.Dp(tokens.SizePickerInset)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return centerY(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -92,8 +97,6 @@ func (p *Picker) Layout(gtx layout.Context, th *theme.Theme, label string, optio
 					})
 				})
 			})
-			focused := gtx.Focused(&p.button.Clickable) || p.Preview == StateFocus
-			focus := focusValue(gtx, th, &p.focus, focused)
 			FocusRingAlpha(gtx, th, image.Rectangle{Max: dimensions.Size}, finalCut, focus)
 			return dimensions
 		}))
@@ -102,7 +105,7 @@ func (p *Picker) Layout(gtx layout.Context, th *theme.Theme, label string, optio
 	content := func(gtx layout.Context) layout.Dimensions {
 		items := make([]MenuItem, len(options))
 		for index, option := range options {
-			items[index] = MenuItem{Label: option}
+			items[index] = MenuItem{Label: option, Checked: index == selected}
 		}
 		return p.menu.Layout(gtx, th, items)
 	}

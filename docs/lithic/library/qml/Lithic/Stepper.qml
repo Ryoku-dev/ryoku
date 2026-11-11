@@ -17,6 +17,7 @@ T.SpinBox {
     focusPolicy: Qt.StrongFocus
     implicitWidth: LithicTokens.size.iconPlaqueSmall * 2
                    + LithicTokens.size.stepperGap * 2
+                   + LithicTokens.space.s2 * 2
                    + valueLabel.implicitWidth
                    + (unit.length > 0 ? LithicTokens.size.stepperUnitGap + unitLabel.implicitWidth : 0)
     implicitHeight: LithicTokens.size.iconPlaqueSmall
@@ -48,8 +49,6 @@ T.SpinBox {
         CutRect {
             anchors.fill: parent
             fill: parent.faceHovered ? Lithic.hoverInk(Lithic.fg2) : "transparent"
-            strokeColor: Lithic.vein
-            strokeWidth: LithicTokens.size.hairline
             cut: LithicTokens.cut.small + (parent.facePressed ? Lithic.pressCutGrow : 0)
 
             ChiselColorBehavior on fill {
@@ -71,6 +70,13 @@ T.SpinBox {
     background: Item {}
 
     contentItem: Item {
+        FieldSurface {
+            x: LithicTokens.size.iconPlaqueSmall + LithicTokens.size.stepperGap
+            width: Math.max(0, parent.width - x * 2)
+            height: parent.height
+            restCut: LithicTokens.cut.small
+        }
+
         Label {
             id: valueLabel
             anchors.centerIn: parent

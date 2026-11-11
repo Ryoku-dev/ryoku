@@ -58,6 +58,29 @@ T.Control {
         implicitWidth: chipRow.implicitWidth
         implicitHeight: LithicTokens.size.filterHeight
 
+        Repeater {
+            model: chipRepeater.count
+
+            delegate: CutRect {
+                required property int index
+                readonly property Item chip: index < chipRepeater.count ? chipRepeater.itemAt(index) : null
+
+                visible: chip !== null && !chip.selected
+                x: chip ? chip.x : 0
+                width: chip ? chip.width : 0
+                height: LithicTokens.size.filterHeight
+                fill: chip && chip._hoverActive
+                      ? Lithic.mix(Lithic.field, Lithic.fg, LithicTokens.alpha.hoverPlane)
+                      : Lithic.field
+                cut: LithicTokens.cut.small + (chip && chip._pressActive ? Lithic.pressCutGrow : 0)
+
+                ChiselColorBehavior on fill {
+                    duration: chip && chip._hoverActive ? LithicTokens.motion.hoverIn : LithicTokens.motion.hoverOut
+                }
+                ChiselNumberBehavior on cut { duration: LithicTokens.motion.press }
+            }
+        }
+
         CutRect {
             x: root._selectedItem ? root._selectedItem.x : 0
             width: root._selectedItem ? root._selectedItem.width : 0
@@ -68,6 +91,13 @@ T.Control {
 
             ChiselNumberBehavior on x { duration: LithicTokens.motion.select }
             ChiselNumberBehavior on width { duration: LithicTokens.motion.select }
+
+            PlaceBlade {
+                anchors.fill: parent
+                edge: "bottom"
+                cutStart: LithicTokens.cut.small
+                cutEnd: LithicTokens.cut.small
+            }
         }
 
         Row {
@@ -117,21 +147,6 @@ T.Control {
                             height: parent.height + outset * 2
                             keyboardFocusVisible: chip._focusActive
                             cut: LithicTokens.cut.small
-                        }
-
-                        CutRect {
-                            anchors.fill: parent
-                            fill: chip.selected
-                                  ? "transparent"
-                                  : (chip._hoverActive ? Lithic.hoverInk(Lithic.fg2) : "transparent")
-                            strokeColor: Lithic.vein
-                            strokeWidth: chip.selected ? 0 : LithicTokens.size.hairline
-                            cut: LithicTokens.cut.small + (chip._pressActive ? Lithic.pressCutGrow : 0)
-
-                            ChiselColorBehavior on fill {
-                                duration: chip._hoverActive ? LithicTokens.motion.hoverIn : LithicTokens.motion.hoverOut
-                            }
-                            ChiselNumberBehavior on cut { duration: LithicTokens.motion.press }
                         }
                     }
 

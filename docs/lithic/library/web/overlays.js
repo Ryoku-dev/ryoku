@@ -2,6 +2,7 @@ import {register} from './core.js';
 
 const states = new WeakMap();
 let anchorSequence = 0;
+let sectionPickerSequence = 0;
 
 function documentFor(root) {
   return root.nodeType === Node.DOCUMENT_NODE ? root : root.ownerDocument;
@@ -78,7 +79,7 @@ function emit(element, name, detail = {}) {
 }
 
 function focusableItems(menu) {
-  return [...menu.querySelectorAll('[role="menuitem"], [role="menuitemradio"], [role="option"]')]
+  return [...menu.querySelectorAll('[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], [role="option"]')]
     .filter(item => !item.matches(':disabled, [aria-disabled="true"], [hidden]'));
 }
 
@@ -247,6 +248,12 @@ function selectMenuItem(state, item) {
     opener.dataset.value = item.dataset.value || value;
     emit(opener, 'lithic:change', {value: opener.dataset.value, item});
   }
+  if (item.getAttribute('role') === 'menuitemcheckbox') {
+    item.setAttribute('aria-checked', String(item.getAttribute('aria-checked') !== 'true'));
+  }
+  if (item.getAttribute('role') === 'menuitemradio') {
+    menu.querySelectorAll('[role="menuitemradio"]').forEach(radio => radio.setAttribute('aria-checked', String(radio === item)));
+  }
   emit(menu, 'lithic:select', {item, value: item.dataset.value});
   closePopover(state, menu);
 }
@@ -340,6 +347,7 @@ function updateFrame(frame) {
   const next = frame.dataset.lPreviewSize || sizeClass(frame);
   if (frame.dataset.lSizeClass === next) return;
   frame.dataset.lSizeClass = next;
+  frame.querySelectorAll('.l-rail').forEach(syncRailSelection);
   emit(frame, 'lithic:size-class', {sizeClass: next});
 }
 
@@ -352,6 +360,9 @@ function syncRailSelection(rail) {
     selection.setAttribute('aria-hidden', 'true');
     rail.prepend(selection);
   }
+  const bottomBar = rail.closest('.l-app-frame')?.dataset.lSizeClass === 'compact';
+  selection.classList.toggle('l-place-row', !bottomBar);
+  selection.classList.toggle('l-place-chip', bottomBar);
   if (!current) {
     selection.hidden = true;
     rail.removeAttribute('data-l-selection-ready');
@@ -366,8 +377,66 @@ function syncRailSelection(rail) {
   rail.setAttribute('data-l-selection-ready', '');
 }
 
+function buildSectionPicker(index) {
+  if (index.querySelector(':scope > .l-section-index-picker')) return;
+  const links = [...index.querySelectorAll(':scope > a[href^="#"]')];
+  if (!links.length) return;
+  const documentRoot = documentFor(index);
+  const id = `l-section-picker-${++sectionPickerSequence}`;
+  const wrapper = documentRoot.createElement('div');
+  const picker = documentRoot.createElement('button');
+  const label = documentRoot.createElement('span');
+  const value = documentRoot.createElement('span');
+  const arrow = documentRoot.createElement('span');
+  const menu = documentRoot.createElement('div');
+  wrapper.className = 'l-section-index-picker';
+  picker.type = 'button';
+  picker.className = 'l-picker l-cut';
+  picker.dataset.lPopover = id;
+  picker.dataset.lSectionPicker = '';
+  label.className = 'l-picker-label';
+  label.textContent = index.getAttribute('aria-label') || '';
+  value.className = 'l-picker-value';
+  arrow.className = 'l-glyph';
+  arrow.setAttribute('aria-hidden', 'true');
+  arrow.textContent = 'expand_more';
+  picker.append(label, value, arrow);
+  menu.id = id;
+  menu.className = 'l-menu l-popover l-cut';
+  menu.setAttribute('role', 'listbox');
+  links.forEach(link => {
+    const option = documentRoot.createElement('button');
+    const optionLabel = documentRoot.createElement('span');
+    option.type = 'button';
+    option.className = 'l-menu-item';
+    option.setAttribute('role', 'option');
+    option.dataset.value = link.hash;
+    optionLabel.className = 'l-menu-item-label';
+    optionLabel.textContent = link.textContent.trim();
+    option.append(optionLabel);
+    menu.append(option);
+  });
+  wrapper.append(picker, menu);
+  index.prepend(wrapper);
+}
+
+function markSection(index, current) {
+  index.querySelectorAll(':scope > a[href^="#"]').forEach(link => {
+    const selected = link === current;
+    link.setAttribute('aria-current', String(selected));
+    link.classList.toggle('l-place-row', selected);
+  });
+  const picker = index.querySelector(':scope > .l-section-index-picker > .l-picker');
+  if (!picker || !current) return;
+  picker.dataset.value = current.hash;
+  picker.querySelector('.l-picker-value').textContent = current.textContent.trim();
+  findById(index.getRootNode(), picker.dataset.lPopover)?.querySelectorAll('[role="option"]').forEach(option => {
+    option.setAttribute('aria-selected', String(option.dataset.value === current.hash));
+  });
+}
+
 function currentSection(index) {
-  const links = [...index.querySelectorAll('a[href^="#"]')];
+  const links = [...index.querySelectorAll(':scope > a[href^="#"]')];
   const sections = links.map(link => findById(index.getRootNode(), link.hash.slice(1)));
   const viewportLine = documentFor(index).defaultView.innerHeight / 3;
   let current = 0;
@@ -377,7 +446,7 @@ function currentSection(index) {
   if (documentFor(index).documentElement.scrollHeight - documentFor(index).defaultView.scrollY <= documentFor(index).defaultView.innerHeight + 1) {
     current = Math.max(0, sections.length - 1);
   }
-  links.forEach((link, position) => link.setAttribute('aria-current', String(position === current)));
+  markSection(index, links[current]);
   return links[current];
 }
 
@@ -394,6 +463,7 @@ function initOverlays(root) {
     placardTimers: new WeakMap(),
   };
   states.set(root, state);
+  root.querySelectorAll('.l-section-index').forEach(buildSectionPicker);
 
   root.querySelectorAll('.l-popover:not([data-l-static-open])').forEach(popover => {
     if (!popover.hasAttribute('popover')) popover.setAttribute('popover', 'manual');
@@ -529,7 +599,7 @@ function initOverlays(root) {
       return;
     }
 
-    const menuItem = event.target.closest('.l-menu-item[role="menuitem"], .l-menu-item[role="menuitemradio"], .l-menu-item[role="option"]');
+    const menuItem = event.target.closest('.l-menu-item:is([role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], [role="option"])');
     if (menuItem) {
       selectMenuItem(state, menuItem);
       return;
@@ -554,8 +624,15 @@ function initOverlays(root) {
     if (indexLink) {
       const index = indexLink.closest('.l-section-index');
       index.dataset.lHold = 'true';
-      index.querySelectorAll('[aria-current]').forEach(link => link.setAttribute('aria-current', String(link === indexLink)));
+      markSection(index, indexLink);
     }
+  });
+
+  root.addEventListener('lithic:change', event => {
+    if (!event.target.matches('[data-l-section-picker]')) return;
+    const index = event.target.closest('.l-section-index');
+    const link = [...index.querySelectorAll(':scope > a[href^="#"]')].find(candidate => candidate.hash === event.detail.value);
+    link?.click();
   });
 
   root.addEventListener('input', event => {

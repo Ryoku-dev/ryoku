@@ -2,7 +2,7 @@ import QtQuick
 import Lithic
 
 Item {
-    readonly property var roleNames: ["ground", "stone1", "stone2", "stone3", "stone4", "vein", "fg", "fg2", "fg3", "sel", "onSel", "onSel2", "gold", "onGold", "goldInk", "jade", "lapis", "amber", "jasper", "scrim"]
+    readonly property var roleNames: ["ground", "stone1", "stone2", "stone3", "stone4", "slab", "field", "vein", "edge", "fg", "fg2", "fg3", "sel", "onSel", "onSel2", "gold", "onGold", "goldInk", "jade", "lapis", "amber", "jasper", "scrim"]
 
     function hex(c) {
         var byte = function(v) {
@@ -13,6 +13,8 @@ Item {
     }
 
     function report() {
+        Lithic.contrast = Lithic.environment("LITHIC_CONTRAST") || "standard";
+        Lithic.tint = Lithic.environment("LITHIC_TINT") || "off";
         var out = { source: Lithic.source };
         for (var i = 0; i < roleNames.length; ++i)
             out[roleNames[i]] = hex(Lithic[roleNames[i]]);

@@ -46,19 +46,14 @@ T.TextField {
     Accessible.description: _supportText
 
     background: Item {
-        CutRect {
+        FieldSurface {
             y: root._labelHeight
             width: parent.width
             height: LithicTokens.size.textFieldHeight
-            fill: root._hoverActive ? Lithic.hoverPlane(Lithic.stone3) : Lithic.stone3
-            strokeColor: root.errorText.length > 0 ? Lithic.jasper : Lithic.fg2
-            strokeWidth: root.errorText.length > 0 || root._focusActive ? LithicTokens.size.textFieldStroke : 0
-            cut: LithicTokens.cut.mid + (root._pressActive ? Lithic.pressCutGrow : 0)
-
-            ChiselColorBehavior on fill {
-                duration: root._hoverActive ? LithicTokens.motion.hoverIn : LithicTokens.motion.hoverOut
-            }
-            ChiselNumberBehavior on cut { duration: LithicTokens.motion.press }
+            hovered: root._hoverActive
+            pressed: root._pressActive
+            focused: root._focusActive
+            invalid: root.errorText.length > 0
         }
     }
 
@@ -68,8 +63,7 @@ T.TextField {
         x: 0
         y: 0
         text: root.label
-        typeRole: "caption"
-        inkRole: "fg3"
+        typeRole: "detail"
     }
 
     Label {

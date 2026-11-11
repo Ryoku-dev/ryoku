@@ -9,9 +9,10 @@ Item {
     component StateSpecimen: Column {
         required property string stateName
         property real specimenHeight: LithicTokens.size.emptyFrame
+        property real specimenWidth: LithicTokens.size.searchWidth
         default property alias specimen: specimenHost.data
 
-        width: LithicTokens.size.searchWidth
+        width: specimenWidth
         spacing: LithicTokens.space.s2
 
         Item {
@@ -46,6 +47,36 @@ Item {
             width: parent.width
             height: childrenRect.height
             spacing: LithicTokens.space.s3
+        }
+    }
+
+    component SettingRow: Item {
+        id: settingRow
+
+        required property string title
+        required property string detail
+        default property alias control: controlHost.data
+
+        width: parent ? parent.width : 0
+        implicitHeight: Math.max(copy.implicitHeight, LithicTokens.size.segmentHeight)
+
+        Column {
+            id: copy
+            anchors.left: parent.left
+            anchors.right: controlHost.left
+            anchors.rightMargin: LithicTokens.space.s4
+            anchors.verticalCenter: parent.verticalCenter
+
+            Label { width: parent.width; text: settingRow.title; typeRole: "row" }
+            Label { width: parent.width; text: settingRow.detail; typeRole: "detail" }
+        }
+
+        Item {
+            id: controlHost
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            width: childrenRect.width
+            height: childrenRect.height
         }
     }
 
@@ -84,6 +115,10 @@ Item {
                 Plaque { anchors.centerIn: parent; kind: "line"; glyph: "terminal"; text: "Open console" }
             }
             StateSpecimen {
+                stateName: "Tonal"
+                Plaque { anchors.centerIn: parent; kind: "tonal"; glyph: "content_copy"; text: "Copy address" }
+            }
+            StateSpecimen {
                 stateName: "Quiet"
                 Plaque { anchors.centerIn: parent; kind: "quiet"; text: "Cancel" }
             }
@@ -116,6 +151,10 @@ Item {
                 Plaque { anchors.centerIn: parent; kind: "quiet"; glyph: "refresh"; text: "Refresh"; previewState: "hover" }
             }
             StateSpecimen {
+                stateName: "Tonal hover preview"
+                Plaque { anchors.centerIn: parent; kind: "tonal"; glyph: "content_copy"; text: "Copy address"; previewState: "hover" }
+            }
+            StateSpecimen {
                 stateName: "Pressed preview"
                 Plaque { anchors.centerIn: parent; kind: "quiet"; glyph: "refresh"; text: "Refresh"; previewState: "pressed" }
             }
@@ -135,6 +174,10 @@ Item {
             StateSpecimen {
                 stateName: "Menu open"
                 SplitPlaque { anchors.centerIn: parent; glyph: "link"; text: "Connect"; menuOpen: true }
+            }
+            StateSpecimen {
+                stateName: "Tonal"
+                SplitPlaque { anchors.centerIn: parent; kind: "tonal"; glyph: "swap_horiz"; text: "Transfer" }
             }
             StateSpecimen {
                 stateName: "Main hover preview"
@@ -160,6 +203,10 @@ Item {
             StateSpecimen {
                 stateName: "Quiet"
                 IconPlaque { anchors.centerIn: parent; kind: "quiet"; glyph: "refresh"; accessibleName: "Refresh" }
+            }
+            StateSpecimen {
+                stateName: "Tonal"
+                IconPlaque { anchors.centerIn: parent; kind: "tonal"; glyph: "content_copy"; accessibleName: "Copy" }
             }
             StateSpecimen {
                 stateName: "Gold"
@@ -425,6 +472,40 @@ Item {
         }
 
         ComponentSection {
+            sectionName: "Segmented"
+
+            StateSpecimen {
+                stateName: "Three options"
+                Segmented { anchors.centerIn: parent; model: ["Follow", "Dark", "Light"]; accessibleName: "Mode" }
+            }
+            StateSpecimen {
+                stateName: "Second selected"
+                Segmented { anchors.centerIn: parent; model: ["Standard", "High"]; currentIndex: 1; accessibleName: "Contrast" }
+            }
+            StateSpecimen {
+                stateName: "Five options"
+                specimenWidth: LithicTokens.size.listMedium + LithicTokens.space.s5
+                Segmented { anchors.centerIn: parent; model: ["1 h", "6 h", "1 d", "7 d", "30 d"]; currentIndex: 2; accessibleName: "Range" }
+            }
+            StateSpecimen {
+                stateName: "Hover preview"
+                Segmented { anchors.centerIn: parent; model: ["Off", "Low", "Medium"]; currentIndex: 1; previewState: "hover" }
+            }
+            StateSpecimen {
+                stateName: "Pressed preview"
+                Segmented { anchors.centerIn: parent; model: ["Off", "Low", "Medium"]; currentIndex: 1; previewState: "pressed" }
+            }
+            StateSpecimen {
+                stateName: "Keyboard focus preview"
+                Segmented { anchors.centerIn: parent; model: ["Off", "Low", "Medium"]; currentIndex: 1; previewState: "focus" }
+            }
+            StateSpecimen {
+                stateName: "Disabled"
+                Segmented { anchors.centerIn: parent; model: ["Off", "Low", "Medium"]; enabled: false }
+            }
+        }
+
+        ComponentSection {
             sectionName: "Tabs"
 
             StateSpecimen {
@@ -482,6 +563,125 @@ Item {
             StateSpecimen {
                 stateName: "Disabled"
                 Disclosure { anchors.centerIn: parent; width: LithicTokens.size.menuWidthMin; text: "Console router"; enabled: false }
+            }
+        }
+
+        ComponentSection {
+            sectionName: "Fields on planes"
+
+            StateSpecimen {
+                stateName: "On the work pane"
+                specimenWidth: LithicTokens.size.draftFormMax
+                specimenHeight: paneFields.implicitHeight
+                Pane {
+                    id: paneFields
+                    anchors.fill: parent
+                    kind: "work"
+                    inset: LithicTokens.space.s4
+                    Column {
+                        width: parent.width
+                        spacing: LithicTokens.space.s3
+                        TextField { width: parent.width; label: "Server address"; text: "192.0.2.18"; helpText: "Use a hostname or address" }
+                        Picker { width: parent.width; label: "Machine"; options: ["ubuntu-24.04", "fedora-43", "windows-11"]; currentIndex: 0 }
+                        Search { width: parent.width; placeholderText: "Search machines"; shortcutHint: "Ctrl K" }
+                        Stepper { from: 1; to: 8; value: 4; unit: "cores"; accessibleName: "CPU cores" }
+                    }
+                }
+            }
+            StateSpecimen {
+                stateName: "Inside a slab"
+                specimenWidth: LithicTokens.size.draftFormMax
+                specimenHeight: slabFields.implicitHeight
+                Slab {
+                    id: slabFields
+                    anchors.fill: parent
+                    Column {
+                        width: parent.width
+                        spacing: LithicTokens.space.s3
+                        TextField { width: parent.width; label: "Session user"; text: "ops"; previewState: "focus" }
+                        Picker { width: parent.width; label: "Console"; options: ["/dev/ttyUSB0", "/dev/ttyS0"]; currentIndex: 0 }
+                        TextField { width: parent.width; label: "Port"; text: "22a"; errorText: "Enter a number" }
+                        Stepper { from: 1; to: 8; value: 2; unit: "cores"; accessibleName: "CPU cores" }
+                    }
+                }
+            }
+        }
+
+        ComponentSection {
+            sectionName: "Slab"
+
+            StateSpecimen {
+                stateName: "Rows with details"
+                specimenWidth: LithicTokens.size.draftFormMax
+                specimenHeight: rowsSlab.implicitHeight
+                Slab {
+                    id: rowsSlab
+                    anchors.fill: parent
+                    Column {
+                        width: parent.width
+                        spacing: LithicTokens.space.s3
+                        SettingRow {
+                            title: "Autostart"
+                            detail: "Open ubuntu-24.04 when Ryoport starts."
+                            Toggle { checked: true }
+                        }
+                        Rectangle { width: parent.width; height: LithicTokens.size.hairline; color: Lithic.vein }
+                        SettingRow {
+                            title: "Mode"
+                            detail: "Follow the palette or keep one mode."
+                            Segmented { model: ["Follow", "Dark", "Light"]; accessibleName: "Mode" }
+                        }
+                        Rectangle { width: parent.width; height: LithicTokens.size.hairline; color: Lithic.vein }
+                        SettingRow {
+                            title: "CPU cores"
+                            detail: "Cores given to fedora-43 on prowl."
+                            Stepper { from: 1; to: 8; value: 4; unit: "cores"; accessibleName: "CPU cores" }
+                        }
+                    }
+                }
+            }
+        }
+
+        ComponentSection {
+            sectionName: "PlaceBlade"
+
+            StateSpecimen {
+                stateName: "Selected tablet with place blade"
+                specimenWidth: LithicTokens.size.listMedium
+                specimenHeight: LithicTokens.size.tabletHeight
+                Tablet { anchors.fill: parent; title: "fedora-43"; facts: "prowl · 192.0.2.43"; tone: "alive"; claim: "Alive"; proof: "24 ms"; selected: true }
+            }
+            StateSpecimen {
+                stateName: "Rest tablet"
+                specimenWidth: LithicTokens.size.listMedium
+                specimenHeight: LithicTokens.size.tabletHeight
+                Tablet { anchors.fill: parent; title: "ubuntu-24.04"; facts: "ally · 192.0.2.18"; tone: "alive"; claim: "Alive"; proof: "18 ms" }
+            }
+            StateSpecimen {
+                stateName: "Section rows"
+                specimenWidth: LithicTokens.size.sectionIndexWidth
+                specimenHeight: sectionRows.implicitHeight
+                SectionIndex { id: sectionRows; anchors.fill: parent; sections: ["Connection", "Identity", "Storage"]; currentIndex: 1 }
+            }
+        }
+
+        ComponentSection {
+            sectionName: "Menu"
+
+            StateSpecimen {
+                stateName: "Checked item"
+                specimenWidth: LithicTokens.size.menuWidthMin + LithicTokens.space.s6
+                specimenHeight: checkedMenu.implicitHeight
+                Menu {
+                    id: checkedMenu
+                    anchors.fill: parent
+                    menuWidth: LithicTokens.size.menuWidthMin + LithicTokens.space.s6
+                    items: [
+                        { label: "Sort by name", glyph: "sort_by_alpha", checked: true },
+                        { label: "Sort by state", glyph: "filter_list" },
+                        { label: "Sort by last seen", glyph: "schedule", shortcut: "Ctrl+L" }
+                    ]
+                }
             }
         }
     }

@@ -15,9 +15,11 @@ type Theme struct {
 	Roles palette.Roles
 }
 
-// NewTheme resolves the live Ryoku palette for a terminal application.
+// NewTheme resolves the live Ryoku palette for a terminal application with the
+// library's default look. An application offering contrast and tint builds a
+// Theme from palette.FromPalette with the reader's palette.Look instead.
 func NewTheme(mode palette.Mode) Theme {
-	return Theme{Roles: palette.FromPalette(palette.Load(mode))}
+	return Theme{Roles: palette.FromPalette(palette.Load(mode), palette.Look{})}
 }
 
 // CutBorder is the terminal translation of a four-corner cut frame.

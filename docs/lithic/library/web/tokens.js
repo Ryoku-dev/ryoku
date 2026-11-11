@@ -1,7 +1,10 @@
 // Written by go run ./cmd/lithic-tokens from tokens.json. Do not edit by hand.
 export default {
   "alpha": {
+    "contrastHigh": 0.6,
+    "contrastHighFg3": 0.3,
     "disabled": 0.5,
+    "edge": 0.5,
     "hatch": 0.3,
     "hoverFill": 0.1,
     "hoverInk": 0.1,
@@ -13,6 +16,9 @@ export default {
     "pressRow": 0.08,
     "scrimDark": 0.62,
     "scrimLight": 0.45,
+    "selMix": 0.5,
+    "tintLow": 0.06,
+    "tintMedium": 0.1,
     "workingBase": 0.55
   },
   "breakpoint": {
@@ -29,6 +35,7 @@ export default {
     "notch": 12,
     "overlay": 8,
     "placard": 8,
+    "segment": 5,
     "small": 6,
     "toggleKnob": 2,
     "toggleTrack": 4,
@@ -112,24 +119,30 @@ export default {
       "onGold": "onPrimary",
       "onSel": "onSecondaryContainer",
       "scrim": "scrim",
-      "sel": "secondaryContainer"
+      "sel": "secondaryContainer",
+      "selMix": "primaryContainer",
+      "tint": "primaryContainer"
     },
     "dark": {
       "fg": "onSurface",
       "fg2": "onSurfaceVariant",
       "fg3": "outline",
+      "field": "surfaceContainerHighest",
       "ground": "surfaceContainerLowest",
+      "slab": "surfaceContainer",
       "stone1": "surface",
       "stone2": "surfaceContainerLow",
       "stone3": "surfaceContainer",
       "stone4": "surfaceContainerHigh",
-      "vein": "surfaceContainerHighest"
+      "vein": "outlineVariant"
     },
     "light": {
       "fg": "onSurface",
       "fg2": "onSurfaceVariant",
       "fg3": "outline",
+      "field": "surfaceContainerHighest",
       "ground": "surfaceContainerHighest",
+      "slab": "surfaceContainerLowest",
       "stone1": "surfaceContainerHigh",
       "stone2": "surfaceContainerLowest",
       "stone3": "surfaceContainer",
@@ -146,6 +159,7 @@ export default {
       "fg": "#e3e3e3",
       "fg2": "#c6c6c6",
       "fg3": "#8f8f8f",
+      "field": "#393939",
       "gold": "#c9a861",
       "goldInk": "#d6b877",
       "ground": "#0e0e0e",
@@ -155,16 +169,18 @@ export default {
       "onSel2": "#474747",
       "scrim": "#0000009e",
       "sel": "#e3e3e3",
+      "slab": "#232323",
       "stone1": "#141414",
       "stone2": "#1b1b1b",
       "stone3": "#232323",
       "stone4": "#2c2c2c",
-      "vein": "#393939"
+      "vein": "#444444"
     },
     "light": {
       "fg": "#1d1b18",
       "fg2": "#4a4640",
       "fg3": "#6f6a62",
+      "field": "#e9e5de",
       "gold": "#c9a45a",
       "goldInk": "#85651f",
       "ground": "#e2ddd4",
@@ -174,6 +190,7 @@ export default {
       "onSel2": "#b9b2a7",
       "scrim": "#00000073",
       "sel": "#1d1b18",
+      "slab": "#fbf9f5",
       "stone1": "#eae6df",
       "stone2": "#f4f1eb",
       "stone3": "#e9e5de",
@@ -346,6 +363,9 @@ export default {
     "sectionIndexRow": 48,
     "sectionIndexRowGap": 4,
     "sectionIndexWidth": 200,
+    "segmentHeight": 36,
+    "segmentInset": 4,
+    "selBlade": 3,
     "settingsControlMax": 320,
     "settingsDetailGap": 2,
     "settingsExpandedMax": 994,
@@ -432,6 +452,12 @@ export default {
       "family": "sans",
       "line": 16,
       "size": 12,
+      "weight": 400
+    },
+    "detail": {
+      "family": "sans",
+      "line": 18,
+      "size": 13,
       "weight": 400
     },
     "group": {

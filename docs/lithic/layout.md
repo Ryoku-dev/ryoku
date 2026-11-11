@@ -54,10 +54,11 @@ The rail is `stone1` with no cut of its own (it is a pane). From the top:
 
 Destinations: Home (the mark, returns to the Now board), Fleet, New,
 Activity, then Settings at the bottom. The current destination is a `sel`
-tile that **travels** to its new place over 240 ms; hover steps a tile to
-`stone3` (160 ms in, 100 ms out). Labels are `caption` in `fg3`, `fg` when
-current. An amber notch at the top-left of the Settings tile is the only
-badge the rail may show; it means an update is ready.
+tile with a place blade on its leading edge that **travels** to its new place
+over 240 ms; hover steps a tile to `stone3` (160 ms in, 100 ms out). Labels
+are `caption` in `fg3`, `fg` when current. An amber notch at the top-left of
+the Settings tile is the only badge the rail may show; it means an update is
+ready.
 
 In compact the same destinations move into the bottom bar: five equal
 columns, 48 high tiles cut 6, Home in the first column, New in the middle,
@@ -123,14 +124,17 @@ Activity and Settings omit the list pane and take the remaining width.
 
 | Width | Column | Section index | Insets |
 |---|---|---|---|
-| expanded | `min(available, 994)`, centred | a sticky 200 wide index to the left of the column, 34 gap; rows 48 high, 4 apart, label inset 13 | 34 top and bottom, 36 sides |
-| medium | `min(available, 760)`, centred | a row of filter chips above the column | same |
-| compact | full width | none; a plain "Settings" title | same |
+| expanded | `min(available, 994)`, centred | a sticky 200 wide index to the left of the column, 34 gap; rows 48 high, 4 apart, label inset 13, the current one with its place blade | 34 top and bottom, 36 sides |
+| medium | `min(available, 760)`, centred | a Picker of the sections at the top of the column; never a strip of chips | same |
+| compact | full width | the same Picker at the top of the column | same |
 
-Each section is a `section` title, 13 gap, a `stone1` slab cut 7 with a 21
-inset, 21 below. Setting rows inside a slab are a title in `row` with a
-detail in `caption` 2 below, and the control (toggle, picker, stepper,
-slider) right-aligned and no wider than 320; rows are 13 apart.
+Each section is a `section` title, 13 gap, a slab, 21 below. The slab is the
+`slab` role with a 1 dp `vein` hairline, cut 7 with a 21 inset: in dark mode
+it is lighter than the work pane, in light mode its hairline sets it off.
+Setting rows inside a slab are a title in `row` with a detail in `detail`
+`fg2` 2 below, and the control (toggle, picker, segmented, stepper, slider)
+right-aligned and no wider than 320; rows are 13 apart, with a `vein` line
+between them.
 
 The index follows the reading position: a section becomes current when less
 than a third of it is still visible above the next; at the very end the last
@@ -291,13 +295,15 @@ window's sides and foot.
 the current destination (a question, a session, a project to add), the
 destinations as rows 40 high with a 20 icon and a `label`, then the list that
 belongs to the current destination, and Settings under a vein at the foot. The
-bone slab travels between destinations. The list is the destination's own:
+current destination is a `sel` fill with a place blade on its leading edge,
+and both travel between destinations. The list is the destination's own:
 questions by day, sessions by state, projects with their worktrees. Rows in it
 are not tablets. They lie flat on the pane, 36 high for one line and 48 for a
 name over one facts line, 2 apart, and take `stone3` under the pointer and the
-bone slab when current. The trailing 44 of a row holds what the row claims
-(the Working flakes, a count, a time); under the pointer or the list cursor
-the claim gives way to the row's one action, as on a tablet.
+`sel` fill with its place blade when current. The trailing 44 of a row holds
+what the row claims (the Working flakes, a count, a time); under the pointer
+or the list cursor the claim gives way to the row's one action, as on a
+tablet.
 
 **A row says a state only when it has one.** A session that needs the reader
 carries an amber notch and stands under a Needs you group header; one at work
@@ -327,10 +333,10 @@ the 21 of proof text that is glanced at, paragraphs 13 apart and list items
 one step up at 13 so it stands as tall as the words beside it, with no plate
 and no room of its own. A bracket or a comma belongs to the name it touches,
 and a plate one stone step from the pane does not show on every palette,
-which leaves only its gaps. A block of code keeps its `stone1` slab.
+which leaves only its gaps. A block of code keeps its slab.
 
-**A command is shown once.** When an answer offers a command to run, one
-`stone1` slab cut 7 carries it: the command in `mono`, why in `caption`, its
+**A command is shown once.** When an answer offers a command to run, one slab
+cut 7 carries it: the command in `mono`, why in `detail`, its
 claim (how far it reaches) and one line plaque that runs it. The slab stands
 where the text shows the command, in place of the block of code, and never
 again under it. Several commands share one slab under a `title`, a `vein`
@@ -358,7 +364,7 @@ marked words first: to copy, or to quote in the reply.
 was done in `label`, the literal part in `monoSm`, and its claim only while it
 runs or when it failed. Steps that ran back to back fold into one line with a
 count once the last of them has finished. A line unfolds in place to what went
-in and what came out, on a `stone1` slab cut 7. While a turn runs and nothing
+in and what came out, on a slab cut 7. While a turn runs and nothing
 in the column shows it, the Working flakes stand at the column's foot; a step
 that is running already carries them, so the foot never repeats it.
 
@@ -374,12 +380,12 @@ Words in the field are a message, so neither key answers then. A key never
 answers a request that is off screen, or one that has been on screen for less
 than half a second: it was pressed before anyone could have read it.
 
-**The composer** is one field with its controls inside: `stone3`, cut 7, the
-text in `proof` with 16 around it, and under the text a row of small plaques,
-what to send with on the left (attach, the model, the mode) and the one gold
-icon plaque on the right. It stands straight on the pane, one role away, so it
-keeps a 1 dp `vein` hairline at rest and the hairline turns `fg2` with the
-keyboard (see [what one step of the ramp can carry](palette.md#what-one-step-of-the-ramp-can-carry)).
+**The composer** is one field with its controls inside: the `field` fill, cut
+7, the text in `proof` with 16 around it, and under the text a row of small
+plaques, what to send with on the left (attach, the model, the mode) and the
+one gold icon plaque on the right. Like every field it keeps a 1 dp `edge`
+hairline at rest, and the hairline turns `fg2` with the keyboard (see
+[what one step of the ramp can carry](palette.md#what-one-step-of-the-ramp-can-carry)).
 It is at least 96 high, grows a line at a time to eight lines and then
 scrolls. Send is the standing gold action of a conversation window. While a
 turn runs the same plaque is Stop, and with text in the field it offers to
@@ -397,7 +403,7 @@ closed menu.
 
 **A list in a select.** A short list of plain names is a Menu. When an option
 needs a second line to be understood, the list shows it under the name in
-`caption` and lets it wrap: an explanation cut to an ellipsis explains
+`detail` and lets it wrap: an explanation cut to an ellipsis explains
 nothing. From nine options on, a search field stands at the top and narrows
 the list as the reader types, Up, Down and Enter pick, and the list opens on
 the current choice with its check. The list is `stone4`, cut 8, 340 wide and
@@ -431,7 +437,7 @@ panel never takes gold; committing belongs to the full review.
 A destination with nothing open shows its Now board in the content pane: the
 `sentence`, one `proof` line, then what needs the reader first. A board with
 nothing to report does not stand empty. It says where work can start, on
-`stone1` slabs under a `title`: the places to work in with the one action
+slabs under a `title`: the places to work in with the one action
 that picks each, or, when the thing every action needs is missing, the way
 to get it. A list in the sidebar that has no rows yet says in one `caption`
 line what will stand there.

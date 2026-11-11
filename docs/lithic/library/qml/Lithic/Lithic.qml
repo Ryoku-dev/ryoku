@@ -5,6 +5,8 @@ QtObject {
     id: root
 
     property string mode: "follow"
+    property string contrast: "standard"
+    property string tint: "off"
     property bool reduceMotion: false
     readonly property bool dark: _resolved.dark
     readonly property string source: _resolved.source
@@ -15,7 +17,10 @@ QtObject {
     readonly property color stone2: _resolved.stone2
     readonly property color stone3: _resolved.stone3
     readonly property color stone4: _resolved.stone4
+    readonly property color slab: _resolved.slab
+    readonly property color field: _resolved.field
     readonly property color vein: _resolved.vein
+    readonly property color edge: _resolved.edge
     readonly property color fg: _resolved.fg
     readonly property color fg2: _resolved.fg2
     readonly property color fg3: _resolved.fg3
@@ -47,6 +52,7 @@ QtObject {
         proof: _typeStyle(LithicTokens.type.proof),
         label: _typeStyle(LithicTokens.type.label),
         caption: _typeStyle(LithicTokens.type.caption),
+        detail: _typeStyle(LithicTokens.type.detail),
         group: _typeStyle(LithicTokens.type.group),
         mono: _typeStyle(LithicTokens.type.mono),
         monoSm: _typeStyle(LithicTokens.type.monoSm)
@@ -116,7 +122,7 @@ QtObject {
         return vein;
     }
 
-    function field(tone) {
+    function mineralField(tone) {
         if (tone === "alive")
             return mix(stone2, jade, LithicTokens.alpha.mineralJade);
         if (tone === "becoming" || tone === "attention" || tone === "paused" || tone === "failed")
@@ -225,6 +231,24 @@ QtObject {
     onModeChanged: {
         if (!_validMode(mode)) {
             mode = "follow";
+            return;
+        }
+        if (!_loading)
+            _resolve();
+    }
+
+    onContrastChanged: {
+        if (contrast !== "standard" && contrast !== "high") {
+            contrast = "standard";
+            return;
+        }
+        if (!_loading)
+            _resolve();
+    }
+
+    onTintChanged: {
+        if (tint !== "off" && tint !== "low" && tint !== "medium") {
+            tint = "off";
             return;
         }
         if (!_loading)
@@ -348,7 +372,10 @@ QtObject {
             stone2: signature.stone2,
             stone3: signature.stone3,
             stone4: signature.stone4,
+            slab: signature.slab,
+            field: signature.field,
             vein: signature.vein,
+            edge: _mixBytes(signature.vein, signature.fg3, LithicTokens.alpha.edge),
             fg: signature.fg,
             fg2: signature.fg2,
             fg3: signature.fg3,
@@ -374,6 +401,63 @@ QtObject {
 
     function _mappedColor(roles, mapping, role, fallback) {
         return _color(roles, mapping[role], fallback);
+    }
+
+    // The look and the derived roles work on whole bytes rounded half up, like the
+    // Go and web resolvers. Qt keeps 16 bits per channel, so a byte survives
+    function _bytes(c) {
+        var color = Qt.color(c);
+        return {
+            r: Math.round(color.r * 255),
+            g: Math.round(color.g * 255),
+            b: Math.round(color.b * 255),
+            a: Math.round(color.a * 255)
+        };
+    }
+
+    function _fromBytes(channels) {
+        return Qt.rgba(channels.r / 255, channels.g / 255, channels.b / 255, channels.a / 255);
+    }
+
+    function _mixBytes(a, b, amount) {
+        var from = _bytes(a);
+        var to = _bytes(b);
+        return _fromBytes({
+            r: Math.round(from.r + (to.r - from.r) * amount),
+            g: Math.round(from.g + (to.g - from.g) * amount),
+            b: Math.round(from.b + (to.b - from.b) * amount),
+            a: Math.round(from.a + (to.a - from.a) * amount)
+        });
+    }
+
+    // Moves c away from ground by factor per channel, clamped to a byte
+    function _away(c, ground, factor) {
+        var color = _bytes(c);
+        var from = _bytes(ground);
+        function channel(key) {
+            return Math.min(Math.max(Math.round(from[key] + factor * (color[key] - from[key])), 0), 255);
+        }
+        return _fromBytes({ r: channel("r"), g: channel("g"), b: channel("b"), a: color.a });
+    }
+
+    // The look's contrast step, then its tint step. tintRole is null when the
+    // palette has no tint role
+    function _applyLook(result, tintRole) {
+        if (contrast === "high") {
+            var factor = 1 + LithicTokens.alpha.contrastHigh;
+            var spread = ["stone1", "stone2", "stone3", "stone4", "slab", "field", "vein"];
+            for (var i = 0; i < spread.length; ++i)
+                result[spread[i]] = _away(result[spread[i]], result.ground, factor);
+            result.fg3 = _mixBytes(result.fg3, result.fg, LithicTokens.alpha.contrastHighFg3);
+        }
+        var amount = tint === "low"
+                ? LithicTokens.alpha.tintLow
+                : tint === "medium" ? LithicTokens.alpha.tintMedium : 0;
+        if (tintRole === null || amount === 0)
+            return;
+        var tinted = ["ground", "stone1", "stone2", "stone3", "stone4", "slab", "field"];
+        for (var j = 0; j < tinted.length; ++j)
+            result[tinted[j]] = _mixBytes(result[tinted[j]], tintRole, amount);
     }
 
     function _luma(c) {
@@ -478,46 +562,48 @@ QtObject {
 
         var result = _signature(isDark);
         result.source = combined.source;
+        var goldInk = result.goldInk;
+        var tintRole = null;
         if (combined.source === "signature") {
             if (_hasEditionAccent) {
                 result.gold = _editionAccent;
                 result.onGold = inkOn(_editionAccent);
-                result.goldInk = contrastTone(_editionAccent, Qt.color(result.stone2), isDark);
+                goldInk = _editionAccent;
             }
-            _publish(result);
-            return;
+        } else {
+            var accents = LithicTokens.palette.accents;
+            if (!forced) {
+                var neutralMap = isDark ? LithicTokens.palette.dark : LithicTokens.palette.light;
+                var neutrals = ["ground", "stone1", "stone2", "stone3", "stone4", "slab", "field", "vein", "fg", "fg2", "fg3"];
+                for (var i = 0; i < neutrals.length; ++i)
+                    result[neutrals[i]] = _mappedColor(roles, neutralMap, neutrals[i], Qt.color(result[neutrals[i]]));
+            }
+            var scrimKey = accents.scrim;
+            if (_isColor(roles[scrimKey]))
+                result.scrim = alpha(Qt.color(roles[scrimKey]), isDark
+                                     ? LithicTokens.alpha.scrimDark
+                                     : LithicTokens.alpha.scrimLight);
+
+            var toned = LithicTokens.palette.toned;
+            result.gold = _mappedColor(roles, accents, "gold", Qt.color(result.gold));
+            result.onGold = _mappedColor(roles, accents, "onGold", Qt.color(result.onGold));
+            goldInk = _mappedColor(roles, accents, toned.goldInk, result.gold);
+            if (_isColor(roles[accents.sel])) {
+                result.sel = _isColor(roles[accents.selMix])
+                        ? _mixBytes(roles[accents.sel], roles[accents.selMix], LithicTokens.alpha.selMix)
+                        : Qt.color(roles[accents.sel]);
+            }
+            result.onSel = _mappedColor(roles, accents, "onSel", Qt.color(result.onSel));
+            result.onSel2 = _mixBytes(result.onSel, result.sel, LithicTokens.alpha.onSel2);
+            result.jasper = _mappedColor(roles, accents, toned.jasper, Qt.color(result.jasper));
+            if (_isColor(roles[accents.tint]))
+                tintRole = Qt.color(roles[accents.tint]);
         }
 
-        var accents = LithicTokens.palette.accents;
-        if (!forced) {
-            var neutralMap = isDark ? LithicTokens.palette.dark : LithicTokens.palette.light;
-            result.ground = _mappedColor(roles, neutralMap, "ground", Qt.color(result.ground));
-            result.stone1 = _mappedColor(roles, neutralMap, "stone1", Qt.color(result.stone1));
-            result.stone2 = _mappedColor(roles, neutralMap, "stone2", Qt.color(result.stone2));
-            result.stone3 = _mappedColor(roles, neutralMap, "stone3", Qt.color(result.stone3));
-            result.stone4 = _mappedColor(roles, neutralMap, "stone4", Qt.color(result.stone4));
-            result.vein = _mappedColor(roles, neutralMap, "vein", Qt.color(result.vein));
-            result.fg = _mappedColor(roles, neutralMap, "fg", Qt.color(result.fg));
-            result.fg2 = _mappedColor(roles, neutralMap, "fg2", Qt.color(result.fg2));
-            result.fg3 = _mappedColor(roles, neutralMap, "fg3", Qt.color(result.fg3));
-        }
-        var scrimKey = accents.scrim;
-        if (_isColor(roles[scrimKey]))
-            result.scrim = alpha(Qt.color(roles[scrimKey]), isDark
-                                 ? LithicTokens.alpha.scrimDark
-                                 : LithicTokens.alpha.scrimLight);
-
-        result.gold = _mappedColor(roles, accents, "gold", Qt.color(result.gold));
-        result.onGold = _mappedColor(roles, accents, "onGold", Qt.color(result.onGold));
-        result.sel = _mappedColor(roles, accents, "sel", Qt.color(result.sel));
-        result.onSel = _mappedColor(roles, accents, "onSel", Qt.color(result.onSel));
-        result.onSel2 = mix(result.onSel, result.sel, LithicTokens.alpha.onSel2);
-
-        var toned = LithicTokens.palette.toned;
-        var goldInkBase = _mappedColor(roles, accents, toned.goldInk, result.gold);
-        result.goldInk = contrastTone(goldInkBase, result.stone2, isDark);
-        var jasperBase = _mappedColor(roles, accents, toned.jasper, Qt.color(result.jasper));
-        result.jasper = contrastTone(jasperBase, result.stone2, isDark);
+        _applyLook(result, tintRole);
+        result.edge = _mixBytes(result.vein, result.fg3, LithicTokens.alpha.edge);
+        result.goldInk = contrastTone(goldInk, result.stone2, isDark);
+        result.jasper = contrastTone(result.jasper, result.stone2, isDark);
         result.dark = isDark;
         _publish(result);
     }

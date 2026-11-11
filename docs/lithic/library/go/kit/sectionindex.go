@@ -14,16 +14,16 @@ import (
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 )
 
-// SectionIndex tracks settings sections as rows or medium-width chips.
+// SectionIndex tracks settings sections as a side list of bladed rows at
+// expanded width and as a picker at the top of the column when narrower.
 type SectionIndex struct {
 	Preview State
 
 	rows    []Click
-	chips   []Plaque
+	picker  Picker
 	hover   []anim.Tween
 	focus   []anim.Tween
 	pending []bool
-	strip   layout.List
 }
 
 func (index *SectionIndex) prepare(labels []string) {
@@ -31,11 +31,6 @@ func (index *SectionIndex) prepare(labels []string) {
 		rows := make([]Click, len(labels))
 		copy(rows, index.rows)
 		index.rows = rows
-	}
-	if len(index.chips) != len(labels) {
-		chips := make([]Plaque, len(labels))
-		copy(chips, index.chips)
-		index.chips = chips
 	}
 	if len(index.hover) != len(labels) {
 		hover := make([]anim.Tween, len(labels))
@@ -52,51 +47,33 @@ func (index *SectionIndex) prepare(labels []string) {
 		copy(pending, index.pending)
 		index.pending = pending
 	}
-	index.strip.Axis = layout.Horizontal
 }
 
-// Layout draws the expanded index, medium chip strip, or nothing at compact width.
+// Layout draws the expanded side list, or the section picker at medium and
+// compact width.
 func (index *SectionIndex) Layout(gtx layout.Context, th *theme.Theme, labels []string, current int, class FrameClass) layout.Dimensions {
 	index.prepare(labels)
-	for item := range labels {
-		if class == FrameExpanded && index.rows[item].Clicked(gtx) {
-			index.pending[item] = true
+	if class == FrameExpanded {
+		for item := range labels {
+			if index.rows[item].Clicked(gtx) {
+				index.pending[item] = true
+			}
 		}
-		if class == FrameMedium && index.chips[item].Clicked(gtx) {
-			index.pending[item] = true
-		}
-	}
-	switch class {
-	case FrameCompact:
-		return layout.Dimensions{}
-	case FrameMedium:
-		return index.layoutChips(gtx, th, labels, current)
-	default:
 		return index.layoutRows(gtx, th, labels, current)
 	}
-}
-
-func (index *SectionIndex) layoutChips(gtx layout.Context, th *theme.Theme, labels []string, current int) layout.Dimensions {
-	return index.strip.Layout(gtx, len(labels), func(gtx layout.Context, item int) layout.Dimensions {
-		return layout.Inset{Right: th.Sp.S2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			chip := &index.chips[item]
-			chip.Kind = PlaqueQuiet
-			if item == current {
-				chip.Kind = PlaqueOn
-			}
-			chip.Small = true
-			chip.Label = labels[item]
-			chip.Preview = index.Preview
-			return chip.Layout(gtx, th)
-		})
-	})
+	if item, ok := index.picker.Changed(gtx); ok && item < len(index.pending) {
+		index.pending[item] = true
+	}
+	index.picker.Preview = index.Preview
+	gtx.Constraints.Min.X = gtx.Constraints.Max.X
+	return index.picker.Layout(gtx, th, "", labels, current)
 }
 
 func (index *SectionIndex) layoutRows(gtx layout.Context, th *theme.Theme, labels []string, current int) layout.Dimensions {
 	width := min(gtx.Constraints.Max.X, gtx.Dp(tokens.SizeSectionIndexWidth))
 	gtx.Constraints.Min.X = width
 	gtx.Constraints.Max.X = width
-	children := make([]layout.FlexChild, 0, len(labels)*2-1)
+	children := make([]layout.FlexChild, 0, max(0, len(labels)*2-1))
 	for item, label := range labels {
 		item, label := item, label
 		if item > 0 {
@@ -105,16 +82,19 @@ func (index *SectionIndex) layoutRows(gtx layout.Context, th *theme.Theme, label
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			dimensions := index.rows[item].Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				size := image.Pt(gtx.Constraints.Max.X, gtx.Dp(tokens.SizeSectionIndexRow))
+				bounds := image.Rectangle{Max: size}
+				cut := gtx.Dp(th.Cut.Mid)
 				selected := item == current
 				ink := th.R.Fg2
 				if selected {
-					FillCut(gtx.Ops, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Mid), th.R.Sel)
+					FillCut(gtx.Ops, bounds, cut, th.R.Sel)
+					PlaceBlade(gtx, th, bounds, cut, layout.Vertical)
 					ink = th.R.OnSel
 				} else {
 					hovered := index.rows[item].Hovered() || index.Preview == StateHover || index.Preview == StatePressed
 					hover := hoverValue(gtx, th, &index.hover[item], hovered)
 					if hover > 0 {
-						FillCut(gtx.Ops, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Mid), palette.Mix(th.R.Stone2, th.R.Stone3, hover))
+						FillCut(gtx.Ops, bounds, cut, palette.Mix(th.R.Stone2, th.R.Stone3, hover))
 					}
 				}
 				semantic.Button.Add(gtx.Ops)

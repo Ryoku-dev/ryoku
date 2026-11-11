@@ -4,7 +4,7 @@ Item {
     id: root
 
     property real inset: LithicTokens.size.slabInset
-    property color fill: Lithic.stone1
+    property color fill: Lithic.slab
     property real cut: LithicTokens.cut.mid
     default property alias content: contentItem.data
     readonly property alias bodyItem: contentItem
@@ -28,6 +28,8 @@ Item {
     CutRect {
         anchors.fill: parent
         fill: root.fill
+        strokeColor: Lithic.vein
+        strokeWidth: LithicTokens.size.hairline
         cut: root.cut
     }
 

@@ -18,8 +18,8 @@ Open <http://127.0.0.1:4173/examples/web/>. Gallery pages are designed for a 144
 | Page | Coverage |
 |---|---|
 | [`index.html`](index.html) | Links all four galleries and preserves the current query parameters on each link. |
-| [`foundation.html`](foundation.html) | Palette roles, type, cuts, spacing, Icon, CutRect, Notch, Blade, Flake, Hatch, FocusRing, and interaction recipes. |
-| [`controls.html`](controls.html) | Plaque, SplitPlaque, IconPlaque, TextField, Search, Toggle, Slider, Stepper, Filters, Tabs, and Disclosure. |
+| [`foundation.html`](foundation.html) | Palette roles, type, cuts, spacing, Icon, CutRect, Notch, place blade, Blade, Flake, Hatch, FocusRing, and interaction recipes. |
+| [`controls.html`](controls.html) | Plaque, SplitPlaque, IconPlaque, TextField, Search, fields on a pane and in a slab, Toggle, Slider, Stepper, Segmented, Filters, Tabs, the selected row, Menu checked items, and Disclosure. |
 | [`lists.html`](lists.html) | Tablet, RowList, GroupHeader, Skeleton, Empty, Pane, MineralField, Header, Slab, Section, Facts, Aside, DraftColumns, Claim, Marks, Sentence, BladeMeter, BladeProgress, Working, and BecomingName. |
 | [`overlays.html`](overlays.html) | Popover, Menu, Picker, Dialog, Confirm, Tooltip, Placard, Rail, BrandMark, NewPlaque, SectionIndex, EngravedChart, and AppFrame. |
 
@@ -31,6 +31,8 @@ Each page links `../../library/web/lithic.css`, imports `../../library/web/lithi
 |---|---|---|
 | `mode` | `follow`, `dark`, or `light` | Selects palette resolution mode. `follow` is the default. |
 | `palette` | A relative or absolute JSON URL | Fetches a raw Matugen palette, `{ "themePalette": { ... } }`, or `{ "roles": { ... }, "source": "..." }` descriptor. Without it, the signature fallback is used. |
+| `contrast` | `standard` or `high` | Selects the look's contrast. `standard` is the default; an unknown value is ignored. |
+| `tint` | `off`, `low`, or `medium` | Selects the look's tint toward the palette. `off` is the default; an unknown value is ignored. |
 
 Parameters can be combined:
 

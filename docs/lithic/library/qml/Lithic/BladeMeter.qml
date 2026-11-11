@@ -10,7 +10,6 @@ Blade {
     implicitHeight: LithicTokens.size.bladeTrack
     fraction: Math.max(0, Math.min(1, value))
     fill: value >= alertAt ? Lithic.amber : bladeInk
-    track: Lithic.stone3
 
     ChiselColorBehavior on fill {
         duration: LithicTokens.motion.select

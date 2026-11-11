@@ -76,6 +76,8 @@ The host remains responsible for applying named-scheme precedence when it watche
 | Name | Type | Meaning |
 |---|---|---|
 | `mode` | string | `follow`, `dark`, or `light`. Invalid values reset to `follow`. |
+| `contrast` | string | `standard` (default) or `high`. Invalid values reset to `standard`. See [palette.md](../../palette.md#contrast-and-tint). |
+| `tint` | string | `off` (default), `low`, or `medium`. Invalid values reset to `off`. |
 | `dark` | bool, read only | Resolved palette brightness. |
 | `source` | string, read only | `signature`, `wallpaper`, `scheme`, or `host`. |
 | `reduceMotion` | bool | Makes `duration(ms)` return zero. |
@@ -83,7 +85,7 @@ The host remains responsible for applying named-scheme precedence when it watche
 
 ### Roles
 
-Every role is a read-only `color`: `ground`, `stone1`, `stone2`, `stone3`, `stone4`, `vein`, `fg`, `fg2`, `fg3`, `sel`, `onSel`, `onSel2`, `gold`, `onGold`, `goldInk`, `jade`, `lapis`, `amber`, `jasper`, and `scrim`.
+Every role is a read-only `color`: `ground`, `stone1`, `stone2`, `stone3`, `stone4`, `slab`, `field`, `vein`, `edge`, `fg`, `fg2`, `fg3`, `sel`, `onSel`, `onSel2`, `gold`, `onGold`, `goldInk`, `jade`, `lapis`, `amber`, `jasper`, and `scrim`.
 
 Use `Lithic.inkOn(Lithic.jasper)` for danger-fill content. Do not assume a fixed light or dark danger ink.
 
@@ -97,7 +99,7 @@ Use `Lithic.inkOn(Lithic.jasper)` for danger-fill content. Do not assume a fixed
 
 Each token candidate list is checked against `Qt.fontFamilies()` in order. The first installed family wins. This lets `SpaceMono Nerd Font` satisfy the mono role when `Space Mono` is absent.
 
-`Lithic.type` exposes `name`, `sentence`, `section`, `title`, `row`, `body`, `proof`, `label`, `caption`, `group`, `mono`, and `monoSm`. Every style is an object with `family`, `pixelSize`, `weight`, and `lineHeight`.
+`Lithic.type` exposes `name`, `sentence`, `section`, `title`, `row`, `body`, `proof`, `label`, `caption`, `detail`, `group`, `mono`, and `monoSm`. Every style is an object with `family`, `pixelSize`, `weight`, and `lineHeight`.
 
 ### Palette and colour functions
 
@@ -106,7 +108,7 @@ Each token candidate list is checked against `Qt.fontFamilies()` in order. The f
 | `setPalette(object, mode)` | Injects a host palette, optionally unwraps `themePalette`, sets a valid mode, and resolves roles. |
 | `reload()` | Clears host injection and rereads the environment and palette files. |
 | `stone(tone)` | State mineral for `idle`, `alive`, `becoming`, `attention`, `paused`, or `failed`. |
-| `field(tone)` | Mineral-field colour for a canonical tone. |
+| `mineralField(tone)` | Mineral-field colour for a canonical tone. |
 | `mix(a, b, t)` | Per-channel linear colour mix, including alpha. `t` is clamped to 0 through 1. |
 | `alpha(c, a)` | Colour `c` with its alpha multiplied by clamped `a`. |
 | `inkOn(c)` | Black or white, whichever has greater contrast on `c`. |
@@ -210,6 +212,18 @@ A flat track with a 45 degree leading edge.
 
 `progress`, `bladeColor`, and `trackColor` are temporary aliases used by the moved phase 2 files.
 
+### PlaceBlade
+
+The `onSel` blade that marks a selected row, chip or segment, clipped to its cut.
+
+- `edge: string`, `leading` (vertical, full height) or `bottom`
+- `cutStart: real`, the cut at the top-left corner for `leading` or the bottom-left corner for `bottom`
+- `cutEnd: real`, the cut at the bottom-left corner for `leading` or the bottom-right corner for `bottom`
+- `thickness: real`, default `LithicTokens.size.selBlade`
+- `ink: color`, default `Lithic.onSel`
+
+Declare it inside the selection `CutRect` with `anchors.fill: parent` and pass that `CutRect`'s cuts.
+
 ### Flake
 
 A state parallelogram. Idle is outlined. Becoming can be partly filled.
@@ -291,7 +305,7 @@ The canonical design-system Icon maps to `Glyph` in QML so it cannot collide wit
 Role-aware text.
 
 - `typeRole: string`, a key in `Lithic.type`
-- `inkRole: string`, a Lithic role name
+- `inkRole: string`, a Lithic role name; defaults to `fg2` for the `detail` type and `fg` otherwise
 - `ink: color`, defaults from `inkRole`
 - `token: object`, read only resolved type style
 
@@ -307,13 +321,15 @@ Role-aware text.
 
 ## Component reference
 
-This reference covers the 44 component types after the `# components` marker in `Lithic/qmldir`. Each API list names the properties, signals, and functions added by Lithic, plus the inherited template members used in normal calls. Standard Qt Quick properties remain available. A `previewState` accepts `""`, `hover`, `pressed`, or `focus`. A component only responds to states it can draw.
+This reference covers the 45 component types after the `# components` marker in `Lithic/qmldir`. Each API list names the properties, signals, and functions added by Lithic, plus the inherited template members used in normal calls. Standard Qt Quick properties remain available. A `previewState` accepts `""`, `hover`, `pressed`, or `focus`. A component only responds to states it can draw.
+
+Fields (`TextField`, `Search`, the `Picker` anchor and the `Stepper` value box) share one surface: `field` fill, a 1 dp `edge` hairline at rest, an `fg2` hairline with focus and `jasper` on error. Selected rows, chips and segments are a `sel` fill marked with a `PlaceBlade`.
 
 ### Controls
 
 #### Plaque
 
-A cut action button with gold, line, quiet, selected, and danger treatments.
+A cut action button. `kind` is one of `gold`, `line`, `tonal`, `quiet`, `on`, `danger`, or `dangerLine`. `tonal` is a `field` fill with `fg` ink and no edge; `quiet` is `fg2` ink with no edge and no fill at rest.
 
 - Properties: inherited `text` and `enabled`, plus `kind`, `small`, `glyph`, `busy`, `previewState`, and `accessibleName`. Read-only properties are `controlCut`, `sideInset`, `glyphSize`, `contentGap`, and `ink`.
 - Signal: inherited `clicked()`
@@ -331,7 +347,7 @@ Plaque {
 
 #### SplitPlaque
 
-A two-segment action with a main button and a separate menu button.
+A two-segment action with a main button and a separate menu button. It takes the same `kind` values as `Plaque`.
 
 - Properties: `kind`, `small`, `glyph`, `text`, `busy`, `menuOpen`, `previewState`, `morePreviewState`, `accessibleName`, and `moreAccessibleName`. Read-only properties are `controlHeight`, `controlCut`, and `ink`.
 - Signals: `mainClicked()` and `moreClicked()`
@@ -390,7 +406,7 @@ A blade-track slider with a cut handle and keyboard stepping.
 
 #### Stepper
 
-A spin box with cut decrement and increment faces and an optional unit.
+A spin box with quiet decrement and increment faces either side of a field box holding the value and an optional unit.
 
 - Properties: inherited `from`, `to`, `value`, `stepSize`, `editable`, and `enabled`, plus `unit`, `previewState`, and `accessibleName`
 - Signal: inherited `valueModified()`
@@ -398,13 +414,33 @@ A spin box with cut decrement and increment faces and an optional unit.
 
 #### Filters
 
-A bounded row of filter chips with counts and a sliding selection slab.
+A bounded row of filter chips with counts. Chips rest on tonal `field` plates; the `sel` fill with its bottom `PlaceBlade` glides to the selected chip.
 
 - Properties: `model`, `currentIndex`, `previewState`, and `accessibleName`
 - Signal: `activated(int index)`
 - Function: `move(delta)`
 - Model entries: a string, or an object with `label` and optional `count`
 - Preview: `previewState`
+
+#### Segmented
+
+A track of 2 to 5 equal-width options. The selected segment is an inset `sel` fill with a bottom `PlaceBlade` that glides over `motion.select`.
+
+- Properties: `model`, `currentIndex`, `previewState`, and `accessibleName`
+- Signal: `activated(int index)`
+- Function: `select(index)`
+- Model entries: a string or an object with `label`
+- Keys: arrows move the selection, Home and End jump to the ends
+- Natural width: the option count times the widest label plus `space.s4` on each side, plus `size.segmentInset` on each side. Set `width` to stretch it.
+- Preview: `previewState`. `hover` and `pressed` apply to the first unselected segment.
+
+```qml
+Segmented {
+    model: ["Follow", "Dark", "Light"]
+    currentIndex: modeIndex
+    onActivated: index => modeIndex = index
+}
+```
 
 #### Tabs
 
@@ -428,7 +464,7 @@ A quiet plaque that unfolds arbitrary child content.
 
 #### Tablet
 
-A selectable fleet-style row with identity copy, state proof, an optional mark, and a contextual action.
+A selectable fleet-style row with identity copy, state proof, an optional mark, and a contextual action. Selected rows carry a leading `PlaceBlade`.
 
 - Properties: inherited `enabled`, plus `title`, `facts`, `claim`, `proof`, `tone`, `progress`, `selected`, `compact`, `pane`, `mark`, `actionText`, `actionKind`, `actionGlyph`, `actionBusy`, and `previewState`. Read-only properties are `stateHovered`, `statePressed`, `stateFocused`, `actionVisible`, `titleInk`, `quietInk`, `claimInk`, and `baseFill`.
 - Signals: inherited `clicked()`, plus `actionTriggered()` and `primaryAction()`
@@ -452,7 +488,7 @@ Tablet {
 
 #### RowList
 
-A keyboard and wheel-navigable `ListView` with a gliding selection slab and cut scroll thumb.
+A keyboard and wheel-navigable `ListView` with a gliding selection slab marked by a leading `PlaceBlade`, and a cut scroll thumb.
 
 - Properties: `model`, `delegate`, `currentIndex`, `contentY`, and `previewState`. `listView` is read only.
 - Functions: `select(index)` and `scrollByNotch(delta)`
@@ -523,7 +559,7 @@ A detail header with a mark, name, proof, note, traits, actions, and an optional
 
 #### Slab
 
-A cut container with configurable inset, fill, and cut depth.
+A lifted cut container: `slab` fill and a 1 dp `vein` hairline inside the cut, with configurable inset, fill, and cut depth.
 
 - Properties: `inset`, `fill`, `cut`, and the default `content` child list. Read-only properties are `bodyItem`, `contentImplicitWidth`, and `contentImplicitHeight`.
 - Preview: none
@@ -645,17 +681,17 @@ Item {
 
 #### Menu
 
-A cut menu plane with keyboard focus and icon, shortcut, danger, disabled, and divider rows.
+A cut menu plane with keyboard focus and icon, shortcut, checked, danger, disabled, and divider rows. A checked row shows a trailing `check` glyph in place of its shortcut.
 
 - Properties: `items`, `menuWidth`, `previewState`, `previewIndex`, and `focusedIndex`
 - Signal: `triggered(int index)`
 - Functions: `itemEnabled(index)`, `moveFocus(step)`, and `activateFocused()`
-- Item entries: objects with `label`, and optional `glyph`, `shortcut`, `danger`, `disabled`, or `divider`
+- Item entries: objects with `label`, and optional `glyph`, `shortcut`, `checked`, `danger`, `disabled`, or `divider`
 - Preview: `previewState` applies to `previewIndex`. The containing overlay controls whether the menu is visible.
 
 #### Picker
 
-A labelled combo-style field that opens its options in a `Popover`.
+A labelled combo-style field that opens its options in a `Popover`, with the current option checked.
 
 - Properties: `label`, `options`, `currentIndex`, `overlayParent`, `previewState`, and `previewOpen`. `opened` and `value` are read only.
 - Signal: `activated(int index)`
@@ -723,7 +759,7 @@ A stacked transient notice with an optional undo-style action and draining blade
 
 #### Rail
 
-A responsive vertical rail or compact bottom rail with Home, destinations, and the New menu.
+A responsive vertical rail or compact bottom rail with Home, destinations, and the New menu. The selected destination carries a leading `PlaceBlade` on the vertical rail and a bottom one on the compact rail.
 
 - Properties: `sizeClass`, `currentIndex`, `destinations`, `newMenuItems`, `overlayParent`, `previewState`, and `previewNewOpen`. Read-only properties are `compact`, `expanded`, `railWidth`, `tileSize`, `startY`, and `newY`.
 - Signals: `homeTriggered()`, `destinationTriggered(int index, string label)`, and `newItemTriggered(int index, string label)`
@@ -749,9 +785,9 @@ The rail's consequential New action in regular or compact form.
 
 #### SectionIndex
 
-A settings section index that becomes filter-like plaques at medium width and hides at compact width.
+A settings section index. Expanded, it is a side list whose selected row carries a leading `PlaceBlade`; at any narrower size class it is a `Picker` of the sections.
 
-- Properties: `sections`, `currentIndex`, `sizeClass`, and `previewState`. `expanded` and `medium` are read only.
+- Properties: `sections`, `currentIndex`, `sizeClass`, `overlayParent`, and `previewState`. `expanded` is read only.
 - Signal: `activated(int index)`
 - Functions: `sectionLabel(index)` and `choose(index)`
 - Section entries: a string or an object with `label`

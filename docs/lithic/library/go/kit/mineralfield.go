@@ -22,7 +22,7 @@ type MineralField struct {
 
 // Layout fades state changes and snaps palette changes.
 func (field *MineralField) Layout(gtx layout.Context, th *theme.Theme, tone palette.Tone, body layout.Widget) layout.Dimensions {
-	target := th.R.Field(tone)
+	target := th.R.MineralField(tone)
 	field.blend.Duration = th.Motion.Field
 	field.blend.Ease = anim.EaseChisel
 	if !field.initialized {

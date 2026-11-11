@@ -56,6 +56,7 @@ button {
 .l-type-proof { font: var(--lithic-type-proof-weight) var(--lithic-type-proof-size)/var(--lithic-type-proof-line) var(--lithic-type-proof-family); }
 .l-type-label { font: var(--lithic-type-label-weight) var(--lithic-type-label-size)/var(--lithic-type-label-line) var(--lithic-type-label-family); }
 .l-type-caption { font: var(--lithic-type-caption-weight) var(--lithic-type-caption-size)/var(--lithic-type-caption-line) var(--lithic-type-caption-family); }
+.l-type-detail { font: var(--lithic-type-detail-weight) var(--lithic-type-detail-size)/var(--lithic-type-detail-line) var(--lithic-type-detail-family); }
 .l-type-group { font: var(--lithic-type-group-weight) var(--lithic-type-group-size)/var(--lithic-type-group-line) var(--lithic-type-group-family); }
 .l-type-mono { font: var(--lithic-type-mono-weight) var(--lithic-type-mono-size)/var(--lithic-type-mono-line) var(--lithic-type-mono-family); }
 .l-type-mono-sm { font: var(--lithic-type-mono-sm-weight) var(--lithic-type-mono-sm-size)/var(--lithic-type-mono-sm-line) var(--lithic-type-mono-sm-family); }
@@ -142,6 +143,24 @@ button {
   );
 }
 
+.l-place-row,
+.l-place-chip {
+  --l-fill: var(--lithic-sel);
+  --l-place-blade: linear-gradient(var(--lithic-on-sel), var(--lithic-on-sel)) left top / var(--lithic-size-sel-blade) 100% no-repeat;
+}
+
+.l-place-chip {
+  --l-place-blade: linear-gradient(var(--lithic-on-sel), var(--lithic-on-sel)) left bottom / 100% var(--lithic-size-sel-blade) no-repeat;
+}
+
+:is(.l-place-row, .l-place-chip):not(.l-cut) {
+  background: var(--l-place-blade), var(--l-fill);
+}
+
+.l-cut:is(.l-place-row, .l-place-chip)::after {
+  background: var(--l-place-blade), var(--l-fill);
+}
+
 .l-notch {
   --l-notch-color: var(--lithic-vein);
   --l-notch-size: var(--lithic-cut-notch);
@@ -197,7 +216,7 @@ button {
   display: block;
   height: var(--lithic-size-blade-track);
   overflow: hidden;
-  background: var(--lithic-stone3);
+  background: var(--lithic-field);
 }
 
 .l-blade::after {

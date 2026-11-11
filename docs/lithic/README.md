@@ -44,8 +44,10 @@ Lithic is Ryoku's UI language: cut, not molded. It builds calm, flat surfaces fr
 | `library/go/theme/` | Turn roles and tokens into a Gio theme. |
 | `library/go/anim/` | Provide motion helpers. |
 | `library/go/kit/` | Provide reusable Gio components. |
+| `library/go/symbols/` | Hold the Material Symbols Sharp icons for Gio, generated from `list.txt`. |
 | `library/go/term/` | Provide the terminal component subset. |
 | `library/go/cmd/lithic-tokens/` | Update generated token files from `tokens.json`. |
+| `library/go/cmd/lithic-symbols/` | Update `symbols/symbols.go` from `symbols/list.txt`. |
 | [library/go/README.md](library/go/README.md) | Document Gio and terminal imports and public API. |
 | [library/parity/README.md](library/parity/README.md) | Document the cross-stack palette parity check. |
 | `examples/` | Hold runnable component galleries and design sheets. |
@@ -137,7 +139,7 @@ The [sheet index](examples/sheets/README.md) links every source sheet.
 - Do not add shadows, gradients, glows, inset wells or status dots. Blur can
   be used where it fits and looks good, as a faint hint under a picture or on a
   scrim ([design.md](design.md#blur-where-it-fits)).
-- Reserve gold for the one consequential action in a task.
+- Reserve gold for the one consequential action in a view.
 - Show state with a mineral shape and a word, never colour alone.
 - Take dimensions, type and motion from the tokens.
 - Use sentence case.

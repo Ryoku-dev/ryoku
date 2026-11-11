@@ -20,8 +20,8 @@ T.Control {
 
     readonly property real controlHeight: small ? LithicTokens.size.plaqueHeightSmall : LithicTokens.size.plaqueHeight
     readonly property real controlCut: small ? LithicTokens.cut.small : LithicTokens.cut.mid
-    readonly property bool _transparent: kind === "line" || kind === "quiet" || kind === "dangerLine"
-    readonly property color ink: _inkForKind()
+    readonly property PlaqueRecipe _recipe: PlaqueRecipe { kind: root.kind }
+    readonly property color ink: _recipe.ink
 
     implicitWidth: mainSegment.implicitWidth + LithicTokens.size.splitPlaqueGap + moreSegment.implicitWidth
     implicitHeight: controlHeight
@@ -29,38 +29,6 @@ T.Control {
 
     Accessible.role: Accessible.Grouping
     Accessible.name: accessibleName.length > 0 ? accessibleName : text
-
-    function _baseFill() {
-        if (kind === "on")
-            return Lithic.sel;
-        if (kind === "danger")
-            return Lithic.jasper;
-        if (_transparent)
-            return "transparent";
-        return Lithic.gold;
-    }
-
-    function _inkForKind() {
-        if (kind === "on")
-            return Lithic.onSel;
-        if (kind === "danger")
-            return Lithic.inkOn(Lithic.jasper);
-        if (kind === "dangerLine")
-            return Lithic.jasper;
-        if (kind === "line")
-            return Lithic.goldInk;
-        if (kind === "quiet")
-            return Lithic.fg2;
-        return Lithic.onGold;
-    }
-
-    function _strokeColor() {
-        if (kind === "line")
-            return Lithic.goldInk;
-        if (kind === "dangerLine")
-            return Lithic.jasper;
-        return Lithic.vein;
-    }
 
     component Segment: T.AbstractButton {
         id: segment
@@ -100,11 +68,9 @@ T.Control {
 
             CutRect {
                 anchors.fill: parent
-                fill: segment._hoverActive
-                      ? (root._transparent ? Lithic.hoverInk(root.ink) : Lithic.hoverFill(root._baseFill()))
-                      : root._baseFill()
-                strokeColor: root._strokeColor()
-                strokeWidth: root._transparent ? LithicTokens.size.hairline : 0
+                fill: root._recipe.fill(segment._hoverActive)
+                strokeColor: root._recipe.stroke
+                strokeWidth: root._recipe.strokeWidth
                 cutTopLeft: segment.moreSegment ? 0 : root.controlCut + (segment._pressActive ? Lithic.pressCutGrow : 0)
                 cutBottomLeft: cutTopLeft
                 cutTopRight: segment.moreSegment ? root.controlCut + (segment._pressActive ? Lithic.pressCutGrow : 0) : 0

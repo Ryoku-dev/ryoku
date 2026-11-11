@@ -148,6 +148,23 @@
   pointer-events: none;
 }
 
+.l-menu-item:is([aria-checked="true"], [role="option"][aria-selected="true"])::after {
+  content: "check";
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+  width: var(--lithic-size-menu-icon);
+  height: var(--lithic-size-menu-icon);
+  color: var(--lithic-fg2);
+  font-family: var(--lithic-font-icons);
+  font-size: var(--lithic-size-menu-icon);
+  font-style: normal;
+  font-weight: 400;
+  font-feature-settings: "liga";
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .l-menu-divider {
   height: var(--lithic-size-hairline);
   margin: var(--lithic-size-menu-padding-vertical) var(--lithic-size-menu-divider-inset);
@@ -157,7 +174,9 @@
 
 .l-picker {
   --l-cut: var(--lithic-cut-mid);
-  --l-fill: var(--lithic-stone3);
+  --l-fill: var(--lithic-field);
+  --l-stroke: var(--lithic-edge);
+  --l-stroke-width: var(--lithic-size-hairline);
   min-width: var(--lithic-size-picker-width-min);
   min-height: var(--lithic-size-picker-height);
   display: grid;
@@ -171,9 +190,24 @@
   cursor: pointer;
 }
 
+.l-picker::before {
+  transition: background-color var(--lithic-motion-focus-out) var(--lithic-motion-curve);
+}
+
 .l-picker:hover,
 .l-picker[data-l-state="hover"] {
-  --l-fill: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-hover-plane) * 100%), var(--lithic-stone3));
+  --l-fill: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-hover-plane) * 100%), var(--lithic-field));
+}
+
+[data-l-keyboard] .l-picker:focus-visible,
+.l-picker:is([data-l-state="focus"], [aria-expanded="true"]) {
+  --l-stroke: var(--lithic-fg2);
+  outline: none;
+}
+
+[data-l-keyboard] .l-picker:focus-visible::before,
+.l-picker:is([data-l-state="focus"], [aria-expanded="true"])::before {
+  transition-duration: var(--lithic-motion-focus-in);
 }
 
 .l-picker:is(:active, [data-l-state="pressed"]):not(:disabled):not([aria-disabled="true"]) {
@@ -183,8 +217,8 @@
 
 .l-picker-label {
   grid-area: label;
-  color: var(--lithic-fg3);
-  font: var(--lithic-type-caption-weight) var(--lithic-type-caption-size)/var(--lithic-type-caption-line) var(--lithic-type-caption-family);
+  color: var(--lithic-fg2);
+  font: var(--lithic-type-detail-weight) var(--lithic-type-detail-size)/var(--lithic-type-detail-line) var(--lithic-type-detail-family);
 }
 
 .l-picker-value {
@@ -582,8 +616,7 @@
   gap: var(--lithic-size-section-index-row-gap);
 }
 
-.l-section-index a,
-.l-section-index button {
+.l-section-index > :is(a, button) {
   --l-cut: var(--lithic-cut-mid);
   --l-fill: transparent;
   min-height: var(--lithic-size-section-index-row);
@@ -597,39 +630,41 @@
   font: var(--lithic-type-label-weight) var(--lithic-type-label-size)/var(--lithic-type-label-line) var(--lithic-type-label-family);
 }
 
-.l-section-index a:hover,
-.l-section-index button:hover,
-.l-section-index :is(a, button)[data-l-state="hover"],
-.l-section-index :is(a, button)[data-l-state="focus"] {
+.l-section-index > :is(a, button):is(:hover, [data-l-state="hover"], [data-l-state="focus"]) {
   --l-fill: var(--lithic-stone3);
 }
 
-.l-section-index :is(a, button)[aria-current="true"] {
+.l-section-index > :is(a, button)[aria-current="true"] {
   --l-fill: var(--lithic-sel);
   color: var(--lithic-on-sel);
 }
 
-.l-section-index :is(a, button):is(:active, [data-l-state="pressed"]) {
+.l-section-index > :is(a, button):is(:active, [data-l-state="pressed"]) {
   --l-fill: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-press-row) * 100%), var(--lithic-stone3));
 }
 
-.l-section-index[data-l-size-class="medium"],
-.l-app-frame[data-l-size-class="medium"] .l-section-index {
+.l-section-index-picker {
+  display: none;
+}
+
+.l-section-index:is([data-l-size-class="medium"], [data-l-size-class="compact"]),
+.l-app-frame:is([data-l-size-class="medium"], [data-l-size-class="compact"]) .l-section-index {
   position: static;
   width: 100%;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(max-content, 1fr);
 }
 
-.l-section-index[data-l-size-class="medium"] :is(a, button),
-.l-app-frame[data-l-size-class="medium"] .l-section-index :is(a, button) {
-  min-height: var(--lithic-size-filter-height);
-  justify-content: center;
-}
-
-.l-section-index[data-l-size-class="compact"],
-.l-app-frame[data-l-size-class="compact"] .l-section-index {
+.l-section-index:is([data-l-size-class="medium"], [data-l-size-class="compact"]) > :is(a, button),
+.l-app-frame:is([data-l-size-class="medium"], [data-l-size-class="compact"]) .l-section-index > :is(a, button) {
   display: none;
+}
+
+.l-section-index:is([data-l-size-class="medium"], [data-l-size-class="compact"]) > .l-section-index-picker,
+.l-app-frame:is([data-l-size-class="medium"], [data-l-size-class="compact"]) .l-section-index > .l-section-index-picker {
+  display: grid;
+}
+
+.l-section-index-picker > .l-picker {
+  width: 100%;
 }
 
 .l-engraved-chart {

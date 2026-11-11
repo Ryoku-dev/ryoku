@@ -18,8 +18,8 @@ T.AbstractButton {
     readonly property bool _hoverActive: enabled && !busy && (hovered || previewState === "hover")
     readonly property bool _pressActive: enabled && !busy && (pressed || previewState === "pressed")
     readonly property bool _focusActive: enabled && (visualFocus || previewState === "focus")
-    readonly property bool _transparent: kind === "line" || kind === "quiet" || kind === "dangerLine"
-    readonly property color ink: _inkForKind()
+    readonly property PlaqueRecipe _recipe: PlaqueRecipe { kind: root.kind }
+    readonly property color ink: _recipe.ink
 
     hoverEnabled: true
     focusPolicy: Qt.StrongFocus
@@ -32,45 +32,6 @@ T.AbstractButton {
     Accessible.role: Accessible.Button
     Accessible.name: accessibleName.length > 0 ? accessibleName : text
     Accessible.description: busy ? "Busy" : ""
-
-    function _baseFill() {
-        if (kind === "on")
-            return Lithic.sel;
-        if (kind === "danger")
-            return Lithic.jasper;
-        if (_transparent)
-            return "transparent";
-        return Lithic.gold;
-    }
-
-    function _inkForKind() {
-        if (kind === "on")
-            return Lithic.onSel;
-        if (kind === "danger")
-            return Lithic.inkOn(Lithic.jasper);
-        if (kind === "dangerLine")
-            return Lithic.jasper;
-        if (kind === "line")
-            return Lithic.goldInk;
-        if (kind === "quiet")
-            return Lithic.fg2;
-        return Lithic.onGold;
-    }
-
-    function _surfaceFill() {
-        const base = _baseFill();
-        if (!_hoverActive)
-            return base;
-        return _transparent ? Lithic.hoverInk(ink) : Lithic.hoverFill(base);
-    }
-
-    function _strokeColor() {
-        if (kind === "line")
-            return Lithic.goldInk;
-        if (kind === "dangerLine")
-            return Lithic.jasper;
-        return Lithic.vein;
-    }
 
     Keys.onPressed: function(event) {
         if (busy && (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter))
@@ -92,9 +53,9 @@ T.AbstractButton {
 
         CutRect {
             anchors.fill: parent
-            fill: root._surfaceFill()
-            strokeColor: root._strokeColor()
-            strokeWidth: root._transparent ? LithicTokens.size.hairline : 0
+            fill: root._recipe.fill(root._hoverActive)
+            strokeColor: root._recipe.stroke
+            strokeWidth: root._recipe.strokeWidth
             cut: root.controlCut + (root._pressActive ? Lithic.pressCutGrow : 0)
 
             ChiselColorBehavior on fill {

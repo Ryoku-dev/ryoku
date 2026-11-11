@@ -19,7 +19,6 @@
     .specimen > .state-label:first-child { color: var(--lithic-fg3); }
     .state-label { font: var(--lithic-type-caption-weight) var(--lithic-type-caption-size)/var(--lithic-type-caption-line) var(--lithic-type-caption-family); }
     .tablet-stack { display: grid; gap: var(--lithic-size-row-list-gap); }
-    .selected-sample { background: var(--lithic-sel); }
     .row-list-demo { --l-row-list-height: var(--lithic-size-list-expanded); }
     .pane-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 0; background: var(--lithic-ground); }
     .pane-demo { min-height: calc(var(--lithic-space-s6) * 3); padding: var(--lithic-space-s4); }
@@ -67,7 +66,7 @@
           <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="alive" data-l-state="hover" data-value="alpine-instant">
             <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">memory</span></span>
             <span class="l-tablet__copy"><span class="l-tablet__title">alpine-instant</span><span class="l-tablet__facts">ally · Instant</span></span>
-            <span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Running</span><span class="l-tablet__proof">12 min</span></span><span class="l-tablet__action"><button class="l-plaque l-quiet l-small" type="button">Open</button></span></span>
+            <span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Running</span><span class="l-tablet__proof">12 min</span></span><span class="l-tablet__action"><button class="l-plaque l-tonal l-small" type="button">Open</button></span></span>
           </article>
         </div>
         <div class="specimen">
@@ -80,13 +79,11 @@
         </div>
         <div class="specimen">
           <span class="state-label">Selected</span>
-          <div class="selected-sample">
-            <article class="l-tablet l-notch" role="option" aria-selected="true" data-tone="alive" data-value="fedora-43">
-              <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">dns</span></span>
-              <span class="l-tablet__copy"><span class="l-tablet__title">fedora-43</span><span class="l-tablet__facts">mika-server · Sealed</span></span>
-              <span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Running</span><span class="l-tablet__proof">Healthy</span></span><span class="l-tablet__action"><button class="l-plaque l-quiet l-small" type="button">Console</button></span></span>
-            </article>
-          </div>
+          <article class="l-tablet l-notch l-place-row" role="option" aria-selected="true" data-tone="alive" data-value="fedora-43">
+            <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">dns</span></span>
+            <span class="l-tablet__copy"><span class="l-tablet__title">fedora-43</span><span class="l-tablet__facts">mika-server · Sealed</span></span>
+            <span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Running</span><span class="l-tablet__proof">Healthy</span></span><span class="l-tablet__action"><button class="l-plaque l-tonal l-small" type="button">Console</button></span></span>
+          </article>
         </div>
         <div class="specimen">
           <span class="state-label">Becoming, compact</span>
@@ -124,7 +121,7 @@
               </header>
               <div class="l-group__rows" id="fleet-pinned">
                 <article class="l-tablet l-notch" role="option" aria-selected="true" data-tone="alive" data-value="ubuntu-24.04">
-                  <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">computer</span></span><span class="l-tablet__copy"><span class="l-tablet__title">ubuntu-24.04</span><span class="l-tablet__facts l-literal">ally · 192.0.2.24</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Running</span><span class="l-tablet__proof">Healthy</span></span><span class="l-tablet__action"><button class="l-plaque l-quiet l-small" type="button">Open</button></span></span>
+                  <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">computer</span></span><span class="l-tablet__copy"><span class="l-tablet__title">ubuntu-24.04</span><span class="l-tablet__facts l-literal">ally · 192.0.2.24</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Running</span><span class="l-tablet__proof">Healthy</span></span><span class="l-tablet__action"><button class="l-plaque l-tonal l-small" type="button">Open</button></span></span>
                 </article>
                 <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="paused" data-value="kolibrios-latest-en_US">
                   <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">pause</span></span><span class="l-tablet__copy"><span class="l-tablet__title">kolibrios-latest-en_US</span><span class="l-tablet__facts">localhost · Sealed</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Paused</span><span class="l-tablet__proof">3 min</span></span><span class="l-tablet__action"><button class="l-plaque l-line l-small" type="button">Resume</button></span></span>
@@ -138,7 +135,7 @@
               </header>
               <div class="l-group__rows" id="fleet-running">
                 <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="alive" data-value="alpine-instant">
-                  <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">memory</span></span><span class="l-tablet__copy"><span class="l-tablet__title">alpine-instant</span><span class="l-tablet__facts">ally · Instant</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Running</span><span class="l-tablet__proof">12 min</span></span><span class="l-tablet__action"><button class="l-plaque l-quiet l-small" type="button">Open</button></span></span>
+                  <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">memory</span></span><span class="l-tablet__copy"><span class="l-tablet__title">alpine-instant</span><span class="l-tablet__facts">ally · Instant</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Running</span><span class="l-tablet__proof">12 min</span></span><span class="l-tablet__action"><button class="l-plaque l-tonal l-small" type="button">Open</button></span></span>
                 </article>
               </div>
             </section>
@@ -227,7 +224,7 @@
 
     <section class="section" aria-labelledby="slab-heading">
       <h2 class="l-type-section" id="slab-heading">Slab</h2>
-      <div class="l-slab l-cut slab-demo"><p class="l-type-body">Connection settings for ally stay together on one quiet plane.</p></div>
+      <div class="l-slab l-cut slab-demo"><div class="l-slab-row l-type-body">Connection settings for ally stay together on one plane that lifts off its pane.</div><div class="l-slab-row l-type-body">Rows inside a slab are divided by a vein line across its inner width.</div></div>
     </section>
 
     <section class="section" aria-labelledby="section-heading">

@@ -15,6 +15,7 @@
   --lithic-cut-notch: 12px;
   --lithic-cut-overlay: 8px;
   --lithic-cut-placard: 8px;
+  --lithic-cut-segment: 5px;
   --lithic-cut-small: 6px;
   --lithic-cut-toggle-knob: 2px;
   --lithic-cut-toggle-track: 4px;
@@ -186,6 +187,9 @@
   --lithic-size-section-index-row: 48px;
   --lithic-size-section-index-row-gap: 4px;
   --lithic-size-section-index-width: 200px;
+  --lithic-size-segment-height: 36px;
+  --lithic-size-segment-inset: 4px;
+  --lithic-size-sel-blade: 3px;
   --lithic-size-settings-control-max: 320px;
   --lithic-size-settings-detail-gap: 2px;
   --lithic-size-settings-expanded-max: 994px;
@@ -260,6 +264,10 @@
   --lithic-type-caption-line: 16px;
   --lithic-type-caption-size: 12px;
   --lithic-type-caption-weight: 400;
+  --lithic-type-detail-family: var(--lithic-font-sans);
+  --lithic-type-detail-line: 18px;
+  --lithic-type-detail-size: 13px;
+  --lithic-type-detail-weight: 400;
   --lithic-type-group-family: var(--lithic-font-sans);
   --lithic-type-group-line: 16px;
   --lithic-type-group-size: 12px;
@@ -322,7 +330,10 @@
   --lithic-motion-unfold: 200ms;
   --lithic-motion-wheel: 140ms;
   --lithic-motion-working: 900ms;
+  --lithic-alpha-contrast-high: 0.6;
+  --lithic-alpha-contrast-high-fg3: 0.3;
   --lithic-alpha-disabled: 0.5;
+  --lithic-alpha-edge: 0.5;
   --lithic-alpha-hatch: 0.3;
   --lithic-alpha-hover-fill: 0.1;
   --lithic-alpha-hover-ink: 0.1;
@@ -334,6 +345,9 @@
   --lithic-alpha-press-row: 0.08;
   --lithic-alpha-scrim-dark: 0.62;
   --lithic-alpha-scrim-light: 0.45;
+  --lithic-alpha-sel-mix: 0.5;
+  --lithic-alpha-tint-low: 0.06;
+  --lithic-alpha-tint-medium: 0.1;
   --lithic-alpha-working-base: 0.55;
   --lithic-contrast-minimum: 4.5;
 }

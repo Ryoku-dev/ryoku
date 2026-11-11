@@ -45,6 +45,9 @@
     .glyph-sample { display: grid; justify-items: center; gap: var(--lithic-space-s2); color: var(--lithic-fg2); }
     .glyph-sample .l-glyph { font-size: 28px; color: var(--lithic-fg); }
     .motion-strip { --l-fill: var(--lithic-stone2); padding: var(--lithic-space-s3); display: flex; align-items: center; justify-content: space-between; gap: var(--lithic-space-s3); }
+    .place-list { display: flex; flex-wrap: wrap; align-items: start; gap: var(--lithic-space-s4); }
+    .place-row { --l-cut: var(--lithic-cut-mid); width: 240px; min-height: var(--lithic-size-section-index-row); padding-inline: var(--lithic-space-s4); display: flex; align-items: center; color: var(--lithic-on-sel); }
+    .place-chip { --l-cut: var(--lithic-cut-small); min-height: var(--lithic-size-filter-height); padding-inline: var(--lithic-size-filter-inset); display: inline-flex; align-items: center; color: var(--lithic-on-sel); }
     @media (max-width: 900px) { .role-grid, .sample-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .page-head { align-items: start; flex-direction: column; } }
   </style>
 </head>
@@ -68,7 +71,10 @@
           <div class="role l-cut l-type-label" style="--sample:var(--lithic-stone2); --l-cut:var(--lithic-cut-small)">stone2</div>
           <div class="role l-cut l-type-label" style="--sample:var(--lithic-stone3); --l-cut:var(--lithic-cut-small)">stone3</div>
           <div class="role l-cut l-type-label" style="--sample:var(--lithic-stone4); --l-cut:var(--lithic-cut-small)">stone4</div>
+          <div class="role l-cut l-type-label" style="--sample:var(--lithic-slab); --l-cut:var(--lithic-cut-small)">slab</div>
+          <div class="role l-cut l-type-label" style="--sample:var(--lithic-field); --l-cut:var(--lithic-cut-small)">field</div>
           <div class="role l-cut l-type-label" style="--sample:var(--lithic-vein); --l-cut:var(--lithic-cut-small)">vein</div>
+          <div class="role l-cut l-type-label" style="--sample:var(--lithic-edge); --l-cut:var(--lithic-cut-small)">edge</div>
         </div>
       </div>
       <div class="role-group">
@@ -124,6 +130,7 @@
         <div class="type-line"><span class="l-type-mono-sm">Proof</span><span class="l-type-proof">root@203.0.113.70:2222</span></div>
         <div class="type-line"><span class="l-type-mono-sm">Label</span><span class="l-type-label">Connect automatically</span></div>
         <div class="type-line"><span class="l-type-mono-sm">Caption</span><span class="l-type-caption">Last checked two minutes ago</span></div>
+        <div class="type-line"><span class="l-type-mono-sm">Detail</span><span class="l-type-detail" style="color:var(--lithic-fg2)">Refresh server and machine state when Ryoport opens.</span></div>
         <div class="type-line"><span class="l-type-mono-sm">Group</span><span class="l-type-group">Available servers</span></div>
         <div class="type-line"><span class="l-type-mono-sm">Mono</span><span class="l-type-mono">/dev/ttyUSB0</span></div>
         <div class="type-line"><span class="l-type-mono-sm">Mono small</span><span class="l-type-mono-sm">192.0.2.18</span></div>
@@ -134,6 +141,7 @@
       <h2 class="l-type-section" id="cut-scale-heading">Cut scale</h2>
       <div class="cut-scale">
         <div class="cut-token l-cut l-type-caption" style="--l-cut:var(--lithic-cut-token)">Token</div>
+        <div class="cut-token l-cut l-type-caption" style="--l-cut:var(--lithic-cut-segment)">Segment</div>
         <div class="cut-token l-cut l-type-caption" style="--l-cut:var(--lithic-cut-small)">Small</div>
         <div class="cut-token l-cut l-type-caption" style="--l-cut:var(--lithic-cut-mid)">Mid</div>
         <div class="cut-token l-cut l-type-caption" style="--l-cut:var(--lithic-cut-large)">Large</div>
@@ -168,6 +176,14 @@
     <section class="section" aria-labelledby="notch-heading">
       <h2 class="l-type-section" id="notch-heading">Notch</h2>
       <div class="notch-demo l-notch l-type-body" data-tone="attention" style="--l-notch-color:var(--l-tone-color)">Attention notch</div>
+    </section>
+
+    <section class="section" aria-labelledby="place-heading">
+      <h2 class="l-type-section" id="place-heading">Place blade</h2>
+      <div class="place-list">
+        <div class="place-row l-cut l-place-row l-type-label">Selected row</div>
+        <div class="place-chip l-cut l-place-chip l-type-label">Selected chip</div>
+      </div>
     </section>
 
     <section class="section" aria-labelledby="blade-heading">

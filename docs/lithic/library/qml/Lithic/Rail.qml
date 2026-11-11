@@ -130,6 +130,12 @@ T.Control {
                 fill: Lithic.sel
                 cut: LithicTokens.cut.mid
                 ChiselNumberBehavior on y { duration: LithicTokens.motion.select }
+
+                PlaceBlade {
+                    anchors.fill: parent
+                    cutStart: LithicTokens.cut.mid
+                    cutEnd: LithicTokens.cut.mid
+                }
             }
 
             BrandMark {
@@ -195,6 +201,13 @@ T.Control {
                 fill: Lithic.sel
                 cut: LithicTokens.cut.small
                 ChiselNumberBehavior on x { duration: LithicTokens.motion.select }
+
+                PlaceBlade {
+                    anchors.fill: parent
+                    edge: "bottom"
+                    cutStart: LithicTokens.cut.small
+                    cutEnd: LithicTokens.cut.small
+                }
             }
 
             BrandMark {

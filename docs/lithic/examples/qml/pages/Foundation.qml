@@ -90,7 +90,10 @@ Item {
                     { name: "stone2", color: Lithic.stone2 },
                     { name: "stone3", color: Lithic.stone3 },
                     { name: "stone4", color: Lithic.stone4 },
-                    { name: "vein", color: Lithic.vein }
+                    { name: "slab", color: Lithic.slab },
+                    { name: "field", color: Lithic.field },
+                    { name: "vein", color: Lithic.vein },
+                    { name: "edge", color: Lithic.edge }
                 ]
             }
             RoleGroup {
@@ -142,7 +145,7 @@ Item {
                 height: childrenRect.height
                 Repeater {
                     model: ["name", "sentence", "section", "title", "row", "body",
-                            "proof", "label", "caption", "group", "mono", "monoSm"]
+                            "proof", "label", "detail", "caption", "group", "mono", "monoSm"]
                     delegate: Column {
                         required property string modelData
                         width: modelData === "name" || modelData === "sentence" ? 620 : 280
@@ -452,14 +455,10 @@ Item {
             width: parent.width
             spacing: LithicTokens.space.s4
             Label { text: "Motion"; typeRole: "section" }
-            CutRect {
+            Slab {
                 width: parent.width
                 height: 88
-                fill: Lithic.stone1
-                cut: LithicTokens.cut.mid
                 Row {
-                    anchors.left: parent.left
-                    anchors.leftMargin: LithicTokens.space.s4
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: LithicTokens.space.s4
                     Label { text: "At rest"; typeRole: "title" }

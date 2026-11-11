@@ -48,6 +48,8 @@ func registerPage(name string, page pageFunc) {
 func main() {
 	pageName := flag.String("page", "foundation", "page: foundation, controls, lists, or overlays")
 	modeName := flag.String("mode", "follow", "palette mode: follow, dark, or light")
+	contrastName := flag.String("contrast", "standard", "palette contrast: standard or high")
+	tintName := flag.String("tint", "off", "palette tint: off, low, or medium")
 	pngPath := flag.String("png", "", "render the complete page to a PNG and exit")
 	flag.Parse()
 
@@ -61,7 +63,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "gio gallery:", err)
 		os.Exit(2)
 	}
-	th := theme.New(palette.FromPalette(palette.Load(mode)))
+	th := theme.New(palette.FromPalette(palette.Load(mode), palette.ParseLook(*contrastName, *tintName)))
 	if *pngPath != "" {
 		if err := renderPNG(*pngPath, page, th); err != nil {
 			fmt.Fprintln(os.Stderr, "gio gallery:", err)

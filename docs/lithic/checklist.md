@@ -2,7 +2,8 @@
 
 Use this to review a surface that claims to be Lithic: a new app, a new page,
 a port of an existing screen. Take a screenshot at each size class in a dark
-and in a light Ryoku palette and go down the list. Every "no" is a defect.
+and in a light Ryoku palette, at Contrast standard and high and with Tint off
+and on, and go down the list. Every "no" is a defect.
 
 ## Colour
 
@@ -17,23 +18,35 @@ and in a light Ryoku palette and go down the list. Every "no" is a defect.
       `contrast(jasper, stone2) >= 4.5`; danger fill ink is
       `inkOn(jasper)`.
 - [ ] Bone (`sel`) appears only on the current place: selected row, current
-      destination, selected filter, toggle on, placards.
-- [ ] Gold fills only consequential actions; one gold plaque per task; no gold
+      destination, selected filter or segment, toggle on, placards. A
+      selected row, chip or segment carries its `onSel` place blade.
+- [ ] Gold fills only consequential actions; one gold plaque per view (the
+      frame's standing action, such as New, is the frame's own); no gold
       status, badge or decoration.
 - [ ] Every state shows a mineral, a shape (notch, flake, field) and a word.
       No lone dots, no colour-only state.
 - [ ] Disabled controls use alpha 0.5 and do not hover.
 - [ ] Rows on `stone4` hover with `fg` at alpha 0.06 and press at 0.08.
       They never step down to `stone3`; lower planes keep the plane-up recipe.
-- [ ] Nothing relies on one tone step to be found at rest. Under a wallpaper
-      palette, every field, slab and overlay either stands two roles from its
-      plane or carries a `vein` hairline.
+- [ ] Nothing relies on one tone step to be found at rest. Fields carry their
+      `edge` hairline, slabs and overlays their `vein` hairline.
+- [ ] Slabs, menus and dialogs lift: in dark mode they are lighter than or
+      equal to their plane, in light mode their hairline sets them off. No
+      container is darker than the plane it stands on.
+- [ ] Text, edges and the selection read in both Contrast settings and at
+      every Tint, in dark and in light.
 
 ## Shape
 
 - [ ] No rounded corner anywhere. No pill.
-- [ ] Cuts come from the scale: 3, 4, 6, 7, 12, 16 (8 for menus and placards,
-      4 for tooltips). Nothing in between.
+- [ ] Cuts come from the scale: 3, 4, 5, 6, 7, 12, 16 (8 for menus and
+      placards, 4 for tooltips). Nothing in between.
+- [ ] Every control with a cut has a fill or a hairline that clears APCA
+      Lc 15 against its plane; only a quiet plaque shows its cut on hover
+      alone.
+- [ ] A cut nested inside another is concentric:
+      `inner = outer - inset * (2 - sqrt(2))`, rounded (the selected segment
+      cuts 5 inside a 7 track).
 - [ ] Panes cut only their top corners; tablets are square apart from the
       notch.
 - [ ] Hairlines are 1 dp and sit inside the outline.
@@ -51,6 +64,9 @@ and in a light Ryoku palette and go down the list. Every "no" is a defect.
 - [ ] Space Mono appears only on literal data.
 - [ ] Sentence case throughout; no all caps.
 - [ ] Sizes and line heights match the scale; nothing invented.
+- [ ] Setting details and card secondary lines use `detail` in `fg2`;
+      `caption` in `fg3` is kept for timestamps, counts, hints and
+      placeholders.
 
 ## Space and layout
 
@@ -68,7 +84,8 @@ and in a light Ryoku palette and go down the list. Every "no" is a defect.
       saving writes. Errors wait until a field was edited and left.
 - [ ] The catalogue uses the full work-pane width and opens a system in a 720
       wide dialog.
-- [ ] Settings has a scrolling SectionIndex at expanded and chips at medium.
+- [ ] Settings has a scrolling SectionIndex at expanded and a Picker below
+      it; never a strip of chips.
 - [ ] Dialogs protect decisions; ordinary creation and editing stay in drafts.
 
 ## Motion
@@ -79,8 +96,8 @@ and in a light Ryoku palette and go down the list. Every "no" is a defect.
       200; popover 160 in and 100 out; dialog 300 in and 160 out; wheel 140.
 - [ ] Press chips plaque cuts 4 dp deeper and sinks content 1 dp. Rows and
       menu items dip instead.
-- [ ] Selection and filter slabs glide; a new work pane rises 8 dp; Dialog
-      rises 12 dp and drops 8 dp; Placard rises 8 dp.
+- [ ] Selection, filter and segment fills glide; a new work pane rises 8 dp;
+      Dialog rises 12 dp and drops 8 dp; Placard rises 8 dp.
 - [ ] Reduced motion makes everything instant.
 - [ ] With the pointer still and no job running, no frames are drawn.
 
@@ -126,6 +143,8 @@ and in a light Ryoku palette and go down the list. Every "no" is a defect.
 ## Review artefacts
 
 Attach to the review: screenshots at expanded, medium and compact; the same
-page in a dark and a light palette; the output of the palette hookup check
-(§8 of [palette.md](palette.md)); a note of any item above that was
-deliberately not met and why.
+page in a dark and a light palette, at Contrast high and with Tint on; the
+output of the palette hookup check and its
+[contrast targets](palette.md#contrast-targets) (§8 of
+[palette.md](palette.md)); a note of any item above that was deliberately
+not met and why.

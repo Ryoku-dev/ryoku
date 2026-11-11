@@ -18,7 +18,7 @@ Item {
         implicitHeight: titleLabel.implicitHeight + LithicTokens.space.s2
                         + stageHeight + LithicTokens.space.s4 * 2
         height: implicitHeight
-        fill: Lithic.stone1
+        fill: Lithic.slab
         strokeColor: Lithic.vein
         strokeWidth: LithicTokens.size.hairline
         cut: LithicTokens.cut.large
@@ -276,7 +276,7 @@ Item {
             SpecimenFrame {
                 width: (specimens.width - specimens.columnSpacing) / specimens.columns
                 title: "SectionIndex"
-                stateLabel: "Expanded and medium"
+                stateLabel: "Wide list and medium picker"
                 stageHeight: LithicTokens.space.s6 * 5
 
                 Row {
@@ -340,7 +340,6 @@ Item {
                             width: parent.width
                             fraction: 0.68
                             fill: Lithic.fg2
-                            track: Lithic.stone3
                         }
                     }
                 }

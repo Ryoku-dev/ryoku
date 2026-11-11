@@ -58,11 +58,11 @@ Fields use the `l-field-control l-cut` wrapper. Search uses `l-search l-cut`. Us
 Use the module `github.com/ryoku-dev/ryoku/docs/lithic/library/go`, resolve roles once and build one theme:
 
 ```go
-roles := palette.FromPalette(palette.Load(palette.Follow))
+roles := palette.FromPalette(palette.Load(palette.Follow), palette.Look{})
 th := theme.New(roles)
 ```
 
-Keep `kit` values in the owning view and call their `Layout` methods. Set a component's `Preview` field to `kit.StateHover`, `kit.StatePressed` or `kit.StateFocus` for a forced gallery state. Run a gallery page with `cd docs/lithic/examples/gio && go run . --page controls --mode follow`. From `docs/lithic/library/go`, `go run ./cmd/lithic-roles --mode dark` prints the roles resolved on the current machine. Read the [Go library README](library/go/README.md) for package and component APIs.
+`palette.Look{}` is standard contrast with tint off; pass `palette.ParseLook(contrast, tint)` to follow the reader's setting. Keep `kit` values in the owning view and call their `Layout` methods. Set a component's `Preview` field to `kit.StateHover`, `kit.StatePressed` or `kit.StateFocus` for a forced gallery state. Run a gallery page with `cd docs/lithic/examples/gio && go run . --page controls --mode follow`. From `docs/lithic/library/go`, `go run ./cmd/lithic-roles --mode dark` prints the roles resolved on the current machine. Gio icons come from package `symbols`; add a name to `symbols/list.txt` and run `go run ./cmd/lithic-symbols`. Read the [Go library README](library/go/README.md) for package and component APIs.
 
 ### Terminal
 
@@ -79,24 +79,24 @@ The current `ryoku/ui` library is a paper-and-ink system. Its palette singleton,
 | Current `Tokens.qml` role | Lithic destination | Migration note |
 |---|---|---|
 | `defaultPaper` | signature `ground` | Keep fallback values only in the generated signature. Do not read the default directly. |
-| `defaultPaperLift` | signature `stone1` | Overlay fallback belongs to `stone4`, selected by the component rather than this old role. |
+| `defaultPaperLift` | signature `slab` | Overlay fallback belongs to `stone4`, selected by the component rather than this old role. |
 | `defaultInk` | signature `fg` | Keep fallback data inside the token output. |
 | `defaultInkDim` | signature `fg2` | Keep fallback data inside the token output. |
 | `paper` | `ground` | Use `stone1` or `stone2` for panes placed on the ground. |
-| `paperLift` | `stone1` for ordinary planes, `stone4` for overlays | Choose by component anatomy. One raised colour no longer serves both jobs. |
+| `paperLift` | `slab` for containers inside a pane, `stone4` for overlays | Choose by component anatomy. One raised colour no longer serves both jobs. |
 | `light` | resolved palette mode | Ask the Lithic theme for its mode. Do not infer local decoration colours. |
 | `ink` | `fg` | Primary text and marks. |
 | `inkDim` | `fg2` | Secondary text and controls. |
 | `inkMuted` | `fg2` | Use the role directly. Do not preserve the old alpha layer. |
 | `inkFaint` | `fg3` | Tertiary copy and proof. |
-| `bone` | `sel` | Selection is the live secondary container, not fixed inverted stock. |
+| `bone` | `sel` | Selection is the live tinted container with an `onSel` place blade, not fixed inverted stock. |
 | `inkOnBone` | `onSel` | Primary ink on selection. |
 | `inkOnBoneDim` | `onSel2` | Secondary ink on selection. |
 | `lineOnBone` | `onSel2` | Use sparingly for selected-state detail. |
 | `keycapDark`, `keycapLight` | no fixed chrome role | Remove the fixed pair and build keycap chrome from the active stone and foreground roles. |
 | `keycapOnDark`, `keycapOnLight` | no fixed chrome role | Pair keycap text with the selected live foreground role. |
-| `line`, `lineSoft` | `vein` | Lithic has one hairline role. Hierarchy comes from plane and spacing, not extra line alphas. |
-| `lineStrong` | `vein` for boundaries, `fg2` for keyboard focus | Use the component recipe instead of a stronger general border. |
+| `line`, `lineSoft` | `vein` | Lithic has one hairline role for boundaries, plus `edge` around fields. Hierarchy comes from plane and spacing, not extra line alphas. |
+| `lineStrong` | `vein` for boundaries, `edge` for fields, `fg2` for keyboard focus | Use the component recipe instead of a stronger general border. |
 | `tint5` | plane hover recipe | Step the plane one tone up. Do not carry the tint token across. |
 | `tint10` | transparent or filled hover recipe | Let the component recipe mix the correct ink or fill. |
 | `tint16` | press recipe | Deepen the cut and sink content, or use the row press wash. |
@@ -118,7 +118,7 @@ The old font, spacing, geometry and duration properties also move to `LithicToke
 | `Slid` | `Slider`. |
 | `Chips` | `Filters` when narrowing a list. Use `Tabs` when switching views. |
 | `Tabs` | `Tabs`; remove inverted plates and use the moving blade. |
-| `Seg` | `Tabs` for views, `Filters` for narrowing, or `Picker` for one setting value. Choose by intent rather than appearance. |
+| `Seg` | `Segmented` for two to five options of one setting, `Tabs` for views, `Filters` for narrowing, or `Picker` for a longer set. Choose by intent rather than appearance. |
 | `Multi` | A `Slab` of labelled `Toggle` rows for independent membership. |
 | `PickBar` and `Picker` | One `Picker` with its `Popover` and `Menu`. |
 | `Gallery` | `Picker` for one choice, or `RowList` when each option needs proof or secondary facts. |
@@ -246,7 +246,7 @@ Serve `docs/lithic` with the web command above, then open a source from the [she
 - The surface matches one archetype and changes structure at its documented size class.
 - Every plane uses a role and every dimension comes from a token.
 - Corners are square or cut. There are no rounded cards, shadows, gradients, glows, inset wells or status dots. Any blur is a faint hint under a picture or on a scrim, and the type over it reads as it does on the bare plane ([design.md](design.md#blur-where-it-fits)).
-- Only one task action is gold. Navigation and state do not spend gold.
+- Only one action per view is gold. Navigation and state do not spend gold.
 - Every state has a mineral shape, a word and nearby proof.
 - Hover, press and keyboard focus follow the shared recipes. Pointer focus does not leave a keyboard ring.
 - Overlays sit one tone up, close in the documented Escape order and swallow the dismissing click.

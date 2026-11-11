@@ -6,10 +6,10 @@ import (
 	"gioui.org/layout"
 	"gioui.org/unit"
 	"gioui.org/widget"
-	material "golang.org/x/exp/shiny/materialdesign/icons"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/symbols"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 )
@@ -74,7 +74,7 @@ func listsTablet(th *theme.Theme) layout.Widget {
 			widgets[index] = specimen(th, state.label, func(gtx layout.Context) layout.Dimensions {
 				draw := func(gtx layout.Context) layout.Dimensions {
 					return tablet.Layout(gtx, th, kit.TabletContent{
-						Mark: listMark(th, kit.Icon(material.HardwareComputer)), Title: state.name,
+						Mark: listMark(th, kit.Icon(symbols.Computer)), Title: state.name,
 						Facts: "ops@192.0.2.24", FactsMono: true, Claim: state.claim,
 						Proof: state.proof, Tone: state.tone, Progress: state.progress, Action: action,
 					}, state.selectRow, false)
@@ -96,9 +96,9 @@ func listsRowList(th *theme.Theme) layout.Widget {
 			name, facts string
 			icon        *widget.Icon
 		}{
-			{"ally", "ops@192.0.2.24", kit.Icon(material.DeviceStorage)},
-			{"fedora-43", "prowl@198.51.100.43", kit.Icon(material.HardwareComputer)},
-			{"scratch-arch", "ops@203.0.113.18", kit.Icon(material.HardwareComputer)},
+			{"ally", "ops@192.0.2.24", kit.Icon(symbols.Storage)},
+			{"fedora-43", "prowl@198.51.100.43", kit.Icon(symbols.Computer)},
+			{"scratch-arch", "ops@203.0.113.18", kit.Icon(symbols.Computer)},
 		}
 		var list kit.RowList
 		tablets := make([]kit.Tablet, len(rows))
@@ -194,7 +194,7 @@ func listsHeader(th *theme.Theme) layout.Widget {
 		start := &kit.Plaque{Kind: kit.PlaqueGold, Label: "Start"}
 		inspect := &kit.Plaque{Kind: kit.PlaqueLine, Label: "Inspect"}
 		return header.Layout(gtx, th, kit.HeaderContent{
-			Tone: palette.Becoming, Mark: listMark(th, kit.Icon(material.HardwareComputer)), Name: "alpine-instant", Progress: .64,
+			Tone: palette.Becoming, Mark: listMark(th, kit.Icon(symbols.Computer)), Name: "alpine-instant", Progress: .64,
 			Proof: []kit.Span{{Text: "Creating on "}, {Text: "mika-server", Mono: true}},
 			Note:  "Latest stage: preparing the root filesystem", Marks: kit.ResourceMarks(true, true, true),
 			Actions: []*kit.Plaque{start, inspect},
@@ -206,8 +206,11 @@ func listsHeader(th *theme.Theme) layout.Widget {
 }
 
 func listsSlab(th *theme.Theme) layout.Widget {
-	return section(th, "Slab", specimen(th, "Quiet settings container", func(gtx layout.Context) layout.Dimensions {
-		return kit.SlabContent(gtx, th, kit.Text(th, th.T.Body, th.R.Fg2, "Console router on /dev/ttyUSB0"))
+	return section(th, "Slab", specimen(th, "Rows on a lifted slab", func(gtx layout.Context) layout.Dimensions {
+		return kit.SlabRows(gtx, th,
+			settingRow(th, "Console router", "Reached from ally over the serial line", kit.Text(th, th.T.Mono, th.R.Fg, "/dev/ttyUSB0")),
+			settingRow(th, "Snapshots", "Kept on mika-server for seven days", kit.Text(th, th.T.Mono, th.R.Fg, "7 d")),
+		)
 	}))
 }
 

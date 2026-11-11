@@ -9,9 +9,9 @@ import (
 	"gioui.org/op/clip"
 	"gioui.org/unit"
 	"gioui.org/widget"
-	material "golang.org/x/exp/shiny/materialdesign/icons"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/symbols"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 )
@@ -34,7 +34,7 @@ type overlaysPage struct {
 	rail          kit.Rail
 	newPlaque     kit.NewPlaque
 	sectionIndex  kit.SectionIndex
-	sectionChips  kit.SectionIndex
+	sectionPicker kit.SectionIndex
 	chart         kit.EngravedChart
 	appFrame      kit.AppFrame
 	appRail       kit.Rail
@@ -57,9 +57,9 @@ func pageOverlays(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 
 func newOverlaysPage() *overlaysPage {
 	page := &overlaysPage{
-		fleetIcon:    kit.Icon(material.HardwareComputer),
-		activityIcon: kit.Icon(material.ActionHistory),
-		settingsIcon: kit.Icon(material.ActionSettings),
+		fleetIcon:    kit.Icon(symbols.Computer),
+		activityIcon: kit.Icon(symbols.History),
+		settingsIcon: kit.Icon(symbols.Settings),
 	}
 	page.popover.Open = true
 	page.popover.Preview = kit.StateHover
@@ -249,8 +249,8 @@ func (page *overlaysPage) navigationSection(th *theme.Theme) layout.Widget {
 					specimen(th, "SectionIndex · Expanded", func(gtx layout.Context) layout.Dimensions {
 						return page.sectionIndex.Layout(gtx, th, settingsSections(), 2, kit.FrameExpanded)
 					}),
-					specimen(th, "SectionIndex · Medium chips", func(gtx layout.Context) layout.Dimensions {
-						return page.sectionChips.Layout(gtx, th, settingsSections(), 2, kit.FrameMedium)
+					specimen(th, "SectionIndex · Medium picker", func(gtx layout.Context) layout.Dimensions {
+						return page.sectionPicker.Layout(gtx, th, settingsSections(), 2, kit.FrameMedium)
 					}),
 				})
 			},

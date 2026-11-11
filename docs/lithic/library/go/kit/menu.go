@@ -11,14 +11,19 @@ import (
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/symbols"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 )
 
+var iconMenuCheck = Icon(symbols.Check)
+
 // MenuItem describes one command, disabled command, danger command, or divider.
+// A checked item shows a trailing check in place of its shortcut.
 type MenuItem struct {
 	Icon            *widget.Icon
 	Label, Shortcut string
+	Checked         bool
 	Danger          bool
 	Disabled        bool
 	Divider         bool
@@ -119,6 +124,7 @@ func (m *Menu) Layout(gtx layout.Context, th *theme.Theme, items []MenuItem) lay
 					}
 					semantic.Button.Add(gtx.Ops)
 					semantic.LabelOp(item.Label).Add(gtx.Ops)
+					semantic.SelectedOp(item.Checked).Add(gtx.Ops)
 					semantic.EnabledOp(!item.Disabled).Add(gtx.Ops)
 					return layout.Inset{Left: unit.Dp(tokens.SizeMenuInset), Right: unit.Dp(tokens.SizeMenuInset)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						return centerY(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -141,7 +147,17 @@ func (m *Menu) Layout(gtx layout.Context, th *theme.Theme, items []MenuItem) lay
 								)
 							}
 							children = append(children, layout.Flexed(1, rawText(th, th.T.Label, ink, item.Label)))
-							if item.Shortcut != "" {
+							switch {
+							case item.Checked:
+								children = append(children,
+									layout.Rigid(layout.Spacer{Width: unit.Dp(tokens.SizeMenuShortcutGap)}.Layout),
+									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+										size := gtx.Dp(tokens.SizeMenuIcon)
+										gtx.Constraints = layout.Exact(image.Pt(size, size))
+										return iconMenuCheck.Layout(gtx, th.R.Fg2)
+									}),
+								)
+							case item.Shortcut != "":
 								children = append(children,
 									layout.Rigid(layout.Spacer{Width: unit.Dp(tokens.SizeMenuShortcutGap)}.Layout),
 									layout.Rigid(rawText(th, th.T.MonoSm, th.R.Fg3, item.Shortcut)),
@@ -193,7 +209,9 @@ func menuWidth(gtx layout.Context, th *theme.Theme, items []MenuItem) int {
 		if item.Icon != nil {
 			fixed += gtx.Dp(tokens.SizeMenuIcon + tokens.SizeMenuIconGap)
 		}
-		if item.Shortcut != "" {
+		if item.Checked {
+			fixed += gtx.Dp(tokens.SizeMenuShortcutGap + tokens.SizeMenuIcon)
+		} else if item.Shortcut != "" {
 			measure := gtx
 			measure.Constraints.Min = image.Point{}
 			measure.Constraints.Max.X = max(0, maximum-fixed-gtx.Dp(tokens.SizeMenuShortcutGap))

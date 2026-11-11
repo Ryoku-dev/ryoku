@@ -23,7 +23,7 @@ require (
 )
 ```
 
-`Theme` carries the `palette.Roles` returned by `palette.FromPalette(palette.Load(mode))`. Terminal applications choose whether to paint the `ground` role.
+`Theme` carries the `palette.Roles` returned by `palette.FromPalette(palette.Load(mode), palette.Look{})`. An application that offers contrast and tint builds `term.Theme{Roles: palette.FromPalette(palette.Load(mode), look)}` with the reader's `palette.Look`. Terminal applications choose whether to paint the `ground` role.
 
 ## Glyph sets
 

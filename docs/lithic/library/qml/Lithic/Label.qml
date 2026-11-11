@@ -4,7 +4,7 @@ Text {
     id: root
 
     property string typeRole: "body"
-    property string inkRole: "fg"
+    property string inkRole: typeRole === "detail" ? "fg2" : "fg"
     property color ink: _roleColor(inkRole)
     readonly property var token: Lithic.type[typeRole] || Lithic.type.body
 

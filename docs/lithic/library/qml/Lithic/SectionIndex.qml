@@ -7,20 +7,19 @@ T.Control {
     property var sections: []
     property int currentIndex: 0
     property string sizeClass: "expanded"
+    property Item overlayParent: null
     property string previewState: ""
     readonly property bool expanded: sizeClass === "expanded"
-    readonly property bool medium: sizeClass === "medium"
 
     signal activated(int index)
 
-    visible: sizeClass !== "compact"
     implicitWidth: expanded ? LithicTokens.size.sectionIndexWidth
-                            : mediumFlow.implicitWidth
+                            : picker.implicitWidth
     implicitHeight: expanded
                     ? sections.length * LithicTokens.size.sectionIndexRow
                       + Math.max(0, sections.length - 1)
                         * LithicTokens.size.sectionIndexRowGap
-                    : mediumFlow.implicitHeight
+                    : picker.implicitHeight
     padding: 0
     Accessible.role: Accessible.List
 
@@ -50,6 +49,12 @@ T.Control {
                 fill: Lithic.sel
                 cut: LithicTokens.cut.small
                 ChiselNumberBehavior on y { duration: LithicTokens.motion.select }
+
+                PlaceBlade {
+                    anchors.fill: parent
+                    cutStart: LithicTokens.cut.small
+                    cutEnd: LithicTokens.cut.small
+                }
             }
 
             Repeater {
@@ -100,24 +105,20 @@ T.Control {
             }
         }
 
-        Flow {
-            id: mediumFlow
-            visible: root.medium
+        Picker {
+            id: picker
+            visible: !root.expanded
             width: parent.width
-            spacing: LithicTokens.size.filterGap
+            options: root.sections
+            overlayParent: root.overlayParent
+            previewState: root.previewState
+            onActivated: index => root.choose(index)
+        }
 
-            Repeater {
-                model: root.sections
-                delegate: Plaque {
-                    required property var modelData
-                    required property int index
-                    text: typeof modelData === "string" ? modelData : modelData.label || ""
-                    kind: root.currentIndex === index ? "on" : "quiet"
-                    small: true
-                    previewState: root.previewState
-                    onClicked: root.choose(index)
-                }
-            }
+        Binding {
+            target: picker
+            property: "currentIndex"
+            value: root.currentIndex
         }
     }
 }

@@ -25,6 +25,7 @@ import (
     "github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
     "github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
     "github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
+    "github.com/ryoku-dev/ryoku/docs/lithic/library/go/symbols"
     "github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme"
     "github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 )
@@ -33,7 +34,7 @@ import (
 A normal Gio setup is:
 
 ```go
-roles := palette.FromPalette(palette.Load(palette.Follow))
+roles := palette.FromPalette(palette.Load(palette.Follow), palette.Look{})
 th := theme.New(roles)
 ```
 
@@ -54,19 +55,28 @@ Exported API:
 - `Mode`: `Follow`, `Dark`, `Light`.
 - `Palette`: source `Roles`, resolved `Dark`, `Forced`, and `Source` values before Lithic mapping.
 - `Load(mode) Palette`: resolves source precedence and mode.
-- `FromPalette(Palette) Roles`: maps source roles into all Lithic roles.
+- `Contrast`: `Standard`, `High`. `Tint`: `TintOff`, `TintLow`, `TintMedium`.
+- `Look`: the reader's `Contrast` and `Tint`. The zero look (standard, off) is the library default.
+- `ParseLook(contrast, tint) Look`: reads `standard` or `high` and `off`, `low` or `medium`; an unknown string gives the zero value of its field.
+- `FromPalette(Palette, Look) Roles`: maps source roles into all Lithic roles, then applies the look, then derives `Edge` and tones `GoldInk` and `Jasper` (see [palette.md](../../palette.md#3-mapping-palette-roles-to-lithic-roles)).
 - `Watch(ctx, mode, fn)`: watches the three parent directories with inotify, coalesces file replacement, and calls `fn` only when the resolved palette changes. `mode` is a function so an application can change its mode without rebuilding the watcher.
 - `Tone`: `Idle`, `Alive`, `Becoming`, `Attention`, `Paused`, `Failed`.
-- `Roles`: `Ground`, `Stone1`, `Stone2`, `Stone3`, `Stone4`, `Vein`, `Fg`, `Fg2`, `Fg3`, `Sel`, `OnSel`, `OnSel2`, `Gold`, `OnGold`, `GoldInk`, `Jade`, `Lapis`, `Amber`, `Jasper`, `Scrim`, `Dark`, `Source`.
+- `Roles`: `Ground`, `Stone1`, `Stone2`, `Stone3`, `Stone4`, `Slab`, `Field`, `Vein`, `Edge`, `Fg`, `Fg2`, `Fg3`, `Sel`, `OnSel`, `OnSel2`, `Gold`, `OnGold`, `GoldInk`, `Jade`, `Lapis`, `Amber`, `Jasper`, `Scrim`, `Dark`, `Source`.
 - `Roles.Stone(tone)`: returns the mineral ink for a tone.
-- `Roles.Field(tone)`: returns the derived mineral field for a tone.
+- `Roles.MineralField(tone)`: returns the derived mineral field for a tone.
 - `Signature(dark)`: returns the generated signature fallback.
 - `Mix(a, b, t)`: linearly blends every channel.
 - `WithAlpha(color, alpha)`: multiplies the existing alpha.
 - `InkOn(background)`: picks black or white by contrast.
 - `ContrastRatio(a, b)`: returns the WCAG contrast ratio.
 
-Forced dark and light modes retain signature neutrals and use only the source accents. `GoldInk` and `Jasper` are re-toned to the generated minimum contrast against `Stone2`. Fixed minerals always come from tokens.
+Forced dark and light modes retain signature neutrals and use only the source accents, so they get the tinted selection and the tint too. `GoldInk` and `Jasper` are re-toned to the generated minimum contrast against the final `Stone2`. Fixed minerals always come from tokens.
+
+## Symbols
+
+`symbols` holds Material Symbols Sharp as IconVG data, outline at weight 400. Each exported `[]byte` is named after its symbol in CamelCase (`expand_more` is `symbols.ExpandMore`); a symbol listed with `fill` also has a filled `...Fill` variant (`symbols.SettingsFill`) for the current navigation destination. Draw one with `kit.Icon(symbols.Search)`, built once and kept, never per frame.
+
+To add a symbol, put its name in `symbols/list.txt` and run `go run ./cmd/lithic-symbols` here; `-check` reports a stale `symbols.go`. The generator fetches the official SVGs at a pinned upstream commit and caches them under `/dev/shm/lithic-symbols`. Material Symbols are Apache-2.0; `symbols/LICENSE` and `symbols/NOTICE` carry the license and provenance.
 
 ## Theme API
 
@@ -124,7 +134,7 @@ Keep these Gio details in mind:
 | `Click` | Embeds `widget.Clickable`. Call `Layout(gtx, child)`, then consume events with `Update(gtx)` or `Clicked(gtx)`. |
 | `Label` | Text component with caller fields `Style theme.TextStyle`, `Color color.NRGBA`, `MaxLines int`, and `Align text.Alignment`. `Layout(gtx, th, value)` renders it. |
 | `Text`, `RawText` | Return one-line `layout.Widget` values. `Text` applies disabled ink. `RawText` keeps the supplied ink. |
-| `Icon` | `Icon(data []byte) *widget.Icon` decodes a shiny Material Design icon and panics for invalid data. |
+| `Icon` | `Icon(data []byte) *widget.Icon` decodes IconVG data such as a `symbols` value and panics for invalid data. |
 | `IconByName` | Returns the built-in `home`, `search`, `settings`, or `close` icon. It returns `nil` for any other name. |
 | `CutPath` | Builds a `clip.PathSpec` from bounds and independent northwest, northeast, southeast, and southwest cuts. |
 | `FillCut`, `FillCutCorners`, `FillCutTop` | Fill a cut rectangle, independent cut corners, or cut top corners. |

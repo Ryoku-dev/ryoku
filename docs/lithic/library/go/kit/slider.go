@@ -124,7 +124,7 @@ func (s *Slider) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 		trackHeight := max(1, gtx.Dp(unit.Dp(tokens.SizeSliderTrack)))
 		trackY := (size.Y - trackHeight) / 2
 		track := image.Rect(0, trackY, size.X, trackY+trackHeight)
-		trackInk := palette.Mix(th.R.Stone3, th.R.Fg, tokens.AlphaHoverPlane*hover)
+		trackInk := palette.Mix(th.R.Field, th.R.Fg, tokens.AlphaHoverPlane*hover)
 		FillCut(gtx.Ops, track, 0, disabledInk(gtx, trackInk))
 
 		handleWidth := max(1, gtx.Dp(unit.Dp(tokens.SizeSliderHandleWidth)))

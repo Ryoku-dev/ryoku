@@ -114,8 +114,15 @@
 }
 
 :is(.l-plaque, .l-icon-plaque).l-quiet {
-  --l-stroke: var(--lithic-vein);
+  --l-stroke: transparent;
   --l-ink: var(--lithic-fg2);
+}
+
+:is(.l-plaque, .l-icon-plaque).l-tonal {
+  --l-fill: var(--lithic-field);
+  --l-active-fill: var(--l-fill);
+  --l-stroke: transparent;
+  --l-ink: var(--lithic-fg);
 }
 
 :is(.l-plaque, .l-icon-plaque).l-on {
@@ -141,6 +148,10 @@
 :is(.l-plaque, .l-icon-plaque).l-on:is(:hover, [data-l-state="hover"]):not(:disabled):not([aria-disabled="true"]),
 :is(.l-plaque, .l-icon-plaque).l-danger:is(:hover, [data-l-state="hover"]):not(:disabled):not([aria-disabled="true"]) {
   --l-active-fill: color-mix(in srgb, var(--l-fill), white calc(var(--lithic-alpha-hover-fill) * 100%));
+}
+
+:is(.l-plaque, .l-icon-plaque).l-tonal:is(:hover, [data-l-state="hover"]):not(:disabled):not([aria-disabled="true"]) {
+  --l-active-fill: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-hover-plane) * 100%), var(--l-fill));
 }
 
 :is(.l-plaque, .l-icon-plaque):is(.l-line, .l-quiet, .l-danger-line):is(:hover, [data-l-state="hover"]):not(:disabled):not([aria-disabled="true"]) {
@@ -248,14 +259,15 @@
   width: var(--lithic-size-text-field-default-width);
 }
 
-.l-field-label,
-.l-field-help {
-  color: var(--lithic-fg3);
-  font: var(--lithic-type-caption-weight) var(--lithic-type-caption-size)/var(--lithic-type-caption-line) var(--lithic-type-caption-family);
+.l-field-label {
+  color: var(--lithic-fg2);
+  font: var(--lithic-type-detail-weight) var(--lithic-type-detail-size)/var(--lithic-type-detail-line) var(--lithic-type-detail-family);
 }
 
 .l-field-help {
   margin-top: calc(var(--lithic-size-text-field-help-gap) - var(--lithic-size-text-field-label-gap));
+  color: var(--lithic-fg3);
+  font: var(--lithic-type-caption-weight) var(--lithic-type-caption-size)/var(--lithic-type-caption-line) var(--lithic-type-caption-family);
 }
 
 .l-field-control {
@@ -264,8 +276,8 @@
 }
 
 :is(.l-field-control, .l-search).l-cut {
-  --l-fill: var(--lithic-stone3);
-  --l-stroke: transparent;
+  --l-fill: var(--lithic-field);
+  --l-stroke: var(--lithic-edge);
   --l-stroke-width: var(--lithic-size-text-field-stroke);
   --l-cut: var(--lithic-cut-mid);
 }
@@ -279,7 +291,7 @@
   height: var(--lithic-size-text-field-height);
   padding-inline: var(--lithic-size-text-field-inset);
   border: 0;
-  background: var(--lithic-stone3);
+  background: var(--lithic-field);
   color: var(--lithic-fg);
   caret-color: var(--lithic-fg);
   clip-path: polygon(
@@ -326,6 +338,11 @@
 
 .l-field:is([data-error], :has(.l-text-field[aria-invalid="true"])) .l-field-help {
   color: var(--lithic-jasper);
+}
+
+:is(.l-field, .l-search):has(.l-text-field:disabled) {
+  opacity: var(--lithic-alpha-disabled);
+  pointer-events: none;
 }
 
 .l-field-control:has([data-l-reveal]) .l-text-field {
@@ -450,11 +467,11 @@
   transform: translateX(calc(var(--lithic-size-toggle-width) - var(--lithic-size-toggle-knob) - var(--lithic-size-toggle-inset) * 2));
 }
 
-.l-toggle:is(:hover, [data-l-state="hover"]):not(:disabled):not([aria-disabled="true"])::before {
+.l-toggle:is(:hover, :active, [data-l-state="hover"], [data-l-state="pressed"]):not(:disabled):not([aria-disabled="true"])::before {
   background: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-hover-plane) * 100%), var(--lithic-stone4));
 }
 
-.l-toggle[aria-checked="true"]:is(:hover, [data-l-state="hover"]):not(:disabled):not([aria-disabled="true"])::before {
+.l-toggle[aria-checked="true"]:is(:hover, :active, [data-l-state="hover"], [data-l-state="pressed"]):not(:disabled):not([aria-disabled="true"])::before {
   background: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-hover-plane) * 100%), var(--lithic-sel));
 }
 
@@ -463,8 +480,8 @@
   pointer-events: none;
 }
 
-[data-l-keyboard] .l-toggle:focus-visible,
-.l-toggle[data-l-state="focus"] {
+[data-l-keyboard] :is(.l-toggle, .l-filter, .l-tab):focus-visible,
+:is(.l-toggle, .l-filter, .l-tab)[data-l-state="focus"] {
   outline: var(--lithic-size-focus-ring-width) solid var(--lithic-fg2);
   outline-offset: var(--lithic-size-focus-ring-gap);
 }
@@ -493,7 +510,17 @@
   position: relative;
   display: block;
   height: var(--lithic-size-slider-track);
-  background: var(--lithic-stone3);
+  background: var(--lithic-field);
+  transition: background-color var(--lithic-motion-hover-out) var(--lithic-motion-curve);
+}
+
+.l-slider:is(:hover, [data-l-state="hover"]):not(:disabled) + .l-slider-rail {
+  background: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-hover-plane) * 100%), var(--lithic-field));
+  transition-duration: var(--lithic-motion-hover-in);
+}
+
+.l-slider:is(:hover, :active, [data-l-state="hover"], [data-l-state="pressed"]):not(:disabled) + .l-slider-rail .l-slider-handle::after {
+  background: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-hover-fill) * 100%), var(--lithic-sel));
 }
 
 .l-slider-fill {
@@ -568,6 +595,11 @@
   transition-duration: var(--lithic-motion-focus-in);
 }
 
+.l-slider-field:has(.l-slider:disabled) {
+  opacity: var(--lithic-alpha-disabled);
+  pointer-events: none;
+}
+
 .l-stepper {
   display: inline-flex;
   align-items: center;
@@ -577,13 +609,36 @@
 .l-stepper-reading {
   display: inline-flex;
   align-items: baseline;
-  min-width: var(--lithic-space-s6);
   justify-content: center;
+  min-width: var(--lithic-space-s6);
+  height: var(--lithic-size-icon-plaque-small);
+  padding-inline: var(--lithic-space-s2);
+}
+
+.l-stepper-reading.l-cut {
+  --l-fill: var(--lithic-field);
+  --l-stroke: var(--lithic-edge);
+  --l-stroke-width: var(--lithic-size-hairline);
+  --l-cut: var(--lithic-cut-small);
+  align-items: center;
+}
+
+.l-stepper-reading.l-cut::before {
+  transition: background-color var(--lithic-motion-focus-out) var(--lithic-motion-curve);
+}
+
+.l-stepper-reading.l-cut:has(.l-stepper-value:is(:focus-visible, [data-l-state="focus"])) {
+  --l-stroke: var(--lithic-fg2);
+}
+
+.l-stepper-reading.l-cut:has(.l-stepper-value:is(:focus-visible, [data-l-state="focus"]))::before {
+  transition-duration: var(--lithic-motion-focus-in);
 }
 
 .l-stepper-value {
   color: var(--lithic-fg);
-  font: var(--lithic-type-label-weight) var(--lithic-type-label-size)/var(--lithic-type-label-line) var(--lithic-type-label-family);
+  outline: none;
+  font: var(--lithic-type-mono-weight) var(--lithic-type-mono-size)/var(--lithic-type-mono-line) var(--lithic-type-mono-family);
 }
 
 .l-stepper-unit {
@@ -599,6 +654,7 @@
 }
 
 .l-filters {
+  isolation: isolate;
   gap: var(--lithic-size-filter-gap);
 }
 
@@ -613,8 +669,7 @@
 
 .l-filter-slab {
   inset-block: 0;
-  z-index: 0;
-  background: var(--lithic-sel);
+  z-index: -1;
   clip-path: polygon(
     var(--lithic-cut-small) 0,
     calc(100% - var(--lithic-cut-small)) 0,
@@ -628,16 +683,28 @@
 }
 
 .l-filter {
+  --l-chip-fill: var(--lithic-field);
   position: relative;
-  z-index: 1;
   display: inline-flex;
   align-items: center;
   gap: var(--lithic-size-filter-count-gap);
   height: var(--lithic-size-filter-height);
   padding-inline: var(--lithic-size-filter-inset);
-  border: var(--lithic-size-hairline) solid var(--lithic-vein);
+  border: 0;
   background: transparent;
   color: var(--lithic-fg2);
+  font: var(--lithic-type-label-weight) var(--lithic-type-label-size)/var(--lithic-type-label-line) var(--lithic-type-label-family);
+  cursor: pointer;
+  transition: color var(--lithic-motion-select) var(--lithic-motion-curve);
+}
+
+/* the plate sits under the gliding slab so the selection travels over tonal chips */
+.l-filter::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background: var(--l-chip-fill);
   clip-path: polygon(
     var(--lithic-cut-small) 0,
     calc(100% - var(--lithic-cut-small)) 0,
@@ -648,17 +715,19 @@
     0 calc(100% - var(--lithic-cut-small)),
     0 var(--lithic-cut-small)
   );
-  font: var(--lithic-type-label-weight) var(--lithic-type-label-size)/var(--lithic-type-label-line) var(--lithic-type-label-family);
-  cursor: pointer;
-  transition: color var(--lithic-motion-select) var(--lithic-motion-curve), background-color var(--lithic-motion-hover-out) var(--lithic-motion-curve);
+  pointer-events: none;
+  transition: background-color var(--lithic-motion-hover-out) var(--lithic-motion-curve);
 }
 
 .l-filter:is(:hover, [data-l-state="hover"]):not([aria-pressed="true"]) {
-  background: color-mix(in srgb, var(--lithic-fg2) calc(var(--lithic-alpha-hover-ink) * 100%), transparent);
+  --l-chip-fill: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-hover-plane) * 100%), var(--lithic-field));
+}
+
+.l-filter:is(:hover, [data-l-state="hover"]):not([aria-pressed="true"])::before {
+  transition-duration: var(--lithic-motion-hover-in);
 }
 
 .l-filter[aria-pressed="true"] {
-  border-color: transparent;
   color: var(--lithic-on-sel);
 }
 
