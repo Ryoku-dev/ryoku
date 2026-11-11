@@ -152,6 +152,8 @@ type UserData struct {
 	Images   []Attachment     `json:"images,omitempty"`
 	Terminal *TerminalContext `json:"terminal,omitempty"`
 	Handoff  *Handoff         `json:"handoff,omitempty"`
+	// Run is the command the user ran in this turn in place of a question.
+	Run string `json:"run,omitempty"`
 }
 
 // TextData is the data of text and thought events: a delta of one message.
@@ -368,6 +370,9 @@ type PlannedCommand struct {
 	Command string `json:"command"`
 	Why     string `json:"why,omitempty"`
 	Tier    string `json:"tier"`
+	// Terminal marks a command that cannot run in the conversation: it asks
+	// for a password, or what it prints must not reach the model.
+	Terminal bool `json:"terminal,omitempty"`
 }
 
 // CommandPlan is the commands Ask proposes, in order.

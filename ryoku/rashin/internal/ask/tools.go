@@ -56,18 +56,6 @@ func (f *Factory) runTool(ctx context.Context, call llm.ToolCall, terminal *prot
 		cwd = terminal.Cwd
 	}
 	switch call.Name {
-	case "system_query":
-		var args struct {
-			Command string `json:"command"`
-		}
-		if err := decodeArgs(call.Arguments, &args); err != nil {
-			return "", nil, err
-		}
-		if reason := command.WhyNotReadOnly(args.Command); reason != "" {
-			return i18n.Tf("Refused: %s. Use propose so the user can review and run this command.", reason), nil, nil
-		}
-		out, err := runBounded(ctx, commandTimeout, cwd, 16*1024, "sh", "-c", args.Command)
-		return out, nil, err
 	case "read_file":
 		var args struct {
 			Path  string `json:"path"`
@@ -427,7 +415,8 @@ func proposedPlan(raw string) (*protocol.CommandPlan, error) {
 			continue
 		}
 		tier, _ := command.Classify(cmd)
-		plan.Commands = append(plan.Commands, protocol.PlannedCommand{Command: cmd, Why: strings.TrimSpace(item.Why), Tier: tier})
+		_, terminal := command.NeedsTerminal(cmd)
+		plan.Commands = append(plan.Commands, protocol.PlannedCommand{Command: cmd, Why: strings.TrimSpace(item.Why), Tier: tier, Terminal: terminal})
 	}
 	if len(plan.Commands) == 0 {
 		return nil, fmt.Errorf("%s", i18n.T("The proposed plan has no commands."))
@@ -436,6 +425,14 @@ func proposedPlan(raw string) (*protocol.CommandPlan, error) {
 }
 
 func runBounded(parent context.Context, timeout time.Duration, cwd string, capBytes int, name string, args ...string) (string, error) {
+	output := &limitedBuffer{limit: capBytes}
+	_, err := runInto(parent, timeout, cwd, output, name, args...)
+	return output.text(), err
+}
+
+// runInto runs a program with both its streams written to out as they come,
+// and returns its exit status, -1 when it did not exit by itself.
+func runInto(parent context.Context, timeout time.Duration, cwd string, out io.Writer, name string, args ...string) (int, error) {
 	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, name, args...)
@@ -452,28 +449,41 @@ func runBounded(parent context.Context, timeout time.Duration, cwd string, capBy
 		return err
 	}
 	cmd.WaitDelay = 2 * time.Second
-	var output limitedBuffer
-	output.limit = capBytes
-	cmd.Stdout = &output
-	cmd.Stderr = &output
+	cmd.Stdout = out
+	cmd.Stderr = out
 	err := cmd.Run()
-	text := strings.TrimSpace(output.String())
-	if output.truncated {
-		text += "\n[output trimmed]"
+	exit := -1
+	if cmd.ProcessState != nil {
+		exit = cmd.ProcessState.ExitCode()
 	}
 	if ctx.Err() == context.DeadlineExceeded {
-		return text, fmt.Errorf(i18n.T("The command was stopped after %d seconds without finishing. Narrow what it looks at, or use propose so the user can run it in a terminal."), int(timeout.Seconds()))
+		return exit, ranOut(timeout)
 	}
 	if err != nil {
-		return text, fmt.Errorf(i18n.T("The command failed: %v"), err)
+		return exit, fmt.Errorf(i18n.T("The command failed: %v"), err)
 	}
-	return text, nil
+	return exit, nil
 }
 
 type limitedBuffer struct {
 	bytes.Buffer
 	limit     int
 	truncated bool
+}
+
+// ranOut is the error of a command stopped for taking too long.
+type ranOut time.Duration
+
+func (limit ranOut) Error() string {
+	return i18n.Tf("The command was stopped after %d seconds without finishing.", int(time.Duration(limit).Seconds()))
+}
+
+func (b *limitedBuffer) text() string {
+	text := strings.TrimSpace(b.String())
+	if b.truncated {
+		text += "\n[output trimmed]"
+	}
+	return text
 }
 
 func (b *limitedBuffer) Write(p []byte) (int, error) {

@@ -730,6 +730,20 @@ func Elevates(cmd string) bool {
 	return false
 }
 
+// NeedsTerminal reports a command that cannot run in the background of a
+// conversation, with the reason as the end of a sentence: it asks for a
+// password where there is no keyboard, or it names a credential and whatever
+// runs there is shown to the model.
+func NeedsTerminal(cmd string) (string, bool) {
+	if Elevates(cmd) {
+		return "it asks for a password", true
+	}
+	if marker, secret := ReadsSecret(cmd); secret {
+		return "it names " + marker, true
+	}
+	return "", false
+}
+
 // ReadsSecret reports whether cmd names a credential file or a tree that
 // holds them, and which. What a command prints goes to the model, so this
 // holds in every mode: it looks at each word of each segment whether or not

@@ -36,6 +36,8 @@ type PromptInput struct {
 	Terminal *protocol.TerminalContext
 	Handoff  *protocol.Handoff
 	Origin   string
+	// Run is a command the user runs in place of a question.
+	Run string
 	// History is the session log before this turn.
 	History []protocol.SessionEvent
 }

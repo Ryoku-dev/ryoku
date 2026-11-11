@@ -57,6 +57,8 @@
 - **The folder an agent works in is indexed by itself.** Starting a session in
   a repository registers and refreshes its index, so `rashin search` answers
   there at once, by meaning too (`rashin/internal/daemon/brief.go`).
+- **Commands Ask runs show their output while they run.** One that takes more
+  than a moment unfolds and prints as it goes, not all at once at the end.
 - **Answers read more calmly.** Lines stand further apart, list items too,
   and a name written as code sits in the sentence without gaps around it. A
   command an answer offers to run is shown once, in one slab with its Run

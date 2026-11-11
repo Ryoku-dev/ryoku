@@ -156,11 +156,11 @@ func (r *runner) runCommand(ctx context.Context, call llm.ToolCall, sink core.Si
 		}
 	}
 	sink.Emit(protocol.EvTool, protocol.ToolData{Call: call.ID, Status: protocol.ToolRunning})
-	output, err := runBounded(ctx, commandTimeout, cwd, actOutput, "sh", "-c", args.Command)
+	output, _, err := watch(ctx, sink, call.ID, args.Command, cwd, commandTimeout, actOutput, false)
 	status := protocol.ToolDone
 	if err != nil {
 		status = protocol.ToolFailed
-		output = strings.TrimSpace(output + "\n" + err.Error())
+		output = strings.TrimSpace(output + "\n" + failure(err))
 	}
 	if output == "" {
 		output = i18n.T("Done, with no output.")

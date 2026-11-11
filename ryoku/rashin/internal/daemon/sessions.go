@@ -16,6 +16,7 @@ import (
 	"unicode/utf8"
 
 	i18n "ryoku-i18n"
+	"ryoku-rashin/internal/ask/command"
 	"ryoku-rashin/internal/core"
 	gitcore "ryoku-rashin/internal/git"
 	"ryoku-rashin/internal/paths"
@@ -493,6 +494,17 @@ func (m *sessionManager) prompt(ctx context.Context, p protocol.PromptParams, ha
 	if err != nil {
 		return protocol.PromptResult{}, 0, err
 	}
+	if p.Run = strings.TrimSpace(p.Run); p.Run != "" {
+		// refused before the turn exists, so the client can still send the
+		// command to a terminal
+		if s.log.Info().Kind != protocol.KindAsk {
+			return protocol.PromptResult{}, 0, protocol.Errorf(protocol.CodeUnsupported, "%s", i18n.T("Only an Ask conversation runs a command for you. Run it in a terminal."))
+		}
+		if reason, needs := command.NeedsTerminal(p.Run); needs {
+			return protocol.PromptResult{}, 0, protocol.Errorf(protocol.CodeUnsupported, "%s", i18n.Tf("This command needs a terminal: %s.", reason))
+		}
+		p.Text, p.Images = "", nil
+	}
 	for {
 		s.mu.Lock()
 		if !s.finishing {
@@ -578,7 +590,7 @@ func (m *sessionManager) startPrompt(ctx context.Context, s *managedSession, p p
 	}
 
 	before := info.LastSeq
-	if err := s.coalescer.Emit(protocol.EvUser, protocol.UserData{Text: p.Text, Images: p.Images, Terminal: p.Terminal, Handoff: handoff}); err != nil {
+	if err := s.coalescer.Emit(protocol.EvUser, protocol.UserData{Text: p.Text, Images: p.Images, Terminal: p.Terminal, Handoff: handoff, Run: p.Run}); err != nil {
 		s.mu.Lock()
 		s.running = false
 		s.cancel = nil
@@ -621,7 +633,7 @@ func (m *sessionManager) startPrompt(ctx context.Context, s *managedSession, p p
 		s.mu.Unlock()
 		return protocol.PromptResult{}, before, err
 	}
-	input := core.PromptInput{Turn: turn, Text: p.Text, Images: p.Images, Terminal: p.Terminal, Handoff: handoff, Origin: info.Origin, History: history}
+	input := core.PromptInput{Turn: turn, Text: p.Text, Images: p.Images, Terminal: p.Terminal, Handoff: handoff, Origin: info.Origin, Run: p.Run, History: history}
 	go m.runTurn(turnCtx, s, runner, input, done)
 	m.changed()
 	return protocol.PromptResult{Turn: turn}, before, nil

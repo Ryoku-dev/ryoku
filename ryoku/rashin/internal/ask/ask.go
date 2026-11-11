@@ -92,9 +92,12 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 	if model == "" {
 		model = protocol.RouteAuto
 	}
-	asked, err := userMessage(in.Text, in.Images)
-	if err != nil {
-		return core.TurnResult{Stop: protocol.StopError}, err
+	var asked llm.Message
+	if in.Run == "" {
+		var err error
+		if asked, err = userMessage(in.Text, in.Images); err != nil {
+			return core.TurnResult{Stop: protocol.StopError}, err
+		}
 	}
 	// the mode is read once a turn: what Ask was told it may do and the tools
 	// it was handed have to agree for the whole of it
@@ -106,6 +109,16 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 	cwd := paths.Home()
 	if in.Terminal != nil && in.Terminal.Cwd != "" {
 		cwd = in.Terminal.Cwd
+	}
+	if in.Run != "" {
+		told, finished, err := r.userRun(ctx, in, sink, cwd)
+		if err != nil {
+			return core.TurnResult{Stop: protocol.StopError}, err
+		}
+		if !finished {
+			return core.TurnResult{Stop: protocol.StopCancelled}, nil
+		}
+		asked = told
 	}
 	messages := []llm.Message{{Role: llm.RoleSystem, Content: r.factory.systemPrompt(settings, in.Terminal, mode)}}
 	messages = append(messages, historyMessages(in.History, historyBudgetBytes)...)
@@ -194,6 +207,15 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 				output, _ := r.act(ctx, call, sink, cwd)
 				messages = append(messages, llm.Message{
 					Role: llm.RoleTool, ToolCallID: call.ID, Name: call.Name, Content: output,
+				})
+				if ctx.Err() != nil {
+					return core.TurnResult{Stop: protocol.StopCancelled, Usage: usagePtr(usage)}, nil
+				}
+				continue
+			}
+			if call.Name == "system_query" {
+				messages = append(messages, llm.Message{
+					Role: llm.RoleTool, ToolCallID: call.ID, Name: call.Name, Content: r.query(ctx, call, sink, cwd),
 				})
 				if ctx.Err() != nil {
 					return core.TurnResult{Stop: protocol.StopCancelled, Usage: usagePtr(usage)}, nil

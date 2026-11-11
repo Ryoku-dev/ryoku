@@ -1436,3 +1436,55 @@ func TestOnlyAnAskThatSaysSoMayAct(t *testing.T) {
 		t.Fatalf("an agent session took an Ask mode: %q", agent.Mode)
 	}
 }
+
+// A command the user runs from a conversation becomes a turn of its own, so
+// it is logged, can be stopped and survives the app. What cannot be watched
+// there is refused before the turn exists, so the client can still send it to
+// a terminal: a command that asks for a password, and any command in an agent
+// session, whose harness runs its own.
+func TestARunBecomesATurnOnlyWhereItCanBeWatched(t *testing.T) {
+	ran := make(chan core.PromptInput, 1)
+	runner := &fakeRunner{prompt: func(_ context.Context, in core.PromptInput, _ core.Sink) (core.TurnResult, error) {
+		ran <- in
+		return core.TurnResult{}, nil
+	}}
+	manager, info := testManager(t, runner)
+	collector := newCollector()
+	if _, err := manager.attach(info.ID, 0, collector); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := manager.prompt(context.Background(), protocol.PromptParams{ID: info.ID, Run: "sudo pacman -Syu"}, nil); err == nil || !strings.Contains(err.Error(), "needs a terminal") {
+		t.Fatalf("a command that asks for a password was answered with %v", err)
+	}
+	if _, _, err := manager.prompt(context.Background(), protocol.PromptParams{ID: info.ID, Run: " du -sh ~ ", Text: "ignored"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case in := <-ran:
+		if in.Run != "du -sh ~" || in.Text != "" {
+			t.Fatalf("the runner was handed %#v", in)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("the run never became a turn")
+	}
+	events := waitTurnEnd(t, collector)
+	var user protocol.UserData
+	for _, event := range events {
+		if event.Kind == protocol.EvUser {
+			if err := json.Unmarshal(event.Data, &user); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if user.Run != "du -sh ~" || user.Text != "" {
+		t.Fatalf("the log holds %#v", user)
+	}
+
+	agent, err := manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := manager.prompt(context.Background(), protocol.PromptParams{ID: agent.ID, Run: "du -sh ~"}, nil); err == nil {
+		t.Fatal("an agent session took a run")
+	}
+}

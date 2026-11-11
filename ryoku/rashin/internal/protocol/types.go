@@ -162,6 +162,10 @@ type PromptParams struct {
 	Text     string           `json:"text"`
 	Images   []Attachment     `json:"images,omitempty"`
 	Terminal *TerminalContext `json:"terminal,omitempty"`
+	// Run is a command the user runs in an Ask conversation, in place of a
+	// question: it runs in the background, its output shows as it comes, and
+	// Ask answers from it.
+	Run string `json:"run,omitempty"`
 }
 
 // PromptResult names the turn that started.

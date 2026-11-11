@@ -31,7 +31,7 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
 | `session.new` | `SessionNewParams` | `SessionInfo` |
 | `session.attach` | `SessionAttachParams` | `SessionAttachResult`, then `session.event` |
 | `session.detach` | `SessionRef` | |
-| `session.prompt` | `PromptParams` | `PromptResult` |
+| `session.prompt` | `PromptParams` (text and attachments, or for Ask `run`: a command the user runs) | `PromptResult` |
 | `session.cancel` | `SessionRef` | |
 | `session.permission` | `PermissionParams` | |
 | `session.set_model` | `SetModelParams` | |
