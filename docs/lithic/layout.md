@@ -336,6 +336,16 @@ where the text shows the command, in place of the block of code, and never
 again under it. Several commands share one slab under a `title`, a `vein`
 hairline between them.
 
+**Running it stays in the conversation.** The plaque runs the command in
+place: the command stands where a question would, in `mono` on the question's
+slab, and its output arrives under one work line. A window opened elsewhere
+that shows nothing until the command ends reads as a button that did nothing.
+A second, small icon plaque opens a terminal for the reader who wants one,
+and it is the only action when the command needs a keyboard. A running line
+carries the Working flakes and, from three seconds on, the time it has taken
+in `monoSm`; while it runs its unfolded output shows its end, not its start,
+since that is where the news is.
+
 **Text can be marked.** Every paragraph, question and block of code can be
 selected with the pointer and copied, with `sel` at 60% under the marked
 words. A second press takes a word, or all of a piece of code, since that is
