@@ -359,12 +359,14 @@ func (a *App) usersDelete(args []string) int {
 			_ = a.usersRun(nil, "mv", "--", archive, target.Home)
 			return a.usersFail(fmt.Sprintf(i18n.T("Delete %s: %v"), name, err))
 		}
+		a.dropSnapshotReader(name)
 		return a.usersOK()
 	}
 	if a.isBtrfsSubvolume(target.Home) {
 		if err := a.usersRun(nil, "userdel", name); err != nil {
 			return a.usersFail(fmt.Sprintf(i18n.T("Delete %s: %v"), name, err))
 		}
+		a.dropSnapshotReader(name)
 		if err := a.usersRun(nil, "btrfs", "subvolume", "delete", target.Home); err != nil {
 			return a.usersFail(fmt.Sprintf(i18n.T("Erase the home storage: %v"), err))
 		}
@@ -373,7 +375,43 @@ func (a *App) usersDelete(args []string) int {
 	if err := a.usersRun(nil, "userdel", "--remove", name); err != nil {
 		return a.usersFail(fmt.Sprintf(i18n.T("Delete %s: %v"), name, err))
 	}
+	a.dropSnapshotReader(name)
 	return a.usersOK()
+}
+
+// snapper refuses every command, cleanup included, while ALLOW_USERS names an
+// account that no longer exists
+func (a *App) dropSnapshotReader(name string) {
+	info, err := os.Stat(a.cfg.SnapperRootConfig)
+	if err != nil || !info.Mode().IsRegular() {
+		return
+	}
+	data, err := os.ReadFile(a.cfg.SnapperRootConfig)
+	if err != nil {
+		return
+	}
+	lines := strings.Split(string(data), "\n")
+	changed := false
+	for i, line := range lines {
+		value, ok := strings.CutPrefix(strings.TrimSpace(line), "ALLOW_USERS=")
+		if !ok {
+			continue
+		}
+		readers := strings.Fields(strings.Trim(value, `"`))
+		kept := make([]string, 0, len(readers))
+		for _, reader := range readers {
+			if reader != name {
+				kept = append(kept, reader)
+			}
+		}
+		if len(kept) != len(readers) {
+			lines[i] = `ALLOW_USERS="` + strings.Join(kept, " ") + `"`
+			changed = true
+		}
+	}
+	if changed {
+		_ = replaceFile(a.cfg.SnapperRootConfig, strings.Join(lines, "\n"), info.Mode().Perm())
+	}
 }
 
 func (a *App) usersSetRole(args []string) int {

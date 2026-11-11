@@ -897,12 +897,16 @@ func reconcileSnapperAccess(checkOnly bool) recResult {
 	if snapperReadableUnprivileged() {
 		return okRes(i18n.T("snapshots are readable without sudo"))
 	}
+	contents := snapperRootConfigContents()
 	if checkOnly {
+		if _, stale := liveSnapshotReaders(configValue(contents, "ALLOW_USERS")); len(stale) > 0 {
+			return wouldRes(i18n.T("the snapshot config still allows %s, no longer an account on this system, so snapper refuses every command including cleanup"), strings.Join(stale, " ")).
+				withFix(i18n.T("drop the missing accounts from ALLOW_USERS and grant %s read access"), user)
+		}
 		return wouldRes(i18n.T("`ryoku status` cannot count snapshots without a cached sudo credential, so it can read as \"0\" on a machine that has them")).
 			withFix(i18n.T("grant %s read access (snapper ALLOW_USERS + SYNC_ACL)"), user)
 	}
 	// ALLOW_USERS is a list; writing only this user locks every other account out
-	contents := snapperRootConfigContents()
 	if contents == "" && sys.Sudo("-v") == nil {
 		contents = snapperRootConfigContents()
 	}
@@ -910,7 +914,15 @@ func reconcileSnapperAccess(checkOnly bool) recResult {
 		return failRes(i18n.T("could not read the snapper root config, so %s was not added beside the accounts it already allows"), user).
 			withFix(i18n.T("sudo snapper -c root set-config ALLOW_USERS=\"<accounts already listed> %s\" SYNC_ACL=yes"), user)
 	}
-	allow := allowUsersWith(configValue(contents, "ALLOW_USERS"), user)
+	live, stale := liveSnapshotReaders(configValue(contents, "ALLOW_USERS"))
+	if len(stale) > 0 {
+		// snapper cannot load a config naming a missing account, set-config included
+		if err := writeRootFile("/etc/snapper/configs/root", withConfigValue(contents, "ALLOW_USERS", live), "0640"); err != nil {
+			return failRes(i18n.T("dropping %s from the snapshot readers: %v"), strings.Join(stale, " "), err).
+				withFix(i18n.T("edit ALLOW_USERS in /etc/snapper/configs/root to list only existing accounts"))
+		}
+	}
+	allow := allowUsersWith(live, user)
 	if err := sys.Run("sudo", "snapper", "-c", "root", "set-config",
 		"ALLOW_USERS="+allow, "SYNC_ACL=yes"); err != nil {
 		return failRes(i18n.T("granting %s snapshot read access: %v"), user, err).
@@ -930,6 +942,26 @@ func allowUsersWith(current, user string) string {
 		}
 	}
 	return strings.Join(append(users, user), " ")
+}
+
+// accountExists asks NSS, so directory accounts count; only getent's
+// "not found" answer marks a name as gone
+var accountExists = func(name string) bool {
+	var exit *exec.ExitError
+	err := exec.Command("getent", "passwd", name).Run()
+	return !errors.As(err, &exit) || exit.ExitCode() != 2
+}
+
+func liveSnapshotReaders(current string) (string, []string) {
+	var live, stale []string
+	for _, name := range strings.Fields(current) {
+		if accountExists(name) {
+			live = append(live, name)
+		} else {
+			stale = append(stale, name)
+		}
+	}
+	return strings.Join(live, " "), stale
 }
 
 // snapperReadableUnprivileged reports whether the current user can list the root

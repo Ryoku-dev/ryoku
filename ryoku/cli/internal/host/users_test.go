@@ -233,6 +233,42 @@ func TestUsersRefusesLoggedInDelete(t *testing.T) {
 	}
 }
 
+// A deleted account left in ALLOW_USERS makes snapper refuse every command,
+// so snapshot cleanup fails for everyone until the name goes.
+func TestUsersDeleteDropsSnapshotReader(t *testing.T) {
+	passwdPath, groupPath := writeUsersFixtures(t)
+	runner := &fakeRunner{answer: func(command Command) Result {
+		if command.Name == "loginctl" {
+			return Result{Output: "1000 alice\n"}
+		}
+		return Result{}
+	}}
+	app, stdout, _ := testApp(runner, map[string]string{
+		"PKEXEC_UID":      "1000",
+		"RYOKU_HOST_INIT": "systemd",
+	})
+	app.cfg.PasswdPath, app.cfg.GroupPath = passwdPath, groupPath
+	app.cfg.UID, app.cfg.UIDSet = 0, true
+	config := filepath.Join(t.TempDir(), "root")
+	if err := os.WriteFile(config, []byte("SUBVOLUME=\"/\"\nALLOW_USERS=\"alice bob\"\nSYNC_ACL=\"yes\"\n"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	app.cfg.SnapperRootConfig = config
+	if code := app.Users([]string{"delete", "bob", "--erase-files"}); code != ExitOK {
+		t.Fatalf("delete exit = %d, output = %s", code, stdout.String())
+	}
+	body, err := os.ReadFile(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != "SUBVOLUME=\"/\"\nALLOW_USERS=\"alice\"\nSYNC_ACL=\"yes\"\n" {
+		t.Fatalf("snapper config = %q", body)
+	}
+	if info, err := os.Stat(config); err != nil || info.Mode().Perm() != 0o640 {
+		t.Fatalf("snapper config mode = %v, %v", info, err)
+	}
+}
+
 func TestUsersPasswordTravelsOnStdin(t *testing.T) {
 	passwdPath, groupPath := writeUsersFixtures(t)
 	var passwordInput string
