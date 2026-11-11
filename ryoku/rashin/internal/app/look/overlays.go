@@ -189,11 +189,15 @@ func (overlays *Overlays) Track(gtx layout.Context) {
 			overlays.press = e.Position.Round()
 		}
 	}
+	// dialogs draw deferred, after everything else; the tracker defers too so
+	// it lies above them and a press in a dialog still places that dialog's menus
+	layer := op.Record(gtx.Ops)
 	pass := pointer.PassOp{}.Push(gtx.Ops)
 	area := clip.Rect(image.Rectangle{Max: overlays.window}).Push(gtx.Ops)
 	event.Op(gtx.Ops, &overlays.tracker)
 	area.Pop()
 	pass.Pop()
+	op.Defer(gtx.Ops, layer.Stop())
 }
 
 func (overlays *Overlays) Layout(gtx layout.Context, th *Theme) {
