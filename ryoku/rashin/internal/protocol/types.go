@@ -441,18 +441,20 @@ const (
 
 // IndexInfo describes one index.
 type IndexInfo struct {
-	ID      string     `json:"id"`
-	Name    string     `json:"name"`
-	Root    string     `json:"root,omitempty"`
-	Roots   []string   `json:"roots,omitempty"`
-	Kind    string     `json:"kind"`
-	State   string     `json:"state"`
-	Files   int        `json:"files"`
-	Chunks  int        `json:"chunks"`
-	Symbols int        `json:"symbols"`
-	Vectors int        `json:"vectors"`
-	Updated *time.Time `json:"updated,omitempty"`
-	Error   string     `json:"error,omitempty"`
+	ID      string   `json:"id"`
+	Name    string   `json:"name"`
+	Root    string   `json:"root,omitempty"`
+	Roots   []string `json:"roots,omitempty"`
+	Kind    string   `json:"kind"`
+	State   string   `json:"state"`
+	Files   int      `json:"files"`
+	Chunks  int      `json:"chunks"`
+	Symbols int      `json:"symbols"`
+	Vectors int      `json:"vectors"`
+	// Languages counts the indexed files of each language, most first.
+	Languages []Count    `json:"languages,omitempty"`
+	Updated   *time.Time `json:"updated,omitempty"`
+	Error     string     `json:"error,omitempty"`
 }
 
 // IndexesResult lists indexes.

@@ -573,10 +573,11 @@ terminal, killed on release or session stop).
   prompt of an agent session carries one text block ahead of the user's own:
   that it runs inside Rashin on Ryoku, the session's folder, project and
   branch, where the Ryoku vault is and how to use it, what Rashin is, and the
-  code search commands over its folder. A session the agent loads back is not
-  briefed again; one that had to start over is. The folder's repository is
-  indexed when the session's agent is created (see Index), so the search is
-  there when the agent looks.
+  code search commands over its folder with the languages the index holds, so
+  an agent whose own index or search skill skips a language knows to come
+  here. A session the agent loads back is not briefed again; one that had to
+  start over is. The folder's repository is indexed when the session's agent
+  is created (see Index), so the search is there when the agent looks.
 - **Its own setup**: `harnesses.list` carries what a harness will run with.
   `setup` is read from the harness's own files where Rashin knows them (omp:
   the model behind each role and the thinking level, from
@@ -614,6 +615,16 @@ The index engine (`internal/index`) is pure Go.
   CSS through line-oriented extractors (definitions, their spans, signatures,
   doc comments, imports). Chunks are 40-line windows of at most 8 KiB that keep
   a symbol of up to 80 lines whole.
+- **C and C++** (`extract/cfamily.go`): comments, strings and preprocessor
+  lines are blanked first, then classes, structs, unions and enums (a typedef'd
+  anonymous one by its name), functions, `Class::method` definitions with
+  their class as parent, member declarations, `using` and typedef types,
+  constants and operators are read, through constructor initialiser lists,
+  templates and attributes. A `.h` with C++ in it is read as C++. `find`
+  prefers a definition to its declaration, and a qualified name finds its
+  bare symbol. Each index records the extractor version it was built with;
+  when an extractor improves, the next refresh rereads only that extractor's
+  languages.
 - **Redaction**: secrets (key patterns, private key blocks, `password`/`token`
   style assignments in every common syntax, credentials in URLs) are replaced
   before anything is stored, and again on the source text `peek`, `def` and

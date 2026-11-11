@@ -368,6 +368,116 @@ func TestFindAndDefBareMethodName(t *testing.T) {
 	}
 }
 
+func TestFindPrefersCppDefinitionOverHeaderDeclaration(t *testing.T) {
+	setTestXDG(t)
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, "a_service.h"), "class Service {\npublic:\n  bool start();\n};\n")
+	writeTestFile(t, filepath.Join(root, "b_service.cpp"), "#include \"a_service.h\"\n\nbool Service::start() {\n  return listen();\n}\n")
+	engine, err := Open(nil, func() protocol.Settings { return protocol.Settings{Index: protocol.IndexSettings{Semantic: false}} })
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer engine.Close()
+	info, err := engine.Add(context.Background(), protocol.IndexAddParams{Path: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"start", "Service::start"} {
+		params := protocol.NameParams{IndexRef: protocol.IndexRef{ID: info.ID}, Name: name}
+		found, err := engine.Find(context.Background(), params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(found.Symbols) != 2 || found.Symbols[0].Path != "b_service.cpp" {
+			t.Fatalf("%s found %#v", name, found.Symbols)
+		}
+		def, err := engine.Def(context.Background(), params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(def.Body, "listen()") || len(def.Others) != 1 {
+			t.Fatalf("%s def = %q others %d", name, def.Body, len(def.Others))
+		}
+	}
+}
+
+func TestExtractorUpgradeRereadsOnlyItsLanguages(t *testing.T) {
+	setTestXDG(t)
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, "one.go"), "package sample\nfunc One() {}\n")
+	writeTestFile(t, filepath.Join(root, "two.cpp"), "int two() {\n  return 2;\n}\n")
+	engine, err := Open(nil, func() protocol.Settings { return protocol.Settings{Index: protocol.IndexSettings{Semantic: false}} })
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer engine.Close()
+	info, err := engine.Add(context.Background(), protocol.IndexAddParams{Path: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := engine.storeFor(info.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, err := store.files()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var outdated []fileReplacement
+	for _, file := range files {
+		outdated = append(outdated, fileReplacement{file: file})
+	}
+	if err := store.replaceFiles(outdated); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.setMeta(map[string]string{"extractor": "0"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := engine.Refresh(context.Background(), protocol.IndexRef{ID: info.ID}); err != nil {
+		t.Fatal(err)
+	}
+	symbols, err := store.symbols()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, symbol := range symbols {
+		names = append(names, symbol.Name)
+	}
+	if strings.Join(names, ",") != "two" {
+		t.Fatalf("symbols after upgrade = %v, want only the re-read C++ file", names)
+	}
+}
+
+func TestOutlineAndPeekTakeAbsolutePathsInsideTheRoot(t *testing.T) {
+	setTestXDG(t)
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, "pkg", "item.go"), "package pkg\n\nfunc Item() int {\n\treturn 1\n}\n")
+	engine, err := Open(nil, func() protocol.Settings { return protocol.Settings{Index: protocol.IndexSettings{Semantic: false}} })
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer engine.Close()
+	info, err := engine.Add(context.Background(), protocol.IndexAddParams{Path: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := protocol.IndexRef{ID: info.ID}
+	for _, path := range []string{"pkg/item.go", filepath.Join(root, "pkg", "item.go")} {
+		outline, err := engine.Outline(context.Background(), protocol.PathParams{IndexRef: ref, Path: path})
+		if err != nil || len(outline.Symbols) != 1 || outline.Symbols[0].Name != "Item" {
+			t.Fatalf("outline %s = %#v, %v", path, outline.Symbols, err)
+		}
+		peek, err := engine.Peek(context.Background(), protocol.PeekParams{IndexRef: ref, Path: path, Start: 3, End: 3})
+		if err != nil || !strings.Contains(peek.Text, "func Item") {
+			t.Fatalf("peek %s = %#v, %v", path, peek, err)
+		}
+	}
+	if outline, _ := engine.Outline(context.Background(), protocol.PathParams{IndexRef: ref, Path: filepath.Join(filepath.Dir(root), "elsewhere.go")}); len(outline.Symbols) != 0 {
+		t.Fatalf("a path outside the root matched %#v", outline.Symbols)
+	}
+}
+
 func TestNestedGoModulesUseLongestBoundaryPrefix(t *testing.T) {
 	root := t.TempDir()
 	mod := filepath.Join(root, "mod", "go.mod")

@@ -102,15 +102,23 @@ func Detect(path string, head []byte) string {
 
 func Extract(path string, source []byte) (result Result, err error) {
 	language := Detect(path, source[:min(len(source), 512)])
+	ext := strings.ToLower(filepath.Ext(path))
 	defer func() {
 		if recover() != nil {
 			result = Result{Language: language}
 			err = nil
 		}
 	}()
-	if language == "go" {
+	header := ext == ".h" || ext == ".hh" || ext == ".hpp" || ext == ".hxx"
+	if language == "c" && header && looksCpp(source) {
+		language = "cpp"
+	}
+	switch language {
+	case "go":
 		result, err = extractGo(source)
-	} else {
+	case "c", "cpp":
+		result = extractCFamily(source, header)
+	default:
 		result = extractLines(language, source)
 	}
 	result.Language = language

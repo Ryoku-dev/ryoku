@@ -14,7 +14,6 @@ var (
 	jsExport        = regexp.MustCompile(`^\s*export\s+(?:const|let|var)\s+([A-Za-z_$][\w$]*)`)
 	jsMethod        = regexp.MustCompile(`^\s*(?:async\s+)?([A-Za-z_$][\w$]*)\s*\([^;]*\)\s*\{`)
 	rustItem        = regexp.MustCompile(`^\s*(?:pub(?:\([^)]*\))?\s+)?(fn|struct|enum|trait|type|const|static|mod)\s+([A-Za-z_]\w*)`)
-	cItem           = regexp.MustCompile(`^\s*(?:[A-Za-z_]\w*[\s*&]+)+([A-Za-z_]\w*)\s*\([^;]*\)\s*(?:const\s*)?\{`)
 	luaItem         = regexp.MustCompile(`^\s*(?:local\s+)?function\s+([A-Za-z_][\w.:]*)`)
 	shellItem       = regexp.MustCompile(`^\s*(?:function\s+)?([A-Za-z_][\w-]*)\s*(?:\(\s*\))?\s*\{?\s*$`)
 	fishItem        = regexp.MustCompile(`^\s*function\s+([A-Za-z_][\w-]*)`)
@@ -95,13 +94,6 @@ func extractLines(language string, source []byte) Result {
 					target = cut
 				}
 				result.Imports = append(result.Imports, Import{Target: target, Line: lineNumber})
-			}
-		case "c", "cpp":
-			if match := cItem.FindStringSubmatch(line); match != nil {
-				result.Symbols = append(result.Symbols, lineSymbol(lines, i, match[1], "function", "", braceEnd(lines, i), 0))
-			}
-			if strings.HasPrefix(trimmed, "#include \"") {
-				result.Imports = append(result.Imports, Import{Target: betweenQuotes(trimmed), Line: lineNumber})
 			}
 		case "lua":
 			if match := luaItem.FindStringSubmatch(line); match != nil {

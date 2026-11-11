@@ -23,8 +23,9 @@ Rashin, and the code search over its folder.
 
 **Index** covers the system and registered projects with the potion embedding
 model, which is built into the daemon. A project added to Rashin and the
-repository an agent session works in are indexed by themselves. The command
-line exposes cited `search`, `find`, `def`, `outline`, and `references` queries.
+repository an agent session works in are indexed by themselves, C and C++
+included. The command line exposes cited `search`, `find`, `def`, `outline`,
+and `references` queries.
 
 The full architecture and protocol contract is in `docs/rashin.md` in the Ryoku
 source tree.

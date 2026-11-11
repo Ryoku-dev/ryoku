@@ -37,12 +37,12 @@ func TestHumanRendererDereferencesResults(t *testing.T) {
 func TestTOONQuotesAmbiguousStrings(t *testing.T) {
 	value := struct {
 		Values []string `json:"values"`
-	}{Values: []string{"123", "true", "a,b", "main.go"}}
+	}{Values: []string{"123", "true", "a,b", "main.go", "vector<int> a, &b"}}
 	var output bytes.Buffer
 	if err := encodeTOON(&output, value); err != nil {
 		t.Fatal(err)
 	}
-	want := "values[4]: \"123\",\"true\",\"a,b\",main.go\n"
+	want := "values[5]: \"123\",\"true\",\"a,b\",main.go,\"vector<int> a, &b\"\n"
 	if output.String() != want {
 		t.Fatalf("TOON output = %q, want %q", output.String(), want)
 	}

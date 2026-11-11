@@ -391,6 +391,10 @@ func toonString(value string) string {
 			return value
 		}
 	}
-	encoded, _ := json.Marshal(value)
-	return string(encoded)
+	// HTML escaping would turn every < and & in source code into \u003c and \u0026
+	var encoded strings.Builder
+	encoder := json.NewEncoder(&encoded)
+	encoder.SetEscapeHTML(false)
+	_ = encoder.Encode(value)
+	return strings.TrimSuffix(encoded.String(), "\n")
 }

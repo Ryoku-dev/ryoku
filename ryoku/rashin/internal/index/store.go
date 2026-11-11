@@ -38,6 +38,26 @@ var fileDerivedBuckets = []struct{ index, records []byte }{{bucketSymbolsFile, b
 
 const schemaVersion = "2"
 
+// extractorVersion rises whenever an extractor finds different symbols;
+// extractorLanguages names the languages each version changed, so an
+// upgrade re-reads only those files and keeps every other file's vectors
+const extractorVersion = 1
+
+var extractorLanguages = map[int][]string{1: {"c", "cpp"}}
+
+// staleLanguages lists the languages whose files were extracted by an
+// older extractor than this one
+func staleLanguages(stored string) map[string]bool {
+	from, _ := strconv.Atoi(stored)
+	stale := map[string]bool{}
+	for version := from + 1; version <= extractorVersion; version++ {
+		for _, language := range extractorLanguages[version] {
+			stale[language] = true
+		}
+	}
+	return stale
+}
+
 type fileRecord struct {
 	Path     string `json:"path"`
 	Source   string `json:"source"`
@@ -147,6 +167,11 @@ func openStoreOnce(id string) (store *indexStore, err error) {
 			}
 			if putErr := meta.Put([]byte("full_refresh"), []byte("1")); putErr != nil {
 				return putErr
+			}
+		}
+		if len(staleLanguages(string(meta.Get([]byte("extractor"))))) > 0 && meta.Get([]byte("stat_signature")) != nil {
+			if deleteErr := meta.Delete([]byte("stat_signature")); deleteErr != nil {
+				return deleteErr
 			}
 		}
 		return meta.Put([]byte("schema"), []byte(schemaVersion))
@@ -527,6 +552,28 @@ func (s *indexStore) counts() (files, chunks, symbols, vectors int, err error) {
 	})
 	return
 }
+
+// languageCounts tallies the indexed files by language, encoded for the
+// meta bucket so status reads it without walking the files
+func (s *indexStore) languageCounts() (string, error) {
+	files, err := s.files()
+	if err != nil {
+		return "", err
+	}
+	tally := map[string]int{}
+	for _, file := range files {
+		if file.Language != "" {
+			tally[file.Language]++
+		}
+	}
+	counts := make([]protocol.Count, 0, len(tally))
+	for name, count := range tally {
+		counts = append(counts, protocol.Count{Name: name, Count: count})
+	}
+	sortCounts(counts)
+	encoded, err := json.Marshal(counts)
+	return string(encoded), err
+}
 func (s *indexStore) storedCounts() (files, chunks, symbols, vectors int, err error) {
 	err = s.view(func(tx *bbolt.Tx) error {
 		meta := tx.Bucket(bucketMeta)
@@ -578,10 +625,14 @@ func (s *indexStore) info(entry registryEntry) (protocol.IndexInfo, error) {
 	if err != nil {
 		return protocol.IndexInfo{}, err
 	}
+	var languages []protocol.Count
+	if raw, metaErr := s.meta("count_languages"); metaErr == nil && raw != "" {
+		_ = json.Unmarshal([]byte(raw), &languages)
+	}
 	root := ""
 	if len(entry.Roots) > 0 {
 		root = entry.Roots[0]
 	}
-	return protocol.IndexInfo{ID: entry.ID, Name: entry.Name, Kind: entry.Kind, Root: root, Roots: entry.Roots, State: state, Files: files, Chunks: chunks, Symbols: symbols, Vectors: vectors, Updated: updated, Error: indexError}, nil
+	return protocol.IndexInfo{ID: entry.ID, Name: entry.Name, Kind: entry.Kind, Root: root, Roots: entry.Roots, State: state, Files: files, Chunks: chunks, Symbols: symbols, Vectors: vectors, Languages: languages, Updated: updated, Error: indexError}, nil
 }
 func removeIndexFiles(id string) error { return os.RemoveAll(paths.IndexDir(id)) }

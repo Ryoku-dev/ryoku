@@ -35,7 +35,7 @@ func TestAnAgentIsToldAboutRyokuTheVaultRashinAndCodeSearch(t *testing.T) {
 	text := Agent(Session{
 		Info:     protocol.SessionInfo{Cwd: "/work/app/wt", Worktree: "/work/app/wt", Branch: "fix/login", Project: "p1"},
 		Project:  "app",
-		Index:    &protocol.IndexInfo{Root: "/work/app", Files: 412},
+		Index:    &protocol.IndexInfo{Root: "/work/app", Files: 412, Languages: []protocol.Count{{Name: "cpp", Count: 300}, {Name: "c", Count: 100}, {Name: "bash", Count: 12}}},
 		Semantic: true,
 	})
 	for _, want := range []string{
@@ -44,7 +44,8 @@ func TestAnAgentIsToldAboutRyokuTheVaultRashinAndCodeSearch(t *testing.T) {
 		"- Folder: /work/app/wt", "- Project: app", "- Branch: fix/login",
 		vault + " is this machine's map", "desktop.md", "ryoku owner <path>",
 		"Rashin is Ryoku's optional assistant", "Rashin > Settings > Providers",
-		"an index of /work/app (412 files) with search by meaning built in",
+		"an index of /work/app (412 files: 300 C++, 100 C, 12 shell) with search by meaning built in",
+		"when another code index or search skill you carry finds little here",
 		"rashin search", "rashin find <name>", "rashin references <name>",
 		"End of context from Rashin.",
 	} {
@@ -54,6 +55,14 @@ func TestAnAgentIsToldAboutRyokuTheVaultRashinAndCodeSearch(t *testing.T) {
 	}
 	if strings.Contains(text, "Worktree:") {
 		t.Error("the brief names the worktree again though it is the folder")
+	}
+	var many []protocol.Count
+	for _, name := range []string{"go", "qml", "cpp", "python", "lua", "json", "yaml", "toml"} {
+		many = append(many, protocol.Count{Name: name, Count: 2})
+	}
+	wide := Agent(Session{Info: protocol.SessionInfo{Cwd: "/work/app"}, Index: &protocol.IndexInfo{Root: "/work/app", Files: 16, Languages: many}})
+	if !strings.Contains(wide, "(16 files: 2 Go, 2 QML, 2 C++, 2 Python, 2 Lua, 2 JSON, 2 more languages)") {
+		t.Errorf("an index of many languages reads: %s", wide[strings.Index(wide, "Code search"):])
 	}
 }
 

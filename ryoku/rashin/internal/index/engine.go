@@ -3,6 +3,7 @@ package index
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -399,9 +400,16 @@ func (e *Engine) refreshEntry(ctx context.Context, entry registryEntry) (protoco
 	if err != nil {
 		return e.refreshError(store, entry, err)
 	}
+	extractor, err := store.meta("extractor")
+	if err != nil {
+		return e.refreshError(store, entry, err)
+	}
+	stale := staleLanguages(extractor)
 	known := map[string]fileRecord{}
 	for _, file := range existing {
-		known[file.Path] = file
+		if !stale[file.Language] {
+			known[file.Path] = file
+		}
 	}
 	current := map[string]bool{}
 	const replacementBatchSize = 64
@@ -453,7 +461,7 @@ func (e *Engine) refreshEntry(ctx context.Context, entry registryEntry) (protoco
 		if parseErr != nil && result.Language == "" {
 			return e.refreshError(store, entry, parseErr)
 		}
-		record := fileRecord{Path: file.Path, Source: file.Full, Hash: hash, Size: file.Size, MTime: file.MTime, Language: file.Language}
+		record := fileRecord{Path: file.Path, Source: file.Full, Hash: hash, Size: file.Size, MTime: file.MTime, Language: cmp.Or(result.Language, file.Language)}
 		replacements = append(replacements, fileReplacement{file: record, result: result})
 		batchBytes += estimatedBytes
 		if len(replacements) == replacementBatchSize {
@@ -480,9 +488,13 @@ func (e *Engine) refreshEntry(ctx context.Context, entry registryEntry) (protoco
 	if countErr != nil {
 		return e.refreshError(store, entry, countErr)
 	}
+	languages, countErr := store.languageCounts()
+	if countErr != nil {
+		return e.refreshError(store, entry, countErr)
+	}
 	now := time.Now()
 	signature := statSignature(files)
-	if err = store.setMeta(map[string]string{"schema": schemaVersion, "model": embed.ModelName, "state": "idle", "updated": now.Format(time.RFC3339Nano), "stat_signature": signature, "bm25_documents": strconv.Itoa(documents), "bm25_total_terms": strconv.Itoa(totalTerms), "count_files": strconv.Itoa(fileCount), "count_chunks": strconv.Itoa(chunkCount), "count_symbols": strconv.Itoa(symbolCount), "count_vectors": strconv.Itoa(vectorCount), "error": "", "full_refresh": ""}); err != nil {
+	if err = store.setMeta(map[string]string{"count_languages": languages, "schema": schemaVersion, "extractor": strconv.Itoa(extractorVersion), "model": embed.ModelName, "state": "idle", "updated": now.Format(time.RFC3339Nano), "stat_signature": signature, "bm25_documents": strconv.Itoa(documents), "bm25_total_terms": strconv.Itoa(totalTerms), "count_files": strconv.Itoa(fileCount), "count_chunks": strconv.Itoa(chunkCount), "count_symbols": strconv.Itoa(symbolCount), "count_vectors": strconv.Itoa(vectorCount), "error": "", "full_refresh": ""}); err != nil {
 		return e.refreshError(store, entry, err)
 	}
 	e.mu.Lock()

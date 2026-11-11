@@ -40,7 +40,7 @@ func splitIdentifier(value string) []string {
 		return nil
 	}
 	var out []string
-	for _, section := range strings.FieldsFunc(value, func(r rune) bool { return r == '_' || r == '.' }) {
+	for _, section := range strings.FieldsFunc(value, func(r rune) bool { return r == '_' || r == '.' || r == ':' }) {
 		runes := []rune(section)
 		start := 0
 		for i := 1; i < len(runes); i++ {

@@ -289,7 +289,7 @@ func (e *Engine) Impact(ctx context.Context, p protocol.PathParams) (protocol.Im
 	if err != nil {
 		return protocol.Impact{}, err
 	}
-	target := filepath.ToSlash(filepath.Clean(p.Path))
+	target := indexedPath(entry, p.Path)
 	graph := buildImportGraph(entry, files, imports)
 	direct := setKeys(graph.reverse[target])
 	sort.Strings(direct)

@@ -229,6 +229,177 @@ func TestJSONSymbolsRespectDepthSizeAndCap(t *testing.T) {
 	}
 }
 
+func TestCFamilyOutline(t *testing.T) {
+	header := `#pragma once
+#include "core/log.h"
+
+namespace app {
+
+// Serves commands over a socket.
+class [[nodiscard]] Service : public QObject {
+  Q_OBJECT
+  Q_PROPERTY(int port READ port NOTIFY portChanged)
+
+public:
+  using Handler = std::function<std::string(const std::string&)>;
+  explicit Service(QObject* parent = nullptr);
+  ~Service() override;
+  Service(const Service&) = delete;
+  Service& operator=(const Service&) = delete;
+
+  /** Starts listening. */
+  bool start();
+  int port() const noexcept { return port_; }
+  void registerHandler(const std::string& name, Handler handler, std::string usage = {});
+  static constexpr int kMaxClients = 8;
+
+signals:
+  void portChanged();
+
+private:
+  struct Entry {
+    Handler handler;
+  };
+  enum class Mode : uint8_t { Idle, Busy };
+  friend class Peer;
+  int port_ = 0;
+};
+
+class Peer;
+template <typename T> T clampTo(T value, T low, T high);
+inline constexpr int kDefaultPort = 4000;
+
+} // namespace app
+`
+	source := `#include "service.h"
+
+namespace {
+constexpr auto kTimeout = std::chrono::seconds(2);
+}
+
+bool Service::start() {
+  if (port_ < 0) {
+    return false;
+  }
+  return true;
+}
+
+void Service::registerHandler(
+    const std::string& name, Handler handler, std::string usage) {
+  handlers_[name] = {handler, usage};
+}
+
+Service::Service(QObject* parent) : QObject(parent), port_{0}, clients_{} {
+  start();
+}
+
+static int helper(int value) { return value * 2; }
+`
+	cSource := `#include "list.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct {
+  int size;
+} list_t;
+
+typedef enum { LIST_OK, LIST_FULL } list_status;
+
+/* Appends one item; the list grows by doubling. */
+list_status
+list_push (list_t *list, int item)
+{
+  const char *quote = "}{ not a brace";
+  char brace = '}';
+  return LIST_OK;
+}
+
+#ifdef __cplusplus
+}
+#endif
+`
+	type want struct {
+		name, kind, parent string
+		start, end         int
+	}
+	tests := []struct {
+		path, source string
+		language     string
+		symbols      []want
+		absent       []string
+	}{
+		{"service.h", header, "cpp", []want{
+			{"Service", "class", "", 7, 34},
+			{"Service::Handler", "type", "Service", 12, 12},
+			{"Service::Service", "method", "Service", 13, 13},
+			{"Service::~Service", "method", "Service", 14, 14},
+			{"Service::operator=", "method", "Service", 16, 16},
+			{"Service::start", "method", "Service", 19, 19},
+			{"Service::port", "method", "Service", 20, 20},
+			{"Service::registerHandler", "method", "Service", 21, 21},
+			{"Service::kMaxClients", "const", "Service", 22, 22},
+			{"Service::portChanged", "method", "Service", 25, 25},
+			{"Service::Entry", "struct", "Service", 28, 30},
+			{"Service::Mode", "enum", "Service", 31, 31},
+			{"clampTo", "function", "", 37, 37},
+			{"kDefaultPort", "const", "", 38, 38},
+		}, []string{"Peer", "Q_OBJECT", "Q_PROPERTY", "port_", "Service::Peer"}},
+		{"service.cpp", source, "cpp", []want{
+			{"kTimeout", "const", "", 4, 4},
+			{"Service::start", "method", "Service", 7, 12},
+			{"Service::registerHandler", "method", "Service", 14, 17},
+			{"Service::Service", "method", "Service", 19, 21},
+			{"helper", "function", "", 23, 23},
+		}, []string{"if", "port_", "clients_"}},
+		{"list.c", cSource, "c", []want{
+			{"list_t", "struct", "", 6, 8},
+			{"list_status", "enum", "", 10, 10},
+			{"list_push", "function", "", 13, 19},
+		}, []string{"extern", "quote", "brace"}},
+	}
+	for _, test := range tests {
+		t.Run(test.path, func(t *testing.T) {
+			result, err := Extract(test.path, []byte(test.source))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Language != test.language {
+				t.Fatalf("language = %q, want %q", result.Language, test.language)
+			}
+			byName := map[string]Symbol{}
+			for _, symbol := range result.Symbols {
+				if _, seen := byName[symbol.Name]; !seen {
+					byName[symbol.Name] = symbol
+				}
+			}
+			for _, expected := range test.symbols {
+				symbol, ok := byName[expected.name]
+				if !ok {
+					t.Fatalf("missing %s in %v", expected.name, symbolNames(result.Symbols))
+				}
+				if symbol.Kind != expected.kind || symbol.Parent != expected.parent || symbol.Start != expected.start || symbol.End != expected.end {
+					t.Fatalf("%s = %s parent %q %d-%d, want %s parent %q %d-%d", expected.name, symbol.Kind, symbol.Parent, symbol.Start, symbol.End, expected.kind, expected.parent, expected.start, expected.end)
+				}
+			}
+			for _, name := range test.absent {
+				if _, ok := byName[name]; ok {
+					t.Fatalf("%s should not be a symbol: %v", name, symbolNames(result.Symbols))
+				}
+			}
+		})
+	}
+	docs := map[string]string{"Service": "Serves commands over a socket.", "Service::start": "Starts listening.", "list_push": "Appends one item; the list grows by doubling."}
+	for path, source := range map[string]string{"service.h": header, "list.c": cSource} {
+		result, _ := Extract(path, []byte(source))
+		for _, symbol := range result.Symbols {
+			if doc, ok := docs[symbol.Name]; ok && symbol.Doc != doc {
+				t.Fatalf("%s doc = %q, want %q", symbol.Name, symbol.Doc, doc)
+			}
+		}
+	}
+}
+
 func symbolNames(symbols []Symbol) []string {
 	names := make([]string, len(symbols))
 	for index := range symbols {

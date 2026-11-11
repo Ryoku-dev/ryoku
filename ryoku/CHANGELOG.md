@@ -157,6 +157,11 @@
   installed `ryoku-desktop` still ships Ryoport, doctor leaves it with a note
   instead of a refused `pacman -U`, and a first install now says install
   (`cli/internal/apprelease/install.go`).
+- **Rashin's index reads C and C++.** Classes, structs, enums, functions and
+  `Class::method` definitions with their class, a header with C++ in it read
+  as C++, and `find` giving the definition before the declaration. An index
+  built before rereads only those files on its next refresh
+  (`rashin/internal/index/extract/cfamily.go`).
 - **A row in Rashin stops glowing when the pointer leaves the window.** The
   hover stayed lit until the pointer came back (`rashin/internal/app/look`).
 - **Ryotunes picks floating or tiled itself.** Its own setting decides on niri

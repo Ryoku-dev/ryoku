@@ -122,8 +122,8 @@ func (e *Engine) Find(ctx context.Context, p protocol.NameParams) (protocol.Symb
 	for _, record := range records {
 		name := strings.ToLower(record.Name)
 		bare := name
-		if dot := strings.LastIndexByte(bare, '.'); dot >= 0 {
-			bare = bare[dot+1:]
+		if cut := strings.LastIndexAny(bare, ".:"); cut >= 0 {
+			bare = bare[cut+1:]
 		}
 		rank := 99
 		switch {
@@ -154,6 +154,9 @@ func (e *Engine) Find(ctx context.Context, p protocol.NameParams) (protocol.Symb
 		if found[i].distance != found[j].distance {
 			return found[i].distance < found[j].distance
 		}
+		if declared, other := strings.HasSuffix(found[i].record.Signature, ";"), strings.HasSuffix(found[j].record.Signature, ";"); declared != other {
+			return other
+		}
 		if found[i].record.Path != found[j].record.Path {
 			return found[i].record.Path < found[j].record.Path
 		}
@@ -171,6 +174,23 @@ func (e *Engine) Find(ctx context.Context, p protocol.NameParams) (protocol.Symb
 }
 func protocolSymbol(item symbolRecord) protocol.Symbol {
 	return protocol.Symbol{ID: item.ID, Name: item.Name, Kind: item.Kind, Signature: item.Signature, Path: item.Path, Start: item.Start, End: item.End, Parent: item.Parent, Doc: item.Doc, Depth: item.Depth}
+}
+
+// indexedPath turns a path the CLI resolved against its working folder into
+// the root-relative form the index stores; a relative path is taken as is
+func indexedPath(entry registryEntry, path string) string {
+	if filepath.IsAbs(path) {
+		absolute := filepath.Clean(path)
+		if resolved, err := filepath.EvalSymlinks(absolute); err == nil {
+			absolute = resolved
+		}
+		for _, root := range entry.Roots {
+			if relative, err := filepath.Rel(root, absolute); err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+				return filepath.ToSlash(relative)
+			}
+		}
+	}
+	return filepath.ToSlash(filepath.Clean(path))
 }
 func containsPart(name, query string) bool {
 	for _, part := range splitIdentifier(name) {
@@ -242,7 +262,7 @@ func (e *Engine) Outline(ctx context.Context, p protocol.PathParams) (protocol.S
 	if err != nil {
 		return protocol.SymbolsResult{}, err
 	}
-	path := filepath.ToSlash(filepath.Clean(p.Path))
+	path := indexedPath(entry, p.Path)
 	var symbols []protocol.Symbol
 	for _, record := range records {
 		if record.Path == path {
@@ -340,7 +360,7 @@ func (e *Engine) Peek(ctx context.Context, p protocol.PeekParams) (protocol.Peek
 	if err != nil {
 		return protocol.PeekResult{}, err
 	}
-	path := filepath.ToSlash(filepath.Clean(p.Path))
+	path := indexedPath(entry, p.Path)
 	file, ok, err := store.file(path)
 	if err != nil {
 		return protocol.PeekResult{}, err
