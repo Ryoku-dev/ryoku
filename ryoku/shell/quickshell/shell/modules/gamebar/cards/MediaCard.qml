@@ -15,6 +15,7 @@ GameBarCard {
     id: card
 
     title: I18n.tr("Media")
+    resizable: true
 
     property bool lyricsOpen: false
 
@@ -27,12 +28,17 @@ GameBarCard {
     readonly property string artist: card.player
         ? Theme.joinArtists(card.player.trackArtists, card.player.trackArtist) : ""
     readonly property bool wantsClock: card.lyricsOpen && card.visible
+    readonly property real artSize: Math.max(64 * card.s,
+        Math.min(180 * card.s, body.height - 56 * card.s, body.width * 0.42))
+    readonly property real zoom: Math.min(1.6, Math.max(1,
+        Math.min(card.width / (358 * card.s), card.height / (235 * card.s))))
 
     onWantsClockChanged: Music.hold(card, card.wantsClock)
     Component.onCompleted: Music.hold(card, card.wantsClock)
     Component.onDestruction: Music.hold(card, false)
 
     Item {
+        id: body
         anchors.fill: parent
 
         Item {
@@ -100,7 +106,8 @@ GameBarCard {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            height: 104 * card.s
+            anchors.topMargin: Math.max(0, (parent.height - dock.height - 6 * card.s - height) / 2)
+            height: card.artSize
             spacing: 14 * card.s
             visible: opacity > 0
             opacity: card.lyricsOpen ? 0 : 1
@@ -110,8 +117,8 @@ GameBarCard {
             }
 
             Rectangle {
-                width: 104 * card.s
-                height: 104 * card.s
+                width: card.artSize
+                height: card.artSize
                 radius: GameBarLook.radiusSmall * card.s
                 color: GameBarLook.raised
                 clip: true
@@ -119,8 +126,8 @@ GameBarCard {
                 Image {
                     anchors.fill: parent
                     source: card.art
-                    sourceSize.width: Math.ceil(104 * card.s)
-                    sourceSize.height: Math.ceil(104 * card.s)
+                    sourceSize.width: Math.ceil(card.artSize)
+                    sourceSize.height: Math.ceil(card.artSize)
                     asynchronous: true
                     fillMode: Image.PreserveAspectCrop
                     visible: card.art.length > 0
@@ -137,7 +144,7 @@ GameBarCard {
             }
 
             Column {
-                width: parent.width - 104 * card.s - 14 * card.s
+                width: parent.width - card.artSize - 14 * card.s
                 spacing: 4 * card.s
                 anchors.verticalCenter: parent.verticalCenter
 
@@ -171,7 +178,7 @@ GameBarCard {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.bottom: transportRow.top
+            anchors.bottom: dock.top
             anchors.leftMargin: 12 * card.s
             anchors.rightMargin: 12 * card.s
             anchors.topMargin: 4 * card.s
@@ -183,7 +190,7 @@ GameBarCard {
             dim: GameBarLook.onLayer
             accent: GameBarLook.accent
             face: GameBarLook.face
-            base: GameBarLook.smallie
+            base: Math.round(GameBarLook.smallie * card.zoom)
             align: Text.AlignHCenter
             glow: true
             emptyText: card.present ? "" : I18n.tr("Nothing playing")
@@ -223,40 +230,114 @@ GameBarCard {
             }
         }
 
-        Row {
-            id: transportRow
+        Item {
+            id: dock
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom
-            spacing: 8 * card.s
+            width: transportRow.width + 22 * card.s
+            height: 48 * card.s
 
-            GameBarTransport {
-                s: card.s
-                glyph: "prev"
-                available: card.present && card.player.canGoPrevious
-                onTapped: if (card.player) card.player.previous()
+            Rectangle {
+                anchors.fill: parent
+                radius: height / 2
+                color: card.lyricsOpen
+                    ? GameBarLook.alpha(GameBarLook.content, 0.24)
+                    : GameBarLook.alpha(GameBarLook.raised, 0.55)
+
+                Behavior on color {
+                    ColorAnimation { duration: Motion.dur(180) }
+                }
             }
-            GameBarTransport {
-                s: card.s
-                glyph: Media.playing ? "pause" : "play"
-                available: card.present
-                onTapped: Media.toggle()
-            }
-            GameBarTransport {
-                s: card.s
-                glyph: "next"
-                available: card.present && card.player.canGoNext
-                onTapped: if (card.player) card.player.next()
-            }
+
             Item {
-                width: 30 * card.s
-                height: 40 * card.s
+                id: dockGlass
+                anchors.fill: parent
+                visible: opacity > 0
+                opacity: card.lyricsOpen ? 1 : 0
+                layer.enabled: dockGlass.visible && card.art.length > 0
+                layer.effect: MultiEffect {
+                    maskEnabled: true
+                    maskSource: dockMask
+                    autoPaddingEnabled: false
+                    blurEnabled: true
+                    blur: 1
+                    blurMax: 64
+                    saturation: 0.7
+                    brightness: 0.03
+                }
 
-                GameBarIconButton {
-                    anchors.centerIn: parent
+                Behavior on opacity {
+                    NumberAnimation { duration: Motion.dur(220); easing.type: Easing.OutCubic }
+                }
+
+                Image {
+                    x: glass.x - dock.x
+                    y: glass.y - dock.y
+                    width: glass.width
+                    height: glass.height
+                    source: card.art
+                    sourceSize.width: 512
+                    sourceSize.height: 512
+                    asynchronous: true
+                    cache: true
+                    fillMode: Image.PreserveAspectCrop
+                    visible: card.art.length > 0
+                }
+            }
+
+            Rectangle {
+                id: dockMask
+                x: dockGlass.x
+                y: dockGlass.y
+                width: dockGlass.width
+                height: dockGlass.height
+                radius: height / 2
+                visible: false
+                layer.enabled: dockGlass.visible
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                radius: height / 2
+                color: "transparent"
+                border.width: 1
+                border.color: GameBarLook.alpha(Theme.onSurface, card.lyricsOpen ? 0.26 : 0.10)
+            }
+
+            Row {
+                id: transportRow
+                anchors.centerIn: parent
+                spacing: 8 * card.s
+
+                GameBarTransport {
                     s: card.s
-                    glyph: "text"
-                    toggled: card.lyricsOpen
-                    onClicked: card.lyricsOpen = !card.lyricsOpen
+                    glyph: "prev"
+                    available: card.present && card.player.canGoPrevious
+                    onTapped: if (card.player) card.player.previous()
+                }
+                GameBarTransport {
+                    s: card.s
+                    glyph: Media.playing ? "pause" : "play"
+                    available: card.present
+                    onTapped: Media.toggle()
+                }
+                GameBarTransport {
+                    s: card.s
+                    glyph: "next"
+                    available: card.present && card.player.canGoNext
+                    onTapped: if (card.player) card.player.next()
+                }
+                Item {
+                    width: 30 * card.s
+                    height: 40 * card.s
+
+                    GameBarIconButton {
+                        anchors.centerIn: parent
+                        s: card.s
+                        glyph: "text"
+                        toggled: card.lyricsOpen
+                        onClicked: card.lyricsOpen = !card.lyricsOpen
+                    }
                 }
             }
         }

@@ -60,7 +60,7 @@ Item {
         Column {
             id: column
             width: viewport.width
-            spacing: 6 * sheet.s
+            spacing: sheet.base * 0.4 * sheet.s
 
             // the sung line's centre, pulled onto the viewport's middle rule.
             readonly property real target: {

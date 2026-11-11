@@ -79,7 +79,8 @@ PanelWindow {
 
     // Only cards that can resize carry limits; the rest keep their drawn size.
     readonly property var cardLimits: ({
-        voice: { minW: 300, minH: 280, maxW: 640, maxH: 640 }
+        voice: { minW: 300, minH: 280, maxW: 640, maxH: 640 },
+        media: { minW: 300, minH: 200, maxW: 640, maxH: 560 }
     })
 
     function glyphFor(id) {
