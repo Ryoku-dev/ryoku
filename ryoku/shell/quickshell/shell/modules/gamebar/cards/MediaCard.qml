@@ -8,9 +8,8 @@ import "../../../components"
 import Ryoku.Ui.Singletons
 import "../look"
 
-// Media: the one now-playing pick the whole shell shares, with transport. The
-// controls are 40px borderless buttons and the art sits on a 12px tile, as in
-// the overlay's media pane.
+// Media: the one now-playing pick the whole shell shares, with its cover,
+// transport and a lyric view that follows the track.
 GameBarCard {
     id: card
 
@@ -27,7 +26,9 @@ GameBarCard {
     }
     readonly property string artist: card.player
         ? Theme.joinArtists(card.player.trackArtists, card.player.trackArtist) : ""
-    readonly property bool wantsClock: card.lyricsOpen && card.visible
+    // rests while the surface is unmapped for a shot or the session is dark
+    readonly property bool wantsClock: card.lyricsOpen
+        && (!card.host || (card.host.live && !card.host.suppressed)) && !Presence.dark
     readonly property real artSize: Math.max(64 * card.s,
         Math.min(180 * card.s, body.height - 56 * card.s, body.width * 0.42))
     readonly property real zoom: Math.min(1.6, Math.max(1,
