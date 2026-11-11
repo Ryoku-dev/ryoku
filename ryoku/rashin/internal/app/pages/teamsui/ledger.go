@@ -51,6 +51,8 @@ func ActivitySentence(entry protocol.Activity) string {
 		words = i18n.Tf("%s asked you: %s", actor, target)
 	case "approval.approve":
 		words = i18n.Tf("%s approved %s", actor, target)
+	case "approval.choose":
+		words = i18n.Tf("%s chose “%s” for %s", actor, entry.Choice, target)
 	case "approval.deny":
 		words = i18n.Tf("%s said no to %s", actor, target)
 	case "approval.expire":

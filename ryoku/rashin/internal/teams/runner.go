@@ -196,7 +196,7 @@ func (s *Service) retryTask(_ context.Context, p protocol.TeamTaskRetryParams) (
 		t.Brief += "\n\n" + i18n.Tf("When you ran this before: %s", note)
 	}
 	t.Status, t.Waiting, t.Report, t.Reason = protocol.TaskReady, "", nil, ""
-	t.Session, t.Started, t.Ended, t.Read = "", nil, nil, false
+	t.Session, t.Started, t.Ended, t.Read, t.Steps = "", nil, nil, false, 0
 	// a run again takes its member's engine as it is now
 	t.Harness, t.Model, t.Options = "", "", nil
 	t.Updated = s.now()
@@ -479,9 +479,16 @@ func (s *Service) live(task, session string) bool {
 }
 
 // endTask finishes an open task once: change sets how it ended, the run is
-// dropped so its token answers no more, and the session is let go once its
-// turn is over. It reports false when the task had already ended.
+// dropped so its token answers no more, the steps its session took are kept,
+// and the session is let go once its turn is over. It reports false when the
+// task had already ended.
 func (s *Service) endTask(id string, change func(*protocol.TeamTask)) (protocol.TeamTask, bool) {
+	// the session is asked before the lock, as engage does
+	var steps int
+	if t, ok := s.state.task(id); ok && t.Session != "" && s.sessions != nil {
+		info, _ := s.sessions.Info(t.Session)
+		steps = info.Steps
+	}
 	s.mu.Lock()
 	t, ok := s.state.task(id)
 	if !ok || !taskIsOpen(t) {
@@ -490,7 +497,7 @@ func (s *Service) endTask(id string, change func(*protocol.TeamTask)) (protocol.
 	}
 	change(&t)
 	now := s.now()
-	t.Waiting, t.Ended, t.Updated = "", &now, now
+	t.Waiting, t.Ended, t.Updated, t.Steps = "", &now, now, steps
 	if err := s.state.putTask(t); err != nil {
 		s.mu.Unlock()
 		return t, false
@@ -780,13 +787,12 @@ func runToken() string {
 	return hex.EncodeToString(b[:])
 }
 
-// taskTitle is the given title, or the brief's first line cut to 80 runes.
+// taskTitle is the given title, or protocol.BriefTitle of the brief.
 func taskTitle(title, brief string) string {
 	if title = strings.TrimSpace(title); title != "" {
 		return title
 	}
-	line, _, _ := strings.Cut(strings.TrimSpace(brief), "\n")
-	return clipRunes(strings.TrimSpace(line), 80)
+	return protocol.BriefTitle(brief)
 }
 
 // clipRunes cuts text to at most n runes.

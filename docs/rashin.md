@@ -981,7 +981,9 @@ such as effort.
   goal machinery (see Agent, Goals): the goal is the task's brief and the turn
   budget is the team's turns per task. It ends when the agent
   calls `report`; the report lands in the Inbox unread. A task that cannot
-  finish ends blocked and says why.
+  finish ends blocked and says why. A task given no title takes its brief's
+  first line, cut at a word to at most 80 characters and ended with "…"
+  (`protocol.BriefTitle`, shared by the daemon and the app).
 - States use the Work board's words: ready (waiting for room), working,
   needs you, done, blocked, stopped. A task came from you, a routine or the
   lead. Stop, retry with a note and delete are the user's.
@@ -996,7 +998,8 @@ such as effort.
 - While a member works, its session carries when the turn started and how
   many tool calls it made (`SessionInfo.turnStarted`, `steps`), so the crew
   chart, the Inbox, the Work board and the task's page show how long it has
-  worked and how many steps it took.
+  worked and how many steps it took. A task keeps its session's count when it
+  ends (`TeamTask.steps`), so "Worked for ..." still says it after a restart.
 - The tools come from `rashin mcp`, which the daemon starts with the team's
   environment (`RASHIN_TEAM`, `RASHIN_TEAM_TOKEN`, `RASHIN_TEAM_LEAD`):
   `report`, `ask_user`, `credentials`, `http_request`, `send_mail`,
@@ -1022,8 +1025,10 @@ such as effort.
   Always is offered for one credential on one host for one team, or one mail
   recipient for one team.
 - **Choice questions**: `ask_user` with `options` (2 to 6) asks the user to
-  pick one, by click or by its letter, or none of them. The agent hears "The
-  user chose: <option>" and any note.
+  pick one, by click or by its letter, or none of them. On the task's page the
+  waiting choice takes its letter while no field holds the keyboard; on the
+  Inbox the card has to hold it. The agent hears "The user chose: <option>"
+  and any note, and the ledger records `approval.choose` with the option.
 - An approval nobody answers expires as denied after `teams.approvalHours`
   (default 24). A budget card does not expire: the team stays paused until it
   is answered.

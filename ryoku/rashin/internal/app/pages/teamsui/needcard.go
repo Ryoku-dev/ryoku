@@ -2,6 +2,7 @@ package teamsui
 
 import (
 	"image"
+	"slices"
 	"sort"
 	"strings"
 
@@ -40,6 +41,8 @@ type NeedCards struct {
 	answers map[string]answer
 	// the oldest open need, whose card carries the page's one gold action
 	urgent string
+	// on a task page, the oldest open choice, which takes its keys while nothing else holds the keyboard
+	keyed string
 }
 
 type needCard struct {
@@ -65,6 +68,15 @@ const (
 type answer struct {
 	line string
 	need Need
+}
+
+// "Chose B · beta": the letter it was picked by and the option
+func choseLine(options []string, choice string) string {
+	index := slices.Index(options, choice)
+	if index < 0 || index >= len(choiceLetters) {
+		return i18n.Tf("Chose %s", choice)
+	}
+	return i18n.Tf("Chose %s · %s", choiceLetters[index:index+1], choice)
 }
 
 // NeedKey names a need: its approval, or its task when the task itself waits.
@@ -100,11 +112,17 @@ func (c *NeedCards) Shown(needs []Need) []Need {
 		}
 	}
 	sort.SliceStable(shown, func(i, j int) bool { return shown[i].At.Before(shown[j].At) })
-	c.urgent = ""
+	c.urgent, c.keyed = "", ""
 	for _, need := range shown {
-		if _, done := c.answers[NeedKey(need)]; !done {
-			c.urgent = NeedKey(need)
-			break
+		key := NeedKey(need)
+		if _, done := c.answers[key]; done {
+			continue
+		}
+		if c.urgent == "" {
+			c.urgent = key
+		}
+		if c.keyed == "" && c.Task != "" && need.Approval != nil && len(need.Approval.Options) > 0 {
+			c.keyed = key
 		}
 	}
 	return shown
@@ -211,8 +229,8 @@ func (c *NeedCards) approvalField(gtx layout.Context, e *env.Env, snapshot state
 	}
 	plaques = append(plaques, &card.deny)
 	if choice {
-		if index, ok := pickedChoice(gtx, card, len(options)); ok {
-			line := i18n.Tf("Chose %s · %s", choiceLetters[index:index+1], options[index])
+		if index, ok := pickedChoice(gtx, card, len(options), NeedKey(need) == c.keyed); ok {
+			line := choseLine(options, options[index])
 			params := protocol.ApprovalDecideParams{ID: approval.ID, Decision: protocol.DecideChoose, Note: note, Choice: options[index]}
 			c.send(e, need, params, line)
 			// the folded card no longer answers to keys
@@ -492,8 +510,8 @@ func layoutChoice(gtx layout.Context, th *look.Theme, click *kit.Click, letter, 
 	})
 }
 
-// the option a click on its row picked, or its letter or number while the card holds the keys
-func pickedChoice(gtx layout.Context, card *needCard, count int) (int, bool) {
+// the option a click on its row picked, or its letter or number while the card holds the keys or, free on a task page, while nothing does
+func pickedChoice(gtx layout.Context, card *needCard, count int, free bool) (int, bool) {
 	picked, ok := 0, false
 	for index := range count {
 		if card.choices[index].Clicked(gtx) && !ok {
@@ -501,12 +519,16 @@ func pickedChoice(gtx layout.Context, card *needCard, count int) (int, bool) {
 		}
 	}
 	tag := &card.focused
+	keys := event.Tag(tag)
+	if free && gtx.Focused(nil) {
+		keys = nil
+	}
 	filters := make([]event.Filter, 0, 2+2*count)
 	filters = append(filters, key.FocusFilter{Target: tag}, pointer.Filter{Target: tag, Kinds: pointer.Press})
 	for index := range count {
 		filters = append(filters,
-			key.Filter{Focus: tag, Name: key.Name(choiceLetters[index : index+1]), Optional: key.ModShift},
-			key.Filter{Focus: tag, Name: key.Name(choiceDigits[index : index+1])},
+			key.Filter{Focus: keys, Name: key.Name(choiceLetters[index : index+1]), Optional: key.ModShift},
+			key.Filter{Focus: keys, Name: key.Name(choiceDigits[index : index+1])},
 		)
 	}
 	for {

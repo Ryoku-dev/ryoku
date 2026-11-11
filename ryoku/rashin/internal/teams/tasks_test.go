@@ -51,6 +51,39 @@ func TestATaskRunsAsASessionAndEndsWithItsReport(t *testing.T) {
 	}
 }
 
+func TestAFinishedTaskKeepsItsSteps(t *testing.T) {
+	h := newHarness(t, 0)
+	team := h.newTeam(t, "Research", nil)
+	created := h.newTask(t, team, "Count the files.")
+	ref := h.agent(t, created.ID)
+	steps := func(count int) protocol.SessionInfo {
+		h.sessions.mu.Lock()
+		defer h.sessions.mu.Unlock()
+		info := h.sessions.infos[ref.Session]
+		info.Steps = count
+		h.sessions.infos[ref.Session] = info
+		return info
+	}
+	steps(4)
+	do[protocol.AgentAnswer](t, h, protocol.MTeamsAgentReport, protocol.AgentReportParams{AgentRef: ref, Title: "Files", Body: "Twelve."})
+	if done := h.task(t, created.ID); done.Steps != 4 {
+		t.Fatalf("the reported task kept %d steps, want the session's 4", done.Steps)
+	}
+	// the turn that reported goes on to its last words, and those steps count too
+	h.s.AfterTurn(context.Background(), steps(5), protocol.TurnEndData{})
+	if done := h.task(t, created.ID); done.Steps != 5 {
+		t.Fatalf("after its last turn the task kept %d steps, want 5", done.Steps)
+	}
+	// a restart reads the task back from its file
+	reopened, err := openState(h.dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored, _ := reopened.task(created.ID); stored.Steps != 5 {
+		t.Fatalf("the stored task keeps %d steps, want 5", stored.Steps)
+	}
+}
+
 func TestStopRetryAndDeleteATask(t *testing.T) {
 	h := newHarness(t, 0)
 	team := h.newTeam(t, "Ops", nil)

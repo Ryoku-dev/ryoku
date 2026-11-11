@@ -292,12 +292,8 @@ func (f *EngineForm) modelSelect(gtx layout.Context, e *env.Env, list []protocol
 	choices := []look.SelectOption{{Label: first}}
 	found := f.modelID == ""
 	for _, choice := range list {
-		label := choice.Name
-		if label == "" {
-			label = choice.ID
-		}
 		ids = append(ids, choice.ID)
-		choices = append(choices, look.SelectOption{Label: label, Detail: choice.Description})
+		choices = append(choices, env.ChoiceOption(choice))
 		found = found || choice.ID == f.modelID
 	}
 	if !found {

@@ -145,11 +145,12 @@ func (s *Service) decideApproval(ctx context.Context, p protocol.ApprovalDecideP
 	if err != nil {
 		return protocol.Approval{}, err
 	}
-	if p.Decision == protocol.DecideChoose {
-		rec.Choice = p.Choice
-	}
 	action := "approval.approve"
-	if status == protocol.ApprovalDenied {
+	switch {
+	case p.Decision == protocol.DecideChoose:
+		rec.Choice = p.Choice
+		action = "approval.choose"
+	case status == protocol.ApprovalDenied:
 		action = "approval.deny"
 	}
 	rec, err = s.settleApproval(ctx, rec, p, action, "you", protocol.InitiatorYou)
@@ -197,7 +198,7 @@ func (s *Service) settleApproval(ctx context.Context, rec approvalRecord, p prot
 		detail = rec.Result
 	}
 	s.record(protocol.Activity{
-		Actor: actor, Action: action, Target: rec.Title, OK: failed == nil, Detail: detail,
+		Actor: actor, Action: action, Target: rec.Title, OK: failed == nil, Detail: detail, Choice: rec.Choice,
 		Team: rec.Team, Task: rec.Task, Initiator: initiator,
 	})
 	s.emitApproval(rec.Approval)
@@ -212,14 +213,15 @@ func (s *Service) settleApproval(ctx context.Context, rec approvalRecord, p prot
 	return rec, saveErr
 }
 
-// approvalDetail says in one sentence how an approval was answered.
+// approvalDetail says in one sentence how an approval was answered. A
+// choice's entry names the option itself, so its detail is the user's note.
 func approvalDetail(rec approvalRecord) string {
 	switch {
 	case rec.Status == protocol.ApprovalExpired:
 		_, detail := expiryWords(askedHours(rec))
 		return detail
 	case rec.Decision == protocol.DecideChoose:
-		return i18n.Tf("Chose: %s", rec.Choice)
+		return rec.Note
 	case rec.Decision == protocol.DecideAlways:
 		return i18n.Tf("Allowed from now on: %s", rec.Always)
 	case rec.Decision == protocol.DecideProvide:

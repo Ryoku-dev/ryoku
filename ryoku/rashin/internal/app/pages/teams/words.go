@@ -69,9 +69,13 @@ func enginesCaption(snapshot appstate.Snapshot, members []protocol.Member) strin
 	return i18n.Tf("%d engines: %s", len(engines), strings.Join(names, ", "))
 }
 
-// the header's fact of what a team runs on: three harnesses at most, then how many more
+// the header's fact of what a team runs on: the one engine whole, else three harnesses at most, then how many more
 func runsFact(snapshot appstate.Snapshot, members []protocol.Member) string {
-	names := engineHarnesses(teamEngines(snapshot, members))
+	engines := teamEngines(snapshot, members)
+	if len(engines) == 1 {
+		return i18n.Tf("Runs %s", engines[0].Line())
+	}
+	names := engineHarnesses(engines)
 	switch len(names) {
 	case 0:
 		return ""

@@ -474,10 +474,7 @@ func (s *server) createTeamTask(p protocol.TeamTaskCreateParams) (protocol.TeamT
 	}
 	title := strings.TrimSpace(p.Title)
 	if title == "" {
-		title = strings.TrimSpace(strings.SplitN(brief, "\n", 2)[0])
-		if runes := []rune(title); len(runes) > 80 {
-			title = string(runes[:80])
-		}
+		title = protocol.BriefTitle(brief)
 	}
 	model := strings.TrimSpace(p.Model)
 	if !protocol.ValidEngineModel(model) || !protocol.ValidEngineOptions(p.Options) {

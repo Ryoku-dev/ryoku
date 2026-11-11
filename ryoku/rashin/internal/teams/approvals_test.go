@@ -204,14 +204,17 @@ func TestAChoiceQuestionTakesOneOfItsOptions(t *testing.T) {
 	if note := h.sessions.notes(ref.Session)[0]; note != "The user chose: Rebase\nTheir note: Keep the history tidy." {
 		t.Fatalf("the agent was told %q", note)
 	}
-	var detail string
+	var entry protocol.Activity
 	for _, a := range h.ledger(t) {
 		if a.Action == "approval.approve" {
-			detail = a.Detail
+			t.Fatalf("a choice was recorded as approved: %+v", a)
+		}
+		if a.Action == "approval.choose" {
+			entry = a
 		}
 	}
-	if detail != "Chose: Rebase" {
-		t.Fatalf("the ledger says %q", detail)
+	if entry.Choice != "Rebase" || entry.Target != "How to merge" || entry.Detail != "Keep the history tidy." {
+		t.Fatalf("the ledger records the choice as %+v", entry)
 	}
 }
 

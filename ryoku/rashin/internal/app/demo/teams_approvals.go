@@ -64,11 +64,11 @@ func (s *server) settleApproval(index int, decision, note string) {
 	case protocol.DecideAlways:
 		detail = approval.Always
 	case protocol.DecideChoose:
-		detail = i18n.Tf("Chose: %s", approval.Choice)
+		action, detail = "approval.choose", note
 	case protocol.DecideProvide:
 		detail = i18n.T("Added the value to the vault.")
 	}
-	s.record(protocol.Activity{Action: action, Target: approval.Title, OK: true, Team: approval.Team, Task: approval.Task, Detail: detail})
+	s.record(protocol.Activity{Action: action, Target: approval.Title, OK: true, Team: approval.Team, Task: approval.Task, Detail: detail, Choice: approval.Choice})
 	s.tellTeams(protocol.EvtApproval, *approval)
 }
 

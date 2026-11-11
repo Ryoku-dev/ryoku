@@ -71,7 +71,8 @@ func (tip *Tip) Layout(
 	event.Op(gtx.Ops, &tip.tag)
 	area.Pop()
 	pass.Pop()
-	if tip.pendingRect && sawPosition && overlays != nil {
+	// the overlay tracker reads the pointer after every control, so a move is placed a frame later
+	if tip.pendingRect && !sawPosition && overlays != nil {
 		minimum := overlays.Pointer().Sub(tip.local)
 		tip.rect = image.Rectangle{Min: minimum, Max: minimum.Add(dimensions.Size)}
 		tip.pendingRect = false

@@ -99,3 +99,20 @@ func waitIdle(t *testing.T, manager *sessionManager, id string) protocol.Session
 	t.Fatalf("the turn never ended: %+v", info)
 	return info
 }
+
+// A preview keeps the end of what was said; cut inside a word, it opens on the next one.
+func TestAPreviewNeverOpensOnHalfAWord(t *testing.T) {
+	said := "I'll help. I've asked you to choose between the three words (alpha, beta, or gamma). Please select one, and I'll write it to choice.txt and report back."
+	if got, want := lastRunes(said, 141), said[len(said)-141:]; got != want {
+		t.Errorf("a cut at a word's start = %q, want %q", got, want)
+	}
+	if got, want := lastRunes(said, 140), "asked you to choose between the three words (alpha, beta, or gamma). Please select one, and I'll write it to choice.txt and report back."; got != want {
+		t.Errorf("a cut inside a word = %q, want %q", got, want)
+	}
+	if got := lastRunes("short", 140); got != "short" {
+		t.Errorf("text that fits = %q, want it whole", got)
+	}
+	if got := lastRunes("abcdefghij", 4); got != "ghij" {
+		t.Errorf("a tail with no blank = %q, want it as cut", got)
+	}
+}

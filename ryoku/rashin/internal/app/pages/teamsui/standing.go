@@ -49,6 +49,8 @@ func ApprovalOutcome(approval protocol.Approval) (string, palette.Tone) {
 		return i18n.T("Always allowed"), palette.Alive
 	case protocol.DecideProvide:
 		return i18n.T("Added to the vault"), palette.Alive
+	case protocol.DecideChoose:
+		return choseLine(approval.Options, approval.Choice), palette.Alive
 	}
 	return i18n.T("Approved once"), palette.Alive
 }

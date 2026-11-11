@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	i18n "ryoku-i18n"
@@ -336,12 +337,24 @@ func runnerState(r core.Runner) json.RawMessage {
 	return r.State()
 }
 
+// lastRunes keeps the last n runes of s. When that cuts a word in two, the
+// tail starts at the next word instead, so a preview never opens on a
+// fragment such as "'ve asked" for "I've asked".
 func lastRunes(s string, n int) string {
 	if utf8.RuneCountInString(s) <= n {
 		return s
 	}
 	r := []rune(s)
-	return string(r[len(r)-n:])
+	tail := r[len(r)-n:]
+	if unicode.IsSpace(r[len(r)-n-1]) {
+		return string(tail)
+	}
+	for index, letter := range tail {
+		if unicode.IsSpace(letter) {
+			return strings.TrimLeftFunc(string(tail[index:]), unicode.IsSpace)
+		}
+	}
+	return string(tail)
 }
 
 func toolStatusWord(status string) string {
@@ -724,13 +737,10 @@ func (m *sessionManager) startPrompt(ctx context.Context, s *managedSession, p p
 	return protocol.PromptResult{Turn: turn}, before, nil
 }
 
+// questionTitle names a session after its first question: every line joined,
+// clipped at a word as a task's title is.
 func questionTitle(question string) string {
-	title := strings.Join(strings.Fields(question), " ")
-	runes := []rune(title)
-	if len(runes) > 60 {
-		return string(runes[:57]) + "..."
-	}
-	return title
+	return protocol.ClipWords(strings.Join(strings.Fields(question), " "), 60)
 }
 
 func (m *sessionManager) runTurn(ctx context.Context, s *managedSession, runner core.Runner, input core.PromptInput, done chan struct{}) {

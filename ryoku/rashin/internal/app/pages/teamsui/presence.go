@@ -122,18 +122,23 @@ func Worked(snapshot state.Snapshot, task protocol.TeamTask) (string, palette.To
 	if session == "" && len(task.Sessions) > 0 {
 		session = task.Sessions[len(task.Sessions)-1]
 	}
-	info := snapshot.Sessions[session]
+	info, loaded := snapshot.Sessions[session]
 	if task.Status == protocol.TaskBlocked || info.Error != "" {
 		tone = palette.Failed
 	}
 	if task.Started == nil {
 		return i18n.T("How it went"), tone
 	}
+	// after a restart the session is not loaded, and the task kept its count
+	steps := info.Steps
+	if !loaded {
+		steps = task.Steps
+	}
 	worked := span(Ended(task).Sub(*task.Started), true)
-	if info.Steps == 0 {
+	if steps == 0 {
 		return i18n.Tf("Worked for %s", worked), tone
 	}
-	return i18n.Tf("Worked for %s · %s", worked, stepsWord(info.Steps)), tone
+	return i18n.Tf("Worked for %s · %s", worked, stepsWord(steps)), tone
 }
 
 // how a member at work shows wherever its work is watched; it keeps the caption

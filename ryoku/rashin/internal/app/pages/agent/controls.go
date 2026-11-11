@@ -1,8 +1,6 @@
 package agent
 
 import (
-	"strings"
-
 	"gioui.org/layout"
 	"gioui.org/widget"
 
@@ -50,15 +48,7 @@ type extraChoice struct {
 func listOf(choices []protocol.Choice, current string) choiceList {
 	list := choiceList{options: make([]look.SelectOption, len(choices)), ids: make([]string, len(choices)), selected: -1}
 	for index, choice := range choices {
-		name, detail := choice.Name, choice.Description
-		if name == "" {
-			name = choice.ID
-		}
-		// two providers offer a model under one name and the id tells them apart, an id that only repeats the name says nothing
-		if detail == "" && !strings.EqualFold(choice.ID, name) {
-			detail = choice.ID
-		}
-		list.options[index], list.ids[index] = look.SelectOption{Label: name, Detail: detail}, choice.ID
+		list.options[index], list.ids[index] = env.ChoiceOption(choice), choice.ID
 		if choice.ID == current {
 			list.selected = index
 		}

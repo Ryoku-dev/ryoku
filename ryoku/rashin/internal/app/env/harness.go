@@ -32,6 +32,18 @@ func FactsSentence(facts []protocol.HarnessFact) string {
 	return strings.Join(parts, ", ")
 }
 
+// two providers offer a model under one name and the id tells them apart, an id that only repeats the name says nothing
+func ChoiceOption(choice protocol.Choice) look.SelectOption {
+	name, detail := choice.Name, choice.Description
+	if name == "" {
+		name = choice.ID
+	}
+	if detail == "" && !strings.EqualFold(choice.ID, name) {
+		detail = choice.ID
+	}
+	return look.SelectOption{Label: name, Detail: detail}
+}
+
 // each fact as a quiet label and its value in mono, wrapping when the row is full
 func LayoutFacts(gtx layout.Context, th *look.Theme, facts []protocol.HarnessFact) layout.Dimensions {
 	return look.Flow{Gap: 13, LineGap: 4}.Layout(gtx, len(facts), func(gtx layout.Context, index int) layout.Dimensions {

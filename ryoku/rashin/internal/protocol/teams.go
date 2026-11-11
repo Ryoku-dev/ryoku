@@ -338,10 +338,14 @@ type TeamTask struct {
 	Usage    TokenUsage `json:"usage"`
 	Turns    int        `json:"turns"`
 	MaxTurns int        `json:"maxTurns"`
-	Created  time.Time  `json:"created"`
-	Updated  time.Time  `json:"updated"`
-	Started  *time.Time `json:"started,omitempty"`
-	Ended    *time.Time `json:"ended,omitempty"`
+	// Steps counts the tool calls of the last turn of the session that ended
+	// the task, kept once it ended so how it went still reads after the
+	// session is gone.
+	Steps   int        `json:"steps,omitempty"`
+	Created time.Time  `json:"created"`
+	Updated time.Time  `json:"updated"`
+	Started *time.Time `json:"started,omitempty"`
+	Ended   *time.Time `json:"ended,omitempty"`
 	// Read is set once the user has opened the report.
 	Read bool `json:"read,omitempty"`
 	// Harness, Model and Options are the engine the task runs on. Before it

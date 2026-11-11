@@ -683,6 +683,7 @@ type TaskPlanResult struct {
 // Activity is one state-changing action recorded in a project's or the
 // teams' ledger. Team, Task, Initiator and Unwatched are set for teams:
 // Initiator is who started it, Unwatched that no Rashin window was open.
+// Choice is the option the user picked when Action is approval.choose.
 type Activity struct {
 	Time      time.Time `json:"time"`
 	Actor     string    `json:"actor"`
@@ -690,6 +691,7 @@ type Activity struct {
 	Target    string    `json:"target,omitempty"`
 	OK        bool      `json:"ok"`
 	Detail    string    `json:"detail,omitempty"`
+	Choice    string    `json:"choice,omitempty"`
 	Team      string    `json:"team,omitempty"`
 	Task      string    `json:"task,omitempty"`
 	Initiator string    `json:"initiator,omitempty"`

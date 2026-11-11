@@ -109,7 +109,8 @@ func (s *Service) Brief(info protocol.SessionInfo) string {
 
 // AfterTurn counts a team session's turn and its tokens against the task and
 // the team's month, then checks the spending limit. A session whose task has
-// ended is let go now that its last turn is over.
+// ended is let go now that its last turn is over, and the task keeps the
+// steps that turn took after it ended.
 func (s *Service) AfterTurn(_ context.Context, info protocol.SessionInfo, end protocol.TurnEndData) {
 	if info.TeamTask == "" {
 		return
@@ -125,6 +126,9 @@ func (s *Service) AfterTurn(_ context.Context, info protocol.SessionInfo, end pr
 		t.Usage.Output += usage.Output
 		t.Usage.Estimated = t.Usage.Estimated || usage.Estimated
 		t.Turns++
+		if !taskIsOpen(t) && t.Session == info.ID {
+			t.Steps = info.Steps
+		}
 		t.Updated = s.now()
 		ok = s.state.putTask(t) == nil
 	}

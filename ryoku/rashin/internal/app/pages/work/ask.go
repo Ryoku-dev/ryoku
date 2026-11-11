@@ -15,9 +15,6 @@ import (
 	"ryoku-rashin/internal/protocol"
 )
 
-// a task's title is its brief's first line, cut to what a row can show
-const titleRunes = 80
-
 // the dialog that gives a team a task
 type askDialog struct {
 	shown  bool
@@ -65,7 +62,7 @@ func (d *askDialog) layout(gtx layout.Context, e *env.Env) {
 		d.dialog.Dismiss(gtx)
 	}
 	if (d.start.Clicked(gtx) || d.brief.Submitted(gtx)) && ready {
-		params := protocol.TeamTaskCreateParams{Team: team.ID, Member: d.memberID, Title: briefTitle(brief), Brief: brief}
+		params := protocol.TeamTaskCreateParams{Team: team.ID, Member: d.memberID, Title: protocol.BriefTitle(brief), Brief: brief}
 		if model != "" || len(options) > 0 {
 			_, params.Model, params.Options = d.engine.Effective(snapshot)
 		}
@@ -224,15 +221,6 @@ func (d *askDialog) create(e *env.Env, params protocol.TeamTaskCreateParams) {
 		}
 		teamsui.OpenTask(e, created.ID)
 	})
-}
-
-func briefTitle(brief string) string {
-	line, _, _ := strings.Cut(brief, "\n")
-	runes := []rune(strings.TrimSpace(line))
-	if len(runes) > titleRunes {
-		runes = runes[:titleRunes]
-	}
-	return strings.TrimSpace(string(runes))
 }
 
 // where the team works and how far it goes before asking, so the task is given knowing it

@@ -164,13 +164,16 @@ func activityFilter(filter string) (func(protocol.Activity) bool, error) {
 }
 
 // record fills an entry's time and whether anyone was watching, keeps any
-// credential value out of its detail, and appends it to the ledger. A ledger
-// that cannot be written does not stop the action it records.
+// credential value out of its detail and choice, and appends it to the
+// ledger. A ledger that cannot be written does not stop the action it records.
 func (s *Service) record(a protocol.Activity) {
 	a.Time = s.now()
 	a.Unwatched = s.nobodyWatching()
 	if a.Detail != "" {
 		a.Detail = s.redact(a.Detail)
+	}
+	if a.Choice != "" {
+		a.Choice = s.redact(a.Choice)
 	}
 	_ = s.ledger.append(a)
 }
