@@ -230,7 +230,14 @@ XDG variables; `RASHIN_SOCKET` overrides the socket for a client.
   "daemon": {"idleExitMinutes": 5},
   "index":  {"system": true, "semantic": true},
   "api":    {"enabled": false, "port": 3600},
-  "teams":  {"maxRunning": 3}
+  "teams":  {
+    "maxRunning": 3, "perTeam": 2, "routinesWake": true,
+    "defaults": {
+      "harness": "", "model": "", "approvals": "ask", "notify": "all",
+      "budget": {"monthTokens": 2000000, "warnPercent": 80, "taskTurns": 20, "taskMinutes": 60}
+    },
+    "approvalHours": 24, "hidden": null, "keepDays": 0
+  }
 }
 ```
 
@@ -253,10 +260,29 @@ XDG variables; `RASHIN_SOCKET` overrides the socket for a client.
 - `api.enabled`: serve the local API (see Gateway); `api.port`: where, 1024 to
   65535.
 - `teams.maxRunning`: how many team tasks run at once across all teams, 1 to
-  6 (Settings > Teams, Tasks at once).
+  6. `teams.perTeam`: how many of one team's, 1 to 4 and never above
+  `maxRunning`, unless the team sets its own.
+- `teams.paused`: holds every team: nothing starts, no routine fires and
+  working tasks stop. Each team's own pause stays underneath.
+- `teams.routinesWake`: lets the routines wake unit start Rashin while a
+  routine is on. Off, routines run only while Rashin is up.
+- `teams.defaults`: what a new team starts with: permissions, budget
+  (`taskMinutes` 0 is no time limit) and notify level. `harness`, `model` and
+  `options` are the engine of every member left on the teams default, in every
+  team. Changing a default later changes no existing team otherwise.
+- `teams.approvalHours`: how long a question waits before it counts as no, 1
+  to 168. `teams.quietHours` (`{"from": "22:00", "to": "07:30"}`, local time,
+  may cross midnight): no desktop notification inside the window.
+- `teams.hidden`: paths every team agent sees as empty. `null` is the built-in
+  list (`~/.ssh`, `~/.gnupg`, `~/.password-store`, cloud and cluster
+  credentials, browser profiles, `~/.local/share/keyrings`); `[]` hides
+  nothing beyond what Rashin always hides. At most 64.
+- `teams.keepDays`: 0 keeps finished tasks forever; 30, 90 or 365 deletes older
+  ones with their conversations.
 
 Clients change settings only through `settings.set`; the daemon writes the file
-atomically and broadcasts `settings.changed`.
+atomically and broadcasts `settings.changed`. A patch that touches `teams` or
+`agent.instances` comes only from the Rashin app.
 
 ## Protocol
 
@@ -899,18 +925,55 @@ wait for the user before anything that leaves the machine in their name
 routine is on.
 
 - A **team** has a name, a purpose, a folder (default `~/Teams/<slug>`), a
-  lead and up to five more members (each a name, a title, a harness
-  instance, a model and instructions), its tools (a screen of its own,
-  mail), how far its agents go before asking (read only, ask before changes,
-  act without asking: an approvals value), a budget and a notify level
-  (`all`, `needs`, `none`). A paused team starts no task and fires no
-  routine.
+  lead and up to five more members (each a name, a title, an engine and
+  instructions), its tools (a screen of its own, mail), how far its agents go
+  before asking (read only, ask before changes, act without asking: an
+  approvals value), a budget (tokens a month, turns and minutes per task),
+  how many of its tasks run at once (`running`, 0 follows `teams.perTeam`),
+  what its sandbox adds (`access`: folders it may change besides its own,
+  paths hidden from it) and a notify level (`all`, `needs`, `none`). A paused
+  team starts no task and fires no routine, and neither does any team while
+  `teams.paused` is on.
 - **Templates**: Research desk, Mail desk, Repo watch, System care and New
   team. Repo watch brings the routine Morning review (`0 9 * * 1-5`) and
   System care one at `0 18 * * *`, both off.
 - `teams.export` writes a team's definition into its folder, without history
   or credential values; `teams.import` makes a paused team from one, its
   routines off.
+
+### Engines
+
+A member's engine is its harness, its model and the harness's own options,
+such as effort.
+
+- A member with a harness of its own runs on it with its own model and
+  options. A member left on the teams default runs `teams.defaults.harness`,
+  else the Agents harness (`agent.harness`), else the first installed one,
+  with the defaults' model and options where it names none
+  (`protocol.ResolveEngine`, the one chain the daemon and the app share). A
+  default always names what it resolves to: "Teams default (Claude Code)",
+  "Same as Agents (Codex)", "Opus 5.5 (harness default)".
+- A harness's models, its default model and its options are learned each
+  time it starts and kept per harness id with the binary's path and
+  modification time, so two instances of one binary keep their own lists;
+  `harnesses.changed` tells the app. Until a harness has started, a model is
+  typed by its id.
+- Check (`harnesses.probe`, the app's alone) starts the harness once in a
+  team sandbox with the chosen model and options, without a prompt and within
+  30 seconds, and says whether it took them: "Claude Code started in the
+  sandbox and took Haiku 4.5." or the harness's own error. It records what it
+  learned.
+- A member may name a harness that is not installed any more; it reads "not
+  installed" wherever the engine shows. An id this computer never knew is
+  refused.
+- A started task keeps the harness, model and options it ran on
+  (`TeamTask.harness`, `model`, `options`), so a finished task still says it
+  after its session is gone. Give a task can pick another model and options
+  for that task alone.
+- The engine shows on the crew chart, the team's tile and header, the member
+  rows of its settings, a task's header and details, the Work board and the
+  Spend view's By engine list. Activity says "Researcher started work on it
+  with Claude Code, haiku."
 
 ### Tasks
 
@@ -926,8 +989,14 @@ routine is on.
   `delegate`: one level deep, at most four open at a time. It is held until
   their reports are in and then continued with them, and `team_status` shows
   it what it handed out. Stopping a task stops what it delegated.
-- At most two tasks of one team run at once, and `teams.maxRunning` (default
-  3) across all teams; the rest wait their turn.
+- At most `teams.perTeam` tasks of one team run at once (default 2, or the
+  team's own `running`), and `teams.maxRunning` (default 3) across all teams;
+  the rest wait their turn. A task still working past its minutes per task
+  stops blocked and says so.
+- While a member works, its session carries when the turn started and how
+  many tool calls it made (`SessionInfo.turnStarted`, `steps`), so the crew
+  chart, the Inbox, the Work board and the task's page show how long it has
+  worked and how many steps it took.
 - The tools come from `rashin mcp`, which the daemon starts with the team's
   environment (`RASHIN_TEAM`, `RASHIN_TEAM_TOKEN`, `RASHIN_TEAM_LEAD`):
   `report`, `ask_user`, `credentials`, `http_request`, `send_mail`,
@@ -951,8 +1020,13 @@ routine is on.
 - Answers are once, always or deny, with an optional note the agent reads;
   a `request` is answered with the value itself.
   Always is offered for one credential on one host for one team, or one mail
-  recipient for one team. An approval nobody answers expires as denied after
-  24 hours.
+  recipient for one team.
+- **Choice questions**: `ask_user` with `options` (2 to 6) asks the user to
+  pick one, by click or by its letter, or none of them. The agent hears "The
+  user chose: <option>" and any note.
+- An approval nobody answers expires as denied after `teams.approvalHours`
+  (default 24). A budget card does not expire: the team stays paused until it
+  is answered.
 - They are answered in the Inbox or on the task's page, and every decision
   goes into Activity.
 
@@ -969,17 +1043,23 @@ routine is on.
   routine off.
 - Each run is a task whose origin is the routine. `teams.routine_run` starts
   one at once.
-- While a routine is on in a team that is not paused, the daemon stays up and
-  the routines wake unit is enabled, so routines pick up again after a login,
-  a reboot or a daemon exit (see Lifecycle). The daemon enables the unit when
-  the first routine turns on and disables it when the last turns off.
+- **Quiet runs**: a run with nothing new calls `report` with `quiet`. The task
+  ends done and read, nothing is notified, Activity records "Nothing new", and
+  the routine counts quiet runs in a row ("Quiet for 3 runs").
+- While a routine is on in a team that is not paused, the daemon stays up,
+  and with `teams.routinesWake` on the routines wake unit is enabled, so
+  routines pick up again after a login, a reboot or a daemon exit (see
+  Lifecycle). The daemon enables the unit when the first routine turns on and
+  disables it when the last turns off. The Teams board says what keeps
+  Rashin up and when the next run is.
 
 ### Budgets
 
 - Tokens are counted per turn from the usage the harness reports and kept
-  per day, member and routine (`teams.spend`, the team's Spend view). A new
-  team that names no budget takes its template's, else 2,000,000 tokens a
-  month with a warning at 80%; a limit of 0 is no limit.
+  per day, member, routine and engine (`teams.spend`, the team's Spend view).
+  A new team that names no budget takes the one in Settings > Teams, New
+  teams start with (2,000,000 tokens a month, a warning at 80%, 20 turns and
+  60 minutes per task); a limit of 0 is no limit.
 - The warning comes once, at the warn mark. At 100% the team pauses, its open
   tasks stop, and the Inbox asks whether to raise the limit by half or keep
   the team paused.
@@ -992,7 +1072,13 @@ routine is on.
   marks what happened while no Rashin window was open.
 - With no window open, the daemon sends a desktop notification for what needs
   the user and for reports, by the team's notify level; pressing it opens the
-  place it names.
+  place it names. Inside `teams.quietHours` nothing is notified; what needs
+  the user still waits in the Inbox.
+- Finished tasks older than `teams.keepDays` are deleted with their
+  conversations when the daemon starts and once a day (`teams.prune`); a
+  team's Clear finished tasks deletes all of its finished tasks at once. What
+  they made stays in the team's folder, and the ledger records how many went.
+  The ledger keeps the newest 5,000 entries.
 
 ### Vault
 
@@ -1041,20 +1127,26 @@ value.
 Every team agent runs inside bubblewrap (`bwrap`, `internal/sandbox`,
 `internal/daemon/sandbox.go`):
 
-- The whole filesystem is read-only. The team's folder, the harness's own
-  state (such as `~/.omp` or `~/.claude`) and `~/.cache` are writable.
-  Rashin's state and cache, the login keyrings, `~/Teams` (the other teams'
-  folders) and the Ryoku vault are hidden. `/tmp`, `/dev/shm` and
+- The whole filesystem is read-only. The team's folder, the folders the team
+  may change (`access.writable`), the harness's own state (such as `~/.omp`
+  or `~/.claude`) and `~/.cache` are writable. Rashin's state and cache, the
+  login keyrings, `~/Teams` (the other teams' folders) and the Ryoku vault are
+  always hidden, and so are `teams.hidden` (by default `~/.ssh`, `~/.gnupg`,
+  cloud and cluster credentials and browser profiles) and the team's own
+  `access.hidden`; an agent sees them empty. `/tmp`, `/dev/shm` and
   `XDG_RUNTIME_DIR` are private, and PID and IPC namespaces are its own. There
-  is no session bus, no display, no SSH agent; the network is shared. The
-  daemon's own programs stay visible, read-only, wherever they run from.
+  is no session bus, no display, no SSH agent. The network is shared:
+  harnesses reach their model online, so an agent reaches what you can, and
+  Settings > Teams says so. The daemon's own programs stay visible, read-only,
+  wherever they run from.
 - The agent reaches Rashin only through its task's own socket,
   `$XDG_RUNTIME_DIR/rashin/agents/<session>/rashin.sock`, which the sandbox
   sees at the main socket's path. It serves that session's team tools, goal
   and screen and the index methods that read; everything else is refused
   ("An agent can use only its own tools here.").
 - Programs an agent opens on its screen run in the same sandbox, with the
-  screen's display and private bus.
+  screen's display and private bus. A harness Check runs in a sandbox like a
+  team agent's, in a folder of its own that goes when it ends.
 - On the main socket, only the Rashin app may call the user's methods: every
   `teams.*` and `vault.*` method except the ones that only read and the
   agents' `teams.agent_*`, and every control of a team session. The app is
@@ -1071,8 +1163,18 @@ Every team agent runs inside bubblewrap (`bwrap`, `internal/sandbox`,
 
 - The Teams button right of the search field, or Ctrl T, switches the window
   to Teams mode and back. Ctrl 1 to 6 pick its destinations: Inbox, Teams,
-  Work, Routines, Vault and Activity. Settings > Teams holds Tasks at once
-  (`teams.maxRunning`).
+  Work, Routines, Vault and Activity. Settings opened from Teams mode opens on
+  Settings > Teams, in five groups: Running (pause every team, tasks at once,
+  tasks at once in one team, wake Rashin for routines), New teams start with
+  (engine, permissions, budget, notifications), Asking and telling (how long a
+  question waits, quiet hours), Sandbox (the hidden list and the network) and
+  History (how long finished tasks stay). Toggles and selects save as they
+  change; numbers and text save with their group's Save.
+- A team's Settings tab holds everything that team decides, its budget and
+  limits included. Its Overview adds Next steps (a member's harness not
+  installed, a credential it asked for, a routine that is off, a team that
+  never ran, each with one action and each hideable) and Files, the newest
+  files in its folder with the report each came from.
 - Routes: `inbox`, `teams`, `teams/new[/<template>]`, `teams/<team>[/<view>]`
   (views `overview`, `work`, `routines`, `spend`, `settings`),
   `work[/<task>]`, `routines`, `routines/new[/<team>]`,
@@ -1081,8 +1183,8 @@ Every team agent runs inside bubblewrap (`bwrap`, `internal/sandbox`,
   `activity`, `teams[/<team>[/<view>]]`, `work[/<task>]`,
   `routines[/<routine>]` or `vault[/<credential>]` in a running window, or
   starts the app there; a notification opens its place the same way.
-- A task's page shows its transcript, what it waits on and its report, and
-  answers its approvals inline.
+- A task's page shows its transcript, what it waits on, its report and the
+  engine it ran on, and answers its approvals inline.
 
 ### Limits
 
@@ -1091,9 +1193,10 @@ acting unasked, not everything else. A program you run yourself, outside a
 team, still runs as you: it can reach your login keyring and start the app.
 The network is shared, so abstract Unix sockets and the system bus stay
 reachable from a sandbox, and `/run` outside the runtime directory is visible
-read-only. A team agent reads your files, read-only, like any program you
-run. The app check is a gate for agents, not a boundary against someone
-already running code as you who can start a `rashin-app` and inject into it.
+read-only. A team agent reads the rest of your files, read-only, like any
+program you run; only the hidden paths above are kept from it. The app check
+is a gate for agents, not a boundary against someone already running code as
+you who can start a `rashin-app` and inject into it.
 
 ## The app
 

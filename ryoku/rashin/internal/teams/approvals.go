@@ -3,6 +3,7 @@ package teams
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"time"
 
@@ -17,7 +18,9 @@ import (
 const expirySweep = time.Hour
 
 // ask stores a pending approval with the exact action it would run, holds
-// the caller's task on the user, and tells the user.
+// the caller's task on the user, and tells the user. It waits the settings'
+// approval hours, except a spending limit card, which waits until answered:
+// its no only keeps paused a team that already is.
 func (s *Service) ask(_ context.Context, c caller, a protocol.Approval, action any) (protocol.Approval, error) {
 	var raw json.RawMessage
 	if action != nil {
@@ -36,9 +39,13 @@ func (s *Service) ask(_ context.Context, c caller, a protocol.Approval, action a
 	a.Title = s.redact(a.Title)
 	a.Detail = s.redact(a.Detail)
 	a.Status = protocol.ApprovalPending
-	a.Decision, a.Note, a.Result, a.Decided = "", "", "", nil
+	a.Decision, a.Note, a.Choice, a.Result, a.Decided = "", "", "", "", nil
 	a.Created = now
-	a.Expires = now.Add(protocol.ApprovalTTL)
+	hours := approvalHours(s.settings())
+	a.Expires = time.Time{}
+	if a.Kind != protocol.ApprovalBudget {
+		a.Expires = now.Add(time.Duration(hours) * time.Hour)
+	}
 	a.Unwatched = s.nobodyWatching()
 	if err := s.state.putApproval(approvalRecord{Approval: a, Action: raw}); err != nil {
 		return protocol.Approval{}, err
@@ -63,9 +70,13 @@ func (s *Service) ask(_ context.Context, c caller, a protocol.Approval, action a
 			actor, initiator = m.Name, protocol.InitiatorAgent
 		}
 	}
+	waits := i18n.T("Waits for your answer.")
+	if !a.Expires.IsZero() {
+		waits = waitWords(hours)
+	}
 	s.record(protocol.Activity{
 		Actor: actor, Action: "approval.ask", Target: a.Title, OK: true,
-		Detail: i18n.T("Waits for your answer for up to a day."), Team: a.Team, Task: a.Task, Initiator: initiator,
+		Detail: waits, Team: a.Team, Task: a.Task, Initiator: initiator,
 	})
 	s.emitApproval(a)
 	s.notify(notification{Team: a.Team, Task: a.Task, Title: i18n.Tf("%s needs you", team.Name), Body: a.Title, Needs: true})
@@ -91,14 +102,24 @@ func (s *Service) listApprovals(p protocol.ApprovalsParams) protocol.ApprovalsRe
 
 // decideApproval answers a pending approval, carries out the answer through
 // the effect of its kind, and lets its task go on once nothing else of it
-// waits on the user.
+// waits on the user. A choice question takes one of its options or a no.
 func (s *Service) decideApproval(ctx context.Context, p protocol.ApprovalDecideParams) (protocol.Approval, error) {
 	rec, ok := s.state.approval(p.ID)
 	if !ok {
 		return protocol.Approval{}, protocol.Errorf(protocol.CodeNotFound, "%s", i18n.Tf("No approval %s.", p.ID))
 	}
+	if len(rec.Options) > 0 && p.Decision != protocol.DecideChoose && p.Decision != protocol.DecideDeny {
+		return protocol.Approval{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Answer a choice question with one of its options or with no."))
+	}
 	status := protocol.ApprovalApproved
 	switch p.Decision {
+	case protocol.DecideChoose:
+		if len(rec.Options) == 0 {
+			return protocol.Approval{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Only a choice question takes a choice."))
+		}
+		if !slices.Contains(rec.Options, p.Choice) {
+			return protocol.Approval{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("%s is not one of the options.", p.Choice))
+		}
 	case protocol.DecideOnce:
 		if rec.Kind == protocol.ApprovalRequest {
 			return protocol.Approval{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("A credential request is answered with its value or with no."))
@@ -123,6 +144,9 @@ func (s *Service) decideApproval(ctx context.Context, p protocol.ApprovalDecideP
 	rec, err := s.claimApproval(p.ID, status, p.Decision, p.Note)
 	if err != nil {
 		return protocol.Approval{}, err
+	}
+	if p.Decision == protocol.DecideChoose {
+		rec.Choice = p.Choice
 	}
 	action := "approval.approve"
 	if status == protocol.ApprovalDenied {
@@ -192,7 +216,10 @@ func (s *Service) settleApproval(ctx context.Context, rec approvalRecord, p prot
 func approvalDetail(rec approvalRecord) string {
 	switch {
 	case rec.Status == protocol.ApprovalExpired:
-		return i18n.T("Nobody answered within a day, so it counts as a no.")
+		_, detail := expiryWords(askedHours(rec))
+		return detail
+	case rec.Decision == protocol.DecideChoose:
+		return i18n.Tf("Chose: %s", rec.Choice)
 	case rec.Decision == protocol.DecideAlways:
 		return i18n.Tf("Allowed from now on: %s", rec.Always)
 	case rec.Decision == protocol.DecideProvide:
@@ -203,11 +230,50 @@ func approvalDetail(rec approvalRecord) string {
 	return i18n.T("Said no.")
 }
 
+// approvalHours is how long a question waits, from the teams settings.
+func approvalHours(settings protocol.Settings) int {
+	if hours := settings.Teams.ApprovalHours; hours > 0 {
+		return hours
+	}
+	return protocol.DefaultApprovalHours
+}
+
+// askedHours is how many hours an approval was given to wait.
+func askedHours(rec approvalRecord) int {
+	return int((rec.Expires.Sub(rec.Created) + time.Hour/2) / time.Hour)
+}
+
+// waitWords says how long a question waits, for the ledger.
+func waitWords(hours int) string {
+	switch hours {
+	case 1:
+		return i18n.T("Waits for your answer for up to an hour.")
+	case 24:
+		return i18n.T("Waits for your answer for up to a day.")
+	}
+	return i18n.Tf("Waits for your answer for up to %d hours.", hours)
+}
+
+// expiryWords are the note the agent hears and the ledger's detail when a
+// question waited its hours unanswered.
+func expiryWords(hours int) (note, detail string) {
+	switch hours {
+	case 1:
+		return i18n.T("Nobody answered within an hour."), i18n.T("Nobody answered within an hour, so it counts as a no.")
+	case 24:
+		return i18n.T("Nobody answered within a day."), i18n.T("Nobody answered within a day, so it counts as a no.")
+	}
+	return i18n.Tf("Nobody answered within %d hours.", hours), i18n.Tf("Nobody answered within %d hours, so it counts as a no.", hours)
+}
+
 // armExpiry expires every pending approval past its time, then sets the one
 // timer to the next expiry, or at most an hour ahead while any is pending.
+// An approval without an expiry waits until answered.
 func (s *Service) armExpiry() {
 	now := s.now()
-	pending := s.state.approvals(func(r approvalRecord) bool { return r.Status == protocol.ApprovalPending })
+	pending := s.state.approvals(func(r approvalRecord) bool {
+		return r.Status == protocol.ApprovalPending && !r.Expires.IsZero()
+	})
 	var next time.Time
 	for _, rec := range pending {
 		if !rec.Expires.After(now) {
@@ -234,7 +300,11 @@ func (s *Service) armExpiry() {
 
 // expireApproval answers an approval nobody answered in time with a no.
 func (s *Service) expireApproval(id string) {
-	note := i18n.T("Nobody answered within a day.")
+	asked, ok := s.state.approval(id)
+	if !ok {
+		return
+	}
+	note, _ := expiryWords(askedHours(asked))
 	rec, err := s.claimApproval(id, protocol.ApprovalExpired, protocol.DecideDeny, note)
 	if err != nil {
 		return

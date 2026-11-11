@@ -27,7 +27,7 @@ func (w *Work) addProject(ctx context.Context, params protocol.ProjectAddParams)
 	if strings.TrimSpace(params.Path) == "" {
 		return protocol.ProjectInfo{}, badRequest("A project path is required.")
 	}
-	absolute, err := filepath.Abs(expandHome(params.Path))
+	absolute, err := filepath.Abs(paths.Expand(params.Path))
 	if err != nil {
 		return protocol.ProjectInfo{}, badRequest("The project path is invalid.")
 	}
@@ -256,16 +256,6 @@ func resolveBase(ctx context.Context, p *projectRecord, repo *gitpkg.Repo, workt
 		}
 	}
 	return "HEAD", nil
-}
-
-func expandHome(path string) string {
-	if path == "~" {
-		return paths.Home()
-	}
-	if strings.HasPrefix(path, "~/") {
-		return filepath.Join(paths.Home(), strings.TrimPrefix(path, "~/"))
-	}
-	return path
 }
 
 func (w *Work) listActivity(params protocol.ActivityParams) (protocol.ActivityResult, error) {

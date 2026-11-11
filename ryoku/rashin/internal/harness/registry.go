@@ -50,13 +50,129 @@ type Registry struct {
 	versions           map[string]versionEntry
 	capabilities       map[string]capabilityEntry
 	capabilitiesLoaded bool
+	// learned runs after capabilities are recorded
+	learned func()
+	// probing are the harness ids a probe runs for now
+	probing map[string]bool
 }
 
 var _ core.Harnesses = (*Registry)(nil)
 
 // New creates an empty registry. Discovery does not run until List or NewAgent.
 func New() *Registry {
-	return &Registry{versions: make(map[string]versionEntry)}
+	return &Registry{versions: make(map[string]versionEntry), probing: make(map[string]bool)}
+}
+
+// candidate is one harness as the definitions, the settings and PATH make
+// it, before its version and capabilities are read.
+type candidate struct {
+	id, name string
+	install  string
+	custom   bool
+	// collides marks a custom instance that took a built-in's id
+	collides  bool
+	installed bool
+	path      string
+	command   []string
+	env       map[string]string
+}
+
+// candidates lists the built-in harnesses in table order, then the user's
+// instances, looking each up on PATH and running nothing.
+func candidates(settings protocol.Settings) []candidate {
+	out := make([]candidate, 0, len(definitions)+len(settings.Agent.Instances))
+	for _, def := range definitions {
+		c := candidate{id: def.id, name: def.name, install: def.installURL}
+		if argv, path, ok := resolveDefinition(def); ok {
+			c.installed, c.path = true, path
+			c.command = append([]string{path}, argv[1:]...)
+		}
+		out = append(out, c)
+	}
+	for _, instance := range settings.Agent.Instances {
+		c := candidate{id: strings.TrimSpace(instance.ID), name: strings.TrimSpace(instance.Name), custom: true, env: instance.Env}
+		if c.name == "" {
+			c.name = c.id
+		}
+		c.collides = builtin(c.id)
+		if !c.collides {
+			if argv, path, ok := resolveCustom(instance.Command); ok {
+				c.installed, c.path, c.command = true, path, argv
+			}
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
+// defaultOf is the harness a session with none of its own runs: the chosen
+// one when it is installed, else the first installed in list order.
+func defaultOf(list []candidate, chosen string) string {
+	first := ""
+	for _, c := range list {
+		if c.collides || !c.installed {
+			continue
+		}
+		if c.id == chosen {
+			return c.id
+		}
+		if first == "" {
+			first = c.id
+		}
+	}
+	return first
+}
+
+func builtin(id string) bool {
+	for _, def := range definitions {
+		if def.id == id {
+			return true
+		}
+	}
+	return false
+}
+
+// Known reports whether id names a harness on this computer, installed or
+// not: a built-in definition or one of the user's instances.
+func Known(id string, settings protocol.Settings) bool {
+	if id == "" {
+		return false
+	}
+	if builtin(id) {
+		return true
+	}
+	for _, instance := range settings.Agent.Instances {
+		if strings.TrimSpace(instance.ID) == id {
+			return true
+		}
+	}
+	return false
+}
+
+// DefaultID is the harness List marks Default, found without running any
+// harness; empty when none is installed.
+func DefaultID(settings protocol.Settings) string {
+	return defaultOf(candidates(settings), settings.Agent.Harness)
+}
+
+// Name is how a harness id reads: its definition's name, else its instance's
+// name or id, else the id itself.
+func Name(id string, settings protocol.Settings) string {
+	for _, def := range definitions {
+		if def.id == id {
+			return def.name
+		}
+	}
+	for _, instance := range settings.Agent.Instances {
+		if strings.TrimSpace(instance.ID) != id {
+			continue
+		}
+		if name := strings.TrimSpace(instance.Name); name != "" {
+			return name
+		}
+		return id
+	}
+	return id
 }
 
 func (r *Registry) List(ctx context.Context, refresh bool) ([]protocol.HarnessInfo, error) {
@@ -64,125 +180,68 @@ func (r *Registry) List(ctx context.Context, refresh bool) ([]protocol.HarnessIn
 	if err != nil {
 		return nil, err
 	}
-	out := make([]protocol.HarnessInfo, 0, len(definitions)+len(settings.Agent.Instances))
-	builtins := make(map[string]struct{}, len(definitions))
-	for _, def := range definitions {
-		builtins[def.id] = struct{}{}
-		info := protocol.HarnessInfo{ID: def.id, Name: def.name, Install: def.installURL}
-		argv, path, ok := resolveDefinition(def)
-		if ok {
-			info.Installed = true
-			info.Path = path
-			info.Command = append([]string{path}, argv[1:]...)
-			info.Version = r.version(ctx, path, refresh)
-			info.Capabilities = r.capabilitiesFor(path)
-			info.Setup = setupOf(def.id)
-		}
-		out = append(out, info)
-	}
-	for _, instance := range settings.Agent.Instances {
-		id := strings.TrimSpace(instance.ID)
-		name := strings.TrimSpace(instance.Name)
-		if name == "" {
-			name = id
-		}
-		info := protocol.HarnessInfo{ID: id, Name: name, Custom: true}
-		if _, collides := builtins[id]; collides {
+	found := candidates(settings)
+	chosen := defaultOf(found, settings.Agent.Harness)
+	out := make([]protocol.HarnessInfo, 0, len(found))
+	for _, c := range found {
+		info := protocol.HarnessInfo{ID: c.id, Name: c.name, Install: c.install, Custom: c.custom, Default: !c.collides && c.id == chosen && chosen != ""}
+		switch {
+		case c.collides:
 			info.Install = i18n.T("This custom harness id conflicts with a built-in harness. Choose a different id.")
-			out = append(out, info)
-			continue
-		}
-		argv, path, ok := resolveCustom(instance.Command)
-		if ok {
+		case c.installed:
 			info.Installed = true
-			info.Path = path
-			info.Command = argv
-			info.Version = r.version(ctx, path, refresh)
-			info.Capabilities = r.capabilitiesFor(path)
-		} else {
+			info.Path = c.path
+			info.Command = c.command
+			info.Version = r.version(ctx, c.path, refresh)
+			info.Capabilities = r.capabilitiesFor(c.id, c.path)
+			if !c.custom {
+				info.Setup = setupOf(c.id)
+			}
+		case c.custom:
 			info.Install = i18n.T("The custom harness command is not executable. Check its command and PATH.")
 		}
 		out = append(out, info)
 	}
-	chosen := settings.Agent.Harness
-	if !installed(out, chosen) {
-		chosen = ""
-		for _, info := range out {
-			if info.Installed {
-				chosen = info.ID
-				break
-			}
-		}
-	}
-	for i := range out {
-		out[i].Default = out[i].ID == chosen && chosen != ""
-	}
 	return out, nil
 }
 
-func (r *Registry) NewAgent(ctx context.Context, opts core.HarnessOptions) (core.Runner, error) {
-	list, err := r.List(ctx, false)
+func (r *Registry) NewAgent(_ context.Context, opts core.HarnessOptions) (core.Runner, error) {
+	settings, err := config.Load()
 	if err != nil {
 		return nil, err
 	}
+	found := candidates(settings)
 	want := strings.TrimSpace(opts.Harness)
 	if want == "" {
-		for _, info := range list {
-			if info.Default {
-				want = info.ID
-				break
-			}
-		}
+		want = defaultOf(found, settings.Agent.Harness)
 	}
-	for _, info := range list {
-		if info.ID != want {
+	for _, c := range found {
+		if c.id != want || c.collides {
 			continue
 		}
-		if !info.Installed {
+		if !c.installed {
 			return nil, errors.New(i18n.T("The selected agent harness is not installed. Install it and try again."))
 		}
+		id, path := c.id, c.path
 		options := []runnerOption{withCapabilityReporter(func(capabilities protocol.HarnessCapabilities) {
-			r.recordCapabilities(info.Path, capabilities)
+			r.recordCapabilities(id, path, capabilities)
 		})}
-		var environment map[string]string
-		if info.Custom {
-			settings, loadErr := config.Load()
-			if loadErr != nil {
-				return nil, loadErr
-			}
-			for _, instance := range settings.Agent.Instances {
-				if strings.TrimSpace(instance.ID) == want {
-					environment = instance.Env
-					options = append(options, withEnvironment(instance.Env))
-					break
-				}
-			}
+		if c.custom {
+			options = append(options, withEnvironment(c.env))
 		}
 		if opts.Sandbox != nil {
-			spec, sandboxErr := sandboxFor(*opts.Sandbox, stateOf(info.ID, info.Command), environment)
+			spec, sandboxErr := sandboxFor(*opts.Sandbox, stateOf(c.id, c.command), c.env)
 			if sandboxErr != nil {
 				return nil, sandboxErr
 			}
 			options = append(options, withSandbox(spec))
 		}
-		return newRunner(opts, info.Command, options...), nil
+		return newRunner(opts, c.command, options...), nil
 	}
 	if want == "" {
 		return nil, errors.New(i18n.T("No supported agent harness is installed. Install one and try again."))
 	}
 	return nil, errors.New(i18n.T("The selected agent harness is not supported. Choose a harness from the list."))
-}
-
-func installed(list []protocol.HarnessInfo, id string) bool {
-	if id == "" {
-		return false
-	}
-	for _, info := range list {
-		if info.ID == id {
-			return info.Installed
-		}
-	}
-	return false
 }
 
 func resolveDefinition(def definition) ([]string, string, bool) {

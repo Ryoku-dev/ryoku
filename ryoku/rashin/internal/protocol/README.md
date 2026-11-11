@@ -20,9 +20,10 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
   `disabled`, `unsupported`, `forbidden`, `internal`. Messages are sentences
   for people.
 - `forbidden` refuses a Teams or vault method that only the user may call
-  (`teams.UserOnly`) to any connection not opened by the Rashin app binary
-  (`rashin-app` beside the daemon, or `/usr/bin/rashin-app`, read from the
-  peer's `/proc/<pid>/exe`). It also refuses, on the main socket, a
+  (`teams.UserOnly`), and `harnesses.probe`, to any connection not opened by
+  the Rashin app binary (`rashin-app` beside the daemon, or
+  `/usr/bin/rashin-app`, read from the peer's `/proc/<pid>/exe`). It also
+  refuses, on the main socket, a
   `teams.agent_*` call, a `session.new` naming a team, task or member, and
   from anything but the app the control methods on a team task's session
   (`session.permission`, `set_model`, `set_mode`, `set_option`, `prompt`,
@@ -73,6 +74,7 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
 | `gateway.api` | | `APIInfo` |
 | `gateway.api_key` | `APIKeyParams` (rotate) | `APIKey` |
 | `harnesses.list` | `HarnessesListParams` | `HarnessesResult` |
+| `harnesses.probe` | `HarnessProbeParams` (start once in a team sandbox, no prompt; pick `model` and `options` when given) | `HarnessProbeResult` (`ok` false with the harness's `message` when it did not start or refused one) |
 | `index.list` | | `IndexesResult` |
 | `index.add` | `IndexAddParams` | `IndexInfo` |
 | `index.remove` | `IndexRef` | |
@@ -100,7 +102,7 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
 | `teams.export` | `TeamRef` | `TeamExportResult` (written into the team's folder, no history or values) |
 | `teams.import` | `TeamImportParams` | `Team` (paused, routines off) |
 | `teams.tasks` | `TeamTasksParams` | `TeamTasksResult` |
-| `teams.task_create` | `TeamTaskCreateParams` | `TeamTask` |
+| `teams.task_create` | `TeamTaskCreateParams` (`model` and `options`: an engine for this task only, on the member's harness) | `TeamTask` |
 | `teams.task_stop` | `TeamTaskRef` (and what it delegated) | `TeamTask` |
 | `teams.task_retry` | `TeamTaskRetryParams` | `TeamTask` |
 | `teams.task_read` | `TeamTaskRef` | `TeamTask` |
@@ -112,13 +114,14 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
 | `teams.routine_run` | `RoutineRef` | `TeamTask` |
 | `teams.routine_preview` | `RoutinePreviewParams` | `RoutinePreview` |
 | `teams.approvals` | `ApprovalsParams` | `ApprovalsResult` |
-| `teams.approval_decide` | `ApprovalDecideParams` (once, always, deny, or provide with a value) | `Approval` |
+| `teams.approval_decide` | `ApprovalDecideParams` (once, always, deny, provide with a value, or choose with a `choice` among the approval's `options`) | `Approval` |
 | `teams.activity` | `TeamActivityParams` | `ActivityResult` |
-| `teams.spend` | `TeamSpendParams` | `TeamSpend` |
-| `teams.agent_report` | `AgentReportParams` | `AgentAnswer` |
+| `teams.spend` | `TeamSpendParams` | `TeamSpend` (`engines`: ids are harness and model joined by `\x1f`) |
+| `teams.prune` | `TeamPruneParams` (finished tasks past `teams.keepDays`, or every finished one with `all`; their sessions go too, their files stay) | |
+| `teams.agent_report` | `AgentReportParams` (`quiet`: nothing changed since the last run) | `AgentAnswer` |
 | `teams.agent_delegate` | `AgentDelegateParams` (the lead only) | `AgentAnswer` |
 | `teams.agent_status` | `AgentRef` | `AgentStatusResult` (the pieces the task handed out) |
-| `teams.agent_ask` | `AgentAskParams` | `AgentAnswer` |
+| `teams.agent_ask` | `AgentAskParams` (`options`: 2 to 6 choices of at most 80 characters) | `AgentAnswer` |
 | `teams.agent_http` | `AgentHTTPParams` (`saveAs`: a path in the team's folder for the whole answer) | `AgentHTTPResult` (`saved` when it was saved, `waiting` while the user decides) |
 | `teams.agent_mail` | `AgentMailParams` | `AgentAnswer` |
 | `teams.agent_request` | `AgentCredentialRequestParams` | `AgentAnswer` |
@@ -145,6 +148,29 @@ Who may call the Teams and vault methods (`internal/teams/authority.go`,
 - The `teams.agent_*` methods are served only on a team task's own socket,
   and each carries an `AgentRef` (session and run token) that the daemon
   checks against that session's live run.
+
+Fields of the Teams shapes that clients and agents rely on:
+
+- `TeamTask.harness`, `model` and `options` are the engine the task ran on,
+  set when it starts and kept after it ends. Before it starts only `model`
+  and `options` may be set: the engine asked for this task alone.
+  `protocol.ResolveEngine` is the one chain from a member to its engine:
+  the member's harness, else `teams.defaults.harness`, else
+  `agent.harness`, else the registry's default harness.
+- `Approval.options` makes a choice question; `choice` keeps the picked
+  option. The agent is told "The user chose: <option>" and any note.
+- `TeamReport.quiet` marks a run that changed nothing: done, unread not set,
+  no notification. `Routine.quietStreak` counts such runs in a row.
+- `SessionInfo.turnStarted` is when the running turn began, absent while no
+  turn runs; `steps` counts its tool calls, or the last turn's once it ended.
+- `HarnessCapabilities.modelList`, `defaultModel`, `options` and `learned`
+  are what a harness reported at its last start; `defaultModel` comes only
+  from a new session.
+- `Settings.teams` carries `perTeam`, `paused`, `routinesWake`, `defaults`
+  (harness, model, options, approvals, budget, notify for new teams),
+  `approvalHours`, `quietHours` (`from` and `to` as `HH:MM`), `hidden`
+  (null for the built-in list, `[]` for none) and `keepDays`
+  (0, 30, 90 or 365).
 
 ## Events
 

@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"ryoku-rashin/internal/paths"
 )
 
 // SecretPath reports paths Ask must never expose to a model. It checks both
@@ -13,7 +15,7 @@ func SecretPath(path string) (string, bool) {
 	if marker, blocked := secretPathName(path); blocked {
 		return marker, true
 	}
-	if resolved, err := filepath.EvalSymlinks(filepath.Clean(expandHome(path))); err == nil {
+	if resolved, err := filepath.EvalSymlinks(filepath.Clean(paths.Expand(path))); err == nil {
 		if marker, blocked := secretPathName(resolved); blocked {
 			return marker, true
 		}
@@ -22,7 +24,7 @@ func SecretPath(path string) (string, bool) {
 }
 
 func secretPathName(path string) (string, bool) {
-	clean := filepath.Clean(expandHome(strings.TrimSpace(path)))
+	clean := filepath.Clean(paths.Expand(strings.TrimSpace(path)))
 	low := strings.ToLower(filepath.ToSlash(clean))
 	if low == "." || low == "" {
 		return "", false
@@ -142,14 +144,4 @@ func secretPathName(path string) (string, bool) {
 		}
 	}
 	return "", false
-}
-
-func expandHome(path string) string {
-	if path == "~" {
-		return os.Getenv("HOME")
-	}
-	if strings.HasPrefix(path, "~/") {
-		return filepath.Join(os.Getenv("HOME"), strings.TrimPrefix(path, "~/"))
-	}
-	return path
 }

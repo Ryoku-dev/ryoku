@@ -194,7 +194,7 @@ func (w *Work) createWorktree(ctx context.Context, params protocol.WorktreeCreat
 		return protocol.WorktreeInfo{}, badRequest("The worktree base cannot be resolved.")
 	}
 	name := slug(params.Name)
-	root := expandHome(copy.Settings.WorktreeRoot)
+	root := paths.Expand(copy.Settings.WorktreeRoot)
 	if root == "" {
 		root = filepath.Join(paths.WorktreesDir(), slug(copy.Name))
 	}
@@ -688,7 +688,7 @@ func (w *Work) discoverMovedWorktrees(repo *gitpkg.Repo, p *projectRecord) map[s
 	if len(adminToOld) == 0 {
 		return nil
 	}
-	root := expandHome(settings.WorktreeRoot)
+	root := paths.Expand(settings.WorktreeRoot)
 	if root == "" {
 		root = filepath.Join(paths.WorktreesDir(), slug(p.Name))
 	}

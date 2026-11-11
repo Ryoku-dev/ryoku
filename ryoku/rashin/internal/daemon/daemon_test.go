@@ -18,6 +18,7 @@ import (
 	"ryoku-rashin/internal/core"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
+	"ryoku-rashin/internal/sandbox"
 )
 
 type fakeAsker struct{ runner core.Runner }
@@ -25,15 +26,27 @@ type fakeAsker struct{ runner core.Runner }
 func (f fakeAsker) NewAsk(core.AskOptions) core.Runner { return f.runner }
 
 type fakeHarnesses struct {
-	runner core.Runner
-	opts   core.HarnessOptions
+	runner  core.Runner
+	opts    core.HarnessOptions
+	list    []protocol.HarnessInfo
+	probed  []protocol.HarnessProbeParams
+	base    sandbox.Spec
+	learned func()
 }
 
-func (f *fakeHarnesses) List(context.Context, bool) ([]protocol.HarnessInfo, error) { return nil, nil }
+func (f *fakeHarnesses) List(context.Context, bool) ([]protocol.HarnessInfo, error) {
+	return f.list, nil
+}
 func (f *fakeHarnesses) NewAgent(_ context.Context, opts core.HarnessOptions) (core.Runner, error) {
 	f.opts = opts
 	return f.runner, nil
 }
+func (f *fakeHarnesses) Probe(_ context.Context, params protocol.HarnessProbeParams, base sandbox.Spec) (protocol.HarnessProbeResult, error) {
+	f.probed = append(f.probed, params)
+	f.base = base
+	return protocol.HarnessProbeResult{OK: true, Message: "started"}, nil
+}
+func (f *fakeHarnesses) OnLearned(fn func()) { f.learned = fn }
 
 type fakeWork struct {
 	sessions     core.SessionControl

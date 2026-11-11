@@ -118,6 +118,14 @@ type MCPServer struct {
 type Harnesses interface {
 	List(ctx context.Context, refresh bool) ([]protocol.HarnessInfo, error)
 	NewAgent(ctx context.Context, opts HarnessOptions) (Runner, error)
+	// Probe starts a harness once in base, a team sandbox without a folder,
+	// with no prompt: it reads the harness's models and options and picks the
+	// model and options given, then stops it. A harness that does not start
+	// or refuses a pick is a result with OK false, not an error.
+	Probe(ctx context.Context, params protocol.HarnessProbeParams, base sandbox.Spec) (protocol.HarnessProbeResult, error)
+	// OnLearned sets what runs each time a harness's capabilities are
+	// recorded, outside any lock.
+	OnLearned(fn func())
 }
 
 // ImportReport says what a migration step brought over.
@@ -184,15 +192,18 @@ type SessionControl interface {
 }
 
 // TeamSessions is what Teams needs beyond SessionControl to run a task as an
-// Agent session: bring its agent up, pick the member's model, set the task as
-// the session's goal, stop it, and continue it with a note when what held it
-// between turns is settled.
+// Agent session: bring its agent up, pick the member's engine, set the task
+// as the session's goal, stop it, continue it with a note when what held it
+// between turns is settled, and delete it when the task is pruned.
 type TeamSessions interface {
 	SessionControl
 	// Start brings the session's agent up without a prompt.
 	Start(ctx context.Context, id string) error
 	// SetModel picks the session's model among the ones its harness offers.
 	SetModel(ctx context.Context, id, model string) error
+	// SetOption sets one of the options the session's harness offers to
+	// value, one of that option's choices.
+	SetOption(ctx context.Context, id, option, value string) error
 	// Goal sets, ends or reports the session's goal; Set starts its first
 	// turn on an idle session.
 	Goal(ctx context.Context, p protocol.GoalParams) (protocol.SessionInfo, error)
@@ -202,6 +213,8 @@ type TeamSessions interface {
 	// Cancel ends the running turn; Stop also stops the agent process.
 	Cancel(ctx context.Context, id string) error
 	Stop(ctx context.Context, id string) error
+	// Delete stops the session and removes it with its log.
+	Delete(ctx context.Context, id string) error
 	// Watched reports whether a Rashin window is connected, so what happens
 	// unattended is recorded as such.
 	Watched() bool
@@ -232,11 +245,17 @@ type Teams interface {
 	// ScreenGranted reports whether a session may have its own screen without
 	// asking the user, because its team was given one.
 	ScreenGranted(info protocol.SessionInfo) bool
+	// Access is what a team session's sandbox adds for its team: folders it
+	// may change and paths it sees as empty. Zero for any other session.
+	Access(info protocol.SessionInfo) protocol.TeamAccess
 	// GoalEnded tells Teams that a team session's goal ended: done, blocked or
 	// stopped, with the agent's summary.
 	GoalEnded(info protocol.SessionInfo, goal protocol.Goal)
 	// SessionChanged lets Teams follow a team session's state.
 	SessionChanged(info protocol.SessionInfo)
+	// SettingsChanged lets Teams follow a change of the settings: a global
+	// pause stops working tasks, and the limits and the wake unit apply again.
+	SettingsChanged(settings protocol.Settings)
 	// Busy reports team tasks at work; Armed reports routines that are on, so
 	// the daemon stays up to fire them.
 	Busy() bool

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -82,6 +83,8 @@ func (s *server) callTeams(method string, raw json.RawMessage) (any, error) {
 		return teamsCall(raw, func(p protocol.TeamActivityParams) (any, error) { return s.teamActivity(p), nil })
 	case protocol.MTeamsSpend:
 		return teamsCall(raw, func(p protocol.TeamSpendParams) (any, error) { return s.teamSpend(p) })
+	case protocol.MTeamsPrune:
+		return teamsCall(raw, func(p protocol.TeamPruneParams) (any, error) { return protocol.Empty{}, s.pruneTasks(p) })
 	case protocol.MVaultInfo:
 		return s.vaultInfo(), nil
 	case protocol.MVaultAdd:
@@ -120,7 +123,7 @@ func slugName(name string) string {
 	return "team"
 }
 
-// one to six members with names, each with an id, and exactly one lead
+// one to six members with names, each with an id and an engine this computer knows, and exactly one lead
 func (s *server) normaliseMembers(members []protocol.Member) ([]protocol.Member, error) {
 	if len(members) == 0 {
 		return nil, badRequest(i18n.T("A team needs at least one member."))
@@ -140,6 +143,13 @@ func (s *server) normaliseMembers(members []protocol.Member) ([]protocol.Member,
 			return nil, badRequest(i18n.Tf("Two members are called %s.", member.Name))
 		}
 		names[strings.ToLower(member.Name)] = true
+		member.Harness, member.Model = strings.TrimSpace(member.Harness), strings.TrimSpace(member.Model)
+		if member.Harness != "" && !slices.ContainsFunc(s.data.snapshot.Harnesses, func(harness protocol.HarnessInfo) bool { return harness.ID == member.Harness }) {
+			return nil, badRequest(i18n.Tf("No harness %s on this computer.", member.Harness))
+		}
+		if !protocol.ValidEngineModel(member.Model) || !protocol.ValidEngineOptions(member.Options) {
+			return nil, badRequest(i18n.T("That model or option cannot be used."))
+		}
 		if member.ID == "" {
 			member.ID = s.data.teams.newID("member")
 		}
@@ -176,25 +186,28 @@ func (s *server) createTeam(p protocol.TeamCreateParams, imported bool) (protoco
 	now := time.Now()
 	team := protocol.Team{
 		ID: t.newID("team"), Name: name, Purpose: strings.TrimSpace(p.Purpose), Template: p.Template, Folder: p.Folder,
-		Members: members, Tools: p.Tools, Approvals: p.Approvals, Budget: p.Budget, Notify: p.Notify, Created: now, Updated: now,
+		Members: members, Tools: p.Tools, Approvals: p.Approvals, Budget: p.Budget, Notify: p.Notify,
+		Running: p.Running, Access: p.Access, Created: now, Updated: now,
 	}
 	if team.Folder == "" {
 		team.Folder = paths.TeamsHome() + "/" + slugName(name)
 	}
+	// what the create leaves out comes from what new teams start with
+	defaults := s.data.snapshot.Settings.Teams.Defaults
 	if !protocol.KnownApprovals(team.Approvals) {
-		team.Approvals = protocol.ApprovalsAsk
+		team.Approvals = defaults.Approvals
 	}
-	if team.Notify != protocol.NotifyNeeds && team.Notify != protocol.NotifyNone {
-		team.Notify = protocol.NotifyAll
+	if team.Notify != protocol.NotifyAll && team.Notify != protocol.NotifyNeeds && team.Notify != protocol.NotifyNone {
+		team.Notify = defaults.Notify
 	}
 	if team.Budget.MonthTokens == 0 && team.Budget.TaskTurns == 0 {
-		team.Budget.MonthTokens = 2_000_000
+		team.Budget = defaults.Budget
 	}
 	if team.Budget.WarnPercent == 0 {
-		team.Budget.WarnPercent = 80
+		team.Budget.WarnPercent = defaults.Budget.WarnPercent
 	}
 	if team.Budget.TaskTurns == 0 {
-		team.Budget.TaskTurns = 20
+		team.Budget.TaskTurns = defaults.Budget.TaskTurns
 	}
 	action := "team.create"
 	if imported {
@@ -348,13 +361,27 @@ func (s *server) resumeTeam(index int) {
 	spend.Cap = team.Budget.MonthTokens
 	t.spend[team.ID] = spend
 	s.record(protocol.Activity{Action: "team.resume", Target: team.Name, OK: true, Team: team.ID})
+	s.startQueued(team)
+	s.emitTeam(team.ID)
+}
+
+// what waited for a free slot starts, unless every team is held
+func (s *server) startQueued(team protocol.Team) {
+	t := &s.data.teams
+	if !s.mayWork(team) {
+		return
+	}
 	for task := range t.tasks {
 		if t.tasks[task].Team == team.ID && t.tasks[task].Status == protocol.TaskReady {
 			t.tasks[task] = s.beginTeamTask(team, t.tasks[task])
 			s.tellTeams(protocol.EvtTeamTask, t.tasks[task])
 		}
 	}
-	s.emitTeam(team.ID)
+}
+
+// a team works unless it or every team is paused
+func (s *server) mayWork(team protocol.Team) bool {
+	return !team.Paused && !s.data.snapshot.Settings.Teams.Paused
 }
 
 func (s *server) exportTeam(id string) (protocol.TeamExportResult, error) {
@@ -452,19 +479,23 @@ func (s *server) createTeamTask(p protocol.TeamTaskCreateParams) (protocol.TeamT
 			title = string(runes[:80])
 		}
 	}
-	return s.newTeamTask(team, member.ID, title, brief, protocol.TaskFromYou, ""), nil
+	model := strings.TrimSpace(p.Model)
+	if !protocol.ValidEngineModel(model) || !protocol.ValidEngineOptions(p.Options) {
+		return protocol.TeamTask{}, badRequest(i18n.T("That model or option cannot be used."))
+	}
+	return s.newTeamTask(team, member.ID, title, brief, protocol.TaskFromYou, "", model, p.Options), nil
 }
 
-// a new task starts at once while its team may work, as a free slot would take it
-func (s *server) newTeamTask(team protocol.Team, member, title, brief, origin, routine string) protocol.TeamTask {
+// a new task starts at once while its team may work, as a free slot would take it; a model and options set apply to it alone
+func (s *server) newTeamTask(team protocol.Team, member, title, brief, origin, routine, model string, options map[string]string) protocol.TeamTask {
 	t := &s.data.teams
 	now := time.Now()
 	task := protocol.TeamTask{
 		ID: t.newID("task"), Team: team.ID, Title: title, Brief: brief, Status: protocol.TaskReady, Member: member,
-		Origin: origin, Routine: routine, MaxTurns: team.Budget.TaskTurns, Created: now, Updated: now,
+		Origin: origin, Routine: routine, MaxTurns: team.Budget.TaskTurns, Model: model, Options: options, Created: now, Updated: now,
 	}
 	s.record(protocol.Activity{Action: "task.create", Target: title, OK: true, Team: team.ID, Task: task.ID})
-	if !team.Paused {
+	if s.mayWork(team) {
 		task = s.beginTeamTask(team, task)
 	}
 	t.tasks = append([]protocol.TeamTask{task}, t.tasks...)
@@ -478,6 +509,8 @@ func (s *server) beginTeamTask(team protocol.Team, task protocol.TeamTask) proto
 	now := time.Now()
 	task.Status, task.Waiting, task.Started, task.Updated = protocol.TaskWorking, "", &now, now
 	task.Turns, task.Usage = 0, protocol.TokenUsage{}
+	member, _ := teamMember(team, task.Member)
+	startEngine(&task, member, s.data.snapshot.Settings, s.registryHarness())
 	task.Session = fmt.Sprintf("agent-%s-%d", task.ID, len(task.Sessions)+1)
 	task.Sessions = append(append([]string(nil), task.Sessions...), task.Session)
 	transcript := teamTranscript(task, []line{said(i18n.T("I'm reading the brief and the team's folder before I start."))})
@@ -486,7 +519,10 @@ func (s *server) beginTeamTask(team protocol.Team, task protocol.TeamTask) proto
 	}
 	s.data.events[task.Session] = transcript
 	t.sessions = append([]protocol.SessionInfo{teamSession(team, task, transcript, i18n.T("Reading the brief."), i18n.T("Reading the brief"))}, t.sessions...)
-	s.record(protocol.Activity{Actor: "Rashin", Initiator: protocol.InitiatorRashin, Action: "task.start", Target: task.Title, OK: true, Team: team.ID, Task: task.ID})
+	s.record(protocol.Activity{
+		Actor: "Rashin", Initiator: protocol.InitiatorRashin, Action: "task.start", Target: task.Title, OK: true, Team: team.ID, Task: task.ID,
+		Detail: i18n.Tf("%s started work on it with %s, %s.", member.Name, s.harnessName(task.Harness), engineModel(task.Model)),
+	})
 	return task
 }
 
@@ -553,7 +589,7 @@ func (s *server) retryTask(p protocol.TeamTaskRetryParams) (protocol.TeamTask, e
 	task.Status, task.Waiting, task.Report, task.Reason, task.Ended, task.Read = protocol.TaskReady, "", nil, "", nil, false
 	task.Updated = time.Now()
 	s.record(protocol.Activity{Action: "task.retry", Target: task.Title, OK: true, Team: task.Team, Task: task.ID, Detail: strings.TrimSpace(p.Note)})
-	if !t.teams[team].Paused {
+	if s.mayWork(t.teams[team]) {
 		task = s.beginTeamTask(t.teams[team], task)
 	}
 	t.tasks[index] = task
@@ -745,10 +781,13 @@ func (s *server) runRoutine(id string) (protocol.TeamTask, error) {
 	if team.Paused {
 		return protocol.TeamTask{}, badRequest(i18n.Tf("%s is paused, so its routines do not run.", team.Name))
 	}
+	if s.data.snapshot.Settings.Teams.Paused {
+		return protocol.TeamTask{}, badRequest(i18n.T("Every team is paused, so no routine runs."))
+	}
 	member, _ := teamMember(team, routine.Member)
 	brief := i18n.Tf("%s\n\nThis run is from the routine \"%s\"; when nothing changed since the last run, say so in one line in your report.", routine.Brief, routine.Title)
 	s.record(protocol.Activity{Action: "routine.fire", Target: routine.Title, OK: true, Team: team.ID})
-	task := s.newTeamTask(team, member.ID, routine.Title, brief, protocol.TaskFromRoutine, routine.ID)
+	task := s.newTeamTask(team, member.ID, routine.Title, brief, protocol.TaskFromRoutine, routine.ID, "", nil)
 	now := time.Now()
 	index = t.routineIndex(id)
 	t.routines[index].LastRun, t.routines[index].LastTask, t.routines[index].LastStatus = &now, task.ID, task.Status
@@ -833,6 +872,7 @@ func (s *server) teamSpend(p protocol.TeamSpendParams) (protocol.TeamSpend, erro
 			tasks += member.Tasks
 		}
 		all.Teams = append(all.Teams, protocol.NamedSpend{ID: team.ID, Name: team.Name, Tokens: spend.Tokens, Tasks: tasks})
+		all.Engines = addEngines(all.Engines, spend.Engines)
 		for index := range all.Days {
 			if index < len(spend.Days) {
 				all.Days[index].Input += spend.Days[index].Input
@@ -841,4 +881,91 @@ func (s *server) teamSpend(p protocol.TeamSpendParams) (protocol.TeamSpend, erro
 		}
 	}
 	return all, nil
+}
+
+// adds one team's spend by engine to a sum of several, each engine once
+func addEngines(sum, team []protocol.NamedSpend) []protocol.NamedSpend {
+	for _, engine := range team {
+		if index := slices.IndexFunc(sum, func(named protocol.NamedSpend) bool { return named.ID == engine.ID }); index >= 0 {
+			sum[index].Tokens += engine.Tokens
+			sum[index].Tasks += engine.Tasks
+			continue
+		}
+		sum = append(sum, engine)
+	}
+	return sum
+}
+
+// deletes finished tasks with their sessions: past the kept days, or every one when asked; what they made stays in the folder
+func (s *server) pruneTasks(p protocol.TeamPruneParams) error {
+	t := &s.data.teams
+	if p.Team != "" && t.teamIndex(p.Team) < 0 {
+		return notFound("team")
+	}
+	days := s.data.snapshot.Settings.Teams.KeepDays
+	if !p.All && days == 0 {
+		return nil
+	}
+	before := time.Now().AddDate(0, 0, -days)
+	pruned := make(map[string]int)
+	kept := t.tasks[:0:0]
+	for _, task := range t.tasks {
+		ended := task.Updated
+		if task.Ended != nil {
+			ended = *task.Ended
+		}
+		if p.Team != "" && task.Team != p.Team || taskOpen(task) || !p.All && !ended.Before(before) {
+			kept = append(kept, task)
+			continue
+		}
+		for _, session := range task.Sessions {
+			s.deleteSession(session)
+		}
+		pruned[task.Team]++
+		s.tellTeams(protocol.EvtTeamTaskRemoved, protocol.TeamRemoved{ID: task.ID})
+	}
+	t.tasks = kept
+	for _, team := range t.teams {
+		if count := pruned[team.ID]; count > 0 {
+			s.record(protocol.Activity{Action: "task.prune", Target: team.Name, OK: true, Team: team.ID, Detail: i18n.Tf("Deleted %d finished tasks and their conversations.", count)})
+			s.emitTeam(team.ID)
+		}
+	}
+	return nil
+}
+
+// every team held at once stops what works; let go, each team that is not paused itself starts what queued
+func (s *server) holdEveryTeam(paused bool) {
+	t := &s.data.teams
+	if paused {
+		s.record(protocol.Activity{Action: "teams.pause", Target: i18n.T("Every team"), OK: true, Detail: i18n.T("Nothing starts and no routine fires until you turn this off.")})
+		for task := range t.tasks {
+			if t.tasks[task].Status == protocol.TaskWorking {
+				s.stopTeamTask(task, i18n.T("You paused every team."))
+			}
+		}
+		return
+	}
+	s.record(protocol.Activity{Action: "teams.resume", Target: i18n.T("Every team"), OK: true})
+	for _, team := range t.teams {
+		s.startQueued(team)
+		s.emitTeam(team.ID)
+	}
+}
+
+// a harness by its name, its id when it is gone
+func (s *server) harnessName(id string) string {
+	for _, harness := range s.data.snapshot.Harnesses {
+		if harness.ID == id {
+			return harness.Name
+		}
+	}
+	return id
+}
+
+func engineModel(model string) string {
+	if model == "" {
+		return i18n.T("its default model")
+	}
+	return model
 }

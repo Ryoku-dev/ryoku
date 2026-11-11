@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"ryoku-rashin/internal/paths"
 )
 
 // readonly.go decides, without touching disk, whether an agent tool call only
@@ -336,7 +338,7 @@ func roRecursiveSecretSearch(argv []string) bool {
 }
 
 func roSensitiveSearchRoot(target string) bool {
-	clean := filepath.Clean(expandHome(target))
+	clean := filepath.Clean(paths.Expand(target))
 	switch clean {
 	case "/", "/dev", "/proc", "/sys", "/home", "/root":
 		return true

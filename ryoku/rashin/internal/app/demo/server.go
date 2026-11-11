@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -110,6 +111,12 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 		return protocol.ProvidersResult{Providers: s.data.snapshot.Providers}, nil
 	case protocol.MHarnessesList:
 		return protocol.HarnessesResult{Harnesses: s.data.snapshot.Harnesses}, nil
+	case protocol.MHarnessesProbe:
+		var params protocol.HarnessProbeParams
+		if err := decode(raw, &params); err != nil {
+			return nil, err
+		}
+		return s.probeHarness(params)
 	case protocol.MIndexList:
 		return protocol.IndexesResult{Indexes: s.data.snapshot.Indexes}, nil
 	case protocol.MSettingsGet:
@@ -293,10 +300,14 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 		if err := decode(raw, &params); err != nil {
 			return nil, err
 		}
+		paused := s.data.snapshot.Settings.Teams.Paused
 		if err := mergeInto(params.Patch, &s.data.snapshot.Settings); err != nil {
 			return nil, err
 		}
 		s.syncCustomHarnesses()
+		if s.data.snapshot.Settings.Teams.Paused != paused {
+			s.holdEveryTeam(!paused)
+		}
 		return s.data.snapshot.Settings, nil
 	case protocol.MGatewayUsage:
 		day := Epoch.Format("2006-01-02")
@@ -861,7 +872,13 @@ func mergeInto(patch json.RawMessage, target any) error {
 	if err != nil {
 		return err
 	}
-	return json.Unmarshal(merged, target)
+	// a fresh value, so a key the patch removed from a map does not live on in the old one
+	fresh := reflect.New(reflect.TypeOf(target).Elem())
+	if err = json.Unmarshal(merged, fresh.Interface()); err != nil {
+		return err
+	}
+	reflect.ValueOf(target).Elem().Set(fresh.Elem())
+	return nil
 }
 func mergeMap(base, update map[string]any) {
 	for key, value := range update {
@@ -953,9 +970,13 @@ func (s *server) newSession(kind protocol.SessionKind, harness, cwd, project, wo
 	return info
 }
 func (s *server) syncCustomHarnesses() {
+	// what a probe learned about an instance stays with it
+	learned := make(map[string]*protocol.HarnessCapabilities)
 	builtins := s.data.snapshot.Harnesses[:0]
 	for _, harness := range s.data.snapshot.Harnesses {
-		if !harness.Custom {
+		if harness.Custom {
+			learned[harness.ID] = harness.Capabilities
+		} else {
 			builtins = append(builtins, harness)
 		}
 	}
@@ -963,11 +984,12 @@ func (s *server) syncCustomHarnesses() {
 		builtins = append(
 			builtins,
 			protocol.HarnessInfo{
-				ID:        instance.ID,
-				Name:      instance.Name,
-				Installed: len(instance.Command) > 0,
-				Command:   append([]string(nil), instance.Command...),
-				Custom:    true,
+				ID:           instance.ID,
+				Name:         instance.Name,
+				Installed:    len(instance.Command) > 0,
+				Command:      append([]string(nil), instance.Command...),
+				Custom:       true,
+				Capabilities: learned[instance.ID],
 			},
 		)
 	}

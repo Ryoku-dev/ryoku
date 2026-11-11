@@ -1,6 +1,7 @@
 package demo
 
 import (
+	"slices"
 	"strings"
 	"time"
 
@@ -20,9 +21,14 @@ func (s *server) decideApproval(p protocol.ApprovalDecideParams) (protocol.Appro
 	if approval.Status != protocol.ApprovalPending {
 		return protocol.Approval{}, badRequest(i18n.T("This was already answered."))
 	}
-	request := approval.Kind == protocol.ApprovalRequest
+	request, choice := approval.Kind == protocol.ApprovalRequest, len(approval.Options) > 0
 	switch {
 	case p.Decision == protocol.DecideDeny:
+	case p.Decision == protocol.DecideChoose && choice:
+		if !slices.Contains(approval.Options, p.Choice) {
+			return protocol.Approval{}, badRequest(i18n.T("Pick one of the options."))
+		}
+		t.approvals[index].Choice = p.Choice
 	case p.Decision == protocol.DecideProvide && request:
 		if strings.TrimSpace(p.Value) == "" {
 			return protocol.Approval{}, badRequest(i18n.T("Paste the value first."))
@@ -30,8 +36,8 @@ func (s *server) decideApproval(p protocol.ApprovalDecideParams) (protocol.Appro
 		if name := t.actions[approval.ID].request.Name; s.credentialNamed(name) >= 0 {
 			return protocol.Approval{}, badRequest(i18n.Tf("%s is already in the vault.", name))
 		}
-	case p.Decision == protocol.DecideOnce && !request:
-	case p.Decision == protocol.DecideAlways && !request && approval.Always != "":
+	case p.Decision == protocol.DecideOnce && !request && !choice:
+	case p.Decision == protocol.DecideAlways && !request && !choice && approval.Always != "":
 	default:
 		return protocol.Approval{}, badRequest(i18n.T("That is not an answer to this."))
 	}
@@ -57,6 +63,8 @@ func (s *server) settleApproval(index int, decision, note string) {
 		approval.Status, action, detail = protocol.ApprovalDenied, "approval.deny", note
 	case protocol.DecideAlways:
 		detail = approval.Always
+	case protocol.DecideChoose:
+		detail = i18n.Tf("Chose: %s", approval.Choice)
 	case protocol.DecideProvide:
 		detail = i18n.T("Added the value to the vault.")
 	}
@@ -77,6 +85,13 @@ func (s *server) approvalEffect(index int, decision, value string) string {
 	no := i18n.Tf("The user said no: %s.", approval.Title) + note
 	member := s.memberName(approval.Team, approval.Member)
 	now := time.Now()
+	if decision == protocol.DecideChoose {
+		chose := i18n.Tf("The user chose: %s", approval.Choice)
+		if approval.Note != "" {
+			chose += "\n" + i18n.Tf("Their note: %s", approval.Note)
+		}
+		return chose
+	}
 	switch approval.Kind {
 	case protocol.ApprovalMail:
 		if !approved {

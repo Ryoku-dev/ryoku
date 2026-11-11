@@ -19,8 +19,14 @@ func demoActivity(clock teamsClock) []protocol.Activity {
 	morning, evening, weekly, breaking := i18n.T("Morning review"), i18n.T("Evening check"), i18n.T("Weekly digest"), i18n.T("Breaking alerts")
 	printShop := i18n.T("Thank the print shop for the merch samples")
 	release := i18n.T("Write the release notes for 0.9.4")
+	colourPiece := i18n.T("Write a short piece on colour management in Wayland")
 	activity := []protocol.Activity{
 		{Time: ago(3 * time.Minute), Actor: "you", Action: "task.create", Target: testers, OK: true, Team: demoTeamMail, Task: "task-testers", Initiator: you, Detail: i18n.T("It waits for a free slot.")},
+		{Time: ago(13 * time.Minute), Actor: i18n.T("Curator"), Action: "approval.ask", Target: colourPiece, OK: true, Team: demoTeamNews, Task: "task-colour-piece", Initiator: agent, Detail: i18n.T("Which angle should the piece take?")},
+		{Time: ago(17 * time.Minute), Actor: "Rashin", Action: "task.start", Target: colourPiece, OK: true, Team: demoTeamNews, Task: "task-colour-piece", Initiator: rashin, Detail: i18n.Tf("%s started work on it with %s, %s.", i18n.T("Curator"), "Claude Code", "sonnet")},
+		{Time: ago(18 * time.Minute), Actor: "you", Action: "task.create", Target: colourPiece, OK: true, Team: demoTeamNews, Task: "task-colour-piece", Initiator: you},
+		{Time: ago(5 * time.Hour), Actor: "you", Action: "team.create", Target: i18n.T("Reading list"), OK: true, Team: demoTeamReading, Initiator: you},
+		{Time: ago(7 * time.Hour), Actor: "Rashin", Action: "task.prune", Target: i18n.T("Research desk"), OK: true, Team: demoTeamResearch, Initiator: rashin, Detail: i18n.Tf("Deleted %d finished tasks and their conversations.", 3)},
 		{Time: ago(6 * time.Minute), Actor: i18n.T("Writer"), Action: "approval.ask", Target: i18n.T("Reply to Ana about the Lisbon meetup"), OK: true, Team: demoTeamMail, Task: "task-meetup", Initiator: agent, Detail: i18n.T("Send a mail to ana.ribeiro@example.org")},
 		{Time: ago(8 * time.Minute), Actor: "Rashin", Action: "task.start", Target: i18n.T("Reply to Ana about the Lisbon meetup"), OK: true, Team: demoTeamMail, Task: "task-meetup", Initiator: rashin},
 		{Time: ago(9 * time.Minute), Actor: i18n.T("Researcher"), Action: "task.report", Target: i18n.T("Collect how cron and systemd timers treat missed runs"), OK: true, Team: demoTeamResearch, Task: "task-heartbeat-cron", Initiator: agent, Detail: i18n.T("How cron and systemd timers treat missed runs")},
@@ -60,7 +66,7 @@ func demoActivity(clock teamsClock) []protocol.Activity {
 		{Time: clock.previousMorning.Add(31 * time.Minute), Actor: i18n.T("Reviewer"), Action: "task.report", Target: morning, OK: true, Team: demoTeamRepo, Task: "task-review-previous", Initiator: agent, Unwatched: true, Detail: i18n.T("Two PRs need you")},
 		{Time: clock.previousMorning.Add(20 * time.Minute), Actor: "you", Action: "approval.deny", Target: i18n.T("Comment on PR #409 asking for a rebase"), OK: true, Team: demoTeamRepo, Task: "task-review-previous", Initiator: you, Detail: i18n.T("Never comment for me. Put it in the report instead.")},
 		{Time: clock.previousMorning.Add(8 * time.Minute), Actor: i18n.T("Reviewer"), Action: "approval.ask", Target: i18n.T("Comment on PR #409 asking for a rebase"), OK: true, Team: demoTeamRepo, Task: "task-review-previous", Initiator: agent, Unwatched: true},
-		{Time: clock.evening.Add(12 * time.Minute), Actor: i18n.T("Caretaker"), Action: "task.report", Target: evening, OK: true, Team: demoTeamSystem, Task: "task-evening", Initiator: agent, Unwatched: true, Detail: i18n.T("Nothing needs you tonight")},
+		{Time: clock.evening.Add(12 * time.Minute), Actor: i18n.T("Caretaker"), Action: "task.report", Target: evening, OK: true, Team: demoTeamSystem, Task: "task-evening", Initiator: agent, Unwatched: true, Detail: i18n.Tf("Nothing new: %s", i18n.T("Nothing needs you tonight"))},
 		{Time: clock.evening, Actor: evening, Action: "routine.fire", Target: evening, OK: true, Team: demoTeamSystem, Task: "task-evening", Initiator: routine, Unwatched: true},
 		{Time: ago(4 * 24 * time.Hour), Actor: "Rashin", Action: "approval.expire", Target: i18n.T("Send a mail to press@example.org"), OK: true, Team: demoTeamMail, Initiator: rashin, Unwatched: true, Detail: i18n.T("Nobody answered within a day.")},
 		{Time: ago(5 * 24 * time.Hour), Actor: "you", Action: "team.update", Target: i18n.T("Release notes"), OK: true, Team: demoTeamRelease, Initiator: you, Detail: i18n.T("Set its spending limit to 1,000,000 tokens a month.")},
@@ -92,7 +98,7 @@ func demoVaultLog(clock teamsClock) []protocol.VaultEvent {
 	return log
 }
 
-// this month of a team's tokens: by day, by member and by routine, adding up to what its meter shows
+// this month of a team's tokens: by day, by member, by routine and by the engine each member ran on, adding up to what its meter shows
 func demoTeamSpend(clock teamsClock, team protocol.Team) protocol.TeamSpend {
 	type share struct {
 		id, name string
@@ -123,6 +129,10 @@ func demoTeamSpend(clock teamsClock, team protocol.Team) protocol.TeamSpend {
 	for _, member := range members {
 		spend.Tokens += member.tokens
 		spend.Members = append(spend.Members, protocol.NamedSpend{ID: member.id, Name: member.name, Tokens: member.tokens, Tasks: member.tasks})
+		if found, ok := teamMember(team, member.id); ok {
+			engine := protocol.NamedSpend{ID: found.Harness + protocol.EngineSpendSeparator + found.Model, Tokens: member.tokens, Tasks: member.tasks}
+			spend.Engines = addEngines(spend.Engines, []protocol.NamedSpend{engine})
+		}
 	}
 	for _, routine := range routines {
 		spend.Routines = append(spend.Routines, protocol.NamedSpend{ID: routine.id, Name: routine.name, Tokens: routine.tokens, Tasks: routine.tasks})

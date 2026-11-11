@@ -115,3 +115,36 @@ func (d *Daemon) mainGate(c *connection, method string, raw json.RawMessage) err
 	}
 	return nil
 }
+
+// requireApp refuses a call only the Rashin app may make.
+func requireApp(c *connection) error {
+	if c.app {
+		return nil
+	}
+	return protocol.Errorf(protocol.CodeForbidden, "%s", i18n.T("Only the Rashin app can do this."))
+}
+
+// settingsForApp reports whether a settings patch reaches what only the
+// Rashin app may change: the teams' settings, which set what their agents
+// may reach, or the harness instances, whose command and environment team
+// agents run with. A patch that replaces a whole object, or is no object at
+// all, reaches everything under it.
+func settingsForApp(patch json.RawMessage) bool {
+	var top map[string]json.RawMessage
+	if json.Unmarshal(patch, &top) != nil || top == nil {
+		return true
+	}
+	if _, ok := top["teams"]; ok {
+		return true
+	}
+	agent, ok := top["agent"]
+	if !ok {
+		return false
+	}
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(agent, &fields) != nil || fields == nil {
+		return true
+	}
+	_, ok = fields["instances"]
+	return ok
+}

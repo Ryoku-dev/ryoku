@@ -78,6 +78,11 @@ type SessionInfo struct {
 	Parent string `json:"parent,omitempty"`
 	// Activity says what the agent is doing right now, from its latest tool.
 	Activity string `json:"activity,omitempty"`
+	// TurnStarted is when the running turn began; nil while no turn runs.
+	TurnStarted *time.Time `json:"turnStarted,omitempty"`
+	// Steps counts the tool calls of the running turn, or of the last turn
+	// once it ended.
+	Steps int `json:"steps,omitempty"`
 	// Unread is set when a turn ends and cleared by session.read.
 	Unread bool `json:"unread,omitempty"`
 	// Queue holds follow-ups sent when the running turn ends.

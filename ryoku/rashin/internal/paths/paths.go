@@ -27,6 +27,17 @@ func Short(path string) string {
 	return path
 }
 
+// Expand reads a leading tilde as the home directory: "~" and "~/x".
+func Expand(path string) string {
+	if path == "~" {
+		return Home()
+	}
+	if rest, ok := strings.CutPrefix(path, "~/"); ok {
+		return filepath.Join(Home(), rest)
+	}
+	return path
+}
+
 func xdg(env, fallback string) string {
 	if v := os.Getenv(env); v != "" && filepath.IsAbs(v) {
 		return v

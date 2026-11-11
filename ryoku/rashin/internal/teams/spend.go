@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -20,10 +21,12 @@ type spendFile map[string]map[string]*monthSpend
 
 // monthSpend is one team's tokens in one month. Task counts are not kept
 // here: they come from the tasks themselves, which addSpend is not told of.
+// Engines are keyed by engineKey.
 type monthSpend struct {
 	Days      map[string]dayTokens `json:"days"`
 	Members   map[string]int64     `json:"members,omitempty"`
 	Routines  map[string]int64     `json:"routines,omitempty"`
+	Engines   map[string]int64     `json:"engines,omitempty"`
 	Estimated bool                 `json:"estimated,omitempty"`
 }
 
@@ -38,9 +41,19 @@ const (
 	dayLayout   = "2006-01-02"
 )
 
-// addSpend counts a turn's tokens against its team, member and routine. A
-// spend file that cannot be written loses the count, never the turn.
-func (s *Service) addSpend(team, member, routine string, at time.Time, usage protocol.TokenUsage) {
+// engineKey names the engine a task ran on in the spend: its harness and
+// model joined by protocol.EngineSpendSeparator; empty before it started.
+func engineKey(t protocol.TeamTask) string {
+	if t.Harness == "" {
+		return ""
+	}
+	return t.Harness + protocol.EngineSpendSeparator + t.Model
+}
+
+// addSpend counts a turn's tokens against its team, member, routine and
+// engine. A spend file that cannot be written loses the count, never the
+// turn.
+func (s *Service) addSpend(team, member, routine, engine string, at time.Time, usage protocol.TokenUsage) {
 	if team == "" || (usage.Input == 0 && usage.Output == 0 && !usage.Estimated) {
 		return
 	}
@@ -79,6 +92,12 @@ func (s *Service) addSpend(team, member, routine string, at time.Time, usage pro
 			ms.Routines = make(map[string]int64)
 		}
 		ms.Routines[routine] += tokens
+	}
+	if engine != "" {
+		if ms.Engines == nil {
+			ms.Engines = make(map[string]int64)
+		}
+		ms.Engines[engine] += tokens
 	}
 	ms.Estimated = ms.Estimated || usage.Estimated
 	data, err := json.MarshalIndent(file, "", "  ")
@@ -159,6 +178,7 @@ func (s *Service) spend(p protocol.TeamSpendParams) (protocol.TeamSpend, error) 
 		out.Days = append(out.Days, protocol.DaySpend{Day: day, Input: d.Input, Output: d.Output})
 	}
 	sort.Slice(out.Days, func(i, j int) bool { return out.Days[i].Day < out.Days[j].Day })
+	out.Engines = engineSpend(teams, byTeam, ran)
 	if p.Team != "" {
 		team := teams[0]
 		out.Members = s.memberSpend(team, byTeam[team.ID], ran)
@@ -180,23 +200,43 @@ func (s *Service) spendOfMonth(month string) map[string]*monthSpend {
 	out := make(map[string]*monthSpend, len(file[month]))
 	for team, ms := range file[month] {
 		clone := &monthSpend{
-			Days:      make(map[string]dayTokens, len(ms.Days)),
-			Members:   make(map[string]int64, len(ms.Members)),
-			Routines:  make(map[string]int64, len(ms.Routines)),
+			Days:      maps.Clone(ms.Days),
+			Members:   maps.Clone(ms.Members),
+			Routines:  maps.Clone(ms.Routines),
+			Engines:   maps.Clone(ms.Engines),
 			Estimated: ms.Estimated,
-		}
-		for key, value := range ms.Days {
-			clone.Days[key] = value
-		}
-		for key, value := range ms.Members {
-			clone.Members[key] = value
-		}
-		for key, value := range ms.Routines {
-			clone.Routines[key] = value
 		}
 		out[team] = clone
 	}
 	return out
+}
+
+// engineSpend lists the engines the teams' tasks ran on in the month, with
+// the tokens each used and the tasks that started on it; the app words
+// their names.
+func engineSpend(teams []protocol.Team, byTeam map[string]*monthSpend, ran []protocol.TeamTask) []protocol.NamedSpend {
+	in := make(map[string]bool, len(teams))
+	spends := make(map[string]*protocol.NamedSpend)
+	entry := func(key string) *protocol.NamedSpend {
+		if spends[key] == nil {
+			spends[key] = &protocol.NamedSpend{ID: key}
+		}
+		return spends[key]
+	}
+	for _, team := range teams {
+		in[team.ID] = true
+		if ms := byTeam[team.ID]; ms != nil {
+			for key, tokens := range ms.Engines {
+				entry(key).Tokens += tokens
+			}
+		}
+	}
+	for _, t := range ran {
+		if key := engineKey(t); key != "" && in[t.Team] {
+			entry(key).Tasks++
+		}
+	}
+	return flattenSpend(spends)
 }
 
 // memberSpend lists a team's members that used tokens or ran tasks in the

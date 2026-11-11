@@ -135,3 +135,49 @@ func TestTheWakeUnitIsOnWhileAnyRoutineIs(t *testing.T) {
 		t.Fatalf("the wake unit was set %v, want off, on with the first routine, off with the last", got)
 	}
 }
+
+func TestQuietRunsStayReadAndCountInARow(t *testing.T) {
+	h := newHarness(t, 0)
+	team := h.newTeam(t, "Watch", nil)
+	routine := do[protocol.Routine](t, h, protocol.MTeamsRoutineCreate, hourly(team, "Hourly check", false))
+	run := func(quiet bool) protocol.TeamTask {
+		t.Helper()
+		task := do[protocol.TeamTask](t, h, protocol.MTeamsRoutineRun, protocol.RoutineRef{ID: routine.ID})
+		ref := h.agent(t, task.ID)
+		do[protocol.AgentAnswer](t, h, protocol.MTeamsAgentReport, protocol.AgentReportParams{AgentRef: ref, Title: "No change", Body: "Nothing new.", Quiet: quiet})
+		return h.task(t, task.ID)
+	}
+	streak := func() int {
+		r, _ := h.s.state.routine(routine.ID)
+		return r.QuietStreak
+	}
+
+	first := run(true)
+	if first.Status != protocol.TaskDone || first.Report == nil || !first.Report.Quiet || !first.Read {
+		t.Fatalf("a quiet run ended %q with %+v, read %v; want done, quiet and read", first.Status, first.Report, first.Read)
+	}
+	run(true)
+	if got := streak(); got != 2 {
+		t.Fatalf("two quiet runs in a row count %d", got)
+	}
+	var detail string
+	for _, a := range h.ledger(t) {
+		if a.Action == "task.report" && a.Task == first.ID {
+			detail = a.Detail
+		}
+	}
+	if detail != "Nothing new: No change" {
+		t.Fatalf("the ledger says %q of a quiet run", detail)
+	}
+	loud := run(false)
+	if got := streak(); got != 0 || loud.Read {
+		t.Fatalf("a run with news leaves the streak at %d and read %v", got, loud.Read)
+	}
+
+	given := h.newTask(t, team, "Not a routine.")
+	ref := h.agent(t, given.ID)
+	do[protocol.AgentAnswer](t, h, protocol.MTeamsAgentReport, protocol.AgentReportParams{AgentRef: ref, Body: "Here it is.", Quiet: true})
+	if mine := h.task(t, given.ID); mine.Report.Quiet || mine.Read {
+		t.Fatal("a task the user gave went quiet")
+	}
+}

@@ -31,6 +31,8 @@ func (t *boundTeams) Handle(_ context.Context, method string, _ json.RawMessage)
 
 func (t *boundTeams) SessionChanged(protocol.SessionInfo) {}
 
+func (t *boundTeams) Access(protocol.SessionInfo) protocol.TeamAccess { return protocol.TeamAccess{} }
+
 // shortRuntime keeps socket paths under the length a Unix socket allows.
 func shortRuntime(t *testing.T) {
 	t.Helper()

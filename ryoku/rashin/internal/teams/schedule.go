@@ -139,8 +139,12 @@ func (c *scheduler) change(id string, edit func(*protocol.Routine) bool) (protoc
 	return r, true
 }
 
-// live lists the routines that are on in teams that are not paused.
+// live lists the routines that are on in teams that are not paused; none
+// while the teams settings pause every team.
 func (c *scheduler) live() []protocol.Routine {
+	if c.s.settings().Teams.Paused {
+		return nil
+	}
 	working := make(map[string]bool)
 	for _, team := range c.s.state.teams() {
 		working[team.ID] = !team.Paused
@@ -286,12 +290,12 @@ func (c *scheduler) watchResume() {
 	}
 }
 
-// syncWake turns the wake unit on while any routine is on and off when none
-// is.
+// syncWake turns the wake unit on while any routine is on and the teams
+// settings let routines wake Rashin, and off otherwise.
 func (c *scheduler) syncWake() {
 	c.wake.Lock()
 	defer c.wake.Unlock()
-	on := c.armed()
+	on := c.armed() && c.s.settings().Teams.RoutinesWake
 	if c.wakeKnown && c.wakeOn == on {
 		return
 	}

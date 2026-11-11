@@ -16,16 +16,21 @@ func (s *server) announce(out *outbox, method string) {
 		s.data.snapshot.Status.API = demoAPI(s.data.snapshot.Settings.API)
 		events[protocol.EvtSettingsChanged] = s.data.snapshot.Settings
 		events[protocol.EvtAPIChanged] = s.data.snapshot.Status.API
+		// pausing every team stops what works, and the pages hear each task stop
+		teams = s.takeTeamsEvents()
 	case protocol.MProjectsAdd, protocol.MProjectsRemove:
 		projects := append([]protocol.ProjectInfo(nil), s.data.snapshot.Projects...)
 		events[protocol.EvtProjectsChanged] = protocol.ProjectsResult{Projects: projects}
+	case protocol.MHarnessesProbe:
+		harnesses := append([]protocol.HarnessInfo(nil), s.data.snapshot.Harnesses...)
+		events[protocol.EvtHarnessesChanged] = protocol.HarnessesResult{Harnesses: harnesses}
 	case protocol.MProvidersEnable, protocol.MProvidersAddKey, protocol.MProvidersRemoveKey:
 		providers := append([]protocol.ProviderInfo(nil), s.data.snapshot.Providers...)
 		events[protocol.EvtProvidersChanged] = protocol.ProvidersResult{Providers: providers}
 	case protocol.MTeamsCreate, protocol.MTeamsUpdate, protocol.MTeamsDelete, protocol.MTeamsPause, protocol.MTeamsImport,
 		protocol.MTeamsTaskCreate, protocol.MTeamsTaskStop, protocol.MTeamsTaskRetry, protocol.MTeamsTaskRead, protocol.MTeamsTaskDelete,
 		protocol.MTeamsRoutineCreate, protocol.MTeamsRoutineUpdate, protocol.MTeamsRoutineDelete, protocol.MTeamsRoutineRun,
-		protocol.MTeamsApprovalDecide, protocol.MVaultAdd, protocol.MVaultUpdate, protocol.MVaultRemove, protocol.MVaultMail:
+		protocol.MTeamsApprovalDecide, protocol.MTeamsPrune, protocol.MVaultAdd, protocol.MVaultUpdate, protocol.MVaultRemove, protocol.MVaultMail:
 		// each change queued the team, task, approval, routine, vault and session events the daemon would broadcast, in order
 		teams = s.takeTeamsEvents()
 	}

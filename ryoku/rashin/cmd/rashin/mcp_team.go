@@ -15,20 +15,29 @@ import (
 // questions to the user, and the credentials and mail it uses without ever
 // seeing a value. Only a lead hands out pieces and reads how they went.
 func teamTools(session mcpSession) []mcp.Tool {
+	choices := map[string]any{
+		"type":        "array",
+		"items":       map[string]any{"type": "string"},
+		"minItems":    2,
+		"maxItems":    protocol.ApprovalOptionsMax,
+		"description": "For a choice: 2 to 6 short, different answers the user picks one of. Leave it out for a yes or no question.",
+	}
 	tools := []mcp.Tool{
 		{
 			Name:        "report",
-			Description: "Hand your report to the user: what you found or did, written for them, with sources or files. This ends your task.",
+			Description: "Hand your report to the user: what you found or did, written for them, with sources or files. This ends your task. In a run of a routine where nothing changed since the last run, set quiet and say so in one line: the run ends without notifying the user.",
 			Input: schema([]string{"title", "body"}, map[string]any{
 				"title": stringProperty("One line saying what the report is."),
 				"body":  stringProperty("The report in Markdown, written for the user, with sources."),
 				"files": arrayProperty("Paths of files you made, inside the team's folder."),
+				"quiet": map[string]any{"type": "boolean", "description": "Only for a run of a routine: nothing changed since the last run, so the user is not notified. Leave it off whenever there is anything the user should read."},
 			}),
 			Call: func(ctx context.Context, raw json.RawMessage) mcp.Result {
 				var args struct {
 					Title string   `json:"title"`
 					Body  string   `json:"body"`
 					Files []string `json:"files"`
+					Quiet bool     `json:"quiet"`
 				}
 				if err := toolArguments(raw, &args, "title", "body"); err != nil {
 					return mcp.Failure(err)
@@ -37,25 +46,27 @@ func teamTools(session mcpSession) []mcp.Tool {
 				for _, file := range args.Files {
 					files = append(files, session.path(file))
 				}
-				return teamAnswer(ctx, session, protocol.MTeamsAgentReport, protocol.AgentReportParams{AgentRef: session.agent(), Title: args.Title, Body: args.Body, Files: files})
+				return teamAnswer(ctx, session, protocol.MTeamsAgentReport, protocol.AgentReportParams{AgentRef: session.agent(), Title: args.Title, Body: args.Body, Files: files, Quiet: args.Quiet})
 			},
 		},
 		{
 			Name:        "ask_user",
-			Description: "Ask the user to decide before you do something that leaves this computer or cannot be undone. Never ask about a mail or a request: send_mail and http_request show the user the exact mail or request and ask by themselves. End your turn after asking; Rashin continues the task with their answer.",
+			Description: "Ask the user to decide before you do something that leaves this computer or cannot be undone, or to choose between ways to go on by giving 2 to 6 options. Never ask about a mail or a request: send_mail and http_request show the user the exact mail or request and ask by themselves. End your turn after asking; Rashin continues the task with their answer or the option they chose.",
 			Input: schema([]string{"title"}, map[string]any{
-				"title":  stringProperty("One line saying what you want to do."),
-				"detail": stringProperty("Exactly what would happen, so the user can judge it."),
+				"title":   stringProperty("One line saying what you want to do, or what the user should choose."),
+				"detail":  stringProperty("Exactly what would happen, so the user can judge it."),
+				"options": choices,
 			}),
 			Call: func(ctx context.Context, raw json.RawMessage) mcp.Result {
 				var args struct {
-					Title  string `json:"title"`
-					Detail string `json:"detail"`
+					Title   string   `json:"title"`
+					Detail  string   `json:"detail"`
+					Options []string `json:"options"`
 				}
 				if err := toolArguments(raw, &args, "title"); err != nil {
 					return mcp.Failure(err)
 				}
-				return teamAnswer(ctx, session, protocol.MTeamsAgentAsk, protocol.AgentAskParams{AgentRef: session.agent(), Title: args.Title, Detail: args.Detail})
+				return teamAnswer(ctx, session, protocol.MTeamsAgentAsk, protocol.AgentAskParams{AgentRef: session.agent(), Title: args.Title, Detail: args.Detail, Options: args.Options})
 			},
 		},
 		{

@@ -33,7 +33,7 @@ func Defaults() protocol.Settings {
 		Daemon: protocol.DaemonSettings{IdleExitMinutes: 5},
 		Index:  protocol.IndexSettings{System: true, Semantic: true},
 		API:    protocol.APISettings{Port: protocol.DefaultAPIPort},
-		Teams:  protocol.TeamsSettings{MaxRunning: protocol.DefaultTeamsMaxRunning},
+		Teams:  defaultTeams(),
 	}
 }
 
@@ -80,11 +80,8 @@ func Validate(s *protocol.Settings) {
 	if !validPort(s.API.Port) {
 		s.API.Port = d.API.Port
 	}
-	s.Teams.MaxRunning = clamp(s.Teams.MaxRunning, 1, maxTeamsRunning, d.Teams.MaxRunning)
+	validateTeams(&s.Teams, d.Teams)
 }
-
-// more team tasks at once than this would starve the desktop the teams share
-const maxTeamsRunning = 6
 
 // below 1024 a user's daemon cannot listen
 func validPort(port int) bool { return port >= 1024 && port <= 65535 }
@@ -399,10 +396,7 @@ func validatePatch(s protocol.Settings) error {
 	if !validPort(s.API.Port) {
 		return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("The API port must be between 1024 and 65535."))
 	}
-	if s.Teams.MaxRunning < 1 || s.Teams.MaxRunning > maxTeamsRunning {
-		return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("Tasks at once must be between 1 and %d.", maxTeamsRunning))
-	}
-	return nil
+	return checkTeams(s.Teams)
 }
 
 func mergePatch(target, patch any) any {

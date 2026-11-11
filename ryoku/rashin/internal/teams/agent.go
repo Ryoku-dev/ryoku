@@ -57,7 +57,9 @@ func (s *Service) caller(ctx context.Context, ref protocol.AgentRef) (caller, er
 }
 
 // agentReport takes the report that ends a task: it is kept for the user,
-// the goal ends, and what waited on the task moves on.
+// the goal ends, and what waited on the task moves on. A quiet report, which
+// only a routine's run may give, ends the run done without marking it
+// unread or notifying.
 func (s *Service) agentReport(ctx context.Context, p protocol.AgentReportParams) (protocol.AgentAnswer, error) {
 	c, err := s.caller(ctx, p.AgentRef)
 	if err != nil {
@@ -76,18 +78,28 @@ func (s *Service) agentReport(ctx context.Context, p protocol.AgentReportParams)
 	if title == "" {
 		title = task.Title
 	}
-	report := &protocol.TeamReport{Title: s.redact(title), Body: s.redact(body), Files: teamFiles(team.Folder, p.Files), At: s.now()}
+	quiet := p.Quiet && task.Routine != ""
+	report := &protocol.TeamReport{Title: s.redact(title), Body: s.redact(body), Files: teamFiles(team.Folder, p.Files), At: s.now(), Quiet: quiet}
 	ended, ok := s.endTask(c.Task, func(t *protocol.TeamTask) {
-		t.Status, t.Report, t.Reason = protocol.TaskDone, report, ""
+		t.Status, t.Report, t.Reason, t.Read = protocol.TaskDone, report, "", quiet
 	})
 	if !ok {
 		return protocol.AgentAnswer{Text: i18n.T("This task already ended.")}, nil
 	}
 	member, _ := taskMember(team, c.Member)
-	s.record(protocol.Activity{Actor: member.Name, Action: "task.report", Target: ended.Title, OK: true, Team: team.ID, Task: ended.ID, Initiator: protocol.InitiatorAgent, Detail: i18n.Tf("Reported: %s", report.Title)})
+	detail := i18n.Tf("Reported: %s", report.Title)
+	if quiet {
+		detail = i18n.Tf("Nothing new: %s", report.Title)
+	}
+	s.record(protocol.Activity{Actor: member.Name, Action: "task.report", Target: ended.Title, OK: true, Team: team.ID, Task: ended.ID, Initiator: protocol.InitiatorAgent, Detail: detail})
 	_, _ = s.sessions.Goal(ctx, protocol.GoalParams{ID: c.Session, Op: protocol.GoalComplete, Summary: report.Title})
-	s.notifyEnd(ended)
+	if !quiet {
+		s.notifyEnd(ended)
+	}
 	s.afterEnd(ended)
+	if quiet {
+		return protocol.AgentAnswer{Text: i18n.T("The run is done and noted as quiet; the user is not notified. End your turn now.")}, nil
+	}
 	return protocol.AgentAnswer{Text: i18n.T("Your report is with the user and the task is done. End your turn now.")}, nil
 }
 
@@ -167,7 +179,7 @@ func (s *Service) agentDelegate(ctx context.Context, p protocol.AgentDelegatePar
 		return protocol.AgentAnswer{}, err
 	}
 	s.emitTask(waiting)
-	piece, err := s.newTask(ctx, team.ID, member.ID, p.Title, p.Brief, protocol.TaskFromLead, "", c.Task)
+	piece, err := s.newTask(ctx, team.ID, member.ID, p.Title, p.Brief, protocol.TaskFromLead, "", c.Task, "", nil)
 	if err != nil {
 		if len(open) == 0 {
 			s.mu.Lock()
@@ -199,8 +211,8 @@ func (s *Service) agentStatus(ctx context.Context, ref protocol.AgentRef) (proto
 	return protocol.AgentStatusResult{Tasks: pieces}, nil
 }
 
-// agentAsk puts an action to the user as an approval; the task waits on the
-// answer between turns.
+// agentAsk puts an action, or a choice between options, to the user as an
+// approval; the task waits on the answer between turns.
 func (s *Service) agentAsk(ctx context.Context, p protocol.AgentAskParams) (protocol.AgentAnswer, error) {
 	c, err := s.caller(ctx, p.AgentRef)
 	if err != nil {
@@ -210,12 +222,26 @@ func (s *Service) agentAsk(ctx context.Context, p protocol.AgentAskParams) (prot
 	if title == "" {
 		return protocol.AgentAnswer{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Say in one line what the user should decide."))
 	}
+	var options []string
+	for _, option := range p.Options {
+		options = append(options, strings.TrimSpace(option))
+	}
+	if !protocol.ValidApprovalOptions(options) {
+		return protocol.AgentAnswer{}, protocol.Errorf(protocol.CodeBadRequest, "%s",
+			i18n.Tf("Offer 2 to %d different options of at most %d characters each, or none.", protocol.ApprovalOptionsMax, protocol.ApprovalOptionRunesMax))
+	}
+	for i, option := range options {
+		options[i] = s.redact(option)
+	}
 	asked := protocol.Approval{
 		Team: c.Team, Task: c.Task, Session: c.Session, Member: c.Member, Kind: protocol.ApprovalAction,
-		Title: s.redact(title), Detail: s.redact(strings.TrimSpace(p.Detail)),
+		Title: s.redact(title), Detail: s.redact(strings.TrimSpace(p.Detail)), Options: options,
 	}
 	if _, err := s.ask(ctx, c, asked, nil); err != nil {
 		return protocol.AgentAnswer{}, err
+	}
+	if len(options) > 0 {
+		return protocol.AgentAnswer{Text: i18n.Tf("Waiting for the user to choose: %s. End your turn now; Rashin continues this task with their choice.", title)}, nil
 	}
 	return protocol.AgentAnswer{Text: i18n.Tf("Waiting for the user: %s. End your turn now; Rashin continues this task with their answer.", title)}, nil
 }

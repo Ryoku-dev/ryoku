@@ -270,7 +270,7 @@ func (s *server) appendTeamEvents(session string, events ...func(seq int64) prot
 		s.data.events[session] = append(s.data.events[session], made)
 		s.tellTeams(protocol.EvtSessionEvent, protocol.SessionEventData{Session: session, SessionEvent: made})
 	}
-	t.sessions[index].LastSeq = seq
+	t.sessions[index].LastSeq, t.sessions[index].Steps = seq, lastTurnSteps(s.data.events[session])
 }
 
 func later(kind string, data any) func(seq int64) protocol.SessionEvent {

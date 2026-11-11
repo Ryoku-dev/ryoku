@@ -33,29 +33,41 @@ type notification struct {
 }
 
 // notify shows a desktop notification while no Rashin window is open, as far
-// as the team's notify level allows. Its Open action shows the Inbox for what
-// needs the user and the task for a report.
+// as the team's notify level and the quiet hours allow.
 func (s *Service) notify(n notification) {
+	if route, ok := s.notifyRoute(n); ok {
+		go s.post(n, route)
+	}
+}
+
+// notifyRoute says whether a notification reaches the desktop, and where
+// its Open action leads: the Inbox for what needs the user and the task for
+// a report. Nothing does while a window is open, inside the quiet hours, or
+// beyond the team's notify level; what needs the user still waits in the
+// Inbox.
+func (s *Service) notifyRoute(n notification) (string, bool) {
 	if s.sessions == nil || s.sessions.Watched() {
-		return
+		return "", false
+	}
+	if quiet := s.settings().Teams.QuietHours; quiet != nil && quiet.Covers(s.now()) {
+		return "", false
 	}
 	team, ok := s.state.team(n.Team)
 	if !ok {
-		return
+		return "", false
 	}
 	switch team.Notify {
 	case protocol.NotifyNone:
-		return
+		return "", false
 	case protocol.NotifyNeeds:
 		if !n.Needs {
-			return
+			return "", false
 		}
 	}
-	route := "inbox"
 	if !n.Needs && n.Task != "" {
-		route = "work/" + n.Task
+		return "work/" + n.Task, true
 	}
-	go s.post(n, route)
+	return "inbox", true
 }
 
 // notifyEnd tells the user a task they gave ended: its report, or that it

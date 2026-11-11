@@ -10,12 +10,16 @@ import (
 )
 
 // effectAction tells the agent how the user answered what it asked before
-// acting; the agent itself carries the action out once approved.
+// acting, or which option they chose; the agent itself carries the action
+// out once approved.
 func (s *Service) effectAction(_ context.Context, rec *approvalRecord, p protocol.ApprovalDecideParams) (string, error) {
 	var text string
-	if p.Decision == protocol.DecideDeny {
+	switch p.Decision {
+	case protocol.DecideChoose:
+		text = i18n.Tf("The user chose: %s", p.Choice)
+	case protocol.DecideDeny:
 		text = i18n.Tf("The user said no: %s.", strings.TrimSuffix(rec.Title, "."))
-	} else {
+	default:
 		text = i18n.Tf("The user approved: %s.", strings.TrimSuffix(rec.Title, "."))
 	}
 	if note := strings.TrimSpace(p.Note); note != "" {

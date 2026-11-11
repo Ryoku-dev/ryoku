@@ -215,6 +215,7 @@ func makeFixtures() fixtures {
 		Daemon: protocol.DaemonSettings{IdleExitMinutes: 5},
 		Index:  protocol.IndexSettings{System: true, Semantic: true},
 		API:    protocol.APISettings{Enabled: true, Port: protocol.DefaultAPIPort},
+		Teams:  demoTeamsSettings(),
 	}
 	provider := protocol.ProviderInfo{
 		ID:         "openrouter",
@@ -484,45 +485,10 @@ func makeFixtures() fixtures {
 			Sessions:  []protocol.SessionInfo{working, needs, failed, done, idle, ask},
 			Settings:  settings,
 			Providers: []protocol.ProviderInfo{provider, keyless},
-			Harnesses: []protocol.HarnessInfo{
-				{
-					ID:        "codex",
-					Name:      "Codex",
-					Installed: true,
-					Version:   "0.62.0",
-					Default:   true,
-					Capabilities: &protocol.HarnessCapabilities{
-						LoadSession: true,
-						Images:      true,
-						Context:     true,
-						Models:      true,
-						Modes:       []protocol.Choice{{ID: "default", Name: i18n.T("Default")}, {ID: "plan", Name: i18n.T("Plan")}},
-						Started:     []protocol.HarnessFact{{Label: i18n.T("Model"), Value: "gpt-5.6-sol"}, {Label: i18n.T("Thinking"), Value: i18n.T("High")}},
-					},
-				},
-				{
-					ID:           "claude",
-					Name:         "Claude Code",
-					Installed:    true,
-					Version:      "2.1.3",
-					Capabilities: &protocol.HarnessCapabilities{LoadSession: true, Images: true, Models: true},
-					Setup: []protocol.HarnessFact{
-						{Label: i18n.T("Model"), Value: "anthropic/claude-opus-5-5"},
-						{Label: i18n.Tf("%s model", "smol"), Value: "anthropic/claude-haiku-5"},
-					},
-				},
-				{
-					ID:        "custom-review",
-					Name:      i18n.T("Review account"),
-					Installed: true,
-					Custom:    true,
-					Command:   []string{"codex-acp", "--profile", "review"},
-				},
-				{ID: "gemini", Name: "Gemini CLI", Installed: false},
-			},
-			Indexes:  indexes,
-			Projects: projects,
-			Tasks:    append(append([]protocol.TaskInfo(nil), tasks[demoProjectHyperion].Tasks...), tasks[demoProjectRyotunes].Tasks...),
+			Harnesses: demoHarnesses(now),
+			Indexes:   indexes,
+			Projects:  projects,
+			Tasks:     append(append([]protocol.TaskInfo(nil), tasks[demoProjectHyperion].Tasks...), tasks[demoProjectRyotunes].Tasks...),
 		},
 		events: make(map[string][]protocol.SessionEvent),
 		models: protocol.ModelsResult{
@@ -652,7 +618,7 @@ func makeFixtures() fixtures {
 	result.events[done.ID] = append(result.events[done.ID], event(int64(len(result.events[done.ID])+1), protocol.EvTurnEnd, protocol.TurnEndData{Turn: 1, Stop: protocol.StopEnd}))
 	result.events[idle.ID] = agentEvents(idle, false)
 	result.events[failed.ID] = agentEvents(failed, false)
-	result.teams = demoTeams(now, result.events)
+	result.teams = demoTeams(now, settings, result.events)
 	return result
 }
 

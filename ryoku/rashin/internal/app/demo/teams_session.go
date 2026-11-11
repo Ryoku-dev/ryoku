@@ -96,14 +96,15 @@ func teamSession(team protocol.Team, task protocol.TeamTask, events []protocol.S
 		ID:        task.Session,
 		Kind:      protocol.KindAgent,
 		Title:     task.Title,
-		Harness:   member.Harness,
-		Model:     member.Model,
+		Harness:   task.Harness,
+		Model:     task.Model,
 		Mode:      "default",
 		Cwd:       team.Folder,
 		Origin:    protocol.OriginTeam,
 		Created:   task.Created,
 		Preview:   preview,
 		Activity:  activity,
+		Steps:     lastTurnSteps(events),
 		Team:      team.ID,
 		TeamTask:  task.ID,
 		Member:    member.ID,
@@ -114,6 +115,11 @@ func teamSession(team protocol.Team, task protocol.TeamTask, events []protocol.S
 	}
 	if task.Started != nil {
 		info.Created = *task.Started
+	}
+	// a first turn began when the task did, a later one when the task last moved on
+	if task.Turns <= 1 && task.Started != nil {
+		started := *task.Started
+		info.TurnStarted = &started
 	}
 	if len(events) > 0 {
 		info.LastSeq = events[len(events)-1].Seq
@@ -140,6 +146,39 @@ func standSession(info *protocol.SessionInfo, task protocol.TeamTask) {
 	}
 	if !info.Alive {
 		info.Activity = ""
+	}
+	switch {
+	case info.State != protocol.StateWorking:
+		info.TurnStarted = nil
+	case info.TurnStarted == nil:
+		started := task.Updated
+		info.TurnStarted = &started
+	}
+}
+
+// the tool calls of the last turn, the one at work or the one that ended
+func lastTurnSteps(events []protocol.SessionEvent) int {
+	steps := 0
+	for _, made := range events {
+		switch made.Kind {
+		case protocol.EvTurnStart:
+			steps = 0
+		case protocol.EvTool:
+			steps++
+		}
+	}
+	return steps
+}
+
+// a task starts on its member's engine through the defaults chain, with what was asked for this task alone on top
+func startEngine(task *protocol.TeamTask, member protocol.Member, settings protocol.Settings, fallback string) {
+	harness, model, options := protocol.ResolveEngine(member, settings, fallback)
+	task.Harness = harness
+	if task.Model == "" {
+		task.Model = model
+	}
+	if len(task.Options) == 0 {
+		task.Options = options
 	}
 }
 

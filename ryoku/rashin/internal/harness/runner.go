@@ -655,6 +655,12 @@ func (r *runner) initialize(ctx context.Context) error {
 		Modes:       append([]protocol.Choice(nil), r.modes...),
 		Models:      session.Models != nil || r.modelOption != "",
 		Started:     r.startedLocked(),
+		ModelList:   append([]protocol.Choice(nil), r.models...),
+		Options:     cloneOptions(r.options),
+	}
+	// a resumed session reports the model it was left on, not the default
+	if method == "session/new" {
+		capabilities.DefaultModel = r.model
 	}
 	report := r.reportCapabilities
 	r.mu.Unlock()

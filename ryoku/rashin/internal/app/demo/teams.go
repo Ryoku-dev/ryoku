@@ -18,6 +18,7 @@ const (
 	demoTeamSystem   = "team-system"
 	demoTeamNews     = "team-news"
 	demoTeamRelease  = "team-release"
+	demoTeamReading  = "team-reading"
 )
 
 // everything Teams mode shows, kept apart from the snapshot because the daemon builds that part fresh on each read
@@ -73,6 +74,24 @@ func demoTeamsClock(now time.Time) teamsClock {
 		evening:         lastAt(local, 18, 0, every).AddDate(0, 0, -1),
 		weekly:          lastAt(local, 8, 0, func(day time.Weekday) bool { return day == time.Monday }),
 		breaking:        local.Add(-5 * time.Hour).Truncate(time.Hour).Add(15 * time.Minute),
+	}
+}
+
+// the teams settings of someone who set quiet hours, hid one folder of their own and keeps three months of finished tasks
+func demoTeamsSettings() protocol.TeamsSettings {
+	return protocol.TeamsSettings{
+		MaxRunning:   protocol.DefaultTeamsMaxRunning,
+		PerTeam:      protocol.DefaultTeamsPerTeam,
+		RoutinesWake: true,
+		Defaults: protocol.TeamDefaults{
+			Approvals: protocol.ApprovalsAsk,
+			Budget:    protocol.TeamBudget{MonthTokens: 2_000_000, WarnPercent: 80, TaskTurns: 20, TaskMinutes: 60},
+			Notify:    protocol.NotifyAll,
+		},
+		ApprovalHours: protocol.DefaultApprovalHours,
+		QuietHours:    &protocol.QuietHours{From: "22:00", To: "07:30"},
+		Hidden:        append(protocol.DefaultTeamsHidden(), "~/Documents/taxes"),
+		KeepDays:      90,
 	}
 }
 
@@ -139,11 +158,12 @@ func demoTemplates() []protocol.TeamTemplate {
 	}
 }
 
-// a team made from a template, its members given ids, harnesses and models in order
+// a team made from a template, its members given ids and engines in order
 func teamFrom(template protocol.TeamTemplate, id, folder string, created time.Time, crew ...protocol.Member) protocol.Team {
 	members := append([]protocol.Member(nil), template.Members...)
 	for index := range members {
 		members[index].ID, members[index].Harness, members[index].Model = crew[index].ID, crew[index].Harness, crew[index].Model
+		members[index].Options = crew[index].Options
 	}
 	return protocol.Team{
 		ID: id, Name: template.Name, Purpose: template.Purpose, Template: template.ID,
@@ -153,14 +173,14 @@ func teamFrom(template protocol.TeamTemplate, id, folder string, created time.Ti
 	}
 }
 
-func demoTeams(now time.Time, events map[string][]protocol.SessionEvent) teamsFixtures {
+func demoTeams(now time.Time, settings protocol.Settings, events map[string][]protocol.SessionEvent) teamsFixtures {
 	clock := demoTeamsClock(now)
 	ago := func(d time.Duration) time.Time { return now.Add(-d) }
 	at := func(t time.Time) *time.Time { return &t }
 	templates := demoTemplates()
 
 	research := teamFrom(templates[0], demoTeamResearch, "research-desk", now.AddDate(0, 0, -24),
-		protocol.Member{ID: "member-editor", Harness: "claude", Model: "sonnet"},
+		protocol.Member{ID: "member-editor", Harness: "claude", Model: "sonnet", Options: map[string]string{"effort": "high"}},
 		protocol.Member{ID: "member-researcher", Harness: "claude", Model: "haiku"})
 	mail := teamFrom(templates[1], demoTeamMail, "mail-desk", now.AddDate(0, 0, -30),
 		protocol.Member{ID: "member-writer", Harness: "codex", Model: "gpt-5.6"})
@@ -177,7 +197,7 @@ func demoTeams(now time.Time, events map[string][]protocol.SessionEvent) teamsFi
 		Folder:  paths.TeamsHome() + "/news-digest",
 		Members: []protocol.Member{
 			{ID: "member-curator", Name: i18n.T("Curator"), Title: i18n.T("Picks what matters"), Lead: true, Harness: "claude", Model: "sonnet", Instructions: i18n.T("Chooses the five stories worth my time, writes the digest and links every source.")},
-			{ID: "member-reader", Name: i18n.T("Reader"), Title: i18n.T("Reads the feeds"), Harness: "codex", Instructions: i18n.T("Reads the news API and the feeds, and hands the curator every story on my topics with its link.")},
+			{ID: "member-reader", Name: i18n.T("Reader"), Title: i18n.T("Reads the feeds"), Harness: "gemini", Model: "gemini-3-flash", Instructions: i18n.T("Reads the news API and the feeds, and hands the curator every story on my topics with its link.")},
 		},
 		Approvals: protocol.ApprovalsAsk, Budget: protocol.TeamBudget{MonthTokens: 1_500_000, WarnPercent: 80, TaskTurns: 20},
 		Notify: protocol.NotifyAll, Created: now.AddDate(0, 0, -20), Updated: now.AddDate(0, 0, -3),
@@ -193,15 +213,30 @@ func demoTeams(now time.Time, events map[string][]protocol.SessionEvent) teamsFi
 		Notify: protocol.NotifyAll, Paused: true, PauseReason: protocol.PausedByBudget,
 		Created: now.AddDate(0, 0, -12), Updated: ago(2 * time.Hour),
 	}
+	// made a few hours ago and never given a task, its one member on the teams default
+	reading := protocol.Team{
+		ID: demoTeamReading, Name: i18n.T("Reading list"),
+		Purpose: i18n.T("Sorts the articles I save to read later by topic and writes one line on each."),
+		Folder:  paths.TeamsHome() + "/reading-list",
+		Members: []protocol.Member{
+			{ID: "member-librarian", Name: i18n.T("Librarian"), Title: i18n.T("Sorts and sums up"), Lead: true, Instructions: i18n.T("Reads each saved article, files it under a topic and writes one plain line on what it says.")},
+		},
+		Approvals: protocol.ApprovalsReadOnly, Budget: settings.Teams.Defaults.Budget,
+		Notify: protocol.NotifyAll, Created: ago(5 * time.Hour), Updated: ago(5 * time.Hour),
+	}
 
 	fx := teamsFixtures{
-		teams:   []protocol.Team{research, mail, repo, system, news, release},
+		teams:   []protocol.Team{research, mail, repo, system, news, release, reading},
 		spend:   make(map[string]protocol.TeamSpend),
 		actions: make(map[string]demoAction),
 	}
-	// every task is stored with the session that worked it and that session's transcript
+	// every task is stored with the engine it started on, the session that worked it and that session's transcript
 	add := func(team protocol.Team, task protocol.TeamTask, preview, activity string, lines ...line) {
 		task.Team, task.MaxTurns = team.ID, team.Budget.TaskTurns
+		if task.Started != nil {
+			member, _ := teamMember(team, task.Member)
+			startEngine(&task, member, settings, "")
+		}
 		if task.Session != "" {
 			task.Sessions = []string{task.Session}
 			transcript := teamTranscript(task, lines)
@@ -236,13 +271,14 @@ func demoTeams(now time.Time, events map[string][]protocol.SessionEvent) teamsFi
 		ID: "task-heartbeat-docs", Title: i18n.T("Read how Paperclip's heartbeat works"),
 		Brief:  i18n.T("Open the Paperclip repository on your screen and read how an agent is woken: the timer, assignments and on-demand wakeups, and what happens when a run is still going. Note every file you read."),
 		Status: protocol.TaskWorking, Member: "member-researcher", Parent: "task-heartbeat", Origin: protocol.TaskFromLead,
-		Session: "agent-team-heartbeat-docs", Usage: protocol.TokenUsage{Input: 58300, Output: 2100}, Turns: 1,
-		Created: ago(24 * time.Minute), Started: at(ago(22 * time.Minute)), Updated: ago(time.Minute),
+		Session: "agent-team-heartbeat-docs", Usage: protocol.TokenUsage{Input: 58300, Output: 2100}, Turns: 2,
+		Created: ago(24 * time.Minute), Started: at(ago(22 * time.Minute)), Updated: ago(time.Minute + 40*time.Second),
 	}, i18n.T("A busy agent runs once more, not many times."), i18n.T("Handing in its report"),
 		did("screen-open", "screen_open", protocol.ToolOther, protocol.ToolDone, "firefox https://github.com/paperclipai/paperclip", i18n.T("Firefox is open on your screen.")),
 		did("screen-look", "screen_look", protocol.ToolOther, protocol.ToolDone, "", i18n.T("The repository page: the README and the docs and server folders.")),
 		did("screen-docs", "screen_click", protocol.ToolOther, protocol.ToolDone, "docs/start/core-concepts.md", i18n.T("The core concepts page is open.")),
 		said(i18n.T("Agents wake on a timer, on an assignment, on demand or from an automation. The timer is an interval per agent, not a schedule.")),
+		continued(i18n.Tf("Continuing the goal, turn %d of %d", 2, research.Budget.TaskTurns)),
 		did("screen-code", "screen_open", protocol.ToolOther, protocol.ToolDone, "firefox https://github.com/paperclipai/paperclip/blob/main/server/src/services/heartbeat.ts", i18n.T("heartbeat.ts is open: 4,643 lines.")),
 		did("screen-scroll", "screen_scroll", protocol.ToolOther, protocol.ToolDone, "heartbeat.ts", i18n.T("A wakeup that arrives during a run waits in the queue.")),
 		said(i18n.T("A wakeup that arrives while a run is going is queued and merged with the others, so a busy agent runs once more, not many times.")),
@@ -277,7 +313,7 @@ func demoTeams(now time.Time, events map[string][]protocol.SessionEvent) teamsFi
 	add(research, protocol.TeamTask{
 		ID: "task-capture-history", Title: i18n.T("Write a short history of Wayland screen capture"),
 		Brief:  i18n.T("How did screen capture on Wayland get to the portal we use today? One page, with dates and links."),
-		Status: protocol.TaskDone, Member: "member-editor", Origin: protocol.TaskFromYou, Read: true,
+		Status: protocol.TaskDone, Member: "member-editor", Origin: protocol.TaskFromYou, Read: true, Model: "opus",
 		Session: "agent-team-capture-history", Usage: protocol.TokenUsage{Input: 63400, Output: 8800}, Turns: 1,
 		Report: &protocol.TeamReport{
 			Title: i18n.T("A short history of Wayland screen capture"), Body: waylandReport(),
@@ -386,7 +422,7 @@ func demoTeams(now time.Time, events map[string][]protocol.SessionEvent) teamsFi
 		ID: "task-evening", Title: eveningRoutine.Title, Brief: routineBrief(eveningRoutine),
 		Status: protocol.TaskDone, Member: "member-caretaker", Origin: protocol.TaskFromRoutine, Routine: "routine-evening", Read: true,
 		Session: "agent-team-evening", Usage: protocol.TokenUsage{Input: 38900, Output: 2600}, Turns: 1,
-		Report:  &protocol.TeamReport{Title: i18n.T("Nothing needs you tonight"), Body: eveningReport(), At: clock.evening.Add(12 * time.Minute)},
+		Report:  &protocol.TeamReport{Title: i18n.T("Nothing needs you tonight"), Body: eveningReport(), At: clock.evening.Add(12 * time.Minute), Quiet: true},
 		Created: clock.evening, Started: at(clock.evening.Add(time.Minute)), Ended: at(clock.evening.Add(12 * time.Minute)), Updated: clock.evening.Add(12 * time.Minute),
 	}, i18n.T("Nothing needs you tonight."), "",
 		did("df-evening", "df -h /", protocol.ToolExecute, protocol.ToolDone, "df -h /", "/dev/nvme0n1p2  466G  284G  182G  61% /"),
@@ -429,6 +465,18 @@ func demoTeams(now time.Time, events map[string][]protocol.SessionEvent) teamsFi
 		did("http-breaking", "http_request", protocol.ToolFetch, protocol.ToolFailed, "GET https://newsapi.org/v2/top-headlines?category=technology", "429 Too Many Requests"),
 		did("goal-block-breaking", "goal", protocol.ToolOther, protocol.ToolDone, "block", blocked),
 	)
+	add(news, protocol.TeamTask{
+		ID: "task-colour-piece", Title: i18n.T("Write a short piece on colour management in Wayland"),
+		Brief:  i18n.T("Colour management landed in the Wayland protocols this month. Write a short piece for the digest's readers, one page at most, with links."),
+		Status: protocol.TaskNeedsYou, Waiting: protocol.WaitingOnYou, Member: "member-curator", Origin: protocol.TaskFromYou,
+		Session: "agent-team-colour-piece", Usage: protocol.TokenUsage{Input: 18200, Output: 1400}, Turns: 1,
+		Created: ago(18 * time.Minute), Started: at(ago(17 * time.Minute)), Updated: ago(13 * time.Minute),
+	}, i18n.T("Asked you which angle the piece takes."), "",
+		did("fetch-colour", "Fetch the colour management protocol", protocol.ToolFetch, protocol.ToolDone, "https://wayland.app/protocols/color-management-v1", i18n.T("An app can now say which colour space its pixels are in.")),
+		said(i18n.T("One page fits one good angle, and there are three. I'll ask which one you want.")),
+		did("ask-angle", "ask_user", protocol.ToolOther, protocol.ToolDone, i18n.T("Which angle should the piece take?"), i18n.T("Waiting for the user: Which angle should the piece take? End your turn now; Rashin continues this task with their answer.")),
+		said(i18n.T("I asked you which angle the piece takes.")),
+	)
 
 	// Release notes stopped when it reached its spending limit
 	add(release, protocol.TeamTask{
@@ -446,7 +494,7 @@ func demoTeams(now time.Time, events map[string][]protocol.SessionEvent) teamsFi
 	)
 	sort.SliceStable(fx.tasks, func(i, j int) bool { return fx.tasks[i].Created.After(fx.tasks[j].Created) })
 
-	fx.approvals = demoApprovals(clock, fx.actions)
+	fx.approvals = demoApprovals(clock, fx.actions, settings.Teams.ApprovalHours)
 	fx.routines = []protocol.Routine{
 		{
 			ID: "routine-morning", Team: demoTeamRepo, Title: morningRoutine.Title, Brief: morningRoutine.Brief, Schedule: morningRoutine.Schedule,
@@ -456,7 +504,7 @@ func demoTeams(now time.Time, events map[string][]protocol.SessionEvent) teamsFi
 		},
 		{
 			ID: "routine-evening", Team: demoTeamSystem, Title: eveningRoutine.Title, Brief: eveningRoutine.Brief, Schedule: eveningRoutine.Schedule,
-			Missed: protocol.MissedOnce, Overlap: protocol.OverlapSkip,
+			Missed: protocol.MissedOnce, Overlap: protocol.OverlapSkip, QuietStreak: 3,
 			LastRun: at(clock.evening), LastTask: "task-evening", LastStatus: protocol.TaskDone,
 			Created: now.AddDate(0, 0, -18), Updated: ago(29 * time.Hour),
 		},
@@ -482,13 +530,16 @@ func demoTeams(now time.Time, events map[string][]protocol.SessionEvent) teamsFi
 	return fx
 }
 
-// what waits on the user, and two answers they gave
-func demoApprovals(clock teamsClock, actions map[string]demoAction) []protocol.Approval {
+// what waits on the user, a choice among them, and two answers they gave
+func demoApprovals(clock teamsClock, actions map[string]demoAction, hours int) []protocol.Approval {
 	now := clock.now
 	ago := func(d time.Duration) time.Time { return now.Add(-d) }
 	at := func(t time.Time) *time.Time { return &t }
 	approval := func(a protocol.Approval) protocol.Approval {
-		a.Expires = a.Created.Add(protocol.ApprovalTTL)
+		// a team stopped at its limit stays paused until you answer, so its card never runs out
+		if a.Kind != protocol.ApprovalBudget {
+			a.Expires = a.Created.Add(time.Duration(hours) * time.Hour)
+		}
 		if a.Status == "" {
 			a.Status = protocol.ApprovalPending
 		}
@@ -512,6 +563,15 @@ func demoApprovals(clock teamsClock, actions map[string]demoAction) []protocol.A
 			Kind: protocol.ApprovalCredential, Title: i18n.T("Let Research desk send NEWS_API_KEY to newsapi.org"),
 			Detail: i18n.Tf("GET %s\nHeaders: %s", "https://newsapi.org/v2/everything?q=Ryoku&sortBy=publishedAt", "Accept, X-Api-Key"),
 			Always: i18n.T("Always let Research desk send NEWS_API_KEY to newsapi.org"), Created: ago(11 * time.Minute),
+		}),
+		approval(protocol.Approval{
+			ID: "approval-angle", Team: demoTeamNews, Task: "task-colour-piece", Session: "agent-team-colour-piece", Member: "member-curator",
+			Kind: protocol.ApprovalAction, Title: i18n.T("Which angle should the piece take?"),
+			Detail: i18n.T("One page fits one angle. The other two get a line each at the end."),
+			Options: []string{
+				i18n.T("What changes for people who edit photos"), i18n.T("How the compositors got there"), i18n.T("What app developers have to do"),
+			},
+			Created: ago(13 * time.Minute),
 		}),
 		approval(protocol.Approval{
 			ID: "approval-mastodon", Team: demoTeamNews, Task: "task-mastodon", Session: "agent-team-mastodon", Member: "member-curator",

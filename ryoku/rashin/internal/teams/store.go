@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -497,6 +499,11 @@ func decidedAt(rec approvalRecord) time.Time {
 // cloneTeam copies what a caller could change through a shared slice or map.
 func cloneTeam(t protocol.Team) protocol.Team {
 	t.Members = append([]protocol.Member(nil), t.Members...)
+	for i := range t.Members {
+		t.Members[i].Options = maps.Clone(t.Members[i].Options)
+	}
+	t.Access.Writable = slices.Clone(t.Access.Writable)
+	t.Access.Hidden = slices.Clone(t.Access.Hidden)
 	if t.Stats.Doing != nil {
 		doing := make(map[string]string, len(t.Stats.Doing))
 		for key, value := range t.Stats.Doing {
@@ -509,6 +516,7 @@ func cloneTeam(t protocol.Team) protocol.Team {
 
 func cloneTask(t protocol.TeamTask) protocol.TeamTask {
 	t.Sessions = append([]string(nil), t.Sessions...)
+	t.Options = maps.Clone(t.Options)
 	if t.Report != nil {
 		report := *t.Report
 		report.Files = append([]string(nil), report.Files...)
@@ -519,5 +527,6 @@ func cloneTask(t protocol.TeamTask) protocol.TeamTask {
 
 func cloneApproval(rec approvalRecord) approvalRecord {
 	rec.Action = append(json.RawMessage(nil), rec.Action...)
+	rec.Options = slices.Clone(rec.Options)
 	return rec
 }

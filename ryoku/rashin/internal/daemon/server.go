@@ -14,6 +14,7 @@ import (
 
 	i18n "ryoku-i18n"
 	"ryoku-rashin/internal/config"
+	"ryoku-rashin/internal/harness"
 	"ryoku-rashin/internal/protocol"
 	"ryoku-rashin/internal/teams"
 )
@@ -530,6 +531,8 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 			d.Broadcast(protocol.EvtHarnessesChanged, out)
 		}
 		return out, err
+	case protocol.MHarnessesProbe:
+		return d.probeHarness(ctx, c, raw)
 	case protocol.MIndexList:
 		list, err := d.deps.Indexer.List(ctx)
 		return protocol.IndexesResult{Indexes: list}, err
@@ -629,9 +632,20 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 		if err != nil {
 			return nil, err
 		}
-		next, err := config.Merge(d.Settings(), p.Patch)
+		if settingsForApp(p.Patch) {
+			if err := requireApp(c); err != nil {
+				return nil, err
+			}
+		}
+		current := d.Settings()
+		next, err := config.Merge(current, p.Patch)
 		if err != nil {
 			return nil, err
+		}
+		// an instance removed later leaves the default unknown; only a new
+		// choice is checked, so unrelated changes still save
+		if chosen := next.Teams.Defaults.Harness; chosen != "" && chosen != current.Teams.Defaults.Harness && !harness.Known(chosen, next) {
+			return nil, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("No harness %s on this computer.", chosen))
 		}
 		next, err = config.SaveMerged(next)
 		if err != nil {
@@ -641,6 +655,9 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 		d.settings = next
 		d.mu.Unlock()
 		d.Broadcast(protocol.EvtSettingsChanged, next)
+		if d.deps.Teams != nil {
+			d.deps.Teams.SettingsChanged(next)
+		}
 		d.applyAPI()
 		d.stateChanged()
 		return next, nil
@@ -700,8 +717,10 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 			return d.deps.Work.Handle(ctx, method, raw)
 		}
 		if teams.IsMethod(method) {
-			if teams.UserOnly(method) && !c.app {
-				return nil, protocol.Errorf(protocol.CodeForbidden, "%s", i18n.T("Only the Rashin app can do this."))
+			if teams.UserOnly(method) {
+				if err := requireApp(c); err != nil {
+					return nil, err
+				}
 			}
 			if d.deps.Teams == nil {
 				return nil, protocol.Errorf(protocol.CodeUnavailable, "%s", i18n.T("Teams are not available."))

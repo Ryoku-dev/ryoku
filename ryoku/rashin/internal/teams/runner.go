@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -20,25 +22,42 @@ type run struct {
 	Session, Task, Team, Member, Token string
 	Lead                               bool
 	Started                            time.Time
+	// Ready is set once the session's engine is set up; from then on Model,
+	// the model the session last reported, follows a switch the user makes
+	Ready bool
+	Model string
+	// timer ends the task at its time limit
+	timer *time.Timer
 }
 
-// maxPieces bounds the open pieces one task may hand out, and teamRunning the
-// tasks one team works at once.
+// maxPieces bounds the open pieces one task may hand out.
 const (
-	maxPieces   = 4
-	teamRunning = 2
+	maxPieces = 4
 	// pieceReport bounds each piece's report in the text the lead is sent on with
 	pieceReport = 6000
 )
 
-// createTask gives a team a task from the user.
+// createTask gives a team a task from the user, with an engine for this
+// task alone when one is asked for.
 func (s *Service) createTask(ctx context.Context, p protocol.TeamTaskCreateParams) (protocol.TeamTask, error) {
-	return s.newTask(ctx, p.Team, p.Member, p.Title, p.Brief, protocol.TaskFromYou, "", "")
+	model := strings.TrimSpace(p.Model)
+	if !protocol.ValidEngineModel(model) {
+		return protocol.TeamTask{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("A model id has at most %d characters and no spaces.", protocol.EngineModelMax))
+	}
+	if !protocol.ValidEngineOptions(p.Options) {
+		return protocol.TeamTask{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("A harness takes at most %d options, each with an id and a value.", protocol.EngineOptionsMax))
+	}
+	options := p.Options
+	if len(options) == 0 {
+		options = nil
+	}
+	return s.newTask(ctx, p.Team, p.Member, p.Title, p.Brief, protocol.TaskFromYou, "", "", model, options)
 }
 
 // newTask queues a task for a team. A paused team keeps it queued until it
-// works again; an empty member hands it to the lead.
-func (s *Service) newTask(ctx context.Context, team, member, title, brief, origin, routine, parent string) (protocol.TeamTask, error) {
+// works again; an empty member hands it to the lead. Model and options are
+// an engine for this task alone, empty to keep its member's.
+func (s *Service) newTask(ctx context.Context, team, member, title, brief, origin, routine, parent, model string, options map[string]string) (protocol.TeamTask, error) {
 	t, ok := s.state.team(team)
 	if !ok {
 		return protocol.TeamTask{}, protocol.Errorf(protocol.CodeNotFound, "%s", i18n.Tf("No team %s.", team))
@@ -62,7 +81,7 @@ func (s *Service) newTask(ctx context.Context, team, member, title, brief, origi
 	task := protocol.TeamTask{
 		ID: newID("task"), Team: t.ID, Title: taskTitle(title, brief), Brief: brief, Status: protocol.TaskReady,
 		Member: assignee.ID, Parent: parent, Origin: origin, Routine: routine, MaxTurns: t.Budget.TaskTurns,
-		Created: now, Updated: now,
+		Model: model, Options: options, Created: now, Updated: now,
 	}
 	if err := s.state.putTask(task); err != nil {
 		return protocol.TeamTask{}, err
@@ -178,6 +197,8 @@ func (s *Service) retryTask(_ context.Context, p protocol.TeamTaskRetryParams) (
 	}
 	t.Status, t.Waiting, t.Report, t.Reason = protocol.TaskReady, "", nil, ""
 	t.Session, t.Started, t.Ended, t.Read = "", nil, nil, false
+	// a run again takes its member's engine as it is now
+	t.Harness, t.Model, t.Options = "", "", nil
 	t.Updated = s.now()
 	err := s.state.putTask(t)
 	s.mu.Unlock()
@@ -223,13 +244,18 @@ func (s *Service) stopTeamTasks(team, reason string) {
 }
 
 // pump starts queued tasks, oldest first, while fewer than the setting's
-// tasks work across teams and fewer than two in each team. A task held on
-// the user or its members does not count; a paused team starts nothing.
+// tasks work across teams and fewer than each team's own limit in it. A
+// task held on the user or its members does not count; a paused team, or
+// every team while the teams settings pause them all, starts nothing.
 func (s *Service) pump() {
 	if s.sessions == nil {
 		return
 	}
-	limit := s.settings().Teams.MaxRunning
+	settings := s.settings().Teams
+	if settings.Paused {
+		return
+	}
+	limit := settings.MaxRunning
 	if limit <= 0 {
 		limit = protocol.DefaultTeamsMaxRunning
 	}
@@ -246,11 +272,11 @@ func (s *Service) pump() {
 	var starts []protocol.TeamTask
 	for i := len(open) - 1; i >= 0 && running < limit; i-- {
 		t := open[i]
-		if t.Status != protocol.TaskReady || perTeam[t.Team] >= teamRunning {
+		if t.Status != protocol.TaskReady {
 			continue
 		}
 		team, ok := s.state.team(t.Team)
-		if !ok || team.Paused {
+		if !ok || team.Paused || perTeam[t.Team] >= teamLimit(team, settings) {
 			continue
 		}
 		member, _ := taskMember(team, t.Member)
@@ -260,6 +286,7 @@ func (s *Service) pump() {
 			continue
 		}
 		s.runs[t.ID] = &run{Task: t.ID, Team: t.Team, Member: t.Member, Token: runToken(), Lead: member.Lead, Started: now}
+		s.armMinutesLocked(t.ID)
 		running++
 		perTeam[t.Team]++
 		starts = append(starts, t)
@@ -271,14 +298,33 @@ func (s *Service) pump() {
 	}
 }
 
-// start brings a claimed task up as an Agent session: the member's harness
-// in the team's folder under the team's approvals, the member's model, then
-// the task as the session's goal, which starts its first turn.
+// teamLimit is how many tasks a team works at once: its own Running, else
+// the teams settings' PerTeam.
+func teamLimit(team protocol.Team, settings protocol.TeamsSettings) int {
+	if team.Running > 0 {
+		return team.Running
+	}
+	if settings.PerTeam > 0 {
+		return settings.PerTeam
+	}
+	return protocol.DefaultTeamsPerTeam
+}
+
+// start brings a claimed task up as an Agent session: the engine resolved
+// for it, in the team's folder under the team's approvals, then the task as
+// the session's goal, which starts its first turn. The task keeps the
+// engine it started with; an option the harness refuses is left at the
+// harness's default and said so in the ledger.
 func (s *Service) start(task protocol.TeamTask) {
 	ctx := s.background
+	var harnessID, model string
+	var options map[string]string
 	fail := func(session string, reason string) {
 		ended, ok := s.endTask(task.ID, func(t *protocol.TeamTask) {
 			t.Status, t.Reason = protocol.TaskBlocked, reason
+			if harnessID != "" {
+				t.Harness, t.Model, t.Options = harnessID, model, maps.Clone(options)
+			}
 		})
 		if session != "" {
 			s.halt(session)
@@ -300,16 +346,17 @@ func (s *Service) start(task protocol.TeamTask) {
 		fail("", i18n.T("The member it was given to is no longer on the team."))
 		return
 	}
-	harness := member.Harness
-	if harness == "" {
-		harness = s.settings().Agent.Harness
+	harnessID, model, options = s.taskEngine(member, task)
+	if harnessID == "" {
+		fail("", i18n.T("No harness is installed to run it."))
+		return
 	}
 	if err := os.MkdirAll(team.Folder, 0o700); err != nil {
 		fail("", i18n.Tf("The team's folder could not be made: %v", err))
 		return
 	}
 	info, err := s.sessions.New(ctx, protocol.SessionNewParams{
-		Kind: protocol.KindAgent, Harness: harness, Cwd: team.Folder, Title: task.Title, Origin: protocol.OriginTeam,
+		Kind: protocol.KindAgent, Harness: harnessID, Cwd: team.Folder, Title: task.Title, Origin: protocol.OriginTeam,
 		Team: team.ID, TeamTask: task.ID, Member: member.ID, Approvals: team.Approvals,
 	})
 	if err != nil {
@@ -326,6 +373,7 @@ func (s *Service) start(task protocol.TeamTask) {
 	r.Session = info.ID
 	current.Session = info.ID
 	current.Sessions = append(current.Sessions, info.ID)
+	current.Harness, current.Model, current.Options = harnessID, model, maps.Clone(options)
 	current.Updated = s.now()
 	err = s.state.putTask(current)
 	s.mu.Unlock()
@@ -338,22 +386,72 @@ func (s *Service) start(task protocol.TeamTask) {
 		fail(info.ID, i18n.Tf("The harness did not start: %v", err))
 		return
 	}
-	if member.Model != "" {
-		if err := s.sessions.SetModel(ctx, info.ID, member.Model); err != nil {
-			fail(info.ID, i18n.Tf("The model %s could not be used: %v", member.Model, err))
+	if model != "" {
+		if err := s.sessions.SetModel(ctx, info.ID, model); err != nil {
+			fail(info.ID, i18n.Tf("The model %s could not be used: %v", model, err))
 			return
+		}
+	}
+	var refused []string
+	for _, option := range slices.Sorted(maps.Keys(options)) {
+		if err := s.sessions.SetOption(ctx, info.ID, option, options[option]); err != nil {
+			refused = append(refused, option)
+			s.record(protocol.Activity{
+				Actor: "Rashin", Action: "task.option", Target: task.Title, OK: false, Team: team.ID, Task: task.ID, Initiator: protocol.InitiatorRashin,
+				Detail: i18n.Tf("%s's %s %s was not available; it ran with the harness default.", member.Name, option, options[option]),
+			})
 		}
 	}
 	if !s.live(task.ID, info.ID) {
 		s.halt(info.ID)
 		return
 	}
+	s.engage(task.ID, info.ID, model, refused)
 	if _, err := s.sessions.Goal(ctx, protocol.GoalParams{ID: info.ID, Op: protocol.GoalSet, Objective: objective(task), MaxTurns: task.MaxTurns}); err != nil {
 		fail(info.ID, i18n.Tf("The task could not be set as the goal: %v", err))
 		return
 	}
 	_, initiator := s.taskActor(task)
-	s.record(protocol.Activity{Actor: member.Name, Action: "task.start", Target: task.Title, OK: true, Team: team.ID, Task: task.ID, Initiator: initiator, Detail: i18n.Tf("%s started work on it.", member.Name)})
+	s.record(protocol.Activity{
+		Actor: member.Name, Action: "task.start", Target: task.Title, OK: true, Team: team.ID, Task: task.ID, Initiator: initiator,
+		Detail: i18n.Tf("%s started work on it with %s.", member.Name, s.engineWords(harnessID, model)),
+	})
+}
+
+// engage marks a run's engine set up: the options its harness refused leave
+// the task's record, and the model its session runs on is the one a later
+// switch is told from.
+func (s *Service) engage(taskID, session, model string, refused []string) {
+	info, _ := s.sessions.Info(session)
+	s.mu.Lock()
+	r := s.runs[taskID]
+	t, ok := s.state.task(taskID)
+	if r == nil || r.Session != session || !ok {
+		s.mu.Unlock()
+		return
+	}
+	r.Ready, r.Model = true, info.Model
+	if model != "" {
+		r.Model = model
+	}
+	changed := false
+	for _, option := range refused {
+		if _, had := t.Options[option]; had {
+			delete(t.Options, option)
+			changed = true
+		}
+	}
+	if changed {
+		if len(t.Options) == 0 {
+			t.Options = nil
+		}
+		t.Updated = s.now()
+		changed = s.state.putTask(t) == nil
+	}
+	s.mu.Unlock()
+	if changed {
+		s.emitTask(t)
+	}
 }
 
 // objective is what a task's session works toward: the brief, under the
@@ -396,6 +494,9 @@ func (s *Service) endTask(id string, change func(*protocol.TeamTask)) (protocol.
 	if err := s.state.putTask(t); err != nil {
 		s.mu.Unlock()
 		return t, false
+	}
+	if r := s.runs[id]; r != nil && r.timer != nil {
+		r.timer.Stop()
 	}
 	delete(s.runs, id)
 	s.mu.Unlock()
@@ -444,7 +545,7 @@ func (s *Service) releaseParent(parent string) {
 // A task that already ended, or never started a session, has nothing to
 // continue.
 func (s *Service) release(taskID, text string) {
-	if s.sessions == nil {
+	if s.sessions == nil || s.settings().Teams.Paused {
 		return
 	}
 	s.mu.Lock()
@@ -463,6 +564,9 @@ func (s *Service) release(taskID, text string) {
 	}
 	t.Status, t.Waiting, t.Updated = protocol.TaskWorking, "", s.now()
 	err := s.state.putTask(t)
+	if err == nil {
+		s.armMinutesLocked(taskID)
+	}
 	s.mu.Unlock()
 	if err != nil {
 		return
@@ -538,7 +642,7 @@ func (s *Service) retire(session string) {
 
 // recoverRuns picks up the tasks a daemon restart left: one working with an
 // active goal goes on, a held one stays held, and one whose session is gone
-// or finished is blocked.
+// or finished is blocked. A time limit counts on from when the task started.
 func (s *Service) recoverRuns() {
 	s.armExpiry()
 	if s.sessions == nil {
@@ -568,7 +672,7 @@ func (s *Service) recoverRuns() {
 		if t.Started != nil {
 			started = *t.Started
 		}
-		found[t.ID] = &run{Session: t.Session, Task: t.ID, Team: t.Team, Member: t.Member, Token: runToken(), Lead: member.Lead, Started: started}
+		found[t.ID] = &run{Session: t.Session, Task: t.ID, Team: t.Team, Member: t.Member, Token: runToken(), Lead: member.Lead, Started: started, Ready: true, Model: info.Model}
 		if !held {
 			carryOn = append(carryOn, t.Session)
 			if t.Status != protocol.TaskWorking || t.Waiting != "" {
@@ -588,6 +692,9 @@ func (s *Service) recoverRuns() {
 				changed = append(changed, t)
 			}
 		}
+	}
+	for id := range found {
+		s.armMinutesLocked(id)
 	}
 	s.mu.Unlock()
 	for _, t := range changed {
@@ -634,7 +741,7 @@ func taskIsOpen(t protocol.TeamTask) bool {
 
 // stoppedByYou reports a stop the user asked for, by the reason it was given.
 func stoppedByYou(reason string) bool {
-	return reason == i18n.T("You stopped it.") || reason == i18n.T("You deleted it.") || reason == i18n.T("The team was paused.")
+	return reason == i18n.T("You stopped it.") || reason == i18n.T("You deleted it.") || reason == i18n.T("The team was paused.") || reason == i18n.T("Every team was paused.")
 }
 
 // taskMember finds a member by id, or by name for what an agent or a person

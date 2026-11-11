@@ -7,8 +7,9 @@ import (
 )
 
 // templates are the ready-made teams a new one can start from, in the order
-// they are offered. Members leave harness and model empty: the runner then
-// uses the default harness and its own default model.
+// they are offered. Members leave harness and model empty, so they follow
+// the teams defaults; a budget names only the turns per task, the rest
+// comes from the teams defaults too.
 func templates() []protocol.TeamTemplate {
 	return []protocol.TeamTemplate{
 		{
@@ -28,7 +29,7 @@ func templates() []protocol.TeamTemplate {
 			},
 			Tools:     protocol.TeamTools{Screen: true},
 			Approvals: protocol.ApprovalsAsk,
-			Budget:    protocol.TeamBudget{MonthTokens: 2_000_000, WarnPercent: 80, TaskTurns: 20},
+			Budget:    protocol.TeamBudget{TaskTurns: 20},
 		},
 		{
 			ID:          "mail",
@@ -43,7 +44,7 @@ func templates() []protocol.TeamTemplate {
 			},
 			Tools:     protocol.TeamTools{Mail: true},
 			Approvals: protocol.ApprovalsReadOnly,
-			Budget:    protocol.TeamBudget{MonthTokens: 1_000_000, WarnPercent: 80, TaskTurns: 12},
+			Budget:    protocol.TeamBudget{TaskTurns: 12},
 		},
 		{
 			ID:          "repo",
@@ -61,7 +62,7 @@ func templates() []protocol.TeamTemplate {
 				},
 			},
 			Approvals: protocol.ApprovalsReadOnly,
-			Budget:    protocol.TeamBudget{MonthTokens: 3_000_000, WarnPercent: 80, TaskTurns: 30},
+			Budget:    protocol.TeamBudget{TaskTurns: 30},
 			Routines: []protocol.RoutineDraft{{
 				Title:    i18n.T("Morning review"),
 				Brief:    i18n.T("Review the pull requests and issues opened or updated since the last review, and report which need me and why."),
@@ -80,7 +81,7 @@ func templates() []protocol.TeamTemplate {
 				},
 			},
 			Approvals: protocol.ApprovalsReadOnly,
-			Budget:    protocol.TeamBudget{MonthTokens: 1_000_000, WarnPercent: 80, TaskTurns: 15},
+			Budget:    protocol.TeamBudget{TaskTurns: 15},
 			Routines: []protocol.RoutineDraft{{
 				Title:    i18n.T("Evening check"),
 				Brief:    i18n.T("Check disk space, failed services, journal errors since yesterday and pending updates, and report anything I should act on."),
@@ -95,7 +96,7 @@ func templates() []protocol.TeamTemplate {
 				{Name: i18n.T("Lead"), Title: i18n.T("Team lead"), Lead: true},
 			},
 			Approvals: protocol.ApprovalsAsk,
-			Budget:    protocol.TeamBudget{MonthTokens: 2_000_000, WarnPercent: 80, TaskTurns: 20},
+			Budget:    protocol.TeamBudget{TaskTurns: 20},
 		},
 	}
 }

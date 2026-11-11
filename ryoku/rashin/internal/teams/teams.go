@@ -6,11 +6,13 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
 	i18n "ryoku-i18n"
 
+	"ryoku-rashin/internal/config"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 )
@@ -19,11 +21,7 @@ import (
 const (
 	maxMembers   = 6
 	maxNameRunes = 80
-	maxTaskTurns = 200
 )
-
-// defaultBudget is the spending limit of a team that names none.
-var defaultBudget = protocol.TeamBudget{MonthTokens: 2_000_000, WarnPercent: 80, TaskTurns: 20}
 
 // teamEdit is the part of a team teams.update may change.
 type teamEdit struct {
@@ -35,6 +33,8 @@ type teamEdit struct {
 	Approvals string              `json:"approvals"`
 	Budget    protocol.TeamBudget `json:"budget"`
 	Notify    string              `json:"notify"`
+	Running   int                 `json:"running"`
+	Access    protocol.TeamAccess `json:"access"`
 }
 
 // listTeams lists every team by name with its stats.
@@ -77,6 +77,7 @@ func (s *Service) fillStats(teams []protocol.Team) {
 		if stats == nil {
 			continue
 		}
+		stats.Tasks++
 		switch t.Status {
 		case protocol.TaskWorking:
 			stats.Working++
@@ -123,7 +124,8 @@ func (s *Service) createTeam(ctx context.Context, p protocol.TeamCreateParams) (
 	team := protocol.Team{
 		ID: newID("team"), Name: p.Name, Purpose: p.Purpose, Template: p.Template,
 		Folder: p.Folder, Members: p.Members, Tools: p.Tools, Approvals: p.Approvals,
-		Budget: p.Budget, Notify: p.Notify, Created: now, Updated: now,
+		Budget: p.Budget, Notify: p.Notify, Running: p.Running, Access: p.Access,
+		Created: now, Updated: now,
 	}
 	detail := func(t protocol.Team) string {
 		if len(t.Members) == 1 {
@@ -136,15 +138,17 @@ func (s *Service) createTeam(ctx context.Context, p protocol.TeamCreateParams) (
 
 // addTeam validates and stores a new team, then creates its routines through
 // the routine path. A routine that cannot be made takes the team back out,
-// so a create either happens whole or not at all.
+// so a create either happens whole or not at all. A team that names no
+// budget takes the teams defaults', with its template's turns per task.
 func (s *Service) addTeam(ctx context.Context, team protocol.Team, drafts []protocol.RoutineDraft, action string, detail func(protocol.Team) string) (protocol.Team, error) {
+	settings := s.settings()
 	if team.Budget == (protocol.TeamBudget{}) {
-		team.Budget = defaultBudget
+		team.Budget = settings.Teams.Defaults.Budget
 		if template, ok := templateByID(team.Template); ok {
-			team.Budget = template.Budget
+			team.Budget.TaskTurns = template.Budget.TaskTurns
 		}
 	}
-	renamed, err := normaliseTeam(&team, true)
+	renamed, err := normaliseTeam(&team, true, settings, nil)
 	if err != nil {
 		return protocol.Team{}, err
 	}
@@ -173,7 +177,8 @@ func (s *Service) addTeam(ctx context.Context, team protocol.Team, drafts []prot
 }
 
 // updateTeam applies a JSON merge patch to the parts of a team the user may
-// change; its id, creation time and pause stay as they are.
+// change; its id, creation time and pause stay as they are. The ledger says
+// what changed; a change that changes nothing is not stored.
 func (s *Service) updateTeam(ctx context.Context, p protocol.TeamUpdateParams) (protocol.Team, error) {
 	current, ok := s.state.team(p.ID)
 	if !ok {
@@ -182,6 +187,7 @@ func (s *Service) updateTeam(ctx context.Context, p protocol.TeamUpdateParams) (
 	base, err := json.Marshal(teamEdit{
 		Name: current.Name, Purpose: current.Purpose, Folder: current.Folder, Members: current.Members,
 		Tools: current.Tools, Approvals: current.Approvals, Budget: current.Budget, Notify: current.Notify,
+		Running: current.Running, Access: current.Access,
 	})
 	if err != nil {
 		return protocol.Team{}, err
@@ -207,8 +213,19 @@ func (s *Service) updateTeam(ctx context.Context, p protocol.TeamUpdateParams) (
 	team := current
 	team.Name, team.Purpose, team.Folder, team.Members = next.Name, next.Purpose, next.Folder, next.Members
 	team.Tools, team.Approvals, team.Budget, team.Notify = next.Tools, next.Approvals, next.Budget, next.Notify
-	if _, err := normaliseTeam(&team, false); err != nil {
+	team.Running, team.Access = next.Running, next.Access
+	// a harness the team already runs on stays accepted after its definition went
+	kept := make(map[string]bool, len(current.Members))
+	for _, m := range current.Members {
+		kept[m.Harness] = true
+	}
+	if _, err := normaliseTeam(&team, false, s.settings(), kept); err != nil {
 		return protocol.Team{}, err
+	}
+	changes := s.teamChanges(current, team)
+	if len(changes) == 0 {
+		unchanged, _ := s.teamWithStats(team.ID)
+		return unchanged, nil
 	}
 	team.Updated = s.now()
 	if err := s.state.putTeam(team); err != nil {
@@ -216,9 +233,15 @@ func (s *Service) updateTeam(ctx context.Context, p protocol.TeamUpdateParams) (
 	}
 	s.record(protocol.Activity{
 		Actor: "you", Action: "team.update", Target: team.Name, OK: true,
-		Detail: i18n.T("Changed the team's settings."), Team: team.ID, Initiator: protocol.InitiatorYou,
+		Detail: strings.Join(changes, " "), Team: team.ID, Initiator: protocol.InitiatorYou,
 	})
+	if team.Budget.TaskMinutes != current.Budget.TaskMinutes {
+		s.armTeamMinutes(team.ID)
+	}
 	s.emitTeam(team.ID)
+	if team.Running != current.Running {
+		s.pump()
+	}
 	updated, _ := s.teamWithStats(team.ID)
 	return updated, nil
 }
@@ -324,10 +347,11 @@ func (s *Service) settleBudgetAsks(team string) {
 	s.armExpiry()
 }
 
-// normaliseTeam trims and checks what the user gave a team and fills the
-// defaults. With fresh every member gets a new id; renamed maps the ids they
-// came with to the new ones, so routines that named a member keep it.
-func normaliseTeam(t *protocol.Team, fresh bool) (map[string]string, error) {
+// normaliseTeam trims and checks what the user gave a team and fills what
+// it left empty from the teams defaults. With fresh every member gets a new
+// id; renamed maps the ids they came with to the new ones, so routines that
+// named a member keep it. Kept are harnesses accepted though unknown here.
+func normaliseTeam(t *protocol.Team, fresh bool, settings protocol.Settings, kept map[string]bool) (map[string]string, error) {
 	t.Name = strings.TrimSpace(t.Name)
 	if t.Name == "" {
 		return nil, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("A team needs a name."))
@@ -339,16 +363,23 @@ func normaliseTeam(t *protocol.Team, fresh bool) (map[string]string, error) {
 	if _, ok := templateByID(t.Template); !ok {
 		t.Template = ""
 	}
-	members, renamed, err := normaliseMembers(t.Members, fresh)
+	members, renamed, err := normaliseMembers(t.Members, fresh, settings, kept)
 	if err != nil {
 		return nil, err
 	}
 	t.Members = members
+	defaults := settings.Teams.Defaults
+	if t.Approvals == "" {
+		t.Approvals = defaults.Approvals
+	}
 	if t.Approvals == "" {
 		t.Approvals = protocol.ApprovalsAsk
 	}
 	if !protocol.KnownApprovals(t.Approvals) {
 		return nil, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("%s is not a permission setting.", t.Approvals))
+	}
+	if t.Notify == "" {
+		t.Notify = defaults.Notify
 	}
 	switch t.Notify {
 	case "":
@@ -357,20 +388,27 @@ func normaliseTeam(t *protocol.Team, fresh bool) (map[string]string, error) {
 	default:
 		return nil, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("%s is not a notification setting.", t.Notify))
 	}
-	if err := normaliseBudget(&t.Budget); err != nil {
+	if err := normaliseBudget(&t.Budget, defaults.Budget); err != nil {
 		return nil, err
+	}
+	if t.Running < 0 || t.Running > protocol.TeamsPerTeamMax {
+		return nil, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("Tasks at once in one team must be between 1 and %d.", protocol.TeamsPerTeamMax))
 	}
 	folder, err := resolveFolder(t.Folder, t.Name)
 	if err != nil {
 		return nil, err
 	}
 	t.Folder = folder
+	if err := normaliseAccess(&t.Access, t.Folder); err != nil {
+		return nil, err
+	}
 	return renamed, nil
 }
 
 // normaliseMembers checks a team's members: 1 to maxMembers, each named,
-// names unique, exactly one lead (the first marked one, else the first).
-func normaliseMembers(in []protocol.Member, fresh bool) ([]protocol.Member, map[string]string, error) {
+// names unique, exactly one lead (the first marked one, else the first),
+// and an engine this computer can run (checkEngine).
+func normaliseMembers(in []protocol.Member, fresh bool, settings protocol.Settings, kept map[string]bool) ([]protocol.Member, map[string]string, error) {
 	if len(in) == 0 {
 		return nil, nil, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("A team needs at least one member."))
 	}
@@ -388,8 +426,14 @@ func normaliseMembers(in []protocol.Member, fresh bool) ([]protocol.Member, map[
 		m.Harness = strings.TrimSpace(m.Harness)
 		m.Model = strings.TrimSpace(m.Model)
 		m.Instructions = strings.TrimSpace(m.Instructions)
+		if len(m.Options) == 0 {
+			m.Options = nil
+		}
 		if m.Name == "" {
 			return nil, nil, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Every member needs a name."))
+		}
+		if err := checkEngine(m, settings, kept); err != nil {
+			return nil, nil, err
 		}
 		if utf8.RuneCountInString(m.Name) > maxNameRunes {
 			return nil, nil, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("A member's name has at most %d characters.", maxNameRunes))
@@ -419,31 +463,77 @@ func normaliseMembers(in []protocol.Member, fresh bool) ([]protocol.Member, map[
 	return out, renamed, nil
 }
 
-// normaliseBudget fills the warning and turn defaults and checks the ranges;
-// a monthly limit of 0 is no limit.
-func normaliseBudget(b *protocol.TeamBudget) error {
-	if b.MonthTokens < 0 {
-		return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("The spending limit cannot be below zero."))
+// normaliseBudget checks a team's budget and fills the warning and turns it
+// left at 0 from defaults; a monthly limit or minutes per task of 0 is no
+// limit.
+func normaliseBudget(b *protocol.TeamBudget, defaults protocol.TeamBudget) error {
+	if err := config.CheckBudget(*b); err != nil {
+		return err
 	}
 	if b.WarnPercent == 0 {
-		b.WarnPercent = defaultBudget.WarnPercent
-	}
-	if b.WarnPercent < 1 || b.WarnPercent > 99 {
-		return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("The spending warning must be between 1 and 99 percent."))
+		b.WarnPercent = defaults.WarnPercent
 	}
 	if b.TaskTurns == 0 {
-		b.TaskTurns = defaultBudget.TaskTurns
-	}
-	if b.TaskTurns < 1 || b.TaskTurns > maxTaskTurns {
-		return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("Turns per task must be between 1 and %d.", maxTaskTurns))
+		b.TaskTurns = defaults.TaskTurns
 	}
 	return nil
+}
+
+// normaliseAccess checks what a team's sandbox adds: folders it may change
+// (writableFolder) and paths hidden from it (config.CleanHidden), each kept
+// once in "~/" form.
+func normaliseAccess(a *protocol.TeamAccess, own string) error {
+	hidden, err := config.CleanHidden(a.Hidden)
+	if err != nil {
+		return err
+	}
+	if len(hidden) == 0 {
+		hidden = nil
+	}
+	a.Hidden = hidden
+	if len(a.Writable) > protocol.TeamWritableMax {
+		return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("A team changes at most %d folders besides its own.", protocol.TeamWritableMax))
+	}
+	var writable []string
+	for _, path := range a.Writable {
+		clean, err := writableFolder(path, own)
+		if err != nil {
+			return err
+		}
+		if !slices.Contains(writable, clean) {
+			writable = append(writable, clean)
+		}
+	}
+	a.Writable = writable
+	return nil
+}
+
+// writableFolder checks one folder a team may change besides its own: an
+// existing folder given by its full path, neither the home folder nor one
+// above it, and not inside the teams' folders unless inside the team's own.
+func writableFolder(path, own string) (string, error) {
+	full := paths.Expand(strings.TrimSpace(path))
+	if !filepath.IsAbs(full) {
+		return "", protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("%s is not a full path.", path))
+	}
+	full = filepath.Clean(full)
+	if paths.Within(full, paths.Home()) {
+		return "", protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("Letting a team change %s would let it change everything.", path))
+	}
+	if paths.Within(paths.TeamsHome(), full) && (own == "" || !paths.Within(own, full)) {
+		return "", protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("%s belongs to another team.", path))
+	}
+	info, err := os.Stat(full)
+	if err != nil || !info.IsDir() {
+		return "", protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("%s is not a folder on this computer.", path))
+	}
+	return paths.Short(full), nil
 }
 
 // resolveFolder turns a team's folder into a full path, defaulting to its
 // own folder under the Teams home, and makes sure it exists.
 func resolveFolder(folder, name string) (string, error) {
-	folder = expandHome(strings.TrimSpace(folder))
+	folder = paths.Expand(strings.TrimSpace(folder))
 	if folder == "" {
 		folder = filepath.Join(paths.TeamsHome(), slugName(name))
 	}
@@ -459,17 +549,6 @@ func resolveFolder(folder, name string) (string, error) {
 		return "", protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("%s is not a folder.", paths.Short(folder)))
 	}
 	return folder, nil
-}
-
-// expandHome reads a leading ~ as the home directory.
-func expandHome(path string) string {
-	if path == "~" {
-		return paths.Home()
-	}
-	if rest, ok := strings.CutPrefix(path, "~/"); ok {
-		return filepath.Join(paths.Home(), rest)
-	}
-	return path
 }
 
 var slugPart = regexp.MustCompile(`[^\p{L}\p{N}]+`)

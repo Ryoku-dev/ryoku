@@ -423,6 +423,10 @@ func runFakeAgent(mode string) {
 		}
 		switch message.Method {
 		case "initialize":
+			// a silent agent starts and never answers, as a stuck harness does
+			if mode == "silent" {
+				continue
+			}
 			if mode == "sandboxed" {
 				offered = fakeOffered(message.Params)
 			}

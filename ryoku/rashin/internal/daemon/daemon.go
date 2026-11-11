@@ -61,6 +61,10 @@ type Daemon struct {
 	appPeer func(pid int32) bool
 	// agents are the team sessions' own sockets
 	agents agentSockets
+	// learned is the pending harnesses.changed after capabilities were
+	// recorded
+	learnedMu sync.Mutex
+	learned   *time.Timer
 }
 
 func New(deps Deps) *Daemon {
@@ -91,6 +95,9 @@ func New(deps Deps) *Daemon {
 			return ok && deps.Teams.ScreenGranted(info)
 		}
 		deps.Teams.Bind(d.manager)
+	}
+	if deps.Harnesses != nil {
+		deps.Harnesses.OnLearned(d.harnessesLearned)
 	}
 	d.removeFeed = events.add(d.deliverGlobal)
 	return d

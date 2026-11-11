@@ -10,6 +10,8 @@ import (
 
 	i18n "ryoku-i18n"
 
+	"ryoku-rashin/internal/config"
+	registry "ryoku-rashin/internal/harness"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 )
@@ -30,6 +32,7 @@ func (s *Service) exportTeam(id string) (protocol.TeamExportResult, error) {
 	doc := protocol.TeamExport{
 		Version: exportVersion, Name: team.Name, Purpose: team.Purpose, Template: team.Template,
 		Members: team.Members, Tools: team.Tools, Approvals: team.Approvals, Budget: team.Budget, Notify: team.Notify,
+		Running: team.Running, Access: team.Access,
 	}
 	for _, r := range s.state.routines() {
 		if r.Team == id {
@@ -62,9 +65,10 @@ func (s *Service) exportTeam(id string) (protocol.TeamExportResult, error) {
 
 // importTeam makes a team from an exported definition. It arrives paused,
 // with its routines off and no credential granted, so nothing it does
-// starts before the user has looked at it.
+// starts before the user has looked at it. What this computer lacks is
+// dropped (importable).
 func (s *Service) importTeam(ctx context.Context, p protocol.TeamImportParams) (protocol.Team, error) {
-	path := expandHome(strings.TrimSpace(p.Path))
+	path := paths.Expand(strings.TrimSpace(p.Path))
 	if !filepath.IsAbs(path) {
 		return protocol.Team{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Pick the team file by its full path."))
 	}
@@ -90,8 +94,10 @@ func (s *Service) importTeam(ctx context.Context, p protocol.TeamImportParams) (
 	team := protocol.Team{
 		ID: newID("team"), Name: doc.Name, Purpose: doc.Purpose, Template: doc.Template,
 		Members: doc.Members, Tools: doc.Tools, Approvals: doc.Approvals, Budget: doc.Budget, Notify: doc.Notify,
+		Running: doc.Running, Access: doc.Access,
 		Paused: true, PauseReason: protocol.PausedByYou, Created: now, Updated: now,
 	}
+	importable(&team, s.settings())
 	drafts := make([]protocol.RoutineDraft, 0, len(doc.Routines))
 	for _, draft := range doc.Routines {
 		draft.Enabled = false
@@ -106,4 +112,28 @@ func (s *Service) importTeam(ctx context.Context, p protocol.TeamImportParams) (
 	}
 	s.clock.rearm()
 	return imported, nil
+}
+
+// importable drops what a team from another computer names that this one
+// lacks: a harness it does not know, with that harness's model and options,
+// and folders to change or hide that do not pass here. The member then
+// follows the teams defaults.
+func importable(team *protocol.Team, settings protocol.Settings) {
+	for i, m := range team.Members {
+		if id := strings.TrimSpace(m.Harness); id != "" && !registry.Known(id, settings) {
+			team.Members[i].Harness, team.Members[i].Model, team.Members[i].Options = "", "", nil
+		}
+	}
+	var writable, hidden []string
+	for _, path := range team.Access.Writable {
+		if clean, err := writableFolder(path, ""); err == nil {
+			writable = append(writable, clean)
+		}
+	}
+	for _, path := range team.Access.Hidden {
+		if clean, err := config.CleanHidden([]string{path}); err == nil {
+			hidden = append(hidden, clean...)
+		}
+	}
+	team.Access = protocol.TeamAccess{Writable: writable, Hidden: hidden}
 }

@@ -2,7 +2,10 @@ package protocol
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 // Team is a standing group of agents with one purpose on this computer. Its
@@ -31,9 +34,29 @@ type Team struct {
 	PauseReason string    `json:"pauseReason,omitempty"`
 	Created     time.Time `json:"created"`
 	Updated     time.Time `json:"updated"`
+	// Running is how many of its tasks run at once, 1 to TeamsPerTeamMax; 0
+	// takes TeamsSettings.PerTeam.
+	Running int `json:"running,omitempty"`
+	// Access widens or narrows what its agents' sandbox lets them reach.
+	Access TeamAccess `json:"access"`
 	// Stats is filled by the daemon from the team's tasks and spend.
 	Stats TeamStats `json:"stats"`
 }
+
+// TeamAccess is what a team's sandbox adds to the defaults: folders its
+// agents may change besides the team's own, and paths they see as empty
+// besides TeamsSettings.Hidden. Paths are written as given, "~/" or
+// absolute.
+type TeamAccess struct {
+	// Writable are existing folders, at most TeamWritableMax, none of them
+	// "/", the home folder or inside another team's folder.
+	Writable []string `json:"writable,omitempty"`
+	// Hidden follows the rules of TeamsSettings.Hidden.
+	Hidden []string `json:"hidden,omitempty"`
+}
+
+// TeamWritableMax is the most folders a team may change besides its own.
+const TeamWritableMax = 16
 
 // Team notification levels.
 const (
@@ -55,12 +78,75 @@ type Member struct {
 	Name  string `json:"name"`
 	Title string `json:"title"`
 	Lead  bool   `json:"lead,omitempty"`
-	// Harness is a HarnessInfo ID; Model is that harness's model id, empty for
-	// the harness's own default.
+	// Harness is a HarnessInfo ID, empty to follow the teams defaults; Model
+	// is that harness's model id, empty for the harness's own default.
 	Harness string `json:"harness"`
 	Model   string `json:"model,omitempty"`
+	// Options are harness option values by SessionOption ID, such as how
+	// hard to think, set after the model when a task starts; an option the
+	// harness refuses is left at its default.
+	Options map[string]string `json:"options,omitempty"`
 	// Instructions are the member's standing role: what it does and how.
 	Instructions string `json:"instructions,omitempty"`
+}
+
+// Engine limits for the model and options a member, a task or the teams
+// defaults name.
+const (
+	EngineModelMax       = 200
+	EngineOptionsMax     = 8
+	EngineOptionIDMax    = 64
+	EngineOptionValueMax = 200
+)
+
+// ValidEngineModel reports whether model may name a harness's model: empty
+// for the harness's default, else at most EngineModelMax runes without white
+// space. Whether the harness offers it is only known when a task starts.
+func ValidEngineModel(model string) bool {
+	return utf8.RuneCountInString(model) <= EngineModelMax && strings.IndexFunc(model, unicode.IsSpace) < 0
+}
+
+// ValidEngineOptions reports whether options fit the engine limits: at most
+// EngineOptionsMax entries, each id and value present and within its length.
+func ValidEngineOptions(options map[string]string) bool {
+	if len(options) > EngineOptionsMax {
+		return false
+	}
+	for id, value := range options {
+		if id == "" || value == "" || utf8.RuneCountInString(id) > EngineOptionIDMax || utf8.RuneCountInString(value) > EngineOptionValueMax {
+			return false
+		}
+	}
+	return true
+}
+
+// ResolveEngine is the harness, model and options a member's task starts
+// with. A member that names no harness follows the teams defaults: their
+// Harness, else the Agents harness, else fallback, the registry's default
+// harness; its model and options, where it names none, are the defaults'
+// too. A member with a harness of its own takes only its own model and
+// options, empty for that harness's defaults. The daemon starts tasks and the
+// app describes them through this one chain.
+func ResolveEngine(member Member, settings Settings, fallback string) (harness, model string, options map[string]string) {
+	if member.Harness != "" {
+		return member.Harness, member.Model, member.Options
+	}
+	defaults := settings.Teams.Defaults
+	harness = defaults.Harness
+	if harness == "" {
+		harness = settings.Agent.Harness
+	}
+	if harness == "" {
+		harness = fallback
+	}
+	model, options = member.Model, member.Options
+	if model == "" {
+		model = defaults.Model
+	}
+	if len(options) == 0 {
+		options = defaults.Options
+	}
+	return harness, model, options
 }
 
 // TeamTools are the abilities Rashin grants a team beyond its harness.
@@ -80,9 +166,19 @@ type TeamBudget struct {
 	// pauses and asks.
 	MonthTokens int64 `json:"monthTokens"`
 	WarnPercent int   `json:"warnPercent,omitempty"`
-	// TaskTurns caps the turns one task may take.
+	// TaskTurns caps the turns one task may take, 1 to TeamTaskTurnsMax.
 	TaskTurns int `json:"taskTurns"`
+	// TaskMinutes caps how long one task may work, 0 for no limit and at
+	// most TeamTaskMinutesMax. It is always written, so a default of no
+	// limit survives in the teams settings.
+	TaskMinutes int `json:"taskMinutes"`
 }
+
+// Team budget limits.
+const (
+	TeamTaskTurnsMax   = 200
+	TeamTaskMinutesMax = 24 * 60
+)
 
 // TeamStats summarise a team for lists and boards.
 type TeamStats struct {
@@ -95,6 +191,9 @@ type TeamStats struct {
 	NextRoutine *time.Time `json:"nextRoutine,omitempty"`
 	// Doing is what each working member is on, by member id.
 	Doing map[string]string `json:"doing,omitempty"`
+	// Tasks counts every task the team keeps, finished or not, so a team
+	// that never ran reads as such.
+	Tasks int `json:"tasks"`
 }
 
 // TeamTemplate is a ready-made team a new one can start from.
@@ -133,10 +232,15 @@ type TeamCreateParams struct {
 	Budget    TeamBudget     `json:"budget"`
 	Notify    string         `json:"notify,omitempty"`
 	Routines  []RoutineDraft `json:"routines,omitempty"`
+	// Running is Team.Running; 0 takes TeamsSettings.PerTeam.
+	Running int `json:"running,omitempty"`
+	// Access is Team.Access.
+	Access TeamAccess `json:"access"`
 }
 
 // TeamUpdateParams applies a JSON merge patch to a team: name, purpose,
-// folder, members (the whole list), tools, approvals, budget, notify.
+// folder, members (the whole list), tools, approvals, budget, notify,
+// running, access.
 type TeamUpdateParams struct {
 	ID    string          `json:"id"`
 	Patch json.RawMessage `json:"patch"`
@@ -170,6 +274,10 @@ type TeamExport struct {
 	Notify      string         `json:"notify"`
 	Routines    []RoutineDraft `json:"routines,omitempty"`
 	Credentials []string       `json:"credentials,omitempty"`
+	// Running is Team.Running.
+	Running int `json:"running,omitempty"`
+	// Access is Team.Access, carried as written; an import checks it again.
+	Access TeamAccess `json:"access"`
 }
 
 // TeamExportResult carries the exported document and where it was written.
@@ -236,6 +344,14 @@ type TeamTask struct {
 	Ended    *time.Time `json:"ended,omitempty"`
 	// Read is set once the user has opened the report.
 	Read bool `json:"read,omitempty"`
+	// Harness, Model and Options are the engine the task runs on. Before it
+	// starts, Model and Options hold only what was asked for this task and
+	// Harness is empty; at its start all three are set to what was resolved
+	// (ResolveEngine, then this task's own Model and Options), and Model
+	// follows a switch made in its session. A finished task keeps them.
+	Harness string            `json:"harness,omitempty"`
+	Model   string            `json:"model,omitempty"`
+	Options map[string]string `json:"options,omitempty"`
 }
 
 // TeamReport is what an agent hands back when its task is done.
@@ -246,6 +362,9 @@ type TeamReport struct {
 	// Files are paths, inside the team's folder, of what the task made.
 	Files []string  `json:"files,omitempty"`
 	At    time.Time `json:"at"`
+	// Quiet says nothing changed since the last run: the task ends done
+	// without marking the Inbox unread or notifying.
+	Quiet bool `json:"quiet,omitempty"`
 }
 
 // TeamTasksParams lists a team's tasks, or every team's when Team is empty,
@@ -269,6 +388,10 @@ type TeamTaskCreateParams struct {
 	Member string `json:"member,omitempty"`
 	Title  string `json:"title,omitempty"`
 	Brief  string `json:"brief"`
+	// Model and Options are an engine for this task only, on its member's
+	// harness; empty keeps the member's.
+	Model   string            `json:"model,omitempty"`
+	Options map[string]string `json:"options,omitempty"`
 }
 
 // TeamTaskRef names a task.
@@ -319,6 +442,9 @@ type Routine struct {
 	LastRun    *time.Time `json:"lastRun,omitempty"`
 	LastTask   string     `json:"lastTask,omitempty"`
 	LastStatus string     `json:"lastStatus,omitempty"`
+	// QuietStreak counts runs in a row that ended with a quiet report; any
+	// other ending sets it back to 0.
+	QuietStreak int `json:"quietStreak,omitempty"`
 	// NextRun and Sentence are filled by the daemon.
 	NextRun  *time.Time `json:"nextRun,omitempty"`
 	Sentence string     `json:"sentence"`
@@ -403,11 +529,35 @@ const (
 	DecideAlways  = "always"
 	DecideDeny    = "deny"
 	DecideProvide = "provide"
+	// DecideChoose answers a choice question with one of its Options.
+	DecideChoose = "choose"
 )
 
-// ApprovalTTL is how long a decision may wait; an unanswered approval then
-// counts as denied.
-const ApprovalTTL = 24 * time.Hour
+// Choice question limits.
+const (
+	ApprovalOptionsMax     = 6
+	ApprovalOptionRunesMax = 80
+)
+
+// ValidApprovalOptions reports whether options can make a choice question:
+// none, or 2 to ApprovalOptionsMax distinct options, each with text and at
+// most ApprovalOptionRunesMax runes.
+func ValidApprovalOptions(options []string) bool {
+	if len(options) == 0 {
+		return true
+	}
+	if len(options) < 2 || len(options) > ApprovalOptionsMax {
+		return false
+	}
+	seen := make(map[string]bool, len(options))
+	for _, option := range options {
+		if strings.TrimSpace(option) == "" || utf8.RuneCountInString(option) > ApprovalOptionRunesMax || seen[option] {
+			return false
+		}
+		seen[option] = true
+	}
+	return true
+}
 
 // Approval is something a team waits on the user for: an exact action it may
 // take once approved, a credential it asks for, or a limit it reached.
@@ -429,6 +579,11 @@ type Approval struct {
 	// Decision and Note are the user's answer; the agent hears the note.
 	Decision string `json:"decision,omitempty"`
 	Note     string `json:"note,omitempty"`
+	// Options make the approval a choice question: the user picks one with
+	// DecideChoose, or denies them all.
+	Options []string `json:"options,omitempty"`
+	// Choice is the option the user picked, kept for the record.
+	Choice string `json:"choice,omitempty"`
 	// Result is what came of an approved action, for the record.
 	Result  string     `json:"result,omitempty"`
 	Created time.Time  `json:"created"`
@@ -452,13 +607,16 @@ type ApprovalsResult struct {
 }
 
 // ApprovalDecideParams answers an approval. Decision is DecideOnce,
-// DecideAlways, DecideDeny, or DecideProvide with Value for a credential
-// request. Value never comes back from any method.
+// DecideAlways, DecideDeny, DecideProvide with Value for a credential
+// request, or DecideChoose with Choice, one of the approval's Options. The
+// agent is then told "The user chose: <option>" and any note. Value never
+// comes back from any method.
 type ApprovalDecideParams struct {
 	ID       string `json:"id"`
 	Decision string `json:"decision"`
 	Note     string `json:"note,omitempty"`
 	Value    string `json:"value,omitempty"`
+	Choice   string `json:"choice,omitempty"`
 }
 
 // Who started what an activity entry records.
@@ -500,7 +658,7 @@ type DaySpend struct {
 	Output int64  `json:"output"`
 }
 
-// NamedSpend is the tokens and runs of one member or routine.
+// NamedSpend is the tokens and runs of one member, routine, team or engine.
 type NamedSpend struct {
 	ID     string `json:"id"`
 	Name   string `json:"name"`
@@ -518,8 +676,23 @@ type TeamSpend struct {
 	Members  []NamedSpend `json:"members,omitempty"`
 	Routines []NamedSpend `json:"routines,omitempty"`
 	Teams    []NamedSpend `json:"teams,omitempty"`
+	// Engines is the spend by the engine tasks ran on: ID is the harness id
+	// and the model id joined by EngineSpendSeparator, the model empty for
+	// the harness's default; Name is left for the app to word.
+	Engines []NamedSpend `json:"engines,omitempty"`
 	// Estimated is set when a harness did not report some of its tokens.
 	Estimated bool `json:"estimated,omitempty"`
+}
+
+// EngineSpendSeparator joins a harness id and a model id in an Engines ID.
+const EngineSpendSeparator = "\x1f"
+
+// TeamPruneParams deletes finished tasks with their sessions: those of Team,
+// or of every team when it is empty, that ended more than KeepDays ago, or
+// every finished one with All. What they made stays in the team's folder.
+type TeamPruneParams struct {
+	Team string `json:"team,omitempty"`
+	All  bool   `json:"all,omitempty"`
 }
 
 // TeamRemoved is the data of team.removed, routine.removed and
@@ -538,12 +711,14 @@ type AgentRef struct {
 	Token   string `json:"token"`
 }
 
-// AgentReportParams hands the task's report back; it ends the task.
+// AgentReportParams hands the task's report back; it ends the task. Quiet
+// says nothing changed since the last run.
 type AgentReportParams struct {
 	AgentRef
 	Title string   `json:"title"`
 	Body  string   `json:"body"`
 	Files []string `json:"files,omitempty"`
+	Quiet bool     `json:"quiet,omitempty"`
 }
 
 // AgentDelegateParams gives a member of the lead's team one piece of the
@@ -555,11 +730,14 @@ type AgentDelegateParams struct {
 	Brief  string `json:"brief"`
 }
 
-// AgentAskParams asks the user to decide before the agent acts.
+// AgentAskParams asks the user to decide before the agent acts. With
+// Options it is a choice question (ValidApprovalOptions): the agent is told
+// "The user chose: <option>" and any note the user added.
 type AgentAskParams struct {
 	AgentRef
-	Title  string `json:"title"`
-	Detail string `json:"detail,omitempty"`
+	Title   string   `json:"title"`
+	Detail  string   `json:"detail,omitempty"`
+	Options []string `json:"options,omitempty"`
 }
 
 // AgentHTTPParams makes one HTTPS request with a credential the team may

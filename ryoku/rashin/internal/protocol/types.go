@@ -422,6 +422,18 @@ type HarnessCapabilities struct {
 	// Started is the model and the option values the agent came up with the
 	// last time it ran.
 	Started []HarnessFact `json:"started,omitempty"`
+	// ModelList is every model the agent offered at its last start, in its
+	// own order.
+	ModelList []Choice `json:"modelList,omitempty"`
+	// DefaultModel is the model id a new session of the agent starts on. It
+	// is learned only from a new session, never from a resumed one, which
+	// reports the model it was left on; empty until then.
+	DefaultModel string `json:"defaultModel,omitempty"`
+	// Options are the settings the agent offers beside its model and mode,
+	// each with its choices and the value a new session starts with.
+	Options []SessionOption `json:"options,omitempty"`
+	// Learned is when these capabilities were recorded.
+	Learned time.Time `json:"learned,omitzero"`
 }
 
 // HarnessInstance is a user-defined harness: any ACP agent command with its own
@@ -441,6 +453,27 @@ type HarnessesListParams struct {
 // HarnessesResult lists harnesses in table order.
 type HarnessesResult struct {
 	Harnesses []HarnessInfo `json:"harnesses"`
+}
+
+// HarnessProbeParams starts a harness once in a team's sandbox, without a
+// prompt, to read its models and check that Model and Options are taken.
+type HarnessProbeParams struct {
+	// ID is a HarnessInfo ID.
+	ID string `json:"id"`
+	// Model and Options, when set, are picked as a team task would pick
+	// them.
+	Model   string            `json:"model,omitempty"`
+	Options map[string]string `json:"options,omitempty"`
+}
+
+// HarnessProbeResult is the harness as the probe left it, with the
+// capabilities it just reported. OK is false when it did not start or
+// refused the model or an option; Message then says why in the harness's
+// own words.
+type HarnessProbeResult struct {
+	Harness HarnessInfo `json:"harness"`
+	OK      bool        `json:"ok"`
+	Message string      `json:"message,omitempty"`
 }
 
 // Index kinds and states.
@@ -725,14 +758,126 @@ type APISettings struct {
 // DefaultAPIPort is where the local API listens unless the setting says otherwise.
 const DefaultAPIPort = 3600
 
-// TeamsSettings are the defaults every team shares.
+// TeamsSettings are the defaults and limits every team shares.
 type TeamsSettings struct {
-	// MaxRunning is how many team tasks run at once across all teams.
+	// MaxRunning is how many team tasks run at once across all teams, 1 to
+	// TeamsMaxRunningMax.
 	MaxRunning int `json:"maxRunning"`
+	// PerTeam is how many tasks one team runs at once unless the team sets
+	// its own Running, 1 to TeamsPerTeamMax and never above MaxRunning.
+	PerTeam int `json:"perTeam"`
+	// Paused holds every team: no task starts and no routine fires while it
+	// is set, whatever each team's own pause says.
+	Paused bool `json:"paused,omitempty"`
+	// RoutinesWake lets a timer start Rashin at login and while a routine is
+	// on. It is true unless the user turned it off, so it is always written.
+	RoutinesWake bool `json:"routinesWake"`
+	// Defaults are what a new team starts with when it names nothing else.
+	// A member left on the default harness keeps following Defaults.Harness,
+	// Model and Options.
+	Defaults TeamDefaults `json:"defaults"`
+	// ApprovalHours is how long a question waits for the user before it
+	// counts as no, 1 to TeamsApprovalHoursMax.
+	ApprovalHours int `json:"approvalHours"`
+	// QuietHours, when set, holds desktop notifications back between From
+	// and To; what needs the user still waits in the Inbox.
+	QuietHours *QuietHours `json:"quietHours,omitempty"`
+	// Hidden are paths every team agent sees as empty, written as given
+	// ("~/.ssh" or absolute). Nil means DefaultTeamsHidden(); an empty list
+	// hides nothing beyond what Rashin always hides, so it is always written.
+	Hidden []string `json:"hidden"`
+	// KeepDays is how long finished tasks and their sessions are kept: one
+	// of TeamsKeepDays, 0 keeping them forever.
+	KeepDays int `json:"keepDays"`
 }
 
-// DefaultTeamsMaxRunning is how many team tasks run at once by default.
-const DefaultTeamsMaxRunning = 3
+// TeamDefaults are what a new team starts with, and the engine of every
+// member left on the default harness.
+type TeamDefaults struct {
+	// Harness is a HarnessInfo ID; empty runs the Agents harness
+	// (AgentSettings.Harness), else the registry's default.
+	Harness string `json:"harness,omitempty"`
+	// Model and Options belong to the harness Harness resolves to; empty
+	// takes that harness's own defaults.
+	Model   string            `json:"model,omitempty"`
+	Options map[string]string `json:"options,omitempty"`
+	// Approvals is an Approvals value.
+	Approvals string     `json:"approvals"`
+	Budget    TeamBudget `json:"budget"`
+	// Notify is NotifyAll, NotifyNeeds or NotifyNone.
+	Notify string `json:"notify"`
+}
+
+// QuietHours is a daily window in local time, "HH:MM" each way. To before
+// From crosses midnight.
+type QuietHours struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+}
+
+// Covers reports whether t falls inside the window: From inclusive, To
+// exclusive. A window whose times do not parse or are equal covers nothing.
+func (q QuietHours) Covers(t time.Time) bool {
+	from, okFrom := ParseClock(q.From)
+	to, okTo := ParseClock(q.To)
+	if !okFrom || !okTo || from == to {
+		return false
+	}
+	now := t.Hour()*60 + t.Minute()
+	if from < to {
+		return now >= from && now < to
+	}
+	return now >= from || now < to
+}
+
+// ParseClock reads "HH:MM" on a 24-hour clock, two digits each, as minutes
+// after midnight.
+func ParseClock(value string) (int, bool) {
+	if len(value) != len("15:04") {
+		return 0, false
+	}
+	clock, err := time.Parse("15:04", value)
+	if err != nil {
+		return 0, false
+	}
+	return clock.Hour()*60 + clock.Minute(), true
+}
+
+// Teams settings defaults and limits.
+const (
+	// DefaultTeamsMaxRunning is how many team tasks run at once by default.
+	DefaultTeamsMaxRunning = 3
+	// TeamsMaxRunningMax keeps team tasks from starving the desktop they
+	// share.
+	TeamsMaxRunningMax = 6
+	// DefaultTeamsPerTeam is how many tasks one team runs at once by default.
+	DefaultTeamsPerTeam = 2
+	// TeamsPerTeamMax is the most tasks one team may run at once.
+	TeamsPerTeamMax = 4
+	// DefaultApprovalHours is how long a question waits by default.
+	DefaultApprovalHours = 24
+	// TeamsApprovalHoursMax is a week.
+	TeamsApprovalHoursMax = 168
+	// TeamsHiddenMax is the most paths the teams settings or one team may
+	// hide.
+	TeamsHiddenMax = 64
+)
+
+// TeamsKeepDays are the values KeepDays may take; 0 keeps every finished
+// task.
+var TeamsKeepDays = []int{0, 30, 90, 365}
+
+// DefaultTeamsHidden are the paths hidden from every team agent unless the
+// user changed the list: keys, cloud and cluster credentials, and browser
+// profiles.
+func DefaultTeamsHidden() []string {
+	return []string{
+		"~/.ssh", "~/.gnupg", "~/.password-store", "~/.aws", "~/.kube",
+		"~/.docker", "~/.netrc", "~/.git-credentials", "~/.mozilla", "~/.zen",
+		"~/.config/chromium", "~/.config/google-chrome",
+		"~/.config/BraveSoftware", "~/.local/share/keyrings",
+	}
+}
 
 // Settings is rashin.json. Enabled is changed only by rashin on and off.
 type Settings struct {

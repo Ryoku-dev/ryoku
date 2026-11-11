@@ -15,7 +15,9 @@ import (
 
 	i18n "ryoku-i18n"
 
+	"ryoku-rashin/internal/config"
 	"ryoku-rashin/internal/core"
+	registry "ryoku-rashin/internal/harness"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 	"ryoku-rashin/internal/vault"
@@ -23,14 +25,22 @@ import (
 
 // Service implements core.Teams. Its parts live in their own files: the
 // persisted state (store.go), the runs of tasks as sessions (runner.go), the
+// engine they run on (engine.go), their time limits (minutes.go), the
 // routine clock (schedule.go), the ledger and spend (ledger.go, spend.go),
-// approvals (approvals.go) and the vault methods (credentials.go).
+// approvals (approvals.go), pruning (prune.go), the settings it follows
+// (settings.go) and the vault methods (credentials.go).
 type Service struct {
 	mu       sync.Mutex
 	events   core.Broadcaster
 	settings func() protocol.Settings
 	sessions core.TeamSessions
 	now      func() time.Time
+	// defaultHarness is the registry's default harness for these settings,
+	// the last step of the engine chain
+	defaultHarness func(protocol.Settings) string
+	// teamsSettings are the teams settings last seen, so a change is told
+	// from what it changed
+	teamsSettings protocol.TeamsSettings
 
 	state  *state
 	ledger *ledger
@@ -67,11 +77,11 @@ func Open(events core.Broadcaster, settings func() protocol.Settings) (*Service,
 // wake, which turns the unit that wakes Rashin for its routines on or off.
 func open(dir string, v *vault.Vault, wake func(on bool), events core.Broadcaster, settings func() protocol.Settings) (*Service, error) {
 	if settings == nil {
-		settings = func() protocol.Settings { return protocol.Settings{} }
+		settings = config.Defaults
 	}
 	background, cancel := context.WithCancel(context.Background())
 	s := &Service{
-		events: events, settings: settings, now: time.Now, vault: v,
+		events: events, settings: settings, now: time.Now, vault: v, defaultHarness: registry.DefaultID,
 		runs: make(map[string]*run), background: background, cancel: cancel,
 	}
 	var err error
@@ -97,13 +107,22 @@ func open(dir string, v *vault.Vault, wake func(on bool), events core.Broadcaste
 }
 
 // Bind hands the service the session manager and starts what runs by itself:
-// queued tasks and the routine clock.
+// queued tasks, the routine clock and the daily pruning. Tasks a restart
+// left while every team is paused stop.
 func (s *Service) Bind(sessions core.TeamSessions) {
+	settings := s.settings()
 	s.mu.Lock()
 	s.sessions = sessions
+	s.teamsSettings = settings.Teams
 	s.mu.Unlock()
+	if settings.Teams.Paused {
+		for _, team := range s.state.teams() {
+			s.stopTeamTasks(team.ID, i18n.T("Every team was paused."))
+		}
+	}
 	s.recoverRuns()
 	s.clock.start()
+	s.pruneDaily()
 	s.pump()
 }
 
@@ -158,6 +177,8 @@ func (s *Service) Handle(ctx context.Context, method string, raw json.RawMessage
 		return call(raw, func(p protocol.TeamActivityParams) (any, error) { return s.ledger.list(p) })
 	case protocol.MTeamsSpend:
 		return call(raw, func(p protocol.TeamSpendParams) (any, error) { return s.spend(p) })
+	case protocol.MTeamsPrune:
+		return call(raw, func(p protocol.TeamPruneParams) (any, error) { return s.prune(ctx, p) })
 
 	case protocol.MTeamsAgentReport:
 		return call(raw, func(p protocol.AgentReportParams) (any, error) { return s.agentReport(ctx, p) })

@@ -44,7 +44,7 @@ func (s *Service) fillRoutine(r protocol.Routine, now time.Time) protocol.Routin
 		return r
 	}
 	r.Sentence = schedule.Sentence()
-	if team, ok := s.state.team(r.Team); !r.Enabled || !ok || team.Paused {
+	if team, ok := s.state.team(r.Team); !r.Enabled || !ok || team.Paused || s.settings().Teams.Paused {
 		return r
 	}
 	next := s.clock.due(r.ID)
@@ -81,7 +81,7 @@ func (s *Service) createRoutine(ctx context.Context, p protocol.RoutineCreatePar
 	})
 	s.clock.rearm()
 	if p.RunNow {
-		if team, ok := s.state.team(r.Team); ok && !team.Paused {
+		if team, ok := s.state.team(r.Team); ok && !team.Paused && !s.settings().Teams.Paused {
 			_, _ = s.fireRoutine(ctx, r, protocol.InitiatorYou)
 		}
 	}
@@ -277,6 +277,9 @@ func (s *Service) runRoutine(ctx context.Context, id, initiator string) (protoco
 	if team.Paused {
 		return protocol.TeamTask{}, protocol.Errorf(protocol.CodeConflict, "%s", i18n.Tf("%s is paused, so its routines do not run.", team.Name))
 	}
+	if s.settings().Teams.Paused {
+		return protocol.TeamTask{}, protocol.Errorf(protocol.CodeConflict, "%s", i18n.T("Every team is paused, so no routine runs."))
+	}
 	return s.fireRoutine(ctx, r, initiator)
 }
 
@@ -287,8 +290,8 @@ func (s *Service) fireRoutine(ctx context.Context, r protocol.Routine, initiator
 	if initiator == protocol.InitiatorYou {
 		actor = protocol.InitiatorYou
 	}
-	brief := r.Brief + i18n.Tf("\n\nThis run is from the routine \"%s\"; when nothing changed since the last run, say so in one line in your report.", r.Title)
-	task, err := s.newTask(ctx, r.Team, r.Member, r.Title, brief, protocol.TaskFromRoutine, r.ID, "")
+	brief := r.Brief + i18n.Tf("\n\nThis run is from the routine \"%s\"; when nothing changed since the last run, report that in one line with quiet set.", r.Title)
+	task, err := s.newTask(ctx, r.Team, r.Member, r.Title, brief, protocol.TaskFromRoutine, r.ID, "", "", nil)
 	if err != nil {
 		s.record(protocol.Activity{
 			Actor: actor, Action: "routine.fire", Target: r.Title, OK: false,
@@ -319,7 +322,7 @@ func (s *Service) checkRoutine(id string, due, now time.Time) {
 	if !ok || !r.Enabled {
 		return
 	}
-	if team, ok := s.state.team(r.Team); !ok || team.Paused {
+	if team, ok := s.state.team(r.Team); !ok || team.Paused || s.settings().Teams.Paused {
 		return
 	}
 	if now.Sub(due) > routineLate && r.Missed != protocol.MissedOnce {
@@ -359,7 +362,8 @@ func (s *Service) skipRoutine(r protocol.Routine, reason string, now time.Time) 
 
 // routineTaskEnded counts how a routine's run ended: a report clears its
 // failures, a block or stop adds one, and RoutineFailuresMax in a row turn
-// the routine off and tell the user.
+// the routine off and tell the user. A quiet report adds to its quiet
+// streak; any other ending sets the streak back to 0.
 func (s *Service) routineTaskEnded(task protocol.TeamTask) {
 	off := false
 	r, ok := s.clock.change(task.Routine, func(r *protocol.Routine) bool {
@@ -373,6 +377,11 @@ func (s *Service) routineTaskEnded(task protocol.TeamTask) {
 			}
 		default:
 			return false
+		}
+		if task.Status == protocol.TaskDone && task.Report != nil && task.Report.Quiet {
+			r.QuietStreak++
+		} else {
+			r.QuietStreak = 0
 		}
 		if r.LastTask == task.ID {
 			r.LastStatus = task.Status

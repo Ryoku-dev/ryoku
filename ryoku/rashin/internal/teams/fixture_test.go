@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"ryoku-rashin/internal/config"
 	"ryoku-rashin/internal/protocol"
 	"ryoku-rashin/internal/vault"
 )
@@ -67,7 +68,8 @@ func (c *fakeClock) set(at time.Time) {
 }
 
 // fakeSessions stands in for the session manager: it records what Teams asks
-// of each session and keeps each session's goal.
+// of each session and keeps each session's goal. Options in refuse are
+// refused by SetOption; away leaves no Rashin window open.
 type fakeSessions struct {
 	mu        sync.Mutex
 	count     int
@@ -77,13 +79,21 @@ type fakeSessions struct {
 	goals     []protocol.GoalParams
 	continued []continued
 	stopped   []string
+	deleted   []string
+	models    map[string]string
+	options   map[string]map[string]string
+	refuse    map[string]bool
+	away      bool
 }
 
 // continued is one note a session was continued with.
 type continued struct{ session, text string }
 
 func newFakeSessions() *fakeSessions {
-	return &fakeSessions{infos: make(map[string]protocol.SessionInfo)}
+	return &fakeSessions{
+		infos: make(map[string]protocol.SessionInfo), models: make(map[string]string),
+		options: make(map[string]map[string]string), refuse: make(map[string]bool),
+	}
 }
 
 func (f *fakeSessions) Info(id string) (protocol.SessionInfo, bool) {
@@ -100,7 +110,7 @@ func (f *fakeSessions) New(_ context.Context, p protocol.SessionNewParams) (prot
 	defer f.mu.Unlock()
 	f.count++
 	info := protocol.SessionInfo{
-		ID: fmt.Sprintf("session-%d", f.count), Kind: p.Kind, Cwd: p.Cwd, Origin: p.Origin, State: protocol.StateIdle,
+		ID: fmt.Sprintf("session-%d", f.count), Kind: p.Kind, Harness: p.Harness, Cwd: p.Cwd, Origin: p.Origin, State: protocol.StateIdle,
 		Team: p.Team, TeamTask: p.TeamTask, Member: p.Member, Approvals: p.Approvals,
 	}
 	f.infos[info.ID] = info
@@ -119,7 +129,28 @@ func (f *fakeSessions) Start(_ context.Context, id string) error {
 	return nil
 }
 
-func (f *fakeSessions) SetModel(context.Context, string, string) error { return nil }
+func (f *fakeSessions) SetModel(_ context.Context, id, model string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.models[id] = model
+	info := f.infos[id]
+	info.Model = model
+	f.infos[id] = info
+	return nil
+}
+
+func (f *fakeSessions) SetOption(_ context.Context, id, option, value string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.refuse[option] {
+		return errors.New("the harness offers no such option")
+	}
+	if f.options[id] == nil {
+		f.options[id] = make(map[string]string)
+	}
+	f.options[id][option] = value
+	return nil
+}
 
 func (f *fakeSessions) Goal(_ context.Context, p protocol.GoalParams) (protocol.SessionInfo, error) {
 	f.mu.Lock()
@@ -163,8 +194,21 @@ func (f *fakeSessions) Stop(_ context.Context, id string) error {
 	return nil
 }
 
-// Watched keeps a window open, so no desktop notification is posted.
-func (f *fakeSessions) Watched() bool { return true }
+func (f *fakeSessions) Delete(_ context.Context, id string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.deleted = append(f.deleted, id)
+	delete(f.infos, id)
+	return nil
+}
+
+// Watched keeps a window open unless away, so no desktop notification is
+// posted by a test that does not ask for one.
+func (f *fakeSessions) Watched() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return !f.away
+}
 
 func (f *fakeSessions) info(id string) protocol.SessionInfo {
 	info, _ := f.Info(id)
@@ -284,7 +328,8 @@ func (b *broadcasts) lastTeam(id string) (protocol.Team, bool) {
 }
 
 // harness is a bound service on temporary state with a fake clock, fake
-// sessions, a vault kept in memory, a recorded wake unit and what it broadcast.
+// sessions, a vault kept in memory, a recorded wake unit, what it broadcast
+// and the settings it reads, which a test may change.
 type harness struct {
 	s        *Service
 	dir      string
@@ -292,10 +337,25 @@ type harness struct {
 	clock    *fakeClock
 	wake     *wakeRecorder
 	events   *broadcasts
+
+	settingsMu sync.Mutex
+	settings   protocol.Settings
 }
 
 // newHarness binds a service; maxRunning 0 keeps the default.
 func newHarness(t *testing.T, maxRunning int) *harness {
+	t.Helper()
+	return newHarnessWith(t, func(s *protocol.Settings) {
+		if maxRunning > 0 {
+			s.Teams.MaxRunning = maxRunning
+		}
+	})
+}
+
+// newHarnessWith binds a service on the default settings as edit leaves
+// them, with the fake harness the test teams run on known and the registry's
+// default.
+func newHarnessWith(t *testing.T, edit func(*protocol.Settings)) *harness {
 	t.Helper()
 	h := &harness{
 		dir:      t.TempDir(),
@@ -303,22 +363,41 @@ func newHarness(t *testing.T, maxRunning int) *harness {
 		clock:    &fakeClock{at: time.Date(2026, time.November, 11, 10, 0, 0, 0, time.Local)},
 		wake:     &wakeRecorder{},
 		events:   &broadcasts{},
+		settings: config.Defaults(),
+	}
+	h.settings.Agent.Instances = []protocol.HarnessInstance{{ID: "fake", Name: "Fake", Command: []string{"fake-acp"}}}
+	if edit != nil {
+		edit(&h.settings)
 	}
 	keys := fixedKeeper{key: bytes.Repeat([]byte{7}, 32)}
 	v := vault.OpenWith(filepath.Join(t.TempDir(), "vault.db"), keys)
-	settings := func() protocol.Settings {
-		return protocol.Settings{Teams: protocol.TeamsSettings{MaxRunning: maxRunning}}
-	}
-	s, err := open(h.dir, v, h.wake.set, h.events, settings)
+	s, err := open(h.dir, v, h.wake.set, h.events, h.currentSettings)
 	if err != nil {
 		t.Fatal(err)
 	}
 	s.now = h.clock.now
+	s.defaultHarness = func(protocol.Settings) string { return "fake" }
 	t.Cleanup(func() { _ = s.Close() })
 	h.s = s
 	s.Bind(h.sessions)
 	waitFor(t, "the clock to set the wake unit", func() bool { return len(h.wake.seen()) > 0 })
 	return h
+}
+
+func (h *harness) currentSettings() protocol.Settings {
+	h.settingsMu.Lock()
+	defer h.settingsMu.Unlock()
+	return h.settings
+}
+
+// setTeams changes the teams settings and tells the service, as the
+// daemon's settings.set does.
+func (h *harness) setTeams(edit func(*protocol.TeamsSettings)) {
+	h.settingsMu.Lock()
+	edit(&h.settings.Teams)
+	settings := h.settings
+	h.settingsMu.Unlock()
+	h.s.SettingsChanged(settings)
 }
 
 func (h *harness) call(method string, params any) (any, error) {
@@ -327,6 +406,16 @@ func (h *harness) call(method string, params any) (any, error) {
 		return nil, err
 	}
 	return h.s.Handle(context.Background(), method, raw)
+}
+
+// mustJSON encodes v, as a patch is sent.
+func mustJSON(t *testing.T, v any) json.RawMessage {
+	t.Helper()
+	raw, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
 }
 
 // do calls a method that must succeed with a result of type T.

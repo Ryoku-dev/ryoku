@@ -92,8 +92,14 @@ func (s *Service) Brief(info protocol.SessionInfo) string {
 	b.WriteString("\n- ")
 	b.WriteString(i18n.T("Before anything that leaves this computer or cannot be undone, ask with ask_user and end your turn. A mail or a request is the exception: send_mail and http_request show the user the exact mail or request and ask by themselves, so call them directly and never ask about them first."))
 	b.WriteString("\n- ")
+	b.WriteString(i18n.T("When the user should pick between ways to go on, give ask_user 2 to 6 short options; you hear which one they chose and any note they added."))
+	b.WriteString("\n- ")
 	b.WriteString(i18n.T("You never see credential values. The credentials tool lists the ones your team may use; http_request uses them for you. If the team lacks one, ask with request_credential."))
 	b.WriteString("\n")
+	if task.Routine != "" {
+		b.WriteString(i18n.T("This task is a run of a routine. When nothing changed since the last run, call report with quiet set and a one-line body: the run ends without notifying the user or marking the report unread. Leave quiet off whenever there is anything the user should read."))
+		b.WriteString("\n")
+	}
 	if team.Tools.Screen {
 		b.WriteString(i18n.T("You may use your own screen with the screen tools without asking first."))
 		b.WriteString("\n")
@@ -125,7 +131,7 @@ func (s *Service) AfterTurn(_ context.Context, info protocol.SessionInfo, end pr
 	s.mu.Unlock()
 	if ok {
 		s.emitTask(t)
-		s.addSpend(t.Team, t.Member, t.Routine, s.now(), usage)
+		s.addSpend(t.Team, t.Member, t.Routine, engineKey(t), s.now(), usage)
 		s.emitTeam(t.Team)
 		s.checkBudget(t.Team, int64(usage.Input+usage.Output))
 	}
@@ -136,8 +142,8 @@ func (s *Service) AfterTurn(_ context.Context, info protocol.SessionInfo, end pr
 }
 
 // Hold reports whether a team session must not start its next goal turn:
-// its task waits on the user or on its members, its team is paused, or the
-// session no longer works the task.
+// its task waits on the user or on its members, its team or every team is
+// paused, or the session no longer works the task.
 func (s *Service) Hold(info protocol.SessionInfo) bool {
 	if info.TeamTask == "" {
 		return false
@@ -150,7 +156,7 @@ func (s *Service) Hold(info protocol.SessionInfo) bool {
 		return true
 	}
 	team, ok := s.state.team(t.Team)
-	return !ok || team.Paused
+	return !ok || team.Paused || s.settings().Teams.Paused
 }
 
 // ScreenGranted reports a session whose team was given a screen, so it
@@ -227,7 +233,8 @@ func (s *Service) GoalEnded(info protocol.SessionInfo, goal protocol.Goal) {
 
 // SessionChanged follows a team session's permission requests: while the
 // harness asks the user in the conversation, the task needs them, and once
-// they answered it works again.
+// they answered it works again. It also follows a model the user switched
+// the session to once its engine was set up, so the task keeps what ran it.
 func (s *Service) SessionChanged(info protocol.SessionInfo) {
 	if info.TeamTask == "" {
 		return
@@ -235,28 +242,44 @@ func (s *Service) SessionChanged(info protocol.SessionInfo) {
 	asking := info.State == protocol.StateWaiting && info.Pending > 0
 	s.mu.Lock()
 	t, ok := s.state.task(info.TeamTask)
-	if !ok || t.Session != info.ID {
+	if !ok || t.Session != info.ID || !taskIsOpen(t) {
 		s.mu.Unlock()
 		return
 	}
+	switched := ""
+	if r := s.runs[t.ID]; r != nil && r.Session == info.ID && r.Ready && info.Model != "" && info.Model != r.Model {
+		r.Model, t.Model, switched = info.Model, info.Model, info.Model
+	}
+	held, resumed := false, false
 	switch {
 	case asking && t.Status == protocol.TaskWorking && t.Waiting == "":
-		t.Status, t.Waiting = protocol.TaskNeedsYou, protocol.WaitingOnYou
+		t.Status, t.Waiting, held = protocol.TaskNeedsYou, protocol.WaitingOnYou, true
 	case !asking && t.Status == protocol.TaskNeedsYou && s.pendingApprovals(t.ID) == 0:
-		t.Status, t.Waiting = protocol.TaskWorking, ""
-	default:
+		t.Status, t.Waiting, resumed = protocol.TaskWorking, "", true
+	}
+	if !held && !resumed && switched == "" {
 		s.mu.Unlock()
 		return
 	}
 	t.Updated = s.now()
 	err := s.state.putTask(t)
+	if err == nil && resumed {
+		s.armMinutesLocked(t.ID)
+	}
 	s.mu.Unlock()
 	if err != nil {
 		return
 	}
 	s.emitTask(t)
-	if asking {
-		team, _ := s.state.team(t.Team)
+	team, _ := s.state.team(t.Team)
+	if switched != "" {
+		member, _ := taskMember(team, t.Member)
+		s.record(protocol.Activity{
+			Actor: protocol.InitiatorYou, Action: "task.model", Target: t.Title, OK: true, Team: t.Team, Task: t.ID, Initiator: protocol.InitiatorYou,
+			Detail: i18n.Tf("You switched %s to %s for this task.", member.Name, switched),
+		})
+	}
+	if held {
 		s.notify(notification{Team: t.Team, Task: t.ID, Title: i18n.Tf("%s needs you: %s", team.Name, t.Title), Body: i18n.T("Its agent asks before it goes on."), Needs: true})
 	}
 }

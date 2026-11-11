@@ -270,9 +270,14 @@ func (m *sessionManager) persist(s *managedSession, kind string, data any) error
 			if title == "" {
 				title = s.tools[tool.Call]
 			}
-			if title != "" {
-				activity := toolStatusWord(tool.Status) + ": " + title
-				_ = s.log.Update(func(i *protocol.SessionInfo) { i.Activity = activity }, nil)
+			steps := len(s.calls)
+			if title != "" || steps != s.log.Info().Steps {
+				_ = s.log.Update(func(i *protocol.SessionInfo) {
+					if title != "" {
+						i.Activity = toolStatusWord(tool.Status) + ": " + title
+					}
+					i.Steps = steps
+				}, nil)
 				infoChanged = true
 			}
 		}
@@ -304,7 +309,8 @@ func (m *sessionManager) persist(s *managedSession, kind string, data any) error
 	case protocol.EvTurnEnd:
 		s.tools = nil
 		s.turnCalls, s.calls = len(s.calls), nil
-		_ = s.log.Update(func(i *protocol.SessionInfo) { i.Unread = true; i.Activity = "" }, nil)
+		// the steps stay, so a finished turn still says how much it did
+		_ = s.log.Update(func(i *protocol.SessionInfo) { i.Unread = true; i.Activity = ""; i.TurnStarted = nil }, nil)
 		infoChanged = true
 	}
 	payload := protocol.SessionEventData{Session: s.log.Info().ID, SessionEvent: ev}
@@ -674,11 +680,15 @@ func (m *sessionManager) startPrompt(ctx context.Context, s *managedSession, p p
 	}
 	alive := runner.Alive()
 	state := runner.State()
+	started := time.Now()
 	s.mu.Lock()
+	s.calls = nil
 	_ = s.log.Update(func(i *protocol.SessionInfo) {
 		i.Turns = turn
 		i.State = protocol.StateWorking
 		i.Error = ""
+		i.TurnStarted = &started
+		i.Steps = 0
 		// A harness may send a better title later; until it does, a session is
 		// named after what it was first asked, or every row reads the same. A
 		// prompt that is only an attachment is named after that.
@@ -690,11 +700,12 @@ func (m *sessionManager) startPrompt(ctx context.Context, s *managedSession, p p
 		}
 		i.Alive = alive
 	}, state)
-	s.lastActivity = time.Now()
+	s.lastActivity = started
 	m.emitInfoLocked(s)
 	s.mu.Unlock()
 	if err := s.coalescer.Emit(protocol.EvTurnStart, protocol.TurnStartData{Turn: turn}); err != nil {
 		s.mu.Lock()
+		_ = s.log.Update(func(i *protocol.SessionInfo) { i.TurnStarted = nil }, nil)
 		s.running = false
 		s.cancel = nil
 		close(done)
@@ -1247,12 +1258,16 @@ func (m *sessionManager) start(ctx context.Context, id string) error {
 	return nil
 }
 
-// Start, SetModel, Goal, Cancel and Stop are the session controls Teams runs
-// a task's session with.
+// Start, SetModel, SetOption, Goal, Cancel, Stop and Delete are the session
+// controls Teams runs a task's session with.
 func (m *sessionManager) Start(ctx context.Context, id string) error { return m.start(ctx, id) }
 
 func (m *sessionManager) SetModel(ctx context.Context, id, model string) error {
 	return m.setModel(ctx, protocol.SetModelParams{ID: id, Model: model})
+}
+
+func (m *sessionManager) SetOption(ctx context.Context, id, option, value string) error {
+	return m.setOption(ctx, protocol.SetOptionParams{ID: id, Option: option, Value: value})
 }
 
 func (m *sessionManager) Goal(ctx context.Context, p protocol.GoalParams) (protocol.SessionInfo, error) {
@@ -1262,6 +1277,8 @@ func (m *sessionManager) Goal(ctx context.Context, p protocol.GoalParams) (proto
 func (m *sessionManager) Cancel(_ context.Context, id string) error { return m.cancel(id) }
 
 func (m *sessionManager) Stop(_ context.Context, id string) error { return m.stop(id) }
+
+func (m *sessionManager) Delete(_ context.Context, id string) error { return m.delete(id) }
 
 // Continue starts a turn under the session's goal that says text, drawn as a
 // note from Rashin. A turn still running, or about to start, is waited for,

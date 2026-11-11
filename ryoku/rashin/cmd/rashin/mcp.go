@@ -53,7 +53,7 @@ func runMCP(args []string) int {
 	if os.Getenv("RASHIN_TEAM") != "" {
 		session.token = os.Getenv("RASHIN_TEAM_TOKEN")
 		session.lead = os.Getenv("RASHIN_TEAM_LEAD") == "1"
-		instructions += " The team tools serve your team task: report ends it, ask_user puts a decision to the user, and credentials, http_request, send_mail and request_credential use your team's credentials and mail without you ever seeing a value."
+		instructions += " The team tools serve your team task: report ends it (quiet for a routine run where nothing changed), ask_user puts a decision or a choice of 2 to 6 options to the user, and credentials, http_request, send_mail and request_credential use your team's credentials and mail without you ever seeing a value."
 		tools = append(tools, teamTools(session)...)
 	}
 	server := &mcp.Server{Name: "rashin", Version: version, Instructions: instructions, Tools: tools}

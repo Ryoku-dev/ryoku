@@ -47,7 +47,8 @@ const (
 	MGatewayAPI         = "gateway.api"
 	MGatewayAPIKey      = "gateway.api_key"
 
-	MHarnessesList = "harnesses.list"
+	MHarnessesList  = "harnesses.list"
+	MHarnessesProbe = "harnesses.probe"
 
 	MIndexList       = "index.list"
 	MIndexAdd        = "index.add"
@@ -151,6 +152,7 @@ const (
 	MTeamsApprovalDecide = "teams.approval_decide"
 	MTeamsActivity       = "teams.activity"
 	MTeamsSpend          = "teams.spend"
+	MTeamsPrune          = "teams.prune"
 
 	MTeamsAgentReport      = "teams.agent_report"
 	MTeamsAgentDelegate    = "teams.agent_delegate"
@@ -258,6 +260,7 @@ var Methods = []Method{
 	m(MGatewayAPIKey, APIKeyParams{}, APIKey{}, "The key other programs present to the local API; rotate replaces it."),
 
 	m(MHarnessesList, HarnessesListParams{}, HarnessesResult{}, "External harnesses and whether they are installed."),
+	m(MHarnessesProbe, HarnessProbeParams{}, HarnessProbeResult{}, "Start a harness once in a team sandbox, without a prompt, to read its models and check a model and options."),
 
 	m(MIndexList, Empty{}, IndexesResult{}, "Indexes."),
 	m(MIndexAdd, IndexAddParams{}, IndexInfo{}, "Register and index a project folder."),
@@ -360,7 +363,8 @@ var Methods = []Method{
 	m(MTeamsApprovals, ApprovalsParams{}, ApprovalsResult{}, "Approvals, newest first."),
 	m(MTeamsApprovalDecide, ApprovalDecideParams{}, Approval{}, "Answer an approval; an approved action runs once."),
 	m(MTeamsActivity, TeamActivityParams{}, ActivityResult{}, "The teams' ledger, newest first."),
-	m(MTeamsSpend, TeamSpendParams{}, TeamSpend{}, "A month of tokens by day, member and routine."),
+	m(MTeamsSpend, TeamSpendParams{}, TeamSpend{}, "A month of tokens by day, member, routine and engine."),
+	m(MTeamsPrune, TeamPruneParams{}, Empty{}, "Delete finished tasks with their sessions: past the kept days, or all of them."),
 
 	m(MTeamsAgentReport, AgentReportParams{}, AgentAnswer{}, "For a team task's agent: hand back the report and end the task."),
 	m(MTeamsAgentDelegate, AgentDelegateParams{}, AgentAnswer{}, "For a lead's agent: give a member a piece of the task."),
