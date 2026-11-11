@@ -20,10 +20,12 @@ Singleton {
     // unit override from the launcher config: "" follows the locale (Fahrenheit
     // only for US/LR/MM), "C"/"F" force it. a change refetches in the new unit.
     property string unitOverride: ""
-    readonly property string unit: unitOverride === "C" ? "celsius"
-        : unitOverride === "F" ? "fahrenheit"
-        : Model.unitFor(Quickshell.env("LC_MEASUREMENT") || Quickshell.env("LANG") || "")
-    onUnitChanged: if (root.located) root.fetchWeather()
+    function unitValue() {
+        return unitOverride === "C" ? "celsius"
+            : unitOverride === "F" ? "fahrenheit"
+            : Model.unitFor(Quickshell.env("LC_MEASUREMENT") || Quickshell.env("LANG") || "")
+    }
+    onUnitOverrideChanged: if (root.located) root.fetchWeather()
 
     // public contract, identical to the old wttr.in version.
     property string temp: ""
@@ -59,7 +61,7 @@ Singleton {
             + "&current=temperature_2m,weather_code,is_day,relative_humidity_2m"
             + "&hourly=temperature_2m,weather_code&forecast_hours=24"
             + "&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset&forecast_days=5"
-            + "&timezone=auto&temperature_unit=" + root.unit];
+            + "&timezone=auto&temperature_unit=" + root.unitValue()];
         wxProc.running = true;
     }
 
