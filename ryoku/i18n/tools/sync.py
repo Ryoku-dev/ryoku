@@ -692,8 +692,9 @@ def llm_translate(cfg, lang, keys, batch=40):
     batch. Returns {key: translation} for what came back; caller picks fallback."""
     name = LANG_NAMES.get(lang, lang)
     out = {}
+    lock = threading.Lock()
 
-    def run(chunk, depth):
+    def run(chunk, depth, tries=0):
         if not chunk:
             return
         try:
@@ -701,22 +702,37 @@ def llm_translate(cfg, lang, keys, batch=40):
             # a translation that lost, gained or translated a placeholder would
             # print a literal "%s" (or drop an argument) at runtime, so it is
             # dropped here and the English source is shipped instead.
-            out.update({k: _sanitize(v) for k, v in got.items()
-                        if k in chunk and isinstance(v, str) and v
-                        and _ph(v) == _ph(k)})
+            good = {k: _sanitize(v) for k, v in got.items()
+                    if k in chunk and isinstance(v, str) and v
+                    and _ph(v) == _ph(k)}
+            with lock:
+                out.update(good)
         except LLMUnavailable:
             raise
         except Exception as e:
-            if len(chunk) > 1 and depth < 6:
+            throttled = isinstance(e, urllib.error.HTTPError) and e.code in (429, 500, 502, 503, 504)
+            transient = isinstance(e, (TimeoutError, urllib.error.URLError)) and not isinstance(e, urllib.error.HTTPError)
+            if (throttled or transient) and tries < 4:
+                time.sleep(5 * (tries + 1) + random.random() * 3)
+                run(chunk, depth, tries + 1)
+            elif len(chunk) > 1 and depth < 6:
                 mid = len(chunk) // 2
                 run(chunk[:mid], depth + 1)
                 run(chunk[mid:], depth + 1)
             else:
-                print(f"  ! llm failed ({lang}) on {chunk!r}: {str(e)[:80]}", file=sys.stderr)
+                print(f"  ! llm failed ({lang}) on {chunk!r}: {str(e)[:80]}", file=sys.stderr, flush=True)
 
-    for i in range(0, len(keys), batch):
-        run(keys[i:i + batch], 0)
-        print(f"  {lang}: {len(out)}/{len(keys)}")
+    # one batch at a time took days for a full catalog; a paid endpoint takes
+    # several in flight, RYOKU_I18N_WORKERS tunes how many
+    workers = max(1, int(os.environ.get("RYOKU_I18N_WORKERS") or 8))
+    chunks = [keys[i:i + batch] for i in range(0, len(keys), batch)]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(run, c, 0) for c in chunks]
+        for n, fut in enumerate(concurrent.futures.as_completed(futures), 1):
+            fut.result()
+            if n % 10 == 0 or n == len(futures):
+                with lock:
+                    print(f"  {lang}: {len(out)}/{len(keys)}", flush=True)
     return out
 
 

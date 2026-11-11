@@ -6,10 +6,11 @@ name: i18n
 # missing, and commits the result back. Human fixes in overrides/<lang>.json
 # are preserved.
 #
-# This no longer runs on every push: each run used to spend up to 3.5 hours of
-# runner time, and a provider without credits would hang until it was cancelled.
-# The commit goes back to the branch the workflow was dispatched on, so
-# translations still flow to main through the normal fast-forward.
+# Each language is its own job, so a full catalogue pass fits the runner limit
+# and a language that fails (credits, a provider outage) does not throw away
+# the ones that finished. The commit goes back to the branch the workflow was
+# dispatched on, so translations still flow to main through the normal
+# fast-forward.
 
 on:
   workflow_dispatch:
@@ -27,10 +28,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  translate:
-    name: Regenerate translations
+  extract:
+    name: Extract English
     runs-on: ubuntu-latest
-    timeout-minutes: 330
+    timeout-minutes: 10
+    outputs:
+      langs: ${{ steps.langs.outputs.langs }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,7 +43,46 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Extract English + translate missing strings
+      - name: Extract English
+        run: python3 ryoku/i18n/tools/sync.py extract
+
+      - name: List target languages
+        id: langs
+        run: |
+          echo "langs=$(python3 ryoku/i18n/tools/sync.py langs | grep -vx en | jq -R . | jq -cs .)" >>"$GITHUB_OUTPUT"
+
+      - name: Keep the English catalogue
+        uses: actions/upload-artifact@v4
+        with:
+          name: i18n-en
+          path: ryoku/i18n/catalog/en.json
+
+  translate:
+    name: Translate ${{ matrix.lang }}
+    needs: extract
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      max-parallel: 12
+      matrix:
+        lang: ${{ fromJSON(needs.extract.outputs.langs) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Use the extracted English
+        uses: actions/download-artifact@v4
+        with:
+          name: i18n-en
+          path: ryoku/i18n/catalog
+
+      - name: Translate missing strings
         # Prefer the LLM engine (domain prompt + glossary: correct word senses,
         # length kept in check) when a key is configured; otherwise fall back to
         # the free, keyless Google endpoint so the job still works with no secret.
@@ -49,19 +91,51 @@ jobs:
           RYOKU_I18N_URL: https://openrouter.ai/api/v1/chat/completions
           RYOKU_I18N_MODEL: ${{ vars.RYOKU_I18N_MODEL || 'google/gemini-2.5-flash' }}
           RYOKU_I18N_KEY: ${{ secrets.RYOKU_I18N_KEY }}
+          RYOKU_I18N_WORKERS: '8'
           FORCE: ${{ inputs.force }}
+          LANG_CODE: ${{ matrix.lang }}
         run: |
-          python3 ryoku/i18n/tools/sync.py extract
           flag=""
           [ "$FORCE" = "true" ] && flag="--force"
           if [ -n "$RYOKU_I18N_KEY" ]; then
-            python3 ryoku/i18n/tools/sync.py sync --engine llm $flag
+            python3 -u ryoku/i18n/tools/sync.py sync --engine llm $flag "$LANG_CODE"
           else
-            python3 ryoku/i18n/tools/sync.py sync $flag
+            python3 -u ryoku/i18n/tools/sync.py sync $flag "$LANG_CODE"
           fi
-          # advisory: surface translations that expand the UI (non-fatal), and
-          # print what the pass cost so a model change is a decision with a
-          # number attached.
+
+      - name: Keep this language
+        uses: actions/upload-artifact@v4
+        with:
+          name: i18n-${{ matrix.lang }}
+          path: ryoku/i18n/catalog/${{ matrix.lang }}.json
+
+  commit:
+    name: Commit translations
+    needs: [extract, translate]
+    if: ${{ always() && needs.extract.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Gather every finished language
+        uses: actions/download-artifact@v4
+        with:
+          pattern: i18n-*
+          path: ryoku/i18n/catalog
+          merge-multiple: true
+
+      - name: Report length and cost
+        # advisory: surface translations that expand the UI (non-fatal), and
+        # print what the pass cost so a model change is a decision with a
+        # number attached.
+        run: |
           python3 ryoku/i18n/tools/sync.py check || true
           python3 ryoku/i18n/tools/sync.py cost || true
 
