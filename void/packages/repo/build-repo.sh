@@ -46,6 +46,11 @@ VERSION=${raw_version//-/.}
 VERSION=${VERSION//_/.}
 [[ $VERSION =~ ^[0-9][A-Za-z0-9.]*$ ]] \
 	|| die "version '$raw_version' cannot be made into an XBPS version"
+# XBPS has no epoch, so the monorepo packages revert every ancestor's version
+# above this one (the 1.1-1.11 testing builds before VERSION named the release)
+REVERTS=${RYOKU_XBPS_REVERTS-$("$ROOT/bin/ryoku-release-version" --superseded)}
+REVERTS=$(tr -s '[:space:]' '\n' <<<"$REVERTS" | sort -u | tr '\n' ' ')
+[[ $REVERTS =~ ^[0-9A-Za-z.[:space:]]*$ ]] || die "invalid superseded versions: $REVERTS"
 
 prepared_archive=
 if [[ -z $SOURCE_ARCHIVE && ${RYOKU_XBPS_WORKTREE:-0} == 1 ]]; then
@@ -202,9 +207,19 @@ for pkg in "${all_packages[@]}"; do
 	template=${template_for[$pkg]}
 	if grep -qF 'https://repo.ryoku.dev/sources/ryoku-${version}.tar.gz' "$template"; then
 		stamped=$VP/srcpkgs/$pkg/template
-		awk -v version="$VERSION" -v checksum="$archive_sha" '
+		awk -v version="$VERSION" -v checksum="$archive_sha" -v reverts="$REVERTS" '
 			!version_done && /^version=/ { print "version=" version; version_done=1; next }
 			!checksum_done && /^checksum=/ { print "checksum=" checksum; checksum_done=1; next }
+			!revision_done && /^revision=/ {
+				print
+				revision_done=1
+				n = split(reverts, old, " ")
+				if (n == 0) next
+				line = ""
+				for (i = 1; i <= n; i++) line = line (i > 1 ? " " : "") old[i] "_" substr($0, 10)
+				print "reverts=\"" line "\""
+				next
+			}
 			{ print }
 		' "$stamped" > "$stamped.tmp"
 		mv "$stamped.tmp" "$stamped"

@@ -1,5 +1,6 @@
 Name:           ryoku-desktop-niri
 Version:        0.1
+Epoch:          1
 Release:        1%{?dist}
 Summary:        ryoku-desktop-niri desktop component
 License:        GPL-3.0-or-later
@@ -10,7 +11,7 @@ BuildRequires:  bash
 BuildRequires:  coreutils
 BuildRequires:  findutils
 BuildRequires:  golang >= 1.26.4
-Requires:       ryoku-desktop = %{version}-%{release}
+Requires:       ryoku-desktop = %{epoch}:%{version}-%{release}
 Requires:       niri
 Requires:       xwayland-satellite
 Requires:       xdg-desktop-portal-gnome

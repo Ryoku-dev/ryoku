@@ -6,6 +6,7 @@
 pkgname=ryoku-oh-my-zsh
 pkgver=${RYOKU_PKGVER:-0.1.0}
 pkgrel=1
+epoch=1
 pkgdesc="Oh My Zsh framework for the Ryoku Zsh integration"
 arch=('any')
 url='https://github.com/ohmyzsh/ohmyzsh'
@@ -17,7 +18,7 @@ license=('MIT')
 # cachyos-zsh-config, which depends on 'oh-my-zsh-git', so a conflict without
 # the provide deadlocks the whole upgrade (pacman offers the removal, then
 # refuses it because the removal breaks that dependency).
-provides=("oh-my-zsh=$pkgver" "oh-my-zsh-git=$pkgver")
+provides=("oh-my-zsh=$epoch:$pkgver" "oh-my-zsh-git=$epoch:$pkgver")
 conflicts=('oh-my-zsh' 'oh-my-zsh-git')
 replaces=('oh-my-zsh' 'oh-my-zsh-git')
 makedepends=('git')

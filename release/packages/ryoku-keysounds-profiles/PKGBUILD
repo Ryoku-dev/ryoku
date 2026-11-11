@@ -16,6 +16,7 @@
 pkgname=ryoku-keysounds-profiles
 pkgver=${RYOKU_PKGVER:-0.1.0}
 pkgrel=1
+epoch=1
 pkgdesc="Key-sound sample profiles (real switch recordings) and the Mechvibes importer"
 arch=('x86_64')
 url="https://ryoku.dev"

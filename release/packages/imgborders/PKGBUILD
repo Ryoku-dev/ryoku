@@ -27,6 +27,7 @@
 pkgname=imgborders
 pkgver=${RYOKU_PKGVER:-0.1.0}
 pkgrel=1
+epoch=1
 pkgdesc="Hyprland plugin: tiling image borders on windows"
 arch=('x86_64')
 url="https://codeberg.org/zacoons/imgborders"

@@ -22,6 +22,9 @@ base_version=${base_version//_/.}
 	printf 'container-runner.sh: invalid XBPS package version: %s\n' "$raw_version" >&2
 	exit 1
 }
+# git history stays on the host; build-repo.sh turns these into reverts=
+reverts=${RYOKU_XBPS_REVERTS-$("$ROOT/bin/ryoku-release-version" --superseded)}
+reverts=$(tr -s '[:space:]' ' ' <<<"$reverts")
 
 source_tmp=$(mktemp -d "${TMPDIR:-/tmp}/ryoku-xbps-source.XXXXXX")
 trap 'rm -rf "$source_tmp"' EXIT HUP INT TERM
@@ -111,6 +114,7 @@ run=("$ENGINE" run --rm --platform linux/amd64 --privileged
 	-e "RYOKU_CHANNEL=$channel"
 	-e "RYOKU_NAME=$name"
 	-e "RYOKU_PKGVER=$package_version"
+	-e "RYOKU_XBPS_REVERTS=$reverts"
 	-e "RYOKU_XBPS_PRODUCTION=${RYOKU_XBPS_PRODUCTION:-0}"
 	-e "XBPS_PASSPHRASE=${XBPS_PASSPHRASE:-}"
 	-e "RYOKU_RYOTUNES_VERSION=$ryotunes_version"
@@ -169,6 +173,7 @@ inner='
 		RYOKU_CHANNEL="$RYOKU_CHANNEL" \
 		RYOKU_NAME="$RYOKU_NAME" \
 		RYOKU_PKGVER="$RYOKU_PKGVER" \
+		RYOKU_XBPS_REVERTS="$RYOKU_XBPS_REVERTS" \
 		XBPS_PASSPHRASE="$XBPS_PASSPHRASE" \
 		RYOKU_RYOTUNES_VERSION="$RYOKU_RYOTUNES_VERSION" \
 		RYOKU_RYOTUNES_SHA256="$RYOKU_RYOTUNES_SHA256" \

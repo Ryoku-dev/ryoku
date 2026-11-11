@@ -2,6 +2,7 @@
 %global hyprland_evr %(rpm -q --qf '%%{EVR}' hyprland)
 Name:           ryoku-hypr-plugins
 Version:        0.1
+Epoch:          1
 Release:        1%{?dist}
 Summary:        Official Hyprland plugins selected by Ryoku
 License:        BSD-3-Clause

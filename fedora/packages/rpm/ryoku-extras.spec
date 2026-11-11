@@ -1,5 +1,6 @@
 Name:           ryoku-extras
 Version:        0.1
+Epoch:          1
 Release:        1%{?dist}
 Summary:        Verified desktop tools, fonts and cursor assets
 License:        GPL-3.0-or-later AND OFL-1.1 AND BSD-3-Clause
