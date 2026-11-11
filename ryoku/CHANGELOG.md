@@ -162,6 +162,13 @@
   as C++, and `find` giving the definition before the declaration. An index
   built before rereads only those files on its next refresh
   (`rashin/internal/index/extract/cfamily.go`).
+- **An agent's subagents stand in a box of their own.** Running or done, it
+  says how many work, finished or failed and for how long, and unfolds to each
+  subagent's steps and answer, from omp's task tool and Claude Code's Agent
+  calls (`rashin/internal/app/chat/agents.go`).
+- **A finished turn folds its work.** "Worked for 2 min 14 s" stands for the
+  steps, thoughts and subagents behind the answer and unfolds to them
+  (`rashin/internal/app/chat/fold.go`).
 - **A row in Rashin stops glowing when the pointer leaves the window.** The
   hover stayed lit until the pointer came back (`rashin/internal/app/look`).
 - **Ryotunes picks floating or tiled itself.** Its own setting decides on niri

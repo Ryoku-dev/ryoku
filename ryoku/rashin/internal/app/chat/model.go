@@ -3,6 +3,7 @@ package chat
 import (
 	"encoding/json"
 	"strconv"
+	"time"
 
 	"ryoku-rashin/internal/protocol"
 )
@@ -58,6 +59,8 @@ type turnState struct {
 	planRow       int
 	answerRow     int
 	footerAdded   bool
+	// when the turn started and ended, for how long it worked
+	began, ended time.Time
 }
 
 type modelState struct {
@@ -70,9 +73,12 @@ type modelState struct {
 	permissionOrder []string
 	terminals       map[string]*terminalState
 	terminalOwners  map[string]string
-	turns           map[int]*turnState
-	turnOrder       []*turnState
-	activeTurn      *turnState
+	// children are the calls a subagent made, under the call that runs it
+	children   map[string][]*protocol.ToolData
+	childByID  map[string]*protocol.ToolData
+	turns      map[int]*turnState
+	turnOrder  []*turnState
+	activeTurn *turnState
 
 	model    protocol.ChoiceData
 	mode     protocol.ChoiceData
@@ -89,6 +95,8 @@ func newModelState() *modelState {
 		permissions:    make(map[string]*permissionState),
 		terminals:      make(map[string]*terminalState),
 		terminalOwners: make(map[string]string),
+		children:       make(map[string][]*protocol.ToolData),
+		childByID:      make(map[string]*protocol.ToolData),
 		turns:          make(map[int]*turnState),
 	}
 }
@@ -158,7 +166,7 @@ func (state *modelState) apply(model *Model, event protocol.SessionEvent) {
 	case protocol.EvTurnStart:
 		var data protocol.TurnStartData
 		if decodeEvent(event, &data) {
-			turn := &turnState{number: data.Turn, start: data, planRow: -1, answerRow: -1}
+			turn := &turnState{number: data.Turn, start: data, planRow: -1, answerRow: -1, began: event.TS}
 			state.turns[data.Turn] = turn
 			state.turnOrder = append(state.turnOrder, turn)
 			state.activeTurn = turn
@@ -166,7 +174,7 @@ func (state *modelState) apply(model *Model, event protocol.SessionEvent) {
 	case protocol.EvTurnEnd:
 		var data protocol.TurnEndData
 		if decodeEvent(event, &data) {
-			state.finishTurn(data, event.Seq)
+			state.finishTurn(data, event.Seq, event.TS)
 		}
 	case protocol.EvError:
 		var data protocol.ErrorData
@@ -222,6 +230,16 @@ func (state *modelState) currentTurn() *turnState {
 func (state *modelState) applyTool(event protocol.SessionEvent) {
 	var incoming protocol.ToolData
 	if !decodeEvent(event, &incoming) || incoming.Call == "" {
+		return
+	}
+	if current := state.childByID[incoming.Call]; current != nil {
+		mergeTool(current, incoming, event.Data)
+		return
+	}
+	if incoming.Parent != "" {
+		child := incoming
+		state.childByID[child.Call] = &child
+		state.children[child.Parent] = append(state.children[child.Parent], &child)
 		return
 	}
 	if index, ok := state.tools[incoming.Call]; ok {
@@ -294,6 +312,9 @@ func mergeTool(current *protocol.ToolData, incoming protocol.ToolData, raw json.
 	}
 	if _, ok := fields["locations"]; ok {
 		current.Locations = incoming.Locations
+	}
+	if _, ok := fields["agents"]; ok {
+		current.Agents = incoming.Agents
 	}
 }
 
@@ -369,7 +390,7 @@ func (state *modelState) textRestates(turn *turnState, plan *protocol.CommandPla
 	return false
 }
 
-func (state *modelState) finishTurn(data protocol.TurnEndData, seq int64) {
+func (state *modelState) finishTurn(data protocol.TurnEndData, seq int64, at time.Time) {
 	turn := state.turns[data.Turn]
 	if turn == nil {
 		turn = &turnState{number: data.Turn, start: protocol.TurnStartData{Turn: data.Turn}, planRow: -1, answerRow: -1}
@@ -377,7 +398,7 @@ func (state *modelState) finishTurn(data protocol.TurnEndData, seq int64) {
 		state.turnOrder = append(state.turnOrder, turn)
 	}
 	copy := data
-	turn.end = &copy
+	turn.end, turn.ended = &copy, at
 	if state.activeTurn == turn {
 		state.activeTurn = nil
 	}

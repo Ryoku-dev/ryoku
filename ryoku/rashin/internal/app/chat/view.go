@@ -33,10 +33,12 @@ type viewState struct {
 	// a turn is running, and this conversation can run a command for the reader
 	busy, runsHere bool
 	// set after the first frame so only what arrives while you watch animates in
-	drawn    bool
-	actions  []Action
-	visible  []int
-	turnOf   []int
+	drawn   bool
+	actions []Action
+	visible []int
+	turnOf  []int
+	// a finished turn's work folds into its first work row
+	folds    map[int]*foldInfo
 	overlays *look.Overlays
 
 	jump     kit.IconPlaque
@@ -176,7 +178,9 @@ func (block blockContext) key() string { return strconv.Itoa(block.index) }
 func (state *viewState) buildVisible(model *modelState) {
 	state.visible = state.visible[:0]
 	state.turnOf = state.turnOf[:0]
+	state.folds = state.foldTurns(model)
 	turn := 0
+	folded := false
 	for index := range model.rows {
 		row := &model.rows[index]
 		if row.kind == rowUser {
@@ -184,6 +188,13 @@ func (state *viewState) buildVisible(model *modelState) {
 		}
 		state.turnOf = append(state.turnOf, turn)
 		if row.kind == rowTerminal && model.terminalOwners[row.key] != "" {
+			continue
+		}
+		if fold := state.folds[index]; fold != nil {
+			folded = !state.workVisual(foldKey(index)).open
+		} else if row.kind == rowUser || row.kind == rowTurnEnd {
+			folded = false
+		} else if folded && isWorkRow(model, row) {
 			continue
 		}
 		state.visible = append(state.visible, index)
@@ -232,14 +243,29 @@ func (state *viewState) layoutRow(gtx layout.Context, th *look.Theme, block bloc
 	case rowThought:
 		// only live while it's the newest row
 		live := block.model.activeTurn != nil && block.index == len(block.model.rows)-1
+		if fold := state.folds[block.index]; fold != nil {
+			return state.layoutFold(gtx, th, block.index, fold, func(gtx layout.Context) layout.Dimensions {
+				return state.layoutThought(gtx, th, "thought:"+row.key, row.text, live)
+			})
+		}
 		return state.layoutThought(gtx, th, "thought:"+row.key, row.text, live)
 	case rowTool:
+		if fold := state.folds[block.index]; fold != nil {
+			return state.layoutFold(gtx, th, block.index, fold, func(gtx layout.Context) layout.Dimensions {
+				return state.layoutTools(gtx, th, block.model, row.tools, "tool:"+row.key)
+			})
+		}
 		return state.layoutTools(gtx, th, block.model, row.tools, "tool:"+row.key)
 	case rowPermission:
 		return state.layoutPermission(gtx, th, row.permission)
 	case rowPlan:
 		return state.layoutPlan(gtx, th, row.plan)
 	case rowTerminal:
+		if fold := state.folds[block.index]; fold != nil {
+			return state.layoutFold(gtx, th, block.index, fold, func(gtx layout.Context) layout.Dimensions {
+				return state.layoutTerminal(gtx, th, row.terminal, "terminal:"+row.key)
+			})
+		}
 		return state.layoutTerminal(gtx, th, row.terminal, "terminal:"+row.key)
 	case rowAnswer:
 		return state.layoutAnswer(gtx, th, row.answer, "answer:"+key, row.turn != nil && row.turn.offeredInText)

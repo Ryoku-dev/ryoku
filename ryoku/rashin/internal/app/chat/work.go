@@ -34,6 +34,8 @@ type workVisual struct {
 	whole bool
 	// when this view first saw it running, for the time it has taken
 	since time.Time
+	// a subagent's time between the reports that carry it
+	clock *agentClock
 }
 
 type workLine struct {
@@ -194,11 +196,16 @@ func (state *viewState) layoutThought(gtx layout.Context, th *look.Theme, key, v
 func (state *viewState) layoutTools(gtx layout.Context, th *look.Theme, model *modelState, tools []*protocol.ToolData, key string) layout.Dimensions {
 	live := make([]*protocol.ToolData, 0, len(tools))
 	running := false
+	boxed := false
 	for _, tool := range tools {
 		if tool != nil {
 			live = append(live, tool)
 			running = running || toolRunning(tool)
+			boxed = boxed || len(tool.Agents) > 0
 		}
+	}
+	if boxed {
+		return state.layoutToolRuns(gtx, th, model, live, key)
 	}
 	switch {
 	case len(live) == 0:
@@ -216,6 +223,39 @@ func (state *viewState) layoutTools(gtx layout.Context, th *look.Theme, model *m
 	})
 }
 
+// a call that runs subagents stands as its own box, the plain calls around it
+// still fold the way they do without it
+func (state *viewState) layoutToolRuns(gtx layout.Context, th *look.Theme, model *modelState, tools []*protocol.ToolData, key string) layout.Dimensions {
+	var children []layout.FlexChild
+	add := func(widget layout.Widget) {
+		if len(children) > 0 {
+			children = append(children, layout.Rigid(layout.Spacer{Height: 2}.Layout))
+		}
+		children = append(children, layout.Rigid(widget))
+	}
+	start := 0
+	flush := func(end int) {
+		if end > start {
+			run := tools[start:end]
+			add(func(gtx layout.Context) layout.Dimensions {
+				return state.layoutTools(gtx, th, model, run, key+":"+run[0].Call)
+			})
+		}
+	}
+	for index, tool := range tools {
+		if len(tool.Agents) == 0 {
+			continue
+		}
+		flush(index)
+		add(func(gtx layout.Context) layout.Dimensions {
+			return state.layoutAgents(gtx, th, model, tool, key+":"+tool.Call)
+		})
+		start = index + 1
+	}
+	flush(len(tools))
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+}
+
 func (state *viewState) layoutToolLines(gtx layout.Context, th *look.Theme, model *modelState, tools []*protocol.ToolData, key string) layout.Dimensions {
 	children := make([]layout.FlexChild, 0, len(tools)*2)
 	for index, tool := range tools {
@@ -231,6 +271,9 @@ func (state *viewState) layoutToolLines(gtx layout.Context, th *look.Theme, mode
 }
 
 func (state *viewState) layoutTool(gtx layout.Context, th *look.Theme, model *modelState, tool *protocol.ToolData, key string) layout.Dimensions {
+	if len(tool.Agents) > 0 {
+		return state.layoutAgents(gtx, th, model, tool, key)
+	}
 	visual := state.workVisual(key)
 	running := toolRunning(tool)
 	// a diff or live output is worth watching, a read isn't, so only those open by themselves while running

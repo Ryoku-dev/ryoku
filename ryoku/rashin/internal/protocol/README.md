@@ -101,7 +101,7 @@ The connection receives live `session.event`s only after the last page.
 |---|---|
 | `user` | `UserData` |
 | `text`, `thought` | `TextData` (append `delta` to message `message`) |
-| `tool` | `ToolData` (merge by `call`) |
+| `tool` | `ToolData` (merge by `call`; `agents` are the subagents a call runs, `parent` the call a subagent's call belongs to) |
 | `permission` | `PermissionData` |
 | `permission_resolved` | `PermissionResolvedData` |
 | `plan` | `PlanData` (replaces the plan) |

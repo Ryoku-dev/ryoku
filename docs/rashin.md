@@ -578,6 +578,16 @@ terminal, killed on release or session stop).
   here. A session the agent loads back is not briefed again; one that had to
   start over is. The folder's repository is indexed when the session's agent
   is created (see Index), so the search is there when the agent looks.
+- **Subagents** (`internal/harness/subagents.go`): omp's task tool reports its
+  subagents in the call's `rawOutput.details` (progress while they run,
+  results after), and Claude Code reports an Agent or Task call and then each
+  call its subagent makes, marked with the parent in
+  `_meta.claudeCode.parentToolUseId`. Both become `agents` on the parent's
+  `tool` event: each subagent's name, task, status, what it is doing, its last
+  steps, step count, tokens, model, time and answer. A subagent's own calls
+  are its steps, never transcript rows of their own. An omp subagent with no
+  description is named by the ID the model gave it, since omp's task text
+  opens with its template.
 - **Its own setup**: `harnesses.list` carries what a harness will run with.
   `setup` is read from the harness's own files where Rashin knows them (omp:
   the model behind each role and the thinking level, from
@@ -915,6 +925,15 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
   and, from three seconds on, how long it has run, so a silent minute does
   not read as a hang. While it runs the unfolded output shows its last twelve
   lines, and its first twelve once it has finished.
+- **Subagents** (`chat/agents.go`): a call that runs subagents stands as its
+  own box, never folded into a group of steps: "Running 3 subagents", how
+  many are working, done or failed, and how long. One subagent shows its name
+  and task in the head. Unfolded, each subagent is a row with its mark, name,
+  task and steps, and unfolds to what it did, step by step, and its answer.
+- **A finished turn** (`chat/fold.go`) folds its work behind one line, "Worked
+  for 2 min 14 s" with its steps and thoughts, or "You stopped it after ..."
+  when it was stopped, when that work shows more than one line; the answer
+  stays open under it.
 - **A redraw is never lost** (`shell/redraw.go`): the toolkit ignores a
   redraw asked for while a frame is being drawn, so the last event of an
   answer, or a daemon coming back, could stay off screen until the pointer

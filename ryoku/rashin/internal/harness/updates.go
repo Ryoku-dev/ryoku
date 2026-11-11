@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"ryoku-rashin/internal/protocol"
@@ -25,6 +26,7 @@ type toolCall struct {
 	RawInput      json.RawMessage `json:"rawInput"`
 	RawOutput     json.RawMessage `json:"rawOutput"`
 	Content       json.RawMessage `json:"content"`
+	Meta          json.RawMessage `json:"_meta"`
 	Locations     *[]struct {
 		Path string `json:"path"`
 		Line int    `json:"line"`
@@ -220,8 +222,14 @@ func (r *runner) handleTool(raw json.RawMessage) {
 	}
 	r.breakChunkRun()
 	data, diffs := displayTool(call)
+	meta := readClaudeMeta(call.Meta)
+	now := time.Now()
 	r.mu.Lock()
 	tracked := r.tools[call.ToolCallID]
+	if agents, ok := ompAgents(call.RawOutput); ok {
+		tracked.agents = keepAgentSteps(tracked.agents, agents)
+		data.Agents = tracked.agents
+	}
 	if call.Kind != nil {
 		tracked.kind = normalizeToolKind(*call.Kind)
 	}
@@ -235,9 +243,29 @@ func (r *runner) handleTool(raw json.RawMessage) {
 		r.toolOrder++
 		tracked.order = r.toolOrder
 	}
+	current := data
+	current.Status = tracked.status
+	if meta.spawnsAgent() {
+		if tracked.agent == nil {
+			tracked.agent = newClaudeAgent(call.ToolCallID, call.RawInput, now)
+		}
+		tracked.agent.follow(call.RawInput, current, now)
+		data.Agents = []protocol.AgentWork{tracked.agent.work}
+	}
 	r.tools[call.ToolCallID] = tracked
+	var parentNews *protocol.ToolData
+	if parent := meta.ClaudeCode.ParentToolUseID; parent != "" && parent != call.ToolCallID {
+		data.Parent = parent
+		if owner := r.tools[parent]; owner.agent != nil {
+			owner.agent.step(current, now)
+			parentNews = &protocol.ToolData{Call: parent, Agents: []protocol.AgentWork{owner.agent.work}}
+		}
+	}
 	r.mu.Unlock()
 	r.emit(protocol.EvTool, data)
+	if parentNews != nil {
+		r.emit(protocol.EvTool, *parentNews)
+	}
 	for _, diff := range diffs {
 		r.emit(protocol.EvTool, protocol.ToolData{Call: call.ToolCallID, Diff: &diff})
 	}

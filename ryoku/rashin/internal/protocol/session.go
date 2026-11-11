@@ -178,6 +178,8 @@ const (
 	ToolRunning = "running"
 	ToolDone    = "done"
 	ToolFailed  = "failed"
+	// ToolStopped is a subagent that was cancelled before it finished.
+	ToolStopped = "stopped"
 )
 
 // ToolData is the data of a tool event. Later events for the same Call
@@ -192,6 +194,41 @@ type ToolData struct {
 	Diff      *Diff      `json:"diff,omitempty"`
 	Terminal  string     `json:"terminal,omitempty"`
 	Locations []Location `json:"locations,omitempty"`
+	// Agents are the subagents this call runs, replaced whole on each event
+	// that carries them.
+	Agents []AgentWork `json:"agents,omitempty"`
+	// Parent is the call whose subagent made this call; such a call belongs
+	// inside its parent's work, not in the transcript.
+	Parent string `json:"parent,omitempty"`
+}
+
+// AgentWork is one subagent as its harness reports it.
+type AgentWork struct {
+	ID string `json:"id"`
+	// Name is the kind of agent, such as explore or reviewer.
+	Name string `json:"name,omitempty"`
+	// Task is what it was asked to do, in one line.
+	Task string `json:"task,omitempty"`
+	// Status is pending, running, done, failed or stopped.
+	Status string `json:"status"`
+	// Doing is the step it is on while it runs.
+	Doing string `json:"doing,omitempty"`
+	// Steps are its latest steps, oldest first.
+	Steps []AgentStep `json:"steps,omitempty"`
+	// StepCount counts every step it took, Steps holds the latest few.
+	StepCount int    `json:"stepCount,omitempty"`
+	Tokens    int    `json:"tokens,omitempty"`
+	Model     string `json:"model,omitempty"`
+	// Millis is how long it has run, or ran.
+	Millis int64 `json:"ms,omitempty"`
+	// Output is what it returned, or why it failed.
+	Output string `json:"output,omitempty"`
+}
+
+// AgentStep is one step a subagent took.
+type AgentStep struct {
+	Title  string `json:"title"`
+	Failed bool   `json:"failed,omitempty"`
 }
 
 // Diff is a file change made or proposed by a tool call.

@@ -21,6 +21,10 @@ and its session shows the model, mode, and options it offers. Every agent
 session is told where it runs before its first prompt: Ryoku, this vault,
 Rashin, and the code search over its folder.
 
+An agent session also shows the subagents its harness runs, each in a box that
+unfolds to what it did, and folds a finished turn's work behind one "Worked
+for" line.
+
 **Index** covers the system and registered projects with the potion embedding
 model, which is built into the daemon. A project added to Rashin and the
 repository an agent session works in are indexed by themselves, C and C++

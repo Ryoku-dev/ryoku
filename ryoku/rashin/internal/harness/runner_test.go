@@ -480,6 +480,12 @@ func runFakeAgent(mode string) {
 			case "updates":
 				fakeUpdates(write)
 				writePromptResult(write, promptID, "end_turn")
+			case "subagents":
+				fakeSubagentsOmp(write)
+				writePromptResult(write, promptID, "end_turn")
+			case "subagents-claude":
+				fakeSubagentsClaude(write)
+				writePromptResult(write, promptID, "end_turn")
 			case "permissions":
 				writePermission(write, 100, "read-1", "read")
 			case "cancel":

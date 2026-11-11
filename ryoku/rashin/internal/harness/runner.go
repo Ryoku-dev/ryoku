@@ -48,6 +48,10 @@ type trackedTool struct {
 	kind   string
 	status string
 	order  uint64
+	// agent is the subagent a Claude Code Agent call runs
+	agent *claudeAgent
+	// agents are the subagents an omp task call last reported
+	agents []protocol.AgentWork
 }
 
 type runner struct {
