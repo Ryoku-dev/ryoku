@@ -133,6 +133,11 @@ for finer detail.
   reads the official Discord client over native RPC, or Vesktop and Equibop
   through a bundled Vencord companion. Every setting lives in Ryoku Hub ->
   Desktop -> Game Bar.
+- **Game Bar media card.** It shows the album cover, plays the lyrics of the
+  current track in time with it (synced from LRCLIB, cached for offline, plain
+  text when the track has no timings), and grows from a corner grip into a
+  larger card. The controls are Material buttons: play and pause turn into each
+  other, and the pill around them is frosted with the cover.
 - **Community docks.** RyoStore gains a Docks section: anyone can submit a dock
   as a folder to the ryostore catalogue, users install it there and pick it in
   Edit desktop -> Dock, and it becomes the dock on every monitor and every bar
