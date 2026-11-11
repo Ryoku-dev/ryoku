@@ -2,6 +2,7 @@ package state
 
 import (
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -10,12 +11,13 @@ func TestAppPreferencesPersistTheFrame(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
 	want := AppPreferences{
 		Width: 1612, Height: 1043, ZoomPercent: 110, SidebarFolded: true, SidePanelOpen: true, ReduceMotion: true,
+		HiddenSteps: map[string][]string{"team-a": {"mail", "routine:r1"}},
 	}
 	if err := SaveAppPreferences(want); err != nil {
 		t.Fatal(err)
 	}
 	got := LoadAppPreferences()
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("preferences = %#v, want %#v", got, want)
 	}
 }

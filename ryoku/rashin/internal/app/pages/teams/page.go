@@ -59,6 +59,8 @@ func (p *Page) Select(e *env.Env, place env.TeamsPlace) {
 	if place.Draft == env.DraftTeam {
 		p.draft.open(place.Template)
 	}
+	// opening a team's page reads its folder again, the folder has no event of its own
+	p.overview.files.stale()
 	p.place = place
 }
 

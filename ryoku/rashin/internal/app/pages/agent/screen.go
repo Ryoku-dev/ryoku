@@ -96,6 +96,26 @@ func (panel *screenPanel) load(e *env.Env, state protocol.ScreenState) {
 	}()
 }
 
+// ScreenView is an agent's screen as its live frame alone, for a page that
+// watches it beside other work; while the user holds the screen, what they do
+// over the frame goes to it, and the frame takes the keyboard as they take it
+type ScreenView struct {
+	panel screenPanel
+	held  bool
+}
+
+// Layout draws the frame at the screen's proportions in the width it is given.
+func (view *ScreenView) Layout(gtx layout.Context, e *env.Env, state protocol.ScreenState) layout.Dimensions {
+	view.panel.watch(gtx, e, state.Session)
+	view.panel.load(e, state)
+	yours := state.Holder == protocol.HolderUser
+	if yours && !view.held {
+		gtx.Execute(key.FocusCmd{Tag: &view.panel.area})
+	}
+	view.held = yours
+	return view.panel.layoutFrame(gtx, e, state, yours)
+}
+
 func (panel *screenPanel) layout(gtx layout.Context, e *env.Env, state protocol.ScreenState) layout.Dimensions {
 	th := e.Theme
 	panel.watch(gtx, e, state.Session)

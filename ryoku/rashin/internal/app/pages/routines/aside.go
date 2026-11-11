@@ -6,6 +6,7 @@ import (
 	"gioui.org/layout"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/env"
@@ -41,6 +42,9 @@ func (a *asideState) layout(gtx layout.Context, e *env.Env, ed *editor, snapshot
 	if ed.creating {
 		rows = append(rows, kit.AsideNote(th.Theme, i18n.T("Each run becomes a task for the team, and its report lands in your Inbox.")))
 		return kit.Aside(gtx, th.Theme, i18n.T("When it runs"), rows...)
+	}
+	if teamsui.QuietStreak(routine) != "" {
+		rows = append(rows, kit.AsideNote(th.Theme, i18n.Tf("Quiet for %d runs. Each found nothing new, so none of them reached your Inbox.", routine.QuietStreak)))
 	}
 	tasks := routineTasks(snapshot, routine.ID)
 	if len(tasks) == 0 {
@@ -80,6 +84,10 @@ func nextRow(th *look.Theme, now, at time.Time) layout.Widget {
 func (a *asideState) historyRow(th *look.Theme, e *env.Env, index int, task protocol.TeamTask) layout.Widget {
 	click := &a.runs[index]
 	word, tone, _ := teamsui.TaskStanding(task)
+	// a run that found nothing new is done all the same, and says so
+	if task.Report != nil && task.Report.Quiet {
+		word, tone = i18n.T("Quiet"), palette.Idle
+	}
 	at := task.Created
 	if task.Ended != nil {
 		at = *task.Ended

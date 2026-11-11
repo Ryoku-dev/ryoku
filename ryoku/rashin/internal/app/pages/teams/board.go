@@ -68,16 +68,24 @@ func (b *board) layoutHeader(gtx layout.Context, e *env.Env, p *Page) layout.Dim
 	return dimensions
 }
 
-// the sentence that says how the teams stand and one line of proof under it, as the Inbox leads
+// the sentence that says how the teams stand, one line of proof under it as the Inbox leads, and what keeps Rashin up
 func (b *board) layoutLead(gtx layout.Context, e *env.Env, snapshot appstate.Snapshot) layout.Dimensions {
 	th := e.Theme
+	children := []layout.FlexChild{
+		layout.Rigid(look.Paragraph(th, th.T.Sentence, th.R.Fg, boardSentence(snapshot.Teams))),
+		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+		layout.Rigid(look.Paragraph(th, th.T.Proof, th.R.Fg2, boardProof(gtx.Now, snapshot))),
+	}
+	// with no team yet there is nothing that could keep it up
+	if len(snapshot.Teams) > 0 {
+		children = append(children,
+			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
+			layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg3, upSentence(gtx.Now, snapshot))),
+		)
+	}
 	// the column already stands S4 under the header, S3 more meets the Inbox's lead
 	return layout.Inset{Top: th.Sp.S3, Bottom: th.Sp.S4}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(look.Paragraph(th, th.T.Sentence, th.R.Fg, boardSentence(snapshot.Teams))),
-			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-			layout.Rigid(look.Paragraph(th, th.T.Proof, th.R.Fg2, boardProof(gtx.Now, snapshot))),
-		)
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	})
 }
 
@@ -206,7 +214,10 @@ func boardProof(now time.Time, snapshot appstate.Snapshot) string {
 		return i18n.T("Give a team a task and its report lands in the Inbox.")
 	}
 	var sentences []string
-	if found {
+	switch {
+	case found && newest.Report.Quiet:
+		sentences = append(sentences, i18n.Tf("%s found nothing new %s.", teamsui.TeamName(snapshot.Teams, newest.Team), look.Ago(now, newest.Report.At)))
+	case found:
 		title := newest.Report.Title
 		if title == "" {
 			title = newest.Title
@@ -214,5 +225,43 @@ func boardProof(now time.Time, snapshot appstate.Snapshot) string {
 		sentences = append(sentences, i18n.Tf("%s sent “%s” %s.", teamsui.TeamName(snapshot.Teams, newest.Team), title, look.Ago(now, newest.Report.At)))
 	}
 	sentences = append(sentences, i18n.Tf("%s this week, %s tokens this month.", tasksWord(tasks), teamsui.Tokens(tokens)))
+	return strings.Join(sentences, " ")
+}
+
+// what keeps Rashin running once its window closes: the routines that are on, the local API, or nothing
+func upSentence(now time.Time, snapshot appstate.Snapshot) string {
+	on := 0
+	var next time.Time
+	// a pause of every team holds every routine, whatever each says
+	if !snapshot.Settings.Teams.Paused {
+		for _, routine := range snapshot.Routines {
+			team, ok := teamsui.TeamByID(snapshot.Teams, routine.Team)
+			if !routine.Enabled || !ok || team.Paused {
+				continue
+			}
+			on++
+			if routine.NextRun != nil && (next.IsZero() || routine.NextRun.Before(next)) {
+				next = *routine.NextRun
+			}
+		}
+	}
+	api := snapshot.Settings.API.Enabled
+	var sentences []string
+	switch {
+	case on == 1:
+		sentences = append(sentences, i18n.T("Rashin stays up while one routine is on."))
+	case on > 1:
+		sentences = append(sentences, i18n.Tf("Rashin stays up while %d routines are on.", on))
+	case api:
+		return i18n.T("The local API keeps Rashin up while it is on.")
+	default:
+		return i18n.T("Nothing keeps Rashin up; it stops when you close the window.")
+	}
+	if !next.IsZero() {
+		sentences = append(sentences, i18n.Tf("Next run %s.", look.When(now, next)))
+	}
+	if api {
+		sentences = append(sentences, i18n.T("The local API keeps it up too."))
+	}
 	return strings.Join(sentences, " ")
 }

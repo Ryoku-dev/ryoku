@@ -28,6 +28,11 @@ type askDialog struct {
 	// the picked team and member by id, "" for the lead
 	teamID, memberID string
 	start, cancel    kit.Plaque
+	// an engine for this task alone waits under More, set again for each member it is for
+	more      kit.Disclosure
+	moreClick kit.Click
+	engine    teamsui.EngineForm
+	engineFor string
 }
 
 func (d *askDialog) open(team string) {
@@ -35,6 +40,7 @@ func (d *askDialog) open(team string) {
 	d.teamID, d.memberID = team, ""
 	d.brief.SetText("")
 	d.brief.Focus()
+	d.more.Open, d.engineFor = false, ""
 }
 
 func (d *askDialog) layout(gtx layout.Context, e *env.Env) {
@@ -42,21 +48,28 @@ func (d *askDialog) layout(gtx layout.Context, e *env.Env) {
 		return
 	}
 	th := e.Theme
-	teams := e.Snapshot().Teams
+	snapshot := e.Snapshot()
+	teams := snapshot.Teams
 	team, picked := teamsui.TeamByID(teams, d.teamID)
 	if !picked && len(teams) > 0 {
 		team, picked = teams[0], true
 		d.teamID, d.memberID = team.ID, ""
 	}
+	d.keep(team)
+	_, model, options := d.engine.Value()
 	brief := strings.TrimSpace(d.brief.Text())
-	ready := picked && brief != ""
+	ready := picked && brief != "" && protocol.ValidEngineModel(model)
 	d.cancel.Kind, d.cancel.Label = kit.PlaqueQuiet, i18n.T("Cancel")
 	d.start.Kind, d.start.Label = kit.PlaqueGold, i18n.T("Start")
 	if d.cancel.Clicked(gtx) {
 		d.dialog.Dismiss(gtx)
 	}
 	if (d.start.Clicked(gtx) || d.brief.Submitted(gtx)) && ready {
-		d.create(e, protocol.TeamTaskCreateParams{Team: team.ID, Member: d.memberID, Title: briefTitle(brief), Brief: brief})
+		params := protocol.TeamTaskCreateParams{Team: team.ID, Member: d.memberID, Title: briefTitle(brief), Brief: brief}
+		if model != "" || len(options) > 0 {
+			_, params.Model, params.Options = d.engine.Effective(snapshot)
+		}
+		d.create(e, params)
 		d.dialog.Dismiss(gtx)
 	}
 	d.dialog.Layout(gtx, th.Theme, i18n.T("Give a team a task"),
@@ -74,8 +87,26 @@ func (d *askDialog) layout(gtx layout.Context, e *env.Env) {
 	}
 }
 
+// the engine form changes the engine of the member the task goes to: the lead unless one is picked
+func (d *askDialog) keep(team protocol.Team) {
+	var chosen *protocol.Member
+	for index := range team.Members {
+		member := &team.Members[index]
+		if member.ID == d.memberID || d.memberID == "" && member.Lead {
+			chosen = member
+		}
+	}
+	d.engine.Keep = chosen
+	key := team.ID + "\x00" + d.memberID
+	if key != d.engineFor {
+		d.engineFor = key
+		d.engine.Set("", "", nil)
+	}
+}
+
 func (d *askDialog) body(gtx layout.Context, e *env.Env, teams []protocol.Team, team protocol.Team, picked bool) layout.Dimensions {
 	th := e.Theme
+	snapshot := e.Snapshot()
 	children := []layout.FlexChild{
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = gtx.Constraints.Max.X
@@ -97,7 +128,13 @@ func (d *askDialog) body(gtx layout.Context, e *env.Env, teams []protocol.Team, 
 		}
 	}
 	// the lead hands pieces to the members, so naming the lead itself would change nothing
-	members := []look.SelectOption{{Label: i18n.T("The lead decides"), Detail: i18n.T("The lead takes it and hands pieces to the others.")}}
+	leads := i18n.T("The lead takes it and hands pieces to the others.")
+	for _, member := range team.Members {
+		if member.Lead {
+			leads = i18n.Tf("%s · %s", leads, teamsui.MemberEngine(snapshot, member).Short())
+		}
+	}
+	members := []look.SelectOption{{Label: i18n.T("The lead decides"), Detail: leads}}
 	ids := []string{""}
 	memberIndex := 0
 	for _, member := range team.Members {
@@ -107,7 +144,7 @@ func (d *askDialog) body(gtx layout.Context, e *env.Env, teams []protocol.Team, 
 		if member.ID == d.memberID {
 			memberIndex = len(ids)
 		}
-		members = append(members, look.SelectOption{Label: member.Name, Detail: member.Title})
+		members = append(members, look.SelectOption{Label: member.Name, Detail: i18n.Tf("%s · %s", member.Title, teamsui.MemberEngine(snapshot, member).Short())})
 		ids = append(ids, member.ID)
 	}
 	d.team.Form, d.team.Label, d.team.Icon = look.SelectQuiet, i18n.T("Team"), look.Icon.Teams
@@ -135,7 +172,45 @@ func (d *askDialog) body(gtx layout.Context, e *env.Env, teams []protocol.Team, 
 		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 		layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg3, workNote(team))),
 	)
+	if d.engine.Keep != nil {
+		children = append(children, layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout), layout.Rigid(d.layoutMore(gtx, e)))
+	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+}
+
+// most tasks run on their member's engine, so another one for this task waits under More
+func (d *askDialog) layoutMore(gtx layout.Context, e *env.Env) layout.Widget {
+	th := e.Theme
+	if d.moreClick.Clicked(gtx) {
+		d.more.Open = !d.more.Open
+	}
+	arrow := look.Icon.ExpandMore
+	if d.more.Open {
+		arrow = look.Icon.ExpandLess
+	}
+	content := func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
+			layout.Rigid(kit.Text(th.Theme, th.T.Row, th.R.Fg, i18n.T("Engine for this task"))),
+			layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg3, i18n.Tf("Only this task runs on it; %s keeps its own.", d.engine.Keep.Name))),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return d.engine.Layout(gtx, e, "") }),
+		)
+	}
+	return func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return d.moreClick.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+						layout.Rigid(kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("More"))),
+						layout.Rigid(layout.Spacer{Width: th.Sp.S1}.Layout),
+						layout.Rigid(look.IconWidget(arrow, 20, th.R.Fg2)),
+					)
+				})
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return d.more.Layout(gtx, th.Theme, content) }),
+		)
+	}
 }
 
 func (d *askDialog) create(e *env.Env, params protocol.TeamTaskCreateParams) {

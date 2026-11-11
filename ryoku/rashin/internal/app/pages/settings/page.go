@@ -61,7 +61,7 @@ type Page struct {
 	askMay    look.Select
 	idle      kit.Stepper
 	notices   kit.Toggle
-	atOnce    kit.Stepper
+	teams     teamsPanel
 	install   env.HarnessInstall
 	instances map[string]*instanceEditor
 	fresh     instanceEditor

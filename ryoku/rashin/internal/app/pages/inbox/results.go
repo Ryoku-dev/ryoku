@@ -106,6 +106,7 @@ func (b *board) layoutReport(gtx layout.Context, e *env.Env, snapshot state.Snap
 	})
 }
 
+// a task at work: its team's mark, the title, and who works on it and how it goes
 func (b *board) layoutWorking(gtx layout.Context, e *env.Env, snapshot state.Snapshot, task protocol.TeamTask) layout.Dimensions {
 	th := e.Theme
 	item := b.tile("working:" + task.ID)
@@ -113,30 +114,24 @@ func (b *board) layoutWorking(gtx layout.Context, e *env.Env, snapshot state.Sna
 		teamsui.OpenTask(e, task.ID)
 	}
 	team := teamsui.TeamName(snapshot.Teams, task.Team)
-	word, _, _ := teamsui.TaskStanding(task)
-	facts := i18n.Tf("%s · %s", team, word)
+	live, _ := teamsui.TaskLive(snapshot, task)
+	live.Member = team
 	if member := teamsui.MemberOf(snapshot, task.Team, task.Member); member != "" {
-		facts = i18n.Tf("%s on %s · %s", member, team, word)
+		live.Member = i18n.Tf("%s on %s", member, team)
 	}
-	since := teamsui.Started(task)
 	return item.layout(gtx, th, color.NRGBA{}, func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return kit.Working{Active: true, Size: 32}.Layout(gtx, th.Theme)
-			}),
+		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Start}.Layout(gtx,
+			layout.Rigid(teamsui.Mark(th, team, 32, false)),
 			layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return kit.Label{Style: th.T.Row, Color: th.R.Fg, MaxLines: 1}.Layout(gtx, th.Theme, task.Title)
 					}),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return kit.Label{Style: th.T.Caption, Color: th.R.Fg3, MaxLines: 1}.Layout(gtx, th.Theme, facts)
-					}),
+					layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return item.presence.Layout(gtx, th, live) }),
 				)
 			}),
-			layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
-			layout.Rigid(kit.Text(th.Theme, th.T.MonoSm, th.R.Fg3, i18n.Tf("started %s", look.Ago(gtx.Now, since)))),
 		)
 	})
 }

@@ -105,6 +105,16 @@ func (b *board) layoutTile(gtx layout.Context, e *env.Env, snapshot appstate.Sna
 		children = append(children,
 			layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout),
 			layout.Rigid(crewStrip(th, team.Members)),
+		)
+		if runs := enginesCaption(snapshot, team.Members); runs != "" {
+			children = append(children,
+				layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return kit.Label{Style: th.T.Caption, Color: th.R.Fg3, MaxLines: 1}.Layout(gtx, th.Theme, runs)
+				}),
+			)
+		}
+		children = append(children,
 			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 			layout.Rigid(kit.Text(th.Theme, th.T.Body, nowInk, now)),
 		)

@@ -21,13 +21,6 @@ import (
 // the template a draft opened without one starts from
 const blankTemplate = "blank"
 
-// the defaults a team gets when its template names no budget
-const (
-	defaultMonthTokens = 2_000_000
-	defaultWarnPercent = 80
-	defaultTaskTurns   = 20
-)
-
 var slugPart = regexp.MustCompile(`[^a-z0-9]+`)
 
 // the folder name the daemon would make of a team's name
@@ -62,20 +55,27 @@ type draft struct {
 	approvals      look.Select
 	approvalsValue string
 	limit          teamsui.TokenStepper
-	more           kit.Disclosure
-	moreClick      kit.Click
-	turns          kit.Stepper
-	notify         look.Select
-	notifyValue    string
-	routines       []protocol.RoutineDraft
-	routineOn      []kit.Toggle
-	sentences      map[string]string
+	// warn is not asked in the draft; it comes from the teams defaults
+	warn      int
+	more      kit.Disclosure
+	moreClick kit.Click
+	turns     kit.Stepper
+	minutes   kit.Stepper
+	notify    look.Select
+	// notifyValue is what reaches the desktop, from the teams defaults until changed
+	notifyValue string
+	routines    []protocol.RoutineDraft
+	routineOn   []kit.Toggle
+	sentences   map[string]string
 }
 
 type draftMember struct {
 	form   memberForm
 	remove kit.IconPlaque
 	tip    look.Tip
+	// the engine folds under one line, since most members keep the teams default
+	engine      kit.Disclosure
+	engineClick kit.Click
 }
 
 // a draft already filled from the asked template keeps what was typed into it
@@ -111,20 +111,27 @@ func (d *draft) apply(e *env.Env, template protocol.TeamTemplate) {
 	}
 	d.markLead()
 	d.screen.Value, d.mail.Value = template.Tools.Screen, template.Tools.Mail
+	// what the template leaves open comes from Settings, Teams, so the draft shows what the team will get
+	defaults := e.Snapshot().Settings.Teams.Defaults
 	d.approvalsValue = template.Approvals
 	if !protocol.KnownApprovals(d.approvalsValue) {
-		d.approvalsValue = protocol.ApprovalsAsk
+		d.approvalsValue = defaults.Approvals
 	}
-	d.notifyValue = protocol.NotifyAll
+	d.notifyValue = defaults.Notify
 	budget := template.Budget
 	d.limit.Value = budget.MonthTokens
 	if budget.MonthTokens <= 0 {
-		d.limit.Value = defaultMonthTokens
+		d.limit.Value = defaults.Budget.MonthTokens
+	}
+	d.warn = budget.WarnPercent
+	if budget.WarnPercent <= 0 {
+		d.warn = defaults.Budget.WarnPercent
 	}
 	d.turns.Value = budget.TaskTurns
 	if budget.TaskTurns <= 0 {
-		d.turns.Value = defaultTaskTurns
+		d.turns.Value = defaults.Budget.TaskTurns
 	}
+	d.minutes.Value = defaults.Budget.TaskMinutes
 	d.routines = append([]protocol.RoutineDraft(nil), template.Routines...)
 	d.routineOn = make([]kit.Toggle, len(d.routines))
 	d.loadSentences(e)
@@ -198,7 +205,7 @@ func (d *draft) params() protocol.TeamCreateParams {
 	params.Template, params.Folder, params.Members = d.template, d.folderPath(), d.crew()
 	params.Tools = protocol.TeamTools{Screen: d.screen.Value, Mail: d.mail.Value}
 	params.Approvals, params.Notify, params.Routines = d.approvalsValue, d.notifyValue, routines
-	params.Budget = protocol.TeamBudget{MonthTokens: d.limit.Value, WarnPercent: defaultWarnPercent, TaskTurns: d.turns.Value}
+	params.Budget = protocol.TeamBudget{MonthTokens: d.limit.Value, WarnPercent: d.warn, TaskTurns: d.turns.Value, TaskMinutes: d.minutes.Value}
 	return params
 }
 
@@ -233,6 +240,9 @@ func (d *draft) layout(gtx layout.Context, e *env.Env, p *Page) layout.Dimension
 	members := d.crew()
 	named := d.markNames(members)
 	ready := d.filled && !d.busy && named && strings.TrimSpace(d.name.Text()) != ""
+	for _, member := range members {
+		ready = ready && protocol.ValidEngineModel(member.Model)
+	}
 	d.cancel.Kind, d.cancel.Small, d.cancel.Label = kit.PlaqueQuiet, true, i18n.T("Cancel")
 	d.create.Kind, d.create.Small, d.create.Label = kit.PlaqueGold, true, i18n.T("Create team")
 	d.create.Busy = d.busy

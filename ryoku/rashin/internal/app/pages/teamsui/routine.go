@@ -60,6 +60,13 @@ func RoutineOutcome(snapshot state.Snapshot, routine protocol.Routine) (string, 
 	case "":
 		return i18n.T("No run yet"), palette.Idle
 	case protocol.TaskDone:
+		// a run that found nothing new is not news, so its report title is not read out
+		if streak := QuietStreak(routine); streak != "" {
+			return streak, palette.Idle
+		}
+		if routine.QuietStreak == 1 {
+			return i18n.T("Quiet, nothing new"), palette.Idle
+		}
 		if task, ok := snapshot.TeamTasks[routine.LastTask]; ok && task.Report != nil {
 			return i18n.Tf("Done: %s", task.Report.Title), palette.Alive
 		}
@@ -74,6 +81,14 @@ func RoutineOutcome(snapshot state.Snapshot, routine protocol.Routine) (string, 
 		return word, tone
 	}
 	return i18n.T("Queued"), palette.Idle
+}
+
+// how many runs in a row found nothing new, once they make a streak
+func QuietStreak(routine protocol.Routine) string {
+	if routine.QuietStreak < 2 {
+		return ""
+	}
+	return i18n.Tf("Quiet for %d runs", routine.QuietStreak)
 }
 
 // a routine's next run as a claim: when it runs, or why it does not

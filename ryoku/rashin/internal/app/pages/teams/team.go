@@ -15,9 +15,6 @@ import (
 	"ryoku-rashin/internal/protocol"
 )
 
-// the header's facts in the order they stand; the folder is the one link
-const factFolder = 2
-
 func (p *Page) layoutTeam(gtx layout.Context, e *env.Env, team protocol.Team) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.layoutTeamHeader(gtx, e, team) }),
@@ -40,13 +37,15 @@ func (p *Page) layoutTeamHeader(gtx layout.Context, e *env.Env, team protocol.Te
 			pause.Description = i18n.Tf("Raise the limit to %s tokens a month and let the team work again", teamsui.Tokens(raisedLimit(team)))
 		}
 	}
+	facts := []look.HeaderFact{{Text: i18n.Tf("Led by %s", lead.Name)}, {Text: membersWord(len(team.Members))}}
+	if runs := runsFact(e.Snapshot(), team.Members); runs != "" {
+		facts = append(facts, look.HeaderFact{Text: runs})
+	}
+	// the folder, the one link, stands after however many facts there are
+	folder := len(facts)
 	content := look.PaneHeaderContent{
 		Title: team.Name,
-		Facts: []look.HeaderFact{
-			{Text: i18n.Tf("Led by %s", lead.Name)},
-			{Text: membersWord(len(team.Members))},
-			{Text: paths.Short(team.Folder), Kind: look.FactLink},
-		},
+		Facts: append(facts, look.HeaderFact{Text: paths.Short(team.Folder), Kind: look.FactLink}),
 		Actions: []look.HeaderAction{
 			{Icon: look.Icon.Add, Description: i18n.T("Give the team a task")},
 			pause,
@@ -66,7 +65,7 @@ func (p *Page) layoutTeamHeader(gtx layout.Context, e *env.Env, team protocol.Te
 			togglePause(e, team)
 		}
 	}
-	if index, ok := p.header.LinkClicked(); ok && index == factFolder {
+	if index, ok := p.header.LinkClicked(); ok && index == folder {
 		e.OpenFolder(team.Folder)
 	}
 	if item, ok := p.header.MenuClicked(); ok {
@@ -107,7 +106,7 @@ func (p *Page) layoutTeamView(gtx layout.Context, e *env.Env, team protocol.Team
 	case env.TeamRoutines:
 		return p.routines.layout(gtx, e, team)
 	case env.TeamSpend:
-		return p.spend.layout(gtx, e, team)
+		return p.spend.layout(gtx, e, p, team)
 	case env.TeamSettings:
 		return p.settings.layout(gtx, e, p, team)
 	default:

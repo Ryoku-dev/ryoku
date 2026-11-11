@@ -30,6 +30,8 @@ type AppPreferences struct {
 	// where Teams mode stood, and whether the window closed in it
 	Teams   LastPlace `json:"teams,omitzero"`
 	InTeams bool      `json:"inTeams,omitempty"`
+	// next steps hidden on a team's Overview, step keys by team id
+	HiddenSteps map[string][]string `json:"hiddenSteps,omitempty"`
 }
 
 // the work the window had open when it closed

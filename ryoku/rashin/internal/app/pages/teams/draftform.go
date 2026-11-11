@@ -88,7 +88,9 @@ func (d *draft) layoutMember(e *env.Env, row *draftMember, removable bool) layou
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Rigid(pair(th, form.nameField(th), form.titleField(th))),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-			layout.Rigid(pair(th, form.harnessField(e), form.modelField(e))),
+			layout.Rigid(form.instructionsField(th)),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+			layout.Rigid(d.layoutEngine(e, row)),
 		)
 	}
 	if !removable {
@@ -105,6 +107,37 @@ func (d *draft) layoutMember(e *env.Env, row *draftMember, removable bool) layou
 					return row.tip.Layout(gtx, th, e.Overlays, row.remove.Description, func(gtx layout.Context) layout.Dimensions {
 						return row.remove.Layout(gtx, th.Theme)
 					})
+				})
+			}),
+		)
+	}
+}
+
+// the engine reads as one line until it is opened, as most members keep the teams default
+func (d *draft) layoutEngine(e *env.Env, row *draftMember) layout.Widget {
+	th := e.Theme
+	return func(gtx layout.Context) layout.Dimensions {
+		if row.engineClick.Clicked(gtx) {
+			row.engine.Open = !row.engine.Open
+		}
+		line := teamsui.MemberEngine(e.Snapshot(), row.form.member()).Line()
+		arrow := look.Icon.ExpandMore
+		if row.engine.Open {
+			arrow = look.Icon.ExpandLess
+		}
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return row.engineClick.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+						layout.Rigid(look.IconWidget(arrow, 20, th.R.Fg2)),
+						layout.Rigid(layout.Spacer{Width: th.Sp.S1}.Layout),
+						layout.Flexed(1, look.Paragraph(th, th.T.Caption, th.R.Fg2, i18n.Tf("Engine: %s", line))),
+					)
+				})
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return row.engine.Layout(gtx, th.Theme, func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Top: th.Sp.S2}.Layout(gtx, row.form.engineField(e))
 				})
 			}),
 		)
@@ -172,9 +205,9 @@ func (d *draft) layoutLimits(e *env.Env) layout.Widget {
 	return func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Rigid(labelled(th, i18n.T("Permissions"), func(gtx layout.Context) layout.Dimensions {
-				dimensions := approvalsSelect(gtx, e, &d.approvals, d.approvalsValue)
-				if index, changed := d.approvals.Changed(); changed && index >= 0 && index < len(approvalValues) {
-					d.approvalsValue = approvalValues[index]
+				dimensions := teamsui.ApprovalsSelect(gtx, e, &d.approvals, d.approvalsValue)
+				if index, changed := d.approvals.Changed(); changed && index >= 0 && index < len(teamsui.ApprovalValues) {
+					d.approvalsValue = teamsui.ApprovalValues[index]
 				}
 				return dimensions
 			})),
@@ -183,7 +216,7 @@ func (d *draft) layoutLimits(e *env.Env) layout.Widget {
 				return d.limit.Layout(gtx, th)
 			})),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
-			layout.Rigid(quiet(th, i18n.T("At the limit the team pauses and asks you to raise it."))),
+			layout.Rigid(quiet(th, i18n.Tf("At the limit the team pauses and asks you to raise it. You are told at %d percent.", d.warn))),
 		)
 	}
 }
@@ -194,7 +227,8 @@ func (d *draft) layoutMore(gtx layout.Context, e *env.Env) layout.Widget {
 	if d.moreClick.Clicked(gtx) {
 		d.more.Open = !d.more.Open
 	}
-	d.turns.Min, d.turns.Max, d.turns.Step, d.turns.Unit = 1, 200, 1, i18n.T("turns per task")
+	d.turns.Min, d.turns.Max, d.turns.Step, d.turns.Unit = 1, protocol.TeamTaskTurnsMax, 1, i18n.T("turns per task")
+	d.minutes.Min, d.minutes.Max, d.minutes.Step, d.minutes.Unit = 0, protocol.TeamTaskMinutesMax, 15, i18n.T("minutes per task")
 	toggleRoutines := make([]layout.Widget, len(d.routines))
 	for index, routine := range d.routines {
 		toggle := &d.routineOn[index]
@@ -217,10 +251,14 @@ func (d *draft) layoutMore(gtx layout.Context, e *env.Env) layout.Widget {
 			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 			layout.Rigid(labelled(th, i18n.T("Turns per task"), func(gtx layout.Context) layout.Dimensions { return d.turns.Layout(gtx, th.Theme) })),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
+			layout.Rigid(labelled(th, i18n.T("Minutes per task"), func(gtx layout.Context) layout.Dimensions { return d.minutes.Layout(gtx, th.Theme) })),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
+			layout.Rigid(quiet(th, i18n.T("A task that runs past it stops and says so. 0 lets it work as long as it needs."))),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 			layout.Rigid(labelled(th, i18n.T("Notifications"), func(gtx layout.Context) layout.Dimensions {
-				dimensions := notifySelect(gtx, e, &d.notify, d.notifyValue)
-				if index, changed := d.notify.Changed(); changed && index >= 0 && index < len(notifyValues) {
-					d.notifyValue = notifyValues[index]
+				dimensions := teamsui.NotifySelect(gtx, e, &d.notify, d.notifyValue)
+				if index, changed := d.notify.Changed(); changed && index >= 0 && index < len(teamsui.NotifyValues) {
+					d.notifyValue = teamsui.NotifyValues[index]
 				}
 				return dimensions
 			})),

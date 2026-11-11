@@ -237,6 +237,7 @@ func (s *uiShell) persistedPreferences(preferences state.AppPreferences) state.A
 	preferences.SidePanelOpen = s.preferences.SidePanelOpen
 	preferences.ReduceMotion = s.preferences.ReduceMotion
 	preferences.MuteNotices = s.preferences.MuteNotices
+	preferences.HiddenSteps = s.preferences.HiddenSteps
 	preferences.Last = lastPlace(s.router.lastRashin)
 	preferences.Teams = lastPlace(s.router.lastTeams)
 	preferences.InTeams = s.router.TeamsMode()
@@ -255,6 +256,7 @@ func (s *uiShell) environment() *env.Env {
 		Notices: !s.preferences.MuteNotices, SetNotices: s.setNotices,
 		Desktop: s.desktop,
 	}
+	e.HiddenSteps, e.HideStep = s.preferences.HiddenSteps, s.hideStep
 	// the work page owns the dialog, any page may open it
 	e.NewTeamTask = func(team string) { s.work.Ask(e, team) }
 	return e
@@ -315,7 +317,12 @@ func (s *uiShell) applyPlace(place Place) {
 		place = s.projectsHome(e, place)
 		s.projects.Open(e, place.Project, normalizeProjectView(place.ProjectView), place.Worktree)
 	case protocol.TabSettings:
-		s.settings.OpenSection(place.SettingsSection)
+		section := place.SettingsSection
+		// from teams mode settings opens on what every team shares, the rest of settings is a scroll away
+		if section == "" && s.router.TeamsMode() {
+			section = "teams"
+		}
+		s.settings.OpenSection(section)
 	default:
 		if teamsTab(place.Tab) {
 			s.teamsPage(place.Tab).Select(e, place.teams())
@@ -399,6 +406,24 @@ func (s *uiShell) setNotices(on bool) {
 	if s.attention != nil {
 		s.attention.muted.Store(!on)
 	}
+	s.runtime.hub.Invalidate()
+}
+
+// a next step hidden on a team's Overview stays hidden; teams that went take their hidden steps with them
+func (s *uiShell) hideStep(team, step string) {
+	kept := make(map[string][]string, len(s.preferences.HiddenSteps)+1)
+	for _, known := range s.runtime.store.Snapshot().Teams {
+		if steps, ok := s.preferences.HiddenSteps[known.ID]; ok {
+			kept[known.ID] = steps
+		}
+	}
+	for _, hidden := range kept[team] {
+		if hidden == step {
+			return
+		}
+	}
+	kept[team] = append(kept[team], step)
+	s.preferences.HiddenSteps = kept
 	s.runtime.hub.Invalidate()
 }
 

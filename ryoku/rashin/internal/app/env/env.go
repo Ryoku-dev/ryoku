@@ -55,6 +55,10 @@ type Env struct {
 	Notices    bool
 	SetNotices func(bool)
 	Desktop    Desktop
+	// HiddenSteps are the next steps the user hid on each team's Overview,
+	// step keys by team id; HideStep hides one more.
+	HiddenSteps map[string][]string
+	HideStep    func(team, step string)
 }
 
 func (e *Env) Snapshot() state.Snapshot { return e.Store.Snapshot() }

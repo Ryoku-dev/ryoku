@@ -1,10 +1,13 @@
 package teams
 
 import (
+	"slices"
+	"strings"
 	"time"
 
 	"ryoku-i18n"
 
+	"ryoku-rashin/internal/app/pages/teamsui"
 	appstate "ryoku-rashin/internal/app/state"
 	"ryoku-rashin/internal/protocol"
 )
@@ -23,24 +26,63 @@ func tasksWord(count int) string {
 	return i18n.Tf("%d tasks", count)
 }
 
-// a member with no harness of its own runs on the one Settings names for agents
-func harnessName(snapshot appstate.Snapshot, id string) string {
-	if id == "" {
-		return i18n.T("Default harness")
-	}
-	for _, harness := range snapshot.Harnesses {
-		if harness.ID == id {
-			return harness.Name
+// the engines a team's members run on, each once, in the members' order
+func teamEngines(snapshot appstate.Snapshot, members []protocol.Member) []teamsui.Engine {
+	var engines []teamsui.Engine
+	for _, member := range members {
+		engine := teamsui.MemberEngine(snapshot, member)
+		if !slices.ContainsFunc(engines, func(seen teamsui.Engine) bool { return seen.Line() == engine.Line() }) {
+			engines = append(engines, engine)
 		}
 	}
-	return id
+	return engines
 }
 
-func modelName(model string) string {
-	if model == "" {
-		return i18n.T("its default model")
+// each harness the engines run on, once
+func engineHarnesses(engines []teamsui.Engine) []string {
+	var names []string
+	for _, engine := range engines {
+		if !slices.Contains(names, engine.Harness) {
+			names = append(names, engine.Harness)
+		}
 	}
-	return model
+	return names
+}
+
+// a team tile's line under its crew: the one engine, else how many and on what
+func enginesCaption(snapshot appstate.Snapshot, members []protocol.Member) string {
+	engines := teamEngines(snapshot, members)
+	switch len(engines) {
+	case 0:
+		return ""
+	case 1:
+		return engines[0].Line()
+	}
+	names := engineHarnesses(engines)
+	// engines on one harness differ by model, so the models tell them apart
+	if len(names) == 1 {
+		names = names[:0]
+		for _, engine := range engines {
+			names = append(names, engine.Short())
+		}
+	}
+	return i18n.Tf("%d engines: %s", len(engines), strings.Join(names, ", "))
+}
+
+// the header's fact of what a team runs on: three harnesses at most, then how many more
+func runsFact(snapshot appstate.Snapshot, members []protocol.Member) string {
+	names := engineHarnesses(teamEngines(snapshot, members))
+	switch len(names) {
+	case 0:
+		return ""
+	case 1:
+		return i18n.Tf("Runs %s", names[0])
+	case 2:
+		return i18n.Tf("Runs %s and %s", names[0], names[1])
+	case 3:
+		return i18n.Tf("Runs %s, %s and %s", names[0], names[1], names[2])
+	}
+	return i18n.Tf("Runs %s, %s, %s and %d more", names[0], names[1], names[2], len(names)-3)
 }
 
 // top-level tasks a team was given in the last seven days

@@ -19,13 +19,19 @@ import (
 func (t *taskView) layoutAside(gtx layout.Context, e *env.Env, snapshot state.Snapshot, task protocol.TeamTask) layout.Dimensions {
 	th := e.Theme
 	word, _, _ := teamsui.TaskStanding(task)
-	rows := []layout.Widget{
+	var rows []layout.Widget
+	// the member's screen leads, watched while it works on it
+	if screen, ok := screenOf(snapshot, task); ok {
+		rows = append(rows, func(gtx layout.Context) layout.Dimensions { return t.screen.layout(gtx, e, snapshot, task, screen) })
+	}
+	rows = append(rows,
 		kit.AsideFact(th.Theme, i18n.T("Status"), word),
 		kit.AsideFact(th.Theme, i18n.T("Team"), teamsui.TeamName(snapshot.Teams, task.Team)),
-	}
+	)
 	if member := teamsui.MemberOf(snapshot, task.Team, task.Member); member != "" {
 		rows = append(rows, kit.AsideFact(th.Theme, i18n.T("Member"), member))
 	}
+	rows = append(rows, engineFacts(th, snapshot, task)...)
 	turns := fmt.Sprint(task.Turns)
 	if task.MaxTurns > 0 {
 		turns = i18n.Tf("%d of %d", task.Turns, task.MaxTurns)

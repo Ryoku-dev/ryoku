@@ -12,12 +12,16 @@ import (
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 
 	"ryoku-rashin/internal/app/look"
+	"ryoku-rashin/internal/app/pages/teamsui"
 )
 
 // a tablet that holds more than a row: a report's preview, a task at work
 type tile struct {
 	click kit.Click
 	hover anim.Tween
+
+	// a task at work's presence, whose caption cross-fades as it changes
+	presence teamsui.Presence
 }
 
 func (t *tile) clicked(gtx layout.Context) bool { return t.click.Clicked(gtx) }

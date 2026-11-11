@@ -5,8 +5,12 @@ import (
 	"sort"
 	"strings"
 
+	"gioui.org/io/event"
+	"gioui.org/io/key"
+	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/op/clip"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
@@ -41,9 +45,18 @@ type needCard struct {
 	note, value                 kit.TextField
 	more                        kit.Plaque
 	team, task                  kit.Click
+	// the options of a choice question, and whether the card holds the keys that pick them
+	choices [protocol.ApprovalOptionsMax]kit.Click
+	focused bool
 	// the whole detail is shown
 	all bool
 }
+
+// the key each option of a choice question answers to, by letter or by number
+const (
+	choiceLetters = "ABCDEF"
+	choiceDigits  = "123456"
+)
 
 type answer struct {
 	line string
@@ -150,6 +163,9 @@ func (c *NeedCards) layoutField(gtx layout.Context, e *env.Env, card *needCard, 
 	call := record.Stop()
 	kit.FillCut(gtx.Ops, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid), th.R.Field(palette.Attention))
 	call.Add(gtx.Ops)
+	if need.Approval != nil && len(need.Approval.Options) > 0 {
+		holdKeys(gtx, th, card, dimensions.Size)
+	}
 	return dimensions
 }
 
@@ -160,14 +176,20 @@ func (c *NeedCards) approvalField(gtx layout.Context, e *env.Env, snapshot state
 	vaultOpen := snapshot.Vault.State == protocol.VaultOpen
 	note := strings.TrimSpace(card.note.Text())
 	value := card.value.Text()
+	options := approval.Options[:min(len(approval.Options), protocol.ApprovalOptionsMax)]
+	choice := len(options) > 0
 	plaques := []*kit.Plaque{&card.approve}
 	card.approve.Kind, card.deny.Kind, card.always.Kind = kit.PlaqueGold, kit.PlaqueQuiet, kit.PlaqueLine
 	card.approve.Small, card.deny.Small, card.always.Small = true, true, true
 	card.deny.Label = i18n.T("Deny")
-	switch approval.Kind {
-	case protocol.ApprovalBudget:
+	switch {
+	case choice:
+		// the options are the answers, so only a refusal of them all stays a plaque
+		plaques = plaques[:0]
+		card.deny.Label = i18n.T("None of these")
+	case approval.Kind == protocol.ApprovalBudget:
 		card.approve.Label, card.deny.Label = i18n.T("Raise the limit by half"), i18n.T("Keep it paused")
-	case protocol.ApprovalRequest:
+	case request:
 		card.approve.Label = i18n.T("Add to the vault")
 	default:
 		card.approve.Label = i18n.T("Approve")
@@ -177,6 +199,16 @@ func (c *NeedCards) approvalField(gtx layout.Context, e *env.Env, snapshot state
 		}
 	}
 	plaques = append(plaques, &card.deny)
+	if choice {
+		if index, ok := pickedChoice(gtx, card, len(options)); ok {
+			line := i18n.Tf("Chose %s · %s", choiceLetters[index:index+1], options[index])
+			params := protocol.ApprovalDecideParams{ID: approval.ID, Decision: protocol.DecideChoose, Note: note, Choice: options[index]}
+			c.send(e, need, params, line)
+			// the folded card no longer answers to keys
+			card.focused = false
+			gtx.Execute(key.FocusCmd{})
+		}
+	}
 	// a value goes only into an open vault
 	ready := !request || (vaultOpen && strings.TrimSpace(value) != "")
 	if card.approve.Clicked(gtx) && ready {
@@ -197,7 +229,10 @@ func (c *NeedCards) approvalField(gtx layout.Context, e *env.Env, snapshot state
 	if card.deny.Clicked(gtx) {
 		card.value.SetText("")
 		line := i18n.Tf("Denied: %s", approval.Title)
-		if approval.Kind == protocol.ApprovalBudget {
+		switch {
+		case choice:
+			line = i18n.Tf("Chose none: %s", approval.Title)
+		case approval.Kind == protocol.ApprovalBudget:
 			line = i18n.Tf("Kept paused: %s", approval.Title)
 		}
 		c.decide(e, need, protocol.DecideDeny, note, "", line)
@@ -220,6 +255,18 @@ func (c *NeedCards) approvalField(gtx layout.Context, e *env.Env, snapshot state
 			return c.layoutWhere(gtx, e, snapshot, card, approval.Team, approval.Member, approval.Task)
 		}),
 	)
+	if choice {
+		children = append(children, layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout))
+		for index, option := range options {
+			if index > 0 {
+				children = append(children, layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout))
+			}
+			click, letter := &card.choices[index], choiceLetters[index:index+1]
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layoutChoice(gtx, th, click, letter, option)
+			}))
+		}
+	}
 	if request {
 		card.value.Label = i18n.T("Paste the value")
 		card.value.Help = i18n.T("Stored once and never shown again.")
@@ -386,11 +433,95 @@ func layoutRecord(gtx layout.Context, th *look.Theme, line string) layout.Dimens
 	})
 }
 
+// one option of a choice question: its key, then what it says; a click picks it
+func layoutChoice(gtx layout.Context, th *look.Theme, click *kit.Click, letter, option string) layout.Dimensions {
+	return click.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		ink := th.R.Stone1
+		if click.Hovered() {
+			ink = th.R.Stone2
+		}
+		dimensions := kit.Slab(gtx, ink, th.Cut.Small, func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Min.X = gtx.Constraints.Max.X
+			return layout.Inset{Top: 8, Bottom: 8, Left: 12, Right: 12}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Baseline}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						gtx.Constraints.Min.X = gtx.Dp(24)
+						return kit.Label{Style: th.T.Mono, Color: th.R.Fg2}.Layout(gtx, th.Theme, letter)
+					}),
+					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+						return kit.Label{Style: th.T.Body, Color: th.R.Fg}.Layout(gtx, th.Theme, option)
+					}),
+				)
+			})
+		})
+		if gtx.Focused(&click.Clickable) {
+			kit.FocusRing(gtx, th.Theme, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Small))
+		}
+		return dimensions
+	})
+}
+
+// the option a click on its row picked, or its letter or number while the card holds the keys
+func pickedChoice(gtx layout.Context, card *needCard, count int) (int, bool) {
+	picked, ok := 0, false
+	for index := range count {
+		if card.choices[index].Clicked(gtx) && !ok {
+			picked, ok = index, true
+		}
+	}
+	tag := &card.focused
+	filters := make([]event.Filter, 0, 2+2*count)
+	filters = append(filters, key.FocusFilter{Target: tag}, pointer.Filter{Target: tag, Kinds: pointer.Press})
+	for index := range count {
+		filters = append(filters,
+			key.Filter{Focus: tag, Name: key.Name(choiceLetters[index : index+1]), Optional: key.ModShift},
+			key.Filter{Focus: tag, Name: key.Name(choiceDigits[index : index+1])},
+		)
+	}
+	for {
+		raw, more := gtx.Event(filters...)
+		if !more {
+			break
+		}
+		switch event := raw.(type) {
+		case key.FocusEvent:
+			card.focused = event.Focus
+		case pointer.Event:
+			// a press anywhere on the card gives it the keys; a field pressed takes them back after
+			gtx.Execute(key.FocusCmd{Tag: tag})
+		case key.Event:
+			index := strings.Index(choiceLetters, string(event.Name))
+			if index < 0 {
+				index = strings.Index(choiceDigits, string(event.Name))
+			}
+			if event.State == key.Press && index >= 0 && !ok {
+				picked, ok = index, true
+			}
+		}
+	}
+	return picked, ok
+}
+
+// a choice question's card takes the keys that pick its options, and shows when it holds them
+func holdKeys(gtx layout.Context, th *look.Theme, card *needCard, size image.Point) {
+	pass := pointer.PassOp{}.Push(gtx.Ops)
+	area := clip.Rect(image.Rectangle{Max: size}).Push(gtx.Ops)
+	event.Op(gtx.Ops, &card.focused)
+	area.Pop()
+	pass.Pop()
+	if card.focused {
+		kit.FocusRing(gtx, th.Theme, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Mid))
+	}
+}
+
 // the card folds at once, and comes back with the reason if the daemon refused
 func (c *NeedCards) decide(e *env.Env, need Need, decision, note, value, line string) {
+	c.send(e, need, protocol.ApprovalDecideParams{ID: need.Approval.ID, Decision: decision, Note: note, Value: value}, line)
+}
+
+func (c *NeedCards) send(e *env.Env, need Need, params protocol.ApprovalDecideParams, line string) {
 	key := NeedKey(need)
 	c.fold(key, need, line)
-	params := protocol.ApprovalDecideParams{ID: need.Approval.ID, Decision: decision, Note: note, Value: value}
 	e.Call(protocol.MTeamsApprovalDecide, params, new(protocol.Approval), c.undo(e, key))
 }
 

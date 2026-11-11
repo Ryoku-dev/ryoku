@@ -74,20 +74,23 @@ func (ed *editor) layoutTeam(gtx layout.Context, e *env.Env, snapshot state.Snap
 	return dimensions
 }
 
-// the member who takes each run; the lead decides by default
+// the member who takes each run, each with the engine it runs on; the lead decides by default
 func (ed *editor) layoutMember(gtx layout.Context, e *env.Env, snapshot state.Snapshot) layout.Dimensions {
 	th := e.Theme
 	team, _ := teamsui.TeamByID(snapshot.Teams, ed.teamID)
-	labels, ids, selected := []string{i18n.T("The lead decides")}, []string{""}, 0
+	lead, _ := teamsui.Lead(team.Members)
+	options := []look.SelectOption{{Label: i18n.T("The lead decides"), Detail: teamsui.MemberEngine(snapshot, lead).Line()}}
+	ids, selected := []string{""}, 0
 	for _, member := range team.Members {
 		if member.ID == ed.memberID {
 			selected = len(ids)
 		}
-		labels, ids = append(labels, member.Name), append(ids, member.ID)
+		options = append(options, look.SelectOption{Label: member.Name, Detail: teamsui.MemberEngine(snapshot, member).Line()})
+		ids = append(ids, member.ID)
 	}
 	ed.member.Label = i18n.T("Who takes each run")
 	gtx.Constraints.Min.X = gtx.Constraints.Max.X
-	dimensions := ed.member.Layout(gtx, th, e.Overlays, labels, selected)
+	dimensions := ed.member.LayoutOptions(gtx, th, e.Overlays, options, selected)
 	if index, changed := ed.member.Changed(); changed && index < len(ids) {
 		ed.memberID = ids[index]
 	}

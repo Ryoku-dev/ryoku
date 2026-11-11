@@ -35,6 +35,8 @@ func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 				if tone != palette.Paused {
 					row.Tone = tone
 				}
+			} else if quiet := teamsui.QuietStreak(routine); quiet != "" {
+				row.Trail = kit.Claim(th.Theme, palette.Idle, quiet)
 			}
 			rows = append(rows, row)
 		}

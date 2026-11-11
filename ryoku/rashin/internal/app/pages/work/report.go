@@ -36,7 +36,7 @@ func (t *taskView) reportItems(e *env.Env, snapshot state.Snapshot, task protoco
 		return items
 	}
 	return append(items,
-		func(gtx layout.Context) layout.Dimensions { return t.layoutHow(gtx, e) },
+		func(gtx layout.Context) layout.Dimensions { return t.layoutHow(gtx, e, snapshot, task) },
 		func(gtx layout.Context) layout.Dimensions {
 			return t.how.Layout(gtx, th.Theme, func(gtx layout.Context) layout.Dimensions {
 				return t.layoutTranscript(gtx, e, snapshot, task, session, height)
@@ -64,8 +64,23 @@ func (t *taskView) layoutFiles(gtx layout.Context, e *env.Env, files []string) l
 	})
 }
 
-func (t *taskView) layoutHow(gtx layout.Context, e *env.Env) layout.Dimensions {
-	return foldToggle(gtx, e.Theme, &t.toggle, &t.how.Open, i18n.T("How it went"))
+// how long it worked and in how many steps opens its transcript; a notch says a step failed or waited on the user
+func (t *taskView) layoutHow(gtx layout.Context, e *env.Env, snapshot state.Snapshot, task protocol.TeamTask) layout.Dimensions {
+	th := e.Theme
+	title, tone := teamsui.Worked(snapshot, task)
+	toggle := func(gtx layout.Context) layout.Dimensions { return foldToggle(gtx, th, &t.toggle, &t.how.Open, title) }
+	if tone == palette.Idle {
+		return toggle(gtx)
+	}
+	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			size := gtx.Dp(th.Cut.Notch)
+			kit.Notch(gtx.Ops, image.Point{}, size, th.R.Stone(tone))
+			return layout.Dimensions{Size: image.Pt(size, size)}
+		}),
+		layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
+		layout.Rigid(toggle),
+	)
 }
 
 // a quiet line that opens and closes what follows it

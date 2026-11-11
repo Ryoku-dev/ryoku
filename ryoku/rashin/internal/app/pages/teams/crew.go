@@ -40,8 +40,9 @@ type placedTile struct {
 	size image.Point
 }
 
-// the lead's tile centred on top, a vein down from it and across, the members in rows under it
-func crewChart(gtx layout.Context, th *look.Theme, snapshot appstate.Snapshot, members []protocol.Member, doing map[string]string, style crewStyle) layout.Dimensions {
+// the lead's tile centred on top, a vein down from it and across, the members in rows under it;
+// live is nil where the crew is only drafted, as no member of it works yet
+func crewChart(gtx layout.Context, th *look.Theme, snapshot appstate.Snapshot, members []protocol.Member, live *crewLive, style crewStyle) layout.Dimensions {
 	lead, leadIndex := teamsui.Lead(members)
 	if leadIndex < 0 {
 		return layout.Dimensions{}
@@ -56,7 +57,7 @@ func crewChart(gtx layout.Context, th *look.Theme, snapshot appstate.Snapshot, m
 		child := gtx
 		child.Constraints = layout.Constraints{Min: image.Pt(tileWidth, 0), Max: image.Pt(tileWidth, unbounded)}
 		macro := op.Record(gtx.Ops)
-		dimensions := crewTile(child, th, snapshot, member, doing, style)
+		dimensions := crewTile(child, th, snapshot, member, live, style)
 		return placedTile{call: macro.Stop(), size: dimensions.Size}
 	}
 	top := record(lead)
@@ -123,7 +124,7 @@ func crewChart(gtx layout.Context, th *look.Theme, snapshot appstate.Snapshot, m
 	return layout.Dimensions{Size: image.Pt(width, y)}
 }
 
-func crewTile(gtx layout.Context, th *look.Theme, snapshot appstate.Snapshot, member protocol.Member, doing map[string]string, style crewStyle) layout.Dimensions {
+func crewTile(gtx layout.Context, th *look.Theme, snapshot appstate.Snapshot, member protocol.Member, live *crewLive, style crewStyle) layout.Dimensions {
 	inset := th.Sp.S3
 	if style.mini {
 		inset = th.Sp.S2
@@ -152,29 +153,80 @@ func crewTile(gtx layout.Context, th *look.Theme, snapshot appstate.Snapshot, me
 		if style.mini {
 			return identity(gtx)
 		}
-		what, working := doing[member.ID]
+		engine := teamsui.MemberEngine(snapshot, member)
+		harnessInk := th.R.Fg3
+		if engine.Missing {
+			harnessInk = th.R.Jasper
+		}
+		model := engine.Model
+		if engine.Extra != "" {
+			model = i18n.Tf("%s · %s", model, engine.Extra)
+		}
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Rigid(identity),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+			// the engine wraps rather than cuts, a tile in a row as tall as its tallest
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				runs := i18n.Tf("%s · %s", harnessName(snapshot, member.Harness), modelName(member.Model))
-				return kit.Label{Style: th.T.MonoSm, Color: th.R.Fg3, MaxLines: 1}.Layout(gtx, th.Theme, runs)
+				return kit.Label{Style: th.T.MonoSm, Color: harnessInk, MaxLines: 2}.Layout(gtx, th.Theme, engine.Harness)
 			}),
-			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				if !working {
+				return kit.Label{Style: th.T.MonoSm, Color: th.R.Fg3, MaxLines: 2}.Layout(gtx, th.Theme, model)
+			}),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				task, working := teamsui.MemberTask(snapshot, live.team, member)
+				now, inHand := teamsui.TaskLive(snapshot, task)
+				if !working || !inHand {
 					return kit.Text(th.Theme, th.T.Caption, th.R.Fg3, i18n.T("Idle"))(gtx)
 				}
-				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+				// the name stands at the top of the tile, and what it is on reads while it says nothing yet
+				now.Member = ""
+				if now.Caption == "" {
+					now.Caption = task.Title
+				}
+				presence := live.presence(member.ID)
+				if _, screen := snapshot.Screens[task.Session]; !screen || task.Session == "" {
+					return presence.Layout(gtx, th, now)
+				}
+				// a member working on a screen of its own says so, as the task page shows it
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return presence.Layout(gtx, th, now) }),
+					layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return kit.Working{Active: true, Size: 14}.Layout(gtx, th.Theme)
-					}),
-					layout.Rigid(layout.Spacer{Width: th.Sp.S1}.Layout),
-					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-						return kit.Label{Style: th.T.Caption, Color: th.R.Fg2, MaxLines: 1}.Layout(gtx, th.Theme, what)
+						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+							layout.Rigid(look.IconWidget(look.Icon.Screen, 14, th.R.Fg2)),
+							layout.Rigid(layout.Spacer{Width: th.Sp.S1}.Layout),
+							layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg2, i18n.T("Screen"))),
+						)
 					}),
 				)
 			}),
 		)
 	})
+}
+
+// the presence of each member at work on the crew chart shown, kept so a caption cross-fades as it changes
+type crewLive struct {
+	team    string
+	members map[string]*teamsui.Presence
+}
+
+// the chart's presence for a team, begun anew when the team shown changes
+func (live *crewLive) of(team string) *crewLive {
+	if live.team != team {
+		*live = crewLive{team: team}
+	}
+	return live
+}
+
+func (live *crewLive) presence(member string) *teamsui.Presence {
+	if live.members == nil {
+		live.members = make(map[string]*teamsui.Presence)
+	}
+	presence := live.members[member]
+	if presence == nil {
+		presence = new(teamsui.Presence)
+		live.members[member] = presence
+	}
+	return presence
 }

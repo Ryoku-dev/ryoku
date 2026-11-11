@@ -51,6 +51,9 @@ type taskView struct {
 	needs teamsui.NeedCards
 	// the session whose transcript is attached, and the task whose report was marked read
 	attached, read string
+	// who works on it while it is in hand, and its member's screen watched beside it
+	presence teamsui.Presence
+	screen   taskScreen
 }
 
 func (t *taskView) open(id string) {
@@ -58,6 +61,7 @@ func (t *taskView) open(id string) {
 	t.prose, t.view = chat.Prose{}, chat.View{}
 	t.how.Open, t.details.Open, t.attached = false, false, ""
 	t.column.Position, t.side.Position = layout.Position{}, layout.Position{}
+	t.presence = teamsui.Presence{}
 }
 
 func (t *taskView) layout(gtx layout.Context, e *env.Env, page *Page, task protocol.TeamTask) layout.Dimensions {
@@ -76,8 +80,21 @@ func (t *taskView) layout(gtx layout.Context, e *env.Env, page *Page, task proto
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return t.layoutHeader(gtx, e, page, snapshot, task, session)
 		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return t.layoutPresence(gtx, e, snapshot, task) }),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return t.layoutBody(gtx, e, snapshot, task, session) }),
 	)
+}
+
+// while the task is in hand, who works on it and how it goes stands under the header
+func (t *taskView) layoutPresence(gtx layout.Context, e *env.Env, snapshot state.Snapshot, task protocol.TeamTask) layout.Dimensions {
+	live, inHand := teamsui.TaskLive(snapshot, task)
+	if !inHand {
+		return layout.Dimensions{}
+	}
+	inset := look.ContentInset(e.Class)
+	return layout.Inset{Left: inset, Right: inset, Top: e.Theme.Sp.S3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return t.presence.Layout(gtx, e.Theme, live)
+	})
 }
 
 // a task run again works in a new session, which gets a fresh transcript
@@ -105,6 +122,7 @@ func (t *taskView) layoutHeader(
 	if member := teamsui.MemberOf(snapshot, task.Team, task.Member); member != "" {
 		facts = append(facts, look.HeaderFact{Text: member})
 	}
+	facts = append(facts, look.HeaderFact{Text: teamsui.TaskEngine(snapshot, task).Line()})
 	facts = append(facts, look.HeaderFact{Text: teamsui.Origin(snapshot.Teams, snapshot.Routines, task)})
 	if task.Started != nil {
 		facts = append(facts, look.HeaderFact{Text: i18n.Tf("Started %s", look.Ago(gtx.Now, *task.Started))})

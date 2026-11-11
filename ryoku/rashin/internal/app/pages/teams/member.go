@@ -1,6 +1,8 @@
 package teams
 
 import (
+	"maps"
+
 	"gioui.org/layout"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
@@ -15,12 +17,13 @@ import (
 // a team has at most this many members, its lead included
 const membersMax = 6
 
-// edits one member of a team, or adds one; saving sends the whole crew
+// edits one member of a team, or adds one, or sets every member's engine at once; saving sends the whole crew
 type memberDialog struct {
 	dialog kit.Dialog
 	scroll look.Scroller
 	team   protocol.Team
 	adding bool
+	every  bool
 	title  string
 	form   memberForm
 	save   kit.Plaque
@@ -28,13 +31,28 @@ type memberDialog struct {
 }
 
 func (d *memberDialog) open(team protocol.Team, member protocol.Member, adding bool) {
-	d.team, d.adding = team, adding
+	d.team, d.adding, d.every = team, adding, false
 	d.dialog.Open, d.dialog.Width = true, 600
 	d.form.set(member)
 	d.title = i18n.Tf("Edit %s", member.Name)
 	if adding {
 		d.title = i18n.Tf("Add a member to %s", team.Name)
 	}
+}
+
+// a crew that shares one engine starts from it, a mixed one from the teams default
+func (d *memberDialog) openEvery(team protocol.Team) {
+	d.team, d.adding, d.every = team, false, true
+	d.dialog.Open, d.dialog.Width = true, 600
+	d.title = i18n.Tf("Set every member's engine in %s", team.Name)
+	shared := team.Members[0]
+	for _, member := range team.Members[1:] {
+		if member.Harness != shared.Harness || member.Model != shared.Model || !maps.Equal(member.Options, shared.Options) {
+			shared = protocol.Member{}
+			break
+		}
+	}
+	d.form.engine.Set(shared.Harness, shared.Model, shared.Options)
 }
 
 // another member already has the name, and names tell members apart
@@ -54,37 +72,31 @@ func (d *memberDialog) layout(gtx layout.Context, e *env.Env) {
 	th := e.Theme
 	member := d.form.member()
 	d.form.name.Error = ""
-	if d.taken(member.Name) {
+	if !d.every && d.taken(member.Name) {
 		d.form.name.Error = i18n.T("Another member of the team has this name.")
 	}
-	ready := member.Name != "" && d.form.name.Error == ""
+	ready := d.every || member.Name != "" && d.form.name.Error == ""
+	ready = ready && protocol.ValidEngineModel(member.Model)
 	d.cancel.Kind, d.cancel.Label = kit.PlaqueQuiet, i18n.T("Cancel")
 	d.save.Kind, d.save.Label = kit.PlaqueGold, i18n.T("Save")
-	if d.adding {
+	switch {
+	case d.every:
+		d.save.Label = i18n.T("Set for every member")
+	case d.adding:
 		d.save.Label = i18n.T("Add member")
 	}
 	if d.cancel.Clicked(gtx) {
 		d.dialog.Dismiss(gtx)
 	}
 	if d.save.Clicked(gtx) && ready {
-		d.submit(e, member)
+		if d.every {
+			d.submitEvery(e)
+		} else {
+			d.submit(e, member)
+		}
 		d.dialog.Dismiss(gtx)
 	}
-	d.form.lead.Label = i18n.T("Leads the team")
-	rows := []layout.Widget{
-		d.form.nameField(th),
-		d.form.titleField(th),
-		func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions { return d.form.lead.Layout(gtx, th.Theme) }),
-				layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
-				layout.Rigid(quiet(th, i18n.T("The lead takes the team's tasks and hands pieces to the others. A team has one lead."))),
-			)
-		},
-		d.form.harnessField(e),
-		d.form.modelField(e),
-		d.form.instructionsField(th),
-	}
+	rows := d.rows(e)
 	d.dialog.Layout(gtx, th.Theme, d.title,
 		func(gtx layout.Context) layout.Dimensions {
 			// the body scrolls so the dialog fits a short window
@@ -105,6 +117,33 @@ func (d *memberDialog) layout(gtx layout.Context, e *env.Env) {
 	if d.dialog.Closed() {
 		d.team = protocol.Team{}
 	}
+}
+
+// who the member is first, then the engine it runs on as a group of its own
+func (d *memberDialog) rows(e *env.Env) []layout.Widget {
+	th := e.Theme
+	engine := []layout.Widget{
+		kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("Engine")),
+		d.form.engineField(e),
+	}
+	if d.every {
+		note := quiet(th, i18n.Tf("All %d members run on this. Their names, titles and instructions stay.", len(d.team.Members)))
+		return append([]layout.Widget{note}, engine[1:]...)
+	}
+	d.form.lead.Label = i18n.T("Leads the team")
+	rows := []layout.Widget{
+		d.form.nameField(th),
+		d.form.titleField(th),
+		func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions { return d.form.lead.Layout(gtx, th.Theme) }),
+				layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
+				layout.Rigid(quiet(th, i18n.T("The lead takes the team's tasks and hands pieces to the others. A team has one lead."))),
+			)
+		},
+		d.form.instructionsField(th),
+	}
+	return append(rows, engine...)
 }
 
 // the crew is read again when saving, so a change made meanwhile elsewhere is kept
@@ -130,6 +169,20 @@ func (d *memberDialog) submit(e *env.Env, member protocol.Member) {
 		for index := range members {
 			members[index].Lead = index == at
 		}
+	}
+	updateTeam(e, team.ID, map[string]any{"members": members}, func(error) {})
+}
+
+// one update carries the whole crew, so every member changes together or none does
+func (d *memberDialog) submitEvery(e *env.Env) {
+	team, ok := teamsui.TeamByID(e.Snapshot().Teams, d.team.ID)
+	if !ok {
+		return
+	}
+	harness, model, options := d.form.engine.Value()
+	members := append([]protocol.Member(nil), team.Members...)
+	for index := range members {
+		members[index].Harness, members[index].Model, members[index].Options = harness, model, maps.Clone(options)
 	}
 	updateTeam(e, team.ID, map[string]any{"members": members}, func(error) {})
 }
@@ -182,4 +235,8 @@ func (p *Page) addMember(team protocol.Team) {
 
 func (p *Page) removeMember(team protocol.Team, member protocol.Member) {
 	p.drop.open(team, member)
+}
+
+func (p *Page) setEveryEngine(team protocol.Team) {
+	p.member.openEvery(team)
 }

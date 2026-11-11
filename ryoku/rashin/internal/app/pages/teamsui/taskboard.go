@@ -32,6 +32,8 @@ type TaskBoard struct {
 	tablets map[string]*kit.Tablet
 	older   kit.Plaque
 	loading bool
+	// the presence of each task in hand, so what its member does cross-fades
+	presences map[string]*Presence
 	// teams whose older tasks are all loaded, so the board stops offering more
 	exhausted map[string]bool
 
@@ -175,9 +177,9 @@ func (b *TaskBoard) layoutColumns(gtx layout.Context, e *env.Env, snapshot state
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Start}.Layout(gtx, children...)
 }
 
-// a task's tablet: its team's mark, the title, who works on it and when; a
-// finished one is read by the first line of what it found. A claim its
-// column's heading already says is left out, so the title keeps the room
+// a task's tablet: its team's mark, the title, who works on it on what model and when;
+// one in hand shows its presence, a finished one is read by the first line of what it
+// found. A claim its column's heading already says is left out, so the title keeps the room
 func (b *TaskBoard) layoutTablet(gtx layout.Context, e *env.Env, snapshot state.Snapshot, task protocol.TeamTask, heading string) layout.Dimensions {
 	th := e.Theme
 	if b.tablets == nil {
@@ -196,10 +198,15 @@ func (b *TaskBoard) layoutTablet(gtx layout.Context, e *env.Env, snapshot state.
 	if word == heading {
 		word = ""
 	}
+	facts := TaskEngine(snapshot, task).Short()
+	if member := MemberOf(snapshot, task.Team, task.Member); member != "" {
+		facts = i18n.Tf("%s · %s", member, facts)
+	}
 	content := kit.TabletContent{
-		Title: task.Title, Facts: MemberOf(snapshot, task.Team, task.Member), Claim: word, Tone: tone,
+		Title: task.Title, Facts: facts, Claim: word, Tone: tone,
 		Mark: Mark(th, TeamName(snapshot.Teams, task.Team), 32, false),
 	}
+	live, inHand := TaskLive(snapshot, task)
 	switch {
 	case task.Status == protocol.TaskDone && task.Report != nil:
 		content.Facts = Excerpt(task.Report.Body, 1)
@@ -208,10 +215,29 @@ func (b *TaskBoard) layoutTablet(gtx layout.Context, e *env.Env, snapshot state.
 		content.Proof = look.Ago(gtx.Now, Ended(task))
 	case task.Status == protocol.TaskReady:
 		content.Proof = look.Ago(gtx.Now, task.Created)
+	case inHand:
+		presence := b.presence(task.ID)
+		content.FactsWidget = func(gtx layout.Context) layout.Dimensions { return presence.Line(gtx, th, live, facts) }
+		content.Proof = live.Elapsed(gtx.Now)
+		if content.Proof == "" {
+			content.Proof = look.Ago(gtx.Now, Started(task))
+		}
 	default:
 		content.Proof = look.Ago(gtx.Now, Started(task))
 	}
 	return tablet.Layout(gtx, th.Theme, content, false, false)
+}
+
+func (b *TaskBoard) presence(task string) *Presence {
+	if b.presences == nil {
+		b.presences = make(map[string]*Presence)
+	}
+	presence := b.presences[task]
+	if presence == nil {
+		presence = new(Presence)
+		b.presences[task] = presence
+	}
+	return presence
 }
 
 // the daemon's snapshot holds the newest finished tasks, older ones load on request

@@ -24,6 +24,9 @@ type overview struct {
 	read    kit.Plaque
 	tasks   linkRows
 	coming  map[string]*kit.Click
+	crew    crewLive
+	steps   nextSteps
+	files   teamFiles
 
 	activity    load
 	entries     []protocol.Activity
@@ -52,10 +55,12 @@ func (o *overview) layout(gtx layout.Context, e *env.Env, team protocol.Team) la
 	left := func(gtx layout.Context) layout.Dimensions {
 		return sections(gtx,
 			o.purpose(gtx, e, team),
+			o.steps.layout(gtx, e, snapshot, team),
 			section(th, i18n.T("The crew"), func(gtx layout.Context) layout.Dimensions {
-				return crewChart(gtx, th, snapshot, team.Members, team.Stats.Doing, fullCrew(th))
+				return crewChart(gtx, th, snapshot, team.Members, o.crew.of(team.ID), fullCrew(th))
 			}),
 			o.latestReport(gtx, e, snapshot, team),
+			o.files.layout(gtx, e, snapshot, team),
 		)
 	}
 	right := func(gtx layout.Context) layout.Dimensions {
@@ -114,12 +119,16 @@ func (o *overview) latestReport(gtx layout.Context, e *env.Env, snapshot appstat
 	if o.read.Clicked(gtx) {
 		teamsui.OpenTask(e, task.ID)
 	}
+	facts := i18n.Tf("%s · %s", teamsui.MemberName(team, task.Member), look.Ago(gtx.Now, task.Report.At))
+	// a quiet run reported only that nothing changed since the one before
+	if task.Report.Quiet {
+		facts = i18n.Tf("%s · %s · nothing new", teamsui.MemberName(team, task.Member), look.Ago(gtx.Now, task.Report.At))
+	}
 	return section(th, i18n.T("Latest report"), func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Rigid(look.Paragraph(th, th.T.Title, th.R.Fg, task.Report.Title)),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
-			layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3,
-				i18n.Tf("%s · %s", teamsui.MemberName(team, task.Member), look.Ago(gtx.Now, task.Report.At)))),
+			layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, facts)),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return kit.Label{Style: th.T.Proof, Color: th.R.Fg2, MaxLines: 6}.Layout(gtx, th.Theme, teamsui.Excerpt(task.Report.Body, 12))
