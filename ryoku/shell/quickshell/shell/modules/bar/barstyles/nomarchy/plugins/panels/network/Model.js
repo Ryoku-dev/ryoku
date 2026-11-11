@@ -350,17 +350,18 @@ function canForgetNetwork(network) {
   return !!(network && network.known && !network.connected)
 }
 
-// The password arrives on stdin and reaches nmcli through the scriptable
-// `connection edit` editor -- argv is world-readable in /proc, so the secret
-// must never be an argument (printf is a bash builtin, so no process spawns
-// with it either).
+// The password arrives on stdin and reaches nmcli as a passwd-file read from a
+// pipe: argv is world-readable in /proc, and `connection edit` saves every line
+// it reads to ~/.cache/nmcli-history. printf is a bash builtin, so no process
+// spawns with the secret. passwd-file drops unescaped edge whitespace and reads
+// backslash escapes, hence the escaping.
 var enterpriseConnectScript =
   "u=$(uuidgen); IFS= read -r pw;" +
+  " e=${pw//\\\\/\\\\\\\\}; e=${e// /\\\\ }; e=${e//$'\\t'/\\\\t}; e=${e//$'\\r'/\\\\r}; e=${e//$'\\v'/\\\\v}; e=${e//$'\\f'/\\\\f};" +
   " nmcli connection add type wifi con-name \"$1\" ssid \"$1\" connection.uuid \"$u\"" +
   " wifi-sec.key-mgmt wpa-eap 802-1x.eap peap 802-1x.phase2-auth mschapv2" +
   " 802-1x.identity \"$2\" 802-1x.auth-timeout 8 >/dev/null" +
-  " && printf 'set 802-1x.password %s\\nsave\\nquit\\n' \"$pw\" | nmcli connection edit uuid \"$u\" >/dev/null" +
-  " && nmcli connection up uuid \"$u\"" +
+  " && printf '802-1x.password:%s\\n' \"$e\" | nmcli connection up uuid \"$u\" passwd-file /dev/stdin" +
   " || { nmcli connection delete uuid \"$u\" >/dev/null 2>&1; false; }"
 
 function networkFailureReason(reason, needsCredentials, reasons) {

@@ -1,6 +1,9 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Nomarchy's work Wi-Fi join keeps the password out of nmcli's history.** The
+  802.1X password went through `nmcli connection edit`, which saves every line
+  it reads to `~/.cache/nmcli-history`; it now reaches nmcli on a pipe.
 - **The battery list widget's percentages read cleanly at any charge.** Below a
   full charge the dark text meant for the fill was drawn over the whole row, so
   the numbers on the empty part looked smudged; it now stops at the fill edge (#791).
