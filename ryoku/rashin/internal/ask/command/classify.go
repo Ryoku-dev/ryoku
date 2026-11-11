@@ -730,6 +730,44 @@ func Elevates(cmd string) bool {
 	return false
 }
 
+// ReadsSecret reports whether cmd names a credential file or a tree that
+// holds them, and which. What a command prints goes to the model, so this
+// holds in every mode: it looks at each word of each segment whether or not
+// the rest of the line could be understood.
+func ReadsSecret(cmd string) (string, bool) {
+	for _, seg := range splitSegments(cmd) {
+		fields := shellFields(seg.text)
+		if argv := stripEnvAssignments(fields); len(argv) > 0 && roRecursiveSecretSearch(argv) {
+			return "a folder that holds credentials", true
+		}
+		for _, field := range fields {
+			word := strings.TrimLeft(field, "0123456789<>&")
+			if flag, value, found := strings.Cut(word, "="); found && strings.HasPrefix(flag, "-") {
+				word = value
+			}
+			if !pathLike(word) {
+				continue
+			}
+			if marker, secret := SecretPath(word); secret {
+				return marker, true
+			}
+		}
+	}
+	return "", false
+}
+
+// pathLike tells a word that can name a file from one that is a message or a
+// plain argument, so "fix the token refresh" is not taken for a credential.
+func pathLike(word string) bool {
+	switch {
+	case word == "" || strings.HasPrefix(word, "-"):
+		return false
+	case strings.Contains(word, "/") || strings.HasPrefix(word, "~"):
+		return true
+	}
+	return !strings.ContainsAny(word, " \t\n") && strings.ContainsAny(word, "._")
+}
+
 // Classify returns the highest safety tier across a shell command and a short reason.
 func Classify(cmd string) (tier, reason string) {
 	t, reason := classify(cmd)

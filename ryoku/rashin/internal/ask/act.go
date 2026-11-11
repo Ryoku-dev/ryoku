@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	i18n "ryoku-i18n"
@@ -26,7 +25,6 @@ import (
 // still looked at by a person.
 
 const (
-	actTimeout    = 2 * time.Minute
 	actOutput     = 24 * 1024
 	writeLimit    = 256 * 1024
 	replaceLimit  = 512 * 1024
@@ -35,6 +33,7 @@ const (
 	optionAlways  = "always"
 	optionRefuse  = "refuse"
 	refusedToTool = "The user refused this. Do not try the same change another way. Tell them it was not done and ask what they want instead."
+	runItYourself = "Not proposed: the user allowed you to run commands in this conversation, and none of these needs root. Call run_command for each one now, then answer from what they print. Propose only a command that needs root."
 )
 
 var actToolset = []llm.Tool{
@@ -48,6 +47,39 @@ func acts(mode string) bool {
 }
 
 func actTool(name string) bool { return name == "run_command" || name == "write_file" }
+
+// escalates reports a system_query that is more than a read in a session
+// allowed to act. It is cleared and run like run_command: turning it down
+// sent the model to propose, and the user who had said "go ahead" was handed
+// a command to run by hand.
+func escalates(call llm.ToolCall, mode string) bool {
+	if call.Name != "system_query" || !acts(mode) {
+		return false
+	}
+	var args struct {
+		Command string `json:"command"`
+	}
+	return decodeArgs(call.Arguments, &args) == nil && !command.ReadOnly(args.Command)
+}
+
+// handsBack reports a propose that Ask could carry out itself in mode: every
+// command in it runs as the user. Out of habit a model proposes what it was
+// told it may run.
+func handsBack(call llm.ToolCall, mode string) bool {
+	if call.Name != "propose" || !acts(mode) {
+		return false
+	}
+	plan, err := proposedPlan(call.Arguments)
+	if err != nil {
+		return false
+	}
+	for _, planned := range plan.Commands {
+		if planned.Tier != protocol.TierRead && planned.Tier != protocol.TierWrite || command.Elevates(planned.Command) {
+			return false
+		}
+	}
+	return true
+}
 
 // waits reports whether one change waits for the user. Reading never does and
 // a destructive command always does; between them the mode decides, unless
@@ -109,6 +141,9 @@ func (r *runner) runCommand(ctx context.Context, call llm.ToolCall, sink core.Si
 	if command.Elevates(args.Command) {
 		return fail(i18n.T("Refused: this needs a password on a terminal, which Ask does not have. Use propose so the user can run it there."))
 	}
+	if marker, secret := command.ReadsSecret(args.Command); secret {
+		return fail(i18n.Tf("Refused: this names %s, and what a command prints is sent to the model. Use propose so the user can run it themselves.", marker))
+	}
 	tier, _ := command.Classify(args.Command)
 	sink.Emit(protocol.EvTool, protocol.ToolData{Call: call.ID, Title: title, Kind: protocol.ToolExecute, Status: protocol.ToolPending, Input: args.Command})
 	if waits(mode, tier, command.ReadOnly(args.Command), r.allowedAll()) {
@@ -121,7 +156,7 @@ func (r *runner) runCommand(ctx context.Context, call llm.ToolCall, sink core.Si
 		}
 	}
 	sink.Emit(protocol.EvTool, protocol.ToolData{Call: call.ID, Status: protocol.ToolRunning})
-	output, err := runBounded(ctx, actTimeout, cwd, actOutput, "sh", "-c", args.Command)
+	output, err := runBounded(ctx, commandTimeout, cwd, actOutput, "sh", "-c", args.Command)
 	status := protocol.ToolDone
 	if err != nil {
 		status = protocol.ToolFailed

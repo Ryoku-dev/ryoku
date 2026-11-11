@@ -497,6 +497,12 @@ func roLex(cmd string) (segs [][]string, reads []string, reason string) {
 		case r == '(' || r == ')':
 			return nil, nil, "opens a subshell"
 		case r == '{' || r == '}':
+			// {} alone is the word find and xargs put a name in, not a group
+			if r == '{' && i+1 < n && runes[i+1] == '}' && (i+2 == n || roWordEnd(runes[i+2])) {
+				cur = append(cur, "{}")
+				i += 2
+				continue
+			}
 			return nil, nil, "opens a brace group"
 		case r == '`':
 			return nil, nil, "runs a command substitution"
@@ -957,6 +963,7 @@ func init() {
 	roAllow["mawk"] = roAwk
 	roAllow["sed"] = roSed
 	roAllow["find"] = roFind
+	roAllow["xargs"] = roXargs
 	roAllow["tree"] = roTree
 	roAllow["ss"] = roSs
 	roAllow["sensors"] = roSensors
@@ -1510,7 +1517,22 @@ func roFind(args []string) (bool, string) {
 		"-print": true, "-print0": true, "-printf": true, "-ls": true, "-prune": true, "-quit": true,
 		"-a": true, "-and": true, "-o": true, "-or": true, "-not": true,
 	}
-	for _, arg := range args {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "-exec" || arg == "-execdir" {
+			end := i + 1
+			for end < len(args) && args[end] != ";" && args[end] != "+" {
+				end++
+			}
+			if end == len(args) {
+				return false, "`find " + arg + "` has no end"
+			}
+			if ok, reason := roRunsOnNames("find "+arg, args[i+1:end]); !ok {
+				return false, reason
+			}
+			i = end
+			continue
+		}
 		if !strings.HasPrefix(arg, "-") || arg == "-" {
 			continue
 		}
@@ -1527,6 +1549,41 @@ func roFind(args []string) (bool, string) {
 		}
 	}
 	return true, ""
+}
+
+// roOnNames are the tools find -exec and xargs may hand names to: each says
+// something about a file (its size, kind, owner, checksum) and none prints
+// what is in it, so a walk over a whole tree cannot spill a secret.
+var roOnNames = map[string]bool{
+	"du": true, "ls": true, "stat": true, "file": true, "wc": true,
+	"basename": true, "dirname": true, "realpath": true, "readlink": true,
+	"echo": true, "printf": true, "test": true,
+	"md5sum": true, "sha1sum": true, "sha256sum": true, "b2sum": true,
+}
+
+// roRunsOnNames admits the command a walker runs on what it found, by the
+// same rules that command meets when it stands alone.
+func roRunsOnNames(walker string, argv []string) (bool, string) {
+	if len(argv) == 0 {
+		return false, "`" + walker + "` runs nothing"
+	}
+	if !roOnNames[argv[0]] {
+		return false, "`" + walker + " " + argv[0] + "` may print or change what it is handed"
+	}
+	return roCheckSegment(argv)
+}
+
+func roXargs(args []string) (bool, string) {
+	rest, reason := roParseFlags("xargs", args, roFlags(
+		[]string{"-0", "--null", "-r", "--no-run-if-empty", "-t", "--verbose", "-x", "--exit"},
+		[]string{"-d", "--delimiter", "-n", "--max-args", "-L", "--max-lines", "-P", "--max-procs", "-s", "--max-chars", "-I", "--replace", "-E"}), true)
+	if reason != "" {
+		return false, reason
+	}
+	if len(rest) == 0 {
+		return true, ""
+	}
+	return roRunsOnNames("xargs", rest)
 }
 
 func roTree(args []string) (bool, string) {

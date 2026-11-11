@@ -43,6 +43,11 @@ func askTools(mode string) []llm.Tool {
 	return append(append(make([]llm.Tool, 0, len(askToolset)+len(actToolset)), askToolset...), actToolset...)
 }
 
+// commandTimeout is how long one command may run. A walk over a whole home
+// folder takes a minute on a full disk, and cutting it at fifteen seconds
+// turned "which file is largest" into a command for the user to run.
+const commandTimeout = 2 * time.Minute
+
 func schema(value string) json.RawMessage { return json.RawMessage(value) }
 
 func (f *Factory) runTool(ctx context.Context, call llm.ToolCall, terminal *protocol.TerminalContext) (string, *protocol.CommandPlan, error) {
@@ -61,7 +66,7 @@ func (f *Factory) runTool(ctx context.Context, call llm.ToolCall, terminal *prot
 		if reason := command.WhyNotReadOnly(args.Command); reason != "" {
 			return i18n.Tf("Refused: %s. Use propose so the user can review and run this command.", reason), nil, nil
 		}
-		out, err := runBounded(ctx, 15*time.Second, cwd, 16*1024, "sh", "-c", args.Command)
+		out, err := runBounded(ctx, commandTimeout, cwd, 16*1024, "sh", "-c", args.Command)
 		return out, nil, err
 	case "read_file":
 		var args struct {
@@ -457,7 +462,7 @@ func runBounded(parent context.Context, timeout time.Duration, cwd string, capBy
 		text += "\n[output trimmed]"
 	}
 	if ctx.Err() == context.DeadlineExceeded {
-		return text, fmt.Errorf("%s", i18n.T("The command timed out."))
+		return text, fmt.Errorf(i18n.T("The command was stopped after %d seconds without finishing. Narrow what it looks at, or use propose so the user can run it in a terminal."), int(timeout.Seconds()))
 	}
 	if err != nil {
 		return text, fmt.Errorf(i18n.T("The command failed: %v"), err)

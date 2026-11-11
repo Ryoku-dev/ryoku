@@ -114,6 +114,7 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 	var usage protocol.TokenUsage
 	var last llm.Final
 	var plan *protocol.CommandPlan
+	handedBack := false
 	for round := range rounds {
 		stream, err := r.factory.client.Stream(ctx, llm.Request{
 			Model: model, Strict: strict, Messages: messages, Tools: askTools(mode), MaxTokens: 4096,
@@ -181,7 +182,15 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 		}
 
 		for _, call := range calls {
-			if actTool(call.Name) {
+			if !handedBack && handsBack(call, mode) {
+				// said once a turn: a model that proposes again means it
+				handedBack = true
+				messages = append(messages, llm.Message{
+					Role: llm.RoleTool, ToolCallID: call.ID, Name: call.Name, Content: runItYourself,
+				})
+				continue
+			}
+			if actTool(call.Name) || escalates(call, mode) {
 				output, _ := r.act(ctx, call, sink, cwd)
 				messages = append(messages, llm.Message{
 					Role: llm.RoleTool, ToolCallID: call.ID, Name: call.Name, Content: output,

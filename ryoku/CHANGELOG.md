@@ -114,6 +114,17 @@
 - **An answer no longer offers a folder as a command.** Naming `/proc` or
   `/dev/null` in passing made buttons that opened or ran them
   (`rashin/internal/ask/answer.go`).
+- **Ask set to act runs the command instead of handing it to you.** A
+  command it could not prove harmless was turned down whatever the setting,
+  so with YOLO on it still ended in a command for you to run. The setting
+  decides now: it runs, or asks first. A model that proposes out of habit is
+  told once to run it itself (`rashin/internal/ask/act.go`).
+- **Ask finishes the slow reads.** `find ... -exec du` and `xargs du` count as
+  reads, and a command gets two minutes where it had fifteen seconds, so
+  "which file is largest" is answered with the file
+  (`rashin/internal/ask/command/readonly.go`).
+- **A command that names a credential never runs from Ask.** Not with YOLO
+  either: what a command prints is sent to the model.
 - **Opening an agent session by its id opens it in Agents.** `rashin-app
   --session <id>` and `rashin open --session <id>` showed it as an empty ask.
 - **Ryotunes picks floating or tiled itself.** Its own setting decides on niri

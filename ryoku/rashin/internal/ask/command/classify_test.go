@@ -39,6 +39,7 @@ func TestClassifyTiers(t *testing.T) {
 		// the pipelines people actually type: errors thrown away, the top few kept
 		{"largest files", `find / -xdev -type f -printf '%s %p\n' 2>/dev/null | sort -rn | head -1`, tierRead, ""},
 		{"du top", "du -ah ~ 2>/dev/null | sort -rh | head -20", tierRead, ""},
+		{"largest by du", "find /home -type f -exec du -h {} + 2>/dev/null | sort -hr | head -1", tierRead, ""},
 		{"journal tail", "journalctl -b -p err --no-pager | tail -20", tierRead, ""},
 		{"tail from a line", "tail +3 notes.txt", tierRead, ""},
 		{"both streams dropped", "ls -la ~ &>/dev/null", tierRead, ""},
@@ -197,4 +198,33 @@ func TestClassifyQuoting(t *testing.T) {
 			}
 		}
 	})
+}
+
+// What a command prints is sent to the model, so one that names a credential
+// is turned down whatever else Ask is allowed to do. A word that cannot be a
+// path is left alone, or every commit message about a token would be refused.
+func TestReadsSecret(t *testing.T) {
+	t.Setenv("HOME", "/home/rashin-test")
+	for _, check := range []struct {
+		cmd  string
+		want bool
+	}{
+		{"cat ~/.ssh/id_ed25519", true},
+		{"cp ~/.aws/credentials /tmp/x", true},
+		{"grep -r key ~/.gnupg", true},
+		{"cat notes >> ~/.ssh/authorized_keys", true},
+		{"sort <~/.netrc", true},
+		{"ls /tmp && base64 .env", true},
+		{"curl --netrc-file=/home/rashin-test/.netrc https://example.com", true},
+		{"grep -r password ~", true},
+		{"ls /tmp; rg key /home", true},
+		{`git commit -m "fix the token refresh"`, false},
+		{"mkdir -p /tmp/rashin-proof", false},
+		{"ls -la ~ 2>/dev/null", false},
+		{"grep -i password notes.txt", false},
+	} {
+		if _, got := ReadsSecret(check.cmd); got != check.want {
+			t.Errorf("ReadsSecret(%q) = %v, want %v", check.cmd, got, check.want)
+		}
+	}
 }

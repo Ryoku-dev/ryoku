@@ -423,3 +423,111 @@ func TestAskModeIsOneOfThree(t *testing.T) {
 		t.Fatal("a refused mode still changed the session")
 	}
 }
+
+// A model reaches for system_query whatever the command does. In a session
+// allowed to act the mode decides what happens to one that changes something:
+// it used to be turned down with "use propose", so with "without asking" set
+// the user was still handed a command to run by hand.
+func TestAQueryThatChangesSomethingFollowsTheMode(t *testing.T) {
+	free := filepath.Join(t.TempDir(), "free")
+	ask, _, sink := actingAsk(t, protocol.ApprovalsAuto, call("c1", "system_query", map[string]string{"command": "touch " + free + " && echo made"}))
+	finished(t, turn(t, ask, sink))
+	if _, err := os.Stat(free); err != nil {
+		t.Fatal("without asking, the command did not run")
+	}
+	if status, output := sink.toolOutcome("c1"); status != protocol.ToolDone || output != "made" {
+		t.Fatalf("the call reported %q %q", status, output)
+	}
+	if asked := sink.of(protocol.EvPermission); len(asked) != 0 {
+		t.Fatalf("without asking, the user was asked: %#v", asked)
+	}
+
+	asked := filepath.Join(t.TempDir(), "asked")
+	ask, _, sink = actingAsk(t, protocol.ApprovalsAsk, call("c1", "system_query", map[string]string{"command": "touch " + asked}))
+	done := turn(t, ask, sink)
+	request := sink.request(t, 1)
+	if _, err := os.Stat(asked); err == nil {
+		t.Fatal("asking first, the command ran before the answer")
+	}
+	if err := ask.Permission(request.Request, optionAllow); err != nil {
+		t.Fatal(err)
+	}
+	finished(t, done)
+	if _, err := os.Stat(asked); err != nil {
+		t.Fatal("the allowed command did not run")
+	}
+
+	never := filepath.Join(t.TempDir(), "never")
+	ask, client, sink := actingAsk(t, protocol.ApprovalsReadOnly, call("c1", "system_query", map[string]string{"command": "touch " + never}))
+	finished(t, turn(t, ask, sink))
+	if _, err := os.Stat(never); err == nil {
+		t.Fatal("a read-only Ask ran a command that changes the machine")
+	}
+	if told := client.calls[1].Messages[len(client.calls[1].Messages)-1].Content; !strings.Contains(told, "Use propose") {
+		t.Fatalf("a read-only Ask was told %q", told)
+	}
+}
+
+// A model proposes out of habit. In a session allowed to act it is told once
+// to run the commands itself, and the answer carries no plan for the user. A
+// plan that needs root, or a second proposal, stands.
+func TestAProposalAskCouldCarryOutIsHandedBackOnce(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "made")
+	plan := map[string]any{"summary": "Make it", "commands": []map[string]string{{"command": "touch " + target}}}
+	ask, client, sink := actingAsk(t, protocol.ApprovalsAuto,
+		call("c1", "propose", plan),
+		call("c2", "run_command", map[string]string{"command": "touch " + target, "why": "make it"}),
+	)
+	finished(t, turn(t, ask, sink))
+	if told := client.calls[1].Messages[len(client.calls[1].Messages)-1]; told.ToolCallID != "c1" || !strings.Contains(told.Content, "Call run_command") {
+		t.Fatalf("the model was told %#v", told)
+	}
+	if _, err := os.Stat(target); err != nil {
+		t.Fatal("the command was not run")
+	}
+	if answer := sink.of(protocol.EvAnswer); len(answer) != 1 || answer[0].(protocol.AnswerData).Plan != nil {
+		t.Fatalf("the answer still hands the user a plan: %#v", answer)
+	}
+
+	ask, _, sink = actingAsk(t, protocol.ApprovalsAuto, call("c1", "propose", plan), call("c2", "propose", plan))
+	finished(t, turn(t, ask, sink))
+	if answer := sink.of(protocol.EvAnswer); len(answer) != 1 || answer[0].(protocol.AnswerData).Plan == nil {
+		t.Fatal("a plan proposed a second time was dropped")
+	}
+
+	root := map[string]any{"commands": []map[string]string{{"command": "sudo pacman -S ripgrep"}}}
+	ask, _, sink = actingAsk(t, protocol.ApprovalsAuto, call("c1", "propose", root))
+	finished(t, turn(t, ask, sink))
+	if answer := sink.of(protocol.EvAnswer); len(answer) != 1 || answer[0].(protocol.AnswerData).Plan == nil {
+		t.Fatal("a plan that needs root was not handed to the user")
+	}
+}
+
+// What a command prints goes to the model, so one that names a credential
+// does not run even where nothing is asked.
+func TestACommandThatNamesACredentialNeverRuns(t *testing.T) {
+	ask, client, sink := actingAsk(t, protocol.ApprovalsAuto,
+		call("c1", "run_command", map[string]string{"command": "cat ~/.ssh/id_ed25519", "why": "look"}),
+		call("c2", "system_query", map[string]string{"command": "cat ~/.ssh/id_ed25519 > /dev/null && cat ~/.ssh/id_ed25519"}),
+	)
+	key := filepath.Join(os.Getenv("HOME"), ".ssh", "id_ed25519")
+	if err := os.MkdirAll(filepath.Dir(key), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(key, []byte("PRIVATE-KEY-BYTES"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	finished(t, turn(t, ask, sink))
+	for _, id := range []string{"c1", "c2"} {
+		if status, output := sink.toolOutcome(id); status != protocol.ToolFailed || !strings.Contains(output, "Refused") {
+			t.Fatalf("%s reported %q %q", id, status, output)
+		}
+	}
+	for _, request := range client.calls {
+		for _, message := range request.Messages {
+			if strings.Contains(message.Content, "PRIVATE-KEY-BYTES") {
+				t.Fatal("the key was sent to the model")
+			}
+		}
+	}
+}
