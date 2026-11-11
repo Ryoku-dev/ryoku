@@ -44,6 +44,9 @@ install)
 		"$destdir/usr/share/licenses/ryoku-rashin/LICENSE"
 	install -Dm644 "$RYOKU_SRC/ryoku/rashin/NOTICE" \
 		"$destdir/usr/share/licenses/ryoku-rashin/NOTICE"
+	# the app draws Material Symbols, whose license ships beside the vendored icons
+	install -Dm644 "$RYOKU_SRC/ryoku/rashin/vendor/github.com/ryoku-dev/ryoku/docs/lithic/library/go/symbols/LICENSE" \
+		"$destdir/usr/share/licenses/ryoku-rashin/LICENSE.material-symbols"
 	if [ "$init" = systemd ]; then
 		for unit in rashind.socket rashind.service ryoku-ai-usage.service ryoku-ai-usage.timer \
 			rashind-routines.service rashind-routines.timer; do

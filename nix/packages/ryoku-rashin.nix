@@ -85,6 +85,8 @@ pkgs.buildGoModule {
       "$out/share/licenses/ryoku-rashin/LICENSE"
     install -Dm644 NOTICE \
       "$out/share/licenses/ryoku-rashin/NOTICE"
+    install -Dm644 vendor/github.com/ryoku-dev/ryoku/docs/lithic/library/go/symbols/LICENSE \
+      "$out/share/licenses/ryoku-rashin/LICENSE.material-symbols"
 
     runHook postInstall
   '';
@@ -92,7 +94,10 @@ pkgs.buildGoModule {
   meta = {
     description = "Ryoku Rashin AI system";
     homepage = "https://github.com/Ryoku-dev/ryoku";
-    license = pkgs.lib.licenses.gpl3Plus;
+    license = [
+      pkgs.lib.licenses.gpl3Plus
+      pkgs.lib.licenses.asl20
+    ];
     mainProgram = "rashin-app";
     platforms = [ "x86_64-linux" ];
   };

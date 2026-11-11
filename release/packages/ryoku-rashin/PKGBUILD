@@ -8,7 +8,9 @@ pkgrel=1
 pkgdesc="Ryoku Rashin AI system"
 arch=('x86_64')
 url="https://ryoku.dev"
-license=('GPL-3.0-or-later')
+# The app's Material Symbols icons are Apache-2.0; the rest of the package is
+# GPL-3.0-or-later.
+license=('GPL-3.0-or-later' 'Apache-2.0')
 # Keep Rashin on the same update as its desktop integration.
 depends=(
   "ryoku-desktop=$pkgver"
