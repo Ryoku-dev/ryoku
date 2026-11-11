@@ -1,6 +1,9 @@
 # Ryoku CLI Changelog
 
 ## Unreleased
+- **Doctor no longer pins Dolphin to the dock on every update (#802).**
+  It read the Stage Editor's own default pins as a user's old ones; it now
+  skips them, keeps an edited pin list as it is and only moves installed apps.
 - **Snapshot cleanup works again after an account is renamed or removed (#798).**
   Snapper refuses every command while `ALLOW_USERS` names a missing account;
   doctor now drops such names, and removing a person in the Hub drops theirs.

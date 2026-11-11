@@ -1997,6 +1997,90 @@ func TestMigrateStageDockStoreMovesShimaStyle(t *testing.T) {
 	}
 }
 
+// Stage's schema writes its own default pins back into stage-editor.json on
+// every save, so doctor must not read them as a user's legacy pins.
+func TestReconcileDockStoreNeverRepinsStageDefaults(t *testing.T) {
+	root := t.TempDir()
+	cfg := filepath.Join(root, "config")
+	apps := filepath.Join(root, "share", "applications")
+	t.Setenv("XDG_CONFIG_HOME", cfg)
+	t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
+	t.Setenv("XDG_DATA_DIRS", filepath.Join(root, "share"))
+	for _, dir := range []string{filepath.Join(cfg, "ryoku", "stage"), apps} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, id := range []string{"org.gnome.Nautilus.desktop", "kitty.desktop", "firefox.desktop"} {
+		if err := os.WriteFile(filepath.Join(apps, id), []byte("[Desktop Entry]\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	shellPath := filepath.Join(cfg, "ryoku", "shell.json")
+	stagePath := filepath.Join(cfg, "ryoku", "stage", "stage-editor.json")
+	write := func(path, body string) {
+		t.Helper()
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	pins := func() []any {
+		t.Helper()
+		raw, err := os.ReadFile(shellPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got map[string]any
+		if err := json.Unmarshal(raw, &got); err != nil {
+			t.Fatal(err)
+		}
+		dock, _ := got["dock"].(map[string]any)
+		list, _ := dock["pinned"].([]any)
+		return list
+	}
+	stageDefaults := `{"dock":{"enable":false,"pinnedApps":["org.kde.dolphin","kitty"]}}`
+
+	t.Run("stage defaults on a box without dolphin", func(t *testing.T) {
+		write(shellPath, `{"dock":{"design":"ryoku"}}`)
+		write(stagePath, stageDefaults)
+		for run := range 2 {
+			if res := reconcileDockStore(false); res.status >= recWarn {
+				t.Fatalf("run %d: %s", run, res.detail)
+			}
+			if got := pins(); len(got) != 0 {
+				t.Fatalf("run %d pinned %v from Stage's defaults", run, got)
+			}
+		}
+	})
+
+	t.Run("an unpinned app stays unpinned", func(t *testing.T) {
+		write(shellPath, `{"dock":{"pinned":["kitty"],"pinnedConfigured":true}}`)
+		write(stagePath, `{"dock":{"pinnedApps":["org.kde.dolphin","firefox"]}}`)
+		for run := range 2 {
+			if res := reconcileDockStore(false); res.status >= recWarn {
+				t.Fatalf("run %d: %s", run, res.detail)
+			}
+			if got := pins(); len(got) != 1 || got[0] != "kitty" {
+				t.Fatalf("run %d pins = %v, want [kitty]", run, got)
+			}
+			// Stage saves again between updates
+			write(stagePath, stageDefaults)
+		}
+	})
+
+	t.Run("legacy stage pins migrate only installed apps", func(t *testing.T) {
+		write(shellPath, `{"dock":{}}`)
+		write(stagePath, `{"dock":{"pinnedApps":["org.kde.dolphin","firefox","nautilus"]}}`)
+		if res := reconcileDockStore(false); res.status != recFixed {
+			t.Fatalf("status = %v: %s", res.status, res.detail)
+		}
+		got := pins()
+		if len(got) != 2 || got[0] != "firefox" || got[1] != "nautilus" {
+			t.Fatalf("pins = %v, want [firefox nautilus]", got)
+		}
+	})
+}
+
 // limineDropFlat mirrors the installer's promote surgery: flat placeholder
 // entries go (with their indented options), default_entry moves off the tree
 // directory, globals and the /+ tree survive untouched.

@@ -15,6 +15,7 @@ import (
 	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/sys"
 	"ryoku-cli/internal/updater"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -1789,9 +1790,9 @@ func reconcileDockStore(checkOnly bool) recResult {
 	} else if !os.IsNotExist(stageErr) {
 		return warnRes(i18n.T("could not read %s: %v"), stagePath, stageErr)
 	}
-	if len(stagePins) > 0 {
+	if len(stagePins) > 0 && !dockPinsConfigured(migrated) {
 		var merged bool
-		migrated, merged, err = mergeDockPins(migrated, stagePins)
+		migrated, merged, err = mergeDockPins(migrated, installedDockPins(stagePins))
 		if err != nil {
 			return warnRes(i18n.T("shell.json does not parse (%v); the shell falls back to defaults"), err)
 		}
@@ -2123,6 +2124,9 @@ func jsonValuesEqual(left, right json.RawMessage) bool {
 	return reflect.DeepEqual(a, b)
 }
 
+// Stage's schema writes these back on every save; they were never user pins
+var stageDefaultDockPins = []string{"org.kde.dolphin", "kitty"}
+
 func migrateStageDockStore(raw []byte) ([]byte, []string, map[string]json.RawMessage, bool, error) {
 	var top map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &top); err != nil {
@@ -2143,13 +2147,15 @@ func migrateStageDockStore(raw []byte) ([]byte, []string, map[string]json.RawMes
 	}
 	var pins []string
 	if oldPins, ok := dock["pinnedApps"]; ok {
-		pins = appendDockPins(nil, oldPins)
-		delete(dock, "pinnedApps")
-		top["dock"], err = encodeObject(dock)
-		if err != nil {
-			return nil, nil, nil, false, err
+		if found := appendDockPins(nil, oldPins); !slices.Equal(found, stageDefaultDockPins) {
+			pins = found
+			delete(dock, "pinnedApps")
+			top["dock"], err = encodeObject(dock)
+			if err != nil {
+				return nil, nil, nil, false, err
+			}
+			changed = true
 		}
-		changed = true
 	}
 
 	legacyShima := map[string]json.RawMessage{}
@@ -2288,6 +2294,40 @@ func mergeDockPins(raw []byte, extra []string) ([]byte, bool, error) {
 		return nil, false, err
 	}
 	return append(out, '\n'), true, nil
+}
+
+// once the user edited the shared list, it alone decides what is pinned
+func dockPinsConfigured(raw []byte) bool {
+	var top struct {
+		Dock struct {
+			PinnedConfigured bool `json:"pinnedConfigured"`
+		} `json:"dock"`
+	}
+	return json.Unmarshal(raw, &top) == nil && top.Dock.PinnedConfigured
+}
+
+// matches nautilus to org.gnome.Nautilus.desktop too
+func installedDockPins(pins []string) []string {
+	user, system := applicationDirs()
+	known := map[string]bool{}
+	for _, dir := range append([]string{user}, system...) {
+		entries, _ := os.ReadDir(dir)
+		for _, entry := range entries {
+			id, ok := strings.CutSuffix(strings.ToLower(entry.Name()), ".desktop")
+			if !ok {
+				continue
+			}
+			known[id] = true
+			known[id[strings.LastIndex(id, ".")+1:]] = true
+		}
+	}
+	var out []string
+	for _, pin := range pins {
+		if known[pin] {
+			out = append(out, pin)
+		}
+	}
+	return out
 }
 
 func mustJSON(value any) json.RawMessage {
