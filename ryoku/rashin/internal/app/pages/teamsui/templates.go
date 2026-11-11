@@ -65,7 +65,7 @@ func (s *TeamStart) Layout(gtx layout.Context, e *env.Env, templates []protocol.
 		children := []layout.FlexChild{
 			layout.Rigid(kit.Text(th.Theme, th.T.Title, th.R.Fg, i18n.T("Start a team"))),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
-			layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg3, i18n.T("Pick what it is for. You can change its members, tools and limits before it is made."))),
+			layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2, i18n.T("Pick what it is for. You can change its members, tools and limits before it is made."))),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 		}
 		if len(templates) == 0 {
@@ -91,8 +91,8 @@ func (s *TeamStart) layoutTemplate(gtx layout.Context, e *env.Env, template prot
 		tablet, create = new(kit.Tablet), new(kit.Plaque)
 		s.tablets[template.ID], s.create[template.ID] = tablet, create
 	}
-	tablet.Pane = th.R.Stone1
-	create.Kind, create.Small, create.Label = kit.PlaqueLine, true, i18n.T("Create")
+	tablet.Pane = th.R.Slab
+	create.Kind, create.Small, create.Label = kit.PlaqueTonal, true, i18n.T("Create")
 	if tablet.Clicked(gtx) || create.Clicked(gtx) {
 		e.NavigateTeams(env.TeamsPlace{Tab: protocol.TabTeams, Draft: env.DraftTeam, Template: template.ID})
 	}

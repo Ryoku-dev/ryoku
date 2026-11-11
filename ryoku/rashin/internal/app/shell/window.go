@@ -236,6 +236,7 @@ func (s *uiShell) persistedPreferences(preferences state.AppPreferences) state.A
 	preferences.SidebarFolded = s.preferences.SidebarFolded
 	preferences.SidePanelOpen = s.preferences.SidePanelOpen
 	preferences.ReduceMotion = s.preferences.ReduceMotion
+	preferences.Contrast, preferences.Tint = s.preferences.Contrast, s.preferences.Tint
 	preferences.MuteNotices = s.preferences.MuteNotices
 	preferences.HiddenSteps = s.preferences.HiddenSteps
 	preferences.Last = lastPlace(s.router.lastRashin)
@@ -257,6 +258,7 @@ func (s *uiShell) environment() *env.Env {
 		Desktop: s.desktop,
 	}
 	e.HiddenSteps, e.HideStep = s.preferences.HiddenSteps, s.hideStep
+	e.Contrast, e.Tint, e.SetLook = s.preferences.Contrast, s.preferences.Tint, s.setLook
 	// the work page owns the dialog, any page may open it
 	e.NewTeamTask = func(team string) { s.work.Ask(e, team) }
 	return e
@@ -431,6 +433,13 @@ func (s *uiShell) setReduceMotion(reduce bool) {
 	s.preferences.ReduceMotion = reduce
 	anim.SetReduce(reduce)
 	s.runtime.hub.Invalidate()
+}
+
+// unknown words fall back to Rashin's own look, and the window restyles on the next frame
+func (s *uiShell) setLook(contrast, tint string) {
+	s.preferences.Contrast, s.preferences.Tint = contrast, tint
+	s.preferences = s.preferences.Normalize()
+	s.runtime.setLook(s.preferences.Contrast, s.preferences.Tint)
 }
 
 // ui.open from the daemon, a second launch, the bar or the command line asking the running app to show something

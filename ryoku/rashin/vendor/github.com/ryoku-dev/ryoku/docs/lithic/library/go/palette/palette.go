@@ -76,57 +76,70 @@ func Load(mode Mode) Palette {
 	return Palette{Roles: roles, Dark: dark, Forced: forced, Source: source}
 }
 
-// FromPalette maps a source palette to the complete Lithic role set.
-func FromPalette(p Palette) Roles {
+// FromPalette maps a source palette to the complete Lithic role set: the
+// palette mapping and selection first, then the look's contrast and tint, then
+// the derived edge and the gold and jasper ink toned on the final stone2.
+func FromPalette(p Palette, look Look) Roles {
 	r := Signature(p.Dark)
 	r.Source = p.Source
-	if p.Source != "wallpaper" && p.Source != "scheme" {
-		accent, ok := p.Roles[tokens.PaletteAccents[tokens.PaletteToned["goldInk"]]]
-		if !ok {
-			return r
+	goldInk := r.GoldInk
+	var tint color.NRGBA
+	tinted := false
+	if p.Source == "wallpaper" || p.Source == "scheme" {
+		role := func(name string, fallback color.NRGBA) color.NRGBA {
+			if value, ok := p.Roles[name]; ok {
+				return value
+			}
+			return fallback
 		}
+		neutrals := tokens.PaletteLight
+		if p.Dark {
+			neutrals = tokens.PaletteDark
+		}
+		if !p.Forced {
+			r.Ground = role(neutrals["ground"], r.Ground)
+			r.Stone1 = role(neutrals["stone1"], r.Stone1)
+			r.Stone2 = role(neutrals["stone2"], r.Stone2)
+			r.Stone3 = role(neutrals["stone3"], r.Stone3)
+			r.Stone4 = role(neutrals["stone4"], r.Stone4)
+			r.Slab = role(neutrals["slab"], r.Slab)
+			r.Field = role(neutrals["field"], r.Field)
+			r.Vein = role(neutrals["vein"], r.Vein)
+			r.Fg = role(neutrals["fg"], r.Fg)
+			r.Fg2 = role(neutrals["fg2"], r.Fg2)
+			r.Fg3 = role(neutrals["fg3"], r.Fg3)
+			if scrim, ok := p.Roles[tokens.PaletteAccents["scrim"]]; ok {
+				alpha := tokens.AlphaScrimLight
+				if p.Dark {
+					alpha = tokens.AlphaScrimDark
+				}
+				r.Scrim = WithAlpha(scrim, alpha)
+			}
+		}
+
+		r.Gold = role(tokens.PaletteAccents[tokens.PaletteToned["goldInk"]], r.Gold)
+		r.OnGold = role(tokens.PaletteAccents["onGold"], r.OnGold)
+		goldInk = r.Gold
+		if sel, ok := p.Roles[tokens.PaletteAccents["sel"]]; ok {
+			r.Sel = sel
+			if toward, ok := p.Roles[tokens.PaletteAccents["selMix"]]; ok {
+				r.Sel = Mix(sel, toward, tokens.AlphaSelMix)
+			}
+		}
+		r.OnSel = role(tokens.PaletteAccents["onSel"], r.OnSel)
+		r.OnSel2 = Mix(r.OnSel, r.Sel, tokens.AlphaOnSel2)
+		r.Jasper = role(tokens.PaletteAccents[tokens.PaletteToned["jasper"]], r.Jasper)
+		tint, tinted = p.Roles[tokens.PaletteAccents["tint"]]
+	} else if accent, ok := p.Roles[tokens.PaletteAccents[tokens.PaletteToned["goldInk"]]]; ok {
 		r.Gold = accent
 		r.OnGold = InkOn(accent)
-		r.GoldInk = contrastTone(accent, r.Stone2, p.Dark)
-		return r
+		goldInk = accent
 	}
 
-	role := func(name string, fallback color.NRGBA) color.NRGBA {
-		if value, ok := p.Roles[name]; ok {
-			return value
-		}
-		return fallback
-	}
-	neutrals := tokens.PaletteLight
-	if p.Dark {
-		neutrals = tokens.PaletteDark
-	}
-	if !p.Forced {
-		r.Ground = role(neutrals["ground"], r.Ground)
-		r.Stone1 = role(neutrals["stone1"], r.Stone1)
-		r.Stone2 = role(neutrals["stone2"], r.Stone2)
-		r.Stone3 = role(neutrals["stone3"], r.Stone3)
-		r.Stone4 = role(neutrals["stone4"], r.Stone4)
-		r.Vein = role(neutrals["vein"], r.Vein)
-		r.Fg = role(neutrals["fg"], r.Fg)
-		r.Fg2 = role(neutrals["fg2"], r.Fg2)
-		r.Fg3 = role(neutrals["fg3"], r.Fg3)
-		if scrim, ok := p.Roles[tokens.PaletteAccents["scrim"]]; ok {
-			alpha := tokens.AlphaScrimLight
-			if p.Dark {
-				alpha = tokens.AlphaScrimDark
-			}
-			r.Scrim = WithAlpha(scrim, alpha)
-		}
-	}
-
-	r.Gold = role(tokens.PaletteAccents[tokens.PaletteToned["goldInk"]], r.Gold)
-	r.OnGold = role(tokens.PaletteAccents["onGold"], r.OnGold)
-	r.GoldInk = contrastTone(r.Gold, r.Stone2, p.Dark)
-	r.Sel = role(tokens.PaletteAccents["sel"], r.Sel)
-	r.OnSel = role(tokens.PaletteAccents["onSel"], r.OnSel)
-	r.OnSel2 = Mix(r.OnSel, r.Sel, tokens.AlphaOnSel2)
-	r.Jasper = contrastTone(role(tokens.PaletteAccents[tokens.PaletteToned["jasper"]], r.Jasper), r.Stone2, p.Dark)
+	r = look.apply(r, tint, tinted)
+	r.Edge = Mix(r.Vein, r.Fg3, tokens.AlphaEdge)
+	r.GoldInk = contrastTone(goldInk, r.Stone2, p.Dark)
+	r.Jasper = contrastTone(r.Jasper, r.Stone2, p.Dark)
 	return r
 }
 

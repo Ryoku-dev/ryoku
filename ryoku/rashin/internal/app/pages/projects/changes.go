@@ -181,8 +181,8 @@ func (c *changesState) layoutBar(gtx layout.Context, e *env.Env, page *pageState
 }
 
 func (c *changesState) layoutOperation(gtx layout.Context, th *look.Theme) layout.Dimensions {
-	c.proceed.Kind, c.proceed.Small, c.proceed.Label = kit.PlaqueLine, true, i18n.T("Continue")
-	c.resolver.Kind, c.resolver.Small, c.resolver.Label = kit.PlaqueQuiet, true, i18n.T("Resolve with an agent")
+	c.proceed.Kind, c.proceed.Small, c.proceed.Label = kit.PlaqueTonal, true, i18n.T("Continue")
+	c.resolver.Kind, c.resolver.Small, c.resolver.Label = kit.PlaqueTonal, true, i18n.T("Resolve with an agent")
 	c.abort.Kind, c.abort.Small, c.abort.Label = kit.PlaqueQuiet, true, i18n.T("Abort")
 	plaques := [...]*kit.Plaque{&c.proceed, &c.resolver, &c.abort}
 	return look.Flow{Gap: 4}.Layout(gtx, len(plaques), func(gtx layout.Context, index int) layout.Dimensions {
@@ -444,6 +444,7 @@ func (c *changesState) layoutFile(gtx layout.Context, e *env.Env, page *pageStat
 	switch {
 	case selected:
 		kit.FillCut(gtx.Ops, bounds, cut, th.R.Sel)
+		kit.PlaceBlade(gtx, th.Theme, bounds, cut, layout.Vertical)
 	case hover > 0:
 		kit.FillCut(gtx.Ops, bounds, cut, palette.WithAlpha(th.R.Stone3, hover))
 	}
@@ -530,11 +531,11 @@ func (c *changesState) layoutCommit(gtx layout.Context, e *env.Env) layout.Dimen
 	c.message.Placeholder = i18n.T("Describe what is staged")
 	c.amend.Label = i18n.T("Amend")
 	c.commit.Kind, c.commit.Small, c.commit.Label = kit.PlaqueGold, true, i18n.T("Commit")
-	c.fetch.Kind, c.fetch.Small, c.fetch.Label = kit.PlaqueQuiet, true, i18n.T("Fetch")
-	c.pull.Kind, c.pull.Small, c.pull.Label = kit.PlaqueQuiet, true, i18n.T("Pull")
-	c.push.Kind, c.push.Small, c.push.Label = kit.PlaqueQuiet, true, i18n.T("Push")
+	c.fetch.Kind, c.fetch.Small, c.fetch.Label = kit.PlaqueTonal, true, i18n.T("Fetch")
+	c.pull.Kind, c.pull.Small, c.pull.Label = kit.PlaqueTonal, true, i18n.T("Pull")
+	c.push.Kind, c.push.Small, c.push.Label = kit.PlaqueTonal, true, i18n.T("Push")
 	c.fetch.Busy, c.pull.Busy, c.push.Busy = c.remote == protocol.MGitFetch, c.remote == protocol.MGitPull, c.remote == protocol.MGitPush
-	c.review.Kind, c.review.Small, c.review.Label = kit.PlaqueLine, true, i18n.T("Send comments to the agent")
+	c.review.Kind, c.review.Small, c.review.Label = kit.PlaqueTonal, true, i18n.T("Send comments to the agent")
 	staged := len(c.groupFiles(changeStaged)) > 0 || c.amend.Value
 	ready := staged && strings.TrimSpace(c.message.Text()) != ""
 	moves := [...]*kit.Plaque{&c.fetch, &c.pull, &c.push}
@@ -544,9 +545,7 @@ func (c *changesState) layoutCommit(gtx layout.Context, e *env.Env) layout.Dimen
 			return layout.UniformInset(th.Sp.S3).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return look.PaneField(gtx, th, gtx.Focused(&c.message.Editor), func(gtx layout.Context) layout.Dimensions {
-							return c.message.Layout(gtx, th.Theme)
-						})
+						return c.message.Layout(gtx, th.Theme)
 					}),
 					layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {

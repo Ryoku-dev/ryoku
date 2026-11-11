@@ -11,13 +11,13 @@ import (
 	"ryoku-rashin/internal/app/look"
 )
 
-// a host or a fingerprint as a small engraved chip
+// a host or a fingerprint as a small engraved chip, a step up from the card it stands on
 func chip(th *look.Theme, value string) layout.Widget {
 	return func(gtx layout.Context) layout.Dimensions {
 		record := op.Record(gtx.Ops)
 		dimensions := layout.Inset{Top: 2, Right: 6, Bottom: 2, Left: 6}.Layout(gtx, kit.Text(th.Theme, th.T.MonoSm, th.R.Fg2, value))
 		call := record.Stop()
-		kit.FillCut(gtx.Ops, image.Rectangle{Max: dimensions.Size}, gtx.Dp(3), th.R.Stone3)
+		kit.FillCut(gtx.Ops, image.Rectangle{Max: dimensions.Size}, gtx.Dp(3), th.R.Field)
 		call.Add(gtx.Ops)
 		return dimensions
 	}
@@ -31,7 +31,7 @@ func chips(th *look.Theme, values []string) layout.Widget {
 	}
 }
 
-// a stone2 plane cut like a tablet under content inset 16
+// a card lifts off the pane as a slab does, cut like a tablet under content inset 16
 func plane(gtx layout.Context, th *look.Theme, body layout.Widget) layout.Dimensions {
 	record := op.Record(gtx.Ops)
 	dimensions := layout.UniformInset(16).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -39,7 +39,9 @@ func plane(gtx layout.Context, th *look.Theme, body layout.Widget) layout.Dimens
 		return body(gtx)
 	})
 	call := record.Stop()
-	kit.FillCut(gtx.Ops, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid), th.R.Stone2)
+	bounds, cut := image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid)
+	kit.FillCut(gtx.Ops, bounds, cut, th.R.Slab)
+	kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(1)), th.R.Vein)
 	call.Add(gtx.Ops)
 	return dimensions
 }

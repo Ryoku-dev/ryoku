@@ -445,11 +445,13 @@ func colorMaterial(ops *op.Ops, ink color.NRGBA) op.CallOp {
 	return record.Stop()
 }
 
-func slab(gtx layout.Context, th *look.Theme, plane color.NRGBA, inset unit.Dp, body layout.Widget) layout.Dimensions {
+func slab(gtx layout.Context, th *look.Theme, inset unit.Dp, body layout.Widget) layout.Dimensions {
 	record := op.Record(gtx.Ops)
 	dimensions := layout.UniformInset(inset).Layout(gtx, body)
 	call := record.Stop()
-	kit.FillCut(gtx.Ops, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid), plane)
+	bounds, cut := image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid)
+	kit.FillCut(gtx.Ops, bounds, cut, th.R.Slab)
+	kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(1)), th.R.Vein)
 	call.Add(gtx.Ops)
 	return dimensions
 }

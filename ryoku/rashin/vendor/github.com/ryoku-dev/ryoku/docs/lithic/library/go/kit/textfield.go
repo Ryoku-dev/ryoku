@@ -9,17 +9,16 @@ import (
 	"gioui.org/op"
 	"gioui.org/unit"
 	"gioui.org/widget"
-	material "golang.org/x/exp/shiny/materialdesign/icons"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
-	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/symbols"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 )
 
 var (
-	iconVisibility    = Icon(material.ActionVisibility)
-	iconVisibilityOff = Icon(material.ActionVisibilityOff)
+	iconVisibility    = Icon(symbols.Visibility)
+	iconVisibilityOff = Icon(symbols.VisibilityOff)
 )
 
 // TextField is a labelled single-line editor with help and error text.
@@ -64,7 +63,7 @@ func (f *TextField) Layout(gtx layout.Context, th *theme.Theme) layout.Dimension
 	var children [5]layout.FlexChild
 	count := 0
 	if f.Label != "" {
-		children[count] = layout.Rigid(Text(th, th.T.Caption, disabledInk(gtx, th.R.Fg3), f.Label))
+		children[count] = layout.Rigid(Text(th, th.T.Detail, th.R.Fg2, f.Label))
 		count++
 		children[count] = layout.Rigid(layout.Spacer{Height: unit.Dp(tokens.SizeTextFieldLabelGap)}.Layout)
 		count++
@@ -78,16 +77,8 @@ func (f *TextField) Layout(gtx layout.Context, th *theme.Theme) layout.Dimension
 		size := gtx.Constraints.Constrain(image.Pt(width, height))
 		bounds := image.Rectangle{Max: size}
 		cut := gtx.Dp(th.Cut.Mid)
-		FillCut(gtx.Ops, bounds, cut, disabledInk(gtx, th.R.Stone3))
-		outline := th.R.Fg2
-		alpha := previewTransition(gtx, &f.focus, f.Preview, StateFocus, gtx.Focused(&f.Editor), th.Motion.FocusIn, th.Motion.FocusOut)
-		if f.Error != "" {
-			outline = th.R.Jasper
-			alpha = 1
-		}
-		if alpha > 0 {
-			StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeTextFieldStroke))), disabledInk(gtx, palette.WithAlpha(outline, alpha)))
-		}
+		focus := previewTransition(gtx, &f.focus, f.Preview, StateFocus, gtx.Focused(&f.Editor), th.Motion.FocusIn, th.Motion.FocusOut)
+		drawFieldSurface(gtx, th, bounds, cut, th.R.Field, focus, f.Error != "")
 
 		innerWidth := max(0, size.X-2*gtx.Dp(unit.Dp(tokens.SizeTextFieldInset)))
 		if f.Secret {

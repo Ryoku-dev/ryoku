@@ -14,6 +14,7 @@ import (
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 	"ryoku-i18n"
 )
 
@@ -101,7 +102,7 @@ func (p *picker) Layout(gtx layout.Context, th *Theme, options []SelectOption, s
 			}
 		}
 	}
-	p.cursor = min(p.cursor, max(0, len(p.matches)-1))
+	p.cursor = p.usable(options, min(p.cursor, max(0, len(p.matches)-1)), 1)
 
 	tag := p.focus(searched)
 	filters := []event.Filter{
@@ -123,13 +124,15 @@ func (p *picker) Layout(gtx layout.Context, th *Theme, options []SelectOption, s
 		}
 		switch pressed.Name {
 		case key.NameUpArrow:
-			p.cursor = (p.cursor + len(p.matches) - 1) % len(p.matches)
+			p.cursor = p.usable(options, p.cursor-1, -1)
 			p.reveal()
 		case key.NameDownArrow:
-			p.cursor = (p.cursor + 1) % len(p.matches)
+			p.cursor = p.usable(options, p.cursor+1, 1)
 			p.reveal()
 		default:
-			picked = p.matches[p.cursor]
+			if index := p.matches[p.cursor]; !options[index].Disabled {
+				picked = index
+			}
 		}
 	}
 
@@ -162,13 +165,14 @@ func (p *picker) Layout(gtx layout.Context, th *Theme, options []SelectOption, s
 		return p.list.Layout(gtx, th, len(p.matches), func(gtx layout.Context, at int) layout.Dimensions {
 			index := p.matches[at]
 			row := &p.rows[index]
-			if row.click.Clicked(gtx) {
+			disabled := options[index].Disabled
+			if row.click.Clicked(gtx) && !disabled {
 				picked = index
 			}
-			if row.click.Hovered() {
+			if row.click.Hovered() && !disabled {
 				hovered = at
 			}
-			return p.layoutRow(gtx, th, row, options[index], index == selected, at == p.cursor)
+			return p.layoutRow(gtx, th, row, options[index], index == selected, at == p.cursor && !disabled)
 		})
 	}))
 	dimensions := layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
@@ -194,40 +198,62 @@ func (p *picker) reveal() {
 	}
 }
 
+// the nearest row from at, stepping by step and wrapping, that can be picked; at itself when none can
+func (p *picker) usable(options []SelectOption, at, step int) int {
+	count := len(p.matches)
+	if count == 0 {
+		return 0
+	}
+	for tried := range count {
+		if candidate := ((at+step*tried)%count + count) % count; !options[p.matches[candidate]].Disabled {
+			return candidate
+		}
+	}
+	return (at%count + count) % count
+}
+
 // a row is as tall as what it says: a second line wraps, it is never cut
 func (p *picker) layoutRow(gtx layout.Context, th *Theme, row *pickerRow, option SelectOption, chosen, raised bool) layout.Dimensions {
 	width := gtx.Constraints.Max.X
-	inset, glyph := gtx.Dp(8), gtx.Dp(18)
-	left := inset + glyph + gtx.Dp(10)
+	inset, glyph, gap := gtx.Dp(12), gtx.Dp(18), gtx.Dp(10)
 	gtx.Constraints.Min = image.Point{}
+	if option.Disabled {
+		// drawn at alpha.disabled by the kit's text, and screen readers hear it as unavailable
+		gtx = gtx.Disabled()
+	}
 	return row.click.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		semantic.Button.Add(gtx.Ops)
 		semantic.LabelOp(option.Label).Add(gtx.Ops)
 		semantic.SelectedOp(chosen).Add(gtx.Ops)
+		semantic.EnabledOp(!option.Disabled).Add(gtx.Ops)
 		record := op.Record(gtx.Ops)
 		content := gtx
-		content.Constraints = layout.Constraints{Max: image.Pt(max(0, width-left-gtx.Dp(12)), gtx.Constraints.Max.Y)}
+		content.Constraints = layout.Constraints{Max: image.Pt(max(0, width-2*inset-glyph-gap), gtx.Constraints.Max.Y)}
 		said := layout.Flex{Axis: layout.Vertical}.Layout(content,
-			layout.Rigid(kit.RawText(th.Theme, th.T.Label, th.R.Fg, option.Label)),
+			layout.Rigid(kit.Text(th.Theme, th.T.Label, th.R.Fg, option.Label)),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				if option.Detail == "" {
 					return layout.Dimensions{}
 				}
-				return layout.Inset{Top: 2}.Layout(gtx, Paragraph(th, th.T.Caption, th.R.Fg3, option.Detail))
+				return layout.Inset{Top: 2}.Layout(gtx, Paragraph(th, th.T.Detail, th.R.Fg2, option.Detail))
 			}),
 		)
 		call := record.Stop()
 		size := image.Pt(width, max(gtx.Dp(36), said.Size.Y+gtx.Dp(16)))
 		hover := Transition(gtx, &row.hover, raised, th.Motion.HoverIn, th.Motion.HoverOut)
 		if hover > 0 {
-			kit.FillCut(gtx.Ops, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Small), palette.Mix(th.R.Stone4, th.R.Fg, .08*hover))
+			kit.FillCut(gtx.Ops, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Small), palette.Mix(th.R.Stone4, th.R.Fg, tokens.AlphaHoverPlane*hover))
 		}
 		top := (size.Y - said.Size.Y) / 2
 		if chosen {
-			// beside the name, wherever the second line ends
-			PlaceIcon(gtx, Icon.Check, image.Pt(inset, top+(gtx.Sp(th.T.Label.Line)-glyph)/2), 18, th.R.Fg)
+			// at the trailing edge as the menu marks it, level with the name wherever the second line ends
+			ink := th.R.Fg2
+			if option.Disabled {
+				ink = palette.WithAlpha(ink, tokens.AlphaDisabled)
+			}
+			PlaceIcon(gtx, Icon.Check, image.Pt(width-inset-glyph, top+(gtx.Sp(th.T.Label.Line)-glyph)/2), 18, ink)
 		}
-		offset := op.Offset(image.Pt(left, top)).Push(gtx.Ops)
+		offset := op.Offset(image.Pt(inset, top)).Push(gtx.Ops)
 		call.Add(gtx.Ops)
 		offset.Pop()
 		return layout.Dimensions{Size: size}

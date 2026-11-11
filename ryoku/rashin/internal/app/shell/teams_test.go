@@ -39,11 +39,11 @@ func TestEveryTeamsRouteParses(t *testing.T) {
 	}
 }
 
-func TestTheTeamsButtonSwitchesModesBothWays(t *testing.T) {
+func TestTheModeSwitchGoesBothWays(t *testing.T) {
 	stage := newStage(t, image.Pt(1440, 900))
-	stage.click("Teams  Ctrl T")
+	stage.click("Teams")
 	if stage.shell.router.Tab != protocol.TabInbox || !stage.shell.router.TeamsMode() {
-		t.Fatalf("the Teams button went to %q, want the Inbox", stage.shell.router.Tab)
+		t.Fatalf("the Teams segment went to %q, want the Inbox", stage.shell.router.Tab)
 	}
 	for _, name := range []string{"Inbox", "Teams", "Work", "Routines", "Vault", "Activity"} {
 		if _, ok := stage.named(name); !ok {
@@ -53,9 +53,9 @@ func TestTheTeamsButtonSwitchesModesBothWays(t *testing.T) {
 	if _, ok := stage.named("Projects"); ok {
 		t.Error("Teams mode still shows Rashin's Projects")
 	}
-	stage.click("Back to Rashin  Ctrl T")
+	stage.click("Rashin")
 	if stage.shell.router.Tab != protocol.TabAsk || stage.shell.router.TeamsMode() {
-		t.Fatalf("the button back went to %q, want Ask", stage.shell.router.Tab)
+		t.Fatalf("the Rashin segment went to %q, want Ask", stage.shell.router.Tab)
 	}
 	for _, name := range []string{"Ask", "Agents", "Projects", "Index"} {
 		if _, ok := stage.named(name); !ok {

@@ -22,7 +22,7 @@ func (progress BladeProgress) Layout(gtx layout.Context, th *theme.Theme) layout
 	height := max(1, gtx.Dp(tokens.SizeBladeTrack))
 	size := gtx.Constraints.Constrain(image.Pt(gtx.Constraints.Max.X, height))
 	track := image.Rectangle{Max: size}
-	FillCut(gtx.Ops, track, 0, th.R.Stone3)
+	FillCut(gtx.Ops, track, 0, th.R.Field)
 	start, end := 0, 0
 	if progress.Fraction < 0 {
 		if progress.Active && size.X > 0 {

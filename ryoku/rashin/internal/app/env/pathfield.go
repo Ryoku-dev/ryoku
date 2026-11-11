@@ -36,7 +36,7 @@ func (f *PathField) Layout(gtx layout.Context, e *Env) layout.Dimensions {
 	label, help := f.Label, f.Help
 	f.Label, f.Help, f.Mono = "", "", true
 	defer func() { f.Label, f.Help = label, help }()
-	f.browse.Icon, f.browse.Kind, f.browse.Description = look.Icon.FolderOpen, kit.PlaqueLine, i18n.T("Choose a folder")
+	f.browse.Icon, f.browse.Kind, f.browse.Description = look.Icon.FolderOpen, kit.PlaqueTonal, i18n.T("Choose a folder")
 
 	children := make([]layout.FlexChild, 0, 5)
 	if label != "" {

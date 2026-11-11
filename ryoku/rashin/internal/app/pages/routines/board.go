@@ -161,17 +161,12 @@ func (b *board) card(id string) *teamsui.RoutineTablet {
 }
 
 func (b *board) layoutLead(gtx layout.Context, e *env.Env, snapshot state.Snapshot, runs []run) layout.Dimensions {
-	th := e.Theme
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(look.Paragraph(th, th.T.Sentence, th.R.Fg, boardSentence(gtx.Now, snapshot, runs))),
-		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-		layout.Rigid(look.Paragraph(th, th.T.Proof, th.R.Fg2, boardProof(gtx.Now, snapshot))),
-	)
+	return look.Monument(gtx, e.Theme, boardSentence(gtx.Now, snapshot, runs), boardProof(gtx.Now, snapshot))
 }
 
 func (b *board) layoutNoTeam(gtx layout.Context, e *env.Env) layout.Dimensions {
 	th := e.Theme
-	b.start.Kind, b.start.Label = kit.PlaqueLine, i18n.T("Start a team")
+	b.start.Kind, b.start.Label = kit.PlaqueTonal, i18n.T("Start a team")
 	if b.start.Clicked(gtx) {
 		e.NavigateTeams(env.TeamsPlace{Tab: protocol.TabTeams, Draft: env.DraftTeam})
 	}

@@ -5,6 +5,7 @@ import (
 
 	"gioui.org/io/system"
 	"gioui.org/layout"
+	"gioui.org/op"
 	"gioui.org/op/clip"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
@@ -19,7 +20,7 @@ type topBar struct {
 	move                  kit.Click
 	toggle, back, forward kit.IconPlaque
 	search                kit.IconPlaque
-	teams                 kit.IconPlaque
+	mode                  kit.Segmented
 	maximize, close       kit.IconPlaque
 	tips                  [7]look.Tip
 	searchAnchor          image.Rectangle
@@ -34,7 +35,7 @@ type barState struct {
 	// left edge of the content pane, where the frame controls start
 	content int
 	folded  bool
-	// Teams mode, the mark then names it and the Teams button stands selected
+	// Teams mode, the mode switch then stands on Teams
 	teams bool
 }
 
@@ -77,7 +78,7 @@ func (bar *topBar) Layout(gtx layout.Context, s *uiShell, e *env.Env, state barS
 
 	leading, searchEnd := mark, mark
 	if state.ready {
-		leading, searchEnd = bar.layoutControls(gtx, s, e, state, place, set, controls)
+		leading, searchEnd = bar.layoutControls(gtx, s, e, state, place, set, mark, controls)
 	}
 	bar.moveRegion(gtx, image.Rect(0, 0, leading, size.Y))
 	bar.moveRegion(gtx, image.Rect(searchEnd, 0, controls-gtx.Dp(8), size.Y))
@@ -95,21 +96,10 @@ func (bar *topBar) layoutMark(gtx layout.Context, th *look.Theme, state barState
 	}
 	look.Place(gtx, image.Rect(x, (size.Y-glyph)/2, x+glyph, (size.Y+glyph)/2), look.RyokuMark(24, th.R.Fg))
 	end := x + glyph
-	named := !state.ready || (state.class == look.Expanded && !state.folded)
-	if named {
+	// once Rashin answers the mode switch names it, beside the mark or at the end of the bar
+	if !state.ready {
 		look.Place(gtx, image.Rect(end+gtx.Dp(8), 0, end+gtx.Dp(8)+gtx.Dp(200), size.Y), func(gtx layout.Context) layout.Dimensions {
-			word := kit.RawText(th.Theme, th.T.Title, th.R.Fg, i18n.T("Rashin"))
-			if !state.teams {
-				return layout.W.Layout(gtx, word)
-			}
-			// the mode follows the name, quieter, so the mark still reads as Rashin
-			return layout.W.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-					layout.Rigid(word),
-					layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
-					layout.Rigid(kit.RawText(th.Theme, th.T.Title, th.R.Fg3, i18n.T("Teams"))),
-				)
-			})
+			return layout.W.Layout(gtx, kit.RawText(th.Theme, th.T.Title, th.R.Fg, i18n.T("Rashin")))
 		})
 	}
 	return end
@@ -122,13 +112,12 @@ func (bar *topBar) layoutControls(
 	state barState,
 	place func(int, *kit.IconPlaque, *look.Tip, bool),
 	set func(*kit.IconPlaque, string),
-	controls int,
+	mark, controls int,
 ) (int, int) {
 	size := gtx.Constraints.Max
 	plaque, step := gtx.Dp(32), gtx.Dp(36)
 	x := state.content
 	leading := x
-	bar.setTeams(set, state.teams)
 	if state.class == look.Compact {
 		// the list has no pane here, its toggle next to the mark raises it as a sheet
 		set(&bar.toggle, i18n.T("Open the list")+"  Ctrl B")
@@ -142,15 +131,28 @@ func (bar *topBar) layoutControls(
 			bar.searchFocused = false
 			place(x, &bar.search, &bar.tips[3], true)
 			// beside search, and gone while the open field takes the bar
-			teams := x - step
-			place(teams, &bar.teams, &bar.tips[6], true)
+			low := toggle + plaque + gtx.Dp(8)
+			call, mode := bar.recordMode(gtx, s, e, state.teams, x-gtx.Dp(8)-low)
+			left := x - gtx.Dp(8) - mode.X
+			placeCall(gtx, call, image.Pt(left, (size.Y-mode.Y)/2))
 			bar.searchAnchor = image.Rect(gtx.Dp(look.Margin), size.Y, size.X-gtx.Dp(look.Margin), size.Y)
-			bar.moveRegion(gtx, image.Rect(toggle+plaque, 0, teams, size.Y))
+			bar.moveRegion(gtx, image.Rect(toggle+plaque, 0, left, size.Y))
 			return toggle, x + plaque
 		}
 		field := image.Rect(toggle+plaque+gtx.Dp(8), (size.Y-gtx.Dp(44))/2, controls-gtx.Dp(8), (size.Y+gtx.Dp(44))/2)
 		bar.layoutSearch(gtx, s, e, field)
 		return toggle, field.Max.X
+	}
+	// over an open sidebar the switch stands where the name stood, its room is the sidebar's even while it unfolds
+	beside := state.class == look.Expanded && !state.folded
+	if beside {
+		left := mark + gtx.Dp(13)
+		call, mode := bar.recordMode(gtx, s, e, state.teams, gtx.Dp(look.Margin)+gtx.Dp(look.SidebarExpanded)-gtx.Dp(13)-left)
+		placeCall(gtx, call, image.Pt(left, (size.Y-mode.Y)/2))
+		if left+mode.X < x {
+			bar.moveRegion(gtx, image.Rect(left+mode.X, 0, x, size.Y))
+		}
+		leading = left
 	}
 	set(&bar.toggle, i18n.T("Fold the sidebar")+"  Ctrl B")
 	bar.toggle.Icon = look.Icon.SidebarToggle
@@ -165,24 +167,53 @@ func (bar *topBar) layoutControls(
 	place(x+step, &bar.back, &bar.tips[1], s.router.CanBack())
 	place(x+2*step, &bar.forward, &bar.tips[2], s.router.CanForward())
 	x += 2*step + plaque + gtx.Dp(13)
-	// the field gives up room for the Teams button 13 dp to its right
-	room := controls - gtx.Dp(21) - gtx.Dp(13) - plaque
+	if beside {
+		field := image.Rect(x, (size.Y-gtx.Dp(44))/2, min(x+gtx.Dp(520), controls-gtx.Dp(21)), (size.Y+gtx.Dp(44))/2)
+		if field.Dx() >= gtx.Dp(160) {
+			bar.layoutSearch(gtx, s, e, field)
+			x = field.Max.X
+		}
+		return leading, x
+	}
+	// the field gives up room for the mode switch 13 dp to its right
+	call, mode := bar.recordMode(gtx, s, e, state.teams, controls-gtx.Dp(21)-x)
+	room := controls - gtx.Dp(21) - gtx.Dp(13) - mode.X
 	field := image.Rect(x, (size.Y-gtx.Dp(44))/2, min(x+gtx.Dp(520), room), (size.Y+gtx.Dp(44))/2)
 	if field.Dx() >= gtx.Dp(160) {
 		bar.layoutSearch(gtx, s, e, field)
 		x = field.Max.X + gtx.Dp(13)
 	}
-	place(x, &bar.teams, &bar.tips[6], true)
-	return leading, x + plaque
+	placeCall(gtx, call, image.Pt(x, (size.Y-mode.Y)/2))
+	return leading, x + mode.X
 }
 
-// the bone selection says Teams mode stands, the description says where a press goes
-func (bar *topBar) setTeams(set func(*kit.IconPlaque, string), teams bool) {
-	set(&bar.teams, i18n.T("Teams")+"  Ctrl T")
-	bar.teams.Icon = look.Icon.Teams
+// laid out before it is placed, the bar needs its width to share the row
+func (bar *topBar) recordMode(gtx layout.Context, s *uiShell, e *env.Env, teams bool, room int) (op.CallOp, image.Point) {
+	th := e.Theme
+	bar.mode.Labels = append(bar.mode.Labels[:0], i18n.T("Rashin"), i18n.T("Teams"))
+	bar.mode.Selected = 0
+	// the description says where Ctrl T goes from here
+	description := i18n.T("Teams") + "  Ctrl T"
 	if teams {
-		bar.teams.Kind, bar.teams.Description = kit.PlaqueOn, i18n.T("Back to Rashin")+"  Ctrl T"
+		bar.mode.Selected, description = 1, i18n.T("Back to Rashin")+"  Ctrl T"
 	}
+	record := op.Record(gtx.Ops)
+	child := gtx
+	child.Constraints = layout.Constraints{Max: image.Pt(max(0, room), gtx.Constraints.Max.Y)}
+	dimensions := bar.tips[6].Layout(child, th, e.Overlays, description, func(gtx layout.Context) layout.Dimensions {
+		return bar.mode.Layout(gtx, th.Theme)
+	})
+	call := record.Stop()
+	if _, ok := bar.mode.Changed(); ok {
+		s.router.SwitchMode()
+	}
+	return call, dimensions.Size
+}
+
+func placeCall(gtx layout.Context, call op.CallOp, at image.Point) {
+	offset := op.Offset(at).Push(gtx.Ops)
+	call.Add(gtx.Ops)
+	offset.Pop()
 }
 
 func (bar *topBar) layoutSearch(gtx layout.Context, s *uiShell, e *env.Env, field image.Rectangle) {
@@ -238,9 +269,6 @@ func (bar *topBar) handle(gtx layout.Context, s *uiShell) {
 	}
 	if bar.forward.Clicked(gtx) {
 		s.router.Forward()
-	}
-	if bar.teams.Clicked(gtx) {
-		s.router.SwitchMode()
 	}
 	if bar.search.Clicked(gtx) {
 		bar.searchShown = true

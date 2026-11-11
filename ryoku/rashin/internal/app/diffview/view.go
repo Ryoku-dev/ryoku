@@ -454,8 +454,8 @@ func (v *View) layoutComment(gtx layout.Context, th *look.Theme, comment protoco
 		target.Kind = ActDelete
 		v.pending = append(v.pending, target)
 	}
-	control.resolve.Kind, control.resolve.Small, control.resolve.Label = kit.PlaqueQuiet, true, i18n.T("Resolve")
-	plane, ink := th.R.Field(palette.Attention), th.R.Fg
+	control.resolve.Kind, control.resolve.Small, control.resolve.Label = kit.PlaqueTonal, true, i18n.T("Resolve")
+	plane, ink := th.R.MineralField(palette.Attention), th.R.Fg
 	if comment.Resolved {
 		control.resolve.Label = i18n.T("Reopen")
 		plane, ink = th.R.Stone2, th.R.Fg3

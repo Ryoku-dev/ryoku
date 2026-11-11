@@ -339,9 +339,7 @@ func (p *Page) layoutSearch(gtx layout.Context, e *env.Env, info protocol.IndexI
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = gtx.Constraints.Max.X
-			return look.PaneField(gtx, th, gtx.Focused(&p.search.Editor), func(gtx layout.Context) layout.Dimensions {
-				return p.search.Layout(gtx, th.Theme)
-			})
+			return p.search.Layout(gtx, th.Theme)
 		}),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -406,7 +404,7 @@ func (p *Page) layoutHit(gtx layout.Context, e *env.Env, info protocol.IndexInfo
 			p.open = index
 		}
 	}
-	row.file.Kind, row.file.Small, row.file.Icon, row.file.Label = kit.PlaqueLine, true, look.Icon.OpenInNew, i18n.T("Open file")
+	row.file.Kind, row.file.Small, row.file.Icon, row.file.Label = kit.PlaqueTonal, true, look.Icon.OpenInNew, i18n.T("Open file")
 	if row.file.Clicked(gtx) {
 		e.Open(filepath.Join(info.Root, hit.Path))
 	}
@@ -432,7 +430,7 @@ func (p *Page) layoutHit(gtx layout.Context, e *env.Env, info protocol.IndexInfo
 						layout.Flexed(1, kit.RawText(th.Theme, th.T.Label, th.R.Fg2, hit.Symbol)),
 					)
 				}),
-				layout.Rigid(kit.RawText(th.Theme, th.T.Caption, th.R.Fg3, firstLine(hit.Snippet))),
+				layout.Rigid(kit.RawText(th.Theme, th.T.Detail, th.R.Fg2, firstLine(hit.Snippet))),
 			)
 		})
 		return dimensions
@@ -442,15 +440,13 @@ func (p *Page) layoutHit(gtx layout.Context, e *env.Env, info protocol.IndexInfo
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return row.unfold.Layout(gtx, th, p.open == index, func(gtx layout.Context) layout.Dimensions {
 				return layout.Inset{Top: th.Sp.S1, Bottom: th.Sp.S2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return kit.Slab(gtx, th.R.Stone1, th.Cut.Mid, func(gtx layout.Context) layout.Dimensions {
-						return layout.UniformInset(13).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							gtx.Constraints.Min.X = gtx.Constraints.Max.X
-							return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-								layout.Rigid(look.Paragraph(th, th.T.Mono, th.R.Fg2, strings.TrimRight(hit.Snippet, "\n"))),
-								layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
-								layout.Rigid(func(gtx layout.Context) layout.Dimensions { return row.file.Layout(gtx, th.Theme) }),
-							)
-						})
+					return kit.SlabContent(gtx, th.Theme, func(gtx layout.Context) layout.Dimensions {
+						gtx.Constraints.Min.X = gtx.Constraints.Max.X
+						return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+							layout.Rigid(look.Paragraph(th, th.T.Mono, th.R.Fg2, strings.TrimRight(hit.Snippet, "\n"))),
+							layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions { return row.file.Layout(gtx, th.Theme) }),
+						)
 					})
 				})
 			})

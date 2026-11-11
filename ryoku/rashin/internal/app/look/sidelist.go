@@ -428,13 +428,13 @@ func (list *SideList) drawRow(
 	selected, cursor bool,
 ) {
 	size := gtx.Constraints.Max
-	title, quiet := th.R.Fg2, th.R.Fg3
+	title, facts, quiet := th.R.Fg2, th.R.Fg2, th.R.Fg3
 	hovered := state.hover.Hovered() || list.Preview == kit.StateHover || list.Preview == kit.StatePressed
 	if row.Strong || hovered || cursor {
 		title = th.R.Fg
 	}
 	if selected {
-		title, quiet = th.R.OnSel, th.R.OnSel2
+		title, facts, quiet = th.R.OnSel, th.R.OnSel2, th.R.OnSel2
 	}
 	if row.Tone != palette.Idle {
 		kit.Notch(gtx.Ops, image.Point{}, gtx.Dp(8), th.R.Stone(row.Tone))
@@ -457,7 +457,7 @@ func (list *SideList) drawRow(
 	}
 	if row.Icon != nil {
 		pixels := gtx.Dp(18)
-		PlaceIcon(gtx, row.Icon, image.Pt(x, (size.Y-pixels)/2), 18, quiet)
+		PlaceIcon(gtx, row.Icon, image.Pt(x, (size.Y-pixels)/2), 18, title)
 		x += pixels + gtx.Dp(10)
 	}
 
@@ -471,11 +471,11 @@ func (list *SideList) drawRow(
 		list.drawEditor(text, th, row, state)
 	case row.Facts != "":
 		layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceSides}.Layout(text,
-			layout.Rigid(kit.RawText(th.Theme, th.T.Label, title, row.Title)),
-			layout.Rigid(kit.RawText(th.Theme, th.T.Caption, quiet, row.Facts)),
+			layout.Rigid(kit.RawText(th.Theme, th.T.Row, title, row.Title)),
+			layout.Rigid(kit.RawText(th.Theme, th.T.Detail, facts, row.Facts)),
 		)
 	default:
-		layout.W.Layout(text, kit.RawText(th.Theme, th.T.Label, title, row.Title))
+		layout.W.Layout(text, kit.RawText(th.Theme, th.T.Row, title, row.Title))
 	}
 	offset.Pop()
 
@@ -545,17 +545,17 @@ func (list *SideList) drawEditor(gtx layout.Context, th *Theme, row SideRow, sta
 		state.editing = true
 		gtx.Execute(key.FocusCmd{Tag: &state.editor})
 	}
-	line := gtx.Sp(th.T.Label.Line)
+	line := gtx.Sp(th.T.Row.Line)
 	field := image.Rect(-gtx.Dp(6), (gtx.Constraints.Max.Y-line)/2-gtx.Dp(4), gtx.Constraints.Max.X, (gtx.Constraints.Max.Y+line)/2+gtx.Dp(4))
-	kit.FillCut(gtx.Ops, field, gtx.Dp(th.Cut.Token), th.R.Stone4)
+	kit.FillCut(gtx.Ops, field, gtx.Dp(th.Cut.Token), th.R.Field)
 	kit.StrokeCut(gtx.Ops, field, gtx.Dp(th.Cut.Token), max(1, gtx.Dp(1)), th.R.Fg2)
 	ink := colorOp(gtx.Ops, th.R.Fg)
 	selection := colorOp(gtx.Ops, palette.WithAlpha(th.R.Sel, .6))
 	offset := op.Offset(image.Pt(0, (gtx.Constraints.Max.Y-line)/2)).Push(gtx.Ops)
 	editor := gtx
 	editor.Constraints = layout.Exact(image.Pt(max(0, gtx.Constraints.Max.X-gtx.Dp(6)), line))
-	state.editor.LineHeight = th.T.Label.Line
-	state.editor.Layout(editor, th.Shaper, th.T.Label.Face, th.T.Label.Size, ink, selection)
+	state.editor.LineHeight = th.T.Row.Line
+	state.editor.Layout(editor, th.Shaper, th.T.Row.Face, th.T.Row.Size, ink, selection)
 	offset.Pop()
 }
 

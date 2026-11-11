@@ -1,0 +1,12 @@
+Lithic symbols
+==============
+
+symbols.go holds icons from Material Symbols by Google
+(https://github.com/google/material-design-icons), the Sharp style at weight 400
+and 24 px, taken from the official SVGs at commit 10ecc147 (symbols/web/<name>/
+materialsymbolssharp/). They are converted from SVG path data to IconVG; the
+shapes are otherwise unchanged. list.txt names the symbols included.
+
+Material Symbols are released under the Apache License 2.0, whose full text is
+in the LICENSE file beside this notice; that license is compatible with Ryoku's
+GPL-3 distribution.

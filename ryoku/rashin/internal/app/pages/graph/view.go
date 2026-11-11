@@ -55,9 +55,7 @@ func (v *viewState) layoutControls(gtx layout.Context, e *env.Env) layout.Dimens
 			v.focusSearch = false
 			v.search.Focus(gtx)
 		}
-		dimensions := look.PaneField(gtx, th, gtx.Focused(&v.search.Editor), func(gtx layout.Context) layout.Dimensions {
-			return v.search.Layout(gtx, th.Theme)
-		})
+		dimensions := v.search.Layout(gtx, th.Theme)
 		for {
 			raw, ok := v.search.Update(gtx)
 			if !ok {
@@ -72,9 +70,7 @@ func (v *viewState) layoutControls(gtx layout.Context, e *env.Env) layout.Dimens
 	}
 	finder := func(gtx layout.Context) layout.Dimensions {
 		v.finder.Placeholder, v.finder.Hint = i18n.T("Go to a branch"), "Enter"
-		dimensions := look.PaneField(gtx, th, gtx.Focused(&v.finder.Editor), func(gtx layout.Context) layout.Dimensions {
-			return v.finder.Layout(gtx, th.Theme)
-		})
+		dimensions := v.finder.Layout(gtx, th.Theme)
 		for {
 			raw, ok := v.finder.Update(gtx)
 			if !ok {
@@ -202,7 +198,9 @@ func (v *viewState) drawSelection(gtx layout.Context, th *look.Theme, size image
 	target := image.Rect(v.laneColumnWidth(gtx), top+inset, size.X-gtx.Dp(rowEdge), top+height-inset)
 	rect := v.slab.Rect(gtx, v.entries[index].id(), target, th.Motion.Select)
 	area := clip.Rect(image.Rectangle{Max: size}).Push(gtx.Ops)
-	kit.FillCut(gtx.Ops, rect, gtx.Dp(th.Cut.Small), th.R.Sel)
+	cut := gtx.Dp(th.Cut.Small)
+	kit.FillCut(gtx.Ops, rect, cut, th.R.Sel)
+	kit.PlaceBlade(gtx, th.Theme, rect, cut, layout.Vertical)
 	area.Pop()
 }
 

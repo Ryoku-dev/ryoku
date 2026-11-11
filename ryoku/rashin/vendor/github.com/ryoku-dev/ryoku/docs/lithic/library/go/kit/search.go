@@ -9,17 +9,16 @@ import (
 	"gioui.org/op"
 	"gioui.org/unit"
 	"gioui.org/widget"
-	material "golang.org/x/exp/shiny/materialdesign/icons"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
-	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/symbols"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 )
 
 var (
-	iconSearchControl = Icon(material.ActionSearch)
-	iconClearSearch   = Icon(material.NavigationClose)
+	iconSearchControl = Icon(symbols.Search)
+	iconClearSearch   = Icon(symbols.Close)
 )
 
 // Search is a single-line search editor with hint and clear action.
@@ -63,11 +62,8 @@ func (s *Search) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 	size := gtx.Constraints.Constrain(image.Pt(width, height))
 	bounds := image.Rectangle{Max: size}
 	cut := gtx.Dp(th.Cut.Mid)
-	FillCut(gtx.Ops, bounds, cut, disabledInk(gtx, th.R.Stone3))
 	focus := previewTransition(gtx, &s.focus, s.Preview, StateFocus, gtx.Focused(&s.Editor), th.Motion.FocusIn, th.Motion.FocusOut)
-	if focus > 0 {
-		StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeTextFieldStroke))), disabledInk(gtx, palette.WithAlpha(th.R.Fg2, focus)))
-	}
+	drawFieldSurface(gtx, th, bounds, cut, th.R.Field, focus, false)
 
 	iconSize := gtx.Dp(unit.Dp(tokens.SizeSearchIcon))
 	offset := op.Offset(image.Pt(gtx.Dp(unit.Dp(tokens.SizeSearchIconInset)), (size.Y-iconSize)/2)).Push(gtx.Ops)

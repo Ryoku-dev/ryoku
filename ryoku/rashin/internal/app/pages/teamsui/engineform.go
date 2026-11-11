@@ -183,26 +183,21 @@ func (f *EngineForm) harnessField(gtx layout.Context, e *env.Env, defaultLabel s
 	ids := []string{""}
 	choices := []look.SelectOption{{Label: defaultLabel, Detail: i18n.T("Follows the default, so it changes when the default does.")}}
 	found := f.harnessID == ""
+	// a harness that is not installed is listed so it can be seen, but a team cannot start it, so it cannot be picked
 	for _, harness := range snapshot.Harnesses {
 		ids = append(ids, harness.ID)
-		choices = append(choices, look.SelectOption{Label: harness.Name, Detail: harnessState(harness)})
+		choices = append(choices, look.SelectOption{Label: harness.Name, Detail: harnessState(harness), Disabled: !harness.Installed})
 		found = found || harness.ID == f.harnessID
 	}
 	if !found {
 		ids = append(ids, f.harnessID)
-		choices = append(choices, look.SelectOption{Label: f.harnessID, Detail: i18n.T("not installed")})
+		choices = append(choices, look.SelectOption{Label: f.harnessID, Detail: i18n.T("not installed"), Disabled: true})
 	}
 	if index, changed := f.harness.Changed(); changed && index >= 0 && index < len(ids) && ids[index] != f.harnessID {
-		info, known := harnessByID(snapshot.Harnesses, ids[index])
-		if ids[index] != "" && (!known || !info.Installed) {
-			// a harness that is not installed is listed so it can be seen, but a team cannot start it
-			f.result, f.failed = i18n.Tf("%s is not installed on this computer. Settings, Agents installs it.", harnessName(snapshot.Harnesses, ids[index])), true
-		} else {
-			// model ids and options belong to one harness, so another harness starts from its own defaults
-			f.harnessID, f.modelID, f.values, f.text, f.typed = ids[index], "", nil, "", false
-			f.modelText.SetText("")
-			f.result, f.failed, f.changed = "", false, true
-		}
+		// model ids and options belong to one harness, so another harness starts from its own defaults
+		f.harnessID, f.modelID, f.values, f.text, f.typed = ids[index], "", nil, "", false
+		f.modelText.SetText("")
+		f.result, f.failed, f.changed = "", false, true
 	}
 	f.harness.Label = i18n.T("Harness")
 	gtx.Constraints.Min.X = gtx.Constraints.Max.X
@@ -257,7 +252,7 @@ func (f *EngineForm) modelField(gtx layout.Context, e *env.Env) layout.Dimension
 	if !protocol.ValidEngineModel(f.modelID) {
 		f.modelText.Error = i18n.T("A model id has no spaces.")
 	}
-	f.read.Kind, f.read.Small = kit.PlaqueQuiet, true
+	f.read.Kind, f.read.Small = kit.PlaqueTonal, true
 	f.read.Label, f.read.Busy = i18n.T("Read the list"), f.busy
 	if listed {
 		f.read.Label, f.read.Busy = i18n.T("Pick from the list"), false
@@ -428,16 +423,16 @@ func (f *EngineForm) checkRow(gtx layout.Context, e *env.Env) layout.Dimensions 
 	harness, model, options := f.Effective(snapshot)
 	info, known := harnessByID(snapshot.Harnesses, harness)
 	ready := known && info.Installed && !f.busy
-	f.check.Kind, f.check.Small, f.check.Label, f.check.Busy = kit.PlaqueLine, true, i18n.T("Check"), f.busy
+	f.check.Kind, f.check.Small, f.check.Label, f.check.Busy = kit.PlaqueTonal, true, i18n.T("Check"), f.busy
 	if f.check.Clicked(gtx) && ready {
 		f.probe(e, protocol.HarnessProbeParams{ID: harness, Model: model, Options: options}, info.Name, true)
 	}
-	line, ink := i18n.T("Starts the harness once in a sandbox, as a task would, without a prompt."), th.R.Fg3
+	line, style, ink := i18n.T("Starts the harness once in a sandbox, as a task would, without a prompt."), th.T.Caption, th.R.Fg3
 	switch {
 	case f.result != "" && f.failed:
-		line, ink = f.result, th.R.Jasper
+		line, style, ink = f.result, th.T.Detail, th.R.Jasper
 	case f.result != "":
-		line, ink = f.result, th.R.Fg2
+		line, style, ink = f.result, th.T.Detail, th.R.Fg2
 	}
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -447,7 +442,7 @@ func (f *EngineForm) checkRow(gtx layout.Context, e *env.Env) layout.Dimensions 
 			return f.check.Layout(gtx, th.Theme)
 		}),
 		layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
-		layout.Flexed(1, look.Paragraph(th, th.T.Caption, ink, line)),
+		layout.Flexed(1, look.Paragraph(th, style, ink, line)),
 	)
 }
 

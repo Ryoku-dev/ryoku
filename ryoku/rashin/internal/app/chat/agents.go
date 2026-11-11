@@ -10,6 +10,7 @@ import (
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/look"
@@ -69,14 +70,14 @@ func (state *viewState) layoutAgents(gtx layout.Context, th *look.Theme, model *
 		children := model.children[tool.Call]
 		line.expandable = len(agent.Steps) > 0 || agent.Output != "" || len(children) > 0
 		return state.layoutUnfolding(gtx, th, visual, line, func(gtx layout.Context) layout.Dimensions {
-			return slab(gtx, th, th.R.Stone1, 13, func(gtx layout.Context) layout.Dimensions {
+			return slab(gtx, th, 13, func(gtx layout.Context) layout.Dimensions {
 				gtx.Constraints.Min.X = gtx.Constraints.Max.X
 				return state.layoutAgentDetail(gtx, th, model, agent, children, key+":"+agent.ID)
 			})
 		})
 	}
 	return state.layoutUnfolding(gtx, th, visual, line, func(gtx layout.Context) layout.Dimensions {
-		return slab(gtx, th, th.R.Stone1, 8, func(gtx layout.Context) layout.Dimensions {
+		return slab(gtx, th, 8, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = gtx.Constraints.Max.X
 			children := make([]layout.FlexChild, 0, len(tool.Agents)*2)
 			for index, agent := range tool.Agents {
@@ -127,7 +128,7 @@ func (state *viewState) layoutAgentRow(gtx layout.Context, th *look.Theme, model
 			layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
 			layout.Rigid(kit.RawText(th.Theme, th.T.Label, th.R.Fg, name)),
 			layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
-			layout.Flexed(1, kit.RawText(th.Theme, th.T.Caption, th.R.Fg2, agent.Task)),
+			layout.Flexed(1, kit.RawText(th.Theme, th.T.Detail, th.R.Fg2, agent.Task)),
 			layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(260))
@@ -161,7 +162,8 @@ func (state *viewState) layoutAgentRow(gtx layout.Context, th *look.Theme, model
 		return visual.click.Layout(gtx, func(gtx layout.Context) layout.Dimensions { return layout.Dimensions{Size: headSize} })
 	})
 	if expandable && hover > 0 {
-		kit.FillCut(gtx.Ops, image.Rectangle{Max: headSize}, gtx.Dp(th.Cut.Small), palette.WithAlpha(th.R.Stone3, hover))
+		// the rows stand on a slab, so hover lifts toward the ink rather than to another stone
+		kit.FillCut(gtx.Ops, image.Rectangle{Max: headSize}, gtx.Dp(th.Cut.Small), palette.WithAlpha(palette.Mix(th.R.Slab, th.R.Fg, tokens.AlphaHoverPlane), hover))
 	}
 	content.Add(gtx.Ops)
 	if !expandable {

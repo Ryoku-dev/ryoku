@@ -27,7 +27,10 @@ type Roles struct {
 	Stone2  color.NRGBA
 	Stone3  color.NRGBA
 	Stone4  color.NRGBA
+	Slab    color.NRGBA
+	Field   color.NRGBA
 	Vein    color.NRGBA
+	Edge    color.NRGBA
 	Fg      color.NRGBA
 	Fg2     color.NRGBA
 	Fg3     color.NRGBA
@@ -57,7 +60,8 @@ func Signature(dark bool) Roles {
 	r := Roles{
 		Ground: tableColor(table, "ground"), Stone1: tableColor(table, "stone1"),
 		Stone2: tableColor(table, "stone2"), Stone3: tableColor(table, "stone3"),
-		Stone4: tableColor(table, "stone4"), Vein: tableColor(table, "vein"),
+		Stone4: tableColor(table, "stone4"), Slab: tableColor(table, "slab"),
+		Field: tableColor(table, "field"), Vein: tableColor(table, "vein"),
 		Fg: tableColor(table, "fg"), Fg2: tableColor(table, "fg2"), Fg3: tableColor(table, "fg3"),
 		Sel: tableColor(table, "sel"), OnSel: tableColor(table, "onSel"), OnSel2: tableColor(table, "onSel2"),
 		Gold: tableColor(table, "gold"), OnGold: tableColor(table, "onGold"), GoldInk: tableColor(table, "goldInk"),
@@ -65,6 +69,7 @@ func Signature(dark bool) Roles {
 		Jade: tableColor(minerals, "jade"), Lapis: tableColor(minerals, "lapis"), Amber: tableColor(minerals, "amber"),
 		Dark: dark, Source: "signature",
 	}
+	r.Edge = Mix(r.Vein, r.Fg3, tokens.AlphaEdge)
 	return r
 }
 
@@ -84,8 +89,8 @@ func (r Roles) Stone(tone Tone) color.NRGBA {
 	}
 }
 
-// Field returns the mineral field associated with tone.
-func (r Roles) Field(tone Tone) color.NRGBA {
+// MineralField returns the mineral field associated with tone.
+func (r Roles) MineralField(tone Tone) color.NRGBA {
 	switch tone {
 	case Alive:
 		return Mix(r.Stone2, r.Jade, tokens.AlphaMineralJade)

@@ -20,8 +20,8 @@ type tablet struct {
 
 func (t *tablet) layout(gtx layout.Context, e *env.Env, p *Page, teams []protocol.Team, credential protocol.Credential) layout.Dimensions {
 	th := e.Theme
-	t.replace.Kind, t.replace.Small, t.replace.Label = kit.PlaqueLine, true, i18n.T("Replace value")
-	t.edit.Kind, t.edit.Small, t.edit.Label = kit.PlaqueQuiet, true, i18n.T("Edit")
+	t.replace.Kind, t.replace.Small, t.replace.Label = kit.PlaqueTonal, true, i18n.T("Replace value")
+	t.edit.Kind, t.edit.Small, t.edit.Label = kit.PlaqueTonal, true, i18n.T("Edit")
 	t.remove.Kind, t.remove.Small, t.remove.Label = kit.PlaqueQuiet, true, i18n.T("Remove")
 	if t.name.Clicked(gtx) || t.edit.Clicked(gtx) {
 		p.openCredential(e, credential.ID)
@@ -47,18 +47,18 @@ func (t *tablet) layout(gtx layout.Context, e *env.Env, p *Page, teams []protoco
 		if credential.Description != "" {
 			children = append(children,
 				layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
-				layout.Rigid(look.Paragraph(th, th.T.Body, th.R.Fg2, credential.Description)),
+				layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2, credential.Description)),
 			)
 		}
 		children = append(children, layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout))
 		if credential.Use == protocol.CredentialMail {
-			children = append(children, layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, i18n.T("Mail account password"))))
+			children = append(children, layout.Rigid(kit.Text(th.Theme, th.T.Detail, th.R.Fg2, i18n.T("Mail account password"))))
 		} else {
 			children = append(children, layout.Rigid(chips(th, credential.Hosts)))
 		}
 		children = append(children,
 			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-			layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg3, teamNames(teams, credential.Teams)+" · "+usedWords(gtx, credential))),
+			layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2, teamNames(teams, credential.Teams)+" · "+usedWords(gtx, credential))),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,

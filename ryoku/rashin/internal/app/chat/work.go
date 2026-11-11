@@ -341,7 +341,7 @@ func (state *viewState) layoutToolDetail(
 	if len(sections) == 0 && len(tool.Locations) > 0 {
 		sections = append(sections, locationList(tool.Locations))
 	}
-	return slab(gtx, th, th.R.Stone1, 13, func(gtx layout.Context) layout.Dimensions {
+	return slab(gtx, th, 13, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
 		children := make([]layout.FlexChild, 0, len(sections)*2+1)
 		cut := false
@@ -393,7 +393,9 @@ func (state *viewState) layoutToolDiff(gtx layout.Context, th *look.Theme, tool 
 		record := op.Record(gtx.Ops)
 		dimensions := view.Layout(gtx, th, result, diffview.Options{Overlays: state.overlays, FoldOver: 80, Headless: true})
 		call := record.Stop()
-		kit.FillCut(gtx.Ops, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid), th.R.Stone1)
+		bounds, cut := image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid)
+		kit.FillCut(gtx.Ops, bounds, cut, th.R.Slab)
+		kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(1)), th.R.Vein)
 		call.Add(gtx.Ops)
 		return dimensions
 	}
@@ -423,7 +425,7 @@ func (state *viewState) layoutTerminal(gtx layout.Context, th *look.Theme, termi
 		expandable: strings.TrimSpace(terminal.text) != "",
 	}
 	return state.layoutUnfolding(gtx, th, visual, line, func(gtx layout.Context) layout.Dimensions {
-		return slab(gtx, th, th.R.Stone1, 13, func(gtx layout.Context) layout.Dimensions {
+		return slab(gtx, th, 13, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = gtx.Constraints.Max.X
 			output, _ := firstLines(terminal.text, 24)
 			return state.selectable(gtx, th, key, th.T.Mono, th.R.Fg2, output)

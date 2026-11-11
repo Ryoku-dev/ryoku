@@ -67,7 +67,7 @@ func (m *MultiLine) Layout(gtx layout.Context, th *Theme) layout.Dimensions {
 	children := make([]layout.FlexChild, 0, 5)
 	if m.Label != "" {
 		children = append(children,
-			layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, m.Label)),
+			layout.Rigid(kit.Text(th.Theme, th.T.Detail, th.R.Fg2, m.Label)),
 			layout.Rigid(layout.Spacer{Height: unit.Dp(tokens.SizeTextFieldLabelGap)}.Layout),
 		)
 	}
@@ -118,11 +118,10 @@ func (m *MultiLine) layoutBox(gtx layout.Context, th *Theme) layout.Dimensions {
 
 	bounds := image.Rectangle{Max: image.Pt(width, max(written.Size.Y, inner.Constraints.Min.Y)+2*pad)}
 	cut := gtx.Dp(th.Cut.Mid)
-	kit.FillCut(gtx.Ops, bounds, cut, th.R.Stone3)
+	kit.FillCut(gtx.Ops, bounds, cut, th.R.Field)
 	focused := gtx.Focused(&m.Editor) && gtx.Source.Enabled()
 	lit := Transition(gtx, &m.focus, focused, th.Motion.FocusIn, th.Motion.FocusOut)
-	// one tone above the pane is no edge on a wallpaper palette, so the field keeps a hairline at rest
-	kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeTextFieldStroke))), palette.Mix(th.R.Vein, th.R.Fg2, lit))
+	kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), palette.Mix(th.R.Edge, th.R.Fg2, lit))
 	stack := op.Offset(image.Pt(side, pad)).Push(gtx.Ops)
 	call.Add(gtx.Ops)
 	stack.Pop()

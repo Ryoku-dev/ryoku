@@ -11,6 +11,7 @@ import (
 	"gioui.org/unit"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 )
 
 type motionFrame struct {
@@ -25,7 +26,7 @@ func newMotionFrame(t *testing.T) *motionFrame {
 	previous := anim.Reduced()
 	anim.SetReduce(false)
 	t.Cleanup(func() { anim.SetReduce(previous) })
-	return &motionFrame{now: time.Unix(100, 0), theme: New(0)}
+	return &motionFrame{now: time.Unix(100, 0), theme: New(0, palette.Look{})}
 }
 
 func (frame *motionFrame) context() layout.Context {

@@ -120,4 +120,6 @@ weight 400, taken from the official SVGs at commit 10ecc147. They are modified
 versions: the path data is converted to IconVG and the shapes are otherwise
 unchanged. They are released under the Apache License 2.0, which ships
 unchanged beside them with a NOTICE; that license is compatible with Ryoku's
-GPL-3 distribution.
+GPL-3 distribution. The Rashin app draws them, and the ryoku-rashin package
+installs that license as
+/usr/share/licenses/ryoku-rashin/LICENSE.material-symbols.

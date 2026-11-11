@@ -17,12 +17,13 @@ import (
 
 func (p *Page) layoutRashin(gtx layout.Context, e *env.Env) layout.Dimensions {
 	th := e.Theme
-	status := e.Snapshot().Status
-	p.turnOff.Kind, p.turnOff.Small, p.turnOff.Label = kit.PlaqueQuiet, true, i18n.T("Turn off")
+	snapshot := e.Snapshot()
+	status := snapshot.Status
+	p.turnOff.Kind, p.turnOff.Small, p.turnOff.Label = kit.PlaqueTonal, true, i18n.T("Turn off")
 	if p.turnOff.Clicked(gtx) {
 		p.AskTurnOff()
 	}
-	p.log.Kind, p.log.Small, p.log.Label = kit.PlaqueQuiet, true, i18n.T("Open log")
+	p.log.Kind, p.log.Small, p.log.Label = kit.PlaqueTonal, true, i18n.T("Open log")
 	if p.log.Clicked(gtx) {
 		e.Open(paths.DaemonLog())
 	}
@@ -30,18 +31,51 @@ func (p *Page) layoutRashin(gtx layout.Context, e *env.Env) layout.Dimensions {
 	if version == "" {
 		version = i18n.T("unknown")
 	}
-	return look.SettingsSection(gtx, th, i18n.T("Rashin"), []look.Setting{
-		{
-			Title:   i18n.T("Rashin is on"),
-			Detail:  i18n.T("While it is off nothing runs, nothing is indexed and it uses no memory."),
-			Control: func(gtx layout.Context) layout.Dimensions { return p.turnOff.Layout(gtx, th.Theme) },
-		},
-		{
-			Title:   i18n.Tf("Version %s", version),
-			Detail:  i18n.Tf("The daemon writes what it does to %s.", paths.Short(paths.DaemonLog())),
-			Control: func(gtx layout.Context) layout.Dimensions { return p.log.Layout(gtx, th.Theme) },
-		},
-	})
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return look.Monument(gtx, th, i18n.T("Rashin is on."), rashinProof(snapshot))
+		}),
+		layout.Rigid(layout.Spacer{Height: th.Sp.S5}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return look.SettingsSection(gtx, th, i18n.T("Rashin"), []look.Setting{
+				{
+					Title:   i18n.T("Running"),
+					Detail:  i18n.T("While Rashin is off nothing runs, nothing is indexed and it uses no memory."),
+					Control: func(gtx layout.Context) layout.Dimensions { return p.turnOff.Layout(gtx, th.Theme) },
+				},
+				{
+					Title:   i18n.Tf("Version %s", version),
+					Detail:  i18n.Tf("The daemon writes what it does to %s.", paths.Short(paths.DaemonLog())),
+					Control: func(gtx layout.Context) layout.Dimensions { return p.log.Layout(gtx, th.Theme) },
+				},
+			})
+		}),
+	)
+}
+
+// the proof counts what the daemon reports, so the claim never outruns it
+func rashinProof(snapshot state.Snapshot) string {
+	ready := 0
+	for _, provider := range snapshot.Providers {
+		if provider.Enabled && provider.Available > 0 {
+			ready++
+		}
+	}
+	providers := i18n.Tf("%d providers are ready.", ready)
+	switch ready {
+	case 0:
+		providers = i18n.T("No provider is ready yet.")
+	case 1:
+		providers = i18n.T("1 provider is ready.")
+	}
+	api := i18n.T("The local API is off.")
+	if snapshot.Settings.API.Enabled {
+		api = i18n.T("The local API is not answering.")
+		if snapshot.Status.API.Listening {
+			api = i18n.T("The local API answers.")
+		}
+	}
+	return providers + " " + api
 }
 
 func (p *Page) layoutAsk(gtx layout.Context, e *env.Env) layout.Dimensions {
@@ -219,7 +253,7 @@ func (p *Page) layoutHarnesses(gtx layout.Context, e *env.Env, snapshot state.Sn
 		layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout),
 		layout.Rigid(kit.Text(th.Theme, th.T.Title, th.R.Fg, i18n.T("Your own harnesses"))),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
-		layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg3,
+		layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2,
 			i18n.T("Any program that speaks the Agent Client Protocol can run sessions. Give it a name and the command that starts it."))),
 	}
 	children = append(children,
@@ -285,6 +319,22 @@ func (p *Page) layoutAppearance(gtx layout.Context, e *env.Env) layout.Dimension
 	th := e.Theme
 	p.zoom.Value, p.zoom.Min, p.zoom.Max, p.zoom.Step, p.zoom.Unit = e.Zoom, state.MinZoom, state.MaxZoom, state.ZoomStep, "%"
 	p.motion.Value = e.ReduceMotion
+	contrasts := [...]string{state.ContrastStandard, state.ContrastHigh}
+	tints := [...]string{state.TintOff, state.TintLow, state.TintMedium}
+	p.contrast.Labels = []string{i18n.T("Standard"), i18n.T("High")}
+	p.contrast.Selected = choiceIndex(contrasts[:], e.Contrast)
+	p.tint.Labels = []string{i18n.T("Off"), i18n.T("Low"), i18n.T("Medium")}
+	p.tint.Selected = choiceIndex(tints[:], e.Tint)
+	segmented := func(control *kit.Segmented, picked func(index int)) layout.Widget {
+		return func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Min.X = gtx.Dp(260)
+			dimensions := control.Layout(gtx, th.Theme)
+			if index, changed := control.Changed(); changed {
+				picked(index)
+			}
+			return dimensions
+		}
+	}
 	return look.SettingsSection(gtx, th, i18n.T("Appearance"), []look.Setting{
 		{
 			Title:  i18n.T("Zoom"),
@@ -306,9 +356,33 @@ func (p *Page) layoutAppearance(gtx layout.Context, e *env.Env) layout.Dimension
 		},
 		{
 			Title:  i18n.T("Colours"),
-			Detail: i18n.T("Rashin takes its colours from your wallpaper, like the rest of the desktop."),
+			Detail: i18n.T("Rashin takes its colours from your wallpaper. Contrast and Tint change how its surfaces use them."),
+		},
+		{
+			Title:  i18n.T("Contrast"),
+			Detail: i18n.T("High spreads the surfaces apart and strengthens edges."),
+			Control: segmented(&p.contrast, func(index int) {
+				e.SetLook(contrasts[index], tints[p.tint.Selected])
+			}),
+		},
+		{
+			Title:  i18n.T("Tint"),
+			Detail: i18n.T("Tint draws your wallpaper's colour into the surfaces."),
+			Control: segmented(&p.tint, func(index int) {
+				e.SetLook(contrasts[p.contrast.Selected], tints[index])
+			}),
 		},
 	})
+}
+
+// the stored words are normalised when read, so falling back to the first option is never seen
+func choiceIndex(ids []string, value string) int {
+	for index, id := range ids {
+		if id == value {
+			return index
+		}
+	}
+	return 0
 }
 
 // read right after it is drawn: by the next frame the setting has overwritten the flip

@@ -20,7 +20,7 @@ type BladeMeter struct {
 func (meter BladeMeter) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 	height := max(1, gtx.Dp(tokens.SizeBladeTrack))
 	size := gtx.Constraints.Constrain(image.Pt(gtx.Constraints.Max.X, height))
-	FillCut(gtx.Ops, image.Rectangle{Max: size}, 0, th.R.Stone3)
+	FillCut(gtx.Ops, image.Rectangle{Max: size}, 0, th.R.Field)
 	fraction := min(max(meter.Fraction, 0), 1)
 	ink := meter.Ink
 	if ink.A == 0 {

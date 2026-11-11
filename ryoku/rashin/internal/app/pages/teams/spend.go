@@ -48,7 +48,7 @@ func (s *spendTab) layout(gtx layout.Context, e *env.Env, p *Page, team protocol
 	if s.monthTeam != team.ID {
 		spend = protocol.TeamSpend{Tokens: team.Stats.MonthTokens, Cap: team.Budget.MonthTokens}
 	}
-	s.change.Kind, s.change.Small, s.change.Icon, s.change.Label = kit.PlaqueQuiet, true, look.Icon.Settings, i18n.T("Change the limit")
+	s.change.Kind, s.change.Small, s.change.Icon, s.change.Label = kit.PlaqueTonal, true, look.Icon.Settings, i18n.T("Change the limit")
 	if s.change.Clicked(gtx) {
 		openTeam(e, team.ID, env.TeamSettings)
 		p.settings.jump(sectionBudget)

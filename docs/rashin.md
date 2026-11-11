@@ -1161,7 +1161,7 @@ Every team agent runs inside bubblewrap (`bwrap`, `internal/sandbox`,
 
 ### In the app
 
-- The Teams button right of the search field, or Ctrl T, switches the window
+- The Rashin and Teams switch in the top bar, or Ctrl T, switches the window
   to Teams mode and back. Ctrl 1 to 6 pick its destinations: Inbox, Teams,
   Work, Routines, Vault and Activity. Settings opened from Teams mode opens on
   Settings > Teams, in five groups: Running (pause every team, tasks at once,
@@ -1210,14 +1210,15 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
   size, sidebar fold and zoom persisted; compositor rules float it. One
   instance (`app.lock`): a second launch sends `ui.open` to the daemon and
   exits; the running app switches to what it names.
-- **Frame**: a top bar on the ground (mark, sidebar toggle, back and forward,
-  the one search field, window controls), a sidebar that folds to a rail
-  (the New plaque, the destinations Ask, Agents, Projects and Index, the
-  current destination's list, Settings at the foot), the content pane with a
-  header and a body, and a side panel beside a conversation that changes
-  files. Expanded from 1100 dp, medium from 760 (rail, the sidebar as a
-  sheet), compact below (bottom bar for the destinations, the list as a
-  sheet).
+- **Frame**: a top bar on the ground (mark, the Rashin and Teams switch,
+  sidebar toggle, back and forward, the one search field, window controls), a
+  sidebar that folds to a rail (the gold New plaque, the destinations Ask,
+  Agents, Projects and Index, the current destination's list, Settings at the
+  foot; the place shown carries the selection with its blade and a filled
+  icon), the content pane with a header and a body, and a side panel beside a
+  conversation that changes files. Expanded from 1100 dp, medium from 760
+  (rail, the sidebar as a sheet), compact below (bottom bar for the
+  destinations, the list as a sheet).
 - **Ask** is home and opens on a new conversation: one sentence, the composer,
   things to try and one line that says which providers can answer now; no
   session exists until the first message is sent, and sending it moves the
@@ -1356,15 +1357,18 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
   the store holds a session's live events from `Open` until its replay has
   been applied (`state.Store.Open`, `ApplyAttach`, `Opened`). Without that a
   replay from zero that landed late wiped the question just asked.
-- **Settings** is a full page with a section index: Rashin (on and off,
-  version, the log), Providers (each unfolds to its keys and says what it
-  answered this week), Local API (the switch, the address, the key, the port),
+- **Settings** is a full page whose sections stand in the sidebar's list, under
+  a search (Ctrl F) that finds them by name and a few words each; with the
+  sidebar folded or in a narrower window a picker tops the column instead:
+  Rashin (on and off, version, the log), Providers (each unfolds to its keys
+  and says what it answered this week), Local API (the switch, the address,
+  the key, the port),
   Ask (the model route, what a new ask may do, shell habits), Agents (the
   default harness, approvals, notices, the idle stop, the harnesses found with
   what each will run with, how to install the rest, your own harnesses), Teams
-  (Tasks at once), Index, Appearance (zoom, reduce motion) and Keyboard (every
-  shortcut). Its list runs to the pane's edge, so the wheel moves it from
-  beside the column too.
+  (Tasks at once), Index, Appearance (zoom, contrast, tint, reduce motion) and
+  Keyboard (every shortcut). Its list runs to the pane's edge, so the wheel
+  moves it from beside the column too.
   Project settings live with the project.
 - **The desktop** is reached through `internal/app/desktop` only: the file
   chooser (XDG portal `FileChooser`), the clipboard's image (`wl-paste`),

@@ -76,8 +76,8 @@ func (state *composerState) ensure() {
 	state.editor.LineHeightScale = 1
 	state.send.Small = true
 	state.queue.Kind, state.queue.Small = kit.PlaqueGold, true
-	state.steer.Kind, state.steer.Small = kit.PlaqueLine, true
-	state.add.Kind, state.add.Small = kit.PlaqueLine, true
+	state.steer.Kind, state.steer.Small = kit.PlaqueTonal, true
+	state.add.Kind, state.add.Small = kit.PlaqueTonal, true
 	state.attachField.Mono = true
 	state.attachField.Editor.SingleLine, state.attachField.Editor.Submit = true, true
 	state.remove = make(map[string]*look.IconAction)
@@ -147,11 +147,10 @@ func (state *composerState) layoutField(gtx layout.Context, th *theme.Theme, opt
 
 	bounds := image.Rect(0, 0, width, height)
 	cut := gtx.Dp(th.Cut.Mid)
-	kit.FillCut(gtx.Ops, bounds, cut, th.R.Stone3)
+	kit.FillCut(gtx.Ops, bounds, cut, th.R.Field)
 	focused := gtx.Focused(&state.editor) && gtx.Source.Enabled()
 	focus := look.Transition(gtx, &state.focus, focused, th.Motion.FocusIn, th.Motion.FocusOut)
-	// one tone above the pane is not an edge on a wallpaper palette, so the field keeps a hairline at rest
-	kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(1)), palette.Mix(th.R.Vein, th.R.Fg2, focus))
+	kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(1)), palette.Mix(th.R.Edge, th.R.Fg2, focus))
 	content.Add(gtx.Ops)
 	state.layoutSlash(gtx, th, options, width)
 	return layout.Dimensions{Size: bounds.Max}
@@ -384,7 +383,9 @@ func (state *composerState) layoutChip(
 		)
 	})
 	call := record.Stop()
-	kit.FillCut(gtx.Ops, image.Rect(0, 0, dimensions.Size.X, height), gtx.Dp(th.Cut.Small), th.R.Stone1)
+	bounds, cut := image.Rect(0, 0, dimensions.Size.X, height), gtx.Dp(th.Cut.Small)
+	kit.FillCut(gtx.Ops, bounds, cut, th.R.Slab)
+	kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(1)), th.R.Vein)
 	call.Add(gtx.Ops)
 	return layout.Dimensions{Size: image.Pt(dimensions.Size.X, height)}
 }

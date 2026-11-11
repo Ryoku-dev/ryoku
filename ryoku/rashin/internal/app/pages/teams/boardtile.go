@@ -42,7 +42,7 @@ type teamTile struct {
 	give kit.Plaque
 }
 
-// a quiet slab is only a vein until hovered; a notch ink marks the corner of a team that needs the user
+// a tile lifts off the pane as a slab does, a quiet one is only its vein until hovered; a notch ink marks the corner of a team that needs the user
 func (s *slab) layout(gtx layout.Context, th *look.Theme, quiet bool, notch color.NRGBA, body layout.Widget) layout.Dimensions {
 	lit := look.Transition(gtx, &s.hover, s.click.Hovered(), th.Motion.HoverIn, th.Motion.HoverOut)
 	press := look.Transition(gtx, &s.press, s.click.Pressed(), th.Motion.Press, th.Motion.Press)
@@ -52,14 +52,12 @@ func (s *slab) layout(gtx layout.Context, th *look.Theme, quiet bool, notch colo
 		call := record.Stop()
 		bounds := image.Rectangle{Max: dimensions.Size}
 		cut := gtx.Dp(th.Cut.Mid)
-		fill := palette.Mix(th.R.Stone1, th.R.Stone3, lit)
+		fill := palette.Mix(th.R.Slab, th.R.Fg, tokens.AlphaHoverPlane*lit)
 		if quiet {
-			fill = palette.WithAlpha(th.R.Stone1, lit)
+			fill = palette.WithAlpha(th.R.Slab, lit)
 		}
 		kit.FillCut(gtx.Ops, bounds, cut, palette.Mix(fill, th.R.Fg, tokens.AlphaPressRow*press))
-		if quiet {
-			kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(1)), th.R.Vein)
-		}
+		kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(1)), th.R.Vein)
 		kit.Notch(gtx.Ops, image.Point{}, gtx.Dp(th.Cut.Notch), notch)
 		call.Add(gtx.Ops)
 		return dimensions
@@ -98,7 +96,7 @@ func (b *board) layoutTile(gtx layout.Context, e *env.Env, snapshot appstate.Sna
 			children = append(children,
 				layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return kit.Label{Style: th.T.Proof, Color: th.R.Fg2, MaxLines: 2}.Layout(gtx, th.Theme, team.Purpose)
+					return kit.Label{Style: th.T.Detail, Color: th.R.Fg2, MaxLines: 2}.Layout(gtx, th.Theme, team.Purpose)
 				}),
 			)
 		}
@@ -110,7 +108,7 @@ func (b *board) layoutTile(gtx layout.Context, e *env.Env, snapshot appstate.Sna
 			children = append(children,
 				layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return kit.Label{Style: th.T.Caption, Color: th.R.Fg3, MaxLines: 1}.Layout(gtx, th.Theme, runs)
+					return kit.Label{Style: th.T.Detail, Color: th.R.Fg2, MaxLines: 1}.Layout(gtx, th.Theme, runs)
 				}),
 			)
 		}
@@ -188,7 +186,7 @@ func crewStrip(th *look.Theme, members []protocol.Member) layout.Widget {
 		led := i18n.Tf("Led by %s · %s", lead.Name, membersWord(len(members)))
 		children = append(children,
 			layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
-			layout.Flexed(1, kit.Text(th.Theme, th.T.Caption, th.R.Fg2, led)),
+			layout.Flexed(1, kit.Text(th.Theme, th.T.Detail, th.R.Fg2, led)),
 		)
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children...)

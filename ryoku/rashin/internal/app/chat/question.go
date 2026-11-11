@@ -85,9 +85,9 @@ func (state *viewState) layoutHandoff(gtx layout.Context, th *look.Theme, handof
 	if source := strings.TrimSpace(handoff.Title); source != "" {
 		title = i18n.Tf("Moved from “%s”", source)
 	}
-	return slab(gtx, th, th.R.Stone1, 13, func(gtx layout.Context) layout.Dimensions {
+	return slab(gtx, th, 13, func(gtx layout.Context) layout.Dimensions {
 		children := []layout.FlexChild{
-			layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, title)),
+			layout.Rigid(kit.Text(th.Theme, th.T.Detail, th.R.Fg2, title)),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return state.selectable(gtx, th, key+":question", th.T.Body, th.R.Fg, handoff.Question)

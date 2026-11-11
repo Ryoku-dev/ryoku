@@ -5,9 +5,11 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/unit"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 
 	"ryoku-rashin/internal/app/look"
 )
@@ -50,7 +52,7 @@ func (row *foldRow) layoutHead(gtx layout.Context, th *look.Theme, open bool, he
 		fill = 1
 	}
 	if fill > 0 {
-		kit.FillCut(gtx.Ops, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Small), palette.WithAlpha(th.R.Stone2, fill))
+		kit.FillCut(gtx.Ops, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Small), palette.WithAlpha(palette.Mix(th.R.Slab, th.R.Fg, tokens.AlphaHoverPlane), fill))
 	}
 	inset := gtx.Dp(13)
 	content := gtx
@@ -61,7 +63,7 @@ func (row *foldRow) layoutHead(gtx layout.Context, th *look.Theme, open bool, he
 		if open {
 			icon = look.Icon.ExpandLess
 		}
-		detail := th.T.Caption
+		detail := th.T.Detail
 		if head.Mono {
 			detail = th.T.MonoSm
 		}
@@ -69,7 +71,7 @@ func (row *foldRow) layoutHead(gtx layout.Context, th *look.Theme, open bool, he
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 					layout.Rigid(kit.RawText(th.Theme, th.T.Row, th.R.Fg, head.Title)),
-					layout.Rigid(kit.RawText(th.Theme, detail, th.R.Fg3, head.Detail)),
+					layout.Rigid(kit.RawText(th.Theme, detail, th.R.Fg2, head.Detail)),
 				)
 			}),
 			layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
@@ -100,7 +102,9 @@ func foldSlab(gtx layout.Context, th *look.Theme, count int, row func(layout.Con
 	}
 	y += pad
 	call := record.Stop()
-	kit.FillCut(gtx.Ops, image.Rect(0, 0, width, y), gtx.Dp(th.Cut.Mid), th.R.Stone1)
+	bounds, cut := image.Rect(0, 0, width, y), gtx.Dp(th.Cut.Mid)
+	kit.FillCut(gtx.Ops, bounds, cut, th.R.Slab)
+	kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), th.R.Vein)
 	call.Add(gtx.Ops)
 	return layout.Dimensions{Size: image.Pt(width, y)}
 }

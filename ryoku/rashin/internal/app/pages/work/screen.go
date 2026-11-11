@@ -1,10 +1,7 @@
 package work
 
 import (
-	"image"
-
 	"gioui.org/layout"
-	"gioui.org/op"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
@@ -42,7 +39,7 @@ func (s *taskScreen) layout(gtx layout.Context, e *env.Env, snapshot state.Snaps
 		e.Call(protocol.MScreenControl, protocol.ScreenControlParams{ID: screen.Session, Op: verb}, new(protocol.ScreenState), e.Report)
 	}
 	member := teamsui.MemberOf(snapshot, task.Team, task.Member)
-	s.take.Kind, s.take.Small, s.take.Label = kit.PlaqueLine, true, i18n.T("Take control")
+	s.take.Kind, s.take.Small, s.take.Label = kit.PlaqueTonal, true, i18n.T("Take control")
 	// what the member asks to be done on its screen makes taking it the one thing to do
 	if screen.Ask != "" {
 		s.take.Kind = kit.PlaqueGold
@@ -72,7 +69,7 @@ func (s *taskScreen) layout(gtx layout.Context, e *env.Env, snapshot state.Snaps
 	case screen.Ask != "":
 		children = append(children,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return kit.Label{Style: th.T.Caption, Color: th.R.Stone(palette.Attention), MaxLines: 3}.Layout(gtx, th.Theme, screen.Ask)
+				return kit.Label{Style: th.T.Detail, Color: th.R.Stone(palette.Attention), MaxLines: 3}.Layout(gtx, th.Theme, screen.Ask)
 			}),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 		)
@@ -91,9 +88,7 @@ func (s *taskScreen) layout(gtx layout.Context, e *env.Env, snapshot state.Snaps
 // the strip under a screen the user drives: that they do, and the way to give it back
 func (s *taskScreen) layoutDriving(gtx layout.Context, e *env.Env) layout.Dimensions {
 	th := e.Theme
-	record := op.Record(gtx.Ops)
-	dimensions := layout.UniformInset(th.Sp.S2).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		gtx.Constraints.Min.X = gtx.Constraints.Max.X
+	return teamsui.NotchedSlab(gtx, th, palette.Attention, th.Sp.S2, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 				return kit.Label{Style: th.T.Label, Color: th.R.Fg, MaxLines: 1}.Layout(gtx, th.Theme, i18n.T("You're driving"))
@@ -102,8 +97,4 @@ func (s *taskScreen) layoutDriving(gtx layout.Context, e *env.Env) layout.Dimens
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return s.back.Layout(gtx, th.Theme) }),
 		)
 	})
-	call := record.Stop()
-	kit.FillCut(gtx.Ops, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Small), th.R.Field(palette.Attention))
-	call.Add(gtx.Ops)
-	return dimensions
 }

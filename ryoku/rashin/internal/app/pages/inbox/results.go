@@ -79,9 +79,11 @@ func (b *board) layoutReport(gtx layout.Context, e *env.Env, snapshot state.Snap
 	if member := teamsui.MemberOf(snapshot, task.Team, task.Member); member != "" {
 		facts = i18n.Tf("%s · %s · %s", team, member, when)
 	}
-	// an unread report carries the done notch and reads in full ink
+	// an unread report carries the done notch and reads in full ink; a quiet run found nothing new, so it is not news
 	notch, ink := color.NRGBA{}, th.R.Fg2
-	if !task.Read {
+	if task.Report.Quiet {
+		facts = i18n.Tf("%s · %s", facts, i18n.T("Quiet, nothing new"))
+	} else if !task.Read {
 		notch, ink = th.R.Stone(palette.Alive), th.R.Fg
 	}
 	return item.layout(gtx, th, notch, func(gtx layout.Context) layout.Dimensions {
@@ -98,7 +100,7 @@ func (b *board) layoutReport(gtx layout.Context, e *env.Env, snapshot state.Snap
 					}),
 					layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return kit.Label{Style: th.T.Proof, Color: th.R.Fg2, MaxLines: 2}.Layout(gtx, th.Theme, teamsui.Excerpt(task.Report.Body, 3))
+						return kit.Label{Style: th.T.Detail, Color: th.R.Fg2, MaxLines: 2}.Layout(gtx, th.Theme, teamsui.Excerpt(task.Report.Body, 3))
 					}),
 				)
 			}),

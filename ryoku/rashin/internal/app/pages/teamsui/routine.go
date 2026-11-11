@@ -183,7 +183,7 @@ func (r *RoutineTablet) Layout(gtx layout.Context, e *env.Env, schedules *Schedu
 	th := e.Theme
 	snapshot := e.Snapshot()
 	r.tablet.Pane = th.R.Stone2
-	r.edit.Kind, r.edit.Small, r.edit.Label = kit.PlaqueLine, true, i18n.T("Edit")
+	r.edit.Kind, r.edit.Small, r.edit.Label = kit.PlaqueTonal, true, i18n.T("Edit")
 	r.run.Kind, r.run.Small, r.run.Icon, r.run.Description = kit.PlaqueQuiet, true, look.Icon.Play, i18n.T("Run now")
 	if r.tablet.Clicked(gtx) || r.tablet.DoubleClicked(gtx) || r.edit.Clicked(gtx) {
 		OpenRoutine(e, routine.ID)

@@ -254,7 +254,7 @@ func (b *TaskBoard) offersOlder(snapshot state.Snapshot) bool {
 }
 
 func (b *TaskBoard) layoutOlder(gtx layout.Context, e *env.Env, snapshot state.Snapshot) layout.Dimensions {
-	b.older.Kind, b.older.Small, b.older.Label, b.older.Busy = kit.PlaqueQuiet, true, i18n.T("Load older"), b.loading
+	b.older.Kind, b.older.Small, b.older.Label, b.older.Busy = kit.PlaqueTonal, true, i18n.T("Load older"), b.loading
 	if b.older.Clicked(gtx) && !b.loading {
 		b.loadOlder(e, snapshot)
 	}

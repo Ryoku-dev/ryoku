@@ -13,6 +13,8 @@ import (
 	"gioui.org/op"
 	"gioui.org/unit"
 
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
+
 	"ryoku-rashin/internal/app/look"
 	"ryoku-rashin/internal/protocol"
 )
@@ -74,7 +76,7 @@ type diffFrame struct {
 }
 
 func newDiffFrame(files ...protocol.FileDiff) *diffFrame {
-	return &diffFrame{now: time.Unix(100, 0), theme: look.New(0), result: protocol.DiffResult{Files: files}}
+	return &diffFrame{now: time.Unix(100, 0), theme: look.New(0, palette.Look{}), result: protocol.DiffResult{Files: files}}
 }
 
 func (f *diffFrame) layout(options Options) {

@@ -119,8 +119,9 @@ func (t *tasksState) layoutDialogs(gtx layout.Context, e *env.Env, page *pageSta
 
 func (t *tasksState) layoutTools(gtx layout.Context, e *env.Env) layout.Dimensions {
 	th := e.Theme
-	t.fresh.Kind, t.fresh.Small, t.fresh.Icon, t.fresh.Label = kit.PlaqueGold, true, look.Icon.Add, i18n.T("New task")
-	t.plan.Kind, t.plan.Small, t.plan.Label = kit.PlaqueLine, true, i18n.T("Plan from a goal")
+	// the selected task's Start holds the pane's one gold
+	t.fresh.Kind, t.fresh.Small, t.fresh.Icon, t.fresh.Label = kit.PlaqueTonal, true, look.Icon.Add, i18n.T("New task")
+	t.plan.Kind, t.plan.Small, t.plan.Label = kit.PlaqueTonal, true, i18n.T("Plan from a goal")
 	if t.fresh.Clicked(gtx) {
 		t.create.open()
 	}
@@ -177,7 +178,7 @@ func (t *tasksState) layoutRow(gtx layout.Context, e *env.Env, page *pageState, 
 		return layout.Center.Layout(gtx, look.IconWidget(look.Icon.Tasks, 18, th.R.Fg3))
 	}
 	if label := taskActLabel(task); label != "" {
-		row.act.Kind, row.act.Small, row.act.Label = kit.PlaqueLine, true, label
+		row.act.Kind, row.act.Small, row.act.Label = kit.PlaqueTonal, true, label
 		content.Action = &row.act
 		if row.act.Clicked(gtx) {
 			t.selected = task.ID

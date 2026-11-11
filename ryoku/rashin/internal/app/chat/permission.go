@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"gioui.org/layout"
-	"gioui.org/op"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
@@ -58,8 +57,7 @@ func (state *viewState) layoutPermission(gtx layout.Context, th *look.Theme, per
 func (state *viewState) layoutPermissionField(gtx layout.Context, th *look.Theme, data protocol.PermissionData) layout.Dimensions {
 	gtx.Constraints.Min = image.Point{}
 	gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(560))
-	record := op.Record(gtx.Ops)
-	dimensions := layout.UniformInset(16).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+	return slab(gtx, th, 16, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
 		children := []layout.FlexChild{
 			layout.Rigid(kit.Claim(th.Theme, palette.Attention, i18n.T("Needs you"))),
@@ -81,10 +79,6 @@ func (state *viewState) layoutPermissionField(gtx layout.Context, th *look.Theme
 		)
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	})
-	call := record.Stop()
-	kit.FillCut(gtx.Ops, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid), th.R.Field(palette.Attention))
-	call.Add(gtx.Ops)
-	return dimensions
 }
 
 func (state *viewState) layoutPermissionActions(gtx layout.Context, th *look.Theme, data protocol.PermissionData) layout.Dimensions {

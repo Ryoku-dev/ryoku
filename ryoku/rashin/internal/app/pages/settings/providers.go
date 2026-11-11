@@ -48,7 +48,7 @@ func (p *Page) layoutProviders(gtx layout.Context, e *env.Env) layout.Dimensions
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("Providers"))),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
-		layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg3,
+		layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2,
 			i18n.T("Ask sends each question to a provider that is up. Your keys are stored encrypted on this machine."))),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -91,7 +91,7 @@ func (row *providerRow) layoutDetail(gtx layout.Context, e *env.Env, provider pr
 	children := make([]layout.FlexChild, 0, 12)
 	if provider.Note != "" {
 		children = append(children,
-			layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg2, provider.Note)),
+			layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2, provider.Note)),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 		)
 	}
@@ -189,8 +189,8 @@ func (row *providerRow) update(gtx layout.Context, e *env.Env, provider protocol
 	row.enabled.Value = provider.Enabled
 	row.key.Label, row.key.Placeholder, row.key.Secret, row.key.Mono = i18n.T("Add a key"), provider.KeyHint, true, true
 	row.key.Editor.SingleLine, row.key.Editor.Submit = true, true
-	row.add.Kind, row.add.Label = kit.PlaqueLine, i18n.T("Add key")
-	row.test.Kind, row.test.Small, row.test.Label = kit.PlaqueLine, true, i18n.T("Test")
+	row.add.Kind, row.add.Label = kit.PlaqueTonal, i18n.T("Add key")
+	row.test.Kind, row.test.Small, row.test.Label = kit.PlaqueTonal, true, i18n.T("Test")
 	row.signup.Kind, row.signup.Small, row.signup.Label, row.signup.Icon = kit.PlaqueQuiet, true, i18n.T("Get a key"), look.Icon.OpenInNew
 	submitted := false
 	for {

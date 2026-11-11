@@ -14,6 +14,7 @@ import (
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/env"
@@ -26,20 +27,23 @@ import (
 const detailLines = 8
 
 // NeedCards answer what needs the user where it shows: an approval, a
-// credential request, a budget stop or a blocked task, each on an amber field
-// like a permission request. An answered card folds at once to one line that
-// keeps the answer for the rest of the session; a refusal by the daemon
-// unfolds it again and says why.
+// credential request, a budget stop or a blocked task, each a tablet on the
+// slab with its tone's notch and claim. Each card has one filled action, and
+// only the oldest open card's is gold, so a page holds one. An answered card
+// folds at once to one line that keeps the answer for the rest of the session;
+// a refusal by the daemon unfolds it again and says why.
 type NeedCards struct {
 	// Task is the task page the cards stand on, whose own link they leave out.
 	Task string
 
 	cards   map[string]*needCard
 	answers map[string]answer
+	// the oldest open need, whose card carries the page's one gold action
+	urgent string
 }
 
 type needCard struct {
-	field, record look.Unfold
+	tablet, record look.Unfold
 
 	approve, always, deny, open kit.Plaque
 	note, value                 kit.TextField
@@ -96,6 +100,13 @@ func (c *NeedCards) Shown(needs []Need) []Need {
 		}
 	}
 	sort.SliceStable(shown, func(i, j int) bool { return shown[i].At.Before(shown[j].At) })
+	c.urgent = ""
+	for _, need := range shown {
+		if _, done := c.answers[NeedKey(need)]; !done {
+			c.urgent = NeedKey(need)
+			break
+		}
+	}
 	return shown
 }
 
@@ -132,8 +143,8 @@ func (c *NeedCards) Layout(gtx layout.Context, e *env.Env, need Need) layout.Dim
 	answered, done := c.answers[key]
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return card.field.Layout(gtx, th, !done, func(gtx layout.Context) layout.Dimensions {
-				return c.layoutField(gtx, e, card, need)
+			return card.tablet.Layout(gtx, th, !done, func(gtx layout.Context) layout.Dimensions {
+				return c.layoutTablet(gtx, e, card, need)
 			})
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -144,32 +155,29 @@ func (c *NeedCards) Layout(gtx layout.Context, e *env.Env, need Need) layout.Dim
 	)
 }
 
-// the amber field a need stands on, like a permission request in a conversation
-func (c *NeedCards) layoutField(gtx layout.Context, e *env.Env, card *needCard, need Need) layout.Dimensions {
+// a need stands on its pane as a notched slab, its tone in the notch and the claim word
+func (c *NeedCards) layoutTablet(gtx layout.Context, e *env.Env, card *needCard, need Need) layout.Dimensions {
 	th := e.Theme
 	snapshot := e.Snapshot()
+	gold := NeedKey(need) == c.urgent
+	tone := palette.Attention
 	var children []layout.FlexChild
 	if need.Approval != nil {
-		children = c.approvalField(gtx, e, snapshot, card, need)
+		children = c.approvalField(gtx, e, snapshot, card, need, gold)
 	} else {
-		children = c.blockedField(gtx, e, snapshot, card, need)
+		_, tone, _ = TaskStanding(*need.Task)
+		children = c.blockedField(gtx, e, snapshot, card, need, gold)
 	}
-	gtx.Constraints.Min.X = gtx.Constraints.Max.X
-	record := op.Record(gtx.Ops)
-	dimensions := layout.UniformInset(16).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		gtx.Constraints.Min.X = gtx.Constraints.Max.X
+	dimensions := NotchedSlab(gtx, th, tone, th.Sp.S4, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	})
-	call := record.Stop()
-	kit.FillCut(gtx.Ops, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid), th.R.Field(palette.Attention))
-	call.Add(gtx.Ops)
 	if need.Approval != nil && len(need.Approval.Options) > 0 {
 		holdKeys(gtx, th, card, dimensions.Size)
 	}
 	return dimensions
 }
 
-func (c *NeedCards) approvalField(gtx layout.Context, e *env.Env, snapshot state.Snapshot, card *needCard, need Need) []layout.FlexChild {
+func (c *NeedCards) approvalField(gtx layout.Context, e *env.Env, snapshot state.Snapshot, card *needCard, need Need, gold bool) []layout.FlexChild {
 	th := e.Theme
 	approval := *need.Approval
 	request := approval.Kind == protocol.ApprovalRequest
@@ -179,7 +187,10 @@ func (c *NeedCards) approvalField(gtx layout.Context, e *env.Env, snapshot state
 	options := approval.Options[:min(len(approval.Options), protocol.ApprovalOptionsMax)]
 	choice := len(options) > 0
 	plaques := []*kit.Plaque{&card.approve}
-	card.approve.Kind, card.deny.Kind, card.always.Kind = kit.PlaqueGold, kit.PlaqueQuiet, kit.PlaqueLine
+	card.approve.Kind, card.deny.Kind, card.always.Kind = kit.PlaqueTonal, kit.PlaqueQuiet, kit.PlaqueQuiet
+	if gold {
+		card.approve.Kind, card.always.Kind = kit.PlaqueGold, kit.PlaqueLine
+	}
 	card.approve.Small, card.deny.Small, card.always.Small = true, true, true
 	card.deny.Label = i18n.T("Deny")
 	switch {
@@ -239,14 +250,14 @@ func (c *NeedCards) approvalField(gtx layout.Context, e *env.Env, snapshot state
 	}
 
 	children := []layout.FlexChild{
-		layout.Rigid(claimRow(th, ApprovalWord(approval.Kind), look.Ago(gtx.Now, approval.Created))),
+		layout.Rigid(claimRow(th, palette.Attention, ApprovalWord(approval.Kind), look.Ago(gtx.Now, approval.Created))),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 		layout.Rigid(look.Paragraph(th, th.T.Title, th.R.Fg, approval.Title)),
 	}
 	if approval.Detail != "" {
 		children = append(children,
 			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return layoutDetail(gtx, th, card, approval.Detail) }),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return layoutDetail(gtx, th, card, approval) }),
 		)
 	}
 	children = append(children,
@@ -307,10 +318,14 @@ func (c *NeedCards) approvalField(gtx layout.Context, e *env.Env, snapshot state
 }
 
 // a task that stopped short waits for the user to look, or to try again
-func (c *NeedCards) blockedField(gtx layout.Context, e *env.Env, snapshot state.Snapshot, card *needCard, need Need) []layout.FlexChild {
+func (c *NeedCards) blockedField(gtx layout.Context, e *env.Env, snapshot state.Snapshot, card *needCard, need Need, gold bool) []layout.FlexChild {
 	th := e.Theme
 	task := *need.Task
-	card.approve.Kind, card.approve.Small, card.approve.Label = kit.PlaqueLine, true, i18n.T("Run it again")
+	card.approve.Kind, card.approve.Small, card.approve.Label = kit.PlaqueTonal, true, i18n.T("Run it again")
+	if gold {
+		card.approve.Kind = kit.PlaqueGold
+	}
+	// the card's one filled action is the retry, so the way to the task stays quiet
 	card.open.Kind, card.open.Small, card.open.Label = kit.PlaqueQuiet, true, i18n.T("Open the task")
 	if card.approve.Clicked(gtx) {
 		key := NeedKey(need)
@@ -320,7 +335,7 @@ func (c *NeedCards) blockedField(gtx layout.Context, e *env.Env, snapshot state.
 	if card.open.Clicked(gtx) {
 		OpenTask(e, task.ID)
 	}
-	word, _, _ := TaskStanding(task)
+	word, tone, _ := TaskStanding(task)
 	reason := task.Reason
 	if reason == "" {
 		reason = i18n.T("It stopped before it finished and said nothing more.")
@@ -333,7 +348,7 @@ func (c *NeedCards) blockedField(gtx layout.Context, e *env.Env, snapshot state.
 		)
 	}
 	return []layout.FlexChild{
-		layout.Rigid(claimRow(th, word, look.Ago(gtx.Now, task.Updated))),
+		layout.Rigid(claimRow(th, tone, word, look.Ago(gtx.Now, task.Updated))),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 		layout.Rigid(look.Paragraph(th, th.T.Title, th.R.Fg, task.Title)),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
@@ -349,29 +364,39 @@ func (c *NeedCards) blockedField(gtx layout.Context, e *env.Env, snapshot state.
 	}
 }
 
-func claimRow(th *look.Theme, word, ago string) layout.Widget {
+// the claim word in its tone's ink, the notch already marks the corner
+func claimRow(th *look.Theme, tone palette.Tone, word, ago string) layout.Widget {
+	ink := th.R.Stone(tone)
+	if tone == palette.Idle {
+		ink = th.R.Fg2
+	}
 	return func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-				return layout.W.Layout(gtx, kit.Claim(th.Theme, palette.Attention, word))
+				return kit.Label{Style: th.T.Label, Color: ink, MaxLines: 1}.Layout(gtx, th.Theme, word)
 			}),
 			layout.Rigid(kit.Text(th.Theme, th.T.MonoSm, th.R.Fg3, ago)),
 		)
 	}
 }
 
-// what exactly would happen, in full once asked for
-func layoutDetail(gtx layout.Context, th *look.Theme, card *needCard, detail string) layout.Dimensions {
-	lines := strings.Split(strings.TrimRight(detail, "\n"), "\n")
+// what exactly would happen, in full once asked for; a request or a mail is shown as it would go out,
+// what an agent asks or a limit says is prose
+func layoutDetail(gtx layout.Context, th *look.Theme, card *needCard, approval protocol.Approval) layout.Dimensions {
+	lines := strings.Split(strings.TrimRight(approval.Detail, "\n"), "\n")
 	shown := strings.Join(lines, "\n")
 	long := len(lines) > detailLines
 	if long && !card.all {
 		shown = strings.Join(lines[:detailLines], "\n")
 	}
+	style := th.T.Detail
+	if approval.Kind == protocol.ApprovalCredential || approval.Kind == protocol.ApprovalMail {
+		style = th.T.Mono
+	}
 	children := []layout.FlexChild{
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return kit.Label{Style: th.T.Mono, Color: th.R.Fg2}.Layout(gtx, th.Theme, shown)
+			return kit.Label{Style: style, Color: th.R.Fg2}.Layout(gtx, th.Theme, shown)
 		}),
 	}
 	if long {
@@ -402,9 +427,9 @@ func (c *NeedCards) layoutWhere(gtx layout.Context, e *env.Env, snapshot state.S
 			return look.Link(gtx, th, &card.team, TeamName(snapshot.Teams, teamID))
 		}),
 	}
-	dot := layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, "  ·  "))
+	dot := layout.Rigid(kit.Text(th.Theme, th.T.Detail, th.R.Fg3, "  ·  "))
 	if name := MemberOf(snapshot, teamID, member); name != "" {
-		children = append(children, dot, layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, name)))
+		children = append(children, dot, layout.Rigid(kit.Text(th.Theme, th.T.Detail, th.R.Fg2, name)))
 	}
 	if task, ok := snapshot.TeamTasks[taskID]; ok && taskID != c.Task {
 		if card.task.Clicked(gtx) {
@@ -417,28 +442,34 @@ func (c *NeedCards) layoutWhere(gtx layout.Context, e *env.Env, snapshot state.S
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Baseline}.Layout(gtx, children...)
 }
 
-// what the user answered, folded to one line
+// what the user answered, folded to one line on the slab the card stood on
 func layoutRecord(gtx layout.Context, th *look.Theme, line string) layout.Dimensions {
-	return kit.Slab(gtx, th.R.Stone1, th.Cut.Small, func(gtx layout.Context) layout.Dimensions {
+	record := op.Record(gtx.Ops)
+	dimensions := layout.Inset{Top: 10, Bottom: 10, Left: 13, Right: 13}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
-		return layout.Inset{Top: 10, Bottom: 10, Left: 13, Right: 13}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-				layout.Rigid(look.IconWidget(look.Icon.Check, 16, th.R.Fg3)),
-				layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
-				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-					return kit.Label{Style: th.T.Caption, Color: th.R.Fg2, MaxLines: 1}.Layout(gtx, th.Theme, line)
-				}),
-			)
-		})
+		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+			layout.Rigid(look.IconWidget(look.Icon.Check, 16, th.R.Fg3)),
+			layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
+			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+				return kit.Label{Style: th.T.Detail, Color: th.R.Fg2, MaxLines: 1}.Layout(gtx, th.Theme, line)
+			}),
+		)
 	})
+	call := record.Stop()
+	bounds, cut := image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Small)
+	kit.FillCut(gtx.Ops, bounds, cut, th.R.Slab)
+	kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(1)), th.R.Vein)
+	call.Add(gtx.Ops)
+	return dimensions
 }
 
 // one option of a choice question: its key, then what it says; a click picks it
 func layoutChoice(gtx layout.Context, th *look.Theme, click *kit.Click, letter, option string) layout.Dimensions {
 	return click.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		ink := th.R.Stone1
+		// an option is a tonal row on the card, lifted a step above the slab
+		ink := th.R.Field
 		if click.Hovered() {
-			ink = th.R.Stone2
+			ink = palette.Mix(th.R.Field, th.R.Fg, tokens.AlphaHoverPlane)
 		}
 		dimensions := kit.Slab(gtx, ink, th.Cut.Small, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = gtx.Constraints.Max.X

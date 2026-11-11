@@ -167,7 +167,9 @@ func (state *viewState) layoutCodeBlock(gtx layout.Context, th *look.Theme, key,
 		offset.Pop()
 		call := record.Stop()
 		size := image.Pt(width, strip+dimensions.Size.Y)
-		kit.FillCut(gtx.Ops, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Mid), th.R.Stone1)
+		bounds, cut := image.Rectangle{Max: size}, gtx.Dp(th.Cut.Mid)
+		kit.FillCut(gtx.Ops, bounds, cut, th.R.Slab)
+		kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(1)), th.R.Vein)
 		call.Add(gtx.Ops)
 		look.Place(gtx, image.Rect(gtx.Dp(13), 0, width/2, strip), func(gtx layout.Context) layout.Dimensions {
 			return layout.W.Layout(gtx, kit.RawText(th.Theme, th.T.MonoSm, th.R.Fg3, languageLabel(language)))

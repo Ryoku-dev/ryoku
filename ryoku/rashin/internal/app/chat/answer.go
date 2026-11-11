@@ -18,7 +18,7 @@ import (
 )
 
 func (state *viewState) layoutPlan(gtx layout.Context, th *look.Theme, entries []protocol.PlanEntry) layout.Dimensions {
-	return slab(gtx, th, th.R.Stone1, 16, func(gtx layout.Context) layout.Dimensions {
+	return slab(gtx, th, 16, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
 		children := []layout.FlexChild{layout.Rigid(kit.Text(th.Theme, th.T.Title, th.R.Fg, i18n.T("Plan")))}
 		line := gtx.Sp(th.T.Body.Line)
@@ -85,7 +85,7 @@ func (state *viewState) layoutAnswerActions(gtx layout.Context, th *look.Theme, 
 	return look.Flow{Gap: 8, LineGap: 8}.Layout(gtx, len(actions), func(gtx layout.Context, index int) layout.Dimensions {
 		action := actions[index]
 		plaque := state.plaque(key + ":" + strconv.Itoa(index))
-		plaque.Kind, plaque.Small, plaque.Label = kit.PlaqueQuiet, true, action.Label
+		plaque.Kind, plaque.Small, plaque.Label = kit.PlaqueTonal, true, action.Label
 		switch action.Kind {
 		case protocol.ActURL:
 			plaque.Icon = look.Icon.OpenInNew
@@ -120,7 +120,7 @@ func answerAction(action protocol.Action) Action {
 
 // what an answer offers to run stands in one slab: the command, why, how far it reaches and the way to run it
 func (state *viewState) layoutCommands(gtx layout.Context, th *look.Theme, plan *protocol.CommandPlan, key string) layout.Dimensions {
-	return slab(gtx, th, th.R.Stone1, 13, func(gtx layout.Context) layout.Dimensions {
+	return slab(gtx, th, 13, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
 		several := len(plan.Commands) > 1
 		children := make([]layout.FlexChild, 0, len(plan.Commands)*4+2)
@@ -177,7 +177,7 @@ func (state *viewState) layoutCommand(gtx layout.Context, th *look.Theme, comman
 	if command.Why != "" {
 		children = append(children,
 			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
-			layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg2, command.Why)),
+			layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2, command.Why)),
 		)
 	}
 	children = append(children,
@@ -230,7 +230,7 @@ func tierClaim(th *look.Theme, tier string) layout.Widget {
 
 func (state *viewState) layoutAgentOffer(gtx layout.Context, th *look.Theme, reason, key string) layout.Dimensions {
 	plaque := state.plaque(key)
-	plaque.Kind, plaque.Small = kit.PlaqueLine, true
+	plaque.Kind, plaque.Small = kit.PlaqueTonal, true
 	plaque.Icon, plaque.Label = look.Icon.Agents, i18n.T("Move to Agent")
 	if plaque.Clicked(gtx) {
 		state.act(Action{Kind: ActHandoff})
@@ -238,14 +238,14 @@ func (state *viewState) layoutAgentOffer(gtx layout.Context, th *look.Theme, rea
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return plaque.Layout(gtx, th.Theme) }),
 		layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
-		layout.Flexed(1, kit.Text(th.Theme, th.T.Caption, th.R.Fg2, reason)),
+		layout.Flexed(1, kit.Text(th.Theme, th.T.Detail, th.R.Fg2, reason)),
 	)
 }
 
 func (state *viewState) layoutError(gtx layout.Context, th *look.Theme, block blockContext, key string) layout.Dimensions {
 	failure, turn := block.row.err, block.row.turn
 	retry := state.plaque(key + ":retry")
-	retry.Kind, retry.Small, retry.Label = kit.PlaqueLine, true, i18n.T("Try again")
+	retry.Kind, retry.Small, retry.Label = kit.PlaqueTonal, true, i18n.T("Try again")
 	if retry.Clicked(gtx) {
 		number := 0
 		if turn != nil {
@@ -255,8 +255,7 @@ func (state *viewState) layoutError(gtx layout.Context, th *look.Theme, block bl
 	}
 	gtx.Constraints.Min = image.Point{}
 	gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(560))
-	record := op.Record(gtx.Ops)
-	dimensions := layout.UniformInset(16).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+	return slab(gtx, th, 16, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Rigid(kit.Claim(th.Theme, palette.Failed, i18n.T("Failed"))),
@@ -268,8 +267,4 @@ func (state *viewState) layoutError(gtx layout.Context, th *look.Theme, block bl
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return retry.Layout(gtx, th.Theme) }),
 		)
 	})
-	call := record.Stop()
-	kit.FillCut(gtx.Ops, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid), th.R.Field(palette.Failed))
-	call.Add(gtx.Ops)
-	return dimensions
 }

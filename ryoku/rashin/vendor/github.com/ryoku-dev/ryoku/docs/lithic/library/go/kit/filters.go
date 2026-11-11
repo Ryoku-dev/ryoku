@@ -22,7 +22,9 @@ type filterChip struct {
 	focus anim.Tween
 }
 
-// Filters is a row of mutually exclusive filter chips.
+// Filters is a row of mutually exclusive filter chips. Chips at rest are
+// tonal plates; the selection glides between them as a sel fill with the place
+// blade along its bottom.
 type Filters struct {
 	Labels   []string
 	Counts   []int
@@ -30,6 +32,7 @@ type Filters struct {
 	Preview  State
 	chips    []filterChip
 	widths   []int
+	plates   []op.CallOp
 	children []layout.FlexChild
 	x        anim.Tween
 	width    anim.Tween
@@ -84,11 +87,9 @@ func (f *Filters) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions 
 				cut = gtx.Dp(th.Cut.Small) + int(float32(gtx.Dp(unit.Dp(tokens.SizeControlPressCutGrow)))*pressed+.5)
 				sink := int(float32(gtx.Dp(unit.Dp(tokens.SizeControlPressSink)))*pressed + .5)
 				hover := previewTransition(gtx, &f.chips[i].hover, itemPreview, StateHover, f.chips[i].Hovered() && i != f.Selected, th.Motion.HoverIn, th.Motion.HoverOut)
-				colors := interactivePlaqueColors(gtx, th, PlaqueQuiet, hover)
+				ink := disabledInk(gtx, th.R.Fg2)
 				if i == f.Selected {
-					colors.fill = palette.WithAlpha(th.R.OnSel, tokens.AlphaPressRow*pressed)
-					colors.ink = disabledInk(gtx, th.R.OnSel)
-					colors.stroke = false
+					ink = disabledInk(gtx, th.R.OnSel)
 				}
 
 				contentGTX := gtx
@@ -98,12 +99,12 @@ func (f *Filters) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions 
 				content := layout.Inset{Left: unit.Dp(tokens.SizeFilterInset), Right: unit.Dp(tokens.SizeFilterInset)}.Layout(contentGTX, func(gtx layout.Context) layout.Dimensions {
 					var parts [3]layout.FlexChild
 					count := 0
-					parts[count] = layout.Rigid(rawText(th, th.T.Label, colors.ink, label))
+					parts[count] = layout.Rigid(rawText(th, th.T.Label, ink, label))
 					count++
 					if i < len(f.Counts) {
 						parts[count] = layout.Rigid(layout.Spacer{Width: unit.Dp(tokens.SizeFilterCountGap)}.Layout)
 						count++
-						parts[count] = layout.Rigid(rawText(th, th.T.MonoSm, colors.ink, strconv.Itoa(f.Counts[i])))
+						parts[count] = layout.Rigid(rawText(th, th.T.MonoSm, ink, strconv.Itoa(f.Counts[i])))
 						count++
 					}
 					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, parts[:count]...)
@@ -111,9 +112,13 @@ func (f *Filters) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions 
 				call := contentRecord.Stop()
 				size := constrainSize(gtx, image.Pt(content.Size.X, gtx.Dp(unit.Dp(tokens.SizeFilterHeight))))
 				bounds := image.Rectangle{Max: size}
-				FillCut(gtx.Ops, bounds, cut, colors.fill)
-				if colors.stroke {
-					StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), colors.outline)
+				plate := op.Record(gtx.Ops)
+				if i != f.Selected {
+					FillCut(gtx.Ops, bounds, cut, disabledInk(gtx, palette.Mix(th.R.Field, th.R.Fg, tokens.AlphaHoverPlane*min(hover, 1))))
+				}
+				f.plates[i] = plate.Stop()
+				if i == f.Selected && pressed > 0 {
+					FillCut(gtx.Ops, bounds, cut, palette.WithAlpha(th.R.OnSel, tokens.AlphaPressRow*pressed))
 				}
 				offset := op.Offset(image.Pt((size.X-content.Size.X)/2, (size.Y-content.Size.Y)/2+sink)).Push(gtx.Ops)
 				call.Add(gtx.Ops)
@@ -129,9 +134,16 @@ func (f *Filters) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions 
 	dims := layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gap}.Layout(gtx, f.children...)
 	content := record.Stop()
 
-	targetX := f.Selected * gap
-	for i := range f.Selected {
-		targetX += f.widths[i]
+	height := gtx.Dp(unit.Dp(tokens.SizeFilterHeight))
+	plateX, targetX := 0, 0
+	for i := range f.plates {
+		if i == f.Selected {
+			targetX = plateX
+		}
+		offset := op.Offset(image.Pt(plateX, (dims.Size.Y-height)/2)).Push(gtx.Ops)
+		f.plates[i].Add(gtx.Ops)
+		offset.Pop()
+		plateX += f.widths[i] + gap
 	}
 	f.x.Duration, f.width.Duration = th.Motion.Select, th.Motion.Select
 	f.x.Ease, f.width.Ease = anim.EaseChisel, anim.EaseChisel
@@ -139,7 +151,10 @@ func (f *Filters) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions 
 	f.width.Set(gtx, float32(f.widths[f.Selected]))
 	x := int(f.x.Value(gtx) + .5)
 	width := int(f.width.Value(gtx) + .5)
-	FillCut(gtx.Ops, image.Rect(x, 0, x+width, gtx.Dp(unit.Dp(tokens.SizeFilterHeight))), gtx.Dp(th.Cut.Small), disabledInk(gtx, th.R.Sel))
+	selection := image.Rect(x, (dims.Size.Y-height)/2, x+width, (dims.Size.Y+height)/2)
+	selectionCut := gtx.Dp(th.Cut.Small)
+	FillCut(gtx.Ops, selection, selectionCut, disabledInk(gtx, th.R.Sel))
+	PlaceBlade(gtx, th, selection, selectionCut, layout.Horizontal)
 	content.Add(gtx.Ops)
 	return dims
 }
@@ -153,6 +168,11 @@ func (f *Filters) ensure(count int) {
 		f.widths = make([]int, count)
 	} else {
 		f.widths = f.widths[:count]
+	}
+	if cap(f.plates) < count {
+		f.plates = make([]op.CallOp, count)
+	} else {
+		f.plates = f.plates[:count]
 	}
 	if cap(f.children) < count {
 		f.children = make([]layout.FlexChild, count)

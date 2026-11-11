@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"gioui.org/layout"
-	"gioui.org/op"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
@@ -134,7 +133,7 @@ func (o *overviewState) layoutList(
 					worktree := worktrees[index]
 					row := o.row(worktree.Path)
 					row.tablet.Pane = th.R.Stone2
-					row.start.Kind, row.start.Small, row.start.Label = kit.PlaqueLine, true, i18n.T("New session")
+					row.start.Kind, row.start.Small, row.start.Label = kit.PlaqueTonal, true, i18n.T("New session")
 					if row.start.Clicked(gtx) {
 						page.newSession(e, worktree.Path)
 					}
@@ -153,7 +152,7 @@ func (o *overviewState) layoutList(
 func (o *overviewState) layoutTools(gtx layout.Context, e *env.Env, page *pageState) layout.Dimensions {
 	th := e.Theme
 	// the pane's one gold action is starting a session in the worktree that is shown
-	o.fresh.Kind, o.fresh.Small, o.fresh.Icon, o.fresh.Label = kit.PlaqueLine, true, look.Icon.Add, i18n.T("New worktree")
+	o.fresh.Kind, o.fresh.Small, o.fresh.Icon, o.fresh.Label = kit.PlaqueTonal, true, look.Icon.Add, i18n.T("New worktree")
 	if o.fresh.Clicked(gtx) {
 		info, _ := page.projectInfo(e)
 		o.openNew(e, page, info)
@@ -320,18 +319,22 @@ func (o *overviewState) layoutIdentity(
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 				layout.Rigid(look.TokenChip(th, worktreeBranch(worktree))),
 				layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
-				layout.Flexed(1, kit.Text(th.Theme, th.T.Caption, th.R.Fg3, marks)),
+				layout.Flexed(1, kit.Text(th.Theme, th.T.Detail, th.R.Fg2, marks)),
 			)
 		}),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return o.layoutActs(gtx, e, row) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return o.layoutActs(gtx, e, worktree, row) }),
 	)
 }
 
-func (o *overviewState) layoutActs(gtx layout.Context, e *env.Env, row *worktreeRowState) layout.Dimensions {
+func (o *overviewState) layoutActs(gtx layout.Context, e *env.Env, worktree protocol.WorktreeInfo, row *worktreeRowState) layout.Dimensions {
 	th := e.Theme
 	row.session.Kind, row.session.Icon, row.session.Label = kit.PlaqueGold, look.Icon.Agents, i18n.T("New session here")
-	row.changes.Kind, row.changes.Icon, row.changes.Label = kit.PlaqueLine, look.Icon.Diff, i18n.T("Open changes")
+	// a script waiting to be trusted holds the pane's one gold
+	if setupState(worktree, row) == protocol.SetupUntrusted && row.setup.Hash != "" {
+		row.session.Kind = kit.PlaqueTonal
+	}
+	row.changes.Kind, row.changes.Icon, row.changes.Label = kit.PlaqueTonal, look.Icon.Diff, i18n.T("Open changes")
 	icons := [...]struct {
 		plaque *kit.IconPlaque
 		tip    string
@@ -556,7 +559,7 @@ func (o *overviewState) layoutPorts(gtx layout.Context, e *env.Env, row *worktre
 					plaque = new(kit.Plaque)
 					row.portOpen[port.Port] = plaque
 				}
-				plaque.Kind, plaque.Small, plaque.Icon = kit.PlaqueQuiet, true, look.Icon.OpenInNew
+				plaque.Kind, plaque.Small, plaque.Icon = kit.PlaqueTonal, true, look.Icon.OpenInNew
 				plaque.Label = fmt.Sprintf("%d  %s", port.Port, port.Command)
 				if plaque.Clicked(gtx) {
 					e.Open(port.URL)
@@ -612,11 +615,11 @@ func (o *overviewState) layoutSetup(
 		})
 	}
 	tone, word, actions := palette.Becoming, i18n.T("Setting up"), []*kit.Plaque(nil)
-	row.showLog.Kind, row.showLog.Small, row.showLog.Label = kit.PlaqueQuiet, true, i18n.T("Show log")
+	row.showLog.Kind, row.showLog.Small, row.showLog.Label = kit.PlaqueTonal, true, i18n.T("Show log")
 	if row.logOpen {
 		row.showLog.Label = i18n.T("Hide log")
 	}
-	row.rerun.Kind, row.rerun.Small, row.rerun.Label = kit.PlaqueLine, true, i18n.T("Run again")
+	row.rerun.Kind, row.rerun.Small, row.rerun.Label = kit.PlaqueTonal, true, i18n.T("Run again")
 	row.trust.Kind, row.trust.Small, row.trust.Label = kit.PlaqueGold, true, i18n.T("Trust and run")
 	switch state {
 	case protocol.SetupFailed:
@@ -629,8 +632,7 @@ func (o *overviewState) layoutSetup(
 			actions = []*kit.Plaque{&row.trust, &row.showLog}
 		}
 	}
-	record := op.Record(gtx.Ops)
-	dimensions := layout.UniformInset(16).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+	return kit.SlabContent(gtx, th.Theme, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
 		children := []layout.FlexChild{
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -663,10 +665,6 @@ func (o *overviewState) layoutSetup(
 		}))
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	})
-	call := record.Stop()
-	kit.FillCut(gtx.Ops, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid), th.R.Field(tone))
-	call.Add(gtx.Ops)
-	return dimensions
 }
 
 func setupLog(result protocol.SetupResult) string {

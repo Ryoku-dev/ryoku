@@ -71,7 +71,7 @@ func (p *Page) layoutAPI(gtx layout.Context, e *env.Env) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("Local API"))),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
-		layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg3,
+		layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2,
 			i18n.T("Other programs on this machine can use your providers through Rashin: one address and one key, in the shape of OpenAI's API."))),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return look.SettingsSlab(gtx, th, rows) }),
@@ -179,8 +179,8 @@ func (a *apiPanel) update(gtx layout.Context, e *env.Env, settings protocol.APIS
 	address := apiAddress(settings.Port)
 	a.copyURL.Icon, a.copyURL.Description = look.Icon.Copy, i18n.T("Copy the address")
 	a.copyKey.Icon, a.copyKey.Description = look.Icon.Copy, i18n.T("Copy the key")
-	a.renew.Kind, a.renew.Small, a.renew.Label = kit.PlaqueQuiet, true, i18n.T("New key")
-	a.exports.Kind, a.exports.Small, a.exports.Label, a.exports.Icon = kit.PlaqueQuiet, true, i18n.T("Copy exports"), look.Icon.Copy
+	a.renew.Kind, a.renew.Small, a.renew.Label = kit.PlaqueTonal, true, i18n.T("New key")
+	a.exports.Kind, a.exports.Small, a.exports.Label, a.exports.Icon = kit.PlaqueTonal, true, i18n.T("Copy exports"), look.Icon.Copy
 	if a.copyURL.Clicked(gtx) {
 		a.clip, a.copied = address, i18n.T("Copied the address")
 	}

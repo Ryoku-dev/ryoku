@@ -16,6 +16,7 @@ import (
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 
 	"ryoku-rashin/internal/app/look"
 	"ryoku-rashin/internal/protocol"
@@ -31,7 +32,7 @@ type chatFrame struct {
 }
 
 func newChatFrame(size image.Point) *chatFrame {
-	return &chatFrame{now: time.Unix(100, 0), theme: look.New(0), size: size}
+	return &chatFrame{now: time.Unix(100, 0), theme: look.New(0, palette.Look{}), size: size}
 }
 
 func (frame *chatFrame) context() layout.Context {

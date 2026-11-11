@@ -85,16 +85,36 @@ func (t *taskView) layout(gtx layout.Context, e *env.Env, page *Page, task proto
 	)
 }
 
-// while the task is in hand, who works on it and how it goes stands under the header
+// while the task is in hand, who works on it and how it goes stands under the header, on the column the work reads in
 func (t *taskView) layoutPresence(gtx layout.Context, e *env.Env, snapshot state.Snapshot, task protocol.TeamTask) layout.Dimensions {
 	live, inHand := teamsui.TaskLive(snapshot, task)
 	if !inHand {
 		return layout.Dimensions{}
 	}
-	inset := look.ContentInset(e.Class)
-	return layout.Inset{Left: inset, Right: inset, Top: e.Theme.Sp.S3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return t.presence.Layout(gtx, e.Theme, live)
-	})
+	band := func(gtx layout.Context) layout.Dimensions {
+		return layout.Inset{Top: e.Theme.Sp.S3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return t.presence.Layout(gtx, e.Theme, live)
+		})
+	}
+	size := gtx.Constraints.Max
+	if size.X < gtx.Dp(asideFrom) {
+		return look.ReadingColumn(gtx, e.Class, band)
+	}
+	left, width := wideColumn(gtx, e.Class)
+	column := gtx
+	column.Constraints = layout.Constraints{Min: image.Pt(width, 0), Max: image.Pt(width, size.Y)}
+	offset := op.Offset(image.Pt(left, 0)).Push(gtx.Ops)
+	dimensions := band(column)
+	offset.Pop()
+	return layout.Dimensions{Size: image.Pt(size.X, dimensions.Size.Y)}
+}
+
+// where the reading column stands when the details stand beside it
+func wideColumn(gtx layout.Context, class look.Class) (left, width int) {
+	size := gtx.Constraints.Max
+	inset, gap, side := gtx.Dp(look.ContentInset(class)), gtx.Dp(asideGap), gtx.Dp(asideWidth)
+	width = max(0, min(gtx.Dp(look.ReadingColumnWidth), size.X-2*inset-gap-side))
+	return max(inset, (size.X-width-gap-side)/2), width
 }
 
 // a task run again works in a new session, which gets a fresh transcript
@@ -166,7 +186,6 @@ func (t *taskView) layoutHeader(
 
 func (t *taskView) layoutBody(gtx layout.Context, e *env.Env, snapshot state.Snapshot, task protocol.TeamTask, session string) layout.Dimensions {
 	size := gtx.Constraints.Max
-	inset := gtx.Dp(look.ContentInset(e.Class))
 	aside := func(gtx layout.Context) layout.Dimensions { return t.layoutAside(gtx, e, snapshot, task) }
 	if size.X < gtx.Dp(asideFrom) {
 		if task.Report == nil {
@@ -184,9 +203,8 @@ func (t *taskView) layoutBody(gtx layout.Context, e *env.Env, snapshot state.Sna
 			})
 		})
 	}
+	left, width := wideColumn(gtx, e.Class)
 	gap, side := gtx.Dp(asideGap), gtx.Dp(asideWidth)
-	width := max(0, min(gtx.Dp(look.ReadingColumnWidth), size.X-2*inset-gap-side))
-	left := max(inset, (size.X-width-gap-side)/2)
 
 	column := gtx
 	column.Constraints = layout.Exact(image.Pt(width, size.Y))

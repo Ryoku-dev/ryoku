@@ -12,6 +12,7 @@ import (
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 	"ryoku-i18n"
 )
 
@@ -141,7 +142,8 @@ func (header *PaneHeader) layoutIdentity(gtx layout.Context, th *Theme, content 
 				gtx.Constraints.Max.X = gtx.Constraints.Max.X * 3 / 5
 			}
 			gtx.Constraints.Min.X = 0
-			return kit.Text(th.Theme, th.T.Title, th.R.Fg, content.Title)(gtx)
+			// a breadcrumb, the page's monument is the line that leads
+			return kit.Text(th.Theme, th.T.Title, th.R.Fg2, content.Title)(gtx)
 		}),
 	}
 	// the claim goes before the facts, facts are what a narrow header can lose
@@ -237,7 +239,11 @@ func (header *PaneHeader) layoutAction(
 			if action.On {
 				state.icon.Kind = kit.PlaqueOn
 			}
-			return state.icon.Layout(gtx, th.Theme)
+			dimensions := state.icon.Layout(gtx, th.Theme)
+			if action.On {
+				kit.PlaceBlade(gtx, th.Theme, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Small), layout.Horizontal)
+			}
+			return dimensions
 		}
 		return header.layoutLabelled(gtx, th, state, action)
 	}
@@ -251,9 +257,13 @@ func (header *PaneHeader) layoutLabelled(gtx layout.Context, th *Theme, state *h
 	return state.label.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		hovered := state.label.Hovered() || header.Preview == kit.StateHover
 		hover := transition(gtx, &state.hover, hovered && gtx.Source.Enabled(), th.Motion.HoverIn, th.Motion.HoverOut)
-		ink := th.R.Fg2
+		// a secondary verb is tonal: the fill shows the cut, a hairline alone reads as a ring
+		ink, fill := th.R.Fg, palette.Mix(th.R.Field, th.R.Fg, tokens.AlphaHoverPlane*hover)
 		if action.On {
-			ink = th.R.OnSel
+			ink, fill = th.R.OnSel, palette.Mix(th.R.Sel, th.R.Fg, tokens.AlphaHoverPlane*hover)
+		}
+		if !gtx.Source.Enabled() {
+			ink, fill = palette.WithAlpha(ink, tokens.AlphaDisabled), palette.WithAlpha(fill, tokens.AlphaDisabled)
 		}
 		record := op.Record(gtx.Ops)
 		content := gtx
@@ -276,11 +286,9 @@ func (header *PaneHeader) layoutLabelled(gtx layout.Context, th *Theme, state *h
 		})
 		call := record.Stop()
 		bounds := image.Rect(0, 0, dimensions.Size.X, height)
+		kit.FillCut(gtx.Ops, bounds, cut, fill)
 		if action.On {
-			kit.FillCut(gtx.Ops, bounds, cut, palette.Mix(th.R.Sel, th.R.Fg, .10*hover))
-		} else {
-			kit.FillCut(gtx.Ops, bounds, cut, palette.WithAlpha(th.R.Fg2, .10*hover))
-			kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(1)), th.R.Vein)
+			kit.PlaceBlade(gtx, th.Theme, bounds, cut, layout.Horizontal)
 		}
 		offset := op.Offset(image.Pt(0, (height-dimensions.Size.Y)/2)).Push(gtx.Ops)
 		call.Add(gtx.Ops)

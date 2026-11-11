@@ -115,7 +115,7 @@ func (t *taskView) layoutPieces(gtx layout.Context, e *env.Env, snapshot state.S
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 									return kit.Label{Style: th.T.Body, Color: ink, MaxLines: 1}.Layout(gtx, th.Theme, piece.Title)
 								}),
-								layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, facts)),
+								layout.Rigid(kit.Text(th.Theme, th.T.Detail, th.R.Fg2, facts)),
 							)
 						}),
 					)

@@ -72,6 +72,7 @@ github.com/godbus/dbus/v5
 github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim
 github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit
 github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette
+github.com/ryoku-dev/ryoku/docs/lithic/library/go/symbols
 github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme
 github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens
 # go.etcd.io/bbolt v1.4.3

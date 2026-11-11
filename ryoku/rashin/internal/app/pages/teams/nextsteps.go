@@ -79,7 +79,7 @@ func (n *nextSteps) layout(gtx layout.Context, e *env.Env, snapshot appstate.Sna
 	rows := make([]layout.Widget, len(steps))
 	for index, step := range steps {
 		row := n.row(step.key)
-		row.act.Kind, row.act.Small, row.act.Label = kit.PlaqueLine, true, step.action
+		row.act.Kind, row.act.Small, row.act.Label = kit.PlaqueTonal, true, step.action
 		row.hide.Kind, row.hide.Small, row.hide.Icon = kit.PlaqueQuiet, true, look.Icon.Close
 		row.hide.Description = i18n.T("Hide this step")
 		if row.act.Clicked(gtx) {
@@ -104,10 +104,7 @@ func (n *nextSteps) layout(gtx layout.Context, e *env.Env, snapshot appstate.Sna
 		}
 	}
 	return section(th, i18n.T("Next steps"), func(gtx layout.Context) layout.Dimensions {
-		return kit.Slab(gtx, th.R.Stone1, th.Cut.Mid, func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Min.X = gtx.Constraints.Max.X
-			return layout.UniformInset(th.Sp.S3).Layout(gtx, stack(th, rows))
-		})
+		return kit.SlabRows(gtx, th.Theme, rows...)
 	})
 }
 

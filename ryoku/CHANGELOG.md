@@ -28,6 +28,13 @@
 - **Rashin's app has a new layout.** A sidebar that folds to a rail, one
   reading column for questions and answers, and every page in the same frame
   with one search field (`rashin/internal/app`).
+- **Rashin's app draws Material Symbols Sharp.** Every icon in the app comes
+  from Lithic's `symbols` package, and the current destination in the sidebar
+  shows its filled icon (`rashin/internal/app/look/icons.go`).
+- **Rashin's app has a Contrast and a Tint.** Contrast (Standard or High)
+  sets the stones further apart and Tint (Off, Low or Medium) gives them a
+  touch of the wallpaper colour; Rashin starts on Standard and Low, and a
+  change restyles the open window at once (`rashin/internal/app/state`).
 - **Rashin can serve its providers to other programs.** Settings > Local API
   or `rashin api on` gives an address and a key in the shape of OpenAI's API,
   so an editor or another agent uses the same free models, keys and failover.

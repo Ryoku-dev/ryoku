@@ -44,7 +44,7 @@ func (d *draft) handleMembers(gtx layout.Context) {
 			break
 		}
 	}
-	d.add.Kind, d.add.Small, d.add.Icon, d.add.Label = kit.PlaqueLine, true, look.Icon.Add, i18n.T("Add a member")
+	d.add.Kind, d.add.Small, d.add.Icon, d.add.Label = kit.PlaqueTonal, true, look.Icon.Add, i18n.T("Add a member")
 	if d.add.Clicked(gtx) && len(d.members) < membersMax {
 		d.members = append(d.members, new(draftMember))
 	}
@@ -131,7 +131,7 @@ func (d *draft) layoutEngine(e *env.Env, row *draftMember) layout.Widget {
 					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 						layout.Rigid(look.IconWidget(arrow, 20, th.R.Fg2)),
 						layout.Rigid(layout.Spacer{Width: th.Sp.S1}.Layout),
-						layout.Flexed(1, look.Paragraph(th, th.T.Caption, th.R.Fg2, i18n.Tf("Engine: %s", line))),
+						layout.Flexed(1, look.Paragraph(th, th.T.Detail, th.R.Fg2, i18n.Tf("Engine: %s", line))),
 					)
 				})
 			}),
@@ -189,11 +189,11 @@ func (d *draft) layoutTools(th *look.Theme) layout.Widget {
 	}
 }
 
-// a labelled control in the form: the caption over it, as a field's label stands
+// a labelled control in the form: the label over it, as a field's label stands
 func labelled(th *look.Theme, label string, control layout.Widget) layout.Widget {
 	return func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, label)),
+			layout.Rigid(kit.Text(th.Theme, th.T.Detail, th.R.Fg2, label)),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
 			layout.Rigid(control),
 		)
@@ -240,7 +240,7 @@ func (d *draft) layoutMore(gtx layout.Context, e *env.Env) layout.Widget {
 		toggleRoutines[index] = func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 				layout.Rigid(kit.Text(th.Theme, th.T.Row, th.R.Fg, routine.Title)),
-				layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg2, when)),
+				layout.Rigid(kit.Text(th.Theme, th.T.Detail, th.R.Fg2, when)),
 				layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions { return toggle.Layout(gtx, th.Theme) }),
 			)

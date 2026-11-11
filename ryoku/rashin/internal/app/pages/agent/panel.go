@@ -105,7 +105,7 @@ func (panel *changesPanel) layout(gtx layout.Context, e *env.Env, info protocol.
 			if !dirty {
 				return layout.Dimensions{}
 			}
-			panel.review.Kind, panel.review.Small, panel.review.Label = kit.PlaqueLine, true, i18n.T("Review and commit")
+			panel.review.Kind, panel.review.Small, panel.review.Label = kit.PlaqueTonal, true, i18n.T("Review and commit")
 			if panel.review.Clicked(gtx) {
 				e.NavigateWork(info.Project, env.ViewChanges, worktree.Path)
 			}

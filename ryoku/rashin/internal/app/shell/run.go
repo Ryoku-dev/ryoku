@@ -88,7 +88,9 @@ type runtime struct {
 	store    *state.Store
 	client   *conn.Client
 	hub      invalidationHub
+	mode     palette.Mode
 	themeMu  sync.RWMutex
+	look     palette.Look
 	theme    *look.Theme
 	pending  *look.Theme
 	tempDir  string
@@ -100,16 +102,16 @@ func Run(options Options) error {
 	if err != nil {
 		return err
 	}
-	r, err := startRuntime(options, mode)
-	if err != nil {
-		return err
-	}
-	defer r.Close()
 	preferences := state.LoadAppPreferences()
 	if options.ZoomPercent != 0 {
 		preferences.ZoomPercent = options.ZoomPercent
 	}
 	options.Preferences = preferences.Normalize()
+	r, err := startRuntime(options, mode)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
 	width, height := options.Width, options.Height
 	if width <= 0 {
 		width = preferences.Width
@@ -132,7 +134,9 @@ func Run(options Options) error {
 
 func startRuntime(options Options, mode palette.Mode) (*runtime, error) {
 	ctx, cancel := context.WithCancel(context.Background())
-	r := &runtime{ctx: ctx, cancel: cancel, theme: look.New(mode), serveErr: make(chan error, 1)}
+	preferences := options.Preferences.Normalize()
+	current := palette.ParseLook(preferences.Contrast, preferences.Tint)
+	r := &runtime{ctx: ctx, cancel: cancel, mode: mode, look: current, theme: look.New(mode, current), serveErr: make(chan error, 1)}
 	r.store = state.New(r.hub.Invalidate)
 	clientOptions := client.Options{Client: protocol.ClientApp, Start: true}
 	if options.Demo {
@@ -166,12 +170,7 @@ func startRuntime(options Options, mode palette.Mode) (*runtime, error) {
 		}
 	}
 	r.client = conn.NewOptions(r.store, clientOptions)
-	go look.Watch(ctx, func() palette.Mode { return mode }, func(theme *look.Theme) {
-		r.themeMu.Lock()
-		r.pending = theme
-		r.themeMu.Unlock()
-		r.hub.Invalidate()
-	})
+	go look.Watch(ctx, func() palette.Mode { return mode }, r.currentLook, r.themeChanged)
 	return r, nil
 }
 
@@ -183,6 +182,32 @@ func (r *runtime) Theme() *look.Theme {
 		r.pending = nil
 	}
 	return r.theme
+}
+
+func (r *runtime) currentLook() palette.Look {
+	r.themeMu.RLock()
+	defer r.themeMu.RUnlock()
+	return r.look
+}
+
+func (r *runtime) themeChanged(theme *look.Theme) {
+	r.themeMu.Lock()
+	if theme.Look != r.look {
+		// the look moved while this palette resolved, so the palette is taken again with the new look
+		theme = look.New(theme.Mode, r.look)
+	}
+	r.pending = theme
+	r.themeMu.Unlock()
+	r.hub.Invalidate()
+}
+
+func (r *runtime) setLook(contrast, tint string) {
+	current := palette.ParseLook(contrast, tint)
+	theme := look.New(r.mode, current)
+	r.themeMu.Lock()
+	r.look, r.pending = current, theme
+	r.themeMu.Unlock()
+	r.hub.Invalidate()
 }
 
 func (r *runtime) Close() {

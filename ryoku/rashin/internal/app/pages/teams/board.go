@@ -72,9 +72,9 @@ func (b *board) layoutHeader(gtx layout.Context, e *env.Env, p *Page) layout.Dim
 func (b *board) layoutLead(gtx layout.Context, e *env.Env, snapshot appstate.Snapshot) layout.Dimensions {
 	th := e.Theme
 	children := []layout.FlexChild{
-		layout.Rigid(look.Paragraph(th, th.T.Sentence, th.R.Fg, boardSentence(snapshot.Teams))),
-		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-		layout.Rigid(look.Paragraph(th, th.T.Proof, th.R.Fg2, boardProof(gtx.Now, snapshot))),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return look.Monument(gtx, th, boardSentence(snapshot.Teams), boardProof(gtx.Now, snapshot))
+		}),
 	}
 	// with no team yet there is nothing that could keep it up
 	if len(snapshot.Teams) > 0 {
@@ -122,7 +122,7 @@ func (b *board) layoutTiles(gtx layout.Context, e *env.Env, p *Page, snapshot ap
 	// clicks are taken before the grid measures its tiles, so measuring never eats one
 	for _, team := range teams {
 		tile := b.tile(team.ID)
-		tile.give.Kind, tile.give.Small, tile.give.Label = kit.PlaqueQuiet, true, i18n.T("Give a task")
+		tile.give.Kind, tile.give.Small, tile.give.Label = kit.PlaqueTonal, true, i18n.T("Give a task")
 		// the tile under the button hears the same click, both are drained so it never opens the team a frame later
 		give, open := tile.give.Clicked(gtx), tile.click.Clicked(gtx)
 		switch {

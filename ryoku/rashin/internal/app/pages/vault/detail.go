@@ -175,7 +175,7 @@ func (d *detail) layoutForm(gtx layout.Context, e *env.Env, teams []protocol.Tea
 	}
 	if header {
 		children = append(children,
-			layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg3, sentAs(credential))),
+			layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2, sentAs(credential))),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return d.hosts.Layout(gtx, th.Theme) }),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
@@ -184,7 +184,7 @@ func (d *detail) layoutForm(gtx layout.Context, e *env.Env, teams []protocol.Tea
 		)
 	}
 	children = append(children,
-		layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, i18n.T("Which teams may use it"))),
+		layout.Rigid(kit.Text(th.Theme, th.T.Detail, th.R.Fg2, i18n.T("Which teams may use it"))),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 	)
 	if len(teams) == 0 {

@@ -17,22 +17,24 @@ import (
 	"ryoku-rashin/internal/protocol"
 )
 
-// how a crew chart is drawn: full tiles on a team's page, small ones beside a draft
+// how a crew chart is drawn: full tiles on a team's page, small ones beside a draft;
+// an edge with no alpha draws none
 type crewStyle struct {
 	tile, gapX, gapY, mark unit.Dp
-	plane                  color.NRGBA
+	plane, edge            color.NRGBA
 	mini                   bool
 }
 
+// on the pane a tile lifts as a slab, its vein carrying the edge
 func fullCrew(th *look.Theme) crewStyle {
-	return crewStyle{tile: 200, gapX: th.Sp.S3, gapY: th.Sp.S5, mark: 36, plane: th.R.Stone1}
+	return crewStyle{tile: 200, gapX: th.Sp.S3, gapY: th.Sp.S5, mark: 36, plane: th.R.Slab, edge: th.R.Vein}
 }
 
-// the aside is a stone1 slab, so its tiles stand one step down on stone2; a
+// the aside is a slab, so its tiles stand one step up on the field; a
 // mini tile is a mark and a name, two to a row as wide as the aside lets them
 // be, so a name such as Researcher reads whole; its title is in the form beside it
 func miniCrew(th *look.Theme) crewStyle {
-	return crewStyle{gapX: th.Sp.S2, gapY: th.Sp.S4, mark: 24, plane: th.R.Stone2, mini: true}
+	return crewStyle{gapX: th.Sp.S2, gapY: th.Sp.S4, mark: 24, plane: th.R.Field, mini: true}
 }
 
 type placedTile struct {
@@ -111,7 +113,11 @@ func crewChart(gtx layout.Context, th *look.Theme, snapshot appstate.Snapshot, m
 	}
 	draw := func(tile placedTile, at image.Point) {
 		stack := op.Offset(at).Push(gtx.Ops)
-		kit.FillCut(gtx.Ops, image.Rectangle{Max: tile.size}, gtx.Dp(th.Cut.Mid), style.plane)
+		bounds, cut := image.Rectangle{Max: tile.size}, gtx.Dp(th.Cut.Mid)
+		kit.FillCut(gtx.Ops, bounds, cut, style.plane)
+		if style.edge.A > 0 {
+			kit.StrokeCut(gtx.Ops, bounds, cut, line, style.edge)
+		}
 		tile.call.Add(gtx.Ops)
 		stack.Pop()
 	}
@@ -137,7 +143,7 @@ func crewTile(gtx layout.Context, th *look.Theme, snapshot appstate.Snapshot, me
 		}
 		if member.Title != "" && !style.mini {
 			words = append(words, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return kit.Label{Style: th.T.Caption, Color: th.R.Fg3, MaxLines: 1}.Layout(gtx, th.Theme, member.Title)
+				return kit.Label{Style: th.T.Detail, Color: th.R.Fg2, MaxLines: 1}.Layout(gtx, th.Theme, member.Title)
 			}))
 		}
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
@@ -154,7 +160,7 @@ func crewTile(gtx layout.Context, th *look.Theme, snapshot appstate.Snapshot, me
 			return identity(gtx)
 		}
 		engine := teamsui.MemberEngine(snapshot, member)
-		harnessInk := th.R.Fg3
+		harnessInk := th.R.Fg2
 		if engine.Missing {
 			harnessInk = th.R.Jasper
 		}
@@ -167,10 +173,10 @@ func crewTile(gtx layout.Context, th *look.Theme, snapshot appstate.Snapshot, me
 			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 			// the engine wraps rather than cuts, a tile in a row as tall as its tallest
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return kit.Label{Style: th.T.MonoSm, Color: harnessInk, MaxLines: 2}.Layout(gtx, th.Theme, engine.Harness)
+				return kit.Label{Style: th.T.Detail, Color: harnessInk, MaxLines: 2}.Layout(gtx, th.Theme, engine.Harness)
 			}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return kit.Label{Style: th.T.MonoSm, Color: th.R.Fg3, MaxLines: 2}.Layout(gtx, th.Theme, model)
+				return kit.Label{Style: th.T.Detail, Color: th.R.Fg2, MaxLines: 2}.Layout(gtx, th.Theme, model)
 			}),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {

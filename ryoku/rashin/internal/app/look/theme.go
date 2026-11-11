@@ -15,11 +15,12 @@ type TextStyle = libtheme.TextStyle
 type Theme struct {
 	*libtheme.Theme
 	Mode palette.Mode
+	Look palette.Look
 }
 
-func New(mode palette.Mode) *Theme {
-	roles := palette.FromPalette(palette.Load(mode))
-	return &Theme{Theme: libtheme.New(roles), Mode: mode}
+func New(mode palette.Mode, look palette.Look) *Theme {
+	roles := palette.FromPalette(palette.Load(mode), look)
+	return &Theme{Theme: libtheme.New(roles), Mode: mode, Look: look}
 }
 
 func ParseMode(value string) (palette.Mode, error) {
@@ -37,9 +38,10 @@ func ParseMode(value string) (palette.Mode, error) {
 
 // Watch follows the resolved Ryoku palette and returns replacements to apply on
 // the window goroutine.
-func Watch(ctx context.Context, mode func() palette.Mode, changed func(*Theme)) {
+func Watch(ctx context.Context, mode func() palette.Mode, look func() palette.Look, changed func(*Theme)) {
 	palette.Watch(ctx, mode, func(resolved palette.Palette) {
-		roles := palette.FromPalette(resolved)
-		changed(&Theme{Theme: libtheme.New(roles), Mode: mode()})
+		current := look()
+		roles := palette.FromPalette(resolved, current)
+		changed(&Theme{Theme: libtheme.New(roles), Mode: mode(), Look: current})
 	})
 }

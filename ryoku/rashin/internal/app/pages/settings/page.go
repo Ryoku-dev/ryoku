@@ -5,9 +5,13 @@ package settings
 
 import (
 	"image"
+	"slices"
+	"strings"
 
+	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/widget"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"ryoku-i18n"
@@ -32,10 +36,14 @@ const (
 
 // every control applies as it changes, there's nothing to save
 type Page struct {
-	header  look.PaneHeader
-	scroll  look.Scroller
-	index   kit.SectionIndex
-	current int
+	header look.PaneHeader
+	scroll look.Scroller
+	// the sections stand in the sidebar's list with a search over them, a picker tops the column while the sidebar can't show them
+	sections look.SideList
+	find     kit.Search
+	index    kit.SectionIndex
+	listed   bool
+	current  int
 	// the section just picked, until the list has moved to it
 	jumped bool
 
@@ -71,8 +79,10 @@ type Page struct {
 	system   kit.Toggle
 	semantic kit.Toggle
 
-	zoom   kit.Stepper
-	motion kit.Toggle
+	zoom     kit.Stepper
+	motion   kit.Toggle
+	contrast kit.Segmented
+	tint     kit.Segmented
 }
 
 func New() *Page {
@@ -82,13 +92,14 @@ func New() *Page {
 // a name it doesn't know leaves the page where it is
 func (p *Page) OpenSection(name string) {
 	p.providerOrder, p.usage.asked = nil, false
-	sections := map[string]int{
-		"rashin": sectionRashin, "about": sectionRashin, "providers": sectionProviders, "api": sectionAPI, "ask": sectionAsk,
-		"agent": sectionAgents, "agents": sectionAgents, "teams": sectionTeams, "index": sectionIndex, "appearance": sectionAppearance,
-		"keys": sectionKeys, "keyboard": sectionKeys,
+	// the older names still lead to their section
+	aliases := map[string]string{"about": "rashin", "agent": "agents", "keyboard": "keys"}
+	if alias, ok := aliases[name]; ok {
+		name = alias
 	}
-	if section, ok := sections[name]; ok {
-		p.jump(section)
+	all := sections()
+	if at := slices.IndexFunc(all[:], func(item section) bool { return item.name == name }); at >= 0 {
+		p.jump(at)
 	}
 }
 
@@ -100,8 +111,64 @@ func (p *Page) jump(section int) {
 	p.scroll.ScrollTo(section)
 }
 
-// empty on purpose, settings keeps the list of the destination it was opened from
-func (p *Page) List(layout.Context, *env.Env) look.ListDimensions { return look.ListDimensions{} }
+func (p *Page) ListShown(shown bool) { p.listed = shown }
+
+// settings lists its own sections while it is open, the New plaque still belongs to where it was opened from
+func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
+	th := e.Theme
+	all := sections()
+	p.find.Submit = true
+	p.find.Placeholder, p.find.Hint = i18n.T("Find a setting"), "Ctrl F"
+	// down from the search walks the sections it left, asked before the editor takes the key
+	for {
+		event, ok := gtx.Event(key.Filter{Focus: &p.find.Editor, Name: key.NameDownArrow})
+		if !ok {
+			break
+		}
+		if pressed, ok := event.(key.Event); ok && pressed.State == key.Press {
+			p.sections.Focus(gtx)
+		}
+	}
+	for {
+		event, ok := p.find.Editor.Update(gtx)
+		if !ok {
+			break
+		}
+		if submitted, ok := event.(widget.SubmitEvent); ok {
+			if first := slices.IndexFunc(all[:], func(item section) bool { return item.matches(submitted.Text) }); first >= 0 {
+				p.jump(first)
+			}
+		}
+	}
+	query := p.find.Text()
+	size := gtx.Constraints.Max
+	field := look.Place(gtx, image.Rectangle{Max: size}, func(gtx layout.Context) layout.Dimensions {
+		gtx.Constraints.Min = image.Point{}
+		return p.find.Layout(gtx, th.Theme)
+	})
+	top := field.Size.Y + gtx.Dp(13)
+
+	rows := make([]look.SideRow, 0, sectionCount)
+	for _, item := range all {
+		if item.matches(query) {
+			rows = append(rows, look.SideRow{ID: item.name, Title: item.label, Icon: item.icon})
+		}
+	}
+	p.sections.Empty = i18n.T("No section matches what you typed.")
+	list := gtx
+	list.Constraints = layout.Exact(image.Pt(size.X, max(0, size.Y-top)))
+	offset := op.Offset(image.Pt(0, top)).Push(gtx.Ops)
+	dimensions := p.sections.Layout(list, th, e.Overlays, []look.SideGroup{{Rows: rows}}, all[p.current].name)
+	offset.Pop()
+	for _, event := range p.sections.Events() {
+		if at := slices.IndexFunc(all[:], func(item section) bool { return item.name == event.ID }); event.Kind == look.SideOpen && at >= 0 {
+			p.jump(at)
+		}
+	}
+	dimensions.Selected = dimensions.Selected.Add(image.Pt(0, top))
+	dimensions.Size = size
+	return dimensions
+}
 
 // settings makes nothing new
 func (p *Page) New(*env.Env) {}
@@ -125,16 +192,52 @@ func (p *Page) Overlay(gtx layout.Context, e *env.Env) bool {
 	return p.off.Dialog.Open
 }
 
-func sectionLabels() []string {
-	return []string{
-		i18n.T("Rashin"), i18n.T("Providers"), i18n.T("Local API"), i18n.T("Ask"), i18n.T("Agents"), i18n.T("Teams"), i18n.T("Index"),
-		i18n.T("Appearance"), i18n.T("Keyboard"),
+type section struct {
+	// as OpenSection and the routes name it
+	name  string
+	label string
+	icon  *widget.Icon
+	// words beside its name that find it, translated as one line
+	keywords string
+}
+
+func sections() [sectionCount]section {
+	return [sectionCount]section{
+		{"rashin", i18n.T("Rashin"), look.Icon.Thought, i18n.T("on off turn daemon log about version")},
+		{"providers", i18n.T("Providers"), look.Icon.Graph, i18n.T("models routing route keys usage spend free")},
+		{"api", i18n.T("Local API"), look.Icon.Link, i18n.T("address port key token exports openai")},
+		{"ask", i18n.T("Ask"), look.Icon.Ask, i18n.T("answers model memory habits shell approvals changes")},
+		{"agents", i18n.T("Agents"), look.Icon.Agents, i18n.T("harness harnesses omp approvals notices idle")},
+		{"teams", i18n.T("Teams"), look.Icon.Teams, i18n.T("ledger budget spend members sandbox mail")},
+		{"index", i18n.T("Index"), look.Icon.Index, i18n.T("search meaning semantic system folders hide code")},
+		{"appearance", i18n.T("Appearance"), look.Icon.Show, i18n.T("theme colours colors dark light contrast tint zoom motion")},
+		{"keys", i18n.T("Keyboard"), look.Icon.Key, i18n.T("keys shortcuts keybinds")},
 	}
+}
+
+// every word typed has to start a word of the section's name or keywords
+func (item section) matches(query string) bool {
+	words := strings.Fields(strings.ToLower(item.label + " " + item.keywords))
+	for _, typed := range strings.Fields(strings.ToLower(query)) {
+		if !slices.ContainsFunc(words, func(word string) bool { return strings.HasPrefix(word, typed) }) {
+			return false
+		}
+	}
+	return true
 }
 
 func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
 	p.loadModels(e)
 	th := e.Theme
+	for {
+		event, ok := gtx.Event(key.Filter{Name: "F", Required: key.ModShortcut})
+		if !ok {
+			break
+		}
+		if pressed, ok := event.(key.Event); ok && pressed.State == key.Press && p.listed {
+			p.find.Focus(gtx)
+		}
+	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			scrolled := p.scroll.Position.First > 0 || p.scroll.Position.Offset > 0
@@ -147,34 +250,25 @@ func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
 func (p *Page) layoutBody(gtx layout.Context, e *env.Env) layout.Dimensions {
 	th := e.Theme
 	size := gtx.Constraints.Max
-	side, column, rail, gap := gtx.Dp(36), gtx.Dp(look.SettingsColumn), gtx.Dp(200), gtx.Dp(34)
-	labels := sectionLabels()
+	side, column := gtx.Dp(36), gtx.Dp(look.SettingsColumn)
 	p.follow()
-	wide := size.X >= column+rail+gap+2*side
-	if wide {
-		// index and column are centred together so the column stays in the middle of what's left
-		left := (size.X - column - rail - gap) / 2
-		look.Place(gtx, image.Rect(left, gtx.Dp(34), left+rail, size.Y), func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Min = image.Point{}
-			return p.index.Layout(gtx, th.Theme, labels, p.current, kit.FrameExpanded)
-		})
-		p.choose()
-		look.Place(gtx, image.Rect(left+rail+gap, 0, size.X, size.Y), func(gtx layout.Context) layout.Dimensions {
-			return p.layoutSections(gtx, e, 0, column)
-		})
-		return layout.Dimensions{Size: size}
-	}
 	width := min(column, size.X-2*side)
 	left := (size.X - width) / 2
-	chips := 0
-	if size.X >= gtx.Dp(520) {
-		chips = look.Place(gtx, image.Rect(left, gtx.Dp(13), left+width, size.Y), func(gtx layout.Context) layout.Dimensions {
+	top := 0
+	// the sections stand in the sidebar while it is open, otherwise a picker tops the column
+	if !p.listed {
+		all := sections()
+		labels := make([]string, 0, sectionCount)
+		for _, item := range all {
+			labels = append(labels, item.label)
+		}
+		top = look.Place(gtx, image.Rect(left, gtx.Dp(13), left+width, size.Y), func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min = image.Point{}
 			return p.index.Layout(gtx, th.Theme, labels, p.current, kit.FrameMedium)
 		}).Size.Y + gtx.Dp(13)
 		p.choose()
 	}
-	look.Place(gtx, image.Rect(0, chips, size.X, size.Y), func(gtx layout.Context) layout.Dimensions {
+	look.Place(gtx, image.Rect(0, top, size.X, size.Y), func(gtx layout.Context) layout.Dimensions {
 		return p.layoutSections(gtx, e, left, width)
 	})
 	return layout.Dimensions{Size: size}

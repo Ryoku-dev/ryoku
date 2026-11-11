@@ -122,7 +122,7 @@ func (panel *screenPanel) layout(gtx layout.Context, e *env.Env, state protocol.
 	panel.load(e, state)
 	yours := state.Holder == protocol.HolderUser
 	panel.take.Small, panel.stop.Small = true, true
-	panel.take.Kind, panel.take.Label = kit.PlaqueLine, i18n.T("Take control")
+	panel.take.Kind, panel.take.Label = kit.PlaqueTonal, i18n.T("Take control")
 	if state.Ask != "" {
 		panel.take.Kind = kit.PlaqueGold
 	}
@@ -385,8 +385,7 @@ func (panel *screenPanel) layoutStatus(gtx layout.Context, e *env.Env, state pro
 	th := e.Theme
 	switch {
 	case state.Ask != "" && !yours:
-		record := op.Record(gtx.Ops)
-		dimensions := layout.UniformInset(13).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return kit.SlabContent(gtx, th.Theme, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = gtx.Constraints.Max.X
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 				layout.Rigid(kit.Claim(th.Theme, palette.Attention, i18n.T("The agent needs you"))),
@@ -395,24 +394,20 @@ func (panel *screenPanel) layoutStatus(gtx layout.Context, e *env.Env, state pro
 					return kit.Label{Style: th.T.Body, Color: th.R.Fg}.Layout(gtx, th.Theme, state.Ask)
 				}),
 				layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-				layout.Rigid(kit.RawText(th.Theme, th.T.Caption, th.R.Fg2, i18n.T("Take control, do it on the screen, then hand it back."))),
+				layout.Rigid(kit.RawText(th.Theme, th.T.Detail, th.R.Fg2, i18n.T("Take control, do it on the screen, then hand it back."))),
 			)
 		})
-		call := record.Stop()
-		kit.FillCut(gtx.Ops, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid), th.R.Field(palette.Attention))
-		call.Add(gtx.Ops)
-		return dimensions
 	case yours:
 		text := i18n.T("Your clicks, scrolls and keys go to the screen. The agent waits until you hand it back.")
 		if state.Ask != "" {
 			text = state.Ask
 		}
-		return kit.Label{Style: th.T.Caption, Color: th.R.Fg2}.Layout(gtx, th.Theme, text)
+		return kit.Label{Style: th.T.Detail, Color: th.R.Fg2}.Layout(gtx, th.Theme, text)
 	case state.Action != "":
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 			layout.Rigid(look.IconWidget(look.Icon.Screen, 16, th.R.Fg3)),
 			layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
-			layout.Flexed(1, kit.RawText(th.Theme, th.T.Caption, th.R.Fg2, state.Action)),
+			layout.Flexed(1, kit.RawText(th.Theme, th.T.Detail, th.R.Fg2, state.Action)),
 		)
 	}
 	return kit.Label{Style: th.T.Caption, Color: th.R.Fg3}.Layout(gtx, th.Theme, i18n.T("Apps the agent opens here stay off your desktop."))

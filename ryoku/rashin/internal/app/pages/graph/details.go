@@ -239,15 +239,15 @@ func (v *viewState) layoutWIPActions(gtx layout.Context, e *env.Env, worktree pr
 		return button
 	}
 	acts := []act{
-		{plaque("open-changes", i18n.T("Open changes"), kit.PlaqueLine), target.as(ActOpenChanges)},
-		{plaque("new-session", i18n.T("New session"), kit.PlaqueQuiet), target.as(ActNewSession)},
+		{plaque("open-changes", i18n.T("Open changes"), kit.PlaqueTonal), target.as(ActOpenChanges)},
+		{plaque("new-session", i18n.T("New session"), kit.PlaqueTonal), target.as(ActNewSession)},
 	}
 	if count := len(worktree.Sessions); count > 0 {
 		session := target.as(ActOpenSession)
 		session.Session = worktree.Sessions[count-1]
-		acts = append(acts, act{plaque("open-session", i18n.T("Open session"), kit.PlaqueQuiet), session})
+		acts = append(acts, act{plaque("open-session", i18n.T("Open session"), kit.PlaqueTonal), session})
 	}
-	acts = append(acts, act{plaque("open-worktree", i18n.T("Open worktree"), kit.PlaqueQuiet), target.as(ActOpenWorktree)})
+	acts = append(acts, act{plaque("open-worktree", i18n.T("Open worktree"), kit.PlaqueTonal), target.as(ActOpenWorktree)})
 	for _, item := range acts {
 		if item.button.Clicked(gtx) {
 			v.actions = append(v.actions, item.action)
@@ -268,10 +268,10 @@ func (v *viewState) layoutConflict(gtx layout.Context, e *env.Env) layout.Dimens
 		return layout.Dimensions{}
 	}
 	th := e.Theme
-	proceed := v.conflictButton("continue", i18n.T("Continue"), kit.PlaqueLine)
+	proceed := v.conflictButton("continue", i18n.T("Continue"), kit.PlaqueTonal)
 	abort := v.conflictButton("abort", i18n.T("Abort"), kit.PlaqueDangerLine)
-	changes := v.conflictButton("conflict-changes", i18n.T("Open changes"), kit.PlaqueQuiet)
-	resolve := v.conflictButton("resolve-agent", i18n.T("Resolve with an agent"), kit.PlaqueQuiet)
+	changes := v.conflictButton("conflict-changes", i18n.T("Open changes"), kit.PlaqueTonal)
+	resolve := v.conflictButton("resolve-agent", i18n.T("Resolve with an agent"), kit.PlaqueTonal)
 	if abort.Clicked(gtx) {
 		v.runConflictAction(e, protocol.MGitAbort)
 	}
@@ -288,21 +288,19 @@ func (v *viewState) layoutConflict(gtx layout.Context, e *env.Env) layout.Dimens
 	buttons := [...]*kit.Plaque{proceed, abort, changes, resolve}
 	body := i18n.Tf("%s stopped on conflicts in %s.", i18n.T(v.opResult.Operation), strings.Join(v.opResult.Conflicts, ", "))
 	return layout.Inset{Top: th.Sp.S3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return kit.Slab(gtx, th.R.Stone1, th.Cut.Mid, func(gtx layout.Context) layout.Dimensions {
-			return layout.UniformInset(th.Sp.S3).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				gtx.Constraints.Min.X = gtx.Constraints.Max.X
-				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-					layout.Rigid(kit.Claim(th.Theme, palette.Attention, i18n.T("Conflicts"))),
-					layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
-					layout.Rigid(look.Paragraph(th, th.T.Body, th.R.Fg, body)),
-					layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return look.Flow{Gap: 8, LineGap: 8}.Layout(gtx, len(buttons), func(gtx layout.Context, index int) layout.Dimensions {
-							return buttons[index].Layout(gtx, th.Theme)
-						})
-					}),
-				)
-			})
+		return kit.SlabContent(gtx, th.Theme, func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Min.X = gtx.Constraints.Max.X
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(kit.Claim(th.Theme, palette.Attention, i18n.T("Conflicts"))),
+				layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
+				layout.Rigid(look.Paragraph(th, th.T.Body, th.R.Fg, body)),
+				layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return look.Flow{Gap: 8, LineGap: 8}.Layout(gtx, len(buttons), func(gtx layout.Context, index int) layout.Dimensions {
+						return buttons[index].Layout(gtx, th.Theme)
+					})
+				}),
+			)
 		})
 	})
 }

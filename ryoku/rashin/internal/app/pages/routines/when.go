@@ -1,6 +1,7 @@
 package routines
 
 import (
+	"image"
 	"time"
 
 	"gioui.org/layout"
@@ -104,9 +105,9 @@ func (w *whenBuilder) layout(gtx layout.Context, e *env.Env) layout.Dimensions {
 	rows = append(rows, w.fields(th)...)
 	rows = append(rows, func(gtx layout.Context) layout.Dimensions {
 		if w.reading.problem != "" {
-			return look.Paragraph(th, th.T.Caption, th.R.Amber, w.reading.problem)(gtx)
+			return look.Paragraph(th, th.T.Detail, th.R.Amber, w.reading.problem)(gtx)
 		}
-		return look.Paragraph(th, th.T.Caption, th.R.Fg2, w.reading.sentence)(gtx)
+		return look.Paragraph(th, th.T.Detail, th.R.Fg2, w.reading.sentence)(gtx)
 	})
 	// the limit is said once: in amber when this schedule breaks it, quietly otherwise
 	if limit := i18n.T("A routine runs at most every 15 minutes."); w.reading.problem != limit {
@@ -180,17 +181,20 @@ func (w *whenBuilder) fields(th *look.Theme) []layout.Widget {
 	return []layout.Widget{func(gtx layout.Context) layout.Dimensions { return w.custom.Layout(gtx, th.Theme) }}
 }
 
-// the days of the week as chips, any number of them on
+// the days of the week as chips, any number of them on; an on day carries the place blade as a picked filter does
 func (w *whenBuilder) layoutDays(th *look.Theme) layout.Widget {
 	labels := weekdayLabels()
 	return func(gtx layout.Context) layout.Dimensions {
 		return look.Flow{Gap: 4, LineGap: 4}.Layout(gtx, len(w.weekday), func(gtx layout.Context, index int) layout.Dimensions {
 			chip := &w.weekday[index]
-			chip.Small, chip.Label, chip.Kind = true, labels[index], kit.PlaqueLine
-			if w.plan.days[index] {
-				chip.Kind = kit.PlaqueOn
+			chip.Small, chip.Label, chip.Kind = true, labels[index], kit.PlaqueTonal
+			if !w.plan.days[index] {
+				return chip.Layout(gtx, th.Theme)
 			}
-			return chip.Layout(gtx, th.Theme)
+			chip.Kind = kit.PlaqueOn
+			dimensions := chip.Layout(gtx, th.Theme)
+			kit.PlaceBlade(gtx, th.Theme, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Small), layout.Horizontal)
+			return dimensions
 		})
 	}
 }

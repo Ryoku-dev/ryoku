@@ -54,3 +54,16 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+Material Symbols
+
+The Rashin app draws Material Symbols by Google
+(https://github.com/google/material-design-icons), the Sharp style at weight
+400, taken from the official SVGs at commit 10ecc147 through Lithic's symbols
+package. The path data is converted to IconVG; the shapes are otherwise
+unchanged.
+
+Apache License 2.0
+
+The full license text is installed beside this notice as
+LICENSE.material-symbols.

@@ -40,6 +40,14 @@ type Paneled interface {
 	Panel(gtx layout.Context, e *Env) layout.Dimensions
 }
 
+// Indexed is a page whose list is its own index. The sidebar shows it while
+// the sidebar stands open; otherwise the page shows the index in its content.
+type Indexed interface {
+	// ListShown tells the page, before Content, whether the sidebar shows
+	// its list this frame.
+	ListShown(shown bool)
+}
+
 // Views of a project, as NavigateWork names them.
 const (
 	ViewOverview = "overview"

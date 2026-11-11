@@ -24,7 +24,7 @@ func Facts(gtx layout.Context, th *Theme, rows []FactRow) layout.Dimensions {
 		labels := gtx
 		labels.Constraints = layout.Constraints{Max: image.Pt(label, height)}
 		offset := op.Offset(image.Pt(0, y)).Push(gtx.Ops)
-		MiddleLeft(labels, 0, height, kit.RawText(th.Theme, th.T.Caption, th.R.Fg3, row.Label))
+		MiddleLeft(labels, 0, height, kit.RawText(th.Theme, th.T.Detail, th.R.Fg2, row.Label))
 		offset.Pop()
 
 		value := row.Widget

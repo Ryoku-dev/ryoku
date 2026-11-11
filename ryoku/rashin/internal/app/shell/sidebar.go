@@ -15,6 +15,7 @@ import (
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/env"
@@ -27,25 +28,35 @@ type destination struct {
 	label    string
 	shortcut string
 	icon     *widget.Icon
+	// drawn while the destination is current
+	fill *widget.Icon
+}
+
+// the destination's glyph, filled while it is current
+func (item destination) glyph(current bool) *widget.Icon {
+	if current {
+		return item.fill
+	}
+	return item.icon
 }
 
 // each mode's destinations, Rashin's fill the first four
 func destinations(teams bool) (items [6]destination, count int) {
 	if teams {
 		return [6]destination{
-			{protocol.TabInbox, i18n.T("Inbox"), "Ctrl 1", look.Icon.Inbox},
-			{protocol.TabTeams, i18n.T("Teams"), "Ctrl 2", look.Icon.Teams},
-			{protocol.TabWork, i18n.T("Work"), "Ctrl 3", look.Icon.Tasks},
-			{protocol.TabRoutines, i18n.T("Routines"), "Ctrl 4", look.Icon.Routine},
-			{protocol.TabVault, i18n.T("Vault"), "Ctrl 5", look.Icon.Vault},
-			{protocol.TabActivity, i18n.T("Activity"), "Ctrl 6", look.Icon.Activity},
+			{protocol.TabInbox, i18n.T("Inbox"), "Ctrl 1", look.Icon.Inbox, look.IconFill.Inbox},
+			{protocol.TabTeams, i18n.T("Teams"), "Ctrl 2", look.Icon.Teams, look.IconFill.Teams},
+			{protocol.TabWork, i18n.T("Work"), "Ctrl 3", look.Icon.Tasks, look.IconFill.Tasks},
+			{protocol.TabRoutines, i18n.T("Routines"), "Ctrl 4", look.Icon.Routine, look.IconFill.Routine},
+			{protocol.TabVault, i18n.T("Vault"), "Ctrl 5", look.Icon.Vault, look.IconFill.Vault},
+			{protocol.TabActivity, i18n.T("Activity"), "Ctrl 6", look.Icon.Activity, look.IconFill.Activity},
 		}, 6
 	}
 	return [6]destination{
-		{protocol.TabAsk, i18n.T("Ask"), "Ctrl 1", look.Icon.Ask},
-		{protocol.TabAgent, i18n.T("Agents"), "Ctrl 2", look.Icon.Agents},
-		{protocol.TabProjects, i18n.T("Projects"), "Ctrl 3", look.Icon.Projects},
-		{protocol.TabIndex, i18n.T("Index"), "Ctrl 4", look.Icon.Index},
+		{protocol.TabAsk, i18n.T("Ask"), "Ctrl 1", look.Icon.Ask, look.IconFill.Ask},
+		{protocol.TabAgent, i18n.T("Agents"), "Ctrl 2", look.Icon.Agents, look.IconFill.Agents},
+		{protocol.TabProjects, i18n.T("Projects"), "Ctrl 3", look.Icon.Projects, look.IconFill.Projects},
+		{protocol.TabIndex, i18n.T("Index"), "Ctrl 4", look.Icon.Index, look.IconFill.Index},
 	}, 4
 }
 
@@ -64,8 +75,9 @@ type navContent struct {
 	// zero draws no number
 	count         int
 	current, slab bool
-	line          bool
-	hint          string
+	// the frame's one standing gold, the New plaque
+	gold bool
+	hint string
 }
 
 type sidebar struct {
@@ -110,6 +122,7 @@ func resolveSidebar(gtx layout.Context, size image.Point, bare bool, count int) 
 	return resolved
 }
 
+// page fills the list, the New plaque speaks for the destination the list belongs to
 func (bar *sidebar) Layout(gtx layout.Context, s *uiShell, e *env.Env, page env.Page, fold float32) layout.Dimensions {
 	size := gtx.Constraints.Max
 	th := e.Theme
@@ -120,13 +133,16 @@ func (bar *sidebar) Layout(gtx layout.Context, s *uiShell, e *env.Env, page env.
 	listCall, list := bar.recordList(gtx, e, page, geometry.list, fold)
 	bar.layoutSlab(gtx, th, s, geometry, list, fold)
 
+	fresh := s.page(s.listTab).NewLabel()
 	bar.layoutRow(gtx, th, e, &bar.fresh, geometry.fresh, fold, navContent{
-		icon: look.Icon.Add, label: page.NewLabel(), tip: page.NewLabel() + "  Ctrl N", line: true, hint: "Ctrl N",
+		icon: look.Icon.Add, label: fresh, tip: fresh + "  Ctrl N", gold: true, hint: "Ctrl N",
 	})
-	onList := list.HasSelected && fold < 1 && s.router.Tab != protocol.TabSettings
+	onList := list.HasSelected && fold < 1
 	for index, item := range items[:count] {
 		current := s.router.Tab == item.tab
-		content := navContent{icon: item.icon, label: item.label, tip: item.label + "  " + item.shortcut, current: current, slab: current && !onList}
+		content := navContent{
+			icon: item.glyph(current), label: item.label, tip: item.label + "  " + item.shortcut, current: current, slab: current && !onList,
+		}
 		switch item.tab {
 		case protocol.TabAgent:
 			content.count = s.router.NeedsYou
@@ -151,8 +167,12 @@ func (bar *sidebar) Layout(gtx layout.Context, s *uiShell, e *env.Env, page env.
 	inset, line := gtx.Dp(8), max(1, gtx.Dp(1))
 	paint.FillShape(gtx.Ops, th.R.Vein, clip.Rect(image.Rect(inset, geometry.vein, size.X-inset, geometry.vein+line)).Op())
 	settings := s.router.Tab == protocol.TabSettings
+	icon := look.Icon.Settings
+	if settings {
+		icon = look.IconFill.Settings
+	}
 	bar.layoutRow(gtx, th, e, &bar.settings, geometry.settings, fold, navContent{
-		icon: look.Icon.Settings, label: i18n.T("Settings"), tip: i18n.T("Settings") + "  Ctrl ,", current: settings, slab: settings,
+		icon: icon, label: i18n.T("Settings"), tip: i18n.T("Settings") + "  Ctrl ,", current: settings, slab: settings && !onList,
 	})
 	return layout.Dimensions{Size: size}
 }
@@ -196,9 +216,9 @@ func (bar *sidebar) recordList(
 func (bar *sidebar) layoutSlab(gtx layout.Context, th *look.Theme, s *uiShell, geometry sidebarLayout, list look.ListDimensions, fold float32) {
 	key, target, inList := s.router.Tab, geometry.settings, false
 	switch {
-	case s.router.Tab == protocol.TabSettings:
 	case list.HasSelected && fold < 1:
 		key, target, inList = "row:"+list.Key, list.Selected.Add(geometry.list.Min), true
+	case s.router.Tab == protocol.TabSettings:
 	default:
 		items, count := destinations(s.router.TeamsMode())
 		for index, item := range items[:count] {
@@ -218,7 +238,9 @@ func (bar *sidebar) layoutSlab(gtx layout.Context, th *look.Theme, s *uiShell, g
 		area := clip.Rect(geometry.list).Push(gtx.Ops)
 		defer area.Pop()
 	}
-	kit.FillCut(gtx.Ops, rectangle, gtx.Dp(th.Cut.Small), th.R.Sel)
+	cut := gtx.Dp(th.Cut.Small)
+	kit.FillCut(gtx.Ops, rectangle, cut, th.R.Sel)
+	kit.PlaceBlade(gtx, th.Theme, rectangle, cut, layout.Vertical)
 }
 
 func (bar *sidebar) layoutRow(
@@ -261,21 +283,22 @@ func drawNavRow(gtx layout.Context, th *look.Theme, row *navRow, fold float32, c
 	cut := gtx.Dp(th.Cut.Small)
 	hover := look.Transition(gtx, &row.hover, row.click.Hovered() && gtx.Source.Enabled(), th.Motion.HoverIn, th.Motion.HoverOut)
 	press := look.Transition(gtx, &row.press, row.click.Pressed(), th.Motion.Press, th.Motion.Press)
-	ink := palette.Mix(th.R.Fg2, th.R.Fg, hover)
+	ink, hint := palette.Mix(th.R.Fg2, th.R.Fg, hover), th.R.Fg3
 	switch {
+	case content.gold:
+		ink, hint = th.R.OnGold, palette.Mix(th.R.OnGold, th.R.Gold, tokens.AlphaOnSel2)
+		kit.FillCut(gtx.Ops, bounds, cut, palette.Mix(th.R.Gold, th.R.OnGold, tokens.AlphaHoverFill*hover))
 	case content.slab:
 		ink = th.R.OnSel
-	case content.current || content.line:
+	case content.current:
 		ink = th.R.Fg
 	}
-	if !content.slab && hover > 0 {
+	// hover lifts the stone, the selection's colour stays the selection's
+	if !content.slab && !content.gold && hover > 0 {
 		kit.FillCut(gtx.Ops, bounds, cut, palette.WithAlpha(th.R.Stone3, hover))
 	}
 	if press > 0 {
 		kit.FillCut(gtx.Ops, bounds, cut, palette.WithAlpha(th.R.Fg, .08*press))
-	}
-	if content.line {
-		kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(1)), th.R.Vein)
 	}
 
 	glyph := gtx.Dp(20)
@@ -294,13 +317,13 @@ func drawNavRow(gtx layout.Context, th *look.Theme, row *navRow, fold float32, c
 	if content.count > 0 {
 		trailing += drawTrailingText(gtx, th, strconv.Itoa(content.count), th.R.Amber)
 	} else if content.hint != "" {
-		trailing += drawTrailingText(gtx, th, content.hint, th.R.Fg3)
+		trailing += drawTrailingText(gtx, th, content.hint, hint)
 	}
 	left := gtx.Dp(look.SideInset) + glyph + gtx.Dp(13)
 	label := gtx
 	label.Constraints = layout.Exact(image.Pt(max(0, gtx.Dp(look.SidebarExpanded)-2*gtx.Dp(8)-left-trailing), size.Y))
 	offset := op.Offset(image.Pt(left, 0)).Push(gtx.Ops)
-	layout.W.Layout(label, kit.RawText(th.Theme, th.T.Label, ink, content.label))
+	layout.W.Layout(label, kit.RawText(th.Theme, th.T.Row, ink, content.label))
 	offset.Pop()
 }
 

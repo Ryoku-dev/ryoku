@@ -12,6 +12,7 @@ import (
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 )
 
 // no surface so a list under the pointer doesn't fill with outlined plaques, frame level actions keep kit.IconPlaque
@@ -48,7 +49,7 @@ func (action *IconAction) Layout(gtx layout.Context, th *Theme, ink color.NRGBA)
 	original := gtx
 	if action.Disabled {
 		gtx = gtx.Disabled()
-		ink = palette.WithAlpha(ink, .5)
+		ink = palette.WithAlpha(ink, tokens.AlphaDisabled)
 	}
 	cut := gtx.Dp(th.Cut.Small)
 	dimensions := action.Click.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -60,7 +61,7 @@ func (action *IconAction) Layout(gtx layout.Context, th *Theme, ink color.NRGBA)
 		hover := transition(original, &action.hover, hovered && !action.Disabled, th.Motion.HoverIn, th.Motion.HoverOut)
 		press := transition(original, &action.press, pressed && !action.Disabled, th.Motion.Press, th.Motion.Press)
 		bounds := image.Rectangle{Max: image.Pt(size, size)}
-		if fill := .10*hover + .08*press; fill > 0 {
+		if fill := tokens.AlphaHoverFill*hover + .08*press; fill > 0 {
 			kit.FillCut(gtx.Ops, bounds, cut, palette.WithAlpha(th.R.Fg, fill))
 		}
 		pixels := gtx.Dp(glyph)

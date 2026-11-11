@@ -44,14 +44,21 @@ func (b *board) layout(gtx layout.Context, e *env.Env, page *Page) layout.Dimens
 			if len(snapshot.Teams) == 0 || total == 0 && b.tasks.Team == "" {
 				return b.layoutEmpty(gtx, e, page, len(snapshot.Teams) > 0)
 			}
-			return b.scroll.Layout(gtx, e.Theme, 1+rows, func(gtx layout.Context, index int) layout.Dimensions {
+			th := e.Theme
+			return b.scroll.Layout(gtx, th, 2+rows, func(gtx layout.Context, index int) layout.Dimensions {
 				return look.Centred(gtx, e.Class, look.BoardWidth, func(gtx layout.Context) layout.Dimensions {
-					if index == 0 {
-						return layout.Inset{Top: e.Theme.Sp.S4, Bottom: e.Theme.Sp.S3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					switch index {
+					case 0:
+						return layout.Inset{Top: th.Sp.S5, Bottom: th.Sp.S4}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							claim, proof := boardLead(gtx.Now, snapshot)
+							return look.Monument(gtx, th, claim, proof)
+						})
+					case 1:
+						return layout.Inset{Bottom: th.Sp.S3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return b.layoutFilters(gtx, e, snapshot)
 						})
 					}
-					return b.tasks.LayoutRow(gtx, e, index-1)
+					return b.tasks.LayoutRow(gtx, e, index-2)
 				})
 			})
 		}),
@@ -97,7 +104,7 @@ func (b *board) layoutFilters(gtx layout.Context, e *env.Env, snapshot state.Sna
 func (b *board) layoutEmpty(gtx layout.Context, e *env.Env, page *Page, teams bool) layout.Dimensions {
 	th := e.Theme
 	empty := kit.Empty{Icon: look.Icon.Tasks, Actions: []*kit.Plaque{&b.empty}}
-	b.empty.Kind = kit.PlaqueLine
+	b.empty.Kind = kit.PlaqueTonal
 	if teams {
 		empty.Title, empty.Body = i18n.T("No task yet"), i18n.T("Give a team a task and it shows here while it works, then with its report.")
 		b.empty.Label = i18n.T("New task")

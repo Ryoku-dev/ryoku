@@ -7,9 +7,11 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/unit"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/env"
@@ -31,7 +33,7 @@ func (strip *goalStrip) layout(gtx layout.Context, e *env.Env, info protocol.Ses
 	}
 	th := e.Theme
 	live := goal.Status == protocol.GoalActive || goal.Status == protocol.GoalPaused
-	strip.pause.Kind, strip.pause.Small = kit.PlaqueLine, true
+	strip.pause.Kind, strip.pause.Small = kit.PlaqueTonal, true
 	strip.stop.Kind, strip.stop.Small = kit.PlaqueQuiet, true
 	switch goal.Status {
 	case protocol.GoalActive:
@@ -102,12 +104,14 @@ func (strip *goalStrip) layout(gtx layout.Context, e *env.Env, info protocol.Ses
 			layout.Rigid(head),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return layout.Inset{Left: 27}.Layout(gtx, kit.RawText(th.Theme, th.T.Caption, th.R.Fg2, reason))
+				return layout.Inset{Left: 27}.Layout(gtx, kit.RawText(th.Theme, th.T.Detail, th.R.Fg2, reason))
 			}),
 		)
 	})
 	content := record.Stop()
-	kit.FillCut(gtx.Ops, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid), th.R.Stone1)
+	bounds, cut := image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid)
+	kit.FillCut(gtx.Ops, bounds, cut, th.R.Slab)
+	kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), th.R.Vein)
 	content.Add(gtx.Ops)
 	return dimensions
 }

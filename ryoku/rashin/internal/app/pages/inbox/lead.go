@@ -6,7 +6,6 @@ import (
 
 	"gioui.org/layout"
 
-	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/look"
@@ -26,11 +25,7 @@ func layoutLead(gtx layout.Context, th *look.Theme, snapshot state.Snapshot, nee
 	case working > 0:
 		sentence = i18n.T("Your teams are at work.")
 	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(kit.Text(th.Theme, th.T.Sentence, th.R.Fg, sentence)),
-		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-		layout.Rigid(look.Paragraph(th, th.T.Proof, th.R.Fg2, leadProof(gtx.Now, snapshot, working))),
-	)
+	return look.Monument(gtx, th, sentence, leadProof(gtx.Now, snapshot, working))
 }
 
 // the newest report, how many work, and when a routine next runs, each a sentence of its own

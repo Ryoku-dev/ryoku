@@ -22,7 +22,7 @@ func TokenChip(th *Theme, value string) layout.Widget {
 			kit.Text(th.Theme, th.T.Mono, th.R.Fg2, value),
 		)
 		call := record.Stop()
-		kit.FillCut(gtx.Ops, image.Rectangle{Max: dimensions.Size}, gtx.Dp(3), th.R.Stone3)
+		kit.FillCut(gtx.Ops, image.Rectangle{Max: dimensions.Size}, gtx.Dp(3), th.R.Field)
 		call.Add(gtx.Ops)
 		return dimensions
 	}

@@ -33,7 +33,7 @@ func (s *boardStart) layoutInstall(gtx layout.Context, e *env.Env, snapshot stat
 			)
 		}),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
-		layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg3,
+		layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2,
 			i18n.T("An agent runs through a harness: a coding agent you install, which Rashin starts, watches and asks you for. These are the ones it knows."))),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return look.SettingsSlab(gtx, th, rows) }),
@@ -57,9 +57,9 @@ func (s *boardStart) layoutPlaces(gtx layout.Context, e *env.Env, snapshot state
 			s.here[project.ID] = here
 		}
 		chosen := b.place.projectIndex == index+1
-		here.Kind, here.Small, here.Label = kit.PlaqueQuiet, true, i18n.T("Work here")
+		here.Kind, here.Small, here.Label = kit.PlaqueTonal, true, i18n.T("Work here")
 		if chosen {
-			here.Kind, here.Label = kit.PlaqueLine, i18n.T("Chosen")
+			here.Kind, here.Label = kit.PlaqueOn, i18n.T("Chosen")
 		}
 		if here.Clicked(gtx) {
 			b.place.projectIndex, b.place.worktreeIndex = index+1, worktreeRoot
@@ -70,7 +70,7 @@ func (s *boardStart) layoutPlaces(gtx layout.Context, e *env.Env, snapshot state
 			Control: func(gtx layout.Context) layout.Dimensions { return here.Layout(gtx, th.Theme) },
 		})
 	}
-	s.add.Kind, s.add.Small, s.add.Label, s.add.Icon = kit.PlaqueQuiet, true, i18n.T("Add project"), look.Icon.Add
+	s.add.Kind, s.add.Small, s.add.Label, s.add.Icon = kit.PlaqueTonal, true, i18n.T("Add project"), look.Icon.Add
 	if s.add.Clicked(gtx) {
 		s.addProject(e, b)
 	}

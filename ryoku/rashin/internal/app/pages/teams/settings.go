@@ -98,9 +98,11 @@ type credentialRow struct {
 // the text fields of the Identity group, trimmed as they are saved
 type identity struct{ name, purpose, folder string }
 
-// the bar a group of text and number fields saves through, there only while they differ from the team
+// the bar a group of text and number fields saves through, there only while they differ from the team;
+// shown says it stands this frame, so a second dirty group's save stays tonal under the first one's gold
 type saveBar struct {
 	discard, save kit.Plaque
+	shown         bool
 }
 
 func settingsLabels() []string {
@@ -192,15 +194,15 @@ func (s *settingsTab) layout(gtx layout.Context, e *env.Env, p *Page, team proto
 	}
 	width := min(column, size.X-2*side)
 	left := (size.X - width) / 2
-	chips := 0
+	picker := 0
 	if size.X >= gtx.Dp(520) {
-		chips = look.Place(gtx, image.Rect(left, gtx.Dp(13), left+width, size.Y), func(gtx layout.Context) layout.Dimensions {
+		picker = look.Place(gtx, image.Rect(left, gtx.Dp(13), left+width, size.Y), func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min = image.Point{}
 			return s.index.Layout(gtx, th.Theme, labels, s.current, kit.FrameMedium)
 		}).Size.Y + gtx.Dp(13)
 		s.choose()
 	}
-	look.Place(gtx, image.Rect(0, chips, size.X, size.Y), func(gtx layout.Context) layout.Dimensions {
+	look.Place(gtx, image.Rect(0, picker, size.X, size.Y), func(gtx layout.Context) layout.Dimensions {
 		return s.layoutGroups(gtx, e, groups, left, width)
 	})
 	return layout.Dimensions{Size: size}
@@ -237,10 +239,14 @@ func (s *settingsTab) groups(gtx layout.Context, e *env.Env, p *Page, team proto
 	}
 }
 
-// discard and save are taken before the bar is drawn; save stays off while the fields cannot be saved
-func (b *saveBar) setting(gtx layout.Context, th *look.Theme, ready bool, discard func(), save func(done func(error))) look.Setting {
+// discard and save are taken before the bar is drawn; save stays off while the fields cannot be saved,
+// and is the view's gold unless another group's bar already holds it
+func (b *saveBar) setting(gtx layout.Context, th *look.Theme, ready, gold bool, discard func(), save func(done func(error))) look.Setting {
 	b.discard.Kind, b.discard.Small, b.discard.Label = kit.PlaqueQuiet, true, i18n.T("Discard")
-	b.save.Kind, b.save.Small, b.save.Label = kit.PlaqueLine, true, i18n.T("Save")
+	b.save.Kind, b.save.Small, b.save.Label = kit.PlaqueTonal, true, i18n.T("Save")
+	if gold {
+		b.save.Kind = kit.PlaqueGold
+	}
 	if b.discard.Clicked(gtx) {
 		discard()
 	}
@@ -280,8 +286,9 @@ func (s *settingsTab) identitySection(gtx layout.Context, e *env.Env, p *Page, t
 			Detail:  i18n.T("Where the team works and keeps what it makes. Choosing another folder does not move the files."),
 			Control: func(gtx layout.Context) layout.Dimensions { return s.folder.Layout(gtx, e) }},
 	}
-	if now != saved {
-		rows = append(rows, s.identityBar.setting(gtx, th, now.name != "" && now.folder != "",
+	s.identityBar.shown = now != saved
+	if s.identityBar.shown {
+		rows = append(rows, s.identityBar.setting(gtx, th, now.name != "" && now.folder != "", true,
 			func() { s.setIdentity(team) },
 			func(done func(error)) {
 				patch := map[string]any{}
@@ -337,12 +344,12 @@ func (s *settingsTab) crewSection(gtx layout.Context, e *env.Env, p *Page, snaps
 		}
 		rows = append(rows, s.layoutMember(e, snapshot, team, member, row))
 	}
-	s.add.Kind, s.add.Small, s.add.Icon, s.add.Label = kit.PlaqueLine, true, look.Icon.Add, i18n.T("Add member")
+	s.add.Kind, s.add.Small, s.add.Icon, s.add.Label = kit.PlaqueTonal, true, look.Icon.Add, i18n.T("Add member")
 	full := len(team.Members) >= membersMax
 	if s.add.Clicked(gtx) && !full {
 		p.addMember(team)
 	}
-	s.every.Kind, s.every.Small, s.every.Icon, s.every.Label = kit.PlaqueLine, true, look.Icon.Agents, i18n.T("Set every member's engine")
+	s.every.Kind, s.every.Small, s.every.Icon, s.every.Label = kit.PlaqueTonal, true, look.Icon.Agents, i18n.T("Set every member's engine")
 	if s.every.Clicked(gtx) && len(team.Members) > 0 {
 		p.setEveryEngine(team)
 	}
@@ -371,7 +378,7 @@ func (s *settingsTab) crewSection(gtx layout.Context, e *env.Env, p *Page, snaps
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Rigid(kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("Crew and engines"))),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return veinedSlab(gtx, th, rows) }),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return kit.SlabRows(gtx, th.Theme, rows...) }),
 		)
 	}
 }
@@ -384,7 +391,7 @@ func (s *settingsTab) layoutMember(e *env.Env, snapshot appstate.Snapshot, team 
 		about = i18n.Tf("Leads the team · %s", member.Title)
 	}
 	engine := teamsui.MemberEngine(snapshot, member)
-	ink := th.R.Fg3
+	ink := th.R.Fg2
 	if engine.Missing {
 		ink = th.R.Jasper
 	} else if engine.Version != "" {
@@ -407,8 +414,8 @@ func (s *settingsTab) layoutMember(e *env.Env, snapshot appstate.Snapshot, team 
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 					layout.Rigid(kit.Text(th.Theme, th.T.Row, th.R.Fg, member.Name)),
-					layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, about)),
-					layout.Rigid(look.Paragraph(th, th.T.MonoSm, ink, engine.Line())),
+					layout.Rigid(kit.Text(th.Theme, th.T.Detail, th.R.Fg2, about)),
+					layout.Rigid(look.Paragraph(th, th.T.Detail, ink, engine.Line())),
 				)
 			}),
 			layout.Rigid(plaque(&row.editTip, &row.edit, false)),
@@ -416,30 +423,6 @@ func (s *settingsTab) layoutMember(e *env.Env, snapshot appstate.Snapshot, team 
 			layout.Rigid(plaque(&row.dropTip, &row.drop, len(team.Members) <= 1)),
 		)
 	}
-}
-
-// rows on one stone1 slab with a vein between them, as the settings page sets them
-func veinedSlab(gtx layout.Context, th *look.Theme, rows []layout.Widget) layout.Dimensions {
-	return kit.Slab(gtx, th.R.Stone1, th.Cut.Mid, func(gtx layout.Context) layout.Dimensions {
-		gtx.Constraints.Min.X = gtx.Constraints.Max.X
-		return layout.Inset{Left: th.Sp.S4, Right: th.Sp.S4, Top: th.Sp.S2, Bottom: th.Sp.S2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			children := make([]layout.FlexChild, 0, 2*len(rows))
-			for index, row := range rows {
-				if index > 0 {
-					children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						size := image.Pt(gtx.Constraints.Max.X, max(1, gtx.Dp(1)))
-						look.FillRect(gtx, image.Rectangle{Max: size}, th.R.Vein)
-						return layout.Dimensions{Size: size}
-					}))
-				}
-				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					gtx.Constraints.Min.X = gtx.Constraints.Max.X
-					return layout.Inset{Top: th.Sp.S3, Bottom: th.Sp.S3}.Layout(gtx, row)
-				}))
-			}
-			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
-		})
-	})
 }
 
 func (s *settingsTab) accessSection(gtx layout.Context, e *env.Env, snapshot appstate.Snapshot, team protocol.Team) layout.Widget {
@@ -489,7 +472,7 @@ func (s *settingsTab) credentialRow(id string) *credentialRow {
 
 func (s *settingsTab) credentialRows(gtx layout.Context, e *env.Env, snapshot appstate.Snapshot, team protocol.Team) []look.Setting {
 	th := e.Theme
-	s.vault.Kind, s.vault.Small, s.vault.Label = kit.PlaqueLine, true, i18n.T("Open the vault")
+	s.vault.Kind, s.vault.Small, s.vault.Label = kit.PlaqueTonal, true, i18n.T("Open the vault")
 	if s.vault.Clicked(gtx) {
 		e.NavigateTeams(env.TeamsPlace{Tab: protocol.TabVault})
 	}
@@ -534,7 +517,7 @@ func (s *settingsTab) credentialSetting(e *env.Env, team protocol.Team, credenti
 		Control: func(gtx layout.Context) layout.Dimensions {
 			dimensions := layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-					return kit.Label{Style: th.T.MonoSm, Color: th.R.Fg3, MaxLines: 2}.Layout(gtx, th.Theme, where)
+					return kit.Label{Style: th.T.Detail, Color: th.R.Fg2, MaxLines: 2}.Layout(gtx, th.Theme, where)
 				}),
 				layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -569,7 +552,7 @@ func (s *settingsTab) trustSetting(gtx layout.Context, e *env.Env, credential pr
 		revoke = new(kit.Plaque)
 		s.trusts[trust] = revoke
 	}
-	revoke.Kind, revoke.Small, revoke.Label = kit.PlaqueLine, true, i18n.T("Revoke")
+	revoke.Kind, revoke.Small, revoke.Label = kit.PlaqueTonal, true, i18n.T("Revoke")
 	if revoke.Clicked(gtx) && !revoke.Busy {
 		rest := slices.DeleteFunc(slices.Clone(credential.Trusted), func(each protocol.CredentialTrust) bool { return each == trust })
 		revoke.Busy = true
@@ -606,7 +589,7 @@ func (s *settingsTab) mailTrustRows(gtx layout.Context, e *env.Env, snapshot app
 			revoke = new(kit.Plaque)
 			s.mailTrusts[trust] = revoke
 		}
-		revoke.Kind, revoke.Small, revoke.Label = kit.PlaqueLine, true, i18n.T("Revoke")
+		revoke.Kind, revoke.Small, revoke.Label = kit.PlaqueTonal, true, i18n.T("Revoke")
 		if revoke.Clicked(gtx) && !revoke.Busy {
 			changed := *account
 			changed.Trusted = slices.DeleteFunc(slices.Clone(account.Trusted), func(each protocol.MailTrust) bool { return each == trust })
@@ -686,16 +669,12 @@ func warningSlab(th *look.Theme, snapshot appstate.Snapshot, team protocol.Team)
 		return nil
 	}
 	return func(gtx layout.Context) layout.Dimensions {
-		gtx.Constraints.Min.X = gtx.Constraints.Max.X
-		return kit.Slab(gtx, th.R.Field(palette.Attention), th.Cut.Mid, func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Min.X = gtx.Constraints.Max.X
-			return layout.UniformInset(th.Sp.S4).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Start}.Layout(gtx,
-					layout.Rigid(look.IconWidget(look.Icon.Warning, 20, th.R.Amber)),
-					layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
-					layout.Flexed(1, look.Paragraph(th, th.T.Body, th.R.Fg, i18n.T("This team reads untrusted text and can send it out. Keep its credentials narrow."))),
-				)
-			})
+		return teamsui.NotchedSlab(gtx, th, palette.Attention, th.Sp.S4, func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Start}.Layout(gtx,
+				layout.Rigid(look.IconWidget(look.Icon.Warning, 20, th.R.Amber)),
+				layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
+				layout.Flexed(1, look.Paragraph(th, th.T.Body, th.R.Fg, i18n.T("This team reads untrusted text and can send it out. Keep its credentials narrow."))),
+			)
 		})
 	}
 }
@@ -721,7 +700,7 @@ func (s *settingsTab) budgetSection(gtx layout.Context, e *env.Env, snapshot app
 		s.runningSetting(e, snapshot, team),
 	}
 	if budget := s.budget(); budget != team.Budget {
-		rows = append(rows, s.budgetBar.setting(gtx, th, true,
+		rows = append(rows, s.budgetBar.setting(gtx, th, true, !s.identityBar.shown,
 			func() { s.setBudget(team.Budget) },
 			func(done func(error)) { updateTeam(e, team.ID, map[string]any{"budget": budget}, done) }))
 	}
@@ -792,7 +771,7 @@ func (s *settingsTab) notifySection(e *env.Env, snapshot appstate.Snapshot, team
 
 func (s *settingsTab) exportSection(gtx layout.Context, e *env.Env, team protocol.Team) layout.Widget {
 	th := e.Theme
-	s.export.Kind, s.export.Small, s.export.Icon, s.export.Label = kit.PlaqueLine, true, look.Icon.Export, i18n.T("Export team")
+	s.export.Kind, s.export.Small, s.export.Icon, s.export.Label = kit.PlaqueTonal, true, look.Icon.Export, i18n.T("Export team")
 	if s.export.Clicked(gtx) {
 		exportTeam(e, team)
 	}
@@ -819,7 +798,7 @@ func finishedTasks(snapshot appstate.Snapshot, team string) int {
 func (s *settingsTab) dangerSection(gtx layout.Context, e *env.Env, p *Page, snapshot appstate.Snapshot, team protocol.Team) layout.Widget {
 	th := e.Theme
 	finished := finishedTasks(snapshot, team.ID)
-	s.pause.Kind, s.pause.Small, s.pause.Icon, s.pause.Label = kit.PlaqueLine, true, look.Icon.Pause, i18n.T("Pause")
+	s.pause.Kind, s.pause.Small, s.pause.Icon, s.pause.Label = kit.PlaqueTonal, true, look.Icon.Pause, i18n.T("Pause")
 	pause := i18n.T("Nothing new starts and its working tasks stop until you resume it.")
 	switch {
 	case team.Paused && team.PauseReason == protocol.PausedByBudget:

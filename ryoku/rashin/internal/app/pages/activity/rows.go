@@ -57,7 +57,7 @@ func (p *Page) layoutItem(gtx layout.Context, e *env.Env, filter string, it item
 			return kit.GroupHeader(th.Theme, it.day, it.count)(gtx)
 		})
 	case itemOlder:
-		p.more.Kind, p.more.Small, p.more.Label, p.more.Busy = kit.PlaqueLine, true, i18n.T("Load older"), p.ledger.loading
+		p.more.Kind, p.more.Small, p.more.Label, p.more.Busy = kit.PlaqueTonal, true, i18n.T("Load older"), p.ledger.loading
 		if p.more.Clicked(gtx) {
 			p.ledger.older(e, filter, p.team)
 		}

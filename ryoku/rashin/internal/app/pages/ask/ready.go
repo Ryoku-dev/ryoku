@@ -19,7 +19,7 @@ func (r *readiness) layout(gtx layout.Context, e *env.Env) layout.Dimensions {
 	word, tone, detail := readyWords(e.Snapshot().Providers)
 	r.providers.Kind, r.providers.Small, r.providers.Label = kit.PlaqueQuiet, true, i18n.T("Providers")
 	if tone != palette.Alive {
-		r.providers.Kind, r.providers.Label = kit.PlaqueLine, i18n.T("Open providers")
+		r.providers.Kind, r.providers.Label = kit.PlaqueTonal, i18n.T("Open providers")
 	}
 	if r.providers.Clicked(gtx) && e.OpenSettings != nil {
 		e.OpenSettings("providers")
@@ -28,7 +28,7 @@ func (r *readiness) layout(gtx layout.Context, e *env.Env) layout.Dimensions {
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 		layout.Rigid(kit.Claim(th.Theme, tone, word)),
 		layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
-		layout.Flexed(1, kit.Text(th.Theme, th.T.Caption, th.R.Fg3, detail)),
+		layout.Flexed(1, kit.Text(th.Theme, th.T.Detail, th.R.Fg2, detail)),
 		layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return r.providers.Layout(gtx, th.Theme) }),
 	)

@@ -71,7 +71,7 @@ func (l *PathList) Layout(gtx layout.Context, e *env.Env, list []string) layout.
 	}
 	path := l.field.Path()
 	addable := path != "" && !slices.Contains(list, path)
-	l.add.Kind, l.add.Small, l.add.Icon, l.add.Label = kit.PlaqueLine, true, look.Icon.Add, i18n.T("Add")
+	l.add.Kind, l.add.Small, l.add.Icon, l.add.Label = kit.PlaqueTonal, true, look.Icon.Add, i18n.T("Add")
 	if l.add.Clicked(gtx) && addable {
 		l.next = append(slices.Clone(list), path)
 		l.changed = true

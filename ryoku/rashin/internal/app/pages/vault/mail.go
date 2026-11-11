@@ -24,9 +24,9 @@ type mailSlab struct {
 func (m *mailSlab) layout(gtx layout.Context, e *env.Env, p *Page, vault protocol.VaultInfo) layout.Dimensions {
 	th := e.Theme
 	account := vault.Mail
-	m.setup.Kind, m.setup.Small, m.setup.Label = kit.PlaqueLine, true, i18n.T("Set up the mail account")
-	m.change.Kind, m.change.Small, m.change.Label = kit.PlaqueQuiet, true, i18n.T("Change")
-	m.test.Kind, m.test.Small, m.test.Label, m.test.Busy = kit.PlaqueLine, true, i18n.T("Test the login"), m.testing
+	m.setup.Kind, m.setup.Small, m.setup.Label = kit.PlaqueTonal, true, i18n.T("Set up the mail account")
+	m.change.Kind, m.change.Small, m.change.Label = kit.PlaqueTonal, true, i18n.T("Change")
+	m.test.Kind, m.test.Small, m.test.Label, m.test.Busy = kit.PlaqueTonal, true, i18n.T("Test the login"), m.testing
 	if m.setup.Clicked(gtx) || m.change.Clicked(gtx) {
 		p.account.open(vault)
 	}
@@ -77,7 +77,7 @@ func (m *mailSlab) layout(gtx layout.Context, e *env.Env, p *Page, vault protoco
 					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 						layout.Rigid(kit.Claim(th.Theme, tone, word)),
 						layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
-						layout.Flexed(1, look.Paragraph(th, th.T.Caption, th.R.Fg3, result.Text)),
+						layout.Flexed(1, look.Paragraph(th, th.T.Detail, th.R.Fg2, result.Text)),
 					)
 				}),
 			)

@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"gioui.org/layout"
-	"gioui.org/op"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
@@ -83,8 +82,8 @@ func (t *tasksState) layoutActs(gtx layout.Context, e *env.Env, page *pageState,
 	if started {
 		t.start.Icon, t.start.Label = look.Icon.Agents, i18n.T("Open session")
 	}
-	t.done.Kind, t.done.Icon, t.done.Label = kit.PlaqueLine, look.Icon.Check, i18n.T("Mark done")
-	t.worktree.Kind, t.worktree.Icon, t.worktree.Label = kit.PlaqueLine, look.Icon.Branch, i18n.T("Open worktree")
+	t.done.Kind, t.done.Icon, t.done.Label = kit.PlaqueTonal, look.Icon.Check, i18n.T("Mark done")
+	t.worktree.Kind, t.worktree.Icon, t.worktree.Label = kit.PlaqueTonal, look.Icon.Branch, i18n.T("Open worktree")
 	t.more.Kind, t.more.Icon, t.more.Description = kit.PlaqueQuiet, look.Icon.More, i18n.T("Move, ask or delete")
 	if t.start.Clicked(gtx) {
 		t.act(e, page, task)
@@ -154,8 +153,7 @@ func (t *tasksState) openMenu(gtx layout.Context, e *env.Env, page *pageState, t
 // none of the options is gold, none is the consequential one before the reader has chosen
 func (t *tasksState) layoutGate(gtx layout.Context, e *env.Env, page *pageState, task protocol.TaskInfo, gate protocol.Gate) layout.Dimensions {
 	th := e.Theme
-	record := op.Record(gtx.Ops)
-	dimensions := layout.UniformInset(16).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+	return kit.SlabContent(gtx, th.Theme, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Rigid(kit.Claim(th.Theme, palette.Attention, i18n.T("Needs you"))),
@@ -171,7 +169,7 @@ func (t *tasksState) layoutGate(gtx layout.Context, e *env.Env, page *pageState,
 						plaque = new(kit.Plaque)
 						t.answers[key] = plaque
 					}
-					plaque.Kind, plaque.Small, plaque.Label = kit.PlaqueLine, true, option
+					plaque.Kind, plaque.Small, plaque.Label = kit.PlaqueTonal, true, option
 					if plaque.Clicked(gtx) {
 						params := protocol.GateResolveParams{Task: task.ID, Gate: gate.ID, Resolution: option}
 						e.Call(protocol.MTasksResolveGate, params, new(protocol.TaskInfo), func(err error) {
@@ -184,10 +182,6 @@ func (t *tasksState) layoutGate(gtx layout.Context, e *env.Env, page *pageState,
 			}),
 		)
 	})
-	call := record.Stop()
-	kit.FillCut(gtx.Ops, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid), th.R.Field(palette.Attention))
-	call.Add(gtx.Ops)
-	return dimensions
 }
 
 func taskFactRows(th *look.Theme, task protocol.TaskInfo, tasks []protocol.TaskInfo) []look.FactRow {

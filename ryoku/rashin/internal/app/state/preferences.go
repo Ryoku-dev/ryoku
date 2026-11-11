@@ -15,6 +15,15 @@ const (
 	ZoomStep    = 10
 )
 
+// the stored words of the look, read by palette.ParseLook; Rashin starts on standard and low
+const (
+	ContrastStandard = "standard"
+	ContrastHigh     = "high"
+	TintOff          = "off"
+	TintLow          = "low"
+	TintMedium       = "medium"
+)
+
 // window and frame state only, nothing the daemon owns
 type AppPreferences struct {
 	Width         int  `json:"width,omitempty"`
@@ -23,6 +32,9 @@ type AppPreferences struct {
 	SidebarFolded bool `json:"sidebarFolded,omitempty"`
 	SidePanelOpen bool `json:"sidePanelOpen,omitempty"`
 	ReduceMotion  bool `json:"reduceMotion,omitempty"`
+	// the look's contrast and tint words
+	Contrast string `json:"contrast,omitempty"`
+	Tint     string `json:"tint,omitempty"`
 	// notices are on until asked off, so the absent key means on
 	MuteNotices bool `json:"muteNotices,omitempty"`
 	// where Rashin mode stood when the window closed
@@ -53,6 +65,16 @@ func (p AppPreferences) Normalize() AppPreferences {
 		p.ZoomPercent = DefaultZoom
 	}
 	p.ZoomPercent = min(MaxZoom, max(MinZoom, p.ZoomPercent))
+	switch p.Contrast {
+	case ContrastStandard, ContrastHigh:
+	default:
+		p.Contrast = ContrastStandard
+	}
+	switch p.Tint {
+	case TintOff, TintLow, TintMedium:
+	default:
+		p.Tint = TintLow
+	}
 	return p
 }
 

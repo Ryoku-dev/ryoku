@@ -140,7 +140,7 @@ func (p *Page) layoutHome(gtx layout.Context, e *env.Env, composer image.Rectang
 	row.Constraints = layout.Constraints{Max: image.Pt(composer.Dx(), gtx.Constraints.Max.Y)}
 	tries := look.Flow{Gap: 8, LineGap: 8}.Layout(row, len(texts), func(gtx layout.Context, index int) layout.Dimensions {
 		plaque := &p.suggestions[index]
-		plaque.Kind, plaque.Small, plaque.Label = kit.PlaqueQuiet, true, texts[index]
+		plaque.Kind, plaque.Small, plaque.Label = kit.PlaqueTonal, true, texts[index]
 		if plaque.Clicked(gtx) {
 			p.composer.SetText(texts[index])
 			p.composer.Focus()

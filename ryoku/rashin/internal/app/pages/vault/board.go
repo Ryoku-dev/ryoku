@@ -1,6 +1,8 @@
 package vault
 
 import (
+	"time"
+
 	"gioui.org/layout"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
@@ -93,11 +95,7 @@ func (b *board) layoutItem(gtx layout.Context, e *env.Env, p *Page, snapshot sta
 		switch item {
 		case itemLead:
 			return layout.Inset{Top: th.Sp.S5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-					layout.Rigid(look.Paragraph(th, th.T.Sentence, th.R.Fg, teamsui.VaultState(snapshot.Vault))),
-					layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-					layout.Rigid(look.Paragraph(th, th.T.Proof, th.R.Fg2, i18n.T("Agents never see these values. Rashin adds them to requests and mail for your teams, only where you allow."))),
-				)
+				return look.Monument(gtx, th, teamsui.VaultState(snapshot.Vault), leadProof(gtx.Now, snapshot.Vault))
 			})
 		case itemRequests:
 			return b.layoutRequests(gtx, e)
@@ -174,4 +172,25 @@ func (b *board) layoutRecent(gtx layout.Context, e *env.Env, snapshot state.Snap
 		}))
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+}
+
+// how many credentials teams used this week, then the promise the vault keeps
+func leadProof(now time.Time, vault protocol.VaultInfo) string {
+	promise := i18n.T("Agents never see these values. Rashin adds them to requests and mail for your teams, only where you allow.")
+	if vault.State != protocol.VaultOpen || len(vault.Credentials) == 0 {
+		return promise
+	}
+	used := 0
+	for _, credential := range vault.Credentials {
+		if credential.LastUsed != nil && now.Sub(*credential.LastUsed) < 7*24*time.Hour {
+			used++
+		}
+	}
+	switch used {
+	case 0:
+		return i18n.Tf("None used this week. %s", promise)
+	case 1:
+		return i18n.Tf("One used this week. %s", promise)
+	}
+	return i18n.Tf("%s used this week. %s", look.CountStart(used), promise)
 }

@@ -20,6 +20,8 @@ import (
 	"gioui.org/op"
 	"gioui.org/unit"
 
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
+
 	"ryoku-rashin/internal/app/conn"
 	"ryoku-rashin/internal/app/env"
 	"ryoku-rashin/internal/app/look"
@@ -134,7 +136,7 @@ func fakeGraphEnv(t *testing.T, socket string) (*env.Env, *conn.Client, chan fun
 	store := state.New(nil)
 	connection := conn.NewOptions(store, client.Options{Socket: socket, Client: protocol.ClientApp})
 	posts := make(chan func(), 64)
-	e := &env.Env{Theme: look.New(0), Store: store, Client: connection, Overlays: new(look.Overlays), Post: func(fn func()) { posts <- fn }}
+	e := &env.Env{Theme: look.New(0, palette.Look{}), Store: store, Client: connection, Overlays: new(look.Overlays), Post: func(fn func()) { posts <- fn }}
 	deadline := time.Now().Add(3 * time.Second)
 	for !connection.Connected() && time.Now().Before(deadline) {
 		time.Sleep(time.Millisecond)
@@ -254,7 +256,7 @@ func TestSecondaryClickOpensMenuOnRelease(t *testing.T) {
 }
 
 func TestLaneCollapseMarkerAppearsPastTwentyFourLanes(t *testing.T) {
-	e := &env.Env{Theme: look.New(0), Overlays: new(look.Overlays)}
+	e := &env.Env{Theme: look.New(0, palette.Look{}), Overlays: new(look.Overlays)}
 	view := New()
 	view.state.reset("project")
 	view.state.entries = []graphEntry{{kind: rowCommit, commit: protocol.GitCommit{Hash: "wide"}, layout: gitgraph.Row{Commit: "wide", Lane: 0, Width: 25}}}

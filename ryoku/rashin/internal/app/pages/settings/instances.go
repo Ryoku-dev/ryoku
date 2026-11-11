@@ -99,7 +99,7 @@ func (p *Page) updateInstance(gtx layout.Context, e *env.Env, editor *instanceEd
 	editor.environment.Label, editor.environment.Placeholder, editor.environment.Mono = i18n.T("Environment"), "KEY=value", true
 	editor.environment.Help = i18n.T("One per line. Leave it empty to use your own environment.")
 	editor.environment.Error = editor.problem
-	editor.save.Kind, editor.save.Small, editor.save.Label = kit.PlaqueLine, true, i18n.T("Save")
+	editor.save.Kind, editor.save.Small, editor.save.Label = kit.PlaqueTonal, true, i18n.T("Save")
 	if create {
 		editor.save.Label = i18n.T("Add harness")
 	}

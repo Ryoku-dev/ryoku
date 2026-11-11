@@ -165,11 +165,7 @@ func (b *board) layoutLead(
 	th := e.Theme
 	// with no harness there is nothing to tell an agent yet, so the composer waits for one
 	if len(env.InstalledHarnesses(snapshot)) == 0 {
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(kit.Text(th.Theme, th.T.Sentence, th.R.Fg, i18n.T("Agents need a harness."))),
-			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-			layout.Rigid(kit.Text(th.Theme, th.T.Proof, th.R.Fg2, i18n.T("Install one and you can start agents from here."))),
-		)
+		return look.Monument(gtx, th, i18n.T("Agents need a harness."), i18n.T("Install one and you can start agents from here."))
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -264,7 +260,7 @@ func (b *board) layoutSession(gtx layout.Context, e *env.Env, snapshot state.Sna
 		b.tablets[info.ID] = item
 	}
 	item.tablet.Pane = th.R.Stone2
-	item.open.Kind, item.open.Small, item.open.Label = kit.PlaqueLine, true, i18n.T("Open")
+	item.open.Kind, item.open.Small, item.open.Label = kit.PlaqueTonal, true, i18n.T("Open")
 	if item.tablet.Clicked(gtx) || item.tablet.DoubleClicked(gtx) || item.open.Clicked(gtx) {
 		open(e, info.ID)
 	}
@@ -295,7 +291,7 @@ func harnessMark(th *look.Theme, name string) layout.Widget {
 	}
 	return func(gtx layout.Context) layout.Dimensions {
 		size := gtx.Constraints.Min
-		kit.FillCut(gtx.Ops, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Small), th.R.Stone3)
+		kit.FillCut(gtx.Ops, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Small), th.R.Field)
 		return layout.Center.Layout(gtx, kit.RawText(th.Theme, th.T.Label, th.R.Fg2, string(letters)))
 	}
 }

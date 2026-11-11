@@ -12,6 +12,7 @@ import (
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 )
 
 type SelectForm uint8
@@ -21,8 +22,12 @@ const (
 	SelectQuiet
 )
 
-// detail is a second line under the label in the opened list
-type SelectOption struct{ Label, Detail string }
+// detail is a second line under the label in the opened list; a disabled option
+// is shown at alpha.disabled, can't be picked and reads as unavailable
+type SelectOption struct {
+	Label, Detail string
+	Disabled      bool
+}
 
 // the menu opens in window coordinates so it works inside clipped and scrolling parents
 type Select struct {
@@ -87,6 +92,8 @@ func (selection *Select) LayoutOptions(
 	open := overlays != nil && overlays.IsOpen(tag)
 	anchor := func(gtx layout.Context) layout.Dimensions {
 		original := gtx
+		focused := original.Focused(tag) || selection.Preview == kit.StateFocus
+		focus := transition(original, &selection.focus, focused, th.Motion.FocusIn, th.Motion.FocusOut)
 		dimensions := selection.click.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			semantic.Button.Add(gtx.Ops)
 			description := label
@@ -98,11 +105,9 @@ func (selection *Select) LayoutOptions(
 			if selection.Form == SelectQuiet {
 				return selection.layoutQuiet(gtx, th, label, open)
 			}
-			return selection.layoutField(gtx, th, label, open)
+			return selection.layoutField(gtx, th, label, open, focus)
 		})
 		selection.size = dimensions.Size
-		focused := original.Focused(tag) || selection.Preview == kit.StateFocus
-		focus := transition(original, &selection.focus, focused, th.Motion.FocusIn, th.Motion.FocusOut)
 		kit.FocusRingAlpha(original, th.Theme, image.Rectangle{Max: dimensions.Size}, gtx.Dp(selection.cut(th)), focus)
 		return dimensions
 	}
@@ -110,7 +115,7 @@ func (selection *Select) LayoutOptions(
 		return anchor(gtx)
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, selection.Label)),
+		layout.Rigid(kit.Text(th.Theme, th.T.Detail, th.R.Fg2, selection.Label)),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
 		layout.Rigid(anchor),
 	)
@@ -149,11 +154,7 @@ func (selection *Select) open(gtx layout.Context, th *Theme, overlays *Overlays,
 	}
 	items := make([]kit.MenuItem, len(options))
 	for index, option := range options {
-		// every row gets the column so the names line up under the checked one
-		items[index] = kit.MenuItem{Label: option.Label, Icon: Icon.Blank}
-		if index == selected {
-			items[index].Icon = Icon.Check
-		}
+		items[index] = kit.MenuItem{Label: option.Label, Checked: index == selected, Disabled: option.Disabled}
 	}
 	content := func(gtx layout.Context) layout.Dimensions {
 		selection.menu.Preview = selection.Preview
@@ -186,18 +187,25 @@ func arrow(open bool) *widget.Icon {
 	return Icon.ExpandMore
 }
 
-func (selection *Select) layoutField(gtx layout.Context, th *Theme, label string, open bool) layout.Dimensions {
+func (selection *Select) layoutField(gtx layout.Context, th *Theme, label string, open bool, focus float32) layout.Dimensions {
 	hover := selection.hoverValue(gtx, th, open)
 	width := min(max(gtx.Constraints.Min.X, gtx.Dp(160)), gtx.Constraints.Max.X)
 	bounds := image.Rect(0, 0, width, min(gtx.Dp(44), gtx.Constraints.Max.Y))
-	kit.FillCut(gtx.Ops, bounds, gtx.Dp(th.Cut.Mid), palette.Mix(th.R.Stone3, th.R.Fg, .06*hover))
+	cut := gtx.Dp(th.Cut.Mid)
+	fill := palette.Mix(th.R.Field, th.R.Fg, tokens.AlphaHoverPlane*hover)
+	line := palette.Mix(th.R.Edge, th.R.Fg2, focus)
+	if !gtx.Source.Enabled() {
+		fill, line = palette.WithAlpha(fill, tokens.AlphaDisabled), palette.WithAlpha(line, tokens.AlphaDisabled)
+	}
+	kit.FillCut(gtx.Ops, bounds, cut, fill)
+	kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), line)
 	left, right := gtx.Dp(14), gtx.Dp(10)
 	content := gtx
 	content.Constraints = layout.Constraints{Max: image.Pt(width-left-right, bounds.Max.Y)}
 	MiddleLeft(content, left, bounds.Max.Y, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-			layout.Flexed(1, kit.RawText(th.Theme, th.T.Body, th.R.Fg, label)),
+			layout.Flexed(1, kit.Text(th.Theme, th.T.Body, th.R.Fg, label)),
 			layout.Rigid(layout.Spacer{Width: 8}.Layout),
 			layout.Rigid(IconWidget(arrow(open), 20, th.R.Fg2)),
 		)
@@ -233,7 +241,7 @@ func (selection *Select) layoutQuiet(gtx layout.Context, th *Theme, label string
 	call := record.Stop()
 	bounds := image.Rect(0, 0, dimensions.Size.X, height)
 	if hover > 0 {
-		kit.FillCut(gtx.Ops, bounds, gtx.Dp(th.Cut.Small), palette.WithAlpha(th.R.Fg, .10*hover))
+		kit.FillCut(gtx.Ops, bounds, gtx.Dp(th.Cut.Small), palette.WithAlpha(th.R.Fg, tokens.AlphaHoverFill*hover))
 	}
 	offset := op.Offset(image.Pt(0, (height-dimensions.Size.Y)/2)).Push(gtx.Ops)
 	call.Add(gtx.Ops)

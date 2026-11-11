@@ -132,7 +132,7 @@ func teamsGroup(th *look.Theme, title, caption string, rows []look.Setting, save
 		if caption != "" {
 			children = append(children,
 				layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
-				layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg3, caption)),
+				layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2, caption)),
 			)
 		}
 		children = append(children,
@@ -148,7 +148,7 @@ func teamsGroup(th *look.Theme, title, caption string, rows []look.Setting, save
 
 // the save under a group, dimmed while nothing in it changed
 func groupSave(th *look.Theme, plaque *kit.Plaque, changed bool) layout.Widget {
-	plaque.Kind, plaque.Small, plaque.Label = kit.PlaqueLine, true, i18n.T("Save")
+	plaque.Kind, plaque.Small, plaque.Label = kit.PlaqueTonal, true, i18n.T("Save")
 	return func(gtx layout.Context) layout.Dimensions {
 		if !changed {
 			gtx = gtx.Disabled()

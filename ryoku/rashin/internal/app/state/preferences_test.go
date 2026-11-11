@@ -11,6 +11,7 @@ func TestAppPreferencesPersistTheFrame(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
 	want := AppPreferences{
 		Width: 1612, Height: 1043, ZoomPercent: 110, SidebarFolded: true, SidePanelOpen: true, ReduceMotion: true,
+		Contrast: ContrastHigh, Tint: TintMedium,
 		HiddenSteps: map[string][]string{"team-a": {"mail", "routine:r1"}},
 	}
 	if err := SaveAppPreferences(want); err != nil {
@@ -31,5 +32,17 @@ func TestAppPreferencesNormalizeZoom(t *testing.T) {
 	}
 	if got := (AppPreferences{ZoomPercent: 900}).Normalize().ZoomPercent; got != MaxZoom {
 		t.Fatalf("maximum zoom = %d", got)
+	}
+}
+
+func TestAppPreferencesNormalizeLook(t *testing.T) {
+	if got := (AppPreferences{}).Normalize(); got.Contrast != ContrastStandard || got.Tint != TintLow {
+		t.Fatalf("default look = %q, %q, want standard and low", got.Contrast, got.Tint)
+	}
+	if got := (AppPreferences{Contrast: "loud", Tint: "heavy"}).Normalize(); got.Contrast != ContrastStandard || got.Tint != TintLow {
+		t.Fatalf("unknown words gave %q, %q, want standard and low", got.Contrast, got.Tint)
+	}
+	if got := (AppPreferences{Contrast: ContrastHigh, Tint: TintOff}).Normalize(); got.Contrast != ContrastHigh || got.Tint != TintOff {
+		t.Fatalf("known words became %q, %q", got.Contrast, got.Tint)
 	}
 }

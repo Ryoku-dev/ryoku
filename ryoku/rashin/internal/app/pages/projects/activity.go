@@ -119,7 +119,7 @@ func activityCell(th *look.Theme, now time.Time, names activityNames, item proto
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 				layout.Rigid(kit.RawText(th.Theme, style, th.R.Fg2, target)),
 				layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
-				layout.Flexed(1, kit.RawText(th.Theme, th.T.Caption, th.R.Fg3, item.Detail)),
+				layout.Flexed(1, kit.RawText(th.Theme, th.T.Detail, th.R.Fg2, item.Detail)),
 			)
 		}
 	default:

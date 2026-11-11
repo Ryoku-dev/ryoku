@@ -21,8 +21,20 @@ import (
 func (t *taskView) reportItems(e *env.Env, snapshot state.Snapshot, task protocol.TeamTask, session string, height int) []layout.Widget {
 	th := e.Theme
 	found := task.Report
+	title := look.Paragraph(th, th.T.Title, th.R.Fg, found.Title)
+	// a quiet run found nothing new since the last one, as its routine says of it
+	if found.Quiet {
+		heading := title
+		title = func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(kit.Claim(th.Theme, palette.Idle, i18n.T("Quiet, nothing new"))),
+				layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
+				layout.Rigid(heading),
+			)
+		}
+	}
 	items := []layout.Widget{
-		look.Paragraph(th, th.T.Title, th.R.Fg, found.Title),
+		title,
 		func(gtx layout.Context) layout.Dimensions {
 			dimensions := t.prose.Layout(gtx, th, e.Overlays, found.Body)
 			env.HandleChatActions(gtx, e, session, t.prose.Actions())
@@ -56,7 +68,7 @@ func (t *taskView) layoutFiles(gtx layout.Context, e *env.Env, files []string) l
 			plaque = new(kit.Plaque)
 			t.files[path] = plaque
 		}
-		plaque.Kind, plaque.Small, plaque.Icon, plaque.Label = kit.PlaqueQuiet, true, look.Icon.File, filepath.Base(path)
+		plaque.Kind, plaque.Small, plaque.Icon, plaque.Label = kit.PlaqueTonal, true, look.Icon.File, filepath.Base(path)
 		if plaque.Clicked(gtx) {
 			e.OpenPath(path)
 		}

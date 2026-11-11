@@ -113,7 +113,9 @@ func (r *Rail) layoutVertical(gtx layout.Context, th *theme.Theme, destinations 
 		y := int(r.selection.Value(gtx) + .5)
 		x := (width - tile) / 2
 		offset := op.Offset(image.Pt(x, y)).Push(gtx.Ops)
-		FillCut(gtx.Ops, image.Rect(0, 0, tile, tile), gtx.Dp(th.Cut.Mid), th.R.Sel)
+		tileBounds, tileCut := image.Rect(0, 0, tile, tile), gtx.Dp(th.Cut.Mid)
+		FillCut(gtx.Ops, tileBounds, tileCut, th.R.Sel)
+		PlaceBlade(gtx, th, tileBounds, tileCut, layout.Vertical)
 		offset.Pop()
 	}
 	layoutAt(gtx, image.Pt((width-homeSize)/2, gtx.Dp(tokens.SizeRailHomeTop)), image.Pt(homeSize, homeSize), func(gtx layout.Context) layout.Dimensions {
@@ -160,7 +162,9 @@ func (r *Rail) layoutBottom(gtx layout.Context, th *theme.Theme, destinations []
 		r.selection.Set(gtx, float32(position(selected)))
 		x := int(r.selection.Value(gtx) + .5)
 		offset := op.Offset(image.Pt(x, y)).Push(gtx.Ops)
-		FillCut(gtx.Ops, image.Rect(0, 0, columnWidth, tileHeight), gtx.Dp(th.Cut.Small), th.R.Sel)
+		tileBounds, tileCut := image.Rect(0, 0, columnWidth, tileHeight), gtx.Dp(th.Cut.Small)
+		FillCut(gtx.Ops, tileBounds, tileCut, th.R.Sel)
+		PlaceBlade(gtx, th, tileBounds, tileCut, layout.Horizontal)
 		offset.Pop()
 	}
 	layoutAt(gtx, image.Pt(0, y), image.Pt(columnWidth, tileHeight), func(gtx layout.Context) layout.Dimensions {

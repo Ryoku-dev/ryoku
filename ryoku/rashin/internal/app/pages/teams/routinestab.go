@@ -35,7 +35,7 @@ func (r *routinesTab) tablet(id string) *teamsui.RoutineTablet {
 func (r *routinesTab) layout(gtx layout.Context, e *env.Env, team protocol.Team) layout.Dimensions {
 	th := e.Theme
 	snapshot := e.Snapshot()
-	r.add.Kind, r.add.Small, r.add.Icon, r.add.Label = kit.PlaqueLine, true, look.Icon.Add, i18n.T("New routine")
+	r.add.Kind, r.add.Small, r.add.Icon, r.add.Label = kit.PlaqueTonal, true, look.Icon.Add, i18n.T("New routine")
 	if r.add.Clicked(gtx) {
 		e.NavigateTeams(env.TeamsPlace{Tab: protocol.TabRoutines, Draft: env.DraftRoutine, Team: team.ID})
 	}

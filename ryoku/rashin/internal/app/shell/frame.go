@@ -38,6 +38,13 @@ func (s *uiShell) layoutFrame(gtx layout.Context, e *env.Env) {
 		bottom -= gtx.Dp(look.BottomNav) + gap
 	}
 	page, listPage := s.page(s.router.Tab), s.page(s.listTab)
+	// settings lists its own sections, the New plaque still speaks for where it was opened from
+	if s.router.Tab == protocol.TabSettings {
+		listPage = page
+	}
+	if indexed, ok := page.(env.Indexed); ok {
+		indexed.ListShown(s.class == look.Expanded && !s.preferences.SidebarFolded)
+	}
 
 	fold, sidebar := float32(1), 0
 	switch s.class {
@@ -252,7 +259,7 @@ func (bar *bottomBar) Layout(gtx layout.Context, s *uiShell, e *env.Env) layout.
 	// Teams' five take the bar whole, settings stays a Ctrl , or a search away
 	tabs := [5]destination{items[0], items[1], items[2], items[3], items[4]}
 	if !s.router.TeamsMode() {
-		tabs[4] = destination{protocol.TabSettings, i18n.T("Settings"), "", look.Icon.Settings}
+		tabs[4] = destination{protocol.TabSettings, i18n.T("Settings"), "", look.Icon.Settings, look.IconFill.Settings}
 	}
 	inset, gap := gtx.Dp(4), gtx.Dp(4)
 	width := (size.X - 2*inset - 4*gap) / 5
@@ -266,7 +273,9 @@ func (bar *bottomBar) Layout(gtx layout.Context, s *uiShell, e *env.Env) layout.
 			s.openDestination(tab.tab)
 		}
 		if tab.tab == s.router.Tab {
-			kit.FillCut(gtx.Ops, bar.slab.Rect(gtx, tab.tab, rect(index), th.Motion.Select), gtx.Dp(th.Cut.Small), th.R.Sel)
+			rectangle, cut := bar.slab.Rect(gtx, tab.tab, rect(index), th.Motion.Select), gtx.Dp(th.Cut.Small)
+			kit.FillCut(gtx.Ops, rectangle, cut, th.R.Sel)
+			kit.PlaceBlade(gtx, th.Theme, rectangle, cut, layout.Horizontal)
 		}
 	}
 	for index, tab := range tabs {
@@ -293,7 +302,7 @@ func drawBottomTile(gtx layout.Context, th *look.Theme, tile *navRow, tab destin
 	glyph := gtx.Dp(20)
 	line := gtx.Sp(th.T.Caption.Line)
 	y := (size.Y - glyph - gtx.Dp(2) - line) / 2
-	look.PlaceIcon(gtx, tab.icon, image.Pt((size.X-glyph)/2, y), unit.Dp(20), ink)
+	look.PlaceIcon(gtx, tab.glyph(selected), image.Pt((size.X-glyph)/2, y), unit.Dp(20), ink)
 	look.Place(gtx, image.Rect(0, y+glyph+gtx.Dp(2), size.X, y+glyph+gtx.Dp(2)+line), func(gtx layout.Context) layout.Dimensions {
 		return layout.Center.Layout(gtx, kit.RawText(th.Theme, th.T.Caption, ink, tab.label))
 	})

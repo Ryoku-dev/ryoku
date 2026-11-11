@@ -344,7 +344,9 @@ func (list *RowList) Layout(gtx layout.Context, th *theme.Theme, count, selected
 		list.slabTarget = targetY
 		y := int(list.slabY.Value(gtx) + .5)
 		stack := clip.Rect(image.Rectangle{Max: dimensions.Size}).Push(gtx.Ops)
-		FillCut(gtx.Ops, image.Rect(0, y, dimensions.Size.X, y+slabHeight), 0, th.R.Sel)
+		slab := image.Rect(0, y, dimensions.Size.X, y+slabHeight)
+		FillCut(gtx.Ops, slab, 0, th.R.Sel)
+		PlaceBlade(gtx, th, slab, 0, layout.Vertical)
 		stack.Pop()
 	}
 	list.selected, list.selectedReady, list.slabVisible = selected, true, visible

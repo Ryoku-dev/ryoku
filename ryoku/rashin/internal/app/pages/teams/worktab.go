@@ -84,9 +84,7 @@ func (w *workTab) layoutField(gtx layout.Context, th *look.Theme, team protocol.
 	empty := strings.TrimSpace(w.brief.Text()) == ""
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return look.PaneField(gtx, th, gtx.Focused(&w.brief.Editor), func(gtx layout.Context) layout.Dimensions {
-				return w.brief.Layout(gtx, th.Theme)
-			})
+			return w.brief.Layout(gtx, th.Theme)
 		}),
 		layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {

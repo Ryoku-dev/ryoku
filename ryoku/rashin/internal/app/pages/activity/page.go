@@ -61,6 +61,14 @@ func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
 			return p.header.Layout(gtx, e.Theme, e.Overlays, content)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return look.Centred(gtx, e.Class, columnWidth, func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Top: e.Theme.Sp.S5, Bottom: e.Theme.Sp.S1}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					claim, proof := ledgerLead(gtx.Now, p.ledger.entries)
+					return look.Monument(gtx, e.Theme, claim, proof)
+				})
+			})
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return look.Centred(gtx, e.Class, columnWidth, func(gtx layout.Context) layout.Dimensions { return p.layoutFilters(gtx, e, snapshot.Teams) })
 		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {

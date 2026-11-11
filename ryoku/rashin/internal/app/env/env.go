@@ -51,6 +51,12 @@ type Env struct {
 	SetZoom         func(percent int)
 	ReduceMotion    bool
 	SetReduceMotion func(bool)
+	// Contrast and Tint are the look's stored words ("standard" or "high",
+	// "off", "low" or "medium"); SetLook changes both and restyles the window
+	// at once.
+	Contrast string
+	Tint     string
+	SetLook  func(contrast, tint string)
 	// Notices says whether the desktop is told when an agent needs the reader.
 	Notices    bool
 	SetNotices func(bool)

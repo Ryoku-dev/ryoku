@@ -204,31 +204,29 @@ func (d *planTasks) layout(gtx layout.Context, e *env.Env, page *pageState) {
 func (d *planTasks) layoutDraft(gtx layout.Context, th *look.Theme, index int, draft *planDraft) layout.Dimensions {
 	draft.keep.Label = i18n.Tf("Keep task %d", index+1)
 	draft.title.Label, draft.goal.Label = i18n.T("Title"), i18n.T("Goal")
-	return kit.Slab(gtx, th.R.Stone1, th.Cut.Mid, func(gtx layout.Context) layout.Dimensions {
-		return layout.UniformInset(16).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			fields := gtx
-			if !draft.keep.Value {
-				fields = gtx.Disabled()
+	return kit.SlabContent(gtx, th.Theme, func(gtx layout.Context) layout.Dimensions {
+		fields := gtx
+		if !draft.keep.Value {
+			fields = gtx.Disabled()
+		}
+		children := []layout.FlexChild{
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return draft.keep.Layout(gtx, th.Theme) }),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
+			layout.Rigid(func(layout.Context) layout.Dimensions { return draft.title.Layout(fields, th.Theme) }),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+			layout.Rigid(func(layout.Context) layout.Dimensions { return draft.goal.Layout(fields, th.Theme) }),
+		}
+		if len(draft.waits) > 0 {
+			numbers := make([]string, len(draft.waits))
+			for at, wait := range draft.waits {
+				numbers[at] = strconv.Itoa(wait + 1)
 			}
-			children := []layout.FlexChild{
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions { return draft.keep.Layout(gtx, th.Theme) }),
-				layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
-				layout.Rigid(func(layout.Context) layout.Dimensions { return draft.title.Layout(fields, th.Theme) }),
+			children = append(children,
 				layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-				layout.Rigid(func(layout.Context) layout.Dimensions { return draft.goal.Layout(fields, th.Theme) }),
-			}
-			if len(draft.waits) > 0 {
-				numbers := make([]string, len(draft.waits))
-				for at, wait := range draft.waits {
-					numbers[at] = strconv.Itoa(wait + 1)
-				}
-				children = append(children,
-					layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-					layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, i18n.Tf("Waits for task %s", strings.Join(numbers, ", ")))),
-				)
-			}
-			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
-		})
+				layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, i18n.Tf("Waits for task %s", strings.Join(numbers, ", ")))),
+			)
+		}
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	})
 }
 

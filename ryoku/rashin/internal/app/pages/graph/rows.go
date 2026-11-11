@@ -368,12 +368,12 @@ func (v *viewState) refChips(refs []protocol.GitRef) []refChip {
 // opaque fill so a chip reads the same on the pane and on the selected row's slab
 func (v *viewState) layoutRefChip(gtx layout.Context, e *env.Env, chip refChip, lane int) layout.Dimensions {
 	th := e.Theme
-	fill, ink, outline := th.R.Stone1, th.R.Fg2, color.NRGBA{}
+	fill, ink, outline := th.R.Field, th.R.Fg2, color.NRGBA{}
 	var icon *widget.Icon
 	switch chip.kind {
 	case chipBranch:
 		ink = laneColor(e, lane)
-		fill = palette.Mix(th.R.Stone1, ink, .18)
+		fill = palette.Mix(th.R.Field, ink, .18)
 		if chip.checkedOut {
 			icon = look.Icon.Folder
 		}
@@ -381,7 +381,7 @@ func (v *viewState) layoutRefChip(gtx layout.Context, e *env.Env, chip refChip, 
 		outline = th.R.Vein
 	case chipTag:
 		ink = th.R.Amber
-		fill = palette.Mix(th.R.Stone1, ink, .18)
+		fill = palette.Mix(th.R.Field, ink, .18)
 	case chipHead:
 		fill, ink = th.R.Fg, th.R.Stone1
 	case chipWorktree:

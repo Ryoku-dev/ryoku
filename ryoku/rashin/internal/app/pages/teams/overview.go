@@ -115,7 +115,7 @@ func (o *overview) latestReport(gtx layout.Context, e *env.Env, snapshot appstat
 	if !ok {
 		return nil
 	}
-	o.read.Kind, o.read.Small, o.read.Label = kit.PlaqueLine, true, i18n.T("Read the report")
+	o.read.Kind, o.read.Small, o.read.Label = kit.PlaqueTonal, true, i18n.T("Read the report")
 	if o.read.Clicked(gtx) {
 		teamsui.OpenTask(e, task.ID)
 	}
@@ -131,7 +131,7 @@ func (o *overview) latestReport(gtx layout.Context, e *env.Env, snapshot appstat
 			layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, facts)),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return kit.Label{Style: th.T.Proof, Color: th.R.Fg2, MaxLines: 6}.Layout(gtx, th.Theme, teamsui.Excerpt(task.Report.Body, 12))
+				return kit.Label{Style: th.T.Detail, Color: th.R.Fg2, MaxLines: 6}.Layout(gtx, th.Theme, teamsui.Excerpt(task.Report.Body, 12))
 			}),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return o.read.Layout(gtx, th.Theme) }),
@@ -162,7 +162,7 @@ func (o *overview) now(gtx layout.Context, e *env.Env, snapshot appstate.Snapsho
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 						return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 							layout.Rigid(kit.Text(th.Theme, th.T.Label, th.R.Fg, task.Title)),
-							layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, facts)),
+							layout.Rigid(kit.Text(th.Theme, th.T.Detail, th.R.Fg2, facts)),
 						)
 					}),
 				)
