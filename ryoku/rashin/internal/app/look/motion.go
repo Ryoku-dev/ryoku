@@ -34,7 +34,8 @@ func (hover *Hover) Hovered() bool { return hover.hovered }
 
 func (hover *Hover) Layout(gtx layout.Context, th *Theme, child layout.Widget) (layout.Dimensions, float32) {
 	for {
-		raw, ok := gtx.Event(pointer.Filter{Target: &hover.tag, Kinds: pointer.Enter | pointer.Leave})
+		// a pointer that leaves the window cancels instead of leaving, and would leave the hover lit
+		raw, ok := gtx.Event(pointer.Filter{Target: &hover.tag, Kinds: pointer.Enter | pointer.Leave | pointer.Cancel})
 		if !ok {
 			break
 		}
