@@ -8,9 +8,7 @@ import Ryoku.Ui.Singletons
 // timing comes from the daemon (Music), so this only places lines and follows the
 // index: the sung line is lit in the given accent, its neighbours fade out with
 // distance, and the column glides so that line stays on the middle rule.
-// this is some random ass code comment, hi.
-
-
+//
 // The active line grows by font size, never by Item.scale, which would blur the
 // text (modules/desktop/README.md).
 Item {
