@@ -91,6 +91,9 @@ func (s *server) setState(out *outbox, id string, state protocol.SessionState, t
 func turnSteps(params protocol.PromptParams, seq int64) []turnStep {
 	// ids carry the sequence they start at so a second turn doesn't write into the first one's messages and calls
 	id := func(name string) string { return fmt.Sprintf("%s-%d", name, seq) }
+	if params.Run != "" {
+		return runSteps(params.Run, id("run"), id("answer"))
+	}
 	usage, folders := id("usage"), id("folders")
 	steps := []turnStep{
 		{0, protocol.EvUser, protocol.UserData{Text: params.Text, Images: params.Images}},
@@ -132,6 +135,25 @@ func turnSteps(params protocol.PromptParams, seq int64) []turnStep {
 			Turn: 1, Stop: protocol.StopEnd, Usage: &protocol.TokenUsage{Input: 1840, Output: 96},
 		}},
 	)
+}
+
+// a command the reader ran: its output comes in pieces, then the answer made from it
+func runSteps(command, run, message string) []turnStep {
+	exit := 0
+	return []turnStep{
+		{0, protocol.EvUser, protocol.UserData{Run: command}},
+		{0, protocol.EvTurnStart, protocol.TurnStartData{Turn: 1}},
+		{0, protocol.EvTool, protocol.ToolData{
+			Call: run, Title: i18n.T("Running"), Kind: protocol.ToolExecute, Status: protocol.ToolRunning, Terminal: run,
+		}},
+		{200 * time.Millisecond, protocol.EvTerminal, protocol.TerminalData{Terminal: run, Delta: "system   indexed  4,812 files\n"}},
+		{300 * time.Millisecond, protocol.EvTerminal, protocol.TerminalData{Terminal: run, Delta: "hyperion indexing 438 of 5,790 files\n"}},
+		{100 * time.Millisecond, protocol.EvTerminal, protocol.TerminalData{Terminal: run, Exit: &exit, Done: true}},
+		{0, protocol.EvTool, protocol.ToolData{Call: run, Title: i18n.Tf("Ran in %d s", 1), Status: protocol.ToolDone}},
+		{250 * time.Millisecond, protocol.EvText, protocol.TextData{Message: message, Delta: i18n.T("The hyperion index is still being built: 438 of 5,790 files are in.")}},
+		{120 * time.Millisecond, protocol.EvAnswer, protocol.AnswerData{Via: "groq/llama-3.3-70b"}},
+		{0, protocol.EvTurnEnd, protocol.TurnEndData{Turn: 1, Stop: protocol.StopEnd, Usage: &protocol.TokenUsage{Input: 640, Output: 22}}},
+	}
 }
 
 func firstWords(text string, count int) string {

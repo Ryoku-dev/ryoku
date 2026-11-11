@@ -32,6 +32,9 @@ const (
 	ActOpenURL
 	// ActRunCommand runs the command in Value in a terminal window.
 	ActRunCommand
+	// ActRunHere runs the command in Value in the conversation, in the
+	// background, where its output shows as it comes.
+	ActRunHere
 	// ActHandoff moves this Ask session to an Agent session.
 	ActHandoff
 	// ActCancel cancels the running turn.

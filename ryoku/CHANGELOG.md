@@ -57,6 +57,11 @@
 - **The folder an agent works in is indexed by itself.** Starting a session in
   a repository registers and refreshes its index, so `rashin search` answers
   there at once, by meaning too (`rashin/internal/daemon/brief.go`).
+- **Run runs a proposed command in the conversation.** No terminal opens: the
+  command runs in the background, its output shows as it comes with the time
+  it has taken, Stop ends it, and Ask answers from what it printed. A small
+  icon still opens a terminal, and a command that asks for a password goes
+  there (`rashin/internal/ask/run.go`, `rashin/internal/app/chat/answer.go`).
 - **Commands Ask runs show their output while they run.** One that takes more
   than a moment unfolds and prints as it goes, not all at once at the end.
 - **Answers read more calmly.** Lines stand further apart, list items too,

@@ -1,6 +1,7 @@
 package env
 
 import (
+	"errors"
 	"image"
 	"os"
 	"strings"
@@ -8,6 +9,7 @@ import (
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/desktop"
+	"ryoku-rashin/internal/protocol"
 )
 
 // the sizes a window opened from here takes in front of a floating Rashin
@@ -62,6 +64,21 @@ const runScript = `cd; printf '\033[2m$ %s\033[0m\n' "$1"; eval "$1"; status=$?;
 
 func (e *Env) RunInTerminal(command string) {
 	e.terminal("sh", "-c", runScript, "sh", command)
+}
+
+// in the conversation, in the background: the daemon runs it, shows what it prints and has Ask answer from it
+func (e *Env) runHere(session, command string) {
+	e.Call(protocol.MSessionPrompt, protocol.PromptParams{ID: session, Run: command}, new(protocol.PromptResult), func(err error) {
+		var refused *protocol.Error
+		switch {
+		case err == nil:
+		case errors.As(err, &refused) && refused.Code == protocol.CodeUnsupported:
+			// it needs a keyboard after all, which only a terminal has
+			e.RunInTerminal(command)
+		default:
+			e.Notify(err.Error())
+		}
+	})
 }
 
 func (e *Env) terminal(inner ...string) {

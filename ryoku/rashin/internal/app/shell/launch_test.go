@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gioui.org/io/semantic"
 )
 
 // lastLaunch is what the app last asked the desktop to start, and whether it
@@ -80,5 +82,59 @@ func TestAProposedCommandShowsItselfRunsAndLeavesAShell(t *testing.T) {
 		if plain != check.want {
 			t.Errorf("the terminal showed %q, want %q", plain, check.want)
 		}
+	}
+}
+
+// Run on a command an answer offers runs it in the conversation: no terminal
+// is opened, the command stands where a question would, its output and the
+// answer made from it follow, and a second command waits for the first.
+func TestRunPutsAProposedCommandInTheConversation(t *testing.T) {
+	stage := newStage(t, image.Pt(1440, 1200))
+	stage.open("ask/ask-20261110-094200-a17c")
+	stage.click("Run")
+	stage.await("the command stands in the conversation", func() bool {
+		_, shown := stage.named("$ rashin index list")
+		return shown
+	})
+	if len(stage.launched) != 0 {
+		t.Fatalf("a terminal was opened: %q", stage.launched)
+	}
+	stage.click("Run")
+	stage.await("the answer made from what it printed", func() bool {
+		_, shown := stage.named("The hyperion index is still being built: 438 of 5,790 files are in.")
+		return shown
+	})
+	ran := 0
+	for _, name := range stage.names() {
+		if name == "$ rashin index list" {
+			ran++
+		}
+	}
+	if ran != 1 {
+		t.Fatalf("the command was run %d times: a press during the run started another", ran)
+	}
+	if len(stage.launched) != 0 {
+		t.Fatalf("a terminal was opened: %q", stage.launched)
+	}
+}
+
+// A command that asks for a password has no keyboard in the conversation, so
+// its one action stays the terminal. Every other command runs in place, with
+// the terminal a small second choice.
+func TestOnlyACommandThatNeedsOneIsSentToATerminal(t *testing.T) {
+	stage := newStage(t, image.Pt(1440, 1200))
+	stage.open("ask/ask-20261110-094200-a17c")
+	// a plaque's words are a node of their own, so only what can be pressed is counted
+	controls := func(name string) int {
+		count := 0
+		for _, node := range stage.nodes() {
+			if node.Desc.Class == semantic.Button && (node.Desc.Label == name || node.Desc.Description == name) {
+				count++
+			}
+		}
+		return count
+	}
+	if here, terminal := controls("Run"), controls("Run in terminal"); here != 3 || terminal != 4 {
+		t.Fatalf("%d commands run in place and %d controls open a terminal, want 3 and 4 (one each for those, and the one that needs it)", here, terminal)
 	}
 }

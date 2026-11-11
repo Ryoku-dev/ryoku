@@ -155,10 +155,18 @@ func (state *viewState) layoutCommands(gtx layout.Context, th *look.Theme, plan 
 }
 
 func (state *viewState) layoutCommand(gtx layout.Context, th *look.Theme, command protocol.PlannedCommand, key string) layout.Dimensions {
+	// it runs here, in the background, unless it needs a keyboard or the conversation cannot run it
+	here := state.runsHere && !command.Terminal
 	run := state.plaque(key + ":run")
 	run.Kind, run.Small, run.Label = kit.PlaqueLine, true, i18n.T("Run in terminal")
-	if run.Clicked(gtx) {
-		state.act(Action{Kind: ActRunCommand, Value: command.Command})
+	kind := ActRunCommand
+	if here {
+		run.Label, kind = i18n.T("Run"), ActRunHere
+	}
+	// one command at a time: a second would have to wait for the turn the first is
+	waits := here && state.busy
+	if run.Clicked(gtx) && !waits {
+		state.act(Action{Kind: kind, Value: command.Command})
 	}
 	gtx.Constraints.Min.X = gtx.Constraints.Max.X
 	children := []layout.FlexChild{
@@ -184,8 +192,23 @@ func (state *viewState) layoutCommand(gtx layout.Context, th *look.Theme, comman
 					}
 					return dimensions
 				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if !here {
+						return layout.Dimensions{}
+					}
+					dimensions, clicked := state.icon(gtx, th, key+":terminal", look.Icon.Terminal, i18n.T("Run in terminal"))
+					if clicked {
+						state.act(Action{Kind: ActRunCommand, Value: command.Command})
+					}
+					return dimensions
+				}),
 				layout.Rigid(layout.Spacer{Width: th.Sp.S1}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions { return run.Layout(gtx, th.Theme) }),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if waits {
+						gtx = gtx.Disabled()
+					}
+					return run.Layout(gtx, th.Theme)
+				}),
 			)
 		}),
 	)

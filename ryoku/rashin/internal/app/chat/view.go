@@ -30,6 +30,8 @@ type viewState struct {
 	scroller transcriptScroller
 	follow   bool
 	ready    bool
+	// a turn is running, and this conversation can run a command for the reader
+	busy, runsHere bool
 	// set after the first frame so only what arrives while you watch animates in
 	drawn    bool
 	actions  []Action
@@ -122,6 +124,7 @@ func (state *viewState) layout(
 	state.buildVisible(model)
 	state.updateTurnHover(gtx)
 	busy := model.activeTurn != nil
+	state.busy, state.runsHere = busy, info.Kind == protocol.KindAsk
 	class := look.ClassFor(float32(gtx.Constraints.Max.X) / max(gtx.Metric.PxPerDp, .001))
 	lastTurn := state.lastTurn(model)
 
@@ -219,7 +222,7 @@ func (state *viewState) layoutRow(gtx layout.Context, th *look.Theme, block bloc
 	row, key := block.row, block.key()
 	switch row.kind {
 	case rowUser:
-		return state.layoutMessage(gtx, th, "user:"+row.key, row.seq, row.user.Text, block.info.Kind == protocol.KindAgent,
+		return state.layoutMessage(gtx, th, "user:"+row.key, row.seq, row.user.Text+row.user.Run, block.info.Kind == protocol.KindAgent,
 			func(gtx layout.Context) layout.Dimensions { return state.layoutQuestion(gtx, th, row.user, row.key) })
 	case rowText:
 		return state.layoutMessage(gtx, th, "text:"+row.key, row.seq, row.text, block.info.Kind == protocol.KindAgent,
@@ -277,7 +280,12 @@ func tailMark(model *modelState) (shown bool, label string) {
 	if len(model.rows) == 0 {
 		return true, i18n.T("Thinking")
 	}
-	switch last := &model.rows[len(model.rows)-1]; last.kind {
+	// what a running command prints belongs to its call, so the row before the output is the one that counts
+	at := len(model.rows) - 1
+	for at > 0 && model.rows[at].kind == rowTerminal && model.terminalOwners[model.rows[at].key] != "" {
+		at--
+	}
+	switch last := &model.rows[at]; last.kind {
 	case rowThought:
 		return false, ""
 	case rowText:
@@ -413,6 +421,14 @@ func firstLines(value string, count int) (string, bool) {
 		return strings.Join(lines, "\n"), false
 	}
 	return strings.Join(lines[:count], "\n"), true
+}
+
+func lastLines(value string, count int) (string, bool) {
+	lines := strings.Split(strings.TrimRight(value, "\n"), "\n")
+	if len(lines) <= count {
+		return strings.Join(lines, "\n"), false
+	}
+	return strings.Join(lines[len(lines)-count:], "\n"), true
 }
 
 func firstLine(value string) string {

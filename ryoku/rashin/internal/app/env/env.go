@@ -155,6 +155,8 @@ func HandleChatActions(gtx layout.Context, e *Env, id string, actions []chat.Act
 			e.Open(action.Value)
 		case chat.ActRunCommand:
 			e.RunInTerminal(action.Value)
+		case chat.ActRunHere:
+			e.runHere(id, action.Value)
 		case chat.ActHandoff:
 			var info protocol.SessionInfo
 			e.Call(protocol.MSessionHandoff, protocol.HandoffParams{ID: id, Run: true, Text: action.Value}, &info, func(err error) {

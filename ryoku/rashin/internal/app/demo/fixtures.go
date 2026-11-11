@@ -916,7 +916,7 @@ The **semantic index** is rebuilding after the palette update. The cache remains
 		Commands: []protocol.PlannedCommand{
 			{Command: "rashin index list", Why: i18n.T("Read index progress."), Tier: protocol.TierRead},
 			{Command: "rashin index refresh hyperion", Why: i18n.T("Refresh project data."), Tier: protocol.TierWrite},
-			{Command: "systemctl --user restart rashind", Why: i18n.T("Restart the user service."), Tier: protocol.TierSystem},
+			{Command: "sudo systemctl restart sddm", Why: i18n.T("Restart the login screen."), Tier: protocol.TierSystem, Terminal: true},
 			{Command: "rm -rf ~/.cache/ryoku/rashin/index", Why: i18n.T("Delete cached index data."), Tier: protocol.TierDanger},
 		},
 	}

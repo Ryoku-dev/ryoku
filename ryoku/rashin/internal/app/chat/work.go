@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image"
 	"strings"
+	"time"
 
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -31,6 +32,8 @@ type workVisual struct {
 	// it was running, so it folds once when it finishes
 	ran   bool
 	whole bool
+	// when this view first saw it running, for the time it has taken
+	since time.Time
 }
 
 type workLine struct {
@@ -38,9 +41,11 @@ type workLine struct {
 	label string
 	// literal is a path or a command, prose is quiet running text
 	literal, prose string
-	running        bool
-	failed         bool
-	expandable     bool
+	// how long it has run, shown once that is long enough to wonder about
+	waited     string
+	running    bool
+	failed     bool
+	expandable bool
 }
 
 func (state *viewState) workVisual(key string) *workVisual {
@@ -79,6 +84,9 @@ func (state *viewState) layoutLine(gtx layout.Context, th *look.Theme, visual *w
 	if line.running {
 		reserve += gtx.Dp(24)
 	}
+	if line.waited != "" {
+		reserve += gtx.Dp(72)
+	}
 	if line.failed {
 		reserve += gtx.Dp(80)
 	}
@@ -113,6 +121,9 @@ func (state *viewState) layoutLine(gtx layout.Context, th *look.Theme, visual *w
 		put(gtx.Dp(8), func(gtx layout.Context) layout.Dimensions {
 			return kit.Working{Active: true, Size: 16}.Layout(gtx, th.Theme)
 		})
+	}
+	if line.waited != "" {
+		put(gtx.Dp(8), kit.RawText(th.Theme, th.T.MonoSm, th.R.Fg3, line.waited))
 	}
 	if line.failed {
 		put(gtx.Dp(13), kit.Claim(th.Theme, palette.Failed, i18n.T("Failed")))
@@ -228,11 +239,33 @@ func (state *viewState) layoutTool(gtx layout.Context, th *look.Theme, model *mo
 	}
 	line := workLine{
 		icon: workIcon(tool.Kind), label: workLabel(tool), literal: workLiteral(tool),
-		running: running, failed: tool.Status == protocol.ToolFailed, expandable: hasDetail(tool),
+		running: running, failed: tool.Status == protocol.ToolFailed, expandable: hasDetail(model, tool),
+	}
+	// a command that says nothing for a minute looks hung, so the line counts while the turn is live
+	if running && state.busy && tool.Kind == protocol.ToolExecute {
+		if visual.since.IsZero() {
+			visual.since = gtx.Now
+		}
+		if waited := gtx.Now.Sub(visual.since); waited >= waitedFrom {
+			line.waited = waitedFor(waited)
+		}
+		gtx.Execute(op.InvalidateCmd{At: gtx.Now.Add(time.Second)})
+	} else {
+		visual.since = time.Time{}
 	}
 	return state.layoutUnfolding(gtx, th, visual, line, func(gtx layout.Context) layout.Dimensions {
 		return state.layoutToolDetail(gtx, th, model, tool, visual, key)
 	})
+}
+
+const waitedFrom = 3 * time.Second
+
+func waitedFor(waited time.Duration) string {
+	seconds := int(waited.Seconds())
+	if seconds < 60 {
+		return i18n.Tf("%d s", seconds)
+	}
+	return i18n.Tf("%d min %d s", seconds/60, seconds%60)
 }
 
 func (state *viewState) layoutToolDetail(
@@ -254,7 +287,12 @@ func (state *viewState) layoutToolDetail(
 	if input := strings.TrimSpace(tool.Input); input != "" {
 		sections = append(sections, input)
 	}
+	// while it runs the news is at the end of what it printed
+	live := -1
 	if output = strings.TrimSpace(output); output != "" {
+		if toolRunning(tool) {
+			live = len(sections)
+		}
 		sections = append(sections, output)
 	}
 	if len(sections) == 0 && len(tool.Locations) > 0 {
@@ -266,7 +304,11 @@ func (state *viewState) layoutToolDetail(
 		cut := false
 		for index, section := range sections {
 			shown, more := section, false
-			if !visual.whole {
+			switch {
+			case visual.whole:
+			case index == live:
+				shown, more = lastLines(section, 12)
+			default:
 				shown, more = firstLines(section, 12)
 			}
 			cut = cut || more
@@ -464,7 +506,11 @@ func locationList(locations []protocol.Location) string {
 	return strings.Join(lines, "\n")
 }
 
-func hasDetail(tool *protocol.ToolData) bool {
-	return tool.Diff != nil || tool.Terminal != "" || strings.TrimSpace(tool.Output) != "" ||
+// a terminal counts once it has printed something, an empty one would unfold to nothing
+func hasDetail(model *modelState, tool *protocol.ToolData) bool {
+	if terminal := model.terminals[tool.Terminal]; terminal != nil && strings.TrimSpace(terminal.text) != "" {
+		return true
+	}
+	return tool.Diff != nil || strings.TrimSpace(tool.Output) != "" ||
 		strings.Contains(strings.TrimSpace(tool.Input), "\n") || len(tool.Locations) > 1
 }

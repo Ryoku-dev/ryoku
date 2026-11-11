@@ -29,7 +29,13 @@ func (state *viewState) layoutQuestion(gtx layout.Context, th *look.Theme, user 
 			children := make([]layout.FlexChild, 0, 6)
 			if user.Text != "" {
 				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return state.layoutQuestionSlab(gtx, th, "user:"+key, user.Text)
+					return state.layoutQuestionSlab(gtx, th, "user:"+key, th.T.Proof, user.Text)
+				}))
+			}
+			// a command the reader ran stands where a question would, as typed
+			if user.Run != "" {
+				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return state.layoutQuestionSlab(gtx, th, "user:"+key+":run", th.T.Mono, "$ "+user.Run)
 				}))
 			}
 			for _, note := range questionNotes(user) {
@@ -52,10 +58,10 @@ func (state *viewState) layoutQuestion(gtx layout.Context, th *look.Theme, user 
 	return state.rise("user:"+key).Layout(gtx, th, key, 8, content)
 }
 
-func (state *viewState) layoutQuestionSlab(gtx layout.Context, th *look.Theme, key, text string) layout.Dimensions {
+func (state *viewState) layoutQuestionSlab(gtx layout.Context, th *look.Theme, key string, style look.TextStyle, text string) layout.Dimensions {
 	record := op.Record(gtx.Ops)
 	dimensions := layout.Inset{Top: 8, Bottom: 8, Left: 13, Right: 13}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return state.selectable(gtx, th, key, th.T.Proof, th.R.Fg, text)
+		return state.selectable(gtx, th, key, style, th.R.Fg, text)
 	})
 	call := record.Stop()
 	kit.FillCut(gtx.Ops, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid), th.R.Stone3)

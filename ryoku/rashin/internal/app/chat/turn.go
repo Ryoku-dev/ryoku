@@ -142,6 +142,10 @@ func retryAction(model *modelState, index, turn int) Action {
 	action := Action{Kind: ActRetry, Turn: turn}
 	for at := min(index, len(model.rows)-1); at >= 0; at-- {
 		if row := model.rows[at]; row.kind == rowUser {
+			// a turn that was a command is asked again by running it again
+			if row.user.Run != "" {
+				return Action{Kind: ActRunHere, Value: row.user.Run}
+			}
 			action.Value = row.user.Text
 			for _, attached := range row.user.Images {
 				action.Attached = append(action.Attached, attached.Path)
