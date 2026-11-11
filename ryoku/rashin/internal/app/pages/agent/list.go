@@ -92,17 +92,9 @@ func sessionTitle(info protocol.SessionInfo) string {
 }
 
 func renameSession(e *env.Env, id, title string) {
-	e.Call(protocol.MSessionRename, protocol.RenameParams{ID: id, Title: title}, new(protocol.SessionInfo), report(e))
+	e.Call(protocol.MSessionRename, protocol.RenameParams{ID: id, Title: title}, new(protocol.SessionInfo), e.Report)
 }
 
 func stopSession(e *env.Env, id string) {
-	e.Call(protocol.MSessionStop, protocol.SessionRef{ID: id}, new(protocol.Empty), report(e))
-}
-
-func report(e *env.Env) func(error) {
-	return func(err error) {
-		if err != nil {
-			e.Notify(err.Error())
-		}
-	}
+	e.Call(protocol.MSessionStop, protocol.SessionRef{ID: id}, new(protocol.Empty), e.Report)
 }

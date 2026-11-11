@@ -21,6 +21,11 @@ func everywhereKeys() []keyRow {
 		{i18n.T("Search sessions, projects and commands"), [][]string{{"Ctrl", "K"}}},
 		{i18n.T("Start something new where you are"), [][]string{{"Ctrl", "N"}}},
 		{i18n.T("Ask, Agents, Projects, Index"), [][]string{{"Ctrl", "1"}, {"Ctrl", "2"}, {"Ctrl", "3"}, {"Ctrl", "4"}}},
+		{i18n.T("Switch between Rashin and Teams"), [][]string{{"Ctrl", "T"}}},
+		{
+			i18n.T("In Teams: Inbox, Teams, Work, Routines, Vault, Activity"),
+			[][]string{{"Ctrl", "1"}, {"Ctrl", "2"}, {"Ctrl", "3"}, {"Ctrl", "4"}, {"Ctrl", "5"}, {"Ctrl", "6"}},
+		},
 		{i18n.T("Settings"), [][]string{{"Ctrl", ","}}},
 		{i18n.T("Fold the sidebar"), [][]string{{"Ctrl", "B"}}},
 		{i18n.T("Show the work beside a session"), [][]string{{"Ctrl", "\\"}}},

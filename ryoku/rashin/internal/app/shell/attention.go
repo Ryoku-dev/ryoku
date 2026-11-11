@@ -13,7 +13,6 @@ import (
 	"ryoku-rashin/internal/app/desktop"
 	agentpage "ryoku-rashin/internal/app/pages/agent"
 	"ryoku-rashin/internal/app/state"
-	"ryoku-rashin/internal/protocol"
 )
 
 // follows the store, not the frames: a window nobody looks at draws none
@@ -25,6 +24,8 @@ type attention struct {
 	mu     sync.Mutex
 	last   map[string]agentpage.Standing
 	primed bool
+	// pending approvals and unread reports already seen, by id
+	asked, reported map[string]bool
 }
 
 // the first call only takes stock, what was already so when the app started is not news
@@ -34,6 +35,9 @@ func (a *attention) notices(snapshot state.Snapshot) []desktop.Notice {
 	now := agentpage.Standings(snapshot)
 	before, primed := a.last, a.primed
 	a.last, a.primed = now, snapshot.Connection == state.Ready
+	asked, reported := teamsStanding(snapshot)
+	askedBefore, reportedBefore := a.asked, a.reported
+	a.asked, a.reported = asked, reported
 	if !primed {
 		return nil
 	}
@@ -57,7 +61,7 @@ func (a *attention) notices(snapshot state.Snapshot) []desktop.Notice {
 		}
 		notices = append(notices, notice)
 	}
-	return notices
+	return append(notices, teamsNotices(snapshot, askedBefore, reportedBefore)...)
 }
 
 // runs on the connection goroutine after every change
@@ -79,9 +83,9 @@ func (a *attention) storeChanged(snapshot state.Snapshot) {
 func (r *runtime) watchAttention(ctx context.Context, shell *uiShell) *attention {
 	watch := new(attention)
 	watch.muted.Store(shell.preferences.MuteNotices)
-	notifier, err := desktop.NewNotifier(ctx, func(session string) {
+	notifier, err := desktop.NewNotifier(ctx, func(key string) {
 		shell.posts.Post(func() {
-			shell.navigate(protocol.TabAgent, session)
+			shell.openNotice(key)
 			shell.windowAction(system.ActionRaise)
 		})
 	})

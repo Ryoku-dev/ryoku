@@ -29,13 +29,24 @@ type destination struct {
 	icon     *widget.Icon
 }
 
-func destinations() [4]destination {
-	return [4]destination{
+// each mode's destinations, Rashin's fill the first four
+func destinations(teams bool) (items [6]destination, count int) {
+	if teams {
+		return [6]destination{
+			{protocol.TabInbox, i18n.T("Inbox"), "Ctrl 1", look.Icon.Inbox},
+			{protocol.TabTeams, i18n.T("Teams"), "Ctrl 2", look.Icon.Teams},
+			{protocol.TabWork, i18n.T("Work"), "Ctrl 3", look.Icon.Tasks},
+			{protocol.TabRoutines, i18n.T("Routines"), "Ctrl 4", look.Icon.Routine},
+			{protocol.TabVault, i18n.T("Vault"), "Ctrl 5", look.Icon.Vault},
+			{protocol.TabActivity, i18n.T("Activity"), "Ctrl 6", look.Icon.Activity},
+		}, 6
+	}
+	return [6]destination{
 		{protocol.TabAsk, i18n.T("Ask"), "Ctrl 1", look.Icon.Ask},
 		{protocol.TabAgent, i18n.T("Agents"), "Ctrl 2", look.Icon.Agents},
 		{protocol.TabProjects, i18n.T("Projects"), "Ctrl 3", look.Icon.Projects},
 		{protocol.TabIndex, i18n.T("Index"), "Ctrl 4", look.Icon.Index},
-	}
+	}, 4
 }
 
 type navRow struct {
@@ -62,19 +73,20 @@ type sidebar struct {
 	bare bool
 
 	fresh    navRow
-	rows     [4]navRow
+	rows     [6]navRow
 	settings navRow
 	slab     look.Selection
 }
 
 type sidebarLayout struct {
 	fresh, settings image.Rectangle
-	rows            [4]image.Rectangle
+	rows            [6]image.Rectangle
 	list            image.Rectangle
 	vein            int
 }
 
-func resolveSidebar(gtx layout.Context, size image.Point, bare bool) sidebarLayout {
+// count rows stand for the mode's destinations, the rest stay empty
+func resolveSidebar(gtx layout.Context, size image.Point, bare bool, count int) sidebarLayout {
 	inset, row, gap := gtx.Dp(8), gtx.Dp(40), gtx.Dp(4)
 	width := max(0, size.X-2*inset)
 	full := gtx.Dp(look.SidebarExpanded) - 2*inset
@@ -86,7 +98,7 @@ func resolveSidebar(gtx layout.Context, size image.Point, bare bool) sidebarLayo
 		resolved.list = image.Rect(inset, y, inset+width, max(y, size.Y-gtx.Dp(8)))
 		return resolved
 	}
-	for index := range resolved.rows {
+	for index := range resolved.rows[:count] {
 		resolved.rows[index] = image.Rect(inset, y, inset+width, y+row)
 		y += row + gap
 	}
@@ -101,7 +113,8 @@ func resolveSidebar(gtx layout.Context, size image.Point, bare bool) sidebarLayo
 func (bar *sidebar) Layout(gtx layout.Context, s *uiShell, e *env.Env, page env.Page, fold float32) layout.Dimensions {
 	size := gtx.Constraints.Max
 	th := e.Theme
-	geometry := resolveSidebar(gtx, size, bar.bare)
+	items, count := destinations(s.router.TeamsMode())
+	geometry := resolveSidebar(gtx, size, bar.bare, count)
 	bar.handle(gtx, s, e)
 
 	listCall, list := bar.recordList(gtx, e, page, geometry.list, fold)
@@ -111,11 +124,14 @@ func (bar *sidebar) Layout(gtx layout.Context, s *uiShell, e *env.Env, page env.
 		icon: look.Icon.Add, label: page.NewLabel(), tip: page.NewLabel() + "  Ctrl N", line: true, hint: "Ctrl N",
 	})
 	onList := list.HasSelected && fold < 1 && s.router.Tab != protocol.TabSettings
-	for index, item := range destinations() {
+	for index, item := range items[:count] {
 		current := s.router.Tab == item.tab
 		content := navContent{icon: item.icon, label: item.label, tip: item.label + "  " + item.shortcut, current: current, slab: current && !onList}
-		if item.tab == protocol.TabAgent {
+		switch item.tab {
+		case protocol.TabAgent:
 			content.count = s.router.NeedsYou
+		case protocol.TabInbox:
+			content.count = s.router.Inbox
 		}
 		bar.layoutRow(gtx, th, e, &bar.rows[index], geometry.rows[index], fold, content)
 	}
@@ -145,7 +161,8 @@ func (bar *sidebar) handle(gtx layout.Context, s *uiShell, e *env.Env) {
 	if bar.fresh.click.Clicked(gtx) {
 		s.newCurrent(e)
 	}
-	for index, item := range destinations() {
+	items, count := destinations(s.router.TeamsMode())
+	for index, item := range items[:count] {
 		if bar.rows[index].click.Clicked(gtx) {
 			s.openDestination(item.tab)
 		}
@@ -183,7 +200,8 @@ func (bar *sidebar) layoutSlab(gtx layout.Context, th *look.Theme, s *uiShell, g
 	case list.HasSelected && fold < 1:
 		key, target, inList = "row:"+list.Key, list.Selected.Add(geometry.list.Min), true
 	default:
-		for index, item := range destinations() {
+		items, count := destinations(s.router.TeamsMode())
+		for index, item := range items[:count] {
 			if item.tab == s.router.Tab {
 				target = geometry.rows[index]
 			}

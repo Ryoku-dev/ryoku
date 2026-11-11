@@ -44,7 +44,7 @@ func (strip *goalStrip) layout(gtx layout.Context, e *env.Env, info protocol.Ses
 		strip.stop.Label = i18n.T("Clear")
 	}
 	call := func(op string) {
-		e.Call(protocol.MSessionGoal, protocol.GoalParams{ID: info.ID, Op: op}, new(protocol.SessionInfo), report(e))
+		e.Call(protocol.MSessionGoal, protocol.GoalParams{ID: info.ID, Op: op}, new(protocol.SessionInfo), e.Report)
 	}
 	if strip.pause.Clicked(gtx) && goal.Status != protocol.GoalDone {
 		if goal.Status == protocol.GoalActive {

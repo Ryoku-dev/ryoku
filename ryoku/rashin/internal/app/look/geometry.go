@@ -1,7 +1,10 @@
 package look
 
 import (
+	"image"
+
 	"gioui.org/layout"
+	"gioui.org/op"
 	"gioui.org/unit"
 )
 
@@ -28,6 +31,7 @@ const (
 	ContentMinWithPanel unit.Dp = 480
 	PaneHeaderHeight    unit.Dp = 52
 	ReadingColumnWidth  unit.Dp = 760
+	BoardWidth          unit.Dp = 1240
 	BottomNav           unit.Dp = 56
 )
 
@@ -68,4 +72,20 @@ func ReadingColumn(gtx layout.Context, class Class, child layout.Widget) layout.
 			gtx.Constraints.Max.X = width
 			return child(gtx)
 		})
+}
+
+// Centred stands child in the middle of the pane, at most width wide and
+// inset from the sides by the size class.
+func Centred(gtx layout.Context, class Class, width unit.Dp, child layout.Widget) layout.Dimensions {
+	inset := gtx.Dp(ContentInset(class))
+	inner := min(gtx.Constraints.Max.X-2*inset, gtx.Dp(width))
+	if inner <= 0 {
+		return layout.Dimensions{Size: gtx.Constraints.Min}
+	}
+	column := gtx
+	column.Constraints = layout.Constraints{Min: image.Pt(inner, 0), Max: image.Pt(inner, gtx.Constraints.Max.Y)}
+	offset := op.Offset(image.Pt((gtx.Constraints.Max.X-inner)/2, 0)).Push(gtx.Ops)
+	dimensions := child(column)
+	offset.Pop()
+	return layout.Dimensions{Size: image.Pt(gtx.Constraints.Max.X, dimensions.Size.Y)}
 }

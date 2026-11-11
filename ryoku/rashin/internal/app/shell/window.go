@@ -19,11 +19,18 @@ import (
 
 	"ryoku-rashin/internal/app/env"
 	"ryoku-rashin/internal/app/look"
+	activitypage "ryoku-rashin/internal/app/pages/activity"
 	agentpage "ryoku-rashin/internal/app/pages/agent"
 	askpage "ryoku-rashin/internal/app/pages/ask"
+	inboxpage "ryoku-rashin/internal/app/pages/inbox"
 	indexpage "ryoku-rashin/internal/app/pages/index"
 	projectspage "ryoku-rashin/internal/app/pages/projects"
+	routinespage "ryoku-rashin/internal/app/pages/routines"
 	settingspage "ryoku-rashin/internal/app/pages/settings"
+	teamspage "ryoku-rashin/internal/app/pages/teams"
+	"ryoku-rashin/internal/app/pages/teamsui"
+	vaultpage "ryoku-rashin/internal/app/pages/vault"
+	workpage "ryoku-rashin/internal/app/pages/work"
 	"ryoku-rashin/internal/app/state"
 	"ryoku-rashin/internal/protocol"
 )
@@ -66,6 +73,12 @@ type uiShell struct {
 	projects *projectspage.Page
 	index    *indexpage.Page
 	settings *settingspage.Page
+	inbox    *inboxpage.Page
+	teams    *teamspage.Page
+	work     *workpage.Page
+	routines *routinespage.Page
+	vault    *vaultpage.Page
+	activity *activitypage.Page
 	palette  commandPalette
 
 	topBar     topBar
@@ -100,16 +113,25 @@ type uiShell struct {
 func newShell(r *runtime, options Options) *uiShell {
 	preferences := options.Preferences.Normalize()
 	route := options.Route
+	if options.Teams.Tab != "" {
+		route = options.Teams.Tab
+	}
 	if !validTab(route) {
 		route = protocol.TabAsk
 	}
 	if options.Project != "" {
 		route = protocol.TabProjects
 	}
+	listTab := route
+	if route == protocol.TabSettings {
+		listTab = protocol.TabAsk
+	}
 	s := &uiShell{
 		runtime: r, router: NewRouter(route, options.Session, r.hub.Invalidate), preferences: preferences,
 		ask: askpage.New(), agent: agentpage.New(), projects: projectspage.New(),
-		index: indexpage.New(), settings: settingspage.New(), listTab: protocol.TabAsk,
+		index: indexpage.New(), settings: settingspage.New(), listTab: listTab,
+		inbox: inboxpage.New(), teams: teamspage.New(), work: workpage.New(),
+		routines: routinespage.New(), vault: vaultpage.New(), activity: activitypage.New(),
 	}
 	s.router.paletteTag = &s.palette
 	s.router.OnNew = func() { s.newCurrent(s.environment()) }
@@ -121,8 +143,18 @@ func newShell(r *runtime, options Options) *uiShell {
 	s.router.OnPlace = s.applyPlace
 	s.posts.invalidate = r.hub.Invalidate
 	s.settings.OpenSection(options.SettingsSection)
-	if options.Project != "" {
+	switch {
+	case options.Project != "":
 		s.navigateWork(options.Project, options.WorkTab, options.Worktree)
+	case options.Teams.Tab != "":
+		s.router.Replace(teamsPlace(options.Teams))
+	}
+	// the mode the window did not open in still goes back to where it stood
+	if s.router.lastRashin.Tab == "" {
+		s.router.lastRashin = restoredPlace(preferences.Last)
+	}
+	if s.router.lastTeams.Tab == "" {
+		s.router.lastTeams = restoredPlace(preferences.Teams)
 	}
 	return s
 }
@@ -205,14 +237,17 @@ func (s *uiShell) persistedPreferences(preferences state.AppPreferences) state.A
 	preferences.SidePanelOpen = s.preferences.SidePanelOpen
 	preferences.ReduceMotion = s.preferences.ReduceMotion
 	preferences.MuteNotices = s.preferences.MuteNotices
-	preferences.Last = lastPlace(s.router.Current())
+	preferences.Last = lastPlace(s.router.lastRashin)
+	preferences.Teams = lastPlace(s.router.lastTeams)
+	preferences.InTeams = s.router.TeamsMode()
 	return preferences
 }
 
 func (s *uiShell) environment() *env.Env {
-	return &env.Env{
+	e := &env.Env{
 		Theme: s.runtime.Theme(), Store: s.runtime.store, Client: s.runtime.client, Overlays: &s.overlay,
-		Navigate: s.navigate, NavigateWork: s.navigateWork, OpenSettings: s.openSettings, Post: s.posts.Post,
+		Navigate: s.navigate, NavigateWork: s.navigateWork, NavigateTeams: s.navigateTeams,
+		OpenSettings: s.openSettings, Post: s.posts.Post,
 		Class: s.class, PanelOpen: s.preferences.SidePanelOpen, TogglePanel: s.togglePanel,
 		Notify: func(text string) { s.placards.Push(s.now, text, "") },
 		Zoom:   s.preferences.ZoomPercent, SetZoom: s.setZoom,
@@ -220,9 +255,15 @@ func (s *uiShell) environment() *env.Env {
 		Notices: !s.preferences.MuteNotices, SetNotices: s.setNotices,
 		Desktop: s.desktop,
 	}
+	// the work page owns the dialog, any page may open it
+	e.NewTeamTask = func(team string) { s.work.Ask(e, team) }
+	return e
 }
 
 func (s *uiShell) page(tab string) env.Page {
+	if teamsTab(tab) {
+		return s.teamsPage(tab)
+	}
 	switch tab {
 	case protocol.TabAgent:
 		return s.agent
@@ -275,6 +316,10 @@ func (s *uiShell) applyPlace(place Place) {
 		s.projects.Open(e, place.Project, normalizeProjectView(place.ProjectView), place.Worktree)
 	case protocol.TabSettings:
 		s.settings.OpenSection(place.SettingsSection)
+	default:
+		if teamsTab(place.Tab) {
+			s.teamsPage(place.Tab).Select(e, place.teams())
+		}
 	}
 }
 
@@ -378,6 +423,10 @@ func (s *uiShell) applyFocus(e *env.Env) {
 		s.navigateWork(focus.Project, focus.View, focus.Worktree)
 		return
 	}
+	if place, ok := focusedTeams(focus); ok {
+		s.navigateTeams(place)
+		return
+	}
 	if focus.Tab == "" && focus.Session == "" {
 		return
 	}
@@ -397,6 +446,10 @@ func (s *uiShell) Frame(gtx layout.Context) layout.Dimensions {
 	s.class = look.ClassFor(s.widthDp)
 	e := s.environment()
 	s.router.NeedsYou = s.agent.NeedsYou(e)
+	s.router.Inbox = 0
+	if s.router.TeamsMode() {
+		s.router.Inbox = len(teamsui.Needs(e.Snapshot()))
+	}
 	// the project list can arrive after projects was opened without one
 	if current := s.router.Current(); current.Tab == protocol.TabProjects && current.Project == "" {
 		if _, _, _, ok := s.projects.Home(e); ok {

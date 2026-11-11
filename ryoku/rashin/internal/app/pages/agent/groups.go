@@ -33,11 +33,12 @@ func (g group) label() string {
 	}
 }
 
+// team sessions belong to their tasks in Teams, opening one by id still works
 func groupSessions(snapshot state.Snapshot) [groupCount][]protocol.SessionInfo {
 	var groups [groupCount][]protocol.SessionInfo
 	for _, id := range snapshot.Order {
 		info, ok := snapshot.Sessions[id]
-		if !ok || info.Kind != protocol.KindAgent {
+		if !ok || info.Kind != protocol.KindAgent || info.Team != "" {
 			continue
 		}
 		at := groupOf(snapshot, info)

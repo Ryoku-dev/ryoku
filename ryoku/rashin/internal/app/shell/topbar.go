@@ -19,8 +19,9 @@ type topBar struct {
 	move                  kit.Click
 	toggle, back, forward kit.IconPlaque
 	search                kit.IconPlaque
+	teams                 kit.IconPlaque
 	maximize, close       kit.IconPlaque
-	tips                  [6]look.Tip
+	tips                  [7]look.Tip
 	searchAnchor          image.Rectangle
 	searchShown           bool
 	searchFocused         bool
@@ -33,6 +34,8 @@ type barState struct {
 	// left edge of the content pane, where the frame controls start
 	content int
 	folded  bool
+	// Teams mode, the mark then names it and the Teams button stands selected
+	teams bool
 }
 
 func (bar *topBar) Layout(gtx layout.Context, s *uiShell, e *env.Env, state barState) layout.Dimensions {
@@ -94,8 +97,19 @@ func (bar *topBar) layoutMark(gtx layout.Context, th *look.Theme, state barState
 	end := x + glyph
 	named := !state.ready || (state.class == look.Expanded && !state.folded)
 	if named {
-		look.Place(gtx, image.Rect(end+gtx.Dp(8), 0, end+gtx.Dp(8)+gtx.Dp(120), size.Y), func(gtx layout.Context) layout.Dimensions {
-			return layout.W.Layout(gtx, kit.RawText(th.Theme, th.T.Title, th.R.Fg, i18n.T("Rashin")))
+		look.Place(gtx, image.Rect(end+gtx.Dp(8), 0, end+gtx.Dp(8)+gtx.Dp(200), size.Y), func(gtx layout.Context) layout.Dimensions {
+			word := kit.RawText(th.Theme, th.T.Title, th.R.Fg, i18n.T("Rashin"))
+			if !state.teams {
+				return layout.W.Layout(gtx, word)
+			}
+			// the mode follows the name, quieter, so the mark still reads as Rashin
+			return layout.W.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+					layout.Rigid(word),
+					layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
+					layout.Rigid(kit.RawText(th.Theme, th.T.Title, th.R.Fg3, i18n.T("Teams"))),
+				)
+			})
 		})
 	}
 	return end
@@ -114,6 +128,7 @@ func (bar *topBar) layoutControls(
 	plaque, step := gtx.Dp(32), gtx.Dp(36)
 	x := state.content
 	leading := x
+	bar.setTeams(set, state.teams)
 	if state.class == look.Compact {
 		// the list has no pane here, its toggle next to the mark raises it as a sheet
 		set(&bar.toggle, i18n.T("Open the list")+"  Ctrl B")
@@ -126,8 +141,11 @@ func (bar *topBar) layoutControls(
 		if !bar.searchShown {
 			bar.searchFocused = false
 			place(x, &bar.search, &bar.tips[3], true)
+			// beside search, and gone while the open field takes the bar
+			teams := x - step
+			place(teams, &bar.teams, &bar.tips[6], true)
 			bar.searchAnchor = image.Rect(gtx.Dp(look.Margin), size.Y, size.X-gtx.Dp(look.Margin), size.Y)
-			bar.moveRegion(gtx, image.Rect(toggle+plaque, 0, x, size.Y))
+			bar.moveRegion(gtx, image.Rect(toggle+plaque, 0, teams, size.Y))
 			return toggle, x + plaque
 		}
 		field := image.Rect(toggle+plaque+gtx.Dp(8), (size.Y-gtx.Dp(44))/2, controls-gtx.Dp(8), (size.Y+gtx.Dp(44))/2)
@@ -147,12 +165,24 @@ func (bar *topBar) layoutControls(
 	place(x+step, &bar.back, &bar.tips[1], s.router.CanBack())
 	place(x+2*step, &bar.forward, &bar.tips[2], s.router.CanForward())
 	x += 2*step + plaque + gtx.Dp(13)
-	field := image.Rect(x, (size.Y-gtx.Dp(44))/2, min(x+gtx.Dp(520), controls-gtx.Dp(21)), (size.Y+gtx.Dp(44))/2)
-	if field.Dx() < gtx.Dp(160) {
-		return leading, x
+	// the field gives up room for the Teams button 13 dp to its right
+	room := controls - gtx.Dp(21) - gtx.Dp(13) - plaque
+	field := image.Rect(x, (size.Y-gtx.Dp(44))/2, min(x+gtx.Dp(520), room), (size.Y+gtx.Dp(44))/2)
+	if field.Dx() >= gtx.Dp(160) {
+		bar.layoutSearch(gtx, s, e, field)
+		x = field.Max.X + gtx.Dp(13)
 	}
-	bar.layoutSearch(gtx, s, e, field)
-	return leading, field.Max.X
+	place(x, &bar.teams, &bar.tips[6], true)
+	return leading, x + plaque
+}
+
+// the bone selection says Teams mode stands, the description says where a press goes
+func (bar *topBar) setTeams(set func(*kit.IconPlaque, string), teams bool) {
+	set(&bar.teams, i18n.T("Teams")+"  Ctrl T")
+	bar.teams.Icon = look.Icon.Teams
+	if teams {
+		bar.teams.Kind, bar.teams.Description = kit.PlaqueOn, i18n.T("Back to Rashin")+"  Ctrl T"
+	}
 }
 
 func (bar *topBar) layoutSearch(gtx layout.Context, s *uiShell, e *env.Env, field image.Rectangle) {
@@ -208,6 +238,9 @@ func (bar *topBar) handle(gtx layout.Context, s *uiShell) {
 	}
 	if bar.forward.Clicked(gtx) {
 		s.router.Forward()
+	}
+	if bar.teams.Clicked(gtx) {
+		s.router.SwitchMode()
 	}
 	if bar.search.Clicked(gtx) {
 		bar.searchShown = true

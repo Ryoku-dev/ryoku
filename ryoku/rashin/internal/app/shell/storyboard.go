@@ -178,6 +178,10 @@ func storyboardKey(chord string) (key.Name, key.Modifiers) {
 }
 
 func (s *uiShell) openStoryboardRoute(route string) {
+	if place, ok := TeamsRoute(route); ok {
+		s.navigateTeams(place)
+		return
+	}
 	parts := strings.Split(strings.Trim(route, "/"), "/")
 	if len(parts) == 0 {
 		return

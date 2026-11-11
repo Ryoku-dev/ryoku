@@ -16,6 +16,7 @@ import (
 
 	"ryoku-rashin/internal/app/conn"
 	"ryoku-rashin/internal/app/demo"
+	"ryoku-rashin/internal/app/env"
 	"ryoku-rashin/internal/app/look"
 	"ryoku-rashin/internal/app/state"
 	"ryoku-rashin/internal/client"
@@ -37,6 +38,7 @@ type Options struct {
 	WorkTab         string
 	Worktree        string
 	SettingsSection string
+	Teams           env.TeamsPlace
 	ZoomPercent     int
 	Script          string
 	Shots           []int

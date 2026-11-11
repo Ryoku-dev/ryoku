@@ -214,7 +214,7 @@ func (d *revertDialog) layout(gtx layout.Context, e *env.Env) {
 	body := i18n.T("The worktree's files return to how they were before this turn. The conversation stays as it is.")
 	if d.confirm.Layout(gtx, e.Theme.Theme, i18n.T("Revert files to before this turn?"), body, i18n.T("Revert files"), "") {
 		params := protocol.TurnParams{ID: d.id, Turn: d.turn}
-		e.Call(protocol.MSessionRevertTurn, params, new(protocol.GitOpResult), report(e))
+		e.Call(protocol.MSessionRevertTurn, params, new(protocol.GitOpResult), e.Report)
 	}
 	if d.confirm.Closed() {
 		d.id = ""

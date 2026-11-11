@@ -49,6 +49,13 @@ type Snapshot struct {
 	Notices    []protocol.Notice
 	// Screens are the agent screens that are up, by session.
 	Screens map[string]protocol.ScreenState
+	// Teams are by name, TeamTasks by id, Approvals newest first, Routines by
+	// team then title; the Vault holds no value.
+	Teams     []protocol.Team
+	TeamTasks map[string]protocol.TeamTask
+	Approvals []protocol.Approval
+	Routines  []protocol.Routine
+	Vault     protocol.VaultInfo
 }
 
 // Store reduces daemon snapshots and events into one app state.
@@ -75,6 +82,7 @@ type Store struct {
 	focus      protocol.UIOpenParams
 	notices    []protocol.Notice
 	screens    map[string]protocol.ScreenState
+	teamsState teamsState
 	gitNext    uint64
 	gitChanged map[string]map[uint64]func()
 	invalidate func()
@@ -90,6 +98,7 @@ func New(invalidate func()) *Store {
 		tasks:      make(map[string][]protocol.TaskInfo),
 		reviews:    make(map[string][]protocol.ReviewComment),
 		gitChanged: make(map[string]map[uint64]func()),
+		teamsState: newTeamsState(),
 		invalidate: invalidate,
 	}
 }
@@ -133,6 +142,7 @@ func (s *Store) ApplySnapshot(snapshot protocol.Snapshot) {
 	s.indexes = cloneIndexes(snapshot.Indexes)
 	s.projects = cloneProjects(snapshot.Projects)
 	s.tasks = groupTasks(snapshot.Tasks)
+	s.teamsState.applySnapshotLocked(snapshot)
 	s.screens = make(map[string]protocol.ScreenState, len(snapshot.Screens))
 	for _, screen := range snapshot.Screens {
 		s.screens[screen.Session] = screen
@@ -276,6 +286,9 @@ func (s *Store) Apply(event protocol.Event) error {
 	s.mu.Lock()
 	var err error
 	var listeners []func()
+	if handled, teamsErr := s.teamsState.applyLocked(event); handled {
+		err = teamsErr
+	}
 	switch event.Event {
 	case protocol.EvtSessionEvent:
 		var data protocol.SessionEventData
@@ -440,6 +453,7 @@ func (s *Store) Snapshot() Snapshot {
 	for id, screen := range s.screens {
 		result.Screens[id] = screen
 	}
+	s.teamsState.snapshotLocked(&result)
 	for id, progress := range s.progress {
 		result.Progress[id] = progress
 	}

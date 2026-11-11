@@ -97,6 +97,12 @@ func TestPaneArrivesAfreshOnlyForAnotherDestinationOrProject(t *testing.T) {
 	if overview.arrival() != changes.arrival() || overview.arrival() == other.arrival() {
 		t.Fatal("a project's views must share an arrival that another project does not")
 	}
+	crew := Place{Tab: protocol.TabTeams, Team: "team-research", TeamView: "overview"}
+	spend := Place{Tab: protocol.TabTeams, Team: "team-research", TeamView: "spend"}
+	mail := Place{Tab: protocol.TabTeams, Team: "team-mail"}
+	if crew.arrival() != spend.arrival() || crew.arrival() == mail.arrival() || crew.key() == mail.key() {
+		t.Fatal("a team's views must share an arrival and a key that another team does not")
+	}
 }
 
 func TestShortcutsReachTheirActions(t *testing.T) {
@@ -132,6 +138,26 @@ func TestShortcutsReachTheirActions(t *testing.T) {
 	board.press(",", key.ModShortcut)
 	if router.Tab != protocol.TabSettings {
 		t.Fatalf("Ctrl comma tab = %q", router.Tab)
+	}
+	board.press("T", key.ModShortcut)
+	if router.Tab != protocol.TabInbox || !router.TeamsMode() {
+		t.Fatalf("Ctrl T went to %q, want the Inbox in Teams mode", router.Tab)
+	}
+	for index, tab := range []string{
+		protocol.TabInbox, protocol.TabTeams, protocol.TabWork, protocol.TabRoutines, protocol.TabVault, protocol.TabActivity,
+	} {
+		board.press(key.Name('1'+rune(index)), key.ModShortcut)
+		if router.Tab != tab {
+			t.Fatalf("Ctrl %d in Teams tab = %q, want %q", index+1, router.Tab, tab)
+		}
+	}
+	board.press("T", key.ModShortcut)
+	if router.Tab != protocol.TabIndex || router.TeamsMode() {
+		t.Fatalf("Ctrl T back went to %q, want Index where Rashin was left", router.Tab)
+	}
+	board.press("5", key.ModShortcut)
+	if router.Tab != protocol.TabIndex {
+		t.Fatalf("Ctrl 5 in Rashin went to %q, Rashin has four destinations", router.Tab)
 	}
 	board.press("+", key.ModShortcut)
 	if zoom != 10 {
@@ -197,5 +223,27 @@ func TestOpenDialogKeepsTheFramesShortcutsOut(t *testing.T) {
 	}
 	if *heard != 1 {
 		t.Fatalf("the dialog heard %d Escapes, want 1", *heard)
+	}
+}
+
+func TestEachModeGoesBackToWhereItWasLeft(t *testing.T) {
+	router := NewRouter(protocol.TabAgent, "agent-one", nil)
+	router.SwitchMode()
+	if router.Tab != protocol.TabInbox {
+		t.Fatalf("Teams opened first at %q, want the Inbox", router.Tab)
+	}
+	task := Place{Tab: protocol.TabWork, TeamTask: "task-6f1c2a9e"}
+	router.Push(task)
+	router.Navigate(protocol.TabSettings, "")
+	if !router.TeamsMode() {
+		t.Fatal("Settings opened from Teams left Teams mode")
+	}
+	router.SwitchMode()
+	if current := router.Current(); current.Tab != protocol.TabAgent || current.Session != "agent-one" {
+		t.Fatalf("back to Rashin went to %#v, want the agent session", current)
+	}
+	router.SwitchMode()
+	if current := router.Current(); current != task {
+		t.Fatalf("back to Teams went to %#v, want the task", current)
 	}
 }

@@ -42,6 +42,7 @@ type fixtures struct {
 	ports     map[string]protocol.PortsResult
 	setups    map[string]protocol.SetupResult
 	activity  map[string]protocol.ActivityResult
+	teams     teamsFixtures
 	// how often the demo's API key was replaced
 	apiKeys int
 }
@@ -651,6 +652,7 @@ func makeFixtures() fixtures {
 	result.events[done.ID] = append(result.events[done.ID], event(int64(len(result.events[done.ID])+1), protocol.EvTurnEnd, protocol.TurnEndData{Turn: 1, Stop: protocol.StopEnd}))
 	result.events[idle.ID] = agentEvents(idle, false)
 	result.events[failed.ID] = agentEvents(failed, false)
+	result.teams = demoTeams(now, result.events)
 	return result
 }
 

@@ -202,7 +202,7 @@ func (p *Page) layoutComposer(gtx layout.Context, e *env.Env, attached state.Att
 		e.Submit(info.ID, busy, submission)
 	}
 	if p.composer.StopClicked() {
-		e.Call(protocol.MSessionCancel, protocol.SessionRef{ID: info.ID}, new(protocol.Empty), report(e))
+		e.Call(protocol.MSessionCancel, protocol.SessionRef{ID: info.ID}, new(protocol.Empty), e.Report)
 	}
 	env.HandleChatActions(gtx, e, info.ID, env.Answered(gtx, &p.view, attached.Model, p.composer.Actions()))
 	return dimensions

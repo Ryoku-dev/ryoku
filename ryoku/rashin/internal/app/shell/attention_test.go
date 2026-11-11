@@ -69,3 +69,25 @@ func TestAttentionIgnoresQuestions(t *testing.T) {
 		t.Fatalf("an answer the reader is waiting in front of was announced: %+v", notices)
 	}
 }
+
+func TestAttentionTellsWhatATeamAsksAndReportsAsItsTeamAllows(t *testing.T) {
+	watch := new(attention)
+	snapshot := state.Snapshot{Connection: state.Ready, Teams: []protocol.Team{
+		{ID: "research", Name: "Research desk", Notify: protocol.NotifyAll},
+		{ID: "repo", Name: "Repo watch", Notify: protocol.NotifyNeeds},
+	}}
+	watch.notices(snapshot)
+	report := &protocol.TeamReport{Title: "Open pull requests"}
+	snapshot.Approvals = []protocol.Approval{{ID: "approval-1", Team: "research", Title: "Send the mail", Status: protocol.ApprovalPending}}
+	snapshot.TeamTasks = map[string]protocol.TeamTask{
+		"task-1": {ID: "task-1", Team: "repo", Status: protocol.TaskDone, Report: report},
+		"task-2": {ID: "task-2", Team: "research", Status: protocol.TaskDone, Report: report},
+	}
+	said := titles(watch, snapshot)
+	if said != "approval:approval-1: Research desk needs you: Send the mail; report:task-2: Research desk sent a report: Open pull requests" {
+		t.Fatalf("said %q", said)
+	}
+	if said := titles(watch, snapshot); said != "" {
+		t.Fatalf("the same approval and report were announced twice: %s", said)
+	}
+}

@@ -23,6 +23,7 @@ const (
 	sectionAPI
 	sectionAsk
 	sectionAgents
+	sectionTeams
 	sectionIndex
 	sectionAppearance
 	sectionKeys
@@ -60,6 +61,7 @@ type Page struct {
 	askMay    look.Select
 	idle      kit.Stepper
 	notices   kit.Toggle
+	atOnce    kit.Stepper
 	install   env.HarnessInstall
 	instances map[string]*instanceEditor
 	fresh     instanceEditor
@@ -82,7 +84,7 @@ func (p *Page) OpenSection(name string) {
 	p.providerOrder, p.usage.asked = nil, false
 	sections := map[string]int{
 		"rashin": sectionRashin, "about": sectionRashin, "providers": sectionProviders, "api": sectionAPI, "ask": sectionAsk,
-		"agent": sectionAgents, "agents": sectionAgents, "index": sectionIndex, "appearance": sectionAppearance,
+		"agent": sectionAgents, "agents": sectionAgents, "teams": sectionTeams, "index": sectionIndex, "appearance": sectionAppearance,
 		"keys": sectionKeys, "keyboard": sectionKeys,
 	}
 	if section, ok := sections[name]; ok {
@@ -124,7 +126,10 @@ func (p *Page) Overlay(gtx layout.Context, e *env.Env) bool {
 }
 
 func sectionLabels() []string {
-	return []string{i18n.T("Rashin"), i18n.T("Providers"), i18n.T("Local API"), i18n.T("Ask"), i18n.T("Agents"), i18n.T("Index"), i18n.T("Appearance"), i18n.T("Keyboard")}
+	return []string{
+		i18n.T("Rashin"), i18n.T("Providers"), i18n.T("Local API"), i18n.T("Ask"), i18n.T("Agents"), i18n.T("Teams"), i18n.T("Index"),
+		i18n.T("Appearance"), i18n.T("Keyboard"),
+	}
 }
 
 func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
@@ -215,6 +220,8 @@ func (p *Page) layoutSections(gtx layout.Context, e *env.Env, inset, width int) 
 				return p.layoutAsk(gtx, e)
 			case sectionAgents:
 				return p.layoutAgents(gtx, e)
+			case sectionTeams:
+				return p.layoutTeams(gtx, e)
 			case sectionIndex:
 				return p.layoutIndex(gtx, e)
 			case sectionAppearance:

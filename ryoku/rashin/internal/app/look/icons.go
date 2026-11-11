@@ -16,6 +16,8 @@ var Icon struct {
 	Error, Warning, Fork, Undo, ArrowDown, Key, Link, Play, Filter   *widget.Icon
 	Thought, Steps, File, Remove, FolderOpen, Blank, Show, Hide      *widget.Icon
 	Quote, Goal, Pause, Screen                                       *widget.Icon
+	Teams, Inbox, Routine, Vault, Report, Approval, Member, Mail     *widget.Icon
+	Schedule, Spend, Import, Export, Lead                            *widget.Icon
 }
 
 func init() {
@@ -75,4 +77,17 @@ func init() {
 	Icon.Goal = kit.Icon(mdicons.DeviceGPSFixed)
 	Icon.Pause = kit.Icon(mdicons.AVPause)
 	Icon.Screen = kit.Icon(mdicons.HardwareDesktopWindows)
+	Icon.Teams = kit.Icon(mdicons.SocialGroup)
+	Icon.Inbox = kit.Icon(mdicons.ContentInbox)
+	Icon.Routine = kit.Icon(mdicons.ActionUpdate)
+	Icon.Vault = kit.Icon(mdicons.CommunicationVPNKey)
+	Icon.Report = kit.Icon(mdicons.ActionAssignmentTurnedIn)
+	Icon.Approval = kit.Icon(mdicons.ActionVerifiedUser)
+	Icon.Member = kit.Icon(mdicons.SocialPerson)
+	Icon.Mail = kit.Icon(mdicons.CommunicationEmail)
+	Icon.Schedule = kit.Icon(mdicons.ActionSchedule)
+	Icon.Spend = kit.Icon(mdicons.DeviceDataUsage)
+	Icon.Import = kit.Icon(mdicons.FileFileDownload)
+	Icon.Export = kit.Icon(mdicons.FileFileUpload)
+	Icon.Lead = kit.Icon(mdicons.ActionStars)
 }

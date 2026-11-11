@@ -113,9 +113,5 @@ func (e *Env) SetApprovals(of int, value string) {
 	if of == AskApprovals {
 		section = "ask"
 	}
-	e.SetSettings(map[string]any{section: map[string]any{"approvals": value}}, func(err error) {
-		if err != nil {
-			e.Notify(err.Error())
-		}
-	})
+	e.SetSettings(map[string]any{section: map[string]any{"approvals": value}}, e.Report)
 }

@@ -99,7 +99,9 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 	case protocol.MHello:
 		return protocol.HelloResult{Daemon: "rashind-demo", Version: "2.0.0-demo", Protocol: protocol.Version, Enabled: true}, nil
 	case protocol.MSubscribe:
-		return s.data.snapshot, nil
+		snapshot := s.data.snapshot
+		s.fillTeamsSnapshot(&snapshot)
+		return snapshot, nil
 	case protocol.MStatus:
 		return s.data.snapshot.Status, nil
 	case protocol.MModelsList:
@@ -826,6 +828,9 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 	case protocol.MShutdown:
 		return protocol.Empty{}, nil
 	default:
+		if teamsMethod(method) {
+			return s.callTeams(method, raw)
+		}
 		return nil, protocol.Errorf(protocol.CodeUnsupported, "demo method %s is not implemented", method)
 	}
 }
@@ -880,9 +885,22 @@ func (s *server) session(id string) (protocol.SessionInfo, bool) {
 			return info, true
 		}
 	}
+	if index := s.data.teams.sessionIndex(id); index >= 0 {
+		return s.data.teams.sessions[index], true
+	}
 	return protocol.SessionInfo{}, false
 }
+
+// team sessions stay out of the snapshot's list, as the daemon leaves them out of the sessions it lists
 func (s *server) replaceSession(info protocol.SessionInfo) {
+	if info.Team != "" {
+		if index := s.data.teams.sessionIndex(info.ID); index >= 0 {
+			s.data.teams.sessions[index] = info
+		} else {
+			s.data.teams.sessions = append([]protocol.SessionInfo{info}, s.data.teams.sessions...)
+		}
+		return
+	}
 	for index := range s.data.snapshot.Sessions {
 		if s.data.snapshot.Sessions[index].ID == info.ID {
 			s.data.snapshot.Sessions[index] = info
@@ -899,6 +917,9 @@ func (s *server) deleteSession(id string) {
 		}
 	}
 	s.data.snapshot.Sessions = kept
+	if index := s.data.teams.sessionIndex(id); index >= 0 {
+		s.data.teams.sessions = append(s.data.teams.sessions[:index:index], s.data.teams.sessions[index+1:]...)
+	}
 	delete(s.data.events, id)
 }
 func (s *server) newSession(kind protocol.SessionKind, harness, cwd, project, worktree, branch, task, parent string) protocol.SessionInfo {

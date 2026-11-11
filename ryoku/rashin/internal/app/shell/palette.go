@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"slices"
 	"strings"
 
 	"gioui.org/io/event"
@@ -182,11 +183,18 @@ func (s *uiShell) commands(e *env.Env) []paletteAction {
 	action := func(icon *widget.Icon, label, kind string, run func()) paletteAction {
 		return paletteAction{icon: icon, label: label, kind: kind, run: run}
 	}
-	return []paletteAction{
-		action(look.Icon.Add, i18n.T("New ask"), "Ctrl N", func() { s.ask.New(e) }),
+	// in Teams mode Ctrl N starts what the Teams page makes, never an ask
+	newAsk := "Ctrl N"
+	if s.router.TeamsMode() {
+		newAsk = command
+	}
+	rashin := []paletteAction{
+		action(look.Icon.Add, i18n.T("New ask"), newAsk, func() { s.ask.New(e) }),
 		action(look.Icon.Add, i18n.T("New agent session"), command, func() { s.openDestination(protocol.TabAgent); s.agent.New(e) }),
 		action(look.Icon.Add, i18n.T("Add project"), command, func() { s.openDestination(protocol.TabProjects); s.projects.New(e) }),
 		action(look.Icon.Settings, i18n.T("Open Settings"), "Ctrl ,", func() { s.openDestination(protocol.TabSettings) }),
+	}
+	shared := []paletteAction{
 		action(look.Icon.Key, i18n.T("Providers and keys"), command, func() { s.openSettings("providers") }),
 		action(look.Icon.Link, i18n.T("Local API address and key"), command, func() { s.openSettings("api") }),
 		action(look.Icon.Steps, i18n.T("Keyboard shortcuts"), command, func() { s.openSettings("keys") }),
@@ -200,6 +208,11 @@ func (s *uiShell) commands(e *env.Env) []paletteAction {
 			s.settings.AskTurnOff()
 		}),
 	}
+	// the first four are what an empty search offers, so the mode shown leads
+	if s.router.TeamsMode() {
+		return slices.Concat(s.teamsCommands(e), rashin, shared)
+	}
+	return slices.Concat(rashin, s.teamsCommands(e), shared)
 }
 
 func (s *uiShell) recentPlaces(e *env.Env) []paletteAction {
@@ -236,7 +249,11 @@ func (s *uiShell) placeAction(e *env.Env, place Place) (paletteAction, bool) {
 		}
 		return paletteAction{}, false
 	}
-	for _, item := range destinations() {
+	if teamsTab(place.Tab) {
+		return s.teamsPlaceAction(snapshot, place)
+	}
+	items, count := destinations(false)
+	for _, item := range items[:count] {
 		if item.tab == place.Tab {
 			return paletteAction{icon: item.icon, label: item.label, run: func() { s.openDestination(place.Tab) }}, true
 		}
@@ -260,7 +277,8 @@ func (s *uiShell) places(e *env.Env) []paletteAction {
 	snapshot := e.Snapshot()
 	actions := make([]paletteAction, 0, len(snapshot.Order)+len(snapshot.Projects)*4)
 	for _, id := range snapshot.Order {
-		if info, ok := snapshot.Sessions[id]; ok {
+		// a team's sessions are reached through its tasks
+		if info, ok := snapshot.Sessions[id]; ok && info.Team == "" {
 			actions = append(actions, s.sessionAction(info))
 		}
 	}
@@ -278,5 +296,5 @@ func (s *uiShell) places(e *env.Env) []paletteAction {
 			})
 		}
 	}
-	return actions
+	return append(actions, s.teamsPlaces(snapshot)...)
 }

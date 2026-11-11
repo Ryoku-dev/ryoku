@@ -192,15 +192,15 @@ func (c *harnessControls) widgets(e *env.Env, snapshot state.Snapshot, info prot
 
 func (c *harnessControls) update(e *env.Env, id string) {
 	if index, changed := c.modelSelect.Changed(); changed && index >= 0 && index < len(c.model.ids) {
-		e.Call(protocol.MSessionSetModel, protocol.SetModelParams{ID: id, Model: c.model.ids[index]}, new(protocol.Empty), report(e))
+		e.Call(protocol.MSessionSetModel, protocol.SetModelParams{ID: id, Model: c.model.ids[index]}, new(protocol.Empty), e.Report)
 	}
 	if index, changed := c.modeSelect.Changed(); changed && index >= 0 && index < len(c.mode.ids) {
-		e.Call(protocol.MSessionSetMode, protocol.SetModeParams{ID: id, Mode: c.mode.ids[index]}, new(protocol.Empty), report(e))
+		e.Call(protocol.MSessionSetMode, protocol.SetModeParams{ID: id, Mode: c.mode.ids[index]}, new(protocol.Empty), e.Report)
 	}
 	for _, extra := range c.extras {
 		if index, changed := c.extraSelects[extra.id].Changed(); changed && index >= 0 && index < len(extra.list.ids) {
 			params := protocol.SetOptionParams{ID: id, Option: extra.id, Value: extra.list.ids[index]}
-			e.Call(protocol.MSessionSetOption, params, new(protocol.Empty), report(e))
+			e.Call(protocol.MSessionSetOption, params, new(protocol.Empty), e.Report)
 		}
 	}
 	if value, changed := c.approvals.Changed(); changed {

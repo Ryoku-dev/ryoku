@@ -111,7 +111,7 @@ func (panel *screenPanel) layout(gtx layout.Context, e *env.Env, state protocol.
 	}
 	panel.stop.Kind, panel.stop.Label = kit.PlaqueQuiet, i18n.T("Close the screen")
 	control := func(op string) {
-		e.Call(protocol.MScreenControl, protocol.ScreenControlParams{ID: state.Session, Op: op}, new(protocol.ScreenState), report(e))
+		e.Call(protocol.MScreenControl, protocol.ScreenControlParams{ID: state.Session, Op: op}, new(protocol.ScreenState), e.Report)
 	}
 	if panel.take.Clicked(gtx) && state.State == protocol.ScreenRunning {
 		if yours {
@@ -317,7 +317,7 @@ func (panel *screenPanel) flush(e *env.Env, id string) {
 		panel.sending = false
 		if err != nil {
 			panel.queue = nil
-			report(e)(err)
+			e.Report(err)
 			return
 		}
 		panel.flush(e, id)

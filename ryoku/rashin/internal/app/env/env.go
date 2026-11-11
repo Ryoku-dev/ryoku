@@ -20,6 +20,7 @@ import (
 
 type Navigate func(tab, session string)
 type WorkNavigate func(project, tab, worktree string)
+type TeamsNavigate func(place TeamsPlace)
 
 // Env is what the frame hands a page each frame: the theme, the store, the
 // daemon client, and the few frame facilities a page may use.
@@ -30,6 +31,11 @@ type Env struct {
 	Overlays     *look.Overlays
 	Navigate     Navigate
 	NavigateWork WorkNavigate
+	// NavigateTeams opens a place in Teams mode, pushing it on the history.
+	NavigateTeams TeamsNavigate
+	// NewTeamTask opens the dialog that gives a team a task, with team picked
+	// when it is not empty.
+	NewTeamTask func(team string)
 	// OpenSettings shows one section of Settings, named as in its index.
 	OpenSettings func(section string)
 	Post         func(func())
@@ -107,6 +113,20 @@ func (e *Env) LoadWorktrees(project string, done func(error)) {
 	})
 }
 
+// LoadTeamTasks loads a team's tasks, or every team's when team is empty,
+// older than before when it is set, into the store.
+func (e *Env) LoadTeamTasks(team, before string, done func(error)) {
+	var result protocol.TeamTasksResult
+	e.Call(protocol.MTeamsTasks, protocol.TeamTasksParams{Team: team, Before: before, Limit: 50}, &result, func(err error) {
+		if err == nil {
+			e.Store.SetTeamTasks(result)
+		}
+		if done != nil {
+			done(err)
+		}
+	})
+}
+
 // LoadTasks refreshes one project's task board.
 func (e *Env) LoadTasks(project string, done func(error)) {
 	var result protocol.TasksResult
@@ -177,14 +197,18 @@ func HandleChatActions(gtx layout.Context, e *Env, id string, actions []chat.Act
 	}
 }
 
+// Report shows a refused call's error at the foot of the content pane; pass
+// e.Report as a call's done when only a refusal needs saying.
+func (e *Env) Report(err error) {
+	if err != nil && e.Notify != nil {
+		e.Notify(err.Error())
+	}
+}
+
 // Submit sends what the composer produced: a prompt to an idle session, a
 // queued follow-up to a busy one, or a steer that replaces the running turn.
 func (e *Env) Submit(id string, busy bool, submission chat.Submission) {
-	report := func(err error) {
-		if err != nil && e.Notify != nil {
-			e.Notify(err.Error())
-		}
-	}
+	report := e.Report
 	images := make([]protocol.Attachment, len(submission.Images))
 	for index, path := range submission.Images {
 		images[index] = protocol.Attachment{Path: path}

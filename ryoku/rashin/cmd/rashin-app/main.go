@@ -13,6 +13,7 @@ import (
 	gioapp "gioui.org/app"
 	"ryoku-i18n"
 
+	"ryoku-rashin/internal/app/env"
 	"ryoku-rashin/internal/app/shell"
 	"ryoku-rashin/internal/app/state"
 	"ryoku-rashin/internal/client"
@@ -35,8 +36,8 @@ func execute() (int, error) {
 	pngPath := flag.String("png", "", i18n.T("Render one frame or contact sheet to a PNG and exit"))
 	size := flag.String("size", "", i18n.T("Window or PNG size as WIDTHxHEIGHT"))
 	demoMode := flag.Bool("demo", false, i18n.T("Use the in-process demo daemon"))
-	route := flag.String("route", "", i18n.T("Initial route: ask, agent, projects, index or settings"))
-	tab := flag.String("tab", "", i18n.T("Initial tab: ask, agent, projects, index or settings"))
+	route := flag.String("route", "", i18n.T("Initial route: ask, agent, projects, index, settings, inbox, teams, teams/<team>, work/<task>, routines, vault or activity"))
+	tab := flag.String("tab", "", i18n.T("Initial tab: ask, agent, projects, index, settings, inbox, teams, work, routines, vault or activity"))
 	session := flag.String("session", "", i18n.T("Open this session"))
 	project := flag.String("project", "", i18n.T("Open this project"))
 	view := flag.String("view", "", i18n.T("Project view: overview, graph, changes, tasks or activity"))
@@ -55,6 +56,9 @@ func execute() (int, error) {
 			return 2, err
 		}
 	}
+	if err := demoOnly(*script, *demoMode); err != nil {
+		return 2, err
+	}
 	target := launchTarget(*route, *tab, *session, *project, *view, *worktree)
 	shots, err := parseShots(*shotText)
 	if err != nil {
@@ -66,7 +70,7 @@ func execute() (int, error) {
 	options := shell.Options{
 		Demo: *demoMode, PNG: *pngPath, Width: width, Height: height, Mode: *mode,
 		Route: target.tab, Session: target.session, Project: target.project,
-		WorkTab: target.workTab, Worktree: target.worktree, SettingsSection: target.settingsSection,
+		WorkTab: target.workTab, Worktree: target.worktree, SettingsSection: target.settingsSection, Teams: target.teams,
 		ZoomPercent: *zoom, Script: *script, Shots: shots,
 	}
 	if options.PNG != "" {
@@ -83,7 +87,7 @@ func execute() (int, error) {
 	if errors.Is(err, state.ErrAppLockHeld) {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
-		return 0, openExisting(ctx, protocol.UIOpenParams{Session: target.session, Tab: target.tab, Project: target.project, View: target.workTab, Worktree: target.worktree})
+		return 0, openExisting(ctx, openParams(target))
 	}
 	if err != nil {
 		return 1, err
@@ -107,6 +111,15 @@ func sendOpen(ctx context.Context, params protocol.UIOpenParams, call func(conte
 	return call(ctx, protocol.MUIOpen, params, &result)
 }
 
+// demoOnly refuses a storyboard without --demo: a script drives the window as
+// if the user did, so it must never reach the real daemon.
+func demoOnly(script string, demo bool) error {
+	if script != "" && !demo {
+		return errors.New(i18n.T("--script runs only with --demo."))
+	}
+	return nil
+}
+
 func exitAfterShell(options shell.Options, lock *state.AppLock) {
 	err := shell.Run(options)
 	if closeErr := lock.Close(); err == nil && closeErr != nil {
@@ -122,6 +135,21 @@ func exitAfterShell(options shell.Options, lock *state.AppLock) {
 type routeTarget struct {
 	tab, session, project, workTab, worktree string
 	settingsSection                          string
+	// a Teams place, when the route names one
+	teams env.TeamsPlace
+}
+
+// openParams is what a running app is asked to show; a Teams place goes by
+// what it has open.
+func openParams(target routeTarget) protocol.UIOpenParams {
+	params := protocol.UIOpenParams{
+		Session: target.session, Tab: target.tab, Project: target.project, View: target.workTab, Worktree: target.worktree,
+		Team: target.teams.Team, TeamTask: target.teams.Task, Routine: target.teams.Routine, Credential: target.teams.Credential,
+	}
+	if target.teams.View != "" {
+		params.View = target.teams.View
+	}
+	return params
 }
 
 // launchTarget is the place the flags name. With no flag the place is left to
@@ -143,6 +171,9 @@ func launchTarget(route, tab, session, project, view, worktree string) routeTarg
 
 func applyLaunchTarget(target routeTarget, tab, session, project, view, worktree string) routeTarget {
 	if tab != "" {
+		if tab != target.teams.Tab {
+			target.teams = env.TeamsPlace{}
+		}
 		target.tab = tab
 	}
 	if session != "" {
@@ -160,6 +191,7 @@ func applyLaunchTarget(target routeTarget, tab, session, project, view, worktree
 	if target.project != "" {
 		target.tab = protocol.TabProjects
 		target.session = ""
+		target.teams = env.TeamsPlace{}
 		if target.workTab == "" {
 			target.workTab = "overview"
 		}
@@ -172,6 +204,9 @@ func parseRouteTarget(value string) routeTarget {
 	parts := strings.Split(strings.Trim(value, "/"), "/")
 	if len(parts) == 0 || parts[0] == "" {
 		return target
+	}
+	if place, ok := shell.TeamsRoute(value); ok {
+		return routeTarget{tab: place.Tab, teams: place}
 	}
 	target.tab = parts[0]
 	if target.tab == "agents" {

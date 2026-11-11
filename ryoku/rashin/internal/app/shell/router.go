@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"slices"
 	"strings"
 
 	"gioui.org/io/event"
@@ -20,6 +21,9 @@ var shortcutKeys = []event.Filter{
 	key.Filter{Name: "2", Required: key.ModShortcut},
 	key.Filter{Name: "3", Required: key.ModShortcut},
 	key.Filter{Name: "4", Required: key.ModShortcut},
+	key.Filter{Name: "5", Required: key.ModShortcut},
+	key.Filter{Name: "6", Required: key.ModShortcut},
+	key.Filter{Name: "T", Required: key.ModShortcut},
 	key.Filter{Name: ",", Required: key.ModShortcut},
 	key.Filter{Name: "\\", Required: key.ModShortcut},
 	key.Filter{Name: "+", Required: key.ModShortcut},
@@ -32,6 +36,17 @@ var shortcutKeys = []event.Filter{
 
 var escapeKey = key.Filter{Name: key.NameEscape}
 
+// each mode's destinations in the order Ctrl 1 onwards reaches them
+var (
+	rashinTabs = []string{protocol.TabAsk, protocol.TabAgent, protocol.TabProjects, protocol.TabIndex}
+	teamsTabs  = []string{protocol.TabInbox, protocol.TabTeams, protocol.TabWork, protocol.TabRoutines, protocol.TabVault, protocol.TabActivity}
+)
+
+func teamsTab(tab string) bool { return slices.Contains(teamsTabs, tab) }
+
+// every page, each draws the dialogs it owns whichever one is shown
+var pageTabs = slices.Concat(rashinTabs, []string{protocol.TabSettings}, teamsTabs)
+
 type Place struct {
 	Tab             string
 	Session         string
@@ -39,22 +54,33 @@ type Place struct {
 	ProjectView     string
 	Worktree        string
 	SettingsSection string
+	// what a Teams destination has open, as env.TeamsPlace names it
+	Team       string
+	TeamView   string
+	TeamTask   string
+	Routine    string
+	Credential string
+	Draft      string
+	Template   string
 }
 
-// a project's tabs share one key
+// a project's tabs share one key, and so do a team's
 func (place Place) key() string {
-	return strings.Join([]string{place.Tab, place.Session, place.Project}, "\x00")
+	return strings.Join([]string{
+		place.Tab, place.Session, place.Project, place.Team, place.TeamTask, place.Routine, place.Credential, place.Draft, place.Template,
+	}, "\x00")
 }
 
 // sessions of one destination share it, their page moves between them itself and a first question must not blink the pane
 func (place Place) arrival() string {
-	return place.Tab + "\x00" + place.Project
+	return strings.Join([]string{place.Tab, place.Project, place.Team, place.TeamTask, place.Routine, place.Credential, place.Draft}, "\x00")
 }
 
 type Router struct {
 	Tab         string
 	Session     string
 	NeedsYou    int
+	Inbox       int
 	PaletteOpen bool
 	// a page had a dialog open last frame, so the frame's shortcuts stand down and can't change what's under it
 	Modal bool
@@ -64,6 +90,10 @@ type Router struct {
 	history    []Place
 	historyAt  int
 	applying   bool
+	// Teams mode stands while a Teams destination is shown, settings keeps the mode it was opened from
+	teams bool
+	// where each mode stood last, so switching goes back there
+	lastRashin, lastTeams Place
 
 	OnPlace       func(Place)
 	OnNew         func()
@@ -80,7 +110,9 @@ func NewRouter(tab, session string, invalidate func()) *Router {
 		tab = protocol.TabAsk
 	}
 	place := Place{Tab: tab, Session: session}
-	return &Router{Tab: tab, Session: session, invalidate: invalidate, history: []Place{place}}
+	router := &Router{Tab: tab, Session: session, invalidate: invalidate, history: []Place{place}}
+	router.remember(place)
+	return router
 }
 
 func (r *Router) Current() Place {
@@ -90,9 +122,35 @@ func (r *Router) Current() Place {
 	return r.history[r.historyAt]
 }
 
+// TeamsMode says whether the frame shows Teams' destinations
+func (r *Router) TeamsMode() bool { return r.teams }
+
+// goes to where the other mode stood last, Ask or the Inbox the first time
+func (r *Router) SwitchMode() {
+	place, home := r.lastTeams, protocol.TabInbox
+	if r.teams {
+		place, home = r.lastRashin, protocol.TabAsk
+	}
+	if place.Tab == "" {
+		place = Place{Tab: home}
+	}
+	r.Push(place)
+}
+
+func (r *Router) remember(place Place) {
+	switch {
+	case place.Tab == protocol.TabSettings:
+	case teamsTab(place.Tab):
+		r.teams, r.lastTeams = true, place
+	default:
+		r.teams, r.lastRashin = false, place
+	}
+}
+
 func (r *Router) Navigate(tab, session string) {
 	place := r.Current()
-	if validTab(tab) {
+	if validTab(tab) && tab != place.Tab {
+		place.Team, place.TeamView, place.TeamTask, place.Routine, place.Credential, place.Draft, place.Template = "", "", "", "", "", "", ""
 		place.Tab = tab
 	}
 	place.Session = session
@@ -154,6 +212,7 @@ func (r *Router) Forward() bool {
 
 func (r *Router) apply(place Place) {
 	r.Tab, r.Session = place.Tab, place.Session
+	r.remember(place)
 	if r.OnPlace != nil && !r.applying {
 		r.applying = true
 		r.OnPlace(place)
@@ -237,9 +296,16 @@ func (r *Router) HandleKeys(gtx layout.Context, overlays *look.Overlays) {
 			r.OnToggleFold()
 		case e.Name == "\\" && shortcut && r.OnTogglePanel != nil:
 			r.OnTogglePanel()
-		case shortcut && e.Name >= "1" && e.Name <= "4":
-			tabs := []string{protocol.TabAsk, protocol.TabAgent, protocol.TabProjects, protocol.TabIndex}
-			r.Navigate(tabs[int(e.Name[0]-'1')], "")
+		case e.Name == "T" && shortcut:
+			r.SwitchMode()
+		case shortcut && e.Name >= "1" && e.Name <= "6":
+			tabs := rashinTabs
+			if r.teams {
+				tabs = teamsTabs
+			}
+			if at := int(e.Name[0] - '1'); at < len(tabs) {
+				r.Navigate(tabs[at], "")
+			}
 		case e.Name == "," && shortcut:
 			r.Navigate(protocol.TabSettings, "")
 		case (e.Name == "+" || e.Name == "=") && shortcut && r.OnZoom != nil:
@@ -259,10 +325,5 @@ func (r *Router) HandleKeys(gtx layout.Context, overlays *look.Overlays) {
 }
 
 func validTab(tab string) bool {
-	switch tab {
-	case protocol.TabAsk, protocol.TabAgent, protocol.TabProjects, protocol.TabIndex, protocol.TabSettings:
-		return true
-	default:
-		return false
-	}
+	return tab == protocol.TabSettings || slices.Contains(rashinTabs, tab) || teamsTab(tab)
 }

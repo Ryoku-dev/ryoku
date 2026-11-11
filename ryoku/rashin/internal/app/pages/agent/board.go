@@ -277,7 +277,7 @@ func (b *board) layoutSession(gtx layout.Context, e *env.Env, snapshot state.Sna
 	case groupNeeds, groupWorking:
 		content.Claim = sessionClaim(snapshot, info)
 	default:
-		content.Claim = ago(gtx.Now, info.Updated)
+		content.Claim = look.Ago(gtx.Now, info.Updated)
 		if at == groupDone {
 			content.Tone = palette.Alive
 		}
@@ -306,11 +306,11 @@ func boardSentence(th *look.Theme, sessions [groupCount][]protocol.SessionInfo) 
 	case needs == 1:
 		return []kit.Span{{Text: i18n.T("One agent"), Color: th.R.Amber}, {Text: i18n.T(" needs you.")}}
 	case needs > 1:
-		return []kit.Span{{Text: i18n.Tf("%s agents", countWord(needs)), Color: th.R.Amber}, {Text: i18n.T(" need you.")}}
+		return []kit.Span{{Text: i18n.Tf("%s agents", look.CountStart(needs)), Color: th.R.Amber}, {Text: i18n.T(" need you.")}}
 	case working == 1:
 		return []kit.Span{{Text: i18n.T("One agent is working.")}}
 	case working > 1:
-		return []kit.Span{{Text: i18n.Tf("%s agents are working.", countWord(working))}}
+		return []kit.Span{{Text: i18n.Tf("%s agents are working.", look.CountStart(working))}}
 	default:
 		return []kit.Span{{Text: i18n.T("No agents are running.")}}
 	}
@@ -331,7 +331,7 @@ func boardProof(now time.Time, sessions [groupCount][]protocol.SessionInfo) stri
 		return i18n.Tf("%d finished since you last looked.", done)
 	}
 	for _, info := range sessions[groupIdle] {
-		return i18n.Tf("The last one finished %s.", ago(now, info.Updated))
+		return i18n.Tf("The last one finished %s.", look.Ago(now, info.Updated))
 	}
 	return i18n.T("Pick where it should work and say what to do.")
 }
@@ -341,31 +341,4 @@ func approvalsNote(snapshot state.Snapshot, noHarness bool) string {
 		return i18n.T("No harness is installed, so nothing can start yet.")
 	}
 	return env.ApprovalsNote(env.AgentApprovals, snapshot.Settings.Agent.Approvals)
-}
-
-func countWord(count int) string {
-	words := [...]string{
-		i18n.T("Two"), i18n.T("Three"), i18n.T("Four"), i18n.T("Five"),
-		i18n.T("Six"), i18n.T("Seven"), i18n.T("Eight"), i18n.T("Nine"),
-	}
-	if count >= 2 && count <= 9 {
-		return words[count-2]
-	}
-	return fmt.Sprint(count)
-}
-
-func ago(now, when time.Time) string {
-	elapsed := now.Sub(when)
-	switch {
-	case when.IsZero():
-		return ""
-	case elapsed < time.Minute:
-		return i18n.T("just now")
-	case elapsed < time.Hour:
-		return i18n.Tf("%d min ago", int(elapsed.Minutes()))
-	case elapsed < 24*time.Hour:
-		return i18n.Tf("%d h ago", int(elapsed.Hours()))
-	default:
-		return i18n.Tf("%d d ago", int(elapsed.Hours()/24))
-	}
 }

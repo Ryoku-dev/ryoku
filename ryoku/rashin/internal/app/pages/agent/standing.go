@@ -13,10 +13,11 @@ type Standing struct {
 	Matter, Place string
 }
 
+// team sessions are told about as their team's approvals and reports instead
 func Standings(snapshot state.Snapshot) map[string]Standing {
 	standings := make(map[string]Standing)
 	for id, info := range snapshot.Sessions {
-		if info.Kind != protocol.KindAgent {
+		if info.Kind != protocol.KindAgent || info.Team != "" {
 			continue
 		}
 		standings[id] = Standing{

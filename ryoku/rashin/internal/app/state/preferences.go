@@ -25,8 +25,11 @@ type AppPreferences struct {
 	ReduceMotion  bool `json:"reduceMotion,omitempty"`
 	// notices are on until asked off, so the absent key means on
 	MuteNotices bool `json:"muteNotices,omitempty"`
-	// where the window stood when it closed
+	// where Rashin mode stood when the window closed
 	Last LastPlace `json:"last,omitzero"`
+	// where Teams mode stood, and whether the window closed in it
+	Teams   LastPlace `json:"teams,omitzero"`
+	InTeams bool      `json:"inTeams,omitempty"`
 }
 
 // the work the window had open when it closed
@@ -36,6 +39,11 @@ type LastPlace struct {
 	Project  string `json:"project,omitempty"`
 	View     string `json:"view,omitempty"`
 	Worktree string `json:"worktree,omitempty"`
+	// a Teams place, whose View is a team page's tab
+	Team       string `json:"team,omitempty"`
+	Task       string `json:"task,omitempty"`
+	Routine    string `json:"routine,omitempty"`
+	Credential string `json:"credential,omitempty"`
 }
 
 func (p AppPreferences) Normalize() AppPreferences {

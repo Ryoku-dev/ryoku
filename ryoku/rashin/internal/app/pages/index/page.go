@@ -237,7 +237,7 @@ func indexFacts(now time.Time, info protocol.IndexInfo) []look.HeaderFact {
 		facts = append(facts, look.HeaderFact{Text: i18n.Tf("%s symbols", grouped(info.Symbols))})
 	}
 	if info.Updated != nil {
-		facts = append(facts, look.HeaderFact{Text: i18n.Tf("read %s", ago(now, *info.Updated))})
+		facts = append(facts, look.HeaderFact{Text: i18n.Tf("read %s", look.Ago(now, *info.Updated))})
 	}
 	return facts
 }
@@ -503,20 +503,6 @@ func grouped(value int) string {
 		text = text[:index] + "," + text[index:]
 	}
 	return text
-}
-
-func ago(now, when time.Time) string {
-	elapsed := now.Sub(when)
-	switch {
-	case elapsed < time.Minute:
-		return i18n.T("just now")
-	case elapsed < time.Hour:
-		return i18n.Tf("%d min ago", int(elapsed.Minutes()))
-	case elapsed < 24*time.Hour:
-		return i18n.Tf("%d h ago", int(elapsed.Hours()))
-	default:
-		return i18n.Tf("%d d ago", int(elapsed.Hours()/24))
-	}
 }
 
 // addDialog is the typed way to index a folder, for when no chooser answers

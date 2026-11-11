@@ -32,6 +32,18 @@ func TestSendOpenForwardsLaunchTarget(t *testing.T) {
 	}
 }
 
+func TestAStoryboardRunsOnlyAgainstTheDemo(t *testing.T) {
+	if demoOnly("search.story", false) == nil {
+		t.Fatal("--script without --demo was accepted")
+	}
+	if err := demoOnly("search.story", true); err != nil {
+		t.Fatalf("--script with --demo: %v", err)
+	}
+	if err := demoOnly("", false); err != nil {
+		t.Fatalf("no script: %v", err)
+	}
+}
+
 func TestApplyLaunchTargetOpensProject(t *testing.T) {
 	target := applyLaunchTarget(
 		parseRouteTarget("agent/agent-working"),
@@ -90,5 +102,22 @@ func TestASessionNamedAloneOpensInItsOwnTab(t *testing.T) {
 		if got := launchTarget(check.route, check.tab, check.session, "", "", "").tab; got != check.want {
 			t.Errorf("route %q tab %q session %q opens tab %q, want %q", check.route, check.tab, check.session, got, check.want)
 		}
+	}
+}
+
+func TestATeamsRouteOpensItsPlaceAndAsksARunningAppForIt(t *testing.T) {
+	target := launchTarget("teams/team-research/spend", "", "", "", "", "")
+	if target.tab != protocol.TabTeams || target.teams.Team != "team-research" || target.teams.View != "spend" {
+		t.Fatalf("team route = %#v", target)
+	}
+	params := openParams(launchTarget("work/task-6f1c2a9e", "", "", "", "", ""))
+	if params.Tab != protocol.TabWork || params.TeamTask != "task-6f1c2a9e" {
+		t.Fatalf("a running app was asked for %#v, want the task", params)
+	}
+	if inbox := launchTarget("inbox", "", "", "", "", ""); inbox.tab != protocol.TabInbox {
+		t.Fatalf("inbox route = %#v", inbox)
+	}
+	if project := launchTarget("work/task-6f1c2a9e", "", "", "hyperion", "", ""); project.tab != protocol.TabProjects || project.teams.Task != "" {
+		t.Fatalf("a named project kept the Teams place: %#v", project)
 	}
 }

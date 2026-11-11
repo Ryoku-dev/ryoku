@@ -88,11 +88,11 @@ func (s *uiShell) layoutFrame(gtx layout.Context, e *env.Env) {
 	look.Place(gtx, image.Rect(0, 0, size.X, top), func(gtx layout.Context) layout.Dimensions {
 		return s.topBar.Layout(gtx, s, e, barState{
 			class: s.class, ready: true, content: rects.content.Min.X,
-			folded: s.class == look.Expanded && s.preferences.SidebarFolded,
+			folded: s.class == look.Expanded && s.preferences.SidebarFolded, teams: s.router.TeamsMode(),
 		})
 	})
 	modal := false
-	for _, tab := range []string{protocol.TabAsk, protocol.TabAgent, protocol.TabProjects, protocol.TabIndex, protocol.TabSettings} {
+	for _, tab := range pageTabs {
 		modal = s.page(tab).Overlay(gtx, e) || modal
 	}
 	// a dialog that closed leaves the keyboard nowhere, so it goes back to where the page is typed into
@@ -248,8 +248,12 @@ type bottomBar struct {
 func (bar *bottomBar) Layout(gtx layout.Context, s *uiShell, e *env.Env) layout.Dimensions {
 	th := e.Theme
 	size := gtx.Constraints.Max
-	items := destinations()
-	tabs := [5]destination{items[0], items[1], items[2], items[3], {protocol.TabSettings, i18n.T("Settings"), "", look.Icon.Settings}}
+	items, _ := destinations(s.router.TeamsMode())
+	// Teams' five take the bar whole, settings stays a Ctrl , or a search away
+	tabs := [5]destination{items[0], items[1], items[2], items[3], items[4]}
+	if !s.router.TeamsMode() {
+		tabs[4] = destination{protocol.TabSettings, i18n.T("Settings"), "", look.Icon.Settings}
+	}
 	inset, gap := gtx.Dp(4), gtx.Dp(4)
 	width := (size.X - 2*inset - 4*gap) / 5
 	height := gtx.Dp(48)
