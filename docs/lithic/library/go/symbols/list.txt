@@ -1,0 +1,74 @@
+# Material Symbols Sharp, weight 400, 24 px, one symbol per line.
+# "fill" also generates the filled variant, used for the current navigation destination.
+# Regenerate with: go run ./cmd/lithic-symbols (from library/go); -check verifies.
+add
+arrow_back
+arrow_downward
+arrow_forward
+arrow_upward
+assignment fill
+assignment_turned_in
+attachment
+call_split
+check
+chevron_right
+close
+computer
+content_copy
+data_usage
+delete
+description
+desktop_windows
+device_hub
+difference
+download
+edit
+error
+expand_less
+expand_more
+filter_list
+find_in_page fill
+folder fill
+folder_open
+fork_right
+format_list_bulleted
+format_quote
+forum fill
+fullscreen
+fullscreen_exit
+group fill
+history
+home
+inbox fill
+key
+lightbulb
+link
+lock
+lock_open
+mail
+more_vert
+my_location
+open_in_new
+pause
+person
+play_arrow
+refresh
+remove
+schedule
+search
+settings fill
+side_navigation
+smart_toy fill
+stars
+stop
+storage
+terminal
+timeline fill
+undo
+update fill
+upload
+verified_user
+visibility
+visibility_off
+vpn_key fill
+warning

@@ -113,3 +113,11 @@ none of that ships in a Ryoku package. It is released under the MIT License,
 which ships unchanged beside it and is installed as
 /usr/share/licenses/ryoku-desktop/LICENSE.ryoku-discord; that license is
 compatible with Ryoku's GPL-3 distribution.
+
+The Lithic Gio icons (docs/lithic/library/go/symbols/) are Material Symbols by
+Google (https://github.com/google/material-design-icons), the Sharp style at
+weight 400, taken from the official SVGs at commit 10ecc147. They are modified
+versions: the path data is converted to IconVG and the shapes are otherwise
+unchanged. They are released under the Apache License 2.0, which ships
+unchanged beside them with a NOTICE; that license is compatible with Ryoku's
+GPL-3 distribution.
