@@ -1,4 +1,4 @@
 return {
-    active = "{{colors.color4.default.hex}}",
+    active = "{{colors.primary.default.hex}}",
     inactive = "{{colors.background.default.hex}}",
 }

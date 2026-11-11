@@ -1298,24 +1298,25 @@ func (d *daemon) applyBorderColors() {
 	_ = d.wmc.Act(wm.ActionBorderColors, active, inactive)
 }
 
-// paletteBorderColors reads the active (color4) and inactive (background) border
-// roles from the palette written to colors.json.
+// paletteBorderColors reads the active (primary, the palette's accent) and
+// inactive (background) border roles from the palette written to colors.json,
+// the same roles hypr-colors.lua renders for the config-time border.
 func paletteBorderColors() (active, inactive string, ok bool) {
 	b, err := os.ReadFile(matugenColorsPath())
 	if err != nil {
 		return "", "", false
 	}
 	var c struct {
-		Color4     string `json:"color4"`
+		Primary    string `json:"primary"`
 		Background string `json:"background"`
 	}
 	if json.Unmarshal(b, &c) != nil {
 		return "", "", false
 	}
-	if c.Color4 == "" && c.Background == "" {
+	if c.Primary == "" && c.Background == "" {
 		return "", "", false
 	}
-	return c.Color4, c.Background, true
+	return c.Primary, c.Background, true
 }
 
 // matugenNudgeGtk lands gtk-theme on `want`, flipping through a placeholder first

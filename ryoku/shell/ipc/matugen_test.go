@@ -1395,8 +1395,11 @@ func writeSolidColourPNG(t *testing.T, path string, r, g, b uint8) {
 }
 
 // paletteBorderColors maps the palette roles the shell owns onto the border:
-// color4 is the active border, background the inactive. The provider owns the
-// colour literal format, so only that role mapping is asserted here.
+// primary, the palette's accent, is the active border and background the
+// inactive; color4 (secondary) is never the border. The provider owns the colour
+// literal format, so only that role mapping is asserted here. The shipped
+// hypr-colors.lua must name the same roles, or a config reload repaints the
+// border the live push just set.
 func TestPaletteBorderColors(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -1409,12 +1412,22 @@ func TestPaletteBorderColors(t *testing.T) {
 	if _, _, ok := paletteBorderColors(); ok {
 		t.Fatal("paletteBorderColors ok with no colors.json, want not ok")
 	}
-	if err := os.WriteFile(colorsPath, []byte(`{"color4":"#12ab34","background":"#010203"}`), 0o644); err != nil {
+	if err := os.WriteFile(colorsPath, []byte(`{"primary":"#12ab34","color4":"#999999","secondary":"#999999","background":"#010203"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	active, inactive, ok := paletteBorderColors()
 	if !ok || active != "#12ab34" || inactive != "#010203" {
 		t.Fatalf("paletteBorderColors() = (%q,%q,%v), want (#12ab34,#010203,true)", active, inactive, ok)
+	}
+
+	tmpl, err := os.ReadFile("../matugen/templates/hypr-colors.lua")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`active = "{{colors.primary.default.hex}}"`, `inactive = "{{colors.background.default.hex}}"`} {
+		if !strings.Contains(string(tmpl), want) {
+			t.Errorf("hypr-colors.lua lacks %s:\n%s", want, tmpl)
+		}
 	}
 }
 

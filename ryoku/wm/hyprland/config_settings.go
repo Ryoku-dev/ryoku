@@ -840,8 +840,9 @@ func genMotion(o Overrides, full bool) string {
 	return b.String()
 }
 
-// gradientBorderBlock re-reads the live palette accents at load time so the
-// rotating border re-themes with the wallpaper on reload.
+// gradientBorderBlock re-reads the live palette border colours (the accent and
+// the background hypr-colors.lua carries) at load time so the rotating border
+// re-themes with the wallpaper on reload.
 const gradientBorderBlock = "do\n" +
 	"  local ok, wc = pcall(dofile, os.getenv(\"HOME\") .. \"/.cache/ryoku/hypr-colors.lua\")\n" +
 	"  local function rgb(h, f) if type(h) ~= \"string\" then h = f end return \"rgb(\" .. h:gsub(\"#\", \"\") .. \")\" end\n" +
@@ -871,8 +872,8 @@ func borderAngleHyprSpeed(friendly float64) float64 {
 
 // genAnimatedBorder: a rotating gradient on the active window border. Off writes
 // nothing to settings.lua; a preview instead stops the sweep and restores the
-// solid border. The gradient reads the palette accents when colours follow the
-// wallpaper, the fixed colours otherwise.
+// solid border. The gradient runs from the palette accent to the background when
+// colours follow the wallpaper, the fixed colours otherwise.
 func genAnimatedBorder(o Overrides, follow, full bool) string {
 	a := o.Appearance
 	if !a.AnimatedBorder {

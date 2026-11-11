@@ -1,6 +1,13 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The window border follows the palette's accent.** With "Follow the
+  wallpaper" on, the active border now takes Matugen `primary` instead of
+  `color4` (the `secondary` role), so it matches the accent the shell and apps
+  use; the inactive border stays on `background`. The live push and the
+  config-time `hypr-colors.lua` read the same roles on every compositor, and the
+  keyboard lighting accent, which reads that file, follows along
+  (`ipc/matugen.go`, `matugen/templates/hypr-colors.lua`).
 - **Rashin now sleeps until its bar opens.** Ask and Agent connect directly to
   the Rashin socket only inside the lazy Alt+Space surface, the launcher's
   backslash Ask creates the same client only when used, and pinned answers stay

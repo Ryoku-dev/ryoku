@@ -238,13 +238,15 @@ named action, plus a Hub switch that reads it live:
 the wallpaper, driven by a named action every provider honours:
 
 - `decoration.borderColors <active> <inactive>` recolours the border from the
-  live palette. Hyprland pushes the colours into the running config through
-  `hyprctl eval`; niri, which has no runtime config IPC, records them in a state
-  file and regenerates the config it watches; wayfire writes the palette file
-  its composer reads, and wayfire reloads its config on the change. All three
-  are a no-op when the store pins a fixed colour
-  (`desktop.appearance.borderFollowsPalette` off), so a wallpaper change never
-  overrides a border colour the user chose.
+  live palette. The shell daemon sends the palette's accent (Matugen `primary`)
+  as the active colour and its `background` as the inactive one, the same roles
+  `~/.cache/ryoku/hypr-colors.lua` carries for the config-time border. Hyprland
+  pushes the colours into the running config through `hyprctl eval`; niri,
+  which has no runtime config IPC, records them in a state file and regenerates
+  the config it watches; wayfire writes the palette file its composer reads, and
+  wayfire reloads its config on the change. All three are a no-op when the store
+  pins a fixed colour (`desktop.appearance.borderFollowsPalette` off), so a
+  wallpaper change never overrides a border colour the user chose.
 
 `monitorConfig` adds two output actions beside the display settings it gates:
 
