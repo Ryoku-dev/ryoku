@@ -23,6 +23,9 @@ for finer detail.
   user is no longer in a mango session.
 
 ### Fixed
+- The Game Bar holds the pointer over the whole screen while it is open, so a
+  game under it no longer takes the cursor and hides it in the gaps between
+  widgets. A pinned card left behind after closing still takes no input.
 - Matugen template rendering now preserves distinct `dark` and `light` buckets in
   the carrier data instead of duplicating the active palette into both, allowing
   multi-theme applications like Zed editor to render both dark and light themes
