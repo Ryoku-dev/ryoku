@@ -92,6 +92,7 @@ Item {
 
                     width: column.width
                     horizontalAlignment: sheet.align
+                    textFormat: Text.PlainText
                     wrapMode: Text.WordWrap
                     maximumLineCount: 3
                     elide: Text.ElideRight
@@ -137,6 +138,7 @@ Item {
                 required property var modelData
                 width: parent.width
                 horizontalAlignment: sheet.align
+                textFormat: Text.PlainText
                 wrapMode: Text.WordWrap
                 elide: Text.ElideRight
                 text: modelData

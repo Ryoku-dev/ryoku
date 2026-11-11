@@ -1,6 +1,9 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Lyrics are shown as plain text.** LRCLIB lyrics are written by anyone, and
+  the lyric sheet and the tall music widget read markup in them, so a line could
+  restyle itself or pull an image from the web; tags now show as typed.
 - **Nomarchy's work Wi-Fi join keeps the password out of nmcli's history.** The
   802.1X password went through `nmcli connection edit`, which saves every line
   it reads to `~/.cache/nmcli-history`; it now reaches nmcli on a pipe.
