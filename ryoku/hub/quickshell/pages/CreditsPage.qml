@@ -47,7 +47,8 @@ Item {
         { "name": "Parakeet TDT 0.6B v3", "by": "NVIDIA", "role": I18n.tr("dictation model lineage (CC-BY-4.0)"), "url": "https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/parakeet-tdt-0_6b-v3" },
         { "name": "ryoku-discord", "by": "Ron (niqqudim)", "role": I18n.tr("default Discord theme (MIT)"), "url": "https://github.com/niqqudim/ryoku-discord" },
         { "name": "midnight", "by": "refact0r", "role": I18n.tr("Discord theme foundation (MIT)"), "url": "https://github.com/refact0r/midnight-discord" },
-        { "name": "system24", "by": "refact0r", "role": I18n.tr("Discord theme foundation (MIT)"), "url": "https://github.com/refact0r/system24" }
+        { "name": "system24", "by": "refact0r", "role": I18n.tr("Discord theme foundation (MIT)"), "url": "https://github.com/refact0r/system24" },
+        { "name": "Material Symbols", "by": "Google", "role": I18n.tr("Rashin and Lithic icons (Apache-2.0)"), "url": "https://github.com/google/material-design-icons" }
     ]
 
     // the alpha/beta crew, constantly stress-testing and filing bugs. each name

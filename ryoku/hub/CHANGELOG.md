@@ -107,6 +107,9 @@
   `../shell/matugen/config.toml`).
 
 ### Added
+- **Credits name Material Symbols.** Rashin's app and Lithic's Gio kit draw
+  Google's Material Symbols (Apache-2.0) (`quickshell/pages/CreditsPage.qml`,
+  `../../NOTICE`).
 - **Power Saver has separate laptop dimming controls.** Performance can switch
   keyboard dimming, built-in panel 60 Hz and screen dimming independently
   (`quickshell/pages/PerformancePage.qml`).
