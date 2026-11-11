@@ -17,7 +17,23 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
 - Requests on one connection may be in flight together; responses carry the
   request id and may come back in any order. Events interleave with responses.
 - Error codes: `bad_request`, `not_found`, `unavailable`, `conflict`,
-  `disabled`, `unsupported`, `internal`. Messages are sentences for people.
+  `disabled`, `unsupported`, `forbidden`, `internal`. Messages are sentences
+  for people.
+- `forbidden` refuses a Teams or vault method that only the user may call
+  (`teams.UserOnly`) to any connection not opened by the Rashin app binary
+  (`rashin-app` beside the daemon, or `/usr/bin/rashin-app`, read from the
+  peer's `/proc/<pid>/exe`). It also refuses, on the main socket, a
+  `teams.agent_*` call, a `session.new` naming a team, task or member, and
+  from anything but the app the control methods on a team task's session
+  (`session.permission`, `set_model`, `set_mode`, `set_option`, `prompt`,
+  `queue`, `unqueue`, `steer`, `goal`, `cancel`, `stop`, `start`, `rename`,
+  `delete`, `handoff`, `fork`, `revert_turn`).
+- A team task's session runs its agent in a bubblewrap sandbox and is served
+  on a socket of its own, `$XDG_RUNTIME_DIR/rashin/agents/<session>/rashin.sock`,
+  which the sandbox sees at the main socket's path. A connection there may call
+  only the `teams.agent_*` methods as that session, its own `session.goal`, its
+  own `screen.act` as the agent and `screen.control` ask and stop, and the
+  index methods that read; everything else is `forbidden`.
 
 ## Methods
 
@@ -75,6 +91,60 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
 | `settings.get` | | `Settings` |
 | `settings.set` | `SettingsSetParams` (merge patch) | `Settings` |
 | `ui.open` | `UIOpenParams` | `UIOpenResult` |
+| `teams.list` | | `TeamsResult` |
+| `teams.templates` | | `TeamTemplatesResult` |
+| `teams.create` | `TeamCreateParams` | `Team` (with its routines) |
+| `teams.update` | `TeamUpdateParams` (merge patch) | `Team` |
+| `teams.delete` | `TeamRef` (its tasks, routines and grants go; its folder stays) | |
+| `teams.pause` | `TeamPauseParams` | `Team` |
+| `teams.export` | `TeamRef` | `TeamExportResult` (written into the team's folder, no history or values) |
+| `teams.import` | `TeamImportParams` | `Team` (paused, routines off) |
+| `teams.tasks` | `TeamTasksParams` | `TeamTasksResult` |
+| `teams.task_create` | `TeamTaskCreateParams` | `TeamTask` |
+| `teams.task_stop` | `TeamTaskRef` (and what it delegated) | `TeamTask` |
+| `teams.task_retry` | `TeamTaskRetryParams` | `TeamTask` |
+| `teams.task_read` | `TeamTaskRef` | `TeamTask` |
+| `teams.task_delete` | `TeamTaskRef` (its sessions stay) | |
+| `teams.routines` | `TeamRef` (empty id: every team) | `RoutinesResult` |
+| `teams.routine_create` | `RoutineCreateParams` | `Routine` |
+| `teams.routine_update` | `RoutineUpdateParams` (merge patch) | `Routine` |
+| `teams.routine_delete` | `RoutineRef` (its tasks stay) | |
+| `teams.routine_run` | `RoutineRef` | `TeamTask` |
+| `teams.routine_preview` | `RoutinePreviewParams` | `RoutinePreview` |
+| `teams.approvals` | `ApprovalsParams` | `ApprovalsResult` |
+| `teams.approval_decide` | `ApprovalDecideParams` (once, always, deny, or provide with a value) | `Approval` |
+| `teams.activity` | `TeamActivityParams` | `ActivityResult` |
+| `teams.spend` | `TeamSpendParams` | `TeamSpend` |
+| `teams.agent_report` | `AgentReportParams` | `AgentAnswer` |
+| `teams.agent_delegate` | `AgentDelegateParams` (the lead only) | `AgentAnswer` |
+| `teams.agent_status` | `AgentRef` | `AgentStatusResult` (the pieces the task handed out) |
+| `teams.agent_ask` | `AgentAskParams` | `AgentAnswer` |
+| `teams.agent_http` | `AgentHTTPParams` (`saveAs`: a path in the team's folder for the whole answer) | `AgentHTTPResult` (`saved` when it was saved, `waiting` while the user decides) |
+| `teams.agent_mail` | `AgentMailParams` | `AgentAnswer` |
+| `teams.agent_request` | `AgentCredentialRequestParams` | `AgentAnswer` |
+| `teams.agent_credentials` | `AgentRef` | `AgentCredentialsResult` |
+| `vault.info` | | `VaultInfo` (never a value) |
+| `vault.add` | `VaultAddParams` | `Credential` |
+| `vault.update` | `VaultUpdateParams` | `Credential` |
+| `vault.remove` | `VaultRef` | |
+| `vault.events` | `VaultEventsParams` | `VaultEventsResult` |
+| `vault.mail` | `MailAccountParams` (set or remove) | `VaultInfo` |
+| `vault.mail_test` | | `MailTestResult` |
+
+Who may call the Teams and vault methods (`internal/teams/authority.go`,
+`internal/daemon/gate.go`):
+
+- Anything on the main socket may call the ones that read: `teams.list`,
+  `teams.templates`, `teams.tasks`, `teams.routines`,
+  `teams.routine_preview`, `teams.approvals`, `teams.activity`,
+  `teams.spend`, `vault.info` and `vault.events`. None of them returns a
+  credential value, and what they show is redacted before it is recorded.
+- Every other `teams.*` and `vault.*` method is the user's and is served only
+  to the Rashin app. A method added later is the user's until it is listed as
+  readable.
+- The `teams.agent_*` methods are served only on a team task's own socket,
+  and each carries an `AgentRef` (session and run token) that the daemon
+  checks against that session's live run.
 
 ## Events
 
@@ -92,6 +162,14 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
 | `ui.focus` | `UIOpenParams` | app subscribers |
 | `notice` | `Notice` | subscribers |
 | `screen` | `ScreenState` (`stopped` when it ended) | subscribers |
+| `team` | `Team` | subscribers |
+| `team.removed` | `TeamRemoved` | subscribers |
+| `team.task` | `TeamTask` | subscribers |
+| `team.task.removed` | `TeamRemoved` | subscribers |
+| `team.approval` | `Approval` | subscribers |
+| `routine` | `Routine` | subscribers |
+| `routine.removed` | `TeamRemoved` | subscribers |
+| `vault` | `VaultInfo` (never a value) | subscribers |
 
 ## Session events
 

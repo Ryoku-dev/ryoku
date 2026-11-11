@@ -4,6 +4,27 @@
 - **Rashin is rebuilt as Ryoku's optional AI system.** Its free-model router,
   read-only Ask agent, external coding harnesses, project and system Index,
   command line and Lithic app now share one socket-activated daemon.
+- **Rashin has a Teams mode.** A team is a lead and up to five more agents
+  with one purpose and a folder of its own; give it a task and it works in an
+  ordinary agent session, hands pieces to its members and leaves a report in
+  the Inbox. The Teams button or Ctrl T switches the app to it
+  (`rashin/internal/teams`, `rashin/internal/app/pages/teams`).
+- **Teams keep credentials their agents never see.** Values are sealed in
+  Rashin's credential vault under a key kept in the login keyring, and Rashin
+  adds them to a request or a mail itself, only for allowed hosts and after
+  you approve the exact action. A request can save its answer into the
+  team's folder (`rashin/internal/vault`, `rashin/internal/teams/egress.go`).
+- **Team agents run in a sandbox.** Each one runs in bubblewrap with the
+  filesystem read-only except its team folder, Rashin's state and the keyrings
+  hidden, and its own socket that serves only its own tools
+  (`rashin/internal/sandbox`, `rashin/internal/daemon/sandbox.go`).
+- **Teams can work on a schedule.** Routines give a team a task on a cron
+  schedule; while one is on the daemon stays up and `rashind-routines` wakes
+  it after a login or a reboot (`rashin/internal/teams/schedule.go`).
+- **Activity says who did what.** An append-only ledger records every task,
+  approval, credential use and failure by you, a routine, an agent or Rashin,
+  and marks what happened while no window was open
+  (`rashin/internal/teams/ledger.go`).
 - **Rashin's app has a new layout.** A sidebar that folds to a rail, one
   reading column for questions and answers, and every page in the same frame
   with one search field (`rashin/internal/app`).

@@ -1,7 +1,7 @@
 # Ryoku Rashin
 
 Rashin (羅針, "compass needle") is Ryoku's optional AI system. It is one Go
-daemon with three clients:
+daemon that serves four things:
 
 - **Ask**: questions about this machine, or plain chat, answered by free models
   through Rashin's built-in model router. Ask reads the machine and, unless
@@ -13,6 +13,9 @@ daemon with three clients:
   Protocol, with Rashin owning the sessions, files, terminals and approvals.
 - **Index**: project and system indexing with semantic search (the potion code
   embedding model), also served as the `rashin` command line.
+- **Teams**: standing groups of agents that take tasks on their own, on a
+  schedule or when asked, each agent in a sandbox, with a credential vault
+  whose values they never see.
 
 The machine map every agent reads is the **Ryoku vault**, owned by Ryoku core
 and independent of Rashin. `ryoku vault refresh` maintains it even when Rashin
@@ -30,9 +33,10 @@ This page is the contract the implementation follows. The wire reference is
    and model calls belong to `rashind`. Clients only render and send input, so
    quitting the app never loses a session.
 3. **Idle means gone.** An idle daemon exits; an idle agent process stops.
-   Sessions live on disk and resume on the next prompt. One exception is asked
-   for by name: a daemon that serves the local API stays up, because other
-   programs hold its address.
+   Sessions live on disk and resume on the next prompt. Two exceptions are
+   asked for by name: a daemon that serves the local API stays up, because
+   other programs hold its address, and so does one with a team routine on,
+   because routines run from its clock.
 4. **Ask reads unless told otherwise.** Ask starts read-only: anything that
    changes the machine is a proposed command the user runs, or a handoff to
    an Agent. A conversation changes the machine only after the user set that
@@ -47,9 +51,9 @@ This page is the contract the implementation follows. The wire reference is
 
 | Piece | Binary or file | Stack | Job |
 |---|---|---|---|
-| Daemon | `rashind` | Go, no cgo | Gateway, Ask, Agent adapters, sessions, index |
+| Daemon | `rashind` | Go, no cgo | Gateway, Ask, Agent adapters, sessions, index, teams |
 | Command line | `rashin` | Go, no cgo | Lifecycle, ask from a terminal, index queries, any method |
-| App | `rashin-app` | Go + Gio, Lithic | Ask, Agent, Index, Settings |
+| App | `rashin-app` | Go + Gio, Lithic | Ask, Agent, Index, Teams, Settings |
 | Bar | Alt+Space | Quickshell QML | Quick Ask and Agent turns, Stash tools, Web search |
 | Hub page | Ryoku Settings > Rashin | Quickshell QML | On/off switch, status, open the app |
 | Usage collectors | `ryoku-ai-usage` and friends | sh | Coding-agent usage for the bar's usage pill |
@@ -75,8 +79,11 @@ ryoku/rashin/
   internal/brief/       what every request is told about Ryoku, the vault and Rashin
   internal/harness/     ACP adapters for external harnesses
   internal/index/       index engine, embedding model, queries
+  internal/teams/       Teams: teams, tasks, approvals, routines, budgets, ledger
+  internal/vault/       the credential vault: sealed values, mail account, record of use
+  internal/sandbox/     the bubblewrap sandbox team agents run in
   internal/app/         Gio client (shell, state, pages, chat widgets, desktop, demo)
-  systemd/              rashind.socket, rashind.service
+  systemd/              rashind.socket, rashind.service, rashind-routines.timer and .service
   usage/                coding-agent usage collectors
 ```
 
@@ -104,9 +111,16 @@ turns Rashin on at first login.
 - **systemd** (Arch, CachyOS, Fedora): `rashind.socket` listens on
   `%t/rashin/rashin.sock` (`SocketMode=0600`, `DirectoryMode=0700`) and
   activates `rashind.service`. The service has no `[Install]` section.
-- **runit and anything else** (Void): no service. A client that finds no
-  socket while Rashin is on starts `rashind` itself, detached (`setsid`, its
-  own process group, stdio to the daemon log), then waits up to 3 s for the
+  `rashind-routines.timer` (`OnStartupSec=1min`, `OnUnitActiveSec=30min`)
+  runs `rashin routines wake`, which starts the daemon only when Rashin is
+  on and a team routine is on; the daemon enables the timer when the first
+  routine turns on and disables it when the last turns off.
+- **runit and anything else** (Void): no daemon service; the user service
+  `rashind-routines` ships with a `down` file and runs `rashin routines wake`
+  every 30 minutes while a routine is on, the daemon enabling and disabling it
+  like the timer. A client that finds no socket while Rashin is on starts
+  `rashind` itself, detached (`setsid`, its own process group, stdio to the
+  daemon log), then waits up to 3 s for the
   socket. `internal/client` implements this once for every Go client; the bar
   calls `rashin ensure` when it opens, and the Hub only reads
   `rashin status --json`, so opening the Hub never starts the daemon.
@@ -119,10 +133,13 @@ turns Rashin on at first login.
 ### Stopping
 
 - **Idle exit:** the daemon exits after `daemon.idleExitMinutes` (default 5)
-  when no client is connected, no turn is running, no agent process is alive and
-  no index job is running. The check is event driven (re-armed on state
-  changes), never a poll. A daemon that serves the local API (see Gateway)
-  drops its loaded indexes at that point and stays up.
+  when no client is connected, no turn is running, no agent process is alive,
+  no index job is running and no team task is working. The check is event
+  driven (re-armed on state changes), never a poll. A daemon that serves the
+  local API (see Gateway), or one with a routine on in a team that is not
+  paused (see Teams), drops its loaded indexes at that point and stays up.
+  With no routine on and no window open it exits as before, so Teams costs
+  nothing while unused.
 - **Agent idle stop:** an agent process stops after `agent.idleStopMinutes`
   (default 10) without a turn, even while the app shows it. The next prompt
   starts it again and resumes the session (`session/load` when the harness
@@ -144,20 +161,26 @@ turns Rashin on at first login.
 | Command | Does |
 |---|---|
 | `rashin on` | writes `enabled: true`; systemd: enables and starts `rashind.socket` and `ryoku-ai-usage.timer` through `ryoku-host svc --user enable --now`; runit: enables the `ryoku-ai-usage` service |
-| `rashin off` | writes `enabled: false`; asks a running daemon to `shutdown`; disables and stops the socket, service and usage timer (runit: stops the usage service and kills a daemon left running through the lock holder's pid) |
+| `rashin off` | writes `enabled: false`; asks a running daemon to `shutdown`; disables and stops the socket, service, usage timer and routines wake timer (runit: stops the usage and routines wake services and kills a daemon left running through the lock holder's pid) |
+| `rashin routines wake` | exit 0 at once when Rashin is off or no routine is on in an unpaused team (read from the teams' `state.json`, no daemon); else starts the daemon through its socket |
+| `rashin open --route <route>` | opens a Teams mode place (see Teams, In the app) in a running app through `ui.open` and raises it, or starts the app there |
 | `rashin status [--json]` | enabled, running, version, counts; never starts the daemon |
 | `rashin ensure` | exit 0 once the daemon answers `hello`; exit 3 when off; exit 1 on failure |
 | `rashin migrate` | idempotent upgrade from Rashin 1 and Prowl (below) |
 
 `ryoku doctor` converges the units to `enabled`: on means the socket and timer
-are enabled, off means both disabled and no daemon running. It also runs
-`rashin migrate` and removes the Rashin 1 and Prowl units.
+are enabled, off means both disabled, the routines wake timer disabled and no
+daemon running. The routines wake timer follows the daemon while Rashin is
+on. With Rashin not installed it stops a daemon left running, stops and
+disables the socket, service, usage timer and routines wake timer (runit: the
+usage and routines wake services) and removes their leftover unit links. It
+also runs `rashin migrate` and removes the Rashin 1 and Prowl units.
 
 ### Zero at rest, checked
 
 With Rashin off or absent, all of these hold, and the live proof checks each:
 
-- `systemctl --user is-enabled rashind.socket ryoku-ai-usage.timer` reports
+- `systemctl --user is-enabled rashind.socket ryoku-ai-usage.timer rashind-routines.timer` reports
   disabled or not found; no `rashind`, `rashin-app` or agent process exists;
   `$XDG_RUNTIME_DIR/rashin/rashin.sock` does not exist.
 - The shell starts no Rashin process at login: no singleton probes Rashin; the
@@ -180,12 +203,16 @@ Every path comes from `internal/paths`; nothing else spells one.
 | `$XDG_STATE_HOME/ryoku/rashin/rashind.log` | warnings and errors, rotated at 1 MiB |
 | `$XDG_STATE_HOME/ryoku/rashin/projects.json` | projects, their settings, Rashin-made worktrees, tasks, review comments |
 | `$XDG_STATE_HOME/ryoku/rashin/activity/<project>.jsonl` | a project's action ledger |
+| `$XDG_STATE_HOME/ryoku/rashin/teams/` | Teams: `state.json` (teams, routines, approvals), `tasks/<id>.json`, `ledger.jsonl` (Activity), `spend.json` |
+| `$XDG_STATE_HOME/ryoku/rashin/vault.db` | the credential vault: sealed values, the mail account, its record of use (bbolt, mode 0600) |
+| `~/Teams/<slug>` | a team's folder, where its agents work (default) |
 | `$XDG_DATA_HOME/ryoku/worktrees/<project>/<name>` | worktrees Rashin creates (default) |
 | `$XDG_CACHE_HOME/ryoku/rashin/index/<id>/index.db` | one index (bbolt) |
 | `$XDG_RUNTIME_DIR/rashin/rashin.sock` | the socket |
 | `$XDG_RUNTIME_DIR/rashin/rashind.lock` | daemon lock |
 | `$XDG_RUNTIME_DIR/rashin/config.lock` | serialises writes of `rashin.json` |
 | `$XDG_RUNTIME_DIR/rashin/app.lock` | app single instance |
+| `$XDG_RUNTIME_DIR/rashin/agents/<session>/rashin.sock` | a team task's own socket, the only way its sandboxed agent reaches the daemon |
 
 The directories are created 0700. Tests and sandboxes move all of them with the
 XDG variables; `RASHIN_SOCKET` overrides the socket for a client.
@@ -202,7 +229,8 @@ XDG variables; `RASHIN_SOCKET` overrides the socket for a client.
   "agent":  {"harness": "", "approvals": "read-only", "idleStopMinutes": 10},
   "daemon": {"idleExitMinutes": 5},
   "index":  {"system": true, "semantic": true},
-  "api":    {"enabled": false, "port": 3600}
+  "api":    {"enabled": false, "port": 3600},
+  "teams":  {"maxRunning": 3}
 }
 ```
 
@@ -224,6 +252,8 @@ XDG variables; `RASHIN_SOCKET` overrides the socket for a client.
 - `index.system`: maintain the system index; `index.semantic`: compute vectors.
 - `api.enabled`: serve the local API (see Gateway); `api.port`: where, 1024 to
   65535.
+- `teams.maxRunning`: how many team tasks run at once across all teams, 1 to
+  6 (Settings > Teams, Tasks at once).
 
 Clients change settings only through `settings.set`; the daemon writes the file
 atomically and broadcasts `settings.changed`.
@@ -241,7 +271,8 @@ event     {"event": "session.event", "data": {...}}
 
 The first request on every connection is `hello` (`client`: `app`, `bar`,
 `cli`, `hub`). Error codes: `bad_request`, `not_found`, `unavailable`,
-`conflict`, `disabled`, `unsupported`, `internal`. `internal/protocol` holds
+`conflict`, `disabled`, `unsupported`, `forbidden`, `internal`.
+`internal/protocol` holds
 every method with its params and result types and every event; `rashin call
 <method> [json]` and `rashin events` reach any of them.
 
@@ -251,16 +282,20 @@ start, rename, delete, stop, handoff, queue, unqueue, steer, fork, read,
 revert_turn), `ask`
 (new session, attach, prompt in one call), `providers.*`, `models.list`,
 `gateway.usage|api|api_key`, `harnesses.*`, `index.*`, `settings.get|set`,
-`ui.open`, and
+`ui.open`,
 Work: `projects.*`, `worktrees.*`, `git.*`, `review.*`, `tasks.*`,
-`activity.list`.
+`activity.list`, and Teams: `teams.*` and `vault.*` (see Teams; most of them
+answer only the Rashin app).
 
 `subscribe` returns a snapshot (status, recent sessions, settings, providers,
-harnesses, indexes, projects, tasks) and from then on the connection receives
-the global events: `sessions.changed`, `session.info`, `settings.changed`,
-`providers.changed`, `api.changed`, `harnesses.changed`, `index.progress`,
-`index.changed`,
+harnesses, indexes, projects, tasks, teams with their open and recent tasks,
+approvals, routines and the vault without any value) and from then on the
+connection receives the global events: `sessions.changed`, `session.info`,
+`settings.changed`, `providers.changed`, `api.changed`, `harnesses.changed`,
+`index.progress`, `index.changed`,
 `projects.changed`, `worktrees.changed`, `tasks.changed`, `review.changed`,
+`team`, `team.removed`, `team.task`, `team.task.removed`, `team.approval`,
+`routine`, `routine.removed`, `vault`,
 `ui.focus` (app clients only), `notice`. `session.attach` adds `session.event`
 for that session; `projects.watch` adds `git.changed` for a project.
 
@@ -542,7 +577,9 @@ A harness is installed when its command resolves on `PATH` (Hermes also from
 Client capabilities Rashin offers: `fs.readTextFile`, `fs.writeTextFile`,
 `terminal`. Rashin reads and writes files for the agent (recording each write as
 a `tool` event diff), and runs its terminals (pipes, output capped at 1 MiB per
-terminal, killed on release or session stop).
+terminal, killed on release or session stop). A team agent, which runs in a
+sandbox (see Teams), is offered neither: Rashin refuses its `fs/` and
+`terminal/` requests, so nothing it asks for runs outside the sandbox.
 
 - **Attachments**: a picture goes as an ACP `image` block to an agent that
   advertised `promptCapabilities.image`. Every other file, and a picture for
@@ -850,6 +887,214 @@ gates, failed turns, conflicts), Working (with the activity line), Done
 (unread) and Idle. Each card names the harness, model, project, worktree and
 branch and opens the session. Stop all ends every running turn.
 
+## Teams
+
+Teams is the second mode of the app: agents that work on their own, on a
+schedule or when given a task, and hand back a report. A team is a standing
+group of agents with one purpose on this computer. Its agents run in a
+sandbox, reach the outside world with a credential only through Rashin, and
+wait for the user before anything that leaves the machine in their name
+(`internal/teams`, `internal/vault`, `internal/sandbox`, `protocol/teams.go`,
+`protocol/vault.go`). Nothing in Teams runs while no task is working and no
+routine is on.
+
+- A **team** has a name, a purpose, a folder (default `~/Teams/<slug>`), a
+  lead and up to five more members (each a name, a title, a harness
+  instance, a model and instructions), its tools (a screen of its own,
+  mail), how far its agents go before asking (read only, ask before changes,
+  act without asking: an approvals value), a budget and a notify level
+  (`all`, `needs`, `none`). A paused team starts no task and fires no
+  routine.
+- **Templates**: Research desk, Mail desk, Repo watch, System care and New
+  team. Repo watch brings the routine Morning review (`0 9 * * 1-5`) and
+  System care one at `0 18 * * *`, both off.
+- `teams.export` writes a team's definition into its folder, without history
+  or credential values; `teams.import` makes a paused team from one, its
+  routines off.
+
+### Tasks
+
+- A task is an ordinary Agent session in the team's folder, driven by the
+  goal machinery (see Agent, Goals): the goal is the task's brief and the turn
+  budget is the team's turns per task. It ends when the agent
+  calls `report`; the report lands in the Inbox unread. A task that cannot
+  finish ends blocked and says why.
+- States use the Work board's words: ready (waiting for room), working,
+  needs you, done, blocked, stopped. A task came from you, a routine or the
+  lead. Stop, retry with a note and delete are the user's.
+- The lead takes the team's tasks and hands pieces to members with
+  `delegate`: one level deep, at most four open at a time. It is held until
+  their reports are in and then continued with them, and `team_status` shows
+  it what it handed out. Stopping a task stops what it delegated.
+- At most two tasks of one team run at once, and `teams.maxRunning` (default
+  3) across all teams; the rest wait their turn.
+- The tools come from `rashin mcp`, which the daemon starts with the team's
+  environment (`RASHIN_TEAM`, `RASHIN_TEAM_TOKEN`, `RASHIN_TEAM_LEAD`):
+  `report`, `ask_user`, `credentials`, `http_request`, `send_mail`,
+  `request_credential`, and for the lead `delegate` and `team_status`, beside
+  the usual code search, goal and screen tools. Each is a `teams.agent_*`
+  call carrying the run's token, which the daemon checks against that
+  session's live run.
+- Only the daemon starts a task's session (`session.new` naming a team is
+  refused), and only the Rashin app answers for it, prompts, steers or ends
+  it.
+
+### Approvals
+
+- An approval holds the exact action it shows: a mail's whole text, or a
+  request's method, address, headers and body. Approved, that action runs
+  once, as shown. `send_mail` and `http_request` ask by themselves, so agents
+  are told not to ask first with `ask_user`.
+- Kinds: `mail`, `credential` (a credential's first use on a host),
+  `request` (an agent asks for one its team lacks), `action` (`ask_user`) and
+  `budget`.
+- Answers are once, always or deny, with an optional note the agent reads;
+  a `request` is answered with the value itself.
+  Always is offered for one credential on one host for one team, or one mail
+  recipient for one team. An approval nobody answers expires as denied after
+  24 hours.
+- They are answered in the Inbox or on the task's page, and every decision
+  goes into Activity.
+
+### Routines
+
+- A routine is a brief a team takes on by itself on a cron schedule: the
+  presets every hour, day, weekday, week or month, or a custom five-field
+  expression, shown as a sentence with its next five runs
+  (`teams.routine_preview`). Times are local.
+- At most one run every 15 minutes, and at most 20 routines on. A run missed
+  while the computer was off or asleep is skipped by default (`missed`:
+  `skip` or `once`); a run due while the last still works is skipped by
+  default (`overlap`: `skip` or `queue`). Five failures in a row turn a
+  routine off.
+- Each run is a task whose origin is the routine. `teams.routine_run` starts
+  one at once.
+- While a routine is on in a team that is not paused, the daemon stays up and
+  the routines wake unit is enabled, so routines pick up again after a login,
+  a reboot or a daemon exit (see Lifecycle). The daemon enables the unit when
+  the first routine turns on and disables it when the last turns off.
+
+### Budgets
+
+- Tokens are counted per turn from the usage the harness reports and kept
+  per day, member and routine (`teams.spend`, the team's Spend view). A new
+  team that names no budget takes its template's, else 2,000,000 tokens a
+  month with a warning at 80%; a limit of 0 is no limit.
+- The warning comes once, at the warn mark. At 100% the team pauses, its open
+  tasks stop, and the Inbox asks whether to raise the limit by half or keep
+  the team paused.
+
+### Activity and notices
+
+- **Activity** is an append-only ledger (`teams/ledger.jsonl`) of who did
+  what: you, a routine, an agent or Rashin. Its filters are All, Nobody
+  watching, Approvals, Credentials and Failures, plus a team. Nobody watching
+  marks what happened while no Rashin window was open.
+- With no window open, the daemon sends a desktop notification for what needs
+  the user and for reports, by the team's notify level; pressing it opens the
+  place it names.
+
+### Vault
+
+Rashin's credential vault (`internal/vault`, `vault.*`) holds what teams need
+to sign in somewhere. It is not the Ryoku vault, and agents never see a
+value.
+
+- Values are sealed with AES-256-GCM (the credential's id and version as
+  additional data) in `vault.db` (bbolt, 0600, in a 0700 directory). The key
+  lives only in the login keyring (Secret Service, attributes
+  `application=rashin`, `purpose=vault-key`), made with the first value; there
+  is no key file to fall back to, so a locked keyring closes the vault and a
+  missing one makes it unavailable. Replacing a value keeps one previous
+  version. A fingerprint (the first eight hex digits of an HMAC of the value,
+  keyed from the vault key) tells two values apart without showing either.
+- A credential has a name in upper case (`GITHUB_TOKEN`), a description, how
+  it is sent (a bearer token, a named header with an optional prefix, or the
+  mail account's password), the hosts it may go to (`*.example.org` covers
+  subdomains; https only, plain http only to localhost) and the teams that
+  may use it.
+- `http_request` sends one HTTPS request with the credential added by the
+  daemon, only to an allowed host, with no redirects, no proxy and TLS 1.2 or
+  newer. An agent may not set `Authorization`, a method override, `Range`,
+  `If-Range`, `Accept-Encoding` or `TE`, and a body over 8 KiB is refused, so
+  the card can show the whole request. The response is scrubbed of the value
+  in raw, base64, URL and JSON-escaped forms, and one with a
+  `Content-Encoding` nobody asked for is withheld. The agent is shown the
+  status, the headers it may keep and the first 16 KiB. With `save_as`, a
+  path inside the team's folder (no absolute path, no `..`, no link out of
+  the folder), the scrubbed answer, up to 8 MiB, is written there (0600) and
+  the agent is told how many bytes went where; the card says where it saves.
+  The first use on a host asks; Always trusts that credential on that host
+  for that team.
+- **Mail**: one mail account (address, name, server, port, STARTTLS, TLS, or
+  none for localhost only, user name, and a credential for the password).
+  `send_mail` asks with the exact mail and the daemon sends it once approved.
+  Test the login checks the account without sending (`vault.mail_test`).
+- `request_credential` asks the user for a credential the team lacks, for
+  exact hosts only. The user types the value into the Inbox or the Vault
+  card. Providing it trusts nothing: the first use still asks.
+- Values are scrubbed from the ledger, the vault's record of use, approval
+  titles and details, reports and failure text.
+
+### Sandbox
+
+Every team agent runs inside bubblewrap (`bwrap`, `internal/sandbox`,
+`internal/daemon/sandbox.go`):
+
+- The whole filesystem is read-only. The team's folder, the harness's own
+  state (such as `~/.omp` or `~/.claude`) and `~/.cache` are writable.
+  Rashin's state and cache, the login keyrings, `~/Teams` (the other teams'
+  folders) and the Ryoku vault are hidden. `/tmp`, `/dev/shm` and
+  `XDG_RUNTIME_DIR` are private, and PID and IPC namespaces are its own. There
+  is no session bus, no display, no SSH agent; the network is shared. The
+  daemon's own programs stay visible, read-only, wherever they run from.
+- The agent reaches Rashin only through its task's own socket,
+  `$XDG_RUNTIME_DIR/rashin/agents/<session>/rashin.sock`, which the sandbox
+  sees at the main socket's path. It serves that session's team tools, goal
+  and screen and the index methods that read; everything else is refused
+  ("An agent can use only its own tools here.").
+- Programs an agent opens on its screen run in the same sandbox, with the
+  screen's display and private bus.
+- On the main socket, only the Rashin app may call the user's methods: every
+  `teams.*` and `vault.*` method except the ones that only read and the
+  agents' `teams.agent_*`, and every control of a team session. The app is
+  known by the peer's executable: `rashin-app` beside the daemon or
+  `/usr/bin/rashin-app`. Anything else is told "Only the Rashin app can do
+  this." `rashin-app --script` runs only with `--demo`.
+- The daemon is not dumpable: no core dumps, and no reading its memory
+  through `/proc` as the same user.
+- Without bubblewrap, team tasks do not start. They end blocked with "Teams
+  run their agents in a sandbox, which needs bubblewrap. Install the
+  bubblewrap package." Every package lane depends on it.
+
+### In the app
+
+- The Teams button right of the search field, or Ctrl T, switches the window
+  to Teams mode and back. Ctrl 1 to 6 pick its destinations: Inbox, Teams,
+  Work, Routines, Vault and Activity. Settings > Teams holds Tasks at once
+  (`teams.maxRunning`).
+- Routes: `inbox`, `teams`, `teams/new[/<template>]`, `teams/<team>[/<view>]`
+  (views `overview`, `work`, `routines`, `spend`, `settings`),
+  `work[/<task>]`, `routines`, `routines/new[/<team>]`,
+  `routines/<routine>`, `vault[/<credential>]` and `activity`
+  (`shell.TeamsRoute`). `rashin open --route <route>` opens `inbox`,
+  `activity`, `teams[/<team>[/<view>]]`, `work[/<task>]`,
+  `routines[/<routine>]` or `vault[/<credential>]` in a running window, or
+  starts the app there; a notification opens its place the same way.
+- A task's page shows its transcript, what it waits on and its report, and
+  answers its approvals inline.
+
+### Limits
+
+The sandbox and the vault keep a team's agents from your secrets and from
+acting unasked, not everything else. A program you run yourself, outside a
+team, still runs as you: it can reach your login keyring and start the app.
+The network is shared, so abstract Unix sockets and the system bus stay
+reachable from a sandbox, and `/run` outside the runtime directory is visible
+read-only. A team agent reads your files, read-only, like any program you
+run. The app check is a gate for agents, not a boundary against someone
+already running code as you who can start a `rashin-app` and inject into it.
+
 ## The app
 
 `rashin-app` is a Gio client drawn with the Lithic library
@@ -1013,9 +1258,10 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
   answered this week), Local API (the switch, the address, the key, the port),
   Ask (the model route, what a new ask may do, shell habits), Agents (the
   default harness, approvals, notices, the idle stop, the harnesses found with
-  what each will run with, how to install the rest, your own harnesses), Index,
-  Appearance (zoom, reduce motion) and Keyboard (every shortcut). Its list
-  runs to the pane's edge, so the wheel moves it from beside the column too.
+  what each will run with, how to install the rest, your own harnesses), Teams
+  (Tasks at once), Index, Appearance (zoom, reduce motion) and Keyboard (every
+  shortcut). Its list runs to the pane's edge, so the wheel moves it from
+  beside the column too.
   Project settings live with the project.
 - **The desktop** is reached through `internal/app/desktop` only: the file
   chooser (XDG portal `FileChooser`), the clipboard's image (`wl-paste`),
@@ -1042,7 +1288,8 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
 - **Search**: the top bar field (Ctrl+K) finds sessions, projects, worktrees
   and commands; its results open under it at its width.
 - **Keys**: Ctrl+N new, Ctrl+B the sidebar, Ctrl+\ the side panel, Ctrl+1 to 4
-  the destinations, Ctrl+, Settings, Ctrl +, - and 0 zoom, Alt+Left and Right
+  the destinations (1 to 6 in Teams mode), Ctrl+T Teams mode and back, Ctrl+,
+  Settings, Ctrl +, - and 0 zoom, Alt+Left and Right
   history. Escape closes the topmost thing the frame has open and is otherwise
   left to the page: it denies an open permission request. While a dialog is
   open the frame's shortcuts stand down.
@@ -1084,22 +1331,33 @@ runs `rashin ensure` once and retries.
 - **Open in Rashin** runs `rashin open --session <id>`, which asks a running app
   to switch (`ui.open`) and raises it, or launches it. `rashin open --project
   <id or path> --view graph|changes|tasks|activity|overview [--worktree
-  <path>]` opens a project the same way.
+  <path>]` opens a project the same way, and `rashin open --route <route>` a
+  Teams mode place (see Teams, In the app).
 
 ## Packaging and delivery
 
 `ryoku-rashin` ships `rashind`, `rashin`, `rashin-app`, the units, the usage
 collectors and their timer, the desktop entry and icon, and the notices. It
-depends on `ryoku-desktop`; no harness is a dependency. The Ryoku vault, its
-wiki and the `ryoku` skill ship with Ryoku core.
+depends on `ryoku-desktop` and `bubblewrap`, which team agents run in; no
+harness is a dependency. The Ryoku vault, its wiki and the `ryoku` skill ship
+with Ryoku core.
 
 Every edition builds it from the committed `vendor/` tree (`-mod=vendor`):
 PKGBUILD and `payload.sh` (Arch, CachyOS, Void), the RPM spec (Fedora), the
 template (Void), the Nix package. The app needs Wayland, xkbcommon, EGL and
 Vulkan headers at build time (`release/repo/build-toolchain.packages`).
+Every lane carries bubblewrap: a dependency of the PKGBUILD, the RPM spec and
+the Void template, and on the Nix package's `PATH`. The routines wake units
+ship in every lane as well: `payload.sh` installs `rashind-routines.timer`
+and `.service` for systemd (Arch, CachyOS, Fedora's staged package), the Nix
+package installs them with its own paths, and Void has the runit user
+service `void/init/user/rashind-routines` with a `down` file.
 
-Service manifest rows: `rashind` (`rashind.socket`, user, on-demand) and the
-usage timer (user, on-demand); `rashin on|off` owns them.
+Service manifest rows: `rashind` (`rashind.socket`, user, on-demand), the
+usage timer, and the routines wake (`rashind-routines`: the timer, or the
+runit service, user, on-demand) with its worker row for
+`rashind-routines.service`; `rashin on|off` owns the first two, the daemon
+and `rashin off` the routines wake.
 
 ### From Rashin 1 and Prowl
 
@@ -1134,6 +1392,12 @@ user can repoint it.
 
 - Unit tests per package, isolated by the XDG variables; no test touches the
   user's real socket, config or keys.
+- `internal/teams` tests cover approvals, budgets, credentials, egress, mail,
+  routines and tasks with a fake clock and the vault's key held in memory in
+  place of the login keyring. `internal/sandbox` tests run `bwrap` for real
+  and skip, saying why, where bubblewrap cannot run;
+  `internal/daemon/agentsocket_test.go` checks what an agent's socket serves
+  and what the main socket leaves to the app.
 - Fakes: an OpenAI-compatible SSE server for the gateway, a scripted ACP agent
   for the harness runner, a small repository fixture for the index, the demo
   daemon for the app, and a private session bus that knows no service files
@@ -1142,5 +1406,6 @@ user can repoint it.
 - Sandbox: run `rashind` with all XDG variables under `/dev/shm/<run>/` and
   drive it with `rashin call` and `rashin events`.
 - Live proof: Ask with a free provider, an Agent turn with an installed harness,
-  the bar, the app, the index commands, and the zero-at-rest checks above in
+  the bar, the app, the index commands, a team task through a real harness
+  with an approval answered in the app, and the zero-at-rest checks above in
   both the off and the absent states.

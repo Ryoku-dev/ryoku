@@ -40,10 +40,46 @@ and `references` queries.
 The full architecture and protocol contract is in `docs/rashin.md` in the Ryoku
 source tree.
 
+## Teams
+
+Teams is the app's second mode, opened with the Teams button beside the search
+field or Ctrl T. A team is a lead and up to five more agents, each on a harness
+and model you pick, with one purpose and a folder of its own (`~/Teams/<name>`
+by default). You give it a task, or a routine gives it one on a schedule, and
+it hands back a report in the Inbox. Templates start a Research desk, a Mail
+desk, a Repo watch, a System care team or a blank one.
+
+- **Approvals**: a mail, a request carrying a credential for the first time on
+  a host, or a credential the team asks for waits for you in the Inbox or on
+  the task's page, showing exactly what will be sent. Always trusts that one
+  host or recipient for that team. An approval nobody answers is denied after
+  a day.
+- **Routines** run on a cron schedule in local time, at most every 15
+  minutes. Missed runs are skipped by default, and five failures in a row turn
+  a routine off.
+- **Budgets** cap a team's tokens a month. At the limit the team pauses and
+  asks before it spends more.
+- **Activity** records who did what, including what happened while no Rashin
+  window was open.
+- **Vault**: credentials for teams live sealed in Rashin's credential vault,
+  whose key stays in your login keyring. Agents never see a value: Rashin adds
+  it to the request or the mail itself, only for the hosts you allowed. This
+  is not the Ryoku vault described below.
+- **Sandbox**: every team agent runs in bubblewrap, with the filesystem
+  read-only except its team folder and its harness's own files, and with
+  Rashin's state, your keyrings, the other teams' folders and the Ryoku vault
+  hidden. It reaches Rashin only through its own socket. Without the
+  `bubblewrap` package team tasks do not start.
+
+A program you run yourself outside a team still runs as you, the network is
+shared, and a team agent can read your files like any program, so a team is
+not a boundary against code you already run.
+
 ## Surfaces
 
 - Alt+Space opens the thin Ask bar.
-- Super+Alt+Space opens `rashin-app`, with separate Ask and Agent tabs.
+- Super+Alt+Space opens `rashin-app`, with separate Ask and Agent tabs and a
+  Teams mode.
 - `rashin <question>` asks from a terminal.
 - Ryoku Hub > Rashin turns the system on or off.
 
