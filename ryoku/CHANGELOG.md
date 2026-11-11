@@ -64,6 +64,10 @@
   there (`rashin/internal/ask/run.go`, `rashin/internal/app/chat/answer.go`).
 - **Commands Ask runs show their output while they run.** One that takes more
   than a moment unfolds and prints as it goes, not all at once at the end.
+- **The daemon makes way for an update by itself.** A running `rashind` kept
+  serving old code for as long as the app stayed open. It now exits once its
+  program was replaced and nothing is running, and the app reconnects to the
+  new one (`rashin/internal/daemon/replaced.go`).
 - **Answers read more calmly.** Lines stand further apart, list items too,
   and a name written as code sits in the sentence without gaps around it. A
   command an answer offers to run is shown once, in one slab with its Run

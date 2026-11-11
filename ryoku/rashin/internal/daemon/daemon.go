@@ -29,6 +29,9 @@ type Deps struct {
 	Version   string
 	Events    *Broadcaster
 	Lock      *os.File
+	// Program is the file this daemon was started from, watched so a newer
+	// build takes over once nothing is running. Empty watches nothing.
+	Program string
 }
 
 type Daemon struct {
@@ -47,6 +50,8 @@ type Daemon struct {
 	stop       chan struct{}
 	stopOnce   sync.Once
 	idle       *time.Timer
+	program    *programWatch
+	retireOnce sync.Once
 	logger     *daemonLogger
 	api        apiServer
 }
@@ -109,6 +114,16 @@ func (d *Daemon) Run(ctx context.Context) error {
 	d.lock = lock
 	d.mu.Unlock()
 	go func() { <-ctx.Done(); d.Shutdown() }()
+	if d.deps.Program != "" {
+		if watch, watchErr := watchProgram(d.deps.Program, d.retire); watchErr != nil {
+			d.warn("watch %s: %v", d.deps.Program, watchErr)
+		} else {
+			d.mu.Lock()
+			d.program = watch
+			d.mu.Unlock()
+			defer watch.close()
+		}
+	}
 	d.applyAPI()
 	d.stateChanged()
 	for {
@@ -359,7 +374,13 @@ func (d *Daemon) stateChanged() {
 		minutes = agentMinutes
 	}
 	d.idle = time.AfterFunc(time.Duration(minutes)*time.Minute, d.onIdleDeadline)
+	program := d.program
 	d.mu.Unlock()
+	// a turn that just ended may have been all that kept an outdated daemon
+	// up; asked on its own goroutine, since callers hold session locks
+	if program.isReplaced() {
+		go d.retire()
+	}
 }
 
 func (d *Daemon) onIdleDeadline() {

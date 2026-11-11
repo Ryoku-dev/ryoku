@@ -81,6 +81,10 @@ func run() error {
 		return err
 	}
 	deps := daemon.Deps{Gateway: gw, Asker: ask.New(gw, idx), Harnesses: harness.New(), Indexer: idx, Work: work, Version: version, Events: events, Lock: lock}
+	// read now: once the file is replaced the kernel no longer names it
+	if program, programErr := os.Executable(); programErr == nil {
+		deps.Program = program
+	}
 	d := daemon.New(deps)
 	gw.OnChange(d.ProvidersChanged)
 	owned = false
