@@ -234,8 +234,8 @@ GameBarCard {
             id: dock
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom
-            width: transportRow.width + 22 * card.s
-            height: 48 * card.s
+            width: transportRow.width + 14 * card.s
+            height: 38 * card.s
 
             Rectangle {
                 anchors.fill: parent
@@ -252,9 +252,7 @@ GameBarCard {
             Item {
                 id: dockGlass
                 anchors.fill: parent
-                visible: opacity > 0
-                opacity: card.lyricsOpen ? 1 : 0
-                layer.enabled: dockGlass.visible && card.art.length > 0
+                layer.enabled: card.art.length > 0
                 layer.effect: MultiEffect {
                     maskEnabled: true
                     maskSource: dockMask
@@ -262,12 +260,7 @@ GameBarCard {
                     blurEnabled: true
                     blur: 1
                     blurMax: 64
-                    saturation: 0.7
-                    brightness: 0.03
-                }
-
-                Behavior on opacity {
-                    NumberAnimation { duration: Motion.dur(220); easing.type: Easing.OutCubic }
+                    saturation: 1.0
                 }
 
                 Image {
@@ -293,7 +286,14 @@ GameBarCard {
                 height: dockGlass.height
                 radius: height / 2
                 visible: false
-                layer.enabled: dockGlass.visible
+                layer.enabled: true
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                radius: height / 2
+                color: GameBarLook.alpha(GameBarLook.content, 0.55)
+                opacity: card.art.length > 0 ? 1 : 0
             }
 
             Rectangle {
@@ -307,34 +307,38 @@ GameBarCard {
             Row {
                 id: transportRow
                 anchors.centerIn: parent
-                spacing: 8 * card.s
+                spacing: 6 * card.s
 
                 GameBarTransport {
                     s: card.s
-                    glyph: "prev"
+                    symbol: "skip_previous"
                     available: card.present && card.player.canGoPrevious
                     onTapped: if (card.player) card.player.previous()
                 }
                 GameBarTransport {
                     s: card.s
-                    glyph: Media.playing ? "pause" : "play"
+                    primary: true
+                    symbol: "play_arrow"
+                    symbolOn: "pause"
+                    on: Media.playing
                     available: card.present
                     onTapped: Media.toggle()
                 }
                 GameBarTransport {
                     s: card.s
-                    glyph: "next"
+                    symbol: "skip_next"
                     available: card.present && card.player.canGoNext
                     onTapped: if (card.player) card.player.next()
                 }
                 Item {
-                    width: 30 * card.s
-                    height: 40 * card.s
+                    width: 32 * card.s
+                    height: 32 * card.s
 
                     GameBarIconButton {
                         anchors.centerIn: parent
                         s: card.s
-                        glyph: "text"
+                        size: 26
+                        symbol: "lyrics"
                         toggled: card.lyricsOpen
                         onClicked: card.lyricsOpen = !card.lyricsOpen
                     }
