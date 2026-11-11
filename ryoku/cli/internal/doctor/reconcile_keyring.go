@@ -10,10 +10,10 @@ import (
 
 // reconcileKeyring watches the GNOME keyring unlock policy for drift. It lets
 // the keyring package converge the user side (record the inferred mode, point
-// the default keyring at login for unlock-on-login) and only warns about what a
-// reconciler must never touch on its own: the root SDDM PAM stack and a
-// password-protected keyring. Every warning carries the exact command that
-// resolves it. Idempotent.
+// the default keyring at login for unlock-on-login) and drop duplicate
+// pam_gnome_keyring lines an older Ryoku setup wrote into the SDDM stack. Any
+// other PAM drift or a password-protected keyring only warns, with the exact
+// command that resolves it. Idempotent.
 func reconcileKeyring(checkOnly bool) recResult {
 	d := keyring.Reconcile(checkOnly)
 	switch {

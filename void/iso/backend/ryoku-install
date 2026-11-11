@@ -141,6 +141,8 @@ fi
   || die "RYOKU_ENCRYPT=1 but RYOKU_LUKS_PASSPHRASE is unset"
 [[ $RYOKU_FIRMWARE_MODE != bios || $RYOKU_DISK_STRATEGY == whole ]] \
   || die "legacy BIOS supports whole-disk installation only"
+ryoku_validate_timezone "$RYOKU_TIMEZONE"
+RYOKU_TIMEZONE=$RYOKU_VALIDATED_TIMEZONE
 ryoku_accounts_validate
 
 main() {

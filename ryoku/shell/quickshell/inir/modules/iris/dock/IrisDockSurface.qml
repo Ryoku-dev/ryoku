@@ -15,6 +15,10 @@ Scope {
     // The Stage Editor frames this monitor: the dock rises above the lifted
     // desktop and holds revealed (IrisDock publishes the edge it occupies).
     property bool stageEditing: false
+    // Under the Shima bar style the frame's reservations (IrisReservations) already
+    // count the dock's band on its edge. A second zone here stacks on that one and
+    // leaves a dock-tall strip between windows and the dock.
+    property bool frameReserves: false
     PanelWindow {
         id: surface
 
@@ -77,7 +81,7 @@ Scope {
         id: reservation
 
         screen: root.screen
-        visible: root.surfaceVisible && dock.reserveSpace && !dock.autoHide
+        visible: root.surfaceVisible && dock.reserveSpace && !dock.autoHide && !root.frameReserves
         color: "transparent"
         exclusionMode: ExclusionMode.Normal
         WlrLayershell.namespace: "ryoku-dock-shima-reserve"

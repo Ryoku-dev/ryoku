@@ -7,6 +7,7 @@ import Quickshell.Networking
 import qs.Ui
 import qs.Commons
 import Ryoku.Ui.Singletons
+import shell.services as RyokuNet
 import "Model.js" as Model
 
 Panel {
@@ -436,59 +437,11 @@ Panel {
     connectDirectly(net.ssid)
   }
 
-  // Bar pill state, derived from the native NetworkManager service so the
-  // icon reflects connection changes without polling. Wired is preferred
-  // when both are up, matching the default-route device.
   readonly property var wiredDevice: findDevice(DeviceType.Wired)
-  readonly property string kind: {
-    if (wiredDevice && wiredDevice.connected) return "ethernet"
-    if (connectedWifiNetwork) return "wifi"
-    // NetworkManager can leave the active profile out of the device's
-    // AvailableConnections, and Quickshell only builds known networks from
-    // that list. An OWE transition-mode network does this between scans: the
-    // in-use access point carries the hidden "_owetm_" SSID, so the profile
-    // for the open SSID looks out of range even while it is connected. Trust
-    // the device's own state then instead of flickering to disconnected.
-    if (wifiDevice && wifiDevice.connected) return "wifi"
-    return "disconnected"
-  }
+  readonly property string kind: RyokuNet.Network.kind === "" ? "disconnected" : RyokuNet.Network.kind
   readonly property int signalStrength: kind === "wifi"
-    ? Model.connectedSignalStrength(connectedWifiNetwork ? connectedWifiNetwork.signalStrength : 0, activeApSignal)
+    ? Math.round(RyokuNet.Network.level * 100)
     : -1
-  // Filled by activeApSignalPoll from nmcli while the connected network has no
-  // strength of its own to report.
-  property int activeApSignal: -1
-  readonly property bool needsActiveApSignal: kind === "wifi"
-    && !(connectedWifiNetwork && connectedWifiNetwork.signalStrength > 0)
-  // Bumped whenever the cached reading stops describing the current link, so
-  // an nmcli read still in flight from before cannot write a stale strength.
-  property int activeApSignalGeneration: 0
-  property int activeApSignalRequest: -1
-  onKindChanged: if (kind !== "wifi") resetActiveApSignal()
-
-  // Switching Wi-Fi networks always passes through a non-"wifi" kind (both the
-  // device and the old network drop out of the connected state while the new
-  // profile activates), so this also covers a change of network.
-  function resetActiveApSignal() {
-    activeApSignal = -1
-    activeApSignalGeneration++
-  }
-
-  function pollActiveApSignal() {
-    if (activeApSignalProc.running) return
-    activeApSignalRequest = activeApSignalGeneration
-    activeApSignalProc.running = true
-  }
-
-  function finishActiveApSignal(raw) {
-    if (activeApSignalRequest !== activeApSignalGeneration) {
-      // The link changed mid-read and the restarted poll skipped while this
-      // one was running; read again now instead of a full interval later.
-      if (needsActiveApSignal) activeApSignalPoll.restart()
-      return
-    }
-    activeApSignal = Model.parseActiveApSignal(raw)
-  }
 
   function copyToClipboard(value) {
     if (!value || !root.bar) return
@@ -500,19 +453,18 @@ Panel {
   // a second curl loop or mistaking an ordinary timeout for a captive portal.
   readonly property bool connectivityChecksEnabled: networkManagerAvailable
     && Networking.canCheckConnectivity && Networking.connectivityCheckEnabled
-  readonly property string connectivity: Model.connectivityState(kind, Networking.connectivity, {
-    Portal: NetworkConnectivity.Portal, Limited: NetworkConnectivity.Limited,
-    Full: NetworkConnectivity.Full, None: NetworkConnectivity.None
-  }, connectivityChecksEnabled)
+  readonly property string connectivity: kind === "disconnected"
+    ? "none"
+    : RyokuNet.Network.connectivity
   readonly property bool hasCaptivePortal: connectivity === "portal"
   readonly property bool restricted: hasCaptivePortal || connectivity === "limited"
   readonly property string icon: Model.connectionIcon(kind, signalStrength, connectivity)
   // Keyed on the device rather than the SSID: on an OWE transition-mode
   // network the listed network comes and goes with every scan while the link
   // stays up, and a real network switch already passes through "disconnected".
-  readonly property string connectionKey: kind === "wifi" && wifiDevice
-    ? kind + ":" + wifiDevice.name
-    : (kind === "ethernet" && wiredDevice ? kind + ":" + wiredDevice.name : "")
+  readonly property string connectionKey: kind === "wifi"
+    ? kind + ":" + RyokuNet.Network.activeSsid
+    : (kind === "ethernet" ? kind : "")
 
   onConnectionKeyChanged: Qt.callLater(checkConnectivity)
   onConnectivityChecksEnabledChanged: Qt.callLater(checkConnectivity)
@@ -917,25 +869,6 @@ Panel {
     }
   }
 
-  // Reads the in-use access point's strength without triggering a scan, for
-  // the connected network that has none of its own (see signalStrength).
-  Process {
-    id: activeApSignalProc
-    command: ["nmcli", "-t", "-f", "IN-USE,SIGNAL", "device", "wifi", "list", "ifname", root.wifiDevice ? root.wifiDevice.name : "", "--rescan", "no"]
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: root.finishActiveApSignal(text)
-    }
-  }
-
-  Timer {
-    id: activeApSignalPoll
-    interval: 5000
-    repeat: true
-    triggeredOnStart: true
-    running: root.needsActiveApSignal
-    onTriggered: root.pollActiveApSignal()
-  }
 
   Timer {
     id: scanRestart

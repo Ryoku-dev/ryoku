@@ -1,4 +1,4 @@
-const ids = ["gokko", "caelestia", "tansu", "python"];
+const ids = ["gokko", "caelestia", "tansu", "python", "imi"];
 
 function isStyle(id) {
     return ids.indexOf(String(id || "")) >= 0;

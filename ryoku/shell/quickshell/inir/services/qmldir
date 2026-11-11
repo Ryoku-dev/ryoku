@@ -20,6 +20,7 @@ singleton GameMode 1.0 GameMode.qml
 singleton GlobalActions 1.0 GlobalActions.qml
 singleton IconThemeService 1.0 IconThemeService.qml
 singleton Idle 1.0 Idle.qml
+singleton KeybindCatalogue 1.0 KeybindCatalogue.qml
 singleton KeyboardIndicators 1.0 KeyboardIndicators.qml
 singleton LiveActivities 1.0 LiveActivities.qml
 singleton LyricsService 1.0 LyricsService.qml

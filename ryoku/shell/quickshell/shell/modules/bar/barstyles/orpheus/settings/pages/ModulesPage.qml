@@ -15,11 +15,11 @@ Item {
     property var args: ({})
 
     readonly property var workspaceSample: [
-        { key: "1", label: "1", index: 1, active: false, occupied: true, windowCount: 1, apps: ["org.gnome.Nautilus"] },
-        { key: "2", label: "2", index: 2, active: true, occupied: true, windowCount: 2, apps: ["firefox", "kitty"] },
-        { key: "3", label: "3", index: 3, active: false, occupied: false, windowCount: 0, apps: [] },
-        { key: "4", label: "4", index: 4, active: false, occupied: true, windowCount: 1, apps: ["kitty"] },
-        { key: "5", label: "5", index: 5, active: false, occupied: false, windowCount: 0, apps: [] }
+        { key: "1", label: "1", number: 1, active: false, occupied: true, windowCount: 1, apps: ["org.gnome.Nautilus"] },
+        { key: "2", label: "2", number: 2, active: true, occupied: true, windowCount: 2, apps: ["firefox", "kitty"] },
+        { key: "3", label: "3", number: 3, active: false, occupied: false, windowCount: 0, apps: [] },
+        { key: "4", label: "4", number: 4, active: false, occupied: true, windowCount: 1, apps: ["kitty"] },
+        { key: "5", label: "5", number: 5, active: false, occupied: false, windowCount: 0, apps: [] }
     ]
     readonly property var workspaceStyles: [
         { value: "dots", label: "Dots" },
@@ -386,6 +386,24 @@ Item {
                             onClicked: root.toggleList("aiTools", modelData.value)
                         }
                     }
+                }
+            }
+
+            SettingRow {
+                width: parent.width
+                label: "Alert level"
+                desc: "Turn the icon red once a window is this full. Pace and trend details are always shown when reset data is available."
+                value: String(S.Prefs.aiAlertAt)
+                unit: "%"
+                controlWidth: 58
+
+                Step {
+                    anchors.right: parent.right
+                    value: S.Prefs.aiAlertAt
+                    from: 50
+                    to: 100
+                    stepBy: 5
+                    onModified: value => S.Prefs.set("aiAlertAt", value)
                 }
             }
         }

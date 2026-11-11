@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -90,6 +91,71 @@ func TestPreferredDevice(t *testing.T) {
 	}
 }
 
+func TestSummarizePrimaryConnection(t *testing.T) {
+	cases := []struct {
+		name         string
+		connectivity uint32
+		devices      []primaryDevice
+		want         networkConnection
+	}{
+		{
+			name:         "USB tether",
+			connectivity: nmConnectivityFull,
+			devices:      []primaryDevice{{typ: nmDeviceEthernet, state: 100}},
+			want:         networkConnection{Kind: "ethernet", Connectivity: "full", Online: true},
+		},
+		{
+			name:         "phone modem tether",
+			connectivity: nmConnectivityFull,
+			devices:      []primaryDevice{{typ: 8, state: 100}},
+			want:         networkConnection{Kind: "ethernet", Connectivity: "full", Online: true},
+		},
+		{
+			name:         "wired",
+			connectivity: nmConnectivityFull,
+			devices:      []primaryDevice{{typ: nmDeviceEthernet, state: 100}},
+			want:         networkConnection{Kind: "ethernet", Connectivity: "full", Online: true},
+		},
+		{
+			name:         "wifi",
+			connectivity: nmConnectivityFull,
+			devices:      []primaryDevice{{typ: nmDeviceWifi, state: 100}},
+			want:         networkConnection{Kind: "wifi", Connectivity: "full", Online: true},
+		},
+		{
+			name:         "VPN over wifi",
+			connectivity: nmConnectivityFull,
+			devices:      []primaryDevice{{typ: nmDeviceWifi, state: 100}},
+			want:         networkConnection{Kind: "wifi", Connectivity: "full", Online: true},
+		},
+		{
+			name:         "no connection",
+			connectivity: nmConnectivityNone,
+			want:         networkConnection{Connectivity: "none"},
+		},
+		{
+			name:         "full without connected primary device",
+			connectivity: nmConnectivityFull,
+			devices:      []primaryDevice{{typ: nmDeviceEthernet, state: 20}},
+			want:         networkConnection{Connectivity: "full"},
+		},
+		{
+			name:         "portal",
+			connectivity: nmConnectivityPortal,
+			devices:      []primaryDevice{{typ: nmDeviceWifi, state: 100}},
+			want:         networkConnection{Connectivity: "portal"},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := summarizePrimaryConnection(c.connectivity, c.devices); got != c.want {
+				t.Fatalf("summarizePrimaryConnection() = %#v, want %#v", got, c.want)
+			}
+		})
+	}
+}
+
 // wifiConnectSettings omits the security block for an open network, derives
 // key-mgmt from the resolved AP's security (sae for WPA3, wpa-psk otherwise),
 // pins the band only when the caller supplied a BSSID and the AP is known, and
@@ -173,6 +239,33 @@ func TestBandForFrequency(t *testing.T) {
 	for _, c := range cases {
 		if got := bandForFrequency(c.mhz); got != c.want {
 			t.Errorf("bandForFrequency(%d) = %q, want %q", c.mhz, got, c.want)
+		}
+	}
+}
+
+// activationOutcome settles a join from one State poll. A failed activation
+// vanishes from the bus, so a failed read is a failure, not "still activating".
+func TestActivationOutcome(t *testing.T) {
+	gone := errors.New("no such object")
+	cases := []struct {
+		name    string
+		state   uint32
+		readErr error
+		done    bool
+		wantErr error
+	}{
+		{"activating keeps waiting", 1, nil, false, nil},
+		{"unknown keeps waiting", 0, nil, false, nil},
+		{"activated succeeds", 2, nil, true, nil},
+		{"deactivating keeps waiting", 3, nil, false, nil},
+		{"deactivated fails", 4, nil, true, errActivationFailed},
+		{"vanished object fails", 0, gone, true, errActivationFailed},
+	}
+	for _, c := range cases {
+		done, err := activationOutcome(c.state, c.readErr)
+		if done != c.done || !errors.Is(err, c.wantErr) || (c.wantErr == nil && err != nil) {
+			t.Errorf("%s: activationOutcome(%d, %v) = (%v, %v), want (%v, %v)",
+				c.name, c.state, c.readErr, done, err, c.done, c.wantErr)
 		}
 	}
 }

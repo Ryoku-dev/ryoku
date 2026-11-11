@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/netip"
@@ -48,6 +49,14 @@ const (
 	nmDeviceWifi     = 2
 )
 
+const (
+	nmConnectivityUnknown = 0
+	nmConnectivityNone    = 1
+	nmConnectivityPortal  = 2
+	nmConnectivityLimited = 3
+	nmConnectivityFull    = 4
+)
+
 // networkState holds the one system-bus connection and the topic the network
 // frames publish to.
 type networkState struct {
@@ -61,6 +70,17 @@ type networkState struct {
 type networkSnapshot struct {
 	frame map[string]any
 	aps   map[dbus.ObjectPath]map[string]any
+}
+
+type networkConnection struct {
+	Kind         string `json:"kind"`
+	Connectivity string `json:"connectivity"`
+	Online       bool   `json:"online"`
+}
+
+type primaryDevice struct {
+	typ   uint32
+	state uint32
 }
 
 // apInfo is one access point flattened to the fields the reveal renders.
@@ -405,10 +425,13 @@ func (n *networkState) snapshotState() *networkSnapshot {
 		wired["connectivity"] = connectivityFromState(n.uintProp(n.obj(wiredDev), nmDeviceIface+".State"))
 	}
 
+	connection := n.primaryConnection()
+
 	return &networkSnapshot{
 		frame: map[string]any{
 			"wifi":         wifi,
 			"wired":        wired,
+			"connection":   connection,
 			"accessPoints": aps,
 			"wireguard":    n.wireguardTunnels(saved, active),
 			"vpn":          vpnProfileFrames(saved, n.vpnLiveState(saved, active)),
@@ -467,6 +490,60 @@ func deviceRank(state uint32) int {
 	default:
 		return 0
 	}
+}
+
+func summarizePrimaryConnection(connectivity uint32, devices []primaryDevice) networkConnection {
+	summary := networkConnection{Connectivity: networkManagerConnectivity(connectivity)}
+	if connectivity != nmConnectivityFull {
+		return summary
+	}
+	for _, device := range devices {
+		if device.state != 100 {
+			continue
+		}
+		summary.Online = true
+		if device.typ == nmDeviceWifi {
+			summary.Kind = "wifi"
+		} else {
+			summary.Kind = "ethernet"
+		}
+		break
+	}
+	return summary
+}
+
+func networkManagerConnectivity(connectivity uint32) string {
+	switch connectivity {
+	case nmConnectivityNone:
+		return "none"
+	case nmConnectivityPortal:
+		return "portal"
+	case nmConnectivityLimited:
+		return "limited"
+	case nmConnectivityFull:
+		return "full"
+	default:
+		return "unknown"
+	}
+}
+
+func (n *networkState) primaryConnection() networkConnection {
+	connectivity := n.uintProp(n.obj(nmPath), nmIface+".Connectivity")
+	primary := n.pathProp(n.obj(nmPath), nmIface+".PrimaryConnection")
+	if primary == "" || primary == "/" {
+		return summarizePrimaryConnection(connectivity, nil)
+	}
+
+	paths := n.pathSliceProp(n.obj(primary), nmActiveIface+".Devices")
+	devices := make([]primaryDevice, 0, len(paths))
+	for _, path := range paths {
+		device := n.obj(path)
+		devices = append(devices, primaryDevice{
+			typ:   n.uintProp(device, nmDeviceIface+".DeviceType"),
+			state: n.uintProp(device, nmDeviceIface+".State"),
+		})
+	}
+	return summarizePrimaryConnection(connectivity, devices)
 }
 
 // apPaths lists the access points the wifi device currently sees, in service
@@ -674,8 +751,18 @@ func (n *networkState) wifiConnect(ssid, password, bssid string, hidden bool) er
 	if err := n.obj(nmPath).Call(nmIface+".AddAndActivateConnection", 0, settings, dbus.ObjectPath(wifiDev), specific).Store(&newConn, &newActive); err != nil {
 		return err
 	}
-	return n.waitForActivation(newActive)
+	err := n.waitForActivation(newActive)
+	if errors.Is(err, errActivationFailed) {
+		// NetworkManager keeps the profile it just created even when the
+		// passphrase is wrong, so the network would read as saved and every
+		// later join would retry the bad secret without asking for a new one.
+		// A timeout keeps it: that join may still be coming up.
+		_ = n.obj(newConn).Call(nmSettConnIface+".Delete", 0).Err
+	}
+	return err
 }
+
+var errActivationFailed = errors.New("could not connect (check the password)")
 
 // waitForActivation blocks until the connection activates, so a wrong passphrase
 // or a timeout returns an error instead of the old silent "success".
@@ -683,18 +770,31 @@ func (n *networkState) waitForActivation(active dbus.ObjectPath) error {
 	if active == "" || active == "/" {
 		return nil
 	}
-	const stateActivated, stateDeactivated = 2, 4
 	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
-		switch n.uintProp(n.obj(active), nmActiveIface+".State") {
-		case stateActivated:
-			return nil
-		case stateDeactivated:
-			return fmt.Errorf("could not connect (check the password)")
+		v, err := n.obj(active).GetProperty(nmActiveIface + ".State")
+		state, _ := v.Value().(uint32)
+		if done, result := activationOutcome(state, err); done {
+			return result
 		}
 		time.Sleep(250 * time.Millisecond)
 	}
 	return fmt.Errorf("connection timed out")
+}
+
+// activationOutcome reads one poll of an active connection's State. A failed
+// activation is torn down within milliseconds, so its object vanishing from the
+// bus (the read failing) is a failure too; reading that as "still activating"
+// held every wrong-password join for the full timeout. Pure for unit tests.
+func activationOutcome(state uint32, readErr error) (bool, error) {
+	const stateActivated, stateDeactivated = 2, 4
+	if readErr != nil || state == stateDeactivated {
+		return true, errActivationFailed
+	}
+	if state == stateActivated {
+		return true, nil
+	}
+	return false, nil
 }
 
 // editableSettings reads a saved profile's settings in a shape that can be
@@ -1003,6 +1103,15 @@ func (n *networkState) pathProp(o dbus.BusObject, name string) dbus.ObjectPath {
 	}
 	p, _ := v.Value().(dbus.ObjectPath)
 	return p
+}
+
+func (n *networkState) pathSliceProp(o dbus.BusObject, name string) []dbus.ObjectPath {
+	v, err := o.GetProperty(name)
+	if err != nil {
+		return nil
+	}
+	paths, _ := v.Value().([]dbus.ObjectPath)
+	return paths
 }
 
 // --- pure helpers (unit-tested) ---

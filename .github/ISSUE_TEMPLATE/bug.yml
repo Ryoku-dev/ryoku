@@ -7,11 +7,57 @@ body:
       value: |
         Thanks for helping test Ryoku. Please include enough detail for the issue to be reproduced.
 
+  - type: dropdown
+    id: edition
+    attributes:
+      label: Edition
+      options:
+        - Arch
+        - CachyOS
+        - Void
+        - Fedora
+        - NixOS
+    validations:
+      required: true
+
+  - type: dropdown
+    id: compositor
+    attributes:
+      label: Compositor
+      options:
+        - Hyprland
+        - niri
+        - Wayfire
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: channel
+    attributes:
+      label: Update channel
+      description: Unstable gets fixes first, stable gets them with the next update
+      options:
+        - Stable
+        - Unstable
+        - Installing from the ISO
+    validations:
+      required: true
+
+  - type: textarea
+    id: version
+    attributes:
+      label: Ryoku version
+      description: Paste the output of `ryoku status`, or the ISO file name if you are installing
+      render: text
+    validations:
+      required: true
+
   - type: input
     id: system-details
     attributes:
       label: System details
-      placeholder: e.g. AMD 9950X, NVIDIA 5090, Ryoku preview ISO date or commit
+      placeholder: e.g. AMD 9950X, NVIDIA 5090
     validations:
       required: true
 

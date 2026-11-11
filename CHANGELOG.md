@@ -5,6 +5,15 @@ for finer detail.
 
 ## Unreleased
 
+### Added
+- QS Bar adds per-monitor workspace isolation (`isolateMonitors`), allowing
+  multi-monitor setups to show only the workspaces assigned to each screen on its
+  respective bar. The inactive screen dims its active workspace indicator to 72%
+  opacity to convey keyboard focus, and the right-click WorkspacePanel popup also
+  filters by screen. Accessible via `shell.json` (`qsbar.isolateMonitors`),
+  `ryoku-shell bar set workspaces isolateMonitors on/off`, and QS Bar Settings >
+  Identity > Workspaces (#767).
+
 ### Removed
 - The mango compositor is gone: its provider, config tree, packages,
   installer choice, deploy steps, tests and docs. Ryoku ships Hyprland and
@@ -14,6 +23,13 @@ for finer detail.
   user is no longer in a mango session.
 
 ### Fixed
+- Matugen template rendering now preserves distinct `dark` and `light` buckets in
+  the carrier data instead of duplicating the active palette into both, allowing
+  multi-theme applications like Zed editor to render both dark and light themes
+  accurately under any wallpaper brightness.
+- A QML object that sets the same property or handler twice can no longer be
+  committed or pass QML Lint. qmllint never flagged it, yet the file refuses to
+  load, and one such slip in the audio service kept the desktop from starting.
 - Fedora installs keep existing RPM Fusion FFmpeg and Docker CE packages, and
   no longer request the nonexistent `util-linux-libs` package.
 - RyoStore no longer leaves other products with inert download buttons while an
@@ -103,6 +119,20 @@ for finer detail.
   mutable channels current without changing frozen distro snapshots.
 
 ### Added
+- Shima includes an optional AI usage dashboard for OpenCode, Codex and Claude,
+  with token history, sessions, models, account limits, reset times and local
+  API value. Bundled collectors refresh private caches every 15 seconds while
+  the dashboard is on screen and stop when it is closed.
+  Enable it in Island settings under Desktop page > Your modules.
+- **Game Bar.** `Super+Shift+G` raises a passive overlay over the focused
+  monitor: a strip of eight widgets and draggable cards for capture,
+  performance, resources, tasks, media, audio, gallery and Discord voice. Cards
+  snap to edges, centre lines and each other with a guide grid, the layout
+  survives a restart, and a pinned Voice card shrinks to a content-sized
+  overlay that shows the call without taking pointer or keyboard focus. Voice
+  reads the official Discord client over native RPC, or Vesktop and Equibop
+  through a bundled Vencord companion. Every setting lives in Ryoku Hub ->
+  Desktop -> Game Bar.
 - **Community docks.** RyoStore gains a Docks section: anyone can submit a dock
   as a folder to the ryostore catalogue, users install it there and pick it in
   Edit desktop -> Dock, and it becomes the dock on every monitor and every bar

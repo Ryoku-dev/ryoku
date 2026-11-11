@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# ryoku-media: the play and pause keys. Some headphones send play and pause a
+# few milliseconds apart for one tap, so a second call inside the window is
+# dropped instead of toggling the track straight back.
+set -euo pipefail
+
+window_us=200000
+verb="${1:-play-pause}"
+dir="${XDG_RUNTIME_DIR:-/tmp/ryoku-media-$(id -u)}"
+mkdir -p "$dir"
+stamp="$dir/ryoku-media-$verb"
+
+exec 9>>"$stamp.lock"
+flock 9
+now=${EPOCHREALTIME//[!0-9]/}
+prev=""
+[[ -f $stamp ]] && prev=$(<"$stamp")
+if [[ $prev =~ ^[0-9]+$ ]] && ((now - prev >= 0 && now - prev < window_us)); then
+	exit 0
+fi
+printf '%s\n' "$now" >"$stamp"
+# release before playerctl runs, so a slow player cannot stretch the window
+exec 9>&-
+
+exec playerctl "$verb" "${@:2}"

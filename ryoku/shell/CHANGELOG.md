@@ -1,6 +1,211 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The battery list widget's percentages read cleanly at any charge.** Below a
+  full charge the dark text meant for the fill was drawn over the whole row, so
+  the numbers on the empty part looked smudged; it now stops at the fill edge (#791).
+- **Brightness no longer pins the shell daemon at 100% CPU after resume.** A
+  driver that re-registers its backlight across suspend (nvidia) left the OSD
+  watcher polling the removed sysfs node, which fails every read and wakes
+  poll(2) at once, forever. The watcher now reopens the device after it goes
+  away, backing off while it is missing (`ipc/osd.go`).
+- **Zed and Ryotunes get real dark and light wallpaper themes.** Both looks now
+  carry their own colours, and the Ryotunes matugen skin opens in the mode the
+  desktop is using.
+- **QS Bar's GPU widget stays on NVIDIA cards that report a decimal
+  temperature.** Newer drivers print readings like `42.67`, which the telemetry
+  check refused, so the widget vanished; decimals are accepted now (#769).
+- **A plain `sudo pacman -Syu` no longer stops on the keyring files.** A deploy
+  on a box with the Ryoku package left the D-Bus drop-in and Secret Service
+  override unowned, so the next upgrade refused them; deploy now leaves both to
+  the package and clears the copies an earlier deploy left.
+- **Agent chats are named after your question, and you can rename them.** Rashin
+  marks its first-turn note so Hermes no longer titles every chat "Needle
+  assistant"; the pencil on a history row renames that chat in place.
+- **A wallpaper that fails to load once is tried again.** A still that could not
+  be read on the first attempt left that screen on the plain background until a
+  reload; the desktop now loads it again a few times before giving up.
+- **Plugin settings changed from a desktop tile's menu are saved.** Chips,
+  sliders and switches in the right-click menu now reach the plugin, number
+  settings get a stepper there, and clicking blank space in a menu keeps it open.
+- **Library desktop widgets keep the size you give them.** The resource cards,
+  clocks and the rest of the added widget library no longer snap back to 100%
+  after a corner drag or a change in the Size control.
+- **Album art no longer risks crashing the shell.** Covers in the bar, popouts,
+  sidebar, launcher, dock and desktop music widget now come from the cover the
+  shell daemon saves to disk, never from a web address loaded inside the shell.
+- **Python's media and visualizer modules can hide while nothing plays.** Both
+  cards in the Python guide gain a "Hide when nothing is playing" switch, and
+  "Fit to the track" shrinks the media title area to the song, up to its width.
+- **Ryogami hover previews no longer stick on other monitors.** With Apply only
+  on the picker monitor on, the preview stays on the picker's monitor, and a pick
+  there puts each other monitor's own wallpaper back.
+- **Random auto-rotate gives every monitor its own pick.** Once a monitor has
+  its own wallpaper, rotation changes each monitor separately instead of
+  putting one wallpaper everywhere and forgetting the per-monitor choices.
+- **`ryogami wallpaper set` without `--screen` follows the picker monitor setting.**
+  With it on it sets the focused monitor only; `--screen '*'` sets every monitor.
+- **Desktops without a built-in screen no longer show a Built-in display slider.**
+  With no backlight to find, brightness control fell back to whatever device it
+  found first, often a keyboard LED, and offered it as a display. Controls and the
+  bar brightness widgets now show only real backlights and external monitors.
+- **Opening Controls no longer makes the whole screen hitch.** With an external
+  monitor on DDC/CI, the panel read its brightness the moment it opened, and that
+  read stalled every display for a fraction of a second. It now reads a quarter
+  second after the panel appears, so the external brightness slider fills in a moment later.
+- **Clicking an expanded Controls drawer no longer closes the panel.** Opening the
+  Brightness or Volume drawer grew the panel, but clicks on the newly grown part
+  still counted as clicks outside it. The whole drawer now takes clicks, and the
+  settings popup stays inside the panel when it is centred.
+- **The Nomarchy monitor panel drives only a real backlight too.** Its brightness
+  slider no longer reads or writes a keyboard LED on a desktop, and on a laptop it
+  sets the same panel backlight the brightness keys do.
+- **Notification toasts stop feeding their own layout.** The popup list no longer sizes
+  itself from its cards or re-lays out on every resize, and the countdown frame no longer
+  repaints a canvas each frame. Image toasts hold their thumbnail's room while it loads.
+- **Orpheus workspace marks keep one slot each.** The active pill now fits inside
+  its own slot and stays a whole capsule while the strip grows, and the strip's
+  rows no longer carry a field that list models mistake for the row position.
+- **A fresh desktop no longer says its Stage config file is broken.** The first
+  start wrote a valid `stage-editor.json` but then read an empty copy of it,
+  showed the warning, saved a backup and stopped saving settings.
+- **QS Bar's Wi-Fi panel makes Forget easy to reach.** A network's drawer, where
+  Forget lives, opened only from a small dimmed › at the row's edge. The toggle
+  now has full contrast and a hover well, right-clicking a row opens the drawer,
+  and the password prompt of a saved network has its own Forget.
+- **QS Bar's Wi-Fi panel asks again when a saved password fails.** A saved
+  network whose secret was wrong failed silently on every tap. It now reopens
+  the password prompt ("Wrong password, or a different network with the same
+  name?"), a new passphrase replaces the stale profile, and a failed or timed-out
+  attempt empties the field (`barstyles/qsbar/panels/`).
+- **The bar's Wi-Fi list puts saved networks first.** Saved networks in range
+  sit under a Saved heading above Other networks. A network being joined for
+  the first time stays in its place until the join settles, even though
+  NetworkManager saves its profile as the attempt starts.
+- **Saved Wi-Fi networks can be forgotten from the bar.** A saved row has a ⋯
+  button that opens Forget network, and the connected network's card has one
+  too, armed by a first press because forgetting it also disconnects. Before,
+  the only way to drop a saved network was `nmcli connection delete`.
+- **A saved Wi-Fi network asks for its password again when it stops working.**
+  The bar only showed a password field for unsaved networks, so a saved one
+  whose password changed, or another network with the same name, failed on
+  every tap with no way to type a new password. A failed join of a saved
+  secured network now reopens the field with "Wrong password, or a different
+  network with the same name?", and the new password replaces the stored one.
+- **The bar's Wi-Fi rows keep their password field through network updates.**
+  The list is rebuilt on every network frame, which threw away a row's field,
+  its pending join and its error; a retry after a wrong password could also
+  type onto the rejected text. Row state now lives in the popout, keyed by
+  network and band, and the field empties after every attempt
+  (`quickshell/shell/modules/bar/popouts/NetworkPopout.qml`).
+- **A wrong password no longer saves the Wi-Fi network.** NetworkManager keeps
+  the profile a first join creates even when the passphrase is rejected, so the
+  network read as saved and every later tap retried the bad secret without
+  asking again. A first join that fails now deletes that profile; a timeout
+  keeps it, since that join may still be coming up (`ipc/network.go`).
+- **A wrong Wi-Fi password fails in seconds, not 30.** The shell daemon waited
+  on the activation's State, but NetworkManager removes a failed activation
+  from the bus at once, so the read failed and the join sat out its whole
+  30-second timeout. A vanished activation now counts as failed
+  (`ipc/network.go`).
+- **Windows reach the Shima dock again.** Under the Shima bar style the frame and
+  the dock both reserved the dock's band, which left a dock-tall gap between
+  windows and the dock. The frame's reservation is now the only one there.
+- **The Python dock stays put while app entries rescan.** It updates its pins in
+  place instead of emptying and refilling them, so the dock and its reserved
+  space no longer vanish for a moment and windows stop jumping into the dock area.
+- **Ryogami auto-rotate keeps rotating after a restart.** The filter bar button
+  and Ctrl+R now flip the saved Rotate automatically switch, so rotation comes
+  back after a reboot, and "Favourites only" with no favourites rotates through
+  the whole library instead of reporting active while nothing changes.
+- **The quick settings gear opens and closes its settings every time.** The
+  popup stays above the bar instead of covering the gear on shorter screens,
+  and a second click on the gear closes it rather than reopening it.
+- **Quick settings and the Super+K sheets can show in your language.**
+  Hold hints are whole sentences, and Kit's tabs, its typing test and Shima's
+  shortcut sheet now read from the shared catalogue.
+- **Shima's upstream runtime keeps Ryoku Settings, Ryogami and Ryoshot.** Super+comma,
+  the wallpaper picker and screenshots open Ryoku's tools instead of the runtime's own.
+- **Super+Space, Super+V and Super+comma stay Ryoku's under every bar style.**
+  A style listening for them no longer opens its own launcher, clipboard or
+  settings panel next to Ryoku's on niri, matching Hyprland.
+- **Visualizers follow newly connected audio outputs.** Bar and desktop
+  visualizers retarget when the default output changes without a shell reload.
+- **A crashed lock screen comes back after display-link churn.** Once qylock has
+  confirmed a secure lock, the shell retries its launcher across a 42-second
+  window if that client disappears, and stops immediately after confirmation or
+  an authenticated unlock (`ipc/lockrecovery.go`, `ipc/sleepwake.go`).
+- **Notification popups keep their full cards and saved screen margin.** Wrapped
+  text, images and store designs now grow the popup to their real height.
+- **QS Bar's now-playing title can use more room.** The widget settings now
+  offer an 88 to 400 px title width, and the marquee stays still when the title
+  fits.
+- **Missing default-app commands now show a notification.** A broken saved
+  browser, terminal, editor or file-manager command no longer fails silently.
+- **The wallpaper picker remembers its view and opens where it matters.** Layout,
+  sort and filter choices survive restarts, and the current wallpaper is brought
+  into view with the newest matching item as the fallback (`ryogami/`).
+- **Terminal syntax follows light and dark wallpaper palettes.** Matugen now
+  renders Fish, Bash and Zsh colours beside the terminal theme so typed input,
+  commands and suggestions keep their contrast.
+- **Notifications follow the shell shape and palette.** Their cards use the
+  configured corner radius, and the countdown border uses the active accent.
+- **Shima and Ryoku Settings share one battery charge-limit writer.** Shima now
+  reads and updates the host power capability instead of carrying a second
+  privileged sysfs implementation.
+- **Desktop shortcuts stay with Ryoku under every bar style.** Super+comma
+  opens Ryoku Settings, Super+V opens Ryoku's clipboard, Super+Escape opens
+  quick settings and Super+Space opens the launcher selected in Ryoku Settings
+  (`quickshell/shell/{shell.qml,services/,modules/bar/barstyles/}`, `ipc/`).
+- **USB tethering no longer leaves the bar offline.** Every bar style now reads
+  the primary NetworkManager connection from the shell service, including phone
+  links exposed as wired, modem or USB-backed devices.
+- **The ii dock can stay above app windows.** Dock design & settings >
+  Behaviour > Stay above windows keeps a pinned dock over windows while you
+  switch workspaces. It is off by default. Contributed by wolf1999h.
+- **Obsidian follows the Matugen accent again.** Derive HSL components from the
+  primary color's hex value so app rendering works with Ryoku's palette carrier
+  (`matugen/templates/obsidian.css`).
+- **Orpheus settings open through an IPC target.**
+  `qs -c shell ipc call orpheus settings [page|close]` opens the settings on a
+  page, or closes them, on the focused output, so a keybind, script or Ryoku
+  Hub can reach them without the logo
+  (`quickshell/shell/modules/bar/barstyles/orpheus/{Scene.qml,settings/Prefs.qml}`).
+- **Orpheus AI usage shows whether you are ahead of pace.** The module adds an
+  always-on trend arrow and lists the points ahead or behind and the projected
+  fill time in its tooltip. The Modules page keeps one alert-level control
+  instead of separate switches for each part of the same reading
+  (`quickshell/shell/modules/bar/barstyles/orpheus/{modules/Ai.qml,settings/}`,
+  `quickshell/shell/services/AiUsage.qml`).
+- **Shima carries Ryoku's shortcuts and floating tools.** Its routed launcher,
+  clipboard, settings and shortcuts keys now open Shima surfaces, while
+  `ryoku-shell tools` opens the notes, image, crosshair, resources, mixer,
+  gaming, Discord and notification tray (`quickshell/{inir,shell/modules/bar/barstyles/iris}/`,
+  `ipc/`).
+- **Shima themes reach the dock users actually see.** Theme presets now send
+  notch, material, icon-size and magnification choices through the universal
+  dock owner instead of writing retired Shima-only settings
+  (`quickshell/inir/modules/iris/settings/IrisThemes.qml`).
+- **Shima's dock previews match the live dock.** Settings previews now read the
+  universal dock's active design, visibility, edge, material and icon settings
+  instead of stale Shima-only values
+  (`quickshell/inir/modules/iris/preview/IrisGroupPreview.qml`).
+- **Python catches up with Serpantinum 2.3.1.** The resync brings the redesigned
+  searchable settings, launcher search and converters, clipboard and policy
+  prompt presentation, clock and media fixes, notes, wellbeing limits and
+  widget history while preserving Ryoku's compositor, wallpaper, capture,
+  lock, dock and desktop seams
+  (`quickshell/shell/modules/bar/barstyles/python/`).
+- **Caelestia keeps its desktop-wide surfaces alive from the primary output.**
+  The store style is treated as a frame family, so its launcher, panels and
+  notifications remain hosted when the bar is hidden on that display
+  (`quickshell/shell/services/BarProducts.qml`).
+- **A ported bar style answers its own keys.** Super+Space, Super+V, Super+comma
+  and Super+K open the active style's launcher, clipboard, settings and
+  cheatsheet when it has them, and Ryoku's own surfaces otherwise; Shima's
+  island feedback replaces the shell's OSD while it is the bar
+  (`quickshell/shell/{shell.qml,services/Config.qml}`, `ipc/daemon.go`,
+  `wm/{niri,wayfire}/config_binds.go`, `hyprland/modules/binds.lua`).
 - **A failed graphics process cannot leave the login cover on screen forever.**
   The cover launcher now removes a wedged surface after one minute even when
   its own animation timer cannot run (`scripts/ryoku-reload-cover`).
@@ -11,6 +216,9 @@
 - **Wallpaper previews recolour desktop widgets reliably.** Preview palettes now
   replace their runtime file in one step, so the shell never catches an empty
   file while a downloaded wallpaper is hovered (`ryogami/daemon/preview.go`).
+- **Shima keeps dock edge spacing after sign-in.** Negative edge gaps now pass
+  through the shell's settings writer instead of living only in the current
+  session (`ipc/{settings.go,settings_test.go}`).
 - **Dock designs can sit closer to the screen edge.** The Stage Editor's edge
   gap now accepts negative values while every design keeps its hover and reserved
   regions inside the screen (`quickshell/{stage,shell/modules/dock,inir/modules/iris/dock}/`).

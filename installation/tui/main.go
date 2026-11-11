@@ -542,7 +542,7 @@ func stepsForVariant(variant string) []step {
 		{key: "locale", title: i18n.T("System locale"), kind: kSelect, items: locales(),
 			desc: []string{i18n.T("Language & formats. Sets i18n.defaultLocale.")}},
 		{key: "timezone", title: i18n.T("Time zone"), kind: kSelect, items: timezones(),
-			desc: []string{i18n.T("Used for the clock & logs. Sets time.timeZone.")}},
+			desc: []string{i18n.T("Press / to search a Region/City or a fixed offset such as UTC-3.")}},
 		{key: "network", title: i18n.T("Network"), kind: kNet, desc: []string{}},
 		{key: "hardware", title: i18n.T("Hardware"), kind: kInfo, desc: []string{}},
 		{key: "profile", title: i18n.T("Hardware profile"), kind: kSelect, items: profiles(), numbered: true,

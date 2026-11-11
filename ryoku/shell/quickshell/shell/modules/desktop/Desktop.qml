@@ -571,6 +571,7 @@ Scope {
             redo: () => p.enqueue(cmd)
         });
     }
+    property var _settingsQueue: []
     function _runSettingsQueue() {
         if (settingsProc.running)
             return;
@@ -894,7 +895,7 @@ Scope {
         Image {
             id: glassBackdrop
             anchors.fill: parent
-            source: desktopContent.glassWanted ? root.wallpaperUrl : ""
+            source: desktopContent.glassWanted && backdrop.decoded ? root.wallpaperUrl : ""
             cache: false
             asynchronous: true
             smooth: true
@@ -1495,6 +1496,7 @@ Scope {
                             IiFaceWidget {
                                 faceId: iiLoader.modelData.id
                                 prefix: iiLoader.modelData.prefix
+                                scaleCfg: root.widgetValue(iiLoader.modelData.prefix, "Scale")
                                 screen: root.screen
                             }
                         }

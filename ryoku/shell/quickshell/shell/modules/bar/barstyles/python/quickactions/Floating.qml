@@ -21,6 +21,24 @@ Variants {
             WlrLayershell.keyboardFocus: shouldHaveKeyboardFocus ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
             exclusionMode: ExclusionMode.Ignore
             color: "transparent"
+            visible: surfaceNeeded
+
+            readonly property real screenWidth: (screen && screen.width > 0) ? screen.width : width
+            readonly property real screenHeight: (screen && screen.height > 0) ? screen.height : height
+
+            readonly property bool surfaceActive: isSidebarVisible || isPeekVisible || isPinned || isExpanded
+                || visibleProgress > 0.001 || expandProgress > 0.001
+                || pendingMode !== "" || edgeTransitionTimer.running || teleportTimer.running
+            readonly property bool surfaceNeeded: surfaceActive || surfaceLingerTimer.running
+
+            onSurfaceActiveChanged: {
+                if (!surfaceActive) surfaceLingerTimer.restart();
+            }
+
+            Timer {
+                id: surfaceLingerTimer
+                interval: 2000
+            }
 
             readonly property bool shouldHaveKeyboardFocus: isSidebarVisible && (isExpanded || hasInputFocus)
 
@@ -39,6 +57,23 @@ Variants {
                 if (hasInputFocus) {
                     hideTimer.stop();
                     floatingWidget.useGraceTimer = false;
+                }
+            }
+
+            readonly property bool isPopupHovered: {
+                let loader = (typeof moduleRepeater !== "undefined" && activeIndex >= 0 && activeIndex < moduleRepeater.count)
+                    ? moduleRepeater.itemAt(activeIndex)
+                    : null;
+                let mod = (loader && loader.status === Loader.Ready && loader.item) ? loader.item : null;
+                return !!(mod && mod.hasHoveredPopup !== undefined && mod.hasHoveredPopup);
+            }
+
+            onIsPopupHoveredChanged: {
+                if (isPopupHovered) {
+                    floatingWidget.useGraceTimer = false;
+                    hideTimer.stop();
+                } else {
+                    floatingWidget.kickTimer();
                 }
             }
 
@@ -63,8 +98,15 @@ Variants {
                 }
             }
 
+            property bool modulesWarm: false
+
+            onIsPeekVisibleChanged: {
+                if (isPeekVisible) modulesWarm = true;
+            }
+
             onIsSidebarVisibleChanged: {
                 if (isSidebarVisible) {
+                    modulesWarm = true;
                     SysData.prewarm();
                     grabKeyboardFocus();
                     Qt.callLater(grabKeyboardFocus);
@@ -78,9 +120,9 @@ Variants {
 
             property real barInset: barAutohide ? 0 : s(48)
             property real topBound: barPosition === "top" ? barInset : 0
-            property real bottomBound: floatingWidget.height - (barPosition === "bottom" ? barInset : 0)
+            property real bottomBound: floatingWidget.screenHeight - (barPosition === "bottom" ? barInset : 0)
             property real leftBound: barPosition === "left" ? barInset : 0
-            property real rightBound: floatingWidget.width - (barPosition === "right" ? barInset : 0)
+            property real rightBound: floatingWidget.screenWidth - (barPosition === "right" ? barInset : 0)
 
             property real edgeHitSize: Math.max(2, Math.round(s(3)))
 
@@ -140,11 +182,11 @@ Variants {
                 return baseLen * 1.2;
             }
 
-            property real dockHStart: Math.max(leftBound, Math.round((floatingWidget.width - dockLength) / 2))
-            property real dockHEnd: Math.min(rightBound, Math.round((floatingWidget.width + dockLength) / 2))
+            property real dockHStart: Math.max(leftBound, Math.round((floatingWidget.screenWidth - dockLength) / 2))
+            property real dockHEnd: Math.min(rightBound, Math.round((floatingWidget.screenWidth + dockLength) / 2))
 
-            property real dockVStart: Math.max(topBound, Math.round((floatingWidget.height - dockLength) / 2))
-            property real dockVEnd: Math.min(bottomBound, Math.round((floatingWidget.height + dockLength) / 2))
+            property real dockVStart: Math.max(topBound, Math.round((floatingWidget.screenHeight - dockLength) / 2))
+            property real dockVEnd: Math.min(bottomBound, Math.round((floatingWidget.screenHeight + dockLength) / 2))
 
             readonly property bool isDockOnTop: isDockActive && dockPosition === "top"
             readonly property real topEdgeA_x: leftBound
@@ -173,7 +215,65 @@ Variants {
             readonly property bool isAnyEdgeHovered: topEdgeA.containsMouse || topEdgeB.containsMouse ||
                                                      bottomEdgeA.containsMouse || bottomEdgeB.containsMouse ||
                                                      leftEdgeA.containsMouse || leftEdgeB.containsMouse ||
-                                                     rightEdgeA.containsMouse || rightEdgeB.containsMouse
+                                                     rightEdgeA.containsMouse || rightEdgeB.containsMouse ||
+                                                     topTrigger.hovered || bottomTrigger.hovered ||
+                                                     leftTrigger.hovered || rightTrigger.hovered
+
+            FloatingEdgeTrigger {
+                id: topTrigger
+                screen: floatingWidget.screen
+                host: floatingWidget
+                edge: "top"
+                visible: !floatingWidget.visible && (lengthA > 0 || lengthB > 0)
+                inset: floatingWidget.topBound
+                thickness: floatingWidget.edgeHitSize
+                startA: floatingWidget.topEdgeA_x
+                lengthA: floatingWidget.topEdgeA_w
+                startB: floatingWidget.topEdgeB_x
+                lengthB: floatingWidget.topEdgeB_w
+            }
+
+            FloatingEdgeTrigger {
+                id: bottomTrigger
+                screen: floatingWidget.screen
+                host: floatingWidget
+                edge: "bottom"
+                visible: !floatingWidget.visible && (lengthA > 0 || lengthB > 0)
+                inset: floatingWidget.screenHeight - floatingWidget.bottomBound
+                thickness: floatingWidget.edgeHitSize
+                startA: floatingWidget.bottomEdgeA_x
+                lengthA: floatingWidget.bottomEdgeA_w
+                startB: floatingWidget.bottomEdgeB_x
+                lengthB: floatingWidget.bottomEdgeB_w
+            }
+
+            FloatingEdgeTrigger {
+                id: leftTrigger
+                screen: floatingWidget.screen
+                host: floatingWidget
+                edge: "left"
+                visible: !floatingWidget.visible && (lengthA > 0 || lengthB > 0)
+                inset: floatingWidget.leftBound
+                thickness: floatingWidget.edgeHitSize
+                startA: floatingWidget.leftEdgeA_y
+                lengthA: floatingWidget.leftEdgeA_h
+                startB: floatingWidget.leftEdgeB_y
+                lengthB: floatingWidget.leftEdgeB_h
+            }
+
+            FloatingEdgeTrigger {
+                id: rightTrigger
+                screen: floatingWidget.screen
+                host: floatingWidget
+                edge: "right"
+                visible: !floatingWidget.visible && (lengthA > 0 || lengthB > 0)
+                inset: floatingWidget.screenWidth - floatingWidget.rightBound
+                thickness: floatingWidget.edgeHitSize
+                startA: floatingWidget.rightEdgeA_y
+                lengthA: floatingWidget.rightEdgeA_h
+                startB: floatingWidget.rightEdgeB_y
+                lengthB: floatingWidget.rightEdgeB_h
+            }
 
             function handleEdgeEntered(edge, mousePos) {
                 SysData.prewarm();
@@ -202,6 +302,16 @@ Variants {
             function handleEdgeExited() {
                 peekShowTimer.stop();
                 peekHideTimer.restart();
+            }
+
+            function handleEdgeHandoff() {
+                edgeHandoffTimer.restart();
+            }
+
+            Timer {
+                id: edgeHandoffTimer
+                interval: 400
+                onTriggered: peekHideTimer.restart()
             }
 
             Connections {
@@ -308,7 +418,8 @@ Variants {
                 "actions/DrawAction.qml",
                 "actions/SystemUsage.qml",
                 "actions/Timer.qml",
-                "actions/Notes.qml"
+                "actions/Notes.qml",
+                "actions/Calculator.qml"
             ]
 
             property int tabCount: Math.max(1, tabModules.length)
@@ -323,6 +434,8 @@ Variants {
                     return { name: I18n.t("quickactions.tabs.timer"), icon: "󰔛" };
                 } else if (mod.indexOf("Notes") !== -1) {
                     return { name: I18n.t("quickactions.tabs.notes"), icon: "󰈙" };
+                } else if (mod.indexOf("Calculator") !== -1) {
+                    return { name: I18n.t("quickactions.tabs.calculator"), icon: "󰃬" };
                 }
                 return { name: I18n.t("quickactions.tabs.tab"), icon: "󰍜" };
             }
@@ -357,6 +470,12 @@ Variants {
                         floatingWidget.showSystemUsage();
                     }
                 }
+
+                function onShowNotesRequested(screen) {
+                    if (floatingWidget.matchesScreen(screen)) {
+                        floatingWidget.showNotes();
+                    }
+                }
             }
 
             function matchesScreen(targetScreen) {
@@ -372,16 +491,24 @@ Variants {
             }
 
             function showSystemUsage() {
-                let sysIndex = 1;
+                floatingWidget.showTab("SystemUsage", 1);
+            }
+
+            function showNotes() {
+                floatingWidget.showTab("Notes", 3);
+            }
+
+            function showTab(key, fallbackIndex) {
+                let tabIndex = fallbackIndex;
                 for (let i = 0; i < floatingWidget.tabModules.length; i++) {
-                    if (floatingWidget.tabModules[i].indexOf("SystemUsage") !== -1) {
-                        sysIndex = i;
+                    if (floatingWidget.tabModules[i].indexOf(key) !== -1) {
+                        tabIndex = i;
                         break;
                     }
                 }
-                floatingWidget.activeIndex = sysIndex;
+                floatingWidget.activeIndex = tabIndex;
                 let sideEdge = (floatingWidget.barPosition === "left") ? "right" : "left";
-                let centerPos = floatingWidget.height / 2;
+                let centerPos = floatingWidget.screenHeight / 2;
                 floatingWidget.useGraceTimer = true;
                 floatingWidget.showSidebar(sideEdge, centerPos, true);
                 hideTimer.restart();
@@ -413,6 +540,7 @@ Variants {
                         (typeof peekMouse !== "undefined" && (peekMouse.containsMouse || peekMouse.pressed)) ||
                         (typeof pinMouse !== "undefined" && pinMouse.containsMouse) ||
                         (typeof expandMouse !== "undefined" && expandMouse.containsMouse) ||
+                        floatingWidget.isPopupHovered ||
                         floatingWidget.hoveredBars > 0) {
                         return;
                     }
@@ -569,13 +697,13 @@ Variants {
             property real expandedWidth: baseExpandedWidth
             property real expandedExtraLength: baseExpandedExtraLength
 
-            Behavior on expandedWidth { enabled: !floatingWidget.disableAnim; NumberAnimation { duration: 450; easing.type: Easing.OutQuart } }
-            Behavior on expandedExtraLength { enabled: !floatingWidget.disableAnim; NumberAnimation { duration: 450; easing.type: Easing.OutQuart } }
+            Behavior on expandedWidth { enabled: !floatingWidget.disableAnim; NumberAnimation { duration: 400; easing.type: Easing.OutQuart } }
+            Behavior on expandedExtraLength { enabled: !floatingWidget.disableAnim; NumberAnimation { duration: 400; easing.type: Easing.OutQuart } }
 
             property real expandProgress: isExpanded ? 1.0 : 0.0
             Behavior on expandProgress {
                 enabled: !floatingWidget.disableAnim
-                NumberAnimation { duration: 450; easing.type: Easing.OutQuart }
+                NumberAnimation { duration: 400; easing.type: Easing.OutQuart }
             }
 
             property real visibleProgress: isSidebarVisible ? 1.0 : 0.0
@@ -778,7 +906,7 @@ Variants {
             property bool disableAnim: true
 
             property string activeEdge: barPosition === "left" ? "right" : "left"
-            property real currentPos: (activeEdge === "left" || activeEdge === "right") ? (floatingWidget.height / 2) : (floatingWidget.width / 2)
+            property real currentPos: (activeEdge === "left" || activeEdge === "right") ? (floatingWidget.screenHeight / 2) : (floatingWidget.screenWidth / 2)
 
             property real baseSidebarH: {
                 let count = floatingWidget.tabCount;
@@ -1079,7 +1207,6 @@ Variants {
                 radius: Math.min(floatingWidget.containerRadius, Math.min(width, height) / 2)
 
                 color: Qt.alpha(ThemeBackend.base, ThemeBackend.elementOpacity)
-                border.width: 0
 
                 WallpaperBlur {
                     z: -1
@@ -1090,7 +1217,7 @@ Variants {
                 opacity: 1.0
                 scale: floatingWidget.isPeekVisible ? 1.0 : 0.6
 
-                Behavior on scale { NumberAnimation { duration: 300; easing.type: Easing.OutBack } }
+                Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutBack } }
 
                 property real visualDragOffset: {
                     if (!peekMouse.pressed) return 0;
@@ -1129,8 +1256,8 @@ Variants {
                     return 0;
                 }
 
-                Behavior on x { enabled: !floatingWidget.disableAnim && !peekMouse.pressed && floatingWidget.isPeekVisible; NumberAnimation { duration: 350; easing.type: Easing.OutExpo } }
-                Behavior on y { enabled: !floatingWidget.disableAnim && !peekMouse.pressed && floatingWidget.isPeekVisible; NumberAnimation { duration: 350; easing.type: Easing.OutExpo } }
+                Behavior on x { enabled: !floatingWidget.disableAnim && !peekMouse.pressed && floatingWidget.isPeekVisible; NumberAnimation { duration: 400; easing.type: Easing.OutExpo } }
+                Behavior on y { enabled: !floatingWidget.disableAnim && !peekMouse.pressed && floatingWidget.isPeekVisible; NumberAnimation { duration: 400; easing.type: Easing.OutExpo } }
 
                 Rectangle {
                     anchors.centerIn: parent
@@ -1209,12 +1336,12 @@ Variants {
 
                 Behavior on x {
                     enabled: !floatingWidget.disableAnim && floatingWidget.isSidebarVisible && (floatingWidget.activeEdge === "bottom" || floatingWidget.activeEdge === "top")
-                    NumberAnimation { duration: 350; easing.type: Easing.OutExpo }
+                    NumberAnimation { duration: 400; easing.type: Easing.OutExpo }
                 }
 
                 Behavior on y {
                     enabled: !floatingWidget.disableAnim && floatingWidget.isSidebarVisible && (floatingWidget.activeEdge === "left" || floatingWidget.activeEdge === "right")
-                    NumberAnimation { duration: 350; easing.type: Easing.OutExpo }
+                    NumberAnimation { duration: 400; easing.type: Easing.OutExpo }
                 }
 
                 Item {
@@ -1280,7 +1407,6 @@ Variants {
                         topRightRadius: floatingWidget.containerRadius
                         bottomRightRadius: floatingWidget.containerRadius
                         color: Qt.alpha(ThemeBackend.base, ThemeBackend.elementOpacity)
-                        border.width: 0
 
                         WallpaperBlur {
                             z: -1
@@ -1319,6 +1445,27 @@ Variants {
                             }
                             onReleased: { if (!containsMouse) floatingWidget.kickTimer(); }
                         }
+
+                        MouseArea {
+                            id: sidebarWheelArea
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            anchors.left: parent.left
+                            anchors.leftMargin: floatingWidget.edgeBleed
+                            width: floatingWidget.sidebarW
+                            acceptedButtons: Qt.NoButton
+                            enabled: floatingWidget.isSidebarVisible
+
+                            onWheel: wheel => {
+                                let step = 0;
+                                if (wheel.angleDelta.y > 0) step = (floatingWidget.activeEdge === "right" || floatingWidget.activeEdge === "top") ? 1 : -1;
+                                else if (wheel.angleDelta.y < 0) step = (floatingWidget.activeEdge === "right" || floatingWidget.activeEdge === "top") ? -1 : 1;
+
+                                if (step !== 0) {
+                                    floatingWidget.activeIndex = Math.max(0, Math.min(floatingWidget.tabCount - 1, floatingWidget.activeIndex + step));
+                                }
+                            }
+                        }
                     }
 
                     Item {
@@ -1333,8 +1480,6 @@ Variants {
                         component EmptyBlock : Rectangle {
                             radius: Math.min(floatingWidget.s(10), Math.min(width, height) / 2)
                             color: blockGlass.active ? "transparent" : Qt.rgba(ThemeBackend.text.r, ThemeBackend.text.g, ThemeBackend.text.b, 0.05)
-                            border.width: 0
-                            border.color: Qt.rgba(ThemeBackend.text.r, ThemeBackend.text.g, ThemeBackend.text.b, 0.08)
                             clip: true
 
                             GlassFill {
@@ -1389,15 +1534,19 @@ Variants {
                                 anchors.leftMargin: floatingWidget.s(4)
                                 anchors.rightMargin: floatingWidget.s(4)
 
+                                readonly property bool isEager: modelData.indexOf("Timer") !== -1
+
                                 visible: index === floatingWidget.activeIndex && floatingWidget.expandProgress > 0.01
+                                active: isEager || floatingWidget.modulesWarm || (isCurrentTarget && floatingWidget.isExpanded)
                                 source: modelData
-                                asynchronous: false
+                                asynchronous: !isEager
 
                                 property var scaleFunc: floatingWidget.s
                                 property var mochaColors: ThemeBackend
                                 property string activeEdge: floatingWidget.activeEdge
 
                                 property bool isCurrentTarget: index === floatingWidget.activeIndex
+                                property bool isExpandedState: floatingWidget.isExpanded
                                 property real modWidth: (status === Loader.Ready && item && item.preferredWidth !== undefined) ? item.preferredWidth : floatingWidget.baseExpandedWidth
                                 property real modExt: (status === Loader.Ready && item && item.preferredExtraLength !== undefined) ? item.preferredExtraLength : floatingWidget.baseExpandedExtraLength
 
@@ -1439,15 +1588,6 @@ Variants {
 
                             onEntered: hideTimer.stop()
                             onExited: { if (!sidebarDragArea.containsMouse) floatingWidget.kickTimer(); }
-                            onWheel: wheel => {
-                                let step = 0;
-                                if (wheel.angleDelta.y > 0) step = (floatingWidget.activeEdge === "right" || floatingWidget.activeEdge === "top") ? 1 : -1;
-                                else if (wheel.angleDelta.y < 0) step = (floatingWidget.activeEdge === "right" || floatingWidget.activeEdge === "top") ? -1 : 1;
-
-                                if (step !== 0) {
-                                    floatingWidget.activeIndex = Math.max(0, Math.min(floatingWidget.tabCount - 1, floatingWidget.activeIndex + step));
-                                }
-                            }
                         }
                     }
 
@@ -1476,7 +1616,7 @@ Variants {
 
                                 Behavior on y {
                                     enabled: !floatingWidget.disableAnim
-                                    NumberAnimation { duration: 350; easing.type: Easing.OutExpo }
+                                    NumberAnimation { duration: 400; easing.type: Easing.OutExpo }
                                 }
 
                                 Item {
@@ -1489,7 +1629,7 @@ Variants {
                                         : parent.height - height - floatingWidget.s(4)
 
                                     rotation: floatingWidget.isExpanded ? 180 : 0
-                                    Behavior on rotation { NumberAnimation { duration: 300; easing.type: Easing.OutBack } }
+                                    Behavior on rotation { NumberAnimation { duration: 250; easing.type: Easing.OutBack } }
 
                                     Item {
                                         anchors.fill: parent
@@ -1508,7 +1648,7 @@ Variants {
                                             color: parent.iconColor
                                             anchors.verticalCenter: parent.verticalCenter
                                             x: parent.pivotX - (width / 2)
-                                            Behavior on color { ColorAnimation { duration: 200 } }
+                                            Behavior on color { ColorAnimation { duration: 250 } }
                                         }
 
                                         Rectangle {
@@ -1520,7 +1660,7 @@ Variants {
                                             transformOrigin: Item.Left
                                             rotation: 42
                                             color: parent.iconColor
-                                            Behavior on color { ColorAnimation { duration: 200 } }
+                                            Behavior on color { ColorAnimation { duration: 250 } }
                                         }
 
                                         Rectangle {
@@ -1532,7 +1672,7 @@ Variants {
                                             transformOrigin: Item.Left
                                             rotation: -42
                                             color: parent.iconColor
-                                            Behavior on color { ColorAnimation { duration: 200 } }
+                                            Behavior on color { ColorAnimation { duration: 250 } }
                                         }
                                     }
 
@@ -1593,8 +1733,8 @@ Variants {
                                         ? ThemeBackend.mauve
                                         : Qt.rgba(ThemeBackend.text.r, ThemeBackend.text.g, ThemeBackend.text.b, 0.2)
 
-                                    Behavior on color { ColorAnimation { duration: 200 } }
-                                    Behavior on border.color { ColorAnimation { duration: 200 } }
+                                    Behavior on color { ColorAnimation { duration: 250 } }
+                                    Behavior on border.color { ColorAnimation { duration: 250 } }
 
                                     MouseArea {
                                         id: pinMouse
@@ -1651,7 +1791,7 @@ Variants {
 
                                 readonly property bool isMoving: Math.abs(actualTop - targetTop) > 0.5 || Math.abs(actualBottom - targetBottom) > 0.5
                                 property real lift: (highlightGlass.active && isMoving) ? 1.0 : 0.0
-                                Behavior on lift { NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
+                                Behavior on lift { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                                 scale: 1.0 + 0.14 * lift
                                 transformOrigin: Item.Center
 
@@ -1691,10 +1831,10 @@ Variants {
                                     z: 1
 
                                     y: floatingWidget.barOffsetY + floatingWidget.getTargetY(index, floatingWidget.activeIndex)
-                                    Behavior on y { enabled: !floatingWidget.disableAnim; NumberAnimation { duration: 350; easing.type: Easing.OutExpo } }
+                                    Behavior on y { enabled: !floatingWidget.disableAnim; NumberAnimation { duration: 400; easing.type: Easing.OutExpo } }
 
                                     height: isActive ? floatingWidget.h_ac : width
-                                    Behavior on height { enabled: !floatingWidget.disableAnim; NumberAnimation { duration: 350; easing.type: Easing.OutExpo } }
+                                    Behavior on height { enabled: !floatingWidget.disableAnim; NumberAnimation { duration: 400; easing.type: Easing.OutExpo } }
 
                                     color: isActive ? "transparent" : (isPressed ? Qt.rgba(ThemeBackend.mauve.r, ThemeBackend.mauve.g, ThemeBackend.mauve.b, 0.4) : (isHovered ? Qt.rgba(ThemeBackend.mauve.r, ThemeBackend.mauve.g, ThemeBackend.mauve.b, 0.25) : Qt.rgba(ThemeBackend.text.r, ThemeBackend.text.g, ThemeBackend.text.b, 0.15)))
                                     Behavior on color { ColorAnimation { duration: 250 } }
@@ -1709,7 +1849,7 @@ Variants {
                                         height: parent.width
                                         visible: !barPill.isActive || opacity > 0.001
                                         opacity: barPill.isActive ? 0.0 : 1.0
-                                        Behavior on opacity { enabled: !floatingWidget.disableAnim; NumberAnimation { duration: 200 } }
+                                        Behavior on opacity { enabled: !floatingWidget.disableAnim; NumberAnimation { duration: 250 } }
 
                                         Text {
                                             anchors.centerIn: parent
@@ -1730,7 +1870,7 @@ Variants {
                                         visible: barPill.isActive || opacity > 0.001
                                         opacity: barPill.isActive ? 1.0 : 0.0
                                         clip: true
-                                        Behavior on opacity { enabled: !floatingWidget.disableAnim; NumberAnimation { duration: 200 } }
+                                        Behavior on opacity { enabled: !floatingWidget.disableAnim; NumberAnimation { duration: 250 } }
 
                                         Text {
                                             anchors.centerIn: parent

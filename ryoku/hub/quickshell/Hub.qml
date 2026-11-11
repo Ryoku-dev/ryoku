@@ -15,6 +15,7 @@ import "schema/DesktopPage.js" as DesktopSchema
 import "schema/GlobalPage.js" as GlobalSchema
 import "schema/BarStudioPage.js" as BarStudioSchema
 import "schema/ControlsPage.js" as ControlsSchema
+import "schema/GameBarPage.js" as GameBarSchema
 import "schema/WindowSettings.js" as WindowSettingsSchema
 import "schema/PluginsPage.js" as PluginsSchema
 import "schema/InputPage.js" as InputSchema
@@ -146,6 +147,7 @@ Rectangle {
         { name: "DESKTOP", items: [
             { key: "subshells", name: "Subshells", wired: true }, { key: "bar-studio", name: "Bar Studio", wired: true }, { key: "desktop", name: "Desktop", wired: true },
             { key: "controls", name: "Controls", wired: true }, { key: "overlays", name: "Overlays", wired: true },
+            { key: "gamebar", name: "Game Bar" },
             { key: "launcher", name: "App Launcher" } ] },
         { name: "KEYS & APPS", items: [
             { key: "keybinds", name: "Keybinds" }, { key: "appoverrides", name: "App Overrides", adv: true },
@@ -168,6 +170,7 @@ Rectangle {
         "connections": "接続", "gpu": "演算", "recording": "録画", "dictation": "音声",
         "plugins": "補", "subshells": "殻", "bar-studio": "帯", "desktop": "卓上", "controls": "操作",
         "overlays": "重ね", "launcher": "起動", "fastfetch": "情報", "lockscreen": "施錠", "animations": "動き",
+        "gamebar": "遊戯",
         "addons": "拡張", "windowrules": "規則", "appoverrides": "上書", "layerrules": "階層",
         "session": "起動", "performance": "性能", "rashin": "羅針",
         "updates": "更新", "credits": "謝辞", "global": "全般", "import": "取込", "windowmanager": "合成"
@@ -189,11 +192,12 @@ Rectangle {
         "dictation": "voice typing speech transcribe whisper microphone stt",
         "windowmanager": "compositor window manager wm wayland switch change swap session provider window windows rounding corners softness gaps border borders thickness colour tiling layout opacity transparency transparent dim blur shadow float snap resize animation spread offset",
         "plugins": "plugin plugins hyprland compositor hyprpm title bar titlebar hyprbars glass hyprglass image border imgborders cursor motion dynamic cursors focus flash hyprfocus key sound sounds keyboard keysounds typing click clicky thock creamy cherry mx topre mechvibes switch version abi mismatch rebuild build update add git repository install",
-        "subshells": "subshell full shell gokko caelestia tansu python macshell serpantinum desktop panels dock launcher quick settings bar",
+        "subshells": "subshell full shell gokko caelestia tansu python imi macshell serpantinum desktop panels dock launcher quick settings bar",
         "bar-studio": "bar frame rails zones widgets menus surfaces style catalogue layout framebars sidebar dock dockapps pinned pin magnify autohide auto-hide media chip peek labels edge taskbar",
         "desktop": "desktop brand logo mark name wallpaper picker clipboard sidebar sidebars controls today panel corner",
         "controls": "controls quick settings super escape sidebar panel layout sections order graph vitals levels media plugins",
         "overlays": "osd volume popup brightness popup notifications popups toasts sidebar super escape quick settings design designs store",
+        "gamebar": "game bar gamebar overlay ingame in-game widgets dim snap snapping grid spring damping edges curve pinned pin drag capture performance fps",
         "launcher": "launcher spotlight command palette greeting weather home",
         "fastfetch": "fetch neofetch terminal system info logo ascii emblem readout",
         "lockscreen": "lock screensaver signin greeter skin theme login",
@@ -228,7 +232,8 @@ Rectangle {
         "windowrules": WindowRulesSchema.rows, "appoverrides": AppOverridesSchema.rows,
         "layerrules": LayerRulesSchema.rows, "session": SessionSchema.rows,
         "performance": PerformanceSchema.rows,
-        "updates": UpdatesSchema.rows, "global": GlobalSchema.rows
+        "updates": UpdatesSchema.rows, "global": GlobalSchema.rows,
+        "gamebar": GameBarSchema.rows
     })
     readonly property var searchIndex: {
         var srcs = hub.sectionRows;
@@ -441,7 +446,7 @@ Rectangle {
     readonly property var framedSet: ({
         "subshells": true, "bar-studio": true, "desktop": true, "controls": true, "plugins": true, "input": true, "animations": true, "global": true, "windowmanager": true,
         "windowrules": true, "appoverrides": true, "layerrules": true,
-        "session": true
+        "session": true, "gamebar": true
     })
     // A section drives the compositor when any of its rows targets the neutral
     // window-manager store (src desktop.json), derived from the schema so it
@@ -538,7 +543,7 @@ Rectangle {
             "recording": "RecordingPage", "performance": "PerformancePage",
             "launcher": "LauncherPage", "lockscreen": "LockscreenPage",
             "fastfetch": "FastfetchPage", "addons": "AddonsPage",
-            "credits": "CreditsPage"
+            "credits": "CreditsPage", "gamebar": "GameBarPage"
         };
         map.global = "GlobalPage";
         map["import"] = "ImportPage";
@@ -585,7 +590,15 @@ Rectangle {
         "deckFrostEnabled": true, "deckFrost": 0.45,
         "clipboard.widthPercent": 65, "clipboard.heightPercent": 42, "clipboard.bottomPercent": 0,
         "clipboard.panelRadius": 18, "clipboard.paneRadius": 12, "clipboard.cardRadius": 9,
-        "clipboard.pruneWeekly": false
+        "clipboard.pruneWeekly": false,
+        "gamebar.enabled": true, "gamebar.dim": 0.62, "gamebar.fade": 200,
+        "gamebar.scale": 1, "gamebar.radius": 14,
+        "gamebar.snap": true, "gamebar.snapReach": 9, "gamebar.snapGrid": 24,
+        "gamebar.guideGrid": true, "gamebar.gridStep": 48, "gamebar.gridAlpha": 0.28,
+        "gamebar.spring": 3.2, "gamebar.damping": 0.58, "gamebar.mass": 1,
+        "gamebar.voiceAvatars": 8, "gamebar.voiceDim": true, "gamebar.voiceDimOpacity": 0.5,
+        "gamebar.voiceAvatarSize": 52, "gamebar.voiceNames": true,
+        "gamebar.voiceControls": true, "gamebar.voiceBgOpacity": 0.72
     })
 
     // key -> source file, derived from the schema so it cannot drift.

@@ -47,6 +47,9 @@ jobs:
           git fetch -q origin main unstable-dev 2>/dev/null || true
           bin/ryoku-dev-verify-delivery
 
+      - name: Verify compositor isolation
+        run: bin/ryoku-dev-verify-wm-isolation --quiet
+
       - name: Annotate publish lag
         if: always()
         run: |

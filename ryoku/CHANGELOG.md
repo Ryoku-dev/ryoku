@@ -3,6 +3,26 @@
 ## Unreleased
 
 ### Fixed
+- **Fastfetch reads the wallpaper-tinted config again.** The effective config
+  keeps the `// ryoku:` header comments from `config.jsonc`, so it is now
+  cached as `fastfetch-effective.jsonc`; fastfetch rejects comments in a
+  `.json` file and every terminal opened with a parse error (#746).
+- **Rebuilding a Hyprland plugin after an update compiles it fresh.** Leftover
+  objects no longer produce a copy for the old Hyprland that Hyprland refuses.
+  Such a copy now counts as stale, so the doctor rebuilds it (`wm/hyprland`).
+- Fix with AI can use Codex with a repair-specific model and reasoning effort.
+  Terminal launches now precede the health scan so progress and errors stay visible.
+- **Fix with AI keeps user unit overrides working for every account.** The
+  repair playbook tells the agent to write `%h` in a user unit drop-in instead
+  of one user's home path, which another user cannot read.
+- **Adaptive sync keeps its saved state in Displays.** Hyprland and niri now
+  report the configured choice instead of whether the panel happens to be using
+  adaptive sync at that moment, so a later Apply cannot turn it off.
+- **Long Rashin conversations open at their newest message.** Restored history
+  stays behind one loading state, and rapid session choices settle on the last
+  selected conversation (`rashin/backend/`, `rashin/web/`).
+- **Translucent tiled windows blur on Hyprland again.** The Hub now restores
+  blur after lowering window opacity, including per-app opacity overrides.
 - **The login screen appears without a six-second black screen, at the
   panel's top refresh rate.** The greeter asked `modetest` for the card by
   `/dev/dri` path, which its `-D` (a legacy bus id) never opens, so every boot

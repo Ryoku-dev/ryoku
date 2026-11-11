@@ -68,32 +68,38 @@ _ryoku_source_first \
   /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh || true
 unset -f _ryoku_source_first
 
-ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE='fg=#949699'
-if (( ${+parameters[ZSH_HIGHLIGHT_STYLES]} )); then
-  ZSH_HIGHLIGHT_STYLES[default]='fg=#F1F3E4'
-  ZSH_HIGHLIGHT_STYLES[command]='fg=#e2342a'
-  ZSH_HIGHLIGHT_STYLES[hashed-command]='fg=#e2342a'
-  ZSH_HIGHLIGHT_STYLES[builtin]='fg=#e2342a'
-  ZSH_HIGHLIGHT_STYLES[function]='fg=#e2342a'
-  ZSH_HIGHLIGHT_STYLES[alias]='fg=#e2342a'
-  ZSH_HIGHLIGHT_STYLES[suffix-alias]='fg=#e2342a'
-  ZSH_HIGHLIGHT_STYLES[global-alias]='fg=#e2342a'
-  ZSH_HIGHLIGHT_STYLES[reserved-word]='fg=#e83b30'
-  ZSH_HIGHLIGHT_STYLES[precommand]='fg=#e83b30'
-  ZSH_HIGHLIGHT_STYLES[commandseparator]='fg=#e83b30'
-  ZSH_HIGHLIGHT_STYLES[single-hyphen-option]='fg=#CCD0CF'
-  ZSH_HIGHLIGHT_STYLES[double-hyphen-option]='fg=#CCD0CF'
-  ZSH_HIGHLIGHT_STYLES[single-quoted-argument]='fg=#A3C293'
-  ZSH_HIGHLIGHT_STYLES[double-quoted-argument]='fg=#A3C293'
-  ZSH_HIGHLIGHT_STYLES[dollar-quoted-argument]='fg=#A3C293'
-  ZSH_HIGHLIGHT_STYLES[redirection]='fg=#8AA9CC'
-  ZSH_HIGHLIGHT_STYLES[named-fd]='fg=#8AA9CC'
-  ZSH_HIGHLIGHT_STYLES[numeric-fd]='fg=#8AA9CC'
-  ZSH_HIGHLIGHT_STYLES[globbing]='fg=#93D4E0'
-  ZSH_HIGHLIGHT_STYLES[history-expansion]='fg=#93D4E0'
-  ZSH_HIGHLIGHT_STYLES[comment]='fg=#949699'
-  ZSH_HIGHLIGHT_STYLES[unknown-token]='fg=#FF6B6B'
+_ryoku_palette=${XDG_CONFIG_HOME:-$HOME/.config}/zsh/ryoku-colors.zsh
+if [[ -r $_ryoku_palette ]]; then
+  source "$_ryoku_palette"
+else
+  ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE='fg=#949699'
+  if (( ${+parameters[ZSH_HIGHLIGHT_STYLES]} )); then
+    ZSH_HIGHLIGHT_STYLES[default]='fg=#F1F3E4'
+    ZSH_HIGHLIGHT_STYLES[command]='fg=#e2342a'
+    ZSH_HIGHLIGHT_STYLES[hashed-command]='fg=#e2342a'
+    ZSH_HIGHLIGHT_STYLES[builtin]='fg=#e2342a'
+    ZSH_HIGHLIGHT_STYLES[function]='fg=#e2342a'
+    ZSH_HIGHLIGHT_STYLES[alias]='fg=#e2342a'
+    ZSH_HIGHLIGHT_STYLES[suffix-alias]='fg=#e2342a'
+    ZSH_HIGHLIGHT_STYLES[global-alias]='fg=#e2342a'
+    ZSH_HIGHLIGHT_STYLES[reserved-word]='fg=#e83b30'
+    ZSH_HIGHLIGHT_STYLES[precommand]='fg=#e83b30'
+    ZSH_HIGHLIGHT_STYLES[commandseparator]='fg=#e83b30'
+    ZSH_HIGHLIGHT_STYLES[single-hyphen-option]='fg=#CCD0CF'
+    ZSH_HIGHLIGHT_STYLES[double-hyphen-option]='fg=#CCD0CF'
+    ZSH_HIGHLIGHT_STYLES[single-quoted-argument]='fg=#A3C293'
+    ZSH_HIGHLIGHT_STYLES[double-quoted-argument]='fg=#A3C293'
+    ZSH_HIGHLIGHT_STYLES[dollar-quoted-argument]='fg=#A3C293'
+    ZSH_HIGHLIGHT_STYLES[redirection]='fg=#8AA9CC'
+    ZSH_HIGHLIGHT_STYLES[named-fd]='fg=#8AA9CC'
+    ZSH_HIGHLIGHT_STYLES[numeric-fd]='fg=#8AA9CC'
+    ZSH_HIGHLIGHT_STYLES[globbing]='fg=#93D4E0'
+    ZSH_HIGHLIGHT_STYLES[history-expansion]='fg=#93D4E0'
+    ZSH_HIGHLIGHT_STYLES[comment]='fg=#949699'
+    ZSH_HIGHLIGHT_STYLES[unknown-token]='fg=#FF6B6B'
+  fi
 fi
+unset _ryoku_palette
 
 if (( $+functions[history-substring-search-up] )); then
   bindkey '^[[A' history-substring-search-up

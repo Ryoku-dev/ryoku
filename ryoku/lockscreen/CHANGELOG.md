@@ -2,7 +2,30 @@
 
 ## Unreleased
 
+### Fixed
+- **New installs wire the login keyring once.** The SDDM setup counts the stock
+  `-auth`/`-session` keyring lines, so it no longer adds a second copy on Arch.
+- **A picked skin stays on the Fedora sign-in screen.** `sddm-theme-ryoku` owned
+  the skin files in `/usr/share/sddm/themes/ryoku`, so each package update put
+  Orbital back while the Hub still named the pick. The package now owns only the
+  directory, and `ryoku-desktop` rebuilds the host around the skin already there.
+- **Unsafe security-key services can no longer arm the lock.** Every attempt
+  validates the CLI-generated service before PAM sees it, and password submits
+  now have a separate path from security-key PIN responses.
+
 ### Added
+- **A security key unlocks the in-session lock.** `ryoku security-key set lock
+  on` (or the Hub's Lockscreen row) writes `~/.config/qylock/pam/ryoku-lock-key`,
+  and the lock runs it as a third PAM conversation beside password and
+  fingerprint, armed when the lock secures and when a key is plugged in. A
+  touch-only key unlocks on touch while the password stays available. A key that
+  asks for a PIN takes the field, with USE PASSWORD to hand it back; a wrong PIN
+  or a touch that has not come within 10s drops to the password, so typed
+  passwords never spend PIN attempts. Only a skin that draws `sddm.keyState`
+  (`sddm.keyPrompts`, set by Orbital) is given the PIN; under any other skin the
+  request is dropped unseen and the password works as before
+  (`qylock/quickshell-lockscreen/shim/SddmShim.qml`,
+  `qylock/themes/clockwork/orbital/Main.qml`).
 - **The login screen comes back when its greeter dies.** SDDM 0.21 reports a
   Wayland greeter that died, compositor or greeter client, crash or exit, as a
   finished login (`sddm-helper-start-wayland` quits with 0, the daemon reads
@@ -20,6 +43,16 @@
 - The built-in in-session clockwork lockscreen follows the global 12/24-hour preference, including AM/PM.
 
 ### Fixed
+- **The Orbital login prompts read naturally in French.** Security-key,
+  fingerprint, password and power actions use concise instructions instead of
+  literal machine translations.
+- **The login field types in the system keyboard layout.** `ryoku-greeter`
+  handed the layout to weston through `XKB_DEFAULT_*`, but weston ignores that
+  environment and loads its own `us` default when its ini names no keymap, so
+  an AZERTY or QWERTZ password failed at the login field (#224). The layout,
+  variant and options now go into weston's `[keyboard]` section as
+  `keymap_layout`, `keymap_variant` and `keymap_options`
+  (`tests/sddm-wayland.sh`).
 - **The password field is ready after waking a locked display.** The shared
   session-lock host restores theme focus when an output reconnects, not only
   when the lock first appears, so suspending with the display powered down no

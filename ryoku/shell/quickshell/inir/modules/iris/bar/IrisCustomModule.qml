@@ -9,7 +9,7 @@ Item {
     property string slot: ""
     property var targetScreen
     readonly property var entry: CustomWidgets.ready
-        ? (CustomWidgets.widgets.find(widget => widget.id === root.widgetId) ?? null)
+        ? (CustomWidgets.irisModules.find(widget => widget.id === root.widgetId) ?? null)
         : null
     readonly property string sourcePath: String(root.entry?.irisQmlPath ?? "")
 

@@ -10,13 +10,19 @@ import (
 // Default Apps: the swappable roles the Default Apps page offers, each with a
 // short list of common candidates. `ryoku-hub apps` reports which candidates are
 // installed (a binary on PATH) so the page can show them as chips; the field
-// still accepts any command. The chosen command is stored in hypr.json "apps"
-// and launched by the ryoku-app resolver (and exported as env by genApps).
+// still accepts any command. The chosen command is stored in desktop.json under
+// desktop.apps and launched by the ryoku-app resolver.
 
-type appCandidate struct {
-	Label     string `json:"label"`
+type appAlias struct {
 	Cmd       string `json:"cmd"`
 	Installed bool   `json:"installed"`
+}
+
+type appCandidate struct {
+	Label     string     `json:"label"`
+	Cmd       string     `json:"cmd"`
+	Installed bool       `json:"installed"`
+	Aliases   []appAlias `json:"aliases"`
 }
 
 type appRole struct {
@@ -71,18 +77,30 @@ func binOf(cmd string) string {
 	return ""
 }
 
-// resolveCandidate picks the concrete command for a candidate whose spec may
-// list pipe-separated alternative binaries (e.g. "zen|zen-browser", the tarball
-// name and the AUR package name): the first alternative whose binary is on PATH,
-// else the first. installed reports whether any alternative was found.
-func resolveCandidate(spec string) (cmd string, installed bool) {
+func candidateAliases(spec string) []appAlias {
 	alts := strings.Split(spec, "|")
+	out := make([]appAlias, 0, len(alts))
 	for _, alt := range alts {
-		if _, err := exec.LookPath(binOf(alt)); err == nil {
-			return alt, true
+		_, err := exec.LookPath(binOf(alt))
+		out = append(out, appAlias{Cmd: alt, Installed: err == nil})
+	}
+	return out
+}
+
+func resolveAliases(aliases []appAlias) (cmd string, installed bool) {
+	for _, alias := range aliases {
+		if alias.Installed {
+			return alias.Cmd, true
 		}
 	}
-	return alts[0], false
+	if len(aliases) == 0 {
+		return "", false
+	}
+	return aliases[0].Cmd, false
+}
+
+func resolveCandidate(spec string) (cmd string, installed bool) {
+	return resolveAliases(candidateAliases(spec))
 }
 
 func appRoles() []appRole {
@@ -99,8 +117,11 @@ func appRoles() []appRole {
 		}
 		r := appRole{Role: d.Role, Label: d.Label, Fallback: fallback, Combo: combos[d.Role]}
 		for _, c := range d.Cands {
-			cmd, installed := resolveCandidate(c[1])
-			r.Candidates = append(r.Candidates, appCandidate{Label: c[0], Cmd: cmd, Installed: installed})
+			aliases := candidateAliases(c[1])
+			cmd, installed := resolveAliases(aliases)
+			r.Candidates = append(r.Candidates, appCandidate{
+				Label: c[0], Cmd: cmd, Installed: installed, Aliases: aliases,
+			})
 		}
 		out = append(out, r)
 	}

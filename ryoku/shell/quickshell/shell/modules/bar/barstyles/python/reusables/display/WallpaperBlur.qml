@@ -23,7 +23,7 @@ Item {
     property real filletInset: 0
     property bool earsOnly: false
     property rect boxRect: Qt.rect(0, 0, 0, 0)
-    property Item maskItem: mask
+    property Item maskItem: null
     property real bezelSize: Math.max(5, Math.min(26, Math.min(width, height) * 0.36))
     property bool standalone: false
     property bool surfaceEnabled: true
@@ -33,7 +33,6 @@ Item {
     readonly property bool liquid: ThemeBackend.liquidGlass
     readonly property real blurPad: liquid ? 0 : 64
     readonly property bool isGlassBackdrop: true
-    property alias texture: glassTexture
     property int consumers: 0
     property int nestLevel: 0
     readonly property real nest: Math.min(1, nestLevel * 0.5)
@@ -41,14 +40,16 @@ Item {
 
     readonly property var hostWindow: QsWindow.window
     readonly property var hostScreen: screenOverride ? screenOverride : (hostWindow ? hostWindow.screen : null)
+    readonly property var effectiveScreenOverride: screenOverride
+    readonly property bool parentVisible: parent ? parent.visible : true
     readonly property string wallpaperPath: Ryoku.Session.wallIsVideo
         ? Ryoku.Session.livePoster : Ryoku.Session.wallpaper
     readonly property string wallpaperUrl: wallpaperPath !== ""
         ? "file://" + wallpaperPath + "?rev=" + revision : ""
-    readonly property bool active: surfaceEnabled && ThemeBackend.blurBackground
-        && ThemeBackend.elementOpacity < 0.999 && width > 0 && height > 0
-        && hostScreen !== null && wallpaperPath !== ""
-        && (hostWindow ? hostWindow.visible : true)
+    readonly property bool active: surfaceEnabled && parentVisible
+        && ThemeBackend.blurBackground && ThemeBackend.elementOpacity < 0.999
+        && width > 0 && height > 0 && hostScreen !== null
+        && wallpaperPath !== "" && (hostWindow ? hostWindow.visible : true)
 
     property real imageX: 0
     property real imageY: 0
@@ -76,13 +77,15 @@ Item {
         if (root.consumers > 0) glassTexture.scheduleUpdate();
     }
 
+    property var geoSig: [NaN, 0, 0, 0, 0, 0, 0, 0]
+
     function refreshGeometry() {
         const w = root.hostWindow;
         const scr = root.hostScreen;
         if (!scr) return;
         let wx = 0;
         let wy = 0;
-        if (w && w.anchors && !root.screenOverride) {
+        if (w && w.anchors && !root.effectiveScreenOverride) {
             const a = w.anchors;
             const m = w.margins;
             if (a.left) wx = m.left;
@@ -94,6 +97,9 @@ Item {
         }
         const p0 = root.mapFromItem(null, -wx, -wy);
         const px = root.mapFromItem(null, 1 - wx, -wy);
+        const gs = root.geoSig;
+        if (p0.x === gs[0] && p0.y === gs[1] && px.x === gs[2] && px.y === gs[3] && scr.width === gs[4] && scr.height === gs[5] && root.width === gs[6] && root.height === gs[7]) return;
+        gs[0] = p0.x; gs[1] = p0.y; gs[2] = px.x; gs[3] = px.y; gs[4] = scr.width; gs[5] = scr.height; gs[6] = root.width; gs[7] = root.height;
         const dx = px.x - p0.x;
         const dy = px.y - p0.y;
         const len = Math.sqrt(dx * dx + dy * dy);
@@ -268,11 +274,11 @@ Item {
 
     HoverHandler {
         id: pointer
-        enabled: root.liquid
+        enabled: root.liquid && root.active
     }
 
     property real hoverAmount: pointer.hovered ? 1.0 : 0.0
-    Behavior on hoverAmount { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
+    Behavior on hoverAmount { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
 
     property real cursorX: width / 2
     property real cursorY: height / 2

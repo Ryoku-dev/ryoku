@@ -5,6 +5,8 @@ import Quickshell.Io
 import Ryoku.FrameBars
 import Ryoku.Ui.Singletons
 
+import "lib/surface-routes.js" as SurfaceRoutes
+
 // live shell appearance config. one source of truth for the look knobs Ryoku
 // Settings' Shell section edits, plus the shipped defaults the shell falls back
 // to. JSON at ~/.config/ryoku/shell.json, watched, so a save in Settings
@@ -58,6 +60,7 @@ Singleton {
     property alias barStyle: adapter.barStyle
     property alias notifications: adapter.notifications
     readonly property var sounds: adapter.sounds
+    readonly property var themeSizing: adapter.theme?.attributes?.sizing ?? ({})
 
     // obi: per-widget visibility for the Obi bar style, edited in Bar Studio.
     // A map of widgetId -> bool; an absent key reads as shown, so the bar is
@@ -84,6 +87,8 @@ Singleton {
         && !(root.nomarchy && root.nomarchy.notifications === false))
         || (barStyle === "iris" && (root.inir?.iris?.modules?.notificationPopup ?? true))
         || barStyle === "tansu"
+        || barStyle === "caelestia"
+        || barStyle === "imi"
         || (barStyle === "gokko" && BarProducts.gokkoReady)
     // Only a style that plays its own notification sound silences the shell's
     // cue; Nomarchy and Tansu draw banners but play nothing themselves.
@@ -94,6 +99,15 @@ Singleton {
         && !(root.python && root.python.general && root.python.general.osd === false))
         || (barStyle === "nomarchy"
         && !(root.nomarchy && root.nomarchy.osd === false))
+        || (barStyle === "iris" && (root.inir?.iris?.modules?.osd ?? true))
+        || barStyle === "caelestia"
+        || barStyle === "imi"
+
+    // Desktop-wide shortcuts stay with Ryoku. Shima substitutes its own
+    // shortcuts sheet because it adds a style-only element view.
+    function styleOwns(surface) {
+        return SurfaceRoutes.styleOwns(surface, barStyle)
+    }
 
     // Shima's banner slider owns the fallback only while Shima draws the banners.
     readonly property int styleNotificationMs: {
@@ -121,6 +135,33 @@ Singleton {
     // Phone integration is optional and remains dormant until its Hub install
     // transaction has completed.
     property alias phone: adapter.phone
+
+    // Game Bar knobs, merged under the file's object so an older or partial
+    // shell.json still yields every value. Writes go through the daemon.
+    readonly property var gamebar: root.mergeGameBar(adapter.gamebar)
+    function mergeGameBar(raw) {
+        var out = {
+            enabled: true, dim: 0.62, fade: 200, scale: 1, radius: 14,
+            snap: true, snapReach: 9, snapGrid: 24,
+            guideGrid: true, gridStep: 48, gridAlpha: 0.28,
+            spring: 3.2, damping: 0.58, mass: 1,
+            voiceAvatars: 8, voiceDim: true, voiceDimOpacity: 0.5,
+            voiceAvatarSize: 52, voiceNames: true, voiceControls: true, voiceBgOpacity: 0.72
+        };
+        if (raw && typeof raw === "object")
+            for (var k in out)
+                if (raw[k] !== undefined && raw[k] !== null)
+                    out[k] = raw[k];
+        return out;
+    }
+    function setGameBar(key, value) {
+        shaderCtl.queued += "call settings.patch "
+            + JSON.stringify({ path: "gamebar." + key, value: value }) + "\n";
+        if (shaderCtl.connected)
+            shaderCtl.flushQueued();
+        else
+            shaderCtl.connected = true;
+    }
     readonly property var normalizedNacre: NacreConfig.normalize(nacre)
     readonly property var defaultControls: ({
         "position": "top-left",
@@ -328,6 +369,14 @@ Singleton {
             property string screenShader: ""
             property var frameBars: FrameBars.defaultConfig()
             property var batteryAlerts: ({ enabled: true, warningEnabled: true, criticalEnabled: true, warningPercent: 25, criticalPercent: 10 })
+            property var theme: ({
+                "attributes": {
+                    "sizing": {
+                        "radius_widget": 8,
+                        "radius_window": 8
+                    }
+                }
+            })
             property var notifications: ({
                 "notification_position": "Right",
                 "popup_window_margins": 0,
@@ -461,6 +510,29 @@ Singleton {
                     "y": 0.68,
                     "screen": ""
                 }
+            })
+            property var gamebar: ({
+                "enabled": true,
+                "dim": 0.62,
+                "fade": 200,
+                "scale": 1,
+                "radius": 14,
+                "snap": true,
+                "snapReach": 9,
+                "snapGrid": 24,
+                "guideGrid": true,
+                "gridStep": 48,
+                "gridAlpha": 0.28,
+                "spring": 3.2,
+                "damping": 0.58,
+                "mass": 1,
+                "voiceAvatars": 8,
+                "voiceDim": true,
+                "voiceDimOpacity": 0.5,
+                "voiceAvatarSize": 52,
+                "voiceNames": true,
+                "voiceControls": true,
+                "voiceBgOpacity": 0.72
             })
         }
     }

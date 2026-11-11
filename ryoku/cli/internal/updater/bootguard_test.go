@@ -2,6 +2,7 @@ package updater
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -113,23 +114,196 @@ func TestSnapshotEntryPathSupportsTopLevelSnapshotsAndEscaping(t *testing.T) {
 	}
 }
 
+func setupBootDecisionSeams(t *testing.T) {
+	t.Helper()
+	oldBootID, oldRemove := readBootID, removePendingFile
+	oldGlob, oldRun := materializeHomeGlob, runUserMaterialize
+	readBootID = bootID
+	removePendingFile = os.Remove
+	materializeHomeGlob = filepath.Join(t.TempDir(), "home", "*", ".config", "ryoku")
+	runUserMaterialize = func(string, string) error { return nil }
+	t.Cleanup(func() {
+		readBootID, removePendingFile = oldBootID, oldRemove
+		materializeHomeGlob, runUserMaterialize = oldGlob, oldRun
+	})
+}
+
+func writePendingForTest(t *testing.T, p pendingUpdate) {
+	t.Helper()
+	body, err := json.Marshal(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(pendingFile, body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func readPendingForTest(t *testing.T) pendingUpdate {
+	t.Helper()
+	body, err := os.ReadFile(pendingFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var p pendingUpdate
+	if err := json.Unmarshal(body, &p); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
 func setupBootGuardPaths(t *testing.T) string {
 	t.Helper()
+	setupBootDecisionSeams(t)
 	dir := t.TempDir()
 	oldPending, oldBootOK, oldNotice := pendingFile, bootOKDir, noticeFile
-	oldConf, oldMarker, oldEFI, oldUID := limineConf, restoreMarker, limineLastBootedEntry, effectiveUID
+	oldConf, oldMarker, oldEFI, oldUID := limineConf, restoreMarker, limineEFIVars, effectiveUID
 	pendingFile = filepath.Join(dir, "update-pending.json")
 	bootOKDir = filepath.Join(dir, "boot")
 	noticeFile = filepath.Join(bootOKDir, "notice.json")
 	limineConf = filepath.Join(dir, "limine.conf")
 	restoreMarker = filepath.Join(dir, "limine-snapper-restore.lock")
-	limineLastBootedEntry = filepath.Join(dir, "LimineLastBootedEntry")
+	limineEFIVars = dir
 	effectiveUID = func() int { return 0 }
 	t.Cleanup(func() {
 		pendingFile, bootOKDir, noticeFile = oldPending, oldBootOK, oldNotice
-		limineConf, restoreMarker, limineLastBootedEntry, effectiveUID = oldConf, oldMarker, oldEFI, oldUID
+		limineConf, restoreMarker, limineEFIVars, effectiveUID = oldConf, oldMarker, oldEFI, oldUID
 	})
 	return dir
+}
+
+func rememberedLimineEntry() string {
+	return filepath.Join(limineEFIVars, "LimineLastBootedEntry-03884334-1756-4978-9c8c-86fb8998b4ea")
+}
+
+func TestBootGuardInterruptedBootThenGoodBootNeverReverts(t *testing.T) {
+	setupBootGuardPaths(t)
+	if err := os.MkdirAll(bootOKDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	current := "update-boot"
+	readBootID = func() string { return current }
+	writePendingForTest(t, pendingUpdate{
+		From: "v1.0.6", To: "v1.0.7", ArmedBoot: current, CheckedBoot: current,
+	})
+
+	current = "interrupted-boot"
+	if err := BootGuard(nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := readPendingForTest(t); got.Boots != 0 || got.CheckedBoot != current {
+		t.Fatalf("first observed boot = %+v", got)
+	}
+
+	current = "good-boot"
+	if err := BootGuard(nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := readPendingForTest(t); got.Boots != 1 || got.CheckedBoot != current {
+		t.Fatalf("interrupted boot decision = %+v", got)
+	}
+	if err := os.WriteFile(filepath.Join(bootOKDir, "ok-1000"), []byte(current+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	current = "boot-after-good"
+	if err := BootGuard(nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(pendingFile); !os.IsNotExist(err) {
+		t.Fatalf("good boot did not disarm guard: %v", err)
+	}
+}
+
+func TestBootGuardDisarmsOnFirstRunWhenALaterBootProvedTheDesktop(t *testing.T) {
+	setupBootGuardPaths(t)
+	if err := os.MkdirAll(bootOKDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	readBootID = func() string { return "this-boot" }
+	writePendingForTest(t, pendingUpdate{From: "v1.0.6", To: "v1.0.7", ArmedBoot: "armed-boot"})
+	if err := os.WriteFile(filepath.Join(bootOKDir, "ok-1000"), []byte("later-boot\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := BootGuard(nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(pendingFile); !os.IsNotExist(err) {
+		t.Fatalf("a boot proven after the update did not disarm the guard: %v", err)
+	}
+}
+
+func TestBootGuardDisarmReportsReadOnlyPendingState(t *testing.T) {
+	setupBootGuardPaths(t)
+	writePendingForTest(t, pendingUpdate{From: "v1.0.6", To: "v1.0.7"})
+	readOnly := errors.New("read-only file system")
+	removePendingFile = func(string) error { return readOnly }
+
+	err := BootGuard([]string{"--disarm"})
+	if !errors.Is(err, readOnly) {
+		t.Fatalf("disarm error = %v, want read-only failure", err)
+	}
+	if !strings.Contains(err.Error(), "boot guard: could not disarm") {
+		t.Fatalf("disarm error = %q", err)
+	}
+	if _, err := os.Stat(pendingFile); err != nil {
+		t.Fatalf("pending marker changed: %v", err)
+	}
+}
+
+func TestRematerializeUsersRunsForEveryRyokuHome(t *testing.T) {
+	setupBootDecisionSeams(t)
+	root := t.TempDir()
+	materializeHomeGlob = filepath.Join(root, "*", ".config", "ryoku")
+	for _, name := range []string{"alice", "bob"} {
+		if err := os.MkdirAll(filepath.Join(root, name, ".config", "ryoku"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var calls []string
+	runUserMaterialize = func(user, home string) error {
+		calls = append(calls, user+"="+home)
+		return nil
+	}
+
+	if err := rematerializeUsers(); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"alice=" + filepath.Join(root, "alice"), "bob=" + filepath.Join(root, "bob")}
+	if !reflect.DeepEqual(calls, want) {
+		t.Fatalf("materialize calls = %v, want %v", calls, want)
+	}
+}
+
+func TestRevertRetriesWhenMaterializeFails(t *testing.T) {
+	isolateHome(t)
+	packagedConf(t, sys.ChannelTesting)
+	capturePackageMove(t)
+	setupBootGuardPaths(t)
+	homeRoot := t.TempDir()
+	config := filepath.Join(homeRoot, "alice", ".config", "ryoku")
+	if err := os.MkdirAll(config, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	materializeHomeGlob = filepath.Join(homeRoot, "*", ".config", "ryoku")
+	materializeFailure := errors.New("materialize failed")
+	runUserMaterialize = func(string, string) error { return materializeFailure }
+	p := pendingUpdate{
+		From: olderUnstableBuild, To: newerUnstableBuild, Channel: sys.ChannelTesting,
+		ArmedBoot: "update-boot", CheckedBoot: "failed-boot", Boots: 2,
+	}
+	writePendingForTest(t, p)
+
+	err := revertRelease(p)
+	if !errors.Is(err, materializeFailure) {
+		t.Fatalf("revert error = %v, want materialize failure", err)
+	}
+	got := readPendingForTest(t)
+	if got.Boots != 1 {
+		t.Fatalf("boots = %d, want retry at 1", got.Boots)
+	}
+	if _, err := os.Stat(noticeFile); !os.IsNotExist(err) {
+		t.Fatalf("terminal notice written before config was repaired: %v", err)
+	}
 }
 
 func TestPointBootMenuAtSnapshotWritesFullPathAndClearsEFIEntry(t *testing.T) {
@@ -138,7 +312,7 @@ func TestPointBootMenuAtSnapshotWritesFullPathAndClearsEFIEntry(t *testing.T) {
 	if err := os.WriteFile(limineConf, []byte(limineFixture), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(limineLastBootedEntry, []byte("Ryoku Linux/linux"), 0o644); err != nil {
+	if err := os.WriteFile(rememberedLimineEntry(), []byte("Ryoku Linux/linux"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	p := pendingUpdate{From: "v1.0.0", To: "v1.1.0", Snapshot: "570"}
@@ -152,7 +326,7 @@ func TestPointBootMenuAtSnapshotWritesFullPathAndClearsEFIEntry(t *testing.T) {
 	if !strings.Contains(string(raw), "default_entry: Ryoku Linux/Snapshots/2026-09-03 14:07:46/linux") {
 		t.Fatalf("default was not rewritten to the full path:\n%s", raw)
 	}
-	if _, err := os.Stat(limineLastBootedEntry); !os.IsNotExist(err) {
+	if _, err := os.Stat(rememberedLimineEntry()); !os.IsNotExist(err) {
 		t.Fatalf("remembered EFI entry survived: %v", err)
 	}
 }
@@ -184,7 +358,7 @@ func TestBootGuardRestoredResetsFirstKernelForBothMenus(t *testing.T) {
 			if err := os.WriteFile(restoreMarker, []byte("restored\n"), 0o644); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(limineLastBootedEntry, []byte("snapshot"), 0o644); err != nil {
+			if err := os.WriteFile(rememberedLimineEntry(), []byte("snapshot"), 0o644); err != nil {
 				t.Fatal(err)
 			}
 			if err := BootGuard([]string{"--restored"}); err != nil {
@@ -197,7 +371,7 @@ func TestBootGuardRestoredResetsFirstKernelForBothMenus(t *testing.T) {
 			if !strings.Contains(string(raw), "default_entry: "+test.entry+"\n") {
 				t.Fatalf("restored default =\n%s", raw)
 			}
-			if _, err := os.Stat(limineLastBootedEntry); !os.IsNotExist(err) {
+			if _, err := os.Stat(rememberedLimineEntry()); !os.IsNotExist(err) {
 				t.Fatalf("remembered EFI entry survived restore handling: %v", err)
 			}
 		})
@@ -395,6 +569,7 @@ func TestRollbackToUnstableBuildRunsXBPSMove(t *testing.T) {
 }
 
 func TestBootGuardRevertsXBPSUnstableBuild(t *testing.T) {
+	setupBootDecisionSeams(t)
 	dir := setupXBPSReleaseHost(t)
 	calls := capturePackageMove(t)
 	oldPending, oldBootOK, oldNotice, oldUID := pendingFile, bootOKDir, noticeFile, effectiveUID
@@ -410,7 +585,7 @@ func TestBootGuardRevertsXBPSUnstableBuild(t *testing.T) {
 	}
 	p := pendingUpdate{
 		From: olderUnstableBuild, To: newerUnstableBuild, Channel: sys.ChannelTesting,
-		Snapshot: "1362", ArmedBoot: "earlier-boot", Boots: 1,
+		Snapshot: "1362", ArmedBoot: "earlier-boot", CheckedBoot: "failed-boot", Boots: 1,
 	}
 	body, _ := json.Marshal(p)
 	if err := os.WriteFile(pendingFile, body, 0o644); err != nil {
@@ -440,23 +615,47 @@ func TestBootGuardRevertsXBPSUnstableBuild(t *testing.T) {
 	}
 }
 
-func TestBootGuardRevertsPacmanUnstableBuild(t *testing.T) {
+func TestBootGuardRevertsPacmanAfterTwoCompletedBootsWithoutOK(t *testing.T) {
 	isolateHome(t)
 	packagedConf(t, sys.ChannelTesting)
 	calls := capturePackageMove(t)
 	setupBootGuardPaths(t)
+	homeRoot := t.TempDir()
+	materializeHomeGlob = filepath.Join(homeRoot, "*", ".config", "ryoku")
+	config := filepath.Join(homeRoot, "alice", ".config", "ryoku")
+	if err := os.MkdirAll(config, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var materialized []string
+	runUserMaterialize = func(user, home string) error {
+		materialized = append(materialized, user+"="+home)
+		return nil
+	}
 	if err := os.MkdirAll(bootOKDir, 0o777); err != nil {
 		t.Fatal(err)
 	}
-	p := pendingUpdate{
+	current := "update-boot"
+	readBootID = func() string { return current }
+	writePendingForTest(t, pendingUpdate{
 		From: olderUnstableBuild, To: newerUnstableBuild, Channel: sys.ChannelTesting,
-		ArmedBoot: "earlier-boot", Boots: 1,
-	}
-	body, _ := json.Marshal(p)
-	if err := os.WriteFile(pendingFile, body, 0o644); err != nil {
+		ArmedBoot: current, CheckedBoot: current,
+	})
+
+	current = "failed-boot-1"
+	if err := BootGuard(nil); err != nil {
 		t.Fatal(err)
 	}
-
+	current = "failed-boot-2"
+	if err := BootGuard(nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := readPendingForTest(t); got.Boots != 1 {
+		t.Fatalf("boots after first completed failure = %d, want 1", got.Boots)
+	}
+	if len(*calls) != 0 {
+		t.Fatalf("reverted before two completed failures: %v", *calls)
+	}
+	current = "boot-after-two-failures"
 	if err := BootGuard(nil); err != nil {
 		t.Fatal(err)
 	}
@@ -466,6 +665,10 @@ func TestBootGuardRevertsPacmanUnstableBuild(t *testing.T) {
 	}
 	if channel := packagedChannel(); channel != olderUnstableBuild {
 		t.Fatalf("pacman revert channel = %q, want %q", channel, olderUnstableBuild)
+	}
+	wantMaterialized := []string{"alice=" + filepath.Join(homeRoot, "alice")}
+	if !reflect.DeepEqual(materialized, wantMaterialized) {
+		t.Fatalf("materialize calls = %v, want %v", materialized, wantMaterialized)
 	}
 	raw, err := os.ReadFile(noticeFile)
 	if err != nil {
@@ -517,6 +720,7 @@ func setupDNFReleaseHost(t *testing.T) string {
 }
 
 func TestBootGuardRevertsDNFUnstableBuild(t *testing.T) {
+	setupBootDecisionSeams(t)
 	dir := setupDNFReleaseHost(t)
 	set := []string{"ryoku-desktop-0:1.2.3-1.fc44", "ryogami-0:1.2.3-1.fc44"}
 	calls := capturePackageMoveSet(t, set)
@@ -533,7 +737,7 @@ func TestBootGuardRevertsDNFUnstableBuild(t *testing.T) {
 	}
 	p := pendingUpdate{
 		From: olderUnstableBuild, To: newerUnstableBuild, Channel: sys.ChannelTesting,
-		ArmedBoot: "earlier-boot", Boots: 1,
+		ArmedBoot: "earlier-boot", CheckedBoot: "failed-boot", Boots: 1,
 	}
 	body, _ := json.Marshal(p)
 	if err := os.WriteFile(pendingFile, body, 0o644); err != nil {
@@ -560,6 +764,7 @@ func TestBootGuardRevertsDNFUnstableBuild(t *testing.T) {
 }
 
 func TestBootGuardDNFSnapshotEscalationStopsWithoutLimine(t *testing.T) {
+	setupBootDecisionSeams(t)
 	dir := setupDNFReleaseHost(t)
 	oldPending, oldBootOK, oldNotice, oldUID := pendingFile, bootOKDir, noticeFile, effectiveUID
 	pendingFile = filepath.Join(dir, "update-pending.json")
@@ -577,7 +782,7 @@ func TestBootGuardDNFSnapshotEscalationStopsWithoutLimine(t *testing.T) {
 	}
 	p := pendingUpdate{
 		From: olderUnstableBuild, To: newerUnstableBuild, Channel: sys.ChannelTesting,
-		ArmedBoot: "earlier-boot", Boots: 2, Snapshot: "42",
+		ArmedBoot: "earlier-boot", CheckedBoot: "failed-boot", Boots: 2, Snapshot: "42",
 	}
 	body, _ := json.Marshal(p)
 	if err := os.WriteFile(pendingFile, body, 0o644); err != nil {

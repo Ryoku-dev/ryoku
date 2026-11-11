@@ -4,6 +4,7 @@ Bar 1.0 bar/Bar.qml
 SideBar 1.0 bar/SideBar.qml
 TopBar 1.0 bar/TopBar.qml
 Floating 1.0 quickactions/Floating.qml
+FloatingEdgeTrigger 1.0 quickactions/FloatingEdgeTrigger.qml
 
 Dock 1.0 dock/Dock.qml
 

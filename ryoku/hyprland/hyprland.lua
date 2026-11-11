@@ -17,6 +17,7 @@ local function optional(mod)
 end
 
 require("modules.env")
+require("modules.quirks")
 -- keyboard.lua is user-owned and seeded once, so an update never repairs it. a
 -- hard require made a torn one fail the whole config: emergency mode, black
 -- outputs, and a login loop no snapshot fixed, since ~/.config rides /home.

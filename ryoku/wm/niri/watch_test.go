@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	wm "ryoku-wm"
@@ -27,6 +29,32 @@ func foldEvents(t *testing.T, s *session, wants func(wm.FrameKind) bool, events 
 }
 
 func allKinds(wm.FrameKind) bool { return true }
+
+func TestOutputFrameUsesConfiguredVRR(t *testing.T) {
+	dir := niriHome(t)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := monitorsKdl([]wm.OutputLayout{
+		{Name: "DP-1", Enabled: true, VRR: true},
+		{Name: "DP-2", Enabled: true, VRR: false},
+	})
+	if err := os.WriteFile(filepath.Join(dir, "monitors.kdl"), body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	configured := configuredNiriVRR()
+	active := map[string]string{}
+	if !outputFrame(niriOutput{Name: "DP-1"}, "", active, true, configured).VRR {
+		t.Error("saved on mode read back as off while the link was idle")
+	}
+	if outputFrame(niriOutput{Name: "DP-2", VRREnabled: true}, "", active, true, configured).VRR {
+		t.Error("saved off mode read back as active live state")
+	}
+	if !outputFrame(niriOutput{Name: "DP-3", VRREnabled: true}, "", active, true, configured).VRR {
+		t.Error("output absent from generated config did not fall back to live state")
+	}
+}
 
 func TestWorkspaceFrameCarriesPerOutputIndex(t *testing.T) {
 	s := &session{workspaces: []niriWorkspace{

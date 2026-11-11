@@ -261,3 +261,49 @@ func TestUsersPasswordTravelsOnStdin(t *testing.T) {
 		}
 	}
 }
+
+// An account added in the Hub logs into the administrator's shell (fish on a
+// default install), not a bare bash that skips the Ryoku terminal setup.
+func TestUsersAddUsesTheAdministratorsShell(t *testing.T) {
+	dir := t.TempDir()
+	fish := filepath.Join(dir, "fish")
+	if err := os.WriteFile(fish, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct{ adminShell, want string }{
+		{fish, fish},
+		{filepath.Join(dir, "missing"), "/bin/bash"},
+		{"/usr/bin/nologin", "/bin/bash"},
+	} {
+		passwdPath, groupPath := filepath.Join(dir, "passwd"), filepath.Join(dir, "group")
+		passwd := "root:x:0:0:root:/root:/bin/bash\nalice:x:1000:1000:Alice:/home/alice:" + c.adminShell + "\n"
+		if err := os.WriteFile(passwdPath, []byte(passwd), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(groupPath, []byte(usersGroupFixture), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		runner := &fakeRunner{}
+		app, stdout, _ := testApp(runner, map[string]string{"PKEXEC_UID": "1000"})
+		app.cfg.PasswdPath, app.cfg.GroupPath = passwdPath, groupPath
+		app.cfg.HomeRoot = t.TempDir()
+		app.cfg.Stdin = strings.NewReader("secret\n")
+		app.cfg.UID, app.cfg.UIDSet = 0, true
+		if code := app.Users([]string{"add", "carol", "--full-name", "Carol", "--role", "standard"}); code != ExitOK {
+			t.Fatalf("add exit = %d, output = %s", code, stdout.String())
+		}
+		shell := ""
+		for _, command := range runner.commands {
+			if command.Name == "useradd" {
+				for i, arg := range command.Args {
+					if arg == "--shell" && i+1 < len(command.Args) {
+						shell = command.Args[i+1]
+					}
+				}
+			}
+		}
+		if shell != c.want {
+			t.Errorf("admin shell %s: new account shell = %q, want %q", c.adminShell, shell, c.want)
+		}
+	}
+}

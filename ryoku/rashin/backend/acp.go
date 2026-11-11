@@ -100,6 +100,7 @@ type acpConn struct {
 
 	killProcess func() error
 	writeMu     sync.Mutex
+	sessionMu   sync.Mutex
 	nextID      atomic.Int64
 
 	mu           sync.Mutex
@@ -652,8 +653,7 @@ func (c *acpConn) applyInitResult(res json.RawMessage) {
 	c.promptImages = out.AgentCapabilities.PromptCapabilities.Image
 }
 
-// openSession issues new/load and installs the returned session id.
-func (c *acpConn) openSession(method string, params map[string]any) error {
+func (c *acpConn) openSessionLocked(method string, params map[string]any) error {
 	c.mu.Lock()
 	c.sessionReady = false
 	c.mu.Unlock()
@@ -687,6 +687,13 @@ func (c *acpConn) openSession(method string, params map[string]any) error {
 	return nil
 }
 
+// openSession issues new/load and installs the returned session id.
+func (c *acpConn) openSession(method string, params map[string]any) error {
+	c.sessionMu.Lock()
+	defer c.sessionMu.Unlock()
+	return c.openSessionLocked(method, params)
+}
+
 // NewSession abandons the current session for a fresh one in the same cwd.
 func (c *acpConn) NewSession() error {
 	return c.openSession("session/new", map[string]any{"cwd": c.cwd, "mcpServers": prowlMCPServers()})
@@ -698,11 +705,13 @@ func (c *acpConn) LoadSession(id string) error {
 	if !c.loadSession {
 		return errors.New("this agent does not support loading past sessions")
 	}
-	c.emit(AcpEvent{Type: "replay_start"})
-	err := c.openSession("session/load", map[string]any{
+	c.sessionMu.Lock()
+	defer c.sessionMu.Unlock()
+	c.emit(AcpEvent{Type: "replay_start", SessionID: id})
+	err := c.openSessionLocked("session/load", map[string]any{
 		"sessionId": id, "cwd": c.cwd, "mcpServers": prowlMCPServers(),
 	})
-	c.emit(AcpEvent{Type: "replay_end"})
+	c.emit(AcpEvent{Type: "replay_end", SessionID: id})
 	return err
 }
 
@@ -731,6 +740,19 @@ func (c *acpConn) ListSessions() []SessionMeta {
 		list = mergeHermesSessions(list, hermesHistorySessions(1000))
 	}
 	return list
+}
+
+// RenameSession retitles a stored session. ACP has no rename, so only agents
+// with their own session store can do it.
+func (c *acpConn) RenameSession(id, title string) error {
+	title = strings.Join(strings.Fields(title), " ")
+	if title == "" {
+		return errors.New("a session needs a title")
+	}
+	if c.backend() != "hermes" {
+		return errors.New("this agent cannot rename sessions")
+	}
+	return renameHermesSession(id, title)
 }
 
 func mergeHermesSessions(agent, stored []SessionMeta) []SessionMeta {
@@ -781,7 +803,7 @@ func cleanTitle(t string) string {
 	return rest
 }
 
-var injectedBlocks = []string{"[system:", "[handoff from Ask]"}
+var injectedBlocks = []string{noteOpen, "[system:", "[handoff from Ask]"}
 
 func hasInjectedBlock(s string) bool {
 	for _, p := range injectedBlocks {
@@ -795,14 +817,31 @@ func hasInjectedBlock(s string) bool {
 // stripIdentityPreamble removes only identity notes. Hand-off blocks need
 // their own parser so replay can preserve the card's question and answer.
 func stripIdentityPreamble(s string) string {
-	for strings.HasPrefix(s, "[system:") {
-		end := strings.Index(s, "] ")
-		if end < 0 {
-			return s
+	rest, _ := cutIdentityNotes(s)
+	return rest
+}
+
+// cutIdentityNotes drops every leading identity note; ok is false when one
+// never closes. Sessions stored before the tag form still open with "[system: ...] ".
+func cutIdentityNotes(s string) (rest string, ok bool) {
+	for {
+		switch {
+		case strings.HasPrefix(s, noteOpen):
+			end := strings.Index(s, noteClose)
+			if end < 0 {
+				return s, false
+			}
+			s = strings.TrimLeft(s[end+len(noteClose):], "\n")
+		case strings.HasPrefix(s, "[system:"):
+			end := strings.Index(s, "] ")
+			if end < 0 {
+				return s, false
+			}
+			s = s[end+2:]
+		default:
+			return s, true
 		}
-		s = s[end+2:]
 	}
-	return s
 }
 
 // SetModel switches the session's model, through the model config option when

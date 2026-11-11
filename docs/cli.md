@@ -355,7 +355,8 @@ in `~/.config/ryoku/keyring.json`, converges the keyring files over D-Bus, and
 escalates the root PAM edit through `pkexec` (`--convert` rekeys an encrypted
 keyring, reading passwords on stdin; `--reset` backs the files up and starts
 fresh). The Hub's Lockscreen page drives all of this; `ryoku doctor` watches for
-drift. `$RYOKU_PAM_FILE` overrides the PAM path for tests.
+drift and drops the duplicate keyring lines older installs added beside SDDM's
+stock ones. `$RYOKU_PAM_FILE` overrides the PAM path for tests.
 
 ## Developer-only commands
 
@@ -504,6 +505,12 @@ is the top-level `dock` object in `shell.json`.
   `ryoku-shell dock pin org.kitty`
 - `dock list [--json]` report the dock's enabled, edge, autohide, and pinned
   state. `ryoku-shell dock list --json`
+
+The ii design also offers **Dock design & settings > Behaviour > Stay above
+windows** (`dock.ii.onTop`, default `false`). It keeps a pinned dock above normal
+app windows, including during workspace transitions, without changing auto-hide,
+reserved space, or **Not over fullscreen**. Turn it off to restore the pinned
+dock's desktop layer.
 
 ## Environment and state
 

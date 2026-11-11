@@ -243,15 +243,16 @@ Item {
         var separatorsChanged = barSeps.length > 0
         var densityChanged = iconOnlyGids.length > 0
         var widgetFillsChanged = resetAllWidgetFillColors()
-        var mprisChanged = mprisBarStyle !== "default"
+        var mprisChanged = mprisBarStyle !== "default" || mprisTitleWidth !== 88
 
         if (separatorsChanged) barSeps = []
         if (densityChanged) iconOnlyGids = []
 
-        // mprisBarStyle has its own persistence handler. If it was already at
-        // the default, persist the other layout-only resets explicitly.
-        if (mprisChanged) mprisBarStyle = "default"
-        else if ((separatorsChanged || densityChanged || widgetFillsChanged)
+        // The MPRIS settings have their own persistence handlers. If both were
+        // already at their defaults, persist the other layout-only resets.
+        if (mprisBarStyle !== "default") mprisBarStyle = "default"
+        if (mprisTitleWidth !== 88) mprisTitleWidth = 88
+        if (!mprisChanged && (separatorsChanged || densityChanged || widgetFillsChanged)
                 && _widgetsLoaded) saveWidgets()
     }
 
@@ -1766,7 +1767,8 @@ Item {
             "for st in /sys/bus/pci/drivers/nvidia/*/power/runtime_status; do [[ -r $st ]] || continue; IFS= read -r s < \"$st\"; [[ $s == suspended ]] && { printf 'suspended|||||||||||\\n'; exit 0; }; break; done; "
             + "if command -v nvidia-smi >/dev/null 2>&1; then "
             + "IFS=, read -r name driver util temp used total clock power limit pstate fan < <(nvidia-smi --query-gpu=name,driver_version,utilization.gpu,temperature.gpu,memory.used,memory.total,clocks.current.graphics,power.draw,power.limit,pstate,fan.speed --format=csv,noheader,nounits 2>/dev/null | head -n1); "
-            + "if [[ $util =~ ^[[:space:]]*[0-9]+[[:space:]]*$ && $temp =~ ^[[:space:]]*[0-9]+[[:space:]]*$ && $used =~ ^[[:space:]]*[0-9]+[[:space:]]*$ && $total =~ ^[[:space:]]*[0-9]+[[:space:]]*$ ]]; then "
+            + "num='^[[:space:]]*[0-9]+([.][0-9]+)?[[:space:]]*$'; "
+            + "if [[ $util =~ $num && $temp =~ $num && $used =~ $num && $total =~ $num ]]; then "
             + "printf 'nvidia|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\\n' \"$name\" \"$driver\" \"$util\" \"$temp\" \"$used\" \"$total\" \"$clock\" \"$power\" \"$limit\" \"$pstate\" \"$fan\"; exit 0; fi; "
             + "fi; "
             + "for busy in /sys/class/drm/card*/device/gpu_busy_percent; do "
@@ -2328,6 +2330,7 @@ Item {
     property bool modQuick:      true    // G10 group pill (idle-inhibitor · media · theme)
     property bool modMpris:      true    // G9 now-playing / mpris pill
     property string mprisBarStyle: "default" // "default" or "full"
+    property int mprisTitleWidth: 88
     property bool modClaude:     false   // default off (toggle in ControlPanel)
     property bool modBattery:    true    // G12 battery pill (laptop batteries only)
 
@@ -2340,6 +2343,7 @@ Item {
     // ── workspace display style (orthogonal to mode; persisted) ──
     // "rings" is the stable cache token for the user-facing Frame style.
     property string workspaceStyle: "default"   // default, numbers, magic, kanji, rings, aurora
+    property bool isolateMonitors: false
     // The marker styles this variant offers (continuous V2 adds Kanji, Frame,
     // Aurora; "rings" is the persisted cache token for the Frame style).
     readonly property var workspaceStyleOptions: [
@@ -2700,6 +2704,7 @@ Item {
     onModVolumeChanged:     if (_widgetsLoaded) saveWidgets()
     onModMprisChanged:      if (_widgetsLoaded) saveWidgets()
     onMprisBarStyleChanged: if (_widgetsLoaded) saveWidgets()
+    onMprisTitleWidthChanged: if (_widgetsLoaded) saveWidgets()
     onAiToolsChanged:       if (_widgetsLoaded) saveWidgets()
     // straight to the daemon: this key is not in the positional widgets record
     onAudioBoostChanged:    if (_widgetsLoaded) persistWidgetsToConfig()
@@ -2710,6 +2715,7 @@ Item {
     onLauncherLogoIconChanged: if (_widgetsLoaded) saveWidgets()
     onWeatherImperialChanged: if (_widgetsLoaded) saveWidgets()
     onWorkspaceStyleChanged:   if (_widgetsLoaded) saveWidgets()
+    onIsolateMonitorsChanged:  if (_widgetsLoaded) persistWidgetsToConfig()
     onBarPositionChanged:      if (_widgetsLoaded) saveWidgets()
     onBarScaleChanged:         if (_widgetsLoaded) saveWidgets()
     onBarShellStyleChanged:    if (_widgetsLoaded) saveWidgets()
@@ -2771,8 +2777,9 @@ Item {
                  + barShellStyle + " "                                  // +42 outer bar shell
                  + (barBorderEnabled ? "1" : "0") + " "                 // +43 outer bar border
                  + (panelTooltipBorderEnabled ? "1" : "0") + " "        // +44 panel + tooltip outer border
-                 + barAnim                                              // +45 gap-animation mode
-                 + (modLayout ? "1" : "0")                              // +46 keyboard layout
+                 + barAnim + " "                                        // +45 gap-animation mode
+                 + (modLayout ? "1" : "0") + " "                        // +46 keyboard layout
+                 + mprisTitleWidth                                      // +47 now-playing title width
         widgetSaveProc.command = ["bash", "-c",
             "echo '" + line + "' > '" + widgetsCachePath + "'"]
         widgetSaveProc.running = false
@@ -2971,6 +2978,11 @@ Item {
                     }
                     if (parts.length > wsField + 46)
                         theme.modLayout = parts[wsField + 46] !== "0"
+                    if (parts.length > wsField + 47) {
+                        var mtw = parseInt(parts[wsField + 47], 10)
+                        if (isFinite(mtw) && mtw >= 88 && mtw <= 400)
+                            theme.mprisTitleWidth = mtw
+                    }
                 }
                 theme._widgetsLoaded = true
                 theme.applyStudioSettings()
@@ -3001,9 +3013,12 @@ Item {
         q.barPosition = barPosition
         q.workspaceMode = workspaceMode
         q.workspaceStyle = workspaceStyle
+        q.isolateMonitors = isolateMonitors
         q.pickerStyle = pickerStyle
         q.launcherLogoMode = launcherLogoMode
         q.aiTools = serializeAiTools()
+        q.mprisBarStyle = mprisBarStyle
+        q.mprisTitleWidth = mprisTitleWidth
         q.audioBoost = audioBoost
         q.barTemperatureSource = barTemperatureSource
         q.barShellStyle = barShellStyle
@@ -3068,9 +3083,17 @@ Item {
         if (q.barPosition === "top" || q.barPosition === "bottom") barPosition = q.barPosition
         if (q.workspaceMode !== undefined) workspaceMode = q.workspaceMode
         if (q.workspaceStyle  !== undefined) workspaceStyle  = q.workspaceStyle
+        if (q.isolateMonitors !== undefined) isolateMonitors = q.isolateMonitors === true
         if (q.pickerStyle     !== undefined) pickerStyle     = q.pickerStyle
         if (q.launcherLogoMode !== undefined) launcherLogoMode = q.launcherLogoMode
         if (q.aiTools !== undefined) parseAiTools(q.aiTools)
+        if (q.mprisBarStyle === "default" || q.mprisBarStyle === "full")
+            mprisBarStyle = q.mprisBarStyle
+        if (q.mprisTitleWidth !== undefined) {
+            var titleWidth = Number(q.mprisTitleWidth)
+            if (isFinite(titleWidth))
+                mprisTitleWidth = Math.max(88, Math.min(400, Math.round(titleWidth)))
+        }
         if (q.audioBoost !== undefined) audioBoost = q.audioBoost === true
         if (q.barTemperatureSource !== undefined && barTemperatureSourceValid(q.barTemperatureSource)) barTemperatureSource = q.barTemperatureSource
         if (q.barShellStyle !== undefined && barShellStyleValid(q.barShellStyle)) barShellStyle = q.barShellStyle

@@ -962,7 +962,7 @@ func restoreRice(slot string) error {
 		return fmt.Errorf("no backup to restore at %q", slot)
 	}
 	if b, err := os.ReadFile(filepath.Join(dir, "wallpaper.path")); err == nil && isFile(strings.TrimSpace(string(b))) {
-		_ = riceRun("ryogami", "wallpaper", "set", strings.TrimSpace(string(b)))
+		_ = riceRun("ryogami", "wallpaper", "set", "--screen", "*", strings.TrimSpace(string(b)))
 	} else {
 		_ = riceRun("ryogami", "wallpaper", "repaint")
 	}
@@ -1199,7 +1199,7 @@ func applyRice(slug string, layers []string) error {
 		dst := filepath.Join(destDir, r.Slug+filepath.Ext(r.Assets.Wallpaper))
 		src := filepath.Join(dir, r.Assets.Wallpaper)
 		if filesIdentical(src, dst) || copyFile(src, dst) == nil {
-			_ = riceRun("ryogami", "wallpaper", "set", dst)
+			_ = riceRun("ryogami", "wallpaper", "set", "--screen", "*", dst)
 		}
 	}
 	// Colour is set AFTER the wallpaper: `wallpaper set` re-derives the palette

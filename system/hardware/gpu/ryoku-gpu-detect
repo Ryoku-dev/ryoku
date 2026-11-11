@@ -321,31 +321,41 @@ gpu_mode_choice() {
   sed -n 's/^-- ryoku-gpu-mode: //p' "$dest" | head -n1
 }
 
-beneficial() {
-  # True when pinning the strongest GPU as the primary renderer is worth doing.
-  # GPU work belongs on the strongest GPU, laptops included: on a laptop the
-  # iGPU shares the CPU die, so every composited frame and decoded video
-  # (browser video, blur, the shell) heats the same package the fans steer
-  # by. A discrete GPU is a separate die with its own cooling path; parking
-  # it while the APU cooks is the worse machine even at the cost of its idle
-  # draw. So the default now pins a discrete primary everywhere, and Hybrid
-  # (battery) is the explicit opt-out, chosen in the Hub or with `ryoku-gpu
-  # mode hybrid`.
+internal_panel_slot() {
+  local card base conn slot
+  for card in "$DRM_ROOT"/card[0-9]*; do
+    [[ -d $card ]] || continue
+    base="$(basename "$card")"
+    [[ $base == *-* ]] && continue
+    for conn in "$DRM_ROOT/$base"-eDP-* "$DRM_ROOT/$base"-LVDS-* "$DRM_ROOT/$base"-DSI-*; do
+      [[ -r $conn/status ]] || continue
+      [[ "$(<"$conn/status")" == "connected" ]] || continue
+      slot="$(gpu_field "$card" PCI_SLOT_NAME)"
+      [[ -n $slot ]] || continue
+      printf '%s' "$slot"
+      return 0
+    done
+  done
+  return 1
+}
+
+reverse_prime_panel_risk() {
   (( _ngpu >= 2 )) || return 1
-  # A forced pin outranks every stored choice.
+  is_laptop || return 1
+  local panel
+  panel="$(internal_panel_slot)" || return 1
+  [[ $panel != "${_slots[0]}" ]]
+}
+
+beneficial() {
+  # Aquamarine can lose an internal panel after cross-GPU commits.
+  (( _ngpu >= 2 )) || return 1
   [[ ${RYOKU_GPU_FORCE:-0} == "1" ]] && return 0
-  # An explicit mode choice wins: hybrid keeps the built-in GPU primary;
-  # passthrough owns the pin file itself (the iGPU solo, dGPU free for a VM).
-  # RYOKU_GPU_MODE_SET lets `ryoku-gpu mode <m>` override the stored choice
-  # for the call that applies the new one.
   case "${RYOKU_GPU_MODE_SET:-$(gpu_mode_choice)}" in
     hybrid | passthrough) return 1 ;;
   esac
-  # An external GPU is hot-plugged on purpose for power, so pin it anywhere.
-  [[ ${_classes[0]} == "egpu" ]] && return 0
-  # Default: pin the discrete primary on desktops and laptops alike.
-  [[ ${_classes[0]} == "discrete" ]] || return 1
-  return 0
+  reverse_prime_panel_risk && return 1
+  [[ ${_classes[0]} == "egpu" || ${_classes[0]} == "discrete" ]]
 }
 
 card_node_for_slot() {

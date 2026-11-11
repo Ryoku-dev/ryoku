@@ -49,6 +49,7 @@ Item {
         case "disk":       return Qt.size(180, 130);
         case "battery":    return Qt.size(260, 90);
         case "github":     return Qt.size(540, 180);
+        case "notes":      return Qt.size(360, 260);
         }
         return Qt.size(240, 160);
     }
@@ -95,10 +96,12 @@ Item {
         case "time:material":         return cTimeMaterial;
         case "time:materialAnalog":   return cTimeMaterialAnalog;
         case "time:lumen":            return cTimeLumen;
+        case "time:stretched":        return cTimeStretched;
         case "music:full":            return cMusicFull;
         case "music:round":           return cMusicRound;
         case "music:lyrics":          return cMusicLyrics;
         case "music:simpleLyrics":    return cMusicLyricsSimple;
+        case "notes:default":         return cNotes;
         case "weather:compact":       return cWeatherCompact;
         case "weather:full":          return cWeatherFull;
         case "weather:round":         return cWeatherRound;
@@ -161,10 +164,12 @@ Item {
     Component { id: cTimeMaterial; PythonFaces.ClockFaceMaterial {} }
     Component { id: cTimeMaterialAnalog; PythonFaces.ClockFaceMaterialAnalog {} }
     Component { id: cTimeLumen; PythonFaces.ClockFaceMaterialLumen {} }
+    Component { id: cTimeStretched; PythonFaces.ClockFaceStretched {} }
     Component { id: cMusicFull; PythonFaces.MusicFace {} }
     Component { id: cMusicRound; PythonFaces.MusicFaceRound {} }
     Component { id: cMusicLyrics; PythonFaces.MusicFaceLyrics {} }
     Component { id: cMusicLyricsSimple; PythonFaces.MusicFaceLyricsSimple {} }
+    Component { id: cNotes; PythonFaces.NotesFace {} }
     Component { id: cWeatherCompact; PythonFaces.WeatherFaceCompact {} }
     Component { id: cWeatherFull; PythonFaces.WeatherFaceFull {} }
     Component { id: cWeatherRound; PythonFaces.WeatherFaceRound {} }

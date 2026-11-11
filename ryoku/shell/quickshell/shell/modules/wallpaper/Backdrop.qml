@@ -207,6 +207,8 @@ Item {
 
     onUrlChanged: {
         view.rendered = false;
+        view.stillRetries = 0;
+        stillRetry.stop();
         view.beginReveal();
     }
     Component.onCompleted: {
@@ -288,6 +290,30 @@ Item {
             return;
         view.yieldScheduled = true;
         yieldDelay.restart();
+    }
+
+    // a lost decode would otherwise show the paper colour until the next revision
+    property int stillRetries: 0
+    Timer {
+        id: stillRetry
+        interval: 1000 * Math.pow(2, view.stillRetries)
+        onTriggered: view.retryStill()
+    }
+    function stillFailed(img) {
+        if (view.videoUrl !== "") {
+            view.maybeYield();
+            return;
+        }
+        if (img.source == view.url && view.stillRetries < 4)
+            stillRetry.restart();
+    }
+    function retryStill() {
+        const back = view.aFront ? imgB : imgA;
+        if (view.url === "" || back.source != view.url || back.status !== Image.Error)
+            return;
+        view.stillRetries++;
+        back.source = "";
+        back.source = view.url;
     }
 
     // Load `url` into the back buffer and, once decoded, start the reveal. A reveal
@@ -436,7 +462,7 @@ Item {
                 if (status === Image.Ready && source == view.url && !view.aFront)
                     view.startReveal();
                 else if (status === Image.Error)
-                    view.maybeYield();
+                    view.stillFailed(imgA);
             }
         }
     }
@@ -466,7 +492,7 @@ Item {
                 if (status === Image.Ready && source == view.url && view.aFront)
                     view.startReveal();
                 else if (status === Image.Error)
-                    view.maybeYield();
+                    view.stillFailed(imgB);
             }
         }
     }

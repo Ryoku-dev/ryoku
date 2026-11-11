@@ -202,12 +202,11 @@ ryoku_default_browser() {
   return 0
 }
 
-# browser_role_cmd KEY is the command stored in the desktop browser role. Zen's
-# desktop IDs vary across builds, but its executable remains `zen`; an absent or
-# unknown key falls back to Firefox, matching the installer's default.
+# browser_role_cmd KEY is the command stored in the desktop browser role.
+# Unknown keys fall back to Firefox, matching the installer's default.
 browser_role_cmd() {
   case "$1" in
-    zen) echo zen ;;
+    zen) echo zen-browser ;;
     chromium) echo chromium ;;
     *) echo firefox ;;
   esac

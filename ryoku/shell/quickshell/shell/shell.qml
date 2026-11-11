@@ -33,6 +33,7 @@ import "modules/osd"
 import "modules/notifications"
 import "modules/capture"
 import "modules/ask"
+import "modules/gamebar"
 import "modules/confirm"
 import Ryoku.Ui.Singletons
 import stage.modules.common as StageIsland
@@ -266,6 +267,21 @@ ShellRoot {
                 dockLaneEdge: dockLoader.item ? dockLoader.item.edge : ""
                 dockLaneSize: dockLoader.item ? dockLoader.item.bandSize : 0
                 dockLaneCenter: dockLoader.item ? dockLoader.item.bandCenter : 0
+            }
+
+            // nothing of the Game Bar exists while it is closed with no pins
+            LazyLoader {
+                id: gameBarLoader
+                // the bar reports its own hold through this flag, reading item.holding here looped
+                property bool held: false
+                activeAsync: (Config.gamebar.enabled
+                        && (GameBarStore.open || GameBarStore.asList(GameBarStore.pinned).length > 0))
+                    || held
+                GameBar {
+                    modelData: perScreen.modelData
+                    onHoldingChanged: gameBarLoader.held = holding
+                    Component.onCompleted: gameBarLoader.held = holding
+                }
             }
 
             LazyLoader {
@@ -623,6 +639,16 @@ ShellRoot {
             if (st)
                 st.clipboardOpen = !st.clipboardOpen;
             break;
+        case "gamebar":
+            if (Config.gamebar.enabled)
+                GameBarStore.toggleBar(Wm.focusedOutput);
+            break;
+        case "settings":
+            Spawn.run(["ryoku-shell", "hub", "open"]);
+            break;
+        case "cheatsheet":
+            Quickshell.execDetached(["sh", "-c", "pkill -x -f 'qs -c keys' 2>/dev/null || flock -n -o /tmp/ryoku-keys.lock qs -c keys"]);
+            break;
         case "screenshot":
             Quickshell.execDetached(["ryoku-cmd-ryoshot"]);
             break;
@@ -646,10 +672,16 @@ ShellRoot {
         target: ShellState
         function onSurfaceRequested(id, mon, ctx) {
             switch (id) {
-            case "barToggle":
             case "launcher":
-            case "overview":
             case "clipboard":
+            case "gamebar":
+            case "settings":
+            case "cheatsheet":
+                if (!Config.styleOwns(id))
+                    root.toggleSurface(id);
+                break;
+            case "barToggle":
+            case "overview":
             case "screenshot":
             case "visualizer":
             case "visualizer-overlay":
@@ -671,7 +703,7 @@ ShellRoot {
     CustomShortcut {
         name: "launcher"
         description: I18n.tr("Toggle the app launcher on the active monitor")
-        onPressed: root.toggleSurface("launcher")
+        onPressed: ShellState.requestSurfaceActive("launcher", undefined)
     }
     CustomShortcut {
         name: "overview"
@@ -853,9 +885,8 @@ ShellRoot {
     Connections {
         target: Polkit
         function onActiveChanged() {
-            // The iRiS bar style draws this prompt in its own dialog.
             if (Polkit.active) {
-                if (Config.barStyle !== "iris")
+                if (Config.barStyle !== "iris" && Config.barStyle !== "python")
                     ShellState.requestSurface("polkit", "", undefined);
             } else {
                 ShellState.closeSurface("polkit", "");
@@ -880,6 +911,16 @@ ShellRoot {
         // An empty monitor means "wherever focus is": the daemon sends "" when
         // its focused-output cache is cold.
         function openSurface(mon: string, id: string): void {
+            // these keys are Ryoku's under every style, so they skip the bus styles listen on, same as the Hyprland shortcuts
+            if (id === "gamebar") {
+                if (Config.gamebar.enabled)
+                    GameBarStore.toggleBar(mon);
+                return;
+            }
+            if (id === "launcher" || id === "clipboard" || id === "settings") {
+                root.toggleSurface(id);
+                return;
+            }
             if (mon && mon.length > 0)
                 ShellState.requestSurface(id, mon, undefined);
             else
@@ -1092,7 +1133,12 @@ ShellRoot {
     CustomShortcut {
         name: "clipboard"
         description: I18n.tr("Open the clipboard history on the active monitor")
-        onPressed: root.toggleSurface("clipboard")
+        onPressed: ShellState.requestSurfaceActive("clipboard", undefined)
+    }
+    CustomShortcut {
+        name: "gamebar"
+        description: I18n.tr("Toggle the Game Bar on the active monitor")
+        onPressed: root.toggleSurface("gamebar")
     }
     CustomShortcut {
         name: "ask"

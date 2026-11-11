@@ -1,0 +1,944 @@
+#!/usr/bin/env python3
+"""OpenCode local usage for the AI usage widget.
+
+Reads OpenCode's local session store and writes the cache shape the widget
+understands, with soft caps for the bars. No API tokens, no network. Storage
+moved across versions, so try each in turn:
+
+  - legacy: storage/message/<session>/<message>.json files
+  - 2.x: sqlite `session_message` rows with their own tokens, model, cost and
+    `time.created`
+  - oldest: sqlite `opencode.db` message table
+
+The 2.x message store is the accurate history: every assistant message and
+compaction call carries its own timestamp, so a session that spans days lands
+on the days it ran. Session aggregates true up a session only when its recorded
+creation time falls within the loaded horizon. A positive residual for a
+retried or pruned request is assigned to the newest loaded message; a lifetime
+residual from an older or undated session is not assigned to a recent day.
+Before this, one aggregate per session keyed by time_updated dumped a whole
+multi-day session, and any bulk migration that touched old sessions, onto the
+day of that touch.
+"""
+import argparse
+import fcntl
+import glob
+import json
+import math
+import os
+import runpy
+import sqlite3
+import sys
+import tempfile
+import time
+from datetime import datetime, timedelta
+from pathlib import Path
+
+rolling_period = runpy.run_path(str(Path(__file__).resolve().with_name("rolling-history.py")))["rolling_period"]
+
+VERSION = "2.2.0"
+
+DATA_DIR = Path(os.environ.get("OPENCODE_DATA_DIR") or (Path(
+    os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")) / "opencode"))
+STORAGE_DIR = DATA_DIR / "storage"
+DB_FILE = DATA_DIR / "opencode.db"
+CACHE_FILE = Path.home() / ".cache" / "ai-usage" / "opencode-usage.json"
+
+DEFAULT_5H_LIMIT = 1_000_000
+DEFAULT_7D_LIMIT = 20_000_000
+
+WINDOW_HORIZON_S = 8 * 24 * 3600
+# The shared cache keeps the shell chip's 8-day window for its totals and model
+# rows; `_days` carries one bucket per day from the first recorded message so a
+# reader can offer 60/90/180/all-time views without touching OpenCode itself.
+HISTORY_DAYS = 730
+
+
+def env_int(name: str, default: int) -> int:
+    try:
+        value = int(os.environ.get(name, ""))
+        return value if 0 < value <= 2**63 - 1 else default
+    except Exception:
+        return default
+
+
+LIMIT_5H = env_int("OPENCODE_USAGE_5H_LIMIT", DEFAULT_5H_LIMIT)
+LIMIT_7D = env_int("OPENCODE_USAGE_7D_LIMIT", DEFAULT_7D_LIMIT)
+
+
+def publish_cache(data: dict) -> None:
+    CACHE_FILE.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", dir=CACHE_FILE.parent,
+                prefix="." + CACHE_FILE.name + ".", delete=False) as handle:
+            temporary = Path(handle.name)
+            json.dump(data, handle, allow_nan=False)
+            handle.write("\n")
+        os.replace(temporary, CACHE_FILE)
+    finally:
+        if temporary is not None and temporary.exists():
+            temporary.unlink()
+
+
+def stale_last() -> None:
+    if not CACHE_FILE.exists():
+        return
+    try:
+        cur = json.loads(CACHE_FILE.read_text())
+        cur["_stale"] = True
+        publish_cache(cur)
+    except Exception:
+        pass
+
+
+def as_int(value) -> int:
+    try:
+        number = int(value) if not isinstance(value, bool) else 0
+        return number if 0 <= number <= 2**63 - 1 else 0
+    except (TypeError, ValueError, OverflowError):
+        return 0
+
+
+def as_float(value) -> float:
+    try:
+        number = float(value) if not isinstance(value, bool) else 0.0
+        return number if math.isfinite(number) and number >= 0 else 0.0
+    except (TypeError, ValueError, OverflowError):
+        return 0.0
+
+
+def model_label(model_id: str, provider_id: str = "") -> str:
+    model_id = str(model_id or "")
+    provider_id = str(provider_id or "")
+    return model_id + (f" ({provider_id})" if provider_id else "")
+
+
+def msg_time_ms(data: dict) -> int:
+    t = data.get("time")
+    if isinstance(t, dict):
+        return as_int(t.get("completed") or t.get("created"))
+    return as_int(t)
+
+
+def parse_message(data: dict, session_hint: str = "") -> dict | None:
+    if not isinstance(data, dict) or data.get("role") != "assistant":
+        return None
+    model_id = data.get("modelID") or ""
+    if not model_id:
+        return None
+    tokens = data.get("tokens") or {}
+    cache = tokens.get("cache") or {}
+    inp = as_int(tokens.get("input"))
+    output = as_int(tokens.get("output"))
+    reasoning = as_int(tokens.get("reasoning"))
+    cache_read = as_int(cache.get("read"))
+    cache_write = as_int(cache.get("write"))
+    total = inp + output + reasoning + cache_write
+    return {
+        "session_id": data.get("sessionID") or session_hint,
+        "model_id": model_id,
+        "provider_id": data.get("providerID") or "",
+        "input": inp,
+        "output": output,
+        "reasoning": reasoning,
+        "cache_read": cache_read,
+        "cache_write": cache_write,
+        "total": total,
+        "total_with_cache_read": total + cache_read,
+        "cost": as_float(data.get("cost")),
+        "time": msg_time_ms(data),
+    }
+
+
+def load_fs_messages(cutoff_s: float) -> list[dict]:
+    if not STORAGE_DIR.is_dir():
+        return []
+    patterns = [
+        str(STORAGE_DIR / "message" / "*" / "*.json"),
+        str(STORAGE_DIR / "session" / "message" / "*" / "*.json"),
+    ]
+    out: list[dict] = []
+    for pattern in patterns:
+        for path in glob.iglob(pattern):
+            try:
+                if os.path.getmtime(path) < cutoff_s:
+                    continue
+                with open(path, "r") as fh:
+                    data = json.load(fh)
+            except (OSError, ValueError):
+                continue
+            session_hint = os.path.basename(os.path.dirname(path))
+            rec = parse_message(data, session_hint)
+            if rec is not None:
+                out.append(rec)
+    return out
+
+
+def _connect_ro():
+    con = sqlite3.connect(DB_FILE.resolve().as_uri() + "?mode=ro", uri=True, timeout=2.0)
+    con.execute("pragma busy_timeout=2000")
+    return con
+
+
+def load_sqlite_messages(cutoff_ms: int) -> list[dict]:
+    if not DB_FILE.exists():
+        return []
+    try:
+        con = _connect_ro()
+    except sqlite3.Error:
+        return []
+    out: list[dict] = []
+    try:
+        with con:
+            rows = con.execute(
+                "select session_id, time_created, time_updated, data "
+                "from message where time_updated >= ? order by time_updated asc",
+                (cutoff_ms,),
+            ).fetchall()
+        for session_id, time_created, time_updated, raw in rows:
+            try:
+                data = json.loads(raw or "{}")
+            except ValueError:
+                continue
+            rec = parse_message(data, str(session_id or ""))
+            if rec is None:
+                continue
+            if not rec["time"]:
+                rec["time"] = as_int(time_updated or time_created)
+            out.append(rec)
+    except sqlite3.Error:
+        return []
+    finally:
+        con.close()
+    return out
+
+
+def parse_v2_message(kind: str, data: dict, session_id: str, fallback_ms: int = 0) -> dict | None:
+    """One usage row from the v2 session_message store.
+
+    Assistant messages and compaction calls both carry `tokens` and `model`;
+    compaction is a real model call and session_v2 counts it, so it belongs in
+    the history too.
+    """
+    if kind not in ("assistant", "compaction"):
+        return None
+    model = data.get("model") or {}
+    model_id = str(model.get("id") or model.get("modelID") or "")
+    if not model_id:
+        return None
+    provider_id = str(model.get("providerID") or "")
+    tokens = data.get("tokens") or {}
+    cache = tokens.get("cache") or {}
+    inp = as_int(tokens.get("input"))
+    output = as_int(tokens.get("output"))
+    reasoning = as_int(tokens.get("reasoning"))
+    cache_read = as_int(cache.get("read"))
+    cache_write = as_int(cache.get("write"))
+    stamp = data.get("time") or {}
+    moment = as_int(stamp.get("completed") or stamp.get("created")) if isinstance(stamp, dict) else 0
+    total = inp + output + reasoning + cache_write
+    return {
+        "session_id": session_id,
+        "model_id": model_id,
+        "provider_id": provider_id,
+        "input": inp,
+        "output": output,
+        "reasoning": reasoning,
+        "cache_read": cache_read,
+        "cache_write": cache_write,
+        "total": total,
+        "total_with_cache_read": total + cache_read,
+        "cost": as_float(data.get("cost")),
+        "time": moment or as_int(fallback_ms),
+    }
+
+
+def _table_columns(con: sqlite3.Connection, table: str) -> set[str]:
+    """Column names of a sqlite table, empty when it does not exist."""
+    try:
+        rows = con.execute(f"pragma table_info({table})").fetchall()
+    except sqlite3.Error:
+        return set()
+    return {str(row[1]) for row in rows}
+
+
+def load_session_messages(cutoff_ms: int) -> list[dict]:
+    """Per-message usage from the v2 store, oldest first.
+
+    Unlike the legacy `message` table, this one keeps every assistant message
+    of every v2 session, including OpenChamber's `opencode serve` sessions.
+    Column names drifted across OpenCode versions (role/type, data/content,
+    time_created/created_at), so select through whichever ones exist.
+    """
+    if not DB_FILE.exists():
+        return []
+    try:
+        con = _connect_ro()
+    except sqlite3.Error:
+        return []
+    out: list[dict] = []
+    try:
+        columns = _table_columns(con, "session_message")
+        if not columns:
+            return []
+        sid = "session_id" if "session_id" in columns else "session"
+        kind = "type" if "type" in columns else "role"
+        blob = "data" if "data" in columns else "content"
+        stamped = next((name for name in
+                        ("time_created", "created_at", "time_updated")
+                        if name in columns), "")
+        if not {sid, kind, blob} <= columns:
+            return []
+        stamp = stamped or "0"
+        with con:
+            rows = con.execute(
+                f"select {sid}, {kind}, {stamp}, {blob} "
+                "from session_message "
+                f"where {kind} in ('assistant', 'compaction') "
+                + (f"and {stamp} >= ? " if stamped else "")
+                + (f"order by {stamp} asc" if stamped else ""),
+                (cutoff_ms,) if stamped else (),
+            ).fetchall()
+        for session_id, row_kind, row_time, raw in rows:
+            try:
+                data = json.loads(raw or "{}")
+            except ValueError:
+                continue
+            rec = parse_v2_message(str(row_kind), data, str(session_id or ""), as_int(row_time))
+            if rec is not None:
+                out.append(rec)
+    except sqlite3.Error:
+        return []
+    finally:
+        con.close()
+    return out
+
+
+def balance_session(records: list[dict], agg: dict) -> None:
+    """True a session up to its aggregate without touching old history.
+
+    The aggregate is authoritative for the session total, but it is a lifetime
+    tally: it cannot say which day a token landed on. Scaling every message to
+    match it rewrote past days on every run, so a session whose aggregate moved
+    (a lagging write, a compaction recount) made old days shrink and grow while
+    it was still in use.
+
+    Instead, only the positive residual (tokens the message store is missing)
+    is added, once, to the session's newest message. Existing records are never
+    reduced or rescaled, so a day that has been counted keeps its tokens.
+    """
+    if not records:
+        return
+    latest = max(range(len(records)), key=lambda index: records[index].get("time", 0))
+    fields = ("input", "output", "reasoning", "cache_read", "cache_write")
+    for field in fields:
+        base = sum(int(row.get(field, 0)) for row in records)
+        target = as_int(agg.get(field))
+        if target > base:
+            records[latest][field] = int(records[latest].get(field, 0)) + (target - base)
+    base_cost = sum(float(row.get("cost", 0.0)) for row in records)
+    target_cost = as_float(agg.get("cost"))
+    if target_cost > base_cost:
+        records[latest]["cost"] = float(records[latest].get("cost", 0.0)) + (target_cost - base_cost)
+    for row in records:
+        row["total"] = int(row["input"]) + int(row["output"]) + int(row["reasoning"]) + int(row["cache_write"])
+        row["total_with_cache_read"] = row["total"] + int(row["cache_read"])
+
+
+def load_session_v2_aggregates(cutoff_ms: int, skip_session_ids: set | None = None) -> list[dict]:
+    """Per-session totals from session_v2.
+
+    Used for a session with no message rows at all, and to true up a session
+    whose message rows are missing a request. `time_updated` is only the
+    record's time when there are no messages; it can also be a migration touch.
+    """
+    skip_session_ids = skip_session_ids or set()
+    if not DB_FILE.exists():
+        return []
+    try:
+        con = _connect_ro()
+    except sqlite3.Error:
+        return []
+    out: list[dict] = []
+    try:
+        with con:
+            try:
+                created = "time_created" if "time_created" in _table_columns(con, "session_v2") else "0"
+                rows = con.execute(
+                    "select id, model, tokens_input, tokens_output, "
+                    "tokens_reasoning, tokens_cache_read, tokens_cache_write, "
+                    f"cost, time_updated, {created} "
+                    "from session_v2 where time_updated >= ? "
+                    "order by time_updated asc",
+                    (cutoff_ms,),
+                ).fetchall()
+            except sqlite3.Error:
+                return []
+        for sid, model_raw, inp, output, reasoning, cr, cw, cost, tu, tc in rows:
+            if str(sid or "") in skip_session_ids:
+                continue
+            try:
+                m = json.loads(model_raw or "{}")
+            except ValueError:
+                m = {}
+            model_id = str(m.get("id") or "")
+            if not model_id:
+                continue
+            provider_id = str(m.get("providerID") or "")
+            inp, output, reasoning = as_int(inp), as_int(output), as_int(reasoning)
+            cr, cw = as_int(cr), as_int(cw)
+            total = inp + output + reasoning + cw
+            if total <= 0:
+                continue
+            out.append({
+                "session_id": str(sid),
+                "model_id": model_id,
+                "provider_id": provider_id,
+                "input": inp,
+                "output": output,
+                "reasoning": reasoning,
+                "cache_read": cr,
+                "cache_write": cw,
+                "total": total,
+                "total_with_cache_read": total + cr,
+                "cost": as_float(cost),
+                "time": as_int(tu),
+                "_history_complete": 0 < as_int(tc) and as_int(tc) >= cutoff_ms,
+            })
+    except sqlite3.Error:
+        return []
+    finally:
+        con.close()
+    return out
+
+
+def load_sessions(limit: int = 10) -> list[dict]:
+    """The latest sessions, for the Now card's live rows.
+
+    `running` is the store's own truth: a session still runs while its last
+    busy stamp is newer than its idle stamp, so no timer guess is made here.
+    """
+    if not DB_FILE.exists():
+        return []
+    try:
+        con = _connect_ro()
+    except sqlite3.Error:
+        return []
+    try:
+        with con:
+            rows = con.execute(
+                "select id, title, directory, time_created, time_updated, "
+                "time_idle, time_busy, tokens_input, tokens_output, "
+                "tokens_reasoning, tokens_cache_write, cost "
+                "from session_v2 order by (coalesce(time_busy,0)>coalesce(time_idle,0)) desc, time_updated desc limit ?",
+                (as_int(limit) or 10,),
+            ).fetchall()
+    except sqlite3.Error:
+        return []
+    finally:
+        con.close()
+    out: list[dict] = []
+    for sid, title, directory, created, updated, idle, busy, inp, output, reasoning, cw, cost in rows:
+        out.append({
+            "id": str(sid or ""),
+            "title": str(title or ""),
+            "directory": str(directory or ""),
+            "started": as_int(created),
+            "updated": as_int(updated),
+            "tokens": as_int(inp) + as_int(output) + as_int(reasoning) + as_int(cw),
+            "cost": round(as_float(cost), 4),
+            "running": as_int(busy) > as_int(idle),
+        })
+    return out
+
+
+def load_messages(horizon_s: float = WINDOW_HORIZON_S) -> list[dict]:
+    cutoff_s = time.time() - horizon_s
+    cutoff_ms = int(cutoff_s * 1000)
+    msgs = load_session_messages(cutoff_ms)
+    per_message_v2 = bool(msgs)
+    if not msgs:
+        msgs = load_fs_messages(cutoff_s)
+    if not msgs:
+        msgs = load_sqlite_messages(cutoff_ms)
+    covered = {str(m.get("session_id") or "") for m in msgs if m.get("session_id")}
+    aggs = load_session_v2_aggregates(cutoff_ms)
+    by_session: dict[str, list[dict]] = {}
+    for msg in msgs:
+        sid = str(msg.get("session_id") or "")
+        if sid:
+            by_session.setdefault(sid, []).append(msg)
+    for agg in aggs:
+        sid = str(agg.get("session_id") or "")
+        rows = by_session.get(sid) if per_message_v2 else None
+        # A lifetime residual cannot be dated when the session predates the
+        # loaded message horizon, or when its creation time is unknown.
+        if rows and agg.get("_history_complete", False):
+            balance_session(rows, agg)
+        elif not rows and sid not in covered and agg.get("_history_complete", False):
+            msgs.append(agg)
+    msgs.sort(key=lambda m: m["time"])
+    return msgs
+
+
+def sum_since(msgs: list[dict], since_ms: int) -> tuple[int, float, int]:
+    usage = 0
+    cost = 0.0
+    with_cache_read = 0
+    for msg in msgs:
+        if msg["time"] < since_ms:
+            continue
+        usage += msg["total"]
+        with_cache_read += msg["total_with_cache_read"]
+        cost += msg["cost"]
+    return usage, cost, with_cache_read
+
+
+def newest_model(msgs: list[dict]) -> str:
+    if not msgs:
+        return ""
+    msg = max(msgs, key=lambda item: item["time"])
+    return model_label(msg["model_id"], msg["provider_id"])
+
+
+def fmt_tokens(value: int) -> str:
+    if value >= 1_000_000:
+        return f"{value / 1_000_000:.1f}M"
+    if value >= 1_000:
+        return f"{value / 1_000:.1f}K"
+    return str(value)
+
+
+def model_rows(msgs: list[dict], today_ms: int, limit: int = 6) -> list[dict]:
+    by_model = {}
+    for msg in msgs:
+        key = (msg["provider_id"], msg["model_id"])
+        cur = by_model.setdefault(key, {
+            "name": model_label(msg["model_id"], msg["provider_id"]),
+            "session_ids": set(),
+            "input": 0,
+            "output": 0,
+            "reasoning": 0,
+            "cache_read": 0,
+            "cache_write": 0,
+            "cost": 0.0,
+            "last_seen": 0,
+            "today": 0,
+            "total": 0,
+            "total_with_cache_read": 0,
+        })
+        cur["session_ids"].add(msg["session_id"])
+        cur["input"] += msg["input"]
+        cur["output"] += msg["output"]
+        cur["reasoning"] += msg["reasoning"]
+        cur["cache_read"] += msg["cache_read"]
+        cur["cache_write"] += msg["cache_write"]
+        cur["cost"] += msg["cost"]
+        cur["last_seen"] = max(cur["last_seen"], msg["time"])
+        cur["total"] += msg["total"]
+        cur["total_with_cache_read"] += msg["total_with_cache_read"]
+        if msg["time"] >= today_ms:
+            cur["today"] += msg["total"]
+
+    rows = sorted(by_model.values(), key=lambda item: item["last_seen"], reverse=True)[:limit]
+    totals = []
+    for row in rows:
+        total = int(row["total"])
+        cost = float(row["cost"])
+        totals.append({
+            "name": row["name"],
+            "sessions": len(row["session_ids"]),
+            "total": total,
+            "totalLabel": fmt_tokens(total),
+            "inputLabel": fmt_tokens(int(row["input"])),
+            "outputLabel": fmt_tokens(int(row["output"])),
+            "reasoningLabel": fmt_tokens(int(row["reasoning"])),
+            "cacheReadLabel": fmt_tokens(int(row["cache_read"])),
+            "cacheWriteLabel": fmt_tokens(int(row["cache_write"])),
+            "todayLabel": fmt_tokens(int(row["today"])),
+            "costLabel": f"${cost:.2f}" if cost > 0 else "",
+            "lastSeen": int(row["last_seen"]),
+            "totalWithCacheRead": int(row["total_with_cache_read"]),
+            "totalWithCacheReadLabel": fmt_tokens(int(row["total_with_cache_read"])),
+        })
+    max_total = max((row["total"] for row in totals), default=0)
+    for row in totals:
+        row["pct"] = int(round(row["total"] * 100 / max_total)) if max_total else 0
+    return totals
+
+
+def pct(tokens: int, limit: int) -> float:
+    if limit <= 0:
+        return 0.0
+    return min(1.0, max(0.0, tokens / float(limit)))
+
+
+def start_of_day(days_ago: int) -> int:
+    day = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=days_ago)
+    return int(day.timestamp() * 1000)
+
+
+def hour_start_ms(ts_ms: int) -> int:
+    moment = datetime.fromtimestamp(ts_ms / 1000).replace(minute=0, second=0, microsecond=0)
+    return int(moment.timestamp() * 1000)
+
+
+def hour_history(msgs: list[dict], hours: int = 48) -> list[dict]:
+    """One bucket per clock hour, oldest first, the current hour last.
+
+    Today's view and the rolling 24-hour view both slice this list, so their
+    bars and their totals come from the same buckets.
+    """
+    current = hour_start_ms(int(time.time() * 1000))
+    start = current - (hours - 1) * 3600 * 1000
+    by_hour: dict[int, int] = {}
+    cache_by_hour: dict[int, int] = {}
+    for msg in msgs:
+        if msg["time"] < start:
+            continue
+        key = hour_start_ms(msg["time"])
+        by_hour[key] = by_hour.get(key, 0) + msg["total"]
+        cache_by_hour[key] = cache_by_hour.get(key, 0) + msg["cache_read"]
+    out = []
+    for i in range(hours - 1, -1, -1):
+        key = current - i * 3600 * 1000
+        out.append({
+            "start": key,
+            "tokens": int(by_hour.get(key, 0)),
+            "cacheRead": int(cache_by_hour.get(key, 0)),
+        })
+    return out
+
+
+def period_stats(msgs: list[dict], since_ms: int, limit: int = 8) -> dict:
+    """Tokens, cache share, cost and per-model rows for one window.
+
+    The module's period control reads these three windows (7 days, 30 days,
+    all time), so the numbers on every card come from the same slice.
+    """
+    by_model: dict = {}
+    tokens = 0
+    cache_read = 0
+    with_cache = 0
+    cost = 0.0
+    sessions: set = set()
+    for msg in msgs:
+        if msg["time"] < since_ms:
+            continue
+        key = (msg["provider_id"], msg["model_id"])
+        cur = by_model.setdefault(key, {
+            "name": model_label(msg["model_id"], msg["provider_id"]),
+            "input": 0, "output": 0, "reasoning": 0,
+            "cache_read": 0, "cache_write": 0,
+            "total": 0, "cost": 0.0, "last_seen": 0,
+            "sessions": set(),
+        })
+        cur["input"] += msg["input"]
+        cur["output"] += msg["output"]
+        cur["reasoning"] += msg["reasoning"]
+        cur["cache_read"] += msg["cache_read"]
+        cur["cache_write"] += msg["cache_write"]
+        cur["total"] += msg["total"]
+        cur["cost"] += msg["cost"]
+        cur["last_seen"] = max(cur["last_seen"], msg["time"])
+        if msg["session_id"]:
+            cur["sessions"].add(msg["session_id"])
+            sessions.add(msg["session_id"])
+        tokens += msg["total"]
+        cache_read += msg["cache_read"]
+        with_cache += msg["total_with_cache_read"]
+        cost += msg["cost"]
+
+    # Rank and scale by everything the model spent, cache reads included.
+    def weight(row):
+        return row["total"] + row["cache_read"]
+
+    rows = sorted(by_model.values(), key=weight, reverse=True)[:limit]
+    peak = max((weight(row) for row in rows), default=0)
+    models = []
+    for row in rows:
+        total = int(row["total"])
+        cache_total = total + int(row["cache_read"])
+        models.append({
+            "name": row["name"],
+            "total": total,
+            "totalLabel": fmt_tokens(total),
+            "totalWithCacheRead": cache_total,
+            "totalWithCacheReadLabel": fmt_tokens(cache_total),
+            "inputLabel": fmt_tokens(int(row["input"])),
+            "outputLabel": fmt_tokens(int(row["output"])),
+            "reasoningLabel": fmt_tokens(int(row["reasoning"])),
+            "cacheReadLabel": fmt_tokens(int(row["cache_read"])),
+            "cacheWriteLabel": fmt_tokens(int(row["cache_write"])),
+            "cacheRate": round(row["cache_read"] / cache_total, 4) if cache_total else 0.0,
+            "cost": round(float(row["cost"]), 4),
+            "costLabel": f"${row['cost']:.2f}" if row["cost"] > 0.0001 else "",
+            "sessions": len(row["sessions"]),
+            "lastSeen": int(row["last_seen"]),
+            "pct": int(round(cache_total * 100 / peak)) if peak else 0,
+        })
+    return {
+        "tokens": int(tokens),
+        "tokensLabel": fmt_tokens(int(tokens)),
+        "cacheRate": round(cache_read / with_cache, 4) if with_cache else 0.0,
+        "cost": round(float(cost), 4),
+        "costLabel": f"${cost:.2f}" if cost > 0.0005 else "",
+        "sessions": len(sessions),
+        "models": models,
+        "modelCount": len(by_model),
+    }
+
+
+def recent_days(msgs: list[dict], days: int = 7) -> list[dict]:
+    now = datetime.now().astimezone()
+    start = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=days - 1)
+    start_ms = int(start.timestamp() * 1000)
+    by_day: dict[str, int] = {}
+    for msg in msgs:
+        if msg["time"] < start_ms:
+            continue
+        key = datetime.fromtimestamp(msg["time"] / 1000).strftime("%Y-%m-%d")
+        by_day[key] = by_day.get(key, 0) + msg["total"]
+    out = []
+    today = now.date()
+    for i in range(days - 1, -1, -1):
+        key = (today - timedelta(days=i)).strftime("%Y-%m-%d")
+        out.append({"date": key, "tokens": int(by_day.get(key, 0))})
+    return out
+
+
+def day_history(msgs: list[dict]) -> list[dict]:
+    """One bucket per day from the first recorded message to today.
+
+    Every v2 assistant message and compaction call carries its own timestamp,
+    so a session that spans days is split across the days it actually ran.
+    Session aggregates only fill a session that has no message rows at all.
+    """
+    if not msgs:
+        return []
+    now = datetime.now().astimezone()
+    today = now.date()
+    first = datetime.fromtimestamp(min(m["time"] for m in msgs) / 1000).date()
+    span = max(1, min((today - first).days + 1, HISTORY_DAYS))
+    start = today - timedelta(days=span - 1)
+    start_ms = int(datetime.combine(start, datetime.min.time()).astimezone().timestamp() * 1000)
+    by_day: dict[str, int] = {}
+    cache_by_day: dict[str, int] = {}
+    cost_by_day: dict[str, float] = {}
+    for msg in msgs:
+        if msg["time"] < start_ms:
+            continue
+        key = datetime.fromtimestamp(msg["time"] / 1000).strftime("%Y-%m-%d")
+        by_day[key] = by_day.get(key, 0) + msg["total"]
+        cache_by_day[key] = cache_by_day.get(key, 0) + msg["cache_read"]
+        cost_by_day[key] = cost_by_day.get(key, 0.0) + float(msg.get("cost", 0.0))
+    out = []
+    for i in range(span - 1, -1, -1):
+        key = (today - timedelta(days=i)).strftime("%Y-%m-%d")
+        out.append({
+            "date": key,
+            "tokens": int(by_day.get(key, 0)),
+            "cacheRead": int(cache_by_day.get(key, 0)),
+            "cost": round(cost_by_day.get(key, 0.0), 6),
+        })
+    return out
+
+
+def merge_day_history(days: list[dict], previous: dict) -> list[dict]:
+    """Keep published day totals monotonic.
+
+    A session aggregate can be rewritten (compaction recount, migration) or a
+    residual can move to a newer message. Either way, a day that was already
+    shown must not lose tokens: history is append-only. Merge the new buckets
+    with the previous cache by date, keeping the larger value for each field.
+    """
+    if not isinstance(previous, dict):
+        return days
+    old_days = previous.get("_days")
+    if previous.get("_source") not in ("storage", "storage+v2", "stale") or not isinstance(old_days, list):
+        return days
+    by_date: dict[str, dict] = {str(d["date"]): d for d in days}
+    for old in old_days:
+        date = str(old.get("date") or "")
+        if not date:
+            continue
+        current = by_date.get(date)
+        if current is None:
+            by_date[date] = {
+                "date": date,
+                "tokens": as_int(old.get("tokens")),
+                "cacheRead": as_int(old.get("cacheRead")),
+                "cost": as_float(old.get("cost")),
+            }
+        else:
+            current["tokens"] = max(as_int(current.get("tokens")),
+                                    as_int(old.get("tokens")))
+            current["cacheRead"] = max(as_int(current.get("cacheRead")),
+                                       as_int(old.get("cacheRead")))
+            current["cost"] = max(as_float(current.get("cost")),
+                                  as_float(old.get("cost")))
+    return sorted(by_date.values(), key=lambda day: str(day["date"]))
+
+
+def merge_hour_history(hours: list[dict], previous: dict) -> list[dict]:
+    """Same append-only rule for the rolling 48-hour buckets.
+
+    Only buckets that are still inside the new window are merged, so the list
+    keeps its 48-hour length; an hour already shown never loses tokens.
+    """
+    if not isinstance(previous, dict) or not hours:
+        return hours
+    old_hours = previous.get("_hours")
+    if previous.get("_source") not in ("storage", "storage+v2", "stale") or not isinstance(old_hours, list):
+        return hours
+    first = as_int(hours[0].get("start"))
+    last = as_int(hours[-1].get("start"))
+    by_start: dict[int, dict] = {as_int(hour.get("start")): hour for hour in hours}
+    for old in old_hours:
+        start = as_int(old.get("start"))
+        if start < first or start > last:
+            continue
+        current = by_start.get(start)
+        if current is None:
+            by_start[start] = {
+                "start": start,
+                "tokens": as_int(old.get("tokens")),
+                "cacheRead": as_int(old.get("cacheRead")),
+            }
+        else:
+            current["tokens"] = max(as_int(current.get("tokens")),
+                                    as_int(old.get("tokens")))
+            current["cacheRead"] = max(as_int(current.get("cacheRead")),
+                                       as_int(old.get("cacheRead")))
+    return sorted(by_start.values(), key=lambda hour: as_int(hour["start"]))
+
+
+def previous_cache() -> dict:
+    try:
+        return json.loads(CACHE_FILE.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def acquire_lock():
+    """One collector at a time. A manual refresh can race the timer; both read
+    the previous cache to keep the day history append-only, so they must not
+    write it concurrently."""
+    lock_path = CACHE_FILE.with_name(CACHE_FILE.name + ".lock")
+    lock_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    fd = os.open(lock_path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    handle = os.fdopen(fd, "w")
+    try:
+        os.fchmod(handle.fileno(), 0o600)
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return handle
+    except OSError:
+        handle.close()
+        raise
+
+
+def main() -> int:
+    try:
+        lock = acquire_lock()
+    except BlockingIOError:
+        return 75
+    except OSError:
+        sys.stderr.write("opencode-usage: cache lock unavailable\n")
+        return 1
+    try:
+        _run()
+        return 0
+    finally:
+        lock.close()
+
+
+def _run() -> None:
+    if not STORAGE_DIR.is_dir() and not DB_FILE.exists():
+        stale_last()
+        return
+
+    now = time.time()
+    # Read the long history once; the shared counters keep their 8-day window
+    # so the shell's chips read exactly what they read before.
+    msgs_all = load_messages(HISTORY_DAYS * 24 * 3600)
+    if not msgs_all:
+        stale_last()
+        return
+    window_ms = int((now - WINDOW_HORIZON_S) * 1000)
+    msgs = [msg for msg in msgs_all if msg["time"] >= window_ms]
+
+    five_h_ms = int((now - 5 * 3600) * 1000)
+    seven_d_ms = int((now - 7 * 24 * 3600) * 1000)
+    hour_ms = int((now - 3600) * 1000)
+    start_today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+    today_ms = int(start_today * 1000)
+
+    tok_5h, cost_5h, tok_5h_with_cache = sum_since(msgs, five_h_ms)
+    tok_7d, cost_7d, tok_7d_with_cache = sum_since(msgs, seven_d_ms)
+    tok_1h, _, tok_1h_with_cache = sum_since(msgs, hour_ms)
+    tok_today, cost_today, tok_today_with_cache = sum_since(msgs, today_ms)
+    model = newest_model(msgs)
+    models = model_rows(msgs, today_ms)
+    recent_days_list = recent_days(msgs)
+    # Read the published history before writing so a day never decreases.
+    published = previous_cache()
+    days = merge_day_history(day_history(msgs_all), published)
+    hours = merge_hour_history(hour_history(msgs_all), published)
+
+    out = {
+        "5h-utilization": f"{pct(tok_5h, LIMIT_5H):.4f}",
+        "5h-reset": "0",
+        "7d-utilization": f"{pct(tok_7d, LIMIT_7D):.4f}",
+        "7d-reset": "0",
+        "updated_at": datetime.now().strftime("%H:%M:%S"),
+        "_source": "storage",
+        "_plan": "local messages",
+        "_model": model,
+        "_models": models,
+        "_tokens_used": tok_5h,
+        "_tokens_used_with_cache_read": tok_5h_with_cache,
+        "_window_limit": LIMIT_5H,
+        "_rate_per_hour": tok_1h,
+        "_rate_per_hour_with_cache_read": tok_1h_with_cache,
+        "_today_tokens": tok_today,
+        "_today_tokens_with_cache_read": tok_today_with_cache,
+        "_recent_days": recent_days_list,
+        "_days": days,
+        "_hours": hours,
+        "_sessions": load_sessions(),
+        "_periods": {
+            "today": period_stats(msgs_all, start_of_day(0)),
+            "24h": rolling_period(msgs_all, int(now * 1000), period_stats),
+            "7": period_stats(msgs_all, start_of_day(6)),
+            "30": period_stats(msgs_all, start_of_day(29)),
+            "all": period_stats(msgs_all, 0),
+        },
+        "_7d_tokens": tok_7d,
+        "_7d_tokens_with_cache_read": tok_7d_with_cache,
+        "_7d_limit": LIMIT_7D,
+        "_cost_5h": cost_5h,
+        "_cost_7d": cost_7d,
+        "_cost_today": cost_today,
+        "status": "allowed_warning" if tok_5h >= LIMIT_5H * 0.9 else "allowed",
+    }
+    publish_cache(out)
+
+
+def cli() -> int:
+    global CACHE_FILE
+    parser = argparse.ArgumentParser(
+        prog="opencode-usage",
+        description="Write the widget OpenCode usage cache from the local session store.")
+    parser.add_argument("--version", action="version",
+                        version="opencode-usage " + VERSION)
+    parser.add_argument("--cache", type=Path,
+                        help="write this cache path instead of ~/.cache/ai-usage/opencode-usage.json")
+    args = parser.parse_args()
+    if args.cache is not None:
+        CACHE_FILE = args.cache.expanduser()
+    return main()
+
+
+if __name__ == "__main__":
+    raise SystemExit(cli())

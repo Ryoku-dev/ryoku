@@ -7,7 +7,7 @@ SRCPKGS=$ROOT/void/packages/srcpkgs
 WORK=${RYOKU_XBPS_WORK:-${TMPDIR:-/tmp}/ryoku-xbps-$UID}
 OUT=${RYOKU_XBPS_OUT:-$SCRIPT_DIR/out}
 ARCH=${RYOKU_XBPS_ARCH:-x86_64}
-VOID_PACKAGES_REF=${RYOKU_VOID_PACKAGES_REF:-7023eba97f43b92c4d36e830677d27ab33e2d4ae}
+VOID_PACKAGES_REF=${RYOKU_VOID_PACKAGES_REF:-7860eca545b73e612b83c8eed43b57741ef5b0fb}
 VOID_PACKAGES_URL=${RYOKU_VOID_PACKAGES_URL:-https://github.com/void-linux/void-packages.git}
 KEY=${RYOKU_XBPS_KEY:-}
 KEYRING_DIR=${RYOKU_XBPS_KEYRING_DIR:-}
@@ -218,7 +218,7 @@ for pkg in "${all_packages[@]}"; do
 	fi
 done
 
-# container-runner.sh resolves Ryotunes' latest release; xbps-src then fetches
+# container-runner.sh resolves Ryotunes' newest 1.x release; xbps-src then fetches
 # that release and verifies it against the release's own checksum.
 if [[ -n ${template_for[ryotunes]:-} ]]; then
 	[[ $RYOTUNES_VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && $RYOTUNES_SHA256 =~ ^[0-9a-f]{64}$ ]] \
@@ -230,7 +230,7 @@ if [[ -n ${template_for[ryotunes]:-} ]]; then
 		{ print }
 	' "$stamped" > "$stamped.tmp"
 	mv "$stamped.tmp" "$stamped"
-	log "Building Ryotunes $RYOTUNES_VERSION, its latest release"
+	log "Building Ryotunes $RYOTUNES_VERSION, its newest 1.x release"
 fi
 
 {

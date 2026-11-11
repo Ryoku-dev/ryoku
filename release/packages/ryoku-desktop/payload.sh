@@ -353,6 +353,13 @@ EOF
     install -Dm644 "$_repo/ryoku/shell/environment.d/ryoku-session.conf" \
       "$pkgdir/usr/lib/environment.d/99-ryoku-session.conf"
 
+    # Route Secret Service activation through the socket-backed user unit.
+    install -Dm644 "$_repo/ryoku/shell/systemd/environment.d/98-ryoku-dbus.conf" \
+      "$pkgdir/usr/lib/environment.d/98-ryoku-dbus.conf"
+    install -Dm644 \
+      "$_repo/ryoku/shell/xdg/dbus-1/services/org.freedesktop.secrets.service" \
+      "$pkgdir/usr/share/ryoku/xdg/dbus-1/services/org.freedesktop.secrets.service"
+
     # Resolve localized XDG directories into the systemd user environment.
     install -Dm755 "$_repo/ryoku/shell/systemd/user-environment-generators/60-ryoku-xdg-dirs" \
       "$pkgdir/usr/lib/systemd/user-environment-generators/60-ryoku-xdg-dirs"
@@ -364,6 +371,9 @@ EOF
   # seeds a fresh install straight from the repo. the chmod below covers it.
   install -d "$pkgdir/usr/share/ryoku/ryodecors"
   cp -a "$_repo/ryoku/assets/ryodecors/." "$pkgdir/usr/share/ryoku/ryodecors/"
+  install -d "$pkgdir/usr/share/ryoku/brand"
+  cp -a "$_repo/ryoku/assets/brand/." "$pkgdir/usr/share/ryoku/brand/"
+  install -Dm644 "$_repo/ryoku/apps/npm/npmrc" "$pkgdir/usr/share/ryoku/npmrc"
 
   # packaged rices are immutable source looks; the Hub copies one into the
   # user's rice library on first apply so later edits stay user-owned.

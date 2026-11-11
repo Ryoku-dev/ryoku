@@ -2,6 +2,7 @@ package updater
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"ryoku-cli/internal/host"
@@ -30,6 +31,8 @@ func upgradeRyotunes() {
 	defer cancel()
 	st, err := upgradeRyotunesRelease(ctx)
 	switch {
+	case errors.Is(err, ryotunesrelease.ErrNoRelease):
+		progress.logf(i18n.T("No Ryotunes 1.x release is published; keeping Ryotunes %s"), st.Installed)
 	case err != nil:
 		progress.logf(i18n.T("Could not update Ryotunes: %v"), err)
 	case st.Installed == "":

@@ -15,6 +15,7 @@ Item {
     readonly property bool active:  sel.active
     readonly property bool playing: sel.playing
     readonly property bool fullMode: root.mprisBarStyle === "full"
+    readonly property int titleWidth: root.mprisTitleWidth
     readonly property bool motionAllowed: !Perf.reduceMotion && !Perf.pillFrozen
     readonly property color contentColor: root.widgetContentColor("G9", root.ink)
     readonly property color accentColor: root.widgetHasFill("G9")
@@ -209,7 +210,7 @@ Item {
         // item so the layer.effect can resolve the id; visible:false → no Row layout.
         Item {
             id: marqueeFadeMask
-            width: 88; height: 28
+            width: rootMod.titleWidth; height: 28
             visible: false
             layer.enabled: true
             Rectangle {
@@ -226,8 +227,8 @@ Item {
         // ── marquee title ──
         Item {
             id: marqueeClip
-            implicitWidth: 88
-            width: 88
+            implicitWidth: rootMod.titleWidth
+            width: rootMod.titleWidth
             height: 28
             anchors.verticalCenter: parent.verticalCenter
             // alpha-mask fade of the right edge: the scrolling title dissolves into
@@ -262,6 +263,7 @@ Item {
                 Behavior on color { ColorAnimation { duration: 200 } }
                 onTextChanged: marqueeClip.resetMarquee()
             }
+            onWidthChanged: if (marqueeText) resetMarquee()
 
             function resetMarquee() {
                 marqueeAnim.stop()

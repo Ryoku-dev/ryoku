@@ -45,13 +45,16 @@ func (r *randomRotation) start(intervalSecs int64, types []string, favOnly bool,
 	}()
 }
 
-func (r *randomRotation) stop() {
+// stop ends the loop and reports whether one was running.
+func (r *randomRotation) stop() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.stopCh != nil {
-		close(r.stopCh)
-		r.stopCh = nil
+	if r.stopCh == nil {
+		return false
 	}
+	close(r.stopCh)
+	r.stopCh = nil
+	return true
 }
 
 func (r *randomRotation) status() map[string]interface{} {

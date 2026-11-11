@@ -13,6 +13,8 @@ QQC.AbstractButton {
     property int holdDuration: 650
     property bool subtle: false
     property bool labelled: true
+    // a whole sentence per action, so a language can word and case it its own way
+    property string tip: ""
     signal held()
 
     QtObject {
@@ -247,6 +249,6 @@ QQC.AbstractButton {
         }
     }
 
-    CornerTip { s: root.s; visible: root.hovered && !root.down; text: I18n.tr("Hold to %1").arg(root.text) }
+    CornerTip { s: root.s; visible: root.tip !== "" && root.hovered && !root.down; text: root.tip }
     HoverHandler { cursorShape: Qt.PointingHandCursor }
 }

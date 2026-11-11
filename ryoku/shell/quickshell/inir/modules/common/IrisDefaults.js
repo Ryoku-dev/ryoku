@@ -1979,7 +1979,7 @@ function config() {
    "autoDarkLightMode": false,
    "enableAppsAndShell": true,
    "enableQtApps": true,
-   "enableTerminal": true,
+   "enableTerminal": false,
    "enableVesktop": true,
    "enableZed": true,
    "enableVSCode": true,

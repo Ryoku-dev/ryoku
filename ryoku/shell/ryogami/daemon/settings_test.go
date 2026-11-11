@@ -493,6 +493,66 @@ func TestMigrateLegacyConfig(t *testing.T) {
 	}
 }
 
+func TestMigratePickerState(t *testing.T) {
+	d := newSettingsDaemon(t)
+	d.store = openStore(t.TempDir())
+
+	tree := map[string]interface{}{
+		"filterBar": map[string]interface{}{
+			"last": map[string]interface{}{"sort": "name"},
+		},
+	}
+	b, _ := json.MarshalIndent(tree, "", "  ")
+	_ = os.MkdirAll(ryokuConfigDir(), 0o755)
+	if err := os.WriteFile(configPath(), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for key, value := range map[string]string{
+		"type":       "video",
+		"folder":     "Downloaded",
+		"color":      "99",
+		"sort":       "recent",
+		"favourites": "true",
+	} {
+		d.store.stateSet("filterBar.last."+key, &value)
+	}
+
+	d.migratePickerState()
+	resetSettingsState()
+
+	got := readJSONFile(t, configPath())
+	if value, _ := lookupDotted(got, "filterBar.last.sort"); value != "name" {
+		t.Errorf("saved sort was overwritten: %v", value)
+	}
+	if value, _ := lookupDotted(got, "filterBar.last.type"); value != "video" {
+		t.Errorf("type was not migrated: %v", value)
+	}
+	if value, _ := lookupDotted(got, "filterBar.last.folder"); value != "Downloaded" {
+		t.Errorf("folder was not migrated: %v", value)
+	}
+	if value, _ := lookupDotted(got, "filterBar.last.color"); value != float64(99) {
+		t.Errorf("colour was not migrated: %v", value)
+	}
+	if value, _ := lookupDotted(got, "filterBar.last.favourites"); value != true {
+		t.Errorf("favourites was not migrated: %v", value)
+	}
+	for _, key := range []string{"type", "folder", "color", "sort", "favourites"} {
+		if value, exists := d.store.stateGet("filterBar.last." + key); exists {
+			t.Errorf("legacy state %s remains: %q", key, value)
+		}
+	}
+}
+
+func TestPickerStateDefaultsPersistChoices(t *testing.T) {
+	d := newSettingsDaemon(t)
+	if !d.settingBool("filterBar.sticky") {
+		t.Fatal("filter choices should persist by default")
+	}
+	if got := d.settingString("components.wallpaperSelector.startPosition"); got != "applied" {
+		t.Fatalf("start position = %q, want applied", got)
+	}
+}
+
 // TestPerOutputSettingRoundTrip: the Displays page writes placement and lock
 // under each output's own name. The pattern spec validates them, the daemon's
 // readers see them, and a full settings.get hands them back on the next open.

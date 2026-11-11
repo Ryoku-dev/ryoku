@@ -45,9 +45,9 @@ body.theme-light.theme-light.theme-light {
        theme-facing --color-accent-hsl from --accent-h/s/l, and popular themes
        read that triple directly rather than --interactive-accent, so the
        wallpaper accent has to land here to reach every accent surface. */
-    --accent-h: {{colors.primary.default.hue}};
-    --accent-s: {{colors.primary.default.saturation}}%;
-    --accent-l: {{colors.primary.default.lightness}}%;
+    --accent-h: {{colors.primary.default.hex | to_color | format: "hue"}};
+    --accent-s: {{colors.primary.default.hex | to_color | format: "saturation"}}%;
+    --accent-l: {{colors.primary.default.hex | to_color | format: "lightness"}}%;
     --color-accent-hsl:       var(--accent-h), var(--accent-s), var(--accent-l);
     --interactive-accent-hsl: var(--color-accent-hsl);
 

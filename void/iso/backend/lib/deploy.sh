@@ -119,7 +119,7 @@ void_default_browser() {
   local user=$RYOKU_USERNAME browser=${RYOKU_BROWSER:-firefox} desktop command
   case $browser in
     chromium) desktop=chromium.desktop; command=chromium ;;
-    zen) desktop=zen.desktop; command=zen ;;
+    zen) desktop=zen.desktop; command=zen-browser ;;
     *) desktop=firefox.desktop; command=firefox ;;
   esac
   if [[ -n ${RYOKU_DRYRUN:-} ]]; then

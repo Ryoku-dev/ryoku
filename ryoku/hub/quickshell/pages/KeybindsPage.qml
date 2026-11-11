@@ -604,7 +604,7 @@ Item {
         "mouse:272": "LMB", "mouse:273": "RMB",
         "mouse_up": "Scroll Up", "mouse_down": "Scroll Down",
         "XF86AudioRaiseVolume": "Vol +", "XF86AudioLowerVolume": "Vol -",
-        "XF86AudioMute": "Mute", "XF86AudioPlay": "Play",
+        "XF86AudioMute": "Mute", "XF86AudioPlay": "Play", "XF86AudioPause": "Pause",
         "XF86AudioNext": "Next", "XF86AudioPrev": "Prev",
         "XF86MonBrightnessUp": "Brightness +", "XF86MonBrightnessDown": "Brightness -",
         "XF86TouchpadToggle": "Touchpad", "XF86TouchpadOn": "Touchpad On", "XF86TouchpadOff": "Touchpad Off"
@@ -713,7 +713,7 @@ Item {
         var out = [{ name: "", label: I18n.tr("All"), count: pg.allCount }];
         for (var i = 0; i < pg.categories.length; i++) {
             var c = pg.categories[i];
-            out.push({ name: c.name, label: c.name, count: pg.catCount(c) });
+            out.push({ name: c.name, label: I18n.tr(c.name), count: pg.catCount(c) });
         }
         return out;
     }
@@ -1557,7 +1557,7 @@ Item {
                                 id: card
                                 width: parent.width
                                 collapsible: false
-                                title: ("" + catBlock.modelData.name).toUpperCase()
+                                title: I18n.tr("" + catBlock.modelData.name).toUpperCase()
 
                                 Repeater {
                                     model: catBlock.binds
@@ -1629,7 +1629,7 @@ Item {
                                             spacing: 1
                                             Text {
                                                 width: parent.width
-                                                text: rowItem.modelData.desc || ""
+                                                text: I18n.tr(rowItem.modelData.desc || "")
                                                 color: rowItem.rowInk
                                                 font.family: Tokens.ui; font.pixelSize: Tokens.fRow
                                                 elide: Text.ElideRight
@@ -1637,7 +1637,7 @@ Item {
                                             Text {
                                                 visible: ("" + (rowItem.modelData.hint || "")).length > 0
                                                 width: parent.width
-                                                text: rowItem.modelData.hint || ""
+                                                text: I18n.tr(rowItem.modelData.hint || "")
                                                 color: Tokens.inkMuted
                                                 font.family: Tokens.ui; font.pixelSize: Tokens.fSmall
                                                 elide: Text.ElideRight
@@ -1695,7 +1695,7 @@ Item {
                                                 }
                                                 HoverHandler { id: tagHov; enabled: rowItem.unhon.length > 0 }
                                                 ToolTip.visible: tagHov.hovered && rowItem.unhon.length > 0
-                                                ToolTip.text: rowItem.unhon
+                                                ToolTip.text: I18n.tr(rowItem.unhon)
                                             }
 
                                             // reset a rebound row to its shipped chord; always shown.

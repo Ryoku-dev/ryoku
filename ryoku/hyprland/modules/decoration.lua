@@ -85,6 +85,7 @@ hl.config({
 
 -- Inactive tiled windows keep their 94% tint, but do not blur the whole
 -- animating desktop beneath them. Floating glass and layer cards still blur.
+-- settings.lua restores blur when the user lowers tile opacity
 hl.window_rule({
   name    = "opaque-tile-no-blur",
   match   = { float = false },

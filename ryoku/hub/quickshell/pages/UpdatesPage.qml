@@ -249,10 +249,32 @@ Item {
     }
 
     // hand the fixing to Rashin: with no TTY here `ryoku-rashin fix doctor` opens
-    // the agent in a terminal that investigates and repairs. runApp keeps that
-    // terminal outside the Settings process tree.
+    // a terminal at once (in its own unit, outside the Settings process tree)
+    // that runs the health check and then the agent. Its answer or its error
+    // replaces the row's line, so a press is never silent.
+    property string fixState: ""   // "" | opening | opened | failed
+    property string fixMsg: ""
     function fixWithAI() {
-        Spawn.runApp(["ryoku-rashin", "fix", "doctor"], { label: "ryoku-fix" });
+        if (fixProc.running)
+            return;
+        pg.fixState = "opening";
+        pg.fixMsg = I18n.tr("Opening a terminal for Fix with AI...");
+        fixProc.running = true;
+    }
+
+    Process {
+        id: fixProc
+        command: ["/bin/sh", "-c", 'exec ryoku-rashin "$@"', "sh", "fix", "doctor"]
+        environment: Spawn.env
+        stdout: StdioCollector { id: fixOut }
+        stderr: StdioCollector { id: fixErr }
+        onExited: code => {
+            const out = fixOut.text.trim().split("\n").pop();
+            const err = fixErr.text.trim().replace(/^ryoku-rashin: /, "");
+            pg.fixState = code === 0 ? "opened" : "failed";
+            pg.fixMsg = code === 0 ? (out || I18n.tr("Opened Fix with AI in a terminal."))
+                : (err || I18n.tr("Fix with AI could not start. Run `ryoku-rashin fix doctor` in a terminal to see why."));
+        }
     }
 
     // the fill fraction for the shared progress track: the run's own reading
@@ -416,6 +438,8 @@ Item {
         if (prev !== "idle" && pg.phase === "idle") {
             pg.runStartedAt = 0;
             pg.reportFresh = false;
+            pg.fixState = "";
+            pg.fixMsg = "";
             pg.showLog = false;
             Updates.check();
         }
@@ -445,6 +469,8 @@ Item {
     function dismiss() {
         Quickshell.execDetached(["sh", "-c", "printf '%s' '{\"phase\":\"idle\"}' > \"$1\"", "sh", pg.statePath]);
         pg.phase = "idle";
+        pg.fixState = "";
+        pg.fixMsg = "";
         pg.runStartedAt = 0;
         pg.reportFresh = false;
         pg.showLog = false;
@@ -552,14 +578,16 @@ Item {
             Text {
                 width: fr.width - fixBtn.width - Tokens.s3
                 anchors.verticalCenter: parent.verticalCenter
-                text: I18n.tr("The health check found issues after this update.")
-                color: Tokens.inkMuted; font.family: Tokens.ui
+                text: pg.fixMsg !== "" ? pg.fixMsg : I18n.tr("The health check found issues after this update.")
+                color: pg.fixState === "failed" ? Tokens.ink : Tokens.inkMuted
+                font.family: Tokens.ui
                 font.pixelSize: Tokens.fSmall; wrapMode: Text.WordWrap
             }
             Btn {
                 id: fixBtn
                 anchors.verticalCenter: parent.verticalCenter
-                text: I18n.tr("FIX WITH AI")
+                armed: pg.fixState !== "opening"
+                text: pg.fixState === "opening" ? I18n.tr("OPENING...") : I18n.tr("FIX WITH AI")
                 primary: true
                 onAct: pg.fixWithAI()
             }

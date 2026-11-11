@@ -56,11 +56,12 @@ var contractKeys = map[string]bool{
 	"controls":          true,
 	"batteryAlerts":     true,
 	"sounds":            true,
+	"gamebar":           true,
 }
 
 const (
 	dockEdgeGapDefault = 0
-	dockEdgeGapMin     = 0
+	dockEdgeGapMin     = -24
 	dockEdgeGapMax     = 64
 )
 
@@ -138,6 +139,35 @@ type settings struct {
 	Controls          controlsSettings      `json:"controls"`
 	BatteryAlerts     batteryAlertsSettings `json:"batteryAlerts"`
 	Sounds            soundsSettings        `json:"sounds"`
+	GameBar           gameBarSettings       `json:"gamebar"`
+}
+
+// gameBarSettings is the Game Bar overlay: the master switch, the placement
+// snapping and guide, the settle curve, the look, and the Discord Voice widget.
+type gameBarSettings struct {
+	Enabled   bool    `json:"enabled"`
+	Dim       float64 `json:"dim"`
+	Fade      int     `json:"fade"`
+	Scale     float64 `json:"scale"`
+	Radius    int     `json:"radius"`
+	Snap      bool    `json:"snap"`
+	SnapReach int     `json:"snapReach"`
+	SnapGrid  int     `json:"snapGrid"`
+	GuideGrid bool    `json:"guideGrid"`
+	GridStep  int     `json:"gridStep"`
+	GridAlpha float64 `json:"gridAlpha"`
+	Spring    float64 `json:"spring"`
+	Damping   float64 `json:"damping"`
+	Mass      float64 `json:"mass"`
+	// Voice controls how the Discord card behaves: avatar limit, the fade for
+	// quiet people, and the compact pinned overlay's avatar, names and panel.
+	VoiceAvatars    int     `json:"voiceAvatars"`
+	VoiceDim        bool    `json:"voiceDim"`
+	VoiceDimOpacity float64 `json:"voiceDimOpacity"`
+	VoiceAvatarSize int     `json:"voiceAvatarSize"`
+	VoiceNames      bool    `json:"voiceNames"`
+	VoiceControls   bool    `json:"voiceControls"`
+	VoiceBgOpacity  float64 `json:"voiceBgOpacity"`
 }
 
 type generalSettings struct {
@@ -479,6 +509,29 @@ func defaultSettings() *settings {
 		},
 		BatteryAlerts: batteryAlertsSettings{Enabled: true, WarningEnabled: true, CriticalEnabled: true, WarningPercent: 25, CriticalPercent: 10},
 		Sounds:        defaultSoundsSettings(),
+		GameBar: gameBarSettings{
+			Enabled:         true,
+			Dim:             0.62,
+			Fade:            200,
+			Scale:           1,
+			Radius:          14,
+			Snap:            true,
+			SnapReach:       9,
+			SnapGrid:        24,
+			GuideGrid:       true,
+			GridStep:        48,
+			GridAlpha:       0.28,
+			Spring:          3.2,
+			Damping:         0.58,
+			Mass:            1,
+			VoiceAvatars:    8,
+			VoiceDim:        true,
+			VoiceDimOpacity: 0.5,
+			VoiceAvatarSize: 52,
+			VoiceNames:      true,
+			VoiceControls:   true,
+			VoiceBgOpacity:  0.72,
+		},
 	}
 }
 
@@ -566,7 +619,26 @@ func (s *settings) normalize(strict bool) error {
 	s.Controls.normalize(v)
 	s.BatteryAlerts.normalize(v)
 	s.Sounds.normalize(v)
+	s.GameBar.normalize(v)
 	return v.err
+}
+
+func (g *gameBarSettings) normalize(v *validator) {
+	v.clampF(&g.Dim, 0, 1)
+	v.rangeI("gamebar.fade", &g.Fade, 0, 2000)
+	v.clampF(&g.Scale, 0.5, 2)
+	v.rangeI("gamebar.radius", &g.Radius, 0, 64)
+	v.rangeI("gamebar.snapReach", &g.SnapReach, 0, 64)
+	v.rangeI("gamebar.snapGrid", &g.SnapGrid, 4, 128)
+	v.rangeI("gamebar.gridStep", &g.GridStep, 8, 256)
+	v.clampF(&g.GridAlpha, 0, 1)
+	v.clampF(&g.Spring, 0.5, 20)
+	v.clampF(&g.Damping, 0.05, 1)
+	v.clampF(&g.Mass, 0.1, 10)
+	v.rangeI("gamebar.voiceAvatars", &g.VoiceAvatars, 1, 8)
+	v.clampF(&g.VoiceDimOpacity, 0.2, 1)
+	v.rangeI("gamebar.voiceAvatarSize", &g.VoiceAvatarSize, 32, 72)
+	v.clampF(&g.VoiceBgOpacity, 0, 1)
 }
 
 func (g *generalSettings) normalize(v *validator) {
@@ -992,6 +1064,7 @@ func buildSettings(raw map[string]any, strict bool) (*settings, error) {
 		"controls":          &s.Controls,
 		"batteryAlerts":     &s.BatteryAlerts,
 		"sounds":            &s.Sounds,
+		"gamebar":           &s.GameBar,
 	}
 	for k, ptr := range dst {
 		raw, ok := raw[k]

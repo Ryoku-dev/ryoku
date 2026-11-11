@@ -243,9 +243,7 @@ func (d *daemon) dispatchRequest(req *request) response {
 
 	// Auto-rotate covers the random loop and assigned playlists; the schedule has its own switch.
 	case "wall.rotation_status":
-		st := d.random.status()
-		running, _ := st["running"].(bool)
-		return ok(req.ID, map[string]interface{}{"active": running || d.playlists.anyAssigned()})
+		return ok(req.ID, map[string]interface{}{"active": d.rotationActive()})
 
 	case "wall.rotation_stop":
 		d.random.stop()

@@ -1,6 +1,10 @@
 # Changelog: installation/backend/
 
 ## Unreleased
+- **An ISO install cannot finish with package hooks still disabled.** The
+  installer preserves each hook it masks, keeps a newer hook written by a later
+  package transaction, restores every temporary override and refuses success if
+  a `/dev/null` mask or `.ryoku-off` file remains (`lib/chroot.sh`).
 
 ### Added
 - **Installers create every planned local account with private storage.** The

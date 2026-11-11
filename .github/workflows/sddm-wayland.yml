@@ -50,6 +50,9 @@ jobs:
       - name: Check the installer and packages
         shell: bash
         run: RYOKU_PATH="$PWD" tests/sddm-wayland.sh
+      - name: Check the keyring PAM wiring
+        shell: bash
+        run: RYOKU_PATH="$PWD" tests/sddm-keyring-pam.sh
       - name: Check the greeter compositor's card choice
         shell: bash
         run: RYOKU_PATH="$PWD" tests/sddm-greeter-card.sh

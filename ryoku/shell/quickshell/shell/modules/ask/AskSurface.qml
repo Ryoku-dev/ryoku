@@ -183,13 +183,21 @@ Rectangle {
             const sessions = Needle.sessions || [];
             if (sessions.length > 0)
                 rows.push({ section: I18n.tr("Agent sessions") });
+            if (Needle.sessionsError.length > 0) {
+                rows.push({
+                    kind: "note", disabled: true,
+                    label: I18n.tr("Rename failed"),
+                    sub: Needle.sessionsError
+                });
+            }
             for (let i = 0; i < sessions.length; i++) {
                 const sessionRow = sessions[i];
                 rows.push({
                     kind: "session", value: String(sessionRow.id || ""),
                     label: String(sessionRow.title || sessionRow.id || ""),
                     sub: root.relTime(sessionRow.updatedAt),
-                    active: String(sessionRow.id || "") === Needle.currentSession
+                    active: String(sessionRow.id || "") === Needle.currentSession,
+                    renamable: true
                 });
             }
         }
@@ -666,6 +674,8 @@ Rectangle {
         emptyText: I18n.tr("Nothing yet. Ask something, or start a chat.")
         maxHeight: Math.max(120 * root.s, root.drawerReserve)
         onActivated: row => root.pickHistory(row)
+        onRenamed: (row, title) => Needle.renameSession(row.value, title)
+        onEditFinished: root.focusField()
     }
 
     AskDrawer {

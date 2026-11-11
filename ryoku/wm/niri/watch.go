@@ -7,6 +7,7 @@ import (
 	"math"
 	"net"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -600,6 +601,30 @@ func formatUint(n uint64) string { return strconv.FormatUint(n, 10) }
 
 func formatInt(n int) string { return strconv.Itoa(n) }
 
+// IPC reports active VRR, not the persisted choice.
+func configuredNiriVRR() map[string]bool {
+	path := filepath.Join(niriConfigDir(), "monitors.kdl")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	nodes, err := parseKDL(path, string(raw))
+	if err != nil {
+		return nil
+	}
+	out := make(map[string]bool)
+	for _, node := range nodes {
+		if node.Name != "output" {
+			continue
+		}
+		name, ok := node.Arg(0)
+		if ok && name.String() != "" {
+			out[name.String()] = node.Child("variable-refresh-rate") != nil
+		}
+	}
+	return out
+}
+
 // readOutputs reads the output list and marks the focused one from the
 // workspaces already held, so no second query is needed to resolve focus.
 func readOutputs(workspaces []niriWorkspace, full bool) ([]wm.Output, error) {
@@ -620,9 +645,13 @@ func readOutputs(workspaces []niriWorkspace, full bool) ([]wm.Output, error) {
 			active[ws.Output] = formatUint(ws.ID)
 		}
 	}
+	var configuredVRR map[string]bool
+	if full {
+		configuredVRR = configuredNiriVRR()
+	}
 	out := make([]wm.Output, 0, len(byName))
 	for _, o := range byName {
-		out = append(out, outputFrame(o, focused, active, full))
+		out = append(out, outputFrame(o, focused, active, full, configuredVRR))
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out, nil
@@ -632,7 +661,7 @@ func readOutputs(workspaces []niriWorkspace, full bool) ([]wm.Output, error) {
 // being meaningful, so the mode is only read for an enabled one. Position is
 // always carried because window frames use the global logical coordinate
 // convention; full adds rotation, VRR and physical modes for the display editor.
-func outputFrame(o niriOutput, focused string, active map[string]string, full bool) wm.Output {
+func outputFrame(o niriOutput, focused string, active map[string]string, full bool, configuredVRR map[string]bool) wm.Output {
 	out := wm.Output{
 		Name:            o.Name,
 		Make:            o.Make,
@@ -658,6 +687,9 @@ func outputFrame(o niriOutput, focused string, active map[string]string, full bo
 		out.Transform = niriTransformToWayland(o.Logical.Transform)
 	}
 	out.VRR = o.VRREnabled
+	if configured, ok := configuredVRR[o.Name]; ok {
+		out.VRR = configured
+	}
 	for _, m := range o.Modes {
 		out.Modes = append(out.Modes, niriModeString(m))
 	}

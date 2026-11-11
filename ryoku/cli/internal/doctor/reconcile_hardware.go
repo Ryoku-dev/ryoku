@@ -32,7 +32,7 @@ func reconcileBacklight(_ bool) recResult {
 			return okRes(i18n.T("no internal backlight (desktop or external display)"))
 		}
 		return warnRes(i18n.T("no backlight interface found; display brightness cannot be set")).
-			withFix(i18n.T("try a kernel parameter such as acpi_backlight=native or acpi_backlight=vendor"))
+			withFix(i18n.T("on an ASUS AMD+NVIDIA laptop, try acpi_backlight=nvidia_wmi_ec; otherwise check the recommended acpi_backlight setting for this model"))
 	}
 	if !sys.Has("brightnessctl") {
 		return warnRes(i18n.T("backlight present but brightnessctl is missing; brightness keys and idle-dim will not work")).

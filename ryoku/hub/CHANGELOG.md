@@ -3,6 +3,61 @@
 ## Unreleased
 
 ### Fixed
+- **Shift plus a number key records in the shortcut recorder (#788).** The
+  number row is read by key position, so Super+Shift+1 records as itself
+  instead of being ignored, on any keyboard layout.
+- **Identical RAM sticks are separate lighting devices.** SMBus devices report
+  no serial, so every matching stick shared one entry and Hand back restored
+  only the first. Each stick is now keyed by its adapter and address (the
+  `/dev/i2c-N` number is ignored, since it moves between boots), the old shared
+  entry is copied to every stick on the next scan, and identical sticks list in
+  a stable order (`backend/lighting.go`).
+- **A number typed into a Hub stepper keeps the row's real range.** Values
+  such as a niri strut of 200 or a workspace shadow drop of -10 were cut to
+  0..100; they now clamp to the limits the stepper buttons already use.
+- **Picking a lock screen marks it Active as soon as it is switched (#777).**
+  It no longer spins on Applying while the sign-in screen waits for your
+  password; a note says what is still pending, and a refused prompt shows why.
+- **Switch layouts says what Super+Space costs.** Picking it now notes that it
+  takes over the Space key, so Persian ZWNJ on Shift+Space and AltGr+Space stop
+  working, and that Alt+Shift keeps them (#781).
+- **Clicking a saved Wi-Fi network notices when its password is rejected.** The
+  page relied on Quickshell's per-network failure signal, which is not always
+  emitted, so a stale saved password sometimes failed with nothing shown. A
+  saved network now joins through `nmcli connection up` like every other join,
+  and a failure reopens the password row (`pages/ConnectionsPage.qml`).
+- **A wrong Wi-Fi password fails in seconds in Connections.** Joining with
+  `nmcli --ask` made nmcli NetworkManager's secret agent, so a rejected
+  passphrase made NetworkManager ask nmcli for another and wait until nmcli's
+  90-second timeout. The page now closes nmcli's input after the passphrase, so
+  the second ask ends the join at once. The passphrase stays out of process
+  arguments and out of nmcli's editor history (`pages/ConnectionsPage.qml`).
+- **Connections notices networks saved or forgotten elsewhere.** The saved
+  list was read when the page opened and after its own actions, so a network
+  forgotten from the bar still showed as saved until the page was reopened. It
+  is now re-read when the network list changes and after a scan
+  (`pages/ConnectionsPage.qml`).
+- **A saved Wi-Fi network asks for its password again when it stops working.**
+  Clicking a saved network whose stored password was wrong (changed on the
+  router, or another network with the same name) failed on every click with no
+  password row. The row now reopens with "Wrong password, or a different
+  network with the same name?", the new password replaces the old profile, and
+  the field empties after a failed attempt (`pages/ConnectionsPage.qml`, #776).
+- Shortcut names, hints, categories and "not on" reasons follow the interface
+  language in Keybinds and in Kit. The shortcut catalogue now enters the
+  translation catalog, and the Keybinds page translates what it shows
+  (`pages/KeybindsPage.qml`, `ryoku/i18n/tools/sync.py`).
+- Updates acknowledges Fix with AI immediately, prevents duplicate pending launches,
+  and displays the terminal launch result or error.
+- **Displays reads the saved adaptive-sync choice.** An idle panel no longer
+  makes an enabled setting look off, and applying another display change keeps
+  the choice intact.
+- **Performance is unavailable until a hybrid laptop routes its panel to the
+  discrete GPU.** Graphics & Power shows the MUX requirement instead of offering
+  a mode that would leave the internal screen black.
+- **Battery charge limits appear on every supported laptop.** The Machine page
+  now receives standard and vendor battery-care capabilities through the same
+  host power seam, including fixed firmware choices.
 - Fastfetch renderer and recolor markers survive Settings saves. Renderer based
   styles keep their readout, and wallpaper recoloring keeps its palette roles.
   Rows are locked for styles that provide their own renderer.
@@ -68,6 +123,27 @@
   `../shell/matugen/config.toml`).
 
 ### Added
+- **Credits names the Game Bar's sources.** The ii-p3drovfx row now covers the
+  Discord Voice widget it is based on, and end-4's illogical-impulse is credited
+  for the overlay design (`quickshell/pages/CreditsPage.qml`, `../../NOTICE`).
+- **Connections can show each Wi-Fi network's access points.** A Details toggle
+  next to Scan adds a line under every row with each band's BSSID, marking the
+  one you are connected to, so two networks sharing a name can be told apart.
+  It is off by default (`pages/ConnectionsPage.qml`, #776).
+- **Connections lists saved Wi-Fi networks first.** Saved networks in range,
+  the connected one on top, sit under a Saved heading above Other networks
+  (`pages/ConnectionsPage.qml`).
+- **Saved Wi-Fi networks can be forgotten in Connections.** A saved row now has
+  Forget next to Auto-reconnect, armed by a first press, which deletes the
+  profile (`pages/ConnectionsPage.qml`, #776).
+- **Bar Studio opens Orpheus settings.** With Orpheus as the bar, an ORPHEUS
+  card offers OPEN ORPHEUS SETTINGS, as the QS BAR card does for QS Bar
+  (`quickshell/pages/BarStudioPage.qml`).
+- **Lockscreen > security key gains a Lock screen switch.** It turns the key on
+  for the in-session lock without a polkit prompt, says what the key will ask
+  for (from the enrolled credentials as well as the PIN switch), and greys out
+  with the reason in security key + password mode. The note that lock screen
+  unlock was not wired yet is gone (`quickshell/pages/LockscreenPage.qml`).
 - **Rashin shows the installed Hermes agent version and its update owner.**
   Existing installs stay untouched, so the page points users to their Hermes
   installer or checkout instead of offering an updater that Ryoku does not own

@@ -27,6 +27,7 @@ Singleton {
     property string currentAgent: ""
     property var commands: []
     property var sessions: []
+    property string sessionsError: ""
     property var usage: null
     // The live session's id, so the history drawer can mark where you are.
     property string currentSession: ""
@@ -103,6 +104,11 @@ Singleton {
     function newChat() { root._send({ type: "new" }); }
     function switchSession(id) { if (id) root._send({ type: "load", sessionId: String(id) }); }
     function loadSessions() { root._send({ type: "history" }); }
+    function renameSession(id, title) {
+        const name = String(title || "").trim();
+        if (id && name.length > 0)
+            root._send({ type: "rename", sessionId: String(id), text: name });
+    }
 
     function handoff(askId, question, answer, run) {
         root._send({
@@ -295,6 +301,7 @@ Singleton {
             root.currentAgent = st.agent;
         root.commands = st.commands || [];
         root.sessions = st.history || [];
+        root.sessionsError = st.historyError || "";
         root.usage = st.usage;
         root.currentSession = st.session && st.session.id ? String(st.session.id) : "";
         root.bannerState = st.banner ? String(st.banner.state || "") : "";

@@ -21,8 +21,9 @@ const catalogueFixture = `[
       { "key": "launcherLogoIcon", "type": "choice", "label": "Glyph", "options": ["ryoku", "arch", "dragon"] } ] },
   { "id": "workspaces", "gid": "G2",  "label": "Workspaces",      "gloss": "間",   "category": "Bar",
     "settings": [
-      { "key": "workspaceMode",  "type": "choice", "label": "Shown", "options": ["active", "5", "10"] },
-      { "key": "workspaceStyle", "type": "choice", "label": "Marker", "options": ["default", "numbers", "magic", "kanji", "rings", "aurora", "pacman"] } ] },
+      { "key": "workspaceMode",     "type": "choice", "label": "Shown",            "options": ["active", "5", "10"] },
+      { "key": "workspaceStyle",    "type": "choice", "label": "Marker",           "options": ["default", "numbers", "magic", "kanji", "rings", "aurora", "pacman"] },
+      { "key": "isolateMonitors",   "type": "toggle", "label": "Isolate monitors" } ] },
   { "id": "status",     "gid": "G3",  "label": "Status",          "visKey": "status",   "desc": "Arch update, tray, notifications" },
   { "id": "memory",     "gid": "G4",  "label": "Memory",          "visKey": "memory" },
   { "id": "cpu",        "gid": "G5",  "label": "CPU",             "visKey": "cpu" },
@@ -35,7 +36,8 @@ const catalogueFixture = `[
                   { "key": "weatherImperial", "type": "toggle", "label": "Fahrenheit" },
                   { "key": "weather", "type": "toggle", "label": "Weather", "visKey": true } ] },
   { "id": "media",      "gid": "G9",  "label": "Now playing",     "visKey": "mpris",
-    "settings": [ { "key": "mprisBarStyle", "type": "choice", "label": "Style", "options": ["default", "full"] } ] },
+    "settings": [ { "key": "mprisBarStyle", "type": "choice", "label": "Style", "options": ["default", "full"] },
+                  { "key": "mprisTitleWidth", "type": "int", "label": "Title width", "min": 88, "max": 400 } ] },
   { "id": "quick",      "gid": "G10", "label": "Quick",           "visKey": "quick",    "desc": "keep awake, media, theme" },
   { "id": "network",    "gid": "G11", "label": "Network",         "visKey": "network" },
   { "id": "battery",    "gid": "G12", "label": "Battery",         "visKey": "battery" },
@@ -230,6 +232,7 @@ func TestValidateBuiltinSetting(t *testing.T) {
 		{name: "multi bad member", s: catalogSetting{Type: "multi", Options: []string{"claude"}}, raw: "claude,gemini", wantErr: true},
 		{name: "int ok", s: catalogSetting{Type: "int", Min: &min, Max: &max}, raw: "5", want: `5`},
 		{name: "int too high", s: catalogSetting{Type: "int", Min: &min, Max: &max}, raw: "99", wantErr: true},
+		{name: "int too low", s: catalogSetting{Type: "int", Min: &min, Max: &max}, raw: "-1", wantErr: true},
 		{name: "int not a number", s: catalogSetting{Type: "int"}, raw: "five", wantErr: true},
 		{name: "text ok", s: catalogSetting{Type: "text"}, raw: "hi there", want: `"hi there"`},
 		{name: "unknown type", s: catalogSetting{Type: "colour"}, raw: "x", wantErr: true},
@@ -403,6 +406,16 @@ func TestBarVerbsThroughStore(t *testing.T) {
 		t.Fatalf("qsbar.audioBoost = %v, want true", qs["audioBoost"])
 	}
 
+	if got := d.dispatch("bar set media mprisTitleWidth 300"); got != "ok" {
+		t.Fatalf("bar set title width: %s", got)
+	}
+	if qs, _ := d.frame(t)["qsbar"].(map[string]any); qs["mprisTitleWidth"] != float64(300) {
+		t.Fatalf("qsbar.mprisTitleWidth = %v, want 300", qs["mprisTitleWidth"])
+	}
+	if got := d.dispatch("bar set media mprisTitleWidth 401"); !strings.HasPrefix(got, "err bar") {
+		t.Fatalf("out-of-range title width should error, got %s", got)
+	}
+
 	// Position and form patch their presentation keys.
 	if got := d.dispatch("bar position bottom"); got != "ok" {
 		t.Fatalf("bar position: %s", got)
@@ -432,6 +445,28 @@ func TestBarVerbsThroughStore(t *testing.T) {
 	}
 	if !w["status"] || !w["weather"] {
 		t.Fatalf("defaults did not ship the on-set on: %+v", w)
+	}
+}
+
+// TestBarWorkspacesIsolateMonitors verifies that the isolateMonitors toggle
+// is accepted by the bar-set verb and round-trips through the settings store.
+func TestBarWorkspacesIsolateMonitors(t *testing.T) {
+	d := barTestDaemon(t)
+
+	// Turn the toggle on.
+	if got := d.dispatch("bar set workspaces isolateMonitors on"); got != "ok" {
+		t.Fatalf("bar set isolateMonitors on: %s", got)
+	}
+	if qs, _ := d.frame(t)["qsbar"].(map[string]any); qs["isolateMonitors"] != true {
+		t.Fatalf("qsbar.isolateMonitors = %v, want true", qs["isolateMonitors"])
+	}
+
+	// Turn it back off.
+	if got := d.dispatch("bar set workspaces isolateMonitors off"); got != "ok" {
+		t.Fatalf("bar set isolateMonitors off: %s", got)
+	}
+	if qs, _ := d.frame(t)["qsbar"].(map[string]any); qs["isolateMonitors"] != false {
+		t.Fatalf("qsbar.isolateMonitors = %v, want false", qs["isolateMonitors"])
 	}
 }
 

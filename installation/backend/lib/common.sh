@@ -105,12 +105,49 @@ append_file() {
   printf '%s\n' "$content" >>"$path"
 }
 
+# Normalize fixed UTC offsets to tzdata's Etc names. Etc/GMT signs are
+# intentionally reversed by the database.
+ryoku_normalize_timezone() {
+  local timezone=${1//[[:space:]]/} sign hour
+  RYOKU_NORMALIZED_TIMEZONE=$timezone
+
+  if [[ $timezone =~ ^(UTC|GMT)([+-])([0-9]{1,2})$ ]]; then
+    sign=${BASH_REMATCH[2]}
+    hour=$((10#${BASH_REMATCH[3]}))
+    if ((hour == 0)); then
+      RYOKU_NORMALIZED_TIMEZONE=UTC
+    elif [[ $sign == - ]]; then
+      RYOKU_NORMALIZED_TIMEZONE="Etc/GMT+$hour"
+    else
+      RYOKU_NORMALIZED_TIMEZONE="Etc/GMT-$hour"
+    fi
+  fi
+}
+
+ryoku_validate_timezone() {
+  local requested=$1 timezone zoneinfo=${RYOKU_ZONEINFO_DIR:-/usr/share/zoneinfo}
+  ryoku_normalize_timezone "$requested"
+  timezone=$RYOKU_NORMALIZED_TIMEZONE
+
+  if [[ $timezone != "$requested" ]]; then
+    log 'timezone: %s maps to %s because Etc/GMT signs are reversed' "$requested" "$timezone"
+  fi
+  if [[ $timezone != auto ]] &&
+    [[ -z $timezone || $timezone == /* || $timezone == *..* ||
+      ! -e $zoneinfo/$timezone || -d $zoneinfo/$timezone ]]; then
+    die "unknown timezone '%s'. Choose a Region/City from 'timedatectl list-timezones', or use a whole-hour offset such as UTC-3. UTC-3 maps to Etc/GMT+3 because Etc/GMT signs are reversed." "$requested"
+  fi
+  # shellcheck disable=SC2034  # read by the edition entrypoints
+  RYOKU_VALIDATED_TIMEZONE=$timezone
+}
+
 # Resolve the install-time timezone once for every edition. Auto resolution runs
 # while the installer still owns the network; an offline install must not wait
 # for geolocation timeouts.
 ryoku_resolve_timezone() {
-  local timezone=$1 url
+  local timezone=$1 url automatic=0 requested=$1
   if [[ $timezone == auto ]]; then
+    automatic=1
     if [[ ${RYOKU_ONLINE:-1} != 1 ]]; then
       log "timezone: offline install, using UTC (auto needs network to geolocate)"
       timezone=UTC
@@ -126,10 +163,21 @@ ryoku_resolve_timezone() {
         timezone=
       done
     fi
+  else
+    ryoku_normalize_timezone "$timezone"
+    timezone=$RYOKU_NORMALIZED_TIMEZONE
+    if [[ $timezone != "$requested" ]]; then
+      log 'timezone: %s maps to %s because Etc/GMT signs are reversed' "$requested" "$timezone"
+    fi
   fi
-  if [[ -z ${RYOKU_DRYRUN:-} && ( -z $timezone || ! -e /mnt/usr/share/zoneinfo/$timezone ) ]]; then
-    log 'warn: timezone '\''%s'\'' is empty or unknown; falling back to UTC' "${timezone:-empty}"
-    timezone=UTC
+  if [[ -z ${RYOKU_DRYRUN:-} &&
+    ( -z $timezone || ! -e /mnt/usr/share/zoneinfo/$timezone || -d /mnt/usr/share/zoneinfo/$timezone ) ]]; then
+    if ((automatic)); then
+      log 'warn: automatic timezone detection failed; using UTC'
+      timezone=UTC
+    else
+      die "timezone '%s' is not present in the installed zoneinfo database. Return to the time zone picker and choose a Region/City." "$requested"
+    fi
   fi
   # shellcheck disable=SC2034  # read by each edition's timezone step
   RYOKU_RESOLVED_TIMEZONE=$timezone

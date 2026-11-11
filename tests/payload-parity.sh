@@ -282,7 +282,8 @@ adapter_entry() {
       ;;
     *:usr/lib/systemd/*|*:usr/lib/tmpfiles.d/ryoku.conf|*:usr/lib/sysusers.d/ryoku-i2c.conf|*:usr/share/ryoku/config/systemd/*|\
     *:usr/share/ryoku/palette-bridge/packaging/systemd/*|\
-    *:usr/lib/environment.d/99-ryoku-session.conf|\
+    *:usr/lib/environment.d/98-ryoku-dbus.conf|*:usr/lib/environment.d/99-ryoku-session.conf|\
+    *:usr/share/ryoku/xdg/dbus-1/services/org.freedesktop.secrets.service|\
     *:usr/lib/ryoku/runit/*|*:etc/sv/*|*:etc/skel/.config/service/*|\
     *:etc/profile.d/ryoku-environment-d.sh|*:etc/sudoers.d/ryoku-service-health)
       return 1
@@ -371,6 +372,18 @@ for pkg in "${packages[@]}"; do
       [[ -x $work/staged/$pkg-$edition/usr/bin/ryoku-polkit-reload ]] \
         || fail "ryoku-desktop $edition package is missing the polkit reload helper"
     done
+    for edition in arch fedora fedora-spec; do
+      service="$work/staged/$pkg-$edition/usr/share/ryoku/xdg/dbus-1/services/org.freedesktop.secrets.service"
+      [[ -f $service ]] || fail "ryoku-desktop $edition package is missing the Secret Service override"
+      grep -qxF 'SystemdService=gnome-keyring-daemon.service' "$service" \
+        || fail "ryoku-desktop $edition Secret Service override does not use the user unit"
+      envfile="$work/staged/$pkg-$edition/usr/lib/environment.d/98-ryoku-dbus.conf"
+      [[ -f $envfile ]] || fail "ryoku-desktop $edition package is missing the D-Bus data path"
+    done
+    [[ ! -e $work/staged/$pkg-void/usr/share/ryoku/xdg/dbus-1/services/org.freedesktop.secrets.service ]] \
+      || fail "ryoku-desktop Void package must not ship the systemd Secret Service override"
+    [[ ! -e $work/staged/$pkg-void/usr/lib/environment.d/98-ryoku-dbus.conf ]] \
+      || fail "ryoku-desktop Void package must not ship the systemd D-Bus data path"
   fi
 
   jobs=()

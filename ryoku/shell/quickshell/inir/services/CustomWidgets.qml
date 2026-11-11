@@ -13,14 +13,30 @@ Singleton {
 
     // Discovered custom widgets: [{ id, name, icon, qmlPath, dirPath, ... }]
     property list<var> widgets: []
+    // Bundled manifests used to expose built-in Island modules.
+    property list<var> shippedWidgets: []
+    // User copies take precedence; bundled modules remain available after updates.
+    readonly property var irisModules: {
+        const seen = new Set();
+        return root.widgets.concat(root.shippedWidgets.filter(widget => widget.irisBuiltin))
+            .filter(widget => {
+                if (!String(widget.irisQmlPath || "").length || seen.has(widget.id)) return false;
+                seen.add(widget.id);
+                return true;
+            });
+    }
     readonly property bool ready: _scanDone
     readonly property string widgetsDir: `${Directories.configPath}/inir/widgets`
+    readonly property string shippedWidgetsDir: FileUtils.trimFileProtocol(Directories.payloadPath("defaults/widgets"))
 
     property bool _scanDone: false
     // Qt caches a component by URL for the engine lifetime. Reload through a fresh path so an updated widget compiles again.
     property int _generation: 0
 
-    Component.onCompleted: _scan()
+    Component.onCompleted: {
+        _scan();
+        _scanShipped();
+    }
     Connections {
         target: Config
         function onReadyChanged() {
@@ -36,6 +52,36 @@ Singleton {
         root._scanDone = false;
         root.widgets = [];
         _scan();
+    }
+
+    function _scanShipped(): void {
+        _shippedScan.running = false;
+        _shippedScan.running = true;
+    }
+
+    function _parseShipped(output: string): void {
+        try {
+            const entries = JSON.parse(output || "[]");
+            const list = [];
+            for (const entry of entries) {
+                const manifest = entry.manifest || {};
+                if (!manifest.name)
+                    continue;
+                const iris = manifest.iris && typeof manifest.iris === "object" ? manifest.iris : {};
+                const irisFile = typeof iris.main === "string" ? iris.main.trim() : "";
+                list.push({
+                    id: entry.id,
+                    name: manifest.name,
+                    icon: manifest.icon || "widgets",
+                    description: manifest.description || "",
+                    irisBuiltin: iris.builtin === true,
+                    irisQmlPath: irisFile.length > 0 ? `file://${entry.dir}/${irisFile}` : ""
+                });
+            }
+            root.shippedWidgets = list;
+        } catch (e) {
+            console.warn("[CustomWidgets] Failed to parse shipped manifests:", e);
+        }
     }
 
     function _scan(): void {
@@ -408,6 +454,17 @@ IRIS_QML
         command: ["bash", "-c", `rm -rf "${root.widgetsDir}/${_removeProcess.widgetId}" && echo "removed"`]
         stdout: StdioCollector {
             onStreamFinished: root.reload()
+        }
+    }
+
+    // Shipped widget manifests, read from the same scanner as the user widget dir
+    Process {
+        id: _shippedScan
+        running: false
+        command: [Directories.scriptsPath + "/scan-widgets.sh", root.shippedWidgetsDir]
+        stdout: StdioCollector {
+            id: _shippedScanCollector
+            onStreamFinished: root._parseShipped(_shippedScanCollector.text ?? "")
         }
     }
 

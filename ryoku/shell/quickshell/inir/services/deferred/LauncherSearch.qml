@@ -104,7 +104,7 @@ Singleton {
             const searchStr = StringUtils.cleanPrefix(q, clipboardPrefix)
             return Cliphist.fuzzyQuery(searchStr).map(entry => ({
                 rawValue: entry,
-                name: entry.kind === "text" ? String(entry.preview ?? "")
+                name: entry.kind === "text" ? String(entry.preview ?? "").replace(/\s+/g, " ").trim().slice(0, 100)
                     : entry.kind === "image" ? Translation.tr("Image")
                     : String(entry.mime ?? Translation.tr("Binary data")),
                 verb: Translation.tr("Copy"),

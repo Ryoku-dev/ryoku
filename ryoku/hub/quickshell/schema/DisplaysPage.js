@@ -73,13 +73,12 @@ var rows = [
         "group": "<selected monitor name> (dynamic; fallback \"DISPLAY\")",
         "key": "vrr",
         "label": "Adaptive sync",
-        "desc": "Refresh follows the frame rate; Fullscreen only there",
-        "ctl": "seg",
-        "src": "<name>.json (Save)",
+        "desc": "Refresh follows the frame rate when enabled",
+        "ctl": "sw",
+        "src": "monitors-applied.json (Apply)",
         "opts": [
-            "0",
-            "1",
-            "2"
+            "false",
+            "true"
         ]
     },
     {

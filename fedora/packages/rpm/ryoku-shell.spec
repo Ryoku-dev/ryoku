@@ -43,6 +43,8 @@ Requires:       easyeffects
 Requires:       lsp-plugins-lv2
 Requires:       lv2-calf-plugins
 Suggests:       kde-connect
+Suggests:       git
+Suggests:       qt6-qtimageformats
 
 %description
 ryoku-shell, built from the shared Ryoku source and package payload recipe.

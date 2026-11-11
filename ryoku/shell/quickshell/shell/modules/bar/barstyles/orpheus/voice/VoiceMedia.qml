@@ -14,7 +14,7 @@ Item {
     readonly property string title: player ? String(player.trackTitle || "") : ""
     readonly property string artist: player
         ? Theme.joinArtists(player.trackArtists, player.trackArtist) : ""
-    readonly property url art: player ? (player.trackArtUrl || "") : ""
+    readonly property url art: Music.coverFor(player)
     readonly property real titleRoom: Math.max(1, Math.min(
         S.Prefs.mediaWidth * K.Style.scale, scene.textRoom,
         Math.max(titleMeasure.implicitWidth, artistMeasure.implicitWidth)))

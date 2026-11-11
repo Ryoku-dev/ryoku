@@ -9,6 +9,16 @@ here="$(cd "$(dirname "$0")" && pwd)"
 mon="$here/../ryoku/hyprland/scripts/ryoku-monitor"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
+# Never read the clamshell state of the machine that runs the test.
+export RYOKU_CLAMSHELL_LID_EVENT_STATE="$tmp/clamshell.lid"
+export RYOKU_CLAMSHELL_PANEL_STATE="$tmp/clamshell.panels"
+export RYOKU_LID_STATE_GLOB="$tmp/lid-switch"
+export RYOKU_MONITOR_FALLBACK_STATE="$tmp/fallback.state"
+export RYOKU_MONITOR_FALLBACK_LOCK="$tmp/fallback.lock"
+export RYOKU_MONITOR_FALLBACK_DELAY=0
+export RYOKU_MONITOR_LOCK_DIR="$tmp"
+export RYOKU_MONITOR_DRM_ROOT="$tmp/no-drm"
+export RYOKU_MONITOR_GPU="$tmp/no-ryoku-gpu"
 
 conf="$tmp/monitors.lua"
 profiles="$tmp/profiles"
@@ -56,6 +66,15 @@ run list | jq -e '.[0].cm == "hdr" and .[0].sdrbrightness == 1.3' >/dev/null \
   || fail "list did not map the HDR colour mode and SDR brightness"
 run list | jq -e '.[1].cm == "wide"' >/dev/null || fail "list did not map the wide-gamut colour mode"
 
+# Persisted rules only trust HDR on an output already using it.
+run persist >/dev/null
+grep 'output = "DP-1"' "$conf" | grep -qF 'supports_hdr = 0' \
+  || fail "persist disabled HDR on the output already using HDR"
+grep 'output = "DP-2"' "$conf" | grep -qF 'supports_hdr = -1' \
+  || fail "persist trusted HDR support on a non-HDR output"
+grep 'output = ""' "$conf" | grep -qF 'supports_hdr = -1' \
+  || fail "persist left automatic HDR enabled on the hotplug fallback"
+
 # --- apply: explicit modes preserved (not highrr) -------------------------
 run apply "$layout" >/dev/null
 has "$conf" 'mode = "3840x2160@60"' "apply did not keep the chosen 4K mode"
@@ -70,6 +89,12 @@ grep -q 'highrr' <(grep 'DP-1' "$conf") && fail "DP-1 was written as highrr, not
 # outside HDR so turning HDR off in the hub clears the elevated value live.
 has "$conf" 'cm = "hdr", bitdepth = 10, sdrbrightness = 1.3' "apply dropped the HDR colour mode / brightness"
 has "$conf" 'cm = "wide", bitdepth = 10, sdrbrightness = 1' "apply dropped the wide-gamut mode or left SDR brightness elevated"
+grep 'output = "DP-1"' "$conf" | grep -qF 'supports_hdr = 0' \
+  || fail "apply disabled HDR after the user selected HDR"
+grep 'output = "DP-2"' "$conf" | grep -qF 'supports_hdr = -1' \
+  || fail "apply trusted HDR support on the wide-gamut output"
+grep 'output = ""' "$conf" | grep -qF 'supports_hdr = -1' \
+  || fail "apply left automatic HDR enabled on the hotplug fallback"
 
 # --- save + profiles ------------------------------------------------------
 run save desk "$layout" >/dev/null
@@ -108,6 +133,8 @@ grep -qF 'scale = 1.5' "$conf" && fail "apply persisted the invalid scale 1.5"
 # A layout with no colour mode is plain sRGB at 8-bit with SDR brightness reset,
 # so switching a display back from HDR fully clears the 10-bit / bright state.
 has "$conf" 'cm = "srgb", bitdepth = 8, sdrbrightness = 1' "apply did not write the sRGB reset (8-bit, SDR brightness 1)"
+grep 'output = "HDMI-A-1"' "$conf" | grep -qF 'supports_hdr = -1' \
+  || fail "plain sRGB did not disable the output's advertised HDR support"
 jq -e '.monitors[0].scale == 1.6' "$tmp/tv-applied.json" >/dev/null \
   || fail "the applied layout recorded the invalid scale instead of the snapped one"
 runT save tv "$tvlayout" >/dev/null
@@ -286,6 +313,74 @@ JSON
 runD "$tmp/dock-boot.json" autoscale >/dev/null
 eDP | grep -qF 'mode = "2560x1600@165"' || fail "booting undocked left the panel off behind the FALLBACK output"
 grep -qF '"FALLBACK"' "$conf" && fail "the FALLBACK placeholder was written into monitors.lua"
+
+# --- fallback debounce: a returning enabled output wins before the disabled
+# panel is woken. Repeated hotplug hooks share one wait and one fallback. --------
+debounce_live="$tmp/debounce-live.json"
+debounce_state="$tmp/debounce.state"
+debounce_lock="$tmp/debounce.lock"
+cp "$tmp/dock-panel.json" "$debounce_live"
+rm -f "$debounce_state" "$debounce_lock"
+RYOKU_MONITOR_JSON="$debounce_live" RYOKU_MONITORS_CONF="$conf" \
+  RYOKU_MONITORS_DIR="$tmp/none-debounce" RYOKU_MONITORS_APPLIED="$dock_applied" \
+  RYOKU_MONITOR_FALLBACK_STATE="$debounce_state" RYOKU_MONITOR_FALLBACK_LOCK="$debounce_lock" \
+  RYOKU_MONITOR_FALLBACK_DELAY=0.2 "$mon" autoscale >/dev/null &
+debounce_pid=$!
+/usr/bin/sleep 0.05
+cp "$tmp/dock-both.json" "$debounce_live.next"
+mv -f "$debounce_live.next" "$debounce_live"
+wait "$debounce_pid"
+eDP | grep -qF 'disabled = true' ||
+  fail "fallback woke the panel before the external output finished returning"
+[[ ! -e $debounce_state ]] || fail "a recovered output left a stale fallback marker"
+
+mkdir -p "$tmp/sleep-bin"
+cat >"$tmp/sleep-bin/sleep" <<'SLEEP'
+#!/usr/bin/env bash
+printf 'wait\n' >>"$RYOKU_SLEEP_LOG"
+exec /usr/bin/sleep "$@"
+SLEEP
+chmod +x "$tmp/sleep-bin/sleep"
+cp "$tmp/dock-panel.json" "$debounce_live"
+sleep_log="$tmp/fallback-sleeps"
+: >"$sleep_log"
+rm -f "$debounce_state" "$debounce_lock"
+pids=()
+for _ in 1 2 3; do
+  PATH="$tmp/sleep-bin:$PATH" RYOKU_SLEEP_LOG="$sleep_log" \
+    RYOKU_MONITOR_JSON="$debounce_live" RYOKU_MONITORS_CONF="$conf" \
+    RYOKU_MONITORS_DIR="$tmp/none-debounce" RYOKU_MONITORS_APPLIED="$dock_applied" \
+    RYOKU_MONITOR_FALLBACK_STATE="$debounce_state" RYOKU_MONITOR_FALLBACK_LOCK="$debounce_lock" \
+    RYOKU_MONITOR_FALLBACK_DELAY=0.2 "$mon" autoscale >/dev/null &
+  pids+=("$!")
+done
+for pid in "${pids[@]}"; do wait "$pid"; done
+[[ $(wc -l <"$sleep_log") == 1 ]] ||
+  fail "repeated hotplug hooks stacked fallback waits: $(wc -l <"$sleep_log") waits"
+eDP | grep -qF 'mode = "2560x1600@165"' ||
+  fail "a stable disconnect did not enable the fallback after the debounce"
+
+# A panel wired to another DRM card is not a safe live fallback when the
+# compositor renders on the primary card selected by ryoku-gpu.
+mkdir -p "$tmp/drm/card0" "$tmp/drm/card1-eDP-1" "$tmp/dev"
+: >"$tmp/dev/card0"
+: >"$tmp/dev/card1"
+cat >"$tmp/ryoku-gpu" <<'GPU'
+#!/usr/bin/env bash
+[[ ${1:-} == order && ${2:-} == --effective ]] || exit 1
+printf '%s\n' "$RYOKU_TEST_GPU_ORDER"
+GPU
+chmod +x "$tmp/ryoku-gpu"
+rm -f "$debounce_state" "$debounce_lock"
+RYOKU_MONITOR_JSON="$tmp/dock-panel.json" RYOKU_MONITORS_CONF="$conf" \
+  RYOKU_MONITORS_DIR="$tmp/none-gpu" RYOKU_MONITORS_APPLIED="$dock_applied" \
+  RYOKU_MONITOR_FALLBACK_STATE="$debounce_state" RYOKU_MONITOR_FALLBACK_LOCK="$debounce_lock" \
+  RYOKU_MONITOR_FALLBACK_DELAY=0 RYOKU_MONITOR_DRM_ROOT="$tmp/drm" \
+  RYOKU_MONITOR_GPU="$tmp/ryoku-gpu" \
+  RYOKU_TEST_GPU_ORDER="$tmp/dev/card0:$tmp/dev/card1" "$mon" autoscale >/dev/null
+eDP | grep -qF 'disabled = true' ||
+  fail "fallback woke an internal panel on a non-primary GPU"
+[[ ! -e $debounce_state ]] || fail "a skipped cross-GPU fallback left a marker"
 
 # --- settle: recover a display a degraded link left below its resolution -------
 # settle re-asserts each output's intended mode from monitors.lua; --check reports

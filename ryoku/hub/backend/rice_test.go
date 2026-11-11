@@ -853,7 +853,7 @@ func TestApplyNewStoresBrandAndVideoWall(t *testing.T) {
 	wantWall := filepath.Join(dir, "Pictures", "livewalls", "wave.mp4")
 	found := false
 	for _, c := range calls {
-		if c == "ryogami wallpaper set "+wantWall {
+		if c == "ryogami wallpaper set --screen * "+wantWall {
 			found = true
 		}
 	}

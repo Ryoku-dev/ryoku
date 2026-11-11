@@ -29,10 +29,10 @@ func TestPamHasKeyringAcceptsPlainAndDashTypes(t *testing.T) {
 		content string
 		kind    string
 	}{
-		{name: "plain auth", content: "auth optional pam_gnome_keyring.so", kind: "auth"},
-		{name: "dash auth", content: "-auth optional pam_gnome_keyring.so", kind: "auth"},
-		{name: "plain session", content: "session optional pam_gnome_keyring.so auto_start", kind: "session"},
-		{name: "dash session", content: "-session optional pam_gnome_keyring.so auto_start", kind: "session"},
+		{name: "plain auth", content: "  auth\toptional\tpam_gnome_keyring.so try_first_pass", kind: "auth"},
+		{name: "dash auth", content: "-auth [success=1 default=ignore] /usr/lib/security/pam_gnome_keyring.so ignored", kind: "auth"},
+		{name: "plain session", content: "session optional pam_gnome_keyring.so auto_start only_if=login", kind: "session"},
+		{name: "dash session", content: "\t-session\toptional\tpam_gnome_keyring.so\tauto_start", kind: "session"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if !pamHasKeyring(tc.content, tc.kind) {
@@ -81,6 +81,86 @@ func TestApplyPAMTextIdempotent(t *testing.T) {
 	}
 }
 
+func TestApplyPAMTextDeduplicatesAndKeepsStockLines(t *testing.T) {
+	duplicate := archSDDM +
+		"auth optional pam_gnome_keyring.so try_first_pass\n" +
+		"-auth       optional    pam_gnome_keyring.so\n" +
+		"session optional pam_gnome_keyring.so auto_start\n" +
+		"-session    optional    pam_gnome_keyring.so    auto_start\n"
+
+	out, missing := applyPAMText(duplicate, true)
+	if len(missing) != 0 {
+		t.Fatalf("unexpected missing anchors: %v", missing)
+	}
+	if strings.Count(out, "pam_gnome_keyring.so") != 2 {
+		t.Fatalf("want one auth and one session line:\n%s", out)
+	}
+	for _, stock := range []string{
+		"-auth       optional    pam_gnome_keyring.so",
+		"-session    optional    pam_gnome_keyring.so    auto_start",
+	} {
+		if !strings.Contains(out, stock) {
+			t.Fatalf("stock line %q was not kept:\n%s", stock, out)
+		}
+	}
+	again, _ := applyPAMText(out, true)
+	if again != out {
+		t.Fatalf("deduplicated stack is not idempotent:\n%s", again)
+	}
+}
+
+func TestPamHealDuplicatesOnlyDropsSetupLines(t *testing.T) {
+	fedora := "#%PAM-1.0\n" +
+		"auth     [success=done ignore=ignore default=bad] pam_selinux_permit.so\n" +
+		"auth        substack      password-auth\n" +
+		"-auth       optional      pam_gnome_keyring.so\n" +
+		"auth optional pam_gnome_keyring.so\n" +
+		"session     include       password-auth\n" +
+		"-session    optional      pam_gnome_keyring.so auto_start\n"
+	for _, tc := range []struct {
+		name, in, want string
+		ok             bool
+	}{
+		{
+			name: "bracket controls parse",
+			in:   fedora,
+			want: strings.Replace(fedora, "auth optional pam_gnome_keyring.so\n", "", 1),
+			ok:   true,
+		},
+		{
+			name: "two setup copies keep one",
+			in:   "auth include system-login\nauth optional pam_gnome_keyring.so\nauth   optional   pam_gnome_keyring.so\nsession include system-login\nsession optional pam_gnome_keyring.so auto_start\n",
+			want: "auth include system-login\nauth optional pam_gnome_keyring.so\nsession include system-login\nsession optional pam_gnome_keyring.so auto_start\n",
+			ok:   true,
+		},
+		{
+			name: "two stack lines are the user's",
+			in:   archSDDM + "-auth optional pam_gnome_keyring.so\nauth sufficient pam_gnome_keyring.so\n-session optional pam_gnome_keyring.so auto_start\n",
+		},
+		{
+			name: "unknown rule type",
+			in:   fedora + "authx optional pam_foo.so\n",
+		},
+		{
+			name: "no duplicates",
+			in:   archSDDM,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			out, ok := pamHealDuplicates(tc.in)
+			if ok != tc.ok {
+				t.Fatalf("ok = %v, want %v:\n%s", ok, tc.ok, out)
+			}
+			if !tc.ok {
+				tc.want = tc.in
+			}
+			if out != tc.want {
+				t.Fatalf("got:\n%s\nwant:\n%s", out, tc.want)
+			}
+		})
+	}
+}
+
 func TestApplyPAMTextStrip(t *testing.T) {
 	wired, _ := applyPAMText(archSDDM, true)
 	stripped, _ := applyPAMText(wired, false)
@@ -94,6 +174,21 @@ func TestApplyPAMTextStrip(t *testing.T) {
 	again, _ := applyPAMText(stripped, false)
 	if again != stripped {
 		t.Fatalf("strip is not idempotent")
+	}
+}
+
+func TestApplyPAMTextStripLeavesCommentsAndArgumentsAlone(t *testing.T) {
+	content := archSDDM +
+		"# pam_gnome_keyring.so belongs here when login unlock is enabled\n" +
+		"auth optional pam_other.so remember=pam_gnome_keyring.so\n" +
+		"-auth optional /usr/lib/security/pam_gnome_keyring.so try_first_pass\n"
+	stripped, _ := applyPAMText(content, false)
+	if !strings.Contains(stripped, "# pam_gnome_keyring.so belongs here") ||
+		!strings.Contains(stripped, "remember=pam_gnome_keyring.so") {
+		t.Fatalf("strip removed a non-module line:\n%s", stripped)
+	}
+	if pamPresent(stripped) {
+		t.Fatalf("strip left the keyring module wired:\n%s", stripped)
 	}
 }
 

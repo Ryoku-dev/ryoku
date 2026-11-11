@@ -18,6 +18,8 @@ QtObject {
     // The setting decides how each open starts; the keymap toggle flips it until the picker hides.
     property bool filterBarToggled: false
     readonly property bool filterBarShown: state._bool(state._barAlwaysVisible) !== state.filterBarToggled
+    property bool filtersReady: false
+    property bool _startPending: false
     property bool searchOpen: false
     property string searchMode: "tags"   // "tags" | "describe"
     property bool helpOpen: false
@@ -165,7 +167,7 @@ QtObject {
             return
         }
         var full = Library.entry(state.collection, e.key)
-        var outs = (state._bool(state._applyOnMonitor) && state.monitor) ? [state.monitor] : []
+        var outs = state.applyTargets()
         state._applyWall(full && full.key ? full : e, outs, ({}), ({}))
         if (state._bool(state._closeOnSelection))
             state.hideRequested()
@@ -178,6 +180,10 @@ QtObject {
         state.multipickerOpen = false
         if (state._bool(state._closeOnSelection))
             state.hideRequested()
+    }
+
+    function applyTargets() {
+        return (state._bool(state._applyOnMonitor) && state.monitor) ? [state.monitor] : []
     }
 
     function _applyWall(entry, outputs, audioMap, volumeMap, target) {
@@ -226,18 +232,54 @@ QtObject {
             state.hideRequested()
     }
 
+    function _currentWallpaperKey() {
+        var current = Library.currentByOutput
+        var key = current[state.monitor]
+        if (!key) {
+            for (var output in current) {
+                key = current[output]
+                break
+            }
+        }
+        return key || ""
+    }
+
+    function _settleStartPosition(allowFallback) {
+        if (!state._startPending || !state.shown || !state.filtersReady
+                || !state.field || !state.view || state.view.count <= 0)
+            return
+        var key = state._currentWallpaperKey()
+        if (!key && !allowFallback)
+            return
+        var index = key ? state.view.indexOfKey(key) : -1
+        if (index < 0)
+            index = state.view.newestIndex()
+        state.field.currentIndex = index >= 0 ? index : 0
+        state._startPending = false
+    }
+
     function applyStartPosition() {
         if (!state.field || !state.view)
             return
-        var mode = state._startPosition.value ? String(state._startPosition.value) : "beginning"
+        var mode = state._startPosition.value ? String(state._startPosition.value) : "applied"
+        state._startPending = false
         if (mode === "browsing")
             return
-        if (mode === "applied") {
-            var k = state._lastApplied.value ? String(state._lastApplied.value) : ""
-            var i = k ? state.view.indexOfKey(k) : -1
-            if (i >= 0) { state.field.currentIndex = i; return }
+        if (mode === "beginning") {
+            state.field.currentIndex = 0
+            return
         }
-        state.field.currentIndex = 0
+        state._startPending = true
+        Library.refreshOutputs()
+        state._settleStartPosition(false)
+    }
+
+    onFiltersReadyChanged: if (state.filtersReady) state._settleStartPosition(false)
+
+    property Connections _libraryConn: Connections {
+        target: Library
+        function onCurrentChanged() { state._settleStartPosition(true) }
+        function onChanged(collection) { state._settleStartPosition(false) }
     }
 
     readonly property bool _hoverActive: state.shown && state.sheet === "" && !state.multipickerOpen
@@ -278,7 +320,7 @@ QtObject {
                 // The desktop previews the hovered still beside its palette;
                 // a video or a scene has no still for the daemon to paint.
                 if (state.hoverType === "static")
-                    Daemon.call("wall.preview", { key: key })
+                    Daemon.call("wall.preview", { key: key, outputs: state.applyTargets() })
                 else
                     Daemon.call("wall.preview.clear", {})
             } else {
@@ -295,6 +337,7 @@ QtObject {
             state.filterBarToggled = false
             state.applyStartPosition()
         } else {
+            state._startPending = false
             state._hoverDwell.stop()
             if (Theme.previewPalette)
                 Theme.previewPalette = null

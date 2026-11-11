@@ -13,6 +13,7 @@ on:
       - '**/*.qml'
       - '**/qmldir'
       - '.github/workflows/qmllint.yml'
+      - 'bin/ryoku-dev-verify-qml-bindings'
   push:
     branches:
       - main
@@ -21,6 +22,7 @@ on:
       - '**/*.qml'
       - '**/qmldir'
       - '.github/workflows/qmllint.yml'
+      - 'bin/ryoku-dev-verify-qml-bindings'
   workflow_dispatch:
     inputs:
       scope:
@@ -137,3 +139,12 @@ jobs:
             exit 1
           fi
           echo "qmllint is advisory for import warnings; syntax findings are fatal."
+
+      # a property or handler set twice in one object passes qmllint but stops
+      # the file loading, and one in services/Audio.qml took the desktop down.
+      - name: Check QML objects set each property once
+        if: steps.files.outputs.has_files == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          xargs -0 bin/ryoku-dev-verify-qml-bindings < qmllint-files.txt

@@ -427,6 +427,8 @@ func TestRyokuInstallArgsStayInTheRyokuLane(t *testing.T) {
 		"/etc/modules-load.d/99-ryoku-uinput.conf",
 		"/usr/lib/udev/rules.d/90-ryoku-backlight.rules",
 		"/usr/local/share/applications/mimeapps.list",
+		"/usr/lib/environment.d/98-ryoku-dbus.conf",
+		"/usr/share/ryoku/xdg/dbus-1/services/org.freedesktop.secrets.service",
 	} {
 		covered := false
 		for _, g := range strings.Split(glob, ",") {

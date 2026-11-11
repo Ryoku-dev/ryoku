@@ -11,9 +11,9 @@ const fixUsage = `usage: ryoku-rashin fix doctor [finding name]
        ryoku-rashin fix tip <id>
        ryoku-rashin fix app <name> [what happened...]
 
-Opens your agent (the chat agent picked in Rashin, Hermes by default) with the
-problem as its first message: right here when run from a terminal, in a new
-terminal window otherwise. The agent reads the logs itself, explains the
+Opens your agent (the fix agent picked in Rashin, else the chat agent) with the
+problem as its first message: right here when run from a terminal, otherwise in
+a new terminal window that runs the check and opens the agent there. The agent reads the logs itself, explains the
 cause, and asks before it changes anything.`
 
 // fixKinds are the problems Fix with AI knows how to brief.
@@ -51,6 +51,12 @@ func cmdFix(args []string) error {
 	if err != nil {
 		return err
 	}
+	if !onTerminal() {
+		return openFixCommandInTerminal(args)
+	}
+	if req.Kind == "doctor" {
+		fmt.Println("Running the health check...")
+	}
 	display, brief, err := buildFix(req)
 	if err != nil {
 		return err
@@ -59,19 +65,33 @@ func cmdFix(args []string) error {
 	if err != nil {
 		return err
 	}
-	if onTerminal() {
-		fmt.Printf("%s\nOpening %s...\n", display, launch.Harness)
-		return runFixHere(launch)
-	}
-	if err := openFixTerminal(launch); err != nil {
+	fmt.Printf("%s\nOpening %s...\n", display, launch.Harness)
+	return runFixHere(launch)
+}
+
+// openFixCommandInTerminal answers a caller with no terminal (the Settings
+// button) at once: the health check takes a minute or more, so it runs in the
+// opened terminal with its progress and any error on screen, not behind a
+// button that shows nothing.
+func openFixCommandInTerminal(args []string) error {
+	h, _, _, err := pickConfiguredHarness()
+	if err != nil {
 		return err
 	}
-	fmt.Printf("%s\nOpened %s in a terminal.\n", display, launch.Harness)
+	self, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	argv := holdOnFailure("Fix with AI", append([]string{self, "fix"}, args...))
+	if err := launchTerminal(VaultDir(), "ryoku-fix-", argv); err != nil {
+		return err
+	}
+	fmt.Printf("Opened %s in a terminal.\n", h.Name)
 	return nil
 }
 
 // onTerminal: both ends are a terminal, so the harness can take it over.
-func onTerminal() bool {
+var onTerminal = func() bool {
 	for _, f := range []*os.File{os.Stdin, os.Stdout} {
 		st, err := f.Stat()
 		if err != nil || st.Mode()&os.ModeCharDevice == 0 {

@@ -177,27 +177,60 @@ RYOKU_MASKED_HOOKS=(05-snap-pac-pre.hook zz-snap-pac-post.hook 80-limine-efi-dep
 # filesystem".
 RYOKU_MKINITCPIO_HOOKS=(90-mkinitcpio-install.hook 60-mkinitcpio-remove.hook)
 
-# A masked hook that a package owns is moved aside, not overwritten, so restore
-# hands the packaged file back instead of deleting it.
+# Preserve any local hook while the install owns its override path.
+ryoku_hook_mask() {
+  local p=$1
+  if [[ -e $p || -L $p ]]; then
+    if [[ ! -L $p || $(readlink "$p") != /dev/null ]]; then
+      run mv -f "$p" "$p.ryoku-off"
+    fi
+  fi
+  run ln -sfn /dev/null "$p"
+}
+
+ryoku_hook_restore() {
+  local p=$1 parked=$1.ryoku-off
+  if [[ -n ${RYOKU_DRYRUN:-} ]]; then
+    run rm -f "$p" "$parked"
+    return 0
+  fi
+
+  local masked=0
+  [[ -L $p && $(readlink "$p") == /dev/null ]] && masked=1
+  if [[ -e $parked || -L $parked ]]; then
+    if ((masked)) || [[ ! -e $p && ! -L $p ]]; then
+      run mv -f "$parked" "$p"
+    else
+      run rm -f "$parked"
+    fi
+  elif ((masked)); then
+    run rm -f "$p"
+  fi
+
+  if [[ -e $parked || -L $parked ]] \
+    || [[ -L $p && $(readlink "$p") == /dev/null ]]; then
+    log 'error: could not restore pacman hook %s' "$(basename "$p")"
+    return 1
+  fi
+}
+
 ryoku_hooks_defer_mkinitcpio() {
   run mkdir -p /mnt/etc/pacman.d/hooks
   local h p
   for h in "${RYOKU_MKINITCPIO_HOOKS[@]}"; do
     p=/mnt/etc/pacman.d/hooks/$h
     log 'deferring the initramfs build to the bootloader step: masking %s' "$h"
-    if [[ -f $p && ! -L $p ]]; then
-      run mv -f "$p" "$p.ryoku-off"
-    fi
-    run ln -sf /dev/null "$p"
+    ryoku_hook_mask "$p"
   done
 }
 
 ryoku_hooks_quiet() {
   run mkdir -p /mnt/etc/pacman.d/hooks
-  local h
+  local h p
   for h in "${RYOKU_MASKED_HOOKS[@]}"; do
+    p=/mnt/etc/pacman.d/hooks/$h
     log 'masking pacman hook for the install: %s' "$h"
-    run ln -sf /dev/null "/mnt/etc/pacman.d/hooks/$h"
+    ryoku_hook_mask "$p"
   done
 }
 
@@ -205,10 +238,9 @@ ryoku_hooks_restore() {
   local h p
   for h in "${RYOKU_MASKED_HOOKS[@]}" "${RYOKU_MKINITCPIO_HOOKS[@]}"; do
     p=/mnt/etc/pacman.d/hooks/$h
-    [[ -n ${RYOKU_DRYRUN:-} || -L $p || -f $p.ryoku-off ]] || continue
-    log 'restoring pacman hook: %s' "$h"
-    [[ -L $p ]] && run rm -f "$p"
-    [[ -f $p.ryoku-off ]] && run mv -f "$p.ryoku-off" "$p"
+    if [[ -n ${RYOKU_DRYRUN:-} || -L $p || -e $p.ryoku-off || -L $p.ryoku-off ]]; then
+      log 'restoring pacman hook: %s' "$h"
+      ryoku_hook_restore "$p"
+    fi
   done
-  return 0
 }

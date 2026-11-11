@@ -1,5 +1,4 @@
 %global debug_package %{nil}
-%global hyprland_evr %(rpm -q --qf '%%{EVR}' hyprland)
 %global ryoku_vendor cargo
 %global ryoku_vendor_dir .rpm-hyprland-preview-share-picker/hyprland-preview-share-picker
 Name:           hyprland-preview-share-picker
@@ -25,7 +24,7 @@ BuildRequires:  hyprland-devel
 Requires:       glibc
 Requires:       gtk4
 Requires:       gtk4-layer-shell
-Requires:       hyprland%{?_isa} = %{hyprland_evr}
+Requires:       hyprland
 Requires:       libgcc
 Requires:       libstdc++
 Requires:       libwayland-client

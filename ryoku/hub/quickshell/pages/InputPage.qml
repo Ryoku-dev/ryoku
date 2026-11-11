@@ -1205,7 +1205,10 @@ Item {
                 OptCell {
                     gate: pg.secondaryLayout(false).length > 0
                     cellLabel: I18n.tr("Switch layouts")
-                    cellDesc: I18n.tr("The chord that flips between your two layouts.")
+                    // win_space_toggle replaces the Space key in every layout
+                    cellDesc: pg.pickFrom(pg.grpIds, false) === "grp:win_space_toggle"
+                        ? I18n.tr("Super+Space takes over the Space key, so Shift+Space and AltGr+Space type a plain space. Alt+Shift keeps them.")
+                        : I18n.tr("The chord that flips between your two layouts.")
                     ids: pg.grpIds
                     map: pg.grpMap
                     kind: "seg"

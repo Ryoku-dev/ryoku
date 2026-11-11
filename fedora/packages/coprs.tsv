@@ -4,4 +4,4 @@ atim/starship	starship	Fedora 44 and 45 do not package starship.
 boobaa/scrcpy	scrcpy	Fedora does not package scrcpy.
 kuya-carlo/v4l2loopback	v4l2loopback v4l2loopback-dkms	Fedora does not package the v4l2loopback camera module.
 lihaohong/yazi	resvg yazi	Fedora 44 and 45 do not package yazi; resvg is its COPR-built dependency.
-sdegler/hyprland	aquamarine hyprcursor hyprgraphics hypridle hyprland hyprland-guiutils hyprland-qt-support hyprland-uwsm hyprlang hyprpicker hyprpolkitagent hyprsunset hyprtoolkit hyprutils hyprwire uwsm xdg-desktop-portal-hyprland	Fedora 44 and 45 do not package the Hyprland desktop stack.
+sdegler/hyprland	aquamarine aquamarine-devel glaze-devel hyprcursor hyprcursor-devel hyprgraphics hyprgraphics-devel hypridle hyprland hyprland-devel hyprland-guiutils hyprland-protocols-devel hyprland-qt-support hyprland-uwsm hyprlang hyprlang-devel hyprpicker hyprpolkitagent hyprsunset hyprtoolkit hyprutils hyprutils-devel hyprwayland-scanner-devel hyprwire hyprwire-devel uwsm xdg-desktop-portal-hyprland	Fedora 44 and 45 do not package the Hyprland desktop stack; the -devel headers let Settings > Plugins rebuild a plugin for a newer Hyprland.

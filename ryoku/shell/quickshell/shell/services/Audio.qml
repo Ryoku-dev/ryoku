@@ -6,6 +6,7 @@ import Quickshell.Bluetooth
 import Quickshell.Services.Pipewire
 import Ryoku.Ui.Singletons
 import shell.services
+import "lib/audiosink.js" as AudioSink
 
 // audio graph for the mixer: classifies Pipewire nodes into output devices,
 // input devices, and per-app playback streams; switches the default sink/source
@@ -113,6 +114,7 @@ Singleton {
 
     // The sink music actually enters, which is not the default one behind Easy Effects or a similar filter.
     property string musicSink: ""
+    property string musicDefaultSink: ""
     readonly property var liveLinks: Pipewire.ready ? Pipewire.links.values : []
     readonly property var callApps: ["vesktop", "discord", "webrtc", "teams", "zoom", "slack", "telegram"]
 
@@ -138,10 +140,13 @@ Singleton {
         root.inputs = root.liveInputs.slice();
         root.streams = root.liveStreams.slice();
         root.captureStreams = root.liveCaptureStreams.slice();
-        const sink = root.playbackSink();
+        const playback = root.playbackSink();
+        const currentDefault = root.sink && root.alive(root.sink) ? "" + root.sink.name : "";
         const known = root.nodes.some(n => n && n.isSink && !n.isStream && ("" + n.name) === root.musicSink);
-        if (sink !== "" || !known)
-            root.musicSink = sink;
+        root.musicSink = AudioSink.chooseMusicSink(
+            playback, currentDefault, root.musicSink, root.musicDefaultSink, known);
+        if (currentDefault !== "")
+            root.musicDefaultSink = currentDefault;
     }
 
     Timer {
@@ -229,7 +234,11 @@ Singleton {
 
     readonly property bool sinkIsBluez: root.isBluez(root.sink)
     onSinkIsBluezChanged: root.refreshBtCard()
-    onSinkChanged: if (root.sinkIsBluez) root.refreshBtCard()
+    onSinkChanged: {
+        listSettle.restart();
+        if (root.sinkIsBluez)
+            root.refreshBtCard();
+    }
 
     // MAC from a bluez node name (bluez_output.<MAC>.<profile>), colon-formatted.
     function btMac(n) {

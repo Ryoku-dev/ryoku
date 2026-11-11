@@ -23,7 +23,7 @@ type fixHarness struct {
 	Name string
 	bin  func() (string, bool)
 	// argv starts the harness interactively with prompt as the first message.
-	argv func(bin, persona, prompt string) []string
+	argv func(bin, persona, prompt string, s FixSettings) []string
 }
 
 func onPath(name string) func() (string, bool) {
@@ -43,27 +43,42 @@ func fixHarnesses() []fixHarness {
 			// runs as one query in this terminal, then the same session opens
 			// for the rest of the conversation. A failed first query must not
 			// resume some older session.
-			argv: func(bin, persona, prompt string) []string {
+			argv: func(bin, persona, prompt string, _ FixSettings) []string {
 				return []string{"sh", "-c", `"$0" chat -q "$1" && exec "$0" chat --continue`, bin, persona + "\n\n" + prompt}
 			},
 		},
 		{
 			ID: "omp", Name: "Oh My Pi", bin: onPath("omp"),
-			argv: func(bin, persona, prompt string) []string {
+			argv: func(bin, persona, prompt string, _ FixSettings) []string {
 				return []string{bin, "--append-system-prompt", persona, prompt}
 			},
 		},
 		{
 			ID: "claude", Name: "Claude Code", bin: onPath("claude"),
-			argv: func(bin, persona, prompt string) []string {
+			argv: func(bin, persona, prompt string, _ FixSettings) []string {
 				return []string{bin, "--append-system-prompt", persona, prompt}
+			},
+		},
+		{
+			ID: "codex", Name: "Codex", bin: onPath("codex"),
+			// Codex takes no extra system prompt flag, so the persona leads
+			// the first message, as with Hermes.
+			argv: func(bin, persona, prompt string, s FixSettings) []string {
+				argv := []string{bin}
+				if s.Model != "" {
+					argv = append(argv, "-m", s.Model)
+				}
+				if s.Effort != "" {
+					argv = append(argv, "-c", fmt.Sprintf("model_reasoning_effort=%q", s.Effort))
+				}
+				return append(argv, persona+"\n\n"+prompt)
 			},
 		},
 	}
 }
 
-// pickFixHarness prefers the agent the user chose for the chat, then the
-// first installed harness.
+// pickFixHarness prefers the agent the fix setting or the chat names, then
+// the first installed harness.
 func pickFixHarness(want string, hs []fixHarness) (fixHarness, string, bool) {
 	for _, h := range hs {
 		if h.ID == want {
@@ -86,12 +101,27 @@ type fixLaunch struct {
 	Argv    []string
 }
 
-func planFix(display, brief string) (fixLaunch, error) {
-	h, bin, ok := pickFixHarness(LoadConfig().ChatAgent, fixHarnesses())
-	if !ok {
-		return fixLaunch{}, errors.New("no agent harness to open; install Hermes or Oh My Pi")
+// pickConfiguredHarness resolves the agent the fix setting, else the chat
+// setting, names.
+func pickConfiguredHarness() (fixHarness, string, Config, error) {
+	cfg := LoadConfig()
+	want := cfg.Fix.Agent
+	if want == "" {
+		want = cfg.ChatAgent
 	}
-	return fixLaunch{Harness: h.Name, Argv: h.argv(bin, needlePersona, display+"\n\n"+brief)}, nil
+	h, bin, ok := pickFixHarness(want, fixHarnesses())
+	if !ok {
+		return h, "", cfg, errors.New("no agent harness to open; install Codex, Claude Code, Hermes or Oh My Pi")
+	}
+	return h, bin, cfg, nil
+}
+
+func planFix(display, brief string) (fixLaunch, error) {
+	h, bin, cfg, err := pickConfiguredHarness()
+	if err != nil {
+		return fixLaunch{}, err
+	}
+	return fixLaunch{Harness: h.Name, Argv: h.argv(bin, needlePersona, display+"\n\n"+brief, cfg.Fix)}, nil
 }
 
 // holdOnFailure keeps the terminal open when the harness exits with an error,

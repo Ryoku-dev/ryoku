@@ -72,6 +72,11 @@
   steps, so a stuck stable install can be finished on unstable.
 
 ### Fixed
+- **Fedora installs no longer fail when the Hyprland COPR moves ahead.** The
+  plugins the Hyprland variant only recommends are left to dnf instead of being
+  named in the transaction, so an unsolvable plugin is skipped, not fatal.
+- **Zen opens from the browser shortcut after conversion.** The installer
+  stores the `zen-browser` executable shipped by `zen-browser-bin`.
 - **Fresh Arch-based conversions receive newer Ryoku package overrides.**
   After the desktop transaction, the installer aligns every installed package
   that `[ryoku]` serves at a newer version without downgrading packages whose

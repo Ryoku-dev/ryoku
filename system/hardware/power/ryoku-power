@@ -9,8 +9,8 @@
 # writes are accepted but the package still pins the same wattage and 95 C). So
 # this helper deliberately owns only two knobs that DO move on a live write:
 #
-#   charge-limit  /sys/class/power_supply/*/charge_control_end_threshold
-#                 caps charging so the pack is not held at 100% (battery wear).
+#   charge-limit  the kernel battery threshold or supported vendor battery-care
+#                 control, so the pack is not held at 100% (battery wear).
 #   aspm          /sys/module/pcie_aspm/parameters/policy
 #                 lets PCIe links enter deeper low-power states at idle.
 #
@@ -33,11 +33,12 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # exact command under pkexec.
 ORIG_ARGV=("$@")
 
-PS_DIR="${RYOKU_POWER_SUPPLY_DIR:-/sys/class/power_supply}"
-ASPM_FILE="${RYOKU_ASPM_POLICY_FILE:-/sys/module/pcie_aspm/parameters/policy}"
+SYSFS_ROOT="${RYOKU_SYSFS_ROOT:-/sys}"
+PS_DIR="${RYOKU_POWER_SUPPLY_DIR:-$SYSFS_ROOT/class/power_supply}"
+ASPM_FILE="${RYOKU_ASPM_POLICY_FILE:-$SYSFS_ROOT/module/pcie_aspm/parameters/policy}"
 CONFIG="${RYOKU_POWER_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/ryoku/power.json}"
-CPU_DIR="${RYOKU_CPU_DIR:-/sys/devices/system/cpu}"
-PLATFORM_PROFILE_FILE="${RYOKU_PLATFORM_PROFILE_FILE:-/sys/firmware/acpi/platform_profile}"
+CPU_DIR="${RYOKU_CPU_DIR:-$SYSFS_ROOT/devices/system/cpu}"
+PLATFORM_PROFILE_FILE="${RYOKU_PLATFORM_PROFILE_FILE:-$SYSFS_ROOT/firmware/acpi/platform_profile}"
 SHELL_HELPER="${RYOKU_SHELL_BIN-$(command -v ryoku-shell || true)}"
 PRIVILEGED_HELPER="/usr/bin/ryoku-power"
 
@@ -154,24 +155,100 @@ cfg_del() { # key -- drop it, leaving the hardware to its firmware default
 
 # ── battery charge limit ──────────────────────────────────────────────────────
 
-charge_file() { # first battery that exposes the attribute, or non-zero
-  local f
-  for f in "$PS_DIR"/*/charge_control_end_threshold; do
-    [[ -e $f ]] && { printf '%s\n' "$f"; return 0; }
+charge_probe() { # backend|path for the first supported battery control
+  local dir f attr
+  for dir in "$PS_DIR"/*; do
+    [[ -d $dir ]] || continue
+    if [[ -r $dir/type ]] && [[ "$(cat "$dir/type" 2>/dev/null || true)" != Battery ]]; then
+      continue
+    fi
+    [[ ! -r $dir/present || "$(cat "$dir/present" 2>/dev/null || true)" != 0 ]] || continue
+    for attr in charge_control_end_threshold charge_stop_threshold; do
+      f="$dir/$attr"
+      [[ -e $f ]] && { printf 'threshold|%s\n' "$f"; return 0; }
+    done
   done
+  for f in "$SYSFS_ROOT"/devices/platform/smapi/BAT*/stop_charge_thresh; do
+    [[ -e $f ]] && { printf 'smapi|%s\n' "$f"; return 0; }
+  done
+  for f in "$SYSFS_ROOT"/bus/platform/drivers/ideapad_acpi/*/conservation_mode; do
+    [[ -e $f ]] && { printf 'ideapad|%s\n' "$f"; return 0; }
+  done
+  f="$SYSFS_ROOT/devices/platform/lg-laptop/battery_care_limit"
+  [[ -e $f ]] && { printf 'lg-legacy|%s\n' "$f"; return 0; }
+  f="$SYSFS_ROOT/devices/platform/samsung/battery_life_extender"
+  [[ -e $f ]] && { printf 'samsung|%s\n' "$f"; return 0; }
+  f="$SYSFS_ROOT/devices/platform/sony-laptop/battery_care_limiter"
+  [[ -e $f ]] && { printf 'sony|%s\n' "$f"; return 0; }
+  f="$SYSFS_ROOT/devices/platform/huawei-wmi/charge_control_thresholds"
+  [[ -e $f ]] && { printf 'huawei|%s\n' "$f"; return 0; }
   return 1
 }
 
-charge_supported() { charge_file >/dev/null 2>&1; }
+charge_backend() {
+  local probe
+  probe="$(charge_probe)" || return 1
+  printf '%s\n' "${probe%%|*}"
+}
 
-# The kernel returns ENODATA ("No data available") on this attribute until the
-# first write, so a read error / empty value is genuinely "unset", not a fault.
-charge_read() { # echoes the number, or nothing when unset
-  local f v
-  f="$(charge_file)" || return 0
-  v="$(cat "$f" 2>/dev/null || true)"
-  [[ -n $v ]] && printf '%s\n' "$v"
-  return 0
+charge_file() {
+  local probe
+  probe="$(charge_probe)" || return 1
+  printf '%s\n' "${probe#*|}"
+}
+
+charge_supported() { charge_probe >/dev/null 2>&1; }
+
+charge_read() { # normalized percentage, or nothing when the driver is unset
+  local probe backend f raw value
+  probe="$(charge_probe)" || return 0
+  backend="${probe%%|*}"; f="${probe#*|}"
+  raw="$(cat "$f" 2>/dev/null || true)"
+  [[ -n $raw ]] || return 0
+  case "$backend" in
+    huawei) value="${raw##* }" ;;
+    ideapad) [[ $raw == 1 ]] && value=60 || value=100 ;;
+    samsung) [[ $raw == 1 ]] && value=80 || value=100 ;;
+    *) value="${raw%%[[:space:]]*}" ;;
+  esac
+  [[ $value =~ ^[0-9]+$ ]] || return 0
+  (( value > 0 && value <= 100 )) || value=100
+  printf '%s\n' "$value"
+}
+
+charge_normalize() { # requested percentage -> value this firmware can represent
+  local n="$1" backend
+  backend="$(charge_backend)" || return 1
+  (( n == 100 )) && { printf '100\n'; return; }
+  case "$backend" in
+    ideapad) printf '60\n' ;;
+    lg-legacy|samsung) printf '80\n' ;;
+    sony)
+      if (( n <= 65 )); then printf '50\n'
+      elif (( n <= 90 )); then printf '80\n'
+      else printf '100\n'
+      fi
+      ;;
+    *) printf '%s\n' "$n" ;;
+  esac
+}
+
+charge_write_value() { # normalized percentage -> raw driver value
+  local n="$1" backend
+  backend="$(charge_backend)" || return 1
+  case "$backend" in
+    ideapad|samsung) (( n < 100 )) && printf '1\n' || printf '0\n' ;;
+    huawei) printf '0 %s\n' "$n" ;;
+    *) printf '%s\n' "$n" ;;
+  esac
+}
+
+charge_options() {
+  case "$(charge_backend 2>/dev/null || true)" in
+    ideapad) printf '60 100\n' ;;
+    lg-legacy|samsung) printf '80 100\n' ;;
+    sony) printf '50 80 100\n' ;;
+  esac
 }
 
 cmd_charge_limit() {
@@ -184,19 +261,19 @@ cmd_charge_limit() {
       [[ -n $v ]] && printf '%s\n' "$v" || printf 'unset\n'
       ;;
     set)
-      local n="${2:-}"
+      local n="${2:-}" normalized
       charge_supported || { log "battery charge limit not supported on this machine"; exit 1; }
       if ! [[ $n =~ ^[0-9]+$ ]] || (( n < 50 || n > 100 )); then
         log "charge limit must be an integer 50-100"; exit 2
       fi
-      # persist as the user first; a pkexec re-run does only the sysfs write.
-      cfg_set_num chargeLimit "$n"
-      priv_write "$(charge_file)" "$n"
+      normalized="$(charge_normalize "$n")"
+      cfg_set_num chargeLimit "$normalized"
+      priv_write "$(charge_file)" "$(charge_write_value "$normalized")"
       ;;
     clear)
       charge_supported || { log "battery charge limit not supported on this machine"; exit 1; }
       cfg_del chargeLimit
-      priv_write "$(charge_file)" 100
+      priv_write "$(charge_file)" "$(charge_write_value 100)"
       ;;
     *)
       log "charge-limit needs get|set <50-100>|clear"; exit 2 ;;
@@ -542,7 +619,7 @@ cmd_capabilities() {
   [[ -z ${1:-} || ${1:-} == --json ]] || { log "capabilities takes only --json"; exit 2; }
 
   local gov_opts gov_cur epp_opts epp_cur pp_opts pp_cur
-  local maxpct="" charge_cur="" aspm_opts="" aspm_cur="" active="" idle_cur=""
+  local maxpct="" charge_cur="" charge_opts="" aspm_opts="" aspm_cur="" active="" idle_cur=""
   local power_state="" profiles='["power-saver","balanced","performance"]'
 
   gov_opts="$(governor_options)"; gov_cur=""
@@ -579,6 +656,7 @@ cmd_capabilities() {
 
   if charge_supported; then
     charge_cur="$(charge_read)"; [[ -z $charge_cur ]] && charge_cur=100
+    charge_opts="$(charge_options)"
   fi
   if aspm_supported; then
     aspm_opts="$(aspm_options)"; aspm_cur="$(aspm_read || true)"
@@ -590,7 +668,7 @@ cmd_capabilities() {
     --arg epp_opts "$epp_opts" --arg epp_cur "$epp_cur" \
     --arg pp_opts "$pp_opts" --arg pp_cur "$pp_cur" \
     --arg maxpct "$maxpct" \
-    --arg charge "$charge_cur" \
+    --arg charge "$charge_cur" --arg charge_opts "$charge_opts" \
     --arg aspm_opts "$aspm_opts" --arg aspm_cur "$aspm_cur" \
     --arg active "$active" \
     --argjson profiles "$profiles" \
@@ -605,7 +683,10 @@ cmd_capabilities() {
         | (if $epp_opts != "" then .epp             = seg($epp_opts; $epp_cur) else . end)
         | (if $maxpct   != "" then .maxFreqPct      = {min: 20, max: 100, current: ($maxpct | tonumber)} else . end)
         | (if $pp_opts  != "" then .platformProfile = seg($pp_opts; $pp_cur) else . end) )
-    | (if $charge    != "" then .battery = {chargeLimit: {min: 50, max: 100, current: ($charge | tonumber)}} else . end)
+    | (if $charge != "" then .battery = {chargeLimit:
+        ({min: 50, max: 100, current: ($charge | tonumber)}
+         + (if $charge_opts != "" then {options: words($charge_opts)} else {} end))}
+       else . end)
     | (if $aspm_opts != "" then .aspm = seg($aspm_opts; $aspm_cur) else . end)
     | .idle = $idle
   '
@@ -755,7 +836,8 @@ cmd_apply() {
 
   if [[ -n $cl ]] && charge_supported; then
     if [[ $cl =~ ^[0-9]+$ ]] && (( cl >= 50 && cl <= 100 )); then
-      priv_write "$(charge_file)" "$cl"
+      cl="$(charge_normalize "$cl")"
+      priv_write "$(charge_file)" "$(charge_write_value "$cl")"
     else
       log "ignoring invalid chargeLimit in $CONFIG: $cl"
     fi
@@ -791,6 +873,7 @@ apply                        converge the hardware to ~/.config/ryoku/power.json
                              (globals are laptop-only; CPU profile applies anywhere)
 
 Env:
+  RYOKU_SYSFS_ROOT=/path/to/fake/sys
   RYOKU_POWER_CONFIG=/path/to/power.json
   RYOKU_POWER_SUPPLY_DIR=/path/to/power_supply
   RYOKU_ASPM_POLICY_FILE=/path/to/pcie_aspm/parameters/policy

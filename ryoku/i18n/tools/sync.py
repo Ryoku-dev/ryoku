@@ -109,6 +109,13 @@ GO_CALL = re.compile(r'\b(?:i18n\.)?Tf?\(\s*"((?:\\.|[^"\\])*)"')
 SH_CALL = re.compile(
     r"""(?:^|[|(&;`$]|\s)(?:tf?|log|die)\s+(["'])((?:\\.|(?!\1).)*)\1""", re.M)
 SCHEMA_FIELD = re.compile(r'"(?:tab|label|desc|group)"\s*:\s*"((?:\\.|[^"\\])*)"')
+# the shortcut catalogue (ryoku/wm/binds.go) and each compositor's reason for a
+# bind it cannot honour are Go data that Kit and the Hub show through I18n.tr.
+WM_ROOT = os.path.join(REPO, "ryoku", "wm")
+WM_BIND_FILES = ("binds.go", "config_binds.go", "legend.go")
+BIND_FIELD = re.compile(r'\b(?:Category|Label|Hint|reason):\s*"((?:\\.|[^"\\])*)"')
+UNHONORED_MAP = re.compile(r'Unhonored = map\[string\]string\{(.*?)\n\}', re.S)
+MAP_VALUE = re.compile(r'"[^"\n]*":\s*"((?:\\.|[^"\\])*)"')
 
 
 
@@ -270,6 +277,19 @@ def extract_keys():
                     s = _unescape(body).strip()
                     if _copy(s):
                         keys.add(s)
+    for root, dirs, files in os.walk(WM_ROOT):
+        dirs[:] = [d for d in dirs if d not in ("vendor", "testdata", ".git")]
+        for f in files:
+            if f not in WM_BIND_FILES:
+                continue
+            text = open(os.path.join(root, f), encoding="utf-8", errors="ignore").read()
+            bodies = BIND_FIELD.findall(text)
+            for block in UNHONORED_MAP.findall(text):
+                bodies += MAP_VALUE.findall(block)
+            for body in bodies:
+                s = _unescape(body).strip()
+                if _copy(s):
+                    keys.add(s)
     for root_dir in SH_ROOTS:
         for root, dirs, files in os.walk(root_dir):
             dirs[:] = [d for d in dirs if d not in ("vendor", "testdata", ".git")]
@@ -632,7 +652,8 @@ def llm_call(cfg, prompt):
     else:  # openai-compatible (OpenRouter by default, or vanilla OpenAI)
         model = cfg.get("model") or "gpt-4o-mini"
         url = cfg.get("url") or "https://api.openai.com/v1/chat/completions"
-        body = {"model": model, "messages": [{"role": "user", "content": prompt}]}
+        body = {"model": model, "max_tokens": 8192,
+                "messages": [{"role": "user", "content": prompt}]}
         headers = {"Authorization": "Bearer " + key, "content-type": "application/json",
                    "X-Title": "Ryoku i18n",
                    "HTTP-Referer": "https://github.com/noctalia-dev"}
@@ -672,8 +693,9 @@ def llm_translate(cfg, lang, keys, batch=40):
     batch. Returns {key: translation} for what came back; caller picks fallback."""
     name = LANG_NAMES.get(lang, lang)
     out = {}
+    lock = threading.Lock()
 
-    def run(chunk, depth):
+    def run(chunk, depth, tries=0):
         if not chunk:
             return
         try:
@@ -681,22 +703,37 @@ def llm_translate(cfg, lang, keys, batch=40):
             # a translation that lost, gained or translated a placeholder would
             # print a literal "%s" (or drop an argument) at runtime, so it is
             # dropped here and the English source is shipped instead.
-            out.update({k: _sanitize(v) for k, v in got.items()
-                        if k in chunk and isinstance(v, str) and v
-                        and _ph(v) == _ph(k)})
+            good = {k: _sanitize(v) for k, v in got.items()
+                    if k in chunk and isinstance(v, str) and v
+                    and _ph(v) == _ph(k)}
+            with lock:
+                out.update(good)
         except LLMUnavailable:
             raise
         except Exception as e:
-            if len(chunk) > 1 and depth < 6:
+            throttled = isinstance(e, urllib.error.HTTPError) and e.code in (429, 500, 502, 503, 504)
+            transient = isinstance(e, (TimeoutError, urllib.error.URLError)) and not isinstance(e, urllib.error.HTTPError)
+            if (throttled or transient) and tries < 4:
+                time.sleep(5 * (tries + 1) + random.random() * 3)
+                run(chunk, depth, tries + 1)
+            elif len(chunk) > 1 and depth < 6:
                 mid = len(chunk) // 2
                 run(chunk[:mid], depth + 1)
                 run(chunk[mid:], depth + 1)
             else:
-                print(f"  ! llm failed ({lang}) on {chunk!r}: {str(e)[:80]}", file=sys.stderr)
+                print(f"  ! llm failed ({lang}) on {chunk!r}: {str(e)[:80]}", file=sys.stderr, flush=True)
 
-    for i in range(0, len(keys), batch):
-        run(keys[i:i + batch], 0)
-        print(f"  {lang}: {len(out)}/{len(keys)}")
+    # one batch at a time took days for a full catalog; a paid endpoint takes
+    # several in flight, RYOKU_I18N_WORKERS tunes how many
+    workers = max(1, int(os.environ.get("RYOKU_I18N_WORKERS") or 8))
+    chunks = [keys[i:i + batch] for i in range(0, len(keys), batch)]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(run, c, 0) for c in chunks]
+        for n, fut in enumerate(concurrent.futures.as_completed(futures), 1):
+            fut.result()
+            if n % 10 == 0 or n == len(futures):
+                with lock:
+                    print(f"  {lang}: {len(out)}/{len(keys)}", flush=True)
     return out
 
 

@@ -91,7 +91,7 @@ func (d *daemon) applyWEReason(reason, weID string, outputs []string, mute map[s
 
 	d.previewMu.Lock()
 	defer d.previewMu.Unlock()
-	d.preview = nil
+	d.supersedePreviewLocked(outputs)
 
 	if !pickOnly {
 		if err := d.driveWE(weID, itemDir, outputs, mute, volume); err != nil {

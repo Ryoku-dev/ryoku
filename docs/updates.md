@@ -278,10 +278,12 @@ release, new release, pre-update snapshot, and current boot. The shell daemon
 records a good boot once the shell has stayed up for 45 seconds.
 
 The early-boot service is `ryoku-boot-guard.service` on Arch/CachyOS and
-Fedora, and the `ryoku-boot-guard` runit service on Void. After two boots where
-the desktop never came up, it pins the previous tagged release, moves the whole
-Ryoku set back in one native package transaction, re-materializes every user's
-config, and leaves the distribution base and kernel untouched. On
+Fedora, and the `ryoku-boot-guard` runit service on Void. It records the current
+boot and judges it only when the following boot begins. After two completed
+boots where the desktop never came up, it pins the previous tagged release,
+moves the whole Ryoku set back in one native package transaction,
+re-materializes every user's config, and leaves the distribution base and
+kernel untouched. On
 snapshot-capable Arch and Void installs, a third failed boot selects the full
 pre-update snapshot path and clears Limine's remembered EFI entry so the
 fallback wins. Fedora keeps the package downgrade and sends only the next boot
@@ -331,6 +333,14 @@ contain only the edition's skeleton files: the session wrapper runs
 `materialize` under that account's UID, so every path it creates in the home is
 user-owned. Installer-created extra accounts and accounts added later in Ryoku
 Hub therefore take the same first-login path on every edition and compositor.
+
+Beyond `~/.config`, materialize gives the account what the installer seeds for
+the first one: the brand art (`~/.local/share/ryoku/assets/brand`), the decor art
+(`ryodecors/` in the Pictures folder) and `~/.npmrc`, missing files only, from
+`/usr/share/ryoku` (the checkout on a dev box). An account whose shell has never
+run (no `~/.config/ryoku/shell.json`) also gets the default rice queued for its
+first login. `ryoku doctor` runs the same check. The wallpaper library is not
+packaged, so only the installing account receives `Pictures/Wallpapers`.
 
 ## user_edits: your edits, kept apart
 
@@ -771,7 +781,8 @@ quiet. `tests/ryoku-discord.sh` builds every kind of message offline.
   theme, the shipped boot configs and lockscreen bundle, Wayfire's baseline
   config, portal routing, window-decoration plugin and plugin metadata (a
   checkout box has no Wayfire variant package), the boot hook, the modules-load
-  and udev rules, the default-apps mimeapps map, and the logind lid-switch
+  and udev rules, the default-apps mimeapps map, the keyring's D-Bus
+  environment drop-in and Secret Service override, and the logind lid-switch
   drop-in `/etc/systemd/logind.conf.d/10-ryoku-lid.conf`. An unowned
   copy collides with the package on the next transaction ("exists in
   filesystem") and aborts the whole atomic `-Syu`, so every ryoku pacman
@@ -781,7 +792,10 @@ quiet. `tests/ryoku-discord.sh` builds every kind of message offline.
   the same paths on a box already wedged (`reconcileConflictingRyokuFiles`,
   `ryokuSystemGlobs` -- the glob itself, split). Either way the package adopts
   the path and later updates own it normally; `deploy.sh` keeps its own copy of
-  the list (`_rovw`) in sync.
+  the list (`_rovw`) in sync. A plain `sudo pacman -Syu` passes no glob, so on
+  a box with `ryoku-desktop` installed `deploy.sh` lays a new path through
+  `_desktop_install` only once the installed package owns it, and clears an
+  unowned copy an earlier deploy left; the package upgrade brings the file.
 - **Generated power policy and long-running helpers must be adopted as one live
   transaction.** `hypridle.conf` is rendered state, not materialized payload,
   and a running shell-script daemon keeps executing its old file after the

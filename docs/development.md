@@ -315,7 +315,10 @@ release fast-forwards it).
   (shell uses `[global]`). No em-dash, no authorship/attribution trailer.
 - `pre-commit`: no em-dash in text files, valid bash syntax on staged scripts,
   no filler comment lines, every user config delivered, compositor specifics
-  kept inside `ryoku/wm`, and, where `rashin-reviewer` is installed, its review
+  kept inside `ryoku/wm`, no staged QML object that sets one property or
+  handler twice (`bin/ryoku-dev-verify-qml-bindings`, also run by QML Lint in
+  CI; qmllint misses it and the file then never loads), and, where
+  `rashin-reviewer` is installed, its review
   gate: no secrets or conflict markers, no JSON, YAML, TOML, Python, Lua or QML
   file left unparseable, and ShellCheck (CI's flags) and gofmt clean on the
   added lines. `.rashin-reviewer.yaml` holds its settings; mark an intentional

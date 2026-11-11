@@ -1,6 +1,15 @@
 # Release / Packaging Changelog
 
 ## Unreleased
+- **The Fedora Hyprland desktop installs after a Hyprland COPR update.**
+  `ryoku-desktop-hyprland` only recommends the plugin RPMs locked to one
+  Hyprland build; the share picker drops that lock, and `hyprland-devel` is allowed.
+- **Every package channel keeps to the Ryotunes 1.x line.** The Arch import and
+  hourly refresh, the Fedora fetch hook and the Void build resolve the newest
+  stable `v1.Y.Z` release (`repo/resolve-ryotunes-release.sh`).
+- **The compositor isolation check runs in CI and passes again.** The pinned
+  Shima patches carry upstream code, so the check skips them, and the delivery
+  workflow now runs it on every push instead of only in local hooks.
 - **The key-sound profiles build from a vendored Mechvibes bundle.** Upstream
   rewrote its history for Mechvibes 3 and the pinned commit vanished, which
   failed every publish at `ryoku-keysounds-profiles`. The eleven packs and

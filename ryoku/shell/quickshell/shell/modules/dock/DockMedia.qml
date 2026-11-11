@@ -25,7 +25,7 @@ Item {
 
     readonly property var player: Media.player
     readonly property bool playing: Media.playing
-    readonly property string artUrl: Music.artUrl.length > 0 ? Music.artUrl : (media.player ? (media.player.trackArtUrl || "") : "")
+    readonly property string artUrl: Music.coverFor(media.player)
     readonly property real art: media.depth - 10
 
     // Album-art accent (MusicPopout's approach): quantise the sleeve and lift its

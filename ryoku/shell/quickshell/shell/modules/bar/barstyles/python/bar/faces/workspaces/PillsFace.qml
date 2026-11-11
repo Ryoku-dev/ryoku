@@ -77,7 +77,7 @@ Item {
 
         readonly property bool isMoving: Math.abs(actualStart - targetStart) > 0.5 || Math.abs(actualEnd - targetEnd) > 0.5
         property real lift: (pillsGlass.active && isMoving) ? 1.0 : 0.0
-        Behavior on lift { NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
+        Behavior on lift { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
         scale: 1.0 + 0.14 * lift
         transformOrigin: Item.Center
 
@@ -88,7 +88,7 @@ Item {
         width: pillsFaceRoot.isVertical ? thickness : actualEnd - actualStart
         height: pillsFaceRoot.isVertical ? actualEnd - actualStart : thickness
         opacity: (widget && widget.workspaceCount > 0 && widget.activeIndex >= 0) ? 1.0 : 0.0
-        Behavior on opacity { NumberAnimation { duration: 180 } }
+        Behavior on opacity { NumberAnimation { duration: 150 } }
     }
 
     AxisFlow {
@@ -176,7 +176,7 @@ Item {
                     onTriggered: wsPill.initAnimTrigger = true
                 }
 
-                Behavior on opacity { NumberAnimation { duration: 450; easing.type: Easing.OutCubic } }
+                Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
 
                 MouseArea {
                     id: wsPillMouse

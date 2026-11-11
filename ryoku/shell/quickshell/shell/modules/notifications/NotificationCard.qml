@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Shapes
 import Quickshell
 import shell.services
 import "../../components"
@@ -284,7 +285,8 @@ Rectangle {
             readonly property bool useIcon: thumbnail.imageUnavailable && thumbnail.iconReady
             readonly property bool useGlyph: thumbnail.imageUnavailable && thumbnail.iconUnavailable
 
-            visible: card.imagesEnabled && (thumbnail.useImage || thumbnail.useIcon || thumbnail.useGlyph)
+            // one of the three always shows in the end, so hold its space while it loads
+            visible: card.imagesEnabled
             width: (Theme.iconLg + Theme.paddingLg) * card.us
             height: width
             radius: Theme.radiusWidget * card.us
@@ -405,46 +407,41 @@ Rectangle {
     // The draining countdown, stroked over the card's own border: the accent
     // traces the whole rounded rect at full life and recedes clockwise from the
     // top as the lifespan runs out, uncovering the plain outline underneath.
-    Canvas {
+    Shape {
         id: timerFrame
         anchors.fill: parent
         visible: card.countingDown
-        renderStrategy: Canvas.Cooperative
-        onPaint: {
-            const ctx = getContext("2d");
-            ctx.reset();
-            if (!card.countingDown)
-                return;
-            const sw = Theme.borderWidth * card.us + 1;
-            const o = sw / 2;
-            const w = width - sw;
-            const h = height - sw;
-            const rad = Math.max(0, Math.min(card.radius, w / 2, h / 2));
-            const perim = 2 * (w - 2 * rad) + 2 * (h - 2 * rad) + 2 * Math.PI * rad;
-            const drawn = Math.max(0, Math.min(perim, card.remaining * perim));
-            ctx.beginPath();
-            ctx.moveTo(o + w / 2, o);
-            ctx.lineTo(o + w - rad, o);
-            ctx.arcTo(o + w, o, o + w, o + rad, rad);
-            ctx.lineTo(o + w, o + h - rad);
-            ctx.arcTo(o + w, o + h, o + w - rad, o + h, rad);
-            ctx.lineTo(o + rad, o + h);
-            ctx.arcTo(o, o + h, o, o + h - rad, rad);
-            ctx.lineTo(o, o + rad);
-            ctx.arcTo(o, o, o + rad, o, rad);
-            ctx.lineTo(o + w / 2, o);
-            ctx.lineWidth = sw;
-            ctx.strokeStyle = Theme.flameGlow;
-            ctx.lineCap = "butt";
-            ctx.setLineDash([drawn, perim + 1]);
-            ctx.stroke();
+        asynchronous: true
+
+        readonly property real sw: Theme.borderWidth * card.us + 1
+        readonly property real o: sw / 2
+        readonly property real w: Math.max(0, width - sw)
+        readonly property real h: Math.max(0, height - sw)
+        readonly property real rad: Math.max(0, Math.min(card.radius, w / 2, h / 2))
+        readonly property real perim: 2 * (w - 2 * rad) + 2 * (h - 2 * rad) + 2 * Math.PI * rad
+
+        ShapePath {
+            fillColor: "transparent"
+            strokeColor: Theme.primary
+            strokeWidth: timerFrame.sw
+            strokeStyle: ShapePath.DashLine
+            capStyle: ShapePath.FlatCap
+            joinStyle: ShapePath.MiterJoin
+            // one dash the length of the outline; sliding it along drains the frame
+            dashPattern: [timerFrame.perim / timerFrame.sw, timerFrame.perim / timerFrame.sw + 1]
+            dashOffset: (1 - card.remaining) * timerFrame.perim / timerFrame.sw
+
+            startX: timerFrame.o + timerFrame.w / 2
+            startY: timerFrame.o
+            PathLine { x: timerFrame.o + timerFrame.w - timerFrame.rad; y: timerFrame.o }
+            PathArc { x: timerFrame.o + timerFrame.w; y: timerFrame.o + timerFrame.rad; radiusX: timerFrame.rad; radiusY: timerFrame.rad }
+            PathLine { x: timerFrame.o + timerFrame.w; y: timerFrame.o + timerFrame.h - timerFrame.rad }
+            PathArc { x: timerFrame.o + timerFrame.w - timerFrame.rad; y: timerFrame.o + timerFrame.h; radiusX: timerFrame.rad; radiusY: timerFrame.rad }
+            PathLine { x: timerFrame.o + timerFrame.rad; y: timerFrame.o + timerFrame.h }
+            PathArc { x: timerFrame.o; y: timerFrame.o + timerFrame.h - timerFrame.rad; radiusX: timerFrame.rad; radiusY: timerFrame.rad }
+            PathLine { x: timerFrame.o; y: timerFrame.o + timerFrame.rad }
+            PathArc { x: timerFrame.o + timerFrame.rad; y: timerFrame.o; radiusX: timerFrame.rad; radiusY: timerFrame.rad }
+            PathLine { x: timerFrame.o + timerFrame.w / 2; y: timerFrame.o }
         }
-        Connections {
-            target: card
-            function onRemainingChanged() { timerFrame.requestPaint(); }
-        }
-        onWidthChanged: requestPaint()
-        onHeightChanged: requestPaint()
-        onVisibleChanged: requestPaint()
     }
 }

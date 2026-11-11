@@ -136,6 +136,31 @@ func hermesVersion(bin string) string {
 	return line
 }
 
+// renameHermesSession retitles through the hermes CLI, which owns state.db;
+// Rashin only ever reads it.
+func renameHermesSession(id, title string) error {
+	bin, ok := FindHermes()
+	if !ok {
+		return errors.New("hermes is not installed")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, bin, "sessions", "rename", "--", id, title).CombinedOutput()
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	last := strings.TrimSpace(lines[len(lines)-1])
+	// hermes exits 0 for a missing session or a rejected title, so read what it printed
+	if err == nil && strings.HasPrefix(last, "Session '") && strings.Contains(last, "' renamed to: ") {
+		return nil
+	}
+	if last == "" && err != nil {
+		last = err.Error()
+	}
+	if last == "" {
+		last = "hermes did not rename the session"
+	}
+	return errors.New(last)
+}
+
 // WireHermesMemory upserts the pointer block into Hermes's MEMORY.md, creating
 // memories/ only when ~/.hermes already exists. It never installs Hermes.
 func WireHermesMemory() error {

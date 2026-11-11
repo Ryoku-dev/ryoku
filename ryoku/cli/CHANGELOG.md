@@ -1,6 +1,62 @@
 # Ryoku CLI Changelog
 
 ## Unreleased
+- **Reboots after an update no longer stop at the Limine menu.** Limine 12.9.5
+  moved its remembered-entry EFI variable to a new vendor GUID; doctor and the
+  boot guard now clear it under both GUIDs.
+- **Doctor drops the duplicate keyring lines older installs left in SDDM's PAM stack.**
+  It removes only the bare lines Ryoku's setup added beside the stock ones and
+  still just warns about a stack someone edited by hand.
+- **Updates adopt the keyring's D-Bus files left behind by a deploy.** The
+  update overwrite list and the doctor's stray cleanup now cover
+  `/usr/lib/environment.d` and the Secret Service override.
+- **The keymap heal no longer hangs `ryoku update` on a Limine box.** The boot
+  image rebuild prefers `limine-mkinitcpio`, never reads the terminal and gives
+  up after ten minutes; a rebuild with unchanged content now clears the finding.
+- **`ryoku update` and doctor follow only the Ryotunes 1.x line.** They pick the
+  newest stable `v1.Y.Z` release instead of GitHub's latest, so a Ryotunes 2
+  release never installs here; with no 1.x release the installed build stays.
+- **A second account on a shared machine gets the same desktop as the first.**
+  Its first login and `ryoku doctor` lay the brand art, decor art and npm prefix
+  the installer gave the first account; a brand-new account starts on the default rice.
+- **Doctor no longer locks other accounts out of snapshots.** Granting snapshot
+  read access adds the account beside the ones snapper already allows.
+- **Accounts added in Ryoku Hub log into the administrator's shell.** They used
+  to get bash, which skips Ryoku's terminal setup.
+- **Doctor recognizes the shell's own visualizer and file watchers.** Memory
+  checks no longer report those helpers as user apps left inside the desktop
+  service (`internal/doctor/memory.go`).
+- **Doctor rebuilds only stale plugins that are enabled.** A disabled plugin
+  can no longer fail an update just because another enabled plugin needs a
+  rebuild (`internal/doctor/reconcile_wm_plugins.go`).
+- **Doctor points ASUS AMD and NVIDIA laptops at their EC backlight.** Its
+  no-backlight hint suggests `acpi_backlight=nvidia_wmi_ec` instead of native,
+  which disables working brightness control on affected TUF boards.
+- **Login starts one GNOME keyring daemon and runs each PAM hook once.**
+  `apply-pam` recognizes and preserves distro-provided lines while removing
+  duplicates. Systemd editions route Secret Service activation through the
+  existing keyring user unit; Void keeps its native session activation.
+- **Doctor repairs pacman hooks left disabled by an earlier ISO install.** On
+  Arch and CachyOS it removes the installer's `/dev/null` masks, restores parked
+  mkinitcpio hooks without replacing newer package copies, and reuses the Limine
+  kernel-image repair when the ESP image is stale.
+- **Doctor repairs saved default apps whose executable name changed.** It uses
+  the Settings app catalogue to replace a missing known alias, then regenerates
+  the active compositor's environment through the normal settings save path.
+- **The boot guard judges completed boots instead of the boot currently
+  starting.** A short interrupted boot can no longer combine with the healthy
+  boot that follows to trigger rollback. Reverts repair every user's config
+  before disarming, and read-only snapshots no longer claim disarm succeeded.
+- **Lock-screen security-key PAM files now fail closed.** The CLI writes the
+  service atomically with user-only permissions and refuses missing, altered,
+  symlinked, incorrectly owned or unsafe files and parent directories.
+- **`ryoku security-key set lock on|off` wires the key into the lock screen.**
+  It needs an enrolled key, writes a user-owned PAM file with the same policy as
+  the other targets, rewrites it when the policy changes, and is refused in
+  `mfa` mode (switching to `mfa` turns it off, with a note). `status` reports
+  the lock and whether it will ask for a PIN, counting a credential's `+pin`
+  flag that pam_u2f enforces whatever the PAM line says
+  (`internal/securitykey/lock.go`).
 - **Doctor repairs a missing Zsh startup file without replacing custom config.**
   It seeds `.zshrc` only when Zsh is the account login shell, the packaged Ryoku
   template exists and the user has no startup file of their own.
@@ -391,14 +447,9 @@
   retired-apps reconciler removes it (`pacman -Rns --noconfirm ryomotion`); a box
   that never had it is left untouched
   (`internal/doctor/reconcile_retired_apps.go`).
-- **`ryoku doctor` names the reverse-PRIME first-commit hazard.** On a laptop
-  whose connected panel is driven by the iGPU while the render pin puts NVIDIA
-  first, the session's very first cross-GPU commit fails once on some kernels
-  and the panel stays black until reboot (#270). The pin is deliberate Ryoku
-  policy, so this is a note, never a change: it names the combination and both
-  ways out (`ryoku-gpu disable` clears the pin, `ryoku-gpu persist` restores
-  it), so a black-panel report carries its own suspect
-  (`internal/doctor/reconcile_gpu_pin_panel.go`).
+- **`ryoku doctor` clears unsafe cross-GPU render pins.** Old dGPU-first pins
+  over iGPU panels are removed for the next login; deliberate force overrides
+  remain (`internal/doctor/reconcile_gpu_pin.go`).
 - **`ryoku wm caps` prints the active provider's capabilities as JSON**, the
   same payload the daemon and the Hub gate on, so a script can read the night
   light backend or a capability without spelling a compositor. `ryoku wm act`

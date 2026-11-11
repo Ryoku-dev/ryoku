@@ -41,6 +41,7 @@ on:
       - 'tests/install-dryrun-matrix.sh'
       - 'tests/install-dryrun-harness.sh'
       - 'tests/install-edition-parity.sh'
+      - 'tests/install-browser-role.sh'
       - 'tests/install-void-dryrun-matrix.sh'
       - 'void/iso/backend/**'
       - 'tests/install-offline.sh'
@@ -94,6 +95,7 @@ on:
       - 'tests/install-dryrun-matrix.sh'
       - 'tests/install-dryrun-harness.sh'
       - 'tests/install-edition-parity.sh'
+      - 'tests/install-browser-role.sh'
       - 'tests/install-void-dryrun-matrix.sh'
       - 'void/iso/backend/**'
       - 'tests/install-offline.sh'
@@ -169,6 +171,9 @@ jobs:
         shell: bash
         run: bash tests/install-edition-parity.sh
 
+      - name: Browser role command matches the installed package
+        shell: bash
+        run: bash tests/install-browser-role.sh
 
       - name: Offline install path (no network, baked repo, refusals before the wipe)
         shell: bash

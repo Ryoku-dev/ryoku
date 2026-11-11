@@ -9,30 +9,49 @@ import QtQuick
 import inir.modules.common.functions
 import inir.services
 import inir.services.network
+import shell.services as Ryoku
 
 /**
- * Network service with nmcli.
+ * Network controls with link state from Ryoku's shared daemon topic.
  */
 Singleton {
     id: root
 
-    property bool wifi: true
-    property bool ethernet: false
+    readonly property bool wifi: simulatedLink.length > 0
+        ? simulatedLink === "wifi"
+        : Ryoku.Network.kind === "wifi"
+    readonly property bool ethernet: simulatedLink.length > 0
+        ? simulatedLink === "ethernet"
+        : Ryoku.Network.kind === "ethernet"
 
-    property bool wifiEnabled: false
+    readonly property bool wifiEnabled: simulatedLink.length > 0
+        ? simulatedLink === "wifi" || simulatedLink === "searching" || simulatedLink === "connecting"
+        : Ryoku.Network.wifiRadio
     property bool wifiScanning: false
     property bool wifiConnecting: connectProc.running
     property WifiAccessPoint wifiConnectTarget
     readonly property list<WifiAccessPoint> wifiNetworks: []
     readonly property WifiAccessPoint active: wifiNetworks.find(n => n.active) ?? null
-    property string wifiStatus: "disconnected"
+    readonly property string wifiStatus: simulatedLink.length > 0
+        ? simulatedLink === "wifi" ? "connected"
+        : simulatedLink === "connecting" ? "connecting"
+        : simulatedLink === "searching" ? "disconnected"
+        : "disabled"
+        : Ryoku.Network.wifiConnectivity === "Connected"
+        ? (Ryoku.Network.connectivity === "limited" ? "limited" : "connected")
+        : Ryoku.Network.wifiConnectivity === "Connecting" ? "connecting"
+        : wifiEnabled ? "disconnected" : "disabled"
 
-    property string networkName: ""
-    property int networkStrength
+    readonly property string networkName: simulatedLink === "wifi" ? "Simulated Wi-Fi"
+        : simulatedLink === "ethernet" ? "Simulated cable"
+        : Ryoku.Network.kind === "wifi" ? Ryoku.Network.activeSsid
+        : Ryoku.Network.kind === "ethernet" ? "Ethernet" : ""
+    property int simulatedStrength: 80
+    readonly property int networkStrength: simulatedLink === "wifi"
+        ? simulatedStrength
+        : Math.round(Ryoku.Network.level * 100)
 
-    // NetworkManager's own check: full | limited | portal | none | unknown. Unknown (no check
-    // configured, NM absent, not read yet) counts as online so nothing is hidden on a guess.
-    property string connectivity: "unknown"
+    readonly property string connectivity: Ryoku.Network.connectivity
     property string simulatedConnectivity: ""
     // `inir network simulateLink "wifi 40"` stands in for NetworkManager's link state (wifi strength, searching,
     // connecting, radio off, cable, no adapter) until `off` or a restart; the probes stop writing while it holds.
@@ -202,183 +221,26 @@ Singleton {
         }
     }
 
-    // Debounce timer for network status updates
-    Timer {
-        id: _updateDebounce
-        interval: 200
-        repeat: false
-        onTriggered: root._doUpdate()
-    }
 
-    // Status update (debounced — nmcli monitor can emit rapid bursts)
     function update() {
-        _updateDebounce.restart();
+        if (root.simulatedLink.length > 0)
+            return;
+        root.networkChanged();
+        if (!getNetworks.running)
+            getNetworks.running = true;
     }
 
     signal networkChanged()
 
-    // Actual update logic
-    function _doUpdate() {
-        if (root.simulatedLink.length > 0)
-            return;
-        root.networkChanged();
-        updateConnectionType.startCheck();
-        wifiStatusProcess.running = true
-        updateNetworkName.running = true;
-        updateNetworkStrength.running = true;
-    }
+    Component.onCompleted: Qt.callLater(() => root.update())
 
-    property bool _destroying: false
-
-    Component.onCompleted: {
-        // Kill any orphaned nmcli monitor processes from previous shell instances,
-        // then start the fresh subscriber once cleanup finishes.
-        _cleanupStale.running = true;
-        // Prime initial state once; subsequent updates come from nmcli monitor.
-        Qt.callLater(() => root.update())
-    }
-
-    Component.onDestruction: {
-        root._destroying = true;
-        subscriber.running = false;
-    }
-
-    Process {
-        id: _cleanupStale
-        command: ["pkill", "-f", "nmcli monitor"]
-        running: false
-        onExited: subscriber.running = true
-    }
-
-    Process {
-        id: subscriber
-        running: false
-        command: ["nmcli", "monitor"]
-        // Auto-restart if the monitor process dies (can happen after lockscreen/suspend)
-        onRunningChanged: if (!running && !root._destroying) running = true
-        stdout: SplitParser {
-            onRead: root.update()
-        }
-    }
-
-    Process {
-        id: updateConnectionType
-        property string buffer
-        // LANG=C: nmcli localizes device STATE ("connected" → "conectado" etc.), and the
-        // parser below matches English keywords. Without this, wifi state detection silently
-        // fails on non-English desktops — indicator shows disconnected while actually connected.
-        environment: ({
-            LANG: "C",
-            LC_ALL: "C"
-        })
-        command: ["sh", "-c", "nmcli -t -f TYPE,STATE d status && nmcli -t -f CONNECTIVITY g"]
-        running: false
-        function startCheck() {
-            buffer = "";
-            updateConnectionType.running = true;
-        }
-        stdout: SplitParser {
-            onRead: data => {
-                updateConnectionType.buffer += data + "\n";
-            }
-        }
-        onExited: (exitCode, exitStatus) => {
-            if (root.simulatedLink.length > 0)
-                return;
-            const lines = updateConnectionType.buffer.trim().split('\n');
-            const connectivity = (lines.pop() ?? "").trim()
-            let hasEthernet = false;
-            let hasWifi = false;
-            let wifiStatus = "disconnected";
-            lines.forEach(line => {
-                if (line.startsWith("ethernet:") && line.slice(9) === "connected")
-                    hasEthernet = true;
-                else if (line.includes("wifi:")) {
-                    if (line.includes("disconnected")) {
-                        wifiStatus = "disconnected"
-                    }
-                    else if (line.includes("connected")) {
-                        hasWifi = true;
-                        wifiStatus = "connected"
-
-                        if (connectivity === "limited") {
-                            hasWifi = false;
-                            wifiStatus = "limited"
-                        }
-                    }
-                    else if (line.includes("connecting")) {
-                        wifiStatus = "connecting"
-                    }
-                    else if (line.includes("unavailable")) {
-                        wifiStatus = "disabled"
-                    }
-                }
-            });
-            root.connectivity = ["full", "limited", "portal", "none"].includes(connectivity) ? connectivity : "unknown";
-            root.wifiStatus = wifiStatus;
-            root.ethernet = hasEthernet;
-            root.wifi = hasWifi;
-            // updateNetworkStrength's awk prints nothing when no AP is in use, so
-            // its SplitParser never fires and networkStrength would keep the value
-            // from the last connected AP. Clear it here instead.
-            if (wifiStatus !== "connected" && wifiStatus !== "limited")
-                root.networkStrength = 0;
-        }
-    }
-
-    Process {
-        id: updateNetworkName
-        command: ["nmcli", "-t", "-f", "NAME,TYPE", "c", "show", "--active"]
-        running: false
-        stdout: StdioCollector {
-            onStreamFinished: {
-                // A VPN is an active connection too, and it often sorts first, which used
-                // to make the bar show the VPN profile's name instead of the network's.
-                const carriers = ["802-11-wireless", "802-3-ethernet"];
-                const skipped = ["vpn", "wireguard", "tun", "tap", "bridge", "loopback"];
-                let carrier = "";
-                let fallback = "";
-                for (const line of text.split("\n")) {
-                    if (line.trim().length === 0) continue;
-                    const parts = line.replace(/\\:/g, "\u0000").split(":").map(part => part.replace(/\u0000/g, ":"));
-                    if (parts.length < 2) continue;
-                    const name = parts[0];
-                    const type = parts[parts.length - 1];
-                    if (carriers.includes(type)) { carrier = name; break; }
-                    if (fallback.length === 0 && !skipped.includes(type)) fallback = name;
-                }
-                if (root.simulatedLink.length === 0)
-                    root.networkName = carrier || fallback;
-            }
-        }
-    }
-
-    Process {
-        id: updateNetworkStrength
-        running: false
-        command: ["sh", "-c", "nmcli -f IN-USE,SIGNAL,SSID device wifi | awk '/^\\*/{if (NR!=1) {print $2}}'"]
-        stdout: SplitParser {
-            onRead: data => {
-                if (root.simulatedLink.length === 0)
-                    root.networkStrength = parseInt(data);
-            }
-        }
-    }
-
-    Process {
-        id: wifiStatusProcess
-        command: ["nmcli", "radio", "wifi"]
-        Component.onCompleted: running = true
-        environment: ({
-            LANG: "C",
-            LC_ALL: "C"
-        })
-        stdout: StdioCollector {
-            onStreamFinished: {
-                if (root.simulatedLink.length === 0)
-                    root.wifiEnabled = text.trim() === "enabled";
-            }
-        }
+    Connections {
+        target: Ryoku.Network
+        function onConnectionChanged(): void { root.update() }
+        function onWifiChanged(): void { root.update() }
+        function onWiredChanged(): void { root.update() }
+        function onVpnProfilesChanged(): void { root.update() }
+        function onWgTunnelsChanged(): void { root.update() }
     }
 
     Process {
@@ -488,13 +350,9 @@ Singleton {
                 return status();
             }
             root.simulatedLink = kind;
-            root.ethernet = kind === "ethernet";
-            root.wifiEnabled = kind === "wifi" || kind === "searching" || kind === "connecting";
-            root.wifiStatus = kind === "wifi" ? "connected" : kind === "connecting" ? "connecting"
-                : kind === "searching" ? "disconnected" : "disabled";
-            root.wifi = kind === "wifi";
-            root.networkStrength = kind === "wifi" ? Math.max(0, Math.min(100, parseInt(words[1] ?? "80") || 0)) : 0;
-            root.networkName = kind === "wifi" ? "Simulated Wi-Fi" : kind === "ethernet" ? "Simulated cable" : "";
+            root.simulatedStrength = kind === "wifi"
+                ? Math.max(0, Math.min(100, parseInt(words[1] ?? "80") || 0))
+                : 0;
             return status();
         }
     }

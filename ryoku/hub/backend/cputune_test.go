@@ -50,6 +50,11 @@ const noAspmCaps = `{
   "battery": {"chargeLimit":{"min":50,"max":100,"current":60}}
 }`
 
+const fixedChargeCaps = `{
+  "cpu": {},
+  "battery": {"chargeLimit":{"min":50,"max":100,"current":80,"options":["80","100"]}}
+}`
+
 func mustCaps(t *testing.T, s string) cpuCaps {
 	t.Helper()
 	var c cpuCaps
@@ -135,6 +140,16 @@ func TestCpuTunablesKindsUnitsSlots(t *testing.T) {
 	}
 	if s := m["chargeLimit"]; s.Min != 50 || s.Max != 100 {
 		t.Errorf("chargeLimit range = %v..%v, want 50..100", s.Min, s.Max)
+	}
+}
+
+func TestFixedChargeLimitUsesAvailableChoices(t *testing.T) {
+	tunable := byID(cpuTunables(mustCaps(t, fixedChargeCaps), profileDef{}))["chargeLimit"]
+	if tunable.Kind != "segment" || tunable.Value != "80" {
+		t.Fatalf("fixed charge limit = kind %q value %q, want segment 80", tunable.Kind, tunable.Value)
+	}
+	if len(tunable.Options) != 2 || tunable.Options[0] != "80" || tunable.Options[1] != "100" {
+		t.Errorf("fixed charge options = %v, want [80 100]", tunable.Options)
 	}
 }
 

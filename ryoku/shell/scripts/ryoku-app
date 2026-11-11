@@ -52,6 +52,7 @@ fallback() {
 }
 
 cmd=""
+stored=0
 read_role() {
 	local file="$1" query="$2"
 	[ -r "$file" ] || return 0
@@ -59,12 +60,25 @@ read_role() {
 	jq -r --arg r "$role" "$query" "$file" 2>/dev/null || true
 }
 cmd="$(read_role "$store" ".desktop.apps[\$r] // empty")"
-[ -n "$cmd" ] || cmd="$(read_role "$legacy" ".apps[\$r] // empty")"
+if [ -n "$cmd" ]; then
+	stored=1
+else
+	cmd="$(read_role "$legacy" ".apps[\$r] // empty")"
+	[ -z "$cmd" ] || stored=1
+fi
 [ -n "$cmd" ] || cmd="$(fallback "$role")"
 
 if [ -z "$cmd" ]; then
 	notify-send "Ryoku" "No app set for \"$role\". Pick one in Settings > Default Apps." 2>/dev/null || true
 	exit 1
+fi
+if (( stored )); then
+	read -r -a command_argv <<<"$cmd"
+	command_bin="${command_argv[0]:-}"
+	if [ -z "$command_bin" ] || ! command -v "$command_bin" >/dev/null 2>&1; then
+		notify-send "Ryoku" "The app set for \"$role\" is unavailable. Pick another in Settings > Default Apps." 2>/dev/null || true
+		exit 1
+	fi
 fi
 
 if [ ${#inner[@]} -eq 0 ]; then

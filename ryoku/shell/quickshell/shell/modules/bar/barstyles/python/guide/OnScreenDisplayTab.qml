@@ -6,19 +6,8 @@ import "../"
 import "../reusables"
 import "../reusables/guide"
 
-Item {
+GuideTab {
     id: osdTabRoot
-    required property var rootObj
-    required property int tabIndex
-
-    anchors.fill: parent
-    visible: rootObj.currentTab === tabIndex
-    opacity: visible ? 1.0 : 0.0
-    property real slideY: visible ? 0 : rootObj.s(10)
-
-    Behavior on slideY { NumberAnimation { duration: 250; easing.type: Easing.OutQuart } }
-    transform: Translate { y: slideY }
-    Behavior on opacity { NumberAnimation { duration: 250 } }
 
     property bool selectorOpen: false
     property bool gridEnabled: false
@@ -205,8 +194,6 @@ Item {
                             tintColor: ThemeBackend.surface0
                             tintAmount: 0.25
                         }
-                        border.width: 1
-                        border.color: Qt.alpha(ThemeBackend.surface2, 0.6)
                         clip: true
                         opacity: osdTabRoot.isCustomPos ? 1.0 : 0.0
                         visible: opacity > 0.001
@@ -292,10 +279,11 @@ Item {
                             clip: true
                             visible: implicitHeight > 0
                             opacity: isOpen ? 1.0 : 0.0
-                            implicitHeight: isOpen ? selectorBox.implicitHeight : 0
+                            property real openProgress: isOpen ? 1 : 0
+                            implicitHeight: selectorBox.implicitHeight * openProgress
 
-                            Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-                            Behavior on implicitHeight { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+                            Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                            Behavior on openProgress { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
 
                             Rectangle {
                                 id: selectorBox
@@ -314,7 +302,6 @@ Item {
                                     tintColor: Qt.alpha(ThemeBackend.surface1, 0.35)
                                     tintAmount: 0.25
                                 }
-                                border.width: 0
 
                                 ColumnLayout {
                                     id: selectorInnerCol
@@ -442,8 +429,6 @@ Item {
                                             anchors.fill: parent
                                             radius: rootObj.s(11)
                                             color: osdPreviewGlass.active ? "transparent" : ThemeBackend.base
-                                            border.width: ThemeBackend.liquidGlass ? 0 : 1
-                                            border.color: ThemeBackend.surface0
                                             clip: true
 
                                             GlassFill {
@@ -597,6 +582,7 @@ Item {
                         title: I18n.t("guide.osd.capslock.title", "Show on Caps Lock")
                         titlePixelSize: 12
                         wrapText: true
+                        stackBelowWidth: rootObj.standalone ? 560 : 0
                         titleColor: osdTabRoot.isVertical ? ThemeBackend.subtext0 : ThemeBackend.text
                         opacity: osdTabRoot.isVertical ? 0.6 : 1.0
                         Behavior on opacity { NumberAnimation { duration: 250 } }
@@ -641,6 +627,7 @@ Item {
                         title: I18n.t("guide.osd.numlock.title", "Show on Num Lock")
                         titlePixelSize: 12
                         wrapText: true
+                        stackBelowWidth: rootObj.standalone ? 560 : 0
                         titleColor: osdTabRoot.isVertical ? ThemeBackend.subtext0 : ThemeBackend.text
                         opacity: osdTabRoot.isVertical ? 0.6 : 1.0
                         Behavior on opacity { NumberAnimation { duration: 250 } }
@@ -685,6 +672,7 @@ Item {
                         title: I18n.t("guide.osd.airplane.title", "Show on Airplane Mode")
                         titlePixelSize: 12
                         wrapText: true
+                        stackBelowWidth: rootObj.standalone ? 560 : 0
                         titleColor: osdTabRoot.isVertical ? ThemeBackend.subtext0 : ThemeBackend.text
                         opacity: osdTabRoot.isVertical ? 0.6 : 1.0
                         Behavior on opacity { NumberAnimation { duration: 250 } }
@@ -738,11 +726,7 @@ Item {
                     accentColor: ThemeBackend.mauve
                     textColor: ThemeBackend.crust
                     cornerRadius: ThemeBackend.borderRadius
-                    onClicked: {
-                        if (typeof OsdController !== "undefined") {
-                            OsdController.show("volume");
-                        }
-                    }
+                    onClicked: Quickshell.execDetached(["qs", "-c", "shell", "ipc", "call", "osd", "display", "volume"])
                 }
             }
         }

@@ -12,12 +12,12 @@ BuildRequires:  findutils
 BuildRequires:  golang >= 1.26.4
 Requires:       ryoku-desktop = %{version}-%{release}
 Requires:       hyprland
-Requires:       ryoku-hypr-plugins = %{version}-%{release}
-Requires:       ryoku-keysounds = %{version}-%{release}
-Requires:       hypr-dynamic-cursors = %{version}-%{release}
-Requires:       hyprglass = %{version}-%{release}
-Requires:       hyprgrass = %{version}-%{release}
-Requires:       imgborders = %{version}-%{release}
+Recommends:     ryoku-hypr-plugins = %{version}-%{release}
+Recommends:     ryoku-keysounds = %{version}-%{release}
+Recommends:     hypr-dynamic-cursors = %{version}-%{release}
+Recommends:     hyprglass = %{version}-%{release}
+Recommends:     hyprgrass = %{version}-%{release}
+Recommends:     imgborders = %{version}-%{release}
 Requires:       hyprland-preview-share-picker = %{version}-%{release}
 Requires:       hyprpolkitagent
 Requires:       xdg-desktop-portal-hyprland

@@ -1530,16 +1530,16 @@ Item {
     // A slot's hover plate: a rounded square around the icon, the same radius on every corner, 4·d from the lane's
     // inner edge like the lane itself. The Dock's ends make room for it (dock.padding), so it never meets the curve.
     component HoverPlate: Rectangle {
-        id: plate
+        id: hoverPlate
         property real lift: 0
         property bool lit: false
         visible: !root.magnify
         width: root.plateSize
-        height: plate.width
-        radius: IrisStyle.iconRadius(plate.width)
-        x: root.edgeX(parent.width, plate.width, 4 * root.d + plate.lift)
-        y: root.edgeY(parent.height, plate.height, 4 * root.d + plate.lift)
-        color: plate.lit ? IrisStyle.fill : ColorUtils.applyAlpha(IrisStyle.text, 0)
+        height: hoverPlate.width
+        radius: IrisStyle.iconRadius(hoverPlate.width)
+        x: root.edgeX(parent.width, hoverPlate.width, 4 * root.d + hoverPlate.lift)
+        y: root.edgeY(parent.height, hoverPlate.height, 4 * root.d + hoverPlate.lift)
+        color: hoverPlate.lit ? IrisStyle.fill : ColorUtils.applyAlpha(IrisStyle.text, 0)
         Behavior on color { ColorAnimation { duration: IrisStyle.duration(120); easing.type: IrisStyle.feedbackEasing } }
     }
 }

@@ -319,6 +319,14 @@ func TestMaterializeUserEditsOverlay(t *testing.T) {
 	// the retired adopt step froze a fastfetch snapshot into the overlay; laying
 	// it back was "updates keep resetting my fastfetch".
 	writeFile(t, filepath.Join(edits, "fastfetch/config.jsonc"), "\"source\": \"frozen-2025\"\n")
+	for _, rel := range []string{
+		"fish/conf.d/ryoku-colors.fish",
+		"bash/ryoku-colors.bash",
+		"zsh/ryoku-colors.zsh",
+	} {
+		writeFile(t, filepath.Join(dest, rel), "# live palette\n")
+		writeFile(t, filepath.Join(edits, rel), "# frozen palette\n")
+	}
 
 	if err := Materialize(); err != nil {
 		t.Fatalf("materialize: %v", err)
@@ -333,6 +341,13 @@ func TestMaterializeUserEditsOverlay(t *testing.T) {
 	// the hub's in-place readout edit survives: the frozen overlay snapshot is
 	// never laid over a live-edited seed.
 	wantFile(t, filepath.Join(dest, "fastfetch/config.jsonc"), "my-remix")
+	for _, rel := range []string{
+		"fish/conf.d/ryoku-colors.fish",
+		"bash/ryoku-colors.bash",
+		"zsh/ryoku-colors.zsh",
+	} {
+		wantFile(t, filepath.Join(dest, rel), "live palette")
+	}
 
 	// a later base changes the forked file: the fork still wins (the user owns it).
 	writeFile(t, filepath.Join(base, "hypr/modules/binds.lua"), "-- base binds v2 (a fix)\n")

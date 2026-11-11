@@ -10,17 +10,7 @@ import (
 	i18n "ryoku-i18n"
 )
 
-// ---- reconciler: NVIDIA-first render pin on an iGPU-panel laptop -------------
-//
-// ryoku-gpu pins the strongest GPU leftmost in AQ_DRM_DEVICES, which on a
-// hybrid laptop means Hyprland renders on the dGPU and scans out through the
-// iGPU's panel (reverse PRIME). On some kernel/driver combinations the very
-// first cross-GPU commit of a session fails once ("amdgpu: Not enough memory
-// for command submission"), leaving a live compositor with a black panel until
-// reboot (#270). Clearing the pin makes it disappear, so the pin is part of the
-// recipe; it is also deliberate Ryoku policy on every multi-GPU machine, so
-// this reconciler never touches it. It names the combination and the two ways
-// out, so a black-panel report carries its own suspect.
+// A legacy or forced dGPU-first pin can black-screen an iGPU-owned panel.
 
 // drmRoot is the sysfs DRM tree the panel and driver reads use; a var so the
 // detection is unit-tested against a fixture.
@@ -108,7 +98,7 @@ func reconcileRenderPinPanel(checkOnly bool) recResult {
 	if !renderPinPanelRisk(isLaptop(), panel, pin) {
 		return okRes(i18n.T("no NVIDIA-first render pin over a non-NVIDIA panel"))
 	}
-	_ = checkOnly // report-only: the pin is deliberate policy, never auto-changed
-	return noteRes(i18n.T("render pin puts NVIDIA first while the panel is driven by %s (reverse PRIME); on some kernels the session's first cross-GPU commit fails once and the panel stays black until reboot (#270)"), panel).
-		withFix(i18n.T("if a boot or wake ever lands on a black panel: `ryoku-gpu disable` clears the pin (Hyprland then picks the iGPU itself); `ryoku-gpu persist` restores the pin"))
+	_ = checkOnly // the GPU-pin reconciler owns repair; this check adds diagnosis
+	return noteRes(i18n.T("render pin puts NVIDIA first while the panel is driven by %s (reverse PRIME); this can leave the panel black at login or after DPMS (#270)"), panel).
+		withFix(i18n.T("use `ryoku-gpu mode hybrid`; Performance is available after a hardware MUX routes the panel to the dGPU"))
 }

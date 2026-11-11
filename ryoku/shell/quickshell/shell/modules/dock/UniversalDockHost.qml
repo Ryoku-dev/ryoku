@@ -115,6 +115,7 @@ Item {
                 screen: root.screen
                 surfaceVisible: root.surfaceVisible
                 stageEditing: root.stageEditing
+                frameReserves: Config.barStyle === "iris"
             }
         }
     }

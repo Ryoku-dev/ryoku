@@ -12,7 +12,9 @@ import shell.services
 // keyboard drive the same selection. Rows are plain JS objects:
 //   { section: "Asks" }                    a header
 //   { label, sub, active, value, ... }     a selectable row
-// The drawer echoes the picked row back through `activated`.
+//   { ..., renamable: true }               shows a pencil that edits the label
+// The drawer echoes the picked row back through `activated`, and a finished
+// rename through `renamed`; renaming is the one time the drawer takes focus.
 Rectangle {
     id: drawer
 
@@ -23,11 +25,15 @@ Rectangle {
     property real maxHeight: 260 * s
     readonly property bool motionAllowed: !Tokens.reduceMotion && !Motion.reduce
     property int current: 0
+    // The value of the row whose label is being edited, "" when none.
+    property string editingValue: ""
     readonly property var selectable: rows.filter(r => !r.section && r.disabled !== true)
     // The natural (unclipped) height, so the owner can reserve room for it.
     readonly property real naturalHeight: contentColumn.implicitHeight + Tokens.s3 * s * 2
 
     signal activated(var row)
+    signal renamed(var row, string title)
+    signal editFinished()
 
     width: parent.width
     height: open ? Math.min(maxHeight, contentColumn.implicitHeight + Tokens.s3 * s * 2) : 0
@@ -55,7 +61,31 @@ Rectangle {
         NumberAnimation { duration: Tokens.move; easing.type: Easing.OutBack }
     }
 
-    onOpenChanged: if (open) selectFirstActive()
+    onOpenChanged: {
+        if (open)
+            selectFirstActive();
+        else
+            cancelRename();
+    }
+
+    function startRename(row) {
+        editingValue = String(row.value || "");
+    }
+
+    function finishRename(row, title) {
+        editingValue = "";
+        const name = String(title || "").trim();
+        if (name.length > 0 && name !== String(row.label || ""))
+            renamed(row, name);
+        editFinished();
+    }
+
+    function cancelRename() {
+        if (editingValue.length === 0)
+            return;
+        editingValue = "";
+        editFinished();
+    }
     onSelectableChanged: current = Math.max(0, Math.min(current, selectable.length - 1))
 
     function selectFirstActive() {
@@ -112,6 +142,9 @@ Rectangle {
                         return n;
                     }
                     readonly property bool selected: !isSection && !isDisabled && ordinal === drawer.current
+                    readonly property bool renamable: !isSection && !isDisabled && modelData.renamable === true
+                    readonly property bool editing: renamable && drawer.editingValue.length > 0
+                        && String(modelData.value || "") === drawer.editingValue
 
                     width: contentColumn.width
                     height: isSection ? sectionColumn.implicitHeight : 44 * drawer.s
@@ -155,9 +188,11 @@ Rectangle {
 
                             Column {
                                 width: parent.width - check.width - parent.spacing
+                                    - (editBtn.visible ? editBtn.width + parent.spacing : 0)
                                 anchors.verticalCenter: parent.verticalCenter
                                 spacing: Tokens.s1 * drawer.s / 2
                                 Text {
+                                    visible: !row.editing
                                     width: parent.width
                                     text: String(row.modelData.label || "")
                                     color: row.isDisabled ? Tokens.inkMuted
@@ -166,6 +201,31 @@ Rectangle {
                                     font.pixelSize: Tokens.fSmall * drawer.s
                                     font.weight: row.modelData.active ? Font.DemiBold : Font.Normal
                                     elide: Text.ElideRight
+                                }
+                                TextInput {
+                                    id: renameInput
+                                    visible: row.editing
+                                    width: parent.width
+                                    color: row.selected ? Tokens.inkOnBone : Tokens.ink
+                                    selectionColor: Tokens.tint16
+                                    selectedTextColor: color
+                                    font.family: Tokens.ui
+                                    font.pixelSize: Tokens.fSmall * drawer.s
+                                    font.weight: Font.DemiBold
+                                    clip: true
+                                    onVisibleChanged: {
+                                        if (!visible)
+                                            return;
+                                        text = String(row.modelData.label || "");
+                                        selectAll();
+                                        forceActiveFocus();
+                                    }
+                                    onAccepted: drawer.finishRename(row.modelData, text)
+                                    onActiveFocusChanged: if (!activeFocus && row.editing) drawer.cancelRename()
+                                    Keys.onEscapePressed: event => {
+                                        event.accepted = true;
+                                        drawer.cancelRename();
+                                    }
                                 }
                                 Text {
                                     visible: String(row.modelData.sub || "").length > 0
@@ -177,6 +237,18 @@ Rectangle {
                                     font.pixelSize: Tokens.fTiny * drawer.s
                                     elide: Text.ElideRight
                                 }
+                            }
+                            Text {
+                                id: editBtn
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: row.renamable && !row.editing
+                                opacity: row.selected || rowHover.hovered ? 1 : 0
+                                text: "edit"
+                                color: row.selected ? Tokens.inkOnBone : Tokens.inkDim
+                                font.family: "Material Symbols Rounded"
+                                font.pixelSize: Tokens.fBody * drawer.s
+                                Accessible.role: Accessible.Button
+                                Accessible.name: I18n.tr("Rename")
                             }
                             Text {
                                 id: check
@@ -195,11 +267,15 @@ Rectangle {
                             onHoveredChanged: if (hovered) drawer.current = row.ordinal
                         }
                         TapHandler {
-                            enabled: !row.isDisabled
+                            enabled: !row.isDisabled && !row.editing
                             id: rowTap
-                            onTapped: {
+                            onTapped: eventPoint => {
                                 drawer.current = row.ordinal;
-                                drawer.activated(row.modelData);
+                                const p = editBtn.mapFromItem(rowTap.parent, eventPoint.position);
+                                if (editBtn.visible && editBtn.contains(p))
+                                    drawer.startRename(row.modelData);
+                                else
+                                    drawer.activated(row.modelData);
                             }
                         }
                     }

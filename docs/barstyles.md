@@ -36,6 +36,13 @@ reads the desktop only through the window-manager seam and the daemon's
 settings topic, so it runs on every compositor Ryoku supports.
 Store-installed styles land under the same folder contract.
 
+The store-installed **Caelestia** style is another frame family. Version 2.0.0
+tracks Caelestia shell commit `b51fdb3` and carries its bar, popouts, dashboard,
+launcher, session menu, sidebar, notification banners, OSD, utilities, lyrics
+and Nexus settings in plain QML. Ryoku still owns screenshots, wallpaper,
+locking and desktop widget placement. Its desktop clock and background
+visualiser stay out until Stage has a store face registration contract.
+
 ## Resource cost
 
 Orpheus and Kairos are the optimized styles: their music paths, cards and idle
@@ -110,8 +117,11 @@ cover media, weather, notifications grouped by app, tray menus, power, system,
 and session. Right-click empty bar space to open Controls.
 
 Left-click the 力 logo to open settings, and right-click it to open the
-launcher. The settings pages are Bar, Layout, Modules, Sound, and About. A choice
-applies at once and is written through the shell daemon; the foot of the
+launcher. Ryoku Hub > Bar Studio has an OPEN ORPHEUS SETTINGS button.
+`qs -c shell ipc call orpheus settings <page|close>` does the same from a
+keybind or script; pass `""` to open the default Bar page. The settings pages
+are Bar, Layout, Modules, Sound, and About. A choice applies at once and is
+written through the shell daemon; the foot of the
 settings rail reads Saved, Saving, or Not saved, and hovering Not saved shows
 why. On Layout, drag a module between the left, centre, and right lanes, or into
 Not shown to remove it; click a hidden module to add it back, or right-click a
@@ -127,6 +137,8 @@ power. Auto-hide can be `off`, `smart`, or `always`; smart hides the bar while
 the current workspace has windows, and touching the top edge brings it back. AI
 usage, Phone and VPN are available in the Layout editor but stay out of the
 default layout.
+When shown, AI usage marks a pace trend beside the five-hour total and lists
+five-hour and weekly pace details in its tooltip when reset times are available.
 
 Its settings use the `orpheus` namespace in `shell.json`:
 
@@ -162,6 +174,7 @@ Its settings use the `orpheus` namespace in `shell.json`:
 | `trayLimit` | `3` to `12` | `6` | Set the visible tray item limit. |
 | `statusItems` | subset of `wifi`, `bluetooth`, `volume`, `mic` | all four | Choose the icons in the Controls module. |
 | `aiTools` | subset of `claude`, `codex`, `opencode` | all three | Choose which coding agents the AI usage module counts. Modules page, AI usage. An empty list hides the module. |
+| `aiAlertAt` | `50` to `100` | `80` | Share of a window at which the AI usage icon turns to the alert colour. |
 
 The name is Orpheus, the musician of Greek myth whose lyre moved rivers and
 stones. Made by neur0map.
@@ -759,6 +772,57 @@ snapshots the keys and applies them live. A folder style usually ships its own
 settings surface instead, the way QS Bar carries **QS Bar Settings** (see below).
 A style with no settings omits all of this.
 
+## What a style may own
+
+Desktop-wide shortcuts stay with Ryoku under every style:
+
+| Key | Ryoku surface |
+|---|---|
+| Super+Space | the launcher selected in Ryoku Settings |
+| Super+V | clipboard history |
+| Super+comma | Ryoku Settings |
+| Super+Escape | the quick-settings sidebar |
+| Alt+Space | Rashin Ask |
+
+Styles may still substitute their notification banners and volume/brightness
+feedback while active. `Config.qml` keeps those presentation-only gates:
+
+| Style surface | Gate | Falls back to |
+|---|---|---|
+| notification banners | `styleOwnsBanners` | the shell's notification column |
+| volume and brightness OSD | `styleOwnsFeedback` | the shell's OSD |
+
+A bar may still open its own settings or other local features from controls on
+the bar. It may not redirect these desktop shortcuts. The selected launcher is
+read from `launcher.json`, so Python and Spotlight open from Super+Space only
+when the user selects them on Ryoku Settings' App Launcher page.
+
+Every compositor dispatches launcher, clipboard and settings through
+`ryoku-shell`; the shell resolves them to Ryoku's resident surfaces. Shima's
+shortcuts sheet is the one style-specific keyboard substitute because it adds
+features Kit does not have:
+
+```qml
+Connections {
+    target: ShellState
+    function onSurfaceRequested(id, mon, ctx) {
+        if (id === "cheatsheet")
+            GlobalStates.cheatsheetOpen = !GlobalStates.cheatsheetOpen
+    }
+}
+```
+
+### Shima surfaces
+
+Super+K opens Shima's shortcuts sheet while `iris` is active. The sheet is
+populated from Ryoku's active keybind catalogue; every other style opens Kit.
+
+Run `ryoku-shell tools` to open Shima's floating tools. There is no default
+chord; the same entry is listed as **Floating tools** in Spotlight. The tray
+offers notes, images, a crosshair, resource and game views, a volume mixer, an
+FPS limiter, Discord controls and notifications. Screen recording remains in
+Ryoku's capture workflow.
+
 ## QS Bar Settings
 
 QS Bar carries its own settings panel, **QS Bar Settings** (`controlcenter/`), the
@@ -815,23 +879,39 @@ never replaces Ryoku Settings.
 
 ## Python Settings
 
-Python tracks Serpantinum past 2.2.12 (commit `cfdd810`). Open its guide from the bar's gear pill or
-with `qs -c shell ipc call main handleCommand toggle guide`. The guide controls
-bar layout, module faces, theme, OSD, notifications, quick actions, media
-presentation and wellbeing views. It writes the `python` key in `shell.json`
-through the shell daemon and applies changes live. Bar Studio's
-**OPEN PYTHON SETTINGS** button routes to the same guide.
+Python tracks Serpantinum 2.3.1 (commit `3619689`). Open its guide from the
+bar's gear pill, with Super+comma, or with `qs -c shell ipc call main
+handleCommand toggle guide`. The same searchable, keyboard-navigable settings
+UI can run as a standalone window. It controls bar layout, module faces, theme,
+OSD, notifications, quick actions, media presentation and wellbeing views,
+writes the `python` key in `shell.json` through the shell daemon, and applies
+changes live. Bar Studio's **OPEN PYTHON SETTINGS** button routes there too.
 
-The port uses Serpantinum's orientation-aware module registry. Top,
-bottom and side bars share module definitions while choosing the appropriate
-face. New settings include bar thickness, edge-aware centering, music channel
-balance and the expanded face choices. Existing `python.*` settings remain
-valid.
+The port uses Serpantinum's orientation-aware module registry. Top, bottom and
+side bars share module definitions while choosing the appropriate face. It
+includes Serpantinum's clock variants, calculator, unit and currency
+converters, launcher web search, notes, app-limit views, widget undo and redo,
+shared media watchers and the 2.3.1 media, lyrics and blue-light fixes.
+Existing `python.*` settings remain valid.
 
-What stays Ryoku's while Python is the bar: the app launcher (Super+Space), the
-clipboard history, the wallpaper picker (Super+W, Ryogami), the lock screen,
-screen capture, updates, notification server, idle service and desktop widget
-host. The bar's buttons hand over to those surfaces. Python still draws its
+The media module carries Serpantinum's later **Hide when nothing is playing**
+option (`python.bar.mediaHideWhenIdle`, upstream `b4e470a`). Ryoku adds two
+more under the same guide cards: **Fit to the track** (`mediaFitWidth`) sizes
+the title area to the longer of the title and second line, capped at the
+module's width, and the visualizer's **Hide when nothing is playing**
+(`visHideWhenIdle`) removes it from the bar and stops its audio feed while no
+player is active. All three default off.
+
+Python draws its own Serpantinum launcher, clipboard and settings surfaces.
+The launcher reads Ryoku's application catalogue and routes web, calculator
+and converter results without starting Serpantinum services. The clipboard
+reads and mutates Ryoku's daemon-backed history, and the Serpantinum-styled
+policy prompt presents requests from Ryoku's single policy agent.
+
+What stays Ryoku's while Python is the bar: the wallpaper picker (Super+W,
+Ryogami), qylock, screen capture and recording, updates, quick settings
+(Super+Escape), notification server, idle service, universal dock and desktop
+widget host. Their bar buttons keep using Ryoku's verbs. Python still draws its
 ported notification banners and OSD while active; switching
 `python.general.notifications` or `python.general.osd` off returns those roles
 to Ryoku.

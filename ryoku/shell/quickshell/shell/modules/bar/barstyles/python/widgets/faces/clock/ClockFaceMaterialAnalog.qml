@@ -62,7 +62,7 @@ Item {
             id: headAnim
             target: root
             property: "secondHeadAngle"
-            duration: 320
+            duration: 250
             easing.type: Easing.OutCubic
         }
 
@@ -72,7 +72,7 @@ Item {
                 id: tailAnim
                 target: root
                 property: "secondTailAngle"
-                duration: 320
+                duration: 250
                 easing.type: Easing.OutCubic
             }
         }
@@ -83,49 +83,22 @@ Item {
         }
     }
 
-    function nextTickMs(d) {
-        if (root.showSeconds)
-            return Math.max(20, 1000 - d.getMilliseconds());
-        return Math.max(500, (60 - d.getSeconds()) * 1000 - d.getMilliseconds());
-    }
-
     Timer {
         id: clockTimer
-        interval: root.nextTickMs(new Date())
+        interval: Math.max(20, 1000 - (new Date()).getMilliseconds())
         running: root.visible
         repeat: true
+        triggeredOnStart: true
         onTriggered: {
             var now = new Date();
             root.currentTime = now;
-            if (root.showSeconds) {
-                var sec = now.getSeconds();
-                if (sec !== root.lastSecond) {
-                    root.lastSecond = sec;
-                    root.morphSecond(sec);
-                }
+            var sec = now.getSeconds();
+            if (sec !== root.lastSecond) {
+                root.lastSecond = sec;
+                root.morphSecond(sec);
             }
-            interval = root.nextTickMs(now);
+            interval = Math.max(20, 1000 - now.getMilliseconds());
         }
-    }
-
-    onVisibleChanged: {
-        if (root.visible) {
-            var now = new Date();
-            root.currentTime = now;
-            clockTimer.interval = root.nextTickMs(now);
-            clockTimer.restart();
-        }
-    }
-
-    onShowSecondsChanged: {
-        var now = new Date();
-        root.currentTime = now;
-        root.lastSecond = now.getSeconds();
-        root.secondHeadAngle = root.lastSecond * 6;
-        root.secondTailAngle = root.secondHeadAngle;
-        clockTimer.interval = root.nextTickMs(now);
-        if (root.visible)
-            clockTimer.restart();
     }
 
     Component.onCompleted: {
@@ -213,7 +186,7 @@ Item {
             property color indicatorColor: root.indicatorColor
             property vector4d params: Qt.vector4d(0.0, 0.0, 0.0, 0.0)
 
-            fragmentShader: "file://" + Caching.assetsPath + "/shaders/gauges/clock_second_arc.frag.qsb"
+            fragmentShader: "file://" + Caching.payloadDir + "/assets/shaders/gauges/clock_second_arc.frag.qsb"
         }
 
         Item {
@@ -224,7 +197,7 @@ Item {
 
             Behavior on rotation {
                 RotationAnimation {
-                    duration: 350
+                    duration: 400
                     direction: RotationAnimation.Clockwise
                     easing.type: Easing.OutCubic
                 }
@@ -250,7 +223,7 @@ Item {
 
             Behavior on rotation {
                 RotationAnimation {
-                    duration: 350
+                    duration: 400
                     direction: RotationAnimation.Clockwise
                     easing.type: Easing.OutCubic
                 }

@@ -79,7 +79,7 @@ Item {
                 opacity: root.isRecording ? 1.0 : 0.0
                 Behavior on opacity {
                     enabled: barWindow ? !barWindow.positionChanging : true
-                    NumberAnimation { duration: 300 }
+                    NumberAnimation { duration: 250 }
                 }
 
                 Rectangle {

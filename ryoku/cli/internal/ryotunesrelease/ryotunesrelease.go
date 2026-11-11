@@ -8,7 +8,10 @@
 // package when Doctor is reconciling a managed Arch desktop.
 //
 // All operations are context-bounded. Installation resolves the release fresh,
-// verifies its checksum and package metadata, and never downgrades.
+// verifies its checksum and package metadata, and never downgrades. Only the
+// Ryotunes 1.x line is followed; Ryotunes 2 releases in the same repo are not
+// for this Ryoku line, and with no 1.x release listed the installed build stays
+// and ErrNoRelease is returned.
 package ryotunesrelease
 
 import (

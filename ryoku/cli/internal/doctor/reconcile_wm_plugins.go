@@ -72,8 +72,9 @@ var gatherWmPlugins = func() wmPluginState {
 
 // repairWmPlugins rebuilds the stale enabled plugins through the provider and
 // reports which ones the builder could not.
-var repairWmPlugins = func() (map[string]string, error) {
-	out, err := wm.Open().Plugins("rebuild", "--stale")
+var repairWmPlugins = func(ids []string) (map[string]string, error) {
+	args := append([]string{"rebuild", "--stale"}, ids...)
+	out, err := wm.Open().Plugins(args...)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +88,7 @@ var repairWmPlugins = func() (map[string]string, error) {
 }
 
 // planWmPlugins turns observed state into a result. pure.
-func planWmPlugins(s wmPluginState, checkOnly bool, repair func() (map[string]string, error)) recResult {
+func planWmPlugins(s wmPluginState, checkOnly bool, repair func([]string) (map[string]string, error)) recResult {
 	if !s.capable {
 		return okRes(i18n.T("the window manager has no plugin support"))
 	}
@@ -113,7 +114,7 @@ func planWmPlugins(s wmPluginState, checkOnly bool, repair func() (map[string]st
 		return wouldRes(i18n.T("enabled plugin(s) built for another compositor build: %s"), list).
 			withFix(i18n.T("ryoku doctor rebuilds them through the provider"))
 	}
-	failed, err := repair()
+	failed, err := repair(s.stale)
 	if err != nil {
 		return failRes(i18n.T("could not rebuild plugins (%s): %v"), list, err).
 			withFix(i18n.T("open Settings > Plugins and use Rebuild, which shows the build log"))

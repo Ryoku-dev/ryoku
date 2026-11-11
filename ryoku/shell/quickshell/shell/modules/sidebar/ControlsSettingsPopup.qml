@@ -16,17 +16,22 @@ QQC.Popup {
     readonly property bool motionAllowed: !Tokens.reduceMotion && !Motion.reduce
     readonly property var pluginCards: pluginHost.cards()
     readonly property real preferredWidth: (Tokens.railW + Tokens.s6) * s
-    readonly property real hostWidth: parent && parent.width > 0 ? parent.width : preferredWidth
-    readonly property real hostHeight: parent && parent.height > 0 ? parent.height : implicitHeight
+    // the popup is parented to the controls bar, so the window overlay bounds it
+    readonly property Item host: QQC.Overlay.overlay
+    readonly property real hostWidth: host && host.width > 0 ? host.width : preferredWidth
+    readonly property real hostHeight: host && host.height > 0 ? host.height : implicitHeight
+    property real maxHeight: hostHeight
 
     width: Math.max(1, Math.min(preferredWidth, hostWidth))
     implicitHeight: content.implicitHeight + topPadding + bottomPadding
-    height: Math.max(1, Math.min(implicitHeight, hostHeight))
+    height: Math.max(1, Math.min(implicitHeight, maxHeight))
     padding: Math.min(Tokens.s4 * s, width / 4)
     modal: false
     focus: true
     transformOrigin: Item.BottomRight
-    closePolicy: QQC.Popup.CloseOnEscape | QQC.Popup.CloseOnPressOutside
+    // a press on the controls bar, its gear included, is inside the parent, so the
+    // gear closes the popup instead of the press closing it and the click reopening it
+    closePolicy: QQC.Popup.CloseOnEscape | QQC.Popup.CloseOnPressOutside | QQC.Popup.CloseOnPressOutsideParent
 
     function openHub(section): void {
         root.close();
