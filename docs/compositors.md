@@ -105,6 +105,14 @@ in `caps` instead of shipping a verb that would fail. Wayfire loads plugins --
 the baseline runs `depthdeck`, the deck itself -- but its provider does not
 answer the verb, so it too says nothing in `caps`.
 
+niri adds `nest <dir> <width>x<height>` and claims `nestedSession` for it: a
+hidden niri inside a headless weston, with `dir` as its runtime dir and a config
+of its own, so none of its sockets, apps or settings meet the user's session.
+It prints `{"display":"wayland-N"}` once the nested session is up and stops it
+when stdin closes or on a signal. Rashin runs it through `ryoku wm nest` to give
+an agent a screen of its own, which it drives with a virtual pointer and
+keyboard and reads with screencopy.
+
 ## Capabilities
 
 A capability is a promise the provider keeps in `act` or `apply`. Claiming one
@@ -135,8 +143,8 @@ Hyprland only:
 
 niri only:
 
-    columnFill  keyboardGrabSharesPointer  nativeOverview  overviewBackdrop
-    overviewState
+    columnFill  keyboardGrabSharesPointer  nativeOverview  nestedSession
+    overviewBackdrop  overviewState
 
 wayfire only:
 
@@ -202,6 +210,10 @@ that change what a user sees:
   query for its resolved workspace animation, so the live-draw overlay keeps
   its built-in curve there and matches the compositor's own slide only on
   Hyprland.
+- **`nestedSession`** is niri's alone. Hyprland cannot open inside the headless
+  weston a nest starts on, because its backend needs a newer `wl_compositor`
+  than weston offers, and wayfire has no nest verb, so Rashin offers agents no
+  screen on either.
 
 `nightLight` is the one shared capability the desktop drives through named
 actions rather than a settings row:

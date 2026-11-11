@@ -64,6 +64,9 @@ import (
 // CapSystemLidEdgeSource: switch devices reach wayfire's internal switch
 // signal, but neither command activators nor ipc-rules expose that signal. The
 // shared clamshell owner therefore supplies the ordered physical edges.
+//
+// CapNestedSession: this provider has no nest verb, so nothing can ask it
+// for a hidden session.
 var capsManifest = []wm.Capability{
 	wm.CapWorkspaces,
 	wm.CapWorkspaceMoveToOutput,

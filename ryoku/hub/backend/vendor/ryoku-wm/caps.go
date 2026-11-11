@@ -108,6 +108,13 @@ const (
 	// clamshell owner then watches physical state and routes both edges through
 	// the neutral output action.
 	CapSystemLidEdgeSource Capability = "systemLidEdgeSource"
+	// CapNestedSession is set when the provider can run a session of its
+	// compositor inside a hidden parent through the nest verb: a screen of
+	// its own for a program such as an agent that drives apps, which the
+	// user's desktop never shows and the program's input never leaves. The
+	// session must take virtual pointer and keyboard input and answer
+	// wlr-screencopy, so a caller can drive it and see it.
+	CapNestedSession Capability = "nestedSession"
 )
 
 // All is every capability, so a caps payload can carry an explicit boolean for
@@ -125,7 +132,7 @@ func All() []Capability {
 		CapOutputHdr, CapWindowFloat,
 		CapTiledLayout, CapColumnFill, CapDeckLayout, CapSessionExit, CapNightLight,
 		CapTouchpadToggle, CapPaletteBorder, CapPersistentScreenCapture,
-		CapKeyboardGrabSharesPointer, CapSystemLidEdgeSource,
+		CapKeyboardGrabSharesPointer, CapSystemLidEdgeSource, CapNestedSession,
 	}
 }
 

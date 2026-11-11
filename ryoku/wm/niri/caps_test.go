@@ -108,3 +108,13 @@ func TestServesNoForeignShellAPIs(t *testing.T) {
 		t.Fatalf("foreign APIs = %v, want none", foreignAPIs)
 	}
 }
+
+// nest runs a hidden niri inside a headless weston, and niri there takes
+// virtual input and screencopy like on the desktop, so an agent can be given
+// a screen of its own.
+func TestClaimsNestedSession(t *testing.T) {
+	c := wm.Caps{Supports: capsManifest}
+	if !c.Has(wm.CapNestedSession) {
+		t.Error("niri implements the nest verb; the manifest must say so")
+	}
+}

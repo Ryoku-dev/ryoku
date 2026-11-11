@@ -71,6 +71,9 @@ var capsManifest = []wm.Capability{
 	// niri routes the pointer by input region whatever holds the keyboard, so
 	// an exclusive grab leaves every other surface clickable.
 	wm.CapKeyboardGrabSharesPointer,
+	// nest runs niri inside a headless weston; niri takes virtual pointer and
+	// keyboard input and answers wlr-screencopy there as on a desktop.
+	wm.CapNestedSession,
 }
 
 // windowRuleActions are the neutral window-rule action ids niri's config writer

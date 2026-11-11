@@ -61,6 +61,8 @@ func main() {
 		err = runImportVerb(os.Args[2:])
 	case "environment":
 		err = runEnvironment(os.Args[2:])
+	case "nest":
+		err = runNest(os.Args[2:])
 	case "-h", "--help", "help":
 		usage()
 	default:
@@ -92,6 +94,8 @@ func usage() {
   import metadata|scan <source>
                    describe or scan a foreign config tree for the Hub
   environment <pid> export this provider's session handle (NUL-delimited)
+  nest <dir> <width>x<height>
+                   run a hidden nested session in dir until stdin closes
 
 Consumers should go through wm.Client rather than exec this directly.
 `)

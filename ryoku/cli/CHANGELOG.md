@@ -1,6 +1,11 @@
 # Ryoku CLI Changelog
 
 ## Unreleased
+- **`ryoku wm nest <dir> <width>x<height>` starts a hidden session.** It runs
+  the compositor provider's nest verb where the provider claims
+  `nestedSession` (niri), printing the nested display once it is up and
+  ending it when stdin closes; Rashin gives an agent its screen this way
+  (`wm.go`).
 - **The Ryoku vault now works without Rashin.** `ryoku vault` refreshes the
   machine map, migrates Rashin 1 notes and wires installed coding harnesses.
 - **Doctor follows Rashin's opt-in setting without turning it on.** It enables

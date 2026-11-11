@@ -18,6 +18,10 @@ import (
 // CapKeyboardGrabSharesPointer is absent because a layer surface holding
 // exclusive keyboard focus also takes every pointer event, wherever the pointer
 // is, so no other surface can be clicked until the grab ends.
+//
+// CapNestedSession is absent because Hyprland cannot open inside the headless
+// weston a nested session runs on: its backend needs wl_compositor version 6,
+// and weston offers 5.
 var foreignAPIs = []wm.ForeignAPI{
 	wm.ForeignAPIHyprctl,
 	wm.ForeignAPIHyprlandIPC,

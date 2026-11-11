@@ -60,7 +60,8 @@ Singleton {
         paletteBorder: false,
         persistentScreenCapture: false,
         keyboardGrabSharesPointer: false,
-        systemLidEdgeSource: false
+        systemLidEdgeSource: false,
+        nestedSession: false
     })
     property var _caps: root.emptyCaps
     property string _workspaceModel: "fixed"

@@ -119,3 +119,12 @@ func foreignAPINames(apis []wm.ForeignAPI) []string {
 	}
 	return names
 }
+
+// Hyprland cannot run inside the headless weston a nest starts on, so no
+// program may be promised a hidden session here.
+func TestDeniesNestedSession(t *testing.T) {
+	c := wm.Caps{Supports: capsManifest}
+	if c.Has(wm.CapNestedSession) {
+		t.Error("Hyprland has no nest verb; the manifest must not claim nested sessions")
+	}
+}

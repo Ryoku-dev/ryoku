@@ -6,9 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"ryoku-cli/internal/doctor"
@@ -44,6 +47,8 @@ func cmdWm(args []string) {
 		cmdWmAct(args[1:])
 	case "session":
 		cmdWmSession()
+	case "nest":
+		cmdWmNest(args[1:])
 	case "handles":
 		cmdWmHandles()
 	case "config":
@@ -60,6 +65,7 @@ func cmdWm(args []string) {
 func wmUsage() {
 	fmt.Print(i18n.T("Usage: ryoku wm <command>\n\n  status            print the detected provider, its capabilities and workspace model\n  caps              print the active provider's capability manifest (JSON)\n  compat <dir>      check a plugin directory against the active provider (JSON)\n  state             print the active provider's current state (JSON)\n  config [name]     print a provider's config dir and the files it owns (JSON)\n  reset-paths       print the config files a factory reset clears (one path per line)\n  handles           print the session IPC handle variables (one per line)\n  use <name>        preview and switch to another compositor (installs its package)\n  act <id> [args]   dispatch a window-manager action through the provider\n  session           print the provider's wayland-session desktop entry\n"))
 	fmt.Print(i18n.T("  outputs <file>    apply and persist a neutral output layout (JSON)\n"))
+	fmt.Print(i18n.T("  nest <dir> <w>x<h> run a hidden session of the compositor, a screen for a program\n"))
 }
 
 func cmdWmStatus() {
@@ -188,6 +194,32 @@ func cmdWmAct(args []string) {
 		os.Exit(4)
 	}
 	os.Exit(1)
+}
+
+// cmdWmNest becomes the provider's nest verb: a hidden session of the running
+// compositor for a program that needs a screen of its own. Exec rather than a
+// child, so the caller's signals and stdin reach the provider directly.
+func cmdWmNest(args []string) {
+	if len(args) != 2 {
+		die("usage: ryoku wm nest <dir> <width>x<height>")
+	}
+	w, h, ok := strings.Cut(args[1], "x")
+	width, widthErr := strconv.Atoi(w)
+	height, heightErr := strconv.Atoi(h)
+	if !ok || widthErr != nil || heightErr != nil {
+		die("usage: ryoku wm nest <dir> <width>x<height>")
+	}
+	ctx, cancel := wmCallContext()
+	argv, err := wm.Open().NestArgv(ctx, args[0], width, height)
+	cancel()
+	if err != nil {
+		die("%v", err)
+	}
+	path, err := exec.LookPath(argv[0])
+	if err != nil {
+		die("%v", err)
+	}
+	die("%v", syscall.Exec(path, argv, os.Environ()))
 }
 
 // cmdWmSession writes the provider's wayland-session desktop entry verbatim, and

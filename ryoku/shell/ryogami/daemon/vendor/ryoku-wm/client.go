@@ -130,6 +130,25 @@ func (c *Client) CanContext(ctx context.Context, want Capability) bool {
 	return caps.Has(want)
 }
 
+// NestArgv is the provider command that runs a nested session of this
+// compositor in dir at width by height, for a caller that owns the process:
+// it prints {"display":"<socket>"} once the session takes clients and lasts
+// until its stdin closes or it is signalled. Checked against
+// CapNestedSession, so a compositor that cannot nest is a typed error.
+func (c *Client) NestArgv(ctx context.Context, dir string, width, height int) ([]string, error) {
+	if c.bin == "" {
+		return nil, ErrNoProvider
+	}
+	caps, err := c.CapsContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !caps.Has(CapNestedSession) {
+		return nil, fmt.Errorf("%w: %s", ErrUnsupported, CapNestedSession)
+	}
+	return []string{c.bin, "nest", dir, fmt.Sprintf("%dx%d", width, height)}, nil
+}
+
 // Act checks the capability first, so an unsupported action is a typed error
 // rather than a fork that exits zero having done nothing.
 func (c *Client) Act(a Action, args ...string) error {

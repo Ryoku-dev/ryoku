@@ -168,3 +168,11 @@ func TestDeniesWorkspaceSlideStyle(t *testing.T) {
 		t.Error("wayfire cannot report its workspace animation; the manifest must not claim it")
 	}
 }
+
+// Without a nest verb nothing may be promised a hidden session here.
+func TestDeniesNestedSession(t *testing.T) {
+	c := wm.Caps{Supports: capsManifest}
+	if c.Has(wm.CapNestedSession) {
+		t.Error("wayfire has no nest verb; the manifest must not claim nested sessions")
+	}
+}
