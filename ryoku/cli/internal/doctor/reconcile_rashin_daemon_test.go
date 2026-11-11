@@ -75,6 +75,16 @@ func TestRashinUnitsMatchEnabledSetting(t *testing.T) {
 	if !rashinUnitsMatch(false, host.Systemd) {
 		t.Fatal("disabled units did not match disabled settings")
 	}
+	// the routines wake timer follows the daemon while Rashin is on, and must
+	// be off with it
+	enabled[rashindSocket], enabled[aiUsageTimer], enabled[routinesTimer] = true, true, true
+	if !rashinUnitsMatch(true, host.Systemd) {
+		t.Fatal("an enabled routines timer broke enabled settings")
+	}
+	enabled[rashindSocket], enabled[aiUsageTimer] = false, false
+	if rashinUnitsMatch(false, host.Systemd) {
+		t.Fatal("an enabled routines timer matched disabled settings")
+	}
 }
 
 func TestRemoveLegacyRashinUnitsSkipsMissingUnits(t *testing.T) {
@@ -213,7 +223,7 @@ func TestReconcileAbsentRashinStopsServicesAndRemovesLinks(t *testing.T) {
 	if result := reconcileRashinDaemon(false); result.status != recFixed {
 		t.Fatalf("cleanup result = %+v", result)
 	}
-	for _, unit := range []string{rashindSocket, rashindService, aiUsageTimer} {
+	for _, unit := range []string{rashindSocket, rashindService, aiUsageTimer, routinesTimer} {
 		if !attempted["stop"][unit] || !attempted["disable"][unit] {
 			t.Fatalf("%s was not stopped and disabled: %v", unit, attempted)
 		}

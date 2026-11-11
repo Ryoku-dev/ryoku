@@ -20,6 +20,8 @@ const (
 	rashindService   = "rashind.service"
 	aiUsageTimer     = "ryoku-ai-usage.timer"
 	aiUsageRunit     = "ryoku-ai-usage"
+	routinesTimer    = "rashind-routines.timer"
+	routinesRunit    = "rashind-routines"
 	legacyRashinUnit = "ryoku-rashin.service"
 	legacyProwlUnit  = "ryoku-prowl.service"
 )
@@ -66,12 +68,24 @@ func rashinManagedUnits(initSystem host.InitSystem) []string {
 	return []string{rashindSocket, aiUsageTimer}
 }
 
+// rashinWakeUnit wakes the daemon for routines. The daemon turns it on while a
+// routine is on, so doctor only makes sure it is off while Rashin is off.
+func rashinWakeUnit(initSystem host.InitSystem) string {
+	if initSystem == host.Runit {
+		return routinesRunit
+	}
+	return routinesTimer
+}
+
 func rashinUnitsMatch(enabled bool, initSystem host.InitSystem) bool {
 	for _, unit := range rashinManagedUnits(initSystem) {
 		isEnabled := rashinService([]string{"--user", "is-enabled", unit}) == host.ExitOK
 		if isEnabled != enabled {
 			return false
 		}
+	}
+	if !enabled && rashinService([]string{"--user", "is-enabled", rashinWakeUnit(initSystem)}) == host.ExitOK {
+		return false
 	}
 	return true
 }
@@ -173,9 +187,9 @@ func removeLegacyRashinUnits(initSystem host.InitSystem) error {
 
 func absentRashinUnits(initSystem host.InitSystem) []string {
 	if initSystem == host.Runit {
-		return []string{aiUsageRunit}
+		return []string{aiUsageRunit, routinesRunit}
 	}
-	return []string{rashindSocket, rashindService, aiUsageTimer}
+	return []string{rashindSocket, rashindService, aiUsageTimer, routinesTimer}
 }
 
 func rashinUnitLinks(units []string) []string {
@@ -262,6 +276,10 @@ func convergeRashinUnits(enabled bool, initSystem host.InitSystem) error {
 		}
 	}
 	if !enabled {
+		code := rashinService([]string{"--user", "disable", "--now", rashinWakeUnit(initSystem)})
+		if code != host.ExitOK && code != host.ExitAbsent && code != host.ExitFalse {
+			return fmt.Errorf("disable %s: service exited %d", rashinWakeUnit(initSystem), code)
+		}
 		if err := rashinCommand("off"); err != nil {
 			return fmt.Errorf("stop rashind: %w", err)
 		}

@@ -12,6 +12,11 @@
   `rashind.socket` and the coding-agent usage timer only while Rashin is
   enabled, disables both while off, migrates each installed version once and
   removes the retired Rashin 1 and Prowl user units.
+- **Doctor keeps Rashin's routines wake off with Rashin.** While Rashin is
+  off it disables `rashind-routines.timer` (runit: the `rashind-routines`
+  service) and leaves it to the daemon while on; with Rashin not installed it
+  stops and disables it with the other units and removes leftover unit links
+  (`internal/doctor/reconcile_rashin_daemon.go`).
 - **`--rashin` provisions an opt-in account once.** Account setup leaves a
   first-login marker that runs `rashin on` instead of wiring the old daemon.
 - **Prowl and Hermes setup repair paths are removed.** Their doctor
