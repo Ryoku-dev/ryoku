@@ -453,8 +453,8 @@ Item {
     // master on/off, rescan (spins ~10s), live list sorted by signal. security
     // + known-profile ground truth come from nmcli; the Quickshell service
     // doesn't expose them. tap a secured unknown net -> inline password row that
-    // runs `nmcli --ask dev wifi connect`, secret piped through stdin so it
-    // never lands in /proc/<pid>/cmdline.
+    // joins through the shell daemon (nmcli when it cannot), secret piped
+    // through stdin so it never lands in /proc/<pid>/cmdline.
     component WifiBody: Item {
         id: wifi
 
