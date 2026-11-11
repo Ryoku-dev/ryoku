@@ -19,6 +19,9 @@
   headless one exits at once.
 
 ### Fixed
+- `gpu/ryoku-gpu`: **Performance works again with a monitor on the discrete GPU.**
+  When the laptop panel is on the built-in GPU but the dGPU has its own ports,
+  Performance pins the dGPU at login only while a monitor is plugged into one.
 - `network/ryoku-wifi-backend`: **switching from iwd back to wpa_supplicant
   keeps Wi-Fi.** iwd swaps each radio's default interface for one of its own,
   which the kernel deletes when iwd quits, so the switch left no Wi-Fi interface
