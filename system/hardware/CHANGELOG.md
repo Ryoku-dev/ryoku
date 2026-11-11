@@ -19,6 +19,13 @@
   headless one exits at once.
 
 ### Fixed
+- `network/ryoku-wifi-backend`: **switching from iwd back to wpa_supplicant
+  keeps Wi-Fi.** iwd swaps each radio's default interface for one of its own,
+  which the kernel deletes when iwd quits, so the switch left no Wi-Fi interface
+  until a reboot. Leaving iwd now gives every radio that had an interface, and
+  lost it, a managed one again (`iw`, each watched for up to 3 s since the
+  kernel drops iwd's interfaces just after iwd exits, one radio at a time).
+  Covered by `tests/void-wifi-backend.sh`.
 - `display/ryoku-hw-backlight-fix`: **ASUS TUF A15 FA507XV brightness keeps
   using its working EC control.** The native-backlight override is now limited
   to the confirmed FA506NCG quirk. An update removes the old broad drop-in from
