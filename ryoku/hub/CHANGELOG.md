@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Fixed
+- **Graphics & Power offers Performance on laptops with a monitor port on the
+  discrete GPU.** The page says it applies only while a monitor is plugged in
+  there at login, and that the built-in screen can then stay dark after sleep.
 - **Connections sees every saved profile of a Wi-Fi network.** Saved networks
   were matched by profile name, so a second profile NetworkManager named
   `<ssid> 1`, or one imported under another name, was invisible: Forget left
