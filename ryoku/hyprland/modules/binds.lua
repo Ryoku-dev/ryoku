@@ -77,6 +77,27 @@ hl.bind(K(mod .. " + CTRL + Left"),   hl.dsp.window.resize({ x = -40, y = 0,   r
 hl.bind(K(mod .. " + CTRL + Right"),  hl.dsp.window.resize({ x = 40,  y = 0,   relative = true }), { repeating = true }) -- resize window wider
 hl.bind(K(mod .. " + CTRL + Up"),     hl.dsp.window.resize({ x = 0,   y = -40, relative = true }), { repeating = true }) -- resize window shorter
 hl.bind(K(mod .. " + CTRL + Down"),   hl.dsp.window.resize({ x = 0,   y = 40,  relative = true }), { repeating = true }) -- resize window taller
+
+-- only scrolling has preset column widths; elsewhere a tile right of centre grows leftwards
+local function step_width(sign)
+    local win = hl.get_active_window()
+    local ws = win and win.workspace
+    if win and not win.floating and ws and ws.tiled_layout == "scrolling" then
+        hl.dispatch(hl.dsp.layout("colresize " .. sign .. "conf"))
+        return
+    end
+    local dx = sign == "+" and 40 or -40
+    local mon = win and not win.floating and win.monitor
+    if mon and mon.width and type(win.at) == "table" and type(win.size) == "table" then
+        local position = type(mon.position) == "table" and mon.position or {}
+        local mon_x = mon.x or position.x or 0
+        local mon_w = mon.width / (mon.scale or 1)
+        if win.at.x + win.size.x / 2 > mon_x + mon_w / 2 then dx = -dx end
+    end
+    hl.dispatch(hl.dsp.window.resize({ x = dx, y = 0, relative = true }))
+end
+hl.bind(K(mod .. " + equal"),        function() step_width("+") end, { repeating = true }) -- Grow window
+hl.bind(K(mod .. " + minus"),        function() step_width("-") end, { repeating = true }) -- Shrink window
 hl.bind(K(mod .. " + bracketleft"),  hl.dsp.window.move({ direction = "left",  group_aware = true }))  -- Merge left
 hl.bind(K(mod .. " + bracketright"), hl.dsp.window.move({ direction = "right", group_aware = true }))  -- Merge right
 

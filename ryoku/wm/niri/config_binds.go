@@ -113,6 +113,8 @@ func shippedBinds() map[string]niriBind {
 		"resize.shorter":     {action: `set-window-height "-10%"`},
 		"resize.taller":      {action: `set-window-height "+10%"`},
 		"resize.resetHeight": {action: "reset-window-height"},
+		"resize.grow":        {action: "switch-preset-column-width", hint: "Step the column to its next preset width"},
+		"resize.shrink":      {action: "switch-preset-column-width-back", hint: "Step the column to its previous preset width"},
 
 		// Workspaces. The families carry {n}, the workspace number, substituted
 		// per expanded chord. niri references workspaces by flat index, so

@@ -248,6 +248,8 @@ func shippedBinds() map[string]wayfireBind {
 		"resize.shorter":     {key: "resize_shorter", cmd: "ryoku-wm-wayfire act window.resizeBy shorter"},
 		"resize.taller":      {key: "resize_taller", cmd: "ryoku-wm-wayfire act window.resizeBy taller"},
 		"resize.resetHeight": {key: "resize_reset_height", cmd: "ryoku-wm-wayfire act window.presetHeight first", hint: "Give the window the full height of its workspace"},
+		"resize.grow":        {key: "resize_grow", cmd: "ryoku-wm-wayfire act window.resizeBy wider", hint: "Widen the window an eighth of the screen"},
+		"resize.shrink":      {key: "resize_shrink", cmd: "ryoku-wm-wayfire act window.resizeBy narrower", hint: "Narrow the window an eighth of the screen"},
 
 		// Workspaces. The grid's ten cells take the number keys and the
 		// number pad natively: each family lands on the same option, so both

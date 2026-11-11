@@ -185,6 +185,8 @@ func TestDisplayKeys(t *testing.T) {
 		{"SUPER + Next", []string{"Super", "Page Down"}},
 		{"SUPER + grave", []string{"Super", "`"}},
 		{"SUPER + comma", []string{"Super", ","}},
+		{"SUPER + minus", []string{"Super", "-"}},
+		{"SUPER + equal", []string{"Super", "="}},
 		{"SUPER + bracketleft", []string{"Super", "["}},
 		{"SUPER + bracketright", []string{"Super", "]"}},
 		{"SUPER + mouse:272", []string{"Super", "LMB"}},
