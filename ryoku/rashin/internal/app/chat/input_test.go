@@ -372,3 +372,24 @@ func TestQuotingKeepsWhatIsAlreadyWrittenAndLeavesRoomToAnswer(t *testing.T) {
 		t.Fatalf("a quotation went under a draft as %q", text)
 	}
 }
+
+// When a turn ends the plaque turns from Stop back to Send. With nothing
+// typed it is disabled, and a disabled control used to drop the request for
+// the next frame: the turn was over and the plaque still showed Stop until
+// the pointer happened to move.
+func TestTheSendPlaqueFinishesTurningBackFromStop(t *testing.T) {
+	frame := newChatFrame(image.Pt(720, 280))
+	composer := new(Composer)
+	composer.Layout(frame.context(), frame.theme, ComposerOptions{Busy: true})
+	frame.finish()
+	frame.router.WakeupTime()
+
+	composer.Layout(frame.context(), frame.theme, ComposerOptions{})
+	frame.finish()
+	if anim.Reduced() {
+		t.Skip("motion is reduced here, so the plaque turns at once")
+	}
+	if _, wakes := frame.router.WakeupTime(); !wakes {
+		t.Fatal("the plaque began to turn back and asked for no further frame")
+	}
+}

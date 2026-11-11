@@ -289,6 +289,8 @@ func (state *composerState) layoutSendStop(gtx layout.Context, th *theme.Theme, 
 		icon, ink = look.Icon.Stop, th.R.Fg2
 		state.send.Kind, state.send.Description = kit.PlaqueQuiet, i18n.T("Stop")
 	}
+	// the morph keeps the live context: a disabled one drops its request for the next frame, and the plaque stood on Stop after the turn
+	live := gtx
 	if !busy && !state.hasContent() {
 		gtx = gtx.Disabled()
 	}
@@ -300,7 +302,7 @@ func (state *composerState) layoutSendStop(gtx layout.Context, th *theme.Theme, 
 	if !gtx.Source.Enabled() {
 		ink = palette.WithAlpha(ink, .5)
 	}
-	state.morph.Layout(gtx, &state.look, icon, ink, 18)
+	state.morph.Layout(live, &state.look, icon, ink, 18)
 	offset.Pop()
 	return dimensions
 }

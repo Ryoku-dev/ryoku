@@ -134,6 +134,8 @@
   command finished, which for a slow one looked dead. The command is printed
   first, as if typed, and a failure says its exit status
   (`rashin/internal/app/env/launch.go`).
+- **The send button turns back from Stop by itself.** After a turn it stayed
+  on Stop until the pointer moved (`rashin/internal/app/chat/composer.go`).
 - **Opening an agent session by its id opens it in Agents.** `rashin-app
   --session <id>` and `rashin open --session <id>` showed it as an empty ask.
 - **Ryotunes picks floating or tiled itself.** Its own setting decides on niri
