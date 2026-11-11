@@ -6,11 +6,14 @@ package main
 // NetworkManager over D-Bus with no secret agent, so a rejected one fails as
 // soon as NetworkManager drops the activation, and it never lands in argv or a
 // file. The SSID's saved profiles, which the new passphrase replaces, are
-// deleted only once the daemon has answered, so a join that cannot run leaves
-// them in place.
+// deleted only once the daemon's socket accepts the connection. A join the
+// daemon could not run for any reason other than a rejected passphrase exits
+// with wifiExitDaemonDown, so the page can still join through nmcli, as it did
+// before the daemon owned the join.
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -18,9 +21,19 @@ import (
 	"time"
 )
 
-// wifiExitDaemonDown is the exit status for a join that never reached the
-// daemon. Nothing was deleted or sent, so the page can still join without it.
+// wifiExitDaemonDown is the exit status for a join the daemon did not run:
+// it never answered (nothing was deleted or sent), or it answered with
+// anything but a rejected passphrase (no Wi-Fi support in this daemon, no
+// device, a profile NetworkManager would not take, a timeout).
 const wifiExitDaemonDown = 3
+
+// errJoinNotRun marks a daemon answer that is not a rejected passphrase.
+var errJoinNotRun = errors.New("the shell daemon could not run the join")
+
+// joinRejected is the daemon's errActivationFailed text in
+// ryoku/shell/ipc/network.go, the one answer that means NetworkManager
+// refused the passphrase.
+const joinRejected = "could not connect (check the password)"
 
 // joinTimeout outlasts the daemon's own 30-second wait for the activation.
 const joinTimeout = 40 * time.Second
@@ -30,6 +43,7 @@ const joinTimeout = 40 * time.Second
 // profile `<ssid> 1`, and an imported one can carry any name. A variable so
 // tests can see whether, and when, it ran.
 var replaceProfiles = func(ssid string) {
+	// a hotspot (mode ap) is not a saved network, even when it shares the name
 	out, err := exec.Command("nmcli", "-t", "-f", "UUID,TYPE", "connection", "show").Output()
 	if err != nil {
 		return
@@ -40,8 +54,12 @@ var replaceProfiles = func(ssid string) {
 		if !ok || typ != "802-11-wireless" {
 			continue
 		}
-		got, err := exec.Command("nmcli", "-e", "no", "-g", "802-11-wireless.ssid", "connection", "show", "uuid", uuid).Output()
-		if err == nil && strings.TrimSuffix(string(got), "\n") == ssid {
+		got, err := exec.Command("nmcli", "-e", "no", "-g", "802-11-wireless.mode,802-11-wireless.ssid", "connection", "show", "uuid", uuid).Output()
+		if err != nil {
+			continue
+		}
+		mode, s, _ := strings.Cut(strings.TrimSuffix(string(got), "\n"), "\n")
+		if mode != "ap" && s == ssid {
 			args = append(args, "uuid", uuid)
 		}
 	}
@@ -65,7 +83,11 @@ func runWifi(args []string, stdin io.Reader) error {
 	}
 	defer conn.Close()
 	replaceProfiles(ssid)
-	return callOn(conn, "network.wifiConnect", map[string]any{"ssid": ssid, "password": pw}, nil, joinTimeout)
+	err = callOn(conn, "network.wifiConnect", map[string]any{"ssid": ssid, "password": pw}, nil, joinTimeout)
+	if err != nil && !strings.Contains(err.Error(), joinRejected) {
+		return fmt.Errorf("%w: %v", errJoinNotRun, err)
+	}
+	return err
 }
 
 // readPassphrase takes the first line of stdin, where the page writes the

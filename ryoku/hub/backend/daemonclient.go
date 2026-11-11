@@ -24,18 +24,12 @@ import (
 // daemonCall runs one control method on the shell daemon and decodes its result
 // into out (nil to discard it). The reply is one JSON line: {ok,result,error}.
 func daemonCall(method string, args any, out any) error {
-	return daemonCallWithin(method, args, out, 3*time.Second)
-}
-
-// daemonCallWithin is daemonCall for a method that takes longer than a quick
-// read to answer, such as a Wi-Fi join the daemon holds until it settles.
-func daemonCallWithin(method string, args any, out any, timeout time.Duration) error {
 	conn, err := dialDaemon()
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
-	return callOn(conn, method, args, out, timeout)
+	return callOn(conn, method, args, out, 3*time.Second)
 }
 
 // errDaemonDown is the daemon not answering at all, as opposed to a call it
@@ -56,6 +50,8 @@ func dialDaemon() (net.Conn, error) {
 	return conn, nil
 }
 
+// callOn sends one call on an open connection and waits up to timeout for
+// the reply.
 func callOn(conn net.Conn, method string, args any, out any, timeout time.Duration) error {
 	_ = conn.SetDeadline(time.Now().Add(timeout))
 	line := "call " + method

@@ -149,7 +149,7 @@ func main() {
 	case "wifi":
 		if err := runWifi(args[1:], os.Stdin); err != nil {
 			fmt.Fprintln(os.Stderr, "ryoku-hub:", err)
-			if errors.Is(err, errDaemonDown) {
+			if errors.Is(err, errDaemonDown) || errors.Is(err, errJoinNotRun) {
 				os.Exit(wifiExitDaemonDown)
 			}
 			os.Exit(1)

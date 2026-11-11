@@ -92,6 +92,9 @@ func TestWifiConnectSurfacesARejectedJoin(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "check the password") {
 		t.Fatalf("err = %v, want the daemon's rejection", err)
 	}
+	if errors.Is(err, errJoinNotRun) {
+		t.Fatal("a rejected passphrase was treated as a join the daemon could not run")
+	}
 }
 
 func TestWifiConnectNeedsAPassphrase(t *testing.T) {
@@ -132,5 +135,23 @@ func TestWifiConnectKeepsProfilesWhenTheDaemonIsDown(t *testing.T) {
 	}
 	if len(ev.get()) != 0 {
 		t.Errorf("profiles touched with no daemon: %q", ev.get())
+	}
+}
+
+// Any daemon answer other than a rejected passphrase means the join did not
+// run, so the page must be told to join through nmcli instead.
+func TestWifiConnectFallsBackWhenTheDaemonCannotJoin(t *testing.T) {
+	for _, reply := range []string{
+		`{"ok":false,"error":"unknown method: network.wifiConnect"}`,
+		`{"ok":false,"error":"no wifi device"}`,
+		`{"ok":false,"error":"connection timed out"}`,
+		`{"ok":false,"error":"802-11-wireless-security.psk: property is invalid"}`,
+	} {
+		recordReplaces(t, &events{})
+		fakeDaemon(t, reply)
+		err := runWifi([]string{"connect", "Cafe"}, strings.NewReader("pw\n"))
+		if !errors.Is(err, errJoinNotRun) {
+			t.Errorf("reply %s: err = %v, want errJoinNotRun", reply, err)
+		}
 	}
 }

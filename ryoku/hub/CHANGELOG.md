@@ -10,7 +10,7 @@
   (`ryoku-hub wifi connect`), so a rejected password fails as soon as
   NetworkManager drops the join; the passphrase still travels on stdin and
   never reaches argv or `~/.cache/nmcli-history`. When the daemon is not
-  running, the join falls back to nmcli as before.
+  running or cannot run the join, it falls back to nmcli as before.
 - **Shift plus a number key records in the shortcut recorder (#788).** The
   number row is read by key position, so Super+Shift+1 records as itself
   instead of being ignored, on any keyboard layout.

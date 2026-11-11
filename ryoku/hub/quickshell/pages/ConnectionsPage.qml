@@ -531,9 +531,9 @@ Item {
         property string attemptBand: ""
         property bool attemptWasKnown: false
         property bool attemptAutoOff: false
-        // a password join runs through the daemon, which removes a profile its
-        // own failed join created; the page's cleanup would also delete the
-        // saved profiles a join that never ran left in place
+        // a password join runs through the daemon, which removes the profile
+        // its rejected join created; a join it could not run falls back to
+        // nmcli below, whose failure the page cleans up as before
         property bool attemptViaDaemon: false
         // the passphrase, held only while a daemon join runs, for the nmcli
         // fallback when the daemon does not answer
@@ -713,7 +713,8 @@ Item {
         // owns Wi-Fi joins: with no secret agent a rejected password fails as
         // soon as NetworkManager drops it, where `nmcli --ask` waited out its
         // 90-second timeout. The SSID's saved profiles are replaced once the
-        // daemon answers, and a failed join cleans up like a first join.
+        // daemon's socket answers, and a failed join cleans up like a first
+        // join.
         function connectWithPassword(ssid, pw) {
             if (connProc.running || !pw.length)
                 return;
@@ -900,8 +901,9 @@ Item {
                 stdinEnabled = false;
             }
             onExited: function(exitCode) {
-                // ryoku-hub exits 3 when the daemon never answered: nothing was
-                // deleted or sent, so the join falls back to nmcli
+                // ryoku-hub exits 3 when the daemon did not run the join (it never
+                // answered, or answered with anything but a rejected password),
+                // so the join falls back to nmcli
                 if (wifi.attemptViaDaemon && exitCode === 3 && wifi.fallbackPw.length) {
                     Qt.callLater(wifi.joinWithNmcli);
                     return;
