@@ -72,6 +72,9 @@ type runner struct {
 
 	environment        map[string]string
 	reportCapabilities func(protocol.HarnessCapabilities)
+	// sandbox wraps the agent's command in its sandbox; set, Rashin offers the
+	// agent no file or terminal access of its own
+	sandbox func([]string) ([]string, error)
 
 	sessionID     string
 	loadSession   bool
@@ -509,7 +512,15 @@ func (r *runner) ensureStarted(ctx context.Context, sink core.Sink) error {
 	if len(r.argv) == 0 {
 		return errors.New(i18n.T("The agent command is empty. Choose an installed harness."))
 	}
-	cmd := exec.Command(r.argv[0], r.argv[1:]...)
+	argv := r.argv
+	if r.sandbox != nil {
+		wrapped, err := r.sandbox(argv)
+		if err != nil {
+			return err
+		}
+		argv = wrapped
+	}
+	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Dir = r.opts.Cwd
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.WaitDelay = stopGrace
@@ -567,11 +578,14 @@ func (r *runner) ensureStarted(ctx context.Context, sink core.Sink) error {
 }
 
 func (r *runner) initialize(ctx context.Context) error {
+	// a sandboxed agent works with its own tools inside its sandbox; what
+	// Rashin read, wrote or ran for it would happen outside
+	local := r.sandbox == nil
 	result, err := r.conn.request(ctx, "initialize", map[string]any{
 		"protocolVersion": acpProtocolVersion,
 		"clientCapabilities": map[string]any{
-			"fs":       map[string]bool{"readTextFile": true, "writeTextFile": true},
-			"terminal": true,
+			"fs":       map[string]bool{"readTextFile": local, "writeTextFile": local},
+			"terminal": local,
 		},
 		"clientInfo": map[string]string{"name": "rashin", "version": clientVersion},
 	})

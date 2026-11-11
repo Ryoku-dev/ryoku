@@ -71,14 +71,18 @@ func runOff(args []string) int {
 	}
 	if systemdPresent() {
 		if host, err := exec.LookPath("ryoku-host"); err == nil {
-			for _, unit := range []string{"rashind.socket", "rashind.service", "ryoku-ai-usage.timer"} {
+			for _, unit := range []string{"rashind.socket", "rashind.service", "ryoku-ai-usage.timer", "rashind-routines.timer"} {
 				_ = runQuiet(host, "svc", "--user", "disable", "--now", unit)
 			}
 		} else {
 			_ = runQuiet("systemctl", "--user", "disable", "--now", "rashind.socket", "rashind.service", "ryoku-ai-usage.timer")
+			// a separate call, so a box without the routines unit still stops the rest
+			_ = runQuiet("systemctl", "--user", "disable", "--now", "rashind-routines.timer")
 		}
 	} else if host, err := exec.LookPath("ryoku-host"); err == nil {
-		_ = runQuiet(host, "svc", "--user", "disable", "--now", "ryoku-ai-usage")
+		for _, service := range []string{"ryoku-ai-usage", "rashind-routines"} {
+			_ = runQuiet(host, "svc", "--user", "disable", "--now", service)
+		}
 	}
 	terminateLockHolder()
 	fmt.Fprintln(os.Stdout, i18n.T("Rashin is off."))

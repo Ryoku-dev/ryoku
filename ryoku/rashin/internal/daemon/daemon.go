@@ -26,6 +26,7 @@ type Deps struct {
 	Harnesses core.Harnesses
 	Indexer   core.Indexer
 	Work      core.Work
+	Teams     core.Teams
 	Version   string
 	Events    *Broadcaster
 	Lock      *os.File
@@ -55,6 +56,11 @@ type Daemon struct {
 	retireOnce sync.Once
 	logger     *daemonLogger
 	api        apiServer
+	// appPeer reports whether a connecting process is the Rashin app, which
+	// alone may call teams.UserOnly methods.
+	appPeer func(pid int32) bool
+	// agents are the team sessions' own sockets
+	agents agentSockets
 }
 
 func New(deps Deps) *Daemon {
@@ -62,15 +68,29 @@ func New(deps Deps) *Daemon {
 	if events == nil {
 		events = NewBroadcaster()
 	}
-	d := &Daemon{deps: deps, started: time.Now(), clients: make(map[*connection]struct{}), events: events, stop: make(chan struct{})}
+	d := &Daemon{deps: deps, started: time.Now(), clients: make(map[*connection]struct{}), events: events, stop: make(chan struct{}), appPeer: appPeer(deps.Program)}
 	d.manager = newSessionManager(deps.Asker, deps.Harnesses, deps.Work, d.Settings, d.Broadcast, d.stateChanged, d.warn)
 	d.manager.brief = d.agentBrief
 	d.manager.tools = d.agentTools
 	d.manager.prepare = d.indexSession
 	d.screens = newScreenManager(d.Broadcast, d.manager.ask, screenable)
-	d.manager.ended = d.screens.stop
+	d.manager.sandbox = d.agentSandbox
+	d.screens.sandbox = d.screenSandbox
+	d.manager.ended = func(id string) {
+		d.screens.stop(id)
+		d.closeAgentSocket(id)
+	}
+	d.manager.watched = d.watched
 	if deps.Work != nil {
 		deps.Work.Bind(d.manager)
+	}
+	if deps.Teams != nil {
+		d.manager.teams = deps.Teams
+		d.screens.granted = func(id string) bool {
+			info, ok := d.manager.Info(id)
+			return ok && deps.Teams.ScreenGranted(info)
+		}
+		deps.Teams.Bind(d.manager)
 	}
 	d.removeFeed = events.add(d.deliverGlobal)
 	return d
@@ -83,6 +103,26 @@ func (d *Daemon) Settings() protocol.Settings {
 }
 
 func (d *Daemon) Broadcast(event string, data any) { d.events.Broadcast(event, data) }
+
+// watched reports whether a Rashin window is connected, so Teams records
+// what happens without one as unwatched and notifies the desktop instead.
+func (d *Daemon) watched() bool {
+	d.mu.RLock()
+	clients := make([]*connection, 0, len(d.clients))
+	for c := range d.clients {
+		clients = append(clients, c)
+	}
+	d.mu.RUnlock()
+	for _, c := range clients {
+		c.mu.RLock()
+		app := c.kind == protocol.ClientApp && c.session == ""
+		c.mu.RUnlock()
+		if app {
+			return true
+		}
+	}
+	return false
+}
 
 // ProvidersChanged publishes the gateway's latest asynchronous health result.
 func (d *Daemon) ProvidersChanged() { d.broadcastProviders(context.Background()) }
@@ -117,6 +157,8 @@ func (d *Daemon) Run(ctx context.Context) error {
 	d.bound = bound
 	d.lock = lock
 	d.mu.Unlock()
+	// sockets a daemon that died left behind lead nowhere
+	_ = os.RemoveAll(paths.AgentSocketsDir())
 	go func() { <-ctx.Done(); d.Shutdown() }()
 	if d.deps.Program != "" {
 		if watch, watchErr := watchProgram(d.deps.Program, d.retire); watchErr != nil {
@@ -144,12 +186,15 @@ func (d *Daemon) Run(ctx context.Context) error {
 			d.warn("accept: %v", acceptErr)
 			continue
 		}
-		if err := verifyPeerUID(nc); err != nil {
+		pid, err := verifyPeer(nc)
+		if err != nil {
 			d.warn("client credentials: %v", err)
 			_ = nc.Close()
 			continue
 		}
 		conn := newConnection(d, nc)
+		// read once at accept, leaving the connecting process the least time to exec another program
+		conn.app = d.appPeer != nil && d.appPeer(pid)
 		d.mu.Lock()
 		d.clients[conn] = struct{}{}
 		d.mu.Unlock()
@@ -263,31 +308,6 @@ func secureDir(path string) error {
 	return nil
 }
 
-func verifyPeerUID(conn net.Conn) error {
-	unixConn, ok := conn.(*net.UnixConn)
-	if !ok {
-		return fmt.Errorf("%s", i18n.T("The connection is not a Unix socket."))
-	}
-	raw, err := unixConn.SyscallConn()
-	if err != nil {
-		return err
-	}
-	var cred *syscall.Ucred
-	var socketErr error
-	if err := raw.Control(func(fd uintptr) {
-		cred, socketErr = syscall.GetsockoptUcred(int(fd), syscall.SOL_SOCKET, syscall.SO_PEERCRED)
-	}); err != nil {
-		return err
-	}
-	if socketErr != nil {
-		return socketErr
-	}
-	if cred == nil || cred.Uid != uint32(os.Getuid()) {
-		return fmt.Errorf("%s", i18n.T("The peer uid does not match the daemon uid."))
-	}
-	return nil
-}
-
 func (d *Daemon) Shutdown() {
 	d.stopOnce.Do(func() {
 		close(d.stop)
@@ -319,6 +339,9 @@ func (d *Daemon) closeAll() error {
 		if d.deps.Work != nil {
 			_ = d.deps.Work.Close()
 		}
+		if d.deps.Teams != nil {
+			_ = d.deps.Teams.Close()
+		}
 		if d.deps.Indexer != nil {
 			_ = d.deps.Indexer.Close()
 		}
@@ -348,6 +371,7 @@ func (d *Daemon) releaseTransport() {
 	d.bound = false
 	d.lock = nil
 	d.mu.Unlock()
+	d.closeAgentSockets()
 	if bound {
 		_ = os.Remove(paths.Socket())
 	}
@@ -398,8 +422,9 @@ func (d *Daemon) onIdleDeadline() {
 	if d.deps.Indexer != nil {
 		d.deps.Indexer.Release()
 	}
-	// other programs hold the address of the local API, so a daemon that serves it stays up at rest
-	if d.api.listening() {
+	// other programs hold the address of the local API, and the routines that
+	// are on run from the daemon's own clock, so either keeps it up at rest
+	if d.api.listening() || (d.deps.Teams != nil && d.deps.Teams.Armed()) {
 		return
 	}
 	d.Shutdown()
@@ -410,5 +435,5 @@ func (d *Daemon) Idle() bool {
 	d.mu.RLock()
 	connections := len(d.clients)
 	d.mu.RUnlock()
-	return connections == 0 && !d.manager.busy() && !d.screens.busy() && (d.deps.Indexer == nil || !d.deps.Indexer.Busy()) && (d.deps.Work == nil || !d.deps.Work.Busy())
+	return connections == 0 && !d.manager.busy() && !d.screens.busy() && (d.deps.Indexer == nil || !d.deps.Indexer.Busy()) && (d.deps.Work == nil || !d.deps.Work.Busy()) && (d.deps.Teams == nil || !d.deps.Teams.Busy())
 }

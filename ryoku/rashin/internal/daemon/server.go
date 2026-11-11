@@ -15,6 +15,7 @@ import (
 	i18n "ryoku-i18n"
 	"ryoku-rashin/internal/config"
 	"ryoku-rashin/internal/protocol"
+	"ryoku-rashin/internal/teams"
 )
 
 const (
@@ -34,6 +35,13 @@ type connection struct {
 	once       sync.Once
 	outbound   chan []byte
 	done       chan struct{}
+	// app is whether the Rashin app opened this connection, read once when
+	// the daemon accepted it.
+	app bool
+	// session is the team session whose own socket this connection came in
+	// on; such a connection calls only that session's agent tools. Empty on
+	// the main socket.
+	session string
 }
 
 func newConnection(d *Daemon, nc net.Conn) *connection {
@@ -97,6 +105,18 @@ func (c *connection) serve() {
 }
 
 func (c *connection) handle(frame protocol.Frame) {
+	ctx := context.Background()
+	var refused error
+	if c.session != "" {
+		refused = agentGate(c.session, frame.Method, frame.Params)
+		ctx = teams.WithAgentSession(ctx, c.session)
+	} else {
+		refused = c.daemon.mainGate(c, frame.Method, frame.Params)
+	}
+	if refused != nil {
+		c.respond(*frame.ID, nil, refused)
+		return
+	}
 	if frame.Method == protocol.MSessionAttach {
 		p, err := unmarshal[protocol.SessionAttachParams](frame.Params)
 		if err != nil {
@@ -108,7 +128,7 @@ func (c *connection) handle(frame protocol.Frame) {
 		})
 		return
 	}
-	result, err := c.daemon.dispatch(context.Background(), c, frame.Method, frame.Params)
+	result, err := c.daemon.dispatch(ctx, c, frame.Method, frame.Params)
 	c.respond(*frame.ID, result, err)
 }
 
@@ -679,6 +699,15 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 			}
 			return d.deps.Work.Handle(ctx, method, raw)
 		}
+		if teams.IsMethod(method) {
+			if teams.UserOnly(method) && !c.app {
+				return nil, protocol.Errorf(protocol.CodeForbidden, "%s", i18n.T("Only the Rashin app can do this."))
+			}
+			if d.deps.Teams == nil {
+				return nil, protocol.Errorf(protocol.CodeUnavailable, "%s", i18n.T("Teams are not available."))
+			}
+			return d.deps.Teams.Handle(ctx, method, raw)
+		}
 		return nil, protocol.Errorf(protocol.CodeUnsupported, "%s", i18n.Tf("Method %s is not supported.", method))
 	}
 }
@@ -830,7 +859,7 @@ func (d *Daemon) status(ctx context.Context) protocol.Status {
 }
 
 func (d *Daemon) snapshot(ctx context.Context) (protocol.Snapshot, error) {
-	sessions, err := d.manager.list(protocol.SessionListParams{Limit: 50})
+	sessions, err := d.manager.recent(50)
 	if err != nil {
 		return protocol.Snapshot{}, err
 	}
@@ -846,10 +875,13 @@ func (d *Daemon) snapshot(ctx context.Context) (protocol.Snapshot, error) {
 	if err != nil {
 		return protocol.Snapshot{}, err
 	}
-	snapshot := protocol.Snapshot{Status: d.status(ctx), Sessions: sessions.Sessions, Settings: d.Settings(), Providers: providers, Harnesses: harnesses, Indexes: indexes, Screens: d.screens.list().Screens}
+	snapshot := protocol.Snapshot{Status: d.status(ctx), Sessions: sessions, Settings: d.Settings(), Providers: providers, Harnesses: harnesses, Indexes: indexes, Screens: d.screens.list().Screens}
 	if d.deps.Work != nil {
 		snapshot.Projects = d.deps.Work.Projects(ctx)
 		snapshot.Tasks = d.deps.Work.Tasks(ctx)
+	}
+	if d.deps.Teams != nil {
+		d.deps.Teams.Snapshot(ctx, &snapshot)
 	}
 	return snapshot, nil
 }

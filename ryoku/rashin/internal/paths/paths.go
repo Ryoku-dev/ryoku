@@ -95,13 +95,24 @@ func RuntimeDir() string {
 	return filepath.Join(base, "rashin")
 }
 
+// socketName is the daemon socket's file name in its dir.
+const socketName = "rashin.sock"
+
 // Socket is the daemon socket; RASHIN_SOCKET overrides it for a client.
 func Socket() string {
 	if v := os.Getenv("RASHIN_SOCKET"); v != "" {
 		return v
 	}
-	return filepath.Join(RuntimeDir(), "rashin.sock")
+	return filepath.Join(RuntimeDir(), socketName)
 }
+
+// AgentSocketsDir holds a dir for each running team session with the socket
+// its agent reaches the daemon through.
+func AgentSocketsDir() string { return filepath.Join(RuntimeDir(), "agents") }
+
+// AgentSocket is a team session's own socket. Its dir takes RuntimeDir's
+// place inside the session's sandbox, so there it sits where Socket is.
+func AgentSocket(id string) string { return filepath.Join(AgentSocketsDir(), id, socketName) }
 
 // DaemonLock keeps a second daemon from starting.
 func DaemonLock() string { return filepath.Join(RuntimeDir(), "rashind.lock") }
@@ -127,6 +138,9 @@ func ScreensDir() string { return filepath.Join(RuntimeDir(), "screens") }
 // from the user's and kept between screens so a login made there lasts.
 func ScreenHome() string { return filepath.Join(DataHome(), "ryoku", "rashin", "screen-home") }
 
+// Keyrings holds the login keyrings, which keep the credential vault's key.
+func Keyrings() string { return filepath.Join(DataHome(), "keyrings") }
+
 // SystemConfig is Ryoku's system-wide configuration directory.
 func SystemConfig() string { return "/etc/ryoku" }
 
@@ -141,6 +155,17 @@ func Projects() string { return filepath.Join(StateDir(), "projects.json") }
 func ActivityLog(project string) string {
 	return filepath.Join(StateDir(), "activity", project+".jsonl")
 }
+
+// TeamsDir holds the teams, their tasks, routines, approvals, ledger and
+// spend.
+func TeamsDir() string { return filepath.Join(StateDir(), "teams") }
+
+// TeamsHome is where a new team's folder goes unless the user picks another.
+func TeamsHome() string { return filepath.Join(Home(), "Teams") }
+
+// CredentialVault holds the sealed credentials teams use and their record of
+// use. Its key lives in the login keyring, never beside it.
+func CredentialVault() string { return filepath.Join(StateDir(), "vault.db") }
 
 // VaultDir is the Ryoku vault, owned by Ryoku core.
 func VaultDir() string { return filepath.Join(DataHome(), "ryoku", "vault") }
@@ -175,4 +200,22 @@ func Within(root, path string) bool {
 		return false
 	}
 	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
+}
+
+// Resolved is path with the symlinks of its longest existing part resolved
+// and the rest kept as written, so two paths compare by where they lead.
+func Resolved(path string) string {
+	path = filepath.Clean(path)
+	rest := ""
+	for {
+		if real, err := filepath.EvalSymlinks(path); err == nil {
+			return filepath.Join(real, rest)
+		}
+		parent := filepath.Dir(path)
+		if parent == path {
+			return filepath.Join(path, rest)
+		}
+		rest = filepath.Join(filepath.Base(path), rest)
+		path = parent
+	}
 }

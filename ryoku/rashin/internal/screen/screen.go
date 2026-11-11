@@ -20,6 +20,9 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"ryoku-rashin/internal/paths"
+	"ryoku-rashin/internal/sandbox"
 )
 
 // Available says this desktop can host a screen: the window-manager seam's
@@ -50,6 +53,10 @@ type Options struct {
 	// Home is the HOME of the apps opened on the screen, kept apart from the
 	// user's so the agent drives its own logins and profiles.
 	Home string
+	// Sandbox, set for a team session's screen, is the sandbox every app
+	// opened on it runs in; the screen adds its home, display and bus. Nil
+	// runs apps as the user.
+	Sandbox *sandbox.Spec
 }
 
 // Screen is one running screen.
@@ -60,6 +67,7 @@ type Screen struct {
 	nestIn             io.WriteCloser
 	pointer            *pointer
 	done               chan struct{}
+	sandbox            *sandbox.Spec
 
 	mu     sync.Mutex
 	apps   []*exec.Cmd
@@ -70,7 +78,7 @@ type Screen struct {
 // Start brings a screen up: a private message bus when the system has one to
 // run, then the nested session through `ryoku wm nest`, then the pointer.
 func Start(ctx context.Context, options Options) (*Screen, error) {
-	s := &Screen{dir: options.Dir, home: options.Home, width: Width, height: Height, done: make(chan struct{})}
+	s := &Screen{dir: options.Dir, home: options.Home, width: Width, height: Height, done: make(chan struct{}), sandbox: options.Sandbox}
 	_ = os.RemoveAll(s.dir)
 	if err := os.MkdirAll(s.dir, 0o700); err != nil {
 		return nil, err
@@ -308,9 +316,13 @@ func (s *Screen) wtype(ctx context.Context, args ...string) error {
 }
 
 // Open runs a command line on the screen, as the user would from a launcher,
-// with the screen's own HOME.
+// with the screen's own HOME, in the screen's sandbox when it has one.
 func (s *Screen) Open(command string) error {
-	app := exec.Command("sh", "-c", command)
+	argv, err := s.appCommand(command)
+	if err != nil {
+		return err
+	}
+	app := exec.Command(argv[0], argv[1:]...)
 	app.Env = s.appEnv()
 	app.Dir = s.home
 	app.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -322,6 +334,33 @@ func (s *Screen) Open(command string) error {
 	s.mu.Unlock()
 	go func() { _ = app.Wait() }()
 	return nil
+}
+
+// appCommand is how a command line runs on the screen: through sh, and in a
+// sandbox that sees the screen's home, its runtime dir with the display and
+// bus, and the GPU, under the app environment.
+func (s *Screen) appCommand(command string) ([]string, error) {
+	argv := []string{"sh", "-c", command}
+	if s.sandbox == nil {
+		return argv, nil
+	}
+	if err := sandbox.Available(); err != nil {
+		return nil, err
+	}
+	spec := *s.sandbox
+	dir := paths.Resolved(s.dir)
+	spec.Folder = paths.Resolved(s.home)
+	spec.Binds = append(slices.Clone(spec.Binds), sandbox.Bind{Source: dir, Target: dir})
+	spec.Devices = true
+	spec.Env = make(map[string]string)
+	for _, entry := range s.appEnv() {
+		name, value, _ := strings.Cut(entry, "=")
+		spec.Env[name] = value
+	}
+	if s.bus == nil {
+		spec.Unset = append(slices.Clone(spec.Unset), "DBUS_SESSION_BUS_ADDRESS")
+	}
+	return sandbox.Command(spec, argv)
 }
 
 // Stop ends the apps, the nested session and the bus, and removes the

@@ -44,6 +44,7 @@ const (
 	OriginTerminal = "terminal"
 	OriginFix      = "fix"
 	OriginImport   = "import"
+	OriginTeam     = "team"
 )
 
 // SessionInfo describes one session. The daemon owns every field.
@@ -85,6 +86,12 @@ type SessionInfo struct {
 	Checkpoints bool `json:"checkpoints,omitempty"`
 	// Goal is the objective the agent keeps working toward across turns.
 	Goal *Goal `json:"goal,omitempty"`
+	// Team, TeamTask and Member name the team task an Agent session works;
+	// Approvals, when set, is how far this session goes before asking.
+	Team      string `json:"team,omitempty"`
+	TeamTask  string `json:"teamTask,omitempty"`
+	Member    string `json:"member,omitempty"`
+	Approvals string `json:"approvals,omitempty"`
 }
 
 // SessionEvent is one line of a session log and one session.event on the wire.

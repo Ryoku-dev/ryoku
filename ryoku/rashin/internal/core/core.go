@@ -10,6 +10,7 @@ import (
 
 	"ryoku-rashin/internal/llm"
 	"ryoku-rashin/internal/protocol"
+	"ryoku-rashin/internal/sandbox"
 )
 
 // Broadcaster sends a global event to every subscribed client.
@@ -98,6 +99,11 @@ type HarnessOptions struct {
 	Resume json.RawMessage
 	// Tools are the MCP servers handed to the agent with its session.
 	Tools []MCPServer
+	// Sandbox, set for a team session, is the sandbox its agent runs in, less
+	// the harness's own state, which the harness adds as writable. Such an
+	// agent gets no file or terminal access through Rashin. Nil runs the agent
+	// as the user.
+	Sandbox *sandbox.Spec
 }
 
 // MCPServer is a stdio MCP server an agent starts for its session.
@@ -168,13 +174,74 @@ type Indexer interface {
 	Close() error
 }
 
-// SessionControl is the daemon's session manager as Work sees it: Work creates
-// and prompts Agent sessions for tasks and review notes.
+// SessionControl is the daemon's session manager as Work and Teams see it:
+// they create and prompt Agent sessions for tasks and review notes.
 type SessionControl interface {
 	Info(id string) (protocol.SessionInfo, bool)
 	List(kind protocol.SessionKind) []protocol.SessionInfo
 	New(ctx context.Context, p protocol.SessionNewParams) (protocol.SessionInfo, error)
 	Prompt(ctx context.Context, p protocol.PromptParams) (protocol.PromptResult, error)
+}
+
+// TeamSessions is what Teams needs beyond SessionControl to run a task as an
+// Agent session: bring its agent up, pick the member's model, set the task as
+// the session's goal, stop it, and continue it with a note when what held it
+// between turns is settled.
+type TeamSessions interface {
+	SessionControl
+	// Start brings the session's agent up without a prompt.
+	Start(ctx context.Context, id string) error
+	// SetModel picks the session's model among the ones its harness offers.
+	SetModel(ctx context.Context, id, model string) error
+	// Goal sets, ends or reports the session's goal; Set starts its first
+	// turn on an idle session.
+	Goal(ctx context.Context, p protocol.GoalParams) (protocol.SessionInfo, error)
+	// Continue starts a turn under the session's goal that says text, drawn
+	// as a note from Rashin rather than as the user's words.
+	Continue(ctx context.Context, id, text string) error
+	// Cancel ends the running turn; Stop also stops the agent process.
+	Cancel(ctx context.Context, id string) error
+	Stop(ctx context.Context, id string) error
+	// Watched reports whether a Rashin window is connected, so what happens
+	// unattended is recorded as such.
+	Watched() bool
+}
+
+// Teams is the control plane behind the teams.* and vault.* methods: teams of
+// agents with their tasks, routines, approvals, spend and credentials, plus
+// the hooks the session manager calls for sessions that work a team task.
+type Teams interface {
+	// Bind hands Teams the session manager; the daemon calls it once at start.
+	Bind(sessions TeamSessions)
+	// Handle serves one teams.* or vault.* method.
+	Handle(ctx context.Context, method string, params json.RawMessage) (any, error)
+	// Snapshot fills the Teams part of the subscribe snapshot.
+	Snapshot(ctx context.Context, into *protocol.Snapshot)
+	// ToolEnv is what Rashin's MCP server is told for a team session: its
+	// team, task and run token. Nil for any other session.
+	ToolEnv(info protocol.SessionInfo) map[string]string
+	// Brief is the team part of what a team session's agent is told once,
+	// ahead of its first prompt. Empty for any other session.
+	Brief(info protocol.SessionInfo) string
+	// AfterTurn counts a team session's turn and its tokens.
+	AfterTurn(ctx context.Context, info protocol.SessionInfo, end protocol.TurnEndData)
+	// Hold reports whether a team session must not start its next goal turn
+	// yet, because it waits on the user or on its members; Teams continues it
+	// once that settles.
+	Hold(info protocol.SessionInfo) bool
+	// ScreenGranted reports whether a session may have its own screen without
+	// asking the user, because its team was given one.
+	ScreenGranted(info protocol.SessionInfo) bool
+	// GoalEnded tells Teams that a team session's goal ended: done, blocked or
+	// stopped, with the agent's summary.
+	GoalEnded(info protocol.SessionInfo, goal protocol.Goal)
+	// SessionChanged lets Teams follow a team session's state.
+	SessionChanged(info protocol.SessionInfo)
+	// Busy reports team tasks at work; Armed reports routines that are on, so
+	// the daemon stays up to fire them.
+	Busy() bool
+	Armed() bool
+	Close() error
 }
 
 // Work is the coding control plane behind the projects.*, worktrees.*, git.*,

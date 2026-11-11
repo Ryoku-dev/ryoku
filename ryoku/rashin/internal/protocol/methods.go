@@ -126,6 +126,48 @@ const (
 	MTasksPlan        = "tasks.plan"
 
 	MActivityList = "activity.list"
+
+	MTeamsList           = "teams.list"
+	MTeamsTemplates      = "teams.templates"
+	MTeamsCreate         = "teams.create"
+	MTeamsUpdate         = "teams.update"
+	MTeamsDelete         = "teams.delete"
+	MTeamsPause          = "teams.pause"
+	MTeamsExport         = "teams.export"
+	MTeamsImport         = "teams.import"
+	MTeamsTasks          = "teams.tasks"
+	MTeamsTaskCreate     = "teams.task_create"
+	MTeamsTaskStop       = "teams.task_stop"
+	MTeamsTaskRetry      = "teams.task_retry"
+	MTeamsTaskRead       = "teams.task_read"
+	MTeamsTaskDelete     = "teams.task_delete"
+	MTeamsRoutines       = "teams.routines"
+	MTeamsRoutineCreate  = "teams.routine_create"
+	MTeamsRoutineUpdate  = "teams.routine_update"
+	MTeamsRoutineDelete  = "teams.routine_delete"
+	MTeamsRoutineRun     = "teams.routine_run"
+	MTeamsRoutinePreview = "teams.routine_preview"
+	MTeamsApprovals      = "teams.approvals"
+	MTeamsApprovalDecide = "teams.approval_decide"
+	MTeamsActivity       = "teams.activity"
+	MTeamsSpend          = "teams.spend"
+
+	MTeamsAgentReport      = "teams.agent_report"
+	MTeamsAgentDelegate    = "teams.agent_delegate"
+	MTeamsAgentStatus      = "teams.agent_status"
+	MTeamsAgentAsk         = "teams.agent_ask"
+	MTeamsAgentHTTP        = "teams.agent_http"
+	MTeamsAgentMail        = "teams.agent_mail"
+	MTeamsAgentRequest     = "teams.agent_request"
+	MTeamsAgentCredentials = "teams.agent_credentials"
+
+	MVaultInfo     = "vault.info"
+	MVaultAdd      = "vault.add"
+	MVaultUpdate   = "vault.update"
+	MVaultRemove   = "vault.remove"
+	MVaultEvents   = "vault.events"
+	MVaultMail     = "vault.mail"
+	MVaultMailTest = "vault.mail_test"
 )
 
 // Event names.
@@ -147,6 +189,14 @@ const (
 	EvtReviewChanged    = "review.changed"    // ReviewResult
 	EvtAPIChanged       = "api.changed"       // APIInfo
 	EvtScreen           = "screen"            // ScreenState
+	EvtTeam             = "team"              // Team
+	EvtTeamRemoved      = "team.removed"      // TeamRemoved
+	EvtTeamTask         = "team.task"         // TeamTask
+	EvtTeamTaskRemoved  = "team.task.removed" // TeamRemoved
+	EvtApproval         = "team.approval"     // Approval
+	EvtRoutine          = "routine"           // Routine
+	EvtRoutineRemoved   = "routine.removed"   // TeamRemoved
+	EvtVault            = "vault"             // VaultInfo
 )
 
 // Method is one entry of the registry: its name, the Go types of its params and
@@ -286,6 +336,48 @@ var Methods = []Method{
 	m(MTasksPlan, TaskPlanParams{}, TaskPlanResult{}, "Draft tasks for a goal with the free-model router."),
 
 	m(MActivityList, ActivityParams{}, ActivityResult{}, "A project's action ledger, newest first."),
+
+	m(MTeamsList, Empty{}, TeamsResult{}, "Teams by name."),
+	m(MTeamsTemplates, Empty{}, TeamTemplatesResult{}, "The ready-made teams a new one can start from."),
+	m(MTeamsCreate, TeamCreateParams{}, Team{}, "Create a team, with its routines."),
+	m(MTeamsUpdate, TeamUpdateParams{}, Team{}, "Apply a JSON merge patch to a team."),
+	m(MTeamsDelete, TeamRef{}, Empty{}, "Delete a team, its tasks, routines and grants; its folder stays."),
+	m(MTeamsPause, TeamPauseParams{}, Team{}, "Pause a team, or let it work again."),
+	m(MTeamsExport, TeamRef{}, TeamExportResult{}, "Write a team's definition into its folder, without history or credential values."),
+	m(MTeamsImport, TeamImportParams{}, Team{}, "Create a paused team from an exported definition."),
+	m(MTeamsTasks, TeamTasksParams{}, TeamTasksResult{}, "Team tasks, newest first."),
+	m(MTeamsTaskCreate, TeamTaskCreateParams{}, TeamTask{}, "Give a team a task; it starts when the team has room."),
+	m(MTeamsTaskStop, TeamTaskRef{}, TeamTask{}, "Stop a task and the tasks it delegated."),
+	m(MTeamsTaskRetry, TeamTaskRetryParams{}, TeamTask{}, "Run a finished, blocked or stopped task again."),
+	m(MTeamsTaskRead, TeamTaskRef{}, TeamTask{}, "Mark a task's report as read."),
+	m(MTeamsTaskDelete, TeamTaskRef{}, Empty{}, "Delete a task and its record; its sessions stay."),
+	m(MTeamsRoutines, TeamRef{}, RoutinesResult{}, "Routines of a team, or of every team when the id is empty."),
+	m(MTeamsRoutineCreate, RoutineCreateParams{}, Routine{}, "Create a routine."),
+	m(MTeamsRoutineUpdate, RoutineUpdateParams{}, Routine{}, "Apply a JSON merge patch to a routine."),
+	m(MTeamsRoutineDelete, RoutineRef{}, Empty{}, "Delete a routine; the tasks it made stay."),
+	m(MTeamsRoutineRun, RoutineRef{}, TeamTask{}, "Run a routine once now."),
+	m(MTeamsRoutinePreview, RoutinePreviewParams{}, RoutinePreview{}, "A schedule in words and its next times."),
+	m(MTeamsApprovals, ApprovalsParams{}, ApprovalsResult{}, "Approvals, newest first."),
+	m(MTeamsApprovalDecide, ApprovalDecideParams{}, Approval{}, "Answer an approval; an approved action runs once."),
+	m(MTeamsActivity, TeamActivityParams{}, ActivityResult{}, "The teams' ledger, newest first."),
+	m(MTeamsSpend, TeamSpendParams{}, TeamSpend{}, "A month of tokens by day, member and routine."),
+
+	m(MTeamsAgentReport, AgentReportParams{}, AgentAnswer{}, "For a team task's agent: hand back the report and end the task."),
+	m(MTeamsAgentDelegate, AgentDelegateParams{}, AgentAnswer{}, "For a lead's agent: give a member a piece of the task."),
+	m(MTeamsAgentStatus, AgentRef{}, AgentStatusResult{}, "For a lead's agent: the work it delegated."),
+	m(MTeamsAgentAsk, AgentAskParams{}, AgentAnswer{}, "For a team task's agent: ask the user to decide."),
+	m(MTeamsAgentHTTP, AgentHTTPParams{}, AgentHTTPResult{}, "For a team task's agent: an HTTPS request carrying a credential it never sees."),
+	m(MTeamsAgentMail, AgentMailParams{}, AgentAnswer{}, "For a team task's agent: send a mail once the user approves it."),
+	m(MTeamsAgentRequest, AgentCredentialRequestParams{}, AgentAnswer{}, "For a team task's agent: ask the user to add a credential."),
+	m(MTeamsAgentCredentials, AgentRef{}, AgentCredentialsResult{}, "For a team task's agent: the credentials its team may use."),
+
+	m(MVaultInfo, Empty{}, VaultInfo{}, "The vault's state and credentials, never a value."),
+	m(MVaultAdd, VaultAddParams{}, Credential{}, "Store a credential."),
+	m(MVaultUpdate, VaultUpdateParams{}, Credential{}, "Change a credential's details or replace its value."),
+	m(MVaultRemove, VaultRef{}, Empty{}, "Remove a credential and its sealed values."),
+	m(MVaultEvents, VaultEventsParams{}, VaultEventsResult{}, "The vault's record of use, newest first."),
+	m(MVaultMail, MailAccountParams{}, VaultInfo{}, "Set or remove the mail account."),
+	m(MVaultMailTest, Empty{}, MailTestResult{}, "Log in to the mail account's server without sending."),
 }
 
 var methodIndex = func() map[string]Method {

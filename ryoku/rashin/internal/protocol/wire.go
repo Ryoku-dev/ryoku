@@ -62,7 +62,8 @@ func (f Frame) IsEvent() bool { return f.Event != "" }
 // IsResponse reports whether the frame is a response.
 func (f Frame) IsResponse() bool { return f.Method == "" && f.Event == "" && f.ID != nil }
 
-// Error codes.
+// Error codes. CodeForbidden refuses a method the caller may not use, such as
+// one only the Rashin app may call.
 const (
 	CodeBadRequest  = "bad_request"
 	CodeNotFound    = "not_found"
@@ -70,6 +71,7 @@ const (
 	CodeConflict    = "conflict"
 	CodeDisabled    = "disabled"
 	CodeUnsupported = "unsupported"
+	CodeForbidden   = "forbidden"
 	CodeInternal    = "internal"
 )
 

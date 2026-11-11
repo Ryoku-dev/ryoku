@@ -12,15 +12,19 @@ import (
 )
 
 // agentBrief is what an agent session is told ahead of its first prompt:
-// Ryoku, the vault, Rashin, the session's own place and the code search over
-// its folder. The search is named whenever the folder can be indexed, even
-// while indexSession is still registering it: the commands wait for the index
-// themselves, and a session is only ever briefed once.
+// Ryoku, the vault, Rashin, the session's own place, the code search over
+// its folder and, for a team task, its team. The search is named whenever
+// the folder can be indexed, even while indexSession is still registering
+// it: the commands wait for the index themselves, and a session is only ever
+// briefed once.
 func (d *Daemon) agentBrief(info protocol.SessionInfo) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	tools := len(d.agentTools(info)) > 0
-	session := brief.Session{Info: info, Semantic: d.Settings().Index.Semantic, Tools: tools, Screen: tools && screenable()}
+	session := brief.Session{Info: info, Semantic: d.Settings().Index.Semantic, Tools: tools, Screen: tools && d.screenFor(info)}
+	if d.deps.Teams != nil {
+		session.Team = d.deps.Teams.Brief(info)
+	}
 	if d.deps.Work != nil && info.Project != "" {
 		for _, project := range d.deps.Work.Projects(ctx) {
 			if project.ID == info.Project {

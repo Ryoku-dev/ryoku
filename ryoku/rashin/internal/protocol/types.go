@@ -97,6 +97,13 @@ type Snapshot struct {
 	Tasks     []TaskInfo     `json:"tasks"`
 	// Screens are the agent screens that are up.
 	Screens []ScreenState `json:"screens,omitempty"`
+	// Teams, their open and recent tasks, pending and recent approvals,
+	// routines and the vault without any value.
+	Teams     []Team     `json:"teams,omitempty"`
+	TeamTasks []TeamTask `json:"teamTasks,omitempty"`
+	Approvals []Approval `json:"approvals,omitempty"`
+	Routines  []Routine  `json:"routines,omitempty"`
+	Vault     *VaultInfo `json:"vault,omitempty"`
 }
 
 // SessionListParams filters session.list. Before is a session id: only older
@@ -132,6 +139,12 @@ type SessionNewParams struct {
 	Branch   string `json:"branch,omitempty"`
 	Name     string `json:"name,omitempty"`
 	Task     string `json:"task,omitempty"`
+	// Team, TeamTask and Member bind an Agent session to the team task it
+	// works; Approvals overrides the agent approvals setting for it.
+	Team      string `json:"team,omitempty"`
+	TeamTask  string `json:"teamTask,omitempty"`
+	Member    string `json:"member,omitempty"`
+	Approvals string `json:"approvals,omitempty"`
 }
 
 // SessionRef names one session.
@@ -712,6 +725,15 @@ type APISettings struct {
 // DefaultAPIPort is where the local API listens unless the setting says otherwise.
 const DefaultAPIPort = 3600
 
+// TeamsSettings are the defaults every team shares.
+type TeamsSettings struct {
+	// MaxRunning is how many team tasks run at once across all teams.
+	MaxRunning int `json:"maxRunning"`
+}
+
+// DefaultTeamsMaxRunning is how many team tasks run at once by default.
+const DefaultTeamsMaxRunning = 3
+
 // Settings is rashin.json. Enabled is changed only by rashin on and off.
 type Settings struct {
 	Enabled bool           `json:"enabled"`
@@ -720,6 +742,7 @@ type Settings struct {
 	Daemon  DaemonSettings `json:"daemon"`
 	Index   IndexSettings  `json:"index"`
 	API     APISettings    `json:"api"`
+	Teams   TeamsSettings  `json:"teams"`
 }
 
 // SettingsSetParams carries a JSON merge patch (RFC 7396) over Settings.
@@ -734,6 +757,14 @@ const (
 	TabProjects = "projects"
 	TabIndex    = "index"
 	TabSettings = "settings"
+
+	// Teams mode
+	TabInbox    = "inbox"
+	TabTeams    = "teams"
+	TabWork     = "work"
+	TabRoutines = "routines"
+	TabVault    = "vault"
+	TabActivity = "activity"
 )
 
 // UIOpenParams asks a running app to show a session or tab. It is also the
@@ -746,6 +777,12 @@ type UIOpenParams struct {
 	Project  string `json:"project,omitempty"`
 	View     string `json:"view,omitempty"`
 	Worktree string `json:"worktree,omitempty"`
+	// Team, TeamTask, Routine and Credential open Teams mode on one of them;
+	// View then names a team page tab.
+	Team       string `json:"team,omitempty"`
+	TeamTask   string `json:"teamTask,omitempty"`
+	Routine    string `json:"routine,omitempty"`
+	Credential string `json:"credential,omitempty"`
 }
 
 // UIOpenResult reports whether a running app received the request.
@@ -771,4 +808,7 @@ type Notice struct {
 	Level   string `json:"level"`
 	Text    string `json:"text"`
 	Session string `json:"session,omitempty"`
+	// Team and TeamTask name what a Teams notice is about.
+	Team     string `json:"team,omitempty"`
+	TeamTask string `json:"teamTask,omitempty"`
 }

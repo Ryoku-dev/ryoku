@@ -13,19 +13,33 @@ import (
 )
 
 // agentTools hands an agent session Rashin's own MCP server, which serves the
-// code search over its folder, the session's goal and, where the desktop can
-// host one, its screen. Without the rashin command beside the daemon or on
-// PATH the session gets none.
+// code search over its folder, the session's goal, where the desktop can
+// host one its screen and, for a team task, the team's tools. Without the
+// rashin command beside the daemon or on PATH the session gets none.
 func (d *Daemon) agentTools(info protocol.SessionInfo) []core.MCPServer {
 	command := d.commandPath()
 	if command == "" {
 		return nil
 	}
 	env := map[string]string{"RASHIN_SESSION": info.ID, "RASHIN_CWD": info.Cwd}
-	if screenable() {
+	if d.screenFor(info) {
 		env["RASHIN_SCREEN"] = "1"
 	}
+	if d.deps.Teams != nil {
+		for key, value := range d.deps.Teams.ToolEnv(info) {
+			env[key] = value
+		}
+	}
 	return []core.MCPServer{{Name: "rashin", Command: command, Args: []string{"mcp"}, Env: env}}
+}
+
+// screenFor says a session may be offered a screen of its own: the desktop
+// can host one and, for a team task, its team was given one.
+func (d *Daemon) screenFor(info protocol.SessionInfo) bool {
+	if info.Team != "" && (d.deps.Teams == nil || !d.deps.Teams.ScreenGranted(info)) {
+		return false
+	}
+	return screenable()
 }
 
 // screenable says this desktop can host a screen for an agent

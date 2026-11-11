@@ -36,7 +36,7 @@ func init() {
 	register(&Command{Name: "sessions", Group: "sessions", Usage: "[ask|agent]", Summary: "List saved sessions.", Run: runSessions})
 	register(&Command{Name: "show", Group: "sessions", Usage: "<id>", Summary: "Show a saved session.", Run: runShow})
 	register(&Command{Name: "rm", Group: "sessions", Usage: "<id>", Summary: "Delete a saved session.", Run: runRemove})
-	register(&Command{Name: "open", Group: "sessions", Usage: "[--session id] [--tab tab] [--project id-or-path] [--view overview|graph|changes|tasks|activity] [--worktree path]", Summary: "Open the Rashin app.", Run: runOpen})
+	register(&Command{Name: "open", Group: "sessions", Usage: "[--session id] [--tab tab] [--project id-or-path] [--view overview|graph|changes|tasks|activity] [--worktree path] [--route route]", Summary: "Open the Rashin app.", Run: runOpen})
 	register(&Command{Name: "fix", Group: "sessions", Usage: "doctor | app <name> [what happened]", Summary: "Open a repair session from machine evidence.", Run: runFix})
 }
 
@@ -142,6 +142,10 @@ func parseOpen(args []string) (protocol.UIOpenParams, error) {
 				return p, err
 			}
 			p.Worktree = path
+		case "--route":
+			if err := parseTeamsRoute(args[1], &p); err != nil {
+				return p, err
+			}
 		default:
 			return p, fmt.Errorf("unknown option %s", args[0])
 		}
@@ -209,14 +213,19 @@ func launchApp(p protocol.UIOpenParams) int {
 	if p.Session != "" {
 		args = append(args, "--session", p.Session)
 	}
-	if p.Tab != "" {
-		args = append(args, "--tab", p.Tab)
-	}
-	if p.Project != "" {
-		args = append(args, "--project", p.Project)
-	}
-	if p.View != "" {
-		args = append(args, "--view", p.View)
+	// a Teams mode place travels as one route, which carries its tab and view
+	if route := teamsRoute(p); route != "" {
+		args = append(args, "--route", route)
+	} else {
+		if p.Tab != "" {
+			args = append(args, "--tab", p.Tab)
+		}
+		if p.Project != "" {
+			args = append(args, "--project", p.Project)
+		}
+		if p.View != "" {
+			args = append(args, "--view", p.View)
+		}
 	}
 	if p.Worktree != "" {
 		args = append(args, "--worktree", p.Worktree)
@@ -237,6 +246,80 @@ func launchApp(p protocol.UIOpenParams) int {
 		return report(err)
 	}
 	return 0
+}
+
+// parseTeamsRoute reads a Teams mode route, the way a notification names
+// what it is about: inbox, teams[/<team>[/<view>]], work[/<task>],
+// routines[/<routine>], vault[/<credential>] or activity
+func parseTeamsRoute(route string, p *protocol.UIOpenParams) error {
+	parts := strings.Split(strings.Trim(route, "/"), "/")
+	invalid := fmt.Errorf("%s", i18n.Tf("%s is not a Teams route.", route))
+	switch parts[0] {
+	case protocol.TabInbox, protocol.TabActivity:
+		if len(parts) > 1 {
+			return invalid
+		}
+	case protocol.TabTeams:
+		if len(parts) > 3 {
+			return invalid
+		}
+		if len(parts) > 1 {
+			p.Team = parts[1]
+		}
+		if len(parts) > 2 {
+			p.View = parts[2]
+		}
+	case protocol.TabWork, protocol.TabRoutines, protocol.TabVault:
+		if len(parts) > 2 {
+			return invalid
+		}
+		if len(parts) == 2 {
+			switch parts[0] {
+			case protocol.TabWork:
+				p.TeamTask = parts[1]
+			case protocol.TabRoutines:
+				p.Routine = parts[1]
+			default:
+				p.Credential = parts[1]
+			}
+		}
+	default:
+		return invalid
+	}
+	p.Tab = parts[0]
+	return nil
+}
+
+// teamsRoute is the route the app starts on for a Teams mode place, "" for
+// any other
+func teamsRoute(p protocol.UIOpenParams) string {
+	switch p.Tab {
+	case protocol.TabInbox, protocol.TabActivity:
+		return p.Tab
+	case protocol.TabTeams:
+		route := p.Tab
+		if p.Team != "" {
+			route += "/" + p.Team
+			if p.View != "" {
+				route += "/" + p.View
+			}
+		}
+		return route
+	case protocol.TabWork:
+		return joinRoute(p.Tab, p.TeamTask)
+	case protocol.TabRoutines:
+		return joinRoute(p.Tab, p.Routine)
+	case protocol.TabVault:
+		return joinRoute(p.Tab, p.Credential)
+	}
+	return ""
+}
+
+func joinRoute(tab, id string) string {
+	if id == "" {
+		return tab
+	}
+	return tab + "/" + id
 }
 
 func runFix(args []string) int {

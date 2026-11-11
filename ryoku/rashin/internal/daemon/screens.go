@@ -16,6 +16,7 @@ import (
 
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
+	"ryoku-rashin/internal/sandbox"
 	"ryoku-rashin/internal/screen"
 )
 
@@ -41,6 +42,12 @@ type screenManager struct {
 	ask       func(context.Context, string, protocol.PermissionData) (string, error)
 	// available says this desktop can host a screen at all
 	available func() bool
+	// granted says a session may have its screen without being asked, because
+	// its team was given one; nil asks every session
+	granted func(id string) bool
+	// sandbox is what the apps on a session's screen run in: set for a team
+	// session, nil for others; a nil func runs every screen's apps as the user
+	sandbox func(id string) *sandbox.Spec
 }
 
 type agentScreen struct {
@@ -102,7 +109,8 @@ func (m *screenManager) ensure(id string) *agentScreen {
 	return item
 }
 
-// bring asks the user for the screen and starts it once they agree
+// bring asks the user for the screen, unless the session's team was given
+// one, and starts it once they agree
 func (m *screenManager) bring(ctx context.Context, id string, item *agentScreen) {
 	fail := func(err error) {
 		item.mu.Lock()
@@ -116,25 +124,31 @@ func (m *screenManager) bring(ctx context.Context, id string, item *agentScreen)
 		fail(errors.New(i18n.T("This desktop cannot host a screen for the agent.")))
 		return
 	}
-	option, err := m.ask(ctx, id, protocol.PermissionData{
-		Title: i18n.T("Give the agent a screen of its own"),
-		Kind:  "screen",
-		Input: i18n.T("It opens apps on a hidden screen you can watch and take over. Nothing appears on your desktop."),
-		Options: []protocol.PermissionOption{
-			{ID: "allow", Label: i18n.T("Give it a screen"), Kind: protocol.OptAllowOnce},
-			{ID: "deny", Label: i18n.T("Not now"), Kind: protocol.OptRejectOnce},
-		},
-	})
-	if err != nil {
-		fail(err)
-		return
-	}
-	if option != "allow" {
-		fail(errors.New(i18n.T("The user did not give you a screen. Do the work without one, or ask them in your reply.")))
-		return
+	if m.granted == nil || !m.granted(id) {
+		option, err := m.ask(ctx, id, protocol.PermissionData{
+			Title: i18n.T("Give the agent a screen of its own"),
+			Kind:  "screen",
+			Input: i18n.T("It opens apps on a hidden screen you can watch and take over. Nothing appears on your desktop."),
+			Options: []protocol.PermissionOption{
+				{ID: "allow", Label: i18n.T("Give it a screen"), Kind: protocol.OptAllowOnce},
+				{ID: "deny", Label: i18n.T("Not now"), Kind: protocol.OptRejectOnce},
+			},
+		})
+		if err != nil {
+			fail(err)
+			return
+		}
+		if option != "allow" {
+			fail(errors.New(i18n.T("The user did not give you a screen. Do the work without one, or ask them in your reply.")))
+			return
+		}
 	}
 	m.publish(item)
-	started, err := screen.Start(ctx, screen.Options{Dir: filepath.Join(paths.ScreensDir(), id), Home: paths.ScreenHome()})
+	var contained *sandbox.Spec
+	if m.sandbox != nil {
+		contained = m.sandbox(id)
+	}
+	started, err := screen.Start(ctx, screen.Options{Dir: filepath.Join(paths.ScreensDir(), id), Home: paths.ScreenHome(), Sandbox: contained})
 	if err != nil {
 		fail(fmt.Errorf("%s %v", i18n.T("The screen did not start:"), err))
 		return

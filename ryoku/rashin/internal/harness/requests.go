@@ -14,6 +14,10 @@ import (
 )
 
 func (r *runner) handleRequest(message rpcMessage) {
+	if r.sandbox != nil && (strings.HasPrefix(message.Method, "fs/") || strings.HasPrefix(message.Method, "terminal/")) {
+		r.respondRequestError(message.ID, errors.New(i18n.T("Rashin does not read, write or run anything for an agent in a sandbox. Use your own tools.")))
+		return
+	}
 	switch message.Method {
 	case "session/request_permission":
 		r.handlePermissionRequest(message)

@@ -415,6 +415,7 @@ func runFakeAgent(mode string) {
 	terminalID := ""
 	terminalBase := 0
 	var servers []fakeMCPServer
+	offered := ""
 	for scanner.Scan() {
 		var message rpcMessage
 		if json.Unmarshal(scanner.Bytes(), &message) != nil {
@@ -422,6 +423,9 @@ func runFakeAgent(mode string) {
 		}
 		switch message.Method {
 		case "initialize":
+			if mode == "sandboxed" {
+				offered = fakeOffered(message.Params)
+			}
 			load := mode == "resume-load" || mode == "capabilities" || mode == "load-replay" || mode == "generation" || mode == "echo-load"
 			promptCapabilities := map[string]bool{"image": mode != "echo-no-pictures"}
 			if mode == "capabilities" {
@@ -520,6 +524,8 @@ func runFakeAgent(mode string) {
 			case "exit":
 				_, _ = fmt.Fprintln(os.Stderr, "scripted failure")
 				return
+			case "sandboxed":
+				fakeSandboxedTurn(write, offered)
 			case "load-replay":
 				writeUpdate(write, map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]string{"type": "text", "text": "fresh"}})
 				writePromptResult(write, promptID, "end_turn")
@@ -739,6 +745,8 @@ func runFakeAgent(mode string) {
 					}
 				}
 				writePromptResult(write, promptID, "end_turn")
+			case "sandboxed":
+				fakeSandboxedAnswer(write, message, promptID)
 			}
 		}
 	}

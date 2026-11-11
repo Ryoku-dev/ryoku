@@ -72,6 +72,9 @@ type Session struct {
 	// the server offers it a screen of its own.
 	Tools  bool
 	Screen bool
+	// Team is what an agent working a team task is told about its team, its
+	// role and how the team works; empty for any other session.
+	Team string
 }
 
 // Agent is the text an external agent hears once, ahead of its first prompt.
@@ -133,6 +136,11 @@ func Agent(session Session) string {
 	if session.Screen {
 		b.WriteString("\nYour screen\n")
 		b.WriteString("When the work needs a graphical app, such as a web page to check or a program with no command line, the rashin screen tools give you a hidden desktop of your own to open apps on, look at, click and type into. The first use asks the user; they can watch it and take it over, and screen_ask_user hands it to them for sign-ins.\n")
+	}
+	if session.Team != "" {
+		b.WriteString("\n")
+		b.WriteString(session.Team)
+		b.WriteString("\n")
 	}
 
 	b.WriteString("\nEnd of context from Rashin.")

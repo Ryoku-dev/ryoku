@@ -17,6 +17,7 @@ import (
 	"ryoku-rashin/internal/index"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
+	"ryoku-rashin/internal/teams"
 	"ryoku-rashin/internal/workspace"
 )
 
@@ -37,6 +38,11 @@ func main() {
 	}
 }
 func run() error {
+	// a core dump, or a same-user read of /proc/<pid>/mem, would lift the
+	// vault's key and every value the daemon opens
+	if _, _, errno := syscall.RawSyscall(syscall.SYS_PRCTL, syscall.PR_SET_DUMPABLE, 0, 0); errno != 0 {
+		return fmt.Errorf("prctl PR_SET_DUMPABLE: %w", errno)
+	}
 	initial, err := config.Load()
 	if err != nil {
 		return err
@@ -80,7 +86,14 @@ func run() error {
 		gw.Close()
 		return err
 	}
-	deps := daemon.Deps{Gateway: gw, Asker: ask.New(gw, idx), Harnesses: harness.New(), Indexer: idx, Work: work, Version: version, Events: events, Lock: lock}
+	crew, err := teams.Open(events, settings)
+	if err != nil {
+		work.Close()
+		idx.Close()
+		gw.Close()
+		return err
+	}
+	deps := daemon.Deps{Gateway: gw, Asker: ask.New(gw, idx), Harnesses: harness.New(), Indexer: idx, Work: work, Teams: crew, Version: version, Events: events, Lock: lock}
 	// read now: once the file is replaced the kernel no longer names it
 	if program, programErr := os.Executable(); programErr == nil {
 		deps.Program = program

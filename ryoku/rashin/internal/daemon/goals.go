@@ -90,7 +90,7 @@ func (m *sessionManager) goal(ctx context.Context, p protocol.GoalParams) (proto
 			turns = defaultGoalTurns
 		}
 		goal = protocol.Goal{Objective: objective, Status: protocol.GoalActive, MaxTurns: turns, Started: now}
-		start = !s.running
+		start = !s.running && !m.held(info)
 	case protocol.GoalPause:
 		if !exists || goal.Status != protocol.GoalActive {
 			s.mu.Unlock()
@@ -106,7 +106,7 @@ func (m *sessionManager) goal(ctx context.Context, p protocol.GoalParams) (proto
 			goal.MaxTurns = goal.Turns + defaultGoalTurns
 		}
 		goal.Status, goal.Reason, goal.Ended = protocol.GoalActive, "", nil
-		start = !s.running
+		start = !s.running && !m.held(info)
 	case protocol.GoalStop:
 		if !live {
 			s.mu.Unlock()
@@ -155,6 +155,10 @@ func (m *sessionManager) goal(ctx context.Context, p protocol.GoalParams) (proto
 	s.mu.Unlock()
 	_ = s.coalescer.Emit(protocol.EvGoal, protocol.GoalData{Goal: goal})
 	m.announceGoal(info, goal)
+	switch p.Op {
+	case protocol.GoalPause, protocol.GoalStop, protocol.GoalComplete, protocol.GoalBlock:
+		m.teamGoalEnded(info, goal)
+	}
 	m.changed()
 	if start {
 		text, say := goalTurn(goal)
@@ -215,6 +219,7 @@ func (m *sessionManager) goalAfterTurn(s *managedSession, stop string, calls int
 	if goal.Status != protocol.GoalActive {
 		_ = s.coalescer.Emit(protocol.EvGoal, protocol.GoalData{Goal: goal})
 		m.announceGoal(info, goal)
+		m.teamGoalEnded(info, goal)
 		return false
 	}
 	return true
@@ -239,6 +244,20 @@ func (m *sessionManager) announceGoal(info protocol.SessionInfo, goal protocol.G
 		text = i18n.Tf("Goal paused: %s", goalLine(goal.Objective))
 	}
 	m.broadcast(protocol.EvtNotice, protocol.Notice{Level: level, Text: text, Session: info.ID})
+}
+
+// held reports a team session that must not start its next goal turn yet,
+// because its task waits on the user or on its members
+func (m *sessionManager) held(info protocol.SessionInfo) bool {
+	return m.teams != nil && info.TeamTask != "" && m.teams.Hold(info)
+}
+
+// teamGoalEnded tells Teams that a team session's goal stopped needing the
+// agent, so its task ends with it
+func (m *sessionManager) teamGoalEnded(info protocol.SessionInfo, goal protocol.Goal) {
+	if m.teams != nil && info.TeamTask != "" && goal.Status != protocol.GoalActive {
+		m.teams.GoalEnded(info, goal)
+	}
 }
 
 func goalLine(objective string) string {

@@ -680,14 +680,20 @@ type TaskPlanResult struct {
 	Via    string      `json:"via,omitempty"`
 }
 
-// Activity is one state-changing action recorded in a project's ledger.
+// Activity is one state-changing action recorded in a project's or the
+// teams' ledger. Team, Task, Initiator and Unwatched are set for teams:
+// Initiator is who started it, Unwatched that no Rashin window was open.
 type Activity struct {
-	Time   time.Time `json:"time"`
-	Actor  string    `json:"actor"`
-	Action string    `json:"action"`
-	Target string    `json:"target,omitempty"`
-	OK     bool      `json:"ok"`
-	Detail string    `json:"detail,omitempty"`
+	Time      time.Time `json:"time"`
+	Actor     string    `json:"actor"`
+	Action    string    `json:"action"`
+	Target    string    `json:"target,omitempty"`
+	OK        bool      `json:"ok"`
+	Detail    string    `json:"detail,omitempty"`
+	Team      string    `json:"team,omitempty"`
+	Task      string    `json:"task,omitempty"`
+	Initiator string    `json:"initiator,omitempty"`
+	Unwatched bool      `json:"unwatched,omitempty"`
 }
 
 // ActivityParams pages a project's ledger, newest first.

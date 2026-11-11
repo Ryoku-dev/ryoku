@@ -17,10 +17,13 @@ func init() {
 }
 
 // mcpSession is the agent session the server was started for, from the
-// environment its harness was given
+// environment its harness was given; token and lead are set for a session
+// that works a team task
 type mcpSession struct {
-	id  string
-	cwd string
+	id    string
+	cwd   string
+	token string
+	lead  bool
 }
 
 // path resolves a path the agent gave relative to its session folder
@@ -45,6 +48,13 @@ func runMCP(args []string) int {
 	if os.Getenv("RASHIN_SCREEN") == "1" {
 		instructions += " The screen tools give you a hidden desktop of your own to use apps on, once the user agrees."
 		tools = append(tools, screenTools(session)...)
+	}
+	// the daemon names the team task the session works and the run's token
+	if os.Getenv("RASHIN_TEAM") != "" {
+		session.token = os.Getenv("RASHIN_TEAM_TOKEN")
+		session.lead = os.Getenv("RASHIN_TEAM_LEAD") == "1"
+		instructions += " The team tools serve your team task: report ends it, ask_user puts a decision to the user, and credentials, http_request, send_mail and request_credential use your team's credentials and mail without you ever seeing a value."
+		tools = append(tools, teamTools(session)...)
 	}
 	server := &mcp.Server{Name: "rashin", Version: version, Instructions: instructions, Tools: tools}
 	if err := server.Serve(context.Background(), os.Stdin, os.Stdout); err != nil {

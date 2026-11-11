@@ -21,6 +21,7 @@ import (
 	gitcore "ryoku-rashin/internal/git"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
+	"ryoku-rashin/internal/sandbox"
 	store "ryoku-rashin/internal/session"
 )
 
@@ -87,6 +88,14 @@ type sessionManager struct {
 	tools func(protocol.SessionInfo) []core.MCPServer
 	// ended hears that a session was stopped or deleted, so what it held ends too
 	ended func(id string)
+	// teams runs team tasks as Agent sessions and hears how their turns and
+	// goals go, and watched says a Rashin window is connected; the daemon
+	// sets both, tests leave them nil
+	teams   core.Teams
+	watched func() bool
+	// sandbox is the sandbox a team session's agent runs in; the daemon sets
+	// it, tests leave it nil
+	sandbox func(protocol.SessionInfo) (*sandbox.Spec, error)
 }
 
 func newSessionManager(asker core.Asker, harnesses core.Harnesses, work core.Work, settings func() protocol.Settings, broadcast func(string, any), changed func(), warn func(string, ...any)) *sessionManager {
@@ -204,6 +213,13 @@ func (m *sessionManager) create(p protocol.SessionNewParams) (protocol.SessionIn
 	if info.Kind == protocol.KindAsk && protocol.KnownApprovals(p.Mode) {
 		info.Mode = p.Mode
 	}
+	// a team task's session works under its team's approvals, not the agent default
+	if info.Kind == protocol.KindAgent {
+		info.Team, info.TeamTask, info.Member = p.Team, p.TeamTask, p.Member
+		if protocol.KnownApprovals(p.Approvals) {
+			info.Approvals = p.Approvals
+		}
+	}
 	log, err := store.Create(info, nil)
 	if err != nil {
 		return protocol.SessionInfo{}, err
@@ -214,9 +230,7 @@ func (m *sessionManager) create(p protocol.SessionNewParams) (protocol.SessionIn
 	m.items[id] = s
 	m.mu.Unlock()
 	m.broadcast(protocol.EvtSessionInfo, info)
-	if m.work != nil && info.Project != "" {
-		m.work.SessionChanged(info)
-	}
+	m.sessionChanged(info)
 	m.changed()
 	return info, nil
 }
@@ -343,8 +357,17 @@ func (m *sessionManager) emitInfoLocked(s *managedSession) {
 	for target := range s.attached {
 		target.sendEvent(protocol.EvtSessionInfo, info)
 	}
+	m.sessionChanged(info)
+}
+
+// sessionChanged tells Work about a project's session and Teams about a team
+// task's session.
+func (m *sessionManager) sessionChanged(info protocol.SessionInfo) {
 	if m.work != nil && info.Project != "" {
 		m.work.SessionChanged(info)
+	}
+	if m.teams != nil && info.TeamTask != "" {
+		m.teams.SessionChanged(info)
 	}
 }
 
@@ -476,14 +499,26 @@ func (m *sessionManager) ensureRunner(ctx context.Context, s *managedSession) (c
 		if info.Kind == protocol.KindAsk {
 			runner = m.asker.NewAsk(core.AskOptions{Session: info, Settings: m.settings})
 		} else {
-			options := core.HarnessOptions{Session: info, Harness: harness, Cwd: info.Cwd, Approvals: func() string { return m.settings().Agent.Approvals }, Resume: resume}
+			// a team task's session keeps its team's approvals; others follow the setting
+			approvals := func() string {
+				if own := s.log.Info().Approvals; own != "" {
+					return own
+				}
+				return m.settings().Agent.Approvals
+			}
+			options := core.HarnessOptions{Session: info, Harness: harness, Cwd: info.Cwd, Approvals: approvals, Resume: resume}
 			if m.brief != nil {
 				options.Brief = func() string { return m.brief(s.log.Info()) }
 			}
 			if m.tools != nil {
 				options.Tools = m.tools(info)
 			}
-			runner, err = m.harnesses.NewAgent(ctx, options)
+			if info.Team != "" && m.sandbox != nil {
+				options.Sandbox, err = m.sandbox(info)
+			}
+			if err == nil {
+				runner, err = m.harnesses.NewAgent(ctx, options)
+			}
 			if err == nil && m.prepare != nil {
 				go m.prepare(info)
 			}
@@ -747,6 +782,9 @@ func (m *sessionManager) runTurn(ctx context.Context, s *managedSession, runner 
 	if m.work != nil && info.Kind == protocol.KindAgent {
 		m.work.AfterTurn(context.Background(), info, input.Turn)
 	}
+	if m.teams != nil && info.TeamTask != "" {
+		m.teams.AfterTurn(context.Background(), info, protocol.TurnEndData{Turn: input.Turn, Stop: stop, Usage: result.Usage})
+	}
 	s.mu.Lock()
 	calls := s.turnCalls
 	s.mu.Unlock()
@@ -765,7 +803,7 @@ func (m *sessionManager) runTurn(ctx context.Context, s *managedSession, runner 
 			_ = s.log.Update(func(i *protocol.SessionInfo) {
 				i.Queue = append([]protocol.QueuedPrompt(nil), i.Queue[1:]...)
 			}, nil)
-		} else if onward && current.Goal != nil && current.Goal.Status == protocol.GoalActive {
+		} else if onward && current.Goal != nil && current.Goal.Status == protocol.GoalActive && !m.held(current) {
 			next := *current.Goal
 			goal = &next
 			s.running = true
@@ -1209,6 +1247,69 @@ func (m *sessionManager) start(ctx context.Context, id string) error {
 	return nil
 }
 
+// Start, SetModel, Goal, Cancel and Stop are the session controls Teams runs
+// a task's session with.
+func (m *sessionManager) Start(ctx context.Context, id string) error { return m.start(ctx, id) }
+
+func (m *sessionManager) SetModel(ctx context.Context, id, model string) error {
+	return m.setModel(ctx, protocol.SetModelParams{ID: id, Model: model})
+}
+
+func (m *sessionManager) Goal(ctx context.Context, p protocol.GoalParams) (protocol.SessionInfo, error) {
+	return m.goal(ctx, p)
+}
+
+func (m *sessionManager) Cancel(_ context.Context, id string) error { return m.cancel(id) }
+
+func (m *sessionManager) Stop(_ context.Context, id string) error { return m.stop(id) }
+
+// Continue starts a turn under the session's goal that says text, drawn as a
+// note from Rashin. A turn still running, or about to start, is waited for,
+// so the note always reaches the agent as a turn of its own.
+func (m *sessionManager) Continue(ctx context.Context, id, text string) error {
+	s, err := m.get(id)
+	if err != nil {
+		return err
+	}
+	for {
+		s.mu.Lock()
+		if s.stopping {
+			s.mu.Unlock()
+			return protocol.Errorf(protocol.CodeConflict, "%s", i18n.T("The session is stopping."))
+		}
+		if !s.running && !s.finishing {
+			info := s.log.Info()
+			s.running = true
+			s.reserveDone = make(chan struct{})
+			s.mu.Unlock()
+			goal := info.Goal != nil && info.Goal.Status == protocol.GoalActive
+			_, _, err := m.startPrompt(context.Background(), s, protocol.PromptParams{ID: id, Text: text}, promptTurn{reserved: true, goal: goal})
+			return err
+		}
+		wait := s.turnDone
+		if wait == nil {
+			wait = s.reserveDone
+		}
+		if wait == nil {
+			wait = s.finishDone
+		}
+		s.mu.Unlock()
+		var retry <-chan time.Time
+		if wait == nil {
+			retry = time.After(50 * time.Millisecond)
+		}
+		select {
+		case <-wait:
+		case <-retry:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+// Watched reports whether a Rashin window is connected.
+func (m *sessionManager) Watched() bool { return m.watched != nil && m.watched() }
+
 // touch records that the session's runner was just used outside a turn.
 func (m *sessionManager) touch(s *managedSession, r core.Runner) {
 	state := r.State()
@@ -1371,6 +1472,26 @@ func (m *sessionManager) list(p protocol.SessionListParams) (protocol.SessionLis
 		all = all[:limit]
 	}
 	return protocol.SessionListResult{Sessions: all}, nil
+}
+
+// recent is the newest limit sessions a client lists at once. Team task
+// sessions are left out: their tasks show them, and a busy team would push
+// the user's own conversations off the list.
+func (m *sessionManager) recent(limit int) ([]protocol.SessionInfo, error) {
+	all, err := store.List("")
+	if err != nil {
+		return nil, err
+	}
+	out := make([]protocol.SessionInfo, 0, min(limit, len(all)))
+	for _, info := range all {
+		if len(out) == limit {
+			break
+		}
+		if info.Team == "" {
+			out = append(out, info)
+		}
+	}
+	return out, nil
 }
 
 func (m *sessionManager) counts() protocol.SessionCounts {
