@@ -1,8 +1,8 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import shell.services
 import "../../components"
-import Ryoku.Ui.Singletons
 import "look"
 
 // A 30px circle holding a 20px glyph, filled with the

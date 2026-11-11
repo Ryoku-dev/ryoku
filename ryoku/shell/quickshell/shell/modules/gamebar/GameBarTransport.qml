@@ -1,8 +1,8 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import shell.services
 import "../../components"
-import Ryoku.Ui.Singletons
 import "look"
 
 // One media transport button: a Material symbol in a borderless circle, or the
