@@ -17,7 +17,7 @@ GameBarCard {
 
     readonly property var player: Media.player
     readonly property bool present: Media.present
-    readonly property string art: card.player && card.player.artUrl ? String(card.player.artUrl) : ""
+    readonly property string art: card.player && card.player.trackArtUrl ? String(card.player.trackArtUrl) : ""
     readonly property string artist: card.player
         ? Theme.joinArtists(card.player.trackArtists, card.player.trackArtist) : ""
 
