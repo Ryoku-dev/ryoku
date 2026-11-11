@@ -125,6 +125,10 @@
   (`rashin/internal/ask/command/readonly.go`).
 - **A command that names a credential never runs from Ask.** Not with YOLO
   either: what a command prints is sent to the model.
+- **Run in terminal shows what it runs.** The window showed nothing until the
+  command finished, which for a slow one looked dead. The command is printed
+  first, as if typed, and a failure says its exit status
+  (`rashin/internal/app/env/launch.go`).
 - **Opening an agent session by its id opens it in Agents.** `rashin-app
   --session <id>` and `rashin open --session <id>` showed it as an empty ask.
 - **Ryotunes picks floating or tiled itself.** Its own setting decides on niri

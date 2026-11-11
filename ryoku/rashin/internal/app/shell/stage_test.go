@@ -41,6 +41,8 @@ type stage struct {
 	launched []string
 	// whether each of those was to arrive in front of a floating Rashin
 	fronted []bool
+	// the same programs word by word, for a test that runs what a terminal is handed
+	argv [][]string
 	// chooser answers the system file chooser; the machine has none while it is nil
 	chooser func(desktop.ChooseRequest) []string
 	// moving is a stage with motion on: flakes over a working session never stop, so it cannot wait for stillness
@@ -82,6 +84,7 @@ func openStage(t *testing.T, size image.Point, moving bool) *stage {
 		Launch: func(request desktop.LaunchRequest, done func(error)) {
 			s.launched = append(s.launched, strings.Join(append([]string{request.Name}, request.Args...), " "))
 			s.fronted = append(s.fronted, request.Front != (image.Point{}))
+			s.argv = append(s.argv, append([]string{request.Name}, request.Args...))
 			if done != nil {
 				done(nil)
 			}

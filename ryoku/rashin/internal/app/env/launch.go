@@ -56,9 +56,12 @@ func (e *Env) OpenTerminal(folder string) {
 	}
 }
 
-// from the home folder, where Ask's own tools run, and a shell is left behind so the output stays
+// the command is shown as if typed, or one that takes a minute leaves an empty window that looks broken
+// it runs from the home folder, where Ask's own tools run, and a shell stays so the output does
+const runScript = `cd; printf '\033[2m$ %s\033[0m\n' "$1"; eval "$1"; status=$?; [ "$status" -eq 0 ] || printf '\033[2m[exit %s]\033[0m\n' "$status"; exec "${SHELL:-/bin/sh}"`
+
 func (e *Env) RunInTerminal(command string) {
-	e.terminal("sh", "-c", "cd; "+command+`; exec "${SHELL:-/bin/sh}"`)
+	e.terminal("sh", "-c", runScript, "sh", command)
 }
 
 func (e *Env) terminal(inner ...string) {
