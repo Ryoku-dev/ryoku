@@ -155,7 +155,8 @@ func (r *runtime) runWindow(options Options) error {
 			window.Perform(remaining)
 		}
 	}
-	remove := r.hub.Add(window.Invalidate)
+	redraw := &redrawer{window: window}
+	remove := r.hub.Add(redraw.ask)
 	defer remove()
 	var operations op.Ops
 	reissued := false
@@ -174,6 +175,7 @@ func (r *runtime) runWindow(options Options) error {
 				window.Option(creation...)
 			}
 		case gioapp.FrameEvent:
+			redraw.frame()
 			shell.posts.Drain()
 			if !shell.maximized {
 				preferences.Width = int(event.Metric.PxToDp(event.Size.X) + .5)

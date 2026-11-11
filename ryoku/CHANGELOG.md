@@ -145,6 +145,10 @@
   command finished, which for a slow one looked dead. The command is printed
   first, as if typed, and a failure says its exit status
   (`rashin/internal/app/env/launch.go`).
+- **The last change of an answer is always drawn.** One that arrived while
+  the window was drawing could stay off screen until the pointer moved: the
+  end of a turn, or the app coming back after the daemon restarted
+  (`rashin/internal/app/shell/redraw.go`).
 - **The send button turns back from Stop by itself.** After a turn it stayed
   on Stop until the pointer moved (`rashin/internal/app/chat/composer.go`).
 - **Opening an agent session by its id opens it in Agents.** `rashin-app
