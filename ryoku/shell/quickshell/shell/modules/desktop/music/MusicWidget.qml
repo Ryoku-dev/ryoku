@@ -183,7 +183,7 @@ Item {
             }
         }
 
-        MusicLyrics {
+        LyricsSheet {
             x: cover.width + root.gap
             y: 0
             width: body.width - cover.width - root.gap
@@ -193,6 +193,7 @@ Item {
             ink: root.ink
             dim: root.dim
             accent: root.accent
+            face: Theme.font
         }
 
         // no lyric sheet up (lyrics switched off, or none found for this track):

@@ -1,14 +1,13 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import QtQuick.Effects
 import shell.services
-import "../Singletons"
 import Ryoku.Ui.Singletons
 
 // The lyric sheet: the song's words scrolling under the line being sung. The
 // timing comes from the daemon (Music), so this only places lines and follows the
-// index: the sung line is lit in the sleeve's colour and set larger, its
-// neighbours fade out with distance, and the column glides so that line stays on
-// the middle rule.
+// index: the sung line is lit in the given accent, its neighbours fade out with
+// distance, and the column glides so that line stays on the middle rule.
 //
 // The active line grows by font size, never by Item.scale, which would blur the
 // text (modules/desktop/README.md).
@@ -16,12 +15,16 @@ Item {
     id: sheet
 
     property real s: 1
-    property color ink: Theme.ink
-    property color dim: Theme.faint
-    property color accent: Theme.accent
+    property color ink: Theme.onSurface
+    property color dim: Theme.outline
+    property color accent: Theme.primary
+    property string face: Theme.fontPrimary
     property int base: 15
     property int lift: 2
     property int falloff: 4
+    property int align: Text.AlignLeft
+    property bool glow: false
+    property string emptyText: ""
 
     readonly property var lines: Music.lines
     readonly property int index: Music.index
@@ -39,11 +42,12 @@ Item {
         visible: sheet.empty
         horizontalAlignment: Text.AlignHCenter
         wrapMode: Text.WordWrap
-        text: Music.searching ? I18n.tr("Looking for lyrics")
+        text: sheet.emptyText.length > 0 ? sheet.emptyText
+            : Music.searching ? I18n.tr("Looking for lyrics")
             : Music.status === "error" ? I18n.tr("Lyrics unavailable")
             : I18n.tr("No lyrics for this track")
         color: sheet.dim
-        font.family: Theme.font
+        font.family: sheet.face
         font.pixelSize: sheet.base * sheet.s
     }
 
@@ -71,7 +75,7 @@ Item {
             y: column.target
 
             Behavior on y {
-                NumberAnimation { duration: Theme.slow; easing.type: Theme.ease }
+                NumberAnimation { duration: Motion.dur(420); easing.type: Easing.OutCubic }
             }
 
             Repeater {
@@ -87,6 +91,7 @@ Item {
                     readonly property bool sung: line.index === sheet.index
 
                     width: column.width
+                    horizontalAlignment: sheet.align
                     wrapMode: Text.WordWrap
                     maximumLineCount: 3
                     elide: Text.ElideRight
@@ -95,15 +100,25 @@ Item {
                     text: (line.modelData.text && line.modelData.text.length > 0)
                         ? line.modelData.text : "\u266a"
                     color: line.sung ? sheet.accent : sheet.ink
-                    font.family: Theme.font
+                    font.family: sheet.face
                     font.pixelSize: (sheet.base + (line.sung ? sheet.lift : 0)) * sheet.s
                     font.weight: line.sung ? Font.DemiBold : Font.Medium
                     opacity: line.distance === 0 ? 1
                         : line.distance > sheet.falloff ? 0
                         : Math.max(0.10, 0.52 - (line.distance - 1) * 0.14)
 
-                    Behavior on opacity { NumberAnimation { duration: Theme.medium; easing.type: Theme.ease } }
-                    Behavior on color { ColorAnimation { duration: Theme.medium } }
+                    layer.enabled: sheet.glow && line.sung
+                    layer.effect: MultiEffect {
+                        shadowEnabled: true
+                        shadowColor: sheet.accent
+                        shadowBlur: 1.0
+                        shadowOpacity: 0.9
+                        shadowHorizontalOffset: 0
+                        shadowVerticalOffset: 0
+                    }
+
+                    Behavior on opacity { NumberAnimation { duration: Motion.dur(260); easing.type: Easing.OutCubic } }
+                    Behavior on color { ColorAnimation { duration: Motion.dur(260) } }
                 }
             }
         }
@@ -121,12 +136,13 @@ Item {
             delegate: Text {
                 required property var modelData
                 width: parent.width
+                horizontalAlignment: sheet.align
                 wrapMode: Text.WordWrap
                 elide: Text.ElideRight
                 text: modelData
                 color: sheet.ink
                 opacity: 0.62
-                font.family: Theme.font
+                font.family: sheet.face
                 font.pixelSize: sheet.base * sheet.s
             }
         }
