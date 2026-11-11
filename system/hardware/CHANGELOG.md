@@ -22,6 +22,10 @@
 - `gpu/ryoku-gpu`: **Performance works again with a monitor on the discrete GPU.**
   When the laptop panel is on the built-in GPU but the dGPU has its own ports,
   Performance pins the dGPU at login only while a monitor is plugged into one.
+- `bluetooth/ryoku-bluetooth-power`: **turning Bluetooth off right after login
+  stays off.** A login reset still waiting up to 15 s for a slow controller
+  could power the radio back on after the newer off; each attempt now checks
+  the saved choice first, so the latest on or off wins.
 - `audio/ryoku-media`: **one action per media tap, whatever the keys.** The
   200 ms window is shared by every verb, so play-pause followed by pause from
   one headphone tap runs only the first (#764).
