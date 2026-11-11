@@ -3,6 +3,13 @@
 ## Unreleased
 
 ### Fixed
+- **Connections sees every saved profile of a Wi-Fi network.** Saved networks
+  were matched by profile name, so a second profile NetworkManager named
+  `<ssid> 1`, or one imported under another name, was invisible: Forget left
+  it behind and the auto-reconnect toggle missed it. Profiles are now matched
+  by the SSID they join, and Forget, auto-reconnect, and a new password apply
+  to all of them; a hotspot profile that shares the name is left alone
+  (`pages/ConnectionsPage.qml`).
 - **Shift plus a number key records in the shortcut recorder (#788).** The
   number row is read by key position, so Super+Shift+1 records as itself
   instead of being ignored, on any keyboard layout.
