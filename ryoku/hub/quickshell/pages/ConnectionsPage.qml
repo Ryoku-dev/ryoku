@@ -861,12 +861,14 @@ Item {
             id: profProc
             // the profile list has no SSID column, so each Wi-Fi profile is read
             // on its own; -g prints one field per line, the SSID last and
-            // unescaped so it is taken whole, then one tab-separated row each
+            // unescaped so it is taken whole, then one tab-separated row each.
+            // A hotspot (mode ap) is not a saved network, even when it shares
+            // a scanned network's name.
             command: ["sh", "-c",
                 'nmcli -t -f UUID,TYPE connection show | while IFS=: read -r u t; do '
                 + '[ "$t" = 802-11-wireless ] || continue; '
-                + 'nmcli -e no -g connection.autoconnect,connection.timestamp,802-11-wireless.ssid connection show uuid "$u" '
-                + '| { read -r a; read -r ts; IFS= read -r s; printf "%s\\t%s\\t%s\\t%s\\n" "$u" "$a" "$ts" "$s"; }; done']
+                + 'nmcli -e no -g connection.autoconnect,connection.timestamp,802-11-wireless.mode,802-11-wireless.ssid connection show uuid "$u" '
+                + '| { read -r a; read -r ts; read -r m; IFS= read -r s; [ "$m" = ap ] || printf "%s\\t%s\\t%s\\t%s\\n" "$u" "$a" "$ts" "$s"; }; done']
             stdout: StdioCollector {
                 onStreamFinished: {
                     var rows = [];
@@ -938,6 +940,7 @@ Item {
                         cleanupProc.command = ["sh", "-c",
                             'nmcli -t -f UUID,TYPE connection show | while IFS=: read -r u t; do '
                             + '[ "$t" = 802-11-wireless ] && [ "$(nmcli -e no -g 802-11-wireless.ssid connection show uuid "$u")" = "$1" ] '
+                            + '&& [ "$(nmcli -g 802-11-wireless.mode connection show uuid "$u")" != ap ] '
                             + '&& nmcli connection delete uuid "$u"; done; exit 0',
                             "sh", wifi.attemptSsid];
                         cleanupProc.running = true;
@@ -969,8 +972,9 @@ Item {
 
         // a failed `nmcli dev wifi connect` leaves a profile behind, and
         // without deleting it the next click reads the network as known and
-        // silently fails forever. Only a network with no saved profile gets
-        // here, so every profile of the SSID is the failed one; it is matched
+        // silently fails forever. Only a join that left no saved profile of
+        // the SSID gets here (a password join deletes them first), so every
+        // profile of the SSID is the failed one, a hotspot aside; it is matched
         // by SSID because nmcli names it `<ssid> 1` when the name is taken.
         Process {
             id: cleanupProc
