@@ -652,7 +652,8 @@ def llm_call(cfg, prompt):
     else:  # openai-compatible (OpenRouter by default, or vanilla OpenAI)
         model = cfg.get("model") or "gpt-4o-mini"
         url = cfg.get("url") or "https://api.openai.com/v1/chat/completions"
-        body = {"model": model, "messages": [{"role": "user", "content": prompt}]}
+        body = {"model": model, "max_tokens": 8192,
+                "messages": [{"role": "user", "content": prompt}]}
         headers = {"Authorization": "Bearer " + key, "content-type": "application/json",
                    "X-Title": "Ryoku i18n",
                    "HTTP-Referer": "https://github.com/noctalia-dev"}
