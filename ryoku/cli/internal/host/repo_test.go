@@ -592,6 +592,34 @@ func TestDNFRepoSyncAndInstalledSet(t *testing.T) {
 	}
 }
 
+// Testing boxes carry 0:1.11.x from before VERSION named the next release; the
+// epoch-1 1.0.9 build must read as an upgrade, not a package to hold back.
+func TestDNFInstalledSetTakesEpochOverResetVersion(t *testing.T) {
+	const served = "1:1.0.9.r6200.gbbbbbbb-1.fc44"
+	installed := map[string]string{"testing": "0:1.11.4.r6100.gaaaaaaa-1.fc44", "stable": "0:1.0.8.r6060.g2befae3-1.fc44"}
+	runner := &fakeRunner{paths: map[string]bool{"dnf5": true}, answer: func(command Command) Result {
+		const query = "rpm -q --whatprovides --qf %{EPOCHNUM}:%{VERSION}-%{RELEASE}\n "
+		switch line := argv(command); {
+		case line == "sudo dnf5 repoquery -y --available --repo=ryoku --qf %{name}\t%{epoch}:%{version}-%{release}\n":
+			return Result{Output: "testing\t" + served + "\nstable\t" + served + "\n"}
+		case strings.HasPrefix(line, query):
+			return Result{Output: installed[strings.TrimPrefix(line, query)] + "\n"}
+		default:
+			return Result{}
+		}
+	}}
+	app, _, _ := testApp(runner, map[string]string{"RYOKU_HOST_PKGMGR": "dnf"})
+	app.cfg.UID = 1000
+	set, skipped, err := app.RepoInstalledSet(false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"stable-" + served, "testing-" + served}
+	if !reflect.DeepEqual(set, want) || skipped != 0 {
+		t.Fatalf("set = %v, skipped = %d, want %v and nothing held back", set, skipped, want)
+	}
+}
+
 func TestDNFRepoInstalledSetIncludesUpToDatePackages(t *testing.T) {
 	const version = "0:2.0-1.fc44"
 	runner := &fakeRunner{paths: map[string]bool{"dnf5": true}, answer: func(command Command) Result {
