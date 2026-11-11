@@ -9,7 +9,7 @@ license="GPL-3.0-or-later"
 homepage="https://ryoku.dev"
 hostmakedepends="go pkg-config"
 makedepends="wayland-devel libxkbcommon-devel libglvnd-devel Vulkan-Headers"
-depends="ryoku-desktop>=${version} wayland libxkbcommon libglvnd vulkan-loader"
+depends="ryoku-desktop>=${version} wayland libxkbcommon libglvnd vulkan-loader bubblewrap"
 distfiles="https://repo.ryoku.dev/sources/ryoku-${version}.tar.gz"
 checksum=SKIP
 wrksrc="ryoku-${version}"

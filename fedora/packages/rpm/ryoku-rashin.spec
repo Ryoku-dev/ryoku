@@ -23,6 +23,7 @@ Requires:       libwayland-egl
 Requires:       libxkbcommon
 Requires:       mesa-libEGL
 Requires:       vulkan-loader
+Requires:       bubblewrap
 Requires:       hicolor-icon-theme
 
 %description
@@ -47,5 +48,5 @@ rm -f /etc/systemd/user/default.target.wants/ryoku-rashin.service
 
 %postun
 if [ "$1" -eq 0 ]; then
-  systemctl --global disable rashind.socket rashind.service ryoku-ai-usage.timer >/dev/null 2>&1 || :
+  systemctl --global disable rashind.socket rashind.service ryoku-ai-usage.timer rashind-routines.timer >/dev/null 2>&1 || :
 fi

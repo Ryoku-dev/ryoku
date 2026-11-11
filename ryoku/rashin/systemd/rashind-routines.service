@@ -1,0 +1,9 @@
+[Unit]
+# Starts the daemon only when Rashin is on and a routine is on; it reads the
+# teams' state itself and exits at once otherwise. Driven by
+# rashind-routines.timer, never enabled on its own.
+Description=Rashin routines wake
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/rashin routines wake

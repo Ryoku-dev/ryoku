@@ -33,6 +33,7 @@ ryoku-clamshell	user	session-global	ryoku-clamshell.service	ryoku-clamshell	none
 ryoku-ai-usage	user	on-demand	ryoku-ai-usage.timer	ryoku-ai-usage	preserve
 ryoku-bt-agent	user	session-global	ryoku-bt-agent.service	ryoku-bt-agent	none
 rashind	user	on-demand	rashind.socket	-	preserve
+rashind-routines	user	on-demand	rashind-routines.timer	rashind-routines	preserve
 ryoku-bluetooth-reset	user	session-global	ryoku-bluetooth-reset.service	ryoku-bluetooth-reset	none
 pipewire	user	session-core	pipewire.service	pipewire	none
 pipewire-pulse	user	session-core	pipewire-pulse.service	pipewire-pulse	none
@@ -40,4 +41,5 @@ wireplumber	user	session-core	wireplumber.service	wireplumber	none
 ryoku-eq	user	on-demand	ryoku-eq.service	ryoku-eq	preserve
 voxtype	user	on-demand	voxtype.service	voxtype	preserve
 ryoku-ai-usage-worker	user	on-demand	ryoku-ai-usage.service	-	preserve
+rashind-routines-worker	user	on-demand	rashind-routines.service	-	preserve
 ryoku-session-target	user	on-demand	ryoku-session.target	-	preserve

@@ -45,7 +45,8 @@ install)
 	install -Dm644 "$RYOKU_SRC/ryoku/rashin/NOTICE" \
 		"$destdir/usr/share/licenses/ryoku-rashin/NOTICE"
 	if [ "$init" = systemd ]; then
-		for unit in rashind.socket rashind.service ryoku-ai-usage.service ryoku-ai-usage.timer; do
+		for unit in rashind.socket rashind.service ryoku-ai-usage.service ryoku-ai-usage.timer \
+			rashind-routines.service rashind-routines.timer; do
 			install -Dm644 "$RYOKU_SRC/ryoku/rashin/systemd/$unit" \
 				"$destdir/usr/lib/systemd/user/$unit"
 		done

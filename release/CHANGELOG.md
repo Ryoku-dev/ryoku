@@ -5,6 +5,11 @@
   daemon, command line and Gio app from vendor, and the built-in router and
   index take over from the retired Prowl service. The `prowl` package is no
   longer a dependency but stays installed for anyone who uses it on its own.
+- **`ryoku-rashin` depends on bubblewrap on every edition.** Teams run each
+  agent, and every program it opens on its screen, inside a `bwrap` sandbox
+  that keeps Rashin's state, the vault and other teams out of reach. Arch and
+  CachyOS gain it in `depends`, Fedora in `Requires` and Void in the template
+  (both with a package-table row), and Nix puts it on `rashind`'s `PATH`.
 - **Ryoport is its own package now.** Arch and CachyOS import the official
   `ryoku-dev/ryoport` release into stable and testing beside Ryotunes. The
   desktop package no longer carries Ryoport or its VM and console dependencies,

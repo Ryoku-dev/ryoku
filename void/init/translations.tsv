@@ -9,6 +9,8 @@ ryoku/shell/systemd/user/ryoku-eq.service	translated	void/init/user/ryoku-eq	Par
 ryoku/shell/systemd/user/ryoku-bt-agent.service	translated	void/init/user/ryoku-bt-agent	After/Wants/PartOf=bluetooth becomes a dbus-name wait for org.freedesktop.DBus plus a bluetoothd readiness check; the tail -f stdin hold is kept
 ryoku/rashin/systemd/ryoku-ai-usage.service	translated	void/init/user/ryoku-ai-usage	loop service: the timer's schedule becomes a run loop with env-overridable delays
 ryoku/rashin/systemd/ryoku-ai-usage.timer	translated	void/init/user/ryoku-ai-usage	OnBootSec/OnUnitActiveSec/Persistent fold into the loop service above; runit has no timer units
+ryoku/rashin/systemd/rashind-routines.service	translated	void/init/user/rashind-routines	loop service: the timer's schedule becomes a run loop with env-overridable delays; rashin routines wake decides on each pass whether to start the daemon
+ryoku/rashin/systemd/rashind-routines.timer	translated	void/init/user/rashind-routines	OnStartupSec/OnUnitActiveSec fold into the loop service above; runit has no timer units; the daemon enables the service while a routine is on
 ryoku/shell/systemd/user/ryoku-bootstrap.service	translated	void/init/user/ryoku-bootstrap	oneshot: run does the work then exec sv down; ConditionPathExists markers kept; the session entrypoint restarts it before the rest of the user-service roster
 ryoku/shell/systemd/user/ryoku-profile-scope.service	accepted-loss	-	Profiles are available only on Arch and CachyOS; Void does not run profile launcher scoping
 ryoku/shell/systemd/user/ryoku-profile-scope.path	accepted-loss	-	Profiles are available only on Arch and CachyOS; Void does not watch application directories for profile scoping

@@ -17,6 +17,8 @@ depends=(
   'mesa'
   'libglvnd'
   'vulkan-icd-loader'
+  # Teams run their agents, and the programs those open, inside bwrap.
+  'bubblewrap'
 )
 makedepends=('go' 'pkgconf' 'vulkan-headers')
 source=()

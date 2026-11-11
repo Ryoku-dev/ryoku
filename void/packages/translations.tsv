@@ -20,6 +20,7 @@ brightnessctl	brightnessctl	desktop
 broadcom-bt-firmware	broadcom-bt-firmware	desktop	
 btop	btop	desktop	
 btrfs-progs	btrfs-progs	system	
+bubblewrap	bubblewrap	desktop	
 calf	calf	desktop	
 catppuccin-cursors-mocha	catppuccin-cursors-mocha	extra	repo=ryoku
 cava	cava	desktop	

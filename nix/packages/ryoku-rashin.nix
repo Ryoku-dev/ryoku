@@ -16,6 +16,7 @@ pkgs.buildGoModule {
   nativeBuildInputs = [
     pkgs.pkg-config
     pkgs.python3
+    pkgs.makeWrapper
   ];
 
   buildInputs = [
@@ -55,16 +56,22 @@ pkgs.buildGoModule {
     for binary in rashind rashin rashin-app; do
       install -Dm755 "$binary" "$out/bin/$binary"
     done
+    # Teams run their agents, and the programs those open, inside bwrap.
+    wrapProgram "$out/bin/rashind" \
+      --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.bubblewrap ]}
     for collector in ryoku-ai-usage claude-usage codex-usage opencode-usage; do
       install -Dm755 "usage/$collector" "$out/bin/$collector"
     done
-    for unit in rashind.socket rashind.service ryoku-ai-usage.service ryoku-ai-usage.timer; do
+    for unit in rashind.socket rashind.service ryoku-ai-usage.service ryoku-ai-usage.timer \
+      rashind-routines.service rashind-routines.timer; do
       install -Dm644 "systemd/$unit" "$out/lib/systemd/user/$unit"
     done
     substituteInPlace "$out/lib/systemd/user/rashind.service" \
       --replace-fail "/usr/bin/rashind" "$out/bin/rashind"
     substituteInPlace "$out/lib/systemd/user/ryoku-ai-usage.service" \
       --replace-fail "/usr/bin/ryoku-ai-usage" "$out/bin/ryoku-ai-usage"
+    substituteInPlace "$out/lib/systemd/user/rashind-routines.service" \
+      --replace-fail "/usr/bin/rashin " "$out/bin/rashin "
     for collector in claude-usage codex-usage opencode-usage; do
       patchShebangs "$out/bin/$collector"
     done

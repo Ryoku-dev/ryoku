@@ -1472,9 +1472,12 @@ mkdir -p "$cfg/wireplumber"; cp -a "$here/../apps/wireplumber/." "$cfg/wireplumb
 mkdir -p "$cfg/environment.d"; cp -a "$here/environment.d/." "$cfg/environment.d/"
 if [ -d /run/systemd/system ]; then
   mkdir -p "$cfg/systemd/user"; cp -a "$here/systemd/user/." "$cfg/systemd/user/"
-  # the AI usage units ship with ryoku-rashin, which the dev loop always builds
+  # the AI usage and routines wake units ship with ryoku-rashin, which the dev
+  # loop always builds
   cp -a "$here/../rashin/systemd/ryoku-ai-usage.service" \
-    "$here/../rashin/systemd/ryoku-ai-usage.timer" "$cfg/systemd/user/"
+    "$here/../rashin/systemd/ryoku-ai-usage.timer" \
+    "$here/../rashin/systemd/rashind-routines.service" \
+    "$here/../rashin/systemd/rashind-routines.timer" "$cfg/systemd/user/"
   # The dev deploy runs these units' binaries from ~/.local/bin; the package ships
   # /usr/bin. The unit stays byte-for-byte as shipped and a drop-in repoints its
   # Exec lines: an edited copy reads as a hand edit to `ryoku materialize`, which
@@ -1497,6 +1500,7 @@ if [ -d /run/systemd/system ]; then
   dev_bin_dropin ryoku-profile-scope.service
   dev_bin_dropin ryoku-profile-session.service
   dev_bin_dropin ryoku-ai-usage.service
+  dev_bin_dropin rashind-routines.service
   # Ryogami resolves the staged picker from XDG_DATA_HOME when it starts.
   dev_bin_dropin ryogami.service
   systemctl --user daemon-reload 2>/dev/null || true

@@ -20,6 +20,7 @@ brightnessctl	brightnessctl	desktop
 broadcom-bt-firmware	broadcom-bt-firmware	desktop	Ryoku-owned RPM.
 btop	btop	desktop	
 btrfs-progs	btrfs-progs	system	
+bubblewrap	bubblewrap	desktop	
 calf	lv2-calf-plugins	desktop	Python equalizer LV2 effects.
 catppuccin-cursors-mocha	catppuccin-cursors-mocha	extra	Ryoku-owned RPM.
 cava	cava	desktop	

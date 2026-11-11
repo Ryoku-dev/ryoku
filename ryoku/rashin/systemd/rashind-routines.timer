@@ -1,0 +1,14 @@
+[Unit]
+# Wakes Rashin for its routines after login, a reboot or a daemon exit. The
+# daemon enables it while a routine is on and disables it when none is;
+# rashin off disables it with Rashin's other units.
+Description=Rashin routines wake schedule
+ConditionUser=!@system
+
+[Timer]
+OnStartupSec=1min
+OnUnitActiveSec=30min
+Persistent=false
+
+[Install]
+WantedBy=timers.target

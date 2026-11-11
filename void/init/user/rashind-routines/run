@@ -1,0 +1,18 @@
+#!/bin/sh
+exec 2>&1
+
+# shellcheck disable=SC1091
+. "${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}/wait-for"
+load_session_env
+BIN=${RYOKU_BIN_DIR:-/usr/bin}
+
+# rashind-routines.timer's OnStartupSec/OnUnitActiveSec as a loop; the daemon
+# enables this service while a routine is on and rashin off disables it
+_initial=${RASHIN_ROUTINES_INITIAL:-60}
+_period=${RASHIN_ROUTINES_PERIOD:-1800}
+
+sleep "$_initial"
+while :; do
+	"$BIN/rashin" routines wake
+	sleep "$_period"
+done
