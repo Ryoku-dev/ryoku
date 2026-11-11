@@ -1,19 +1,22 @@
 #!/usr/bin/env bash
-# next Ryoku version from the repo-root VERSION file.
+# next Ryoku version after the repo-root VERSION file, or after the version
+# given as the third argument.
 #
-#   ryoku-release-bump <patch|minor|major|roll> <alpha|beta|stable|keep>
+#   ryoku-release-bump <patch|minor|major|roll> <alpha|beta|stable|keep> [version]
 #
 # prints the bumped version, no leading "v". stable = bare semver; alpha/beta
 # append "-<stage>.0"; keep preserves the current pre-release suffix. roll bumps
-# the patch but carries to the next minor once it passes 9 (0.1.9 -> 0.2.0), for
-# the unstable auto-bump, e.g. roll keep: 0.1.2-beta.16 -> 0.1.3-beta.16.
+# the patch but carries to the next minor once it passes 9 (0.1.9 -> 0.2.0);
+# the unstable bump runs `roll keep <main's VERSION>` to name the next release.
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-base=$(tr -d '[:space:]' < "$ROOT/VERSION")
 
-bump=${1:?usage: ryoku-release-bump <patch|minor|major|roll> <alpha|beta|stable|keep>}
-stage=${2:?usage: ryoku-release-bump <patch|minor|major|roll> <alpha|beta|stable|keep>}
+bump=${1:?usage: ryoku-release-bump <patch|minor|major|roll> <alpha|beta|stable|keep> [version]}
+stage=${2:?usage: ryoku-release-bump <patch|minor|major|roll> <alpha|beta|stable|keep> [version]}
+base=${3:-$(tr -d '[:space:]' < "$ROOT/VERSION")}
+[[ $base =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] \
+  || { echo "ryoku-release-bump: not a version: $base" >&2; exit 2; }
 
 IFS=. read -r major minor patch <<<"${base%%-*}"
 

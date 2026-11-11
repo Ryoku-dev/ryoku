@@ -1,6 +1,9 @@
 # Release / Packaging Changelog
 
 ## Unreleased
+- **Unstable's version names the next release again.** `VERSION` on
+  `unstable-dev` is 1.0.9, and the bump bot now keeps it one roll past `main`
+  instead of adding a patch on every push, which had carried testing to 1.11.4.
 - **The Fedora Hyprland desktop installs after a Hyprland COPR update.**
   `ryoku-desktop-hyprland` only recommends the plugin RPMs locked to one
   Hyprland build; the share picker drops that lock, and `hyprland-devel` is allowed.
