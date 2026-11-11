@@ -49,10 +49,17 @@ Singleton {
     // set true once construction finishes; the cache FileView's initial
     // blockLoading load fires before ipProc/wxProc exist, so loadLoc must wait.
     property bool ready: false
+    // a fetch asked for while one is in flight runs once that one ends, so a
+    // unit or location change during the first fetch is not lost for 15 minutes.
+    property bool refetch: false
 
     function fetchWeather() {
-        if (!root.located || wxProc.running)
+        if (!root.located)
             return;
+        if (wxProc.running) {
+            root.refetch = true;
+            return;
+        }
         // build the URL with the unit wanted right now, so a unit switch can't
         // race the command binding and fetch the old unit.
         wxProc.command = ["curl", "-s", "--max-time", "10",
@@ -168,6 +175,12 @@ Singleton {
         id: wxProc
         stdout: StdioCollector {
             onStreamFinished: root.applyForecast(this.text)
+        }
+        onRunningChanged: {
+            if (!running && root.refetch) {
+                root.refetch = false;
+                root.fetchWeather();
+            }
         }
     }
 

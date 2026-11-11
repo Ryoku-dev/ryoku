@@ -1,6 +1,10 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The launcher's weather follows the Celsius or Fahrenheit setting (#803).** A
+  unit change that arrived while the first forecast was still loading was
+  dropped, so the hero kept the locale's unit until the next refresh 15 minutes
+  later; the forecast is now fetched again in the new unit.
 - **Python's blurred bar background is back (#802).** The Serpantinum 2.3.1
   sync took its new mask default but kept the old checks, so the Blur style
   drew nothing and the bar showed plain transparency; Liquid glass was fine.
