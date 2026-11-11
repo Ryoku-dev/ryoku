@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # ryoku-media: the play and pause keys. Some headphones send play and pause a
-# few milliseconds apart for one tap, so a second call inside the window is
-# dropped instead of toggling the track straight back.
+# few milliseconds apart for one tap, so any second call inside the window is
+# dropped, whichever verb it carries, instead of undoing the first.
 set -euo pipefail
 
 window_us=200000
 verb="${1:-play-pause}"
 dir="${XDG_RUNTIME_DIR:-/tmp/ryoku-media-$(id -u)}"
 mkdir -p "$dir"
-stamp="$dir/ryoku-media-$verb"
+stamp="$dir/ryoku-media-tap"
 
 exec 9>>"$stamp.lock"
 flock 9

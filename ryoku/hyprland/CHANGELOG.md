@@ -28,6 +28,9 @@
   (`modules/binds.lua`, `modules/ryoshot.lua`).
 
 ### Fixed
+- **Taking headphones off no longer starts paused music.** The pause media key
+  now only pauses on Hyprland, niri and Wayfire, while the play key still
+  toggles, and one tap that sends both keys still acts once (#764).
 - **Headphone pause works on the first tap.** The pause media key is bound on
   Hyprland, niri and Wayfire, and play and pause both go through
   `ryoku-media`, so a tap that sends both keys toggles once (#764).

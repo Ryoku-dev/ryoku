@@ -22,6 +22,9 @@
 - `gpu/ryoku-gpu`: **Performance works again with a monitor on the discrete GPU.**
   When the laptop panel is on the built-in GPU but the dGPU has its own ports,
   Performance pins the dGPU at login only while a monitor is plugged into one.
+- `audio/ryoku-media`: **one action per media tap, whatever the keys.** The
+  200 ms window is shared by every verb, so play-pause followed by pause from
+  one headphone tap runs only the first (#764).
 - `network/ryoku-wifi-backend`: **switching from iwd back to wpa_supplicant
   keeps Wi-Fi.** iwd swaps each radio's default interface for one of its own,
   which the kernel deletes when iwd quits, so the switch left no Wi-Fi interface

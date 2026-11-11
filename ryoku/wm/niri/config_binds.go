@@ -193,7 +193,7 @@ func shippedBinds() map[string]niriBind {
 		"media.mute":       {action: spawnArgs("wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"), noRepeat: true},
 		"media.micMute":    {action: spawnArgs("wpctl", "set-mute", "@DEFAULT_AUDIO_SOURCE@", "toggle"), noRepeat: true},
 		"media.play":       {action: spawnArgs("ryoku-media", "play-pause"), noRepeat: true},
-		"media.pause":      {action: spawnArgs("ryoku-media", "play-pause"), noRepeat: true},
+		"media.pause":      {action: spawnArgs("ryoku-media", "pause"), noRepeat: true},
 		"media.next":       {action: spawnArgs("playerctl", "next")},
 		"media.prev":       {action: spawnArgs("playerctl", "previous")},
 

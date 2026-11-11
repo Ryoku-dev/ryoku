@@ -111,9 +111,10 @@ in the machine, and do not waste power doing it.
     volume panel's BOOST toggle (`qsbar.audioBoost` in `shell.json`): off caps at
     100%, on at 150%. The keys go through it rather than calling `wpctl` inline so
     the stepping lives in one place.
-  - `ryoku-media` Runs `playerctl` for the `XF86AudioPlay` and `XF86AudioPause`
-    keys, dropping a second call within 200 ms. Some headphones send play and
-    pause together for one tap; without the window the track would toggle twice.
+  - `ryoku-media` Runs `playerctl` for the `XF86AudioPlay` (play-pause) and
+    `XF86AudioPause` (pause) keys, dropping any second call within 200 ms. Some
+    headphones send play and pause together for one tap; without the window the
+    second key would undo the first.
 - `network/`
   - `ryoku-wifi-powersave` Disables, then restores, 802.11 power-save on every
     WiFi device for the shell's Game Mode, via `iw`, so the radio stays fully awake
