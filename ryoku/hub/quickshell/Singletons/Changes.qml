@@ -196,6 +196,33 @@ Singleton {
         root.set(row.bind, root.clone(d), row.label, row.page || "");
     }
 
+    // every row of one page that stands away from its default, put back as a
+    // single change: one notice, and one Ctrl+Z returns the whole page
+    function resetPage(rows, pageId, label) {
+        var parts = [];
+        for (var i = 0; i < rows.length; i++) {
+            var row = rows[i];
+            if (!row || !row.bind || !root.isChanged(row))
+                continue;
+            var d = root.defaultOf(row);
+            if (d === undefined)
+                continue;
+            parts.push({ bind: row.bind, before: root.clone(root.value(row.bind)), after: root.clone(d),
+                         label: String(row.changeLabel || row.label || "") });
+        }
+        if (parts.length === 0)
+            return false;
+        var entry = { bind: parts[0].bind, parts: parts, before: undefined, after: undefined,
+                      label: String(label || ""), page: String(pageId || ""),
+                      notice: I18n.tr("Reset to defaults"), at: Date.now() };
+        root.undoStack = [entry].concat(root.undoStack).slice(0, 50);
+        root.recent = [entry].concat(root.recent).slice(0, 12);
+        parts.forEach(function (p) { root.writeChange(p.bind, p.after, p.label, pageId); });
+        root.announced(entry);
+        root.revision++;
+        return true;
+    }
+
     function error(bind) {
         root.revision;
         return root.errors[root.keyOf(bind)] || "";
@@ -402,6 +429,17 @@ Singleton {
         var entry = root.undoStack.find(match) || root.recent.find(match) || given;
         root.undoStack = root.undoStack.filter(function (e) { return e !== entry; });
         root.recent = root.recent.filter(function (e) { return e !== entry; });
+        // a page reset is several settings written at once; undo puts each back
+        if (entry.parts) {
+            entry.parts.forEach(function (p) {
+                root.relist(e => root.sameSetting(e, p));
+                var back = root.reverted(p);
+                if (back !== undefined || p.bind.store !== "settings")
+                    root.write(p.bind, back, p.label, entry.page);
+            });
+            root.undone(entry);
+            return;
+        }
         root.relist(e => root.sameSetting(e, entry));
         var back = root.reverted(entry);
         // an absent key is written back as absent: the desktop save drops it and a page

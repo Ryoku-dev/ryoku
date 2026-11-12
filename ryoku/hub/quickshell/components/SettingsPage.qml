@@ -61,6 +61,24 @@ Item {
         var at = page.sheetPages.findIndex(p => p.id === page.pageId);
         return at >= 0 && page.sheetPages.length >= 2 ? page.pad(at + 1) + " / " + page.pad(page.sheetPages.length) : "";
     }
+    // every row the page draws now, across its sections and their More options
+    function shownRows() {
+        var out = [];
+        page.layout.forEach(s => { out = out.concat(s.rows, s.more); });
+        return out;
+    }
+
+    // the header offers Reset page when any drawn row stands away from its default
+    readonly property bool hasChanges: {
+        page.layoutSignature;
+        Changes.revision;
+        return page.shownRows().some(r => Changes.isChanged(r));
+    }
+
+    function resetPage() {
+        Changes.resetPage(page.shownRows(), page.pageId, page.schema ? page.schema.title : "");
+    }
+
     // sections made by the page's first build rise in; a later rebuild's simply stand
     property bool revealing: true
     Connections {
@@ -770,6 +788,24 @@ Item {
                 wrapMode: Text.Wrap
                 elide: Text.ElideNone
             }
+            // a page whose rows stand away from their defaults offers to put them back
+            Row {
+                width: parent.width
+                visible: page.hasChanges
+                topPadding: LithicTokens.space.s2
+                spacing: LithicTokens.space.s2
+                layoutDirection: Qt.RightToLeft
+
+                Plaque {
+                    kind: "quiet"
+                    small: true
+                    glyph: "restart_alt"
+                    text: I18n.tr("Reset page")
+                    accessibleName: I18n.tr("Reset this page to its defaults")
+                    onClicked: page.resetPage()
+                }
+            }
+
             Item { width: 1; height: LithicTokens.space.s3 }
             TickRuler {
                 width: Math.min(parent.width, implicitWidth)
