@@ -691,3 +691,26 @@ func TestLearnKeepsEventDetails(t *testing.T) {
 		}
 	}
 }
+
+// A learned fact that kept a relative date is dated from the observation
+// day, and the prompts ask for absolute dates without a relative example.
+func TestLearnDatesRelativeEvent(t *testing.T) {
+	te := newTestEngine(t, "", reply("Binoculars.", learnOp{Op: "add", Scope: "personal", Text: "The user got new binoculars three weeks ago", Kind: "permanent", Evidence: "I got new binoculars three weeks ago"}))
+	te.sessions.add(protocol.SessionInfo{ID: "ask-bin"}, turn{user: "I got new binoculars three weeks ago, which birds should I look for?", reply: "Goldfinches."})
+	if _, err := te.learnNow(context.Background(), "ask-bin"); err != nil {
+		t.Fatal(err)
+	}
+	info, _ := te.sessions.Info("ask-bin")
+	want := "The user got new binoculars three weeks ago (as of " + info.Updated.Local().Format("2 January 2006") + ")"
+	if !has(te.texts(t, protocol.MemoryYou), want) {
+		t.Fatalf("active = %q, want %q", te.texts(t, protocol.MemoryYou), want)
+	}
+	for _, prompt := range []string{learnSystem, learnSystemShort} {
+		if !strings.Contains(prompt, `"three weeks ago" becomes "5 May 2023"`) {
+			t.Fatal("a prompt does not ask for absolute event dates")
+		}
+	}
+	if strings.Contains(learnSystem, "Hawaii last year") {
+		t.Fatal("the event-detail line still shows a relative date to copy")
+	}
+}

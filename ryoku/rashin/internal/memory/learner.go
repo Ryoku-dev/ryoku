@@ -380,6 +380,7 @@ func (l *learner) learn(ctx context.Context, id string) (protocol.MemoryChange, 
 		suggest:   background(info),
 		source:    protocol.MemorySource{Kind: sourceOf(info), Session: id, Turn: conv.turn, Title: info.Title, Model: model.Model},
 		store:     store,
+		observed:  info.Updated,
 	}
 	user := fmt.Sprintf(learnUser, id, info.Kind, info.Title, projectLine(e, scope), personalLine(kept),
 		longDate(info.Updated), longDate(l.now()), listShown(shown, scope), renderTurns(conv.turns, model.budget()))

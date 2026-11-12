@@ -1828,10 +1828,12 @@ no file is opened, no model is loaded, no timer is set.
   permission requests, never tool output, files or web pages. Everything sent
   is scrubbed of secrets first.
 - That call first lists the dated or counted things you did or plan, then
-  keeps the facts worth having later: what happened when and where, how many,
-  what you prefer, never an interest you did not state. Only the facts are
-  stored, and each conversation's summary keeps its names, numbers, dates and
-  the key advice.
+  keeps the facts worth having later: what happened when and where, for how
+  long and with whom, how many, what you prefer, never an interest you did
+  not state. Dates are written absolute; a fact that still says "three weeks
+  ago" or "last month" gets "(as of <the conversation's day>)". Only the
+  facts are stored, and each conversation's summary keeps its names,
+  numbers, dates and the key advice.
 - The model is a local one first (`memory.model = localFirst`), else the one
   that answered the conversation; "Local only" waits for a local model and
   "Any provider" uses Ask's route.

@@ -8,9 +8,11 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
+	"ryoku-rashin/internal/memory/render"
 	"ryoku-rashin/internal/protocol"
 	"ryoku-rashin/internal/redact"
 )
@@ -38,6 +40,9 @@ type reconcile struct {
 	suggest bool
 	source  protocol.MemorySource
 	store   *Store
+	// observed is when the conversation took place, which a relative date
+	// left in a fact counts from.
+	observed time.Time
 }
 
 // Portions adapted from mem0ai/mem0 mem0/memory/main.py @ f1791daa86d4
@@ -195,7 +200,7 @@ func (r *reconcile) check(ctx context.Context, proposed learnOp, replaced, seen 
 	}
 	op := Op{
 		Kind:      OpAdd,
-		Text:      text,
+		Text:      asOf(text, r.observed),
 		Scope:     scope,
 		Retain:    retention(proposed.Kind),
 		Sensitive: proposed.Sensitive,
@@ -209,6 +214,20 @@ func (r *reconcile) check(ctx context.Context, proposed learnOp, replaced, seen 
 		op.Kind, op.ID, op.Replaces = OpSuggest, "", priors
 	}
 	return op, ""
+}
+
+// relativeTime is English wording that counts from the day it was said.
+var relativeTime = regexp.MustCompile(`(?i)\b(?:ago|yesterday|today|tomorrow|tonight|recently|the other day|(?:last|next|this)\s+(?:week|month|year|weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b`)
+
+// asOf dates a fact that still says when relative to the day it was said,
+// "(as of 5 May 2023)", so it reads right on a later day. The fact is cut,
+// never the note, to keep within protocol.MemoryTextMax.
+func asOf(text string, observed time.Time) string {
+	if observed.IsZero() || !relativeTime.MatchString(text) {
+		return text
+	}
+	note := " (as of " + observed.Local().Format("2 January 2006") + ")"
+	return render.Cut(text, protocol.MemoryTextMax-utf8.RuneCountInString(note)) + note
 }
 
 // retention maps the learner's kind onto how long a memory is meant to
