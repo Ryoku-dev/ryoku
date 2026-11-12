@@ -34,16 +34,30 @@ import (
 
 const defaultLockSkin = "clockwork/orbital"
 
-// lockBundle finds the shipped qylock bundle: the package payload first, the
-// checkout on a dev box.
-func lockBundle() string {
-	if p := "/usr/share/ryoku/lockscreen/qylock"; sys.Exists(p) {
-		return p
-	}
+// packagedLockscreen is the lockscreen tree ryoku-desktop ships.
+var packagedLockscreen = "/usr/share/ryoku/lockscreen"
+
+// lockscreenSource is the lockscreen tree this box runs. A box that updates
+// from a source checkout deploys that checkout's lock, and its packages can be
+// an older line (stable packages under a hyperion checkout), so the checkout
+// comes first there; measuring against the package would restage the older
+// lock after every update. A packaged box uses the package payload.
+func lockscreenSource() string {
 	if repo := sys.ResolveRepo(); repo != "" {
-		if p := filepath.Join(repo, "ryoku", "lockscreen", "qylock"); sys.Exists(p) {
+		if p := filepath.Join(repo, "ryoku", "lockscreen"); sys.Exists(filepath.Join(p, "qylock")) {
 			return p
 		}
+	}
+	if sys.Exists(filepath.Join(packagedLockscreen, "qylock")) {
+		return packagedLockscreen
+	}
+	return ""
+}
+
+// lockBundle finds the qylock bundle of the lockscreen tree this box runs.
+func lockBundle() string {
+	if src := lockscreenSource(); src != "" {
+		return filepath.Join(src, "qylock")
 	}
 	return ""
 }
@@ -279,14 +293,11 @@ func needsLockscreenInstaller(lockerPresent, legacyTape bool) bool {
 	return !lockerPresent || legacyTape
 }
 
-// lockscreenInstaller finds the shipped installer: the package payload first,
-// the checkout on a dev box.
+// lockscreenInstaller finds the installer beside the bundle doctor compares
+// against, so a refresh installs the same lock it measured.
 func lockscreenInstaller() string {
-	if p := "/usr/share/ryoku/lockscreen/install-qylock"; sys.Exists(p) {
-		return p
-	}
-	if repo := sys.ResolveRepo(); repo != "" {
-		if p := filepath.Join(repo, "ryoku", "lockscreen", "install-qylock"); sys.Exists(p) {
+	if src := lockscreenSource(); src != "" {
+		if p := filepath.Join(src, "install-qylock"); sys.Exists(p) {
 			return p
 		}
 	}

@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -144,5 +145,45 @@ printf 'install guarded=%s mode=%s user=%s\n' \
 		"guard generation-guard-stop\n"
 	if strings.ReplaceAll(string(got), "\r\n", "\n") != want {
 		t.Fatalf("guarded staging events = %q, want %q", got, want)
+	}
+}
+
+// A box that updates from a source checkout deploys that checkout's lock. Doctor
+// must measure against and install from it even when an older package ships a
+// lockscreen too, or every update restages the package's lock over the deployed
+// one; a packaged box keeps the package payload.
+func TestLockscreenComesFromTheCheckoutOnASourceBox(t *testing.T) {
+	pkg := t.TempDir()
+	repo := t.TempDir()
+	checkout := filepath.Join(repo, "ryoku", "lockscreen")
+	for _, root := range []string{pkg, checkout} {
+		if err := os.MkdirAll(filepath.Join(root, "qylock"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, "install-qylock"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if out, err := exec.Command("git", "init", "-q", repo).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v: %s", err, out)
+	}
+	saved := packagedLockscreen
+	packagedLockscreen = pkg
+	defer func() { packagedLockscreen = saved }()
+
+	t.Setenv("RYOKU_REPO", repo)
+	if got, want := lockBundle(), filepath.Join(checkout, "qylock"); got != want {
+		t.Fatalf("source box: lockBundle() = %q, want the checkout's %q", got, want)
+	}
+	if got, want := lockscreenInstaller(), filepath.Join(checkout, "install-qylock"); got != want {
+		t.Fatalf("source box: lockscreenInstaller() = %q, want the checkout's %q", got, want)
+	}
+
+	t.Setenv("RYOKU_REPO", "")
+	if got, want := lockBundle(), filepath.Join(pkg, "qylock"); got != want {
+		t.Fatalf("packaged box: lockBundle() = %q, want the package's %q", got, want)
+	}
+	if got, want := lockscreenInstaller(), filepath.Join(pkg, "install-qylock"); got != want {
+		t.Fatalf("packaged box: lockscreenInstaller() = %q, want the package's %q", got, want)
 	}
 }
