@@ -627,11 +627,12 @@
   transition: background-color var(--lithic-motion-focus-out) var(--lithic-motion-curve);
 }
 
-.l-stepper-reading.l-cut:has(.l-stepper-value:is(:focus-visible, [data-l-state="focus"])) {
+/* a typed field shows the focus edge whenever it holds the caret */
+.l-stepper-reading.l-cut:has(.l-stepper-value:is(:focus-visible, input:focus, [data-l-state="focus"])) {
   --l-stroke: var(--lithic-fg2);
 }
 
-.l-stepper-reading.l-cut:has(.l-stepper-value:is(:focus-visible, [data-l-state="focus"]))::before {
+.l-stepper-reading.l-cut:has(.l-stepper-value:is(:focus-visible, input:focus, [data-l-state="focus"]))::before {
   transition-duration: var(--lithic-motion-focus-in);
 }
 
@@ -640,6 +641,22 @@
   outline: none;
   font: var(--lithic-type-label-weight) var(--lithic-type-label-size)/var(--lithic-type-label-line) var(--lithic-type-label-family);
   font-variant-numeric: tabular-nums;
+}
+
+/* sized for the widest bound, which the library writes as a count of figures */
+input.l-stepper-value {
+  inline-size: calc(var(--l-stepper-chars, 3) * 1ch + 1px);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  caret-color: var(--lithic-fg);
+  text-align: center;
+}
+
+input.l-stepper-value::selection {
+  background: var(--lithic-sel);
+  color: var(--lithic-on-sel);
 }
 
 .l-stepper-unit {

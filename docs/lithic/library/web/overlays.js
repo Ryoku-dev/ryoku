@@ -694,7 +694,8 @@ function initOverlays(root) {
       }
       return;
     }
-    if (event.key !== 'Escape') return;
+    // a control that used Escape itself (an edit it dropped) marks it handled
+    if (event.key !== 'Escape' || event.defaultPrevented) return;
     if (state.popover) {
       event.preventDefault();
       event.stopPropagation();

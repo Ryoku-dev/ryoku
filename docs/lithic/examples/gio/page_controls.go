@@ -25,7 +25,7 @@ type controlsPage struct {
 	slabToggle   kit.Toggle
 	toggles      [6]kit.Toggle
 	sliders      [5]kit.Slider
-	steppers     [3]kit.Stepper
+	steppers     [5]kit.Stepper
 	segmented    [5]kit.Segmented
 	filters      [3]kit.Filters
 	tabs         [3]kit.Tabs
@@ -130,6 +130,8 @@ func newControlsPage() *controlsPage {
 	page.steppers[0] = kit.Stepper{Value: 4, Min: 1, Max: 8, Unit: "cores"}
 	page.steppers[1] = kit.Stepper{Value: 1, Min: 1, Max: 8, Unit: "core"}
 	page.steppers[2] = kit.Stepper{Value: 8, Min: 1, Max: 8, Unit: "cores", Preview: kit.StateFocus}
+	page.steppers[3] = kit.Stepper{Value: 5555, Min: 1, Max: 65535, Editable: true}
+	page.steppers[4] = kit.Stepper{Value: 5555, Min: 1, Max: 65535, Editable: true, Preview: kit.StateFocus}
 
 	filterLabels := []string{"All", "Running", "Stopped"}
 	filterCounts := []int{6, 3, 3}
@@ -315,7 +317,7 @@ func (page *controlsPage) sliderSection(th *theme.Theme) layout.Widget {
 }
 
 func (page *controlsPage) stepperSection(th *theme.Theme) layout.Widget {
-	labels := [...]string{"Middle", "Minimum bound", "Maximum bound and focus"}
+	labels := [...]string{"Middle", "Minimum bound", "Maximum bound and focus", "Editable port", "Editable with the caret"}
 	widgets := make([]layout.Widget, len(page.steppers))
 	for i := range page.steppers {
 		i := i

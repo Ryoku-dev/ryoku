@@ -146,15 +146,41 @@ function stepperParts(stepper) {
   };
 }
 
+function stepperEditable(stepper) {
+  return 'lEditable' in stepper.dataset;
+}
+
+// An editable stepper types into an input in place of its reading
+function stepperInput(stepper, value) {
+  if (!value || value.tagName === 'INPUT') return value;
+  const input = stepper.ownerDocument.createElement('input');
+  for (const attribute of value.attributes) {
+    if (attribute.name !== 'tabindex') input.setAttribute(attribute.name, attribute.value);
+  }
+  input.type = 'text';
+  input.inputMode = 'numeric';
+  input.autocomplete = 'off';
+  input.spellcheck = false;
+  input.setAttribute('role', 'spinbutton');
+  value.replaceWith(input);
+  return input;
+}
+
 function syncStepper(stepper, nextValue = number(stepper.dataset.value, 0), notify = false) {
   const min = number(stepper.dataset.min, Number.NEGATIVE_INFINITY);
   const max = number(stepper.dataset.max, Number.POSITIVE_INFINITY);
   const value = bounded(nextValue, min, max);
   const parts = stepperParts(stepper);
+  if (stepperEditable(stepper)) {
+    parts.value = stepperInput(stepper, parts.value);
+    // the field fits the widest bound, so a typed value never scrolls
+    const widest = Math.max(...[min, max, value].filter(Number.isFinite).map(bound => String(bound).length));
+    parts.value?.style.setProperty('--l-stepper-chars', String(widest));
+  }
   stepper.dataset.value = String(value);
   if (parts.value) {
     parts.value.value = String(value);
-    parts.value.textContent = String(value);
+    if (parts.value.tagName !== 'INPUT') parts.value.textContent = String(value);
     parts.value.setAttribute('aria-valuenow', String(value));
     if (Number.isFinite(min)) parts.value.setAttribute('aria-valuemin', String(min));
     if (Number.isFinite(max)) parts.value.setAttribute('aria-valuemax', String(max));
@@ -176,6 +202,26 @@ function syncStepper(stepper, nextValue = number(stepper.dataset.value, 0), noti
 function moveStepper(stepper, direction) {
   const step = number(stepper.dataset.step, 1);
   syncStepper(stepper, number(stepper.dataset.value, 0) + direction * step, true);
+}
+
+// A typed value commits clamped to the bounds and snapped to the step from the
+// lower bound; anything that is not a whole number puts the value back
+function commitStepper(stepper) {
+  const input = stepperParts(stepper).value;
+  const current = number(stepper.dataset.value, 0);
+  const typed = input?.value.trim() ?? '';
+  if (!/^-?\d+$/.test(typed)) {
+    syncStepper(stepper, current);
+    return;
+  }
+  const min = number(stepper.dataset.min, Number.NEGATIVE_INFINITY);
+  const max = number(stepper.dataset.max, Number.POSITIVE_INFINITY);
+  const step = number(stepper.dataset.step, 1);
+  const origin = Number.isFinite(min) ? min : 0;
+  const value = Number(typed);
+  const snapped = step > 0 ? origin + Math.round((value - origin) / step) * step : value;
+  const next = bounded(snapped, min, max);
+  syncStepper(stepper, next, next !== current);
 }
 
 function selectedButton(group, selector, attribute) {
@@ -781,6 +827,24 @@ register('controls', root => {
     if (event.target.matches('.l-search input')) syncSearch(event.target.closest('.l-search'));
   });
 
+  // the typed field's own input and change stay inside: the stepper reports a committed value
+  for (const type of ['input', 'change']) {
+    root.addEventListener(type, event => {
+      if (event.target.matches?.('input.l-stepper-value')) event.stopPropagation();
+    }, true);
+  }
+
+  // a typed stepper selects its value on entry and commits what was typed on leaving
+  root.addEventListener('focusin', event => {
+    if (event.target.matches?.('input.l-stepper-value')) event.target.select();
+  });
+
+  root.addEventListener('focusout', event => {
+    if (!event.target.matches?.('input.l-stepper-value')) return;
+    const stepper = event.target.closest('.l-stepper');
+    if (stepper) commitStepper(stepper);
+  });
+
   root.addEventListener('keydown', event => {
     if (event.key === 'Escape' && event.target.matches('.l-search input')) {
       const search = event.target.closest('.l-search');
@@ -793,7 +857,25 @@ register('controls', root => {
     }
 
     const stepperValue = event.target.closest('.l-stepper-value');
-    if (stepperValue && ['ArrowLeft', 'ArrowDown', 'ArrowRight', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+    const typing = stepperValue?.tagName === 'INPUT';
+    if (typing && event.key === 'Enter') {
+      event.preventDefault();
+      commitStepper(stepperValue.closest('.l-stepper'));
+      stepperValue.select();
+      return;
+    }
+    // Escape drops an unsaved edit; with nothing typed it goes on, so a dialog can close
+    if (typing && event.key === 'Escape') {
+      const stepper = stepperValue.closest('.l-stepper');
+      if (stepperValue.value === stepper.dataset.value) return;
+      event.preventDefault();
+      syncStepper(stepper);
+      stepperValue.select();
+      return;
+    }
+    // in a typed field the side arrows, Home and End move the caret
+    const stepKeys = typing ? ['ArrowDown', 'ArrowUp'] : ['ArrowLeft', 'ArrowDown', 'ArrowRight', 'ArrowUp', 'Home', 'End'];
+    if (stepperValue && stepKeys.includes(event.key)) {
       const stepper = stepperValue.closest('.l-stepper');
       event.preventDefault();
       if (event.key === 'Home') syncStepper(stepper, number(stepper.dataset.min, 0), true);

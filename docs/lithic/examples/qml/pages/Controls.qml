@@ -385,6 +385,10 @@ Item {
                 stateName: "Disabled"
                 Stepper { anchors.centerIn: parent; from: 1; to: 8; value: 4; unit: "cores"; enabled: false }
             }
+            StateSpecimen {
+                stateName: "Editable port"
+                Stepper { anchors.centerIn: parent; from: 1; to: 65535; value: 5555; editable: true; accessibleName: "Port" }
+            }
         }
 
         ComponentSection {
