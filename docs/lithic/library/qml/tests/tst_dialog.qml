@@ -14,6 +14,14 @@ Item {
         text: "Copy"
     }
 
+    Plaque {
+        id: clearPlaque
+        x: 200
+        y: 20
+        text: "Clear history"
+        onClicked: confirm.open()
+    }
+
     Tablet {
         id: tablet
         x: 20
@@ -201,6 +209,22 @@ Item {
             compare(growing.y, top, "the next open centres again");
             growing.close();
             tryCompare(growing, "opened", false);
+        }
+
+        function test_keyboardOpenMarksTheFirstControl() {
+            clearPlaque.forceActiveFocus(Qt.TabFocusReason);
+            keyClick(Qt.Key_Return);
+            tryCompare(confirm, "opened", true);
+            verify(host.Window.activeFocusItem.visualFocus, "a Confirm opened from the keys shows the mark on Cancel");
+            keyClick(Qt.Key_Escape);
+            tryCompare(confirm, "opened", false);
+            // the closing dialog swallows pointer presses until its exit ends
+            wait(300);
+            mouseClick(clearPlaque);
+            tryCompare(confirm, "opened", true);
+            verify(!host.Window.activeFocusItem.visualFocus, "a pointer open shows no keyboard mark");
+            keyClick(Qt.Key_Escape);
+            tryCompare(confirm, "opened", false);
         }
     }
 }

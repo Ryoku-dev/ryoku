@@ -54,6 +54,12 @@ T.Dialog {
         if (!previewEmbedded)
             _focusFirstControl()
     }
+    // the control that opened it still holds focus here, so its mark says whether the keys did
+    onAboutToShow: {
+        const opening = contentColumn.Window.activeFocusItem
+        _openedFromKeys = !!opening && opening.visualFocus === true
+    }
+    property bool _openedFromKeys: false
 
     property Item _ownFocus: null
     property bool _ownFocusRead: false
@@ -72,7 +78,8 @@ T.Dialog {
         const target = _ownFocus && _ownFocus.visible && _ownFocus.enabled
             ? _ownFocus : _firstTabStop(contentColumn)
         if (target)
-            target.forceActiveFocus(opener && opener.visualFocus ? Qt.TabFocusReason : Qt.OtherFocusReason)
+            target.forceActiveFocus(_openedFromKeys || (opener && opener.visualFocus)
+                                    ? Qt.TabFocusReason : Qt.OtherFocusReason)
     }
 
     function _firstTabStop(item) {
