@@ -1,6 +1,10 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Long graphics card names end at a word.** The system card and Settings
+  showed names cut mid-word, such as "GeForce RTX 4060 Max-Q / Mobil"; a name
+  over 30 characters now drops its last partial word or model and any separator
+  left trailing (`scripts/ryoku-sysinfo`).
 - **The window border follows the palette's accent.** With "Follow the
   wallpaper" on, the active border now takes Matugen `primary` instead of
   `color4` (the `secondary` role), so it matches the accent the shell and apps

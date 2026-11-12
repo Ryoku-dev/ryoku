@@ -6,8 +6,10 @@
 # across reboots for this install.
 export LC_ALL=C
 
+# names over 30 lose their last partial word or model and any separator left trailing
 clean_gpu() {
-    sed -E 's/^[^ ]+ [^:]*: //; s/ \(rev [0-9a-f]+\)//; s/NVIDIA Corporation //; s/Advanced Micro Devices, Inc\. //; s/Intel Corporation //; s/\[AMD\/ATI\] //; s/.*\[([^]]+)\].*/\1/' | xargs | cut -c1-30
+    sed -E 's/^[^ ]+ [^:]*: //; s/ \(rev [0-9a-f]+\)//; s/NVIDIA Corporation //; s/Advanced Micro Devices, Inc\. //; s/Intel Corporation //; s/\[AMD\/ATI\] //; s/.*\[([^]]+)\].*/\1/' | xargs |
+        awk '{ s = $0; if (length(s) > 30) { s = substr(s, 1, 31); if (s ~ /[ \/]/) sub(/[ \/][^ \/]*$/, "", s); else s = substr(s, 1, 30); sub(/[ \/,-]+$/, "", s) } print s }'
 }
 
 gpus=$(lspci 2>/dev/null | grep -iE 'vga compatible|3d controller|display controller')
