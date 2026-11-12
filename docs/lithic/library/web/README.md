@@ -34,7 +34,7 @@ Serve `library/web/` without changing the relative paths between its files. Incl
 
 ## Palette input
 
-Without `?palette=`, initialization applies the signature fallback from `tokens.js`. `?mode=follow`, `?mode=dark`, and `?mode=light` select the mode. Follow is the default. Forced dark or light keeps signature neutrals and takes only palette accents. `?contrast=standard|high` and `?tint=off|low|medium` select the look; standard and off are the defaults, and an unknown value is ignored.
+Every Lithic app opens in the signature, the ryoku.dev stock. Following the wallpaper is a choice the reader makes in the app, never the default. `?mode=dark`, `?mode=light`, and `?mode=follow` select the mode; dark is the default. Dark and light paint the signature tables from `tokens.js`, with an edition named in the palette descriptor as the action, and ignore every palette role. Only follow resolves `?palette=`; without it, follow applies the signature too. `?contrast=standard|high` and `?tint=off|low|medium` select the look; standard and off are the defaults, and an unknown value is ignored.
 
 A normal page cannot read `~/.cache/ryoku/colors.json` or `/etc/os-release`. A Ryoku app should expose a narrow daemon route that serves only the resolved palette input, then point the page at it:
 
@@ -60,11 +60,11 @@ Palette role changes always snap. Core marks the root with `data-l-snap` for two
 `core.js` owns the API. `lithic.js` imports every component module and re-exports the same default and named exports, so application code normally imports `lithic.js`. The default export is `Lithic`:
 
 - `await Lithic.init(root = document)` applies signature roles synchronously before fetching an optional palette, then applies the resolved roles, installs focus and reduced-motion tracking, and runs every registered module once for that root. It returns the final role object.
-- `Lithic.setMode(mode)` accepts `follow`, `dark`, or `light`, reapplies the current palette to every initialized root without colour interpolation, and returns the selected mode.
+- `Lithic.setMode(mode)` accepts `dark`, `light`, or `follow`, reapplies the current palette to every initialized root without colour interpolation, and returns the selected mode.
 - `Lithic.setLook({contrast, tint})` accepts `contrast` of `standard` or `high` and `tint` of `off`, `low`, or `medium`; an omitted key keeps its current value. It reapplies the current palette to every initialized root without colour interpolation and returns the look. An unknown value throws a `TypeError`. `init` reads the starting look from the `contrast` and `tint` URL parameters.
 - `Lithic.setReduce(on)` accepts `true`, `false`, or `null`. True requests reduced motion; false or null clears that app request. The effective state always also honours `prefers-reduced-motion`. It returns the app request.
 - `Lithic.applyRoles(roles, element = document.documentElement)` writes role custom properties and the resolved colour mode without interpolation.
-- `Lithic.rolesFromPalette(palette, {mode = "follow", contrast = "standard", tint = "off"})` exposes the palette resolver.
+- `Lithic.rolesFromPalette(palette, {mode = "dark", contrast = "standard", tint = "off"})` exposes the palette resolver.
 - `Lithic.register(name, initFn)` registers a component initializer. Controls, segmented, lists, and overlays call this at module evaluation. Existing roots run a newly registered initializer immediately; future roots run it during `init`. The initializer receives `(root, Lithic)` and runs once per root.
 
 The same functions are named exports from both `core.js` and `lithic.js`. Application code uses the aggregate `lithic.js`; component modules use `core.js`.
@@ -89,10 +89,10 @@ Never import `lithic.js` from `controls.js`, `segmented.js`, `lists.js`, `overla
 
 `palette.js` has no dependency other than the generated token object:
 
-- `rolesFromPalette(palette, {mode = 'follow', contrast = 'standard', tint = 'off'})` returns all Lithic roles plus `dark`, `jasperInk` and `mineralFields`. It throws a `TypeError` for an unknown mode, contrast or tint. It runs the steps of [palette.md](../../palette.md#3-mapping-palette-roles-to-lithic-roles) in order:
-  1. A signature input (no palette role) returns the signature table for the mode and contrast as it stands; an edition in its descriptor replaces gold and gold ink, with on-gold ink from `inkOn`.
-  2. Wallpaper and scheme inputs tone every role at its step on the tone ladder for the mode and contrast, dyed from the token mappings: neutrals from `surface` and `onSurface` when the mode is not forced (forced modes keep the signature neutrals), and the accents always. The selection takes its hue from `secondaryContainer` mixed toward `primaryContainer` by `alpha.selMix`, `onSel` has its own step, and `onSel2` is `onSel` mixed toward `sel` by `alpha.onSel2`.
-  3. Tint `low` or `medium` multiplies the neutral dye's chroma by `dye.tint`; it changes no lightness. The signature and the forced modes are not tinted.
+- `rolesFromPalette(palette, {mode = 'dark', contrast = 'standard', tint = 'off'})` returns all Lithic roles plus `dark`, `jasperInk` and `mineralFields`. It throws a `TypeError` for an unknown mode, contrast or tint. It runs the steps of [palette.md](../../palette.md#3-mapping-palette-roles-to-lithic-roles) in order:
+  1. Dark and light, and a signature input (no palette role) in follow, return the signature table for the mode and contrast as it stands; an edition in the descriptor replaces gold and gold ink, with on-gold ink from `inkOn`.
+  2. In follow, wallpaper and scheme inputs tone every role at its step on the tone ladder for the mode and contrast, dyed from the token mappings: neutrals from `surface` and `onSurface`, and the accents. The selection takes its hue from `secondaryContainer` mixed toward `primaryContainer` by `alpha.selMix`, `onSel` has its own step, and `onSel2` is `onSel` mixed toward `sel` by `alpha.onSel2`.
+  3. Tint `low` or `medium` multiplies the neutral dye's chroma by `dye.tint`; it changes no lightness. The signature is not tinted.
   4. Jade, lapis, and amber stay fixed by mode, mineral fields are toned at the ladder's `mineralField` step, and the token scrim alpha applies.
 - `CONTRASTS` (`standard`, `high`) and `TINTS` (`off`, `low`, `medium`) are the frozen look options.
 - `contrastRatio(left, right)` returns the WCAG contrast ratio for two supported colour values.
@@ -521,7 +521,7 @@ The web gallery lives in `examples/web/`. Every page:
 
 1. links `../../library/web/lithic.css` before importing `../../library/web/lithic.js`;
 2. calls `await Lithic.init(document)`;
-3. accepts `?mode=follow|dark|light`, `?contrast=standard|high`, `?tint=off|low|medium`, and optional `?palette=<url>`;
+3. accepts `?mode=dark|light|follow`, `?contrast=standard|high`, `?tint=off|low|medium`, and optional `?palette=<url>`;
 4. lays out for a 1440 pixel capture and grows downward as needed;
 5. labels every component by canonical name and every demonstrated state in plain words;
 6. uses fleet demonstration data and no invented desktop surface;
@@ -535,4 +535,4 @@ To render with this box's live palette, place a temporary copy beside the pages 
 cp ~/.cache/ryoku/colors.json docs/lithic/examples/web/colors.json
 ```
 
-Open `foundation.html?mode=follow&palette=colors.json`. `colors.json` is local runtime input and must never be committed. The signature fallback keeps the gallery self-contained when it is absent.
+Open `foundation.html?mode=follow&palette=colors.json`; dark and light keep the signature while it is there. `colors.json` is local runtime input and must never be committed. The signature keeps the gallery self-contained when it is absent.

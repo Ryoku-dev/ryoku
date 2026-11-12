@@ -1,11 +1,13 @@
 # Applying the Ryoku palette
 
-Lithic has no colours of its own. It has **roles**, and the roles are filled
-from the palette the Ryoku desktop is already using, so a Lithic app matches
-the wallpaper, the chosen theme, and every other Ryoku surface, and changes
-with them. This page is the complete recipe. Implement it once, as one
-function from palette to roles, and never write a colour value anywhere else
-in the app.
+Lithic has no colours of its own. It has **roles**. Every Lithic app opens
+in the signature, the ryoku.dev stock. Following the wallpaper is a choice
+the reader makes in the app, never the default. When the reader makes it,
+the roles are filled from the palette the Ryoku desktop is already using, so
+the app matches the wallpaper, the chosen theme and every other Ryoku
+surface, and changes with them. This page is the complete recipe. Implement
+it once, as one function from palette to roles, and never write a colour
+value anywhere else in the app.
 
 Reference: `ui/theme/palette.go` (`FromPalette`) and
 `internal/palette/palette.go` (`Load`), `edition.go`, `watch.go` in Ryoport.
@@ -14,14 +16,14 @@ The [examples](examples/) implement the same function in CSS/JS, QML and Go.
 ## 1. Where the palette lives
 
 The theme daemon of the Ryoku shell is the only author of colour on a Ryoku
-desktop. It publishes three files; read all three, in this order of
-precedence:
+desktop. It publishes three files; an app that follows the wallpaper reads
+all three, in this order of precedence:
 
 | File | Key | Meaning |
 |---|---|---|
 | `$XDG_CONFIG_HOME/ryoku/shell.json` | `themePalette` (object of role to `#rrggbb`) | A fixed, named scheme is active. **Wins** over the wallpaper palette. Absent or `null` when the desktop follows the wallpaper. |
 | `$XDG_CACHE_HOME/ryoku/colors.json` | the whole object | The live wallpaper palette, written by matugen. Material 3 role names (`surface`, `primary`, `onSecondaryContainer` …) plus terminal `color0` to `color15`, `background`, `foreground`, `cursor`. |
-| `$XDG_CONFIG_HOME/ryoku/theme.json` | `followWallpaper` (bool, default `true`) | Whether the wallpaper palette is in use at all. |
+| `$XDG_CONFIG_HOME/ryoku/theme.json` | `followWallpaper` (bool, default `true`) | Whether a following app uses the wallpaper palette at all. |
 
 `$XDG_CONFIG_HOME` defaults to `~/.config`, `$XDG_CACHE_HOME` to `~/.cache`.
 Values are `#rrggbb` or `#rrggbbaa` strings; ignore any key that is not a
@@ -31,39 +33,37 @@ must read as absent.
 
 ## 2. Resolving the source
 
-Inputs: the three files and the app's own colour mode, one of **follow**
-(default), **dark**, **light**.
+Inputs: the three files and the app's own colour mode, one of **dark** (the
+default), **light** or **follow**. Dark and light are the signature: they
+read no palette file, only the edition (§6).
 
 ```
 roles  := {}
 source := "signature"
 
-if followWallpaper || mode != follow:
-    roles  += colors.json                       # wallpaper roles
-    if colors.json had any role: source = "wallpaper"
-
-roles += shell.json.themePalette                # named scheme overrides
-if themePalette had any role: source = "scheme"
+if mode == follow:
+    if followWallpaper:
+        roles += colors.json                    # wallpaper roles
+        if colors.json had any role: source = "wallpaper"
+    roles += shell.json.themePalette            # named scheme overrides
+    if themePalette had any role: source = "scheme"
 
 if source == "signature":
     roles.primary = editionColour(/etc/os-release)   # see §6
 
-forced := mode != follow
-dark   := mode != light
-if !forced:
-    dark = true
-    if roles.surface exists:
-        luma = (0.299 R + 0.587 G + 0.114 B) / 255   # of surface, 0..1
-        dark = luma <= 0.5
+dark := mode != light
+if mode == follow and roles.surface exists:
+    luma = (0.299 R + 0.587 G + 0.114 B) / 255       # of surface, 0..1
+    dark = luma <= 0.5
 ```
 
-So: a named scheme always wins; the wallpaper palette is used when the user
-follows the wallpaper or has forced a mode; and only when neither file yields
-a role does the app fall back to its signature neutrals (§5) with the host
-distribution's colour as the accent.
+So: dark and light paint the signature (§5) with the host distribution's
+colour as the accent, whatever the files hold. Following, a named scheme
+wins, the wallpaper palette is used when the desktop follows the wallpaper,
+and only when neither file yields a role does the app fall back to the
+signature.
 
-Dark or light is decided by the palette's `surface` luma unless the user
-forced a mode in the app.
+Following, dark or light is decided by the palette's `surface` luma.
 
 ## 3. Mapping palette roles to Lithic roles
 
@@ -106,10 +106,6 @@ mode the ladder runs the other way: the ground is the darkest plane and the
 work pane among the lightest, so the panes still sit up from the ground.
 `field` is the top of the ramp in dark mode and sits below the work pane in
 light mode, so a field stands clear of the pane, a slab and a dialog alike.
-
-When the user **forces** dark or light, the neutrals stay the signature set
-for that mode (§5); only the accents below come from the palette. This keeps a
-forced light app readable on a dark wallpaper.
 
 ### What one step of the ramp can carry
 
@@ -160,9 +156,6 @@ so nothing is drawn on it, no bar and no outline. In every case the parity
 suite runs, `sel` stands 6.7:1 or more from every plane, `onSel` 11.8:1 or
 more on it, and `onSel2` 8.2:1 or more.
 
-A forced dark or light mode still takes its accents from the palette, so it
-gets the wallpaper's selection too.
-
 ### Contrast and tint
 
 **Contrast high** reads the high ladder and the high signature tables: the
@@ -171,9 +164,8 @@ move out, while the ground stays. It applies to every source.
 
 **Tint low or medium** multiplies the neutral dye's chroma by 1.8 or 2.6
 (`dye.tint`), so the ground and stones take more of the palette's colour.
-It applies only when following a palette; the signature and the forced modes
-keep their neutrals. A tint changes no lightness, so it never moves a
-contrast.
+It applies only when following a palette; the signature keeps its neutrals.
+A tint changes no lightness, so it never moves a contrast.
 
 A change of contrast or tint re-runs §3 and snaps, like a palette change.
 
@@ -234,16 +226,16 @@ chosen the same way.
 
 The signature is the ryoku.dev stock: black paper, bone ink and the dark
 orange sun as the one action, in dark mode; a warm grey paper with
-the same sun in light mode, never cream. It is what a Lithic app paints with no
-Ryoku palette (another distribution, a CI render, a fresh box), and its
-neutrals are what a forced dark or light mode keeps. The four tables
-(`signature.dark`, `darkHigh`, `light`, `lightHigh`) are canonical in
+the same sun in light mode, never cream. It is what every Lithic app paints
+in dark and light mode, the default, and what a following app paints with no
+Ryoku palette (another distribution, a CI render, a fresh box). The four
+tables (`signature.dark`, `darkHigh`, `light`, `lightHigh`) are canonical in
 `tokens.json`; a stylesheet or theme file with Lithic hex values anywhere
 else is a defect.
 
 ## 6. The edition colour
 
-Without a Ryoku palette, `gold` is the host edition's signal where it has
+On the signature, `gold` is the host edition's signal where it has
 one. Resolve it from `/etc/os-release`: try `ID`, then each lower-cased word
 of `ID_LIKE`. The table in `tokens.json` follows ryoku.dev's edition stocks:
 Fedora, NixOS and Void carry their own signal; Arch, CachyOS and unknown
@@ -252,14 +244,15 @@ hosts keep the sun. The selection stays bone; an edition colour never becomes
 
 ## 7. Following changes live
 
-The palette changes when the wallpaper changes or the user picks a theme. Watch
-the **directories** of the three files with inotify (the daemon writes by
-rename, so a watch on the file itself is lost on the first change), coalesce
-events for ~150 ms, re-run §2 and §3, and only repaint when the resulting
-roles differ. A `kit.MineralField` style component should snap, not animate,
-when the palette changes under the same tone; the 320 ms mineral-field
-transition is for a state change, not a wallpaper change. A change of
-contrast or tint snaps the same way.
+While the reader follows the wallpaper, the palette changes when the
+wallpaper changes or the user picks a theme. Watch the **directories** of the
+three files with inotify (the daemon writes by rename, so a watch on the file
+itself is lost on the first change), coalesce events for ~150 ms, re-run §2
+and §3, and only repaint when the resulting roles differ. Dark and light read
+no file, so they watch nothing. A `kit.MineralField` style component should
+snap, not animate, when the palette changes under the same tone; the 320 ms
+mineral-field transition is for a state change, not a wallpaper change. A
+change of mode, contrast or tint snaps the same way.
 
 In QML, Ryoku's own singletons read the files with `FileView` and parse the
 text (see `ryoku/shell/quickshell/plugins/kit/Singletons/Scheme.qml` in the
@@ -270,18 +263,17 @@ cannot read `~/.cache`.
 
 A Lithic surface is correctly wired when all of these hold on a Ryoku desktop:
 
-1. Change the wallpaper: the ground, panes, slabs, fields, selection and gold
-   change; jade, lapis and amber do not.
-2. Pick a named theme in the Hub: the app follows `themePalette`, not the
-   wallpaper.
-3. Force light in the app on a dark wallpaper: neutrals become the signature
-   light stock, while the accents (the selection included) still come from
-   the palette.
+1. Open the app on a wallpaper palette: it paints the signature for its
+   mode, accents included, and changing the wallpaper repaints nothing.
+2. Choose follow and change the wallpaper: the ground, panes, slabs, fields,
+   selection and gold change; jade, lapis and amber do not.
+3. Pick a named theme in the Hub while following: the app follows
+   `themePalette`, not the wallpaper.
 4. Switch contrast to high: the stones, slabs, fields and veins move away
    from the ground and the inks move out, while the ground stays. Switch tint
-   to low and medium under a wallpaper: the ground, stones, slabs, fields,
-   veins and edges take more of the palette's colour, while the ink keeps
-   its own. Without a palette the tint changes nothing.
+   to low and medium while following a wallpaper: the ground, stones, slabs,
+   fields, veins and edges take more of the palette's colour, while the ink
+   keeps its own. On the signature the tint changes nothing.
 5. Every pair in [contrast targets](#contrast-targets) holds in both modes,
    at both contrasts and every tint.
 6. A danger fill uses `inkOn(jasper)`.
@@ -290,7 +282,8 @@ A Lithic surface is correctly wired when all of these hold on a Ryoku desktop:
 
 Each library carries an equivalent palette check and consumes the same
 `tokens.json` roles and thresholds; `library/parity/check.sh` proves the
-three resolvers agree, looks included.
+three resolvers agree, looks included, and that dark and light paint the
+signature over any palette.
 
 ### Contrast targets
 

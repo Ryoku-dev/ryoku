@@ -7,6 +7,7 @@ import (
 	"gioui.org/io/semantic"
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/op/clip"
 	"gioui.org/unit"
 	"gioui.org/widget"
 
@@ -87,6 +88,8 @@ func (f *TextField) Layout(gtx layout.Context, th *theme.Theme) layout.Dimension
 		editorHeight := max(0, size.Y-2*gtx.Dp(th.Sp.S2))
 		editorGTX := exactContext(gtx, image.Pt(innerWidth, editorHeight))
 		offset := op.Offset(image.Pt(gtx.Dp(unit.Dp(tokens.SizeTextFieldInset)), (size.Y-editorHeight)/2)).Push(gtx.Ops)
+		// a semantic node takes the current clip, so bound it to the editor or it spans whatever holds the field
+		area := clip.Rect(image.Rectangle{Max: image.Pt(innerWidth, editorHeight)}).Push(gtx.Ops)
 		semantic.Editor.Add(gtx.Ops)
 		if f.Label != "" {
 			semantic.LabelOp(f.Label).Add(gtx.Ops)
@@ -99,6 +102,7 @@ func (f *TextField) Layout(gtx layout.Context, th *theme.Theme) layout.Dimension
 			semantic.DescriptionOp(message).Add(gtx.Ops)
 		}
 		layoutTextEditor(editorGTX, th, &f.Editor, style, f.Placeholder)
+		area.Pop()
 		offset.Pop()
 
 		if f.Secret {

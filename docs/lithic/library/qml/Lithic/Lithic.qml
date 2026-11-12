@@ -4,7 +4,7 @@ import QtQuick
 QtObject {
     id: root
 
-    property string mode: "follow"
+    property string mode: "dark"
     property string contrast: "standard"
     property string tint: "off"
     property bool reduceMotion: false
@@ -230,7 +230,7 @@ QtObject {
 
     onModeChanged: {
         if (!_validMode(mode)) {
-            mode = "follow";
+            mode = "dark";
             return;
         }
         if (!_loading)
@@ -274,7 +274,7 @@ QtObject {
     }
 
     function _validMode(candidate) {
-        return candidate === "follow" || candidate === "dark" || candidate === "light";
+        return candidate === "dark" || candidate === "light" || candidate === "follow";
     }
 
     function _readText(path) {
@@ -364,7 +364,7 @@ QtObject {
     }
 
     function _signature(isDark) {
-        return _rolesFrom({}, "signature", isDark, true, null);
+        return _rolesFrom({}, "signature", isDark, null);
     }
 
     // The look and the derived roles work on whole bytes rounded half up, like the
@@ -481,15 +481,15 @@ QtObject {
         return { c: Math.min(LithicTokens.dye.chroma.gold, dye.c * LithicTokens.dye.boost.gold), h: dye.h };
     }
 
-    // Without a palette Lithic paints its signature: the ryoku.dev stock (black
+    // Every Lithic app opens in the signature: the ryoku.dev stock (black
     // paper, bone ink, the sun as the one action), with an edition's signal in
-    // place of the sun (edition is the os-release accent or null). A palette
-    // only dyes: Lithic owns every lightness (the tone ladder for the mode and
+    // place of the sun (edition is the os-release accent or null). Dark and
+    // light are the signature; only follow reads a palette. A palette only
+    // dyes: Lithic owns every lightness (the tone ladder for the mode and
     // contrast), and the palette lends hue and chroma, neutrals from its
     // surface, ink from its on-surface, the action from its primary, the
-    // selection from its containers and jasper from its error. A forced mode
-    // keeps the signature's neutrals.
-    function _rolesFrom(roles, sourceName, isDark, forced, edition) {
+    // selection from its containers and jasper from its error.
+    function _rolesFrom(roles, sourceName, isDark, edition) {
         var ladderKey = (isDark ? "dark" : "light") + (contrast === "high" ? "High" : "");
         var steps = LithicTokens.tone[ladderKey];
         var table = LithicTokens.signature[ladderKey];
@@ -513,31 +513,29 @@ QtObject {
             return _withMinerals(result, steps);
         }
 
-        if (!forced) {
-            var neutral = { c: fallback.stoneChroma, h: fallback.neutralHue };
-            var groundChroma = fallback.groundChroma;
-            var ink = { c: fallback.inkChroma, h: fallback.neutralHue };
-            if (_isColor(roles[LithicTokens.palette.dye.neutral])) {
-                var surfaceDye = _dyeOf(roles[LithicTokens.palette.dye.neutral]);
-                var factor = tint === "low" ? dye.tint.low : tint === "medium" ? dye.tint.medium : 1;
-                neutral = { c: Math.min(dye.chroma.stone, surfaceDye.c) * factor, h: surfaceDye.h };
-                groundChroma = Math.min(dye.chroma.ground, surfaceDye.c * dye.boost.ground) * factor;
-            }
-            if (_isColor(roles[LithicTokens.palette.dye.ink])) {
-                var inkDye = _dyeOf(roles[LithicTokens.palette.dye.ink]);
-                ink = { c: Math.min(dye.chroma.ink, inkDye.c), h: inkDye.h };
-            }
-            var vein = { c: neutral.c * dye.boost.vein, h: neutral.h };
-            result.ground = _toned(steps.ground, { c: groundChroma, h: neutral.h });
-            var planes = ["stone1", "stone2", "stone3", "stone4", "slab", "field"];
-            for (var p = 0; p < planes.length; ++p)
-                result[planes[p]] = _toned(steps[planes[p]], neutral);
-            result.vein = _toned(steps.vein, vein);
-            result.edge = _toned(steps.edge, vein);
-            result.fg = _toned(steps.fg, ink);
-            result.fg2 = _toned(steps.fg2, ink);
-            result.fg3 = _toned(steps.fg3, ink);
+        var neutral = { c: fallback.stoneChroma, h: fallback.neutralHue };
+        var groundChroma = fallback.groundChroma;
+        var ink = { c: fallback.inkChroma, h: fallback.neutralHue };
+        if (_isColor(roles[LithicTokens.palette.dye.neutral])) {
+            var surfaceDye = _dyeOf(roles[LithicTokens.palette.dye.neutral]);
+            var factor = tint === "low" ? dye.tint.low : tint === "medium" ? dye.tint.medium : 1;
+            neutral = { c: Math.min(dye.chroma.stone, surfaceDye.c) * factor, h: surfaceDye.h };
+            groundChroma = Math.min(dye.chroma.ground, surfaceDye.c * dye.boost.ground) * factor;
         }
+        if (_isColor(roles[LithicTokens.palette.dye.ink])) {
+            var inkDye = _dyeOf(roles[LithicTokens.palette.dye.ink]);
+            ink = { c: Math.min(dye.chroma.ink, inkDye.c), h: inkDye.h };
+        }
+        var vein = { c: neutral.c * dye.boost.vein, h: neutral.h };
+        result.ground = _toned(steps.ground, { c: groundChroma, h: neutral.h });
+        var planes = ["stone1", "stone2", "stone3", "stone4", "slab", "field"];
+        for (var p = 0; p < planes.length; ++p)
+            result[planes[p]] = _toned(steps[planes[p]], neutral);
+        result.vein = _toned(steps.vein, vein);
+        result.edge = _toned(steps.edge, vein);
+        result.fg = _toned(steps.fg, ink);
+        result.fg2 = _toned(steps.fg2, ink);
+        result.fg3 = _toned(steps.fg3, ink);
 
         var gold = { c: fallback.goldChroma, h: fallback.goldHue };
         var jasper = { c: dye.chroma.jasper, h: fallback.jasperHue };
@@ -581,12 +579,16 @@ QtObject {
         return result;
     }
 
+    // Only follow reads a palette: the host's, or the desktop's files with a
+    // named scheme over the wallpaper
     function _combined() {
+        if (mode !== "follow")
+            return { roles: {}, source: "signature" };
         if (_injectedSet)
             return { roles: _injected, source: "host" };
         var roles = {};
         var sourceName = "signature";
-        if (_followWallpaper || mode !== "follow") {
+        if (_followWallpaper) {
             for (var wallpaperKey in _wallpaper)
                 roles[wallpaperKey] = _wallpaper[wallpaperKey];
             if (_roleCount(_wallpaper) > 0)
@@ -609,15 +611,10 @@ QtObject {
     function _resolve() {
         var combined = _combined();
         var roles = combined.roles;
-        var forced = mode !== "follow";
         var isDark = mode !== "light";
-        if (!forced) {
-            isDark = true;
-            if (_isColor(roles.surface))
-                isDark = _luma(Qt.color(roles.surface)) <= 0.5;
-        }
-
-        _publish(_rolesFrom(roles, combined.source, isDark, forced, _hasEditionAccent ? _editionAccent : null));
+        if (mode === "follow" && _isColor(roles.surface))
+            isDark = _luma(Qt.color(roles.surface)) <= 0.5;
+        _publish(_rolesFrom(roles, combined.source, isDark, _hasEditionAccent ? _editionAccent : null));
     }
 
     function _load() {

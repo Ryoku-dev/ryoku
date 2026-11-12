@@ -19,15 +19,15 @@ type state struct {
 func main() {
 	page := flag.String("page", "foundation", "gallery page: foundation, controls, lists, or overlays")
 	width := flag.Int("width", 120, "output width in cells")
-	modeName := flag.String("mode", "follow", "palette mode: follow, dark, or light")
+	modeName := flag.String("mode", "dark", "palette mode: dark, light, or follow")
 	glyphName := flag.String("glyphs", "", "glyph set: console or unicode")
 	contrastName := flag.String("contrast", "standard", "palette contrast: standard or high")
 	tintName := flag.String("tint", "off", "palette tint: off, low, or medium")
 	flag.Parse()
 
-	mode, ok := parseMode(*modeName)
-	if !ok {
-		fmt.Fprintln(os.Stderr, "mode must be follow, dark, or light")
+	mode, err := palette.ParseMode(*modeName)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
 	if *glyphName != "" {
@@ -53,19 +53,6 @@ func main() {
 		os.Exit(2)
 	}
 	fmt.Print(output)
-}
-
-func parseMode(name string) (palette.Mode, bool) {
-	switch name {
-	case "follow":
-		return palette.Follow, true
-	case "dark":
-		return palette.Dark, true
-	case "light":
-		return palette.Light, true
-	default:
-		return palette.Follow, false
-	}
 }
 
 func pageHeader(th term.Theme, title, description string) string {

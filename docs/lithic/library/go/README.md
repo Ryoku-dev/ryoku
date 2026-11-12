@@ -1,6 +1,6 @@
 # Lithic for Go
 
-This module is the shared Lithic foundation for Gio applications and terminal applications. It reads the live Ryoku palette, maps it into semantic roles, exposes the generated token scales, and provides motion and drawing primitives that do no work at rest.
+This module is the shared Lithic foundation for Gio applications and terminal applications. It resolves the signature, or the live Ryoku palette when the reader follows the wallpaper, maps it into semantic roles, exposes the generated token scales, and provides motion and drawing primitives that do no work at rest.
 
 ## Add the module
 
@@ -35,7 +35,7 @@ import (
 A normal Gio setup is:
 
 ```go
-roles := palette.FromPalette(palette.Load(palette.Follow), palette.Look{})
+roles := palette.FromPalette(palette.Load(palette.Dark), palette.Look{})
 th := theme.New(roles)
 ```
 
@@ -43,24 +43,25 @@ th := theme.New(roles)
 
 ## Palette API
 
-`palette` uses only the Go standard library. It reads these files in precedence order:
+Every Lithic app opens in the signature, the ryoku.dev stock. Following the wallpaper is a choice the reader makes in the app, never the default. `palette` uses only the Go standard library. `Load(Dark)` and `Load(Light)` read only `/etc/os-release`, for the edition accent. `Load(Follow)` reads these files in precedence order:
 
 1. `$XDG_CONFIG_HOME/ryoku/shell.json`, key `themePalette`
-2. `$XDG_CACHE_HOME/ryoku/colors.json` when wallpaper following is enabled or the mode is forced
+2. `$XDG_CACHE_HOME/ryoku/colors.json` unless `$XDG_CONFIG_HOME/ryoku/theme.json` sets `followWallpaper` to false
 3. the signature fallback, with the edition accent from `/etc/os-release`
 
 `XDG_CONFIG_HOME` defaults to `~/.config`; `XDG_CACHE_HOME` defaults to `~/.cache`.
 
 Exported API:
 
-- `Mode`: `Follow`, `Dark`, `Light`.
-- `Palette`: source `Roles`, resolved `Dark`, `Forced`, and `Source` values before Lithic mapping.
-- `Load(mode) Palette`: resolves source precedence and mode.
+- `Mode`: `Dark` (the zero value and the default), `Light`, `Follow`. `Mode.String()` gives `dark`, `light` or `follow`.
+- `ParseMode(name) (Mode, error)`: reads `dark`, `light` or `follow`; an empty name is `Dark`, an unknown one is `Dark` and an error.
+- `Palette`: source `Roles`, resolved `Dark` and `Source` values before Lithic mapping.
+- `Load(mode) Palette`: the signature for `Dark` and `Light`; for `Follow`, the source precedence above, dark when the palette's `surface` is.
 - `Contrast`: `Standard`, `High`. `Tint`: `TintOff`, `TintLow`, `TintMedium`.
 - `Look`: the reader's `Contrast` and `Tint`. The zero look (standard, off) is the library default.
 - `ParseLook(contrast, tint) Look`: reads `standard` or `high` and `off`, `low` or `medium`; an unknown string gives the zero value of its field.
 - `FromPalette(Palette, Look) Roles`: with no palette, returns the signature table for the mode and contrast, with an edition's colour as gold; with one, dyes every role at its step on the tone ladder for the mode and contrast (see [palette.md](../../palette.md#3-mapping-palette-roles-to-lithic-roles)).
-- `Watch(ctx, mode, fn)`: watches the three parent directories with inotify, coalesces file replacement, and calls `fn` only when the resolved palette changes. `mode` is a function so an application can change its mode without rebuilding the watcher.
+- `Watch(ctx, mode, fn)`: watches the three parent directories with inotify, coalesces file replacement, and calls `fn` only when the resolved palette changes. `mode` is a function so an application can change its mode without rebuilding the watcher. Only `Follow` reads the files, so run it only while following.
 - `Tone`: `Idle`, `Alive`, `Becoming`, `Attention`, `Paused`, `Failed`.
 - `Roles`: `Ground`, `Stone1`, `Stone2`, `Stone3`, `Stone4`, `Slab`, `Field`, `Vein`, `Edge`, `Fg`, `Fg2`, `Fg3`, `Sel`, `OnSel`, `OnSel2`, `Gold`, `OnGold`, `GoldInk`, `Jade`, `Lapis`, `Amber`, `Jasper`, `Scrim`, `Dark`, `Source`.
 - `Roles.Stone(tone)`: returns the mineral ink for a tone.
@@ -71,7 +72,7 @@ Exported API:
 - `InkOn(background)`: picks black or white by contrast.
 - `ContrastRatio(a, b)`: returns the WCAG contrast ratio.
 
-Forced dark and light modes keep the signature neutrals and take only the accents from the palette, the selection included. The tint applies only when following a palette, and it changes chroma, never lightness. Fixed minerals always come from tokens.
+Dark and light are the signature tables as they stand, with the edition's colour as gold; no palette file changes them. The tint applies only when following a palette, and it changes chroma, never lightness. Fixed minerals always come from tokens.
 
 ## Fonts
 
@@ -400,12 +401,12 @@ the Go module directory:
 ```sh
 go run ./cmd/lithic-tokens
 go run ./cmd/lithic-tokens -check
-go run ./cmd/lithic-roles --mode dark
+go run ./cmd/lithic-roles --mode follow
 ```
 
 The first command regenerates stack outputs. The second checks without writing.
-The roles command prints the roles resolved on the current machine. Do not
-hand-edit generated token files.
+The roles command prints the roles resolved on the current machine for a mode
+(`dark` unless `--mode` names another). Do not hand-edit generated token files.
 
 ## Gallery
 

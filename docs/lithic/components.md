@@ -207,7 +207,7 @@ Library: QML Lithic.Filters, web .l-filters, Go kit.Filters, terminal term.Rende
 ### Segmented
 
 A segmented control picks one of two to five options that are worth seeing
-at once: follow, dark or light; Rashin or Teams; the kind of a schedule. More
+at once: dark, light or follow; Rashin or Teams; the kind of a schedule. More
 options, or labels too long to share a row, take a Picker. Views of one
 resource take Tabs, and narrowing a list takes Filters.
 

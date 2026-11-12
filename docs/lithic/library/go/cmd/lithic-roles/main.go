@@ -14,15 +14,14 @@ import (
 )
 
 func main() {
-	modeName := flag.String("mode", "follow", "follow, dark or light")
+	modeName := flag.String("mode", "dark", "dark, light or follow")
 	contrastName := flag.String("contrast", "standard", "standard or high")
 	tintName := flag.String("tint", "off", "off, low or medium")
 	flag.Parse()
 
-	modes := map[string]palette.Mode{"follow": palette.Follow, "dark": palette.Dark, "light": palette.Light}
-	mode, ok := modes[*modeName]
-	if !ok {
-		fmt.Fprintf(os.Stderr, "lithic-roles: unknown mode %q\n", *modeName)
+	mode, err := palette.ParseMode(*modeName)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "lithic-roles:", err)
 		os.Exit(2)
 	}
 	if *contrastName != "standard" && *contrastName != "high" {

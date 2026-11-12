@@ -1,4 +1,6 @@
-// Package palette resolves the live Ryoku palette into Lithic colour roles.
+// Package palette resolves Lithic's colour roles: the signature, the
+// ryoku.dev stock, by default, and the live Ryoku palette when the reader
+// follows the wallpaper.
 package palette
 
 import (
@@ -54,7 +56,7 @@ type Roles struct {
 // Signature returns the roles Lithic paints with no palette: the bone dye on
 // the tone ladder for dark or light mode.
 func Signature(dark bool) Roles {
-	return FromPalette(Palette{Dark: dark, Forced: true, Source: "signature"}, Look{})
+	return FromPalette(Palette{Dark: dark, Source: "signature"}, Look{})
 }
 
 // Stone returns the mineral ink associated with tone.

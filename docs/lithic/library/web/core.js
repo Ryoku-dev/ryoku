@@ -6,13 +6,13 @@ import {
   TINTS,
 } from './palette.js';
 
-const MODES = new Set(['follow', 'dark', 'light']);
+const MODES = new Set(['dark', 'light', 'follow']);
 const registry = new Map();
 const roots = new Map();
 const initialized = new WeakMap();
 const keyboardTracked = new WeakSet();
 const motionTracked = new WeakSet();
-let mode = 'follow';
+let mode = 'dark';
 let look = {contrast: 'standard', tint: 'off'};
 let reduceOverride = null;
 

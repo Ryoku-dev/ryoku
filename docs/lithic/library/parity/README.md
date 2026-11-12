@@ -15,14 +15,18 @@ Run it after changing the palette groups in `tokens.json`, anything in `go/palet
 `LITHIC_JS=bun`) and `qml6` (or set `LITHIC_QML`).
 
 Each case writes real config and cache files into a temporary home, then compares what
-each stack paints for a mode and a look (contrast and tint, standard and off unless named):
+each stack paints for a mode and a look (contrast and tint, standard and off unless named).
+Every Lithic app opens in the signature, so dark and light must paint it whatever the
+files hold: in those modes each case also checks that Go painted exactly what the
+`signature` case painted (`<case> <mode> is the signature`), and the browser receives the
+palette with this host's edition, as a daemon route would serve it.
 
 | Case | Files | What it proves |
 |---|---|---|
-| `wallpaper-dark`, `wallpaper-light` | `colors.json` from `testdata/` | The wallpaper mapping, the tinted selection, toning and scrim in follow, dark and light; then follow with high contrast and medium tint (dark), and high contrast and low tint (light). |
-| `scheme` | `shell.json` with `themePalette` | A named scheme wins over the wallpaper, in every mode and with low tint. |
-| `signature` | none | The signature, with this host's edition accent, in every mode; high contrast on both signature tables, where tint does nothing. |
-| `unfollowed` | `theme.json` with `followWallpaper` off | Follow mode ignores the wallpaper. Go and QML only: a browser receives the already resolved palette. Forced dark still reads the wallpaper, so dark with low tint also runs the web resolver: the signature neutrals take the palette's tint. |
+| `signature` | none | The signature, with this host's edition accent, in every mode; high contrast on both signature tables, where tint does nothing. It runs first: the other cases compare against it. |
+| `wallpaper-dark`, `wallpaper-light` | `colors.json` from `testdata/` | Dark and light are the signature while a wallpaper palette exists. Following, the wallpaper mapping, the tinted selection, toning and scrim; then follow with high contrast and medium tint (dark), and high contrast and low tint (light). |
+| `scheme` | `shell.json` with `themePalette` | Dark and light ignore a named scheme. Following, it wins over the wallpaper, also with low tint. |
+| `unfollowed` | `theme.json` with `followWallpaper` off, and a `colors.json` | Follow mode ignores the wallpaper and paints the signature (Go and QML only: a browser receives the already resolved palette). Dark and light are the signature too, and low tint changes nothing there. |
 
 Every case compares every role, including `slab`, `field` and `edge`.
 

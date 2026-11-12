@@ -110,12 +110,14 @@ comments and in reviews so everyone means the same thing.
 ## 3. Materials: roles, not colours
 
 Lithic has no palette of its own. Every colour in a Lithic surface is a
-**role**. Following the wallpaper, the live Ryoku palette (matugen) dyes each
-role while Lithic keeps its lightness on a fixed ladder, so an app matches the
-wallpaper, changes with it, and never loses its contrast. Without a palette
-the roles are the **signature**, the ryoku.dev stock: black paper, bone ink
-and the dark orange sun as the one action; its tables live in `tokens.json`.
-[palette.md](palette.md) is the complete recipe. The short version:
+**role**. Every Lithic app opens in the signature, the ryoku.dev stock.
+Following the wallpaper is a choice the reader makes in the app, never the
+default. The **signature** is black paper, bone ink and the dark orange sun
+as the one action (a warm grey paper in light mode); its tables live in
+`tokens.json`. When the reader chooses to follow, the live Ryoku palette
+(matugen) dyes each role while Lithic keeps its lightness on a fixed ladder,
+so the app matches the wallpaper, changes with it, and never loses its
+contrast. [palette.md](palette.md) is the complete recipe. The short version:
 
 | Role | Used for | Following, dyed by |
 |---|---|---|
@@ -144,7 +146,8 @@ must read "alive" the same way on every wallpaper.
 The reader sets the look on top: **Contrast** (standard or high) spreads the
 stones, slab, field and vein further from the ground and moves the inks out,
 and **Tint** (off, low or medium) lets the ground and stones take more of the
-wallpaper's colour without changing any lightness.
+wallpaper's colour without changing any lightness, so it only shows while
+following.
 [palette.md](palette.md#contrast-and-tint) has the recipe.
 
 Two named rules govern the roles:
@@ -423,7 +426,7 @@ Mono wraps only the literal parts. [copy.md](copy.md) has the word lists.
 
 Do:
 
-- Use roles, never colour values, so the live palette can fill them.
+- Use roles, never colour values, so the signature or the live palette can fill them.
 - Spend gold on one action per view; give the actions beside it line or
   tonal plaques.
 - Lift a container from its plane: lighter or equal in dark mode, set off by

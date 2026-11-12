@@ -6,9 +6,9 @@ Use this page to follow the system from palette input to a finished surface, the
 
 ```mermaid
 flowchart TD
-    A[Named Ryoku scheme] --> D[Palette precedence and mode]
-    B[Wallpaper palette] --> D
-    C[Signature fallback and edition accent] --> D
+    C[Signature and edition accent, the default] --> D[Mode and palette precedence]
+    A[Named Ryoku scheme, when following] --> D
+    B[Wallpaper palette, when following] --> D
     D --> E[Roles: ground, stones, ink, selection, action, minerals]
     E --> F[Tokens: space, cuts, type, motion, alpha, size]
     F --> G1[Foundation primitives]
@@ -26,7 +26,7 @@ flowchart TD
     H --> I5[Terminal surfaces]
 ```
 
-The named scheme is first, a wallpaper palette is second when wallpaper following is active, and the signature fallback is last. Forced dark or light keeps signature neutrals and takes accents from the active palette. [Palette](palette.md) defines the full resolution rule.
+Every Lithic app opens in the signature, the ryoku.dev stock: dark and light mode paint it with the edition accent and read no palette. Follow mode is the reader's choice; there the named scheme is first, a wallpaper palette is second when wallpaper following is active, and the signature fallback is last. [Palette](palette.md) defines the full resolution rule.
 
 ## Component index
 

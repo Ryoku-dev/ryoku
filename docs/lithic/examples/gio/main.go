@@ -47,7 +47,7 @@ func registerPage(name string, page pageFunc) {
 
 func main() {
 	pageName := flag.String("page", "foundation", "page: foundation, controls, lists, or overlays")
-	modeName := flag.String("mode", "follow", "palette mode: follow, dark, or light")
+	modeName := flag.String("mode", "dark", "palette mode: dark, light, or follow")
 	contrastName := flag.String("contrast", "standard", "palette contrast: standard or high")
 	tintName := flag.String("tint", "off", "palette tint: off, low, or medium")
 	pngPath := flag.String("png", "", "render the complete page to a PNG and exit")
@@ -58,7 +58,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "gio gallery: page %q is unavailable; registered pages: %s\n", *pageName, strings.Join(pageNames(), ", "))
 		os.Exit(2)
 	}
-	mode, err := parseMode(*modeName)
+	mode, err := palette.ParseMode(*modeName)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "gio gallery:", err)
 		os.Exit(2)
@@ -88,19 +88,6 @@ func pageNames() []string {
 	}
 	sort.Strings(names)
 	return names
-}
-
-func parseMode(value string) (palette.Mode, error) {
-	switch value {
-	case "follow":
-		return palette.Follow, nil
-	case "dark":
-		return palette.Dark, nil
-	case "light":
-		return palette.Light, nil
-	default:
-		return palette.Follow, fmt.Errorf("invalid --mode %q: use follow, dark, or light", value)
-	}
 }
 
 func runWindow(name string, page pageFunc, th *theme.Theme) error {

@@ -29,8 +29,8 @@ Each page links `../../library/web/lithic.css`, imports `../../library/web/lithi
 
 | Parameter | Values | Effect |
 |---|---|---|
-| `mode` | `follow`, `dark`, or `light` | Selects palette resolution mode. `follow` is the default. |
-| `palette` | A relative or absolute JSON URL | Fetches a raw Matugen palette, `{ "themePalette": { ... } }`, or `{ "roles": { ... }, "source": "..." }` descriptor. Without it, the signature fallback is used. |
+| `mode` | `dark`, `light`, or `follow` | Selects palette resolution mode. `dark` is the default; dark and light paint the signature and ignore `palette`. |
+| `palette` | A relative or absolute JSON URL | In `follow`, fetches a raw Matugen palette, `{ "themePalette": { ... } }`, or `{ "roles": { ... }, "source": "..." }` descriptor. Without it, the signature is used. |
 | `contrast` | `standard` or `high` | Selects the look's contrast. `standard` is the default; an unknown value is ignored. |
 | `tint` | `off`, `low`, or `medium` | Selects the look's tint toward the palette. `off` is the default; an unknown value is ignored. |
 

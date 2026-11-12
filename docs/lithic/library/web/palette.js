@@ -6,7 +6,7 @@ const ROLE_KEYS = Object.freeze([
   'gold', 'onGold', 'goldInk', 'jade', 'lapis', 'amber', 'jasper', 'scrim',
 ]);
 
-const MODES = new Set(['follow', 'dark', 'light']);
+const MODES = new Set(['dark', 'light', 'follow']);
 const CONTRASTS = Object.freeze(['standard', 'high']);
 const TINTS = Object.freeze(['off', 'low', 'medium']);
 const TONES = new Set(['idle', 'alive', 'becoming', 'attention', 'paused', 'failed']);
@@ -214,22 +214,24 @@ function signatureTable(dark, contrast) {
 
 const NEUTRAL_ROLES = ['ground', 'stone1', 'stone2', 'stone3', 'stone4', 'slab', 'field', 'vein', 'edge', 'fg', 'fg2', 'fg3', 'scrim'];
 
-// Without a palette Lithic paints its signature: the ryoku.dev stock (black
-// paper, bone ink, the sun as the one action), with an edition's signal in
-// place of the sun where one is named. A palette only dyes: Lithic owns every
-// lightness (the tone ladder for the mode and contrast), and the palette lends
-// hue and chroma, neutrals from its surface, ink from its on-surface, the
-// action from its primary, the selection from its containers and jasper from
-// its error. A forced mode keeps the signature's neutrals.
-export function rolesFromPalette(palette = {}, {mode = 'follow', contrast = 'standard', tint = 'off'} = {}) {
+// Every Lithic app opens in the signature: the ryoku.dev stock (black paper,
+// bone ink, the sun as the one action), with an edition's signal in place of
+// the sun where one is named. Dark and light are the signature and take
+// nothing from the palette; only follow reads it. A palette only dyes: Lithic
+// owns every lightness (the tone ladder for the mode and contrast), and the
+// palette lends hue and chroma, neutrals from its surface, ink from its
+// on-surface, the action from its primary, the selection from its containers
+// and jasper from its error.
+export function rolesFromPalette(palette = {}, {mode = 'dark', contrast = 'standard', tint = 'off'} = {}) {
   if (!MODES.has(mode)) throw new TypeError(`Unknown Lithic mode: ${mode}`);
   if (!CONTRASTS.includes(contrast)) throw new TypeError(`Unknown Lithic contrast: ${contrast}`);
   if (!TINTS.includes(tint)) throw new TypeError(`Unknown Lithic tint: ${tint}`);
-  const {roles: paletteRoles, source, edition} = descriptor(palette);
-  const forced = mode !== 'follow';
+  const described = descriptor(palette);
+  const following = mode === 'follow';
+  const paletteRoles = following ? described.roles : {};
+  const source = following ? described.source : 'signature';
   const surface = paletteRoles.surface;
-  const detectedDark = !surface || (0.299 * surface.r + 0.587 * surface.g + 0.114 * surface.b) / 255 <= 0.5;
-  const dark = forced ? mode === 'dark' : detectedDark;
+  const dark = following ? !surface || (0.299 * surface.r + 0.587 * surface.g + 0.114 * surface.b) / 255 <= 0.5 : mode === 'dark';
   const steps = ladder(dark, contrast);
   const table = signatureTable(dark, contrast);
   const dye = tokens.dye;
@@ -238,7 +240,7 @@ export function rolesFromPalette(palette = {}, {mode = 'follow', contrast = 'sta
 
   if (source !== 'wallpaper' && source !== 'scheme') {
     for (const role of ['sel', 'onSel', 'onSel2', 'gold', 'onGold', 'goldInk', 'jasper']) result[role] = table[role];
-    const editionKey = typeof edition === 'string' ? edition.toLowerCase() : null;
+    const editionKey = typeof described.edition === 'string' ? described.edition.toLowerCase() : null;
     if (editionKey && tokens.edition?.[editionKey]) {
       const signal = asColor(tokens.edition[editionKey], 'rolesFromPalette');
       result.gold = signal;
@@ -249,29 +251,27 @@ export function rolesFromPalette(palette = {}, {mode = 'follow', contrast = 'sta
   }
 
   const accents = tokens.palette.accents;
-  if (!forced) {
-    let neutral = {c: fallback.stoneChroma, h: fallback.neutralHue};
-    let groundChroma = fallback.groundChroma;
-    let ink = {c: fallback.inkChroma, h: fallback.neutralHue};
-    const surfaceRole = paletteRoles[tokens.palette.dye.neutral];
-    if (surfaceRole) {
-      const surfaceDye = dyeOf(surfaceRole);
-      const factor = tint === 'low' ? dye.tint.low : tint === 'medium' ? dye.tint.medium : 1;
-      neutral = {c: Math.min(dye.chroma.stone, surfaceDye.c) * factor, h: surfaceDye.h};
-      groundChroma = Math.min(dye.chroma.ground, surfaceDye.c * dye.boost.ground) * factor;
-    }
-    const inkRole = paletteRoles[tokens.palette.dye.ink];
-    if (inkRole) {
-      const inkDye = dyeOf(inkRole);
-      ink = {c: Math.min(dye.chroma.ink, inkDye.c), h: inkDye.h};
-    }
-    const vein = {c: neutral.c * dye.boost.vein, h: neutral.h};
-    result.ground = toned(steps.ground, {c: groundChroma, h: neutral.h});
-    for (const role of ['stone1', 'stone2', 'stone3', 'stone4', 'slab', 'field']) result[role] = toned(steps[role], neutral);
-    result.vein = toned(steps.vein, vein);
-    result.edge = toned(steps.edge, vein);
-    for (const role of ['fg', 'fg2', 'fg3']) result[role] = toned(steps[role], ink);
+  let neutral = {c: fallback.stoneChroma, h: fallback.neutralHue};
+  let groundChroma = fallback.groundChroma;
+  let ink = {c: fallback.inkChroma, h: fallback.neutralHue};
+  const surfaceRole = paletteRoles[tokens.palette.dye.neutral];
+  if (surfaceRole) {
+    const surfaceDye = dyeOf(surfaceRole);
+    const factor = tint === 'low' ? dye.tint.low : tint === 'medium' ? dye.tint.medium : 1;
+    neutral = {c: Math.min(dye.chroma.stone, surfaceDye.c) * factor, h: surfaceDye.h};
+    groundChroma = Math.min(dye.chroma.ground, surfaceDye.c * dye.boost.ground) * factor;
   }
+  const inkRole = paletteRoles[tokens.palette.dye.ink];
+  if (inkRole) {
+    const inkDye = dyeOf(inkRole);
+    ink = {c: Math.min(dye.chroma.ink, inkDye.c), h: inkDye.h};
+  }
+  const vein = {c: neutral.c * dye.boost.vein, h: neutral.h};
+  result.ground = toned(steps.ground, {c: groundChroma, h: neutral.h});
+  for (const role of ['stone1', 'stone2', 'stone3', 'stone4', 'slab', 'field']) result[role] = toned(steps[role], neutral);
+  result.vein = toned(steps.vein, vein);
+  result.edge = toned(steps.edge, vein);
+  for (const role of ['fg', 'fg2', 'fg3']) result[role] = toned(steps[role], ink);
 
   let gold = {c: fallback.goldChroma, h: fallback.goldHue};
   const jasper = {c: dye.chroma.jasper, h: fallback.jasperHue};

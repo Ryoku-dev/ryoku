@@ -1,19 +1,22 @@
 # Checklist
 
 Use this to review a surface that claims to be Lithic: a new app, a new page,
-a port of an existing screen. Take a screenshot at each size class in a dark
-and in a light Ryoku palette, at Contrast standard and high and with Tint off
-and on, and go down the list. Every "no" is a defect.
+a port of an existing screen. Take a screenshot at each size class in the dark
+and light signature and, following, in a dark and in a light Ryoku palette, at
+Contrast standard and high and with Tint off and on, and go down the list.
+Every "no" is a defect.
 
 ## Colour
 
 - [ ] No colour value appears in the UI code except the signature fallback
       and the three fixed minerals (jade, lapis, amber), both clearly marked.
-- [ ] Changing the wallpaper changes ground, panes, bone and gold; jade,
-      lapis and amber stay.
-- [ ] A named theme (`themePalette`) wins over the wallpaper palette.
-- [ ] Forcing light on a dark wallpaper gives signature neutrals with the
-      wallpaper's gold.
+- [ ] The app opens in the signature, the ryoku.dev stock, even while a
+      wallpaper palette exists; following the wallpaper is a choice the
+      reader makes in the app.
+- [ ] Following, changing the wallpaper changes ground, panes, bone and gold;
+      jade, lapis and amber stay.
+- [ ] Following, a named theme (`themePalette`) wins over the wallpaper
+      palette.
 - [ ] `contrast(goldInk, stone2) >= 4.5` and
       `contrast(jasper, stone2) >= 4.5`; danger fill ink is
       `inkOn(jasper)`.
@@ -146,7 +149,8 @@ and on, and go down the list. Every "no" is a defect.
 ## Review artefacts
 
 Attach to the review: screenshots at expanded, medium and compact; the same
-page in a dark and a light palette, at Contrast high and with Tint on; the
+page in the signature and following a dark and a light palette, at Contrast
+high and with Tint on; the
 output of the palette hookup check and its
 [contrast targets](palette.md#contrast-targets) (§8 of
 [palette.md](palette.md)); a note of any item above that was deliberately
