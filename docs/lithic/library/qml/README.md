@@ -668,7 +668,7 @@ A detail header with a mark, name, proof, note, traits, actions, and an optional
 
 #### Slab
 
-A lifted cut container: the `slab` fill, with a 1 dp `vein` hairline inside the cut in light mode, and a configurable inset, fill, and cut depth. A `tone` other than idle dyes it with that state's mineral field for the one hero plane of a view.
+A cut container on its pane's own tone: the `slab` role with a 1 dp `vein` hairline inside the cut that sets the group off in both modes, and a configurable inset, fill, and cut depth. A `tone` other than idle dyes it with that state's mineral field for the one hero plane of a view; a toned slab, or one given another `fill`, carries no hairline.
 
 - Properties: `inset`, `tone`, `fill`, `cut`, and the default `content` child list. Read-only properties are `bodyItem`, `contentImplicitWidth`, and `contentImplicitHeight`.
 - Preview: none
@@ -677,7 +677,8 @@ A lifted cut container: the `slab` fill, with a 1 dp `vein` hairline inside the 
 
 A section title followed by an arbitrary measured body.
 
-- Properties: `title` and the default `content` child list. Read-only properties are `bodyItem`, `contentImplicitWidth`, and `contentImplicitHeight`.
+- Properties: `title`, `ruled`, `mark`, and the default `content` child list. Read-only properties are `bodyItem`, `contentImplicitWidth`, and `contentImplicitHeight`.
+- `ruled` (default false) draws a `vein` hairline from the title to the section's far edge, centred on the title; `mark` is a short literal (an ordinal, a count) set at the end of it in `monoSm` `fg3`. A full page's sections are ruled; the head's height does not change.
 - Preview: none
 
 #### Facts
@@ -971,6 +972,8 @@ A responsive vertical rail or compact bottom rail with Home, destinations, and t
 - `currentIndex` -1: no destination is current (Home is), so no `sel` tile is drawn; it reappears in place on the next destination and glides between destinations as before.
 - Expanded labels: every tile takes the widest label's width plus `space.s1` a side, from `tileSize` (64) to the rail less `space.s1` a side (80), centred, and the `sel` tile follows it. A label still too wide wraps to two centred lines only where a line may break (between words, or between characters in Japanese and other scripts without spaces), and its tile grows by one caption line, moving the tiles below it. A word too wide for the tile on its own is never split: `labelText(index)` gives it shortened with an ellipsis, on one line, and the tile's accessible name keeps the whole label. Ryoport's short labels keep the 64 tiles. Medium and compact are unchanged.
 - `brandMark` (default null): a host mark passed to both BrandMarks; see BrandMark's `mark`.
+- Short windows: when the stacked tiles ask for more room than the rail has above the foot group, they share it (`space.s1` apart, at least `iconPlaqueSmall` high) and hide their labels below `railDestinationCompact`; the foot group keeps its size.
+- A tile that shows no label (the medium rail, or a squeezed tile) loads a `Tooltip` with its label; `tip` on the tile is that tooltip, or null while the label shows.
 - Compact: Home, the first destination, New when shown, then the rest, in equal columns.
 - Preview: `previewState`. `previewNewOpen` embeds the New popover.
 
@@ -1013,8 +1016,9 @@ A line chart with a hatched area, baseline, optional ticks, and an empty state.
 
 The responsive application frame that composes a rail, optional list pane, work pane, window controls, and overlay host.
 
-- Properties: the default `workData` child list, plus `listData`, `overlayData`, `showList`, `compactView`, `customDecorations`, `currentDestination`, `destinations`, `showNew`, `footIndex`, `notchIndex`, `brandMark`, `compactBar`, `windowControlsComponent`, and `previewState`. Read-only properties are `sizeClass`, `compact`, `railWidth`, `listWidth`, `contentX`, and `paneBottom`.
+- Properties: the default `workData` child list, plus `listData`, `overlayData`, `showList`, `listWidth`, `workFlush`, `compactView`, `customDecorations`, `currentDestination`, `destinations`, `showNew`, `footIndex`, `notchIndex`, `brandMark`, `compactBar`, `windowControlsComponent`, and `previewState`. Read-only properties are `sizeClass`, `compact`, `railWidth`, `contentX`, and `paneBottom`.
 - `showNew`, `footIndex`, `notchIndex` and `brandMark` pass through to `Rail`. `compactBar` (default true): false shows no bottom rail in compact, the panes run to the bottom, and the host provides its own navigation.
+- The list and work panes lie on the paper and are drawn by a `vein` hairline along their cut; a pane that runs to the window's foot draws no line along it. `listWidth` follows the size class (384, 320) until a host whose list pane is a short index sets it. `workFlush` (default false): true lays the work content on the ground edge to edge, with no pane line and no inset, for a home that is a plate of its own; the window controls keep their corner.
 - Signals: `homeTriggered()`, `destinationTriggered(int index, string label)`, `newItemTriggered(int index, string label)`, `minimizeRequested()`, `maximizeRequested()`, and `closeRequested()`
 - Preview: `previewState`
 

@@ -27,10 +27,13 @@ Item {
     implicitWidth: contentImplicitWidth + inset * 2
     implicitHeight: contentImplicitHeight + inset * 2
 
+    // a plain slab takes the tone of whatever it stands on, a pane or a dialog, and is drawn
+    // by its vein hairline alone; a toned slab, or one a caller filled, is set off by its fill
+    readonly property bool _plain: Qt.colorEqual(root.fill, Lithic.slab)
     CutRect {
         anchors.fill: parent
-        fill: root.fill
-        strokeColor: Lithic.dark ? "transparent" : Lithic.vein
+        fill: root._plain ? "transparent" : root.fill
+        strokeColor: root._plain ? Lithic.vein : "transparent"
         strokeWidth: LithicTokens.size.hairline
         cut: root.cut
     }

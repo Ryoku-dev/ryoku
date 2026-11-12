@@ -13,9 +13,8 @@ import (
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 )
 
-// SlabContent lays out a standard slab: the slab fill lifted off its plane,
-// set off by a vein hairline in light mode, inside the mid cut and the
-// canonical inset.
+// SlabContent lays out a standard slab: the slab tone, which is its plane's
+// own, set off by a vein hairline, inside the mid cut and the canonical inset.
 func SlabContent(gtx layout.Context, th *theme.Theme, body layout.Widget) layout.Dimensions {
 	return TonedSlabContent(gtx, th, palette.Idle, body)
 }
@@ -37,13 +36,15 @@ func TonedSlabContent(gtx layout.Context, th *theme.Theme, tone palette.Tone, bo
 	return dimensions
 }
 
-// SlabSurface paints a slab's plane in bounds: the fill, plus a vein hairline
-// in light mode, where a lighter slab alone would not separate.
+// SlabSurface paints a slab's plane in bounds. A plain slab takes the tone of
+// whatever it stands on, a pane or a dialog, and is drawn by its vein hairline
+// alone; a toned slab is filled with its mineral field and carries no line.
 func SlabSurface(gtx layout.Context, th *theme.Theme, bounds image.Rectangle, cut int, fill color.NRGBA) {
-	FillCut(gtx.Ops, bounds, cut, fill)
-	if !th.R.Dark {
+	if fill == th.R.Slab {
 		StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), th.R.Vein)
+		return
 	}
+	FillCut(gtx.Ops, bounds, cut, fill)
 }
 
 // SlabRows lays out rows inside a standard slab at full width. Space, not a

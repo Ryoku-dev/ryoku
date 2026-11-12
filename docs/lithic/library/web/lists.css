@@ -395,12 +395,15 @@
   gap: var(--lithic-space-s2);
 }
 
+/* a pane lies on the ground's own tone: its vein hairline draws its cut */
 .l-pane {
   --l-cut-tl: var(--lithic-cut-large);
   --l-cut-tr: var(--lithic-cut-large);
   --l-cut-br: 0px;
   --l-cut-bl: 0px;
   --l-fill: var(--lithic-stone1);
+  --l-stroke: var(--lithic-vein);
+  --l-stroke-width: var(--lithic-size-hairline);
   margin-block-start: var(--lithic-size-pane-top);
 }
 
@@ -485,21 +488,22 @@
   }
 }
 
+/* a slab takes the tone of whatever it stands on, a pane or a dialog: its vein hairline
+   alone sets the group off, in both modes */
 .l-slab,
 .l-aside {
-  --l-fill: var(--lithic-slab);
+  --l-fill: transparent;
   --l-cut: var(--lithic-cut-mid);
+  --l-stroke: var(--lithic-vein);
+  --l-stroke-width: var(--lithic-size-hairline);
   padding: var(--lithic-size-slab-inset);
 }
 
-/* a lighter slab alone does not separate from a light pane, so light mode adds the hairline */
-:root[data-l-mode="light"] :is(.l-slab, .l-aside) {
-  --l-stroke: var(--lithic-vein);
-  --l-stroke-width: var(--lithic-size-hairline);
-}
-
+/* a toned slab is set off by its mineral field, so it carries no hairline */
 .l-slab[data-tone]:not([data-tone="idle"]) {
   --l-fill: var(--l-tone-field);
+  --l-stroke: transparent;
+  --l-stroke-width: 0px;
 }
 
 .l-slab-row + .l-slab-row {

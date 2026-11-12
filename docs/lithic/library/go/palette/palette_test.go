@@ -172,13 +172,29 @@ func TestTintMovesColourNeverLightness(t *testing.T) {
 	assertColor(t, "fg under a tint", medium.Fg, off.Fg)
 }
 
-func TestHighContrastSpreadsThePlanes(t *testing.T) {
+// Panes and slabs lie on the ground's own tone at either contrast; what steps
+// up from it (a field, a hover, an overlay, a hairline) steps further at high.
+func TestHighContrastSpreadsWhatStepsUp(t *testing.T) {
 	roles := wallpaper(200, 0.05, 0.2)
 	standard := FromPalette(Palette{Roles: roles, Dark: true, Source: "wallpaper"}, Look{})
 	high := FromPalette(Palette{Roles: roles, Dark: true, Source: "wallpaper"}, Look{Contrast: High})
-	gap := func(r Roles) float64 { return lightness(r.Stone2) - lightness(r.Ground) }
-	if gap(high) <= gap(standard) {
-		t.Fatalf("stone2 sits %.3f above the ground at high contrast, %.3f at standard", gap(high), gap(standard))
+	for _, r := range []Roles{standard, high} {
+		for name, plane := range map[string]color.NRGBA{"stone1": r.Stone1, "stone2": r.Stone2, "slab": r.Slab} {
+			if d := math.Abs(lightness(plane) - lightness(r.Ground)); d > 0.01 {
+				t.Fatalf("%s sits %.3f off the ground, want it on the ground's tone", name, d)
+			}
+		}
+	}
+	for name, step := range map[string]func(Roles) color.NRGBA{
+		"field":  func(r Roles) color.NRGBA { return r.Field },
+		"stone3": func(r Roles) color.NRGBA { return r.Stone3 },
+		"stone4": func(r Roles) color.NRGBA { return r.Stone4 },
+		"vein":   func(r Roles) color.NRGBA { return r.Vein },
+	} {
+		gap := func(r Roles) float64 { return lightness(step(r)) - lightness(r.Ground) }
+		if gap(high) <= gap(standard) {
+			t.Fatalf("%s sits %.3f above the ground at high contrast, %.3f at standard", name, gap(high), gap(standard))
+		}
 	}
 	if ContrastRatio(high.Fg3, high.Stone2) <= ContrastRatio(standard.Fg3, standard.Stone2) {
 		t.Fatal("high contrast did not lift fg3")

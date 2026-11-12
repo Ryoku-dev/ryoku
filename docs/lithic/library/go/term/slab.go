@@ -6,11 +6,11 @@ type Slab struct {
 	Width   int
 }
 
-// RenderSlab renders a slab: a stone plane lifted off its surroundings.
+// RenderSlab renders a slab: a group set off by a cut hairline frame.
 func RenderSlab(th Theme, slab Slab) string {
 	content := slab.Content
 	if slab.Width > 0 {
 		content = fit(content, slab.Width)
 	}
-	return framed(th, content, th.Roles.Slab, false, false)
+	return outlined(th, content)
 }

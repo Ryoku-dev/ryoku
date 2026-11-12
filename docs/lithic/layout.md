@@ -21,14 +21,17 @@ Default window 1280 × 800, minimum 640 × 520.
 
 ## The ground and the panes
 
-The window is filled with `ground`. Panes sit on it:
+The window is filled with `ground`, the paper. Panes lie on it:
 
 - every pane starts **10 dp** below the top edge and runs to the bottom;
-- the rail and the list pane are `stone1`, the work pane `stone2`;
+- the rail and the list pane are `stone1`, the work pane `stone2`, and both
+  are the paper's own tone: a 1 dp `vein` hairline along its cut is what
+  draws a list or work pane, and the rail carries none;
 - panes are **8 dp** apart (ground shows between them) and the work pane
   keeps 10 dp from the right edge in the web mock, 0 in the native app;
 - a pane cuts its **two top corners at 16 dp** and leaves the bottom corners
-  square, so the stack reads as slabs standing on the ground;
+  square, so the stack reads as plates standing on the ground; a pane that
+  runs to the window's foot draws no line along it;
 - in compact, the single pane ends 8 dp above the 64 bottom bar.
 
 When the compositor draws no decorations, the app draws its own window
@@ -41,7 +44,7 @@ tabs. The list pane's content is inset 10.
 
 ## The rail
 
-The rail is `stone1` with no cut of its own (it is a pane). From the top:
+The rail is `stone1`, the paper, with no cut and no line of its own. From the top:
 
 | Slot | Expanded | Medium |
 |---|---|---|
@@ -57,7 +60,9 @@ Activity, then Settings at the bottom. The current destination is a `sel`
 tile that **travels** to its new place over 240 ms; hover steps a tile to
 `stone3` (160 ms in, 100 ms out). Labels are `caption` in `fg3`, `fg` when
 current. An amber notch at the top-left of the Settings tile is the only
-badge the rail may show; it means an update is ready.
+badge the rail may show; it means an update is ready. A window too short for
+the tiles squeezes the stacked ones into the room above the foot, and a tile
+without a label carries a tooltip with its name.
 
 In compact the same destinations move into the bottom bar: five equal
 columns, 48 high tiles cut 6, Home in the first column, New in the middle,
@@ -136,17 +141,79 @@ Activity and Settings omit the list pane and take the remaining width.
 | compact | full width | the same Picker at the top of the column | same |
 
 Each section is a `section` title, 13 gap, a slab, 21 below. The slab is the
-`slab` role, cut 7 with a 21 inset: in dark mode it is lighter than the work
-pane, in light mode a step lighter with a 1 dp `vein` hairline that sets it
-off. Setting rows inside a slab are a title in `row` with a detail in
+`slab` role, the paper itself, cut 7 with a 21 inset and a 1 dp `vein`
+hairline that sets the group off in both modes; it is never a lighter plate
+on the pane. Setting rows inside a slab are a title in `row` with a detail in
 `detail` `fg2` 2 below, and the control (toggle, picker, segmented, stepper,
 slider) right-aligned and no wider than 320; rows are 21 apart, separated by
 space, not rules.
+
+A full page is a **sheet**, in the manner of ryoku.dev's pages. Above the
+title it carries a running head: where the sheet belongs at the left in
+`caption` `fg2` (only where no pane beside it already says so), a 1 dp `vein`
+hairline across, and the sheet's place among its siblings at the right in
+`monoSm` `fg3` (`02 / 05`). The title stands 21 below it, then the lead, and
+13 below the lead a tick ruler closes the head: `vein` ticks 8 apart, 4 high
+and every fifth 8 high, 233 wide, its first 21 a 2 dp segment in `fg`. A
+section's head is ruled: a `vein` hairline runs from its title to the
+column's far edge and ends in the section's ordinal in `monoSm` `fg3` when
+the page has two sections or more. As a sheet opens its first five sections
+rise in turn, 40 ms apart; a later rebuild moves nothing. Rows, slabs and
+every control keep the geometry above.
+
+A host whose list pane holds only the search and a short index of pages, not
+a list of resources, sets it as wide as the search at rest plus its insets:
+300. Ryoku Settings does, and shows the pane only while a category is open
+or the search is; with no category open the pane is gone and the work pane
+takes its room.
+
+A host's home may be a plate of its own in place of the work pane: its
+content lies on the ground edge to edge, with no pane line and no inset, and
+keeps the window controls' corner free. Ryoku Settings opens on one: the
+reader's figure and name, what waits on them, and this computer's readings.
 
 The index follows the reading position: a section becomes current when less
 than a third of it is still visible above the next; at the very end the last
 section wins; clicking an index row scrolls to its section and holds the
 index on it until the user scrolls again.
+
+## The cover
+
+A host's home, or another surface whose subject is a picture, may be composed
+as a cover: the pattern of ryoku.dev's landing page. It is the one place
+where four rules of [design.md](design.md) give way (gold never decorates,
+nothing in capitals, Martian Mono only on literal data, one family set
+plainly), on the owner's instruction of 2026-11-12 that Ryoku Settings follow
+both these documents and the site: "the hub with new lithic ui documentation
+plus the new ryoku hyperion style website". Nothing below applies to a
+settings page, a list, a dialog or any other working surface.
+
+- **The figure.** One photograph of a sculpture, cut from its background,
+  standing on the plate's foot beside the text column. Text never lies on
+  the marble. Its museum label (object, place, photographer, licence) is set
+  upright in `monoSm` `fg3` in a gutter at the plate's outer edge, beside the
+  figure, and is whole at every size that shows the figure beside the
+  column. A narrower plate stands the figure small beside the name, under
+  the top bar, with the words kept clear of it, and leaves the label to the
+  app's credits; a plate too narrow for that shows no figure.
+- **The carved word.** One word behind the figure, Geologica Bold in
+  capitals. On the black paper it is oxblood: `gold` mixed 34% into the paper
+  (`#462011`, 1.5:1 against it). On the light paper that mix turns salmon, so
+  the word is cut into the stone instead: `fg` mixed 18% into the paper
+  (`#c4c1bf`, 1.4:1). It is ornament and carries no state and no action.
+- **The motto and its tick.** Under the name, the motto in `proof` with its
+  Japanese gloss in `caption` `fg3`, then the sheet's tick ruler with its
+  first segment in `gold`. With the carved word, this is the only gold on a
+  cover that is not an action.
+- **The datasheet.** Standing facts as rows: a key in `monoSm` `fg3`,
+  lowercase, one `vein` column rule, the value in `detail` `fg`.
+- **Its entrance.** The column's groups rise in turn (200 ms, 40 ms apart),
+  the carved word stamps in once (300 ms, from 1.06 of its size) and the
+  readings count up once (640 ms). Nothing loops and nothing moves after;
+  reduced motion plays none of it.
+
+Reference: `ryoku/hub/quickshell/components/Home.qml`. Source: ryoku.dev's
+design record, section 11 ("The colossus cover and Lithic chrome").
 
 ## Overlays and the Escape stack
 
@@ -391,7 +458,7 @@ than half a second: it was pressed before anyone could have read it.
 plaques, what to send with on the left (attach, the model, the mode) and the
 one gold icon plaque on the right. Like every field it keeps a 1 dp `edge`
 hairline at rest, and the hairline turns `fg2` with the keyboard (see
-[what one step of the ramp can carry](palette.md#what-one-step-of-the-ramp-can-carry)).
+[what a step and a hairline carry](palette.md#what-a-step-and-a-hairline-carry)).
 It is at least 96 high, grows a line at a time to eight lines and then
 scrolls. Send is the standing gold action of a conversation window. While a
 turn runs the same plaque is Stop, and with text in the field it offers to

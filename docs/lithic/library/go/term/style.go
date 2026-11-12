@@ -155,6 +155,17 @@ func framedOnPlane(th Theme, content string, fill color.NRGBA, plane color.Color
 	return stone(th, content, fieldFill(th, fill, focused, disabled), plane, disabled)
 }
 
+// outlined renders content inside a cut hairline frame on the terminal's own
+// background: a group set off by its vein, not by a fill.
+func outlined(th Theme, content string) string {
+	return lipgloss.NewStyle().
+		Foreground(th.Roles.Fg).
+		Border(CutBorder()).
+		BorderForeground(th.Roles.Vein).
+		Padding(0, horizontalPadding(tokens.SpaceS2)).
+		Render(content)
+}
+
 func focusGutter(th Theme, focused bool) string {
 	if focused {
 		return ink(th.Roles.Fg).Render(glyphs().Cursor + " ")

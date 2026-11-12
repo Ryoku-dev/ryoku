@@ -31,12 +31,16 @@ Every "no" is a defect.
 - [ ] Disabled controls use alpha 0.5 and do not hover.
 - [ ] Rows on `stone4` hover with `fg` at alpha 0.06 and press at 0.08.
       They never step down to `stone3`; lower planes keep the plane-up recipe.
-- [ ] Nothing relies on one tone step to be found at rest. Fields carry their
-      `edge` hairline, overlays their `vein` hairline, and slabs theirs in
-      light mode.
-- [ ] Slabs, menus and dialogs lift: in dark mode they are lighter than or
-      equal to their plane, in light mode their hairline sets them off. No
-      container is darker than the plane it stands on.
+- [ ] Every pane and every slab lies on the one paper: black in the dark
+      signature, warm grey in the light one. No grey pane holds a lighter grey
+      slab holding a lighter grey field.
+- [ ] A list pane, a work pane and a slab are each drawn by their 1 dp `vein`
+      hairline, in dark and in light; the rail carries none, and a toned slab
+      is set off by its mineral field.
+- [ ] Tone steps up from the paper only for hover (`stone3`), fields and
+      tonal plaques (`field`) and what floats (`stone4`, with its `vein`
+      hairline). Fields carry their `edge` hairline. Nothing is darker than
+      the plane it stands on.
 - [ ] Text, edges and the selection read in both Contrast settings and at
       every Tint, in dark and in light.
 
@@ -54,7 +58,7 @@ Every "no" is a defect.
 - [ ] Panes cut only their top corners; tablets are square apart from the
       notch.
 - [ ] Hairlines are 1 dp and sit inside the outline.
-- [ ] No shadow, gradient, glow or inset well. Overlays are one tone up with a
+- [ ] No shadow, gradient, glow or inset well. Overlays are `stone4` with a
       hairline on the scrim.
 - [ ] Any blur is a hint where it fits: under a picture or on a scrim, its
       lightness near the plane's, clipped to the cut, still at rest, and never
@@ -65,8 +69,9 @@ Every "no" is a defect.
 
 - [ ] Geologica and Martian Mono are embedded; no system fallback renders.
 - [ ] Exactly one line per view uses `name`.
-- [ ] Martian Mono appears only on literal data.
-- [ ] Sentence case throughout; no all caps.
+- [ ] Martian Mono appears only on literal data (a cover's datasheet keys
+      are the named exception).
+- [ ] Sentence case throughout; no all caps but a cover's carved word.
 - [ ] Sizes and line heights match the scale; nothing invented.
 - [ ] Setting details and card secondary lines use `detail` in `fg2`;
       `caption` in `fg3` is kept for timestamps, counts, hints and
@@ -78,7 +83,8 @@ Every "no" is a defect.
 - [ ] Tablets are 56 (48 compact), 4 apart; controls 40 (32 small); fields 44.
 - [ ] The three size classes change structure at 760 and 1280; the compact
       layout has a bottom bar, not a squeezed rail.
-- [ ] Panes start 10 below the top edge and sit 8 apart on the ground.
+- [ ] Panes start 10 below the top edge and sit 8 apart on the ground, each
+      drawn by its hairline.
 - [ ] Work-pane body and tabs keep 34 side insets; mineral headers and
       Settings keep 36; full pages use the 760 column.
 - [ ] With no selection, the work pane shows the Now board: fleet proof,
@@ -99,7 +105,9 @@ Every "no" is a defect.
 - [ ] One curve, chisel. No ease-in-out, no bounce.
 - [ ] Every duration is from the table: press 90; hover 160 in and 100 out;
       focus 120 in and 100 out; select 240; field 320; navigate and unfold
-      200; popover 160 in and 100 out; dialog 300 in and 160 out; wheel 140.
+      200; popover 160 in and 100 out; dialog 300 in and 160 out; wheel 140;
+      a sheet's parts 200 each and 40 apart; a cover's stamp 300 and
+      count-up 640.
 - [ ] Press chips plaque cuts 4 dp deeper and sinks content 1 dp. Rows and
       menu items dip instead.
 - [ ] Selection, filter and segment fills glide; a new work pane rises 8 dp;

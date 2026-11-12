@@ -57,6 +57,28 @@ T.Control {
         return heights;
     }
 
+    // a short window gives the stacked tiles less room than they ask for: they then share
+    // what there is, 4 apart, and drop their labels once a label no longer fits; the foot
+    // group keeps its size
+    readonly property int _stackCount: Math.max(0, Math.min(footIndex, destinations.length))
+    readonly property real _stackRoom: {
+        let y = height - LithicTokens.size.railItemBottomInset;
+        for (let below = destinations.length - 1; below >= _stackCount; --below)
+            y -= (_tileHeights[below] || tileSize) + LithicTokens.size.railTileGap;
+        return y - startY - (showNew ? tileSize + LithicTokens.size.railTileGap : 0);
+    }
+    readonly property real _stackNeed: {
+        let need = 0;
+        for (let index = 0; index < _stackCount; ++index)
+            need += (_tileHeights[index] || tileSize) + (index > 0 ? LithicTokens.size.railTileGap : 0);
+        return need;
+    }
+    readonly property bool _squeezed: !compact && _stackCount > 0 && height > 0 && _stackNeed > _stackRoom
+    readonly property real _stackGap: _squeezed ? LithicTokens.space.s1 : LithicTokens.size.railTileGap
+    readonly property real _squeezedTile: Math.max(LithicTokens.size.iconPlaqueSmall,
+                                                   Math.min(tileSize, Math.floor((_stackRoom + _stackGap) / Math.max(1, _stackCount)) - _stackGap))
+    readonly property bool _labelsFit: !_squeezed || _squeezedTile >= LithicTokens.size.railDestinationCompact
+
     function labelText(index) {
         const label = _labels[index];
         return label ? label.text : (destinations[index] ? destinations[index].label || "" : "");
@@ -120,6 +142,8 @@ T.Control {
     Accessible.role: Accessible.Pane
 
     function tileHeight(index) {
+        if (_squeezed && index < _stackCount)
+            return _squeezedTile
         return index >= 0 && index < _tileHeights.length ? _tileHeights[index] : tileSize
     }
 
@@ -131,7 +155,7 @@ T.Control {
         if (index < foot) {
             let y = startY + (showNew && index > 0 ? tileSize + gap : 0)
             for (let above = 0; above < index; ++above)
-                y += tileHeight(above) + gap
+                y += tileHeight(above) + _stackGap
             return y
         }
         let y = height - LithicTokens.size.railItemBottomInset
@@ -188,6 +212,20 @@ T.Control {
         property bool showLabel: true
         // 0 keeps the label on one line, as the medium and compact rails draw it
         property real labelWidth: 0
+        property int labelLines: 2
+        // a tile that shows no label says its name under the pointer
+        readonly property var tip: tipLoader.item
+
+        Loader {
+            id: tipLoader
+            active: !destination.showLabel
+            sourceComponent: Component {
+                Tooltip {
+                    anchorItem: destination
+                    text: destination.destinationLabel
+                }
+            }
+        }
 
         hoverEnabled: true
         activeFocusOnTab: true
@@ -237,7 +275,7 @@ T.Control {
                 ink: selected ? Lithic.onSel : Lithic.fg2
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: labelWidth > 0 ? Text.WordWrap : Text.NoWrap
-                maximumLineCount: 2
+                maximumLineCount: labelLines
             }
         }
 
@@ -301,8 +339,9 @@ T.Control {
                     glyphName: modelData.glyph
                     selected: root.currentIndex === index
                     notched: root.notchIndex === index
-                    showLabel: root.expanded
+                    showLabel: root.expanded && (index >= root._stackCount || root._labelsFit)
                     labelWidth: root.expanded ? root._labelWidth : 0
+                    labelLines: root._squeezed && index < root._stackCount ? 1 : 2
                     shownLabel: root.expanded ? root.labelText(index) : modelData.label
                     previewState: root.previewState
                     onClicked: {

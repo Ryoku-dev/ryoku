@@ -25,9 +25,12 @@ Item {
     implicitWidth: contentImplicitWidth + inset * 2
     implicitHeight: contentImplicitHeight + inset * 2
 
+    // a pane lies on the ground's own tone: its vein hairline draws its cut
     CutRect {
         anchors.fill: parent
         fill: root.fill
+        strokeColor: Lithic.vein
+        strokeWidth: LithicTokens.size.hairline
         cutTopLeft: LithicTokens.cut.large
         cutTopRight: LithicTokens.cut.large
         cutBottomLeft: 0

@@ -10,7 +10,7 @@ type Aside struct {
 	Width   int
 }
 
-// RenderAside renders title, facts, and literal preview on nested planes.
+// RenderAside renders title, facts, and literal preview inside a cut hairline frame.
 func RenderAside(th Theme, aside Aside) string {
 	parts := []string{bold(th.Roles.Fg).Render(aside.Title), RenderFacts(th, aside.Facts)}
 	if aside.Preview != "" {
@@ -20,5 +20,5 @@ func RenderAside(th Theme, aside Aside) string {
 	if aside.Width > 0 {
 		content = lipgloss.NewStyle().Width(aside.Width).Render(content)
 	}
-	return framed(th, content, th.Roles.Slab, false, false)
+	return outlined(th, content)
 }

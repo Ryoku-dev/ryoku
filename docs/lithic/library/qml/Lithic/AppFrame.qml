@@ -22,6 +22,9 @@ T.Control {
     property Component brandMark: null
     // false: compact shows no bottom rail and the host brings its own navigation
     property bool compactBar: true
+    // true: the work content lies on the ground, edge to edge, with no stone and no inset
+    // under it; for a view that is a plate of its own, such as a host's home
+    property bool workFlush: false
     property Component windowControlsComponent: defaultWindowControls
     property string previewState: ""
     readonly property string sizeClass: width >= LithicTokens.breakpoint.expanded
@@ -33,9 +36,10 @@ T.Control {
                                       ? LithicTokens.size.railExpanded
                                       : sizeClass === "medium"
                                         ? LithicTokens.size.railMedium : 0
-    readonly property real listWidth: sizeClass === "expanded"
-                                      ? LithicTokens.size.listExpanded
-                                      : LithicTokens.size.listMedium
+    // a host whose list pane is a short index, not a resource list, may set it narrower
+    property real listWidth: sizeClass === "expanded"
+                             ? LithicTokens.size.listExpanded
+                             : LithicTokens.size.listMedium
     readonly property real contentX: railWidth + (compact ? 0 : LithicTokens.size.paneGap)
     readonly property real paneBottom: compact && compactBar
                                        ? height - LithicTokens.size.railBottomHeight
@@ -84,14 +88,18 @@ T.Control {
             onNewItemTriggered: (index, label) => root.newItemTriggered(index, label)
         }
 
+        // panes lie on the ground's own tone, so a vein hairline draws each one's cut. A pane
+        // that runs to the window's foot runs a hairline past it, so no line lies on the edge
         CutRect {
             id: listPane
             visible: root.showList && (!root.compact || root.compactView === "list")
             x: root.compact ? 0 : root.contentX
             y: LithicTokens.size.paneTop
             width: root.compact ? root.width : root.listWidth
-            height: Math.max(0, root.paneBottom - y)
+            height: Math.max(0, root.paneBottom - y) + LithicTokens.size.hairline
             fill: Lithic.stone1
+            strokeColor: Lithic.vein
+            strokeWidth: LithicTokens.size.hairline
             cutTopLeft: LithicTokens.cut.large
             cutTopRight: LithicTokens.cut.large
             cutBottomLeft: 0
@@ -100,6 +108,7 @@ T.Control {
             Item {
                 id: listHost
                 anchors.fill: parent
+                anchors.bottomMargin: LithicTokens.size.hairline
                 anchors.topMargin: root.customDecorations
                                    ? LithicTokens.size.paneDecorStrip : 0
             }
@@ -113,8 +122,10 @@ T.Control {
                               + (root.showList ? root.listWidth + LithicTokens.size.paneGap : 0)
             y: LithicTokens.size.paneTop
             width: root.compact ? root.width : Math.max(0, root.width - x)
-            height: Math.max(0, root.paneBottom - y)
-            fill: Lithic.stone2
+            height: Math.max(0, root.paneBottom - y) + LithicTokens.size.hairline
+            fill: root.workFlush ? "transparent" : Lithic.stone2
+            strokeColor: root.workFlush ? "transparent" : Lithic.vein
+            strokeWidth: LithicTokens.size.hairline
             cutTopLeft: LithicTokens.cut.large
             cutTopRight: LithicTokens.cut.large
             cutBottomLeft: 0
@@ -123,12 +134,14 @@ T.Control {
             Item {
                 id: workHost
                 anchors.fill: parent
-                anchors.leftMargin: LithicTokens.size.workContentInset
-                anchors.rightMargin: LithicTokens.size.workContentInset
-                anchors.bottomMargin: LithicTokens.size.workContentInset
-                anchors.topMargin: LithicTokens.size.workContentInset
-                                   + (root.customDecorations
-                                      ? LithicTokens.size.paneDecorStrip : 0)
+                readonly property real inset: root.workFlush ? 0 : LithicTokens.size.workContentInset
+                anchors.leftMargin: workHost.inset
+                anchors.rightMargin: workHost.inset
+                anchors.bottomMargin: workHost.inset + LithicTokens.size.hairline
+                anchors.topMargin: root.workFlush ? 0
+                                   : LithicTokens.size.workContentInset
+                                     + (root.customDecorations
+                                        ? LithicTokens.size.paneDecorStrip : 0)
                 clip: true
             }
 

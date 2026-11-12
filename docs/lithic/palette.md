@@ -101,29 +101,36 @@ and `goldInk`, and `onGold` becomes `inkOn(gold)`. Nothing else is computed.
 | `fg`, `fg2`, `fg3` | `onSurface`, chroma up to 0.016 |
 | `scrim` | the palette's `scrim` at alpha 0.62 (dark) or 0.45 (light) |
 
-Following the palette, each neutral is `toned(its step, its dye)`. In light
-mode the ladder runs the other way: the ground is the darkest plane and the
-work pane among the lightest, so the panes still sit up from the ground.
-`field` is the top of the ramp in dark mode and sits below the work pane in
-light mode, so a field stands clear of the pane, a slab and a dialog alike.
+Following the palette, each neutral is `toned(its step, its dye)`. The ladder
+holds one paper and three steps up from it. `ground`, `stone1`, `stone2` and
+`slab` share one step, the paper: every pane and every slab lies on it. Then
+come `stone3` for a row under the pointer, `stone4` for what floats (menus,
+dialogs, tooltips) and `field` for what is typed into, slid along or pressed
+as a tonal plaque. In dark mode the steps rise from the paper; in light mode
+they are lighter than the warm grey paper, never a stack of greys.
 
-### What one step of the ramp can carry
+### What a step and a hairline carry
 
-The ladder spaces the planes one small step apart (in dark mode `stone1`
-0.188, `stone2` 0.216, `stone3` and `slab` 0.246, `stone4` 0.278, `field`
-0.31). One step is enough for a change and not for an edge:
+A pane holding a lighter slab holding a lighter field is three greys on top
+of one another, and it reads as mud whatever the wallpaper. So the ladder
+spends tone only where something answers the hand, and draws everything else
+with a line:
 
-- **A change** is seen because it happens. A row that goes from `stone2` to
+- **A pane or a group** is drawn by a 1 dp `vein` hairline along its cut.
+  The rail, the list pane, the work pane and a slab all lie on the paper; the
+  hairline is what sets a pane off from the ground and a slab off from its
+  pane, in both modes. The one exception is the toned slab of the thing that
+  needs the reader: its mineral field sets it off, so it carries no line.
+- **A change** is seen because it happens. A row that goes from the paper to
   `stone3` under the pointer is read as hovered. Hover, press and the tracks
   inside a control need one step and nothing else.
-- **An edge that has to be seen at rest** needs more. A thing that must read
-  as its own object either stands two roles from the plane under it (a tonal
-  plaque filled with `field` on the `stone2` work pane or on a slab), or,
-  when it is one role away or less, carries a 1 dp hairline.
-  Menus, dialogs and light-mode slabs carry a `vein` hairline, and so does
-  the off track of a toggle. A field, search or picker anchor carries a 1 dp
-  `edge` hairline wherever it stands, because the hairline marks where to
-  type, not only where the plane ends; keyboard focus turns it `fg2`.
+- **A thing that answers the hand** is filled with `field`: a tonal plaque,
+  a track, a chip under the pointer. A field, search or picker anchor also
+  carries a 1 dp `edge` hairline wherever it stands, because the hairline
+  marks where to type, not only where the fill ends; keyboard focus turns it
+  `fg2`.
+- **What floats** (a menu, a dialog, a tooltip) is `stone4` with a `vein`
+  hairline over its scrim, and so is the off track of a toggle.
 
 A page that leaves a field with no hairline on the work pane has drawn a
 field nobody can find until they press it.
@@ -158,9 +165,10 @@ more on it, and `onSel2` 8.2:1 or more.
 
 ### Contrast and tint
 
-**Contrast high** reads the high ladder and the high signature tables: the
-stones, slabs, fields and veins spread away from the ground and the inks
-move out, while the ground stays. It applies to every source.
+**Contrast high** reads the high ladder and the high signature tables: what
+steps up from the paper (hover, overlays, fields) and the hairlines move
+further from it and the inks move out, while the dark paper stays. It applies
+to every source.
 
 **Tint low or medium** multiplies the neutral dye's chroma by 1.8 or 2.6
 (`dye.tint`), so the ground and stones take more of the palette's colour.
@@ -226,7 +234,10 @@ chosen the same way.
 
 The signature is the ryoku.dev stock: black paper, bone ink and the dark
 orange sun as the one action, in dark mode; a warm grey paper with
-the same sun in light mode, never cream. It is what every Lithic app paints
+the same sun in light mode, never cream. The paper is the whole window:
+`ground`, `stone1`, `stone2` and `slab` are `#000000` in the dark tables and
+one warm grey in the light ones, with `stone3`, `stone4` and `field` the only
+tones above it. It is what every Lithic app paints
 in dark and light mode, the default, and what a following app paints with no
 Ryoku palette (another distribution, a CI render, a fresh box). The four
 tables (`signature.dark`, `darkHigh`, `light`, `lightHigh`) are canonical in
@@ -269,10 +280,10 @@ A Lithic surface is correctly wired when all of these hold on a Ryoku desktop:
    selection and gold change; jade, lapis and amber do not.
 3. Pick a named theme in the Hub while following: the app follows
    `themePalette`, not the wallpaper.
-4. Switch contrast to high: the stones, slabs, fields and veins move away
-   from the ground and the inks move out, while the ground stays. Switch tint
-   to low and medium while following a wallpaper: the ground, stones, slabs,
-   fields, veins and edges take more of the palette's colour, while the ink
+4. Switch contrast to high: hover, overlays, fields and hairlines move away
+   from the paper and the inks move out, while the dark paper stays. Switch
+   tint to low and medium while following a wallpaper: the paper, the steps
+   above it, veins and edges take more of the palette's colour, while the ink
    keeps its own. On the signature the tint changes nothing.
 5. Every pair in [contrast targets](#contrast-targets) holds in both modes,
    at both contrasts and every tint.
@@ -295,16 +306,23 @@ ratio does.
 
 | What | On | WCAG | APCA |
 |---|---|---|---|
-| `goldInk`, `jasper`, `fg3` | `stone1`, `stone2` and `slab` | 4.6:1 or more, 5:1 at high contrast | |
-| `jade`, `lapis`, `amber` | `stone1`, `stone2` and `slab` | 4.6:1 or more at both contrasts | |
+| `goldInk`, `jasper`, `fg3` | the paper (`stone1`, `stone2` and `slab`) | 4.6:1 or more, 5:1 at high contrast | |
+| `jade`, `lapis`, `amber` | the paper | 4.6:1 or more at both contrasts | |
 | `fg2` | the same and `field` | 4.6:1 or more, 5:1 at high contrast | |
-| `fg`, and `fg2` set as `detail` type | `stone2` and `slab` | | measured, see below |
+| `fg`, and `fg2` set as `detail` type | the paper | | measured, see below |
+| `vein`, the hairline that draws a pane or a slab | the paper | | Lc 9 or more, 15 at high contrast |
 | any lone edge (a hairline that is the only thing marking a control, such as a field's `edge`) | its plane | | Lc 15 or more |
-| a control with a cut: its fill or its hairline | its plane | | Lc 15 or more |
+| a control with a cut and a hairline | its plane | | Lc 15 or more |
+| `field`, the fill of a tonal plaque or a track | the paper | 1.3:1 or more in dark mode, 1.1:1 in light | |
 | `sel` | every plane | 3:1 or more | |
 | `onSel` | `sel` | 4.5:1 or more | |
 
-On the dark work pane the signature's bone, ryoku.dev's own ink, reads at
-Lc 69 for `fg` and Lc 54 for `fg2`; the site sets it on black, where it
-reads higher. High contrast lifts them to Lc 83 and Lc 68, and the light
-signature reads at Lc 96 and Lc 79.
+On the dark paper the signature's bone, ryoku.dev's own ink, reads as the
+site sets it, on black: Lc 72 for `fg`, Lc 56 for `fg2` and Lc 42 for `fg3`,
+with the `vein` hairline at Lc 9.6 and a field's `edge` at Lc 21.6. On the
+dark signature every step off the paper is the bone ink mixed into it, as
+ryoku.dev mixes its rules: hover 11%, overlay 13%, field 17%, the hairline 34%
+and the edge 50%, so borders follow the ink and no neutral grey stands. High
+contrast lifts the inks to Lc 86, 72 and 56 and the hairline to Lc 15. On the
+light paper they read Lc 90, 73 and 64, with the hairline at Lc 15 and the
+edge at Lc 23.

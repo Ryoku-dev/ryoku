@@ -276,28 +276,30 @@ const (
 )
 
 const (
-	MotionDialogIn     time.Duration = 300 * time.Millisecond
-	MotionDialogOut    time.Duration = 160 * time.Millisecond
-	MotionField        time.Duration = 320 * time.Millisecond
-	MotionFocusIn      time.Duration = 120 * time.Millisecond
-	MotionFocusOut     time.Duration = 100 * time.Millisecond
-	MotionHighlight    time.Duration = 1600 * time.Millisecond
-	MotionHoverIn      time.Duration = 160 * time.Millisecond
-	MotionHoverOut     time.Duration = 100 * time.Millisecond
-	MotionMenuIn       time.Duration = 160 * time.Millisecond
-	MotionMenuOut      time.Duration = 100 * time.Millisecond
-	MotionNavigate     time.Duration = 200 * time.Millisecond
-	MotionNotch        time.Duration = 200 * time.Millisecond
-	MotionPlacardIn    time.Duration = 300 * time.Millisecond
-	MotionPlacardLife  time.Duration = 5000 * time.Millisecond
-	MotionPress        time.Duration = 90 * time.Millisecond
-	MotionSelect       time.Duration = 240 * time.Millisecond
-	MotionSweep        time.Duration = 1280 * time.Millisecond
-	MotionTooltipDelay time.Duration = 600 * time.Millisecond
-	MotionTooltipIn    time.Duration = 300 * time.Millisecond
-	MotionUnfold       time.Duration = 200 * time.Millisecond
-	MotionWheel        time.Duration = 140 * time.Millisecond
-	MotionWorking      time.Duration = 900 * time.Millisecond
+	MotionCountUp       time.Duration = 640 * time.Millisecond
+	MotionDialogIn      time.Duration = 300 * time.Millisecond
+	MotionDialogOut     time.Duration = 160 * time.Millisecond
+	MotionField         time.Duration = 320 * time.Millisecond
+	MotionFocusIn       time.Duration = 120 * time.Millisecond
+	MotionFocusOut      time.Duration = 100 * time.Millisecond
+	MotionHighlight     time.Duration = 1600 * time.Millisecond
+	MotionHoverIn       time.Duration = 160 * time.Millisecond
+	MotionHoverOut      time.Duration = 100 * time.Millisecond
+	MotionMenuIn        time.Duration = 160 * time.Millisecond
+	MotionMenuOut       time.Duration = 100 * time.Millisecond
+	MotionNavigate      time.Duration = 200 * time.Millisecond
+	MotionNotch         time.Duration = 200 * time.Millisecond
+	MotionPlacardIn     time.Duration = 300 * time.Millisecond
+	MotionPlacardLife   time.Duration = 5000 * time.Millisecond
+	MotionPress         time.Duration = 90 * time.Millisecond
+	MotionRevealStagger time.Duration = 40 * time.Millisecond
+	MotionSelect        time.Duration = 240 * time.Millisecond
+	MotionSweep         time.Duration = 1280 * time.Millisecond
+	MotionTooltipDelay  time.Duration = 600 * time.Millisecond
+	MotionTooltipIn     time.Duration = 300 * time.Millisecond
+	MotionUnfold        time.Duration = 200 * time.Millisecond
+	MotionWheel         time.Duration = 140 * time.Millisecond
+	MotionWorking       time.Duration = 900 * time.Millisecond
 )
 
 var MotionCurve = [4]float32{0.2, 0, 0, 1}
@@ -348,7 +350,7 @@ var SignatureDark = map[string]string{
 	"fg":      "#cdc4ba",
 	"fg2":     "#b0a9a0",
 	"fg3":     "#958f87",
-	"field":   "#303030",
+	"field":   "#23211f",
 	"gold":    "#ce5e32",
 	"goldInk": "#dc6a3e",
 	"ground":  "#000000",
@@ -358,12 +360,12 @@ var SignatureDark = map[string]string{
 	"onSel2":  "#292725",
 	"scrim":   "#0000009e",
 	"sel":     "#cdc4ba",
-	"slab":    "#232323",
-	"stone1":  "#141414",
-	"stone2":  "#1b1b1b",
-	"stone3":  "#232323",
-	"stone4":  "#2c2c2c",
-	"vein":    "#393939",
+	"slab":    "#000000",
+	"stone1":  "#000000",
+	"stone2":  "#000000",
+	"stone3":  "#161514",
+	"stone4":  "#1b1918",
+	"vein":    "#46433f",
 }
 
 var SignatureDarkHigh = map[string]string{
@@ -371,7 +373,7 @@ var SignatureDarkHigh = map[string]string{
 	"fg":      "#e6dcd2",
 	"fg2":     "#cdc4ba",
 	"fg3":     "#b0a9a0",
-	"field":   "#3a3a3a",
+	"field":   "#2e2c2a",
 	"gold":    "#ce5e32",
 	"goldInk": "#ea784c",
 	"ground":  "#000000",
@@ -381,58 +383,58 @@ var SignatureDarkHigh = map[string]string{
 	"onSel2":  "#2e2c2a",
 	"scrim":   "#0000009e",
 	"sel":     "#e6dcd2",
-	"slab":    "#292929",
-	"stone1":  "#171717",
-	"stone2":  "#1f1f1f",
-	"stone3":  "#292929",
-	"stone4":  "#333333",
-	"vein":    "#4a4a4a",
+	"slab":    "#000000",
+	"stone1":  "#000000",
+	"stone2":  "#000000",
+	"stone3":  "#1f1d1c",
+	"stone4":  "#252321",
+	"vein":    "#575450",
 }
 
 var SignatureLight = map[string]string{
-	"edge":    "#c7c3be",
+	"edge":    "#bcb9b5",
 	"fg":      "#1e1a15",
 	"fg2":     "#56504a",
 	"fg3":     "#6b655f",
-	"field":   "#e7e5e3",
+	"field":   "#f6f4f2",
 	"gold":    "#ce5e32",
 	"goldInk": "#b04313",
-	"ground":  "#dfdddb",
+	"ground":  "#e8e6e4",
 	"jasper":  "#ba334a",
 	"onGold":  "#000000",
 	"onSel":   "#f3f1ef",
 	"onSel2":  "#c8c6c3",
 	"scrim":   "#00000073",
 	"sel":     "#1e1a15",
-	"slab":    "#fbf9f7",
+	"slab":    "#e8e6e4",
 	"stone1":  "#e8e6e4",
-	"stone2":  "#f3f1ef",
-	"stone3":  "#e7e5e3",
+	"stone2":  "#e8e6e4",
+	"stone3":  "#f0eeec",
 	"stone4":  "#fbf9f7",
-	"vein":    "#d6d3cf",
+	"vein":    "#cac7c3",
 }
 
 var SignatureLightHigh = map[string]string{
-	"edge":    "#a29e99",
+	"edge":    "#aaa7a3",
 	"fg":      "#110c08",
 	"fg2":     "#4c4641",
 	"fg3":     "#605b55",
-	"field":   "#e9e7e5",
+	"field":   "#fbf9f7",
 	"gold":    "#ce5e32",
 	"goldInk": "#aa3d07",
-	"ground":  "#d9d7d5",
+	"ground":  "#ebe9e7",
 	"jasper":  "#b32d45",
 	"onGold":  "#000000",
 	"onSel":   "#fdfbf9",
 	"onSel2":  "#cecbc9",
 	"scrim":   "#00000073",
 	"sel":     "#110c08",
-	"slab":    "#fefdfc",
+	"slab":    "#ebe9e7",
 	"stone1":  "#ebe9e7",
-	"stone2":  "#fdfbf9",
-	"stone3":  "#e9e7e5",
+	"stone2":  "#ebe9e7",
+	"stone3":  "#f4f2f0",
 	"stone4":  "#fefdfc",
-	"vein":    "#c0bdba",
+	"vein":    "#c1beba",
 }
 
 var MineralsDark = map[string]string{
@@ -465,7 +467,7 @@ var ToneDark = map[string]float64{
 	"fg":           0.951,
 	"fg2":          0.801,
 	"fg3":          0.689,
-	"field":        0.31,
+	"field":        0.252,
 	"gold":         0.785,
 	"goldInk":      0.785,
 	"ground":       0.158,
@@ -474,12 +476,12 @@ var ToneDark = map[string]float64{
 	"onGold":       0.1,
 	"onSel":        0.1,
 	"sel":          0.825,
-	"slab":         0.246,
-	"stone1":       0.188,
-	"stone2":       0.216,
-	"stone3":       0.246,
-	"stone4":       0.278,
-	"vein":         0.391,
+	"slab":         0.158,
+	"stone1":       0.158,
+	"stone2":       0.158,
+	"stone3":       0.205,
+	"stone4":       0.235,
+	"vein":         0.385,
 }
 
 var ToneDarkHigh = map[string]float64{
@@ -487,7 +489,7 @@ var ToneDarkHigh = map[string]float64{
 	"fg":           0.976,
 	"fg2":          0.854,
 	"fg3":          0.772,
-	"field":        0.401,
+	"field":        0.3,
 	"gold":         0.8,
 	"goldInk":      0.8,
 	"ground":       0.158,
@@ -496,56 +498,56 @@ var ToneDarkHigh = map[string]float64{
 	"onGold":       0.1,
 	"onSel":        0.08,
 	"sel":          0.9,
-	"slab":         0.299,
-	"stone1":       0.206,
-	"stone2":       0.251,
-	"stone3":       0.299,
-	"stone4":       0.35,
-	"vein":         0.45,
+	"slab":         0.158,
+	"stone1":       0.158,
+	"stone2":       0.158,
+	"stone3":       0.235,
+	"stone4":       0.27,
+	"vein":         0.44,
 }
 
 var ToneLight = map[string]float64{
-	"edge":         0.818,
+	"edge":         0.79,
 	"fg":           0.221,
 	"fg2":          0.435,
 	"fg3":          0.508,
-	"field":        0.923,
+	"field":        0.962,
 	"gold":         0.78,
 	"goldInk":      0.492,
-	"ground":       0.899,
+	"ground":       0.926,
 	"jasper":       0.495,
 	"mineralField": 0.925,
 	"onGold":       0.12,
 	"onSel":        0.959,
 	"sel":          0.221,
-	"slab":         0.983,
+	"slab":         0.926,
 	"stone1":       0.926,
-	"stone2":       0.959,
-	"stone3":       0.923,
+	"stone2":       0.926,
+	"stone3":       0.945,
 	"stone4":       0.983,
-	"vein":         0.867,
+	"vein":         0.83,
 }
 
 var ToneLightHigh = map[string]float64{
-	"edge":         0.78,
+	"edge":         0.73,
 	"fg":           0.18,
 	"fg2":          0.398,
 	"fg3":          0.474,
-	"field":        0.937,
+	"field":        0.985,
 	"gold":         0.78,
 	"goldInk":      0.487,
-	"ground":       0.899,
+	"ground":       0.942,
 	"jasper":       0.486,
 	"mineralField": 0.92,
 	"onGold":       0.1,
 	"onSel":        0.989,
 	"sel":          0.159,
-	"slab":         0.999,
+	"slab":         0.942,
 	"stone1":       0.942,
-	"stone2":       0.995,
-	"stone3":       0.937,
+	"stone2":       0.942,
+	"stone3":       0.96,
 	"stone4":       0.999,
-	"vein":         0.86,
+	"vein":         0.8,
 }
 
 var DyeBoost = map[string]float64{

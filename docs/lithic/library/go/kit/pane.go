@@ -5,8 +5,10 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/unit"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 )
 
 // PaneKind selects the plane used by a pane.
@@ -17,7 +19,8 @@ const (
 	PaneWork
 )
 
-// Pane is a flat application plane with cut top corners.
+// Pane is a flat application plane with cut top corners. It lies on the
+// ground's own tone, so a vein hairline draws its cut.
 type Pane struct {
 	Kind PaneKind
 }
@@ -39,6 +42,7 @@ func (pane Pane) Layout(gtx layout.Context, th *theme.Theme, body layout.Widget)
 	bounds := image.Rectangle{Max: dimensions.Size}
 	cut := gtx.Dp(th.Cut.Large)
 	FillCutTop(gtx.Ops, bounds, cut, ink)
+	StrokeCutCorners(gtx.Ops, bounds, cut, cut, 0, 0, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), th.R.Vein)
 
 	call.Add(gtx.Ops)
 	return dimensions

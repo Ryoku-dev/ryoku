@@ -308,6 +308,7 @@
   --lithic-type-title-line: 20px;
   --lithic-type-title-size: 15px;
   --lithic-type-title-weight: 500;
+  --lithic-motion-count-up: 640ms;
   --lithic-motion-curve: cubic-bezier(0.2, 0, 0, 1);
   --lithic-motion-dialog-in: 300ms;
   --lithic-motion-dialog-out: 160ms;
@@ -324,6 +325,7 @@
   --lithic-motion-placard-in: 300ms;
   --lithic-motion-placard-life: 5000ms;
   --lithic-motion-press: 90ms;
+  --lithic-motion-reveal-stagger: 40ms;
   --lithic-motion-select: 240ms;
   --lithic-motion-sweep: 1280ms;
   --lithic-motion-tooltip-delay: 600ms;

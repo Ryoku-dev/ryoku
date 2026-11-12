@@ -809,11 +809,15 @@ svg.l-engraved-chart {
 
 .l-app-frame .l-app-frame-list {
   --l-fill: var(--lithic-stone1);
+  --l-stroke: var(--lithic-vein);
+  --l-stroke-width: var(--lithic-size-hairline);
   padding: var(--lithic-size-list-inset);
 }
 
 .l-app-frame .l-app-frame-work {
   --l-fill: var(--lithic-stone2);
+  --l-stroke: var(--lithic-vein);
+  --l-stroke-width: var(--lithic-size-hairline);
   padding: var(--lithic-size-work-content-inset);
 }
 

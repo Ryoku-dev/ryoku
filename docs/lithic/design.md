@@ -36,15 +36,17 @@ Read this page first. The companion pages go deeper on one subject each:
    its plane, and a tonal fill shows it better than an outline. A cut nested
    inside another cut is concentric with it.
 
-2. **Flat planes, lifted, never sunk.** Every surface is one flat tone. Depth
-   is only the order of tones: ground, stone 1, stone 2, stone 3, stone 4,
-   then bone. No gradients, glow, inner shadows, inset wells or drop shadows.
-   A thing contained in a plane lifts from it: slabs, dialogs and menus are
-   lighter than their plane or equal to it in dark mode, and set off by a
-   hairline in light mode. A container darker than its plane reads as a hole.
-   Overlays are a scrim and a solid slab one tone up with a hairline. Blur can
-   be used where it fits and looks good, as a hint on a plane (see Blur, where
-   it fits).
+2. **One paper, drawn in hairlines.** Every pane lies on the paper: the
+   ground, the rail, the list pane, the work pane and a slab inside it are one
+   flat tone, black in the dark signature and a warm grey in the light one.
+   A pane or a group is set off by a 1 dp hairline along its cut, never by a
+   fill a step lighter than the plane under it: a grey pane holding a lighter
+   grey slab holding a lighter grey field reads as mud. A tone steps up from
+   the paper only where something answers the hand or floats: a row under the
+   pointer, a field or a tonal plaque, a menu or a dialog over its scrim. No
+   gradients, glow, inner shadows, inset wells or drop shadows, and nothing
+   darker than the plane it stands on. Blur can be used where it fits and
+   looks good, as a hint on a plane (see Blur, where it fits).
 
 3. **Bone is where you are.** The selected row, the current rail destination,
    the current filter or segment: each is a `sel` fill with `onSel` ink. The
@@ -59,7 +61,8 @@ Read this page first. The companion pages go deeper on one subject each:
    controls and anything you can only watch are stone. The standing action of
    a window's frame (New on the rail, play in a player bar, Send in a
    composer) belongs to the frame, not to the view. Gold never decorates and
-   never shows status.
+   never shows status; a cover's carved word and tick are the one named
+   exception ([layout.md](layout.md#the-cover)).
 
 5. **Stones are states, beside their word.** Jade is alive, lapis is becoming,
    amber needs you, jasper failed, and idle is a vein outline. A state is
@@ -76,6 +79,7 @@ Read this page first. The companion pages go deeper on one subject each:
 8. **One family, set monumentally.** The selected thing's name is the one big
    line in a view (Geologica Bold at 52 sp). Everything else is at working
    size. Martian Mono appears only where the characters are literal data.
+   One line in the whole system is set in capitals: a cover's carved word.
 
 9. **Motion answers a cause and stops.** One curve, a short table of
    durations, and no frame drawn when nothing changed. Reduced motion turns
@@ -88,8 +92,8 @@ comments and in reviews so everyone means the same thing.
 
 | Word | What it is |
 |---|---|
-| **ground** | The exposed plane behind the panes. The darkest tone in dark mode, the darkest stone in light mode. |
-| **stone 1 to 4** | The ordered stack of flat planes: rail and list pane (1), work pane and row tablets (2), hover (3), menus and dialogs (4). |
+| **ground, paper** | The one tone every pane lies on: black in the dark signature, warm grey in the light one. `ground`, `stone1`, `stone2` and `slab` all name it, each for its place. |
+| **stone 1 to 4** | The planes by place: rail and list pane (1), work pane and row tablets (2), both on the paper; then the two steps up from it, hover (3) and menus, dialogs and tooltips (4). |
 | **vein** | The hairline tone: quiet outlines, separators, idle flakes, chart baselines. |
 | **field and edge** | The fill of a thing you type into, choose from or slide along (`field`), and the 1 dp hairline that sets a field off at rest (`edge`, between `vein` and `fg3`). |
 | **bone** | The selection fill (`sel`) and its ink (`onSel`, quiet ink `onSel2`). Where you are. |
@@ -102,7 +106,7 @@ comments and in reviews so everyone means the same thing.
 | **flake** | The standalone state token: a short slanted quadrilateral. Outlined when idle, filled by its mineral when active, part filled while becoming. |
 | **mineral field** | The header slab of the selected thing, in its state's mineral hue at a low chroma. |
 | **blade** | A progress bar with a cut leading edge; also the current tab's underline. |
-| **slab** | A container inside a pane (a settings section): the `slab` role, lifted from its plane, with a 1 dp `vein` hairline in light mode. Also, loosely, any bone selection surface. |
+| **slab** | A container inside a pane (a settings section): the `slab` role, which is the paper, set off by a 1 dp `vein` hairline along its cut. Also, loosely, any bone selection surface. |
 | **claim and proof** | A state word and the fact that backs it: "Online" over "23 ms". |
 | **chisel** | The one easing curve, `cubic-bezier(.2, 0, 0, 1)`. |
 | **knapping** | Lithic's motion as a whole: short, decisive, no bounce. |
@@ -121,12 +125,12 @@ contrast. [palette.md](palette.md) is the complete recipe. The short version:
 
 | Role | Used for | Following, dyed by |
 |---|---|---|
-| `ground` | behind the panes | `surface` |
-| `stone1` | rail, list pane | `surface` |
-| `stone2` | work pane, tablets | `surface` |
-| `stone3` | hover | `surface` |
-| `stone4` | menus, dialogs, tooltips | `surface` |
-| `slab` | slabs inside a pane | `surface` |
+| `ground` | behind the panes: the paper | `surface` |
+| `stone1` | rail, list pane, on the paper | `surface` |
+| `stone2` | work pane, tablets, on the paper | `surface` |
+| `stone3` | hover, one step up | `surface` |
+| `stone4` | menus, dialogs, tooltips, a step further | `surface` |
+| `slab` | slabs inside a pane, on the paper | `surface` |
 | `field` | fields, tracks, tonal plaques, a chip under the pointer | `surface` |
 | `vein` | hairlines, quiet outlines | `surface` |
 | `edge` | the hairline around a field | `surface` |
@@ -137,23 +141,23 @@ contrast. [palette.md](palette.md) is the complete recipe. The short version:
 | `jade`, `lapis`, `amber` | alive, becoming, needs you | nothing: fixed by Lithic |
 | `scrim` | behind dialogs | `scrim` |
 
-In light mode the ladder runs from the other end, so the ground is the
-darkest stone and the work pane among the lightest; there a slab sits a step
-lighter than the work pane and its hairline sets it off. Jade, lapis and
-amber do not follow the palette because they carry meaning; a Ryoku user
-must read "alive" the same way on every wallpaper.
+Light mode is the same model on the other paper: one warm grey for every
+pane, with hover, fields and overlays a step lighter. Jade, lapis and amber
+do not follow the palette because they carry meaning; a Ryoku user must read
+"alive" the same way on every wallpaper.
 
-The reader sets the look on top: **Contrast** (standard or high) spreads the
-stones, slab, field and vein further from the ground and moves the inks out,
-and **Tint** (off, low or medium) lets the ground and stones take more of the
-wallpaper's colour without changing any lightness, so it only shows while
-following.
+The reader sets the look on top: **Contrast** (standard or high) sets what
+steps up (hover, overlays, fields) and the hairlines further from the paper
+and moves the inks out, and **Tint** (off, low or medium) lets the paper and
+the steps take more of the wallpaper's colour without changing any
+lightness, so it only shows while following.
 [palette.md](palette.md#contrast-and-tint) has the recipe.
 
 Two named rules govern the roles:
 
 **The bone and gold rule.** Bone means where you are. Gold means what you can
-do. Never exchange those jobs, and never use either for decoration.
+do. Never exchange those jobs, and never use either for decoration, outside
+the two marks of a cover ([layout.md](layout.md#the-cover)).
 
 **The state has three parts rule.** A state needs its mineral, a notch or
 flake, and a plain word. Colour never carries state alone.
@@ -242,13 +246,16 @@ Rules:
 **The one monument rule.** One line per view gets `name`. Everything else
 stays at working size.
 
-**The literal data rule.** Martian Mono only where the characters are data.
+**The literal data rule.** Martian Mono only where the characters are data:
+a sheet's running marks (`02 / 05`, a section's `01`) are, and so are a
+cover's datasheet keys, by the cover pattern alone.
 
 **The readable detail rule.** A secondary line someone reads to decide is
 `detail` in `fg2`. As a secondary line, `caption` in `fg3` is only for
 timestamps, counts, hints and placeholders.
 
-Sentence case everywhere. Never all caps, not even for group headers.
+Sentence case everywhere. Never all caps, not even for group headers; a
+cover's carved word is the one line in capitals.
 
 ## 5. Shape: the cut scale
 
@@ -330,8 +337,8 @@ Lithic surfaces are list-detail workspaces at three widths:
 | compact | under 760 dp | none; a 64 dp bottom bar | full width | replaces the list, with Back |
 
 Panes start 10 dp below the window edge, sit 8 dp apart, cut their top
-corners at 16 dp and stay square at the bottom. The rail and list pane are
-stone 1; the work pane is stone 2; the ground shows between them. Structure
+corners at 16 dp and stay square at the bottom. The rail, the list pane and
+the work pane all lie on the paper; a vein hairline draws each pane's cut. Structure
 changes at a class boundary; a narrow desktop layout is never squeezed.
 
 With no resource selected, the work pane is the Now board. It places the
@@ -375,9 +382,9 @@ family:
 | stepper | two small quiet icon plaques around a value in a field | 6 | 32 |
 | filter chip | no fill at rest, `field` on hover, `sel` when on, count in `caption` with tabular figures | 6 | 32 |
 | tabs | labels in a 44 dp strip over a 1 dp vein baseline; 3 dp `fg` blade moves | blade | 44 |
-| tablet | `stone2`, square with a 12 dp notch; `sel` when selected | notch | 56 / 48 |
+| tablet | `stone2`, the paper, square with a 12 dp notch; `sel` when selected | notch | 56 / 48 |
 | group header | `group` title and `caption` count in `fg3` | none | 36 |
-| slab | `slab` fill, a 1 dp `vein` hairline in light mode, 21 dp inset | 7 | content |
+| slab | the paper with a 1 dp `vein` hairline, 21 dp inset | 7 | content |
 | mineral field | `mineralField(tone)` behind a header | none | content |
 | blade meter / progress | `field` track 6, fill by role; progress is `lapis` | blade | 6 |
 | flake and claim | mineral token beside its word | 45° sides | about 13 × 6 at nominal 9 dp |
@@ -403,6 +410,10 @@ One curve: **chisel**, `cubic-bezier(.2, 0, 0, 1)`. No bounce, no overshoot.
 | mineral field changes stone | 320 ms | its state changed |
 | notch and disclosure unfold | 200 ms | state or detail changed |
 | new work pane content fades in, rising 8 dp | 200 ms | you went somewhere |
+| a sheet's parts rise in turn as it opens: each section fades in, rising 8 dp, 40 ms after the one before | 200 ms each | this is how the page is built |
+| a sheet head's hairline draws in from its left end | 300 ms | the sheet is laid |
+| a cover's carved word stamps in: it fades in as it settles from 1.06 of its size | 300 ms | the plate is struck |
+| a cover's readings count up from nothing | 640 ms | these numbers are live |
 | popover slides 6 dp in and 4 dp out | 160 ms in, 100 ms out | the menu is open |
 | dialog rises 12 dp and drops 8 dp | 300 ms in, 160 ms out | a protected choice opened |
 | placard rises 8 dp | 300 ms | something happened |
@@ -429,8 +440,8 @@ Do:
 - Use roles, never colour values, so the signature or the live palette can fill them.
 - Spend gold on one action per view; give the actions beside it line or
   tonal plaques.
-- Lift a container from its plane: lighter or equal in dark mode, set off by
-  its hairline in light mode.
+- Set a pane or a group off by its hairline on the one paper; step a tone up
+  only for hover, fields and overlays.
 - Give every cut control a fill or a hairline that clears Lc 15 (a quiet
   plaque shows its cut only on hover), and nest cuts concentrically.
 - Pair every state colour with a word and a notch or flake.
@@ -445,12 +456,15 @@ Do:
 Don't:
 
 - Round a corner or draw a pill.
-- Add a shadow, gradient, glow or inset well, or sink a slab below its plane.
+- Add a shadow, gradient, glow or inset well, or sink anything below its plane.
+- Stack a lighter slab on a lighter pane: a group is drawn by its hairline,
+  not by a fill.
 - Blur a control, type or a state, or use blur in place of a tone step.
 - Use gold for status, decoration or navigation; use bone for anything but the current place.
 - Use Martian Mono for prose, labels, counts or proofs; it is for literal data.
 - Show state with a dot or with colour alone.
-- Set anything in all caps.
+- Set anything in all caps, or spend gold on ornament, outside a cover
+  ([layout.md](layout.md#the-cover)).
 - Invent a new cut, a new spacing value or a new duration.
 - Draw a bar or coloured edge on a row, chip or segment to mark it; the `sel`
   fill marks the place.

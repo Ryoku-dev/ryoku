@@ -304,7 +304,7 @@ Library: QML Lithic.PathField, web .l-path-field, Go kit.PathField, terminal -
 
 ### Tablet
 
-A resource row is a `stone2` tablet, 56 high or 48 at compact density,
+A resource row is a `stone2` tablet, the paper's own tone, 56 high or 48 at compact density,
 square apart from its 12 notch. Content starts at 16: a 32 mark, 13 gap,
 title in `row` over one facts line, then a trailing area at least 72 wide
 with claim over proof and 12 trailing inset.
@@ -351,7 +351,7 @@ Library: QML Lithic.GroupHeader, web .l-group-header, Go kit.GroupHeader, termin
 
 ### Skeleton
 
-Skeletons are static `stone2` tablets 4 apart with two `stone3` bars, each 8
+Skeletons are static `stone2` tablets, on the paper, 4 apart with two `stone3` bars, each 8
 high and 8 apart, at 60 and 35 percent of the width. Reference:
 `ui/kit/skeleton.go`.
 
@@ -368,9 +368,10 @@ Library: QML Lithic.Empty, web .l-empty, Go kit.Empty, terminal term.RenderEmpty
 ### Pane
 
 A pane is one flat plane with its two top corners cut 16 and bottom corners
-square. Rail and list panes use `stone1`; the work pane uses `stone2`. Panes
-start 10 below the window edge and sit 8 apart. Reference:
-`ui/app/layout.go`.
+square. Rail and list panes use `stone1`; the work pane uses `stone2`. Both
+are the paper's own tone, so a list or work pane carries a 1 dp `vein`
+hairline along its cut, and the rail carries none. Panes start 10 below the
+window edge and sit 8 apart. Reference: `ui/app/layout.go`.
 
 Library: QML Lithic.Pane, web .l-pane, Go kit.Pane, terminal -
 
@@ -395,17 +396,19 @@ Library: QML Lithic.Header, web .l-header, Go kit.Header, terminal -
 
 ### Slab
 
-A slab is a container inside a pane: a `slab` fill inside a 7 cut with a 21
-inset, and a 1 dp `vein` hairline in light mode. It groups settings and
-forms, a group that must read as one object; board sections lie open on the
-pane. A slab lifts and never sinks: in dark mode it is lighter than the plane
-it stands on, and in light mode it sits a step lighter than the work pane and
-its hairline sets it off. Rows inside are separated by space, not rules.
+A slab is a container inside a pane: the `slab` role inside a 7 cut with a 21
+inset and a 1 dp `vein` hairline. The role is the paper's own tone, so the
+hairline, not a fill, sets the group off, in dark and in light. It groups
+settings and forms, a group that must read as one object; board sections lie
+open on the pane. A slab is never a lighter plate on its pane. Rows inside
+are separated by space, not rules.
 
 The one hero plane of a view, the thing that needs you, may be a toned slab:
-its state's mineral field in place of the `slab` fill. A view has one, and it
-holds the view's one gold action; other needs stay plain slabs or rows.
-Reference: `ui/kit/draw.go`.
+its state's mineral field in place of the `slab` role, with no hairline,
+since the field sets it off. A view has one, and it holds the view's one gold
+action; other needs stay plain slabs or rows. Reference: `ui/kit/draw.go`.
+
+In a terminal a slab is the outline frame, not a filled plane.
 
 Library: QML Lithic.Slab, web .l-slab, Go kit.Slab, terminal term.RenderSlab
 
@@ -416,6 +419,12 @@ slab. Major full-page regions use 55 between them. Reference:
 `ui/pages/settings/view.go`.
 
 Library: QML Lithic.Section, web .l-section, Go kit.Section, terminal term.RenderSection
+
+A ruled section (`ruled`) draws a 1 dp `vein` hairline from its title to its
+far edge, centred on the title, and a `mark` (an ordinal, a count) stands at
+the end of it in `monoSm` `fg3`. Full pages rule their sections
+([layout.md](layout.md#full-pages)); a section in a dialog or an aside does
+not.
 
 ### SettingRow
 
@@ -511,8 +520,8 @@ Library: QML Lithic.Facts, web .l-facts, Go kit.Facts, terminal term.RenderFacts
 
 ### Aside
 
-The draft aside is a standard slab: `slab` fill, cut 7, 21 inset and a 1 dp
-`vein` hairline in light mode. Its `title` names what saving will make or
+The draft aside is a standard slab: the `slab` role, cut 7, 21 inset and a 1 dp
+`vein` hairline. Its `title` names what saving will make or
 write. A note under it uses `detail` in `fg2`. Facts and literal previews
 update as the form changes; preview text uses `monoSm` on an inner `field`
 block cut 6 with 13 inset. Reference: `ui/pages/common/draft.go`.
@@ -696,7 +705,11 @@ order, and mark one destination with an amber Notch at its top left, such as
 a pending update. Compact gives the home mark, New and each destination an
 equal column in a 64 high bottom bar with 48 high tiles, so it suits five or
 fewer; a host with more turns the bar off and navigates from its list pane.
-Reference: `ui/app/rail.go`.
+In a window too short for the stacked tiles, they share the room above the
+foot group, 4 apart and never under 32 high, and drop their labels once a
+tile is under 48; the foot group keeps its size. A tile that shows no label,
+in the medium rail or squeezed, names itself in a Tooltip under the pointer
+(QML). Reference: `ui/app/rail.go`.
 
 Library: QML Lithic.Rail, web .l-rail, Go kit.Rail, terminal -
 
@@ -754,7 +767,11 @@ AppFrame fills the window with `ground`, selects expanded, medium or compact
 at 1280 and 760, and composes Rail, optional list Pane, work Pane, overlays
 and window controls. It owns the compact bottom bar, which a host with many
 destinations turns off so the panes run to the bottom, passes the Rail's
-options through, and keeps overlay order and Escape behavior consistent.
-Reference: `ui/app/layout.go`, `rail.go`, `overlays.go` and `window.go`.
+options through, and keeps overlay order and Escape behavior consistent. A
+host whose list pane is a short index sets the pane's width, and a host's
+home that is a plate of its own takes the work pane's place flush: on the
+ground, edge to edge, with no pane line and no inset (QML `listWidth` and
+`workFlush`). Reference: `ui/app/layout.go`, `rail.go`, `overlays.go` and
+`window.go`.
 
 Library: QML Lithic.AppFrame, web .l-app-frame, Go kit.AppFrame, terminal -

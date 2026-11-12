@@ -41,7 +41,9 @@ T.AbstractButton {
     readonly property real _boxHeight: Math.max(LithicTokens.size.factsRowHeight,
                                                 copy.implicitHeight, controlHost.height,
                                                 changed ? LithicTokens.size.iconPlaqueSmall : 0)
-    readonly property color _hoverFill: Lithic.mix(plane, Lithic.fg, LithicTokens.alpha.hoverPlane)
+    // ink over whatever the row lies on: the same tone as mixing it into `plane`, and still
+    // right on a dialog or a toned slab
+    readonly property color _hoverFill: Lithic.alpha(Lithic.fg, LithicTokens.alpha.hoverPlane)
     property real _spot: 0
 
     hoverEnabled: true
