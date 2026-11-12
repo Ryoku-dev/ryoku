@@ -9,12 +9,13 @@ trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/Ryoku" "$work/bin" "$work/run"
 chmod 700 "$work/run"
 ln -s "$repo/ryoku/ui" "$work/Ryoku/Ui"
+ln -s "$repo/docs/lithic/library/qml/Lithic" "$work/Lithic"
 cp -a "$repo/ryoku/hub/quickshell" "$work/hub"
 cp "$here/hub-pages-probe.qml" "$work/hub/probe.qml"
 
-# The Hub asks its backends for settings and remembers the last section; stub
+# Settings asks its backends for settings and remembers the last page; stub
 # them so the probe never reads or writes the real configuration.
-for tool in ryoku-hub ryoku ryoku-shell; do
+for tool in ryoku-hub ryoku ryoku-shell ryostore; do
     printf '#!/usr/bin/env bash\nexit 0\n' >"$work/bin/$tool"
     chmod +x "$work/bin/$tool"
 done
@@ -32,4 +33,4 @@ if ! grep -q HUB-PAGES-PROBE-PASS "$work/log"; then
     grep HUB-PAGES-PROBE "$work/log" || sed -n '1,80p' "$work/log"
     exit 1
 fi
-echo "hub-pages-probe: every Hub section opens a page that loads"
+echo "hub-pages-probe: every Settings page opens and loads"

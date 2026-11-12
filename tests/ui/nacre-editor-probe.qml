@@ -123,16 +123,19 @@ ShellRoot {
         Item { id: overlay; anchors.fill: parent; z: 10 }
     }
 
+    // the Settings frame's members the Bar page and SettingsPage call (Hub.qml)
     QtObject {
         id: fakeHub
         property Item overlayItem: overlay
         property string sizeClass: "wide"
         property string lastSection: ""
+        property real noticeInset: 0
         function navigate(page, row) {}
         function pageAvailable(key) { return true; }
         function rowAvailable(row) { return true; }
+        function unhonoredReason(row) { return ""; }
         function providerRowsFor(page) { return []; }
-        function confirm(spec, onAccept) {}
+        function confirm(options, yes, no) {}
     }
 
     // stages: wait for Nacre to be in use and its editor built, then lanes,
