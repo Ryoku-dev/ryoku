@@ -737,6 +737,11 @@ Item {
             width: page.columnWidth
             spacing: 0
 
+            SheetSiblings {
+                width: parent.width
+                hub: page.hub
+            }
+
             Label {
                 width: parent.width
                 text: I18n.tr(Schema.title)
