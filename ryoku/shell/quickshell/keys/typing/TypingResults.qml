@@ -27,7 +27,7 @@ Item {
                 Layout.preferredWidth: 210
                 spacing: 0
                 Text {
-                    text: qsTr("WPM")
+                    text: I18n.tr("WPM")
                     color: Tokens.inkMuted
                     font.family: Tokens.mono
                     font.pixelSize: Tokens.fMicro
@@ -46,7 +46,7 @@ Item {
                     visible: opacity > 0
                     opacity: results.personalBest ? 1 : 0
                     scale: results.personalBest ? 1 : 0.96
-                    text: qsTr("PERSONAL BEST")
+                    text: I18n.tr("PERSONAL BEST")
                     color: Tokens.ink
                     font.family: Tokens.mono
                     font.pixelSize: Tokens.fTiny
@@ -62,7 +62,7 @@ Item {
                 }
                 Item { Layout.preferredHeight: Tokens.s4 }
                 Text {
-                    text: qsTr("ACCURACY")
+                    text: I18n.tr("ACCURACY")
                     color: Tokens.inkMuted
                     font.family: Tokens.mono
                     font.pixelSize: Tokens.fMicro
@@ -122,7 +122,7 @@ Item {
                 Text {
                     anchors.centerIn: parent
                     visible: results.engine.samples.length < 2
-                    text: qsTr("Test too short to chart")
+                    text: I18n.tr("Test too short to chart")
                     color: Tokens.inkMuted
                     font.family: Tokens.ui
                     font.pixelSize: Tokens.fSmall
@@ -139,12 +139,12 @@ Item {
             rowSpacing: Tokens.s1
             Repeater {
                 model: [
-                    { label: qsTr("RAW"), value: Math.round(results.engine.rawWpm) },
-                    { label: qsTr("CONSISTENCY"), value: Math.round(results.engine.consistency()) + "%" },
-                    { label: qsTr("CORRECT"), value: results.engine.characterBreakdown.correct },
-                    { label: qsTr("ERRORS"), value: results.engine.characterBreakdown.incorrect },
-                    { label: qsTr("EXTRA"), value: results.engine.characterBreakdown.extra },
-                    { label: qsTr("MISSED"), value: results.engine.characterBreakdown.missed }
+                    { label: I18n.tr("RAW"), value: Math.round(results.engine.rawWpm) },
+                    { label: I18n.tr("CONSISTENCY"), value: Math.round(results.engine.consistency()) + "%" },
+                    { label: I18n.tr("CORRECT"), value: results.engine.characterBreakdown.correct },
+                    { label: I18n.tr("ERRORS"), value: results.engine.characterBreakdown.incorrect },
+                    { label: I18n.tr("EXTRA"), value: results.engine.characterBreakdown.extra },
+                    { label: I18n.tr("MISSED"), value: results.engine.characterBreakdown.missed }
                 ]
                 delegate: ColumnLayout {
                     required property var modelData
@@ -169,8 +169,8 @@ Item {
         RowLayout {
             Layout.fillWidth: true
             Item { Layout.fillWidth: true }
-            Btn { text: qsTr("Repeat words"); onAct: results.restart(true) }
-            Btn { text: qsTr("Next test"); primary: true; onAct: results.restart(false) }
+            Btn { text: I18n.tr("Repeat words"); onAct: results.restart(true) }
+            Btn { text: I18n.tr("Next test"); primary: true; onAct: results.restart(false) }
         }
     }
 }

@@ -15,7 +15,7 @@ Item {
 
     K.CoverArt {
         anchors.centerIn: parent
-        source: root.player ? (root.player.trackArtUrl || "") : ""
+        source: Music.coverFor(root.player)
         size: 22 * K.Style.scale
         round: Media.playing && root.visible && S.Prefs.coverSpin && !K.Style.still
         spinning: round

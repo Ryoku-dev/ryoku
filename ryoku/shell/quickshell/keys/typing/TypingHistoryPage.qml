@@ -12,8 +12,8 @@ Item {
 
     function describe(entry) {
         if (entry.mode === "time") return entry.modeValue + "s";
-        if (entry.mode === "words") return entry.modeValue + " " + qsTr("words");
-        return qsTr("zen");
+        if (entry.mode === "words") return I18n.tr("%1 words").arg(entry.modeValue);
+        return I18n.tr("zen");
     }
 
     function when(timestamp) {
@@ -30,10 +30,10 @@ Item {
             spacing: Tokens.s6
             Repeater {
                 model: [
-                    { label: qsTr("TESTS"), value: history.store.testsCompleted },
-                    { label: qsTr("AVERAGE WPM"), value: history.store.results.length
+                    { label: I18n.tr("TESTS"), value: history.store.testsCompleted },
+                    { label: I18n.tr("AVERAGE WPM"), value: history.store.results.length
                         ? Math.round(history.store.results.reduce((sum, item) => sum + Number(item.wpm || 0), 0) / history.store.results.length) : 0 },
-                    { label: qsTr("AVERAGE ACCURACY"), value: history.store.results.length
+                    { label: I18n.tr("AVERAGE ACCURACY"), value: history.store.results.length
                         ? Math.round(history.store.results.reduce((sum, item) => sum + Number(item.accuracy || 0), 0) / history.store.results.length) + "%" : "0%" }
                 ]
                 delegate: ColumnLayout {
@@ -44,7 +44,7 @@ Item {
                 }
             }
             Item { Layout.fillWidth: true }
-            Btn { text: qsTr("Clear history"); armed: history.store.results.length > 0; onAct: history.store.clearHistory() }
+            Btn { text: I18n.tr("Clear history"); armed: history.store.results.length > 0; onAct: history.store.clearHistory() }
         }
 
         Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Tokens.lineSoft }
@@ -53,8 +53,8 @@ Item {
             Layout.alignment: Qt.AlignCenter
             visible: history.store.results.length === 0
             caption: history.store.historyEnabled
-                ? qsTr("Finish a test to build your local history.")
-                : qsTr("History is disabled in typing settings.")
+                ? I18n.tr("Finish a test to build your local history.")
+                : I18n.tr("History is disabled in typing settings.")
         }
 
         ListView {

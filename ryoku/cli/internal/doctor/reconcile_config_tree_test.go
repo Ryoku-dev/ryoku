@@ -83,6 +83,8 @@ func configTreeFixture(t *testing.T, providers ...string) (home, base string) {
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("XDG_STATE_HOME", filepath.Join(home, ".local", "state"))
 	t.Setenv("RYOKU_CONFIG_BASE", base)
+	t.Setenv("RYOKU_SHARE_ROOT", t.TempDir())
+	t.Setenv("XDG_PICTURES_DIR", "")
 	// RYOKU_WM is the seam's own declaration and outranks a live socket in the
 	// environment (a developer's session), so each test names the one it means.
 	t.Setenv("RYOKU_WM", wm.ProviderNiri)

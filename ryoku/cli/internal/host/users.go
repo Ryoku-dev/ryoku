@@ -275,7 +275,8 @@ func (a *App) usersAdd(args []string) int {
 			return a.usersFail(err.Error())
 		}
 	}
-	useradd := []string{"--user-group", "--shell", "/bin/bash", "--comment", fullName, "--home-dir", home}
+	shell := newAccountShell(users, currentUserName(a, users))
+	useradd := []string{"--user-group", "--shell", shell, "--comment", fullName, "--home-dir", home}
 	if storageCaps.Subvolumes {
 		useradd = append(useradd, "--no-create-home")
 	} else {
@@ -391,12 +392,14 @@ func (a *App) usersDelete(args []string) int {
 			_ = a.usersRun(nil, "mv", "--", archive, target.Home)
 			return a.usersFail(fmt.Sprintf(i18n.T("Delete %s: %v"), name, err))
 		}
+		a.dropSnapshotReader(name)
 		return a.usersOK()
 	}
 	if a.isBtrfsSubvolume(target.Home) {
 		if err := a.usersRun(nil, "userdel", name); err != nil {
 			return a.usersFail(fmt.Sprintf(i18n.T("Delete %s: %v"), name, err))
 		}
+		a.dropSnapshotReader(name)
 		if err := a.usersRun(nil, "btrfs", "subvolume", "delete", target.Home); err != nil {
 			return a.usersFail(fmt.Sprintf(i18n.T("Erase the home storage: %v"), err))
 		}
@@ -405,7 +408,43 @@ func (a *App) usersDelete(args []string) int {
 	if err := a.usersRun(nil, "userdel", "--remove", name); err != nil {
 		return a.usersFail(fmt.Sprintf(i18n.T("Delete %s: %v"), name, err))
 	}
+	a.dropSnapshotReader(name)
 	return a.usersOK()
+}
+
+// snapper refuses every command, cleanup included, while ALLOW_USERS names an
+// account that no longer exists
+func (a *App) dropSnapshotReader(name string) {
+	info, err := os.Stat(a.cfg.SnapperRootConfig)
+	if err != nil || !info.Mode().IsRegular() {
+		return
+	}
+	data, err := os.ReadFile(a.cfg.SnapperRootConfig)
+	if err != nil {
+		return
+	}
+	lines := strings.Split(string(data), "\n")
+	changed := false
+	for i, line := range lines {
+		value, ok := strings.CutPrefix(strings.TrimSpace(line), "ALLOW_USERS=")
+		if !ok {
+			continue
+		}
+		readers := strings.Fields(strings.Trim(value, `"`))
+		kept := make([]string, 0, len(readers))
+		for _, reader := range readers {
+			if reader != name {
+				kept = append(kept, reader)
+			}
+		}
+		if len(kept) != len(readers) {
+			lines[i] = `ALLOW_USERS="` + strings.Join(kept, " ") + `"`
+			changed = true
+		}
+	}
+	if changed {
+		_ = replaceFile(a.cfg.SnapperRootConfig, strings.Join(lines, "\n"), info.Mode().Perm())
+	}
 }
 
 func (a *App) usersSetRole(args []string) int {
@@ -785,6 +824,20 @@ func realLoginShell(shell string) bool {
 	return base != "false" && base != "nologin"
 }
 
+// the installer gives every account it creates the same login shell, so an
+// account added later follows the administrator adding it
+func newAccountShell(users []localUser, caller string) string {
+	for _, user := range users {
+		if user.Name != caller || !realLoginShell(user.Shell) {
+			continue
+		}
+		if info, err := os.Stat(user.Shell); err == nil && info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0 {
+			return user.Shell
+		}
+	}
+	return "/bin/bash"
+}
+
 func userInGroup(user localUser, group *localGroup) bool {
 	return group != nil && (user.GID == group.GID || group.Members[user.Name])
 }
@@ -1037,9 +1090,10 @@ func (a *App) changeUserPassword(name, password string) error {
 	return nil
 }
 
+// the caller may keep stdin open after the password line, so stop at the newline
 func readUserPassword(input io.Reader) (string, error) {
-	data, err := io.ReadAll(io.LimitReader(input, 4098))
-	if err != nil {
+	data, err := bufio.NewReader(io.LimitReader(input, 4098)).ReadString('\n')
+	if err != nil && err != io.EOF {
 		return "", fmt.Errorf(i18n.T("Read the password: %v"), err)
 	}
 	if len(data) > 4096 {

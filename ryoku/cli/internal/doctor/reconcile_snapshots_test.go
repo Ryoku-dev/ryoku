@@ -201,3 +201,40 @@ func TestSnapshotCleanupReconcilersAreNeutralWhenUnsupported(t *testing.T) {
 		})
 	}
 }
+
+// A second account running doctor must join the snapshot readers, not replace
+// the first account.
+func TestAllowUsersWith(t *testing.T) {
+	for _, c := range []struct{ current, user, want string }{
+		{"", "nero", "nero"},
+		{"nero", "alice", "nero alice"},
+		{"nero  alice", "alice", "nero alice"},
+	} {
+		if got := allowUsersWith(c.current, c.user); got != c.want {
+			t.Errorf("allowUsersWith(%q, %q) = %q, want %q", c.current, c.user, got, c.want)
+		}
+	}
+}
+
+// After `usermod -l rohn you` the old name stays in ALLOW_USERS and snapper
+// refuses to load the config, cleanup included; doctor must drop it.
+func TestSnapshotReadersDropRenamedAccount(t *testing.T) {
+	old := accountExists
+	t.Cleanup(func() { accountExists = old })
+	accountExists = func(name string) bool { return name == "rohn" || name == "alice" }
+
+	config := "SUBVOLUME=\"/\"\nALLOW_USERS=\"you alice\"\nSYNC_ACL=\"yes\"\n"
+	live, stale := liveSnapshotReaders(configValue(config, "ALLOW_USERS"))
+	if live != "alice" || !reflect.DeepEqual(stale, []string{"you"}) {
+		t.Fatalf("live = %q, stale = %v", live, stale)
+	}
+	if got := withConfigValue(config, "ALLOW_USERS", live); got != "SUBVOLUME=\"/\"\nALLOW_USERS=\"alice\"\nSYNC_ACL=\"yes\"\n" {
+		t.Fatalf("rewritten config = %q", got)
+	}
+	if got := allowUsersWith(live, "rohn"); got != "alice rohn" {
+		t.Fatalf("readers = %q", got)
+	}
+	if got := withConfigValue("SUBVOLUME=\"/\"\n", "ALLOW_USERS", "rohn"); got != "SUBVOLUME=\"/\"\nALLOW_USERS=\"rohn\"\n" {
+		t.Fatalf("missing key = %q", got)
+	}
+}

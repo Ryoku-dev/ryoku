@@ -77,6 +77,27 @@ hl.bind(K(mod .. " + CTRL + Left"),   hl.dsp.window.resize({ x = -40, y = 0,   r
 hl.bind(K(mod .. " + CTRL + Right"),  hl.dsp.window.resize({ x = 40,  y = 0,   relative = true }), { repeating = true }) -- resize window wider
 hl.bind(K(mod .. " + CTRL + Up"),     hl.dsp.window.resize({ x = 0,   y = -40, relative = true }), { repeating = true }) -- resize window shorter
 hl.bind(K(mod .. " + CTRL + Down"),   hl.dsp.window.resize({ x = 0,   y = 40,  relative = true }), { repeating = true }) -- resize window taller
+
+-- only scrolling has preset column widths; elsewhere a tile right of centre grows leftwards
+local function step_width(sign)
+    local win = hl.get_active_window()
+    local ws = win and win.workspace
+    if win and not win.floating and ws and ws.tiled_layout == "scrolling" then
+        hl.dispatch(hl.dsp.layout("colresize " .. sign .. "conf"))
+        return
+    end
+    local dx = sign == "+" and 40 or -40
+    local mon = win and not win.floating and win.monitor
+    if mon and mon.width and type(win.at) == "table" and type(win.size) == "table" then
+        local position = type(mon.position) == "table" and mon.position or {}
+        local mon_x = mon.x or position.x or 0
+        local mon_w = mon.width / (mon.scale or 1)
+        if win.at.x + win.size.x / 2 > mon_x + mon_w / 2 then dx = -dx end
+    end
+    hl.dispatch(hl.dsp.window.resize({ x = dx, y = 0, relative = true }))
+end
+hl.bind(K(mod .. " + equal"),        function() step_width("+") end, { repeating = true }) -- Grow window
+hl.bind(K(mod .. " + minus"),        function() step_width("-") end, { repeating = true }) -- Shrink window
 hl.bind(K(mod .. " + bracketleft"),  hl.dsp.window.move({ direction = "left",  group_aware = true }))  -- Merge left
 hl.bind(K(mod .. " + bracketright"), hl.dsp.window.move({ direction = "right", group_aware = true }))  -- Merge right
 
@@ -109,6 +130,7 @@ hl.bind(K(mod .. " + Space"),     hl.dsp.global("ryoku:launcher"))              
 hl.bind(K("ALT + Space"),         hl.dsp.global("ryoku:ask"))                      -- ask Rashin
 hl.bind(K(mod .. " + ALT + Space"), hl.dsp.exec_cmd("ryoku-summon --app-id dev.ryoku.rashin rashin-app")) -- Rashin app; a second press focuses it
 hl.bind(K(mod .. " + K"),         hl.dsp.exec_cmd("ryoku-shell cheatsheet"))          -- Kit, or the bar style's own cheatsheet
+hl.bind(K(mod .. " + SHIFT + G"), hl.dsp.global("ryoku:gamebar"), { dont_inhibit = true }) -- Game Bar: capture, performance and tasks over a fullscreen game
 hl.bind(K(mod .. " + L"),         hl.dsp.exec_cmd("ryoku-shell lock"))             -- lock the screen
 hl.bind(K(mod .. " + Escape"),    hl.dsp.global("ryoku:quicksettings"), { dont_inhibit = true }) -- quick settings: power, logout, restart, shutdown, wifi
 hl.bind(K(mod .. " + W"),         hl.dsp.exec_cmd("ryogami wallpaper ui"))     -- ryogami wallpaper picker (full-screen browser: hero cards, colour filters, effects); the frame-blob menu stays on the bar logo
@@ -168,7 +190,9 @@ hl.bind(K("XF86AudioRaiseVolume"), hl.dsp.exec_cmd("ryoku-volume up"),   { locke
 hl.bind(K("XF86AudioLowerVolume"), hl.dsp.exec_cmd("ryoku-volume down"), { locked = true, repeating = true }) -- lower the volume
 hl.bind(K("XF86AudioMute"),        hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"),     { locked = true })
 hl.bind(K("XF86AudioMicMute"),     hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"),   { locked = true })
-hl.bind(K("XF86AudioPlay"),        hl.dsp.exec_cmd("playerctl play-pause"),                           { locked = true })
+-- headphones send both keys for one tap (ryoku-media drops the echo) and pause when taken off
+hl.bind(K("XF86AudioPlay"),        hl.dsp.exec_cmd("ryoku-media play-pause"),                         { locked = true })
+hl.bind(K("XF86AudioPause"),       hl.dsp.exec_cmd("ryoku-media pause"),                              { locked = true })
 hl.bind(K("XF86AudioNext"),        hl.dsp.exec_cmd("playerctl next"),                                 { locked = true })
 hl.bind(K("XF86AudioPrev"),        hl.dsp.exec_cmd("playerctl previous"),                             { locked = true })
 hl.bind(K(mod .. " + SHIFT + A"), hl.dsp.exec_cmd("ryoku-restart-audio")) -- recover audio when sound stops coming back

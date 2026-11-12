@@ -70,7 +70,7 @@ func TestKeymapApplyUsesHostInitramfsBackend(t *testing.T) {
 	}
 	want := []string{
 		"localectl set-x11-keymap de  nodeadkeys ctrl:nocaps",
-		"mkinitcpio -P",
+		"/usr/bin/mkinitcpio -P",
 	}
 	for index := range want {
 		if got := argv(runner.commands[index]); got != want[index] {

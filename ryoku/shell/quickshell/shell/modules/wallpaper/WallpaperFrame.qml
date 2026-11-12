@@ -20,6 +20,8 @@ QtObject {
     // An uncommitted wall.preview paint: the palette bridge and other readers
     // must not treat this entry as the committed wallpaper.
     property bool preview: false
+    // A scene renderer under the desktop surface wants hover positions.
+    property bool pointer: false
 
     function apply(line: string): bool {
         try {
@@ -40,6 +42,7 @@ QtObject {
             volume = (typeof entry.volume === "number") ? entry.volume : 100;
             paused = entry.paused === true;
             preview = entry.preview === true;
+            pointer = entry.pointer === true;
             return true;
         } catch (error) {
             return false;

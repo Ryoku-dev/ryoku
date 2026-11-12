@@ -13,5 +13,15 @@ import (
 // ones leaves the Hub showing a phantom update.
 func TestMain(m *testing.M) {
 	os.Setenv("RYOKU_UPDATE_UI", "")
-	os.Exit(testenv.Run(m))
+	// Materialize also seeds the account: its sources stay off the machine too.
+	share, err := os.MkdirTemp("", "ryoku-updater-share-")
+	if err != nil {
+		panic(err)
+	}
+	os.Setenv("RYOKU_SHARE_ROOT", share)
+	os.Unsetenv("RYOKU_SYSTEM_RICES_DIR")
+	accountRepo = func() string { return "" }
+	code := testenv.Run(m)
+	os.RemoveAll(share)
+	os.Exit(code)
 }

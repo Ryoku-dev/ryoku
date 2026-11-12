@@ -11,10 +11,14 @@
 # env:
 #   RYOKU_APP                 ryotunes (default) or ryoport
 #   RYOKU_REPO_KEY            optional signing key
+#   RYOKU_RYOTUNES_REPO       Ryotunes source repo (default: ryoku-dev/ryotunes)
 #   RYOKU_GITHUB_API          GitHub API base
 #   RYOKU_GITHUB_DL           GitHub download base
 #   GH_TOKEN / GITHUB_TOKEN   optional API token
 #   RYOKU_IMPORT_RESOLVE_ONLY print the pacman version without downloading
+#
+# Ryotunes follows only its newest stable 1.x release (resolve-ryotunes-release.sh);
+# exit 3 means the repo lists no Ryotunes 1.x release and nothing is imported.
 set -euo pipefail
 
 APP=${RYOKU_APP:-ryotunes}
@@ -24,6 +28,7 @@ case "$APP" in
   *) printf 'import-app: error: unsupported app %s\n' "$APP" >&2; exit 1 ;;
 esac
 API=${RYOKU_GITHUB_API:-https://api.github.com}
+HERE=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 DL=${RYOKU_GITHUB_DL:-https://github.com}
 WANT_ARCH=x86_64
 
@@ -51,14 +56,23 @@ api_get() {
     -H 'User-Agent: ryoku-repo-import' "${auth[@]}" "$url"
 }
 
-# 1. resolve the newest published stable release. A draft/prerelease is never
-#    returned by releases/latest; the tag must be a clean vX.Y.Z.
-release_json=$(api_get "$API/repos/$REPO/releases/latest") \
-  || die "could not fetch the latest $REPO release"
-tag=$(jq -r '.tag_name // empty' <<<"$release_json")
-[[ $tag =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "latest $REPO tag '$tag' is not a vX.Y.Z stable tag"
-if [[ $APP == ryoport && ! $tag =~ ^v1\.[0-9]+\.[0-9]$ ]]; then
-  die "latest Ryoport tag '$tag' is not v1.<minor>.<digit>"
+# 1. resolve the newest published stable release. Ryotunes keeps to its newest
+#    stable 1.x release: GitHub's "latest" can be a Ryotunes 2 build, which
+#    never belongs in this Ryoku line's repo. Ryoport takes releases/latest,
+#    which never returns a draft/prerelease; its tag must be a clean v1.Y.Z.
+if [[ $APP == ryotunes ]]; then
+  rc=0
+  release_json=$(RYOKU_RYOTUNES_REPO=$REPO RYOKU_GITHUB_API=$API \
+    bash "$HERE/resolve-ryotunes-release.sh") || rc=$?
+  (( rc != 3 )) || { printf 'import-ryotunes.sh: %s lists no Ryotunes 1.x release\n' "$REPO" >&2; exit 3; }
+  (( rc == 0 )) || die "could not resolve the newest $REPO 1.x release"
+  tag=$(jq -r '.tag_name // empty' <<<"$release_json")
+  [[ $tag =~ ^v1\.[0-9]+\.[0-9]+$ ]] || die "$REPO tag '$tag' is not a v1.Y.Z stable tag"
+else
+  release_json=$(api_get "$API/repos/$REPO/releases/latest") \
+    || die "could not fetch the latest $REPO release"
+  tag=$(jq -r '.tag_name // empty' <<<"$release_json")
+  [[ $tag =~ ^v1\.[0-9]+\.[0-9]$ ]] || die "latest Ryoport tag '$tag' is not v1.<minor>.<digit>"
 fi
 pkgver=${tag#v}
 

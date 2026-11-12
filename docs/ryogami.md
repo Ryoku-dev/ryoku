@@ -8,7 +8,16 @@ Unix socket; they never write wallpaper state themselves.
 
 A wallpaper can target every display, one display, or one workspace. The picker
 exposes **All**, **This monitor**, and **This workspace**. The workspace choice
-shows the active workspace name for the monitor where the picker opened.
+shows the active workspace name for the monitor where the picker opened. With
+**Apply only on the picker monitor** on, a plain pick and its hover preview
+both stay on the picker's monitor.
+
+Random rotation keeps per-display choices: once a display has its own
+wallpaper, each display gets its own pick on every tick.
+
+`ryogami wallpaper set PATH` without `--screen` follows the picker monitor
+setting: on a desk with more than one display it sets the focused display
+only. `--screen '*'` always sets every display.
 
 The effective wallpaper on each display is resolved in this order:
 
@@ -60,10 +69,11 @@ assignment changes, no apply count moves, no applied event fires, and the
 palette stays with the committed wallpaper. The frame entries a preview
 publishes carry a `preview` flag, so the shell and its readers can tell the
 paint apart from a commit. Previewing another still replaces the preview,
-and applying a wallpaper supersedes it. Closing the picker clears the
-preview (`wall.preview.clear`, or `ryogami wallpaper preview-clear`) and
-repaints each covered output's committed wallpaper. Only stills preview;
-videos and Wallpaper Engine scenes apply directly.
+and applying a wallpaper supersedes it. An apply that covers fewer displays
+than the preview puts the committed wallpaper back on the rest. Closing the
+picker clears the preview (`wall.preview.clear`, or `ryogami wallpaper
+preview-clear`) and repaints each covered output's committed wallpaper. Only
+stills preview; videos and Wallpaper Engine scenes apply directly.
 
 ## Image optimisation
 
@@ -94,6 +104,12 @@ shows its Workshop scenes, and scenes render with that install's `assets`
 folder. **Workshop directory** and **WE assets directory** in Settings > Wallpaper > Sources
 override both. Scenes already on disk show up in the Workshop tab as soon as
 the first scan after a fresh install finishes.
+
+Scenes that follow the cursor (camera parallax, mouse-driven effects) react
+while the pointer is over the desktop, the same way Stage's Parallax does. The
+desktop surface sits above the scene, so the shell reports hover positions and
+ryogami passes them to the scene renderer, at most 60 times a second and only
+while a scene is on that monitor. This needs skwd-paper beta.27 or newer.
 
 Searching never holds up the picker. The daemon answers slow requests
 (provider and Workshop searches, semantic queries, colour previews) on their own

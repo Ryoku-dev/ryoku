@@ -1,5 +1,6 @@
 module shell.services
 singleton ShellState ShellState.qml
+singleton GameBarStore GameBarStore.qml
 singleton SidebarState SidebarState.qml
 ServiceLoader ServiceLoader.qml
 singleton Theme Theme.qml
@@ -38,6 +39,7 @@ singleton Camera Camera.qml
 singleton Keypresses Keypresses.qml
 singleton Toggles Toggles.qml
 singleton VoiceBars VoiceBars.qml
+singleton DiscordVoice DiscordVoice.qml
 singleton Capture Capture.qml
 singleton Clipboard Clipboard.qml
 singleton Events Events.qml

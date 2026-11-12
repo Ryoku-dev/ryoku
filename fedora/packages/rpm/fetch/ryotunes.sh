@@ -2,8 +2,8 @@
 set -euo pipefail
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+root=$(cd -- "$script_dir/../../../.." && pwd)
 source "$script_dir/release-source.sh"
-
 sources=${RYOKU_FETCH_SOURCES:?RYOKU_FETCH_SOURCES is required}
 
 die() {
@@ -18,9 +18,12 @@ done
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
+# GitHub's "latest" can be a Ryotunes 2 build, which never belongs on this line
+release=$(RYOKU_RYOTUNES_REPO=Ryoku-dev/ryotunes bash "$root/release/repo/resolve-ryotunes-release.sh") \
+  || die "could not resolve the newest Ryoku-dev/ryotunes 1.x release"
 fetch_github_release_source \
   Ryoku-dev/ryotunes ryotunes "$work" "$sources" \
-  '^v[0-9]+\.[0-9]+\.[0-9]+$'
+  '^v1\.[0-9]+\.[0-9]+$' "$release"
 
 version=$RYOKU_FETCH_VERSION
 tar -xzf "$RYOKU_FETCH_ARCHIVE_PATH" -C "$work"

@@ -22,6 +22,9 @@ base_version=${base_version//_/.}
 	printf 'container-runner.sh: invalid XBPS package version: %s\n' "$raw_version" >&2
 	exit 1
 }
+# git history stays on the host; build-repo.sh turns these into reverts=
+reverts=${RYOKU_XBPS_REVERTS-$("$ROOT/bin/ryoku-release-version" --superseded)}
+reverts=$(tr -s '[:space:]' ' ' <<<"$reverts")
 
 source_tmp=$(mktemp -d "${TMPDIR:-/tmp}/ryoku-xbps-source.XXXXXX")
 trap 'rm -rf "$source_tmp"' EXIT HUP INT TERM
@@ -64,13 +67,20 @@ commit=$(git -C "$ROOT" rev-parse HEAD)
 
 # Standalone apps ship on their own release trains. The token stays on the
 # host; only each release's version and checksum enter the build container.
+# Ryotunes builds its newest stable 1.x release, as the Arch importer and the
+# Fedora fetch hook do: GitHub's "latest" can be a Ryotunes 2 build.
 source "$SCRIPT_DIR/release-source.sh"
 
+ryotunes_release=$(RYOKU_RYOTUNES_REPO=Ryoku-dev/ryotunes \
+	bash "$ROOT/release/repo/resolve-ryotunes-release.sh") || {
+	printf 'container-runner.sh: could not resolve the newest Ryoku-dev/ryotunes 1.x release\n' >&2
+	exit 1
+}
 read -r ryotunes_version ryotunes_sha256 < <(
 	latest_github_source ryotunes Ryoku-dev/ryotunes \
-		'^v[0-9]+\.[0-9]+\.[0-9]+$' "$source_tmp"
+		'^v1\.[0-9]+\.[0-9]+$' "$source_tmp" "$ryotunes_release"
 ) || {
-	printf 'container-runner.sh: could not resolve the latest Ryoku-dev/ryotunes release\n' >&2
+	printf 'container-runner.sh: could not resolve the newest Ryoku-dev/ryotunes 1.x release\n' >&2
 	exit 1
 }
 read -r ryoport_version ryoport_sha256 < <(
@@ -95,7 +105,7 @@ run=("$ENGINE" run --rm --platform linux/amd64 --privileged
 	-v "$HOST_WORK:/work"
 	-v "$HOST_OUT:/out"
 	-v "$source_archive:/run/ryoku-source.tar.gz:ro"
-	-e "RYOKU_VOID_PACKAGES_REF=${RYOKU_VOID_PACKAGES_REF:-7023eba97f43b92c4d36e830677d27ab33e2d4ae}"
+	-e "RYOKU_VOID_PACKAGES_REF=${RYOKU_VOID_PACKAGES_REF:-7860eca545b73e612b83c8eed43b57741ef5b0fb}"
 	-e "RYOKU_XBPS_PACKAGES=${RYOKU_XBPS_PACKAGES:-}"
 	-e "RYOKU_XBPS_WORKTREE=${RYOKU_XBPS_WORKTREE:-0}"
 	-e "RYOKU_XBPS_SOURCE_ARCHIVE=/run/ryoku-source.tar.gz"
@@ -104,6 +114,7 @@ run=("$ENGINE" run --rm --platform linux/amd64 --privileged
 	-e "RYOKU_CHANNEL=$channel"
 	-e "RYOKU_NAME=$name"
 	-e "RYOKU_PKGVER=$package_version"
+	-e "RYOKU_XBPS_REVERTS=$reverts"
 	-e "RYOKU_XBPS_PRODUCTION=${RYOKU_XBPS_PRODUCTION:-0}"
 	-e "XBPS_PASSPHRASE=${XBPS_PASSPHRASE:-}"
 	-e "RYOKU_RYOTUNES_VERSION=$ryotunes_version"
@@ -164,6 +175,7 @@ inner='
 		RYOKU_CHANNEL="$RYOKU_CHANNEL" \
 		RYOKU_NAME="$RYOKU_NAME" \
 		RYOKU_PKGVER="$RYOKU_PKGVER" \
+		RYOKU_XBPS_REVERTS="$RYOKU_XBPS_REVERTS" \
 		XBPS_PASSPHRASE="$XBPS_PASSPHRASE" \
 		RYOKU_RYOTUNES_VERSION="$RYOKU_RYOTUNES_VERSION" \
 		RYOKU_RYOTUNES_SHA256="$RYOKU_RYOTUNES_SHA256" \

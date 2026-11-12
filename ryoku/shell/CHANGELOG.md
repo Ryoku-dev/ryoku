@@ -261,6 +261,32 @@
   OSD, polkit prompts, the dock, desktop widgets and the window close follow
   the active item, and `ryoku-shell bar` is replaced by QS Bar's own `qsbar` IPC
   target while QS Bar is active.
+- **Wallpaper Engine video wallpapers animate on hover in the picker (#807).**
+  Only local videos got the small preview clip, so workshop video cards stayed
+  still; they now get one too, built on the thumbnail job limit and skipped
+  while video previews are off.
+- **Wallpaper Engine scenes follow the cursor (#808).** Scenes with
+  camera parallax or mouse effects never moved, because the desktop sits above
+  the scene and takes the pointer; the shell now hands the position on through ryogami.
+- **The launcher's weather follows the Celsius or Fahrenheit setting (#803).** A
+  unit change that arrived while the first forecast was still loading was
+  dropped, so the hero kept the locale's unit until the next refresh 15 minutes
+  later; the forecast is now fetched again in the new unit.
+- **Python's blurred bar background is back (#802).** The Serpantinum 2.3.1
+  sync took its new mask default but kept the old checks, so the Blur style
+  drew nothing and the bar showed plain transparency; Liquid glass was fine.
+- **Lyrics are shown as plain text.** LRCLIB lyrics are written by anyone, and
+  the lyric sheet and the tall music widget read markup in them, so a line could
+  restyle itself or pull an image from the web; tags now show as typed.
+- **The keyboard layout you switched to is still active after you log back in.**
+  Every session started on the first configured layout, so a second layout
+  picked from the bar was back to the first one after a login (#665).
+- **Python's network popup connects Bluetooth devices and follows them again.**
+  The Serpantinum 2.3.1 sync renamed the popup but left Ryoku's own lines on the
+  old name, so device clicks, connect results and status updates silently failed.
+- **Nomarchy's work Wi-Fi join keeps the password out of nmcli's history.** The
+  802.1X password went through `nmcli connection edit`, which saves every line
+  it reads to `~/.cache/nmcli-history`; it now reaches nmcli on a pipe.
 - **The battery list widget's percentages read cleanly at any charge.** Below a
   full charge the dark text meant for the fill was drawn over the whole row, so
   the numbers on the empty part looked smudged; it now stops at the fill edge (#791).
@@ -291,6 +317,83 @@
 - **Library desktop widgets keep the size you give them.** The resource cards,
   clocks and the rest of the added widget library no longer snap back to 100%
   after a corner drag or a change in the Size control.
+- **Album art no longer risks crashing the shell.** Covers in the bar, popouts,
+  sidebar, launcher, dock and desktop music widget now come from the cover the
+  shell daemon saves to disk, never from a web address loaded inside the shell.
+- **Python's media and visualizer modules can hide while nothing plays.** Both
+  cards in the Python guide gain a "Hide when nothing is playing" switch, and
+  "Fit to the track" shrinks the media title area to the song, up to its width.
+- **Ryogami hover previews no longer stick on other monitors.** With Apply only
+  on the picker monitor on, the preview stays on the picker's monitor, and a pick
+  there puts each other monitor's own wallpaper back.
+- **Random auto-rotate gives every monitor its own pick.** Once a monitor has
+  its own wallpaper, rotation changes each monitor separately instead of
+  putting one wallpaper everywhere and forgetting the per-monitor choices.
+- **`ryogami wallpaper set` without `--screen` follows the picker monitor setting.**
+  With it on it sets the focused monitor only; `--screen '*'` sets every monitor.
+- **Desktops without a built-in screen no longer show a Built-in display slider.**
+  With no backlight to find, brightness control fell back to whatever device it
+  found first, often a keyboard LED, and offered it as a display. Controls and the
+  bar brightness widgets now show only real backlights and external monitors.
+- **Opening Controls no longer makes the whole screen hitch.** With an external
+  monitor on DDC/CI, the panel read its brightness the moment it opened, and that
+  read stalled every display for a fraction of a second. It now reads a quarter
+  second after the panel appears, so the external brightness slider fills in a moment later.
+- **Clicking an expanded Controls drawer no longer closes the panel.** Opening the
+  Brightness or Volume drawer grew the panel, but clicks on the newly grown part
+  still counted as clicks outside it. The whole drawer now takes clicks, and the
+  settings popup stays inside the panel when it is centred.
+- **The Nomarchy monitor panel drives only a real backlight too.** Its brightness
+  slider no longer reads or writes a keyboard LED on a desktop, and on a laptop it
+  sets the same panel backlight the brightness keys do.
+- **Notification toasts stop feeding their own layout.** The popup list no longer sizes
+  itself from its cards or re-lays out on every resize, and the countdown frame no longer
+  repaints a canvas each frame. Image toasts hold their thumbnail's room while it loads.
+- **Orpheus workspace marks keep one slot each.** The active pill now fits inside
+  its own slot and stays a whole capsule while the strip grows, and the strip's
+  rows no longer carry a field that list models mistake for the row position.
+- **A fresh desktop no longer says its Stage config file is broken.** The first
+  start wrote a valid `stage-editor.json` but then read an empty copy of it,
+  showed the warning, saved a backup and stopped saving settings.
+- **QS Bar's Wi-Fi panel makes Forget easy to reach.** A network's drawer, where
+  Forget lives, opened only from a small dimmed › at the row's edge. The toggle
+  now has full contrast and a hover well, right-clicking a row opens the drawer,
+  and the password prompt of a saved network has its own Forget.
+- **QS Bar's Wi-Fi panel asks again when a saved password fails.** A saved
+  network whose secret was wrong failed silently on every tap. It now reopens
+  the password prompt ("Wrong password, or a different network with the same
+  name?"), a new passphrase replaces the stale profile, and a failed or timed-out
+  attempt empties the field (`barstyles/qsbar/panels/`).
+- **The bar's Wi-Fi list puts saved networks first.** Saved networks in range
+  sit under a Saved heading above Other networks. A network being joined for
+  the first time stays in its place until the join settles, even though
+  NetworkManager saves its profile as the attempt starts.
+- **Saved Wi-Fi networks can be forgotten from the bar.** A saved row has a ⋯
+  button that opens Forget network, and the connected network's card has one
+  too, armed by a first press because forgetting it also disconnects. Before,
+  the only way to drop a saved network was `nmcli connection delete`.
+- **A saved Wi-Fi network asks for its password again when it stops working.**
+  The bar only showed a password field for unsaved networks, so a saved one
+  whose password changed, or another network with the same name, failed on
+  every tap with no way to type a new password. A failed join of a saved
+  secured network now reopens the field with "Wrong password, or a different
+  network with the same name?", and the new password replaces the stored one.
+- **The bar's Wi-Fi rows keep their password field through network updates.**
+  The list is rebuilt on every network frame, which threw away a row's field,
+  its pending join and its error; a retry after a wrong password could also
+  type onto the rejected text. Row state now lives in the popout, keyed by
+  network and band, and the field empties after every attempt
+  (`quickshell/shell/modules/bar/popouts/NetworkPopout.qml`).
+- **A wrong password no longer saves the Wi-Fi network.** NetworkManager keeps
+  the profile a first join creates even when the passphrase is rejected, so the
+  network read as saved and every later tap retried the bad secret without
+  asking again. A first join that fails now deletes that profile; a timeout
+  keeps it, since that join may still be coming up (`ipc/network.go`).
+- **A wrong Wi-Fi password fails in seconds, not 30.** The shell daemon waited
+  on the activation's State, but NetworkManager removes a failed activation
+  from the bus at once, so the read failed and the join sat out its whole
+  30-second timeout. A vanished activation now counts as failed
+  (`ipc/network.go`).
 - **Windows reach the Shima dock again.** Under the Shima bar style the frame and
   the dock both reserved the dock's band, which left a dock-tall gap between
   windows and the dock. The frame's reservation is now the only one there.
@@ -304,6 +407,9 @@
 - **The quick settings gear opens and closes its settings every time.** The
   popup stays above the bar instead of covering the gear on shorter screens,
   and a second click on the gear closes it rather than reopening it.
+- **Quick settings and the Super+K sheets can show in your language.**
+  Hold hints are whole sentences, and Kit's tabs, its typing test and Shima's
+  shortcut sheet now read from the shared catalogue.
 - **Shima's upstream runtime keeps Ryoku Settings, Ryogami and Ryoshot.** Super+comma,
   the wallpaper picker and screenshots open Ryoku's tools instead of the runtime's own.
 - **Super+Space, Super+V and Super+comma stay Ryoku's under every bar style.**

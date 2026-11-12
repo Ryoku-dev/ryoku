@@ -339,6 +339,14 @@ contain only the edition's skeleton files: the session wrapper runs
 user-owned. Installer-created extra accounts and accounts added later in Ryoku
 Hub therefore take the same first-login path on every edition and compositor.
 
+Beyond `~/.config`, materialize gives the account what the installer seeds for
+the first one: the brand art (`~/.local/share/ryoku/assets/brand`), the decor art
+(`ryodecors/` in the Pictures folder) and `~/.npmrc`, missing files only, from
+`/usr/share/ryoku` (the checkout on a dev box). An account whose shell has never
+run (no `~/.config/ryoku/shell.json`) also gets the default rice queued for its
+first login. `ryoku doctor` runs the same check. The wallpaper library is not
+packaged, so only the installing account receives `Pictures/Wallpapers`.
+
 ## user_edits: your edits, kept apart
 
 Ryoku-owned config and user edits live in separate trees, so an update refreshes
@@ -513,6 +521,18 @@ image for each release, derived from the per-ISO manifests in the bucket.
 Fedora ledger entries carry packages only. Each build carries a strictly
 increasing package version (`core.r<commit-count>.g<sha>` for pacman and the
 corresponding native version for XBPS or RPM) that the Ryoku upgrade moves to.
+`core` is `VERSION`, which on `unstable-dev` names the next stable release:
+**Unstable Version Bump** (`.github/workflows/unstable-version-bump.yml`)
+keeps it one `bin/ryoku-release-bump roll` past `main`'s `VERSION` (main 1.0.8,
+unstable 1.0.9) and never lowers it, so a hand-set minor or major stays. Pushes
+do not change it; the build number and `r<commit-count>` keep testing builds
+distinct and increasing. Until 1.0.9 the bot rolled a patch on every push and
+testing reached 1.11.4, so the monorepo packages carry epoch 1: pacman
+`epoch=1` and RPM `Epoch: 1`, with every pin between them naming it, and on
+Void, which has no epoch, `reverts=` lists every earlier build above the
+current core (`bin/ryoku-release-version --superseded`, stamped by
+`void/packages/repo/build-repo.sh`). Unstable build names order by build
+number for the same reason.
 The `ryoku-desktop` package writes `/etc/ryoku-release` (`RELEASE=`,
 `CHANNEL=`, `VERSION=`, `COMMIT=`) so a box can say which release or build it
 runs.
@@ -778,7 +798,8 @@ quiet. `tests/ryoku-discord.sh` builds every kind of message offline.
   theme, the shipped boot configs and lockscreen bundle, Wayfire's baseline
   config, portal routing, window-decoration plugin and plugin metadata (a
   checkout box has no Wayfire variant package), the boot hook, the modules-load
-  and udev rules, the default-apps mimeapps map, and the logind lid-switch
+  and udev rules, the default-apps mimeapps map, the keyring's D-Bus
+  environment drop-in and Secret Service override, and the logind lid-switch
   drop-in `/etc/systemd/logind.conf.d/10-ryoku-lid.conf`. An unowned
   copy collides with the package on the next transaction ("exists in
   filesystem") and aborts the whole atomic `-Syu`, so every ryoku pacman
@@ -788,7 +809,10 @@ quiet. `tests/ryoku-discord.sh` builds every kind of message offline.
   the same paths on a box already wedged (`reconcileConflictingRyokuFiles`,
   `ryokuSystemGlobs` -- the glob itself, split). Either way the package adopts
   the path and later updates own it normally; `deploy.sh` keeps its own copy of
-  the list (`_rovw`) in sync.
+  the list (`_rovw`) in sync. A plain `sudo pacman -Syu` passes no glob, so on
+  a box with `ryoku-desktop` installed `deploy.sh` lays a new path through
+  `_desktop_install` only once the installed package owns it, and clears an
+  unowned copy an earlier deploy left; the package upgrade brings the file.
 - **Generated power policy and long-running helpers must be adopted as one live
   transaction.** `hypridle.conf` is rendered state, not materialized payload,
   and a running shell-script daemon keeps executing its old file after the

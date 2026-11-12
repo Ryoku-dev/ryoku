@@ -1,5 +1,6 @@
 Name:           ryogami
 Version:        0.1
+Epoch:          1
 Release:        1%{?dist}
 Summary:        ryogami desktop component
 License:        GPL-3.0-or-later

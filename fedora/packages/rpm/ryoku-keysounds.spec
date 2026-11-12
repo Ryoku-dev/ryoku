@@ -2,6 +2,7 @@
 %global hyprland_evr %(rpm -q --qf '%%{EVR}' hyprland)
 Name:           ryoku-keysounds
 Version:        0.1
+Epoch:          1
 Release:        1%{?dist}
 Summary:        Keyboard sound plugin for Hyprland
 License:        GPL-3.0-or-later
@@ -19,7 +20,7 @@ BuildRequires:  pixman-devel
 BuildRequires:  hyprland-devel
 Requires:       hyprland%{?_isa} = %{hyprland_evr}
 Requires:       libcanberra
-Requires:       ryoku-keysounds-profiles = %{version}-%{release}
+Requires:       ryoku-keysounds-profiles = %{epoch}:%{version}-%{release}
 
 %description
 Ryoku's Hyprland key sound plugin, built against the exact compositor ABI. The

@@ -254,6 +254,7 @@ Scope {
                 wallpaperTransition: wallpaper.transition
                 videoUrl: wallpaper.videoUrl
                 wallpaperLive: wallpaper.live
+                scenePointer: wallpaper.scenePointer
                 videoMuted: wallpaper.videoMuted
                 videoVolume: wallpaper.videoVolume
                 videoPaused: wallpaper.videoPaused

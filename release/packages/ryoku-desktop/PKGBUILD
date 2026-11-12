@@ -10,6 +10,8 @@
 pkgname=ryoku-desktop
 pkgver=${RYOKU_PKGVER:-0.1.0}
 pkgrel=5
+# the monorepo set carries epoch 1 so 1.0.9 upgrades the 1.1-1.11 testing builds
+epoch=1
 pkgdesc="Ryoku desktop: Quickshell configuration, helpers, and runtime (compositor-neutral base)"
 # Compiled desktop helpers make the payload architecture-specific.
 arch=('x86_64')
@@ -24,13 +26,13 @@ depends=(
   # every publish rebuilds them all with one shared RYOKU_PKGVER, and the shell
   # QML in this package must never run against another release's compiled
   # plugin or daemon (a partial upgrade now fails loudly instead of skewing).
-  "ryoku-shell=$pkgver"
-  "ryoku-hub=$pkgver"
+  "ryoku-shell=$epoch:$pkgver"
+  "ryoku-hub=$epoch:$pkgver"
   # Ryogami's app integrations configure this runtime; installation alone does
   # not enable its user service or change any application.
-  "ryoku-palette-bridge=$pkgver"
-  "ryoku-blobs=$pkgver"
-  "ryoku=$pkgver"
+  "ryoku-palette-bridge=$epoch:$pkgver"
+  "ryoku-blobs=$epoch:$pkgver"
+  "ryoku=$epoch:$pkgver"
   'ryoku-keyring'
   # the RyokuArch package manager (GlazePKG)
   'gpk'
@@ -216,11 +218,11 @@ optdepends=(
   'zsh-autosuggestions: command suggestions for Zsh'
   'zsh-history-substring-search: history search for Zsh'
   'zsh-syntax-highlighting: syntax highlighting for Zsh'
-  "ryoku-oh-my-zsh=$pkgver: Ryoku prompt and plugins for Zsh"
+  "ryoku-oh-my-zsh=$epoch:$pkgver: Ryoku prompt and plugins for Zsh"
   # Rashin is every AI piece of the desktop (the agent, its window, the bar's AI
   # usage collectors). The installer offers it ticked and the doctor delivers it
   # once, so removing it sticks; ryoku-rashin pins itself to this release.
-  "ryoku-rashin=$pkgver: Rashin, the AI agent, its window and the bar's AI usage pill"
+  "ryoku-rashin=$epoch:$pkgver: Rashin, the AI agent, its window and the bar's AI usage pill"
   'starship: shell prompt'
   'fastfetch: system summary (launcher, RyoStore covers)'
   'yazi: terminal file manager'

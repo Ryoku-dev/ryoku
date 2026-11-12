@@ -23,6 +23,7 @@ type gpuModeReport struct {
 	Mode                 string `json:"mode"`
 	PerformanceAvailable bool   `json:"performance_available"`
 	PerformanceReason    string `json:"performance_reason"`
+	PerformanceRoute     string `json:"performance_route"`
 	// false when the running window manager picks its own render card
 	Applies bool `json:"applies"`
 }
@@ -30,22 +31,28 @@ type gpuModeReport struct {
 type gpuPolicyReport struct {
 	PerformanceAvailable *bool  `json:"performance_available"`
 	PerformanceReason    string `json:"performance_reason"`
+	PerformanceRoute     string `json:"performance_route"`
 }
 
 var gpuPolicyStatusOutput = func() ([]byte, error) {
 	return exec.Command(ryokuGpuBin(), "status", "--json").Output()
 }
 
-func gpuPerformanceAvailability() (bool, string) {
+func gpuPerformancePolicy() gpuModeReport {
+	open := gpuModeReport{PerformanceAvailable: true}
 	out, err := gpuPolicyStatusOutput()
 	if err != nil {
-		return true, ""
+		return open
 	}
 	var report gpuPolicyReport
 	if json.Unmarshal(out, &report) != nil || report.PerformanceAvailable == nil {
-		return true, ""
+		return open
 	}
-	return *report.PerformanceAvailable, report.PerformanceReason
+	return gpuModeReport{
+		PerformanceAvailable: *report.PerformanceAvailable,
+		PerformanceReason:    report.PerformanceReason,
+		PerformanceRoute:     report.PerformanceRoute,
+	}
 }
 
 func runGpuMode(args []string) error {
@@ -54,13 +61,10 @@ func runGpuMode(args []string) error {
 	}
 	switch args[0] {
 	case "get":
-		available, reason := gpuPerformanceAvailability()
-		return printJSON(gpuModeReport{
-			Mode:                 currentGpuMode(),
-			PerformanceAvailable: available,
-			PerformanceReason:    reason,
-			Applies:              gpuModeApplies(),
-		})
+		report := gpuPerformancePolicy()
+		report.Mode = currentGpuMode()
+		report.Applies = gpuModeApplies()
+		return printJSON(report)
 	case "set":
 		if len(args) < 2 {
 			return fmt.Errorf("gpu mode set needs hybrid|performance|passthrough")

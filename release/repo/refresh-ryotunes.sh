@@ -37,7 +37,13 @@ for desc in "$work/db"/*/desc; do
   fi
 done
 
-latest=$(RYOKU_IMPORT_RESOLVE_ONLY=1 RYOKU_APP="$RYOKU_APP" bash "$root/release/repo/import-ryotunes.sh")
+rc=0
+latest=$(RYOKU_IMPORT_RESOLVE_ONLY=1 RYOKU_APP="$RYOKU_APP" bash "$root/release/repo/import-ryotunes.sh") || rc=$?
+if (( rc == 3 )); then
+  echo "No Ryotunes 1.x release is published; $RYOKU_CHANNEL keeps Ryotunes ${installed:-as it is}."
+  exit 0
+fi
+(( rc == 0 )) || exit "$rc"
 if [[ -n "$installed" ]] && (( $(vercmp "$installed" "$latest") >= 0 )); then
   echo "$RYOKU_CHANNEL already serves $display $installed; no package download or publish needed."
   exit 0

@@ -97,6 +97,12 @@ the installed Hyprland (the default branch's tip when there is no pin, as
 hyprpm does), runs the manifest's build steps against the installed headers,
 and lays the `.so` with its `.abi` and a receipt under the built tier. The
 receipt records the repository, commit, build date and the plugin's settings.
+Every build starts from a clean tree (`git clean -ffdx` in the cache): upstream
+Makefiles do not list the Hyprland headers as a dependency, so objects left
+from the last build would be relinked unchanged. A `.so` that names a Hyprland
+commit other than the installed headers' is refused rather than installed with
+a receipt claiming otherwise, and a copy whose `.abi` disagrees with the commit
+inside its `.so` counts as stale.
 
 Nothing is enabled behind the user's back: the new plugin loads only once it is
 turned on. The build steps are the repository's own, run on
@@ -162,6 +168,12 @@ then beside its own `.so` (where a local build lays it), then the packaged
   `<plugin>=$pkgver`) and rebuild on every publish against the build host's
   Hyprland. Between publishes an Arch bump leaves them stale; the receipt makes
   that visible and the local rebuild covers it until the next release ships.
+- On Fedora the plugin RPMs require the exact `hyprland` build they were
+  compiled against, so `ryoku-desktop-hyprland` only recommends them and the
+  installer leaves them to dnf's weak dependencies. When the Hyprland COPR moves
+  ahead of Ryoku's published plugins, the desktop still installs without them;
+  the next publish rebuilds them, and `hyprland-devel` from the same COPR lets
+  the Plugins page build one sooner.
 
 ## The backend
 

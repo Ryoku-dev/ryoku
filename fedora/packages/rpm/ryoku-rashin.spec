@@ -1,5 +1,6 @@
 Name:           ryoku-rashin
 Version:        0.1
+Epoch:          1
 Release:        1%{?dist}
 Summary:        Ryoku Rashin AI system
 License:        GPL-3.0-or-later AND Apache-2.0 AND OFL-1.1
@@ -16,7 +17,7 @@ BuildRequires:  wayland-devel
 BuildRequires:  libxkbcommon-devel
 BuildRequires:  mesa-libEGL-devel
 BuildRequires:  vulkan-headers
-Requires:       ryoku-desktop = %{version}-%{release}
+Requires:       ryoku-desktop = %{epoch}:%{version}-%{release}
 Requires:       libwayland-client
 Requires:       libwayland-cursor
 Requires:       libwayland-egl

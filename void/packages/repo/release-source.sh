@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 
+# latest_github_source PACKAGE REPO TAG_PATTERN WORK [RELEASE_JSON]
+# RELEASE_JSON is a release the caller already resolved; without it the repo's
+# GitHub "latest" release is used.
 latest_github_source() {
-	local package=$1 repo=$2 tag_pattern=$3 work=$4
+	local package=$1 repo=$2 tag_pattern=$3 work=$4 release=${5:-}
 	local api=${RYOKU_GITHUB_API:-https://api.github.com}
 	local download=${RYOKU_GITHUB_DL:-https://github.com}
 	local token=${GH_TOKEN:-${GITHUB_TOKEN:-}}
-	local release tag version archive sidecar asset count sums sum file extra
+	local tag version archive sidecar asset count sums sum file extra
 	local -a curl_auth=()
 
 	if [[ -n $token ]]; then
@@ -15,9 +18,11 @@ latest_github_source() {
 		curl_auth=(--config "$work/$package-curl-auth.conf")
 	fi
 
-	release=$(curl -fsSL --retry 3 -H 'Accept: application/vnd.github+json' \
-		-H 'User-Agent: ryoku-void-source-fetch' "${curl_auth[@]}" \
-		"$api/repos/$repo/releases/latest") || return 1
+	if [[ -z $release ]]; then
+		release=$(curl -fsSL --retry 3 -H 'Accept: application/vnd.github+json' \
+			-H 'User-Agent: ryoku-void-source-fetch' "${curl_auth[@]}" \
+			"$api/repos/$repo/releases/latest") || return 1
+	fi
 	[[ $(jq -r '.draft' <<<"$release") == false && \
 	   $(jq -r '.prerelease' <<<"$release") == false ]] || return 1
 	tag=$(jq -r '.tag_name // empty' <<<"$release")

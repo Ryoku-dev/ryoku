@@ -80,7 +80,11 @@ aq_value_for() {
 # ── config snippet (Lua, hl API) ──────────────────────────────────────────────
 
 emit_snippet() {
-  local value="$1" primary="$2" mode="${3:-}" forced_marker=""
+  local value="$1" primary="$2" mode="${3:-}" route="${4:-}" forced_marker=""
+  if [[ $route == "external" ]]; then
+    emit_route_snippet "$value" "$primary" "$mode"
+    return 0
+  fi
   # A pin forced onto a laptop is deliberate: mark it so `check-pin` (and the
   # ryoku doctor behind it) never reverts an override the user asked for.
   if [[ ${RYOKU_GPU_FORCE:-0} == "1" ]]; then
@@ -105,6 +109,29 @@ hl.config({ cursor = { no_hardware_cursors = true } })
 EOF
 }
 
+emit_route_snippet() {
+  local value="$1" primary="$2" mode="${3:-}"
+  cat <<EOF
+-- Managed by ryoku-gpu. Performance on a laptop whose panel is wired to another
+-- GPU: $primary renders the desktop only when a monitor is plugged into it at
+-- login. Without one, Hyprland keeps its own panel-safe selection. The env is
+-- read once at compositor start, so a change takes effect on the next login.
+-- ryoku-gpu-primary: $primary
+-- ryoku-gpu-route: external
+${mode:+-- ryoku-gpu-mode: $mode
+}
+-- A monitor wired to a GPU other than the renderer gets its cursor across GPUs
+-- either way, and the hardware cursor plane cannot reliably import that buffer.
+hl.config({ cursor = { no_hardware_cursors = true } })
+
+local probe = io.popen("ryoku-gpu drives-screen $primary 2>/dev/null")
+local screen = probe and probe:read("*l")
+if probe then probe:close() end
+if screen ~= "connected" then return end
+hl.env("AQ_DRM_DEVICES", "$value")
+EOF
+}
+
 emit_disabled() {
   local mode="${1:-}"
   cat <<'EOF'
@@ -120,13 +147,13 @@ EOF
 }
 
 write_snippet() {
-  local dest="$1" value="$2" primary="$3" mode="${4:-}"
+  local dest="$1" value="$2" primary="$3" mode="${4:-}" route="${5:-}"
   if [[ $dest == "-" ]]; then
-    emit_snippet "$value" "$primary" "$mode"
+    emit_snippet "$value" "$primary" "$mode" "$route"
     return 0
   fi
   mkdir -p "$(dirname "$dest")"
-  emit_snippet "$value" "$primary" "$mode" >"$dest"
+  emit_snippet "$value" "$primary" "$mode" "$route" >"$dest"
 }
 
 # ── niri drop-in ──────────────────────────────────────────────────────────────
@@ -196,9 +223,16 @@ cmd_detect() {
     return 0
   fi
   echo "Strongest GPU: ${_slots[0]} (${_classes[0]})"
-  if beneficial; then
+  if beneficial && [[ ${RYOKU_GPU_FORCE:-0} != "1" ]] && reverse_prime_panel_risk; then
+    echo "Chosen primary renderer: ${_slots[0]} (pinned only while a monitor is plugged into it at login)"
+    echo "Internal panel GPU: $(internal_panel_slot); without that monitor the compositor chooses."
+  elif beneficial; then
     echo "Chosen primary renderer: ${_slots[0]} (pinned)"
     echo "AQ_DRM_DEVICES = $(aq_value_symlinks)"
+  elif external_route; then
+    echo "Chosen primary renderer: left to the compositor"
+    echo "Internal panel GPU: $(internal_panel_slot) (a dGPU-first pin would use unsafe cross-GPU scanout)"
+    echo "ryoku-gpu mode performance renders on ${_slots[0]} while a monitor is plugged into its ports at login."
   elif reverse_prime_panel_risk; then
     echo "Chosen primary renderer: left to the compositor"
     echo "Internal panel GPU: $(internal_panel_slot) (a dGPU-first pin would use unsafe cross-GPU scanout)"
@@ -223,9 +257,14 @@ cmd_order() {
   # and the plain order (the policy's recommendation) refuses to speak in
   # those states.
   if [[ $dest == "--effective" ]]; then
-    local conf="${2:-$GPU_CONF_DEFAULT}" value
+    local conf="${2:-$GPU_CONF_DEFAULT}" value primary
     value="$(sed -n 's/^hl\.env("AQ_DRM_DEVICES", *"\([^"]*\)")$/\1/p' "$conf" 2>/dev/null | head -n1)"
     [[ -n $value ]] || return 1
+    # a route pin only applies while its GPU drives a screen, as gpu.lua checks
+    if grep -q '^-- ryoku-gpu-route: external' "$conf"; then
+      primary="$(sed -n 's/^-- ryoku-gpu-primary: //p' "$conf" | head -n1)"
+      slot_drives_screen "$primary" || return 1
+    fi
     printf '%s\n' "$value"
     return 0
   fi
@@ -250,7 +289,11 @@ cmd_persist() {
   # on every machine, pin or no pin.
   [[ $dest == "-" ]] || write_niri_snippet
   if ! beneficial; then
-    if reverse_prime_panel_risk; then
+    if external_route; then
+      echo "ryoku-gpu: ${_slots[0]} is not pinned because the internal panel is wired to" \
+        "$(internal_panel_slot); ryoku-gpu mode performance renders on it while a monitor" \
+        "is plugged into its ports at login." >&2
+    elif reverse_prime_panel_risk; then
       echo "ryoku-gpu: ${_slots[0]} is not pinned because the internal panel is wired to" \
         "$(internal_panel_slot); dGPU-first cross-GPU scanout is unsafe." >&2
     elif (( _ngpu >= 2 )); then
@@ -262,7 +305,10 @@ cmd_persist() {
     fi
     return 0
   fi
-  local primary="${_slots[0]}" value style mode
+  local primary="${_slots[0]}" value style mode route=""
+  if [[ ${RYOKU_GPU_FORCE:-0} != "1" ]] && reverse_prime_panel_risk; then
+    route="external"
+  fi
   # The stamp records the mode this write realizes: the one being applied now
   # (mode performance), else the choice already stored, else nothing.
   mode="${RYOKU_GPU_MODE_SET:-$(gpu_mode_choice "$dest")}"
@@ -275,10 +321,13 @@ cmd_persist() {
     echo "ryoku-gpu: could not resolve GPU device nodes; aborting" >&2
     return 1
   fi
-  write_snippet "$dest" "$value" "$primary" "$mode"
+  write_snippet "$dest" "$value" "$primary" "$mode" "$route"
   [[ $dest == "-" ]] && return 0
   echo "ryoku-gpu: pinned primary render GPU $primary via $style"
   echo "  AQ_DRM_DEVICES=$value"
+  if [[ $route == "external" ]]; then
+    echo "  applies only while a monitor is plugged into $primary at login"
+  fi
   echo "  wrote $dest (active on next Hyprland login)"
 }
 
@@ -330,7 +379,7 @@ cmd_install_udev() {
 # Prints exactly one verdict line:
 #   ok               pin matches the policy and the stored mode choice
 #   forced           pin carries the RYOKU_GPU_FORCE marker; user intent, kept
-#   unsafe-pin SLOT  strongest-first pin crosses GPUs to the internal panel
+#   unsafe-pin SLOT  unconditional strongest-first pin crosses GPUs to the panel
 #   stale-pin SLOT   policy says unpinned; `ryoku-gpu disable` clears it
 #   missing-pin      policy says pinned; `ryoku-gpu persist` writes it
 cmd_check_pin() {
@@ -352,9 +401,10 @@ cmd_check_pin() {
     return 0
   fi
   analyze
-  local slot
+  local slot route
   slot="$(sed -n 's/^-- ryoku-gpu-primary: //p' "$dest" | head -n1)"
-  if reverse_prime_panel_risk && [[ $slot == "${_slots[0]}" ]]; then
+  route="$(sed -n 's/^-- ryoku-gpu-route: //p' "$dest" | head -n1)"
+  if [[ -z $route ]] && reverse_prime_panel_risk && [[ $slot == "${_slots[0]}" ]]; then
     echo "unsafe-pin ${slot:-unknown}"
     return 0
   fi
@@ -367,11 +417,24 @@ cmd_check_pin() {
 
 cmd_status_json() {
   analyze
-  if reverse_prime_panel_risk; then
-    printf '%s\n' "{\"performance_available\":false,\"performance_reason\":\"Switch the laptop's graphics MUX to discrete first.\"}"
+  if external_route; then
+    printf '%s\n' '{"performance_available":true,"performance_reason":"","performance_route":"external"}'
     return 0
   fi
-  printf '%s\n' '{"performance_available":true,"performance_reason":""}'
+  if reverse_prime_panel_risk; then
+    printf '%s\n' "{\"performance_available\":false,\"performance_reason\":\"Switch the laptop's graphics MUX to discrete first.\",\"performance_route\":\"\"}"
+    return 0
+  fi
+  printf '%s\n' '{"performance_available":true,"performance_reason":"","performance_route":""}'
+}
+
+cmd_drives_screen() {
+  if [[ -n ${1:-} ]] && slot_drives_screen "$1"; then
+    echo connected
+    return 0
+  fi
+  echo disconnected
+  return 1
 }
 
 cmd_status() {
@@ -383,7 +446,7 @@ cmd_status() {
   echo
   if [[ -f $GPU_CONF_DEFAULT ]] && grep -q 'hl\.env("AQ_DRM_DEVICES"' "$GPU_CONF_DEFAULT"; then
     echo "Configured ($GPU_CONF_DEFAULT):"
-    grep -E 'ryoku-gpu-primary:|AQ_DRM_DEVICES' "$GPU_CONF_DEFAULT" | sed 's/^/  /'
+    grep -E 'ryoku-gpu-primary:|ryoku-gpu-route:|AQ_DRM_DEVICES' "$GPU_CONF_DEFAULT" | sed 's/^/  /'
   else
     echo "Not configured: $GPU_CONF_DEFAULT has no AQ_DRM_DEVICES pin."
   fi
@@ -442,7 +505,7 @@ cmd_mode() {
       cmd_disable "$dest" hybrid
       ;;
     performance)
-      if [[ ${RYOKU_GPU_FORCE:-0} != "1" ]] && reverse_prime_panel_risk; then
+      if [[ ${RYOKU_GPU_FORCE:-0} != "1" ]] && reverse_prime_panel_risk && ! external_route; then
         echo "ryoku-gpu: Performance is unavailable while the internal panel is wired to" \
           "$(internal_panel_slot) instead of ${_slots[0]}." >&2
         echo "ryoku-gpu: switch the hardware MUX to discrete, reboot, then retry;" \
@@ -483,7 +546,8 @@ Commands:
   order [--effective [PATH]]
                   Print the recommended AQ_DRM_DEVICES value (exit 1 if none);
                   with --effective, print the pin file's own value instead
-                  (what the compositor would read), exit 1 when unpinned.
+                  (what the compositor would read), exit 1 when unpinned or
+                  when a monitor-route pin has no monitor on its GPU.
   persist [PATH]  Write the Hyprland pin (Lua) to PATH, to ~/.config/hypr/gpu.lua
                   by default, or to stdout when PATH is '-'.
   disable [PATH]  Reset the pin file to a managed comment-only placeholder.
@@ -491,6 +555,8 @@ Commands:
                  stale-pin SLOT | missing-pin.
   status [--json] Show the current policy; JSON reports Performance availability.
   mode <m> [PATH]  Set host graphics mode: hybrid | performance | passthrough.
+  drives-screen SLOT
+                  Print connected (exit 0) when a monitor is plugged into that GPU.
 
 The pin takes effect on the next Hyprland login (AQ_DRM_DEVICES is read at start).
 
@@ -509,6 +575,7 @@ case "${1:-status}" in
   disable | clear) cmd_disable "${2:-}" ;;
   check-pin) cmd_check_pin "${2:-}" ;;
   mode) cmd_mode "${2:-}" "${3:-}" ;;
+  drives-screen) cmd_drives_screen "${2:-}" ;;
   -h | --help | help) usage ;;
   *)
     echo "ryoku-gpu: unknown command: $1" >&2

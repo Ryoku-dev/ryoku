@@ -1,5 +1,6 @@
 Name:           ryoku-desktop
 Version:        0.1
+Epoch:          1
 Release:        1%{?dist}
 Summary:        ryoku-desktop desktop component
 License:        GPL-3.0-or-later AND MIT AND OFL-1.1
@@ -17,16 +18,16 @@ BuildRequires:  ninja-build
 BuildRequires:  gcc-c++
 BuildRequires:  qt6-qtbase-devel
 BuildRequires:  qt6-qtdeclarative-devel
-Requires:       ryoku = %{version}-%{release}
-Requires(post): ryoku = %{version}-%{release}
-Requires:       ryoku-shell = %{version}-%{release}
-Requires:       ryogami = %{version}-%{release}
-Requires:       ryoku-hub = %{version}-%{release}
-Requires:       ryoku-palette-bridge = %{version}-%{release}
-Requires:       ryoku-blobs = %{version}-%{release}
-Requires:       ryoku-extras = %{version}-%{release}
+Requires:       ryoku = %{epoch}:%{version}-%{release}
+Requires(post): ryoku = %{epoch}:%{version}-%{release}
+Requires:       ryoku-shell = %{epoch}:%{version}-%{release}
+Requires:       ryogami = %{epoch}:%{version}-%{release}
+Requires:       ryoku-hub = %{epoch}:%{version}-%{release}
+Requires:       ryoku-palette-bridge = %{epoch}:%{version}-%{release}
+Requires:       ryoku-blobs = %{epoch}:%{version}-%{release}
+Requires:       ryoku-extras = %{epoch}:%{version}-%{release}
 Requires:       ryoku-keyring
-Requires:       sddm-theme-ryoku = %{version}-%{release}
+Requires:       sddm-theme-ryoku = %{epoch}:%{version}-%{release}
 Requires:       ryoku-desktop-compositor
 Requires:       dnf
 Requires:       gpk
@@ -143,7 +144,7 @@ Suggests:       asusctl
 Suggests:       ryoku-extras
 
 Provides:       ryostore
-Provides:       ryoku-ui = %{version}-%{release}
+Provides:       ryoku-ui = %{epoch}:%{version}-%{release}
 Obsoletes:      ryostore < 0.2
 Obsoletes:      ryoku-ui < 0.2
 

@@ -1473,3 +1473,38 @@ func TestResolveModeSunFollowsTheWindow(t *testing.T) {
 		}
 	})
 }
+
+// TestMatugenCarrierKeepsBothLooks: templates that ship a dark and a light theme
+// (zed, ryotunes) must get each mode's own colours, not the active one twice.
+func TestMatugenCarrierKeepsBothLooks(t *testing.T) {
+	out := []byte(`{"colors":{
+		"surface":{"dark":{"color":"#101010"},"default":{"color":"#f0f0f0"},"light":{"color":"#f0f0f0"}},
+		"primary":{"default":{"color":"#336699"}}}}`)
+	active, dark, light, err := parseMatugenPalette(out, "light")
+	if err != nil {
+		t.Fatal(err)
+	}
+	carrier := matugenCarrier(matugenShellPalette(active), matugenShellPalette(dark), matugenShellPalette(light), "light")
+	hex := func(role, mode string) string {
+		entry, _ := carrier["colors"].(map[string]any)[role].(map[string]any)
+		co, _ := entry[mode].(map[string]any)
+		s, _ := co["hex"].(string)
+		return s
+	}
+	for _, c := range []struct{ role, mode, want string }{
+		{"surface", "default", "#f0f0f0"},
+		{"surface", "dark", "#101010"},
+		{"surface", "light", "#f0f0f0"},
+		{"surface_argb", "dark", "#ff101010"},
+		{"background", "dark", "#101010"},
+		{"primary", "dark", "#336699"},
+		{"primary", "light", "#336699"},
+	} {
+		if got := hex(c.role, c.mode); got != c.want {
+			t.Errorf("colors.%s.%s.hex = %q, want %q", c.role, c.mode, got, c.want)
+		}
+	}
+	if carrier["mode"] != "light" {
+		t.Errorf("carrier mode = %v, want light", carrier["mode"])
+	}
+}

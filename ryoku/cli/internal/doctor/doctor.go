@@ -15,6 +15,7 @@ import (
 	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/sys"
 	"ryoku-cli/internal/updater"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -360,7 +361,7 @@ func reconcilers() []reconciler {
 		{i18n.T("ryoport"), reconcileRyoport},
 		{i18n.T("fastfetch OS line"), reconcileFastfetchOSLine},
 		{i18n.T("brand mark image"), reconcileBrandLogo},
-		{i18n.T("decor art"), reconcileRyodecors},
+		{i18n.T("this account's Ryoku files"), reconcileAccountSeed},
 		{i18n.T("Hyprland config integrity"), reconcileHyprlandConfig},
 		{i18n.T("niri config integrity"), reconcileNiriConfig},
 		{i18n.T("window manager plugin builds"), reconcileWmPlugins},
@@ -905,19 +906,71 @@ func reconcileSnapperAccess(checkOnly bool) recResult {
 	if snapperReadableUnprivileged() {
 		return okRes(i18n.T("snapshots are readable without sudo"))
 	}
+	contents := snapperRootConfigContents()
 	if checkOnly {
+		if _, stale := liveSnapshotReaders(configValue(contents, "ALLOW_USERS")); len(stale) > 0 {
+			return wouldRes(i18n.T("the snapshot config still allows %s, no longer an account on this system, so snapper refuses every command including cleanup"), strings.Join(stale, " ")).
+				withFix(i18n.T("drop the missing accounts from ALLOW_USERS and grant %s read access"), user)
+		}
 		return wouldRes(i18n.T("`ryoku status` cannot count snapshots without a cached sudo credential, so it can read as \"0\" on a machine that has them")).
 			withFix(i18n.T("grant %s read access (snapper ALLOW_USERS + SYNC_ACL)"), user)
 	}
+	// ALLOW_USERS is a list; writing only this user locks every other account out
+	if contents == "" && sys.Sudo("-v") == nil {
+		contents = snapperRootConfigContents()
+	}
+	if contents == "" {
+		return failRes(i18n.T("could not read the snapper root config, so %s was not added beside the accounts it already allows"), user).
+			withFix(i18n.T("sudo snapper -c root set-config ALLOW_USERS=\"<accounts already listed> %s\" SYNC_ACL=yes"), user)
+	}
+	live, stale := liveSnapshotReaders(configValue(contents, "ALLOW_USERS"))
+	if len(stale) > 0 {
+		// snapper cannot load a config naming a missing account, set-config included
+		if err := writeRootFile("/etc/snapper/configs/root", withConfigValue(contents, "ALLOW_USERS", live), "0640"); err != nil {
+			return failRes(i18n.T("dropping %s from the snapshot readers: %v"), strings.Join(stale, " "), err).
+				withFix(i18n.T("edit ALLOW_USERS in /etc/snapper/configs/root to list only existing accounts"))
+		}
+	}
+	allow := allowUsersWith(live, user)
 	if err := sys.Run("sudo", "snapper", "-c", "root", "set-config",
-		"ALLOW_USERS="+user, "SYNC_ACL=yes"); err != nil {
+		"ALLOW_USERS="+allow, "SYNC_ACL=yes"); err != nil {
 		return failRes(i18n.T("granting %s snapshot read access: %v"), user, err).
-			withFix(i18n.T("sudo snapper -c root set-config ALLOW_USERS=%s SYNC_ACL=yes"), user)
+			withFix(i18n.T("sudo snapper -c root set-config ALLOW_USERS=\"%s\" SYNC_ACL=yes"), allow)
 	}
 	if !snapperReadableUnprivileged() {
 		return warnRes(i18n.T("granted %s snapshot access, but an unprivileged read still fails; the ACL sync may land on the next snapshot"), user)
 	}
 	return fixedRes(i18n.T("granted %s read access to snapshots (ALLOW_USERS, SYNC_ACL); `ryoku status` counts them without sudo now"), user)
+}
+
+func allowUsersWith(current, user string) string {
+	users := strings.Fields(current)
+	for _, u := range users {
+		if u == user {
+			return strings.Join(users, " ")
+		}
+	}
+	return strings.Join(append(users, user), " ")
+}
+
+// accountExists asks NSS, so directory accounts count; only getent's
+// "not found" answer marks a name as gone
+var accountExists = func(name string) bool {
+	var exit *exec.ExitError
+	err := exec.Command("getent", "passwd", name).Run()
+	return !errors.As(err, &exit) || exit.ExitCode() != 2
+}
+
+func liveSnapshotReaders(current string) (string, []string) {
+	var live, stale []string
+	for _, name := range strings.Fields(current) {
+		if accountExists(name) {
+			live = append(live, name)
+		} else {
+			stale = append(stale, name)
+		}
+	}
+	return strings.Join(live, " "), stale
 }
 
 // snapperReadableUnprivileged reports whether the current user can list the root
@@ -1745,9 +1798,9 @@ func reconcileDockStore(checkOnly bool) recResult {
 	} else if !os.IsNotExist(stageErr) {
 		return warnRes(i18n.T("could not read %s: %v"), stagePath, stageErr)
 	}
-	if len(stagePins) > 0 {
+	if len(stagePins) > 0 && !dockPinsConfigured(migrated) {
 		var merged bool
-		migrated, merged, err = mergeDockPins(migrated, stagePins)
+		migrated, merged, err = mergeDockPins(migrated, installedDockPins(stagePins))
 		if err != nil {
 			return warnRes(i18n.T("shell.json does not parse (%v); the shell falls back to defaults"), err)
 		}
@@ -2111,6 +2164,9 @@ func jsonValuesEqual(left, right json.RawMessage) bool {
 	return reflect.DeepEqual(a, b)
 }
 
+// Stage's schema writes these back on every save; they were never user pins
+var stageDefaultDockPins = []string{"org.kde.dolphin", "kitty"}
+
 func migrateStageDockStore(raw []byte) ([]byte, []string, map[string]json.RawMessage, bool, error) {
 	var top map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &top); err != nil {
@@ -2131,13 +2187,15 @@ func migrateStageDockStore(raw []byte) ([]byte, []string, map[string]json.RawMes
 	}
 	var pins []string
 	if oldPins, ok := dock["pinnedApps"]; ok {
-		pins = appendDockPins(nil, oldPins)
-		delete(dock, "pinnedApps")
-		top["dock"], err = encodeObject(dock)
-		if err != nil {
-			return nil, nil, nil, false, err
+		if found := appendDockPins(nil, oldPins); !slices.Equal(found, stageDefaultDockPins) {
+			pins = found
+			delete(dock, "pinnedApps")
+			top["dock"], err = encodeObject(dock)
+			if err != nil {
+				return nil, nil, nil, false, err
+			}
+			changed = true
 		}
-		changed = true
 	}
 
 	legacyShima := map[string]json.RawMessage{}
@@ -2276,6 +2334,40 @@ func mergeDockPins(raw []byte, extra []string) ([]byte, bool, error) {
 		return nil, false, err
 	}
 	return append(out, '\n'), true, nil
+}
+
+// once the user edited the shared list, it alone decides what is pinned
+func dockPinsConfigured(raw []byte) bool {
+	var top struct {
+		Dock struct {
+			PinnedConfigured bool `json:"pinnedConfigured"`
+		} `json:"dock"`
+	}
+	return json.Unmarshal(raw, &top) == nil && top.Dock.PinnedConfigured
+}
+
+// matches nautilus to org.gnome.Nautilus.desktop too
+func installedDockPins(pins []string) []string {
+	user, system := applicationDirs()
+	known := map[string]bool{}
+	for _, dir := range append([]string{user}, system...) {
+		entries, _ := os.ReadDir(dir)
+		for _, entry := range entries {
+			id, ok := strings.CutSuffix(strings.ToLower(entry.Name()), ".desktop")
+			if !ok {
+				continue
+			}
+			known[id] = true
+			known[id[strings.LastIndex(id, ".")+1:]] = true
+		}
+	}
+	var out []string
+	for _, pin := range pins {
+		if known[pin] {
+			out = append(out, pin)
+		}
+	}
+	return out
 }
 
 func mustJSON(value any) json.RawMessage {
@@ -3889,64 +3981,6 @@ func reconcileBrandLogo(checkOnly bool) recResult {
 		return failRes(i18n.T("could not replace %s: %v"), path, err)
 	}
 	return fixedRes(i18n.T("cleared the broken brand image (%s); the mark falls back to the text seal"), img)
-}
-
-// ---- reconciler: decor art (<Pictures>/ryodecors) ----------------------------
-
-// ryodecorsSource is where the shipped decor art set lives: the repo checkout on
-// a dev box (ryoku deploy records it), else /usr/share/ryoku/ryodecors from the
-// ryoku-desktop package. "" when neither is present (a box on a pre-fix package,
-// cured by pulling the update first).
-func ryodecorsSource() string {
-	if repo := sys.ResolveRepo(); repo != "" {
-		if p := filepath.Join(repo, "ryoku", "assets", "ryodecors"); sys.Exists(p) {
-			return p
-		}
-	}
-	if p := "/usr/share/ryoku/ryodecors"; sys.Exists(p) {
-		return p
-	}
-	return ""
-}
-
-// reconcileRyodecors keeps the shipped decor art present in <Pictures>/ryodecors
-// (~/Pictures, or the localized XDG folder such as ~/Imágenes), the folder the Decor and Placard components render from (beside Wallpapers and
-// livewalls). The installer seeds it on a fresh install; this delivers it -- and
-// any art a later release adds -- to a box that updated before it shipped, or one
-// where a file went missing. Missing-only: a file the user swapped or added is
-// left alone, and nothing is pruned (it is a user-owned Pictures folder).
-func reconcileRyodecors(checkOnly bool) recResult {
-	src := ryodecorsSource()
-	if src == "" {
-		return okRes(i18n.T("no decor art source yet (ships with the desktop package)"))
-	}
-	entries, err := os.ReadDir(src)
-	if err != nil {
-		return okRes(i18n.T("decor art source unreadable (%v)"), err)
-	}
-	dst := filepath.Join(sys.PicturesDir(), "ryodecors")
-	var missing []string
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		if !sys.Exists(filepath.Join(dst, e.Name())) {
-			missing = append(missing, e.Name())
-		}
-	}
-	if len(missing) == 0 {
-		return okRes(i18n.T("decor art present in %s"), dst)
-	}
-	if checkOnly {
-		return wouldRes(i18n.T("%d decor art file(s) missing from %s"), len(missing), dst).
-			withFix("ryoku doctor")
-	}
-	for _, name := range missing {
-		if err := sys.CopyFile(filepath.Join(src, name), filepath.Join(dst, name)); err != nil {
-			return failRes(i18n.T("could not seed decor art %s: %v"), name, err).withFix("ryoku doctor")
-		}
-	}
-	return fixedRes(i18n.T("seeded %d decor art file(s) into %s"), len(missing), dst)
 }
 
 // ---- reconciler: follow-mouse default ---------------------------------------

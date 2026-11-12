@@ -190,6 +190,8 @@ var catalogue = []CatalogBind{
 	{ID: "resize.shorter", Category: "Resize", Label: "Shorter", Chord: "SUPER + CTRL + Up", Kind: BindWM},
 	{ID: "resize.taller", Category: "Resize", Label: "Taller", Chord: "SUPER + CTRL + Down", Kind: BindWM},
 	{ID: "resize.resetHeight", Category: "Resize", Label: "Reset height", Hint: "Give the window its automatic height back", Chord: "SUPER + CTRL + R", Kind: BindWM},
+	{ID: "resize.grow", Category: "Resize", Label: "Grow window", Hint: "Step a scrolling column to its next preset width, or widen the window", Chord: "SUPER + equal", Kind: BindWM},
+	{ID: "resize.shrink", Category: "Resize", Label: "Shrink window", Hint: "Step a scrolling column to its previous preset width, or narrow the window", Chord: "SUPER + minus", Kind: BindWM},
 
 	// Workspaces
 	{ID: "workspace.focus", Category: "Workspaces", Label: "Workspace 1 to 10", Hint: "Focus that workspace on this screen", Chord: "SUPER + {n}", Kind: BindWM, Family: true},
@@ -240,6 +242,7 @@ var catalogue = []CatalogBind{
 	{ID: "shell.ask", Category: "Shell", Label: "Ask Rashin", Hint: "Ask Rashin about this machine", Chord: "ALT + Space", Kind: BindShell, Needs: "rashind", NeedsName: "Rashin"},
 	{ID: "shell.rashin", Category: "Shell", Label: "Rashin", Hint: "The Rashin app; a second press focuses it", Chord: "SUPER + ALT + Space", Kind: BindShell, Needs: "rashin-app", NeedsName: "Rashin"},
 	{ID: "shell.cheatsheet", Category: "Shell", Label: "Kit", Hint: "Press again to close", Chord: "SUPER + K", Kind: BindShell},
+	{ID: "shell.gamebar", Category: "Shell", Label: "Game Bar", Hint: "Capture, performance and tasks over a full screen game", Chord: "SUPER + SHIFT + G", Kind: BindShell},
 	{ID: "shell.lock", Category: "Shell", Label: "Lock the screen", Chord: "SUPER + L", Kind: BindShell},
 	{ID: "shell.quicksettings", Category: "Shell", Label: "Quick settings", Hint: "Power, sign out, restart, shut down and Wi-Fi", Chord: "SUPER + Escape", Kind: BindShell},
 	{ID: "shell.wallpaper", Category: "Shell", Label: "Wallpaper picker", Chord: "SUPER + W", Kind: BindShell},
@@ -266,6 +269,7 @@ var catalogue = []CatalogBind{
 	{ID: "media.mute", Category: "Media", Label: "Mute", Chord: "XF86AudioMute", Kind: BindShell, Locked: true},
 	{ID: "media.micMute", Category: "Media", Label: "Mute microphone", Chord: "XF86AudioMicMute", Kind: BindShell, Locked: true},
 	{ID: "media.play", Category: "Media", Label: "Play or pause", Chord: "XF86AudioPlay", Kind: BindShell, Locked: true},
+	{ID: "media.pause", Category: "Media", Label: "Pause", Chord: "XF86AudioPause", Kind: BindShell, Locked: true},
 	{ID: "media.next", Category: "Media", Label: "Next track", Chord: "XF86AudioNext", Kind: BindShell, Locked: true},
 	{ID: "media.prev", Category: "Media", Label: "Previous track", Chord: "XF86AudioPrev", Kind: BindShell, Locked: true},
 
@@ -399,6 +403,8 @@ var displayNames = map[string]string{
 	"Next":                  "Page Down",
 	"grave":                 "`",
 	"comma":                 ",",
+	"minus":                 "-",
+	"equal":                 "=",
 	"bracketleft":           "[",
 	"bracketright":          "]",
 	"mouse:272":             "LMB",
@@ -410,6 +416,7 @@ var displayNames = map[string]string{
 	"XF86AudioMute":         "Mute",
 	"XF86AudioMicMute":      "Mic mute",
 	"XF86AudioPlay":         "Play",
+	"XF86AudioPause":        "Pause",
 	"XF86AudioNext":         "Next",
 	"XF86AudioPrev":         "Prev",
 	"XF86MonBrightnessUp":   "Brightness +",

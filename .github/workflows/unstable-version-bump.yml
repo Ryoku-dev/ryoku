@@ -1,11 +1,12 @@
 name: Unstable Version Bump
 
-# Every push to unstable-dev nudges the base version forward: a patch each time,
-# rolling to the next minor once the patch passes 9 (0.1.9 -> 0.2.0), keeping the
-# hand-set beta line (VERSION goes 0.1.2-beta.16 -> 0.1.3-beta.16 -> ...).
-# main is never bumped here, so it holds its version until unstable-dev merges
-# in and it adopts whatever the base has climbed to. The minor, the beta number,
-# and the leading 0 stay a hand call: edit VERSION yourself and this leaves it be.
+# VERSION on unstable-dev names the next stable release: one roll past what main
+# carries (main 1.0.8 -> unstable 1.0.9; a roll carries into the minor past 9,
+# 1.0.9 -> 1.1.0). Pushes no longer move it; testing builds stay distinct and
+# increasing through their build number and r<commit count>. After a release
+# lands on main this catches VERSION up to the next one. A VERSION hand-set at
+# or above that (the next release is a minor or a major) is left alone, and so
+# is a push that edits VERSION itself.
 
 on:
   push:
@@ -20,7 +21,7 @@ concurrency:
 
 jobs:
   bump:
-    name: Bump version on unstable-dev
+    name: Keep VERSION on the next release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout unstable-dev
@@ -29,14 +30,13 @@ jobs:
           ref: unstable-dev
           fetch-depth: 0
 
-      - name: Bump the version, keep the beta line
+      - name: Name the next release after main
         shell: bash
         run: |
           set -euo pipefail
 
-          # a push that hand-edits VERSION is a deliberate bump (a new beta, minor,
-          # major, or base) so leave it exactly as set. pushes made with the default
-          # GITHUB_TOKEN do not retrigger workflows, so the bot's own bump can't loop.
+          # pushes made with the default GITHUB_TOKEN do not retrigger
+          # workflows, so the bot's own commit can't loop.
           before="${{ github.event.before }}"
           [[ $before =~ ^0+$ ]] && before="HEAD~1"
           if ! git diff --quiet "$before" HEAD -- VERSION; then
@@ -44,8 +44,15 @@ jobs:
             exit 0
           fi
 
+          git fetch --quiet origin main
+          main="$(git show origin/main:VERSION | tr -d '[:space:]')"
           was="$(tr -d '[:space:]' < VERSION)"
-          next="$(./bin/ryoku-release-bump roll keep)"
+          next="$(./bin/ryoku-release-bump roll keep "$main")"
+          # never lower VERSION: package versions follow it
+          if [[ $(printf '%s\n' "$next" "$was" | sort -V | tail -n1) == "$was" ]]; then
+            echo "VERSION $was already names a release after main's $main." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           printf '%s\n' "$next" > VERSION
 
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -58,8 +65,9 @@ jobs:
           git push origin HEAD:unstable-dev
 
           {
-            echo "### Unstable version bump"
+            echo "### Next release"
             echo
+            echo "- main: \`$main\`"
             echo "- Was: \`$was\`"
             echo "- Now: \`$next\`"
           } >> "$GITHUB_STEP_SUMMARY"

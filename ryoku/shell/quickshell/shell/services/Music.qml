@@ -27,6 +27,15 @@ Singleton {
     readonly property bool hasArt: root.art.length > 0
     // The daemon publishes a filesystem path; Image wants a URL.
     readonly property string artUrl: root.hasArt ? "file://" + root.art : ""
+    // never a web URL: an https Image runs Qt's TLS off the GUI thread and can segfault qs (quickshell#1368)
+    function coverFor(player) {
+        if (!player)
+            return "";
+        if (player === Media.player && root.hasArt)
+            return root.artUrl;
+        const raw = String(player.trackArtUrl || "");
+        return raw.startsWith("file://") ? raw : "";
+    }
     readonly property var lines: root.frame.lyrics || []
     readonly property var plain: root.frame.plain || []
     readonly property string status: root.frame.lyricsStatus || "idle"

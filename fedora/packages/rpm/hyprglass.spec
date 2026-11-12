@@ -2,6 +2,7 @@
 %global hyprland_evr %(rpm -q --qf '%%{EVR}' hyprland)
 Name:           hyprglass
 Version:        0.1
+Epoch:          1
 Release:        1%{?dist}
 Summary:        Liquid glass effect for Hyprland
 License:        GPL-3.0-or-later

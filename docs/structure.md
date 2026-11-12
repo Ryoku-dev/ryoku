@@ -20,7 +20,7 @@ Start with the guide that matches the job:
   [kernels and CachyOS gaming](kernels.md).
 - **Understand the desktop:** [what Ryoku is](ryoku.md), [UI and motion
   rules](ui-ux.md), [the Lithic design language](lithic/README.md), [subshells and bar styles](subshells.md), [frame bars](bar.md), [sidebars](sidebars.md),
-  [launcher](launcher.md), [frame](frame.md), [Stage Editor](stage.md),
+  [Game Bar](gamebar.md), [launcher](launcher.md), [frame](frame.md), [Stage Editor](stage.md),
   [Ryogami](ryogami.md), [RyoStore](store.md), [installable
   profiles](profiles.md), [the Profile plate](profile.md), [theming](theming.md),
   [performance](performance.md), [power](power.md) and [plugins](plugins.md).
@@ -99,6 +99,7 @@ truth for the live desktop.
   edge opposite the bar (its own surface, shared by every subshell and bar
   style), `launcher`,
   `overview` (`Super+Tab`),
+  `gamebar` the in-game overlay with its widget cards (see `docs/gamebar.md`),
   `wallpaper`, `visualizer` (a click-through spectrum layer that renders through
   the shared `Ryoku.Ui` spectrum field, keeping only its per-frame band math in
   its own `Motion.qml`), `osd`, `notifications`, `capture`, `confirm`, and
@@ -419,5 +420,6 @@ downgrades.
   lane; the three `publish-repo*.yml` publishers run the same gate before they
   upload; `i18n.yml` runs only by hand. `docs/updates.md`, "Publishing", has the
   channel layout they write.
-- `VERSION` the base semver; `.woke.yml` the inclusive-language config;
+- `VERSION` the base semver (on `unstable-dev`, the next stable release);
+  `.woke.yml` the inclusive-language config;
   `.rashin-reviewer.yaml` the pre-commit review gate's settings.

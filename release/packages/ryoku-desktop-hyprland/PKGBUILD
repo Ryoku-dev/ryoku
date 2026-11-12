@@ -13,6 +13,7 @@
 pkgname=ryoku-desktop-hyprland
 pkgver=${RYOKU_PKGVER:-0.1.0}
 pkgrel=2
+epoch=1
 pkgdesc="Ryoku desktop: the Hyprland compositor, plugins, portal, and the ryoku-wm-hyprland provider"
 # package() builds the Go provider, so the payload is arch-specific.
 arch=('x86_64')
@@ -20,18 +21,18 @@ url="https://ryoku.dev"
 license=('GPL-3.0-or-later')
 makedepends=('go')
 depends=(
-  "ryoku-desktop=$pkgver"
+  "ryoku-desktop=$epoch:$pkgver"
   # compositor + Wayland session
   'hyprland'
   # Hyprland compositor plugins the Hub can toggle (Settings > Plugins), pinned to
   # this build so a plugin .so never runs against another release's headers. Off by
   # default; the generated settings.lua loads one only once the user enables it.
-  "hypr-dynamic-cursors=$pkgver"
-  "ryoku-hypr-plugins=$pkgver"
-  "hyprglass=$pkgver"
-  "imgborders=$pkgver"
-  "ryoku-keysounds=$pkgver"
-  "hyprgrass=$pkgver"
+  "hypr-dynamic-cursors=$epoch:$pkgver"
+  "ryoku-hypr-plugins=$epoch:$pkgver"
+  "hyprglass=$epoch:$pkgver"
+  "imgborders=$epoch:$pkgver"
+  "ryoku-keysounds=$epoch:$pkgver"
+  "hyprgrass=$epoch:$pkgver"
   'hyprpolkitagent'
   # [ryoku] pins the post-1.4.1 DMA-BUF renegotiation and Start-timeout fixes;
   # `ryoku update` repo-qualifies this drop-in even though extra is listed first.

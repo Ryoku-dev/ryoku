@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -238,6 +239,33 @@ func TestBandForFrequency(t *testing.T) {
 	for _, c := range cases {
 		if got := bandForFrequency(c.mhz); got != c.want {
 			t.Errorf("bandForFrequency(%d) = %q, want %q", c.mhz, got, c.want)
+		}
+	}
+}
+
+// activationOutcome settles a join from one State poll. A failed activation
+// vanishes from the bus, so a failed read is a failure, not "still activating".
+func TestActivationOutcome(t *testing.T) {
+	gone := errors.New("no such object")
+	cases := []struct {
+		name    string
+		state   uint32
+		readErr error
+		done    bool
+		wantErr error
+	}{
+		{"activating keeps waiting", 1, nil, false, nil},
+		{"unknown keeps waiting", 0, nil, false, nil},
+		{"activated succeeds", 2, nil, true, nil},
+		{"deactivating keeps waiting", 3, nil, false, nil},
+		{"deactivated fails", 4, nil, true, errActivationFailed},
+		{"vanished object fails", 0, gone, true, errActivationFailed},
+	}
+	for _, c := range cases {
+		done, err := activationOutcome(c.state, c.readErr)
+		if done != c.done || !errors.Is(err, c.wantErr) || (c.wantErr == nil && err != nil) {
+			t.Errorf("%s: activationOutcome(%d, %v) = (%v, %v), want (%v, %v)",
+				c.name, c.state, c.readErr, done, err, c.done, c.wantErr)
 		}
 	}
 }

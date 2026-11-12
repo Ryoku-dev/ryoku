@@ -121,6 +121,7 @@ Item {
         ControlsBoard {
             s: root.s
             screen: root.screen
+            card: root
             active: root.active && root.page !== "plugins"
             page: root.page
             onRequestClose: root.closeRequested()

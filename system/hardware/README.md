@@ -111,6 +111,10 @@ in the machine, and do not waste power doing it.
     volume panel's BOOST toggle (`qsbar.audioBoost` in `shell.json`): off caps at
     100%, on at 150%. The keys go through it rather than calling `wpctl` inline so
     the stepping lives in one place.
+  - `ryoku-media` Runs `playerctl` for the `XF86AudioPlay` (play-pause) and
+    `XF86AudioPause` (pause) keys, dropping any second call within 200 ms. Some
+    headphones send play and pause together for one tap; without the window the
+    second key would undo the first.
 - `network/`
   - `ryoku-wifi-powersave` Disables, then restores, 802.11 power-save on every
     WiFi device for the shell's Game Mode, via `iw`, so the radio stays fully awake
@@ -147,10 +151,15 @@ list, so a monitor plugged into a different GPU still works.
 On a laptop, Ryoku pins only when the strongest GPU also owns the connected
 internal panel. A dGPU-first pin over an iGPU panel makes every frame cross GPUs;
 Aquamarine can lose that panel at login or while rebuilding it after DPMS.
-Performance mode is therefore refused until a hardware MUX routes the panel to
-the dGPU. Hybrid leaves selection to the compositor, and doctor clears legacy
-pins with this unsafe topology. `RYOKU_GPU_FORCE=1` remains an advanced override
-for testing known-working hardware.
+If the dGPU has no display ports, Performance is refused until a hardware MUX
+routes the panel to the dGPU. When it has its own ports (often HDMI),
+Performance writes a pin that `gpu.lua` applies at login only while a monitor is
+plugged into one of them, so the desktop renders where that monitor is wired
+instead of copying every frame across from the iGPU; with nothing plugged in the
+compositor keeps choosing. Hybrid leaves selection to the compositor, and doctor
+clears unconditional pins with this topology. `RYOKU_GPU_FORCE=1` remains an
+advanced override for testing known-working hardware. niri never takes a render
+pin; it picks its own render device.
 
 ## How display scaling works
 

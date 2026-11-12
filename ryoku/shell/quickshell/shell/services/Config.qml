@@ -109,6 +109,28 @@ Singleton {
     // Phone integration is optional and remains dormant until its Hub install
     // transaction has completed.
     property alias phone: adapter.phone
+
+    // Game Bar knobs, merged under the file's object so an older or partial
+    // shell.json still yields every value. Writes go through the daemon.
+    readonly property var gamebar: root.mergeGameBar(adapter.gamebar)
+    function mergeGameBar(raw) {
+        var out = {
+            enabled: true, dim: 0.62, fade: 200, scale: 1, radius: 14,
+            snap: true, snapReach: 9, snapGrid: 24,
+            guideGrid: true, gridStep: 48, gridAlpha: 0.28,
+            spring: 3.2, damping: 0.58, mass: 1,
+            voiceAvatars: 8, voiceDim: true, voiceDimOpacity: 0.5,
+            voiceAvatarSize: 52, voiceNames: true, voiceControls: true, voiceBgOpacity: 0.72
+        };
+        if (raw && typeof raw === "object")
+            for (var k in out)
+                if (raw[k] !== undefined && raw[k] !== null)
+                    out[k] = raw[k];
+        return out;
+    }
+    function setGameBar(key, value) {
+        ShellSettings.patch("gamebar." + key, value);
+    }
     readonly property var normalizedNacre: NacreConfig.normalize(nacre)
     readonly property var defaultControls: ({
         "position": "top-left",
@@ -250,7 +272,7 @@ Singleton {
         "terminalFontFamily", "fontSize", "weatherLocation", "weatherUnit", "formatLocale",
         "screenShader", "frameBars", "batteryAlerts", "theme", "notifications", "sounds",
         "audio", "barStyle", "launcherTarget", "obi", "nacre", "qsbar", "kairos",
-        "orpheus", "python", "inir", "dock", "designs", "clipboard", "phone", "ask"
+        "orpheus", "python", "inir", "dock", "designs", "clipboard", "phone", "ask", "gamebar"
     ]
     property var adapterDefaults: ({})
 
@@ -467,6 +489,29 @@ Singleton {
                 "y": 0.68,
                 "screen": ""
             }
+        })
+        property var gamebar: ({
+            "enabled": true,
+            "dim": 0.62,
+            "fade": 200,
+            "scale": 1,
+            "radius": 14,
+            "snap": true,
+            "snapReach": 9,
+            "snapGrid": 24,
+            "guideGrid": true,
+            "gridStep": 48,
+            "gridAlpha": 0.28,
+            "spring": 3.2,
+            "damping": 0.58,
+            "mass": 1,
+            "voiceAvatars": 8,
+            "voiceDim": true,
+            "voiceDimOpacity": 0.5,
+            "voiceAvatarSize": 52,
+            "voiceNames": true,
+            "voiceControls": true,
+            "voiceBgOpacity": 0.72
         })
     }
 

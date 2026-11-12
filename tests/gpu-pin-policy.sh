@@ -42,12 +42,22 @@ esac
 EOF
 chmod +x "$bin/ryoku-gpu-mux"
 export PATH="$bin:$PATH"
+# gpu.lua calls ryoku-gpu by name at compositor start
+printf '#!/usr/bin/env bash\nexec %q "$@"\n' "$gpu" >"$bin/ryoku-gpu"
+chmod +x "$bin/ryoku-gpu"
 
 conf="$tmp/gpu.lua"
 niri="$tmp/gpu.kdl"
 run() { RYOKU_GPU_DRM_ROOT="$drm" RYOKU_GPU_DRI_DIR="$dri" RYOKU_GPU_CONF="$conf" \
         RYOKU_GPU_NIRI_CONF="$niri" RYOKU_ASSUME_LAPTOP="${LAPTOP:-1}" "$gpu" "$@"; }
 verdict() { run check-pin; }
+# The AQ_DRM_DEVICES value Hyprland would get from gpu.lua at start, "" for none.
+lua_bin="$(command -v lua5.4 || command -v lua || command -v luajit || true)"
+start_env() {
+  RYOKU_GPU_DRM_ROOT="$drm" "$lua_bin" -e \
+    'hl = { env = function(k, v) if k == "AQ_DRM_DEVICES" then io.write(v) end end, config = function() end }' \
+    -e "dofile('$conf')"
+}
 
 # --- 0. KMS-only display devices never enter the GPU inventory
 detect_json="$(run detect --json)"
@@ -58,7 +68,7 @@ detect_json="$(run detect --json)"
 rm -f "$conf"
 [[ "$(verdict)" == "ok" ]] || fail "panel-crossing laptop must be safe while unpinned, got $(verdict)"
 policy="$(run status --json)"
-[[ $policy == '{"performance_available":false,"performance_reason":"Switch the laptop'\''s graphics MUX to discrete first."}' ]] \
+[[ $policy == '{"performance_available":false,"performance_reason":"Switch the laptop'\''s graphics MUX to discrete first.","performance_route":""}' ]] \
   || fail "unsafe topology reported the wrong status JSON: $policy"
 run persist 2>"$tmp/err" >/dev/null
 grep -Eq '^hl\.env\("AQ_DRM_DEVICES"' "$conf" 2>/dev/null \
@@ -90,16 +100,73 @@ mkdir -p "$drm/card1-eDP-1"
 printf 'connected\n' >"$drm/card1-eDP-1/status"
 run mode performance >/dev/null
 policy="$(run status --json)"
-[[ $policy == '{"performance_available":true,"performance_reason":""}' ]] \
+[[ $policy == '{"performance_available":true,"performance_reason":"","performance_route":""}' ]] \
   || fail "panel-owning dGPU was not reported as Performance-capable: $policy"
 grep -Eq '^hl\.env\("AQ_DRM_DEVICES"' "$conf" || fail "safe Performance wrote no pin"
 grep -q 'ryoku-gpu-mode: performance' "$conf" || fail "Performance did not stamp the mode"
 grep -q 'ryoku-gpu-primary: 0000:02:00.0' "$conf" || fail "Performance primary is not the dGPU"
+grep -q 'ryoku-gpu-route' "$conf" && fail "panel-owning Performance pin was made conditional"
 [[ "$(verdict)" == "ok" ]] || fail "panel-owning Performance pin must be ok, got $(verdict)"
 
 # Restore the common hybrid wiring for the remaining cases.
 printf 'connected\n' >"$drm/card0-eDP-1/status"
 printf 'disconnected\n' >"$drm/card1-eDP-1/status"
+run disable >/dev/null
+
+# --- 4b. iGPU panel, external monitor on a dGPU port: Performance pins the dGPU
+# only while that monitor is plugged in at login
+mkdir -p "$drm/card1-HDMI-A-1"
+printf 'connected\n' >"$drm/card1-HDMI-A-1/status"
+rm -f "$conf"
+run persist 2>/dev/null >/dev/null
+grep -Eq '^hl\.env\("AQ_DRM_DEVICES"' "$conf" 2>/dev/null \
+  && fail "default persist pinned across the panel without a Performance choice"
+policy="$(run status --json)"
+[[ $policy == '{"performance_available":true,"performance_reason":"","performance_route":"external"}' ]] \
+  || fail "dGPU with a display port was not offered as monitor-route Performance: $policy"
+run mode performance >/dev/null || fail "Performance refused a dGPU that drives an external monitor"
+grep -q 'ryoku-gpu-mode: performance' "$conf" || fail "route Performance did not stamp the mode"
+grep -q 'ryoku-gpu-route: external' "$conf" || fail "route Performance pin is unconditional"
+grep -q 'ryoku-gpu drives-screen 0000:02:00.0' "$conf" || fail "route pin does not check the dGPU at start"
+[[ "$(verdict)" == "ok" ]] || fail "route Performance pin must be ok, got $(verdict)"
+v="$(run order --effective)" && [[ $v == *"ryoku-gpu-0000-02-00-0:"*"ryoku-gpu-0000-01-00-0" ]] \
+  || fail "route pin with the monitor plugged in must be dGPU-first, got ${v:-<none>}"
+[[ "$(run drives-screen 0000:02:00.0)" == "connected" ]] || fail "drives-screen missed the external monitor"
+if [[ -n $lua_bin ]]; then
+  v="$(start_env)"
+  [[ $v == *"ryoku-gpu-0000-02-00-0:"*"ryoku-gpu-0000-01-00-0" ]] \
+    || fail "gpu.lua did not put the dGPU first with the monitor plugged in, got ${v:-<none>}"
+else
+  echo "gpu-pin-policy: no lua interpreter, gpu.lua start evaluation skipped" >&2
+fi
+
+# --- 4c. the external monitor unplugged after enabling: no dGPU-first start
+printf 'disconnected\n' >"$drm/card1-HDMI-A-1/status"
+if run order --effective >/dev/null 2>&1; then
+  fail "route pin without its monitor must not report a dGPU-first renderer"
+fi
+if run drives-screen 0000:02:00.0 >/dev/null; then
+  fail "drives-screen reported an unplugged dGPU port"
+fi
+if [[ -n $lua_bin ]]; then
+  v="$(start_env)"
+  [[ -z $v ]] || fail "gpu.lua pinned the dGPU with only the iGPU panel lit: $v"
+fi
+run persist >/dev/null
+grep -q 'ryoku-gpu-route: external' "$conf" || fail "login persist made the route pin unconditional"
+[[ "$(verdict)" == "ok" ]] || fail "route pin must stay ok while unplugged, got $(verdict)"
+
+# --- 4d. a legacy unconditional pin under stored Performance is still unsafe;
+# login persist turns it back into the monitor-route pin
+RYOKU_GPU_FORCE=1 run persist >/dev/null
+sed -i '/ryoku-gpu-forced/d' "$conf"
+grep -q 'ryoku-gpu-route' "$conf" && fail "forced pin was written as a route pin"
+v="$(verdict)"
+[[ "$v" == "unsafe-pin 0000:02:00.0" ]] || fail "unconditional pin over the panel must be unsafe-pin, got $v"
+run persist >/dev/null
+grep -q 'ryoku-gpu-route: external' "$conf" || fail "persist did not restore the route pin"
+
+rm -rf "$drm/card1-HDMI-A-1"
 run disable >/dev/null
 
 # --- 5. desktops keep pinning even when connectors span GPUs

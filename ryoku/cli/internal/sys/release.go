@@ -149,7 +149,9 @@ func CompareReleaseTags(a, b string) int {
 
 // CompareFrozenVersions orders two versions when both are stable releases or
 // both are unstable builds. The bool is false when their kinds differ or either
-// value is not frozen.
+// value is not frozen. Unstable builds order by build number, the publisher's
+// run counter: their version part names the next release and so can go down
+// (v1.11.4.dev.1030 came before v1.0.9.dev.1040).
 func CompareFrozenVersions(a, b string) (int, bool) {
 	if IsReleaseTag(a) && IsReleaseTag(b) {
 		return CompareReleaseTags(a, b), true
@@ -158,9 +160,6 @@ func CompareFrozenVersions(a, b string) (int, bool) {
 		return 0, false
 	}
 	aDev, bDev := strings.LastIndex(a, ".dev."), strings.LastIndex(b, ".dev.")
-	if order := CompareReleaseTags(a[:aDev], b[:bDev]); order != 0 {
-		return order, true
-	}
 	aBuild, _ := strconv.Atoi(strings.SplitN(a[aDev+5:], "+", 2)[0])
 	bBuild, _ := strconv.Atoi(strings.SplitN(b[bDev+5:], "+", 2)[0])
 	switch {
@@ -169,7 +168,7 @@ func CompareFrozenVersions(a, b string) (int, bool) {
 	case aBuild > bBuild:
 		return 1, true
 	default:
-		return 0, true
+		return CompareReleaseTags(a[:aDev], b[:bDev]), true
 	}
 }
 

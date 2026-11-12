@@ -157,6 +157,68 @@
 - **Picking a lock screen marks it Active as soon as it is switched (#777).**
   It no longer spins on Applying while the sign-in screen waits for your
   password; a note says what is still pending, and a refused prompt shows why.
+- **Graphics & Power offers Performance on laptops with a monitor port on the
+  discrete GPU.** The page says it applies only while a monitor is plugged in
+  there at login, and that the built-in screen can then stay dark after sleep.
+- **Resetting a password in Users no longer hangs on "Saving" (#798).** The
+  password pipe stayed open, so the helper waited for more input forever and
+  every later account change, removing a person included, stayed busy too.
+  A dismissed authentication prompt now says nothing was changed.
+- **Connections sees every saved profile of a Wi-Fi network.** Saved networks
+  were matched by profile name, so a second profile NetworkManager named
+  `<ssid> 1`, or one imported under another name, was invisible: Forget left
+  it behind and the auto-reconnect toggle missed it. Profiles are now matched
+  by the SSID they join, and Forget, auto-reconnect, and a new password apply
+  to all of them; a hotspot profile that shares the name is left alone
+  (`pages/ConnectionsPage.qml`).
+- **A wrong Wi-Fi password fails in seconds again in Connections.** The
+  password join ran `nmcli --ask`, which NetworkManager asks for a new secret
+  after a rejected one, so a wrong password waited out nmcli's 90-second
+  timeout. Connections now joins through the shell daemon like the bar does
+  (`ryoku-hub wifi connect`), so a rejected password fails as soon as
+  NetworkManager drops the join; the passphrase still travels on stdin and
+  never reaches argv or `~/.cache/nmcli-history`. When the daemon is not
+  running or cannot run the join, it falls back to nmcli as before.
+- **Shift plus a number key records in the shortcut recorder (#788).** The
+  number row is read by key position, so Super+Shift+1 records as itself
+  instead of being ignored, on any keyboard layout.
+- **Identical RAM sticks are separate lighting devices.** SMBus devices report
+  no serial, so every matching stick shared one entry and Hand back restored
+  only the first. Each stick is now keyed by its adapter and address (the
+  `/dev/i2c-N` number is ignored, since it moves between boots), the old shared
+  entry is copied to every stick on the next scan, and identical sticks list in
+  a stable order (`backend/lighting.go`).
+- **A number typed into a Hub stepper keeps the row's real range.** Values
+  such as a niri strut of 200 or a workspace shadow drop of -10 were cut to
+  0..100; they now clamp to the limits the stepper buttons already use.
+- **Picking a lock screen marks it Active as soon as it is switched (#777).**
+  It no longer spins on Applying while the sign-in screen waits for your
+  password; a note says what is still pending, and a refused prompt shows why.
+- **Switch layouts says what Super+Space costs.** Picking it now notes that it
+  takes over the Space key, so Persian ZWNJ on Shift+Space and AltGr+Space stop
+  working, and that Alt+Shift keeps them (#781).
+- **Clicking a saved Wi-Fi network notices when its password is rejected.** The
+  page relied on Quickshell's per-network failure signal, which is not always
+  emitted, so a stale saved password sometimes failed with nothing shown. A
+  saved network now joins through `nmcli connection up` like every other join,
+  and a failure reopens the password row (`pages/ConnectionsPage.qml`).
+- **A wrong Wi-Fi password fails in seconds in Connections.** Joining with
+  `nmcli --ask` made nmcli NetworkManager's secret agent, so a rejected
+  passphrase made NetworkManager ask nmcli for another and wait until nmcli's
+  90-second timeout. The page now closes nmcli's input after the passphrase, so
+  the second ask ends the join at once. The passphrase stays out of process
+  arguments and out of nmcli's editor history (`pages/ConnectionsPage.qml`).
+- **Connections notices networks saved or forgotten elsewhere.** The saved
+  list was read when the page opened and after its own actions, so a network
+  forgotten from the bar still showed as saved until the page was reopened. It
+  is now re-read when the network list changes and after a scan
+  (`pages/ConnectionsPage.qml`).
+- **A saved Wi-Fi network asks for its password again when it stops working.**
+  Clicking a saved network whose stored password was wrong (changed on the
+  router, or another network with the same name) failed on every click with no
+  password row. The row now reopens with "Wrong password, or a different
+  network with the same name?", the new password replaces the old profile, and
+  the field empties after a failed attempt (`pages/ConnectionsPage.qml`, #776).
 - Shortcut names, hints, categories and "not on" reasons follow the interface
   language in Keybinds and in Kit. The shortcut catalogue now enters the
   translation catalog, and the Keybinds page translates what it shows
@@ -269,6 +331,19 @@
 - **Installed Ryostore profiles appear under Add person.** Global > Users
   reviews tools and system changes, then gives the account tool editing, reset,
   checkpoints and removal while keeping its role standard.
+- **Credits names the Game Bar's sources.** The ii-p3drovfx row now covers the
+  Discord Voice widget it is based on, and end-4's illogical-impulse is credited
+  for the overlay design (`quickshell/pages/CreditsPage.qml`, `../../NOTICE`).
+- **Connections can show each Wi-Fi network's access points.** A Details toggle
+  next to Scan adds a line under every row with each band's BSSID, marking the
+  one you are connected to, so two networks sharing a name can be told apart.
+  It is off by default (`pages/ConnectionsPage.qml`, #776).
+- **Connections lists saved Wi-Fi networks first.** Saved networks in range,
+  the connected one on top, sit under a Saved heading above Other networks
+  (`pages/ConnectionsPage.qml`).
+- **Saved Wi-Fi networks can be forgotten in Connections.** A saved row now has
+  Forget next to Auto-reconnect, armed by a first press, which deletes the
+  profile (`pages/ConnectionsPage.qml`, #776).
 - **Bar Studio opens Orpheus settings.** With Orpheus as the bar, an ORPHEUS
   card offers OPEN ORPHEUS SETTINGS, as the QS BAR card does for QS Bar
   (`quickshell/pages/BarStudioPage.qml`).

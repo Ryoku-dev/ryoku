@@ -577,7 +577,7 @@ func (d *daemon) matugenApply(img string) error {
 		}
 		img = frame
 	}
-	pal, tones, mode, err := generatePaletteStill(img, source)
+	activePal, darkPal, lightPal, tones, mode, err := generatePaletteStill(img, source)
 	if err != nil {
 		return err
 	}
@@ -585,7 +585,7 @@ func (d *daemon) matugenApply(img string) error {
 	// Author the shell's own palette: the one file every Quickshell singleton
 	// reads (base16 for the legacy reader, camelCase Material 3 roles for
 	// Theme.qml and Tokens.qml).
-	if err := writeJSONFile(matugenColorsPath(), matugenColorsJSON(pal)); err != nil {
+	if err := writeJSONFile(matugenColorsPath(), matugenColorsJSON(activePal)); err != nil {
 		return fmt.Errorf("matugen colors.json: %w", err)
 	}
 	refreshFolderIcons()
@@ -614,7 +614,7 @@ func (d *daemon) matugenApply(img string) error {
 
 	// Fan the same palette into the app suite through matugen's templating pass,
 	// gated by the per-app roster and the app-suite toggle.
-	matugenRenderTemplates(matugenShellPalette(pal), readMatugenKnobs())
+	matugenRenderTemplates(matugenShellPalette(activePal), matugenShellPalette(darkPal), matugenShellPalette(lightPal), mode, readMatugenKnobs())
 
 	// Toolkit nudges so running apps re-read the regenerated configs. Hyprland is
 	// reloaded by the caller (paintWorker).
@@ -630,20 +630,20 @@ func (d *daemon) matugenApply(img string) error {
 // ryowalls preview so the specimen never diverges from what Set paints. `source`
 // is the wallpaper the user picked, a clip for a live one, and it is what the
 // smart light/dark reads.
-func generatePaletteStill(img, source string) (map[string]string, map[string]map[string]string, string, error) {
+func generatePaletteStill(img, source string) (map[string]string, map[string]string, map[string]string, map[string]map[string]string, string, error) {
 	k := readMatugenKnobs()
 	mode := resolveMode(k.Mode, source)
 	args, err := matugenArgs(img, k, mode)
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, nil, nil, "", err
 	}
 	out, err := runMatugenCapture(args)
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, nil, nil, "", err
 	}
-	pal, err := parseMatugenPalette(out, mode)
+	activePal, darkPal, lightPal, err := parseMatugenPalette(out, mode)
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, nil, nil, "", err
 	}
 	tones := parseMatugenTones(out)
 
@@ -652,10 +652,12 @@ func generatePaletteStill(img, source string) (map[string]string, map[string]map
 	// onto a black-and-white picture. Strip the invented hue to grays that match
 	// the picture, luminance preserved so every contrast still lands.
 	if imageAchromatic(img) {
-		neutralizePalette(pal)
+		neutralizePalette(activePal)
+		neutralizePalette(darkPal)
+		neutralizePalette(lightPal)
 		neutralizeTones(tones)
 	}
-	return pal, tones, mode, nil
+	return activePal, darkPal, lightPal, tones, mode, nil
 }
 
 // matugenPreview prints, as JSON, the palette an image WOULD produce on apply --
@@ -671,12 +673,12 @@ func matugenPreview(img string) error {
 			return fmt.Errorf("matugen-preview: could not sample a still from %q", img)
 		}
 	}
-	pal, tones, _, err := generatePaletteStill(img, source)
+	activePal, _, _, tones, _, err := generatePaletteStill(img, source)
 	if err != nil {
 		return err
 	}
 	out := map[string]any{
-		"colors": matugenColorsJSON(pal),
+		"colors": matugenColorsJSON(activePal),
 		"tones":  tones,
 	}
 	// Merge the wallpaper tone map (grid, detail, cols, rows, lstar) through the
@@ -709,7 +711,8 @@ func (d *daemon) matugenApplyStatic(name string) error {
 	}
 	refreshFolderIcons()
 	k := readMatugenKnobs()
-	matugenRenderTemplates(matugenShellPalette(shell), k)
+	fixed := matugenShellPalette(shell)
+	matugenRenderTemplates(fixed, fixed, fixed, staticPaletteMode(shell), k)
 	matugenReload(staticPaletteMode(shell), d.kdePaletteEmitter())
 	d.runActivePaletteHook()
 	// A catalog theme has no ramps, so the last wallpaper's are now wrong. The
@@ -801,10 +804,11 @@ func runMatugenCapture(args []string) ([]byte, error) {
 	return out, nil
 }
 
-// parseMatugenPalette pulls the flat role -> hex palette out of matugen's --json
-// output for the active mode, falling back through default/dark/light so a role
-// missing the requested mode still resolves.
-func parseMatugenPalette(out []byte, modeKey string) (map[string]string, error) {
+// parseMatugenPalette pulls the flat role -> hex palettes out of matugen's --json
+// output: the active mode (falling back through default/dark/light so a role
+// missing the requested mode still resolves) and the dark and light buckets,
+// each falling back to the active colour, for templates that ship both looks.
+func parseMatugenPalette(out []byte, modeKey string) (map[string]string, map[string]string, map[string]string, error) {
 	var doc struct {
 		Colors map[string]map[string]struct {
 			Color string `json:"color"`
@@ -812,33 +816,50 @@ func parseMatugenPalette(out []byte, modeKey string) (map[string]string, error) 
 		} `json:"colors"`
 	}
 	if err := json.Unmarshal(out, &doc); err != nil {
-		return nil, fmt.Errorf("matugen json: %w", err)
+		return nil, nil, nil, fmt.Errorf("matugen json: %w", err)
 	}
 	if len(doc.Colors) == 0 {
-		return nil, fmt.Errorf("matugen output carried no colors")
+		return nil, nil, nil, fmt.Errorf("matugen output carried no colors")
 	}
+
 	order := []string{modeKey, "default", "dark", "light"}
-	pal := make(map[string]string, len(doc.Colors))
+	active := make(map[string]string, len(doc.Colors))
+	dark := make(map[string]string, len(doc.Colors))
+	light := make(map[string]string, len(doc.Colors))
+
 	for role, buckets := range doc.Colors {
 		for _, m := range order {
-			e, ok := buckets[m]
-			if !ok {
-				continue
-			}
-			if e.Color != "" {
-				pal[role] = e.Color
-				break
-			}
-			if e.Hex != "" {
-				pal[role] = e.Hex
+			if e, ok := buckets[m]; ok && (e.Color != "" || e.Hex != "") {
+				active[role] = firstNonEmpty(e.Color, e.Hex)
 				break
 			}
 		}
+		if e, ok := buckets["dark"]; ok && (e.Color != "" || e.Hex != "") {
+			dark[role] = firstNonEmpty(e.Color, e.Hex)
+		}
+		if e, ok := buckets["light"]; ok && (e.Color != "" || e.Hex != "") {
+			light[role] = firstNonEmpty(e.Color, e.Hex)
+		}
 	}
-	if len(pal) == 0 {
-		return nil, fmt.Errorf("matugen output had no usable colors")
+	if len(active) == 0 {
+		return nil, nil, nil, fmt.Errorf("matugen output had no usable colors")
 	}
-	return pal, nil
+	for role, hex := range active {
+		if dark[role] == "" {
+			dark[role] = hex
+		}
+		if light[role] == "" {
+			light[role] = hex
+		}
+	}
+	return active, dark, light, nil
+}
+
+func firstNonEmpty(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
 }
 
 // parseMatugenTones pulls the six tonal palettes out of the same --json output
@@ -1037,41 +1058,48 @@ func matugenColorsJSON(pal map[string]string) map[string]string {
 	return out
 }
 
-// matugenCarrier wraps the flat palette in the nested shape matugen's template
-// engine expects (role.default.hex, role.hex, role.rgb, ...), plus an opaque
-// _argb variant per colour for templates that need it (Qt).
-func matugenCarrier(pal map[string]string) map[string]any {
-	colors := make(map[string]any, len(pal)*2)
-	put := func(name, hex string) {
-		if hex == "" {
-			return
-		}
-		stripped := strings.TrimPrefix(hex, "#")
-		var r, g, b int64
-		if len(stripped) == 6 {
-			r, _ = strconv.ParseInt(stripped[0:2], 16, 0)
-			g, _ = strconv.ParseInt(stripped[2:4], 16, 0)
-			b, _ = strconv.ParseInt(stripped[4:6], 16, 0)
-		}
-		co := map[string]any{
-			"hex":          hex,
-			"hex_stripped": stripped,
-			"red":          strconv.FormatInt(r, 10),
-			"green":        strconv.FormatInt(g, 10),
-			"blue":         strconv.FormatInt(b, 10),
-			"rgb":          fmt.Sprintf("%d, %d, %d", r, g, b),
-		}
-		entry := map[string]any{"default": co, "dark": co, "light": co}
+// matugenCarrier wraps the flat palettes in the nested shape matugen's template
+// engine expects (role.default.hex, role.dark.hex, role.hex, role.rgb, ...),
+// plus an opaque _argb variant per colour for templates that need it (Qt) and
+// the active mode for templates that pick a default look.
+func matugenCarrier(active, dark, light map[string]string, mode string) map[string]any {
+	colors := make(map[string]any, len(active)*2)
+	put := func(name, hex, darkHex, lightHex string) {
+		co := matugenCarrierColor(hex)
+		entry := map[string]any{"default": co, "dark": matugenCarrierColor(darkHex), "light": matugenCarrierColor(lightHex)}
 		for key, val := range co {
 			entry[key] = val
 		}
 		colors[name] = entry
 	}
-	for k, v := range pal {
-		put(k, v)
-		put(k+"_argb", "#ff"+strings.TrimPrefix(v, "#"))
+	argb := func(hex string) string { return "#ff" + strings.TrimPrefix(hex, "#") }
+	for k, v := range active {
+		if v == "" {
+			continue
+		}
+		d, l := firstNonEmpty(dark[k], v), firstNonEmpty(light[k], v)
+		put(k, v, d, l)
+		put(k+"_argb", argb(v), argb(d), argb(l))
 	}
-	return map[string]any{"colors": colors}
+	return map[string]any{"colors": colors, "mode": mode}
+}
+
+func matugenCarrierColor(hex string) map[string]any {
+	stripped := strings.TrimPrefix(hex, "#")
+	var r, g, b int64
+	if len(stripped) == 6 {
+		r, _ = strconv.ParseInt(stripped[0:2], 16, 0)
+		g, _ = strconv.ParseInt(stripped[2:4], 16, 0)
+		b, _ = strconv.ParseInt(stripped[4:6], 16, 0)
+	}
+	return map[string]any{
+		"hex":          hex,
+		"hex_stripped": stripped,
+		"red":          strconv.FormatInt(r, 10),
+		"green":        strconv.FormatInt(g, 10),
+		"blue":         strconv.FormatInt(b, 10),
+		"rgb":          fmt.Sprintf("%d, %d, %d", r, g, b),
+	}
 }
 
 // templateGroup maps a matugen template block name to its roster key, so one
@@ -1115,13 +1143,14 @@ func filterMatugenConfig(toml string, enabled func(group string) bool) string {
 	return strings.Join(out, "\n")
 }
 
-// matugenRenderTemplates writes the core palette and, when the app-suite toggle
-// is on, every enabled application template.
-func matugenRenderTemplates(shell map[string]string, k matugenKnobs) {
+// matugenRenderTemplates writes the core palette, with the dark and light looks
+// beside the active one, and, when the app-suite toggle is on, every enabled
+// application template.
+func matugenRenderTemplates(shell, dark, light map[string]string, mode string, k matugenKnobs) {
 	dir := matugenTemplateDir()
 	matugenEnsureDirs()
 	carrierPath := filepath.Join(matugenCacheHome(), "ryoku", "matugen-carrier.json")
-	if err := writeJSONFile(carrierPath, matugenCarrier(shell)); err != nil {
+	if err := writeJSONFile(carrierPath, matugenCarrier(shell, dark, light, mode)); err != nil {
 		fmt.Fprintf(os.Stderr, "matugen carrier: %v\n", err)
 		return
 	}

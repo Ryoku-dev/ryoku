@@ -7,6 +7,8 @@
   The 150% limit no longer depends on which bar is active.
 
 ### Added
+- `audio/ryoku-media`: **one toggle per media tap.** Runs `playerctl` and drops
+  a second call within 200 ms, for headphones that send play and pause together.
 - `display/ryoku-monitor`: **a hand-entered resolution is forced, not ignored.**
   When a layout carries a `WxH@rate` mode the panel does not advertise (the Hub's
   new Displays "Custom…" entry), `apply`/`save` generate a CVT reduced-blanking
@@ -32,6 +34,23 @@
   a dismissed password prompt or a value the kernel rejected stayed saved and
   was applied again at every sign-in. `power.json` now goes back to exactly
   what it was when the write fails. Covered by `tests/power.sh`.
+- `gpu/ryoku-gpu`: **Performance works again with a monitor on the discrete GPU.**
+  When the laptop panel is on the built-in GPU but the dGPU has its own ports,
+  Performance pins the dGPU at login only while a monitor is plugged into one.
+- `bluetooth/ryoku-bluetooth-power`: **turning Bluetooth off right after login
+  stays off.** A login reset still waiting up to 15 s for a slow controller
+  could power the radio back on after the newer off; each attempt now checks
+  the saved choice first, so the latest on or off wins.
+- `audio/ryoku-media`: **one action per media tap, whatever the keys.** The
+  200 ms window is shared by every verb, so play-pause followed by pause from
+  one headphone tap runs only the first (#764).
+- `network/ryoku-wifi-backend`: **switching from iwd back to wpa_supplicant
+  keeps Wi-Fi.** iwd swaps each radio's default interface for one of its own,
+  which the kernel deletes when iwd quits, so the switch left no Wi-Fi interface
+  until a reboot. Leaving iwd now gives every radio that had an interface, and
+  lost it, a managed one again (`iw`, each watched for up to 3 s since the
+  kernel drops iwd's interfaces just after iwd exits, one radio at a time).
+  Covered by `tests/void-wifi-backend.sh`.
 - `display/ryoku-hw-backlight-fix`: **ASUS TUF A15 FA507XV brightness keeps
   using its working EC control.** The native-backlight override is now limited
   to the confirmed FA506NCG quirk. An update removes the old broad drop-in from
@@ -42,6 +61,9 @@
   try, so `ryoku-bluetooth-reset.service` failed at every session start for the
   default saved choice. Powering on now retries the window the off path already
   waited out. Covered by `tests/bluetooth-power-persist.sh`.
+- `bluetooth/ryoku-bluetooth-power`: **a slow controller no longer fails the
+  login reset.** Power on and off now wait up to 15 seconds for the controller
+  to register and accept, and a refused power on counts once BlueZ reports it on.
 - `gpu/ryoku-gpu`: **hybrid laptops no longer pin a renderer that does not own
   the internal panel.** Default and Performance avoid Aquamarine's blank
   login/DPMS path; doctor clears old managed pins. Covered by

@@ -1,9 +1,9 @@
 %global debug_package %{nil}
-%global hyprland_evr %(rpm -q --qf '%%{EVR}' hyprland)
 %global ryoku_vendor cargo
 %global ryoku_vendor_dir .rpm-hyprland-preview-share-picker/hyprland-preview-share-picker
 Name:           hyprland-preview-share-picker
 Version:        0.3.0
+Epoch:          1
 Release:        1%{?dist}
 Summary:        Preview screen share picker for Hyprland
 License:        MIT
@@ -25,7 +25,7 @@ BuildRequires:  hyprland-devel
 Requires:       glibc
 Requires:       gtk4
 Requires:       gtk4-layer-shell
-Requires:       hyprland%{?_isa} = %{hyprland_evr}
+Requires:       hyprland
 Requires:       libgcc
 Requires:       libstdc++
 Requires:       libwayland-client

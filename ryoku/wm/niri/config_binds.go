@@ -113,6 +113,8 @@ func shippedBinds() map[string]niriBind {
 		"resize.shorter":     {action: `set-window-height "-10%"`},
 		"resize.taller":      {action: `set-window-height "+10%"`},
 		"resize.resetHeight": {action: "reset-window-height"},
+		"resize.grow":        {action: "switch-preset-column-width", hint: "Step the column to its next preset width"},
+		"resize.shrink":      {action: "switch-preset-column-width-back", hint: "Step the column to its previous preset width"},
 
 		// Workspaces. The families carry {n}, the workspace number, substituted
 		// per expanded chord. niri references workspaces by flat index, so
@@ -165,6 +167,7 @@ func shippedBinds() map[string]niriBind {
 		"shell.ask":               {action: spawnArgs("ryoku-shell", "ask")},
 		"shell.rashin":            {action: spawnArgs("ryoku-summon", "--app-id", "dev.ryoku.rashin", "rashin-app")},
 		"shell.cheatsheet":        {action: spawnArgs("ryoku-shell", "cheatsheet")},
+		"shell.gamebar":           {action: spawnArgs("ryoku-shell", "gamebar"), ignoreInhibitor: true},
 		"shell.lock":              {action: spawnArgs("ryoku-shell", "lock")},
 		"shell.quicksettings":     {action: spawnArgs("ryoku-shell", "quicksettings"), ignoreInhibitor: true},
 		"shell.wallpaper":         {action: spawnArgs("ryogami", "wallpaper", "ui")},
@@ -189,7 +192,8 @@ func shippedBinds() map[string]niriBind {
 		"media.volumeDown": {action: spawnArgs("ryoku-volume", "down")},
 		"media.mute":       {action: spawnArgs("wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"), noRepeat: true},
 		"media.micMute":    {action: spawnArgs("wpctl", "set-mute", "@DEFAULT_AUDIO_SOURCE@", "toggle"), noRepeat: true},
-		"media.play":       {action: spawnArgs("playerctl", "play-pause"), noRepeat: true},
+		"media.play":       {action: spawnArgs("ryoku-media", "play-pause"), noRepeat: true},
+		"media.pause":      {action: spawnArgs("ryoku-media", "pause"), noRepeat: true},
 		"media.next":       {action: spawnArgs("playerctl", "next")},
 		"media.prev":       {action: spawnArgs("playerctl", "previous")},
 

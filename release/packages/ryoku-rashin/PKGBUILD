@@ -5,6 +5,7 @@ pkgname=ryoku-rashin
 install=ryoku-rashin.install
 pkgver=${RYOKU_PKGVER:-0.1.0}
 pkgrel=1
+epoch=1
 pkgdesc="Ryoku Rashin AI system"
 arch=('x86_64')
 url="https://ryoku.dev"
@@ -13,7 +14,7 @@ url="https://ryoku.dev"
 license=('GPL-3.0-or-later' 'Apache-2.0' 'OFL-1.1')
 # Keep Rashin on the same update as its desktop integration.
 depends=(
-  "ryoku-desktop=$pkgver"
+  "ryoku-desktop=$epoch:$pkgver"
   'wayland'
   'libxkbcommon'
   'mesa'

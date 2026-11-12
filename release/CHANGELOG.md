@@ -37,6 +37,18 @@
 - **The desktop and shell packages no longer carry the store bar styles.**
   Python's AGPL code, the Nomarchy tree and the Shima build optdepends left with
   them, and Orpheus and Kairos still ship in the desktop.
+- **Unstable's version names the next release again.** `VERSION` on
+  `unstable-dev` is 1.0.9, and the bump bot now keeps it one roll past `main`
+  instead of adding a patch on every push, which had carried testing to 1.11.4.
+- **Testing boxes on 1.11.x upgrade to 1.0.9 builds.** The monorepo packages
+  carry pacman `epoch=1` and RPM `Epoch: 1` with matching pins; the Void
+  packages list the older 1.1 to 1.11 builds in `reverts=`.
+- **The Fedora Hyprland desktop installs after a Hyprland COPR update.**
+  `ryoku-desktop-hyprland` only recommends the plugin RPMs locked to one
+  Hyprland build; the share picker drops that lock, and `hyprland-devel` is allowed.
+- **Every package channel keeps to the Ryotunes 1.x line.** The Arch import and
+  hourly refresh, the Fedora fetch hook and the Void build resolve the newest
+  stable `v1.Y.Z` release (`repo/resolve-ryotunes-release.sh`).
 - **The compositor isolation check runs in CI and passes again.** The pinned
   Shima patches carry upstream code, so the check skips them, and the delivery
   workflow now runs it on every push instead of only in local hooks.
@@ -205,6 +217,9 @@
   the other plugin packages.
 
 ### Fixed
+- **Wallpaper Engine scenes render with skwd-paper 1.0.0-beta.29.** Arch,
+  Fedora and Void move from beta.23 and Nix from beta.26, which fixes broken
+  geometry in some scenes; the packages now also require FreeType, which it links.
 - **The Hyprland share picker works with Hyprland 0.57 again.** The Arch and
   Fedora packages now ship upstream 0.3.0, which no longer parses Hyprland's
   workspace data through `hyprland-rs`. Outputs and Windows load again instead

@@ -1,26 +1,26 @@
 # Template file for 'skwd-paper-bin'
 pkgname=skwd-paper-bin
-version=1.0.0beta23
+version=1.0.0beta29
 revision=1
 archs="x86_64*"
 build_style=cargo
-_paper_commit=68916db2c49e098fb3b8fa1c77b7eeeee07ba627
+_paper_commit=ab6d71d6abaeb0f519003c11ff968c9dc296ed11
 _ffmpeg_version=9.0.1
 wrksrc="skwd-paper-${_paper_commit}"
 skip_extraction="ffmpeg-${_ffmpeg_version}.tar.xz"
 hostmakedepends="cargo-auditable clang curl nasm patchelf pkg-config tar xz"
-makedepends="Vulkan-Headers alsa-lib-devel libdav1d-devel libdrm-devel
- pulseaudio-devel libva-devel libyuv-devel shaderc vulkan-loader-devel
- wayland-devel zlib-devel"
-depends="alsa-lib libdav1d libdrm libgcc libglvnd libpulseaudio pulseaudio-utils
- libva libxkbcommon libyuv shaderc vulkan-loader wayland zlib"
+makedepends="Vulkan-Headers alsa-lib-devel freetype-devel libdav1d-devel
+ libdrm-devel pulseaudio-devel libva-devel libyuv-devel shaderc
+ vulkan-loader-devel wayland-devel zlib-devel"
+depends="alsa-lib freetype libdav1d libdrm libgcc libglvnd libpulseaudio
+ pulseaudio-utils libva libxkbcommon libyuv shaderc vulkan-loader wayland zlib"
 short_desc="Wallpaper Engine renderer backend for Ryogami"
 maintainer="Ryoku <releases@ryoku.dev>"
 license="GPL-3.0-or-later"
 homepage="https://github.com/liixini/skwd-paper"
 distfiles="https://github.com/liixini/skwd-paper/archive/${_paper_commit}.tar.gz
  https://ffmpeg.org/releases/ffmpeg-${_ffmpeg_version}.tar.xz"
-checksum="b725b2d1322cd26da8ae2b43c2fa0d50cd27578a980db30af951d7ca396d0063
+checksum="76f0d8c4f07dc8d1398c6c9299595ee95a447f4bb1062b214639a7a7e55ef586
  cf38e0e28c7e5605942c4a77755349b0145804a397af37eb1fb4c77cb237f635"
 provides="skwd-paper-${version}_${revision}"
 conflicts="skwd-paper>=0"

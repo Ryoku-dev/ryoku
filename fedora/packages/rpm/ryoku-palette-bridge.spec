@@ -1,5 +1,6 @@
 Name:           ryoku-palette-bridge
 Version:        0.1
+Epoch:          1
 Release:        1%{?dist}
 Summary:        Ryoku wallpaper palette event bridge
 License:        MIT

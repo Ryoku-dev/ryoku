@@ -17,7 +17,7 @@ distfiles="${homepage}/releases/download/v${version}/ryotunes-${version}.tar.gz"
 checksum=36be6f5891acc74df35681b9927e4202867dd2f1d29824188ec42c8d7311a5d5
 nocross=yes
 
-# The repository build stamps version and checksum with Ryotunes' latest
+# The repository build stamps version and checksum with Ryotunes' newest 1.x
 # release (void/packages/repo/container-runner.sh); the values above are only
 # the last release seen here.
 # Linux uses this binary to ask ryotunesd to open the installed QML client; it never runs Tauri.

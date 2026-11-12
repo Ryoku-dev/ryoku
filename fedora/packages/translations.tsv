@@ -48,6 +48,7 @@ firefox	firefox	desktop
 fish	fish	desktop	
 flatpak	flatpak	desktop	
 freerdp	freerdp	optional	
+freetype2	freetype	desktop	
 fuzzel	fuzzel	desktop	
 fzf	fzf	desktop	
 game-devices-udev	game-devices-udev	desktop	Ryoku-owned RPM.

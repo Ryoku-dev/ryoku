@@ -25,7 +25,7 @@ Rectangle {
     readonly property real shown: Math.max(0, Math.min(1, surface.full))
     // content arrives late on open and is the first thing to leave on close
     readonly property real fullVis: Math.max(0, Math.min(1, (surface.full - 0.4) / 0.45))
-    readonly property string artUrl: surface.player ? (surface.player.trackArtUrl || "") : ""
+    readonly property string artUrl: Music.coverFor(surface.player)
     readonly property bool hasArt: surface.artUrl.length > 0
     readonly property bool playing: surface.player !== null && surface.player.isPlaying
     readonly property real length: Music.duration

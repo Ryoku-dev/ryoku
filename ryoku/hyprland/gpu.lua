@@ -6,7 +6,8 @@
 -- choosing the panel-safe renderer.
 --
 -- the panel route is set by the hardware MUX at POST, not AQ_DRM_DEVICES.
--- performance mode becomes available after `ryoku-gpu-mux set discrete` and a
--- reboot; hybrid leaves GPU selection to the compositor.
+-- with the panel on the iGPU, performance mode pins the dGPU only while a
+-- monitor is plugged into one of its ports at login; hybrid leaves GPU
+-- selection to the compositor.
 --
 -- takes effect on the next hyprland login (env is read at start).

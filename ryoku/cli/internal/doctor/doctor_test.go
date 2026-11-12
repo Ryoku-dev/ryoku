@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"reflect"
 	"ryoku-cli/internal/host"
@@ -2056,6 +2055,90 @@ func TestMigrateStageDockStoreMovesShimaStyle(t *testing.T) {
 	}
 }
 
+// Stage's schema writes its own default pins back into stage-editor.json on
+// every save, so doctor must not read them as a user's legacy pins.
+func TestReconcileDockStoreNeverRepinsStageDefaults(t *testing.T) {
+	root := t.TempDir()
+	cfg := filepath.Join(root, "config")
+	apps := filepath.Join(root, "share", "applications")
+	t.Setenv("XDG_CONFIG_HOME", cfg)
+	t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
+	t.Setenv("XDG_DATA_DIRS", filepath.Join(root, "share"))
+	for _, dir := range []string{filepath.Join(cfg, "ryoku", "stage"), apps} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, id := range []string{"org.gnome.Nautilus.desktop", "kitty.desktop", "firefox.desktop"} {
+		if err := os.WriteFile(filepath.Join(apps, id), []byte("[Desktop Entry]\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	shellPath := filepath.Join(cfg, "ryoku", "shell.json")
+	stagePath := filepath.Join(cfg, "ryoku", "stage", "stage-editor.json")
+	write := func(path, body string) {
+		t.Helper()
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	pins := func() []any {
+		t.Helper()
+		raw, err := os.ReadFile(shellPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got map[string]any
+		if err := json.Unmarshal(raw, &got); err != nil {
+			t.Fatal(err)
+		}
+		dock, _ := got["dock"].(map[string]any)
+		list, _ := dock["pinned"].([]any)
+		return list
+	}
+	stageDefaults := `{"dock":{"enable":false,"pinnedApps":["org.kde.dolphin","kitty"]}}`
+
+	t.Run("stage defaults on a box without dolphin", func(t *testing.T) {
+		write(shellPath, `{"dock":{"design":"ryoku"}}`)
+		write(stagePath, stageDefaults)
+		for run := range 2 {
+			if res := reconcileDockStore(false); res.status >= recWarn {
+				t.Fatalf("run %d: %s", run, res.detail)
+			}
+			if got := pins(); len(got) != 0 {
+				t.Fatalf("run %d pinned %v from Stage's defaults", run, got)
+			}
+		}
+	})
+
+	t.Run("an unpinned app stays unpinned", func(t *testing.T) {
+		write(shellPath, `{"dock":{"pinned":["kitty"],"pinnedConfigured":true}}`)
+		write(stagePath, `{"dock":{"pinnedApps":["org.kde.dolphin","firefox"]}}`)
+		for run := range 2 {
+			if res := reconcileDockStore(false); res.status >= recWarn {
+				t.Fatalf("run %d: %s", run, res.detail)
+			}
+			if got := pins(); len(got) != 1 || got[0] != "kitty" {
+				t.Fatalf("run %d pins = %v, want [kitty]", run, got)
+			}
+			// Stage saves again between updates
+			write(stagePath, stageDefaults)
+		}
+	})
+
+	t.Run("legacy stage pins migrate only installed apps", func(t *testing.T) {
+		write(shellPath, `{"dock":{}}`)
+		write(stagePath, `{"dock":{"pinnedApps":["org.kde.dolphin","firefox","nautilus"]}}`)
+		if res := reconcileDockStore(false); res.status != recFixed {
+			t.Fatalf("status = %v: %s", res.status, res.detail)
+		}
+		got := pins()
+		if len(got) != 2 || got[0] != "firefox" || got[1] != "nautilus" {
+			t.Fatalf("pins = %v, want [firefox nautilus]", got)
+		}
+	})
+}
+
 // limineDropFlat mirrors the installer's promote surgery: flat placeholder
 // entries go (with their indented options), default_entry moves off the tree
 // directory, globals and the /+ tree survive untouched.
@@ -2666,89 +2749,6 @@ func TestReconcileBrandLogo(t *testing.T) {
 	})
 }
 
-func TestReconcileRyodecors(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
-	t.Setenv("XDG_PICTURES_DIR", "")
-	repo := t.TempDir()
-	if out, err := exec.Command("git", "-C", repo, "init", "-q").CombinedOutput(); err != nil {
-		t.Skipf("git unavailable: %v %s", err, out)
-	}
-	src := filepath.Join(repo, "ryoku", "assets", "ryodecors")
-	if err := os.MkdirAll(src, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	for _, n := range []string{"a.png", "b.gif"} {
-		if err := os.WriteFile(filepath.Join(src, n), []byte("x"), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	t.Setenv("RYOKU_REPO", repo)
-	dst := filepath.Join(home, "Pictures", "ryodecors")
-
-	// check-only reports the gap without copying.
-	if r := reconcileRyodecors(true); r.status != recWouldFix {
-		t.Fatalf("check-only: status=%s detail=%q, want would-fix", r.status.label(), r.detail)
-	}
-	if _, err := os.Stat(filepath.Join(dst, "a.png")); !os.IsNotExist(err) {
-		t.Fatalf("check-only must not copy anything")
-	}
-
-	// fix seeds every shipped file.
-	if r := reconcileRyodecors(false); r.status != recFixed {
-		t.Fatalf("fix: status=%s detail=%q, want fixed", r.status.label(), r.detail)
-	}
-	for _, n := range []string{"a.png", "b.gif"} {
-		if _, err := os.Stat(filepath.Join(dst, n)); err != nil {
-			t.Fatalf("expected %s seeded: %v", n, err)
-		}
-	}
-
-	// a file the user added or swapped survives, and a settled folder is a no-op.
-	userFile := filepath.Join(dst, "mine.png")
-	if err := os.WriteFile(userFile, []byte("mine"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if r := reconcileRyodecors(false); r.status != recOK {
-		t.Fatalf("idempotent run: status=%s, want ok", r.status.label())
-	}
-	if b, _ := os.ReadFile(userFile); string(b) != "mine" {
-		t.Fatalf("a user's own decor file must survive the reconciler")
-	}
-}
-
-// A localized desktop keeps its pictures in ~/Imágenes: the decor art is seeded
-// there and no stray ~/Pictures appears beside it.
-func TestReconcileRyodecorsLocalizedPictures(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
-	t.Setenv("XDG_PICTURES_DIR", filepath.Join(home, "Imágenes"))
-	repo := t.TempDir()
-	if out, err := exec.Command("git", "-C", repo, "init", "-q").CombinedOutput(); err != nil {
-		t.Skipf("git unavailable: %v %s", err, out)
-	}
-	src := filepath.Join(repo, "ryoku", "assets", "ryodecors")
-	if err := os.MkdirAll(src, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(src, "a.png"), []byte("x"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("RYOKU_REPO", repo)
-
-	if r := reconcileRyodecors(false); r.status != recFixed {
-		t.Fatalf("fix: status=%s detail=%q, want fixed", r.status.label(), r.detail)
-	}
-	if _, err := os.Stat(filepath.Join(home, "Imágenes", "ryodecors", "a.png")); err != nil {
-		t.Fatalf("decor art must land in the XDG Pictures folder: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(home, "Pictures")); !os.IsNotExist(err) {
-		t.Fatalf("a localized desktop must not grow ~/Pictures (stat err=%v)", err)
-	}
-}
-
 // reconcileFrameBarsStyle converges a store that still names a retired bar style
 // onto the current default, leaving every other key untouched, and does nothing
 // once the value is current or absent.
@@ -2954,21 +2954,28 @@ func TestStrayRyokuFilesSelectsUnownedOnly(t *testing.T) {
 			return []string{"/usr/share/ryoku/boot/default.conf"}, nil
 		case "/etc/systemd/logind.conf.d/10-ryoku-lid.conf":
 			return []string{"/etc/systemd/logind.conf.d/10-ryoku-lid.conf"}, nil
+		case "/usr/lib/environment.d/*ryoku*":
+			return []string{"/usr/lib/environment.d/98-ryoku-dbus.conf", "/usr/lib/environment.d/99-ryoku-session.conf"}, nil
+		case "/usr/share/ryoku/xdg/dbus-1/services/*":
+			return []string{"/usr/share/ryoku/xdg/dbus-1/services/org.freedesktop.secrets.service"}, nil
 		}
 		return nil, nil
 	}
 	// packaged; the rest are seeded unowned by the installer / a dev deploy.
 	owned := func(p string) bool {
-		return p == "/usr/bin/ryoku-gpu" || p == "/usr/share/plymouth/themes/ryoku/logo.png"
+		return p == "/usr/bin/ryoku-gpu" || p == "/usr/share/plymouth/themes/ryoku/logo.png" ||
+			p == "/usr/lib/environment.d/99-ryoku-session.conf"
 	}
 	got := strayRyokuFiles(ryokuSystemGlobs, glob, owned)
 	want := map[string]bool{
-		"/usr/bin/ryoku-dns":                                       true,
-		"/usr/share/polkit-1/rules.d/50-ryoku-dns.rules":           true,
-		"/usr/share/plymouth/themes/ryoku/bullet.png":              true,
-		"/usr/lib/systemd/system/ryoku-network-kill-guard.service": true,
-		"/usr/share/ryoku/boot/default.conf":                       true,
-		"/etc/systemd/logind.conf.d/10-ryoku-lid.conf":             true,
+		"/usr/bin/ryoku-dns":                                                   true,
+		"/usr/share/polkit-1/rules.d/50-ryoku-dns.rules":                       true,
+		"/usr/share/plymouth/themes/ryoku/bullet.png":                          true,
+		"/usr/lib/systemd/system/ryoku-network-kill-guard.service":             true,
+		"/usr/share/ryoku/boot/default.conf":                                   true,
+		"/etc/systemd/logind.conf.d/10-ryoku-lid.conf":                         true,
+		"/usr/lib/environment.d/98-ryoku-dbus.conf":                            true,
+		"/usr/share/ryoku/xdg/dbus-1/services/org.freedesktop.secrets.service": true,
 	}
 	if len(got) != len(want) {
 		t.Fatalf("strayRyokuFiles = %v, want exactly the unowned paths", got)

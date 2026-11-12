@@ -44,6 +44,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Lua, so the generated gpu.lua is evaluated
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lua5.4
+
       - name: The pin, the mode stamp, and the doctor verdicts
         shell: bash
         run: bash tests/gpu-pin-policy.sh

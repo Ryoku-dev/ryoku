@@ -2032,7 +2032,34 @@ func (e *engine) readEditionPackages(edition string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return uniquePackages(append(strings.Fields(string(out)), selected...)), nil
+	pkgs := uniquePackages(append(strings.Fields(string(out)), selected...))
+	if edition == "fedora" {
+		pkgs = withoutWeakVariantDeps(pkgs, filepath.Join(e.payload, "fedora", "packages", "rpm", "ryoku-desktop-"+p.compositor+".spec"))
+	}
+	return pkgs, nil
+}
+
+// withoutWeakVariantDeps leaves what the compositor variant only recommends to
+// dnf: those plugins are locked to one compositor build, and naming one the
+// COPR's newer compositor cannot satisfy fails the whole install.
+func withoutWeakVariantDeps(pkgs []string, spec string) []string {
+	data, err := os.ReadFile(spec)
+	if err != nil {
+		return pkgs
+	}
+	weak := map[string]bool{}
+	for _, line := range strings.Split(string(data), "\n") {
+		if f := strings.Fields(line); len(f) >= 2 && f[0] == "Recommends:" {
+			weak[f[1]] = true
+		}
+	}
+	out := make([]string, 0, len(pkgs))
+	for _, pkg := range pkgs {
+		if !weak[pkg] {
+			out = append(out, pkg)
+		}
+	}
+	return out
 }
 
 func stepPackages(e *engine) error {

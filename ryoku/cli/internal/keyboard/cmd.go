@@ -242,12 +242,12 @@ func applySystemAndBoot(l Layout, noBoot bool) error {
 	}
 	fmt.Printf(i18n.T("greeter and console set to %s\n"), l.Primary())
 	if noBoot {
-		fmt.Println(i18n.T("boot image left alone; the disk passphrase prompt keeps its old keymap until `sudo mkinitcpio -P`"))
+		fmt.Printf(i18n.T("boot image left alone; the disk passphrase prompt keeps its old keymap until `%s`\n"), BootImageRebuildHint())
 		return nil
 	}
 	fmt.Println(i18n.T("rebuilding the boot image so the passphrase prompt follows..."))
 	if err := RebuildBootImage(); err != nil {
-		return fmt.Errorf(i18n.T("%w\ngreeter and console are set; rerun `sudo mkinitcpio -P` to finish"), err)
+		return fmt.Errorf(i18n.T("%w\ngreeter and console are set; rerun `%s` to finish"), err, BootImageRebuildHint())
 	}
 	fmt.Println(i18n.T("done: the passphrase prompt, greeter, console and desktop all use"), l.Primary())
 	return nil

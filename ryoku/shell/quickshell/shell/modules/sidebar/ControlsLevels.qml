@@ -45,8 +45,9 @@ Item {
     function syncActive(): void {
         if (root.active && root.showBrightness) {
             Devices.startProbes(root);
-            root.readExternalBrightness();
+            externalReadDelay.restart();
         } else {
+            externalReadDelay.stop();
             root.volumeOpen = false;
             root.brightnessOpen = false;
             root.writeBrightness();
@@ -107,6 +108,15 @@ Item {
                     root.externalBrightness = value;
             }
         }
+    }
+
+    // A DDC/CI read that overlaps the panel's layers mapping stalled every
+    // output's frames for 45-200 ms on each open (seen on NVIDIA I2C); from
+    // 100 ms on there were none, so the live level is read after the map.
+    Timer {
+        id: externalReadDelay
+        interval: 250
+        onTriggered: root.readExternalBrightness()
     }
 
     Timer {

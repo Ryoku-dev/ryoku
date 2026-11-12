@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 
+# fetch_github_release_source REPO PACKAGE WORK SOURCES TAG_PATTERN [RELEASE_JSON]
+# RELEASE_JSON is a release the caller already resolved; without it the repo's
+# GitHub "latest" release is used.
 fetch_github_release_source() {
-  local repo=$1 package=$2 work=$3 sources=$4 tag_pattern=$5
+  local repo=$1 package=$2 work=$3 sources=$4 tag_pattern=$5 release=${6:-}
   local api=${RYOKU_GITHUB_API:-https://api.github.com}
   local download=${RYOKU_GITHUB_DL:-https://github.com}
   local token=${GH_TOKEN:-${GITHUB_TOKEN:-}}
-  local release tag version archive sidecar asset count expected filename extra actual
+  local tag version archive sidecar asset count expected filename extra actual
   local -a curl_auth=() lines=()
 
   for tool in curl jq sha256sum; do
@@ -25,13 +28,15 @@ fetch_github_release_source() {
     curl_auth=(--config "$work/curl-auth.conf")
   fi
 
-  release=$(curl -fsSL --retry 3 \
-    -H 'Accept: application/vnd.github+json' \
-    -H 'User-Agent: ryoku-fedora-source-fetch' \
-    "${curl_auth[@]}" "$api/repos/$repo/releases/latest") || {
-      printf 'fetch/%s.sh: could not resolve the latest %s release\n' "$package" "$repo" >&2
-      return 1
-    }
+  if [[ -z $release ]]; then
+    release=$(curl -fsSL --retry 3 \
+      -H 'Accept: application/vnd.github+json' \
+      -H 'User-Agent: ryoku-fedora-source-fetch' \
+      "${curl_auth[@]}" "$api/repos/$repo/releases/latest") || {
+        printf 'fetch/%s.sh: could not resolve the latest %s release\n' "$package" "$repo" >&2
+        return 1
+      }
+  fi
   [[ $(jq -r '.draft' <<<"$release") == false ]] || {
     printf 'fetch/%s.sh: latest release is a draft\n' "$package" >&2
     return 1

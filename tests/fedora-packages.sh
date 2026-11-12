@@ -225,9 +225,21 @@ spec_field() {
 	' "$path"
 }
 
+# a plugin RPM pins the exact compositor build it was compiled against
+build_locked() {
+	local spec=${spec_paths[$1]:-}
+	[[ -n $spec ]] && grep -qE '^Requires:[[:space:]]+[^[:space:]]+[[:space:]]+=[[:space:]]+%\{[a-z_]+_evr\}' "$spec"
+}
+
+# a weak dependency on one keeps the desktop installable when its COPR moves on
+weak_build_locked() {
+	[[ -n ${weak[$1]:-} ]] && build_locked "$1"
+}
+
 hard_dependency_satisfied() {
 	local arch_dep=$1 expected_dep=$2 file_requirement
 	[[ -n ${hard[$expected_dep]:-}${provided[$expected_dep]:-} ]] && return 0
+	weak_build_locked "$expected_dep" && return 0
 	case $arch_dep in
 		ffmpeg)
 			file_requirement=/usr/bin/ffmpeg
@@ -271,6 +283,12 @@ for spec_pkg in "${!spec_names[@]}"; do
 		spec_field "${spec_paths[$spec_pkg]}" Suggests
 	})
 	while IFS= read -r dep; do [[ -n $dep ]] && provided[$dep]=1; done < <(spec_field "${spec_paths[$spec_pkg]}" Provides)
+	if [[ $spec_pkg == ryoku-desktop-* ]]; then
+		for dep in "${!hard[@]}"; do
+			! build_locked "$dep" \
+				|| fail "$spec_pkg hard-requires $dep, which is locked to one compositor build; make it Recommends"
+		done
+	fi
 
 	while IFS= read -r raw; do
 		[[ -n $raw ]] || continue

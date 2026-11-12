@@ -53,7 +53,7 @@ var wayfireKeys = map[string]string{
 
 	"XF86AudioRaiseVolume": "KEY_VOLUMEUP", "XF86AudioLowerVolume": "KEY_VOLUMEDOWN",
 	"XF86AudioMute": "KEY_MUTE", "XF86AudioMicMute": "KEY_MICMUTE",
-	"XF86AudioPlay": "KEY_PLAYPAUSE",
+	"XF86AudioPlay": "KEY_PLAYPAUSE", "XF86AudioPause": "KEY_PAUSECD",
 	"XF86AudioNext": "KEY_NEXTSONG", "XF86AudioPrev": "KEY_PREVIOUSSONG",
 	"XF86MonBrightnessUp": "KEY_BRIGHTNESSUP", "XF86MonBrightnessDown": "KEY_BRIGHTNESSDOWN",
 	"XF86TouchpadToggle": "KEY_TOUCHPAD_TOGGLE",
@@ -248,6 +248,8 @@ func shippedBinds() map[string]wayfireBind {
 		"resize.shorter":     {key: "resize_shorter", cmd: "ryoku-wm-wayfire act window.resizeBy shorter"},
 		"resize.taller":      {key: "resize_taller", cmd: "ryoku-wm-wayfire act window.resizeBy taller"},
 		"resize.resetHeight": {key: "resize_reset_height", cmd: "ryoku-wm-wayfire act window.presetHeight first", hint: "Give the window the full height of its workspace"},
+		"resize.grow":        {key: "resize_grow", cmd: "ryoku-wm-wayfire act window.resizeBy wider", hint: "Widen the window an eighth of the screen"},
+		"resize.shrink":      {key: "resize_shrink", cmd: "ryoku-wm-wayfire act window.resizeBy narrower", hint: "Narrow the window an eighth of the screen"},
 
 		// Workspaces. The grid's ten cells take the number keys and the
 		// number pad natively: each family lands on the same option, so both
@@ -301,6 +303,7 @@ func shippedBinds() map[string]wayfireBind {
 		"shell.ask":               {key: "shell_ask", cmd: "ryoku-shell ask"},
 		"shell.rashin":            {key: "shell_rashin", cmd: "ryoku-summon --app-id dev.ryoku.rashin rashin-app"},
 		"shell.cheatsheet":        {key: "shell_cheatsheet", cmd: "ryoku-shell cheatsheet"},
+		"shell.gamebar":           {key: "shell_gamebar", cmd: "ryoku-shell gamebar"},
 		"shell.lock":              {key: "shell_lock", cmd: "ryoku-shell lock"},
 		"shell.quicksettings":     {key: "shell_quicksettings", cmd: "ryoku-shell quicksettings"},
 		"shell.wallpaper":         {key: "shell_wallpaper", cmd: "ryogami wallpaper ui"},
@@ -327,7 +330,8 @@ func shippedBinds() map[string]wayfireBind {
 		"media.volumeDown": {key: "media_volume_down", cmd: "ryoku-volume down", repeatable: true},
 		"media.mute":       {key: "media_mute", cmd: "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle", always: true},
 		"media.micMute":    {key: "media_mic_mute", cmd: "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle", always: true},
-		"media.play":       {key: "media_play", cmd: "playerctl play-pause", always: true},
+		"media.play":       {key: "media_play", cmd: "ryoku-media play-pause", always: true, extra: "KEY_PLAYCD"},
+		"media.pause":      {key: "media_pause", cmd: "ryoku-media pause", always: true},
 		"media.next":       {key: "media_next", cmd: "playerctl next", always: true},
 		"media.prev":       {key: "media_prev", cmd: "playerctl previous", always: true},
 
