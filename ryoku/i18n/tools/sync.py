@@ -24,6 +24,9 @@ A developer only ever writes English, wrapped at the point it is displayed:
                             silently shipping English).
   check    report translations that are much longer than their English source
            (the cause of overflowing/overlapping UI). --strict to fail on them.
+  overrides
+           write every human override into its catalog now, offline: nothing
+           is translated, so a fix ships without waiting for the next sync.
   cost     price the next full pass: source tokens, output tokens and dollars
            per language for the configured model. --model/--force to compare.
   llm      generate a full language into the layered config dir
@@ -45,6 +48,7 @@ overrides/<lang>.json always wins, so a human fix is never overwritten.
   python3 sync.py sync --engine llm          # all targets, LLM
   python3 sync.py sync --engine llm --force  # full LLM re-translate
   python3 sync.py check --strict             # length guard
+  python3 sync.py overrides                  # ship overrides/<lang>.json now
   python3 sync.py cost                       # price the next full pass
 
 `--store` adds an official catalogue checkout to extraction. The
@@ -117,10 +121,14 @@ SH_CALL = re.compile(
     r"""(?:^|[|(&;`$]|\s)(?:tf?|log|die)\s+(["'])((?:\\.|(?!\1).)*)\1""", re.M)
 # the Hub's registry and page schemas: the fields its frame shows through
 # I18n.tr, the summaries' ctx.tr templates and the values of their `still` map
-HUB_FIELD = re.compile(r'\b(?:title|lead|label|detail|missing|actionText)\s*:\s*"((?:\\.|[^"\\])*)"')
+HUB_FIELD = re.compile(r'\b(?:title|lead|label|detail|missing|actionText|changeLabel)\s*:\s*"((?:\\.|[^"\\])*)"')
+# a placeholder is copy or a sample value (a device path, an address) that stays as written
+HUB_PLACEHOLDER = re.compile(r'\bplaceholder\s*:\s*"((?:\\.|[^"\\])*)"')
 HUB_VAR = re.compile(r'^var (?:title|lead)\s*=\s*"((?:\\.|[^"\\])*)"', re.M)
 HUB_TR = re.compile(r'\bctx\.tr\(\s*"((?:\\.|[^"\\])*)"')
 HUB_STILL = re.compile(r'^var still\s*=\s*\{(.*?)^\};', re.M | re.S)
+# helpers under the Hub's components/ take the page's tr as a parameter and call it on literals
+HUB_HELPER_TR = re.compile(r'(?<![\w.])tr\(\s*"((?:\\.|[^"\\])*)"')
 # the shortcut catalogue (ryoku/wm/binds.go) and each compositor's reason for a
 # bind it cannot honour are Go data that Kit and the Hub show through I18n.tr.
 WM_ROOT = os.path.join(REPO, "ryoku", "wm")
@@ -128,6 +136,10 @@ WM_BIND_FILES = ("binds.go", "config_binds.go", "legend.go")
 BIND_FIELD = re.compile(r'\b(?:Category|Label|Hint|reason):\s*"((?:\\.|[^"\\])*)"')
 UNHONORED_MAP = re.compile(r'Unhonored = map\[string\]string\{(.*?)\n\}', re.S)
 MAP_VALUE = re.compile(r'"[^"\n]*":\s*"((?:\\.|[^"\\])*)"')
+# a provider's plugin roster: each plugin's description, shown through I18n.tr
+# on the Window manager page
+WM_PLUGIN_FILES = ("config_plugins_tier.go",)
+PLUGIN_DESC = re.compile(r'\bDesc:\s*"((?:\\.|[^"\\])*)"')
 
 
 
@@ -235,11 +247,21 @@ def _scan_hub_data(keys, hub_root):
                 continue
             text = open(os.path.join(data_dir, f), encoding="utf-8", errors="ignore").read()
             bodies = HUB_FIELD.findall(text) + HUB_VAR.findall(text) + HUB_TR.findall(text)
+            bodies += [b for b in HUB_PLACEHOLDER.findall(text) if _copy(_unescape(b).strip())]
             for block in HUB_STILL.findall(text):
                 bodies += MAP_VALUE.findall(block)
             for body in bodies:
                 s = _unescape(body).strip()
                 if s and not _brand(s):
+                    keys.add(s)
+    for root, _, files in os.walk(os.path.join(hub_root, "components")):
+        for f in sorted(files):
+            if not f.endswith(".js"):
+                continue
+            text = open(os.path.join(root, f), encoding="utf-8", errors="ignore").read()
+            for body in HUB_HELPER_TR.findall(text) + HUB_TR.findall(text):
+                s = _unescape(body).strip()
+                if s:
                     keys.add(s)
 
 
@@ -260,7 +282,12 @@ def _scan_provider_rows(keys, wm_root):
                 if not isinstance(row, dict):
                     continue
                 names = row.get("optLabels") or {}
-                shown = [row.get("label"), row.get("desc")]
+                shown = [row.get("label"), row.get("desc"), row.get("actionLabel")]
+                # the Animations page names an animation by its label's part
+                # before " · ", without a "(group)" or "(root)" mark
+                if "[leaf=" in str(row.get("key", "")):
+                    leaf = str(row.get("label") or "").split(" \u00b7 ")[0]
+                    shown.append(re.sub(r"\s*\((group|root)\)\s*$", "", leaf))
                 for value in row.get("opts") or []:
                     key = value if isinstance(value, str) else json.dumps(value)
                     name = str(names.get(key, key))
@@ -333,10 +360,13 @@ def extract_keys(store_root=None):
     for root, dirs, files in os.walk(WM_ROOT):
         dirs[:] = [d for d in dirs if d not in ("vendor", "testdata", ".git")]
         for f in files:
-            if f not in WM_BIND_FILES:
+            if f not in WM_BIND_FILES and f not in WM_PLUGIN_FILES:
                 continue
             text = open(os.path.join(root, f), encoding="utf-8", errors="ignore").read()
-            bodies = BIND_FIELD.findall(text)
+            if f in WM_PLUGIN_FILES:
+                bodies = PLUGIN_DESC.findall(text)
+            else:
+                bodies = BIND_FIELD.findall(text)
             for block in UNHONORED_MAP.findall(text):
                 bodies += MAP_VALUE.findall(block)
             for body in bodies:
@@ -381,7 +411,8 @@ def extract_keys(store_root=None):
 
 def load_json(path):
     try:
-        return json.load(open(path, encoding="utf-8"))
+        with open(path, encoding="utf-8") as fh:
+            return json.load(fh)
     except Exception:
         return {}
 
@@ -583,11 +614,12 @@ KEEP = [
     "IP", "MAC", "USB", "HDMI", "RGB", "PID", "OSD", "QR", "PipeWire",
     "PulseAudio", "Wayland", "Hyprland", "Niri", "Sway", "systemd",
     "opencode", "codex", "Whisper", "gpu-screen-recorder",
+    "Rashin", "RyoStore", "Ryogami",
 ]
 SENSE = {
     "Shell": "the desktop shell / Unix command-line shell software, never a seashell",
     "Bar": "the desktop top panel / status bar, not a place that serves drinks",
-    "Dock": "the application dock / taskbar",
+    "Dock": "the application dock / taskbar, never a ship dock or a courtroom dock",
     "Tray": "the system tray (notification area)",
     "Idle": "the session's idle / inactivity state",
     "Lock": "locking the screen",
@@ -595,9 +627,10 @@ SENSE = {
     "Source": "an audio input device",
     "Mount": "mounting a filesystem / drive",
     "Window": "an application window (window manager)",
+    "Windows": "application windows on screen (the plural of Window), never the Microsoft Windows operating system",
     "Workspace": "a virtual desktop / workspace",
     "Tile": "a tiling window layout",
-    "Key": "a keyboard key or a config key, not a door key",
+    "Key": "a keyboard key or a config key, not a door key; Key sounds are keyboard click sounds",
     "Launcher": "the application launcher",
     "Hero": "the large feature widget / image / clock area of a page, not a person or superhero",
     "Deck": "a stacked panel of results (e.g. the launcher result deck), not a card deck or a ship deck",
@@ -610,6 +643,31 @@ SENSE = {
     "Reflection": "a visual mirror reflection, not contemplation",
     "Passes": "rendering / blur passes (a count), not passages or walkways",
     "Fade-in": "content appearing as opacity rises; fade-out is the reverse, never swap them",
+    "Displays": "the monitors / screens attached to the computer (a plural noun naming the monitor settings), never the verb 'shows'",
+    "Display": "a monitor / screen (a noun), never the verb 'to show'",
+    "Updates": "software updates (new versions to install, a plural noun), never medical side effects and never the verb 'updates'",
+    "Update": "a software update, or the action of installing one",
+    "Sounds": "the desktop's sound effects (alerts, clicks, chimes), a plural noun, never the verb 'sounds like'",
+    "Power": "electrical power, battery and power management (power mode, power button), never strength, force or authority",
+    "Graphics": "the graphics card (GPU) and its mode, never images or pictures",
+    "Accent": "the theme's accent colour, never a speech accent, pronunciation or emphasis",
+    "Focus": "keyboard focus: the window or control that receives input (a noun), never an instruction to concentrate",
+    "Look": "how something looks, its appearance (a noun heading), never the verb 'look at'",
+    "Recording": "screen recording (capturing video of the screen), never audio-only recording",
+    "Credits": "acknowledgement of the people and projects behind Ryoku, never financial credit or loans",
+    "Keyring": "the password and secret store (GNOME Keyring), never a physical key ring or key fob",
+    "Media": "music and video playback (media keys, the media player), never news media or the press",
+    "Theme": "a visual theme (colours and style), never a topic or subject",
+    "Terminal": "a terminal emulator / command line, never a station or an airport terminal",
+    "Borders": "the outline drawn around a window, never national borders or limits",
+    "Wallpaper": "the desktop background picture, never paper glued to a real wall",
+    "Mouse": "the pointing device, never the animal",
+    "Shortcuts": "keyboard shortcuts (key combinations), never file links or desktop shortcut icons",
+    "Tuning": "hardware performance tuning (GPU tuning presets), never musical or radio tuning",
+    "Home": "the start page of Settings, never a house",
+    "Open": "the action of opening something (a button), never the adjective 'opened'",
+    "Undo": "reverting the last change, never 'cancel'",
+    "Blur": "a frosted-glass blur effect (a noun), never the imperative 'blur!'",
 }
 
 
@@ -629,6 +687,11 @@ def build_prompt(lang_name, chunk):
         "%1 %2 (QML), %s %d %v (Go and shell printf), %% for a literal percent. "
         "Never translate, reorder into nonsense, add or drop one.\n"
         "- Do not use em dashes or en dashes; use a comma, colon, or parentheses.\n"
+        "- A short label (a page title, a section heading, a category) is a noun "
+        "phrase in the target language: never turn it into a verb, a polite "
+        "imperative sentence or a progressive form ('Displays' names the monitors, "
+        "it does not mean 'shows'). A button keeps the language's usual form for "
+        "an action, the infinitive where that is the convention.\n"
         "- Write the target language's own script, never a Latin transliteration.\n"
         f"- Keep these terms untranslated: {', '.join(KEEP)}.\n"
         "- These words are desktop-software terms, not everyday language:\n"
@@ -904,6 +967,34 @@ def cmd_check(argv):
     return 1 if strict and offenders else 0
 
 
+def cmd_overrides(argv):
+    """Write each language's overrides/<lang>.json into its catalog without
+    translating anything, exactly as `sync` would place them, so a human fix
+    ships now instead of with the next translation pass. Only strings English
+    still has (catalog/en.json) are written; everything else is left alone."""
+    en = load_json(os.path.join(TRANS, "en.json"))
+    if not en:
+        print("overrides: run extract first (catalog/en.json is empty)", file=sys.stderr)
+        return 1
+    for lang in argv or list(TARGETS):
+        if lang not in TARGETS:
+            print(f"overrides: unknown language {lang}", file=sys.stderr)
+            return 2
+        overrides = load_json(os.path.join(OVERRIDES, f"{lang}.json"))
+        if not overrides:
+            continue
+        path = os.path.join(TRANS, f"{lang}.json")
+        catalog = load_json(path)
+        changed = [k for k, v in overrides.items() if k in en and catalog.get(k) != v]
+        if not changed:
+            continue
+        for k in changed:
+            catalog[k] = overrides[k]
+        write_json(path, catalog)
+        print(f"overrides {lang}: {len(changed)} string(s) written")
+    return 0
+
+
 def cmd_llm(langs):
     """Full LLM generation into the layered config overlay (~/.config/ryoku/i18n)."""
     seed_llm_cfg()
@@ -1047,7 +1138,7 @@ def main():
     except ValueError as exc:
         print(f"sync.py: {exc}", file=sys.stderr)
         return 2
-    cmds = ("extract", "sync", "check", "llm", "ensure", "cost", "langs")
+    cmds = ("extract", "sync", "check", "overrides", "llm", "ensure", "cost", "langs")
     if not args or args[0] not in cmds:
         print(__doc__)
         return 2
@@ -1064,6 +1155,8 @@ def main():
         return 0
     if args[0] == "check":
         return cmd_check(args[1:])
+    if args[0] == "overrides":
+        return cmd_overrides(args[1:])
     if args[0] == "cost":
         return cmd_cost(args[1:])
     if args[0] == "llm":

@@ -26,6 +26,17 @@
   order are unchanged, held by a test over the real English entries
   (`ryoku/shell/plugin/hubsearch.cpp`,
   `ryoku/shell/plugin/tests/tst_hubsearch.cpp`).
+- **Settings titles read as nouns in every language.** Short titles had
+  taken the wrong sense: "Displays" was a verb in German, Polish, Arabic and
+  Bengali ("Zeigt an", "Wyświetla"), Dutch "Updates" meant medical side
+  effects, headings such as Look, Focus and Recording became imperatives or
+  "now recording", and Credits, Keyring, Accent, Media, Theme and Terminal
+  had picked up money, key fobs, speech, the press, topics and bus stations.
+  The human fixes for 33 languages are in `ryoku/i18n/catalog/overrides/`
+  and written into the shipped catalogs by the new offline
+  `sync.py overrides`; the translation glossary now explains those words and
+  tells the engine a heading is a noun, so the next pass keeps them right
+  (`ryoku/i18n/tools/sync.py`).
 - **Window style switches the panels' glass and shadows on their own.** Its
   Blur section has "Blur behind windows", shown only where the window manager
   blurs, and "Glass on panels and the dock", always shown; Shadows splits the

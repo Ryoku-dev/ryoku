@@ -59,6 +59,9 @@ class CatalogueExtractionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as hub:
             os.makedirs(os.path.join(hub, "registry"))
             os.makedirs(os.path.join(hub, "schema"))
+            os.makedirs(os.path.join(hub, "components", "mouse"))
+            with open(os.path.join(hub, "components", "mouse", "buttons.js"), "w", encoding="utf-8") as fh:
+                fh.write('function stepText(step, tr) { return tr("Hold %1 down").replace("%1", step.keys); }\n')
             with open(os.path.join(hub, "registry", "summaries.js"), "w", encoding="utf-8") as fh:
                 fh.write('var still = {\n    "fonts-icons": "Fonts and the pointer",\n};\n'
                          'function corners(ctx) { return ctx.tr("%1 px corners").replace("%1", 4); }\n')
@@ -66,15 +69,18 @@ class CatalogueExtractionTest(unittest.TestCase):
                 fh.write('var title = "Demo";\nvar lead = "What this page changes.";\n'
                          'var sections = [{ id: "glass", title: "Glass", missing: "Needs blur" }];\n'
                          'var rows = [{ id: "blur", section: "glass", label: "Blur", detail: "Frosted glass",\n'
-                         '    keywords: ["frost"], control: "segmented", actionText: "Open",\n'
-                         '    options: [{ value: "strong", label: "Strong" }] }];\n')
+                         '    keywords: ["frost"], control: "segmented", actionText: "Open", changeLabel: "Blur strength",\n'
+                         '    options: [{ value: "strong", label: "Strong" }] },\n'
+                         '    { id: "opts", section: "glass", label: "Options", control: "text", placeholder: "None" },\n'
+                         '    { id: "dev", section: "glass", label: "Device", control: "text", placeholder: "/dev/video10" }];\n')
 
             keys = set()
             sync._scan_hub_data(keys, hub)
 
         self.assertEqual(keys, {
             "Fonts and the pointer", "%1 px corners", "Demo", "What this page changes.",
-            "Glass", "Needs blur", "Blur", "Frosted glass", "Open", "Strong",
+            "Glass", "Needs blur", "Blur", "Frosted glass", "Open", "Strong", "Hold %1 down",
+            "Blur strength", "Options", "None", "Device",
         })
 
     def test_provider_rows_copy_is_catalogued(self):
@@ -84,12 +90,18 @@ class CatalogueExtractionTest(unittest.TestCase):
                 json.dump([{"group": "WORKSPACE SWITCH", "key": "wm.demo.anim.mode",
                             "label": "Style", "desc": "How this animation runs",
                             "opts": ["default", "ease_out"],
-                            "optLabels": {"default": "Demo default"}}], fh)
+                            "optLabels": {"default": "Demo default"}},
+                           {"key": "", "label": "Key sounds", "ctl": "install",
+                            "actionLabel": "Install sound engine"},
+                           {"key": "wm.demo.anim.items[leaf=fade].enabled",
+                            "label": "Fades (group) \u00b7 enabled", "desc": "All window fading"}], fh)
 
             keys = set()
             sync._scan_provider_rows(keys, wm)
 
-        self.assertEqual(keys, {"Style", "How this animation runs", "Demo default", "Ease out"})
+        self.assertEqual(keys, {"Style", "How this animation runs", "Demo default", "Ease out",
+                                "Key sounds", "Install sound engine",
+                                "Fades (group) \u00b7 enabled", "All window fading", "Fades"})
 
     def test_store_environment_selects_catalogue_root(self):
         with tempfile.TemporaryDirectory() as store:
@@ -119,6 +131,10 @@ class ShortcutCatalogueExtractionTest(unittest.TestCase):
         self.assertEqual([v for b in blocks for v in sync.MAP_VALUE.findall(b)],
                          ["Hyprland has no column model."])
 
+    def test_plugin_descriptions_are_catalogued(self):
+        roster = '{ID: "hyprglass", Name: "Glass", Desc: "Frosted glass windows.", Repo: "https://x"}'
+        self.assertEqual(sync.PLUGIN_DESC.findall(roster), ["Frosted glass windows."])
+
 
 class LLMUnavailableTest(unittest.TestCase):
     def test_cmd_sync_returns_three_without_writing_catalog(self):
@@ -141,6 +157,90 @@ class LLMUnavailableTest(unittest.TestCase):
             self.assertEqual(result, 3)
             self.assertFalse(os.path.exists(os.path.join(trans, f"{lang}.json")))
             self.assertIn("translation provider unavailable: HTTP 402", stderr.getvalue())
+
+
+class GlossaryTest(unittest.TestCase):
+    # the short Settings titles a context-blind pass got wrong: a verb for a
+    # page about monitors, side effects for software updates, and so on
+    SETTINGS_TERMS = ("Displays", "Updates", "Windows", "Sounds", "Power", "Graphics",
+                      "Accent", "Focus", "Look", "Recording", "Credits", "Keyring",
+                      "Media", "Theme", "Wallpaper", "Shortcuts", "Home")
+
+    def test_settings_titles_have_a_sense(self):
+        for term in self.SETTINGS_TERMS:
+            self.assertIn(term, sync.SENSE, term)
+        self.assertIn("never the verb", sync.SENSE["Displays"])
+        self.assertIn("side effects", sync.SENSE["Updates"])
+
+    def test_prompt_carries_senses_and_the_heading_rule(self):
+        prompt = sync.build_prompt("German", ["Displays", "Updates"])
+        for term in self.SETTINGS_TERMS:
+            self.assertIn(f'"{term}": {sync.SENSE[term]}', prompt)
+        self.assertIn("noun phrase", prompt)
+        for brand in ("Rashin", "RyoStore", "Ryogami"):
+            self.assertIn(brand, sync.KEEP)
+
+
+class OverridesTest(unittest.TestCase):
+    def test_overrides_are_written_without_translating(self):
+        lang = next(iter(sync.TARGETS))
+        with tempfile.TemporaryDirectory() as trans:
+            os.makedirs(os.path.join(trans, "overrides"))
+            with open(os.path.join(trans, "en.json"), "w", encoding="utf-8") as fh:
+                json.dump({"Displays": "Displays", "Keyboard": "Keyboard"}, fh)
+            with open(os.path.join(trans, f"{lang}.json"), "w", encoding="utf-8") as fh:
+                json.dump({"Displays": "Zeigt an", "Keyboard": "Tastatur"}, fh)
+            with open(os.path.join(trans, "overrides", f"{lang}.json"), "w", encoding="utf-8") as fh:
+                json.dump({"Displays": "Bildschirme", "Gone": "Weg"}, fh)
+
+            with mock.patch.object(sync, "TRANS", trans), \
+                    mock.patch.object(sync, "OVERRIDES", os.path.join(trans, "overrides")), \
+                    mock.patch.object(sync, "google_translate_all", side_effect=AssertionError), \
+                    mock.patch.object(sync, "llm_translate", side_effect=AssertionError), \
+                    mock.patch("sys.stdout", io.StringIO()):
+                self.assertEqual(sync.cmd_overrides([]), 0)
+                with open(os.path.join(trans, f"{lang}.json"), encoding="utf-8") as fh:
+                    got = json.load(fh)
+
+        # the override wins, the rest of the catalog stays, and a string
+        # English no longer has is not resurrected
+        self.assertEqual(got, {"Displays": "Bildschirme", "Keyboard": "Tastatur"})
+
+    def test_unknown_language_is_refused(self):
+        with mock.patch("sys.stderr", io.StringIO()):
+            self.assertEqual(sync.cmd_overrides(["xx"]), 2)
+
+
+class ShippedOverridesTest(unittest.TestCase):
+    """The repository's catalogs, which are what ships: every human fix is in
+    them, keeps its placeholders, and the wrong senses stay gone."""
+
+    def _overrides(self):
+        for lang in sync.TARGETS:
+            o = sync.load_json(os.path.join(sync.OVERRIDES, f"{lang}.json"))
+            if o:
+                yield lang, o
+
+    def test_every_override_is_in_its_catalog(self):
+        en = sync.load_json(os.path.join(sync.TRANS, "en.json"))
+        for lang, overrides in self._overrides():
+            catalog = sync.load_json(os.path.join(sync.TRANS, f"{lang}.json"))
+            stale = sorted(k for k, v in overrides.items() if k in en and catalog.get(k) != v)
+            self.assertEqual(stale, [], f"{lang}: run `sync.py overrides`")
+
+    def test_overrides_keep_their_placeholders(self):
+        for lang, overrides in self._overrides():
+            for k, v in overrides.items():
+                self.assertEqual(sync._ph(v), sync._ph(k), f"{lang}: {k!r}")
+
+    def test_settings_titles_are_nouns(self):
+        wrong = {("de", "Displays"): "Zeigt an", ("pl", "Displays"): "Wyświetla",
+                 ("ar", "Displays"): "يعرض", ("bn", "Displays"): "প্রদর্শন করে",
+                 ("nl", "Updates"): "Bijwerkingen", ("de", "Look"): "Schauen Sie",
+                 ("de", "Focus"): "Konzentrieren Sie sich", ("vi", "Desktop"): "Shell"}
+        for (lang, key), bad in wrong.items():
+            catalog = sync.load_json(os.path.join(sync.TRANS, f"{lang}.json"))
+            self.assertNotEqual(catalog.get(key), bad, f"{lang}: {key}")
 
 
 if __name__ == "__main__":

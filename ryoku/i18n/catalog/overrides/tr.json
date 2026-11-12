@@ -3,6 +3,8 @@
   "%d orphaned package(s)": "%d yetim paket",
   "%d pending config update(s) (.pacnew) need review": "%d bekleyen yapılandırma güncellemesinin (.pacnew) incelenmesi gerekiyor",
   "%d pending config update(s) (.pacnew) need review (%d %s)": "%d bekleyen yapılandırma güncellemesinin (.pacnew) incelenmesi gerekiyor (%d %s)",
+  "Accent": "Vurgu rengi",
+  "Recording": "Kayıt",
   "boot volume writability": "önyükleme birimi yazılabilirliği",
   "boot volumes are mounted read-write": "önyükleme birimleri okuma-yazma olarak bağlandı",
   "follow-wallpaper default": "duvar kâğıdını izleme varsayılanı",
