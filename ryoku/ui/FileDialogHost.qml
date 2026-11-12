@@ -1,8 +1,8 @@
 pragma ComponentBehavior: Bound
 
+import QtCore
 import QtQuick
 import QtQuick.Dialogs
-import Quickshell
 
 // The system file or folder dialog, kept only as long as the window it opened
 // in.
@@ -29,7 +29,7 @@ Item {
 
     property string title: ""
     property list<string> nameFilters: []
-    property url currentFolder: "file://" + (Quickshell.env("HOME") || "/")
+    property url currentFolder: StandardPaths.writableLocation(StandardPaths.HomeLocation)
     // Choose a folder instead of a file.
     property bool folders: false
 
@@ -51,9 +51,15 @@ Item {
         host.dialog = null;
     }
 
+    // A dialog moves its own folder as the reader browses, which drops its binding
+    // to the host's currentFolder, and a folder dialog keeps the folder it showed
+    // last. So every open() builds a fresh dialog that starts at the host's folder,
+    // and two rows sharing one host each open where they point.
     function open(): void {
-        if (!host.dialog)
-            host.dialog = (host.folders ? host.folderComponent : host.fileComponent).createObject(host);
+        if (host.showing)
+            return;
+        host.drop();
+        host.dialog = (host.folders ? host.folderComponent : host.fileComponent).createObject(host);
         host.dialog.open();
     }
 
