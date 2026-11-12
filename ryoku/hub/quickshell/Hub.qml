@@ -1201,14 +1201,21 @@ FocusScope {
         }
     }
 
+    // the window's own controls: a labelled Close plaque that stands clear of
+    // the pane's cut corner, not an X stranded in it
     Component {
         id: closeControl
-        IconPlaque {
-            small: true
-            kind: "quiet"
-            glyph: "close"
-            accessibleName: I18n.tr("Close")
-            onClicked: hub.requestQuit()
+        Row {
+            spacing: LithicTokens.space.s1
+
+            Plaque {
+                small: true
+                kind: "quiet"
+                glyph: "close"
+                text: I18n.tr("Close")
+                accessibleName: I18n.tr("Close Settings")
+                onClicked: hub.requestQuit()
+            }
         }
     }
 }
