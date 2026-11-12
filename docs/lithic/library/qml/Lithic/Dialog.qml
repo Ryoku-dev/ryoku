@@ -41,20 +41,30 @@ T.Dialog {
         if (opener && opener.enabled)
             opener.forceActiveFocus()
     }
-    // like the web, a dialog that opens without focusing a control of its own starts on its first one
+    // open on the content's declared focus, else the first control; focus left by a past open is dropped
     onOpened: {
         if (!previewEmbedded)
             _focusFirstControl()
     }
 
+    property Item _ownFocus: null
+    property bool _ownFocusRead: false
+
     function _focusFirstControl() {
-        for (let item = contentColumn.Window.activeFocusItem; item; item = item.parent) {
-            if (item === contentColumn)
-                return
+        if (!_ownFocusRead) {
+            _ownFocusRead = true
+            const focused = contentColumn.Window.activeFocusItem
+            for (let item = focused; item; item = item.parent) {
+                if (item === contentColumn) {
+                    _ownFocus = focused
+                    break
+                }
+            }
         }
-        const first = _firstTabStop(contentColumn)
-        if (first)
-            first.forceActiveFocus(opener && opener.visualFocus ? Qt.TabFocusReason : Qt.OtherFocusReason)
+        const target = _ownFocus && _ownFocus.visible && _ownFocus.enabled
+            ? _ownFocus : _firstTabStop(contentColumn)
+        if (target)
+            target.forceActiveFocus(opener && opener.visualFocus ? Qt.TabFocusReason : Qt.OtherFocusReason)
     }
 
     function _firstTabStop(item) {

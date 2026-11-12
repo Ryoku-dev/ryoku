@@ -112,6 +112,24 @@ Item {
             compare(confirms.count, 1, "Tab then Return confirms");
         }
 
+        function test_reopenedConfirmStartsOnCancelAgain() {
+            confirms.clear();
+            confirm.open();
+            tryCompare(confirm, "opened", true);
+            keyClick(Qt.Key_Tab);
+            keyClick(Qt.Key_Return);
+            tryCompare(confirm, "opened", false);
+            compare(confirms.count, 1, "Tab then Return confirms");
+            cancels.clear();
+            confirms.clear();
+            confirm.open();
+            tryCompare(confirm, "opened", true);
+            keyClick(Qt.Key_Return);
+            tryCompare(confirm, "opened", false);
+            compare(confirms.count, 0, "Return on a reopened confirm must not confirm");
+            compare(cancels.count, 1, "a reopened confirm starts on Cancel");
+        }
+
         function test_namedConfirmStartsInTheField() {
             named.open();
             tryCompare(named, "opened", true);
