@@ -22,6 +22,7 @@ desktop_windows
 device_hub
 difference
 download
+drag_indicator
 edit
 error
 expand_less

@@ -1073,3 +1073,20 @@
 .l-color-field:not([data-l-allow-alpha]) .l-color-field__alpha {
   display: none;
 }
+
+.l-path-field {
+  width: var(--lithic-size-settings-control-max);
+  max-width: 100%;
+}
+
+.l-path-field .l-text-field {
+  padding-inline-end: calc(var(--lithic-size-text-field-secret-action) + var(--lithic-size-text-field-secret-inset) + var(--lithic-size-text-field-inset));
+  font: var(--lithic-type-mono-weight) var(--lithic-type-mono-size)/var(--lithic-type-mono-line) var(--lithic-type-mono-family);
+}
+
+/* the choose plaque takes the reveal slot inside the field */
+.l-path-field__choose {
+  position: absolute;
+  inset-block-start: calc((var(--lithic-size-text-field-height) - var(--lithic-size-text-field-secret-action)) / 2);
+  inset-inline-end: var(--lithic-size-text-field-secret-inset);
+}

@@ -10,6 +10,8 @@ let rowIdentity = 0;
 
 const SETTING_ROW_INTERACTIVE = 'a[href], button, input, select, textarea, label, [contenteditable="true"], [role="switch"], [role="slider"], [role="spinbutton"], [role="combobox"], [tabindex]';
 const TILE_MOVES = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End']);
+const listEditors = new WeakMap();
+let listEditorIdentity = 0;
 
 function all(root, selector) {
   const matches = root instanceof Element && root.matches(selector) ? [root] : [];
@@ -401,6 +403,7 @@ export function initLists(root) {
   setupWithin(root);
   initSettingRows(root);
   initDesignGalleries(root);
+  initListEditors(root);
   const Observer = documentFor(root).defaultView?.MutationObserver;
   if (!Observer) return;
 
@@ -596,6 +599,283 @@ function initDesignGalleries(root) {
     const next = nextTile(gallery, tile, event.key);
     if (next && next !== tile) selectTile(next, {focus: true});
   });
+}
+
+function editorItems(list) {
+  return [...list.querySelectorAll(':scope > .l-list-editor__items > .l-list-editor__item')];
+}
+
+function itemTitle(item) {
+  return item?.querySelector('.l-list-editor__title')?.textContent.trim() || '';
+}
+
+function listEditorParts(list) {
+  return {
+    items: list.querySelector(':scope > .l-list-editor__items'),
+    editor: list.querySelector('.l-list-editor__editor'),
+    add: list.querySelector(':scope > .l-list-editor__add, :scope > .l-focus-ring > .l-list-editor__add'),
+  };
+}
+
+function managedPlaque(item, part, glyph, label) {
+  let button = item.querySelector(`:scope > .l-list-editor__${part}, :scope > .l-focus-ring > .l-list-editor__${part}`);
+  if (!button) {
+    const ring = documentFor(item).createElement('span');
+    ring.className = 'l-focus-ring';
+    ring.style.setProperty('--l-cut', 'var(--lithic-cut-small)');
+    button = documentFor(item).createElement('button');
+    button.type = 'button';
+    button.className = `l-list-editor__${part} l-icon-plaque l-quiet l-small`;
+    button.innerHTML = `<span class="l-glyph" aria-hidden="true">${glyph}</span>`;
+    ring.append(button);
+    // edit sits before remove, and both before an open editor
+    const later = [...item.children].find(child => child.matches('.l-list-editor__editor') ||
+      (part === 'edit' && child.matches('.l-list-editor__remove, :has(> .l-list-editor__remove)')));
+    item.insertBefore(ring, later || null);
+  }
+  // a host-written name wins; otherwise the plaque is named after the item
+  if (!button.hasAttribute('aria-label') || button.hasAttribute('data-l-managed-label')) {
+    button.setAttribute('aria-label', `${label} ${itemTitle(item)}`.trim());
+    button.setAttribute('data-l-managed-label', '');
+  }
+}
+
+function prepareEditorItem(list, item) {
+  const title = item.querySelector('.l-list-editor__title');
+  if (title) {
+    if (!title.id) title.id = `lithic-list-item-${++listEditorIdentity}`;
+    item.setAttribute('aria-labelledby', title.id);
+  }
+  if (list.hasAttribute('data-l-reorderable') && !item.querySelector(':scope > .l-list-editor__handle')) {
+    const handle = documentFor(item).createElement('span');
+    handle.className = 'l-list-editor__handle';
+    handle.setAttribute('aria-hidden', 'true');
+    handle.innerHTML = '<span class="l-glyph">drag_indicator</span>';
+    item.prepend(handle);
+  }
+  managedPlaque(item, 'edit', 'edit', 'Edit');
+  managedPlaque(item, 'remove', 'delete', 'Remove');
+}
+
+function editorValid(editor) {
+  return !editor.hasAttribute('data-l-invalid') && !editor.querySelector(':invalid');
+}
+
+function ensureEditorActions(list, editor) {
+  let actions = editor.querySelector(':scope > .l-list-editor__actions');
+  if (!actions) {
+    actions = documentFor(editor).createElement('div');
+    actions.className = 'l-list-editor__actions';
+    actions.innerHTML = '<span class="l-focus-ring" style="--l-cut:var(--lithic-cut-small)"><button class="l-plaque l-quiet l-small" type="button" data-l-editor-cancel></button></span>' +
+      '<span class="l-focus-ring" style="--l-cut:var(--lithic-cut-small)"><button class="l-plaque l-line l-small" type="button" data-l-editor-done></button></span>';
+    editor.append(actions);
+  }
+  actions.querySelector('[data-l-editor-cancel]').textContent = list.dataset.lCancelText || 'Cancel';
+  return actions;
+}
+
+function syncEditorDone(list) {
+  const {editor} = listEditorParts(list);
+  const done = editor?.querySelector('[data-l-editor-done]');
+  if (!done) return;
+  const state = listEditors.get(list);
+  done.textContent = state?.adding ? list.dataset.lDoneText || 'Add' : 'Done';
+  const valid = editorValid(editor);
+  done.disabled = !valid;
+  done.setAttribute('aria-disabled', String(!valid));
+}
+
+function showAdd(add, visible) {
+  const target = add?.closest('.l-list-editor > .l-focus-ring') || add;
+  if (target) target.hidden = !visible;
+}
+
+export function closeListEditor(list, {focus = true} = {}) {
+  const state = listEditors.get(list);
+  const {editor, add} = listEditorParts(list);
+  if (!state || (!state.item && !state.adding) || !editor) return null;
+  const closed = {item: state.item, adding: state.adding, index: state.item ? editorItems(list).indexOf(state.item) : -1};
+  editor.hidden = true;
+  state.item?.removeAttribute('data-l-editing');
+  // the editor goes home before any event so a host re-render cannot take it with a row
+  list.insertBefore(editor, add?.closest('.l-list-editor > .l-focus-ring') || add || null);
+  showAdd(add, true);
+  state.item = null;
+  state.adding = false;
+  if (focus) {
+    const target = closed.item?.isConnected ? closed.item.querySelector('.l-list-editor__edit') : add;
+    target?.focus({preventScroll: true});
+  }
+  return closed;
+}
+
+export function openListEditor(list, item) {
+  const state = listEditors.get(list);
+  const {editor, add} = listEditorParts(list);
+  if (!state || !editor) return;
+  const previous = closeListEditor(list, {focus: false});
+  if (previous) emit(list, 'lithic:cancel', previous);
+  state.item = item;
+  state.adding = !item;
+  ensureEditorActions(list, editor);
+  if (item) {
+    item.append(editor);
+    item.setAttribute('data-l-editing', '');
+    editor.setAttribute('aria-label', `Edit ${itemTitle(item)}`.trim());
+  } else {
+    const addSlot = add?.closest('.l-list-editor > .l-focus-ring') || add;
+    list.insertBefore(editor, addSlot || null);
+    showAdd(add, false);
+    editor.setAttribute('aria-label', add?.textContent.trim() || 'Add');
+  }
+  editor.hidden = false;
+  syncEditorDone(list);
+  const index = item ? editorItems(list).indexOf(item) : -1;
+  emit(list, item ? 'lithic:edit' : 'lithic:add', {index, item, editor});
+  syncEditorDone(list);
+  editor.querySelector('input, select, textarea, [contenteditable="true"]')?.focus({preventScroll: true});
+}
+
+function finishListEditor(list) {
+  const {editor} = listEditorParts(list);
+  if (!editor || !editorValid(editor)) return;
+  const closed = closeListEditor(list);
+  if (closed) emit(list, 'lithic:done', {...closed, editor});
+}
+
+function cancelListEditor(list) {
+  const closed = closeListEditor(list);
+  if (closed) emit(list, 'lithic:cancel', closed);
+}
+
+function moveFor(list, item, to) {
+  const from = editorItems(list).indexOf(item);
+  if (from < 0 || to < 0 || to >= editorItems(list).length || to === from) return;
+  emit(list, 'lithic:move', {from, to, item});
+}
+
+function setupListEditor(list) {
+  if (listEditors.has(list)) return;
+  const state = {item: null, adding: false, drag: null};
+  listEditors.set(list, state);
+  const {items, editor, add} = listEditorParts(list);
+  if (items && !items.hasAttribute('aria-label') && list.hasAttribute('aria-label')) items.setAttribute('aria-label', list.getAttribute('aria-label'));
+  editorItems(list).forEach(item => prepareEditorItem(list, item));
+  if (editor) {
+    editor.classList.add('l-cut');
+    editor.setAttribute('role', 'group');
+    ensureEditorActions(list, editor);
+    // an editor written open is adopted as the open one
+    if (!editor.hidden) {
+      state.item = editor.closest('.l-list-editor__item');
+      state.adding = !state.item;
+      state.item?.setAttribute('data-l-editing', '');
+      if (state.adding) showAdd(add, false);
+      editor.setAttribute('aria-label', state.item ? `Edit ${itemTitle(state.item)}`.trim() : add?.textContent.trim() || 'Add');
+    }
+    syncEditorDone(list);
+    new MutationObserver(() => syncEditorDone(list)).observe(editor, {attributes: true, attributeFilter: ['data-l-invalid'], subtree: true});
+  }
+  if (items) {
+    new MutationObserver(() => editorItems(list).forEach(item => prepareEditorItem(list, item))).observe(items, {childList: true});
+  }
+}
+
+function dragTarget(state, dy) {
+  const center = state.centers[state.from] + dy;
+  return state.centers.filter((value, index) => index !== state.from && value < center).length;
+}
+
+function initListEditors(root) {
+  all(root, '.l-list-editor').forEach(setupListEditor);
+
+  root.addEventListener('click', event => {
+    const list = event.target.closest('.l-list-editor');
+    if (!list || !listEditors.has(list)) return;
+    const control = event.target.closest('button');
+    if (!control || control.matches(':disabled, [aria-disabled="true"]')) return;
+    if (control.matches('[data-l-editor-done]')) finishListEditor(list);
+    else if (control.matches('[data-l-editor-cancel]')) cancelListEditor(list);
+    else if (control.matches('.l-list-editor__add')) openListEditor(list, null);
+    else if (control.matches('.l-list-editor__edit')) openListEditor(list, control.closest('.l-list-editor__item'));
+    else if (control.matches('.l-list-editor__remove')) {
+      const item = control.closest('.l-list-editor__item');
+      if (listEditors.get(list).item === item) closeListEditor(list, {focus: false});
+      emit(list, 'lithic:remove', {index: editorItems(list).indexOf(item), item});
+    }
+  });
+
+  root.addEventListener('input', event => {
+    const list = event.target.closest('.l-list-editor__editor')?.closest('.l-list-editor');
+    if (list) syncEditorDone(list);
+  });
+
+  root.addEventListener('keydown', event => {
+    const list = event.target.closest?.('.l-list-editor');
+    if (!list || !listEditors.has(list)) return;
+    const inEditor = event.target.closest('.l-list-editor__editor');
+    if (inEditor) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        cancelListEditor(list);
+      } else if (event.key === 'Enter' && event.target.matches('input:not([type="checkbox"], [type="radio"], [type="button"], [type="submit"])')) {
+        event.preventDefault();
+        finishListEditor(list);
+      }
+      return;
+    }
+    if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
+    const item = event.target.closest('.l-list-editor__item');
+    if (!item || !list.hasAttribute('data-l-reorderable')) return;
+    event.preventDefault();
+    moveFor(list, item, editorItems(list).indexOf(item) + (event.key === 'ArrowUp' ? -1 : 1));
+  }, true);
+
+  root.addEventListener('pointerdown', event => {
+    const handle = event.target.closest('.l-list-editor__handle');
+    const item = handle?.closest('.l-list-editor__item');
+    const list = item?.closest('.l-list-editor');
+    if (!list?.hasAttribute('data-l-reorderable') || event.button !== 0) return;
+    const state = listEditors.get(list);
+    if (!state) return;
+    const rows = editorItems(list);
+    event.preventDefault();
+    handle.setPointerCapture?.(event.pointerId);
+    state.drag = {
+      item,
+      handle,
+      from: rows.indexOf(item),
+      startY: event.clientY,
+      centers: rows.map(row => {
+        const rect = row.getBoundingClientRect();
+        return rect.top + rect.height / 2;
+      }),
+    };
+    item.setAttribute('data-l-dragging', '');
+  });
+
+  root.addEventListener('pointermove', event => {
+    const list = event.target.closest?.('.l-list-editor');
+    const drag = list && listEditors.get(list)?.drag;
+    if (!drag) return;
+    drag.item.style.setProperty('--l-drag-y', `${event.clientY - drag.startY}px`);
+  });
+
+  const endDrag = (event, report) => {
+    const list = event.target.closest?.('.l-list-editor');
+    const state = list && listEditors.get(list);
+    const drag = state?.drag;
+    if (!drag) return;
+    state.drag = null;
+    drag.item.removeAttribute('data-l-dragging');
+    drag.item.style.removeProperty('--l-drag-y');
+    if (!report) return;
+    const to = dragTarget(drag, event.clientY - drag.startY);
+    if (to !== drag.from) emit(list, 'lithic:move', {from: drag.from, to, item: drag.item});
+  };
+  root.addEventListener('pointerup', event => endDrag(event, true));
+  root.addEventListener('pointercancel', event => endDrag(event, false));
 }
 
 register('lists', initLists);

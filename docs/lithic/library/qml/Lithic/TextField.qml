@@ -64,8 +64,8 @@ T.TextField {
         width: Math.max(0, root.width - root.leftPadding - root.rightPadding)
         visible: root.text.length === 0 && root.preeditText.length === 0 && root.placeholderText.length > 0
         text: root.placeholderText
-        typeRole: root.mono ? "mono" : "body"
-        ink: root.placeholderTextColor
+        // a hint is words, even in a field that holds literal data
+        typeRole: "body"
         Accessible.ignored: true
     }
 

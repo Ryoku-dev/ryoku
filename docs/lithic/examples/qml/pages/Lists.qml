@@ -7,6 +7,28 @@ Item {
     implicitHeight: content.implicitHeight + LithicTokens.space.s5 * 2
     // a picture of a look for the DesignTile previews; any image does
     readonly property url lookPreview: Qt.resolvedUrl("../../../media/sheet-settings.png")
+    readonly property var startupApps: [
+        { title: "Firefox", detail: "Opens at login on the first display", command: "firefox", on: true },
+        { title: "Vesktop", detail: "Opens at login, minimised", command: "vesktop --start-minimized", on: true },
+        { title: "Ryotunes", detail: "Opens at login", command: "ryotunes", on: false }
+    ]
+
+    // an editor a host would write: the item in, a value and validity out
+    component StartupEditor: Column {
+        property var item: ({})
+        readonly property bool valid: commandField.text.trim().length > 0
+        function value() { return Object.assign({}, item, { title: nameField.text, command: commandField.text }) }
+        spacing: LithicTokens.space.s3
+        TextField { id: nameField; width: parent.width; label: "Name"; text: parent.item.title || "" }
+        TextField { id: commandField; width: parent.width; label: "Command"; mono: true; text: parent.item.command || "" }
+    }
+
+    component StartupToggle: Toggle {
+        property var modelData: ({})
+        property int index: -1
+        checked: !!modelData.on
+        Accessible.name: "Open " + (modelData.title || "") + " at login"
+    }
 
     component HostMark: CutRect {
         fill: Lithic.stone3
@@ -695,6 +717,117 @@ Item {
                     "chunk 348 of 512",
                     "verified 2.7 GiB"
                 ]
+            }
+        }
+
+        Showcase {
+            title: "ListEditor"
+
+            State {
+                stateName: "Items with a trailing toggle"
+                specimenWidth: LithicTokens.size.draftFormMax
+                specimenHeight: restList.implicitHeight
+                Slab {
+                    id: restList
+                    anchors.fill: parent
+                    ListEditor {
+                        width: parent.width
+                        model: root.startupApps
+                        addText: "Add a startup app"
+                        editor: Component { StartupEditor {} }
+                        trailing: Component { StartupToggle {} }
+                    }
+                }
+            }
+            State {
+                stateName: "Reorderable, an item being dragged"
+                specimenWidth: LithicTokens.size.draftFormMax
+                specimenHeight: dragList.implicitHeight
+                Slab {
+                    id: dragList
+                    anchors.fill: parent
+                    ListEditor {
+                        width: parent.width
+                        reorderable: true
+                        previewState: "dragging"
+                        model: [
+                            { title: "Wallpaper", detail: "Bottom layer" },
+                            { title: "Desktop widgets", detail: "Above the wallpaper" },
+                            { title: "Bar", detail: "Top layer" }
+                        ]
+                        titleOf: item => item.title
+                        addText: "Add a layer"
+                        editor: Component { StartupEditor {} }
+                    }
+                }
+            }
+            State {
+                stateName: "Editing an item"
+                specimenWidth: LithicTokens.size.draftFormMax
+                specimenHeight: editList.implicitHeight
+                Slab {
+                    id: editList
+                    anchors.fill: parent
+                    ListEditor {
+                        width: parent.width
+                        previewState: "editing"
+                        model: root.startupApps.slice(0, 2)
+                        addText: "Add a startup app"
+                        editor: Component { StartupEditor {} }
+                    }
+                }
+            }
+            State {
+                stateName: "Adding an item, Add waits for a command"
+                specimenWidth: LithicTokens.size.draftFormMax
+                specimenHeight: addList.implicitHeight
+                Slab {
+                    id: addList
+                    anchors.fill: parent
+                    ListEditor {
+                        width: parent.width
+                        previewState: "adding"
+                        model: root.startupApps.slice(0, 1)
+                        addText: "Add a startup app"
+                        editor: Component { StartupEditor {} }
+                    }
+                }
+            }
+            State {
+                stateName: "Empty"
+                specimenWidth: LithicTokens.size.draftFormMax
+                specimenHeight: emptyList.implicitHeight
+                Slab {
+                    id: emptyList
+                    anchors.fill: parent
+                    ListEditor {
+                        width: parent.width
+                        model: []
+                        emptyText: "No apps open at login."
+                        addText: "Add a startup app"
+                        editor: Component { StartupEditor {} }
+                    }
+                }
+            }
+            State {
+                stateName: "Rules read through titleOf and detailOf"
+                specimenWidth: LithicTokens.size.draftFormMax
+                specimenHeight: ruleList.implicitHeight
+                Slab {
+                    id: ruleList
+                    anchors.fill: parent
+                    ListEditor {
+                        width: parent.width
+                        model: [
+                            { app: "Firefox", float: true, opacity: 80 },
+                            { app: "Ryotunes", float: false, opacity: 100 }
+                        ]
+                        titleOf: item => item.app + ": " + (item.float ? "floats" : "tiles") + ", " + item.opacity + "% opacity"
+                        detailOf: item => ""
+                        addText: "Add a window rule"
+                        editor: Component { StartupEditor {} }
+                    }
+                }
             }
         }
 

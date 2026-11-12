@@ -64,6 +64,7 @@ Icons are Material Symbols Sharp in every stack. QML and the web set the font's 
 | Disclosure | Reveal optional or advanced content in place. | [Disclosure](components.md#disclosure) | `Disclosure` | `l-disclosure` | `kit.Disclosure` | `term.RenderDisclosure` | `ui/kit/disclosure.go` |
 | ChordField | Record and show one keyboard shortcut as keycaps. | [ChordField](components.md#chordfield) | `ChordField` | `l-chord-field` | `kit.ChordField` | `-` | `-` |
 | ColorField | Choose one colour from roles or as hex, with optional opacity. | [ColorField](components.md#colorfield) | `ColorField` | `l-color-field` | `kit.ColorField` | `-` | `-` |
+| PathField | Choose a file or folder, or type its path. | [PathField](components.md#pathfield) | `PathField` | `l-path-field` | `kit.PathField` | `-` | `-` |
 
 ### Lists, containers, state and progress
 
@@ -83,6 +84,7 @@ Icons are Material Symbols Sharp in every stack. QML and the web set the font's 
 | SettingRow | Lay out one setting with its words, control, changed mark and reset. | [SettingRow](components.md#settingrow) | `SettingRow` | `l-setting-row` | `kit.SettingRow` | `-` | `-` |
 | DesignTile | Show one look with its preview, state, resource cost and action. | [DesignTile](components.md#designtile) | `DesignTile` | `l-design-tile` | `kit.DesignTile` | `-` | `-` |
 | DesignGallery | Lay out design tiles in a grid navigated by keyboard. | [DesignGallery](components.md#designgallery) | `DesignGallery` | `l-design-gallery` | `kit.DesignGallery` | `-` | `-` |
+| ListEditor | Add, edit, remove and reorder the items of a list in place. | [ListEditor](components.md#listeditor) | `ListEditor` | `l-list-editor` | `kit.ListEditor` | `-` | `-` |
 | Facts | Show compact label and value rows. | [Facts](components.md#facts) | `Facts` | `l-facts` | `kit.Facts` | `term.RenderFacts` | `ui/kit/facts.go` |
 | Aside | Explain what a form will do before it is committed. | [Aside](components.md#aside) | `Aside` | `l-aside` | `kit.Aside` | `term.RenderAside` | `ui/pages/common/draft.go` |
 | DraftColumns | Keep a draft form and its aside together across size classes. | [DraftColumns](components.md#draftcolumns) | `DraftColumns` | `l-draft-columns` | `kit.DraftColumns` | `term.RenderDraftColumns` | `ui/pages/common/draft.go` |

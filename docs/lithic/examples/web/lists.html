@@ -45,6 +45,8 @@
     .scroll-demo.short { block-size: auto; }
     .scroll-demo.sideways { display: flex; align-content: normal; block-size: auto; padding-block-end: var(--lithic-space-s2); padding-inline-end: 0; }
     .scroll-demo.sideways .l-tablet { flex: 0 0 var(--lithic-size-list-medium); }
+    .editor-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--lithic-space-s3); }
+    .l-list-editor__editor .l-field { width: 100%; }
     @media (max-width: 900px) { .page-head { align-items: start; flex-direction: column; } .pane-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -401,6 +403,92 @@
           <div class="l-scroll scroll-demo sideways" tabindex="0" aria-label="Images">
             <article class="l-tablet" data-tone="idle"><span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">album</span></span><span class="l-tablet__copy"><span class="l-tablet__title">ubuntu-24.04</span></span></article>
             <article class="l-tablet" data-tone="idle"><span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">album</span></span><span class="l-tablet__copy"><span class="l-tablet__title">fedora-43</span></span></article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="list-editor-heading">
+      <h2 class="l-type-section" id="list-editor-heading">ListEditor</h2>
+      <div class="showcase-grid">
+        <div class="specimen"><span class="state-label">Rest, with trailing toggles</span>
+          <div class="l-slab l-cut">
+            <div class="l-list-editor" aria-label="Startup apps">
+              <ul class="l-list-editor__items">
+                <li class="l-list-editor__item"><div class="l-list-editor__text"><span class="l-list-editor__title">Firefox</span><span class="l-list-editor__detail">Opens on workspace 2</span></div><div class="l-list-editor__trailing"><button class="l-toggle" type="button" role="switch" aria-checked="true" aria-label="Start Firefox"></button></div></li>
+                <li class="l-list-editor__item"><div class="l-list-editor__text"><span class="l-list-editor__title">Ryoport</span><span class="l-list-editor__detail">Connects to ally at 192.0.2.18</span></div><div class="l-list-editor__trailing"><button class="l-toggle" type="button" role="switch" aria-checked="false" aria-label="Start Ryoport"></button></div></li>
+              </ul>
+              <div class="l-list-editor__editor" hidden><label class="l-field"><span class="l-field-label">Command</span><span class="l-field-control l-cut"><input class="l-text-field" required></span></label></div>
+              <button class="l-list-editor__add l-plaque l-quiet" type="button"><span class="l-glyph" aria-hidden="true">add</span>Add a startup app</button>
+            </div>
+          </div>
+        </div>
+        <div class="specimen"><span class="state-label">Reorderable, with long text that wraps</span>
+          <div class="l-slab l-cut">
+            <div class="l-list-editor" aria-label="Window rules" data-l-reorderable>
+              <ul class="l-list-editor__items">
+                <li class="l-list-editor__item"><div class="l-list-editor__text"><span class="l-list-editor__title">Firefox</span><span class="l-list-editor__detail">Floats, 80% opacity</span></div></li>
+                <li class="l-list-editor__item"><div class="l-list-editor__text"><span class="l-list-editor__title">Console router on mika-server</span><span class="l-list-editor__detail">Opens on workspace 3, full height, never takes focus when it starts</span></div></li>
+                <li class="l-list-editor__item"><div class="l-list-editor__text"><span class="l-list-editor__title">Picture in picture</span><span class="l-list-editor__detail">Pinned, top right</span></div></li>
+              </ul>
+              <div class="l-list-editor__editor" hidden><label class="l-field"><span class="l-field-label">App</span><span class="l-field-control l-cut"><input class="l-text-field" required></span></label></div>
+              <button class="l-list-editor__add l-plaque l-quiet" type="button"><span class="l-glyph" aria-hidden="true">add</span>Add a window rule</button>
+            </div>
+          </div>
+        </div>
+        <div class="specimen"><span class="state-label">Dragging the middle row, hover on an Edit plaque</span>
+          <div class="l-slab l-cut">
+            <div class="l-list-editor" aria-label="Shell layers" data-l-reorderable>
+              <ul class="l-list-editor__items">
+                <li class="l-list-editor__item"><div class="l-list-editor__text"><span class="l-list-editor__title">Wallpaper</span></div></li>
+                <li class="l-list-editor__item" data-l-state="dragging" style="--l-drag-y:21px"><div class="l-list-editor__text"><span class="l-list-editor__title">Desktop widgets</span></div></li>
+                <li class="l-list-editor__item"><div class="l-list-editor__text"><span class="l-list-editor__title">Bar</span></div><span class="l-focus-ring" style="--l-cut:var(--lithic-cut-small)"><button class="l-list-editor__edit l-icon-plaque l-quiet l-small" type="button" data-l-state="hover"><span class="l-glyph" aria-hidden="true">edit</span></button></span></li>
+              </ul>
+              <button class="l-list-editor__add l-plaque l-quiet" type="button"><span class="l-glyph" aria-hidden="true">add</span>Add a layer</button>
+            </div>
+          </div>
+        </div>
+        <div class="specimen"><span class="state-label">Keyboard focus on Remove</span>
+          <div class="l-slab l-cut">
+            <div class="l-list-editor" aria-label="Session variables">
+              <ul class="l-list-editor__items">
+                <li class="l-list-editor__item"><div class="l-list-editor__text"><span class="l-list-editor__title">QT_QPA_PLATFORM</span><span class="l-list-editor__detail">wayland</span></div><span class="l-focus-ring" data-l-state="focus" style="--l-cut:var(--lithic-cut-small)"><button class="l-list-editor__remove l-icon-plaque l-quiet l-small" type="button"><span class="l-glyph" aria-hidden="true">delete</span></button></span></li>
+              </ul>
+              <button class="l-list-editor__add l-plaque l-quiet" type="button"><span class="l-glyph" aria-hidden="true">add</span>Add a variable</button>
+            </div>
+          </div>
+        </div>
+        <div class="specimen"><span class="state-label">Editing a row: Done is enabled while the editor is valid</span>
+          <div class="l-slab l-cut">
+            <div class="l-list-editor" aria-label="Session variables, editing">
+              <ul class="l-list-editor__items">
+                <li class="l-list-editor__item"><div class="l-list-editor__text"><span class="l-list-editor__title">QT_QPA_PLATFORM</span><span class="l-list-editor__detail">wayland</span></div>
+                  <div class="l-list-editor__editor"><div class="editor-fields"><label class="l-field"><span class="l-field-label">Name</span><span class="l-field-control l-cut"><input class="l-text-field" value="QT_QPA_PLATFORM" required></span></label><label class="l-field"><span class="l-field-label">Value</span><span class="l-field-control l-cut"><input class="l-text-field" value="wayland" required></span></label></div></div>
+                </li>
+                <li class="l-list-editor__item"><div class="l-list-editor__text"><span class="l-list-editor__title">MOZ_ENABLE_WAYLAND</span><span class="l-list-editor__detail">1</span></div></li>
+              </ul>
+              <button class="l-list-editor__add l-plaque l-quiet" type="button"><span class="l-glyph" aria-hidden="true">add</span>Add a variable</button>
+            </div>
+          </div>
+        </div>
+        <div class="specimen"><span class="state-label">Adding: the editor takes the add row; Done reads Add and waits for a valid entry</span>
+          <div class="l-slab l-cut">
+            <div class="l-list-editor" aria-label="Startup apps, adding" data-l-done-text="Add">
+              <ul class="l-list-editor__items">
+                <li class="l-list-editor__item"><div class="l-list-editor__text"><span class="l-list-editor__title">Firefox</span></div></li>
+              </ul>
+              <div class="l-list-editor__editor"><label class="l-field"><span class="l-field-label">Command</span><span class="l-field-control l-cut"><input class="l-text-field" placeholder="ryoport --minimised" required></span></label></div>
+              <button class="l-list-editor__add l-plaque l-quiet" type="button"><span class="l-glyph" aria-hidden="true">add</span>Add a startup app</button>
+            </div>
+          </div>
+        </div>
+        <div class="specimen"><span class="state-label">Empty</span>
+          <div class="l-slab l-cut">
+            <div class="l-list-editor" aria-label="Startup apps, empty">
+              <ul class="l-list-editor__items"></ul>
+              <p class="l-list-editor__empty">Nothing starts with the desktop yet.</p>
+              <button class="l-list-editor__add l-plaque l-quiet" type="button"><span class="l-glyph" aria-hidden="true">add</span>Add a startup app</button>
+            </div>
           </div>
         </div>
       </div>

@@ -855,6 +855,53 @@ Item {
         }
 
         ComponentSection {
+            sectionName: "PathField"
+
+            StateSpecimen {
+                stateName: "Folder"
+                specimenWidth: LithicTokens.size.settingsControlMax
+                specimenHeight: LithicTokens.space.s6 + LithicTokens.space.s5
+                PathField { anchors.centerIn: parent; width: parent.width; label: "Screenshots"; path: "/home/ops/Pictures/Screenshots" }
+            }
+            StateSpecimen {
+                stateName: "File, not set"
+                specimenWidth: LithicTokens.size.settingsControlMax
+                specimenHeight: LithicTokens.space.s6 + LithicTokens.space.s5
+                PathField { anchors.centerIn: parent; width: parent.width; label: "Lock screen picture"; kind: "file" }
+            }
+            StateSpecimen {
+                stateName: "Error"
+                specimenWidth: LithicTokens.size.settingsControlMax
+                specimenHeight: LithicTokens.space.s6 + LithicTokens.space.s5
+                PathField { anchors.centerIn: parent; width: parent.width; label: "Screenshots"; path: "/home/ops/Shots"; errorText: "This folder does not exist" }
+            }
+            StateSpecimen {
+                stateName: "Hover preview"
+                specimenWidth: LithicTokens.size.settingsControlMax
+                specimenHeight: LithicTokens.space.s6 + LithicTokens.space.s5
+                PathField { anchors.centerIn: parent; width: parent.width; label: "Recordings"; path: "/home/ops/Videos"; previewState: "hover" }
+            }
+            StateSpecimen {
+                stateName: "Keyboard focus on the field"
+                specimenWidth: LithicTokens.size.settingsControlMax
+                specimenHeight: LithicTokens.space.s6 + LithicTokens.space.s5
+                PathField { anchors.centerIn: parent; width: parent.width; label: "Recordings"; path: "/home/ops/Videos"; previewState: "focus" }
+            }
+            StateSpecimen {
+                stateName: "Keyboard focus on Choose"
+                specimenWidth: LithicTokens.size.settingsControlMax
+                specimenHeight: LithicTokens.space.s6 + LithicTokens.space.s5
+                PathField { anchors.centerIn: parent; width: parent.width; label: "Recordings"; path: "/home/ops/Videos"; previewState: "chooseFocus" }
+            }
+            StateSpecimen {
+                stateName: "Disabled"
+                specimenWidth: LithicTokens.size.settingsControlMax
+                specimenHeight: LithicTokens.space.s6 + LithicTokens.space.s5
+                PathField { anchors.centerIn: parent; width: parent.width; label: "Recordings"; path: "/home/ops/Videos"; enabled: false }
+            }
+        }
+
+        ComponentSection {
             sectionName: "ColorField"
 
             StateSpecimen {

@@ -12,9 +12,9 @@ The web library is plain CSS and ES modules. It has no package dependency, build
 | `palette.js` | Palette loading, role mapping, contrast, mixing, and tone helpers. |
 | `fonts.css` | Geologica and Martian Mono, loaded from `../go/fonts`, the library's one copy of the faces. |
 | `foundation.css` | Base type, cut geometry, state primitives, focus, and interaction recipes. |
-| `controls.css` and `controls.js` | Controls presentation and behavior, including ChordField and ColorField. |
+| `controls.css` and `controls.js` | Controls presentation and behavior, including ChordField, ColorField, and PathField. |
 | `segmented.css` and `segmented.js` | Segmented presentation and behavior. |
-| `lists.css` and `lists.js` | Lists, containers, state, and progress presentation and behavior, including SettingRow, the ScrollRail utility, DesignTile, and DesignGallery. |
+| `lists.css` and `lists.js` | Lists, containers, state, and progress presentation and behavior, including SettingRow, the ScrollRail utility, DesignTile, DesignGallery, and ListEditor. |
 | `overlays.css` and `overlays.js` | Overlays, navigation, data, and app-frame presentation and behavior. |
 | `tokens.css` and `tokens.js` | Generated views of the shared token source. Do not edit them by hand. |
 
@@ -386,6 +386,8 @@ AppFrame:
 | DesignGallery | `div.l-design-gallery` holds `l-design-tile` children in a CSS grid of `auto-fill` columns at least `catalogueTileWidthMin` wide, `s2` apart, so the focus ring never touches a neighbour. Tiles stretch up to `catalogueTileWidthMax`. Name it with `aria-label`. | The library supplies `role="listbox"` and `role="option"`, and manages `aria-selected` and roving `tabindex`. Arrow keys move the selection by one tile or one row, Home and End jump, Enter or Space activates. A click selects and activates. | `lithic:select` from the newly selected tile, plus the tile events, each with `detail.tile`, `detail.value`, and `detail.index`. | The tile states. |
 | ChordField | `div.l-chord-field` contains `button.l-chord-field__control.l-cut`, a TextField box (`field` fill, `edge` hairline, `textFieldHeight` high). Give the control an `aria-label`. The library renders the chord as `kbd.l-chord-field__key.l-cut` keycaps (`field` fill, `edge` hairline, cut token, label type, `s1` by `s2` padding, `s1` apart, no plus glyphs), or `l-chord-field__placeholder` in `fg3`, or while recording `l-chord-field__prompt` "Press a shortcut" in `fg2`, and keeps an `l-chord-field__conflict` line in `jasper` under the box. | `data-value` holds the canonical chord. `data-l-placeholder` replaces "Not set". A non-empty `data-l-conflict` draws the `jasper` hairline and the error line, which the control names with `aria-describedby`. Activating the control starts recording; the library manages `data-l-recording` and `aria-pressed`. While recording, the next key with at least one modifier, or F1 to F24 or a media key alone, records; Escape cancels; Backspace or Delete with no modifier clears; Tab with no modifier and leaving the field cancel; auto-repeat is ignored. The field never talks to the compositor. | `lithic:recording` with `detail.recording` whenever recording starts or stops, so the host can hold a compositor shortcut inhibitor while it is true. `lithic:record` with `detail.chord`. `lithic:clear`. | `hover` and `focus` on the control. `data-l-recording` on the field previews recording. |
 | ColorField | `div.l-color-field` is a grid of `l-color-field__swatch` (a `textFieldHeight` square, cut token, with an `edge` hairline, the colour over the Hatch so alpha shows) and the hex TextField: an `l-field` with an optional `l-field-label`, the `l-field-control l-cut` around a mono `input.l-text-field` and an `l-color-field__disclosure` small quiet IconPlaque at the trailing edge marked `data-l-popover`, and an optional `l-field-help`. The disclosure opens `div.l-popover.l-cut.l-color-field__panel`, `settingsControlMax` wide, holding `l-color-field__swatches[role="listbox"]` of `l-menu-item[role="option"]` rows, an `l-menu-divider`, and `l-color-field__body` with a Hex `l-field` and an optional `l-color-field__alpha`: an Opacity label, a Slider from 0 to 100, and a `data-l-slider-value` output. | `data-value` holds the colour. `data-l-allow-alpha` shows the opacity slider and admits alpha hex. A swatch option carries a hex `data-value` or `data-l-role="<role>"`, which reads that palette role live; the library adds its `l-color-field__chip`. Hex takes `#rgb` or `#rrggbb`, and `#rgba` or `#rrggbbaa` (CSS order) only with alpha; it is written lowercase with eight digits only below full opacity. Enter or leaving a hex field commits; an invalid value writes `data-error`, `aria-invalid`, and the help "Use a colour like #ce5e32", keeps the typed text, and emits nothing. The library writes `--l-color`, every hex field, the slider, and `aria-selected` on the matching swatch, which shows the menu check. Choosing a swatch closes the panel. | `lithic:pick` on the field with `detail.color` when a swatch, a valid hex, or the opacity slider changes the colour. The panel emits the Popover events. | `focus` on a hex field; `hover`, `pressed`, and `focus` on the disclosure and swatch rows. `data-l-static-open` on the panel previews it open. |
+| ListEditor | `div.l-list-editor`, named with `aria-label`, contains `ul.l-list-editor__items` of `li.l-list-editor__item` rows, an optional `p.l-list-editor__empty` (body type, `fg2`, shown only with no items, `s2` above the add row), one host-filled `div.l-list-editor__editor` written `hidden`, and `button.l-list-editor__add.l-plaque.l-quiet` with an `add` glyph and the host's add text. A row holds `l-list-editor__text` with `l-list-editor__title` (row type) and optional `l-list-editor__detail` (detail type, `fg2`), both wrapping, then an optional `l-list-editor__trailing` control slot. The library adds the `l-list-editor__edit` (`edit`) and `l-list-editor__remove` (`delete`) small quiet IconPlaques in focus rings when the host has not written them, and, for a reorderable list, the `l-list-editor__handle` (`drag_indicator`, `fg3`) before the text. Rows stack like SettingRow: `settingsRowGap` apart, a `vein` line centred in each gap and above the add row, at least `factsRowHeight` high; the right cluster sits `s2` apart and `s4` from the text. The open editor is a `field` plane, cut small, `s3` padding, bleeding `s2` sideways, `s2` under its row (or in place of the add row), and ends in `l-list-editor__actions`: Cancel (quiet) then Done (line), small plaques, `s2` apart and `s3` below the host fields. | `data-l-reorderable` adds the handles, pointer dragging, and Alt+Up and Alt+Down on a focused row. Done reads "Done" for an edit; for a new item it reads `data-l-done-text` (default "Add"), as QML's `doneText`. `data-l-cancel-text` (default "Cancel") labels Cancel. The library names each row by its title (`aria-labelledby`), names the plaques "Edit <title>" and "Remove <title>" unless the host did, and names the editor `role="group"` "Edit <title>" or the add text. Done is disabled while the editor carries `data-l-invalid` or holds an `:invalid` control. Enter in a one-line input means Done and Escape means Cancel. One editor is open at a time; opening another cancels the first. An editor written without `hidden` is adopted as open. The library never changes the rows: it moves only the editor and the add row's `hidden`. While dragging it writes managed `data-l-dragging` and `--l-drag-y` on the row, which follows the pointer on the hover plane; the other rows stay put. | `lithic:edit` (with `detail.index`, `detail.item`, `detail.editor`) or `lithic:add` (`detail.index` -1) when the editor opens, so the host fills it; `lithic:done` (`detail.index`, `detail.item`, `detail.adding`, `detail.editor`) after it closes, so the host reads the editor and updates its rows; `lithic:cancel` (`detail.index`, `detail.item`, `detail.adding`); `lithic:remove` (`detail.index`, `detail.item`), with no Confirm; `lithic:move` (`detail.from`, `detail.to`, `detail.item`). All on the list. | `hover`, `pressed`, and `focus` on the plaques; `dragging` on a row with `--l-drag-y` previews a drag. |
+| PathField | The TextField structure with `l-path-field` on the `l-field`: an `l-field-label`, the `l-field-control l-cut` around a mono `input.l-text-field` and a trailing `l-path-field__choose` small quiet IconPlaque with the `folder_open` glyph in the reveal slot, and an optional `l-field-help`. Put the class on a `l-focus-ring` wrapper around the plaque to draw the cut ring. | `data-l-kind="folder|file"` (default folder) words the default placeholder, "Choose a folder" or "Choose a file", unless the host wrote its own. The library names the plaque "Choose <label>" unless the host did. The host validates and shows an error with `data-error` and `l-field-help`, as for TextField; the library never opens a file dialog. | `lithic:choose` on the field with `detail.kind` and `detail.input` when the plaque is activated; the host opens the portal and writes the input's value. Typing and committing (Enter or leaving the field) keep the native `change` on the input. | `focus` on the input; `hover`, `pressed`, and `focus` on the plaque. |
 
 SettingRow:
 
@@ -472,7 +474,42 @@ DesignGallery:
 </div>
 ```
 
-ChordField and ColorField live in `controls.css` and `controls.js`, which also export `keyToken(event)`, `chordFrom(event)`, `displayKeys(chord)`, `renderChordField(field)`, `parseHex(text, allowAlpha)`, `formatHex(color)`, and `syncColorField(field)`. SettingRow, ScrollRail, DesignTile, and DesignGallery live in `lists.css` and `lists.js`, which also export `syncSettingRow(row)` and `selectTile(tile, {notify = true, focus = false})`.
+PathField:
+
+```html
+<div class="l-field l-path-field" data-l-kind="folder">
+  <label class="l-field-label" for="wallpapers">Wallpaper folder</label>
+  <span class="l-field-control l-cut">
+    <input class="l-text-field" id="wallpapers" value="/home/ops/Pictures/Wallpapers">
+    <button class="l-icon-plaque l-quiet l-small l-path-field__choose" type="button"><span class="l-glyph" aria-hidden="true">folder_open</span></button>
+  </span>
+</div>
+```
+
+ListEditor:
+
+```html
+<div class="l-list-editor" aria-label="Startup apps" data-l-reorderable>
+  <ul class="l-list-editor__items">
+    <li class="l-list-editor__item">
+      <div class="l-list-editor__text">
+        <span class="l-list-editor__title">Firefox</span>
+        <span class="l-list-editor__detail">Opens on workspace 2</span>
+      </div>
+      <div class="l-list-editor__trailing">
+        <button class="l-toggle" type="button" role="switch" aria-checked="true" aria-label="Start Firefox"></button>
+      </div>
+    </li>
+  </ul>
+  <p class="l-list-editor__empty">Nothing starts with the desktop yet.</p>
+  <div class="l-list-editor__editor" hidden>
+    <label class="l-field"><span class="l-field-label">Command</span><span class="l-field-control l-cut"><input class="l-text-field" required></span></label>
+  </div>
+  <button class="l-list-editor__add l-plaque l-quiet" type="button"><span class="l-glyph" aria-hidden="true">add</span>Add a startup app</button>
+</div>
+```
+
+ChordField, ColorField, and PathField live in `controls.css` and `controls.js`, which also export `keyToken(event)`, `chordFrom(event)`, `displayKeys(chord)`, `renderChordField(field)`, `parseHex(text, allowAlpha)`, `formatHex(color)`, `syncColorField(field)`, and `syncPathField(field)`. SettingRow, ScrollRail, DesignTile, DesignGallery, and ListEditor live in `lists.css` and `lists.js`, which also export `syncSettingRow(row)`, `selectTile(tile, {notify = true, focus = false})`, `openListEditor(list, item)` (null for a new item), and `closeListEditor(list, {focus = true})`.
 
 ## Browser requirements
 

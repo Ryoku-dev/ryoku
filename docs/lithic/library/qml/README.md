@@ -321,7 +321,7 @@ Role-aware text.
 
 ## Component reference
 
-This reference covers the 51 component types after the `# components` marker in `Lithic/qmldir`. Each API list names the properties, signals, and functions added by Lithic, plus the inherited template members used in normal calls. Standard Qt Quick properties remain available. A `previewState` accepts `""`, `hover`, `pressed`, or `focus`, plus the extra states a component names below. A component only responds to states it can draw.
+This reference covers the 53 component types after the `# components` marker in `Lithic/qmldir`. Each API list names the properties, signals, and functions added by Lithic, plus the inherited template members used in normal calls. Standard Qt Quick properties remain available. A `previewState` accepts `""`, `hover`, `pressed`, or `focus`, plus the extra states a component names below. A component only responds to states it can draw.
 
 Fields (`TextField`, `Search`, the `Picker` anchor and the `Stepper` value box) share one surface: `field` fill, a 1 dp `edge` hairline at rest, an `fg2` hairline with focus and `jasper` on error. Selected rows, chips and segments are a `sel` fill and nothing more.
 
@@ -513,6 +513,25 @@ ChordField {
     onRecordingChanged: inhibitor.enabled = recording
     onRecorded: chord => binds.terminal = chord
     onCleared: binds.terminal = ""
+}
+```
+
+#### PathField
+
+A file or folder value: a mono `TextField` holding the path, with a small quiet `folder_open` `IconPlaque` in the field's trailing slot, 6 in. The library never opens a dialog: the plaque emits `chooseRequested()`, the host opens the portal and sets `path`. Typing and committing (Enter or leaving the field) emits `edited(path)`; the field never writes `path` itself, and the host validates and sets `errorText`.
+
+- Properties: `path`, `label`, `kind` (`folder` or `file`; it only words the default placeholder), `placeholder` (default "Choose a folder" or "Choose a file"), `errorText`, `accessibleName`, and `previewState`
+- Signals: `chooseRequested()` and `edited(string path)`
+- The choose plaque is named "Choose <label>", or the placeholder when there is no label.
+- Preview: `previewState`, plus `chooseFocus` for the ring on the choose plaque
+
+```qml
+PathField {
+    label: "Screenshots"
+    path: settings.screenshotDir
+    errorText: folderExists(path) ? "" : "This folder does not exist"
+    onChooseRequested: portal.chooseFolder(dir => settings.screenshotDir = dir)
+    onEdited: dir => settings.screenshotDir = dir
 }
 ```
 
@@ -714,6 +733,43 @@ ScrollRail {
     anchors.bottom: page.bottom
     anchors.right: page.right
     flickable: page
+}
+```
+
+#### ListEditor
+
+An editable list inside a settings `Slab`: startup apps, session variables, window rules, shell layers. Rows stack like `SettingRow` (`size.settingsRowGap` apart with a `vein` centred in the gap, none above the first, at least `size.factsRowHeight`): an optional `drag_indicator` handle in `fg3`, `space.s3` before the title in `row` and the optional detail in `detail` `fg2`, both wrapping; then, `space.s4` from the text, the trailing control and the small quiet Edit and Remove plaques, `space.s2` apart. The last row is a quiet `add` Plaque with `addText`; with no items, `emptyText` in `body` `fg2` sits `space.s2` above it.
+
+Edit and Add open the host's editor under that row (Add: in place of the add row) on a `field` plane, cut `cut.small`, that reaches `space.s2` past the row's sides with `space.s3` padding, `space.s2` below the row. Cancel (quiet) and Done (line) sit right-aligned `space.s3` below the editor; Done says `doneText` for a new item and is enabled only while the editor is valid. Enter in a single-line field means Done, Escape means Cancel, and opening another editor closes the first without saving. Remove is immediate; the host offers Undo.
+
+The component never changes its model. It reports what the reader did, the host applies it and passes the new model; focus follows the edited, moved or removed row once the model arrives. Replacing the model closes an open editor.
+
+- Properties: `model` (an array), `titleOf(item)` and `detailOf(item)` (default `item.title` and `item.detail`), `addText` (default "Add"), `doneText` (default "Add"), `emptyText`, `editor`, `trailing`, `reorderable`, `plane` (default `Lithic.slab`), `accessibleName`, and `previewState`. Read-only `count`, `editingIndex` (-1, an index, or `count` while adding) and `editorValid`.
+- Signals: `added(var item)`, `edited(int index, var item)`, `removed(int index)`, and `moved(int from, int to)`
+- Functions: `openEditor(index)` (`count` opens the add editor), `done()`, `cancel()`, `remove(index)`, and `move(from, to)`
+- `editor`: a `Component` whose root declares `property var item` (a shallow copy of the row's item, `{}` for a new one), `readonly property bool valid` and `function value()`, returning the edited item. It takes the editor's width, its `implicitHeight` sets the height, and its first field takes focus.
+- `trailing`: a `Component` whose root declares plain `property var modelData` and `property int index`, such as a `Toggle` that turns the item on or off.
+- `reorderable`: the handle drags the row, which lifts onto the hover plane (`fg` into `plane` at `alpha.hoverPlane`, reaching `space.s2` and `space.s1` past it) and follows the pointer while the others stay; the move is reported on release. Alt+Up and Alt+Down move the focused row.
+- Accessibility: a list of list items named by their titles; plaques named "Edit <title>", "Remove <title>" and "Move <title>"; the editor region named "Edit <title>" or the add text.
+- Preview: `previewState` `editing` (the first row), `adding`, `empty`, or `dragging`
+
+```qml
+ListEditor {
+    width: parent.width
+    model: startup.apps
+    addText: "Add a startup app"
+    emptyText: "No apps open at login."
+    editor: Component {
+        Column {
+            property var item: ({})
+            readonly property bool valid: command.text.trim().length > 0
+            function value() { return Object.assign({}, item, { command: command.text }) }
+            TextField { id: command; width: parent.width; label: "Command"; mono: true; text: parent.item.command || "" }
+        }
+    }
+    onAdded: item => startup.add(item)
+    onEdited: (index, item) => startup.replace(index, item)
+    onRemoved: index => startup.removeAt(index)
 }
 ```
 

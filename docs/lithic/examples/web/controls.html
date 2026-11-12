@@ -554,6 +554,36 @@
         </div>
       </div>
     </section>
+
+    <section class="section" aria-labelledby="path-heading">
+      <h2 class="l-type-section" id="path-heading">PathField</h2>
+      <div class="specimen-grid">
+        <div class="specimen"><span class="l-type-caption">Folder, with a path</span>
+          <div class="l-field l-path-field" data-l-kind="folder"><label class="l-field-label" for="path-wallpapers">Wallpaper folder</label><span class="l-field-control l-cut"><input class="l-text-field" id="path-wallpapers" value="/home/ops/Pictures/Wallpapers"><button class="l-icon-plaque l-quiet l-small l-path-field__choose" type="button"><span class="l-glyph" aria-hidden="true">folder_open</span></button></span></div>
+        </div>
+        <div class="specimen"><span class="l-type-caption">Folder, empty: the placeholder</span>
+          <div class="l-field l-path-field" data-l-kind="folder"><label class="l-field-label" for="path-screenshots">Screenshot folder</label><span class="l-field-control l-cut"><input class="l-text-field" id="path-screenshots"><button class="l-icon-plaque l-quiet l-small l-path-field__choose" type="button"><span class="l-glyph" aria-hidden="true">folder_open</span></button></span></div>
+        </div>
+        <div class="specimen"><span class="l-type-caption">File, empty</span>
+          <div class="l-field l-path-field" data-l-kind="file"><label class="l-field-label" for="path-image">Console image</label><span class="l-field-control l-cut"><input class="l-text-field" id="path-image"><button class="l-icon-plaque l-quiet l-small l-path-field__choose" type="button"><span class="l-glyph" aria-hidden="true">folder_open</span></button></span></div>
+        </div>
+        <div class="specimen"><span class="l-type-caption">Error</span>
+          <div class="l-field l-path-field" data-l-kind="folder" data-error><label class="l-field-label" for="path-missing">Wallpaper folder</label><span class="l-field-control l-cut"><input class="l-text-field" id="path-missing" value="/home/ops/Pictures/Old" aria-invalid="true" aria-describedby="path-missing-help"><button class="l-icon-plaque l-quiet l-small l-path-field__choose" type="button"><span class="l-glyph" aria-hidden="true">folder_open</span></button></span><span class="l-field-help" id="path-missing-help">This folder does not exist</span></div>
+        </div>
+        <div class="specimen"><span class="l-type-caption">Field focus</span>
+          <div class="l-field l-path-field" data-l-kind="file"><label class="l-field-label" for="path-focus">Console image</label><span class="l-field-control l-cut"><input class="l-text-field" id="path-focus" value="/srv/images/fedora-43.iso" data-l-state="focus"><button class="l-icon-plaque l-quiet l-small l-path-field__choose" type="button"><span class="l-glyph" aria-hidden="true">folder_open</span></button></span></div>
+        </div>
+        <div class="specimen"><span class="l-type-caption">Choose hovered</span>
+          <div class="l-field l-path-field" data-l-kind="folder"><label class="l-field-label" for="path-hover">Wallpaper folder</label><span class="l-field-control l-cut"><input class="l-text-field" id="path-hover" value="/home/ops/Pictures/Wallpapers"><button class="l-icon-plaque l-quiet l-small l-path-field__choose" type="button" data-l-state="hover"><span class="l-glyph" aria-hidden="true">folder_open</span></button></span></div>
+        </div>
+        <div class="specimen"><span class="l-type-caption">Choose with keyboard focus</span>
+          <div class="l-field l-path-field" data-l-kind="folder"><label class="l-field-label" for="path-kbd">Wallpaper folder</label><span class="l-field-control l-cut"><input class="l-text-field" id="path-kbd" value="/home/ops/Pictures/Wallpapers"><span class="l-path-field__choose l-focus-ring" data-l-state="focus" style="--l-cut:var(--lithic-cut-small)"><button class="l-icon-plaque l-quiet l-small" type="button" aria-label="Choose Wallpaper folder"><span class="l-glyph" aria-hidden="true">folder_open</span></button></span></span></div>
+        </div>
+        <div class="specimen"><span class="l-type-caption">Disabled</span>
+          <div class="l-field l-path-field" data-l-kind="folder"><label class="l-field-label" for="path-off">Wallpaper folder</label><span class="l-field-control l-cut"><input class="l-text-field" id="path-off" value="/home/ops/Pictures/Wallpapers" disabled><button class="l-icon-plaque l-quiet l-small l-path-field__choose" type="button" disabled><span class="l-glyph" aria-hidden="true">folder_open</span></button></span></div>
+        </div>
+      </div>
+    </section>
   </main>
   <script type="module">
     import Lithic from '../../library/web/lithic.js';

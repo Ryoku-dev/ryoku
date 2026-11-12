@@ -278,6 +278,19 @@ with Enter or by leaving the field picks the colour. `#abc`, `#aabbcc` and
 
 Library: QML Lithic.ColorField, web .l-color-field, Go kit.ColorField, terminal -
 
+### PathField
+
+PathField holds a file or folder: a mono text field, since a path is literal
+data, with a small quiet icon plaque in the reveal slot at the 6 inset (glyph
+`folder_open`, named "Choose" and the field's label). The plaque asks the host
+to choose; the library never opens a dialog, and the host's portal dialog
+sets the path. Typing a path and committing it with Enter or by leaving the
+field reports it, and the host's validation shows in the field's error state
+("This folder does not exist"). An empty field reads "Choose a folder" or
+"Choose a file".
+
+Library: QML Lithic.PathField, web .l-path-field, Go kit.PathField, terminal -
+
 ## Lists, containers and state
 
 ### Tablet
@@ -442,6 +455,29 @@ stretching up to 260. The arrow keys move the selection by tile and by row,
 Home and End jump to the ends, and Enter activates the selected look.
 
 Library: QML Lithic.DesignGallery, web .l-design-gallery, Go kit.DesignGallery, terminal -
+
+### ListEditor
+
+ListEditor edits a list inside a settings slab: startup apps, session
+variables, app rules. Items stack like setting rows, 13 apart with a 1 dp
+`vein` line centred between them, at least 44 high: the item's title in `row`
+type and an optional `detail` line in `fg2`, both wrapping, then at the right
+an optional control of the host's, such as a toggle that turns the item on or
+off, with Edit and Remove small quiet icon plaques 8 apart and 21 from the
+text. A reorderable list puts a 20 `drag_indicator` handle in `fg3` 13 before
+the text; a dragged item rides the hover plane under the pointer while the
+others hold still, and Alt with Up or Down moves the focused one. The last row
+is a quiet Add plaque naming what it adds ("Add a startup app"), with one
+`fg2` line above it when the list is empty.
+
+Edit or Add opens the host's form under that row on a `field` plane bleeding
+8 to each side with a 6 cut, Cancel and Done (Add for a new item) at its
+right. Done waits until the form is valid; Enter in a one-line field means
+Done and Escape means Cancel, and one form is open at a time. Remove acts at
+once and the host offers Undo. The list never changes itself: it reports each
+add, edit, removal and move, and the host applies it.
+
+Library: QML Lithic.ListEditor, web .l-list-editor, Go kit.ListEditor, terminal -
 
 ### Facts
 

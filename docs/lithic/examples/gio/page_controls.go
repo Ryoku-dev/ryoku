@@ -208,6 +208,8 @@ func (page *controlsPage) Layout(gtx layout.Context, th *theme.Theme) layout.Dim
 			settingsSpecimens.settingRowSection(th),
 			settingsSpecimens.chordFieldSection(th),
 			settingsSpecimens.colorFieldSection(th),
+			listPathSpecimens.listEditorSection(th),
+			listPathSpecimens.pathFieldSection(th),
 		)
 	})
 }

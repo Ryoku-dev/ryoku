@@ -633,6 +633,49 @@ function initColorFields(root) {
   root.addEventListener('lithic:close', event => glyph(event, 'expand_more'));
 }
 
+const PATH_PLACEHOLDERS = {folder: 'Choose a folder', file: 'Choose a file'};
+
+export function syncPathField(field) {
+  const input = field.querySelector('.l-text-field');
+  const chooseSlot = field.querySelector('.l-path-field__choose');
+  const choose = chooseSlot?.matches('button') ? chooseSlot : chooseSlot?.querySelector('button');
+  const kind = field.dataset.lKind === 'file' ? 'file' : 'folder';
+  if (input) {
+    input.spellcheck = false;
+    input.autocomplete = 'off';
+    // the kind words the placeholder only while the host has not written its own
+    if (!input.hasAttribute('placeholder') || input.hasAttribute('data-l-default-placeholder')) {
+      input.placeholder = PATH_PLACEHOLDERS[kind];
+      input.setAttribute('data-l-default-placeholder', '');
+    }
+  }
+  const label = field.querySelector('.l-field-label')?.textContent.trim() || input?.getAttribute('aria-label') || '';
+  // a host-written name wins; otherwise the library names the plaque after the field
+  if (choose && (!choose.hasAttribute('aria-label') || choose.hasAttribute('data-l-managed-label'))) {
+    choose.setAttribute('aria-label', label ? `Choose ${label}` : PATH_PLACEHOLDERS[kind]);
+    choose.setAttribute('data-l-managed-label', '');
+  }
+}
+
+function initPathFields(root) {
+  all(root, '.l-path-field').forEach(syncPathField);
+  const observer = new MutationObserver(records => {
+    const fields = new Set();
+    records.forEach(record => {
+      if (record.target.matches?.('.l-path-field')) fields.add(record.target);
+    });
+    fields.forEach(syncPathField);
+  });
+  observer.observe(root, {subtree: true, attributes: true, attributeFilter: ['data-l-kind']});
+
+  root.addEventListener('click', event => {
+    const choose = event.target.closest('.l-path-field__choose');
+    const field = choose?.closest('.l-path-field');
+    if (!field || choose.matches(':disabled, [aria-disabled="true"]')) return;
+    emitDetail(field, 'lithic:choose', {kind: field.dataset.lKind === 'file' ? 'file' : 'folder', input: field.querySelector('.l-text-field')});
+  });
+}
+
 register('controls', root => {
   all(root, '.l-search').forEach(syncSearch);
   all(root, '.l-slider').forEach(syncSlider);
@@ -790,4 +833,5 @@ register('controls', root => {
 
   initChordFields(root);
   initColorFields(root);
+  initPathFields(root);
 });

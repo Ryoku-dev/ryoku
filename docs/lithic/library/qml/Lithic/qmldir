@@ -39,11 +39,13 @@ Filters 1.0 Filters.qml
 GroupHeader 1.0 GroupHeader.qml
 Header 1.0 Header.qml
 IconPlaque 1.0 IconPlaque.qml
+ListEditor 1.0 ListEditor.qml
 Marks 1.0 Marks.qml
 Menu 1.0 Menu.qml
 MineralField 1.0 MineralField.qml
 NewPlaque 1.0 NewPlaque.qml
 Pane 1.0 Pane.qml
+PathField 1.0 PathField.qml
 Picker 1.0 Picker.qml
 Placard 1.0 Placard.qml
 Plaque 1.0 Plaque.qml
