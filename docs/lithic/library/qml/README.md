@@ -30,7 +30,7 @@ A Quickshell host can add the library parent through the process environment:
 QML_IMPORT_PATH=/absolute/path/to/docs/lithic/library/qml qs -p /path/to/shell.qml
 ```
 
-A packaged shell can instead place the `Lithic` directory below one of its existing module roots. Do not copy token values into the host.
+Ryoku ships the module compiled: `build.sh <qml-import-dir>` builds it to bytecode with Geologica and Martian Mono inside the plugin and installs `Lithic/` there, and `ryoku-desktop` runs it into `/usr/lib/qt6/qml`. A dev box runs `install.sh [<qml-import-root>]` instead, which copies the sources and the faces into `~/.local/lib/qt6/qml` by default, so an edit shows on the next load. Do not copy token values into the host.
 
 ## Palette lifecycle
 
