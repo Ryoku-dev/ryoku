@@ -92,6 +92,9 @@ RTL = {l["code"] for l in LANGS if l.get("dir") == "rtl"}
 # desktop; the Go and shell roots are the two installers and the CLI, which
 # speak the same catalog through ryoku/i18n/i18n.go and ryoku/i18n/i18n.sh.
 QML_ROOT = os.path.join(REPO, "ryoku")
+# the Lithic library's own words (Changed, Cancel, ...), which Ryoku's apps
+# route through Lithic.tr to I18n.tr
+LITHIC_QML_ROOT = os.path.join(REPO, "docs", "lithic", "library", "qml", "Lithic")
 SCHEMA_DIR = os.path.join(REPO, "ryoku", "hub", "quickshell", "schema")
 GO_ROOTS = [os.path.join(REPO, p) for p in
             ("installation/tui", "ryoku-shell-installer", "ryoku/cli",
@@ -100,10 +103,10 @@ GO_ROOTS = [os.path.join(REPO, p) for p in
 SH_ROOTS = [os.path.join(REPO, p) for p in
             ("installation/backend", "ryoku-shell-installer")]
 
-# QML/JS: the shared I18n lookup, catalogue translation bridges and Qt's qsTr
-# marker. Quickshell has no qsTr loader, but matching it still keeps a stray
-# marker in the catalog.
-TR_CALL = re.compile(r"""(?:I18n\.tr|Translation\.tr|qsTr)\(\s*(["'])((?:\\.|(?!\1).)*)\1""")
+# QML/JS: the shared I18n lookup, catalogue translation bridges, the Lithic
+# library's lookup and Qt's qsTr marker. Quickshell has no qsTr loader, but
+# matching it still keeps a stray marker in the catalog.
+TR_CALL = re.compile(r"""(?:I18n\.tr|Translation\.tr|Lithic\.tr|qsTr)\(\s*(["'])((?:\\.|(?!\1).)*)\1""")
 # Go: i18n.T("..."), i18n.Tf("...", a, b) and the bare T/Tf a program dot-imports.
 GO_CALL = re.compile(r'\b(?:i18n\.)?Tf?\(\s*"((?:\\.|[^"\\])*)"')
 # shell: the installer's own helpers. log/die take the message as their first
@@ -239,6 +242,7 @@ def _catalogue_qml_roots(store_root=None):
 def extract_keys(store_root=None):
     keys = set()
     _scan_qml(keys, QML_ROOT)
+    _scan_qml(keys, LITHIC_QML_ROOT)
     for root in _catalogue_qml_roots(store_root):
         _scan_qml(keys, root, include_model_fields=True)
     if os.path.isdir(SCHEMA_DIR):

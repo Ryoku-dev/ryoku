@@ -30,8 +30,9 @@ class CopyDetectionTest(unittest.TestCase):
 
 class CatalogueExtractionTest(unittest.TestCase):
     def test_translation_bridge_call_is_catalogued(self):
-        calls = sync.TR_CALL.findall('text: Translation.tr("Dock settings")')
-        self.assertEqual([body for _, body in calls], ["Dock settings"])
+        calls = sync.TR_CALL.findall('text: Translation.tr("Dock settings")\n'
+                                     'accessibleName: Lithic.tr("Reset %1").arg(title)')
+        self.assertEqual([body for _, body in calls], ["Dock settings", "Reset %1"])
 
     def test_catalogue_qml_and_dynamic_model_copy_are_catalogued(self):
         with tempfile.TemporaryDirectory() as store:
