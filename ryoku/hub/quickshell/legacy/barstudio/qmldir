@@ -1,8 +1,0 @@
-module barstudio
-CatalogLabels 1.0 CatalogLabels.qml
-ZoneEditor 1.0 ZoneEditor.qml
-NacreEditor 1.0 NacreEditor.qml
-NacreWidgetChip 1.0 NacreWidgetChip.qml
-NacreIslandLane 1.0 NacreIslandLane.qml
-NacrePalette 1.0 NacrePalette.qml
-NacreAppearance 1.0 NacreAppearance.qml
