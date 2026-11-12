@@ -42,10 +42,18 @@ T.Dialog {
 
     C.Overlay.modal: Rectangle { color: Lithic.scrim }
 
+    // focus goes back to what opened the dialog, marked when the keys opened it; the popup has
+    // usually restored it already, so the reason is set as well
     onClosed: {
         _holdTop = false
-        if (opener && opener.enabled)
-            opener.forceActiveFocus()
+        const back = opener || _returnTo
+        _returnTo = null
+        if (!back || !back.enabled || !back.visible || back === contentColumn.Window.contentItem)
+            return
+        const reason = _openedFromKeys ? Qt.TabFocusReason : Qt.OtherFocusReason
+        back.forceActiveFocus(reason)
+        if (back.focusReason !== undefined)
+            back.focusReason = reason
     }
     // open on the content's declared focus, else the first control; focus left by a past open is dropped
     onOpened: {
@@ -58,8 +66,10 @@ T.Dialog {
     onAboutToShow: {
         const opening = contentColumn.Window.activeFocusItem
         _openedFromKeys = !!opening && opening.visualFocus === true
+        _returnTo = opening
     }
     property bool _openedFromKeys: false
+    property Item _returnTo: null
 
     property Item _ownFocus: null
     property bool _ownFocusRead: false

@@ -218,6 +218,11 @@ Item {
             verify(host.Window.activeFocusItem.visualFocus, "a Confirm opened from the keys shows the mark on Cancel");
             keyClick(Qt.Key_Escape);
             tryCompare(confirm, "opened", false);
+            tryVerify(() => clearPlaque.activeFocus && clearPlaque.visualFocus, 1000,
+                      "focus comes back to the opener with the mark after a keyboard open");
+            // the pointer case starts from a control without keyboard focus; a click on a control that
+            // already has it keeps its focus reason in Qt
+            host.forceActiveFocus();
             // the closing dialog swallows pointer presses until its exit ends
             wait(300);
             mouseClick(clearPlaque);
@@ -225,6 +230,8 @@ Item {
             verify(!host.Window.activeFocusItem.visualFocus, "a pointer open shows no keyboard mark");
             keyClick(Qt.Key_Escape);
             tryCompare(confirm, "opened", false);
+            wait(300);
+            verify(!host.Window.activeFocusItem.visualFocus, "after a pointer open focus comes back without the mark");
         }
     }
 }
