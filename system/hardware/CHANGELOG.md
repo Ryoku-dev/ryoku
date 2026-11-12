@@ -21,6 +21,12 @@
   headless one exits at once.
 
 ### Fixed
+- `gpu/ryoku-gpu-mux`: **a switch undone before restarting is not pending.**
+  `status --json` adds `booted_mode`: the wiring in effect since boot, read from
+  the card the built-in panel is connected to. `reboot_pending` is true only
+  when the chosen mode differs from it. The firmware's own flag stays set after
+  a switch back, so it is used only when the booted wiring cannot be seen
+  (`booted_mode` "unknown"). Covered by `tests/gpu-mux.sh`.
 - `power/ryoku-power`: **a refused battery, ASPM or CPU profile change is not
   kept.** The value was saved to `power.json` before the privileged write, so
   a dismissed password prompt or a value the kernel rejected stayed saved and

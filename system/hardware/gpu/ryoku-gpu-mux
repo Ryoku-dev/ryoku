@@ -159,9 +159,9 @@ records_panel_on_dgpu() {
   # black-screen the box, because in discrete-MUX mode the iGPU has no connected
   # connector at all. So this, not the render-device pin, decides whether the
   # dGPU can sleep -- flip it with `set hybrid` (+ reboot).
-  local class slot card driver vram connected model
+  local class slot card
   declare -A cc=()
-  while IFS=$'\t' read -r _ class slot card driver vram connected model; do
+  while IFS=$'\t' read -r _ class slot card _; do
     [[ -n $card ]] || continue
     cc["$card"]="$class"
   done <<<"$_records"
@@ -179,6 +179,34 @@ records_panel_on_dgpu() {
     esac
   done
   (( any ))
+}
+
+records_booted_mode() {
+  # The wiring in effect since boot: the firmware routes the built-in panel at
+  # POST, so the card its connected eDP/LVDS/DSI connector hangs off says which
+  # mode the box booted in. current_value already shows a queued change, and the
+  # firmware's pending_reboot stays set until reboot even after a switch back,
+  # so neither can answer this. "unknown" when no internal panel is visible
+  # (nvidia without modesetting exposes no connectors) or it sits on both kinds.
+  local class slot card cc_card conn st base mode=""
+  declare -A cc=()
+  while IFS=$'\t' read -r _ class slot cc_card _; do
+    [[ -n $cc_card ]] && cc["$cc_card"]="$class"
+  done <<<"$_records"
+  for conn in "$DRM_ROOT"/card[0-9]*-eDP-* "$DRM_ROOT"/card[0-9]*-LVDS-* "$DRM_ROOT"/card[0-9]*-DSI-*; do
+    [[ -r $conn/status ]] || continue
+    st="$(cat "$conn/status" 2>/dev/null || true)"
+    [[ $st == connected ]] || continue
+    base="$(basename "$conn")"
+    case "${cc[${base%%-*}]:-}" in
+      discrete | egpu) card=discrete ;;
+      integrated) card=hybrid ;;
+      *) card=unknown ;;
+    esac
+    if [[ -n $mode && $mode != "$card" ]]; then card=unknown; fi
+    mode="$card"
+  done
+  printf '%s' "${mode:-unknown}"
 }
 
 dgpu_watts() {
@@ -214,7 +242,14 @@ status_gather() {
   _s_slot="$(records_dgpu_slot || true)"
   _s_panel="$(bool records_panel_on_dgpu)"
   _s_watts="$(dgpu_watts "$_s_slot")"
-  _s_reboot="$(bool mux_reboot_pending)"
+  _s_booted="$(records_booted_mode)"
+  # A change is pending exactly when the chosen wiring differs from the booted
+  # one; only when the booted wiring cannot be seen does the firmware flag stand.
+  if [[ $_s_booted != unknown && $_s_mode != unknown ]]; then
+    _s_reboot="$(bool test "$_s_mode" != "$_s_booted")"
+  else
+    _s_reboot="$(bool mux_reboot_pending)"
+  fi
 }
 
 # ── subcommands ───────────────────────────────────────────────────────────────
@@ -240,9 +275,9 @@ cmd_status() {
 
 cmd_status_json() {
   status_gather
-  printf '{"capable":%s,"mode":"%s","iface":"%s","panel_on_dgpu":%s,"dgpu_slot":"%s","dgpu_watts":%s,"reboot_pending":%s}\n' \
+  printf '{"capable":%s,"mode":"%s","iface":"%s","panel_on_dgpu":%s,"dgpu_slot":"%s","dgpu_watts":%s,"reboot_pending":%s,"booted_mode":"%s"}\n' \
     "$_s_capable" "$_s_mode" "$_s_iface" "$_s_panel" \
-    "$(json_escape "$_s_slot")" "$_s_watts" "$_s_reboot"
+    "$(json_escape "$_s_slot")" "$_s_watts" "$_s_reboot" "$_s_booted"
 }
 
 cmd_get() {

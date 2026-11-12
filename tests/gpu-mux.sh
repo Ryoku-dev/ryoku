@@ -125,16 +125,40 @@ if mux "$sarm" "$empty" "$empty" set sideways >/dev/null 2>&1; then
 fi
 
 # --- reboot_pending reflects a truthy sibling attribute -----------------------
+# with no internal panel visible the booted wiring is unknown, so the firmware's
+# own flag is the only answer.
 rarm="$tmp/reboot-arm"; mk_armoury "$rarm" 0 1
 json="$(mux "$rarm" "$empty" "$empty" status --json)"
-jq -e '.reboot_pending == true' <<<"$json" >/dev/null || fail "reboot_pending not true"
+jq -e '.reboot_pending == true and .booted_mode == "unknown"' <<<"$json" >/dev/null \
+  || fail "reboot_pending not true"
 
-# --- status --json is valid JSON with exactly the seven contracted keys -------
+# --- reboot_pending follows the booted wiring, not the sticky firmware flag ----
+# The firmware keeps pending_reboot set after a switch and a switch back, so a
+# change undone before restarting must stop asking for one. The built-in panel
+# on the iGPU means the box booted hybrid.
+parm="$tmp/pending-arm"; mk_armoury "$parm" 1 1
+drmB="$tmp/drm-booted-hybrid"; mk_card "$drmB" card0 amdgpu; mk_card "$drmB" card1 nvidia
+mk_conn "$drmB" card0-eDP-1 connected; mk_conn "$drmB" card1-eDP-2 disconnected
+mk_conn "$drmB" card1-DP-1 connected
+json="$(mux "$parm" "$empty" "$drmB" status --json)"
+jq -e '.booted_mode == "hybrid" and .reboot_pending == false' <<<"$json" >/dev/null \
+  || fail "switched back to the booted hybrid wiring still reports a reboot: $json"
+printf '0\n' >"$parm/asus-armoury/attributes/gpu_mux_mode/current_value"
+json="$(mux "$parm" "$empty" "$drmB" status --json)"
+jq -e '.reboot_pending == true' <<<"$json" >/dev/null \
+  || fail "a discrete choice on a hybrid boot does not report a reboot: $json"
+drmV="$tmp/drm-booted-discrete"; mk_card "$drmV" card0 amdgpu; mk_card "$drmV" card1 nvidia
+mk_conn "$drmV" card0-eDP-1 disconnected; mk_conn "$drmV" card1-eDP-2 connected
+json="$(mux "$parm" "$empty" "$drmV" status --json)"
+jq -e '.booted_mode == "discrete" and .reboot_pending == false' <<<"$json" >/dev/null \
+  || fail "the booted discrete wiring misread: $json"
+
+# --- status --json is valid JSON with exactly the eight contracted keys -------
 json="$(mux "$disc" "$empty" "$empty" status --json)"
 jq -e . <<<"$json" >/dev/null || fail "status --json is not valid JSON"
 keys="$(jq -r 'keys_unsorted | join(",")' <<<"$json")"
-[[ $keys == "capable,mode,iface,panel_on_dgpu,dgpu_slot,dgpu_watts,reboot_pending" ]] \
-  || fail "status --json keys are not exactly the seven contracted ones: $keys"
+[[ $keys == "capable,mode,iface,panel_on_dgpu,dgpu_slot,dgpu_watts,reboot_pending,booted_mode" ]] \
+  || fail "status --json keys are not exactly the eight contracted ones: $keys"
 
 # --- nvidia-smi is NEVER spawned for get, capable, or set ---------------------
 for c in "get" "capable" "set hybrid"; do
