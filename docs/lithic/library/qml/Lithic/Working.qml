@@ -10,25 +10,31 @@ Item {
     implicitWidth: size
     implicitHeight: size * LithicTokens.size.workingFlakeHeightRatio
 
-    Row {
+    // the flakes exist only while the spinner shows, so an idle control carries none
+    Loader {
         anchors.centerIn: parent
-        spacing: root.size * LithicTokens.size.workingFlakeGapRatio
+        active: root.visible
+        sourceComponent: Component {
+            Row {
+                spacing: root.size * LithicTokens.size.workingFlakeGapRatio
 
-        Repeater {
-            model: LithicTokens.size.workingFlakeCount
-            delegate: Flake {
-                required property int index
-                width: root.size * LithicTokens.size.workingFlakeWidthRatio
-                height: root.size * LithicTokens.size.workingFlakeHeightRatio
-                size: height / LithicTokens.size.flakeHeightRatio
-                tone: "becoming"
-                outline: Lithic.alpha(Lithic.vein, LithicTokens.alpha.workingBase)
-                fill: Lithic.lapis
-                fillFraction: !root.active
-                    ? 0
-                    : Lithic.reduceMotion
-                      ? 1
-                      : Math.max(0, Math.min(1, root._phase - index))
+                Repeater {
+                    model: LithicTokens.size.workingFlakeCount
+                    delegate: Flake {
+                        required property int index
+                        width: root.size * LithicTokens.size.workingFlakeWidthRatio
+                        height: root.size * LithicTokens.size.workingFlakeHeightRatio
+                        size: height / LithicTokens.size.flakeHeightRatio
+                        tone: "becoming"
+                        outline: Lithic.alpha(Lithic.vein, LithicTokens.alpha.workingBase)
+                        fill: Lithic.lapis
+                        fillFraction: !root.active
+                            ? 0
+                            : Lithic.reduceMotion
+                              ? 1
+                              : Math.max(0, Math.min(1, root._phase - index))
+                    }
+                }
             }
         }
     }
