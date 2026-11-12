@@ -291,10 +291,12 @@ bug this section exists to prevent.
   reparented to that flickable's `contentItem`, which is why the component walks up
   to the item that owns `contentHeight`. A control that wants the wheel for itself
   keeps it, since an inner handler accepts the event first.
-- **A page swap does not reflow.** The two loaders crossfade the incoming page, and
-  the page's own first layout is synchronous, so nothing moves after the fade
-  starts. Length-dependent placement and post-load measurement timers are what make
-  a page jump; there are none.
+- **A page swap does not reflow.** The incoming page waits, laid out at opacity 0,
+  until its card grids report `settled`, then slides in as the outgoing page hides,
+  so nothing moves after it appears and the two never show at once. A page left
+  within the last 20 seconds is still loaded and takes over at once.
+  Length-dependent placement and post-load measurement timers are what make a page
+  jump; there are none.
 
 ## Disclosure, not walls
 

@@ -12,6 +12,10 @@
   its card grids report `settled` (capped at 250 ms), laid out while it
   waits. Graphics & Power also waits for its first backend reads
   (`Hub.qml`, `pages/GpuPage.qml`, `ryoku/ui/CardColumns.qml`).
+- **Going back to a Hub section you just left is instant.** A page stays
+  loaded for 20 seconds after you leave it (up to five pages), so switching
+  back skips the fresh load; a page left longer reloads, so its data is
+  never older than that (`Hub.qml`).
 - **Graphics & Power offers Performance on laptops with a monitor port on the
   discrete GPU.** The page says it applies only while a monitor is plugged in
   there at login, and that the built-in screen can then stay dark after sleep.
