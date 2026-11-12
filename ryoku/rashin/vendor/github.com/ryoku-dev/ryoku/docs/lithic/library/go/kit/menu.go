@@ -3,6 +3,7 @@ package kit
 import (
 	"image"
 
+	"gioui.org/io/key"
 	"gioui.org/io/semantic"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -30,7 +31,11 @@ type MenuItem struct {
 	Preview         State
 }
 
-// Menu is a cut command list with latched item activation.
+// Menu is a cut command list with latched item activation. Inside a popover
+// it takes keyboard focus on its first enabled item when it opens; Up and
+// Down move it, wrapping and skipping dividers and disabled items, Home and
+// End go to the ends, and Return, Enter or Space chooses through the item's
+// click. Escape reaches the popover, which closes.
 type Menu struct {
 	Preview State
 
@@ -38,6 +43,88 @@ type Menu struct {
 	disabled, divider   []bool
 	pending             []bool
 	hover, press, focus []anim.Tween
+	start               int
+}
+
+// menuMove returns the item a navigation key lands on from item from, among
+// count items of which enabled reports the choosable ones.
+func menuMove(count int, enabled func(int) bool, from int, name key.Name) (int, bool) {
+	step := 1
+	switch name {
+	case key.NameHome:
+		from, step = -1, 1
+	case key.NameEnd:
+		from, step = count, -1
+	case key.NameUpArrow:
+		step = -1
+	case key.NameDownArrow:
+	default:
+		return from, false
+	}
+	wrap := name == key.NameUpArrow || name == key.NameDownArrow
+	next := from
+	for range count {
+		next += step
+		if wrap {
+			next = (next%count + count) % count
+		}
+		if next < 0 || next >= count {
+			break
+		}
+		if enabled(next) {
+			return next, true
+		}
+	}
+	return from, false
+}
+
+// menuStart returns the item keyboard focus starts on: start when it is
+// choosable, otherwise the first choosable item.
+func menuStart(count int, enabled func(int) bool, start int) (int, bool) {
+	if start >= 0 && start < count && enabled(start) {
+		return start, true
+	}
+	return menuMove(count, enabled, -1, key.NameHome)
+}
+
+func (m *Menu) enabled(index int) bool {
+	return index >= 0 && index < len(m.clicks) && !m.disabled[index] && !m.divider[index]
+}
+
+// FocusItem moves keyboard focus to item index, or to the first enabled item
+// when index cannot take it.
+func (m *Menu) FocusItem(gtx layout.Context, index int) {
+	if next, ok := menuStart(len(m.clicks), m.enabled, index); ok {
+		gtx.Execute(key.FocusCmd{Tag: &m.clicks[next].Clickable})
+	}
+}
+
+func (m *Menu) handleKeys(gtx layout.Context) {
+	overlay := overlayFocusOf(gtx)
+	if overlay != nil && overlay.idle {
+		m.FocusItem(gtx, m.start)
+	}
+	for index := range m.clicks {
+		tag := &m.clicks[index].Clickable
+		for {
+			value, ok := gtx.Event(
+				key.Filter{Focus: tag, Name: key.NameUpArrow},
+				key.Filter{Focus: tag, Name: key.NameDownArrow},
+				key.Filter{Focus: tag, Name: key.NameHome},
+				key.Filter{Focus: tag, Name: key.NameEnd},
+			)
+			if !ok {
+				break
+			}
+			pressed, ok := value.(key.Event)
+			if !ok || pressed.State != key.Press {
+				continue
+			}
+			if next, moves := menuMove(len(m.clicks), m.enabled, index, pressed.Name); moves {
+				gtx.Execute(key.FocusCmd{Tag: &m.clicks[next].Clickable})
+			}
+		}
+	}
 }
 
 func (m *Menu) prepare(items []MenuItem) {
@@ -87,6 +174,7 @@ func (m *Menu) Layout(gtx layout.Context, th *theme.Theme, items []MenuItem) lay
 			m.pending[index] = true
 		}
 	}
+	m.handleKeys(gtx)
 	width := menuWidth(gtx, th, items)
 	gtx.Constraints.Min.X = width
 	gtx.Constraints.Max.X = width

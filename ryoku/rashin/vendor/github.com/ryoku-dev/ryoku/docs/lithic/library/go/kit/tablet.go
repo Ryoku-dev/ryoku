@@ -6,8 +6,10 @@ import (
 	"math"
 	"time"
 
+	"gioui.org/io/key"
 	"gioui.org/io/semantic"
 	"gioui.org/layout"
+	"gioui.org/op"
 	"gioui.org/text"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
@@ -53,6 +55,21 @@ func (tablet *Tablet) poll(gtx layout.Context) {
 	tablet.eventAt, tablet.eventReady = gtx.Now, true
 	tablet.clicked, tablet.double = false, false
 	tablet.clickedOut, tablet.doubleOut = false, false
+	// Return selects and runs the primary action, like a double click; Space
+	// only selects, through the click below
+	for {
+		value, ok := gtx.Event(
+			key.Filter{Focus: &tablet.Clickable, Name: key.NameReturn},
+			key.Filter{Focus: &tablet.Clickable, Name: key.NameEnter},
+		)
+		if !ok {
+			break
+		}
+		if pressed, ok := value.(key.Event); ok && pressed.State == key.Press {
+			tablet.clicked, tablet.double = true, true
+			gtx.Execute(op.InvalidateCmd{})
+		}
+	}
 	for {
 		click, ok := tablet.Click.Update(gtx)
 		if !ok {

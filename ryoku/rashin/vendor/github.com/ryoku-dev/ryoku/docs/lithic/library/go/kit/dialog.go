@@ -29,6 +29,8 @@ type Dialog struct {
 	wasOpen, visible     bool
 	closed               bool
 	slabRect             image.Rectangle
+	focusState           overlayFocus
+	focusPending         bool
 }
 
 // Dismiss closes the dialog and returns focus to its opener.
@@ -55,6 +57,7 @@ func (d *Dialog) Layout(gtx layout.Context, th *theme.Theme, title string, body 
 	if opening {
 		d.visible = true
 		d.closed = false
+		d.focusPending = d.Preview == StateRest
 		d.enter = anim.Tween{Duration: tokens.MotionDialogIn, Ease: anim.EaseChisel}
 		d.enter.Set(gtx, 0)
 		d.enter.Set(gtx, 1)
@@ -81,15 +84,6 @@ func (d *Dialog) Layout(gtx layout.Context, th *theme.Theme, title string, body 
 			}
 			press, ok := value.(pointer.Event)
 			if ok && !press.Position.Round().In(d.slabRect) {
-				d.beginExit(gtx)
-			}
-		}
-		for {
-			value, ok := gtx.Event(key.Filter{Name: key.NameEscape})
-			if !ok {
-				break
-			}
-			if keyEvent, ok := value.(key.Event); ok && keyEvent.State == key.Press {
 				d.beginExit(gtx)
 			}
 		}
@@ -120,7 +114,10 @@ func (d *Dialog) Layout(gtx layout.Context, th *theme.Theme, title string, body 
 	maxInnerHeight := max(0, window.Y-2*margin-2*padding)
 
 	insideContext := overlayContentContext(gtx)
-	if !d.Open {
+	if d.Open {
+		d.focusState = overlayFocus{parent: overlayFocusOf(gtx)}
+		insideContext.Values[overlayFocusValue] = &d.focusState
+	} else {
 		insideContext = insideContext.Disabled()
 	}
 	insideContext.Constraints.Min = image.Pt(innerWidth, 0)
@@ -153,6 +150,27 @@ func (d *Dialog) Layout(gtx layout.Context, th *theme.Theme, title string, body 
 	}
 	insideDimensions := layout.Flex{Axis: layout.Vertical}.Layout(insideContext, children...)
 	insideCall := insideRecord.Stop()
+	if d.Open {
+		// a dialog that opened with nothing inside it focused hands focus to
+		// its first control once the content has had a frame to take it
+		if d.focusPending && !opening {
+			d.focusPending = false
+			if !d.focusState.within && d.focusState.first != nil {
+				gtx.Execute(key.FocusCmd{Tag: d.focusState.first})
+			}
+		}
+		// Escape is read after the content, so an open menu or a Search with
+		// text inside the dialog takes it first
+		for {
+			value, ok := gtx.Event(key.Filter{Name: key.NameEscape})
+			if !ok {
+				break
+			}
+			if keyEvent, ok := value.(key.Event); ok && keyEvent.State == key.Press {
+				d.beginExit(gtx)
+			}
+		}
+	}
 	height := min(window.Y-2*margin, insideDimensions.Size.Y+2*padding)
 	height = max(0, height)
 	x := (window.X - width) / 2
