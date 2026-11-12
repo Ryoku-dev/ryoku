@@ -5,6 +5,9 @@
   Only local videos got the small preview clip, so workshop video cards stayed
   still; they now get one too, built on the thumbnail job limit and skipped
   while video previews are off.
+- **Wallpaper Engine scenes follow the cursor (#808).** Scenes with
+  camera parallax or mouse effects never moved, because the desktop sits above
+  the scene and takes the pointer; the shell now hands the position on through ryogami.
 - **The launcher's weather follows the Celsius or Fahrenheit setting (#803).** A
   unit change that arrived while the first forecast was still loading was
   dropped, so the hero kept the locale's unit until the next refresh 15 minutes

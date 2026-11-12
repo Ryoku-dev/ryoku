@@ -69,6 +69,7 @@ Scope {
     // The ryogami-live yield flag (default "ryogami" engine): hide the painter
     // while the C player owns the background layer.
     property bool wallpaperLive: false
+    property bool scenePointer: false
 
     // Stage z-ordering (docs/stage.md): behind-layers sit below the widgets
     // while front layers and explicit lifts sit above; video and live walls have no artifacts.
@@ -783,6 +784,11 @@ Scope {
             videoMuted: root.videoMuted
             videoVolume: root.videoVolume
             videoPaused: root.videoPaused
+        }
+        WallpaperMod.ScenePointer {
+            anchors.fill: parent
+            output: root.monitorName
+            active: root.scenePointer && root.wallpaperLive
         }
 
         // Host Gokko widgets beside the wallpaper, below ordinary windows.

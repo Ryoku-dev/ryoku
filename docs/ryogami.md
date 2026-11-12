@@ -105,6 +105,12 @@ folder. **Workshop directory** and **WE assets directory** in Settings > Sources
 override both. Scenes already on disk show up in the Workshop tab as soon as
 the first scan after a fresh install finishes.
 
+Scenes that follow the cursor (camera parallax, mouse-driven effects) react
+while the pointer is over the desktop, the same way Stage's Parallax does. The
+desktop surface sits above the scene, so the shell reports hover positions and
+ryogami passes them to the scene renderer, at most 60 times a second and only
+while a scene is on that monitor. This needs skwd-paper beta.27 or newer.
+
 Searching never holds up the picker. The daemon answers slow requests
 (provider and Workshop searches, semantic queries, colour previews) on their own
 workers, a newer search from the same picker cancels the older one, a search

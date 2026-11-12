@@ -81,6 +81,12 @@ type paperResponse struct {
 	Error  *paperError     `json:"error,omitempty"`
 }
 
+type paperWorker struct {
+	Outputs []string    `json:"outputs"`
+	Source  paperSource `json:"source"`
+	Pid     int         `json:"pid,omitempty"`
+}
+
 // Resolved exactly as the renderer does so both ends agree without configuration.
 func (pc *paperClient) socketPath() string {
 	if p := os.Getenv("SKWD_PAPER_V2_SOCKET"); p != "" {
@@ -102,7 +108,29 @@ func (pc *paperClient) binary() string {
 
 func (pc *paperClient) apply(req paperApplyRequest) error {
 	_, err := pc.exchange("paper.apply", req, true)
+	pc.workersChanged()
 	return err
+}
+
+func (pc *paperClient) workersChanged() {
+	if pc.d != nil && pc.d.scenePointer != nil {
+		pc.d.scenePointer.invalidate()
+	}
+}
+
+// Never spawns the renderer: with nothing running there are no workers.
+func (pc *paperClient) workers() ([]paperWorker, error) {
+	raw, err := pc.exchange("paper.status", struct{}{}, false)
+	if err != nil {
+		return nil, err
+	}
+	var res struct {
+		Assignments []paperWorker `json:"assignments"`
+	}
+	if err := json.Unmarshal(raw, &res); err != nil {
+		return nil, fmt.Errorf("decode paper status: %w", err)
+	}
+	return res.Assignments, nil
 }
 
 // Never spawns the renderer: with nothing running there is nothing to stop.
@@ -111,6 +139,7 @@ func (pc *paperClient) stop(outputs []string) error {
 		return nil
 	}
 	_, err := pc.exchange("paper.stop", paperStopRequest{Outputs: outputs}, false)
+	pc.workersChanged()
 	return err
 }
 

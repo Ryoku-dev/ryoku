@@ -18,6 +18,8 @@ func (d *daemon) dispatchVerb(line string) string {
 		return d.wallpaperVerb(line)
 	case "depth":
 		return d.depthVerb(line)
+	case "pointer":
+		return d.pointerVerb(line)
 	default:
 		return fmt.Sprintf("err unknown command: %s", strings.Fields(line)[0])
 	}
