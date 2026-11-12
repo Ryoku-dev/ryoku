@@ -22,10 +22,26 @@ T.Control {
 
     Accessible.role: Accessible.Grouping
     Accessible.name: accessibleName
+    // the field holds focus itself, so Ctrl+Z reaches whoever holds it; a typed
+    // character opens the path with that character, and a click into the path edits it
+    focusPolicy: Qt.StrongFocus
+    Keys.onPressed: event => {
+        if (field.activeFocus || event.text.length !== 1 || event.text.charCodeAt(0) <= 32
+                || (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)))
+            return
+        field.forceActiveFocus(Qt.OtherFocusReason)
+        field.text = event.text
+        event.accepted = true
+    }
 
     onPathChanged: {
         if (!field.activeFocus)
             field.text = path;
+    }
+
+    // hands focus back to the field from the path, with the keyboard mark
+    function _leavePath() {
+        root.forceActiveFocus(Qt.TabFocusReason);
     }
 
     contentItem: Item {
@@ -39,21 +55,48 @@ T.Control {
             errorText: root.errorText
             enabled: root.enabled
             rightPadding: LithicTokens.size.textFieldSecretAction + LithicTokens.size.textFieldSecretInset * 2
-            previewState: root.previewState === "chooseFocus" ? "" : root.previewState
+            // the field's own focus shows on the path
+            previewState: root.previewState === "chooseFocus" ? ""
+                        : root.visualFocus ? "focus" : root.previewState
+            focusPolicy: Qt.ClickFocus
+            activeFocusOnTab: false
             Accessible.name: root.accessibleName
-            onEditingFinished: {
-                if (text !== root.path)
+            // leaving the path, by Return, Enter, Tab or a click elsewhere, reports a changed one
+            onActiveFocusChanged: {
+                if (!activeFocus && text !== root.path)
                     root.edited(text);
             }
+            Keys.onReturnPressed: root._leavePath()
+            Keys.onEnterPressed: root._leavePath()
+            // Escape drops an edit; with nothing typed it goes on, so a dialog can close
+            Keys.onEscapePressed: event => {
+                const edited = field.text !== root.path
+                field.text = root.path
+                root._leavePath()
+                event.accepted = edited
+            }
+        }
+
+        // beside the path rather than inside it, so keys on it never reach the text input;
+        // it still fades with the path when the field is off, as it did inside it
+        Item {
+            x: field.x
+            y: field.y
+            width: field.width
+            height: field.height
+            opacity: field.opacity
 
             IconPlaque {
+                id: choose
                 anchors.right: parent.right
                 anchors.rightMargin: LithicTokens.size.textFieldSecretInset
                 y: field._labelHeight + LithicTokens.size.textFieldSecretInset
                 small: true
                 kind: "quiet"
                 glyph: "folder_open"
-                accessibleName: root.label.length > 0 ? Lithic.tr("Choose %1").arg(root.label) : root.placeholder
+                // a name, never the placeholder, which a host may set to a whole path
+                accessibleName: root.label.length > 0 ? Lithic.tr("Choose %1").arg(root.label)
+                              : root.kind === "file" ? Lithic.tr("Choose a file") : Lithic.tr("Choose a folder")
                 previewState: root.previewState === "chooseFocus" ? "focus" : ""
                 onClicked: root.chooseRequested()
             }

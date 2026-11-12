@@ -518,7 +518,9 @@ ChordField {
 
 #### PathField
 
-A file or folder value: a mono `TextField` holding the path, with a small quiet `folder_open` `IconPlaque` in the field's trailing slot, 6 in. The library never opens a dialog: the plaque emits `chooseRequested()`, the host opens the portal and sets `path`. Typing and committing (Enter or leaving the field) emits `edited(path)`; the field never writes `path` itself, and the host validates and sets `errorText`.
+A file or folder value: a mono `TextField` holding the path, with a small quiet `folder_open` `IconPlaque` in the field's trailing slot, 6 in. The library never opens a dialog: the plaque emits `chooseRequested()`, the host opens the portal and sets `path`. Typing and committing (Return, Enter or leaving the field) emits `edited(path)` once; the field never writes `path` itself, and the host validates and sets `errorText`. Escape drops an edit, and with nothing typed goes on, so a dialog can close.
+
+Keys, as in ColorField: the PathField holds keyboard focus itself, so Ctrl+Z reaches whoever holds it, and its path shows the focus edge while that focus came from the keys. A typed character opens the path with that character, a click into the path edits it, and Tab goes on to the choose plaque, never into the path. The plaque sits beside the text input rather than inside it, so after a choose, by keyboard or pointer, Ctrl+Z still reaches the app. It is named "Choose <label>", or "Choose a folder" or "Choose a file" without a label, never by the placeholder.
 
 - Properties: `path`, `label`, `kind` (`folder` or `file`; it only words the default placeholder), `placeholder` (default "Choose a folder" or "Choose a file"), `errorText`, `accessibleName`, and `previewState`
 - Signals: `chooseRequested()` and `edited(string path)`
