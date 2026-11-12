@@ -5,8 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"gioui.org/f32"
 	"gioui.org/io/input"
 	"gioui.org/io/key"
+	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/unit"
@@ -224,5 +226,55 @@ func TestMenuMove(t *testing.T) {
 	}
 	if start, ok := menuStart(5, enabled, 3); !ok || start != 3 {
 		t.Errorf("menuStart on an enabled item = %d %v, want 3", start, ok)
+	}
+}
+
+// menuRing reports whether item index of the picker's menu shows the
+// keyboard focus ring.
+func (f *pickerFixture) menuRing(index int) bool {
+	shown := false
+	f.harness.frame(func(gtx layout.Context) {
+		shown = f.picker.menu.focus[index].Value(gtx) > 0
+	})
+	return shown
+}
+
+func (f *pickerFixture) click() {
+	at := f32.Pt(40, 40)
+	f.harness.router.Queue(
+		pointer.Event{Kind: pointer.Press, Source: pointer.Mouse, Buttons: pointer.ButtonPrimary, Position: at},
+		pointer.Event{Kind: pointer.Release, Source: pointer.Mouse, Position: at},
+	)
+	f.harness.settle()
+}
+
+func TestPickerKeyboardRingFollowsTheKeys(t *testing.T) {
+	f := newPickerFixture(t, 1)
+	f.click()
+	if !f.picker.Open() {
+		t.Fatal("a click on the anchor did not open the picker")
+	}
+	if !f.harness.focused(&f.picker.menu.clicks[1].Clickable) {
+		t.Fatal("a pointer-opened menu did not start on the current choice")
+	}
+	if f.menuRing(1) {
+		t.Fatal("a pointer-opened menu drew the keyboard ring on its current item")
+	}
+	f.harness.press(key.NameDownArrow)
+	if !f.menuRing(2) || f.menuRing(1) {
+		t.Fatal("an arrow key in a pointer-opened menu did not move the ring to the next item")
+	}
+	f.harness.press(key.NameEscape)
+	f.harness.press(key.NameDownArrow)
+	if !f.picker.Open() {
+		t.Fatal("Down on the anchor did not reopen the picker")
+	}
+	if !f.menuRing(1) {
+		t.Fatal("a menu opened from the keys did not draw the ring on the current choice")
+	}
+	f.harness.press(key.NameEscape)
+	f.click()
+	if f.menuRing(1) {
+		t.Fatal("a click after a key open drew the keyboard ring")
 	}
 }

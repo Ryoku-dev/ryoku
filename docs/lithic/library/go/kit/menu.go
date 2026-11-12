@@ -44,6 +44,11 @@ type Menu struct {
 	pending             []bool
 	hover, press, focus []anim.Tween
 	start               int
+	// openedFromKeys says whether the host opened the menu from the keys;
+	// quiet is one more than the item a pointer-opened menu focused, which
+	// shows no keyboard ring until a key moves focus
+	openedFromKeys bool
+	quiet          int
 }
 
 // menuMove returns the item a navigation key lands on from item from, among
@@ -92,9 +97,18 @@ func (m *Menu) enabled(index int) bool {
 }
 
 // FocusItem moves keyboard focus to item index, or to the first enabled item
-// when index cannot take it.
+// when index cannot take it, for a host that opens the menu from the keys;
+// the item shows the keyboard ring.
 func (m *Menu) FocusItem(gtx layout.Context, index int) {
+	m.focusStart(gtx, index, true)
+}
+
+func (m *Menu) focusStart(gtx layout.Context, index int, fromKeys bool) {
 	if next, ok := menuStart(len(m.clicks), m.enabled, index); ok {
+		m.quiet = 0
+		if !fromKeys {
+			m.quiet = next + 1
+		}
 		gtx.Execute(key.FocusCmd{Tag: &m.clicks[next].Clickable})
 	}
 }
@@ -102,7 +116,7 @@ func (m *Menu) FocusItem(gtx layout.Context, index int) {
 func (m *Menu) handleKeys(gtx layout.Context) {
 	overlay := overlayFocusOf(gtx)
 	if overlay != nil && overlay.idle {
-		m.FocusItem(gtx, m.start)
+		m.focusStart(gtx, m.start, m.openedFromKeys)
 	}
 	for index := range m.clicks {
 		tag := &m.clicks[index].Clickable
@@ -121,6 +135,7 @@ func (m *Menu) handleKeys(gtx layout.Context) {
 				continue
 			}
 			if next, moves := menuMove(len(m.clicks), m.enabled, index, pressed.Name); moves {
+				m.quiet = 0
 				gtx.Execute(key.FocusCmd{Tag: &m.clicks[next].Clickable})
 			}
 		}
@@ -265,7 +280,7 @@ func (m *Menu) Layout(gtx layout.Context, th *theme.Theme, items []MenuItem) lay
 				if preview == StateRest {
 					preview = m.Preview
 				}
-				focused := gtx.Focused(&m.clicks[index].Clickable) || preview == StateFocus
+				focused := (gtx.Focused(&m.clicks[index].Clickable) && m.quiet != index+1) || preview == StateFocus
 				focus := focusValue(gtx, th, &m.focus[index], focused && !item.Disabled)
 				FocusRingAlpha(gtx, th, image.Rectangle{Max: dims.Size}, 0, focus)
 				return dims

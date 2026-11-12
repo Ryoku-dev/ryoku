@@ -23,6 +23,7 @@ type overlaysPage struct {
 	menuAnchor           kit.Plaque
 	menu                 kit.Menu
 	picker               kit.Picker
+	keysPicker           kit.Picker
 	dialog               kit.Dialog
 	dialogCancel         kit.Plaque
 	dialogAction         kit.Plaque
@@ -83,6 +84,8 @@ func newOverlaysPage() *overlaysPage {
 		{Label: "GPU passthrough unavailable", Disabled: true},
 	}
 	page.picker.Preview = kit.StateHover
+	page.keysPicker.Preview = kit.StateHover
+	page.keysPicker.PreviewKeys = true
 	page.dialog.Open = true
 	page.dialog.Preview = kit.StateHover
 	page.dialog.Width = unit.Dp(tokens.SizeCatalogueDialogWidth)
@@ -190,7 +193,8 @@ func (page *overlaysPage) overlaySection(th *theme.Theme) layout.Widget {
 		frames := []layout.Widget{
 			page.popoverSpecimen(th),
 			page.menuSpecimen(th),
-			page.pickerSpecimen(th),
+			page.pickerSpecimen(th, &page.picker, "Picker, opened with the pointer: no keyboard ring"),
+			page.pickerSpecimen(th, &page.keysPicker, "Picker, opened from the keys: ring on the current choice"),
 			page.tooltipSpecimen(th),
 			page.dialogSpecimen(th),
 			page.confirmSpecimen(th),
@@ -228,12 +232,12 @@ func (page *overlaysPage) menuSpecimen(th *theme.Theme) layout.Widget {
 	})
 }
 
-func (page *overlaysPage) pickerSpecimen(th *theme.Theme) layout.Widget {
-	return overlaySpecimen(th, "Picker, open", unit.Dp(tokens.SizeCatalogueTileHeight*2), func(gtx layout.Context) layout.Dimensions {
-		page.picker.Show()
+func (page *overlaysPage) pickerSpecimen(th *theme.Theme, picker *kit.Picker, label string) layout.Widget {
+	return overlaySpecimen(th, label, unit.Dp(tokens.SizeCatalogueTileHeight*2), func(gtx layout.Context) layout.Dimensions {
+		picker.Show()
 		return layout.Inset{Top: th.Sp.S4, Left: th.Sp.S4, Right: th.Sp.S4}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(tokens.SizeSearchWidth))
-			return page.picker.Layout(gtx, th, "Display", []string{"Window", "Spice", "Headless"}, 1)
+			return picker.Layout(gtx, th, "Display", []string{"Window", "Spice", "Headless"}, 1)
 		})
 	})
 }

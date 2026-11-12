@@ -21,6 +21,9 @@ var pickerArrow = Icon(symbols.ExpandMore)
 // Picker is a labelled field that opens its options as a popover menu.
 type Picker struct {
 	Preview State
+	// PreviewKeys draws an open preview as opened from the keys, with the
+	// keyboard ring on the current choice
+	PreviewKeys bool
 
 	button       Click
 	popover      Popover
@@ -44,18 +47,33 @@ func (p *Picker) Close(gtx layout.Context) { p.popover.Close(gtx) }
 
 // Layout draws the anchor and its option menu.
 func (p *Picker) Layout(gtx layout.Context, th *theme.Theme, label string, options []string, selected int) layout.Dimensions {
-	if p.button.Clicked(gtx) {
-		p.popover.Open = !p.popover.Open
-	}
+	// the keys are read before the click, which would otherwise take Return
+	// and Space as a press, so a key open shows the keyboard ring in the menu
 	for {
-		value, ok := gtx.Event(key.Filter{Focus: &p.button.Clickable, Name: key.NameDownArrow})
+		value, ok := gtx.Event(
+			key.Filter{Focus: &p.button.Clickable, Name: key.NameDownArrow},
+			key.Filter{Focus: &p.button.Clickable, Name: key.NameReturn},
+			key.Filter{Focus: &p.button.Clickable, Name: key.NameEnter},
+			key.Filter{Focus: &p.button.Clickable, Name: key.NameSpace},
+		)
 		if !ok {
 			break
 		}
-		if pressed, ok := value.(key.Event); ok && pressed.State == key.Press && gtx.Source.Enabled() {
-			p.popover.Open = true
-			gtx.Execute(op.InvalidateCmd{})
+		pressed, ok := value.(key.Event)
+		if !ok || pressed.State != key.Press || !gtx.Source.Enabled() {
+			continue
 		}
+		p.menu.openedFromKeys = true
+		if pressed.Name == key.NameDownArrow {
+			p.popover.Open = true
+		} else {
+			p.popover.Open = !p.popover.Open
+		}
+		gtx.Execute(op.InvalidateCmd{})
+	}
+	if p.button.Clicked(gtx) {
+		p.menu.openedFromKeys = false
+		p.popover.Open = !p.popover.Open
 	}
 	p.popover.Opener = &p.button.Clickable
 	p.popover.Preview = p.Preview
@@ -117,6 +135,9 @@ func (p *Picker) Layout(gtx layout.Context, th *theme.Theme, label string, optio
 		items := make([]MenuItem, len(options))
 		for index, option := range options {
 			items[index] = MenuItem{Label: option, Checked: index == selected}
+			if p.PreviewKeys && index == selected {
+				items[index].Preview = StateFocus
+			}
 		}
 		// the keyboard starts on the current choice
 		p.menu.start = selected
