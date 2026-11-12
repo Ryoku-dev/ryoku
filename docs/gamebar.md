@@ -6,15 +6,17 @@ cards for capture, performance, system load, tasks, media, Discord voice, audio
 and recent captures. `Super+Shift+G` toggles it on the focused monitor.
 
 Everything is configured under `gamebar` in `~/.config/ryoku/shell.json` and
-through **Ryoku Hub > Desktop > Game Bar**. Changes apply live; the shell never
-restarts for them. The bar is meant for a game, but nothing requires one: it
-opens over whatever is on that monitor.
+through **Ryoku Settings > Desktop > Game bar** (`ryoku-shell hub open
+game-bar`). Changes apply live; the shell never restarts for them. The bar is
+meant for a game, but nothing requires one: it opens over whatever is on that
+monitor.
 
-The overlay takes the pointer only where the strip or an open card is drawn.
-It never takes keyboard focus, so the game keeps input while the bar is visible.
-The bar has no close key of its own; press `Super+Shift+G` again, or use the
-same shortcut from the keybind catalogue (`ryoku-shell gamebar` toggles it from
-a terminal).
+While the bar is open it takes the pointer across its monitor, so a click
+beside the cards lands on the dimmed backdrop and leaves the bar open. It never
+takes keyboard focus, so the game keeps the keyboard while the bar is visible
+and Escape goes to the game. The bar has no close key of its own; press
+`Super+Shift+G` again, or use the same shortcut from the keybind catalogue
+(`ryoku-shell gamebar` toggles it from a terminal).
 
 Nothing of the bar exists while it is closed and no card is pinned: the shortcut
 builds the surface, and closing it tears the surface down once the fade ends.
@@ -85,7 +87,7 @@ the participant names if you keep them on. Because it is passive, change mute
 or deafen from the Voice card in the open bar, not from the pinned panel.
 
 Pinning is saved with the rest of the Game Bar state, so a pinned call survives
-a shell restart. Turning the Game Bar off in the Hub closes it and leaves
+a shell restart. Turning the Game Bar off in Settings closes it and leaves
 nothing behind.
 
 ## Discord Voice
@@ -137,13 +139,16 @@ Discord socket is held when the widget is not in use.
 
 ## Settings
 
-**Ryoku Hub > Desktop > Game Bar** has four tabs. Every control writes one key
-under `gamebar` in `shell.json`, so the daemon persists it and the live shell
-retunes without a restart.
+**Ryoku Settings > Desktop > Game bar** groups its controls into Game bar,
+Look, Snapping, Guide grid, Settle motion, Discord voice and Pinned voice
+overlay. Every control writes one key under `gamebar` in `shell.json` through
+the shell daemon, which checks the range, saves it and hands it to the live
+shell, so nothing restarts. `ryoku-shell hub open game-bar/<row>` opens the page
+at one row, for example `game-bar/dim`.
 
 | Key | Default | Effect |
 |---|---|---|
-| `enabled` | `true` | Show the Game Bar and bind the shortcut. |
+| `enabled` | `true` | Turn the Game Bar on. Off, it closes and the shortcut does nothing. |
 | `dim` | `0.62` | How far the game darkens behind the open bar. |
 | `scale` | `1` | Scale the strip, cards and text together. |
 | `radius` | `14` | Rounding of the strip and card frames. |
@@ -170,9 +175,10 @@ level, with an exclusive zone of `-1` so it spans the bar and the dock.
 
 ## Troubleshooting
 
-- **The shortcut does nothing.** Check `enabled` in the Hub, and that the Game
-  Bar binding is still in **Keybinds**. `ryoku-shell gamebar` always toggles it
-  when the shell is running.
+- **The shortcut does nothing.** Check that the Game Bar is on in Settings, and
+  that its binding is still in **Ryoku Settings > Windows > Keyboard
+  shortcuts**. `ryoku-shell gamebar` always toggles it when the shell is
+  running.
 - **The Voice card says Discord's voice socket is not reachable.** Start the
   client, wait for it to finish loading, then press Retry. The official client
   and Vesktop cannot both own the same RPC socket at once.
@@ -202,10 +208,14 @@ level, with an exclusive zone of `-1` so it spans the bar and the dock.
   participant model, reconnect and installer control.
 - `ryoku/shell/quickshell/shell/services/Config.qml` the `gamebar` defaults and
   `setGameBar`, which patches one key through the settings daemon.
-- `ryoku/hub/quickshell/pages/GameBarPage.qml` and
-  `ryoku/hub/quickshell/schema/GameBarPage.js` the Hub page and its rows.
+- `ryoku/hub/quickshell/pages/GameBar.qml` and
+  `ryoku/hub/quickshell/schema/game-bar.js` the Settings page and its rows.
 - `ryoku/wm/binds.go` and each compositor's bind table the `shell.gamebar`
-  shortcut; `ryoku/shell/quickshell/shell/shell.qml` maps it to the surface.
+  shortcut. Where the compositor has global shortcuts the bind presses the
+  shell's `gamebar` shortcut directly; otherwise it runs `ryoku-shell gamebar`,
+  which the daemon passes over the bus to the shell's `openSurface`.
+- `ryoku/shell/quickshell/shell/ShellBody.qml` builds one bar per monitor while
+  it is open or a card is pinned, and maps both routes to `GameBarStore`.
 - `~/.local/state/ryoku/gamebar.json` the open flag, pinned set, card set,
   positions, sizes and remembered resource tab.
 - `~/.local/share/ryoku/discord-voice/` the companion source build.

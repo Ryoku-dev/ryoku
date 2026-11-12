@@ -2,7 +2,6 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import Qt.labs.folderlistmodel
-import qs.Commons
 import shell.services
 import ".."
 import "../../../components"
@@ -22,6 +21,11 @@ GameBarCard {
     readonly property string clipsDir: Paths.recordingsDir
 
     property string mode: "shots"
+
+    // a folder name with a space or a # must still open as one file URL
+    function fileUrl(path) {
+        return path ? "file://" + String(path).split("/").map(encodeURIComponent).join("/") : "";
+    }
 
     function stamp(model, row) {
         const value = model.get(row, "fileModified");
@@ -93,7 +97,7 @@ GameBarCard {
 
     FolderListModel {
         id: shotFiles
-        folder: Util.fileUrl(card.shotsDir)
+        folder: card.fileUrl(card.shotsDir)
         showDirs: false
         nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp"]
         sortField: FolderListModel.Time
@@ -102,7 +106,7 @@ GameBarCard {
 
     FolderListModel {
         id: clipFiles
-        folder: Util.fileUrl(card.clipsDir)
+        folder: card.fileUrl(card.clipsDir)
         showDirs: false
         nameFilters: ["*.mp4", "*.mkv", "*.webm", "*.mov"]
         sortField: FolderListModel.Time
