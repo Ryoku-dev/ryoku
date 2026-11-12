@@ -12,6 +12,10 @@ T.Popup {
     property string previewState: ""
     property real remaining: 1
     property real slideOffset: 0
+    // the life stands still while the pointer rests on the placard or its action holds focus
+    readonly property bool held: placardHover.hovered || action.activeFocus
+    property real _lifeLeft: LithicTokens.motion.placardLife
+    property real _lifeSince: 0
 
     signal actionTriggered()
 
@@ -39,10 +43,45 @@ T.Popup {
 
     onOpened: {
         remaining = 1
-        if (autoDismiss && !Lithic.reduceMotion)
+        _lifeLeft = LithicTokens.motion.placardLife
+        if (!autoDismiss)
+            return
+        if (Lithic.reduceMotion) {
+            if (!held)
+                _runLife()
+        } else {
             drain.restart()
+            if (held)
+                drain.pause()
+        }
     }
-    onClosed: drain.stop()
+    onClosed: {
+        drain.stop()
+        lifeTimer.stop()
+    }
+    onHeldChanged: {
+        if (!opened || !autoDismiss)
+            return
+        if (held) {
+            if (drain.running)
+                drain.pause()
+            if (lifeTimer.running) {
+                lifeTimer.stop()
+                _lifeLeft -= Date.now() - _lifeSince
+            }
+        } else if (Lithic.reduceMotion) {
+            _runLife()
+        } else if (drain.paused) {
+            drain.resume()
+        }
+    }
+
+    // reduced motion keeps the blade whole, so a timer counts the life instead
+    function _runLife() {
+        _lifeSince = Date.now()
+        lifeTimer.interval = Math.max(1, _lifeLeft)
+        lifeTimer.restart()
+    }
 
     background: PlacardPlane {
         transform: Translate { y: root.slideOffset }
@@ -51,6 +90,8 @@ T.Popup {
     contentItem: Item {
         id: placardContent
         transform: Translate { y: root.slideOffset }
+
+        HoverHandler { id: placardHover }
 
         Label {
             anchors.left: parent.left
@@ -135,9 +176,8 @@ T.Popup {
     }
 
     Timer {
-        interval: LithicTokens.motion.placardLife
+        id: lifeTimer
         repeat: false
-        running: root.opened && root.autoDismiss && Lithic.reduceMotion
         onTriggered: root.close()
     }
 

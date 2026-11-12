@@ -4,9 +4,11 @@ import (
 	"image"
 	"time"
 
+	"gioui.org/gesture"
 	"gioui.org/io/semantic"
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
 
@@ -17,10 +19,15 @@ import (
 )
 
 type placardEntry struct {
-	id      int
-	text    string
-	action  string
-	expires time.Time
+	id     int
+	text   string
+	action string
+	// left is the life still to run, counted from last; it stands still
+	// while the placard is held under the pointer or keyboard focus
+	left    time.Duration
+	last    time.Time
+	held    bool
+	area    gesture.Hover
 	button  Click
 	enter   anim.Tween
 	hover   anim.Tween
@@ -40,7 +47,7 @@ type Placard struct {
 func (p *Placard) Push(now time.Time, text, action string) int {
 	p.next++
 	p.entries = append(p.entries, &placardEntry{
-		id: p.next, text: text, action: action, expires: now.Add(tokens.MotionPlacardLife),
+		id: p.next, text: text, action: action, left: tokens.MotionPlacardLife, last: now,
 	})
 	if len(p.entries) > tokens.SizePlacardStackCount {
 		p.entries = p.entries[len(p.entries)-tokens.SizePlacardStackCount:]
@@ -58,10 +65,20 @@ func (p *Placard) Dismiss(id int) {
 	}
 }
 
+// age runs the entry's life up to now unless it is held, and reports whether
+// any is left.
+func (entry *placardEntry) age(now time.Time) bool {
+	if !entry.held && now.After(entry.last) {
+		entry.left -= now.Sub(entry.last)
+	}
+	entry.last = now
+	return entry.left > 0
+}
+
 func prunePlacards(entries []*placardEntry, now time.Time) []*placardEntry {
 	kept := entries[:0]
 	for _, entry := range entries {
-		if now.Before(entry.expires) {
+		if entry.age(now) {
 			kept = append(kept, entry)
 		}
 	}
@@ -75,15 +92,24 @@ func (p *Placard) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions 
 	if len(p.entries) == 0 {
 		return layout.Dimensions{Size: window}
 	}
-	earliest := p.entries[0].expires
-	for _, entry := range p.entries[1:] {
-		if entry.expires.Before(earliest) {
-			earliest = entry.expires
+	// a held placard waits for the pointer or focus to leave, which brings a frame
+	running := false
+	var earliest time.Time
+	for _, entry := range p.entries {
+		if entry.held {
+			continue
 		}
+		expires := gtx.Now.Add(entry.left)
+		if !running || expires.Before(earliest) {
+			earliest = expires
+		}
+		running = true
 	}
-	gtx.Execute(op.InvalidateCmd{At: earliest})
-	if !anim.Reduced() {
-		gtx.Execute(op.InvalidateCmd{})
+	if running {
+		gtx.Execute(op.InvalidateCmd{At: earliest})
+		if !anim.Reduced() {
+			gtx.Execute(op.InvalidateCmd{})
+		}
 	}
 
 	placardContext := overlayContentContext(gtx)
@@ -97,6 +123,7 @@ func (p *Placard) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions 
 		if entry.action != "" && entry.button.Clicked(gtx) {
 			entry.pending = true
 		}
+		entry.held = entry.area.Update(gtx.Source) || gtx.Focused(&entry.button.Clickable)
 		if !entry.started {
 			entry.enter = anim.Tween{Duration: tokens.MotionPlacardIn, Ease: anim.EaseChisel}
 			entry.enter.Set(gtx, 0)
@@ -116,6 +143,8 @@ func (p *Placard) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions 
 			rise := int(float32(gtx.Dp(tokens.SizePlacardRise)) * (1 - progress))
 			offset := op.Offset(image.Pt(0, rise)).Push(gtx.Ops)
 			bounds := image.Rect(0, 0, width, height)
+			area := clip.Rect(bounds).Push(gtx.Ops)
+			entry.area.Add(gtx.Ops)
 			FillCut(gtx.Ops, bounds, gtx.Dp(tokens.CutPlacard), th.R.Sel)
 			StrokeCut(gtx.Ops, bounds, gtx.Dp(tokens.CutPlacard), max(1, gtx.Dp(tokens.SizeHairline)), th.R.Vein)
 			layout.Inset{Left: unit.Dp(tokens.SizePlacardInset), Right: unit.Dp(tokens.SizePlacardTrailingInset)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -157,12 +186,13 @@ func (p *Placard) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions 
 					)
 				})
 			})
-			remaining := float64(entry.expires.Sub(gtx.Now)) / float64(tokens.MotionPlacardLife)
+			remaining := float64(entry.left) / float64(tokens.MotionPlacardLife)
 			remaining = max(0, min(1, remaining))
 			bladeWidth := int(float64(width) * remaining)
 			if bladeWidth > 0 {
 				Blade(gtx.Ops, image.Rect(0, height-max(1, gtx.Dp(tokens.SizePlacardBlade)), bladeWidth, height), th.R.OnSel)
 			}
+			area.Pop()
 			offset.Pop()
 			opacity.Pop()
 			return layout.Dimensions{Size: bounds.Max}

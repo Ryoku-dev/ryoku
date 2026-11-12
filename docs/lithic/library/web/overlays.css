@@ -59,7 +59,7 @@
   .l-popover[data-l-native-anchor] {
     position: fixed;
     position-area: bottom span-right;
-    position-try-fallbacks: flip-block, flip-inline;
+    position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
     margin-block-start: var(--lithic-size-popover-anchor-gap);
   }
 
@@ -412,6 +412,11 @@
 
 .l-placard[data-l-draining] .l-placard-blade {
   animation: l-placard-drain var(--lithic-motion-placard-life) linear forwards;
+}
+
+/* the blade stands still while the pointer or focus holds the placard */
+.l-placard[data-l-held] .l-placard-blade {
+  animation-play-state: paused;
 }
 
 @keyframes l-placard-drain {

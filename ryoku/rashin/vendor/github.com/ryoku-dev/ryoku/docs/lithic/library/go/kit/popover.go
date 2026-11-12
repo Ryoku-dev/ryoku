@@ -94,21 +94,26 @@ func presentOverlay(gtx layout.Context, call op.CallOp, preview bool, bounds ima
 	deferOverlay(gtx, call)
 }
 
-func placePopover(viewport, anchor image.Rectangle, content image.Point, gap int) image.Point {
-	maxX := viewport.Max.X - content.X
-	maxY := viewport.Max.Y - content.Y
+// placePopover puts content below the anchor, above it when only that fits,
+// and otherwise clamps it margin inside the viewport's far edges, so its own
+// edge and a focus ring inside it are never cut off. The viewport's left edge
+// is the anchor's own, so content may start flush with it.
+func placePopover(viewport, anchor image.Rectangle, content image.Point, gap, margin int) image.Point {
+	maxX := viewport.Max.X - margin - content.X
+	minY := viewport.Min.Y + margin
+	maxY := viewport.Max.Y - margin - content.Y
 	x := clampCoordinate(anchor.Min.X, viewport.Min.X, maxX)
 	below := anchor.Max.Y + gap
 	above := anchor.Min.Y - gap - content.Y
 	y := below
 	switch {
-	case below+content.Y <= viewport.Max.Y:
-	case above >= viewport.Min.Y:
+	case below <= maxY:
+	case above >= minY:
 		y = above
 	default:
-		y = clampCoordinate(below, viewport.Min.Y, maxY)
+		y = clampCoordinate(below, minY, maxY)
 	}
-	return image.Pt(x, clampCoordinate(y, viewport.Min.Y, maxY))
+	return image.Pt(x, clampCoordinate(y, minY, maxY))
 }
 
 func clampCoordinate(value, low, high int) int {
@@ -291,7 +296,7 @@ func (p *Popover) Layout(gtx layout.Context, anchor, content layout.Widget) layo
 		viewport = image.Rectangle{Max: window}
 	}
 	anchorRect := image.Rectangle{Max: anchorDimensions.Size}
-	position := placePopover(viewport, anchorRect, contentDimensions.Size, gtx.Dp(tokens.SizePopoverAnchorGap))
+	position := placePopover(viewport, anchorRect, contentDimensions.Size, gtx.Dp(tokens.SizePopoverAnchorGap), gtx.Dp(tokens.SizePopoverAnchorGap))
 	p.contentRect = image.Rectangle{Min: position, Max: position.Add(contentDimensions.Size)}
 	distance := gtx.Dp(tokens.SizePopoverEnterTravel)
 	if !p.Open {

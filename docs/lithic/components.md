@@ -588,11 +588,15 @@ Library: QML Lithic.BecomingName, web .l-becoming-name, Go kit.BecomingName, ter
 ### Popover
 
 Popover anchors content 8 from its control, below when space permits, above
-otherwise, and clamps it to the window. Its own full-window catcher swallows
-an outside press before closing it. It enters over 160 ms while sliding the
-last 6, and exits over 100 ms while sliding 4 back. Closing content is inert
-and blocks underlying pointer input. Only one popover is open. Reference:
-`ui/kit/popover.go`.
+otherwise, and clamps it 8 inside every window edge, so its own edge and a
+focus ring inside it are never cut off. When it opens, a menu inside it takes
+focus on its first enabled item, so the arrows and Return reach it; the
+keyboard ring shows there only when the popover was opened from the keys, and
+a Picker starts on its current choice instead. Its own full-window catcher
+swallows an outside press before closing it. It enters over 160 ms while
+sliding the last 6, and exits over 100 ms while sliding 4 back. Closing
+content is inert and blocks underlying pointer input. Only one popover is
+open. Reference: `ui/kit/popover.go`.
 
 Library: QML Lithic.Popover, web .l-popover, Go kit.Popover, terminal -
 
@@ -657,8 +661,10 @@ Library: QML Lithic.Tooltip, web .l-tooltip, Go kit.Tooltip, terminal -
 A placard is a `sel` slab 48 high, cut 8, with a 1 dp `vein` hairline. It is
 no wider than 560 and sits 24 above the bottom edge. Up to three stack 8
 apart. Text uses `onSel` with 16 inset. An optional action such as Undo is a
-32 high `onSel` plaque. A 2 dp `onSel` blade drains across its 5 s life. It
-enters over 300 ms rising 8.
+32 high `onSel` plaque. A 2 dp `onSel` blade drains across its 5 s life. The
+life and the blade stand still while the pointer rests on the placard or it
+holds keyboard focus, its action included, and go on from there once both
+leave, with or without reduced motion. It enters over 300 ms rising 8.
 Reference: `ui/kit/placard.go`.
 
 Library: QML Lithic.Placard, web .l-placard, Go kit.Placard, terminal term.RenderPlacard

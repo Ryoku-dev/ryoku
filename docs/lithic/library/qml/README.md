@@ -839,7 +839,7 @@ A name reveal, stage label, progress blade, and log-line stack for a resource be
 
 #### Popover
 
-An anchored non-modal popup that flips or clamps to its available parent area.
+An anchored non-modal popup that flips, or clamps 8 (`popoverAnchorGap`) inside every edge of its parent area so its edge and a focus ring inside it stay whole. On open, a Menu anywhere in its content takes focus on its first enabled item unless the host already put focus inside (a Picker starts on its current choice); the keyboard ring shows there only when the opener held keyboard focus.
 
 - Properties: `anchorItem`, `opener`, `previewState`, `previewEmbedded`, `placementSide`, `placementPosition`, `openAbove`, and `slideOffset`. `lithicPopoverMarker` is read only.
 - Functions: inherited `open()` and `close()`, plus `calculatePlacement()`, `placeAtAnchor()`, and `closeOtherPopovers()`
@@ -940,9 +940,9 @@ A delayed anchored tooltip that flips above its anchor when needed.
 
 #### Placard
 
-A stacked transient notice with an optional undo-style action and draining blade.
+A stacked transient notice with an optional undo-style action and draining blade. Its life and blade stand still while the pointer rests on it or its action holds focus, with or without reduced motion, and go on once both leave.
 
-- Properties: `message`, `actionText`, `stackIndex`, `autoDismiss`, `previewOpen`, `previewState`, `remaining`, and `slideOffset`
+- Properties: `message`, `actionText`, `stackIndex`, `autoDismiss`, `previewOpen`, `previewState`, `remaining`, and `slideOffset`. Read-only `held` reports the hold.
 - Signal: `actionTriggered()`
 - Functions: inherited `open()` and `close()`
 - Preview: `previewState` and `previewOpen`

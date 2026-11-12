@@ -26,25 +26,28 @@ T.Popup {
             return null
         const point = anchorItem.mapToItem(parent, 0, 0)
         const gap = LithicTokens.size.popoverAnchorGap
+        // the window edge keeps the same 8, so the popover's edge and a focus ring inside it stay whole
+        const margin = LithicTokens.size.popoverAnchorGap
+        const clampX = x => Math.max(margin, Math.min(x, parent.width - width - margin))
+        const clampY = y => Math.max(margin, Math.min(y, parent.height - height - margin))
         if (placementSide === "right") {
             const right = point.x + anchorItem.width + gap
             const left = point.x - width - gap
-            const placedX = right + width <= parent.width ? right
-                            : left >= 0 ? left
-                            : Math.max(0, Math.min(right, parent.width - width))
+            const placedX = right + width <= parent.width - margin ? right
+                            : left >= margin ? left
+                            : clampX(right)
             return {
                 x: placedX,
-                y: Math.max(0, Math.min(point.y + (anchorItem.height - height) / 2,
-                                        parent.height - height)),
+                y: clampY(point.y + (anchorItem.height - height) / 2),
                 above: false
             }
         }
         const below = point.y + anchorItem.height + gap
         const above = point.y - height - gap
-        const placedAbove = below + height > parent.height && above >= 0
+        const placedAbove = below + height > parent.height - margin && above >= margin
         return {
-            x: Math.max(0, Math.min(point.x, parent.width - width)),
-            y: placedAbove ? above : Math.max(0, Math.min(below, parent.height - height)),
+            x: clampX(point.x),
+            y: placedAbove ? above : clampY(below),
             above: placedAbove
         }
     }
@@ -75,7 +78,37 @@ T.Popup {
         closeOtherPopovers()
         placeAtAnchor()
     }
-    onOpened: placeAtAnchor()
+    onOpened: {
+        placeAtAnchor()
+        _focusMenu()
+    }
+
+    // A menu inside the popover takes focus on its first enabled item, so the
+    // arrows and Return reach it; a host that already placed focus inside the
+    // content, such as a Picker on its current choice, keeps it. Only an opener
+    // that held keyboard focus shows the keyboard ring there.
+    function _focusMenu() {
+        const window = liveContent.Window.window
+        for (let item = window ? window.activeFocusItem : null; item; item = item.parent) {
+            if (item === liveContent)
+                return
+        }
+        const menu = _findMenu(liveContent)
+        if (menu)
+            menu.focusItem(-1, opener !== null && opener.visualFocus === true)
+    }
+
+    function _findMenu(item) {
+        for (let index = 0; index < item.children.length; ++index) {
+            const child = item.children[index]
+            if (typeof child.focusItem === "function" && typeof child.moveFocus === "function")
+                return child
+            const nested = _findMenu(child)
+            if (nested)
+                return nested
+        }
+        return null
+    }
     onClosed: {
         if (opener && opener.enabled)
             opener.forceActiveFocus()

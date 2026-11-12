@@ -89,7 +89,7 @@ func (tooltip *Tooltip) Layout(gtx layout.Context, th *theme.Theme, tip string, 
 		viewport = image.Rectangle{Max: gtx.Constraints.Max}
 	}
 	anchor := image.Rectangle{Max: dimensions.Size}
-	position := placePopover(viewport, anchor, tipDimensions.Size, gtx.Dp(tokens.SizeTooltipAnchorGap))
+	position := placePopover(viewport, anchor, tipDimensions.Size, gtx.Dp(tokens.SizeTooltipAnchorGap), 0)
 	position.Y += int(float32(gtx.Dp(tokens.SizeTooltipTravel)) * (1 - progress))
 
 	overlay := op.Record(gtx.Ops)

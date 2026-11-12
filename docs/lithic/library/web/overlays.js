@@ -92,29 +92,39 @@ function canAnchor() {
     CSS.supports('position-area: bottom');
 }
 
-function anchorOverlay(anchor, overlay, gapProperty) {
+// edgeProperty keeps the overlay that far inside every window edge, so its own
+// edge and a focus ring inside it are never cut off
+function anchorOverlay(anchor, overlay, gapProperty, edgeProperty = null) {
   if (overlay.hasAttribute('data-l-static-open')) return;
+  const view = documentFor(overlay).defaultView;
+  const margin = edgeProperty ? tokenNumber(overlay, edgeProperty) : 0;
   if (canAnchor()) {
     const name = `--lithic-anchor-${++anchorSequence}`;
     anchor.style.anchorName = name;
     overlay.style.positionAnchor = name;
+    overlay.style.left = '';
+    overlay.style.top = '';
     overlay.setAttribute('data-l-native-anchor', '');
-    return;
+    // native anchoring flips but cannot keep a margin from the window edge;
+    // placed too near one, the overlay falls back to the clamped placement
+    const placed = overlay.getBoundingClientRect();
+    if (placed.left >= margin && placed.top >= margin &&
+        placed.right <= view.innerWidth - margin && placed.bottom <= view.innerHeight - margin) return;
   }
 
   overlay.removeAttribute('data-l-native-anchor');
   const anchorRect = anchor.getBoundingClientRect();
   const overlayRect = overlay.getBoundingClientRect();
-  const view = documentFor(overlay).defaultView;
   const gap = tokenNumber(overlay, gapProperty);
   const below = anchorRect.bottom + gap;
   const above = anchorRect.top - gap - overlayRect.height;
-  const top = below + overlayRect.height <= view.innerHeight
+  const clamp = (value, size, extent) => Math.max(margin, Math.min(value, extent - size - margin));
+  const top = below + overlayRect.height <= view.innerHeight - margin
     ? below
-    : above >= 0
+    : above >= margin
       ? above
-      : Math.max(0, Math.min(below, view.innerHeight - overlayRect.height));
-  const left = Math.max(0, Math.min(anchorRect.left, view.innerWidth - overlayRect.width));
+      : clamp(below, overlayRect.height, view.innerHeight);
+  const left = clamp(anchorRect.left, overlayRect.width, view.innerWidth);
   overlay.style.left = `${left}px`;
   overlay.style.top = `${top}px`;
   overlay.dataset.lSide = top < anchorRect.top ? 'above' : 'below';
@@ -180,7 +190,7 @@ function openPopover(state, opener, target) {
   opener.setAttribute('aria-expanded', 'true');
   target.removeAttribute('data-l-closing');
   revealPopover(target);
-  anchorOverlay(opener, target, '--lithic-size-popover-anchor-gap');
+  anchorOverlay(opener, target, '--lithic-size-popover-anchor-gap', '--lithic-size-popover-anchor-gap');
   emit(target, 'lithic:open', {opener});
   const items = focusableItems(target);
   if (items.length) items[0].focus({preventScroll: true});
@@ -321,18 +331,40 @@ function showPlacard(state, placard) {
       active.slice(0, Math.max(0, active.length - limit)).forEach(extra => dismissPlacard(state, extra, 'stack'));
     }
   }
-  clearTimeout(state.placardTimers.get(placard));
+  stopPlacardLife(state, placard);
   const life = tokenDuration(placard, '--lithic-motion-placard-life');
   if (placard.hasAttribute('data-l-autoclose') && life > 0) {
-    state.placardTimers.set(placard, setTimeout(() => dismissPlacard(state, placard), life));
+    state.placardLives.set(placard, {left: life, since: 0, timer: 0});
+    syncPlacardLife(state, placard);
   }
   emit(placard, 'lithic:open');
 }
 
+function stopPlacardLife(state, placard) {
+  clearTimeout(state.placardLives.get(placard)?.timer);
+  state.placardLives.delete(placard);
+  placard.removeAttribute('data-l-held');
+}
+
+// The life stands still while the placard is under the pointer or holds focus
+// (its action included), and the drain blade stands still with it
+function syncPlacardLife(state, placard, held = placard.matches(':hover') || placard.contains(placard.ownerDocument.activeElement)) {
+  const life = state.placardLives.get(placard);
+  if (!life) return;
+  if (held && life.timer) {
+    clearTimeout(life.timer);
+    life.timer = 0;
+    life.left -= performance.now() - life.since;
+  } else if (!held && !life.timer) {
+    life.since = performance.now();
+    life.timer = setTimeout(() => dismissPlacard(state, placard), Math.max(0, life.left));
+  }
+  placard.toggleAttribute('data-l-held', held);
+}
+
 function dismissPlacard(state, placard, reason = 'timeout') {
   if (!placard || placard.hasAttribute('data-l-static-open')) return;
-  clearTimeout(state.placardTimers.get(placard));
-  state.placardTimers.delete(placard);
+  stopPlacardLife(state, placard);
   placard.removeAttribute('data-l-open');
   placard.removeAttribute('data-l-draining');
   placard.hidden = true;
@@ -497,7 +529,7 @@ function initOverlays(root) {
     tooltipTimer: 0,
     blocking: 0,
     openers: new WeakMap(),
-    placardTimers: new WeakMap(),
+    placardLives: new WeakMap(),
   };
   states.set(root, state);
   root.querySelectorAll('.l-section-index').forEach(buildSectionPicker);
@@ -712,6 +744,19 @@ function initOverlays(root) {
     const frame = event.target.closest('.l-app-frame') || root.querySelector('.l-app-frame');
     if (frame) emit(frame, 'lithic:escape');
   });
+
+  // the pointer or focus entering a placard holds its life; leaving both resumes it
+  for (const type of ['pointerover', 'pointerout', 'focusin', 'focusout']) {
+    root.addEventListener(type, event => {
+      const placard = event.target.closest?.('.l-placard[data-l-open]');
+      if (!placard || placard.contains(event.relatedTarget)) return;
+      const entering = type === 'pointerover' || type === 'focusin';
+      const other = type.startsWith('pointer')
+        ? placard.contains(placard.ownerDocument.activeElement)
+        : placard.matches(':hover');
+      syncPlacardLife(state, placard, entering || other);
+    });
+  }
 
   root.addEventListener('pointerover', event => {
     const anchor = event.target.closest('[data-l-tooltip]');
