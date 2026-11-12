@@ -33,9 +33,15 @@ T.AbstractButton {
     Accessible.name: accessibleName.length > 0 ? accessibleName : text
     Accessible.description: busy ? Lithic.tr("Busy") : ""
 
-    // Return and Enter press a focused plaque, as on the web and in Gio; a busy plaque swallows them
-    Keys.onReturnPressed: if (!busy) click()
-    Keys.onEnterPressed: if (!busy) click()
+    // Return and Enter press a focused plaque; a busy one swallows them, a hidden one (Qt keeps its focus) passes them on
+    Keys.onReturnPressed: event => root._returnPressed(event)
+    Keys.onEnterPressed: event => root._returnPressed(event)
+    function _returnPressed(event) {
+        if (!visible)
+            event.accepted = false
+        else if (!busy)
+            click()
+    }
     Keys.onPressed: function(event) {
         if (busy && event.key === Qt.Key_Space)
             event.accepted = true;

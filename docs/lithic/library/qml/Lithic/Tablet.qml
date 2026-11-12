@@ -175,9 +175,13 @@ T.AbstractButton {
         onDoubleTapped: root.primaryAction()
     }
     // Space selects; Return selects and opens, like a double tap and the web list's Enter
-    Keys.onReturnPressed: root._open()
-    Keys.onEnterPressed: root._open()
-    function _open() {
+    Keys.onReturnPressed: event => root._open(event)
+    Keys.onEnterPressed: event => root._open(event)
+    function _open(event) {
+        if (!visible) {
+            event.accepted = false
+            return
+        }
         click()
         primaryAction()
     }

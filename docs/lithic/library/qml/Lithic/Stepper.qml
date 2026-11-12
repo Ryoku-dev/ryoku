@@ -145,6 +145,7 @@ T.SpinBox {
             selectedTextColor: Lithic.onSel
             selectByMouse: true
             inputMethodHints: Qt.ImhFormattedNumbersOnly
+            Accessible.name: root.accessibleName
             text: root.displayText
             onActiveFocusChanged: activeFocus ? selectAll() : root._commit()
             Keys.onReturnPressed: root._commit()

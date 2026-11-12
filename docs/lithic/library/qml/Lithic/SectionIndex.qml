@@ -9,6 +9,7 @@ T.Control {
     property string sizeClass: "expanded"
     property Item overlayParent: null
     property string previewState: ""
+    property string accessibleName: Lithic.tr("Go to a section")
     readonly property bool expanded: sizeClass === "expanded"
 
     signal activated(int index)
@@ -22,6 +23,7 @@ T.Control {
                     : picker.implicitHeight
     padding: 0
     Accessible.role: Accessible.List
+    Accessible.name: accessibleName
 
     function sectionLabel(index) {
         const entry = sections[index]
@@ -106,6 +108,7 @@ T.Control {
             options: root.sections
             overlayParent: root.overlayParent
             previewState: root.previewState
+            Accessible.name: root.accessibleName
             onActivated: index => root.choose(index)
         }
 

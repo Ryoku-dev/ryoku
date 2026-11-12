@@ -89,6 +89,31 @@ T.Dialog {
         return null
     }
 
+    // Qt leaves focus on a control that hides, or drops it to the popup when one goes away; move it on
+    readonly property Item _activeItem: contentColumn.Window.activeFocusItem
+    readonly property bool _focusStranded: opened && !previewEmbedded && _activeItem !== null
+        && (_activeItem === contentColumn.parent || (_inside(_activeItem) && !_activeItem.visible))
+    on_FocusStrandedChanged: {
+        if (_focusStranded)
+            Qt.callLater(_rehomeFocus, _activeItem.visualFocus === true)
+    }
+
+    function _inside(item) {
+        for (let current = item; current; current = current.parent) {
+            if (current === contentColumn)
+                return true
+        }
+        return false
+    }
+
+    function _rehomeFocus(fromKeys) {
+        if (!_focusStranded)
+            return
+        const first = _firstTabStop(contentColumn)
+        if (first)
+            first.forceActiveFocus(fromKeys ? Qt.TabFocusReason : Qt.OtherFocusReason)
+    }
+
     background: DialogPlane {
         transform: Translate { y: root.slideOffset }
     }

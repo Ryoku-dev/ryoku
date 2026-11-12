@@ -108,5 +108,13 @@ Item {
             keyClick(Qt.Key_Up);
             compare(fixed.value, 5);
         }
+
+        function test_typedFieldCarriesTheStepperName() {
+            port.accessibleName = "Wireless debugging port";
+            port.forceActiveFocus();
+            const field = port.Window.activeFocusItem;
+            verify(field !== null && field.cursorPosition !== undefined, "focus is in the typed field");
+            compare(field.Accessible.name, "Wireless debugging port", "a screen reader hears the row, not nothing");
+        }
     }
 }
