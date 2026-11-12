@@ -8,13 +8,9 @@ import "../lib/weather.js" as Model
 Singleton {
     id: root
 
-    // "" follows the shell's unit
-    property string unitOverride: ""
-
     readonly property var current: Svc.Weather.current
     readonly property bool available: Svc.Weather.available
-    readonly property string temp: root.current
-        ? Model.displayTemp(root.current.temperature, root.current.tempC, root.unitOverride) : ""
+    readonly property string temp: root.current ? String(root.current.temperature || "") : ""
     readonly property string condition: Svc.Weather.condition
     readonly property string glyph: Svc.Weather.glyph
     readonly property string city: Svc.Weather.city

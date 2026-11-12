@@ -15,7 +15,7 @@ Item {
     implicitHeight: 250
     clip: true
 
-    property var now: new Date()
+    readonly property var now: clock.date
     readonly property string clockStr: TimeFormat.format(root.now)
     readonly property string dateStr: Qt.locale("en_US").toString(
         root.now, "dddd, MMM d")
@@ -26,7 +26,7 @@ Item {
     }
     readonly property string effectiveWeatherUnit: {
         var unit = String(root.setting("weatherUnit", "auto") || "auto");
-        return unit === "auto" ? root.localeUnit() : unit;
+        return unit === "fahrenheit" ? "F" : unit === "celsius" ? "C" : root.localeUnit();
     }
 
     function setting(key, fallback) {
@@ -49,11 +49,10 @@ Item {
         return (number < 10 ? "0" : "") + number;
     }
 
-    Timer {
-        interval: 10000
-        running: true
-        repeat: true
-        onTriggered: root.now = new Date()
+    SystemClock {
+        id: clock
+        enabled: root.visible
+        precision: SystemClock.Minutes
     }
 
     HeroCrop {

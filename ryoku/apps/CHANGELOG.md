@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Changed
+- `ryostore/`: **Reduce motion follows Animations.** The store reads
+  `theme.motion.reduce` from `shell.json` instead of the retired
+  `performance.json` `reduceMotion` (`quickshell/App.qml`).
 - `fish/`, `bash/`, `zsh/`: **Rashin can put proposed commands on the prompt
   without running them.** The hooks pass the last command and status to
   `rashin ask --buffer`, keep Alt+R transmute and stay inert when Rashin is not

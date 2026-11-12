@@ -2,14 +2,14 @@ pragma Singleton
 
 import QtQuick
 import Quickshell
-import shell.services
+import shell.services as Svc
 
 // Desktop backdrop motion. Only the wallpaper swap is animated: a 200 ms linear
-// crossfade on each revision (contract 08 sec 5, TRANSITION_DURATION_MS; the
-// shell's Motion.wallpaperFade). reduce motion or low power collapses it to an
-// instant cut, matching the shell Motion so a weak GPU stops repainting.
+// crossfade on each revision (contract 08 sec 5, TRANSITION_DURATION_MS), the
+// shell's own Motion.wallpaperFade, so Speed, reduce motion and low power
+// retime it like every other shell animation.
 Singleton {
-    readonly property bool reduce: Perf.reduceMotion
-    readonly property int wallpaperFade: reduce ? 0 : 200
+    readonly property bool reduce: Svc.Motion.reduce
+    readonly property int wallpaperFade: Svc.Motion.wallpaperFade
 
 }

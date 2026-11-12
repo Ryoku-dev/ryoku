@@ -10,13 +10,12 @@ end
 local active   = border(wc and wc.active, "#e0563b")
 local inactive = border(wc and wc.inactive, "#313a4d")
 
--- Low-power switches, read from the shell's performance.json (the file Ryoku
--- Settings' Performance page writes). A flat-JSON pattern match keeps this
--- dependency-free; a missing file or key reads false. Compositor blur and shadow
--- are the heaviest present-time GPU cost, so lowPowerMode (or the individual
--- disableBlur / disableShadows) strips them here for weak GPUs. The Performance
--- page runs `hyprctl reload` on toggle so this re-reads live; on login it applies
--- on first parse.
+-- Low power, read from the shell's performance.json. A flat-JSON pattern match
+-- keeps this dependency-free; a missing file or key reads false. Compositor blur
+-- and shadow are the heaviest present-time GPU cost, so lowPowerMode strips them
+-- here for weak GPUs; the everyday switches are Window style's Blur and Shadows,
+-- which the provider renders into settings.lua. A toggle runs `hyprctl reload`
+-- so this re-reads live; on login it applies on first parse.
 local function perf_flag(key)
   local f = io.open(home .. "/.config/ryoku/performance.json", "r")
   if not f then return false end
@@ -25,8 +24,6 @@ local function perf_flag(key)
   return s:match('"' .. key .. '"%s*:%s*true') ~= nil
 end
 local low_power = perf_flag("lowPowerMode")
-local no_blur   = low_power or perf_flag("disableBlur")
-local no_shadow = low_power or perf_flag("disableShadows")
 
 -- The print filter (ryoku/hyprland/shaders/), named in shell.json. This parse is
 -- what makes the choice survive a reload; the shell applies it live itself. Low
@@ -67,13 +64,13 @@ hl.config({
     inactive_opacity = 0.94,
     screen_shader    = screen_shader,
     shadow           = {
-      enabled      = not no_shadow,
+      enabled      = not low_power,
       range        = 45,
       render_power = 4,
       color        = 0xd10a0807,
     },
     blur             = {
-      enabled           = not no_blur,
+      enabled           = not low_power,
       size              = 4,
       passes            = 1,
       vibrancy          = 0.17,

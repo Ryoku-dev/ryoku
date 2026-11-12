@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
-const { displayTemp, clockToSec, sunFrac } = require("./weather.js");
+const { clockToSec, sunFrac } = require("./weather.js");
 
 let failed = 0;
 function eq(actual, expected, msg) {
@@ -15,20 +15,6 @@ function near(actual, expected, msg, eps) {
     if (typeof actual === "number" && isFinite(actual) && Math.abs(actual - expected) <= eps) console.log("PASS " + msg);
     else { failed++; console.log("FAIL " + msg + "\n  expected ~" + expected + " (eps " + eps + ")\n  got      " + actual); }
 }
-
-eq(displayTemp("21\u00b0C", 21.2, ""), "21\u00b0C", "no override follows the frame (C)");
-eq(displayTemp("70\u00b0F", 21.2, ""), "70\u00b0F", "no override follows the frame (F)");
-eq(displayTemp("21\u00b0C", 21.2, "C"), "21\u00b0C", "override equal to the frame unit keeps the string");
-eq(displayTemp("70\u00b0F", 21.2, "F"), "70\u00b0F", "F override on an F frame keeps the string");
-eq(displayTemp("21\u00b0C", 21.2, "F"), "70\u00b0F", "F override converts a C frame");
-eq(displayTemp("22\u00b0C", 21.6, "F"), "71\u00b0F", "F override converts the measurement, not the rounded 22");
-eq(displayTemp("-40\u00b0C", -40, "F"), "-40\u00b0F", "F override at -40");
-eq(displayTemp("70\u00b0F", 21.2, "C"), "21\u00b0C", "C override converts an F frame");
-eq(displayTemp("32\u00b0F", 0, "C"), "0\u00b0C", "C override at freezing");
-eq(displayTemp("", 0, "F"), "", "no reading stays empty");
-eq(displayTemp(undefined, undefined, ""), "", "missing reading stays empty");
-eq(displayTemp("21\u00b0C", undefined, "F"), "21\u00b0C", "no measurement keeps the frame string");
-eq(displayTemp("21\u00b0C", null, "F"), "21\u00b0C", "a null measurement keeps the frame string");
 
 eq(clockToSec("05:24"), 5 * 3600 + 24 * 60, "24h clock");
 eq(clockToSec("00:00"), 0, "24h midnight");

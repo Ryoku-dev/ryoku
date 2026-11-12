@@ -1,22 +1,23 @@
 pragma Singleton
 import QtQuick
 import Quickshell
+import Ryoku.Ui.Singletons
 
 Singleton {
     id: root
 
-    // reduceMotion (or the lowPowerMode master, or the Power Saver profile) collapses
+    // Reduce motion (or the lowPowerMode master, or the Power Saver profile) collapses
     // every animation to an instant cut: durations go to 0, so Behaviors and
     // transitions stop forcing per-frame repaints -- the single biggest shell-animation
-    // win on a weak GPU. The decision is Perf's (it reads performance.json and the power
-    // profile once for the whole shell); the dwell and scheduling timers below (osdHide,
-    // notifHide, startupReveal) are functional, not motion, so reduce never gates them.
+    // win on a weak GPU. The decision is Perf's (it folds shell.json theme.motion.reduce
+    // with performance.json and the power profile); the dwell and scheduling timers below
+    // (osdHide, notifHide, startupReveal) are functional, not motion, so reduce never gates them.
     readonly property bool reduce: Perf.reduceMotion
 
-    // Global animation tempo: Perf's user multiplier (performance.json motionSpeed,
+    // Global animation tempo: the Speed setting (shell.json theme.motion.scale,
     // default 1.0) scales every duration below, so the whole shell speeds up or eases
     // off in one place; reduce still wins by collapsing to an instant cut.
-    readonly property real speed: Perf.motionSpeed
+    readonly property real speed: Tokens.motionScale
     function dur(ms) { return root.reduce ? 0 : Math.round(ms * root.speed); }
 
     // Bar, spacer, hover and startup reveal/hide. Measured ease-out-cubic over

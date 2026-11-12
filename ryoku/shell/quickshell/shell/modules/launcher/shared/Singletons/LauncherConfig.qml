@@ -9,7 +9,6 @@ Singleton {
     property alias variant:      adapter.variant
     property alias radius:       adapter.radius
     property alias bgBlur:      adapter.bgBlur
-    property alias weatherUnit:  adapter.weatherUnit
     property alias heroImage:    adapter.heroImage
     property alias heroStrength: adapter.heroStrength
     property alias heroPosX:     adapter.heroPosX
@@ -41,7 +40,6 @@ Singleton {
             property string variant: "hero"
             property real radius: 16
             property int bgBlur: 2
-            property string weatherUnit: "auto"
             property string heroImage: ""
             property real heroStrength: 0.6
             property real heroPosX: 0.5

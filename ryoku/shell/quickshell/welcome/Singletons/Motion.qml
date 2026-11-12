@@ -6,11 +6,11 @@ import Ryoku.Ui.Singletons
 
 // The tour's durations are Tokens' mechanical set verbatim; this singleton only
 // adds the reduced-motion gate every sibling surface carries (launcher,
-// overview). reduceMotion / lowPowerMode collapse every duration to an instant
-// cut so a weak GPU stops repainting through transitions. Read from
-// performance.json, the same file Ryoku Settings and the shell singletons use.
+// overview). Reduce motion (shell.json theme.motion.reduce, via Tokens) or
+// lowPowerMode collapse every duration to an instant cut so a weak GPU stops
+// repainting through transitions.
 Singleton {
-    readonly property bool reduce: perf.lowPowerMode || perf.reduceMotion
+    readonly property bool reduce: perf.lowPowerMode || Tokens.reduceMotion
 
     FileView {
         path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku/performance.json"
@@ -20,7 +20,6 @@ Singleton {
         JsonAdapter {
             id: perf
             property bool lowPowerMode: false
-            property bool reduceMotion: false
         }
     }
 

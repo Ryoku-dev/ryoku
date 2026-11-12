@@ -65,8 +65,6 @@ Item {
             const plugin = root.plugins[i];
             const placement = plugin.placement || {};
             const card = placement.sidebarCard || {};
-            const tab = typeof card.tab === "string" && card.tab.trim() !== ""
-                ? card.tab.trim() : "Plugins";
             const manifest = plugin.manifest || {};
             const defaults = manifest.defaults || {};
             result.push({
@@ -74,7 +72,6 @@ Item {
                 label: card.label || manifest.name || plugin.id,
                 glyph: card.glyph || defaults.icon || "extension",
                 order: isFinite(Number(card.order)) ? Number(card.order) : 0,
-                tab: tab,
                 dir: plugin.dir,
                 entry: plugin
             });

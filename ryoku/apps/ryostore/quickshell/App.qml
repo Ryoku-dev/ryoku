@@ -31,7 +31,7 @@ Rectangle {
     property var searchContext: null
     property var detailContext: null
     property rect detailOriginRect: Qt.rect(0, 0, 0, 0)
-    property bool reducedMotion: performance.lowPowerMode || performance.reduceMotion
+    property bool reducedMotion: performance.lowPowerMode || Tokens.reduceMotion
     readonly property bool catalogLoading: Store.loading && Store.items.length === 0
     readonly property bool catalogError: !Store.loading && Store.items.length === 0 && Store.error !== ""
     // A nav-open (from `ryostore open` / `settings`) can arrive before the
@@ -511,7 +511,6 @@ Rectangle {
         JsonAdapter {
             id: performance
             property bool lowPowerMode: false
-            property bool reduceMotion: false
         }
     }
 

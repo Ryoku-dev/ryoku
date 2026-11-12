@@ -9,6 +9,9 @@
   app windows (`modules/binds.lua`, `modules/window_rules.lua`).
 
 ### Changed
+- **Blur and shadows follow Window style.** `modules/decoration.lua` stops
+  reading `performance.json` `disableBlur` / `disableShadows`; Window style's
+  Blur and Shadows are the switches, and low power still strips both.
 - **Workspace keys run in Lua.** Super+1..0 with Alt, Shift and the number
   pad, Super+H and Super+Alt+H no longer run the `ryoku-workspace` helper; the
   per-desktop slots and the scratchpad live in `modules/workspaces.lua`, so a

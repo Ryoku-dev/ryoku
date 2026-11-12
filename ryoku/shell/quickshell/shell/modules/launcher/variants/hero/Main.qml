@@ -40,13 +40,6 @@ Scope {
         }
     }
 
-    Binding {
-        target: Weather
-        property: "unitOverride"
-        value: LauncherConfig.weatherUnit === "auto"
-            ? "" : LauncherConfig.weatherUnit
-    }
-
     function focusedMonitor() {
         if (Wm.focusedOutput !== "")
             return Wm.focusedOutput;

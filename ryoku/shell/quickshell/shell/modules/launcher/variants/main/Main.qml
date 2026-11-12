@@ -22,13 +22,6 @@ Scope {
     readonly property bool shown: open
         || (activeSurface !== null && activeSurface.visible)
 
-    // launcher weather units from the config: "auto" follows the locale.
-    Binding {
-        target: Weather
-        property: "unitOverride"
-        value: LauncherConfig.weatherUnit === "auto" ? "" : LauncherConfig.weatherUnit
-    }
-
     function focusedMonitor() {
         var name = Wm.focusedOutput;
         return name ? name : (Quickshell.screens.length > 0 ? Quickshell.screens[0].name : "");

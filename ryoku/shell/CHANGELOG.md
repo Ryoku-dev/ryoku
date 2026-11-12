@@ -1,6 +1,31 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Reduce motion and Speed retime the whole shell.** The shell's own
+  animations, the launcher, overview, wallpaper, dock and welcome tour read
+  Animations' `theme.motion.reduce` and `theme.motion.scale` in `shell.json`;
+  `performance.json` `reduceMotion` and `motionSpeed` are retired, and low
+  power, Power Saver and Game Mode still stop motion
+  (`quickshell/shell/services/Perf.qml`, `quickshell/shell/services/Motion.qml`,
+  `quickshell/welcome/Singletons/Motion.qml`).
+- **The shell's glass and shadows have their own switches.** Glass and drop
+  shadows on panels, the dock and desktop widgets follow `shell.json`
+  `theme.effects.glass` and `theme.effects.shadows` (validated, on by default),
+  set from Window style's "Glass on panels and the dock" and "Shadows under
+  panels and the dock"; Window style's blur and shadows behind windows stay
+  the window manager's alone, so window blur off no longer clears the panels'
+  glass. Low power, Power Saver and Game Mode still turn both off.
+  `performance.json` `disableBlur` and `disableShadows` are retired
+  (`quickshell/shell/services/Perf.qml`,
+  `quickshell/shell/services/lib/effects.js`, `ipc/settings.go`).
+- **The launcher shows the desktop's temperature unit.** Its own
+  `launcher.json` `weatherUnit` is retired; Time & language's unit is the only
+  one, and the Settings launcher preview follows it
+  (`quickshell/shell/modules/launcher/`).
+- **The phone's separate display uses the density set in Settings.** It read
+  a key nothing stored and always ran at 160 dpi; it now reads
+  `phone.scrcpy.appMode.displayDpi`, 240 when unset
+  (`quickshell/shell/modules/phone/PhoneScrcpyService.qml`).
 - **Unread settings leave the daemon.** `general.temperature_unit`,
   `theme.matugen` (Ryogami owns the palette in `matugen.json`) and
   `phone.microphone.enabled` are no longer modelled (`ipc/settings.go`), and

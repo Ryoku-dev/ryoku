@@ -366,7 +366,7 @@ Singleton {
             if (appOpts.flexDisplay) {
                 const w = appOpts.displayWidth || 1280
                 const h = appOpts.displayHeight || 960
-                const density = appOpts.density || 160
+                const density = appOpts.displayDpi || 240
                 extraArgs.push("--new-display=" + w + "x" + h + "/" + density)
                 extraArgs.push("--flex-display")
                 if (appOpts.keepActive) {
@@ -509,7 +509,7 @@ Singleton {
         const useFlex = appOpts.flexDisplay ?? false
         const w = appOpts.displayWidth || 1280
         const h = appOpts.displayHeight || 960
-        const density = appOpts.density || 160
+        const density = appOpts.displayDpi || 240
 
         // A '+' force-stops the app before starting it. On a virtual display
         // that is mandatory: Android resumes an app that is already running in

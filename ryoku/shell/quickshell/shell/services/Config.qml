@@ -449,7 +449,6 @@ Singleton {
                 "videoDevice": ""
             },
             "microphone": {
-                "enabled": false,
                 "micGain": 100,
                 "monitor": false,
                 "setDefault": false

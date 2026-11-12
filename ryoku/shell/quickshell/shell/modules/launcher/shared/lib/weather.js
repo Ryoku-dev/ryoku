@@ -1,24 +1,5 @@
 // no Date.now() or Math.random() here, both throw in the Quickshell JS engine
 
-function displayTemp(shown, celsius, override) {
-    var text = String(shown || "");
-    if (text.length === 0)
-        return "";
-    var frameUnit = text.indexOf("F") >= 0 ? "F" : "C";
-    if (override !== "C" && override !== "F")
-        return text;
-    if (override === frameUnit)
-        return text;
-    if (celsius === null || celsius === undefined || celsius === "")
-        return text;
-    var c = Number(celsius);
-    if (!isFinite(c))
-        return text;
-    if (override === "F")
-        return Math.round(c * 9 / 5 + 32) + "\u00b0F";
-    return Math.round(c) + "\u00b0C";
-}
-
 function clockToSec(clock) {
     var m = /^\s*(\d{1,2}):(\d{2})\s*(AM|PM)?\s*$/i.exec(String(clock || ""));
     if (!m)
@@ -56,5 +37,5 @@ function sunFrac(nowSec, sunriseSec, sunsetSec) {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-    module.exports = { displayTemp, clockToSec, sunFrac };
+    module.exports = { clockToSec, sunFrac };
 }

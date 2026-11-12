@@ -2,22 +2,26 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Ryoku.Ui.Singletons
+import "lib/effects.js" as Effects
 
 // Perf is the shell's one performance-policy singleton and the single reader of
 // ~/.config/ryoku/performance.json (the file Ryoku Settings' Performance page
-// writes). It folds five inputs into the effective switches every surface obeys:
+// writes). It folds six inputs into the effective switches every surface obeys:
 //
 //   1. the explicit user toggles in performance.json (lowPowerMode is the master),
 //   2. the active power profile (PowerProfiles), when powerProfileEffects is on,
 //   3. the live battery state (Battery), for invisible savings while discharging,
 //   4. Game Mode (Flags.gameMode), which outranks all of them,
-//   5. Presence.dark (locked, or displays off), which stops the audio analysers.
+//   5. Presence.dark (locked, or displays off), which stops the audio analysers,
+//   6. the look in shell.json: reduce motion (theme.motion, via Tokens) and the
+//      glass and shadows on the shell's own panels and the dock (theme.effects).
+//      Window style's blur and shadows in desktop.json are the window manager's
+//      and never reach here.
 //
 // Consumers read the derived booleans (blurDisabled, shadowsDisabled, reduceMotion,
 // visualizerFrozen, pillFrozen) instead of re-deriving `lowPower || flag`: the
 // "lowPowerMode implies ..." and "Power Saver implies ..." rules live here once.
-// Motion reads reduceMotion/motionSpeed from here too, so the whole shell shares
-// one file watcher rather than a copy per module.
 //
 // Tiers: only Power Saver forces eye-candy off (it behaves like lowPowerMode).
 // Balanced and Performance leave the explicit toggles untouched, so the default
@@ -39,19 +43,12 @@ Singleton {
     id: root
 
     readonly property bool lowPower: adapter.lowPowerMode
-    readonly property real motionSpeed: {
-        const v = adapter.motionSpeed;
-        return (typeof v === "number" && v > 0 && v <= 8) ? v : 1.0;
-    }
 
-    // The two persisted user preferences the Super+Escape quick settings flips.
-    // Perf is the shell's only reader of performance.json, so its write lives
-    // here too rather than a second copy in a route: setting a key rewrites the
-    // file (atomic, watched) and every derived switch above re-folds from it.
-    // lowPower already exposes adapter.lowPowerMode above; this is its counterpart.
-    readonly property bool reduceMotionPref: adapter.reduceMotion
+    // The persisted preference the Super+Escape quick settings flips. Perf is the
+    // shell's only reader of performance.json, so its write lives here too rather
+    // than a second copy in a route: setting a key rewrites the file (atomic,
+    // watched) and every derived switch above re-folds from it.
     function setLowPower(on) { adapter.lowPowerMode = on; file.writeAdapter(); }
-    function setReduceMotion(on) { adapter.reduceMotion = on; file.writeAdapter(); }
     // The bar's silent gap drift, flipped from the bar control centre's Gap
     // animation card as well as the Performance page. Same write path as above.
     readonly property bool ambientBarMotionPref: adapter.ambientBarMotion
@@ -79,11 +76,12 @@ Singleton {
     // so a relogin mid-session comes back in the same state the toggle left.
     readonly property bool gaming: Flags.gameMode
 
-    // Effective eye-candy switches: explicit toggle, or the lowPowerMode master, or
-    // the Power Saver tier, or Game Mode. Performance/Balanced add nothing.
-    readonly property bool reduceMotion:     lowPower || adapter.reduceMotion   || saver || gaming
-    readonly property bool blurDisabled:     lowPower || adapter.disableBlur    || saver || gaming
-    readonly property bool shadowsDisabled:  lowPower || adapter.disableShadows || saver || gaming
+    // Effective eye-candy switches: the user's look setting, or the lowPowerMode
+    // master, or the Power Saver tier, or Game Mode. Performance/Balanced add nothing.
+    readonly property bool reduceMotion:     lowPower || Tokens.reduceMotion || saver || gaming
+    readonly property var effects: Effects.switches(ShellSettings.data, lowPower || saver || gaming)
+    readonly property bool blurDisabled:     root.effects.blurDisabled
+    readonly property bool shadowsDisabled:  root.effects.shadowsDisabled
 
     // The two audio-driven surfaces freeze when there is nothing to show, which is
     // what "WhenIdle" always meant and never did: `freezeVisualizerWhenIdle` and
@@ -200,10 +198,6 @@ Singleton {
         JsonAdapter {
             id: adapter
             property bool lowPowerMode: false
-            property bool reduceMotion: false
-            property bool disableBlur: false
-            property bool disableShadows: false
-            property real motionSpeed: 1.0
             property bool powerProfileEffects: true
             property bool ambientBarMotion: false
             property bool unloadVisualizerWhenSilent: true

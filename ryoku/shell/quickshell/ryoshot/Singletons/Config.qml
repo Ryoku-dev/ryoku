@@ -71,6 +71,9 @@ Singleton {
         path: config.path
         atomicWrites: true
         printErrors: false
+        // settings writes this file too; re-read it so the next save keeps that change
+        watchChanges: true
+        onFileChanged: reload()
         onLoaded: {
             try {
                 var c = JSON.parse(text());
