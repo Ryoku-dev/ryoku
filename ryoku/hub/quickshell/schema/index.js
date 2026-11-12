@@ -36,6 +36,7 @@
 .import "power.js" as Power
 .import "graphics.js" as Graphics
 .import "performance.js" as Performance
+.import "game-bar.js" as GameBar
 
 // each migrated page's schema by its registry `file`, so search reaches its rows
 var byFile = {
@@ -43,6 +44,7 @@ var byFile = {
     "Power": Power,
     "Graphics": Graphics,
     "Performance": Performance,
+    "GameBar": GameBar,
     "DefaultApps": DefaultApps,
     "StartupApps": StartupApps,
     "Terminal": Terminal,

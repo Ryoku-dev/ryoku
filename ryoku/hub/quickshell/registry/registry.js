@@ -5,7 +5,7 @@ var categories = [
     { id: "appearance", label: "Appearance", glyph: "palette",
       pages: ["wallpaper-colours", "window-style", "fonts-icons", "animations", "lock-screen"] },
     { id: "desktop", label: "Desktop", glyph: "dashboard",
-      pages: ["bar", "desktop-dock", "quick-settings", "notifications", "sounds", "launcher", "clipboard"] },
+      pages: ["bar", "desktop-dock", "quick-settings", "notifications", "sounds", "launcher", "clipboard", "game-bar"] },
     { id: "windows", label: "Windows", glyph: "select_window",
       pages: ["window-behaviour", "shortcuts", "app-rules", "window-manager"] },
     { id: "devices", label: "Devices", glyph: "devices",
@@ -50,6 +50,8 @@ var pages = {
         keywords: ["launcher", "app search", "command palette", "greeting", "favourites", "hidden apps", "grid"] },
     "clipboard": { title: "Clipboard", category: "desktop", file: "Clipboard",
         keywords: ["clipboard", "copy", "paste", "history", "clear"] },
+    "game-bar": { title: "Game bar", category: "desktop", file: "GameBar",
+        keywords: ["game bar", "gamebar", "game overlay", "overlay", "in-game", "gaming", "games", "discord", "voice", "snap", "widgets"] },
 
     "window-behaviour": { title: "Window behaviour", category: "windows", file: "WindowBehaviour",
         keywords: ["tiling", "layout", "gaps", "spacing", "focus follows mouse", "new windows", "resize", "snap", "tabbed", "workspaces", "overview", "switcher", "urgent", "xwayland", "zoom", "dwindle", "master", "scrolling"] },
@@ -122,7 +124,8 @@ var aliases = {
     "sidebars-right": "quick-settings", "overlays": "notifications", "keybinds": "shortcuts",
     "session": "startup-apps", "autostart": "startup-apps", "environment": "startup-apps",
     "recording": "screen-capture", "dictation": "voice-typing", "fastfetch": "terminal",
-    "import": "backup-import", "addons": "add-ons", "appearance": "wallpaper-colours"
+    "import": "backup-import", "addons": "add-ons", "appearance": "wallpaper-colours",
+    "gamebar": "game-bar"
 };
 
 // ryogami's settings, offered by search as hand-offs

@@ -441,7 +441,10 @@ row is `more: true` and the section has bespoke content there.
    - `moreBodies`: drawn inside More options, after its rows.
    - `stateLine`: the line under the lead.
    - `adaptRows`: a function from rows to rows, applied after the provider rows
-     join, when the page reshapes them.
+     join, when the page reshapes them. Game bar uses it for rows that need
+     several switches on: such a row lists them in `whenAll`, outermost first,
+     and `adapt()` in `schema/game-bar.js` sets its `when` to the first one that
+     is off, so the row waits on that switch and a deep link lands on it.
 
    A page can also pass a schema it builds from live data, as Graphics does from
    what the cards report. A page that is one large surface (Displays, Keyboard

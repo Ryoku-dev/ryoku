@@ -29,6 +29,7 @@ var still = {
     "sounds": "Desktop and key sounds",
     "launcher": "Style, results and greeting",
     "clipboard": "Panel and history",
+    "game-bar": "Overlay, snapping and voice",
     "window-behaviour": "Tiling, gaps, focus and workspaces",
     "shortcuts": "Every shortcut and your own",
     "app-rules": "Rules for particular apps",
@@ -301,6 +302,16 @@ function pageSummary(id, ctx) {
         var width = ctx.settings("clipboard.widthPercent");
         return ctx.tr("Panel %1% wide").replace("%1", width === undefined || width === null ? 65 : width) + ", "
             + (ctx.settings("clipboard.pruneWeekly") === true ? ctx.tr("cleared every week") : ctx.tr("kept until you clear it"));
+    case "game-bar":
+        // shell.json is read once the daemon answers; until then the fixed line
+        var playing = ctx.settings("gamebar.enabled");
+        if (playing === undefined || playing === null)
+            return ctx.tr(still[id]);
+        if (playing === false)
+            return ctx.tr("Off");
+        var rawDim = ctx.settings("gamebar.dim");
+        var dim = Math.round((rawDim === undefined || rawDim === null ? 0.62 : Number(rawDim)) * 100);
+        return dim === 0 ? ctx.tr("On, the game is not dimmed") : ctx.tr("On, dims the game by %1%").replace("%1", dim);
     case "lock-screen":
         // the page's store once it is open (it lists the installed designs), else the theme file;
         // no theme file means the shipped design, as the page says when that design is installed

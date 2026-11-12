@@ -43,3 +43,33 @@ test("the Appearance sentence names window blur where it exists and the panels' 
         desktop: { appearance: { rounding: 0, blurEnabled: true } }, settings: { theme: { effects: { glass: false } } } })),
         "Windows have 0 px corners and blur behind them. Panels and the dock are not frosted.");
 });
+
+test("the Game bar line says off, or how far it dims the game, and waits for shell.json", () => {
+    const line = settings => S.pageSummary("game-bar", ctx({ drawsBlur: false, desktop: {}, settings }));
+    assert.equal(line({}), "Overlay, snapping and voice");
+    assert.equal(line({ gamebar: { enabled: false, dim: 0.62 } }), "Off");
+    assert.equal(line({ gamebar: { enabled: true, dim: 0.62 } }), "On, dims the game by 62%");
+    assert.equal(line({ gamebar: { enabled: true, dim: 0 } }), "On, the game is not dimmed");
+    assert.equal(line({ gamebar: { enabled: true } }), "On, dims the game by 62%");
+});
+
+// registry.js, linked the same way
+const R = vm.createContext({});
+vm.runInContext(fs.readFileSync(path.join(here, "registry.js"), "utf8").replace(/^\.(pragma|import) .*$/gm, ""), R);
+
+test("every listed page is listed once and has an entry in its category, and every alias resolves", () => {
+    const ids = R.allPageIds();
+    assert.equal(new Set(ids).size, ids.length);
+    for (const id of ids)
+        assert.equal(R.pages[id].category, R.categories.find(c => c.pages.includes(id)).id, id);
+    assert.deepEqual(Object.keys(R.pages).sort(), [...ids].sort());
+    for (const alias of Object.keys(R.aliases))
+        assert.notEqual(R.resolve(alias), "", alias);
+});
+
+test("the Game bar page sits under Desktop and the old id still opens it, with its row", () => {
+    assert.equal(R.page("game-bar").category, "desktop");
+    assert.equal(R.resolve("gamebar"), "game-bar");
+    assert.equal(R.resolve("gamebar/voice-names"), "game-bar");
+    assert.equal(R.rowPart("gamebar/voice-names"), "voice-names");
+});
