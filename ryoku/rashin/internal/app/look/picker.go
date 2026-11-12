@@ -233,6 +233,10 @@ func groupHeading(th *Theme, group string, first bool) layout.Widget {
 func (p *picker) layoutRow(gtx layout.Context, th *Theme, row *pickerRow, option SelectOption, chosen, raised bool) layout.Dimensions {
 	width := gtx.Constraints.Max.X
 	inset, glyph, gap := gtx.Dp(12), gtx.Dp(18), gtx.Dp(10)
+	lead := 0
+	if option.Mark.ID != "" {
+		lead = glyph + gap
+	}
 	gtx.Constraints.Min = image.Point{}
 	if option.Disabled {
 		// drawn at alpha.disabled by the kit's text, and screen readers hear it as unavailable
@@ -245,7 +249,7 @@ func (p *picker) layoutRow(gtx layout.Context, th *Theme, row *pickerRow, option
 		semantic.EnabledOp(!option.Disabled).Add(gtx.Ops)
 		record := op.Record(gtx.Ops)
 		content := gtx
-		content.Constraints = layout.Constraints{Max: image.Pt(max(0, width-2*inset-glyph-gap), gtx.Constraints.Max.Y)}
+		content.Constraints = layout.Constraints{Max: image.Pt(max(0, width-2*inset-glyph-gap-lead), gtx.Constraints.Max.Y)}
 		said := layout.Flex{Axis: layout.Vertical}.Layout(content,
 			layout.Rigid(kit.Text(th.Theme, th.T.Label, th.R.Fg, option.Label)),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -270,7 +274,16 @@ func (p *picker) layoutRow(gtx layout.Context, th *Theme, row *pickerRow, option
 			}
 			PlaceIcon(gtx, Icon.Check, image.Pt(width-inset-glyph, top+(gtx.Sp(th.T.Label.Line)-glyph)/2), 18, ink)
 		}
-		offset := op.Offset(image.Pt(inset, top)).Push(gtx.Ops)
+		if lead > 0 {
+			ink := th.R.Fg2
+			if raised || chosen {
+				ink = th.R.Fg
+			}
+			at := op.Offset(image.Pt(inset, top+(gtx.Sp(th.T.Label.Line)-glyph)/2)).Push(gtx.Ops)
+			Logo(gtx, th, option.Mark, 18, ink)
+			at.Pop()
+		}
+		offset := op.Offset(image.Pt(inset+lead, top)).Push(gtx.Ops)
 		call.Add(gtx.Ops)
 		offset.Pop()
 		return layout.Dimensions{Size: size}

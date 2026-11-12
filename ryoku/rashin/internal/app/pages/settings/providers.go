@@ -135,7 +135,7 @@ func (p *Page) layoutProvider(gtx layout.Context, e *env.Env, provider protocol.
 	}
 	word, tone := providerState(provider)
 	detail := providerMeta(provider, p.usage.Words(provider.ID))
-	head := foldHead{Title: provider.Name, Detail: detail, Trail: kit.Claim(th.Theme, tone, word)}
+	head := foldHead{Title: provider.Name, Detail: detail, Mark: look.Mark{ID: provider.ID, Name: provider.Name}, Trail: kit.Claim(th.Theme, tone, word)}
 	return withLimitLine(gtx, th, provider, p.open == provider.ID, func(gtx layout.Context) layout.Dimensions {
 		return row.fold.layout(gtx, th, p.open == provider.ID, head, func(gtx layout.Context) layout.Dimensions {
 			return row.layoutDetail(gtx, e, provider)

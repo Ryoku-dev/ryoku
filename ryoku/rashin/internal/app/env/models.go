@@ -93,8 +93,10 @@ func modelRows(models protocol.ModelsResult, providers []protocol.ProviderInfo, 
 		}
 	}
 	keyless := make(map[string]bool, len(providers))
+	names := make(map[string]string, len(providers))
 	for _, provider := range providers {
 		keyless[provider.ID] = provider.Keyless || provider.Configured
+		names[provider.ID] = provider.Name
 	}
 	labels := [groups]string{i18n.T("Free"), i18n.T("Local"), i18n.T("Paid"), i18n.T("Unavailable")}
 	offered := append([]protocol.ModelInfo(nil), models.Models...)
@@ -116,7 +118,7 @@ func modelRows(models protocol.ModelsResult, providers []protocol.ProviderInfo, 
 		case protocol.TierPaid:
 			group = groupPaid
 		}
-		option := look.SelectOption{Label: model.Name, Detail: id, Group: labels[group]}
+		option := look.SelectOption{Label: model.Name, Detail: id, Group: labels[group], Mark: look.Mark{ID: model.Provider, Name: names[model.Provider]}}
 		if !model.ToolsKnown {
 			// Auto never sends one, so the reader learns why it is only here by name
 			option.Detail = i18n.Tf("%s, tools unknown", id)

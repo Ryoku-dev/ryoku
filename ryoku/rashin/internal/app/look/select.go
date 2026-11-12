@@ -24,10 +24,12 @@ const (
 
 // detail is a second line under the label in the opened list; a disabled option
 // is shown at alpha.disabled, can't be picked and reads as unavailable; group
-// names the run of options this one belongs to, headed once in the opened list
+// names the run of options this one belongs to, headed once in the opened list;
+// mark leads the row with a provider's or harness's logo
 type SelectOption struct {
 	Label, Detail, Group string
 	Disabled             bool
+	Mark                 Mark
 }
 
 // the menu opens in window coordinates so it works inside clipped and scrolling parents
@@ -71,11 +73,16 @@ func (selection *Select) Layout(
 	options []string,
 	selected int,
 ) layout.Dimensions {
-	described := make([]SelectOption, len(options))
-	for index, option := range options {
-		described[index].Label = option
+	return selection.LayoutOptions(gtx, th, overlays, Labelled(options), selected)
+}
+
+// options that are only their labels
+func Labelled(labels []string) []SelectOption {
+	options := make([]SelectOption, len(labels))
+	for index, label := range labels {
+		options[index].Label = label
 	}
-	return selection.LayoutOptions(gtx, th, overlays, described, selected)
+	return options
 }
 
 func (selection *Select) LayoutOptions(
@@ -144,8 +151,9 @@ func (selection *Select) open(gtx layout.Context, th *Theme, overlays *Overlays,
 	}
 	searched := selection.Searched || len(options) >= pickerSearchFrom
 	listed := searched
+	// the menu draws words only, so options with a logo take the list
 	for _, option := range options {
-		listed = listed || option.Detail != "" || option.Group != ""
+		listed = listed || option.Detail != "" || option.Group != "" || option.Mark.ID != ""
 	}
 	if listed {
 		selection.picker.open()

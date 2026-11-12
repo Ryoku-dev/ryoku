@@ -2046,6 +2046,16 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
   is Tint offered and the palette files watched. The pick is stored in the
   app's preferences (`colours`: `ryoku`, `ryoku-light` or `wallpaper`) and
   repaints the window at once.
+- **Provider logos** (`internal/app/look/logo.go`, `look/logos`): Settings >
+  Providers, the Ask model menu and the Agents harness picker lead each
+  provider and harness with its mark from lobe-icons (MIT, pinned), in fg2 and
+  fg under the pointer or when chosen, never in brand colours; a provider
+  lobe-icons has no mark for shows its initial. `look/logos/list.txt` names
+  the mark for every catalogue provider and harness (a test fails on a
+  provider missing from it), and `bin/ryoku-dev-sync-provider-logos` renders
+  the mono SVGs into 96 px coverage masks, since their even-odd fills and arcs
+  are beyond Lithic's symbols pipeline. The app scales and tints a mask once
+  per size and ink.
 - **The desktop** is reached through `internal/app/desktop` only: the file
   chooser (XDG portal `FileChooser`), the clipboard's image (`wl-paste`),
   notices (`org.freedesktop.Notifications`) and starting other programs: the

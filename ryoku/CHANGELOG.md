@@ -1,6 +1,11 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **Rashin shows each provider's logo.** Settings > Providers, the Ask model
+  menu and the Agents harness picker lead each provider and harness with its
+  mark from lobe-icons, drawn in Rashin's own ink and brighter under the
+  pointer; a provider lobe-icons has no mark for shows its initial
+  (`rashin/internal/app/look/logos`, `bin/ryoku-dev-sync-provider-logos`).
 - **Rashin lists every model a provider serves.** Each provider's own listing
   is read, with your key or none where it is public, kept for six hours and
   merged with Rashin's picks, so NVIDIA shows its whole free catalogue and
