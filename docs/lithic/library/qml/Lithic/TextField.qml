@@ -66,6 +66,7 @@ T.TextField {
         text: root.placeholderText
         // a hint is words, even in a field that holds literal data
         typeRole: "body"
+        ink: root.placeholderTextColor
         Accessible.ignored: true
     }
 

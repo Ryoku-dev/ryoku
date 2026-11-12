@@ -58,6 +58,18 @@ Item {
         }
     }
 
+    Dialog {
+        id: growing
+        title: "Removing the profile"
+        parent: host
+        actions: [{ text: "Close", kind: "quiet", closeOnTrigger: true }]
+        Item {
+            id: growingBody
+            width: 10
+            implicitHeight: 40
+        }
+    }
+
     SignalSpy { id: plaqueClicks; target: plaque; signalName: "clicked" }
     SignalSpy { id: tabletClicks; target: tablet; signalName: "clicked" }
     SignalSpy { id: tabletOpens; target: tablet; signalName: "primaryAction" }
@@ -166,6 +178,29 @@ Item {
             tryVerify(() => innerPicker.activeFocus, 1000, "focus returns to the picker once the list has closed");
             keyClick(Qt.Key_Escape);
             tryCompare(chooser, "opened", false);
+        }
+
+        function test_dialogTopHoldsWhileTheBodyGrows() {
+            growingBody.implicitHeight = 40;
+            growing.open();
+            tryCompare(growing, "opened", true);
+            const top = growing.y;
+            const small = growing.height;
+            growingBody.implicitHeight = 120;
+            tryVerify(() => growing.height >= small + 80, 1000, "the body grew");
+            compare(growing.y, top, "a Working line or progress bar appearing does not move the controls");
+            growingBody.implicitHeight = host.height;
+            tryVerify(() => growing.height > host.height, 1000, "the body outgrew the room");
+            verify(growing.y >= LithicTokens.size.dialogMargin, "a dialog taller than the room keeps its top margin");
+            verify(growing.y < top, "and rises only when the bottom margin needs it");
+            growing.close();
+            tryCompare(growing, "opened", false);
+            growingBody.implicitHeight = 40;
+            growing.open();
+            tryCompare(growing, "opened", true);
+            compare(growing.y, top, "the next open centres again");
+            growing.close();
+            tryCompare(growing, "opened", false);
         }
     }
 }

@@ -32,17 +32,25 @@ T.Dialog {
            : dialogWidth
     height: implicitHeight
     x: parent ? (parent.width - width) / 2 : 0
-    y: parent ? (parent.height - height) / 2 : 0
+    // centred while it opens, then the top holds as the body grows, rising only to keep the bottom margin
+    y: parent ? Math.max(LithicTokens.size.dialogMargin,
+                         Math.min(_holdTop ? _top : (parent.height - height) / 2,
+                                  parent.height - height - LithicTokens.size.dialogMargin)) : 0
+    property bool _holdTop: false
+    property real _top: 0
     implicitHeight: contentColumn.implicitHeight + topPadding + bottomPadding
 
     C.Overlay.modal: Rectangle { color: Lithic.scrim }
 
     onClosed: {
+        _holdTop = false
         if (opener && opener.enabled)
             opener.forceActiveFocus()
     }
     // open on the content's declared focus, else the first control; focus left by a past open is dropped
     onOpened: {
+        _top = parent ? (parent.height - height) / 2 : 0
+        _holdTop = true
         if (!previewEmbedded)
             _focusFirstControl()
     }
