@@ -54,6 +54,17 @@ After displayed copy changes, regenerate translations by dispatching the
   classes (Intel VMD, Secure Boot, NVIDIA modeset, Windows dual-boot, Broadcom,
   clock skew, NVRAM, USB media). Before calling an installer change done, walk
   the matching entry in `docs/installation-hardware.md`.
+- Go tests stay off the machine that runs them. Every `ryoku/cli` test package
+  hands its run to `internal/testenv` from its `TestMain`: PATH holds only a
+  few harmless utilities, HOME, the XDG dirs and the runtime dir are private,
+  both D-Bus addresses point nowhere and no compositor handle is set, so a test
+  that needs a tool's output puts a fake that prints it on PATH. A new test
+  package gets the same three-line `main_test.go`. `ryoku/hub/backend` and
+  `ryoku/shell/ipc` do the same in their own `main_test.go`; the shell daemon's
+  also clears the audio, keyring and agent sockets and points the greeter state
+  dir away from `/var/lib/ryoku`. A test against the real session stays behind
+  its opt-in switch (`RYOKU_LIVE_DBUS`, `RYOKU_KEYRING_E2E`,
+  `RYOKU_KEYRING_INTEROP`) and calls `useLiveSession(t)` after the check.
 - QML: `qmllint` when available.
 - Test behavior, not just that it parses. Exercise the actual change on the
   running system.

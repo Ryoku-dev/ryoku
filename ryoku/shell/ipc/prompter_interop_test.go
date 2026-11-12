@@ -23,6 +23,7 @@ func TestPrompterInterop(t *testing.T) {
 	if os.Getenv("RYOKU_KEYRING_INTEROP") != "1" {
 		t.Skip("set RYOKU_KEYRING_INTEROP=1 to run the live gnome-keyring interop test")
 	}
+	useLiveSession(t)
 
 	const pw = "ryoku-interop-pw-\U0001F510" // non-ASCII secret exercises utf-8
 

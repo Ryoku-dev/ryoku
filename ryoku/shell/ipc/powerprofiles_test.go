@@ -128,6 +128,7 @@ func TestLivePowerProfilesFrame(t *testing.T) {
 	if os.Getenv("RYOKU_LIVE_DBUS") == "" {
 		t.Skip("set RYOKU_LIVE_DBUS=1 to run the live power-profiles integration")
 	}
+	useLiveSession(t)
 	conn, err := dbus.ConnectSystemBus()
 	if err != nil {
 		t.Skipf("no system bus: %v", err)

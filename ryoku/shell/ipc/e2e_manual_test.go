@@ -16,8 +16,9 @@ const e2eLabel = "ryoku-e2e-island"
 // crossed the socket intact.
 func TestE2ECreateViaIsland(t *testing.T) {
 	if os.Getenv("RYOKU_KEYRING_E2E") != "1" {
-		t.Skip("manual island E2E")
+		t.Skip("set RYOKU_KEYRING_E2E=1 to run the manual island E2E against the live session")
 	}
+	useLiveSession(t)
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
 		t.Fatal(err)
@@ -48,8 +49,9 @@ func TestE2ECreateViaIsland(t *testing.T) {
 // Run after the deployed shell is restored so it can own the prompter name.
 func TestE2ECleanup(t *testing.T) {
 	if os.Getenv("RYOKU_KEYRING_E2E") != "1" {
-		t.Skip("manual island E2E")
+		t.Skip("set RYOKU_KEYRING_E2E=1 to run the manual island E2E against the live session")
 	}
+	useLiveSession(t)
 	pConn, err := dbus.ConnectSessionBus()
 	if err != nil {
 		t.Fatal(err)

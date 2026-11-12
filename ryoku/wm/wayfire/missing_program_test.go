@@ -1,16 +1,8 @@
 package main
 
 import (
-	"os"
 	"testing"
 )
-
-// Every test in this package renders against a box that has every optional
-// program, so a runner without Rashin cannot change what the fixtures expect.
-func TestMain(m *testing.M) {
-	hasProgram = func(string) bool { return true }
-	os.Exit(m.Run())
-}
 
 func withoutProgram(t *testing.T, name string) {
 	t.Helper()

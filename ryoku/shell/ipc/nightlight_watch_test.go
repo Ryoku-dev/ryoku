@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -313,10 +314,13 @@ func TestNightlightWatcherSettlesMarkerBeforeBackend(t *testing.T) {
 	}
 	time.Sleep(300 * time.Millisecond)
 	back := exec.Command(f.fake, "600")
+	// its own group, so cleanup takes the backend's sleep child too; a bare
+	// SIGKILL skipped the trap and left the sleep under the user's session
+	back.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := back.Start(); err != nil {
 		t.Fatalf("start late backend: %v", err)
 	}
-	t.Cleanup(func() { _ = back.Process.Kill(); _, _ = back.Process.Wait() })
+	t.Cleanup(func() { _ = syscall.Kill(-back.Process.Pid, syscall.SIGKILL); _, _ = back.Process.Wait() })
 
 	got := waitForFrame(t, sub, func(fr nlFrame) bool { return fr.On }, "on:true")
 	if got.Temperature != 4600 {

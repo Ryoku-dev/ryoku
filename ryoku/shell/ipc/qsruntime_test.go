@@ -16,14 +16,6 @@ import (
 // prune does. These tests hold the lock from a child, the way quickshell does.
 const lockHolderEnv = "RYOKU_TEST_HOLD_QS_LOCK"
 
-func TestMain(m *testing.M) {
-	if path := os.Getenv(lockHolderEnv); path != "" {
-		holdLockForever(path)
-		return
-	}
-	os.Exit(m.Run())
-}
-
 func holdLockForever(path string) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
