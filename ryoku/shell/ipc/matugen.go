@@ -29,8 +29,8 @@ import (
 // pipeline idle so it never fights the static palette the theme daemon owns.
 //
 // One knob store, one renderer: ~/.config/ryoku/matugen.json holds mode,
-// contrast, prefer, the per-app roster and the app-suite toggle. The
-// Hub appearance page writes that file; the daemon reads it and watches it, so a
+// contrast, prefer, the per-app roster and the app-suite toggle. Ryogami
+// writes that file; the daemon reads it and watches it, so a
 // knob save retints exactly as a wallpaper change does. There is no second knob
 // source and no second renderer.
 //

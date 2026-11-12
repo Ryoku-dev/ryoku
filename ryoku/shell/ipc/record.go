@@ -58,7 +58,7 @@ func (d *daemon) record(args []string) string {
 	}
 }
 
-// startRecord wires the daemon call the Hub's Recording page uses to read and
+// startRecord wires the daemon call the Screen capture page in Settings uses to read and
 // write the capture settings. The daemon is the sole writer of recording.json;
 // the backend script and the shell surfaces only read it.
 func (d *daemon) startRecord() {
@@ -132,7 +132,7 @@ type recordSettingSpec struct {
 	allowed []string
 }
 
-// recordSettingSpecs is the authoritative key set. The Hub's Recording page and
+// recordSettingSpecs is the authoritative key set. The Screen capture page and
 // the backend capture script read these keys; only the daemon writes them, so
 // the validation here is the single gate every write passes through.
 var recordSettingSpecs = []recordSettingSpec{

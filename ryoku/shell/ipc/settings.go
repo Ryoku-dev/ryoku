@@ -36,7 +36,7 @@ import (
 //
 //	subscribe settings                       the current file as JSON, re-pushed on any change
 //	call settings.patch {"path":..,"value":..} set one leaf (validated for schema keys)
-//	call settings.reset {"path":..}            restore a schema key to its shipped default
+//	call settings.reset {"path":..}            restore a key to its default: a schema key's shipped value, a passthrough key removed
 
 // contractKeys is the set of top-level namespaces the daemon owns a schema for.
 // A patch whose first path segment is one of these is validated; anything else is
@@ -72,13 +72,9 @@ var (
 	positionValues        = []string{"Left", "Right", "Top", "TopLeft", "TopRight", "Bottom", "BottomLeft", "BottomRight"}
 	notificationPosValues = []string{"Left", "Right", "Center", "BottomRight"}
 	menuExpansionValues   = []string{"AlwaysExpanded", "ExpandBothWays", "ExpandUp", "ExpandDown"}
-	tempUnitValues        = []string{"Metric", "Imperial"}
 	contentFitValues      = []string{"Contain", "Cover", "Fill", "ScaleDown", "Center", "Tile"}
 	videoEngineValues     = []string{"ryogami", "in_shell"}
 	quickSettingsIconVals = []string{"Arch", "Fedora", "Hyprland", "Nix"}
-	matugenPrefValues     = []string{"Darkness", "Lightness", "Saturation", "LessSaturation", "Value"}
-	matugenTypeValues     = []string{"Content", "Expressive", "Fidelity", "FruitSalad", "Monochrome", "Neutral", "Rainbow", "TonalSpot", "Vibrant"}
-	matugenModeValues     = []string{"Light", "Dark"}
 	orientationValues     = []string{"Horizontal", "Vertical"}
 	locQueryTypeValues    = []string{"Coordinates", "City"}
 	controlSectionIDs     = []string{"vitals", "connections", "powerProfile", "media", "levels", "bottomControls"}
@@ -143,7 +139,6 @@ type settings struct {
 type generalSettings struct {
 	ClockFormat24H       bool          `json:"clock_format_24_h"`
 	WeatherLocationQuery locationQuery `json:"weather_location_query"`
-	TemperatureUnit      string        `json:"temperature_unit"`
 }
 
 // locationQuery is the reference's tagged Coordinates|City union flattened to one
@@ -159,22 +154,24 @@ type locationQuery struct {
 
 type themeSettings struct {
 	Theme      string           `json:"theme"`
-	Matugen    matugenSettings  `json:"matugen"`
 	Attributes attributesConfig `json:"attributes"`
 	Motion     motionConfig     `json:"motion"`
-}
-
-type matugenSettings struct {
-	Preference string  `json:"preference"`
-	SchemeType string  `json:"scheme_type"`
-	Mode       string  `json:"mode"`
-	Contrast   float64 `json:"contrast"`
+	Effects    effectsConfig    `json:"effects"`
 }
 
 // motionConfig is the shell-UI animation timing, read live by ryoku/ui Tokens.
 type motionConfig struct {
 	Scale  float64 `json:"scale"`  // 0.25..3.0 global speed (1 = shipped timing)
 	Reduce bool    `json:"reduce"` // collapse animations to instant (accessibility)
+}
+
+// effectsConfig is the shell's own eye-candy on its panels and the dock, read
+// live by the shell's Perf. It is separate from Window style's blur and shadows
+// in desktop.json, which only the window manager draws. Low power, Power Saver
+// and Game Mode still turn both off whatever these say.
+type effectsConfig struct {
+	Glass   bool `json:"glass"`   // frosted glass behind panels and the dock
+	Shadows bool `json:"shadows"` // a drop shadow under panels and the dock
 }
 
 type attributesConfig struct {
@@ -351,7 +348,6 @@ type phoneWebcamSettings struct {
 }
 
 type phoneMicrophoneSettings struct {
-	Enabled    bool `json:"enabled"`
 	MicGain    int  `json:"micGain"`
 	Monitor    bool `json:"monitor"`
 	SetDefault bool `json:"setDefault"`
@@ -406,12 +402,11 @@ func defaultSettings() *settings {
 		General: generalSettings{
 			ClockFormat24H:       false,
 			WeatherLocationQuery: locationQuery{Type: "Coordinates", Lat: 0, Lon: 0, Name: "", Country: ""},
-			TemperatureUnit:      "Metric",
 		},
 		Theme: themeSettings{
 			Theme:   "Default",
-			Matugen: matugenSettings{Preference: "Darkness", SchemeType: "TonalSpot", Mode: "Dark", Contrast: 0},
 			Motion:  motionConfig{Scale: 1, Reduce: false},
+			Effects: effectsConfig{Glass: true, Shadows: true},
 			Attributes: attributesConfig{
 				Font:          fontConfig{Primary: "", Secondary: "", Tertiary: ""},
 				Sizing:        sizingConfig{RadiusWidget: 8, RadiusWindow: 8, BorderWidth: 2},
@@ -468,7 +463,7 @@ func defaultSettings() *settings {
 				Recording: phoneRecordingSettings{Folder: ""},
 			},
 			Webcam:     phoneWebcamSettings{CameraFacing: "back", Width: 1280, Height: 720, FPS: 30, VideoDevice: ""},
-			Microphone: phoneMicrophoneSettings{Enabled: false, MicGain: 100, Monitor: false, SetDefault: false},
+			Microphone: phoneMicrophoneSettings{MicGain: 100, Monitor: false, SetDefault: false},
 			Alarm:      phoneAlarmSettings{Enabled: true, PollMinutes: 10, ClockApps: []string{}, IgnorePackages: []string{}},
 		},
 		Controls: controlsSettings{
@@ -570,7 +565,6 @@ func (s *settings) normalize(strict bool) error {
 }
 
 func (g *generalSettings) normalize(v *validator) {
-	v.enum("general.temperature_unit", g.TemperatureUnit, tempUnitValues)
 	v.enum("general.weather_location_query.type", g.WeatherLocationQuery.Type, locQueryTypeValues)
 }
 
@@ -591,10 +585,6 @@ func (t *themeSettings) normalize(v *validator) {
 			}
 		}
 	}
-	v.enum("theme.matugen.preference", t.Matugen.Preference, matugenPrefValues)
-	v.enum("theme.matugen.scheme_type", t.Matugen.SchemeType, matugenTypeValues)
-	v.enum("theme.matugen.mode", t.Matugen.Mode, matugenModeValues)
-	v.clampF(&t.Matugen.Contrast, -1, 1)
 	v.rangeI("theme.attributes.sizing.radius_widget", &t.Attributes.Sizing.RadiusWidget, 0, 1000)
 	v.rangeI("theme.attributes.sizing.radius_window", &t.Attributes.Sizing.RadiusWindow, 0, 1000)
 	v.rangeI("theme.attributes.sizing.border_width", &t.Attributes.Sizing.BorderWidth, 0, 20)
@@ -1032,10 +1022,12 @@ type settingsStore struct {
 	onChange func([]byte)
 	caps     map[string]bool
 	deadKeys []string
-	// windowRuleActions is the active provider's window-rule action list, ridden
-	// in the frame beside caps/deadKeys so the Hub's window-rules editor offers
-	// only ids this compositor can apply. Empty when no provider answers.
+	// windowRuleActions and appOverrideFields are the active provider's
+	// window-rule actions and per-app look fields, ridden in the frame beside
+	// caps/deadKeys so App rules offers only what this compositor can apply.
+	// Empty when no provider answers.
 	windowRuleActions []string
+	appOverrideFields []string
 }
 
 func settingsInode(fi os.FileInfo) uint64 {
@@ -1157,6 +1149,11 @@ func (s *settingsStore) frameLocked() []byte {
 		wra = []string{}
 	}
 	out["windowRuleActions"] = wra
+	aof := s.appOverrideFields
+	if aof == nil {
+		aof = []string{}
+	}
+	out["appOverrideFields"] = aof
 	b, _ := json.Marshal(out)
 	return b
 }
@@ -1247,21 +1244,7 @@ func (s *settingsStore) patch(path string, value json.RawMessage) error {
 	if err := normalizeDockSettings(full, true); err != nil {
 		return err
 	}
-	if len(segs) == 1 && segs[0] == "barStyle" {
-		delete(full, barStyleTransactionKey)
-	}
-	// Any dock edit is the user driving the dock now, so the removal's
-	// fallback no longer owns its design.
-	if segs[0] == "dock" {
-		delete(full, dockTransactionKey)
-	}
-	if segs[0] == "designs" {
-		for design, marker := range designTransactionKeys {
-			if len(segs) == 1 || segs[1] == design {
-				delete(full, marker)
-			}
-		}
-	}
+	clearTransactionMarkers(full, segs)
 	newCur := diskCur
 	if contract {
 		ns, err := buildSettings(full, true)
@@ -1281,16 +1264,16 @@ func (s *settingsStore) patch(path string, value json.RawMessage) error {
 	return nil
 }
 
-// reset restores a schema key to its shipped default. Passthrough keys have no
-// shipped default here, so resetting one is an error; a caller resets a native
-// key by patching its known default value.
+// reset restores a key to its default. A schema key gets its shipped default;
+// a passthrough key has none here, so it is removed and the shell's own default
+// applies again, as on an install that never wrote it.
 func (s *settingsStore) reset(path string) error {
 	segs, err := splitPath(path)
 	if err != nil {
 		return err
 	}
 	if !contractKeys[segs[0]] {
-		return fmt.Errorf("reset %q: passthrough key has no shipped default; patch its value instead", path)
+		return s.unset(segs)
 	}
 	val, err := getByPath(settingsToMap(defaultSettings()), segs)
 	if err != nil {
@@ -1301,6 +1284,72 @@ func (s *settingsStore) reset(path string) error {
 		return err
 	}
 	return s.patch(path, vb)
+}
+
+// unset removes a passthrough key; removing one that is not stored changes nothing.
+func (s *settingsStore) unset(segs []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	unlock, err := lockSettingsFile(s.path)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
+	diskRaw, diskCur, err := loadSettingsPatchBase(s.path, s.raw)
+	if err != nil {
+		return err
+	}
+	full := deepCopyMap(diskRaw)
+	if !deleteByPath(full, segs) {
+		return nil
+	}
+	if err := normalizeDockSettings(full, true); err != nil {
+		return err
+	}
+	clearTransactionMarkers(full, segs)
+	if err := s.persistLocked(full); err != nil {
+		return err
+	}
+	s.raw = full
+	s.cur = diskCur
+	s.notify(s.frameLocked())
+	return nil
+}
+
+// clearTransactionMarkers drops a Store removal's recovery marker once the user
+// edits or resets the setting it moved: the user drives that setting now.
+func clearTransactionMarkers(full map[string]any, segs []string) {
+	if len(segs) == 1 && segs[0] == "barStyle" {
+		delete(full, barStyleTransactionKey)
+	}
+	if segs[0] == "dock" {
+		delete(full, dockTransactionKey)
+	}
+	if segs[0] == "designs" {
+		for design, marker := range designTransactionKeys {
+			if len(segs) == 1 || segs[1] == design {
+				delete(full, marker)
+			}
+		}
+	}
+}
+
+// deleteByPath removes the value at segs and reports whether one was stored.
+func deleteByPath(m map[string]any, segs []string) bool {
+	for _, seg := range segs[:len(segs)-1] {
+		next, ok := m[seg].(map[string]any)
+		if !ok {
+			return false
+		}
+		m = next
+	}
+	last := segs[len(segs)-1]
+	if _, ok := m[last]; !ok {
+		return false
+	}
+	delete(m, last)
+	return true
 }
 
 // persistLocked writes the whole file atomically: a temp file in the same
@@ -1575,17 +1624,17 @@ func (d *daemon) startSettings() {
 	// probed once here, not on every emission.
 	caps := d.capsMap()
 	dead := d.deadSettingKeys()
-	wra := d.windowRuleActions()
+	wra, aof := d.ruleLists()
 
 	store.mu.Lock()
 	store.caps = caps
 	store.deadKeys = dead
 	store.windowRuleActions = wra
+	store.appOverrideFields = aof
 	frame := store.frameLocked()
-	// Nudge the paint worker whenever the theme keys the matugen pipeline reads
-	// (the active theme and the scheme knobs) change, so a knob patch retunes the
-	// desktop the same way a wallpaper change does. The publish is unchanged; this
-	// only layers the re-theme trigger on top of it.
+	// Nudge the paint worker whenever the active theme changes, so picking one
+	// retunes the desktop the same way a wallpaper change does. The publish is
+	// unchanged; this only layers the re-theme trigger on top of it.
 	lastThemeSig := matugenThemeSig(frame)
 	lastFontSig := fontSig(frame)
 	lastShellSelectionSig := shellSelectionSig(frame)
@@ -1650,17 +1699,17 @@ func (d *daemon) capsMap() map[string]bool {
 	return m
 }
 
-// windowRuleActions is the active provider's window-rule action list, ridden in
-// the settings frame beside caps/deadKeys so the Hub's window-rules editor
-// offers only ids this compositor's config writer can apply. It reuses the
-// cached probe; a failed or absent probe yields an empty list, the safe default
-// that offers no action.
-func (d *daemon) windowRuleActions() []string {
+// ruleLists are the active provider's window-rule actions and per-app look
+// fields, ridden in the settings frame beside caps/deadKeys so App rules offers
+// only what this compositor's config writer can apply. It reuses the cached
+// probe; a failed or absent probe yields empty lists, which the frame sends as
+// [] and the Hub reads as not known yet.
+func (d *daemon) ruleLists() ([]string, []string) {
 	caps, err := d.wmc.Caps()
-	if err != nil || caps.WindowRuleActions == nil {
-		return []string{}
+	if err != nil {
+		return nil, nil
 	}
-	return caps.WindowRuleActions
+	return caps.WindowRuleActions, caps.AppOverrideFields
 }
 
 // deadSettingKeys are the provider store leaves that some installed provider

@@ -1,6 +1,11 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Unread settings leave the daemon.** `general.temperature_unit`,
+  `theme.matugen` (Ryogami owns the palette in `matugen.json`) and
+  `phone.microphone.enabled` are no longer modelled (`ipc/settings.go`), and
+  the sidebar no longer computes a plugin card tab nothing used
+  (`quickshell/shell/modules/sidebar/SidebarPlugins.qml`).
 - **Long graphics card names end at a word.** The system card and Settings
   showed names cut mid-word, such as "GeForce RTX 4060 Max-Q / Mobil"; a name
   over 30 characters now drops its last partial word or model and any separator

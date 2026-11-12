@@ -1,9 +1,12 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"math"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -99,21 +102,39 @@ func (d *daemon) menuClose() string {
 
 var hubStartWait = 10 * time.Second
 
-// a package var so tests start a fake Hub instead of qs
-var hubLaunch = func(screenScales string) (func() error, error) {
+// hubLockBusy is flock's exit code when another open already holds the Hub's lock
+const hubLockBusy = 75
+
+// errHubStarting: this launch found another open already starting the one Hub
+var errHubStarting = errors.New("another open is already starting Settings")
+
+// a package var so tests start a fake Hub instead of qs; start is the page a cold
+// launch opens first (RYOKU_HUB_START), so Home is never built for a deep link
+var hubLaunch = func(screenScales, start string) (func() error, error) {
 	// -o, or the Hub's own children inherit the locked descriptor: one
 	// detached grandchild (ryostore, a kitty, xdg-open) then held
 	// /tmp/ryoku-hub.lock for the rest of the session and every later open
 	// silently did nothing.
-	argv := append([]string{"-n", "-o", "/tmp/ryoku-hub.lock", "qs"}, qsSelect("hub")...)
+	argv := append([]string{"-n", "-E", strconv.Itoa(hubLockBusy), "-o", "/tmp/ryoku-hub.lock", "qs"}, qsSelect("hub")...)
 	cmd := exec.Command("flock", argv...)
+	cmd.Env = os.Environ()
 	if screenScales != "" {
-		cmd.Env = append(os.Environ(), "QT_SCREEN_SCALE_FACTORS="+screenScales)
+		cmd.Env = append(cmd.Env, "QT_SCREEN_SCALE_FACTORS="+screenScales)
+	}
+	if start != "" {
+		cmd.Env = append(cmd.Env, "RYOKU_HUB_START="+start)
 	}
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
-	return cmd.Wait, nil
+	return func() error {
+		err := cmd.Wait()
+		var exit *exec.ExitError
+		if errors.As(err, &exit) && exit.ExitCode() == hubLockBusy {
+			return errHubStarting
+		}
+		return err
+	}, nil
 }
 
 // hubScreenScales turns displays.ui_scale into Qt's per-screen factors: the
@@ -154,10 +175,11 @@ func hubCall(target, fn string, args ...string) bool {
 	return err == nil
 }
 
-// hubNav points a running Hub at a section; true when an instance answered.
+// hubNav points a running Hub at a page id, alias or "page/row"; true when an
+// instance answered.
 func hubNav(section string) bool { return hubCall("nav", "open", section) }
 
-// Retired Hub links now name their owning Stage Editor catalogue.
+// Retired Settings links that now name their owning Stage Editor catalogue.
 func hubEditorSection(section string) string {
 	switch section {
 	case "desktop-scene", "stage":
@@ -186,15 +208,15 @@ func (d *daemon) hubRaise() {
 	_ = d.wmc.Act(wm.ActionAppFocus, "org.quickshell")
 }
 
-// hub opens or closes Ryoku Hub, which replaces the reference settings window.
-// The Hub is one app: Bar Studio and every other page are sections inside it,
-// reached by in-app navigation, never separate processes. Open on a running
-// Hub navigates (when a section is named) and raises the window; open on a
-// cold Hub spawns the single flock-guarded instance and then navigates.
-// Close asks a running Hub to quit. All fire-and-forget, like the reference's
-// void settings open/close.
+// hub opens or closes Ryoku Settings. Settings is one app: every page is
+// reached by in-app navigation, never a separate process. The section is a
+// page id, an old section name the Hub's alias table resolves, or "page/row".
+// Open on a running instance navigates (when a page is named) and raises the
+// window; open on a cold one spawns the single flock-guarded instance and
+// then navigates. Close asks a running instance to quit. All fire-and-forget,
+// like the reference's void settings open/close.
 func (d *daemon) hub(args []string) string {
-	const usage = "err hub: expected open [section], open users <profile-id>, or close"
+	const usage = "err hub: expected open [page[/row]], open users <profile-id>, or close"
 	if len(args) == 0 || len(args) > 3 {
 		return usage
 	}
@@ -224,16 +246,26 @@ func (d *daemon) hub(args []string) string {
 				d.hubRaise()
 				return
 			}
-			wait, err := hubLaunch(hubScreenScales(d.settingsFrame()))
+			// a page opens with the process; a users profile still goes over the bus
+			start := ""
+			if target == "nav" {
+				start = section
+			}
+			wait, err := hubLaunch(hubScreenScales(d.settingsFrame()), start)
 			if err != nil {
 				return
 			}
 			// a Hub that never joins the bus still gets the call through qs ipc
-			if section != "" {
+			if target != "nav" && section != "" {
 				busAwaitServing("hub", target, hubStartWait)
 				navigate()
 			}
-			_ = wait()
+			// an open racing another cold open loses the lock; its page goes to the
+			// instance the other one started, once that serves
+			if errors.Is(wait(), errHubStarting) && target == "nav" && busAwaitServing("hub", "nav", hubStartWait) {
+				navigate()
+				d.hubRaise()
+			}
 		}()
 		return "ok"
 	case "close":
@@ -244,4 +276,30 @@ func (d *daemon) hub(args []string) string {
 		return "ok"
 	}
 	return usage
+}
+
+// directHub runs `hub open` and `hub close` with the daemon down, so a stopped
+// daemon never locks you out of Settings: a running instance is reached over qs
+// ipc, else the one flock-guarded instance starts on the page
+func directHub(args []string) error {
+	if len(args) == 1 && args[0] == "close" {
+		hubCall("hub", "close")
+		return nil
+	}
+	if len(args) == 0 || len(args) > 3 || args[0] != "open" {
+		return fmt.Errorf("hub: expected open [page[/row]] or close")
+	}
+	section := ""
+	if len(args) >= 2 {
+		section = args[1]
+	}
+	if hubAlive() {
+		if section != "" {
+			hubNav(section)
+		}
+		return nil
+	}
+	raw, _, _ := loadSettingsFile(filepath.Join(ryokuConfigDir(), "shell.json"))
+	_, err := hubLaunch(hubScreenScales(raw), section)
+	return err
 }

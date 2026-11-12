@@ -5,9 +5,12 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	wm "ryoku-wm"
 )
 
 // newTestStore builds a settings store over a fresh temp shell.json path. The
@@ -58,6 +61,35 @@ func TestJapaneseGlossDefaultsOn(t *testing.T) {
 	}
 }
 
+// The shell's own glass and shadows default on, a file written before they
+// existed (or holding only one) keeps the other on, and each switches alone.
+func TestShellEffectsDefaultOnAndSwitchAlone(t *testing.T) {
+	store := newTestStore(t)
+	for _, key := range []string{"theme.effects.glass", "theme.effects.shadows"} {
+		if got := frameGet(t, store.frameLocked(), key); got != true {
+			t.Fatalf("%s = %v, want true", key, got)
+		}
+	}
+	if err := store.patch("theme.effects.glass", rm(`false`)); err != nil {
+		t.Fatalf("patch glass off: %v", err)
+	}
+	if got := frameGet(t, store.frameLocked(), "theme.effects.glass"); got != false {
+		t.Fatalf("glass = %v after patching it off", got)
+	}
+	if got := frameGet(t, store.frameLocked(), "theme.effects.shadows"); got != true {
+		t.Fatalf("shadows = %v, want them left on when glass goes off", got)
+	}
+
+	path := filepath.Join(t.TempDir(), "shell.json")
+	if err := os.WriteFile(path, []byte(`{"theme":{"theme":"Default","effects":{"shadows":false}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := newSettingsStore(path)
+	if !s.cur.Theme.Effects.Glass || s.cur.Theme.Effects.Shadows {
+		t.Fatalf("effects = %+v, want glass on by default and the stored shadows off", s.cur.Theme.Effects)
+	}
+}
+
 func TestPhoneDefaultsMatchContract(t *testing.T) {
 	store := newTestStore(t)
 	var want any
@@ -93,7 +125,7 @@ func TestPhoneDefaultsMatchContract(t *testing.T) {
 			"recording": {"folder": ""}
 		},
 		"webcam": {"cameraFacing": "back", "width": 1280, "height": 720, "fps": 30, "videoDevice": ""},
-		"microphone": {"enabled": false, "micGain": 100, "monitor": false, "setDefault": false},
+		"microphone": {"micGain": 100, "monitor": false, "setDefault": false},
 		"alarm": {"enabled": true, "pollMinutes": 10, "clockApps": [], "ignorePackages": []}
 	}`), &want); err != nil {
 		t.Fatal(err)
@@ -157,7 +189,10 @@ func TestPatchRejectsInvalidSchemaValues(t *testing.T) {
 	cases := []struct {
 		name, path, val, want string
 	}{
-		{"bad enum mode", "theme.matugen.mode", `"Blue"`, "is not one of"},
+		{"bad enum fit", "wallpaper.content_fit", `"Blue"`, "is not one of"},
+		{"retired matugen mode", "theme.matugen.mode", `"Light"`, "unknown setting"},
+		{"bad glass type", "theme.effects.glass", `"off"`, "cannot unmarshal"},
+		{"unknown effect", "theme.effects.blur", `true`, "unknown setting"},
 		{"bad position", "menus.clock_menu.position", `"Sideways"`, "is not one of"},
 		{"bad quick icon", "bars.widgets.quick_settings.icon", `"Ubuntu"`, "is not one of"},
 		{"bad bar widget", "bars.top_bar.left_widgets", `["Nope"]`, "is not one of"},
@@ -176,6 +211,7 @@ func TestPatchRejectsInvalidSchemaValues(t *testing.T) {
 		{"bad phone camera", "phone.webcam.cameraFacing", `"side"`, "is not one of"},
 		{"bad phone fps", "phone.webcam.fps", `0`, "out of range"},
 		{"bad phone gain", "phone.microphone.micGain", `201`, "out of range"},
+		{"retired phone microphone switch", "phone.microphone.enabled", `true`, "unknown setting"},
 		{"bad phone alarm interval", "phone.alarm.pollMinutes", `0`, "out of range"},
 		{"bad controls position", "controls.position", `"left"`, "is not one of"},
 		{"controls gap too high", "controls.edgeGap", `97`, "out of range"},
@@ -211,8 +247,6 @@ func TestPatchClampsFloatStrengths(t *testing.T) {
 	}{
 		{"deckFrost", "2", 1},
 		{"deckFrost", "-1", 0},
-		{"theme.matugen.contrast", "9", 1},
-		{"theme.matugen.contrast", "-9", -1},
 		{"theme.attributes.window_opacity", "2", 1},
 		{"theme.attributes.window_opacity", "-1", 0},
 		{"theme.motion.scale", "9", 3},
@@ -242,7 +276,7 @@ func TestPatchAcceptsValidSchemaValues(t *testing.T) {
 	steps := []struct {
 		path, val string
 	}{
-		{"theme.matugen.mode", `"Light"`},
+		{"wallpaper.content_fit", `"Contain"`},
 		{"theme.attributes.sizing.border_width", `15`},
 		{"menus.clock_menu.position", `"Right"`},
 		{"bars.top_bar.left_widgets", `["Clock","Battery"]`},
@@ -263,8 +297,8 @@ func TestPatchAcceptsValidSchemaValues(t *testing.T) {
 		}
 	}
 	frame := s.frameLocked()
-	if got := frameGet(t, frame, "theme.matugen.mode"); got != "Light" {
-		t.Fatalf("mode = %v, want Light", got)
+	if got := frameGet(t, frame, "wallpaper.content_fit"); got != "Contain" {
+		t.Fatalf("content_fit = %v, want Contain", got)
 	}
 	if got := frameNum(t, frame, "theme.attributes.sizing.border_width"); got != 15 {
 		t.Fatalf("border_width = %v, want 15", got)
@@ -306,7 +340,7 @@ func TestPatchPathResolution(t *testing.T) {
 			name, path, val, want string
 		}{
 			{"unknown schema leaf", "theme.bogus", `1`, "unknown setting"},
-			{"unknown nested leaf", "theme.matugen.nope", `1`, "unknown setting"},
+			{"unknown nested leaf", "theme.motion.nope", `1`, "unknown setting"},
 			{"descend through string", "theme.theme.x", `1`, "cannot descend"},
 			{"empty path", "", `1`, "empty path"},
 			{"empty segment", "theme..mode", `"Dark"`, "empty segment"},
@@ -390,7 +424,7 @@ func TestPassthroughMergePreservesKeys(t *testing.T) {
 		}
 	}
 	// A schema write must not disturb the passthrough keys.
-	if err := s.patch("theme.matugen.mode", rm(`"Light"`)); err != nil {
+	if err := s.patch("wallpaper.content_fit", rm(`"Contain"`)); err != nil {
 		t.Fatalf("schema patch: %v", err)
 	}
 	frame := s.frameLocked()
@@ -400,11 +434,11 @@ func TestPassthroughMergePreservesKeys(t *testing.T) {
 	if got := frameGet(t, frame, "weatherLocation"); got != "Tokyo" {
 		t.Fatalf("weatherLocation lost: %v", got)
 	}
-	if got := frameGet(t, frame, "theme.matugen.mode"); got != "Light" {
+	if got := frameGet(t, frame, "wallpaper.content_fit"); got != "Contain" {
 		t.Fatalf("schema key not written: %v", got)
 	}
 	// A schema default a nobody touched is still present and correct.
-	if got := frameGet(t, frame, "general.temperature_unit"); got != "Metric" {
+	if got := frameGet(t, frame, "general.weather_location_query.type"); got != "Coordinates" {
 		t.Fatalf("schema default lost: %v", got)
 	}
 	// A passthrough write must not disturb the earlier schema write.
@@ -412,7 +446,7 @@ func TestPassthroughMergePreservesKeys(t *testing.T) {
 		t.Fatalf("passthrough re-patch: %v", err)
 	}
 	frame = s.frameLocked()
-	if got := frameGet(t, frame, "theme.matugen.mode"); got != "Light" {
+	if got := frameGet(t, frame, "wallpaper.content_fit"); got != "Contain" {
 		t.Fatalf("schema key disturbed by passthrough write: %v", got)
 	}
 	if got := frameGet(t, frame, "weatherLocation"); got != "Tokyo" {
@@ -425,15 +459,15 @@ func TestPassthroughMergePreservesKeys(t *testing.T) {
 // exactly as they were.
 func TestAtomicWriteToDisk(t *testing.T) {
 	s := newTestStore(t)
-	if err := s.patch("theme.matugen.mode", rm(`"Light"`)); err != nil {
+	if err := s.patch("wallpaper.content_fit", rm(`"Contain"`)); err != nil {
 		t.Fatalf("patch: %v", err)
 	}
 	b, err := os.ReadFile(s.path)
 	if err != nil {
 		t.Fatalf("read file: %v", err)
 	}
-	if got := frameGet(t, b, "theme.matugen.mode"); got != "Light" {
-		t.Fatalf("on-disk mode = %v, want Light", got)
+	if got := frameGet(t, b, "wallpaper.content_fit"); got != "Contain" {
+		t.Fatalf("on-disk content_fit = %v, want Contain", got)
 	}
 	if len(b) == 0 || b[len(b)-1] != '\n' {
 		t.Fatalf("persisted file should end with a newline")
@@ -555,7 +589,7 @@ func TestReloadKeepsLastGood(t *testing.T) {
 	s := newTestStore(t)
 	var notifies int
 	s.onChange = func([]byte) { notifies++ }
-	if err := s.patch("theme.matugen.mode", rm(`"Light"`)); err != nil {
+	if err := s.patch("wallpaper.content_fit", rm(`"Contain"`)); err != nil {
 		t.Fatalf("seed patch: %v", err)
 	}
 	if notifies != 1 {
@@ -567,63 +601,113 @@ func TestReloadKeepsLastGood(t *testing.T) {
 		t.Fatalf("write garbage: %v", err)
 	}
 	s.reload()
-	if s.cur.Theme.Matugen.Mode != "Light" {
-		t.Fatalf("malformed reload lost last-good: mode = %q", s.cur.Theme.Matugen.Mode)
+	if s.cur.Wallpaper.ContentFit != "Contain" {
+		t.Fatalf("malformed reload lost last-good: content_fit = %q", s.cur.Wallpaper.ContentFit)
 	}
 	if notifies != 1 {
 		t.Fatalf("malformed reload pushed a frame (notifies = %d)", notifies)
 	}
 
 	// A valid on-disk edit is adopted and pushed.
-	if err := os.WriteFile(s.path, []byte(`{"theme":{"matugen":{"mode":"Dark"}}}`), 0o644); err != nil {
+	if err := os.WriteFile(s.path, []byte(`{"wallpaper":{"content_fit":"Cover"}}`), 0o644); err != nil {
 		t.Fatalf("write good: %v", err)
 	}
 	s.reload()
-	if s.cur.Theme.Matugen.Mode != "Dark" {
-		t.Fatalf("good reload not adopted: mode = %q", s.cur.Theme.Matugen.Mode)
+	if s.cur.Wallpaper.ContentFit != "Cover" {
+		t.Fatalf("good reload not adopted: content_fit = %q", s.cur.Wallpaper.ContentFit)
 	}
 	if notifies != 2 {
 		t.Fatalf("good reload did not push (notifies = %d, want 2)", notifies)
 	}
 }
 
-// TestResetSemantics checks reset restores a schema key to its shipped default,
-// errors for a passthrough key (no shipped default), and errors for unknown or
-// malformed paths.
+// TestResetSemantics checks reset restores a schema key to its shipped default
+// and errors for unknown or malformed paths.
 func TestResetSemantics(t *testing.T) {
 	s := newTestStore(t)
-	if err := s.patch("theme.matugen.mode", rm(`"Light"`)); err != nil {
+	if err := s.patch("wallpaper.content_fit", rm(`"Contain"`)); err != nil {
 		t.Fatalf("patch: %v", err)
 	}
 	if err := s.patch("notifications.popup_window_margins", rm(`50`)); err != nil {
 		t.Fatalf("patch: %v", err)
 	}
-	if err := s.reset("theme.matugen.mode"); err != nil {
-		t.Fatalf("reset mode: %v", err)
+	if err := s.reset("wallpaper.content_fit"); err != nil {
+		t.Fatalf("reset content_fit: %v", err)
 	}
 	if err := s.reset("notifications.popup_window_margins"); err != nil {
 		t.Fatalf("reset margins: %v", err)
 	}
 	frame := s.frameLocked()
-	if got := frameGet(t, frame, "theme.matugen.mode"); got != "Dark" {
-		t.Fatalf("reset mode = %v, want default Dark", got)
+	if got := frameGet(t, frame, "wallpaper.content_fit"); got != "Cover" {
+		t.Fatalf("reset content_fit = %v, want default Cover", got)
 	}
 	if got := frameNum(t, frame, "notifications.popup_window_margins"); got != 0 {
 		t.Fatalf("reset margins = %v, want default 0", got)
 	}
 
-	// Resetting a passthrough key has no shipped default to restore.
-	if err := s.patch("frameRadius", rm(`9`)); err != nil {
-		t.Fatalf("seed passthrough: %v", err)
-	}
-	if err := s.reset("frameRadius"); err == nil || !strings.Contains(err.Error(), "passthrough key has no shipped default") {
-		t.Fatalf("reset passthrough: error %v, want passthrough refusal", err)
-	}
 	if err := s.reset("theme.bogus"); err == nil || !strings.Contains(err.Error(), "unknown setting") {
 		t.Fatalf("reset unknown: error %v, want unknown setting", err)
 	}
 	if err := s.reset(""); err == nil || !strings.Contains(err.Error(), "empty path") {
 		t.Fatalf("reset empty: error %v, want empty path", err)
+	}
+}
+
+// TestResetRemovesPassthroughKeys checks reset of a key without a schema removes
+// it, so the shell's own default applies as on an install that never wrote it,
+// and that a reset followed by a patch restores an object exactly, where a
+// merging patch alone would keep sub-keys added since.
+func TestResetRemovesPassthroughKeys(t *testing.T) {
+	s := newTestStore(t)
+	if err := s.patch("frameRadius", rm(`9`)); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if err := s.reset("frameRadius"); err != nil {
+		t.Fatalf("reset: %v", err)
+	}
+	if _, ok := s.raw["frameRadius"]; ok {
+		t.Fatalf("reset left frameRadius stored")
+	}
+	if err := s.reset("frameRadius"); err != nil {
+		t.Fatalf("reset of a key that is not stored: %v", err)
+	}
+
+	if err := s.patch("orpheus", rm(`{"drops":true}`)); err != nil {
+		t.Fatalf("seed object: %v", err)
+	}
+	if err := s.patch("orpheus", rm(`{"glyphs":2}`)); err != nil {
+		t.Fatalf("merge object: %v", err)
+	}
+	if err := s.reset("orpheus.glyphs"); err != nil {
+		t.Fatalf("reset nested: %v", err)
+	}
+	if got := s.raw["orpheus"]; !reflect.DeepEqual(got, map[string]any{"drops": true}) {
+		t.Fatalf("nested reset left orpheus = %v", got)
+	}
+	if err := s.patch("orpheus", rm(`{"glyphs":2}`)); err != nil {
+		t.Fatalf("merge again: %v", err)
+	}
+	if err := s.reset("orpheus"); err != nil {
+		t.Fatalf("reset object: %v", err)
+	}
+	if err := s.patch("orpheus", rm(`{"drops":true}`)); err != nil {
+		t.Fatalf("restore object: %v", err)
+	}
+	if got := s.raw["orpheus"]; !reflect.DeepEqual(got, map[string]any{"drops": true}) {
+		t.Fatalf("reset then patch restored orpheus = %v, want exactly the old object", got)
+	}
+
+	if err := s.patch("barStyle", rm(`"sumi"`)); err != nil {
+		t.Fatalf("seed bar style: %v", err)
+	}
+	if err := s.patch(barStyleTransactionKey, rm(`{"from":"iris"}`)); err != nil {
+		t.Fatalf("seed marker: %v", err)
+	}
+	if err := s.reset("barStyle"); err != nil {
+		t.Fatalf("reset bar style: %v", err)
+	}
+	if _, ok := s.raw[barStyleTransactionKey]; ok {
+		t.Fatalf("resetting the bar style kept the Store removal's marker")
 	}
 }
 
@@ -927,37 +1011,74 @@ func TestLoadCorruptFileIsBackedUp(t *testing.T) {
 	}
 }
 
-// The window-rules editor reads the active provider's action list off the same
-// settings frame it reads values from, so the frame carries it beside caps and
-// deadKeys. A bare store (no provider probed yet) adds no gating keys, and a
-// provider that lists none must still emit [] so the Hub never reads a null.
-func TestFrameCarriesWindowRuleActions(t *testing.T) {
+// App rules reads the active provider's action list and look fields off the
+// same settings frame it reads values from, so the frame carries them beside
+// caps and deadKeys. A bare store (no provider probed yet) adds no gating keys,
+// and a provider that lists none must still emit [] so the Hub never reads a
+// null.
+func TestFrameCarriesRuleLists(t *testing.T) {
 	s := newTestStore(t)
-	if frameHas(t, s.frameLocked(), "windowRuleActions") {
-		t.Fatal("bare store leaked windowRuleActions before a provider answered")
+	for _, key := range []string{"windowRuleActions", "appOverrideFields"} {
+		if frameHas(t, s.frameLocked(), key) {
+			t.Fatalf("bare store leaked %s before a provider answered", key)
+		}
 	}
 
 	s.caps = map[string]bool{"windowRules": true}
 	s.deadKeys = []string{}
 	s.windowRuleActions = []string{"float", "tile", "opacity"}
-	got, ok := frameGet(t, s.frameLocked(), "windowRuleActions").([]any)
-	if !ok {
-		t.Fatalf("windowRuleActions not a list in the frame")
-	}
-	want := []string{"float", "tile", "opacity"}
-	if len(got) != len(want) {
-		t.Fatalf("windowRuleActions = %v, want %v", got, want)
-	}
-	for i, v := range want {
-		if got[i] != v {
-			t.Errorf("windowRuleActions[%d] = %v, want %v", i, got[i], v)
+	s.appOverrideFields = []string{"opacity", "rounding"}
+	for key, want := range map[string][]string{
+		"windowRuleActions": {"float", "tile", "opacity"},
+		"appOverrideFields": {"opacity", "rounding"},
+	} {
+		got, ok := frameGet(t, s.frameLocked(), key).([]any)
+		if !ok || len(got) != len(want) {
+			t.Fatalf("%s = %v, want %v", key, got, want)
+		}
+		for i, v := range want {
+			if got[i] != v {
+				t.Errorf("%s[%d] = %v, want %v", key, i, got[i], v)
+			}
 		}
 	}
 
 	s.windowRuleActions = nil
-	empty, ok := frameGet(t, s.frameLocked(), "windowRuleActions").([]any)
-	if !ok || len(empty) != 0 {
-		t.Fatalf("empty windowRuleActions = %v, want []", empty)
+	s.appOverrideFields = nil
+	for _, key := range []string{"windowRuleActions", "appOverrideFields"} {
+		empty, ok := frameGet(t, s.frameLocked(), key).([]any)
+		if !ok || len(empty) != 0 {
+			t.Fatalf("empty %s = %v, want []", key, empty)
+		}
+	}
+}
+
+// A store leaf only another installed provider models is dead, so its row
+// hides: Window style's blur behind windows goes where the active window
+// manager draws none, and comes back where it does.
+func TestDeadSettingKeysFollowTheActiveProvider(t *testing.T) {
+	bin := t.TempDir()
+	t.Setenv("PATH", bin)
+	provider := func(name, defaults string) {
+		script := "#!/bin/sh\ncase \"$1\" in\n  caps) printf '%s' '{\"name\":\"" + name + "\"}' ;;\n  defaults) printf '%s' '" + defaults + "' ;;\nesac\n"
+		if err := os.WriteFile(filepath.Join(bin, "ryoku-wm-"+name), []byte(script), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	names := wm.Providers()
+	active, other := names[0], names[1]
+	provider(active, `{"desktop":{"appearance":{"blurEnabled":false,"shadowEnabled":true,"rounding":0}}}`)
+	provider(other, `{"desktop":{"appearance":{"blurEnabled":true,"gapsIn":4}}}`)
+
+	d := &daemon{wmc: wm.OpenNamed(active)}
+	dead := d.deadSettingKeys()
+	if !slices.Contains(dead, "desktop.appearance.gapsIn") || slices.Contains(dead, "desktop.appearance.rounding") || slices.Contains(dead, "desktop.appearance.blurEnabled") {
+		t.Fatalf("dead = %v, want gapsIn dead, rounding and blurEnabled live", dead)
+	}
+
+	provider(active, `{"desktop":{"appearance":{"shadowEnabled":true,"rounding":0}}}`)
+	if dead = d.deadSettingKeys(); !slices.Contains(dead, "desktop.appearance.blurEnabled") {
+		t.Fatalf("dead = %v, want blurEnabled dead where the window manager draws no blur", dead)
 	}
 }
 

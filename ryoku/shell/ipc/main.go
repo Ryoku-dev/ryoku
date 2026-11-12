@@ -122,6 +122,9 @@ func sendCommand(line string) error {
 		if len(fields) > 0 && fields[0] == "powerprofiles" {
 			return directPowerProfilesCLI(fields[1:])
 		}
+		if len(fields) > 0 && fields[0] == "hub" {
+			return directHub(fields[1:])
+		}
 	}
 	if err != nil {
 		return err

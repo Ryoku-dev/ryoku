@@ -78,7 +78,7 @@ func TestResolveSoundFallsBackToBuiltIn(t *testing.T) {
 
 // The shell's notification server and the Stage service both ask for their
 // chime through the `sound` verb, so the master switch and each cue's own
-// switch in Hub > General > Sounds have to hold there.
+// switch in Settings > Desktop > Sounds have to hold there.
 func TestSoundVerbHonoursHubSwitches(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 	bin := t.TempDir()

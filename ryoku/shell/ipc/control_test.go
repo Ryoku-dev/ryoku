@@ -105,7 +105,7 @@ func TestDispatchControlErrors(t *testing.T) {
 // a Hub that isn't a bus client (older build, or its bus never connected) still gets found by the qs probe
 func TestHubOpenUsersProfile(t *testing.T) {
 	calls := fakeQs(t, func(context.Context, int) ([]byte, []byte, error) { return nil, nil, nil })
-	launches := fakeHubLaunch(t, nil)
+	launches, _ := fakeHubLaunch(t, nil)
 	d := &daemon{wmc: wm.OpenNamed("does-not-exist")}
 	if got := d.dispatch("hub open users hacker"); got != "ok" {
 		t.Fatalf("dispatch = %q, want ok", got)
@@ -125,14 +125,16 @@ func TestHubOpenUsersProfile(t *testing.T) {
 
 func TestHubOpenWarmBusSendsOneCmd(t *testing.T) {
 	calls := fakeQs(t, func(context.Context, int) ([]byte, []byte, error) { return nil, nil, nil })
-	launches := fakeHubLaunch(t, nil)
+	launches, _ := fakeHubLaunch(t, nil)
 	fb := fakeBusClient(t, "hub", 4242, "nav", "users", "hub")
 	d := &daemon{wmc: wm.OpenNamed("does-not-exist")}
 	for _, tc := range []struct {
 		line string
 		want busCmd
 	}{
-		{"hub open appearance", busCmd{Target: "nav", Fn: "open", Args: []string{"appearance"}}},
+		{"hub open displays/night-light", busCmd{Target: "nav", Fn: "open", Args: []string{"displays/night-light"}}},
+		// an old section name passes through for the Hub's alias table
+		{"hub open gpu", busCmd{Target: "nav", Fn: "open", Args: []string{"gpu"}}},
 		{"hub open users hacker", busCmd{Target: "users", Fn: "fromProfile", Args: []string{"hacker"}}},
 	} {
 		before := len(fb.cmds())
@@ -154,20 +156,18 @@ func TestHubOpenWarmBusSendsOneCmd(t *testing.T) {
 	}
 }
 
-func TestHubOpenColdStartsOnceThenSendsOnBus(t *testing.T) {
+// a cold open names its page in the launch itself, so the Hub never builds Home first
+// and nothing waits on the bus for it
+func TestHubOpenColdPassesStartPage(t *testing.T) {
 	calls := fakeQs(t, func(context.Context, int) ([]byte, []byte, error) {
 		return nil, []byte("No running instances for this config.\n"), nil
 	})
-	prevWait := hubStartWait
-	hubStartWait = 3 * time.Second
-	t.Cleanup(func() { hubStartWait = prevWait })
 	registered := make(chan *fakeBus, 1)
-	launches := fakeHubLaunch(t, func() {
-		time.Sleep(100 * time.Millisecond)
+	launches, starts := fakeHubLaunch(t, func() {
 		registered <- fakeBusClient(t, "hub", 4343, "nav", "users", "hub")
 	})
 	d := &daemon{wmc: wm.OpenNamed("does-not-exist")}
-	if got := d.dispatch("hub open appearance"); got != "ok" {
+	if got := d.dispatch("hub open displays"); got != "ok" {
 		t.Fatalf("dispatch = %q, want ok", got)
 	}
 	var fb *fakeBus
@@ -176,11 +176,12 @@ func TestHubOpenColdStartsOnceThenSendsOnBus(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("the cold open never launched the Hub")
 	}
-	hubWaitFor(t, func() bool { return len(fb.cmds()) >= 1 })
-	time.Sleep(50 * time.Millisecond)
-	want := busCmd{Target: "nav", Fn: "open", Args: []string{"appearance"}}
-	if cmds := fb.cmds(); len(cmds) != 1 || !sameBusCmd(cmds[0], want) {
-		t.Fatalf("bus cmds = %+v, want one %+v", cmds, want)
+	time.Sleep(100 * time.Millisecond)
+	if got := starts(); !reflect.DeepEqual(got, []string{"displays"}) {
+		t.Fatalf("launch start pages = %q, want [displays]", got)
+	}
+	if cmds := fb.cmds(); len(cmds) != 0 {
+		t.Fatalf("bus cmds = %+v, want none", cmds)
 	}
 	probe := [][]string{{"-c", "hub", "ipc", "call", "nav", "section"}}
 	if got := calls(); !reflect.DeepEqual(got, probe) {
@@ -208,15 +209,107 @@ func TestHubCloseOverBus(t *testing.T) {
 	}
 }
 
-func fakeHubLaunch(t *testing.T, start func()) func() int {
+// two cold opens race for the one Hub; the open that loses the lock hands its page to the
+// instance the other started, instead of dropping it
+func TestHubOpenLosingColdOpenHandsItsPageOver(t *testing.T) {
+	fakeQs(t, func(context.Context, int) ([]byte, []byte, error) {
+		return nil, []byte("No running instances for this config.\n"), nil
+	})
+	prev := hubLaunch
+	release := make(chan struct{})
+	registered := make(chan *fakeBus, 1)
+	var mu sync.Mutex
+	winner := ""
+	hubLaunch = func(_, start string) (func() error, error) {
+		mu.Lock()
+		first := winner == ""
+		if first {
+			winner = start
+		}
+		mu.Unlock()
+		if !first {
+			return func() error { return errHubStarting }, nil
+		}
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			registered <- fakeBusClient(t, "hub", 4545, "nav", "users", "hub")
+		}()
+		return func() error { <-release; return nil }, nil
+	}
+	t.Cleanup(func() {
+		close(release)
+		hubLaunch = prev
+	})
+	d := &daemon{wmc: wm.OpenNamed("does-not-exist")}
+	for _, line := range []string{"hub open about", "hub open power"} {
+		if got := d.dispatch(line); got != "ok" {
+			t.Fatalf("dispatch %q = %q, want ok", line, got)
+		}
+	}
+	var fb *fakeBus
+	select {
+	case fb = <-registered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("neither open launched the Hub")
+	}
+	hubWaitFor(t, func() bool { return len(fb.cmds()) >= 1 })
+	time.Sleep(50 * time.Millisecond)
+	mu.Lock()
+	loser := map[string]string{"about": "power", "power": "about"}[winner]
+	mu.Unlock()
+	want := busCmd{Target: "nav", Fn: "open", Args: []string{loser}}
+	if cmds := fb.cmds(); len(cmds) != 1 || !sameBusCmd(cmds[0], want) {
+		t.Fatalf("bus cmds = %+v, want one %+v (the page of the open that lost the lock)", cmds, want)
+	}
+}
+
+// with the daemon down, `hub open` still opens Settings on the page
+func TestHubOpenWithoutTheDaemonLaunchesOnThePage(t *testing.T) {
+	fakeQs(t, func(context.Context, int) ([]byte, []byte, error) {
+		return nil, []byte("No running instances for this config.\n"), nil
+	})
+	launches, starts := fakeHubLaunch(t, nil)
+	if err := sendCommand("hub open displays"); err != nil {
+		t.Fatalf("hub open with the daemon down: %v", err)
+	}
+	if n := launches(); n != 1 {
+		t.Fatalf("launches = %d, want 1", n)
+	}
+	if got := starts(); !reflect.DeepEqual(got, []string{"displays"}) {
+		t.Fatalf("launch start pages = %q, want [displays]", got)
+	}
+}
+
+// with the daemon down and Settings running, `hub open` navigates it over qs ipc
+func TestHubOpenWithoutTheDaemonNavigatesARunningHub(t *testing.T) {
+	calls := fakeQs(t, func(context.Context, int) ([]byte, []byte, error) { return nil, nil, nil })
+	launches, _ := fakeHubLaunch(t, nil)
+	if err := sendCommand("hub open power"); err != nil {
+		t.Fatalf("hub open with the daemon down: %v", err)
+	}
+	want := [][]string{
+		{"-c", "hub", "ipc", "call", "nav", "section"},
+		{"-c", "hub", "ipc", "call", "nav", "open", "power"},
+	}
+	if got := calls(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("qs calls = %q, want %q", got, want)
+	}
+	if n := launches(); n != 0 {
+		t.Fatalf("a running Hub was launched again (%d)", n)
+	}
+}
+
+func fakeHubLaunch(t *testing.T, start func()) (func() int, func() []string) {
 	t.Helper()
 	prev := hubLaunch
 	done := make(chan struct{})
 	var mu sync.Mutex
 	n := 0
-	hubLaunch = func(string) (func() error, error) {
+	var pages []string
+	hubLaunch = func(_, page string) (func() error, error) {
 		mu.Lock()
 		n++
+		pages = append(pages, page)
 		mu.Unlock()
 		if start != nil {
 			go start()
@@ -227,11 +320,17 @@ func fakeHubLaunch(t *testing.T, start func()) func() int {
 		close(done)
 		hubLaunch = prev
 	})
-	return func() int {
+	launches := func() int {
 		mu.Lock()
 		defer mu.Unlock()
 		return n
 	}
+	starts := func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+		return append([]string(nil), pages...)
+	}
+	return launches, starts
 }
 
 func TestHubScreenScales(t *testing.T) {
