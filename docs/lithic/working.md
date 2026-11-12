@@ -192,6 +192,12 @@ cd docs/lithic/examples/qml
 QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=offscreen QML_XHR_ALLOW_FILE_READ=1 LITHIC_PAGE=controls LITHIC_MODE=follow LITHIC_CAPTURE_PATH=/tmp/lithic-qml.png qml6 -I ../../library/qml Gallery.qml
 ```
 
+The behaviour tests drive the QML components with real key and pointer events: keyboard order, Return and Escape, focus moves, signals and size changes. Run them after any change under `library/qml/Lithic`, and add a failing case first when you fix a behaviour bug:
+
+```sh
+QT_QPA_PLATFORM=offscreen "$(qmake6 -query QT_HOST_BINS)/qmltestrunner" -import docs/lithic/library/qml -input docs/lithic/library/qml/tests
+```
+
 ### Web
 
 Serve the Lithic root in one terminal:
