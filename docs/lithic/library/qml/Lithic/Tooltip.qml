@@ -88,7 +88,6 @@ T.ToolTip {
 
     TooltipPlane {
         id: previewPlane
-        parent: root.parent
         visible: root.previewOpen
         x: root.placementPosition.x
         y: root.placementPosition.y
@@ -109,6 +108,7 @@ T.ToolTip {
     }
 
     Component.onCompleted: {
+        root.followParent()
         if (previewOpen)
             Qt.callLater(placeAtAnchor)
     }
@@ -152,8 +152,18 @@ T.ToolTip {
         function onHeightChanged() { if (root.visible || root.previewOpen) root.placeAtAnchor() }
     }
 
+    // set, not bound: while a window tears down, a binding on root.parent evaluates to
+    // undefined whatever it guards with, and neither property takes undefined
+    onParentChanged: root.followParent()
+    function followParent() {
+        const p = root.parent || null;
+        previewPlane.parent = p;
+        parentWatch.target = p;
+    }
+
     Connections {
-        target: root.parent
+        id: parentWatch
+        target: null
         ignoreUnknownSignals: true
         function onWidthChanged() { if (root.visible || root.previewOpen) root.placeAtAnchor() }
         function onHeightChanged() { if (root.visible || root.previewOpen) root.placeAtAnchor() }
