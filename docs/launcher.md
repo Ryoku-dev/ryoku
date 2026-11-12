@@ -14,7 +14,7 @@ instantly and toggles with `ryoku-shell launcher`.
 
 ## Launcher variants
 
-Hero is the default launcher. Ryoku Settings -> App Launcher offers the three
+Hero is the default launcher. Ryoku Settings > Desktop > App launcher offers the three
 shipped styles, the launchers that installed subshells and bar styles provide,
 and any launcher installed from RyoStore (see
 [Store launchers](#store-launchers)), and saves the choice as `variant` in
@@ -93,7 +93,7 @@ with a `Main.qml` runtime root and, optionally, a `Preview.qml`.
   before resolving the saved id, so a saved store launcher opens on the first
   Super+Space after login. An update moves the view, so the host swaps the new
   copy in the way it switches variants.
-- Ryoku Settings -> App Launcher lists installed store launchers beside the
+- Ryoku Settings > Desktop > App launcher lists installed store launchers beside the
   shipped ones with a STORE tag, previews each with its own `Preview.qml` (or the
   store art when it has none), and offers UPDATE and BROWSE RYOSTORE. Picking and
   saving one is the same as picking a shipped variant.
@@ -207,7 +207,8 @@ motion budget is spent on the window show/hide and the action-panel open
 
 Colors, spacing, and motion are tokens in
 `shared/Singletons/{Theme,Metrics,Motion}.qml`;
-components read them, never hardcoded values. With Settings -> Shell -> Match
-wallpaper on, `Theme` resolves to the live wallpaper palette (the same `shell.json`
+components read them, never hardcoded values. With Match wallpaper on (Ryoku
+Settings > Appearance > Wallpaper & colours, which opens the wallpaper picker's
+Colours tab), `Theme` resolves to the live wallpaper palette (the same `shell.json`
 flag and `colors.json` the rest of the shell uses), so the launcher recolors with
 the system theme.

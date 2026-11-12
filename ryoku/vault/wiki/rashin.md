@@ -81,7 +81,7 @@ not a boundary against code you already run.
 - Super+Alt+Space opens `rashin-app`, with separate Ask and Agent tabs and a
   Teams mode.
 - `rashin <question>` asks from a terminal.
-- Ryoku Hub > Rashin turns the system on or off.
+- Ryoku Settings > Apps > Rashin turns the system on or off.
 
 All clients use the daemon's Unix socket. There is no web dashboard. The one
 port Rashin can open is its local API, which serves the router to other

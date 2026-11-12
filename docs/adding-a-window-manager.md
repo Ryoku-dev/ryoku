@@ -56,8 +56,8 @@ The eleven verbs, in plain terms:
 |`serve`|"Keep me running and send me `act` and `caps` as lines." `wm.Serve` does the loop; a provider only routes the two verbs.|
 |`apply <store>`|"Turn these settings into my config file."|
 |`defaults`|"Here is my baseline for those settings."|
-|`schema`|"Here are the settings only I have, so the Hub can draw them."|
-|`binds <store>`|"Here are the keybinds only I have, so Kit's Keys tab can list them under my name." Kit also carries Commands, Phone, Dev tools, and Typing test.|
+|`schema`|"Here are the settings only I have, so Ryoku Settings can draw them."|
+|`binds [store]`|"Here is every keybind as I emit it, with the user's rebinds and custom shortcuts", for the Super+K cheatsheet, the Hub and Kit's Keys tab. With no store, read the saved one: that is how the cheatsheet asks. Kit also carries Commands, Phone, Dev tools, and Typing test.|
 |`outputs <file>`|"Arrange the displays like this."|
 |`session`|The `wayland-session` desktop entry, so a greeter can offer you.|
 
@@ -99,12 +99,13 @@ files are yours and get replaced on update. Seeds are written once and then left
 alone, because a user's display pins and their hand edits must survive an
 upgrade.
 
-## Step 4: your settings page, for free
+## Step 4: your settings rows, for free
 
 This is the part that surprises people. You do not write a settings page.
 
-Your provider prints its exclusive settings as rows from `schema`, and the Hub
-renders them on the Window Manager page using the same renderer every other
+Your provider prints its exclusive settings as rows from `schema`, and Ryoku
+Settings places each one on the page it belongs to (Windows > Window behaviour,
+Appearance > Window style, and so on) using the same renderer every other
 settings page uses. A row looks like this:
 
 ```json
@@ -118,9 +119,13 @@ settings page uses. A row looks like this:
 }
 ```
 
+The `page`, `tab` and `group` fields are the row's tag:
+`ryoku/hub/quickshell/registry/provider-map.js` turns a tag into a page and
+section, so a tag it does not know yet needs one line there.
+
 `ctl` is the shared control vocabulary: a switch, a stepper, a slider, a colour,
 a text field, a segmented picker. Pick from what exists rather than adding a
-control type, and your page looks like the rest of Ryoku because it literally is
+control type, and your rows look like the rest of Ryoku because they literally are
 the rest of Ryoku. Compositors cannot drift apart visually, because there is
 one renderer.
 
@@ -140,7 +145,7 @@ from `wm.Providers()`, so this is usually one line each.
 ## Capabilities: the part worth getting right
 
 A capability is a promise. If `caps` says you support something, a control
-appears in the Hub and a keybind is bound. If you claim something you cannot do,
+appears in Ryoku Settings and a keybind is bound. If you claim something you cannot do,
 the user gets a control that silently does nothing, which is worse than not
 having the feature at all.
 
@@ -157,6 +162,13 @@ When your compositor cannot do something, say so twice, in two different places:
 
 Name capabilities for **behaviour**, never for a compositor. `outputMirror` is
 right; `niriSupportsX` is wrong and the build will reject it.
+
+App rules reads two more lists off `caps`: `windowRuleActions`, the window-rule
+actions your config writer renders, and `appOverrideFields`, the per-app look
+fields (`desktop.appOverrides`) it writes. Read `windowRuleActions` off the same
+table your writer renders from (each provider's `window_rule_actions.go`), so
+the two cannot drift, and let `caps_test.go` check both lists against the
+writer and the unhonored report.
 
 ## Things that will bite you
 
@@ -229,12 +241,12 @@ is that something wants to be a capability.
 
 - `ryoku wm status` names your compositor and lists its capabilities.
 - `ryoku wm use <name>` previews the switch, honestly listing what will not carry
-  over, and the Hub offers the same flow.
+  over, and Ryoku Settings > Windows > Window manager offers the same flow.
 - Logging in through the greeter brings up the full desktop: bar, dock,
   wallpaper, launcher, lockscreen.
-- The Hub shows a Window Manager page with your settings on it, and nothing
-  anywhere in the Hub that your compositor cannot do.
+- Ryoku Settings shows your settings on the pages they belong to, and nothing
+  anywhere in Ryoku Settings that your compositor cannot do.
 
 That last one is the real test. Ryoku's rule is that a control is shown only when
-something will write it, so a correct provider produces a Hub that fits your
-compositor exactly, without anyone having edited the Hub.
+something will write it, so a correct provider produces a Ryoku Settings that fits your
+compositor exactly, with no page written for it.

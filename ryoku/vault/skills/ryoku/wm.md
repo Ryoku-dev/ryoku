@@ -58,7 +58,7 @@ has no unbind and rejects duplicate chords in one bind block.
 A packaged update lays the shipped base down again, then overlays the sparse
 user tree at `~/.config/ryoku/user_edits/`. A mirrored file there wins, but it is
 a whole-file fork and no longer receives upstream fixes automatically. Prefer a
-command, the Hub, or the last-loaded user file over a fork.
+command, Ryoku Settings, or the last-loaded user file over a fork.
 
 ## Put user changes where the owner says
 
@@ -74,7 +74,8 @@ user:
 - Hyprland: `~/.config/hypr/user.lua`, loaded last.
 - niri: `~/.config/niri/user.kdl`, included last.
 
-The Hub is the first choice for keybinds and window rules. Use the raw files only
+Ryoku Settings is the first choice for keybinds and window rules (Windows >
+Keyboard shortcuts, Windows > App rules). Use the raw files only
 for config the GUI cannot express.
 
 ### Hyprland Lua

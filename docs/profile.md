@@ -1,6 +1,6 @@
 # The Profile plate
 
-The Profile page in Ryoku Settings (the Hub) is the system dossier: a full-bleed
+The Profile plate on Ryoku Settings > System > About (`ryoku-shell hub open about`) is the system dossier: a full-bleed
 plate carrying a dithered bone hero, your identity and epithets, live telemetry,
 spec rows, a package wave, a palette strip, a barcode, a signal readout, the 顔
 watermark, and a marginalia spine. It is the plate you screenshot to show off a
@@ -93,7 +93,7 @@ the tile.
 
 ### Framing
 
-Framing works like the decor editor elsewhere in the Hub: the image fills the
+Framing works like the decor editor elsewhere in Ryoku Settings: the image fills the
 hero box (cover), and you place it with a draggable focal point (drag the point
 to say which part stays centered) and a zoom control. It is WYSIWYG against the
 real hero box, so what you frame is what the plate shows.
@@ -122,8 +122,8 @@ records the name plus your framing and dither settings.
 
 ## Export image
 
-Export image (in the edit toolbar) grabs the plate on its own, without the Hub
-rail around it, and saves it as a PNG in `~/Pictures` (`ryoku-profile-<date>.png`)
+Export image (in the edit toolbar) grabs the plate on its own, without the
+Ryoku Settings window around it, and saves it as a PNG in `~/Pictures` (`ryoku-profile-<date>.png`)
 at 2x. This is the file you share or post to show off the rice; it is only the
 plate.
 

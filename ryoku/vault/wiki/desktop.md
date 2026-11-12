@@ -14,8 +14,10 @@ helps when you want to change something.
   apps, show running windows, magnify on hover, and hide to a peek strip.
 - **Launcher:** press Super+Space to search apps, open windows, files, actions,
   calculations, packages, media, and web search from one field.
-- **Ryoku Hub:** press Super+comma for the page-wide settings app. It owns system,
+- **Ryoku Settings:** press Super+comma for the page-wide settings app. It owns system,
   shell, and active window-manager settings, with unsupported controls omitted.
+  `ryoku-shell hub open <page-id>` opens one page, for example `bar`, `power`
+  or `shortcuts`.
 - **Desktop stage:** wallpaper, clock, weather, notes, system stats, music, and
   installed desktop plugins live here. Widgets can be moved and resized in
   place.
@@ -31,7 +33,7 @@ helps when you want to change something.
 | Super+Space | App launcher and command palette |
 | Super+Tab | Workspace overview |
 | Super+Escape | Controls |
-| Super+comma | Ryoku Hub |
+| Super+comma | Ryoku Settings |
 | Super+Shift+D | Stage Editor on the focused screen |
 | Super+W | Wallpaper and theme picker |
 | Super+V | Clipboard history |
@@ -40,14 +42,16 @@ helps when you want to change something.
 | Alt+Space | Rashin bar |
 | Super+K | Kit: keys, commands, phone, developer tools, and typing test |
 
-The keybind editor in Ryoku Hub is the source to use when a chord should change.
+Ryoku Settings > Windows > Keyboard shortcuts is the source to use when a chord should change.
 Kit is the quickest way to discover the rest: Keys, Commands, Phone, Dev tools,
 and Typing test share the same search field.
 
 ## Settings have clear homes
 
-Use Ryoku Hub for compositor, display, input, power, lockscreen, launcher,
-recording, and system settings. Use QS Bar Settings for the bar layout, widgets,
+Use Ryoku Settings for the window manager (Windows), displays and input
+(Devices), power and graphics (System), the lock screen (Appearance), the
+launcher (Desktop), screen capture (Apps), and the rest of the system settings.
+Use QS Bar Settings for the bar layout, widgets,
 and dock. Use the Super+W picker for wallpaper and theme. Those surfaces call the
 same owners that command-line tools use, so they do not compete over config.
 
@@ -59,5 +63,5 @@ ryoku wm caps
 ```
 
 Continue with [Hyprland in Lua](hyprland-lua.md) or [niri in
-KDL](niri-kdl.md) only when the Hub cannot express a raw config change. See
+KDL](niri-kdl.md) only when Ryoku Settings cannot express a raw config change. See
 [Rashin](rashin.md) for the two assistant lanes and approval choices.

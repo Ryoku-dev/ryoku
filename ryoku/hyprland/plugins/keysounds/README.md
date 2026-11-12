@@ -4,14 +4,14 @@ A Hyprland plugin that plays a keyboard sound on every key press. The
 compositor sees every key before any application does, so one plugin covers
 every window with no per-app hook and nothing grabbing your input.
 
-Turn it on under Ryoku Settings > Plugins > Key sounds. The package is
+Turn it on under Ryoku Settings > Desktop > Sounds > Key sounds. The package is
 `ryoku-keysounds`; the plugin loads as `keysounds.so`. On niri, which has no
 plugins, the same feature comes from the optional `ryoku-keysounds-niri` engine
-under Settings > Window Manager > Behaviour.
+under Ryoku Settings > Desktop > Sounds.
 
 ## Settings
 
-All under `plugin:keysounds:` (the Hub writes them into `settings.lua` for you):
+All under `plugin:keysounds:` (Ryoku Settings writes them into `settings.lua` for you):
 
 | Key | Type | Default | What it does |
 |---|---|---|---|

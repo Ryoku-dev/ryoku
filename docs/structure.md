@@ -25,7 +25,7 @@ Start with the guide that matches the job:
   profiles](profiles.md), [the Profile plate](profile.md), [theming](theming.md),
   [performance](performance.md), [power](power.md) and [plugins](plugins.md).
 - **Work on the repository:** [conventions](conventions.md),
-  [development](development.md), [internationalization](i18n.md),
+  [development](development.md), [Ryoku Settings](hub.md), [internationalization](i18n.md),
   [compositors](compositors.md), [adding a window
   manager](adding-a-window-manager.md), [Hyprland
   plugins](hyprland-plugins.md), [Rashin](rashin.md), [Rashin in the
@@ -93,7 +93,7 @@ truth for the live desktop.
   (`bar` the scene host that loads the active subshell or bar style
   (`Frame.qml`), plus the frame-bar kit other items build on: the four-edge
   rails, the bounded menu manager and the rail status popout cards
-  (`bar/popouts/`), see `docs/bar.md`); `sidebar` the Controls and Companion screen-edge
+  (`bar/popouts/`), see `docs/bar.md`); `sidebar` the Quick settings and Companion screen-edge
   overlays, nine-section catalogue, settings editor, and
   `sidebarCard` plugin host (see `docs/sidebars.md`); `dock` the app dock on the
   edge opposite the bar (its own surface, shared by every subshell and bar
@@ -172,24 +172,26 @@ truth for the live desktop.
   The CLI refreshes the live copy at `~/.local/share/ryoku/vault/`, wires its
   pointer into installed harnesses, and keeps user-owned memory and journal
   files outside generated fences. See `docs/vault.md`.
-- `hub/` Ryoku Settings, the central control-center GUI (`Super + ,`): `backend/`
-  (`ryoku-hub`, the Go data plane that reads the keybind legend from the live
-  Hyprland config, generates the `settings.lua` overlay (in `user_edits`) from JSON, and
-  persists hub state as TOML; it also speaks the OpenRGB SDK (protocol 5 and 6),
-  so the wallpaper picker's Lighting settings drive keyboards and mice per
-  device) and `quickshell/` (the native Qt6/QML app,
-  a `FloatingWindow` with a grouped nav rail and global fuzzy search, with live
-  editors for displays, lockscreen, animations,
-  input, keybinds, window and layer
-  rules, autostart, environment, the shell, and the desktop widgets). The product is "Ryoku Settings"; the binary and
-  config keep the internal `hub` name. Deployed to `~/.config/quickshell/hub`;
-  built by the shell's `deploy.sh`.
+- `hub/` Ryoku Settings, the settings app (`Super + ,`): `backend/`
+  (`ryoku-hub`, the Go program the pages call for anything outside the shell
+  daemon: it saves the window manager's neutral store
+  `~/.config/ryoku/desktop.json` and has the active provider apply it, reads
+  the keybind legend and the provider's own settings rows through the
+  window-manager seam, keeps Settings' own state in `~/.config/ryoku/hub.toml`,
+  and speaks the OpenRGB SDK (protocol 5 and 6), so the wallpaper picker's
+  Lighting settings drive keyboards and mice per device) and `quickshell/`
+  (the Qt6/QML app on Lithic: `registry/registry.js` declares the categories
+  and pages, `schema/<page-id>.js` holds each page's rows, `pages/<Name>.qml`
+  is each page, and `Singletons/Changes.qml` is the one write path). The product
+  is "Ryoku Settings"; the binary and config keep the internal `hub` name.
+  Deployed to `~/.config/quickshell/hub`; built by the shell's `deploy.sh`. How
+  it is built and how to extend it is in `docs/hub.md`.
 - `rashin/` the optional Rashin system in one Go module: `cmd/rashind/` is the
   daemon, `cmd/rashin/` the command line, and `cmd/rashin-app/` the Gio Lithic
   app. `internal/` holds the socket protocol, session event log, free-model
   router, the Ask agent, ACP harness adapters and potion-backed code
   index. `systemd/` ships socket activation and `usage/` the coding-agent usage
-  collectors. The Hub owns the opt-in switch and the shell's Alt+Space bar is a
+  collectors. Ryoku Settings owns the opt-in switch and the shell's Alt+Space bar is a
   thin socket client. See `docs/rashin.md` and `docs/rashin-terminal.md`.
 - `assets/` `brand/` the 力 logo and icons and Rashin's seal (`rashin-mark*.svg`,
   `rashin-lockup.svg`; the app icon and the console favicon link to them),
@@ -301,8 +303,8 @@ serves them with no release infrastructure.
     `ryotunes`, `ryogami` the wallpaper daemon), the `ryoku-desktop` umbrella,
     `ryoku-keyring`, the `gpk` package manager, and the on-demand key sounds:
     `ryoku-keysounds-profiles` (the samples and the importer, shared) and
-    `ryoku-keysounds-niri` (niri's standalone engine, installed from the Hub's
-    Window Manager page, never by default).
+    `ryoku-keysounds-niri` (niri's standalone engine, installed from Ryoku
+    Settings > Desktop > Sounds, never by default).
   - Hyprland plugins: `hypr-dynamic-cursors`, `ryoku-hypr-plugins`, `hyprglass`,
     `imgborders`, `ryoku-keysounds`; each lays an `.abi` receipt beside its
     `.so` (see `docs/hyprland-plugins.md`).

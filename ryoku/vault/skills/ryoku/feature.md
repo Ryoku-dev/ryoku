@@ -21,12 +21,12 @@ styles when the ask is a whole bar or shell look
 (`ryostore catalog --category subshells`, `--category barstyles`). If it exists:
 
 ```bash
-ryostore install plugins <id>    # or the Hub: Add-ons page (Super+comma > Add-ons)
+ryostore install plugins <id>    # or Ryoku Settings > Apps > Add-ons (ryoku-shell hub open add-ons)
 ryostore install barstyles <id>  # a bar style; subshells the same way
 ```
 
 Say where it landed (the bar, the desktop, QS Bar Settings > Community) and
-stop. A subshell or bar style still needs selecting: Ryoku Hub > Bar Studio, or
+stop. A subshell or bar style still needs selecting: Ryoku Settings > Desktop > Bar, or
 `ryoku-shell barstyle <id>`. Never rebuild what the store delivers.
 
 ### 2. Is it already on this machine, just hidden?
@@ -96,7 +96,7 @@ Structural answers come from the index or map first; grep is for exact strings.
 
 ## When the ask is bigger than a widget
 
-Some asks are not widgets: a new keybind (Hub > Keybinds), a Hyprland behavior
+Some asks are not widgets: a new keybind (Ryoku Settings > Windows > Keyboard shortcuts), a Hyprland behavior
 (`ryoku-hub hypr get`, or the override files in `SKILL.md`), a compositor
 plugin (`.so`; `ryoku-hub desktop plugins`, see SKILL.md step 4). The ladder
 applies to shell features; route system-level asks through the decision

@@ -13,11 +13,11 @@ channel. Fedora, Void and stable-channel machines do not offer them.
 1. Open Ryostore and choose **Profiles**.
 2. Open a profile and choose **Install**. This installs the profile definition,
    not its tools or account.
-3. Choose **Create account**. Ryostore opens Ryoku Hub at **Global > Users > Add
-   person > From a profile**.
+3. Choose **Create account**. Ryostore opens Ryoku Settings at **Accounts > Users > Add
+   person > From a profile** (`ryoku-shell hub open users <id>`).
 4. Pick the account name and password, choose the core and optional tools, and
    add any extra package names you want.
-5. Review the Hub plan. It lists repositories, packages, package removals,
+5. Review the plan. It lists repositories, packages, package removals,
    system changes, files, environment, warnings, blockers and **Also visible in
    other accounts**. Approve it with an administrator password only when the
    plan is correct.
@@ -52,7 +52,7 @@ while Ryoku's own apps and the profile's tools stay visible.
 
 Hacker is the first official profile. It is for Hack The Box, TryHackMe and
 OverTheWire-style study. Core tools are selected by default. Optional tools can
-be enabled in the Hub.
+be enabled in Ryoku Settings > Accounts > Users.
 
 ### Core tools
 
@@ -148,9 +148,9 @@ Nmap work there too.
 
 ## Change the installed tools
 
-Open **Ryoku Hub > Global > Users**, expand the profile account and choose **Edit
+Open **Ryoku Settings > Accounts > Users**, expand the profile account and choose **Edit
 tools**. Core and optional tools use the same grouped switches as account
-creation. You can also add a package by its pacman name. The Hub prepares a new
+creation. You can also add a package by its pacman name. Ryoku Settings prepares a new
 plan and requires another review before applying it.
 
 The same account card provides **Reset settings**, **Checkpoints** and **Remove
@@ -177,7 +177,7 @@ check and logs failures under the `ryoku-profile` journal tag.
 ## Checkpoints
 
 Checkpoints are available only when `/home` uses btrfs and the account home is a
-managed btrfs subvolume. The Hub can save, list, revert and delete them. A revert
+managed btrfs subvolume. Ryoku Settings can save, list, revert and delete them. A revert
 requires the profile account to be fully logged out.
 
 A checkpoint restores the account home to the saved snapshot, then copies the

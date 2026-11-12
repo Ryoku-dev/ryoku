@@ -33,35 +33,35 @@ the rail: a start zone hugs the leading edge, a centre zone sits on the rail's
 midpoint, an end zone hugs the trailing edge. The runtime accepts only
 catalogued widgets that fit the target axis.
 
-## Bar Studio
+## The Bar page
 
-Open **Bar Studio** from Ryoku Hub or with `ryoku-shell hub open bar-studio`.
-The FRAME, RAILS and rail WIDGETS cards show while the selected item declares
-`hubEditor = "frame-rails"`, which Sumi does.
+Open **Ryoku Settings > Desktop > Bar**, or run `ryoku-shell hub open bar`.
+The frame and edge bar rows show under **This style's options** while the bar
+style in use declares `hubEditor = "frame-rails"`, which Sumi does.
 
-Bar Studio stages a complete immutable `frameBars` object through the normal Hub
-draft and Save flow, and its edits apply to the running desktop as you make them.
-Pick an edge to work on that rail. It edits only what changes the running frame:
+The page writes a complete immutable `frameBars` object through the normal
+Ryoku Settings write path, and its edits apply to the running desktop as you make
+them. It edits only what changes the running frame:
 
 - the frame chrome the shell draws around the desktop: the draw toggle, the
   opacity, the band thickness, and the corner radius;
-- each rail's own switches: on or off, and thickness;
-- the widgets in each rail's three zones: add a catalogued widget that fits the
-  rail's axis and is not already on it, remove one, or reorder within a zone.
+- the edge bar's own switches: on or off, and width;
+- the widgets in the edge bar's three parts (top, middle, bottom): add a
+  catalogued widget that fits the rail's axis and is not already on it, remove
+  one, or reorder within a part.
 
 The frame's material and colour come from the shell's look (`Theme` and the
 palette), not a user knob; picking a different bar style is a separate choice,
 covered in `docs/subshells.md`.
 
-Every change is live on the desktop at once. Save keeps it and rebaselines;
-Revert, or closing the window with unsaved edits, walks the desktop back to the
-saved state through the same channel. Bar Studio never writes configuration
-files directly.
+Every change is live on the desktop at once and is kept; the notice at the foot
+of the window offers Undo, which walks the desktop back through the same
+channel. The Bar page never writes configuration files directly.
 
 The bounded menus keep whatever
-values are persisted: every Bar Studio edit clones the whole `frameBars` object,
-so a subtree it does not touch is never dropped. They are configured through
-their defaults and the catalogue, not edited on this page.
+values are persisted: every edit on the Bar page clones the whole `frameBars`
+object, so a subtree it does not touch is never dropped. They are configured
+through their defaults and the catalogue, not edited on this page.
 
 ## Menus and popout cards
 
@@ -80,10 +80,10 @@ profiles, and a detail panel, network runs Wi-Fi, and the rest follow suit. They
 share one skin from a card kit (`shell/modules/bar/popouts/PopoutCard.qml` and its siblings),
 so every card opens, reads, and dismisses the same way.
 
-Super+Escape and Super+S open Controls and Today in the top-left and top-right
+Super+Escape and Super+S open Quick settings and Today in the top-left and top-right
 corners. They are not frame menus and their layout is shared by every subshell and bar style
 (`shell/modules/sidebar/`, see `docs/sidebars.md`). Installed sidebar plugins
-appear under Extensions; placement and enablement live in Ryoku Hub > Add-ons.
+appear under Extensions; placement and enablement live in Ryoku Settings > Apps > Add-ons.
 
 `ryoku-shell menu <id>` opens a catalogued menu on the active monitor;
 `MenuCatalog.js` holds the valid IDs, and anything else is rejected before it
@@ -103,7 +103,7 @@ this same manager scene.
 3. Keep menu body work gated by its `open` state and release it on close.
 4. Preserve owner rectangles, mask regions, monitor locality, and identity-safe
    close behavior.
-5. Add the behavior test and Bar Studio label before exposing the new ID.
+5. Add the behavior test and the Bar page label before exposing the new ID.
 
 Do not introduce a parallel renderer, unbounded component loader, or direct
 configuration writer.

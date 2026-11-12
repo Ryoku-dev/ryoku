@@ -63,7 +63,7 @@ dumb. Build it with `go build` in `ipc/`; the binary belongs on `PATH` as
 
 ### Mouse remapping
 
-The Hub's Input > Mouse tab talks to the daemon through `mouse.state`,
+Ryoku Settings > Devices > Mouse & touchpad talks to the daemon through `mouse.state`,
 `mouse.map`, `mouse.capture`, and `mouse.test`. Bindings live in
 `~/.config/ryoku/mousemap.json` and take effect immediately. The embedded
 catalogue gives common Logitech, Razer, SteelSeries, Corsair, Glorious and Zowie
@@ -95,7 +95,7 @@ The frame-surface tools use `grim`/`slurp`, `hyprpicker`, `curl`/`jq`, `mpv`,
 (`hyprsunset` on Hyprland, `wlsunset` on niri, reached through the wm seam).
 The ``Super+` `` voice dictation drives `voxtype` (optional, from `voxtype-bin`)
 for the transcription and `wtype` to type it into the focused app; pick the
-engine and model in Ryoku Settings' Dictation page.
+engine and model in Ryoku Settings > Apps > Voice typing.
 The keybinds open `kitty` (terminal) and `nautilus` (files). Fonts: JetBrains
 Mono Nerd and Noto; cursor: Bibata. The lock is qylock, from `ryoku/`.
 

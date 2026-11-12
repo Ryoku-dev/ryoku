@@ -3,7 +3,7 @@ name: ryoku
 description: >
   Customize a Ryoku desktop with a Hyprland or niri
   compositor and a Quickshell shell (the active subshell or bar style, the
-  dock, widgets, the launcher, and the Hub). Use for end-user requests that
+  dock, widgets, the launcher, and Ryoku Settings). Use for end-user requests that
   touch the desktop or its config. Triggers: window-manager behavior, window
   rules, keybinds, monitors, gaps, borders, the bar, subshells, bar styles, the
   dock, bar widgets, plugins, themes, wallpaper, colours, night light, idle,
@@ -64,7 +64,7 @@ Linux, QML, Go, or compositor knowledge.
 
 Topic guides sit beside this file. Read the matching one first:
 
-- [`gui.md`](gui.md): the GUI map. Every intent to its Ryoku Hub page, picker,
+- [`gui.md`](gui.md): the GUI map. Every intent to its Ryoku Settings page, picker,
   Stage Editor section, or the active item's own settings, how to open it, and
   the command it wraps.
 - [`bar.md`](bar.md): subshells, bar styles and the dock: what ships, what
@@ -86,18 +86,20 @@ Topic guides sit beside this file. Read the matching one first:
 ## Answer policy: GUI first
 
 When a user asks HOW to change something, lead with the GUI path: the exact
-keybind or the Ryoku Hub page. The Hub opens with Super+comma; deep-link one
-page with `ryoku-shell hub open <section>` (the section key names the page, e.g.
-`keybinds`, `gpu`, `lockscreen`). Give the command after, as the fallback or the
+keybind or the Ryoku Settings page. Ryoku Settings opens with Super+comma;
+deep-link one page with `ryoku-shell hub open <page-id>` (e.g. `shortcuts`,
+`power`, `lock-screen`; old section names still resolve, but use the new ids,
+listed in gui.md). Give the command after, as the fallback or the
 way to script the same change. When the user asks YOU to change it, act through
 the command (the GUI is for the human), then say what you changed and where to
 see or undo it in the GUI. Never hand back a bare shell command for a change that
 has a page or a picker.
 
-Two surfaces have no Hub page of their own. Wallpaper and theme are the shell
-picker (Super+W, `ryogami wallpaper ui`); the dock is the Stage Editor
+Two surfaces live outside Ryoku Settings. Wallpaper and theme are the shell
+picker (Super+W, `ryogami wallpaper ui`; Ryoku Settings > Appearance >
+Wallpaper & colours hands off to its Colours tab); the dock is the Stage Editor
 (Super+Shift+D, its Dock section). Which subshell or bar style draws the bar is
-Ryoku Hub > Subshells and Bar Studio, and that item's own layout lives in its own
+Ryoku Settings > Desktop > Bar, and that item's own layout lives in its own
 settings window (Orpheus: left-click its logo; QS Bar: QS Bar Settings), which
 exists only while the item is active. See [`gui.md`](gui.md) for the full
 intent-to-surface map.
@@ -167,7 +169,7 @@ vault map; edit the real path `desktop.md` names.
 
 When a request would change the system, in order:
 
-1. **Is there a GUI for it?** A Ryoku Hub page (`ryoku-shell hub open <section>`,
+1. **Is there a GUI for it?** A Ryoku Settings page (`ryoku-shell hub open <page-id>`,
    Super+comma), the wallpaper picker (Super+W), the Stage Editor
    (Super+Shift+D), or the active item's own settings. If a user asks how to do
    it, name the surface first; whether you or they drive it, the change still
@@ -187,7 +189,8 @@ When a request would change the system, in order:
    `ryoku plugin add <url> --bar`, or from Ryostore; see `plugins.md`. Never
    run a plugin's code to install it. A Hyprland compositor plugin (title
    bars, cursor motion, key sounds, a `.so` the compositor loads) is managed
-   by `ryoku-hub desktop plugins list|rebuild|add|remove` and Hub > Plugins;
+   by `ryoku-hub desktop plugins list|rebuild|add|remove` and Ryoku Settings >
+   Windows > Window manager (`ryoku-shell hub open window-manager`);
    a "version mismatch" after an update means
    `ryoku-hub desktop plugins rebuild --stale`.
 5. **Is it a theme or wallpaper?** Drive it through `ryogami` and `ryoku-hub`,
@@ -198,15 +201,16 @@ When a request would change the system, in order:
 
 ## Example requests
 
-- "Switch to another bar" -> Ryoku Hub > Bar Studio
-  (`ryoku-shell hub open bar-studio`), or install it with
+- "Switch to another bar" -> Ryoku Settings > Desktop > Bar
+  (`ryoku-shell hub open bar`), or install it with
   `ryostore install barstyles <id>` and run `ryoku-shell barstyle <id>`
-- "Try a complete different shell" -> Ryoku Hub > Subshells
-  (`ryoku-shell hub open subshells`), or `ryostore install subshells <id>` then
-  `ryoku-shell barstyle <id>`
-- "Open the bar settings" -> Bar Studio > OPEN SETTINGS for the active item, or
-  its own click (Orpheus: left-click the 力 logo); scripted, the call desktop.md
-  lists for it, e.g. `ryoku-shell ipc call orpheus settings ""`
+- "Try a complete different shell" -> Ryoku Settings > Desktop > Bar, a card
+  marked Complete desktop (`ryoku-shell hub open bar`), or
+  `ryostore install subshells <id>` then `ryoku-shell barstyle <id>`
+- "Open the bar settings" -> Ryoku Settings > Desktop > Bar > Open its settings
+  for the active item, or its own click (Orpheus: left-click the 力 logo);
+  scripted, the call desktop.md lists for it, e.g.
+  `ryoku-shell ipc call orpheus settings ""`
 - "Put the bar at the bottom" (QS Bar active) -> QS Bar Settings > Bar, or
   `ryoku-shell ipc call qsbar position bottom`
 - "Move the clock to the right" (QS Bar active) -> QS Bar Settings > Layout, or
@@ -223,12 +227,16 @@ When a request would change the system, in order:
   `ryoku-shell dock pin firefox`
 - "Change my wallpaper" -> press Super+W and pick one (the wallpaper picker);
   scripted: `ryogami wallpaper set <path>`
-- "Remap a key" -> Ryoku Hub > Keybinds (Super+comma, `ryoku-shell hub open keybinds`)
-- "Lock after ten minutes" -> Ryoku Hub > Graphics & Power > Idle
-  (`ryoku-shell hub open gpu`); scripted, `ryoku-power idle set ac.lockSec 600`
+- "Remap a key" -> Ryoku Settings > Windows > Keyboard shortcuts (Super+comma,
+  `ryoku-shell hub open shortcuts`)
+- "Lock after ten minutes" -> Ryoku Settings > System > Power & battery, its
+  idle timers (`ryoku-shell hub open power`); scripted,
+  `ryoku-power idle set ac.lockSec 600`
   (and `battery.lockSec`), then `ryoku-idle apply` re-renders and restarts the
   idle daemon
 - "Add a weather plugin from GitHub" -> `ryoku plugin add <git-url> --bar`
-- "List my installed plugins" -> Ryoku Hub > Add-ons, or `ryoku plugin list`
-- "Update the system" -> Ryoku Hub > Updates, or `ryoku update`
+- "List my installed plugins" -> Ryoku Settings > Apps > Add-ons
+  (`ryoku-shell hub open add-ons`), or `ryoku plugin list`
+- "Update the system" -> Ryoku Settings > Updates
+  (`ryoku-shell hub open updates`), or `ryoku update`
 - "Roll back a bad update" -> `ryoku rollback`

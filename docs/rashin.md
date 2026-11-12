@@ -55,7 +55,7 @@ This page is the contract the implementation follows. The wire reference is
 | Command line | `rashin` | Go, no cgo | Lifecycle, ask from a terminal, index queries, any method |
 | App | `rashin-app` | Go + Gio, Lithic | Ask, Agent, Index, Teams, Settings |
 | Bar | Alt+Space | Quickshell QML | Quick Ask and Agent turns, Stash tools, Web search |
-| Hub page | Ryoku Settings > Rashin | Quickshell QML | On/off switch, status, open the app |
+| Settings page | Ryoku Settings > Apps > Rashin | Quickshell QML | On/off switch, status, open the app |
 | Usage collectors | `ryoku-ai-usage` and friends | sh | Coding-agent usage for the bar's usage pill |
 
 Source layout, one module (`ryoku/rashin/go.mod`, module `ryoku-rashin`):
@@ -88,7 +88,7 @@ ryoku/rashin/
 ```
 
 The bar lives with the shell (`ryoku/shell/quickshell/shell/modules/ask/`), the
-Hub page with the Hub (`ryoku/hub/quickshell/pages/RashinPage.qml`).
+Settings page with Ryoku Settings (`ryoku/hub/quickshell/pages/Rashin.qml`).
 
 ## Lifecycle
 
@@ -101,7 +101,7 @@ Hub page with the Hub (`ryoku/hub/quickshell/pages/RashinPage.qml`).
 | On, idle | socket unit (systemd) | bar | app |
 | On, working | `rashind` plus any agent process | bar | app |
 
-The Hub switch owns the package: **on** installs `ryoku-rashin` when absent,
+The Ryoku Settings switch owns the package: **on** installs `ryoku-rashin` when absent,
 then runs `rashin on`; **off** runs `rashin off`, then removes the package. The
 installer's Rashin question is opt in (default no); yes installs the package and
 turns Rashin on at first login.
@@ -122,8 +122,8 @@ turns Rashin on at first login.
   `rashind` itself, detached (`setsid`, its own process group, stdio to the
   daemon log), then waits up to 3 s for the
   socket. `internal/client` implements this once for every Go client; the bar
-  calls `rashin ensure` when it opens, and the Hub only reads
-  `rashin status --json`, so opening the Hub never starts the daemon.
+  calls `rashin ensure` when it opens, and Ryoku Settings only reads
+  `rashin status --json`, so opening Ryoku Settings never starts the daemon.
 - The daemon takes `$XDG_RUNTIME_DIR/rashin/rashind.lock` (flock) so two
   starts cannot race. With `LISTEN_FDS` it serves the inherited socket;
   otherwise it binds the path itself (removing a stale socket only while it
@@ -479,7 +479,7 @@ The Ask runner (`internal/ask`) is Rashin's own agent loop on the gateway.
   contract and `desktop.md` map from the Ryoku vault (trimmed to budget), what
   Rashin itself is and how it is reached (`internal/brief`), the user's habits
   when enabled, the terminal context when the ask came from a terminal, and
-  the rules: answer GUI first (name the Hub page, shell picker or bar style
+  the rules: answer GUI first (name the Ryoku Settings page, shell picker or bar style
   setting before any command), cite vault wiki pages by name, plain
   sentence-case prose, no em dashes.
 - **Tools** (read-only, at most 8 rounds per turn):

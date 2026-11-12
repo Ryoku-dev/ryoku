@@ -40,7 +40,7 @@ transaction through a libdnf5 actions hook; `--system` still runs the Ryoku and
 Fedora package lanes together, under one pair. On the
 packaged lane, every `ryoku update` reports what the distribution lane is
 holding (`N system package(s) waiting`), `ryoku status` prints it as `system:`,
-and the Hub lists it under SYSTEM PACKAGES.
+and Ryoku Settings > Updates lists it under Waiting system updates.
 
 The desktop package's post-transaction power cutover also makes a direct
 package update safe while graphical sessions are live. One temporary login1
@@ -176,8 +176,8 @@ channel's `status.json`. A build still marked `building` refuses the run and
 prints the Actions run URL. `ryoku update --wait` polls until that build
 finishes, while `ryoku update --force` proceeds without waiting. If the last
 build failed, update warns you and takes the previous good build, because a
-failed publisher never moved the repository. The Hub reads the same state and
-holds its Update button while the channel is building.
+failed publisher never moved the repository. Ryoku Settings reads the same state and
+holds its Update now button while the channel is building.
 
 The channel follows (git fast-forward, or the host's signed package repository),
 then stage2 runs through the just-installed binary. Package hooks first adopt
@@ -194,9 +194,9 @@ and index work follows.
 Each stage publishes to `$XDG_RUNTIME_DIR/ryoku-update.json` (the ordered steps
 and their timings, snapshot capability and its reason, the current label, the
 line the running work last printed, a heartbeat with the run's own watchdog
-verdict, and, on failure, the error and any pre-update snapshot), so the Hub's
-Updates page renders a determinate run and notices a stalled or vanished one.
-The Hub offers one-click rollback only when snapshots are supported and the run
+verdict, and, on failure, the error and any pre-update snapshot), so Ryoku
+Settings > Updates renders a determinate run and notices a stalled or vanished one.
+Ryoku Settings offers one-click rollback only when snapshots are supported and the run
 created one. It drives its own runs (`ryoku update --gui`) without a terminal;
 the terminal shows a curated console and keeps the raw output in
 `~/.local/state/ryoku/update-log.txt` (`ryoku update -v` streams it instead).
@@ -206,7 +206,7 @@ The terminal gives each piece its own progress bar, using progress reported by
 the compiler when it is available or the duration remembered from the last run
 in `~/.local/state/ryoku/deploy-pieces.json`. The first build on a box explains
 that every piece is compiling from scratch and that later runs reuse the build
-caches. The Hub shows the same list beneath the deploy step.
+caches. Ryoku Settings shows the same list beneath the deploy step.
 
 The database refresh happens before the set is read, so a move onto a frozen
 release asks only for packages that release served. Pacman targets are
@@ -419,7 +419,7 @@ restarts the shell. When the shipped file is itself at fault it says so and name
 compositor bump: a plugin is ABI-locked to the exact build and every copy Ryoku
 builds carries an ABI receipt, so after an update it rebuilds each enabled
 plugin whose receipts no longer match the installed headers through the provider
-(`ryoku-hub desktop plugins rebuild --stale`, the Plugins page's builder) before
+(`ryoku-hub desktop plugins rebuild --stale`, the builder behind Ryoku Settings > Windows > Window manager) before
 the next login, and names the toolchain to install when a box has none. Gated on
 `CapPlugins`, so a compositor with no plugin system (niri) is a no-op. See
 `docs/hyprland-plugins.md`.
@@ -688,7 +688,7 @@ copies it into `releases/index.json`, the Stable Release and Release Notes
 workflows title the tag and the GitHub release with it (a line's first release
 opens with its story), and a box shows it in `ryoku version --pretty` (which
 fastfetch's OS line uses), `ryoku status`, `ryoku rollback`, the update
-island (when the channel serves the next line) and the Hub's Updates page.
+island (when the channel serves the next line) and Ryoku Settings > Updates.
 
 ### Discord
 
@@ -762,7 +762,7 @@ quiet. `tests/ryoku-discord.sh` builds every kind of message offline.
   shipped file in place is not lost either: `materialize` notices bytes that
   match neither what it laid last time nor what it ships now, copies them into
   the overlay as a fork, lays the base, and lists the files it kept. Hyprland
-  additions (rules, binds) belong in `hypr/user.lua` or the Hub, which are
+  additions (rules, binds) belong in `hypr/user.lua` or Ryoku Settings, which are
   never re-laid.
 - **Everything a user runs must converge on update, wherever it lives.**
   `materialize` covers `~/.config`; a payload installed elsewhere (the lock
@@ -814,11 +814,11 @@ quiet. `tests/ryoku-discord.sh` builds every kind of message offline.
 - **One master per setting.** Two stores that both claim a value drift, and the
   next sync of either undoes the other: the colour master is `shell.json`
   `theme.theme` (the daemon shadows it into `theme.json` `followWallpaper` on
-  every load), so the Hub's scheme cards and a rice select the theme through
+  every load), so the wallpaper picker's colour scheme cards and a rice select the theme through
   `ryoku-shell theme` instead of writing the shadow. A new setting gets one
   writer; every other surface reads.
 - **Shipped QML must load, not just exist.** One file that cannot instantiate
-  blanks its whole surface (a Hub page, a shell root), and Quickshell reports it
+  blanks its whole surface (a Ryoku Settings page, a shell root), and Quickshell reports it
   only in the instance log. `bin/ryoku-dev-lint-qml` fails on the qmllint
   classes that mean "will not load", resolved against the installed modules;
   the publish gate runs it over the materialized tree.
@@ -835,7 +835,7 @@ quiet. `tests/ryoku-discord.sh` builds every kind of message offline.
   advances after the Testing gate passes; the packaged testing build follows
   its publisher on each `unstable-dev` push.
 - **Displayed English must be wrapped where it is displayed, or it never
-  translates.** `I18n.tr("...")` in QML, a Hub schema `label`/`desc`, `i18n.T`
+  translates.** `I18n.tr("...")` in QML, a Ryoku Settings schema `label`/`detail`, `i18n.T`
   in Go, `log 'fmt %s'` in the installer's shell. The `i18n` workflow extracts
   only what is wrapped, so an unwrapped string ships English in all 35
   languages and no later pass finds it. Keep a sentence whole with `%1`/`%s`

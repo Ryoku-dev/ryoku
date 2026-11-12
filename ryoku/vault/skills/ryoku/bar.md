@@ -24,25 +24,24 @@ widgets exist only while it is active.
 
 GUI first:
 
-- **Ryoku Hub > Subshells** (`ryoku-shell hub open subshells`) lists complete
-  shells.
-- **Ryoku Hub > Bar Studio** (`ryoku-shell hub open bar-studio`) lists subshells
-  and bar styles together.
+- **Ryoku Settings > Desktop > Bar** (`ryoku-shell hub open bar`) lists bar
+  styles and subshells (complete desktops) together under Bar style.
 
-Both galleries show the shipped and installed items from the shells index and
-the catalogue items from Ryostore. A card marked SUBSHELL is a complete shell,
-and ▲ marks an item that uses more resources than the others. Clicking an
-installed card selects it; clicking one that is not installed opens Ryostore,
-where INSTALL fetches it and APPLY wears it. The desktop switches when the user
-leaves the page or closes the Hub, or right away with SWITCH NOW; the shell
-restarts under the reload cover.
+The gallery shows the shipped and installed items from the shells index and
+the catalogue items from Ryostore. A subshell's card says Complete desktop, and
+a card flags an item that uses more resources than the others. Use wears an
+installed item right away (it writes `barStyle`, then runs
+`ryoku-shell shells commit`); Install fetches a store item in place and Update
+refreshes one; Browse RyoStore opens the store for more. The shell restarts
+under the reload cover.
 
-Below the gallery, Bar Studio shows the selected item with OPEN SETTINGS (its own
-settings window, only once it is running), a PARTS FROM ITEMS card for the dock
-designs, launchers and desktop widget sets that installed items provide
-(CHOOSE hands off to the Stage Editor or the App Launcher page), and the
-built-in editors some bar styles use (Sumi's frame and rails, Obi's widgets,
-Nacre's layout).
+Below the gallery, the Bar page has Show the bar on (turn the bar off on any
+display), This style's options (Open its settings for an item with a settings
+window of its own, only while it is in use, and the built-in editors some bar
+styles use: Sumi's frame and edge bar, Obi's widgets, Nacre's layout), and Parts
+it brings (Dock design and Desktop widgets hand off to the Stage Editor, App
+launcher opens Ryoku Settings > Desktop > App launcher), each naming what
+installed items add.
 
 From a terminal:
 
@@ -56,7 +55,7 @@ ryostore remove barstyles qsbar           # remove it; a selection of it falls b
 
 `ryoku-shell barstyle <id>` sets `barStyle` and commits. It does not install, so
 install a store item first. `ryoku-shell shells commit` applies a selection that
-was already written (the Hub runs it when you leave the page) and
+was already written (the Bar page's Use runs it after writing `barStyle`) and
 `ryoku-shell shells sync` rewrites the shells index. Orpheus and Kairos ship with
 Ryoku and cannot be removed.
 
@@ -94,7 +93,7 @@ While Orpheus is active its settings window also opens with
 Kairos keeps a compact clock island at rest and grows it into music, quick
 settings and its own launcher. While it is active its settings open with
 `ryoku-shell ipc call kairos settings`. Its launcher is a part: pick it on Ryoku
-Hub > App Launcher.
+Settings > Desktop > App launcher (`ryoku-shell hub open launcher`).
 
 ## QS Bar
 
@@ -141,10 +140,10 @@ active. The full widget table and every call are in the item's README
 
 Ryoku's own dock is platform: it works under every subshell and bar style,
 unless the active item draws its own. Its GUI is the **Stage Editor**
-(Super+Shift+D, then its Dock section), also reached from Ryoku Hub > Bar
-Studio > OPEN DOCK SETTINGS or straight with
+(Super+Shift+D, then its Dock section), also reached from Ryoku Settings >
+Desktop > Bar > Parts it brings > Dock design or straight with
 `ryoku-shell ipc call desktop editSection dock ""`. Installed items can add dock
-designs; they show under PARTS FROM ITEMS and in the Stage Editor.
+designs; they show under Parts it brings and in the Stage Editor.
 
 ```
 ryoku-shell dock show | dock hide

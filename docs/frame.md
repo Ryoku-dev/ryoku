@@ -78,7 +78,7 @@ change:
 2. Provide a content component with explicit dimensions and open-state gating.
 3. Route command and widget requests through `FrameMenuManager`.
 4. Add body and owner mask regions and verify focus/close behavior.
-5. Expose only supported configuration through Bar Studio.
+5. Expose only supported configuration through Ryoku Settings > Desktop > Bar.
 6. Document the interaction and test normal, replacement, and stale-close
    cases.
 

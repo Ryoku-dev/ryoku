@@ -48,7 +48,7 @@ other editions show the catalogue's unavailable reason.
 Installing a profile places its definition under
 `$XDG_DATA_HOME/ryoku/profiles/<id>/`. It does not create an account or install
 the profile's tools. The next action is **Create account**, which opens Ryoku
-Hub at Global > Users and starts the reviewed account flow. Removing the
+Settings at Accounts > Users and starts the reviewed account flow. Removing the
 definition leaves applied accounts working from their staged system copy. See
 [installable profiles](profiles.md) for the account, isolation and removal
 rules.
@@ -87,7 +87,7 @@ loaded.
   catalogue lists the id there, then deletes the loose copy and the old
   `barstyle-views` copies and `barstyles.json` index.
 
-Two internal verbs serve the shell, the daemon, doctor and the Hub:
+Two internal verbs serve the shell, the daemon, doctor and Ryoku Settings:
 
 - `ryostore internal shells-sync [--prune] [--json]` works out what is in use
   from `barStyle`, `dock.design`, the launcher `variant` and the desktop widget
@@ -129,8 +129,8 @@ unmeasured item simply has no tier.
 - A snapshot built on another machine, or before the store recorded the
   machine, is rebuilt instead of served. A change of tier moves the catalogue
   revision (a new delta inside the same tier does not).
-- Bar Studio and the Subshells page mark heavy items `▲` and standard items
-  `△` in the tile corner (`ryoku/hub/quickshell/barstudio/ResourceTier.js`).
+- The gallery on Ryoku Settings > Desktop > Bar names each item's tier (Light,
+  Standard or Heavy) on its tile (`ryoku/hub/quickshell/components/bar/BarStyles.qml`).
 
 ## Decision: build Ryostore
 
@@ -157,9 +157,9 @@ specimens.
 
 ## Product shape
 
-RyoStore is a standalone Quickshell app in the same family as the Hub, Ryoport,
+RyoStore is a standalone Quickshell app in the same family as Ryoku Settings, Ryoport,
 and Ryowalls. Its ideal window is 1180 by 760, clamped to the available screen.
-Its Hub-family frame keeps a permanent navigation rail, page head, and bottom
+Its frame, from the same family as Ryoku Settings, keeps a permanent navigation rail, page head, and bottom
 action bar. Search, Discover, every category, and Library remain reachable when
 the catalogue grows; the rail scrolls the focused route into view.
 
@@ -478,7 +478,7 @@ Popular, New, and Updated rankings.
   My themes tab for the installed library. Install copies the entry's Noctalia
   palette into `~/.local/share/ryoku/themes/<id>` (install-only); the shell daemon
   converts it to its 34-role palette, so a downloaded scheme appears in the
-  Color-scheme picker (Super+W and the Hub) and applies through `theme.theme`.
+  Color-scheme picker (Super+W, and Ryoku Settings > Appearance > Wallpaper & colours, which opens it) and applies through `theme.theme`.
   Activation stays in that picker, never on install.
 - **Subshells and Bar styles:** fetch the `ryostore-revamped` registries, list
   the shipped subshells as installed, keep installed items the source no longer
@@ -495,20 +495,22 @@ Popular, New, and Updated rankings.
   `sidebar-views`.
 
   Active state is `dock.design` in `shell.json` (picked in Edit desktop -> Dock)
-  or `variant` in `launcher.json` (Settings -> App Launcher). The three overlay
+  or `variant` in `launcher.json` (Ryoku Settings > Desktop > App launcher). The three overlay
   categories use `shell.json` `designs.osd`, `designs.notification`, and
   `designs.sidebar`, all defaulting to the shipped and reserved id `ryoku`.
-  They are picked in Settings -> Overlays, the `overlays` page in the DESKTOP
-  group after Controls; `ryostore settings osds`, `ryostore settings
-  notifications`, and `ryostore settings sidebars` all open it. The page has a
-  Try action for each surface, and its OSD action calls `ryoku-shell ipc call
-  osd preview` to flash the volume OSD.
+  The OSD and notification designs are picked in Ryoku Settings > Desktop >
+  Notifications & pop-ups (the `notifications` page), and the sidebar design in
+  Ryoku Settings > Desktop > Quick settings (the `quick-settings` page);
+  `ryostore settings osds` and `ryostore settings notifications` open the first,
+  `ryostore settings sidebars` the second. The notifications page's **Show a
+  test pop-up** row calls the shell's `osd preview` IPC to flash the volume
+  OSD.
 
   Installing never selects a product. Removing one that is worn moves its
   setting back to the shell default in the same journaled transaction:
   `ryoku` for docks and each overlay category, or the default launcher. A dock's
   **Open in Settings** asks the running shell for the Stage Editor's Dock
-  section rather than the Hub.
+  section rather than Ryoku Settings.
 
   The shell still owns the windows, timing, data, and input for an OSD,
   notification, or sidebar; the installed design only draws. A design that
@@ -520,7 +522,7 @@ Popular, New, and Updated rankings.
   folding-screen sidebar. See `docs/ui-ux.md` and `docs/launcher.md`.
 - **Fastfetch styles:** expose the category and active local state. Until a
   style registry exists, the category renders its honest upcoming plate.
-  Fastfetch editing remains in Settings.
+  Fastfetch editing remains in Ryoku Settings > Apps > Terminal.
 
 Each provider can fail independently. Cached catalogue data and local state
 remain visible while the header marks the degraded source as `SEARCH / OFFLINE`.
@@ -529,20 +531,27 @@ collection.
 
 ## Migration
 
-Store-specific code moves out of the Hub instead of being copied:
+Store-specific code moves out of Ryoku Settings instead of being copied:
 
-- qylock catalogue, cache, and install-only download move to Ryostore; the Hub
-  keeps installed list, preview, selection, and greeter application;
+- qylock catalogue, cache, and install-only download move to Ryostore; Ryoku
+  Settings keeps installed list, preview, selection, and greeter application;
 - plugin and bundle catalogue, cache, and install paths move to Ryostore;
 - rice catalogue and installation move to Ryostore;
-- the Hub Store page and remote browse modes are removed;
-- Add-ons keeps plugin management and gains installed bundle status and removal;
-- Lockscreen, Appearance, Add-ons, Bar Studio, and Fastfetch gain one
-  `BROWSE RYOSTORE` route where appropriate;
+- the old Settings Store page and remote browse modes are removed;
+- Apps > Add-ons keeps plugin management and gains installed bundle status and removal;
+- Appearance > Lock screen, Apps > Add-ons, Desktop > Bar, and Apps > Terminal
+  gain one `BROWSE RYOSTORE` route where appropriate;
 - existing callers of moved commands migrate to `/usr/bin/ryostore`, with no
   compatibility shim or duplicated command left in `ryoku-hub`;
-- `ryostore settings` hands the route to `ryoku-shell hub open <section>`, which
-  starts or focuses Ryoku Settings on the correct management section.
+- `ryostore settings` hands the route to `ryoku-shell hub open <page-id>`, which
+  starts or focuses Ryoku Settings on the matching page: a plugin or bundle opens
+  its own entry on `add-ons` (`add-ons/add-on:<id>`, `add-ons/bundle:<id>`),
+  barstyles and subshells open `bar`, launchers open `launcher`, osds and
+  notifications open `notifications`, sidebars open the design row of
+  `quick-settings` (`quick-settings/panel-design`), fastfetch opens `terminal`,
+  and profiles open `users <id>`; docks open the
+  Stage Editor's Dock section, and rices open the wallpaper picker's Rices
+  collection (`ryogami wallpaper collection rices`).
 
 This is a clean cutover. Ryostore is the only browse surface after the migration.
 
@@ -582,7 +591,7 @@ legibility, fixed loading geometry, uncropped screenshot aspect, crisp pixels at
 the output scale, and restrained detail motion. A visible window alone is not
 acceptance.
 
-Delivery is complete when the Hub contains no duplicate remote store, all moved
+Delivery is complete when Ryoku Settings contains no duplicate remote store, all moved
 callers use Ryostore, the existing app packaging loop ships the Quickshell tree,
 binary, desktop entry, and icon, focused checks pass, and the relevant app,
-Hub, structure, and delivery documentation reflects the cutover.
+Ryoku Settings, structure, and delivery documentation reflects the cutover.

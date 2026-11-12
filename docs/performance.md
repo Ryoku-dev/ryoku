@@ -238,7 +238,7 @@ The QML stays presentation; the hot loops moved into the `Ryoku.Blobs` plugin
 - `PlaybackClock` carries the music position between MPRIS polls and finds the
   lyric line by binary search, and sleeps while nothing shows it;
 - `Ryoku.Text` holds the translation catalog (`TextCatalog`), the launcher and
-  clipboard ranking (`FuzzyRanker`) and the Hub's settings search
+  clipboard ranking (`FuzzyRanker`) and Ryoku Settings' search
   (`HubSearchIndex`), each matching the JavaScript it replaced result for
   result. Measured at rest these moved little memory (a Spanish shell was within
   3 MB either way); what they remove is per-keystroke and per-tick JavaScript.

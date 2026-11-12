@@ -10,7 +10,7 @@ If you only read one thing, read **"Who does what"** below.
 
 This is about **shell** plugins, widgets that run in Quickshell. A **Hyprland
 compositor** plugin (a `.so` the compositor loads: title bars, cursor motion,
-key sounds) is a different thing, managed on Settings > Plugins; see
+key sounds) is a different thing, managed on Ryoku Settings > Windows > Window manager; see
 `docs/hyprland-plugins.md`.
 
 ---
@@ -140,8 +140,8 @@ bolted-on instead of native.
 
 ## The four hosts a user can choose
 
-When a user enables your plugin they pick **one** of these in Ryoku Settings →
-Plugins. Your *same* `content/Widget.qml` is used for all four - Ryoku just
+When a user enables your plugin they pick **one** of these in Ryoku Settings >
+Apps > Add-ons. Your *same* `content/Widget.qml` is used for all four - Ryoku just
 renders it differently.
 
 ### 1. Desktop widget - a tile on the wallpaper
@@ -541,7 +541,7 @@ value for it, and `undefined` must not become your poll interval.
   and reads no `key` field from your manifest; do not ship one, and do not tell
   users a chord opens your plugin. A frame popout opens on hover at its edge, or
   through `ryoku-shell plugin <id>`, which the user can bind to whatever chord
-  they like in Settings → Keybinds. The shipped bind table stays Ryoku's.
+  they like in Ryoku Settings > Windows > Keyboard shortcuts. The shipped bind table stays Ryoku's.
 - `files` - any extra files the plugin ships beyond its entry points and
   `commands` (helper QML a view imports, images, data). Install fetches the entry
   points, `commands`, `README.md`, and everything listed here; a file you forget
@@ -593,9 +593,9 @@ unsandboxed with your permissions. R1..R11 are what keep it honest.
   installed through Ryostore's transaction so the shell's `discover.sh` loads
   it), or install it from Ryostore itself. Never hand-copy into
   `~/.local/share/ryoku/plugins/`: a folder without a receipt is not loaded.
-- **Enable & place**: Ryoku Settings → Plugins. The user toggles it on, picks a
+- **Enable & place**: Ryoku Settings > Apps > Add-ons. The user toggles it on, picks a
   host, and sets the host placement: edge for a frame popout, or order in
-  Controls > Extensions for a sidebar card. Placement saves to
+  Quick settings > Extensions for a sidebar card. Placement saves to
   `~/.config/ryoku/plugins.json`; the shell watches that file and retunes live -
   no restart.
 - **Desktop widgets** are then moved/resized/hidden directly on the wallpaper

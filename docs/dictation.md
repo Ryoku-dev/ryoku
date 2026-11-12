@@ -1,7 +1,7 @@
 # Dictation
 
-Voice typing runs on [Voxtype](https://github.com/peteonrails/voxtype). The Hub's
-Dictation page (`ryoku/hub/quickshell/pages/DictationPage.qml`, backed by
+Voice typing runs on [Voxtype](https://github.com/peteonrails/voxtype). Ryoku
+Settings > Apps > Voice typing (`ryoku/hub/quickshell/pages/VoiceTyping.qml`, backed by
 `ryoku-hub voxtype`) switches it on, picks the engine and model, downloads or
 removes models and manages the user service. `Super + grave` starts and stops
 dictation.
@@ -68,6 +68,6 @@ NVIDIA Parakeet TDT 0.6B v3 (CC-BY-4.0). The pinned revisions and checksum are i
 
 From `ryoku/hub/backend`: `go test ./...` and
 `python -m unittest discover -s assets/redux -p '*_test.py'`. The offscreen
-cancellation test drives the real page: build the Hub, then run
+cancellation test drives the real page: build `ryoku-hub`, then run
 `RYOKU_TEST_HUB_BIN=/absolute/path/to/ryoku-hub python tests/dictation-cancel.py`
 from the repository root.

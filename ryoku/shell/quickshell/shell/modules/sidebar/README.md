@@ -1,6 +1,6 @@
 # Sidebar module
 
-Controls is the compact panel shared by every bar style and compositor.
+Quick settings is the compact panel shared by every bar style and compositor.
 
 - `Sidebar.qml` owns placement, the content window, and click-away input.
 - `SidebarFrame.qml` and `SidebarChrome.qml` provide the shared surface and header.
@@ -18,20 +18,20 @@ Controls is the compact panel shared by every bar style and compositor.
   built-in detail pages.
 - `ExtensionsBoard.qml` uses `SidebarCardHost.qml` for installed plugins;
   `SidebarPlugins.qml` discovers and orders them while the panel is open.
-- `shell/services/SidebarState.qml` owns per-display Controls state and routing,
+- `shell/services/SidebarState.qml` owns per-display Quick settings state and routing,
   normalises its saved layout, position, and edge gap, and keeps its motion
   preference.
 
 Capture is a separate surface under `shell/modules/capture/`; Ask and its desktop
-bubble are under `shell/modules/ask/`. Do not route either back through Controls.
+bubble are under `shell/modules/ask/`. Do not route either back through Quick settings.
 
 The root shell loads surfaces asynchronously and unloads them after closing.
 Gate live work on the owning surface's active state. `shell.json` `controls`
 stores section order, section visibility, and hidden sub-elements. Keep its
 shipped defaults aligned with `SidebarState.qml`, the daemon settings contract,
-and the Hub Controls schema. A hidden block must not be loaded or keep a probe,
+and the Quick settings page's schema in Ryoku Settings (`ryoku/hub/quickshell/schema/quick-settings.js`). A hidden block must not be loaded or keep a probe,
 timer, file watch, or animation alive.
 
 See [`docs/sidebars.md`](../../../../../../docs/sidebars.md) for behavior and the
 [`sidebarCard` contract](../../../../../../docs/plugins.md#4-sidebar-card---lives-in-a-global-sidebar)
-for contributor plugins. All sidebar cards appear under Controls > Extensions.
+for contributor plugins. All sidebar cards appear under Quick settings > Extensions.

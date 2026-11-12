@@ -1,8 +1,8 @@
 # system/extras/
 
 The extras subsystem: the helpers that install, remove, and report the optional
-**bundles** the Ryoku Hub's Extras section offers. They ship to `/usr/bin` with
-`ryoku-desktop` and are driven by the Hub; nothing here runs at boot.
+**bundles** offered under Ryoku Settings > Apps > Add-ons. They ship to `/usr/bin` with
+`ryoku-desktop` and are driven by Ryoku Settings; nothing here runs at boot.
 
 A bundle is a curated set of tools (packages, small installer scripts, and shell
 plugins) defined in the `ryostore` catalogue

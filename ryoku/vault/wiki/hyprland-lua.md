@@ -25,10 +25,10 @@ ryoku owner ~/.config/hypr/user.lua
 ```
 
 `~/.config/hypr/user.lua` is seeded once, loaded last, and then belongs to you.
-It wins over the shipped modules and generated Hub settings. Use it only when
-Ryoku Hub cannot express the setting.
+It wins over the shipped modules and generated Ryoku Settings values. Use it only when
+Ryoku Settings cannot express the setting.
 
-Generated `settings.lua` and `rebinds.lua` belong to the provider and Hub. Do not
+Generated `settings.lua` and `rebinds.lua` belong to the provider and Ryoku Settings. Do not
 edit them. Hardware files such as `monitors.lua`, `gpu.lua`, and `keyboard.lua`
 are seeds or helper output; follow `ryoku owner` for each one.
 
@@ -40,7 +40,7 @@ Ryoku's modules use the `hl` Lua API. This binds Super+Shift+T to Kitty:
 hl.bind("SUPER + SHIFT + T", hl.dsp.exec_cmd("kitty"))
 ```
 
-Put that line in `~/.config/hypr/user.lua`. Prefer the Keybinds page in Ryoku Hub
+Put that line in `~/.config/hypr/user.lua`. Prefer Ryoku Settings > Windows > Keyboard shortcuts
 for ordinary remaps; the raw file is the escape hatch for an action the editor
 does not offer.
 

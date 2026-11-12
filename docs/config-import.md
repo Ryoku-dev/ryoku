@@ -27,7 +27,7 @@ edits the shipped base.
 
 | Tier | What it is | Where | Who edits |
 |---|---|---|---|
-| Desktop settings | Neutral and provider-owned settings | `~/.config/ryoku/desktop.json` (`desktop.*` and `wm.<provider>.*`) | Hub or hand edit |
+| Desktop settings | Neutral and provider-owned settings | `~/.config/ryoku/desktop.json` (`desktop.*` and `wm.<provider>.*`) | Ryoku Settings or hand edit |
 | Raw overrides | Hand-owned config loaded last | the provider's advertised user include, plus app user includes | you, in place |
 | Shipped base | Ryoku defaults, replaced every update | provider and packaged app config trees | nobody |
 
@@ -40,7 +40,7 @@ for forking a whole shipped file; import does not use it.
 Goals:
 - Failsafe: nothing shipped is destroyed; every import is backed up and undoable.
 - Drop-and-go: folder, drag-drop, an existing `~/.config`, or a git URL all work.
-- Resolve collisions in place: keybind overlaps are shown and fixed in the Hub.
+- Resolve collisions in place: keybind overlaps are shown and fixed in Ryoku Settings.
 - Desktop binds, rules, input, appearance and other supported values become
   first-class Ryoku settings rather than opaque hand config.
 - Provider-native values remain in that provider's `wm.*` namespace and are
@@ -56,7 +56,7 @@ Non-goals (v1):
 
 ## User flow
 
-Hub, Advanced on, Tools group, "Import config". A wizard:
+Ryoku Settings > System > Backup & import (`ryoku-shell hub open backup-import`). A wizard:
 
 1. Source. Four affordances, no dead ends: pick a folder, drop files or a
    folder, paste a git URL (cloned to a temp dir), or accept the banner shown
@@ -71,7 +71,7 @@ Hub, Advanced on, Tools group, "Import config". A wizard:
    why it could not be typed.
 4. Preview. The exact change set: files written, binds ingested into the GUI (N),
    unbinds and rebinds added (M), and the backup location. Apply or Cancel.
-5. Done. Peak-end success ("Your keybinds are in the Keybinds page; kitty and
+5. Done. Peak-end success ("Your keybinds are in Keyboard shortcuts; kitty and
    fish are live"), with [Reload now] and [Undo this import].
 
 ## Scope (v1)
@@ -143,9 +143,9 @@ One engine, provider-owned syntax, no duplicated parser:
   and applies only when the imported provider is the live provider.
 - `ryoku-hub import undo [<ts>]` restores the manifest byte for byte.
 - A provider exposes `import metadata` and `import scan <source>`. The niri
-  implementation lives under `ryoku/wm/niri`; no Hub code parses KDL or knows
+  implementation lives under `ryoku/wm/niri`; no Ryoku Settings code parses KDL or knows
   native action names.
-- The Hub page consumes the metadata and scan JSON. Provider ids are opaque in
+- The Backup & import page consumes the metadata and scan JSON. Provider ids are opaque in
   QML, so adding another importer needs no page branch.
 
 ## Data contracts
@@ -156,7 +156,7 @@ One engine, provider-owned syntax, no duplicated parser:
      conflicts: [ { combo, norm, ryoku: { action, desc }, mine: { raw, desc }, kind } ],
      losses: [ { raw, reason } ] } ] }`
   where conflict `kind` is `shipped` or `duplicate`.
-- decisions (Hub to `apply`, JSON):
+- decisions (Ryoku Settings to `apply`, JSON):
   `{ source, apps: { <id>: { include: bool } },
      conflicts: { <norm>: "ryoku" | "mine" | { remap: "<combo>" } } }`
 - backup manifest (`~/.config/ryoku/import-backups/<ts>/manifest.json`):
@@ -169,12 +169,12 @@ always copy every file that will be touched into
 `~/.config/ryoku/import-backups/<ts>/` with the manifest above. Apply writes to
 temporary files, validates format-specific generated content, then swaps. A live
 target provider regenerates its config only after the store write succeeds. Any
-failure rolls back from the backup. `ryoku import --undo` and the Hub's Undo
-button restore the manifest byte for byte.
+failure rolls back from the backup. `ryoku import --undo` and the Undo button on
+Backup & import restore the manifest byte for byte.
 
 ## Delivery
 
-`ryoku-hub`, `ryoku`, the Hub QML and provider binaries already ship through the
+`ryoku-hub`, `ryoku`, the Ryoku Settings QML and provider binaries already ship through the
 desktop packages, so this reaches users through `ryoku update` with no new
 seeded config. The backup directory is created on demand. No `shell.json` key is
 added or removed, so no doctor reconciler is needed.
@@ -184,9 +184,9 @@ added or removed, so no doctor reconciler is needed.
 - Provider tests parse a realistic KDL tree with includes, raw strings, comments,
   input, layout, animations, binds, rules, outputs and unknown nodes, then assert
   the exact neutral patch, conflicts, losses and preserved KDL.
-- Hub tests scan a provider result, apply it in an isolated config home, and
+- Backend tests scan a provider result, apply it in an isolated config home, and
   assert that undo restores every touched byte.
-- Smoke proof uses the same fixture through the built provider and Hub binaries,
+- Smoke proof uses the same fixture through the built provider and `ryoku-hub` binaries,
   then validates the generated niri tree with `niri validate`.
 
 ## Future (post v1)

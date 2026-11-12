@@ -5,7 +5,7 @@
 1. Ryoku is an Arch Linux desktop built as one coherent system.
 2. It runs on Hyprland or niri; `ryoku wm status` tells you which is live.
 3. Quickshell draws the bar, dock, launcher, desktop widgets, and overlays.
-4. Ryoku Hub is the graphical home for system, shell, and compositor settings.
+4. Ryoku Settings is the graphical home for system, shell, and compositor settings.
 5. The `ryoku` command updates, checks, repairs, and rolls back the desktop.
 6. Provider commands keep shared desktop code independent of either compositor.
 7. Hyprland config is Lua, while niri config is KDL.
@@ -22,7 +22,7 @@ by `ryoku wm status`. Continue with [Quickshell and
 QML](quickshell-qml.md), [Go tools](go-tools.md), or [Rashin](rashin.md) when you
 want to build or use those parts.
 
-The one rule is simple: configure through Ryoku Hub or the owning command first.
+The one rule is simple: configure through Ryoku Settings or the owning command first.
 When a file really needs an edit, run `ryoku owner <path>` and use the path it
 prints. Your sparse overrides live under `~/.config/ryoku/user_edits/`, mirror
 `~/.config`, and survive updates. Shipped and generated files are reference

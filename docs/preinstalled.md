@@ -49,7 +49,7 @@ QML running against a stale plugin.
 | Package | What it is |
 |---|---|
 | `ryoku-shell` | The Quickshell desktop: bar, pill, launcher, overview, wallpaper, visualizer, ryoshot capture, and the lock screen |
-| `ryoku-hub` | Ryoku Settings, the control center (Appearance, Animations, Displays, Connections, GPU, Keybinds, and the rest) |
+| `ryoku-hub` | Ryoku Settings, the control center (Appearance, Desktop, Windows, Devices, Connections, Apps, Accounts, System, and Updates) |
 | `ryoku` | The `ryoku` CLI: `update`, `doctor`, `materialize`, rollback, snapshots |
 | `ryoku-rashin` | Optional Rashin package: read-only Ask on free models, external coding harnesses in Agent, project and system Index, the Lithic app and the bar client. It is opt in, removable, and uses zero resources while off or absent |
 | `ryoku-blobs` | The shared `Ryoku.Blobs`, `Ryoku.Spatial3D`, `Ryoku.Bus` and `Ryoku.Text` QML plugins |
@@ -59,7 +59,7 @@ QML running against a stale plugin.
 | `ryostore` | RyoStore: the catalogue of rices, bundles, subshells and bar styles |
 | `ryotunes` | Ryotunes, the music player. It is selected by default in the installer and remains optional |
 | `ryoport` | Ryoport, the fleet dashboard for virtual machines, SSH servers, and remote consoles. It is selected by default in the installer and remains optional |
-| `ryoku-hypr-plugins`, `hyprglass`, `imgborders`, `hypr-dynamic-cursors` | Hyprland compositor plugins the Hub can toggle |
+| `ryoku-hypr-plugins`, `hyprglass`, `imgborders`, `hypr-dynamic-cursors` | Hyprland compositor plugins Ryoku Settings can toggle |
 | `hyprland-preview-share-picker` | The screen-share source chooser the portal calls by name |
 | `ryoku-cursors`, `ryoku-cursor-material` | The Bibata cursor set (the default pointer) and the optional Material variant |
 | `otf-space-grotesk` | Space Grotesk, the UI sans |
@@ -253,7 +253,7 @@ default.
 The CachyOS ISO boots a CachyOS live system and installs a CachyOS target with
 the Ryoku desktop on top. The generic `[cachyos]` repository is above Arch's
 repositories, CachyOS's branding script sets `/etc/os-release` during setup, and
-`ryoku-base-os` and the Hub report CachyOS from the first boot.
+`ryoku-base-os` and Ryoku Settings report CachyOS from the first boot.
 
 | Package | Role |
 |---|---|
@@ -308,7 +308,7 @@ repositories instead.
 | `nvibrant-bin` | NVIDIA digital vibrance for the pill's saturation fader |
 | `game-devices-udev` | udev rules and battery reporting for DualSense and Switch Pro pads |
 | `xpadneo-dkms` | The Xbox One/Series wireless controller driver |
-| `phinger-cursors`, `catppuccin-cursors-mocha`, `apple_cursor` | Extra cursor themes the Hub cursor picker offers |
+| `phinger-cursors`, `catppuccin-cursors-mocha`, `apple_cursor` | Extra cursor themes the cursor picker in Ryoku Settings > Appearance > Fonts & icons offers |
 | `ttf-fraunces-variable` | Fraunces, the editorial serif in the brand type stack |
 
 ## Fonts

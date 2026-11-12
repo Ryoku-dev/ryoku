@@ -61,10 +61,10 @@ changes.
 
 ## Switching
 
-- Ryoku Hub > **Bar Studio** lists subshells and bar styles from `shells.json`
-  and the catalogue. Hub > **Subshells** is the same page showing subshells only.
-  Picking a card stages `barStyle`. The switch is committed when you leave the
-  page or press **SWITCH NOW**.
+- Ryoku Settings > Desktop > **Bar** (`ryoku-shell hub open bar`) lists
+  subshells and bar styles from `shells.json` and the catalogue in one gallery.
+  **Use** on an installed card sets `barStyle` and commits the switch at once;
+  **Install** fetches one that is only in RyoStore.
 - RyoStore's **APPLY** on an installed item does the same.
 - From a terminal, `ryoku-shell barstyle <id>` sets `barStyle` and commits.
 
@@ -126,7 +126,7 @@ Ryoku one desktop canvas through `Shells.desktopCanvas`, which the Desktop hosts
 below windows on that output.
 
 Desktop-wide shortcuts stay Ryoku's under every item: Super+Space opens the
-launcher chosen on the App Launcher page, Super+V clipboard history,
+launcher chosen on Ryoku Settings > Desktop > App launcher, Super+V clipboard history,
 Super+comma Ryoku Settings, Super+Escape quick settings, Alt+Space Rashin Ask.
 
 ## Contributions
@@ -140,8 +140,8 @@ item is active. Selecting one puts the item in use.
 - `[[provides.desktopWidgets]]`, a roster of widget faces placed with Ryoku's
   desktop widget keys in `widgets.json`.
 
-Bar Studio's **PARTS FROM ITEMS** card lists them. Its CHOOSE button opens the
-Stage Editor's Dock or Widgets section, or the Hub's App Launcher page.
+The Bar page's **Parts it brings** section lists them. Its rows open the
+Stage Editor's Dock or Widgets section, or Ryoku Settings > Desktop > App launcher.
 
 ## Lifecycle and runtime
 
@@ -165,16 +165,16 @@ they are updated from upstream.
 ## Settings
 
 Item settings data stays in `Config.qml` namespaces (`orpheus`, `kairos`,
-`qsbar`, `python`, `inir`); they hold data only. `[shell.settings]` tells the Hub
-how to open an item's own settings:
+`qsbar`, `python`, `inir`); they hold data only. `[shell.settings]` tells Ryoku
+Settings how to open an item's own settings:
 
-- `ipc`, `call`, `args`: Bar Studio's **ACTIVE ITEM** card has **OPEN
-  SETTINGS**, which runs `ryoku-shell ipc call <ipc> <call> <args...>`. Inactive
-  items are not loaded and their IPC targets do not exist, so for a selected
-  item that is not running yet the card offers **SWITCH NOW** instead.
-- `hubEditor`: one of the built-in Hub editors `frame-rails` (Sumi's frame and
+- `ipc`, `call`, `args`: on the Bar page the card of the item in use has a
+  **Settings** action, which runs `ryoku-shell ipc call <ipc> <call> <args...>`.
+  Inactive items are not loaded and their IPC targets do not exist, so the
+  action shows only on the item in use.
+- `hubEditor`: one of the built-in Ryoku Settings editors `frame-rails` (Sumi's frame and
   rails, see `docs/bar.md`), `nacre` or `obi`. They edit `shell.json` data and
-  work whether the item is active or not.
+  show under **This style's options** while the item is in use.
 
 `ryoku-shell bar ...` is gone. QS Bar's settings API is its own IPC target
 `qsbar`, present only while QS Bar is active; its README in the catalogue lists
@@ -216,7 +216,7 @@ cover media, weather, notifications grouped by app, tray menus, power, system,
 and session. Right-click empty bar space to open Controls.
 
 Left-click the 力 logo to open settings, and right-click it to open the
-launcher. Bar Studio's OPEN SETTINGS button opens them too, and
+launcher. The **Settings** action on its card in Ryoku Settings > Desktop > Bar opens them too, and
 `ryoku-shell ipc call orpheus settings <page|close>` does the same from a
 keybind or script; pass `""` to open the default Bar page. The settings pages
 are Bar, Layout, Modules, Sound, and About. A choice applies at once and is
@@ -231,7 +231,7 @@ activity; coding-agent limits; a paired phone; VPN (Tailscale, with its exit
 node picker, LAN access and run-as-exit-node switches, and NetworkManager VPN
 and WireGuard profiles, each with its own switch in the VPN card, which also
 shows the public IP); updates; tray; notifications; controls; battery; clock; shortcuts for the
-launcher, Ask, overview, clipboard, screenshot, wallpaper, and Ryoku Hub; and
+launcher, Ask, overview, clipboard, screenshot, wallpaper, and Ryoku Settings; and
 power. Auto-hide can be `off`, `smart`, or `always`; smart hides the bar while
 the current workspace has windows, and touching the top edge brings it back. AI
 usage, Phone and VPN are available in the Layout editor but stay out of the

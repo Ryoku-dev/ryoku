@@ -104,13 +104,13 @@ path, starting from a stock Void installation.
   <tr>
     <td width="33%"><img src="docs/media/launcher.webp" alt="The launcher" width="100%" /><br /><sub><b>Launcher.</b> At rest a clock, the weather and a plate of art; type, and apps, commands, files, packages, radio and the calculator come out of one search.</sub></td>
     <td width="33%"><img src="docs/media/controls.webp" alt="The control sidebar" width="100%" /><br /><sub><b>Control sidebar.</b> Session, connect tiles, sound and brightness, media, calendar and the power profile on one rail.</sub></td>
-    <td width="33%"><img src="docs/media/profile.webp" alt="The Ryoku Hub" width="100%" /><br /><sub><b>Ryoku Hub.</b> Every setting, a live dossier of the machine, the store, and the desktop switch.</sub></td>
+    <td width="33%"><img src="docs/media/profile.webp" alt="Ryoku Settings" width="100%" /><br /><sub><b>Ryoku Settings.</b> Every setting, a live dossier of the machine, the store, and the desktop switch.</sub></td>
   </tr>
 </table>
 
 On first login a short welcome walks you through the handful of keybinds that
 open almost everything and lets you pick the interface scale, the bar and the
-desktop widgets. Everything else lives in the Ryoku Hub (`Super + ,`). The bar
+desktop widgets. Everything else lives in Ryoku Settings (`Super + ,`). The bar
 is a choice, not a given: Ryoku ships two subshells, **Orpheus** (a liquid top
 bar, and the fallback) and **Kairos** (one island carrying the clock, worn by
 the default rice), and RyoStore

@@ -439,11 +439,11 @@ domain on every update and heals a box that has drifted back to `00`.
   infer your country, set it by hand with `ryoku-wifi-regdom set <CC>` (for
   example `ryoku-wifi-regdom set US`); `ryoku-wifi-regdom status` prints the
   domain in force.
-- **Pick the band.** The shell's Wi-Fi list and the Hub's Connections page now
+- **Pick the band.** The shell's Wi-Fi list and Ryoku Settings > Connections > Wi-Fi & internet now
   show each band of a dual-band network as its own entry. Pick the 5 GHz one and
   the saved profile is locked to that band, so it never drops back to 2.4 GHz.
 - **WPA3 networks.** The shell now joins WPA3-SAE networks with the right key
-  management. If one still refuses, open Ryoku Settings -> Connections and switch
+  management. If one still refuses, open Ryoku Settings > Connections > Wi-Fi & internet and switch
   the Wi-Fi backend from iwd to wpa_supplicant, which handles a few WPA3 edge
   cases iwd does not.
 

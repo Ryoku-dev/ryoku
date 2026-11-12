@@ -68,7 +68,7 @@ videos and Wallpaper Engine scenes apply directly.
 ## Image optimisation
 
 New PNG, JPEG and GIF wallpapers are re-encoded to WebP when they land in the
-library (**Settings > Library > Images & recovery > Auto-optimise new images**,
+library (**Settings > Wallpaper > Library > Images and recovery > Auto-optimise new images**,
 on by default). The original goes to Ryogami's trash for the configured number
 of days. When the file on screen gets replaced, Ryogami moves its own state to
 the WebP copy: display and workspace assignments, library entries, playlists
@@ -91,7 +91,7 @@ Steamworks helper, because it would mean redistributing Valve's library.
 Ryogami looks for Wallpaper Engine in every library Steam lists in
 `libraryfolders.vdf`, so an install on a second drive or under Flatpak Steam
 shows its Workshop scenes, and scenes render with that install's `assets`
-folder. **Workshop directory** and **WE assets directory** in Settings > Sources
+folder. **Workshop directory** and **WE assets directory** in Settings > Wallpaper > Sources
 override both. Scenes already on disk show up in the Workshop tab as soon as
 the first scan after a fresh install finishes.
 
@@ -100,6 +100,34 @@ Searching never holds up the picker. The daemon answers slow requests
 workers, a newer search from the same picker cancels the older one, a search
 gives up after 20 seconds, and download progress is sent at most eight times a
 second.
+
+## Settings
+
+The picker's settings have five tabs: **Wallpaper** (Library, Sources,
+Playback and displays, Transitions, Automation), **Colours** (Source, Scheme,
+Apps and outputs, Palette bridge, Desktop accents, Designer), **Lighting**,
+**Picker** (Picker, Filter and search, Layout and position, Motion, Picker
+keys) and **System** (Performance, Integrations). The interface language is
+Ryoku Settings' (Time and language); the System tab links there.
+
+```text
+ryogami wallpaper settings [TAB] [SECTION] [CONTROL]
+ryogami wallpaper collection wallpapers|themes|rices|workshop
+ryogami settings get KEY
+ryogami settings set KEY VALUE
+ryogami settings reset KEY
+```
+
+`settings` opens the folio on a tab, section and control by key, for example
+`ryogami wallpaper settings colours scheme theme.mode`; `-` skips a slot, and a
+control alone finds its own section. The tab keys from before the regroup
+(`theme`, `playback`, `performance`, `language` and the rest) still land on the
+section their settings moved to. `collection` opens the picker on one
+collection. `ryogami settings` reads or writes one setting through the daemon:
+the value is JSON when it parses and plain text otherwise. The daemon is the
+one writer of `matugen.json` (scheme, light or dark, contrast, leading colour,
+the app roster) and of the theme keys in `theme.json` (`themeApps`,
+`gtkTheme`, `gnomeAccent`), so other tools change them through this verb.
 
 ## Lighting
 

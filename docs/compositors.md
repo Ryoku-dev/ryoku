@@ -30,8 +30,8 @@ A provider is one binary, `ryoku-wm-<name>`, shipped by
 |`serve`|`act` and `caps` as JSON lines on stdin, one reply line each, until EOF|
 |`apply <store>`|write the compositor's config from the neutral settings store|
 |`defaults`|the provider's baseline subtree of that store|
-|`schema`|the settings rows only this compositor has, for the Hub to render|
-|`binds <store>`|the keybinds only this compositor has, resolved against the store, for Kit's Keys tab|
+|`schema`|the settings rows only this compositor has, for Ryoku Settings to render|
+|`binds [store]`|the effective keybind legend resolved against the store (the saved `~/.config/ryoku/desktop.json` when none is given, as the cheatsheet and the Hub ask), for the cheatsheet, the Hub and Kit's Keys tab|
 |`outputs <layout>`|apply a display layout|
 |`session`|the `wayland-session` desktop entry|
 |`environment <pid>`|export the provider's opaque handle from one verified session process|
@@ -79,20 +79,21 @@ windows, outputs and invalid dimensions are errors rather than a fallback to the
 focused window.
 
 `apply --preview` writes nothing and reports what it could not honour. That
-report is what `ryoku wm use` and the Hub show before a switch, so the cost of
-moving is known in advance rather than discovered afterwards. The Hub also
-renders it as the "what this compositor cannot do" list, so a setting that is
-hidden reads as explained rather than missing.
+report is what `ryoku wm use` and Ryoku Settings show before a switch, so the cost of
+moving is known in advance rather than discovered afterwards. Ryoku Settings also
+renders it as the "What this one cannot do" section of Windows > Window manager,
+so a setting that is hidden reads as explained rather than missing.
 
-`schema` is what keeps the Hub free of compositor vocabulary. A provider
-declares its own exclusive rows and the Hub renders them through the one
-renderer every settings page uses, so compositors cannot drift apart
-visually and adding another needs no Hub edit. The `ctl` field is the shared
+`schema` is what keeps Ryoku Settings free of compositor vocabulary. A provider
+declares its own exclusive rows, each tagged with a page, tab and group, and
+`ryoku/hub/quickshell/registry/provider-map.js` places each row on the page and
+section it belongs to, drawn through the one renderer every settings page uses,
+so compositors cannot drift apart visually. The `ctl` field is the shared
 control vocabulary; a row whose control needs a bespoke editor names the page
 that draws it.
 
 `binds` is `schema`'s keybind twin: the provider declares the chords only it
-offers and the Hub folds them into a section in Kit's Keys tab titled with the
+offers and Ryoku folds them into a section in Kit's Keys tab titled with the
 compositor's name, so a scrolling-tiler action niri has and Hyprland lacks is
 listed without the shell naming either. It resolves the store the way `apply`
 does, so a chord a user displaced is already gone from the list. A compositor
@@ -117,7 +118,7 @@ keyboard and reads with screencopy.
 
 A capability is a promise the provider keeps in `act` or `apply`. Claiming one
 it cannot perform is worse than omitting it: the desktop would offer a control
-that does nothing. The Hub gates settings rows on these, so a row is never shown
+that does nothing. Ryoku Settings gates settings rows on these, so a row is never shown
 with nothing behind it.
 
 Shared by all three:
@@ -176,7 +177,7 @@ that change what a user sees:
   `ryoku-shell <verb>` instead. Every shell surface remains reachable.
 - **`liveConfigEval`** and **`configReload`** are absent on niri and wayfire:
   both configs are file-only, watched by the compositor itself (niri on save,
-  wayfire on change). The Hub applies on save rather than previewing live.
+  wayfire on change). Ryoku Settings applies on save rather than previewing live.
 - **`persistentScreenCapture`** is absent on niri because any whole-screen
   capture there can crash the shell, a one-shot one included. niri has no
   ext-image-copy-capture yet, so Quickshell captures through wlr-screencopy and
@@ -347,8 +348,8 @@ Wayfire's core does not round window content or draw shadows, and its stock
 `decoration` plugin frames only server-decorated views. Ryoku therefore draws
 the rounded clip, active or inactive border ring, and drop shadow with its own
 `ryoku-decor` plugin. The provider reads the same `desktop.appearance.*` values
-as the other providers and writes them to `[ryoku-decor]`; changes from the
-Window Manager page apply on the next config reload. The stock plugin remains
+as the other providers and writes them to `[ryoku-decor]`; changes from
+Ryoku Settings > Appearance > Window style apply on the next config reload. The stock plugin remains
 loaded for title bars and buttons, with its border width forced to zero so it
 does not draw a second ring.
 
@@ -379,10 +380,10 @@ A catalogue bind can also name the program it launches (`Needs`). Ask needs
 every provider registers no chord and keeps a legend row that names what is
 missing, so removing an optional app does not leave a dead shortcut. The config
 is authored
-at apply time, so the Hub re-applies after it installs or removes such an app.
+at apply time, so Ryoku Settings re-applies after it installs or removes such an app.
 
 Two seeds are compositor-specific in practice. `ryoku-gpu` keeps its policy in
-the Hyprland pin file (`gpu.lua`, the store the Hub GPU page and doctor audit).
+the Hyprland pin file (`gpu.lua`, the store Ryoku Settings > System > Graphics and doctor audit).
 niri picks its own render device, so its `gpu.kdl` only carries the cursor
 policy.
 `ryoku-monitor` follows the same rule for each provider's monitor seed. Every
@@ -392,7 +393,7 @@ overrides.
 What a variant package ships is the same rule seen from the packaging side: a
 compositor's payload dir holds only what speaks that compositor's own IPC
 (`ryoku-monitor`, `ryoku-workspace` under
-`ryoku/hyprland/scripts/`). Anything the shell, the Hub, the launcher or a
+`ryoku/hyprland/scripts/`). Anything the shell, Ryoku Settings, the launcher or a
 keybind calls by bare name on every compositor lives in `ryoku/shell/scripts/`
 or `system/hardware/` and ships with the shell or the base package, and it
 reaches the compositor only through `ryoku wm act`. A variant-only script called
@@ -407,7 +408,7 @@ ready (`syncLeafScripts` in `ryoku/cli/wm.go`, resolving the directory through
 compositor's scripts, so switching to the other without this left the next
 session's bare-name calls falling through PATH to a stale copy: a `ryoku-monitor`
 from before the display engine's `apply` verb existed, which silently failed
-every Hub display change and recomputed the scale from DPI at each login. The
+every display change in Ryoku Settings and recomputed the scale from DPI at each login. The
 sync is additive because the running session still belongs to the compositor
 being left; pruning stays deploy's and the package's job.
 
@@ -421,11 +422,11 @@ so they return if you come back. Then it installs `ryoku-desktop-<name>` as a
 plain pacman transaction, which is what lets `ryoku rollback` undo the switch.
 Both variants may be installed at once, so the switch never removes the desktop
 you are leaving unless you ask it to: a second switch is a config change with no
-package transaction at all. The Hub offers the same flow on its Global page.
+package transaction at all. Ryoku Settings offers the same flow on Windows > Window manager.
 
 A checkout box installs nothing: the switch declares the target ready and the
 user picks it at the greeter. That promise is only true when the greeter can
-actually boot the session, so `deployedProvider` (and the Hub's matching
+actually boot the session, so `deployedProvider` (and `ryoku-hub`'s matching
 `wmDeployed`) require `wm.SessionReady`: the compositor binary is installed
 and a greeter directory lists `<name>.desktop`. A deployed provider binary and
 a config tree are not enough on their own -- they are exactly what a checkout
@@ -465,9 +466,10 @@ prose, with the traps; read that if you are doing this rather than reviewing it.
    know any of it.
 3. `ryoku/<name>/`, the shipped config payload.
 4. Its `schema`, listing the settings only this compositor has. That is the
-   whole of its Hub presence: the rows appear on the Window Manager page with
-   no Hub edit, and anything it cannot express is reported by `apply` instead
-   of being shown as a control that does nothing.
+   whole of its Ryoku Settings presence: each row lands on the page
+   `registry/provider-map.js` places it on (a tag the table does not know yet
+   needs one line there), and anything it cannot express is reported by `apply`
+   instead of being shown as a control that does nothing.
 5. `release/packages/ryoku-desktop-<name>/`, providing the compositor virtual so
    it is mutually exclusive with the others, and depending on the compositor plus
    whatever it needs for Xwayland and screencasting.
@@ -480,8 +482,9 @@ second compositor was an addition rather than a fork.
 
 The one thing this does not cover is rich bespoke tooling. Hyprland's plugin
 manager, animation curve workshop and layer-rule editor are interactions no
-settings row can describe, so they remain capability-gated pages in the Hub that
-read their rows from the provider. A compositor arriving with tooling of its own
-would want to ship its own Hub pages, the way `ryoku/wm/hyprland/qml/` already
-ships a QML module; that needs the Hub's component vocabulary published as a
-module first.
+settings row can describe, so they remain capability-gated sections of Ryoku
+Settings pages (Windows > Window manager, Appearance > Animations, Windows >
+App rules) that read their rows from the provider. A compositor arriving with
+tooling of its own would want to ship its own Settings pages, the way
+`ryoku/wm/hyprland/qml/` already ships a QML module; that needs Ryoku
+Settings' component vocabulary published as a module first.

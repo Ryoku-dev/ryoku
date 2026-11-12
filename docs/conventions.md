@@ -41,7 +41,7 @@ exception. See `docs/subshells.md`.
 QML talks to `ryoku-shell` only through `Bus` and `ShellSettings` in
 `Ryoku.Ui.Singletons` (and `BusTopic`, `BusIpcHandler`, `ShellSetting` in
 `Ryoku.Ui`). A topic is `Bus.subscribe` or a `BusTopic`, a control method is
-`Bus.call`, a daemon verb is `Bus.run("hub open controls")`, never a spawned
+`Bus.call`, a daemon verb is `Bus.run("hub open quick-settings")`, never a spawned
 `ryoku-shell <verb>`, and a call into another process's IPC target is
 `Bus.ipc`. Settings are read from `ShellSettings`, never from a FileView on
 `shell.json`. An IPC target the daemon or another process calls is a

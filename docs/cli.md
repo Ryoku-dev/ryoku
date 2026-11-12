@@ -30,7 +30,7 @@ command below.
 |Command|What it does|Where|Who|
 |---|---|---|---|
 |`update [--wait] [--force]`|Snapshot when supported, then bring the system current and redeploy; held while the channel is still building|both|you|
-|`status [--json]`|Version, how far behind, the channel's build or check state, snapshot count when supported|both|you, the Hub|
+|`status [--json]`|Version, how far behind, the channel's build or check state, snapshot count when supported|both|you, Ryoku Settings|
 |`channel [--json]`|Print the effective update channel without using the network|both|you, Ryostore|
 |`rollback [id]`|List releases; on snapshot-capable hosts, guide a boot-menu restore|both|you|
 |`snapshots`|List snapshots when the host provides them|both|you|
@@ -102,9 +102,9 @@ that passed every required check, `--wait` polls a gate still running, and
 
 - `ryoku update -v` (`--verbose`) streams the raw output instead, including the
   native package manager's own progress.
-- `ryoku update --gui` is the Hub's path: it starts the run in the background
+- `ryoku update --gui` is Ryoku Settings' path: it starts the run in the background
   under a pseudo terminal and returns. The password sudo needs and any question
-  come back through the Hub's Updates page (`--auth` hands it the password on
+  come back through Ryoku Settings > Updates (`--auth` hands it the password on
   stdin), and `--cancel` stops a run: what it quiesced is given back, and a
   package transaction already committing finishes on its own. Ctrl-C on a
   terminal run stops it the same way.
@@ -113,7 +113,7 @@ Throughout, it publishes progress to `$XDG_RUNTIME_DIR/ryoku-update.json`:
 the steps with their timings, the line the running work last printed, and a
 watchdog read of its own process tree every two seconds (output or CPU time
 is progress; three minutes of neither is a stall). Only a run that has begun
-writes the file, and it names its pid, so the Hub never sits on a run that is
+writes the file, and it names its pid, so Ryoku Settings never sits on a run that is
 gone.
 
 ### `ryoku status [--json]`
@@ -132,7 +132,7 @@ On Fedora, status uses the same publication check as update. An unpublished
 running release is named directly, rather than being reported as having no
 Ryoku packages installed.
 
-`--json` is the data seam the Hub and the update island read; it is not meant for
+`--json` is the data seam Ryoku Settings and the update island read; it is not meant for
 humans.
 
 ### `ryoku track <channel-or-version>`
@@ -278,7 +278,7 @@ at once; on a dev checkout it drops the override and leaves the re-lay to
 
 ### `ryoku-host`
 
-`ryoku-host` is the internal operating-system seam used by scripts, the Hub,
+`ryoku-host` is the internal operating-system seam used by scripts, Ryoku Settings,
 and the CLI. Package names passed to it use the Arch/Ryoku catalogue; the host
 backend translates them for XBPS or DNF when needed. A Fedora translation may
 name a capability rather than a concrete RPM. For example,
@@ -450,7 +450,7 @@ configured, whether the keyring daemon is running, and each keyring file's forma
 in `~/.config/ryoku/keyring.json`, converges the keyring files over D-Bus, and
 escalates the root PAM edit through `pkexec` (`--convert` rekeys an encrypted
 keyring, reading passwords on stdin; `--reset` backs the files up and starts
-fresh). The Hub's Lockscreen page drives all of this; `ryoku doctor` watches for
+fresh). Ryoku Settings > Accounts > Sign-in & security drives all of this; `ryoku doctor` watches for
 drift and drops the duplicate keyring lines older installs added beside SDDM's
 stock ones. `$RYOKU_PAM_FILE` overrides the PAM path for tests.
 
@@ -645,4 +645,4 @@ State the CLI keeps under `$XDG_STATE_HOME/ryoku` (default `~/.local/state/ryoku
   default target of `ryoku doctor --report`).
 
 Runtime: `$XDG_RUNTIME_DIR/ryoku-update.json` is the update's progress file,
-written by `update` and drawn by the Hub's Updates page.
+written by `update` and drawn by Ryoku Settings > Updates.

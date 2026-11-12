@@ -61,7 +61,7 @@ A small command change follows this loop:
 
 For a window-manager verb, define neutral behavior in `ryoku/wm/` and implement
 it in each provider that claims the matching capability. Never branch on a
-provider name in the shell, Hub, or general CLI.
+provider name in the shell, Ryoku Settings, or general CLI.
 
 ## Focused checks
 

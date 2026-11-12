@@ -8,15 +8,16 @@ It is not installed by default. Turn it on when you want it.
 
 ## Turn it on (niri)
 
-1. Open **Ryoku Hub → Window Manager → Behaviour**.
-2. Under **KEY SOUNDS**, press **Install engine**. The install runs in a terminal
+1. Open **Ryoku Settings > Desktop > Sounds** (`ryoku-shell hub open sounds`).
+2. Under **Key sounds**, press **Install engine**. The install runs in a terminal
    (it asks for your password) and the engine starts straight away, so keys sound
    before your next login.
 3. The button becomes **INSTALLED**. From then on the session starts the engine
    on its own.
 
-On Hyprland the feature is a plugin; install it and set it up from the
-**Plugins** page.
+On Hyprland the feature is a plugin; its settings are in the same **Key sounds**
+section, and Ryoku Settings > Windows > Window manager shows whether it is
+running and rebuilds it.
 
 ## Settings
 

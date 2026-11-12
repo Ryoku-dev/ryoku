@@ -49,7 +49,7 @@ Two places, each with one job:
   monitor. Widget menus remain local to the widget.
 
 The Stage Editor is the shell's one desktop editor. The bar, lockscreen
-and menus keep their Hub pages. The card the editor shrinks the desktop
+and menus keep their Ryoku Settings pages. The card the editor shrinks the desktop
 into shows the whole desktop: the bar and the dock draw themselves inside
 it, at the same scale, so what you arrange is what you get. The dock stays
 clickable there and its Dock chip edits it in place; the bar is shown, not
@@ -59,7 +59,7 @@ operated, so its popups never open inside the card.
 
 The quick row contains **Wallpaper** and **Search**. The single accent row,
 **Edit desktop**, opens the Stage Editor on the monitor whose desktop was
-clicked. Quick controls opens the left sidebar, Settings opens Hub, and Reload
+clicked. Quick settings opens the left sidebar, Settings opens Ryoku Settings, and Reload
 shell reloads the shell.
 
 `Super+Shift+D` opens the Widgets catalogue directly on the focused monitor.
@@ -83,13 +83,14 @@ is on. Spatial needs only `depth.png`.
 
 ## Catalogue routes
 
-The retired Hub routes remain useful as compatibility entry points.
+The retired Settings routes remain useful as compatibility entry points.
 `ryoku-shell hub open desktop-scene` and `ryoku-shell hub open stage` open the
 Depth catalogue directly. The `desktop-scene-visualizer` and `visualizer`
 routes open Visualizer; `desktop-scene-widgets` and `widgets` open Widgets. The
 desktop menu's
-**Settings** row opens the Hub normally. The Hub no longer has a scene settings
-section or duplicates the editor's depth, visualizer, and widget controls.
+**Settings** row opens Ryoku Settings normally. Ryoku Settings has no scene
+settings section and does not duplicate the editor's depth, visualizer, and
+widget controls.
 
 Each catalogue owns its complete workflow. Depth includes its picture and PNG
 file pickers, Visualizer targets the selected visualizer instance, and Widgets
@@ -176,7 +177,7 @@ its framing.
 
 ### Style
 
-Style reads and writes the same live seams as the Hub. Light, Dark, Auto, Sun,
+Style reads and writes the same live seams as Ryoku Settings. Light, Dark, Auto, Sun,
 the wallpaper scheme variant, source colour, and named themes update
 `matugen.json` through `ryoku-hub desktop matugen set {...}` or
 `shell.json` through `ryoku-shell theme <name>`, so the palette changes

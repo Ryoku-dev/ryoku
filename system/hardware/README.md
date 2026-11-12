@@ -44,7 +44,7 @@ in the machine, and do not waste power doing it.
     hypridle after a change. The fail-closed lock transaction, final login1
     handshake, output wake and lighting restore belong to the always-on shell
     daemon, even when idle timers are disabled.
-  - `ryoku-power` Owns the CPU and power knobs the Hub's Machine page drives.
+  - `ryoku-power` Owns the CPU and power knobs Ryoku Settings > System > Power & battery drives.
     `capabilities --json` reports what this machine actually exposes;
     `profile get|set <profile> <key> <value>` stores a per-profile definition
     (governor, EPP, `maxFreqPct`, `platformProfile`) in `~/.config/ryoku/power.json`;
@@ -174,7 +174,7 @@ and a stage set to 0 is dropped. Dimming lowers a panel above 20%, never raises
 one already below it, and restores the exact pre-idle raw level on input. The
 screen-off stage reaches the display through `ryoku wm act output.power`, so
 the config names no compositor.
-Edit the timeouts from the Hub's Machine page or with `ryoku-power idle set`; a
+Edit the timeouts from Ryoku Settings > System > Power & battery or with `ryoku-power idle set`; a
 change runs `ryoku-idle apply`. The shell's Keep Awake toggle uses Wayland idle
 inhibition, so hypridle stays paused while that toggle is on.
 

@@ -24,13 +24,13 @@ ryoku owner ~/.config/niri/user.kdl
 ```
 
 `~/.config/niri/user.kdl` is seeded once and then yours. It is the last file niri
-reads, so it is the safe place for raw KDL the Hub cannot express. Do not edit
+reads, so it is the safe place for raw KDL Ryoku Settings cannot express. Do not edit
 `config.kdl`, `settings.kdl`, or `rebinds.kdl`. The provider regenerates the last
 two from the neutral settings store.
 
 niri has no unbind, and a duplicate chord in one bind block is a hard error.
 Ryoku resolves defaults, remaps, and removals into one complete generated
-`rebinds.kdl`. Use Ryoku Hub for normal key changes; use `user.kdl` only for a
+`rebinds.kdl`. Use Ryoku Settings > Windows > Keyboard shortcuts for normal key changes; use `user.kdl` only for a
 careful raw override or addition.
 
 ## Add a keybind
@@ -59,7 +59,7 @@ window-rule {
 ```
 
 `app-id` is the Wayland application identity. The provider uses the same niri
-shape when it translates neutral Hub rules: a `window-rule` block, a `match`, and
+shape when it translates neutral app rules from Ryoku Settings: a `window-rule` block, a `match`, and
 property lines.
 
 ## Validate and verify

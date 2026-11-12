@@ -98,7 +98,7 @@ locked behind a text editor.
   system. Ask answers read-only system questions through free models, Agent
   connects the coding harnesses you already use, and Index searches project and
   system code. One daemon owns sessions and the index; the Gio app and
-  Alt+Space bar are socket clients. Enable it from Ryoku Settings. See
+  Alt+Space bar are socket clients. Enable it from Ryoku Settings > Apps > Rashin. See
   `docs/rashin.md`.
 
 ## Working on it
@@ -110,8 +110,8 @@ write them, `docs/ui-ux.md` for the desktop's design and motion, and
 
 ## Clock format
 
-Open Ryoku Settings with Super+comma, then Global > Language & Region.
-The **24-hour time** switch applies to Ryoku's clocks, weather times,
+Open Ryoku Settings with Super+comma, then System > Time & language
+(`ryoku-shell hub open time-language`). The **24-hour clock** switch applies to Ryoku's clocks, weather times,
 notification timestamps and the built-in lockscreen. Off shows 12-hour time
 with AM/PM; on shows 24-hour time. The default is 12-hour time.
 The clock controls in bar settings and the clock's right-click shortcut change

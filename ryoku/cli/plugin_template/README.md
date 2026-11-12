@@ -48,7 +48,7 @@ ryoku plugin validate .
 ryoku plugin add . --yes
 ```
 
-Enable and place it under **Ryoku Settings > Add-ons**. A bar plugin can instead
+Enable and place it under **Ryoku Settings > Apps > Add-ons**. A bar plugin can instead
 use `ryoku plugin add . --bar --yes` to enable it on the current bar immediately.
 
 ## Author

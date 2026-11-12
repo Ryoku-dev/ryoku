@@ -11,7 +11,7 @@ chassis; the *shape* of the conclusions holds for AMD laptops generally.
 
 ## Low-battery alerts
 
-Open **Win+, → Graphics & Power → Battery** to enable alerts, set the warning
+Open **Ryoku Settings > System > Power & battery** (`Super+,`, or `ryoku-shell hub open power`) to enable alerts, set the warning
 and critical percentages, enable either level independently, or send a test notification. Defaults are 25% and
 10%. Both levels default to enabled; turn either one off for warning-only or
 critical-only reminders. Warning accepts 5–50%; critical accepts 1–49% and must be below warning.
@@ -71,8 +71,8 @@ also:
 - lower the screen backlight to 60% of its previous brightness.
 
 All three are enabled by default. The **Dim the keyboard in Power Saver**,
-**60 Hz in Power Saver** and **Dim the screen in Power Saver** switches on the
-Performance page control them separately. The changes are restored when AC
+**60 Hz in Power Saver** and **Dim the screen in Power Saver** switches on
+Ryoku Settings > System > Power & battery control them separately. The changes are restored when AC
 returns or Power Saver ends, unless you changed that value while the policy was
 active; in that case Ryoku keeps your newer choice.
 
@@ -83,7 +83,7 @@ to 40% saved about 4.5 W.
 
 ## Making the profiles yours
 
-Those values are ppd's, not yours. **Settings > Machine > CPU Power Profiles** lets
+Those values are ppd's, not yours. **Ryoku Settings > System > Power & battery** (CPU tuning) lets
 you define what each of the three profiles does, and Ryoku re-applies your
 definition every time ppd switches:
 
@@ -237,7 +237,7 @@ ryoku-power charge-limit get
 ryoku-power charge-limit set 80
 ```
 
-80 % is the usual sweet spot for a machine that lives on AC. The Machine page
+80 % is the usual sweet spot for a machine that lives on AC. Ryoku Settings > System > Power & battery
 shows the same control when the laptop exposes either the standard kernel
 threshold or a supported vendor battery-care interface. Firmware with fixed
 choices shows only those choices instead of a slider.

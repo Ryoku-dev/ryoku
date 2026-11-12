@@ -78,8 +78,8 @@ a **claim** is a state word and its **proof** is the fact behind it, and
 **chisel** is the one easing curve.
 
 Two things stay Ryoku's whatever the palette does. The **力 seal** is the brand
-mark, drawn in its own fixed vermillion, and it is used as a mark (the Hub's
-masthead, the welcome window, the lockscreen family), never as decoration or
+mark, drawn in its own fixed vermillion, and it is used as a mark (the Home
+mark atop Ryoku Settings' rail, the welcome window, the lockscreen family), never as decoration or
 state. And the three meaning minerals, jade, lapis and amber, never follow the
 wallpaper, so "alive" reads the same on every rice; jasper does follow the
 palette's `error`, so destructive controls agree with the rest of the desktop.
@@ -220,7 +220,7 @@ import `Tokens` either, but it follows them. The library's `palette` package
 resolves the same Material roles through the same chain (a named scheme in
 `shell.json`, then `~/.cache/ryoku/colors.json` while Match wallpaper is on,
 then the signature default) and its `kit` draws the cuts, the type and the
-motion from the Lithic rules. The Hub's Rashin page reads `Tokens` like any
+motion from the Lithic rules. The Rashin page in Ryoku Settings (Apps > Rashin) reads `Tokens` like any
 other page. If the app needs a value, it takes it from a role, never a hex of
 its own.
 
@@ -415,8 +415,9 @@ bug this section exists to prevent.
   (`SettingCard.expanded: false`) and its header says what it hides
   (`SettingCard.summary`: "4 switches"), because a folded slab with no trace of
   its contents reads as an empty one.
-- **A deep knob is `adv: true`**, hidden behind the rail's Advanced toggle and
-  still reachable from search. Nothing is ever buried beyond a search.
+- **A deep knob goes under its section's More options**, a fold at the foot of
+  the section's slab, and stays reachable from search, which opens the fold when
+  it lands on the row. Nothing is ever buried beyond a search.
 - **A toggle is only for a true binary.** A choice among modes is a `Seg`, a
   family of related on/offs is a `Multi`, a number is a `Step` or a `Slid`, and
   `Spans.controlFor` already decides this from the value's kind. Reaching for a
@@ -479,7 +480,7 @@ and the inside-stroke inset, shared by `CutRect` and the shaders).
 picks it from the value's kind and its option count: `bool` is a `Sw`, `int` a
 `Step`, `ratio` a `Slid`, `set` a `Multi`, `visual` a `Gallery`, and an `enum` or
 `catalogue` is a `Seg` at four options or fewer, `Chips` at five to eight, and a
-`Pick` above that. The bands come from counting the real Hub: 14 controls have 2
+`Pick` above that. The bands come from counting the old Settings window: 14 controls have 2
 options, 21 have 3, 9 have 4 to 6, one has 7, the font catalogue has 25, and
 `islandModules` is a true set. Five or more options is never a segmented; nine or
 more is never inline. `Spans.of()` then returns the column span and `Spans.pack()`
@@ -489,85 +490,74 @@ bracket cells" from "three islands with concave dips".
 
 ## A page is its surfaces
 
-A settings page is not a list of settings. The Hub carries 540 settings across 33
-pages (`grep -ho '"key":' ryoku/hub/quickshell/schema/*.js | wc -l`), and
+A settings page is not a list of settings. The old Settings window carried 540
+settings across 33 pages, and
 every page also carries surfaces that are not settings at all: the previews, the
 update console, the monitor drag-arrange, keybind capture, the bezier editor,
 store cards, scan lists, file pickers, the empty and loading states. The control
 histogram over that schema is 150 `sw`, 116 `step`, 73 `seg`, 48 `slid`, 45
 `action`, 28 `text`, 22 `pick`, 15 `list`, 11 `readout`, 10 `chips`, 8 `multi`, 8
 `color`, and a tail of one-offs (a timezone map, a layout demo, a gallery). Those
-45 actions and 15 lists are the tell: a fifth of the Hub is not a value being
-edited.
+45 actions and 15 lists are the tell: a fifth of the old Settings window was not
+a value being edited.
 
-So a schema is half a page. Port in this order:
+So a schema is half a page. Build one in this order:
 
 1. List the page's surfaces before writing anything.
-2. Build them first, as full-width blocks in the section grid. A preview or a
-   console is not a setting and does not go in a `Cell`.
-3. Let the rows flow around them.
-4. Check all four: every surface present, every key present, the adapter still
-   writing (`tests/ui/wire-probe.sh`), nothing below 4.5:1.
+2. Draw them first, through `SettingsPage`'s `bodies`, `slabBodies`,
+   `moreBodies` and `footers`, or as the `custom` control of the row they
+   belong to. A preview or a console is not a setting and does not become a row.
+3. Let the rows flow around them, and give each drawn surface a
+   `template: true` row so search still lands on it.
+4. Check all four: every surface present, every key present, every write going
+   through `Changes` and reaching the desktop, nothing below 4.5:1.
 
-The `ActionBar` goes in first. A page that previews live and cannot save does
-not look broken; it looks fine and then eats the edit on the way out.
+Every edit goes through `Changes` (`ryoku/hub/quickshell/Singletons/Changes.qml`),
+the one write path with undo, so a page has no Save step to forget: a row that
+writes anywhere else looks fine and then never reaches the desktop.
 
 ### The chrome every page inherits
 
-`Hub.qml` owns the frame, so a page only writes its content:
+`Hub.qml` owns the frame, so a page only writes its content. The categories
+and pages come from `ryoku/hub/quickshell/registry/registry.js`; each page is
+`pages/<Name>.qml`, which draws its schema (`schema/<page-id>.js`) through
+`components/SettingsPage.qml`, or draws the same head and sections itself when
+it is one large surface (Displays, Keyboard shortcuts), and adds its own
+surfaces. `docs/hub.md` is the guide to building and extending it.
 
-- **The rail.** The 力 seal as the Home mark at the top, the search field, then
-  the groups as destinations. A group header is its name in `fGroup`, sentence
-  case, and the current page is a bone tile (`sel`, cut `cutMid`) that travels
-  to its new place over `Tokens.select`; hover steps a tile to `stone3`. A
-  section can fold into another page rather than keeping a row of its own
-  (Cursor lives inside Input) and an old link to it still lands right, because
-  `canonicalSection` maps the retired key. The only marker a tile may carry is
-  an amber notch, and only Updates carries it, when the channel sits behind
-  origin.
-- **The Advanced gate.** Sections marked `adv` are hidden from the rail until
-  the rail-foot `Advanced` toggle is on, and a group whose every item is `adv`
-  folds away entirely rather than leaving a bare header. Search still reaches
-  them, and the open section always counts as visible, so turning Advanced off
-  never strands you on a page the rail no longer lists.
-- **The rail foot.** The `Advanced` toggle, under a hairline. Nothing else.
-- **The page head.** The title in `fSection` and a one-sentence description in
-  `fBody`, `fg2`. A page about one selected thing (a profile, a device, a
-  machine) gets the mineral field header instead: the mark at 44, the name in
-  `fName`, its proof, and the act row with one gold plaque.
-- **The corner plaques.** `Files` and `Updates` ride the strip beside every page
-  head as small quiet plaques. They take the page's own right inset so they line
-  up with the last slab rather than floating inside it, and a page that draws
-  its own top-right control (`Profile`'s `Edit`) sits below them.
-- **The tab strip is one fixed layout, on every page.** Labels sit in a 44 strip
-  over a vein baseline, each as wide as its label plus 24, and the 3 px blade
-  under the active one slides over `Tokens.select`; selecting a tab never widens
-  a label or shoves its neighbours. A tab switch is a fade of the slab set, not
-  a reflow: nothing travels, and opacity cannot move a slab.
-- **The grid's geometry comes from the page width, never from the open tab.**
-  `SettingsSheet.gridColumns` is the page's capacity while `columns` is only how
-  many columns the open tab's groups are bucketed into. Deriving geometry from
-  the tab made a one-group tab (Window Manager's Borders) shrink the sheet and
-  drag the head and tab row sideways with it, so the whole page read as shuffling
-  when the reader switched. `CardColumns` keeps its column split until the SET of
-  visible blocks changes, so a drawer that unfolds changes only its own column.
-- **The action bar.** Bottom, on framed pages: the dirty readout ("Saved, live
-  on your desktop") in `fCaption`, then `Reset to defaults` and `Revert` as a
-  quiet and a line plaque, and `Save` in gold. It is the one gold plaque on a
-  settings page.
-- **The page measure.** A framed page takes the width beside the rail: a wider
-  window buys more columns, never a longer row and never a wider void. The sheet
-  lays its groups into as many slab columns as the measure holds
-  (`SettingsSheet.gridColumns`), each slab capped at `cardW`, bucketed shortest
-  column first from an estimate that counts each slab's own header as well as its
-  rows, so the columns end as level as the groups allow. Prose keeps its own
-  reading cap.
+- **The rail.** The 力 seal as the Home mark at the top, then the categories as
+  destinations: Appearance, Desktop, Windows, Devices, Connections, Apps,
+  Accounts and System, with Updates at the rail foot. The current category is a
+  bone tile that travels to its new place. The only marker a tile may carry is
+  an amber notch, and only Updates carries it, when an update is available.
+- **The list pane.** On Home it lists every category with a one-line summary
+  under the title Settings; in a category it shows the category's name, a
+  sentence about it, and its pages. The search field ("Search settings", `/`)
+  sits above the list and replaces it with results while there is a query. An
+  old page id still lands right, because the registry's `aliases` table maps
+  the retired id to its new page.
+- **The work pane.** Home (what needs you, your desktop, this computer, and
+  recently changed settings with Undo), or the open page.
+- **The page head.** The page title and its one-sentence lead in `fg2`, then a
+  state line when the page has one, and a note when the window manager hides
+  some rows. A page with four or more sections gets a section index, beside the
+  column when the page is wide enough and above it when it is not.
+- **Sections.** Each section is a titled slab of rows; deep rows fold under
+  **More options** at its foot. A page whose schema names related pages ends on
+  a Related section linking to them.
+- **No action bar.** A change applies when it is made and is kept. The placard
+  at the foot of the window names it and offers Undo while it drains, and Home
+  keeps the session's recent changes with Undo too.
+- **The page measure.** A page is one reading column, capped at
+  `settingsExpandedMax` (`settingsMediumMax` at the medium size) and centred in
+  the work pane: a wider window buys room for the side index, never a longer
+  row and never a wider void.
 - **A list of values is tablets, wherever it lives.** The same rhythm as the
   settings slabs: `s4` insets, one row height, 4 between rows, label in `fg`
   over its note in `fg3`, the state as a notch and a claim. A hand-built page
   that draws its own plate with tighter spacing is the drift this rule exists to
-  stop (Import's bring-over list, Updates' package and commit rows, Displays'
-  saved profiles).
+  stop (Backup & import's bring-over list, Updates' package and commit rows,
+  Displays' saved profiles).
 - **Nothing floats.** There is no registration backdrop, no poster layer, no
   ornament. The sheet is stone with slabs on it.
 
@@ -588,14 +578,14 @@ and per-monitor visibility from `ShellState`.
   wears. Everything else installs from RyoStore: **QS Bar** is a full-colour top
   bar retinted from the wallpaper's seven palette slots, **Sumi** is the
   monochrome frame-bar system built on Ryoku's frame-bar kit (`docs/bar.md`),
-  and **Obi** and **Nacre** have Hub editors (Item widgets, Nacre layout) that
-  show while they are selected. The `Shells` singleton resolves the id from
+  and **Obi** and **Nacre** have Ryoku Settings editors (Obi's widgets, Nacre's
+  layout) on Desktop > Bar that show while they are in use. The `Shells` singleton resolves the id from
   `~/.local/state/ryoku/store/shells.json`; see `docs/subshells.md`. Items built
   on the kit grow the same popout cards from `shell/modules/bar/popouts/`:
   clicking a status widget (network, Bluetooth, battery, audio, system monitor,
   recording, music, voice) grows its live controls out of the bar, and the
   monitor-local menu manager owns those cards and the bounded frame menus. The
-  global Controls panel lives in
+  global Quick settings panel lives in
   `ryoku/shell/quickshell/shell/modules/sidebar/`; see `docs/sidebars.md`.
 - **dock** a per-monitor shell surface that is independent of the selected
   subshell or bar style. `UniversalDockHost.qml` loads exactly one design:
@@ -665,7 +655,7 @@ and per-monitor visibility from `ShellState`.
 |---|---|---|
 |**launcher**|`Super+Space`|the app launcher and command palette|
 |**overview**|`Super+Tab`|the full-screen workspace expo|
-|**Controls**|`Super+Escape`|live system activity, connections, levels, and session actions|
+|**Quick settings**|`Super+Escape`|live system activity, connections, levels, and session actions|
 |**Kit**|`Super+K`|shortcuts, command references, phone controls, quick tools, and a typing test|
 |**ryoshot capture bar**|`Super+Shift+S`|Shot, Edit, OCR, Search, Record, and capture options in one floating bar|
 |**Ask**|`Alt+Space`|quick Rashin answers, chat, tools, web search, and the optional desktop bubble|
@@ -674,7 +664,7 @@ and per-monitor visibility from `ShellState`.
 |**Stage Editor**|`Super+Shift+D`|edit the desktop on the focused screen|
 |**visualiser placement**|`Super+Alt+M`|open the Stage Editor's Visualizer catalogue|
 |**voice**|`Super+grave`|speech to text with a live mic wave|
-|**Ryoku Settings**|`Super+,`|the Hub|
+|**Ryoku Settings**|`Super+,`|the settings app|
 
 A summoned surface is a `stone4` slab with a vein hairline over a scrim where
 it is modal, and a cut pane where it is not. It takes focus so Escape reaches
@@ -686,7 +676,7 @@ Kit keeps five tools behind one search field:
 
 - **Keys** lists shared and window-manager shortcuts.
 - **Commands** keeps Ryoku, Linux, and Saved libraries separate.
-- **Phone** is set up and used in Kit. Its settings live in Ryoku Hub >
+- **Phone** is set up and used in Kit. Its settings live in Ryoku Settings >
   Connections > Phone, and `ryoku-kit phone` opens it directly.
 - **Dev tools** holds the quick tools useful during a session.
 - **Typing test** provides focused practice and history.
@@ -710,7 +700,7 @@ Kit keeps five tools behind one search field:
   ten workspace ids, so each desktop keeps its own 01..10; the same grouping
   drives the desktop-relative `Super+N` binds (`hyprland/modules/workspaces.lua`).
   The gesture legend sits along the bottom margin in `fCaption`, not as buttons.
-- **Controls** is a compact top-left pane. Vitals is a native mini system
+- **Quick settings** is a compact top-left pane. Vitals is a native mini system
   monitor with per-core load, temperatures, memory, GPU, network and disk as
   blade meters and engraved charts. Connections summarizes Wi-Fi, Bluetooth,
   Ethernet and VPN as tablets with their claim and proof. Levels keeps fine
@@ -720,8 +710,8 @@ Kit keeps five tools behind one search field:
 - **ryoshot capture bar** is the single entry point for screenshots and screen
   recording. Its settings popover owns the 0/1/3/5/10-second delay,
   clipboard/file/both saving, editor handoff, desktop and microphone audio,
-  key-press and webcam overlays, the screenshots folder, and the link to Hub >
-  Recording. Controls does not duplicate any of these capture options.
+  key-press and webcam overlays, the screenshots folder, and the link to Ryoku
+  Settings > Apps > Screen capture. Quick settings does not duplicate any of these capture options.
 - **Ask** is a Rashin bar for quick streaming answers, full chat, tools and web
   search. `\`, `?` and `/` select Ask, Web and Tools; Tab cycles modes. A pinned
   chat bubble can be dragged, edge-snapped and dismissed, with its position
@@ -752,12 +742,13 @@ Kit keeps five tools behind one search field:
   it, driven over D-Bus. Each card glides in from off the edge it is anchored to
   and leaves the same way, and its siblings slide down to close the gap. This
   card is the shipped `ryoku` notification design; other installed designs can
-  be worn from Settings -> Overlays.
+  be worn from Ryoku Settings > Desktop > Notifications & pop-ups.
 - **OSD** one cut slab, bottom centre, for volume, mic or brightness, raised by
   the media and brightness keys and hidden on a timer; the level is a blade. It
   spans the desktop hole so the compositor clamps it inside the frame, which is
   why it needs no reserve arithmetic of its own. It is the shipped `ryoku` OSD
-  design; other installed designs can be worn from Settings -> Overlays.
+  design; other installed designs can be worn from Ryoku Settings > Desktop >
+  Notifications & pop-ups.
 - **capture overlays** the region selector, the camera permission prompt, and the
   keypress overlay a recording draws so a demo shows its own keys.
 - **confirm** the session dialog for shutdown, reboot and logout, drawn on the
@@ -769,9 +760,9 @@ Kit keeps five tools behind one search field:
 
 ### Its own window
 
-- **Ryoku Settings (the Hub)** the settings app (`ryoku/hub/quickshell/`, run as
-  `qs -c hub`). Its rail, page head and action bar set the pattern every page
-  follows; see "A page is its surfaces" above.
+- **Ryoku Settings** the settings app (`ryoku/hub/quickshell/`, run as
+  `qs -c hub`). Its rail, list pane and page head set the pattern every page
+  follows; see "The chrome every page inherits" above.
 - **the apps** standalone Ryoku apps read the same tokens and carry no theme of
   their own: **ryostore** is the catalogue for rices, lockscreens, plugins, bar
   styles, fastfetch presets and bundles; **Ryoport** is the optional fleet
@@ -780,14 +771,14 @@ Kit keeps five tools behind one search field:
 - **welcome** the first-run guided tour, shown once on the first login: a
   floating window (`qs -c welcome`) that walks a new user through the core
   keybinds, names each surface and how to summon it, and offers a few live quick
-  settings (wallpaper, Bar Studio, frame and window roundness). The Hyprland
+  settings (wallpaper, bar style, frame and window roundness). The Hyprland
   autostart launches it once, gated on a `~/.local/state/ryoku/welcome-seen`
   flag.
 - **the lockscreen** `Super+L` runs `ryoku-shell lock`, which renders the active
   qylock theme (`ryoku/lockscreen/qylock/`, vendored, and exempt from our hooks
   for that reason) over a Wayland session-lock surface. The SDDM greeter uses the
-  same theme family before the shell exists. Skins are a card gallery on the
-  Hub's Lockscreen page and install from Ryostore; they are the one part of the
+  same theme family before the shell exists. Skins are a card gallery on
+  Ryoku Settings > Appearance > Lock screen and install from Ryostore; they are the one part of the
   desktop that deliberately does not read `Tokens`, because a lock skin is a
   whole look, not a surface inside ours.
 - **third-party widgets and cards** a plugin ships `manifest.json`, a
@@ -995,15 +986,15 @@ their own (below).
   `standard`, `morph` and `effects`, ride the chisel curve; `spatial` keeps its
   spring for the frame's popouts, which are the one place overshoot is physical
   rather than scripted. Reach for a named token rather than inventing a value.
-- **The Controls surface moves in small, local steps.** `SidebarState` scales
+- **The Quick settings surface moves in small, local steps.** `SidebarState` scales
   `Tokens.overlay` for opening and `Tokens.hover` for closing; `quick`,
   `standard`, and `calm` apply multipliers of 0.6, 1, and 1.5. The pane fades in
   and settles a short distance from its screen edge. Detail pages crossfade;
   selected rows use the bone slab. Both `Motion.reduce` and
   `Tokens.reduceMotion` remove every surface and chrome animation.
 - **Every shell token is already scaled.** Each one is defined as `dur(ms)`,
-  which multiplies by `Perf.motionSpeed` (the user's tempo, `motionSpeed` in
-  `performance.json`) and collapses to zero under reduce-motion, so the whole
+  which multiplies by `Tokens.motionScale` (the user's Speed, `theme.motion.scale`
+  in `shell.json`) and collapses to zero under reduce-motion, so the whole
   shell speeds up or stops in one place. Read the token; never write a literal,
   and never wrap a token in `dur()` again or you scale it twice. `Motion.dur(ms)`
   is for a duration that has no token yet, and the honest fix is usually to add

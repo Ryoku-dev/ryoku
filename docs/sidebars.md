@@ -1,19 +1,19 @@
-# Controls, ryoshot, and Ask
+# Quick settings, ryoshot, and Ask
 
 Three global tools are available under every subshell and bar style and on both Hyprland and
 niri:
 
-- `Super+Escape` opens **Controls** at the top-left of the focused display.
+- `Super+Escape` opens **Quick settings** at the top-left of the focused display.
 - `Super+Shift+S` opens the floating **ryoshot** capture bar.
 - `Alt+Space` opens **Ask** near the top third of the focused display.
 
-Controls and Ask close with Escape, their close button, or a click outside.
+Quick settings and Ask close with Escape, their close button, or a click outside.
 ryoshot has its own close control. The shortcuts are editable in
-**Ryoku Hub > Keybinds**.
+**Ryoku Settings > Windows > Keyboard shortcuts**.
 
-## Controls
+## Quick settings
 
-Controls is a compact, configurable 688-logical-pixel panel.
+Quick settings is a compact, configurable 688-logical-pixel panel.
 
 ### Vitals
 
@@ -64,26 +64,26 @@ Mic mute, and Gaming mode when supported. Keep awake is an idle inhibitor: the
 machine will not dim, lock, or sleep on its own while it is on, and the request
 persists across logins until it is switched off. It never refuses a deliberate
 sleep: the lid, the power key, and Sleep here still suspend. The gear opens a
-small popup for the remaining Controls settings. Unsupported controls are not
+small popup for the remaining Quick settings options. Unsupported controls are not
 shown as dead options.
 
-### Customising Controls
+### Customising Quick settings
 
-**Ryoku Hub > Controls** has a miniature of the panel rather than a list of
+**Ryoku Settings > Desktop > Quick settings** has a miniature of the panel rather than a list of
 switches. Drag Vitals, Connections, Power profile, Now playing, Levels, and
 Bottom controls into the order you want. The eye on each block shows or hides
 the whole block. Selecting a block exposes chips for its smaller parts, including
 individual readings, the live graph, connection tiles, level sliders, media
 details and transport, session actions, quick controls, and plugin cards.
 
-The shipped arrangement matches the original Controls panel. Now playing is
+The shipped arrangement matches the original Quick settings panel. Now playing is
 available but hidden until selected. **Reset** restores that arrangement. The
 choice is stored in `shell.json` under `controls`, applies immediately to an
 open panel on every display, and is used the next time it opens. Hidden blocks
 are not instantiated, so their panel-owned probes, processes, watches, and
 animations do not continue in the background.
 
-The gear in Controls also saves where the panel opens and how far it sits from
+The gear in Quick settings also saves where the panel opens and how far it sits from
 the screen edge. **Top left** keeps the shipped placement, **Top center** and
 **Top right** keep it against the upper edge, and **Center** centres the panel
 in both directions. **Edge gap** accepts 0 to 96 pixels and starts at 12,
@@ -92,7 +92,7 @@ window at every placement and scale, scrolling when the available room is
 short. These choices live beside the panel arrangement in `shell.json` under
 `controls`.
 
-Controls remains a global shell surface. The same arrangement is used by every
+Quick settings remains a global shell surface. The same arrangement is used by every
 subshell, bar style and supported compositor.
 
 ### Store designs
@@ -102,11 +102,11 @@ surface. The shell keeps the window, focus, click-away area, Escape handling,
 open and close motion, and per-display state. A design receives the screen,
 scale, active state, and available room; it may choose a supported placement
 and implicit size, and may ask the host to close it. A design that declares a
-placement takes precedence over the saved Controls position.
+placement takes precedence over the saved Quick settings position.
 
-Pick the design in **Ryoku Hub > Settings > Overlays**. Design authors can use
+Pick the design in **Ryoku Settings > Desktop > Quick settings**. Design authors can use
 the stock blocks with `import shell.modules.sidebar as Kit`, including the
-complete Controls board, individual Controls sections, frame, and buttons.
+complete Quick settings board, individual Quick settings sections, frame, and buttons.
 
 
 
@@ -121,8 +121,8 @@ The bar also carries a delay timer (0, 1, 3, 5, or 10 seconds, shown as a badge)
 that captures the live region after the wait, and the screenshots folder. With
 Record selected it adds desktop audio, microphone, key-press overlay, and webcam
 overlay toggles. The delay and microphone choices persist in `ryoshot.json`.
-The settings popover keeps the save behaviour and links to **Ryoku Hub >
-Recording**.
+The settings popover keeps the save behaviour and links to **Ryoku Settings >
+Apps > Screen capture**.
 
 ## Ask
 
@@ -158,13 +158,13 @@ ryoku-shell compress
 ryoku-shell install
 ```
 
-`quicksettings` opens Controls, `screenshot` launches ryoshot, and the Ask
+`quicksettings` opens Quick settings, `screenshot` launches ryoshot, and the Ask
 commands open the matching mode or tool. The compositor providers expose the
 same actions without putting compositor-specific QML in the shell.
 
 ## Rendering and lifecycle
 
-`Sidebar.qml` owns the Controls content window and its click-away window.
+`Sidebar.qml` owns the Quick settings content window and its click-away window.
 `AskBar.qml` is one full-screen overlay surface that holds the bar and its
 click-away area, so the keyboard always stays with the bar on both compositors.
 They use overlay-layer keyboard focus while open and reserve no window space.
@@ -179,7 +179,7 @@ and display probing run only while their owning surface is active.
 
 ## Contributor map
 
-Controls components live under
+Quick settings components live under
 `ryoku/shell/quickshell/shell/modules/sidebar/`:
 
 | File | Responsibility |

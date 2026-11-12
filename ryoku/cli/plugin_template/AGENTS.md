@@ -65,7 +65,7 @@ privileged/network capability.
 3. `ryoku plugin validate <dir>` and fix every blocking finding (warnings are
    advisory but read them).
 4. `ryoku plugin add <dir> --yes`, then enable and place it under
-   **Ryoku Settings > Add-ons**. For a bar plugin, `--bar` enables it on the
+   **Ryoku Settings > Apps > Add-ons**. For a bar plugin, `--bar` enables it on the
    current bar immediately.
 5. `ryoku plugin share <id>` ONLY when the user asks to publish. Never share a
    plugin unless asked.

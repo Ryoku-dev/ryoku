@@ -29,7 +29,7 @@ which the client loads as its "System" theme.
 
 Fastfetch and Starship keep layout separate from generated colour.
 
-- In **Follow wallpaper** mode, `ryoku-fastfetch` asks the Hub backend for a
+- In **Follow wallpaper** mode, `ryoku-fastfetch` asks the `ryoku-hub` backend for a
   cached effective config built from `~/.cache/ryoku/colors.json`, the same
   committed palette the shell reads. Named `ryoku:recolor` roles are resolved
   from that file on each refresh. `config.jsonc` remains the user's file and is
@@ -121,7 +121,7 @@ across `ryoku/shell/matugen/config.toml`, `ryoku/shell/matugen/apps.toml`,
 `templateGroup()` in `ryoku/shell/ipc/matugen.go`, and a second group switch plus
 a default roster in `ryoku/hub/backend/matugen.go`. Four places must agree about
 what "gtk" means. One manifest -- app, template, destination, how it is included,
-how it reloads -- would be the single source the renderer, the roster and the Hub
+how it reloads -- would be the single source the renderer, the roster and Ryoku Settings
 all read.
 
 **Not** the hand-authoring. Ryoku's whole point is that the palette follows the
