@@ -18,6 +18,8 @@ T.AbstractButton {
     Accessible.name: Lithic.tr("Home")
     Accessible.role: Accessible.Button
     opacity: enabled ? 1 : LithicTokens.alpha.disabled
+    Keys.onReturnPressed: click()
+    Keys.onEnterPressed: click()
 
     background: CutRect {
         id: brandSurface

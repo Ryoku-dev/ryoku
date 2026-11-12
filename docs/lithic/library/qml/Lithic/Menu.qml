@@ -64,7 +64,20 @@ T.Control {
     Keys.onDownPressed: moveFocus(1)
     Keys.onUpPressed: moveFocus(-1)
     Keys.onReturnPressed: activateFocused()
+    Keys.onEnterPressed: activateFocused()
     Keys.onSpacePressed: activateFocused()
+    // Home and End go to the first and last enabled items, as on the web and in Gio
+    Keys.onPressed: event => {
+        if (event.key === Qt.Key_Home) {
+            focusedIndex = -1
+            moveFocus(1)
+            event.accepted = true
+        } else if (event.key === Qt.Key_End) {
+            focusedIndex = 0
+            moveFocus(-1)
+            event.accepted = true
+        }
+    }
     onActiveFocusChanged: {
         if (activeFocus && focusedIndex < 0)
             moveFocus(1)

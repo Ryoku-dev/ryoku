@@ -125,7 +125,13 @@ T.Control {
     Keys.onSpacePressed: toggle()
     Keys.onReturnPressed: toggle()
     Keys.onDownPressed: open()
-    Keys.onEscapePressed: close()
+    // a closed picker lets Escape go on, so the dialog or page holding it can close
+    Keys.onEscapePressed: event => {
+        if (popover.opened)
+            close()
+        else
+            event.accepted = false
+    }
 
     Popover {
         id: popover

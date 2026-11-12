@@ -34,7 +34,12 @@ T.TextField {
     Accessible.role: Accessible.EditableText
     Accessible.name: accessibleName
 
+    // Escape clears the search; an empty search lets it go on to close what holds it, as on the web
     Keys.onEscapePressed: function(event) {
+        if (root.text.length === 0) {
+            event.accepted = false;
+            return;
+        }
         root.clear();
         root.forceActiveFocus();
         event.accepted = true;

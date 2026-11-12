@@ -174,4 +174,11 @@ T.AbstractButton {
         acceptedButtons: Qt.LeftButton
         onDoubleTapped: root.primaryAction()
     }
+    // Space selects; Return selects and opens, like a double tap and the web list's Enter
+    Keys.onReturnPressed: root._open()
+    Keys.onEnterPressed: root._open()
+    function _open() {
+        click()
+        primaryAction()
+    }
 }

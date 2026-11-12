@@ -41,6 +41,35 @@ T.Dialog {
         if (opener && opener.enabled)
             opener.forceActiveFocus()
     }
+    // like the web, a dialog that opens without focusing a control of its own starts on its first one
+    onOpened: {
+        if (!previewEmbedded)
+            _focusFirstControl()
+    }
+
+    function _focusFirstControl() {
+        for (let item = contentColumn.Window.activeFocusItem; item; item = item.parent) {
+            if (item === contentColumn)
+                return
+        }
+        const first = _firstTabStop(contentColumn)
+        if (first)
+            first.forceActiveFocus(opener && opener.visualFocus ? Qt.TabFocusReason : Qt.OtherFocusReason)
+    }
+
+    function _firstTabStop(item) {
+        for (let index = 0; index < item.children.length; ++index) {
+            const child = item.children[index]
+            if (!child.visible || !child.enabled)
+                continue
+            if (child.activeFocusOnTab)
+                return child
+            const inner = _firstTabStop(child)
+            if (inner)
+                return inner
+        }
+        return null
+    }
 
     background: DialogPlane {
         transform: Translate { y: root.slideOffset }
