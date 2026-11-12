@@ -118,6 +118,8 @@ func layoutPane(gtx layout.Context, th *look.Theme, rectangle image.Rectangle, p
 	cut := gtx.Dp(th.Cut.Large)
 	area := clip.Outline{Path: kit.CutPath(gtx.Ops, bounds, cut, cut, 0, 0)}.Op().Push(gtx.Ops)
 	paint.Fill(gtx.Ops, plane)
+	// every pane lies on the paper's own tone, so its vein hairline is what draws it
+	kit.StrokeCutCorners(gtx.Ops, bounds, cut, cut, 0, 0, max(1, gtx.Dp(unit.Dp(1))), th.R.Vein)
 	child := gtx
 	child.Constraints = layout.Exact(bounds.Max)
 	body(child)
