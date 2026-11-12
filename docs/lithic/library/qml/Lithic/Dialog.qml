@@ -87,9 +87,13 @@ T.Dialog {
         }
         const target = _ownFocus && _ownFocus.visible && _ownFocus.enabled
             ? _ownFocus : _firstTabStop(contentColumn)
-        if (target)
-            target.forceActiveFocus(_openedFromKeys || (opener && opener.visualFocus)
-                                    ? Qt.TabFocusReason : Qt.OtherFocusReason)
+        if (!target)
+            return
+        const reason = _openedFromKeys || (opener && opener.visualFocus) ? Qt.TabFocusReason : Qt.OtherFocusReason
+        target.forceActiveFocus(reason)
+        // a control that kept the popup's focus from an earlier open is focused already, so its reason is set too
+        if (target.focusReason !== undefined)
+            target.focusReason = reason
     }
 
     function _firstTabStop(item) {

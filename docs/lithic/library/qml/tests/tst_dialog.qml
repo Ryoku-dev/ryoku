@@ -233,5 +233,17 @@ Item {
             wait(300);
             verify(!host.Window.activeFocusItem.visualFocus, "after a pointer open focus comes back without the mark");
         }
+
+        function test_everyKeyboardOpenMarksTheFirstControl() {
+            clearPlaque.forceActiveFocus(Qt.TabFocusReason);
+            for (let round = 1; round <= 4; ++round) {
+                keyClick(Qt.Key_Return);
+                tryCompare(confirm, "opened", true);
+                verify(host.Window.activeFocusItem.visualFocus, "open " + round + " from the keys shows the mark on Cancel");
+                keyClick(Qt.Key_Escape);
+                tryCompare(confirm, "opened", false);
+                tryVerify(() => clearPlaque.activeFocus && clearPlaque.visualFocus, 1000);
+            }
+        }
     }
 }
