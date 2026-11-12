@@ -516,7 +516,7 @@ func (a *App) usersSetLimit(args []string) int {
 		return a.usersFail(caps.Reason)
 	}
 	if !a.isBtrfsSubvolume(target.Home) {
-		return a.usersFail(i18n.T("This account's home is not a Btrfs subvolume."))
+		return a.usersFail(i18n.T("This account's home folder is not its own Btrfs subvolume, so it cannot have a storage limit."))
 	}
 	if err := a.ensureUserQuota(); err != nil {
 		return a.usersFail(err.Error())
@@ -919,7 +919,7 @@ func (a *App) userStorage(home string, caps usersStorageCapability) usersStorage
 		}
 	}
 	if qgroupID == "" {
-		return usersStorage{Reason: i18n.T("This home is not a Btrfs subvolume.")}
+		return usersStorage{Reason: i18n.T("Storage limits need this home folder to be its own Btrfs subvolume.")}
 	}
 	storage := usersStorage{Supported: true}
 	result := a.usersQuery("btrfs", "qgroup", "show", "--raw", "-re", a.cfg.HomeRoot)
