@@ -27,6 +27,11 @@ Item {
     // anchors to the top: a page that floats in the middle of a void reads as
     // lost, and a height-dependent centre visibly hops as cards measure in.
     property real fillTo: 0
+    // True once no lay is pending and none has run for a few frames: the
+    // cards stand where they will stay. A host that shows a page only when
+    // its grid has stopped moving (the Hub's page switch) waits on this
+    // instead of watching the cards' geometry.
+    readonly property bool settled: !settle.running && !relayoutTimer.running && !quiet.running
     default property alias content: stage.data
 
     // A page with two blocks does not get three columns: the grid takes as many
@@ -228,7 +233,9 @@ Item {
         root.contentHeight = content;
         root.layoutHeight = Math.max(content, Math.max(0, root.fillTo));
         root._laying = false;
+        quiet.restart();
     }
+    Timer { id: quiet; interval: 48; repeat: false }
 
     // A timer rather than Qt.callLater: the Hub crossfades pages, so a deferred
     // call can outlive the grid it belongs to and run against a dead object. A
@@ -262,6 +269,13 @@ Item {
         repeat: false
         onTriggered: root.lay()
     }
+    // Throttle, not debounce: a page whose cards fill in from a burst of
+    // backend replies (Graphics & Power) changes a card every few ms, and
+    // restarting the timer on each change kept postponing the lay, so the
+    // cards sat stacked over each other until the burst ended. Starting the
+    // timer only when idle lays within one frame of the first change and
+    // again for whatever arrived during it.
+    function kick() { if (!settle.running) settle.start(); }
 
     // A card that grows (a group unfolds, a row appears, a Flow re-wraps after
     // its width lands) re-lays the page. A delegate declared under `pragma
@@ -274,12 +288,12 @@ Item {
             if (!c || root._wired.indexOf(c) !== -1)
                 continue;
             root._wired.push(c);
-            c.heightChanged.connect(settle.restart);
-            c.visibleChanged.connect(settle.restart);
+            c.heightChanged.connect(root.kick);
+            c.visibleChanged.connect(root.kick);
         }
     }
     Connections {
         target: stage
-        function onChildrenChanged() { root.wireChildren(); settle.restart(); }
+        function onChildrenChanged() { root.wireChildren(); root.kick(); }
     }
 }
