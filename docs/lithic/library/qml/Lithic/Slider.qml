@@ -25,17 +25,25 @@ T.Slider {
     Accessible.role: Accessible.Slider
     Accessible.name: accessibleName
     Keys.onPressed: function(event) {
-        let direction = 0;
+        const minimum = Math.min(from, to);
+        const maximum = Math.max(from, to);
+        let next = value;
         if (event.key === Qt.Key_Left || event.key === Qt.Key_Down)
-            direction = -1;
+            next = value - _keyboardStep;
         else if (event.key === Qt.Key_Right || event.key === Qt.Key_Up)
-            direction = 1;
-
-        if (direction !== 0) {
-            const minimum = Math.min(from, to);
-            const maximum = Math.max(from, to);
-            value = Math.max(minimum, Math.min(maximum, value + direction * _keyboardStep));
-            event.accepted = true;
+            next = value + _keyboardStep;
+        else if (event.key === Qt.Key_Home)
+            next = minimum;
+        else if (event.key === Qt.Key_End)
+            next = maximum;
+        else
+            return;
+        event.accepted = true;
+        next = Math.max(minimum, Math.min(maximum, next));
+        // this handler replaces the template's keys, so it reports the move itself
+        if (next !== value) {
+            value = next;
+            moved();
         }
     }
 

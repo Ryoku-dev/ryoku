@@ -168,7 +168,9 @@ Library: QML Lithic.Toggle, web .l-toggle, Go kit.Toggle, terminal term.RenderTo
 
 The slider is 32 high and 160 wide by default. Its `field` track is 6 high,
 the completed part is an `fg2` blade, and the `sel` handle is 8 by 20 with
-cut `min(width/2, height/4)`. Reference: `ui/kit/slider.go`.
+cut `min(width/2, height/4)`. Arrow keys step it and Home and End jump to its
+ends; a key that moves it reports the change as a drag does, and a key at a
+bound reports nothing. Reference: `ui/kit/slider.go`.
 
 Library: QML Lithic.Slider, web .l-slider, Go kit.Slider, terminal -
 
