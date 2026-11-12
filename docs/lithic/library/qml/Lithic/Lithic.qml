@@ -122,6 +122,10 @@ QtObject {
     // a host's translator turns the library's own English words into the reader's language
     property var translator: null
 
+    // a host's undo, for Ctrl+Z inside a dialog, where a modal popup keeps the host's own key
+    // handling from hearing it
+    property var undo: null
+
     function tr(text) {
         return translator ? translator(text) : text;
     }

@@ -184,6 +184,12 @@ Component.onCompleted: Lithic.translator = s => I18n.tr(s)
 
 `tr` reads `translator`, and a translator may read reactive state such as a catalogue revision, so bindings that show these words update when the language or the translator changes. Defaults that are properties, such as `ChordField.placeholder` or `Confirm.actionText`, stay overridable. An untranslated host needs nothing: with no translator the words stay English.
 
+A host with its own undo sets `Lithic.undo` the same way, so Ctrl+Z inside a dialog reaches it; a modal dialog keeps the host's own key handling from hearing the key, and a text field holding the caret keeps its own undo:
+
+```qml
+Component.onCompleted: Lithic.undo = () => Changes.undo(page.id)
+```
+
 ## Primitives
 
 ### CutRect

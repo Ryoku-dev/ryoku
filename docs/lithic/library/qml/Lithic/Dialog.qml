@@ -219,6 +219,14 @@ T.Dialog {
                 }
             }
         }
+
+        // Ctrl+Z inside the dialog goes to the host's undo; a text field holding the caret keeps
+        // its own undo, because it claims the key before shortcuts are asked
+        Shortcut {
+            sequences: [StandardKey.Undo]
+            enabled: root.opened && typeof Lithic.undo === "function"
+            onActivated: Lithic.undo()
+        }
     }
 
     DialogPlane {

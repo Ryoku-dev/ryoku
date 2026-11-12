@@ -245,5 +245,27 @@ Item {
                 tryVerify(() => clearPlaque.activeFocus && clearPlaque.visualFocus, 1000);
             }
         }
+
+        function test_undoInsideADialogReachesTheHost() {
+            let undos = 0;
+            Lithic.undo = () => { undos++; };
+            try {
+                chooser.open();
+                tryCompare(chooser, "opened", true);
+                keyClick("x");
+                keySequence(StandardKey.Undo);
+                compare(undos, 0, "a text field holding the caret keeps its own undo");
+                innerPicker.forceActiveFocus(Qt.TabFocusReason);
+                keySequence(StandardKey.Undo);
+                compare(undos, 1, "Ctrl+Z inside a dialog reaches the host's undo");
+                chooser.close();
+                tryCompare(chooser, "opened", false);
+                wait(300);
+                keySequence(StandardKey.Undo);
+                compare(undos, 1, "a closed dialog takes no Ctrl+Z");
+            } finally {
+                Lithic.undo = null;
+            }
+        }
     }
 }
