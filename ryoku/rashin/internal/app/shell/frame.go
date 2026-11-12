@@ -275,7 +275,6 @@ func (bar *bottomBar) Layout(gtx layout.Context, s *uiShell, e *env.Env) layout.
 		if tab.tab == s.router.Tab {
 			rectangle, cut := bar.slab.Rect(gtx, tab.tab, rect(index), th.Motion.Select), gtx.Dp(th.Cut.Small)
 			kit.FillCut(gtx.Ops, rectangle, cut, th.R.Sel)
-			kit.PlaceBlade(gtx, th.Theme, rectangle, cut, layout.Horizontal)
 		}
 	}
 	for index, tab := range tabs {

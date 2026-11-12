@@ -124,7 +124,7 @@ func (tablet *Tablet) Layout(gtx layout.Context, th *theme.Theme, content Tablet
 			if press > 0 {
 				FillCut(gtx.Ops, image.Rect(0, 0, width, height), 0, palette.WithAlpha(th.R.OnSel, tokens.AlphaPressRow*press))
 			}
-			PlaceBlade(gtx, th, image.Rect(0, 0, width, height), 0, layout.Vertical)
+
 		} else {
 			fill := palette.Mix(th.R.Stone2, th.R.Stone3, hover)
 			fill = palette.Mix(fill, th.R.Fg, tokens.AlphaPressRow*press)
@@ -183,7 +183,7 @@ func (tablet *Tablet) Layout(gtx layout.Context, th *theme.Theme, content Tablet
 						return Label{Style: th.T.Label, Color: claimInk, MaxLines: 1, Align: text.End}.Layout(gtx, th, content.Claim)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return Label{Style: th.T.MonoSm, Color: quietInk, MaxLines: 1, Align: text.End}.Layout(gtx, th, content.Proof)
+						return Label{Style: th.T.Caption, Color: quietInk, MaxLines: 1, Align: text.End}.Layout(gtx, th, content.Proof)
 					}),
 				)
 			}

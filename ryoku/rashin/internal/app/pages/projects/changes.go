@@ -444,7 +444,6 @@ func (c *changesState) layoutFile(gtx layout.Context, e *env.Env, page *pageStat
 	switch {
 	case selected:
 		kit.FillCut(gtx.Ops, bounds, cut, th.R.Sel)
-		kit.PlaceBlade(gtx, th.Theme, bounds, cut, layout.Vertical)
 	case hover > 0:
 		kit.FillCut(gtx.Ops, bounds, cut, palette.WithAlpha(th.R.Stone3, hover))
 	}

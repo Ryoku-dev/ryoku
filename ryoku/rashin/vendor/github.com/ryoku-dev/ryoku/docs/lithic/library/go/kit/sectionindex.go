@@ -88,7 +88,7 @@ func (index *SectionIndex) layoutRows(gtx layout.Context, th *theme.Theme, label
 				ink := th.R.Fg2
 				if selected {
 					FillCut(gtx.Ops, bounds, cut, th.R.Sel)
-					PlaceBlade(gtx, th, bounds, cut, layout.Vertical)
+
 					ink = th.R.OnSel
 				} else {
 					hovered := index.rows[item].Hovered() || index.Preview == StateHover || index.Preview == StatePressed

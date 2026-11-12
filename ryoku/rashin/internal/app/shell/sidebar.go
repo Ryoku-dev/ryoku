@@ -240,7 +240,6 @@ func (bar *sidebar) layoutSlab(gtx layout.Context, th *look.Theme, s *uiShell, g
 	}
 	cut := gtx.Dp(th.Cut.Small)
 	kit.FillCut(gtx.Ops, rectangle, cut, th.R.Sel)
-	kit.PlaceBlade(gtx, th.Theme, rectangle, cut, layout.Vertical)
 }
 
 func (bar *sidebar) layoutRow(

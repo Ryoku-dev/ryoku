@@ -123,3 +123,18 @@ unchanged beside them with a NOTICE; that license is compatible with Ryoku's
 GPL-3 distribution. The Rashin app draws them, and the ryoku-rashin package
 installs that license as
 /usr/share/licenses/ryoku-rashin/LICENSE.material-symbols.
+
+The Lithic type (docs/lithic/library/go/fonts/) is Geologica by Monokrom,
+Sindre Bremnes and Frode Helland (https://github.com/googlefonts/geologica)
+and Martian Mono by Roman Shamin and Evil Martians
+(https://github.com/evilmartians/mono), taken from the Google Fonts builds at
+commits a60a77e1 and c8bba5c4. They are modified versions: each variable font
+is cut into static instances, Geologica at full sharpness in Regular, Medium
+and Bold and Martian Mono at its normal width in Regular and Bold, and renamed
+to one family each; the glyphs are otherwise unchanged. They are released
+under the SIL Open Font License 1.1, which ships unchanged beside them and
+allows bundling the fonts with software under any license, so it is
+compatible with Ryoku's GPL-3 distribution. The Rashin app embeds them, and the
+ryoku-rashin package installs those licenses as
+/usr/share/licenses/ryoku-rashin/LICENSE.geologica and
+/usr/share/licenses/ryoku-rashin/LICENSE.martian-mono.

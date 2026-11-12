@@ -239,11 +239,7 @@ func (header *PaneHeader) layoutAction(
 			if action.On {
 				state.icon.Kind = kit.PlaqueOn
 			}
-			dimensions := state.icon.Layout(gtx, th.Theme)
-			if action.On {
-				kit.PlaceBlade(gtx, th.Theme, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Small), layout.Horizontal)
-			}
-			return dimensions
+			return state.icon.Layout(gtx, th.Theme)
 		}
 		return header.layoutLabelled(gtx, th, state, action)
 	}
@@ -287,9 +283,6 @@ func (header *PaneHeader) layoutLabelled(gtx layout.Context, th *Theme, state *h
 		call := record.Stop()
 		bounds := image.Rect(0, 0, dimensions.Size.X, height)
 		kit.FillCut(gtx.Ops, bounds, cut, fill)
-		if action.On {
-			kit.PlaceBlade(gtx, th.Theme, bounds, cut, layout.Horizontal)
-		}
 		offset := op.Offset(image.Pt(0, (height-dimensions.Size.Y)/2)).Push(gtx.Ops)
 		call.Add(gtx.Ops)
 		offset.Pop()

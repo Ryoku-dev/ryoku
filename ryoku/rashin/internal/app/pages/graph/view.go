@@ -200,7 +200,6 @@ func (v *viewState) drawSelection(gtx layout.Context, th *look.Theme, size image
 	area := clip.Rect(image.Rectangle{Max: size}).Push(gtx.Ops)
 	cut := gtx.Dp(th.Cut.Small)
 	kit.FillCut(gtx.Ops, rect, cut, th.R.Sel)
-	kit.PlaceBlade(gtx, th.Theme, rect, cut, layout.Vertical)
 	area.Pop()
 }
 

@@ -9,6 +9,7 @@ import (
 	"gioui.org/text"
 	"gioui.org/unit"
 
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/fonts"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 )
@@ -120,7 +121,7 @@ func WithShaper(shaper *text.Shaper) Option {
 	return func(config *config) { config.shaper = shaper }
 }
 
-// WithFontCollection adds embedded faces while retaining system font lookup.
+// WithFontCollection adds faces beside Lithic's own while retaining system font lookup.
 func WithFontCollection(collection []font.FontFace) Option {
 	return func(config *config) { config.collection = collection }
 }
@@ -157,12 +158,10 @@ func New(roles palette.Roles, options ...Option) *Theme {
 	}
 }
 
-// NewShaper creates a system-font shaper with an optional embedded collection.
+// NewShaper creates a shaper with Lithic's embedded faces, an optional extra collection, and
+// the system fonts for scripts those faces do not cover.
 func NewShaper(collection []font.FontFace) *text.Shaper {
-	if len(collection) == 0 {
-		return text.NewShaper()
-	}
-	return text.NewShaper(text.WithCollection(collection))
+	return text.NewShaper(text.WithCollection(append(fonts.Collection(), collection...)))
 }
 
 // RowHeight returns the tablet height for the active density.

@@ -47,30 +47,14 @@ type Roles struct {
 	Scrim   color.NRGBA
 	Dark    bool
 	Source  string
+
+	mineralTone float64
 }
 
-// Signature returns the fallback roles for dark or light mode.
+// Signature returns the roles Lithic paints with no palette: the bone dye on
+// the tone ladder for dark or light mode.
 func Signature(dark bool) Roles {
-	table := tokens.SignatureLight
-	minerals := tokens.MineralsLight
-	if dark {
-		table = tokens.SignatureDark
-		minerals = tokens.MineralsDark
-	}
-	r := Roles{
-		Ground: tableColor(table, "ground"), Stone1: tableColor(table, "stone1"),
-		Stone2: tableColor(table, "stone2"), Stone3: tableColor(table, "stone3"),
-		Stone4: tableColor(table, "stone4"), Slab: tableColor(table, "slab"),
-		Field: tableColor(table, "field"), Vein: tableColor(table, "vein"),
-		Fg: tableColor(table, "fg"), Fg2: tableColor(table, "fg2"), Fg3: tableColor(table, "fg3"),
-		Sel: tableColor(table, "sel"), OnSel: tableColor(table, "onSel"), OnSel2: tableColor(table, "onSel2"),
-		Gold: tableColor(table, "gold"), OnGold: tableColor(table, "onGold"), GoldInk: tableColor(table, "goldInk"),
-		Jasper: tableColor(table, "jasper"), Scrim: tableColor(table, "scrim"),
-		Jade: tableColor(minerals, "jade"), Lapis: tableColor(minerals, "lapis"), Amber: tableColor(minerals, "amber"),
-		Dark: dark, Source: "signature",
-	}
-	r.Edge = Mix(r.Vein, r.Fg3, tokens.AlphaEdge)
-	return r
+	return FromPalette(Palette{Dark: dark, Forced: true, Source: "signature"}, Look{})
 }
 
 // Stone returns the mineral ink associated with tone.
@@ -89,16 +73,23 @@ func (r Roles) Stone(tone Tone) color.NRGBA {
 	}
 }
 
-// MineralField returns the mineral field associated with tone.
+// MineralField returns the mineral field associated with tone: the mineral's
+// hue at the ladder's mineral-field lightness and its field chroma.
 func (r Roles) MineralField(tone Tone) color.NRGBA {
+	name := ""
 	switch tone {
 	case Alive:
-		return Mix(r.Stone2, r.Jade, tokens.AlphaMineralJade)
-	case Becoming, Attention, Paused, Failed:
-		return Mix(r.Stone2, r.Stone(tone), tokens.AlphaMineral)
+		name = "jade"
+	case Becoming:
+		name = "lapis"
+	case Attention, Paused:
+		name = "amber"
+	case Failed:
+		name = "jasper"
 	default:
 		return r.Stone3
 	}
+	return toned(r.mineralTone, dye{C: tokens.DyeMineral[name], H: dyeOf(r.Stone(tone)).H})
 }
 
 // WithAlpha returns c at a fraction of its current alpha.
@@ -134,28 +125,6 @@ func ContrastRatio(a, b color.NRGBA) float64 {
 	return (lighter + 0.05) / (darker + 0.05)
 }
 
-func contrastTone(ink, background color.NRGBA, lighter bool) color.NRGBA {
-	if ContrastRatio(ink, background) >= float64(tokens.ContrastMinimum) {
-		return ink
-	}
-	hue, saturation, lightness := rgbToHSL(ink)
-	for step := 1; step <= 255; step++ {
-		at := float64(step) / 255
-		next := lightness * (1 - at)
-		if lighter {
-			next = lightness + (1-lightness)*at
-		}
-		candidate := hslToNRGBA(hue, saturation, next, ink.A)
-		if ContrastRatio(candidate, background) >= float64(tokens.ContrastMinimum) {
-			return candidate
-		}
-	}
-	if lighter {
-		return color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: ink.A}
-	}
-	return color.NRGBA{A: ink.A}
-}
-
 func relativeLuminance(c color.NRGBA) float64 {
 	channel := func(value uint8) float64 {
 		x := float64(value) / 255
@@ -165,66 +134,4 @@ func relativeLuminance(c color.NRGBA) float64 {
 		return math.Pow((x+0.055)/1.055, 2.4)
 	}
 	return 0.2126*channel(c.R) + 0.7152*channel(c.G) + 0.0722*channel(c.B)
-}
-
-func rgbToHSL(c color.NRGBA) (hue, saturation, lightness float64) {
-	r, g, b := float64(c.R)/255, float64(c.G)/255, float64(c.B)/255
-	maximum, minimum := max(r, g, b), min(r, g, b)
-	lightness = (maximum + minimum) / 2
-	if maximum == minimum {
-		return 0, 0, lightness
-	}
-	delta := maximum - minimum
-	if lightness > 0.5 {
-		saturation = delta / (2 - maximum - minimum)
-	} else {
-		saturation = delta / (maximum + minimum)
-	}
-	switch maximum {
-	case r:
-		hue = (g - b) / delta
-		if g < b {
-			hue += 6
-		}
-	case g:
-		hue = (b-r)/delta + 2
-	default:
-		hue = (r-g)/delta + 4
-	}
-	return hue / 6, saturation, lightness
-}
-
-func hslToNRGBA(hue, saturation, lightness float64, alpha uint8) color.NRGBA {
-	if saturation == 0 {
-		value := uint8(math.Round(lightness * 255))
-		return color.NRGBA{R: value, G: value, B: value, A: alpha}
-	}
-	q := lightness * (1 + saturation)
-	if lightness >= 0.5 {
-		q = lightness + saturation - lightness*saturation
-	}
-	p := 2*lightness - q
-	hueToRGB := func(t float64) float64 {
-		if t < 0 {
-			t++
-		}
-		if t > 1 {
-			t--
-		}
-		switch {
-		case t < 1.0/6:
-			return p + (q-p)*6*t
-		case t < 0.5:
-			return q
-		case t < 2.0/3:
-			return p + (q-p)*(2.0/3-t)*6
-		default:
-			return p
-		}
-	}
-	return color.NRGBA{
-		R: uint8(math.Round(hueToRGB(hue+1.0/3) * 255)),
-		G: uint8(math.Round(hueToRGB(hue) * 255)),
-		B: uint8(math.Round(hueToRGB(hue-1.0/3) * 255)), A: alpha,
-	}
 }

@@ -1219,8 +1219,8 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
   sidebar toggle, back and forward, the one search field, window controls), a
   sidebar that folds to a rail (the gold New plaque, the destinations Ask,
   Agents, Projects and Index, the current destination's list, Settings at the
-  foot; the place shown carries the selection with its blade and a filled
-  icon), the content pane with a header and a body, and a side panel beside a
+  foot; the place shown carries the selection fill and a filled icon), the
+  content pane with a header and a body, and a side panel beside a
   conversation that changes files. Expanded from 1100 dp, medium from 760
   (rail, the sidebar as a sheet), compact below (bottom bar for the
   destinations, the list as a sheet).

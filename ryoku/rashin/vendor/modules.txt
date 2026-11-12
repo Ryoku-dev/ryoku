@@ -70,6 +70,7 @@ github.com/godbus/dbus/v5
 # github.com/ryoku-dev/ryoku/docs/lithic/library/go v0.0.0 => ../../docs/lithic/library/go
 ## explicit; go 1.26
 github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim
+github.com/ryoku-dev/ryoku/docs/lithic/library/go/fonts
 github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit
 github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette
 github.com/ryoku-dev/ryoku/docs/lithic/library/go/symbols

@@ -67,3 +67,18 @@ Apache License 2.0
 
 The full license text is installed beside this notice as
 LICENSE.material-symbols.
+
+Geologica and Martian Mono
+
+The Rashin app sets its text in Geologica by Monokrom, Sindre Bremnes and
+Frode Helland (https://github.com/googlefonts/geologica) and its literal data
+in Martian Mono by Roman Shamin and Evil Martians
+(https://github.com/evilmartians/mono), embedded through Lithic's fonts
+package from the Google Fonts builds at commits a60a77e1 and c8bba5c4. Each
+variable font is cut into static instances and renamed to one family; the
+glyphs are otherwise unchanged.
+
+SIL Open Font License 1.1
+
+The full license texts are installed beside this notice as LICENSE.geologica
+and LICENSE.martian-mono.

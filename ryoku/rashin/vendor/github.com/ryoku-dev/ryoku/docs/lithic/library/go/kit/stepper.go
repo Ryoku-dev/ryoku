@@ -88,7 +88,7 @@ func (s *Stepper) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions 
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			var children [3]layout.FlexChild
 			count := 0
-			children[count] = layout.Rigid(rawText(th, th.T.Mono, disabledInk(gtx, th.R.Fg), strconv.Itoa(s.Value)))
+			children[count] = layout.Rigid(rawText(th, th.T.Label, disabledInk(gtx, th.R.Fg), strconv.Itoa(s.Value)))
 			count++
 			if s.Unit != "" {
 				children[count] = layout.Rigid(layout.Spacer{Width: unit.Dp(tokens.SizeStepperUnitGap)}.Layout)

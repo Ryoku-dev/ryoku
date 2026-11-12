@@ -54,6 +54,7 @@ func (p *NewPlaque) Layout(gtx layout.Context, th *theme.Theme, compact, open bo
 		hover := hoverValue(gtx, th, &p.hover, hovered)
 		fill := palette.Mix(th.R.Gold, th.R.OnGold, tokens.AlphaHoverFill*hover)
 		FillCut(gtx.Ops, bounds, finalCut, fill)
+
 		icon := newAddIcon
 		if open {
 			icon = iconClose

@@ -104,7 +104,7 @@ func (f *Filters) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions 
 					if i < len(f.Counts) {
 						parts[count] = layout.Rigid(layout.Spacer{Width: unit.Dp(tokens.SizeFilterCountGap)}.Layout)
 						count++
-						parts[count] = layout.Rigid(rawText(th, th.T.MonoSm, ink, strconv.Itoa(f.Counts[i])))
+						parts[count] = layout.Rigid(rawText(th, th.T.Caption, ink, strconv.Itoa(f.Counts[i])))
 						count++
 					}
 					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, parts[:count]...)
@@ -114,7 +114,7 @@ func (f *Filters) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions 
 				bounds := image.Rectangle{Max: size}
 				plate := op.Record(gtx.Ops)
 				if i != f.Selected {
-					FillCut(gtx.Ops, bounds, cut, disabledInk(gtx, palette.Mix(th.R.Field, th.R.Fg, tokens.AlphaHoverPlane*min(hover, 1))))
+					FillCut(gtx.Ops, bounds, cut, disabledInk(gtx, palette.WithAlpha(th.R.Field, min(hover, 1))))
 				}
 				f.plates[i] = plate.Stop()
 				if i == f.Selected && pressed > 0 {
@@ -154,7 +154,7 @@ func (f *Filters) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions 
 	selection := image.Rect(x, (dims.Size.Y-height)/2, x+width, (dims.Size.Y+height)/2)
 	selectionCut := gtx.Dp(th.Cut.Small)
 	FillCut(gtx.Ops, selection, selectionCut, disabledInk(gtx, th.R.Sel))
-	PlaceBlade(gtx, th, selection, selectionCut, layout.Horizontal)
+
 	content.Add(gtx.Ops)
 	return dims
 }

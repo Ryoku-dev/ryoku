@@ -1,7 +1,6 @@
 package routines
 
 import (
-	"image"
 	"time"
 
 	"gioui.org/layout"
@@ -181,20 +180,17 @@ func (w *whenBuilder) fields(th *look.Theme) []layout.Widget {
 	return []layout.Widget{func(gtx layout.Context) layout.Dimensions { return w.custom.Layout(gtx, th.Theme) }}
 }
 
-// the days of the week as chips, any number of them on; an on day carries the place blade as a picked filter does
+// the days of the week as chips, any number of them on
 func (w *whenBuilder) layoutDays(th *look.Theme) layout.Widget {
 	labels := weekdayLabels()
 	return func(gtx layout.Context) layout.Dimensions {
 		return look.Flow{Gap: 4, LineGap: 4}.Layout(gtx, len(w.weekday), func(gtx layout.Context, index int) layout.Dimensions {
 			chip := &w.weekday[index]
 			chip.Small, chip.Label, chip.Kind = true, labels[index], kit.PlaqueTonal
-			if !w.plan.days[index] {
-				return chip.Layout(gtx, th.Theme)
+			if w.plan.days[index] {
+				chip.Kind = kit.PlaqueOn
 			}
-			chip.Kind = kit.PlaqueOn
-			dimensions := chip.Layout(gtx, th.Theme)
-			kit.PlaceBlade(gtx, th.Theme, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Small), layout.Horizontal)
-			return dimensions
+			return chip.Layout(gtx, th.Theme)
 		})
 	}
 }

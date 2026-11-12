@@ -35,6 +35,10 @@
   sets the stones further apart and Tint (Off, Low or Medium) gives them a
   touch of the wallpaper colour; Rashin starts on Standard and Low, and a
   change restyles the open window at once (`rashin/internal/app/state`).
+- **Rashin's app takes Lithic's new type and selection.** Text is set in
+  Geologica and literal data in Martian Mono, both embedded in the app, and
+  the selection is a solid fill near the text colour without the side blade
+  (`rashin/internal/app`).
 - **Rashin can serve its providers to other programs.** Settings > Local API
   or `rashin api on` gives an address and a key in the shape of OpenAI's API,
   so an editor or another agent uses the same free models, keys and failover.
