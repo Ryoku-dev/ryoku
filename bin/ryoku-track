@@ -90,7 +90,18 @@ if [[ -d $REPO/.git ]]; then
   esac
   git -C "$REPO" remote set-url origin "$REPO_URL" 2>/dev/null || true
   git -C "$REPO" fetch origin "$CHANNEL"
+  # nothing local is lost: changes go to a stash, commits nobody pushed to refs/ryoku-backup
+  if [[ -n $(git -C "$REPO" status --porcelain --untracked-files=no) ]]; then
+    git -C "$REPO" stash push -q -m "ryoku-track: kept before switching to $CHANNEL"
+    say "Kept your uncommitted changes in $REPO as a stash (git -C $REPO stash list)"
+  fi
   git -C "$REPO" checkout "$CHANNEL"
+  ahead=$(git -C "$REPO" rev-list --count "origin/$CHANNEL..HEAD")
+  if ((ahead > 0)); then
+    keep="refs/ryoku-backup/$CHANNEL/$(date -u +%Y%m%dT%H%M%SZ)"
+    git -C "$REPO" update-ref "$keep" HEAD
+    say "Kept $ahead local commit(s) from $CHANNEL as $keep"
+  fi
   git -C "$REPO" reset --hard "origin/$CHANNEL"
 else
   git clone -b "$CHANNEL" "$REPO_URL" "$REPO"
