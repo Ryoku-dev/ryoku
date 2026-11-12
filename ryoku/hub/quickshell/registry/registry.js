@@ -61,7 +61,7 @@ var pages = {
     "window-manager": { title: "Window manager", category: "windows", needs: { provider: true },
         keywords: ["window manager", "compositor", "wm", "switch", "plugins", "hyprpm", "wayland", "session"] },
 
-    "displays": { title: "Displays", category: "devices", needs: { cap: "monitorConfig" },
+    "displays": { title: "Displays", category: "devices", file: "Displays", needs: { cap: "monitorConfig" },
         keywords: ["monitor", "screen", "resolution", "refresh rate", "scale", "rotation", "arrange", "mirror", "hidpi", "vrr", "adaptive sync", "hdr", "night light"] },
     "keyboard": { title: "Keyboard", category: "devices",
         keywords: ["keyboard", "layout", "xkb", "repeat", "caps lock", "compose", "num lock", "dvorak", "remap"] },
