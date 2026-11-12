@@ -26,6 +26,23 @@ Item {
         return Math.max(0, _bounded(value) - strokeWidth * (2 - Math.SQRT2));
     }
 
+    // the same octagon as before, as one point list per ring
+    readonly property var _outer: {
+        const tl = _bounded(cutTopLeft), tr = _bounded(cutTopRight)
+        const br = _bounded(cutBottomRight), bl = _bounded(cutBottomLeft)
+        return [Qt.point(tl, 0), Qt.point(width - tr, 0), Qt.point(width, tr), Qt.point(width, height - br),
+                Qt.point(width - br, height), Qt.point(bl, height), Qt.point(0, height - bl), Qt.point(0, tl),
+                Qt.point(tl, 0)]
+    }
+    readonly property var _inner: {
+        const s = strokeWidth
+        const tl = _innerCut(cutTopLeft), tr = _innerCut(cutTopRight)
+        const br = _innerCut(cutBottomRight), bl = _innerCut(cutBottomLeft)
+        return [Qt.point(s + tl, s), Qt.point(width - s - tr, s), Qt.point(width - s, s + tr),
+                Qt.point(width - s, height - s - br), Qt.point(width - s - br, height - s),
+                Qt.point(s + bl, height - s), Qt.point(s, height - s - bl), Qt.point(s, s + tl), Qt.point(s + tl, s)]
+    }
+
     Shape {
         anchors.fill: parent
         antialiasing: true
@@ -34,42 +51,14 @@ Item {
         ShapePath {
             fillColor: root.fill
             strokeColor: "transparent"
-            startX: root._bounded(root.cutTopLeft)
-            startY: 0
-            PathLine { x: root.width - root._bounded(root.cutTopRight); y: 0 }
-            PathLine { x: root.width; y: root._bounded(root.cutTopRight) }
-            PathLine { x: root.width; y: root.height - root._bounded(root.cutBottomRight) }
-            PathLine { x: root.width - root._bounded(root.cutBottomRight); y: root.height }
-            PathLine { x: root._bounded(root.cutBottomLeft); y: root.height }
-            PathLine { x: 0; y: root.height - root._bounded(root.cutBottomLeft) }
-            PathLine { x: 0; y: root._bounded(root.cutTopLeft) }
-            PathLine { x: root._bounded(root.cutTopLeft); y: 0 }
+            PathPolyline { path: root._outer }
         }
 
         ShapePath {
             fillColor: root.strokeWidth > 0 ? root.strokeColor : "transparent"
             strokeColor: "transparent"
             fillRule: ShapePath.OddEvenFill
-            startX: root._bounded(root.cutTopLeft)
-            startY: 0
-            PathLine { x: root.width - root._bounded(root.cutTopRight); y: 0 }
-            PathLine { x: root.width; y: root._bounded(root.cutTopRight) }
-            PathLine { x: root.width; y: root.height - root._bounded(root.cutBottomRight) }
-            PathLine { x: root.width - root._bounded(root.cutBottomRight); y: root.height }
-            PathLine { x: root._bounded(root.cutBottomLeft); y: root.height }
-            PathLine { x: 0; y: root.height - root._bounded(root.cutBottomLeft) }
-            PathLine { x: 0; y: root._bounded(root.cutTopLeft) }
-            PathLine { x: root._bounded(root.cutTopLeft); y: 0 }
-
-            PathMove { x: root.strokeWidth + root._innerCut(root.cutTopLeft); y: root.strokeWidth }
-            PathLine { x: root.width - root.strokeWidth - root._innerCut(root.cutTopRight); y: root.strokeWidth }
-            PathLine { x: root.width - root.strokeWidth; y: root.strokeWidth + root._innerCut(root.cutTopRight) }
-            PathLine { x: root.width - root.strokeWidth; y: root.height - root.strokeWidth - root._innerCut(root.cutBottomRight) }
-            PathLine { x: root.width - root.strokeWidth - root._innerCut(root.cutBottomRight); y: root.height - root.strokeWidth }
-            PathLine { x: root.strokeWidth + root._innerCut(root.cutBottomLeft); y: root.height - root.strokeWidth }
-            PathLine { x: root.strokeWidth; y: root.height - root.strokeWidth - root._innerCut(root.cutBottomLeft) }
-            PathLine { x: root.strokeWidth; y: root.strokeWidth + root._innerCut(root.cutTopLeft) }
-            PathLine { x: root.strokeWidth + root._innerCut(root.cutTopLeft); y: root.strokeWidth }
+            PathMultiline { paths: [root._outer, root._inner] }
         }
     }
 
