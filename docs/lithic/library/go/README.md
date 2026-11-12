@@ -310,10 +310,10 @@ argument.
 
 | Component | Caller fields and methods |
 |---|---|
-| `Popover` | An anchored overlay. Set `Open`, optional focus-return `Opener`, and `Preview`. Call `Layout(gtx, anchor, content)` and `Close(gtx)`. |
+| `Popover` | An anchored overlay. Set `Open`, optional focus-return `Opener`, and `Preview`. Call `Layout(gtx, anchor, content)` and `Close(gtx)`. It takes keyboard focus when it opens and brings focus back only when it leaves both the popover and its content; kit clickables and fields inside the content keep it. |
 | `MenuItem` | Set `Icon`, `Label`, `Shortcut`, `Danger`, `Disabled`, `Divider`, and `Preview`. |
-| `Menu` | A cut command list. Set `Preview`, pass items to `Layout(gtx, th, items)`, and consume `Clicked(gtx) (int, bool)`. |
-| `Picker` | A labelled field and popover menu. Set `Preview`. Call `Focus`, `Open`, `Show`, `Close`, `Layout(gtx, th, label, options, selected)`, and `Changed(gtx) (int, bool)`. |
+| `Menu` | A cut command list. Set `Preview`, pass items to `Layout(gtx, th, items)`, and consume `Clicked(gtx) (int, bool)`. Inside a Popover it starts keyboard focus on its first enabled item; Up and Down move it, wrapping and skipping dividers and disabled items, Home and End go to the ends, Return, Enter or Space chooses, and Escape closes the popover without choosing, returning focus to its opener. `FocusItem(gtx, index)` moves the keyboard position for a host that opens a menu itself. |
+| `Picker` | A labelled field and popover menu. Set `Preview`. Call `Focus`, `Open`, `Show`, `Close`, `Layout(gtx, th, label, options, selected)`, and `Changed(gtx) (int, bool)`. A click, or Space, Return or Down on the anchor, opens it with the keyboard on the current choice; choosing or Escape returns focus to the anchor. |
 | `Dialog` | A protected deferred surface. Set `Open`, optional `Width`, optional focus-return `Opener`, and `Preview`. Call `Layout(gtx, th, title, body, actions...)`, `Dismiss(gtx)`, and the clear-on-read `Closed() bool`. |
 | `Confirm` | A dialog with cancel, action, and optional typed proof. Set `Dialog`, `Danger`, `CancelText` (the cancel plaque's label; empty means "Cancel", so a keep-or-revert dialog can say "Keep"), and `Preview`. Call `SetConfirmationText`, `ConfirmationText`, `Layout(gtx, th, title, body, action, typeToConfirm) bool`, and `Closed() bool`. `Layout` returns true for the accepted action. |
 | `Tooltip` | Delayed pointer detail. Set `Preview`, then call `Layout(gtx, th, tip, widget)`. |

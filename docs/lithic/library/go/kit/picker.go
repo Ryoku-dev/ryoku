@@ -6,6 +6,7 @@ import (
 	"gioui.org/io/key"
 	"gioui.org/io/semantic"
 	"gioui.org/layout"
+	"gioui.org/op"
 	"gioui.org/unit"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
@@ -45,6 +46,16 @@ func (p *Picker) Close(gtx layout.Context) { p.popover.Close(gtx) }
 func (p *Picker) Layout(gtx layout.Context, th *theme.Theme, label string, options []string, selected int) layout.Dimensions {
 	if p.button.Clicked(gtx) {
 		p.popover.Open = !p.popover.Open
+	}
+	for {
+		value, ok := gtx.Event(key.Filter{Focus: &p.button.Clickable, Name: key.NameDownArrow})
+		if !ok {
+			break
+		}
+		if pressed, ok := value.(key.Event); ok && pressed.State == key.Press && gtx.Source.Enabled() {
+			p.popover.Open = true
+			gtx.Execute(op.InvalidateCmd{})
+		}
 	}
 	p.popover.Opener = &p.button.Clickable
 	p.popover.Preview = p.Preview
@@ -107,6 +118,8 @@ func (p *Picker) Layout(gtx layout.Context, th *theme.Theme, label string, optio
 		for index, option := range options {
 			items[index] = MenuItem{Label: option, Checked: index == selected}
 		}
+		// the keyboard starts on the current choice
+		p.menu.start = selected
 		return p.menu.Layout(gtx, th, items)
 	}
 	return p.popover.Layout(gtx, anchor, content)

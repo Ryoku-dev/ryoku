@@ -55,5 +55,6 @@ func (click *Click) Layout(gtx layout.Context, widget layout.Widget) layout.Dime
 	if caught {
 		gtx.Execute(op.InvalidateCmd{})
 	}
+	noteOverlayFocus(gtx, &click.Clickable)
 	return click.Clickable.Layout(gtx, widget)
 }

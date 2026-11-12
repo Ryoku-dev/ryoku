@@ -142,6 +142,7 @@ func layoutTextEditor(gtx layout.Context, th *theme.Theme, editor *widget.Editor
 	textCall := textMaterial(gtx.Ops, disabledInk(gtx, th.R.Fg))
 	selectionCall := textMaterial(gtx.Ops, disabledInk(gtx, th.R.Sel))
 	editor.LineHeight = 0
+	noteOverlayFocus(gtx, editor)
 	editorDims := editor.Layout(lineGTX, th.Shaper, style.Face, style.Size, textCall, selectionCall)
 	call := record.Stop()
 	y := max(0, (size.Y-editorDims.Size.Y)/2)

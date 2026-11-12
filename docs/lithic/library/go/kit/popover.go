@@ -34,6 +34,7 @@ type Popover struct {
 	wasOpen     bool
 	visible     bool
 	enter       anim.Tween
+	focusState  overlayFocus
 }
 
 // Close dismisses the popover and restores keyboard focus to its opener.
@@ -103,6 +104,40 @@ func clampCoordinate(value, low, high int) int {
 	return max(low, min(value, high))
 }
 
+// dismiss closes the popover from inside it, restoring the opener's focus and
+// starting the exit.
+func (p *Popover) dismiss(gtx layout.Context) {
+	p.Close(gtx)
+	p.wasOpen = false
+	p.enter.Duration = tokens.MotionMenuOut
+	p.enter.Ease = anim.EaseChisel
+	p.enter.Set(gtx, 0)
+}
+
+// overlayFocus is how an open popover and its content share keyboard focus:
+// the popover says whether it holds focus itself, and the content says
+// whether one of its parts does or asks to close.
+type overlayFocus struct {
+	idle   bool
+	within bool
+	escape bool
+}
+
+const overlayFocusValue = "lithic.kit.overlay-focus"
+
+func overlayFocusOf(gtx layout.Context) *overlayFocus {
+	state, _ := gtx.Values[overlayFocusValue].(*overlayFocus)
+	return state
+}
+
+// noteOverlayFocus tells an enclosing popover that tag, which holds focus,
+// is part of its content.
+func noteOverlayFocus(gtx layout.Context, tag event.Tag) {
+	if state := overlayFocusOf(gtx); state != nil && gtx.Focused(tag) {
+		state.within = true
+	}
+}
+
 // Layout draws anchor in flow and content in the deferred overlay layer.
 func (p *Popover) Layout(gtx layout.Context, anchor, content layout.Widget) layout.Dimensions {
 	anchorDimensions := anchor(gtx)
@@ -140,7 +175,8 @@ func (p *Popover) Layout(gtx layout.Context, anchor, content layout.Widget) layo
 
 	if p.Open {
 		event.Op(gtx.Ops, &p.focusTag)
-		if opening || !gtx.Focused(&p.focusTag) {
+		p.focusState = overlayFocus{idle: opening || gtx.Focused(&p.focusTag)}
+		if opening {
 			gtx.Execute(key.FocusCmd{Tag: &p.focusTag})
 		}
 		for {
@@ -150,11 +186,7 @@ func (p *Popover) Layout(gtx layout.Context, anchor, content layout.Widget) layo
 			}
 			press, ok := value.(pointer.Event)
 			if ok && !press.Position.Round().In(p.contentRect) {
-				p.Close(gtx)
-				p.wasOpen = false
-				p.enter.Duration = tokens.MotionMenuOut
-				p.enter.Ease = anim.EaseChisel
-				p.enter.Set(gtx, 0)
+				p.dismiss(gtx)
 			}
 		}
 		for {
@@ -163,11 +195,7 @@ func (p *Popover) Layout(gtx layout.Context, anchor, content layout.Widget) layo
 				break
 			}
 			if keyEvent, ok := value.(key.Event); ok && keyEvent.State == key.Press {
-				p.Close(gtx)
-				p.wasOpen = false
-				p.enter.Duration = tokens.MotionMenuOut
-				p.enter.Ease = anim.EaseChisel
-				p.enter.Set(gtx, 0)
+				p.dismiss(gtx)
 			}
 		}
 	} else {
@@ -187,7 +215,9 @@ func (p *Popover) Layout(gtx layout.Context, anchor, content layout.Widget) layo
 
 	window := gtx.Constraints.Max
 	contentContext := overlayContentContext(gtx)
-	if !p.Open {
+	if p.Open {
+		contentContext.Values[overlayFocusValue] = &p.focusState
+	} else {
 		contentContext = contentContext.Disabled()
 	}
 	contentContext.Constraints.Min = image.Point{}
@@ -195,6 +225,15 @@ func (p *Popover) Layout(gtx layout.Context, anchor, content layout.Widget) layo
 	contentRecord := op.Record(gtx.Ops)
 	contentDimensions := content(contentContext)
 	contentCall := contentRecord.Stop()
+	if p.Open {
+		switch {
+		case p.focusState.escape:
+			p.dismiss(gtx)
+		case !opening && !p.focusState.within && !gtx.Focused(&p.focusTag):
+			// focus left the popover and its content, so bring it back
+			gtx.Execute(key.FocusCmd{Tag: &p.focusTag})
+		}
+	}
 
 	viewport := image.Rect(0, -window.Y, window.X, window.Y)
 	if p.Preview != StateRest {
