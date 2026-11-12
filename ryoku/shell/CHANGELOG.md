@@ -89,6 +89,12 @@
   leaves a band above the sheet, and folio sheets no longer cast a shadow
   (`ryogami/picker/qml/folio/SettingsFolio.qml`,
   `ryogami/picker/qml/chrome/FilterBar.qml`, `ryogami/picker/qml/kit/FolioSheet.qml`).
+- **Rices and `ryoku-hub matugen set` go through Ryogami.** Applying or
+  restoring a rice and `ryoku-hub matugen set` now go through Ryogami, the one
+  writer of `matugen.json` and of its keys in `theme.json`, and the hub's own
+  `theme.json` fields take the daemon's lock. Custom outputs follow the Light
+  or dark setting (`../hub/backend/{rice,matugen,schemes}.go`,
+  `ryogami/daemon/{settings_docs,matugen_outputs}.go`).
 - **Long graphics card names end at a word.** The system card and Settings
   showed names cut mid-word, such as "GeForce RTX 4060 Max-Q / Mobil"; a name
   over 30 characters now drops its last partial word or model and any separator

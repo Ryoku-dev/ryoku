@@ -14,7 +14,8 @@ import (
 // history the panel is drawing.
 //
 //	ryoku-hub clipboard stats   print {items,starred,bytes,textBytes,...} as JSON
-//	ryoku-hub clipboard prune   drop every unstarred entry, then print the same
+//	ryoku-hub clipboard prune   drop every unstarred entry, then print the same,
+//	                            or null when only that report failed
 type clipboardStats struct {
 	Items      int   `json:"items"`
 	Starred    int   `json:"starred"`
@@ -40,7 +41,13 @@ func runClipboard(args []string) error {
 		if err := daemonCall("clipboard.clear", nil, nil); err != nil {
 			return err
 		}
-		return printClipboardStats()
+		// The prune is done; a report that fails after it must not turn it into a
+		// failure the page offers to retry. null leaves the page without a number.
+		if err := printClipboardStats(); err != nil {
+			fmt.Fprintf(os.Stderr, "ryoku-hub: history cleared, but its size could not be read: %v\n", err)
+			fmt.Println("null")
+		}
+		return nil
 	default:
 		return fmt.Errorf("clipboard: unknown action %q", args[0])
 	}

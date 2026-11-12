@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -258,11 +259,14 @@ func saveDesktop(raw string) error {
 	}
 	return withDesktopLock(func() error {
 		before, _ := effectiveCursor()
-		if err := atomicWrite(desktopStorePath(), mustJSON(m), 0o644); err != nil {
+		preview, err := snapshotFiles(desktopPreviewPath())
+		if err != nil {
 			return err
 		}
 		os.Remove(desktopPreviewPath())
-		if err := applyLive(); err != nil {
+		if err := commitDesktopStore(mustJSON(m), applyLive); err != nil {
+			// the save never happened, so the live draft is still the hub's to re-assert
+			_ = preview.restore()
 			return err
 		}
 		after, _ := effectiveCursor()
@@ -358,10 +362,7 @@ func setRebind(def, chosen string) error {
 			d["keybindRebinds"] = rb
 		}
 		m["desktop"] = d
-		if err := atomicWrite(desktopStorePath(), mustJSON(m), 0o644); err != nil {
-			return err
-		}
-		return applyDesktop()
+		return commitDesktopStore(mustJSON(m), applyDesktop)
 	})
 }
 
@@ -394,6 +395,27 @@ func pluginsDesktop(args []string) error {
 		fmt.Println()
 	}
 	return nil
+}
+
+// commitDesktopStore writes desktop.json and runs apply; a refused apply puts the
+// previous store back and re-applies it, so no later session loads the refused value
+func commitDesktopStore(b []byte, apply func() error) error {
+	before, err := snapshotFiles(desktopStorePath())
+	if err != nil {
+		return err
+	}
+	if err := atomicWrite(desktopStorePath(), b, 0o644); err != nil {
+		return err
+	}
+	err = apply()
+	if err == nil {
+		return nil
+	}
+	if rerr := before.restore(); rerr != nil {
+		return errors.Join(err, fmt.Errorf("restore desktop.json: %w", rerr))
+	}
+	_ = apply()
+	return err
 }
 
 // --- provider facade ------------------------------------------------------
@@ -663,11 +685,32 @@ func applyAnimPreset(name string) error {
 	if !animPresets[name] {
 		return fmt.Errorf("unknown animation preset %q", name)
 	}
+	before, err := snapshotFiles(animPresetPath())
+	if err != nil {
+		return err
+	}
 	if err := atomicWrite(animPresetPath(), []byte(name+"\n"), 0o644); err != nil {
 		return err
 	}
-	reloadDesktop()
-	return nil
+	err = reloadAnimPreset()
+	if err == nil {
+		return nil
+	}
+	if rerr := before.restore(); rerr != nil {
+		return errors.Join(err, fmt.Errorf("restore anim-preset: %w", rerr))
+	}
+	_ = reloadAnimPreset()
+	return err
+}
+
+// reloadAnimPreset treats a provider with no reload (niri watches its config and
+// has no preset loader) or no provider at all as done, like the updater's reload
+func reloadAnimPreset() error {
+	err := desktopClient().Act(wm.ActionConfigReload)
+	if errors.Is(err, wm.ErrUnsupported) || errors.Is(err, wm.ErrNoProvider) {
+		return nil
+	}
+	return err
 }
 
 // freshCaps probes the provider without the shared client's process-lifetime
@@ -703,18 +746,4 @@ func generatedConfigWrites() []pendingWrite {
 		out = append(out, pendingWrite{path: path, content: data})
 	}
 	return out
-}
-
-// clearGeneratedConfig removes what the provider's apply authors. Used when a
-// restore leaves no store: the emitted config is a pure function of the store,
-// so an absent store means absent config, not defaults.
-func clearGeneratedConfig() {
-	caps, err := freshCaps()
-	if err != nil {
-		return
-	}
-	base := configHome()
-	for _, rel := range caps.GeneratedFiles {
-		_ = os.Remove(filepath.Join(base, rel))
-	}
 }

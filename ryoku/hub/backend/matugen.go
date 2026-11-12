@@ -192,8 +192,36 @@ func loadMatugenConfig() matugenConfig {
 	return cfg
 }
 
-func saveMatugenConfig(cfg matugenConfig) error {
-	return atomicWrite(matugenConfigPath(), mustJSON(cfg), 0o644)
+// the ryogami setting behind each matugen.json field; the daemon is the file's one writer
+var matugenSettingKeys = map[string]string{
+	"mode":             "theme.mode",
+	"contrast":         "matugen.contrast",
+	"lightnessDark":    "matugen.lightnessDark",
+	"lightnessLight":   "matugen.lightnessLight",
+	"prefer":           "matugen.prefer",
+	"schemeType":       "matugen.schemeType",
+	"sourceColorIndex": "matugen.colorIndex",
+	"themeRyokuApps":   "matugen.themeRyokuApps",
+	"templates":        "matugen.templates",
+}
+
+// setMatugenFields sends fields as one batch so the shell repaints once; strict refuses an unknown field, a rice drops it
+func setMatugenFields(fields map[string]any, strict bool) error {
+	values := map[string]any{}
+	for field, v := range fields {
+		key, ok := matugenSettingKeys[field]
+		if !ok {
+			if strict {
+				return fmt.Errorf("matugen.json has no field %q", field)
+			}
+			continue
+		}
+		values[key] = v
+	}
+	if len(values) == 0 {
+		return nil
+	}
+	return riceRun("ryogami", "settings", "set", string(mustJSON(values)))
 }
 
 func runMatugenCmd(args []string) error {
@@ -207,18 +235,22 @@ func runMatugenCmd(args []string) error {
 		if len(args) < 2 {
 			return fmt.Errorf("matugen set requires JSON argument")
 		}
-		// Merge onto what is stored, never onto a zero struct: the caller sends the
-		// knobs its page owns, and a key it omits (themeRyokuApps, the roster) would
-		// otherwise be written as Go's zero value and silently turn app theming off.
-		cfg := loadMatugenConfig()
-		if err := json.Unmarshal([]byte(args[1]), &cfg); err != nil {
+		var fields map[string]any
+		if err := json.Unmarshal([]byte(args[1]), &fields); err != nil {
 			return err
 		}
-		// Persist knobs only. The shell daemon watches matugen.json and is the
-		// sole renderer of the palette, so it retints on this
-		// write; rendering here would fight it and, for matugen, author a
-		// divergent colors.json.
-		return saveMatugenConfig(cfg)
+		// a page sends only the apps it shows, so the roster merges onto the stored one
+		if apps, ok := fields["templates"].(map[string]any); ok {
+			roster, _ := readJSONMap(matugenConfigPath())["templates"].(map[string]any)
+			if roster == nil {
+				roster = map[string]any{}
+			}
+			for id, on := range apps {
+				roster[id] = on
+			}
+			fields["templates"] = roster
+		}
+		return setMatugenFields(fields, true)
 	case "render-apps":
 		pal := readPalette(filepath.Join(ryokuCacheDir(), "colors.json"))
 		if pal != nil {

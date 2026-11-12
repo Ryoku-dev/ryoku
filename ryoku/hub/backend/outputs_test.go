@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	wm "ryoku-wm"
@@ -114,5 +115,85 @@ func TestResolutionPresets(t *testing.T) {
 	}
 	if err := rmPreset("recording"); err != nil {
 		t.Fatalf("rmPreset of an absent preset should be quiet: %v", err)
+	}
+}
+
+// TestSaveProfileRefusedLeavesNoTrace: a layout the provider refuses is not left
+// saved; a new profile is removed again and an existing one keeps its bytes.
+func TestSaveProfileRefusedLeavesNoTrace(t *testing.T) {
+	bin := t.TempDir()
+	refuse := filepath.Join(t.TempDir(), "refuse")
+	script := `#!/bin/sh
+case "$1" in
+caps)
+  printf '%s\n' '{"name":"outputs-fake","supports":["monitorConfig"]}'
+  ;;
+outputs)
+  if [ -e "` + refuse + `" ]; then
+    printf '%s\n' 'layout refused' >&2
+    exit 7
+  fi
+  printf '%s\n' '{}'
+  ;;
+*)
+  exit 2
+  ;;
+esac
+`
+	if err := os.WriteFile(filepath.Join(bin, "ryoku-wm-outputs-fake"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	t.Setenv("RYOKU_WM", "outputs-fake")
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("RYOKU_GREETER_PRIMARY_FILE", filepath.Join(t.TempDir(), "greeter-primary"))
+	wmOnce = sync.Once{}
+	wmClient = nil
+	t.Cleanup(func() {
+		wmOnce = sync.Once{}
+		wmClient = nil
+	})
+
+	if err := os.MkdirAll(profilesDir(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	home := filepath.Join(profilesDir(), "home.json")
+	const homeBefore = `[{"name":"HDMI-A-1","enabled":true}]`
+	if err := os.WriteFile(home, []byte(homeBefore), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(refuse, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	const layout = `[{"name":"DP-1","enabled":true,"mode":"1920x1080@60","scale":1}]`
+
+	if err := saveProfile("desk", layout); err == nil || !strings.Contains(err.Error(), "layout refused") {
+		t.Fatalf("save of a refused layout = %v, want the provider error", err)
+	}
+	if _, err := os.Stat(filepath.Join(profilesDir(), "desk.json")); !os.IsNotExist(err) {
+		t.Fatalf("refused new profile still saved, stat err = %v", err)
+	}
+	if err := saveProfile("home", layout); err == nil {
+		t.Fatal("save of a refused layout over an existing profile succeeded")
+	}
+	got, err := os.ReadFile(home)
+	if err != nil || string(got) != homeBefore {
+		t.Fatalf("existing profile after refused save = %q (%v), want %q", got, err, homeBefore)
+	}
+	if info, err := os.Stat(home); err != nil {
+		t.Fatal(err)
+	} else if info.Mode().Perm() != 0o600 {
+		t.Fatalf("existing profile mode after refused save = %v, want 0600", info.Mode().Perm())
+	}
+
+	if err := os.Remove(refuse); err != nil {
+		t.Fatal(err)
+	}
+	if err := saveProfile("desk", layout); err != nil {
+		t.Fatalf("save after the refusal: %v", err)
+	}
+	saved, err := readProfile("desk")
+	if err != nil || len(saved) != 1 || saved[0].Name != "DP-1" {
+		t.Fatalf("profile after a good save = %+v (%v), want DP-1", saved, err)
 	}
 }

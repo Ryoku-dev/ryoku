@@ -22,6 +22,10 @@ func reduxInstalled() bool {
 		fileExists(filepath.Join(configHome(), "systemd", "user", "voxtype-redux.service"))
 }
 
+func reduxDropinPath() string {
+	return filepath.Join(configHome(), "systemd", "user", "voxtype.service.d", "ryoku-redux.conf")
+}
+
 // Keep the resident worker dependency only while Redux is selected.
 func configureReduxService(selected, enabled bool) error {
 	if !hostUsesSystemd() {
@@ -30,8 +34,7 @@ func configureReduxService(selected, enabled bool) error {
 		}
 		return nil
 	}
-	dir := filepath.Join(configHome(), "systemd", "user", "voxtype.service.d")
-	path := filepath.Join(dir, "ryoku-redux.conf")
+	path := reduxDropinPath()
 	if selected {
 		if err := atomicWrite(path, []byte("[Unit]\nRequires=voxtype-redux.service\nAfter=voxtype-redux.service\n"), 0o644); err != nil {
 			return err
@@ -39,6 +42,11 @@ func configureReduxService(selected, enabled bool) error {
 	} else if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return err
 	}
+	return startReduxService(selected, enabled)
+}
+
+// startReduxService loads the drop-in as it is on disk and starts the worker when Redux runs
+func startReduxService(selected, enabled bool) error {
 	if err := userService("daemon-reload"); err != nil {
 		return err
 	}

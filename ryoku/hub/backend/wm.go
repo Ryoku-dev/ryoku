@@ -33,6 +33,8 @@ func runWm(args []string) error {
 			return fmt.Errorf("wm preview needs a name")
 		}
 		return wmPreview(args[1])
+	case "pending":
+		return wmPendingCmd(args[1:])
 	default:
 		return fmt.Errorf("wm needs list|preview")
 	}

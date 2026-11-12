@@ -20,7 +20,7 @@ type UIConfig struct {
 	Section        string `toml:"section"`
 	UpdateInterval string `toml:"update_interval"`
 	UpdateSystem   string `toml:"update_system"`
-	Advanced       string `toml:"advanced"`
+	WMSwitch       string `toml:"wm_switch"`
 }
 
 func defaultConfig() Config {
@@ -87,8 +87,6 @@ func configGet(key string) (string, bool) {
 		return c.UI.UpdateInterval, true
 	case "update_system":
 		return c.UI.UpdateSystem, true
-	case "advanced":
-		return c.UI.Advanced, true
 	}
 	return "", false
 }
@@ -105,8 +103,6 @@ func configSet(key, value string) error {
 			return fmt.Errorf("update_system takes on or off, not %q", value)
 		}
 		c.UI.UpdateSystem = value
-	case "advanced":
-		c.UI.Advanced = value
 	default:
 		return fmt.Errorf("unknown config key: %s", key)
 	}

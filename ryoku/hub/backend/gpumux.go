@@ -10,6 +10,7 @@ package main
 // because the page must work without a terminal.
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os/exec"
@@ -23,6 +24,10 @@ type muxState struct {
 	PanelOnDgpu bool    `json:"panel_on_dgpu"`
 	DgpuWatts   float64 `json:"dgpu_watts"`
 	RebootPend  bool    `json:"reboot_pending"`
+	// BootedMode is the wiring in effect since boot, read from where the
+	// built-in panel is attached; "unknown" (or empty from an older tool) when
+	// it cannot be seen.
+	BootedMode string `json:"booted_mode"`
 }
 
 func runGpuMux(args []string) error {
@@ -50,16 +55,31 @@ func runGpuMux(args []string) error {
 		if st.Mode == args[1] && !st.RebootPend {
 			return printJSON(st)
 		}
-		out, err := exec.Command("ryoku-gpu-mux", "set", args[1]).CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("ryoku-gpu-mux set %s: %v: %s", args[1], err, strings.TrimSpace(string(out)))
+		// the helper execs pkexec itself, so a Cancel has to reach it
+		var out bytes.Buffer
+		cmd := exec.Command("ryoku-gpu-mux", "set", args[1])
+		cmd.Stdout, cmd.Stderr = &out, &out
+		if err := runForwardingStop(cmd); err != nil {
+			return fmt.Errorf("ryoku-gpu-mux set %s: %v: %s", args[1], err, strings.TrimSpace(out.String()))
 		}
-		st.RebootPend = true
+		st.RebootPend = muxRestartNeeded(st.BootedMode, args[1])
 		st.Mode = args[1]
 		return printJSON(st)
+	case "pending":
+		return printGpuMuxPending()
 	default:
-		return fmt.Errorf("gpu mux needs get|set")
+		return fmt.Errorf("gpu mux needs get|set|pending")
 	}
+}
+
+// muxRestartNeeded reports whether choosing mode leaves the screen on another
+// card until a restart. With the booted wiring unknown the write itself is all
+// there is to go on, and the firmware then holds a restart pending.
+func muxRestartNeeded(booted, mode string) bool {
+	if booted != "hybrid" && booted != "discrete" {
+		return true
+	}
+	return booted != mode
 }
 
 // readMuxState asks the owning tool. `status --json` answers the whole picture

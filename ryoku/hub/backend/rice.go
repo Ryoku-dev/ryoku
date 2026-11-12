@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -128,7 +129,7 @@ var riceRyogamiLook = []string{"components", "display", "effects", "features", "
 // language, the units/weather block, and per-monitor scaling never travel, and
 // the launcher hero travels as a bundled asset rather than an absolute path.
 var riceShellOmit = []string{"weatherLocation", "weatherUnit", "formatLocale", "language", "general", "displays"}
-var riceLauncherOmit = []string{"weatherUnit", "heroImage"}
+var riceLauncherOmit = []string{"heroImage"}
 
 // readJSONMap reads a store file into a generic map; a missing or torn file
 // reads as an empty map so an overlay still lands on a fresh key set.
@@ -759,10 +760,26 @@ func captureRice(name string, layers []string) (Rice, error) {
 	}
 	ta := themeAppsOn(st)
 	r.Color.ThemeApps = &ta
-	if err := saveRice(r); err != nil {
+	// The capture builds in a hidden staging folder and lands in one rename, so a
+	// failed one never lists a half-made rice nor half-overwrites an earlier rice
+	// of the same name.
+	dir := filepath.Join(ricesDir(), ".capture-"+slug)
+	if err := os.RemoveAll(dir); err != nil {
 		return r, err
 	}
-	dir := filepath.Join(ricesDir(), slug)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return r, err
+	}
+	if err := finishRiceCapture(&r, dir); err != nil {
+		_ = os.RemoveAll(dir)
+		return r, err
+	}
+	return r, nil
+}
+
+// finishRiceCapture bundles the capture's assets into the staging dir, writes
+// its manifest there and moves the finished rice into place.
+func finishRiceCapture(r *Rice, dir string) error {
 	wp := currentWallpaper()
 	if isFile(wp) {
 		asset := "wall" + filepath.Ext(wp)
@@ -858,7 +875,37 @@ func captureRice(name string, layers []string) (Rice, error) {
 	if slug := readLockPref(qylockThemePref()); slug != "" {
 		r.Assets.Lock = slug
 	}
-	return r, saveRice(r)
+	if err := atomicWrite(filepath.Join(dir, "rice.json"), mustJSON(*r), 0o644); err != nil {
+		return err
+	}
+	return replaceRiceDir(dir, filepath.Join(ricesDir(), r.Slug))
+}
+
+// replaceRiceDir moves a finished capture to dst. An earlier rice there is set
+// aside first and put back if the move fails, so it is replaced only whole.
+func replaceRiceDir(src, dst string) error {
+	old := filepath.Join(filepath.Dir(dst), ".replaced-"+filepath.Base(dst))
+	if err := os.RemoveAll(old); err != nil {
+		return err
+	}
+	hadOld := true
+	if err := os.Rename(dst, old); errors.Is(err, os.ErrNotExist) {
+		hadOld = false
+	} else if err != nil {
+		return err
+	}
+	if err := os.Rename(src, dst); err != nil {
+		if hadOld {
+			_ = os.Rename(old, dst)
+		}
+		return err
+	}
+	if hadOld {
+		// the new rice is in place; a set-aside copy that will not go is hidden
+		// and cleared by the next capture of this name
+		_ = os.RemoveAll(old)
+	}
+	return nil
 }
 
 // isEmptyLayer treats a nil, empty array, or empty object as no config, so a
@@ -877,7 +924,13 @@ func isEmptyLayer(v any) bool {
 
 // riceRun / riceReload wrap the external effects (wallpaper daemon, cursor,
 // compositor reload) so tests can observe an apply without a live session.
-var riceRun = func(name string, args ...string) error { return exec.Command(name, args...).Run() }
+var riceRun = func(name string, args ...string) error {
+	out, err := exec.Command(name, args...).CombinedOutput()
+	if msg := strings.TrimSpace(string(out)); err != nil && msg != "" {
+		return fmt.Errorf("%w: %s", err, msg)
+	}
+	return err
+}
 var riceReload = func() { reloadDesktop() }
 
 func wallpaperDir() string { return filepath.Join(os.Getenv("HOME"), "Pictures", "Wallpapers") }
@@ -909,11 +962,20 @@ var backupStores = []string{
 	"plugins.json", "stage.json", "matugen.json",
 }
 
+// absentMarker lists the files a snapshot found missing, so a restore removes what an apply created
+const absentMarker = ".absent"
+
 func snapshotStores(slot string) error {
 	dir := filepath.Join(ricesDir(), slot)
+	// a slot is one moment: a copy left from an older snapshot would restore stale settings
+	if err := os.RemoveAll(dir); err != nil {
+		return err
+	}
+	var absent []string
 	for _, f := range backupStores {
 		src := filepath.Join(ryokuConfigDir(), f)
 		if !isFile(src) {
+			absent = append(absent, f)
 			continue
 		}
 		if err := copyFile(src, filepath.Join(dir, f)); err != nil {
@@ -921,25 +983,48 @@ func snapshotStores(slot string) error {
 		}
 	}
 	if wp := currentWallpaper(); wp != "" {
-		_ = atomicWrite(filepath.Join(dir, "wallpaper.path"), []byte(wp), 0o644)
+		if err := atomicWrite(filepath.Join(dir, "wallpaper.path"), []byte(wp), 0o644); err != nil {
+			return err
+		}
 	}
 	// the fastfetch readout and the qylock skin live outside ~/.config/ryoku, so
 	// snapshot them explicitly to keep a revert whole.
 	if isFile(fastfetchConfigPath()) {
-		_ = copyFile(fastfetchConfigPath(), filepath.Join(dir, "fastfetch.jsonc"))
+		if err := copyFile(fastfetchConfigPath(), filepath.Join(dir, "fastfetch.jsonc")); err != nil {
+			return err
+		}
+	} else {
+		absent = append(absent, "fastfetch.jsonc")
 	}
 	if slug := readLockPref(qylockThemePref()); slug != "" {
-		_ = atomicWrite(filepath.Join(dir, "lock.slug"), []byte(slug), 0o644)
+		if err := atomicWrite(filepath.Join(dir, "lock.slug"), []byte(slug), 0o644); err != nil {
+			return err
+		}
 	}
-	return nil
+	return atomicWrite(filepath.Join(dir, absentMarker), []byte(strings.Join(absent, "\n")), 0o644)
 }
 
-// ensureBaseline snapshots the pristine pre-rice setup exactly once; it is never
-// overwritten, so the user can always return to how the machine shipped/was.
-func ensureBaseline() {
-	if !isFile(filepath.Join(ricesDir(), ".baseline", "desktop.json")) {
-		_ = snapshotStores(".baseline")
+// keepBaseline keeps the first applied rice's starting point as the pristine
+// pre-rice setup; it is never overwritten, so the user can always return to how
+// the machine shipped/was.
+func keepBaseline(from string) error {
+	dir := filepath.Join(ricesDir(), ".baseline")
+	if isFile(filepath.Join(dir, absentMarker)) || isFile(filepath.Join(dir, "desktop.json")) {
+		return nil
 	}
+	if err := os.RemoveAll(dir); err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(from)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if err := copyFile(filepath.Join(from, e.Name()), filepath.Join(dir, e.Name())); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // restoreRice reverts to a reserved slot (.baseline = pristine pre-rice,
@@ -947,14 +1032,34 @@ func ensureBaseline() {
 // reloads so the live session matches the reverted files.
 func restoreRice(slot string) error {
 	dir := filepath.Join(ricesDir(), slot)
+	absent := map[string]bool{}
+	if b, err := os.ReadFile(filepath.Join(dir, absentMarker)); err == nil {
+		for _, f := range strings.Fields(string(b)) {
+			absent[f] = true
+		}
+	}
 	restored := false
+	var errs []error
 	for _, f := range backupStores {
 		src := filepath.Join(dir, f)
-		if !isFile(src) {
+		dst := filepath.Join(ryokuConfigDir(), f)
+		if !isFile(src) && !absent[f] {
 			continue
 		}
-		if err := copyFile(src, filepath.Join(ryokuConfigDir(), f)); err != nil {
-			return err
+		var err error
+		switch {
+		case f == "matugen.json":
+			err = restoreMatugen(src)
+		case f == "theme.json":
+			err = restoreTheme(src)
+		case absent[f]:
+			err = removeIfPresent(dst)
+		default:
+			err = copyFile(src, dst)
+		}
+		// a daemon that is down could not have changed its file, so an unchanged one needs nothing
+		if err != nil && !sameFileState(src, dst) {
+			errs = append(errs, err)
 		}
 		restored = true
 	}
@@ -967,7 +1072,13 @@ func restoreRice(slot string) error {
 		_ = riceRun("ryogami", "wallpaper", "repaint")
 	}
 	if src := filepath.Join(dir, "fastfetch.jsonc"); isFile(src) {
-		_ = copyFile(src, fastfetchConfigPath())
+		if err := copyFile(src, fastfetchConfigPath()); err != nil {
+			errs = append(errs, err)
+		}
+	} else if absent["fastfetch.jsonc"] {
+		if err := removeIfPresent(fastfetchConfigPath()); err != nil {
+			errs = append(errs, err)
+		}
 	}
 	if b, err := os.ReadFile(filepath.Join(dir, "lock.slug")); err == nil {
 		if slug := strings.TrimSpace(string(b)); slug != "" {
@@ -976,6 +1087,46 @@ func restoreRice(slot string) error {
 	}
 	_, _ = desktopClient().Apply(desktopStorePath())
 	riceReload()
+	return errors.Join(errs...)
+}
+
+// sameFileState reports whether two paths hold the same bytes or are both missing
+func sameFileState(a, b string) bool {
+	if !isFile(a) && !isFile(b) {
+		return true
+	}
+	return filesIdentical(a, b)
+}
+
+// restoreMatugen reverts matugen.json through its one writer: every field the backup lacks goes back to its default.
+func restoreMatugen(src string) error {
+	saved := readJSONMap(src)
+	fields := map[string]any{}
+	for field := range matugenSettingKeys {
+		fields[field] = saved[field]
+	}
+	if err := setMatugenFields(fields, false); err != nil {
+		return fmt.Errorf("restore matugen.json: %w", err)
+	}
+	return nil
+}
+
+// restoreTheme reverts theme.json: the hub's fields as saved, the daemon's through it, and anything the backup lacks dropped or reset.
+func restoreTheme(src string) error {
+	saved := readJSONMap(src)
+	fields := map[string]any{}
+	for field := range readJSONMap(themeStatePath()) {
+		fields[field] = nil
+	}
+	for field := range themeSettingKeys {
+		fields[field] = nil
+	}
+	for field, v := range saved {
+		fields[field] = v
+	}
+	if err := writeThemeFields(fields); err != nil {
+		return fmt.Errorf("restore theme.json: %w", err)
+	}
 	return nil
 }
 
@@ -1071,8 +1222,9 @@ func riceWindowSections(r Rice, provider string) map[string]any {
 	return jsonMerge(shared, specific)
 }
 
-// applyRice merges a rice onto the live stores and reloads. it first snapshots
-// the current setup into .previous (and .baseline once) so revert is one click.
+// applyRice merges a rice onto the live stores and reloads. it snapshots the
+// current setup first: a failed apply rolls back to it, and a successful one
+// keeps it as .previous (and .baseline once) so revert is one click.
 func applyRice(slug string, layers []string) error {
 	if err := ensureUserRice(slug); err != nil {
 		return err
@@ -1081,12 +1233,33 @@ func applyRice(slug string, layers []string) error {
 	if err != nil {
 		return err
 	}
-	_ = snapshotStores(".previous")
-	ensureBaseline()
+	if err := snapshotStores(".pending"); err != nil {
+		return fmt.Errorf("snapshot current setup: %w", err)
+	}
+	pending := filepath.Join(ricesDir(), ".pending")
+	defer os.RemoveAll(pending)
+	if err := layRice(r, dir, layers); err != nil {
+		// a half-applied rice must not become what the next attempt keeps as .previous
+		if rerr := restoreRice(".pending"); rerr != nil {
+			return errors.Join(err, fmt.Errorf("roll back: %w", rerr))
+		}
+		return err
+	}
+	_ = keepBaseline(pending)
+	previous := filepath.Join(ricesDir(), ".previous")
+	if err := os.RemoveAll(previous); err != nil {
+		return fmt.Errorf("keep the undo point: %w", err)
+	}
+	if err := os.Rename(pending, previous); err != nil {
+		return fmt.Errorf("keep the undo point: %w", err)
+	}
+	return nil
+}
 
-	// a store write failing (disk full, bad perms) must surface: silently
-	// applying half a rice reports success over mixed state. .previous (above)
-	// is the one-click way back either way.
+// layRice lays a rice onto the stores. a store write failing (disk full, bad
+// perms) or a refused daemon step must surface: silently applying half a rice
+// reports success over mixed state.
+func layRice(r Rice, dir string, layers []string) error {
 	provider, _ := wmSplit()
 	if err := overlayHyprSections(riceWindowSections(r, provider), riceWindowLook); err != nil {
 		return fmt.Errorf("apply window look: %w", err)
@@ -1173,7 +1346,7 @@ func applyRice(slug string, layers []string) error {
 		}
 	}
 	if len(r.Look["matugen"]) > 0 {
-		if err := overlayStore(matugenStorePath(), r.Look["matugen"], nil); err != nil {
+		if err := setMatugenFields(r.Look["matugen"], false); err != nil {
 			return fmt.Errorf("apply matugen look: %w", err)
 		}
 	}
@@ -1233,7 +1406,9 @@ func applyRice(slug string, layers []string) error {
 		if len(r.Look["theme"]) == 0 {
 			st.Scheme = "" // older rice carried no scheme; clear as before
 		}
-		saveThemeState(st)
+		if err := saveThemeState(st); err != nil {
+			return fmt.Errorf("apply theme: %w", err)
+		}
 		if pal := readPalette(filepath.Join(dir, r.Color.Palette)); pal != nil {
 			writePalette(pal)
 		}
@@ -1242,10 +1417,12 @@ func applyRice(slug string, layers []string) error {
 		selectShellTheme("Wallpaper")
 		st := riceThemeState()
 		st.FollowWallpaper = true
-		saveThemeState(st)
+		if err := saveThemeState(st); err != nil {
+			return fmt.Errorf("apply theme: %w", err)
+		}
 	}
 	if r.Assets.Hero != "" {
-		dst := filepath.Join(ryokuConfigDir(), "rice-hero"+filepath.Ext(r.Assets.Hero))
+		dst := filepath.Join(ryokuConfigDir(), "rice-hero-"+r.Slug+filepath.Ext(r.Assets.Hero))
 		if copyFile(filepath.Join(dir, r.Assets.Hero), dst) == nil {
 			setLauncherHero(dst)
 		}

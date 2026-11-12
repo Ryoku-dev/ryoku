@@ -3,6 +3,7 @@ package main
 import (
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -55,30 +56,60 @@ func validateShellChoice(key string, choices map[string]string, shellsFile strin
 	return "", fmt.Errorf("%s is not listed in /etc/shells", path)
 }
 
-func ensureShellLoaders(home, key string) (bool, error) {
-	var files map[string]string
+type rcLoader struct{ path, line string }
+
+// ensureShellLoaders wires the shell's Ryoku loader into its rc files in order. It
+// returns the files it rewrote as they were, so a caller whose next step fails can
+// put them back; a failure here already put them back.
+func ensureShellLoaders(home, key string) (fileSnapshot, error) {
+	var files []rcLoader
 	switch key {
 	case "fish":
-		return false, nil
+		return nil, nil
 	case "bash":
-		files = map[string]string{
-			filepath.Join(home, ".bashrc"):       bashLoader,
-			filepath.Join(home, ".bash_profile"): bashLoader,
+		files = []rcLoader{
+			{filepath.Join(home, ".bashrc"), bashLoader},
+			{filepath.Join(home, ".bash_profile"), bashLoader},
 		}
 	case "zsh":
-		files = map[string]string{filepath.Join(home, ".zshrc"): strings.TrimSpace(zshLoaderTemplate)}
+		files = []rcLoader{{filepath.Join(home, ".zshrc"), strings.TrimSpace(zshLoaderTemplate)}}
 	default:
-		return false, fmt.Errorf("unknown shell %q", key)
+		return nil, fmt.Errorf("unknown shell %q", key)
 	}
-	changed := false
-	for path, line := range files {
-		one, err := ensureLoaderLast(path, line)
-		if err != nil {
-			return false, err
+	var rewrote fileSnapshot
+	for _, f := range files {
+		// snapshot only what gets rewritten: a refused symlink must stay a symlink
+		before, err := snapshotFiles(f.path)
+		if err == nil {
+			var changed bool
+			if changed, err = ensureLoaderLast(f.path, f.line); changed {
+				rewrote = append(rewrote, before...)
+			}
 		}
-		changed = changed || one
+		if err != nil {
+			if rerr := rewrote.restore(); rerr != nil {
+				return nil, errors.Join(err, fmt.Errorf("restore rc files: %w", rerr))
+			}
+			return nil, err
+		}
 	}
-	return changed, nil
+	return rewrote, nil
+}
+
+// applyShellChoice wires the loaders, then sets the login shell as root; a dismissed
+// prompt or failed usermod puts the rc files back
+func applyShellChoice(home, key string) error {
+	rewrote, err := ensureShellLoaders(home, key)
+	if err != nil {
+		return err
+	}
+	if err := escalateSelf("shell", "apply", key); err != nil {
+		if rerr := rewrote.restore(); rerr != nil {
+			return errors.Join(err, fmt.Errorf("restore rc files: %w", rerr))
+		}
+		return err
+	}
+	return nil
 }
 
 func ensureLoaderLast(path, line string) (bool, error) {
@@ -114,6 +145,7 @@ func ensureLoaderLast(path, line string) (bool, error) {
 	}
 	tmp := path + ".ryoku-tmp"
 	if err := os.WriteFile(tmp, next, mode); err != nil {
+		_ = os.Remove(tmp)
 		return false, err
 	}
 	if err := os.Rename(tmp, path); err != nil {
@@ -188,13 +220,18 @@ func runShellPref(args []string) error {
 	if err != nil {
 		return err
 	}
+	// $HOME, not passwd: a private HOME must keep every write inside it
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
 	switch args[0] {
 	case "get":
 		path, err := passwdShell("/etc/passwd", current.Username)
 		if err != nil {
 			return err
 		}
-		prompt, err := zshPrompt(current.HomeDir)
+		prompt, err := zshPrompt(home)
 		if err != nil {
 			return err
 		}
@@ -213,10 +250,7 @@ func runShellPref(args []string) error {
 		if err != nil {
 			return err
 		}
-		if _, err := ensureShellLoaders(current.HomeDir, args[1]); err != nil {
-			return err
-		}
-		if err := escalateSelf("shell", "apply", args[1]); err != nil {
+		if err := applyShellChoice(home, args[1]); err != nil {
 			return err
 		}
 		syncSessionShell(path)
@@ -228,13 +262,13 @@ func runShellPref(args []string) error {
 		if len(args) != 2 {
 			return fmt.Errorf("shell loaders needs fish, bash, or zsh")
 		}
-		_, err := ensureShellLoaders(current.HomeDir, args[1])
+		_, err := ensureShellLoaders(home, args[1])
 		return err
 	case "prompt":
 		if len(args) != 2 {
 			return fmt.Errorf("shell prompt needs starship or oh-my-zsh")
 		}
-		return setZshPrompt(current.HomeDir, args[1])
+		return setZshPrompt(home, args[1])
 	case "apply":
 		if len(args) != 2 || os.Geteuid() != 0 {
 			return fmt.Errorf("shell apply requires privileged fish, bash, or zsh")

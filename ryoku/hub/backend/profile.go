@@ -10,6 +10,7 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -111,13 +112,28 @@ func importProfile(srcPath string) error {
 	if len(profile) == 0 {
 		profile = []byte("{}")
 	}
+	paths := []string{profileConfigPath()}
+	heroPath := ""
 	if env.Hero != nil {
-		heroPath := filepath.Join(profileHeroDir(), filepath.Base(env.Hero.Name))
+		heroPath = filepath.Join(profileHeroDir(), filepath.Base(env.Hero.Name))
+		paths = append(paths, heroPath)
+	}
+	before, err := snapshotFiles(paths...)
+	if err != nil {
+		return err
+	}
+	if heroPath != "" {
 		if err := atomicWrite(heroPath, heroBytes, 0o644); err != nil {
 			return err
 		}
 	}
-	return atomicWrite(profileConfigPath(), profile, 0o644)
+	if err := atomicWrite(profileConfigPath(), profile, 0o644); err != nil {
+		if rerr := before.restore(); rerr != nil {
+			return errors.Join(err, fmt.Errorf("restore profile: %w", rerr))
+		}
+		return err
+	}
+	return nil
 }
 
 func runProfile(args []string) error {

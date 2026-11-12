@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -178,7 +179,8 @@ type voxtypeSetReq struct {
 
 // voxtypeSet writes a valid config.toml for the chosen preset and brings the
 // service to the requested state. All presets use the Whisper binary, so there
-// is no engine/binary swap.
+// is no engine/binary swap. A failed step puts config.toml and the Redux drop-in
+// back and returns the services to them, so a refused change leaves no trace.
 func voxtypeSet(arg string) error {
 	var req voxtypeSetReq
 	if err := json.Unmarshal([]byte(arg), &req); err != nil {
@@ -195,13 +197,39 @@ func voxtypeSet(arg string) error {
 	if openaiKey == "" {
 		openaiKey = extractConfigString(readFileString(voxtypeConfigPath()), "remote_api_key")
 	}
+	wasRedux, wasEnabled := fileExists(reduxDropinPath()), voxtypeServiceEnabled()
+	before, err := snapshotFiles(voxtypeConfigPath(), reduxDropinPath())
+	if err != nil {
+		return err
+	}
+	if err := applyVoxtypePreset(p, openaiKey, req.Enabled); err != nil {
+		if rerr := before.restore(); rerr != nil {
+			return errors.Join(err, fmt.Errorf("restore voxtype config: %w", rerr))
+		}
+		if hostUsesSystemd() {
+			_ = startReduxService(wasRedux, wasEnabled)
+		}
+		_ = voxtypeServices(wasRedux, wasEnabled)
+		return err
+	}
+	fmt.Println("ok")
+	return nil
+}
+
+func applyVoxtypePreset(p voxtypePreset, openaiKey string, enabled bool) error {
 	if err := atomicWrite(voxtypeConfigPath(), []byte(buildVoxtypeConfig(p, openaiKey)), 0o600); err != nil {
 		return err
 	}
-	if err := configureReduxService(p.Key == reduxPresetKey, req.Enabled); err != nil {
+	redux := p.Key == reduxPresetKey
+	if err := configureReduxService(redux, enabled); err != nil {
 		return err
 	}
-	if req.Enabled {
+	return voxtypeServices(redux, enabled)
+}
+
+// voxtypeServices starts or stops voxtype and stops the Redux worker it no longer needs
+func voxtypeServices(redux, enabled bool) error {
+	if enabled {
 		ensureVoxtypeUnit()
 		if err := userService("enable", "voxtype"); err != nil {
 			return err
@@ -214,14 +242,13 @@ func voxtypeSet(arg string) error {
 			return err
 		}
 	}
-	if p.Key != reduxPresetKey || !req.Enabled {
+	if !redux || !enabled {
 		if reduxInstalled() {
 			if err := userService("disable", "--now", "voxtype-redux"); err != nil {
 				return err
 			}
 		}
 	}
-	fmt.Println("ok")
 	return nil
 }
 

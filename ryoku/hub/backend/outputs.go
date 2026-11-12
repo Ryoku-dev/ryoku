@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -269,10 +270,22 @@ func saveProfile(name, raw string) error {
 	if err := os.MkdirAll(profilesDir(), 0o755); err != nil {
 		return err
 	}
-	if err := atomicWrite(filepath.Join(profilesDir(), n+".json"), body, 0o644); err != nil {
+	path := filepath.Join(profilesDir(), n+".json")
+	before, err := snapshotFiles(path)
+	if err != nil {
 		return err
 	}
-	return applyLayout(layout)
+	if err := atomicWrite(path, body, 0o644); err != nil {
+		return err
+	}
+	// no re-apply after restore: the provider was handed the layout, not this file, and the old profile was never necessarily live
+	if err := applyLayout(layout); err != nil {
+		if rerr := before.restore(); rerr != nil {
+			return errors.Join(err, fmt.Errorf("restore output profile: %w", rerr))
+		}
+		return err
+	}
+	return nil
 }
 
 func loadProfile(name string) error {

@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	wm "ryoku-wm"
 )
 
 // importBind is one parsed hyprland.conf bind. Action is the hub Keybind action
@@ -158,12 +160,12 @@ func parseBind(val, raw string) importBind {
 	case "exec":
 		b.Action, b.Value, b.Ingestable = "exec", args, true
 		b.Desc = capitalize(describeExec(args))
-	case "killactive", "close":
-		b.Action, b.Ingestable, b.Desc = "close", true, "Close window"
-	case "fullscreen":
-		b.Action, b.Ingestable, b.Desc = "fullscreen", true, "Fullscreen"
-	case "togglefloating":
-		b.Action, b.Ingestable, b.Desc = "togglefloating", true, "Toggle floating"
+	case "killactive", "close", "fullscreen", "togglefloating":
+		b.Action, b.Ingestable = strings.ToLower(disp), true
+		if b.Action == "killactive" {
+			b.Action = "close"
+		}
+		b.Desc = wm.CustomBindLabel(b.Action, "")
 	default:
 		// preserve the native dispatcher + args so apply can translate the bind
 		// into the hl API (user.lua); the config parser rejects native syntax.

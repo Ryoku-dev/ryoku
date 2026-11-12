@@ -2,9 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -81,7 +83,7 @@ func mustWrite(t *testing.T, path, content string) {
 
 // importHome seeds a temp config home with the shipped legend (and a couple of
 // pre-existing user-include files) and returns it. HOME + XDG_CONFIG_HOME point
-// here, so nothing touches the real config.
+// here, so nothing touches the real config, and a fake provider answers apply.
 func importHome(t *testing.T) string {
 	t.Helper()
 	home := t.TempDir()
@@ -90,7 +92,84 @@ func importHome(t *testing.T) string {
 	mustWrite(t, filepath.Join(home, ".config", "hypr", "modules", "binds.lua"), fxBinds)
 	mustWrite(t, filepath.Join(home, ".config", "hypr", "user.lua"), "-- user overrides\n")
 	mustWrite(t, filepath.Join(home, ".config", "kitty", "user.conf"), "# kitty user\n")
+	fakeImportProvider(t, "fixture")
 	return home
+}
+
+// fakeImportProvider installs ryoku-wm-<name> on PATH and forces detection to it.
+// caps declares <name>/generated.conf; apply authors that file as a copy of the
+// store (so a re-apply after a restore shows in the bytes), appends to <bin>/log
+// and exits 1 while <bin>/fail exists. It returns the bin dir.
+func fakeImportProvider(t *testing.T, name string) string {
+	t.Helper()
+	bin := t.TempDir()
+	script := `#!/bin/sh
+case "$1" in
+caps) printf '{"generatedFiles":["` + name + `/generated.conf"]}' ;;
+apply)
+	echo apply >> "` + bin + `/log"
+	out="$XDG_CONFIG_HOME/` + name + `/generated.conf"
+	mkdir -p "${out%/*}"
+	if [ -e "$2" ]; then cat "$2" > "$out"; else rm -f "$out"; fi
+	[ -e "` + bin + `/fail" ] && exit 1
+	printf '{}' ;;
+esac
+`
+	if err := os.WriteFile(filepath.Join(bin, "ryoku-wm-"+name), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("RYOKU_WM", name)
+	reset := func() { wmOnce = sync.Once{}; wmClient = nil }
+	reset()
+	t.Cleanup(reset)
+	return bin
+}
+
+func applyCalls(t *testing.T, bin string) int {
+	t.Helper()
+	b, _ := os.ReadFile(filepath.Join(bin, "log"))
+	return strings.Count(string(b), "apply\n")
+}
+
+func setProviderFail(t *testing.T, bin string, fail bool) {
+	t.Helper()
+	if !fail {
+		if err := os.Remove(filepath.Join(bin, "fail")); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	mustWrite(t, filepath.Join(bin, "fail"), "")
+}
+
+func backupEntries(t *testing.T) []string {
+	t.Helper()
+	entries, err := os.ReadDir(backupsDir())
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	return names
+}
+
+// assertTree fails with every file whose bytes differ from want.
+func assertTree(t *testing.T, root string, want map[string]string, when string) {
+	t.Helper()
+	got := snapshotTree(t, root)
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("%s: %q changed:\nwant=%q\ngot =%q", when, k, v, got[k])
+		}
+	}
+	for k := range got {
+		if _, ok := want[k]; !ok {
+			t.Errorf("%s: %q left behind", when, k)
+		}
+	}
 }
 
 // importSource lays out a dotfiles tree to import from.
@@ -577,6 +656,166 @@ func TestProviderApplyUndoRoundTrip(t *testing.T) {
 	}
 }
 
+// a refused desktop apply puts every file back, re-applies the restored store,
+// and leaves no backup undo could target; the next import then undoes cleanly.
+func TestApplyFailedDesktopApplyLeavesNoTrace(t *testing.T) {
+	home := importHome(t)
+	bin := fakeImportProvider(t, "fixture")
+	cfg := filepath.Join(home, ".config")
+	// a store and the config the provider authored from it, as on a real box
+	mustWrite(t, desktopStorePath(), `{"desktop":{"keybinds":[]}}`)
+	mustWrite(t, filepath.Join(cfg, "fixture", "generated.conf"), `{"desktop":{"keybinds":[]}}`)
+	src := importSource(t)
+	dec := decisions{Source: src, Apps: allApps(), Conflicts: map[string]json.RawMessage{"q+super": json.RawMessage(`"mine"`)}}
+	before := snapshotTree(t, cfg)
+
+	setProviderFail(t, bin, true)
+	if _, err := applyImport(dec); err == nil {
+		t.Fatal("import succeeded although the provider refused the apply")
+	}
+	assertTree(t, cfg, before, "after failed import")
+	if got := applyCalls(t, bin); got != 2 {
+		t.Errorf("apply ran %d times, want 2 (the refused apply, then the restored state)", got)
+	}
+	if got := backupEntries(t); len(got) != 0 {
+		t.Errorf("failed import left backups %v", got)
+	}
+
+	setProviderFail(t, bin, false)
+	if _, err := applyImport(dec); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := undoImport(""); err != nil {
+		t.Fatal(err)
+	}
+	assertTree(t, cfg, before, "after import + undo")
+}
+
+// liveImportProvider makes name the live compositor: a fake provider binary and
+// a listening session socket, so applyImportedProvider really runs it.
+func liveImportProvider(t *testing.T, name, handle string) string {
+	t.Helper()
+	bin := fakeImportProvider(t, name)
+	sock := filepath.Join(t.TempDir(), "s")
+	l, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { l.Close() })
+	t.Setenv(handle, sock)
+	return bin
+}
+
+// a refused provider apply restores the files, re-applies them so the live
+// compositor matches, and leaves no backup; the next import then undoes cleanly.
+func TestApplyFailedProviderApplyLeavesNoTrace(t *testing.T) {
+	home := importHome(t)
+	bin := liveImportProvider(t, "niri", "NIRI_SOCKET")
+	cfg := filepath.Join(home, ".config")
+	mustWrite(t, filepath.Join(cfg, "target", "user.kdl"), "// existing\n")
+	mustWrite(t, desktopStorePath(), `{"desktop":{}}`)
+	mustWrite(t, filepath.Join(cfg, "niri", "generated.conf"), `{"desktop":{}}`)
+	src := t.TempDir()
+	previous := scanProviderImports
+	scanProviderImports = func(string) []providerImportScan {
+		return []providerImportScan{{
+			Provider: "niri", Name: "niri", Path: filepath.Join(src, "config.kdl"),
+			Patch:     map[string]any{"desktop": map[string]any{"input": map[string]any{"kbLayout": "de"}}},
+			Preserved: "future-node \"kept\"", PreservePath: "target/user.kdl",
+		}}
+	}
+	defer func() { scanProviderImports = previous }()
+	dec := decisions{Source: src, Apps: map[string]appDecision{"provider:niri": {Include: true}}}
+	before := snapshotTree(t, cfg)
+
+	setProviderFail(t, bin, true)
+	if _, err := applyImport(dec); err == nil {
+		t.Fatal("import succeeded although the provider refused the apply")
+	}
+	assertTree(t, cfg, before, "after failed import")
+	if got := applyCalls(t, bin); got != 2 {
+		t.Errorf("apply ran %d times, want 2 (the refused apply, then the restored state)", got)
+	}
+	if got := backupEntries(t); len(got) != 0 {
+		t.Errorf("failed import left backups %v", got)
+	}
+
+	setProviderFail(t, bin, false)
+	if _, err := applyImport(dec); err != nil {
+		t.Fatal(err)
+	}
+	if got := importTestValue(readJSONMap(desktopStorePath()), "desktop", "input", "kbLayout"); got != "de" {
+		t.Fatalf("import did not land: kbLayout = %#v", got)
+	}
+	if _, err := undoImport(""); err != nil {
+		t.Fatal(err)
+	}
+	assertTree(t, cfg, before, "after import + undo")
+}
+
+// a refused apply during undo puts the imported state back and re-applies it,
+// so the import stays whole and undoable.
+func TestUndoFailedApplyLeavesImportInPlace(t *testing.T) {
+	home := importHome(t)
+	bin := fakeImportProvider(t, "fixture")
+	cfg := filepath.Join(home, ".config")
+	mustWrite(t, desktopStorePath(), `{"desktop":{"keybinds":[]}}`)
+	mustWrite(t, filepath.Join(cfg, "fixture", "generated.conf"), `{"desktop":{"keybinds":[]}}`)
+	before := snapshotTree(t, cfg)
+	dec := decisions{Source: importSource(t), Apps: allApps(), Conflicts: map[string]json.RawMessage{"q+super": json.RawMessage(`"mine"`)}}
+	if _, err := applyImport(dec); err != nil {
+		t.Fatal(err)
+	}
+	imported := snapshotTree(t, cfg)
+	calls := applyCalls(t, bin)
+
+	setProviderFail(t, bin, true)
+	if _, err := undoImport(""); err == nil {
+		t.Fatal("undo succeeded although the provider refused the apply")
+	}
+	assertTree(t, cfg, imported, "after failed undo")
+	if got := applyCalls(t, bin) - calls; got != 2 {
+		t.Errorf("undo ran apply %d times, want 2 (the refused apply, then the restored state)", got)
+	}
+
+	setProviderFail(t, bin, false)
+	if _, err := undoImport(""); err != nil {
+		t.Fatal(err)
+	}
+	assertTree(t, cfg, before, "after retried undo")
+}
+
+// a restore that fails on its second file leaves the first one as imported too.
+func TestUndoFailedWriteLeavesImportInPlace(t *testing.T) {
+	home := importHome(t)
+	cfg := filepath.Join(home, ".config")
+	before := snapshotTree(t, cfg)
+	dec := decisions{Source: importSource(t), Apps: map[string]appDecision{"hyprland": {Include: true}, "kitty": {Include: true}}}
+	if _, err := applyImport(dec); err != nil {
+		t.Fatal(err)
+	}
+	imported := snapshotTree(t, cfg)
+
+	// hypr/user.lua restores first, then kitty/user.conf cannot be replaced
+	kitty := filepath.Join(cfg, "kitty")
+	if err := os.Chmod(kitty, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(kitty, 0o755) })
+	if _, err := undoImport(""); err == nil {
+		t.Fatal("undo succeeded although kitty/user.conf could not be restored")
+	}
+	assertTree(t, cfg, imported, "after failed undo")
+
+	if err := os.Chmod(kitty, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := undoImport(""); err != nil {
+		t.Fatal(err)
+	}
+	assertTree(t, cfg, before, "after retried undo")
+}
+
 func TestProviderDuplicateChoiceReplacesEarlierBind(t *testing.T) {
 	scan := providerImportScan{
 		Patch: map[string]any{},
@@ -656,4 +895,26 @@ func sourceWithHypr(t *testing.T, conf string) string {
 	src := t.TempDir()
 	mustWrite(t, filepath.Join(src, "hypr", "hyprland.conf"), conf)
 	return src
+}
+
+// importing the same configuration again must not add its shortcuts or rules twice
+func TestImportingTwiceAddsNothingNew(t *testing.T) {
+	patch := map[string]any{"desktop": map[string]any{"keybinds": []any{
+		map[string]any{"keys": "SUPER + X", "action": "exec", "value": "foot"},
+	}}}
+	dst := map[string]any{}
+	mergeImportPatch(dst, patch)
+	mergeImportPatch(dst, patch)
+	if binds := dst["desktop"].(map[string]any)["keybinds"].([]any); len(binds) != 1 {
+		t.Fatalf("a provider import made twice left %d shortcuts, want 1", len(binds))
+	}
+
+	ns := map[string]any{}
+	same := []Keybind{{Keys: "SUPER + X", Action: "exec", Value: "foot"}}
+	appendDesktopSection(ns, "keybinds", same)
+	appendDesktopSection(ns, "keybinds", same)
+	appendDesktopSection(ns, "keybinds", []Keybind{{Keys: "SUPER + Y", Action: "close"}})
+	if binds := childMap(ns, "desktop")["keybinds"].([]any); len(binds) != 2 {
+		t.Fatalf("a Hyprland import made twice, then a new shortcut, left %d shortcuts, want 2", len(binds))
+	}
 }

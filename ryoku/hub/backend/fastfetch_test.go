@@ -810,3 +810,45 @@ func TestFastfetchRecolorLineSurvivesSave(t *testing.T) {
 		t.Fatalf("plain config gained a recolor line:\n%s", rebuilt)
 	}
 }
+
+// TestFastfetchSaveFailedModeWriteLeavesNoTrace: when the palette mode cannot be
+// recorded the save fails whole, so config.jsonc keeps its bytes and no state appears.
+func TestFastfetchSaveFailedModeWriteLeavesNoTrace(t *testing.T) {
+	m := loadSample(t)
+	m.Accent = "10;20;30"
+	m.Palette = ffPaletteFixed
+	payload, err := json.Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stateDir := filepath.Dir(fastfetchPaletteStatePath())
+	if err := os.MkdirAll(stateDir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(stateDir, 0o755) })
+
+	if err := runFastfetch([]string{"save", string(payload)}); err == nil {
+		t.Fatal("save succeeded with the palette state unwritable")
+	}
+	got, err := os.ReadFile(fastfetchConfigPath())
+	if err != nil || string(got) != sampleFF {
+		t.Fatalf("config.jsonc after a failed save = %q (%v), want the original", got, err)
+	}
+	if _, err := os.Stat(fastfetchPaletteStatePath()); !os.IsNotExist(err) {
+		t.Fatalf("palette state appeared after a failed save, stat err = %v", err)
+	}
+
+	if err := os.Chmod(stateDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := runFastfetch([]string{"save", string(payload)}); err != nil {
+		t.Fatalf("save after the failure: %v", err)
+	}
+	got, err = os.ReadFile(fastfetchConfigPath())
+	if err != nil || !strings.Contains(string(got), "38;2;10;20;30") {
+		t.Fatalf("config.jsonc after a good save lacks the new accent:\n%s", got)
+	}
+	if mode := readFastfetchPaletteMode(); mode != ffPaletteFixed {
+		t.Fatalf("palette mode after a good save = %q, want %q", mode, ffPaletteFixed)
+	}
+}

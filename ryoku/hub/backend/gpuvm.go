@@ -115,15 +115,15 @@ func vmReadiness() (bool, string, *Capability) {
 	case cap.Passthrough == nil:
 		return false, "no discrete GPU is free for passthrough on this machine", &cap
 	case cap.Verdict == "incapable":
-		return false, "this machine cannot pass a GPU through (see Ryoku Settings > GPU)", &cap
+		return false, "this machine cannot pass a GPU through (see Ryoku Settings > System > Graphics)", &cap
 	case cap.Verdict == "needs-setup":
-		return false, "turn on GPU passthrough first in Ryoku Settings > GPU", &cap
+		return false, "turn on GPU passthrough first in Ryoku Settings > System > Graphics", &cap
 	case cap.Verdict == "needs-reboot":
 		return false, "reboot to finish enabling passthrough, then launch the VM", &cap
 	case cap.Verdict == "needs-relogin":
 		return false, "log out and back in (or reboot) to activate the libvirt group, then launch", &cap
 	case cap.Verdict != "ready":
-		return false, "passthrough is not ready yet (see Ryoku Settings > GPU)", &cap
+		return false, "passthrough is not ready yet (see Ryoku Settings > System > Graphics)", &cap
 	}
 	return true, "", &cap
 }

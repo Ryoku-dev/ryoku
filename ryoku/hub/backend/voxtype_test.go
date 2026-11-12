@@ -270,3 +270,68 @@ func TestEnsureVoxtypeUnitRunsSetupOnSystemd(t *testing.T) {
 		t.Fatalf("voxtype systemd setup did not run: %v", err)
 	}
 }
+
+// a refused service call puts config.toml and the Redux drop-in back as they were
+// and re-runs the service step for them, so the Hub can show the change as not made
+func TestVoxtypeSetRollsBackOnServiceFailure(t *testing.T) {
+	for _, tc := range []struct {
+		fail    string
+		present bool
+	}{{"daemon-reload", true}, {"restart", true}, {"restart", false}} {
+		name := tc.fail
+		if !tc.present {
+			name += "-absent"
+		}
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			t.Setenv("HOME", root)
+			t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
+			t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
+			bin := filepath.Join(root, "bin")
+			if err := os.MkdirAll(bin, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			log := filepath.Join(root, "calls")
+			host := "#!/bin/sh\nif [ \"$1\" = init ]; then echo systemd; exit 0; fi\nprintf '%s\\n' \"$*\" >> '" + log + "'\n" +
+				"case \"$*\" in *' " + tc.fail + " '*|*' " + tc.fail + "') exit 1;; esac\n"
+			if err := os.WriteFile(filepath.Join(bin, "ryoku-host"), []byte(host), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("PATH", bin)
+			config, dropin := voxtypeConfigPath(), reduxDropinPath()
+			want := map[string]string{config: "# mine\nremote_api_key = \"sk-old\"\n", dropin: "[Unit]\nRequires=voxtype-redux.service\n# hand\n"}
+			modes := map[string]os.FileMode{config: 0o600, dropin: 0o644}
+			if tc.present {
+				for path, body := range want {
+					if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(path, []byte(body), modes[path]); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			if err := voxtypeSet(`{"preset":"whisper-fast","enabled":true}`); err == nil {
+				t.Fatal("voxtypeSet succeeded with a failing service call")
+			}
+			for path, body := range want {
+				st, err := os.Stat(path)
+				if !tc.present {
+					if err == nil {
+						t.Fatalf("%s left behind by a failed set", path)
+					}
+					continue
+				}
+				if err != nil {
+					t.Fatalf("%s gone after a failed set: %v", path, err)
+				}
+				if got := readFileString(path); got != body || st.Mode().Perm() != modes[path] {
+					t.Fatalf("%s = %q %v, want %q %v", path, got, st.Mode().Perm(), body, modes[path])
+				}
+			}
+			if n := strings.Count(readFileString(log), "daemon-reload"); n != 2 {
+				t.Fatalf("daemon-reload ran %d times, want the set and the rollback:\n%s", n, readFileString(log))
+			}
+		})
+	}
+}

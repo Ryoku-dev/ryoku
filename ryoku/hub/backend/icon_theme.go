@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -172,15 +173,22 @@ func currentIconTheme() string {
 	return "hicolor"
 }
 
-func applyIconTheme(theme string) error {
-	installed := false
-	for _, option := range listIconThemes() {
-		if option.Code == theme {
-			installed = true
-			break
+// iconThemeInstalled: a theme applies when any search dir holds its index.theme, offered or
+// not; the list leaves out hidden themes such as Adwaita, which can still be the one in use
+func iconThemeInstalled(theme string) bool {
+	if theme == "" || theme == "." || theme == ".." || strings.ContainsAny(theme, "/\r\n") {
+		return false
+	}
+	for _, root := range iconSearchDirs() {
+		if info, err := os.Stat(filepath.Join(root, theme, "index.theme")); err == nil && !info.IsDir() {
+			return true
 		}
 	}
-	if !installed {
+	return false
+}
+
+func applyIconTheme(theme string) error {
+	if !iconThemeInstalled(theme) {
 		return fmt.Errorf("icon theme %q is not installed", theme)
 	}
 
@@ -194,18 +202,36 @@ func applyIconTheme(theme string) error {
 		{filepath.Join(configHome(), "qt6ct", "qt6ct.conf"), "Appearance", "icon_theme"},
 		{filepath.Join(configHome(), "kdeglobals"), "Icons", "Theme"},
 	}
+	paths := []string{iconThemeStatePath()}
 	for _, write := range writes {
-		if err := setINIFileValue(write.path, write.section, write.key, theme); err != nil {
-			return fmt.Errorf("write %s: %w", write.path, err)
+		paths = append(paths, write.path)
+	}
+	before, err := snapshotFiles(paths...)
+	if err != nil {
+		return err
+	}
+	// gsettings runs last, so any failure leaves the session on the previous theme
+	err = func() error {
+		for _, write := range writes {
+			if err := setINIFileValue(write.path, write.section, write.key, theme); err != nil {
+				return fmt.Errorf("write %s: %w", write.path, err)
+			}
 		}
+		if err := atomicWrite(iconThemeStatePath(), []byte(theme+"\n"), 0o644); err != nil {
+			return fmt.Errorf("remember icon theme: %w", err)
+		}
+		if err := runIconCommand("gsettings", "set", "org.gnome.desktop.interface", "icon-theme", theme); err != nil {
+			return fmt.Errorf("set org.gnome.desktop.interface icon-theme: %w", err)
+		}
+		return nil
+	}()
+	if err == nil {
+		return nil
 	}
-	if err := atomicWrite(iconThemeStatePath(), []byte(theme+"\n"), 0o644); err != nil {
-		return fmt.Errorf("remember icon theme: %w", err)
+	if rerr := before.restore(); rerr != nil {
+		return errors.Join(err, fmt.Errorf("restore icon theme files: %w", rerr))
 	}
-	if err := runIconCommand("gsettings", "set", "org.gnome.desktop.interface", "icon-theme", theme); err != nil {
-		return fmt.Errorf("set org.gnome.desktop.interface icon-theme: %w", err)
-	}
-	return nil
+	return err
 }
 
 func setINIFileValue(path, section, key, value string) error {

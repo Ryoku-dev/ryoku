@@ -19,7 +19,7 @@ import (
 )
 
 type presetEntry struct {
-	GPU   string `json:"gpu"`   // "" means every GPU that has the knob; "platform" for ACPI
+	GPU   string `json:"gpu"` // "" means every GPU that has the knob; "platform" for ACPI
 	ID    string `json:"id"`
 	Value string `json:"value"` // symbolic (built-in) or concrete (custom)
 }
@@ -52,7 +52,7 @@ var builtinPresets = []preset{
 
 func runGpuPreset(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("gpu tune preset needs list|apply|save|delete")
+		return fmt.Errorf("gpu tune preset needs list|apply|save|rename|delete")
 	}
 	switch args[0] {
 	case "list":
@@ -72,8 +72,13 @@ func runGpuPreset(args []string) error {
 			return fmt.Errorf("preset delete needs a name")
 		}
 		return presetDelete(args[1])
+	case "rename":
+		if len(args) < 3 {
+			return fmt.Errorf("preset rename needs <old> <new>")
+		}
+		return presetRename(args[1], args[2])
 	default:
-		return fmt.Errorf("gpu tune preset needs list|apply|save|delete")
+		return fmt.Errorf("gpu tune preset needs list|apply|save|rename|delete")
 	}
 }
 
@@ -155,7 +160,15 @@ func presetApply(name string) error {
 		return fmt.Errorf("preset %q touches nothing this hardware exposes", name)
 	}
 	if os.Geteuid() != 0 {
-		return escalateSelf("gpu", "tune", "preset", "apply", name)
+		next := func(locks map[string]int) map[string]int {
+			for _, j := range jobs {
+				if j.ID == "clock_lock" {
+					locks = nextClockLocks(locks, j.GPU, int(atofTrim(j.Value)))
+				}
+			}
+			return locks
+		}
+		return withClockLocks(next, func() error { return escalateSelf("gpu", "tune", "preset", "apply", name) }, nil)
 	}
 	for _, j := range jobs {
 		if err := applyKnob(in, j.GPU, j.ID, j.Value); err != nil {
@@ -174,6 +187,10 @@ func presetSave(name string) error {
 	tunables := buildTunables(detectTune())
 	var entries []presetEntry
 	for _, t := range tunables {
+		// no clock lock, a fan on automatic: there is no chosen value to keep
+		if t.Auto {
+			continue
+		}
 		entries = append(entries, presetEntry{GPU: t.GPU, ID: t.ID, Value: currentValue(t)})
 	}
 	customs := loadCustomPresets()
@@ -205,6 +222,36 @@ func presetDelete(name string) error {
 		return err
 	}
 	return printJSON(map[string]string{"deleted": name})
+}
+
+// presetRename gives a saved preset another name and keeps its values
+func presetRename(from, to string) error {
+	if isBuiltin(to) {
+		return fmt.Errorf("%q is a built-in preset name; pick another", to)
+	}
+	if from == to {
+		return printJSON(map[string]string{"renamed": to})
+	}
+	customs := loadCustomPresets()
+	found := false
+	for _, p := range customs {
+		if p.Name == to {
+			return fmt.Errorf("a preset called %q already exists", to)
+		}
+	}
+	for i := range customs {
+		if customs[i].Name == from {
+			customs[i].Name = to
+			found = true
+		}
+	}
+	if !found {
+		return fmt.Errorf("no saved preset %q", from)
+	}
+	if err := saveCustomPresets(customs); err != nil {
+		return err
+	}
+	return printJSON(map[string]string{"renamed": to})
 }
 
 func currentValue(t Tunable) string {

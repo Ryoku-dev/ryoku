@@ -71,22 +71,6 @@ func TestUpdateSystem(t *testing.T) {
 	}
 }
 
-func TestAdvanced(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-
-	// the Advanced reveal is off until set, so an unset value reads empty.
-	if v, ok := configGet("advanced"); !ok || v != "" {
-		t.Fatalf("default advanced = %q ok=%v, want empty", v, ok)
-	}
-
-	if err := configSet("advanced", "1"); err != nil {
-		t.Fatal(err)
-	}
-	if v, ok := configGet("advanced"); !ok || v != "1" {
-		t.Fatalf("after set: got %q ok=%v, want 1", v, ok)
-	}
-}
-
 func TestConfigUnknownKey(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	if err := configSet("nope", "x"); err == nil {

@@ -172,3 +172,46 @@ func TestStarshipRefreshTracksWallpaperOnlyInWallpaperMode(t *testing.T) {
 		t.Fatalf("fixed-mode refresh rewrote the active config: %q", active)
 	}
 }
+
+// TestStarshipFailedStateWriteLeavesNoTrace: set and palette write starship.toml
+// then the state; a state that cannot be written puts starship.toml back.
+func TestStarshipFailedStateWriteLeavesNoTrace(t *testing.T) {
+	config := setupStarshipTest(t)
+	active := filepath.Join(config, "starship.toml")
+	const before = "user edit\n"
+	if err := os.WriteFile(active, []byte(before), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stateDir := filepath.Dir(starshipStatePath())
+	if err := os.MkdirAll(stateDir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(stateDir, 0o755) })
+
+	for _, args := range [][]string{{"set", "pill"}, {"palette", "fixed"}} {
+		if err := runStarship(args); err == nil {
+			t.Fatalf("starship %v succeeded with the state unwritable", args)
+		}
+		got, err := os.ReadFile(active)
+		if err != nil || string(got) != before {
+			t.Fatalf("starship.toml after failed %v = %q (%v), want %q", args, got, err, before)
+		}
+		if _, err := os.Stat(starshipStatePath()); !os.IsNotExist(err) {
+			t.Fatalf("state appeared after failed %v, stat err = %v", args, err)
+		}
+	}
+
+	if err := os.Chmod(stateDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := runStarship([]string{"set", "pill"}); err != nil {
+		t.Fatalf("set after the failure: %v", err)
+	}
+	got, err := os.ReadFile(active)
+	if err != nil || string(got) != starshipTestLayout {
+		t.Fatalf("starship.toml after a good set = %q (%v), want the pill layout", got, err)
+	}
+	if state := readStarshipState(); state.Layout != "pill" {
+		t.Fatalf("state after a good set = %+v, want pill", state)
+	}
+}

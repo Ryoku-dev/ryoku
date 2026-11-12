@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -80,5 +81,25 @@ func TestApplyRyokuThemeUsesRyokuFrameBarLook(t *testing.T) {
 	}
 	if got["sidebarWidth"] != float64(420) {
 		t.Fatalf("sidebarWidth was not preserved: %v", got["sidebarWidth"])
+	}
+}
+
+// ryogami refusing the batch leaves theme.json as it was, not with the hub's half applied
+func TestRefusedThemeBatchLeavesThemeJSON(t *testing.T) {
+	matugenHome(t)
+	origRun := riceRun
+	riceRun = func(string, ...string) error { return errors.New("ryogami: the daemon is not running") }
+	t.Cleanup(func() { riceRun = origRun })
+	const saved = `{"followWallpaper":true,"scheme":"mono"}`
+	writeTestFile(t, themeStatePath(), saved)
+
+	on := true
+	st := loadThemeState()
+	st.Scheme, st.FollowWallpaper, st.ThemeApps = "dark", false, &on
+	if err := saveThemeState(st); err == nil {
+		t.Fatal("a refused theme batch reported success")
+	}
+	if b, _ := os.ReadFile(themeStatePath()); string(b) != saved {
+		t.Fatalf("theme.json after a refused batch = %s, want %s", b, saved)
 	}
 }

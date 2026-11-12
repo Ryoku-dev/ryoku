@@ -14,9 +14,13 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
+	osuser "os/user"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 type gpuPassthroughAvailability struct {
@@ -82,14 +86,42 @@ func escalateApply(args []string) error {
 
 // escalateSelf re-runs this binary as root via pkexec, preserving the invoking
 // user's id (PKEXEC_UID) so the privileged half acts on the right user -- set
-// group membership, own the udev node (the lock.go greeter pattern).
+// group membership, own the udev node (the lock.go greeter pattern). A stop
+// signal (Settings' Cancel) goes on to pkexec, so an open password prompt
+// closes with it instead of acting after the caller gave up.
 func escalateSelf(args ...string) error {
 	exe := selfExe()
 	uid := strconv.Itoa(os.Getuid())
 	full := append([]string{"env", "PKEXEC_UID=" + uid, exe}, args...)
 	cmd := exec.Command("pkexec", full...)
 	cmd.Stdout, cmd.Stderr, cmd.Stdin = os.Stdout, os.Stderr, os.Stdin
-	return cmd.Run()
+	return runForwardingStop(cmd)
+}
+
+// runForwardingStop runs cmd and passes a stop signal (Settings' Cancel) on to
+// it instead of dying with it. A child that escalates (pkexec, or a helper that
+// execs pkexec) would otherwise outlive this process with its password prompt
+// open and could still make the change after the user gave up.
+func runForwardingStop(cmd *exec.Cmd) error {
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
+	defer signal.Stop(stop)
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		for {
+			select {
+			case s := <-stop:
+				_ = cmd.Process.Signal(s)
+			case <-done:
+				return
+			}
+		}
+	}()
+	return cmd.Wait()
 }
 
 // installPassthroughAUR installs Looking Glass + the kvmfr module as the
@@ -118,7 +150,7 @@ func aurInstall(pkgs []string) error {
 func ttyRun(name string, args ...string) error {
 	cmd := exec.Command(name, args...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-	return cmd.Run()
+	return runForwardingStop(cmd)
 }
 
 // missingPkgs returns the packages not yet installed, order preserved.
@@ -286,6 +318,21 @@ func applyPlan(action, user, exe string, dryRun bool) error {
 			}
 		}
 		kvmfrOK := dryRun || kvmfrModuleAvailable()
+		var before fileSnapshot
+		var created []string
+		if !dryRun {
+			var paths []string
+			for _, f := range files {
+				if !f.needsKvmfr || kvmfrOK {
+					paths = append(paths, filepath.Join(root, f.rel))
+				}
+			}
+			var err error
+			if before, err = snapshotFiles(paths...); err != nil {
+				return err
+			}
+			created = missingDirs(paths)
+		}
 		for _, f := range files {
 			if f.needsKvmfr && !kvmfrOK {
 				say("skip /" + f.rel + " (kvmfr module not installed; re-run enable after adding Looking Glass)")
@@ -293,7 +340,11 @@ func applyPlan(action, user, exe string, dryRun bool) error {
 			}
 			say("write /" + f.rel)
 			if !dryRun {
+				// nothing has reloaded these yet, so putting the bytes back is the whole undo
 				if err := writeManaged(root, f); err != nil {
+					if rerr := errors.Join(before.restore(), removeEmptyDirs(created)); rerr != nil {
+						return errors.Join(err, fmt.Errorf("put back the files written before it: %w", rerr))
+					}
 					return err
 				}
 			}
@@ -301,11 +352,22 @@ func applyPlan(action, user, exe string, dryRun bool) error {
 		say("add " + user + " to groups: libvirt, kvm")
 		say("enable libvirtd.socket and the default network")
 		if !dryRun {
-			run("gpasswd", "-a", user, "libvirt")
-			run("gpasswd", "-a", user, "kvm")
-			run("ryoku-host", "svc", "--system", "enable", "--now", "libvirtd.socket")
-			run("udevadm", "control", "--reload-rules")
-			run("virsh", "net-autostart", "default")
+			// every step is tried; the files stay, since these steps may already
+			// have acted on them
+			var failed []error
+			step := func(what string, err error) {
+				if err != nil {
+					failed = append(failed, fmt.Errorf("%s: %w", what, err))
+				}
+			}
+			step("add "+user+" to libvirt", joinGroup(user, "libvirt"))
+			step("add "+user+" to kvm", joinGroup(user, "kvm"))
+			step("enable libvirtd.socket", runErr("ryoku-host", "svc", "--system", "enable", "--now", "libvirtd.socket"))
+			step("reload the udev rules", runErr("udevadm", "control", "--reload-rules"))
+			step("autostart the default network", runErr("virsh", "net-autostart", "default"))
+			if len(failed) > 0 {
+				return fmt.Errorf("the files written above are in place, but these steps did not take:\n%w", errors.Join(failed...))
+			}
 		}
 		if kvmfrOK {
 			say("done. Log out and back in for group membership to take effect.")
@@ -315,21 +377,93 @@ func applyPlan(action, user, exe string, dryRun bool) error {
 		return nil
 	}
 
-	// disable: remove exactly what enable wrote.
+	// disable: remove exactly what enable wrote, trying every step past a failure
+	var errs []error
 	for _, f := range files {
 		say("remove /" + f.rel)
 		if !dryRun {
-			_ = os.Remove(filepath.Join(root, f.rel))
+			errs = append(errs, removeIfPresent(filepath.Join(root, f.rel)))
 		}
 	}
 	say("remove " + user + " from groups: libvirt, kvm")
 	if !dryRun {
-		run("gpasswd", "-d", user, "libvirt")
-		run("gpasswd", "-d", user, "kvm")
-		run("udevadm", "control", "--reload-rules")
+		errs = append(errs,
+			leaveGroup(user, "libvirt"),
+			leaveGroup(user, "kvm"),
+			runErr("udevadm", "control", "--reload-rules"))
+	}
+	if err := errors.Join(errs...); err != nil {
+		return err
 	}
 	say("done. The discrete GPU returns to the host on the next boot.")
 	return nil
+}
+
+// inGroup: is name in group (no such group counts as not)? ok is false when the
+// lookup fails, which leaves gpasswd to decide
+func inGroup(name, group string) (member, ok bool) {
+	g, err := osuser.LookupGroup(group)
+	if errors.As(err, new(osuser.UnknownGroupError)) {
+		return false, true
+	}
+	if err != nil {
+		return false, false
+	}
+	u, err := osuser.Lookup(name)
+	if err != nil {
+		return false, false
+	}
+	ids, err := u.GroupIds()
+	if err != nil {
+		return false, false
+	}
+	return slices.Contains(ids, g.Gid), true
+}
+
+// leaveGroup drops name from group; not in it is already done (gpasswd -d fails
+// on a non-member)
+func leaveGroup(name, group string) error {
+	if member, ok := inGroup(name, group); ok && !member {
+		return nil
+	}
+	return runErr("gpasswd", "-d", name, group)
+}
+
+// joinGroup adds name to group; already in it is already done
+func joinGroup(name, group string) error {
+	if member, ok := inGroup(name, group); ok && member {
+		return nil
+	}
+	return runErr("gpasswd", "-a", name, group)
+}
+
+// missingDirs lists the directories above paths that do not exist yet, deepest
+// first, so a rollback can remove what a write is about to create
+func missingDirs(paths []string) []string {
+	seen := map[string]bool{}
+	var dirs []string
+	for _, p := range paths {
+		for d := filepath.Dir(p); !seen[d] && !fileExists(d); d = filepath.Dir(d) {
+			seen[d] = true
+			dirs = append(dirs, d)
+		}
+	}
+	slices.SortFunc(dirs, func(a, b string) int {
+		return strings.Count(b, string(filepath.Separator)) - strings.Count(a, string(filepath.Separator))
+	})
+	return dirs
+}
+
+// removeEmptyDirs removes each dir that is still empty; one something else has
+// since put a file in stays
+func removeEmptyDirs(dirs []string) error {
+	var errs []error
+	for _, d := range dirs {
+		if entries, err := os.ReadDir(d); err == nil && len(entries) == 0 {
+			errs = append(errs, removeIfPresent(d))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 func planPrefix(dryRun bool) string {

@@ -7,11 +7,13 @@ package main
 // shadow also records an unbind so the imported bind wins over the shipped one.
 // Everything else layers into each app's user-include inside a marked,
 // idempotent, undoable block. Writes are
-// validated (Lua parse) before committing and rolled back from the backup on any
-// error.
+// validated (Lua parse) before committing; on any write or apply error every
+// file is rolled back from the backup, the apply re-runs on the restored files,
+// and the backup is dropped so undo never targets an import that did not land.
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -205,31 +207,34 @@ func applyImport(dec decisions) (applyResult, error) {
 		}
 	}
 
-	man, err := backup(res.BackupDir, ts, writes)
-	if err != nil {
-		return res, err
-	}
 	for _, w := range writes {
 		if w.luaCheck && !luaContentOK(w.content) {
 			return res, fmt.Errorf("generated Lua for %s failed validation", w.path)
 		}
 	}
+	man, err := backup(res.BackupDir, ts, writes)
+	if err != nil {
+		return res, errors.Join(err, os.RemoveAll(res.BackupDir))
+	}
 	for _, w := range writes {
 		if err := atomicWrite(w.path, w.content, 0o644); err != nil {
-			rollback(man)
-			return res, fmt.Errorf("write %s: %w (rolled back)", w.path, err)
+			return res, abandonImport(res.BackupDir, man, nil, fmt.Errorf("write %s: %w", w.path, err))
 		}
 	}
 	if ingested || len(importedProviders) > 0 {
-		if len(importedProviders) == 0 {
-			_ = applyDesktop()
-		} else {
-			for _, provider := range importedProviders {
-				if err := applyImportedProvider(provider); err != nil {
-					rollback(man)
-					return res, fmt.Errorf("apply imported provider: %w (rolled back)", err)
+		apply := applyDesktop
+		if len(importedProviders) > 0 {
+			apply = func() error {
+				for _, provider := range importedProviders {
+					if err := applyImportedProvider(provider); err != nil {
+						return fmt.Errorf("apply imported provider: %w", err)
+					}
 				}
+				return nil
 			}
+		}
+		if err := apply(); err != nil {
+			return res, abandonImport(res.BackupDir, man, apply, err)
 		}
 	}
 
@@ -240,21 +245,21 @@ func applyImport(dec decisions) (applyResult, error) {
 }
 
 // appendDesktopSection appends a typed slice to desktop.<key> in ns, creating the
-// array when absent. An empty slice is a no-op.
+// array when absent and skipping items already there. An empty slice is a no-op.
 func appendDesktopSection(ns map[string]any, key string, items any) {
 	ib, _ := json.Marshal(items)
-	var add []json.RawMessage
+	var add []any
 	_ = json.Unmarshal(ib, &add)
 	if len(add) == 0 {
 		return
 	}
 	d := childMap(ns, "desktop")
-	var cur []json.RawMessage
+	var cur []any
 	if raw, ok := d[key]; ok {
 		b, _ := json.Marshal(raw)
 		_ = json.Unmarshal(b, &cur)
 	}
-	d[key] = append(cur, add...)
+	d[key] = appendNewImportItems(cur, add)
 }
 
 // bindPlan is the resolved set of imported binds to apply (remaps already
@@ -390,16 +395,37 @@ func backup(dir, ts string, writes []pendingWrite) (importManifest, error) {
 	return man, os.WriteFile(filepath.Join(dir, "manifest.json"), mb, 0o644)
 }
 
-func rollback(man importManifest) {
+// rollback puts every file back from the backup, removing the ones the import created
+func rollback(man importManifest) error {
+	var errs []error
 	for _, f := range man.Files {
-		if f.Backup != "" {
-			if data, err := os.ReadFile(f.Backup); err == nil {
-				_ = atomicWrite(f.Path, data, 0o644)
-			}
+		if f.Backup == "" {
+			errs = append(errs, removeIfPresent(f.Path)) // file did not exist before the import
 			continue
 		}
-		_ = os.Remove(f.Path) // file did not exist before the import
+		data, err := os.ReadFile(f.Backup)
+		if err == nil {
+			err = atomicWrite(f.Path, data, 0o644)
+		}
+		if err != nil {
+			errs = append(errs, fmt.Errorf("restore %s: %w", f.Path, err))
+		}
 	}
+	return errors.Join(errs...)
+}
+
+// abandonImport undoes an import that failed after its backup: roll the files
+// back, re-run apply (when it ran) on them ignoring its error so the live
+// compositor matches, and drop the backup. A failed rollback keeps the backup,
+// the only copy of the originals left, so undo can still restore them.
+func abandonImport(dir string, man importManifest, apply func() error, cause error) error {
+	if err := rollback(man); err != nil {
+		return errors.Join(cause, err)
+	}
+	if apply != nil {
+		_ = apply()
+	}
+	return errors.Join(cause, os.RemoveAll(dir))
 }
 
 // snapshotBestEffort asks the host seam for a numbered pre-import snapshot.

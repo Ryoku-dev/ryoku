@@ -130,3 +130,38 @@ func TestClipboardPrunePrintsPostPruneStats(t *testing.T) {
 		t.Fatal("the backend never talked to the fake daemon")
 	}
 }
+
+// A prune the daemon carried out is a success even when the report after it
+// fails: an error here would have the page offer to clear a history that is
+// already cleared.
+func TestClipboardPruneSucceedsWhenOnlyTheReportFails(t *testing.T) {
+	dir := t.TempDir()
+	ln, err := net.Listen("unix", filepath.Join(dir, "ryoku-shell.sock"))
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+	t.Setenv("XDG_RUNTIME_DIR", dir)
+
+	go func() {
+		for _, reply := range []string{`{"ok":true}`, `{"ok":false,"error":"stats unavailable"}`} {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			buf := make([]byte, 128)
+			_, _ = conn.Read(buf)
+			_, _ = conn.Write([]byte(reply + "\n"))
+			conn.Close()
+		}
+	}()
+
+	out := captureStdout(t, func() {
+		if err := runClipboard([]string{"prune"}); err != nil {
+			t.Errorf("runClipboard(prune) = %v, want success: the prune itself went through", err)
+		}
+	})
+	if got := strings.TrimSpace(out); got != "null" {
+		t.Errorf("prune output = %q, want null for an unknown size", got)
+	}
+}

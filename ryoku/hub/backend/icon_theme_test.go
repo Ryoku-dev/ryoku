@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -169,6 +170,103 @@ func TestApplyIconThemeWritesEveryConsumerAndState(t *testing.T) {
 	}
 }
 
+// fakeGsettings puts a gsettings on PATH that answers get with 'Old' and exits
+// setExit on set, so the real exec seam runs with no session bus
+func fakeGsettings(t *testing.T, setExit int) {
+	t.Helper()
+	bin := t.TempDir()
+	script := fmt.Sprintf("#!/bin/sh\ncase \"$1\" in get) echo \"'Old'\" ;; set) exit %d ;; esac\n", setExit)
+	if err := os.WriteFile(filepath.Join(bin, "gsettings"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+}
+
+func TestApplyIconThemeFailureLeavesNoTrace(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores directory permissions")
+	}
+	for _, tc := range []struct {
+		name          string
+		gsettingsExit int
+		lockConfig    bool
+	}{
+		{"gsettings refuses", 1, false},
+		{"kdeglobals unwritable", 0, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			config, data := t.TempDir(), t.TempDir()
+			t.Setenv("HOME", t.TempDir())
+			t.Setenv("XDG_CONFIG_HOME", config)
+			t.Setenv("XDG_DATA_HOME", data)
+			t.Setenv("XDG_DATA_DIRS", "")
+			writeIconTheme(t, filepath.Join(data, "icons"), "pretty", "[Icon Theme]\nName=Pretty Icons\nDirectories=apps\n", "apps")
+
+			kdeglobals := filepath.Join(config, "kdeglobals")
+			present := map[string]string{
+				filepath.Join(config, "gtk-3.0", "settings.ini"): "[Settings]\ngtk-icon-theme-name=Old\n",
+				filepath.Join(config, "qt6ct", "qt6ct.conf"):     "[Appearance]\nicon_theme=Old\n",
+			}
+			absent := []string{filepath.Join(config, "gtk-4.0", "settings.ini"), iconThemeStatePath()}
+			if tc.lockConfig {
+				absent = append(absent, kdeglobals)
+			} else {
+				present[kdeglobals] = "[Icons]\nTheme=Old\n"
+			}
+			for path, body := range present {
+				if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := os.MkdirAll(filepath.Join(config, "gtk-4.0"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if tc.lockConfig {
+				if err := os.Chmod(config, 0o555); err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { os.Chmod(config, 0o755) })
+			}
+			fakeGsettings(t, tc.gsettingsExit)
+
+			if err := applyIconTheme("pretty"); err == nil {
+				t.Fatal("failed apply reported success")
+			}
+			for path, want := range present {
+				got, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if string(got) != want {
+					t.Errorf("%s = %q after failed apply, want %q", path, got, want)
+				}
+			}
+			for _, path := range absent {
+				if _, err := os.Stat(path); !os.IsNotExist(err) {
+					t.Errorf("%s exists after failed apply: %v", path, err)
+				}
+			}
+			if got := currentIconTheme(); got != "Old" {
+				t.Errorf("currentIconTheme() = %q after failed apply, want Old", got)
+			}
+
+			if err := os.Chmod(config, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			fakeGsettings(t, 0)
+			if err := applyIconTheme("pretty"); err != nil {
+				t.Fatal(err)
+			}
+			if got := currentIconTheme(); got != "pretty" {
+				t.Fatalf("currentIconTheme() = %q after retry, want pretty", got)
+			}
+		})
+	}
+}
+
 func TestApplyIconThemeRejectsUnknownTheme(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
@@ -179,5 +277,35 @@ func TestApplyIconThemeRejectsUnknownTheme(t *testing.T) {
 	}
 	if _, err := os.Stat(iconThemeStatePath()); !os.IsNotExist(err) {
 		t.Fatalf("invalid selection wrote state: %v", err)
+	}
+}
+
+// a theme the picker hides (Hidden=true, like Adwaita) can still be the one in use,
+// so going back to it, as Undo does, must apply
+func TestApplyIconThemeAcceptsAnInstalledHiddenTheme(t *testing.T) {
+	home, config, data := t.TempDir(), t.TempDir(), t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", config)
+	t.Setenv("XDG_DATA_HOME", data)
+	t.Setenv("XDG_DATA_DIRS", "")
+	writeIconTheme(t, filepath.Join(data, "icons"), "Adwaita", "[Icon Theme]\nName=Adwaita\nHidden=true\nDirectories=apps\n", "apps")
+	oldRun, oldOut := runIconCommand, runIconCommandOutput
+	t.Cleanup(func() { runIconCommand, runIconCommandOutput = oldRun, oldOut })
+	runIconCommand = func(string, ...string) error { return nil }
+	runIconCommandOutput = func(string, ...string) ([]byte, error) { return []byte("'Papirus'\n"), nil }
+
+	for _, option := range listIconThemes() {
+		if option.Code == "Adwaita" {
+			t.Fatal("a hidden theme is offered in the list")
+		}
+	}
+	if err := applyIconTheme("Adwaita"); err != nil {
+		t.Fatalf("an installed hidden theme was refused: %v", err)
+	}
+	if got := storedIconTheme(); got != "Adwaita" {
+		t.Fatalf("stored theme = %q, want Adwaita", got)
+	}
+	if err := applyIconTheme("../icons"); err == nil {
+		t.Fatal("a path outside the icon folders was accepted")
 	}
 }

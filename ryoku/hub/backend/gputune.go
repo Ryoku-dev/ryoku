@@ -13,6 +13,7 @@ package main
 // a single-GPU desktop, or this AMD+NVIDIA box.
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -39,6 +40,9 @@ type Tunable struct {
 	Risk    string   `json:"risk"`            // safe | advanced
 	Src     string   `json:"src"`             // source tag (sysfs path or cmd)
 	Desc    string   `json:"desc,omitempty"`  // persistence note the page renders
+	// a limit knob with nothing set (no clock lock, the fan on automatic); current
+	// is then not a value anyone chose, so a preset never saves it
+	Auto bool `json:"auto,omitempty"`
 }
 
 // odRange = the pp_od_clk_voltage sclk overdrive window and its current top.
@@ -59,6 +63,7 @@ type nvInfo struct {
 	persistence                                bool
 	clockMaxGr                                 int
 	clockCurGr                                 int
+	clockLock                                  int // the lock this Hub set this boot; 0 = none
 }
 
 // gpuProbe = one GPU as the tuner sees it: identity from `ryoku-gpu detect`
@@ -69,6 +74,8 @@ type gpuProbe struct {
 	amdCap                             *amdCap  // nil if no power1_cap
 	amdOD                              *odRange // nil if overdrive locked
 	amdFan                             bool     // pwm1_enable present
+	amdFanManual                       bool     // pwm1_enable is 1: a fixed duty
+	amdFanPct                          int      // that duty, 0..100
 	intelMinMHz, intelMaxMHz, intelRP0 int      // 0 if not Intel/absent
 	nv                                 *nvInfo  // nil for non-nvidia
 }
@@ -144,24 +151,30 @@ func nvidiaTunables(g gpuProbe) []Tunable {
 	nv := g.nv
 	if nv.powerSupported && nv.powerMaxW > nv.powerMinW {
 		out = append(out, Tunable{
-			GPU: g.slot, ID: "power_limit", Label: "Power limit",
+			GPU: g.slot, ID: "power_limit", Label: tunableLabels["power_limit"],
 			Kind: "slider", Unit: "W",
 			Min: nv.powerMinW, Max: nv.powerMaxW, Current: nv.powerCurW,
 			Risk: "safe", Src: "nvidia-smi -pl",
 		})
 	}
 	out = append(out, Tunable{
-		GPU: g.slot, ID: "persistence", Label: "Persistence mode",
+		GPU: g.slot, ID: "persistence", Label: tunableLabels["persistence"],
 		Kind: "toggle", Value: boolStr(nv.persistence),
 		Risk: "safe", Src: "nvidia-smi -pm",
 	})
+	// nvidia-smi reports the clock running now, not a lock, so the knob shows
+	// the lock this Hub set (gpulock.go), or no limit
 	if nv.clockMaxGr > 0 {
-		out = append(out, Tunable{
-			GPU: g.slot, ID: "clock_lock", Label: "Max core clock",
+		lock := Tunable{
+			GPU: g.slot, ID: "clock_lock", Label: tunableLabels["clock_lock"],
 			Kind: "slider", Unit: "MHz",
-			Min: 300, Max: float64(nv.clockMaxGr), Current: float64(nv.clockCurGr),
-			Risk: "advanced", Src: "nvidia-smi -lgc",
-		})
+			Min: 300, Max: float64(nv.clockMaxGr), Current: float64(nv.clockMaxGr),
+			Risk: "advanced", Src: "nvidia-smi -lgc", Auto: true,
+		}
+		if nv.clockLock > 0 {
+			lock.Current, lock.Auto = clampf(float64(nv.clockLock), lock.Min, lock.Max), false
+		}
+		out = append(out, lock)
 	}
 	return out
 }
@@ -170,7 +183,7 @@ func amdTunables(g gpuProbe) []Tunable {
 	var out []Tunable
 	if g.amdPerfLevel != "" {
 		out = append(out, Tunable{
-			GPU: g.slot, ID: "perf_level", Label: "Performance level",
+			GPU: g.slot, ID: "perf_level", Label: tunableLabels["perf_level"],
 			Kind: "segment", Options: []string{"auto", "low", "high"},
 			Value: normalizePerf(g.amdPerfLevel), Risk: "safe",
 			Src: "power_dpm_force_performance_level",
@@ -178,7 +191,7 @@ func amdTunables(g gpuProbe) []Tunable {
 	}
 	if g.amdCap != nil && g.amdCap.maxUW > 0 {
 		out = append(out, Tunable{
-			GPU: g.slot, ID: "power_cap", Label: "Power cap",
+			GPU: g.slot, ID: "power_cap", Label: tunableLabels["power_cap"],
 			Kind: "slider", Unit: "W",
 			Min: 1, Max: float64(g.amdCap.maxUW) / 1e6,
 			Current: float64(g.amdCap.curUW) / 1e6,
@@ -187,7 +200,7 @@ func amdTunables(g gpuProbe) []Tunable {
 	}
 	if g.amdOD != nil && g.amdOD.maxMHz > g.amdOD.minMHz {
 		out = append(out, Tunable{
-			GPU: g.slot, ID: "sclk_od", Label: "Max GPU clock",
+			GPU: g.slot, ID: "sclk_od", Label: tunableLabels["sclk_od"],
 			Kind: "slider", Unit: "MHz",
 			Min: float64(g.amdOD.minMHz), Max: float64(g.amdOD.maxMHz),
 			Current: float64(g.amdOD.curMax),
@@ -195,11 +208,15 @@ func amdTunables(g gpuProbe) []Tunable {
 		})
 	}
 	if g.amdFan {
-		out = append(out, Tunable{
-			GPU: g.slot, ID: "fan_pct", Label: "Fan speed",
+		fan := Tunable{
+			GPU: g.slot, ID: "fan_pct", Label: tunableLabels["fan_pct"],
 			Kind: "slider", Unit: "%", Min: 0, Max: 100, Current: 0,
-			Risk: "advanced", Src: "hwmon/pwm1",
-		})
+			Risk: "advanced", Src: "hwmon/pwm1", Auto: true,
+		}
+		if g.amdFanManual {
+			fan.Current, fan.Auto = float64(g.amdFanPct), false
+		}
+		out = append(out, fan)
 	}
 	return out
 }
@@ -213,11 +230,39 @@ func intelTunables(g gpuProbe) []Tunable {
 		top = g.intelMaxMHz
 	}
 	return []Tunable{{
-		GPU: g.slot, ID: "gt_freq", Label: "Max GPU clock",
+		GPU: g.slot, ID: "gt_freq", Label: tunableLabels["gt_freq"],
 		Kind: "slider", Unit: "MHz",
 		Min: float64(g.intelMinMHz), Max: float64(top), Current: float64(g.intelMaxMHz),
 		Risk: "advanced", Src: "gt_max_freq_mhz",
 	}}
+}
+
+// tunableLabels names every knob as the Graphics page does, so a message about
+// one (refused, or gone because the driver stopped offering it) uses the name
+// the user sees
+var tunableLabels = map[string]string{
+	"power_limit": "Power limit",
+	"persistence": "Keep the driver loaded",
+	"clock_lock":  "Highest graphics clock",
+	"perf_level":  "Performance level",
+	"power_cap":   "Power limit",
+	"sclk_od":     "Highest graphics clock",
+	"fan_pct":     "Fan speed",
+	"gt_freq":     "Highest graphics clock",
+}
+
+// missingTunableError explains, in the page's words, a change to a knob this
+// machine no longer offers
+func missingTunableError(in tuneInputs, gpu, id string) error {
+	knob := tunableLabels[id]
+	if knob == "" {
+		knob = "This setting"
+	}
+	card := "this graphics card"
+	if g := findGPU(in.gpus, gpu); g != nil && g.model != "" {
+		card = g.model
+	}
+	return fmt.Errorf("%s is no longer offered for %s, so nothing was changed. Reopen the page to see what it offers now", knob, card)
 }
 
 // ── live probing ────────────────────────────────────────────────────────────
@@ -239,6 +284,7 @@ func detectTune() tuneInputs {
 				readIntel(root, &g)
 			case "nvidia":
 				g.nv = readNvidia(r.Slot)
+				g.nv.clockLock = clockLockFor(r.Slot)
 			}
 			in.gpus = append(in.gpus, g)
 		}
@@ -267,6 +313,8 @@ func readAMD(root string, g *gpuProbe) {
 		}
 		if fileExists(filepath.Join(hw, "pwm1_enable")) {
 			g.amdFan = true
+			g.amdFanManual = readTrim(filepath.Join(hw, "pwm1_enable")) == "1"
+			g.amdFanPct = clampInt((atoiTrim(readTrim(filepath.Join(hw, "pwm1")))*100+127)/255, 0, 100)
 		}
 	}
 }
@@ -321,22 +369,39 @@ func tuneSet(gpu, id, value string) error {
 	in := detectTune()
 	t := findTunable(buildTunables(in), gpu, id)
 	if t == nil {
-		return fmt.Errorf("no tunable %q on %s (this hardware does not expose it)", id, gpu)
+		return missingTunableError(in, gpu, id)
 	}
 	// Validate + clamp against the probed envelope before any privileged write.
-	if t.Kind == "segment" {
-		if !inList(t.Options, value) {
-			return fmt.Errorf("%s must be one of %s", id, strings.Join(t.Options, "|"))
+	switch {
+	case value == "auto" && autoKnobs[id]:
+		// no limit, the fan on automatic: what Undo and a reset put back
+	case t.Kind == "toggle":
+		switch strings.ToLower(value) {
+		case "on", "1", "true":
+			value = "on"
+		case "off", "0", "false":
+			value = "off"
+		default:
+			return fmt.Errorf("%s must be on or off", tunableLabels[id])
 		}
-	} else {
+	case t.Kind == "segment":
+		if !inList(t.Options, value) {
+			return fmt.Errorf("%s must be one of %s", tunableLabels[id], strings.Join(t.Options, ", "))
+		}
+	default:
 		v, err := strconv.ParseFloat(value, 64)
 		if err != nil {
-			return fmt.Errorf("%s needs a number", id)
+			return fmt.Errorf("%s needs a number", tunableLabels[id])
 		}
 		value = strconv.FormatFloat(clampf(v, t.Min, t.Max), 'f', -1, 64)
 	}
 	if os.Geteuid() != 0 {
-		return escalateSelf("gpu", "tune", "set", gpu, id, value)
+		escalate := func() error { return escalateSelf("gpu", "tune", "set", gpu, id, value) }
+		if id == "clock_lock" {
+			mhz := int(atofTrim(value))
+			return withClockLocks(func(l map[string]int) map[string]int { return nextClockLocks(l, gpu, mhz) }, escalate, nil)
+		}
+		return escalate()
 	}
 	if err := applyKnob(in, gpu, id, value); err != nil {
 		return err
@@ -346,23 +411,32 @@ func tuneSet(gpu, id, value string) error {
 
 func tuneReset(gpu string) error {
 	if os.Geteuid() != 0 {
-		if gpu == "" {
-			return escalateSelf("gpu", "tune", "reset")
+		args := []string{"gpu", "tune", "reset"}
+		if gpu != "" {
+			args = append(args, gpu)
 		}
-		return escalateSelf("gpu", "tune", "reset", gpu)
+		// a reset that ran but failed on some knob still lifted the locks: a card
+		// that took a lock takes -rgc, and the error names whatever did fail
+		return withClockLocks(func(l map[string]int) map[string]int { return nextClockLocks(l, gpu, 0) },
+			func() error { return escalateSelf(args...) }, escalationRan)
 	}
-	in := detectTune()
-	for _, g := range in.gpus {
-		if gpu != "" && g.slot != gpu {
-			continue
-		}
-		resetGPU(g)
-	}
-	if (gpu == "" || gpu == "platform") && in.platform != nil {
-		// no factory default is exported; leave the profile as the firmware set
-		// it. A reboot restores it. Nothing to do here beyond the GPUs.
+	if err := resetTune(detectTune(), gpu); err != nil {
+		return err
 	}
 	return printJSON(map[string]string{"reset": orAll(gpu)})
+}
+
+// resetTune resets every knob on every selected card, going on past a failure
+// so one stuck knob leaves no other one as it was. The platform profile has no
+// exported default; the firmware's stays until a reboot.
+func resetTune(in tuneInputs, gpu string) error {
+	var errs []error
+	for _, g := range in.gpus {
+		if gpu == "" || g.slot == gpu {
+			errs = append(errs, resetGPU(g))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // applyKnob dispatches one validated write. Runs as root (tuneSet escalated).
@@ -381,6 +455,9 @@ func applyKnob(in tuneInputs, gpu, id, value string) error {
 	case "persistence":
 		return runErr("nvidia-smi", "-pm", boolNum(value))
 	case "clock_lock":
+		if value == "auto" {
+			return runErr("nvidia-smi", "-i", g.slot, "-rgc")
+		}
 		return runErr("nvidia-smi", "-i", g.slot, "-lgc", "0,"+trimDot(value))
 	case "perf_level":
 		return writeSysfs(filepath.Join(dev, "power_dpm_force_performance_level"), value)
@@ -390,34 +467,58 @@ func applyKnob(in tuneInputs, gpu, id, value string) error {
 	case "sclk_od":
 		return amdSetMaxSclk(dev, trimDot(value))
 	case "fan_pct":
+		if value == "auto" {
+			hw := firstHwmon(dev)
+			if hw == "" {
+				return fmt.Errorf("no hwmon fan on this GPU")
+			}
+			return writeSysfs(hw+"/pwm1_enable", "2") // 2 = auto
+		}
 		return amdSetFan(dev, atoiTrim(trimDot(value)))
 	}
 	return fmt.Errorf("cannot apply %s", id)
 }
 
-func resetGPU(g gpuProbe) {
+// knobs whose "auto" lifts what was set: the clock lock and a fixed fan duty
+var autoKnobs = map[string]bool{"clock_lock": true, "fan_pct": true}
+
+// resetGPU puts back each knob this Hub offers on g, trying all of them
+func resetGPU(g gpuProbe) error {
+	var errs []error
 	dev := amdDevDir(sysfsRoot(), g.card)
+	nvidia := func(id string, args ...string) {
+		if err := runErr("nvidia-smi", args...); err != nil {
+			errs = append(errs, fmt.Errorf("%s %s: %w", g.slot, id, err))
+		}
+	}
+	sysfs := func(path, content string) {
+		errs = append(errs, writeSysfs(path, content))
+	}
 	switch g.driver {
 	case "nvidia":
 		if g.nv != nil && g.nv.powerDefW > 0 {
-			run("nvidia-smi", "-i", g.slot, "-pl", strconv.Itoa(int(g.nv.powerDefW)))
+			nvidia("power_limit", "-i", g.slot, "-pl", strconv.Itoa(int(g.nv.powerDefW)))
 		}
-		run("nvidia-smi", "-i", g.slot, "-rgc")
-		run("nvidia-smi", "-i", g.slot, "-rmc")
-		run("nvidia-smi", "-pm", "0")
+		nvidia("clock_lock", "-i", g.slot, "-rgc")
+		nvidia("persistence", "-pm", "0")
 	case "amdgpu":
 		if g.amdOD != nil {
-			_ = writeSysfs(filepath.Join(dev, "pp_od_clk_voltage"), "r")
-			_ = writeSysfs(filepath.Join(dev, "pp_od_clk_voltage"), "c")
+			od := filepath.Join(dev, "pp_od_clk_voltage")
+			if err := writeSysfs(od, "r"); err != nil {
+				errs = append(errs, err)
+			} else {
+				sysfs(od, "c")
+			}
 		}
 		if g.amdFan {
-			_ = writeSysfs(firstHwmon(dev)+"/pwm1_enable", "2") // 2 = auto
+			sysfs(firstHwmon(dev)+"/pwm1_enable", "2") // 2 = auto
 		}
 		if g.amdCap != nil && g.amdCap.defUW > 0 {
-			_ = writeSysfs(firstHwmon(dev)+"/power1_cap", strconv.Itoa(g.amdCap.defUW))
+			sysfs(firstHwmon(dev)+"/power1_cap", strconv.Itoa(g.amdCap.defUW))
 		}
-		_ = writeSysfs(filepath.Join(dev, "power_dpm_force_performance_level"), "auto")
+		sysfs(filepath.Join(dev, "power_dpm_force_performance_level"), "auto")
 	}
+	return errors.Join(errs...)
 }
 
 // amdSetMaxSclk raises the sclk overdrive ceiling: OD needs manual mode, then a

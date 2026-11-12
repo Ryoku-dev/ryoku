@@ -82,3 +82,63 @@ func TestProfileImportRejectsGarbage(t *testing.T) {
 		t.Fatalf("profile.json must not exist after a rejected import, stat err = %v", err)
 	}
 }
+
+// TestProfileImportFailedSettingsWriteLeavesNoTrace: the hero lands before
+// profile.json, so a profile.json that cannot be written puts the old hero back.
+func TestProfileImportFailedSettingsWriteLeavesNoTrace(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	if err := os.MkdirAll(profileDir(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(profileConfigPath(), []byte(sampleProfile), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	heroPath := filepath.Join(profileHeroDir(), "hero.png")
+	if err := os.MkdirAll(profileHeroDir(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(heroPath, sampleHero, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dst := filepath.Join(t.TempDir(), "share.ryoprofile")
+	if err := exportProfile(dst); err != nil {
+		t.Fatalf("exportProfile: %v", err)
+	}
+
+	// a different box: its own hero, no profile.json, and a settings dir it cannot write
+	oldHero := []byte("old hero")
+	if err := os.WriteFile(heroPath, oldHero, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(profileConfigPath()); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(profileDir(), 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(profileDir(), 0o755) })
+
+	if err := importProfile(dst); err == nil {
+		t.Fatal("import succeeded with profile.json unwritable")
+	}
+	got, err := os.ReadFile(heroPath)
+	if err != nil || !bytes.Equal(got, oldHero) {
+		t.Fatalf("hero after a failed import = %q (%v), want %q", got, err, oldHero)
+	}
+	if _, err := os.Stat(profileConfigPath()); !os.IsNotExist(err) {
+		t.Fatalf("profile.json appeared after a failed import, stat err = %v", err)
+	}
+
+	if err := os.Chmod(profileDir(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := importProfile(dst); err != nil {
+		t.Fatalf("import after the failure: %v", err)
+	}
+	if got, err := os.ReadFile(profileConfigPath()); err != nil || string(got) != sampleProfile {
+		t.Fatalf("profile.json after a good import = %q (%v), want the sample", got, err)
+	}
+	if got, err := os.ReadFile(heroPath); err != nil || !bytes.Equal(got, sampleHero) {
+		t.Fatalf("hero after a good import = %v (%v), want the sample", got, err)
+	}
+}

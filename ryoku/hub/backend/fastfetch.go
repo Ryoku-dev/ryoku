@@ -9,6 +9,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -384,10 +385,20 @@ func runFastfetch(args []string) error {
 		if err != nil {
 			return err
 		}
+		before, err := snapshotFiles(fastfetchConfigPath(), fastfetchPaletteStatePath())
+		if err != nil {
+			return err
+		}
 		if err := atomicWrite(fastfetchConfigPath(), b, 0o644); err != nil {
 			return err
 		}
-		return setFastfetchPaletteMode(m.Palette)
+		if err := setFastfetchPaletteMode(m.Palette); err != nil {
+			if rerr := before.restore(); rerr != nil {
+				return errors.Join(err, fmt.Errorf("restore Fastfetch config: %w", rerr))
+			}
+			return err
+		}
+		return nil
 	case "preview":
 		if len(args) < 2 {
 			return fmt.Errorf("fastfetch preview needs a JSON argument")

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -167,6 +168,10 @@ func applyStarship(state starshipState, persist bool) error {
 	if err != nil {
 		return err
 	}
+	before, err := snapshotFiles(starshipConfigPath(), starshipStatePath())
+	if err != nil {
+		return err
+	}
 	if err := atomicWrite(starshipConfigPath(), b, 0o644); err != nil {
 		return fmt.Errorf("write Starship config: %w", err)
 	}
@@ -178,7 +183,13 @@ func applyStarship(state starshipState, persist bool) error {
 		return err
 	}
 	stateBytes = append(stateBytes, '\n')
-	return atomicWrite(starshipStatePath(), stateBytes, 0o644)
+	if err := atomicWrite(starshipStatePath(), stateBytes, 0o644); err != nil {
+		if rerr := before.restore(); rerr != nil {
+			return errors.Join(err, fmt.Errorf("restore Starship config: %w", rerr))
+		}
+		return err
+	}
+	return nil
 }
 
 func runStarship(args []string) error {

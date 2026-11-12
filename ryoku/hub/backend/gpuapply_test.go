@@ -54,6 +54,147 @@ func TestApplyPlanDryRunWritesNothing(t *testing.T) {
 		t.Error("a dry-run must not write any file")
 	}
 }
+
+// fakeTools puts each named shell script alone on PATH, so the command under
+// test runs these and nothing on the machine
+func fakeTools(t *testing.T, scripts map[string]string) {
+	t.Helper()
+	bin := t.TempDir()
+	for name, body := range scripts {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", bin)
+}
+
+const modprobeRel, modprobeBefore = "etc/modprobe.d/ryoku-kvmfr.conf", "options kvmfr static_size_mb=64\n"
+
+// enableWithUnwritableHook runs a real enable into a fresh /etc holding only a
+// modprobe file and a read-only libvirt hooks dir; the hook is the last file
+// written, so every other write lands before it fails
+func enableWithUnwritableHook(t *testing.T) (etc string, err error) {
+	t.Helper()
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores directory permissions")
+	}
+	etc = t.TempDir()
+	t.Setenv("RYOKU_ETC_ROOT", etc)
+	fakeTools(t, map[string]string{"ryoku-host": "exit 0", "modinfo": "exit 0"})
+	seed(t, filepath.Join(etc, modprobeRel), modprobeBefore)
+	hooks := filepath.Join(etc, "etc/libvirt/hooks")
+	mustMkdir(t, hooks)
+	if err := os.Chmod(hooks, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(hooks, 0o755) })
+	return etc, applyPlan("enable", "ryoku-test-nobody", "/usr/bin/ryoku-hub", false)
+}
+
+// an enable that fails partway puts back every /etc file it had written
+func TestApplyEnableFailureLeavesNoTrace(t *testing.T) {
+	etc, err := enableWithUnwritableHook(t)
+	if err == nil {
+		t.Fatal("enable must fail when the libvirt hook cannot be written")
+	}
+	if got := readFile(filepath.Join(etc, modprobeRel)); got != modprobeBefore {
+		t.Errorf("/%s = %q, want it put back to %q", modprobeRel, got, modprobeBefore)
+	}
+	for _, f := range managedFiles("ryoku-test-nobody", "/usr/bin/ryoku-hub") {
+		if f.rel != modprobeRel && fileExists(filepath.Join(etc, f.rel)) {
+			t.Errorf("a failed enable left /%s behind", f.rel)
+		}
+	}
+}
+
+// the rollback also removes the directories the enable made, and only those
+func TestApplyEnableFailureRemovesCreatedDirs(t *testing.T) {
+	etc, err := enableWithUnwritableHook(t)
+	if err == nil {
+		t.Fatal("enable must fail when the libvirt hook cannot be written")
+	}
+	for _, dir := range []string{"etc/modules-load.d", "etc/udev", "etc/polkit-1"} {
+		if fileExists(filepath.Join(etc, dir)) {
+			t.Errorf("a failed enable left the /%s it created", dir)
+		}
+	}
+	for _, dir := range []string{"etc/modprobe.d", "etc/libvirt/hooks"} {
+		if !fileExists(filepath.Join(etc, dir)) {
+			t.Errorf("the rollback removed /%s, which was there before", dir)
+		}
+	}
+}
+
+// steps after the writes that do not take are each named, with the files left
+// in place said plainly, instead of reporting done
+func TestApplyEnableReportsFailedSteps(t *testing.T) {
+	etc := t.TempDir()
+	t.Setenv("RYOKU_ETC_ROOT", etc)
+	calls := filepath.Join(t.TempDir(), "calls")
+	t.Setenv("CALLS", calls)
+	fakeTools(t, map[string]string{
+		"ryoku-host": `echo "ryoku-host $*" >> "$CALLS"; case "$*" in svc*) exit 1 ;; esac`,
+		"modinfo":    "exit 0",
+		"gpasswd":    `echo "gpasswd $*" >> "$CALLS"`,
+		"udevadm":    `echo "udevadm $*" >> "$CALLS"`,
+		"virsh":      `echo "virsh $*" >> "$CALLS"; echo "network not found"; exit 1`,
+	})
+	err := applyPlan("enable", "ryoku-test-nobody", "/usr/bin/ryoku-hub", false)
+	if err == nil {
+		t.Fatal("enable must fail when libvirtd and the default network do not take")
+	}
+	for _, want := range []string{"libvirtd.socket", "default network", "are in place"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error must name %q, got %v", want, err)
+		}
+	}
+	for _, want := range []string{"gpasswd -a ryoku-test-nobody libvirt", "gpasswd -a ryoku-test-nobody kvm", "udevadm control --reload-rules"} {
+		if !strings.Contains(readFile(calls), want) {
+			t.Errorf("a failed step stopped %q; calls: %q", want, readFile(calls))
+		}
+	}
+	for _, f := range managedFiles("ryoku-test-nobody", "/usr/bin/ryoku-hub") {
+		if !fileExists(filepath.Join(etc, f.rel)) {
+			t.Errorf("/%s is missing, but the error says the files are in place", f.rel)
+		}
+	}
+}
+
+// a disable that cannot remove one file still removes the rest and runs every
+// step, then names what failed instead of reporting done
+func TestApplyDisableReportsEveryFailure(t *testing.T) {
+	etc := t.TempDir()
+	t.Setenv("RYOKU_ETC_ROOT", etc)
+	calls := filepath.Join(t.TempDir(), "calls")
+	t.Setenv("CALLS", calls)
+	fakeTools(t, map[string]string{
+		"gpasswd": `echo "gpasswd $*" >> "$CALLS"`,
+		"udevadm": `echo "udevadm $*" >> "$CALLS"; exit 1`,
+	})
+	files := managedFiles("ryoku-test-nobody", "/usr/bin/ryoku-hub")
+	stuck := "etc/polkit-1/rules.d/50-ryoku-libvirt.rules"
+	for _, f := range files {
+		if f.rel == stuck {
+			seed(t, filepath.Join(etc, f.rel, "keep"), "x") // a non-empty dir: remove fails even as root
+			continue
+		}
+		seed(t, filepath.Join(etc, f.rel), f.content)
+	}
+
+	err := applyPlan("disable", "ryoku-test-nobody", "/usr/bin/ryoku-hub", false)
+	if err == nil || !strings.Contains(err.Error(), stuck) || !strings.Contains(err.Error(), "udevadm") {
+		t.Fatalf("disable must name every failure, got %v", err)
+	}
+	for _, f := range files {
+		if f.rel != stuck && fileExists(filepath.Join(etc, f.rel)) {
+			t.Errorf("one failed removal stopped the rest: /%s left", f.rel)
+		}
+	}
+	if !strings.Contains(readFile(calls), "udevadm control --reload-rules") {
+		t.Errorf("one failed removal stopped the udev reload; calls: %q", readFile(calls))
+	}
+}
+
 func TestSnapshotWritersSkipUnsupportedHost(t *testing.T) {
 	bin := t.TempDir()
 	marker := filepath.Join(bin, "snapper-called")

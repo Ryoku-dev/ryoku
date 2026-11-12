@@ -27,6 +27,52 @@
   named, and the plugin descriptions, animation names and the install
   button now reach translation (`ryoku/wm/*/schema*.json`, `ryoku/wm/binds.go`,
   `ryoku/wm/*_copy_test.go`, `ryoku/i18n/tools/sync.py`).
+- **A refused change leaves nothing behind.** When the compositor, the
+  wallpaper daemon, a service or a sign-in prompt refuses a save, every file
+  the save touched is put back byte for byte, and the apply runs again on what
+  was restored. Saving the window manager, rebinding a key, the animation
+  preset, icon theme, display profile, Fastfetch, Starship, profile import,
+  voice typing, login shell, theme and config import and undo all work this
+  way, so a refused value never loads at the next sign-in. A saved setup that
+  fails part way (for example with the wallpaper daemon down) now rolls back,
+  so Retry keeps your original as the Undo point. Before, Undo could only
+  return to the half-applied state (`backend/filetx.go`, `backend/rice.go`,
+  `backend/desktop.go`).
+- **Rashin, Export your setup, clipboard clearing and Graphics fail cleanly.**
+  - Turning Rashin on undoes what it did when a later step fails: it turns
+    Rashin off again, removes the package it just installed and its ledger
+    line, and redraws the desktop. A refused removal when turning it off turns
+    Rashin back on if it was on. Every error says what is left
+    (`backend/rashin.go`).
+  - Export your setup builds its saved setup in a hidden folder and moves it
+    into place only when it is complete, so a failed export lists no half-made
+    setup and does not overwrite an earlier one (`backend/rice.go`).
+  - Clearing the clipboard history counts as done when only the size report
+    after it fails, so the page does not offer to clear it again
+    (`backend/clipboard.go`).
+  - GPU tuning reset and passthrough removal report each step that failed
+    instead of claiming success. The clock-lock record is saved before the
+    lock reaches the card and put back if the card refuses it. A failed
+    passthrough setup puts back every file and folder it wrote under /etc, and
+    a step that fails after the files are written is named
+    (`backend/gputune.go`, `backend/gpulock.go`, `backend/gpuapply.go`,
+    `backend/gpupreset.go`).
+  - Switching the display wiring back to the mode the computer started in no
+    longer asks for a restart. Cancel during the switch now closes the
+    password prompt too, instead of leaving it open to make the change
+    anyway. The same applies to the Looking Glass install. A setting the
+    driver stopped offering is named in the page's words, not by its id and
+    PCI address (`backend/gpumux.go`, `backend/gputune.go`).
+  - Keep the driver loaded can be switched. The backend read the toggle's on
+    or off as a number and refused it, and a 1 was clamped to 0, which switched
+    it off (`backend/gputune.go`).
+- **Backend tests stay off the machine they run on.** The test suite now runs
+  with a PATH holding only basic shell utilities, and with a private HOME, XDG
+  directories and session bus. A plain `go test` can no longer run the real
+  `ryoku-host` (whose snapshot command created real snapper snapshots),
+  `pkexec`, `ryogami` or a compositor provider. The login-shell page now finds
+  your home from `$HOME` instead of passwd (`backend/main_test.go`,
+  `backend/shellpref.go`).
 - **The Super+K cheatsheet shows your shortcuts on niri and wayfire.** Their
   providers answered the legend from defaults when asked without a store path,
   which is how the cheatsheet and Keyboard shortcuts ask, so rebinds and
@@ -505,6 +551,11 @@
   (`quickshell/SchemaPage.qml`, `quickshell/AppPicker.qml`)
 
 ### Removed
+- **The Settings window size rows and the Advanced switch.** The Window
+  Manager page's Full page/Custom size rows and the rail's global Advanced
+  switch have no place in the rebuilt Settings; `ryoku-hub config` no longer
+  knows the `advanced` key, and `ryoku doctor` drops it from `hub.toml`
+  (`backend/config.go`, `../wm/{hyprland,niri,wayfire}/schema.json`).
 - **The orphaned Lighting page.** Nothing loaded `pages/LightingTab.qml` since
   the Appearance page left the Hub; its controls now live in the wallpaper
   picker's Settings > Lighting.

@@ -23,6 +23,8 @@ type gpuModeReport struct {
 	Mode                 string `json:"mode"`
 	PerformanceAvailable bool   `json:"performance_available"`
 	PerformanceReason    string `json:"performance_reason"`
+	// false when the running window manager picks its own render card
+	Applies bool `json:"applies"`
 }
 
 type gpuPolicyReport struct {
@@ -57,14 +59,17 @@ func runGpuMode(args []string) error {
 			Mode:                 currentGpuMode(),
 			PerformanceAvailable: available,
 			PerformanceReason:    reason,
+			Applies:              gpuModeApplies(),
 		})
 	case "set":
 		if len(args) < 2 {
 			return fmt.Errorf("gpu mode set needs hybrid|performance|passthrough")
 		}
 		return setGpuMode(args[1])
+	case "pending":
+		return printGpuModePending()
 	default:
-		return fmt.Errorf("gpu mode needs get|set")
+		return fmt.Errorf("gpu mode needs get|set|pending")
 	}
 }
 
@@ -78,8 +83,12 @@ func setGpuMode(mode string) error {
 	if mode == "passthrough" && wouldStrandDisplay(report) {
 		return fmt.Errorf("passthrough needs the discrete GPU free, but it is driving your screen right now. Switch the laptop to Hybrid GPU mode in the BIOS/firmware setup (often labelled GPU Mode, MUX, or Hybrid/Optimus) and reboot first, so the built-in GPU drives the display")
 	}
+	prev := gpuModeWith(report)
 	if out, err := exec.Command(ryokuGpuBin(), "mode", mode).CombinedOutput(); err != nil {
 		return fmt.Errorf("ryoku-gpu mode %s: %v: %s", mode, err, strings.TrimSpace(string(out)))
+	}
+	if err := recordGpuModeChange(prev, mode); err != nil {
+		fmt.Fprintf(os.Stderr, "ryoku-hub: could not note the pending graphics mode: %v\n", err)
 	}
 	return printJSON(map[string]string{"mode": mode, "cost": gpuModeCost(mode, report)})
 }
@@ -95,14 +104,18 @@ func wouldStrandDisplay(c Capability) bool {
 }
 
 func currentGpuMode() string {
-	value := readAQValue(gpuLuaPath())
-	if value == "" {
+	if readAQValue(gpuLuaPath()) == "" {
 		return "hybrid"
 	}
 	report, err := detectCapability()
 	if err != nil {
 		return "hybrid"
 	}
+	return gpuModeWith(report)
+}
+
+// gpuModeWith classifies the pin file against an already detected report
+func gpuModeWith(report Capability) string {
 	dgpu, igpu := "", ""
 	if report.Passthrough != nil {
 		dgpu = report.Passthrough.Slot
@@ -110,7 +123,7 @@ func currentGpuMode() string {
 	if report.Host != nil {
 		igpu = report.Host.Slot
 	}
-	return classifyMode(value, dgpu, igpu)
+	return classifyMode(readAQValue(gpuLuaPath()), dgpu, igpu)
 }
 
 // classifyMode: a written AQ_DRM_DEVICES value -> a mode, given the dGPU and

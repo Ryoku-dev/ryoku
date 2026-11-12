@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
+	"syscall"
 )
 
 //go:embed schemes/light.json schemes/dark.json schemes/mono.json
@@ -124,7 +126,9 @@ func applyScheme(mode string) error {
 		st := loadThemeState()
 		st.Scheme = ""
 		st.FollowWallpaper = true
-		saveThemeState(st)
+		if err := saveThemeState(st); err != nil {
+			return err
+		}
 		// borders read the master: regen so they follow the wallpaper again.
 		// Best-effort: a box with no provider still persists the choice above.
 		_, _ = desktopClient().Apply(desktopStorePath())
@@ -145,7 +149,9 @@ func applyScheme(mode string) error {
 		st := loadThemeState()
 		st.Scheme = mode
 		st.FollowWallpaper = false
-		saveThemeState(st)
+		if err := saveThemeState(st); err != nil {
+			return err
+		}
 		// borders read the master: regen so the fixed border colours pin now.
 		_, _ = desktopClient().Apply(desktopStorePath())
 		writePalette(pal)
@@ -185,7 +191,9 @@ func currentGnomeAccent() bool { return gnomeAccentOn(loadThemeState()) }
 func applyThemeApps(on bool) error {
 	st := loadThemeState()
 	st.ThemeApps = &on
-	saveThemeState(st)
+	if err := saveThemeState(st); err != nil {
+		return err
+	}
 	if pal := readPalette(filepath.Join(ryokuCacheDir(), "colors.json")); pal != nil {
 		renderApps(pal)
 	} else if !on {
@@ -210,7 +218,9 @@ func applyGtkTheme(mode string) error {
 	}
 	st := loadThemeState()
 	st.GtkTheme = mode
-	saveThemeState(st)
+	if err := saveThemeState(st); err != nil {
+		return err
+	}
 	repaintPalette()
 	return nil
 }
@@ -222,7 +232,9 @@ func applyGtkTheme(mode string) error {
 func applyGnomeAccent(on bool) error {
 	st := loadThemeState()
 	st.GnomeAccent = &on
-	saveThemeState(st)
+	if err := saveThemeState(st); err != nil {
+		return err
+	}
 	repaintPalette()
 	return nil
 }
@@ -274,8 +286,85 @@ func loadThemeState() themeState {
 	return s
 }
 
-func saveThemeState(s themeState) {
-	_ = atomicWrite(themeStatePath(), mustJSON(s), 0o644)
+// the theme.json fields Ryogami owns; the hub sets them through `ryogami settings set`
+var themeSettingKeys = map[string]string{
+	"themeApps":   "theme.themeApps",
+	"gtkTheme":    "theme.gtkTheme",
+	"gnomeAccent": "theme.gnomeAccent",
+}
+
+func saveThemeState(s themeState) error {
+	var fields map[string]any
+	if err := json.Unmarshal(mustJSON(s), &fields); err != nil {
+		return err
+	}
+	return writeThemeFields(fields)
+}
+
+// writeThemeFields lays the hub's fields into theme.json and hands the daemon's to it
+// in one batch, so every key has one writer; a nil field is dropped or reset
+func writeThemeFields(fields map[string]any) error {
+	var before fileSnapshot
+	var daemon map[string]any
+	err := withThemeLock(func() (err error) {
+		if before, err = snapshotFiles(themeStatePath()); err != nil {
+			return err
+		}
+		daemon, err = writeHubThemeFields(fields)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	if len(daemon) == 0 {
+		return nil
+	}
+	// after the lock is released: the daemon takes the same lock for its own write
+	if err := riceRun("ryogami", "settings", "set", string(mustJSON(daemon))); err != nil {
+		// a refused batch must not leave the hub's half of it in theme.json
+		_ = withThemeLock(before.restore)
+		return fmt.Errorf("theme settings: %w", err)
+	}
+	return nil
+}
+
+// withThemeLock runs fn under the lock the daemon takes for theme.json
+func withThemeLock(fn func() error) error {
+	path := themeStatePath()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	lock, err := os.OpenFile(path+".lock", os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
+	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX); err != nil {
+		return err
+	}
+	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+	return fn()
+}
+
+// writeHubThemeFields writes the hub's fields into theme.json and returns the daemon's changes; the caller holds withThemeLock
+func writeHubThemeFields(fields map[string]any) (map[string]any, error) {
+	path := themeStatePath()
+	cur := readJSONMap(path)
+	daemon := map[string]any{}
+	for field, v := range fields {
+		if key, owned := themeSettingKeys[field]; owned {
+			if !reflect.DeepEqual(cur[field], v) {
+				daemon[key] = v
+			}
+			continue
+		}
+		if v == nil {
+			delete(cur, field)
+		} else {
+			cur[field] = v
+		}
+	}
+	return daemon, atomicWrite(path, mustJSON(cur), 0o644)
 }
 
 func ryokuCacheDir() string {

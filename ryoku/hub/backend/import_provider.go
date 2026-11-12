@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -348,11 +349,29 @@ func mergeImportPatch(dst, patch map[string]any) {
 		}
 		if incoming, ok := value.([]any); ok {
 			current, _ := dst[key].([]any)
-			dst[key] = append(current, incoming...)
+			dst[key] = appendNewImportItems(current, incoming)
 			continue
 		}
 		dst[key] = value
 	}
+}
+
+// appendNewImportItems adds only items not already present, so importing the
+// same configuration again adds nothing a second time
+func appendNewImportItems(current, incoming []any) []any {
+	for _, item := range incoming {
+		present := false
+		for _, have := range current {
+			if reflect.DeepEqual(have, item) {
+				present = true
+				break
+			}
+		}
+		if !present {
+			current = append(current, item)
+		}
+	}
+	return current
 }
 
 func importPatchNonEmpty(value any) bool {

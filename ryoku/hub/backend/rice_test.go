@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -484,7 +485,7 @@ func TestThemeAppsRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	origRun, origReload := riceRun, riceReload
-	riceRun = func(name string, args ...string) error { return nil }
+	riceRun = daemonRun
 	riceReload = func() {}
 	t.Cleanup(func() { riceRun, riceReload = origRun, origReload })
 	w := func(p, body string) {
@@ -958,7 +959,7 @@ func TestRunRiceRejectsStoreCommands(t *testing.T) {
 }
 
 // The widened snapshot carries the whole desktop identity: the theme master
-// (named scheme, GTK choice), the wallpaper daemon's matugen scheme, the
+// (named scheme, GTK choice), the wallpaper daemon's palette video frame, the
 // fastfetch readout with its emblem, and the lock skin. capture bundles each and
 // apply lands them all on a recipient whose own machine tuning is left alone.
 func TestCaptureAppliesThemeFastfetchAndLock(t *testing.T) {
@@ -969,7 +970,7 @@ func TestCaptureAppliesThemeFastfetchAndLock(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", filepath.Join(dir, "state"))
 	t.Setenv("HOME", dir)
 	origRun, origReload := riceRun, riceReload
-	riceRun = func(name string, args ...string) error { return nil }
+	riceRun = daemonRun
 	riceReload = func() {}
 	t.Cleanup(func() { riceRun, riceReload = origRun, origReload })
 
@@ -991,7 +992,7 @@ func TestCaptureAppliesThemeFastfetchAndLock(t *testing.T) {
 	w(shellStorePath(), `{"barStyle":"kairos"}`)
 	w(launcherStorePath(), `{}`)
 	w(themeStatePath(), `{"followWallpaper":false,"scheme":"mono","gtkTheme":"adwaita","themeApps":true}`)
-	w(ryogamiStorePath(), `{"matugen":{"mode":"dark","schemeType":"scheme-fidelity"},"resource_tier":"high"}`)
+	w(ryogamiStorePath(), `{"matugen":{"videoFrame":4},"resource_tier":"high"}`)
 	emblem := filepath.Join(dir, "logo.png")
 	w(emblem, "PNG")
 	w(fastfetchConfigPath(), `{"logo":{"type":"kitty-direct","source":"`+emblem+`"},"display":{"key":{"width":9}}}`)
@@ -1004,8 +1005,8 @@ func TestCaptureAppliesThemeFastfetchAndLock(t *testing.T) {
 	if r.Look["theme"]["scheme"] != "mono" || r.Look["theme"]["gtkTheme"] != "adwaita" {
 		t.Fatalf("theme master not captured: %v", r.Look["theme"])
 	}
-	if mat, ok := r.Look["ryogami"]["matugen"].(map[string]any); !ok || mat["schemeType"] != "scheme-fidelity" {
-		t.Fatalf("ryogami matugen scheme not captured: %v", r.Look["ryogami"])
+	if mat, ok := r.Look["ryogami"]["matugen"].(map[string]any); !ok || mat["videoFrame"] != 4.0 {
+		t.Fatalf("ryogami palette frame not captured: %v", r.Look["ryogami"])
 	}
 	if _, ok := r.Look["ryogami"]["resource_tier"]; ok {
 		t.Fatal("machine tuning (resource_tier) must not travel")
@@ -1023,7 +1024,7 @@ func TestCaptureAppliesThemeFastfetchAndLock(t *testing.T) {
 
 	// a recipient with different everything adopts the rice's identity.
 	w(themeStatePath(), `{"followWallpaper":true,"scheme":"light","gtkTheme":"adw"}`)
-	w(ryogamiStorePath(), `{"matugen":{"mode":"light","schemeType":"scheme-tonal-spot"},"resource_tier":"low"}`)
+	w(ryogamiStorePath(), `{"matugen":{"videoFrame":1},"resource_tier":"low"}`)
 	w(fastfetchConfigPath(), `{"logo":{"type":"builtin"}}`)
 	w(qylockThemePref(), "other/skin\n")
 
@@ -1034,8 +1035,8 @@ func TestCaptureAppliesThemeFastfetchAndLock(t *testing.T) {
 	if st.Scheme != "mono" || gtkThemeChoice(st) != "adwaita" {
 		t.Fatalf("apply did not carry the theme master: %+v", st)
 	}
-	if readJSONMap(ryogamiStorePath())["matugen"].(map[string]any)["schemeType"] != "scheme-fidelity" {
-		t.Fatal("apply did not carry the matugen scheme")
+	if readJSONMap(ryogamiStorePath())["matugen"].(map[string]any)["videoFrame"] != 4.0 {
+		t.Fatal("apply did not carry the palette frame")
 	}
 	if readJSONMap(ryogamiStorePath())["resource_tier"] != "low" {
 		t.Fatal("apply must not overwrite machine tuning")
@@ -1466,6 +1467,170 @@ func TestApplyRefreshesOnlyUntouchedPackagedCopies(t *testing.T) {
 		record, _ := os.ReadFile(filepath.Join(ricesDir(), c.slug, packagedRiceRecord))
 		if string(readout) != "v2 readout" || strings.TrimSpace(string(record)) != sum(manifest(c.slug, "v2")) {
 			t.Fatalf("%s: refreshed copy has readout %q and record %q", c.slug, readout, record)
+		}
+	}
+}
+
+// treeBytes reads every file under root, so a test can prove a failed write changed none
+func treeBytes(t *testing.T, root string) map[string]string {
+	t.Helper()
+	files := map[string]string{}
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return err
+		}
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(root, path)
+		files[rel] = string(b)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return files
+}
+
+// the wallpaper daemon down at the matugen step fails the apply after the shell and
+// launcher layers landed; it must roll back, so the Retry keeps the original as .previous
+func TestFailedRiceApplyRollsBackAndUndoKeepsTheOriginal(t *testing.T) {
+	dir := matugenHome(t)
+	t.Setenv("XDG_STATE_HOME", filepath.Join(dir, "state"))
+	t.Setenv("RYOKU_SYSTEM_RICES_DIR", t.TempDir())
+	daemonDown := true
+	origRun, origReload := riceRun, riceReload
+	riceRun = func(name string, args ...string) error {
+		if name == "ryogami" && daemonDown {
+			return fmt.Errorf("ryogami: the daemon is not running")
+		}
+		return nil
+	}
+	riceReload = func() {}
+	t.Cleanup(func() { riceRun, riceReload = origRun, origReload })
+
+	writeDesktopStore(t, `{"appearance":{"rounding":2}}`)
+	writeTestFile(t, shellStorePath(), string(mustJSON(map[string]any{"roundness": 3})))
+	writeTestFile(t, launcherStorePath(), string(mustJSON(map[string]any{"radius": 3})))
+	writeTestFile(t, themeStatePath(), string(mustJSON(map[string]any{"followWallpaper": true})))
+	writeTestFile(t, matugenStorePath(), string(mustJSON(map[string]any{"contrast": 0.4})))
+	// the daemon's theme.json lock exists on any box that has run it
+	writeTestFile(t, themeStatePath()+".lock", "")
+	for _, slot := range []string{".previous", "setup"} {
+		if err := os.MkdirAll(filepath.Join(ricesDir(), slot), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// an earlier apply's undo point must outlive a failed apply untouched
+	writeTestFile(t, filepath.Join(ricesDir(), ".previous", "launcher.json"), `{"radius":1}`)
+	writeTestFile(t, ricePath("setup"), `{"schema":1,"slug":"setup","name":"Setup","color":{"mode":"wallpaper"},
+	  "look":{"hypr":{},"shell":{"roundness":12},"launcher":{"radius":16},"visualizer":{"bars":40},
+	          "matugen":{"contrast":0.9}}}`)
+	before := treeBytes(t, dir)
+
+	if err := applyRice("setup", nil); err == nil || !strings.Contains(err.Error(), "matugen") {
+		t.Fatalf("apply with the daemon down = %v, want the matugen step's error", err)
+	}
+	after := treeBytes(t, dir)
+	for path, body := range before {
+		if after[path] != body {
+			t.Errorf("the failed apply changed %s: %q, was %q", path, after[path], body)
+		}
+	}
+	for path := range after {
+		if _, ok := before[path]; !ok {
+			t.Errorf("the failed apply left %s behind", path)
+		}
+	}
+
+	daemonDown = false
+	if err := applyRice("setup", nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := readJSONMap(launcherStorePath())["radius"]; got != float64(16) {
+		t.Fatalf("the retry did not land: launcher radius %v", got)
+	}
+	if err := restoreRice(".previous"); err != nil {
+		t.Fatal(err)
+	}
+	undone := treeBytes(t, dir)
+	for path, body := range before {
+		if !strings.HasPrefix(path, filepath.Join("ryoku", "rices")) && undone[path] != body {
+			t.Errorf("undo left %s as %q, the original was %q", path, undone[path], body)
+		}
+	}
+	if isFile(visualizerStorePath()) {
+		t.Error("undo kept the visualizer store the apply created")
+	}
+}
+
+// A capture whose manifest cannot be written (a full disk, here a file-size
+// limit the bare first draft fits under) lists no half-made rice and leaves an
+// earlier rice of the same name exactly as it was.
+func TestFailedRiceCaptureLeavesNoRice(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(root, "cache"))
+	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
+	t.Setenv("RYOKU_SYSTEM_RICES_DIR", filepath.Join(root, "system-rices"))
+	if err := os.MkdirAll(ryokuConfigDir(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(themeStatePath(), []byte(`{"followWallpaper":true}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// the lock slug is recorded only in the finished manifest, so it alone makes
+	// that manifest larger than the bare draft
+	if err := os.MkdirAll(filepath.Dir(qylockThemePref()), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(qylockThemePref(), []byte(strings.Repeat("s", 400)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := captureRice("Probe A", nil); err != nil {
+		t.Fatal(err)
+	}
+	earlier, err := os.ReadFile(ricePath("probe-a"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var limit syscall.Rlimit
+	if err := syscall.Getrlimit(syscall.RLIMIT_FSIZE, &limit); err != nil {
+		t.Fatal(err)
+	}
+	capped := limit
+	capped.Cur = uint64(len(earlier) - 200)
+	if err := syscall.Setrlimit(syscall.RLIMIT_FSIZE, &capped); err != nil {
+		t.Fatal(err)
+	}
+	_, errNew := captureRice("Probe B", nil)
+	_, errAgain := captureRice("Probe A", nil)
+	if err := syscall.Setrlimit(syscall.RLIMIT_FSIZE, &limit); err != nil {
+		t.Fatal(err)
+	}
+
+	if errNew == nil || errAgain == nil {
+		t.Fatalf("captures past the size limit succeeded: %v, %v", errNew, errAgain)
+	}
+	if _, err := os.Stat(filepath.Join(ricesDir(), "probe-b")); !os.IsNotExist(err) {
+		t.Errorf("a failed capture left rices/probe-b behind: %v", err)
+	}
+	if got, _ := os.ReadFile(ricePath("probe-a")); string(got) != string(earlier) {
+		t.Errorf("a failed recapture changed the earlier rice:\n%s\nwant\n%s", got, earlier)
+	}
+	var names []string
+	for _, r := range listRices() {
+		names = append(names, r.Slug)
+	}
+	if !reflect.DeepEqual(names, []string{"probe-a"}) {
+		t.Errorf("listed rices = %v, want only the earlier probe-a", names)
+	}
+	entries, _ := os.ReadDir(ricesDir())
+	for _, e := range entries {
+		if e.Name() != "probe-a" {
+			t.Errorf("a failed capture left %s in the rices folder", e.Name())
 		}
 	}
 }
