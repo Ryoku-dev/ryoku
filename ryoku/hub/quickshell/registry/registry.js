@@ -54,7 +54,7 @@ var pages = {
 
     "window-behaviour": { title: "Window behaviour", category: "windows",
         keywords: ["tiling", "layout", "gaps", "spacing", "focus follows mouse", "new windows", "resize", "snap", "tabbed", "workspaces", "overview", "switcher", "urgent", "xwayland", "zoom", "dwindle", "master", "scrolling"] },
-    "shortcuts": { title: "Keyboard shortcuts", category: "windows",
+    "shortcuts": { title: "Keyboard shortcuts", category: "windows", file: "Shortcuts",
         keywords: ["shortcuts", "keybinds", "hotkeys", "keys", "binds", "super", "modifier", "chord"] },
     "app-rules": { title: "App rules", category: "windows", needs: { cap: "windowRules" },
         keywords: ["window rules", "app overrides", "layer rules", "float", "pin", "per app", "class", "namespace"] },
