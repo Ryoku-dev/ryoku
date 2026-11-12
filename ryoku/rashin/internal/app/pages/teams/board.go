@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gioui.org/layout"
+	"gioui.org/unit"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
@@ -17,13 +18,22 @@ import (
 	"ryoku-rashin/internal/protocol"
 )
 
-// every team as a tile under a sentence of how they stand, or the templates to start the first one from
+const (
+	// from this width the month's two lines stand side by side, the tokens taking the larger share
+	chartsWide  unit.Dp = 860
+	chartsGap   unit.Dp = 34
+	chartsShare         = 0.6
+)
+
+// every team as a tile under a sentence of how they stand, then the month across them all, or the templates to start the first one from
 type board struct {
 	header look.PaneHeader
 	scroll look.Scroller
 	tiles  map[string]*teamTile
 	create slab
 	start  teamsui.TeamStart
+	// every team's month, read once the board opens and again when the snapshot says it moved
+	month teamsui.MonthSpend
 }
 
 func (b *board) layout(gtx layout.Context, e *env.Env, p *Page) layout.Dimensions {
@@ -40,6 +50,12 @@ func (b *board) layout(gtx layout.Context, e *env.Env, p *Page) layout.Dimension
 								return b.start.Layout(gtx, e, p.templates.List(e))
 							}
 							return b.layoutTiles(gtx, e, p, snapshot)
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							if len(snapshot.Teams) == 0 {
+								return layout.Dimensions{}
+							}
+							return b.layoutMonth(gtx, e)
 						}),
 					)
 				})
@@ -122,6 +138,9 @@ func (b *board) layoutTiles(gtx layout.Context, e *env.Env, p *Page, snapshot ap
 	// clicks are taken before the grid measures its tiles, so measuring never eats one
 	for _, team := range teams {
 		tile := b.tile(team.ID)
+		// each tile's line is its own team's month, kept with the tile for the page's life
+		tile.month.Team = team.ID
+		tile.month.Want(e, gtx.Now)
 		tile.give.Kind, tile.give.Small, tile.give.Label = kit.PlaqueTonal, true, i18n.T("Give a task")
 		// the tile under the button hears the same click, both are drained so it never opens the team a frame later
 		give, open := tile.give.Clicked(gtx), tile.click.Clicked(gtx)
@@ -141,6 +160,33 @@ func (b *board) layoutTiles(gtx layout.Context, e *env.Env, p *Page, snapshot ap
 			return b.layoutCreate(gtx, e.Theme)
 		}
 		return b.layoutTile(gtx, e, snapshot, working, teams[index])
+	})
+}
+
+// the month across every team: tokens a day beside the tasks that ended each day, stacked on a narrow pane
+func (b *board) layoutMonth(gtx layout.Context, e *env.Env) layout.Dimensions {
+	th := e.Theme
+	b.month.Want(e, gtx.Now)
+	spend := b.month.Spend()
+	tokens := teamsui.TokensTrend(gtx.Now, spend, i18n.T("This month"))
+	finished := teamsui.FinishedTrend(gtx.Now, spend, i18n.T("Finished"))
+	loaded := b.month.Loaded()
+	left := func(gtx layout.Context) layout.Dimensions {
+		return look.HoldUntil(gtx, loaded, func(gtx layout.Context) layout.Dimensions { return tokens.Layout(gtx, th) })
+	}
+	right := func(gtx layout.Context) layout.Dimensions {
+		return look.HoldUntil(gtx, loaded, func(gtx layout.Context) layout.Dimensions { return finished.Layout(gtx, th) })
+	}
+	return layout.Inset{Top: th.Sp.S6}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		gtx.Constraints.Min.X = gtx.Constraints.Max.X
+		if gtx.Constraints.Max.X < gtx.Dp(chartsWide) {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, layout.Rigid(left), layout.Rigid(right))
+		}
+		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Start}.Layout(gtx,
+			layout.Flexed(chartsShare, left),
+			layout.Rigid(layout.Spacer{Width: chartsGap}.Layout),
+			layout.Flexed(1-chartsShare, right),
+		)
 	})
 }
 

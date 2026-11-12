@@ -38,6 +38,7 @@ type Page struct {
 	travel      anim.Tween
 	suggestions [4]kit.Plaque
 	ready       readiness
+	usage       env.Usage
 
 	models protocol.ModelsResult
 	loaded bool

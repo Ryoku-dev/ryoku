@@ -31,6 +31,8 @@ type overview struct {
 	activity    load
 	entries     []protocol.Activity
 	entriesTeam string
+	// the team's month, read as the tab opens and again when the snapshot says it moved
+	month teamsui.MonthSpend
 }
 
 func (o *overview) loadActivity(e *env.Env, team protocol.Team) {
@@ -67,7 +69,7 @@ func (o *overview) layout(gtx layout.Context, e *env.Env, team protocol.Team) la
 		return sections(gtx,
 			section(th, i18n.T("Now"), o.now(gtx, e, snapshot, team)),
 			section(th, i18n.T("Coming up"), o.comingUp(gtx, e, snapshot, team)),
-			section(th, i18n.T("This month"), teamsui.MonthMeter(th, team.Stats.MonthTokens, team.Budget.MonthTokens, team.Budget.WarnPercent)),
+			o.thisMonth(gtx, e, team),
 			section(th, i18n.T("Recent activity"), o.recent(th, team)),
 		)
 	}
@@ -109,6 +111,33 @@ func (o *overview) purpose(gtx layout.Context, e *env.Env, team protocol.Team) l
 	}
 }
 
+// the budget meter, then the team's tokens a day and the tasks that ended each day, each line with its proof in words
+func (o *overview) thisMonth(gtx layout.Context, e *env.Env, team protocol.Team) layout.Widget {
+	th := e.Theme
+	o.month.Team = team.ID
+	o.month.Want(e, gtx.Now)
+	loaded, spend := o.month.Loaded(), o.month.Spend()
+	tokens := teamsui.TokensTrend(gtx.Now, spend, "")
+	finished := teamsui.FinishedTrend(gtx.Now, spend, i18n.T("Finished"))
+	month := section(th, i18n.T("This month"), func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(teamsui.MonthMeter(th, team.Stats.MonthTokens, team.Budget.MonthTokens, team.Budget.WarnPercent)),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S5}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return look.HoldUntil(gtx, loaded, func(gtx layout.Context) layout.Dimensions { return tokens.Layout(gtx, th) })
+			}),
+		)
+	})
+	return func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(month),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return look.HoldUntil(gtx, loaded, func(gtx layout.Context) layout.Dimensions { return finished.Layout(gtx, th) })
+			}),
+		)
+	}
+}
+
 func (o *overview) latestReport(gtx layout.Context, e *env.Env, snapshot appstate.Snapshot, team protocol.Team) layout.Widget {
 	th := e.Theme
 	task, ok := teamsui.NewestReport(snapshot, team.ID)
@@ -119,10 +148,11 @@ func (o *overview) latestReport(gtx layout.Context, e *env.Env, snapshot appstat
 	if o.read.Clicked(gtx) {
 		teamsui.OpenTask(e, task.ID)
 	}
-	facts := i18n.Tf("%s · %s", teamsui.MemberName(team, task.Member), look.Ago(gtx.Now, task.Report.At))
+	member, ago := teamsui.MemberName(team, task.Member), look.Ago(gtx.Now, task.Report.At)
+	facts := look.Clauses(member, ago)
 	// a quiet run reported only that nothing changed since the one before
 	if task.Report.Quiet {
-		facts = i18n.Tf("%s · %s · nothing new", teamsui.MemberName(team, task.Member), look.Ago(gtx.Now, task.Report.At))
+		facts = look.Clauses(member, ago, i18n.T("nothing new"))
 	}
 	return section(th, i18n.T("Latest report"), func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
@@ -151,7 +181,7 @@ func (o *overview) now(gtx layout.Context, e *env.Env, snapshot appstate.Snapsho
 			teamsui.OpenTask(e, task.ID)
 		}
 		word, tone, _ := teamsui.TaskStanding(task)
-		facts := i18n.Tf("%s · %s · started %s", teamsui.MemberName(team, task.Member), word, look.Ago(gtx.Now, teamsui.Started(task)))
+		facts := look.Clauses(teamsui.MemberName(team, task.Member), word, i18n.Tf("started %s", look.Ago(gtx.Now, teamsui.Started(task))))
 		rows = append(rows, func(gtx layout.Context) layout.Dimensions {
 			return row.layout(gtx, th, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,

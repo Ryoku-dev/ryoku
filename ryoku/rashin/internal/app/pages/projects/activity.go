@@ -103,7 +103,7 @@ func layoutActivityRow(gtx layout.Context, columns activityColumns, height int, 
 func activityCell(th *look.Theme, now time.Time, names activityNames, item protocol.Activity, column int) layout.Widget {
 	switch column {
 	case 0:
-		return kit.RawText(th.Theme, th.T.MonoSm, th.R.Fg3, activityTime(now, item.Time))
+		return kit.RawText(th.Theme, th.T.Caption, th.R.Fg3, activityTime(now, item.Time))
 	case 1:
 		return kit.RawText(th.Theme, th.T.Body, th.R.Fg2, names.actor(item.Actor))
 	case 2:

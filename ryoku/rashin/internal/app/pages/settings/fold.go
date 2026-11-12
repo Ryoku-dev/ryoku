@@ -5,7 +5,6 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/op"
-	"gioui.org/unit"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
@@ -102,9 +101,7 @@ func foldSlab(gtx layout.Context, th *look.Theme, count int, row func(layout.Con
 	}
 	y += pad
 	call := record.Stop()
-	bounds, cut := image.Rect(0, 0, width, y), gtx.Dp(th.Cut.Mid)
-	kit.FillCut(gtx.Ops, bounds, cut, th.R.Slab)
-	kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), th.R.Vein)
+	kit.SlabSurface(gtx, th.Theme, image.Rect(0, 0, width, y), gtx.Dp(th.Cut.Mid), th.R.Slab)
 	call.Add(gtx.Ops)
 	return layout.Dimensions{Size: image.Pt(width, y)}
 }

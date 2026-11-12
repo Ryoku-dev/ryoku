@@ -302,7 +302,7 @@ func (t *teamsPanel) askingGroup(e *env.Env, settings protocol.TeamsSettings) la
 	t.quiet.Value = settings.QuietHours != nil
 	t.hours.Min, t.hours.Max, t.hours.Step, t.hours.Unit = 1, protocol.TeamsApprovalHoursMax, 1, i18n.T("hours")
 	for _, field := range []*kit.TextField{&t.from, &t.to} {
-		field.Mono, field.Editor.SingleLine, field.Editor.MaxLen = true, true, len("15:04")
+		field.Editor.SingleLine, field.Editor.MaxLen = true, len("15:04")
 	}
 	t.from.Placeholder, t.to.Placeholder = quietFrom, quietTo
 	edited := teamsAsking{hours: t.hours.Value, on: t.asking.on, quiet: protocol.QuietHours{From: t.from.Text(), To: t.to.Text()}}

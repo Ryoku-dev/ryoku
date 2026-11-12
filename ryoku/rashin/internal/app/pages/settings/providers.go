@@ -17,6 +17,9 @@ import (
 	"ryoku-rashin/internal/protocol"
 )
 
+// a provider's answers are counted over the last week, the same week the chart draws
+const usageDays = 7
+
 type providerRow struct {
 	fold foldRow
 
@@ -43,14 +46,25 @@ func (p *Page) providerRow(id string) *providerRow {
 
 func (p *Page) layoutProviders(gtx layout.Context, e *env.Env) layout.Dimensions {
 	th := e.Theme
-	p.usage.load(e)
+	p.usage.Load(e, usageDays, gtx.Now)
 	providers := p.standingOrder(e.Snapshot().Providers)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("Providers"))),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
 		layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2,
 			i18n.T("Ask sends each question to a provider that is up. Your keys are stored encrypted on this machine."))),
-		layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
+		layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			trend, loaded := p.usage.Trend()
+			if loaded && len(trend.Values) == 0 {
+				return layout.Dimensions{}
+			}
+			// the section already carries the heading, the proof names what the line counts
+			trend.Title, trend.Height = "", 72
+			return layout.Inset{Bottom: th.Sp.S4}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return look.HoldUntil(gtx, loaded, func(gtx layout.Context) layout.Dimensions { return trend.Layout(gtx, th) })
+			})
+		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if len(providers) == 0 {
 				return look.SettingsSlab(gtx, th, []look.Setting{{
@@ -76,7 +90,7 @@ func (p *Page) layoutProvider(gtx layout.Context, e *env.Env, provider protocol.
 	}
 	word, tone := providerState(provider)
 	detail := providerMeta(provider)
-	if used := p.usage.words(provider.ID); used != "" {
+	if used := p.usage.Words(provider.ID); used != "" {
 		detail += ", " + used
 	}
 	head := foldHead{Title: provider.Name, Detail: detail, Trail: kit.Claim(th.Theme, tone, word)}

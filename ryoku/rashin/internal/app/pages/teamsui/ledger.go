@@ -135,7 +135,7 @@ func InitiatorMark(th *look.Theme, initiator string) layout.Widget {
 func LedgerRow(th *look.Theme, when string, whenWidth unit.Dp, entry protocol.Activity, detail string) layout.Widget {
 	return func(gtx layout.Context) layout.Dimensions {
 		children := []layout.FlexChild{
-			look.Cell(gtx.Dp(whenWidth), kit.Text(th.Theme, th.T.MonoSm, th.R.Fg3, when)),
+			look.Cell(gtx.Dp(whenWidth), kit.Text(th.Theme, th.T.Caption, th.R.Fg3, when)),
 			look.Cell(gtx.Dp(28), func(gtx layout.Context) layout.Dimensions {
 				return look.Named(gtx, InitiatorWord(entry.Initiator), InitiatorMark(th, entry.Initiator))
 			}),
@@ -154,7 +154,7 @@ func LedgerRow(th *look.Theme, when string, whenWidth unit.Dp, entry protocol.Ac
 		if entry.Unwatched {
 			children = append(children,
 				layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
-				layout.Rigid(kit.Text(th.Theme, th.T.MonoSm, th.R.Fg3, i18n.T("Nobody watching"))),
+				layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, i18n.T("Nobody watching"))),
 			)
 		}
 		// a step that worked needs no word, only a failure is a state

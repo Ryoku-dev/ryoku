@@ -112,11 +112,12 @@ func (state *viewState) layoutLine(gtx layout.Context, th *look.Theme, visual *w
 	}
 	put(0, look.IconWidget(line.icon, 16, th.R.Fg3))
 	put(gtx.Dp(8), kit.RawText(th.Theme, th.T.Label, ink, line.label))
+	// the parts of a line are set apart by space, never by a separator glyph
 	if line.literal != "" {
-		put(gtx.Dp(8), kit.RawText(th.Theme, th.T.MonoSm, th.R.Fg3, line.literal))
+		put(gtx.Dp(th.Sp.S3), kit.RawText(th.Theme, th.T.MonoSm, th.R.Fg3, line.literal))
 	}
 	if line.prose != "" {
-		put(gtx.Dp(8), kit.RawText(th.Theme, th.T.Caption, th.R.Fg3, line.prose))
+		put(gtx.Dp(th.Sp.S3), kit.RawText(th.Theme, th.T.Caption, th.R.Fg3, line.prose))
 	}
 	reserve = 0
 	if line.running {
@@ -125,7 +126,7 @@ func (state *viewState) layoutLine(gtx layout.Context, th *look.Theme, visual *w
 		})
 	}
 	if line.waited != "" {
-		put(gtx.Dp(8), kit.RawText(th.Theme, th.T.MonoSm, th.R.Fg3, line.waited))
+		put(gtx.Dp(8), kit.RawText(th.Theme, th.T.Caption, th.R.Fg3, line.waited))
 	}
 	if line.failed {
 		put(gtx.Dp(13), kit.Claim(th.Theme, palette.Failed, i18n.T("Failed")))
@@ -394,8 +395,7 @@ func (state *viewState) layoutToolDiff(gtx layout.Context, th *look.Theme, tool 
 		dimensions := view.Layout(gtx, th, result, diffview.Options{Overlays: state.overlays, FoldOver: 80, Headless: true})
 		call := record.Stop()
 		bounds, cut := image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid)
-		kit.FillCut(gtx.Ops, bounds, cut, th.R.Slab)
-		kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(1)), th.R.Vein)
+		kit.SlabSurface(gtx, th.Theme, bounds, cut, th.R.Slab)
 		call.Add(gtx.Ops)
 		return dimensions
 	}

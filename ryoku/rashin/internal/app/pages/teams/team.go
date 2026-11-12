@@ -37,7 +37,7 @@ func (p *Page) layoutTeamHeader(gtx layout.Context, e *env.Env, team protocol.Te
 			pause.Description = i18n.Tf("Raise the limit to %s tokens a month and let the team work again", teamsui.Tokens(raisedLimit(team)))
 		}
 	}
-	facts := []look.HeaderFact{{Text: i18n.Tf("Led by %s", lead.Name)}, {Text: membersWord(len(team.Members))}}
+	facts := []look.HeaderFact{{Text: i18n.Tf("Led by %s, %s", lead.Name, membersWord(len(team.Members)))}}
 	if runs := runsFact(e.Snapshot(), team.Members); runs != "" {
 		facts = append(facts, look.HeaderFact{Text: runs})
 	}

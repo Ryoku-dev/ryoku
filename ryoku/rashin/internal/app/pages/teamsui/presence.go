@@ -80,7 +80,7 @@ func MemberTask(snapshot state.Snapshot, team string, member protocol.Member) (p
 	return found, ok
 }
 
-// "Working for 1m 24s · 7 steps", or "Waiting for 3m" while it waits on the user
+// "Working: 7 steps in 1m 24s", or "Waiting for 3m" while it waits on the user
 func (live Live) Clock(now time.Time) string {
 	if live.Waiting {
 		if live.Since.IsZero() {
@@ -96,7 +96,7 @@ func (live Live) Clock(now time.Time) string {
 	case live.Steps == 0:
 		return i18n.Tf("Working for %s", span(now.Sub(live.Since), true))
 	}
-	return i18n.Tf("Working for %s · %s", span(now.Sub(live.Since), true), stepsWord(live.Steps))
+	return i18n.Tf("Working: %s in %s", stepsWord(live.Steps), span(now.Sub(live.Since), true))
 }
 
 // the time alone, for a row with room only for it
@@ -138,7 +138,7 @@ func Worked(snapshot state.Snapshot, task protocol.TeamTask) (string, palette.To
 	if steps == 0 {
 		return i18n.Tf("Worked for %s", worked), tone
 	}
-	return i18n.Tf("Worked for %s · %s", worked, stepsWord(steps)), tone
+	return i18n.Tf("Worked for %s in %s", worked, stepsWord(steps)), tone
 }
 
 // how a member at work shows wherever its work is watched; it keeps the caption
@@ -189,14 +189,14 @@ func (p *Presence) Layout(gtx layout.Context, th *look.Theme, live Live) layout.
 	if clock != "" {
 		children = append(children,
 			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
-			layout.Rigid(kit.Text(th.Theme, th.T.MonoSm, th.R.Fg3, clock)),
+			layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, clock)),
 		)
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// one line for a row with room for no more: the flakes, the lead words, then what
-// the member does now, which cross-fades as it changes
+// one line for a row with room for no more: the flakes, the lead words, then, set
+// apart by space, what the member does now, which cross-fades as it changes
 func (p *Presence) Line(gtx layout.Context, th *look.Theme, live Live, lead string) layout.Dimensions {
 	live.tick(gtx)
 	status := p.settle(gtx, live.Status)
@@ -204,9 +204,9 @@ func (p *Presence) Line(gtx layout.Context, th *look.Theme, live Live, lead stri
 		layout.Rigid(presenceMark(th, live.Waiting, 12)),
 		layout.Rigid(layout.Spacer{Width: th.Sp.S1}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return kit.Label{Style: th.T.Caption, Color: th.R.Fg3, MaxLines: 1}.Layout(gtx, th.Theme, i18n.Tf("%s ·", lead))
+			return kit.Label{Style: th.T.Caption, Color: th.R.Fg3, MaxLines: 1}.Layout(gtx, th.Theme, lead)
 		}),
-		layout.Rigid(layout.Spacer{Width: th.Sp.S1}.Layout),
+		layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = gtx.Constraints.Max.X
 			return p.caption.Layout(gtx, th, status, 0, th.Motion.Select, func(gtx layout.Context, text string) layout.Dimensions {

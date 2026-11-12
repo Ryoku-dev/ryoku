@@ -136,7 +136,7 @@ func (state *viewState) layoutAgentRow(gtx layout.Context, th *look.Theme, model
 				if agent.Status == protocol.ToolFailed {
 					return kit.Claim(th.Theme, palette.Failed, i18n.T("Failed"))(gtx)
 				}
-				return kit.RawText(th.Theme, th.T.MonoSm, th.R.Fg3, meta)(gtx)
+				return kit.RawText(th.Theme, th.T.Caption, th.R.Fg3, meta)(gtx)
 			}),
 			layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -233,7 +233,7 @@ func (state *viewState) layoutAgentDetail(gtx layout.Context, th *look.Theme, mo
 						})
 					}),
 					layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
-					layout.Flexed(1, kit.RawText(th.Theme, th.T.MonoSm, ink, step.Title)),
+					layout.Flexed(1, kit.RawText(th.Theme, th.T.Caption, ink, step.Title)),
 				)
 			}))
 		}
@@ -273,7 +273,7 @@ func agentsLabel(agents []protocol.AgentWork, running bool) string {
 	return i18n.Tf("Ran %d subagents", len(agents))
 }
 
-// "2 working · 1 done · 1 failed", or a lone subagent's task
+// "2 working, 1 done, 1 failed", or a lone subagent's task
 func agentsSummary(agents []protocol.AgentWork) string {
 	if len(agents) == 1 {
 		return agents[0].Task
@@ -302,11 +302,11 @@ func agentsSummary(agents []protocol.AgentWork) string {
 			parts = append(parts, i18n.Tf(part.phrase, part.count))
 		}
 	}
-	return strings.Join(parts, " · ")
+	return look.Clauses(parts...)
 }
 
 // what sits at the end of a row: the step it is on while it runs, else its
-// step count and time
+// steps and time, "7 steps in 1m 24s"
 func agentMeta(agent protocol.AgentWork, elapsed time.Duration, live bool) string {
 	if live && agent.Doing != "" {
 		return agent.Doing
@@ -317,27 +317,29 @@ func agentMeta(agent protocol.AgentWork, elapsed time.Duration, live bool) strin
 	case protocol.ToolStopped:
 		return i18n.T("Stopped")
 	}
-	var parts []string
+	steps := ""
 	switch {
 	case agent.StepCount == 1:
-		parts = append(parts, i18n.T("1 step"))
+		steps = i18n.T("1 step")
 	case agent.StepCount > 1:
-		parts = append(parts, i18n.Tf("%d steps", agent.StepCount))
+		steps = i18n.Tf("%d steps", agent.StepCount)
 	}
-	if elapsed >= time.Second {
-		parts = append(parts, waitedFor(elapsed))
+	switch {
+	case elapsed < time.Second:
+		return steps
+	case steps == "":
+		return waitedFor(elapsed)
 	}
-	return strings.Join(parts, " · ")
+	return i18n.Tf("%s in %s", steps, waitedFor(elapsed))
 }
 
-// the model and tokens a subagent used
+// the tokens a subagent used and the model it ran on, "18,200 tokens on haiku-4-5"
 func agentFacts(agent protocol.AgentWork) string {
-	var parts []string
-	if agent.Model != "" {
-		parts = append(parts, agent.Model)
+	switch {
+	case agent.Tokens > 0 && agent.Model != "":
+		return i18n.Tf("%s tokens on %s", groupedNumber(agent.Tokens), agent.Model)
+	case agent.Tokens > 0:
+		return i18n.Tf("%s tokens", groupedNumber(agent.Tokens))
 	}
-	if agent.Tokens > 0 {
-		parts = append(parts, i18n.Tf("%s tokens", groupedNumber(agent.Tokens)))
-	}
-	return strings.Join(parts, " · ")
+	return agent.Model
 }

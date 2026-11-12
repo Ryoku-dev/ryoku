@@ -12,8 +12,8 @@ func TestAnAnsweredChoiceSaysWhatWasChosen(t *testing.T) {
 		Kind: protocol.ApprovalAction, Status: protocol.ApprovalApproved, Decision: protocol.DecideChoose,
 		Options: []string{"alpha", "beta", "gamma"}, Choice: "beta",
 	}
-	if word, _ := ApprovalOutcome(approval); word != "Chose B · beta" {
-		t.Errorf("the answered choice reads %q, want %q", word, "Chose B · beta")
+	if word, _ := ApprovalOutcome(approval); word != "Chose B: beta" {
+		t.Errorf("the answered choice reads %q, want %q", word, "Chose B: beta")
 	}
 	approval.Decision, approval.Choice = protocol.DecideOnce, ""
 	if word, _ := ApprovalOutcome(approval); word != "Approved once" {

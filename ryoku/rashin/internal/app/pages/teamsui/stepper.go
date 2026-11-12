@@ -67,7 +67,7 @@ func (s *TokenStepper) Layout(gtx layout.Context, th *look.Theme) layout.Dimensi
 		layout.Rigid(func(layout.Context) layout.Dimensions { return s.less.Layout(less, th.Theme) }),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Baseline}.Layout(gtx,
-				layout.Rigid(kit.Text(th.Theme, th.T.Mono, th.R.Fg, Tokens(s.Value))),
+				layout.Rigid(kit.Text(th.Theme, th.T.Label, th.R.Fg, Tokens(s.Value))),
 				layout.Rigid(layout.Spacer{Width: unit.Dp(tokens.SizeStepperUnitGap)}.Layout),
 				layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, i18n.T("tokens a month"))),
 			)

@@ -15,7 +15,7 @@ func TestTheHeaderNamesTheModelOfATeamOnOneEngine(t *testing.T) {
 		}},
 	}}}
 	alone := []protocol.Member{{ID: "lead", Lead: true, Harness: "claude", Model: "haiku"}}
-	if got, want := runsFact(snapshot, alone), "Runs Claude Code · Haiku 4.5"; got != want {
+	if got, want := runsFact(snapshot, alone), "Runs Haiku 4.5 on Claude Code"; got != want {
 		t.Errorf("one engine reads %q, want %q", got, want)
 	}
 	// two models on one harness: the header names the harness and leaves the models to the crew

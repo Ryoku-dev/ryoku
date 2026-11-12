@@ -108,7 +108,7 @@ func (state *viewState) layoutMarkdownList(gtx layout.Context, th *look.Theme, k
 				marker := gtx
 				marker.Constraints = layout.Exact(image.Pt(gutter-gtx.Dp(6), line))
 				offset := op.Offset(image.Pt(indent, 0)).Push(gtx.Ops)
-				layout.E.Layout(marker, kit.RawText(th.Theme, th.T.MonoSm, th.R.Fg3, strconv.Itoa(item.number)+"."))
+				layout.E.Layout(marker, kit.RawText(th.Theme, th.T.Caption, th.R.Fg3, strconv.Itoa(item.number)+"."))
 				offset.Pop()
 			} else {
 				size := gtx.Dp(5)
@@ -168,8 +168,7 @@ func (state *viewState) layoutCodeBlock(gtx layout.Context, th *look.Theme, key,
 		call := record.Stop()
 		size := image.Pt(width, strip+dimensions.Size.Y)
 		bounds, cut := image.Rectangle{Max: size}, gtx.Dp(th.Cut.Mid)
-		kit.FillCut(gtx.Ops, bounds, cut, th.R.Slab)
-		kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(1)), th.R.Vein)
+		kit.SlabSurface(gtx, th.Theme, bounds, cut, th.R.Slab)
 		call.Add(gtx.Ops)
 		look.Place(gtx, image.Rect(gtx.Dp(13), 0, width/2, strip), func(gtx layout.Context) layout.Dimensions {
 			return layout.W.Layout(gtx, kit.RawText(th.Theme, th.T.MonoSm, th.R.Fg3, languageLabel(language)))

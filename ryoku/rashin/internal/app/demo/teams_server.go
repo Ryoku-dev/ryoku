@@ -228,7 +228,7 @@ func (s *server) createTeam(p protocol.TeamCreateParams, imported bool) (protoco
 		}
 		routines = append(routines, routine)
 	}
-	t.spend[team.ID] = protocol.TeamSpend{Team: team.ID, Month: demoMonth(Epoch), Cap: team.Budget.MonthTokens, Days: spreadMonth(Epoch, 0, 1)}
+	t.spend[team.ID] = protocol.TeamSpend{Team: team.ID, Month: demoMonth(Epoch), Cap: team.Budget.MonthTokens, Days: monthDays(Epoch)}
 	s.record(protocol.Activity{Action: action, Target: team.Name, OK: true, Team: team.ID})
 	for _, routine := range routines {
 		t.routines = append(t.routines, routine)
@@ -858,7 +858,7 @@ func (s *server) teamSpend(p protocol.TeamSpendParams) (protocol.TeamSpend, erro
 		spend.Cap = t.teams[index].Budget.MonthTokens
 		return spend, nil
 	}
-	all := protocol.TeamSpend{Month: month, Days: spreadMonth(Epoch, 0, 1)}
+	all := protocol.TeamSpend{Month: month, Days: monthDays(Epoch)}
 	for _, team := range s.listTeams() {
 		spend := t.spend[team.ID]
 		all.Tokens += spend.Tokens
@@ -874,6 +874,8 @@ func (s *server) teamSpend(p protocol.TeamSpendParams) (protocol.TeamSpend, erro
 			if index < len(spend.Days) {
 				all.Days[index].Input += spend.Days[index].Input
 				all.Days[index].Output += spend.Days[index].Output
+				all.Days[index].Tasks += spend.Days[index].Tasks
+				all.Days[index].Routines += spend.Days[index].Routines
 			}
 		}
 	}

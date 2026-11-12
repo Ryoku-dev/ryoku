@@ -313,10 +313,11 @@ func drawNavRow(gtx layout.Context, th *look.Theme, row *navRow, fold float32, c
 	opacity := paint.PushOpacity(gtx.Ops, 1-fold)
 	defer opacity.Pop()
 	trailing := gtx.Dp(look.SideInset)
+	// a count is a number and reads in the sans; a shortcut is a key, so it keeps the mono
 	if content.count > 0 {
-		trailing += drawTrailingText(gtx, th, strconv.Itoa(content.count), th.R.Amber)
+		trailing += drawTrailingText(gtx, th, th.T.Caption, strconv.Itoa(content.count), th.R.Amber)
 	} else if content.hint != "" {
-		trailing += drawTrailingText(gtx, th, content.hint, hint)
+		trailing += drawTrailingText(gtx, th, th.T.MonoSm, content.hint, hint)
 	}
 	left := gtx.Dp(look.SideInset) + glyph + gtx.Dp(13)
 	label := gtx
@@ -326,13 +327,13 @@ func drawNavRow(gtx layout.Context, th *look.Theme, row *navRow, fold float32, c
 	offset.Pop()
 }
 
-func drawTrailingText(gtx layout.Context, th *look.Theme, value string, ink color.NRGBA) int {
+func drawTrailingText(gtx layout.Context, th *look.Theme, style look.TextStyle, value string, ink color.NRGBA) int {
 	size := gtx.Constraints.Max
 	width := gtx.Dp(look.SidebarExpanded) - 2*gtx.Dp(8)
 	record := op.Record(gtx.Ops)
 	measure := gtx
 	measure.Constraints = layout.Constraints{Max: image.Pt(width/2, size.Y)}
-	dimensions := kit.RawText(th.Theme, th.T.MonoSm, ink, value)(measure)
+	dimensions := kit.RawText(th.Theme, style, ink, value)(measure)
 	call := record.Stop()
 	offset := op.Offset(image.Pt(width-gtx.Dp(look.SideInset)-dimensions.Size.X, (size.Y-dimensions.Size.Y)/2)).Push(gtx.Ops)
 	call.Add(gtx.Ops)

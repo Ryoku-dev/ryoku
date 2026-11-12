@@ -655,11 +655,16 @@ type TeamSpendParams struct {
 	Month string `json:"month,omitempty"`
 }
 
-// DaySpend is one day's tokens.
+// DaySpend is one day's tokens and the tasks that ended that day.
 type DaySpend struct {
 	Day    string `json:"day"`
 	Input  int64  `json:"input"`
 	Output int64  `json:"output"`
+	// Tasks is the tasks that ended that day, done or blocked; a task
+	// retried and ended again counts again on the day it ended.
+	Tasks int `json:"tasks,omitempty"`
+	// Routines is those of Tasks that were routine runs.
+	Routines int `json:"routines,omitempty"`
 }
 
 // NamedSpend is the tokens and runs of one member, routine, team or engine.

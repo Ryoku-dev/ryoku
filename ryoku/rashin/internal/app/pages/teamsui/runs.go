@@ -10,7 +10,7 @@ import (
 	"ryoku-rashin/internal/app/look"
 )
 
-// one coming run of a routine as a row that opens it: when in monoSm, the
+// one coming run of a routine as a row that opens it: when, the
 // routine, then its team when the row stands among every team's
 func RunRow(gtx layout.Context, th *look.Theme, click *kit.Click, at time.Time, routine, team string) layout.Dimensions {
 	return click.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -20,7 +20,7 @@ func RunRow(gtx layout.Context, th *look.Theme, click *kit.Click, at time.Time, 
 		}
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
 		children := []layout.FlexChild{
-			look.Cell(gtx.Dp(144), kit.Text(th.Theme, th.T.MonoSm, th.R.Fg3, look.When(gtx.Now, at))),
+			look.Cell(gtx.Dp(144), kit.Text(th.Theme, th.T.Caption, th.R.Fg3, look.When(gtx.Now, at))),
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 				return kit.Label{Style: th.T.Body, Color: ink, MaxLines: 1}.Layout(gtx, th.Theme, routine)
 			}),

@@ -34,17 +34,16 @@ func engineFacts(th *look.Theme, snapshot state.Snapshot, task protocol.TeamTask
 			offered = info.Capabilities.Options
 		}
 	}
-	// no model of its own is the harness's default, which has no id to show
+	facts := []layout.Widget{wordFact(th, i18n.T("Harness"), harness)}
+	// no model of its own is the harness's default, which has no id to show and is said in words
 	if model == "" {
-		model = engine.Model
-	}
-	facts := []layout.Widget{
-		kit.AsideFact(th.Theme, i18n.T("Harness"), harness),
-		kit.AsideFact(th.Theme, i18n.T("Model"), model),
+		facts = append(facts, wordFact(th, i18n.T("Model"), engine.Model))
+	} else {
+		facts = append(facts, kit.AsideFact(th.Theme, i18n.T("Model"), model))
 	}
 	for _, option := range offered {
 		if value, ok := options[option.ID]; ok {
-			facts = append(facts, kit.AsideFact(th.Theme, option.Name, teamsui.ChoiceName(option.Choices, value)))
+			facts = append(facts, wordFact(th, option.Name, teamsui.ChoiceName(option.Choices, value)))
 		}
 	}
 	// an option the harness no longer offers keeps its id

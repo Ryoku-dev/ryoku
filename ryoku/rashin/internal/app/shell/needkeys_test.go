@@ -41,7 +41,7 @@ func TestATaskPagesWaitingChoiceTakesItsLetter(t *testing.T) {
 		approval := stage.approval(choiceApproval)
 		return approval.Decision == protocol.DecideChoose && approval.Choice == choiceB
 	})
-	if _, ok := stage.named("Chose B · " + choiceB); !ok {
+	if _, ok := stage.named("Chose B: " + choiceB); !ok {
 		t.Fatalf("the card did not fold to the choice; on screen: %v", stage.names())
 	}
 }

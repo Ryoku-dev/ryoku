@@ -302,7 +302,7 @@ func (v *viewState) worktreeNames() ([]string, []protocol.WorktreeInfo) {
 			labels[index] = value.Path
 		}
 		if value.Branch != "" {
-			labels[index] += " · " + value.Branch
+			labels[index] = i18n.Tf("%s on %s", labels[index], value.Branch)
 		}
 	}
 	return labels, values

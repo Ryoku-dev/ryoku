@@ -1,6 +1,7 @@
 package demo
 
 import (
+	"slices"
 	"sort"
 	"time"
 
@@ -98,8 +99,8 @@ func demoVaultLog(clock teamsClock) []protocol.VaultEvent {
 	return log
 }
 
-// this month of a team's tokens: by day, by member, by routine and by the engine each member ran on, adding up to what its meter shows
-func demoTeamSpend(clock teamsClock, team protocol.Team) protocol.TeamSpend {
+// this month of a team's tokens and ended tasks: by day, by member, by routine and by the engine each member ran on, adding up to what its meter shows
+func demoTeamSpend(clock teamsClock, team protocol.Team, tasks []protocol.TeamTask) protocol.TeamSpend {
 	type share struct {
 		id, name string
 		tokens   int64
@@ -111,7 +112,7 @@ func demoTeamSpend(clock teamsClock, team protocol.Team) protocol.TeamSpend {
 	case demoTeamResearch:
 		members = []share{{"member-editor", i18n.T("Editor"), 431_900, 6}, {"member-researcher", i18n.T("Researcher"), 310_400, 9}}
 	case demoTeamMail:
-		members = []share{{"member-writer", i18n.T("Writer"), 118_400, 8}}
+		members = []share{{"member-writer", i18n.T("Writer"), 118_400, 4}}
 	case demoTeamRepo:
 		members = []share{{"member-reviewer", i18n.T("Reviewer"), 902_000, 8}, {"member-triager", i18n.T("Triager"), 382_000, 5}}
 		routines = []share{{"routine-morning", i18n.T("Morning review"), 1_051_000, 7}}
@@ -125,9 +126,11 @@ func demoTeamSpend(clock teamsClock, team protocol.Team) protocol.TeamSpend {
 	case demoTeamRelease:
 		members = []share{{"member-scribe", i18n.T("Scribe"), 1_000_000, 3}}
 	}
-	spend := protocol.TeamSpend{Team: team.ID, Month: demoMonth(clock.now), Cap: team.Budget.MonthTokens, Estimated: estimated}
+	spend := protocol.TeamSpend{Team: team.ID, Month: demoMonth(clock.now), Cap: team.Budget.MonthTokens, Estimated: estimated, Days: monthDays(clock.now)}
+	ended, endedRoutines := 0, 0
 	for _, member := range members {
 		spend.Tokens += member.tokens
+		ended += member.tasks
 		spend.Members = append(spend.Members, protocol.NamedSpend{ID: member.id, Name: member.name, Tokens: member.tokens, Tasks: member.tasks})
 		if found, ok := teamMember(team, member.id); ok {
 			engine := protocol.NamedSpend{ID: found.Harness + protocol.EngineSpendSeparator + found.Model, Tokens: member.tokens, Tasks: member.tasks}
@@ -135,39 +138,109 @@ func demoTeamSpend(clock teamsClock, team protocol.Team) protocol.TeamSpend {
 		}
 	}
 	for _, routine := range routines {
+		endedRoutines += routine.tasks
 		spend.Routines = append(spend.Routines, protocol.NamedSpend{ID: routine.id, Name: routine.name, Tokens: routine.tokens, Tasks: routine.tasks})
 	}
-	spend.Days = spreadMonth(clock.now, spend.Tokens, len(team.ID))
+	// the mail desk is the quiet one: a few days of work in the month
+	weights := dayWeights(spend.Days, len(team.ID), team.ID == demoTeamMail)
+	// the month's started tasks are the members' counts; those the demo shows end on their own day, the open and stopped ones never count, the rest ended on the days worked
+	for _, task := range tasks {
+		if task.Team != team.ID || task.Started == nil || demoMonth(*task.Started) != spend.Month {
+			continue
+		}
+		ended--
+		if task.Routine != "" {
+			endedRoutines--
+		}
+		if task.Ended == nil || task.Status != protocol.TaskDone && task.Status != protocol.TaskBlocked {
+			continue
+		}
+		day := task.Ended.In(time.Local).Format("2006-01-02")
+		index := slices.IndexFunc(spend.Days, func(d protocol.DaySpend) bool { return d.Day == day })
+		if index < 0 {
+			continue
+		}
+		weights[index] += 2
+		spend.Days[index].Tasks++
+		if task.Routine != "" {
+			spend.Days[index].Routines++
+		}
+	}
+	runs := spread(int64(max(endedRoutines, 0)), weights)
+	others := spread(int64(max(ended-endedRoutines, 0)), weights)
+	tokens := spread(spend.Tokens, weights)
+	for index := range spend.Days {
+		spend.Days[index].Tasks += int(runs[index] + others[index])
+		spend.Days[index].Routines += int(runs[index])
+		spend.Days[index].Input = tokens[index] * 4 / 5
+		spend.Days[index].Output = tokens[index] - spend.Days[index].Input
+	}
 	return spend
 }
 
 // the demo's month, in the computer's time zone as spend is counted
 func demoMonth(now time.Time) string { return now.In(time.Local).Format("2006-01") }
 
-// a month's tokens over the days so far, heavier on weekdays, adding up to total exactly
-func spreadMonth(now time.Time, total int64, seed int) []protocol.DaySpend {
+// the month's days so far, nothing counted on them yet
+func monthDays(now time.Time) []protocol.DaySpend {
 	local := now.In(time.Local)
 	first := time.Date(local.Year(), local.Month(), 1, 0, 0, 0, 0, time.Local)
-	weights := make([]int64, local.Day())
-	var sum int64
-	for index := range weights {
-		step := (index + 1) * seed
-		weights[index] = int64(2 + step%5)
-		if weekday := first.AddDate(0, 0, index).Weekday(); weekday == time.Saturday || weekday == time.Sunday {
-			weights[index] = 1
-		}
-		sum += weights[index]
-	}
-	days := make([]protocol.DaySpend, len(weights))
-	var given int64
-	for index, weight := range weights {
-		tokens := total * weight / sum
-		if index == len(weights)-1 {
-			tokens = total - given
-		}
-		given += tokens
-		input := tokens * 4 / 5
-		days[index] = protocol.DaySpend{Day: first.AddDate(0, 0, index).Format("2006-01-02"), Input: input, Output: tokens - input}
+	days := make([]protocol.DaySpend, local.Day())
+	for index := range days {
+		days[index].Day = first.AddDate(0, 0, index).Format("2006-01-02")
 	}
 	return days
+}
+
+// how much of the month's work each day had: weekdays busier than weekends, some weekends idle and one busy weekday; a quiet team works a day in four
+func dayWeights(days []protocol.DaySpend, seed int, quiet bool) []int64 {
+	weights := make([]int64, len(days))
+	busy := (seed * 3) % len(days)
+	for step := 0; step < len(days) && weekendDay(days[busy].Day); step++ {
+		busy = (busy + 1) % len(days)
+	}
+	for index, day := range days {
+		switch {
+		case quiet:
+			if index%4 == seed%4 {
+				weights[index] = 1
+			}
+		case index == busy:
+			weights[index] = 12
+		case weekendDay(day.Day):
+			weights[index] = int64((index + seed) % 2)
+		default:
+			weights[index] = int64(2 + (index+1)*seed%5)
+		}
+	}
+	return weights
+}
+
+func weekendDay(day string) bool {
+	at, _ := time.ParseInLocation("2006-01-02", day, time.Local)
+	return at.Weekday() == time.Saturday || at.Weekday() == time.Sunday
+}
+
+// total shared over the days by weight, adding up to it exactly: what rounding leaves goes to the heaviest day
+func spread(total int64, weights []int64) []int64 {
+	out := make([]int64, len(weights))
+	var sum int64
+	heaviest := len(weights) - 1
+	for index, weight := range weights {
+		sum += weight
+		if weight > weights[heaviest] {
+			heaviest = index
+		}
+	}
+	if sum == 0 {
+		out[heaviest] = total
+		return out
+	}
+	var given int64
+	for index, weight := range weights {
+		out[index] = total * weight / sum
+		given += out[index]
+	}
+	out[heaviest] += total - given
+	return out
 }

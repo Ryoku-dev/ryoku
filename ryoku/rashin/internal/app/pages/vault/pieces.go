@@ -40,8 +40,7 @@ func plane(gtx layout.Context, th *look.Theme, body layout.Widget) layout.Dimens
 	})
 	call := record.Stop()
 	bounds, cut := image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid)
-	kit.FillCut(gtx.Ops, bounds, cut, th.R.Slab)
-	kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(1)), th.R.Vein)
+	kit.SlabSurface(gtx, th.Theme, bounds, cut, th.R.Slab)
 	call.Add(gtx.Ops)
 	return dimensions
 }

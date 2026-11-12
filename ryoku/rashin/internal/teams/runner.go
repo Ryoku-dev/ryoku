@@ -480,8 +480,8 @@ func (s *Service) live(task, session string) bool {
 
 // endTask finishes an open task once: change sets how it ended, the run is
 // dropped so its token answers no more, the steps its session took are kept,
-// and the session is let go once its turn is over. It reports false when the
-// task had already ended.
+// the day's spend counts it, and the session is let go once its turn is
+// over. It reports false when the task had already ended.
 func (s *Service) endTask(id string, change func(*protocol.TeamTask)) (protocol.TeamTask, bool) {
 	// the session is asked before the lock, as engage does
 	var steps int
@@ -507,6 +507,7 @@ func (s *Service) endTask(id string, change func(*protocol.TeamTask)) (protocol.
 	}
 	delete(s.runs, id)
 	s.mu.Unlock()
+	s.countEnded(t)
 	s.emitTask(t)
 	if t.Session != "" {
 		s.retire(t.Session)

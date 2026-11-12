@@ -196,7 +196,7 @@ func (r *RoutineTablet) Layout(gtx layout.Context, e *env.Env, schedules *Schedu
 	last, _ := RoutineOutcome(snapshot, routine)
 	content := kit.TabletContent{
 		Title:  routine.Title,
-		Facts:  i18n.Tf("%s · %s", team, schedules.Sentence(routine)),
+		Facts:  i18n.Tf("%s for %s", schedules.Sentence(routine), team),
 		Claim:  claim,
 		Proof:  last,
 		Action: &r.edit,

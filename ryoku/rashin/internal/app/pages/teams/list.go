@@ -43,7 +43,7 @@ func teamRow(th *look.Theme, team protocol.Team) look.SideRow {
 	_, tone, working := teamsui.TeamStanding(team)
 	row := look.SideRow{
 		ID: team.ID, Title: team.Name, Working: working,
-		Facts: i18n.Tf("%s · %d working", membersWord(len(team.Members)), team.Stats.Working),
+		Facts: i18n.Tf("%s, %d working", membersWord(len(team.Members)), team.Stats.Working),
 	}
 	if tone == palette.Attention {
 		row.Tone = tone

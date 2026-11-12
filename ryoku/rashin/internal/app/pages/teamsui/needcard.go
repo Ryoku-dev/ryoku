@@ -28,11 +28,12 @@ import (
 const detailLines = 8
 
 // NeedCards answer what needs the user where it shows: an approval, a
-// credential request, a budget stop or a blocked task, each a tablet on the
-// slab with its tone's notch and claim. Each card has one filled action, and
-// only the oldest open card's is gold, so a page holds one. An answered card
-// folds at once to one line that keeps the answer for the rest of the session;
-// a refusal by the daemon unfolds it again and says why.
+// credential request, a budget stop or a blocked task, each a notched slab
+// with its tone's notch and claim. Each card has one filled action, and only
+// the oldest open card's is gold; that card is the view's hero, a slab toned
+// by attention, so a page holds one of each. An answered card folds at once
+// to one line that keeps the answer for the rest of the session; a refusal by
+// the daemon unfolds it again and says why.
 type NeedCards struct {
 	// Task is the task page the cards stand on, whose own link they leave out.
 	Task string
@@ -70,13 +71,13 @@ type answer struct {
 	need Need
 }
 
-// "Chose B · beta": the letter it was picked by and the option
+// "Chose B: beta": the letter it was picked by and the option
 func choseLine(options []string, choice string) string {
 	index := slices.Index(options, choice)
 	if index < 0 || index >= len(choiceLetters) {
 		return i18n.Tf("Chose %s", choice)
 	}
-	return i18n.Tf("Chose %s · %s", choiceLetters[index:index+1], choice)
+	return i18n.Tf("Chose %s: %s", choiceLetters[index:index+1], choice)
 }
 
 // NeedKey names a need: its approval, or its task when the task itself waits.
@@ -173,7 +174,7 @@ func (c *NeedCards) Layout(gtx layout.Context, e *env.Env, need Need) layout.Dim
 	)
 }
 
-// a need stands on its pane as a notched slab, its tone in the notch and the claim word
+// a need stands on its pane as a notched slab, its tone in the notch and the claim word; the urgent one is the hero
 func (c *NeedCards) layoutTablet(gtx layout.Context, e *env.Env, card *needCard, need Need) layout.Dimensions {
 	th := e.Theme
 	snapshot := e.Snapshot()
@@ -186,9 +187,15 @@ func (c *NeedCards) layoutTablet(gtx layout.Context, e *env.Env, card *needCard,
 		_, tone, _ = TaskStanding(*need.Task)
 		children = c.blockedField(gtx, e, snapshot, card, need, gold)
 	}
-	dimensions := NotchedSlab(gtx, th, tone, th.Sp.S4, func(gtx layout.Context) layout.Dimensions {
+	body := func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
-	})
+	}
+	var dimensions layout.Dimensions
+	if gold {
+		dimensions = HeroSlab(gtx, th, tone, body)
+	} else {
+		dimensions = NotchedSlab(gtx, th, tone, th.Sp.S4, body)
+	}
 	if need.Approval != nil && len(need.Approval.Options) > 0 {
 		holdKeys(gtx, th, card, dimensions.Size)
 	}
@@ -394,7 +401,7 @@ func claimRow(th *look.Theme, tone palette.Tone, word, ago string) layout.Widget
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 				return kit.Label{Style: th.T.Label, Color: ink, MaxLines: 1}.Layout(gtx, th.Theme, word)
 			}),
-			layout.Rigid(kit.Text(th.Theme, th.T.MonoSm, th.R.Fg3, ago)),
+			layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, ago)),
 		)
 	}
 }
@@ -445,15 +452,16 @@ func (c *NeedCards) layoutWhere(gtx layout.Context, e *env.Env, snapshot state.S
 			return look.Link(gtx, th, &card.team, TeamName(snapshot.Teams, teamID))
 		}),
 	}
-	dot := layout.Rigid(kit.Text(th.Theme, th.T.Detail, th.R.Fg3, "  ·  "))
+	// facts are set apart by space, never a dot
+	gap := layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout)
 	if name := MemberOf(snapshot, teamID, member); name != "" {
-		children = append(children, dot, layout.Rigid(kit.Text(th.Theme, th.T.Detail, th.R.Fg2, name)))
+		children = append(children, gap, layout.Rigid(kit.Text(th.Theme, th.T.Detail, th.R.Fg2, name)))
 	}
 	if task, ok := snapshot.TeamTasks[taskID]; ok && taskID != c.Task {
 		if card.task.Clicked(gtx) {
 			OpenTask(e, task.ID)
 		}
-		children = append(children, dot, layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+		children = append(children, gap, layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return look.Link(gtx, th, &card.task, task.Title)
 		}))
 	}
@@ -475,8 +483,7 @@ func layoutRecord(gtx layout.Context, th *look.Theme, line string) layout.Dimens
 	})
 	call := record.Stop()
 	bounds, cut := image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Small)
-	kit.FillCut(gtx.Ops, bounds, cut, th.R.Slab)
-	kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(1)), th.R.Vein)
+	kit.SlabSurface(gtx, th.Theme, bounds, cut, th.R.Slab)
 	call.Add(gtx.Ops)
 	return dimensions
 }

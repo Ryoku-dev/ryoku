@@ -25,9 +25,13 @@ type crewStyle struct {
 	mini                   bool
 }
 
-// on the pane a tile lifts as a slab, its vein carrying the edge
+// on the pane a tile lifts as a slab, its vein carrying the edge only in light mode, where the lift alone would not separate
 func fullCrew(th *look.Theme) crewStyle {
-	return crewStyle{tile: 200, gapX: th.Sp.S3, gapY: th.Sp.S5, mark: 36, plane: th.R.Slab, edge: th.R.Vein}
+	style := crewStyle{tile: 200, gapX: th.Sp.S3, gapY: th.Sp.S5, mark: 36, plane: th.R.Slab}
+	if !th.R.Dark {
+		style.edge = th.R.Vein
+	}
+	return style
 }
 
 // the aside is a slab, so its tiles stand one step up on the field; a
@@ -166,7 +170,7 @@ func crewTile(gtx layout.Context, th *look.Theme, snapshot appstate.Snapshot, me
 		}
 		model := engine.Model
 		if engine.Extra != "" {
-			model = i18n.Tf("%s · %s", model, engine.Extra)
+			model = i18n.Tf("%s, %s", model, engine.Extra)
 		}
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Rigid(identity),

@@ -310,11 +310,11 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 		}
 		return s.data.snapshot.Settings, nil
 	case protocol.MGatewayUsage:
-		day := Epoch.Format("2006-01-02")
-		return protocol.GatewayUsage{Days: 7, Rows: []protocol.UsageRow{
-			{Day: day, Provider: "openrouter", Model: "free-router", Requests: 41, OK: 38, Failed: 3, InputTokens: 61200, OutputTokens: 18400},
-			{Day: day, Provider: "puter", Model: "gpt-oss-120b", Requests: 12, OK: 12, InputTokens: 9800, OutputTokens: 4100, Estimated: true},
-		}}, nil
+		var params protocol.UsageParams
+		if err := decode(raw, &params); err != nil {
+			return nil, err
+		}
+		return demoUsage(Epoch, params.Days), nil
 	case protocol.MGatewayAPI:
 		return s.data.snapshot.Status.API, nil
 	case protocol.MGatewayAPIKey:

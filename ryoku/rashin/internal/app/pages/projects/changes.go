@@ -154,7 +154,7 @@ func (c *changesState) layoutBar(gtx layout.Context, e *env.Env, page *pageState
 	if status.Upstream != "" {
 		children = append(children,
 			layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
-			layout.Rigid(kit.Text(th.Theme, th.T.MonoSm, th.R.Fg3, fmt.Sprintf("↑%d ↓%d", status.Ahead, status.Behind))),
+			layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, aheadWords(status.Ahead, status.Behind))),
 		)
 	}
 	if status.Operation != "" {
@@ -381,7 +381,7 @@ func (c *changesState) layoutGroup(gtx layout.Context, e *env.Env, page *pageSta
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Baseline}.Layout(gtx,
 				layout.Rigid(kit.RawText(th.Theme, th.T.Group, th.R.Fg3, changeGroupTitle(group))),
 				layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
-				layout.Rigid(kit.RawText(th.Theme, th.T.MonoSm, th.R.Fg3, fmt.Sprint(len(paths)))),
+				layout.Rigid(kit.RawText(th.Theme, th.T.Caption, th.R.Fg3, fmt.Sprint(len(paths)))),
 			)
 		})
 		return layout.Dimensions{Size: size}

@@ -35,6 +35,8 @@ type overviewState struct {
 	remove  removeWorktree
 	prune   pruneWorktrees
 	cleanup cleanupWorktrees
+
+	commits commitTrend
 }
 
 type worktreeRowState struct {
@@ -225,7 +227,7 @@ func worktreeTablet(th *look.Theme, snapshot appstate.Snapshot, worktree protoco
 		case status.Added+status.Removed > 0:
 			content.Proof = fmt.Sprintf("+%d −%d", status.Added, status.Removed)
 		case status.AheadBase+status.BehindBase > 0:
-			content.Proof = fmt.Sprintf("↑%d ↓%d", status.AheadBase, status.BehindBase)
+			content.Proof = aheadWords(status.AheadBase, status.BehindBase)
 		}
 	}
 	return content
@@ -271,6 +273,7 @@ func (o *overviewState) layoutDetail(gtx layout.Context, e *env.Env, page *pageS
 	th := e.Theme
 	row := o.row(worktree.Path)
 	o.loadPorts(e, worktree, row)
+	o.commits.load(e, page.project, gtx.Now)
 	sections := []layout.Widget{
 		func(gtx layout.Context) layout.Dimensions { return o.layoutIdentity(gtx, e, page, worktree, row) },
 		func(gtx layout.Context) layout.Dimensions { return look.Facts(gtx, th, worktreeFacts(th, worktree)) },
@@ -280,6 +283,10 @@ func (o *overviewState) layoutDetail(gtx layout.Context, e *env.Env, page *pageS
 			return o.layoutSetup(gtx, e, page, worktree, row, state)
 		})
 	}
+	sections = append(sections, func(gtx layout.Context) layout.Dimensions {
+		trend, ok := o.commits.shown(page.project)
+		return look.HoldUntil(gtx, ok, func(gtx layout.Context) layout.Dimensions { return trend.Layout(gtx, th) })
+	})
 	if len(worktree.Sessions) > 0 {
 		sections = append(sections, func(gtx layout.Context) layout.Dimensions { return o.layoutSessions(gtx, e, worktree, row) })
 	}
@@ -444,12 +451,10 @@ func worktreeFacts(th *look.Theme, worktree protocol.WorktreeInfo) []look.FactRo
 			rows = append(rows, look.FactRow{Label: i18n.T("Lines"), Widget: look.DiffCount(th, status.Added, status.Removed, false)})
 		}
 		if status.Upstream != "" {
-			value := fmt.Sprintf("%s  ↑%d ↓%d", status.Upstream, status.Ahead, status.Behind)
-			rows = append(rows, look.FactRow{Label: i18n.T("Upstream"), Value: value, Mono: true})
+			rows = append(rows, look.FactRow{Label: i18n.T("Upstream"), Widget: refFact(th, status.Upstream, status.Ahead, status.Behind)})
 		}
 		if worktree.Base != "" {
-			value := fmt.Sprintf("%s  ↑%d ↓%d", worktree.Base, status.AheadBase, status.BehindBase)
-			rows = append(rows, look.FactRow{Label: i18n.T("Base"), Value: value, Mono: true})
+			rows = append(rows, look.FactRow{Label: i18n.T("Base"), Widget: refFact(th, worktree.Base, status.AheadBase, status.BehindBase)})
 		}
 	}
 	rows = append(rows,
@@ -457,6 +462,29 @@ func worktreeFacts(th *look.Theme, worktree protocol.WorktreeInfo) []look.FactRo
 		look.FactRow{Label: i18n.T("Folder"), Value: paths.Short(worktree.Path), Mono: true},
 	)
 	return rows
+}
+
+// the ref is literal and stays mono, how far apart they are is said in words beside it
+func refFact(th *look.Theme, ref string, ahead, behind int) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Baseline}.Layout(gtx,
+			layout.Rigid(kit.RawText(th.Theme, th.T.Mono, th.R.Fg, ref)),
+			layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
+			layout.Flexed(1, kit.RawText(th.Theme, th.T.Body, th.R.Fg2, aheadWords(ahead, behind))),
+		)
+	}
+}
+
+func aheadWords(ahead, behind int) string {
+	switch {
+	case ahead == 0 && behind == 0:
+		return i18n.T("Up to date")
+	case behind == 0:
+		return i18n.Tf("%d ahead", ahead)
+	case ahead == 0:
+		return i18n.Tf("%d behind", behind)
+	}
+	return i18n.Tf("%d ahead, %d behind", ahead, behind)
 }
 
 func workingTreeWords(status *protocol.WorktreeStatus) string {

@@ -21,12 +21,15 @@ type board struct {
 	// the board's Team is the team the filter shows, "" for every team
 	tasks teamsui.TaskBoard
 	empty kit.Plaque
+	// every team's month, for the line of tasks finished each day
+	month teamsui.MonthSpend
 }
 
 func (b *board) layout(gtx layout.Context, e *env.Env, page *Page) layout.Dimensions {
 	snapshot := e.Snapshot()
 	b.keepTeam(snapshot)
 	rows, total := b.tasks.Rows(gtx, snapshot)
+	b.month.Want(e, gtx.Now)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			content := look.PaneHeaderContent{
@@ -45,7 +48,7 @@ func (b *board) layout(gtx layout.Context, e *env.Env, page *Page) layout.Dimens
 				return b.layoutEmpty(gtx, e, page, len(snapshot.Teams) > 0)
 			}
 			th := e.Theme
-			return b.scroll.Layout(gtx, th, 2+rows, func(gtx layout.Context, index int) layout.Dimensions {
+			return b.scroll.Layout(gtx, th, 3+rows, func(gtx layout.Context, index int) layout.Dimensions {
 				return look.Centred(gtx, e.Class, look.BoardWidth, func(gtx layout.Context) layout.Dimensions {
 					switch index {
 					case 0:
@@ -54,11 +57,13 @@ func (b *board) layout(gtx layout.Context, e *env.Env, page *Page) layout.Dimens
 							return look.Monument(gtx, th, claim, proof)
 						})
 					case 1:
+						return b.layoutFinished(gtx, e)
+					case 2:
 						return layout.Inset{Bottom: th.Sp.S3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return b.layoutFilters(gtx, e, snapshot)
 						})
 					}
-					return b.tasks.LayoutRow(gtx, e, index-2)
+					return b.tasks.LayoutRow(gtx, e, index-3)
 				})
 			})
 		}),

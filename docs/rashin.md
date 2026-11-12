@@ -1062,6 +1062,9 @@ such as effort.
 
 - Tokens are counted per turn from the usage the harness reports and kept
   per day, member, routine and engine (`teams.spend`, the team's Spend view).
+  Each day also counts the tasks that ended on it, done or blocked, and how
+  many of them were routine runs; a retried task counts again on the day it
+  ends again.
   A new team that names no budget takes the one in Settings > Teams, New
   teams start with (2,000,000 tokens a month, a warning at 80%, 20 turns and
   60 minutes per task); a limit of 0 is no limit.
@@ -1180,6 +1183,10 @@ Every team agent runs inside bubblewrap (`bwrap`, `internal/sandbox`,
   installed, a credential it asked for, a routine that is off, a team that
   never ran, each with one action and each hideable) and Files, the newest
   files in its folder with the report each came from.
+- The Work board opens with Finished, a chart of every team's tasks that
+  ended each day this month, and Routines with Runs, the routine runs among
+  them (`teams.spend` days, `tasks` and `routines`). Activity has no chart: it
+  reads the ledger a page at a time.
 - Routes: `inbox`, `teams`, `teams/new[/<template>]`, `teams/<team>[/<view>]`
   (views `overview`, `work`, `routines`, `spend`, `settings`),
   `work[/<task>]`, `routines`, `routines/new[/<team>]`,

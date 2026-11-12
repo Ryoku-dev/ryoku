@@ -525,7 +525,7 @@ func demoTeams(now time.Time, settings protocol.Settings, events map[string][]pr
 	fx.vaultLog = demoVaultLog(clock)
 	fx.activity = demoActivity(clock)
 	for _, team := range fx.teams {
-		fx.spend[team.ID] = demoTeamSpend(clock, team)
+		fx.spend[team.ID] = demoTeamSpend(clock, team, fx.tasks)
 	}
 	return fx
 }

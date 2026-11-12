@@ -56,7 +56,7 @@ type Page struct {
 	open      string
 	// provider ids in the order they were sorted into when Settings opened
 	providerOrder []string
-	usage         usage
+	usage         env.Usage
 	api           apiPanel
 
 	models      protocol.ModelsResult
@@ -91,7 +91,8 @@ func New() *Page {
 
 // a name it doesn't know leaves the page where it is
 func (p *Page) OpenSection(name string) {
-	p.providerOrder, p.usage.asked = nil, false
+	p.providerOrder = nil
+	p.usage.Forget()
 	// the older names still lead to their section
 	aliases := map[string]string{"about": "rashin", "agent": "agents", "keyboard": "keys"}
 	if alias, ok := aliases[name]; ok {

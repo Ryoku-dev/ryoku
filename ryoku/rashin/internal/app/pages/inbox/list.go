@@ -23,11 +23,11 @@ func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 		row := look.SideRow{ID: key, Tone: palette.Attention}
 		if approval := need.Approval; approval != nil {
 			row.Title = approval.Title
-			row.Facts = i18n.Tf("%s · %s", teamsui.TeamName(snapshot.Teams, approval.Team), teamsui.ApprovalWord(approval.Kind))
+			row.Facts = i18n.Tf("%s on %s", teamsui.ApprovalWord(approval.Kind), teamsui.TeamName(snapshot.Teams, approval.Team))
 		} else {
 			word, tone, _ := teamsui.TaskStanding(*need.Task)
 			row.Title, row.Tone = need.Task.Title, tone
-			row.Facts = i18n.Tf("%s · %s", teamsui.TeamName(snapshot.Teams, need.Task.Team), word)
+			row.Facts = i18n.Tf("%s on %s", word, teamsui.TeamName(snapshot.Teams, need.Task.Team))
 		}
 		rows = append(rows, row)
 	}

@@ -388,7 +388,7 @@ func (s *settingsTab) layoutMember(e *env.Env, snapshot appstate.Snapshot, team 
 	th := e.Theme
 	about := member.Title
 	if member.Lead {
-		about = i18n.Tf("Leads the team · %s", member.Title)
+		about = i18n.Tf("Leads the team as %s", member.Title)
 	}
 	engine := teamsui.MemberEngine(snapshot, member)
 	ink := th.R.Fg2

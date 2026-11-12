@@ -1,7 +1,6 @@
 package inbox
 
 import (
-	"image/color"
 	"sort"
 
 	"gioui.org/layout"
@@ -74,26 +73,32 @@ func (b *board) layoutReport(gtx layout.Context, e *env.Env, snapshot state.Snap
 		teamsui.OpenTask(e, task.ID)
 	}
 	team := teamsui.TeamName(snapshot.Teams, task.Team)
-	when := look.Ago(gtx.Now, task.Report.At)
-	facts := i18n.Tf("%s · %s", team, when)
-	if member := teamsui.MemberOf(snapshot, task.Team, task.Member); member != "" {
-		facts = i18n.Tf("%s · %s · %s", team, member, when)
-	}
-	// an unread report carries the done notch and reads in full ink; a quiet run found nothing new, so it is not news
-	notch, ink := color.NRGBA{}, th.R.Fg2
+	facts := look.Clauses(teamsui.TaskFacts(snapshot, task), look.Ago(gtx.Now, task.Report.At))
+	// an unread report reads in full ink with its state in its mineral beside it; a quiet run found nothing new, so it is not news
+	ink, unread := th.R.Fg2, false
 	if task.Report.Quiet {
-		facts = i18n.Tf("%s · %s", facts, i18n.T("Quiet, nothing new"))
+		facts = look.Clauses(facts, i18n.T("nothing new"))
 	} else if !task.Read {
-		notch, ink = th.R.Stone(palette.Alive), th.R.Fg
+		ink, unread = th.R.Fg, true
 	}
-	return item.layout(gtx, th, notch, func(gtx layout.Context) layout.Dimensions {
+	return item.layout(gtx, th, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Start}.Layout(gtx,
 			layout.Rigid(teamsui.Mark(th, team, 32, false)),
 			layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return kit.Label{Style: th.T.Row, Color: ink, MaxLines: 1}.Layout(gtx, th.Theme, reportTitle(task))
+						gtx.Constraints.Min.X = gtx.Constraints.Max.X
+						children := []layout.FlexChild{layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+							return kit.Label{Style: th.T.Row, Color: ink, MaxLines: 1}.Layout(gtx, th.Theme, reportTitle(task))
+						})}
+						if unread {
+							children = append(children,
+								layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
+								layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Stone(palette.Alive), i18n.T("Unread"))),
+							)
+						}
+						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Baseline}.Layout(gtx, children...)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return kit.Label{Style: th.T.Caption, Color: th.R.Fg3, MaxLines: 1}.Layout(gtx, th.Theme, facts)
@@ -121,7 +126,7 @@ func (b *board) layoutWorking(gtx layout.Context, e *env.Env, snapshot state.Sna
 	if member := teamsui.MemberOf(snapshot, task.Team, task.Member); member != "" {
 		live.Member = i18n.Tf("%s on %s", member, team)
 	}
-	return item.layout(gtx, th, color.NRGBA{}, func(gtx layout.Context) layout.Dimensions {
+	return item.layout(gtx, th, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Start}.Layout(gtx,
 			layout.Rigid(teamsui.Mark(th, team, 32, false)),
 			layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),

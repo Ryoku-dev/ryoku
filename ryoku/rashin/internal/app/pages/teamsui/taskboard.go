@@ -200,7 +200,7 @@ func (b *TaskBoard) layoutTablet(gtx layout.Context, e *env.Env, snapshot state.
 	}
 	facts := TaskEngine(snapshot, task).Short()
 	if member := MemberOf(snapshot, task.Team, task.Member); member != "" {
-		facts = i18n.Tf("%s · %s", member, facts)
+		facts = i18n.Tf("%s on %s", member, facts)
 	}
 	content := kit.TabletContent{
 		Title: task.Title, Facts: facts, Claim: word, Tone: tone,

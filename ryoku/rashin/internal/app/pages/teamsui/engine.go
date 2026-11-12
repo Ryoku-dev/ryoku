@@ -17,18 +17,18 @@ type Engine struct {
 	Harness string
 	// empty when unknown
 	Version string
-	// "Haiku 4.5", "Sonnet 4.5 (harness default)" or "Harness default model"
+	// "Haiku 4.5", "Sonnet 4.5 (its default)" or "Its default model"
 	Model string
 	// the options a member or task sets, as "effort high", empty without any
 	Extra   string
 	Missing bool
 }
 
-// "Claude Code · Haiku 4.5 · effort high"
+// "Haiku 4.5 on Claude Code, effort high"
 func (e Engine) Line() string {
-	line := i18n.Tf("%s · %s", e.Harness, e.Model)
+	line := i18n.Tf("%s on %s", e.Model, e.Harness)
 	if e.Extra != "" {
-		line = i18n.Tf("%s · %s", line, e.Extra)
+		line = i18n.Tf("%s, %s", line, e.Extra)
 	}
 	return line
 }
@@ -94,9 +94,9 @@ func modelWords(info protocol.HarnessInfo, model string) string {
 		return modelName(info.Capabilities, model)
 	}
 	if model := defaultModel(info); model != "" {
-		return i18n.Tf("%s (harness default)", modelName(info.Capabilities, model))
+		return i18n.Tf("%s (its default)", modelName(info.Capabilities, model))
 	}
-	return i18n.T("Harness default model")
+	return i18n.T("Its default model")
 }
 
 // the model id a new session of the harness starts on, empty when neither the harness nor its settings said

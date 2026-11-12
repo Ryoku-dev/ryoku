@@ -19,21 +19,26 @@ import (
 // spendFile is spend.json: per month ("2026-11"), per team id.
 type spendFile map[string]map[string]*monthSpend
 
-// monthSpend is one team's tokens in one month. Task counts are not kept
-// here: they come from the tasks themselves, which addSpend is not told of.
-// Engines are keyed by engineKey.
+// monthSpend is one team's tokens in one month. The members', routines' and
+// engines' task counts are not kept here: they come from the tasks
+// themselves. The days count the tasks that ended on them, which a task
+// cannot tell once it is retried and ends again. Engines are keyed by
+// engineKey.
 type monthSpend struct {
-	Days      map[string]dayTokens `json:"days"`
-	Members   map[string]int64     `json:"members,omitempty"`
-	Routines  map[string]int64     `json:"routines,omitempty"`
-	Engines   map[string]int64     `json:"engines,omitempty"`
-	Estimated bool                 `json:"estimated,omitempty"`
+	Days      map[string]daySpend `json:"days"`
+	Members   map[string]int64    `json:"members,omitempty"`
+	Routines  map[string]int64    `json:"routines,omitempty"`
+	Engines   map[string]int64    `json:"engines,omitempty"`
+	Estimated bool                `json:"estimated,omitempty"`
 }
 
-// dayTokens is one day's tokens, keyed by "2026-11-11".
-type dayTokens struct {
-	Input  int64 `json:"input"`
-	Output int64 `json:"output"`
+// daySpend is one day's tokens and the tasks that ended done or blocked on
+// it, keyed by "2026-11-11". A file from before the counts reads them as 0.
+type daySpend struct {
+	Input    int64 `json:"input"`
+	Output   int64 `json:"output"`
+	Tasks    int   `json:"tasks,omitempty"`
+	Routines int   `json:"routines,omitempty"`
 }
 
 const (
@@ -64,18 +69,7 @@ func (s *Service) addSpend(team, member, routine, engine string, at time.Time, u
 	if err != nil {
 		return
 	}
-	month := at.Format(monthLayout)
-	if file[month] == nil {
-		file[month] = make(map[string]*monthSpend)
-	}
-	ms := file[month][team]
-	if ms == nil {
-		ms = &monthSpend{}
-		file[month][team] = ms
-	}
-	if ms.Days == nil {
-		ms.Days = make(map[string]dayTokens)
-	}
+	ms := file.month(team, at)
 	day := ms.Days[at.Format(dayLayout)]
 	day.Input += int64(usage.Input)
 	day.Output += int64(usage.Output)
@@ -100,6 +94,55 @@ func (s *Service) addSpend(team, member, routine, engine string, at time.Time, u
 		ms.Engines[engine] += tokens
 	}
 	ms.Estimated = ms.Estimated || usage.Estimated
+	st.saveSpendLocked(file)
+}
+
+// countEnded counts a task that ended done or blocked on the day it ended,
+// and as a routine run when it was one. A retried task that ends again
+// counts again. A spend file that cannot be written loses the count.
+func (s *Service) countEnded(t protocol.TeamTask) {
+	if t.Team == "" || t.Ended == nil || (t.Status != protocol.TaskDone && t.Status != protocol.TaskBlocked) {
+		return
+	}
+	st := s.state
+	st.spendMu.Lock()
+	defer st.spendMu.Unlock()
+	file, err := st.spendLocked()
+	if err != nil {
+		return
+	}
+	ms := file.month(t.Team, *t.Ended)
+	key := t.Ended.Format(dayLayout)
+	day := ms.Days[key]
+	day.Tasks++
+	if t.Routine != "" {
+		day.Routines++
+	}
+	ms.Days[key] = day
+	st.saveSpendLocked(file)
+}
+
+// month is a team's spend in the month of at, made with its days when the
+// team has none there yet.
+func (file spendFile) month(team string, at time.Time) *monthSpend {
+	month := at.Format(monthLayout)
+	if file[month] == nil {
+		file[month] = make(map[string]*monthSpend)
+	}
+	ms := file[month][team]
+	if ms == nil {
+		ms = &monthSpend{}
+		file[month][team] = ms
+	}
+	if ms.Days == nil {
+		ms.Days = make(map[string]daySpend)
+	}
+	return ms
+}
+
+// saveSpendLocked writes spend.json; a write that fails keeps the counts in
+// memory for the next one.
+func (st *state) saveSpendLocked(file spendFile) {
 	data, err := json.MarshalIndent(file, "", "  ")
 	if err != nil {
 		return
@@ -143,7 +186,7 @@ func (s *Service) spend(p protocol.TeamSpendParams) (protocol.TeamSpend, error) 
 		return t.Started != nil && t.Started.Format(monthLayout) == month
 	})
 	out := protocol.TeamSpend{Team: p.Team, Month: month, Days: []protocol.DaySpend{}}
-	days := make(map[string]dayTokens)
+	days := make(map[string]daySpend)
 	limited := true
 	for _, team := range teams {
 		ms := byTeam[team.ID]
@@ -157,6 +200,8 @@ func (s *Service) spend(p protocol.TeamSpendParams) (protocol.TeamSpend, error) 
 				sum := days[day]
 				sum.Input += d.Input
 				sum.Output += d.Output
+				sum.Tasks += d.Tasks
+				sum.Routines += d.Routines
 				days[day] = sum
 			}
 		}
@@ -175,7 +220,7 @@ func (s *Service) spend(p protocol.TeamSpendParams) (protocol.TeamSpend, error) 
 		out.Cap = 0
 	}
 	for day, d := range days {
-		out.Days = append(out.Days, protocol.DaySpend{Day: day, Input: d.Input, Output: d.Output})
+		out.Days = append(out.Days, protocol.DaySpend{Day: day, Input: d.Input, Output: d.Output, Tasks: d.Tasks, Routines: d.Routines})
 	}
 	sort.Slice(out.Days, func(i, j int) bool { return out.Days[i].Day < out.Days[j].Day })
 	out.Engines = engineSpend(teams, byTeam, ran)

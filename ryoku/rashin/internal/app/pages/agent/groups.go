@@ -159,7 +159,7 @@ func sessionPlace(snapshot state.Snapshot, info protocol.SessionInfo) string {
 		return filepath.Base(sessionFolder(info))
 	}
 	if worktree, ok := worktreeOf(snapshot, info); ok && !worktree.Main {
-		return project + " · " + worktree.Name
+		return i18n.Tf("%s in %s", worktree.Name, project)
 	}
 	return project
 }

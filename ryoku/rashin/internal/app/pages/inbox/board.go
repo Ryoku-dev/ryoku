@@ -25,6 +25,8 @@ type board struct {
 	start     teamsui.TeamStart
 	// a need, or a task whose need, to bring into view on the next frame
 	reveal string
+	// every team's month, read once the Inbox opens and again when the snapshot says it moved
+	month teamsui.MonthSpend
 }
 
 type boardItem struct {

@@ -37,7 +37,7 @@ func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 				if at == teamsui.GroupQueued {
 					when = look.Ago(gtx.Now, task.Created)
 				}
-				row.Trail = kit.Text(th.Theme, th.T.MonoSm, th.R.Fg3, when)
+				row.Trail = kit.Text(th.Theme, th.T.Caption, th.R.Fg3, when)
 			}
 			rows = append(rows, row)
 		}

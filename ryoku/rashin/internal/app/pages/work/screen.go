@@ -32,7 +32,8 @@ func screenOf(snapshot state.Snapshot, task protocol.TeamTask) (protocol.ScreenS
 	return screen, ok
 }
 
-func (s *taskScreen) layout(gtx layout.Context, e *env.Env, snapshot state.Snapshot, task protocol.TeamTask, screen protocol.ScreenState) layout.Dimensions {
+// gold is false while a need card on the page holds the view's one gold action
+func (s *taskScreen) layout(gtx layout.Context, e *env.Env, snapshot state.Snapshot, task protocol.TeamTask, screen protocol.ScreenState, gold bool) layout.Dimensions {
 	th := e.Theme
 	yours := screen.Holder == protocol.HolderUser
 	control := func(verb string) {
@@ -41,10 +42,13 @@ func (s *taskScreen) layout(gtx layout.Context, e *env.Env, snapshot state.Snaps
 	member := teamsui.MemberOf(snapshot, task.Team, task.Member)
 	s.take.Kind, s.take.Small, s.take.Label = kit.PlaqueTonal, true, i18n.T("Take control")
 	// what the member asks to be done on its screen makes taking it the one thing to do
-	if screen.Ask != "" {
+	if screen.Ask != "" && gold {
 		s.take.Kind = kit.PlaqueGold
 	}
-	s.back.Kind, s.back.Small, s.back.Label = kit.PlaqueGold, true, i18n.T("Hand back")
+	s.back.Kind, s.back.Small, s.back.Label = kit.PlaqueTonal, true, i18n.T("Hand back")
+	if gold {
+		s.back.Kind = kit.PlaqueGold
+	}
 	if member != "" {
 		s.back.Label = i18n.Tf("Hand back to %s", member)
 	}
@@ -69,7 +73,7 @@ func (s *taskScreen) layout(gtx layout.Context, e *env.Env, snapshot state.Snaps
 	case screen.Ask != "":
 		children = append(children,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return kit.Label{Style: th.T.Detail, Color: th.R.Stone(palette.Attention), MaxLines: 3}.Layout(gtx, th.Theme, screen.Ask)
+				return kit.Label{Style: th.T.Detail, Color: th.R.Fg, MaxLines: 3}.Layout(gtx, th.Theme, screen.Ask)
 			}),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 		)

@@ -83,7 +83,9 @@ func (state *viewState) layoutTurnFoot(gtx layout.Context, th *look.Theme, block
 			})
 		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return layout.E.Layout(gtx, kit.Text(th.Theme, th.T.MonoSm, th.R.Fg3, turnUsage(turn)))
+			return layout.E.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layoutTurnUsage(gtx, th, turn)
+			})
 		}),
 	)
 	return layout.Dimensions{Size: size}
@@ -156,27 +158,38 @@ func retryAction(model *modelState, index, turn int) Action {
 	return action
 }
 
+// how the turn ended and what it spent in words, then the model that answered,
+// a literal id in mono set apart by space
+func layoutTurnUsage(gtx layout.Context, th *look.Theme, turn *turnState) layout.Dimensions {
+	children := make([]layout.FlexChild, 0, 3)
+	if words := turnUsage(turn); words != "" {
+		children = append(children, layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, words)))
+	}
+	if turn.answer != nil && turn.answer.Via != "" {
+		if len(children) > 0 {
+			children = append(children, layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout))
+		}
+		children = append(children, layout.Rigid(kit.RawText(th.Theme, th.T.MonoSm, th.R.Fg3, turn.answer.Via)))
+	}
+	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Baseline}.Layout(gtx, children...)
+}
+
+// "Stopped, 18,200 in, 1,400 out"
 func turnUsage(turn *turnState) string {
-	parts := make([]string, 0, 4)
+	var stop, spent string
 	// half an answer reads like a whole one unless the line under it says it is not
 	if turn.end != nil {
 		switch turn.end.Stop {
 		case protocol.StopCancelled:
-			parts = append(parts, i18n.T("Stopped"))
+			stop = i18n.T("Stopped")
 		case protocol.StopMaxTokens:
-			parts = append(parts, i18n.T("Cut off at the length limit"))
+			stop = i18n.T("Cut off at the length limit")
 		}
 	}
-	if turn.answer != nil && turn.answer.Via != "" {
-		parts = append(parts, turn.answer.Via)
-	}
 	if turn.end != nil && turn.end.Usage != nil {
-		parts = append(parts,
-			i18n.Tf("%s in", groupedNumber(turn.end.Usage.Input)),
-			i18n.Tf("%s out", groupedNumber(turn.end.Usage.Output)),
-		)
+		spent = i18n.Tf("%s in, %s out", groupedNumber(turn.end.Usage.Input), groupedNumber(turn.end.Usage.Output))
 	}
-	return strings.Join(parts, " · ")
+	return look.Clauses(stop, spent)
 }
 
 func groupedNumber(value int) string {

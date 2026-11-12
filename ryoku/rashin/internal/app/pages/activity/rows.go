@@ -1,8 +1,6 @@
 package activity
 
 import (
-	"strings"
-
 	"gioui.org/layout"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
@@ -72,11 +70,7 @@ func (p *Page) layoutItem(gtx layout.Context, e *env.Env, filter string, it item
 func (p *Page) layoutEntry(gtx layout.Context, e *env.Env, entry protocol.Activity) layout.Dimensions {
 	detail := entry.Detail
 	if p.team == "" && entry.Team != "" {
-		parts := []string{teamsui.TeamName(e.Snapshot().Teams, entry.Team)}
-		if detail != "" {
-			parts = append(parts, detail)
-		}
-		detail = strings.Join(parts, " · ")
+		detail = look.Clauses(teamsui.TeamName(e.Snapshot().Teams, entry.Team), detail)
 	}
 	return teamsui.LedgerRow(e.Theme, entry.Time.Local().Format("15:04"), 52, entry, detail)(gtx)
 }

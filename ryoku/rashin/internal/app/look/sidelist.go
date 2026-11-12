@@ -347,7 +347,7 @@ func (list *SideList) layoutHeader(gtx layout.Context, th *Theme, item sideItem)
 			if item.count <= 0 {
 				return layout.Dimensions{}
 			}
-			return kit.Text(th.Theme, th.T.MonoSm, th.R.Fg3, itoa(item.count))(gtx)
+			return kit.Text(th.Theme, th.T.Caption, th.R.Fg3, itoa(item.count))(gtx)
 		}),
 	)
 	offset.Pop()

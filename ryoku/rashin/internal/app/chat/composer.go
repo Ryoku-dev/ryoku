@@ -339,7 +339,7 @@ func queuedLabel(prompt protocol.QueuedPrompt) string {
 	case text == "":
 		return strings.Join(names, ", ")
 	default:
-		return text + " · " + strings.Join(names, ", ")
+		return i18n.Tf("%s, with %s", text, strings.Join(names, ", "))
 	}
 }
 
@@ -384,8 +384,7 @@ func (state *composerState) layoutChip(
 	})
 	call := record.Stop()
 	bounds, cut := image.Rect(0, 0, dimensions.Size.X, height), gtx.Dp(th.Cut.Small)
-	kit.FillCut(gtx.Ops, bounds, cut, th.R.Slab)
-	kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(1)), th.R.Vein)
+	kit.SlabSurface(gtx, th, bounds, cut, th.R.Slab)
 	call.Add(gtx.Ops)
 	return layout.Dimensions{Size: image.Pt(dimensions.Size.X, height)}
 }

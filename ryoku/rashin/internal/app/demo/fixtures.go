@@ -771,7 +771,15 @@ func demoCommits(now time.Time) ([]protocol.GitCommit, []protocol.GitRef) {
 			Subject: i18n.T("Start Rashin Work"),
 		},
 	}
-	history := make([]string, 58)
+	// how many of the older commits landed on each day before today, newest first: idle weekends, a quiet weekday and a busy day
+	perDay := []int{3, 0, 0, 4, 9, 2, 3, 5, 0, 1, 2, 4, 0, 6, 3, 0, 0, 2, 1, 4, 2, 1, 0, 0, 3, 2, 0, 1}
+	var times []time.Time
+	for back, count := range perDay {
+		for step := range count {
+			times = append(times, now.Add(-time.Duration(back+1)*24*time.Hour-time.Duration(step+1)*50*time.Minute))
+		}
+	}
+	history := make([]string, len(times))
 	for index := range history {
 		history[index] = fmt.Sprintf("%040x", index+1)
 	}
@@ -798,7 +806,7 @@ func demoCommits(now time.Time) ([]protocol.GitCommit, []protocol.GitRef) {
 		}
 		commits = append(commits, protocol.GitCommit{
 			Hash: hash, Parents: parents, Author: []string{"Ren", "Aki", "Agent"}[index%3],
-			Time: now.Add(-time.Duration(25+index*3) * time.Hour), Subject: subjects[index%len(subjects)],
+			Time: times[index], Subject: subjects[index%len(subjects)],
 		})
 	}
 	refs := []protocol.GitRef{
