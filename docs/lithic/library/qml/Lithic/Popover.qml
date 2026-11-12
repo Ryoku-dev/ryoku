@@ -12,6 +12,9 @@ T.Popup {
     property point placementPosition: Qt.point(0, 0)
     property bool openAbove: false
     property real slideOffset: 0
+    // hands focus to a menu inside on open; a host that focuses the menu itself
+    // (a Picker on its current choice) turns it off
+    property bool menuFocus: true
     readonly property bool lithicPopoverMarker: true
 
     padding: 0
@@ -80,13 +83,13 @@ T.Popup {
     }
     onOpened: {
         placeAtAnchor()
-        _focusMenu()
+        if (menuFocus)
+            _focusMenu()
     }
 
     // A menu inside the popover takes focus on its first enabled item, so the
-    // arrows and Return reach it; a host that already placed focus inside the
-    // content, such as a Picker on its current choice, keeps it. Only an opener
-    // that held keyboard focus shows the keyboard ring there.
+    // arrows and Return reach it; focus already inside the content stays where
+    // it is. Only an opener that held keyboard focus shows the keyboard ring there.
     function _focusMenu() {
         const window = liveContent.Window.window
         for (let item = window ? window.activeFocusItem : null; item; item = item.parent) {

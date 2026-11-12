@@ -148,7 +148,9 @@ T.Control {
         anchorItem: field
         opener: root
         previewEmbedded: root.previewOpen
-        // the popover takes focus on open; hand it to the menu so the arrows and Return choose
+        // the picker, not the popover, hands focus to the menu: on the current choice,
+        // with the keyboard mark only when the keys opened it
+        menuFocus: false
         onOpened: menu.focusItem(root.currentIndex, root._openedFromKeys)
 
         Menu {
