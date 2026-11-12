@@ -19,8 +19,9 @@ import (
 // against.
 const shownFacts = 20
 
-// learnReplyTokens bounds the learner's reply.
-const learnReplyTokens = 2048
+// learnReplyTokens bounds the learner's reply: the summary, up to
+// learnEventsMax events and the ops.
+const learnReplyTokens = 3072
 
 // learner learns from conversations once they have gone quiet. One timer
 // stands for the earliest conversation due; nothing runs and no timer is set

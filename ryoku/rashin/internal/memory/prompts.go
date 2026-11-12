@@ -74,7 +74,7 @@ Keep a candidate only when it meets all four tests:
 - Signal: remembering it saves the user from repeating it.
 - Novel: it adds a distinct fact.
 - Important: losing it would cause rework or lose a preference or rule.
-- Persistent: it should stay useful for at least two weeks.
+- Persistent: it should stay useful for at least two weeks. Something the user did or will do, with its date and place, passes: it stays true. "The user got their guitar serviced at the music shop on Main St on 2 May 2026" is worth keeping; so are a bike service, a trip and how long it lasted, a launch, a sighting.
 Give each fact a kind:
 - "permanent": core preferences, personal traits and habits that stay relevant indefinitely.
 - "durable": project knowledge, decisions and setup that stay valid for months.
@@ -157,14 +157,15 @@ const learnOutput = `
 
 ## Answer
 Answer with exactly one JSON object and nothing else: no prose, no code fence.
-{"summary":"...","ops":[{"op":"add","scope":"personal","text":"...","kind":"permanent","explicit":true,"sensitive":false,"supersedes":[],"evidence":"..."}]}
+{"summary":"...","events":[{"what":"...","when":"..."}],"ops":[{"op":"add","scope":"personal","text":"...","kind":"permanent","explicit":true,"sensitive":false,"supersedes":[],"evidence":"..."}]}
 - "summary": one or two sentences saying what the conversation was about, for finding it again later: keep the names, numbers and absolute dates the user gave and the key advice or answer the conversation reached, not only the topic ("On 3 March 2026 the user asked which of 4 Kyoto temples to visit; Kinkaku-ji was recommended."). No secrets.
+- "events": first, before deciding anything, list every dated or counted thing the user says they did, are doing or will do: a service, a trip and its length, a purchase, a launch, a visit, a sighting, how many of something. "what" says it with its place and numbers; "when" is its absolute date or span, or "" when none was given. At most 20 events, each "what" at most 160 characters. Events are only your notes: then turn each one the user did or will do into an "add" in "ops", with its date in the text, unless an existing fact already says it.
 - "op": "add" or "supersede". "scope": "personal" or "project". "kind": "permanent", "durable", "ephemeral" or "correction".
 - "explicit": true only when the user stated it as lasting in their own words ("I always", "from now on", "remember that").
 - "sensitive": true when the fact is about health, beliefs, money, sex life, relationships, legal trouble or similar private matters.
 - "supersedes": the ids an op replaces, empty for "add".
 - "evidence": a short quote of the user's own words the fact comes from, copied exactly.
-When nothing qualifies, answer {"summary":"...","ops":[]}.`
+When nothing qualifies, answer {"summary":"...","events":[],"ops":[]}.`
 
 // learnSystem is the learner's system prompt.
 const learnSystem = learnFrame + learnWhatCounts + learnPriorities + learnRetention + learnNever + learnStyle + learnDeclarative + learnReconcile + learnOutput
@@ -176,7 +177,7 @@ const learnSystem = learnFrame + learnWhatCounts + learnPriorities + learnRetent
 // contributors): the user-only rule and its examples. Modified by Ryoku: for
 // small local models after a reply that was not valid JSON; the same answer
 // shape as learnSystem; the examples are new.
-const learnSystemShort = `You read a finished conversation and keep the few facts about the user that will still matter in two weeks.
+const learnSystemShort = `You read a finished conversation and keep the few facts about the user that will still matter in two weeks. Something the user did or will do, with its date, still matters.
 
 Rules:
 - Take facts only from the user's own words, never from the assistant's.
@@ -185,19 +186,20 @@ Rules:
 - Turn relative dates into absolute ones using the observation date.
 - Write each fact as one line of at most 280 characters about the user, never as an order.
 - Prefer the latest evidence. If a new fact contradicts an existing one, use "supersede" with that fact's id from the list. Never invent an id.
-- If nothing survives, answer with an empty ops list.
+- First list in "events" every dated or counted thing the user did or will do (at most 20, each at most 160 characters), then add each as a fact with its date.
+- If nothing survives, answer with empty events and ops lists.
 
 Examples:
 User: Hi.
 Assistant: Hello! How can I help?
-Answer: {"summary":"A greeting.","ops":[]}
+Answer: {"summary":"A greeting.","events":[],"ops":[]}
 
 User: I'm vegetarian, so leave the meat out of the recipe.
 Assistant: Here is a vegetarian version.
-Answer: {"summary":"A vegetarian version of a recipe.","ops":[{"op":"add","scope":"personal","text":"The user is vegetarian","kind":"permanent","explicit":true,"sensitive":false,"supersedes":[],"evidence":"I'm vegetarian"}]}
+Answer: {"summary":"A vegetarian version of a recipe.","events":[],"ops":[{"op":"add","scope":"personal","text":"The user is vegetarian","kind":"permanent","explicit":true,"sensitive":false,"supersedes":[],"evidence":"I'm vegetarian"}]}
 
 Answer with exactly one JSON object and nothing else:
-{"summary":"...","ops":[{"op":"add or supersede","scope":"personal or project","text":"...","kind":"permanent, durable, ephemeral or correction","explicit":false,"sensitive":false,"supersedes":[],"evidence":"the user's exact words"}]}`
+{"summary":"...","events":[{"what":"...","when":"..."}],"ops":[{"op":"add or supersede","scope":"personal or project","text":"...","kind":"permanent, durable, ephemeral or correction","explicit":false,"sensitive":false,"supersedes":[],"evidence":"the user's exact words"}]}`
 
 // Portions adapted from openai/codex
 // codex-rs/memories/write/templates/memories/stage_one_input_v2.md @

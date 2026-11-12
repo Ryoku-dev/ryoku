@@ -1827,6 +1827,11 @@ no file is opened, no model is loaded, no timer is set.
   your words, the final answer of each turn and your answers to questions and
   permission requests, never tool output, files or web pages. Everything sent
   is scrubbed of secrets first.
+- That call first lists the dated or counted things you did or plan, then
+  keeps the facts worth having later: what happened when and where, how many,
+  what you prefer, never an interest you did not state. Only the facts are
+  stored, and each conversation's summary keeps its names, numbers, dates and
+  the key advice.
 - The model is a local one first (`memory.model = localFirst`), else the one
   that answered the conversation; "Local only" waits for a local model and
   "Any provider" uses Ask's route.
@@ -1842,11 +1847,17 @@ no file is opened, no model is loaded, no timer is set.
 
 - **Ask** gets a `# Memory` section in its system prompt: how to use memory,
   the card about you (at most 1,375 characters) and how much more there is to
-  search. Each question also gets up to eight facts about you and the
-  conversation's project, fenced in `<memory-context>` on that turn's message
-  only: the stored conversation keeps what you typed, so the next turn never
-  carries the fence, and a fence the model repeats is cut from the answer as
-  it streams. "Used N memories" under the answer says which facts it drew on.
+  search. Each question also gets facts about you and the conversation's
+  project, fenced in `<memory-context>` on that turn's message only: every
+  fact it may read when they all fit the fence, else up to eight that bear on
+  the question. With past conversations allowed in Settings > Memory, a
+  question that looks back ("did I", "when did I", "what did you say") or
+  that no fact bears on also gets matching lines of earlier conversations,
+  with their day and title, an answer of Rashin's ahead of yours when you ask
+  what it said, and a long line cut around the sentence that matches. The
+  stored conversation keeps what you typed, so the next turn never carries
+  the fence, and a fence the model repeats is cut from the answer as it
+  streams. "Used N memories" under the answer says which facts it drew on.
   Trivial turns ("thanks", "ok") recall nothing.
 - **Ask's memory tools**: `memory_search`, `remember` (which may mark a fact
   sensitive), `forget`, and `session_search` over past conversations when

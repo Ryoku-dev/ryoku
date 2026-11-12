@@ -17,11 +17,27 @@ import (
 // errNoJSON is a reply that held no object of the expected shape.
 var errNoJSON = errors.New("memory: the model's reply was not the expected JSON")
 
-// learnReply is what the learner asks for.
+// learnReply is what the learner asks for. Events are the model's list of
+// dated and counted things the user did, written before it decides what to
+// keep; they are never stored.
 type learnReply struct {
-	Summary string    `json:"summary"`
-	Ops     []learnOp `json:"ops"`
+	Summary string       `json:"summary"`
+	Events  []learnEvent `json:"events"`
+	Ops     []learnOp    `json:"ops"`
 }
+
+// learnEvent is one thing the user did or will do, and when.
+type learnEvent struct {
+	What string `json:"what"`
+	When string `json:"when"`
+}
+
+// The most events a reply lists, and the longest one may be; the prompts
+// say the same numbers.
+const (
+	learnEventsMax    = 20
+	learnEventCharMax = 160
+)
 
 // learnOp is one operation the learner proposes.
 type learnOp struct {
@@ -103,9 +119,13 @@ func (f *importFact) UnmarshalJSON(raw []byte) error {
 
 // Portions adapted from openai/codex codex-rs/memories/write/src/phase1_output.rs
 // @ b75ec48a2c90 (Apache-2.0, Copyright 2025 OpenAI). Modified by Ryoku:
-// Rashin's operations; "additionalProperties": false as there.
-const learnSchema = `{"type":"object","additionalProperties":false,"required":["summary","ops"],"properties":{` +
+// Rashin's operations, after a bounded list of the user's events;
+// "additionalProperties": false as there.
+var learnSchema = `{"type":"object","additionalProperties":false,"required":["summary","events","ops"],"properties":{` +
 	`"summary":{"type":"string"},` +
+	`"events":{"type":"array","maxItems":` + strconv.Itoa(learnEventsMax) + `,"items":{"type":"object","additionalProperties":false,"required":["what","when"],"properties":{` +
+	`"what":{"type":"string","maxLength":` + strconv.Itoa(learnEventCharMax) + `},` +
+	`"when":{"type":"string"}}}},` +
 	`"ops":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["op","scope","text","kind","explicit","sensitive","supersedes","evidence"],"properties":{` +
 	`"op":{"type":"string","enum":["add","supersede"]},` +
 	`"scope":{"type":"string","enum":["personal","project"]},` +

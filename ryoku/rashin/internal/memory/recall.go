@@ -290,11 +290,12 @@ func (e *Engine) recallPast(ctx context.Context, info protocol.SessionInfo, ques
 			if len(said.Facts) == chatLines {
 				break
 			}
-			at := hit.doc.info.Updated
-			if index < len(hit.doc.dates) && !hit.doc.dates[index].IsZero() {
-				at = hit.doc.dates[index]
+			line := hit.doc.lines[index]
+			at := line.at
+			if at.IsZero() {
+				at = hit.doc.info.Updated
 			}
-			said.Facts = append(said.Facts, protocol.Memory{Text: hit.doc.title + ": " + hit.doc.lines[index], Updated: at})
+			said.Facts = append(said.Facts, protocol.Memory{Text: hit.doc.title + ": " + line.show(question), Updated: at})
 		}
 		if hit.summary != "" && len(summaries.Facts) < recallChats {
 			summaries.Facts = append(summaries.Facts, protocol.Memory{Text: hit.doc.title + ": " + hit.summary, Updated: hit.doc.info.Updated})

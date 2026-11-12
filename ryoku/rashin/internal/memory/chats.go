@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	i18n "ryoku-i18n"
 	"ryoku-rashin/internal/core"
@@ -17,25 +18,43 @@ import (
 )
 
 // Past-conversation search: how many conversations answer by default and at
-// most, how many matching lines each shows, and how long a line may be.
+// most, how many matching lines each shows, how long a shown line may be,
+// and how much of one line is kept to search.
 const (
 	chatsDefault  = 5
 	chatsMax      = 20
 	chatLines     = 3
 	chatLineChars = 400
+	chatLineKept  = rowMax
 )
 
 // chatDoc is one past conversation as the search reads it: its info when
-// read, up to which event, its title, its user and final-reply lines,
-// scrubbed, with the day of the turn each came from, and the project it
-// belongs to ("" for none).
+// read, up to which event, its title, its lines, and the project it belongs
+// to ("" for none).
 type chatDoc struct {
 	info  protocol.SessionInfo
 	seq   int64
 	title string
 	scope string
-	lines []string
-	dates []time.Time
+	lines []chatLine
+}
+
+// chatLine is one line of a past conversation: the user's words or a final
+// reply, scrubbed, and the day of its turn.
+type chatLine struct {
+	reply bool
+	text  string
+	at    time.Time
+}
+
+// show is the line as a search shows it: who said it, and the part of it
+// that matches query when it is too long to show whole.
+func (l chatLine) show(query string) string {
+	who := i18n.T("User")
+	if l.reply {
+		who = i18n.T("Reply")
+	}
+	return who + ": " + excerpt(query, l.text, chatLineChars)
 }
 
 // chatHit is one conversation a search found: its scanned summary and the
@@ -114,7 +133,7 @@ func (e *Engine) sessionsSearch(ctx context.Context, in protocol.SessionInfo, p 
 	for _, hit := range hits {
 		lines := make([]string, len(hit.lines))
 		for at, index := range hit.lines {
-			lines[at] = render.Neutral(hit.doc.lines[index])
+			lines[at] = render.Neutral(hit.doc.lines[index].show(p.Query))
 		}
 		result.Sessions = append(result.Sessions, protocol.MemorySessionHit{
 			Session: hit.doc.info.ID,
@@ -154,7 +173,12 @@ func (e *Engine) findChats(ctx context.Context, in protocol.SessionInfo, query s
 	}
 	texts := make([]string, len(docs))
 	for index, doc := range docs {
-		texts[index] = summaries[doc.info.ID].Summary + "\n" + doc.title + "\n" + strings.Join(doc.lines, "\n")
+		var b strings.Builder
+		b.WriteString(summaries[doc.info.ID].Summary + "\n" + doc.title)
+		for _, line := range doc.lines {
+			b.WriteString("\n" + line.text)
+		}
+		texts[index] = b.String()
 	}
 	lists := [][]string{ranked(docs, rank.BM25(query, texts))}
 	if vectors, err := store.Embed(ctx, []string{query}); err == nil && len(vectors) == 1 {
@@ -219,19 +243,81 @@ func ranked(docs []*chatDoc, scores []float64) []string {
 }
 
 // matchingLines are the positions of the lines of a conversation that best
-// match the query, in order.
-func matchingLines(query string, lines []string) []int {
-	scores := rank.BM25(query, lines)
+// match the query, in order. A question about what the assistant said takes
+// the matching replies before the user's lines.
+func matchingLines(query string, lines []chatLine) []int {
+	texts := make([]string, len(lines))
+	for index, line := range lines {
+		texts[index] = line.text
+	}
+	scores := rank.BM25(query, texts)
+	replies := asksWhatWasSaid(query)
 	order := make([]int, 0, len(lines))
 	for index, score := range scores {
 		if score > 0 {
 			order = append(order, index)
 		}
 	}
-	sort.SliceStable(order, func(i, j int) bool { return scores[order[i]] > scores[order[j]] })
+	sort.SliceStable(order, func(i, j int) bool {
+		a, b := lines[order[i]], lines[order[j]]
+		if replies && a.reply != b.reply {
+			return a.reply
+		}
+		return scores[order[i]] > scores[order[j]]
+	})
 	order = order[:min(len(order), chatLines)]
 	sort.Ints(order)
 	return order
+}
+
+// sentence is one sentence of a line with what follows it up to the next.
+var sentence = regexp.MustCompile(`[^.!?\n]+(?:[.!?]+|\n|$)\s*`)
+
+// excerpt is text cut to max characters around the sentence that best
+// matches query, with the sentences either side as room allows, and "…"
+// where it was cut. Text that fits is returned whole.
+func excerpt(query, text string, max int) string {
+	text = strings.Join(strings.Fields(text), " ")
+	if utf8.RuneCountInString(text) <= max {
+		return text
+	}
+	parts := sentence.FindAllString(text, -1)
+	if len(parts) == 0 {
+		return render.Cut(text, max)
+	}
+	scores := rank.BM25(query, parts)
+	best := 0
+	for index, score := range scores {
+		if score > scores[best] {
+			best = index
+		}
+	}
+	first, last := best, best
+	used := utf8.RuneCountInString(parts[best]) + 2
+	for grew := true; grew; {
+		grew = false
+		if last+1 < len(parts) && used+utf8.RuneCountInString(parts[last+1]) <= max {
+			last++
+			used += utf8.RuneCountInString(parts[last])
+			grew = true
+		}
+		if first > 0 && used+utf8.RuneCountInString(parts[first-1]) <= max {
+			first--
+			used += utf8.RuneCountInString(parts[first])
+			grew = true
+		}
+	}
+	out := strings.TrimSpace(strings.Join(parts[first:last+1], ""))
+	if first == last {
+		out = render.Cut(out, max-2)
+	}
+	if first > 0 {
+		out = "…" + out
+	}
+	if last < len(parts)-1 {
+		out += "…"
+	}
+	return out
 }
 
 // chatDocs brings the index up to date with the stored conversations that
@@ -285,7 +371,7 @@ func (l *learner) chatDocs(e *Engine, sessions core.MemorySessions, since time.T
 }
 
 // readChat reads one conversation's title, project and lines: the user's
-// words and the final replies, scrubbed, each cut to a line's length.
+// words and the final replies, scrubbed.
 func readChat(e *Engine, sessions core.MemorySessions, info protocol.SessionInfo) *chatDoc {
 	doc := &chatDoc{info: info, seq: info.LastSeq, title: redact.Strict(stripPrivate(info.Title))}
 	doc.scope, _ = e.sessionScope(info)
@@ -297,18 +383,11 @@ func readChat(e *Engine, sessions core.MemorySessions, info protocol.SessionInfo
 	scrubTurns(conv.turns)
 	for _, turn := range conv.turns {
 		if turn.User != "" {
-			doc.lines = append(doc.lines, chatLine(i18n.T("User"), turn.User))
-			doc.dates = append(doc.dates, turn.At)
+			doc.lines = append(doc.lines, chatLine{text: cutBytes(turn.User, chatLineKept), at: turn.At})
 		}
 		if turn.Reply != "" {
-			doc.lines = append(doc.lines, chatLine(i18n.T("Reply"), turn.Reply))
-			doc.dates = append(doc.dates, turn.At)
+			doc.lines = append(doc.lines, chatLine{reply: true, text: cutBytes(turn.Reply, chatLineKept), at: turn.At})
 		}
 	}
 	return doc
-}
-
-// chatLine is one line of a conversation as a search shows it.
-func chatLine(who, text string) string {
-	return who + ": " + render.Cut(strings.Join(strings.Fields(text), " "), chatLineChars)
 }

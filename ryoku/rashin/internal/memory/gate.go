@@ -40,7 +40,7 @@ var recallIntentPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)(?:¿?qué\s+(?:decidimos|hablamos)|\b(?:recuerdas|recordar|anteriormente|ayer)\b|(?:^|[^\pL\pN_])última vez(?:$|[^\pL\pN_]))`),
 	regexp.MustCompile(`(?i)\bremind\s+(?:me|us)\s+(?:what|which|who|where|when|why|how)\b`),
 	regexp.MustCompile(`(?i)(?:^|[.?!,;]\s*|\b(?:when|where|why|how|and|so|but)\s+)did\s+i\s+\pL+`),
-	regexp.MustCompile(`(?i)\bhow\s+(?:many|much|often)\b(?:\s+[\pL\pN'’_-]+){0,4}\s+(?:did|have|had)\s+i\b`),
+	regexp.MustCompile(`(?i)\bhow\s+(?:many|much|often|long)\b(?:\s+[\pL\pN'’_-]+){0,4}\s+(?:did|have|had)\s+i\b`),
 	regexp.MustCompile(`(?i)\bwhat\s+did\s+i\s+(?:tell|say|ask|mention|write|send)\b`),
 	regexp.MustCompile(`(?i)\blast\s+time\s+i\b`),
 }
@@ -71,4 +71,14 @@ func recallIntent(text string) bool {
 		}
 	}
 	return false
+}
+
+// assistantSaid is a question about what the assistant itself said:
+// "you recommended", "did you say", "your suggestion".
+var assistantSaid = regexp.MustCompile(`(?i)\b(?:you|rashin)\s+(?:said|told|recommended|suggested|mentioned|advised|proposed|named|gave|listed)\b|\bdid\s+(?:you|rashin)\s+(?:say|tell|recommend|suggest|mention|advise|propose|name|give|list)\b|\b(?:your|the)\s+(?:recommendation|suggestion|advice)\b`)
+
+// asksWhatWasSaid reports a question about what the assistant said, so the
+// past conversations' replies are read before the user's own lines.
+func asksWhatWasSaid(text string) bool {
+	return assistantSaid.MatchString(text)
 }

@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
@@ -633,5 +634,38 @@ func TestLearnSummaryAsksForSpecifics(t *testing.T) {
 		if !strings.Contains(learnSystem, want) {
 			t.Errorf("learnSystem's summary rule lacks %q", want)
 		}
+	}
+}
+
+// The learner lists the user's dated events first and keeps them as dated
+// facts; the events themselves are never stored, and the reply is bounded.
+func TestLearnListsEventsThenKeepsThem(t *testing.T) {
+	answer := `{"summary":"On 2 May 2026 the user had their guitar serviced at the music shop on Main St before a festival.",` +
+		`"events":[{"what":"got the guitar serviced at the music shop on Main St","when":"2 May 2026"}],` +
+		`"ops":[{"op":"add","scope":"personal","text":"The user got their guitar serviced at the music shop on Main St on 2 May 2026","kind":"permanent","explicit":false,"sensitive":false,"supersedes":[],"evidence":"I got my guitar serviced at the music shop on Main St"}]}`
+	te := newTestEngine(t, "", answer)
+	te.sessions.add(protocol.SessionInfo{ID: "ask-guitar"}, turn{user: "I got my guitar serviced at the music shop on Main St yesterday, ready for the festival!", reply: "Great, enjoy the festival."})
+	if _, err := te.learnNow(context.Background(), "ask-guitar"); err != nil {
+		t.Fatal(err)
+	}
+	facts := te.texts(t, protocol.MemoryYou)
+	if len(facts) != 1 || facts[0] != "The user got their guitar serviced at the music shop on Main St on 2 May 2026" {
+		t.Fatalf("active = %q, want only the dated fact", facts)
+	}
+	request := te.client.calls()[0]
+	schema := string(request.Extra["response_format"])
+	if strings.Index(schema, `"events"`) > strings.Index(schema, `"ops"`) || !strings.Contains(schema, fmt.Sprintf(`"maxItems":%d`, learnEventsMax)) {
+		t.Fatalf("schema = %s", schema)
+	}
+	if request.MaxTokens != learnReplyTokens {
+		t.Fatalf("max tokens = %d", request.MaxTokens)
+	}
+	for _, prompt := range []string{learnSystem, learnSystemShort} {
+		if !strings.Contains(prompt, fmt.Sprintf("at most %d", learnEventsMax)) && !strings.Contains(prompt, fmt.Sprintf("At most %d events", learnEventsMax)) || !strings.Contains(prompt, fmt.Sprintf("%d characters", learnEventCharMax)) {
+			t.Fatal("a prompt's event limits differ from the code's")
+		}
+	}
+	if !strings.Contains(learnSystem, "music shop on Main St") {
+		t.Fatal("the retention rule does not keep a dated thing the user did")
 	}
 }
