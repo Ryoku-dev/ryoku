@@ -203,82 +203,103 @@ func (a *App) phoneEnable() int {
 		}
 		installPackages = append(installPackages, name)
 	}
+	touched := []string{a.cfg.PhoneStatePath, a.cfg.PhoneModulesLoadPath, a.cfg.PhoneModprobePath}
+	touched = append(touched, a.phoneLegacyConfigPaths()...)
+	if manager == DNF {
+		touched = append(touched, a.phoneCoprPaths()...)
+	}
+	before, err := readPhoneFiles(touched)
+	if err != nil {
+		return a.failf("read phone configuration: %v", err)
+	}
+	installed := false
+	// fail puts back every file this run touched and removes the packages it
+	// installed, so a failed enable leaves the machine as it found it. A package
+	// that will not go stays in the record, so turning the phone off removes it.
+	fail := func(format string, args ...any) int {
+		cause := fmt.Sprintf(format, args...)
+		var left []string
+		restore := before
+		if installed && len(missing) > 0 {
+			if code := a.Package(append([]string{"remove"}, missing...)); code != ExitOK {
+				left = append(left, fmt.Sprintf("%s stay installed; turning the phone off removes them", strings.Join(missing, ", ")))
+				restore = restore[1:] // keep the record that names them
+			}
+		}
+		for _, f := range restore {
+			if err := f.restore(); err != nil {
+				left = append(left, err.Error())
+			}
+		}
+		if len(left) == 0 {
+			return a.failf("%s; nothing was changed", cause)
+		}
+		return a.failf("%s; left behind: %s", cause, strings.Join(left, "; "))
+	}
 	if manager == DNF {
 		if err := a.writePhoneCoprFiles(); err != nil {
-			return a.failf("configure phone repositories: %v", err)
+			return fail("configure phone repositories: %v", err)
 		}
 	}
 	if err := a.writePhoneState(missing); err != nil {
-		if manager == DNF {
-			for _, path := range a.phoneCoprPaths() {
-				_ = os.Remove(path)
-			}
-		}
-		return a.failf("record phone packages: %v", err)
+		return fail("record phone packages: %v", err)
 	}
-	rollback := func() { _ = a.phoneDisable() }
 	if len(installPackages) > 0 {
 		if code := a.Package(append([]string{"install"}, installPackages...)); code != ExitOK {
-			rollback()
-			return code
+			return fail("install phone packages: exit %d", code)
 		}
+		installed = true
 	}
 	if compatible, version := a.phoneScrcpyCompatible(); !compatible {
-		rollback()
 		if version == "" {
-			return a.failf("scrcpy 2.2 or newer is required")
+			return fail("scrcpy 2.2 or newer is required")
 		}
-		return a.failf("scrcpy 2.2 or newer is required; found %s", version)
+		return fail("scrcpy 2.2 or newer is required; found %s", version)
 	}
 	if err := a.removePhoneLegacyConfig(); err != nil {
-		rollback()
-		return a.failf("remove legacy phone module config: %v", err)
+		return fail("remove legacy phone module config: %v", err)
 	}
 	if err := writePhoneFile(a.cfg.PhoneModulesLoadPath, phoneModulesLoad); err != nil {
-		rollback()
-		return a.failf("write %s: %v", a.cfg.PhoneModulesLoadPath, err)
+		return fail("write %s: %v", a.cfg.PhoneModulesLoadPath, err)
 	}
 	if err := writePhoneFile(a.cfg.PhoneModprobePath, phoneModprobe); err != nil {
-		rollback()
-		return a.failf("write %s: %v", a.cfg.PhoneModprobePath, err)
+		return fail("write %s: %v", a.cfg.PhoneModprobePath, err)
 	}
 	if result := a.run("modprobe", "v4l2loopback"); result.Code != 0 {
-		rollback()
-		return a.failf("load v4l2loopback: exit %d", result.Code)
+		return fail("load v4l2loopback: exit %d", result.Code)
 	}
 	return ExitOK
 }
 
+// phoneDisable removes the recorded packages before any configuration, so a
+// refused removal leaves the phone set up exactly as it was.
 func (a *App) phoneDisable() int {
 	manager, err := a.PackageManager()
 	if err != nil {
 		return a.failf("%v", err)
 	}
-	configPaths := []string{a.cfg.PhoneModulesLoadPath, a.cfg.PhoneModprobePath}
-	configPaths = append(configPaths, a.phoneLegacyConfigPaths()...)
-	for _, path := range configPaths {
-		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-			return a.failf("remove %s: %v", path, err)
-		}
-	}
-	_ = a.run("modprobe", "-r", "v4l2loopback")
 	packages, err := a.readPhoneState()
 	if err != nil {
 		return a.failf("read phone package record: %v", err)
 	}
+	unloaded := a.run("modprobe", "-r", "v4l2loopback").Code == 0
 	if len(packages) > 0 {
 		if code := a.Package(append([]string{"remove"}, packages...)); code != ExitOK {
-			return code
+			if unloaded && a.run("modprobe", "v4l2loopback").Code != 0 {
+				return a.failf("remove phone packages: exit %d; the phone stays set up, but its virtual camera is unloaded until the next restart", code)
+			}
+			return a.failf("remove phone packages: exit %d; the phone stays set up as before", code)
 		}
 	}
-	if err := os.Remove(a.cfg.PhoneStatePath); err != nil && !os.IsNotExist(err) {
-		return a.failf("remove phone package record: %v", err)
-	}
+	paths := []string{a.cfg.PhoneModulesLoadPath, a.cfg.PhoneModprobePath}
+	paths = append(paths, a.phoneLegacyConfigPaths()...)
+	paths = append(paths, a.cfg.PhoneStatePath)
 	if manager == DNF {
-		for _, path := range a.phoneCoprPaths() {
-			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-				return a.failf("remove %s: %v", path, err)
-			}
+		paths = append(paths, a.phoneCoprPaths()...)
+	}
+	for _, path := range paths {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return a.failf("the phone packages are removed, but %s could not be removed: %v", path, err)
 		}
 	}
 	return ExitOK
@@ -372,6 +393,42 @@ func phoneRemoveCommand(manager PackageManager, dnf string, packages []string) [
 	default:
 		return append([]string{"pacman", "-R", "--noconfirm"}, packages...)
 	}
+}
+
+// phoneFile is one file phone enable may write or remove, as it was before.
+type phoneFile struct {
+	path   string
+	body   string
+	exists bool
+}
+
+func readPhoneFiles(paths []string) ([]phoneFile, error) {
+	files := make([]phoneFile, 0, len(paths))
+	for _, path := range paths {
+		body, err := os.ReadFile(path)
+		if os.IsNotExist(err) {
+			files = append(files, phoneFile{path: path})
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, phoneFile{path: path, body: string(body), exists: true})
+	}
+	return files, nil
+}
+
+func (f phoneFile) restore() error {
+	var err error
+	if f.exists {
+		err = writePhoneFile(f.path, f.body)
+	} else if err = os.Remove(f.path); os.IsNotExist(err) {
+		err = nil
+	}
+	if err != nil {
+		return fmt.Errorf("%s could not be put back: %v", f.path, err)
+	}
+	return nil
 }
 
 func writePhoneFile(path, body string) error {

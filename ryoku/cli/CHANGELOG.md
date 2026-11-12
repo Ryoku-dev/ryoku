@@ -1,6 +1,13 @@
 # Ryoku CLI Changelog
 
 ## Unreleased
+- **A failed phone setup leaves the computer as it was.** `ryoku-host phone
+  enable` used to undo a failure by running the full disable, which also
+  removed packages and settings from an earlier setup. It now puts back only
+  the files it touched and removes only the packages it installed, and names
+  any package it could not remove. `phone disable` removes the packages first,
+  so a refused removal leaves the phone set up as before
+  (`internal/host/phone.go`).
 - **`ryoku wm nest <dir> <width>x<height>` starts a hidden session.** It runs
   the compositor provider's nest verb where the provider claims
   `nestedSession` (niri), printing the nested display once it is up and
