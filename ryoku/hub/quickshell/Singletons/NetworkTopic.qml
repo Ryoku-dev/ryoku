@@ -16,6 +16,9 @@ Singleton {
     property var dns: ({ provider: "dhcp", servers: [] })
     property var wireguard: []
     property var vpn: []
+    // IP settings edits not applied yet, and revert deadlines, by connection
+    // uuid; see ConnectionsIpEditor.stash
+    property var ipDrafts: ({})
     property var pendingCalls: ({})
     property int pendingCallCount: 0
     property int nextCallId: 0
@@ -25,9 +28,9 @@ Singleton {
 
     readonly property string sockPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
 
-    // `completion(ok, error)` gets the daemon's answer, or a failure once the
-    // call has waited 30 s: a DNS change waits on authorization and a VPN on
-    // its plugin, both longer than a settings write.
+    // `completion(ok, error, result)` gets the daemon's answer, or a failure
+    // once the call has waited 30 s: a DNS change waits on authorization and a
+    // VPN on its plugin, both longer than a settings write.
     function setDns(provider, servers, completion) {
         return root.send("network.dnsSet", { provider: provider, servers: servers || [] }, completion);
     }
@@ -42,6 +45,40 @@ Singleton {
     }
     function vpnSet(uuid, on, completion) {
         return root.send(on ? "network.vpnActivate" : "network.vpnDeactivate", { uuid: uuid }, completion);
+    }
+    // A saved connection's IPv4 settings. ipSet on a live connection answers
+    // with revertSeconds: the old settings come back then unless ipConfirm
+    // keeps the new ones; ipRevert brings them back at once.
+    function ipGet(uuid, completion) {
+        return root.send("network.ipGet", { uuid: uuid }, completion);
+    }
+    function ipSet(uuid, config, completion) {
+        return root.send("network.ipSet", Object.assign({ uuid: uuid }, config), completion);
+    }
+    function ipConfirm(uuid, completion) {
+        return root.send("network.ipConfirm", { uuid: uuid }, completion);
+    }
+    function ipRevert(uuid, completion) {
+        return root.send("network.ipRevert", { uuid: uuid }, completion);
+    }
+
+    function ipStashed(uuid) {
+        return root.ipDrafts[uuid] || null;
+    }
+    function ipStash(uuid, draft) {
+        var next = Object.assign({}, root.ipDrafts);
+        if (draft)
+            next[uuid] = draft;
+        else
+            delete next[uuid];
+        root.ipDrafts = next;
+    }
+    // Opening the box anew starts from the saved settings: edits left from
+    // an earlier time it was open are dropped, a running revert is kept.
+    function ipOpened(uuid) {
+        var kept = root.ipDrafts[uuid];
+        if (kept && !(kept.revertUntil > Date.now()))
+            root.ipStash(uuid, null);
     }
 
     function send(method, args, completion) {
@@ -63,7 +100,7 @@ Singleton {
         return id;
     }
 
-    function finishCall(id, ok, error) {
+    function finishCall(id, ok, error, result) {
         var entry = root.pendingCalls[id];
         if (!entry)
             return;
@@ -71,14 +108,14 @@ Singleton {
         delete pending[id];
         root.pendingCalls = pending;
         root.pendingCallCount = Math.max(0, root.pendingCallCount - 1);
-        entry.callback(ok, error || "");
+        entry.callback(ok, error || "", result);
     }
 
     function applyReply(line) {
         try {
             var reply = JSON.parse(line);
             if (reply && reply.id)
-                root.finishCall(String(reply.id), reply.ok === true, String(reply.error || ""));
+                root.finishCall(String(reply.id), reply.ok === true, String(reply.error || ""), reply.result);
         } catch (e) {
         }
     }

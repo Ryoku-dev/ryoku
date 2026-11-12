@@ -9,6 +9,7 @@ import Quickshell.Networking
 import Quickshell.Bluetooth
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
+import "../Singletons"
 
 // Connections (SYSTEM). A self-contained, full-bleed pluggable page: its own
 // head, a bone-pill tab strip (Wi-Fi / Bluetooth / Hotspot / VPN / DNS /
@@ -558,6 +559,8 @@ Item {
 
         property string authFailedSsid: ""
         property string forgetArmed: ""
+        // the saved network whose IP settings are open (ConnectionsIpEditor)
+        property string ipOpen: ""
         property bool forgetBusy: false
 
         readonly property real colMax: 720
@@ -1462,6 +1465,17 @@ Item {
                                         armed: !wifi.autoBusy
                                         onAct: wifi.setAutoconnect(netItem.ssid, !autoRow.on)
                                     }
+
+                                    Btn {
+                                        compact: true
+                                        text: I18n.tr("IP settings") + (wifi.ipOpen === netItem.ssid ? " \u25b4" : " \u25be")
+                                        primary: wifi.ipOpen === netItem.ssid
+                                        onAct: {
+                                            if (wifi.ipOpen !== netItem.ssid)
+                                                NetworkTopic.ipOpened(wifi.uuidsFor(netItem.ssid)[0] || "");
+                                            wifi.ipOpen = wifi.ipOpen === netItem.ssid ? "" : netItem.ssid;
+                                        }
+                                    }
                                 }
 
                                 Btn {
@@ -1473,6 +1487,23 @@ Item {
                                     primary: wifi.forgetArmed === netItem.ssid
                                     armed: !wifi.forgetBusy
                                     onAct: wifi.requestForget(netItem.ssid)
+                                }
+                            }
+
+                            // IPv4 settings of the saved network, under its settings row
+                            Item {
+                                width: parent.width
+                                height: netItem.known && wifi.ipOpen === netItem.ssid && ipEditor.item
+                                    ? ipEditor.item.implicitHeight + Tokens.s3 : 0
+                                clip: true
+                                visible: height > 0.5
+                                Loader {
+                                    id: ipEditor
+                                    x: bars.x + bars.width + Tokens.s3
+                                    width: parent.width - x - Tokens.s4
+                                    active: netItem.known && wifi.ipOpen === netItem.ssid
+                                    source: Qt.resolvedUrl("ConnectionsIpEditor.qml")
+                                    onLoaded: item.uuid = Qt.binding(function() { return wifi.uuidsFor(netItem.ssid)[0] || ""; })
                                 }
                             }
 

@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Added
+- **A saved Wi-Fi network's IP settings can be changed in Connections.** IP
+  settings, beside Auto-reconnect, switches between DHCP and a manual address
+  and gateway and sets the network's DNS servers. A change on the network in
+  use reverts after 20 seconds unless it is kept (`pages/ConnectionsIpEditor.qml`).
 - **Connections has VPN and DNS tabs.** VPN lists the saved WireGuard
   tunnels, with on/off, import from a .conf and remove, and NetworkManager VPN
   profiles with on/off; DNS picks the system resolver (DHCP, Cloudflare,
