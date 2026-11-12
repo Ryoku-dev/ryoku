@@ -15,6 +15,10 @@ T.Popup {
     // hands focus to a menu inside on open; a host that focuses the menu itself
     // (a Picker on its current choice) turns it off
     property bool menuFocus: true
+    // a host whose opener can take a key without showing the mark (a Picker focused by a
+    // click, then opened with Down) says the keys opened it, so focus comes back marked
+    property bool keysOpened: false
+    property bool _markOpener: false
     readonly property bool lithicPopoverMarker: true
 
     padding: 0
@@ -80,6 +84,7 @@ T.Popup {
     onAboutToShow: {
         closeOtherPopovers()
         placeAtAnchor()
+        _markOpener = keysOpened || (opener !== null && opener.visualFocus === true)
     }
     onOpened: {
         placeAtAnchor()
@@ -112,9 +117,15 @@ T.Popup {
         }
         return null
     }
+    // focus goes back to the opener, marked when the keys opened the popover; the popup has
+    // usually restored it already with an unmarked reason, so the reason is set as well
     onClosed: {
-        if (opener && opener.enabled)
-            opener.forceActiveFocus()
+        if (!opener || !opener.enabled)
+            return
+        const reason = _markOpener ? Qt.TabFocusReason : Qt.OtherFocusReason
+        opener.forceActiveFocus(reason)
+        if (opener.focusReason !== undefined)
+            opener.focusReason = reason
     }
     onWidthChanged: {
         if (visible || previewEmbedded)

@@ -17,6 +17,7 @@ Item {
     Picker { id: byAltDown; x: 300; y: 100; width: 200; options: ["Off", "On"]; currentIndex: 0 }
     Picker { id: byUp; x: 300; y: 180; width: 200; options: ["Off", "On"]; currentIndex: 0 }
     Picker { id: escaping; x: 20; y: 180; width: 200; options: ["Off", "On", "Auto"]; currentIndex: 1 }
+    Picker { id: marked; x: 300; y: 260; width: 200; options: ["Off", "On", "Auto"]; currentIndex: 0 }
     Picker { id: named; x: 20; y: 260; width: 220; label: "Scale"; options: ["100%", { label: "125%", glyph: "monitor" }, "150%"]; currentIndex: 0 }
 
     Dialog {
@@ -129,6 +130,32 @@ Item {
             tryVerify(() => escaping.activeFocus, 1000);
             keyClick(Qt.Key_Escape);
             compare(host.hostEscapes, 1, "Escape on the closed picker goes on to the host");
+        }
+
+        function test_closingKeepsTheKeyboardMarkWhenTheKeysOpened() {
+            // focused by a click, so only the key that opens it says the keys are in use
+            mouseClick(marked);
+            tryCompare(marked, "opened", true);
+            keyClick(Qt.Key_Escape);
+            tryCompare(marked, "opened", false);
+            tryVerify(() => marked.activeFocus, 1000);
+            verify(!marked.visualFocus, "a pointer open closes without the mark");
+
+            keyClick(Qt.Key_Down);
+            tryCompare(marked, "opened", true);
+            keyClick(Qt.Key_Escape);
+            tryCompare(marked, "opened", false);
+            tryVerify(() => marked.activeFocus, 1000);
+            verify(marked.visualFocus, "Escape after a key open hands focus back marked");
+
+            keyClick(Qt.Key_Space);
+            tryCompare(marked, "opened", true);
+            keyClick(Qt.Key_Down);
+            keyClick(Qt.Key_Return);
+            tryCompare(marked, "opened", false);
+            compare(marked.currentIndex, 1);
+            tryVerify(() => marked.activeFocus, 1000);
+            verify(marked.visualFocus, "a choice after a key open hands focus back marked");
         }
 
         function test_namesAreReadOut() {

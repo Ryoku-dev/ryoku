@@ -151,6 +151,7 @@ T.Control {
         // the picker, not the popover, hands focus to the menu: on the current choice,
         // with the keyboard mark only when the keys opened it
         menuFocus: false
+        keysOpened: root._openedFromKeys
         onOpened: menu.focusItem(root.currentIndex, root._openedFromKeys)
 
         Menu {

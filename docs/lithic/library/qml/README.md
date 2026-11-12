@@ -398,9 +398,9 @@ A cut-track switch with an optional text label.
 
 #### Slider
 
-A blade-track slider with a cut handle and keyboard stepping.
+A blade-track slider with a cut handle and keyboard stepping. On a `field` plane the unfilled track carries the `edge` hairline, so the range shows; the slider reads its plane from `plane`, which defaults to the nearest holder that names one (a `SettingRow`'s `plane`, a ListEditor form).
 
-- Properties: inherited `from`, `to`, `value`, `stepSize`, and `enabled`, plus `previewState` and `accessibleName`
+- Properties: inherited `from`, `to`, `value`, `stepSize`, and `enabled`, plus `previewState`, `accessibleName` and `plane`
 - Signal: inherited `moved()`
 - Preview: `previewState`
 
@@ -844,7 +844,7 @@ A name reveal, stage label, progress blade, and log-line stack for a resource be
 
 An anchored non-modal popup that flips, or clamps 8 (`popoverAnchorGap`) inside every edge of its parent area so its edge and a focus ring inside it stay whole. On open, a Menu anywhere in its content takes focus on its first enabled item unless focus is already inside or `menuFocus` is off (a Picker starts on its current choice itself); the keyboard ring shows there only when the opener held keyboard focus.
 
-- Properties: `anchorItem`, `opener`, `previewState`, `previewEmbedded`, `placementSide`, `placementPosition`, `openAbove`, `slideOffset`, and `menuFocus` (default true: hand focus to a Menu inside on open; a host that focuses the menu itself, as Picker does on its current choice, sets it false). `lithicPopoverMarker` is read only.
+- Properties: `anchorItem`, `opener`, `previewState`, `previewEmbedded`, `placementSide`, `placementPosition`, `openAbove`, `slideOffset`, `menuFocus` (default true: hand focus to a Menu inside on open; a host that focuses the menu itself, as Picker does on its current choice, sets it false), and `keysOpened` (closing hands focus back to `opener`, marked when the opener showed the keyboard mark at open or the host sets this, as Picker does for a key that opens it). `lithicPopoverMarker` is read only.
 - Functions: inherited `open()` and `close()`, plus `calculatePlacement()`, `placeAtAnchor()`, and `closeOtherPopovers()`
 - Signals: inherited `opened()` and `closed()`
 - Preview: `previewState` and `previewEmbedded`

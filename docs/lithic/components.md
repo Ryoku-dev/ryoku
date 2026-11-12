@@ -170,7 +170,9 @@ The slider is 32 high and 160 wide by default. Its `field` track is 6 high,
 the completed part is an `fg2` blade, and the `sel` handle is 8 by 20 with
 cut `min(width/2, height/4)`. Arrow keys step it and Home and End jump to its
 ends; a key that moves it reports the change as a drag does, and a key at a
-bound reports nothing. Reference: `ui/kit/slider.go`.
+bound reports nothing. On a `field` plane, such as a ListEditor form, the
+unfilled track carries the 1 dp `edge` hairline a field has there, so the
+range still shows. Reference: `ui/kit/slider.go`.
 
 Library: QML Lithic.Slider, web .l-slider, Go kit.Slider, terminal -
 
@@ -595,8 +597,9 @@ keyboard ring shows there only when the popover was opened from the keys, and
 a Picker starts on its current choice instead. Its own full-window catcher
 swallows an outside press before closing it. It enters over 160 ms while
 sliding the last 6, and exits over 100 ms while sliding 4 back. Closing
-content is inert and blocks underlying pointer input. Only one popover is
-open. Reference: `ui/kit/popover.go`.
+content is inert and blocks underlying pointer input. Closing hands focus back
+to the control that opened it, with the keyboard ring when the keys opened it.
+Only one popover is open. Reference: `ui/kit/popover.go`.
 
 Library: QML Lithic.Popover, web .l-popover, Go kit.Popover, terminal -
 

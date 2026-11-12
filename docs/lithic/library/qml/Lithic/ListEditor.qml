@@ -212,6 +212,8 @@ T.Control {
             // Enter left unhandled by a single-line field means Done
             Item {
                 id: editorHost
+                // the form lies on the field plane; a slider in it reads this to keep its range visible
+                readonly property color plane: Lithic.field
                 x: panel.contentInset
                 y: panel.planeTop + panel.pad
                 width: panel.width - panel.contentInset * 2
