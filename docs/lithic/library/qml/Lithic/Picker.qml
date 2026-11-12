@@ -133,8 +133,11 @@ T.Control {
         anchorItem: field
         opener: root
         previewEmbedded: root.previewOpen
+        // the popover takes focus on open; hand it to the menu so the arrows and Return choose
+        onOpened: menu.focusItem(root.currentIndex)
 
         Menu {
+            id: menu
             width: Math.max(root.width, LithicTokens.size.menuWidthMin)
             items: root.menuItems()
             onTriggered: index => {

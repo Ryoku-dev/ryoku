@@ -48,6 +48,19 @@ T.Control {
             triggered(focusedIndex)
     }
 
+    // a host that opens the menu from the keyboard starts on its current item
+    function focusItem(index) {
+        if (!itemEnabled(index)) {
+            focusedIndex = -1
+            moveFocus(1)
+            return
+        }
+        focusedIndex = index
+        const item = itemRepeater.itemAt(index)
+        if (item)
+            item.forceActiveFocus()
+    }
+
     Keys.onDownPressed: moveFocus(1)
     Keys.onUpPressed: moveFocus(-1)
     Keys.onReturnPressed: activateFocused()
