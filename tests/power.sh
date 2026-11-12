@@ -413,6 +413,54 @@ PATH="$stubN:$PATH" RYOKU_CPU_DIR="$cpuO" \
   || fail "converged apply-profile did not exit 0"
 [[ ! -e $markerO ]] || fail "converged apply-profile invoked pkexec"
 
+# --- a refused or failed escalation leaves power.json exactly as it was ---------
+# A dismissed prompt must not keep the refused value, or `apply` would push it
+# again at every login. Root writes the read-only fixtures directly, so this
+# needs an unprivileged run.
+if (( EUID != 0 )); then
+  stubR="$tmp/stubR"; mkdir -p "$stubR"
+  printf '#!/usr/bin/env bash\nexit 126\n' >"$stubR/pkexec"; chmod +x "$stubR/pkexec"
+  psR="$tmp/psR"; mk_batt "$psR" 90; chmod 0444 "$(batt_file "$psR")"
+  aspmR="$tmp/aspmR/policy"; mk_aspm "$aspmR" '[default] performance powersave powersupersave'
+  chmod 0444 "$aspmR"
+  cfgR="$tmp/cfgR/power.json"; mkdir -p "$(dirname "$cfgR")"
+  printf '{"chargeLimit":90,"aspm":"default"}\n' >"$cfgR"; cp "$cfgR" "$tmp/cfgR.before"
+  for args in "charge-limit set 80" "charge-limit clear" "aspm set powersave"; do
+    # shellcheck disable=SC2086 # args is a word list on purpose
+    if PATH="$stubR:$PATH" rp "$psR" "$aspmR" "$cfgR" 1 $args 2>/dev/null; then
+      fail "refused '$args' reported success"
+    fi
+    cmp -s "$cfgR" "$tmp/cfgR.before" || fail "refused '$args' kept its value: $(cat "$cfgR")"
+  done
+  [[ -z "$(find "$(dirname "$cfgR")" -name 'power.json.*')" ]] || fail "a refused write left a config backup behind"
+
+  cfgR2="$tmp/cfgR2/power.json"
+  if PATH="$stubR:$PATH" rp "$psR" "$aspmR" "$cfgR2" 1 charge-limit set 80 2>/dev/null; then
+    fail "refused charge-limit set into a new config reported success"
+  fi
+  [[ ! -e $cfgR2 ]] || fail "a refused first charge limit created power.json: $(cat "$cfgR2")"
+
+  # the active profile is applied on set, so its refusal must not keep the knob
+  cpuR="$tmp/cpuR"; mk_cpu "$cpuR" 1; chmod 0444 "$cpuR/cpu0/cpufreq/scaling_governor"
+  cfgR3="$tmp/cfgR3/power.json"; mkdir -p "$(dirname "$cfgR3")"
+  printf '{"profiles":{"balanced":{"epp":"power"}}}\n' >"$cfgR3"; cp "$cfgR3" "$tmp/cfgR3.before"
+  if PATH="$stubR:$PATH" rpc "$cpuR" "$tmp/no-ppR/platform_profile" "$cfgR3" \
+      profile set balanced governor performance 2>/dev/null; then
+    fail "refused profile set reported success"
+  fi
+  cmp -s "$cfgR3" "$tmp/cfgR3.before" || fail "refused profile set kept its value: $(cat "$cfgR3")"
+
+  # a failed direct write (the kernel rejecting the value) restores it too
+  psW="$tmp/psW"; mk_batt "$psW" 90
+  rm "$(batt_file "$psW")"; mkdir "$(batt_file "$psW")"   # writable, but every write fails
+  cfgW="$tmp/cfgW/power.json"; mkdir -p "$(dirname "$cfgW")"
+  printf '{"chargeLimit":90}\n' >"$cfgW"; cp "$cfgW" "$tmp/cfgW.before"
+  if rp "$psW" "$noaspm" "$cfgW" 1 charge-limit set 80 2>/dev/null; then
+    fail "a failed direct write reported success"
+  fi
+  cmp -s "$cfgW" "$tmp/cfgW.before" || fail "a failed direct write kept its value: $(cat "$cfgW")"
+fi
+
 # --- the real user config was never created or modified -----------------------
 now="absent"; [[ -e $realcfg ]] && now="$(cksum <"$realcfg")"
 [[ "$now" == "$realcfg_state" ]] || fail "the real $realcfg was created or modified"

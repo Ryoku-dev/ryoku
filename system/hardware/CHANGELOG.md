@@ -21,6 +21,11 @@
   headless one exits at once.
 
 ### Fixed
+- `power/ryoku-power`: **a refused battery, ASPM or CPU profile change is not
+  kept.** The value was saved to `power.json` before the privileged write, so
+  a dismissed password prompt or a value the kernel rejected stayed saved and
+  was applied again at every sign-in. `power.json` now goes back to exactly
+  what it was when the write fails. Covered by `tests/power.sh`.
 - `display/ryoku-hw-backlight-fix`: **ASUS TUF A15 FA507XV brightness keeps
   using its working EC control.** The native-backlight override is now limited
   to the confirmed FA506NCG quirk. An update removes the old broad drop-in from

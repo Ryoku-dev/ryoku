@@ -99,14 +99,45 @@ priv_write() {
   # this a settled machine would pkexec on each one for nothing.
   [[ "$(cat "$path" 2>/dev/null || true)" == "$value" ]] && return
   if [[ -w $path || $EUID -eq 0 ]]; then
-    printf '%s\n' "$value" >"$path"
+    if ! printf '%s\n' "$value" 2>/dev/null >"$path"; then
+      log "cannot write $value to $path"
+      cfg_rollback
+      exit 1
+    fi
     return
   fi
   if ! command -v pkexec >/dev/null 2>&1; then
     log "cannot write $path: not writable and pkexec is unavailable"
+    cfg_rollback
     exit 1
   fi
-  exec pkexec "$PRIVILEGED_HELPER" "${ORIG_ARGV[@]}"
+  # Not exec'd: a dismissed prompt or a failed escalated write must put the
+  # caller's power.json back. The apply lock is let go first, or the escalated
+  # run would wait out its flock behind us.
+  exec 9>&-
+  local rc=0
+  pkexec "$PRIVILEGED_HELPER" "${ORIG_ARGV[@]}" || rc=$?
+  (( rc == 0 )) || cfg_rollback
+  exit "$rc"
+}
+
+# power.json as it was before this command changed it. `apply` re-applies the
+# file at every login, so it must never keep a value the hardware refused.
+CFG_BACKUP=""
+cfg_remember() {
+  [[ -z $CFG_BACKUP ]] || return 0
+  CFG_BACKUP=absent
+  [[ -f $CONFIG ]] || return 0
+  CFG_BACKUP="$(mktemp "${CONFIG}.before.XXXXXX")"
+  trap 'rm -f -- "$CFG_BACKUP"' EXIT
+  cp -p -- "$CONFIG" "$CFG_BACKUP"
+}
+cfg_rollback() {
+  case $CFG_BACKUP in
+    "") ;;
+    absent) rm -f -- "$CONFIG" ;;
+    *) mv -f -- "$CFG_BACKUP" "$CONFIG" ;;
+  esac
 }
 
 # ── config (~/.config/ryoku/power.json, parsed with jq, a desktop dependency) ──
@@ -120,6 +151,7 @@ cfg_get() { # key -> value, empty when file/key absent or null
 
 cfg_set_num() { # key number -- merge, preserving other keys
   escalated && return 0
+  cfg_remember
   local key="$1" val="$2" tmp
   mkdir -p "$(dirname "$CONFIG")"
   tmp="$(mktemp "${CONFIG}.XXXXXX")"
@@ -133,6 +165,7 @@ cfg_set_num() { # key number -- merge, preserving other keys
 
 cfg_set_str() { # key string -- merge, preserving other keys
   escalated && return 0
+  cfg_remember
   local key="$1" val="$2" tmp
   mkdir -p "$(dirname "$CONFIG")"
   tmp="$(mktemp "${CONFIG}.XXXXXX")"
@@ -146,6 +179,7 @@ cfg_set_str() { # key string -- merge, preserving other keys
 
 cfg_del() { # key -- drop it, leaving the hardware to its firmware default
   escalated && return 0
+  cfg_remember
   local key="$1" tmp
   [[ -f $CONFIG ]] || return 0
   tmp="$(mktemp "${CONFIG}.XXXXXX")"
@@ -418,6 +452,7 @@ cfg_profile_set_str() { # profile key strval -- merge, preserving every sibling
   # The user's session owns power.json; a pkexec re-run must not rewrite it as
   # root. The parent already persisted before escalating.
   escalated && return 0
+  cfg_remember
   mkdir -p "$(dirname "$CONFIG")"
   tmp="$(mktemp "${CONFIG}.XXXXXX")"
   if [[ -f $CONFIG ]]; then
@@ -430,6 +465,7 @@ cfg_profile_set_str() { # profile key strval -- merge, preserving every sibling
 cfg_profile_set_num() { # profile key number -- merge, preserving every sibling
   local p="$1" key="$2" val="$3" tmp
   escalated && return 0
+  cfg_remember
   mkdir -p "$(dirname "$CONFIG")"
   tmp="$(mktemp "${CONFIG}.XXXXXX")"
   if [[ -f $CONFIG ]]; then
