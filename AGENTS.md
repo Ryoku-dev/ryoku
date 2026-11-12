@@ -118,12 +118,12 @@ there; the CLI needs no server and is the first choice.
 
 Auto-generated from the Prowl index, refreshed on each `overview`/`init`. Prefer retrieving from Prowl (and reading the cited files) over grepping or relying on training memory; this is the current shape of the repo.
 
-- size: 5657 files, 477535 symbols, 25152 edges (resolved 10549, external deps 9602, unresolved 5001)
-- languages: go:2286 qml:1891 bash:459 javascript:265 cpp:151 markdown:145 json:114 python:84
-- subsystems: ryoku/shell(1587,qml) · ryoku/hub(88,qml) · ryoku/shell(75,cpp) · ryoku/ui(62,qml) · ryoku/apps(61,qml) · ryoku/shell(28,cpp) · ryoku/rashin(25,typescript) · ryoku/shell(19,css)
-- entrypoints: ryoku/shell/quickshell/shell/ShellBody.qml · ryoku/hub/quickshell/pages/InputPage.qml · ryoku/shell/quickshell/stage/modules/ii/background/widgets/media/AndroidMediaWidget.qml · ryoku/shell/quickshell/stage/modules/ii/background/widgets/clock/ConcentricClockWidget.qml · ryoku/hub/quickshell/pages/AddonsPage.qml · ryoku/hub/quickshell/pages/LauncherPage.qml · ryoku/shell/quickshell/stage/modules/ii/background/widgets/media/CircularMediaWidget.qml · ryoku/shell/quickshell/shell/modules/dock/ii/settings/DockLivePreviewConfig.qml · (+576 more)
+- size: 5790 files, 538014 symbols, 24784 edges (resolved 9810, external deps 10728, unresolved 4246)
+- languages: go:2410 qml:1909 bash:457 javascript:270 markdown:164 cpp:162 json:118 python:84
+- subsystems: ryoku/shell(1587,qml) · ryoku/hub(88,qml) · ryoku/shell(75,cpp) · docs/lithic(62,qml) · ryoku/ui(62,qml) · ryoku/shell(28,cpp) · ryoku/shell(19,css) · ryoku/hyprland(18,lua)
+- entrypoints: ryoku/shell/quickshell/shell/ShellBody.qml · ryoku/hub/quickshell/pages/InputPage.qml · docs/lithic/examples/qml/pages/Lists.qml · ryoku/shell/quickshell/stage/modules/ii/background/widgets/media/AndroidMediaWidget.qml · ryoku/shell/quickshell/stage/modules/ii/background/widgets/clock/ConcentricClockWidget.qml · ryoku/hub/quickshell/pages/AddonsPage.qml · ryoku/hub/quickshell/pages/LauncherPage.qml · ryoku/shell/quickshell/stage/modules/ii/background/widgets/media/CircularMediaWidget.qml · (+569 more)
 - central files (most depended-on): ryoku/ui/Singletons/ShellSettings.qml · ryoku/ui/Singletons/Tokens.qml · ryoku/lockscreen/qylock/themes/clockwork/orbital/i18n/I18n.qml · ryoku/shell/quickshell/stage/modules/common/Config.qml · ryoku/shell/quickshell/stage/modules/common/Appearance.qml
-- read these guides first: README.md · AGENTS.md · CONTRIBUTING.md · docs/development.md · docs/structure.md
+- read these guides first: README.md · AGENTS.md · CONTRIBUTING.md · docs/development.md · docs/lithic/design.md · docs/structure.md
 
 Depth on demand: `prowl find|def|outline|references <name>`, `search <text>`, `context search "<question>"`, `sketch <ui>`.
 <!-- /prowl-agent:map -->
