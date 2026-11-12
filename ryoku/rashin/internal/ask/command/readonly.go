@@ -12,15 +12,15 @@ import (
 )
 
 // readonly.go decides, without touching disk, whether an agent tool call only
-// reads the machine. In approvals mode "read-only" the daemon auto-approves a
-// call this accepts and asks for everything else. It is deny-first: anything it
+// reads the machine. An Ask a harness answers lets a call this accepts run in
+// every mode and decides the rest by its mode. It is deny-first: anything it
 // cannot prove is a pure read returns false, so an unfamiliar command or an
 // unparseable line asks rather than runs. The reasons are short because the
 // chat UI prints them next to the tool row.
 
-// readOnlyToolCall reports whether an ACP tool call only reads the machine and
+// ReadOnlyToolCall reports whether an ACP tool call only reads the machine and
 // may run without asking, and a short reason when it may not.
-func readOnlyToolCall(kind, title string, rawInput json.RawMessage) (ok bool, reason string) {
+func ReadOnlyToolCall(kind, title string, rawInput json.RawMessage) (ok bool, reason string) {
 	switch kind {
 	case "read", "search":
 		paths := roReadPaths(rawInput)
@@ -52,6 +52,20 @@ func readOnlyToolCall(kind, title string, rawInput json.RawMessage) (ok bool, re
 	default:
 		// edit, delete, move, switch_mode, and anything unknown change state.
 		return false, "`" + kind + "` may change the machine"
+	}
+}
+
+// ToolCallCommand is the shell command an ACP tool call runs, "" when it runs
+// none: an execute call's command, else its title, or an other call's command.
+func ToolCallCommand(kind, title string, rawInput json.RawMessage) string {
+	cmd, has := roCommandString(rawInput)
+	switch {
+	case has && (kind == "execute" || kind == "other" || kind == ""):
+		return cmd
+	case kind == "execute":
+		return title
+	default:
+		return ""
 	}
 }
 

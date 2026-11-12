@@ -62,6 +62,7 @@ func Validate(s *protocol.Settings) {
 	if !protocol.KnownApprovals(s.Agent.Approvals) {
 		s.Agent.Approvals = d.Agent.Approvals
 	}
+	s.Ask.Harness = strings.TrimSpace(s.Ask.Harness)
 	s.Agent.Harness = strings.TrimSpace(s.Agent.Harness)
 	seen := make(map[string]struct{}, len(s.Agent.Instances))
 	instances := s.Agent.Instances[:0]

@@ -508,6 +508,8 @@ func runFakeAgent(mode string) {
 			case "home-probe":
 				fakeHomeProbeTurn(write, servers)
 				writePromptResult(write, promptID, "end_turn")
+			case "options-ask":
+				fakeAskTurn(write, message.Params)
 			case "permissions":
 				writePermission(write, 100, "read-1", "read")
 			case "cancel":
@@ -517,6 +519,9 @@ func runFakeAgent(mode string) {
 				write(map[string]any{"jsonrpc": "2.0", "id": 200, "method": "fs/write_text_file", "params": map[string]any{"sessionId": "fake-session", "path": os.Getenv("RASHIN_ACP_TEST_FILE"), "content": "new"}})
 			case "terminal":
 				write(map[string]any{"jsonrpc": "2.0", "id": 200, "method": "terminal/create", "params": map[string]any{"sessionId": "fake-session", "command": "printf", "args": []string{"terminal-ok"}}})
+			case "ask-writes":
+				fakeAskWrites(write)
+				writePromptResult(write, promptID, "end_turn")
 			case "resume-load", "resume-new":
 				writePromptResult(write, promptID, "end_turn")
 			case "environment":
@@ -762,6 +767,8 @@ func runFakeAgent(mode string) {
 				writePromptResult(write, promptID, "end_turn")
 			case "sandboxed":
 				fakeSandboxedAnswer(write, message, promptID)
+			case "options-ask":
+				fakeAskAnswered(write, message, promptID)
 			}
 		}
 	}

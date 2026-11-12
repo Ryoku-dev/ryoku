@@ -67,6 +67,24 @@ func ChoiceOption(choice protocol.Choice) look.SelectOption {
 	return look.SelectOption{Label: name, Detail: detail}
 }
 
+// a harness's choices laid out for a select, Selected -1 when the current one is not among them
+type ChoiceList struct {
+	Options  []look.SelectOption
+	IDs      []string
+	Selected int
+}
+
+func ListOf(choices []protocol.Choice, current string) ChoiceList {
+	list := ChoiceList{Options: make([]look.SelectOption, len(choices)), IDs: make([]string, len(choices)), Selected: -1}
+	for index, choice := range choices {
+		list.Options[index], list.IDs[index] = ChoiceOption(choice), choice.ID
+		if choice.ID == current {
+			list.Selected = index
+		}
+	}
+	return list
+}
+
 // each fact as a quiet label and its value in mono, wrapping when the row is full
 func LayoutFacts(gtx layout.Context, th *look.Theme, facts []protocol.HarnessFact) layout.Dimensions {
 	return look.Flow{Gap: 13, LineGap: 4}.Layout(gtx, len(facts), func(gtx layout.Context, index int) layout.Dimensions {

@@ -480,9 +480,9 @@ func TestReadOnlyToolCall(t *testing.T) {
 		{"unknown kind", "wibble", "", `{}`, false},
 	}
 	for _, c := range cases {
-		got, reason := readOnlyToolCall(c.kind, c.title, json.RawMessage(c.input))
+		got, reason := ReadOnlyToolCall(c.kind, c.title, json.RawMessage(c.input))
 		if got != c.want {
-			t.Errorf("%s: readOnlyToolCall(%q,%q,%s) = %v (%q), want %v",
+			t.Errorf("%s: ReadOnlyToolCall(%q,%q,%s) = %v (%q), want %v",
 				c.name, c.kind, c.title, c.input, got, reason, c.want)
 		}
 		if !got && reason == "" {

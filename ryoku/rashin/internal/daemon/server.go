@@ -109,10 +109,20 @@ func (c *connection) serve() {
 func (c *connection) handle(frame protocol.Frame) {
 	ctx := context.Background()
 	var refused error
+	// a connection on a session's own socket is a team task's agent, or the
+	// harness of an Ask that is read-only
+	ask := false
 	if c.session != "" {
+		info, ok := c.daemon.manager.Info(c.session)
+		ask = ok && info.Kind == protocol.KindAsk && info.Team == ""
+	}
+	switch {
+	case ask:
+		refused = askGate(frame.Method)
+	case c.session != "":
 		refused = agentGate(c.session, frame.Method, frame.Params)
 		ctx = teams.WithAgentSession(ctx, c.session)
-	} else {
+	default:
 		refused = c.daemon.mainGate(c, frame.Method, frame.Params)
 	}
 	if refused != nil {
@@ -132,7 +142,7 @@ func (c *connection) handle(frame protocol.Frame) {
 	}
 	var result any
 	var err error
-	if c.session != "" && agentIndex[frame.Method] {
+	if c.session != "" && !ask && agentIndex[frame.Method] {
 		result, err = c.daemon.agentIndexCall(ctx, c, frame.Method, frame.Params)
 	} else {
 		result, err = c.daemon.dispatch(ctx, c, frame.Method, frame.Params)

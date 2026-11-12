@@ -258,6 +258,11 @@ XDG variables; `RASHIN_SOCKET` overrides the socket for a client.
   command still waits). The daemon does not apply it by itself: the app
   passes it when it creates a session, so an ask from the bar or a terminal
   stays read-only.
+- `ask.harness`: the harness or instance id that answers a new ask in the
+  app over ACP, `""` (the default) for Rashin's own providers. The app passes
+  it at `session.new` as `harness`, so asks from the bar and a terminal stay
+  on the providers, and a conversation keeps what answered it. A patch that
+  touches it comes only from the Rashin app.
 - `agent.harness`: default harness id for new Agent sessions; empty picks the
   first installed one in the table order below.
 - `agent.approvals`: `read-only` (reads run, writes ask), `ask` (everything
@@ -290,8 +295,11 @@ XDG variables; `RASHIN_SOCKET` overrides the socket for a client.
   Skills); every set is on unless named here.
 
 Clients change settings only through `settings.set`; the daemon writes the file
-atomically and broadcasts `settings.changed`. A patch that touches `teams` or
-`agent.instances` comes only from the Rashin app.
+atomically and broadcasts `settings.changed`. A patch that touches `teams`,
+`providers`, `memory`, `skills`, `agent.instances` or `ask.harness` comes only
+from the Rashin app (`settingsForApp`): what runs the user's questions and
+what team agents run with are the user's to choose. Asks from the bar and a
+terminal stay on Rashin's providers whatever `ask.harness` says.
 
 ## Protocol
 
@@ -775,6 +783,46 @@ The Ask runner (`internal/ask`) is Rashin's own agent loop on the gateway.
   why it could not, never another model in its place. The pin survives the
   daemon restarting and is carried into a fork; picking Auto, Fast or Smart
   takes it back.
+- **Answered by a harness** (`internal/harness/ask.go`,
+  `internal/daemon/askharness.go`): an Ask made with `harness` runs that
+  harness's ACP runner from the home folder instead of Rashin's router. It is
+  briefed once with Ask's own brief (`brief.Ask`: who Ask is and what its
+  mode allows, the vault, Rashin, skills, teams, memory), handed Rashin's MCP
+  tools (no screen), and the composer's model list is the harness's own
+  `configOptions`. Ask's mode decides each call, never `agent.approvals`: a
+  call `command.ReadOnlyToolCall` proves a read runs in every mode; a command
+  that asks for a password or reads a credential never runs; Read only
+  refuses everything else the harness asks about and shows each refusal as a
+  request Rashin answered itself; Ask first puts it to the user ("always" is
+  kept by Rashin and sent to the harness as once, so a later mode still
+  decides); YOLO runs it, except a `danger` command, which asks without
+  "always". In Ask first and YOLO, files Rashin reads or writes for the
+  harness are read anywhere but credential paths and written only under the
+  home folder. The harness's own modes never reach the session; a mode
+  changed later is said ahead of the next question. A harness that is not
+  installed or not signed in fails the turn with its reason and nothing else
+  answers. `run` is refused for such a conversation.
+- **Read only holds whatever the harness does.** Some harnesses write files
+  or run commands in their own process without asking (omp's write tool
+  does). So while an Ask is Read only its harness runs in bubblewrap
+  (`askSandbox` in `internal/daemon/sandbox.go`, `askSandboxFor` in
+  `internal/harness/sandbox.go`): the whole filesystem read-only; writable
+  only the harness's own state under its home (the instance's `HOME`, else
+  the user's: `~/.omp`, `~/.claude`, `~/.codex`, ...) and a private `/tmp`
+  and `/dev/shm` that are gone afterwards; nothing hidden and the
+  environment kept, so it signs in with the user's own credentials; an empty
+  runtime dir of its own, so no session bus, display or SSH agent, with the
+  Ask's own socket where the daemon's would be. That socket (`askGate`)
+  serves only what Ask's tools call: index reads, this conversation's memory,
+  the skills, `teams.list`, `teams.templates` and `teams.propose`. Rashin
+  then offers the harness no `fs` or `terminal` of its own. Switching the
+  Ask across Read only restarts the harness on its next turn, inside the
+  sandbox or out of it, loading its session back when it can. Without
+  bubblewrap a Read only Ask on a harness does not start.
+- **Bar and terminal asks stay on the providers.** The bar and `rashin
+  <question>` ask through `ask`, which takes no harness, so they are
+  answered by Rashin's providers whatever `ask.harness` says. Only the app
+  reads `ask.harness` and passes it at `session.new`.
 
 ### In a terminal
 

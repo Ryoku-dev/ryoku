@@ -90,6 +90,21 @@ func agentGate(session, method string, raw json.RawMessage) error {
 	return protocol.Errorf(protocol.CodeForbidden, "%s", i18n.T("An agent can use only its own tools here."))
 }
 
+// askGate is what a connection on a read-only Ask's own socket may call, the
+// harness that answers it running sandboxed: what Ask's tools call, reading
+// the indexes, searching, remembering and forgetting for this conversation,
+// reading the built-in skills, reading the teams and proposing one.
+// Everything else, a session that could act among it, is refused.
+func askGate(method string) error {
+	switch {
+	case agentIndex[method], sessionMemory[method], isSkillsMethod(method):
+		return nil
+	case method == protocol.MTeamsList, method == protocol.MTeamsTemplates, method == protocol.MTeamsPropose:
+		return nil
+	}
+	return protocol.Errorf(protocol.CodeForbidden, "%s", i18n.T("An agent can use only its own tools here."))
+}
+
 // mainGate keeps the main socket from doing what is not its to do: a team
 // task's agent calls in only on its session's own socket, team sessions are
 // made by the daemon alone, and only the Rashin app controls one.
@@ -131,8 +146,9 @@ func requireApp(c *connection) error {
 // settingsForApp reports whether a settings patch reaches what only the
 // Rashin app may change: the teams' settings, which set what their agents
 // may reach, the harness instances, whose command and environment team
-// agents run with, the providers' settings, which name the addresses the
-// gateway sends requests to, memory's, so no agent can turn memory on,
+// agents run with, the harness that answers Ask, which decides what runs
+// the user's questions, the providers' settings, which name the addresses
+// the gateway sends requests to, memory's, so no agent can turn memory on,
 // widen what it reads or point it at another server, or the skills', so no
 // agent chooses what every model is told. A patch that replaces a whole
 // object, or is no object at all, reaches everything under it.
@@ -146,7 +162,7 @@ func settingsForApp(patch json.RawMessage) bool {
 			return true
 		}
 	}
-	for object, field := range map[string]string{"agent": "instances"} {
+	for object, field := range map[string]string{"agent": "instances", "ask": "harness"} {
 		raw, ok := top[object]
 		if !ok {
 			continue

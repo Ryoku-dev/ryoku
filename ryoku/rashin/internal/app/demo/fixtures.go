@@ -585,8 +585,9 @@ func makeFixtures() fixtures {
 			},
 		},
 	}
-	result.snapshot.Sessions = append(result.snapshot.Sessions, askRunning, askYesterday, askWeek, askEarlier)
-	result.snapshot.Status.Sessions.Ask = 5
+	askHarness, askHarnessEvents := harnessAsk(now)
+	result.snapshot.Sessions = append(result.snapshot.Sessions, askRunning, askHarness, askYesterday, askWeek, askEarlier)
+	result.snapshot.Status.Sessions.Ask = 6
 	result.snapshot.Status.Sessions.Working = 3
 	result.snapshot.Status.Sessions.Alive = 3
 	result.snapshot.Providers = withDemoListings(withDemoLimits(append(result.snapshot.Providers, demoProviderCatalogue()...), now), result.models.Models, now)
@@ -616,6 +617,7 @@ func makeFixtures() fixtures {
 	result.events[askYesterday.ID] = cardTranscript(askEvents(askYesterday))
 	result.events[askWeek.ID] = askEvents(askWeek)
 	result.events[askEarlier.ID] = askEvents(askEarlier)
+	result.events[askHarness.ID] = askHarnessEvents
 	result.events[needs.ID] = agentMemoryTranscript(agentEvents(needs, true))
 	result.events[working.ID] = agentEvents(working, false)
 	result.events[working.ID] = append(result.events[working.ID], subagentEvents(int64(len(result.events[working.ID])), now)...)

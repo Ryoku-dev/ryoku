@@ -282,29 +282,42 @@ func (p *Page) layoutComposer(gtx layout.Context, e *env.Env, attached state.Att
 	if temporary {
 		options.Placeholder = env.TemporaryHint()
 	}
-	// nothing picked is what the daemon falls back to: the model Settings names
-	if current == "" {
-		current = settings.Model
-	}
-	routes, ids, selected := p.menu.Choices(current)
-	p.route.Form, p.route.Label, p.route.Return, p.route.Searched = look.SelectQuiet, i18n.T("Model"), p.composer.FocusTag(), true
-	options.Controls = []layout.Widget{
-		func(gtx layout.Context) layout.Dimensions {
+	snapshot := e.Snapshot()
+	harness := answeringHarness(snapshot, attached, open)
+	var model layout.Widget
+	var ids []string
+	if harness == "" {
+		// nothing picked is what the daemon falls back to: the model Settings names
+		if current == "" {
+			current = settings.Model
+		}
+		routes, routeIDs, selected := p.menu.Choices(current)
+		ids = routeIDs
+		p.route.Form, p.route.Label, p.route.Return, p.route.Searched = look.SelectQuiet, i18n.T("Model"), p.composer.FocusTag(), true
+		model = func(gtx layout.Context) layout.Dimensions {
 			dimensions := p.route.LayoutOptions(gtx, e.Theme, e.Overlays, routes, selected)
 			if p.route.Opened(e.Overlays) {
 				p.limits.Show(e, gtx.Now)
 			}
 			return dimensions
-		},
-		func(gtx layout.Context) layout.Dimensions {
-			return p.approvals.Layout(gtx, e, env.AskApprovals, p.selected, may, p.composer.FocusTag())
-		},
+		}
+	} else {
+		p.engine.sync(snapshot, attached, open)
+		model = p.engine.control(e, p.composer.FocusTag())
 	}
+	options.Controls = nil
+	if model != nil {
+		options.Controls = append(options.Controls, model)
+	}
+	options.Controls = append(options.Controls, func(gtx layout.Context) layout.Dimensions {
+		return p.approvals.Layout(gtx, e, env.AskApprovals, p.selected, may, p.composer.FocusTag())
+	})
 	if memoryOn(e.Snapshot()) {
 		options.Controls = append(options.Controls, func(gtx layout.Context) layout.Dimensions {
 			return p.memory.layout(gtx, e, remembers, temporary, locked, p.composer.FocusTag())
 		})
 	}
+	options.Controls = append(options.Controls, engineLabel(e, env.AskEngineName(snapshot, protocol.SessionInfo{Harness: harness})))
 	if value, changed := p.memory.Changed(); changed {
 		p.memory.set(e, p.selected, value)
 	}
@@ -326,6 +339,7 @@ func (p *Page) layoutComposer(gtx layout.Context, e *env.Env, attached state.Att
 			p.draftRoute = ids[index]
 		}
 	}
+	p.engine.update(e, p.selected, open)
 	gtx.Constraints = layout.Constraints{Min: image.Pt(width, 0), Max: image.Pt(width, gtx.Constraints.Max.Y)}
 	dimensions := p.composer.Layout(gtx, e.Theme, options)
 	if submission, submitted := p.composer.Submitted(); submitted {

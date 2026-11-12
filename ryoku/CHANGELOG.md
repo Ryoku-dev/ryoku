@@ -6,6 +6,15 @@
   mark from lobe-icons, drawn in Rashin's own ink and brighter under the
   pointer; a provider lobe-icons has no mark for shows its initial
   (`rashin/internal/app/look/logos`, `bin/ryoku-dev-sync-provider-logos`).
+- **Rashin's Ask can answer through Codex, Claude Code or omp.** Settings >
+  Ask > Answer with picks Rashin's providers or any installed harness; new
+  asks in the app then run on that harness with its own models in the
+  composer, which says what answers. Read only, Ask first and YOLO still
+  decide what it may change, and in Read only the harness runs in a sandbox
+  that keeps the whole computer read-only, so a harness that writes without
+  asking changes nothing either. A harness that cannot start says why, and
+  asks from the bar and the terminal stay on the providers
+  (`rashin/internal/harness/ask.go`, `rashin/internal/daemon/sandbox.go`).
 - **Rashin lists every model a provider serves.** Each provider's own listing
   is read, with your key or none where it is public, kept for six hours and
   merged with Rashin's picks, so NVIDIA shows its whole free catalogue and

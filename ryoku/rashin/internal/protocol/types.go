@@ -866,11 +866,15 @@ func KnownApprovals(value string) bool {
 }
 
 // AskSettings configures Ask. Approvals is what a new Ask in the app may do;
-// asks from the bar and the terminal stay read-only.
+// asks from the bar and the terminal stay read-only. Harness is the harness
+// or instance id that answers a new Ask in the app over ACP, "" for Rashin's
+// own providers; the app passes it when it creates the session, so asks from
+// the bar and the terminal stay on the providers.
 type AskSettings struct {
 	Model     string `json:"model"`
 	Habits    bool   `json:"habits"`
 	Approvals string `json:"approvals"`
+	Harness   string `json:"harness,omitempty"`
 }
 
 // AgentSettings configures Agent sessions.

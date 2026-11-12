@@ -43,9 +43,13 @@ func (d *Daemon) agentTools(info protocol.SessionInfo) []core.MCPServer {
 	return []core.MCPServer{{Name: "rashin", Command: command, Args: []string{"mcp"}, Env: env}}
 }
 
-// screenFor says a session may be offered a screen of its own: the desktop
-// can host one and, for a team task, its team was given one.
+// screenFor says a session may be offered a screen of its own: it is not an
+// Ask, which answers rather than works an app, the desktop can host one and,
+// for a team task, its team was given one.
 func (d *Daemon) screenFor(info protocol.SessionInfo) bool {
+	if info.Kind == protocol.KindAsk {
+		return false
+	}
 	if info.Team != "" && (d.deps.Teams == nil || !d.deps.Teams.ScreenGranted(info)) {
 		return false
 	}

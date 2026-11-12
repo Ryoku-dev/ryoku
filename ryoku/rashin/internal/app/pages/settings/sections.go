@@ -93,9 +93,29 @@ func (p *Page) layoutAsk(gtx layout.Context, e *env.Env) layout.Dimensions {
 			selectedMay = index
 		}
 	}
+	answerers, answering := env.AskEngines(snapshot)
+	answererLabels := make([]string, len(answerers))
+	for index, answerer := range answerers {
+		answererLabels[index] = answerer.Name
+		if !answerer.Installed {
+			answererLabels[index] = i18n.Tf("%s (not installed)", answerer.Name)
+		}
+	}
 	return look.SettingsSection(gtx, th, i18n.T("Ask"), []look.Setting{
 		{
-			Title:  i18n.T("Answers come from"),
+			Title:  i18n.T("Answer with"),
+			Detail: answererDetail(answerers[answering]),
+			Control: func(gtx layout.Context) layout.Dimensions {
+				gtx.Constraints.Min.X = gtx.Dp(260)
+				dimensions := p.answerWith.Layout(gtx, th, e.Overlays, answererLabels, answering)
+				if index, changed := p.answerWith.Changed(); changed && index < len(answerers) {
+					set(e, "ask", map[string]any{"harness": answerers[index].ID})
+				}
+				return dimensions
+			},
+		},
+		{
+			Title:  i18n.T("Providers answer on"),
 			Detail: i18n.T("Auto picks a free model that is up and fits the question, one on this computer first. A model named here is asked first and another takes over when it can't answer. A paid model answers only when you name it."),
 			Control: func(gtx layout.Context) layout.Dimensions {
 				gtx.Constraints.Min.X = gtx.Dp(260)
@@ -129,6 +149,18 @@ func (p *Page) layoutAsk(gtx layout.Context, e *env.Env) layout.Dimensions {
 			},
 		},
 	})
+}
+
+// what changes with what answers, said where it is picked
+func answererDetail(answerer env.AskEngine) string {
+	switch {
+	case answerer.ID == "":
+		return i18n.T("Rashin's own router answers with the models below and Ask's own tools. A harness such as Codex, Claude Code or omp can answer new asks here instead, with its own models, tools and sign-in. Asks from the bar and the terminal always use Rashin's providers.")
+	case !answerer.Installed:
+		return i18n.Tf("%s is not installed, so a new ask here says so and is not answered. Install it under Agents or pick another.", answerer.Name)
+	default:
+		return i18n.Tf("%s answers new asks in this app with its own models, tools and sign-in, and what Ask may change still holds. Asks you already have keep what answered them, and asks from the bar and the terminal use Rashin's providers.", answerer.Name)
+	}
 }
 
 func (p *Page) layoutAgents(gtx layout.Context, e *env.Env) layout.Dimensions {

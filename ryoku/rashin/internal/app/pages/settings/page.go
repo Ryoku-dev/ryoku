@@ -61,9 +61,10 @@ type Page struct {
 	limits        env.LimitsWatch
 	api           apiPanel
 
-	models env.ModelMenu
-	route  look.Select
-	habits kit.Toggle
+	models     env.ModelMenu
+	route      look.Select
+	answerWith look.Select
+	habits     kit.Toggle
 
 	harness   look.Select
 	approvals look.Select
@@ -213,7 +214,7 @@ func sections() [sectionCount]section {
 		{"rashin", i18n.T("Rashin"), look.Icon.Thought, i18n.T("on off turn daemon log about version")},
 		{"providers", i18n.T("Providers"), look.Icon.Graph, i18n.T("models routing route keys usage spend free paid local ollama llama.cpp address")},
 		{"api", i18n.T("Local API"), look.Icon.Link, i18n.T("address port key token exports openai")},
-		{"ask", i18n.T("Ask"), look.Icon.Ask, i18n.T("answers model memory habits shell approvals changes")},
+		{"ask", i18n.T("Ask"), look.Icon.Ask, i18n.T("answers answer with engine harness codex claude omp model memory habits shell approvals changes")},
 		{"agents", i18n.T("Agents"), look.Icon.Agents, i18n.T("harness harnesses omp approvals notices idle")},
 		{"teams", i18n.T("Teams"), look.Icon.Teams, i18n.T("ledger budget spend members sandbox mail sign-in login harness hidden secrets")},
 		{"memory", i18n.T("Memory"), look.Icon.Memory, i18n.T("memory remember forget learn temporary privacy Honcho Hindsight")},

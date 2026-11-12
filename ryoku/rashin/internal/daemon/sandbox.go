@@ -161,3 +161,31 @@ func (d *Daemon) probeSandbox() sandbox.Spec {
 	spec.Unset = agentUnset
 	return spec
 }
+
+// askSandbox is the sandbox a harness that answers an Ask runs in while the
+// Ask is read-only. It hides nothing, as it is the user's own harness
+// answering the user, but the whole host is read-only, its folder and
+// Rashin's own programs show again where the private /tmp or /dev/shm would
+// cover them, and its runtime dir is an empty one of its own: no session bus
+// to start something outside it, no display, and the Ask's own socket where
+// the daemon's would be, so its tools reach the daemon only as that Ask.
+func (d *Daemon) askSandbox(info protocol.SessionInfo) (*sandbox.Spec, error) {
+	dir, err := d.openAgentSocket(info.ID)
+	if err != nil {
+		return nil, err
+	}
+	folder := info.Cwd
+	if folder == "" {
+		folder = paths.Home()
+	}
+	folder = paths.Resolved(folder)
+	runtime := paths.Resolved(paths.RuntimeDir())
+	return &sandbox.Spec{
+		Dir:        folder,
+		ReadOnly:   append(d.programDirs(), folder),
+		RuntimeDir: filepath.Dir(runtime),
+		Binds:      []sandbox.Bind{{Source: paths.Resolved(dir), Target: runtime}},
+		Env:        map[string]string{"RASHIN_SOCKET": filepath.Join(runtime, filepath.Base(paths.AgentSocket(info.ID)))},
+		Unset:      agentUnset,
+	}, nil
+}

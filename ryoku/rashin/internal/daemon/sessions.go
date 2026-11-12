@@ -82,10 +82,12 @@ type sessionManager struct {
 	broadcast func(string, any)
 	changed   func()
 	warn      func(string, ...any)
-	// brief is what an agent session is told ahead of its first prompt, and
-	// prepare readies its folder; the daemon sets both, tests leave them nil
-	brief   func(protocol.SessionInfo) string
-	prepare func(protocol.SessionInfo)
+	// brief is what an agent session is told ahead of its first prompt,
+	// askBrief what a harness answering an Ask is, and prepare readies an
+	// agent's folder; the daemon sets them, tests leave them nil
+	brief    func(protocol.SessionInfo) string
+	askBrief func(protocol.SessionInfo) string
+	prepare  func(protocol.SessionInfo)
 	// tools are the MCP servers an agent session is handed
 	tools func(protocol.SessionInfo) []core.MCPServer
 	// ended hears that a session was stopped or deleted, so what it held ends too
@@ -95,9 +97,11 @@ type sessionManager struct {
 	// sets both, tests leave them nil
 	teams   core.Teams
 	watched func() bool
-	// sandbox is the sandbox a team session's agent runs in; the daemon sets
-	// it, tests leave it nil
-	sandbox func(protocol.SessionInfo) (*sandbox.Spec, error)
+	// sandbox is the sandbox a team session's agent runs in, and askSandbox
+	// the one a harness that answers an Ask runs in while it is read-only;
+	// the daemon sets them, tests leave them nil
+	sandbox    func(protocol.SessionInfo) (*sandbox.Spec, error)
+	askSandbox func(protocol.SessionInfo) (*sandbox.Spec, error)
 	// memory hears every finished turn and every deleted session; the
 	// daemon sets it when memory is built in, tests leave it nil
 	memory core.Memory
@@ -225,8 +229,12 @@ func (m *sessionManager) create(p protocol.SessionNewParams) (protocol.SessionIn
 	if p.Kind == protocol.KindAgent {
 		state = protocol.StateStopped
 	}
-	info := protocol.SessionInfo{ID: id, Kind: p.Kind, Title: p.Title, Harness: p.Harness, Model: p.Model, Cwd: p.Cwd, Origin: origin, State: state, Created: now, Updated: now, Project: p.Project, Worktree: p.Worktree, Branch: p.Branch, Task: p.Task, Temporary: p.Temporary, Memory: memory}
-	if info.Model == "" && info.Kind == protocol.KindAsk {
+	info := protocol.SessionInfo{ID: id, Kind: p.Kind, Title: p.Title, Harness: strings.TrimSpace(p.Harness), Model: p.Model, Cwd: p.Cwd, Origin: origin, State: state, Created: now, Updated: now, Project: p.Project, Worktree: p.Worktree, Branch: p.Branch, Task: p.Task, Temporary: p.Temporary, Memory: memory}
+	// an Ask a harness answers runs it from the home folder and starts on the
+	// harness's own model, which Rashin's routes do not name
+	if info.Kind == protocol.KindAsk && info.Harness != "" {
+		info.Cwd = paths.Home()
+	} else if info.Model == "" && info.Kind == protocol.KindAsk {
 		info.Model = m.settings().Ask.Model
 	}
 	// only the client says an Ask may change the machine: the bar and the
@@ -540,16 +548,19 @@ func (m *sessionManager) ensureRunner(ctx context.Context, s *managedSession) (c
 		info := s.log.Info()
 		resume := s.log.Runner()
 		harness := info.Harness
-		if harness == "" {
+		if harness == "" && info.Kind == protocol.KindAgent {
 			harness = m.settings().Agent.Harness
 		}
 		s.mu.Unlock()
 
 		var runner core.Runner
 		var err error
-		if info.Kind == protocol.KindAsk {
+		switch {
+		case info.Kind == protocol.KindAsk && harness == "":
 			runner = m.asker.NewAsk(core.AskOptions{Session: info, Settings: m.settings})
-		} else {
+		case info.Kind == protocol.KindAsk:
+			runner, err = m.askHarness(ctx, s, info, resume)
+		default:
 			// a team task's session keeps its team's approvals; others follow the setting
 			approvals := func() string {
 				if own := s.log.Info().Approvals; own != "" {
@@ -617,8 +628,8 @@ func (m *sessionManager) prompt(ctx context.Context, p protocol.PromptParams, ha
 	if p.Run = strings.TrimSpace(p.Run); p.Run != "" {
 		// refused before the turn exists, so the client can still send the
 		// command to a terminal
-		if s.log.Info().Kind != protocol.KindAsk {
-			return protocol.PromptResult{}, 0, protocol.Errorf(protocol.CodeUnsupported, "%s", i18n.T("Only an Ask conversation runs a command for you. Run it in a terminal."))
+		if info := s.log.Info(); info.Kind != protocol.KindAsk || info.Harness != "" {
+			return protocol.PromptResult{}, 0, protocol.Errorf(protocol.CodeUnsupported, "%s", i18n.T("Only an Ask conversation on Rashin's providers runs a command for you. Run it in a terminal."))
 		}
 		if reason, needs := command.NeedsTerminal(p.Run); needs {
 			return protocol.PromptResult{}, 0, protocol.Errorf(protocol.CodeUnsupported, "%s", i18n.Tf("This command needs a terminal: %s.", reason))
@@ -1726,7 +1737,8 @@ func (m *sessionManager) idleStop(now time.Time) {
 		s.mu.Lock()
 		running, pending, runner, lastActivity := s.running, len(s.permissions), s.runner, s.lastActivity
 		s.mu.Unlock()
-		due := info.Kind == protocol.KindAgent && !running && pending == 0 && runner != nil && runner.Alive() && now.Sub(lastActivity) >= time.Duration(minutes)*time.Minute
+		// an Ask a harness answers holds its process up just as an agent does
+		due := !running && pending == 0 && runner != nil && runner.Alive() && now.Sub(lastActivity) >= time.Duration(minutes)*time.Minute
 		if due {
 			go func(id string) { _ = m.stop(id) }(info.ID)
 		}

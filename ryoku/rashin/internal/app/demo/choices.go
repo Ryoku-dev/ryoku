@@ -80,24 +80,35 @@ func (s *server) wake(out *outbox, raw json.RawMessage) {
 		} else if offered := s.offering(info.Harness, info.Model); offered != nil {
 			models = offered
 		}
-		info.Alive, info.Mode = true, "default"
+		info.Alive = true
+		// an Ask keeps its own mode, the harness's never reaches it
+		if info.Kind == protocol.KindAgent {
+			info.Mode = "default"
+		}
 		s.replaceSession(info)
 	}
 	s.mu.Unlock()
-	if !known || info.Kind != protocol.KindAgent {
+	if !known || !onHarness(info) {
 		return
 	}
 	if !s.has(params.ID, protocol.EvModel) {
 		s.emit(out, params.ID, protocol.EvModel, protocol.ChoiceData{Current: info.Model, Options: models})
-		s.emit(out, params.ID, protocol.EvMode, protocol.ChoiceData{Current: info.Mode, Options: []protocol.Choice{
-			{ID: "default", Name: i18n.T("Default")}, {ID: "plan", Name: i18n.T("Plan"), Description: i18n.T("Plans before it edits")},
-		}})
-		s.emit(out, params.ID, protocol.EvOptions, protocol.OptionsData{Options: demoOptions("auto")})
+		if info.Kind == protocol.KindAgent {
+			s.emit(out, params.ID, protocol.EvMode, protocol.ChoiceData{Current: info.Mode, Options: []protocol.Choice{
+				{ID: "default", Name: i18n.T("Default")}, {ID: "plan", Name: i18n.T("Plan"), Description: i18n.T("Plans before it edits")},
+			}})
+			s.emit(out, params.ID, protocol.EvOptions, protocol.OptionsData{Options: demoOptions("auto")})
+		}
 	}
 	s.tell(out, params.ID)
 }
 
-// the first prompt to an agent session brings its harness up, which says what it uses as session.start does
+// an agent always runs on a harness, an Ask when Settings picked one as it began
+func onHarness(info protocol.SessionInfo) bool {
+	return info.Kind == protocol.KindAgent || info.Harness != ""
+}
+
+// the first prompt to a session on a harness brings the harness up, which says what it uses as session.start does
 func (s *server) wakeFirst(out *outbox, raw json.RawMessage) {
 	var params protocol.SessionRef
 	if decode(raw, &params) != nil {
@@ -106,7 +117,7 @@ func (s *server) wakeFirst(out *outbox, raw json.RawMessage) {
 	s.mu.Lock()
 	info, known := s.session(params.ID)
 	s.mu.Unlock()
-	if known && info.Kind == protocol.KindAgent && !s.has(params.ID, protocol.EvModel) {
+	if known && onHarness(info) && !s.has(params.ID, protocol.EvModel) {
 		s.wake(out, raw)
 	}
 }

@@ -24,7 +24,11 @@ type Bind struct{ Source, Target string }
 // Spec is one sandbox.
 type Spec struct {
 	// Folder is the working folder, read-write, and the start directory.
+	// Empty, the sandbox has no writable folder and starts in Dir.
 	Folder string
+	// Dir is where a sandbox without a Folder starts, "/" when empty. It is
+	// not made writable; one inside /tmp or /dev/shm must be ReadOnly too.
+	Dir string
 	// Writable are more read-write paths, directories or files, that already
 	// exist on the host.
 	Writable []string
@@ -76,7 +80,8 @@ func baseArgs() []string {
 }
 
 // Command returns the full argv that runs argv inside the sandbox. Every path
-// in spec must be absolute; Folder, Writable and the Bind sources must exist.
+// in spec must be absolute; Folder, when set, Writable and the Bind sources
+// must exist.
 func Command(spec Spec, argv []string) ([]string, error) {
 	if len(argv) == 0 {
 		return nil, errors.New("sandbox: no command to run")
@@ -101,7 +106,14 @@ func Command(spec Spec, argv []string) ([]string, error) {
 	for _, key := range spec.Unset {
 		args = append(args, "--unsetenv", key)
 	}
-	args = append(args, "--chdir", filepath.Clean(spec.Folder), "--")
+	start := spec.Folder
+	if start == "" {
+		start = spec.Dir
+	}
+	if start == "" {
+		start = "/"
+	}
+	args = append(args, "--chdir", filepath.Clean(start), "--")
 	return append(args, argv...), nil
 }
 
@@ -112,9 +124,12 @@ func Command(spec Spec, argv []string) ([]string, error) {
 // Writable, Binds, so the private RuntimeDir covers a ReadOnly path equal to
 // it.
 func (spec Spec) mounts() ([]mount, error) {
-	folder, err := existing(spec.Folder)
-	if err != nil {
-		return nil, err
+	var folder string
+	if spec.Folder != "" {
+		var err error
+		if folder, err = existing(spec.Folder); err != nil {
+			return nil, err
+		}
 	}
 	runtimeDir, err := absolute(spec.RuntimeDir)
 	if err != nil {
@@ -161,7 +176,9 @@ func (spec Spec) mounts() ([]mount, error) {
 		}
 	}
 	mounts = append(mounts, mount{runtimeDir, []string{"--perms", "0700", "--tmpfs", runtimeDir}})
-	mounts = append(mounts, bindMount(folder, folder))
+	if folder != "" {
+		mounts = append(mounts, bindMount(folder, folder))
+	}
 	for _, path := range spec.Writable {
 		path, err := existing(path)
 		if err != nil {

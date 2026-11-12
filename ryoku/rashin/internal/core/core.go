@@ -101,9 +101,15 @@ type HarnessOptions struct {
 	Tools []MCPServer
 	// Sandbox, set for a team session, is the sandbox its agent runs in, less
 	// the harness's own state, which the harness adds as writable. Such an
-	// agent gets no file or terminal access through Rashin. Nil runs the agent
-	// as the user.
+	// agent gets no file or terminal access through Rashin. For an Ask it is
+	// the sandbox the harness runs in while the Ask is read-only, the user's
+	// own harness state then writable. Nil runs the agent as the user.
 	Sandbox *sandbox.Spec
+	// Ask says the session is an Ask the harness answers. Approvals then
+	// returns Ask's own mode, which decides each permission in place of the
+	// agent approvals; the session's mode is Ask's, never the harness's, and
+	// Rashin reads files anywhere a secret is not.
+	Ask bool
 }
 
 // MCPServer is a stdio MCP server an agent starts for its session.

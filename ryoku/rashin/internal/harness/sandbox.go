@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"ryoku-rashin/internal/paths"
+	"ryoku-rashin/internal/protocol"
 	"ryoku-rashin/internal/sandbox"
 )
 
@@ -113,5 +114,38 @@ func withSandbox(spec sandbox.Spec) runnerOption {
 			}
 			return sandbox.Command(spec, argv)
 		}
+	}
+}
+
+// askSandboxFor completes the sandbox an Ask's harness runs in while the Ask
+// is read-only. It is the user's own harness as the user runs it, its
+// environment and credentials as they are, so only its own state under its
+// home (the instance's HOME, else the user's) is made writable, where it
+// exists, beside the private /tmp.
+func askSandboxFor(base sandbox.Spec, id string, command []string, environment map[string]string) sandbox.Spec {
+	home := environment["HOME"]
+	if home == "" {
+		home = paths.Home()
+	}
+	spec := base
+	spec.Writable = slices.Clone(base.Writable)
+	def, _ := definitionOf(id, command)
+	for _, rel := range def.state {
+		path := paths.Resolved(filepath.Join(home, rel))
+		if _, err := os.Stat(path); err == nil {
+			spec.Writable = append(spec.Writable, path)
+		}
+	}
+	return spec
+}
+
+// withAskSandbox runs an Ask's harness inside spec while the Ask is
+// read-only, so what the harness writes or runs in its own process cannot
+// change anything either. A mode that moves across Read only restarts the
+// harness on its next start, inside the sandbox or out of it.
+func withAskSandbox(spec sandbox.Spec) runnerOption {
+	return func(r *runner) {
+		withSandbox(spec)(r)
+		r.sandboxWhen = func() bool { return r.askMode() == protocol.ApprovalsReadOnly }
 	}
 }

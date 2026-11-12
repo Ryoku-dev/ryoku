@@ -83,10 +83,12 @@ func New(deps Deps) *Daemon {
 	d := &Daemon{deps: deps, started: time.Now(), clients: make(map[*connection]struct{}), events: events, stop: make(chan struct{}), appPeer: appPeer(deps.Program)}
 	d.manager = newSessionManager(deps.Asker, deps.Harnesses, deps.Work, d.Settings, d.Broadcast, d.stateChanged, d.warn)
 	d.manager.brief = d.agentBrief
+	d.manager.askBrief = d.askBrief
 	d.manager.tools = d.agentTools
 	d.manager.prepare = d.indexSession
 	d.screens = newScreenManager(d.Broadcast, d.manager.ask, screenable)
 	d.manager.sandbox = d.agentSandbox
+	d.manager.askSandbox = d.askSandbox
 	d.screens.sandbox = d.screenSandbox
 	d.manager.ended = func(id string) {
 		d.screens.stop(id)

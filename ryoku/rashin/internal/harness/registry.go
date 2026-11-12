@@ -299,12 +299,18 @@ func (r *Registry) NewAgent(_ context.Context, opts core.HarnessOptions) (core.R
 		if c.custom {
 			options = append(options, withEnvironment(c.env))
 		}
-		if opts.Sandbox != nil {
+		switch {
+		case opts.Sandbox != nil && opts.Ask:
+			options = append(options, withAskSandbox(askSandboxFor(*opts.Sandbox, c.id, c.command, c.env)))
+		case opts.Sandbox != nil:
 			spec, sandboxErr := sandboxFor(*opts.Sandbox, c.id, opts.Session.Team, c.command, c.env)
 			if sandboxErr != nil {
 				return nil, sandboxErr
 			}
 			options = append(options, withSandbox(spec))
+		}
+		if opts.Ask {
+			return askRunner{newRunner(opts, c.command, options...)}, nil
 		}
 		return newRunner(opts, c.command, options...), nil
 	}
