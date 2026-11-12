@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Added
+- **Connections has VPN and DNS tabs.** VPN lists the saved WireGuard
+  tunnels, with on/off, import from a .conf and remove, and NetworkManager VPN
+  profiles with on/off; DNS picks the system resolver (DHCP, Cloudflare,
+  Google or custom servers). Both go through the shell daemon, the same calls
+  the bar makes, and `ryoku-shell hub open vpn` or `dns` opens the tab
+  (`pages/ConnectionsVpnTab.qml`, `pages/ConnectionsDnsTab.qml`,
+  `Singletons/NetworkTopic.qml`).
+
 ### Fixed
 - **Graphics & Power offers Performance on laptops with a monitor port on the
   discrete GPU.** The page says it applies only while a monitor is plugged in

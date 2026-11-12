@@ -11,10 +11,12 @@ import Ryoku.Ui
 import Ryoku.Ui.Singletons
 
 // Connections (SYSTEM). A self-contained, full-bleed pluggable page: its own
-// head, a bone-pill tab strip (Wi-Fi / Bluetooth / Hotspot), and a Loader that
-// swaps between three live subtabs. Every backend is a system tool -- the
-// Quickshell Networking/Bluetooth services plus nmcli/bluetoothctl -- so the
-// page applies immediately; Bluetooth power also records the user's choice.
+// head, a bone-pill tab strip (Wi-Fi / Bluetooth / Hotspot / VPN / DNS /
+// Phone), and a Loader that swaps between the three live subtabs drawn here;
+// VPN, DNS and Phone live in their own files (fileTabs). Every backend is a
+// system tool -- the Quickshell Networking/Bluetooth services plus
+// nmcli/bluetoothctl, and the shell daemon for VPN and DNS -- so the page
+// applies immediately; Bluetooth power also records the user's choice.
 // The subtab bodies are
 // process wiring, identical logic; only the presentation is recast to
 // monochrome. State is by word and inversion, never colour; signal strength is
@@ -52,8 +54,17 @@ Item {
         { "key": "wifi", "label": I18n.tr("Wi-Fi") },
         { "key": "bluetooth", "label": I18n.tr("Bluetooth") },
         { "key": "hotspot", "label": I18n.tr("Hotspot") },
+        { "key": "vpn", "label": I18n.tr("VPN") },
+        { "key": "dns", "label": I18n.tr("DNS") },
         { "key": "phone", "label": I18n.tr("Phone") }
     ]
+    // subtabs that live in their own file, loaded beside the body Loader
+    readonly property var fileTabs: ({
+        "vpn": "ConnectionsVpnTab.qml",
+        "dns": "ConnectionsDnsTab.qml",
+        "phone": "PhoneConnectionTab.qml"
+    })
+    readonly property bool onFileTab: pg.fileTabs[pg.sub] !== undefined
     readonly property int tabW: 120
     function tabIndex(k) {
         for (var i = 0; i < tabs.length; i++)
@@ -2462,7 +2473,7 @@ Item {
             }
             Text {
                 width: Math.min(parent.width, 720)
-                text: I18n.tr("Wi-Fi, Bluetooth, hotspot and phone connections, applied live.")
+                text: I18n.tr("Wi-Fi, Bluetooth, hotspot, VPN, DNS and phone connections, applied live.")
                 color: Tokens.inkMuted; font.family: Tokens.ui
                 font.pixelSize: Tokens.fBody; wrapMode: Text.WordWrap
             }
@@ -2561,8 +2572,8 @@ Item {
                 top: tabStrip.bottom; bottom: parent.bottom
                 topMargin: Tokens.s5
             }
-            opacity: pg.sub === "phone" ? 0 : 1
-            x: pg.sub === "phone" ? -Tokens.s3 : 0
+            opacity: pg.onFileTab ? 0 : 1
+            x: pg.onFileTab ? -Tokens.s3 : 0
             visible: opacity > 0.01
             Behavior on opacity {
                 enabled: !Tokens.reduceMotion
@@ -2584,10 +2595,10 @@ Item {
                 bottom: parent.bottom
                 topMargin: Tokens.s5
             }
-            active: pg.sub === "phone"
-            source: Qt.resolvedUrl("PhoneConnectionTab.qml")
-            opacity: pg.sub === "phone" ? 1 : 0
-            x: pg.sub === "phone" ? 0 : Tokens.s3
+            active: pg.onFileTab
+            source: pg.onFileTab ? Qt.resolvedUrl(pg.fileTabs[pg.sub]) : ""
+            opacity: pg.onFileTab ? 1 : 0
+            x: pg.onFileTab ? 0 : Tokens.s3
             visible: opacity > 0.01
             Behavior on opacity {
                 enabled: !Tokens.reduceMotion
