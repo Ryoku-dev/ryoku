@@ -6,6 +6,13 @@ Item {
     id: host
     width: 500
     height: 300
+    property int undos: 0
+    Keys.onPressed: event => {
+        if (event.matches(StandardKey.Undo)) {
+            host.undos++;
+            event.accepted = true;
+        }
+    }
 
     Stepper {
         id: port
@@ -48,6 +55,7 @@ Item {
             port.value = 5555;
             minutes.value = 60;
             portModified.clear();
+            host.undos = 0;
         }
 
         function typeText(text) {
@@ -109,12 +117,29 @@ Item {
             compare(fixed.value, 5);
         }
 
-        function test_typedFieldCarriesTheStepperName() {
+        function test_focusedStepperAndItsFieldCarryTheName() {
             port.accessibleName = "Wireless debugging port";
             port.forceActiveFocus();
-            const field = port.Window.activeFocusItem;
-            verify(field !== null && field.cursorPosition !== undefined, "focus is in the typed field");
-            compare(field.Accessible.name, "Wireless debugging port", "a screen reader hears the row, not nothing");
+            compare(port.Window.activeFocusItem.Accessible.name, "Wireless debugging port",
+                    "a screen reader hears the row, not nothing");
+            typeText("1");
+            compare(port.Window.activeFocusItem.Accessible.name, "Wireless debugging port",
+                    "the typed field carries the same name");
+            keyClick(Qt.Key_Escape);
+        }
+
+        function test_undoReachesTheHolderUntilSomethingIsTyped() {
+            port.forceActiveFocus();
+            keyClick(Qt.Key_Up);
+            compare(port.value, 5556);
+            keySequence(StandardKey.Undo);
+            compare(host.undos, 1, "with nothing typed, undo belongs to whoever holds the stepper");
+            typeText("12");
+            keySequence(StandardKey.Undo);
+            compare(host.undos, 1, "while typing, undo stays in the field");
+            keyClick(Qt.Key_Escape);
+            keySequence(StandardKey.Undo);
+            compare(host.undos, 2, "after the edit is dropped, undo reaches the holder again");
         }
     }
 }

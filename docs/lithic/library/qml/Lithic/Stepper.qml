@@ -32,6 +32,12 @@ T.SpinBox {
         valueInput.text = Qt.binding(() => root.displayText)
     }
 
+    // clearing the field's own focus hands it back to the stepper, and leaving the field commits
+    function _leaveField() {
+        valueInput.focus = false
+        root.focusReason = Qt.TabFocusReason
+    }
+
     TextMetrics {
         id: boundMetrics
         font: valueLabel.font
@@ -64,6 +70,16 @@ T.SpinBox {
 
     Accessible.role: Accessible.SpinBox
     Accessible.name: accessibleName
+    // an editable stepper holds focus itself, so the arrows step and Ctrl+Z reaches whoever holds
+    // the stepper; a typed digit or minus opens the field with that character
+    Keys.onPressed: event => {
+        if (!editable || valueInput.activeFocus || !/^[0-9-]$/.test(event.text)
+                || (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)))
+            return
+        valueInput.forceActiveFocus()
+        valueInput.text = event.text
+        event.accepted = true
+    }
 
     component StepperFace: Item {
         property string glyph: ""
@@ -109,12 +125,17 @@ T.SpinBox {
     background: Item {}
 
     contentItem: Item {
+        // an editable SpinBox passes its focus to this item, so here it carries the stepper's name
+        Accessible.role: Accessible.SpinBox
+        Accessible.name: root.accessibleName
+        Accessible.ignored: !root.editable
+
         FieldSurface {
             x: LithicTokens.size.iconPlaqueSmall + LithicTokens.size.stepperGap
             width: Math.max(0, parent.width - x * 2)
             height: parent.height
             restCut: LithicTokens.cut.small
-            focused: valueInput.activeFocus
+            focused: valueInput.activeFocus || (root.editable && root._focusActive)
         }
 
         Label {
@@ -137,7 +158,6 @@ T.SpinBox {
             width: root._valueWidth
             visible: root.editable
             enabled: root.editable && root.enabled
-            focus: root.editable
             horizontalAlignment: TextInput.AlignHCenter
             font: valueLabel.font
             color: Lithic.fg
@@ -147,17 +167,23 @@ T.SpinBox {
             inputMethodHints: Qt.ImhFormattedNumbersOnly
             Accessible.name: root.accessibleName
             text: root.displayText
-            onActiveFocusChanged: activeFocus ? selectAll() : root._commit()
-            Keys.onReturnPressed: root._commit()
-            Keys.onEnterPressed: root._commit()
+            onActiveFocusChanged: {
+                if (activeFocus) {
+                    selectAll()
+                    return
+                }
+                root._commit()
+                // the field stays the stepper's focus child after focus moves elsewhere; drop it, so coming back lands on the stepper
+                Qt.callLater(() => { if (!valueInput.activeFocus) valueInput.focus = false })
+            }
+            Keys.onReturnPressed: root._leaveField()
+            Keys.onEnterPressed: root._leaveField()
             // Escape drops an unsaved edit; with nothing typed it goes on, so a dialog can close
             Keys.onEscapePressed: event => {
-                if (text !== root.displayText) {
-                    root._showValue()
-                    selectAll()
-                } else {
-                    event.accepted = false
-                }
+                const edited = text !== root.displayText
+                root._showValue()
+                root._leaveField()
+                event.accepted = edited
             }
         }
 
