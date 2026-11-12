@@ -28,6 +28,11 @@ Item {
     // the field being typed in ("address", "gateway", "dns"; "" for none),
     // so a rebuilt editor gives it the keyboard back
     property string focusField: ""
+    // start from the saved settings, dropping edits kept from an earlier
+    // time the box was shown (a running revert is kept)
+    property bool fresh: false
+    // the box has picked up its connection's settings or kept edits
+    signal started()
 
     implicitHeight: col.implicitHeight + Tokens.s4 * 2
 
@@ -57,7 +62,12 @@ Item {
         if (ed.shownUuid.length && ed.shownUuid !== ed.uuid)
             ed.stash(ed.shownUuid);
         ed.shownUuid = ed.uuid;
+        if (!ed.uuid.length)
+            return;
+        if (ed.fresh)
+            NetworkTopic.ipOpened(ed.uuid);
         var kept = NetworkTopic.ipStashed(ed.uuid);
+        ed.started();
         if (!kept) {
             ed.load();
             return;

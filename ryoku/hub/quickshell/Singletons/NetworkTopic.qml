@@ -4,7 +4,7 @@ import Quickshell
 import Quickshell.Io
 
 // QML view of the daemon `network` topic (ryoku/shell/ipc/network.go) for the
-// Hub's Connections DNS and VPN tabs. NetworkManager lives in the shell
+// Hub's Connections Ethernet, DNS and VPN tabs. NetworkManager lives in the shell
 // daemon, so the Hub never reads it or calls nmcli for these: `subscribe
 // network` streams the full frame on connect and on every change, and actions
 // ride back over a second connection as `network.*` calls. Two sockets, as in
@@ -16,6 +16,10 @@ Singleton {
     property var dns: ({ provider: "dhcp", servers: [] })
     property var wireguard: []
     property var vpn: []
+    // wired adapters ({device, state, speed, ip4, activeUuid, ...}) and the
+    // saved Ethernet profiles ({uuid, name, device, autoconnect, active})
+    property var ethernet: []
+    property var ethernetProfiles: []
     // IP settings edits not applied yet, and revert deadlines, by connection
     // uuid; see ConnectionsIpEditor.stash
     property var ipDrafts: ({})
@@ -45,6 +49,16 @@ Singleton {
     }
     function vpnSet(uuid, on, completion) {
         return root.send(on ? "network.vpnActivate" : "network.vpnDeactivate", { uuid: uuid }, completion);
+    }
+    // An empty uuid lets NetworkManager pick the adapter's profile, or make one.
+    function ethernetConnect(device, uuid, completion) {
+        return root.send("network.ethernetConnect", { device: device, uuid: uuid || "" }, completion);
+    }
+    function ethernetDisconnect(device, completion) {
+        return root.send("network.ethernetDisconnect", { device: device }, completion);
+    }
+    function ethernetSetAutoconnect(uuid, on, completion) {
+        return root.send("network.ethernetSetAutoconnect", { uuid: uuid, autoconnect: on }, completion);
     }
     // A saved connection's IPv4 settings. ipSet on a live connection answers
     // with revertSeconds: the old settings come back then unless ipConfirm
@@ -141,6 +155,8 @@ Singleton {
                 root.dns = f.dns;
             root.wireguard = Array.isArray(f.wireguard) ? f.wireguard : [];
             root.vpn = Array.isArray(f.vpn) ? f.vpn : [];
+            root.ethernet = Array.isArray(f.ethernet) ? f.ethernet : [];
+            root.ethernetProfiles = Array.isArray(f.ethernetProfiles) ? f.ethernetProfiles : [];
             root.ready = true;
         } catch (e) {
             // A malformed frame keeps the last good state.

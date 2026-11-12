@@ -12,11 +12,11 @@ import Ryoku.Ui.Singletons
 import "../Singletons"
 
 // Connections (SYSTEM). A self-contained, full-bleed pluggable page: its own
-// head, a bone-pill tab strip (Wi-Fi / Bluetooth / Hotspot / VPN / DNS /
-// Phone), and a Loader that swaps between the three live subtabs drawn here;
-// VPN, DNS and Phone live in their own files (fileTabs). Every backend is a
-// system tool -- the Quickshell Networking/Bluetooth services plus
-// nmcli/bluetoothctl, and the shell daemon for VPN and DNS -- so the page
+// head, a bone-pill tab strip (Wi-Fi / Ethernet / Bluetooth / Hotspot / VPN /
+// DNS / Phone), and a Loader that swaps between the three live subtabs drawn
+// here; Ethernet, VPN, DNS and Phone live in their own files (fileTabs). Every
+// backend is a system tool -- the Quickshell Networking/Bluetooth services plus
+// nmcli/bluetoothctl, and the shell daemon for Ethernet, VPN and DNS -- so the page
 // applies immediately; Bluetooth power also records the user's choice.
 // The subtab bodies are
 // process wiring, identical logic; only the presentation is recast to
@@ -53,6 +53,7 @@ Item {
 
     readonly property var tabs: [
         { "key": "wifi", "label": I18n.tr("Wi-Fi") },
+        { "key": "ethernet", "label": I18n.tr("Ethernet") },
         { "key": "bluetooth", "label": I18n.tr("Bluetooth") },
         { "key": "hotspot", "label": I18n.tr("Hotspot") },
         { "key": "vpn", "label": I18n.tr("VPN") },
@@ -61,6 +62,7 @@ Item {
     ]
     // subtabs that live in their own file, loaded beside the body Loader
     readonly property var fileTabs: ({
+        "ethernet": "ConnectionsEthernetTab.qml",
         "vpn": "ConnectionsVpnTab.qml",
         "dns": "ConnectionsDnsTab.qml",
         "phone": "PhoneConnectionTab.qml"
@@ -2504,7 +2506,7 @@ Item {
             }
             Text {
                 width: Math.min(parent.width, 720)
-                text: I18n.tr("Wi-Fi, Bluetooth, hotspot, VPN, DNS and phone connections, applied live.")
+                text: I18n.tr("Wi-Fi, Ethernet, Bluetooth, hotspot, VPN, DNS and phone connections, applied live.")
                 color: Tokens.inkMuted; font.family: Tokens.ui
                 font.pixelSize: Tokens.fBody; wrapMode: Text.WordWrap
             }

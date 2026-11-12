@@ -3,6 +3,12 @@
 ## Unreleased
 
 ### Added
+- **Connections has an Ethernet tab.** Each wired adapter gets a card with
+  its link (profile, speed and address), Connect or Disconnect, the saved
+  profile to use when there are several, Auto-connect, and the same IP
+  settings a saved Wi-Fi network has. It goes through the shell daemon, and
+  `ryoku-shell hub open ethernet` opens the tab
+  (`pages/ConnectionsEthernetTab.qml`).
 - **A saved Wi-Fi network's IP settings can be changed in Connections.** IP
   settings, beside Auto-reconnect, switches between DHCP and a manual address
   and gateway and sets the network's DNS servers. A change on the network in
