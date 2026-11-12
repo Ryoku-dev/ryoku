@@ -1,6 +1,6 @@
-# Game Bar
+# Game bar
 
-The Game Bar is Ryoku's in-game overlay: one passive surface per output that
+The game bar is Ryoku's in-game overlay: one passive surface per output that
 sits above a fullscreen game, with a strip of widget buttons and up to eight
 cards for capture, performance, system load, tasks, media, Discord voice, audio
 and recent captures. `Super+Shift+G` toggles it on the focused monitor.
@@ -86,11 +86,11 @@ participants on an avatar grid, who is speaking, the mute and deafen state, and
 the participant names if you keep them on. Because it is passive, change mute
 or deafen from the Voice card in the open bar, not from the pinned panel.
 
-Pinning is saved with the rest of the Game Bar state, so a pinned call survives
-a shell restart. Turning the Game Bar off in Settings closes it and leaves
+Pinning is saved with the rest of the game bar state, so a pinned call survives
+a shell restart. Turning the game bar off in Settings closes it and leaves
 nothing behind.
 
-## Discord Voice
+## Discord voice
 
 Voice reads the Discord client you are already in; it does not join a call or
 need a bot. Two clients are supported, through two different paths.
@@ -148,7 +148,7 @@ at one row, for example `game-bar/dim`.
 
 | Key | Default | Effect |
 |---|---|---|
-| `enabled` | `true` | Turn the Game Bar on. Off, it closes and the shortcut does nothing. |
+| `enabled` | `true` | Turn the game bar on. Off, it closes and the shortcut does nothing. |
 | `dim` | `0.62` | How far the game darkens behind the open bar. |
 | `scale` | `1` | Scale the strip, cards and text together. |
 | `radius` | `14` | Rounding of the strip and card frames. |
@@ -175,7 +175,7 @@ level, with an exclusive zone of `-1` so it spans the bar and the dock.
 
 ## Troubleshooting
 
-- **The shortcut does nothing.** Check that the Game Bar is on in Settings, and
+- **The shortcut does nothing.** Check that the game bar is on in Settings, and
   that its binding is still in **Ryoku Settings > Windows > Keyboard
   shortcuts**. `ryoku-shell gamebar` always toggles it when the shell is
   running.
