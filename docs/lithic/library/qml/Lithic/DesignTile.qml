@@ -184,8 +184,9 @@ T.AbstractButton {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 small: true
-                // gold ink on bone reads poorly; only the gold action keeps its kind there
-                kind: root._onSel && root.actionKind !== "gold" ? "on" : root.actionKind
+                // the selection fill IS the card's own colour now, so a button would vanish
+                // into it; on a selected card the action sits on the paper instead
+                kind: root._onSel ? "tonal" : root.actionKind
                 text: root.actionText
                 glyph: root.actionGlyph
                 onClicked: root.actionTriggered()
