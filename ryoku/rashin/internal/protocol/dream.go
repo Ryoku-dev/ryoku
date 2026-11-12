@@ -36,9 +36,8 @@ type Dream struct {
 	Brief     string `json:"brief,omitempty"`
 	Phase     string `json:"phase"`
 	// Summary is the manager's latest one-sentence account of where the
-	// dream stands, and Progress its own estimate from 0 to 100.
-	Summary  string `json:"summary,omitempty"`
-	Progress *int   `json:"progress,omitempty"`
+	// dream stands.
+	Summary string `json:"summary,omitempty"`
 	// Manager is the member that runs the dream and Task the standing task
 	// it works the dream in.
 	Manager string `json:"manager"`
@@ -111,10 +110,9 @@ type AgentReleaseParams struct {
 // AgentDreamParams is the manager telling the user where the dream stands.
 type AgentDreamParams struct {
 	AgentRef
-	Phase    string `json:"phase"`
-	Summary  string `json:"summary"`
-	Progress *int   `json:"progress,omitempty"`
-	Brief    string `json:"brief,omitempty"`
+	Phase   string `json:"phase"`
+	Summary string `json:"summary"`
+	Brief   string `json:"brief,omitempty"`
 }
 
 // AgentPresentParams is the manager presenting the finished dream to the

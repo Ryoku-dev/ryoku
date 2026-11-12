@@ -59,25 +59,22 @@ func teamTools(session mcpSession) []mcp.Tool {
 		{
 			Name:        "ask_user",
 			Description: ask,
-			Input: schema([]string{"title"}, map[string]any{
-				"title":    stringProperty("One line saying what you want to do, or what the user should choose."),
+			Input: schema([]string{}, map[string]any{
+				"title":    stringProperty("One line saying what you want to do, or what the user should choose. Taken from the question when left out."),
 				"question": stringProperty("The question or questions in full, as the user should read them."),
 				"detail":   stringProperty("Exactly what would happen, so the user can judge it."),
 				"options":  choices,
 			}),
 			Call: func(ctx context.Context, raw json.RawMessage) mcp.Result {
-				var args struct {
-					Title    string   `json:"title"`
-					Question string   `json:"question"`
-					Detail   string   `json:"detail"`
-					Options  []string `json:"options"`
-				}
-				if err := toolArguments(raw, &args, "title"); err != nil {
+				var args askArguments
+				if err := toolArguments(raw, &args); err != nil {
 					return mcp.Failure(err)
 				}
-				// the card shows one body, so the question leads what it says
-				detail := strings.TrimSpace(strings.TrimSpace(args.Question) + "\n\n" + strings.TrimSpace(args.Detail))
-				return teamAnswer(ctx, session, protocol.MTeamsAgentAsk, protocol.AgentAskParams{AgentRef: session.agent(), Title: args.Title, Detail: detail, Options: args.Options})
+				title, detail, err := args.card()
+				if err != nil {
+					return mcp.Failure(err)
+				}
+				return teamAnswer(ctx, session, protocol.MTeamsAgentAsk, protocol.AgentAskParams{AgentRef: session.agent(), Title: title, Detail: detail, Options: args.Options})
 			},
 		},
 		{
@@ -227,6 +224,43 @@ func teamTools(session mcpSession) []mcp.Tool {
 	return tools
 }
 
+// askTitleRunes bounds a card title taken from the question
+const askTitleRunes = 60
+
+// askArguments are what ask_user takes
+type askArguments struct {
+	Title    string   `json:"title"`
+	Question string   `json:"question"`
+	Detail   string   `json:"detail"`
+	Options  []string `json:"options"`
+}
+
+// card is the Inbox card's title and body: the question leads the body,
+// and a call that gives only a question takes its first sentence as the title
+func (args askArguments) card() (string, string, error) {
+	title, question := strings.TrimSpace(args.Title), strings.TrimSpace(args.Question)
+	if title == "" && question == "" {
+		return "", "", errors.New(i18n.T("Give the question, the title, or both."))
+	}
+	if title == "" {
+		title = protocol.ClipWords(firstSentence(question), askTitleRunes)
+	}
+	return title, strings.TrimSpace(question + "\n\n" + strings.TrimSpace(args.Detail)), nil
+}
+
+// firstSentence is text up to its first line break, or its first full stop,
+// question or exclamation mark that ends a sentence
+func firstSentence(text string) string {
+	line, _, _ := strings.Cut(text, "\n")
+	runes := []rune(line)
+	for index, r := range runes {
+		if strings.ContainsRune(".?!", r) && (index+1 == len(runes) || runes[index+1] == ' ') {
+			return string(runes[:index+1])
+		}
+	}
+	return strings.TrimSpace(line)
+}
+
 // teamAnswer runs one team method that answers in words and returns them
 func teamAnswer(ctx context.Context, session mcpSession, method string, params any) mcp.Result {
 	if err := session.teamReady(); err != nil {
@@ -353,24 +387,22 @@ func dreamTools(session mcpSession) []mcp.Tool {
 		},
 		{
 			Name:        "dream_status",
-			Description: "Tell the user where the dream stands: its phase, one sentence, your estimate of progress and, once the interview settled it, the brief. Call it whenever the phase changes and after each meaningful step. Presenting is reached with present, and done only when the user accepts.",
+			Description: "Tell the user where the dream stands: its phase, one sentence and, once the interview settled it, the brief. Call it whenever the phase changes and after each meaningful step. Presenting is reached with present, and done only when the user accepts.",
 			Input: schema([]string{"phase", "summary"}, map[string]any{
-				"phase":    map[string]any{"type": "string", "enum": phases, "description": "The phase the dream is in."},
-				"summary":  stringProperty("One sentence on where the dream stands, for the user."),
-				"progress": map[string]any{"type": "integer", "minimum": 0, "maximum": 100, "description": "Your estimate of how far the dream is, 0 to 100."},
-				"brief":    stringProperty("What the interview settled: what will be built, for whom, and how it will be checked."),
+				"phase":   map[string]any{"type": "string", "enum": phases, "description": "The phase the dream is in."},
+				"summary": stringProperty("One sentence on where the dream stands, for the user."),
+				"brief":   stringProperty("What the interview settled: what will be built, for whom, and how it will be checked."),
 			}),
 			Call: func(ctx context.Context, raw json.RawMessage) mcp.Result {
 				var args struct {
-					Phase    string `json:"phase"`
-					Summary  string `json:"summary"`
-					Progress *int   `json:"progress"`
-					Brief    string `json:"brief"`
+					Phase   string `json:"phase"`
+					Summary string `json:"summary"`
+					Brief   string `json:"brief"`
 				}
 				if err := toolArguments(raw, &args, "phase", "summary"); err != nil {
 					return mcp.Failure(err)
 				}
-				return teamAnswer(ctx, session, protocol.MTeamsAgentDream, protocol.AgentDreamParams{AgentRef: session.agent(), Phase: args.Phase, Summary: args.Summary, Progress: args.Progress, Brief: args.Brief})
+				return teamAnswer(ctx, session, protocol.MTeamsAgentDream, protocol.AgentDreamParams{AgentRef: session.agent(), Phase: args.Phase, Summary: args.Summary, Brief: args.Brief})
 			},
 		},
 		{

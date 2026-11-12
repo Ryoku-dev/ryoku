@@ -27,7 +27,6 @@ func addDemoDreams(result *fixtures, now time.Time, settings protocol.Settings) 
 	fx := &result.teams
 	ago := func(d time.Duration) time.Time { return now.Add(-d) }
 	at := func(t time.Time) *time.Time { return &t }
-	percent := func(value int) *int { return &value }
 	dream := func(id, name string, started time.Time, members []protocol.Member, state protocol.Dream) protocol.Team {
 		state.Manager, state.Task, state.Started = members[0].ID, id+"-run", started
 		return protocol.Team{
@@ -48,7 +47,7 @@ func addDemoDreams(result *fixtures, now time.Time, settings protocol.Settings) 
 	}, protocol.Dream{
 		Statement: i18n.T("Make ESP32 firmware whose Wi-Fi setup page opens when I connect to the board's own network: it lists the networks it can see, I pick one and type the password, and it joins and remembers it. Build it with ESP-IDF and keep the page small enough to live in flash."),
 		Brief:     i18n.T("ESP32-S3, ESP-IDF 5.3. A captive portal on the board's access point; the page under 20 KB; the network saved in NVS; back to the portal after three failed joins."),
-		Phase:     protocol.DreamBuilding, Progress: percent(45), Hired: 3,
+		Phase:     protocol.DreamBuilding, Hired: 3,
 		Summary: i18n.T("The portal opens on a phone and lists the networks around it. Saving a network and the page itself are being built."),
 	})
 	receipts := dream(demoDreamReceipts, i18n.T("Receipt renamer"), ago(6*24*time.Hour), []protocol.Member{
@@ -56,7 +55,7 @@ func addDemoDreams(result *fixtures, now time.Time, settings protocol.Settings) 
 		{ID: "member-receipts-developer", Name: i18n.T("Developer"), Title: i18n.T("Writes the tool and its tests"), Harness: "codex", Model: "gpt-5.6"},
 	}, protocol.Dream{
 		Statement: i18n.T("A small tool that renames the receipts I scan into ~/Documents/receipts by the date and the shop on them, so I can find one by its name."),
-		Phase:     protocol.DreamPresenting, Progress: percent(100), Hired: 2, Rounds: 1,
+		Phase:     protocol.DreamPresenting, Hired: 2, Rounds: 1,
 		Summary: i18n.T("receipt-namer is built and tested on your 214 scans. It is ready for you to try."),
 		Presentation: &protocol.DreamPresentation{
 			Title: i18n.T("receipt-namer renames your scans by date and shop"),

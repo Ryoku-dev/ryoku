@@ -3,6 +3,7 @@ package main
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"ryoku-rashin/internal/brief"
 )
@@ -116,4 +117,31 @@ func TestAToolRefusesAnArgumentItDoesNotTake(t *testing.T) {
 		return
 	}
 	t.Fatal("no ask_user tool")
+}
+
+// ask_user needs a question or a title; a question alone gives the card its
+// first sentence as the title, at most 60 runes.
+func TestAskUserTakesAQuestionWithoutATitle(t *testing.T) {
+	if _, _, err := (askArguments{Detail: "Only detail."}).card(); err == nil {
+		t.Fatal("a call with neither a question nor a title was accepted")
+	}
+	title, detail, err := (askArguments{Question: "Light or dark? And should it list nearby networks.", Detail: "Plan: Ada builds it."}).card()
+	if err != nil || title != "Light or dark?" || detail != "Light or dark? And should it list nearby networks.\n\nPlan: Ada builds it." {
+		t.Fatalf("got %q, %q, %v", title, detail, err)
+	}
+	long := strings.Repeat("word ", 30) + "end?"
+	if title, _, _ := (askArguments{Question: long}).card(); utf8.RuneCountInString(title) > askTitleRunes || title == "" {
+		t.Fatalf("a long question gave the title %q", title)
+	}
+	if title, _, _ := (askArguments{Title: "Look", Question: "Light or dark?"}).card(); title != "Look" {
+		t.Fatalf("a given title became %q", title)
+	}
+	_, tools := serverTools(func(key string) string {
+		return map[string]string{"RASHIN_SESSION": "s", "RASHIN_TEAM": "team-1", "RASHIN_TEAM_TOKEN": "token"}[key]
+	})
+	for _, tool := range tools {
+		if tool.Name == "ask_user" && len(tool.Input["required"].([]string)) != 0 {
+			t.Fatalf("ask_user still requires %v", tool.Input["required"])
+		}
+	}
 }

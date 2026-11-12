@@ -121,7 +121,7 @@ func (v *dreamView) layoutAside(gtx layout.Context, e *env.Env, dream protocol.T
 	v.month.Want(e, gtx.Now)
 	loaded, spend := v.month.Loaded(), v.month.Spend()
 	tokens := teamsui.TokensTrend(gtx.Now, spend, i18n.T("Tokens"))
-	done := teamsui.FinishedTrend(gtx.Now, spend, i18n.T("Finished tasks"))
+	done := teamsui.FinishedTrend(gtx.Now, doneSpend(e.Snapshot(), dream, spend), i18n.T("Finished tasks"))
 	v.folder.Kind, v.folder.Small, v.folder.Label = kit.PlaqueTonal, true, i18n.T("Open the folder")
 	if v.folder.Clicked(gtx) {
 		e.OpenFolder(dream.Folder)

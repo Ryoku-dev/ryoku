@@ -1709,8 +1709,8 @@ across turns, a dream is a team's, and only the user ends it.
   with an open piece cannot be released.
 - **Phases.** `interviewing`, `designing`, `planning`, `building`,
   `testing`, `presenting`, `done`. The manager sets the first five with
-  `dream_status`, with a one-sentence summary and its progress estimate;
-  `present` sets presenting; only the CEO's accepting sets done.
+  `dream_status`, with a one-sentence summary; `present` sets presenting;
+  only the CEO's accepting sets done.
 - **The loop.** The manager works one standing task as a goal. It is held
   while it waits on its members or the CEO and continued when that settles,
   as any lead is. A report does not end it (`teams.agent_report` refuses),
@@ -1728,13 +1728,14 @@ across turns, a dream is a team's, and only the user ends it.
   dream with an Inbox card, "<dream> has stalled: keep going?", carrying the
   manager's last words, with Keep going and Pause the dream.
 - **Interview first, the team builds.** The manager's first turn asks the
-  CEO one batched round of design and task questions with `ask_user` (its
-  `question` field carries them in full), sharing its plan when the
-  statement looks complete; it never writes the product itself. `present` is
-  refused, with what to do instead, until the CEO has answered one of its
-  questions in this dream and a member it hired has finished a piece since
-  the last presentation. Every Rashin MCP tool refuses an argument it does
-  not take and names the ones it does.
+  CEO one batched round of design and task questions with `ask_user`
+  (`question` carries them in full; without a `title` the card takes the
+  question's first sentence), sharing its plan when the statement looks
+  complete; it never writes the product itself. `present` is refused, with
+  what to do instead, until the CEO has answered one of its questions in
+  this dream and a member it hired has finished a piece since the last
+  presentation. Every Rashin MCP tool refuses an argument it does not take
+  and names the ones it does.
 - **Presenting.** `present` (title, body, tests, files inside the folder)
   waits as an Inbox card, "<dream> is ready: <title>", with Accept and Send
   notes. `teams.dream_answer` (app only; `accepted`, or `notes` with the
@@ -1762,10 +1763,14 @@ across turns, a dream is a team's, and only the user ends it.
   statement, a name, the manager's engine, Unlimited or a monthly cap, the
   folder and how the manager signs in: from scratch, or from the setup of a
   team signed in to that harness. A dream's page shows the statement, the
-  phases as words, where the manager says it stands, its sign-in, the
-  presentation with Accept and Send notes, its questions, the team as an
-  org chart under You (CEO), its work with the hires' tasks, tokens and
-  finished tasks over time, and its folder, with Pause and Resume. Routes are
+  phases as words, where the manager says it stands, a bar that follows the
+  phase (inside building, the pieces done out of those handed out this
+  round; presenting sits at 95%), its sign-in, the presentation with Accept
+  and Send notes and, under it, who built it from Rashin's own task records
+  (role, harness and model of each member who worked this round, whatever
+  the manager wrote), its questions, the team as an org chart under You
+  (CEO), its work with the hires' tasks, tokens and tasks that ended done
+  over time, and its folder, with Pause and Resume. Routes are
   `dreams`, `dreams/new` and `dreams/<id>`; `ui.open` with tab `dreams` and
   team `new` or an id opens the same. The Teams list and board leave dreams
   out. The demo has "ESP32 Wi-Fi setup page" building with a question

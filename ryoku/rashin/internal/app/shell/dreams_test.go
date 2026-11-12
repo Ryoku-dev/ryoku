@@ -210,3 +210,52 @@ func (s *stage) scrollDialog(field string) {
 	}
 	s.settle()
 }
+
+// the bar rests on the phase, and inside Building on the pieces finished, never on the manager's estimate
+func TestTheDreamBarFollowsThePhase(t *testing.T) {
+	stage := newStage(t, image.Pt(1440, 1400))
+	for route, caption := range map[string]string{
+		"dreams/dream-receipts": "Phase 6 of 7: Presenting",
+		"dreams/dream-esp32":    "Phase 4 of 7: Building, 1 of 3 pieces done",
+	} {
+		stage.open(route)
+		if _, ok := stage.named(caption); !ok {
+			t.Errorf("%s does not say %q; there is %v", route, caption, stage.names())
+		}
+	}
+}
+
+// a dream that stopped on its sign-in and went on as the same task has finished nothing yet
+func TestAFreshDreamHasFinishedNothing(t *testing.T) {
+	stage := newStage(t, image.Pt(1440, 1400))
+	stage.open("dreams")
+	stage.click("New dream")
+	stage.click("Your dream")
+	stage.typeText("Make a plant watering reminder.")
+	stage.click("Start")
+	stage.await("the dream waits for its sign-in", func() bool {
+		_, ok := stage.named("Not signed in")
+		return ok
+	})
+	stage.click("Sign Codex in for Make a plant watering reminder.")
+	argv := stage.argv[len(stage.argv)-1]
+	stage.shell.environment().Call(protocol.MHarnessesTeamsDone, protocol.HarnessTeamsDoneParams{Token: argv[slices.Index(argv, "codex")-1]}, new(protocol.HarnessTeamsDoneResult), func(error) {})
+	stage.await("the manager works", func() bool {
+		_, ok := stage.named("Working")
+		return ok
+	})
+	if _, ok := stage.named("No task has finished this month yet."); !ok {
+		t.Fatalf("a fresh dream counts a finished task; there is %v", stage.names())
+	}
+}
+
+// under the presentation, who built it and on what, from the tasks' own records
+func TestThePresentationNamesWhoBuiltIt(t *testing.T) {
+	stage := newStage(t, image.Pt(1440, 2400))
+	stage.open("dreams/dream-receipts")
+	for _, name := range []string{"Who built it", "Developer", "Codex", "gpt-5.6", "Claude Code", "sonnet"} {
+		if _, ok := stage.named(name); !ok {
+			t.Errorf("the presentation does not show %q; there is %v", name, stage.names())
+		}
+	}
+}

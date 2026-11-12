@@ -82,9 +82,8 @@ func TestADreamsManagerHiresSetsPhasesReleasesAndPresents(t *testing.T) {
 	if hired.Harness != "fake" || hired.Lead {
 		t.Fatalf("hired %+v", hired)
 	}
-	progress := 30
-	h.answer(t, protocol.MTeamsAgentDream, protocol.AgentDreamParams{AgentRef: ref, Phase: protocol.DreamBuilding, Summary: "Ada builds the firmware.", Progress: &progress, Brief: "A captive page."})
-	if d := h.dream(t, dream.ID); d.Phase != protocol.DreamBuilding || *d.Progress != 30 || d.Brief != "A captive page." || d.Hired != 1 {
+	h.answer(t, protocol.MTeamsAgentDream, protocol.AgentDreamParams{AgentRef: ref, Phase: protocol.DreamBuilding, Summary: "Ada builds the firmware.", Brief: "A captive page."})
+	if d := h.dream(t, dream.ID); d.Phase != protocol.DreamBuilding || d.Summary != "Ada builds the firmware." || d.Brief != "A captive page." || d.Hired != 1 {
 		t.Fatalf("the dream reads %+v", d)
 	}
 	refused(t, h, protocol.MTeamsAgentDream, protocol.AgentDreamParams{AgentRef: ref, Phase: protocol.DreamDone, Summary: "Done."}, protocol.CodeBadRequest)

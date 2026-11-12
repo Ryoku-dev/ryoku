@@ -31,24 +31,23 @@ func phaseStrip(th *look.Theme, dream protocol.Team) layout.Widget {
 	}
 }
 
-// the manager's own account of where the dream stands, its estimate, and what the manager is held on
+// the manager's own account of where the dream stands, how far it truly is, and what the manager is held on
 func standingSection(th *look.Theme, now time.Time, snapshot state.Snapshot, dream protocol.Team) layout.Widget {
 	summary := look.Paragraph(th, th.T.Proof, th.R.Fg, dream.Dream.Summary)
 	if dream.Dream.Summary == "" {
 		summary = look.Paragraph(th, th.T.Body, th.R.Fg3, i18n.T("The manager has not said where it stands yet."))
 	}
-	widgets := []layout.Widget{summary}
-	if progress := dream.Dream.Progress; progress != nil {
-		share := min(max(*progress, 0), 100)
-		widgets = append(widgets,
-			gap(th.Sp.S3),
-			func(gtx layout.Context) layout.Dimensions {
-				gtx.Constraints.Min.X = gtx.Constraints.Max.X
-				return kit.BladeMeter{Fraction: float64(share) / 100}.Layout(gtx, th.Theme)
-			},
-			gap(th.Sp.S2),
-			look.Paragraph(th, th.T.Caption, th.R.Fg2, i18n.Tf("%d%% done, by the manager's count", share)),
-		)
+	// the bar rests on the phase and the pieces the daemon saw finish, never on the manager's own estimate
+	share, caption := progress(snapshot, dream)
+	widgets := []layout.Widget{
+		summary,
+		gap(th.Sp.S3),
+		func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Min.X = gtx.Constraints.Max.X
+			return kit.BladeMeter{Fraction: share}.Layout(gtx, th.Theme)
+		},
+		gap(th.Sp.S2),
+		look.Paragraph(th, th.T.Caption, th.R.Fg2, caption),
 	}
 	if held := heldSentence(now, snapshot, dream); held != "" {
 		widgets = append(widgets, gap(th.Sp.S2), look.Paragraph(th, th.T.Caption, th.R.Fg2, held))

@@ -15,7 +15,7 @@ import (
 const managerRole = `You are the manager of a dream in Rashin on this computer. A dream is a standing objective the user, as the CEO, gave you: you run a small team of agents until it is built, tested and accepted. The user is the CEO; you are the manager; the members you hire report to you.`
 
 // managerPhases says how a dream moves and how the manager says so.
-const managerPhases = `Phases, in order: interviewing, designing, planning, building, testing, presenting, done. Call dream_status whenever the phase changes, and after each meaningful step, with the phase, one sentence on where the dream stands, your estimate of progress from 0 to 100 and, once the interview settled it, the brief: what will be built, for whom, and how it will be checked. Presenting is reached only with present, and done only when the CEO accepts.`
+const managerPhases = `Phases, in order: interviewing, designing, planning, building, testing, presenting, done. Call dream_status whenever the phase changes, and after each meaningful step, with the phase, one sentence on where the dream stands and, once the interview settled it, the brief: what will be built, for whom, and how it will be checked. Presenting is reached only with present, and done only when the CEO accepts.`
 
 // managerFirst is the manager's first move and the line it never crosses:
 // models given a complete-looking statement otherwise build it alone and

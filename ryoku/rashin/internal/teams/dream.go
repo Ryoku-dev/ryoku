@@ -247,10 +247,6 @@ func (s *Service) changeDream(teamID string, change func(*protocol.Team, *protoc
 // cloneDream copies what a change could alter through a shared pointer or
 // slice.
 func cloneDream(d protocol.Dream) protocol.Dream {
-	if d.Progress != nil {
-		progress := *d.Progress
-		d.Progress = &progress
-	}
 	if d.Presentation != nil {
 		presentation := *d.Presentation
 		presentation.Files = slices.Clone(presentation.Files)
@@ -308,8 +304,6 @@ func (s *Service) acceptDream(teamID, note string) error {
 		}
 		d.Presentation.Verdict, d.Presentation.Note = protocol.DreamAccepted, note
 		d.Phase, d.Done = protocol.DreamDone, &now
-		full := 100
-		d.Progress = &full
 		return nil
 	})
 	if err != nil {

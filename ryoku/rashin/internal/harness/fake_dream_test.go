@@ -45,17 +45,17 @@ func fakeDreamTurn(write func(any), servers []fakeMCPServer, prompts int, params
 	text := fakePromptText(params)
 	switch {
 	case prompts == 1:
-		step("dream_status", map[string]any{"phase": "interviewing", "summary": "Asking how the page should look.", "progress": 5})
+		step("dream_status", map[string]any{"phase": "interviewing", "summary": "Asking how the page should look."})
 		step("ask_user", map[string]any{"title": "How should the setup page look?", "question": "Plan: Ada writes one page asking for the Wi-Fi name and password, a second member checks it. Should it list nearby networks, and light or dark?"})
 	case strings.Contains(text, "finished the pieces"):
-		step("dream_status", map[string]any{"phase": "testing", "summary": "The page is in; checking it.", "progress": 90})
+		step("dream_status", map[string]any{"phase": "testing", "summary": "The page is in; checking it."})
 		step("present", map[string]any{"title": "ESP32 setup page, turn " + strconv.Itoa(prompts), "body": "Join ESP32-Setup and the page asks for your network.", "tests": "Opened index.html; both fields show.", "files": []string{"index.html"}})
 	default:
 		if !strings.Contains(text, "sent notes") {
 			step("hire", map[string]any{"name": "Ada", "title": "Web engineer", "instructions": "You own the setup page the ESP32 serves.", "why": "The page is a piece one member can own."})
 		}
 		step("delegate", map[string]any{"member": "Ada", "title": "Setup page", "brief": "Write index.html: a page asking for the Wi-Fi name and password, and report."})
-		step("dream_status", map[string]any{"phase": "building", "summary": "Ada writes the setup page.", "progress": 40})
+		step("dream_status", map[string]any{"phase": "building", "summary": "Ada writes the setup page."})
 	}
 }
 

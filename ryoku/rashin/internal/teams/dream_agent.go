@@ -169,9 +169,8 @@ func (s *Service) agentRelease(ctx context.Context, p protocol.AgentReleaseParam
 }
 
 // agentDream is the manager saying where the dream stands: its phase, a
-// one-sentence summary, its own estimate of progress, and what the
-// interview settled. Presenting and done are reached only by presenting
-// and by the user's accepting.
+// one-sentence summary and what the interview settled. Presenting and done
+// are reached only by presenting and by the user's accepting.
 func (s *Service) agentDream(ctx context.Context, p protocol.AgentDreamParams) (protocol.AgentAnswer, error) {
 	c, team, err := s.managerCall(ctx, p.AgentRef)
 	if err != nil {
@@ -186,9 +185,6 @@ func (s *Service) agentDream(ctx context.Context, p protocol.AgentDreamParams) (
 	if summary == "" || utf8.RuneCountInString(summary) > dreamSummaryMax {
 		return protocol.AgentAnswer{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("Say in one sentence of at most %d characters where the dream stands.", dreamSummaryMax))
 	}
-	if p.Progress != nil && (*p.Progress < 0 || *p.Progress > 100) {
-		return protocol.AgentAnswer{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Progress is a number from 0 to 100."))
-	}
 	brief := strings.TrimSpace(p.Brief)
 	if utf8.RuneCountInString(brief) > dreamBriefMax {
 		return protocol.AgentAnswer{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("The brief has at most %d characters.", dreamBriefMax))
@@ -200,10 +196,6 @@ func (s *Service) agentDream(ctx context.Context, p protocol.AgentDreamParams) (
 		}
 		before = d.Phase
 		d.Phase, d.Summary = phase, s.redact(summary)
-		if p.Progress != nil {
-			progress := *p.Progress
-			d.Progress = &progress
-		}
 		if brief != "" {
 			d.Brief = s.redact(brief)
 		}
