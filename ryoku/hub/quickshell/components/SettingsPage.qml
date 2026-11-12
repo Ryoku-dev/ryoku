@@ -754,6 +754,38 @@ Item {
                 label: page.hub.wide ? "" : page.sheetCategory
                 mark: page.sheetMark
             }
+            // the category's other pages, so the wide window needs no page list beside
+            // the page: the one open reads as chosen, the rest are one click away
+            Flickable {
+                id: siblingRow
+                width: parent.width
+                height: visible ? siblings.implicitHeight : 0
+                visible: page.hub.wide && page.sheetPages.length >= 2
+                contentWidth: siblings.width
+                contentHeight: siblings.height
+                boundsBehavior: Flickable.StopAtBounds
+                clip: true
+                interactive: siblings.width > width
+
+                Row {
+                    id: siblings
+                    spacing: LithicTokens.space.s2
+
+                    Repeater {
+                        model: page.sheetPages
+
+                        Plaque {
+                            required property var modelData
+                            required property int index
+
+                            small: true
+                            kind: modelData.id === page.pageId ? "on" : "quiet"
+                            text: I18n.tr(modelData.title)
+                            onClicked: page.hub.navigate(modelData.id, "")
+                        }
+                    }
+                }
+            }
             Item { width: 1; height: LithicTokens.space.s4 }
             Label {
                 width: parent.width

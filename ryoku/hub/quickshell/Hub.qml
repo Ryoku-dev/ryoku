@@ -27,13 +27,14 @@ FocusScope {
     }
     // "home": no category is open and the rail selects nothing; "category": one is
     property string listMode: "home"
-    // the navigation pane holds the search and the open category's pages. Expanded shows it
-    // beside the page; narrower windows show one of the two, the pane ("nav") or the page ("work")
+    // the navigation pane holds the search, and in a narrow window the open category's pages.
+    // Expanded shows it only for the search; narrower windows show one of the two, the pane
+    // ("nav") or the page ("work")
     readonly property bool wide: frame.sizeClass === "expanded"
     property string narrowView: "work"
     // search was asked for: the pane shows for it even on Home, where no category is open
     property bool searchOpen: false
-    readonly property bool navShown: hub.wide ? (hub.searchOpen || hub.searching || hub.listMode === "category")
+    readonly property bool navShown: hub.wide ? (hub.searchOpen || hub.searching)
                                                : hub.narrowView === "nav"
     // the page each category last showed this session, so its tile returns there
     property var lastInCategory: ({})
