@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
@@ -122,8 +123,13 @@ func (s *updatesState) runStatus() {
 	if err != nil || len(out) == 0 {
 		return
 	}
-	writeUpdateCache(out)
-	s.topic.publish(out)
+	// the bus frames one message per line, so the status's own newlines would split it
+	var frame bytes.Buffer
+	if json.Compact(&frame, out) != nil {
+		return
+	}
+	writeUpdateCache(frame.Bytes())
+	s.topic.publish(frame.Bytes())
 }
 
 func updateCheckInterval() time.Duration {

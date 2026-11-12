@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -55,6 +57,29 @@ func TestUpdatesFirstSubscriberChecksAtOnce(t *testing.T) {
 	h.runs.wait(t)
 	if d := h.clk.waitArmed(t); d != 24*time.Hour {
 		t.Fatalf("next check in %s, want 24h", d)
+	}
+}
+
+func TestUpdatesStatusPublishesOneLine(t *testing.T) {
+	bin, cache := t.TempDir(), t.TempDir()
+	script := "#!/bin/sh\nprintf '{\\n  \"available\": true,\\n  \"updates\": [{\"name\": \"a b\"}]\\n}\\n'\n"
+	if err := os.WriteFile(filepath.Join(bin, "ryoku"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("XDG_CACHE_HOME", cache)
+	s := newUpdatesState(newStateTopic(), make(chan struct{}))
+	s.runStatus()
+	const want = `{"available":true,"updates":[{"name":"a b"}]}`
+	s.topic.mu.Lock()
+	got := string(s.topic.last)
+	s.topic.mu.Unlock()
+	if got != want {
+		t.Fatalf("published %q, want %q on one line", got, want)
+	}
+	cached, err := os.ReadFile(filepath.Join(cache, "ryoku", "update-status.json"))
+	if err != nil || string(cached) != want {
+		t.Fatalf("cache = %q (%v), want %q", cached, err, want)
 	}
 }
 
