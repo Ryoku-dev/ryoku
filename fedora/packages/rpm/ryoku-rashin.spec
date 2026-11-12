@@ -2,7 +2,7 @@ Name:           ryoku-rashin
 Version:        0.1
 Release:        1%{?dist}
 Summary:        Ryoku Rashin AI system
-License:        GPL-3.0-or-later AND Apache-2.0
+License:        GPL-3.0-or-later AND Apache-2.0 AND OFL-1.1
 URL:            https://ryoku.dev
 Source0:        ryoku-%{version}.tar.gz
 %global debug_package %{nil}

@@ -87,6 +87,10 @@ pkgs.buildGoModule {
       "$out/share/licenses/ryoku-rashin/NOTICE"
     install -Dm644 vendor/github.com/ryoku-dev/ryoku/docs/lithic/library/go/symbols/LICENSE \
       "$out/share/licenses/ryoku-rashin/LICENSE.material-symbols"
+    install -Dm644 vendor/github.com/ryoku-dev/ryoku/docs/lithic/library/go/fonts/Geologica-OFL.txt \
+      "$out/share/licenses/ryoku-rashin/LICENSE.geologica"
+    install -Dm644 vendor/github.com/ryoku-dev/ryoku/docs/lithic/library/go/fonts/MartianMono-OFL.txt \
+      "$out/share/licenses/ryoku-rashin/LICENSE.martian-mono"
 
     runHook postInstall
   '';
@@ -97,6 +101,7 @@ pkgs.buildGoModule {
     license = [
       pkgs.lib.licenses.gpl3Plus
       pkgs.lib.licenses.asl20
+      pkgs.lib.licenses.ofl
     ];
     mainProgram = "rashin-app";
     platforms = [ "x86_64-linux" ];

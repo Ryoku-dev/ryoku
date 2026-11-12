@@ -14,6 +14,11 @@
   draws Material Symbols, so every edition's package metadata names the
   license and the package installs it as
   `/usr/share/licenses/ryoku-rashin/LICENSE.material-symbols`.
+- **`ryoku-rashin` declares OFL-1.1 for its type.** The app sets its text in
+  Geologica and Martian Mono, embedded from Lithic, so every edition's package
+  metadata names the license and the package installs them as
+  `/usr/share/licenses/ryoku-rashin/LICENSE.geologica` and
+  `LICENSE.martian-mono`.
 - **Ryoport is its own package now.** Arch and CachyOS import the official
   `ryoku-dev/ryoport` release into stable and testing beside Ryotunes. The
   desktop package no longer carries Ryoport or its VM and console dependencies,

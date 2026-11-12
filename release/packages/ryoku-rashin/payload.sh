@@ -47,6 +47,11 @@ install)
 	# the app draws Material Symbols, whose license ships beside the vendored icons
 	install -Dm644 "$RYOKU_SRC/ryoku/rashin/vendor/github.com/ryoku-dev/ryoku/docs/lithic/library/go/symbols/LICENSE" \
 		"$destdir/usr/share/licenses/ryoku-rashin/LICENSE.material-symbols"
+	# it sets its type in Geologica and Martian Mono, embedded from the vendored Lithic fonts
+	install -Dm644 "$RYOKU_SRC/ryoku/rashin/vendor/github.com/ryoku-dev/ryoku/docs/lithic/library/go/fonts/Geologica-OFL.txt" \
+		"$destdir/usr/share/licenses/ryoku-rashin/LICENSE.geologica"
+	install -Dm644 "$RYOKU_SRC/ryoku/rashin/vendor/github.com/ryoku-dev/ryoku/docs/lithic/library/go/fonts/MartianMono-OFL.txt" \
+		"$destdir/usr/share/licenses/ryoku-rashin/LICENSE.martian-mono"
 	if [ "$init" = systemd ]; then
 		for unit in rashind.socket rashind.service ryoku-ai-usage.service ryoku-ai-usage.timer \
 			rashind-routines.service rashind-routines.timer; do
