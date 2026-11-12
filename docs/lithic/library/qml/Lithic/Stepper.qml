@@ -80,6 +80,9 @@ T.SpinBox {
         valueInput.text = event.text
         event.accepted = true
     }
+    // SpinBox makes its content a Tab stop of its own; the stepper is one stop, and an editable one
+    // passes its focus inside anyway
+    Component.onCompleted: contentItem.activeFocusOnTab = false
 
     component StepperFace: Item {
         property string glyph: ""
