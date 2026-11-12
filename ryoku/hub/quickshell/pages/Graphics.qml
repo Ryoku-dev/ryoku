@@ -26,6 +26,10 @@ Item {
     readonly property string muxRestartLine: root.muxBooted !== "" ? I18n.tr("Restart to move the screen to the other card.")
         : I18n.tr("Restart if the screen has not moved to the other card yet.")
 
+    // Performance pins the desktop to the discrete card only while one of its ports has a
+    // monitor at log in, since the built-in screen is wired to the integrated graphics
+    readonly property bool externalRoute: !!root.store && root.store.performanceAvailable && root.store.performanceRoute === "external"
+
     readonly property var modeLabels: ({ hybrid: I18n.tr("Hybrid"), performance: I18n.tr("Performance"), passthrough: I18n.tr("Passthrough") })
 
     // rows come from what the cards report, so a deep link waits until they have answered
@@ -134,7 +138,9 @@ Item {
     function modeDetail() {
         var m = root.store ? root.store.mode : "";
         var text = m === "performance"
-            ? (root.caps.chassis === "laptop" && root.store.mux.capable && root.store.mux.mode !== "discrete"
+            ? (root.externalRoute
+                ? I18n.tr("%1 draws the desktop while a monitor is plugged into one of its ports when you log in, and the built-in screen can then stay dark after you log in or after sleep. Without that monitor, the integrated graphics draw the desktop.").arg(root.dgpu)
+                : root.caps.chassis === "laptop" && root.store.mux.capable && root.store.mux.mode !== "discrete"
                 ? I18n.tr("%1 draws the desktop: fastest, and it uses more power. For the full effect, wire the screen to it too.").arg(root.dgpu)
                 : I18n.tr("%1 draws the desktop: fastest, and it uses more power.").arg(root.dgpu))
             : m === "passthrough"
@@ -144,6 +150,8 @@ Item {
                     : I18n.tr("The integrated graphics draw the desktop to save battery; apps can still use %1 when they ask for it.").arg(root.dgpu);
         if (root.store && !root.store.performanceAvailable)
             text += " " + I18n.tr("Performance needs the screen wired to %1 first.").arg(root.dgpu);
+        else if (root.externalRoute && m !== "performance")
+            text += " " + I18n.tr("Performance makes %1 draw the desktop only while a monitor is plugged into one of its ports when you log in, and the built-in screen can then stay dark after you log in or after sleep.").arg(root.dgpu);
         if (root.modePending)
             text += " " + I18n.tr("Takes effect after you log out.");
         return text;
@@ -304,7 +312,10 @@ Item {
                 if (m === root.store.mode)
                     return;
                 var label = I18n.tr(root.modeLabels[m]);
-                var what = m === "performance" ? I18n.tr("%1 will draw the desktop.").arg(root.dgpu)
+                var what = m === "performance"
+                    ? (root.externalRoute
+                        ? I18n.tr("%1 will draw the desktop while a monitor is plugged into one of its ports when you log in, and the built-in screen can then stay dark after you log in or after sleep.").arg(root.dgpu)
+                        : I18n.tr("%1 will draw the desktop.").arg(root.dgpu))
                     : m === "passthrough" ? I18n.tr("The integrated graphics will draw the desktop and %1 will be free for a virtual machine.").arg(root.dgpu)
                     : I18n.tr("The integrated graphics will draw the desktop, and apps can still use %1.").arg(root.dgpu);
                 root.hub.confirm({

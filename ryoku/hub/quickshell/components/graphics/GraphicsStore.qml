@@ -18,6 +18,9 @@ QtObject {
     property string mode: ""
     property bool performanceAvailable: true
     property string performanceReason: ""
+    // "external": Performance pins the desktop to the discrete card only while one of
+    // its ports has a monitor at log in, since the built-in screen is wired elsewhere
+    property string performanceRoute: ""
     property var mux: ({})
     property var tune: []
     property bool tuneRead: false
@@ -366,6 +369,7 @@ QtObject {
                 store.modeApplies = m.applies !== false;
                 store.performanceAvailable = m.performance_available !== false;
                 store.performanceReason = String(m.performance_reason || "");
+                store.performanceRoute = String(m.performance_route || "");
             }
             Changes.touch();
         }, 10000);

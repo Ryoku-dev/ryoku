@@ -15,7 +15,7 @@ var related = ["power", "performance", "displays"];
 var rows = [
     { id: "graphics-mode", section: "mode", label: "Graphics mode",
       detail: "Which graphics card draws the desktop. Takes effect after you log out.",
-      keywords: ["gpu", "hybrid", "performance", "passthrough", "discrete", "integrated", "dgpu", "igpu", "nvidia", "amd", "prime", "render"],
+      keywords: ["gpu", "hybrid", "performance", "passthrough", "discrete", "integrated", "dgpu", "igpu", "nvidia", "amd", "prime", "render", "external monitor", "monitor port", "hdmi"],
       control: "custom", bind: { store: "graphics", key: "mode" } },
     { id: "display-wired", section: "mode", label: "Display wired to",
       detail: "Which graphics card the built-in screen is wired to. Takes effect after a restart.",
