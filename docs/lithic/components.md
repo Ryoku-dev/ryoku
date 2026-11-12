@@ -395,12 +395,17 @@ Library: QML Lithic.Header, web .l-header, Go kit.Header, terminal -
 
 ### Slab
 
-A slab is a container inside a pane: a `slab` fill with a 1 dp `vein`
-hairline inside a 7 cut, and a 21 inset. It groups settings, forms and quiet
-board sections. A slab lifts and never sinks: in dark mode it is lighter
-than the plane it stands on, and in light mode it shares the work pane's
-tone and its hairline sets it off. Rows inside are separated by `vein` lines
-that keep the 21 inset. Reference: `ui/kit/draw.go`.
+A slab is a container inside a pane: a `slab` fill inside a 7 cut with a 21
+inset, and a 1 dp `vein` hairline in light mode. It groups settings and
+forms, a group that must read as one object; board sections lie open on the
+pane. A slab lifts and never sinks: in dark mode it is lighter than the plane
+it stands on, and in light mode it sits a step lighter than the work pane and
+its hairline sets it off. Rows inside are separated by space, not rules.
+
+The one hero plane of a view, the thing that needs you, may be a toned slab:
+its state's mineral field in place of the `slab` fill. A view has one, and it
+holds the view's one gold action; other needs stay plain slabs or rows.
+Reference: `ui/kit/draw.go`.
 
 Library: QML Lithic.Slab, web .l-slab, Go kit.Slab, terminal term.RenderSlab
 
@@ -506,11 +511,11 @@ Library: QML Lithic.Facts, web .l-facts, Go kit.Facts, terminal term.RenderFacts
 
 ### Aside
 
-The draft aside is a standard slab: `slab` fill, 1 dp `vein` hairline, cut 7
-and 21 inset. Its `title` names what saving will make or write. A note under
-it uses `detail` in `fg2`. Facts and literal previews update as the form
-changes; preview text uses `monoSm` on an inner `field` block cut 6 with 13
-inset. Reference: `ui/pages/common/draft.go`.
+The draft aside is a standard slab: `slab` fill, cut 7, 21 inset and a 1 dp
+`vein` hairline in light mode. Its `title` names what saving will make or
+write. A note under it uses `detail` in `fg2`. Facts and literal previews
+update as the form changes; preview text uses `monoSm` on an inner `field`
+block cut 6 with 13 inset. Reference: `ui/pages/common/draft.go`.
 
 Library: QML Lithic.Aside, web .l-aside, Go kit.Aside, terminal term.RenderAside
 
@@ -544,8 +549,8 @@ Library: QML Lithic.Marks, web .l-marks, Go kit.Marks, terminal term.RenderMarks
 ### Sentence
 
 Sentence composes spans without turning the whole line into data type. A span
-may switch to mono for literal data or use amber for an attention name.
-Reference: `ui/pages/common/sentence.go`.
+may switch to mono for literal data; the sentence stays in one ink, and a
+state lives on its row. Reference: `ui/pages/common/sentence.go`.
 
 Library: QML Lithic.Sentence, web .l-sentence, Go kit.Sentence, terminal term.RenderSentence
 
@@ -733,6 +738,13 @@ Draw a 1.5 dp `fg` polyline over Hatch, with a 1 dp `vein` baseline, 4 dp
 ticks and `monoSm` labels. Do not use an area fill, extra colour or gradient.
 Short or absent data shows an `fg3` sentence instead. Reference:
 `ui/kit/chart.go`.
+
+Use it on an overview to show how what it oversees moved over time. It sits
+in a section open on the pane: the `section` title, one proof line in
+`detail` `fg2` that says in words what the line shows ("38 jobs ran this
+week; the busiest day was Tuesday with 11"), then the chart, beside or above
+the lists of what needs the reader. A chart never replaces the overview's
+sentence.
 
 Library: QML Lithic.EngravedChart, web .l-engraved-chart, Go kit.EngravedChart, terminal -
 

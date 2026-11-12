@@ -279,9 +279,9 @@ A Lithic surface is correctly wired when all of these hold on a Ryoku desktop:
    the palette.
 4. Switch contrast to high: the stones, slabs, fields and veins move away
    from the ground and the inks move out, while the ground stays. Switch tint
-   to low and medium under a wallpaper: the ground and stones take more of
-   the palette's colour, while veins, edges and ink keep theirs. Without a
-   palette the tint changes nothing.
+   to low and medium under a wallpaper: the ground, stones, slabs, fields,
+   veins and edges take more of the palette's colour, while the ink keeps
+   its own. Without a palette the tint changes nothing.
 5. Every pair in [contrast targets](#contrast-targets) holds in both modes,
    at both contrasts and every tint.
 6. A danger fill uses `inkOn(jasper)`.

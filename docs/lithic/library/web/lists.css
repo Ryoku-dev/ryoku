@@ -488,10 +488,14 @@
 .l-slab,
 .l-aside {
   --l-fill: var(--lithic-slab);
-  --l-stroke: var(--lithic-vein);
-  --l-stroke-width: var(--lithic-size-hairline);
   --l-cut: var(--lithic-cut-mid);
   padding: var(--lithic-size-slab-inset);
+}
+
+/* a lighter slab alone does not separate from a light pane, so light mode adds the hairline */
+:root[data-l-mode="light"] :is(.l-slab, .l-aside) {
+  --l-stroke: var(--lithic-vein);
+  --l-stroke-width: var(--lithic-size-hairline);
 }
 
 .l-slab[data-tone]:not([data-tone="idle"]) {

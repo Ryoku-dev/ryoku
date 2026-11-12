@@ -29,7 +29,8 @@ and on, and go down the list. Every "no" is a defect.
 - [ ] Rows on `stone4` hover with `fg` at alpha 0.06 and press at 0.08.
       They never step down to `stone3`; lower planes keep the plane-up recipe.
 - [ ] Nothing relies on one tone step to be found at rest. Fields carry their
-      `edge` hairline, slabs and overlays their `vein` hairline.
+      `edge` hairline, overlays their `vein` hairline, and slabs theirs in
+      light mode.
 - [ ] Slabs, menus and dialogs lift: in dark mode they are lighter than or
       equal to their plane, in light mode their hairline sets them off. No
       container is darker than the plane it stands on.
@@ -78,7 +79,9 @@ and on, and go down the list. Every "no" is a defect.
 - [ ] Work-pane body and tabs keep 34 side insets; mineral headers and
       Settings keep 36; full pages use the 760 column.
 - [ ] With no selection, the work pane shows the Now board: fleet proof,
-      pinned tiles, Needs you, Running now, This computer and Recent activity.
+      pinned tiles, Needs you, Running now, This computer, Recent activity,
+      and a chart section of how the fleet moved over time, its proof line in
+      words.
 - [ ] Host meters use quiet `fg2` and turn amber at 90 percent.
 - [ ] Draft forms are no wider than 600; from 820, an Aside previews what
       saving writes. Errors wait until a field was edited and left.

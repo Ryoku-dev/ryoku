@@ -420,7 +420,7 @@ A spin box with quiet decrement and increment faces either side of a field box h
 
 #### Filters
 
-A bounded row of filter chips with counts. Chips rest on tonal `field` plates; the `sel` fill glides to the selected chip.
+A bounded row of filter chips with counts in `caption` with tabular figures. A resting chip has no fill; hover shows the `field` fill, and the `sel` fill glides to the selected chip.
 
 - Properties: `model`, `currentIndex`, `previewState`, and `accessibleName`
 - Signal: `activated(int index)`
@@ -667,9 +667,9 @@ A detail header with a mark, name, proof, note, traits, actions, and an optional
 
 #### Slab
 
-A lifted cut container: `slab` fill and a 1 dp `vein` hairline inside the cut, with configurable inset, fill, and cut depth.
+A lifted cut container: the `slab` fill, with a 1 dp `vein` hairline inside the cut in light mode, and a configurable inset, fill, and cut depth. A `tone` other than idle dyes it with that state's mineral field for the one hero plane of a view.
 
-- Properties: `inset`, `fill`, `cut`, and the default `content` child list. Read-only properties are `bodyItem`, `contentImplicitWidth`, and `contentImplicitHeight`.
+- Properties: `inset`, `tone`, `fill`, `cut`, and the default `content` child list. Read-only properties are `bodyItem`, `contentImplicitWidth`, and `contentImplicitHeight`.
 - Preview: none
 
 #### Section
@@ -681,7 +681,7 @@ A section title followed by an arbitrary measured body.
 
 #### Facts
 
-A label and value list with optional monospace literal values. Labels keep the 140 column and values start `s4` after it; either side wraps, and a row grows past 44 to fit its taller side.
+A label and value list, rows set apart by their height with no rules, with optional monospace literal values. Labels keep the 140 column and values start `s4` after it; either side wraps, and a row grows past 44 to fit its taller side.
 
 - Property: `facts`
 - Fact entries: objects with `label`, `value`, and optional `literal`

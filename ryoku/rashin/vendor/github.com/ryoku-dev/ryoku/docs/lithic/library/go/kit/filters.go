@@ -22,9 +22,9 @@ type filterChip struct {
 	focus anim.Tween
 }
 
-// Filters is a row of mutually exclusive filter chips. Chips at rest are
-// tonal plates; the selection glides between them as a sel fill with the place
-// blade along its bottom.
+// Filters is a row of mutually exclusive filter chips. A chip at rest has no
+// fill and shows the field under the pointer; the selection glides between
+// them as a sel fill.
 type Filters struct {
 	Labels   []string
 	Counts   []int
