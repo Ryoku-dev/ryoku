@@ -471,8 +471,11 @@ T.Control {
                     }
                 }
 
+                // an unloaded Loader keeps its last size, so its height follows the panel explicitly
                 Loader {
                     width: parent.width
+                    height: active && item ? item.implicitHeight : 0
+                    visible: active
                     active: root._editIndex === entry.index
                     sourceComponent: editorPanel
                 }
@@ -513,6 +516,8 @@ T.Control {
         Loader {
             property bool gapAbove: root.count > 0
             width: parent.width
+            height: active && item ? item.implicitHeight : 0
+            visible: active
             active: root._editIndex >= 0 && root._editIndex === root.count
             sourceComponent: editorPanel
         }
