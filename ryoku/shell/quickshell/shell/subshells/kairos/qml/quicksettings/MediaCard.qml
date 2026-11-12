@@ -11,7 +11,7 @@ Item {
 
     readonly property var player: Media.player
     readonly property bool playing: Media.playing
-    readonly property string art: card.player ? (card.player.trackArtUrl || Music.artUrl || "") : ""
+    readonly property string art: Music.coverFor(card.player)
     readonly property real length: Music.duration
     readonly property string source: card.player
         ? String(card.player.identity || card.player.dbusName || "").replace(/^org\.mpris\.MediaPlayer2\./, "") : ""

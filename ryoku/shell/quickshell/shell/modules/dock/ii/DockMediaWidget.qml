@@ -5,7 +5,6 @@ import QtQuick.Layouts
 import Qt5Compat.GraphicalEffects
 import Quickshell
 import Quickshell.Widgets
-import Quickshell.Io
 import Quickshell.Services.Mpris
 import stage.modules.common.functions
 import stage.modules.common.widgets
@@ -70,7 +69,8 @@ Item {
         || Translation.tr("No media")
     readonly property string artist: String(root.currentPlayer?.trackArtist ?? "")
         || Translation.tr("Unknown Artist")
-    readonly property string artUrl: String(root.currentPlayer?.trackArtUrl ?? "")
+    // only the daemon's saved cover: an https Image can segfault qs (quickshell#1368)
+    readonly property string artUrl: Ryoku.Music.coverFor(root.currentPlayer)
     readonly property string identity: currentPlayer ? (currentPlayer.identity ?? "") : ""
     readonly property bool hasTrack: hasPlayer
         && String(root.currentPlayer?.trackTitle ?? "").length > 0
@@ -109,60 +109,12 @@ Item {
         }
     }
 
-    // ── Cover Art Resolution & Caching ────────────────────────────────────
-    property string artDownloadLocation: Directories.coverArt
-    property bool isLocalArt: root.artUrl.startsWith("file://") || root.artUrl.startsWith("/")
-    property string artFileName: root.artUrl !== "" ? Qt.md5(root.artUrl) : ""
-    property string artFilePath: root.artFileName !== "" ? `${artDownloadLocation}/${root.artFileName}` : ""
-    property bool artDownloaded: false
-
-    readonly property string effectiveArtSource: {
-        if (!root.artUrl || root.artUrl === "") return "";
-        if (root.isLocalArt) {
-            return root.artUrl.startsWith("/") ? ("file://" + root.artUrl) : root.artUrl;
-        }
-        if (root.artDownloaded && root.artFilePath !== "") {
-            return "file://" + root.artFilePath;
-        }
-        return root.artUrl;
-    }
-
-    Process {
-        id: artDownloader
-        property string targetFile: ""
-        property string filePath: ""
-        property string tempPath: ""
-        command: ["bash", "-c", `mkdir -p '${root.artDownloadLocation}' && ( [ -f '${filePath}' ] || (curl -4 -sSL '${StringUtils.shellSingleQuoteEscape(targetFile)}' -o '${tempPath}' && mv '${tempPath}' '${filePath}') )`]
-        onExited: (exitCode, exitStatus) => {
-            root.artDownloaded = (exitCode === 0);
-        }
-    }
-
-    function checkAndDownloadArt() {
-        if (!root.artUrl || root.artUrl === "") {
-            root.artDownloaded = false;
-            return;
-        }
-        if (root.isLocalArt) {
-            root.artDownloaded = true;
-            return;
-        }
-        artDownloader.targetFile = root.artUrl;
-        artDownloader.filePath = root.artFilePath;
-        artDownloader.tempPath = root.artFilePath + ".tmp";
-        artDownloader.running = true;
-    }
-
-    onArtUrlChanged: {
-        root.checkAndDownloadArt();
-    }
-
     // ── Dynamic Color Scheme & M3 Tokens ──────────────────────────────────
-    readonly property bool useDynamicColors: (Config.options?.media?.dynamicAlbumColors ?? false) && (root.artDownloaded || root.isLocalArt)
+    readonly property bool useDynamicColors: (Config.options?.media?.dynamicAlbumColors ?? false) && root.artUrl !== ""
 
     ColorQuantizer {
         id: colorQuantizer
-        source: root.artDownloaded ? ("file://" + root.artFilePath) : (root.isLocalArt ? (root.artUrl.startsWith("/") ? ("file://" + root.artUrl) : root.artUrl) : "")
+        source: root.artUrl
         depth: 0
         rescaleSize: 1
     }
@@ -296,8 +248,8 @@ Item {
     property real artScaleB: 1.0
     property string activeArtSource: ""
 
-    onEffectiveArtSourceChanged: {
-        root.applyArtTransition(root.effectiveArtSource);
+    onArtUrlChanged: {
+        root.applyArtTransition(root.artUrl);
     }
 
     function applyArtTransition(newSrc) {
@@ -317,13 +269,6 @@ Item {
         const currentIncoming = root.imgAActive ? artImgB : artImgA;
 
         if (newSrc === root.activeArtSource && currentActive.source !== "") {
-            return;
-        }
-
-        // Silent upgrade when curl finishes downloading cached local file for the same track
-        if (root.artDownloaded && newSrc === ("file://" + root.artFilePath) && currentActive.source === root.artUrl) {
-            currentActive.source = newSrc;
-            root.activeArtSource = newSrc;
             return;
         }
 
@@ -441,10 +386,9 @@ Item {
     Component.onCompleted: {
         root.displayTitle = root.title;
         root.displayArtist = root.artist;
-        root.checkAndDownloadArt();
         root._initialized = true;
-        if (root.effectiveArtSource !== "") {
-            root.applyArtTransition(root.effectiveArtSource);
+        if (root.artUrl !== "") {
+            root.applyArtTransition(root.artUrl);
         }
     }
 
@@ -891,7 +835,7 @@ Item {
                         fillMode: Image.PreserveAspectCrop
                         cache: true
                         antialiasing: true
-                        source: root.effectiveArtSource
+                        source: root.artUrl
                         visible: status === Image.Ready && source !== ""
                     }
                 }
