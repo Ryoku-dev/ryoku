@@ -39,6 +39,9 @@ func main() {
 	out := map[string]string{"source": loaded.Source}
 	value := reflect.ValueOf(roles)
 	for i := range value.NumField() {
+		if !value.Type().Field(i).IsExported() {
+			continue
+		}
 		c, isColor := value.Field(i).Interface().(color.NRGBA)
 		if !isColor {
 			continue

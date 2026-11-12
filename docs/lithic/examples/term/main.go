@@ -21,6 +21,8 @@ func main() {
 	width := flag.Int("width", 120, "output width in cells")
 	modeName := flag.String("mode", "follow", "palette mode: follow, dark, or light")
 	glyphName := flag.String("glyphs", "", "glyph set: console or unicode")
+	contrastName := flag.String("contrast", "standard", "palette contrast: standard or high")
+	tintName := flag.String("tint", "off", "palette tint: off, low, or medium")
 	flag.Parse()
 
 	mode, ok := parseMode(*modeName)
@@ -35,7 +37,7 @@ func main() {
 		}
 	}
 	w := max(40, *width)
-	th := term.NewTheme(mode)
+	th := term.Theme{Roles: palette.FromPalette(palette.Load(mode), palette.ParseLook(*contrastName, *tintName))}
 	var output string
 	switch *page {
 	case "foundation":
@@ -159,10 +161,10 @@ func controls(th term.Theme, width int) string {
 
 func fleetRows(width int) []term.Tablet {
 	return []term.Tablet{
-		{Name: "ubuntu-24.04", Facts: "ally · 192.0.2.18", Claim: "Running", Proof: "12 min", Tone: palette.Alive, Width: width},
-		{Name: "fedora-43", Facts: "prowl · 198.51.100.24", Claim: "Building", Proof: "46%", Tone: palette.Becoming, Progress: .46, Width: width},
-		{Name: "windows-11", Facts: "mika-server · 203.0.113.70:2222", Claim: "Needs you", Proof: "Sign in", Tone: palette.Attention, Action: "Review", Width: width},
-		{Name: "alpine-instant", Facts: "localhost · 127.0.0.1", Claim: "Stopped", Proof: "Yesterday", Tone: palette.Idle, Width: width},
+		{Name: "ubuntu-24.04", Facts: "ally at 192.0.2.18", Claim: "Running", Proof: "12 min", Tone: palette.Alive, Width: width},
+		{Name: "fedora-43", Facts: "prowl at 198.51.100.24", Claim: "Building", Proof: "46%", Tone: palette.Becoming, Progress: .46, Width: width},
+		{Name: "windows-11", Facts: "mika-server at 203.0.113.70:2222", Claim: "Needs you", Proof: "Sign in", Tone: palette.Attention, Action: "Review", Width: width},
+		{Name: "alpine-instant", Facts: "localhost at 127.0.0.1", Claim: "Stopped", Proof: "Yesterday", Tone: palette.Idle, Width: width},
 	}
 }
 
@@ -202,7 +204,7 @@ func lists(th term.Theme, width int) string {
 		state{"Becoming", term.RenderClaim(th, term.Claim{Tone: palette.Becoming, Progress: .46})},
 		state{"Failed", term.RenderClaim(th, term.Claim{Tone: palette.Failed, Progress: 1})})
 	specimen(&b, "Marks", state{"Traits", term.RenderMarks(th, term.Marks{Disposable: true, Instant: true, Sealed: true})})
-	specimen(&b, "Sentence", state{"Mixed spans", term.RenderSentence(th, term.Sentence{Spans: []term.Span{{Text: "Connect "}, {Text: "ops@192.0.2.18", Kind: term.SpanLiteral}, {Text: " to "}, {Text: "ally", Kind: term.SpanAttention}}})})
+	specimen(&b, "Sentence", state{"Mixed spans", term.RenderSentence(th, term.Sentence{Spans: []term.Span{{Text: "Connect "}, {Text: "ops@192.0.2.18", Kind: term.SpanLiteral}, {Text: " to "}, {Text: "ally"}}})})
 	specimen(&b, "Blade meter",
 		state{"Quiet", term.RenderBladeMeter(th, term.BladeMeter{Width: 32, Fraction: .62})},
 		state{"Attention", term.RenderBladeMeter(th, term.BladeMeter{Width: 32, Fraction: .93})})

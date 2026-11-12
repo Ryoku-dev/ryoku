@@ -14,7 +14,7 @@ QT_FORCE_STDERR_LOGGING=1 \
 ## Pages
 
 - `foundation` shows palette roles, type, primitives, recipes, and motion.
-- `controls` shows plaque tiers, fields on a pane and inside a slab, selectors including `Segmented`, slab rows, the place blade, a checked menu item, and disclosure.
+- `controls` shows plaque tiers, fields on a pane and inside a slab, selectors including `Segmented`, slab rows, selection, a checked menu item, and disclosure.
 - `lists` shows list rows, containers, state, and progress.
 - `overlays` shows popovers, dialogs, navigation, charts, and the application frame.
 

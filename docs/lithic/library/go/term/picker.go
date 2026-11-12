@@ -29,7 +29,7 @@ func RenderPicker(th Theme, picker Picker) string {
 		width = tokens.SizePickerWidthMin / tokens.SpaceS2
 	}
 	content := fit(picker.Label+": "+value+"  "+glyphs().Chevron, width)
-	anchor := framed(th, content, th.Roles.Stone3, picker.Focused, picker.Disabled)
+	anchor := framed(th, content, th.Roles.Field, picker.Focused, picker.Disabled)
 	if !picker.Open {
 		return anchor
 	}

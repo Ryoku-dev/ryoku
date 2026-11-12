@@ -69,9 +69,7 @@ T.Control {
                 x: chip ? chip.x : 0
                 width: chip ? chip.width : 0
                 height: LithicTokens.size.filterHeight
-                fill: chip && chip._hoverActive
-                      ? Lithic.mix(Lithic.field, Lithic.fg, LithicTokens.alpha.hoverPlane)
-                      : Lithic.field
+                fill: chip && chip._hoverActive ? Lithic.field : Lithic.alpha(Lithic.field, 0)
                 cut: LithicTokens.cut.small + (chip && chip._pressActive ? Lithic.pressCutGrow : 0)
 
                 ChiselColorBehavior on fill {
@@ -91,13 +89,6 @@ T.Control {
 
             ChiselNumberBehavior on x { duration: LithicTokens.motion.select }
             ChiselNumberBehavior on width { duration: LithicTokens.motion.select }
-
-            PlaceBlade {
-                anchors.fill: parent
-                edge: "bottom"
-                cutStart: LithicTokens.cut.small
-                cutEnd: LithicTokens.cut.small
-            }
         }
 
         Row {
@@ -171,7 +162,8 @@ T.Control {
                             Label {
                                 visible: chip.countText.length > 0
                                 text: chip.countText
-                                typeRole: "monoSm"
+                                typeRole: "caption"
+                                numeric: true
                                 ink: chip.selected ? Lithic.onSel2 : Lithic.fg3
                             }
                         }

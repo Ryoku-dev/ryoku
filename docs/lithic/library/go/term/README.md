@@ -110,7 +110,7 @@ Lists, containers, state, and progress:
 - `RenderDraftColumns(Theme, DraftColumns) string`
 - `RenderClaim(Theme, Claim) string`
 - `RenderMarks(Theme, Marks) string`
-- `RenderSentence(Theme, Sentence) string`, with `[]Span` and `SpanText|SpanLiteral|SpanAttention`
+- `RenderSentence(Theme, Sentence) string`, with `[]Span` and `SpanText|SpanLiteral`
 - `RenderBladeMeter(Theme, BladeMeter) string`
 - `RenderBladeProgress(Theme, BladeProgress) string`
 - `RenderWorking(Theme, Working) string`

@@ -86,54 +86,72 @@ func renderPlaneRaw(width int, background color.Color, text string) string {
 	return strings.Join(lines, "\n")
 }
 
+// centerPlaneRaw centres a block on a plane line by line, so a framed mark
+// keeps its shape.
 func centerPlaneRaw(width int, background color.Color, content string) string {
 	content = lipgloss.NewStyle().MaxWidth(width).Render(content)
 	gap := max(0, width-lipgloss.Width(content))
 	left := gap / 2
-	right := gap - left
 	style := lipgloss.NewStyle().Background(background)
-	return style.Render(strings.Repeat(" ", left)) + content + style.Render(strings.Repeat(" ", right))
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		right := max(0, width-left-lipgloss.Width(line))
+		lines[i] = style.Render(strings.Repeat(" ", left)) + line + style.Render(strings.Repeat(" ", right))
+	}
+	return strings.Join(lines, "\n")
 }
 
-func frameStyle(th Theme, background, border color.Color, disabled bool) lipgloss.Style {
+// stone renders content as a filled plane cut like Lithic stone: the content
+// rows on the fill, between a third-height cap above and below whose ends slope
+// like the chamfer. A stone has no outline; its fill shows the cut. plane is the
+// colour around it, or nil for the terminal's own background.
+func stone(th Theme, content string, fill, plane color.Color, disabled bool) string {
 	foreground := th.Roles.Fg
 	if disabled {
 		foreground = th.Roles.Fg3
 	}
-	return lipgloss.NewStyle().
+	body := lipgloss.NewStyle().
 		Foreground(foreground).
-		Background(background).
-		Border(CutBorder()).
-		BorderForeground(border).
-		Padding(0, horizontalPadding(tokens.SpaceS2))
-}
-
-func framed(th Theme, content string, background color.Color, focused, disabled bool) string {
-	border := th.Roles.Vein
-	if focused && !disabled {
-		border = th.Roles.Fg2
+		Background(fill).
+		Padding(0, horizontalPadding(tokens.SpaceS2)).
+		Render(onFill(content, fill))
+	inner := max(0, lipgloss.Width(body)-2)
+	capStyle := lipgloss.NewStyle().Foreground(fill)
+	if plane != nil {
+		capStyle = capStyle.Background(plane)
 	}
-	return frameStyle(th, background, border, disabled).Render(content)
+	g := glyphs()
+	top := capStyle.Render(g.StoneTopLeft + strings.Repeat(g.StoneTop, inner) + g.StoneTopRight)
+	bottom := capStyle.Render(g.StoneBottomLeft + strings.Repeat(g.StoneBottom, inner) + g.StoneBottomRight)
+	return top + "\n" + body + "\n" + bottom
 }
 
-func framedWithBorder(th Theme, content string, background, border color.Color, disabled bool) string {
-	return frameStyle(th, background, border, disabled).Render(content)
-}
-
-func framedOnPlane(th Theme, content string, background, planeBackground color.Color, focused, disabled bool) string {
-	border := th.Roles.Vein
-	if focused && !disabled {
-		border = th.Roles.Fg2
+// onFill keeps a plane's fill under pre-styled spans: every reset inside
+// content re-opens the fill's background, so the end of a span does not punch
+// a hole through the plane to the terminal behind it.
+func onFill(content string, fill color.Color) string {
+	opened := lipgloss.NewStyle().Background(fill).Render(" ")
+	opened = opened[:strings.Index(opened, " ")]
+	if opened == "" {
+		return content
 	}
-	return frameStyle(th, background, border, disabled).
-		BorderBackground(planeBackground).
-		Render(content)
+	return strings.ReplaceAll(content, "\x1b[m", "\x1b[m"+opened)
 }
 
-func framedOnPlaneWithBorder(th Theme, content string, background, planeBackground, border color.Color, disabled bool) string {
-	return frameStyle(th, background, border, disabled).
-		BorderBackground(planeBackground).
-		Render(content)
+// fieldFill is a field's plane: lighter while it has focus.
+func fieldFill(th Theme, fill color.NRGBA, focused, disabled bool) color.NRGBA {
+	if !focused || disabled {
+		return fill
+	}
+	return palette.Mix(fill, th.Roles.Fg, tokens.AlphaHoverFill)
+}
+
+func framed(th Theme, content string, fill color.NRGBA, focused, disabled bool) string {
+	return stone(th, content, fieldFill(th, fill, focused, disabled), nil, disabled)
+}
+
+func framedOnPlane(th Theme, content string, fill color.NRGBA, plane color.Color, focused, disabled bool) string {
+	return stone(th, content, fieldFill(th, fill, focused, disabled), plane, disabled)
 }
 
 func focusGutter(th Theme, focused bool) string {

@@ -11,7 +11,7 @@
     .page-head { display: flex; align-items: end; justify-content: space-between; gap: var(--lithic-space-s4); margin-bottom: var(--lithic-space-s5); }
     .page-head h1, .page-head p { margin: 0; }
     .page-head p { max-width: 620px; color: var(--lithic-fg2); }
-    .back { color: var(--lithic-gold-ink); text-decoration: none; }
+    .back { color: var(--lithic-fg); text-decoration: underline; text-decoration-color: var(--lithic-vein); text-underline-offset: 3px; }
     .section { margin-top: var(--lithic-space-s5); }
     .section > h2 { margin: 0 0 var(--lithic-space-s3); }
     .role-group + .role-group { margin-top: var(--lithic-space-s3); }
@@ -54,11 +54,8 @@
 <body>
   <main class="page">
     <header class="page-head">
-      <div>
-        <a class="back l-type-label" href="index.html">Gallery</a>
-        <h1 class="l-type-name">Foundation</h1>
-      </div>
-      <p class="l-type-body">Palette roles, type, spacing, cuts and state geometry shared by every Lithic web component.</p>
+      <h1 class="l-type-name">Foundation</h1>
+      <p class="l-type-body">Palette roles, type, spacing, cuts and state geometry shared by every Lithic web component. <a class="back" href="index.html">All galleries</a></p>
     </header>
 
     <section class="section" aria-labelledby="roles-heading">
@@ -121,19 +118,19 @@
     <section class="section" aria-labelledby="type-heading">
       <h2 class="l-type-section" id="type-heading">Type</h2>
       <div class="type-ramp">
-        <div class="type-line"><span class="l-type-mono-sm">Name</span><span class="l-type-name">Alpine instant</span></div>
-        <div class="type-line"><span class="l-type-mono-sm">Sentence</span><span class="l-type-sentence">Ready to connect</span></div>
-        <div class="type-line"><span class="l-type-mono-sm">Section</span><span class="l-type-section">Connection</span></div>
-        <div class="type-line"><span class="l-type-mono-sm">Title</span><span class="l-type-title">Server details</span></div>
-        <div class="type-line"><span class="l-type-mono-sm">Row</span><span class="l-type-row">mika-server</span></div>
-        <div class="type-line"><span class="l-type-mono-sm">Body</span><span class="l-type-body">The host is available and waiting for a session.</span></div>
-        <div class="type-line"><span class="l-type-mono-sm">Proof</span><span class="l-type-proof">root@203.0.113.70:2222</span></div>
-        <div class="type-line"><span class="l-type-mono-sm">Label</span><span class="l-type-label">Connect automatically</span></div>
-        <div class="type-line"><span class="l-type-mono-sm">Caption</span><span class="l-type-caption">Last checked two minutes ago</span></div>
-        <div class="type-line"><span class="l-type-mono-sm">Detail</span><span class="l-type-detail" style="color:var(--lithic-fg2)">Refresh server and machine state when Ryoport opens.</span></div>
-        <div class="type-line"><span class="l-type-mono-sm">Group</span><span class="l-type-group">Available servers</span></div>
-        <div class="type-line"><span class="l-type-mono-sm">Mono</span><span class="l-type-mono">/dev/ttyUSB0</span></div>
-        <div class="type-line"><span class="l-type-mono-sm">Mono small</span><span class="l-type-mono-sm">192.0.2.18</span></div>
+        <div class="type-line"><span class="l-type-caption">Name</span><span class="l-type-name">Alpine instant</span></div>
+        <div class="type-line"><span class="l-type-caption">Sentence</span><span class="l-type-sentence">Ready to connect</span></div>
+        <div class="type-line"><span class="l-type-caption">Section</span><span class="l-type-section">Connection</span></div>
+        <div class="type-line"><span class="l-type-caption">Title</span><span class="l-type-title">Server details</span></div>
+        <div class="type-line"><span class="l-type-caption">Row</span><span class="l-type-row">mika-server</span></div>
+        <div class="type-line"><span class="l-type-caption">Body</span><span class="l-type-body">The host is available and waiting for a session.</span></div>
+        <div class="type-line"><span class="l-type-caption">Proof</span><span class="l-type-proof">root@203.0.113.70:2222</span></div>
+        <div class="type-line"><span class="l-type-caption">Label</span><span class="l-type-label">Connect automatically</span></div>
+        <div class="type-line"><span class="l-type-caption">Caption</span><span class="l-type-caption">Last checked two minutes ago</span></div>
+        <div class="type-line"><span class="l-type-caption">Detail</span><span class="l-type-detail" style="color:var(--lithic-fg2)">Refresh server and machine state when Ryoport opens.</span></div>
+        <div class="type-line"><span class="l-type-caption">Group</span><span class="l-type-group">Available servers</span></div>
+        <div class="type-line"><span class="l-type-caption">Mono</span><span class="l-type-mono">/dev/ttyUSB0</span></div>
+        <div class="type-line"><span class="l-type-caption">Mono small</span><span class="l-type-mono-sm">192.0.2.18</span></div>
       </div>
     </section>
 
@@ -179,7 +176,7 @@
     </section>
 
     <section class="section" aria-labelledby="place-heading">
-      <h2 class="l-type-section" id="place-heading">Place blade</h2>
+      <h2 class="l-type-section" id="place-heading">Selection</h2>
       <div class="place-list">
         <div class="place-row l-cut l-place-row l-type-label">Selected row</div>
         <div class="place-chip l-cut l-place-chip l-type-label">Selected chip</div>

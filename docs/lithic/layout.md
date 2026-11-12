@@ -54,11 +54,10 @@ The rail is `stone1` with no cut of its own (it is a pane). From the top:
 
 Destinations: Home (the mark, returns to the Now board), Fleet, New,
 Activity, then Settings at the bottom. The current destination is a `sel`
-tile with a place blade on its leading edge that **travels** to its new place
-over 240 ms; hover steps a tile to `stone3` (160 ms in, 100 ms out). Labels
-are `caption` in `fg3`, `fg` when current. An amber notch at the top-left of
-the Settings tile is the only badge the rail may show; it means an update is
-ready.
+tile that **travels** to its new place over 240 ms; hover steps a tile to
+`stone3` (160 ms in, 100 ms out). Labels are `caption` in `fg3`, `fg` when
+current. An amber notch at the top-left of the Settings tile is the only
+badge the rail may show; it means an update is ready.
 
 In compact the same destinations move into the bottom bar: five equal
 columns, 48 high tiles cut 6, Home in the first column, New in the middle,
@@ -124,7 +123,7 @@ Activity and Settings omit the list pane and take the remaining width.
 
 | Width | Column | Section index | Insets |
 |---|---|---|---|
-| expanded | `min(available, 994)`, centred | a sticky 200 wide index to the left of the column, 34 gap; rows 48 high, 4 apart, label inset 13, the current one with its place blade | 34 top and bottom, 36 sides |
+| expanded | `min(available, 994)`, centred | a sticky 200 wide index to the left of the column, 34 gap; rows 48 high, 4 apart, label inset 13, the current one a `sel` fill | 34 top and bottom, 36 sides |
 | medium | `min(available, 760)`, centred | a Picker of the sections at the top of the column; never a strip of chips | same |
 | compact | full width | the same Picker at the top of the column | same |
 
@@ -295,15 +294,14 @@ window's sides and foot.
 the current destination (a question, a session, a project to add), the
 destinations as rows 40 high with a 20 icon and a `label`, then the list that
 belongs to the current destination, and Settings under a vein at the foot. The
-current destination is a `sel` fill with a place blade on its leading edge,
-and both travel between destinations. The list is the destination's own:
-questions by day, sessions by state, projects with their worktrees. Rows in it
-are not tablets. They lie flat on the pane, 36 high for one line and 48 for a
-name over one facts line, 2 apart, and take `stone3` under the pointer and the
-`sel` fill with its place blade when current. The trailing 44 of a row holds
-what the row claims (the Working flakes, a count, a time); under the pointer
-or the list cursor the claim gives way to the row's one action, as on a
-tablet.
+current destination is a `sel` fill that travels between destinations. The
+list is the destination's own: questions by day, sessions by state, projects
+with their worktrees. Rows in it are not tablets. They lie flat on the pane,
+36 high for one line and 48 for a name over one facts line, 2 apart, and take
+`stone3` under the pointer and the `sel` fill when current. The trailing 44
+of a row holds what the row claims (the Working flakes, a count, a time);
+under the pointer or the list cursor the claim gives way to the row's one
+action, as on a tablet.
 
 **A row says a state only when it has one.** A session that needs the reader
 carries an amber notch and stands under a Needs you group header; one at work

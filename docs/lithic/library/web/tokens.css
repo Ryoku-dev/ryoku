@@ -1,8 +1,8 @@
 /* Written by go run ./cmd/lithic-tokens from tokens.json. Do not edit by hand. */
 :root {
   --lithic-font-icons: "Material Symbols Sharp", sans-serif;
-  --lithic-font-mono: "Space Mono", "SpaceMono Nerd Font", "SpaceMono Nerd Font Mono", monospace;
-  --lithic-font-sans: "Space Grotesk", sans-serif;
+  --lithic-font-mono: "Martian Mono", monospace;
+  --lithic-font-sans: "Geologica", sans-serif;
   --lithic-space-s1: 4px;
   --lithic-space-s2: 8px;
   --lithic-space-s3: 13px;
@@ -189,7 +189,6 @@
   --lithic-size-section-index-width: 200px;
   --lithic-size-segment-height: 36px;
   --lithic-size-segment-inset: 4px;
-  --lithic-size-sel-blade: 3px;
   --lithic-size-settings-control-max: 320px;
   --lithic-size-settings-detail-gap: 2px;
   --lithic-size-settings-expanded-max: 994px;
@@ -278,11 +277,11 @@
   --lithic-type-label-weight: 500;
   --lithic-type-mono-family: var(--lithic-font-mono);
   --lithic-type-mono-line: 16px;
-  --lithic-type-mono-size: 12px;
+  --lithic-type-mono-size: 10px;
   --lithic-type-mono-weight: 400;
   --lithic-type-mono-sm-family: var(--lithic-font-mono);
   --lithic-type-mono-sm-line: 15px;
-  --lithic-type-mono-sm-size: 11px;
+  --lithic-type-mono-sm-size: 9px;
   --lithic-type-mono-sm-weight: 400;
   --lithic-type-name-family: var(--lithic-font-sans);
   --lithic-type-name-line: 56px;
@@ -330,24 +329,17 @@
   --lithic-motion-unfold: 200ms;
   --lithic-motion-wheel: 140ms;
   --lithic-motion-working: 900ms;
-  --lithic-alpha-contrast-high: 0.6;
-  --lithic-alpha-contrast-high-fg3: 0.3;
   --lithic-alpha-disabled: 0.5;
-  --lithic-alpha-edge: 0.5;
   --lithic-alpha-hatch: 0.3;
   --lithic-alpha-hover-fill: 0.1;
   --lithic-alpha-hover-ink: 0.1;
   --lithic-alpha-hover-plane: 0.06;
-  --lithic-alpha-mineral: 0.15;
-  --lithic-alpha-mineral-jade: 0.17;
-  --lithic-alpha-on-sel2: 0.45;
+  --lithic-alpha-on-sel2: 0.2;
   --lithic-alpha-press-plane: 0.06;
   --lithic-alpha-press-row: 0.08;
   --lithic-alpha-scrim-dark: 0.62;
   --lithic-alpha-scrim-light: 0.45;
   --lithic-alpha-sel-mix: 0.5;
-  --lithic-alpha-tint-low: 0.06;
-  --lithic-alpha-tint-medium: 0.1;
   --lithic-alpha-working-base: 0.55;
   --lithic-contrast-minimum: 4.5;
 }

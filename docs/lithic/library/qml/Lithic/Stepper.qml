@@ -84,7 +84,8 @@ T.SpinBox {
                                             ? -(LithicTokens.size.stepperUnitGap + unitLabel.implicitWidth) / 2
                                             : 0
             text: root.displayText
-            typeRole: "mono"
+            typeRole: "label"
+            numeric: true
             inkRole: "fg"
         }
 
@@ -95,7 +96,7 @@ T.SpinBox {
             anchors.verticalCenter: valueLabel.verticalCenter
             visible: root.unit.length > 0
             text: root.unit
-            typeRole: "monoSm"
+            typeRole: "caption"
             inkRole: "fg3"
         }
     }

@@ -49,12 +49,6 @@ T.Control {
                 fill: Lithic.sel
                 cut: LithicTokens.cut.small
                 ChiselNumberBehavior on y { duration: LithicTokens.motion.select }
-
-                PlaceBlade {
-                    anchors.fill: parent
-                    cutStart: LithicTokens.cut.small
-                    cutEnd: LithicTokens.cut.small
-                }
             }
 
             Repeater {

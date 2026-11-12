@@ -41,15 +41,6 @@ Item {
                     inkRole: "fg"
                     maximumLineCount: 1
                 }
-
-                Rectangle {
-                    visible: index < root.facts.length - 1
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.bottom: parent.bottom
-                    height: LithicTokens.size.hairline
-                    color: Lithic.vein
-                }
             }
         }
     }

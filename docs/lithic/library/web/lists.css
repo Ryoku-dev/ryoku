@@ -110,9 +110,15 @@
   font: var(--lithic-type-label-weight) var(--lithic-type-label-size)/var(--lithic-type-label-line) var(--lithic-type-label-family);
 }
 
+/* The notch keeps the mineral; on bone the word takes the selection's ink */
+.l-tablet[aria-selected="true"] .l-tablet__claim {
+  color: var(--lithic-on-sel);
+}
+
 .l-tablet__proof {
   color: var(--lithic-fg3);
-  font: var(--lithic-type-mono-sm-weight) var(--lithic-type-mono-sm-size)/var(--lithic-type-mono-sm-line) var(--lithic-type-mono-sm-family);
+  font: var(--lithic-type-caption-weight) var(--lithic-type-caption-size)/var(--lithic-type-caption-line) var(--lithic-type-caption-family);
+  font-variant-numeric: tabular-nums;
 }
 
 .l-tablet__action {
@@ -237,7 +243,8 @@
 }
 
 .l-group-header__count {
-  font: var(--lithic-type-mono-sm-weight) var(--lithic-type-mono-sm-size)/var(--lithic-type-mono-sm-line) var(--lithic-type-mono-sm-family);
+  font: var(--lithic-type-caption-weight) var(--lithic-type-caption-size)/var(--lithic-type-caption-line) var(--lithic-type-caption-family);
+  font-variant-numeric: tabular-nums;
 }
 
 .l-group-header__toggle .l-glyph {
@@ -427,10 +434,12 @@
   padding: var(--lithic-size-slab-inset);
 }
 
+.l-slab[data-tone]:not([data-tone="idle"]) {
+  --l-fill: var(--l-tone-field);
+}
+
 .l-slab-row + .l-slab-row {
-  margin-block-start: var(--lithic-space-s3);
-  padding-block-start: var(--lithic-space-s3);
-  border-block-start: var(--lithic-size-hairline) solid var(--lithic-vein);
+  margin-block-start: var(--lithic-space-s4);
 }
 
 .l-section + .l-section {
@@ -457,11 +466,7 @@
   grid-template-columns: minmax(0, var(--lithic-size-facts-label-width)) minmax(0, 1fr);
   align-items: center;
   min-block-size: var(--lithic-size-facts-row-height);
-  border-block-start: var(--lithic-size-hairline) solid var(--lithic-vein);
-}
-
-.l-facts__row:first-child {
-  border-block-start: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .l-facts dt,
@@ -536,21 +541,16 @@
 
 .l-marks {
   display: flex;
+  gap: var(--lithic-space-s3);
   min-inline-size: 0;
   overflow: hidden;
   color: var(--lithic-fg2);
-  font: var(--lithic-type-mono-weight) var(--lithic-type-mono-size)/var(--lithic-type-mono-line) var(--lithic-type-mono-family);
+  font: var(--lithic-type-detail-weight) var(--lithic-type-detail-size)/var(--lithic-type-detail-line) var(--lithic-type-detail-family);
   white-space: nowrap;
 }
 
 .l-marks__mark {
   flex: 0 0 auto;
-}
-
-.l-marks__mark + .l-marks__mark::before {
-  content: " · ";
-  color: var(--lithic-fg3);
-  white-space: pre;
 }
 
 .l-marks__mark.l-disposable {
@@ -565,10 +565,6 @@
 
 .l-sentence .l-literal {
   font: var(--lithic-type-mono-weight) var(--lithic-type-mono-size)/var(--lithic-type-mono-line) var(--lithic-type-mono-family);
-}
-
-.l-sentence .l-attention {
-  color: var(--lithic-amber);
 }
 
 .l-blade-meter {

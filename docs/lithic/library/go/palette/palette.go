@@ -76,70 +76,122 @@ func Load(mode Mode) Palette {
 	return Palette{Roles: roles, Dark: dark, Forced: forced, Source: source}
 }
 
-// FromPalette maps a source palette to the complete Lithic role set: the
-// palette mapping and selection first, then the look's contrast and tint, then
-// the derived edge and the gold and jasper ink toned on the final stone2.
+// FromPalette maps a source palette to the complete Lithic role set. Without
+// a palette Lithic paints its signature: the ryoku.dev stock (black paper,
+// bone ink, the sun as the one action), with an edition's signal in place of
+// the sun where os-release names one. A palette only dyes: Lithic owns every
+// lightness (the tone ladder for the mode and contrast), and the palette lends
+// hue and chroma, neutrals from its surface, ink from its on-surface, the
+// action from its primary, the selection from its containers and jasper from
+// its error.
 func FromPalette(p Palette, look Look) Roles {
-	r := Signature(p.Dark)
-	r.Source = p.Source
-	goldInk := r.GoldInk
-	var tint color.NRGBA
-	tinted := false
-	if p.Source == "wallpaper" || p.Source == "scheme" {
-		role := func(name string, fallback color.NRGBA) color.NRGBA {
-			if value, ok := p.Roles[name]; ok {
-				return value
-			}
-			return fallback
+	steps := ladder(p.Dark, look.Contrast)
+	table := signatureTable(p.Dark, look.Contrast)
+	if p.Source != "wallpaper" && p.Source != "scheme" {
+		r := signatureNeutrals(table, p)
+		r.Sel, r.OnSel, r.OnSel2 = tableColor(table, "sel"), tableColor(table, "onSel"), tableColor(table, "onSel2")
+		r.Gold, r.OnGold, r.GoldInk = tableColor(table, "gold"), tableColor(table, "onGold"), tableColor(table, "goldInk")
+		r.Jasper = tableColor(table, "jasper")
+		if signal, ok := p.Roles[tokens.PaletteAccents["gold"]]; ok {
+			r.Gold, r.GoldInk, r.OnGold = signal, signal, InkOn(signal)
 		}
-		neutrals := tokens.PaletteLight
-		if p.Dark {
-			neutrals = tokens.PaletteDark
-		}
-		if !p.Forced {
-			r.Ground = role(neutrals["ground"], r.Ground)
-			r.Stone1 = role(neutrals["stone1"], r.Stone1)
-			r.Stone2 = role(neutrals["stone2"], r.Stone2)
-			r.Stone3 = role(neutrals["stone3"], r.Stone3)
-			r.Stone4 = role(neutrals["stone4"], r.Stone4)
-			r.Slab = role(neutrals["slab"], r.Slab)
-			r.Field = role(neutrals["field"], r.Field)
-			r.Vein = role(neutrals["vein"], r.Vein)
-			r.Fg = role(neutrals["fg"], r.Fg)
-			r.Fg2 = role(neutrals["fg2"], r.Fg2)
-			r.Fg3 = role(neutrals["fg3"], r.Fg3)
-			if scrim, ok := p.Roles[tokens.PaletteAccents["scrim"]]; ok {
-				alpha := tokens.AlphaScrimLight
-				if p.Dark {
-					alpha = tokens.AlphaScrimDark
-				}
-				r.Scrim = WithAlpha(scrim, alpha)
-			}
-		}
-
-		r.Gold = role(tokens.PaletteAccents[tokens.PaletteToned["goldInk"]], r.Gold)
-		r.OnGold = role(tokens.PaletteAccents["onGold"], r.OnGold)
-		goldInk = r.Gold
-		if sel, ok := p.Roles[tokens.PaletteAccents["sel"]]; ok {
-			r.Sel = sel
-			if toward, ok := p.Roles[tokens.PaletteAccents["selMix"]]; ok {
-				r.Sel = Mix(sel, toward, tokens.AlphaSelMix)
-			}
-		}
-		r.OnSel = role(tokens.PaletteAccents["onSel"], r.OnSel)
-		r.OnSel2 = Mix(r.OnSel, r.Sel, tokens.AlphaOnSel2)
-		r.Jasper = role(tokens.PaletteAccents[tokens.PaletteToned["jasper"]], r.Jasper)
-		tint, tinted = p.Roles[tokens.PaletteAccents["tint"]]
-	} else if accent, ok := p.Roles[tokens.PaletteAccents[tokens.PaletteToned["goldInk"]]]; ok {
-		r.Gold = accent
-		r.OnGold = InkOn(accent)
-		goldInk = accent
+		return withMinerals(r, steps)
 	}
 
-	r = look.apply(r, tint, tinted)
-	r.Edge = Mix(r.Vein, r.Fg3, tokens.AlphaEdge)
-	r.GoldInk = contrastTone(goldInk, r.Stone2, p.Dark)
-	r.Jasper = contrastTone(r.Jasper, r.Stone2, p.Dark)
+	// A forced mode keeps the signature's neutrals; following paints them
+	// from the palette's surface and on-surface on the ladder.
+	r := signatureNeutrals(table, p)
+	if !p.Forced {
+		fallback := tokens.DyeFallback
+		neutral := dye{C: fallback["stoneChroma"], H: fallback["neutralHue"]}
+		groundChroma := fallback["groundChroma"]
+		ink := dye{C: fallback["inkChroma"], H: fallback["neutralHue"]}
+		if surface, ok := p.Roles[tokens.PaletteDye["neutral"]]; ok {
+			d := dyeOf(surface)
+			factor := tintFactor(look.Tint)
+			neutral = dye{C: min(tokens.DyeChroma["stone"], d.C) * factor, H: d.H}
+			groundChroma = min(tokens.DyeChroma["ground"], d.C*tokens.DyeBoost["ground"]) * factor
+		}
+		if onSurface, ok := p.Roles[tokens.PaletteDye["ink"]]; ok {
+			d := dyeOf(onSurface)
+			ink = dye{C: min(tokens.DyeChroma["ink"], d.C), H: d.H}
+		}
+		vein := dye{C: neutral.C * tokens.DyeBoost["vein"], H: neutral.H}
+		r.Ground = toned(steps["ground"], dye{C: groundChroma, H: neutral.H})
+		r.Stone1, r.Stone2 = toned(steps["stone1"], neutral), toned(steps["stone2"], neutral)
+		r.Stone3, r.Stone4 = toned(steps["stone3"], neutral), toned(steps["stone4"], neutral)
+		r.Slab, r.Field = toned(steps["slab"], neutral), toned(steps["field"], neutral)
+		r.Vein, r.Edge = toned(steps["vein"], vein), toned(steps["edge"], vein)
+		r.Fg, r.Fg2, r.Fg3 = toned(steps["fg"], ink), toned(steps["fg2"], ink), toned(steps["fg3"], ink)
+	}
+
+	fallback := tokens.DyeFallback
+	gold := dye{C: fallback["goldChroma"], H: fallback["goldHue"]}
+	jasper := dye{C: tokens.DyeChroma["jasper"], H: fallback["jasperHue"]}
+	sel := dye{C: fallback["selChroma"], H: fallback["neutralHue"]}
+	if value, ok := p.Roles[tokens.PaletteAccents["scrim"]]; ok {
+		alpha := tokens.AlphaScrimLight
+		if p.Dark {
+			alpha = tokens.AlphaScrimDark
+		}
+		r.Scrim = WithAlpha(value, alpha)
+	}
+	if primary, ok := p.Roles[tokens.PaletteAccents["gold"]]; ok {
+		gold = accent(primary)
+	}
+	if container, ok := p.Roles[tokens.PaletteAccents["sel"]]; ok {
+		if toward, ok := p.Roles[tokens.PaletteAccents["selMix"]]; ok {
+			container = Mix(container, toward, tokens.AlphaSelMix)
+		}
+		d := dyeOf(container)
+		sel = dye{C: min(tokens.DyeChroma["sel"], d.C), H: d.H}
+	}
+	if errorRole, ok := p.Roles[tokens.PaletteAccents["jasper"]]; ok {
+		jasper.H = dyeOf(errorRole).H
+	}
+	r.Gold, r.GoldInk = toned(steps["gold"], gold), toned(steps["goldInk"], gold)
+	r.OnGold = toned(steps["onGold"], dye{C: tokens.DyeChroma["onGold"], H: gold.H})
+	r.Jasper = toned(steps["jasper"], jasper)
+	r.Sel = toned(steps["sel"], sel)
+	r.OnSel = toned(steps["onSel"], dye{C: tokens.DyeChroma["onSel"], H: sel.H})
+	r.OnSel2 = Mix(r.OnSel, r.Sel, tokens.AlphaOnSel2)
+	return withMinerals(r, steps)
+}
+
+// signatureNeutrals is the signature table's planes, hairlines and ink.
+func signatureNeutrals(table map[string]string, p Palette) Roles {
+	return Roles{
+		Ground: tableColor(table, "ground"), Stone1: tableColor(table, "stone1"),
+		Stone2: tableColor(table, "stone2"), Stone3: tableColor(table, "stone3"),
+		Stone4: tableColor(table, "stone4"), Slab: tableColor(table, "slab"),
+		Field: tableColor(table, "field"), Vein: tableColor(table, "vein"), Edge: tableColor(table, "edge"),
+		Fg: tableColor(table, "fg"), Fg2: tableColor(table, "fg2"), Fg3: tableColor(table, "fg3"),
+		Scrim: tableColor(table, "scrim"), Dark: p.Dark, Source: p.Source,
+	}
+}
+
+func signatureTable(dark bool, contrast Contrast) map[string]string {
+	switch {
+	case dark && contrast == High:
+		return tokens.SignatureDarkHigh
+	case dark:
+		return tokens.SignatureDark
+	case contrast == High:
+		return tokens.SignatureLightHigh
+	default:
+		return tokens.SignatureLight
+	}
+}
+
+// withMinerals adds the fixed state minerals and the lightness their fields
+// take on this ladder.
+func withMinerals(r Roles, steps map[string]float64) Roles {
+	minerals := tokens.MineralsLight
+	if r.Dark {
+		minerals = tokens.MineralsDark
+	}
+	r.Jade, r.Lapis, r.Amber = tableColor(minerals, "jade"), tableColor(minerals, "lapis"), tableColor(minerals, "amber")
+	r.mineralTone = steps["mineralField"]
 	return r
 }
 

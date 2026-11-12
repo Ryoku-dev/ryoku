@@ -32,7 +32,7 @@ func RenderConfirm(th Theme, confirm Confirm) string {
 	body := confirm.Body
 	if confirm.RequiredName != "" {
 		fieldWidth := max(tokens.SizeTextFieldDefaultWidth/tokens.SpaceS2, dialogWidth-horizontalPadding(tokens.SpaceS4)*2)
-		field := renderTextFieldOnPlane(th, TextField{Label: "Type " + confirm.RequiredName + " to continue", Value: confirm.TypedName, Focused: confirm.FocusField, Width: fieldWidth}, th.Roles.Stone2, dialogWidth)
+		field := renderTextFieldOnPlane(th, TextField{Label: "Type " + confirm.RequiredName + " to continue", Value: confirm.TypedName, Focused: confirm.FocusField, Width: fieldWidth}, th.Roles.Stone4, dialogWidth)
 		body = lipgloss.JoinVertical(lipgloss.Left, body, field)
 	}
 	focusAction := 1

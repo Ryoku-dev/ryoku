@@ -40,11 +40,12 @@ func RenderSearch(th Theme, search Search) string {
 	if search.Value == "" || search.Disabled {
 		valueColour = th.Roles.Fg3
 	}
-	content := ink(valueColour).Render(fitted)
+	fill := fieldFill(th, th.Roles.Field, search.Focused, search.Disabled)
+	content := renderPlaneLine(lipgloss.Width(fitted), fill, planeSpan{text: fitted, ink: valueColour})
 	if trail != "" {
-		content += "  " + ink(th.Roles.Fg3).Render(trail)
+		content += renderPlaneLine(gap+lipgloss.Width(trail), fill, planeSpan{text: "  " + trail, ink: th.Roles.Fg3})
 	}
-	return framed(th, content, th.Roles.Stone3, search.Focused, search.Disabled)
+	return stone(th, content, fill, nil, search.Disabled)
 }
 
 // SearchModel is a keyboard-editable Bubble Tea search model.

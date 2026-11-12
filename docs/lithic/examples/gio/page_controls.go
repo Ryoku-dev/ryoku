@@ -417,14 +417,14 @@ func (page *controlsPage) rowsSection(th *theme.Theme) layout.Widget {
 		selected           bool
 	}{
 		{"Rest", "ubuntu-24.04", "Stopped", palette.Idle, false},
-		{"Selected with its blade", "fedora-43", "Running", palette.Alive, true},
+		{"Selected", "fedora-43", "Running", palette.Alive, true},
 		{"Hover", "alpine-instant", "Running", palette.Alive, false},
 	}
 	widgets := make([]layout.Widget, len(rows))
 	for i, row := range rows {
 		i, row := i, row
 		widgets[i] = specimen(th, row.label, func(gtx layout.Context) layout.Dimensions {
-			page.rows[i].Pane = th.R.Slab
+			page.rows[i].Pane = th.R.Ground
 			return page.rows[i].Layout(gtx, th, kit.TabletContent{
 				Title: row.name, Facts: "ops@192.0.2.24", FactsMono: true,
 				Claim: row.claim, Proof: "ally", Tone: row.tone, Progress: -1,

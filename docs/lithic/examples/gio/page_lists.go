@@ -70,7 +70,7 @@ func listsTablet(th *theme.Theme) layout.Widget {
 		for index, state := range states {
 			state := state
 			action := &kit.Plaque{Kind: kit.PlaqueQuiet, Label: "Inspect", Small: true}
-			tablet := &kit.Tablet{Preview: state.preview, Pane: th.R.Stone1}
+			tablet := &kit.Tablet{Preview: state.preview, Pane: th.R.Ground}
 			widgets[index] = specimen(th, state.label, func(gtx layout.Context) layout.Dimensions {
 				draw := func(gtx layout.Context) layout.Dimensions {
 					return tablet.Layout(gtx, th, kit.TabletContent{
@@ -206,12 +206,22 @@ func listsHeader(th *theme.Theme) layout.Widget {
 }
 
 func listsSlab(th *theme.Theme) layout.Widget {
-	return section(th, "Slab", specimen(th, "Rows on a lifted slab", func(gtx layout.Context) layout.Dimensions {
+	plain := specimen(th, "Rows on a lifted slab", func(gtx layout.Context) layout.Dimensions {
 		return kit.SlabRows(gtx, th,
 			settingRow(th, "Console router", "Reached from ally over the serial line", kit.Text(th, th.T.Mono, th.R.Fg, "/dev/ttyUSB0")),
 			settingRow(th, "Snapshots", "Kept on mika-server for seven days", kit.Text(th, th.T.Mono, th.R.Fg, "7 d")),
 		)
-	}))
+	})
+	toned := specimen(th, "Toned, the hero plane", func(gtx layout.Context) layout.Dimensions {
+		return kit.TonedSlabContent(gtx, th, palette.Attention, kit.Claim(th, palette.Attention, "scratch-arch has a new host key"))
+	})
+	return section(th, "Slab", func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(plain),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout),
+			layout.Rigid(toned),
+		)
+	})
 }
 
 func listsSection(th *theme.Theme) layout.Widget {
@@ -268,7 +278,7 @@ func listsMarks(th *theme.Theme) layout.Widget {
 
 func listsSentence(th *theme.Theme) layout.Widget {
 	return section(th, "Sentence", specimen(th, "Prose and literal spans", func(gtx layout.Context) layout.Dimensions {
-		return kit.Sentence(gtx, th, th.T.Body, th.R.Fg2, []kit.Span{{Text: "Connect "}, {Text: "ops@192.0.2.24", Mono: true}, {Text: " to "}, {Text: "ally", Mono: true, Color: th.R.Amber}, {Text: "."}})
+		return kit.Sentence(gtx, th, th.T.Body, th.R.Fg2, []kit.Span{{Text: "Connect "}, {Text: "ops@192.0.2.24", Mono: true}, {Text: " to "}, {Text: "ally"}, {Text: "."}})
 	}))
 }
 

@@ -23,6 +23,7 @@ The packages are imported separately:
 ```go
 import (
     "github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
+    "github.com/ryoku-dev/ryoku/docs/lithic/library/go/fonts"
     "github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
     "github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
     "github.com/ryoku-dev/ryoku/docs/lithic/library/go/symbols"
@@ -38,7 +39,7 @@ roles := palette.FromPalette(palette.Load(palette.Follow), palette.Look{})
 th := theme.New(roles)
 ```
 
-Pass `theme.WithFontCollection(faces)` when the application embeds font faces. System fonts remain enabled, and the typefaces fall through the ordered `tokens.FontSans` and `tokens.FontMono` family lists. Pass `theme.WithShaper(shaper)` when the application owns a configured shaper.
+`theme.New` loads Lithic's two faces, Geologica and Martian Mono, which package `fonts` embeds, so an application sets the same type on any system without installing anything; system fonts stay on for the scripts those faces do not cover. Pass `theme.WithFontCollection(faces)` to add the application's own faces beside them, and `theme.WithShaper(shaper)` when the application owns a configured shaper, which then needs `fonts.Collection()` in its collection.
 
 ## Palette API
 
@@ -58,19 +59,23 @@ Exported API:
 - `Contrast`: `Standard`, `High`. `Tint`: `TintOff`, `TintLow`, `TintMedium`.
 - `Look`: the reader's `Contrast` and `Tint`. The zero look (standard, off) is the library default.
 - `ParseLook(contrast, tint) Look`: reads `standard` or `high` and `off`, `low` or `medium`; an unknown string gives the zero value of its field.
-- `FromPalette(Palette, Look) Roles`: maps source roles into all Lithic roles, then applies the look, then derives `Edge` and tones `GoldInk` and `Jasper` (see [palette.md](../../palette.md#3-mapping-palette-roles-to-lithic-roles)).
+- `FromPalette(Palette, Look) Roles`: with no palette, returns the signature table for the mode and contrast, with an edition's colour as gold; with one, dyes every role at its step on the tone ladder for the mode and contrast (see [palette.md](../../palette.md#3-mapping-palette-roles-to-lithic-roles)).
 - `Watch(ctx, mode, fn)`: watches the three parent directories with inotify, coalesces file replacement, and calls `fn` only when the resolved palette changes. `mode` is a function so an application can change its mode without rebuilding the watcher.
 - `Tone`: `Idle`, `Alive`, `Becoming`, `Attention`, `Paused`, `Failed`.
 - `Roles`: `Ground`, `Stone1`, `Stone2`, `Stone3`, `Stone4`, `Slab`, `Field`, `Vein`, `Edge`, `Fg`, `Fg2`, `Fg3`, `Sel`, `OnSel`, `OnSel2`, `Gold`, `OnGold`, `GoldInk`, `Jade`, `Lapis`, `Amber`, `Jasper`, `Scrim`, `Dark`, `Source`.
 - `Roles.Stone(tone)`: returns the mineral ink for a tone.
 - `Roles.MineralField(tone)`: returns the derived mineral field for a tone.
-- `Signature(dark)`: returns the generated signature fallback.
+- `Signature(dark)`: returns the signature roles at standard contrast.
 - `Mix(a, b, t)`: linearly blends every channel.
 - `WithAlpha(color, alpha)`: multiplies the existing alpha.
 - `InkOn(background)`: picks black or white by contrast.
 - `ContrastRatio(a, b)`: returns the WCAG contrast ratio.
 
-Forced dark and light modes retain signature neutrals and use only the source accents, so they get the tinted selection and the tint too. `GoldInk` and `Jasper` are re-toned to the generated minimum contrast against the final `Stone2`. Fixed minerals always come from tokens.
+Forced dark and light modes keep the signature neutrals and take only the accents from the palette, the selection included. The tint applies only when following a palette, and it changes chroma, never lightness. Fixed minerals always come from tokens.
+
+## Fonts
+
+`fonts` embeds Geologica (Regular, Medium and Bold) and Martian Mono (Regular and Bold) as static instances with one width each, because Gio cannot ask for a width. `fonts.Collection()` parses them once and returns the shared faces. The QML and web libraries load the same files from `fonts/`, so this directory is the only copy. `python3 fonts/build.py` rebuilds them from the Google Fonts builds at pinned commits; both faces are OFL-1.1, and `fonts/Geologica-OFL.txt` and `fonts/MartianMono-OFL.txt` carry the license.
 
 ## Symbols
 
@@ -85,7 +90,7 @@ To add a symbol, put its name in `symbols/list.txt` and run `go run ./cmd/lithic
 Exported API:
 
 - `TextStyle`: `Face`, `Size`, `Line`.
-- `Type`: `Name`, `Sentence`, `Section`, `Title`, `Row`, `Body`, `Proof`, `Label`, `Caption`, `Group`, `Mono`, `MonoSm`.
+- `Type`: `Name`, `Sentence`, `Section`, `Title`, `Row`, `Body`, `Proof`, `Label`, `Detail`, `Caption`, `Group`, `Mono`, `MonoSm`.
 - `Cut`: `Token`, `Small`, `Mid`, `Large`, `Notch`, `Menu`, `Overlay`, `Placard`, `Tooltip`, `ToggleTrack`, `ToggleKnob`.
 - `Space`: `S1` through `S6`.
 - `Motion`: `Press`, `HoverIn`, `HoverOut`, `FocusIn`, `FocusOut`, `Select`, `Field`, `Notch`, `Unfold`, `Navigate`, `MenuIn`, `MenuOut`, `DialogIn`, `DialogOut`, `TooltipIn`, `TooltipDelay`, `PlacardIn`, `PlacardLife`, `Wheel`, `Working`, `Sweep`.

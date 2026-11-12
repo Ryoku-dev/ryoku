@@ -42,7 +42,6 @@ Icons are Material Symbols Sharp in every stack. QML and the web set the font's 
 | CutRect | Draw a filled or stroked plane with independent 45 degree corner cuts. | [CutRect](components.md#cutrect) | `CutRect` | `l-cut` | `kit.FillCut`, `kit.StrokeCut` | `-` | `ui/kit/draw.go` |
 | Notch | Mark one state or pending change at a corner. | [Notch](components.md#notch) | `Notch` | `l-notch` | `kit.Notch` | `term.RenderNotch` | `ui/kit/token.go` |
 | Blade | Draw a bar with a 45 degree leading edge. | [Blade](components.md#blade) | `Blade` | `l-blade` | `kit.Blade` | `term.RenderBlade` | `ui/kit/blade.go` |
-| PlaceBlade | Mark a selected row, chip or segment with its `onSel` blade. | [PlaceBlade](components.md#placeblade) | `PlaceBlade` | `l-place-row`, `l-place-chip` | `kit.PlaceBlade` | `-` | `-` |
 | Flake | Show a state mineral or a fraction of becoming. | [Flake](components.md#flake) | `Flake` | `l-flake` | `kit.Flake` | `term.RenderFlake` | `ui/kit/token.go` |
 | Hatch | Engrave a static 45 degree field. | [Hatch](components.md#hatch) | `Hatch` | `l-hatch` | `kit.Hatch` | `-` | `ui/kit/chart.go` |
 | FocusRing | Show keyboard focus outside a cut control. | [FocusRing](components.md#focusring) | `FocusRing` | `l-focus-ring` | `kit.FocusRing` | `-` | `ui/kit/focus.go` |

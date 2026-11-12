@@ -91,13 +91,13 @@ Use `Lithic.inkOn(Lithic.jasper)` for danger-fill content. Do not assume a fixed
 
 ### Fonts and type
 
-`Lithic.font` exposes resolved installed families:
+The singleton loads Lithic's two faces, Geologica and Martian Mono, from `library/go/fonts` with `FontLoader`, so they need no install. `Lithic.font` exposes the resolved families:
 
 - `font.sans`
 - `font.mono`
 - `font.icons`
 
-Each token candidate list is checked against `Qt.fontFamilies()` in order. The first installed family wins. This lets `SpaceMono Nerd Font` satisfy the mono role when `Space Mono` is absent.
+Each token candidate list is checked against `Qt.fontFamilies()` in order, and the first installed family wins. The icons font, Material Symbols Sharp, comes from the system.
 
 `Lithic.type` exposes `name`, `sentence`, `section`, `title`, `row`, `body`, `proof`, `label`, `caption`, `detail`, `group`, `mono`, and `monoSm`. Every style is an object with `family`, `pixelSize`, `weight`, and `lineHeight`.
 
@@ -113,7 +113,6 @@ Each token candidate list is checked against `Qt.fontFamilies()` in order. The f
 | `alpha(c, a)` | Colour `c` with its alpha multiplied by clamped `a`. |
 | `inkOn(c)` | Black or white, whichever has greater contrast on `c`. |
 | `contrastRatio(a, b)` | WCAG contrast ratio. |
-| `contrastTone(ink, bg, lighter)` | Retones HSL lightness until the token minimum contrast is met. |
 | `environment(name)` | Process environment value, or an empty string. Intended for gallery hosts. |
 
 ### Recipes
@@ -212,18 +211,6 @@ A flat track with a 45 degree leading edge.
 
 `progress`, `bladeColor`, and `trackColor` are temporary aliases used by the moved phase 2 files.
 
-### PlaceBlade
-
-The `onSel` blade that marks a selected row, chip or segment, clipped to its cut.
-
-- `edge: string`, `leading` (vertical, full height) or `bottom`
-- `cutStart: real`, the cut at the top-left corner for `leading` or the bottom-left corner for `bottom`
-- `cutEnd: real`, the cut at the bottom-left corner for `leading` or the bottom-right corner for `bottom`
-- `thickness: real`, default `LithicTokens.size.selBlade`
-- `ink: color`, default `Lithic.onSel`
-
-Declare it inside the selection `CutRect` with `anchors.fill: parent` and pass that `CutRect`'s cuts.
-
 ### Flake
 
 A state parallelogram. Idle is outlined. Becoming can be partly filled.
@@ -307,6 +294,7 @@ Role-aware text.
 - `typeRole: string`, a key in `Lithic.type`
 - `inkRole: string`, a Lithic role name; defaults to `fg2` for the `detail` type and `fg` otherwise
 - `ink: color`, defaults from `inkRole`
+- `numeric: bool`, tabular figures for counts, proofs and values that change in place
 - `token: object`, read only resolved type style
 
 
@@ -323,7 +311,7 @@ Role-aware text.
 
 This reference covers the 45 component types after the `# components` marker in `Lithic/qmldir`. Each API list names the properties, signals, and functions added by Lithic, plus the inherited template members used in normal calls. Standard Qt Quick properties remain available. A `previewState` accepts `""`, `hover`, `pressed`, or `focus`. A component only responds to states it can draw.
 
-Fields (`TextField`, `Search`, the `Picker` anchor and the `Stepper` value box) share one surface: `field` fill, a 1 dp `edge` hairline at rest, an `fg2` hairline with focus and `jasper` on error. Selected rows, chips and segments are a `sel` fill marked with a `PlaceBlade`.
+Fields (`TextField`, `Search`, the `Picker` anchor and the `Stepper` value box) share one surface: `field` fill, a 1 dp `edge` hairline at rest, an `fg2` hairline with focus and `jasper` on error. Selected rows, chips and segments are a `sel` fill and nothing more.
 
 ### Controls
 
@@ -414,7 +402,7 @@ A spin box with quiet decrement and increment faces either side of a field box h
 
 #### Filters
 
-A bounded row of filter chips with counts. Chips rest on tonal `field` plates; the `sel` fill with its bottom `PlaceBlade` glides to the selected chip.
+A bounded row of filter chips with counts. Chips rest on tonal `field` plates; the `sel` fill glides to the selected chip.
 
 - Properties: `model`, `currentIndex`, `previewState`, and `accessibleName`
 - Signal: `activated(int index)`
@@ -424,7 +412,7 @@ A bounded row of filter chips with counts. Chips rest on tonal `field` plates; t
 
 #### Segmented
 
-A track of 2 to 5 equal-width options. The selected segment is an inset `sel` fill with a bottom `PlaceBlade` that glides over `motion.select`.
+A track of 2 to 5 equal-width options. The selected segment is an inset `sel` fill that glides over `motion.select`.
 
 - Properties: `model`, `currentIndex`, `previewState`, and `accessibleName`
 - Signal: `activated(int index)`
@@ -464,7 +452,7 @@ A quiet plaque that unfolds arbitrary child content.
 
 #### Tablet
 
-A selectable fleet-style row with identity copy, state proof, an optional mark, and a contextual action. Selected rows carry a leading `PlaceBlade`.
+A selectable fleet-style row with identity copy, state proof, an optional mark, and a contextual action. A selected row is a `sel` fill.
 
 - Properties: inherited `enabled`, plus `title`, `facts`, `claim`, `proof`, `tone`, `progress`, `selected`, `compact`, `pane`, `mark`, `actionText`, `actionKind`, `actionGlyph`, `actionBusy`, and `previewState`. Read-only properties are `stateHovered`, `statePressed`, `stateFocused`, `actionVisible`, `titleInk`, `quietInk`, `claimInk`, and `baseFill`.
 - Signals: inherited `clicked()`, plus `actionTriggered()` and `primaryAction()`
@@ -488,7 +476,7 @@ Tablet {
 
 #### RowList
 
-A keyboard and wheel-navigable `ListView` with a gliding selection slab marked by a leading `PlaceBlade`, and a cut scroll thumb.
+A keyboard and wheel-navigable `ListView` with a gliding `sel` selection slab and a cut scroll thumb.
 
 - Properties: `model`, `delegate`, `currentIndex`, `contentY`, and `previewState`. `listView` is read only.
 - Functions: `select(index)` and `scrollByNotch(delta)`
@@ -602,7 +590,7 @@ A mineral flake and state word for a canonical tone.
 
 #### Marks
 
-A width-clipped row of ordered traits, with key lifecycle traits placed first.
+A width-clipped row of ordered traits in the `detail` type, set apart by `space.s3`, with key lifecycle traits placed first.
 
 - Properties: `traits` and `maximumWidth`. `orderedTraits` is read only.
 - Preview: none
@@ -612,7 +600,7 @@ A width-clipped row of ordered traits, with key lifecycle traits placed first.
 A wrapping flow of styled text spans.
 
 - Properties: `spans` and `typeRole`. Read-only properties are `naturalWidth` and `naturalHeight`.
-- Span entries: objects with `text`, optional `mono`, and optional `attention`
+- Span entries: objects with `text` and optional `mono`
 - Preview: none
 
 ### Progress
@@ -759,7 +747,7 @@ A stacked transient notice with an optional undo-style action and draining blade
 
 #### Rail
 
-A responsive vertical rail or compact bottom rail with Home, destinations, and the New menu. The selected destination carries a leading `PlaceBlade` on the vertical rail and a bottom one on the compact rail.
+A responsive vertical rail or compact bottom rail with Home, destinations, and the New menu. The selected destination is a `sel` fill.
 
 - Properties: `sizeClass`, `currentIndex`, `destinations`, `newMenuItems`, `overlayParent`, `previewState`, and `previewNewOpen`. Read-only properties are `compact`, `expanded`, `railWidth`, `tileSize`, `startY`, and `newY`.
 - Signals: `homeTriggered()`, `destinationTriggered(int index, string label)`, and `newItemTriggered(int index, string label)`
@@ -785,7 +773,7 @@ The rail's consequential New action in regular or compact form.
 
 #### SectionIndex
 
-A settings section index. Expanded, it is a side list whose selected row carries a leading `PlaceBlade`; at any narrower size class it is a `Picker` of the sections.
+A settings section index. Expanded, it is a side list whose selected row is a `sel` fill; at any narrower size class it is a `Picker` of the sections.
 
 - Properties: `sections`, `currentIndex`, `sizeClass`, `overlayParent`, and `previewState`. `expanded` is read only.
 - Signal: `activated(int index)`

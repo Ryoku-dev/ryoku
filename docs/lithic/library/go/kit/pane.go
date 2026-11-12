@@ -36,7 +36,10 @@ func (pane Pane) Layout(gtx layout.Context, th *theme.Theme, body layout.Widget)
 	if pane.Kind == PaneWork {
 		ink = th.R.Stone2
 	}
-	FillCutTop(gtx.Ops, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Large), ink)
+	bounds := image.Rectangle{Max: dimensions.Size}
+	cut := gtx.Dp(th.Cut.Large)
+	FillCutTop(gtx.Ops, bounds, cut, ink)
+
 	call.Add(gtx.Ops)
 	return dimensions
 }

@@ -14,11 +14,11 @@ type Aside struct {
 func RenderAside(th Theme, aside Aside) string {
 	parts := []string{bold(th.Roles.Fg).Render(aside.Title), RenderFacts(th, aside.Facts)}
 	if aside.Preview != "" {
-		parts = append(parts, framed(th, aside.Preview, th.Roles.Stone2, false, false))
+		parts = append(parts, framed(th, aside.Preview, th.Roles.Field, false, false))
 	}
 	content := lipgloss.JoinVertical(lipgloss.Left, parts...)
 	if aside.Width > 0 {
 		content = lipgloss.NewStyle().Width(aside.Width).Render(content)
 	}
-	return framed(th, content, th.Roles.Stone1, false, false)
+	return framed(th, content, th.Roles.Slab, false, false)
 }

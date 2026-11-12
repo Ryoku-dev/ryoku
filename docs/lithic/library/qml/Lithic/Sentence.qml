@@ -25,6 +25,27 @@ Item {
         return maximum;
     }
 
+    // A mono span is smaller than the text around it; every span sits on the
+    // tallest one's baseline, as text does on the web and in Gio.
+    readonly property real _baseline: {
+        var maximum = 0;
+        for (var i = 0; i < spanRepeater.count; ++i) {
+            var item = spanRepeater.itemAt(i);
+            if (item)
+                maximum = Math.max(maximum, item.spanBaseline);
+        }
+        return maximum;
+    }
+    readonly property real _lineHeight: {
+        var maximum = 0;
+        for (var i = 0; i < spanRepeater.count; ++i) {
+            var item = spanRepeater.itemAt(i);
+            if (item)
+                maximum = Math.max(maximum, _baseline - item.spanBaseline + item.spanHeight);
+        }
+        return maximum;
+    }
+
     implicitWidth: naturalWidth
     implicitHeight: Math.max(naturalHeight, spanFlow.implicitHeight)
 
@@ -36,11 +57,22 @@ Item {
         Repeater {
             id: spanRepeater
             model: root.spans
-            delegate: Label {
+            delegate: Item {
+                id: spanBox
                 required property var modelData
-                text: modelData.text || ""
-                typeRole: modelData.mono ? "mono" : root.typeRole
-                ink: modelData.attention ? Lithic.amber : Lithic.fg
+                readonly property real spanBaseline: span.baselineOffset
+                readonly property real spanHeight: span.implicitHeight
+
+                implicitWidth: span.implicitWidth
+                implicitHeight: root._lineHeight
+
+                Label {
+                    id: span
+                    y: root._baseline - span.baselineOffset
+                    text: spanBox.modelData.text || ""
+                    typeRole: spanBox.modelData.mono ? "mono" : root.typeRole
+                    inkRole: "fg"
+                }
             }
         }
     }

@@ -11,7 +11,7 @@
     .page-head { display: flex; align-items: end; justify-content: space-between; gap: var(--lithic-space-s4); margin-bottom: var(--lithic-space-s5); }
     .page-head h1, .page-head p { margin: 0; }
     .page-head p { max-width: 620px; color: var(--lithic-fg2); }
-    .back { color: var(--lithic-gold-ink); text-decoration: none; }
+    .back { color: var(--lithic-fg); text-decoration: underline; text-decoration-color: var(--lithic-vein); text-underline-offset: 3px; }
     .section { margin-top: var(--lithic-space-s5); }
     .section > h2 { margin: 0 0 var(--lithic-space-s3); }
     .showcase-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--lithic-size-list-medium)), 1fr)); gap: var(--lithic-space-s3); }
@@ -29,6 +29,7 @@
     .field-sample span:last-child { color: var(--l-tone-ink, var(--lithic-fg2)); }
     .header-demo { overflow: hidden; }
     .slab-demo { max-width: var(--lithic-size-draft-form-max); }
+    .slab-demo + .slab-demo { margin-block-start: var(--lithic-space-s3); }
     .demo-form { display: grid; gap: var(--lithic-space-s3); }
     .demo-form .l-field, .demo-form .l-text-field { width: 100%; }
     .trait-row, .progress-grid { display: flex; align-items: center; flex-wrap: wrap; gap: var(--lithic-space-s4); }
@@ -43,11 +44,8 @@
 <body>
   <main class="page">
     <header class="page-head">
-      <div>
-        <a class="back l-type-label" href="index.html">Gallery</a>
-        <h1 class="l-type-name">Lists, containers, state and progress</h1>
-      </div>
-      <p class="l-type-body">Fleet rows, resource composition and live job state built from the shared Lithic roles.</p>
+      <h1 class="l-type-name">Lists, containers, state and progress</h1>
+      <p class="l-type-body">Fleet rows, resource composition and live job state built from the shared Lithic roles. <a class="back" href="index.html">All galleries</a></p>
     </header>
 
     <section class="section" aria-labelledby="tablet-heading">
@@ -57,7 +55,7 @@
           <span class="state-label">Idle</span>
           <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="idle" data-value="ubuntu-24.04">
             <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">computer</span></span>
-            <span class="l-tablet__copy"><span class="l-tablet__title">ubuntu-24.04</span><span class="l-tablet__facts l-literal">prowl · 192.0.2.24</span></span>
+            <span class="l-tablet__copy"><span class="l-tablet__title">ubuntu-24.04</span><span class="l-tablet__facts l-literal">prowl at 192.0.2.24</span></span>
             <span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Stopped</span><span class="l-tablet__proof">No process</span></span><span class="l-tablet__action"><button class="l-plaque l-line l-small" type="button">Start</button></span></span>
           </article>
         </div>
@@ -65,7 +63,7 @@
           <span class="state-label">Hover preview</span>
           <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="alive" data-l-state="hover" data-value="alpine-instant">
             <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">memory</span></span>
-            <span class="l-tablet__copy"><span class="l-tablet__title">alpine-instant</span><span class="l-tablet__facts">ally · Instant</span></span>
+            <span class="l-tablet__copy"><span class="l-tablet__title">alpine-instant</span><span class="l-tablet__facts">Instant on ally</span></span>
             <span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Running</span><span class="l-tablet__proof">12 min</span></span><span class="l-tablet__action"><button class="l-plaque l-tonal l-small" type="button">Open</button></span></span>
           </article>
         </div>
@@ -73,7 +71,7 @@
           <span class="state-label">Pressed preview</span>
           <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="attention" data-l-state="pressed" data-value="scratch-arch">
             <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">warning</span></span>
-            <span class="l-tablet__copy"><span class="l-tablet__title">scratch-arch</span><span class="l-tablet__facts">ally · Disposable</span></span>
+            <span class="l-tablet__copy"><span class="l-tablet__title">scratch-arch</span><span class="l-tablet__facts">Disposable on ally</span></span>
             <span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Needs you</span><span class="l-tablet__proof">Key changed</span></span><span class="l-tablet__action"><button class="l-plaque l-line l-small" type="button">Review</button></span></span>
           </article>
         </div>
@@ -81,7 +79,7 @@
           <span class="state-label">Selected</span>
           <article class="l-tablet l-notch l-place-row" role="option" aria-selected="true" data-tone="alive" data-value="fedora-43">
             <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">dns</span></span>
-            <span class="l-tablet__copy"><span class="l-tablet__title">fedora-43</span><span class="l-tablet__facts">mika-server · Sealed</span></span>
+            <span class="l-tablet__copy"><span class="l-tablet__title">fedora-43</span><span class="l-tablet__facts">Sealed on mika-server</span></span>
             <span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Running</span><span class="l-tablet__proof">Healthy</span></span><span class="l-tablet__action"><button class="l-plaque l-tonal l-small" type="button">Console</button></span></span>
           </article>
         </div>
@@ -89,7 +87,7 @@
           <span class="state-label">Becoming, compact</span>
           <article class="l-tablet l-notch" role="option" aria-selected="false" data-density="compact" data-tone="becoming" data-value="windows-11">
             <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">desktop_windows</span></span>
-            <span class="l-tablet__copy"><span class="l-tablet__title">windows-11</span><span class="l-tablet__facts">ally · 198.51.100.31</span></span>
+            <span class="l-tablet__copy"><span class="l-tablet__title">windows-11</span><span class="l-tablet__facts">ally at 198.51.100.31</span></span>
             <span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Creating 62%</span><span class="l-tablet__proof">8.1 GiB / 13 GiB</span></span><span class="l-tablet__action"><button class="l-plaque l-danger-line l-small" type="button">Cancel</button></span></span>
             <span class="l-tablet__progress l-blade" style="--l-fraction:0.62" aria-hidden="true"></span>
           </article>
@@ -110,7 +108,7 @@
               </header>
               <div class="l-group__rows" id="fleet-needs">
                 <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="attention" data-value="scratch-arch">
-                  <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">warning</span></span><span class="l-tablet__copy"><span class="l-tablet__title">scratch-arch</span><span class="l-tablet__facts">ally · Disposable</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Needs you</span><span class="l-tablet__proof">Key changed</span></span><span class="l-tablet__action"><button class="l-plaque l-line l-small" type="button">Review</button></span></span>
+                  <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">warning</span></span><span class="l-tablet__copy"><span class="l-tablet__title">scratch-arch</span><span class="l-tablet__facts">Disposable on ally</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Needs you</span><span class="l-tablet__proof">Key changed</span></span><span class="l-tablet__action"><button class="l-plaque l-line l-small" type="button">Review</button></span></span>
                 </article>
               </div>
             </section>
@@ -121,10 +119,10 @@
               </header>
               <div class="l-group__rows" id="fleet-pinned">
                 <article class="l-tablet l-notch" role="option" aria-selected="true" data-tone="alive" data-value="ubuntu-24.04">
-                  <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">computer</span></span><span class="l-tablet__copy"><span class="l-tablet__title">ubuntu-24.04</span><span class="l-tablet__facts l-literal">ally · 192.0.2.24</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Running</span><span class="l-tablet__proof">Healthy</span></span><span class="l-tablet__action"><button class="l-plaque l-tonal l-small" type="button">Open</button></span></span>
+                  <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">computer</span></span><span class="l-tablet__copy"><span class="l-tablet__title">ubuntu-24.04</span><span class="l-tablet__facts l-literal">ally at 192.0.2.24</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Running</span><span class="l-tablet__proof">Healthy</span></span><span class="l-tablet__action"><button class="l-plaque l-tonal l-small" type="button">Open</button></span></span>
                 </article>
                 <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="paused" data-value="kolibrios-latest-en_US">
-                  <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">pause</span></span><span class="l-tablet__copy"><span class="l-tablet__title">kolibrios-latest-en_US</span><span class="l-tablet__facts">localhost · Sealed</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Paused</span><span class="l-tablet__proof">3 min</span></span><span class="l-tablet__action"><button class="l-plaque l-line l-small" type="button">Resume</button></span></span>
+                  <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">pause</span></span><span class="l-tablet__copy"><span class="l-tablet__title">kolibrios-latest-en_US</span><span class="l-tablet__facts">Sealed on localhost</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Paused</span><span class="l-tablet__proof">3 min</span></span><span class="l-tablet__action"><button class="l-plaque l-line l-small" type="button">Resume</button></span></span>
                 </article>
               </div>
             </section>
@@ -135,7 +133,7 @@
               </header>
               <div class="l-group__rows" id="fleet-running">
                 <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="alive" data-value="alpine-instant">
-                  <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">memory</span></span><span class="l-tablet__copy"><span class="l-tablet__title">alpine-instant</span><span class="l-tablet__facts">ally · Instant</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Running</span><span class="l-tablet__proof">12 min</span></span><span class="l-tablet__action"><button class="l-plaque l-tonal l-small" type="button">Open</button></span></span>
+                  <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">memory</span></span><span class="l-tablet__copy"><span class="l-tablet__title">alpine-instant</span><span class="l-tablet__facts">Instant on ally</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Running</span><span class="l-tablet__proof">12 min</span></span><span class="l-tablet__action"><button class="l-plaque l-tonal l-small" type="button">Open</button></span></span>
                 </article>
               </div>
             </section>
@@ -146,7 +144,7 @@
               </header>
               <div class="l-group__rows" id="fleet-becoming">
                 <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="becoming" data-value="windows-11">
-                  <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">desktop_windows</span></span><span class="l-tablet__copy"><span class="l-tablet__title">windows-11</span><span class="l-tablet__facts">mika-server · 198.51.100.31</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Creating 62%</span><span class="l-tablet__proof">Installing image</span></span><span class="l-tablet__action"><button class="l-plaque l-danger-line l-small" type="button">Cancel</button></span></span><span class="l-tablet__progress l-blade" style="--l-fraction:0.62" aria-hidden="true"></span>
+                  <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">desktop_windows</span></span><span class="l-tablet__copy"><span class="l-tablet__title">windows-11</span><span class="l-tablet__facts">mika-server at 198.51.100.31</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Creating 62%</span><span class="l-tablet__proof">Installing image</span></span><span class="l-tablet__action"><button class="l-plaque l-danger-line l-small" type="button">Cancel</button></span></span><span class="l-tablet__progress l-blade" style="--l-fraction:0.62" aria-hidden="true"></span>
                 </article>
               </div>
             </section>
@@ -156,8 +154,8 @@
                 <button class="l-icon-plaque l-quiet l-small l-group-header__toggle" type="button" aria-expanded="true" aria-controls="fleet-stopped" aria-label="Collapse Stopped"><span class="l-glyph" aria-hidden="true">expand_more</span></button>
               </header>
               <div class="l-group__rows" id="fleet-stopped">
-                <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="idle" data-value="fedora-43"><span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">dns</span></span><span class="l-tablet__copy"><span class="l-tablet__title">fedora-43</span><span class="l-tablet__facts">prowl · Sealed</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Stopped</span><span class="l-tablet__proof">2 hours</span></span><span class="l-tablet__action"><button class="l-plaque l-line l-small" type="button">Start</button></span></span></article>
-                <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="failed" data-value="alpine-instant"><span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">error</span></span><span class="l-tablet__copy"><span class="l-tablet__title">alpine-instant</span><span class="l-tablet__facts">ally · Instant</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Failed</span><span class="l-tablet__proof">Exit 1</span></span><span class="l-tablet__action"><button class="l-plaque l-line l-small" type="button">Inspect</button></span></span></article>
+                <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="idle" data-value="fedora-43"><span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">dns</span></span><span class="l-tablet__copy"><span class="l-tablet__title">fedora-43</span><span class="l-tablet__facts">Sealed on prowl</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Stopped</span><span class="l-tablet__proof">2 hours</span></span><span class="l-tablet__action"><button class="l-plaque l-line l-small" type="button">Start</button></span></span></article>
+                <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="failed" data-value="alpine-instant"><span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">error</span></span><span class="l-tablet__copy"><span class="l-tablet__title">alpine-instant</span><span class="l-tablet__facts">Instant on ally</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Failed</span><span class="l-tablet__proof">Exit 1</span></span><span class="l-tablet__action"><button class="l-plaque l-line l-small" type="button">Inspect</button></span></span></article>
               </div>
             </section>
           </div>
@@ -213,7 +211,7 @@
       <div class="specimen header-demo">
         <header class="l-header l-mineral-field" data-tone="becoming">
           <div class="l-header__identity"><span class="l-header__mark"><span class="l-glyph" aria-hidden="true">desktop_windows</span></span><h3 class="l-header__name"><span class="l-becoming-name" role="progressbar" aria-label="Creating windows-11" aria-valuemin="0" aria-valuemax="100" aria-valuenow="62" aria-busy="true" data-tone="becoming">windows-11</span></h3></div>
-          <p class="l-header__proof">Creating 62% · 8.1 GiB of 13 GiB</p>
+          <p class="l-header__proof">Creating 62%, 8.1 GiB of 13 GiB</p>
           <p class="l-header__note">mika-server at root@203.0.113.70:2222</p>
           <div class="l-marks"><span class="l-marks__mark l-disposable">Disposable</span><span class="l-marks__mark">Instant</span><span class="l-marks__mark">Sealed</span></div>
           <div class="l-header__acts"><span class="l-split-plaque"><button class="l-plaque l-gold" type="button">Open console</button><button class="l-icon-plaque l-gold" type="button" data-l-split-more aria-expanded="false" aria-label="More console actions"><span class="l-glyph" aria-hidden="true">expand_more</span></button></span><button class="l-plaque l-line" type="button">Pause</button><button class="l-icon-plaque l-quiet" type="button" aria-label="More machine actions"><span class="l-glyph" aria-hidden="true">more_horiz</span></button></div>
@@ -224,7 +222,8 @@
 
     <section class="section" aria-labelledby="slab-heading">
       <h2 class="l-type-section" id="slab-heading">Slab</h2>
-      <div class="l-slab l-cut slab-demo"><div class="l-slab-row l-type-body">Connection settings for ally stay together on one plane that lifts off its pane.</div><div class="l-slab-row l-type-body">Rows inside a slab are divided by a vein line across its inner width.</div></div>
+      <div class="l-slab l-cut slab-demo"><div class="l-slab-row l-type-body">Connection settings for ally stay together on one plane that lifts off its pane.</div><div class="l-slab-row l-type-body">Rows inside a slab are divided by a quiet vein line across its inner width.</div></div>
+      <div class="l-slab l-cut slab-demo" data-tone="attention"><div class="l-slab-row l-type-body"><span class="l-claim" data-tone="attention"><span class="l-flake" data-tone="attention" aria-hidden="true"></span>scratch-arch has a new host key</span></div><div class="l-slab-row l-type-body">A toned slab is the one hero plane of a view: the thing that needs you, dyed by its state.</div></div>
     </section>
 
     <section class="section" aria-labelledby="section-heading">
@@ -274,7 +273,7 @@
 
     <section class="section" aria-labelledby="sentence-heading">
       <h2 class="l-type-section" id="sentence-heading">Sentence</h2>
-      <div class="specimen"><p class="l-sentence">Connect <span class="l-attention">scratch-arch</span> through <span class="l-literal">root@203.0.113.70:2222</span> and open <span class="l-literal">/dev/ttyUSB0</span></p></div>
+      <div class="specimen"><p class="l-sentence">Connect scratch-arch through <span class="l-literal">root@203.0.113.70:2222</span> and open <span class="l-literal">/dev/ttyUSB0</span></p></div>
     </section>
 
     <section class="section" aria-labelledby="blade-meter-heading">
@@ -305,8 +304,8 @@
     <section class="section" aria-labelledby="becoming-name-heading">
       <h2 class="l-type-section" id="becoming-name-heading">BecomingName</h2>
       <div class="showcase-grid">
-        <div class="specimen becoming-sample"><span class="state-label">Active, 62 percent</span><span class="l-becoming-name" role="progressbar" aria-label="Creating windows-11" aria-valuemin="0" aria-valuemax="100" aria-valuenow="62" aria-busy="true" data-tone="becoming">windows-11</span><div class="l-blade l-blade-progress" role="progressbar" aria-label="Installing image" aria-valuemin="0" aria-valuemax="100" aria-valuenow="62" aria-busy="true" style="--l-fraction:0.62"></div><code class="l-type-mono-sm">Installing image on mika-server</code></div>
-        <div class="specimen becoming-sample"><span class="state-label">Complete</span><span class="l-becoming-name" role="progressbar" aria-label="fedora-43 complete" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" aria-busy="false" data-tone="alive">fedora-43</span><div class="l-blade l-blade-progress" role="progressbar" aria-label="Machine ready" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" aria-busy="false" style="--l-fraction:1"></div><code class="l-type-mono-sm">Machine ready on prowl</code></div>
+        <div class="specimen becoming-sample"><span class="state-label">Active, 62 percent</span><span class="l-becoming-name" role="progressbar" aria-label="Creating windows-11" aria-valuemin="0" aria-valuemax="100" aria-valuenow="62" aria-busy="true" data-tone="becoming">windows-11</span><div class="l-blade l-blade-progress" role="progressbar" aria-label="Installing image" aria-valuemin="0" aria-valuemax="100" aria-valuenow="62" aria-busy="true" style="--l-fraction:0.62"></div><code class="l-type-caption">Installing the image on mika-server</code></div>
+        <div class="specimen becoming-sample"><span class="state-label">Complete</span><span class="l-becoming-name" role="progressbar" aria-label="fedora-43 complete" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" aria-busy="false" data-tone="alive">fedora-43</span><div class="l-blade l-blade-progress" role="progressbar" aria-label="Machine ready" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" aria-busy="false" style="--l-fraction:1"></div><code class="l-type-caption">Machine ready on prowl</code></div>
       </div>
     </section>
   </main>

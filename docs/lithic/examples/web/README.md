@@ -18,7 +18,7 @@ Open <http://127.0.0.1:4173/examples/web/>. Gallery pages are designed for a 144
 | Page | Coverage |
 |---|---|
 | [`index.html`](index.html) | Links all four galleries and preserves the current query parameters on each link. |
-| [`foundation.html`](foundation.html) | Palette roles, type, cuts, spacing, Icon, CutRect, Notch, place blade, Blade, Flake, Hatch, FocusRing, and interaction recipes. |
+| [`foundation.html`](foundation.html) | Palette roles, type, cuts, spacing, Icon, CutRect, Notch, selection, Blade, Flake, Hatch, FocusRing, and interaction recipes. |
 | [`controls.html`](controls.html) | Plaque, SplitPlaque, IconPlaque, TextField, Search, fields on a pane and in a slab, Toggle, Slider, Stepper, Segmented, Filters, Tabs, the selected row, Menu checked items, and Disclosure. |
 | [`lists.html`](lists.html) | Tablet, RowList, GroupHeader, Skeleton, Empty, Pane, MineralField, Header, Slab, Section, Facts, Aside, DraftColumns, Claim, Marks, Sentence, BladeMeter, BladeProgress, Working, and BecomingName. |
 | [`overlays.html`](overlays.html) | Popover, Menu, Picker, Dialog, Confirm, Tooltip, Placard, Rail, BrandMark, NewPlaque, SectionIndex, EngravedChart, and AppFrame. |

@@ -72,7 +72,7 @@ func main() {
 		return
 	}
 	go func() {
-		if err := runWindow(page, th); err != nil {
+		if err := runWindow(*pageName, page, th); err != nil {
 			fmt.Fprintln(os.Stderr, "gio gallery:", err)
 			os.Exit(1)
 		}
@@ -103,20 +103,24 @@ func parseMode(value string) (palette.Mode, error) {
 	}
 }
 
-func runWindow(page pageFunc, th *theme.Theme) error {
+func runWindow(name string, page pageFunc, th *theme.Theme) error {
 	var window app.Window
 	window.Option(
-		app.Title("Lithic · Gio gallery"),
+		app.Title("Lithic Gio gallery: "+name),
 		app.Size(unit.Dp(galleryWidth), unit.Dp(galleryHeight)),
 		app.MinSize(unit.Dp(760), unit.Dp(520)),
 	)
 	var operations op.Ops
+	scroll := layout.List{Axis: layout.Vertical}
 	for {
 		event := window.Event()
 		switch event := event.(type) {
 		case app.FrameEvent:
 			gtx := app.NewContext(&operations, event)
-			layoutPage(gtx, page, th)
+			paint.FillShape(gtx.Ops, th.R.Ground, clip.Rect{Max: gtx.Constraints.Max}.Op())
+			scroll.Layout(gtx, 1, func(gtx layout.Context, _ int) layout.Dimensions {
+				return layoutPage(gtx, page, th)
+			})
 			event.Frame(&operations)
 		case app.DestroyEvent:
 			return event.Err

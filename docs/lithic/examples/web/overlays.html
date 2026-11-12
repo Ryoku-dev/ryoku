@@ -11,7 +11,7 @@
     .page-head { display: flex; align-items: end; justify-content: space-between; gap: var(--lithic-space-s4); margin-bottom: var(--lithic-space-s5); }
     .page-head h1, .page-head p { margin: 0; }
     .page-head p { max-width: 620px; color: var(--lithic-fg2); }
-    .back { color: var(--lithic-gold-ink); text-decoration: none; }
+    .back { color: var(--lithic-fg); text-decoration: underline; text-decoration-color: var(--lithic-vein); text-underline-offset: 3px; }
     .section { margin-top: var(--lithic-space-s5); }
     .section > h2 { margin: 0 0 var(--lithic-space-s3); }
     .component-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--lithic-space-s4); }
@@ -53,11 +53,8 @@
 <body>
   <main class="page">
     <header class="page-head">
-      <div>
-        <a class="back l-type-label" href="index.html">Gallery</a>
-        <h1 class="l-type-name">Overlays, navigation and frame</h1>
-      </div>
-      <p class="l-type-body">Open overlay states, fleet navigation, engraved data and responsive window composition.</p>
+      <h1 class="l-type-name">Overlays, navigation and frame</h1>
+      <p class="l-type-body">Open overlay states, fleet navigation, engraved data and responsive window composition. <a class="back" href="index.html">All galleries</a></p>
     </header>
 
     <section class="section" aria-labelledby="overlays-heading">
@@ -239,7 +236,7 @@
         <article class="component-frame l-cut">
           <header><h3 class="l-type-title">EngravedChart</h3><span class="l-type-caption">CPU on ally</span></header>
           <div class="chart-wrap">
-            <div class="chart-title"><strong class="l-type-row">Host CPU</strong><span class="l-type-mono-sm">44%</span></div>
+            <div class="chart-title"><strong class="l-type-row">Host CPU</strong><span class="l-type-caption l-numeric">44%</span></div>
             <figure class="l-engraved-chart" aria-label="Ally CPU use over fifteen minutes">
               <svg viewBox="0 0 600 180" role="img">
                 <defs>

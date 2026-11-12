@@ -206,7 +206,6 @@ const (
 	SizeSectionIndexWidth          = 200
 	SizeSegmentHeight              = 36
 	SizeSegmentInset               = 4
-	SizeSelBlade                   = 3
 	SizeSettingsControlMax         = 320
 	SizeSettingsDetailGap          = 2
 	SizeSettingsExpandedMax        = 994
@@ -302,25 +301,18 @@ const (
 var MotionCurve = [4]float32{0.2, 0, 0, 1}
 
 const (
-	AlphaContrastHigh    float32 = 0.6
-	AlphaContrastHighFg3 float32 = 0.3
-	AlphaDisabled        float32 = 0.5
-	AlphaEdge            float32 = 0.5
-	AlphaHatch           float32 = 0.3
-	AlphaHoverFill       float32 = 0.1
-	AlphaHoverInk        float32 = 0.1
-	AlphaHoverPlane      float32 = 0.06
-	AlphaMineral         float32 = 0.15
-	AlphaMineralJade     float32 = 0.17
-	AlphaOnSel2          float32 = 0.45
-	AlphaPressPlane      float32 = 0.06
-	AlphaPressRow        float32 = 0.08
-	AlphaScrimDark       float32 = 0.62
-	AlphaScrimLight      float32 = 0.45
-	AlphaSelMix          float32 = 0.5
-	AlphaTintLow         float32 = 0.06
-	AlphaTintMedium      float32 = 0.1
-	AlphaWorkingBase     float32 = 0.55
+	AlphaDisabled    float32 = 0.5
+	AlphaHatch       float32 = 0.3
+	AlphaHoverFill   float32 = 0.1
+	AlphaHoverInk    float32 = 0.1
+	AlphaHoverPlane  float32 = 0.06
+	AlphaOnSel2      float32 = 0.2
+	AlphaPressPlane  float32 = 0.06
+	AlphaPressRow    float32 = 0.08
+	AlphaScrimDark   float32 = 0.62
+	AlphaScrimLight  float32 = 0.45
+	AlphaSelMix      float32 = 0.5
+	AlphaWorkingBase float32 = 0.55
 )
 
 const (
@@ -329,8 +321,8 @@ const (
 
 var (
 	FontIcons = []string{"Material Symbols Sharp"}
-	FontMono  = []string{"Space Mono", "SpaceMono Nerd Font", "SpaceMono Nerd Font Mono"}
-	FontSans  = []string{"Space Grotesk"}
+	FontMono  = []string{"Martian Mono"}
+	FontSans  = []string{"Geologica"}
 )
 
 var (
@@ -339,8 +331,8 @@ var (
 	TypeDetail   = Type{Family: "sans", Weight: 400, Size: 13, Line: 18}
 	TypeGroup    = Type{Family: "sans", Weight: 500, Size: 12, Line: 16}
 	TypeLabel    = Type{Family: "sans", Weight: 500, Size: 13, Line: 16}
-	TypeMono     = Type{Family: "mono", Weight: 400, Size: 12, Line: 16}
-	TypeMonoSm   = Type{Family: "mono", Weight: 400, Size: 11, Line: 15}
+	TypeMono     = Type{Family: "mono", Weight: 400, Size: 10, Line: 16}
+	TypeMonoSm   = Type{Family: "mono", Weight: 400, Size: 9, Line: 15}
 	TypeName     = Type{Family: "sans", Weight: 700, Size: 52, Line: 56}
 	TypeProof    = Type{Family: "sans", Weight: 400, Size: 15, Line: 21}
 	TypeRow      = Type{Family: "sans", Weight: 500, Size: 15, Line: 20}
@@ -350,118 +342,252 @@ var (
 )
 
 var SignatureDark = map[string]string{
-	"fg":      "#e3e3e3",
-	"fg2":     "#c6c6c6",
-	"fg3":     "#8f8f8f",
-	"field":   "#393939",
-	"gold":    "#c9a861",
-	"goldInk": "#d6b877",
-	"ground":  "#0e0e0e",
-	"jasper":  "#e0553a",
-	"onGold":  "#17120a",
-	"onSel":   "#121212",
-	"onSel2":  "#474747",
+	"edge":    "#66625e",
+	"fg":      "#cdc4ba",
+	"fg2":     "#b0a9a0",
+	"fg3":     "#958f87",
+	"field":   "#303030",
+	"gold":    "#ce5e32",
+	"goldInk": "#dc6a3e",
+	"ground":  "#000000",
+	"jasper":  "#eb596c",
+	"onGold":  "#000000",
+	"onSel":   "#000000",
+	"onSel2":  "#292725",
 	"scrim":   "#0000009e",
-	"sel":     "#e3e3e3",
+	"sel":     "#cdc4ba",
 	"slab":    "#232323",
 	"stone1":  "#141414",
 	"stone2":  "#1b1b1b",
 	"stone3":  "#232323",
 	"stone4":  "#2c2c2c",
-	"vein":    "#444444",
+	"vein":    "#393939",
+}
+
+var SignatureDarkHigh = map[string]string{
+	"edge":    "#87827c",
+	"fg":      "#e6dcd2",
+	"fg2":     "#cdc4ba",
+	"fg3":     "#b0a9a0",
+	"field":   "#3a3a3a",
+	"gold":    "#ce5e32",
+	"goldInk": "#ea784c",
+	"ground":  "#000000",
+	"jasper":  "#fa6777",
+	"onGold":  "#000000",
+	"onSel":   "#000000",
+	"onSel2":  "#2e2c2a",
+	"scrim":   "#0000009e",
+	"sel":     "#e6dcd2",
+	"slab":    "#292929",
+	"stone1":  "#171717",
+	"stone2":  "#1f1f1f",
+	"stone3":  "#292929",
+	"stone4":  "#333333",
+	"vein":    "#4a4a4a",
 }
 
 var SignatureLight = map[string]string{
-	"fg":      "#1d1b18",
-	"fg2":     "#4a4640",
-	"fg3":     "#6f6a62",
-	"field":   "#e9e5de",
-	"gold":    "#c9a45a",
-	"goldInk": "#85651f",
-	"ground":  "#e2ddd4",
-	"jasper":  "#b8321e",
-	"onGold":  "#1d1b18",
-	"onSel":   "#f4f1eb",
-	"onSel2":  "#b9b2a7",
+	"edge":    "#c7c3be",
+	"fg":      "#1e1a15",
+	"fg2":     "#56504a",
+	"fg3":     "#6b655f",
+	"field":   "#e7e5e3",
+	"gold":    "#ce5e32",
+	"goldInk": "#b04313",
+	"ground":  "#dfdddb",
+	"jasper":  "#ba334a",
+	"onGold":  "#000000",
+	"onSel":   "#f3f1ef",
+	"onSel2":  "#c8c6c3",
 	"scrim":   "#00000073",
-	"sel":     "#1d1b18",
-	"slab":    "#fbf9f5",
-	"stone1":  "#eae6df",
-	"stone2":  "#f4f1eb",
-	"stone3":  "#e9e5de",
-	"stone4":  "#fbf9f5",
-	"vein":    "#cbc4b8",
+	"sel":     "#1e1a15",
+	"slab":    "#fbf9f7",
+	"stone1":  "#e8e6e4",
+	"stone2":  "#f3f1ef",
+	"stone3":  "#e7e5e3",
+	"stone4":  "#fbf9f7",
+	"vein":    "#d6d3cf",
+}
+
+var SignatureLightHigh = map[string]string{
+	"edge":    "#a29e99",
+	"fg":      "#110c08",
+	"fg2":     "#4c4641",
+	"fg3":     "#605b55",
+	"field":   "#e9e7e5",
+	"gold":    "#ce5e32",
+	"goldInk": "#aa3d07",
+	"ground":  "#d9d7d5",
+	"jasper":  "#b32d45",
+	"onGold":  "#000000",
+	"onSel":   "#fdfbf9",
+	"onSel2":  "#cecbc9",
+	"scrim":   "#00000073",
+	"sel":     "#110c08",
+	"slab":    "#fefdfc",
+	"stone1":  "#ebe9e7",
+	"stone2":  "#fdfbf9",
+	"stone3":  "#e9e7e5",
+	"stone4":  "#fefdfc",
+	"vein":    "#c0bdba",
 }
 
 var MineralsDark = map[string]string{
-	"amber": "#e0954a",
+	"amber": "#d8ad52",
 	"jade":  "#7ab8a0",
 	"lapis": "#8aa2d6",
 }
 
 var MineralsLight = map[string]string{
-	"amber": "#94520f",
-	"jade":  "#2f7a64",
+	"amber": "#855d00",
+	"jade":  "#25715c",
 	"lapis": "#3d5f99",
 }
 
 var PaletteAccents = map[string]string{
 	"gold":   "primary",
 	"jasper": "error",
-	"onGold": "onPrimary",
-	"onSel":  "onSecondaryContainer",
 	"scrim":  "scrim",
 	"sel":    "secondaryContainer",
 	"selMix": "primaryContainer",
-	"tint":   "primaryContainer",
 }
 
-var PaletteDark = map[string]string{
-	"fg":     "onSurface",
-	"fg2":    "onSurfaceVariant",
-	"fg3":    "outline",
-	"field":  "surfaceContainerHighest",
-	"ground": "surfaceContainerLowest",
-	"slab":   "surfaceContainer",
-	"stone1": "surface",
-	"stone2": "surfaceContainerLow",
-	"stone3": "surfaceContainer",
-	"stone4": "surfaceContainerHigh",
-	"vein":   "outlineVariant",
+var PaletteDye = map[string]string{
+	"ink":     "onSurface",
+	"neutral": "surface",
 }
 
-var PaletteLight = map[string]string{
-	"fg":     "onSurface",
-	"fg2":    "onSurfaceVariant",
-	"fg3":    "outline",
-	"field":  "surfaceContainerHighest",
-	"ground": "surfaceContainerHighest",
-	"slab":   "surfaceContainerLowest",
-	"stone1": "surfaceContainerHigh",
-	"stone2": "surfaceContainerLowest",
-	"stone3": "surfaceContainer",
-	"stone4": "surfaceContainerLowest",
-	"vein":   "outlineVariant",
+var ToneDark = map[string]float64{
+	"edge":         0.45,
+	"fg":           0.951,
+	"fg2":          0.801,
+	"fg3":          0.689,
+	"field":        0.31,
+	"gold":         0.785,
+	"goldInk":      0.785,
+	"ground":       0.158,
+	"jasper":       0.74,
+	"mineralField": 0.305,
+	"onGold":       0.1,
+	"onSel":        0.1,
+	"sel":          0.825,
+	"slab":         0.246,
+	"stone1":       0.188,
+	"stone2":       0.216,
+	"stone3":       0.246,
+	"stone4":       0.278,
+	"vein":         0.391,
 }
 
-var PaletteToned = map[string]string{
-	"goldInk": "gold",
-	"jasper":  "jasper",
+var ToneDarkHigh = map[string]float64{
+	"edge":         0.535,
+	"fg":           0.976,
+	"fg2":          0.854,
+	"fg3":          0.772,
+	"field":        0.401,
+	"gold":         0.8,
+	"goldInk":      0.8,
+	"ground":       0.158,
+	"jasper":       0.78,
+	"mineralField": 0.345,
+	"onGold":       0.1,
+	"onSel":        0.08,
+	"sel":          0.9,
+	"slab":         0.299,
+	"stone1":       0.206,
+	"stone2":       0.251,
+	"stone3":       0.299,
+	"stone4":       0.35,
+	"vein":         0.45,
+}
+
+var ToneLight = map[string]float64{
+	"edge":         0.818,
+	"fg":           0.221,
+	"fg2":          0.435,
+	"fg3":          0.508,
+	"field":        0.923,
+	"gold":         0.78,
+	"goldInk":      0.492,
+	"ground":       0.899,
+	"jasper":       0.495,
+	"mineralField": 0.925,
+	"onGold":       0.12,
+	"onSel":        0.959,
+	"sel":          0.221,
+	"slab":         0.983,
+	"stone1":       0.926,
+	"stone2":       0.959,
+	"stone3":       0.923,
+	"stone4":       0.983,
+	"vein":         0.867,
+}
+
+var ToneLightHigh = map[string]float64{
+	"edge":         0.78,
+	"fg":           0.18,
+	"fg2":          0.398,
+	"fg3":          0.474,
+	"field":        0.937,
+	"gold":         0.78,
+	"goldInk":      0.487,
+	"ground":       0.899,
+	"jasper":       0.486,
+	"mineralField": 0.92,
+	"onGold":       0.1,
+	"onSel":        0.989,
+	"sel":          0.159,
+	"slab":         0.999,
+	"stone1":       0.942,
+	"stone2":       0.995,
+	"stone3":       0.937,
+	"stone4":       0.999,
+	"vein":         0.86,
+}
+
+var DyeBoost = map[string]float64{
+	"gold":   1.4,
+	"ground": 1.4,
+	"vein":   1.2,
+}
+
+var DyeChroma = map[string]float64{
+	"gold":   0.15,
+	"ground": 0.02,
+	"ink":    0.016,
+	"jasper": 0.17,
+	"onGold": 0.03,
+	"onSel":  0.03,
+	"sel":    0.03,
+	"stone":  0.014,
+}
+
+var DyeFallback = map[string]float64{
+	"goldChroma":   0.15,
+	"goldHue":      41,
+	"groundChroma": 0.004,
+	"inkChroma":    0.016,
+	"jasperHue":    16,
+	"neutralHue":   72,
+	"selChroma":    0.017,
+	"stoneChroma":  0.007,
+}
+
+var DyeMineral = map[string]float64{
+	"amber":  0.05,
+	"jade":   0.045,
+	"jasper": 0.055,
+	"lapis":  0.05,
+}
+
+var DyeTint = map[string]float64{
+	"low":    1.8,
+	"medium": 2.6,
 }
 
 var Edition = map[string]string{
-	"alpine":      "#0d7fb0",
-	"arch":        "#1793d1",
-	"cachyos":     "#00b3a1",
-	"debian":      "#d70a53",
-	"endeavouros": "#7f3fbf",
-	"fedora":      "#51a2da",
-	"gentoo":      "#7a6bbd",
-	"linuxmint":   "#86be43",
-	"manjaro":     "#35bf5c",
-	"nixos":       "#7ebae4",
-	"opensuse":    "#73ba25",
-	"pop":         "#48b9c7",
-	"ubuntu":      "#e95420",
-	"void":        "#478061",
+	"fedora": "#6ea5cf",
+	"nixos":  "#9299d3",
+	"void":   "#6daf8c",
 }

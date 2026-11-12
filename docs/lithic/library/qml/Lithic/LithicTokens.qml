@@ -4,7 +4,7 @@ pragma Singleton
 import QtQuick
 
 QtObject {
-    readonly property var alpha: ({"contrastHigh":0.6,"contrastHighFg3":0.3,"disabled":0.5,"edge":0.5,"hatch":0.3,"hoverFill":0.1,"hoverInk":0.1,"hoverPlane":0.06,"mineral":0.15,"mineralJade":0.17,"onSel2":0.45,"pressPlane":0.06,"pressRow":0.08,"scrimDark":0.62,"scrimLight":0.45,"selMix":0.5,"tintLow":0.06,"tintMedium":0.1,"workingBase":0.55})
+    readonly property var alpha: ({"disabled":0.5,"hatch":0.3,"hoverFill":0.1,"hoverInk":0.1,"hoverPlane":0.06,"onSel2":0.2,"pressPlane":0.06,"pressRow":0.08,"scrimDark":0.62,"scrimLight":0.45,"selMix":0.5,"workingBase":0.55})
     readonly property QtObject breakpoint: QtObject {
         readonly property int expanded: 1280
         readonly property int medium: 760
@@ -26,13 +26,14 @@ QtObject {
         readonly property int token: 3
         readonly property int tooltip: 4
     }
-    readonly property var edition: ({"alpine":"#0d7fb0","arch":"#1793d1","cachyos":"#00b3a1","debian":"#d70a53","endeavouros":"#7f3fbf","fedora":"#51a2da","gentoo":"#7a6bbd","linuxmint":"#86be43","manjaro":"#35bf5c","nixos":"#7ebae4","opensuse":"#73ba25","pop":"#48b9c7","ubuntu":"#e95420","void":"#478061"})
+    readonly property var dye: ({"boost":{"gold":1.4,"ground":1.4,"vein":1.2},"chroma":{"gold":0.15,"ground":0.02,"ink":0.016,"jasper":0.17,"onGold":0.03,"onSel":0.03,"sel":0.03,"stone":0.014},"fallback":{"goldChroma":0.15,"goldHue":41,"groundChroma":0.004,"inkChroma":0.016,"jasperHue":16,"neutralHue":72,"selChroma":0.017,"stoneChroma":0.007},"mineral":{"amber":0.05,"jade":0.045,"jasper":0.055,"lapis":0.05},"tint":{"low":1.8,"medium":2.6}})
+    readonly property var edition: ({"fedora":"#6ea5cf","nixos":"#9299d3","void":"#6daf8c"})
     readonly property QtObject font: QtObject {
         readonly property var icons: ["Material Symbols Sharp"]
-        readonly property var mono: ["Space Mono","SpaceMono Nerd Font","SpaceMono Nerd Font Mono"]
-        readonly property var sans: ["Space Grotesk"]
+        readonly property var mono: ["Martian Mono"]
+        readonly property var sans: ["Geologica"]
     }
-    readonly property var minerals: ({"dark":{"amber":"#e0954a","jade":"#7ab8a0","lapis":"#8aa2d6"},"light":{"amber":"#94520f","jade":"#2f7a64","lapis":"#3d5f99"}})
+    readonly property var minerals: ({"dark":{"amber":"#d8ad52","jade":"#7ab8a0","lapis":"#8aa2d6"},"light":{"amber":"#855d00","jade":"#25715c","lapis":"#3d5f99"}})
     readonly property QtObject motion: QtObject {
         readonly property var curve: [0.2,0,0,1]
         readonly property int dialogIn: 300
@@ -57,8 +58,8 @@ QtObject {
         readonly property int wheel: 140
         readonly property int working: 900
     }
-    readonly property var palette: ({"accents":{"gold":"primary","jasper":"error","onGold":"onPrimary","onSel":"onSecondaryContainer","scrim":"scrim","sel":"secondaryContainer","selMix":"primaryContainer","tint":"primaryContainer"},"dark":{"fg":"onSurface","fg2":"onSurfaceVariant","fg3":"outline","field":"surfaceContainerHighest","ground":"surfaceContainerLowest","slab":"surfaceContainer","stone1":"surface","stone2":"surfaceContainerLow","stone3":"surfaceContainer","stone4":"surfaceContainerHigh","vein":"outlineVariant"},"light":{"fg":"onSurface","fg2":"onSurfaceVariant","fg3":"outline","field":"surfaceContainerHighest","ground":"surfaceContainerHighest","slab":"surfaceContainerLowest","stone1":"surfaceContainerHigh","stone2":"surfaceContainerLowest","stone3":"surfaceContainer","stone4":"surfaceContainerLowest","vein":"outlineVariant"},"toned":{"goldInk":"gold","jasper":"jasper"}})
-    readonly property var signature: ({"dark":{"fg":"#e3e3e3","fg2":"#c6c6c6","fg3":"#8f8f8f","field":"#393939","gold":"#c9a861","goldInk":"#d6b877","ground":"#0e0e0e","jasper":"#e0553a","onGold":"#17120a","onSel":"#121212","onSel2":"#474747","scrim":"#9e000000","sel":"#e3e3e3","slab":"#232323","stone1":"#141414","stone2":"#1b1b1b","stone3":"#232323","stone4":"#2c2c2c","vein":"#444444"},"light":{"fg":"#1d1b18","fg2":"#4a4640","fg3":"#6f6a62","field":"#e9e5de","gold":"#c9a45a","goldInk":"#85651f","ground":"#e2ddd4","jasper":"#b8321e","onGold":"#1d1b18","onSel":"#f4f1eb","onSel2":"#b9b2a7","scrim":"#73000000","sel":"#1d1b18","slab":"#fbf9f5","stone1":"#eae6df","stone2":"#f4f1eb","stone3":"#e9e5de","stone4":"#fbf9f5","vein":"#cbc4b8"}})
+    readonly property var palette: ({"accents":{"gold":"primary","jasper":"error","scrim":"scrim","sel":"secondaryContainer","selMix":"primaryContainer"},"dye":{"ink":"onSurface","neutral":"surface"}})
+    readonly property var signature: ({"dark":{"edge":"#66625e","fg":"#cdc4ba","fg2":"#b0a9a0","fg3":"#958f87","field":"#303030","gold":"#ce5e32","goldInk":"#dc6a3e","ground":"#000000","jasper":"#eb596c","onGold":"#000000","onSel":"#000000","onSel2":"#292725","scrim":"#9e000000","sel":"#cdc4ba","slab":"#232323","stone1":"#141414","stone2":"#1b1b1b","stone3":"#232323","stone4":"#2c2c2c","vein":"#393939"},"darkHigh":{"edge":"#87827c","fg":"#e6dcd2","fg2":"#cdc4ba","fg3":"#b0a9a0","field":"#3a3a3a","gold":"#ce5e32","goldInk":"#ea784c","ground":"#000000","jasper":"#fa6777","onGold":"#000000","onSel":"#000000","onSel2":"#2e2c2a","scrim":"#9e000000","sel":"#e6dcd2","slab":"#292929","stone1":"#171717","stone2":"#1f1f1f","stone3":"#292929","stone4":"#333333","vein":"#4a4a4a"},"light":{"edge":"#c7c3be","fg":"#1e1a15","fg2":"#56504a","fg3":"#6b655f","field":"#e7e5e3","gold":"#ce5e32","goldInk":"#b04313","ground":"#dfdddb","jasper":"#ba334a","onGold":"#000000","onSel":"#f3f1ef","onSel2":"#c8c6c3","scrim":"#73000000","sel":"#1e1a15","slab":"#fbf9f7","stone1":"#e8e6e4","stone2":"#f3f1ef","stone3":"#e7e5e3","stone4":"#fbf9f7","vein":"#d6d3cf"},"lightHigh":{"edge":"#a29e99","fg":"#110c08","fg2":"#4c4641","fg3":"#605b55","field":"#e9e7e5","gold":"#ce5e32","goldInk":"#aa3d07","ground":"#d9d7d5","jasper":"#b32d45","onGold":"#000000","onSel":"#fdfbf9","onSel2":"#cecbc9","scrim":"#73000000","sel":"#110c08","slab":"#fefdfc","stone1":"#ebe9e7","stone2":"#fdfbf9","stone3":"#e9e7e5","stone4":"#fefdfc","vein":"#c0bdba"}})
     readonly property QtObject size: QtObject {
         readonly property real bladeIndeterminateFraction: 0.25
         readonly property int bladeMarker: 2
@@ -226,7 +227,6 @@ QtObject {
         readonly property int sectionIndexWidth: 200
         readonly property int segmentHeight: 36
         readonly property int segmentInset: 4
-        readonly property int selBlade: 3
         readonly property int settingsControlMax: 320
         readonly property int settingsDetailGap: 2
         readonly property int settingsExpandedMax: 994
@@ -302,6 +302,7 @@ QtObject {
         readonly property int s5: 34
         readonly property int s6: 55
     }
+    readonly property var tone: ({"dark":{"edge":0.45,"fg":0.951,"fg2":0.801,"fg3":0.689,"field":0.31,"gold":0.785,"goldInk":0.785,"ground":0.158,"jasper":0.74,"mineralField":0.305,"onGold":0.1,"onSel":0.1,"sel":0.825,"slab":0.246,"stone1":0.188,"stone2":0.216,"stone3":0.246,"stone4":0.278,"vein":0.391},"darkHigh":{"edge":0.535,"fg":0.976,"fg2":0.854,"fg3":0.772,"field":0.401,"gold":0.8,"goldInk":0.8,"ground":0.158,"jasper":0.78,"mineralField":0.345,"onGold":0.1,"onSel":0.08,"sel":0.9,"slab":0.299,"stone1":0.206,"stone2":0.251,"stone3":0.299,"stone4":0.35,"vein":0.45},"light":{"edge":0.818,"fg":0.221,"fg2":0.435,"fg3":0.508,"field":0.923,"gold":0.78,"goldInk":0.492,"ground":0.899,"jasper":0.495,"mineralField":0.925,"onGold":0.12,"onSel":0.959,"sel":0.221,"slab":0.983,"stone1":0.926,"stone2":0.959,"stone3":0.923,"stone4":0.983,"vein":0.867},"lightHigh":{"edge":0.78,"fg":0.18,"fg2":0.398,"fg3":0.474,"field":0.937,"gold":0.78,"goldInk":0.487,"ground":0.899,"jasper":0.486,"mineralField":0.92,"onGold":0.1,"onSel":0.989,"sel":0.159,"slab":0.999,"stone1":0.942,"stone2":0.995,"stone3":0.937,"stone4":0.999,"vein":0.86}})
     readonly property QtObject type: QtObject {
         readonly property QtObject body: QtObject {
             readonly property string family: "sans"
@@ -336,13 +337,13 @@ QtObject {
         readonly property QtObject mono: QtObject {
             readonly property string family: "mono"
             readonly property int line: 16
-            readonly property int size: 12
+            readonly property int size: 10
             readonly property int weight: 400
         }
         readonly property QtObject monoSm: QtObject {
             readonly property string family: "mono"
             readonly property int line: 15
-            readonly property int size: 11
+            readonly property int size: 9
             readonly property int weight: 400
         }
         readonly property QtObject name: QtObject {

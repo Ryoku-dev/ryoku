@@ -122,7 +122,7 @@ func qmlOutput(tokens document) ([]byte, error) {
 	fmt.Fprintf(&out, "// %s\n", generatedHeader)
 	out.WriteString("pragma Singleton\n\nimport QtQuick\n\nQtObject {\n")
 	varGroups := map[string]bool{
-		"alpha": true, "edition": true, "minerals": true, "palette": true, "signature": true,
+		"alpha": true, "dye": true, "edition": true, "minerals": true, "palette": true, "signature": true, "tone": true,
 	}
 	for _, key := range sortedKeys(tokens) {
 		if key == "sizeNotes" {
@@ -479,6 +479,21 @@ func goOutput(tokens document) ([]byte, error) {
 			writeGoStringMap(&out, pascal(group)+pascal(key), entries)
 		}
 	}
+	for _, group := range []string{"tone", "dye"} {
+		values, err := objectAt(tokens, group)
+		if err != nil {
+			return nil, err
+		}
+		for _, key := range sortedKeys(values) {
+			entries, ok := values[key].(map[string]any)
+			if !ok {
+				return nil, fmt.Errorf("go: %s.%s is not an object", group, key)
+			}
+			if err := writeGoFloatMap(&out, pascal(group)+pascal(key), entries); err != nil {
+				return nil, fmt.Errorf("go: %s.%s: %w", group, key, err)
+			}
+		}
+	}
 	edition, err := objectAt(tokens, "edition")
 	if err != nil {
 		return nil, err
@@ -498,6 +513,19 @@ func writeGoStringMap(out *bytes.Buffer, name string, entries map[string]any) {
 		fmt.Fprintf(out, "%q: %q,\n", key, value)
 	}
 	out.WriteString("}\n\n")
+}
+
+func writeGoFloatMap(out *bytes.Buffer, name string, entries map[string]any) error {
+	fmt.Fprintf(out, "var %s = map[string]float64{\n", name)
+	for _, key := range sortedKeys(entries) {
+		number, ok := entries[key].(json.Number)
+		if !ok {
+			return fmt.Errorf("%s is not a number", key)
+		}
+		fmt.Fprintf(out, "%q: %s,\n", key, number.String())
+	}
+	out.WriteString("}\n\n")
+	return nil
 }
 
 func objectAt(tokens document, key string) (map[string]any, error) {

@@ -32,7 +32,7 @@ func RenderFacts(th Theme, facts Facts) string {
 		label := ink(th.Roles.Fg3).Render(fit(row.Label, labelWidth))
 		line := label + "  " + ink(th.Roles.Fg).Render(value)
 		if i != 0 {
-			rows = append(rows, ink(th.Roles.Vein).Render(strings.Repeat(glyphs().FrameTop, lipgloss.Width(line))))
+			rows = append(rows, ink(th.Roles.Vein).Render(strings.Repeat(glyphs().Rule, lipgloss.Width(line))))
 		}
 		rows = append(rows, line)
 	}

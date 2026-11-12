@@ -47,9 +47,10 @@ Read this page first. The companion pages go deeper on one subject each:
    it fits).
 
 3. **Bone is where you are.** The selected row, the current rail destination,
-   the current filter or segment: each is a `sel` fill with `onSel` ink and a
-   place blade. The on half of a toggle is `sel` too. Nothing else uses that
-   role.
+   the current filter or segment: each is a `sel` fill with `onSel` ink. The
+   fill alone marks the place; bone stands well clear of every plane, so it
+   carries no bar or outline. The on half of a toggle is `sel` too. Nothing
+   else uses that role.
 
 4. **Gold is what you can do.** The `gold` role fills consequential actions
    only (connect, start, stop, create, save, sign in), and a view spends it on
@@ -65,19 +66,15 @@ Read this page first. The companion pages go deeper on one subject each:
    always three things at once: its mineral, a shape (notch, flake or mineral
    field) and a plain word. Colour never carries state alone.
 
-6. **The blade marks progress and place.** A bar whose leading edge is cut at
-   45 degrees: the current tab's underline, a job's progress, a meter. Place
-   carries a blade everywhere: a selected row, chip or segment holds a 3 dp
-   `onSel` place blade, on the leading edge of a row and along the bottom of a
-   chip or segment, so the selection reads even where its fill is close to the
-   plane.
+6. **The blade marks progress.** A bar whose leading edge is cut at 45
+   degrees: a job's progress, a meter, and the current tab's underline.
 
 7. **Engraved data.** Charts are a fine foreground line over a 45 degree
-   hatch, labels in Space Mono, no coloured area fills.
+   hatch, labels in Martian Mono, no coloured area fills.
 
 8. **One family, set monumentally.** The selected thing's name is the one big
-   line in a view (Space Grotesk Bold at 52 sp). Everything else is at working
-   size. Space Mono appears only where the characters are literal data.
+   line in a view (Geologica Bold at 52 sp). Everything else is at working
+   size. Martian Mono appears only where the characters are literal data.
 
 9. **Motion answers a cause and stops.** One curve, a short table of
    durations, and no frame drawn when nothing changed. Reduced motion turns
@@ -94,7 +91,7 @@ comments and in reviews so everyone means the same thing.
 | **stone 1 to 4** | The ordered stack of flat planes: rail and list pane (1), work pane and row tablets (2), hover (3), menus and dialogs (4). |
 | **vein** | The hairline tone: quiet outlines, separators, idle flakes, chart baselines. |
 | **field and edge** | The fill of a thing you type into, choose from or slide along (`field`), and the 1 dp hairline that sets a field off at rest (`edge`, between `vein` and `fg3`). |
-| **bone** | The selection fill (`sel`), its place blade and its ink (`onSel`, quiet ink `onSel2`). Where you are. |
+| **bone** | The selection fill (`sel`) and its ink (`onSel`, quiet ink `onSel2`). Where you are. |
 | **gold** | The action fill (`gold`, `onGold`) and the action ink on stone (`goldInk`). What you can do. |
 | **mineral, stone (of a state)** | Jade, lapis, amber, jasper. The colour half of a state. |
 | **plaque** | A button: a cut slab you can press. Pressing chips the corners deeper. Its tiers run gold, line, tonal, quiet. |
@@ -102,9 +99,9 @@ comments and in reviews so everyone means the same thing.
 | **tablet** | A resource row: a flat stone 2 slab, square apart from its notch. |
 | **notch** | The 45 degree cut at a tablet's top-left corner, filled with the state's mineral. Also the amber update marker on the Settings rail tile. |
 | **flake** | The standalone state token: a short slanted quadrilateral. Outlined when idle, filled by its mineral when active, part filled while becoming. |
-| **mineral field** | The header slab of the selected thing, tinted by mixing its state's mineral into stone 2. |
-| **blade** | A progress bar with a cut leading edge. The **place blade** is the 3 dp `onSel` bar a selection carries. |
-| **slab** | A container inside a pane (a settings section): the `slab` role with a 1 dp `vein` hairline, lifted from its plane. Also, loosely, any bone selection surface. |
+| **mineral field** | The header slab of the selected thing, in its state's mineral hue at a low chroma. |
+| **blade** | A progress bar with a cut leading edge; also the current tab's underline. |
+| **slab** | A container inside a pane (a settings section): the `slab` role, lifted from its plane, with a 1 dp `vein` hairline in light mode. Also, loosely, any bone selection surface. |
 | **claim and proof** | A state word and the fact that backs it: "Online" over "23 ms". |
 | **chisel** | The one easing curve, `cubic-bezier(.2, 0, 0, 1)`. |
 | **knapping** | Lithic's motion as a whole: short, decisive, no bounce. |
@@ -112,39 +109,41 @@ comments and in reviews so everyone means the same thing.
 ## 3. Materials: roles, not colours
 
 Lithic has no palette of its own. Every colour in a Lithic surface is a
-**role**, and the roles are filled from the live Ryoku palette (matugen) on
-the user's desktop, so an app matches the wallpaper and changes with it.
+**role**. Following the wallpaper, the live Ryoku palette (matugen) dyes each
+role while Lithic keeps its lightness on a fixed ladder, so an app matches the
+wallpaper, changes with it, and never loses its contrast. Without a palette
+the roles are the **signature**, the ryoku.dev stock: black paper, bone ink
+and the dark orange sun as the one action; its tables live in `tokens.json`.
 [palette.md](palette.md) is the complete recipe. The short version:
 
-| Role | Dark palette source | Used for |
+| Role | Used for | Following, dyed by |
 |---|---|---|
-| `ground` | `surfaceContainerLowest` | behind the panes |
-| `stone1` | `surface` | rail, list pane |
-| `stone2` | `surfaceContainerLow` | work pane, tablets |
-| `stone3` | `surfaceContainer` | hover |
-| `stone4` | `surfaceContainerHigh` | menus, dialogs, tooltips |
-| `slab` | `surfaceContainer` | slabs inside a pane |
-| `field` | `surfaceContainerHighest` | fields, tracks, tonal plaques, chips at rest |
-| `vein` | `outlineVariant` | hairlines, quiet outlines |
-| `edge` | `vein` mixed halfway toward `fg3` | the hairline around a field |
-| `fg`, `fg2`, `fg3` | `onSurface`, `onSurfaceVariant`, `outline` | type, strong to faint |
-| `sel`, `onSel` | `secondaryContainer` mixed halfway toward `primaryContainer`, `onSecondaryContainer` | where you are |
-| `gold`, `onGold` | `primary`, `onPrimary` | what you can do |
-| `goldInk` | `primary`, re-toned to 4.5:1 on `stone2` | gold type and hairlines |
-| `jasper` | `error`, re-toned to 4.5:1 on `stone2` | failed, unreachable, destructive |
-| `jade`, `lapis`, `amber` | fixed by Lithic | alive, becoming, needs you |
-| `scrim` | `scrim` at 0.62 (dark) or 0.45 (light) | behind dialogs |
+| `ground` | behind the panes | `surface` |
+| `stone1` | rail, list pane | `surface` |
+| `stone2` | work pane, tablets | `surface` |
+| `stone3` | hover | `surface` |
+| `stone4` | menus, dialogs, tooltips | `surface` |
+| `slab` | slabs inside a pane | `surface` |
+| `field` | fields, tracks, tonal plaques, a chip under the pointer | `surface` |
+| `vein` | hairlines, quiet outlines | `surface` |
+| `edge` | the hairline around a field | `surface` |
+| `fg`, `fg2`, `fg3` | type, strong to faint | `onSurface` |
+| `sel`, `onSel` | where you are | `secondaryContainer` toward `primaryContainer` |
+| `gold`, `onGold`, `goldInk` | what you can do; gold type and hairlines | `primary` |
+| `jasper` | failed, unreachable, destructive | `error` |
+| `jade`, `lapis`, `amber` | alive, becoming, needs you | nothing: fixed by Lithic |
+| `scrim` | behind dialogs | `scrim` |
 
-Light palettes map from the other end of the surface ramp, so the ground is
-the darkest stone and the work pane the lightest; there a slab takes the work
-pane's tone and its hairline sets it off. Jade, lapis and amber do not follow
-the palette because they carry meaning; a Ryoku user must read "alive" the
-same way on every wallpaper.
+In light mode the ladder runs from the other end, so the ground is the
+darkest stone and the work pane among the lightest; there a slab sits at the
+work pane's tone and its hairline sets it off. Jade, lapis and amber do not
+follow the palette because they carry meaning; a Ryoku user must read "alive"
+the same way on every wallpaper.
 
 The reader sets the look on top: **Contrast** (standard or high) spreads the
-stones, slab, field and vein further from the ground and lifts `fg3`, and
-**Tint** (off, low or medium) mixes a touch of the palette's
-`primaryContainer` into the ground, stones, slab and field.
+stones, slab, field and vein further from the ground and moves the inks out,
+and **Tint** (off, low or medium) lets the ground and stones take more of the
+wallpaper's colour without changing any lightness.
 [palette.md](palette.md#contrast-and-tint) has the recipe.
 
 Two named rules govern the roles:
@@ -159,11 +158,11 @@ Derived tones are computed, never picked:
 
 | Derived | Recipe |
 |---|---|
-| mineral field | `mix(stone2, mineral, 0.17)` for jade, `0.15` for lapis, amber, jasper; idle field is `stone3` |
+| mineral field | the state's mineral hue at a low chroma, at the ladder's mineral-field lightness; idle field is `stone3` |
 | hover on a filled plaque | `mix(fill, white, 0.10)` |
 | hover on a transparent plaque | ink at alpha `0.10` |
 | hover on a tonal plaque | `mix(field, fg, 0.06)` |
-| selected row, chip or segment | `sel` fill plus a 3 dp `onSel` place blade, clipped to its cut |
+| selected row, chip or segment | the `sel` fill, clipped to its cut, with `onSel` ink |
 | hover on a tablet or rail tile below `stone4` | step one plane up (`stone2` to `stone3`, `stone1` to `stone3`) |
 | hover on a row on `stone4` | `mix(stone4, fg, 0.06)`; nothing is above `stone4`, so it must not step down |
 | press on a tablet or menu row | add `fg` at alpha `0.08` |
@@ -203,10 +202,18 @@ in `internal/client/ui/look/backdrop.go`. The terminal has none.
 
 Two families, embedded with no system fallback:
 
-- **Space Grotesk** for everything a person reads: names, sentences, labels,
-  prose, buttons.
-- **Space Mono** only for literal data: addresses, ports, paths, counts,
-  proofs, chart ticks. Never as a technical mood.
+- **Geologica** for everything a person reads: names, sentences, labels,
+  prose, buttons. It is set at full sharpness (`SHRP` 100), where the ends of
+  its curves are cut at an angle like the plaques. It covers Latin, Cyrillic,
+  Greek and Vietnamese, and its figures can be tabular.
+- **Martian Mono** only for literal data: addresses, ports, paths, keys,
+  chart ticks. Never as a technical mood. Its x-height is a fifth taller than
+  Geologica's, so it is set two sizes smaller and stands beside the text at
+  the weight data needs, no louder.
+
+The library carries both in `library/go/fonts`: the Go kit embeds them, and the
+QML and web libraries load the same files, so an application never depends on
+what a system has installed. A terminal draws in its own font.
 
 The scale, in sp (size / line height):
 
@@ -223,15 +230,15 @@ The scale, in sp (size / line height):
 | `detail` | 13 / 18 | Regular | setting details, field labels, card secondary lines |
 | `caption` | 12 / 16 | Regular | timestamps, counts, hints, placeholders, rail labels |
 | `group` | 12 / 16 | Medium | list group headers |
-| `mono` | 12 / 16 | Regular (Space Mono) | data |
-| `monoSm` | 11 / 15 | Regular (Space Mono) | proofs, counts, chart ticks |
+| `mono` | 10 / 16 | Regular (Martian Mono) | literal data: addresses, paths, keys |
+| `monoSm` | 9 / 15 | Regular (Martian Mono) | chart ticks, literal previews |
 
 Rules:
 
 **The one monument rule.** One line per view gets `name`. Everything else
 stays at working size.
 
-**The literal data rule.** Space Mono only where the characters are data.
+**The literal data rule.** Martian Mono only where the characters are data.
 
 **The readable detail rule.** A secondary line someone reads to decide is
 `detail` in `fg2`. As a secondary line, `caption` in `fg3` is only for
@@ -354,15 +361,15 @@ family:
 | icon plaque | square 40 (small 32), icon 20 (18) | 6 | 40 / 32 |
 | field, search | `field` fill, 1 dp `edge` hairline, `fg` ink; focus turns the hairline `fg2`, error `jasper` | 7 | 44 |
 | picker | a field anchor opening a menu; the chosen option carries a check | 7 | 44 |
-| segmented | `field` track with a 1 dp `vein` hairline; the selected segment is `sel` with a bottom place blade, 4 inside | 7 (segment 5) | 36 |
+| segmented | `field` track with a 1 dp `vein` hairline; the selected segment is a `sel` fill, 4 inside | 7 (segment 5) | 36 |
 | toggle | track `stone4` + vein hairline off, `sel` on; knob 14 | 4 (knob 2) | 22 × 40 |
 | slider | `field` track 6, `fg2` blade, `sel` handle 8 × 20 | handle cut min(w/2, h/4) | 32 |
 | stepper | two small quiet icon plaques around a value in a field | 6 | 32 |
-| filter chip | tonal at rest, `sel` with a bottom place blade when on, count in `monoSm` | 6 | 32 |
+| filter chip | no fill at rest, `field` on hover, `sel` when on, count in `caption` with tabular figures | 6 | 32 |
 | tabs | labels in a 44 dp strip over a 1 dp vein baseline; 3 dp `fg` blade moves | blade | 44 |
-| tablet | `stone2`, square with a 12 dp notch; `sel` with a leading place blade when selected | notch | 56 / 48 |
-| group header | `group` title and `monoSm` count in `fg3` | none | 36 |
-| slab | `slab` fill, 1 dp `vein` hairline, 21 dp inset | 7 | content |
+| tablet | `stone2`, square with a 12 dp notch; `sel` when selected | notch | 56 / 48 |
+| group header | `group` title and `caption` count in `fg3` | none | 36 |
+| slab | `slab` fill, a 1 dp `vein` hairline in light mode, 21 dp inset | 7 | content |
 | mineral field | `mineralField(tone)` behind a header | none | content |
 | blade meter / progress | `field` track 6, fill by role; progress is `lapis` | blade | 6 |
 | flake and claim | mineral token beside its word | 45° sides | about 13 × 6 at nominal 9 dp |
@@ -433,10 +440,19 @@ Don't:
 - Add a shadow, gradient, glow or inset well, or sink a slab below its plane.
 - Blur a control, type or a state, or use blur in place of a tone step.
 - Use gold for status, decoration or navigation; use bone for anything but the current place.
-- Use Space Mono for prose or labels.
+- Use Martian Mono for prose, labels, counts or proofs; it is for literal data.
 - Show state with a dot or with colour alone.
 - Set anything in all caps.
 - Invent a new cut, a new spacing value or a new duration.
+- Draw a bar or coloured edge on a row, chip or segment to mark it; the `sel`
+  fill marks the place.
+- Light the top edge of a plaque or plane; planes are flat.
+- Join facts with a middle dot (`ally · Sealed`); write them as words
+  ("Sealed on ally") or set them apart with space.
+- Colour a phrase of a heading or a sentence for emphasis; gold is for
+  actions and minerals are for states.
+- Put every section in a slab or every specimen in a card; a section sits
+  open on its pane, and a slab is for a group that must read as one object.
 
 ## 12. Adopting Lithic in an app
 

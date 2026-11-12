@@ -4,7 +4,9 @@ Item {
     id: root
 
     property real inset: LithicTokens.size.slabInset
-    property color fill: Lithic.slab
+    // A toned slab is the one hero plane of a view, dyed by its state
+    property string tone: ""
+    property color fill: tone !== "" && tone !== "idle" ? Lithic.mineralField(tone) : Lithic.slab
     property real cut: LithicTokens.cut.mid
     default property alias content: contentItem.data
     readonly property alias bodyItem: contentItem
@@ -28,7 +30,7 @@ Item {
     CutRect {
         anchors.fill: parent
         fill: root.fill
-        strokeColor: Lithic.vein
+        strokeColor: Lithic.dark ? "transparent" : Lithic.vein
         strokeWidth: LithicTokens.size.hairline
         cut: root.cut
     }

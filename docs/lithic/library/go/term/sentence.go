@@ -8,7 +8,6 @@ type SpanKind uint8
 const (
 	SpanText SpanKind = iota
 	SpanLiteral
-	SpanAttention
 )
 
 // Span is one styled part of a sentence.
@@ -22,18 +21,15 @@ type Sentence struct {
 	Spans []Span
 }
 
-// RenderSentence renders bold sentence text with literal and attention spans.
+// RenderSentence renders bold sentence text with literal spans in plain ink.
 func RenderSentence(th Theme, sentence Sentence) string {
 	parts := make([]string, len(sentence.Spans))
 	for i, span := range sentence.Spans {
-		switch span.Kind {
-		case SpanAttention:
-			parts[i] = bold(th.Roles.Amber).Render(span.Text)
-		case SpanLiteral:
+		if span.Kind == SpanLiteral {
 			parts[i] = ink(th.Roles.Fg).Render(span.Text)
-		default:
-			parts[i] = bold(th.Roles.Fg).Render(span.Text)
+			continue
 		}
+		parts[i] = bold(th.Roles.Fg).Render(span.Text)
 	}
 	return strings.Join(parts, "")
 }

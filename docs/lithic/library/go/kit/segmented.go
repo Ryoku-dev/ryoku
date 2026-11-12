@@ -124,7 +124,6 @@ func (s *Segmented) Layout(gtx layout.Context, th *theme.Theme) layout.Dimension
 	segmentCut := gtx.Dp(th.Cut.Segment)
 	selection := image.Rect(x, inset, x+inner/count, size.Y-inset)
 	FillCut(gtx.Ops, selection, segmentCut, disabledInk(gtx, th.R.Sel))
-	PlaceBlade(gtx, th, selection, segmentCut, layout.Horizontal)
 
 	for i, label := range s.Labels[:count] {
 		width := edge(i+1) - edge(i)

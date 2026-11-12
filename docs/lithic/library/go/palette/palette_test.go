@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"image/color"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,165 +12,212 @@ import (
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 )
 
-func TestDarkMapping(t *testing.T) {
-	p := syntheticPalette(true)
-	r := FromPalette(Palette{Roles: p, Dark: true, Source: "wallpaper"}, Look{})
-	assertColor(t, "ground", r.Ground, p[tokens.PaletteDark["ground"]])
-	assertColor(t, "stone2", r.Stone2, p[tokens.PaletteDark["stone2"]])
-	assertColor(t, "slab", r.Slab, p[tokens.PaletteDark["slab"]])
-	assertColor(t, "field", r.Field, p[tokens.PaletteDark["field"]])
-	assertColor(t, "vein", r.Vein, p[tokens.PaletteDark["vein"]])
-	assertColor(t, "fg", r.Fg, p[tokens.PaletteDark["fg"]])
-	assertColor(t, "edge", r.Edge, Mix(r.Vein, r.Fg3, tokens.AlphaEdge))
-	assertColor(t, "selection", r.Sel, p[tokens.PaletteAccents["sel"]])
-	if r.Scrim.A != alphaByte(tokens.AlphaScrimDark) {
-		t.Fatalf("dark scrim alpha = %d", r.Scrim.A)
+func TestSignatureIsTheTable(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		dark     bool
+		contrast Contrast
+		table    map[string]string
+	}{
+		{"dark", true, Standard, tokens.SignatureDark},
+		{"dark high", true, High, tokens.SignatureDarkHigh},
+		{"light", false, Standard, tokens.SignatureLight},
+		{"light high", false, High, tokens.SignatureLightHigh},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			r := FromPalette(Palette{Dark: test.dark, Source: "signature"}, Look{Contrast: test.contrast})
+			for name, got := range named(r) {
+				if name == "scrim" {
+					continue
+				}
+				want, ok := parseColor(test.table[name])
+				if !ok {
+					t.Fatalf("signature has no %s", name)
+				}
+				assertColor(t, name, got, want)
+			}
+			tinted := FromPalette(Palette{Dark: test.dark, Source: "signature"}, Look{Contrast: test.contrast, Tint: TintMedium})
+			if tinted != r {
+				t.Fatal("a tint changed the signature")
+			}
+		})
+	}
+	if Signature(true) != FromPalette(Palette{Dark: true, Source: "signature"}, Look{}) {
+		t.Fatal("Signature(true) is not the standard dark table")
 	}
 }
 
-func TestLightMapping(t *testing.T) {
-	p := syntheticPalette(false)
-	r := FromPalette(Palette{Roles: p, Dark: false, Source: "wallpaper"}, Look{})
-	assertColor(t, "ground", r.Ground, p[tokens.PaletteLight["ground"]])
-	assertColor(t, "stone1", r.Stone1, p[tokens.PaletteLight["stone1"]])
-	assertColor(t, "stone4", r.Stone4, p[tokens.PaletteLight["stone4"]])
-	assertColor(t, "slab", r.Slab, p[tokens.PaletteLight["slab"]])
-	assertColor(t, "field", r.Field, p[tokens.PaletteLight["field"]])
-	assertColor(t, "vein", r.Vein, p[tokens.PaletteLight["vein"]])
-	if r.Scrim.A != alphaByte(tokens.AlphaScrimLight) {
+func TestEditionColourTakesOnlyTheAction(t *testing.T) {
+	signal := color.NRGBA{R: 110, G: 165, B: 207, A: 255}
+	r := FromPalette(Palette{Dark: true, Source: "signature", Roles: map[string]color.NRGBA{tokens.PaletteAccents["gold"]: signal}}, Look{})
+	signature := Signature(true)
+	assertColor(t, "gold", r.Gold, signal)
+	assertColor(t, "goldInk", r.GoldInk, signal)
+	assertColor(t, "onGold", r.OnGold, InkOn(signal))
+	assertColor(t, "sel", r.Sel, signature.Sel)
+	assertColor(t, "ground", r.Ground, signature.Ground)
+}
+
+func TestThePaletteDyesAndTheLadderSetsLightness(t *testing.T) {
+	blue := wallpaper(250, 0.05, 0.30)
+	brown := wallpaper(60, 0.03, 0.12)
+	a := FromPalette(Palette{Roles: blue, Dark: true, Source: "wallpaper"}, Look{})
+	b := FromPalette(Palette{Roles: brown, Dark: true, Source: "wallpaper"}, Look{})
+	steps := tokens.ToneDark
+	for name, got := range named(a) {
+		step, ok := steps[name]
+		if !ok || name == "scrim" {
+			continue
+		}
+		if l := lightness(got); math.Abs(l-step) > 0.01 {
+			t.Errorf("%s lightness = %.3f, want the ladder's %.3f", name, l, step)
+		}
+		if l := lightness(named(b)[name]); math.Abs(l-step) > 0.01 {
+			t.Errorf("%s on another wallpaper = %.3f, want the ladder's %.3f", name, l, step)
+		}
+	}
+	if hue := dyeOf(a.Gold).H; angle(hue, 250) > 3 {
+		t.Errorf("gold hue = %.1f, want the primary's 250", hue)
+	}
+	if hue := dyeOf(b.Gold).H; angle(hue, 60) > 3 {
+		t.Errorf("gold hue = %.1f, want the primary's 60", hue)
+	}
+}
+
+func TestForcedModesKeepSignatureNeutrals(t *testing.T) {
+	for _, dark := range []bool{true, false} {
+		r := FromPalette(Palette{Roles: wallpaper(150, 0.06, 0.2), Dark: dark, Forced: true, Source: "wallpaper"}, Look{})
+		signature := Signature(dark)
+		assertColor(t, "ground", r.Ground, signature.Ground)
+		assertColor(t, "stone2", r.Stone2, signature.Stone2)
+		assertColor(t, "slab", r.Slab, signature.Slab)
+		assertColor(t, "field", r.Field, signature.Field)
+		assertColor(t, "fg", r.Fg, signature.Fg)
+		assertColor(t, "edge", r.Edge, signature.Edge)
+		if hue := dyeOf(r.Gold).H; angle(hue, 150) > 3 {
+			t.Errorf("dark %v gold hue = %.1f, want the primary's 150", dark, hue)
+		}
+	}
+}
+
+func TestTintMovesColourNeverLightness(t *testing.T) {
+	roles := wallpaper(30, 0.06, 0.2)
+	off := FromPalette(Palette{Roles: roles, Dark: true, Source: "wallpaper"}, Look{})
+	low := FromPalette(Palette{Roles: roles, Dark: true, Source: "wallpaper"}, Look{Tint: TintLow})
+	medium := FromPalette(Palette{Roles: roles, Dark: true, Source: "wallpaper"}, Look{Tint: TintMedium})
+	for _, plane := range []struct {
+		name             string
+		off, low, medium color.NRGBA
+	}{
+		{"ground", off.Ground, low.Ground, medium.Ground},
+		{"stone2", off.Stone2, low.Stone2, medium.Stone2},
+		{"field", off.Field, low.Field, medium.Field},
+	} {
+		if d := math.Abs(lightness(plane.medium) - lightness(plane.off)); d > 0.005 {
+			t.Errorf("%s lightness moved by %.3f under a tint", plane.name, d)
+		}
+		if !(chroma(plane.off) < chroma(plane.low) && chroma(plane.low) < chroma(plane.medium)) {
+			t.Errorf("%s chroma off %.4f, low %.4f, medium %.4f, want it to rise", plane.name, chroma(plane.off), chroma(plane.low), chroma(plane.medium))
+		}
+	}
+	assertColor(t, "fg under a tint", medium.Fg, off.Fg)
+}
+
+func TestHighContrastSpreadsThePlanes(t *testing.T) {
+	roles := wallpaper(200, 0.05, 0.2)
+	standard := FromPalette(Palette{Roles: roles, Dark: true, Source: "wallpaper"}, Look{})
+	high := FromPalette(Palette{Roles: roles, Dark: true, Source: "wallpaper"}, Look{Contrast: High})
+	gap := func(r Roles) float64 { return lightness(r.Stone2) - lightness(r.Ground) }
+	if gap(high) <= gap(standard) {
+		t.Fatalf("stone2 sits %.3f above the ground at high contrast, %.3f at standard", gap(high), gap(standard))
+	}
+	if ContrastRatio(high.Fg3, high.Stone2) <= ContrastRatio(standard.Fg3, standard.Stone2) {
+		t.Fatal("high contrast did not lift fg3")
+	}
+}
+
+// Text must stay readable on whatever wallpaper a reader picks, so the floors
+// are checked around the whole hue circle at every tint, not on one palette.
+func TestEveryHueKeepsTheContrastFloors(t *testing.T) {
+	for _, dark := range []bool{true, false} {
+		for _, contrast := range []Contrast{Standard, High} {
+			floor := 4.6
+			if contrast == High {
+				floor = 5.0
+			}
+			check := func(t *testing.T, r Roles, what string) {
+				t.Helper()
+				planes := map[string]color.NRGBA{"stone1": r.Stone1, "stone2": r.Stone2, "slab": r.Slab}
+				inks := map[string]struct {
+					c     color.NRGBA
+					floor float64
+				}{
+					"goldInk": {r.GoldInk, floor}, "jasper": {r.Jasper, floor}, "fg3": {r.Fg3, floor}, "fg2": {r.Fg2, floor},
+					"jade": {r.Jade, 4.6}, "lapis": {r.Lapis, 4.6}, "amber": {r.Amber, 4.6},
+				}
+				for ink, want := range inks {
+					for plane, background := range planes {
+						if ratio := ContrastRatio(want.c, background); ratio < want.floor {
+							t.Fatalf("%s: %s on %s = %.2f, want %.1f", what, ink, plane, ratio, want.floor)
+						}
+					}
+				}
+				if ratio := ContrastRatio(r.Fg2, r.Field); ratio < floor {
+					t.Fatalf("%s: fg2 on field = %.2f, want %.1f", what, ratio, floor)
+				}
+				for plane, background := range map[string]color.NRGBA{"stone1": r.Stone1, "stone2": r.Stone2, "stone3": r.Stone3, "stone4": r.Stone4, "slab": r.Slab, "field": r.Field} {
+					if ratio := ContrastRatio(r.Sel, background); ratio < 3 {
+						t.Fatalf("%s: sel on %s = %.2f, want 3", what, plane, ratio)
+					}
+				}
+				if ratio := ContrastRatio(r.OnSel, r.Sel); ratio < 4.5 {
+					t.Fatalf("%s: onSel on sel = %.2f, want 4.5", what, ratio)
+				}
+				if ratio := ContrastRatio(r.OnSel2, r.Sel); ratio < 4.5 {
+					t.Fatalf("%s: onSel2 on sel = %.2f, want 4.5", what, ratio)
+				}
+			}
+			name := fmt.Sprintf("dark %v contrast %d", dark, contrast)
+			t.Run(name, func(t *testing.T) {
+				check(t, FromPalette(Palette{Dark: dark, Source: "signature"}, Look{Contrast: contrast}), "signature")
+				for _, tint := range []Tint{TintOff, TintLow, TintMedium} {
+					for hue := range 360 {
+						r := FromPalette(Palette{Roles: wallpaper(float64(hue), 0.12, 0.2), Dark: dark, Source: "wallpaper"}, Look{Contrast: contrast, Tint: tint})
+						check(t, r, fmt.Sprintf("hue %d tint %d", hue, tint))
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestScrimTakesTheModesAlpha(t *testing.T) {
+	roles := wallpaper(0, 0.02, 0.1)
+	if r := FromPalette(Palette{Roles: roles, Dark: true, Source: "wallpaper"}, Look{}); r.Scrim.A != alphaByte(tokens.AlphaScrimDark) {
+		t.Fatalf("dark scrim alpha = %d", r.Scrim.A)
+	}
+	if r := FromPalette(Palette{Roles: roles, Dark: false, Source: "wallpaper"}, Look{}); r.Scrim.A != alphaByte(tokens.AlphaScrimLight) {
 		t.Fatalf("light scrim alpha = %d", r.Scrim.A)
 	}
 }
 
-func TestSelectionTakesTheWallpaperColour(t *testing.T) {
-	p := syntheticPalette(true)
-	toward := color.NRGBA{R: 40, G: 90, B: 150, A: 255}
-	p[tokens.PaletteAccents["selMix"]] = toward
-	r := FromPalette(Palette{Roles: p, Dark: true, Source: "wallpaper"}, Look{})
-	assertColor(t, "selection", r.Sel, Mix(p[tokens.PaletteAccents["sel"]], toward, tokens.AlphaSelMix))
-	assertColor(t, "onSel", r.OnSel, p[tokens.PaletteAccents["onSel"]])
-	assertColor(t, "onSel2", r.OnSel2, Mix(r.OnSel, r.Sel, tokens.AlphaOnSel2))
-}
-
-func TestForcedModesKeepSignatureNeutrals(t *testing.T) {
-	p := syntheticPalette(true)
-	toward := color.NRGBA{R: 40, G: 90, B: 150, A: 255}
-	p[tokens.PaletteAccents["selMix"]] = toward
+func TestMineralFieldTakesItsMineralsHue(t *testing.T) {
+	r := FromPalette(Palette{Roles: wallpaper(300, 0.08, 0.2), Dark: true, Source: "wallpaper"}, Look{})
 	for _, test := range []struct {
-		name string
-		dark bool
+		tone    Tone
+		mineral color.NRGBA
 	}{
-		{name: "dark", dark: true},
-		{name: "light", dark: false},
+		{Alive, r.Jade}, {Becoming, r.Lapis}, {Attention, r.Amber}, {Failed, r.Jasper},
 	} {
-		t.Run(test.name, func(t *testing.T) {
-			r := FromPalette(Palette{Roles: p, Dark: test.dark, Forced: true, Source: "wallpaper"}, Look{})
-			signature := Signature(test.dark)
-			assertColor(t, "ground", r.Ground, signature.Ground)
-			assertColor(t, "stone2", r.Stone2, signature.Stone2)
-			assertColor(t, "slab", r.Slab, signature.Slab)
-			assertColor(t, "field", r.Field, signature.Field)
-			assertColor(t, "fg", r.Fg, signature.Fg)
-			assertColor(t, "edge", r.Edge, signature.Edge)
-			assertColor(t, "gold", r.Gold, p[tokens.PaletteAccents["gold"]])
-			assertColor(t, "selection", r.Sel, Mix(p[tokens.PaletteAccents["sel"]], toward, tokens.AlphaSelMix))
-		})
-	}
-}
-
-func TestSignatureStandardIsTheTable(t *testing.T) {
-	for _, dark := range []bool{true, false} {
-		for _, tint := range []Tint{TintOff, TintLow, TintMedium} {
-			r := FromPalette(Palette{Dark: dark, Source: "signature"}, Look{Tint: tint})
-			if r != Signature(dark) {
-				t.Fatalf("dark %v tint %d = %#v, want the signature", dark, tint, r)
-			}
+		field := r.MineralField(test.tone)
+		if l := lightness(field); math.Abs(l-tokens.ToneDark["mineralField"]) > 0.01 {
+			t.Errorf("tone %d field lightness = %.3f", test.tone, l)
+		}
+		if a := angle(dyeOf(field).H, dyeOf(test.mineral).H); a > 8 {
+			t.Errorf("tone %d field hue is %.1f degrees off its mineral", test.tone, a)
 		}
 	}
-}
-
-func TestHighContrastSpreadsStonesFromGround(t *testing.T) {
-	p := syntheticPalette(true)
-	standard := FromPalette(Palette{Roles: p, Dark: true, Source: "wallpaper"}, Look{})
-	high := FromPalette(Palette{Roles: p, Dark: true, Source: "wallpaper"}, Look{Contrast: High})
-	factor := 1 + float64(tokens.AlphaContrastHigh)
-	assertColor(t, "ground", high.Ground, standard.Ground)
-	assertColor(t, "fg", high.Fg, standard.Fg)
-	assertColor(t, "fg2", high.Fg2, standard.Fg2)
-	for _, stone := range []struct {
-		name      string
-		got, base color.NRGBA
-	}{
-		{"stone1", high.Stone1, standard.Stone1},
-		{"stone2", high.Stone2, standard.Stone2},
-		{"stone3", high.Stone3, standard.Stone3},
-		{"stone4", high.Stone4, standard.Stone4},
-		{"slab", high.Slab, standard.Slab},
-		{"field", high.Field, standard.Field},
-		{"vein", high.Vein, standard.Vein},
-	} {
-		assertColor(t, stone.name, stone.got, away(stone.base, standard.Ground, factor))
-	}
-	assertColor(t, "fg3", high.Fg3, Mix(standard.Fg3, standard.Fg, tokens.AlphaContrastHighFg3))
-	assertColor(t, "edge", high.Edge, Mix(high.Vein, high.Fg3, tokens.AlphaEdge))
-}
-
-func TestHighContrastKeepsInkReadableOnTheSignature(t *testing.T) {
-	for _, dark := range []bool{true, false} {
-		r := FromPalette(Palette{Dark: dark, Source: "signature"}, Look{Contrast: High})
-		if ratio := ContrastRatio(r.GoldInk, r.Stone2); ratio < float64(tokens.ContrastMinimum) {
-			t.Fatalf("dark %v goldInk contrast = %.2f", dark, ratio)
-		}
-		if ratio := ContrastRatio(r.Jasper, r.Stone2); ratio < float64(tokens.ContrastMinimum) {
-			t.Fatalf("dark %v jasper contrast = %.2f", dark, ratio)
-		}
-	}
-}
-
-func TestTintMixesStonesTowardTheTintRole(t *testing.T) {
-	p := syntheticPalette(false)
-	tint := color.NRGBA{R: 30, G: 120, B: 90, A: 255}
-	p[tokens.PaletteAccents["tint"]] = tint
-	standard := FromPalette(Palette{Roles: p, Dark: false, Source: "wallpaper"}, Look{})
-	for _, test := range []struct {
-		tint   Tint
-		amount float32
-	}{
-		{TintLow, tokens.AlphaTintLow},
-		{TintMedium, tokens.AlphaTintMedium},
-	} {
-		r := FromPalette(Palette{Roles: p, Dark: false, Source: "wallpaper"}, Look{Tint: test.tint})
-		assertColor(t, "ground", r.Ground, Mix(standard.Ground, tint, test.amount))
-		assertColor(t, "stone2", r.Stone2, Mix(standard.Stone2, tint, test.amount))
-		assertColor(t, "slab", r.Slab, Mix(standard.Slab, tint, test.amount))
-		assertColor(t, "field", r.Field, Mix(standard.Field, tint, test.amount))
-		assertColor(t, "vein", r.Vein, standard.Vein)
-		assertColor(t, "edge", r.Edge, standard.Edge)
-		assertColor(t, "fg", r.Fg, standard.Fg)
-	}
-}
-
-func TestContrastRunsBeforeTint(t *testing.T) {
-	p := syntheticPalette(true)
-	tint := color.NRGBA{R: 30, G: 60, B: 120, A: 255}
-	p[tokens.PaletteAccents["tint"]] = tint
-	high := FromPalette(Palette{Roles: p, Dark: true, Source: "wallpaper"}, Look{Contrast: High})
-	both := FromPalette(Palette{Roles: p, Dark: true, Source: "wallpaper"}, Look{Contrast: High, Tint: TintMedium})
-	assertColor(t, "stone3", both.Stone3, Mix(high.Stone3, tint, tokens.AlphaTintMedium))
-	assertColor(t, "vein", both.Vein, high.Vein)
-}
-
-func TestGoldInkAndJasperMeetMinimumContrast(t *testing.T) {
-	p := syntheticPalette(true)
-	p[tokens.PaletteAccents["gold"]] = color.NRGBA{R: 35, G: 35, B: 35, A: 255}
-	p[tokens.PaletteAccents["jasper"]] = color.NRGBA{R: 42, G: 30, B: 30, A: 255}
-	r := FromPalette(Palette{Roles: p, Dark: true, Source: "wallpaper"}, Look{})
-	if ratio := ContrastRatio(r.GoldInk, r.Stone2); ratio < float64(tokens.ContrastMinimum) {
-		t.Fatalf("goldInk contrast = %.2f", ratio)
-	}
-	if ratio := ContrastRatio(r.Jasper, r.Stone2); ratio < float64(tokens.ContrastMinimum) {
-		t.Fatalf("jasper contrast = %.2f", ratio)
-	}
+	assertColor(t, "idle field", r.MineralField(Idle), r.Stone3)
 }
 
 func TestInkOnPicksReadableInk(t *testing.T) {
@@ -217,24 +265,51 @@ func TestEditionAccentOnSignatureFallback(t *testing.T) {
 	assertColor(t, "edition gold", FromPalette(loaded, Look{}).Gold, want)
 }
 
-func syntheticPalette(dark bool) map[string]color.NRGBA {
-	mapping := tokens.PaletteLight
-	if dark {
-		mapping = tokens.PaletteDark
+// wallpaper is a Material-style palette whose every role sits at one hue.
+func wallpaper(hue, surfaceChroma, accentChroma float64) map[string]color.NRGBA {
+	surface := toned(0.2, dye{C: surfaceChroma, H: hue})
+	accent := toned(0.75, dye{C: accentChroma, H: hue})
+	container := toned(0.35, dye{C: accentChroma / 2, H: hue})
+	return map[string]color.NRGBA{
+		tokens.PaletteDye["neutral"]:    surface,
+		tokens.PaletteDye["ink"]:        toned(0.9, dye{C: surfaceChroma / 2, H: hue}),
+		tokens.PaletteAccents["gold"]:   accent,
+		tokens.PaletteAccents["jasper"]: toned(0.65, dye{C: accentChroma, H: hue}),
+		tokens.PaletteAccents["sel"]:    container,
+		tokens.PaletteAccents["selMix"]: toned(0.4, dye{C: accentChroma / 2, H: hue}),
+		tokens.PaletteAccents["scrim"]:  {A: 255},
 	}
-	result := make(map[string]color.NRGBA)
-	index := uint8(20)
-	for _, key := range mapping {
-		result[key] = color.NRGBA{R: index, G: index + 1, B: index + 2, A: 255}
-		index += 7
+}
+
+func named(r Roles) map[string]color.NRGBA {
+	return map[string]color.NRGBA{
+		"ground": r.Ground, "stone1": r.Stone1, "stone2": r.Stone2, "stone3": r.Stone3, "stone4": r.Stone4,
+		"slab": r.Slab, "field": r.Field, "vein": r.Vein, "edge": r.Edge, "fg": r.Fg, "fg2": r.Fg2, "fg3": r.Fg3,
+		"sel": r.Sel, "onSel": r.OnSel, "onSel2": r.OnSel2, "gold": r.Gold, "onGold": r.OnGold, "goldInk": r.GoldInk,
+		"jasper": r.Jasper, "scrim": r.Scrim,
 	}
-	result[tokens.PaletteAccents["gold"]] = color.NRGBA{R: 201, G: 168, B: 97, A: 255}
-	result[tokens.PaletteAccents["onGold"]] = color.NRGBA{R: 20, G: 15, B: 9, A: 255}
-	result[tokens.PaletteAccents["sel"]] = color.NRGBA{R: 210, G: 208, B: 202, A: 255}
-	result[tokens.PaletteAccents["onSel"]] = color.NRGBA{R: 25, G: 25, B: 24, A: 255}
-	result[tokens.PaletteAccents["jasper"]] = color.NRGBA{R: 220, G: 70, B: 55, A: 255}
-	result[tokens.PaletteAccents["scrim"]] = color.NRGBA{R: 1, G: 1, B: 1, A: 255}
-	return result
+}
+
+func lightness(c color.NRGBA) float64 {
+	linear := func(v uint8) float64 {
+		x := float64(v) / 255
+		if x <= 0.04045 {
+			return x / 12.92
+		}
+		return math.Pow((x+0.055)/1.055, 2.4)
+	}
+	r, g, b := linear(c.R), linear(c.G), linear(c.B)
+	l := math.Cbrt(0.4122214708*r + 0.5363325363*g + 0.0514459929*b)
+	m := math.Cbrt(0.2119034982*r + 0.6806995451*g + 0.1073969566*b)
+	s := math.Cbrt(0.0883024619*r + 0.2817188376*g + 0.6299787005*b)
+	return 0.2104542553*l + 0.7936177850*m - 0.0040720468*s
+}
+
+func chroma(c color.NRGBA) float64 { return dyeOf(c).C }
+
+func angle(a, b float64) float64 {
+	d := math.Mod(math.Abs(a-b), 360)
+	return math.Min(d, 360-d)
 }
 
 func writeJSON(t *testing.T, path string, value any) {

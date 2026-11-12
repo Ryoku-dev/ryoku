@@ -23,5 +23,5 @@ func RenderMarks(th Theme, marks Marks) string {
 		parts = append(parts, "Sealed")
 	}
 	parts = append(parts, marks.Additional...)
-	return ink(th.Roles.Fg2).Render(strings.Join(parts, " "+glyphs().Separator+" "))
+	return ink(th.Roles.Fg2).Render(strings.Join(parts, "   "))
 }

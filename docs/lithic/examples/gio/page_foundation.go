@@ -67,12 +67,12 @@ func foundationRoles(th *theme.Theme) layout.Widget {
 			item := item
 			widgets = append(widgets, roleTile(th, item.group, item.name, item.ink))
 		}
-		return grid(gtx, 4, th.Sp.S2, widgets)
+		return grid(gtx, 4, th.Sp.S4, widgets)
 	})
 }
 
 func roleTile(th *theme.Theme, group, name string, ink color.NRGBA) layout.Widget {
-	return tile(th, func(gtx layout.Context) layout.Dimensions {
+	return func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				size := image.Pt(gtx.Dp(44), gtx.Dp(44))
@@ -87,7 +87,7 @@ func roleTile(th *theme.Theme, group, name string, ink color.NRGBA) layout.Widge
 				)
 			}),
 		)
-	})
+	}
 }
 
 func foundationType(th *theme.Theme) layout.Widget {
@@ -109,14 +109,14 @@ func foundationType(th *theme.Theme) layout.Widget {
 		widgets := make([]layout.Widget, 0, len(samples))
 		for _, sample := range samples {
 			sample := sample
-			widgets = append(widgets, tile(th, func(gtx layout.Context) layout.Dimensions {
+			widgets = append(widgets, func(gtx layout.Context) layout.Dimensions {
 				return vstack(gtx, th.Sp.S1,
 					kit.Text(th, th.T.Caption, th.R.Fg3, sample.name),
 					kit.Text(th, sample.style, th.R.Fg, sample.text),
 				)
-			}))
+			})
 		}
-		return grid(gtx, 2, th.Sp.S2, widgets)
+		return grid(gtx, 2, th.Sp.S4, widgets)
 	})
 }
 
@@ -359,24 +359,11 @@ func section(th *theme.Theme, title string, body layout.Widget) layout.Widget {
 }
 
 func specimen(th *theme.Theme, label string, body layout.Widget) layout.Widget {
-	return tile(th, func(gtx layout.Context) layout.Dimensions {
+	return func(gtx layout.Context) layout.Dimensions {
 		return vstack(gtx, th.Sp.S2,
-			kit.Text(th, th.T.Label, th.R.Fg2, label),
+			kit.Text(th, th.T.Caption, th.R.Fg3, label),
 			body,
 		)
-	})
-}
-
-func tile(th *theme.Theme, body layout.Widget) layout.Widget {
-	return func(gtx layout.Context) layout.Dimensions {
-		record := op.Record(gtx.Ops)
-		dimensions := layout.Inset{Top: th.Sp.S3, Right: th.Sp.S3, Bottom: th.Sp.S3, Left: th.Sp.S3}.Layout(gtx, body)
-		call := record.Stop()
-		bounds := image.Rectangle{Max: dimensions.Size}
-		kit.FillCut(gtx.Ops, bounds, gtx.Dp(th.Cut.Mid), th.R.Slab)
-		kit.StrokeCut(gtx.Ops, bounds, gtx.Dp(th.Cut.Mid), max(1, gtx.Dp(1)), th.R.Vein)
-		call.Add(gtx.Ops)
-		return dimensions
 	}
 }
 

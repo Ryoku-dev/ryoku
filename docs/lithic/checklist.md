@@ -18,8 +18,8 @@ and on, and go down the list. Every "no" is a defect.
       `contrast(jasper, stone2) >= 4.5`; danger fill ink is
       `inkOn(jasper)`.
 - [ ] Bone (`sel`) appears only on the current place: selected row, current
-      destination, selected filter or segment, toggle on, placards. A
-      selected row, chip or segment carries its `onSel` place blade.
+      destination, selected filter or segment, toggle on, placards. The fill
+      alone marks it: no bar, edge or outline on a selection.
 - [ ] Gold fills only consequential actions; one gold plaque per view (the
       frame's standing action, such as New, is the frame's own); no gold
       status, badge or decoration.
@@ -59,9 +59,9 @@ and on, and go down the list. Every "no" is a defect.
 
 ## Type
 
-- [ ] Space Grotesk and Space Mono are embedded; no system fallback renders.
+- [ ] Geologica and Martian Mono are embedded; no system fallback renders.
 - [ ] Exactly one line per view uses `name`.
-- [ ] Space Mono appears only on literal data.
+- [ ] Martian Mono appears only on literal data.
 - [ ] Sentence case throughout; no all caps.
 - [ ] Sizes and line heights match the scale; nothing invented.
 - [ ] Setting details and card secondary lines use `detail` in `fg2`;

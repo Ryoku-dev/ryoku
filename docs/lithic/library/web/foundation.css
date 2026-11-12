@@ -12,6 +12,13 @@
   font-family: var(--lithic-font-sans);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+  caret-color: var(--lithic-gold);
+  scrollbar-color: var(--lithic-vein) transparent;
+}
+
+::selection {
+  background: var(--lithic-sel);
+  color: var(--lithic-on-sel);
 }
 
 :root[data-l-mode="light"] {
@@ -60,6 +67,7 @@ button {
 .l-type-group { font: var(--lithic-type-group-weight) var(--lithic-type-group-size)/var(--lithic-type-group-line) var(--lithic-type-group-family); }
 .l-type-mono { font: var(--lithic-type-mono-weight) var(--lithic-type-mono-size)/var(--lithic-type-mono-line) var(--lithic-type-mono-family); }
 .l-type-mono-sm { font: var(--lithic-type-mono-sm-weight) var(--lithic-type-mono-sm-size)/var(--lithic-type-mono-sm-line) var(--lithic-type-mono-sm-family); }
+.l-numeric { font-variant-numeric: tabular-nums; }
 
 .l-glyph {
   display: inline-block;
@@ -146,19 +154,10 @@ button {
 .l-place-row,
 .l-place-chip {
   --l-fill: var(--lithic-sel);
-  --l-place-blade: linear-gradient(var(--lithic-on-sel), var(--lithic-on-sel)) left top / var(--lithic-size-sel-blade) 100% no-repeat;
-}
-
-.l-place-chip {
-  --l-place-blade: linear-gradient(var(--lithic-on-sel), var(--lithic-on-sel)) left bottom / 100% var(--lithic-size-sel-blade) no-repeat;
 }
 
 :is(.l-place-row, .l-place-chip):not(.l-cut) {
-  background: var(--l-place-blade), var(--l-fill);
-}
-
-.l-cut:is(.l-place-row, .l-place-chip)::after {
-  background: var(--l-place-blade), var(--l-fill);
+  background: var(--l-fill);
 }
 
 .l-notch {
@@ -187,26 +186,26 @@ button {
 [data-tone="alive"] {
   --l-tone-color: var(--lithic-jade);
   --l-tone-ink: var(--lithic-jade);
-  --l-tone-field: color-mix(in srgb, var(--lithic-stone2), var(--lithic-jade) calc(var(--lithic-alpha-mineral-jade) * 100%));
+  --l-tone-field: var(--lithic-mineral-field-alive, var(--lithic-stone3));
 }
 
 [data-tone="becoming"] {
   --l-tone-color: var(--lithic-lapis);
   --l-tone-ink: var(--lithic-lapis);
-  --l-tone-field: color-mix(in srgb, var(--lithic-stone2), var(--lithic-lapis) calc(var(--lithic-alpha-mineral) * 100%));
+  --l-tone-field: var(--lithic-mineral-field-becoming, var(--lithic-stone3));
 }
 
 [data-tone="attention"],
 [data-tone="paused"] {
   --l-tone-color: var(--lithic-amber);
   --l-tone-ink: var(--lithic-amber);
-  --l-tone-field: color-mix(in srgb, var(--lithic-stone2), var(--lithic-amber) calc(var(--lithic-alpha-mineral) * 100%));
+  --l-tone-field: var(--lithic-mineral-field-attention, var(--lithic-stone3));
 }
 
 [data-tone="failed"] {
   --l-tone-color: var(--lithic-jasper);
   --l-tone-ink: var(--lithic-jasper);
-  --l-tone-field: color-mix(in srgb, var(--lithic-stone2), var(--lithic-jasper) calc(var(--lithic-alpha-mineral) * 100%));
+  --l-tone-field: var(--lithic-mineral-field-failed, var(--lithic-stone3));
 }
 
 .l-blade {

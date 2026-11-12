@@ -48,10 +48,6 @@ T.Control {
         highlight: CutRect {
             fill: Lithic.sel
             z: -1
-
-            PlaceBlade {
-                anchors.fill: parent
-            }
         }
 
         Keys.onUpPressed: root.select(Math.max(0, currentIndex - 1))

@@ -21,7 +21,7 @@ func GroupHeader(th *theme.Theme, title string, count int) layout.Widget {
 		}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 				layout.Flexed(1, Text(th, th.T.Group, th.R.Fg3, title)),
-				layout.Rigid(Text(th, th.T.MonoSm, th.R.Fg3, strconv.Itoa(count))),
+				layout.Rigid(Text(th, th.T.Caption, th.R.Fg3, strconv.Itoa(count))),
 			)
 		})
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -70,32 +71,33 @@ func TestRequiredContractKeys(t *testing.T) {
 	required := []string{
 		"space.s1", "space.s2", "space.s3", "space.s4", "space.s5", "space.s6",
 		"cut.token", "cut.small", "cut.mid", "cut.large", "cut.notch", "cut.overlay", "cut.menu", "cut.placard", "cut.tooltip", "cut.toggleTrack", "cut.toggleKnob",
-		"type.name.family", "type.name.weight", "type.name.size", "type.name.line",
-		"type.sentence.family", "type.sentence.weight", "type.sentence.size", "type.sentence.line",
-		"type.section.family", "type.section.weight", "type.section.size", "type.section.line",
-		"type.title.family", "type.title.weight", "type.title.size", "type.title.line",
-		"type.row.family", "type.row.weight", "type.row.size", "type.row.line",
-		"type.body.family", "type.body.weight", "type.body.size", "type.body.line",
-		"type.proof.family", "type.proof.weight", "type.proof.size", "type.proof.line",
-		"type.label.family", "type.label.weight", "type.label.size", "type.label.line",
-		"type.caption.family", "type.caption.weight", "type.caption.size", "type.caption.line",
-		"type.group.family", "type.group.weight", "type.group.size", "type.group.line",
-		"type.mono.family", "type.mono.weight", "type.mono.size", "type.mono.line",
-		"type.monoSm.family", "type.monoSm.weight", "type.monoSm.size", "type.monoSm.line",
 		"font.sans", "font.mono", "font.icons",
 		"motion.curve", "motion.press", "motion.hoverIn", "motion.hoverOut", "motion.focusIn", "motion.focusOut", "motion.select", "motion.field", "motion.notch", "motion.unfold", "motion.navigate", "motion.menuIn", "motion.menuOut", "motion.dialogIn", "motion.dialogOut", "motion.tooltipIn", "motion.tooltipDelay", "motion.placardIn", "motion.placardLife", "motion.wheel", "motion.working", "motion.sweep",
-		"alpha.disabled", "alpha.hoverFill", "alpha.hoverInk", "alpha.hoverPlane", "alpha.pressRow", "alpha.scrimDark", "alpha.scrimLight", "alpha.hatch", "alpha.workingBase", "alpha.mineralJade", "alpha.mineral", "alpha.onSel2",
+		"alpha.disabled", "alpha.hoverFill", "alpha.hoverInk", "alpha.hoverPlane", "alpha.pressRow", "alpha.scrimDark", "alpha.scrimLight", "alpha.hatch", "alpha.workingBase", "alpha.onSel2", "alpha.selMix",
 		"breakpoint.medium", "breakpoint.expanded",
 		"size.plaqueHeight", "size.plaqueHeightSmall", "size.plaqueInset", "size.iconPlaque", "size.tabletHeight", "size.tabletHeightCompact", "size.railExpanded", "size.railMedium", "size.listExpanded", "size.listMedium", "size.menuWidthMin", "size.menuItem", "size.dialogWidth", "size.draftFormMax", "size.draftAsideMin", "size.draftAsideMax", "size.draftWideAt", "size.boardMax", "size.boardColumnsAt",
 		"sizeNotes.plaqueHeight", "sizeNotes.boardColumnsAt",
-		"signature.dark.ground", "signature.dark.stone1", "signature.dark.stone2", "signature.dark.stone3", "signature.dark.stone4", "signature.dark.vein", "signature.dark.fg", "signature.dark.fg2", "signature.dark.fg3", "signature.dark.sel", "signature.dark.onSel", "signature.dark.onSel2", "signature.dark.gold", "signature.dark.onGold", "signature.dark.goldInk", "signature.dark.jasper", "signature.dark.scrim",
-		"signature.light.ground", "signature.light.stone1", "signature.light.stone2", "signature.light.stone3", "signature.light.stone4", "signature.light.vein", "signature.light.fg", "signature.light.fg2", "signature.light.fg3", "signature.light.sel", "signature.light.onSel", "signature.light.onSel2", "signature.light.gold", "signature.light.onGold", "signature.light.goldInk", "signature.light.jasper", "signature.light.scrim",
 		"minerals.dark.jade", "minerals.dark.lapis", "minerals.dark.amber", "minerals.light.jade", "minerals.light.lapis", "minerals.light.amber",
-		"palette.dark.ground", "palette.dark.stone1", "palette.dark.stone2", "palette.dark.stone3", "palette.dark.stone4", "palette.dark.vein", "palette.dark.fg", "palette.dark.fg2", "palette.dark.fg3",
-		"palette.light.ground", "palette.light.stone1", "palette.light.stone2", "palette.light.stone3", "palette.light.stone4", "palette.light.vein", "palette.light.fg", "palette.light.fg2", "palette.light.fg3",
-		"palette.accents.gold", "palette.accents.onGold", "palette.accents.sel", "palette.accents.onSel", "palette.accents.jasper", "palette.accents.scrim", "palette.toned.goldInk", "palette.toned.jasper",
-		"contrast.minimum",
-		"edition.arch", "edition.cachyos", "edition.fedora", "edition.void", "edition.nixos", "edition.ubuntu", "edition.debian", "edition.opensuse", "edition.manjaro", "edition.endeavouros", "edition.linuxmint", "edition.pop", "edition.gentoo", "edition.alpine",
+		"palette.accents.gold", "palette.accents.jasper", "palette.accents.scrim", "palette.accents.sel", "palette.accents.selMix", "palette.dye.neutral", "palette.dye.ink",
+		"dye.boost.gold", "dye.boost.ground", "dye.boost.vein",
+		"dye.chroma.gold", "dye.chroma.ground", "dye.chroma.ink", "dye.chroma.jasper", "dye.chroma.onGold", "dye.chroma.onSel", "dye.chroma.sel", "dye.chroma.stone",
+		"dye.fallback.goldChroma", "dye.fallback.goldHue", "dye.fallback.groundChroma", "dye.fallback.inkChroma", "dye.fallback.jasperHue", "dye.fallback.neutralHue", "dye.fallback.selChroma", "dye.fallback.stoneChroma",
+		"dye.mineral.jade", "dye.mineral.lapis", "dye.mineral.amber", "dye.mineral.jasper", "dye.tint.low", "dye.tint.medium",
+		"edition.fedora", "edition.nixos", "edition.void", "contrast.minimum",
+	}
+	for _, style := range []string{"name", "sentence", "section", "title", "row", "body", "proof", "label", "detail", "caption", "group", "mono", "monoSm"} {
+		for _, field := range []string{"family", "weight", "size", "line"} {
+			required = append(required, "type."+style+"."+field)
+		}
+	}
+	roles := []string{"ground", "stone1", "stone2", "stone3", "stone4", "slab", "field", "vein", "edge", "fg", "fg2", "fg3", "sel", "onSel", "gold", "onGold", "goldInk", "jasper"}
+	for _, table := range []string{"dark", "darkHigh", "light", "lightHigh"} {
+		for _, role := range slices.Concat(roles, []string{"onSel2", "scrim"}) {
+			required = append(required, "signature."+table+"."+role)
+		}
+		for _, role := range slices.Concat(roles, []string{"mineralField"}) {
+			required = append(required, "tone."+table+"."+role)
+		}
 	}
 	for _, key := range required {
 		if _, ok := tokenAt(tokens, key); !ok {
@@ -134,7 +136,7 @@ func TestQMLRoleGroupsAreJavaScriptObjects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, group := range []string{"alpha", "edition", "minerals", "palette", "signature"} {
+	for _, group := range []string{"alpha", "dye", "edition", "minerals", "palette", "signature", "tone"} {
 		want := "readonly property var " + group + ": ("
 		if !bytes.Contains(output, []byte(want)) {
 			t.Errorf("QML output does not contain %q", want)

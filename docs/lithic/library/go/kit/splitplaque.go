@@ -82,6 +82,7 @@ func (s *SplitPlaque) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensi
 				size := constrainSize(gtx, image.Pt(content.Size.X, height))
 				bounds := image.Rectangle{Max: size}
 				FillCutCorners(gtx.Ops, bounds, cut, 0, 0, cut, colors.fill)
+
 				if colors.stroke {
 					StrokeCutCorners(gtx.Ops, bounds, cut, 0, 0, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), colors.outline)
 				}
@@ -111,6 +112,7 @@ func (s *SplitPlaque) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensi
 				colors := interactivePlaqueColors(gtx, th, s.Kind, hover)
 				bounds := image.Rect(0, 0, moreWidth, height)
 				FillCutCorners(gtx.Ops, bounds, 0, cut, cut, 0, colors.fill)
+
 				if colors.stroke {
 					StrokeCutCorners(gtx.Ops, bounds, 0, cut, cut, 0, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), colors.outline)
 				}

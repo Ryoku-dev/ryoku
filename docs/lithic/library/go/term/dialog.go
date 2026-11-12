@@ -17,7 +17,7 @@ type Dialog struct {
 	Width       int
 }
 
-// RenderDialog renders a stone2 protected plane and its actions.
+// RenderDialog renders a stone4 protected plane and its actions.
 func RenderDialog(th Theme, dialog Dialog) string {
 	if !dialog.Open {
 		return ""
@@ -28,19 +28,19 @@ func RenderDialog(th Theme, dialog Dialog) string {
 	}
 	parts := make([]string, 0, 3)
 	if dialog.Title != "" {
-		parts = append(parts, renderPlaneText(width, th.Roles.Stone2, th.Roles.Fg, dialog.Title, true))
+		parts = append(parts, renderPlaneText(width, th.Roles.Stone4, th.Roles.Fg, dialog.Title, true))
 	}
-	parts = append(parts, renderPlaneText(width, th.Roles.Stone2, th.Roles.Fg2, dialog.Body, false))
+	parts = append(parts, renderPlaneText(width, th.Roles.Stone4, th.Roles.Fg2, dialog.Body, false))
 	if len(dialog.Actions) != 0 {
 		actions := make([]string, len(dialog.Actions))
 		for i, action := range dialog.Actions {
 			action.Focused = i == dialog.FocusAction
 			actions[i] = RenderPlaque(th, action)
 		}
-		parts = append(parts, renderPlaneRaw(width, th.Roles.Stone2, strings.Join(actions, "  ")))
+		parts = append(parts, renderPlaneRaw(width, th.Roles.Stone4, strings.Join(actions, "  ")))
 	}
 	content := lipgloss.JoinVertical(lipgloss.Left, parts...)
-	return framed(th, content, th.Roles.Stone2, false, false)
+	return framed(th, content, th.Roles.Stone4, false, false)
 }
 
 // DialogModel is a keyboard-contained Bubble Tea dialog.

@@ -91,7 +91,7 @@ Item {
                 Tablet {
                     anchors.fill: parent
                     title: "ubuntu-24.04"
-                    facts: "ally · ops@192.0.2.18"
+                    facts: "ally at ops@192.0.2.18"
                     claim: "Stopped"
                     proof: "8 vCPU"
                     mark: Component { HostMark {} }
@@ -102,7 +102,7 @@ Item {
                 Tablet {
                     anchors.fill: parent
                     title: "fedora-43"
-                    facts: "prowl · 192.0.2.43"
+                    facts: "prowl at 192.0.2.43"
                     claim: "Alive"
                     proof: "24 ms"
                     tone: "alive"
@@ -118,7 +118,7 @@ Item {
                 Tablet {
                     anchors.fill: parent
                     title: "windows-11"
-                    facts: "mika-server · 203.0.113.70:2222"
+                    facts: "mika-server at 203.0.113.70:2222"
                     claim: "Paused"
                     proof: "RDP"
                     tone: "paused"
@@ -131,7 +131,7 @@ Item {
                 Tablet {
                     anchors.fill: parent
                     title: "alpine-instant"
-                    facts: "localhost · ops@127.0.0.1"
+                    facts: "localhost at ops@127.0.0.1"
                     claim: "Instant"
                     proof: "SSH"
                     previewState: "focus"
@@ -143,7 +143,7 @@ Item {
                 Tablet {
                     anchors.fill: parent
                     title: "scratch-arch"
-                    facts: "console · /dev/ttyUSB0"
+                    facts: "console on /dev/ttyUSB0"
                     claim: "Attention"
                     proof: "Serial"
                     tone: "attention"
@@ -156,7 +156,7 @@ Item {
                 Tablet {
                     anchors.fill: parent
                     title: "kolibrios-latest-en_US"
-                    facts: "Transfer · 198.51.100.27"
+                    facts: "Transfer to 198.51.100.27"
                     claim: "Becoming"
                     proof: "68%"
                     tone: "becoming"
@@ -191,9 +191,9 @@ Item {
                     anchors.fill: parent
                     currentIndex: 1
                     model: [
-                        { title: "ubuntu-24.04", facts: "ally · 192.0.2.18", tone: "alive" },
-                        { title: "fedora-43", facts: "prowl · 192.0.2.43", tone: "becoming" },
-                        { title: "windows-11", facts: "mika-server · 203.0.113.70", tone: "paused" }
+                        { title: "ubuntu-24.04", facts: "ally at 192.0.2.18", tone: "alive" },
+                        { title: "fedora-43", facts: "prowl at 192.0.2.43", tone: "becoming" },
+                        { title: "windows-11", facts: "mika-server at 203.0.113.70", tone: "paused" }
                     ]
                     delegate: Tablet {
                         required property var modelData
@@ -402,6 +402,21 @@ Item {
                     }
                 }
             }
+
+            State {
+                stateName: "Toned, the hero plane"
+                specimenWidth: LithicTokens.size.draftFormMax
+                specimenHeight: LithicTokens.size.paneDecorStrip * 4
+                Slab {
+                    anchors.fill: parent
+                    tone: "attention"
+                    Claim {
+                        anchors.centerIn: parent
+                        tone: "attention"
+                        text: "scratch-arch has a new host key"
+                    }
+                }
+            }
         }
 
         Showcase {
@@ -416,7 +431,7 @@ Item {
                     implicitHeight: LithicTokens.size.paneDecorStrip * 2
                     Label {
                         anchors.centerIn: parent
-                        text: "prowl · 192.0.2.43:/srv/releases"
+                        text: "prowl at 192.0.2.43:/srv/releases"
                         typeRole: "mono"
                     }
                 }
@@ -575,19 +590,6 @@ Item {
                         { text: "Connected to " },
                         { text: "192.0.2.43", mono: true },
                         { text: " as ops" }
-                    ]
-                }
-            }
-            State {
-                stateName: "Attention name"
-                specimenWidth: LithicTokens.size.draftFormMax
-                specimenHeight: LithicTokens.size.plaqueHeight
-                Sentence {
-                    anchors.centerIn: parent
-                    spans: [
-                        { text: "Transfer to " },
-                        { text: "scratch-arch", attention: true },
-                        { text: " needs confirmation" }
                     ]
                 }
             }

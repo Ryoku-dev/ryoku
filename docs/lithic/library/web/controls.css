@@ -638,7 +638,8 @@
 .l-stepper-value {
   color: var(--lithic-fg);
   outline: none;
-  font: var(--lithic-type-mono-weight) var(--lithic-type-mono-size)/var(--lithic-type-mono-line) var(--lithic-type-mono-family);
+  font: var(--lithic-type-label-weight) var(--lithic-type-label-size)/var(--lithic-type-label-line) var(--lithic-type-label-family);
+  font-variant-numeric: tabular-nums;
 }
 
 .l-stepper-unit {
@@ -683,7 +684,7 @@
 }
 
 .l-filter {
-  --l-chip-fill: var(--lithic-field);
+  --l-chip-fill: transparent;
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -698,7 +699,7 @@
   transition: color var(--lithic-motion-select) var(--lithic-motion-curve);
 }
 
-/* the plate sits under the gliding slab so the selection travels over tonal chips */
+/* the plate sits under the gliding slab; at rest only the selected chip is filled */
 .l-filter::before {
   content: "";
   position: absolute;
@@ -720,7 +721,7 @@
 }
 
 .l-filter:is(:hover, [data-l-state="hover"]):not([aria-pressed="true"]) {
-  --l-chip-fill: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-hover-plane) * 100%), var(--lithic-field));
+  --l-chip-fill: var(--lithic-field);
 }
 
 .l-filter:is(:hover, [data-l-state="hover"]):not([aria-pressed="true"])::before {
@@ -732,7 +733,8 @@
 }
 
 .l-filter-count {
-  font: var(--lithic-type-mono-sm-weight) var(--lithic-type-mono-sm-size)/var(--lithic-type-mono-sm-line) var(--lithic-type-mono-sm-family);
+  font: var(--lithic-type-caption-weight) var(--lithic-type-caption-size)/var(--lithic-type-caption-line) var(--lithic-type-caption-family);
+  font-variant-numeric: tabular-nums;
 }
 
 .l-tabs {

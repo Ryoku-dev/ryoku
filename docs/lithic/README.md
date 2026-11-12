@@ -28,6 +28,7 @@ Lithic is Ryoku's UI language: cut, not molded. It builds calm, flat surfaces fr
 | `library/web/tokens.css` | Expose generated non-colour CSS tokens. |
 | `library/web/tokens.js` | Expose the generated token object. |
 | `library/web/lithic.css` | Import the complete web stylesheet. |
+| `library/web/fonts.css` | Load Geologica and Martian Mono from `library/go/fonts`. |
 | `library/web/foundation.css` | Style roles, type and cut primitives. |
 | `library/web/controls.css` | Style controls. |
 | `library/web/lists.css` | Style lists, containers, state and progress. |
@@ -45,6 +46,7 @@ Lithic is Ryoku's UI language: cut, not molded. It builds calm, flat surfaces fr
 | `library/go/anim/` | Provide motion helpers. |
 | `library/go/kit/` | Provide reusable Gio components. |
 | `library/go/symbols/` | Hold the Material Symbols Sharp icons for Gio, generated from `list.txt`. |
+| `library/go/fonts/` | Hold Geologica and Martian Mono, embedded for Gio and loaded by the QML and web libraries. |
 | `library/go/term/` | Provide the terminal component subset. |
 | `library/go/cmd/lithic-tokens/` | Update generated token files from `tokens.json`. |
 | `library/go/cmd/lithic-symbols/` | Update `symbols/symbols.go` from `symbols/list.txt`. |

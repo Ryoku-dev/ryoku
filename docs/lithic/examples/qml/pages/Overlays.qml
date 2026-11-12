@@ -335,7 +335,7 @@ Item {
                         spacing: LithicTokens.space.s3
                         Label { text: "Fleet"; typeRole: "sentence" }
                         Label { text: "ubuntu-24.04"; typeRole: "row" }
-                        Label { text: "ally · ops@192.0.2.18"; typeRole: "monoSm"; inkRole: "fg2" }
+                        Label { text: "ally at ops@192.0.2.18"; typeRole: "monoSm"; inkRole: "fg2" }
                         Blade {
                             width: parent.width
                             fraction: 0.68

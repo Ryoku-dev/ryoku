@@ -11,14 +11,10 @@
     .gallery-head { max-width: 720px; margin-bottom: var(--lithic-space-s5); }
     .gallery-head h1, .gallery-head p { margin: 0; }
     .gallery-head p { margin-top: var(--lithic-space-s2); color: var(--lithic-fg2); }
-    .pages { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--lithic-space-s3); }
-    .page-link { --l-fill: var(--lithic-stone2); --l-stroke: var(--lithic-vein); --l-stroke-width: 1px; min-height: 180px; padding: var(--lithic-space-s4); color: var(--lithic-fg); text-decoration: none; }
-    .page-link strong, .page-link span { display: block; }
-    .page-link span { margin-top: var(--lithic-space-s2); color: var(--lithic-fg2); }
-    .page-link[aria-current="page"] { --l-fill: var(--lithic-sel); color: var(--lithic-on-sel); }
-    .page-link[aria-current="page"] span { color: var(--lithic-on-sel2); }
+    .pages { display: grid; max-width: 720px; gap: var(--lithic-space-s1); }
+    .page-link { --l-fill: transparent; --l-cut: var(--lithic-cut-mid); display: grid; gap: var(--lithic-space-s1); padding: var(--lithic-space-s3) var(--lithic-space-s4); margin-inline: calc(var(--lithic-space-s4) * -1); color: var(--lithic-fg); text-decoration: none; }
+    .page-link span + span { color: var(--lithic-fg2); }
     .gallery-note { margin-top: var(--lithic-space-s5); color: var(--lithic-fg3); }
-    @media (max-width: 900px) { .pages { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   </style>
 </head>
 <body>
@@ -28,20 +24,20 @@
       <p class="l-type-body">Foundations and reusable browser components, rendered from the same Ryoku palette roles as every other Lithic stack.</p>
     </header>
     <nav class="pages" aria-label="Gallery pages">
-      <a class="page-link l-cut l-recipe-hover l-recipe-press l-focus-ring" href="foundation.html" aria-current="page">
-        <strong class="l-type-section">Foundation</strong>
+      <a class="page-link l-cut l-recipe-hover l-recipe-press l-focus-ring" data-l-hover="transparent" href="foundation.html">
+        <span class="l-type-section">Foundation</span>
         <span class="l-type-body">Roles, type, cuts, state marks and motion.</span>
       </a>
-      <a class="page-link l-cut l-recipe-hover l-recipe-press l-focus-ring" href="controls.html">
-        <strong class="l-type-section">Controls</strong>
+      <a class="page-link l-cut l-recipe-hover l-recipe-press l-focus-ring" data-l-hover="transparent" href="controls.html">
+        <span class="l-type-section">Controls</span>
         <span class="l-type-body">Actions, fields, filters and selection controls.</span>
       </a>
-      <a class="page-link l-cut l-recipe-hover l-recipe-press l-focus-ring" href="lists.html">
-        <strong class="l-type-section">Lists</strong>
+      <a class="page-link l-cut l-recipe-hover l-recipe-press l-focus-ring" data-l-hover="transparent" href="lists.html">
+        <span class="l-type-section">Lists</span>
         <span class="l-type-body">Rows, panes, state, facts and progress.</span>
       </a>
-      <a class="page-link l-cut l-recipe-hover l-recipe-press l-focus-ring" href="overlays.html">
-        <strong class="l-type-section">Overlays</strong>
+      <a class="page-link l-cut l-recipe-hover l-recipe-press l-focus-ring" data-l-hover="transparent" href="overlays.html">
+        <span class="l-type-section">Overlays</span>
         <span class="l-type-body">Menus, dialogs, navigation and app frames.</span>
       </a>
     </nav>

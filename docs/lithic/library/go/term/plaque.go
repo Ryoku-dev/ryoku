@@ -54,7 +54,7 @@ func RenderPlaque(th Theme, p Plaque) string {
 	case PlaqueDangerLine:
 		fg = th.Roles.Jasper
 	default:
-		bg, filled = th.Roles.Stone3, true
+		bracketed = false
 	}
 	if p.Disabled {
 		fg, bg, filled, bracketed, boldLabel = th.Roles.Fg3, nil, false, true, false
@@ -69,5 +69,5 @@ func RenderPlaque(th Theme, p Plaque) string {
 	if bracketed {
 		return labelStyle.Render("[") + gutter + labelStyle.Render(label+" ]")
 	}
-	return gutter + labelStyle.Render(label)
+	return gutter + labelStyle.Render(" "+label+" ")
 }

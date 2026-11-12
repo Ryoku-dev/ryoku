@@ -57,11 +57,6 @@ T.AbstractButton {
                 ? LithicTokens.motion.hoverIn
                 : LithicTokens.motion.hoverOut
         }
-
-        PlaceBlade {
-            anchors.fill: parent
-            visible: root.selected
-        }
     }
 
     contentItem: Item {
@@ -125,7 +120,8 @@ T.AbstractButton {
                 Label {
                     anchors.right: parent.right
                     text: root.proof
-                    typeRole: "monoSm"
+                    typeRole: "caption"
+                    numeric: true
                     ink: root.quietInk
                     horizontalAlignment: Text.AlignRight
                 }

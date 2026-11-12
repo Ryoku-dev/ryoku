@@ -36,6 +36,15 @@ QtObject {
     readonly property color jasper: _resolved.jasper
     readonly property color scrim: _resolved.scrim
 
+    // the one copy of the faces sits in the Go library, which embeds it
+    readonly property list<QtObject> _faces: [
+        FontLoader { source: "../../go/fonts/Geologica-Regular.ttf" },
+        FontLoader { source: "../../go/fonts/Geologica-Medium.ttf" },
+        FontLoader { source: "../../go/fonts/Geologica-Bold.ttf" },
+        FontLoader { source: "../../go/fonts/MartianMono-Regular.ttf" },
+        FontLoader { source: "../../go/fonts/MartianMono-Bold.ttf" }
+    ]
+
     readonly property var font: ({
         sans: _fontFamily(LithicTokens.font.sans),
         mono: _fontFamily(LithicTokens.font.mono),
@@ -123,10 +132,10 @@ QtObject {
     }
 
     function mineralField(tone) {
-        if (tone === "alive")
-            return mix(stone2, jade, LithicTokens.alpha.mineralJade);
-        if (tone === "becoming" || tone === "attention" || tone === "paused" || tone === "failed")
-            return mix(stone2, stone(tone), LithicTokens.alpha.mineral);
+        if (tone === "paused")
+            return _resolved.mineralFields.attention;
+        if (tone === "alive" || tone === "becoming" || tone === "attention" || tone === "failed")
+            return _resolved.mineralFields[tone];
         return stone3;
     }
 
@@ -159,26 +168,6 @@ QtObject {
         var aLuma = _relativeLuma(Qt.color(a));
         var bLuma = _relativeLuma(Qt.color(b));
         return (Math.max(aLuma, bLuma) + 0.05) / (Math.min(aLuma, bLuma) + 0.05);
-    }
-
-    function contrastTone(ink, background, lighter) {
-        var foreground = Qt.color(ink);
-        var backdrop = Qt.color(background);
-        if (contrastRatio(foreground, backdrop) >= LithicTokens.contrast.minimum)
-            return foreground;
-        var hsl = _rgbToHsl(foreground);
-        for (var step = 1; step <= 255; ++step) {
-            var at = step / 255;
-            var nextLightness = lighter
-                    ? hsl[2] + (1 - hsl[2]) * at
-                    : hsl[2] * (1 - at);
-            var candidate = _hsl(hsl[0], hsl[1], nextLightness, foreground.a);
-            if (contrastRatio(candidate, backdrop) >= LithicTokens.contrast.minimum)
-                return candidate;
-        }
-        return lighter
-                ? Qt.rgba(1, 1, 1, foreground.a)
-                : Qt.rgba(0, 0, 0, foreground.a);
     }
 
     function hoverFill(fill, progress) {
@@ -364,43 +353,7 @@ QtObject {
     }
 
     function _signature(isDark) {
-        var signature = isDark ? LithicTokens.signature.dark : LithicTokens.signature.light;
-        var minerals = isDark ? LithicTokens.minerals.dark : LithicTokens.minerals.light;
-        return {
-            ground: signature.ground,
-            stone1: signature.stone1,
-            stone2: signature.stone2,
-            stone3: signature.stone3,
-            stone4: signature.stone4,
-            slab: signature.slab,
-            field: signature.field,
-            vein: signature.vein,
-            edge: _mixBytes(signature.vein, signature.fg3, LithicTokens.alpha.edge),
-            fg: signature.fg,
-            fg2: signature.fg2,
-            fg3: signature.fg3,
-            sel: signature.sel,
-            onSel: signature.onSel,
-            onSel2: signature.onSel2,
-            gold: signature.gold,
-            onGold: signature.onGold,
-            goldInk: signature.goldInk,
-            jade: minerals.jade,
-            lapis: minerals.lapis,
-            amber: minerals.amber,
-            jasper: signature.jasper,
-            scrim: signature.scrim,
-            dark: isDark,
-            source: "signature"
-        };
-    }
-
-    function _color(roles, key, fallback) {
-        return _isColor(roles[key]) ? Qt.color(roles[key]) : fallback;
-    }
-
-    function _mappedColor(roles, mapping, role, fallback) {
-        return _color(roles, mapping[role], fallback);
+        return _rolesFrom({}, "signature", isDark, true, null);
     }
 
     // The look and the derived roles work on whole bytes rounded half up, like the
@@ -430,36 +383,6 @@ QtObject {
         });
     }
 
-    // Moves c away from ground by factor per channel, clamped to a byte
-    function _away(c, ground, factor) {
-        var color = _bytes(c);
-        var from = _bytes(ground);
-        function channel(key) {
-            return Math.min(Math.max(Math.round(from[key] + factor * (color[key] - from[key])), 0), 255);
-        }
-        return _fromBytes({ r: channel("r"), g: channel("g"), b: channel("b"), a: color.a });
-    }
-
-    // The look's contrast step, then its tint step. tintRole is null when the
-    // palette has no tint role
-    function _applyLook(result, tintRole) {
-        if (contrast === "high") {
-            var factor = 1 + LithicTokens.alpha.contrastHigh;
-            var spread = ["stone1", "stone2", "stone3", "stone4", "slab", "field", "vein"];
-            for (var i = 0; i < spread.length; ++i)
-                result[spread[i]] = _away(result[spread[i]], result.ground, factor);
-            result.fg3 = _mixBytes(result.fg3, result.fg, LithicTokens.alpha.contrastHighFg3);
-        }
-        var amount = tint === "low"
-                ? LithicTokens.alpha.tintLow
-                : tint === "medium" ? LithicTokens.alpha.tintMedium : 0;
-        if (tintRole === null || amount === 0)
-            return;
-        var tinted = ["ground", "stone1", "stone2", "stone3", "stone4", "slab", "field"];
-        for (var j = 0; j < tinted.length; ++j)
-            result[tinted[j]] = _mixBytes(result[tinted[j]], tintRole, amount);
-    }
-
     function _luma(c) {
         return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b;
     }
@@ -473,55 +396,178 @@ QtObject {
         return 0.2126 * channel(c.r) + 0.7152 * channel(c.g) + 0.0722 * channel(c.b);
     }
 
-    function _rgbToHsl(c) {
-        var highest = Math.max(c.r, c.g, c.b);
-        var lowest = Math.min(c.r, c.g, c.b);
-        var lightness = (highest + lowest) / 2;
-        var delta = highest - lowest;
-        if (delta === 0)
-            return [0, 0, lightness];
-        var saturation = delta / (1 - Math.abs(2 * lightness - 1));
-        var hue;
-        if (highest === c.r)
-            hue = ((c.g - c.b) / delta) % 6;
-        else if (highest === c.g)
-            hue = (c.b - c.r) / delta + 2;
-        else
-            hue = (c.r - c.g) / delta + 4;
-        hue /= 6;
-        if (hue < 0)
-            hue += 1;
-        return [hue, saturation, lightness];
+    function _linearChannel(value) {
+        return value <= 0.04045 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4);
     }
 
-    function _hsl(hue, saturation, lightness, alphaValue) {
-        var chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
-        var x = chroma * (1 - Math.abs((hue * 6) % 2 - 1));
-        var offset = lightness - chroma / 2;
-        var red = 0;
-        var green = 0;
-        var blue = 0;
-        var sector = Math.floor(hue * 6);
-        if (sector === 0) {
-            red = chroma;
-            green = x;
-        } else if (sector === 1) {
-            red = x;
-            green = chroma;
-        } else if (sector === 2) {
-            green = chroma;
-            blue = x;
-        } else if (sector === 3) {
-            green = x;
-            blue = chroma;
-        } else if (sector === 4) {
-            red = x;
-            blue = chroma;
-        } else {
-            red = chroma;
-            blue = x;
+    // The OKLCH chroma and hue of a colour: what a palette colour dyes with
+    function _dyeOf(c) {
+        var bytes = _bytes(c);
+        var r = _linearChannel(bytes.r / 255);
+        var g = _linearChannel(bytes.g / 255);
+        var b = _linearChannel(bytes.b / 255);
+        var l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+        var m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+        var s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+        var a = 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s;
+        var bb = 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s;
+        var hue = Math.atan2(bb, a) * 180 / Math.PI;
+        if (hue < 0)
+            hue += 360;
+        return { c: Math.hypot(a, bb), h: hue };
+    }
+
+    function _linearFromOklch(lightness, chroma, hue) {
+        var a = chroma * Math.cos(hue * Math.PI / 180);
+        var bb = chroma * Math.sin(hue * Math.PI / 180);
+        var lc = lightness + 0.3963377774 * a + 0.2158037573 * bb;
+        var mc = lightness - 0.1055613458 * a - 0.0638541728 * bb;
+        var sc = lightness - 0.0894841775 * a - 1.2914855480 * bb;
+        var l = lc * lc * lc;
+        var m = mc * mc * mc;
+        var s = sc * sc * sc;
+        return [4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+                -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+                -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s];
+    }
+
+    function _inGamut(lightness, chroma, hue) {
+        var channels = _linearFromOklch(lightness, chroma, hue);
+        for (var i = 0; i < 3; ++i) {
+            if (channels[i] < -1e-7 || channels[i] > 1 + 1e-7)
+                return false;
         }
-        return Qt.rgba(red + offset, green + offset, blue + offset, alphaValue);
+        return true;
+    }
+
+    // Paints a role at a ladder lightness with a dye, keeping as much of the
+    // dye's chroma as sRGB can show at that lightness
+    function _toned(lightness, dye) {
+        var chroma = dye.c;
+        if (!_inGamut(lightness, chroma, dye.h)) {
+            var low = 0;
+            var high = chroma;
+            for (var step = 0; step < 24; ++step) {
+                var mid = (low + high) / 2;
+                if (_inGamut(lightness, mid, dye.h))
+                    low = mid;
+                else
+                    high = mid;
+            }
+            chroma = low;
+        }
+        var channels = _linearFromOklch(lightness, chroma, dye.h);
+        function encode(value) {
+            var x = Math.min(Math.max(value, 0), 1);
+            var gamma = x <= 0.0031308 ? x * 12.92 : 1.055 * Math.pow(x, 1 / 2.4) - 0.055;
+            return Math.floor(gamma * 255 + 0.5);
+        }
+        return _fromBytes({ r: encode(channels[0]), g: encode(channels[1]), b: encode(channels[2]), a: 255 });
+    }
+
+    function _accentDye(c) {
+        var dye = _dyeOf(c);
+        return { c: Math.min(LithicTokens.dye.chroma.gold, dye.c * LithicTokens.dye.boost.gold), h: dye.h };
+    }
+
+    // Without a palette Lithic paints its signature: the ryoku.dev stock (black
+    // paper, bone ink, the sun as the one action), with an edition's signal in
+    // place of the sun (edition is the os-release accent or null). A palette
+    // only dyes: Lithic owns every lightness (the tone ladder for the mode and
+    // contrast), and the palette lends hue and chroma, neutrals from its
+    // surface, ink from its on-surface, the action from its primary, the
+    // selection from its containers and jasper from its error. A forced mode
+    // keeps the signature's neutrals.
+    function _rolesFrom(roles, sourceName, isDark, forced, edition) {
+        var ladderKey = (isDark ? "dark" : "light") + (contrast === "high" ? "High" : "");
+        var steps = LithicTokens.tone[ladderKey];
+        var table = LithicTokens.signature[ladderKey];
+        var dye = LithicTokens.dye;
+        var fallback = dye.fallback;
+        var accents = LithicTokens.palette.accents;
+        var result = { dark: isDark, source: sourceName };
+        var neutralRoles = ["ground", "stone1", "stone2", "stone3", "stone4", "slab", "field", "vein", "edge", "fg", "fg2", "fg3", "scrim"];
+        for (var n = 0; n < neutralRoles.length; ++n)
+            result[neutralRoles[n]] = Qt.color(table[neutralRoles[n]]);
+
+        if (sourceName === "signature") {
+            var accentRoles = ["sel", "onSel", "onSel2", "gold", "onGold", "goldInk", "jasper"];
+            for (var a = 0; a < accentRoles.length; ++a)
+                result[accentRoles[a]] = Qt.color(table[accentRoles[a]]);
+            if (edition !== null) {
+                result.gold = edition;
+                result.goldInk = edition;
+                result.onGold = inkOn(edition);
+            }
+            return _withMinerals(result, steps);
+        }
+
+        if (!forced) {
+            var neutral = { c: fallback.stoneChroma, h: fallback.neutralHue };
+            var groundChroma = fallback.groundChroma;
+            var ink = { c: fallback.inkChroma, h: fallback.neutralHue };
+            if (_isColor(roles[LithicTokens.palette.dye.neutral])) {
+                var surfaceDye = _dyeOf(roles[LithicTokens.palette.dye.neutral]);
+                var factor = tint === "low" ? dye.tint.low : tint === "medium" ? dye.tint.medium : 1;
+                neutral = { c: Math.min(dye.chroma.stone, surfaceDye.c) * factor, h: surfaceDye.h };
+                groundChroma = Math.min(dye.chroma.ground, surfaceDye.c * dye.boost.ground) * factor;
+            }
+            if (_isColor(roles[LithicTokens.palette.dye.ink])) {
+                var inkDye = _dyeOf(roles[LithicTokens.palette.dye.ink]);
+                ink = { c: Math.min(dye.chroma.ink, inkDye.c), h: inkDye.h };
+            }
+            var vein = { c: neutral.c * dye.boost.vein, h: neutral.h };
+            result.ground = _toned(steps.ground, { c: groundChroma, h: neutral.h });
+            var planes = ["stone1", "stone2", "stone3", "stone4", "slab", "field"];
+            for (var p = 0; p < planes.length; ++p)
+                result[planes[p]] = _toned(steps[planes[p]], neutral);
+            result.vein = _toned(steps.vein, vein);
+            result.edge = _toned(steps.edge, vein);
+            result.fg = _toned(steps.fg, ink);
+            result.fg2 = _toned(steps.fg2, ink);
+            result.fg3 = _toned(steps.fg3, ink);
+        }
+
+        var gold = { c: fallback.goldChroma, h: fallback.goldHue };
+        var jasper = { c: dye.chroma.jasper, h: fallback.jasperHue };
+        var sel = { c: fallback.selChroma, h: fallback.neutralHue };
+        if (_isColor(roles[accents.scrim]))
+            result.scrim = _fromBytes(_bytes(alpha(Qt.color(roles[accents.scrim]), isDark
+                                                   ? LithicTokens.alpha.scrimDark
+                                                   : LithicTokens.alpha.scrimLight)));
+        if (_isColor(roles[accents.gold]))
+            gold = _accentDye(roles[accents.gold]);
+        if (_isColor(roles[accents.sel])) {
+            var container = _isColor(roles[accents.selMix])
+                    ? _mixBytes(roles[accents.sel], roles[accents.selMix], LithicTokens.alpha.selMix)
+                    : Qt.color(roles[accents.sel]);
+            var containerDye = _dyeOf(container);
+            sel = { c: Math.min(dye.chroma.sel, containerDye.c), h: containerDye.h };
+        }
+        if (_isColor(roles[accents.jasper]))
+            jasper.h = _dyeOf(roles[accents.jasper]).h;
+        result.gold = _toned(steps.gold, gold);
+        result.goldInk = _toned(steps.goldInk, gold);
+        result.onGold = _toned(steps.onGold, { c: dye.chroma.onGold, h: gold.h });
+        result.jasper = _toned(steps.jasper, jasper);
+        result.sel = _toned(steps.sel, sel);
+        result.onSel = _toned(steps.onSel, { c: dye.chroma.onSel, h: sel.h });
+        result.onSel2 = _mixBytes(result.onSel, result.sel, LithicTokens.alpha.onSel2);
+        return _withMinerals(result, steps);
+    }
+
+    // The fixed state minerals and the fields they dye on this ladder
+    function _withMinerals(result, steps) {
+        var minerals = result.dark ? LithicTokens.minerals.dark : LithicTokens.minerals.light;
+        result.jade = Qt.color(minerals.jade);
+        result.lapis = Qt.color(minerals.lapis);
+        result.amber = Qt.color(minerals.amber);
+        var pairs = [["alive", "jade"], ["becoming", "lapis"], ["attention", "amber"], ["failed", "jasper"]];
+        var fields = {};
+        for (var i = 0; i < pairs.length; ++i)
+            fields[pairs[i][0]] = _toned(steps.mineralField, { c: LithicTokens.dye.mineral[pairs[i][1]], h: _dyeOf(result[pairs[i][1]]).h });
+        result.mineralFields = fields;
+        return result;
     }
 
     function _combined() {
@@ -560,52 +606,7 @@ QtObject {
                 isDark = _luma(Qt.color(roles.surface)) <= 0.5;
         }
 
-        var result = _signature(isDark);
-        result.source = combined.source;
-        var goldInk = result.goldInk;
-        var tintRole = null;
-        if (combined.source === "signature") {
-            if (_hasEditionAccent) {
-                result.gold = _editionAccent;
-                result.onGold = inkOn(_editionAccent);
-                goldInk = _editionAccent;
-            }
-        } else {
-            var accents = LithicTokens.palette.accents;
-            if (!forced) {
-                var neutralMap = isDark ? LithicTokens.palette.dark : LithicTokens.palette.light;
-                var neutrals = ["ground", "stone1", "stone2", "stone3", "stone4", "slab", "field", "vein", "fg", "fg2", "fg3"];
-                for (var i = 0; i < neutrals.length; ++i)
-                    result[neutrals[i]] = _mappedColor(roles, neutralMap, neutrals[i], Qt.color(result[neutrals[i]]));
-            }
-            var scrimKey = accents.scrim;
-            if (_isColor(roles[scrimKey]))
-                result.scrim = alpha(Qt.color(roles[scrimKey]), isDark
-                                     ? LithicTokens.alpha.scrimDark
-                                     : LithicTokens.alpha.scrimLight);
-
-            var toned = LithicTokens.palette.toned;
-            result.gold = _mappedColor(roles, accents, "gold", Qt.color(result.gold));
-            result.onGold = _mappedColor(roles, accents, "onGold", Qt.color(result.onGold));
-            goldInk = _mappedColor(roles, accents, toned.goldInk, result.gold);
-            if (_isColor(roles[accents.sel])) {
-                result.sel = _isColor(roles[accents.selMix])
-                        ? _mixBytes(roles[accents.sel], roles[accents.selMix], LithicTokens.alpha.selMix)
-                        : Qt.color(roles[accents.sel]);
-            }
-            result.onSel = _mappedColor(roles, accents, "onSel", Qt.color(result.onSel));
-            result.onSel2 = _mixBytes(result.onSel, result.sel, LithicTokens.alpha.onSel2);
-            result.jasper = _mappedColor(roles, accents, toned.jasper, Qt.color(result.jasper));
-            if (_isColor(roles[accents.tint]))
-                tintRole = Qt.color(roles[accents.tint]);
-        }
-
-        _applyLook(result, tintRole);
-        result.edge = _mixBytes(result.vein, result.fg3, LithicTokens.alpha.edge);
-        result.goldInk = contrastTone(goldInk, result.stone2, isDark);
-        result.jasper = contrastTone(result.jasper, result.stone2, isDark);
-        result.dark = isDark;
-        _publish(result);
+        _publish(_rolesFrom(roles, combined.source, isDark, forced, _hasEditionAccent ? _editionAccent : null));
     }
 
     function _load() {

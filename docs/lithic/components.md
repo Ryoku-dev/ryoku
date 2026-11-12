@@ -55,20 +55,10 @@ Library: QML Lithic.Notch, web .l-notch, Go kit.Notch, terminal term.RenderNotch
 ### Blade
 
 Draw a bar with a 45 degree leading edge. The trailing top corner is cut by
-the bar height. Blades mark progress, meters, tabs and other moving places.
+the bar height. Blades mark progress, meters and the current tab.
 Reference: `ui/kit/draw.go`.
 
 Library: QML Lithic.Blade, web .l-blade, Go kit.Blade, terminal term.RenderBlade
-
-### PlaceBlade
-
-The place blade marks a selection: a straight bar `size.selBlade` (3) thick
-in `onSel`, clipped to the selection's cut. A selected row carries it on its
-leading edge at full height; a selected chip or segment carries it along its
-bottom. It moves with the selection fill. Lithic's own; Ryoport has no
-reference.
-
-Library: QML Lithic.PlaceBlade, web .l-place-row and .l-place-chip, Go kit.PlaceBlade, terminal -
 
 ### Flake
 
@@ -194,10 +184,11 @@ Library: QML Lithic.Stepper, web .l-stepper, Go kit.Stepper, terminal term.Rende
 ### Filters
 
 Filter chips are 32 high, 13 inset, cut 6 and 4 apart in `label` type. A
-resting chip takes the tonal recipe: `field` fill, no hairline, `fg2` ink.
-A selected chip is `sel` with `onSel` ink and a place blade along its bottom;
-the fill and blade glide between chips over 240 ms. A count follows the label
-by 6 in `monoSm`. Use filters to narrow a list, with live counts. Reference:
+resting chip has no fill: `fg2` ink on the plane, and hover shows the `field`
+fill inside its cut.
+A selected chip is a `sel` fill with `onSel` ink; the fill glides between
+chips over 240 ms. A count follows the label by 6 in `caption` with tabular
+figures. Use filters to narrow a list, with live counts. Reference:
 `ui/kit/filters.go`.
 
 Library: QML Lithic.Filters, web .l-filters, Go kit.Filters, terminal term.RenderFilters
@@ -215,8 +206,7 @@ resource take Tabs, and narrowing a list takes Filters.
   widest label plus 21 on each side, times the count, plus the insets; a
   caller may stretch it.
 - **Selected segment:** inset 4 (`size.segmentInset`), cut 5 (`cut.segment`,
-  concentric with the track), `sel` fill, `onSel` label, and a place blade
-  along its bottom, clipped to the cut.
+  concentric with the track), a `sel` fill and an `onSel` label.
 - **Other segments:** `fg2` label; hover shows the ink at alpha 0.10.
 - **Motion:** the selection glides to its new segment over 240 ms on the one
   curve. Previews draw final values on the first frame.
@@ -255,30 +245,29 @@ title in `row` over one facts line, then a trailing area at least 72 wide
 with claim over proof and 12 trailing inset.
 
 Hover or list focus fades to `stone3` and replaces claim and proof with the
-row's one action. A selected row is a `sel` fill with a place blade on its
-leading edge; its ink is `onSel` and its quiet ink `onSel2`. Becoming adds a
-2 dp `lapis` blade along the bottom. Click selects and double click runs the
-primary action. Reference: `ui/kit/row.go`.
+row's one action. A selected row is a `sel` fill; its ink is `onSel` and its
+quiet ink `onSel2`. Becoming adds a 2 dp `lapis` blade along the bottom.
+Click selects and double click runs the primary action. Reference:
+`ui/kit/row.go`.
 
 Library: QML Lithic.Tablet, web .l-tablet, Go kit.Tablet, terminal term.RenderTablet
 
 ### RowList
 
-Rows sit 4 apart. One selection, a `sel` fill with its place blade on the
-leading edge, is drawn behind the selected row, glides to its new row over
-240 ms and follows it while scrolling. The scroll thumb is a 3 wide `vein`
-blade with a 12 minimum. A wheel notch glides 120 dp over 140 ms. Trackpad
-deltas follow the fingers at the screen scale. Reference: `ui/kit/rowlist.go`
-and `scroll.go`.
+Rows sit 4 apart. One selection, a `sel` fill, is drawn behind the selected
+row, glides to its new row over 240 ms and follows it while scrolling. The
+scroll thumb is a 3 wide `vein` blade with a 12 minimum. A wheel notch glides
+120 dp over 140 ms. Trackpad deltas follow the fingers at the screen scale.
+Reference: `ui/kit/rowlist.go` and `scroll.go`.
 
 Library: QML Lithic.RowList, web .l-row-list, Go kit.RowList, terminal term.RenderRowList
 
 ### GroupHeader
 
-The title uses `group` and the count `monoSm`, both `fg3`. Insets are 14 top,
-6 bottom, 6 left and 4 right. Fleet groups appear only when populated and
-run Needs you, Pinned, Running, Becoming, Stopped. Reference:
-`ui/kit/groupheader.go`.
+The title uses `group` and the count `caption` with tabular figures, both
+`fg3`. Insets are 14 top, 6 bottom, 6 left and 4 right. Fleet groups appear
+only when populated and run Needs you, Pinned, Running, Becoming, Stopped.
+Reference: `ui/kit/groupheader.go`.
 
 Library: QML Lithic.GroupHeader, web .l-group-header, Go kit.GroupHeader, terminal term.RenderGroupHeader
 
@@ -383,9 +372,10 @@ Library: QML Lithic.Claim, web .l-claim, Go kit.Claim, terminal term.RenderClaim
 
 ### Marks
 
-Marks are resource traits in `mono`, separated by ` · `. Disposable is amber
-and always first, followed by Instant and Sealed. Drop whole trailing marks
-before ellipsising facts. Reference: `ui/pages/common/marks.go`.
+Marks are resource traits in `detail` type, set apart by a 13 dp space with
+no separator glyph. Disposable is amber and always first, followed by Instant
+and Sealed. Drop whole trailing marks before ellipsising facts. Reference:
+`ui/pages/common/marks.go`.
 
 Library: QML Lithic.Marks, web .l-marks, Go kit.Marks, terminal term.RenderMarks
 
@@ -516,10 +506,9 @@ Library: QML Lithic.Placard, web .l-placard, Go kit.Placard, terminal term.Rende
 
 Rail owns Home, Fleet, New and Activity, with Settings at the bottom.
 Destination icons are 21. Expanded tiles are 64 in an 88 rail; medium tiles
-are 56 in a 72 rail. The current tile is a `sel` fill with a place blade on
-its leading edge; both glide over 240 ms. Compact moves the same destinations
-into five equal columns in a 64 high bottom bar with 48 high tiles.
-Reference: `ui/app/rail.go`.
+are 56 in a 72 rail. The current tile is a `sel` fill that glides over
+240 ms. Compact moves the same destinations into five equal columns in a 64
+high bottom bar with 48 high tiles. Reference: `ui/app/rail.go`.
 
 Library: QML Lithic.Rail, web .l-rail, Go kit.Rail, terminal -
 
@@ -544,10 +533,10 @@ Library: QML Lithic.NewPlaque, web .l-new-plaque, Go kit.NewPlaque, terminal -
 
 On an expanded Settings page, the index is 200 wide and 34 from the 760
 content column. Rows are 48 high, 4 apart, with labels inset 13. The current
-row is a `sel` fill with a place blade on its leading edge, and follows the
-section holding the top third of the view. Below expanded there is no chip
-strip at any width: the index becomes a Picker at the top of the column,
-holding the same sections. Reference: `ui/pages/settings/view.go`.
+row is a `sel` fill and follows the section holding the top third of the
+view. Below expanded there is no chip strip at any width: the index becomes a
+Picker at the top of the column, holding the same sections. Reference:
+`ui/pages/settings/view.go`.
 
 Library: QML Lithic.SectionIndex, web .l-section-index, Go kit.SectionIndex, terminal -
 

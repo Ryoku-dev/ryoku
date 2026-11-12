@@ -32,7 +32,8 @@ Item {
         anchors.rightMargin: LithicTokens.size.groupHeaderRight
         anchors.top: titleLabel.top
         text: root.count
-        typeRole: "monoSm"
+        typeRole: "caption"
+        numeric: true
         inkRole: "fg3"
     }
 }

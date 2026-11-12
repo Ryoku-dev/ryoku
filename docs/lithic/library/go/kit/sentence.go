@@ -15,7 +15,8 @@ type Span struct {
 	Color color.NRGBA
 }
 
-// Sentence composes text while preserving literal and attention spans.
+// Sentence composes text runs, each in the sentence's type or mono, and in the
+// sentence's ink unless the run carries its own.
 func Sentence(gtx layout.Context, th *theme.Theme, style theme.TextStyle, ink color.NRGBA, spans []Span) layout.Dimensions {
 	if len(spans) == 0 {
 		return layout.Dimensions{}

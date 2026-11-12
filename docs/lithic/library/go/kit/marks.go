@@ -31,26 +31,30 @@ func ResourceMarks(disposable, instant, sealed bool) []Mark {
 	return marks
 }
 
-// Marks composes resource traits in mono, with attention first and amber.
+// Marks composes resource traits in the detail type, attention first and
+// amber, set apart by space rather than a separator glyph.
 func Marks(th *theme.Theme, marks []Mark) layout.Widget {
 	spans := make([]Span, 0, len(marks)*2)
-	for index, mark := range marks {
+	for _, mark := range marks {
 		if mark.Text == "" {
 			continue
 		}
-		if index > 0 && len(spans) > 0 {
-			spans = append(spans, Span{Text: " · ", Mono: true})
+		if len(spans) > 0 {
+			spans = append(spans, Span{Text: markGap})
 		}
-		span := Span{Text: mark.Text, Mono: true}
+		span := Span{Text: mark.Text}
 		if mark.Attention {
 			span.Color = th.R.Amber
 		}
 		spans = append(spans, span)
 	}
 	return func(gtx layout.Context) layout.Dimensions {
-		return Sentence(gtx, th, th.T.Mono, th.R.Fg3, spans)
+		return Sentence(gtx, th, th.T.Detail, th.R.Fg2, spans)
 	}
 }
+
+// markGap is the space between traits: about one 13 dp step at detail size.
+const markGap = "    "
 
 type markedFactRun struct {
 	text  string
@@ -75,13 +79,13 @@ func MarkedFacts(th *theme.Theme, facts string, factsMono bool, marks []Mark, in
 			}
 			prefix := ""
 			if len(runs) > 0 {
-				prefix = " · "
+				prefix = markGap
 			}
 			markInk := th.R.Fg3
 			if mark.Attention {
 				markInk = th.R.Amber
 			}
-			runs = append(runs, markedFactRun{text: prefix + mark.Text, style: th.T.MonoSm, ink: markInk})
+			runs = append(runs, markedFactRun{text: prefix + mark.Text, style: th.T.Caption, ink: markInk})
 		}
 		return layoutMarkedFactRuns(gtx, th, runs)
 	}

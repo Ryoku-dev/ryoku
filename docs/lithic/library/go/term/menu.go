@@ -42,7 +42,7 @@ func RenderMenu(th Theme, menu Menu) string {
 	rows := make([]string, len(menu.Items))
 	for i, item := range menu.Items {
 		if item.Kind == MenuItemDivider {
-			rule := ink(th.Roles.Vein).Background(th.Roles.Stone4).Render(strings.Repeat(glyphs().FrameTop, width))
+			rule := ink(th.Roles.Vein).Background(th.Roles.Stone4).Render(strings.Repeat(glyphs().Rule, width))
 			rows[i] = lipgloss.NewStyle().Width(width).Background(th.Roles.Stone4).Render(rule)
 			continue
 		}

@@ -144,7 +144,7 @@ func (page *overlaysPage) overlaySection(th *theme.Theme) layout.Widget {
 }
 
 func (page *overlaysPage) popoverSpecimen(th *theme.Theme) layout.Widget {
-	return overlaySpecimen(th, "Popover · Open", unit.Dp(tokens.SizeCatalogueTileHeight*2), func(gtx layout.Context) layout.Dimensions {
+	return overlaySpecimen(th, "Popover, open", unit.Dp(tokens.SizeCatalogueTileHeight*2), func(gtx layout.Context) layout.Dimensions {
 		page.popover.Open = true
 		page.popover.Opener = &page.popoverAnchor.Clickable
 		return layout.Inset{Top: th.Sp.S4, Left: th.Sp.S4}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -158,7 +158,7 @@ func (page *overlaysPage) popoverSpecimen(th *theme.Theme) layout.Widget {
 }
 
 func (page *overlaysPage) menuSpecimen(th *theme.Theme) layout.Widget {
-	return overlaySpecimen(th, "Menu · Open", unit.Dp(tokens.SizeCatalogueTileHeight*2), func(gtx layout.Context) layout.Dimensions {
+	return overlaySpecimen(th, "Menu, open", unit.Dp(tokens.SizeCatalogueTileHeight*2), func(gtx layout.Context) layout.Dimensions {
 		page.menuPopover.Open = true
 		page.menuPopover.Opener = &page.menuAnchor.Clickable
 		return layout.Inset{Top: th.Sp.S4, Left: th.Sp.S4}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -172,7 +172,7 @@ func (page *overlaysPage) menuSpecimen(th *theme.Theme) layout.Widget {
 }
 
 func (page *overlaysPage) pickerSpecimen(th *theme.Theme) layout.Widget {
-	return overlaySpecimen(th, "Picker · Open", unit.Dp(tokens.SizeCatalogueTileHeight*2), func(gtx layout.Context) layout.Dimensions {
+	return overlaySpecimen(th, "Picker, open", unit.Dp(tokens.SizeCatalogueTileHeight*2), func(gtx layout.Context) layout.Dimensions {
 		page.picker.Show()
 		return layout.Inset{Top: th.Sp.S4, Left: th.Sp.S4, Right: th.Sp.S4}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(tokens.SizeSearchWidth))
@@ -182,7 +182,7 @@ func (page *overlaysPage) pickerSpecimen(th *theme.Theme) layout.Widget {
 }
 
 func (page *overlaysPage) tooltipSpecimen(th *theme.Theme) layout.Widget {
-	return overlaySpecimen(th, "Tooltip · Open after hover", unit.Dp(tokens.SizeCatalogueTileHeight*2), func(gtx layout.Context) layout.Dimensions {
+	return overlaySpecimen(th, "Tooltip, open after hover", unit.Dp(tokens.SizeCatalogueTileHeight*2), func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Top: th.Sp.S4, Left: th.Sp.S4}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return page.tooltip.Layout(gtx, th, "Connected through /dev/ttyUSB0", func(gtx layout.Context) layout.Dimensions {
 				return page.tooltipAnchor.Layout(gtx, th)
@@ -192,14 +192,14 @@ func (page *overlaysPage) tooltipSpecimen(th *theme.Theme) layout.Widget {
 }
 
 func (page *overlaysPage) dialogSpecimen(th *theme.Theme) layout.Widget {
-	return overlaySpecimen(th, "Dialog · Catalogue open", unit.Dp(tokens.SizeWindowMinHeight), func(gtx layout.Context) layout.Dimensions {
+	return overlaySpecimen(th, "Dialog with the catalogue open", unit.Dp(tokens.SizeWindowMinHeight), func(gtx layout.Context) layout.Dimensions {
 		page.dialog.Open = true
 		body := func(gtx layout.Context) layout.Dimensions {
 			return vstack(gtx, th.Sp.S3,
 				kit.Text(th, th.T.Body, th.R.Fg2, "Choose a fleet image for ally."),
-				fleetChoice(th, "ubuntu-24.04", "Ready · 2 cores · 4 GB"),
-				fleetChoice(th, "fedora-43", "Ready · 4 cores · 8 GB"),
-				fleetChoice(th, "alpine-instant", "Instant · 1 core · 1 GB"),
+				fleetChoice(th, "ubuntu-24.04", "Ready with 2 cores and 4 GB"),
+				fleetChoice(th, "fedora-43", "Ready with 4 cores and 8 GB"),
+				fleetChoice(th, "alpine-instant", "Instant with 1 core and 1 GB"),
 			)
 		}
 		cancel := func(gtx layout.Context) layout.Dimensions { return page.dialogCancel.Layout(gtx, th) }
@@ -209,7 +209,7 @@ func (page *overlaysPage) dialogSpecimen(th *theme.Theme) layout.Widget {
 }
 
 func (page *overlaysPage) confirmSpecimen(th *theme.Theme) layout.Widget {
-	return overlaySpecimen(th, "Confirm · Typed name open", unit.Dp(tokens.SizeWindowMinHeight), func(gtx layout.Context) layout.Dimensions {
+	return overlaySpecimen(th, "Confirm asking for the typed name", unit.Dp(tokens.SizeWindowMinHeight), func(gtx layout.Context) layout.Dimensions {
 		page.confirm.Dialog.Open = true
 		page.confirm.Layout(gtx, th, "Remove scratch-arch?", "This removes the machine record from ally.", "Remove scratch-arch", "scratch-arch")
 		return layout.Dimensions{Size: gtx.Constraints.Max}
@@ -217,7 +217,7 @@ func (page *overlaysPage) confirmSpecimen(th *theme.Theme) layout.Widget {
 }
 
 func (page *overlaysPage) placardSpecimen(th *theme.Theme) layout.Widget {
-	return overlaySpecimen(th, "Placard · Open with Undo", unit.Dp(tokens.SizeCatalogueTileHeight*2), func(gtx layout.Context) layout.Dimensions {
+	return overlaySpecimen(th, "Placard with Undo", unit.Dp(tokens.SizeCatalogueTileHeight*2), func(gtx layout.Context) layout.Dimensions {
 		return page.placard.Layout(gtx, th)
 	})
 }
@@ -227,15 +227,15 @@ func (page *overlaysPage) navigationSection(th *theme.Theme) layout.Widget {
 		return vstack(gtx, th.Sp.S3,
 			func(gtx layout.Context) layout.Dimensions {
 				return grid(gtx, 3, th.Sp.S3, []layout.Widget{
-					specimen(th, "BrandMark · Home", func(gtx layout.Context) layout.Dimensions {
+					specimen(th, "BrandMark as home", func(gtx layout.Context) layout.Dimensions {
 						return layout.Center.Layout(gtx, kit.BrandMark(th, unit.Dp(tokens.SizeBrandMark)))
 					}),
-					specimen(th, "NewPlaque · Hover, menu open", func(gtx layout.Context) layout.Dimensions {
+					specimen(th, "NewPlaque hovered with its menu open", func(gtx layout.Context) layout.Dimensions {
 						return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return page.newPlaque.Layout(gtx, th, false, true)
 						})
 					}),
-					specimen(th, "Rail · Settings selected", func(gtx layout.Context) layout.Dimensions {
+					specimen(th, "Rail with Settings selected", func(gtx layout.Context) layout.Dimensions {
 						size := image.Pt(gtx.Dp(tokens.SizeRailExpanded), gtx.Dp(tokens.SizeWindowMinHeight))
 						child := gtx
 						child.Constraints = layout.Exact(size)
@@ -246,10 +246,10 @@ func (page *overlaysPage) navigationSection(th *theme.Theme) layout.Widget {
 			},
 			func(gtx layout.Context) layout.Dimensions {
 				return grid(gtx, 2, th.Sp.S3, []layout.Widget{
-					specimen(th, "SectionIndex · Expanded", func(gtx layout.Context) layout.Dimensions {
+					specimen(th, "SectionIndex, expanded", func(gtx layout.Context) layout.Dimensions {
 						return page.sectionIndex.Layout(gtx, th, settingsSections(), 2, kit.FrameExpanded)
 					}),
-					specimen(th, "SectionIndex · Medium picker", func(gtx layout.Context) layout.Dimensions {
+					specimen(th, "SectionIndex as the medium picker", func(gtx layout.Context) layout.Dimensions {
 						return page.sectionPicker.Layout(gtx, th, settingsSections(), 2, kit.FrameMedium)
 					}),
 				})
@@ -259,14 +259,14 @@ func (page *overlaysPage) navigationSection(th *theme.Theme) layout.Widget {
 }
 
 func (page *overlaysPage) dataSection(th *theme.Theme) layout.Widget {
-	return section(th, "Data", specimen(th, "EngravedChart · ally host load", func(gtx layout.Context) layout.Dimensions {
+	return section(th, "Data", specimen(th, "EngravedChart of ally host load", func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(tokens.SizeBoardMax))
 		return page.chart.Layout(gtx, th)
 	}))
 }
 
 func (page *overlaysPage) frameSection(th *theme.Theme) layout.Widget {
-	return section(th, "Frame", specimen(th, "AppFrame · Compact fleet", func(gtx layout.Context) layout.Dimensions {
+	return section(th, "Frame", specimen(th, "AppFrame, compact fleet", func(gtx layout.Context) layout.Dimensions {
 		size := image.Pt(gtx.Dp(tokens.SizeWindowMinWidth), gtx.Dp(tokens.SizeWindowMinHeight))
 		child := gtx
 		child.Constraints = layout.Exact(size)
@@ -338,10 +338,10 @@ func compactFleet(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 	return layout.Inset{Top: th.Sp.S4, Right: th.Sp.S4, Bottom: th.Sp.S4, Left: th.Sp.S4}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return vstack(gtx, th.Sp.S3,
 			kit.Text(th, th.T.Section, th.R.Fg, "Fleet"),
-			fleetChoice(th, "ubuntu-24.04", "ally · ops@192.0.2.18"),
-			fleetChoice(th, "fedora-43", "prowl · 198.51.100.24"),
-			fleetChoice(th, "alpine-instant", "mika-server · root@203.0.113.70:2222"),
-			fleetChoice(th, "kolibrios-latest-en_US", "Console router · /dev/ttyUSB0"),
+			fleetChoice(th, "ubuntu-24.04", "ally at ops@192.0.2.18"),
+			fleetChoice(th, "fedora-43", "prowl at 198.51.100.24"),
+			fleetChoice(th, "alpine-instant", "mika-server at root@203.0.113.70:2222"),
+			fleetChoice(th, "kolibrios-latest-en_US", "Console router on /dev/ttyUSB0"),
 		)
 	})
 }

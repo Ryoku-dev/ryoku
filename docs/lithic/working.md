@@ -89,7 +89,7 @@ The current `ryoku/ui` library is a paper-and-ink system. Its palette singleton,
 | `inkDim` | `fg2` | Secondary text and controls. |
 | `inkMuted` | `fg2` | Use the role directly. Do not preserve the old alpha layer. |
 | `inkFaint` | `fg3` | Tertiary copy and proof. |
-| `bone` | `sel` | Selection is the live tinted container with an `onSel` place blade, not fixed inverted stock. |
+| `bone` | `sel` | Selection is a strong fill: bone in the signature, a wallpaper-tinted bone when following. The fill alone marks the place. |
 | `inkOnBone` | `onSel` | Primary ink on selection. |
 | `inkOnBoneDim` | `onSel2` | Secondary ink on selection. |
 | `lineOnBone` | `onSel2` | Use sparingly for selected-state detail. |

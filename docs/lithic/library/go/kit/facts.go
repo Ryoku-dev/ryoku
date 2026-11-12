@@ -6,7 +6,6 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
-	"gioui.org/op/paint"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
@@ -30,9 +29,6 @@ func Facts(th *theme.Theme, facts []Fact) layout.Widget {
 		viewport := clip.Rect(image.Rectangle{Max: size}).Push(gtx.Ops)
 		for index, fact := range facts {
 			y := index * rowHeight
-			if index > 0 {
-				paint.FillShape(gtx.Ops, th.R.Vein, clip.Rect(image.Rect(0, y, size.X, y+max(1, gtx.Dp(tokens.SizeHairline)))).Op())
-			}
 			offset := op.Offset(image.Pt(0, y)).Push(gtx.Ops)
 			rowContext := gtx
 			rowContext.Constraints = layout.Exact(image.Pt(size.X, rowHeight))

@@ -101,13 +101,6 @@ T.Control {
             height: Math.max(0, root.height - root._inset * 2)
             fill: Lithic.sel
             cut: LithicTokens.cut.segment
-
-            PlaceBlade {
-                anchors.fill: parent
-                edge: "bottom"
-                cutStart: LithicTokens.cut.segment
-                cutEnd: LithicTokens.cut.segment
-            }
         }
 
         Repeater {

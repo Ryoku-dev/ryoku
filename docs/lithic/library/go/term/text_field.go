@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 )
 
@@ -48,17 +49,16 @@ func renderTextField(th Theme, field TextField, planeBackground color.Color, pla
 	if field.Disabled {
 		colour = th.Roles.Fg3
 	}
-	body := lipgloss.NewStyle().Foreground(colour).Background(th.Roles.Stone3).Render(fit(value, width))
+	fill := th.Roles.Field
 	if field.Error != "" {
-		if planeBackground != nil {
-			body = framedOnPlaneWithBorder(th, body, th.Roles.Stone3, planeBackground, th.Roles.Jasper, field.Disabled)
-		} else {
-			body = framedWithBorder(th, body, th.Roles.Stone3, th.Roles.Jasper, field.Disabled)
-		}
-	} else if planeBackground != nil {
-		body = framedOnPlane(th, body, th.Roles.Stone3, planeBackground, field.Focused, field.Disabled)
+		fill = th.Roles.MineralField(palette.Failed)
+	}
+	fill = fieldFill(th, fill, field.Focused && field.Error == "", field.Disabled)
+	body := lipgloss.NewStyle().Foreground(colour).Background(fill).Render(fit(value, width))
+	if planeBackground != nil {
+		body = framedOnPlane(th, body, fill, planeBackground, false, field.Disabled)
 	} else {
-		body = framed(th, body, th.Roles.Stone3, field.Focused, field.Disabled)
+		body = framed(th, body, fill, false, field.Disabled)
 	}
 	parts := make([]string, 0, 3)
 	appendLine := func(text string, foreground color.Color, raw bool) {

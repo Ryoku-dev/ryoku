@@ -549,7 +549,7 @@ Item {
                     width: LithicTokens.size.menuWidthMin
                     text: "Server details"
                     open: true
-                    Label { width: parent.width; text: "ally · ops@192.0.2.18"; typeRole: "monoSm"; inkRole: "fg2" }
+                    Label { width: parent.width; text: "ally at ops@192.0.2.18"; typeRole: "monoSm"; inkRole: "fg2" }
                 }
             }
             StateSpecimen {
@@ -643,19 +643,19 @@ Item {
         }
 
         ComponentSection {
-            sectionName: "PlaceBlade"
+            sectionName: "Selection"
 
             StateSpecimen {
-                stateName: "Selected tablet with place blade"
+                stateName: "Selected tablet"
                 specimenWidth: LithicTokens.size.listMedium
                 specimenHeight: LithicTokens.size.tabletHeight
-                Tablet { anchors.fill: parent; title: "fedora-43"; facts: "prowl · 192.0.2.43"; tone: "alive"; claim: "Alive"; proof: "24 ms"; selected: true }
+                Tablet { anchors.fill: parent; title: "fedora-43"; facts: "prowl at 192.0.2.43"; tone: "alive"; claim: "Alive"; proof: "24 ms"; selected: true }
             }
             StateSpecimen {
                 stateName: "Rest tablet"
                 specimenWidth: LithicTokens.size.listMedium
                 specimenHeight: LithicTokens.size.tabletHeight
-                Tablet { anchors.fill: parent; title: "ubuntu-24.04"; facts: "ally · 192.0.2.18"; tone: "alive"; claim: "Alive"; proof: "18 ms" }
+                Tablet { anchors.fill: parent; title: "ubuntu-24.04"; facts: "ally at 192.0.2.18"; tone: "alive"; claim: "Alive"; proof: "18 ms" }
             }
             StateSpecimen {
                 stateName: "Section rows"

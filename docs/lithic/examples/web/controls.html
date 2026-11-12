@@ -11,11 +11,11 @@
     .page-head { display: flex; align-items: end; justify-content: space-between; gap: var(--lithic-space-s4); margin-bottom: var(--lithic-space-s5); }
     .page-head h1, .page-head p { margin: 0; }
     .page-head p { max-width: 620px; color: var(--lithic-fg2); }
-    .back { color: var(--lithic-gold-ink); text-decoration: none; }
+    .back { color: var(--lithic-fg); text-decoration: underline; text-decoration-color: var(--lithic-vein); text-underline-offset: 3px; }
     .section { margin-top: var(--lithic-space-s5); }
     .section > h2 { margin: 0 0 var(--lithic-space-s3); }
-    .specimen-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--lithic-size-search-width) + var(--lithic-space-s4))), 1fr)); gap: var(--lithic-space-s3); }
-    .specimen { min-height: calc(var(--lithic-space-s6) * 2); display: grid; align-content: space-between; gap: var(--lithic-space-s3); padding: var(--lithic-space-s3); }
+    .specimen-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--lithic-size-search-width) + var(--lithic-space-s4))), 1fr)); gap: var(--lithic-space-s5) var(--lithic-space-s4); }
+    .specimen { display: grid; align-content: start; justify-items: start; gap: var(--lithic-space-s2); }
     .specimen > .l-type-caption:first-child { color: var(--lithic-fg3); }
     .pane-sample { display: grid; align-content: start; gap: var(--lithic-space-s3); padding: var(--lithic-space-s4); background: var(--lithic-stone2); }
     .pane-sample > .l-type-caption:first-child { color: var(--lithic-fg3); }
@@ -41,53 +41,50 @@
 <body>
   <main class="page">
     <header class="page-head">
-      <div>
-        <a class="back l-type-label" href="index.html">Gallery</a>
-        <h1 class="l-type-name">Controls</h1>
-      </div>
-      <p class="l-type-body">Cut actions, fields and selectors shown with the Ryoport fleet. Preview states are static; the controls beside them remain interactive.</p>
+      <h1 class="l-type-name">Controls</h1>
+      <p class="l-type-body">Cut actions, fields and selectors shown with the Ryoport fleet. Preview states are static; the controls beside them remain interactive. <a class="back" href="index.html">All galleries</a></p>
     </header>
 
     <section class="section" aria-labelledby="plaque-heading">
       <h2 class="l-type-section" id="plaque-heading">Plaque</h2>
       <div class="specimen-grid">
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Gold</span><button class="l-plaque l-gold" type="button">Connect ally</button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Line</span><button class="l-plaque l-line" type="button">Inspect prowl</button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Tonal</span><button class="l-plaque l-tonal" type="button">Open console</button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Quiet</span><button class="l-plaque l-quiet" type="button">Cancel</button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">On</span><button class="l-plaque l-on" type="button" aria-pressed="true">Running</button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Danger</span><button class="l-plaque l-danger" type="button">Stop mika-server</button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Danger line</span><button class="l-plaque l-danger-line" type="button">Remove scratch-arch</button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Rest</span><button class="l-plaque l-tonal" type="button">Open fedora-43</button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Hover</span><button class="l-plaque l-tonal" type="button" data-l-state="hover">Open fedora-43</button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Pressed</span><button class="l-plaque l-tonal" type="button" data-l-state="pressed">Open fedora-43</button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Focus</span><span class="l-focus-ring" data-l-state="focus"><button class="l-plaque l-tonal" type="button">Open fedora-43</button></span></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Busy</span><button class="l-plaque l-line" type="button" aria-busy="true"><span class="l-working" aria-hidden="true" aria-busy="true"><span class="l-working__flake" aria-hidden="true"></span><span class="l-working__flake" aria-hidden="true"></span><span class="l-working__flake" aria-hidden="true"></span></span>Connecting ally</button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Disabled</span><button class="l-plaque l-tonal" type="button" disabled>Unavailable</button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Small</span><button class="l-plaque l-quiet l-small" type="button">Open kolibrios-latest-en_US</button></div>
+        <div class="specimen"><span class="l-type-caption">Gold</span><button class="l-plaque l-gold" type="button">Connect ally</button></div>
+        <div class="specimen"><span class="l-type-caption">Line</span><button class="l-plaque l-line" type="button">Inspect prowl</button></div>
+        <div class="specimen"><span class="l-type-caption">Tonal</span><button class="l-plaque l-tonal" type="button">Open console</button></div>
+        <div class="specimen"><span class="l-type-caption">Quiet</span><button class="l-plaque l-quiet" type="button">Cancel</button></div>
+        <div class="specimen"><span class="l-type-caption">On</span><button class="l-plaque l-on" type="button" aria-pressed="true">Running</button></div>
+        <div class="specimen"><span class="l-type-caption">Danger</span><button class="l-plaque l-danger" type="button">Stop mika-server</button></div>
+        <div class="specimen"><span class="l-type-caption">Danger line</span><button class="l-plaque l-danger-line" type="button">Remove scratch-arch</button></div>
+        <div class="specimen"><span class="l-type-caption">Rest</span><button class="l-plaque l-tonal" type="button">Open fedora-43</button></div>
+        <div class="specimen"><span class="l-type-caption">Hover</span><button class="l-plaque l-tonal" type="button" data-l-state="hover">Open fedora-43</button></div>
+        <div class="specimen"><span class="l-type-caption">Pressed</span><button class="l-plaque l-tonal" type="button" data-l-state="pressed">Open fedora-43</button></div>
+        <div class="specimen"><span class="l-type-caption">Focus</span><span class="l-focus-ring" data-l-state="focus"><button class="l-plaque l-tonal" type="button">Open fedora-43</button></span></div>
+        <div class="specimen"><span class="l-type-caption">Busy</span><button class="l-plaque l-line" type="button" aria-busy="true"><span class="l-working" aria-hidden="true" aria-busy="true"><span class="l-working__flake" aria-hidden="true"></span><span class="l-working__flake" aria-hidden="true"></span><span class="l-working__flake" aria-hidden="true"></span></span>Connecting ally</button></div>
+        <div class="specimen"><span class="l-type-caption">Disabled</span><button class="l-plaque l-tonal" type="button" disabled>Unavailable</button></div>
+        <div class="specimen"><span class="l-type-caption">Small</span><button class="l-plaque l-quiet l-small" type="button">Open kolibrios-latest-en_US</button></div>
       </div>
     </section>
 
     <section class="section" aria-labelledby="split-heading">
       <h2 class="l-type-section" id="split-heading">SplitPlaque</h2>
       <div class="specimen-grid">
-        <div class="specimen l-slab l-cut">
+        <div class="specimen">
           <span class="l-type-caption">Rest</span>
           <div class="l-split-plaque"><button class="l-plaque l-line" type="button"><span class="l-glyph" aria-hidden="true">settings</span>Start ubuntu-24.04</button><button class="l-icon-plaque l-line" type="button" data-l-split-more aria-expanded="false" aria-label="More start options"><span class="l-glyph" aria-hidden="true">expand_more</span></button></div>
         </div>
-        <div class="specimen l-slab l-cut">
+        <div class="specimen">
           <span class="l-type-caption">Hover</span>
           <div class="l-split-plaque"><button class="l-plaque l-line" type="button" data-l-state="hover"><span class="l-glyph" aria-hidden="true">settings</span>Start ubuntu-24.04</button><button class="l-icon-plaque l-line" type="button" data-l-split-more aria-expanded="false" aria-label="More start options"><span class="l-glyph" aria-hidden="true">expand_more</span></button></div>
         </div>
-        <div class="specimen l-slab l-cut">
+        <div class="specimen">
           <span class="l-type-caption">Pressed</span>
           <div class="l-split-plaque"><button class="l-plaque l-line" type="button" data-l-state="pressed"><span class="l-glyph" aria-hidden="true">settings</span>Start ubuntu-24.04</button><button class="l-icon-plaque l-line" type="button" data-l-split-more aria-expanded="false" aria-label="More start options"><span class="l-glyph" aria-hidden="true">expand_more</span></button></div>
         </div>
-        <div class="specimen l-slab l-cut">
+        <div class="specimen">
           <span class="l-type-caption">Focus and open</span>
           <div class="l-split-plaque"><span class="l-focus-ring" data-l-state="focus"><button class="l-plaque l-line" type="button"><span class="l-glyph" aria-hidden="true">settings</span>Start ubuntu-24.04</button></span><button class="l-icon-plaque l-line" type="button" data-l-split-more aria-expanded="true" aria-label="Close start options"><span class="l-glyph" aria-hidden="true">expand_less</span></button></div>
         </div>
-        <div class="specimen l-slab l-cut">
+        <div class="specimen">
           <span class="l-type-caption">Tonal</span>
           <div class="l-split-plaque"><button class="l-plaque l-tonal" type="button"><span class="l-glyph" aria-hidden="true">settings</span>Open console</button><button class="l-icon-plaque l-tonal" type="button" data-l-split-more aria-expanded="false" aria-label="More console options"><span class="l-glyph" aria-hidden="true">expand_more</span></button></div>
         </div>
@@ -97,18 +94,18 @@
     <section class="section" aria-labelledby="icon-heading">
       <h2 class="l-type-section" id="icon-heading">IconPlaque</h2>
       <div class="specimen-grid">
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Gold</span><button class="l-icon-plaque l-gold" type="button" aria-label="Connect ally"><span class="l-glyph" aria-hidden="true">settings</span></button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Line</span><button class="l-icon-plaque l-line" type="button" aria-label="Inspect prowl"><span class="l-glyph" aria-hidden="true">settings</span></button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Tonal</span><button class="l-icon-plaque l-tonal" type="button" aria-label="Open console"><span class="l-glyph" aria-hidden="true">settings</span></button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Quiet</span><button class="l-icon-plaque l-quiet" type="button" aria-label="Cancel"><span class="l-glyph" aria-hidden="true">settings</span></button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">On</span><button class="l-icon-plaque l-on" type="button" aria-label="Running"><span class="l-glyph" aria-hidden="true">settings</span></button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Danger</span><button class="l-icon-plaque l-danger" type="button" aria-label="Stop mika-server"><span class="l-glyph" aria-hidden="true">settings</span></button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Danger line</span><button class="l-icon-plaque l-danger-line" type="button" aria-label="Remove scratch-arch"><span class="l-glyph" aria-hidden="true">settings</span></button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Small</span><button class="l-icon-plaque l-quiet l-small" type="button" aria-label="Server settings"><span class="l-glyph" aria-hidden="true">settings</span></button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Amber notch</span><button class="l-icon-plaque l-quiet notched" type="button" aria-label="Server settings"><span class="l-icon-plaque-notch" aria-hidden="true"></span><span class="l-glyph" aria-hidden="true">settings</span></button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Hover</span><button class="l-icon-plaque l-quiet" type="button" data-l-state="hover" aria-label="Server settings"><span class="l-glyph" aria-hidden="true">settings</span></button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Pressed</span><button class="l-icon-plaque l-quiet" type="button" data-l-state="pressed" aria-label="Server settings"><span class="l-glyph" aria-hidden="true">settings</span></button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Focus</span><span class="l-focus-ring" data-l-state="focus" style="--l-cut:var(--lithic-cut-small)"><button class="l-icon-plaque l-quiet" type="button" aria-label="Server settings"><span class="l-glyph" aria-hidden="true">settings</span></button></span></div>
+        <div class="specimen"><span class="l-type-caption">Gold</span><button class="l-icon-plaque l-gold" type="button" aria-label="Connect ally"><span class="l-glyph" aria-hidden="true">settings</span></button></div>
+        <div class="specimen"><span class="l-type-caption">Line</span><button class="l-icon-plaque l-line" type="button" aria-label="Inspect prowl"><span class="l-glyph" aria-hidden="true">settings</span></button></div>
+        <div class="specimen"><span class="l-type-caption">Tonal</span><button class="l-icon-plaque l-tonal" type="button" aria-label="Open console"><span class="l-glyph" aria-hidden="true">settings</span></button></div>
+        <div class="specimen"><span class="l-type-caption">Quiet</span><button class="l-icon-plaque l-quiet" type="button" aria-label="Cancel"><span class="l-glyph" aria-hidden="true">settings</span></button></div>
+        <div class="specimen"><span class="l-type-caption">On</span><button class="l-icon-plaque l-on" type="button" aria-label="Running"><span class="l-glyph" aria-hidden="true">settings</span></button></div>
+        <div class="specimen"><span class="l-type-caption">Danger</span><button class="l-icon-plaque l-danger" type="button" aria-label="Stop mika-server"><span class="l-glyph" aria-hidden="true">settings</span></button></div>
+        <div class="specimen"><span class="l-type-caption">Danger line</span><button class="l-icon-plaque l-danger-line" type="button" aria-label="Remove scratch-arch"><span class="l-glyph" aria-hidden="true">settings</span></button></div>
+        <div class="specimen"><span class="l-type-caption">Small</span><button class="l-icon-plaque l-quiet l-small" type="button" aria-label="Server settings"><span class="l-glyph" aria-hidden="true">settings</span></button></div>
+        <div class="specimen"><span class="l-type-caption">Amber notch</span><button class="l-icon-plaque l-quiet notched" type="button" aria-label="Server settings"><span class="l-icon-plaque-notch" aria-hidden="true"></span><span class="l-glyph" aria-hidden="true">settings</span></button></div>
+        <div class="specimen"><span class="l-type-caption">Hover</span><button class="l-icon-plaque l-quiet" type="button" data-l-state="hover" aria-label="Server settings"><span class="l-glyph" aria-hidden="true">settings</span></button></div>
+        <div class="specimen"><span class="l-type-caption">Pressed</span><button class="l-icon-plaque l-quiet" type="button" data-l-state="pressed" aria-label="Server settings"><span class="l-glyph" aria-hidden="true">settings</span></button></div>
+        <div class="specimen"><span class="l-type-caption">Focus</span><span class="l-focus-ring" data-l-state="focus" style="--l-cut:var(--lithic-cut-small)"><button class="l-icon-plaque l-quiet" type="button" aria-label="Server settings"><span class="l-glyph" aria-hidden="true">settings</span></button></span></div>
       </div>
     </section>
 
@@ -126,15 +123,15 @@
     <section class="section" aria-labelledby="search-heading">
       <h2 class="l-type-section" id="search-heading">Search</h2>
       <div class="specimen-grid">
-        <div class="specimen l-slab l-cut">
+        <div class="specimen">
           <span class="l-type-caption">Rest with shortcut</span>
           <div class="l-search l-cut"><span class="l-glyph" aria-hidden="true">search</span><span class="l-type-caption" data-l-search-hint>Ctrl K</span><input class="l-text-field" type="search" placeholder="Search machines" aria-label="Search machines"><button class="l-icon-plaque l-quiet l-small" type="button" data-l-search-clear aria-label="Clear search" hidden><span class="l-glyph" aria-hidden="true">close</span></button></div>
         </div>
-        <div class="specimen l-slab l-cut">
+        <div class="specimen">
           <span class="l-type-caption">Focus</span>
           <div class="l-search l-cut"><span class="l-glyph" aria-hidden="true">search</span><input class="l-text-field" type="search" placeholder="Search servers" aria-label="Search servers" data-l-state="focus"><button class="l-icon-plaque l-quiet l-small" type="button" data-l-search-clear aria-label="Clear search" hidden><span class="l-glyph" aria-hidden="true">close</span></button></div>
         </div>
-        <div class="specimen l-slab l-cut">
+        <div class="specimen">
           <span class="l-type-caption">Text with clear</span>
           <div class="l-search l-cut"><span class="l-glyph" aria-hidden="true">search</span><input class="l-text-field" type="search" value="alpine-instant" aria-label="Search fleet"><button class="l-icon-plaque l-quiet l-small" type="button" data-l-search-clear aria-label="Clear search"><span class="l-glyph" aria-hidden="true">close</span></button></div>
         </div>
@@ -172,38 +169,38 @@
     <section class="section" aria-labelledby="toggle-heading">
       <h2 class="l-type-section" id="toggle-heading">Toggle</h2>
       <div class="specimen-grid">
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Off</span><button class="l-toggle" type="button" role="switch" aria-checked="false">Wake on connect</button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">On</span><button class="l-toggle" type="button" role="switch" aria-checked="true">Auto-start prowl</button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Hover</span><button class="l-toggle" type="button" role="switch" aria-checked="false" data-l-state="hover">Share console</button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Pressed</span><button class="l-toggle" type="button" role="switch" aria-checked="false" data-l-state="pressed">Share console</button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Focus</span><button class="l-toggle" type="button" role="switch" aria-checked="false" data-l-state="focus">Share console</button></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Disabled</span><button class="l-toggle" type="button" role="switch" aria-checked="false" disabled>Unavailable</button></div>
+        <div class="specimen"><span class="l-type-caption">Off</span><button class="l-toggle" type="button" role="switch" aria-checked="false">Wake on connect</button></div>
+        <div class="specimen"><span class="l-type-caption">On</span><button class="l-toggle" type="button" role="switch" aria-checked="true">Auto-start prowl</button></div>
+        <div class="specimen"><span class="l-type-caption">Hover</span><button class="l-toggle" type="button" role="switch" aria-checked="false" data-l-state="hover">Share console</button></div>
+        <div class="specimen"><span class="l-type-caption">Pressed</span><button class="l-toggle" type="button" role="switch" aria-checked="false" data-l-state="pressed">Share console</button></div>
+        <div class="specimen"><span class="l-type-caption">Focus</span><button class="l-toggle" type="button" role="switch" aria-checked="false" data-l-state="focus">Share console</button></div>
+        <div class="specimen"><span class="l-type-caption">Disabled</span><button class="l-toggle" type="button" role="switch" aria-checked="false" disabled>Unavailable</button></div>
       </div>
     </section>
 
     <section class="section" aria-labelledby="slider-heading">
       <h2 class="l-type-section" id="slider-heading">Slider</h2>
       <div class="specimen-grid">
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Rest</span><label class="value-line"><span>Console scale</span><span class="l-slider-field"><input class="l-slider" type="range" min="0" max="100" step="5" value="62" aria-label="Console scale"><span class="l-slider-rail"><span class="l-slider-fill"></span><span class="l-slider-handle"></span></span></span><output data-l-slider-value>62</output></label></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Hover</span><label class="value-line"><span>Console scale</span><span class="l-slider-field"><input class="l-slider" type="range" min="0" max="100" step="5" value="62" aria-label="Console scale" data-l-state="hover"><span class="l-slider-rail"><span class="l-slider-fill"></span><span class="l-slider-handle"></span></span></span><output data-l-slider-value>62</output></label></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Pressed</span><label class="value-line"><span>Console scale</span><span class="l-slider-field"><input class="l-slider" type="range" min="0" max="100" step="5" value="62" aria-label="Console scale" data-l-state="pressed"><span class="l-slider-rail"><span class="l-slider-fill"></span><span class="l-slider-handle"></span></span></span><output data-l-slider-value>62</output></label></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Focus</span><label class="value-line"><span>Console scale</span><span class="l-slider-field"><input class="l-slider" type="range" min="0" max="100" step="5" value="62" aria-label="Console scale" data-l-state="focus"><span class="l-slider-rail"><span class="l-slider-fill"></span><span class="l-slider-handle"></span></span></span><output data-l-slider-value>62</output></label></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Disabled</span><label class="value-line"><span>Console scale</span><span class="l-slider-field"><input class="l-slider" type="range" min="0" max="100" step="5" value="62" aria-label="Console scale" disabled><span class="l-slider-rail"><span class="l-slider-fill"></span><span class="l-slider-handle"></span></span></span><output data-l-slider-value>62</output></label></div>
+        <div class="specimen"><span class="l-type-caption">Rest</span><label class="value-line"><span>Console scale</span><span class="l-slider-field"><input class="l-slider" type="range" min="0" max="100" step="5" value="62" aria-label="Console scale"><span class="l-slider-rail"><span class="l-slider-fill"></span><span class="l-slider-handle"></span></span></span><output data-l-slider-value>62</output></label></div>
+        <div class="specimen"><span class="l-type-caption">Hover</span><label class="value-line"><span>Console scale</span><span class="l-slider-field"><input class="l-slider" type="range" min="0" max="100" step="5" value="62" aria-label="Console scale" data-l-state="hover"><span class="l-slider-rail"><span class="l-slider-fill"></span><span class="l-slider-handle"></span></span></span><output data-l-slider-value>62</output></label></div>
+        <div class="specimen"><span class="l-type-caption">Pressed</span><label class="value-line"><span>Console scale</span><span class="l-slider-field"><input class="l-slider" type="range" min="0" max="100" step="5" value="62" aria-label="Console scale" data-l-state="pressed"><span class="l-slider-rail"><span class="l-slider-fill"></span><span class="l-slider-handle"></span></span></span><output data-l-slider-value>62</output></label></div>
+        <div class="specimen"><span class="l-type-caption">Focus</span><label class="value-line"><span>Console scale</span><span class="l-slider-field"><input class="l-slider" type="range" min="0" max="100" step="5" value="62" aria-label="Console scale" data-l-state="focus"><span class="l-slider-rail"><span class="l-slider-fill"></span><span class="l-slider-handle"></span></span></span><output data-l-slider-value>62</output></label></div>
+        <div class="specimen"><span class="l-type-caption">Disabled</span><label class="value-line"><span>Console scale</span><span class="l-slider-field"><input class="l-slider" type="range" min="0" max="100" step="5" value="62" aria-label="Console scale" disabled><span class="l-slider-rail"><span class="l-slider-fill"></span><span class="l-slider-handle"></span></span></span><output data-l-slider-value>62</output></label></div>
       </div>
     </section>
 
     <section class="section" aria-labelledby="stepper-heading">
       <h2 class="l-type-section" id="stepper-heading">Stepper</h2>
       <div class="specimen-grid">
-        <div class="specimen l-slab l-cut">
+        <div class="specimen">
           <span class="l-type-caption">Middle</span>
           <div class="l-stepper" role="group" aria-label="Cores" data-value="4" data-min="1" data-max="8" data-step="1"><button class="l-icon-plaque l-quiet l-small" type="button" data-l-stepper="decrement" aria-label="Fewer cores"><span class="l-glyph" aria-hidden="true">remove</span></button><span class="l-stepper-reading l-cut"><output class="l-stepper-value" role="spinbutton" tabindex="0" aria-label="Cores">4</output><span class="l-stepper-unit">cores</span></span><button class="l-icon-plaque l-quiet l-small" type="button" data-l-stepper="increment" aria-label="More cores"><span class="l-glyph" aria-hidden="true">add</span></button></div>
         </div>
-        <div class="specimen l-slab l-cut">
+        <div class="specimen">
           <span class="l-type-caption">Minimum bound</span>
           <div class="l-stepper" role="group" aria-label="Cores" data-value="1" data-min="1" data-max="8" data-step="1"><button class="l-icon-plaque l-quiet l-small" type="button" data-l-stepper="decrement" aria-label="Fewer cores"><span class="l-glyph" aria-hidden="true">remove</span></button><span class="l-stepper-reading l-cut"><output class="l-stepper-value" role="spinbutton" tabindex="0" aria-label="Cores">1</output><span class="l-stepper-unit">core</span></span><button class="l-icon-plaque l-quiet l-small" type="button" data-l-stepper="increment" aria-label="More cores"><span class="l-glyph" aria-hidden="true">add</span></button></div>
         </div>
-        <div class="specimen l-slab l-cut">
+        <div class="specimen">
           <span class="l-type-caption">Maximum bound and focus</span>
           <div class="l-stepper" role="group" aria-label="Cores" data-value="8" data-min="1" data-max="8" data-step="1"><button class="l-icon-plaque l-quiet l-small" type="button" data-l-stepper="decrement" aria-label="Fewer cores"><span class="l-glyph" aria-hidden="true">remove</span></button><span class="l-stepper-reading l-cut"><output class="l-stepper-value" role="spinbutton" tabindex="0" aria-label="Cores" data-l-state="focus">8</output><span class="l-stepper-unit">cores</span></span><button class="l-icon-plaque l-quiet l-small" type="button" data-l-stepper="increment" aria-label="More cores"><span class="l-glyph" aria-hidden="true">add</span></button></div>
         </div>
@@ -213,18 +210,18 @@
     <section class="section" aria-labelledby="segmented-heading">
       <h2 class="l-type-section" id="segmented-heading">Segmented</h2>
       <div class="specimen-grid">
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Two options</span><div class="l-segmented l-cut" aria-label="Contrast"><button class="l-segment" type="button" aria-checked="true" data-value="standard">Standard</button><button class="l-segment" type="button" aria-checked="false" data-value="high">High</button></div></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Three options</span><div class="l-segmented l-cut" aria-label="Tint"><button class="l-segment" type="button" aria-checked="false" data-value="off">Off</button><button class="l-segment" type="button" aria-checked="true" data-value="low">Low</button><button class="l-segment" type="button" aria-checked="false" data-value="medium">Medium</button></div></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Hover</span><div class="l-segmented l-cut" aria-label="Machine state"><button class="l-segment" type="button" aria-checked="true" data-value="all">All</button><button class="l-segment" type="button" aria-checked="false" data-value="running" data-l-state="hover">Running</button><button class="l-segment" type="button" aria-checked="false" data-value="stopped">Stopped</button></div></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Focus</span><div class="l-segmented l-cut" aria-label="Machine state" data-l-state="focus"><button class="l-segment" type="button" aria-checked="true" data-value="all">All</button><button class="l-segment" type="button" aria-checked="false" data-value="running">Running</button><button class="l-segment" type="button" aria-checked="false" data-value="stopped">Stopped</button></div></div>
-        <div class="specimen l-slab l-cut"><span class="l-type-caption">Disabled</span><div class="l-segmented l-cut" aria-label="Tint" aria-disabled="true"><button class="l-segment" type="button" aria-checked="false" data-value="off">Off</button><button class="l-segment" type="button" aria-checked="false" data-value="low">Low</button><button class="l-segment" type="button" aria-checked="true" data-value="medium">Medium</button></div></div>
+        <div class="specimen"><span class="l-type-caption">Two options</span><div class="l-segmented l-cut" aria-label="Contrast"><button class="l-segment" type="button" aria-checked="true" data-value="standard">Standard</button><button class="l-segment" type="button" aria-checked="false" data-value="high">High</button></div></div>
+        <div class="specimen"><span class="l-type-caption">Three options</span><div class="l-segmented l-cut" aria-label="Tint"><button class="l-segment" type="button" aria-checked="false" data-value="off">Off</button><button class="l-segment" type="button" aria-checked="true" data-value="low">Low</button><button class="l-segment" type="button" aria-checked="false" data-value="medium">Medium</button></div></div>
+        <div class="specimen"><span class="l-type-caption">Hover</span><div class="l-segmented l-cut" aria-label="Machine state"><button class="l-segment" type="button" aria-checked="true" data-value="all">All</button><button class="l-segment" type="button" aria-checked="false" data-value="running" data-l-state="hover">Running</button><button class="l-segment" type="button" aria-checked="false" data-value="stopped">Stopped</button></div></div>
+        <div class="specimen"><span class="l-type-caption">Focus</span><div class="l-segmented l-cut" aria-label="Machine state" data-l-state="focus"><button class="l-segment" type="button" aria-checked="true" data-value="all">All</button><button class="l-segment" type="button" aria-checked="false" data-value="running">Running</button><button class="l-segment" type="button" aria-checked="false" data-value="stopped">Stopped</button></div></div>
+        <div class="specimen"><span class="l-type-caption">Disabled</span><div class="l-segmented l-cut" aria-label="Tint" aria-disabled="true"><button class="l-segment" type="button" aria-checked="false" data-value="off">Off</button><button class="l-segment" type="button" aria-checked="false" data-value="low">Low</button><button class="l-segment" type="button" aria-checked="true" data-value="medium">Medium</button></div></div>
       </div>
     </section>
 
     <section class="section" aria-labelledby="filters-heading">
       <h2 class="l-type-section" id="filters-heading">Filters</h2>
       <div class="specimen-grid">
-        <div class="specimen l-slab l-cut">
+        <div class="specimen">
           <span class="l-type-caption">Selected</span>
           <div class="l-filters" role="group" aria-label="Fleet state filter">
             <span class="l-filter-slab l-place-chip" aria-hidden="true"></span>
@@ -233,7 +230,7 @@
             <button class="l-filter" type="button" aria-pressed="false" data-value="stopped" tabindex="-1">Stopped <span class="l-filter-count">3</span></button>
           </div>
         </div>
-        <div class="specimen l-slab l-cut">
+        <div class="specimen">
           <span class="l-type-caption">Hover</span>
           <div class="l-filters" role="group" aria-label="Fleet state filter, hover">
             <span class="l-filter-slab l-place-chip" aria-hidden="true"></span>
@@ -242,7 +239,7 @@
             <button class="l-filter" type="button" aria-pressed="false" data-value="stopped" tabindex="-1" data-l-state="hover">Stopped <span class="l-filter-count">3</span></button>
           </div>
         </div>
-        <div class="specimen l-slab l-cut">
+        <div class="specimen">
           <span class="l-type-caption">Focus</span>
           <div class="l-filters" role="group" aria-label="Fleet state filter, focus">
             <span class="l-filter-slab l-place-chip" aria-hidden="true"></span>
@@ -257,7 +254,7 @@
     <section class="section" aria-labelledby="tabs-heading">
       <h2 class="l-type-section" id="tabs-heading">Tabs</h2>
       <div class="specimen-grid">
-        <div class="specimen l-slab l-cut wide">
+        <div class="specimen wide">
           <span class="l-type-caption">Selected</span>
           <div class="l-tabs" role="tablist" aria-label="Machine details">
             <span class="l-tabs-blade" aria-hidden="true"></span>
@@ -269,7 +266,7 @@
           <div class="tab-panel l-type-body" id="tab-servers" role="tabpanel" aria-labelledby="servers-tab" hidden>mika-server listens at root@203.0.113.70:2222.</div>
           <div class="tab-panel l-type-body" id="tab-console" role="tabpanel" aria-labelledby="console-tab" hidden>Console router is available on /dev/ttyUSB0.</div>
         </div>
-        <div class="specimen l-slab l-cut">
+        <div class="specimen">
           <span class="l-type-caption">Hover</span>
           <div class="l-tabs" role="tablist" aria-label="Machine details, hover">
             <span class="l-tabs-blade" aria-hidden="true"></span>
@@ -278,7 +275,7 @@
             <button class="l-tab" type="button" role="tab" aria-selected="false" tabindex="-1" data-l-state="hover">Console</button>
           </div>
         </div>
-        <div class="specimen l-slab l-cut">
+        <div class="specimen">
           <span class="l-type-caption">Focus and arrow keys</span>
           <div class="l-tabs" role="tablist" aria-label="Machine details, focus">
             <span class="l-tabs-blade" aria-hidden="true"></span>
@@ -292,22 +289,22 @@
 
     <section class="section" aria-labelledby="rows-heading">
       <h2 class="l-type-section" id="rows-heading">Selected row</h2>
-      <div class="specimen l-slab l-cut">
-        <span class="l-type-caption">Rest, selected with the place blade, hover</span>
+      <div class="specimen">
+        <span class="l-type-caption">Rest, selected, hover</span>
         <div class="row-stack">
           <article class="l-tablet l-notch" aria-selected="false" data-tone="idle" data-value="fedora-43">
             <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">dns</span></span>
-            <span class="l-tablet__copy"><span class="l-tablet__title">fedora-43</span><span class="l-tablet__facts l-literal">prowl · 192.0.2.24</span></span>
+            <span class="l-tablet__copy"><span class="l-tablet__title">fedora-43</span><span class="l-tablet__facts l-literal">prowl at 192.0.2.24</span></span>
             <span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Stopped</span></span></span>
           </article>
           <article class="l-tablet l-notch l-place-row" aria-selected="true" data-tone="alive" data-value="ubuntu-24.04">
             <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">computer</span></span>
-            <span class="l-tablet__copy"><span class="l-tablet__title">ubuntu-24.04</span><span class="l-tablet__facts l-literal">ally · 192.0.2.18</span></span>
+            <span class="l-tablet__copy"><span class="l-tablet__title">ubuntu-24.04</span><span class="l-tablet__facts l-literal">ally at 192.0.2.18</span></span>
             <span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Running</span></span></span>
           </article>
           <article class="l-tablet l-notch" aria-selected="false" data-tone="attention" data-value="scratch-arch" data-l-state="hover">
             <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">warning</span></span>
-            <span class="l-tablet__copy"><span class="l-tablet__title">scratch-arch</span><span class="l-tablet__facts">ally · Disposable</span></span>
+            <span class="l-tablet__copy"><span class="l-tablet__title">scratch-arch</span><span class="l-tablet__facts">Disposable on ally</span></span>
             <span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Needs you</span></span><span class="l-tablet__action"><button class="l-plaque l-tonal l-small" type="button">Review</button></span></span>
           </article>
         </div>
@@ -316,7 +313,7 @@
 
     <section class="section" aria-labelledby="menu-heading">
       <h2 class="l-type-section" id="menu-heading">Menu</h2>
-      <div class="specimen l-slab l-cut menu-stage">
+      <div class="specimen menu-stage">
         <span class="l-type-caption">Checked items show a check, never a selection fill</span>
         <button class="l-plaque l-tonal" type="button" aria-expanded="true" data-l-popover="view-menu">Fleet view</button>
         <div class="l-popover l-menu l-cut" id="view-menu" role="menu" data-l-static-open>
@@ -330,11 +327,11 @@
     <section class="section" aria-labelledby="disclosure-heading">
       <h2 class="l-type-section" id="disclosure-heading">Disclosure</h2>
       <div class="specimen-grid">
-        <div class="specimen l-slab l-cut">
+        <div class="specimen">
           <span class="l-type-caption">Closed</span>
           <div class="l-disclosure"><button class="l-plaque l-quiet" type="button" data-l-disclosure-trigger aria-expanded="false" aria-controls="disclosure-closed">Show connection facts</button><div class="l-disclosure-content" id="disclosure-closed"><p class="disclosure-copy l-type-body">prowl at 192.0.2.24 is alive</p></div></div>
         </div>
-        <div class="specimen l-slab l-cut">
+        <div class="specimen">
           <span class="l-type-caption">Open</span>
           <div class="l-disclosure"><button class="l-plaque l-quiet" type="button" data-l-disclosure-trigger aria-expanded="true" aria-controls="disclosure-open">Hide connection facts</button><div class="l-disclosure-content" id="disclosure-open"><p class="disclosure-copy l-type-body">prowl at 192.0.2.24 is alive</p></div></div>
         </div>
