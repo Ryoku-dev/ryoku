@@ -118,13 +118,22 @@ T.Control {
     TapHandler {
         enabled: root.enabled
         onTapped: {
+            root._openedFromKeys = false
             root.forceActiveFocus()
             root.toggle()
         }
     }
-    Keys.onSpacePressed: toggle()
-    Keys.onReturnPressed: toggle()
-    Keys.onDownPressed: open()
+    property bool _openedFromKeys: false
+    function _toggleFromKeys() {
+        _openedFromKeys = true
+        toggle()
+    }
+    Keys.onSpacePressed: _toggleFromKeys()
+    Keys.onReturnPressed: _toggleFromKeys()
+    Keys.onDownPressed: {
+        _openedFromKeys = true
+        open()
+    }
     // a closed picker lets Escape go on, so the dialog or page holding it can close
     Keys.onEscapePressed: event => {
         if (popover.opened)
@@ -140,7 +149,7 @@ T.Control {
         opener: root
         previewEmbedded: root.previewOpen
         // the popover takes focus on open; hand it to the menu so the arrows and Return choose
-        onOpened: menu.focusItem(root.currentIndex)
+        onOpened: menu.focusItem(root.currentIndex, root._openedFromKeys)
 
         Menu {
             id: menu

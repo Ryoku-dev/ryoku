@@ -84,5 +84,24 @@ Item {
             compare(picker.currentIndex, 0);
             compare(activations.count, 2);
         }
+
+        function test_keyboardMarkFollowsTheKeys() {
+            picker.currentIndex = 1;
+            picker.forceActiveFocus();
+            keyClick(Qt.Key_Down);
+            tryCompare(picker, "opened", true);
+            verify(picker.Window.activeFocusItem.visualFocus, "opened from the keys, the current item shows the mark");
+            keyClick(Qt.Key_Escape);
+            tryCompare(picker, "opened", false);
+            tryVerify(() => picker.activeFocus, 1000);
+
+            mouseClick(picker);
+            tryCompare(picker, "opened", true);
+            verify(!picker.Window.activeFocusItem.visualFocus, "opened with the pointer, no keyboard mark");
+            keyClick(Qt.Key_Down);
+            verify(picker.Window.activeFocusItem.visualFocus, "the first key move shows the mark");
+            keyClick(Qt.Key_Escape);
+            tryCompare(picker, "opened", false);
+        }
     }
 }

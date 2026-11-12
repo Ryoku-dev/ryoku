@@ -27,7 +27,8 @@ T.Control {
         return entry && !entry.divider && !entry.disabled
     }
 
-    function moveFocus(step) {
+    // moves come from the keys unless a host says otherwise, so they show the keyboard mark
+    function moveFocus(step, reason) {
         if (items.length === 0)
             return
         let next = focusedIndex
@@ -37,7 +38,7 @@ T.Control {
                 focusedIndex = next
                 const item = itemRepeater.itemAt(next)
                 if (item)
-                    item.forceActiveFocus()
+                    item.forceActiveFocus(reason === undefined ? Qt.TabFocusReason : reason)
                 return
             }
         }
@@ -48,17 +49,18 @@ T.Control {
             triggered(focusedIndex)
     }
 
-    // a host that opens the menu from the keyboard starts on its current item
-    function focusItem(index) {
+    // a host that opens the menu starts on its current item; only a menu opened
+    // from the keys shows the keyboard mark there, as pointer focus never does
+    function focusItem(index, fromKeys) {
         if (!itemEnabled(index)) {
             focusedIndex = -1
-            moveFocus(1)
+            moveFocus(1, fromKeys ? Qt.TabFocusReason : Qt.OtherFocusReason)
             return
         }
         focusedIndex = index
         const item = itemRepeater.itemAt(index)
         if (item)
-            item.forceActiveFocus()
+            item.forceActiveFocus(fromKeys ? Qt.TabFocusReason : Qt.OtherFocusReason)
     }
 
     Keys.onDownPressed: moveFocus(1)
