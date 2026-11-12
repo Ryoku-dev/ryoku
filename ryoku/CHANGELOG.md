@@ -157,6 +157,11 @@
   stopped at the same place. A missing file now counts as removed, a file that
   will not go stays listed for the next try, and the list always matches what
   is left (`palette-bridge/remove-integrations.sh`).
+- **Rashin's menus, pickers and dialogs work from the keyboard.** Its vendored
+  Lithic Gio kit still held the popover that pulled focus back every frame;
+  the re-vendored kit chooses in pickers and menus with the keys, focuses a
+  dialog's first control and closes on Escape in order
+  (`rashin/vendor/github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit`).
 - **Rashin's composer takes the pointer and the keyboard.** An invisible drop
   area covered it, so no click reached the text, attach, the model or the
   harness. Typing also went nowhere after a menu, the search field or a
