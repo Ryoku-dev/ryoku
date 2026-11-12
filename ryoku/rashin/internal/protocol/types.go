@@ -274,7 +274,9 @@ type KeyInfo struct {
 	Checked   *time.Time `json:"checked,omitempty"`
 }
 
-// ProviderInfo describes one catalogue provider and its state here.
+// ProviderInfo describes one provider and its state here. Tier is the
+// provider's own (free, credits or paid; local for a server on this computer
+// or the local network); a model may carry another, as ModelInfo.Tier says.
 type ProviderInfo struct {
 	ID            string     `json:"id"`
 	Name          string     `json:"name"`
@@ -289,6 +291,12 @@ type ProviderInfo struct {
 	KeyHint       string     `json:"keyHint,omitempty"`
 	Note          string     `json:"note,omitempty"`
 	CooldownUntil *time.Time `json:"cooldownUntil,omitempty"`
+	// Local marks a model server on this computer or the local network.
+	// Address is where Rashin reaches its OpenAI-compatible API, and Running
+	// says it answered the last time Rashin asked for its models.
+	Local   bool   `json:"local,omitempty"`
+	Address string `json:"address,omitempty"`
+	Running bool   `json:"running,omitempty"`
 }
 
 // ProvidersResult lists providers.
@@ -329,11 +337,25 @@ type ProviderTestResult struct {
 	Message   string `json:"message,omitempty"`
 }
 
-// ModelInfo describes one free chat model.
+// Model tiers. Auto, Fast and Smart route among free, credits and local
+// models only; a paid model answers only when it is the model asked for.
+const (
+	// TierFree is a model free to use, with or without a key.
+	TierFree = "free"
+	// TierCredits is a model paid for with credits a provider renews for free.
+	TierCredits = "credits"
+	// TierPaid is a model the key's owner pays for.
+	TierPaid = "paid"
+	// TierLocal is a model served on this computer or the local network.
+	TierLocal = "local"
+)
+
+// ModelInfo describes one chat model. Tier is one of the model tiers.
 type ModelInfo struct {
 	ID            string     `json:"id"`
 	Provider      string     `json:"provider"`
 	Name          string     `json:"name"`
+	Tier          string     `json:"tier"`
 	Context       int        `json:"context,omitempty"`
 	Tools         bool       `json:"tools,omitempty"`
 	Reasoning     bool       `json:"reasoning,omitempty"`
@@ -881,13 +903,21 @@ func DefaultTeamsHidden() []string {
 
 // Settings is rashin.json. Enabled is changed only by rashin on and off.
 type Settings struct {
-	Enabled bool           `json:"enabled"`
-	Ask     AskSettings    `json:"ask"`
-	Agent   AgentSettings  `json:"agent"`
-	Daemon  DaemonSettings `json:"daemon"`
-	Index   IndexSettings  `json:"index"`
-	API     APISettings    `json:"api"`
-	Teams   TeamsSettings  `json:"teams"`
+	Enabled   bool              `json:"enabled"`
+	Ask       AskSettings       `json:"ask"`
+	Agent     AgentSettings     `json:"agent"`
+	Daemon    DaemonSettings    `json:"daemon"`
+	Index     IndexSettings     `json:"index"`
+	API       APISettings       `json:"api"`
+	Teams     TeamsSettings     `json:"teams"`
+	Providers ProvidersSettings `json:"providers"`
+}
+
+// ProvidersSettings are the providers' settings that are not keys. Local maps
+// a local provider's id to the address of its OpenAI-compatible API; only the
+// Rashin app may change one, since the gateway sends requests there.
+type ProvidersSettings struct {
+	Local map[string]string `json:"local,omitempty"`
 }
 
 // SettingsSetParams carries a JSON merge patch (RFC 7396) over Settings.

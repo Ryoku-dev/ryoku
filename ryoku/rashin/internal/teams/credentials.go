@@ -479,38 +479,60 @@ func (s *Service) agentRequest(ctx context.Context, p protocol.AgentCredentialRe
 	if err != nil {
 		return protocol.AgentAnswer{}, err
 	}
-	request := credentialRequest{Name: strings.TrimSpace(p.Name), Reason: strings.TrimSpace(p.Reason)}
-	if err := vault.CheckName(request.Name); err != nil {
+	request, err := checkRequest(p.Name, p.Reason, p.Hosts)
+	if err != nil {
 		return protocol.AgentAnswer{}, err
-	}
-	if request.Reason == "" || utf8.RuneCountInString(request.Reason) > maxRequestReason {
-		return protocol.AgentAnswer{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("Say why the team needs it, in at most %d characters.", maxRequestReason))
-	}
-	if request.Hosts, err = hostrule.Check(p.Hosts); err != nil {
-		return protocol.AgentAnswer{}, err
-	}
-	if len(request.Hosts) == 0 {
-		return protocol.AgentAnswer{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Say where the credential would go: at least one host."))
-	}
-	for _, host := range request.Hosts {
-		if strings.HasPrefix(host, "*.") {
-			return protocol.AgentAnswer{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("Name each host exactly: %s stands for every name under a domain, which only the user may allow.", host))
-		}
 	}
 	if existing, ok := s.vault.Find(request.Name); ok && !slices.Contains(existing.Teams, team.ID) {
 		return protocol.AgentAnswer{Text: i18n.Tf("The vault already holds a credential named %s for other teams. Ask the user to let your team use it, or ask for another name.", request.Name)}, nil
 	}
+	if err := s.askCredential(ctx, c, team, request, s.callerActor(team, c), protocol.InitiatorAgent); err != nil {
+		return protocol.AgentAnswer{}, err
+	}
+	return protocol.AgentAnswer{Text: i18n.Tf("Waiting for the user to add %s. End your turn now; Rashin continues this task with their answer.", request.Name)}, nil
+}
+
+// checkRequest checks a credential someone asks the user to add: a name the
+// vault accepts, a reason within maxRequestReason runes, and at least one
+// host, each named exactly.
+func checkRequest(name, reason string, hosts []string) (credentialRequest, error) {
+	request := credentialRequest{Name: strings.TrimSpace(name), Reason: strings.TrimSpace(reason)}
+	if err := vault.CheckName(request.Name); err != nil {
+		return credentialRequest{}, err
+	}
+	if request.Reason == "" || utf8.RuneCountInString(request.Reason) > maxRequestReason {
+		return credentialRequest{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("Say why the team needs it, in at most %d characters.", maxRequestReason))
+	}
+	var err error
+	if request.Hosts, err = hostrule.Check(hosts); err != nil {
+		return credentialRequest{}, err
+	}
+	if len(request.Hosts) == 0 {
+		return credentialRequest{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Say where the credential would go: at least one host."))
+	}
+	for _, host := range request.Hosts {
+		if strings.HasPrefix(host, "*.") {
+			return credentialRequest{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("Name each host exactly: %s stands for every name under a domain, which only the user may allow.", host))
+		}
+	}
+	return request, nil
+}
+
+// askCredential opens a credential request for a team in the Inbox and
+// records it in the vault's record and the ledger under actor.
+func (s *Service) askCredential(ctx context.Context, c caller, team protocol.Team, request credentialRequest, actor, initiator string) error {
 	approval := protocol.Approval{
 		Kind:   protocol.ApprovalRequest,
 		Title:  i18n.Tf("%s asks for a credential: %s", team.Name, request.Name),
 		Detail: s.redact(request.Reason + "\n\n" + i18n.Tf("It would go to: %s", strings.Join(request.Hosts, ", "))),
 	}
 	if _, err := s.ask(ctx, c, approval, request); err != nil {
-		return protocol.AgentAnswer{}, err
+		return err
 	}
-	s.recordCredential(protocol.VaultEvent{Name: request.Name, Team: team.ID, Task: c.Task, Outcome: protocol.VaultAsked, Detail: i18n.Tf("Asked for it to go to %s.", strings.Join(request.Hosts, ", "))})
-	s.record(protocol.Activity{Actor: s.callerActor(team, c), Action: "credential.request", Target: request.Name, OK: true, Team: team.ID, Task: c.Task, Initiator: protocol.InitiatorAgent, Detail: i18n.Tf("Asked for it to go to %s.", strings.Join(request.Hosts, ", "))})
-	return protocol.AgentAnswer{Text: i18n.Tf("Waiting for the user to add %s. End your turn now; Rashin continues this task with their answer.", request.Name)}, nil
+	hosts := i18n.Tf("Asked for it to go to %s.", strings.Join(request.Hosts, ", "))
+	s.recordCredential(protocol.VaultEvent{Name: request.Name, Team: team.ID, Task: c.Task, Outcome: protocol.VaultAsked, Detail: hosts})
+	s.record(protocol.Activity{Actor: actor, Action: "credential.request", Target: request.Name, OK: true, Team: team.ID, Task: c.Task, Initiator: initiator, Detail: hosts})
+	return nil
 }
 
 // effectRequest adds the credential the user provided, sent as a bearer

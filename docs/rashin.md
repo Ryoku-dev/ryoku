@@ -73,7 +73,7 @@ ryoku/rashin/
   internal/client/      socket client, daemon start, used by CLI and app
   internal/daemon/      server, dispatch, lifecycle, session manager
   internal/session/     event log store
-  internal/gateway/     built-in free-model router
+  internal/gateway/     built-in model router: free, paid and local providers
   internal/ask/         native Ask runner, tools, command safety
   internal/attachment/  what an attached file is, read for a model
   internal/brief/       what every request is told about Ryoku, the vault and Rashin
@@ -390,12 +390,41 @@ Other programs reach it only through the local API below, which is off until
 asked for; without it the router opens no port.
 
 - **Catalogue** (`internal/gateway/catalog.json`, embedded): curated
-  OpenAI-compatible providers with free or renewable tiers. Each entry has an
-  id, name, base URL, auth (`bearer`, `none`, `cloudflare` account plus token),
-  `keyless`, signup URL, extra headers, and its free chat models (id, name,
-  context, tools, reasoning, vision, quality rank, speed rank). Derived from
-  Prowl's MIT catalogue (attributed in `ryoku/rashin/NOTICE`). Non-chat models
-  (speech, transcription, guard, embedding, image) are never listed.
+  OpenAI-compatible providers. Each entry has an id, name, tier, base URL, auth
+  (`bearer`, `none`, `cloudflare` account plus token), `keyless`, signup URL,
+  extra headers, `completionTokens` (send `max_completion_tokens`, which
+  OpenAI's reasoning models take instead of `max_tokens`), and its chat models
+  (id, name, an optional tier of its own, context, tools, reasoning, vision,
+  quality rank, speed rank). Derived from Prowl's MIT catalogue (attributed in
+  `ryoku/rashin/NOTICE`). Non-chat models (speech, transcription, guard,
+  embedding, image) are never listed.
+- **Tiers** (`ModelInfo.Tier`, `ProviderInfo.Tier`): `free`, `credits` (free
+  credits a provider renews), `paid` (the key's owner is billed) and `local`.
+  A model's tier is its provider's unless it names its own: Google Gemini's
+  Flash models are free, Gemini 4 Carbon and Argon are paid; Mistral Large 4
+  is paid. OpenAI (GPT-5.6 Sol, Terra, Luna; the GPT-6 models call tools only
+  through the Responses API and are not listed) and Anthropic (Claude Fable
+  5.2, Opus, Sonnet and Haiku 5.5, through its OpenAI-compatible endpoint) are
+  paid providers with a bearer key.
+- **Auto stays free**: `auto`, `auto:fast` and `auto:smart` never route to a
+  paid model, and a pin to another model never fails over to one. A paid model
+  answers only when it is the model asked for. A key test runs on a free model
+  of the provider when it has one, since a free-plan key is refused a paid
+  model.
+- **Local providers** (`internal/gateway/local.go`): `ollama-local` (Ollama)
+  and `llamacpp` (llama-server), tier `local`, keyless. Their addresses are
+  `providers.local` in rashin.json (defaults `http://127.0.0.1:11434/v1` and
+  `http://127.0.0.1:8080/v1`). Only `localhost`, loopback and private-network
+  IP addresses are accepted, a patch to `providers` is the Rashin app's alone
+  (`settingsForApp`), and the gateway's own client for them uses no proxy and
+  refuses at connect time any address that is not loopback or private. Models
+  come from `GET {address}/models`, trusted for 30 s (Test asks again);
+  embedding models are skipped and the rest are assumed to take tools. A
+  server that does not answer reads "Not running", has no models and is never
+  routed, which is not an error. Auto tries a running local model first;
+  Fast and Smart rank them like any other. Settings > Providers shows them in
+  an "On this computer" group with an address field and Save, and `rashin
+  providers` prints their address and whether they run.
 - **Keys**: one record per key in `gateway.db`, the secret sealed with
   AES-256-GCM under `master.key`. Health is honest: `healthy` only after a real
   completion through that key, `error` only after the provider rejects the key
@@ -566,6 +595,14 @@ The Ask runner (`internal/ask`) is Rashin's own agent loop on the gateway.
 - **Handoff**: `session.handoff` opens an Agent session (default harness unless
   named) whose first user event carries the question, what was attached to
   it, the answer and the reason; with `run` it prompts at once.
+- **Model**: a session without a model of its own asks the one `ask.model`
+  names, and that one may fail over to another. A model the user picks for a
+  conversation (`session.set_model`; the app sends it right after
+  `session.new`, before the first question) is pinned: the session records
+  `pinned`, every request is strict, and the model answers or the turn says
+  why it could not, never another model in its place. The pin survives the
+  daemon restarting and is carried into a fork; picking Auto, Fast or Smart
+  takes it back.
 
 ### In a terminal
 
@@ -632,6 +669,14 @@ sandbox (see Teams), is offered neither: Rashin refuses its `fs/` and
   ran is opened, so the composer shows the model, mode and options the
   harness will really use, and stops the agent again if the session is left
   with nothing asked.
+- **The model it starts on**: `session.new` may carry a `model`. Right after
+  `session/new` the runner puts the fresh harness session on it
+  (`session/set_model`, or `session/set_config_option` where the agent offers
+  a model option), after it has learned the harness's own default for the
+  capabilities cache. A session the agent loads back keeps its own model, and
+  one that starts over is put on the last model set. A harness that refuses
+  the model leaves the session on its default with a warning notice; it still
+  starts.
 - **The brief** (`internal/brief`, `internal/daemon/brief.go`): the first
   prompt of an agent session carries one text block ahead of the user's own:
   that it runs inside Rashin on Ryoku, the session's folder, project and
@@ -934,12 +979,53 @@ routine is on.
   paths hidden from it) and a notify level (`all`, `needs`, `none`). A paused
   team starts no task and fires no routine, and neither does any team while
   `teams.paused` is on.
-- **Templates**: Research desk, Mail desk, Repo watch, System care and New
-  team. Repo watch brings the routine Morning review (`0 9 * * 1-5`) and
-  System care one at `0 18 * * *`, both off.
+- **Templates**, each with a level (`TeamTemplate.level`) and offered in
+  this order: light System care and Mail desk; medium Repo watch and Research
+  desk; advanced News desk; then New team. System care brings Evening check
+  (`0 18 * * *`) and Repo watch Morning review (`0 9 * * 1-5`). News desk is
+  an Editor (lead), a Reader on Claude Code with haiku and a Fact checker,
+  with Weekly digest (`0 8 * * 1`) bound to the Editor and Breaking news
+  (`0 * * * *`) bound to the Reader. Every routine arrives off. A template
+  names the credentials its team needs (`TeamTemplate.credentials`): Repo
+  watch `GITHUB_TOKEN` for `api.github.com`, News desk `NEWS_API_KEY` for
+  `newsapi.org`. A team made from it opens a credential request for each
+  one the vault does not hold; a name the vault holds for other teams is not
+  asked for again, and Activity says to let this team use it.
+- Teams do not talk to each other. No tool reaches another team: `delegate`
+  finds members only in the caller's own team, `~/Teams` is hidden from every
+  team agent and only its own folder is visible, and a folder inside another
+  team's is refused as a writable one. Two teams share only a credential the
+  user lets both use.
 - `teams.export` writes a team's definition into its folder, without history
   or credential values; `teams.import` makes a paused team from one, its
   routines off.
+
+### Proposals
+
+Any agent or person may propose a team; only the user makes one.
+
+- `teams.propose` (`TeamProposeParams`: the team as `teams.create` takes it,
+  the credentials it will need, the reason and the proposing session) is open
+  to any client because it only asks. What the proposal leaves empty comes
+  from the template it names, and the template's credentials join its own.
+  It is checked exactly as `teams.create` checks a team, its routines
+  included, without making anything. A proposed team works only in its own
+  folder under `~/Teams` (a folder or writable folders are refused) and its
+  routines arrive off.
+- It waits in the Inbox as a `team` approval (`Approval.proposal`) that never
+  expires. At most five wait at once; a sixth is refused.
+- Approving makes the team, then opens one credential request per credential
+  it names, as `request_credential` would; the approval's team becomes the
+  new team. Saying no makes nothing. Both go into Activity, the ask under the
+  proposing session's title.
+- Every agent session's `rashin mcp` offers `teams_templates`, `teams_list`
+  and `propose_team` (`brief.TeamTools`, one definition shared with Ask), and
+  Ask has the same three in every mode. The brief tells every agent what a
+  team is, that teams do not talk to each other, and when and how to propose
+  one (`brief.Teams`).
+- `rashin teams [list|templates]` prints them, and `rashin teams propose
+  <file.json>` (or `-` for standard input) proposes a team from a
+  `TeamProposeParams` document.
 
 ### Engines
 
@@ -1004,9 +1090,9 @@ such as effort.
   environment (`RASHIN_TEAM`, `RASHIN_TEAM_TOKEN`, `RASHIN_TEAM_LEAD`):
   `report`, `ask_user`, `credentials`, `http_request`, `send_mail`,
   `request_credential`, and for the lead `delegate` and `team_status`, beside
-  the usual code search, goal and screen tools. Each is a `teams.agent_*`
-  call carrying the run's token, which the daemon checks against that
-  session's live run.
+  the code search, goal, screen and teams tools every agent session gets.
+  Each is a `teams.agent_*` call carrying the run's token, which the daemon
+  checks against that session's live run.
 - Only the daemon starts a task's session (`session.new` naming a team is
   refused), and only the Rashin app answers for it, prompts, steers or ends
   it.
@@ -1018,8 +1104,8 @@ such as effort.
   once, as shown. `send_mail` and `http_request` ask by themselves, so agents
   are told not to ask first with `ask_user`.
 - Kinds: `mail`, `credential` (a credential's first use on a host),
-  `request` (an agent asks for one its team lacks), `action` (`ask_user`) and
-  `budget`.
+  `request` (an agent asks for one its team lacks), `action` (`ask_user`),
+  `budget` and `team` (a proposed team, see Proposals).
 - Answers are once, always or deny, with an optional note the agent reads;
   a `request` is answered with the value itself.
   Always is offered for one credential on one host for one team, or one mail
@@ -1031,7 +1117,7 @@ such as effort.
   and any note, and the ledger records `approval.choose` with the option.
 - An approval nobody answers expires as denied after `teams.approvalHours`
   (default 24). A budget card does not expire: the team stays paused until it
-  is answered.
+  is answered. Nor does a proposed team.
 - They are answered in the Inbox or on the task's page, and every decision
   goes into Activity.
 
@@ -1197,6 +1283,18 @@ Every team agent runs inside bubblewrap (`bwrap`, `internal/sandbox`,
   starts the app there; a notification opens its place the same way.
 - A task's page shows its transcript, what it waits on, its report and the
   engine it ran on, and answers its approvals inline.
+- The template picker, in the Inbox before the first team and in a new
+  team's Start from, groups the templates under Light, Medium and Advanced,
+  each with one line on what that level asks of you, and puts New team last
+  under From scratch (`teamsui.LayoutGroups`).
+- A proposed team waits in the Inbox as a card, even before any team exists:
+  its name and purpose, its permissions and tools, the reason in the
+  proposer's words and the conversation it came from (a link that opens it),
+  its members with their engines, its routines (each off until you turn it
+  on) and the credentials it will ask for. Create team makes it, and its
+  credential requests then wait in the Inbox; Not now records the answer
+  (`teamsui/proposal.go`). The demo Inbox holds one, Translations, proposed
+  in the agent session Polish provider cards, asking for `DEEPL_API_KEY`.
 
 ### Limits
 
@@ -1236,13 +1334,21 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
   session exists until the first message is sent, and sending it moves the
   composer to the foot of the column. Its list groups asks by day. An open ask
   shows the transcript in the reading column with the composer at its foot,
-  the route choice (Auto, Fast, Smart or one free model), what the
-  conversation may do (Read only, Ask first or YOLO, see Ask), answer actions
-  and Move to Agent. With no conversation open that choice is what the next
-  one starts with and is `ask.approvals`; the line over the composer says it
-  in words, and YOLO is drawn in the attention tone wherever it shows. A
-  change Ask asks for is a request card like an agent's. An answer that was
-  stopped or cut off says so under it.
+  the model choice, what the conversation may do (Read only, Ask first or
+  YOLO, see Ask), answer actions and Move to Agent. With no conversation open
+  those choices are what the next one starts with: the model shows `ask.model`
+  until one is picked, and what it may do is `ask.approvals`; the line over the
+  composer says it in words, and YOLO is drawn in the attention tone wherever
+  it shows. The model list always has its search field: Auto, Fast and Smart
+  first, then the models under Free (keyless and free tiers), Local (servers on
+  this computer that answer now) and Paid (providers you hold a key for). A
+  paid provider without a key shows its models unpickable with "Add a key in
+  Providers", and a model the conversation uses that no provider offers now
+  stays listed, unpickable, so the choice never reads as Auto. The list is
+  read again whenever the providers change, and Settings > Ask picks
+  `ask.model` from the same list. A model picked here is pinned (see
+  Ask). A change Ask asks for is a request card like an agent's. An answer that
+  was stopped or cut off says so under it.
 - **Agents** opens on its Now board: what needs you in one sentence, a
   composer that starts a session in a project and worktree with a harness, then
   the sessions that need you, are working or finished recently. A board with no
@@ -1251,12 +1357,18 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
   install page, in place of the composer. The harness picked for a session
   becomes `agent.harness`, so the board, the dialogs and Settings always agree,
   and so does the asking choice beside it (`agent.approvals`: ask before
-  changes, ask every time, YOLO). Under the board's composer stands what the
-  picked harness will run with (its own setup, see Agent). A session's
-  composer carries the model, the mode and every option its harness offers,
-  each as a select, and the asking choice; opening a session that never ran
-  brings its harness up to learn them, with "Starting" in their place
-  meanwhile (`pages/agent/controls.go`).
+  changes, ask every time, YOLO). Beside the harness stands the model the
+  session will start on, from the list the harness gave when it last started:
+  "Harness default (name)" first, then its models. The pick is remembered per
+  harness in the app's preferences (`agentModels`) and sent with `session.new`.
+  A harness that never ran has no list yet; Read the list starts it once in
+  the sandbox without a prompt (`harnesses.probe`, as a team's engine form
+  does). The full dialog has the same model field. Under the board's composer
+  stands what the picked harness will run with (its own setup, see Agent). A
+  session's composer carries the model, the mode and every option its harness
+  offers, each as a select, and the asking choice; opening a session that
+  never ran brings its harness up to learn them, with "Starting" in their
+  place meanwhile (`pages/agent/controls.go`).
   Its list groups sessions by Needs you, Working, Done and Idle. A session
   shows its project, worktree, branch and harness in the header, the transcript
   (work as single lines that unfold, permission requests, plans, diffs), queue
@@ -1378,10 +1490,16 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
   Ask (the model route, what a new ask may do, shell habits), Agents (the
   default harness, approvals, notices, the idle stop, the harnesses found with
   what each will run with, how to install the rest, your own harnesses), Teams
-  (Tasks at once), Index, Appearance (zoom, contrast, tint, reduce motion) and
+  (Tasks at once), Index, Appearance (zoom, colours, contrast, tint, reduce motion) and
   Keyboard (every shortcut). Its list runs to the pane's edge, so the wheel
   moves it from beside the column too.
   Project settings live with the project.
+- **Colours**: Rashin opens in the ryoku.dev stock (Ryoku: black, bone and the
+  orange sun; Ryoku light on warm grey), whatever the wallpaper is. Wallpaper
+  in Settings > Appearance takes the desktop's palette instead, and only then
+  is Tint offered and the palette files watched. The pick is stored in the
+  app's preferences (`colours`: `ryoku`, `ryoku-light` or `wallpaper`) and
+  repaints the window at once.
 - **The desktop** is reached through `internal/app/desktop` only: the file
   chooser (XDG portal `FileChooser`), the clipboard's image (`wl-paste`),
   notices (`org.freedesktop.Notifications`) and starting other programs: the
@@ -1415,10 +1533,11 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
 - **Motion** follows `docs/lithic/motion.md`; an idle window draws no frames.
 - **Off or unreachable**: one pane saying so with the next step; no retry
   loop faster than the client's 2 s reconnect.
-- `rashin-app --demo --png out.png [--size WxH --mode dark|light --route ...
-  --zoom N]` renders against an in-process demo daemon; with `--script` and
-  `--shots` it plays a motion story and returns its frames side by side. The
-  stories live in `internal/app/shell/testdata/motion`.
+- `rashin-app --demo --png out.png [--size WxH --mode dark|light|follow --route ...
+  --zoom N]` renders against an in-process demo daemon (`--mode` paints that
+  run only, over the stored Colours); with `--script` and `--shots` it plays a
+  motion story and returns its frames side by side. The stories live in
+  `internal/app/shell/testdata/motion`.
 - **Driven like a person** (`internal/app/shell/stage_test.go`): the tests run
   the whole app against the demo daemon with a real input router and no
   window, find controls by the name a screen reader would say, and press and

@@ -30,24 +30,32 @@ const (
 type Factory struct {
 	client llm.Client
 	index  core.Indexer
+	teams  core.Teams
 	habits habitCache
 	doctor doctorCache
 }
 
-// New creates the native Ask runner factory.
-func New(client llm.Client, idx core.Indexer) *Factory {
-	return &Factory{client: client, index: idx}
+// New creates the native Ask runner factory. teams serves the team tools; nil
+// leaves them unavailable.
+func New(client llm.Client, idx core.Indexer, teams core.Teams) *Factory {
+	return &Factory{client: client, index: idx, teams: teams}
 }
 
 // NewAsk creates one stateful Ask session. A session whose mode is not a known
 // approvals value, which is every session made before modes and every one
-// asked from the bar or a terminal, is read-only.
+// asked from the bar or a terminal, is read-only. A session whose model the
+// user picked keeps asking only that model after the daemon restarts.
 func (f *Factory) NewAsk(opts core.AskOptions) core.Runner {
 	mode := opts.Session.Mode
 	if !protocol.KnownApprovals(mode) {
 		mode = protocol.ApprovalsReadOnly
 	}
-	return &runner{factory: f, opts: opts, model: opts.Session.Model, mode: mode}
+	return &runner{factory: f, opts: opts, model: opts.Session.Model, strict: opts.Session.Pinned && pinned(opts.Session.Model), mode: mode}
+}
+
+// pinned says whether model names one model rather than a route.
+func pinned(model string) bool {
+	return model != "" && model != protocol.RouteAuto && model != protocol.RouteFast && model != protocol.RouteSmart
 }
 
 type runner struct {
@@ -226,7 +234,7 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 			sink.Emit(protocol.EvTool, protocol.ToolData{
 				Call: call.ID, Title: title, Kind: kind, Status: protocol.ToolRunning, Input: input,
 			})
-			output, nextPlan, toolErr := r.factory.runTool(ctx, call, in.Terminal)
+			output, nextPlan, toolErr := r.factory.runTool(ctx, call, in.Terminal, r.opts.Session.ID)
 			if nextPlan != nil {
 				plan = nextPlan
 			}
@@ -295,12 +303,15 @@ func (r *runner) Permission(request, option string) error {
 	return nil
 }
 
+// SetModel pins model for the rest of the session; a route lets every model
+// answer again. The pin is kept in the session, so a runner made again for it
+// stays strict.
 func (r *runner) SetModel(_ context.Context, model string, sink core.Sink) error {
+	strict := pinned(model)
 	r.mu.Lock()
-	r.model = model
-	r.strict = model != "" && model != protocol.RouteAuto && model != protocol.RouteFast && model != protocol.RouteSmart
+	r.model, r.strict = model, strict
 	r.mu.Unlock()
-	sink.Update(func(info *protocol.SessionInfo) { info.Model = model })
+	sink.Update(func(info *protocol.SessionInfo) { info.Model, info.Pinned = model, strict })
 	return nil
 }
 
@@ -336,7 +347,7 @@ func modelError(err error) error {
 	if errors.As(err, &refused) {
 		return protocol.Errorf(protocol.CodeUnavailable, "%s", refused.Reason)
 	}
-	return protocol.Errorf(protocol.CodeUnavailable, "%s", i18n.Tf("Ask could not start a free model response: %v. Add a free key in Rashin > Settings > Providers.", err))
+	return protocol.Errorf(protocol.CodeUnavailable, "%s", i18n.Tf("Ask could not start an answer: %v. See which providers can answer in Rashin > Settings > Providers.", err))
 }
 
 func usagePtr(u protocol.TokenUsage) *protocol.TokenUsage {

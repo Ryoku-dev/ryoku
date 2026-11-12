@@ -16,6 +16,8 @@ func (s *server) announce(out *outbox, method string) {
 		s.data.snapshot.Status.API = demoAPI(s.data.snapshot.Settings.API)
 		events[protocol.EvtSettingsChanged] = s.data.snapshot.Settings
 		events[protocol.EvtAPIChanged] = s.data.snapshot.Status.API
+		// a local provider's address lives in the settings and shows on its row
+		events[protocol.EvtProvidersChanged] = protocol.ProvidersResult{Providers: append([]protocol.ProviderInfo(nil), s.data.snapshot.Providers...)}
 		// pausing every team stops what works, and the pages hear each task stop
 		teams = s.takeTeamsEvents()
 	case protocol.MProjectsAdd, protocol.MProjectsRemove:

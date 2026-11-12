@@ -32,7 +32,7 @@ type chatFrame struct {
 }
 
 func newChatFrame(size image.Point) *chatFrame {
-	return &chatFrame{now: time.Unix(100, 0), theme: look.New(0, palette.Look{}), size: size}
+	return &chatFrame{now: time.Unix(100, 0), theme: look.New(palette.Dark, palette.Look{}), size: size}
 }
 
 func (frame *chatFrame) context() layout.Context {

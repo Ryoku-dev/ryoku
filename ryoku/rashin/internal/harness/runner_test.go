@@ -475,6 +475,9 @@ func runFakeAgent(mode string) {
 					"currentModeId":  "code",
 				}
 			}
+			if mode == "pick" {
+				result["models"] = fakePickModels(chosen["model"])
+			}
 			write(map[string]any{"jsonrpc": "2.0", "id": rawID(message.ID), "result": result})
 		case "session/prompt":
 			prompts++
@@ -515,6 +518,9 @@ func runFakeAgent(mode string) {
 				writePromptResult(write, promptID, "end_turn")
 			case "environment":
 				writeUpdate(write, map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]string{"type": "text", "text": os.Getenv("RASHIN_CUSTOM_VALUE")}})
+				writePromptResult(write, promptID, "end_turn")
+			case "pick":
+				writeUpdate(write, map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]string{"type": "text", "text": "model " + chosen["model"]}})
 				writePromptResult(write, promptID, "end_turn")
 			case "capabilities":
 				writePromptResult(write, promptID, "end_turn")
@@ -592,6 +598,8 @@ func runFakeAgent(mode string) {
 				writeUpdate(write, map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]string{"type": "text", "text": "restarted"}})
 				writePromptResult(write, promptID, "end_turn")
 			}
+		case "session/set_model":
+			fakeSetModel(write, message, chosen)
 		case "session/set_config_option":
 			var params struct {
 				ConfigID string `json:"configId"`

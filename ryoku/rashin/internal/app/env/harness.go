@@ -7,6 +7,7 @@ import (
 	"gioui.org/layout"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
+	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/look"
 	"ryoku-rashin/internal/app/state"
@@ -22,6 +23,28 @@ func HarnessFacts(harness protocol.HarnessInfo) []protocol.HarnessFact {
 		return harness.Capabilities.Started
 	}
 	return nil
+}
+
+// the harness's facts with the model a new session starts on: the pick where there is one, the harness's own model otherwise
+func StartFacts(harness protocol.HarnessInfo, model string) []protocol.HarnessFact {
+	facts := HarnessFacts(harness)
+	if model == "" {
+		return facts
+	}
+	pick := protocol.HarnessFact{Label: i18n.T("Model"), Value: ModelName(harness.Capabilities, model)}
+	// a copy, the facts belong to the snapshot
+	result := make([]protocol.HarnessFact, 0, len(facts)+1)
+	replaced := false
+	for _, fact := range facts {
+		if fact.Label == pick.Label && !replaced {
+			fact, replaced = pick, true
+		}
+		result = append(result, fact)
+	}
+	if !replaced {
+		result = append([]protocol.HarnessFact{pick}, result...)
+	}
+	return result
 }
 
 func FactsSentence(facts []protocol.HarnessFact) string {

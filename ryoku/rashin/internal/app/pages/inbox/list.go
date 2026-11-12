@@ -21,10 +21,18 @@ func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 		key := teamsui.NeedKey(need)
 		needed[key] = true
 		row := look.SideRow{ID: key, Tone: palette.Attention}
-		if approval := need.Approval; approval != nil {
+		approval := need.Approval
+		switch {
+		// a proposed team has no team yet, so it reads by where it came from
+		case approval != nil && approval.Kind == protocol.ApprovalTeam:
+			row.Title, row.Facts = approval.Title, teamsui.ApprovalWord(approval.Kind)
+			if info, ok := snapshot.Sessions[approval.Session]; ok {
+				row.Facts = i18n.Tf("%s from %s", row.Facts, info.Title)
+			}
+		case approval != nil:
 			row.Title = approval.Title
 			row.Facts = i18n.Tf("%s on %s", teamsui.ApprovalWord(approval.Kind), teamsui.TeamName(snapshot.Teams, approval.Team))
-		} else {
+		default:
 			word, tone, _ := teamsui.TaskStanding(*need.Task)
 			row.Title, row.Tone = need.Task.Title, tone
 			row.Facts = i18n.Tf("%s on %s", word, teamsui.TeamName(snapshot.Teams, need.Task.Team))

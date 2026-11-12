@@ -38,29 +38,38 @@ func runMCP(args []string) int {
 	if len(args) != 0 {
 		return usageError("mcp")
 	}
-	session := mcpSession{id: os.Getenv("RASHIN_SESSION"), cwd: os.Getenv("RASHIN_CWD")}
-	if session.cwd == "" {
-		session.cwd, _ = os.Getwd()
-	}
-	instructions := "Rashin's tools for this session. search, find, def, outline, references, impact and peek read Rashin's index of the session folder, which covers every source language in it. goal reports and ends the goal the user set with /goal."
-	tools := append(codeTools(session), goalTool(session))
-	// the daemon says whether this desktop can host a screen for the agent
-	if os.Getenv("RASHIN_SCREEN") == "1" {
-		instructions += " The screen tools give you a hidden desktop of your own to use apps on, once the user agrees."
-		tools = append(tools, screenTools(session)...)
-	}
-	// the daemon names the team task the session works and the run's token
-	if os.Getenv("RASHIN_TEAM") != "" {
-		session.token = os.Getenv("RASHIN_TEAM_TOKEN")
-		session.lead = os.Getenv("RASHIN_TEAM_LEAD") == "1"
-		instructions += " The team tools serve your team task: report ends it (quiet for a routine run where nothing changed), ask_user puts a decision or a choice of 2 to 6 options to the user, and credentials, http_request, send_mail and request_credential use your team's credentials and mail without you ever seeing a value."
-		tools = append(tools, teamTools(session)...)
-	}
+	instructions, tools := serverTools(os.Getenv)
 	server := &mcp.Server{Name: "rashin", Version: version, Instructions: instructions, Tools: tools}
 	if err := server.Serve(context.Background(), os.Stdin, os.Stdout); err != nil {
 		return report(err)
 	}
 	return 0
+}
+
+// serverTools are the instructions and tools the server offers the session
+// the environment names
+func serverTools(getenv func(string) string) (string, []mcp.Tool) {
+	session := mcpSession{id: getenv("RASHIN_SESSION"), cwd: getenv("RASHIN_CWD")}
+	if session.cwd == "" {
+		session.cwd, _ = os.Getwd()
+	}
+	instructions := "Rashin's tools for this session. search, find, def, outline, references, impact and peek read Rashin's index of the session folder, which covers every source language in it. goal reports and ends the goal the user set with /goal. " +
+		"teams_templates and teams_list read Rashin's teams, and propose_team proposes a new team, which the user approves in the Rashin Inbox."
+	tools := append(codeTools(session), goalTool(session))
+	tools = append(tools, teamsTools(session)...)
+	// the daemon says whether this desktop can host a screen for the agent
+	if getenv("RASHIN_SCREEN") == "1" {
+		instructions += " The screen tools give you a hidden desktop of your own to use apps on, once the user agrees."
+		tools = append(tools, screenTools(session)...)
+	}
+	// the daemon names the team task the session works and the run's token
+	if getenv("RASHIN_TEAM") != "" {
+		session.token = getenv("RASHIN_TEAM_TOKEN")
+		session.lead = getenv("RASHIN_TEAM_LEAD") == "1"
+		instructions += " The team tools serve your team task: report ends it (quiet for a routine run where nothing changed), ask_user puts a decision or a choice of 2 to 6 options to the user, and credentials, http_request, send_mail and request_credential use your team's credentials and mail without you ever seeing a value."
+		tools = append(tools, teamTools(session)...)
+	}
+	return instructions, tools
 }
 
 // toolCall runs one daemon method for a tool and renders its answer the way

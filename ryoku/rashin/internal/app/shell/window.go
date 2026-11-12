@@ -236,9 +236,11 @@ func (s *uiShell) persistedPreferences(preferences state.AppPreferences) state.A
 	preferences.SidebarFolded = s.preferences.SidebarFolded
 	preferences.SidePanelOpen = s.preferences.SidePanelOpen
 	preferences.ReduceMotion = s.preferences.ReduceMotion
+	preferences.Colours = s.preferences.Colours
 	preferences.Contrast, preferences.Tint = s.preferences.Contrast, s.preferences.Tint
 	preferences.MuteNotices = s.preferences.MuteNotices
 	preferences.HiddenSteps = s.preferences.HiddenSteps
+	preferences.AgentModels = s.preferences.AgentModels
 	preferences.Last = lastPlace(s.router.lastRashin)
 	preferences.Teams = lastPlace(s.router.lastTeams)
 	preferences.InTeams = s.router.TeamsMode()
@@ -258,7 +260,9 @@ func (s *uiShell) environment() *env.Env {
 		Desktop: s.desktop,
 	}
 	e.HiddenSteps, e.HideStep = s.preferences.HiddenSteps, s.hideStep
+	e.AgentModels, e.SetAgentModel = s.preferences.AgentModels, s.setAgentModel
 	e.Contrast, e.Tint, e.SetLook = s.preferences.Contrast, s.preferences.Tint, s.setLook
+	e.Colours, e.SetColours = s.runtime.colours(), s.setColours
 	// the work page owns the dialog, any page may open it
 	e.NewTeamTask = func(team string) { s.work.Ask(e, team) }
 	return e
@@ -440,6 +444,13 @@ func (s *uiShell) setLook(contrast, tint string) {
 	s.preferences.Contrast, s.preferences.Tint = contrast, tint
 	s.preferences = s.preferences.Normalize()
 	s.runtime.setLook(s.preferences.Contrast, s.preferences.Tint)
+}
+
+// the window shows the pick at once and it is what the next start opens in, whatever --mode painted this run
+func (s *uiShell) setColours(word string) {
+	s.preferences.Colours = word
+	s.preferences = s.preferences.Normalize()
+	s.runtime.setColours(s.preferences.Colours)
 }
 
 // ui.open from the daemon, a second launch, the bar or the command line asking the running app to show something

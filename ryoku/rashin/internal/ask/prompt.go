@@ -59,6 +59,8 @@ func (f *Factory) systemPrompt(settings protocol.Settings, terminal *protocol.Te
 	b.WriteString(brief.Vault(vaultBudgetBytes))
 	b.WriteString("\n\n# Rashin\n\n")
 	b.WriteString(brief.Rashin())
+	b.WriteString("\n\n# Teams\n\n")
+	b.WriteString(brief.Teams(true))
 	if settings.Ask.Habits {
 		b.WriteString("\n\n# User habits\n\n")
 		b.WriteString(f.habits.summary())

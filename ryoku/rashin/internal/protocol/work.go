@@ -668,7 +668,7 @@ type TaskDraft struct {
 	Deps  []int  `json:"deps,omitempty"`
 }
 
-// TaskPlanParams asks the free-model router to split a goal into tasks.
+// TaskPlanParams asks the model router to split a goal into tasks.
 type TaskPlanParams struct {
 	Project string `json:"project"`
 	Goal    string `json:"goal"`

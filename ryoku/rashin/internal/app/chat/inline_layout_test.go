@@ -23,7 +23,7 @@ func setAt(theme *look.Theme, width int, spans ...inlineSpan) *inlineSet {
 // paragraph sets every rune it has on some line, and no line runs past the
 // edge. A long address and text without spaces used to be cut at one line.
 func TestEveryRuneIsSetAndNoLineRunsPastTheEdge(t *testing.T) {
-	theme := look.New(0, palette.Look{})
+	theme := look.New(palette.Dark, palette.Look{})
 	for name, source := range map[string]string{
 		"words":   "A **short** sentence that wraps over several lines because the column is `narrow` here.",
 		"address": "See **this** https://example.com/a/very/long/path/that/does/not/have/any/spaces/in/it/and/keeps/going/for/a/while/longer.html now",
@@ -80,7 +80,7 @@ func TestAStyledParagraphStandsLikeAPlainOne(t *testing.T) {
 // Code in a sentence takes no room of its own. Room either side of it pushed
 // a bracket or a comma off the name it belongs to, and read as stray blanks.
 func TestCodeSitsFlushWithWhatSurroundsIt(t *testing.T) {
-	set := setAt(look.New(0, palette.Look{}), 640, parseInline("the rules (`AGENTS.md`, `prowlrc`) apply")...)
+	set := setAt(look.New(palette.Dark, palette.Look{}), 640, parseInline("the rules (`AGENTS.md`, `prowlrc`) apply")...)
 	if len(set.lines) != 1 || len(set.lines[0].runs) != 5 {
 		t.Fatalf("lines = %#v", set.lines)
 	}
@@ -94,7 +94,7 @@ func TestCodeSitsFlushWithWhatSurroundsIt(t *testing.T) {
 
 // Half a command at the end of a line reads as a different command.
 func TestCodeThatFitsOnALineIsNeverParted(t *testing.T) {
-	theme := look.New(0, palette.Look{})
+	theme := look.New(palette.Dark, palette.Look{})
 	spans := parseInline("`id -u` gives the number in the per-user runtime directory for sockets, typically `/run/user/$(id -u)` on this machine.")
 	for width := 180; width <= 520; width += 17 {
 		set := setAt(theme, width, spans...)
@@ -109,7 +109,7 @@ func TestCodeThatFitsOnALineIsNeverParted(t *testing.T) {
 }
 
 func TestABreakTheTextAsksForStartsALine(t *testing.T) {
-	set := setAt(look.New(0, palette.Look{}), 640, parseInline("one\ntwo **three**\n\nfour")...)
+	set := setAt(look.New(palette.Dark, palette.Look{}), 640, parseInline("one\ntwo **three**\n\nfour")...)
 	if len(set.lines) != 4 || len(set.lines[2].runs) != 0 {
 		t.Fatalf("%d lines, want one, two three, an empty one and four: %#v", len(set.lines), set.lines)
 	}

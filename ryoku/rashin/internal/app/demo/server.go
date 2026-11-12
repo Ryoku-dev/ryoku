@@ -76,6 +76,7 @@ func (s *server) serve(ctx context.Context, connection net.Conn) {
 			return
 		}
 		if frame.Method == protocol.MSessionPrompt && response.Error == nil {
+			s.wakeFirst(out, frame.Params)
 			go s.playTurn(ctx, out, frame.Params)
 		}
 		if frame.Method == protocol.MSessionPermission && response.Error == nil {
@@ -160,6 +161,10 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 		info := s.newSession(params.Kind, params.Harness, params.Cwd, params.Project, params.Worktree, params.Branch, params.Task, "")
 		if params.Title != "" {
 			info.Title = params.Title
+		}
+		// the model the session was opened on, as the daemon keeps it
+		if params.Model != "" {
+			info.Model = params.Model
 		}
 		if params.Kind == protocol.KindAsk {
 			info.Mode = params.Mode
@@ -304,6 +309,9 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 		if err := mergeInto(params.Patch, &s.data.snapshot.Settings); err != nil {
 			return nil, err
 		}
+		if err := s.syncLocalProviders(); err != nil {
+			return nil, err
+		}
 		s.syncCustomHarnesses()
 		if s.data.snapshot.Settings.Teams.Paused != paused {
 			s.holdEveryTeam(!paused)
@@ -377,7 +385,11 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 		}
 		return protocol.ProviderInfo{}, nil
 	case protocol.MProvidersTest:
-		return protocol.ProviderTestResult{Provider: "demo", OK: true, Model: "free", LatencyMs: 84, Message: i18n.T("Ready")}, nil
+		var params protocol.ProviderParams
+		if err := decode(raw, &params); err != nil {
+			return nil, err
+		}
+		return s.testProvider(params.Provider), nil
 	case protocol.MIndexSearch:
 		return protocol.SearchResult{
 			Index:    demoProjectHyperion,

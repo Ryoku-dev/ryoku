@@ -63,11 +63,6 @@ func run() error {
 			_ = lock.Close()
 		}
 	}()
-	gw, err := gateway.Open(paths.StateDir())
-	if err != nil {
-		return err
-	}
-	events := daemon.NewBroadcaster()
 	settings := func() protocol.Settings {
 		s, err := config.Load()
 		if err != nil {
@@ -75,6 +70,11 @@ func run() error {
 		}
 		return s
 	}
+	gw, err := gateway.Open(paths.StateDir(), settings)
+	if err != nil {
+		return err
+	}
+	events := daemon.NewBroadcaster()
 	idx, err := index.Open(events, settings)
 	if err != nil {
 		gw.Close()
@@ -93,7 +93,7 @@ func run() error {
 		gw.Close()
 		return err
 	}
-	deps := daemon.Deps{Gateway: gw, Asker: ask.New(gw, idx), Harnesses: harness.New(), Indexer: idx, Work: work, Teams: crew, Version: version, Events: events, Lock: lock}
+	deps := daemon.Deps{Gateway: gw, Asker: ask.New(gw, idx, crew), Harnesses: harness.New(), Indexer: idx, Work: work, Teams: crew, Version: version, Events: events, Lock: lock}
 	// read now: once the file is replaced the kernel no longer names it
 	if program, programErr := os.Executable(); programErr == nil {
 		deps.Program = program

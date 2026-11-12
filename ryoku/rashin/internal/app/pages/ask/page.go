@@ -1,10 +1,8 @@
 // Package ask is the Ask destination: questions about this machine, answered
-// by the free-model router.
+// by the model router.
 package ask
 
 import (
-	"sort"
-
 	"gioui.org/layout"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
@@ -22,7 +20,7 @@ type Page struct {
 	selected string
 	// held from sending the first message until its session is listed, the answer can arrive before the list does
 	starting bool
-	// route picked before a session exists
+	// route picked before a session exists; a model picked here is held to, never swapped for another
 	draftRoute string
 	// what was typed in a conversation and not sent, kept while another one is open
 	drafts map[string]chat.Draft
@@ -40,11 +38,7 @@ type Page struct {
 	ready       readiness
 	usage       env.Usage
 
-	models protocol.ModelsResult
-	loaded bool
-	// the route select's rows, built once when the models arrive
-	routes   []look.SelectOption
-	routeIDs []string
+	menu env.ModelMenu
 
 	rename  renameDialog
 	remove  removeDialog
@@ -105,50 +99,20 @@ func (p *Page) start(e *env.Env, submission chat.Submission) {
 		p.selected = info.ID
 		e.Attach(info.ID, func(error) {})
 		e.Navigate(protocol.TabAsk, info.ID)
-		e.Submit(info.ID, false, submission)
-	})
-}
-
-func (p *Page) loadModels(e *env.Env) {
-	if p.loaded {
-		return
-	}
-	p.loaded = true
-	e.Call(protocol.MModelsList, protocol.ModelsParams{}, &p.models, func(err error) {
-		if err != nil {
-			p.loaded = false
+		if !pinned(params.Model) {
+			e.Submit(info.ID, false, submission)
 			return
 		}
-		p.routes, p.routeIDs = routeList(p.models)
+		// a model the reader picked answers or says why it can't; session.new alone lets it fail over
+		e.Call(protocol.MSessionSetModel, protocol.SetModelParams{ID: info.ID, Model: params.Model}, new(protocol.Empty), func(err error) {
+			if err != nil {
+				p.composer.SetText(submission.Text)
+				e.Notify(err.Error())
+				return
+			}
+			e.Submit(info.ID, false, submission)
+		})
 	})
-}
-
-// the routes first, then every model a provider in use offers, named with where it comes from
-func routeList(models protocol.ModelsResult) (options []look.SelectOption, ids []string) {
-	for _, route := range models.Routes {
-		options, ids = append(options, look.SelectOption{Label: route.Name, Detail: route.Description}), append(ids, route.ID)
-	}
-	offered := append([]protocol.ModelInfo(nil), models.Models...)
-	sort.SliceStable(offered, func(i, j int) bool { return offered[i].Provider+offered[i].Name < offered[j].Provider+offered[j].Name })
-	for _, model := range offered {
-		if model.Available {
-			id := model.Provider + "/" + model.ID
-			options, ids = append(options, look.SelectOption{Label: model.Name, Detail: id}), append(ids, id)
-		}
-	}
-	return options, ids
-}
-
-func (p *Page) routeOptions(current string) (options []look.SelectOption, ids []string, selected int) {
-	if len(p.routes) == 0 {
-		return []look.SelectOption{{Label: i18n.T("Auto")}}, []string{protocol.RouteAuto}, 0
-	}
-	for index, id := range p.routeIDs {
-		if id == current {
-			selected = index
-		}
-	}
-	return p.routes, p.routeIDs, selected
 }
 
 func (p *Page) Overlay(gtx layout.Context, e *env.Env) bool {

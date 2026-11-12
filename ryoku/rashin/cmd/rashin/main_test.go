@@ -53,8 +53,8 @@ func TestParseAskArgsAcceptsOptionTerminator(t *testing.T) {
 
 func TestPrintModelsDoesNotDuplicateProvider(t *testing.T) {
 	var output bytes.Buffer
-	printModels(&output, protocol.ModelsResult{Models: []protocol.ModelInfo{{ID: "ovh/model", Provider: "ovh", Available: true}}})
-	if got := output.String(); got != "ovh/model\tavailable\n" {
+	printModels(&output, protocol.ModelsResult{Models: []protocol.ModelInfo{{ID: "ovh/model", Provider: "ovh", Tier: protocol.TierFree, Available: true}}})
+	if got := output.String(); got != "ovh/model\tfree\tavailable\n" {
 		t.Fatalf("models output = %q", got)
 	}
 }

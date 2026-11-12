@@ -16,7 +16,7 @@ import (
 )
 
 const rashin = `Rashin is Ryoku's optional assistant and the system this conversation runs in. One daemon, rashind, does the work: it starts on demand and stops when idle. Ryoku Settings > Apps > Rashin turns it on or off.
-- Ask answers questions about this machine on free models through Rashin's own router. It opens from the Ask bar (Alt+Space by default), from ` + "`rashin <question>`" + ` in a terminal, and in the Ask tab of the Rashin app (Super+Alt+Space by default).
+- Ask answers questions about this machine through Rashin's own router: on free models by default, on this computer's Ollama or llama.cpp while one runs, and on a paid model only when the user picks it. It opens from the Ask bar (Alt+Space by default), from ` + "`rashin <question>`" + ` in a terminal, and in the Ask tab of the Rashin app (Super+Alt+Space by default).
 - The Agents tab of the app runs coding harnesses such as Claude Code, Codex, omp and OpenCode as sessions Rashin owns. Projects holds their Git worktrees, commit graph, review and tasks. Index shows what is indexed.
 - Code search is built in: rashin search, find, def, outline, references, peek, impact and overview, run inside an indexed folder. ` + "`rashin index list`" + ` shows the indexes, and a project added to Rashin is indexed by itself.
 - Model providers and their keys are in Rashin > Settings > Providers and ` + "`rashin providers`" + `. ` + "`rashin api`" + ` serves the router to other programs, ` + "`rashin status`" + ` says whether Rashin is on, and the settings file is ~/.config/ryoku/rashin.json.
@@ -24,6 +24,18 @@ The vault wiki page rashin is the full guide.`
 
 // Rashin describes Rashin to a model that runs inside it.
 func Rashin() string { return rashin }
+
+const teams = `A team is a standing group of agents Rashin keeps for one purpose on this computer: members on harnesses and models of their own, a lead that hands pieces of each task to the others, routines that give it work on a schedule, a vault that keeps its credentials so no agent ever sees a value, and approvals that wait for the user in the Rashin Inbox. Teams do not talk to each other: each works only in its own folder.
+When the user asks for a team, or wants work done again and again on its own (a weekly digest, watching a repository, looking after this computer), propose one. Start from the closest template: light ones have one member, medium ones two and a routine, advanced ones several members on different models, routines bound to members and credentials. Name every credential the team will need, with the hosts it goes to and why, and Rashin asks the user for each value in the Rashin Inbox once the team exists. Nothing is made until the user creates the team from the Rashin Inbox, and its routines start off until the user turns them on: never tell the user a proposed team or its routines start by themselves.`
+
+// Teams describes Rashin's teams to a model and how it proposes one: with
+// the team tools when tools says it holds them, else with the rashin command.
+func Teams(tools bool) string {
+	if tools {
+		return teams + "\nYour tools: " + ToolTeamsTemplates + " lists the templates, " + ToolTeamsList + " the teams that exist, and " + ToolProposeTeam + " proposes a team."
+	}
+	return teams + "\n`rashin teams templates` lists the templates and `rashin teams list` the teams that exist. `rashin teams propose <file.json>` proposes a team from a JSON file with team (a template id, name, purpose, members, routines), credentials (name, hosts, why) and reason."
+}
 
 // VaultDir is the Ryoku vault of this machine, or "" when it has none yet.
 func VaultDir() string {
@@ -137,6 +149,9 @@ func Agent(session Session) string {
 		b.WriteString("\nYour screen\n")
 		b.WriteString("When the work needs a graphical app, such as a web page to check or a program with no command line, the rashin screen tools give you a hidden desktop of your own to open apps on, look at, click and type into. The first use asks the user; they can watch it and take it over, and screen_ask_user hands it to them for sign-ins.\n")
 	}
+	b.WriteString("\nTeams\n")
+	b.WriteString(Teams(session.Tools))
+	b.WriteString("\n")
 	if session.Team != "" {
 		b.WriteString("\n")
 		b.WriteString(session.Team)

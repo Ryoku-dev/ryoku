@@ -57,6 +57,11 @@ type Env struct {
 	Contrast string
 	Tint     string
 	SetLook  func(contrast, tint string)
+	// Colours is the word of the colours the window paints ("ryoku", the
+	// ryoku.dev stock and the default, "ryoku-light" or "wallpaper");
+	// SetColours stores a pick and repaints the window at once.
+	Colours    string
+	SetColours func(colours string)
 	// Notices says whether the desktop is told when an agent needs the reader.
 	Notices    bool
 	SetNotices func(bool)
@@ -65,6 +70,11 @@ type Env struct {
 	// step keys by team id; HideStep hides one more.
 	HiddenSteps map[string][]string
 	HideStep    func(team, step string)
+	// AgentModels is the model a new agent session starts on, model id by
+	// harness id, absent for the harness's own default; SetAgentModel
+	// remembers one, "" going back to the default.
+	AgentModels   map[string]string
+	SetAgentModel func(harness, model string)
 }
 
 func (e *Env) Snapshot() state.Snapshot { return e.Store.Snapshot() }

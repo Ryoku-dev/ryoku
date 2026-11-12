@@ -34,7 +34,13 @@ func (s *server) callTeams(method string, raw json.RawMessage) (any, error) {
 	case protocol.MTeamsTemplates:
 		return protocol.TeamTemplatesResult{Templates: demoTemplates()}, nil
 	case protocol.MTeamsCreate:
-		return teamsCall(raw, func(p protocol.TeamCreateParams) (any, error) { return s.createTeam(p, false) })
+		return teamsCall(raw, func(p protocol.TeamCreateParams) (any, error) {
+			team, err := s.createTeam(p, false)
+			if err == nil {
+				s.askForCredentials(team, demoTemplate(p.Template).Credentials)
+			}
+			return team, err
+		})
 	case protocol.MTeamsUpdate:
 		return teamsCall(raw, func(p protocol.TeamUpdateParams) (any, error) { return s.updateTeam(p) })
 	case protocol.MTeamsDelete:

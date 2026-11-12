@@ -192,7 +192,7 @@ func (b *board) layoutComposer(gtx layout.Context, e *env.Env, page *Page, snaps
 	e.ComposerDesktop(&b.composer, &options)
 	gtx.Constraints.Min.X = gtx.Constraints.Max.X
 	harnesses := env.InstalledHarnesses(snapshot)
-	picked := harnesses[b.place.pick.Index(snapshot, harnesses)]
+	picked := b.place.picked(snapshot, harnesses)
 	children := []layout.FlexChild{
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			dimensions := b.composer.Layout(gtx, th, options)
@@ -211,18 +211,19 @@ func (b *board) layoutComposer(gtx layout.Context, e *env.Env, page *Page, snaps
 			)
 		}),
 	}
-	// what the picked harness will run with, from its own settings, so the choice is made knowing it
-	if facts := env.HarnessFacts(picked); len(facts) > 0 {
+	// what the session will run with, the model picked here over the harness's own, so the choice is made knowing it
+	if facts := env.StartFacts(b.place.model.reader.Info(snapshot, picked.ID), e.AgentModels[picked.ID]); len(facts) > 0 {
 		children = append(children,
 			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return env.LayoutFacts(gtx, th, facts) }),
 		)
 	}
+	children = append(children, b.place.model.noteRows(th)...)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
 func (b *board) start(e *env.Env, snapshot state.Snapshot, submission chat.Submission) {
-	params, ok := b.place.params(snapshot, details{name: worktreeName(submission.Text)})
+	params, ok := b.place.params(snapshot, e.AgentModels, details{name: worktreeName(submission.Text)})
 	if !ok {
 		return
 	}

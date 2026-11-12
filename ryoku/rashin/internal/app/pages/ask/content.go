@@ -40,8 +40,8 @@ func (p *Page) lost(known bool) bool {
 }
 
 func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
-	p.loadModels(e)
 	snapshot := e.Snapshot()
+	p.menu.Load(e, snapshot)
 	info, known := snapshot.Sessions[p.selected]
 	if p.lost(known) {
 		p.selected = ""
@@ -219,9 +219,9 @@ func suggestionTexts() [4]string {
 func (p *Page) layoutComposer(gtx layout.Context, e *env.Env, attached state.Attached, open bool, width int) layout.Dimensions {
 	options := chat.ComposerOptions{Placeholder: i18n.T("Ask anything about this machine"), CanAttach: true}
 	e.ComposerDesktop(&p.composer, &options)
-	current := p.draftRoute
 	// with no conversation open the choice is what the next one starts with
-	may := e.Snapshot().Settings.Ask.Approvals
+	settings := e.Snapshot().Settings.Ask
+	current, may := p.draftRoute, settings.Approvals
 	if open {
 		info := attached.Info
 		options.Placeholder = i18n.T("Ask a follow-up")
@@ -230,8 +230,12 @@ func (p *Page) layoutComposer(gtx layout.Context, e *env.Env, attached state.Att
 		options.Answer = p.view.Asking(attached.Model)
 		current, may = info.Model, info.Mode
 	}
-	routes, ids, selected := p.routeOptions(current)
-	p.route.Form, p.route.Label, p.route.Return = look.SelectQuiet, i18n.T("Model"), p.composer.FocusTag()
+	// nothing picked is what the daemon falls back to: the model Settings names
+	if current == "" {
+		current = settings.Model
+	}
+	routes, ids, selected := p.menu.Choices(current)
+	p.route.Form, p.route.Label, p.route.Return, p.route.Searched = look.SelectQuiet, i18n.T("Model"), p.composer.FocusTag(), true
 	options.Controls = []layout.Widget{
 		func(gtx layout.Context) layout.Dimensions {
 			return p.route.LayoutOptions(gtx, e.Theme, e.Overlays, routes, selected)

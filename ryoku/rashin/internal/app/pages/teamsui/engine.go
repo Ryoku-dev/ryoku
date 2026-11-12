@@ -7,6 +7,7 @@ import (
 
 	"ryoku-i18n"
 
+	"ryoku-rashin/internal/app/env"
 	"ryoku-rashin/internal/app/state"
 	"ryoku-rashin/internal/protocol"
 )
@@ -66,7 +67,7 @@ func TaskEngineIDs(snapshot state.Snapshot, task protocol.TeamTask) (harness, mo
 }
 
 func describeEngine(harnesses []protocol.HarnessInfo, id, model string, options map[string]string, fromDefaults bool) Engine {
-	info, found := harnessByID(harnesses, id)
+	info, found := env.HarnessByID(harnesses, id)
 	engine := Engine{Missing: !found || !info.Installed}
 	switch {
 	case id == "":
@@ -91,36 +92,12 @@ func describeEngine(harnesses []protocol.HarnessInfo, id, model string, options 
 // an empty model is the harness's own default, named when the harness reported it or its settings say it
 func modelWords(info protocol.HarnessInfo, model string) string {
 	if model != "" {
-		return modelName(info.Capabilities, model)
+		return env.ModelName(info.Capabilities, model)
 	}
-	if model := defaultModel(info); model != "" {
-		return i18n.Tf("%s (its default)", modelName(info.Capabilities, model))
+	if model := env.HarnessDefaultModel(info); model != "" {
+		return i18n.Tf("%s (its default)", env.ModelName(info.Capabilities, model))
 	}
 	return i18n.T("Its default model")
-}
-
-// the model id a new session of the harness starts on, empty when neither the harness nor its settings said
-func defaultModel(info protocol.HarnessInfo) string {
-	if info.Capabilities != nil && info.Capabilities.DefaultModel != "" {
-		return info.Capabilities.DefaultModel
-	}
-	for _, fact := range info.Setup {
-		if fact.Label == i18n.T("Model") && fact.Value != "" {
-			return fact.Value
-		}
-	}
-	return ""
-}
-
-func modelName(capabilities *protocol.HarnessCapabilities, id string) string {
-	if capabilities != nil {
-		for _, choice := range capabilities.ModelList {
-			if choice.ID == id && choice.Name != "" {
-				return choice.Name
-			}
-		}
-	}
-	return id
 }
 
 // options read in the order the harness offers them, any it no longer offers after them by id
@@ -158,15 +135,6 @@ func registryDefault(harnesses []protocol.HarnessInfo) string {
 		}
 	}
 	return ""
-}
-
-func harnessByID(harnesses []protocol.HarnessInfo, id string) (protocol.HarnessInfo, bool) {
-	for _, harness := range harnesses {
-		if harness.ID == id {
-			return harness, true
-		}
-	}
-	return protocol.HarnessInfo{}, false
 }
 
 // a task without a member goes to the lead; a removed member leaves the zero member, which follows the defaults

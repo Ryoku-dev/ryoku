@@ -70,7 +70,7 @@ func (p *picker) match(options []SelectOption) {
 	words := strings.Fields(strings.ToLower(p.query))
 	p.matches = p.matches[:0]
 	for index, option := range options {
-		text := strings.ToLower(option.Label + " " + option.Detail)
+		text := strings.ToLower(option.Label + " " + option.Detail + " " + option.Group)
 		found := true
 		for _, word := range words {
 			if !strings.Contains(text, word) {
@@ -85,8 +85,7 @@ func (p *picker) match(options []SelectOption) {
 }
 
 // returns the option picked this frame, or -1
-func (p *picker) Layout(gtx layout.Context, th *Theme, options []SelectOption, selected int) (layout.Dimensions, int) {
-	searched := len(options) >= pickerSearchFrom
+func (p *picker) Layout(gtx layout.Context, th *Theme, options []SelectOption, selected int, searched bool) (layout.Dimensions, int) {
 	picked := -1
 	if query := strings.TrimSpace(p.search.Text()); query != p.query {
 		p.query, p.cursor = query, 0
@@ -172,7 +171,14 @@ func (p *picker) Layout(gtx layout.Context, th *Theme, options []SelectOption, s
 			if row.click.Hovered() && !disabled {
 				hovered = at
 			}
-			return p.layoutRow(gtx, th, row, options[index], index == selected, at == p.cursor && !disabled)
+			option := func(gtx layout.Context) layout.Dimensions {
+				return p.layoutRow(gtx, th, row, options[index], index == selected, at == p.cursor && !disabled)
+			}
+			group := options[index].Group
+			if group == "" || (at > 0 && options[p.matches[at-1]].Group == group) {
+				return option(gtx)
+			}
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, layout.Rigid(groupHeading(th, group, at == 0)), layout.Rigid(option))
 		})
 	}))
 	dimensions := layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
@@ -210,6 +216,17 @@ func (p *picker) usable(options []SelectOption, at, step int) int {
 		}
 	}
 	return (at%count + count) % count
+}
+
+// a run's name over its first row, in the type the side list heads its groups with
+func groupHeading(th *Theme, group string, first bool) layout.Widget {
+	inset := layout.Inset{Top: 12, Bottom: 4, Left: 12, Right: 12}
+	if first {
+		inset.Top = 4
+	}
+	return func(gtx layout.Context) layout.Dimensions {
+		return inset.Layout(gtx, kit.Text(th.Theme, th.T.Group, th.R.Fg3, group))
+	}
 }
 
 // a row is as tall as what it says: a second line wraps, it is never cut

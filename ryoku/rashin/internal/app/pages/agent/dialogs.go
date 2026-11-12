@@ -48,7 +48,7 @@ func (d *createDialog) layout(gtx layout.Context, e *env.Env) {
 	}
 	if d.start.Clicked(gtx) && ready {
 		more := details{folder: d.folder.Path(), name: d.name.Text(), base: d.base.Text(), branch: d.branch.Text()}
-		if params, ok := d.place.params(snapshot, more); ok {
+		if params, ok := d.place.params(snapshot, e.AgentModels, more); ok {
 			var info protocol.SessionInfo
 			e.Call(protocol.MSessionNew, params, &info, func(err error) {
 				if err != nil {
@@ -108,8 +108,15 @@ func (d *createDialog) body(gtx layout.Context, e *env.Env) layout.Dimensions {
 		}
 	}
 	harnesses := env.InstalledHarnesses(snapshot)
+	children = append(children, field(&place.harness, i18n.T("Harness"), harnessLabels(harnesses), place.pick.Index(snapshot, harnesses)))
+	if len(harnesses) > 0 {
+		children = append(children, gap, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Min.X = gtx.Constraints.Max.X
+			return place.model.layout(gtx, e, place.picked(snapshot, harnesses), look.SelectField, nil)
+		}))
+		children = append(children, place.model.noteRows(th)...)
+	}
 	children = append(children,
-		field(&place.harness, i18n.T("Harness"), harnessLabels(harnesses), place.pick.Index(snapshot, harnesses)),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 		layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg3, approvalsNote(snapshot, len(harnesses) == 0))),
 	)

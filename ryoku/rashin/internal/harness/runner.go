@@ -90,6 +90,9 @@ type runner struct {
 	briefed       string
 	usage         *protocol.TokenUsage
 	turnCancelled bool
+	// pick is the model the session was opened with or last set to; a fresh
+	// harness session is put on it, a loaded one keeps its own
+	pick string
 
 	permissions map[string]permissionRequest
 	tools       map[string]trackedTool
@@ -126,6 +129,7 @@ func newRunner(opts core.HarnessOptions, argv []string, options ...runnerOption)
 	r := &runner{
 		opts:        opts,
 		argv:        append([]string(nil), argv...),
+		pick:        opts.Session.Model,
 		permissions: make(map[string]permissionRequest),
 		tools:       make(map[string]trackedTool),
 		terminals:   make(map[string]*terminal),
@@ -288,6 +292,18 @@ func (r *runner) SetModel(ctx context.Context, model string, sink core.Sink) err
 	if err := r.ensureStarted(ctx, sink); err != nil {
 		return err
 	}
+	if err := r.setModel(ctx, model); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	r.pick = model
+	r.mu.Unlock()
+	return nil
+}
+
+// setModel puts the started harness session on model. It does not start the
+// harness, so initialize can call it while it holds startMu.
+func (r *runner) setModel(ctx context.Context, model string) error {
 	r.mu.Lock()
 	sessionID, option := r.sessionID, r.modelOption
 	r.mu.Unlock()
@@ -663,11 +679,31 @@ func (r *runner) initialize(ctx context.Context) error {
 		capabilities.DefaultModel = r.model
 	}
 	report := r.reportCapabilities
+	pick, offers := r.pick, capabilities.Models
 	r.mu.Unlock()
 	if report != nil {
 		report(capabilities)
 	}
+	if method == "session/new" && offers && pick != "" && pick != capabilities.DefaultModel {
+		r.applyPick(ctx, pick)
+	}
 	return nil
+}
+
+// applyPick puts a fresh harness session on the model it was opened with. A
+// harness that refuses it leaves the session on its default and says so: a
+// model it no longer offers must not keep the session from starting.
+func (r *runner) applyPick(ctx context.Context, pick string) {
+	if err := r.setModel(ctx, pick); err != nil {
+		r.mu.Lock()
+		current := r.model
+		r.mu.Unlock()
+		r.emit(protocol.EvtNotice, protocol.Notice{
+			Level:   protocol.NoticeWarn,
+			Text:    i18n.Tf("The harness did not take the model %s, so this session runs on %s. %v", pick, current, err),
+			Session: r.opts.Session.ID,
+		})
+	}
 }
 
 func (r *runner) processExited(cmd *exec.Cmd, err error) {

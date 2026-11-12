@@ -35,12 +35,15 @@ var askToolset = []llm.Tool{
 }
 
 // askTools is what Ask is handed in mode: the tools that change the machine
-// only when the session allows it.
+// only when the session allows it, and the team tools in every mode since
+// they only read or ask.
 func askTools(mode string) []llm.Tool {
-	if !acts(mode) {
-		return askToolset
+	tools := make([]llm.Tool, 0, len(askToolset)+len(actToolset)+len(teamToolset))
+	tools = append(tools, askToolset...)
+	if acts(mode) {
+		tools = append(tools, actToolset...)
 	}
-	return append(append(make([]llm.Tool, 0, len(askToolset)+len(actToolset)), askToolset...), actToolset...)
+	return append(tools, teamToolset...)
 }
 
 // commandTimeout is how long one command may run. A walk over a whole home
@@ -50,7 +53,7 @@ const commandTimeout = 2 * time.Minute
 
 func schema(value string) json.RawMessage { return json.RawMessage(value) }
 
-func (f *Factory) runTool(ctx context.Context, call llm.ToolCall, terminal *protocol.TerminalContext) (string, *protocol.CommandPlan, error) {
+func (f *Factory) runTool(ctx context.Context, call llm.ToolCall, terminal *protocol.TerminalContext, session string) (string, *protocol.CommandPlan, error) {
 	cwd := paths.Home()
 	if terminal != nil && terminal.Cwd != "" {
 		cwd = terminal.Cwd
@@ -148,6 +151,9 @@ func (f *Factory) runTool(ctx context.Context, call llm.ToolCall, terminal *prot
 		body, _ := json.Marshal(plan)
 		return string(body), plan, nil
 	default:
+		if out, handled, err := runTeamTool(ctx, f.teams, call, session); handled {
+			return out, nil, err
+		}
 		return "", nil, fmt.Errorf(i18n.T("Unknown Ask tool %q."), call.Name)
 	}
 }
@@ -596,6 +602,9 @@ func toolPresentation(call llm.ToolCall) (title, kind, input string) {
 		return ""
 	}
 	input = truncateRunes(compactInput(call.Arguments), 400)
+	if title, kind, ok := teamToolPresentation(call); ok {
+		return title, kind, input
+	}
 	switch call.Name {
 	case "system_query":
 		command, _ := args["command"].(string)

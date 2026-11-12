@@ -167,15 +167,21 @@ func (s *Service) patchRoutine(id string, patch map[string]any) (protocol.Routin
 }
 
 // validRoutine checks and normalises a routine before it is stored: its team
-// exists, it has a title and a brief, its member belongs to the team, its
-// schedule parses and runs no more often than RoutineMinInterval, and no
-// more than RoutinesEnabledMax routines are on. The caller holds the edit
-// lock.
+// exists and routineFits accepts it with the routines already on. The
+// caller holds the edit lock.
 func (s *Service) validRoutine(r *protocol.Routine) error {
 	team, ok := s.state.team(r.Team)
 	if !ok {
 		return protocol.Errorf(protocol.CodeNotFound, "%s", i18n.Tf("No team %s.", r.Team))
 	}
+	return s.routineFits(team, r, 0)
+}
+
+// routineFits checks and normalises a routine of team: it has a title and a
+// brief, its member belongs to the team, its schedule parses and runs no
+// more often than RoutineMinInterval, and with the routines stored and
+// pending more about to be turned on, no more than RoutinesEnabledMax are on.
+func (s *Service) routineFits(team protocol.Team, r *protocol.Routine, pending int) error {
 	r.Title, r.Brief, r.Schedule = strings.TrimSpace(r.Title), strings.TrimSpace(r.Brief), strings.TrimSpace(r.Schedule)
 	r.Sentence, r.NextRun = "", nil
 	if r.Title == "" {
@@ -215,7 +221,7 @@ func (s *Service) validRoutine(r *protocol.Routine) error {
 	if !r.Enabled {
 		return nil
 	}
-	on := 0
+	on := pending
 	for _, other := range s.state.routines() {
 		if other.Enabled && other.ID != r.ID {
 			on++

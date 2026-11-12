@@ -19,8 +19,9 @@ const expirySweep = time.Hour
 
 // ask stores a pending approval with the exact action it would run, holds
 // the caller's task on the user, and tells the user. It waits the settings'
-// approval hours, except a spending limit card, which waits until answered:
-// its no only keeps paused a team that already is.
+// approval hours, except a spending limit card, whose no only keeps paused a
+// team that already is, and a proposed team, which nothing runs without:
+// those wait until answered.
 func (s *Service) ask(_ context.Context, c caller, a protocol.Approval, action any) (protocol.Approval, error) {
 	var raw json.RawMessage
 	if action != nil {
@@ -43,7 +44,7 @@ func (s *Service) ask(_ context.Context, c caller, a protocol.Approval, action a
 	a.Created = now
 	hours := approvalHours(s.settings())
 	a.Expires = time.Time{}
-	if a.Kind != protocol.ApprovalBudget {
+	if a.Kind != protocol.ApprovalBudget && a.Kind != protocol.ApprovalTeam {
 		a.Expires = now.Add(time.Duration(hours) * time.Hour)
 	}
 	a.Unwatched = s.nobodyWatching()
@@ -70,6 +71,11 @@ func (s *Service) ask(_ context.Context, c caller, a protocol.Approval, action a
 			actor, initiator = m.Name, protocol.InitiatorAgent
 		}
 	}
+	title := i18n.Tf("%s needs you", team.Name)
+	if a.Kind == protocol.ApprovalTeam {
+		actor, initiator = s.proposer(a.Session)
+		title = i18n.T("A team is proposed")
+	}
 	waits := i18n.T("Waits for your answer.")
 	if !a.Expires.IsZero() {
 		waits = waitWords(hours)
@@ -79,7 +85,7 @@ func (s *Service) ask(_ context.Context, c caller, a protocol.Approval, action a
 		Detail: waits, Team: a.Team, Task: a.Task, Initiator: initiator,
 	})
 	s.emitApproval(a)
-	s.notify(notification{Team: a.Team, Task: a.Task, Title: i18n.Tf("%s needs you", team.Name), Body: a.Title, Needs: true})
+	s.notify(notification{Team: a.Team, Task: a.Task, Title: title, Body: a.Title, Needs: true})
 	s.armExpiry()
 	return a, nil
 }

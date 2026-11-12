@@ -27,10 +27,11 @@ var readable = map[string]bool{
 // the user with shell tools; one that reaches the socket must not decide its
 // own approvals, change the vault, or widen what a team may do. Every
 // teams.* and vault.* method is the user's except the teams.agent_* methods,
-// which prove their caller with a run token instead, and the readable ones.
-// A method added later is the user's until it is listed as readable.
+// which prove their caller with a run token instead, the readable ones, and
+// teams.propose, which only asks the user. A method added later is the
+// user's until it is listed as readable.
 func UserOnly(method string) bool {
-	if !IsMethod(method) || strings.HasPrefix(method, "teams.agent_") {
+	if !IsMethod(method) || strings.HasPrefix(method, "teams.agent_") || method == protocol.MTeamsPropose {
 		return false
 	}
 	return !readable[method]

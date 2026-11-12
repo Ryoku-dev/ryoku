@@ -3,11 +3,14 @@ package gateway
 import (
 	"testing"
 	"time"
+
+	"ryoku-rashin/internal/protocol"
 )
 
 func TestCooldownSurvivesGatewayRestart(t *testing.T) {
 	stateDir := t.TempDir()
-	first, err := Open(stateDir)
+	settings := func() protocol.Settings { return protocol.Settings{} }
+	first, err := Open(stateDir, settings)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -19,7 +22,7 @@ func TestCooldownSurvivesGatewayRestart(t *testing.T) {
 	if err := first.Close(); err != nil {
 		t.Fatal(err)
 	}
-	second, err := Open(stateDir)
+	second, err := Open(stateDir, settings)
 	if err != nil {
 		t.Fatal(err)
 	}

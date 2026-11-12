@@ -44,13 +44,16 @@ func (s *Service) notify(n notification) {
 // its Open action leads: the Inbox for what needs the user and the task for
 // a report. Nothing does while a window is open, inside the quiet hours, or
 // beyond the team's notify level; what needs the user still waits in the
-// Inbox.
+// Inbox. A proposed team belongs to no team yet and follows no level.
 func (s *Service) notifyRoute(n notification) (string, bool) {
 	if s.sessions == nil || s.sessions.Watched() {
 		return "", false
 	}
 	if quiet := s.settings().Teams.QuietHours; quiet != nil && quiet.Covers(s.now()) {
 		return "", false
+	}
+	if n.Team == "" {
+		return "inbox", n.Needs
 	}
 	team, ok := s.state.team(n.Team)
 	if !ok {

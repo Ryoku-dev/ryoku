@@ -58,14 +58,17 @@ type wireStreamOptions struct {
 }
 
 type chatRequest struct {
-	Model         string            `json:"model"`
-	Messages      []wireMessage     `json:"messages"`
-	Tools         []wireTool        `json:"tools,omitempty"`
-	ToolChoice    string            `json:"tool_choice,omitempty"`
-	MaxTokens     int               `json:"max_tokens,omitempty"`
-	Temperature   *float64          `json:"temperature,omitempty"`
-	Stream        bool              `json:"stream"`
-	StreamOptions wireStreamOptions `json:"stream_options"`
+	Model      string        `json:"model"`
+	Messages   []wireMessage `json:"messages"`
+	Tools      []wireTool    `json:"tools,omitempty"`
+	ToolChoice string        `json:"tool_choice,omitempty"`
+	MaxTokens  int           `json:"max_tokens,omitempty"`
+	// MaxCompletionTokens replaces MaxTokens for a provider whose reasoning
+	// models take only it.
+	MaxCompletionTokens int               `json:"max_completion_tokens,omitempty"`
+	Temperature         *float64          `json:"temperature,omitempty"`
+	Stream              bool              `json:"stream"`
+	StreamOptions       wireStreamOptions `json:"stream_options"`
 	// Extra are a caller's own parameters, sent as they came.
 	Extra map[string]json.RawMessage `json:"-"`
 }
@@ -122,7 +125,7 @@ func (g *Gateway) Stream(ctx context.Context, request llm.Request) (llm.Stream, 
 	if err != nil {
 		return nil, err
 	}
-	candidates, err := g.candidates(request)
+	candidates, err := g.candidates(ctx, request)
 	if err != nil {
 		return nil, err
 	}
@@ -130,9 +133,11 @@ func (g *Gateway) Stream(ctx context.Context, request llm.Request) (llm.Stream, 
 		return nil, &llm.NoRoute{Reason: g.noPictureModel()}
 	}
 	if len(candidates) == 0 {
-		return nil, &llm.NoRoute{Reason: i18n.T("No free model is available. Add a free key in Rashin > Settings > Providers.")}
+		return nil, &llm.NoRoute{Reason: i18n.T("No free model is available. Add a free key in Rashin > Settings > Providers, or start a model on this computer.")}
 	}
-	return &routedStream{gateway: g, ctx: ctx, request: wire, candidates: candidates, started: g.now()}, nil
+	stream := &routedStream{gateway: g, ctx: ctx, request: wire, candidates: candidates, started: g.now()}
+	stream.strict = request.Strict && pinnedRoute(request.Model)
+	return stream, nil
 }
 
 func renderRequest(request llm.Request) (chatRequest, error) {
@@ -214,16 +219,18 @@ func (g *Gateway) noPictureModel() string {
 	return i18n.Tf("None of the providers in use reads pictures. These can, with a key added in Rashin > Settings > Providers: %s.", strings.Join(names, ", "))
 }
 
-func (g *Gateway) candidates(request llm.Request) ([]routeCandidate, error) {
+// candidates are the models a request may go to, in the order they are
+// tried. Auto, Fast and Smart never reach a paid model: one answers only
+// when it is the model asked for.
+func (g *Gateway) candidates(ctx context.Context, request llm.Request) ([]routeCandidate, error) {
 	modelRoute := strings.TrimSpace(request.Model)
-	pinned := modelRoute != "" && modelRoute != protocol.RouteAuto && modelRoute != protocol.RouteFast && modelRoute != protocol.RouteSmart
+	pinned := pinnedRoute(modelRoute)
 	strictPinned := pinned && request.Strict
 	// A model without vision answers a picture it never saw, or refuses the
 	// whole request, so one is only ever sent to a model that can read it.
 	pictures := hasImages(request)
 	var candidates []routeCandidate
-	for i := range g.catalog.Providers {
-		p := &g.catalog.Providers[i]
+	for _, p := range g.providers(ctx, false) {
 		if enabled, err := g.store.providerEnabled(p.ID); err != nil {
 			return nil, err
 		} else if !enabled {
@@ -247,6 +254,9 @@ func (g *Gateway) candidates(request llm.Request) ([]routeCandidate, error) {
 				continue
 			}
 			if strictPinned && modelRoute != p.ID+"/"+m.ID {
+				continue
+			}
+			if p.tierOf(m) == protocol.TierPaid && modelRoute != p.ID+"/"+m.ID {
 				continue
 			}
 			if pictures && !m.Vision {
@@ -279,6 +289,12 @@ func (g *Gateway) candidates(request llm.Request) ([]routeCandidate, error) {
 	return candidates, nil
 }
 
+// pinnedRoute says the request names one model rather than Auto, Fast or Smart.
+func pinnedRoute(route string) bool {
+	route = strings.TrimSpace(route)
+	return route != "" && route != protocol.RouteAuto && route != protocol.RouteFast && route != protocol.RouteSmart
+}
+
 func (g *Gateway) routeKeys(p *provider) ([]string, error) {
 	if p.Keyless {
 		return []string{""}, nil
@@ -304,6 +320,10 @@ func (g *Gateway) routeKeys(p *provider) ([]string, error) {
 func sortCandidates(candidates []routeCandidate, route string) {
 	sort.SliceStable(candidates, func(i, j int) bool {
 		a, b := candidates[i], candidates[j]
+		// a model on this computer answers with no account and no quota
+		if aLocal, bLocal := a.provider.Tier == protocol.TierLocal, b.provider.Tier == protocol.TierLocal; (route == protocol.RouteAuto || route == "") && aLocal != bLocal {
+			return aLocal
+		}
 		if route == protocol.RouteFast {
 			if a.hasStat != b.hasStat {
 				return a.hasStat
@@ -349,6 +369,11 @@ type routedStream struct {
 	candidates []routeCandidate
 	started    time.Time
 
+	// strict is a request pinned to one model, which never goes elsewhere, so
+	// a failure is told as that model's and failure is the last one's cause.
+	strict  bool
+	failure error
+
 	attempts       int
 	next           int
 	current        *sseAttempt
@@ -373,10 +398,16 @@ func (s *routedStream) Next() (llm.Delta, error) {
 		if s.current == nil {
 			if s.attempts >= maxAttempts || s.next >= len(s.candidates) {
 				s.finished = true
-				return llm.Delta{}, errors.New(i18n.T("Every available free model failed. Check Providers for cooldowns and key errors"))
+				if s.strict {
+					return llm.Delta{}, s.pinFailed(s.failure)
+				}
+				return llm.Delta{}, errors.New(i18n.T("Every available model failed. Check Providers for cooldowns and key errors"))
 			}
 			if !s.committed && s.gateway.now().Sub(s.started) >= firstByteBudget {
 				s.finished = true
+				if s.strict {
+					return llm.Delta{}, &llm.NoRoute{Reason: i18n.Tf("%s did not answer within 45 seconds. Pick another model or Auto.", s.pinnedName())}
+				}
 				return llm.Delta{}, errors.New(i18n.T("No provider produced a response within 45 seconds"))
 			}
 			s.candidate = s.candidates[s.next]
@@ -389,6 +420,9 @@ func (s *routedStream) Next() (llm.Delta, error) {
 			if err != nil {
 				if !s.handleFailure(status, body, err) {
 					s.finished = true
+					if s.strict {
+						return llm.Delta{}, s.pinFailed(err)
+					}
 					return llm.Delta{}, err
 				}
 				continue
@@ -435,9 +469,42 @@ func (s *routedStream) Next() (llm.Delta, error) {
 		}
 		if !s.handleFailure(0, "", err) {
 			s.finished = true
+			if s.strict {
+				return llm.Delta{}, s.pinFailed(err)
+			}
 			return llm.Delta{}, err
 		}
 	}
+}
+
+// pinnedName is the pinned model's name, as the user picked it.
+func (s *routedStream) pinnedName() string {
+	candidate := s.candidate
+	if candidate.model == nil {
+		candidate = s.candidates[0]
+	}
+	if candidate.model.Name != "" {
+		return candidate.model.Name
+	}
+	return candidate.model.ID
+}
+
+// pinFailed tells a pinned request's failure as its model's, with the
+// provider's reason, and offers the way out; Every available model failed
+// would be wrong for a request that only ever had one. A cancelled request
+// stays cancelled.
+func (s *routedStream) pinFailed(cause error) error {
+	if errors.Is(cause, context.Canceled) {
+		return cause
+	}
+	reason := i18n.T("no answer")
+	if cause != nil {
+		if text := strings.TrimRight(strings.TrimSpace(cause.Error()), "."); text != "" {
+			// a provider may quote the key it refused
+			reason = s.gateway.redactKeyMessage(s.candidate.keyID, text)
+		}
+	}
+	return &llm.NoRoute{Reason: i18n.Tf("%s did not answer: %s. Pick another model or Auto.", s.pinnedName(), reason)}
 }
 
 func (s *routedStream) startCandidate(request chatRequest) (*sseAttempt, int, string, error) {
@@ -511,6 +578,7 @@ func (s *routedStream) nextAttemptDelta() (llm.Delta, error) {
 }
 
 func (s *routedStream) handleFailure(status int, body string, err error) bool {
+	s.failure = err
 	_ = s.gateway.store.recordUsage(s.gateway.now(), s.candidate.provider.ID, s.candidate.model.ID, false, protocol.UsageRow{})
 	if s.candidate.keyID != "" {
 		_ = s.gateway.applyHealth(s.candidate.keyID, status, body, false)
@@ -673,6 +741,9 @@ func (g *Gateway) startAttempt(ctx context.Context, candidate routeCandidate, re
 	if err != nil {
 		return nil, 0, "", err
 	}
+	if candidate.provider.CompletionTokens {
+		request.MaxCompletionTokens, request.MaxTokens = request.MaxTokens, 0
+	}
 	if candidate.provider.ID == "cohere" {
 		request.Tools = append([]wireTool(nil), request.Tools...)
 		for i := range request.Tools {
@@ -701,7 +772,11 @@ func (g *Gateway) startAttempt(ctx context.Context, candidate routeCandidate, re
 	for key, value := range candidate.provider.ExtraHeaders {
 		httpRequest.Header.Set(key, value)
 	}
-	response, err := g.client.Do(httpRequest)
+	client := g.client
+	if candidate.provider.Tier == protocol.TierLocal {
+		client = g.local.client
+	}
+	response, err := client.Do(httpRequest)
 	if err != nil {
 		return nil, 0, "", err
 	}

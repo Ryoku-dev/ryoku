@@ -95,80 +95,112 @@ func demoTeamsSettings() protocol.TeamsSettings {
 	}
 }
 
-// the five teams a new one can start from, in the order they are offered
+// the templates a new team can start from, word for word the daemon's: light, medium and advanced, then the blank one
 func demoTemplates() []protocol.TeamTemplate {
+	editor := i18n.T("Editor")
+	reader := i18n.T("Reader")
 	return []protocol.TeamTemplate{
 		{
-			ID: "research", Name: i18n.T("Research desk"),
-			Purpose:     i18n.T("Looks things up on the web and in my files, and writes short reports with sources."),
-			Description: i18n.T("An editor and a researcher who may use its own screen."),
-			Members: []protocol.Member{
-				{Name: i18n.T("Editor"), Title: i18n.T("Plans, checks sources, writes"), Lead: true, Instructions: i18n.T("Plans the work, hands searches to the researcher, checks every source and writes the report.")},
-				{Name: i18n.T("Researcher"), Title: i18n.T("Searches and reads"), Instructions: i18n.T("Searches, reads pages, opens them on its own screen when a page needs a browser, and notes every source.")},
-			},
-			Tools: protocol.TeamTools{Screen: true}, Approvals: protocol.ApprovalsAsk,
-			Budget: protocol.TeamBudget{MonthTokens: 2_000_000, WarnPercent: 80, TaskTurns: 20},
-		},
-		{
-			ID: "mail", Name: i18n.T("Mail desk"),
-			Purpose:     i18n.T("Drafts mail for me and sends it once I approve."),
-			Description: i18n.T("A writer that sends nothing without your approval."),
-			Members: []protocol.Member{
-				{Name: i18n.T("Writer"), Title: i18n.T("Writes and sends mail"), Lead: true, Instructions: i18n.T("Writes clear, short mail in my voice, never sends without approval, and says what it sent.")},
-			},
-			Tools: protocol.TeamTools{Mail: true}, Approvals: protocol.ApprovalsReadOnly,
-			Budget: protocol.TeamBudget{MonthTokens: 1_000_000, WarnPercent: 80, TaskTurns: 12},
-		},
-		{
-			ID: "repo", Name: i18n.T("Repo watch"),
-			Purpose:     i18n.T("Reviews open pull requests and issues in my GitHub organisation and tells me what needs me."),
-			Description: i18n.T("A reviewer and a triager that read and never comment."),
-			Members: []protocol.Member{
-				{Name: i18n.T("Reviewer"), Title: i18n.T("Judges what needs a maintainer"), Lead: true, Instructions: i18n.T("Reads pull requests and issues, judges what needs a maintainer, and never comments or merges.")},
-				{Name: i18n.T("Triager"), Title: i18n.T("Lists and groups new work"), Instructions: i18n.T("Lists new issues and pull requests, groups duplicates, and labels nothing.")},
-			},
-			Approvals: protocol.ApprovalsReadOnly,
-			Budget:    protocol.TeamBudget{MonthTokens: 3_000_000, WarnPercent: 80, TaskTurns: 30},
-			Routines: []protocol.RoutineDraft{{
-				Title: i18n.T("Morning review"), Schedule: "0 9 * * 1-5",
-				Brief: i18n.T("Review the pull requests and issues opened or updated since the last review, and report which need me and why."),
-			}},
-		},
-		{
-			ID: "system", Name: i18n.T("System care"),
+			ID: "system", Name: i18n.T("System care"), Level: protocol.LevelLight,
 			Purpose:     i18n.T("Looks after this computer: disk space, failed services, updates waiting, and tells me what to do."),
-			Description: i18n.T("A caretaker that reads and proposes, and never changes anything."),
+			Description: i18n.T("A caretaker that only reads, with an evening check you can turn on."),
 			Members: []protocol.Member{
-				{Name: i18n.T("Caretaker"), Title: i18n.T("Reads the system's state"), Lead: true, Instructions: i18n.T("Reads the system's state with read-only commands, never changes anything, and proposes the exact commands I may run.")},
+				{Name: i18n.T("Caretaker"), Title: i18n.T("System caretaker"), Lead: true, Instructions: i18n.T("You read the system's state with read-only commands and never change anything. When something needs fixing, you propose the exact commands the user may run.")},
 			},
-			Approvals: protocol.ApprovalsReadOnly,
-			Budget:    protocol.TeamBudget{MonthTokens: 1_000_000, WarnPercent: 80, TaskTurns: 15},
+			Approvals: protocol.ApprovalsReadOnly, Budget: protocol.TeamBudget{TaskTurns: 15},
 			Routines: []protocol.RoutineDraft{{
 				Title: i18n.T("Evening check"), Schedule: "0 18 * * *",
 				Brief: i18n.T("Check disk space, failed services, journal errors since yesterday and pending updates, and report anything I should act on."),
 			}},
 		},
 		{
+			ID: "mail", Name: i18n.T("Mail desk"), Level: protocol.LevelLight,
+			Purpose:     i18n.T("Drafts mail for me and sends it once I approve."),
+			Description: i18n.T("A writer that sends mail only after you approve it."),
+			Members: []protocol.Member{
+				{Name: i18n.T("Writer"), Title: i18n.T("Mail writer"), Lead: true, Instructions: i18n.T("You write clear, short mail in the user's voice. You never send a mail without the user's approval, and you say what you sent.")},
+			},
+			Tools: protocol.TeamTools{Mail: true}, Approvals: protocol.ApprovalsReadOnly, Budget: protocol.TeamBudget{TaskTurns: 12},
+		},
+		{
+			ID: "repo", Name: i18n.T("Repo watch"), Level: protocol.LevelMedium,
+			Purpose:     i18n.T("Reviews open pull requests and issues in my GitHub organisation and tells me what needs me."),
+			Description: i18n.T("A reviewer and a triager that read and never comment, with a weekday morning review you can turn on. It asks for a GitHub token."),
+			Members: []protocol.Member{
+				{Name: i18n.T("Reviewer"), Title: i18n.T("Lead reviewer"), Lead: true, Instructions: i18n.T("You read pull requests and issues through GitHub's API with http_request and the GITHUB_TOKEN credential, and judge which need a maintainer. You never comment, label or merge anything. When the credential is missing, ask for it with request_credential.")},
+				{Name: i18n.T("Triager"), Title: i18n.T("Issue triager"), Instructions: i18n.T("You list new issues and pull requests through GitHub's API with http_request and the GITHUB_TOKEN credential, and group the duplicates. You label nothing and change nothing.")},
+			},
+			Approvals: protocol.ApprovalsReadOnly, Budget: protocol.TeamBudget{TaskTurns: 30},
+			Routines: []protocol.RoutineDraft{{
+				Title: i18n.T("Morning review"), Schedule: "0 9 * * 1-5",
+				Brief: i18n.T("Review the pull requests and issues opened or updated since the last review, and report which need me and why."),
+			}},
+			Credentials: []protocol.CredentialNeed{{
+				Name: "GITHUB_TOKEN", Hosts: []string{"api.github.com"},
+				Why: i18n.T("The reviewer and the triager read your pull requests and issues through GitHub's API with it."),
+			}},
+		},
+		{
+			ID: "research", Name: i18n.T("Research desk"), Level: protocol.LevelMedium,
+			Purpose:     i18n.T("Looks things up on the web and in my files, and writes short reports with sources."),
+			Description: i18n.T("An editor and a researcher that can use its own screen."),
+			Members: []protocol.Member{
+				{Name: editor, Title: i18n.T("Lead editor"), Lead: true, Instructions: i18n.T("You plan the work and hand searches to the researcher. You check every source before it goes into the report, and you write the report.")},
+				{Name: i18n.T("Researcher"), Title: i18n.T("Web and file researcher"), Instructions: i18n.T("You search the web and the user's files and read what you find. When a page needs a browser, you open it on your own screen. You note every source you use.")},
+			},
+			Tools: protocol.TeamTools{Screen: true}, Approvals: protocol.ApprovalsAsk, Budget: protocol.TeamBudget{TaskTurns: 20},
+		},
+		{
+			ID: "news", Name: i18n.T("News desk"), Level: protocol.LevelAdvanced,
+			Purpose:     i18n.T("Follows the news on the topics I care about, sends me a digest every Monday and tells me when something big breaks."),
+			Description: i18n.T("An editor, a reader on a quicker model and a fact checker, with a weekly digest and an hourly watch for breaking news you can turn on. It asks for a NewsAPI key."),
+			Members: []protocol.Member{
+				{Name: editor, Title: i18n.T("Chief editor"), Lead: true, Instructions: i18n.T("You hand the reading to the reader and each story you pick to the fact checker, then write the digest: the stories worth the user's time, each in two sentences with its link.")},
+				{Name: reader, Title: i18n.T("News reader"), Harness: "claude", Model: "haiku", Instructions: i18n.T("You read the news through NewsAPI with http_request and the NEWS_API_KEY credential, and hand back every story on the user's topics with its link. When the credential is missing, ask for it with request_credential.")},
+				{Name: i18n.T("Fact checker"), Title: i18n.T("Checks every story"), Instructions: i18n.T("You check each story you are given against a second source and say plainly what you could not confirm.")},
+			},
+			Approvals: protocol.ApprovalsAsk, Budget: protocol.TeamBudget{TaskTurns: 20},
+			Routines: []protocol.RoutineDraft{
+				{Title: i18n.T("Weekly digest"), Member: editor, Schedule: "0 8 * * 1", Brief: i18n.T("Write this week's digest of the news on my topics: the five stories worth my time, checked, each with its link.")},
+				{Title: i18n.T("Breaking news"), Member: reader, Schedule: "0 * * * *", Brief: i18n.T("Look for news on my topics from the last hour. Report a story only when it is big enough to interrupt me; otherwise report quietly that nothing changed.")},
+			},
+			Credentials: []protocol.CredentialNeed{{
+				Name: "NEWS_API_KEY", Hosts: []string{"newsapi.org"},
+				Why: i18n.T("The reader reads the news through NewsAPI with it."),
+			}},
+		},
+		{
 			ID: "blank", Name: i18n.T("New team"),
-			Description: i18n.T("One lead, and nothing else until you add it."),
-			Members:     []protocol.Member{{Name: i18n.T("Lead"), Lead: true}},
-			Approvals:   protocol.ApprovalsAsk,
-			Budget:      protocol.TeamBudget{MonthTokens: 2_000_000, WarnPercent: 80, TaskTurns: 20},
+			Description: i18n.T("One lead and nothing else, for a team you set up yourself."),
+			Members:     []protocol.Member{{Name: i18n.T("Lead"), Title: i18n.T("Team lead"), Lead: true}},
+			Approvals:   protocol.ApprovalsAsk, Budget: protocol.TeamBudget{TaskTurns: 20},
 		},
 	}
 }
 
-// a team made from a template, its members given ids and engines in order
-func teamFrom(template protocol.TeamTemplate, id, folder string, created time.Time, crew ...protocol.Member) protocol.Team {
+// a template by its id, the zero template for one the demo does not offer
+func demoTemplate(id string) protocol.TeamTemplate {
+	for _, template := range demoTemplates() {
+		if template.ID == id {
+			return template
+		}
+	}
+	return protocol.TeamTemplate{}
+}
+
+// a team made from a template with the month it may spend, its members given ids and engines in order
+func teamFrom(template protocol.TeamTemplate, id, folder string, created time.Time, month int64, crew ...protocol.Member) protocol.Team {
 	members := append([]protocol.Member(nil), template.Members...)
 	for index := range members {
 		members[index].ID, members[index].Harness, members[index].Model = crew[index].ID, crew[index].Harness, crew[index].Model
 		members[index].Options = crew[index].Options
 	}
+	budget := template.Budget
+	budget.MonthTokens, budget.WarnPercent = month, 80
 	return protocol.Team{
 		ID: id, Name: template.Name, Purpose: template.Purpose, Template: template.ID,
 		Folder: paths.TeamsHome() + "/" + folder, Members: members, Tools: template.Tools,
-		Approvals: template.Approvals, Budget: template.Budget, Notify: protocol.NotifyAll,
+		Approvals: template.Approvals, Budget: budget, Notify: protocol.NotifyAll,
 		Created: created, Updated: created,
 	}
 }
@@ -177,17 +209,15 @@ func demoTeams(now time.Time, settings protocol.Settings, events map[string][]pr
 	clock := demoTeamsClock(now)
 	ago := func(d time.Duration) time.Time { return now.Add(-d) }
 	at := func(t time.Time) *time.Time { return &t }
-	templates := demoTemplates()
-
-	research := teamFrom(templates[0], demoTeamResearch, "research-desk", now.AddDate(0, 0, -24),
+	research := teamFrom(demoTemplate("research"), demoTeamResearch, "research-desk", now.AddDate(0, 0, -24), 2_000_000,
 		protocol.Member{ID: "member-editor", Harness: "claude", Model: "sonnet", Options: map[string]string{"effort": "high"}},
 		protocol.Member{ID: "member-researcher", Harness: "claude", Model: "haiku"})
-	mail := teamFrom(templates[1], demoTeamMail, "mail-desk", now.AddDate(0, 0, -30),
+	mail := teamFrom(demoTemplate("mail"), demoTeamMail, "mail-desk", now.AddDate(0, 0, -30), 1_000_000,
 		protocol.Member{ID: "member-writer", Harness: "codex", Model: "gpt-5.6"})
-	repo := teamFrom(templates[2], demoTeamRepo, "repo-watch", now.AddDate(0, 0, -40),
+	repo := teamFrom(demoTemplate("repo"), demoTeamRepo, "repo-watch", now.AddDate(0, 0, -40), 3_000_000,
 		protocol.Member{ID: "member-reviewer", Harness: "codex", Model: "gpt-5.6"},
 		protocol.Member{ID: "member-triager", Harness: "claude", Model: "haiku"})
-	system := teamFrom(templates[3], demoTeamSystem, "system-care", now.AddDate(0, 0, -18),
+	system := teamFrom(demoTemplate("system"), demoTeamSystem, "system-care", now.AddDate(0, 0, -18), 1_000_000,
 		protocol.Member{ID: "member-caretaker", Harness: "claude"})
 	system.Paused, system.PauseReason, system.Updated = true, protocol.PausedByYou, ago(26*time.Hour)
 	system.Notify = protocol.NotifyNeeds
@@ -250,7 +280,7 @@ func demoTeams(now time.Time, settings protocol.Settings, events map[string][]pr
 	routineBrief := func(routine protocol.RoutineDraft) string {
 		return i18n.Tf("%s\n\nThis run is from the routine \"%s\"; when nothing changed since the last run, say so in one line in your report.", routine.Brief, routine.Title)
 	}
-	morningRoutine, eveningRoutine := templates[2].Routines[0], templates[3].Routines[0]
+	morningRoutine, eveningRoutine := demoTemplate("repo").Routines[0], demoTemplate("system").Routines[0]
 	weeklyRoutine := protocol.RoutineDraft{Title: i18n.T("Weekly digest"), Schedule: "0 8 * * 1", Brief: i18n.T("Write this week's digest: the five stories on my topics worth my time, one line each with its link.")}
 	breakingRoutine := protocol.RoutineDraft{Title: i18n.T("Breaking alerts"), Schedule: "15 * * * *", Member: "member-reader", Brief: i18n.T("Check the technology headlines and tell me only about a story that changes something I use: a security fix, a release, a shutdown.")}
 
@@ -530,14 +560,14 @@ func demoTeams(now time.Time, settings protocol.Settings, events map[string][]pr
 	return fx
 }
 
-// what waits on the user, a choice among them, and two answers they gave
+// what waits on the user, a choice among them, a team an agent proposed, and two answers they gave
 func demoApprovals(clock teamsClock, actions map[string]demoAction, hours int) []protocol.Approval {
 	now := clock.now
 	ago := func(d time.Duration) time.Time { return now.Add(-d) }
 	at := func(t time.Time) *time.Time { return &t }
 	approval := func(a protocol.Approval) protocol.Approval {
-		// a team stopped at its limit stays paused until you answer, so its card never runs out
-		if a.Kind != protocol.ApprovalBudget {
+		// a team stopped at its limit stays paused until you answer, and a proposed team waits for you, so neither card runs out
+		if a.Kind != protocol.ApprovalBudget && a.Kind != protocol.ApprovalTeam {
 			a.Expires = a.Created.Add(time.Duration(hours) * time.Hour)
 		}
 		if a.Status == "" {
@@ -551,7 +581,13 @@ func demoApprovals(clock teamsClock, actions map[string]demoAction, hours int) [
 		Name: "MASTODON_TOKEN", Reason: i18n.T("To read the posts you bookmark on Mastodon and add the best ones to the weekly digest."), Hosts: []string{"mastodon.social"},
 	}}
 	actions["approval-print-shop"] = demoAction{recipient: "orders@riso.example.pt"}
+	proposal := demoProposal()
 	approvals := []protocol.Approval{
+		approval(protocol.Approval{
+			ID: "approval-translations", Session: proposal.Session, Kind: protocol.ApprovalTeam,
+			Title: i18n.Tf("Create the team %s", proposal.Team.Name), Detail: proposal.Reason, Proposal: &proposal,
+			Created: ago(150 * time.Minute),
+		}),
 		approval(protocol.Approval{
 			ID: "approval-meetup", Team: demoTeamMail, Task: "task-meetup", Session: "agent-team-meetup", Member: "member-writer",
 			Kind: protocol.ApprovalMail, Title: i18n.T("Send a mail to ana.ribeiro@example.org"),

@@ -18,7 +18,6 @@ import (
 
 	"ryoku-rashin/internal/app/env"
 	"ryoku-rashin/internal/app/look"
-	"ryoku-rashin/internal/protocol"
 )
 
 const (
@@ -59,10 +58,9 @@ type Page struct {
 	usage         env.Usage
 	api           apiPanel
 
-	models      protocol.ModelsResult
-	modelsReady bool
-	route       look.Select
-	habits      kit.Toggle
+	models env.ModelMenu
+	route  look.Select
+	habits kit.Toggle
 
 	harness   look.Select
 	approvals look.Select
@@ -81,6 +79,7 @@ type Page struct {
 
 	zoom     kit.Stepper
 	motion   kit.Toggle
+	colours  kit.Segmented
 	contrast kit.Segmented
 	tint     kit.Segmented
 }
@@ -205,7 +204,7 @@ type section struct {
 func sections() [sectionCount]section {
 	return [sectionCount]section{
 		{"rashin", i18n.T("Rashin"), look.Icon.Thought, i18n.T("on off turn daemon log about version")},
-		{"providers", i18n.T("Providers"), look.Icon.Graph, i18n.T("models routing route keys usage spend free")},
+		{"providers", i18n.T("Providers"), look.Icon.Graph, i18n.T("models routing route keys usage spend free paid local ollama llama.cpp address")},
 		{"api", i18n.T("Local API"), look.Icon.Link, i18n.T("address port key token exports openai")},
 		{"ask", i18n.T("Ask"), look.Icon.Ask, i18n.T("answers model memory habits shell approvals changes")},
 		{"agents", i18n.T("Agents"), look.Icon.Agents, i18n.T("harness harnesses omp approvals notices idle")},
@@ -228,7 +227,6 @@ func (item section) matches(query string) bool {
 }
 
 func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
-	p.loadModels(e)
 	th := e.Theme
 	for {
 		event, ok := gtx.Event(key.Filter{Name: "F", Required: key.ModShortcut})
@@ -326,18 +324,6 @@ func (p *Page) layoutSections(gtx layout.Context, e *env.Env, inset, width int) 
 			}
 		})
 		return layout.Dimensions{Size: image.Pt(full, dimensions.Size.Y)}
-	})
-}
-
-func (p *Page) loadModels(e *env.Env) {
-	if p.modelsReady {
-		return
-	}
-	p.modelsReady = true
-	e.Call(protocol.MModelsList, protocol.ModelsParams{}, &p.models, func(err error) {
-		if err != nil {
-			p.modelsReady = false
-		}
 	})
 }
 

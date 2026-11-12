@@ -18,7 +18,17 @@ import (
 
 func newTestGateway(t *testing.T) *Gateway {
 	t.Helper()
-	gateway, err := Open(t.TempDir())
+	// port 1 refuses at once: no test reaches a server the computer runs
+	return newLocalTestGateway(t, map[string]string{protocol.ProviderOllamaLocal: "http://127.0.0.1:1/v1", protocol.ProviderLlamaCpp: "http://127.0.0.1:1/v1"})
+}
+
+// newLocalTestGateway opens a gateway whose local providers are at the given
+// addresses.
+func newLocalTestGateway(t *testing.T, local map[string]string) *Gateway {
+	t.Helper()
+	gateway, err := Open(t.TempDir(), func() protocol.Settings {
+		return protocol.Settings{Providers: protocol.ProvidersSettings{Local: local}}
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +45,7 @@ func setTestProviders(gateway *Gateway, providers ...provider) {
 }
 
 func testProvider(id, baseURL string, quality int, tools bool) provider {
-	return provider{ID: id, Name: id, Tier: "permanent-free", BaseURL: baseURL, Auth: "none", Keyless: true, Models: []model{{ID: "chat", Name: "chat", Context: 128000, Tools: tools, QualityRank: quality, SpeedRank: quality}}}
+	return provider{ID: id, Name: id, Tier: protocol.TierFree, BaseURL: baseURL, Auth: "none", Keyless: true, Models: []model{{ID: "chat", Name: "chat", Context: 128000, Tools: tools, QualityRank: quality, SpeedRank: quality}}}
 }
 
 func sse(w http.ResponseWriter, frames ...string) {
@@ -360,6 +370,33 @@ func TestPinnedModelFallsBackUnlessStrict(t *testing.T) {
 				t.Fatalf("fallback hits = %d, want %d", fallbackHits.Load(), test.wantFallback)
 			}
 		})
+	}
+}
+
+// A strict pin has only one model, so its failure names that model and the
+// provider's reason instead of "Every available model failed".
+func TestAStrictPinThatFailsNamesItsModel(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte(`{"error":{"message":"upstream is overloaded."}}`))
+	}))
+	defer server.Close()
+	gateway := newTestGateway(t)
+	p := testProvider("kilo", server.URL, 100, true)
+	p.Models[0].Name = "Step 3.7 Flash"
+	setTestProviders(gateway, p)
+	request := llm.Request{Model: "kilo/chat", Strict: true, Messages: []llm.Message{{Role: llm.RoleUser, Content: "hello"}}}
+	stream, err := gateway.Stream(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, streamErr := collect(t, stream)
+	var refused *llm.NoRoute
+	if !errors.As(streamErr, &refused) {
+		t.Fatalf("the failure is %v, want one that says what to do", streamErr)
+	}
+	if want := "Step 3.7 Flash did not answer: upstream is overloaded. Pick another model or Auto."; refused.Reason != want {
+		t.Fatalf("the failure reads %q, want %q", refused.Reason, want)
 	}
 }
 

@@ -49,11 +49,14 @@ const (
 
 // SessionInfo describes one session. The daemon owns every field.
 type SessionInfo struct {
-	ID      string       `json:"id"`
-	Kind    SessionKind  `json:"kind"`
-	Title   string       `json:"title"`
-	Harness string       `json:"harness,omitempty"`
-	Model   string       `json:"model,omitempty"`
+	ID      string      `json:"id"`
+	Kind    SessionKind `json:"kind"`
+	Title   string      `json:"title"`
+	Harness string      `json:"harness,omitempty"`
+	Model   string      `json:"model,omitempty"`
+	// Pinned marks Model as one the user picked for this Ask session: it is
+	// asked alone and never fails over to another model.
+	Pinned  bool         `json:"pinned,omitempty"`
 	Mode    string       `json:"mode,omitempty"`
 	Cwd     string       `json:"cwd,omitempty"`
 	Origin  string       `json:"origin"`

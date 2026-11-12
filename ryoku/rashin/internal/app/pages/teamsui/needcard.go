@@ -28,8 +28,8 @@ import (
 const detailLines = 8
 
 // NeedCards answer what needs the user where it shows: an approval, a
-// credential request, a budget stop or a blocked task, each a notched slab
-// with its tone's notch and claim. Each card has one filled action, and only
+// credential request, a budget stop, a proposed team or a blocked task, each a
+// notched slab with its tone's notch and claim. Each card has one filled action, and only
 // the oldest open card's is gold; that card is the view's hero, a slab toned
 // by attention, so a page holds one of each. An answered card folds at once
 // to one line that keeps the answer for the rest of the session; a refusal by
@@ -44,6 +44,8 @@ type NeedCards struct {
 	urgent string
 	// on a task page, the oldest open choice, which takes its keys while nothing else holds the keyboard
 	keyed string
+	// the schedules of proposed teams' routines, read once
+	schedules Schedules
 }
 
 type needCard struct {
@@ -52,7 +54,7 @@ type needCard struct {
 	approve, always, deny, open kit.Plaque
 	note, value                 kit.TextField
 	more                        kit.Plaque
-	team, task                  kit.Click
+	team, task, proposer        kit.Click
 	// the options of a choice question, and whether the card holds the keys that pick them
 	choices [protocol.ApprovalOptionsMax]kit.Click
 	focused bool
@@ -181,9 +183,12 @@ func (c *NeedCards) layoutTablet(gtx layout.Context, e *env.Env, card *needCard,
 	gold := NeedKey(need) == c.urgent
 	tone := palette.Attention
 	var children []layout.FlexChild
-	if need.Approval != nil {
+	switch {
+	case need.Approval != nil && need.Approval.Kind == protocol.ApprovalTeam && need.Approval.Proposal != nil:
+		children = c.proposalField(gtx, e, snapshot, card, need, gold)
+	case need.Approval != nil:
 		children = c.approvalField(gtx, e, snapshot, card, need, gold)
-	} else {
+	default:
 		_, tone, _ = TaskStanding(*need.Task)
 		children = c.blockedField(gtx, e, snapshot, card, need, gold)
 	}

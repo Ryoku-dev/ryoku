@@ -50,6 +50,8 @@ type Service struct {
 
 	// effects carry out an approval's action once the user decides, by kind
 	effects map[string]approvalEffect
+	// proposing keeps two proposals from both passing the open limit
+	proposing sync.Mutex
 
 	background context.Context
 	cancel     context.CancelFunc
@@ -102,6 +104,7 @@ func open(dir string, v *vault.Vault, wake func(on bool), events core.Broadcaste
 		protocol.ApprovalMail:       s.effectMail,
 		protocol.ApprovalCredential: s.effectCredential,
 		protocol.ApprovalRequest:    s.effectRequest,
+		protocol.ApprovalTeam:       s.effectTeam,
 	}
 	return s, nil
 }
@@ -135,6 +138,8 @@ func (s *Service) Handle(ctx context.Context, method string, raw json.RawMessage
 		return protocol.TeamTemplatesResult{Templates: templates()}, nil
 	case protocol.MTeamsCreate:
 		return call(raw, func(p protocol.TeamCreateParams) (any, error) { return s.createTeam(ctx, p) })
+	case protocol.MTeamsPropose:
+		return call(raw, func(p protocol.TeamProposeParams) (any, error) { return s.proposeTeam(ctx, p) })
 	case protocol.MTeamsUpdate:
 		return call(raw, func(p protocol.TeamUpdateParams) (any, error) { return s.updateTeam(ctx, p) })
 	case protocol.MTeamsDelete:

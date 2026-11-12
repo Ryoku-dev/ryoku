@@ -52,9 +52,23 @@ func (u *Usage) Words(provider string) string {
 	case answered == 0 && failed == 0:
 		return ""
 	case failed == 0:
-		return i18n.Tf("%d answers this week", answered)
+		return i18n.Tf("%s this week", answersWord(answered))
 	}
-	return i18n.Tf("%d answers and %d failures this week", answered, failed)
+	return i18n.Tf("%s and %s this week", answersWord(answered), failuresWord(failed))
+}
+
+func answersWord(count int) string {
+	if count == 1 {
+		return i18n.T("1 answer")
+	}
+	return i18n.Tf("%d answers", count)
+}
+
+func failuresWord(count int) string {
+	if count == 1 {
+		return i18n.T("1 failure")
+	}
+	return i18n.Tf("%d failures", count)
 }
 
 func answersTrend(result protocol.GatewayUsage, days []string, week bool) look.Trend {
@@ -73,13 +87,13 @@ func answersTrend(result protocol.GatewayUsage, days []string, week bool) look.T
 	trend.Values = look.DayValues(days, byDay)
 	switch {
 	case week && failed == 0:
-		trend.Proof = i18n.Tf("%d answers this week, none failed", requests)
+		trend.Proof = i18n.Tf("%s this week, none failed", answersWord(requests))
 	case week:
-		trend.Proof = i18n.Tf("%d answers this week; %d failed", requests, failed)
+		trend.Proof = i18n.Tf("%s this week; %d failed", answersWord(requests), failed)
 	case failed == 0:
-		trend.Proof = i18n.Tf("%d answers in two weeks, none failed", requests)
+		trend.Proof = i18n.Tf("%s in two weeks, none failed", answersWord(requests))
 	default:
-		trend.Proof = i18n.Tf("%d answers in two weeks; %d failed", requests, failed)
+		trend.Proof = i18n.Tf("%s in two weeks; %d failed", answersWord(requests), failed)
 	}
 	return trend
 }

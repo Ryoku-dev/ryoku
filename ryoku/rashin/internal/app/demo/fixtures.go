@@ -212,15 +212,16 @@ func makeFixtures() fixtures {
 				},
 			},
 		},
-		Daemon: protocol.DaemonSettings{IdleExitMinutes: 5},
-		Index:  protocol.IndexSettings{System: true, Semantic: true},
-		API:    protocol.APISettings{Enabled: true, Port: protocol.DefaultAPIPort},
-		Teams:  demoTeamsSettings(),
+		Daemon:    protocol.DaemonSettings{IdleExitMinutes: 5},
+		Index:     protocol.IndexSettings{System: true, Semantic: true},
+		API:       protocol.APISettings{Enabled: true, Port: protocol.DefaultAPIPort},
+		Teams:     demoTeamsSettings(),
+		Providers: protocol.ProvidersSettings{Local: protocol.DefaultLocalAddresses()},
 	}
 	provider := protocol.ProviderInfo{
 		ID:         "openrouter",
 		Name:       "OpenRouter",
-		Tier:       "free",
+		Tier:       protocol.TierCredits,
 		Enabled:    true,
 		Configured: true,
 		Models:     8,
@@ -232,7 +233,7 @@ func makeFixtures() fixtures {
 	keyless := protocol.ProviderInfo{
 		ID:         "puter",
 		Name:       "Puter",
-		Tier:       "renewable",
+		Tier:       protocol.TierFree,
 		Keyless:    true,
 		Enabled:    true,
 		Configured: true,
@@ -477,14 +478,14 @@ func makeFixtures() fixtures {
 				Running:   true,
 				Clients:   1,
 				Sessions:  protocol.SessionCounts{Ask: 1, Agent: 5, Working: 2, Alive: 2},
-				Gateway:   protocol.GatewayStatus{Providers: 2, Models: 9, Keyless: 1},
+				Gateway:   protocol.GatewayStatus{Providers: 4, Models: 16, Keyless: 2},
 				API:       demoAPI(settings.API),
 				Harnesses: 3,
 				Indexes:   2,
 			},
 			Sessions:  []protocol.SessionInfo{working, needs, failed, done, idle, ask},
 			Settings:  settings,
-			Providers: []protocol.ProviderInfo{provider, keyless},
+			Providers: append(demoLocalProviders(settings.Providers), provider, keyless, demoAnthropic(), demoOpenAI()),
 			Harnesses: demoHarnesses(now),
 			Indexes:   indexes,
 			Projects:  projects,
@@ -497,10 +498,7 @@ func makeFixtures() fixtures {
 				{ID: protocol.RouteFast, Name: i18n.T("Fast")},
 				{ID: protocol.RouteSmart, Name: i18n.T("Smart")},
 			},
-			Models: []protocol.ModelInfo{
-				{ID: "free", Provider: "openrouter", Name: i18n.T("Free router"), Available: true, Tools: true},
-				{ID: "gpt-oss-120b", Provider: "puter", Name: "GPT OSS 120B", Available: true, Tools: true},
-			},
+			Models: demoAskModels(),
 		},
 		worktrees: map[string]protocol.WorktreesResult{
 			demoProjectHyperion: {Project: demoProjectHyperion, Worktrees: hyperionWorktrees},
@@ -650,19 +648,19 @@ func demoProviderCatalogue() []protocol.ProviderInfo {
 				{ID: "nvidia-demo", Label: i18n.T("Main"), Status: protocol.KeyHealthy, Masked: "nvapi-••••4b31"},
 			},
 		},
-		{ID: "ovh", Name: "OVHcloud", Tier: "renewable", Keyless: true, Enabled: true, Configured: true, Models: 3, Available: 3},
-		{ID: "kilo", Name: "Kilo", Tier: "renewable", Keyless: true, Enabled: true, Configured: true, Models: 2, Available: 2},
+		{ID: "ovh", Name: "OVHcloud", Tier: protocol.TierFree, Keyless: true, Enabled: true, Configured: true, Models: 3, Available: 3},
+		{ID: "kilo", Name: "Kilo", Tier: protocol.TierFree, Keyless: true, Enabled: true, Configured: true, Models: 2, Available: 2},
 	}
 	catalogue := []string{
-		"Anthropic", "Cerebras", "Chutes", "Cloudflare", "Cohere", "DeepInfra",
+		"Cerebras", "Chutes", "Cloudflare", "Cohere", "DeepInfra",
 		"DeepSeek", "Fireworks", "GitHub Models", "Google AI Studio", "Hugging Face",
-		"Mistral", "Moonshot", "Nebius", "Novita", "OpenAI", "Perplexity", "Qwen",
+		"Mistral", "Moonshot", "Nebius", "Novita", "Perplexity", "Qwen",
 		"SambaNova", "Together", "xAI", "Zhipu",
 	}
 	for index, name := range catalogue {
 		id := strings.ToLower(strings.NewReplacer(" ", "-", "_", "-").Replace(name))
 		providers = append(providers, protocol.ProviderInfo{
-			ID: id, Name: name, Tier: "catalogue", Models: 2 + index%5, KeyHint: "key-...",
+			ID: id, Name: name, Tier: protocol.TierFree, Models: 2 + index%5, KeyHint: "key-...",
 		})
 	}
 	return providers

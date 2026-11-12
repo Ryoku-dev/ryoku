@@ -1120,6 +1120,7 @@ func (m *sessionManager) fork(ctx context.Context, p protocol.ForkParams) (proto
 	}
 	if err := target.log.Update(func(i *protocol.SessionInfo) {
 		i.Parent = sourceInfo.ID
+		i.Pinned = sourceInfo.Pinned
 		i.Turns = turns
 		i.Preview = preview
 		i.State = state

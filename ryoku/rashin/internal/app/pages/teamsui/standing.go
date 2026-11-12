@@ -116,6 +116,8 @@ func ApprovalWord(kind string) string {
 		return i18n.T("Credential request")
 	case protocol.ApprovalBudget:
 		return i18n.T("Spending limit")
+	case protocol.ApprovalTeam:
+		return i18n.T("Team proposal")
 	}
 	return i18n.T("Decision")
 }

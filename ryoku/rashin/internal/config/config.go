@@ -30,10 +30,11 @@ func Defaults() protocol.Settings {
 			Approvals:       protocol.ApprovalsReadOnly,
 			IdleStopMinutes: 10,
 		},
-		Daemon: protocol.DaemonSettings{IdleExitMinutes: 5},
-		Index:  protocol.IndexSettings{System: true, Semantic: true},
-		API:    protocol.APISettings{Port: protocol.DefaultAPIPort},
-		Teams:  defaultTeams(),
+		Daemon:    protocol.DaemonSettings{IdleExitMinutes: 5},
+		Index:     protocol.IndexSettings{System: true, Semantic: true},
+		API:       protocol.APISettings{Port: protocol.DefaultAPIPort},
+		Teams:     defaultTeams(),
+		Providers: protocol.ProvidersSettings{Local: protocol.DefaultLocalAddresses()},
 	}
 }
 
@@ -44,7 +45,7 @@ var legacyKeys = []string{
 }
 
 // known are the version 2 keys this package owns.
-var known = []string{"version", "enabled", "ask", "agent", "daemon", "index", "api", "teams"}
+var known = []string{"version", "enabled", "ask", "agent", "daemon", "index", "api", "teams", "providers"}
 
 // Validate normalises s in place: unknown enums fall back to the defaults and
 // numbers are clamped to sane ranges.
@@ -81,6 +82,7 @@ func Validate(s *protocol.Settings) {
 		s.API.Port = d.API.Port
 	}
 	validateTeams(&s.Teams, d.Teams)
+	validateLocal(&s.Providers, d.Providers)
 }
 
 // below 1024 a user's daemon cannot listen
@@ -149,6 +151,7 @@ func fromRaw(raw map[string]json.RawMessage) protocol.Settings {
 	decodeInto(raw["index"], &s.Index)
 	decodeInto(raw["api"], &s.API)
 	decodeInto(raw["teams"], &s.Teams)
+	decodeInto(raw["providers"], &s.Providers)
 	Validate(&s)
 	return s
 }
@@ -220,14 +223,15 @@ func saveUnlocked(s protocol.Settings) error {
 		return nil
 	}
 	for k, v := range map[string]any{
-		"version": Version,
-		"enabled": s.Enabled,
-		"ask":     s.Ask,
-		"agent":   s.Agent,
-		"daemon":  s.Daemon,
-		"index":   s.Index,
-		"api":     s.API,
-		"teams":   s.Teams,
+		"version":   Version,
+		"enabled":   s.Enabled,
+		"ask":       s.Ask,
+		"agent":     s.Agent,
+		"daemon":    s.Daemon,
+		"index":     s.Index,
+		"api":       s.API,
+		"teams":     s.Teams,
+		"providers": s.Providers,
 	} {
 		if err := set(k, v); err != nil {
 			return err
@@ -395,6 +399,9 @@ func validatePatch(s protocol.Settings) error {
 	}
 	if !validPort(s.API.Port) {
 		return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("The API port must be between 1024 and 65535."))
+	}
+	if err := checkLocal(s.Providers); err != nil {
+		return err
 	}
 	return checkTeams(s.Teams)
 }

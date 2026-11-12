@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"maps"
 	"net"
 	"os"
 	"path/filepath"
@@ -660,6 +661,10 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 		}
 		d.applyAPI()
 		d.stateChanged()
+		// a new address is a different server: its running state and models follow it
+		if d.deps.Gateway != nil && !maps.Equal(next.Providers.Local, current.Providers.Local) {
+			d.broadcastProviders(ctx)
+		}
 		return next, nil
 	case protocol.MUIOpen:
 		p, err := unmarshal[protocol.UIOpenParams](raw)

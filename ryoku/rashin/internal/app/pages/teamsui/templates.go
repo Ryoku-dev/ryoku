@@ -47,6 +47,81 @@ func TemplateLine(template protocol.TeamTemplate) string {
 	return template.Description
 }
 
+// the templates of one level, in the order the daemon offers them; the level is empty for the blank one
+type templateGroup struct {
+	level     string
+	templates []protocol.TeamTemplate
+}
+
+// the levels in the order they are offered; a template of no level known here stands last with the blank one
+var templateLevels = []string{protocol.LevelLight, protocol.LevelMedium, protocol.LevelAdvanced, ""}
+
+// light first and the blank one last, so the picker reads from what asks least to what asks most
+func templateGroups(templates []protocol.TeamTemplate) []templateGroup {
+	groups := make([]templateGroup, 0, len(templateLevels))
+	for _, level := range templateLevels {
+		group := templateGroup{level: level}
+		for _, template := range templates {
+			if templateLevel(template) == level {
+				group.templates = append(group.templates, template)
+			}
+		}
+		if len(group.templates) > 0 {
+			groups = append(groups, group)
+		}
+	}
+	return groups
+}
+
+func templateLevel(template protocol.TeamTemplate) string {
+	switch template.Level {
+	case protocol.LevelLight, protocol.LevelMedium, protocol.LevelAdvanced:
+		return template.Level
+	}
+	return ""
+}
+
+// a group's name and, for a level, one line on what it asks of the user
+func levelHeader(th *look.Theme, level string) layout.Widget {
+	title, line := i18n.T("From scratch"), ""
+	switch level {
+	case protocol.LevelLight:
+		title, line = i18n.T("Light"), i18n.T("One member and nothing to set up first.")
+	case protocol.LevelMedium:
+		title, line = i18n.T("Medium"), i18n.T("A lead who hands work to a member, and a credential it may ask for.")
+	case protocol.LevelAdvanced:
+		title, line = i18n.T("Advanced"), i18n.T("Members on different models, routines of their own and the credentials they need.")
+	}
+	return func(gtx layout.Context) layout.Dimensions {
+		children := []layout.FlexChild{layout.Rigid(kit.Text(th.Theme, th.T.Label, th.R.Fg, title))}
+		if line != "" {
+			children = append(children, layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2, line)))
+		}
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+	}
+}
+
+// LayoutGroups lays the templates out under their level headers, each template drawn by row.
+func LayoutGroups(gtx layout.Context, th *look.Theme, templates []protocol.TeamTemplate, row func(gtx layout.Context, template protocol.TeamTemplate) layout.Dimensions) layout.Dimensions {
+	var children []layout.FlexChild
+	for index, group := range templateGroups(templates) {
+		if index > 0 {
+			children = append(children, layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout))
+		}
+		children = append(children,
+			layout.Rigid(levelHeader(th, group.level)),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+		)
+		for position, template := range group.templates {
+			if position > 0 {
+				children = append(children, layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout))
+			}
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions { return row(gtx, template) }))
+		}
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+}
+
 // TeamStart offers the templates to start a first team from, each opening
 // the draft of a new team filled from it.
 type TeamStart struct {
@@ -73,13 +148,11 @@ func (s *TeamStart) Layout(gtx layout.Context, e *env.Env, templates []protocol.
 				return look.SkeletonRows(gtx, th, 5, true)
 			}))
 		}
-		for _, template := range templates {
-			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return layout.Inset{Bottom: th.Sp.S1}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return s.layoutTemplate(gtx, e, template)
-				})
-			}))
-		}
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return LayoutGroups(gtx, th, templates, func(gtx layout.Context, template protocol.TeamTemplate) layout.Dimensions {
+				return s.layoutTemplate(gtx, e, template)
+			})
+		}))
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	})
 }

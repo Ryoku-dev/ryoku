@@ -37,19 +37,16 @@ type EngineForm struct {
 	// typed is a model typed although a list is known
 	typed       bool
 	read, check kit.Plaque
-	busy        bool
-	// what the last probe read, until the snapshot carries a list as new
-	probed  protocol.HarnessInfo
-	result  string
-	failed  bool
-	changed bool
+	reader      env.HarnessProbe
+	changed     bool
 }
 
 func (f *EngineForm) Set(harness, model string, options map[string]string) {
 	f.harnessID, f.modelID, f.values = harness, model, maps.Clone(options)
 	f.text = model
 	f.modelText.SetText(model)
-	f.typed, f.result, f.failed = false, "", false
+	f.typed = false
+	f.reader.Clear()
 }
 
 // harness "" follows the first option, model "" takes the default, options hold only what was picked
@@ -117,7 +114,7 @@ func harnessName(harnesses []protocol.HarnessInfo, id string) string {
 	if id == "" {
 		return i18n.T("no harness installed")
 	}
-	if info, ok := harnessByID(harnesses, id); ok {
+	if info, ok := env.HarnessByID(harnesses, id); ok {
 		return info.Name
 	}
 	return id
@@ -137,16 +134,6 @@ func (f *EngineForm) inherited(snapshot state.Snapshot) (harness, model string, 
 	}
 	harness, model, options = protocol.ResolveEngine(protocol.Member{}, snapshot.Settings, fallback)
 	return harness, model, options, i18n.T("Teams default")
-}
-
-// the harness as the snapshot has it, with what a probe just read while the snapshot is older
-func (f *EngineForm) info(snapshot state.Snapshot, id string) protocol.HarnessInfo {
-	info, _ := harnessByID(snapshot.Harnesses, id)
-	probed := f.probed.Capabilities
-	if f.probed.ID == id && probed != nil && (info.Capabilities == nil || info.Capabilities.Learned.Before(probed.Learned)) {
-		info.Capabilities = probed
-	}
-	return info
 }
 
 // rows read the form when they are drawn, so a harness picked above already shapes the rows under it
@@ -197,7 +184,8 @@ func (f *EngineForm) harnessField(gtx layout.Context, e *env.Env, defaultLabel s
 		// model ids and options belong to one harness, so another harness starts from its own defaults
 		f.harnessID, f.modelID, f.values, f.text, f.typed = ids[index], "", nil, "", false
 		f.modelText.SetText("")
-		f.result, f.failed, f.changed = "", false, true
+		f.reader.Clear()
+		f.changed = true
 	}
 	f.harness.Label = i18n.T("Harness")
 	gtx.Constraints.Min.X = gtx.Constraints.Max.X
@@ -219,19 +207,16 @@ func harnessState(harness protocol.HarnessInfo) string {
 // the first choice names what an empty model runs: the member's or the teams default when they name one, else the harness's own
 func firstModel(info protocol.HarnessInfo, model, source string) string {
 	if model != "" && source != "" {
-		return i18n.Tf("%s (%s)", source, modelName(info.Capabilities, model))
+		return i18n.Tf("%s (%s)", source, env.ModelName(info.Capabilities, model))
 	}
-	if model := defaultModel(info); model != "" {
-		return i18n.Tf("Harness default (%s)", modelName(info.Capabilities, model))
-	}
-	return i18n.T("Harness default")
+	return env.HarnessDefaultLabel(info)
 }
 
 func (f *EngineForm) modelField(gtx layout.Context, e *env.Env) layout.Dimensions {
 	th := e.Theme
 	snapshot := e.Snapshot()
 	harness, model, _, source := f.inherited(snapshot)
-	info := f.info(snapshot, harness)
+	info := f.reader.Info(snapshot, harness)
 	first := firstModel(info, model, source)
 	var list []protocol.Choice
 	if info.Capabilities != nil {
@@ -244,7 +229,8 @@ func (f *EngineForm) modelField(gtx layout.Context, e *env.Env) layout.Dimension
 	}
 	if text := f.modelText.Text(); text != f.text {
 		f.text, f.modelID = text, strings.TrimSpace(text)
-		f.result, f.failed, f.changed = "", false, true
+		f.reader.Clear()
+		f.changed = true
 	}
 	f.modelText.Label, f.modelText.Mono = i18n.T("Model"), true
 	f.modelText.Placeholder = i18n.Tf("Model id, empty for %s", first)
@@ -253,7 +239,7 @@ func (f *EngineForm) modelField(gtx layout.Context, e *env.Env) layout.Dimension
 		f.modelText.Error = i18n.T("A model id has no spaces.")
 	}
 	f.read.Kind, f.read.Small = kit.PlaqueTonal, true
-	f.read.Label, f.read.Busy = i18n.T("Read the list"), f.busy
+	f.read.Label, f.read.Busy = i18n.T("Read the list"), f.reader.Busy
 	if listed {
 		f.read.Label, f.read.Busy = i18n.T("Pick from the list"), false
 	}
@@ -261,8 +247,8 @@ func (f *EngineForm) modelField(gtx layout.Context, e *env.Env) layout.Dimension
 		switch {
 		case listed:
 			f.typed = false
-		case !f.busy && info.Installed:
-			f.probe(e, protocol.HarnessProbeParams{ID: info.ID}, info.Name, false)
+		case !f.reader.Busy && info.Installed:
+			f.reader.Run(e, protocol.HarnessProbeParams{ID: info.ID}, info.Name, false)
 		}
 	}
 	children := []layout.FlexChild{layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -270,7 +256,7 @@ func (f *EngineForm) modelField(gtx layout.Context, e *env.Env) layout.Dimension
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return f.modelText.Layout(gtx, th.Theme) }),
 			layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				if !listed && (f.busy || !info.Installed) {
+				if !listed && (f.reader.Busy || !info.Installed) {
 					gtx = gtx.Disabled()
 				}
 				return f.read.Layout(gtx, th.Theme)
@@ -309,7 +295,8 @@ func (f *EngineForm) modelSelect(gtx layout.Context, e *env.Env, list []protocol
 		case index >= 0 && index < len(ids) && ids[index] != f.modelID:
 			f.modelID, f.text = ids[index], ids[index]
 			f.modelText.SetText(ids[index])
-			f.result, f.failed, f.changed = "", false, true
+			f.reader.Clear()
+			f.changed = true
 		}
 	}
 	f.model.Label = i18n.T("Model")
@@ -354,7 +341,7 @@ func (f *EngineForm) optionFields(gtx layout.Context, e *env.Env) layout.Dimensi
 	th := e.Theme
 	snapshot := e.Snapshot()
 	harness, _, inherited, source := f.inherited(snapshot)
-	options := catalogOptions(f.info(snapshot, harness).Capabilities)
+	options := catalogOptions(f.reader.Info(snapshot, harness).Capabilities)
 	children := make([]layout.FlexChild, 0, 2*len(options))
 	for index, option := range options {
 		if index > 0 {
@@ -405,7 +392,8 @@ func (f *EngineForm) optionField(gtx layout.Context, e *env.Env, option protocol
 			f.values[option.ID] = ids[index]
 		}
 		current = ids[index]
-		f.result, f.failed, f.changed = "", false, true
+		f.reader.Clear()
+		f.changed = true
 	}
 	control.Label = option.Name
 	gtx.Constraints.Min.X = gtx.Constraints.Max.X
@@ -417,18 +405,18 @@ func (f *EngineForm) checkRow(gtx layout.Context, e *env.Env) layout.Dimensions 
 	th := e.Theme
 	snapshot := e.Snapshot()
 	harness, model, options := f.Effective(snapshot)
-	info, known := harnessByID(snapshot.Harnesses, harness)
-	ready := known && info.Installed && !f.busy
-	f.check.Kind, f.check.Small, f.check.Label, f.check.Busy = kit.PlaqueTonal, true, i18n.T("Check"), f.busy
+	info, known := env.HarnessByID(snapshot.Harnesses, harness)
+	ready := known && info.Installed && !f.reader.Busy
+	f.check.Kind, f.check.Small, f.check.Label, f.check.Busy = kit.PlaqueTonal, true, i18n.T("Check"), f.reader.Busy
 	if f.check.Clicked(gtx) && ready {
-		f.probe(e, protocol.HarnessProbeParams{ID: harness, Model: model, Options: options}, info.Name, true)
+		f.reader.Run(e, protocol.HarnessProbeParams{ID: harness, Model: model, Options: options}, info.Name, true)
 	}
 	line, style, ink := i18n.T("Starts the harness once in a sandbox, as a task would, without a prompt."), th.T.Caption, th.R.Fg3
 	switch {
-	case f.result != "" && f.failed:
-		line, style, ink = f.result, th.T.Detail, th.R.Jasper
-	case f.result != "":
-		line, style, ink = f.result, th.T.Detail, th.R.Fg2
+	case f.reader.Result != "" && f.reader.Failed:
+		line, style, ink = f.reader.Result, th.T.Detail, th.R.Jasper
+	case f.reader.Result != "":
+		line, style, ink = f.reader.Result, th.T.Detail, th.R.Fg2
 	}
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -440,42 +428,4 @@ func (f *EngineForm) checkRow(gtx layout.Context, e *env.Env) layout.Dimensions 
 		layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
 		layout.Flexed(1, look.Paragraph(th, style, ink, line)),
 	)
-}
-
-// one probe at a time; checking says what the harness took, reading only says when it offered no list
-func (f *EngineForm) probe(e *env.Env, params protocol.HarnessProbeParams, name string, checking bool) {
-	f.busy, f.result, f.failed = true, "", false
-	var result protocol.HarnessProbeResult
-	e.Call(protocol.MHarnessesProbe, params, &result, func(err error) {
-		f.busy = false
-		switch {
-		case err != nil:
-			f.result, f.failed = err.Error(), true
-			return
-		case !result.OK:
-			f.result, f.failed = result.Message, true
-			if f.result == "" {
-				f.result = i18n.Tf("%s did not start.", name)
-			}
-		}
-		f.probed = result.Harness
-		if !result.OK {
-			return
-		}
-		capabilities := result.Harness.Capabilities
-		switch {
-		case checking:
-			model := params.Model
-			if model == "" {
-				model = defaultModel(result.Harness)
-			}
-			if model == "" {
-				f.result = i18n.Tf("%s started in the sandbox and took its default model.", name)
-			} else {
-				f.result = i18n.Tf("%s started in the sandbox and took %s.", name, modelName(capabilities, model))
-			}
-		case capabilities == nil || len(capabilities.ModelList) == 0:
-			f.result = i18n.Tf("%s started but offered no list of models. Type the model id.", name)
-		}
-	})
 }

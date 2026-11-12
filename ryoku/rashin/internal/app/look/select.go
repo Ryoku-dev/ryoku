@@ -23,10 +23,11 @@ const (
 )
 
 // detail is a second line under the label in the opened list; a disabled option
-// is shown at alpha.disabled, can't be picked and reads as unavailable
+// is shown at alpha.disabled, can't be picked and reads as unavailable; group
+// names the run of options this one belongs to, headed once in the opened list
 type SelectOption struct {
-	Label, Detail string
-	Disabled      bool
+	Label, Detail, Group string
+	Disabled             bool
 }
 
 // the menu opens in window coordinates so it works inside clipped and scrolling parents
@@ -39,6 +40,8 @@ type Select struct {
 	Return any
 	// a quiet select whose value is itself a state worth seeing, such as one that stops asking
 	Tone palette.Tone
+	// shows the search field however few the options, for a list people look things up in
+	Searched bool
 
 	click   kit.Click
 	menu    kit.Menu
@@ -134,16 +137,17 @@ func (selection *Select) open(gtx layout.Context, th *Theme, overlays *Overlays,
 	if selection.Return != nil {
 		placement.Return = selection.Return
 	}
-	listed := len(options) >= pickerSearchFrom
+	searched := selection.Searched || len(options) >= pickerSearchFrom
+	listed := searched
 	for _, option := range options {
-		listed = listed || option.Detail != ""
+		listed = listed || option.Detail != "" || option.Group != ""
 	}
 	if listed {
 		selection.picker.open()
 		placement.Frame, placement.Width = true, 340
-		placement.Focus = selection.picker.focus(len(options) >= pickerSearchFrom)
+		placement.Focus = selection.picker.focus(searched)
 		overlays.Open(tag, overlays.AnchorOf(tag, selection.size), placement, func(gtx layout.Context) layout.Dimensions {
-			dimensions, picked := selection.picker.Layout(gtx, th, options, selected)
+			dimensions, picked := selection.picker.Layout(gtx, th, options, selected, searched)
 			if picked >= 0 {
 				selection.value, selection.changed = picked, true
 				overlays.Close(tag)

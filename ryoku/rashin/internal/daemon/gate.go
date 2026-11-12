@@ -126,15 +126,19 @@ func requireApp(c *connection) error {
 
 // settingsForApp reports whether a settings patch reaches what only the
 // Rashin app may change: the teams' settings, which set what their agents
-// may reach, or the harness instances, whose command and environment team
-// agents run with. A patch that replaces a whole object, or is no object at
-// all, reaches everything under it.
+// may reach, the harness instances, whose command and environment team
+// agents run with, or the providers' settings, which name the addresses the
+// gateway sends requests to. A patch that replaces a whole object, or is no
+// object at all, reaches everything under it.
 func settingsForApp(patch json.RawMessage) bool {
 	var top map[string]json.RawMessage
 	if json.Unmarshal(patch, &top) != nil || top == nil {
 		return true
 	}
 	if _, ok := top["teams"]; ok {
+		return true
+	}
+	if _, ok := top["providers"]; ok {
 		return true
 	}
 	agent, ok := top["agent"]

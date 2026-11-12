@@ -131,6 +131,7 @@ const (
 	MTeamsList           = "teams.list"
 	MTeamsTemplates      = "teams.templates"
 	MTeamsCreate         = "teams.create"
+	MTeamsPropose        = "teams.propose"
 	MTeamsUpdate         = "teams.update"
 	MTeamsDelete         = "teams.delete"
 	MTeamsPause          = "teams.pause"
@@ -254,7 +255,7 @@ var Methods = []Method{
 	m(MProvidersRemoveKey, RemoveKeyParams{}, ProviderInfo{}, "Remove a provider key."),
 	m(MProvidersTest, ProviderParams{}, ProviderTestResult{}, "Run a one-token completion through a provider."),
 	m(MProvidersEnable, EnableProviderParams{}, ProviderInfo{}, "Turn a provider on or off for routing."),
-	m(MModelsList, ModelsParams{}, ModelsResult{}, "Free chat models and routes."),
+	m(MModelsList, ModelsParams{}, ModelsResult{}, "Chat models, their tier and the routes."),
 	m(MGatewayUsage, UsageParams{}, GatewayUsage{}, "Requests and tokens per day, provider and model."),
 	m(MGatewayAPI, Empty{}, APIInfo{}, "The local API: whether it is on, where it listens."),
 	m(MGatewayAPIKey, APIKeyParams{}, APIKey{}, "The key other programs present to the local API; rotate replaces it."),
@@ -336,13 +337,14 @@ var Methods = []Method{
 	m(MTasksStart, TaskStartParams{}, TaskStartResult{}, "Start a task in a new worktree with an Agent session."),
 	m(MTasksGate, GateParams{}, TaskInfo{}, "Open a decision gate on a task."),
 	m(MTasksResolveGate, GateResolveParams{}, TaskInfo{}, "Resolve a decision gate."),
-	m(MTasksPlan, TaskPlanParams{}, TaskPlanResult{}, "Draft tasks for a goal with the free-model router."),
+	m(MTasksPlan, TaskPlanParams{}, TaskPlanResult{}, "Draft tasks for a goal with the model router."),
 
 	m(MActivityList, ActivityParams{}, ActivityResult{}, "A project's action ledger, newest first."),
 
 	m(MTeamsList, Empty{}, TeamsResult{}, "Teams by name."),
 	m(MTeamsTemplates, Empty{}, TeamTemplatesResult{}, "The ready-made teams a new one can start from."),
 	m(MTeamsCreate, TeamCreateParams{}, Team{}, "Create a team, with its routines."),
+	m(MTeamsPropose, TeamProposeParams{}, Approval{}, "Propose a team; the user approves it in the Inbox, which creates it."),
 	m(MTeamsUpdate, TeamUpdateParams{}, Team{}, "Apply a JSON merge patch to a team."),
 	m(MTeamsDelete, TeamRef{}, Empty{}, "Delete a team, its tasks, routines and grants; its folder stays."),
 	m(MTeamsPause, TeamPauseParams{}, Team{}, "Pause a team, or let it work again."),

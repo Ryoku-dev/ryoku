@@ -13,9 +13,10 @@ import (
 )
 
 // agentTools hands an agent session Rashin's own MCP server, which serves the
-// code search over its folder, the session's goal, where the desktop can
-// host one its screen and, for a team task, the team's tools. Without the
-// rashin command beside the daemon or on PATH the session gets none.
+// code search over its folder, the session's goal, Rashin's teams and their
+// templates with propose_team, where the desktop can host one its screen and,
+// for a team task, the team's tools. Without the rashin command beside the
+// daemon or on PATH the session gets none.
 func (d *Daemon) agentTools(info protocol.SessionInfo) []core.MCPServer {
 	command := d.commandPath()
 	if command == "" {

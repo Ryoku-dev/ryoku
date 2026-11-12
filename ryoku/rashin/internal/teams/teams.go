@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	i18n "ryoku-i18n"
@@ -118,38 +119,89 @@ func (s *Service) fillStats(teams []protocol.Team) {
 	}
 }
 
-// createTeam makes a team and the routines it starts with.
+// createTeam makes a team and the routines it starts with, then asks for the
+// credentials its template needs that the vault does not hold.
 func (s *Service) createTeam(ctx context.Context, p protocol.TeamCreateParams) (protocol.Team, error) {
-	now := s.now()
-	team := protocol.Team{
+	template, _ := templateByID(p.Template)
+	return s.makeTeam(ctx, p, template.Credentials)
+}
+
+// makeTeam makes a team and its routines, then opens a credential request
+// for each of needs the vault does not hold.
+func (s *Service) makeTeam(ctx context.Context, p protocol.TeamCreateParams, needs []protocol.CredentialNeed) (protocol.Team, error) {
+	team, err := s.addTeam(ctx, newTeam(p, s.now()), p.Routines, "team.create", createdDetail)
+	if err != nil || len(needs) == 0 {
+		return team, err
+	}
+	s.askNeeds(ctx, team, needs)
+	asked, _ := s.teamWithStats(team.ID)
+	return asked, nil
+}
+
+// newTeam is the team teams.create would make from p, not yet checked.
+func newTeam(p protocol.TeamCreateParams, now time.Time) protocol.Team {
+	return protocol.Team{
 		ID: newID("team"), Name: p.Name, Purpose: p.Purpose, Template: p.Template,
 		Folder: p.Folder, Members: p.Members, Tools: p.Tools, Approvals: p.Approvals,
 		Budget: p.Budget, Notify: p.Notify, Running: p.Running, Access: p.Access,
 		Created: now, Updated: now,
 	}
-	detail := func(t protocol.Team) string {
-		if len(t.Members) == 1 {
-			return i18n.Tf("Made with one member, working in %s.", paths.Short(t.Folder))
-		}
-		return i18n.Tf("Made with %d members, working in %s.", len(t.Members), paths.Short(t.Folder))
-	}
-	return s.addTeam(ctx, team, p.Routines, "team.create", detail)
 }
 
-// addTeam validates and stores a new team, then creates its routines through
-// the routine path. A routine that cannot be made takes the team back out,
-// so a create either happens whole or not at all. A team that names no
+// createdDetail is the ledger's detail for a team just made.
+func createdDetail(t protocol.Team) string {
+	if len(t.Members) == 1 {
+		return i18n.Tf("Made with one member, working in %s.", paths.Short(t.Folder))
+	}
+	return i18n.Tf("Made with %d members, working in %s.", len(t.Members), paths.Short(t.Folder))
+}
+
+// prepareTeam checks a new team as it would be stored: a team that names no
 // budget takes the teams defaults', with its template's turns per task.
-func (s *Service) addTeam(ctx context.Context, team protocol.Team, drafts []protocol.RoutineDraft, action string, detail func(protocol.Team) string) (protocol.Team, error) {
-	settings := s.settings()
+// Nothing is stored and no folder is made.
+func (s *Service) prepareTeam(team *protocol.Team, settings protocol.Settings) (map[string]string, error) {
 	if team.Budget == (protocol.TeamBudget{}) {
 		team.Budget = settings.Teams.Defaults.Budget
 		if template, ok := templateByID(team.Template); ok {
 			team.Budget.TaskTurns = template.Budget.TaskTurns
 		}
 	}
-	renamed, err := normaliseTeam(&team, true, settings, nil)
+	return normaliseTeam(team, true, settings, nil)
+}
+
+// checkNewTeam checks what teams.create would check of p, its routines
+// included, without storing anything or making its folder.
+func (s *Service) checkNewTeam(p protocol.TeamCreateParams) error {
+	team := newTeam(p, s.now())
+	renamed, err := s.prepareTeam(&team, s.settings())
 	if err != nil {
+		return err
+	}
+	on := 0
+	for _, draft := range p.Routines {
+		r := protocol.Routine{
+			Team: team.ID, Title: draft.Title, Brief: draft.Brief,
+			Member: routineMember(team, draft.Member, renamed), Schedule: draft.Schedule, Enabled: draft.Enabled,
+		}
+		if err := s.routineFits(team, &r, on); err != nil {
+			return err
+		}
+		if r.Enabled {
+			on++
+		}
+	}
+	return nil
+}
+
+// addTeam validates and stores a new team, then creates its routines through
+// the routine path. A routine that cannot be made takes the team back out,
+// so a create either happens whole or not at all.
+func (s *Service) addTeam(ctx context.Context, team protocol.Team, drafts []protocol.RoutineDraft, action string, detail func(protocol.Team) string) (protocol.Team, error) {
+	renamed, err := s.prepareTeam(&team, s.settings())
+	if err != nil {
+		return protocol.Team{}, err
+	}
+	if err := makeFolder(team.Folder); err != nil {
 		return protocol.Team{}, err
 	}
 	if err := s.state.putTeam(team); err != nil {
@@ -220,6 +272,9 @@ func (s *Service) updateTeam(ctx context.Context, p protocol.TeamUpdateParams) (
 		kept[m.Harness] = true
 	}
 	if _, err := normaliseTeam(&team, false, s.settings(), kept); err != nil {
+		return protocol.Team{}, err
+	}
+	if err := makeFolder(team.Folder); err != nil {
 		return protocol.Team{}, err
 	}
 	changes := s.teamChanges(current, team)
@@ -394,7 +449,7 @@ func normaliseTeam(t *protocol.Team, fresh bool, settings protocol.Settings, kep
 	if t.Running < 0 || t.Running > protocol.TeamsPerTeamMax {
 		return nil, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("Tasks at once in one team must be between 1 and %d.", protocol.TeamsPerTeamMax))
 	}
-	folder, err := resolveFolder(t.Folder, t.Name)
+	folder, err := teamFolder(t.Folder, t.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -530,9 +585,9 @@ func writableFolder(path, own string) (string, error) {
 	return paths.Short(full), nil
 }
 
-// resolveFolder turns a team's folder into a full path, defaulting to its
-// own folder under the Teams home, and makes sure it exists.
-func resolveFolder(folder, name string) (string, error) {
+// teamFolder turns a team's folder into a full path, defaulting to its own
+// folder under the Teams home. A path that exists must be a folder.
+func teamFolder(folder, name string) (string, error) {
 	folder = paths.Expand(strings.TrimSpace(folder))
 	if folder == "" {
 		folder = filepath.Join(paths.TeamsHome(), slugName(name))
@@ -541,14 +596,18 @@ func resolveFolder(folder, name string) (string, error) {
 		return "", protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("The team's folder must be a full path."))
 	}
 	folder = filepath.Clean(folder)
-	if err := paths.EnsureDir(folder); err != nil {
-		return "", protocol.Errorf(protocol.CodeUnavailable, "%s", i18n.Tf("Rashin cannot make the folder %s: %v.", paths.Short(folder), err))
-	}
-	info, err := os.Stat(folder)
-	if err != nil || !info.IsDir() {
+	if info, err := os.Stat(folder); err == nil && !info.IsDir() {
 		return "", protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("%s is not a folder.", paths.Short(folder)))
 	}
 	return folder, nil
+}
+
+// makeFolder makes sure a team's folder exists.
+func makeFolder(folder string) error {
+	if err := paths.EnsureDir(folder); err != nil {
+		return protocol.Errorf(protocol.CodeUnavailable, "%s", i18n.Tf("Rashin cannot make the folder %s: %v.", paths.Short(folder), err))
+	}
+	return nil
 }
 
 var slugPart = regexp.MustCompile(`[^\p{L}\p{N}]+`)

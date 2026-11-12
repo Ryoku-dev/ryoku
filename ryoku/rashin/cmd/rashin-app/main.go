@@ -42,7 +42,7 @@ func execute() (int, error) {
 	project := flag.String("project", "", i18n.T("Open this project"))
 	view := flag.String("view", "", i18n.T("Project view: overview, graph, changes, tasks or activity"))
 	worktree := flag.String("worktree", "", i18n.T("Open this worktree"))
-	mode := flag.String("mode", "follow", i18n.T("Palette mode: follow, dark or light"))
+	mode := flag.String("mode", "", i18n.T("Palette for this run, over the Colours setting: dark, light or follow"))
 	zoom := flag.Int("zoom", 0, i18n.T("App zoom percent from 80 to 150"))
 	script := flag.String("script", "", i18n.T("Storyboard event script"))
 	shotText := flag.String("shots", "", i18n.T("Storyboard shot times in milliseconds"))

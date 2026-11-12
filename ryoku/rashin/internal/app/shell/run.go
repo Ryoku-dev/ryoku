@@ -83,13 +83,15 @@ func (h *invalidationHub) Invalidate() {
 }
 
 type runtime struct {
-	ctx      context.Context
-	cancel   context.CancelFunc
-	store    *state.Store
-	client   *conn.Client
-	hub      invalidationHub
-	mode     palette.Mode
+	ctx    context.Context
+	cancel context.CancelFunc
+	store  *state.Store
+	client *conn.Client
+	hub    invalidationHub
+	// stops the palette watcher, set only while the colours follow the wallpaper
+	unwatch  context.CancelFunc
 	themeMu  sync.RWMutex
+	mode     palette.Mode
 	look     palette.Look
 	theme    *look.Theme
 	pending  *look.Theme
@@ -97,16 +99,44 @@ type runtime struct {
 	serveErr chan error
 }
 
-func Run(options Options) error {
-	mode, err := look.ParseMode(options.Mode)
-	if err != nil {
-		return err
+// the colours words and the palette modes they paint
+var coloursModes = map[string]palette.Mode{
+	state.ColoursRyoku:      palette.Dark,
+	state.ColoursRyokuLight: palette.Light,
+	state.ColoursWallpaper:  palette.Follow,
+}
+
+// an unknown word is the ryoku.dev stock, as the preferences read it
+func coloursMode(word string) palette.Mode {
+	if mode, ok := coloursModes[word]; ok {
+		return mode
 	}
+	return palette.Dark
+}
+
+func modeColours(mode palette.Mode) string {
+	for word, painted := range coloursModes {
+		if painted == mode {
+			return word
+		}
+	}
+	return state.ColoursRyoku
+}
+
+func Run(options Options) error {
 	preferences := state.LoadAppPreferences()
 	if options.ZoomPercent != 0 {
 		preferences.ZoomPercent = options.ZoomPercent
 	}
 	options.Preferences = preferences.Normalize()
+	mode := coloursMode(options.Preferences.Colours)
+	// --mode paints this run only, what is stored stays
+	if options.Mode != "" {
+		var err error
+		if mode, err = palette.ParseMode(options.Mode); err != nil {
+			return err
+		}
+	}
 	r, err := startRuntime(options, mode)
 	if err != nil {
 		return err
@@ -170,7 +200,7 @@ func startRuntime(options Options, mode palette.Mode) (*runtime, error) {
 		}
 	}
 	r.client = conn.NewOptions(r.store, clientOptions)
-	go look.Watch(ctx, func() palette.Mode { return mode }, r.currentLook, r.themeChanged)
+	r.watch(mode)
 	return r, nil
 }
 
@@ -190,11 +220,23 @@ func (r *runtime) currentLook() palette.Look {
 	return r.look
 }
 
+// the colours word of what the window paints, which --mode may have set for this run
+func (r *runtime) colours() string {
+	r.themeMu.RLock()
+	defer r.themeMu.RUnlock()
+	return modeColours(r.mode)
+}
+
 func (r *runtime) themeChanged(theme *look.Theme) {
 	r.themeMu.Lock()
+	// a palette that resolved as the colours stopped following is not painted over the stock
+	if r.mode != palette.Follow {
+		r.themeMu.Unlock()
+		return
+	}
 	if theme.Look != r.look {
 		// the look moved while this palette resolved, so the palette is taken again with the new look
-		theme = look.New(theme.Mode, r.look)
+		theme = look.New(palette.Follow, r.look)
 	}
 	r.pending = theme
 	r.themeMu.Unlock()
@@ -202,12 +244,39 @@ func (r *runtime) themeChanged(theme *look.Theme) {
 }
 
 func (r *runtime) setLook(contrast, tint string) {
-	current := palette.ParseLook(contrast, tint)
-	theme := look.New(r.mode, current)
+	r.themeMu.RLock()
+	mode := r.mode
+	r.themeMu.RUnlock()
+	r.restyle(mode, palette.ParseLook(contrast, tint))
+}
+
+func (r *runtime) setColours(word string) {
+	r.restyle(coloursMode(word), r.currentLook())
+}
+
+func (r *runtime) restyle(mode palette.Mode, current palette.Look) {
+	theme := look.New(mode, current)
 	r.themeMu.Lock()
-	r.look, r.pending = current, theme
+	r.mode, r.look, r.pending = mode, current, theme
 	r.themeMu.Unlock()
+	r.watch(mode)
 	r.hub.Invalidate()
+}
+
+// the palette files are watched only while the colours follow the wallpaper, so the stock costs nothing at rest
+func (r *runtime) watch(mode palette.Mode) {
+	following := mode == palette.Follow
+	if following == (r.unwatch != nil) {
+		return
+	}
+	if !following {
+		r.unwatch()
+		r.unwatch = nil
+		return
+	}
+	ctx, cancel := context.WithCancel(r.ctx)
+	r.unwatch = cancel
+	go look.Watch(ctx, r.currentLook, r.themeChanged)
 }
 
 func (r *runtime) Close() {
