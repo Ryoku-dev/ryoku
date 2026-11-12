@@ -46,7 +46,14 @@ func reconcileUpdateChannel(checkOnly bool) recResult {
 		return warnRes(i18n.T("could not switch %s onto the tracked channel %q: %v"), repo, ch, err).
 			withFix("%s", retrackCommand(ch))
 	}
+	ref, n, err := sys.KeepLocalCommits(repo, ch, "origin/"+ch)
+	if err != nil {
+		return warnRes(i18n.T("switched %s onto %q but could not save its local commits, so it was not reset onto origin: %v"), repo, ch, err)
+	}
 	_, _ = sys.RunOut("git", "-C", repo, "reset", "--hard", "origin/"+ch)
+	if n > 0 {
+		return fixedRes(i18n.T("switched the update checkout onto the tracked channel %q and kept its %d local commit(s) as %s; run `ryoku update` to redeploy"), ch, n, ref)
+	}
 	return fixedRes(i18n.T("switched the update checkout onto the tracked channel %q; run `ryoku update` to redeploy"), ch)
 }
 

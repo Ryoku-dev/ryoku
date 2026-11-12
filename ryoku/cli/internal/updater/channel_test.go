@@ -708,12 +708,19 @@ func TestSyncChannelResetsDivergedChannelBranch(t *testing.T) {
 	if err := syncChannel(work, "main", "refs/remotes/origin/main"); err != nil {
 		t.Fatalf("syncChannel: %v", err)
 	}
-	// The channel branch mirrors upstream: it is reset onto origin/main, dropping
-	// the stray commit.
+	// The channel branch mirrors upstream: it is reset onto origin/main, and the
+	// stray commit is kept under a backup ref rather than lost.
 	head := strings.TrimSpace(mustGit(t, work, "rev-parse", "HEAD"))
 	want := strings.TrimSpace(mustGit(t, work, "rev-parse", "refs/remotes/origin/main"))
 	if head != want {
 		t.Errorf("HEAD = %s, want origin/main %s: a diverged channel branch resets onto upstream", head, want)
+	}
+	refs := strings.Fields(mustGit(t, work, "for-each-ref", "--format=%(refname)", "refs/ryoku-backup/main/"))
+	if len(refs) != 1 {
+		t.Fatalf("backup refs = %v, want one holding the stray commit", refs)
+	}
+	if got := mustGit(t, work, "show", refs[0]+":local"); got != "l\n" {
+		t.Errorf("%s holds %q, want the stray commit's file", refs[0], got)
 	}
 }
 

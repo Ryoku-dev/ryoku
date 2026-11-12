@@ -86,6 +86,65 @@ func TestReconcileUpdateChannelSwitchesToTrackedBranch(t *testing.T) {
 	}
 }
 
+// A clean checkout on the wrong branch is switched onto the tracked channel and
+// reset onto origin; commits that branch held and nobody pushed are kept under a
+// backup ref first, so the reset loses no work.
+func TestReconcileUpdateChannelKeepsLocalCommits(t *testing.T) {
+	root := t.TempDir()
+	origin := filepath.Join(root, "origin.git")
+	work := filepath.Join(root, "work")
+	if out, err := exec.Command("git", "init", "--bare", "-b", "main", origin).CombinedOutput(); err != nil {
+		t.Fatalf("init bare: %v\n%s", err, out)
+	}
+	if out, err := exec.Command("git", "clone", origin, work).CombinedOutput(); err != nil {
+		t.Fatalf("clone: %v\n%s", err, out)
+	}
+	gitT(t, work, "config", "user.email", "t@e")
+	gitT(t, work, "config", "user.name", "t")
+	if err := os.WriteFile(filepath.Join(work, "f"), []byte("main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitT(t, work, "add", "-A")
+	gitT(t, work, "commit", "-m", "main")
+	gitT(t, work, "push", "origin", "main")
+	gitT(t, work, "checkout", "-b", "unstable-dev")
+	gitT(t, work, "push", "origin", "unstable-dev")
+	if err := os.WriteFile(filepath.Join(work, "wip"), []byte("unpushed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitT(t, work, "add", "-A")
+	gitT(t, work, "commit", "-m", "work nobody pushed")
+	gitT(t, work, "checkout", "main")
+
+	cfg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", cfg)
+	if err := os.MkdirAll(filepath.Join(cfg, "environment.d"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cfg, "environment.d", "ryoku.conf"), []byte("RYOKU_CHANNEL=unstable-dev\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("RYOKU_REPO", work)
+
+	r := reconcileUpdateChannel(false)
+	if r.status != recFixed {
+		t.Fatalf("got %s (%s), want fixed", r.status.label(), r.detail)
+	}
+	if head, want := gitT(t, work, "rev-parse", "HEAD"), gitT(t, work, "rev-parse", "origin/unstable-dev"); head != want {
+		t.Fatalf("HEAD = %s, want origin/unstable-dev %s", head, want)
+	}
+	refs := strings.Fields(gitT(t, work, "for-each-ref", "--format=%(refname)", "refs/ryoku-backup/unstable-dev/"))
+	if len(refs) != 1 {
+		t.Fatalf("backup refs = %v, want one holding the unpushed commit", refs)
+	}
+	if got := gitT(t, work, "show", refs[0]+":wip"); strings.TrimSpace(got) != "unpushed" {
+		t.Fatalf("%s holds %q, want the unpushed commit's file", refs[0], got)
+	}
+	if !strings.Contains(r.detail, refs[0]) {
+		t.Errorf("detail %q does not name the backup ref %s", r.detail, refs[0])
+	}
+}
+
 // mkRyokuArch makes a git work tree at dst whose origin path contains
 // "ryoku-arch", so isRyokuArchTree accepts it.
 func mkRyokuArch(t *testing.T, root, dst string) {

@@ -1,9 +1,12 @@
 package sys
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	wm "ryoku-wm"
 )
@@ -67,6 +70,27 @@ func TrackedChannel() string {
 		}
 	}
 	return ""
+}
+
+// KeepLocalCommits saves the commits HEAD holds that upstream lacks under
+// refs/ryoku-backup/<name>/<UTC time> before a caller resets HEAD onto upstream,
+// so a reset never loses work nobody pushed. It reports the ref and how many
+// commits it kept (none: no ref); an error means nothing was saved and the
+// caller must not reset.
+func KeepLocalCommits(repo, name, upstream string) (string, int, error) {
+	out, err := RunOut("git", "-C", repo, "rev-list", "--count", upstream+"..HEAD")
+	if err != nil {
+		return "", 0, fmt.Errorf("count the commits %s lacks: %w", upstream, err)
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(out))
+	if err != nil || n == 0 {
+		return "", 0, err
+	}
+	ref := "refs/ryoku-backup/" + name + "/" + time.Now().UTC().Format("20060102T150405Z")
+	if _, err := RunOut("git", "-C", repo, "update-ref", ref, "HEAD"); err != nil {
+		return "", 0, fmt.Errorf("save %d local commit(s) as %s: %w", n, ref, err)
+	}
+	return ref, n, nil
 }
 
 // SourceTracked reports whether this box takes its updates from a source

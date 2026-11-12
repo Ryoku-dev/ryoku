@@ -380,6 +380,14 @@ func syncChannel(repo, ch, target string) error {
 	// mirrors upstream, so reset it; any other branch keeps its work.
 	head, _ := sys.RunOut("git", "-C", repo, "symbolic-ref", "--short", "--quiet", "HEAD")
 	if strings.TrimSpace(head) == ch {
+		ref, n, err := sys.KeepLocalCommits(repo, ch, target)
+		if err != nil {
+			progress.logf(i18n.T("Channel history diverged, but the local commits on %s could not be saved, so it stays as it is: %v"), ch, err)
+			return nil
+		}
+		if n > 0 {
+			progress.logf(i18n.T("Kept %d local commit(s) from %s as %s"), n, ch, ref)
+		}
 		progress.logf(i18n.T("Channel history diverged; reconciling %s onto its checked target"), ch)
 		if err := sys.Run("git", "-C", repo, "reset", "--hard", target); err != nil {
 			return fmt.Errorf(i18n.T("reconcile %s to its checked target failed: %w"), ch, err)
