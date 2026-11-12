@@ -2,7 +2,51 @@
 
 ## Unreleased
 
+### Changed
+- **Settings opens on a cover, like ryoku.dev.** Home is the old Hub's
+  Profile plate rebuilt in Lithic and composed like the site's cover: the
+  Caracalla Farnese marble (a real photograph, credited beside it and in
+  About) with RYOKU carved behind it, your name, the motto with its tick
+  ruler, one line that says Ryoku is up to date (or the one Needs you slab
+  when something waits), and this computer as a datasheet over four live line
+  charts. Its parts rise in as it opens, the carved word stamps in and the
+  readings count up, once; reduced motion plays none of it. Customise changes
+  the figure, the words (the card editor gains a Big words field: the first
+  is the word carved on Home) and Settings' own colours: Dark, Light or the
+  colours of your wallpaper, with contrast and tint; following the wallpaper
+  is your choice. About's system card wears the same statue and motto, and
+  the old dithered bust is gone as a stock figure
+  (`ryoku/hub/quickshell/components/Home.qml`,
+  `components/Reveal.qml`, `components/TickRuler.qml`, `Singletons/Look.qml`,
+  `components/about/CardFigure.qml`, `art/caracalla.png`).
+- **One sidebar, no repeated list.** The rail holds the nine categories once.
+  The pane beside it shows only an open category's pages and the search, is
+  narrower, and is gone on Home; a category's tile opens its page at once.
+  `/`, Ctrl+K or the search on Home open the search from anywhere, and
+  Escape steps back to Home. Narrow windows show the pane or the page, and a
+  window without the rail lists the categories on Home
+  (`ryoku/hub/quickshell/Hub.qml`).
+- **Pages lie on one paper.** Panes and setting groups are drawn by a
+  hairline on the black (or warm grey) paper in place of a grey pane with
+  lighter grey slabs; fields, hover and menus are the only tones above it,
+  and on the black paper each of them is the bone ink mixed into the paper,
+  as the site mixes its rules (`docs/lithic/tokens.json`, the Lithic
+  libraries).
+- **Pages are sheets.** Every settings page has the site's sheet structure: a
+  running head (a hairline across the top that ends in the page's place in
+  its category, and names the category in a narrow window), the title and its
+  lead closed by a tick ruler, and section heads ruled out to the section's
+  number. The first sections rise in turn as a page opens. Rows, controls,
+  deep links and the keys are as they were
+  (`ryoku/hub/quickshell/components/SettingsPage.qml`,
+  `components/SheetHead.qml`, `docs/lithic/library/qml/Lithic/Section.qml`).
+
 ### Fixed
+- **The card editor's switches follow Undo.** After Ctrl+Z, or Undo on the
+  notice, "Show" and "Figure on the" kept showing the choice that had just
+  been taken back, so the next arrow key started from the wrong place. They,
+  and the new colour choices, now move back with the setting
+  (`ryoku/hub/quickshell/components/about/CardEditor.qml`).
 - **Folder choosers save the folder you are in.** Qt's own folder dialog
   took the first subfolder it listed as soon as the folder loaded, so Open
   saved a subfolder, and in a folder with no subfolders Open was greyed out.

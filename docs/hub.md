@@ -1,7 +1,8 @@
 # Ryoku Settings
 
-Ryoku Settings is the desktop's settings app: one floating window with a rail
-of categories, each category's pages, and a search over every page and row. The
+Ryoku Settings is the desktop's settings app: one floating window that opens
+on Home, the reader's profile plate, with a rail of categories, each category's
+pages, and a search over every page and row. The
 product is "Ryoku Settings"; the code, the binary, the package and the config
 directory keep the internal name `hub`. This guide is how it is built and how to
 extend it.
@@ -10,20 +11,35 @@ extend it.
 |---|---|
 | `ryoku/hub/quickshell/shell.qml` | the entry point `qs -c hub` loads: the root-only pragma and a loader for `ShellBody.qml` |
 | `ryoku/hub/quickshell/ShellBody.qml` | the `FloatingWindow`, the palette watchers and the IPC targets |
-| `ryoku/hub/quickshell/Hub.qml` | the frame: rail, list pane, search, work pane, navigation, notices |
-| `ryoku/hub/quickshell/registry/` | `registry.js` (categories, pages, aliases, hand-offs, Needs you probes), `summaries.js` (the list pane's lines), `provider-map.js` (where window-manager rows go) |
+| `ryoku/hub/quickshell/Hub.qml` | the frame: rail, navigation pane, search, work pane, navigation, notices |
+| `ryoku/hub/quickshell/registry/` | `registry.js` (categories, pages, aliases, hand-offs, Needs you probes), `summaries.js` (the navigation pane's lines), `provider-map.js` (where window-manager rows go) |
 | `ryoku/hub/quickshell/schema/` | one `<page-id>.js` per page: its sections and rows; `index.js` lists them for search |
 | `ryoku/hub/quickshell/pages/` | one `<Name>.qml` per page, loaded into the work pane |
-| `ryoku/hub/quickshell/components/` | the shared parts (`SettingsPage`, `RowControl`, `Home`, `SearchResults`, `DesignShelf`, ...) and one `<page-id>/` folder per page for that page's own parts and stores |
-| `ryoku/hub/quickshell/Singletons/` | `Changes` (the write path), `Settings` (the shell settings), `ProviderSchema`, `Attention`, `Live`, `Host` |
+| `ryoku/hub/quickshell/components/` | the shared parts (`SettingsPage`, `RowControl`, `Home`, `SearchDoor`, `SearchResults`, `DesignShelf`, ...) and one `<page-id>/` folder per page for that page's own parts and stores |
+| `ryoku/hub/quickshell/Singletons/` | `Changes` (the write path), `Settings` (the shell settings), `Look` (Settings' own colours), `ProviderSchema`, `Attention`, `Live`, `Host` |
 | `ryoku/hub/backend/` | `ryoku-hub`, the Go program the pages call for anything outside the shell daemon |
 
 The UI is drawn with the Lithic QML library (`docs/lithic/library/qml/Lithic`,
 see `docs/lithic/`) and reads the shared singletons in `Ryoku.Ui.Singletons`
-(`I18n`, `Bus`, `ShellSettings`, `Spawn`). It holds no palette of its own:
-`ShellBody.qml` reloads Lithic when `shell.json`, `theme.json` or the generated
-`colors.json` changes, and reduce motion follows the desktop's
-`theme.motion.reduce` setting.
+(`I18n`, `Bus`, `ShellSettings`, `Spawn`). It holds no palette of its own, and
+reduce motion follows the desktop's `theme.motion.reduce` setting.
+
+### Colours
+
+Settings opens in the Lithic signature, the ryoku.dev stock: black paper, bone
+ink and the sun as the one action, whatever the wallpaper. Following the
+wallpaper is the reader's choice, never the default. **Customise** on Home
+holds it: Settings wears Dark, Light or Wallpaper, with Contrast (standard or
+high) and, while following, Tint. `Singletons/Look.qml` keeps the three in the
+shell settings as `hub.colours` (`ryoku`, `light`, `wallpaper`),
+`hub.contrast` and `hub.tint`, written through `Changes` like any setting, so
+each has its notice and Undo. `Look` reads `shell.json` once at start, so the
+first frame already wears the choice, and `ShellBody.qml` binds Lithic's
+`mode`, `contrast` and `tint` to it. It also reloads Lithic whenever
+`shell.json`, `theme.json` or the generated `colors.json` changes, in every
+mode; only following reads a palette from them, so in Dark and Light a reload
+repaints nothing. A
+`LITHIC_MODE` in the environment (a gallery or test run) wins over the choice.
 
 ## How it opens
 
@@ -78,48 +94,123 @@ sandbox whose bus is a relay. Any instance started from outside
 `ShellBody.qml` by file URL, because Qt's disk cache skips `qs:` URLs and
 everything imported relative to them. From the second start on, every unit but
 `shell.qml` loads from that cache. Home reads its facts cheaply: the distro,
-the first graphics card, the battery and the active displays from one small
-`sh` read in `Singletons/SysInfo.qml`, and the power mode from the daemon's
-`powerprofiles` topic. `ryoku-sysinfo` and `ryoku-profile-stats` run only when
+the first graphics card, the battery, the active displays, the host and user
+names, the time up and the memory from one small `sh` read in
+`Singletons/SysInfo.qml`. Its four readings come from `Singletons/LiveStats.qml`,
+one small read of `/proc` every 3 s while Home is on screen and the window has
+the focus, every 15 s while it does not, and never once Home is left.
+`ryoku-sysinfo` and `ryoku-profile-stats` run only when
 About calls `SysInfo.load()`. The provider schema is read once a page or search
 needs it, the search index is built the first time search is used, and the
-confirmation dialog is created the first time it is asked for. Keep it that
+confirmation dialog and Home's editor are created the first time they are
+asked for. Keep it that
 way: something Home does not show waits until the page that shows it opens.
 
 ## The layout
 
 `Hub.qml` owns the frame, a Lithic `AppFrame`, so a page only draws its content.
 
-- **The rail.** The Ryoku mark at the top goes Home. The categories follow in
-  `registry.js` order, with Updates at the foot; Updates carries a notch while an
-  update is ready and opens its page directly.
-- **The list pane.** On Home it lists every category with a sentence about it,
-  under the title Settings. In a category it shows the category's name, its
-  sentence, and its pages, each title over a one-line summary. The lines come
+- **The rail.** The Ryoku mark at the top goes Home. The nine categories follow
+  in `registry.js` order, with Updates at the foot; Updates carries a notch
+  while an update is ready and opens its page directly. The categories stand
+  here and nowhere else. A category's tile opens the page it last showed this
+  session, or its first page (`categoryStart()`).
+- **The navigation pane.** It shows only while a category is open or the
+  search is: the category's name and sentence, the search field, and the
+  category's pages, each title over a one-line summary. On Home there is no
+  pane and the plate takes its room. It is 300 wide, the search at rest plus
+  its insets. The lines come
   from `registry/summaries.js`: `categorySentence(id, ctx)` and
   `pageSummary(id, ctx)`, with the fixed lines in its `still` table. They read
   live state through `ctx` (shell settings, the window manager store, daemon
   topics, watched files, Needs you items), so a summary changes when the
   setting does. A page that hands off to another app shows an open-in-new mark.
-- **The search field** sits above the list and replaces it with results while
-  there is a query. `/`, `Ctrl+K` and `Ctrl+F` focus it; Up, Down and Return
-  move through the list or the results.
+- **The search field** sits in the pane and replaces its list with results
+  while there is a query. `/`, `Ctrl+K`, `Ctrl+F` and the search on Home open
+  the pane and focus it, wherever Settings is; Up, Down and Return move through
+  the list or the results. An empty search that loses the keys closes again.
+  Besides pages, sections and rows it finds Home's own two entries, Customise
+  Home and Settings colours, which open Home's editor.
 - **The work pane.** Home (`components/Home.qml`), or the open page. Escape and
-  Alt+Left step back: out of the results, then out of a page's own sub-view
-  (`back()` on the page), then out of the page, then from a category to the
-  list of every category, and then the window quits.
-- **Sizes.** Expanded shows the list and the page side by side. Medium shows
-  one at a time with a Back plaque. Compact drills down from categories to pages
-  to the page.
+  Alt+Left step back: out of the results, then out of the search, then out of
+  a page's own sub-view (`back()` on the page), then Home, and then the window
+  quits.
+- **Sizes.** Expanded shows the pane and the page side by side. Narrower
+  windows show one of the two: a category's tile shows its pages in the page's
+  place, a page opens with a Back plaque that returns there, and the search
+  stands over the page it was opened from. Compact has no rail, so Home lists
+  the categories under the profile, the one place they stand there.
 
-A page drawn by `components/SettingsPage.qml` has the same shape everywhere:
+### Home
 
+Home is the profile plate, the old Hub's Profile rebuilt in Lithic and
+composed like the cover of ryoku.dev. It lies on the ground in the work pane's
+place (`AppFrame.workFlush`), with no pane and no slab:
+
+- **The statue and the word.** The stock figure is the site's own: the
+  Caracalla Farnese, a real photograph (`art/caracalla.png`, Marie-Lan Nguyen,
+  CC BY 2.5). Its museum label stands upright in a gutter at the plate's outer
+  edge, beside the figure and off the marble, wherever the figure stands
+  beside the column; a narrow plate leaves it to About's credits, and the root
+  `NOTICE` carries the source, as the licence asks. About's system card draws
+  the same photograph (`components/about/CardFigure.qml`); a figure the reader
+  chose (a gallery figure or their own picture, dithered) takes its place on
+  both. Behind it the word Ryoku is carved, the one line set in capitals:
+  oxblood on the black paper (the sun mixed 34% into it), cut into the stone
+  on the light paper (the ink mixed 18% into it, since the sun's mix turns
+  salmon there). The reader's first big word replaces it. Text never lies on
+  the marble: the column keeps to its side, and a narrow plate stands the
+  figure small beside the name, under the top bar.
+- **The name and the motto.** The name is the plate's one monument, over the
+  user and host names and the clock, then the reader's line, by default the
+  motto "For the sake of power and beauty." with its gloss, and a tick ruler
+  whose first segment is the sun (`components/TickRuler.qml`).
+- **Its entrance.** As Home opens, the column's groups rise in turn, the
+  carved word stamps in and the readings count up, each once
+  (`components/Reveal.qml`); nothing moves after, and reduced motion plays
+  none of it. This is the cover pattern of `docs/lithic/layout.md`.
+- **What waits.** With nothing waiting, one claim line says Ryoku is up to
+  date and which release it is. An update that is ready, the Attention items
+  and failed writes stand on the one toned slab, Needs you, and the first of
+  them holds the plate's one gold action.
+- **This computer.** A datasheet says what stands still (the release and the
+  edition's name from `os-release`, the window manager, the time up, the
+  network, the battery): keys in mono, one vein column rule, values beside it.
+  Then four readings draw as engraved lines: processor, graphics, memory and
+  network. About keeps the table of every fact.
+- **Recently changed** lists the session's changes with Undo, once there are
+  any.
+- **The top bar** holds the search, "Continue in" the page the reader left
+  off on, and Customise.
+
+Customise opens the card editor (`components/about/CardEditor.qml`) with
+Settings' colours on top. The plate and About's system card are one design:
+both read `Ryoku.Ui.Singletons.ProfileStore` (`profile.json`), draw the figure
+with `components/about/CardFigure.qml`, and are edited through the `card`
+store, so every change has its notice and Undo. Home honours the figure and
+its side, the name, the line under it, the big words and the Live readings and
+facts parts; the card's other parts (packages, colour strip, barcode, signal)
+belong to the poster in About, where it is saved as an image or shared.
+
+A page drawn by `components/SettingsPage.qml` is a sheet, with the same shape
+everywhere:
+
+- **The running head.** A hairline across the top that ends in the page's
+  place among its category's pages (`02 / 05`), and begins with the
+  category's name where no pane beside the page already shows it
+  (`components/SheetHead.qml`). It draws in from the left as the page opens.
 - **The head.** The schema's title and its one-sentence `lead`, a state line
-  when the page passes one, and a note when the window manager hides some rows.
+  when the page passes one, a note when the window manager hides some rows,
+  and a tick ruler that closes the head.
+- **The entrance.** The first sections rise in turn as the page opens, 40 ms
+  apart; a rebuild after that moves nothing, and reduced motion plays none of
+  it.
 - **The section index.** A page with four or more sections gets one, beside
   the column when the page is wide enough and above it as a picker when it is
   not. It follows the reading position.
-- **Sections.** Each is a titled slab of rows. Rows marked `more: true` fold
+- **Sections.** Each is a titled slab of rows; a hairline runs from the title
+  to the column's edge and ends in the section's number when the page has two
+  or more. Rows marked `more: true` fold
   under **More options** at the foot of their section. A section whose rows were
   all hidden by the window manager says so with its `missing` text, or
   disappears when it has none.

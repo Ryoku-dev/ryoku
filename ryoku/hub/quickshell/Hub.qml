@@ -25,13 +25,18 @@ FocusScope {
         if (hub.pageId === "about")
             SysInfo.load();
     }
-    // compact drills down: categories, then pages, then the work pane
-    property string compactLevel: "categories"
-    // "home" lists every category; "category" lists one category's pages
+    // "home": no category is open and the rail selects nothing; "category": one is
     property string listMode: "home"
-    readonly property bool homeList: frame.compact ? hub.compactLevel === "categories" : hub.listMode === "home"
-    // compact has no rail, so its category list starts with Home
-    readonly property int homeOffset: frame.compact ? 1 : 0
+    // the navigation pane holds the search and the open category's pages. Expanded shows it
+    // beside the page; narrower windows show one of the two, the pane ("nav") or the page ("work")
+    readonly property bool wide: frame.sizeClass === "expanded"
+    property string narrowView: "work"
+    // search was asked for: the pane shows for it even on Home, where no category is open
+    property bool searchOpen: false
+    readonly property bool navShown: hub.wide ? (hub.searchOpen || hub.searching || hub.listMode === "category")
+                                               : hub.narrowView === "nav"
+    // the page each category last showed this session, so its tile returns there
+    property var lastInCategory: ({})
     property string query: ""
     property int listCursor: -1
     property string lastSection: ""
@@ -198,8 +203,8 @@ FocusScope {
         hub.listCursor = -1;
     }
 
-    // the list pane lists every category and the rail selects nothing
-    function showHomeList() {
+    // no category is open: the rail selects nothing and the pane leaves with it
+    function leaveCategory() {
         hub.listMode = "home";
         frame.currentDestination = -1;
         hub.listCursor = -1;
@@ -221,7 +226,9 @@ FocusScope {
     }
 
     // a page id, alias or "page/row"; unknown lands on Home
-    function navigate(target, rowId) {
+    // quiet: the frame chose the page (a category's tile), so it is not remembered as where the
+    // reader left off
+    function navigate(target, rowId, quiet) {
         hub.closeOverlays();
         var id = Registry.resolve(target);
         var row = rowId || Registry.rowPart(target);
@@ -235,12 +242,17 @@ FocusScope {
             return;
         }
         hub.setCategory(p.category);
-        hub.compactLevel = "work";
+        hub.narrowView = "work";
         var again = hub.pageId === id;
         if (!again) {
             hub.pageId = id;
-            hub.lastSection = id;
-            Quickshell.execDetached(["ryoku-hub", "config", "set", "section", id]);
+            var last = Object.assign({}, hub.lastInCategory);
+            last[p.category] = id;
+            hub.lastInCategory = last;
+            if (quiet !== true) {
+                hub.lastSection = id;
+                Quickshell.execDetached(["ryoku-hub", "config", "set", "section", id]);
+            }
         }
         hub.showContent(row);
         // choosing the open page again returns it to its start (a page with sub-views)
@@ -249,12 +261,26 @@ FocusScope {
     }
 
     function goHome() {
+        hub.closeOverlays();
         hub.pageId = "";
-        hub.showHomeList();
-        hub.compactLevel = frame.compact ? "work" : "categories";
+        hub.leaveCategory();
+        hub.searchOpen = false;
+        hub.clearSearch();
+        hub.narrowView = "work";
         hub.showContent("");
     }
 
+    // the page a category opens on: where it was last, else its first page that opens here
+    function categoryStart(id) {
+        var pages = Registry.pagesOf(id, hub.gate).filter(p => !p.handoff);
+        var last = hub.lastInCategory[id];
+        if (last && pages.some(p => p.id === last))
+            return last;
+        return pages.length > 0 ? pages[0].id : "";
+    }
+
+    // a category's tile: beside the pane its page opens at once; a narrower window shows the
+    // category's pages to choose from
     function openCategory(index) {
         var c = Registry.categories[index];
         if (!c)
@@ -263,12 +289,33 @@ FocusScope {
             hub.navigate("updates", "");
             return;
         }
-        hub.setCategory(c.id);
-        if (hub.sizeClass === "medium" && hub.pageId !== "") {
-            hub.pageId = "";
-            hub.showContent("");
+        var start = hub.categoryStart(c.id);
+        if (hub.wide && start !== "") {
+            if (hub.categoryId !== c.id || hub.pageId === "" || hub.listMode !== "category")
+                hub.navigate(start, "", true);
+            return;
         }
-        hub.compactLevel = "pages";
+        hub.closeOverlays();
+        hub.setCategory(c.id);
+        hub.pageId = "";
+        hub.unloadContent();
+        hub.narrowView = "nav";
+    }
+
+    // a window that grows wide shows the open category's page beside its pane; one that
+    // narrows shows the pane alone when no page is open
+    onWideChanged: {
+        if (hub.listMode !== "category" || hub.pageId !== "")
+            return;
+        if (hub.wide) {
+            var start = hub.categoryStart(hub.categoryId);
+            if (start !== "")
+                hub.navigate(start, "", true);
+            else
+                hub.goHome();
+        } else {
+            hub.narrowView = "nav";
+        }
     }
 
     // a shell word, quoted
@@ -352,40 +399,53 @@ FocusScope {
         }
     }
 
-    // Escape and Alt+Left: results, then the search field, then the page, then the window
+    // the keys go to what the work pane shows, or stay with the frame while it shows nothing
+    function focusContent() {
+        if (content.item && stage.visible)
+            content.item.forceActiveFocus(Qt.OtherFocusReason);
+        else
+            hub.forceActiveFocus(Qt.OtherFocusReason);
+    }
+
+    // the search closes: on Home the pane leaves with it, and a narrow window gets back the
+    // page or Home the pane stood over
+    function closeSearch() {
+        hub.searchOpen = false;
+        if (!hub.wide && (hub.pageId !== "" || hub.listMode === "home"))
+            hub.narrowView = "work";
+        hub.focusContent();
+    }
+
+    // Escape and Alt+Left: results, then the search field, then the page, then Home, then the
+    // window
     function back() {
         if (hub.searching) {
             hub.clearSearch();
             return;
         }
-        // a search just opened and left empty: Escape leaves the field, never the window
-        if (search.activeFocus) {
-            if (content.item)
-                content.item.forceActiveFocus(Qt.OtherFocusReason);
-            else
-                hub.forceActiveFocus(Qt.OtherFocusReason);
+        // a search opened and left empty: Escape leaves the field, never the window
+        if (search.activeFocus || (hub.searchOpen && hub.listMode === "home")) {
+            hub.closeSearch();
+            return;
+        }
+        if (!hub.wide && hub.narrowView === "nav") {
+            hub.goHome();
+            hub.focusContent();
             return;
         }
         // a page with its own sub-view steps out of it first; back() returns true when it did
-        var onPage = hub.pageId !== "" && (!frame.compact || hub.compactLevel === "work");
-        if (onPage && content.item && typeof content.item.back === "function" && content.item.back())
+        if (hub.pageId !== "" && content.item && typeof content.item.back === "function" && content.item.back())
             return;
-        if (frame.compact) {
-            if (hub.compactLevel === "work") {
-                hub.compactLevel = hub.pageId !== "" ? "pages" : "categories";
-                return;
-            }
-            if (hub.compactLevel === "pages") {
-                hub.compactLevel = "categories";
-                hub.showHomeList();
-                return;
-            }
-            hub.requestQuit();
+        if (hub.pageId !== "" && !hub.wide) {
+            // a narrow window steps back to the category's pages
+            hub.pageId = "";
+            hub.unloadContent();
+            hub.narrowView = "nav";
+            hub.forceActiveFocus(Qt.OtherFocusReason);
             return;
         }
-        if (hub.pageId !== "") {
-            hub.pageId = "";
-            hub.showContent("");
+        if (hub.listMode !== "home") {
+            hub.goHome();
             // the keys stay in the work pane: Home's first control takes them, so Tab goes on
             // there, not to the rail
             if (content.item) {
@@ -398,10 +458,6 @@ FocusScope {
                 else
                     content.item.forceActiveFocus(Qt.OtherFocusReason);
             }
-            return;
-        }
-        if (hub.listMode !== "home") {
-            hub.showHomeList();
             return;
         }
         hub.requestQuit();
@@ -430,15 +486,20 @@ FocusScope {
             content.item.focusRow(rowId);
     }
 
+    // a narrow window that shows a category's pages keeps no page or Home alive under them
+    function unloadContent() {
+        hub.loadedKey = "";
+        content.source = "";
+    }
+
     // search
 
+    // the pane opens for the search wherever Settings is; a narrow window shows it in the
+    // page's place and keeps the page under it
     function focusSearch() {
-        if (frame.compact && hub.compactLevel === "work")
-            hub.compactLevel = hub.pageId !== "" ? "pages" : "categories";
-        if (frame.sizeClass === "medium" && hub.pageId !== "") {
-            hub.pageId = "";
-            hub.showContent("");
-        }
+        hub.searchOpen = true;
+        if (!hub.wide)
+            hub.narrowView = "nav";
         search.forceActiveFocus();
         search.selectAll();
     }
@@ -591,6 +652,20 @@ FocusScope {
                 crumb: hub.entryCrumb([I18n.tr("Appearance"), I18n.tr(wp.title)])
             });
         }
+        // Home's own look: the profile and Settings' colours open its editor
+        var looks = [
+            { label: "Customise Home", detail: "Your figure, name and words, and which parts Home shows",
+              kw: "profile hero picture image avatar banner name tagline figure card dashboard" },
+            { label: "Settings colours", detail: "Dark, light or the colours of your wallpaper",
+              kw: "theme dark mode light mode follow wallpaper palette contrast tint accent settings look" }
+        ];
+        for (var k = 0; k < looks.length; k++)
+            out.push({
+                kind: "home", page: "", row: "", command: [],
+                display: I18n.tr(looks[k].label), label: hub.both(looks[k].label), desc: hub.both(looks[k].detail), kw: looks[k].kw,
+                group: "", tab: "", sectionName: hub.both("Home"), isPage: false,
+                groupKey: "home", groupTitle: I18n.tr("Home"), crumb: I18n.tr("Home")
+            });
         return out;
     }
 
@@ -629,6 +704,13 @@ FocusScope {
         return out;
     }
 
+    // Home's look: its editor opens over Home
+    function customiseHome() {
+        hub.goHome();
+        if (content.item && typeof content.item.customise === "function")
+            content.item.customise();
+    }
+
     function choose(entry) {
         if (!entry)
             return;
@@ -636,7 +718,16 @@ FocusScope {
             Spawn.runApp(entry.command, { label: String(entry.command[0]).replace(/^.*\//, "") });
             return;
         }
+        if (entry.kind === "home") {
+            hub.customiseHome();
+            return;
+        }
         hub.navigate(entry.page, entry.row);
+        // a narrow window showed the results in the page's place: the search is done with
+        if (!hub.wide) {
+            hub.searchOpen = false;
+            hub.clearSearch();
+        }
         // the keyboard follows the choice into the page; its landing then takes the row
         if (content.item)
             content.item.forceActiveFocus(Qt.OtherFocusReason);
@@ -647,11 +738,11 @@ FocusScope {
             resultsList.move(delta);
             return;
         }
-        var n = hub.homeList ? Registry.categories.length + hub.homeOffset : hub.categoryPages.length;
+        var n = hub.listMode === "category" ? hub.categoryPages.length : 0;
         if (n === 0)
             return;
         hub.listCursor = hub.listCursor < 0 ? (delta > 0 ? 0 : n - 1) : Math.max(0, Math.min(n - 1, hub.listCursor + delta));
-        var item = pageRepeater.itemAt(hub.listCursor - (hub.homeList ? hub.homeOffset : 0));
+        var item = pageRepeater.itemAt(hub.listCursor);
         if (item)
             listFlick.contentY = Math.max(0, Math.min(item.y, Math.max(0, item.y + item.height - listFlick.height), listFlick.contentHeight - listFlick.height));
     }
@@ -661,15 +752,8 @@ FocusScope {
             resultsList.activate();
             return;
         }
-        if (hub.listCursor < 0)
+        if (hub.listCursor < 0 || hub.listMode !== "category")
             return;
-        if (hub.homeList) {
-            if (hub.listCursor < hub.homeOffset)
-                hub.goHome();
-            else
-                hub.openCategory(hub.listCursor - hub.homeOffset);
-            return;
-        }
         var p = hub.categoryPages[hub.listCursor];
         if (p)
             hub.navigate(p.id, "");
@@ -724,11 +808,10 @@ FocusScope {
         if (startPage && !startPage.handoff) {
             // the first frame already shows the page's category, only the page waits
             hub.setCategory(startPage.category);
-            hub.compactLevel = "work";
         } else {
-            hub.showHomeList();
-            hub.compactLevel = "categories";
+            hub.leaveCategory();
         }
+        hub.narrowView = "work";
         if (hub.pendingStart === "") {
             hub.showContent("");
             return;
@@ -785,8 +868,13 @@ FocusScope {
                 accent: Lithic.jasper
             }
         }
-        showList: frame.compact ? true : (frame.sizeClass === "expanded" || hub.pageId === "")
-        compactView: hub.compactLevel === "work" ? "work" : "list"
+        // the pane stands beside the page only when expanded; narrower, it takes the page's place.
+        // It holds the search and a short index, so it is as wide as the search at rest
+        showList: hub.wide && hub.navShown
+        listWidth: LithicTokens.size.searchWidth + 2 * LithicTokens.size.listInset
+        compactView: "work"
+        // Home is a plate of its own on the ground
+        workFlush: hub.loadedKey === "home" && stage.visible
         windowControlsComponent: closeControl
         onHomeTriggered: hub.goHome()
         onDestinationTriggered: (index, label) => hub.openCategory(index)
@@ -798,7 +886,7 @@ FocusScope {
 
             Plaque {
                 id: backPlaque
-                visible: frame.sizeClass !== "expanded" && (hub.pageId !== "" || frame.compact)
+                visible: !hub.wide && stage.visible && hub.pageId !== ""
                 kind: "quiet"
                 small: true
                 glyph: "arrow_back"
@@ -809,6 +897,7 @@ FocusScope {
             Item {
                 id: stage
                 property real lift: 0
+                visible: hub.wide || hub.narrowView === "work"
                 y: (backPlaque.visible ? backPlaque.height + LithicTokens.space.s3 : 0) + stage.lift
                 width: parent.width
                 height: parent.height - (backPlaque.visible ? backPlaque.height + LithicTokens.space.s3 : 0)
@@ -816,6 +905,158 @@ FocusScope {
                 Loader {
                     id: content
                     anchors.fill: parent
+                }
+            }
+
+            // where the navigation pane stands in a narrow window: in the page's place
+            Item {
+                id: navSlot
+                visible: !hub.wide && hub.narrowView === "nav"
+                width: Math.min(parent.width, LithicTokens.size.dialogWidth + LithicTokens.space.s5)
+                height: parent.height
+            }
+
+            // the navigation pane: the search, then the open category's pages
+            Item {
+                id: listArea
+                parent: hub.wide ? listSlot : navSlot
+                anchors.fill: parent
+                anchors.leftMargin: hub.wide ? LithicTokens.size.listInset : 0
+                anchors.rightMargin: hub.wide ? LithicTokens.size.listInset : 0
+
+                readonly property bool inCategory: hub.listMode === "category"
+
+                Column {
+                    id: listHead
+                    width: parent.width
+                    spacing: LithicTokens.space.s2
+
+                    Plaque {
+                        visible: !hub.wide
+                        kind: "quiet"
+                        small: true
+                        glyph: "arrow_back"
+                        text: I18n.tr("Back")
+                        onClicked: hub.back()
+                    }
+                    Label {
+                        width: parent.width
+                        leftPadding: LithicTokens.space.s3
+                        text: listArea.inCategory && hub.category ? I18n.tr(hub.category.label) : I18n.tr("Search")
+                        typeRole: "section"
+                    }
+                    Label {
+                        width: parent.width
+                        visible: listArea.inCategory && text.length > 0
+                        leftPadding: LithicTokens.space.s3
+                        rightPadding: LithicTokens.space.s3
+                        text: Summaries.categorySentence(hub.categoryId, hub.summaries)
+                        typeRole: "body"
+                        inkRole: "fg2"
+                        wrapMode: Text.Wrap
+                        elide: Text.ElideNone
+                    }
+                    Item { width: 1; height: LithicTokens.space.s1 }
+                    Search {
+                        id: search
+                        width: parent.width
+                        placeholderText: I18n.tr("Search settings")
+                        shortcutHint: "/"
+                        accessibleName: I18n.tr("Search settings")
+                        Keys.onUpPressed: hub.moveCursor(-1)
+                        Keys.onDownPressed: hub.moveCursor(1)
+                        Keys.onReturnPressed: hub.openCursor()
+                        Keys.onEnterPressed: hub.openCursor()
+                        onTextChanged: hub.query = text
+                        onActiveFocusChanged: {
+                            // build the index as the field is reached, before the first key
+                            if (activeFocus)
+                                hub.armSearch();
+                            else
+                                searchLeft.restart();
+                        }
+                    }
+                    Label {
+                        width: parent.width
+                        visible: !listArea.inCategory && !hub.searching
+                        leftPadding: LithicTokens.space.s3
+                        rightPadding: LithicTokens.space.s3
+                        text: I18n.tr("Every setting, by its name or by what it does.")
+                        typeRole: "caption"
+                        inkRole: "fg3"
+                        wrapMode: Text.Wrap
+                        elide: Text.ElideNone
+                    }
+                    Item { width: 1; height: LithicTokens.space.s2 }
+                }
+
+                // an empty search that lost the keys is over: on Home the pane leaves, and a
+                // narrow window gets its page back
+                Timer {
+                    id: searchLeft
+                    interval: 0
+                    onTriggered: {
+                        if (search.activeFocus || hub.searching || !hub.searchOpen)
+                            return;
+                        hub.searchOpen = false;
+                        if (!hub.wide && hub.narrowView === "nav" && (hub.pageId !== "" || hub.listMode === "home"))
+                            hub.narrowView = "work";
+                    }
+                }
+
+                Flickable {
+                    id: listFlick
+                    visible: !hub.searching && listArea.inCategory
+                    anchors.top: listHead.bottom
+                    anchors.bottom: parent.bottom
+                    width: parent.width
+                    contentHeight: pageColumn.height + LithicTokens.space.s4
+                    boundsBehavior: Flickable.StopAtBounds
+                    clip: true
+
+                    Column {
+                        id: pageColumn
+                        width: parent.width
+                        spacing: LithicTokens.size.rowListGap
+
+                        Repeater {
+                            id: pageRepeater
+                            model: hub.categoryPages
+                            delegate: PageRow {
+                                required property var modelData
+                                required property int index
+                                width: pageColumn.width
+                                text: I18n.tr(modelData.title)
+                                summary: Summaries.pageSummary(modelData.id, hub.summaries)
+                                trailingGlyph: modelData.handoff ? "open_in_new" : ""
+                                selected: modelData.id === hub.pageId
+                                cursor: hub.listCursor === index
+                                onClicked: hub.navigate(modelData.id, "")
+                            }
+                        }
+                    }
+                }
+
+                ScrollRail {
+                    flickable: listFlick
+                    visible: listFlick.visible && overflowing
+                    anchors.top: listFlick.top
+                    anchors.bottom: listFlick.bottom
+                    anchors.right: parent.right
+                    anchors.rightMargin: hub.wide ? -LithicTokens.size.listInset + 2 : 0
+                }
+
+                SearchResults {
+                    id: resultsList
+                    visible: hub.searching
+                    anchors.top: listHead.bottom
+                    anchors.bottom: parent.bottom
+                    width: parent.width
+                    hub: hub
+                    query: hub.searchText
+                    results: hub.results
+                    nearby: hub.nearby
+                    onChosen: entry => hub.choose(entry)
                 }
             }
 
@@ -844,129 +1085,8 @@ FocusScope {
 
         listData: [
             Item {
-                id: listArea
+                id: listSlot
                 anchors.fill: parent
-                anchors.leftMargin: LithicTokens.size.listInset
-                anchors.rightMargin: LithicTokens.size.listInset
-
-                readonly property bool categoryList: hub.homeList
-
-                Column {
-                    id: listHead
-                    width: parent.width
-                    spacing: LithicTokens.space.s2
-
-                    Plaque {
-                        visible: frame.compact && hub.compactLevel === "pages"
-                        kind: "quiet"
-                        small: true
-                        glyph: "arrow_back"
-                        text: I18n.tr("Back")
-                        onClicked: hub.back()
-                    }
-                    Label {
-                        width: parent.width
-                        leftPadding: LithicTokens.space.s3
-                        text: listArea.categoryList ? I18n.tr("Settings") : (hub.category ? I18n.tr(hub.category.label) : "")
-                        typeRole: "section"
-                    }
-                    Label {
-                        width: parent.width
-                        visible: !listArea.categoryList && text.length > 0
-                        leftPadding: LithicTokens.space.s3
-                        rightPadding: LithicTokens.space.s3
-                        text: Summaries.categorySentence(hub.categoryId, hub.summaries)
-                        typeRole: "body"
-                        inkRole: "fg2"
-                        wrapMode: Text.Wrap
-                        elide: Text.ElideNone
-                    }
-                    Item { width: 1; height: LithicTokens.space.s1 }
-                    Search {
-                        id: search
-                        width: parent.width
-                        placeholderText: I18n.tr("Search settings")
-                        shortcutHint: "/"
-                        accessibleName: I18n.tr("Search settings")
-                        Keys.onUpPressed: hub.moveCursor(-1)
-                        Keys.onDownPressed: hub.moveCursor(1)
-                        Keys.onReturnPressed: hub.openCursor()
-                        Keys.onEnterPressed: hub.openCursor()
-                        onTextChanged: hub.query = text
-                        // build the index as the field is reached, before the first key
-                        onActiveFocusChanged: {
-                            if (activeFocus)
-                                hub.armSearch();
-                        }
-                    }
-                    Item { width: 1; height: LithicTokens.space.s2 }
-                }
-
-                Flickable {
-                    id: listFlick
-                    visible: !hub.searching
-                    anchors.top: listHead.bottom
-                    anchors.bottom: parent.bottom
-                    width: parent.width
-                    contentHeight: pageColumn.height + LithicTokens.space.s4
-                    boundsBehavior: Flickable.StopAtBounds
-                    clip: true
-
-                    Column {
-                        id: pageColumn
-                        width: parent.width
-                        spacing: LithicTokens.size.rowListGap
-
-                        PageRow {
-                            visible: hub.homeOffset > 0 && listArea.categoryList
-                            width: parent.width
-                            glyph: "home"
-                            text: I18n.tr("Home")
-                            cursor: hub.listCursor === 0 && !!listArea.categoryList
-                            onClicked: hub.goHome()
-                        }
-
-                        Repeater {
-                            id: pageRepeater
-                            model: listArea.categoryList ? Registry.categories : hub.categoryPages
-                            delegate: PageRow {
-                                required property var modelData
-                                required property int index
-                                width: pageColumn.width
-                                glyph: listArea.categoryList ? modelData.glyph : ""
-                                text: listArea.categoryList ? I18n.tr(modelData.label) : I18n.tr(modelData.title)
-                                summary: listArea.categoryList ? Summaries.categorySentence(modelData.id, hub.summaries)
-                                                               : Summaries.pageSummary(modelData.id, hub.summaries)
-                                trailingGlyph: !listArea.categoryList && modelData.handoff ? "open_in_new" : ""
-                                selected: !listArea.categoryList && modelData.id === hub.pageId
-                                cursor: hub.listCursor === index + (listArea.categoryList ? hub.homeOffset : 0)
-                                onClicked: listArea.categoryList ? hub.openCategory(index) : hub.navigate(modelData.id, "")
-                            }
-                        }
-                    }
-                }
-
-                ScrollRail {
-                    flickable: listFlick
-                    visible: !hub.searching && overflowing
-                    anchors.top: listFlick.top
-                    anchors.bottom: listFlick.bottom
-                    anchors.right: parent.right
-                    anchors.rightMargin: -LithicTokens.size.listInset + 2
-                }
-
-                SearchResults {
-                    id: resultsList
-                    visible: hub.searching
-                    anchors.top: listHead.bottom
-                    anchors.bottom: parent.bottom
-                    width: parent.width
-                    hub: hub
-                    query: hub.searchText
-                    results: hub.results
-                    nearby: hub.nearby
-                    onChosen: entry => hub.choose(entry)
-                }
             }
         ]
 

@@ -1,11 +1,9 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Effects
 import Quickshell
 import Quickshell.Io
 import Lithic
-import Ryoku.Ui as RyokuUi
 import Ryoku.Ui.Singletons
 import "../../Singletons"
 
@@ -22,7 +20,6 @@ Item {
 
     readonly property real designWidth: 1280
     readonly property real designHeight: 800
-    readonly property string configDir: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku"
 
     width: card.designWidth
     height: card.designHeight
@@ -234,51 +231,13 @@ Item {
     }
 
     // the figure, inked in the card's own foreground so it reads on either ground
-    Item {
+    CardFigure {
         id: hero
-        readonly property var config: card.f("hero", ({}))
-        readonly property string kind: hero.config.kind || "default"
-        readonly property string src: hero.config.source || ""
-        readonly property real zoom: hero.config.zoom !== undefined ? hero.config.zoom : 1
-        readonly property real focalX: hero.config.focalX !== undefined ? hero.config.focalX : 0.5
-        readonly property real focalY: hero.config.focalY !== undefined ? hero.config.focalY : 0.4
         height: parent.height + 96
         width: height * 900 / 1157
         anchors.verticalCenter: parent.verticalCenter
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.horizontalCenterOffset: 240 * card.heroDir
-        clip: true
-
-        // your own photo is dithered live; the stock figures are already one-bit and only take the ink
-        RyokuUi.DitherImage {
-            visible: hero.kind === "custom"
-            width: hero.width * hero.zoom
-            height: hero.height * hero.zoom
-            x: (hero.width - width) * hero.focalX
-            y: (hero.height - height) * hero.focalY
-            bone: Lithic.fg
-            source: hero.kind === "custom" && hero.src.length > 0 ? "file://" + card.configDir + "/profile/" + hero.src : ""
-            dotScale: hero.config.dither !== undefined ? hero.config.dither : 1
-            invert: hero.config.invert === true
-            fillMode: Image.PreserveAspectCrop
-        }
-        Image {
-            id: stock
-            anchors.fill: parent
-            visible: false
-            source: hero.kind === "custom" ? "" : hero.kind === "gallery" && hero.src.length > 0 ? Ryodecors.dir + hero.src
-                : Qt.resolvedUrl("../../art/profile-hero.png")
-            fillMode: Image.PreserveAspectFit
-            smooth: false
-            asynchronous: true
-        }
-        MultiEffect {
-            anchors.fill: parent
-            visible: hero.kind !== "custom"
-            source: stock
-            colorization: 1
-            colorizationColor: Lithic.fg
-        }
     }
 
     // a slow scan down the figure
@@ -363,7 +322,7 @@ Item {
             }
             Text {
                 width: parent.width
-                text: card.f("text.tagline", I18n.tr("A live specimen, shot on black."))
+                text: card.f("text.tagline", I18n.tr("For the sake of power and beauty."))
                 color: Lithic.fg2
                 font.family: Lithic.font.sans
                 font.italic: true

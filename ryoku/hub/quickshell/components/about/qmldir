@@ -1,4 +1,5 @@
 CardBarcode 1.0 CardBarcode.qml
 CardEditor 1.0 CardEditor.qml
+CardFigure 1.0 CardFigure.qml
 CardStore 1.0 CardStore.qml
 SystemCard 1.0 SystemCard.qml

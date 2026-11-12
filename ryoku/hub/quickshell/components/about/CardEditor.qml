@@ -15,6 +15,8 @@ Dialog {
     id: root
 
     property string pageId: "about"
+    // opened from Home: the same design, with Settings' own colours beside it
+    property bool home: false
     readonly property string configDir: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku"
     readonly property bool wide: root.availableWidth >= 900
     readonly property real bodyHeight: Math.max(320, (root.parent ? root.parent.height : 800) - 2 * LithicTokens.size.dialogMargin
@@ -67,7 +69,7 @@ Dialog {
                  I18n.tr("Card layout"));
     }
 
-    title: I18n.tr("Customise the system card")
+    title: root.home ? I18n.tr("Customise Home") : I18n.tr("Customise the system card")
     dialogWidth: 1240
     actions: [{ text: I18n.tr("Done"), kind: "gold" }]
 
@@ -188,6 +190,41 @@ Dialog {
                 spacing: LithicTokens.space.s5
 
                 Section {
+                    visible: root.home
+                    width: parent.width
+                    title: I18n.tr("Colours")
+                    Slab {
+                        width: parent.width
+                        Column {
+                            width: parent.width
+                            spacing: LithicTokens.space.s4
+                            Choice {
+                                title: I18n.tr("Settings wears")
+                                detail: I18n.tr("Ryoku's own black and bone, its light paper, or the colours of your wallpaper")
+                                model: [I18n.tr("Dark"), I18n.tr("Light"), I18n.tr("Wallpaper")]
+                                index: Math.max(0, Look.coloursChoices.indexOf(Changes.value(Look.colours)))
+                                onPicked: at => Changes.set(Look.colours, Look.coloursChoices[at], I18n.tr("Settings colours"), root.pageId)
+                            }
+                            Choice {
+                                title: I18n.tr("Contrast")
+                                detail: I18n.tr("High sets fields and lines further from the paper and the text stronger")
+                                model: [I18n.tr("Standard"), I18n.tr("High")]
+                                index: Math.max(0, Look.contrastChoices.indexOf(Changes.value(Look.contrast)))
+                                onPicked: at => Changes.set(Look.contrast, Look.contrastChoices[at], I18n.tr("Settings contrast"), root.pageId)
+                            }
+                            Choice {
+                                visible: Changes.value(Look.colours) === "wallpaper"
+                                title: I18n.tr("Tint")
+                                detail: I18n.tr("How much of the wallpaper's colour the paper takes")
+                                model: [I18n.tr("Off"), I18n.tr("Low"), I18n.tr("Medium")]
+                                index: Math.max(0, Look.tintChoices.indexOf(Changes.value(Look.tint)))
+                                onPicked: at => Changes.set(Look.tint, Look.tintChoices[at], I18n.tr("Settings tint"), root.pageId)
+                            }
+                        }
+                    }
+                }
+
+                Section {
                     width: parent.width
                     title: I18n.tr("Figure")
                     Column {
@@ -197,8 +234,9 @@ Dialog {
                             width: parent.width
                             spacing: LithicTokens.space.s2
                             Tile {
-                                label: I18n.tr("Marble")
-                                art: Qt.resolvedUrl("../../art/profile-hero.png")
+                                label: I18n.tr("Caracalla")
+                                photo: true
+                                art: Qt.resolvedUrl("../../art/caracalla.png")
                                 chosen: root.hero.kind === "default"
                                 onPicked: root.setHero({ kind: "default", source: "" }, I18n.tr("Card figure"))
                             }
@@ -288,7 +326,9 @@ Dialog {
                             Repeater {
                                 model: [
                                     { key: "text.name", label: I18n.tr("Name"), fallback: SysInfo.sysUser },
-                                    { key: "text.tagline", label: I18n.tr("Line under the name"), fallback: I18n.tr("A live specimen, shot on black.") },
+                                    { key: "text.tagline", label: I18n.tr("Line under the name"), fallback: I18n.tr("For the sake of power and beauty.") },
+                                    // the first is the word carved behind the figure on Home; the card turns through them all
+                                    { key: "text.epithets", label: I18n.tr("Big words"), fallback: "Ryoku", list: true },
                                     { key: "text.marginalia", label: I18n.tr("Edge line"), fallback: "" }
                                 ]
                                 delegate: SettingRow {
@@ -300,11 +340,18 @@ Dialog {
                                     title: modelData.label
                                     TextField {
                                         width: Math.min(260, wordRow.width * 0.5)
-                                        text: String(ProfileStore.get(wordRow.modelData.key, "") || "")
+                                        readonly property string stored: wordRow.modelData.list
+                                            ? (ProfileStore.get(wordRow.modelData.key, []) || []).join(", ")
+                                            : String(ProfileStore.get(wordRow.modelData.key, "") || "")
+                                        text: stored
                                         placeholderText: wordRow.modelData.fallback
                                         Accessible.name: wordRow.modelData.label
                                         onEditingFinished: {
-                                            if (text !== String(ProfileStore.get(wordRow.modelData.key, "") || ""))
+                                            if (text === stored)
+                                                return;
+                                            if (wordRow.modelData.list)
+                                                root.put(wordRow.modelData.key, [], text.split(",").map(w => w.trim()).filter(w => w.length > 0), wordRow.modelData.label);
+                                            else
                                                 root.put(wordRow.modelData.key, "", text, wordRow.modelData.label);
                                         }
                                     }
@@ -328,7 +375,11 @@ Dialog {
                                 detail: I18n.tr("Everything, or just the name, figure and a few facts")
                                 Segmented {
                                     model: [I18n.tr("Everything"), I18n.tr("A little")]
-                                    currentIndex: root.val("preset", "full") === "minimal" ? 1 : 0
+                                    // choosing assigns the control's own index, which would end a plain
+                                    // binding: an Undo must still move it
+                                    Binding on currentIndex {
+                                        value: root.val("preset", "full") === "minimal" ? 1 : 0
+                                    }
                                     accessibleName: I18n.tr("Show")
                                     onActivated: index => root.setLayout(index === 1 ? "minimal" : "full")
                                 }
@@ -338,7 +389,9 @@ Dialog {
                                 title: I18n.tr("Figure on the")
                                 Segmented {
                                     model: [I18n.tr("Left"), I18n.tr("Right")]
-                                    currentIndex: root.val("heroSide", "right") === "left" ? 0 : 1
+                                    Binding on currentIndex {
+                                        value: root.val("heroSide", "right") === "left" ? 0 : 1
+                                    }
                                     accessibleName: I18n.tr("Figure on the")
                                     onActivated: index => root.put("heroSide", "right", index === 0 ? "left" : "right", I18n.tr("Card figure side"))
                                 }
@@ -373,6 +426,41 @@ Dialog {
             anchors.top: flick.top
             anchors.bottom: flick.bottom
             anchors.right: flick.right
+        }
+    }
+
+    // one choice among a few shown at once: its words, then the options under them at
+    // full width, since the column beside the card is narrow
+    component Choice: Column {
+        id: choice
+        property string title: ""
+        property string detail: ""
+        property var model: []
+        property int index: 0
+        signal picked(int at)
+        width: parent ? parent.width : 0
+        spacing: LithicTokens.space.s2
+        Label {
+            width: parent.width
+            text: choice.title
+            typeRole: "row"
+        }
+        Label {
+            width: parent.width
+            visible: choice.detail.length > 0
+            text: choice.detail
+            typeRole: "detail"
+            wrapMode: Text.Wrap
+            elide: Text.ElideNone
+        }
+        Segmented {
+            width: Math.min(parent.width, implicitWidth)
+            model: choice.model
+            Binding on currentIndex {
+                value: choice.index
+            }
+            accessibleName: choice.title
+            onActivated: at => choice.picked(at)
         }
     }
 

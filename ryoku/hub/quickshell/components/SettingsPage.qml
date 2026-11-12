@@ -44,6 +44,38 @@ Item {
     property var rowItems: ({})
     property var sectionItems: ({})
 
+    // the sheet's running head: its category, and its place among the category's pages
+    function pad(n) {
+        return n < 10 ? "0" + n : String(n);
+    }
+    readonly property var sheetPages: {
+        var p = Registry.page(page.pageId);
+        return p ? Registry.pagesOf(p.category, page.hub.gate) : [];
+    }
+    readonly property string sheetCategory: {
+        var p = Registry.page(page.pageId);
+        var c = p ? Registry.category(p.category) : null;
+        return c ? I18n.tr(c.label) : "";
+    }
+    readonly property string sheetMark: {
+        var at = page.sheetPages.findIndex(p => p.id === page.pageId);
+        return at >= 0 && page.sheetPages.length >= 2 ? page.pad(at + 1) + " / " + page.pad(page.sheetPages.length) : "";
+    }
+    // sections made by the page's first build rise in; a later rebuild's simply stand
+    property bool revealing: true
+    Connections {
+        target: sectionModel
+        function onCountChanged() {
+            if (sectionModel.count > 0)
+                endReveal.start();
+        }
+    }
+    Timer {
+        id: endReveal
+        interval: 0
+        onTriggered: page.revealing = false
+    }
+
     readonly property bool ready: Changes.desktopReady && Settings.loaded && ProviderSchema.ready
     // the scroll rail sits at the right edge, so the column never runs under it
     readonly property real usableWidth: Math.max(0, page.width - LithicTokens.size.scrollThumb - LithicTokens.space.s3)
@@ -150,7 +182,10 @@ Item {
     onMoreBodiesChanged: page.rebuild()
     onSlabBodiesChanged: page.rebuild()
     onAdaptRowsChanged: page.rebuild()
-    Component.onCompleted: page.rebuild()
+    Component.onCompleted: {
+        page.rebuild();
+        sheetHead.play();
+    }
     Connections {
         target: Changes
         function onRevisionChanged() { page.rebuild(); }
@@ -693,6 +728,15 @@ Item {
             width: page.columnWidth
             spacing: 0
 
+            // the running head: the category where no pane beside the page names it, a
+            // hairline across, and this sheet's place among the category's pages
+            SheetHead {
+                id: sheetHead
+                width: parent.width
+                label: page.hub.wide ? "" : page.sheetCategory
+                mark: page.sheetMark
+            }
+            Item { width: 1; height: LithicTokens.space.s4 }
             Label {
                 width: parent.width
                 text: page.schema ? I18n.tr(page.schema.title) : ""
@@ -726,6 +770,10 @@ Item {
                 wrapMode: Text.Wrap
                 elide: Text.ElideNone
             }
+            Item { width: 1; height: LithicTokens.space.s3 }
+            TickRuler {
+                width: Math.min(parent.width, implicitWidth)
+            }
             Item { width: 1; height: LithicTokens.space.s5 }
 
             SectionIndex {
@@ -756,6 +804,7 @@ Item {
                 delegate: Section {
                     id: sec
                     required property string sid
+                    required property int index
                     readonly property var modelData: page.sectionData[sec.sid]
                         || ({ id: sec.sid, title: "", missing: "", rows: [], more: [], moreBody: false })
                     readonly property bool moreOpen: moreFold.open
@@ -766,7 +815,19 @@ Item {
                     }
                     width: body.width
                     title: I18n.tr(modelData.title)
-                    Component.onCompleted: page.sectionItems[sec.sid] = sec
+                    ruled: true
+                    mark: page.layout.length >= 2 ? page.pad(sec.index + 1) : ""
+                    Component.onCompleted: {
+                        page.sectionItems[sec.sid] = sec;
+                        // the first sections rise in turn as the page opens; later ones stand
+                        if (page.revealing && sec.index < 5)
+                            rise.play();
+                    }
+                    Reveal {
+                        id: rise
+                        item: sec
+                        order: sec.index + 1
+                    }
                     Component.onDestruction: {
                         if (page.sectionItems[sec.sid] === sec)
                             delete page.sectionItems[sec.sid];

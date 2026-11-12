@@ -344,3 +344,14 @@ version, rewritten for a dream's manager. It is released under the MIT
 License, whose text ryoku/rashin/NOTICE carries with the copyright line
 ("Copyright (c) 2025 Paperclip AI"); that license is compatible with Ryoku's
 GPL-3 distribution.
+
+The statue on Ryoku Settings' Home and system card
+(ryoku/hub/quickshell/art/caracalla.png) is derived from "Caracalla MAN
+Napoli Inv6033 n01" by Marie-Lan Nguyen
+(https://commons.wikimedia.org/wiki/File:Caracalla_MAN_Napoli_Inv6033_n01.jpg),
+a photograph of the Caracalla Farnese bust in the Museo Archeologico
+Nazionale, Naples, licensed under the Creative Commons Attribution 2.5
+Generic licence (https://creativecommons.org/licenses/by/2.5/). It was
+upscaled, cut from its background, scaled down and cropped to the marble, as
+on ryoku.dev. The credit shows beside the statue on Home and in Settings,
+About, Credits.

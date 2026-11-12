@@ -106,8 +106,11 @@ Singleton {
         }
     }
 
-    // Home's facts at start: distro, first graphics card, battery and active displays, read the
-    // same way the helpers read them, without the package manager
+    // Home's facts at start: distro, first graphics card, battery, active displays, the host and
+    // user names, seconds up and memory, read the same way the helpers read them, without the
+    // package manager
+    property int upSeconds: 0
+    property real memoryKb: 0
     Process {
         running: true
         command: ["sh", "-c", "grep -m1 'PRETTY_NAME' /etc/os-release 2>/dev/null | cut -d'\"' -f2; "
@@ -115,7 +118,10 @@ Singleton {
             + "| sed -E 's/^[^ ]+ [^:]*: //; s/ \\(rev [0-9a-f]+\\)//; s/NVIDIA Corporation //; s/Advanced Micro Devices, Inc\\. //; s/Intel Corporation //; s/\\[AMD\\/ATI\\] //; s/.*\\[([^]]+)\\].*/\\1/' | xargs "
             + "| awk '{ s = $0; if (length(s) > 30) { s = substr(s, 1, 31); if (s ~ /[ \\/]/) sub(/[ \\/][^ \\/]*$/, \"\", s); else s = substr(s, 1, 30); sub(/[ \\/,-]+$/, \"\", s) } print s }'; "
             + "bat=-; for b in /sys/class/power_supply/BAT*; do [ -e \"$b/capacity\" ] || continue; bat=\"$(cat \"$b/capacity\")%\"; break; done; echo \"$bat\"; "
-            + "n=0; for e in /sys/class/drm/card*-*/enabled; do [ \"$(cat \"$e\" 2>/dev/null)\" = enabled ] && n=$((n + 1)); done; echo \"$n\""]
+            + "n=0; for e in /sys/class/drm/card*-*/enabled; do [ \"$(cat \"$e\" 2>/dev/null)\" = enabled ] && n=$((n + 1)); done; echo \"$n\"; "
+            + "h=; read -r h < /proc/sys/kernel/hostname 2>/dev/null; echo \"$h\"; echo \"${USER:-$(id -un 2>/dev/null)}\"; "
+            + "up=; read -r up _ < /proc/uptime 2>/dev/null; echo \"${up%%.*}\"; "
+            + "m=0; while read -r k v _; do [ \"$k\" = MemTotal: ] && { m=$v; break; }; done < /proc/meminfo 2>/dev/null; echo \"$m\""]
         stdout: StdioCollector {
             onStreamFinished: {
                 const l = text.split("\n");
@@ -125,11 +131,17 @@ Singleton {
                 if (!root.baseLanded) {
                     root.sysDistro = (l[0] || "Linux").trim();
                     root.sysGpu = (l[1] || "").trim() || "-";
+                    if ((l[4] || "").trim().length > 0)
+                        root.sysHost = l[4].trim();
+                    if ((l[5] || "").trim().length > 0)
+                        root.sysUser = l[5].trim();
                 }
                 if (!root.extraLanded) {
                     root.sysBattery = (l[2] || "-").trim();
                     root.sysMonitors = (l[3] || "-").trim();
                 }
+                root.upSeconds = parseInt(l[6]) || 0;
+                root.memoryKb = parseInt(l[7]) || 0;
             }
         }
     }

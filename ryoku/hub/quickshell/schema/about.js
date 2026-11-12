@@ -66,6 +66,8 @@ var rows = [
       keywords: ["reset profile", "default card", "marble"],
       control: "custom", activatable: true, more: true },
 
+    { id: "credit-caracalla", section: "credits", label: "Caracalla Farnese", detail: "The statue on Home and on the system card: photograph by Marie-Lan Nguyen, CC BY 2.5, cut from its background",
+      control: "handoff", command: link("https://commons.wikimedia.org/wiki/File:Caracalla_MAN_Napoli_Inv6033_n01.jpg"), actionText: "Visit", keywords: ["credits", "thanks", "statue", "photo", "licence"] },
     { id: "credit-qylock", section: "credits", label: "qylock", detail: "Lock screen, by Darkkal44",
       control: "handoff", command: link("https://github.com/Darkkal44/qylock"), actionText: "Visit", keywords: ["credits", "thanks"] },
     { id: "credit-caelestia", section: "credits", label: "caelestia", detail: "Quickshell craft, motion and browser theming, by caelestia-dots",

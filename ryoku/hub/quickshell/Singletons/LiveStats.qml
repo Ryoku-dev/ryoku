@@ -22,9 +22,10 @@ import Quickshell.Io
 Singleton {
     id: root
 
-    // ProfilePage flips this on construction and off on destruction; the poll
-    // loop only runs while the plate is the visible page.
+    // whoever shows the readings turns this on while they are on screen and off when they
+    // leave; the poll loop runs only then, every `interval` ms
     property bool active: false
+    property int interval: 1500
 
     property int cpu: 0          // %
     property int ram: 0          // %
@@ -110,7 +111,7 @@ echo "$cpu $ram $ct $ld $dn $up $g"
     }
 
     Timer {
-        interval: 1500
+        interval: root.interval
         running: root.active
         repeat: true
         triggeredOnStart: true
