@@ -77,6 +77,8 @@ T.Control {
             onHomeTriggered: root.homeTriggered()
             onDestinationTriggered: (index, label) => {
                 root.currentDestination = index
+                // the pick moved the rail itself; it follows the frame again so later navigation shows on it
+                rail.currentIndex = Qt.binding(() => root.currentDestination)
                 root.destinationTriggered(index, label)
             }
             onNewItemTriggered: (index, label) => root.newItemTriggered(index, label)

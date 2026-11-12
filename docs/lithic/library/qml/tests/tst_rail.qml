@@ -30,13 +30,37 @@ Item {
         return null;
     }
 
+    function named(item, name) {
+        const kids = item ? item.children || [] : [];
+        for (let i = 0; i < kids.length; ++i) {
+            if (kids[i].Accessible.name === name && kids[i].clicked !== undefined)
+                return kids[i];
+            const inner = named(kids[i], name);
+            if (inner)
+                return inner;
+        }
+        return null;
+    }
+
+    function railOf(item) {
+        const kids = item ? item.children || [] : [];
+        for (let i = 0; i < kids.length; ++i) {
+            if (kids[i].destinationTriggered !== undefined && kids[i].currentIndex !== undefined)
+                return kids[i];
+            const inner = railOf(kids[i]);
+            if (inner)
+                return inner;
+        }
+        return null;
+    }
+
     TestCase {
         name: "RailFocus"
         when: windowShown
 
         function test_tabShowsTheRingOnEveryDestination() {
             const seen = [];
-            for (let step = 0; step < 6; ++step) {
+            for (let step = 0; step < 10; ++step) {
                 keyClick(Qt.Key_Tab);
                 const focused = host.Window.activeFocusItem;
                 if (!focused || !focused.Accessible.name)
@@ -48,6 +72,21 @@ Item {
             }
             verify(seen.indexOf("Appearance") >= 0 && seen.indexOf("Updates") >= 0,
                    "Tab reached the destinations: " + seen.join(", "));
+        }
+
+        function test_railFollowsTheFrameAfterAPick() {
+            const rail = host.railOf(frame);
+            const desktop = host.named(rail, "Desktop");
+            verify(desktop !== null, "the rail has a Desktop destination");
+            desktop.forceActiveFocus(Qt.TabFocusReason);
+            keyClick(Qt.Key_Space);
+            compare(frame.currentDestination, 1, "the pick reaches the frame");
+            frame.currentDestination = 2;
+            compare(rail.currentIndex, 2, "navigation after a pick still moves the rail");
+            mouseClick(host.named(rail, "Appearance"));
+            compare(frame.currentDestination, 0);
+            frame.currentDestination = 1;
+            compare(rail.currentIndex, 1, "navigation after a pointer pick moves the rail too");
         }
     }
 }
