@@ -63,6 +63,36 @@ func TestAskModelsAreGroupedFreeLocalPaid(t *testing.T) {
 	}
 }
 
+// A provider's own listing joins its group: a free one that answers can be picked, and says when its
+// tool support is unknown; what a key would open is too long a list, so only Rashin's picks stand for it.
+func TestAskModelsCarryTheListedModels(t *testing.T) {
+	models, providers := offeredModels()
+	models.Models = append(models.Models,
+		protocol.ModelInfo{ID: "kilo/listed:free", Provider: "kilo", Name: "Listed", Tier: protocol.TierFree, Available: true, Listed: true, ToolsKnown: true},
+		protocol.ModelInfo{ID: "kilo/mystery:free", Provider: "kilo", Name: "Mystery", Tier: protocol.TierFree, Available: true, Listed: true},
+		protocol.ModelInfo{ID: "anthropic/listed", Provider: "anthropic", Name: "Listed Claude", Tier: protocol.TierPaid, Listed: true, ToolsKnown: true},
+	)
+	options, ids := modelRows(models, providers, "")
+	if slices.Contains(ids, "anthropic/listed") {
+		t.Fatal("a listed model of a provider without a key was offered")
+	}
+	for index, id := range ids {
+		switch id {
+		case "kilo/listed:free":
+			if options[index].Group != i18n.T("Free") || options[index].Detail != id {
+				t.Fatalf("listed free model = %#v", options[index])
+			}
+		case "kilo/mystery:free":
+			if options[index].Detail != i18n.Tf("%s, tools unknown", id) {
+				t.Fatalf("unknown tools model = %#v", options[index])
+			}
+		}
+	}
+	if !slices.Contains(ids, "kilo/listed:free") || !slices.Contains(ids, "kilo/mystery:free") {
+		t.Fatalf("listed models missing: %v", ids)
+	}
+}
+
 func TestAskModelsKeepAPinTheyNoLongerOffer(t *testing.T) {
 	models, providers := offeredModels()
 	for _, test := range []struct {

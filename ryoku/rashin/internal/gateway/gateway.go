@@ -43,6 +43,11 @@ type Gateway struct {
 
 	apiMu  sync.Mutex
 	apiKey string
+
+	// limits is what each provider last said of its allowance
+	limits limitBook
+	// listings are the providers' own model listings (discover.go)
+	listings listings
 }
 
 // Open opens the gateway database and embedded provider catalogue. settings
@@ -71,6 +76,7 @@ func Open(stateDir string, settings func() protocol.Settings) (*Gateway, error) 
 		local:    newLocalServers(),
 		settings: settings,
 		now:      time.Now,
+		listings: newListings(),
 		ctx:      ctx,
 		cancel:   cancel,
 	}, nil
@@ -92,8 +98,9 @@ func (g *Gateway) notifyChange() {
 	}
 }
 
-// providers lists every provider: the local ones first, then the catalogue.
-// fresh asks the local servers now instead of trusting a recent answer.
+// providers lists every provider: the local ones first, then the catalogue
+// with what each provider's own listing adds. fresh asks the local servers
+// now instead of trusting a recent answer.
 func (g *Gateway) providers(ctx context.Context, fresh bool) []*provider {
 	local := g.localProviders(ctx, fresh)
 	all := make([]*provider, 0, len(local)+len(g.catalog.Providers))
@@ -101,13 +108,14 @@ func (g *Gateway) providers(ctx context.Context, fresh bool) []*provider {
 		all = append(all, &local[i])
 	}
 	for i := range g.catalog.Providers {
-		all = append(all, &g.catalog.Providers[i])
+		all = append(all, g.listed(&g.catalog.Providers[i]))
 	}
 	return all
 }
 
 // findProvider finds a local or catalogue provider by id. fresh asks the
-// local servers now.
+// local servers now, and reads a catalogue provider's listing again (at most
+// once a minute).
 func (g *Gateway) findProvider(ctx context.Context, id string, fresh bool) (*provider, error) {
 	id = strings.ToLower(strings.TrimSpace(id))
 	if slices.Contains(protocol.LocalProviders, id) {
@@ -118,7 +126,10 @@ func (g *Gateway) findProvider(ctx context.Context, id string, fresh bool) (*pro
 		}
 	}
 	if p, ok := g.catalog.findProvider(id); ok {
-		return p, nil
+		if fresh {
+			g.refreshListings(ctx, []string{id})
+		}
+		return g.listed(p), nil
 	}
 	return nil, fmt.Errorf(i18n.T("Rashin has no provider %s"), id)
 }
@@ -150,6 +161,15 @@ func (g *Gateway) providerInfo(_ context.Context, p *provider) (protocol.Provide
 	info := protocol.ProviderInfo{ID: p.ID, Name: p.Name, Tier: p.Tier, Keyless: p.Keyless, Enabled: enabled, Configured: p.Keyless || len(records) > 0, Models: len(p.Models), Signup: p.Signup, KeyHint: p.KeyHint, Note: p.Note}
 	if p.Tier == protocol.TierLocal {
 		info.Local, info.Address, info.Running = true, p.BaseURL, p.running
+	} else {
+		for i := range p.Models {
+			if p.tierOf(&p.Models[i]) != protocol.TierPaid {
+				info.Free++
+			}
+		}
+		if read := g.listingRead(p.ID); !read.IsZero() {
+			info.Listed = &read
+		}
 	}
 	if until, ok, err := g.store.cooldown(providerScope(p.ID), g.now()); err != nil {
 		return protocol.ProviderInfo{}, err
@@ -177,14 +197,17 @@ func (g *Gateway) providerInfo(_ context.Context, p *provider) (protocol.Provide
 		}
 	}
 	if usable && enabled {
+		cooling, err := g.store.modelCooldowns(p.ID, g.now())
+		if err != nil {
+			return protocol.ProviderInfo{}, err
+		}
 		for _, m := range p.Models {
-			if _, cooling, err := g.store.cooldown(modelScope(p.ID, m.ID), g.now()); err != nil {
-				return protocol.ProviderInfo{}, err
-			} else if !cooling {
+			if _, ok := cooling[m.ID]; !ok {
 				info.Available++
 			}
 		}
 	}
+	info.Limits = g.providerLimits(p)
 	return info, nil
 }
 
@@ -208,9 +231,17 @@ func (g *Gateway) AddKey(ctx context.Context, params protocol.AddKeyParams) (pro
 	g.wg.Add(1)
 	go func() {
 		defer g.wg.Done()
+		// a key may list more than the public listing, and the test picks from what it lists
+		listCtx, cancelList := context.WithTimeout(g.ctx, listingBudget)
+		g.refreshListings(listCtx, []string{p.ID})
+		cancelList()
+		tested := p
+		if listed, err := g.findProvider(g.ctx, p.ID, false); err == nil {
+			tested = listed
+		}
 		probeCtx, cancel := context.WithTimeout(g.ctx, firstByteBudget)
 		defer cancel()
-		_, _ = g.testKey(probeCtx, p, record.ID)
+		_, _ = g.testKey(probeCtx, tested, record.ID)
 	}()
 	return g.providerInfo(ctx, p)
 }
@@ -246,6 +277,8 @@ func (g *Gateway) Test(ctx context.Context, providerID string) (protocol.Provide
 	if err != nil {
 		return protocol.ProviderTestResult{}, err
 	}
+	// Check also reads the account's limits, whatever the pacing says
+	defer g.checkAccount(p)
 	if p.Tier == protocol.TierLocal && !p.running {
 		return protocol.ProviderTestResult{Provider: p.ID, Message: i18n.Tf("Not running at %s.", p.BaseURL)}, nil
 	}
@@ -413,18 +446,27 @@ func (g *Gateway) Scrubber() func(string) string {
 }
 
 // Models returns every chat model with its tier, the local ones a running
-// server serves first, and the three routing choices, which stay free.
-func (g *Gateway) Models(ctx context.Context, providerID string) (protocol.ModelsResult, error) {
+// server serves first, and the three routing choices, which stay free. A
+// provider's listing that is stale is read again in the background; Fresh
+// reads the listings now, each at most once a minute, and waits for them.
+func (g *Gateway) Models(ctx context.Context, params protocol.ModelsParams) (protocol.ModelsResult, error) {
 	result := protocol.ModelsResult{Routes: []protocol.Choice{
 		{ID: protocol.RouteAuto, Name: i18n.T("Auto"), Description: i18n.T("Best free model available, one on this computer first")},
 		{ID: protocol.RouteFast, Name: i18n.T("Fast"), Description: i18n.T("Free model with the lowest measured time to first token")},
 		{ID: protocol.RouteSmart, Name: i18n.T("Smart"), Description: i18n.T("Free model with the highest quality rank")},
 	}}
 	var providers []*provider
-	if strings.TrimSpace(providerID) == "" {
-		providers = g.providers(ctx, false)
+	if strings.TrimSpace(params.Provider) == "" {
+		if params.Fresh {
+			ids := make([]string, 0, len(g.catalog.Providers))
+			for i := range g.catalog.Providers {
+				ids = append(ids, g.catalog.Providers[i].ID)
+			}
+			g.refreshListings(ctx, ids)
+		}
+		providers = g.providers(ctx, params.Fresh)
 	} else {
-		p, err := g.findProvider(ctx, providerID, false)
+		p, err := g.findProvider(ctx, params.Provider, params.Fresh)
 		if err != nil {
 			return protocol.ModelsResult{}, err
 		}
@@ -443,13 +485,14 @@ func (g *Gateway) Models(ctx context.Context, providerID string) (protocol.Model
 		if err != nil {
 			return protocol.ModelsResult{}, err
 		}
+		cooling, err := g.store.modelCooldowns(p.ID, g.now())
+		if err != nil {
+			return protocol.ModelsResult{}, err
+		}
 		for i := range p.Models {
 			m := &p.Models[i]
-			until, modelCooling, err := g.store.cooldown(modelScope(p.ID, m.ID), g.now())
-			if err != nil {
-				return protocol.ModelsResult{}, err
-			}
-			info := protocol.ModelInfo{ID: p.ID + "/" + m.ID, Provider: p.ID, Name: m.Name, Tier: p.tierOf(m), Context: m.Context, Tools: m.Tools, Reasoning: m.Reasoning, Vision: m.Vision, Rank: m.QualityRank, Available: enabled && usable && !providerCooling && !modelCooling}
+			until, modelCooling := cooling[m.ID]
+			info := protocol.ModelInfo{ID: p.ID + "/" + m.ID, Provider: p.ID, Name: m.Name, Tier: p.tierOf(m), Context: m.Context, Tools: m.Tools, Reasoning: m.Reasoning, Vision: m.Vision, Rank: m.QualityRank, Available: enabled && usable && !providerCooling && !modelCooling, Listed: m.listed, ToolsKnown: !m.toolsUnknown}
 			if modelCooling {
 				info.CooldownUntil = &until
 			}

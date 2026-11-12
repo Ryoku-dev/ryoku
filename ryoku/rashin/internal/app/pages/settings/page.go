@@ -58,6 +58,7 @@ type Page struct {
 	// provider ids in the order they were sorted into when Settings opened
 	providerOrder []string
 	usage         env.Usage
+	limits        env.LimitsWatch
 	api           apiPanel
 
 	models env.ModelMenu
@@ -96,6 +97,7 @@ func New() *Page {
 func (p *Page) OpenSection(name string) {
 	p.providerOrder = nil
 	p.usage.Forget()
+	p.limits.Forget()
 	p.skills.list.Forget()
 	// the older names still lead to their section
 	aliases := map[string]string{"about": "rashin", "agent": "agents", "keyboard": "keys"}

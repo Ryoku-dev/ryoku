@@ -444,11 +444,17 @@ asked for; without it the router opens no port.
   OpenAI-compatible providers. Each entry has an id, name, tier, base URL, auth
   (`bearer`, `none`, `cloudflare` account plus token), `keyless`, signup URL,
   extra headers, `completionTokens` (send `max_completion_tokens`, which
-  OpenAI's reasoning models take instead of `max_tokens`), and its chat models
-  (id, name, an optional tier of its own, context, tools, reasoning, vision,
-  quality rank, speed rank). Derived from Prowl's MIT catalogue (attributed in
-  `ryoku/rashin/NOTICE`). Non-chat models (speech, transcription, guard,
-  embedding, image) are never listed.
+  OpenAI's reasoning models take instead of `max_tokens`), a `listing` (how
+  the provider lists its models, below), and its curated chat models (id, name,
+  an optional tier of its own, context, tools, reasoning, vision, quality rank,
+  speed rank), which may be none when the listing brings them. Derived from
+  Prowl's MIT catalogue; base URLs, what each needs to sign up and the free
+  allowances in the notes were checked against awesome-free-llm-apis and
+  Free-LLM (both MIT, attributed in `ryoku/rashin/NOTICE`), which also gave the
+  providers added since: Z.AI, Routeway, Requesty, Api.Airforce, Kiosapi.id,
+  MegaNova AI, LLMTR, AIHubMix, BazaarLink, OpenTyphoon, LLM.kiwi, SEA-LION,
+  Inferbase, Gonka Broker, Token Harbor, Moark and Vercel AI Gateway. Non-chat
+  models (speech, transcription, guard, embedding, image) are never listed.
 - **Tiers** (`ModelInfo.Tier`, `ProviderInfo.Tier`): `free`, `credits` (free
   credits a provider renews), `paid` (the key's owner is billed) and `local`.
   A model's tier is its provider's unless it names its own: Google Gemini's
@@ -459,9 +465,11 @@ asked for; without it the router opens no port.
   paid providers with a bearer key.
 - **Auto stays free**: `auto`, `auto:fast` and `auto:smart` never route to a
   paid model, and a pin to another model never fails over to one. A paid model
-  answers only when it is the model asked for. A key test runs on a free model
-  of the provider when it has one, since a free-plan key is refused a paid
-  model.
+  answers only when it is the model asked for. They also pass by a model whose
+  tool support nobody knows (`ModelInfo.ToolsKnown` false): it answers only
+  when it is picked by name, with or without tools. A key test runs on a free
+  model of the provider when it has one, since a free-plan key is refused a
+  paid model.
 - **Local providers** (`internal/gateway/local.go`): `ollama-local` (Ollama)
   and `llamacpp` (llama-server), tier `local`, keyless. Their addresses are
   `providers.local` in rashin.json (defaults `http://127.0.0.1:11434/v1` and
@@ -506,6 +514,119 @@ asked for; without it the router opens no port.
 - **Zero setup**: keyless providers work with no key, so Ask answers on a fresh
   machine when one of them is up. When nothing is available Ask says so and
   names the next step (add a free key in Rashin > Settings > Providers).
+
+### Model lists
+
+A provider's curated models are a few; its own listing has the rest
+(`internal/gateway/listing.go`, `discover.go`). Rashin reads it, merges it with
+the catalogue and keeps it in `gateway.db` (bucket `listings`):
+
+- **Where**: `GET {baseURL}/models` with the provider's first working key, or
+  none for a keyless provider or a public listing (`listing.public`: NVIDIA,
+  OpenRouter, Hugging Face, OpenCode Zen, Pollinations and most added
+  providers). The key goes to the provider's own address and nowhere else, and
+  a refusal is reported by its status alone. Some providers list their own way
+  (`listing.shape`, `listing.url`): Anthropic `/v1/models` with `x-api-key`
+  and `anthropic-version`, paged by `after_id`; Cloudflare
+  `accounts/{id}/ai/models/search` (Text Generation, paged); Cohere's own
+  `/v1/models?endpoint=chat`; the GitHub Models catalogue. Google's
+  OpenAI-compatible `/models` names models `models/...`, which is dropped.
+- **What is read**: every field the providers use for context
+  (`context_length`, `top_provider`, `max_context_length`, `context_window`),
+  tools (`supported_parameters`, `capabilities`, `supports_tool_calling`, the
+  Hugging Face router's `supports_tools`), pictures, and price (OpenRouter's
+  `pricing.prompt` and `completion`, `input` and `output`, OpenCode Zen's
+  `cost`, `isFree`, `is_free`, `paid_only`, a `tier`). An entry the listing
+  marks as speech, picture, video or embedding, or that takes or gives no text,
+  is left out; one odd entry never costs the rest.
+- **Free stays honest** (`listedTier`): a paid provider's models are paid. A
+  model the listing marks free (a `:free` or `-free` id, a free flag, tier or
+  tag, or prompt and completion prices of zero) takes its provider's tier,
+  free or credits. Otherwise a mixed provider (`listing.mixed`: OpenRouter,
+  Kilo, OpenCode Zen, Hugging Face, Ollama Cloud, Zhipu, Z.AI and the
+  aggregators) lists it as paid; a keyless mixed provider (Kilo) does not
+  list it at all, since only its free models answer without a key; a free
+  provider's model the listing prices is paid; a keyless provider's priced
+  model stays free (OVH's prices are its keyed plan's); a credits provider
+  spends its credits on the rest.
+- **Merge**: the curated models come first and keep their facts (and take the
+  listing's context when they had none); a listed model matching one by id,
+  any case, adds nothing. Listed models rank below curated ones, so Auto tries
+  Rashin's picks first. `ModelInfo.Listed` marks them.
+- **When**: a listing is trusted for 6 hours. A stale one, or one read without
+  the key there is now, is read again in the background whenever the providers
+  are asked for (`providers.list`, `models.list`, a chat turn's routing), so
+  nothing ever waits on it; one that failed waits 15 minutes and what it last
+  listed stays. `models.list` with `fresh` reads the listings now and waits for
+  them (Settings' Read the list again), at most once a minute per provider
+  whoever asks; a second ask in that minute is answered from the cache. Adding
+  a key reads that provider's listing before the key is tested, and Test reads
+  it again. A change is announced with `providers.changed`.
+- **Counts**: `ProviderInfo.Models` is the merged count, `Free` how many cost
+  nothing (free or credits), and `Listed` when the listing was last read.
+  On 2026-11-12 a scratch gateway with no key read OVH (9 models, all free),
+  Kilo (13, all free, the 356 it bills left out) and OpenRouter's public
+  listing (454 models, 15 free, 439 paid).
+- **In the app**: a provider's head says its real count ("1 key, 73 models,
+  all free", "454 models, 15 free"). Opened, it lists its models under the
+  key and Test rows (`pages/settings/providers_models.go`): where the list
+  comes from, a search field and Read the list again, then up to 30 models
+  with id, tier, context, tools (or "tools unknown") and pictures, and how
+  many more the search would find. The list is asked for when the row opens
+  and when the provider's counts or listing time change, sorted once and
+  matched once per query, never per frame. Ask's model menu (`env.ModelMenu`)
+  carries every listed model in its Free, Local and Paid groups and searches
+  them; a listed model whose tools are unknown says so, and a provider without
+  a key shows only Rashin's picks of what a key would open.
+
+### Allowances
+
+`ProviderInfo.Limits` (`protocol/limits.go`) says what Rashin knows of a
+provider's allowance: windows of a minute, a day or a month, each a limit and
+what is left of requests or tokens, with when it refills, when it was seen and
+where it came from; the credits left; and Rashin's own count of requests and
+tokens sent there today and this month (UTC, from the usage store). A local
+provider has none.
+
+- **Headers** (`internal/gateway/ratelimit.go`): every answer, success or
+  refusal, is read for `x-ratelimit-{limit,remaining,reset}-{requests,tokens}`
+  (a minute for OpenAI; Groq's request headers count a day), the suffixed
+  `-minute`/`-day`/`-month` forms Cerebras and SambaNova send, GitHub Models'
+  `renewalperiod` and `timeremaining`, the bare `x-ratelimit-limit` trio, the
+  unitless Kong form OVHcloud sends (`x-ratelimit-limit-minute`, requests),
+  `anthropic-ratelimit-*`, and the IETF `RateLimit-*` fields in both drafts.
+  A window of an hour or a second is left out rather than misnamed. The latest
+  figures per provider are kept in memory and in the `limits` bucket of
+  `gateway.db`, so they outlive a restart; a window past its reset reads full.
+  An answer does not broadcast `providers.changed` by itself.
+- **Account endpoints** (`internal/gateway/account.go`): OpenRouter
+  `GET /api/v1/key` (the free-model requests of the UTC day, the key's credit
+  cap, its spend, whether the account ever bought credits) and
+  `GET /api/v1/credits` (the balance, which only a management key may read),
+  DeepSeek `GET /user/balance`, SiliconFlow `GET /v1/user/info` and
+  Pollinations `GET /account/balance`. They are read with the provider's first
+  key that is not refused, at most every ten minutes per provider (the time of
+  the last read is stored, so a restart or a second client does not speed it
+  up), and only when the app calls `providers.limits` (Settings > Providers
+  shown, at most once a minute, or the Ask model menu open) or on Test, which
+  reads whatever the pacing says. A failed read keeps the last figures; nothing
+  of it is logged and no key or body leaves the read.
+- **Documented** (`internal/gateway/documented.go`): where a provider reports
+  no live figure for a window, the free limit published by the two MIT lists
+  the catalogue comes from (awesome-freellm-apis, Free-LLM) stands in, marked
+  `documented`, such as NVIDIA's 40 requests a minute or ModelScope's 2,000
+  requests a day. Limits per hour or in provider units (Cloudflare's neurons)
+  are not listed.
+
+Settings > Providers gives a folded provider one line under its head: a live
+daily window first ("Free tokens today: 412,300 of 500,000 left, as of 2 min
+ago."), then credits ("Credits: $4.21 of $10 left."), then a live monthly or
+minute window, else the documented limit beside what Rashin sent ("Documented
+free limit: 1,000 requests a day. Rashin sent 18 requests today."), else "Groq
+does not report a daily limit. Rashin sent 18,200 tokens today." A provider
+nobody set up and nothing was sent to has no line. Unfolded, Allowance lists
+every window with where it came from, the credits and both counts
+(`internal/app/pages/settings/limits.go`).
 
 ### Local API
 

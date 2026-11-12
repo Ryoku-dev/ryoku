@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -25,6 +26,7 @@ var (
 	bucketUsage     = []byte("usage")
 	bucketStats     = []byte("stats")
 	bucketAPI       = []byte("api")
+	bucketListings  = []byte("listings")
 )
 
 type keyRecord struct {
@@ -88,7 +90,7 @@ func openStore(stateDir string) (*store, error) {
 	}
 	s := &store{db: db, aead: aead}
 	if err := db.Update(func(tx *bbolt.Tx) error {
-		for _, name := range [][]byte{bucketKeys, bucketProviders, bucketCooldowns, bucketUsage, bucketStats, bucketAPI} {
+		for _, name := range [][]byte{bucketKeys, bucketProviders, bucketCooldowns, bucketUsage, bucketStats, bucketAPI, bucketListings} {
 			if _, err := tx.CreateBucketIfNotExists(name); err != nil {
 				return err
 			}
@@ -357,6 +359,27 @@ func (s *store) cooldown(scope string, now time.Time) (time.Time, bool, error) {
 		return time.Time{}, false, err
 	}
 	return record.Until, true, nil
+}
+
+// modelCooldowns returns every model of a provider resting at now and until
+// when, in one pass: a provider may list hundreds of models.
+func (s *store) modelCooldowns(providerID string, now time.Time) (map[string]time.Time, error) {
+	cooling := make(map[string]time.Time)
+	prefix := []byte(modelScope(providerID, ""))
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		cursor := tx.Bucket(bucketCooldowns).Cursor()
+		for key, value := cursor.Seek(prefix); key != nil && bytes.HasPrefix(key, prefix); key, value = cursor.Next() {
+			var record cooldownRecord
+			if err := json.Unmarshal(value, &record); err != nil {
+				return err
+			}
+			if record.Until.After(now) {
+				cooling[string(key[len(prefix):])] = record.Until
+			}
+		}
+		return nil
+	})
+	return cooling, err
 }
 
 func usageKey(day, providerID, modelID string) []byte {

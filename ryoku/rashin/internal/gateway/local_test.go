@@ -95,7 +95,7 @@ func TestALocalServerIsFoundAndAutoPrefersIt(t *testing.T) {
 		t.Fatalf("llama.cpp = %#v", llamacpp)
 	}
 
-	models, err := gateway.Models(context.Background(), "")
+	models, err := gateway.Models(context.Background(), protocol.ModelsParams{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +144,7 @@ func TestALocalServerIsAskedAgainOnlyWhenItsAnswerIsOld(t *testing.T) {
 		t.Fatalf("asked %d times within the TTL", server.listed.Load())
 	}
 	now = now.Add(localTTL + time.Second)
-	if _, err := gateway.Models(context.Background(), ""); err != nil {
+	if _, err := gateway.Models(context.Background(), protocol.ModelsParams{}); err != nil {
 		t.Fatal(err)
 	}
 	if server.listed.Load() != 2 {
@@ -234,7 +234,7 @@ func TestAutoNeverRoutesToAPaidModel(t *testing.T) {
 	if paidAsked.Load() != 0 {
 		t.Fatalf("a route reached a paid model %d times", paidAsked.Load())
 	}
-	models, err := gateway.Models(context.Background(), "")
+	models, err := gateway.Models(context.Background(), protocol.ModelsParams{})
 	if err != nil {
 		t.Fatal(err)
 	}

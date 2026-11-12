@@ -512,12 +512,18 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 			d.broadcastProviders(ctx)
 		}
 		return out, err
+	case protocol.MProvidersLimits:
+		p, err := unmarshal[protocol.ProviderParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return protocol.Empty{}, d.deps.Gateway.RefreshLimits(ctx, p.Provider)
 	case protocol.MModelsList:
 		p, err := unmarshal[protocol.ModelsParams](raw)
 		if err != nil {
 			return nil, err
 		}
-		return d.deps.Gateway.Models(ctx, p.Provider)
+		return d.deps.Gateway.Models(ctx, p)
 	case protocol.MGatewayAPI:
 		return d.apiInfo(), nil
 	case protocol.MGatewayAPIKey:

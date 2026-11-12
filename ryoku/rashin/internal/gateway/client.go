@@ -248,15 +248,24 @@ func (g *Gateway) candidates(ctx context.Context, request llm.Request) ([]routeC
 		if len(keys) == 0 {
 			continue
 		}
+		cooling, err := g.store.modelCooldowns(p.ID, g.now())
+		if err != nil {
+			return nil, err
+		}
 		for j := range p.Models {
 			m := &p.Models[j]
-			if len(request.Tools) > 0 && !m.Tools {
+			picked := modelRoute == p.ID+"/"+m.ID
+			// a model whose tool support nobody knows answers only when picked by name
+			if m.toolsUnknown && !picked {
 				continue
 			}
-			if strictPinned && modelRoute != p.ID+"/"+m.ID {
+			if len(request.Tools) > 0 && !m.Tools && !m.toolsUnknown {
 				continue
 			}
-			if p.tierOf(m) == protocol.TierPaid && modelRoute != p.ID+"/"+m.ID {
+			if strictPinned && !picked {
+				continue
+			}
+			if p.tierOf(m) == protocol.TierPaid && !picked {
 				continue
 			}
 			if pictures && !m.Vision {
@@ -265,9 +274,7 @@ func (g *Gateway) candidates(ctx context.Context, request llm.Request) ([]routeC
 				}
 				continue
 			}
-			if _, cooling, err := g.store.cooldown(modelScope(p.ID, m.ID), g.now()); err != nil {
-				return nil, err
-			} else if cooling {
+			if _, ok := cooling[m.ID]; ok {
 				continue
 			}
 			stat, hasStat, err := g.store.stat(p.ID, m.ID)
@@ -780,6 +787,7 @@ func (g *Gateway) startAttempt(ctx context.Context, candidate routeCandidate, re
 	if err != nil {
 		return nil, 0, "", err
 	}
+	g.observeLimits(candidate.provider, response.Header)
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		defer response.Body.Close()
 		data, readErr := io.ReadAll(io.LimitReader(response.Body, 1<<20))

@@ -117,7 +117,7 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 	case protocol.MStatus:
 		return s.data.snapshot.Status, nil
 	case protocol.MModelsList:
-		return s.data.models, nil
+		return s.listModels(raw)
 	case protocol.MProvidersList:
 		return protocol.ProvidersResult{Providers: s.data.snapshot.Providers}, nil
 	case protocol.MHarnessesList:
@@ -420,6 +420,8 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 			return nil, err
 		}
 		return s.testProvider(params.Provider), nil
+	case protocol.MProvidersLimits:
+		return protocol.Empty{}, nil
 	case protocol.MIndexSearch:
 		return protocol.SearchResult{
 			Index:    demoProjectHyperion,

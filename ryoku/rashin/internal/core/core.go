@@ -144,7 +144,13 @@ type Gateway interface {
 	RemoveKey(ctx context.Context, p protocol.RemoveKeyParams) (protocol.ProviderInfo, error)
 	EnableProvider(ctx context.Context, p protocol.EnableProviderParams) (protocol.ProviderInfo, error)
 	Test(ctx context.Context, provider string) (protocol.ProviderTestResult, error)
-	Models(ctx context.Context, provider string) (protocol.ModelsResult, error)
+	// RefreshLimits reads account limits older than ten minutes in the
+	// background, of one provider or every one, then reports the change
+	// through the gateway's change hook.
+	RefreshLimits(ctx context.Context, provider string) error
+	// Models lists every chat model; Fresh reads the providers' own listings
+	// again, each at most once a minute.
+	Models(ctx context.Context, p protocol.ModelsParams) (protocol.ModelsResult, error)
 	Usage(ctx context.Context, days int) (protocol.GatewayUsage, error)
 	Status(ctx context.Context) protocol.GatewayStatus
 	// API serves the router to other programs in OpenAI's shape, behind the

@@ -109,7 +109,7 @@ func run() error {
 		return providers
 	}
 	providerModels := func(ctx context.Context, provider string) []protocol.ModelInfo {
-		result, err := gw.Models(ctx, provider)
+		result, err := gw.Models(ctx, protocol.ModelsParams{Provider: provider})
 		if err != nil {
 			return nil
 		}

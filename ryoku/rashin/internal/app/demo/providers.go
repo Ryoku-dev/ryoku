@@ -1,6 +1,11 @@
 package demo
 
 import (
+	"encoding/json"
+	"strconv"
+	"strings"
+	"time"
+
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/protocol"
@@ -40,12 +45,12 @@ func demoOpenAI() protocol.ProviderInfo {
 }
 
 // what models.list answers in the demo: free and credits rows, the running local server's models,
-// a paid provider with a key and one without
+// a paid provider with a key and one without, and what OpenRouter's and NVIDIA's own listings add
 func demoAskModels() []protocol.ModelInfo {
 	model := func(provider, id, name, tier string, available bool) protocol.ModelInfo {
-		return protocol.ModelInfo{ID: provider + "/" + id, Provider: provider, Name: name, Tier: tier, Tools: true, Available: available}
+		return protocol.ModelInfo{ID: provider + "/" + id, Provider: provider, Name: name, Tier: tier, Tools: true, ToolsKnown: true, Available: available}
 	}
-	return []protocol.ModelInfo{
+	models := []protocol.ModelInfo{
 		model(protocol.ProviderOllamaLocal, "llama3.2", "llama3.2", protocol.TierLocal, true),
 		model(protocol.ProviderOllamaLocal, "qwen3:14b", "qwen3:14b", protocol.TierLocal, true),
 		model(protocol.ProviderOllamaLocal, "gemma3:12b", "gemma3:12b", protocol.TierLocal, true),
@@ -60,7 +65,84 @@ func demoAskModels() []protocol.ModelInfo {
 		model("openai", "gpt-5.6-sol", "GPT-5.6 Sol", protocol.TierPaid, false),
 		model("openai", "gpt-5.6-terra", "GPT-5.6 Terra", protocol.TierPaid, false),
 		model("openai", "gpt-5.6-luna", "GPT-5.6 Luna", protocol.TierPaid, false),
+		model("nvidia", "z-ai/glm-5.2", "GLM 5.2", protocol.TierFree, true),
+		model("nvidia", "z-ai/glm-5.1", "GLM 5.1", protocol.TierFree, true),
 	}
+	// OpenRouter lists a few free routes among hundreds it bills; NVIDIA lists every model free and says nothing of tools
+	models = append(models, demoListedModels("openrouter", 60, 12, true)...)
+	return append(models, demoListedModels("nvidia", 71, 71, false)...)
+}
+
+// count models as a provider's own listing names them, the first free ones of them free
+func demoListedModels(provider string, count, free int, toolsKnown bool) []protocol.ModelInfo {
+	families := []string{"Qwen", "Gemma", "Llama", "Mistral", "DeepSeek", "Kimi", "MiniMax", "Phi", "Granite", "Nemotron", "Falcon", "Yi"}
+	models := make([]protocol.ModelInfo, 0, count)
+	for index := range count {
+		family := families[index%len(families)]
+		size := strconv.Itoa(4 + (index*7)%120)
+		id := strings.ToLower(family) + "/" + strings.ToLower(family) + "-" + size + "b"
+		name := family + " " + size + "B"
+		tier := protocol.TierPaid
+		if index < free {
+			tier = protocol.TierFree
+			if provider == "openrouter" {
+				id, name, tier = id+":free", name+" (free)", protocol.TierCredits
+			}
+		}
+		models = append(models, protocol.ModelInfo{
+			ID: provider + "/" + id, Provider: provider, Name: name, Tier: tier, Context: 32_768 << (index % 6),
+			Tools: toolsKnown && index%5 != 4, ToolsKnown: toolsKnown, Vision: index%4 == 1, Available: true, Listed: true,
+		})
+	}
+	return models
+}
+
+// a provider's real count and how many are free follow what models.list answers, read two hours before the demo's now
+func withDemoListings(providers []protocol.ProviderInfo, models []protocol.ModelInfo, now time.Time) []protocol.ProviderInfo {
+	read := now.Add(-2 * time.Hour)
+	for index := range providers {
+		provider := &providers[index]
+		if provider.Local {
+			continue
+		}
+		total, free, listed := 0, 0, false
+		for _, m := range models {
+			if m.Provider != provider.ID {
+				continue
+			}
+			total++
+			if m.Tier != protocol.TierPaid {
+				free++
+			}
+			listed = listed || m.Listed
+		}
+		if total == 0 {
+			continue
+		}
+		provider.Models, provider.Free = total, free
+		if listed {
+			provider.Listed = &read
+		}
+	}
+	return providers
+}
+
+// models.list for one provider answers that provider's only, as the daemon's does
+func (s *server) listModels(raw json.RawMessage) (protocol.ModelsResult, error) {
+	var params protocol.ModelsParams
+	if err := decode(raw, &params); err != nil {
+		return protocol.ModelsResult{}, err
+	}
+	if params.Provider == "" {
+		return s.data.models, nil
+	}
+	result := protocol.ModelsResult{Routes: s.data.models.Routes}
+	for _, m := range s.data.models.Models {
+		if m.Provider == params.Provider {
+			result.Models = append(result.Models, m)
+		}
+	}
+	return result, nil
 }
 
 // the local rows follow the addresses in the settings, refused and kept off the internet as the daemon does

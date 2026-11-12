@@ -12,6 +12,7 @@ import (
 
 	i18n "ryoku-i18n"
 	"ryoku-rashin/internal/llm"
+	"ryoku-rashin/internal/protocol"
 )
 
 // a request carries its images inline, so the body is large but not endless
@@ -91,7 +92,7 @@ type apiModel struct {
 // serveModels lists the routes and the models that can answer now. The whole
 // catalogue stays out: a client would offer every one of them as a choice.
 func (g *Gateway) serveModels(w http.ResponseWriter, r *http.Request) {
-	models, err := g.Models(r.Context(), "")
+	models, err := g.Models(r.Context(), protocol.ModelsParams{})
 	if err != nil {
 		writeAPIError(w, http.StatusInternalServerError, "server_error", err.Error())
 		return

@@ -7,7 +7,7 @@
     ]
   },
   {
-    "id":"anthropic","name":"Anthropic","tier":"paid","baseURL":"https://api.anthropic.com/v1","auth":"bearer","signup":"https://platform.claude.com/settings/keys","keyHint":"sk-ant-...","note":"Billed per token, through Anthropic's OpenAI-compatible endpoint, which does not return Claude's thinking.","models":[
+    "id":"anthropic","name":"Anthropic","tier":"paid","baseURL":"https://api.anthropic.com/v1","auth":"bearer","signup":"https://platform.claude.com/settings/keys","keyHint":"sk-ant-...","note":"Billed per token, through Anthropic's OpenAI-compatible endpoint, which does not return Claude's thinking.","listing":{"shape":"anthropic","url":"https://api.anthropic.com/v1/models?limit=1000"},"models":[
       {"id":"claude-fable-5-2","name":"Claude Fable 5.2","context":1000000,"tools":true,"reasoning":true,"vision":true,"qualityRank":100,"speedRank":50},
       {"id":"claude-opus-5-5","name":"Claude Opus 5.5","context":1000000,"tools":true,"reasoning":true,"vision":true,"qualityRank":99,"speedRank":56},
       {"id":"claude-sonnet-5-5","name":"Claude Sonnet 5.5","context":1000000,"tools":true,"reasoning":true,"vision":true,"qualityRank":97,"speedRank":76},
@@ -22,7 +22,7 @@
     "auth": "none",
     "keyless": true,
     "signup": "https://www.ovhcloud.com/en/public-cloud/ai-endpoints/catalog/",
-    "note": "Anonymous chat completed on 2026-11-10 with Meta-Llama-3_3-70B-Instruct and a function tool.",
+    "note": "No key: 2 requests a minute per address and model. EU-hosted.",
     "models": [
       {"id":"meta-llama-3_3-70b-instruct","name":"Llama 3.3 70B Instruct","context":131000,"tools":true,"reasoning":false,"vision":false,"qualityRank":86,"speedRank":72},
       {"id":"qwen3.5-397b-a17b","name":"Qwen 3.5 397B A17B","context":131000,"tools":true,"reasoning":true,"vision":false,"qualityRank":93,"speedRank":58},
@@ -37,46 +37,47 @@
     "auth": "none",
     "keyless": true,
     "signup": "https://app.kilo.ai/profile",
-    "note": "Anonymous chat probe on 2026-11-10 reached Kilo, but nvidia/nemotron-3-super-120b-a12b:free returned model_not_found.",
+    "note": "No key: 200 requests an hour per address, free models only.",
+    "listing": {"mixed": true},
     "models": [
       {"id":"nvidia/nemotron-3-ultra-550b-a55b:free","name":"Nemotron 3 Ultra 550B","context":1000000,"tools":true,"reasoning":true,"vision":false,"qualityRank":96,"speedRank":46},
       {"id":"stepfun/step-3.7-flash:free","name":"Step 3.7 Flash","context":262000,"tools":true,"reasoning":true,"vision":false,"qualityRank":88,"speedRank":86}
     ]
   },
   {
-    "id":"groq","name":"Groq","tier":"free","baseURL":"https://api.groq.com/openai/v1","auth":"bearer","signup":"https://console.groq.com/keys","keyHint":"gsk_...","models":[
+    "id":"groq","name":"Groq","tier":"free","baseURL":"https://api.groq.com/openai/v1","auth":"bearer","signup":"https://console.groq.com/keys","keyHint":"gsk_...","note":"No card. About 30 requests a minute and 1,000 a day per chat model.","models":[
       {"id":"moonshotai/kimi-k2-instruct","name":"Kimi K2 Instruct","context":131000,"tools":true,"reasoning":false,"vision":false,"qualityRank":89,"speedRank":98},
       {"id":"llama-3.3-70b-versatile","name":"Llama 3.3 70B Versatile","context":128000,"tools":true,"reasoning":false,"vision":false,"qualityRank":85,"speedRank":96}
     ]
   },
   {
-    "id":"cerebras","name":"Cerebras","tier":"free","baseURL":"https://api.cerebras.ai/v1","auth":"bearer","signup":"https://cloud.cerebras.ai/","models":[
+    "id":"cerebras","name":"Cerebras","tier":"free","baseURL":"https://api.cerebras.ai/v1","auth":"bearer","signup":"https://cloud.cerebras.ai/","note":"$5 of trial credit after adding a payment method, valid 30 days. No ongoing free tier.","models":[
       {"id":"llama3.1-70b","name":"Llama 3.1 70B","context":131000,"tools":true,"reasoning":false,"vision":false,"qualityRank":82,"speedRank":99},
       {"id":"zai-glm-4.7","name":"GLM 4.7","context":128000,"tools":true,"reasoning":true,"vision":false,"qualityRank":89,"speedRank":92}
     ]
   },
   {
-    "id":"nvidia","name":"NVIDIA NIM","tier":"free","baseURL":"https://integrate.api.nvidia.com/v1","auth":"bearer","signup":"https://build.nvidia.com/settings/api-keys","models":[
+    "id":"nvidia","name":"NVIDIA NIM","tier":"free","baseURL":"https://integrate.api.nvidia.com/v1","auth":"bearer","signup":"https://build.nvidia.com/settings/api-keys","note":"Phone verification. About 40 requests a minute.","listing":{"public":true},"models":[
       {"id":"z-ai/glm-5.2","name":"GLM 5.2","context":1000000,"tools":true,"reasoning":true,"vision":false,"qualityRank":98,"speedRank":61},
       {"id":"z-ai/glm-5.1","name":"GLM 5.1","context":202000,"tools":true,"reasoning":true,"vision":false,"qualityRank":95,"speedRank":65}
     ]
   },
   {
-    "id":"openrouter","name":"OpenRouter","tier":"credits","baseURL":"https://openrouter.ai/api/v1","auth":"bearer","signup":"https://openrouter.ai/settings/keys","extraHeaders":{"HTTP-Referer":"https://ryoku.dev","X-Title":"Rashin"},"note":"Only model ids with the :free suffix are routed.","models":[
+    "id":"openrouter","name":"OpenRouter","tier":"credits","baseURL":"https://openrouter.ai/api/v1","auth":"bearer","signup":"https://openrouter.ai/settings/keys","extraHeaders":{"HTTP-Referer":"https://ryoku.dev","X-Title":"Rashin"},"note":"Free models: 20 requests a minute and 50 a day, 1,000 a day after a $10 top-up. Others are billed.","listing":{"public":true,"mixed":true},"models":[
       {"id":"nvidia/nemotron-3.5-lightning:free","name":"Nemotron 3.5 Lightning","context":1000000,"tools":true,"reasoning":true,"vision":false,"qualityRank":92,"speedRank":91},
       {"id":"nex-agi/nex-n2.5-pro:free","name":"Nex N2.5 Pro","context":262144,"tools":true,"reasoning":true,"vision":false,"qualityRank":91,"speedRank":70},
       {"id":"liquid/lfm-2.5-2.6b:free","name":"LFM 2.5 2.6B","context":65536,"tools":true,"reasoning":false,"vision":false,"qualityRank":58,"speedRank":96}
     ]
   },
   {
-    "id":"mistral","name":"Mistral AI","tier":"free","baseURL":"https://api.mistral.ai/v1","auth":"bearer","signup":"https://console.mistral.ai/api-keys","models":[
+    "id":"mistral","name":"Mistral AI","tier":"free","baseURL":"https://api.mistral.ai/v1","auth":"bearer","signup":"https://console.mistral.ai/api-keys","note":"Phone verification. 1 request a second.","models":[
       {"id":"mistral-medium-3-5","name":"Mistral Medium 3.5","context":256000,"tools":true,"reasoning":true,"vision":true,"qualityRank":90,"speedRank":75},
       {"id":"mistral-large-4","name":"Mistral Large 4","tier":"paid","context":1000000,"tools":true,"reasoning":true,"vision":true,"qualityRank":95,"speedRank":68},
       {"id":"open-mistral-7b","name":"Mistral 7B","context":32000,"tools":true,"reasoning":false,"vision":false,"qualityRank":65,"speedRank":91}
     ]
   },
   {
-    "id":"google","name":"Google Gemini","tier":"free","baseURL":"https://generativelanguage.googleapis.com/v1beta/openai","auth":"bearer","signup":"https://aistudio.google.com/app/apikey","note":"Gemini 4 Carbon and Argon are billed; the Flash models are free on a free-tier key.","models":[
+    "id":"google","name":"Google Gemini","tier":"free","baseURL":"https://generativelanguage.googleapis.com/v1beta/openai","auth":"bearer","signup":"https://aistudio.google.com/app/apikey","note":"No card. Gemini 4 Carbon and Argon are billed; the Flash models are free on a free-tier key.","models":[
       {"id":"gemini-3.8-flash","name":"Gemini 3.8 Flash","context":1000000,"tools":true,"reasoning":true,"vision":true,"qualityRank":96,"speedRank":88},
       {"id":"gemini-3.6-flash","name":"Gemini 3.6 Flash","context":1000000,"tools":true,"reasoning":true,"vision":true,"qualityRank":94,"speedRank":90},
       {"id":"gemini-4-carbon","name":"Gemini 4 Carbon","tier":"paid","context":1000000,"tools":true,"reasoning":true,"vision":true,"qualityRank":99,"speedRank":52},
@@ -84,91 +85,98 @@
     ]
   },
   {
-    "id":"github","name":"GitHub Models","tier":"free","baseURL":"https://models.github.ai/inference","auth":"bearer","signup":"https://github.com/marketplace/models","keyHint":"GitHub personal access token","models":[
+    "id":"github","name":"GitHub Models","tier":"free","baseURL":"https://models.github.ai/inference","auth":"bearer","signup":"https://github.com/marketplace/models","keyHint":"GitHub personal access token","listing":{"shape":"github","url":"https://models.github.ai/catalog/models"},"models":[
       {"id":"openai/gpt-4.1-mini","name":"GPT-4.1 Mini","context":128000,"tools":true,"reasoning":false,"vision":true,"qualityRank":88,"speedRank":85}
     ]
   },
   {
-    "id":"cloudflare","name":"Cloudflare Workers AI","tier":"free","baseURL":"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run","auth":"cloudflare","signup":"https://dash.cloudflare.com/profile/api-tokens","keyHint":"account_id:token","models":[
+    "id":"cloudflare","name":"Cloudflare Workers AI","tier":"free","baseURL":"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run","auth":"cloudflare","signup":"https://dash.cloudflare.com/profile/api-tokens","keyHint":"account_id:token","note":"No card. 10,000 neurons a day.","listing":{"shape":"cloudflare","url":"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/models/search?task=Text%20Generation&per_page=100"},"models":[
       {"id":"@cf/meta/llama-3.3-70b-instruct-fp8-fast","name":"Llama 3.3 70B Fast","context":24000,"tools":true,"reasoning":false,"vision":false,"qualityRank":84,"speedRank":90},
       {"id":"@cf/mistral/mistral-7b-instruct-v0.1","name":"Mistral 7B","context":32000,"tools":false,"reasoning":false,"vision":false,"qualityRank":61,"speedRank":92}
     ]
   },
   {
-    "id":"sambanova","name":"SambaNova","tier":"free","baseURL":"https://api.sambanova.ai/v1","auth":"bearer","signup":"https://cloud.sambanova.ai/apis","models":[
+    "id":"sambanova","name":"SambaNova","tier":"free","baseURL":"https://api.sambanova.ai/v1","auth":"bearer","signup":"https://cloud.sambanova.ai/apis","note":"No card. 20 requests a minute and 20 a day on the free models.","listing":{"public":true},"models":[
       {"id":"deepseek-v3-2-preview","name":"DeepSeek V3.2 Preview","context":128000,"tools":true,"reasoning":true,"vision":false,"qualityRank":92,"speedRank":88},
       {"id":"minimax-m2-7","name":"MiniMax M2.7","context":128000,"tools":true,"reasoning":true,"vision":false,"qualityRank":91,"speedRank":84}
     ]
   },
   {
-    "id":"llm7","name":"LLM7.io","tier":"free","baseURL":"https://api.llm7.io/v1","auth":"bearer","signup":"https://token.llm7.io","models":[
+    "id":"llm7","name":"LLM7.io","tier":"free","baseURL":"https://api.llm7.io/v1","auth":"bearer","signup":"https://token.llm7.io","note":"No card. A free token gives 100,000 tokens a day, 60 requests a minute.","listing":{"public":true},"models":[
       {"id":"gpt-oss-20b","name":"GPT OSS 20B","context":128000,"tools":true,"reasoning":true,"vision":false,"qualityRank":78,"speedRank":82},
       {"id":"mistral-Nemo-Instruct-2407","name":"Mistral Nemo Instruct","context":128000,"tools":true,"reasoning":false,"vision":false,"qualityRank":73,"speedRank":84}
     ]
   },
   {
-    "id":"ollama","name":"Ollama Cloud","tier":"free","baseURL":"https://ollama.com/v1","auth":"bearer","signup":"https://ollama.com/settings/keys","models":[
-      {"id":"gpt-oss:20b","name":"GPT OSS 20B","context":128000,"tools":true,"reasoning":true,"vision":false,"qualityRank":78,"speedRank":82},
-      {"id":"glm-5.3-flash","name":"GLM 5.3 Flash","context":200000,"tools":true,"reasoning":true,"vision":false,"qualityRank":93,"speedRank":88}
+    "id":"ollama","name":"Ollama Cloud","tier":"free","baseURL":"https://ollama.com/v1","auth":"bearer","signup":"https://ollama.com/settings/keys","note":"Only Beam is free; the other cloud models are billed per token. 3 requests at a time.","listing":{"public":true,"mixed":true},"models":[
+      {"id":"beam","name":"Reflection Beam","context":1048576,"tools":true,"reasoning":true,"vision":false,"qualityRank":90,"speedRank":60},
+      {"id":"gpt-oss:20b","name":"GPT OSS 20B","tier":"paid","context":128000,"tools":true,"reasoning":true,"vision":false,"qualityRank":78,"speedRank":82},
+      {"id":"glm-5.3-flash","name":"GLM 5.3 Flash","tier":"paid","context":200000,"tools":true,"reasoning":true,"vision":false,"qualityRank":93,"speedRank":88}
     ]
   },
   {
-    "id":"opencode","name":"OpenCode Zen","tier":"free","baseURL":"https://opencode.ai/zen/v1","auth":"bearer","signup":"https://opencode.ai/auth","models":[
+    "id":"opencode","name":"OpenCode Zen","tier":"free","baseURL":"https://opencode.ai/zen/v1","auth":"bearer","signup":"https://opencode.ai/auth","note":"No card. The models it prices at zero are free; the rest are billed.","listing":{"public":true,"mixed":true},"models":[
       {"id":"deepseek-v4-flash-free","name":"DeepSeek V4 Flash","context":1000000,"tools":true,"reasoning":true,"vision":false,"qualityRank":93,"speedRank":91},
       {"id":"mimo-v2.5-free","name":"MiMo V2.5","context":1000000,"tools":true,"reasoning":true,"vision":false,"qualityRank":90,"speedRank":86}
     ]
   },
   {
-    "id":"huggingface","name":"Hugging Face Router","tier":"free","baseURL":"https://router.huggingface.co/v1","auth":"bearer","signup":"https://huggingface.co/settings/tokens","models":[
+    "id":"huggingface","name":"Hugging Face Router","tier":"free","baseURL":"https://router.huggingface.co/v1","auth":"bearer","signup":"https://huggingface.co/settings/tokens","note":"No card. Credit-metered: routed models are paid from the account's monthly credits.","listing":{"public":true,"mixed":true},"models":[
       {"id":"meta-llama-3-1-8b-instruct","name":"Llama 3.1 8B Instruct","context":128000,"tools":true,"reasoning":false,"vision":false,"qualityRank":72,"speedRank":88},
       {"id":"google/gemma-3-4b-it","name":"Gemma 3 4B","context":131000,"tools":false,"reasoning":false,"vision":true,"qualityRank":70,"speedRank":91}
     ]
   },
   {
-    "id":"chutes","name":"Chutes.ai","tier":"free","baseURL":"https://llm.chutes.ai/v1","auth":"bearer","signup":"https://chutes.ai/","models":[
+    "id":"chutes","name":"Chutes.ai","tier":"free","baseURL":"https://llm.chutes.ai/v1","auth":"bearer","signup":"https://chutes.ai/","listing":{"public":true},"models":[
       {"id":"deepseek-ai/DeepSeek-R1","name":"DeepSeek R1","context":131000,"tools":true,"reasoning":true,"vision":false,"qualityRank":91,"speedRank":55},
       {"id":"meta-llama/Meta-Llama-3.1-70B-Instruct","name":"Llama 3.1 70B Instruct","context":131000,"tools":true,"reasoning":false,"vision":false,"qualityRank":82,"speedRank":72}
     ]
   },
   {
-    "id":"zhipu","name":"Z AI","tier":"free","baseURL":"https://open.bigmodel.cn/api/paas/v4","auth":"bearer","signup":"https://open.bigmodel.cn/usercenter/apikeys","models":[
+    "id":"zhipu","name":"Zhipu BigModel","tier":"free","baseURL":"https://open.bigmodel.cn/api/paas/v4","auth":"bearer","signup":"https://open.bigmodel.cn/usercenter/apikeys","note":"Phone verification. The Flash models are free, GLM-4.7-Flash one request at a time.","listing":{"mixed":true},"models":[
       {"id":"glm-4.7-flash","name":"GLM 4.7 Flash","context":200000,"tools":true,"reasoning":true,"vision":false,"qualityRank":88,"speedRank":91},
-      {"id":"glm-4-6v-flash","name":"GLM 4.6V Flash","context":128000,"tools":true,"reasoning":false,"vision":true,"qualityRank":84,"speedRank":88}
+      {"id":"glm-4.6v-flash","name":"GLM 4.6V Flash","context":128000,"tools":true,"reasoning":false,"vision":true,"qualityRank":84,"speedRank":88}
     ]
   },
   {
-    "id":"siliconflow","name":"SiliconFlow","tier":"free","baseURL":"https://api.siliconflow.com/v1","auth":"bearer","signup":"https://cloud.siliconflow.cn/account/ak","models":[
+    "id":"zai","name":"Z.AI","tier":"free","baseURL":"https://api.z.ai/api/paas/v4","auth":"bearer","signup":"https://z.ai/manage-apikey/apikey-list","note":"About 1 request a second and 1,000 a day on the free Flash models.","listing":{"mixed":true},"models":[
+      {"id":"glm-4.7-flash","name":"GLM 4.7 Flash","context":200000,"tools":true,"reasoning":true,"vision":false,"qualityRank":88,"speedRank":91},
+      {"id":"glm-4.6v-flash","name":"GLM 4.6V Flash","context":128000,"tools":true,"reasoning":false,"vision":true,"qualityRank":84,"speedRank":88}
+    ]
+  },
+  {
+    "id":"siliconflow","name":"SiliconFlow","tier":"free","baseURL":"https://api.siliconflow.com/v1","auth":"bearer","signup":"https://cloud.siliconflow.cn/account/ak","note":"Phone verification for the free models.","models":[
       {"id":"deepseek-ai/DeepSeek-R1-Distill-Qwen-7B","name":"DeepSeek R1 Distill Qwen 7B","context":131000,"tools":false,"reasoning":true,"vision":false,"qualityRank":70,"speedRank":82}
     ]
   },
   {
-    "id":"modelscope","name":"ModelScope","tier":"free","baseURL":"https://api-inference.modelscope.cn/v1","auth":"bearer","signup":"https://modelscope.cn/my/myaccesstoken","models":[
+    "id":"modelscope","name":"ModelScope","tier":"free","baseURL":"https://api-inference.modelscope.cn/v1","auth":"bearer","signup":"https://modelscope.cn/my/myaccesstoken","note":"Phone verification. 2,000 requests a day, 500 per model.","listing":{"public":true},"models":[
       {"id":"MiniMax/MiniMax-M2.5","name":"MiniMax M2.5","context":204000,"tools":true,"reasoning":true,"vision":false,"qualityRank":91,"speedRank":76},
       {"id":"qwen-qwen3-5-35b-a3b","name":"Qwen 3.5 35B A3B","context":256000,"tools":true,"reasoning":true,"vision":false,"qualityRank":86,"speedRank":83}
     ]
   },
   {
-    "id":"pollinations","name":"Pollinations","tier":"free","baseURL":"https://gen.pollinations.ai/v1","auth":"bearer","signup":"https://pollinations.ai/","models":[
+    "id":"pollinations","name":"Pollinations","tier":"free","baseURL":"https://gen.pollinations.ai/v1","auth":"bearer","signup":"https://pollinations.ai/","note":"No card; a key is required. Free use is paid from Pollen earned in the dashboard.","listing":{"public":true},"models":[
       {"id":"openai","name":"Pollinations OpenAI route","context":128000,"tools":true,"reasoning":false,"vision":true,"qualityRank":80,"speedRank":78}
     ]
   },
   {
-    "id":"aion","name":"Aion Labs","tier":"free","baseURL":"https://api.aionlabs.ai/v1","auth":"bearer","signup":"https://www.aionlabs.ai/app/api-keys/","models":[
+    "id":"aion","name":"Aion Labs","tier":"credits","baseURL":"https://api.aionlabs.ai/v1","auth":"bearer","signup":"https://www.aionlabs.ai/app/api-keys/","note":"No card. A daily free credit allowance.","listing":{"public":true},"models":[
       {"id":"aion-labs-aion-2-0","name":"Aion 2.0","context":128000,"tools":true,"reasoning":false,"vision":false,"qualityRank":76,"speedRank":78}
     ]
   },
   {
-    "id":"agnes","name":"Agnes AI","tier":"free","baseURL":"https://apihub.agnes-ai.com/v1","auth":"bearer","signup":"https://platform.agnes-ai.com/settings/apiKeys","models":[
+    "id":"agnes","name":"Agnes AI","tier":"free","baseURL":"https://apihub.agnes-ai.com/v1","auth":"bearer","signup":"https://platform.agnes-ai.com/settings/apiKeys","note":"About 30 requests a minute per account.","models":[
       {"id":"agnes-2.0-flash","name":"Agnes 2.0 Flash","context":256000,"tools":true,"reasoning":true,"vision":false,"qualityRank":83,"speedRank":89}
     ]
   },
   {
-    "id":"alibaba","name":"Alibaba Cloud Model Studio","tier":"free","baseURL":"https://dashscope-intl.aliyuncs.com/compatible-mode/v1","auth":"bearer","signup":"https://bailian.console.alibabacloud.com/?apiKey=1","models":[
+    "id":"alibaba","name":"Alibaba Cloud Model Studio","tier":"free","baseURL":"https://dashscope-intl.aliyuncs.com/compatible-mode/v1","auth":"bearer","signup":"https://bailian.console.alibabacloud.com/?apiKey=1","note":"About 1M free tokens per model for 90 days in the Singapore region.","models":[
       {"id":"qwen3-plus","name":"Qwen 3 Plus","context":1000000,"tools":true,"reasoning":true,"vision":false,"qualityRank":90,"speedRank":80}
     ]
   },
   {
-    "id":"xai","name":"xAI","tier":"credits","baseURL":"https://api.x.ai/v1","auth":"bearer","signup":"https://console.x.ai","models":[
+    "id":"xai","name":"xAI","tier":"credits","baseURL":"https://api.x.ai/v1","auth":"bearer","signup":"https://console.x.ai","note":"Credit-based.","models":[
       {"id":"grok-3-mini","name":"Grok 3 Mini","context":131000,"tools":true,"reasoning":true,"vision":false,"qualityRank":88,"speedRank":86}
     ]
   },
@@ -179,19 +187,67 @@
     ]
   },
   {
-    "id":"cohere","name":"Cohere","tier":"free","baseURL":"https://api.cohere.ai/compatibility/v1","auth":"bearer","signup":"https://dashboard.cohere.com/api-keys","note":"Cohere's OpenAI compatibility endpoint rejects some optional JSON Schema keywords.","models":[
+    "id":"cohere","name":"Cohere","tier":"free","baseURL":"https://api.cohere.ai/compatibility/v1","auth":"bearer","signup":"https://dashboard.cohere.com/api-keys","note":"No card. A trial key gives 1,000 calls a month, 20 a minute. Cohere's OpenAI compatibility endpoint rejects some optional JSON Schema keywords.","listing":{"shape":"cohere","url":"https://api.cohere.com/v1/models?endpoint=chat&page_size=1000"},"models":[
       {"id":"command-a-218b","name":"Command A+ 218B","context":128000,"tools":true,"reasoning":false,"vision":false,"qualityRank":89,"speedRank":79},
       {"id":"command-r","name":"Command R+","context":128000,"tools":true,"reasoning":false,"vision":false,"qualityRank":84,"speedRank":83}
     ]
   },
   {
-    "id":"nscale","name":"Nscale","tier":"free","baseURL":"https://inference.api.nscale.com/v1","auth":"bearer","signup":"https://console.nscale.com/","models":[
+    "id":"nscale","name":"Nscale","tier":"free","baseURL":"https://inference.api.nscale.com/v1","auth":"bearer","signup":"https://console.nscale.com/","note":"EU-hosted, fair-use limits.","models":[
       {"id":"llama-3-3-70b-instruct","name":"Llama 3.3 70B Instruct","context":128000,"tools":true,"reasoning":false,"vision":false,"qualityRank":84,"speedRank":78}
     ]
   },
   {
-    "id":"nebius","name":"Nebius","tier":"credits","baseURL":"https://api.studio.nebius.com/v1","auth":"bearer","signup":"https://studio.nebius.com/settings/api-keys","models":[
+    "id":"nebius","name":"Nebius","tier":"credits","baseURL":"https://api.studio.nebius.com/v1","auth":"bearer","signup":"https://studio.nebius.com/settings/api-keys","note":"EU-hosted, tier-based rate limits.","models":[
       {"id":"qwen3-235b-a22b","name":"Qwen 3 235B A22B","context":128000,"tools":true,"reasoning":true,"vision":false,"qualityRank":89,"speedRank":70}
     ]
+  },
+  {
+    "id":"routeway","name":"Routeway","tier":"free","baseURL":"https://api.routeway.ai/v1","auth":"bearer","signup":"https://routeway.ai/","note":"No card. Models ending :free: 5 requests a minute, 200 a day.","listing":{"public":true,"mixed":true},"models":[]
+  },
+  {
+    "id":"requesty","name":"Requesty","tier":"free","baseURL":"https://router.requesty.ai/v1","auth":"bearer","signup":"https://requesty.ai/","note":"No card. Free models: 20 requests a minute, 200 a day for a new organisation.","listing":{"public":true,"mixed":true},"models":[]
+  },
+  {
+    "id":"airforce","name":"Api.Airforce","tier":"free","baseURL":"https://api.airforce/v1","auth":"bearer","signup":"https://api.airforce/","note":"No card. Free plan: 1 request a minute, 1,000 a day.","listing":{"public":true,"mixed":true},"models":[]
+  },
+  {
+    "id":"kiosapi","name":"Kiosapi.id","tier":"free","baseURL":"https://api.kiosapi.id/v1","auth":"bearer","signup":"https://kiosapi.id/pricing","note":"Free models: 5 requests a minute, 50 a day per account.","listing":{"public":true,"mixed":true},"models":[]
+  },
+  {
+    "id":"meganova","name":"MegaNova AI","tier":"free","baseURL":"https://api.meganova.ai/v1","auth":"bearer","signup":"https://docs.meganova.ai/tiers","note":"No card. Free tier: 20 to 200 requests a minute, 50 to 500 free-model requests a day.","listing":{"public":true,"mixed":true},"models":[]
+  },
+  {
+    "id":"llmtr","name":"LLMTR","tier":"free","baseURL":"https://llmtr.com/v1","auth":"bearer","signup":"https://llmtr.com/en/terms","note":"A daily allowance per free model.","listing":{"public":true,"mixed":true},"models":[]
+  },
+  {
+    "id":"aihubmix","name":"AIHubMix","tier":"free","baseURL":"https://aihubmix.com/v1","auth":"bearer","signup":"https://aihubmix.com","note":"Models ending -free: 5 requests a minute, 100 a day and 1M tokens a day per account.","listing":{"public":true,"mixed":true},"models":[]
+  },
+  {
+    "id":"bazaarlink","name":"BazaarLink","tier":"free","baseURL":"https://api.bazaarlink.ai/v1","auth":"bearer","signup":"https://bazaarlink.ai/free","note":"10 requests a minute and 60 weighted units a day, reset at 00:00 UTC.","listing":{"public":true,"mixed":true},"models":[]
+  },
+  {
+    "id":"opentyphoon","name":"OpenTyphoon","tier":"free","baseURL":"https://api.opentyphoon.ai/v1","auth":"bearer","signup":"https://opentyphoon.ai","note":"No card. 5 requests a second, 200 a minute.","listing":{"public":true},"models":[]
+  },
+  {
+    "id":"llmkiwi","name":"LLM.kiwi","tier":"free","baseURL":"https://api.llm.kiwi/v1","auth":"bearer","signup":"https://llm.kiwi/pricing","note":"Baseline rate limits.","listing":{"public":true},"models":[]
+  },
+  {
+    "id":"sealion","name":"SEA-LION","tier":"free","baseURL":"https://api.sea-lion.ai/v1","auth":"bearer","signup":"https://docs.sea-lion.ai/guides/inferencing/api","note":"10 requests a minute per user.","models":[]
+  },
+  {
+    "id":"inferbase","name":"Inferbase","tier":"credits","baseURL":"https://api.inferbase.ai/v1","auth":"bearer","signup":"https://inferbase.ai","note":"No card. $0.50 of use a day, 100 requests a day, 5,000 a month.","listing":{"public":true},"models":[]
+  },
+  {
+    "id":"gonka","name":"Gonka Broker","tier":"credits","baseURL":"https://proxy.gonkabroker.com/v1","auth":"bearer","signup":"https://gonkabroker.com","note":"Phone verification. A monthly free token grant that does not accumulate.","listing":{"public":true},"models":[]
+  },
+  {
+    "id":"tokenharbor","name":"Token Harbor","tier":"credits","baseURL":"https://tokenharbor.ai/v1","auth":"bearer","signup":"https://tokenharbor.ai","note":"A free allowance that renews every 7 days; 60 requests a minute.","models":[]
+  },
+  {
+    "id":"moark","name":"Moark (Gitee AI)","tier":"credits","baseURL":"https://api.moark.com/v1","auth":"bearer","signup":"https://moark.com/docs/FAQ","note":"Phone verification. 100 free calls a day.","listing":{"public":true},"models":[]
+  },
+  {
+    "id":"vercel","name":"Vercel AI Gateway","tier":"credits","baseURL":"https://ai-gateway.vercel.sh/v1","auth":"bearer","signup":"https://vercel.com/ai-gateway","note":"$5 of use a month; the models it prices at zero are free.","listing":{"public":true,"mixed":true},"models":[]
   }
 ]

@@ -187,15 +187,7 @@ func turnUsage(turn *turnState) string {
 		}
 	}
 	if turn.end != nil && turn.end.Usage != nil {
-		spent = i18n.Tf("%s in, %s out", groupedNumber(turn.end.Usage.Input), groupedNumber(turn.end.Usage.Output))
+		spent = i18n.Tf("%s in, %s out", look.Grouped(turn.end.Usage.Input), look.Grouped(turn.end.Usage.Output))
 	}
 	return look.Clauses(stop, spent)
-}
-
-func groupedNumber(value int) string {
-	text := strconv.Itoa(value)
-	for index := len(text) - 3; index > 0; index -= 3 {
-		text = text[:index] + "," + text[index:]
-	}
-	return text
 }

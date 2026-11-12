@@ -71,6 +71,9 @@ func TestProviderMetaSaysRunningOrHowToStart(t *testing.T) {
 		{protocol.ProviderInfo{Tier: protocol.TierFree, Models: 1, Keys: []protocol.KeyInfo{{ID: "a"}}}, "", "1 key, 1 model"},
 		{protocol.ProviderInfo{Tier: protocol.TierFree, Keyless: true, Models: 2}, "", "Needs no key, 2 models"},
 		{protocol.ProviderInfo{Tier: protocol.TierFree, Keyless: true, Models: 2}, "5 answers this week", "Needs no key, 2 models, 5 answers this week"},
+		{protocol.ProviderInfo{Tier: protocol.TierFree, Models: 139, Free: 139, Keys: []protocol.KeyInfo{{ID: "a"}}}, "", "1 key, 139 models, all free"},
+		{protocol.ProviderInfo{Tier: protocol.TierCredits, Models: 1454, Free: 15}, "", "No key yet, 1,454 models, 15 free"},
+		{protocol.ProviderInfo{Tier: protocol.TierFree, Keyless: true, Models: 1, Free: 1}, "", "Needs no key, 1 model, free"},
 	}
 	for _, test := range cases {
 		if got := providerMeta(test.provider, test.used); got != test.want {

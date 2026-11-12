@@ -1,6 +1,22 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **Rashin lists every model a provider serves.** Each provider's own listing
+  is read, with your key or none where it is public, kept for six hours and
+  merged with Rashin's picks, so NVIDIA shows its whole free catalogue and
+  OpenRouter its 454 models, 15 of them free. A model counts as free only when
+  its listing says so, and Auto, Fast and Smart use only free models whose tool
+  support is known. Seventeen free providers came in from the free-provider
+  lists (`rashin/internal/gateway/discover.go`).
+- **Settings > Providers says how much of each free allowance is left.** A
+  folded provider gets one line such as "Free tokens today: 412,300 of
+  500,000 left, as of 2 min ago" or "Credits: $4.21 of $10 left", and the
+  unfolded one lists every window with where it came from beside what
+  Rashin sent there today and this month. Figures come from the providers'
+  rate-limit headers, from OpenRouter, DeepSeek, SiliconFlow and Pollinations
+  account endpoints (read at most every ten minutes, only while Providers or
+  the Ask model menu is open, or on Test), and otherwise from the limits the
+  free-provider lists document (`rashin/internal/gateway/limits.go`).
 - **Kairos looks and works like Android 17.** Quick settings is a full shade
   now, with paged tiles you can move, resize, add and remove, brightness and
   volume sliders, the media control, grouped notifications and a power menu

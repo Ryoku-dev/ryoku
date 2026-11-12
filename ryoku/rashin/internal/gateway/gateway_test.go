@@ -33,6 +33,7 @@ func newLocalTestGateway(t *testing.T, local map[string]string) *Gateway {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = gateway.Close() })
+	markListingsRead(gateway)
 	return gateway
 }
 
@@ -41,6 +42,18 @@ func setTestProviders(gateway *Gateway, providers ...provider) {
 	gateway.catalog.byID = make(map[string]*provider, len(providers))
 	for i := range gateway.catalog.Providers {
 		gateway.catalog.byID[providers[i].ID] = &gateway.catalog.Providers[i]
+	}
+	markListingsRead(gateway)
+}
+
+// markListingsRead says every catalogue provider's listing was just read and
+// listed nothing, so no test reaches a provider's listing unless it asks to
+func markListingsRead(gateway *Gateway) {
+	gateway.listings.mu.Lock()
+	defer gateway.listings.mu.Unlock()
+	gateway.listings.loaded = true
+	for _, p := range gateway.catalog.Providers {
+		gateway.listings.entries[p.ID] = &listingEntry{record: listingRecord{Read: gateway.now(), Tried: gateway.now()}}
 	}
 }
 
@@ -484,7 +497,7 @@ func TestModelsUseSingleQualifiedID(t *testing.T) {
 	p.Models[0].ID = "meta/llama"
 	setTestProviders(gateway, p)
 
-	result, err := gateway.Models(context.Background(), "ovh")
+	result, err := gateway.Models(context.Background(), protocol.ModelsParams{Provider: "ovh"})
 	if err != nil {
 		t.Fatal(err)
 	}

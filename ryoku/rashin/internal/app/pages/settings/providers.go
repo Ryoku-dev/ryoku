@@ -38,6 +38,8 @@ type providerRow struct {
 	testing bool
 	result  string
 	failed  bool
+
+	models modelList
 }
 
 func (p *Page) providerRow(id string) *providerRow {
@@ -52,6 +54,7 @@ func (p *Page) providerRow(id string) *providerRow {
 func (p *Page) layoutProviders(gtx layout.Context, e *env.Env) layout.Dimensions {
 	th := e.Theme
 	p.usage.Load(e, usageDays, gtx.Now)
+	p.limits.Show(e, gtx.Now)
 	local, online := splitProviders(e.Snapshot().Providers)
 	online = p.standingOrder(online)
 	children := []layout.FlexChild{
@@ -133,8 +136,10 @@ func (p *Page) layoutProvider(gtx layout.Context, e *env.Env, provider protocol.
 	word, tone := providerState(provider)
 	detail := providerMeta(provider, p.usage.Words(provider.ID))
 	head := foldHead{Title: provider.Name, Detail: detail, Trail: kit.Claim(th.Theme, tone, word)}
-	return row.fold.layout(gtx, th, p.open == provider.ID, head, func(gtx layout.Context) layout.Dimensions {
-		return row.layoutDetail(gtx, e, provider)
+	return withLimitLine(gtx, th, provider, p.open == provider.ID, func(gtx layout.Context) layout.Dimensions {
+		return row.fold.layout(gtx, th, p.open == provider.ID, head, func(gtx layout.Context) layout.Dimensions {
+			return row.layoutDetail(gtx, e, provider)
+		})
 	})
 }
 
@@ -193,6 +198,7 @@ func (row *providerRow) layoutDetail(gtx layout.Context, e *env.Env, provider pr
 			}),
 		)
 	}
+	children = append(children, limitsDetail(th, provider)...)
 	children = append(children,
 		layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -209,6 +215,8 @@ func (row *providerRow) layoutDetail(gtx layout.Context, e *env.Env, provider pr
 				layout.Flexed(1, row.resultLine(th)),
 			)
 		}),
+		layout.Rigid(layout.Spacer{Height: th.Sp.S5}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return row.models.layout(gtx, e, provider) }),
 	)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
@@ -438,10 +446,7 @@ func providerState(provider protocol.ProviderInfo) (string, palette.Tone) {
 }
 
 func providerMeta(provider protocol.ProviderInfo, used string) string {
-	models := i18n.Tf("%d models", provider.Models)
-	if provider.Models == 1 {
-		models = i18n.T("1 model")
-	}
+	models := modelCount(provider)
 	switch {
 	case provider.Local && provider.Running:
 		return withUsage(i18n.T("Running")+", "+models, used)
@@ -465,6 +470,21 @@ func providerMeta(provider protocol.ProviderInfo, used string) string {
 		return withUsage(i18n.T("Paid")+", "+keys+", "+models, used)
 	}
 	return withUsage(keys+", "+models, used)
+}
+
+// how many models a provider has and how many cost nothing: 139 models, all free
+func modelCount(provider protocol.ProviderInfo) string {
+	switch {
+	case provider.Models == 1 && provider.Free == 1 && !provider.Local:
+		return i18n.T("1 model, free")
+	case provider.Models == 1:
+		return i18n.T("1 model")
+	case provider.Local || provider.Free == 0:
+		return i18n.Tf("%s models", look.Grouped(provider.Models))
+	case provider.Free == provider.Models:
+		return i18n.Tf("%s models, all free", look.Grouped(provider.Models))
+	}
+	return i18n.Tf("%s models, %s free", look.Grouped(provider.Models), look.Grouped(provider.Free))
 }
 
 func withUsage(meta, used string) string {

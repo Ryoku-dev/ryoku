@@ -28,7 +28,7 @@ type ModelMenu struct {
 
 // a key added or a server started changes what can be picked, so the list follows the providers
 func (m *ModelMenu) Load(e *Env, snapshot state.Snapshot) {
-	if m.loading || (m.loaded && m.epoch == snapshot.Epoch && reflect.DeepEqual(m.providers, snapshot.Providers)) {
+	if m.loading || (m.loaded && m.epoch == snapshot.Epoch && sameOffer(m.providers, snapshot.Providers)) {
 		return
 	}
 	m.loading = true
@@ -40,6 +40,21 @@ func (m *ModelMenu) Load(e *Env, snapshot state.Snapshot) {
 		}
 		m.models, m.providers, m.epoch, m.loaded, m.built = result, snapshot.Providers, snapshot.Epoch, true, false
 	})
+}
+
+// a provider's allowance moves with every answer and changes nothing that can be picked
+func sameOffer(kept, now []protocol.ProviderInfo) bool {
+	if len(kept) != len(now) {
+		return false
+	}
+	for i := range now {
+		a, b := kept[i], now[i]
+		a.Limits, b.Limits = nil, nil
+		if !reflect.DeepEqual(a, b) {
+			return false
+		}
+	}
+	return true
 }
 
 // the rows for current, the model in use, which is listed even when nothing offers it now
@@ -102,9 +117,14 @@ func modelRows(models protocol.ModelsResult, providers []protocol.ProviderInfo, 
 			group = groupPaid
 		}
 		option := look.SelectOption{Label: model.Name, Detail: id, Group: labels[group]}
+		if !model.ToolsKnown {
+			// Auto never sends one, so the reader learns why it is only here by name
+			option.Detail = i18n.Tf("%s, tools unknown", id)
+		}
 		switch {
 		case model.Available:
-		case group == groupPaid && !keyless[model.Provider]:
+		// a provider's own listing of what a key would open is hundreds long, so only Rashin's picks stand for it
+		case group == groupPaid && !keyless[model.Provider] && !model.Listed:
 			option.Detail, option.Disabled = i18n.T("Add a key in Providers"), true
 		case id == pin:
 			option.Detail, option.Disabled = i18n.Tf("%s is not available now", id), true

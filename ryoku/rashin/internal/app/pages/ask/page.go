@@ -39,6 +39,8 @@ type Page struct {
 	usage       env.Usage
 
 	menu env.ModelMenu
+	// the open model menu asks for the providers' allowances
+	limits env.LimitsWatch
 
 	temporary env.Temporary
 	memory    memoryChoice

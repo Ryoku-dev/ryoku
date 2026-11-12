@@ -337,9 +337,9 @@ func agentMeta(agent protocol.AgentWork, elapsed time.Duration, live bool) strin
 func agentFacts(agent protocol.AgentWork) string {
 	switch {
 	case agent.Tokens > 0 && agent.Model != "":
-		return i18n.Tf("%s tokens on %s", groupedNumber(agent.Tokens), agent.Model)
+		return i18n.Tf("%s tokens on %s", look.Grouped(agent.Tokens), agent.Model)
 	case agent.Tokens > 0:
-		return i18n.Tf("%s tokens", groupedNumber(agent.Tokens))
+		return i18n.Tf("%s tokens", look.Grouped(agent.Tokens))
 	}
 	return agent.Model
 }

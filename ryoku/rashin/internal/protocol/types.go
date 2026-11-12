@@ -286,15 +286,22 @@ type KeyInfo struct {
 // provider's own (free, credits or paid; local for a server on this computer
 // or the local network); a model may carry another, as ModelInfo.Tier says.
 type ProviderInfo struct {
-	ID            string     `json:"id"`
-	Name          string     `json:"name"`
-	Tier          string     `json:"tier"`
-	Keyless       bool       `json:"keyless,omitempty"`
-	Enabled       bool       `json:"enabled"`
-	Configured    bool       `json:"configured"`
-	Keys          []KeyInfo  `json:"keys,omitempty"`
-	Models        int        `json:"models"`
-	Available     int        `json:"available"`
+	ID         string    `json:"id"`
+	Name       string    `json:"name"`
+	Tier       string    `json:"tier"`
+	Keyless    bool      `json:"keyless,omitempty"`
+	Enabled    bool      `json:"enabled"`
+	Configured bool      `json:"configured"`
+	Keys       []KeyInfo `json:"keys,omitempty"`
+	// Models counts the provider's chat models: the curated ones and what its
+	// own listing adds. Free counts those that cost nothing to use, free or
+	// paid from credits the provider renews.
+	Models    int `json:"models"`
+	Free      int `json:"free,omitempty"`
+	Available int `json:"available"`
+	// Listed is when the provider's own model listing was last read; nil
+	// while Rashin knows only its curated models.
+	Listed        *time.Time `json:"listed,omitempty"`
 	Signup        string     `json:"signup,omitempty"`
 	KeyHint       string     `json:"keyHint,omitempty"`
 	Note          string     `json:"note,omitempty"`
@@ -305,6 +312,9 @@ type ProviderInfo struct {
 	Local   bool   `json:"local,omitempty"`
 	Address string `json:"address,omitempty"`
 	Running bool   `json:"running,omitempty"`
+	// Limits is what Rashin knows of the provider's allowance and what it
+	// sent there; nil for a local provider.
+	Limits *ProviderLimits `json:"limits,omitempty"`
 }
 
 // ProvidersResult lists providers.
@@ -371,11 +381,19 @@ type ModelInfo struct {
 	Rank          int        `json:"rank,omitempty"`
 	Available     bool       `json:"available"`
 	CooldownUntil *time.Time `json:"cooldownUntil,omitempty"`
+	// Listed is a model only the provider's own listing names, not one of
+	// Rashin's curated models. ToolsKnown says whether Tools is known: Auto,
+	// Fast and Smart never send a model whose tool support is unknown, which
+	// still answers when it is picked by name.
+	Listed     bool `json:"listed,omitempty"`
+	ToolsKnown bool `json:"toolsKnown,omitempty"`
 }
 
-// ModelsParams filters models.list by provider.
+// ModelsParams filters models.list by provider. Fresh reads the providers'
+// own listings again now; each is read at most once a minute, whoever asks.
 type ModelsParams struct {
 	Provider string `json:"provider,omitempty"`
+	Fresh    bool   `json:"fresh,omitempty"`
 }
 
 // Routes the gateway always accepts as a model.

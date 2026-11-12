@@ -59,6 +59,11 @@ func (selection *Select) Changed() (int, bool) {
 	return selection.value, changed
 }
 
+// the menu is up, for a page that reads something fresh only while it is
+func (selection *Select) Opened(overlays *Overlays) bool {
+	return overlays != nil && overlays.IsOpen(&selection.click.Clickable)
+}
+
 func (selection *Select) Layout(
 	gtx layout.Context,
 	th *Theme,

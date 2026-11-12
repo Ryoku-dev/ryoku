@@ -589,7 +589,7 @@ func makeFixtures() fixtures {
 	result.snapshot.Status.Sessions.Ask = 5
 	result.snapshot.Status.Sessions.Working = 3
 	result.snapshot.Status.Sessions.Alive = 3
-	result.snapshot.Providers = append(result.snapshot.Providers, demoProviderCatalogue()...)
+	result.snapshot.Providers = withDemoListings(withDemoLimits(append(result.snapshot.Providers, demoProviderCatalogue()...), now), result.models.Models, now)
 	result.snapshot.Status.Gateway = protocol.GatewayStatus{Providers: 6, Models: 25, Keyless: 3}
 	for _, commit := range commits {
 		result.commits[commit.Hash] = protocol.GitCommitDetail{

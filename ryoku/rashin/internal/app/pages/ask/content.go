@@ -290,7 +290,11 @@ func (p *Page) layoutComposer(gtx layout.Context, e *env.Env, attached state.Att
 	p.route.Form, p.route.Label, p.route.Return, p.route.Searched = look.SelectQuiet, i18n.T("Model"), p.composer.FocusTag(), true
 	options.Controls = []layout.Widget{
 		func(gtx layout.Context) layout.Dimensions {
-			return p.route.LayoutOptions(gtx, e.Theme, e.Overlays, routes, selected)
+			dimensions := p.route.LayoutOptions(gtx, e.Theme, e.Overlays, routes, selected)
+			if p.route.Opened(e.Overlays) {
+				p.limits.Show(e, gtx.Now)
+			}
+			return dimensions
 		},
 		func(gtx layout.Context) layout.Dimensions {
 			return p.approvals.Layout(gtx, e, env.AskApprovals, p.selected, may, p.composer.FocusTag())

@@ -69,6 +69,7 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
 | `providers.remove_key` | `RemoveKeyParams` | `ProviderInfo` |
 | `providers.test` | `ProviderParams` | `ProviderTestResult` |
 | `providers.enable` | `EnableProviderParams` | `ProviderInfo` |
+| `providers.limits` | `ProviderParams` | `Empty` (then `providers.changed`) |
 | `models.list` | `ModelsParams` | `ModelsResult` |
 | `gateway.usage` | `UsageParams` | `GatewayUsage` |
 | `gateway.api` | | `APIInfo` |

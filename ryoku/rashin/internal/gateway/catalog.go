@@ -32,10 +32,27 @@ type provider struct {
 	KeyHint          string            `json:"keyHint"`
 	ExtraHeaders     map[string]string `json:"extraHeaders"`
 	Note             string            `json:"note"`
-	Models           []model           `json:"models"`
+	Listing          listingSpec       `json:"listing"`
+	// Models are the curated ones; the provider's own listing adds the rest
+	// (see discover.go).
+	Models []model `json:"models"`
 
 	// running is a local provider's server answering when it was last asked
 	running bool
+}
+
+// listingSpec says where and how a provider lists its models.
+type listingSpec struct {
+	// Shape is how the listing reads: openai (the default), anthropic,
+	// cloudflare, cohere or github.
+	Shape string `json:"shape"`
+	// URL replaces {baseURL}/models.
+	URL string `json:"url"`
+	// Public is a listing anyone may read, without a key.
+	Public bool `json:"public"`
+	// Mixed is a provider that sells some models and gives others away: a
+	// model it lists is free only when the listing says so.
+	Mixed bool `json:"mixed"`
 }
 
 type model struct {
@@ -50,6 +67,12 @@ type model struct {
 	Vision      bool   `json:"vision"`
 	QualityRank int    `json:"qualityRank"`
 	SpeedRank   int    `json:"speedRank"`
+
+	// listed is a model only the provider's own listing names
+	listed bool
+	// toolsUnknown is a listed model whose listing does not say whether it
+	// takes tools: Auto, Fast and Smart pass it by, a pick by name reaches it
+	toolsUnknown bool
 }
 
 // tierOf is the tier a model is routed and listed by.
@@ -75,8 +98,11 @@ func loadCatalog() (catalog, error) {
 	for i := range c.Providers {
 		p := &c.Providers[i]
 		p.ID = strings.ToLower(strings.TrimSpace(p.ID))
-		if p.ID == "" || p.Name == "" || p.BaseURL == "" || len(p.Models) == 0 {
+		if p.ID == "" || p.Name == "" || p.BaseURL == "" {
 			return catalog{}, fmt.Errorf("provider catalogue entry %q is incomplete", p.ID)
+		}
+		if !listingShape(p.Listing.Shape) {
+			return catalog{}, fmt.Errorf("provider %q has unknown listing shape %q", p.ID, p.Listing.Shape)
 		}
 		if p.Auth != "bearer" && p.Auth != "none" && p.Auth != "cloudflare" {
 			return catalog{}, fmt.Errorf("provider %q has unsupported auth %q", p.ID, p.Auth)

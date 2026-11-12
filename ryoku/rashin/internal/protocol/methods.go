@@ -42,6 +42,7 @@ const (
 	MProvidersRemoveKey = "providers.remove_key"
 	MProvidersTest      = "providers.test"
 	MProvidersEnable    = "providers.enable"
+	MProvidersLimits    = "providers.limits"
 	MModelsList         = "models.list"
 	MGatewayUsage       = "gateway.usage"
 	MGatewayAPI         = "gateway.api"
@@ -290,6 +291,7 @@ var Methods = []Method{
 	m(MProvidersRemoveKey, RemoveKeyParams{}, ProviderInfo{}, "Remove a provider key."),
 	m(MProvidersTest, ProviderParams{}, ProviderTestResult{}, "Run a one-token completion through a provider."),
 	m(MProvidersEnable, EnableProviderParams{}, ProviderInfo{}, "Turn a provider on or off for routing."),
+	m(MProvidersLimits, ProviderParams{}, Empty{}, "Read the providers' account limits again where they are older than ten minutes; the result arrives as providers.changed."),
 	m(MModelsList, ModelsParams{}, ModelsResult{}, "Chat models, their tier and the routes."),
 	m(MGatewayUsage, UsageParams{}, GatewayUsage{}, "Requests and tokens per day, provider and model."),
 	m(MGatewayAPI, Empty{}, APIInfo{}, "The local API: whether it is on, where it listens."),
