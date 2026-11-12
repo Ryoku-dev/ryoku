@@ -205,8 +205,8 @@ QtObject {
         }, "", key);
     }
 
-    // one command, done(ok, error, out) once even if it is missing; input, a line, goes to stdin;
-    // a store key lets cancel(key) stop it
+    // one command, done(ok, error, out, code) once even if it is missing (code -1); input, a line,
+    // goes to stdin; a store key lets cancel(key) stop it
     function run(argv, done, input, key) {
         var p;
         var finish = function (ok, out, err, code, late) {
@@ -218,16 +218,16 @@ QtObject {
                 : argv[0] !== "nmcli" && (code === 126 || code === 127)
                 ? I18n.tr("The password prompt was closed or refused. Retry to ask again.") : store.reason(err, out);
             if (done)
-                done(ok, why, out);
+                done(ok, why, out, code);
         };
         if (!input) {
             // NetworkManager answers in seconds; a join waits up to its own -w, privileged helpers wait for the password
             p = Changes.run(argv, finish, { timeout: argv[0] !== "nmcli" ? 0 : argv.indexOf("-w") >= 0 ? 60000 : 20000 });
         } else {
             p = proc.createObject(store, { command: argv, input: input, feeds: true });
-            p.finished.connect(function (ok, out, err) {
+            p.finished.connect(function (ok, out, err, code) {
                 p.destroy();
-                finish(ok, out, err);
+                finish(ok, out, err, code);
             });
             p.running = true;
         }
@@ -380,22 +380,25 @@ QtObject {
             property string input: ""
             property bool feeds: false
             property bool didStart: false
-            signal finished(bool ok, string out, string err)
+            signal finished(bool ok, string out, string err, int code)
             stdinEnabled: p.feeds
             stdout: StdioCollector { id: cout }
             stderr: StdioCollector { id: cerr }
             onStarted: {
                 p.didStart = true;
+                // stdin closes after the line: nmcli --ask asks again for a refused password and,
+                // with stdin still open, waited out its whole timeout instead of failing
                 if (p.feeds) {
                     p.write(p.input + "\n");
                     p.input = "";
+                    p.stdinEnabled = false;
                 }
             }
-            onExited: (code, status) => p.finished(code === 0, cout.text, cerr.text)
+            onExited: (code, status) => p.finished(code === 0, cout.text, cerr.text, code)
             // a program that cannot start reports no exit, only that it stopped running
             onRunningChanged: {
                 if (!p.running && !p.didStart)
-                    p.finished(false, "", Changes.missingText(String(p.command[0])));
+                    p.finished(false, "", Changes.missingText(String(p.command[0])), -1);
             }
         }
     }

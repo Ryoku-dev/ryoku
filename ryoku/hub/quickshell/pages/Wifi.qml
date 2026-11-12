@@ -42,8 +42,14 @@ Item {
         return null;
     }
 
-    // ssid -> [{ band, value }] for the bands NetworkManager can hold a profile to
+    // ssid -> the bands NetworkManager can hold a profile to: "bg", "a"
     property var bandMap: ({})
+    // ssid -> one access point per band, the connected one or else the strongest:
+    // [{ ghz, mhz, bssid, signal, active }], lowest band first
+    property var apMap: ({})
+    // Details lists each network's access points, so two networks sharing a name can be
+    // told apart; off on every visit
+    property bool showDetails: false
     // ssid -> the band chosen in its panel: "", "bg" or "a"
     property var bandPick: ({})
     property string expanded: ""
@@ -252,6 +258,14 @@ Item {
         root.bandPick = next;
     }
 
+    // the Details line: each band's access point by its hardware address
+    function apLine(ssid) {
+        return (root.apMap[ssid] || []).filter(ap => ap.bssid !== "").map(function (ap) {
+            var band = ap.ghz === "6" ? I18n.tr("6 GHz") : ap.ghz === "5" ? I18n.tr("5 GHz") : I18n.tr("2.4 GHz");
+            return band + " " + ap.bssid + (ap.active ? " " + I18n.tr("(connected)") : "");
+        }).join("  \u00b7  ");
+    }
+
     // a new secured network, or a saved one whose password stopped working
     function needsPassword(net) {
         return !!net && root.secured(net) && (!root.isSaved(net) || !!root.askPassword[net.name]);
@@ -289,43 +303,79 @@ Item {
         var ssid = net.name;
         var prof = root.store.profileFor(ssid);
         var band = root.chosenBand(ssid);
+        // a new secured network, or a saved one whose password was refused
+        var withPassword = root.secured(net) && (!!root.askPassword[ssid] || (!prof && !net.known));
+        if (withPassword && root.password.length === 0)
+            return;
         root.setError("netErrors", ssid, "");
-        var steps, input = "";
+        var a = { ssid: ssid, uuid: prof ? prof.uuid : "", known: !!prof, saved: root.isSaved(net),
+                  secured: root.secured(net), band: band, autoOff: !!prof && prof.autoconnect === false,
+                  viaDaemon: withPassword, password: withPassword ? root.password : "",
+                  proc: null, cancelled: false, before: root.store.profiles.map(p => p.uuid) };
+        root.attempt = a;
+        if (withPassword) {
+            root.joinViaDaemon(a);
+            return;
+        }
+        var steps = [];
         if (prof) {
-            steps = [];
             if (band !== (prof.band || ""))
                 steps.push(["nmcli", "connection", "modify", "uuid", prof.uuid, "802-11-wireless.band", band]);
-            if (root.askPassword[ssid]) {
-                if (root.password.length === 0)
-                    return;
-                steps.push(["nmcli", "-w", "45", "--ask", "connection", "up", "uuid", prof.uuid]);
-                input = root.password;
-            } else {
-                steps.push(["nmcli", "-w", "45", "connection", "up", "uuid", prof.uuid]);
-            }
-        } else if (root.secured(net) && !net.known) {
-            if (root.password.length === 0)
-                return;
-            // the password goes through stdin; anything in argv is readable by every user
-            steps = [["nmcli", "-w", "45", "--ask", "dev", "wifi", "connect", ssid]];
-            input = root.password;
+            steps.push(["nmcli", "-w", "45", "connection", "up", "uuid", prof.uuid]);
         } else {
-            steps = [["nmcli", "-w", "45", "dev", "wifi", "connect", ssid]];
+            steps.push(["nmcli", "-w", "45", "dev", "wifi", "connect", ssid]);
         }
-        var a = { ssid: ssid, uuid: prof ? prof.uuid : "", known: !!prof, saved: root.isSaved(net),
-                  secured: root.secured(net), band: band, proc: null, cancelled: false,
-                  before: root.store.profiles.map(p => p.uuid) };
-        root.attempt = a;
-        root.runSteps(a, steps, input);
+        root.runSteps(a, steps, "");
+    }
+
+    // a join with a password goes through the shell daemon, which owns Wi-Fi joins: a refused
+    // password fails as soon as NetworkManager drops it. ryoku-hub replaces the network's saved
+    // profiles with the new password, which goes through stdin, never argv
+    function joinViaDaemon(a) {
+        a.proc = root.store.run(["ryoku-hub", "wifi", "connect", a.ssid], function (ok, err, out, code) {
+            if (a.cancelled)
+                return;
+            if (ok)
+                root.connected(a);
+            // 3: the daemon did not run the join; -1: the tool is missing. Either way nmcli joins
+            else if (code === 3 || code === -1)
+                root.joinWithNmcli(a);
+            else
+                root.failed(a, err);
+        }, a.password);
+    }
+
+    // the join without the daemon: nmcli reads the password from stdin, into the saved profile
+    // when one is still there
+    function joinWithNmcli(a) {
+        a.viaDaemon = false;
+        a.known = false;
+        a.uuid = "";
+        a.proc = null;
+        root.store.refresh(function () {
+            if (a.cancelled)
+                return;
+            var prof = root.store.profileFor(a.ssid);
+            var input = a.password;
+            a.password = "";
+            a.known = !!prof;
+            a.uuid = prof ? prof.uuid : "";
+            var steps = [];
+            if (prof && a.band !== (prof.band || ""))
+                steps.push(["nmcli", "connection", "modify", "uuid", prof.uuid, "802-11-wireless.band", a.band]);
+            steps.push(prof ? ["nmcli", "-w", "45", "--ask", "connection", "up", "uuid", prof.uuid]
+                            : ["nmcli", "-w", "45", "--ask", "dev", "wifi", "connect", a.ssid]);
+            root.runSteps(a, steps, input);
+        });
     }
 
     function runSteps(a, steps, input) {
         if (steps.length === 0) {
-            root.connected(a, "");
+            root.connected(a);
             return;
         }
         var last = steps.length === 1;
-        a.proc = root.store.run(steps[0], function (ok, err, out) {
+        a.proc = root.store.run(steps[0], function (ok, err) {
             if (a.cancelled)
                 return;
             if (!ok) {
@@ -333,17 +383,15 @@ Item {
                 return;
             }
             if (last)
-                root.connected(a, String(out || ""));
+                root.connected(a);
             else
                 root.runSteps(a, steps.slice(1), input);
         }, last ? input : "");
     }
 
-    // a new network gets its band once nmcli names the profile it made
-    function connected(a, out) {
-        var m = /'([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})'/.exec(out);
-        if (!a.known && a.band !== "" && m)
-            root.store.run(["nmcli", "connection", "modify", "uuid", m[1], "802-11-wireless.band", a.band], () => root.store.refresh());
+    // a profile this join made takes the band picked in its panel, and one that replaced a
+    // saved network keeps joining only when chosen, as the old one did
+    function connected(a) {
         root.attempt = null;
         if (root.askPassword[a.ssid]) {
             var ask = Object.assign({}, root.askPassword);
@@ -352,21 +400,36 @@ Item {
         }
         root.expanded = "";
         root.password = "";
-        root.store.refresh();
+        var mods = [];
+        if (a.band !== "")
+            mods.push("802-11-wireless.band", a.band);
+        if (a.autoOff)
+            mods.push("connection.autoconnect", "no");
+        root.store.refresh(function () {
+            if (mods.length === 0)
+                return;
+            root.store.profiles.filter(p => p.ssid === a.ssid && a.before.indexOf(p.uuid) < 0).forEach(function (p) {
+                root.store.run(["nmcli", "connection", "modify", "uuid", p.uuid].concat(mods), () => root.store.refresh());
+            });
+        });
     }
+
+    // the password field of a network that asks again takes the keys
+    signal askAgain(string ssid)
 
     function failed(a, err) {
         root.attempt = null;
         root.setError("netErrors", a.ssid, root.connectError(err));
-        // a saved network whose password changed asks for the new one
+        // a saved network whose password changed asks for the new one, and a refused new one asks again
         if (a.secured && /secrets were required|password|802-11-wireless-security|psk|authenticat/i.test(String(err || ""))) {
             var ask = Object.assign({}, root.askPassword);
             ask[a.ssid] = true;
             root.askPassword = ask;
             root.expanded = a.ssid;
             root.password = "";
+            Qt.callLater(root.askAgain, a.ssid);
         }
-        if (a.saved)
+        if (a.known && !a.viaDaemon)
             root.store.refresh();
         else
             root.dropNew(a);
@@ -387,14 +450,16 @@ Item {
         if (!a)
             return;
         a.cancelled = true;
+        a.password = "";
         if (a.proc)
             a.proc.running = false;
         root.attempt = null;
-        // the network manager keeps trying after nmcli stops, so the attempt is called off there too
-        if (a.known)
-            root.store.run(["nmcli", "connection", "down", "uuid", a.uuid], () => root.store.refresh());
-        else if (!a.saved)
+        // the network manager keeps trying after nmcli or the daemon's join stops waiting, so the
+        // attempt is called off there too; the daemon's join goes with the profile it made
+        if (a.viaDaemon || (!a.known && !a.saved))
             root.dropNew(a);
+        else if (a.known)
+            root.store.run(["nmcli", "connection", "down", "uuid", a.uuid], () => root.store.refresh());
         else
             root.store.run(["nmcli", "connection", "down", "id", a.ssid], () => root.store.refresh());
     }
@@ -613,25 +678,39 @@ Item {
 
     Process {
         id: bands
-        command: ["nmcli", "-t", "-f", "SSID,FREQ", "dev", "wifi", "list", "--rescan", "no"]
+        command: ["nmcli", "-t", "-f", "SSID,FREQ,BSSID,SIGNAL,ACTIVE", "dev", "wifi", "list", "--rescan", "no"]
         stdout: StdioCollector {
             onStreamFinished: {
-                var map = {};
+                if (!root.store)
+                    return;
+                var map = {}, aps = {};
                 this.text.split("\n").forEach(function (line) {
-                    var at = line.lastIndexOf(":");
-                    if (at <= 0)
+                    var f = root.store.terse(line);
+                    var mhz = parseInt(f[1]);
+                    if (f.length < 5 || f[0] === "" || !(mhz > 0))
                         return;
-                    var ssid = line.slice(0, at).replace(/\\:/g, ":").replace(/\\\\/g, "\\");
-                    var mhz = parseInt(line.slice(at + 1));
-                    var b = mhz > 0 && mhz < 2500 ? "bg" : mhz >= 4900 && mhz < 5925 ? "a" : "";
-                    if (b === "")
-                        return;
-                    var list = map[ssid] || [];
-                    if (list.indexOf(b) < 0)
-                        list.push(b);
-                    map[ssid] = list;
+                    var ssid = f[0];
+                    var b = mhz < 2500 ? "bg" : mhz >= 4900 && mhz < 5925 ? "a" : "";
+                    if (b !== "") {
+                        var list = map[ssid] || [];
+                        if (list.indexOf(b) < 0)
+                            list.push(b);
+                        map[ssid] = list;
+                    }
+                    var ap = { ghz: mhz < 2500 ? "2.4" : mhz < 5925 ? "5" : "6", mhz: mhz, bssid: f[2],
+                               signal: parseInt(f[3]) || 0, active: f[4] === "yes" };
+                    var here = aps[ssid] || [];
+                    var at = here.findIndex(x => x.ghz === ap.ghz);
+                    if (at < 0)
+                        here.push(ap);
+                    else if (ap.active || (!here[at].active && ap.signal > here[at].signal))
+                        here[at] = ap;
+                    aps[ssid] = here;
                 });
+                for (var s in aps)
+                    aps[s].sort((x, y) => x.mhz - y.mhz);
                 root.bandMap = map;
+                root.apMap = aps;
             }
         }
     }
@@ -754,6 +833,21 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                         visible: root.scanning
                         active: visible
+                    }
+                    Plaque {
+                        anchors.verticalCenter: parent.verticalCenter
+                        kind: root.showDetails ? "tonal" : "quiet"
+                        small: true
+                        glyph: "info"
+                        text: I18n.tr("Details")
+                        accessibleName: I18n.tr("Show each network's access points")
+                        Accessible.checkable: true
+                        Accessible.checked: root.showDetails
+                        onClicked: {
+                            root.showDetails = !root.showDetails;
+                            if (root.showDetails && !bands.running)
+                                bands.running = true;
+                        }
                     }
                     Plaque {
                         anchors.verticalCenter: parent.verticalCenter
@@ -915,6 +1009,7 @@ Item {
         readonly property bool mine: !!root.attempt && root.attempt.ssid === netItem.ssid
         readonly property var bandsHere: root.bandMap[netItem.ssid] || []
         readonly property string error: root.netErrors[netItem.ssid] || ""
+        readonly property string apLine: root.showDetails ? root.apLine(netItem.ssid) : ""
 
         // weak strangers past the first few wait behind Show more, so the page below holds still
         visible: netItem.index < root.listLimit || root.showAll || netItem.open || netItem.mine || netItem.error !== ""
@@ -926,7 +1021,7 @@ Item {
         NetRow {
             host: page
             title: netItem.ssid
-            detail: root.netDetail(netItem.net)
+            detail: root.netDetail(netItem.net) + (root.showDetails && netItem.apLine !== "" ? "\n" + netItem.apLine : "")
             activatable: true
             error: netItem.error
             canRetry: !(netItem.net && root.needsPassword(netItem.net))
@@ -1014,6 +1109,19 @@ Item {
                 onTextEdited: root.password = pwField.text
                 onAccepted: root.connect(netItem.net)
                 onVisibleChanged: if (pwField.visible) Qt.callLater(pwField.forceActiveFocus)
+
+                // typing ends the text binding, so a refused or dropped password is emptied here
+                Connections {
+                    target: root
+                    function onPasswordChanged() {
+                        if (pwField.text !== root.password)
+                            pwField.text = root.password;
+                    }
+                    function onAskAgain(ssid) {
+                        if (ssid === netItem.ssid && pwField.visible)
+                            pwField.forceActiveFocus();
+                    }
+                }
             }
 
             Row {
