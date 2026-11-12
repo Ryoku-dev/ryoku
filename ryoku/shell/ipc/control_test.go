@@ -214,7 +214,7 @@ func fakeHubLaunch(t *testing.T, start func()) func() int {
 	done := make(chan struct{})
 	var mu sync.Mutex
 	n := 0
-	hubLaunch = func() (func() error, error) {
+	hubLaunch = func(string) (func() error, error) {
 		mu.Lock()
 		n++
 		mu.Unlock()
@@ -231,6 +231,31 @@ func fakeHubLaunch(t *testing.T, start func()) func() int {
 		mu.Lock()
 		defer mu.Unlock()
 		return n
+	}
+}
+
+func TestHubScreenScales(t *testing.T) {
+	cases := []struct {
+		name     string
+		settings map[string]any
+		want     string
+	}{
+		{"no displays", map[string]any{}, ""},
+		{"no scales", map[string]any{"displays": map[string]any{"bar": map[string]any{}}}, ""},
+		{"sorted, unscaled skipped", map[string]any{"displays": map[string]any{"ui_scale": map[string]any{
+			"HDMI-A-1": 1.25, "eDP-1": 1.0, "DP-2": 0.8,
+		}}}, "DP-2=0.8;HDMI-A-1=1.25"},
+		{"clamped like the shell", map[string]any{"displays": map[string]any{"ui_scale": map[string]any{
+			"DP-1": 3.0, "DP-2": 0.2,
+		}}}, "DP-1=2;DP-2=0.5"},
+		{"bad entries dropped", map[string]any{"displays": map[string]any{"ui_scale": map[string]any{
+			"DP-1": "1.5", "DP-2": -1.0, "a=b": 1.5, "c;d": 1.5, "DP-3": 1.5,
+		}}}, "DP-3=1.5"},
+	}
+	for _, c := range cases {
+		if got := hubScreenScales(c.settings); got != c.want {
+			t.Errorf("%s: hubScreenScales = %q, want %q", c.name, got, c.want)
+		}
 	}
 }
 

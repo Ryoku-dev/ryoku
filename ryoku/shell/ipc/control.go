@@ -1,8 +1,12 @@
 package main
 
 import (
+	"math"
 	"os"
 	"os/exec"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	wm "ryoku-wm"
@@ -96,17 +100,53 @@ func (d *daemon) menuClose() string {
 var hubStartWait = 10 * time.Second
 
 // a package var so tests start a fake Hub instead of qs
-var hubLaunch = func() (func() error, error) {
+var hubLaunch = func(screenScales string) (func() error, error) {
 	// -o, or the Hub's own children inherit the locked descriptor: one
 	// detached grandchild (ryostore, a kitty, xdg-open) then held
 	// /tmp/ryoku-hub.lock for the rest of the session and every later open
 	// silently did nothing.
 	argv := append([]string{"-n", "-o", "/tmp/ryoku-hub.lock", "qs"}, qsSelect("hub")...)
 	cmd := exec.Command("flock", argv...)
+	if screenScales != "" {
+		cmd.Env = append(os.Environ(), "QT_SCREEN_SCALE_FACTORS="+screenScales)
+	}
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
 	return cmd.Wait, nil
+}
+
+// hubScreenScales turns displays.ui_scale into Qt's per-screen factors: the
+// Hub draws with Lithic's fixed sizes, and Qt's own scaling keeps native text
+// sharp where scaling the window's items would blur it
+func hubScreenScales(settings map[string]any) string {
+	v, err := getByPath(settings, []string{"displays", "ui_scale"})
+	if err != nil {
+		return ""
+	}
+	scales, ok := v.(map[string]any)
+	if !ok {
+		return ""
+	}
+	names := make([]string, 0, len(scales))
+	for name := range scales {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	var parts []string
+	for _, name := range names {
+		f, ok := scales[name].(float64)
+		if !ok || !(f > 0) || name == "" || strings.ContainsAny(name, "=;") {
+			continue
+		}
+		// the shell clamps a surface's scale to the same range
+		f = math.Max(0.5, math.Min(2, f))
+		if f == 1 {
+			continue
+		}
+		parts = append(parts, name+"="+strconv.FormatFloat(f, 'f', -1, 64))
+	}
+	return strings.Join(parts, ";")
 }
 
 func hubCall(target, fn string, args ...string) bool {
@@ -184,7 +224,7 @@ func (d *daemon) hub(args []string) string {
 				d.hubRaise()
 				return
 			}
-			wait, err := hubLaunch()
+			wait, err := hubLaunch(hubScreenScales(d.settingsFrame()))
 			if err != nil {
 				return
 			}
