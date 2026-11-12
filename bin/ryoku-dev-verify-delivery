@@ -97,7 +97,7 @@ declare -A qml_module_pkg=(
 	[Qt5Compat]=qt6-5compat [QtQuick3D]=qt6-quick3d [Quickshell]=quickshell
 	[org.kde.syntaxhighlighting]=syntax-highlighting
 )
-qml_in_tree=(Ryoku shell stage RashinApp qs)
+qml_in_tree=(Ryoku shell stage RashinApp Lithic qs)
 desktop_depends="$(sed -n '/^depends=(/,/^)/p' release/packages/ryoku-desktop/PKGBUILD)"
 qml_fail=0
 while IFS=: read -r file module; do
