@@ -10,6 +10,7 @@ import (
 
 // agentIndex are the index methods an agent may call from its sandbox: the
 // ones that read an index, never the ones that add, remove or rebuild one.
+// agentIndexCall holds them to the indexes inside the team's folders.
 var agentIndex = map[string]bool{
 	protocol.MIndexList:       true,
 	protocol.MIndexStatus:     true,
@@ -52,7 +53,7 @@ func isAgentMethod(method string) bool { return strings.HasPrefix(method, "teams
 
 // agentGate is what a connection on a team session's own socket may call:
 // the team tools, that session's goal and screen, acting as its agent, and
-// reading the index. Everything else is refused.
+// reading the indexes inside its team's folders. Everything else is refused.
 func agentGate(session, method string, raw json.RawMessage) error {
 	if isAgentMethod(method) || agentIndex[method] {
 		return nil

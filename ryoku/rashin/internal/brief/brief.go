@@ -19,11 +19,16 @@ const rashin = `Rashin is Ryoku's optional assistant and the system this convers
 - Ask answers questions about this machine through Rashin's own router: on free models by default, on this computer's Ollama or llama.cpp while one runs, and on a paid model only when the user picks it. It opens from the Ask bar (Alt+Space by default), from ` + "`rashin <question>`" + ` in a terminal, and in the Ask tab of the Rashin app (Super+Alt+Space by default).
 - The Agents tab of the app runs coding harnesses such as Claude Code, Codex, omp and OpenCode as sessions Rashin owns. Projects holds their Git worktrees, commit graph, review and tasks. Index shows what is indexed.
 - Code search is built in: rashin search, find, def, outline, references, peek, impact and overview, run inside an indexed folder. ` + "`rashin index list`" + ` shows the indexes, and a project added to Rashin is indexed by itself.
-- Model providers and their keys are in Rashin > Settings > Providers and ` + "`rashin providers`" + `. ` + "`rashin api`" + ` serves the router to other programs, ` + "`rashin status`" + ` says whether Rashin is on, and the settings file is ~/.config/ryoku/rashin.json.
-The vault wiki page rashin is the full guide.`
+- Model providers and their keys are in Rashin > Settings > Providers and ` + "`rashin providers`" + `. ` + "`rashin api`" + ` serves the router to other programs, ` + "`rashin status`" + ` says whether Rashin is on, and the settings file is ~/.config/ryoku/rashin.json.`
+
+// rashinGuide points at the vault's guide to Rashin.
+const rashinGuide = "The vault wiki page rashin is the full guide."
+
+// vaultGuide names the vault at %s and how a model with its own tools uses it.
+const vaultGuide = "%s is this machine's map, kept current by Ryoku. Read AGENTS.md there for its rules, and desktop.md before you search the filesystem for where a setting lives. system.md, packages.md, ownership.md and logs.md cover the hardware, the packages, who owns a config file and where each log is, and wiki/ holds the guides. Change desktop state through its owning ryoku command, and run `ryoku owner <path>` before you edit a config file.\n"
 
 // Rashin describes Rashin to a model that runs inside it.
-func Rashin() string { return rashin }
+func Rashin() string { return rashin + "\n" + rashinGuide }
 
 const teams = `A team is a standing group of agents Rashin keeps for one purpose on this computer: members on harnesses and models of their own, a lead that hands pieces of each task to the others, routines that give it work on a schedule, a vault that keeps its credentials so no agent ever sees a value, and approvals that wait for the user in the Rashin Inbox. Teams do not talk to each other: each works only in its own folder.
 When the user asks for a team, or wants work done again and again on its own (a weekly digest, watching a repository, looking after this computer), propose one. Start from the closest template: light ones have one member, medium ones two and a routine, advanced ones several members on different models, routines bound to members and credentials. Name every credential the team will need, with the hosts it goes to and why, and Rashin asks the user for each value in the Rashin Inbox once the team exists. Nothing is made until the user creates the team from the Rashin Inbox, and its routines start off until the user turns them on: never tell the user a proposed team or its routines start by themselves.`
@@ -87,11 +92,15 @@ type Session struct {
 	// Team is what an agent working a team task is told about its team, its
 	// role and how the team works; empty for any other session.
 	Team string
+	// Writable are the folders a team agent may change besides its own.
+	Writable []string
 }
 
 // Agent is the text an external agent hears once, ahead of its first prompt.
 // It names the vault instead of quoting it: the agent has its own tools to
-// read files, and a long preamble would crowd the user's request.
+// read files, and a long preamble would crowd the user's request. A team
+// task's agent, whose sandbox hides the vault, is told what it can reach in
+// its place.
 func Agent(session Session) string {
 	info := session.Info
 	var b strings.Builder
@@ -110,13 +119,22 @@ func Agent(session Session) string {
 		fmt.Fprintf(&b, "- Worktree: %s\n", info.Worktree)
 	}
 
-	if vault := VaultDir(); vault != "" {
+	if info.Team != "" {
+		b.WriteString("- Reach: you run in a sandbox. You can change only this folder")
+		if len(session.Writable) > 0 {
+			fmt.Fprintf(&b, " and %s", strings.Join(session.Writable, ", "))
+		}
+		b.WriteString("; the rest of this computer is read-only, while Rashin's state, the Ryoku vault, the credential vault, other teams' folders and the paths Settings > Teams hides look empty, and code search reaches only the indexes inside the folders you can change.\n")
+	} else if vault := VaultDir(); vault != "" {
 		b.WriteString("\nThe Ryoku vault\n")
-		fmt.Fprintf(&b, "%s is this machine's map, kept current by Ryoku. Read AGENTS.md there for its rules, and desktop.md before you search the filesystem for where a setting lives. system.md, packages.md, ownership.md and logs.md cover the hardware, the packages, who owns a config file and where each log is, and wiki/ holds the guides. Change desktop state through its owning ryoku command, and run `ryoku owner <path>` before you edit a config file.\n", vault)
+		fmt.Fprintf(&b, vaultGuide, vault)
 	}
 
 	b.WriteString("\nRashin\n")
 	b.WriteString(rashin)
+	if info.Team == "" {
+		b.WriteString("\n" + rashinGuide)
+	}
 	b.WriteString("\n")
 
 	if index := session.Index; index != nil {

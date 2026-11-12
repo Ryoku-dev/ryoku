@@ -30,8 +30,9 @@ func engineFacts(th *look.Theme, snapshot state.Snapshot, task protocol.TeamTask
 		if info.Version != "" {
 			harness = i18n.Tf("%s %s", info.Name, info.Version)
 		}
-		if info.Capabilities != nil {
-			offered = info.Capabilities.Options
+		// the task ran in its team's own home, whose harness offers its own options
+		if capabilities := info.TeamCapabilities(task.Team); capabilities != nil {
+			offered = capabilities.Options
 		}
 	}
 	facts := []layout.Widget{wordFact(th, i18n.T("Harness"), harness)}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	i18n "ryoku-i18n"
@@ -42,9 +43,33 @@ func runTeams(args []string) int {
 			return usageError("teams propose <file.json>")
 		}
 		return proposeTeam(args[0])
+	case "home-done":
+		if len(args) != 2 {
+			return usageError("teams home-done <token> <status>")
+		}
+		return finishTeamsHome(args[0], args[1])
 	default:
 		return usageError("teams [list|templates] [--format human|json|toon] | propose <file.json>")
 	}
+}
+
+// finishTeamsHome tells the daemon a sign-in or setup terminal ended, with the
+// token Rashin handed it and how its command exited, and prints the answer.
+// The terminal Rashin opens runs it; nobody types it.
+func finishTeamsHome(token, status string) int {
+	code, err := strconv.Atoi(status)
+	if err != nil {
+		return usageError("teams home-done <token> <status>")
+	}
+	var result protocol.HarnessTeamsDoneResult
+	if err := daemonCall(context.Background(), protocol.MHarnessesTeamsDone, protocol.HarnessTeamsDoneParams{Token: token, Status: code}, &result); err != nil {
+		return report(err)
+	}
+	fmt.Fprintln(os.Stdout, result.Text)
+	if !result.SignedIn {
+		return 1
+	}
+	return 0
 }
 
 // teamsOutput calls a teams method that only reads and prints its answer,

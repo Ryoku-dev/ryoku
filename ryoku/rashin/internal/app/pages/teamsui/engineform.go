@@ -25,6 +25,8 @@ type EngineForm struct {
 	Agents bool
 	// Keep is the member one task is changed for: the harness stays the member's and each first choice keeps what it runs
 	Keep *protocol.Member
+	// Team is the saved team whose home the harness starts in for a read or a check; "" for the defaults or a draft
+	Team string
 
 	harnessID, modelID string
 	values             map[string]string
@@ -216,7 +218,7 @@ func (f *EngineForm) modelField(gtx layout.Context, e *env.Env) layout.Dimension
 	th := e.Theme
 	snapshot := e.Snapshot()
 	harness, model, _, source := f.inherited(snapshot)
-	info := f.reader.Info(snapshot, harness)
+	info := f.reader.TeamInfo(snapshot, harness, f.Team)
 	first := firstModel(info, model, source)
 	var list []protocol.Choice
 	if info.Capabilities != nil {
@@ -247,8 +249,8 @@ func (f *EngineForm) modelField(gtx layout.Context, e *env.Env) layout.Dimension
 		switch {
 		case listed:
 			f.typed = false
-		case !f.reader.Busy && info.Installed:
-			f.reader.Run(e, protocol.HarnessProbeParams{ID: info.ID}, info.Name, false)
+		case !f.reader.Busy && info.Installed && f.Team != "":
+			f.reader.Run(e, protocol.HarnessProbeParams{ID: info.ID, Team: f.Team}, info.Name, false)
 		}
 	}
 	children := []layout.FlexChild{layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -256,7 +258,7 @@ func (f *EngineForm) modelField(gtx layout.Context, e *env.Env) layout.Dimension
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return f.modelText.Layout(gtx, th.Theme) }),
 			layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				if !listed && (f.reader.Busy || !info.Installed) {
+				if !listed && (f.reader.Busy || !info.Installed || f.Team == "") {
 					gtx = gtx.Disabled()
 				}
 				return f.read.Layout(gtx, th.Theme)
@@ -264,9 +266,14 @@ func (f *EngineForm) modelField(gtx layout.Context, e *env.Env) layout.Dimension
 		)
 	})}
 	if !listed {
+		// a team's own account may offer other models than yours, so its list is read in its own home, never borrowed
+		hint := i18n.T("Check to read its models: Read the list starts the harness once in this team's home, without a prompt.")
+		if f.Team == "" {
+			hint = i18n.T("Check to read its models once the team is saved and signed in: its list is read in the team's own home.")
+		}
 		children = append(children,
 			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
-			layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg3, i18n.T("Rashin learns a harness's models the first time it starts. Read the list starts it once, without a prompt."))),
+			layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg3, hint)),
 		)
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
@@ -341,7 +348,7 @@ func (f *EngineForm) optionFields(gtx layout.Context, e *env.Env) layout.Dimensi
 	th := e.Theme
 	snapshot := e.Snapshot()
 	harness, _, inherited, source := f.inherited(snapshot)
-	options := catalogOptions(f.reader.Info(snapshot, harness).Capabilities)
+	options := catalogOptions(f.reader.TeamInfo(snapshot, harness, f.Team).Capabilities)
 	children := make([]layout.FlexChild, 0, 2*len(options))
 	for index, option := range options {
 		if index > 0 {
@@ -406,10 +413,10 @@ func (f *EngineForm) checkRow(gtx layout.Context, e *env.Env) layout.Dimensions 
 	snapshot := e.Snapshot()
 	harness, model, options := f.Effective(snapshot)
 	info, known := env.HarnessByID(snapshot.Harnesses, harness)
-	ready := known && info.Installed && !f.reader.Busy
+	ready := known && info.Installed && !f.reader.Busy && f.Team != ""
 	f.check.Kind, f.check.Small, f.check.Label, f.check.Busy = kit.PlaqueTonal, true, i18n.T("Check"), f.reader.Busy
 	if f.check.Clicked(gtx) && ready {
-		f.reader.Run(e, protocol.HarnessProbeParams{ID: harness, Model: model, Options: options}, info.Name, true)
+		f.reader.Run(e, protocol.HarnessProbeParams{ID: harness, Team: f.Team, Model: model, Options: options}, info.Name, true)
 	}
 	line, style, ink := i18n.T("Starts the harness once in a sandbox, as a task would, without a prompt."), th.T.Caption, th.R.Fg3
 	switch {

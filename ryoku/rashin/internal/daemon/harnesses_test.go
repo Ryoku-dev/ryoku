@@ -3,12 +3,15 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"slices"
 	"sync"
 	"testing"
 	"time"
 
 	"ryoku-rashin/internal/config"
+	"ryoku-rashin/internal/harness"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 )
@@ -187,5 +190,57 @@ func TestTheTeamsDefaultHarnessMustBeKnown(t *testing.T) {
 	}
 	if err := set(`{"teams":{"paused":true}}`); err != nil {
 		t.Fatalf("an unrelated change after the default went missing: %v", err)
+	}
+}
+
+// Only the app opens a sign-in in a harness's team home; the terminal it runs
+// ends it with the token it was handed, from any client, and the harness is
+// then signed in for teams. A token works once.
+func TestASignInForTeamsIsOpenedByTheAppAndEndedByItsToken(t *testing.T) {
+	isolateDaemon(t)
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "rashin"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	d := New(Deps{Harnesses: &fakeHarnesses{}, Version: "test"})
+	if _, err := d.dispatch(context.Background(), &connection{app: true}, protocol.MHarnessesTeamsOpen, json.RawMessage(`{"id":"omp"}`)); err == nil {
+		t.Fatal("a sign-in opened without a team")
+	}
+	raw := json.RawMessage(`{"id":"omp","team":"team-a"}`)
+	if _, err := d.dispatch(context.Background(), &connection{}, protocol.MHarnessesTeamsOpen, raw); !forbidden(err) {
+		t.Fatalf("another client opening a sign-in: %v, want forbidden", err)
+	}
+	out, err := d.dispatch(context.Background(), &connection{app: true}, protocol.MHarnessesTeamsOpen, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opened := out.(protocol.HarnessTeamsOpenResult)
+	if opened.Home != paths.Resolved(harness.HomeOf("omp", "team-a")) || !slices.Equal(opened.Argv[len(opened.Argv)-2:], []string{"omp", "login"}) || !slices.Contains(opened.Argv, filepath.Join(bin, "rashin")) {
+		t.Fatalf("the sign-in runs %q in %s", opened.Argv, opened.Home)
+	}
+	token := opened.Argv[6]
+	done := func(token string) (protocol.HarnessTeamsDoneResult, error) {
+		raw, _ := json.Marshal(protocol.HarnessTeamsDoneParams{Token: token})
+		out, err := d.dispatch(context.Background(), &connection{}, protocol.MHarnessesTeamsDone, raw)
+		if err != nil {
+			return protocol.HarnessTeamsDoneResult{}, err
+		}
+		return out.(protocol.HarnessTeamsDoneResult), nil
+	}
+	if _, err := done("guessed"); err == nil {
+		t.Fatal("a guessed token ended the sign-in")
+	}
+	if result, err := done(token); err != nil || !result.SignedIn {
+		t.Fatalf("ending the sign-in: %+v %v", result, err)
+	}
+	if _, signed := harness.SignedIn("omp", "team-a"); !signed {
+		t.Fatal("team-a is not signed in to omp")
+	}
+	if _, signed := harness.SignedIn("omp", "team-b"); signed {
+		t.Fatal("signing team-a in signed team-b in")
+	}
+	if _, err := done(token); err == nil {
+		t.Fatal("a token ended a sign-in twice")
 	}
 }

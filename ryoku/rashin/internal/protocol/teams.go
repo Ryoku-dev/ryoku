@@ -382,7 +382,10 @@ type TeamTask struct {
 	Sessions []string    `json:"sessions,omitempty"`
 	Report   *TeamReport `json:"report,omitempty"`
 	// Reason says why a task is blocked or stopped.
-	Reason   string     `json:"reason,omitempty"`
+	Reason string `json:"reason,omitempty"`
+	// SignIn names the harness a blocked task waits to be signed in for
+	// teams (HarnessTeams); a retry after the sign-in runs it.
+	SignIn   string     `json:"signIn,omitempty"`
 	Usage    TokenUsage `json:"usage"`
 	Turns    int        `json:"turns"`
 	MaxTurns int        `json:"maxTurns"`
@@ -567,6 +570,10 @@ const (
 	ApprovalBudget     = "budget"
 	// ApprovalTeam is a proposed team: approving it creates the team.
 	ApprovalTeam = "team"
+	// ApprovalRestore tells the user Rashin put back what changed in a
+	// harness's team home since the sign-in. It asks nothing: DecideOnce
+	// marks it read, and it waits until then.
+	ApprovalRestore = "restore"
 )
 
 // Approval statuses.
@@ -647,6 +654,9 @@ type Approval struct {
 	Expires  time.Time          `json:"expires"`
 	// Unwatched marks an approval asked while no Rashin window was open.
 	Unwatched bool `json:"unwatched,omitempty"`
+	// Repeats counts the times an ApprovalRestore notice happened again, the
+	// same, before the user read it; 0 for once.
+	Repeats int `json:"repeats,omitempty"`
 }
 
 // ApprovalsParams lists approvals, newest first; Pending keeps only those

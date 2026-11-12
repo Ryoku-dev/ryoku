@@ -20,6 +20,7 @@ import (
 	"ryoku-rashin/internal/index/extract"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
+	"ryoku-rashin/internal/redact"
 )
 
 var (
@@ -397,7 +398,7 @@ func replaceFileTx(tx *bbolt.Tx, file fileRecord, result extract.Result) error {
 	}
 	for _, symbol := range result.Symbols {
 		id := recordID(file.Path, symbol.Name, fmt.Sprint(symbol.Start), fmt.Sprint(symbol.End))
-		record := symbolRecord{ID: id, Path: file.Path, Name: symbol.Name, Kind: symbol.Kind, Signature: extract.Redact(symbol.Signature), Start: symbol.Start, End: symbol.End, Parent: symbol.Parent, Doc: extract.Redact(symbol.Doc), Depth: symbol.Depth}
+		record := symbolRecord{ID: id, Path: file.Path, Name: symbol.Name, Kind: symbol.Kind, Signature: redact.Patterns(symbol.Signature, nil), Start: symbol.Start, End: symbol.End, Parent: symbol.Parent, Doc: redact.Patterns(symbol.Doc, nil), Depth: symbol.Depth}
 		data, encodeErr := encode(record)
 		if encodeErr != nil {
 			return encodeErr

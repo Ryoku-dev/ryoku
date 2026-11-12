@@ -17,6 +17,7 @@ import (
 	"ryoku-rashin/internal/index"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
+	"ryoku-rashin/internal/redact"
 	"ryoku-rashin/internal/teams"
 	"ryoku-rashin/internal/workspace"
 )
@@ -94,6 +95,10 @@ func run() error {
 		return err
 	}
 	deps := daemon.Deps{Gateway: gw, Asker: ask.New(gw, idx, crew), Harnesses: harness.New(), Indexer: idx, Work: work, Teams: crew, Version: version, Events: events, Lock: lock}
+	// every scrubbed transcript takes out the vault's values and the provider
+	// keys by name before the patterns run
+	defer redact.RegisterStore(crew.Scrubber, crew.VaultOpen)()
+	defer redact.RegisterStore(gw.Scrubber, nil)()
 	// read now: once the file is replaced the kernel no longer names it
 	if program, programErr := os.Executable(); programErr == nil {
 		deps.Program = program

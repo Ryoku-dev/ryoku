@@ -3,6 +3,7 @@ package settings
 import (
 	"maps"
 	"slices"
+	"time"
 
 	"gioui.org/layout"
 
@@ -44,7 +45,8 @@ type teamsPanel struct {
 	from, to   kit.TextField
 	saveAsking kit.Plaque
 
-	hidden teamsui.PathList
+	hidden  teamsui.PathList
+	signIns map[string]*teamsui.SignInActions
 
 	keep look.Select
 }
@@ -72,7 +74,8 @@ func (p *Page) layoutTeams(gtx layout.Context, e *env.Env) layout.Dimensions {
 		t.runningGroup(e, snapshot.Settings.Teams),
 		t.defaultsGroup(e, snapshot),
 		t.askingGroup(e, snapshot.Settings.Teams),
-		t.sandboxGroup(e, snapshot.Settings.Teams),
+		t.signInGroup(e, snapshot, gtx.Now),
+		t.sandboxGroup(e, snapshot),
 		t.historyGroup(e, snapshot.Settings.Teams),
 	}
 	children := []layout.FlexChild{
@@ -382,22 +385,28 @@ func (t *teamsPanel) layoutQuietTimes(gtx layout.Context, th *look.Theme) layout
 	)
 }
 
-func (t *teamsPanel) sandboxGroup(e *env.Env, settings protocol.TeamsSettings) layout.Widget {
+func (t *teamsPanel) sandboxGroup(e *env.Env, snapshot state.Snapshot) layout.Widget {
 	th := e.Theme
-	hidden := settings.Hidden
-	if hidden == nil {
-		hidden = protocol.DefaultTeamsHidden()
-	}
-	t.hidden.Title, t.hidden.Placeholder = i18n.T("Choose a folder to hide"), "~/.ssh"
+	harnessState := harnessStatePaths(snapshot.Harnesses)
+	always := append(protocol.TeamsAlwaysHiddenPaths(), harnessState...)
+	// an old saved list repeats what is now always hidden; it is dropped from what shows and what saves
+	hidden := slices.DeleteFunc(slices.Clone(snapshot.Settings.Teams.Hidden), func(path string) bool { return slices.Contains(always, path) })
+	t.hidden.Title, t.hidden.Placeholder = i18n.T("Choose a folder to hide"), "~/Private"
 	rows := []look.Setting{
 		{
-			Title:  i18n.T("Hidden from every team"),
-			Detail: i18n.T("Agents see these as empty. Rashin's own state, other teams' folders and your keyrings are always hidden."),
+			Title:   i18n.T("Always hidden"),
+			Detail:  i18n.T("Where keys, sign-ins and private state live. Every team agent and every Check sees these as empty, whatever the list below says."),
+			Below:   true,
+			Control: func(gtx layout.Context) layout.Dimensions { return layoutAlwaysHidden(gtx, th, harnessState) },
+		},
+		{
+			Title:  i18n.T("Also hidden from every team"),
+			Detail: i18n.T("Your own folders and files agents see as empty, beside what is always hidden."),
 			Below:  true,
 			Control: func(gtx layout.Context) layout.Dimensions {
 				dimensions := t.hidden.Layout(gtx, e, hidden)
 				if list, changed := t.hidden.Changed(); changed {
-					// an empty list hides nothing extra, while null would bring the built-in list back
+					// the list is only the user's own, so an empty one is written as empty
 					if list == nil {
 						list = []string{}
 					}
@@ -413,6 +422,135 @@ func (t *teamsPanel) sandboxGroup(e *env.Env, settings protocol.TeamsSettings) l
 		},
 	}
 	return teamsGroup(th, i18n.T("Sandbox"), "", rows, nil)
+}
+
+// every harness's own state, which every team sandbox hides as well, each path once
+func harnessStatePaths(harnesses []protocol.HarnessInfo) []string {
+	var paths []string
+	for _, harness := range harnesses {
+		for _, path := range harness.State {
+			if !slices.Contains(paths, path) {
+				paths = append(paths, path)
+			}
+		}
+	}
+	return paths
+}
+
+// one line per kind of secret with the paths that hold it, then every harness's own state; none of it can be taken off
+func layoutAlwaysHidden(gtx layout.Context, th *look.Theme, harnessState []string) layout.Dimensions {
+	var children []layout.FlexChild
+	line := func(label string, paths []string) {
+		if len(children) > 0 {
+			children = append(children, layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout))
+		}
+		children = append(children,
+			layout.Rigid(look.Paragraph(th, th.T.Label, th.R.Fg, label)),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
+			// a path never breaks inside itself, the line breaks between them
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return look.Flow{Gap: 13, LineGap: 2}.Layout(gtx, len(paths), func(gtx layout.Context, index int) layout.Dimensions {
+					return kit.RawText(th.Theme, th.T.MonoSm, th.R.Fg2, paths[index])(gtx)
+				})
+			}),
+		)
+	}
+	for _, group := range protocol.TeamsAlwaysHidden() {
+		line(hiddenKindName(group.Kind), group.Paths)
+	}
+	line(i18n.T("Every harness's own state"), harnessState)
+	gtx.Constraints.Min.X = gtx.Constraints.Max.X
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+}
+
+func hiddenKindName(kind string) string {
+	switch kind {
+	case protocol.HiddenKeys:
+		return i18n.T("Keys and password stores")
+	case protocol.HiddenGit:
+		return i18n.T("Git and code hosts")
+	case protocol.HiddenCloud:
+		return i18n.T("Cloud CLIs")
+	case protocol.HiddenPackages:
+		return i18n.T("Package registry tokens")
+	case protocol.HiddenBrowsers:
+		return i18n.T("Browsers")
+	case protocol.HiddenMail:
+		return i18n.T("Mail")
+	case protocol.HiddenChat:
+		return i18n.T("Chat apps")
+	case protocol.HiddenHistories:
+		return i18n.T("Shell histories")
+	case protocol.HiddenRyoku:
+		return i18n.T("Rashin and Ryoku private state")
+	}
+	return kind
+}
+
+// each team runs each harness in a home of its own, signed in apart from the other teams and from the user's own setup
+func (t *teamsPanel) signInGroup(e *env.Env, snapshot state.Snapshot, now time.Time) layout.Widget {
+	th := e.Theme
+	harnesses := teamsui.TeamsHarnesses(snapshot)
+	if t.signIns == nil {
+		t.signIns = make(map[string]*teamsui.SignInActions)
+	}
+	rows := make([]look.Setting, 0, max(1, len(harnesses)))
+	for _, harness := range harnesses {
+		var waiting []protocol.Team
+		signed := 0
+		for _, team := range teamsui.HarnessTeams(snapshot, harness.ID) {
+			if teamsui.SignedIn(harness, team.ID) {
+				signed++
+				continue
+			}
+			waiting = append(waiting, team)
+		}
+		row := look.Setting{Title: harness.Name, Detail: signInSummary(signed, len(waiting))}
+		// only the teams that still wait are listed, a signed in team signs in again from its own settings
+		if len(waiting) > 0 {
+			row.Below = true
+			row.Control = func(gtx layout.Context) layout.Dimensions {
+				children := make([]layout.FlexChild, 0, 2*len(waiting))
+				for index, team := range waiting {
+					actions := t.signIns[harness.ID+"\x00"+team.ID]
+					if actions == nil {
+						actions = new(teamsui.SignInActions)
+						t.signIns[harness.ID+"\x00"+team.ID] = actions
+					}
+					if index > 0 {
+						children = append(children, layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout))
+					}
+					children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return actions.Row(gtx, e, harness, team, team.Name, now)
+					}))
+				}
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+			}
+		}
+		rows = append(rows, row)
+	}
+	if len(harnesses) == 0 {
+		rows = append(rows, look.Setting{Title: i18n.T("No team runs on an installed harness yet.")})
+	}
+	caption := i18n.T("Each team runs each harness in a home of its own, signed in apart from the other teams and from you. Your own harness folders stay hidden from them.")
+	return teamsGroup(th, i18n.T("Sign-in for Teams"), caption, rows, nil)
+}
+
+// "3 teams signed in, 1 not"
+func signInSummary(signed, waiting int) string {
+	in := i18n.Tf("%d teams signed in", signed)
+	if signed == 1 {
+		in = i18n.T("1 team signed in")
+	}
+	switch {
+	case waiting == 0:
+		return in
+	case signed > 0:
+		return i18n.Tf("%s, %d not", in, waiting)
+	case waiting == 1:
+		return i18n.T("1 team not signed in")
+	}
+	return i18n.Tf("%d teams not signed in", waiting)
 }
 
 func (t *teamsPanel) historyGroup(e *env.Env, settings protocol.TeamsSettings) layout.Widget {

@@ -256,6 +256,14 @@ type Teams interface {
 	// SettingsChanged lets Teams follow a change of the settings: a global
 	// pause stops working tasks, and the limits and the wake unit apply again.
 	SettingsChanged(settings protocol.Settings)
+	// RestoreHome puts team's home for a harness back as the user signed it
+	// in, before a run there, and tells the user what it moved: in the
+	// ledger and as a notice in the Inbox under that team.
+	RestoreHome(harness, team string) error
+	// Working reports whether a task of team works on harness now.
+	Working(harness, team string) bool
+	// TeamName is a team's name, false for a team that does not exist.
+	TeamName(team string) (string, bool)
 	// Busy reports team tasks at work; Armed reports routines that are on, so
 	// the daemon stays up to fire them.
 	Busy() bool

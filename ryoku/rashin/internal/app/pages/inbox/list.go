@@ -29,6 +29,9 @@ func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 			if info, ok := snapshot.Sessions[approval.Session]; ok {
 				row.Facts = i18n.Tf("%s from %s", row.Facts, info.Title)
 			}
+		// a notice about a harness belongs to no team
+		case approval != nil && approval.Team == "":
+			row.Title, row.Facts = approval.Title, teamsui.ApprovalWord(approval.Kind)
 		case approval != nil:
 			row.Title = approval.Title
 			row.Facts = i18n.Tf("%s on %s", teamsui.ApprovalWord(approval.Kind), teamsui.TeamName(snapshot.Teams, approval.Team))

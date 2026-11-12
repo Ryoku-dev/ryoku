@@ -505,6 +505,9 @@ func runFakeAgent(mode string) {
 			case "screen":
 				fakeScreenTurn(write, servers)
 				writePromptResult(write, promptID, "end_turn")
+			case "home-probe":
+				fakeHomeProbeTurn(write, servers)
+				writePromptResult(write, promptID, "end_turn")
 			case "permissions":
 				writePermission(write, 100, "read-1", "read")
 			case "cancel":

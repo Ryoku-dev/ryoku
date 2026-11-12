@@ -81,6 +81,7 @@ ryoku/rashin/
   internal/index/       index engine, embedding model, queries
   internal/teams/       Teams: teams, tasks, approvals, routines, budgets, ledger
   internal/vault/       the credential vault: sealed values, mail account, record of use
+  internal/redact/      the one secret scrubber: stored values by name, token shapes, assignments
   internal/sandbox/     the bubblewrap sandbox team agents run in
   internal/app/         Gio client (shell, state, pages, chat widgets, desktop, demo)
   systemd/              rashind.socket, rashind.service, rashind-routines.timer and .service
@@ -205,6 +206,8 @@ Every path comes from `internal/paths`; nothing else spells one.
 | `$XDG_STATE_HOME/ryoku/rashin/activity/<project>.jsonl` | a project's action ledger |
 | `$XDG_STATE_HOME/ryoku/rashin/teams/` | Teams: `state.json` (teams, routines, approvals), `tasks/<id>.json`, `ledger.jsonl` (Activity), `spend.json` |
 | `$XDG_STATE_HOME/ryoku/rashin/vault.db` | the credential vault: sealed values, the mail account, its record of use (bbolt, mode 0600) |
+| `$XDG_STATE_HOME/ryoku/rashin/harness-homes/<instance>/<team>/` | a team home's guard: `signed-in.json`, `blessed/` (its guarded paths as signed in) and `quarantine/<time>/` (what a run changed there, the newest 10) |
+| `$XDG_DATA_HOME/ryoku/rashin/harness-homes/<instance>/<team>/` | a team's home for a harness instance, the `HOME` its sessions and Checks run it with (0700) |
 | `~/Teams/<slug>` | a team's folder, where its agents work (default) |
 | `$XDG_DATA_HOME/ryoku/worktrees/<project>/<name>` | worktrees Rashin creates (default) |
 | `$XDG_CACHE_HOME/ryoku/rashin/index/<id>/index.db` | one index (bbolt) |
@@ -273,10 +276,9 @@ XDG variables; `RASHIN_SOCKET` overrides the socket for a client.
 - `teams.approvalHours`: how long a question waits before it counts as no, 1
   to 168. `teams.quietHours` (`{"from": "22:00", "to": "07:30"}`, local time,
   may cross midnight): no desktop notification inside the window.
-- `teams.hidden`: paths every team agent sees as empty. `null` is the built-in
-  list (`~/.ssh`, `~/.gnupg`, `~/.password-store`, cloud and cluster
-  credentials, browser profiles, `~/.local/share/keyrings`); `[]` hides
-  nothing beyond what Rashin always hides. At most 64.
+- `teams.hidden`: the user's own paths every team agent sees as empty, beside
+  what Rashin always hides (see Teams, Sandbox), which no list can drop.
+  `null` and `[]` add nothing. At most 64.
 - `teams.keepDays`: 0 keeps finished tasks forever; 30, 90 or 365 deletes older
   ones with their conversations.
 
@@ -331,6 +333,33 @@ A session is either `ask` or `agent`. Its log is `events.jsonl`: one
 `SessionEvent{seq, ts, kind, data}` per line, `seq` strictly increasing from 1.
 `meta.json` holds `SessionInfo` plus private runner state (the harness's own
 session id for resume). Both are written by the daemon only.
+
+The log keeps no secret (`internal/session/scrub.go`, `internal/redact`). A
+user event is scrubbed the moment it lands, and a turn once its end is
+written: the deltas of each streamed message and terminal are merged first,
+so a secret split across them is found whole, and every other string an
+event carries, tool output included, is scrubbed as it is. `redact.Exact`
+takes out the current value of every vault credential and stored provider
+key by name (`‹NAME›`) and every token whose prefix gives it away (sk-,
+ghp_, github_pat_, glpat-, gho_, xox*-, AKIA, AIza, hf_, gsk_, JWTs, private
+key blocks); ordinary text is left alone. When anything matched, the turn's
+events are rewritten in one rename, with the session's title and preview.
+A token a scrub finds is remembered for the rest of the session
+(`redact.Learner`), whole and as its body after the prefix when that is at
+least 16 characters, so a model restating it later without the prefix, even
+in pieces, is scrubbed too. These live in the daemon's memory only and are
+never written or logged.
+The sessions written before this are scrubbed once (`internal/daemon/migrate.go`),
+in the background once the socket listens. A pass opens the stored values
+once (`redact.Snapshot`) and drops them when it ends. A session nothing has
+open is read and scrubbed beside its files and put in place only if they did
+not change meanwhile; one that changed is taken up again later, and one that
+was deleted is skipped. With every store open one pass does it all and marks
+`scrub-sessions` and `scrub-sessions-values` under `migrated/`. While the
+vault is locked the pass leaves its values in and marks only `scrub-sessions`;
+the full pass runs the first time the vault opens while the daemon is up
+(`redact.Complete`), looks again a minute after a pass that failed, and
+otherwise waits for the next start that finds the vault open.
 
 ### Event kinds
 
@@ -683,9 +712,12 @@ sandbox (see Teams), is offered neither: Rashin refuses its `fs/` and
   branch, where the Ryoku vault is and how to use it, what Rashin is, and the
   code search commands over its folder with the languages the index holds, so
   an agent whose own index or search skill skips a language knows to come
-  here. A session the agent loads back is not briefed again; one that had to
-  start over is. The folder's repository is indexed when the session's agent
-  is created (see Index), so the search is there when the agent looks.
+  here. A team task's agent, whose sandbox hides the vault, is not sent there:
+  it is told in one line what it can change, what looks empty and that code
+  search reaches only the indexes inside its folders. A session the agent
+  loads back is not briefed again; one that had to start over is. The
+  folder's repository is indexed when the session's agent is created (see
+  Index), so the search is there when the agent looks.
 - **Rashin's tools** (`internal/mcp`, `cmd/rashin/mcp*.go`,
   `internal/daemon/tools.go`): every agent session is handed one stdio MCP
   server, `rashin mcp`, in the `mcpServers` of `session/new` and
@@ -775,10 +807,13 @@ The index engine (`internal/index`) is pure Go.
   bare symbol. Each index records the extractor version it was built with;
   when an extractor improves, the next refresh rereads only that extractor's
   languages.
-- **Redaction**: secrets (key patterns, private key blocks, `password`/`token`
-  style assignments in every common syntax, credentials in URLs) are replaced
-  before anything is stored, and again on the source text `peek`, `def` and
-  `references` return.
+- **Redaction** (`redact.Patterns`, the patterns of `redact.Strict`):
+  secrets (key patterns, private key blocks, `password`/`token` style
+  assignments in every common syntax, credentials in URLs, bearer headers)
+  are replaced before anything is stored, and again on the source text
+  `peek`, `def` and `references` return. `internal/redact` is the one
+  scrubber: `Exact` is for what must stay word for word (session logs),
+  `Strict` for what Rashin learns or indexes from text.
 - **Storage**: one bbolt file per index: files (path, hash, size, mtime,
   language), symbols, chunks, an inverted index for BM25, int8 vectors and the
   counts `list` reports. Refresh is incremental by content hash and runs before
@@ -1040,15 +1075,28 @@ such as effort.
   default always names what it resolves to: "Teams default (Claude Code)",
   "Same as Agents (Codex)", "Opus 5.5 (harness default)".
 - A harness's models, its default model and its options are learned each
-  time it starts and kept per harness id with the binary's path and
-  modification time, so two instances of one binary keep their own lists;
-  `harnesses.changed` tells the app. Until a harness has started, a model is
-  typed by its id.
+  time it starts and kept per home and harness id with the binary's path and
+  modification time (`harness-capabilities.json`: `entries` for the user's
+  own home, as the file always held, `homes.<team>` for each team's), so two
+  instances of one binary keep their own lists, and a team's run never
+  replaces the user's list nor the user's a team's: a team's account may
+  offer other models. `HarnessInfo.capabilities` is the user's,
+  `TeamHome.capabilities` a team's. The user's pickers (Ask, Agents) read the
+  user's; a team's engine form and task details read the team's and never
+  borrow the user's: a team that has not run the harness shows no list and
+  says to Check to read its models, and a form with no saved team offers no
+  read. `harnesses.changed` tells the app. Until a harness has started in a
+  home, a model there is typed by its id.
 - Check (`harnesses.probe`, the app's alone) starts the harness once in a
   team sandbox with the chosen model and options, without a prompt and within
   30 seconds, and says whether it took them: "Claude Code started in the
-  sandbox and took Haiku 4.5." or the harness's own error. It records what it
-  learned.
+  sandbox and took Haiku 4.5." or the harness's own error. It runs in the
+  team's own home for that harness (`HarnessProbeParams.team`), put back as
+  it was signed in first, so it meets what that team's task would; a team
+  not signed in to the harness is not started ("This team is not signed in
+  to Oh My Pi."), and a team's engine form offers no Check before the team
+  is saved. What it learned is kept as that team's. A probe with no team
+  runs in the user's own home instead (Agents' Read the list).
 - A member may name a harness that is not installed any more; it reads "not
   installed" wherever the engine shows. An id this computer never knew is
   refused.
@@ -1222,22 +1270,63 @@ Every team agent runs inside bubblewrap (`bwrap`, `internal/sandbox`,
 `internal/daemon/sandbox.go`):
 
 - The whole filesystem is read-only. The team's folder, the folders the team
-  may change (`access.writable`), the harness's own state (such as `~/.omp`
-  or `~/.claude`) and `~/.cache` are writable. Rashin's state and cache, the
-  login keyrings, `~/Teams` (the other teams' folders) and the Ryoku vault are
-  always hidden, and so are `teams.hidden` (by default `~/.ssh`, `~/.gnupg`,
-  cloud and cluster credentials and browser profiles) and the team's own
-  `access.hidden`; an agent sees them empty. `/tmp`, `/dev/shm` and
-  `XDG_RUNTIME_DIR` are private, and PID and IPC namespaces are its own. There
-  is no session bus, no display, no SSH agent. The network is shared:
-  harnesses reach their model online, so an agent reaches what you can, and
-  Settings > Teams says so. The daemon's own programs stay visible, read-only,
-  wherever they run from.
+  may change (`access.writable`) and the team's own home for its harness (see
+  Sign-in for Teams) are writable, that home's guarded paths excepted; every
+  other team home is hidden. Nothing else is writable, not the user's `~/.cache` and not the
+  user's own harness state. What Rashin always hides (`alwaysHidden`) an
+  agent sees empty, whatever the settings say:
+  - Rashin's state and cache, the login keyrings, `~/Teams` (the other
+    teams' folders) and the Ryoku vault;
+  - every harness's own state under the user's home (`HarnessInfo.state`:
+    `~/.omp`, `~/.claude`, `~/.claude.json`, `~/.codex`, `~/.hermes`,
+    `~/.gemini`, `~/.qwen`, the opencode and goose dirs), for every harness;
+  - the places credentials live (`protocol.TeamsAlwaysHidden`): SSH, GPG,
+    password stores and managers (pass, gopass, Bitwarden, 1Password,
+    KeePassXC, sops), the login and KDE keyrings, git credentials, `gh` and
+    `hub` and `glab`, cloud CLIs (aws, gcloud, azure, kube, docker,
+    terraform, the vault token, rclone, doctl, hcloud, oci, fly, wrangler,
+    supabase, vercel), package registry tokens (`.npmrc`, `.yarnrc`,
+    `.pypirc`, cargo, gem, maven, gradle, composer, pub, NuGet), browsers
+    (the Firefox family with Zen, LibreWolf, Waterfox and Floorp; the
+    Chromium family with Chrome, Brave, Vivaldi, Edge, Opera and Thorium;
+    Epiphany; every Flatpak app's data under `~/.var/app`), mail clients
+    (Thunderbird, Evolution, Geary, aerc, msmtp, mbsync, mutt, neomutt),
+    chat apps (Discord, Vesktop, Vencord, Equibop, Legcord, WebCord, Slack,
+    Signal, Telegram, Element), shell and REPL histories (bash, zsh, fish,
+    atuin, python, node, psql, mysql, sqlite, less) and Rashin's and
+    Ryoku's own private state (`~/.local/state/ryoku`, Rashin's data and
+    cache, Ryotunes' sign-ins).
+
+  `teams.hidden` (Settings > Teams > Sandbox) is only the user's own
+  additions, and the team's own `access.hidden` adds to it. A writable
+  folder inside anything always hidden is left out, and a team folder there
+  is refused ("The team's folder ... is inside a place Rashin hides from
+  every team."). `/tmp`, `/dev/shm` and `XDG_RUNTIME_DIR` are private, and
+  PID and IPC namespaces are its own. There is no session bus, no display,
+  no SSH agent. The agent starts from an empty environment
+  (`sandbox.Spec.ClearEnv`): it keeps only `PATH`, the language and locale,
+  the terminal, the time zone, who it runs as, the runtime dir, the proxy
+  variables and the certificate paths, beside its instance's own `env` and
+  what Rashin sets, so an API key the login session exported does not cross.
+  The network is shared: harnesses reach their model online, so an agent
+  reaches what you can, and Settings > Teams says so. The daemon's own
+  programs stay visible, read-only, wherever they run from, and so does a
+  harness's own program that lives inside its hidden state
+  (`~/.hermes/hermes-agent`).
 - The agent reaches Rashin only through its task's own socket,
   `$XDG_RUNTIME_DIR/rashin/agents/<session>/rashin.sock`, which the sandbox
   sees at the main socket's path. It serves that session's team tools, goal
   and screen and the index methods that read; everything else is refused
-  ("An agent can use only its own tools here.").
+  ("An agent can use only its own tools here."). The index methods reach only
+  the indexes whose every root lies inside the team's folder or a folder it
+  may change, none of them hidden, never the system index: `index.list` names
+  only those, a `cwd` must lie inside those folders, and any other index is
+  refused ("An agent can read only the indexes inside its team's folders.",
+  `internal/daemon/indexscope.go`). Inside them, every file the agent's
+  sandbox hides (what Rashin always hides, Settings > Teams' list and the
+  team's own) leaves every hit, symbol, reference, change, overview and
+  impact, a definition there gives way to a visible namesake, and a peek,
+  outline or impact of one is refused the same way (`sandbox.Spec.Hides`).
 - Programs an agent opens on its screen run in the same sandbox, with the
   screen's display and private bus. A harness Check runs in a sandbox like a
   team agent's, in a folder of its own that goes when it ends.
@@ -1253,22 +1342,107 @@ Every team agent runs inside bubblewrap (`bwrap`, `internal/sandbox`,
   run their agents in a sandbox, which needs bubblewrap. Install the
   bubblewrap package." Every package lane depends on it.
 
+### Sign-in for Teams
+
+A team never runs a harness as the user's own setup, nor in another team's.
+Each team has a home for each harness instance it uses,
+`$XDG_DATA_HOME/ryoku/rashin/harness-homes/<instance>/<team>/` (0700,
+`harness/teamhome.go`), and the team's sessions and Checks run it with `HOME`
+and the XDG base dirs there. Its sign-in, its settings and its state (its
+transcripts too) live there; the user's own (`~/.omp`, `~/.hermes`, ...) and
+every other team's home stay hidden from the team's sandbox (the whole
+`harness-homes` folder is hidden, then the team's own home bound again).
+Nothing a sign-in made is ever copied between homes: a login copied from one
+home to another would spend a rotating refresh token twice.
+
+- **Signing in.** A team's Settings tab has a Sign-in for Teams group with
+  each harness its members run on, signed in or not, and Settings > Teams
+  sums it up per harness ("3 teams signed in on Claude Code, 1 not") with
+  the same actions per team. Sign in (`harnesses.teams_open` with the team,
+  the app's alone) opens a terminal through `ryoku-app terminal` that runs
+  the harness's login with `HOME` at the team's home: `omp login`, `hermes
+  model`, `claude auth login`, `codex login`, `opencode auth login`,
+  `gemini`, `qwen` and `goose configure` (a custom instance takes the login
+  of the harness it runs). Open setup opens a shell there instead, to write
+  the harness's config by hand; it may start from another team's setup on
+  the same harness (`copyFrom`): the guarded config that team signed in with
+  is copied in, `.ssh` and everything the sign-in made (logins, sessions,
+  databases) never, for setups that keep a key in config such as a custom
+  provider in omp's `models.yml`. When the terminal's command ends, it calls
+  `rashin teams home-done <token> <status>` (`harnesses.teams_done`, which
+  needs the one-time token that terminal was handed); a setup, or a sign-in
+  that exited 0, signs the team in. While a terminal is open the team reads
+  as not signed in; a home a task of the team works in now is refused.
+- **Git identity.** A team home's `.gitconfig` only includes the user's
+  `~/.gitconfig` and `~/.config/git/config`, which stay readable in the
+  sandbox, so commits a team makes carry the user's name; git credentials
+  stay hidden.
+- **A task of a team not signed in** to its harness ends blocked with "This
+  team is not signed in to Oh My Pi. Sign it in for Teams, then retry the
+  task." (`TeamTask.signIn` names the harness). Its Inbox card and the
+  team's Next steps offer Sign in for Teams, for that team.
+- **The guarded home.** A run must not leave instructions or code that its
+  team's next run, or the next sign-in, would follow. Every harness
+  definition names its guarded paths, relative to the home: instructions,
+  config, MCP and provider config, skills, memories, extensions, plugins,
+  hooks, agents and prompts (for omp `.omp/agent/{config.yml,models.yml,
+  mcp.json,AGENTS.md,SYSTEM.md,APPEND_SYSTEM.md,extensions,skills,
+  managed-skills,memories,agents,commands,prompts,hooks,rules,tools}` and
+  `.omp/plugins`; for hermes `.hermes/{config.yaml,.env,SOUL.md,AGENTS.md,
+  memories,skills,plugins,hooks,cron,pairing}`), and every home guards them
+  all, with what git, shells, ssh and package managers read from `HOME`
+  (`.gitconfig`, `.config/git`, `.agents`, the bash, zsh and fish startup
+  files, `.ssh`, `.npmrc`, `.yarnrc`, pip and cargo config). While a team
+  task or Check runs, those that exist are mounted read-only
+  (`harness.ReadOnlyGuarded`; links are left out), so a run cannot change
+  them mid-run; one that does not exist yet can be made, and goes at the
+  next restore. When a sign-in or setup ends, Rashin keeps a copy of them
+  under `$XDG_STATE_HOME/ryoku/rashin/harness-homes/<instance>/<team>/blessed/`.
+  Before every task, Check and sign-in of the team it puts them back: a
+  changed one goes back to the kept copy, and one that is new, or a link
+  where a guarded folder or one above it should be, moves into
+  `.../<instance>/<team>/quarantine/<time>/`, which keeps its newest 10. The
+  home is written through `os.Root` and moves go through the folder they
+  sit in, so a link a run planted leads nothing out of the home. Anything
+  put back is recorded in Activity (`home.restore`) and left in the Inbox
+  as a notice under the team (approval kind `restore`, answered Got it,
+  never expiring); the same notice again before it is read counts up
+  (`Approval.repeats`) instead of adding a card. Runtime files (logins,
+  sessions, caches, logs, databases) are never touched.
+- **Writes a harness makes to its guarded paths.** omp writes none of them
+  while it works (a real omp team task and Check left nothing to put back).
+  Hermes writes `.hermes/memories` and `.hermes/skills` when its own memory
+  and skill tools run, and `.hermes/cron` for its own schedules: in a team
+  task those fail, read-only, which is meant, since a team's lasting memory
+  and skills are what the user sets up. Fish writes `fish_variables` in
+  `.config/fish` and ssh `known_hosts` in `.ssh`; both only warn.
+- **From one home per harness.** A home every team on a harness once shared
+  (`harness-homes/<instance>/` with its record beside it) becomes, when the
+  daemon starts, the home of the team whose task last ran on that harness,
+  else of the one team that uses it (Activity `home.migrate`); the other
+  teams are not signed in to it. One no team can be found for stays as it
+  was, unused.
+
 ### In the app
 
 - The Rashin and Teams switch in the top bar, or Ctrl T, switches the window
   to Teams mode and back. Ctrl 1 to 6 pick its destinations: Inbox, Teams,
   Work, Routines, Vault and Activity. Settings opened from Teams mode opens on
-  Settings > Teams, in five groups: Running (pause every team, tasks at once,
+  Settings > Teams, in six groups: Running (pause every team, tasks at once,
   tasks at once in one team, wake Rashin for routines), New teams start with
   (engine, permissions, budget, notifications), Asking and telling (how long a
-  question waits, quiet hours), Sandbox (the hidden list and the network) and
-  History (how long finished tasks stay). Toggles and selects save as they
+  question waits, quiet hours), Sign-in for Teams (per harness teams use, how
+  many teams are signed in to it, with Sign in and Open setup per team), Sandbox (what is always
+  hidden, as fixed lines, then the user's own hidden list, and the network)
+  and History (how long finished tasks stay). Toggles and selects save as they
   change; numbers and text save with their group's Save.
 - A team's Settings tab holds everything that team decides, its budget and
-  limits included. Its Overview adds Next steps (a member's harness not
-  installed, a credential it asked for, a routine that is off, a team that
-  never ran, each with one action and each hideable) and Files, the newest
-  files in its folder with the report each came from.
+  limits included, and its Sign-in for Teams group. Its Overview adds Next
+  steps (a member's harness not installed, a harness the team is not signed
+  in to, a credential it asked for, a
+  routine that is off, a team that never ran, each with one action and each
+  hideable) and Files, the newest files in its folder with the report each
+  came from.
 - The Work board opens with Finished, a chart of every team's tasks that
   ended each day this month, and Routines with Runs, the routine runs among
   them (`teams.spend` days, `tasks` and `routines`). Activity has no chart: it
@@ -1304,9 +1478,11 @@ team, still runs as you: it can reach your login keyring and start the app.
 The network is shared, so abstract Unix sockets and the system bus stay
 reachable from a sandbox, and `/run` outside the runtime directory is visible
 read-only. A team agent reads the rest of your files, read-only, like any
-program you run; only the hidden paths above are kept from it. The app check
-is a gate for agents, not a boundary against someone already running code as
-you who can start a `rashin-app` and inject into it.
+program you run; only the hidden paths above are kept from it. Claude Code
+keeps its MCP servers in `~/.claude.json`, which it rewrites as it runs, so
+that file is not guarded.
+The app check is a gate for agents, not a boundary against someone already
+running code as you who can start a `rashin-app` and inject into it.
 
 ## The app
 
@@ -1361,9 +1537,10 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
   session will start on, from the list the harness gave when it last started:
   "Harness default (name)" first, then its models. The pick is remembered per
   harness in the app's preferences (`agentModels`) and sent with `session.new`.
-  A harness that never ran has no list yet; Read the list starts it once in
-  the sandbox without a prompt (`harnesses.probe`, as a team's engine form
-  does). The full dialog has the same model field. Under the board's composer
+  A harness that never ran has no list yet; Read the list starts it once
+  without a prompt in the user's own home, as an Agents session runs
+  (`harnesses.probe` with no team), and keeps the list as the user's. The
+  full dialog has the same model field. Under the board's composer
   stands what the picked harness will run with (its own setup, see Agent). A
   session's composer carries the model, the mode and every option its harness
   offers, each as a select, and the asking choice; opening a session that

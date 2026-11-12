@@ -13,6 +13,7 @@ import (
 
 	i18n "ryoku-i18n"
 
+	registry "ryoku-rashin/internal/harness"
 	"ryoku-rashin/internal/protocol"
 )
 
@@ -195,7 +196,7 @@ func (s *Service) retryTask(_ context.Context, p protocol.TeamTaskRetryParams) (
 	if note := strings.TrimSpace(p.Note); note != "" {
 		t.Brief += "\n\n" + i18n.Tf("When you ran this before: %s", note)
 	}
-	t.Status, t.Waiting, t.Report, t.Reason = protocol.TaskReady, "", nil, ""
+	t.Status, t.Waiting, t.Report, t.Reason, t.SignIn = protocol.TaskReady, "", nil, "", ""
 	t.Session, t.Started, t.Ended, t.Read, t.Steps = "", nil, nil, false, 0
 	// a run again takes its member's engine as it is now
 	t.Harness, t.Model, t.Options = "", "", nil
@@ -314,14 +315,16 @@ func teamLimit(team protocol.Team, settings protocol.TeamsSettings) int {
 // for it, in the team's folder under the team's approvals, then the task as
 // the session's goal, which starts its first turn. The task keeps the
 // engine it started with; an option the harness refuses is left at the
-// harness's default and said so in the ledger.
+// harness's default and said so in the ledger. A harness not signed in for
+// teams blocks it; one that is runs in its team home, put back as it was
+// signed in.
 func (s *Service) start(task protocol.TeamTask) {
 	ctx := s.background
-	var harnessID, model string
+	var harnessID, model, signIn string
 	var options map[string]string
 	fail := func(session string, reason string) {
 		ended, ok := s.endTask(task.ID, func(t *protocol.TeamTask) {
-			t.Status, t.Reason = protocol.TaskBlocked, reason
+			t.Status, t.Reason, t.SignIn = protocol.TaskBlocked, reason, signIn
 			if harnessID != "" {
 				t.Harness, t.Model, t.Options = harnessID, model, maps.Clone(options)
 			}
@@ -349,6 +352,15 @@ func (s *Service) start(task protocol.TeamTask) {
 	harnessID, model, options = s.taskEngine(member, task)
 	if harnessID == "" {
 		fail("", i18n.T("No harness is installed to run it."))
+		return
+	}
+	if _, signed := s.signedIn(harnessID, team.ID); !signed {
+		signIn = harnessID
+		fail("", i18n.Tf("This team is not signed in to %s. Sign it in for Teams, then retry the task.", registry.Name(harnessID, s.settings())))
+		return
+	}
+	if err := s.RestoreHome(harnessID, team.ID); err != nil {
+		fail("", i18n.Tf("Rashin could not put the team's %s home back as it was signed in: %v", registry.Name(harnessID, s.settings()), err))
 		return
 	}
 	if err := os.MkdirAll(team.Folder, 0o700); err != nil {

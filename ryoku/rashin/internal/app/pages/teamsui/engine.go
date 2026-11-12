@@ -40,7 +40,7 @@ func (e Engine) Short() string { return e.Model }
 // what a member's next task starts on, through the chain the daemon starts it with
 func MemberEngine(snapshot state.Snapshot, member protocol.Member) Engine {
 	harness, model, options := protocol.ResolveEngine(member, snapshot.Settings, registryDefault(snapshot.Harnesses))
-	return describeEngine(snapshot.Harnesses, harness, model, options, member.Harness == "")
+	return describeEngine(snapshot.Harnesses, harness, model, options, member.Harness == "", "")
 }
 
 // a started task keeps what it ran on even after its session and member are gone; before
@@ -48,7 +48,7 @@ func MemberEngine(snapshot state.Snapshot, member protocol.Member) Engine {
 func TaskEngine(snapshot state.Snapshot, task protocol.TeamTask) Engine {
 	harness, model, options := TaskEngineIDs(snapshot, task)
 	fromDefaults := task.Harness == "" && taskMember(snapshot, task).Harness == ""
-	return describeEngine(snapshot.Harnesses, harness, model, options, fromDefaults)
+	return describeEngine(snapshot.Harnesses, harness, model, options, fromDefaults, task.Team)
 }
 
 // the same chain by the ids the harness takes, for details that show a model's own id
@@ -66,8 +66,12 @@ func TaskEngineIDs(snapshot state.Snapshot, task protocol.TeamTask) (harness, mo
 	return harness, model, options
 }
 
-func describeEngine(harnesses []protocol.HarnessInfo, id, model string, options map[string]string, fromDefaults bool) Engine {
+// team is the team whose home the engine runs in, whose own list names its models; "" names them from the user's
+func describeEngine(harnesses []protocol.HarnessInfo, id, model string, options map[string]string, fromDefaults bool, team string) Engine {
 	info, found := env.HarnessByID(harnesses, id)
+	if team != "" {
+		info.Capabilities, info.Setup = info.TeamCapabilities(team), nil
+	}
 	engine := Engine{Missing: !found || !info.Installed}
 	switch {
 	case id == "":

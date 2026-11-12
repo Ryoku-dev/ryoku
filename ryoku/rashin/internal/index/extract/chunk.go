@@ -1,10 +1,11 @@
 package extract
 
 import (
-	"regexp"
 	"sort"
 	"strings"
 	"unicode/utf8"
+
+	"ryoku-rashin/internal/redact"
 )
 
 const (
@@ -119,61 +120,13 @@ func Chunks(source string, symbols []Symbol) []Chunk {
 	return chunks
 }
 
-var (
-	secretName        = `[A-Za-z0-9_.-]*(?:password|passwd|pwd|secret|token|api[-_]?key|apikey|access[-_]?key|auth|credential|private[-_]?key)[A-Za-z0-9_.-]*`
-	quotedSecretValue = `(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')`
-	secretAssignment  = regexp.MustCompile(`(?i)(^|[\s{,;])(["']?` + secretName + `["']?\s*(?::|=)\s*)(` + quotedSecretValue + `|[^\s,;}]+)`)
-	secretWhitespace  = regexp.MustCompile(`(?i)^(\s*(?:export\s+)?["']?` + secretName + `["']?\s+)(` + quotedSecretValue + `|\S+)`)
-	fishSecret        = regexp.MustCompile(`(?i)^(\s*set\s+(?:-[A-Za-z]+\s+)*["']?` + secretName + `["']?\s+)(` + quotedSecretValue + `|\S+)`)
-	urlCredential     = regexp.MustCompile(`(?i)([A-Za-z][A-Za-z0-9+.-]*://[^\s/:@]+:)[^\s@/]+(@)`)
-	bearerToken       = regexp.MustCompile(`(?i)\bBearer\s+\S+`)
-	jwtToken          = regexp.MustCompile(`\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b`)
-	secretToken       = regexp.MustCompile(`(?i)\b(?:sk-[A-Za-z0-9_-]{8,}|gsk_[A-Za-z0-9_-]{8,}|hf_[A-Za-z0-9_-]{8,}|github_pat_[A-Za-z0-9_]{8,}|gh[oprsu]_[A-Za-z0-9]{8,}|glpat-[A-Za-z0-9_-]{8,}|[sr]k_live_[A-Za-z0-9_-]{8,}|AIza[A-Za-z0-9_-]{8,}|xapp-[A-Za-z0-9-]{8,}|npm_[A-Za-z0-9_-]{8,}|AKIA[A-Z0-9]{12,}|xox[a-z]-[A-Za-z0-9-]{8,})`)
-	privateKeyBegin   = regexp.MustCompile(`(?i)-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----`)
-	privateKeyEnd     = regexp.MustCompile(`(?i)-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----`)
-)
-
-func redactLine(line string) string {
-	line = urlCredential.ReplaceAllString(line, "$1[REDACTED]$2")
-	line = secretAssignment.ReplaceAllString(line, "$1$2[REDACTED]")
-	line = fishSecret.ReplaceAllString(line, "$1[REDACTED]")
-	line = secretWhitespace.ReplaceAllString(line, "$1[REDACTED]")
-	line = bearerToken.ReplaceAllString(line, "Bearer [REDACTED]")
-	line = jwtToken.ReplaceAllString(line, "[REDACTED]")
-	return secretToken.ReplaceAllString(line, "[REDACTED]")
-}
-
-func redactText(text string, inPrivateKey *bool) string {
-	lines := strings.Split(text, "\n")
-	for index, line := range lines {
-		if privateKeyBegin.MatchString(line) {
-			*inPrivateKey = true
-		}
-		if *inPrivateKey {
-			lines[index] = "[REDACTED PRIVATE KEY]"
-			if privateKeyEnd.MatchString(line) {
-				*inPrivateKey = false
-			}
-			continue
-		}
-		lines[index] = redactLine(line)
-	}
-	return strings.Join(lines, "\n")
-}
-
-// RedactSource removes secrets without changing the source's line count.
-func RedactSource(text string) string {
-	inPrivateKey := false
-	return redactText(text, &inPrivateKey)
-}
-
-func Redact(text string) string { return RedactSource(text) }
-
+// RedactChunks removes secrets from a file's chunks in order, so a private
+// key block that opens in one chunk is still taken out of the next.
 func RedactChunks(chunks []Chunk) []Chunk {
 	out := append([]Chunk(nil), chunks...)
 	inPrivateKey := false
 	for index := range out {
-		out[index].Text = redactText(out[index].Text, &inPrivateKey)
+		out[index].Text = redact.Patterns(out[index].Text, &inPrivateKey)
 	}
 	return out
 }

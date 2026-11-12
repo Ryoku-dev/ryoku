@@ -51,10 +51,10 @@ type NeedCards struct {
 type needCard struct {
 	tablet, record look.Unfold
 
-	approve, always, deny, open kit.Plaque
-	note, value                 kit.TextField
-	more                        kit.Plaque
-	team, task, proposer        kit.Click
+	approve, always, deny, open, signIn kit.Plaque
+	note, value                         kit.TextField
+	more                                kit.Plaque
+	team, task, proposer                kit.Click
 	// the options of a choice question, and whether the card holds the keys that pick them
 	choices [protocol.ApprovalOptionsMax]kit.Click
 	focused bool
@@ -186,6 +186,8 @@ func (c *NeedCards) layoutTablet(gtx layout.Context, e *env.Env, card *needCard,
 	switch {
 	case need.Approval != nil && need.Approval.Kind == protocol.ApprovalTeam && need.Approval.Proposal != nil:
 		children = c.proposalField(gtx, e, snapshot, card, need, gold)
+	case need.Approval != nil && need.Approval.Kind == protocol.ApprovalRestore:
+		children = c.restoreField(gtx, e, snapshot, card, need, gold)
 	case need.Approval != nil:
 		children = c.approvalField(gtx, e, snapshot, card, need, gold)
 	default:
@@ -347,7 +349,55 @@ func (c *NeedCards) approvalField(gtx layout.Context, e *env.Env, snapshot state
 	return children
 }
 
-// a task that stopped short waits for the user to look, or to try again
+// a notice asks nothing: what Rashin put back or moved aside, and one plaque that marks it read
+func (c *NeedCards) restoreField(gtx layout.Context, e *env.Env, snapshot state.Snapshot, card *needCard, need Need, gold bool) []layout.FlexChild {
+	th := e.Theme
+	approval := *need.Approval
+	card.approve.Kind, card.approve.Small, card.approve.Label = kit.PlaqueTonal, true, i18n.T("Got it")
+	if gold {
+		card.approve.Kind = kit.PlaqueGold
+	}
+	if card.approve.Clicked(gtx) {
+		c.decide(e, need, protocol.DecideOnce, "", "", i18n.Tf("Read: %s", approval.Title))
+	}
+	children := []layout.FlexChild{
+		layout.Rigid(claimRow(th, palette.Attention, ApprovalWord(approval.Kind), look.Ago(gtx.Now, approval.Created))),
+		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+		layout.Rigid(look.Paragraph(th, th.T.Title, th.R.Fg, approval.Title)),
+	}
+	// the same notice again before it was read is counted, not shown twice
+	if approval.Repeats > 0 {
+		again := i18n.Tf("It happened %d more times before you read this.", approval.Repeats)
+		if approval.Repeats == 1 {
+			again = i18n.T("It happened once more before you read this.")
+		}
+		children = append(children,
+			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
+			layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2, again)),
+		)
+	}
+	if approval.Detail != "" {
+		children = append(children,
+			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return layoutDetail(gtx, th, card, approval) }),
+		)
+	}
+	// a notice about a harness belongs to no team
+	if approval.Team != "" {
+		children = append(children,
+			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return c.layoutWhere(gtx, e, snapshot, card, approval.Team, approval.Member, approval.Task)
+			}),
+		)
+	}
+	return append(children,
+		layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return card.approve.Layout(gtx, th.Theme) }),
+	)
+}
+
+// a task that stopped short waits for the user to look, or to try again; one that waits on a sign-in offers it first
 func (c *NeedCards) blockedField(gtx layout.Context, e *env.Env, snapshot state.Snapshot, card *needCard, need Need, gold bool) []layout.FlexChild {
 	th := e.Theme
 	task := *need.Task
@@ -357,6 +407,7 @@ func (c *NeedCards) blockedField(gtx layout.Context, e *env.Env, snapshot state.
 	}
 	// the card's one filled action is the retry, so the way to the task stays quiet
 	card.open.Kind, card.open.Small, card.open.Label = kit.PlaqueQuiet, true, i18n.T("Open the task")
+	card.signIn.Kind, card.signIn.Small, card.signIn.Label = kit.PlaqueTonal, true, i18n.T("Sign in for Teams")
 	if card.approve.Clicked(gtx) {
 		key := NeedKey(need)
 		c.fold(key, need, i18n.Tf("Running again: %s", task.Title))
@@ -365,17 +416,22 @@ func (c *NeedCards) blockedField(gtx layout.Context, e *env.Env, snapshot state.
 	if card.open.Clicked(gtx) {
 		OpenTask(e, task.ID)
 	}
+	if card.signIn.Clicked(gtx) && task.SignIn != "" {
+		card.signIn.Busy = true
+		SignInForTeams(e, task.SignIn, task.Team, func(error) { card.signIn.Busy = false })
+	}
 	word, tone, _ := TaskStanding(task)
 	reason := task.Reason
 	if reason == "" {
 		reason = i18n.T("It stopped before it finished and said nothing more.")
 	}
-	plaques := []layout.FlexChild{layout.Rigid(func(gtx layout.Context) layout.Dimensions { return card.approve.Layout(gtx, th.Theme) })}
+	var plaques []*kit.Plaque
+	if task.SignIn != "" {
+		plaques = append(plaques, &card.signIn)
+	}
+	plaques = append(plaques, &card.approve)
 	if c.Task != task.ID {
-		plaques = append(plaques,
-			layout.Rigid(layout.Spacer{Width: 8}.Layout),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return card.open.Layout(gtx, th.Theme) }),
-		)
+		plaques = append(plaques, &card.open)
 	}
 	return []layout.FlexChild{
 		layout.Rigid(claimRow(th, tone, word, look.Ago(gtx.Now, task.Updated))),
@@ -389,7 +445,9 @@ func (c *NeedCards) blockedField(gtx layout.Context, e *env.Env, snapshot state.
 		}),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, plaques...)
+			return look.Flow{Gap: 8, LineGap: 8}.Layout(gtx, len(plaques), func(gtx layout.Context, index int) layout.Dimensions {
+				return plaques[index].Layout(gtx, th.Theme)
+			})
 		}),
 	}
 }

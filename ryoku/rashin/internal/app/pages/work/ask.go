@@ -93,7 +93,7 @@ func (d *askDialog) keep(team protocol.Team) {
 			chosen = member
 		}
 	}
-	d.engine.Keep = chosen
+	d.engine.Keep, d.engine.Team = chosen, team.ID
 	key := team.ID + "\x00" + d.memberID
 	if key != d.engineFor {
 		d.engineFor = key

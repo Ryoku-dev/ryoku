@@ -77,7 +77,8 @@ func demoTeamsClock(now time.Time) teamsClock {
 	}
 }
 
-// the teams settings of someone who set quiet hours, hid one folder of their own and keeps three months of finished tasks
+// the teams settings of someone who set quiet hours, hid one folder of their own and keeps three months of finished tasks;
+// their list was saved before Rashin hid ~/.ssh by itself, which the app no longer shows as theirs
 func demoTeamsSettings() protocol.TeamsSettings {
 	return protocol.TeamsSettings{
 		MaxRunning:   protocol.DefaultTeamsMaxRunning,
@@ -90,7 +91,7 @@ func demoTeamsSettings() protocol.TeamsSettings {
 		},
 		ApprovalHours: protocol.DefaultApprovalHours,
 		QuietHours:    &protocol.QuietHours{From: "22:00", To: "07:30"},
-		Hidden:        append(protocol.DefaultTeamsHidden(), "~/Documents/taxes"),
+		Hidden:        []string{"~/.ssh", "~/Documents/taxes"},
 		KeepDays:      90,
 	}
 }
@@ -237,7 +238,7 @@ func demoTeams(now time.Time, settings protocol.Settings, events map[string][]pr
 		Purpose: i18n.T("Writes the release notes from the pull requests merged since the last release."),
 		Folder:  paths.TeamsHome() + "/release-notes",
 		Members: []protocol.Member{
-			{ID: "member-scribe", Name: i18n.T("Scribe"), Title: i18n.T("Writes release notes"), Lead: true, Harness: "codex", Model: "gpt-5.6", Instructions: i18n.T("Reads the merged pull requests, groups them the way users notice them, and writes plain notes without internal jargon.")},
+			{ID: "member-scribe", Name: i18n.T("Scribe"), Title: i18n.T("Writes release notes"), Lead: true, Harness: "custom-review", Model: "gpt-5.6", Instructions: i18n.T("Reads the merged pull requests, groups them the way users notice them, and writes plain notes without internal jargon.")},
 		},
 		Approvals: protocol.ApprovalsReadOnly, Budget: protocol.TeamBudget{MonthTokens: 1_000_000, WarnPercent: 80, TaskTurns: 25},
 		Notify: protocol.NotifyAll, Paused: true, PauseReason: protocol.PausedByBudget,
@@ -434,6 +435,15 @@ func demoTeams(now time.Time, settings protocol.Settings, events map[string][]pr
 		did("http-1184", "http_request", protocol.ToolFetch, protocol.ToolRunning, "GET https://api.github.com/repos/Ryoku-dev/ryoku/issues/1184/comments", ""),
 	)
 
+	// a task that never started: Codex is not signed in for Repo watch yet
+	add(repo, protocol.TeamTask{
+		ID: "task-rebase-check", Title: i18n.T("List the pull requests that need a rebase"),
+		Brief:  i18n.T("Find the open pull requests that are behind unstable-dev by more than 20 commits, and say which would still merge cleanly."),
+		Status: protocol.TaskBlocked, Member: "member-reviewer", Origin: protocol.TaskFromYou, SignIn: "codex",
+		Reason:  i18n.T("Codex is not signed in for Repo watch. Sign it in, then run the task again."),
+		Created: ago(50 * time.Minute), Updated: ago(50 * time.Minute),
+	}, "", "")
+
 	// System care, paused by you: a blocked question and the last evening check
 	add(system, protocol.TeamTask{
 		ID: "task-disk", Title: i18n.T("Find what fills the disk"),
@@ -566,8 +576,8 @@ func demoApprovals(clock teamsClock, actions map[string]demoAction, hours int) [
 	ago := func(d time.Duration) time.Time { return now.Add(-d) }
 	at := func(t time.Time) *time.Time { return &t }
 	approval := func(a protocol.Approval) protocol.Approval {
-		// a team stopped at its limit stays paused until you answer, and a proposed team waits for you, so neither card runs out
-		if a.Kind != protocol.ApprovalBudget && a.Kind != protocol.ApprovalTeam {
+		// a team stopped at its limit stays paused until you answer, a proposed team waits for you, and a notice waits to be read, so none runs out
+		if a.Kind != protocol.ApprovalBudget && a.Kind != protocol.ApprovalTeam && a.Kind != protocol.ApprovalRestore {
 			a.Expires = a.Created.Add(time.Duration(hours) * time.Hour)
 		}
 		if a.Status == "" {
@@ -614,6 +624,12 @@ func demoApprovals(clock teamsClock, actions map[string]demoAction, hours int) [
 			Kind: protocol.ApprovalRequest, Title: i18n.T("News digest asks for a credential: MASTODON_TOKEN"),
 			Detail:  i18n.Tf("%s\nWhere it would go: %s", actions["approval-mastodon"].request.Reason, "mastodon.social"),
 			Created: ago(40 * time.Minute), Unwatched: true,
+		}),
+		approval(protocol.Approval{
+			ID: "approval-restore", Team: demoTeamResearch, Kind: protocol.ApprovalRestore, Repeats: 2,
+			Title:   i18n.T("Rashin put Research desk's Claude Code sign-in back"),
+			Detail:  i18n.T("A team task changed what Claude Code was signed in with in Research desk's home. Rashin put back what you signed in with:\n  .claude/.credentials.json\n  .claude.json\n\nWhat the task added there moved to quarantine, out of every team's reach:\n  .claude/settings.local.json"),
+			Created: ago(34 * time.Minute),
 		}),
 		approval(protocol.Approval{
 			ID: "approval-budget", Team: demoTeamRelease, Member: "member-scribe",

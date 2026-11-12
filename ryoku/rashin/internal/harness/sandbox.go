@@ -1,60 +1,103 @@
 package harness
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/sandbox"
 )
 
-// cacheDir is the cache under HOME a sandboxed harness may write, where its
-// package managers, language servers and downloads keep what they fetch.
-const cacheDir = ".cache"
+// keptEnv is what a team agent keeps of the daemon's environment: where
+// programs are, language and terminal, who it runs as, and how the network
+// and its certificates are reached. Everything else, API keys and tokens a
+// login session exported included, stays outside the sandbox.
+var keptEnv = []string{
+	"PATH", "LANG", "LANGUAGE", "TERM", "COLORTERM", "TZ", "USER", "LOGNAME", "SHELL", "XDG_RUNTIME_DIR",
+	"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "no_proxy", "all_proxy",
+	"SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS", "REQUESTS_CA_BUNDLE",
+}
 
-// stateOf is the state a harness writes under its HOME: its definition's, or
-// for a custom instance the definition whose command it runs, by base name.
-func stateOf(id string, command []string) []string {
+// definitionOf is the definition a harness runs on: its own, or for a custom
+// instance the definition whose command it runs, by base name.
+func definitionOf(id string, command []string) (definition, bool) {
 	for _, def := range definitions {
 		if def.id == id {
-			return def.state
+			return def, true
 		}
 	}
 	if len(command) == 0 {
-		return nil
+		return definition{}, false
 	}
 	base := filepath.Base(command[0])
 	for _, def := range definitions {
 		for _, candidate := range def.commands {
 			if candidate[0] == base {
-				return def.state
+				return def, true
 			}
 		}
 	}
-	return nil
+	return definition{}, false
 }
 
-// sandboxFor completes a team session's sandbox for one harness: its state
-// that exists and its cache, which is created when missing, both under the
-// HOME it runs with and resolved as the daemon's paths are. An instance's own
-// HOME wins over the user's.
-func sandboxFor(base sandbox.Spec, state []string, environment map[string]string) (sandbox.Spec, error) {
-	home := environment["HOME"]
-	if home == "" {
-		home = paths.Home()
+// homeRelative writes paths relative to HOME as the user reads them: "~/.omp".
+func homeRelative(relative []string) []string {
+	out := make([]string, 0, len(relative))
+	for _, rel := range relative {
+		out = append(out, "~/"+rel)
 	}
-	cache := filepath.Join(home, cacheDir)
-	if err := os.MkdirAll(cache, 0o700); err != nil {
+	return out
+}
+
+// StatePaths are every harness's own state under the user's home: what every
+// team sandbox hides, whichever harness it runs.
+func StatePaths() []string {
+	var out []string
+	for _, def := range definitions {
+		for _, rel := range def.state {
+			out = append(out, filepath.Join(paths.Home(), rel))
+		}
+	}
+	return out
+}
+
+// sandboxFor completes a team session's sandbox for harness instance id: it
+// runs with HOME and the XDG base dirs at team's own home for it, created
+// when missing and its only writable place beside the team's folders, with
+// only keptEnv of the daemon's environment beside the instance's own. Every
+// other team home stays hidden, and so does the user's harness state
+// (StatePaths); the home's guarded paths are read-only. A harness whose
+// program lives inside its state sees that program again, read-only.
+func sandboxFor(base sandbox.Spec, id, team string, command []string, environment map[string]string) (sandbox.Spec, error) {
+	home, err := prepareHome(id, team)
+	if err != nil {
 		return sandbox.Spec{}, err
 	}
 	spec := base
-	spec.Writable = append(slices.Clone(base.Writable), paths.Resolved(cache))
-	for _, relative := range state {
-		path := filepath.Join(home, relative)
-		if _, err := os.Stat(path); err == nil {
-			spec.Writable = append(spec.Writable, paths.Resolved(path))
+	spec.Hidden = append(slices.Clone(base.Hidden), paths.Resolved(paths.HarnessHomes()))
+	spec.Writable = append(slices.Clone(base.Writable), home)
+	spec.ClearEnv = true
+	spec.Env = make(map[string]string)
+	for _, name := range keptEnv {
+		if value, ok := os.LookupEnv(name); ok {
+			spec.Env[name] = value
 		}
+	}
+	for _, entry := range os.Environ() {
+		if name, value, ok := strings.Cut(entry, "="); ok && strings.HasPrefix(name, "LC_") {
+			spec.Env[name] = value
+		}
+	}
+	maps.Copy(spec.Env, environment)
+	maps.Copy(spec.Env, base.Env)
+	maps.Copy(spec.Env, homeEnv(home))
+	def, _ := definitionOf(id, command)
+	spec.ReadOnly = append(slices.Clone(base.ReadOnly), ReadOnlyGuarded(id, team)...)
+	for _, rel := range def.programs {
+		spec.ReadOnly = append(spec.ReadOnly, paths.Resolved(filepath.Join(paths.Home(), rel)))
 	}
 	return spec, nil
 }

@@ -22,6 +22,7 @@ import (
 	gitcore "ryoku-rashin/internal/git"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
+	"ryoku-rashin/internal/redact"
 	"ryoku-rashin/internal/sandbox"
 	store "ryoku-rashin/internal/session"
 )
@@ -242,6 +243,17 @@ func (m *sessionManager) persist(s *managedSession, kind string, data any) error
 	ev, err := s.log.Append(kind, data)
 	if err != nil {
 		return err
+	}
+	// the log keeps no secret: the user's prompt is scrubbed as it lands and the whole turn, its streamed text merged,
+	// once it ends
+	scrub := s.log.ScrubLast
+	if kind == protocol.EvTurnEnd {
+		scrub = s.log.ScrubTurn
+	}
+	if kind == protocol.EvUser || kind == protocol.EvTurnEnd {
+		if _, err := scrub(redact.Exact); err != nil {
+			m.warn("scrub session %s: %v", s.log.Info().ID, err)
+		}
 	}
 	infoChanged := false
 	switch kind {

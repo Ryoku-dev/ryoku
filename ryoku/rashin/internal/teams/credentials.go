@@ -53,6 +53,18 @@ func (s *Service) redact(text string) string {
 	return s.vault.Redact(text)
 }
 
+// Scrubber opens every current credential value once and returns a
+// scrubber that replaces each with its name, for the daemon to register
+// with the redact package. A locked vault gives one that changes nothing.
+func (s *Service) Scrubber() func(string) string { return s.vault.Scrubber() }
+
+// VaultOpen reports whether the vault can open its values now, so Redact
+// takes every one of them out.
+func (s *Service) VaultOpen() bool {
+	state, _, _ := s.vault.State()
+	return state == protocol.VaultOpen
+}
+
 // recordCredential adds one event to the vault's record, marked when no
 // Rashin window was open.
 func (s *Service) recordCredential(event protocol.VaultEvent) {

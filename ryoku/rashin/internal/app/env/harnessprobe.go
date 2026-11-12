@@ -53,15 +53,32 @@ type HarnessProbe struct {
 	Busy   bool
 	Result string
 	Failed bool
-	// what the last probe read, until the snapshot carries a list as new
-	probed protocol.HarnessInfo
+	// what the last probe read and the team it ran for, until the snapshot carries a list as new
+	probed     protocol.HarnessInfo
+	probedTeam string
 }
 
-// the harness as the snapshot has it, with what a probe just read while the snapshot is older
+// the harness as the snapshot has it in the user's own home, with what a probe just read there while the snapshot is older
 func (p *HarnessProbe) Info(snapshot state.Snapshot, id string) protocol.HarnessInfo {
 	info, _ := HarnessByID(snapshot.Harnesses, id)
 	probed := p.probed.Capabilities
-	if p.probed.ID == id && probed != nil && (info.Capabilities == nil || info.Capabilities.Learned.Before(probed.Learned)) {
+	if p.probed.ID == id && p.probedTeam == "" && probed != nil && (info.Capabilities == nil || info.Capabilities.Learned.Before(probed.Learned)) {
+		info.Capabilities = probed
+	}
+	return info
+}
+
+// the harness as a team's home has it: Capabilities are the team's own, never the user's, so none for a team that has not run it or for no team at all
+// Setup is read from the user's own config, so a team's home leaves it out too
+func (p *HarnessProbe) TeamInfo(snapshot state.Snapshot, id, team string) protocol.HarnessInfo {
+	info, _ := HarnessByID(snapshot.Harnesses, id)
+	info.Capabilities, info.Setup = nil, nil
+	if team == "" {
+		return info
+	}
+	info.Capabilities = info.TeamCapabilities(team)
+	probed := p.probed.TeamCapabilities(team)
+	if p.probed.ID == id && p.probedTeam == team && probed != nil && (info.Capabilities == nil || info.Capabilities.Learned.Before(probed.Learned)) {
 		info.Capabilities = probed
 	}
 	return info
@@ -87,16 +104,21 @@ func (p *HarnessProbe) Run(e *Env, params protocol.HarnessProbeParams, name stri
 				p.Result = i18n.Tf("%s did not start.", name)
 			}
 		}
-		p.probed = result.Harness
+		p.probed, p.probedTeam = result.Harness, params.Team
 		if !result.OK {
 			return
 		}
-		capabilities := result.Harness.Capabilities
+		// a team's probe reads the team's own list, which the user's never stands in for
+		read := result.Harness
+		if params.Team != "" {
+			read.Capabilities, read.Setup = read.TeamCapabilities(params.Team), nil
+		}
+		capabilities := read.Capabilities
 		switch {
 		case checking:
 			model := params.Model
 			if model == "" {
-				model = HarnessDefaultModel(result.Harness)
+				model = HarnessDefaultModel(read)
 			}
 			if model == "" {
 				p.Result = i18n.Tf("%s started in the sandbox and took its default model.", name)

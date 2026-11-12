@@ -13,15 +13,22 @@ import (
 
 // agentBrief is what an agent session is told ahead of its first prompt:
 // Ryoku, the vault, Rashin, the session's own place, the code search over
-// its folder and, for a team task, its team. The search is named whenever
-// the folder can be indexed, even while indexSession is still registering
-// it: the commands wait for the index themselves, and a session is only ever
+// its folder and, for a team task, its team. A team task's agent is told
+// what its sandbox lets it reach in place of the vault it cannot see, and
+// offered only an index it may read. The search is named whenever the
+// folder can be indexed, even while indexSession is still registering it:
+// the commands wait for the index themselves, and a session is only ever
 // briefed once.
 func (d *Daemon) agentBrief(info protocol.SessionInfo) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	tools := len(d.agentTools(info)) > 0
 	session := brief.Session{Info: info, Semantic: d.Settings().Index.Semantic, Tools: tools, Screen: tools && d.screenFor(info)}
+	var roots []string
+	if info.Team != "" {
+		roots = d.agentIndexRoots(info)
+		session.Writable = roots[1:]
+	}
 	if d.deps.Teams != nil {
 		session.Team = d.deps.Teams.Brief(info)
 	}
@@ -34,9 +41,9 @@ func (d *Daemon) agentBrief(info protocol.SessionInfo) string {
 		}
 	}
 	if d.deps.Indexer != nil {
-		if index, ok := d.coveringIndex(ctx, info.Cwd); ok {
+		if index, ok := d.coveringIndex(ctx, info.Cwd); ok && (roots == nil || indexInside(index, roots)) {
 			session.Index = &index
-		} else if root := repositoryRoot(info.Cwd); root != "" {
+		} else if root := repositoryRoot(info.Cwd); root != "" && (roots == nil || insideAny(paths.Resolved(root), roots)) {
 			session.Index = &protocol.IndexInfo{Root: root}
 		}
 	}

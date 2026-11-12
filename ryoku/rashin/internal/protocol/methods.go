@@ -49,6 +49,10 @@ const (
 
 	MHarnessesList  = "harnesses.list"
 	MHarnessesProbe = "harnesses.probe"
+	// MHarnessesTeamsOpen and MHarnessesTeamsDone open a sign-in or the setup
+	// in a harness's team home and finish it.
+	MHarnessesTeamsOpen = "harnesses.teams_open"
+	MHarnessesTeamsDone = "harnesses.teams_done"
 
 	MIndexList       = "index.list"
 	MIndexAdd        = "index.add"
@@ -262,6 +266,8 @@ var Methods = []Method{
 
 	m(MHarnessesList, HarnessesListParams{}, HarnessesResult{}, "External harnesses and whether they are installed."),
 	m(MHarnessesProbe, HarnessProbeParams{}, HarnessProbeResult{}, "Start a harness once in a team sandbox, without a prompt, to read its models and check a model and options."),
+	m(MHarnessesTeamsOpen, HarnessTeamsOpenParams{}, HarnessTeamsOpenResult{}, "Open a terminal in a harness's team home: its sign-in, or a shell for its setup. The Rashin app's alone."),
+	m(MHarnessesTeamsDone, HarnessTeamsDoneParams{}, HarnessTeamsDoneResult{}, "Finish a sign-in or setup the terminal it opened in was given the token for, and record what it set up."),
 
 	m(MIndexList, Empty{}, IndexesResult{}, "Indexes."),
 	m(MIndexAdd, IndexAddParams{}, IndexInfo{}, "Register and index a project folder."),

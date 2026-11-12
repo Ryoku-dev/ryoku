@@ -23,7 +23,7 @@ func (s *server) announce(out *outbox, method string) {
 	case protocol.MProjectsAdd, protocol.MProjectsRemove:
 		projects := append([]protocol.ProjectInfo(nil), s.data.snapshot.Projects...)
 		events[protocol.EvtProjectsChanged] = protocol.ProjectsResult{Projects: projects}
-	case protocol.MHarnessesProbe:
+	case protocol.MHarnessesProbe, protocol.MHarnessesTeamsOpen, protocol.MHarnessesTeamsDone:
 		harnesses := append([]protocol.HarnessInfo(nil), s.data.snapshot.Harnesses...)
 		events[protocol.EvtHarnessesChanged] = protocol.HarnessesResult{Harnesses: harnesses}
 	case protocol.MProvidersEnable, protocol.MProvidersAddKey, protocol.MProvidersRemoveKey:

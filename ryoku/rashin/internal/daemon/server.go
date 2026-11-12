@@ -130,7 +130,13 @@ func (c *connection) handle(frame protocol.Frame) {
 		})
 		return
 	}
-	result, err := c.daemon.dispatch(ctx, c, frame.Method, frame.Params)
+	var result any
+	var err error
+	if c.session != "" && agentIndex[frame.Method] {
+		result, err = c.daemon.agentIndexCall(ctx, c, frame.Method, frame.Params)
+	} else {
+		result, err = c.daemon.dispatch(ctx, c, frame.Method, frame.Params)
+	}
 	c.respond(*frame.ID, result, err)
 }
 
@@ -534,6 +540,10 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 		return out, err
 	case protocol.MHarnessesProbe:
 		return d.probeHarness(ctx, c, raw)
+	case protocol.MHarnessesTeamsOpen:
+		return d.openTeamsHome(c, raw)
+	case protocol.MHarnessesTeamsDone:
+		return d.finishTeamsHome(raw)
 	case protocol.MIndexList:
 		list, err := d.deps.Indexer.List(ctx)
 		return protocol.IndexesResult{Indexes: list}, err

@@ -95,36 +95,85 @@ func TestAnUnsandboxedAgentIsOfferedFilesAndTerminal(t *testing.T) {
 	}
 }
 
-func TestStateIsFoundByHarnessOrByTheCommandACustomInstanceRuns(t *testing.T) {
-	if got := stateOf("claude", nil); !slices.Equal(got, []string{".claude", ".claude.json"}) {
-		t.Fatalf("claude's state is %v", got)
+func TestADefinitionIsFoundByHarnessOrByTheCommandACustomInstanceRuns(t *testing.T) {
+	if def, ok := definitionOf("claude", nil); !ok || !slices.Equal(def.state, []string{".claude", ".claude.json", ".config/claude"}) {
+		t.Fatalf("claude's state is %v", def.state)
 	}
-	if got := stateOf("my-omp", []string{"/opt/tools/omp", "acp"}); !slices.Equal(got, []string{".omp"}) {
-		t.Fatalf("a custom instance running omp has state %v", got)
+	if def, ok := definitionOf("my-omp", []string{"/opt/tools/omp", "acp"}); !ok || def.id != "omp" {
+		t.Fatalf("a custom instance running omp runs on %q", def.id)
 	}
-	if got := stateOf("mine", []string{"/opt/tools/unknown-agent"}); got != nil {
-		t.Fatalf("an unknown command has state %v", got)
+	if _, ok := definitionOf("mine", []string{"/opt/tools/unknown-agent"}); ok {
+		t.Fatal("an unknown command has a definition")
 	}
 }
 
-func TestSandboxWritesTheStateThatExistsUnderTheInstanceHome(t *testing.T) {
-	home := t.TempDir()
-	if err := os.Mkdir(filepath.Join(home, ".omp"), 0o700); err != nil {
-		t.Fatal(err)
+// A team sandbox runs the harness with HOME and the XDG dirs at the team's
+// own home for it, its only writable place beside the team's; every team
+// home is hidden beneath it, nothing under the user's own harness state is
+// writable, the home's guarded paths are read-only, and only the kept
+// environment, the instance's own and the daemon's for the session cross in.
+func TestATeamSandboxRunsTheHarnessInItsTeamsHome(t *testing.T) {
+	isolateHomes(t)
+	t.Setenv("OPENAI_API_KEY", "sk-from-the-login-session")
+	t.Setenv("LC_TIME", "en_GB.UTF-8")
+	for _, rel := range []string{".omp/agent/extensions", ".hermes/hermes-agent"} {
+		if err := os.MkdirAll(filepath.Join(paths.Home(), rel), 0o700); err != nil {
+			t.Fatal(err)
+		}
 	}
-	base := sandbox.Spec{Folder: "/teams/one", Writable: []string{"/kept"}}
-	spec, err := sandboxFor(base, []string{".omp", ".absent"}, map[string]string{"HOME": home})
+	writeHome(t, "omp", "team-a", ".omp/agent/models.yml", "providers: {}\n")
+	base := sandbox.Spec{Folder: "/teams/one", Writable: []string{"/kept"}, ReadOnly: []string{"/programs"}, Env: map[string]string{"RASHIN_SOCKET": "/run/rashin.sock"}}
+	spec, err := sandboxFor(base, "omp", "team-a", []string{"omp", "acp"}, map[string]string{"HOME": paths.Home(), "OMP_FLAG": "1"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"/kept", paths.Resolved(filepath.Join(home, ".cache")), paths.Resolved(filepath.Join(home, ".omp"))}
-	if !slices.Equal(spec.Writable, want) {
-		t.Fatalf("writable %v, want %v", spec.Writable, want)
+	home := paths.Resolved(HomeOf("omp", "team-a"))
+	if !slices.Equal(spec.Writable, []string{"/kept", home}) {
+		t.Fatalf("writable %v, want the team's and %s", spec.Writable, home)
 	}
-	if info, err := os.Stat(filepath.Join(home, ".cache")); err != nil || !info.IsDir() {
-		t.Fatalf("the cache was not created: %v", err)
+	if !slices.Contains(spec.Hidden, paths.Resolved(paths.HarnessHomes())) {
+		t.Fatalf("the other teams' homes are not hidden: %v", spec.Hidden)
 	}
-	if len(base.Writable) != 1 {
-		t.Fatalf("completing the sandbox changed the daemon's: %v", base.Writable)
+	if !slices.Contains(spec.ReadOnly, filepath.Join(home, ".omp", "agent", "models.yml")) || !slices.Contains(spec.ReadOnly, filepath.Join(home, ".gitconfig")) {
+		t.Fatalf("the guarded paths are not read-only: %v", spec.ReadOnly)
+	}
+	for _, writable := range spec.Writable {
+		for _, state := range StatePaths() {
+			if paths.Within(paths.Resolved(state), writable) || paths.Within(writable, paths.Resolved(state)) {
+				t.Fatalf("%s is writable and holds or sits in the user's harness state %s", writable, state)
+			}
+		}
+	}
+	want := map[string]string{
+		"HOME": home, "XDG_CONFIG_HOME": home + "/.config", "XDG_DATA_HOME": home + "/.local/share",
+		"XDG_STATE_HOME": home + "/.local/state", "XDG_CACHE_HOME": home + "/.cache",
+		"RASHIN_SOCKET": "/run/rashin.sock", "OMP_FLAG": "1", "LC_TIME": "en_GB.UTF-8",
+	}
+	for name, value := range want {
+		if spec.Env[name] != value {
+			t.Fatalf("%s is %q inside, want %q", name, spec.Env[name], value)
+		}
+	}
+	if !spec.ClearEnv || spec.Env["OPENAI_API_KEY"] != "" {
+		t.Fatalf("the login session's key crosses into the sandbox: clear %t, env %v", spec.ClearEnv, spec.Env)
+	}
+	info, err := os.Stat(home)
+	if err != nil || info.Mode().Perm() != 0o700 {
+		t.Fatalf("the team home is %v, %v", info, err)
+	}
+	gitconfig, err := os.ReadFile(filepath.Join(home, ".gitconfig"))
+	if err != nil || !strings.Contains(string(gitconfig), filepath.Join(paths.Home(), ".gitconfig")) {
+		t.Fatalf("the team home's git config does not include the user's: %q %v", gitconfig, err)
+	}
+	if !slices.Equal(base.Writable, []string{"/kept"}) || len(base.Env) != 1 || !slices.Equal(base.ReadOnly, []string{"/programs"}) || len(base.Hidden) != 0 {
+		t.Fatalf("completing the sandbox changed the daemon's: %+v", base)
+	}
+
+	hermes, err := sandboxFor(base, "hermes", "team-a", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(hermes.ReadOnly, paths.Resolved(filepath.Join(paths.Home(), ".hermes", "hermes-agent"))) {
+		t.Fatalf("hermes's own program is not shown again: %v", hermes.ReadOnly)
 	}
 }

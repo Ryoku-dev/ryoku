@@ -208,7 +208,7 @@ func sections() [sectionCount]section {
 		{"api", i18n.T("Local API"), look.Icon.Link, i18n.T("address port key token exports openai")},
 		{"ask", i18n.T("Ask"), look.Icon.Ask, i18n.T("answers model memory habits shell approvals changes")},
 		{"agents", i18n.T("Agents"), look.Icon.Agents, i18n.T("harness harnesses omp approvals notices idle")},
-		{"teams", i18n.T("Teams"), look.Icon.Teams, i18n.T("ledger budget spend members sandbox mail")},
+		{"teams", i18n.T("Teams"), look.Icon.Teams, i18n.T("ledger budget spend members sandbox mail sign-in login harness hidden secrets")},
 		{"index", i18n.T("Index"), look.Icon.Index, i18n.T("search meaning semantic system folders hide code")},
 		{"appearance", i18n.T("Appearance"), look.Icon.Show, i18n.T("theme colours colors dark light contrast tint zoom motion")},
 		{"keys", i18n.T("Keyboard"), look.Icon.Key, i18n.T("keys shortcuts keybinds")},

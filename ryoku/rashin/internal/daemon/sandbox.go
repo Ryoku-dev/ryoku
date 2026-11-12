@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"slices"
 
+	i18n "ryoku-i18n"
+	"ryoku-rashin/internal/harness"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 	"ryoku-rashin/internal/sandbox"
@@ -15,25 +17,21 @@ import (
 // start.
 var agentUnset = []string{"DBUS_SESSION_BUS_ADDRESS", "WAYLAND_DISPLAY", "DISPLAY", "SSH_AUTH_SOCK", "GNOME_KEYRING_CONTROL", "RASHIN_DAEMON"}
 
-// sandboxBase is what every team sandbox starts from. It never sees Rashin's
-// state and cache, the teams' folders, the login keyrings, the vaults or the
-// paths Settings > Teams hides, has an empty runtime dir of its own, and
-// still sees Rashin's own programs wherever they run from. Every path is
-// resolved, as the sandbox compares them as written.
+// sandboxBase is what every team sandbox starts from. It never sees what
+// Rashin always hides (alwaysHidden) or the paths Settings > Teams adds, has
+// an empty runtime dir of its own, and still sees Rashin's own programs
+// wherever they run from. Every path is resolved, as the sandbox compares
+// them as written.
 func (d *Daemon) sandboxBase() sandbox.Spec {
-	spec := sandbox.Spec{RuntimeDir: paths.Resolved(filepath.Dir(paths.RuntimeDir())), ReadOnly: d.programDirs(), Hidden: privateDirs()}
-	hidden := d.Settings().Teams.Hidden
-	if hidden == nil {
-		hidden = protocol.DefaultTeamsHidden()
-	}
-	for _, path := range hidden {
+	spec := sandbox.Spec{RuntimeDir: paths.Resolved(filepath.Dir(paths.RuntimeDir())), ReadOnly: d.programDirs(), Hidden: alwaysHidden()}
+	for _, path := range d.Settings().Teams.Hidden {
 		spec.Hidden = append(spec.Hidden, paths.Resolved(paths.Expand(path)))
 	}
 	return spec
 }
 
-// privateDirs are hidden from every team agent whatever the settings say,
-// resolved.
+// privateDirs are Rashin's own: its state and cache, the teams' folders,
+// the login keyrings and the vaults, resolved.
 func privateDirs() []string {
 	dirs := []string{paths.StateDir(), paths.CacheDir(), paths.TeamsHome(), paths.Keyrings(), paths.VaultDir(), paths.LegacyVaultDir()}
 	for index, dir := range dirs {
@@ -42,27 +40,52 @@ func privateDirs() []string {
 	return dirs
 }
 
+// alwaysHidden are hidden from every team agent and every harness Check
+// whatever the settings say: Rashin's private dirs, the places credentials
+// live (protocol.TeamsAlwaysHidden) and every harness's own state under the
+// user's home, resolved. A team's harness runs in a team home of its own.
+func alwaysHidden() []string {
+	dirs := privateDirs()
+	for _, path := range protocol.TeamsAlwaysHiddenPaths() {
+		dirs = append(dirs, paths.Resolved(paths.Expand(path)))
+	}
+	for _, path := range harness.StatePaths() {
+		dirs = append(dirs, paths.Resolved(path))
+	}
+	slices.Sort(dirs)
+	return slices.Compact(dirs)
+}
+
 // withAccess adds what a team's own settings let its agents reach. A folder
 // it may change that no longer exists is left out, as the sandbox binds only
-// what exists, and so is one inside Rashin's private dirs other than the
+// what exists, and so is one inside what Rashin always hides other than the
 // team's own folder, which a deeper writable path would otherwise uncover.
 func withAccess(spec sandbox.Spec, access protocol.TeamAccess) sandbox.Spec {
 	for _, path := range access.Hidden {
 		spec.Hidden = append(spec.Hidden, paths.Resolved(path))
 	}
-	private := privateDirs()
+	hidden := alwaysHidden()
 	for _, path := range access.Writable {
 		path = paths.Resolved(path)
 		if _, err := os.Stat(path); err != nil {
 			continue
 		}
-		inside := slices.ContainsFunc(private, func(dir string) bool { return paths.Within(dir, path) })
+		inside := slices.ContainsFunc(hidden, func(dir string) bool { return paths.Within(dir, path) })
 		if inside && (spec.Folder == "" || !paths.Within(spec.Folder, path)) {
 			continue
 		}
 		spec.Writable = append(spec.Writable, path)
 	}
 	return spec
+}
+
+// hiddenFolder reports a team folder inside what Rashin always hides, other
+// than the teams' own home: binding it would uncover what it holds.
+func hiddenFolder(folder string) bool {
+	teams := paths.Resolved(paths.TeamsHome())
+	return slices.ContainsFunc(alwaysHidden(), func(dir string) bool {
+		return dir != teams && paths.Within(dir, folder)
+	})
 }
 
 // programDirs are the dirs of the running daemon and of the rashin command
@@ -85,8 +108,12 @@ func (d *Daemon) programDirs() []string {
 
 // agentSandbox is the sandbox a team session's agent runs in: its team's
 // folder, created when missing, and its own socket where the daemon's would
-// be, so the tools it is handed reach the daemon only as that session.
+// be, so the tools it is handed reach the daemon only as that session. A
+// folder inside what Rashin always hides is refused.
 func (d *Daemon) agentSandbox(info protocol.SessionInfo) (*sandbox.Spec, error) {
+	if hiddenFolder(paths.Resolved(info.Cwd)) {
+		return nil, protocol.Errorf(protocol.CodeForbidden, "%s", i18n.Tf("The team's folder %s is inside a place Rashin hides from every team. Choose another folder.", paths.Short(info.Cwd)))
+	}
 	if err := os.MkdirAll(info.Cwd, 0o700); err != nil {
 		return nil, err
 	}

@@ -38,6 +38,8 @@ type Service struct {
 	// defaultHarness is the registry's default harness for these settings,
 	// the last step of the engine chain
 	defaultHarness func(protocol.Settings) string
+	// signedIn reports whether a team is signed in to a harness
+	signedIn func(harness, team string) (time.Time, bool)
 	// teamsSettings are the teams settings last seen, so a change is told
 	// from what it changed
 	teamsSettings protocol.TeamsSettings
@@ -83,7 +85,7 @@ func open(dir string, v *vault.Vault, wake func(on bool), events core.Broadcaste
 	}
 	background, cancel := context.WithCancel(context.Background())
 	s := &Service{
-		events: events, settings: settings, now: time.Now, vault: v, defaultHarness: registry.DefaultID,
+		events: events, settings: settings, now: time.Now, vault: v, defaultHarness: registry.DefaultID, signedIn: registry.SignedIn,
 		runs: make(map[string]*run), background: background, cancel: cancel,
 	}
 	var err error
@@ -111,9 +113,11 @@ func open(dir string, v *vault.Vault, wake func(on bool), events core.Broadcaste
 
 // Bind hands the service the session manager and starts what runs by itself:
 // queued tasks, the routine clock and the daily pruning. Tasks a restart
-// left while every team is paused stop.
+// left while every team is paused stop, and team homes every team on a
+// harness once shared become one team's own first.
 func (s *Service) Bind(sessions core.TeamSessions) {
 	settings := s.settings()
+	s.migrateHomes()
 	s.mu.Lock()
 	s.sessions = sessions
 	s.teamsSettings = settings.Teams

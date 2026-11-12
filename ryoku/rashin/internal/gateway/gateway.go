@@ -17,6 +17,7 @@ import (
 	i18n "ryoku-i18n"
 	"ryoku-rashin/internal/llm"
 	"ryoku-rashin/internal/protocol"
+	"ryoku-rashin/internal/vault"
 )
 
 const (
@@ -393,6 +394,22 @@ func (g *Gateway) redactKeyMessage(keyID, message string) string {
 		return strings.ReplaceAll(message, secret, "[redacted]")
 	}
 	return message
+}
+
+// Redact replaces every form of every stored provider key, and of the local
+// API's key, in text with its name, such as ‹OPENROUTER_API_KEY›.
+func (g *Gateway) Redact(text string) string {
+	if text == "" {
+		return text
+	}
+	return g.Scrubber()(text)
+}
+
+// Scrubber opens every stored key once and returns what Redact does with
+// them, for a pass over many texts. The daemon registers it with the redact
+// package; it holds the keys, so it is dropped when the pass ends.
+func (g *Gateway) Scrubber() func(string) string {
+	return vault.ValuesScrubber(g.store.secrets())
 }
 
 // Models returns every chat model with its tier, the local ones a running

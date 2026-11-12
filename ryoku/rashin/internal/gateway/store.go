@@ -279,6 +279,38 @@ func (s *store) removeKey(id, providerID string) error {
 	})
 }
 
+// secrets maps every value the store keeps sealed, each provider key and the
+// local API's key, to the name Gateway.Redact replaces it with. A value that
+// cannot be opened is left out.
+func (s *store) secrets() map[string]string {
+	out := map[string]string{}
+	_ = s.db.View(func(tx *bbolt.Tx) error {
+		_ = tx.Bucket(bucketKeys).ForEach(func(_, value []byte) error {
+			var record keyRecord
+			if json.Unmarshal(value, &record) != nil {
+				return nil
+			}
+			if plain, err := s.open(record.Sealed); err == nil && plain != "" {
+				out[plain] = keyName(record.Provider)
+			}
+			return nil
+		})
+		if sealed := tx.Bucket(bucketAPI).Get(apiKeyName); sealed != nil {
+			if plain, err := s.open(sealed); err == nil && plain != "" {
+				out[plain] = "RASHIN_API_KEY"
+			}
+		}
+		return nil
+	})
+	return out
+}
+
+// keyName is how a provider's key is named where it is redacted, such as
+// OPENROUTER_API_KEY.
+func keyName(provider string) string {
+	return strings.ToUpper(strings.NewReplacer("-", "_", ".", "_", " ", "_").Replace(provider)) + "_API_KEY"
+}
+
 func (s *store) providerEnabled(id string) (bool, error) {
 	enabled := true
 	err := s.db.View(func(tx *bbolt.Tx) error {

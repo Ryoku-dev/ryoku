@@ -64,15 +64,15 @@ func TestCapabilitiesAreKeptPerHarnessAndBinary(t *testing.T) {
 	registry.OnLearned(func() { announced++ })
 	work := protocol.HarnessCapabilities{ModelList: []protocol.Choice{{ID: "opus", Name: "Opus"}}, DefaultModel: "opus"}
 	home := protocol.HarnessCapabilities{ModelList: []protocol.Choice{{ID: "haiku", Name: "Haiku"}}, DefaultModel: "haiku"}
-	registry.recordCapabilities("work", binary, work)
-	registry.recordCapabilities("home", binary, home)
-	registry.recordCapabilities("work", binary, protocol.HarnessCapabilities{ModelList: work.ModelList})
+	registry.recordCapabilities("work", binary, userHome, work)
+	registry.recordCapabilities("home", binary, userHome, home)
+	registry.recordCapabilities("work", binary, userHome, protocol.HarnessCapabilities{ModelList: work.ModelList})
 	if announced != 3 {
 		t.Fatalf("%d records were announced, want 3", announced)
 	}
 
 	reloaded := New()
-	gotWork, gotHome := reloaded.capabilitiesFor("work", binary), reloaded.capabilitiesFor("home", binary)
+	gotWork, gotHome := reloaded.capabilitiesFor("work", binary, userHome), reloaded.capabilitiesFor("home", binary, userHome)
 	if gotWork == nil || gotHome == nil {
 		t.Fatalf("the cache lost an instance: work %v, home %v", gotWork, gotHome)
 	}
@@ -82,14 +82,14 @@ func TestCapabilitiesAreKeptPerHarnessAndBinary(t *testing.T) {
 	if gotHome.ModelList[0].ID != "haiku" || gotHome.DefaultModel != "haiku" {
 		t.Fatalf("home reads %#v", gotHome)
 	}
-	if reloaded.capabilitiesFor("work", binary+"-other") != nil {
+	if reloaded.capabilitiesFor("work", binary+"-other", userHome) != nil {
 		t.Fatal("capabilities followed the id to another binary")
 	}
 	stamp := time.Now().Add(5 * time.Second)
 	if err := os.Chtimes(binary, stamp, stamp); err != nil {
 		t.Fatal(err)
 	}
-	if reloaded.capabilitiesFor("work", binary) != nil {
+	if reloaded.capabilitiesFor("work", binary, userHome) != nil {
 		t.Fatal("capabilities outlived a changed binary")
 	}
 }
@@ -117,10 +117,66 @@ func TestAPathKeyedCacheIsDropped(t *testing.T) {
 	registry := New()
 	registry.mu.Lock()
 	registry.loadCapabilitiesLocked()
-	kept := len(registry.capabilities)
+	kept := len(registry.capabilities[userHome])
 	registry.mu.Unlock()
 	if kept != 0 {
 		t.Fatalf("%d path-keyed entries were kept", kept)
+	}
+}
+
+// What a harness reports in a team's home stays that team's, and what it
+// reports in the user's home stays the user's: a team run never replaces the
+// list the user's own pickers show, nor the user's run a team's, and a team
+// with no run of its own has no list, not the user's.
+func TestCapabilitiesAreKeptPerHome(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	binary := writeTempBinary(t)
+	registry := New()
+	user := protocol.HarnessCapabilities{ModelList: []protocol.Choice{{ID: "a"}, {ID: "b"}, {ID: "c"}}, DefaultModel: "a"}
+	team := protocol.HarnessCapabilities{ModelList: []protocol.Choice{{ID: "local"}}, DefaultModel: "local"}
+	registry.recordCapabilities("omp", binary, userHome, user)
+	registry.recordCapabilities("omp", binary, "team-dream", team)
+	reloaded := New()
+	if got := reloaded.capabilitiesFor("omp", binary, userHome); got == nil || len(got.ModelList) != 3 || got.DefaultModel != "a" {
+		t.Fatalf("a team's run replaced the user's list: %#v", got)
+	}
+	if got := reloaded.capabilitiesFor("omp", binary, "team-dream"); got == nil || len(got.ModelList) != 1 || got.DefaultModel != "local" {
+		t.Fatalf("the team's list reads %#v", got)
+	}
+	reloaded.recordCapabilities("omp", binary, userHome, protocol.HarnessCapabilities{ModelList: []protocol.Choice{{ID: "z"}}})
+	if got := New().capabilitiesFor("omp", binary, "team-dream"); got == nil || got.ModelList[0].ID != "local" {
+		t.Fatalf("the user's run replaced the team's list: %#v", got)
+	}
+	if got := New().capabilitiesFor("omp", binary, "team-other"); got != nil {
+		t.Fatalf("a team that never ran the harness reads %#v", got)
+	}
+}
+
+// A cache from before team homes kept their own lists holds only the user's.
+func TestAnOldCacheIsTheUsersOwn(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	binary := writeTempBinary(t)
+	st, err := os.Stat(binary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := map[string]any{"entries": map[string]any{"omp": map[string]any{"path": binary, "mtime": st.ModTime().UnixNano(), "capabilities": map[string]any{"defaultModel": "a"}}}}
+	data, err := json.Marshal(old)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := paths.EnsureDir(paths.StateDir()); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(capabilitiesCachePath(), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	registry := New()
+	if got := registry.capabilitiesFor("omp", binary, userHome); got == nil || got.DefaultModel != "a" {
+		t.Fatalf("the user's entry reads %#v", got)
+	}
+	if got := registry.capabilitiesFor("omp", binary, "team-a"); got != nil {
+		t.Fatalf("a team reads the old entry %#v", got)
 	}
 }
 

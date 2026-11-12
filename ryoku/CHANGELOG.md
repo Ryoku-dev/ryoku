@@ -53,6 +53,30 @@
   filesystem read-only except its team folder, Rashin's state and the keyrings
   hidden, and its own socket that serves only its own tools
   (`rashin/internal/sandbox`, `rashin/internal/daemon/sandbox.go`).
+- **Team agents never see your secrets.** Every team sandbox and harness Check
+  always hides SSH and GPG keys, password stores, keyrings, git and `gh`
+  credentials, cloud CLIs, package registry tokens, browsers, mail and chat
+  apps, shell histories, Rashin's own state and every harness's own state,
+  whatever the hidden list says, and a team agent starts without the login
+  session's environment. Settings > Teams > Sandbox shows that list as fixed
+  lines above your own (`rashin/internal/protocol/types.go`,
+  `rashin/internal/daemon/sandbox.go`).
+- **Teams sign in separately.** Each team runs each of its harnesses in a
+  home of its own, so a team can no longer change your own omp, hermes or
+  claude setup, nor read or change another team's. A team's Settings tab
+  opens a harness's sign-in or setup in its home, and a setup can start from
+  another team's config, never its login; a task of a team that is not
+  signed in waits with Sign in for Teams in the Inbox. While a task runs,
+  the home's instructions, config, skills, memories and extensions are
+  read-only, and before each one Rashin puts them back as you signed them in,
+  moves what a run added into a quarantine and tells you once
+  (`rashin/internal/harness/teamhome.go`).
+- **Rashin keeps secrets out of its logs and team agents out of other
+  indexes.** Session logs are scrubbed of vault values, provider keys and
+  token-shaped secrets after every turn, split ones included, and the old
+  ones once; a team agent reads only the indexes inside its own folders and
+  is no longer sent to the vault its sandbox hides (`rashin/internal/redact`,
+  `rashin/internal/session/scrub.go`, `rashin/internal/daemon/indexscope.go`).
 - **Teams can work on a schedule.** Routines give a team a task on a cron
   schedule; while one is on the daemon stays up and `rashind-routines` wakes
   it after a login or a reboot (`rashin/internal/teams/schedule.go`).

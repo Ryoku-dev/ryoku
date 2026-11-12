@@ -23,6 +23,9 @@ func (s *server) decideApproval(p protocol.ApprovalDecideParams) (protocol.Appro
 	}
 	request, choice := approval.Kind == protocol.ApprovalRequest, len(approval.Options) > 0
 	switch {
+	// a notice asks nothing, it is only marked read
+	case approval.Kind == protocol.ApprovalRestore && p.Decision != protocol.DecideOnce:
+		return protocol.Approval{}, badRequest(i18n.T("That is not an answer to this."))
 	case p.Decision == protocol.DecideDeny:
 	case p.Decision == protocol.DecideChoose && choice:
 		if !slices.Contains(approval.Options, p.Choice) {

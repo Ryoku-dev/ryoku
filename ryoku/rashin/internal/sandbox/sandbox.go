@@ -46,6 +46,8 @@ type Spec struct {
 	Devices bool
 	// Env is set inside.
 	Env map[string]string
+	// ClearEnv starts from an empty environment, so only Env is set inside.
+	ClearEnv bool
 	// Unset is removed inside, and wins over Env.
 	Unset []string
 }
@@ -89,6 +91,9 @@ func Command(spec Spec, argv []string) ([]string, error) {
 	}
 	for _, m := range mounts {
 		args = append(args, m.args...)
+	}
+	if spec.ClearEnv {
+		args = append(args, "--clearenv")
 	}
 	for _, key := range slices.Sorted(maps.Keys(spec.Env)) {
 		args = append(args, "--setenv", key, spec.Env[key])

@@ -65,6 +65,8 @@ type Daemon struct {
 	// recorded
 	learnedMu sync.Mutex
 	learned   *time.Timer
+	// migrations are the session scrub passes running in the background
+	migrations migrations
 }
 
 func New(deps Deps) *Daemon {
@@ -164,6 +166,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	d.bound = bound
 	d.lock = lock
 	d.mu.Unlock()
+	d.scrubInBackground()
 	// sockets a daemon that died left behind lead nowhere
 	_ = os.RemoveAll(paths.AgentSocketsDir())
 	go func() { <-ctx.Done(); d.Shutdown() }()
@@ -341,6 +344,7 @@ func (d *Daemon) closeAll() error {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
+		d.migrations.stop()
 		d.manager.shutdown(shutdownTimeout - time.Second)
 		d.screens.stopAll()
 		if d.deps.Work != nil {

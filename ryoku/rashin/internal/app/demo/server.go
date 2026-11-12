@@ -118,6 +118,18 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 			return nil, err
 		}
 		return s.probeHarness(params)
+	case protocol.MHarnessesTeamsOpen:
+		var params protocol.HarnessTeamsOpenParams
+		if err := decode(raw, &params); err != nil {
+			return nil, err
+		}
+		return s.openTeamsHome(params)
+	case protocol.MHarnessesTeamsDone:
+		var params protocol.HarnessTeamsDoneParams
+		if err := decode(raw, &params); err != nil {
+			return nil, err
+		}
+		return s.finishTeamsHome(params)
 	case protocol.MIndexList:
 		return protocol.IndexesResult{Indexes: s.data.snapshot.Indexes}, nil
 	case protocol.MSettingsGet:
