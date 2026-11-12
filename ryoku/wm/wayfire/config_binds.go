@@ -248,6 +248,8 @@ func shippedBinds() map[string]wayfireBind {
 		"resize.shorter":     {key: "resize_shorter", cmd: "ryoku-wm-wayfire act window.resizeBy shorter"},
 		"resize.taller":      {key: "resize_taller", cmd: "ryoku-wm-wayfire act window.resizeBy taller"},
 		"resize.resetHeight": {key: "resize_reset_height", cmd: "ryoku-wm-wayfire act window.presetHeight first", hint: "Give the window the full height of its workspace"},
+		"resize.grow":        {key: "resize_grow", cmd: "ryoku-wm-wayfire act window.resizeBy wider", hint: "Widen the window an eighth of the screen"},
+		"resize.shrink":      {key: "resize_shrink", cmd: "ryoku-wm-wayfire act window.resizeBy narrower", hint: "Narrow the window an eighth of the screen"},
 
 		// Workspaces. The grid's ten cells take the number keys and the
 		// number pad natively: each family lands on the same option, so both
@@ -329,7 +331,7 @@ func shippedBinds() map[string]wayfireBind {
 		"media.mute":       {key: "media_mute", cmd: "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle", always: true},
 		"media.micMute":    {key: "media_mic_mute", cmd: "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle", always: true},
 		"media.play":       {key: "media_play", cmd: "ryoku-media play-pause", always: true, extra: "KEY_PLAYCD"},
-		"media.pause":      {key: "media_pause", cmd: "ryoku-media play-pause", always: true},
+		"media.pause":      {key: "media_pause", cmd: "ryoku-media pause", always: true},
 		"media.next":       {key: "media_next", cmd: "playerctl next", always: true},
 		"media.prev":       {key: "media_prev", cmd: "playerctl previous", always: true},
 

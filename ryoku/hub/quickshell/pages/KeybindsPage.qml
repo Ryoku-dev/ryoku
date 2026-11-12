@@ -600,7 +600,7 @@ Item {
         "SUPER": "Super", "SHIFT": "Shift", "CTRL": "Ctrl", "ALT": "Alt",
         "Return": "Enter", "Escape": "Esc", "space": "Space",
         "Prior": "Page Up", "Next": "Page Down",
-        "grave": "\u0060", "comma": ",", "bracketleft": "[", "bracketright": "]",
+        "grave": "\u0060", "comma": ",", "minus": "-", "equal": "=", "bracketleft": "[", "bracketright": "]",
         "mouse:272": "LMB", "mouse:273": "RMB",
         "mouse_up": "Scroll Up", "mouse_down": "Scroll Down",
         "XF86AudioRaiseVolume": "Vol +", "XF86AudioLowerVolume": "Vol -",

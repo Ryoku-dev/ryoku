@@ -516,6 +516,18 @@ image for each release, derived from the per-ISO manifests in the bucket.
 Fedora ledger entries carry packages only. Each build carries a strictly
 increasing package version (`core.r<commit-count>.g<sha>` for pacman and the
 corresponding native version for XBPS or RPM) that the Ryoku upgrade moves to.
+`core` is `VERSION`, which on `unstable-dev` names the next stable release:
+**Unstable Version Bump** (`.github/workflows/unstable-version-bump.yml`)
+keeps it one `bin/ryoku-release-bump roll` past `main`'s `VERSION` (main 1.0.8,
+unstable 1.0.9) and never lowers it, so a hand-set minor or major stays. Pushes
+do not change it; the build number and `r<commit-count>` keep testing builds
+distinct and increasing. Until 1.0.9 the bot rolled a patch on every push and
+testing reached 1.11.4, so the monorepo packages carry epoch 1: pacman
+`epoch=1` and RPM `Epoch: 1`, with every pin between them naming it, and on
+Void, which has no epoch, `reverts=` lists every earlier build above the
+current core (`bin/ryoku-release-version --superseded`, stamped by
+`void/packages/repo/build-repo.sh`). Unstable build names order by build
+number for the same reason.
 The `ryoku-desktop` package writes `/etc/ryoku-release` (`RELEASE=`,
 `CHANNEL=`, `VERSION=`, `COMMIT=`) so a box can say which release or build it
 runs.

@@ -54,6 +54,7 @@ case ${1:-} in
       polls=0
       if IFS= read -r polls <"$RYOKU_TEST_POLLS"; then :; fi
       ((polls >= RYOKU_TEST_APPEAR_AFTER)) || exit 1
+      sleep "${RYOKU_TEST_SLOW_ON:-0}"
     fi
     printf '%s\n' "$2" >"$RYOKU_TEST_LIVE"
     ;;
@@ -235,5 +236,17 @@ if RYOKU_BLUETOOTH_WAIT=1 RYOKU_TEST_AUTOENABLE=off "$RESET"; then
 fi
 ((SECONDS - started <= 5)) || { printf 'FAIL: missing controller wait was not bounded\n' >&2; exit 1; }
 export RYOKU_TEST_APPEAR_AFTER=1
+
+# Turning Bluetooth off while the login reset is still powering it on keeps
+# it off: the newer choice wins over the older loop.
+"$POWER" on
+reset_commands
+RYOKU_TEST_SLOW_ON=1 RYOKU_TEST_AUTOENABLE=off "$RESET" &
+reset_pid=$!
+sleep 0.3
+"$POWER" off || { printf 'FAIL: off during a login power-on failed\n' >&2; exit 1; }
+wait "$reset_pid" || { printf 'FAIL: login reset failed after a newer off\n' >&2; exit 1; }
+assert_eq off "$(<"$LIVE")" 'off chosen during a login power-on stays off'
+assert_eq off "$(<"$STATE")" 'off choice saved during a login power-on'
 
 printf 'bluetooth power persistence checks passed\n'

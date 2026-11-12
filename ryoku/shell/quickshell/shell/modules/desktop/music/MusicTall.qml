@@ -69,6 +69,7 @@ Item {
             anchors.rightMargin: tall.pad
             anchors.bottom: foot.top
             anchors.bottomMargin: 16 * tall.s
+            textFormat: Text.PlainText
             text: tall.curLine
             color: tall.ink
             wrapMode: Text.WordWrap

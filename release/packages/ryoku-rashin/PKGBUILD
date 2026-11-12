@@ -13,6 +13,7 @@ pkgname=ryoku-rashin
 install=ryoku-rashin.install
 pkgver=${RYOKU_PKGVER:-0.1.0}
 pkgrel=1
+epoch=1
 pkgdesc="Ryoku Rashin: local agent OS daemon and dashboard"
 arch=('x86_64')
 url="https://ryoku.dev"
@@ -30,7 +31,7 @@ license=('GPL-3.0-or-later')
 # collectors. The desktop only optdepends on Rashin, so the pin runs this way:
 # Rashin never runs against another release's shell (a partial upgrade fails
 # loudly instead of skewing).
-depends=("ryoku-desktop=$pkgver" 'uv' 'nodejs' 'gcc' 'prowl' 'gtk3' 'webkit2gtk-4.1' 'python')
+depends=("ryoku-desktop=$epoch:$pkgver" 'uv' 'nodejs' 'gcc' 'prowl' 'gtk3' 'webkit2gtk-4.1' 'python')
 optdepends=('sqlite: sqlite3 database introspection for the rashin agent')
 makedepends=('go' 'cmake' 'ninja')
 source=()

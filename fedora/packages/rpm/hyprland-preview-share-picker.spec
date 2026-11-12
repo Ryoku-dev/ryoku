@@ -3,6 +3,7 @@
 %global ryoku_vendor_dir .rpm-hyprland-preview-share-picker/hyprland-preview-share-picker
 Name:           hyprland-preview-share-picker
 Version:        0.3.0
+Epoch:          1
 Release:        1%{?dist}
 Summary:        Preview screen share picker for Hyprland
 License:        MIT

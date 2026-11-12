@@ -19,6 +19,23 @@
   headless one exits at once.
 
 ### Fixed
+- `gpu/ryoku-gpu`: **Performance works again with a monitor on the discrete GPU.**
+  When the laptop panel is on the built-in GPU but the dGPU has its own ports,
+  Performance pins the dGPU at login only while a monitor is plugged into one.
+- `bluetooth/ryoku-bluetooth-power`: **turning Bluetooth off right after login
+  stays off.** A login reset still waiting up to 15 s for a slow controller
+  could power the radio back on after the newer off; each attempt now checks
+  the saved choice first, so the latest on or off wins.
+- `audio/ryoku-media`: **one action per media tap, whatever the keys.** The
+  200 ms window is shared by every verb, so play-pause followed by pause from
+  one headphone tap runs only the first (#764).
+- `network/ryoku-wifi-backend`: **switching from iwd back to wpa_supplicant
+  keeps Wi-Fi.** iwd swaps each radio's default interface for one of its own,
+  which the kernel deletes when iwd quits, so the switch left no Wi-Fi interface
+  until a reboot. Leaving iwd now gives every radio that had an interface, and
+  lost it, a managed one again (`iw`, each watched for up to 3 s since the
+  kernel drops iwd's interfaces just after iwd exits, one radio at a time).
+  Covered by `tests/void-wifi-backend.sh`.
 - `display/ryoku-hw-backlight-fix`: **ASUS TUF A15 FA507XV brightness keeps
   using its working EC control.** The native-backlight override is now limited
   to the confirmed FA506NCG quirk. An update removes the old broad drop-in from

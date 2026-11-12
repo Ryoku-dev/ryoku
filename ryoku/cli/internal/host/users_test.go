@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 const usersPasswdFixture = `root:x:0:0:root:/root:/bin/bash
@@ -232,6 +233,42 @@ func TestUsersRefusesLoggedInDelete(t *testing.T) {
 	}
 }
 
+// A deleted account left in ALLOW_USERS makes snapper refuse every command,
+// so snapshot cleanup fails for everyone until the name goes.
+func TestUsersDeleteDropsSnapshotReader(t *testing.T) {
+	passwdPath, groupPath := writeUsersFixtures(t)
+	runner := &fakeRunner{answer: func(command Command) Result {
+		if command.Name == "loginctl" {
+			return Result{Output: "1000 alice\n"}
+		}
+		return Result{}
+	}}
+	app, stdout, _ := testApp(runner, map[string]string{
+		"PKEXEC_UID":      "1000",
+		"RYOKU_HOST_INIT": "systemd",
+	})
+	app.cfg.PasswdPath, app.cfg.GroupPath = passwdPath, groupPath
+	app.cfg.UID, app.cfg.UIDSet = 0, true
+	config := filepath.Join(t.TempDir(), "root")
+	if err := os.WriteFile(config, []byte("SUBVOLUME=\"/\"\nALLOW_USERS=\"alice bob\"\nSYNC_ACL=\"yes\"\n"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	app.cfg.SnapperRootConfig = config
+	if code := app.Users([]string{"delete", "bob", "--erase-files"}); code != ExitOK {
+		t.Fatalf("delete exit = %d, output = %s", code, stdout.String())
+	}
+	body, err := os.ReadFile(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != "SUBVOLUME=\"/\"\nALLOW_USERS=\"alice\"\nSYNC_ACL=\"yes\"\n" {
+		t.Fatalf("snapper config = %q", body)
+	}
+	if info, err := os.Stat(config); err != nil || info.Mode().Perm() != 0o640 {
+		t.Fatalf("snapper config mode = %v, %v", info, err)
+	}
+}
+
 func TestUsersPasswordTravelsOnStdin(t *testing.T) {
 	passwdPath, groupPath := writeUsersFixtures(t)
 	var passwordInput string
@@ -259,6 +296,30 @@ func TestUsersPasswordTravelsOnStdin(t *testing.T) {
 		if strings.Contains(strings.Join(command.Args, " "), "correct horse") {
 			t.Fatalf("password leaked into argv: %#v", command)
 		}
+	}
+}
+
+// The Hub writes the password line and may keep the pipe open; waiting for
+// end of input left the Hub on "Saving" forever.
+func TestUsersPasswordDoesNotWaitForEndOfInput(t *testing.T) {
+	passwdPath, groupPath := writeUsersFixtures(t)
+	runner := &fakeRunner{}
+	app, stdout, _ := testApp(runner, nil)
+	app.cfg.PasswdPath, app.cfg.GroupPath = passwdPath, groupPath
+	app.cfg.UID, app.cfg.UIDSet = 0, true
+	input, writer := io.Pipe()
+	defer writer.Close()
+	app.cfg.Stdin = input
+	go func() { _, _ = writer.Write([]byte("hunter2\n")) }()
+	done := make(chan int, 1)
+	go func() { done <- app.Users([]string{"set-password", "bob"}) }()
+	select {
+	case code := <-done:
+		if code != ExitOK {
+			t.Fatalf("set-password exit = %d, output = %s", code, stdout.String())
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("set-password waited for stdin to close")
 	}
 }
 

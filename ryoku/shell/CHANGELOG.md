@@ -1,6 +1,25 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The launcher's weather follows the Celsius or Fahrenheit setting (#803).** A
+  unit change that arrived while the first forecast was still loading was
+  dropped, so the hero kept the locale's unit until the next refresh 15 minutes
+  later; the forecast is now fetched again in the new unit.
+- **Python's blurred bar background is back (#802).** The Serpantinum 2.3.1
+  sync took its new mask default but kept the old checks, so the Blur style
+  drew nothing and the bar showed plain transparency; Liquid glass was fine.
+- **Lyrics are shown as plain text.** LRCLIB lyrics are written by anyone, and
+  the lyric sheet and the tall music widget read markup in them, so a line could
+  restyle itself or pull an image from the web; tags now show as typed.
+- **The keyboard layout you switched to is still active after you log back in.**
+  Every session started on the first configured layout, so a second layout
+  picked from the bar was back to the first one after a login (#665).
+- **Python's network popup connects Bluetooth devices and follows them again.**
+  The Serpantinum 2.3.1 sync renamed the popup but left Ryoku's own lines on the
+  old name, so device clicks, connect results and status updates silently failed.
+- **Nomarchy's work Wi-Fi join keeps the password out of nmcli's history.** The
+  802.1X password went through `nmcli connection edit`, which saves every line
+  it reads to `~/.cache/nmcli-history`; it now reaches nmcli on a pipe.
 - **The battery list widget's percentages read cleanly at any charge.** Below a
   full charge the dark text meant for the fill was drawn over the whole row, so
   the numbers on the empty part looked smudged; it now stops at the fill edge (#791).

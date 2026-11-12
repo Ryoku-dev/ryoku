@@ -20,10 +20,12 @@ Singleton {
     // unit override from the launcher config: "" follows the locale (Fahrenheit
     // only for US/LR/MM), "C"/"F" force it. a change refetches in the new unit.
     property string unitOverride: ""
-    readonly property string unit: unitOverride === "C" ? "celsius"
-        : unitOverride === "F" ? "fahrenheit"
-        : Model.unitFor(Quickshell.env("LC_MEASUREMENT") || Quickshell.env("LANG") || "")
-    onUnitChanged: if (root.located) root.fetchWeather()
+    function unitValue() {
+        return unitOverride === "C" ? "celsius"
+            : unitOverride === "F" ? "fahrenheit"
+            : Model.unitFor(Quickshell.env("LC_MEASUREMENT") || Quickshell.env("LANG") || "")
+    }
+    onUnitOverrideChanged: if (root.located) root.fetchWeather()
 
     // public contract, identical to the old wttr.in version.
     property string temp: ""
@@ -47,10 +49,17 @@ Singleton {
     // set true once construction finishes; the cache FileView's initial
     // blockLoading load fires before ipProc/wxProc exist, so loadLoc must wait.
     property bool ready: false
+    // a fetch asked for while one is in flight runs once that one ends, so a
+    // unit or location change during the first fetch is not lost for 15 minutes.
+    property bool refetch: false
 
     function fetchWeather() {
-        if (!root.located || wxProc.running)
+        if (!root.located)
             return;
+        if (wxProc.running) {
+            root.refetch = true;
+            return;
+        }
         // build the URL with the unit wanted right now, so a unit switch can't
         // race the command binding and fetch the old unit.
         wxProc.command = ["curl", "-s", "--max-time", "10",
@@ -59,7 +68,7 @@ Singleton {
             + "&current=temperature_2m,weather_code,is_day,relative_humidity_2m"
             + "&hourly=temperature_2m,weather_code&forecast_hours=24"
             + "&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset&forecast_days=5"
-            + "&timezone=auto&temperature_unit=" + root.unit];
+            + "&timezone=auto&temperature_unit=" + root.unitValue()];
         wxProc.running = true;
     }
 
@@ -166,6 +175,12 @@ Singleton {
         id: wxProc
         stdout: StdioCollector {
             onStreamFinished: root.applyForecast(this.text)
+        }
+        onRunningChanged: {
+            if (!running && root.refetch) {
+                root.refetch = false;
+                root.fetchWeather();
+            }
         }
     }
 

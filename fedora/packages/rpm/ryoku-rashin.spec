@@ -1,5 +1,6 @@
 Name:           ryoku-rashin
 Version:        0.1
+Epoch:          1
 Release:        1%{?dist}
 Summary:        ryoku-rashin desktop component
 License:        GPL-3.0-or-later
@@ -15,8 +16,8 @@ BuildRequires:  webkit2gtk4.1-devel
 BuildRequires:  cmake
 BuildRequires:  ninja-build
 BuildRequires:  gcc-c++
-Requires:       ryoku-desktop = %{version}-%{release}
-Requires(post): ryoku = %{version}-%{release}
+Requires:       ryoku-desktop = %{epoch}:%{version}-%{release}
+Requires(post): ryoku = %{epoch}:%{version}-%{release}
 Requires:       uv
 Requires:       nodejs24
 Requires:       gcc

@@ -7,6 +7,9 @@
   single-instance way: a second press focuses the open window instead of
   spawning a twin, and a window rule floats and centres it like the other
   app windows (`modules/binds.lua`, `modules/window_rules.lua`).
+- **Super+= and Super+- grow and shrink the window on every layout.** On the
+  scrolling layout they step the column through its preset widths, elsewhere
+  they resize the tile; niri and Wayfire get the same pair (#797).
 
 ### Changed
 - **Login raises the reload cover.** The session autostart chain calls
@@ -25,6 +28,9 @@
   (`modules/binds.lua`, `modules/ryoshot.lua`).
 
 ### Fixed
+- **Taking headphones off no longer starts paused music.** The pause media key
+  now only pauses on Hyprland, niri and Wayfire, while the play key still
+  toggles, and one tap that sends both keys still acts once (#764).
 - **Headphone pause works on the first tap.** The pause media key is bound on
   Hyprland, niri and Wayfire, and play and pause both go through
   `ryoku-media`, so a tap that sends both keys toggles once (#764).

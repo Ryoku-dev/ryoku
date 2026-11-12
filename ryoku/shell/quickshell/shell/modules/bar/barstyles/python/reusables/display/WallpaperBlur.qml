@@ -140,22 +140,6 @@ Item {
     }
 
     Item {
-        id: mask
-        anchors.fill: parent
-        visible: false
-        layer.enabled: true
-
-        Rectangle {
-            anchors.fill: parent
-            topLeftRadius: root.topLeftRadius
-            topRightRadius: root.topRightRadius
-            bottomLeftRadius: root.bottomLeftRadius
-            bottomRightRadius: root.bottomRightRadius
-            color: "black"
-        }
-    }
-
-    Item {
         id: content
         anchors.fill: parent
         anchors.margins: -root.blurPad
@@ -218,7 +202,7 @@ Item {
 
         MultiEffect {
             anchors.fill: parent
-            visible: !root.liquid && root.maskItem !== mask
+            visible: !root.liquid && root.maskItem !== null
             source: visible ? blurCrop : null
             maskEnabled: true
             maskSource: root.maskItem
@@ -226,7 +210,7 @@ Item {
 
         ShaderEffect {
             anchors.fill: parent
-            visible: !root.liquid && root.maskItem === mask
+            visible: !root.liquid && root.maskItem === null
             property variant src: blurCrop
             property vector2d itemSize: Qt.vector2d(width, height)
             property vector4d radii: Qt.vector4d(root.topLeftRadius, root.topRightRadius, root.bottomRightRadius, root.bottomLeftRadius)

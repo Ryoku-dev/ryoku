@@ -121,7 +121,10 @@ Two branches, two jobs. Work goes to one; a release moves the other.
   and any deletion are refused. The **Stable Release** workflow then tags
   `main`; it is the only thing that commits there (a `VERSION` bump), and that
   commit is merged back into `unstable-dev` before the next release
-  (`CONTRIBUTING.md`, "Release notes").
+  (`CONTRIBUTING.md`, "Release notes"). `VERSION` on `unstable-dev` already
+  names the release being prepared, so a release needs no hand-set `VERSION`;
+  once `main` carries it, the next `unstable-dev` push moves `VERSION` to the
+  release after it (`docs/updates.md`, "Publishing").
 - **Any other branch is yours.** Push it freely, open a pull request against
   `unstable-dev`, and merge it there (never squash: it drops the release notes).
 

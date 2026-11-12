@@ -23,6 +23,9 @@ for finer detail.
   user is no longer in a mango session.
 
 ### Fixed
+- The Game Bar holds the pointer over the whole screen while it is open, so a
+  game under it no longer takes the cursor and hides it in the gaps between
+  widgets. A pinned card left behind after closing still takes no input.
 - Matugen template rendering now preserves distinct `dark` and `light` buckets in
   the carrier data instead of duplicating the active palette into both, allowing
   multi-theme applications like Zed editor to render both dark and light themes
@@ -133,6 +136,11 @@ for finer detail.
   reads the official Discord client over native RPC, or Vesktop and Equibop
   through a bundled Vencord companion. Every setting lives in Ryoku Hub ->
   Desktop -> Game Bar.
+- **Game Bar media card.** It shows the album cover, plays the lyrics of the
+  current track in time with it (synced from LRCLIB, cached for offline, plain
+  text when the track has no timings), and grows from a corner grip into a
+  larger card. The controls are Material buttons: play and pause turn into each
+  other, and the pill around them is frosted with the cover.
 - **Community docks.** RyoStore gains a Docks section: anyone can submit a dock
   as a folder to the ryostore catalogue, users install it there and pick it in
   Edit desktop -> Dock, and it becomes the dock on every monitor and every bar

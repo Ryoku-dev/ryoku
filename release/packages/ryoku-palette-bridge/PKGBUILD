@@ -7,6 +7,7 @@
 pkgname=ryoku-palette-bridge
 pkgver=${RYOKU_PKGVER:-0.1.0}
 pkgrel=1
+epoch=1
 pkgdesc="Ryoku wallpaper palette event bridge: exposes colours to SPA integrations"
 arch=('x86_64')
 url="https://ryoku.dev"

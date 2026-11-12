@@ -3,6 +3,28 @@
 ## Unreleased
 
 ### Fixed
+- **Graphics & Power offers Performance on laptops with a monitor port on the
+  discrete GPU.** The page says it applies only while a monitor is plugged in
+  there at login, and that the built-in screen can then stay dark after sleep.
+- **Resetting a password in Users no longer hangs on "Saving" (#798).** The
+  password pipe stayed open, so the helper waited for more input forever and
+  every later account change, removing a person included, stayed busy too.
+  A dismissed authentication prompt now says nothing was changed.
+- **Connections sees every saved profile of a Wi-Fi network.** Saved networks
+  were matched by profile name, so a second profile NetworkManager named
+  `<ssid> 1`, or one imported under another name, was invisible: Forget left
+  it behind and the auto-reconnect toggle missed it. Profiles are now matched
+  by the SSID they join, and Forget, auto-reconnect, and a new password apply
+  to all of them; a hotspot profile that shares the name is left alone
+  (`pages/ConnectionsPage.qml`).
+- **A wrong Wi-Fi password fails in seconds again in Connections.** The
+  password join ran `nmcli --ask`, which NetworkManager asks for a new secret
+  after a rejected one, so a wrong password waited out nmcli's 90-second
+  timeout. Connections now joins through the shell daemon like the bar does
+  (`ryoku-hub wifi connect`), so a rejected password fails as soon as
+  NetworkManager drops the join; the passphrase still travels on stdin and
+  never reaches argv or `~/.cache/nmcli-history`. When the daemon is not
+  running or cannot run the join, it falls back to nmcli as before.
 - **Shift plus a number key records in the shortcut recorder (#788).** The
   number row is read by key position, so Super+Shift+1 records as itself
   instead of being ignored, on any keyboard layout.

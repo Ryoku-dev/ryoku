@@ -398,5 +398,6 @@ downgrades.
   lane; the three `publish-repo*.yml` publishers run the same gate before they
   upload; `i18n.yml` runs only by hand. `docs/updates.md`, "Publishing", has the
   channel layout they write.
-- `VERSION` the base semver; `.woke.yml` the inclusive-language config;
+- `VERSION` the base semver (on `unstable-dev`, the next stable release);
+  `.woke.yml` the inclusive-language config;
   `.rashin-reviewer.yaml` the pre-commit review gate's settings.
