@@ -193,6 +193,9 @@ T.Control {
         activeFocusOnTab: true
         Accessible.name: destinationLabel
         Accessible.role: Accessible.Button
+        // Return goes to a destination as Space does, like every other control that acts
+        Keys.onReturnPressed: event => visible ? click() : (event.accepted = false)
+        Keys.onEnterPressed: event => visible ? click() : (event.accepted = false)
 
         background: CutRect {
             fill: selected ? "transparent"

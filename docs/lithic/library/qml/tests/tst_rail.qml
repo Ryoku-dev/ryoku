@@ -88,5 +88,15 @@ Item {
             frame.currentDestination = 1;
             compare(rail.currentIndex, 1, "navigation after a pointer pick moves the rail too");
         }
+
+        function test_returnGoesToAFocusedDestination() {
+            const rail = host.railOf(frame);
+            host.named(rail, "Updates").forceActiveFocus(Qt.TabFocusReason);
+            keyClick(Qt.Key_Return);
+            compare(frame.currentDestination, 2, "Return picks the focused destination");
+            host.named(rail, "Desktop").forceActiveFocus(Qt.TabFocusReason);
+            keyClick(Qt.Key_Enter);
+            compare(frame.currentDestination, 1, "so does the keypad Enter");
+        }
     }
 }
