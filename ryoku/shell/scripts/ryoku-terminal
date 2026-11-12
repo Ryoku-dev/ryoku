@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if (($#)); then
+	exec ryoku-app terminal -- "$@"
+fi
+
+exec ryoku-app terminal
