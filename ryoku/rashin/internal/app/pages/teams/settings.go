@@ -30,6 +30,7 @@ const (
 	sectionBudget
 	sectionNotifications
 	sectionMemory
+	sectionSkills
 	sectionExport
 	sectionDanger
 	sectionCount
@@ -85,6 +86,7 @@ type settingsTab struct {
 	notifyHeld teamsui.Held[string]
 
 	memory teamsui.TeamMemoryForm
+	skills skillsSection
 
 	export, pause, clear, remove kit.Plaque
 
@@ -115,7 +117,7 @@ type saveBar struct {
 func settingsLabels() []string {
 	return []string{
 		i18n.T("Identity"), i18n.T("Crew and engines"), i18n.T("Sign-in for Teams"), i18n.T("Tools and access"), i18n.T("Permissions"),
-		i18n.T("Budget and limits"), i18n.T("Notifications"), i18n.T("Memory"), i18n.T("Export"), i18n.T("Danger zone"),
+		i18n.T("Budget and limits"), i18n.T("Notifications"), i18n.T("Memory"), i18n.T("Skills"), i18n.T("Export"), i18n.T("Danger zone"),
 	}
 }
 
@@ -243,6 +245,7 @@ func (s *settingsTab) groups(gtx layout.Context, e *env.Env, p *Page, team proto
 		s.budgetSection(gtx, e, snapshot, team),
 		s.notifySection(e, snapshot, team),
 		s.memorySection(e, team),
+		s.skills.layout(e, snapshot, team),
 		s.exportSection(gtx, e, team),
 		s.dangerSection(gtx, e, p, snapshot, team),
 	}

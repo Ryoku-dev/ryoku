@@ -20,6 +20,7 @@ import (
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 	"ryoku-rashin/internal/redact"
+	"ryoku-rashin/internal/skills"
 	"ryoku-rashin/internal/teams"
 	"ryoku-rashin/internal/workspace"
 )
@@ -132,8 +133,12 @@ func run() error {
 		SetEngine: func(engine string) error { return d.SetMemoryEngine(engine) },
 	})
 	crew.SetMemory(mem)
+	// written out only the first time a model or the app asks for them
+	library := skills.New(paths.SkillsDir())
+	crew.SetSkills(library)
 	asker := ask.New(gw, idx, crew, mem)
-	deps := daemon.Deps{Gateway: gw, Asker: asker, Harnesses: harness.New(), Indexer: idx, Work: work, Teams: crew, Memory: mem, Version: version, Events: events, Lock: lock}
+	asker.SetSkills(library)
+	deps := daemon.Deps{Gateway: gw, Asker: asker, Harnesses: harness.New(), Indexer: idx, Work: work, Teams: crew, Memory: mem, Skills: library, Version: version, Events: events, Lock: lock}
 	// read now: once the file is replaced the kernel no longer names it
 	if program, programErr := os.Executable(); programErr == nil {
 		deps.Program = program

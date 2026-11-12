@@ -103,6 +103,9 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 	if strings.HasPrefix(method, "memory.") {
 		return s.callMemory(method, raw)
 	}
+	if strings.HasPrefix(method, "skills.") {
+		return s.callSkills(method, raw)
+	}
 	switch method {
 	case protocol.MHello:
 		return protocol.HelloResult{Daemon: "rashind-demo", Version: "2.0.0-demo", Protocol: protocol.Version, Enabled: true}, nil

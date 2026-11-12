@@ -200,6 +200,10 @@ const (
 	MMemoryEngineTest  = "memory.engine_test"
 	MMemoryEngineSetup = "memory.engine_setup"
 	MMemoryEngineMove  = "memory.engine_move"
+
+	MSkillsList   = "skills.list"
+	MSkillsGet    = "skills.get"
+	MSkillsSearch = "skills.search"
 )
 
 // Event names.
@@ -442,6 +446,10 @@ var Methods = []Method{
 	m(MMemoryEngineTest, MemoryEngineParams{}, MemoryEngineTest{}, "Check that an engine answers."),
 	m(MMemoryEngineSetup, MemoryEngineParams{}, Empty{}, "Set an engine up on this computer; progress arrives as memory.setup."),
 	m(MMemoryEngineMove, MemoryEngineParams{}, MemoryStatus{}, "Copy every memory to an engine and use it from then on."),
+
+	m(MSkillsList, Empty{}, SkillsResult{}, "The built-in skill sets, their skills and where they lie."),
+	m(MSkillsGet, SkillParams{}, SkillContent{}, "Read a skill's SKILL.md or one of its files."),
+	m(MSkillsSearch, SkillsSearchParams{}, SkillsSearchResult{}, "Skills that fit what is about to be done, best first."),
 }
 
 var methodIndex = func() map[string]Method {

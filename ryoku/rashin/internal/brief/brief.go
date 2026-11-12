@@ -97,6 +97,10 @@ type Session struct {
 	// Memory is what Rashin remembers that the agent may use, with how to
 	// reach the rest; empty when the session uses no memory.
 	Memory string
+	// Skills is what the agent is told of the built-in skills (Skills);
+	// empty when no set is on, and for a team task, whose team brief names
+	// its team's sets.
+	Skills string
 }
 
 // Agent is the text an external agent hears once, ahead of its first prompt.
@@ -169,6 +173,11 @@ func Agent(session Session) string {
 	if session.Screen {
 		b.WriteString("\nYour screen\n")
 		b.WriteString("When the work needs a graphical app, such as a web page to check or a program with no command line, the rashin screen tools give you a hidden desktop of your own to open apps on, look at, click and type into. The first use asks the user; they can watch it and take it over, and screen_ask_user hands it to them for sign-ins.\n")
+	}
+	if session.Skills != "" {
+		b.WriteString("\nSkills\n")
+		b.WriteString(session.Skills)
+		b.WriteString("\n")
 	}
 	b.WriteString("\nTeams\n")
 	b.WriteString(Teams(session.Tools))

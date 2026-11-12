@@ -1090,6 +1090,7 @@ type Settings struct {
 	Teams     TeamsSettings     `json:"teams"`
 	Providers ProvidersSettings `json:"providers"`
 	Memory    MemorySettings    `json:"memory"`
+	Skills    SkillsSettings    `json:"skills"`
 }
 
 // ProvidersSettings are the providers' settings that are not keys. Local maps

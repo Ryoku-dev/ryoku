@@ -149,6 +149,10 @@ func ScreensDir() string { return filepath.Join(RuntimeDir(), "screens") }
 // screen home, the team homes and the built-in skills written out.
 func DataDir() string { return filepath.Join(DataHome(), "ryoku", "rashin") }
 
+// SkillsDir holds the built-in skills written out of the program, in one
+// folder named for their content hash.
+func SkillsDir() string { return filepath.Join(DataDir(), "skills") }
+
 // ScreenHome is the HOME of the apps agents open on their screens, kept apart
 // from the user's and kept between screens so a login made there lasts.
 func ScreenHome() string { return filepath.Join(DataDir(), "screen-home") }

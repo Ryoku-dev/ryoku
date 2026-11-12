@@ -21,7 +21,7 @@ var restRoutes = []string{
 	"projects/hyperion/tasks", "projects/hyperion/activity",
 	"index",
 	"settings/rashin", "settings/providers", "settings/api", "settings/ask", "settings/agents", "settings/index", "settings/appearance",
-	"memory", "memory/suggested", "memory/replaced", "settings/memory",
+	"memory", "memory/suggested", "memory/replaced", "settings/memory", "settings/skills",
 }
 
 // A control that is drawn but sits under something that takes its presses

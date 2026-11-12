@@ -12,6 +12,7 @@ import (
 	"ryoku-rashin/internal/core"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
+	"ryoku-rashin/internal/skills"
 	"strconv"
 	"sync"
 	"syscall"
@@ -29,7 +30,9 @@ type Deps struct {
 	Teams     core.Teams
 	// Memory is what Rashin remembers between conversations; nil runs the
 	// daemon without it.
-	Memory  core.Memory
+	Memory core.Memory
+	// Skills are the built-in skill sets; nil runs the daemon without them.
+	Skills  *skills.Library
 	Version string
 	Events  *Broadcaster
 	Lock    *os.File

@@ -211,6 +211,7 @@ Every path comes from `internal/paths`; nothing else spells one.
 | `$XDG_STATE_HOME/ryoku/rashin/memory/teams/<team>.md` | what a team remembers, one fact per line |
 | `$XDG_DATA_HOME/ryoku/vault/memory/rashin/` | what Rashin remembers of you (`you.md`) and each project (`projects/<slug>.md`), one fact per line |
 | `$XDG_DATA_HOME/ryoku/rashin/harness-homes/<instance>/<team>/` | a team's home for a harness instance, the `HOME` its sessions and Checks run it with (0700) |
+| `$XDG_DATA_HOME/ryoku/rashin/skills/<hash>/` | the built-in skills written out, one folder named for their content hash (see Skills) |
 | `~/Teams/<slug>` | a team's folder, where its agents work (default) |
 | `$XDG_DATA_HOME/ryoku/worktrees/<project>/<name>` | worktrees Rashin creates (default) |
 | `$XDG_CACHE_HOME/ryoku/rashin/index/<id>/index.db` | one index (bbolt) |
@@ -243,7 +244,8 @@ XDG variables; `RASHIN_SOCKET` overrides the socket for a client.
       "budget": {"monthTokens": 2000000, "warnPercent": 80, "taskTurns": 20, "taskMinutes": 60}
     },
     "approvalHours": 24, "hidden": null, "keepDays": 0
-  }
+  },
+  "skills": {"off": []}
 }
 ```
 
@@ -284,6 +286,8 @@ XDG variables; `RASHIN_SOCKET` overrides the socket for a client.
   `null` and `[]` add nothing. At most 64.
 - `teams.keepDays`: 0 keeps finished tasks forever; 30, 90 or 365 deletes older
   ones with their conversations.
+- `skills.off`: the built-in skill sets turned off for every model (see
+  Skills); every set is on unless named here.
 
 Clients change settings only through `settings.set`; the daemon writes the file
 atomically and broadcasts `settings.changed`. A patch that touches `teams` or
@@ -1641,6 +1645,92 @@ rashin memory learn <session>
 
 Each prints TOON when piped and a table on a terminal; `--format
 human|json|toon` picks one.
+
+## Skills
+
+Rashin ships four skill sets built in and gives them to every model it runs:
+Ask, every agent session and every team.
+
+| Set | id | By | Licence | Pinned | Skills |
+|---|---|---|---|---|---|
+| Superpowers | `superpowers` | Jesse Vincent | MIT | `22f0b463e7a5` | 14: brainstorming, plans, test-driven development, systematic debugging, review, worktrees, verification |
+| OpenSpec | `openspec` | Fission AI | MIT | `d12c28177767` | 12 `openspec-*`: propose, apply, verify and archive a change; need the `openspec` command |
+| Spec Kit | `speckit` | GitHub | MIT | `979b0a3c1277` | 9 `speckit-*`: constitution, specify, clarify, plan, tasks, implement and checks; need `.specify/` in the project |
+| Elephant and Goldfish | `egm` | Google | Apache-2.0 | `84145300b9e0` | 7 `egm-*`: brainstorm, draft, review, resolve and drift reports for design documents; the user starts each by name |
+
+### Where they lie
+
+- **Vendored unchanged** under `ryoku/rashin/internal/skills/sets/<id>/`
+  (`bin/ryoku-dev-sync-rashin-skills` takes each set again from its pinned
+  commit) and embedded in `rashind`. What Rashin says about a set (its
+  summary, what it needs, its setup) is a Go table in
+  `internal/skills/catalog.go`, never a line inside a vendored file.
+- **The index** is read once from each `SKILL.md`'s frontmatter: `name`,
+  `description` and `disable-model-invocation`, which makes the skill one the
+  user starts by name (`Manual`, "When you ask" in the app).
+- **Written out on first use** to `$XDG_DATA_HOME/ryoku/rashin/skills/<hash>/`,
+  named for the tree's content: whole into a temporary folder, then renamed,
+  and every other folder there removed. A file starting with `#!` is
+  executable. Nothing runs while Rashin is off and nothing runs on a timer.
+- **Never in a harness's own folders.** Rashin does not write into
+  `~/.claude/skills` or any other user's harness config; agents read the
+  skills where Rashin keeps them.
+
+### Who is told what
+
+- **Ask** gets a short `# Skills` section in its system prompt (each set that
+  is on with its skills' names and where they lie, kept to about 1,200
+  characters) and two tools: `skills` searches by BM25 over each skill's
+  name and description (an empty query lists them) and `skill` reads a
+  skill's `SKILL.md` or one of its files. The model hears a skill whole; the
+  transcript shows its start.
+- **An agent session** hears the same list in its brief, with the folder and
+  one line on use: search with `skills` before a task, read with `skill` or
+  open the files at their paths, and start a skill the user starts by name
+  only when the user names it. Its `rashin mcp` server offers `skills` and
+  `skill` to every session.
+- **A team task's agent** hears its team's sets in the team's part of the
+  brief: those on for every model, less the team's `skillsOff`. A lead also
+  hears that designs and reviews go best with Elephant and Goldfish and
+  features of many steps with Spec Kit or OpenSpec. Its sandbox shows each of
+  those sets read-only at the same path, inside the data dir it otherwise
+  sees empty, so a set the team is not given stays hidden, and its own socket
+  answers `skills.*` within its team's sets.
+
+### Turning sets off
+
+Rashin > Settings > Skills turns a set off for every model (`skills.off`),
+and a team's Settings > Skills turns one off for its members (`skillsOff`
+through `teams.update`, recorded in Activity). Only the Rashin app changes
+either. A set that is off is listed with `on` false and is absent from
+search, reading, prompts, briefs and sandboxes.
+
+### Needs and setup
+
+- **OpenSpec** needs the `openspec` command (`npm install -g
+  @fission-ai/openspec`); its skills say what to do without it.
+  `skills.list` reports each need and whether `PATH` has it, and the
+  prompts name a missing one with its install command.
+- **Spec Kit** needs `bash` and `git`, and its `.specify/` scripts and
+  templates in the project. `rashin skills setup speckit [dir]` copies them
+  in, as Spec Kit's own `specify init` would, and refuses a project that
+  already has `.specify/`. The brief says so beside the Spec Kit skills.
+
+### Methods and command line
+
+`skills.list` (every set, its skills, needs and whether it is on, and the
+folder they lie in), `skills.search` and `skills.get` (a skill's file, read
+only inside its folder: no `..`, no links).
+
+```
+rashin skills list
+rashin skills search <words> [--limit n]
+rashin skills read <set/name> [file]
+rashin skills setup speckit [dir]
+```
+
+`list` and `search` print TOON when piped and a table on a terminal;
+`--format human|json|toon` picks one.
 
 ## The app
 

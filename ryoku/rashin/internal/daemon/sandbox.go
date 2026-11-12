@@ -108,8 +108,10 @@ func (d *Daemon) programDirs() []string {
 
 // agentSandbox is the sandbox a team session's agent runs in: its team's
 // folder, created when missing, and its own socket where the daemon's would
-// be, so the tools it is handed reach the daemon only as that session. A
-// folder inside what Rashin always hides is refused.
+// be, so the tools it is handed reach the daemon only as that session. Its
+// team's built-in skills show read-only where they lie, inside the data dir
+// it otherwise sees empty, so the paths its brief names work. A folder
+// inside what Rashin always hides is refused.
 func (d *Daemon) agentSandbox(info protocol.SessionInfo) (*sandbox.Spec, error) {
 	if hiddenFolder(paths.Resolved(info.Cwd)) {
 		return nil, protocol.Errorf(protocol.CodeForbidden, "%s", i18n.Tf("The team's folder %s is inside a place Rashin hides from every team. Choose another folder.", paths.Short(info.Cwd)))
@@ -129,6 +131,9 @@ func (d *Daemon) agentSandbox(info protocol.SessionInfo) (*sandbox.Spec, error) 
 	spec.Unset = agentUnset
 	if d.deps.Teams != nil {
 		spec = withAccess(spec, d.deps.Teams.Access(info))
+	}
+	for _, dir := range d.skillDirs(info) {
+		spec.ReadOnly = append(spec.ReadOnly, paths.Resolved(dir))
 	}
 	return &spec, nil
 }

@@ -20,6 +20,7 @@ import (
 	registry "ryoku-rashin/internal/harness"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
+	"ryoku-rashin/internal/skills"
 	"ryoku-rashin/internal/vault"
 )
 
@@ -51,6 +52,9 @@ type Service struct {
 	vault  *vault.Vault
 	// memory keeps what teams remember; nil when the daemon runs without it
 	memory core.Memory
+	// skills are the built-in skill sets its members are given; nil when the
+	// daemon runs without them
+	skills *skills.Library
 
 	// effects carry out an approval's action once the user decides, by kind
 	effects map[string]approvalEffect

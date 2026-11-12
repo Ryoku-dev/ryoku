@@ -46,7 +46,7 @@ var legacyKeys = []string{
 }
 
 // known are the version 2 keys this package owns.
-var known = []string{"version", "enabled", "ask", "agent", "daemon", "index", "api", "teams", "providers", "memory"}
+var known = []string{"version", "enabled", "ask", "agent", "daemon", "index", "api", "teams", "providers", "memory", "skills"}
 
 // Validate normalises s in place: unknown enums fall back to the defaults and
 // numbers are clamped to sane ranges.
@@ -85,6 +85,7 @@ func Validate(s *protocol.Settings) {
 	validateTeams(&s.Teams, d.Teams)
 	validateLocal(&s.Providers, d.Providers)
 	validateMemory(&s.Memory, d.Memory)
+	s.Skills.Off = cleanIDs(s.Skills.Off)
 }
 
 // below 1024 a user's daemon cannot listen
@@ -155,6 +156,7 @@ func fromRaw(raw map[string]json.RawMessage) protocol.Settings {
 	decodeInto(raw["teams"], &s.Teams)
 	decodeInto(raw["providers"], &s.Providers)
 	decodeInto(raw["memory"], &s.Memory)
+	decodeInto(raw["skills"], &s.Skills)
 	Validate(&s)
 	return s
 }
@@ -236,6 +238,7 @@ func saveUnlocked(s protocol.Settings) error {
 		"teams":     s.Teams,
 		"providers": s.Providers,
 		"memory":    s.Memory,
+		"skills":    s.Skills,
 	} {
 		if err := set(k, v); err != nil {
 			return err

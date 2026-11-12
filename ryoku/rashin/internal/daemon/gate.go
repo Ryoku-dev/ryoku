@@ -54,10 +54,11 @@ func isAgentMethod(method string) bool { return strings.HasPrefix(method, "teams
 
 // agentGate is what a connection on a team session's own socket may call:
 // the team tools, that session's goal and screen, acting as its agent,
-// reading the indexes inside its team's folders, and searching, remembering
-// and forgetting in its team's memory. Everything else is refused.
+// reading the indexes inside its team's folders, searching, remembering
+// and forgetting in its team's memory, and reading its team's built-in
+// skills. Everything else is refused.
 func agentGate(session, method string, raw json.RawMessage) error {
-	if isAgentMethod(method) || agentIndex[method] || teamMemory[method] {
+	if isAgentMethod(method) || agentIndex[method] || teamMemory[method] || isSkillsMethod(method) {
 		return nil
 	}
 	switch method {
@@ -131,15 +132,16 @@ func requireApp(c *connection) error {
 // Rashin app may change: the teams' settings, which set what their agents
 // may reach, the harness instances, whose command and environment team
 // agents run with, the providers' settings, which name the addresses the
-// gateway sends requests to, or memory's, so no agent can turn memory on,
-// widen what it reads or point it at another server. A patch that replaces
-// a whole object, or is no object at all, reaches everything under it.
+// gateway sends requests to, memory's, so no agent can turn memory on,
+// widen what it reads or point it at another server, or the skills', so no
+// agent chooses what every model is told. A patch that replaces a whole
+// object, or is no object at all, reaches everything under it.
 func settingsForApp(patch json.RawMessage) bool {
 	var top map[string]json.RawMessage
 	if json.Unmarshal(patch, &top) != nil || top == nil {
 		return true
 	}
-	for _, key := range []string{"teams", "providers", "memory"} {
+	for _, key := range []string{"teams", "providers", "memory", "skills"} {
 		if _, ok := top[key]; ok {
 			return true
 		}

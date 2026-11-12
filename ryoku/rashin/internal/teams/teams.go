@@ -37,6 +37,7 @@ type teamEdit struct {
 	Running   int                 `json:"running"`
 	Access    protocol.TeamAccess `json:"access"`
 	Memory    protocol.TeamMemory `json:"memory"`
+	SkillsOff []string            `json:"skillsOff"`
 }
 
 // listTeams lists every team by name with its stats.
@@ -245,7 +246,7 @@ func (s *Service) updateTeam(ctx context.Context, p protocol.TeamUpdateParams) (
 	base, err := json.Marshal(teamEdit{
 		Name: current.Name, Purpose: current.Purpose, Folder: current.Folder, Members: current.Members,
 		Tools: current.Tools, Approvals: current.Approvals, Budget: current.Budget, Notify: current.Notify,
-		Running: current.Running, Access: current.Access, Memory: current.TeamMemory(),
+		Running: current.Running, Access: current.Access, Memory: current.TeamMemory(), SkillsOff: current.SkillsOff,
 	})
 	if err != nil {
 		return protocol.Team{}, err
@@ -272,6 +273,7 @@ func (s *Service) updateTeam(ctx context.Context, p protocol.TeamUpdateParams) (
 	team.Name, team.Purpose, team.Folder, team.Members = next.Name, next.Purpose, next.Folder, next.Members
 	team.Tools, team.Approvals, team.Budget, team.Notify = next.Tools, next.Approvals, next.Budget, next.Notify
 	team.Running, team.Access = next.Running, next.Access
+	team.SkillsOff = slices.DeleteFunc(slices.Compact(slices.Sorted(slices.Values(next.SkillsOff))), func(id string) bool { return id == "" })
 	if next.Memory != current.TeamMemory() {
 		team.Memory = &next.Memory
 	}

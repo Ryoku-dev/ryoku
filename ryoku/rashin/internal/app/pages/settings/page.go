@@ -28,6 +28,7 @@ const (
 	sectionAgents
 	sectionTeams
 	sectionMemory
+	sectionSkills
 	sectionIndex
 	sectionAppearance
 	sectionKeys
@@ -70,6 +71,7 @@ type Page struct {
 	notices   kit.Toggle
 	teams     teamsPanel
 	memory    memoryPanel
+	skills    skillsPanel
 	install   env.HarnessInstall
 	instances map[string]*instanceEditor
 	fresh     instanceEditor
@@ -94,6 +96,7 @@ func New() *Page {
 func (p *Page) OpenSection(name string) {
 	p.providerOrder = nil
 	p.usage.Forget()
+	p.skills.list.Forget()
 	// the older names still lead to their section
 	aliases := map[string]string{"about": "rashin", "agent": "agents", "keyboard": "keys"}
 	if alias, ok := aliases[name]; ok {
@@ -212,6 +215,7 @@ func sections() [sectionCount]section {
 		{"agents", i18n.T("Agents"), look.Icon.Agents, i18n.T("harness harnesses omp approvals notices idle")},
 		{"teams", i18n.T("Teams"), look.Icon.Teams, i18n.T("ledger budget spend members sandbox mail sign-in login harness hidden secrets")},
 		{"memory", i18n.T("Memory"), look.Icon.Memory, i18n.T("memory remember forget learn temporary privacy Honcho Hindsight")},
+		{"skills", i18n.T("Skills"), look.Icon.Skills, i18n.T("skills built in sets specs plans designs reviews debugging tests teams")},
 		{"index", i18n.T("Index"), look.Icon.Index, i18n.T("search meaning semantic system folders hide code")},
 		{"appearance", i18n.T("Appearance"), look.Icon.Show, i18n.T("theme colours colors dark light contrast tint zoom motion")},
 		{"keys", i18n.T("Keyboard"), look.Icon.Key, i18n.T("keys shortcuts keybinds")},
@@ -320,6 +324,8 @@ func (p *Page) layoutSections(gtx layout.Context, e *env.Env, inset, width int) 
 				return p.layoutTeams(gtx, e)
 			case sectionMemory:
 				return stackBlocks(gtx, p.memoryBlocks(gtx, e, nil))
+			case sectionSkills:
+				return stackBlocks(gtx, p.skillsBlocks(gtx, e, nil))
 			case sectionIndex:
 				return p.layoutIndex(gtx, e)
 			case sectionAppearance:

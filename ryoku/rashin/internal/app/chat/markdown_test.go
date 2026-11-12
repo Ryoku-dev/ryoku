@@ -25,6 +25,58 @@ func TestParseMarkdownNestedLists(t *testing.T) {
 	}
 }
 
+// a wrapped item goes on under its marker, as SKILL.md files and answers both write them
+func TestAListItemCarriesOnOverAnIndentedLine(t *testing.T) {
+	for name, test := range map[string]struct {
+		source string
+		want   []markdownKind
+		items  []string
+	}{
+		"under a bullet": {
+			source: "- **In the request** (\"make the icon cornflower\n  blue\"). Do it.\n- Next",
+			want:   []markdownKind{markdownList},
+			items:  []string{"**In the request** (\"make the icon cornflower blue\"). Do it.", "Next"},
+		},
+		"under a numbered item": {
+			source: "1. Lay out the approaches in a message of their\n   own, and have them pick one.\n2. Write the design doc.",
+			want:   []markdownKind{markdownList},
+			items:  []string{"Lay out the approaches in a message of their own, and have them pick one.", "Write the design doc."},
+		},
+		"a nested list stays a list": {
+			source: "- Parent\n  - Child",
+			want:   []markdownKind{markdownList},
+			items:  []string{"Parent", "Child"},
+		},
+		"an indented fence stays code": {
+			source: "- Run it:\n  ```sh\n  make\n  ```",
+			want:   []markdownKind{markdownList, markdownCode},
+			items:  []string{"Run it:"},
+		},
+		"a blank line and a paragraph end the list": {
+			source: "- Item\n\nAfter the list",
+			want:   []markdownKind{markdownList, markdownParagraph},
+			items:  []string{"Item"},
+		},
+	} {
+		blocks := parseMarkdown(test.source)
+		kinds := make([]markdownKind, len(blocks))
+		for index, block := range blocks {
+			kinds[index] = block.kind
+		}
+		if !slices.Equal(kinds, test.want) {
+			t.Errorf("%s: blocks = %#v, want kinds %v", name, blocks, test.want)
+			continue
+		}
+		texts := make([]string, len(blocks[0].items))
+		for index, item := range blocks[0].items {
+			texts[index] = item.text
+		}
+		if !slices.Equal(texts, test.items) {
+			t.Errorf("%s: items = %q, want %q", name, texts, test.items)
+		}
+	}
+}
+
 func TestParseMarkdownFencedCode(t *testing.T) {
 	blocks := parseMarkdown("Before\n\n```go\nfmt.Println(\"x\")\n```\n\nAfter")
 	if len(blocks) != 3 || blocks[1].kind != markdownCode {

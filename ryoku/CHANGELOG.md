@@ -50,6 +50,15 @@
   an address. `ryoku-rashin` now ships the MIT Hindsight Go client and
   validator.v2 (Apache-2.0), listed in NOTICE, and installs
   LICENSE.validator (`rashin/internal/memory/external.go`).
+- **Every Rashin model has Superpowers, OpenSpec, Spec Kit and Elephant and
+  Goldfish built in.** Ask, agents and team members are told the sets that
+  are on and search and read them with the `skills` and `skill` tools; a team
+  lead is pointed to Elephant and Goldfish for designs and to Spec Kit or
+  OpenSpec for larger features, and team sandboxes see the skills read-only.
+  Sets turn off for every model or per team (`rashin/internal/skills`).
+- **`rashin skills` lists, searches and reads the built-in skills**, and
+  `rashin skills setup speckit [dir]` puts Spec Kit's scripts and templates
+  into a project that lacks them (`rashin/cmd/rashin/skills.go`).
 - **Teams remember between runs.** A team keeps facts of its own, a routine's
   run starts with the last run's report, and what a team learns about you
   waits in the Inbox as a suggestion (`rashin/internal/teams/hooks.go`).

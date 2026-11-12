@@ -48,8 +48,8 @@ func (s *Service) ToolEnv(info protocol.SessionInfo) map[string]string {
 
 // Brief is the team part of what a team session's agent hears ahead of its
 // first prompt: who it is on the team, where it works, how the team works,
-// what it never sees, what the team remembers and, for a routine's run, what
-// the run before it reported.
+// what it never sees, the built-in skills its team is given, what the team
+// remembers and, for a routine's run, what the run before it reported.
 func (s *Service) Brief(info protocol.SessionInfo) string {
 	if info.TeamTask == "" {
 		return ""
@@ -120,6 +120,10 @@ func (s *Service) Brief(info protocol.SessionInfo) string {
 	}
 	if team.Tools.Screen {
 		b.WriteString(i18n.T("You may use your own screen with the screen tools without asking first."))
+		b.WriteString("\n")
+	}
+	if text := s.skillsBrief(team, member.ID == lead.ID); text != "" {
+		b.WriteString(text)
 		b.WriteString("\n")
 	}
 	tm := team.TeamMemory()

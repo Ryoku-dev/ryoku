@@ -86,6 +86,7 @@ jobs:
             while IFS= read -r -d '' file; do
               [[ -f $file ]] || continue
               [[ $file == ryoku/lockscreen/qylock/* ]] && continue
+              [[ $file == ryoku/rashin/internal/skills/sets/* ]] && continue
               [[ $file == */vendor/* ]] && continue
 
               # skip non-shell interpreters that share these dirs (e.g.

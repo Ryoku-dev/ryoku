@@ -722,6 +722,9 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 		if isMemoryMethod(method) {
 			return d.memoryCall(ctx, c, method, raw)
 		}
+		if isSkillsMethod(method) {
+			return d.skillsCall(c, method, raw)
+		}
 		return nil, protocol.Errorf(protocol.CodeUnsupported, "%s", i18n.Tf("Method %s is not supported.", method))
 	}
 }

@@ -330,6 +330,9 @@ type Teams interface {
 	Working(harness, team string) bool
 	// TeamName is a team's name, false for a team that does not exist.
 	TeamName(team string) (string, bool)
+	// SkillsOff are the built-in skill sets a team's members are not given,
+	// besides those off for every model; nil for a team that does not exist.
+	SkillsOff(team string) []string
 	// Busy reports team tasks at work; Armed reports routines that are on, so
 	// the daemon stays up to fire them.
 	Busy() bool

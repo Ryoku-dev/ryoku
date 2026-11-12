@@ -53,8 +53,8 @@ func askIdentity(mode string) string {
 }
 
 // systemPrompt is Ask's system prompt for mode; memory is the memory section
-// recall gave this turn, "" for none.
-func (f *Factory) systemPrompt(settings protocol.Settings, terminal *protocol.TerminalContext, mode, memory string) string {
+// recall gave this turn and skills the built-in skills', "" for none.
+func (f *Factory) systemPrompt(settings protocol.Settings, terminal *protocol.TerminalContext, mode, memory, skills string) string {
 	var b strings.Builder
 	b.WriteString(askIdentity(mode))
 	b.WriteString("\n\n# Ryoku vault\n\n")
@@ -63,6 +63,10 @@ func (f *Factory) systemPrompt(settings protocol.Settings, terminal *protocol.Te
 	b.WriteString(brief.Rashin())
 	b.WriteString("\n\n# Teams\n\n")
 	b.WriteString(brief.Teams(true))
+	if skills != "" {
+		b.WriteString("\n\n")
+		b.WriteString(skills)
+	}
 	if settings.Ask.Habits {
 		b.WriteString("\n\n# User habits\n\n")
 		b.WriteString(f.habits.summary())

@@ -42,6 +42,9 @@ type Team struct {
 	// Memory is what the team keeps between runs and may know of the user;
 	// nil, for a team made before memory, takes DefaultTeamMemory.
 	Memory *TeamMemory `json:"memory,omitempty"`
+	// SkillsOff are the built-in skill sets its members are not given; every
+	// set that is on in the settings reaches them unless named here.
+	SkillsOff []string `json:"skillsOff,omitempty"`
 	// Stats is filled by the daemon from the team's tasks and spend.
 	Stats TeamStats `json:"stats"`
 }

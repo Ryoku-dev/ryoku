@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# Re-vendor Rashin's built-in skill sets from their pinned upstream commits
+# into ryoku/rashin/internal/skills/sets. Every file lands unchanged; Spec Kit's
+# skills are the ones its own `specify init` renders when run from the pinned
+# commit. Running it twice leaves the tree identical.
+#
+#   ryoku-dev-sync-rashin-skills   rebuild the tree (needs git, tar, uvx, network)
+#
+# To move a set, change its commit below, run this, and update the set's entry
+# in ryoku/rashin/NOTICE, the root NOTICE and the Go set table.
+set -euo pipefail
+
+superpowers_commit=22f0b463e7a5e579904dd6211a520321035526f7
+openspec_commit=d12c2817776779e06891d68230773b3bb673b106
+speckit_commit=979b0a3c1277283371c9901ad0eed04b64a99997
+egm_commit=84145300b9e0e3fadd21617da345c19445c74219
+
+repo=$(git rev-parse --show-toplevel)
+dest=$repo/ryoku/rashin/internal/skills/sets
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+out=$work/sets
+
+# take <id> <url> <commit> <tar options and paths...>: unpack those paths of
+# one commit, without history, into the set's folder.
+take() {
+  local id=$1 url=$2 commit=$3
+  shift 3
+  local src=$work/src-$id
+  git init -q "$src"
+  git -C "$src" fetch -q --depth 1 "$url" "$commit"
+  mkdir -p "$out/$id"
+  git -C "$src" archive --format=tar "$commit" | tar -x -C "$out/$id" "$@"
+}
+
+# Superpowers: every skill except diagnosing-superpowers, which debugs the
+# Claude Code plugin itself.
+take superpowers https://github.com/obra/superpowers.git "$superpowers_commit" \
+  --exclude='skills/diagnosing-superpowers' LICENSE skills
+
+# OpenSpec: the openspec-* skills; they call the openspec command themselves.
+take openspec https://github.com/Fission-AI/OpenSpec.git "$openspec_commit" \
+  --wildcards LICENSE 'skills/openspec-*'
+
+# Elephant and Goldfish: the egm-* skills without their tests, plus the
+# plugin-root agents/ and resources/ they name and the docs they link to.
+take egm https://github.com/google/elephant-goldfish-model.git "$egm_commit" \
+  --wildcards --exclude='TEST.md' --exclude='test_scenarios.yaml' \
+  LICENSE 'skills/egm-*' agents resources docs/codex.md docs/claude.md
+
+# Spec Kit: its LICENSE, then the skills and .specify/ payload `specify init`
+# writes. The CLI's install records (integrations/ manifests and the workflow
+# registry) carry install timestamps and only matter to the CLI, so they stay out.
+take speckit https://github.com/github/spec-kit.git "$speckit_commit" LICENSE
+init=$work/speckit-init
+uvx --from "git+https://github.com/github/spec-kit.git@$speckit_commit" \
+  specify init "$init" --integration codex --integration-options=--skills \
+  --script sh --ignore-agent-tools --non-interactive >/dev/null
+mkdir -p "$out/speckit/skills"
+cp -R "$init"/.agents/skills/speckit-* "$out/speckit/skills/"
+cp -R "$init/.specify" "$out/speckit/.specify"
+rm -rf "$out/speckit/.specify/integrations" "$out/speckit/.specify/workflows"
+
+rm -rf "$dest"
+mkdir -p "$(dirname "$dest")"
+cp -R "$out" "$dest"
+printf 'rashin skills: %s files in %s\n' \
+  "$(find "$dest" -type f | wc -l)" "${dest#"$repo"/}"

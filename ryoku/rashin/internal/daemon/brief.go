@@ -14,11 +14,12 @@ import (
 // agentBrief is what an agent session is told ahead of its first prompt:
 // Ryoku, the vault, Rashin, the session's own place, the code search over
 // its folder, for a team task its team and, for any other session, what
-// Rashin remembers that it may use. A team task's agent is told what its
-// sandbox lets it reach in place of the vault it cannot see, and offered
-// only an index it may read. The search is named whenever the folder can be
-// indexed, even while indexSession is still registering it: the commands
-// wait for the index themselves, and a session is only ever briefed once.
+// Rashin remembers that it may use and the built-in skills. A team task's
+// agent is told what its sandbox lets it reach in place of the vault it
+// cannot see, and offered only an index it may read. The search is named
+// whenever the folder can be indexed, even while indexSession is still
+// registering it: the commands wait for the index themselves, and a session
+// is only ever briefed once.
 func (d *Daemon) agentBrief(info protocol.SessionInfo) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -36,6 +37,7 @@ func (d *Daemon) agentBrief(info protocol.SessionInfo) string {
 	if d.deps.Memory != nil && info.Team == "" {
 		session.Memory = d.deps.Memory.Brief(info)
 	}
+	session.Skills = d.skillsBrief(info, tools)
 	if d.deps.Work != nil && info.Project != "" {
 		for _, project := range d.deps.Work.Projects(ctx) {
 			if project.ID == info.Project {

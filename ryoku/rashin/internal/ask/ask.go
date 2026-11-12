@@ -19,6 +19,7 @@ import (
 	"ryoku-rashin/internal/llm"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
+	"ryoku-rashin/internal/skills"
 )
 
 const (
@@ -33,6 +34,7 @@ type Factory struct {
 	index  core.Indexer
 	teams  core.Teams
 	memory core.Memory
+	skills *skills.Library
 	habits habitCache
 	doctor doctorCache
 }
@@ -135,8 +137,10 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 	if recall.Used != nil {
 		sink.Emit(protocol.EvMemory, *recall.Used)
 	}
+	skillsText, skillTools := r.factory.skillsSection(settings)
 	tools := append(askTools(mode), memoryTools(recall)...)
-	messages := []llm.Message{{Role: llm.RoleSystem, Content: r.factory.systemPrompt(settings, in.Terminal, mode, recall.System)}}
+	tools = append(tools, skillTools...)
+	messages := []llm.Message{{Role: llm.RoleSystem, Content: r.factory.systemPrompt(settings, in.Terminal, mode, recall.System, skillsText)}}
 	messages = append(messages, historyMessages(in.History, historyBudgetBytes)...)
 	messages = append(messages, withRecalled(asked, recall.Context))
 
@@ -259,7 +263,14 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 			sink.Emit(protocol.EvTool, protocol.ToolData{
 				Call: call.ID, Title: title, Kind: kind, Status: protocol.ToolRunning, Input: input,
 			})
-			output, nextPlan, toolErr := r.factory.runTool(ctx, call, in.Terminal, r.opts.Session.ID)
+			var output string
+			var nextPlan *protocol.CommandPlan
+			var toolErr error
+			if brief.IsSkillTool(call.Name) && handed(tools, call.Name) {
+				output, toolErr = r.factory.runSkillTool(call, settings)
+			} else {
+				output, nextPlan, toolErr = r.factory.runTool(ctx, call, in.Terminal, r.opts.Session.ID)
+			}
 			if nextPlan != nil {
 				plan = nextPlan
 			}
@@ -272,12 +283,13 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 					output += "\n" + toolErr.Error()
 				}
 			}
+			told := truncateRunes(output, toldLimit(call.Name))
 			output = truncateRunes(output, 6000)
 			sink.Emit(protocol.EvTool, protocol.ToolData{
 				Call: call.ID, Title: title, Kind: kind, Status: status, Output: output,
 			})
 			messages = append(messages, llm.Message{
-				Role: llm.RoleTool, ToolCallID: call.ID, Name: call.Name, Content: output,
+				Role: llm.RoleTool, ToolCallID: call.ID, Name: call.Name, Content: told,
 			})
 			if ctx.Err() != nil {
 				return core.TurnResult{Stop: protocol.StopCancelled, Usage: usagePtr(usage)}, nil

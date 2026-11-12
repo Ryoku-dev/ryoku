@@ -202,6 +202,7 @@ func (s *uiShell) commands(e *env.Env) []paletteAction {
 			s.openMemory(env.MemoryPlace{})
 			s.memory.AddMemory()
 		}),
+		action(look.Icon.Skills, i18n.T("Built-in skills"), command, func() { s.openSettings("skills") }),
 		action(look.Icon.Steps, i18n.T("Keyboard shortcuts"), command, func() { s.openSettings("keys") }),
 		action(look.Icon.SidebarToggle, i18n.T("Fold or open the sidebar"), "Ctrl B", s.toggleSidebar),
 		action(look.Icon.Search, i18n.T("Search the index"), command, func() { s.openDestination(protocol.TabIndex) }),

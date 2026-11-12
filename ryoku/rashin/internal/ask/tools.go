@@ -605,6 +605,9 @@ func toolPresentation(call llm.ToolCall) (title, kind, input string) {
 	if title, kind, ok := teamToolPresentation(call); ok {
 		return title, kind, input
 	}
+	if title, kind, ok := skillToolPresentation(call); ok {
+		return title, kind, input
+	}
 	switch call.Name {
 	case "system_query":
 		command, _ := args["command"].(string)

@@ -55,9 +55,10 @@ func serverTools(getenv func(string) string) (string, []mcp.Tool) {
 		session.cwd, _ = os.Getwd()
 	}
 	instructions := "Rashin's tools for this session. search, find, def, outline, references, impact and peek read Rashin's index of the session folder, which covers every source language in it. goal reports and ends the goal the user set with /goal. " +
-		"teams_templates and teams_list read Rashin's teams, and propose_team proposes a new team, which the user approves in the Rashin Inbox."
+		"teams_templates and teams_list read Rashin's teams, and propose_team proposes a new team, which the user approves in the Rashin Inbox." + skillsInstructions
 	tools := append(codeTools(session), goalTool(session))
 	tools = append(tools, teamsTools(session)...)
+	tools = append(tools, skillTools()...)
 	// the daemon says whether this desktop can host a screen for the agent
 	if getenv("RASHIN_SCREEN") == "1" {
 		instructions += " The screen tools give you a hidden desktop of your own to use apps on, once the user agrees."
