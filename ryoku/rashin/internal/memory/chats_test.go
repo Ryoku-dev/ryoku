@@ -32,21 +32,34 @@ func TestSessionSearchRespectsKeptAndSetting(t *testing.T) {
 	}
 }
 
-// A long reply is cut around the sentence the question asks about, not at
-// its head.
+// A long reply is cut around the sentence that answers the question, not
+// around the one echoing what the user asked, and keeps the sentence after
+// it. The reply and question are the recorded miss: the question's setup
+// words matched the reply's opening, and "sealant" did not match "Seal".
 func TestExcerptKeepsMatchingSentence(t *testing.T) {
-	text := strings.Repeat("Cut the newspaper into strips and roll each one tightly around a skewer. ", 8) +
-		"Seal the vase with Mod Podge so it resists moisture. " +
-		strings.Repeat("Paint the outside in any colour you like once it is dry. ", 8)
-	got := excerpt("what sealant for the newspaper vase", text, chatLineChars)
+	reply := "Yes, here are a few DIY home decor projects using recycled materials:\n\n" +
+		"1. Wine Cork Bulletin Board - Collect wine corks and arrange them in a square or rectangular shape. Glue them together and add a fabric backing to create a unique and functional bulletin board.\n\n" +
+		"2. Newspaper Flower Vase - Roll up strips of newspaper to create a sturdy base, then weave them together to make a vase. Seal the vase with Mod Podge or another varnish to make it water-resistant.\n\n" +
+		"3. Bottle Cap Coasters - Collect bottle caps and arrange them in a pattern on a cork base. Use glue to secure them in place.\n\n" +
+		"4. Mason Jar Wall Planter - Attach metal hose clamps to a wooden board and insert Mason jars into the clamps. Fill the jars with soil and plant herbs or small flowers.\n\n" +
+		"5. Tin Can Lanterns - Punch holes in clean tin cans in a pattern, then place a tea light inside for a warm glow."
+	doc := &chatDoc{lines: []chatLine{
+		{text: "Can you suggest some DIY home decor projects using recycled materials?"},
+		{reply: true, text: reply},
+	}}
+	question := "I'm going back to our previous conversation about DIY home decor projects using recycled materials. Can you remind me what sealant you recommended for the newspaper flower vase?"
+	got := excerpt(doc.weigh(question), reply, chatLineChars)
 	if !strings.Contains(got, "Seal the vase with Mod Podge") || utf8.RuneCountInString(got) > chatLineChars+2 {
 		t.Fatalf("excerpt = %q (%d)", got, utf8.RuneCountInString(got))
 	}
 	if !strings.HasPrefix(got, "…") || !strings.HasSuffix(got, "…") {
 		t.Fatalf("excerpt does not mark both cuts: %q", got)
 	}
-	if short := "One short line."; excerpt("line", short, chatLineChars) != short {
+	if short := "One short line."; excerpt(nil, short, chatLineChars) != short {
 		t.Fatal("a line that fits was changed")
+	}
+	if !related("sealant", "seal") || related("seal", "sea") || related("vase", "vast") {
+		t.Fatal("stems are matched wrongly")
 	}
 }
 

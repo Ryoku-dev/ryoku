@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"math"
 	"regexp"
 	"sort"
 	"strconv"
@@ -48,13 +49,14 @@ type chatLine struct {
 }
 
 // show is the line as a search shows it: who said it, and the part of it
-// that matches query when it is too long to show whole.
-func (l chatLine) show(query string) string {
+// that answers the question when it is too long to show whole. weights come
+// from the line's conversation (see weigh).
+func (l chatLine) show(weights map[string]float64) string {
 	who := i18n.T("User")
 	if l.reply {
 		who = i18n.T("Reply")
 	}
-	return who + ": " + excerpt(query, l.text, chatLineChars)
+	return who + ": " + excerpt(weights, l.text, chatLineChars)
 }
 
 // chatHit is one conversation a search found: its scanned summary and the
@@ -133,7 +135,7 @@ func (e *Engine) sessionsSearch(ctx context.Context, in protocol.SessionInfo, p 
 	for _, hit := range hits {
 		lines := make([]string, len(hit.lines))
 		for at, index := range hit.lines {
-			lines[at] = render.Neutral(hit.doc.lines[index].show(p.Query))
+			lines[at] = render.Neutral(hit.doc.lines[index].show(hit.doc.weigh(p.Query)))
 		}
 		result.Sessions = append(result.Sessions, protocol.MemorySessionHit{
 			Session: hit.doc.info.ID,
@@ -273,10 +275,100 @@ func matchingLines(query string, lines []chatLine) []int {
 // sentence is one sentence of a line with what follows it up to the next.
 var sentence = regexp.MustCompile(`[^.!?\n]+(?:[.!?]+|\n|$)\s*`)
 
-// excerpt is text cut to max characters around the sentence that best
-// matches query, with the sentences either side as room allows, and "…"
+// askWords say how a question about a conversation is asked, beside the
+// stop words every question shares.
+var askWords = map[string]bool{"remind": true, "tell": true, "told": true, "say": true, "said": true, "back": true, "going": true, "previous": true, "earlier": true, "conversation": true}
+
+// terms are the words of text worth matching: its content words, without
+// those that only say how a question is asked.
+func terms(text string) []string {
+	words := contentWords(text)
+	out := words[:0]
+	for _, word := range words {
+		if !askWords[word] {
+			out = append(out, word)
+		}
+	}
+	return out
+}
+
+// stemPrefix is how many leading runes two words must share to count as the
+// same word ("seal" and "sealant").
+const stemPrefix = 4
+
+// related reports the same word, or two words sharing a stem.
+func related(a, b string) bool {
+	if a == b {
+		return true
+	}
+	for shared := 0; a != "" && b != ""; {
+		ra, na := utf8.DecodeRuneInString(a)
+		rb, nb := utf8.DecodeRuneInString(b)
+		if ra != rb {
+			return false
+		}
+		if shared++; shared == stemPrefix {
+			return true
+		}
+		a, b = a[na:], b[nb:]
+	}
+	return false
+}
+
+// mentions reports a word in words related to word.
+func mentions(words []string, word string) bool {
+	for _, each := range words {
+		if related(each, word) {
+			return true
+		}
+	}
+	return false
+}
+
+// userEcho scales a question word the user's own lines already hold: it
+// names what the conversation was about, not what in a reply answers it.
+const userEcho = 0.1
+
+// weigh gives each word of query a weight within this conversation: rarer
+// across its sentences weighs more, and a word the user said in it weighs
+// little. Words the conversation never mentions are left out.
+func (d *chatDoc) weigh(query string) map[string]float64 {
+	var units [][]string
+	var said []string
+	for _, line := range d.lines {
+		for _, part := range sentence.FindAllString(line.text, -1) {
+			unit := terms(part)
+			units = append(units, unit)
+			if !line.reply {
+				said = append(said, unit...)
+			}
+		}
+	}
+	weights := map[string]float64{}
+	for _, word := range terms(query) {
+		found := 0
+		for _, unit := range units {
+			if mentions(unit, word) {
+				found++
+			}
+		}
+		if found == 0 {
+			continue
+		}
+		weight := math.Log(1 + float64(len(units))/float64(1+found))
+		if mentions(said, word) {
+			weight *= userEcho
+		}
+		weights[word] = weight
+	}
+	return weights
+}
+
+// excerpt is text cut to max characters around the sentence whose words
+// weigh most (see weigh), then the sentence after it, which often holds the
+// answer to the setup, then those either side as room allows, with "…"
 // where it was cut. Text that fits is returned whole.
-func excerpt(query, text string, max int) string {
+func excerpt(weights map[string]float64, text string, max int) string {
 	text = strings.Join(strings.Fields(text), " ")
 	if utf8.RuneCountInString(text) <= max {
 		return text
@@ -285,11 +377,21 @@ func excerpt(query, text string, max int) string {
 	if len(parts) == 0 {
 		return render.Cut(text, max)
 	}
-	scores := rank.BM25(query, parts)
-	best := 0
-	for index, score := range scores {
-		if score > scores[best] {
-			best = index
+	words := make([]string, 0, len(weights))
+	for word := range weights {
+		words = append(words, word)
+	}
+	sort.Strings(words)
+	best, top := 0, 0.0
+	for index, part := range parts {
+		said, score := terms(part), 0.0
+		for _, word := range words {
+			if mentions(said, word) {
+				score += weights[word]
+			}
+		}
+		if score > top {
+			best, top = index, score
 		}
 	}
 	first, last := best, best

@@ -669,3 +669,25 @@ func TestLearnListsEventsThenKeepsThem(t *testing.T) {
 		t.Fatal("the retention rule does not keep a dated thing the user did")
 	}
 }
+
+// An event fact keeps how long it lasted, who it was with and where: the
+// recorded miss stored "has visited Hawaii before" from a week-long family
+// trip. Both prompts ask for the details, and the fact keeps them.
+func TestLearnKeepsEventDetails(t *testing.T) {
+	answer := `{"summary":"The user, back from a week in Hawaii with their family in May 2026, plans a Big Island return.",` +
+		`"events":[{"what":"week-long trip to Hawaii with family","when":"May 2026"}],` +
+		`"ops":[{"op":"add","scope":"personal","text":"The user spent a week in Hawaii with their family in May 2026","kind":"permanent","explicit":false,"sensitive":false,"supersedes":[],"evidence":"my family's week-long trip to Hawaii"}]}`
+	te := newTestEngine(t, "", answer)
+	te.sessions.add(protocol.SessionInfo{ID: "ask-hawaii"}, turn{user: "After my family's week-long trip to Hawaii this month, I want to go back to the Big Island.", reply: "Kailua-Kona is a great base."})
+	if _, err := te.learnNow(context.Background(), "ask-hawaii"); err != nil {
+		t.Fatal(err)
+	}
+	if !has(te.texts(t, protocol.MemoryYou), "The user spent a week in Hawaii with their family in May 2026") {
+		t.Fatalf("active = %q", te.texts(t, protocol.MemoryYou))
+	}
+	for _, prompt := range []string{learnSystem, learnSystemShort} {
+		if !strings.Contains(prompt, "how long") || !strings.Contains(prompt, "with whom") && !strings.Contains(prompt, "who they were with") {
+			t.Fatal("a prompt does not ask an event to keep its length and company")
+		}
+	}
+}

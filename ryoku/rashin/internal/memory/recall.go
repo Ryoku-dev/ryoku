@@ -286,6 +286,7 @@ func (e *Engine) recallPast(ctx context.Context, info protocol.SessionInfo, ques
 	summaries := render.Section{Heading: i18n.T("Earlier conversations")}
 	hits, _ := e.findChats(ctx, info, question, time.Time{}, chatLines)
 	for _, hit := range hits {
+		weights := hit.doc.weigh(question)
 		for _, index := range hit.lines {
 			if len(said.Facts) == chatLines {
 				break
@@ -295,7 +296,7 @@ func (e *Engine) recallPast(ctx context.Context, info protocol.SessionInfo, ques
 			if at.IsZero() {
 				at = hit.doc.info.Updated
 			}
-			said.Facts = append(said.Facts, protocol.Memory{Text: hit.doc.title + ": " + line.show(question), Updated: at})
+			said.Facts = append(said.Facts, protocol.Memory{Text: hit.doc.title + ": " + line.show(weights), Updated: at})
 		}
 		if hit.summary != "" && len(summaries.Facts) < recallChats {
 			summaries.Facts = append(summaries.Facts, protocol.Memory{Text: hit.doc.title + ": " + hit.summary, Updated: hit.doc.info.Updated})

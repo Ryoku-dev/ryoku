@@ -115,6 +115,7 @@ const learnStyle = `
 - One line of at most 280 characters, self-contained: name "The user" or the person instead of a pronoun.
 - Capture a change as a change: "The user switched from almond milk to oat milk after an almond allergy", not only the new state. When the change is temporary ("for a month", "trying out"), say so. A temporary constraint does not contradict the lasting preference: keep the constraint as its own fact.
 - Keep names, titles, numbers and qualifiers exactly as stated: "assistant manager", not "manager"; "416 pages", not "about 400".
+- An event keeps every detail the user gave: how long it lasted, who they were with, where, and how many. "The user spent a week in Hawaii with their family in 2025" is right; "The user has visited Hawaii before" loses what a later question asks about. A past trip mentioned in passing ("I spent 10 days in Hawaii last year") is an event too.
 - Resolve people: when "my roommate" is later named Emily, write "Emily (the user's roommate)".
 - Ground time against the observation date given with the conversation, never the current date: "last week" becomes the week before the observation date. Write absolute dates.
 - Read meaning carefully: "I used to love hiking" means the user no longer loves hiking.
@@ -159,7 +160,7 @@ const learnOutput = `
 Answer with exactly one JSON object and nothing else: no prose, no code fence.
 {"summary":"...","events":[{"what":"...","when":"..."}],"ops":[{"op":"add","scope":"personal","text":"...","kind":"permanent","explicit":true,"sensitive":false,"supersedes":[],"evidence":"..."}]}
 - "summary": one or two sentences saying what the conversation was about, for finding it again later: keep the names, numbers and absolute dates the user gave and the key advice or answer the conversation reached, not only the topic ("On 3 March 2026 the user asked which of 4 Kyoto temples to visit; Kinkaku-ji was recommended."). No secrets.
-- "events": first, before deciding anything, list every dated or counted thing the user says they did, are doing or will do: a service, a trip and its length, a purchase, a launch, a visit, a sighting, how many of something. "what" says it with its place and numbers; "when" is its absolute date or span, or "" when none was given. At most 20 events, each "what" at most 160 characters. Events are only your notes: then turn each one the user did or will do into an "add" in "ops", with its date in the text, unless an existing fact already says it.
+- "events": first, before deciding anything, list every dated or counted thing the user says they did, are doing or will do: a service, a trip and its length, a purchase, a launch, a visit, a sighting, how many of something. "what" says it with its place, its length, who it was with and its numbers; "when" is its absolute date or span, or "" when none was given. At most 20 events, each "what" at most 160 characters. Events are only your notes: then turn each one the user did or will do into an "add" in "ops", with its date and every one of those details in the text, unless an existing fact already says it.
 - "op": "add" or "supersede". "scope": "personal" or "project". "kind": "permanent", "durable", "ephemeral" or "correction".
 - "explicit": true only when the user stated it as lasting in their own words ("I always", "from now on", "remember that").
 - "sensitive": true when the fact is about health, beliefs, money, sex life, relationships, legal trouble or similar private matters.
@@ -182,7 +183,7 @@ const learnSystemShort = `You read a finished conversation and keep the few fact
 Rules:
 - Take facts only from the user's own words, never from the assistant's.
 - Keep corrections first, then preferences, then new facts. Skip greetings, thanks, one-off requests, errors, secrets and anything temporary.
-- Keep events in the user's own life (a trip, a move, a new pet) with their absolute date: "The user went to Tokyo in March 2026".
+- Keep events in the user's own life (a trip, a move, a new pet) with their absolute date and every detail given, how long, with whom, where and how many: "The user spent a week in Tokyo with their sister in March 2026".
 - Turn relative dates into absolute ones using the observation date.
 - Write each fact as one line of at most 280 characters about the user, never as an order.
 - Prefer the latest evidence. If a new fact contradicts an existing one, use "supersede" with that fact's id from the list. Never invent an id.
