@@ -38,13 +38,19 @@ type Env struct {
 	NewTeamTask func(team string)
 	// OpenSettings shows one section of Settings, named as in its index.
 	OpenSettings func(section string)
-	Post         func(func())
-	Class        look.Class
+	// OpenMemory shows the Memory page at a filter, with a memory's editor
+	// open when ID is set.
+	OpenMemory func(MemoryPlace)
+	Post       func(func())
+	Class      look.Class
 	// PanelOpen says whether the side panel is shown; TogglePanel flips it.
 	PanelOpen   bool
 	TogglePanel func()
 	// Notify shows a transient result at the foot of the content pane.
 	Notify func(text string)
+	// NotifyAction shows a transient result with one action beside it, run
+	// when it is pressed before the notice goes.
+	NotifyAction func(text, action string, act func())
 	// Zoom is the app's zoom in percent and SetZoom changes it; ReduceMotion
 	// and SetReduceMotion do the same for the app's own motion setting.
 	Zoom            int
@@ -213,6 +219,8 @@ func HandleChatActions(gtx layout.Context, e *Env, id string, actions []chat.Act
 			}
 		case chat.ActUnqueue:
 			e.Call(protocol.MSessionUnqueue, protocol.UnqueueParams{ID: id, Queue: action.Value}, new(protocol.SessionInfo), nil)
+		default:
+			e.memoryAction(id, action)
 		}
 	}
 }

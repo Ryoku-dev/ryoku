@@ -20,12 +20,13 @@ func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 	var rows [4][]look.SideRow
 	for _, id := range snapshot.Order {
 		info, ok := snapshot.Sessions[id]
-		if !ok || info.Kind != protocol.KindAsk {
+		// a temporary conversation is never history, it shows only while it is the one open
+		if !ok || info.Kind != protocol.KindAsk || (info.Temporary && id != p.selected) {
 			continue
 		}
 		group := dayGroup(gtx.Now, info.Updated)
 		rows[group] = append(rows[group], look.SideRow{
-			ID: id, Title: sessionTitle(info), Working: info.State == protocol.StateWorking, Menu: true,
+			ID: id, Title: sessionTitle(info), Facts: memoryMark(info), Working: info.State == protocol.StateWorking, Menu: !info.Temporary,
 		})
 	}
 	groups := make([]look.SideGroup, 0, len(titles))
@@ -65,7 +66,7 @@ func (p *Page) openRowMenu(e *env.Env, id string, anchor image.Rectangle) {
 			case 1:
 				p.handoff.open(e, id, "")
 			case 3:
-				p.remove.open(id)
+				p.remove.open(e, id)
 			}
 		}
 		return dimensions

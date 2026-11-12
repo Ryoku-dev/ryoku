@@ -8,15 +8,17 @@ import (
 	"time"
 
 	"ryoku-rashin/internal/core"
+	"ryoku-rashin/internal/memory"
 	"ryoku-rashin/internal/protocol"
 	"ryoku-rashin/internal/screen"
 )
 
 // agentTools hands an agent session Rashin's own MCP server, which serves the
 // code search over its folder, the session's goal, Rashin's teams and their
-// templates with propose_team, where the desktop can host one its screen and,
-// for a team task, the team's tools. Without the rashin command beside the
-// daemon or on PATH the session gets none.
+// templates with propose_team, where the desktop can host one its screen,
+// the memory tools when the session uses memory and, for a team task, the
+// team's tools. Without the rashin command beside the daemon or on PATH the
+// session gets none.
 func (d *Daemon) agentTools(info protocol.SessionInfo) []core.MCPServer {
 	command := d.commandPath()
 	if command == "" {
@@ -25,6 +27,13 @@ func (d *Daemon) agentTools(info protocol.SessionInfo) []core.MCPServer {
 	env := map[string]string{"RASHIN_SESSION": info.ID, "RASHIN_CWD": info.Cwd}
 	if d.screenFor(info) {
 		env["RASHIN_SCREEN"] = "1"
+	}
+	// a team task's memory is its team's, which Teams says
+	if settings := d.Settings(); d.deps.Memory != nil && info.Team == "" && settings.Memory.Agents && memory.Uses(settings, info) {
+		env["RASHIN_MEMORY"] = "1"
+		if settings.Memory.Sessions {
+			env["RASHIN_MEMORY_SESSIONS"] = "1"
+		}
 	}
 	if d.deps.Teams != nil {
 		for key, value := range d.deps.Teams.ToolEnv(info) {

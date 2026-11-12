@@ -49,6 +49,8 @@ type Service struct {
 	runs   map[string]*run
 	clock  *scheduler
 	vault  *vault.Vault
+	// memory keeps what teams remember; nil when the daemon runs without it
+	memory core.Memory
 
 	// effects carry out an approval's action once the user decides, by kind
 	effects map[string]approvalEffect

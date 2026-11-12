@@ -14,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	i18n "ryoku-i18n"
+	"ryoku-rashin/internal/brief"
 	"ryoku-rashin/internal/core"
 	"ryoku-rashin/internal/llm"
 	"ryoku-rashin/internal/paths"
@@ -31,14 +32,15 @@ type Factory struct {
 	client llm.Client
 	index  core.Indexer
 	teams  core.Teams
+	memory core.Memory
 	habits habitCache
 	doctor doctorCache
 }
 
-// New creates the native Ask runner factory. teams serves the team tools; nil
-// leaves them unavailable.
-func New(client llm.Client, idx core.Indexer, teams core.Teams) *Factory {
-	return &Factory{client: client, index: idx, teams: teams}
+// New creates the native Ask runner factory. teams serves the team tools and
+// memory what Ask remembers; nil leaves either unavailable.
+func New(client llm.Client, idx core.Indexer, teams core.Teams, memory core.Memory) *Factory {
+	return &Factory{client: client, index: idx, teams: teams, memory: memory}
 }
 
 // NewAsk creates one stateful Ask session. A session whose mode is not a known
@@ -128,9 +130,15 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 		}
 		asked = told
 	}
-	messages := []llm.Message{{Role: llm.RoleSystem, Content: r.factory.systemPrompt(settings, in.Terminal, mode)}}
+	recall := r.recall(ctx, in)
+	// said before the answer streams, so the line sits above it
+	if recall.Used != nil {
+		sink.Emit(protocol.EvMemory, *recall.Used)
+	}
+	tools := append(askTools(mode), memoryTools(recall)...)
+	messages := []llm.Message{{Role: llm.RoleSystem, Content: r.factory.systemPrompt(settings, in.Terminal, mode, recall.System)}}
 	messages = append(messages, historyMessages(in.History, historyBudgetBytes)...)
-	messages = append(messages, asked)
+	messages = append(messages, withRecalled(asked, recall.Context))
 
 	var usage protocol.TokenUsage
 	var last llm.Final
@@ -138,7 +146,7 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 	handedBack := false
 	for round := range rounds {
 		stream, err := r.factory.client.Stream(ctx, llm.Request{
-			Model: model, Strict: strict, Messages: messages, Tools: askTools(mode), MaxTokens: 4096,
+			Model: model, Strict: strict, Messages: messages, Tools: tools, MaxTokens: 4096,
 		})
 		if err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
@@ -158,6 +166,12 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 			roundVisible.WriteString(delta)
 			sink.Emit(protocol.EvText, protocol.TextData{Message: messageID, Delta: delta})
 		})
+		fence, thoughtFence := newFenceScrubber(), newFenceScrubber()
+		thought := func(delta string) {
+			if delta != "" {
+				sink.Emit(protocol.EvThought, protocol.TextData{Message: messageID, Delta: delta})
+			}
+		}
 		for {
 			delta, nextErr := stream.Next()
 			if nextErr == io.EOF {
@@ -172,13 +186,15 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 			}
 			if delta.Text != "" {
 				raw.WriteString(delta.Text)
-				filter.Write(delta.Text)
+				filter.Write(fence.Feed(delta.Text))
 			}
 			if delta.Reasoning != "" {
-				sink.Emit(protocol.EvThought, protocol.TextData{Message: messageID, Delta: delta.Reasoning})
+				thought(thoughtFence.Feed(delta.Reasoning))
 			}
 			calls = append(calls, delta.ToolCalls...)
 		}
+		filter.Write(fence.Flush())
+		thought(thoughtFence.Flush())
 		filter.Close()
 		last = stream.Final()
 		_ = stream.Close()
@@ -215,6 +231,15 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 				output, _ := r.act(ctx, call, sink, cwd)
 				messages = append(messages, llm.Message{
 					Role: llm.RoleTool, ToolCallID: call.ID, Name: call.Name, Content: output,
+				})
+				if ctx.Err() != nil {
+					return core.TurnResult{Stop: protocol.StopCancelled, Usage: usagePtr(usage)}, nil
+				}
+				continue
+			}
+			if brief.IsMemoryTool(call.Name) && handed(tools, call.Name) {
+				messages = append(messages, llm.Message{
+					Role: llm.RoleTool, ToolCallID: call.ID, Name: call.Name, Content: r.factory.runMemoryTool(ctx, call, r.opts.Session.ID, sink),
 				})
 				if ctx.Err() != nil {
 					return core.TurnResult{Stop: protocol.StopCancelled, Usage: usagePtr(usage)}, nil

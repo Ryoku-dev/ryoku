@@ -20,6 +20,7 @@ import (
 	"ryoku-rashin/internal/index/extract"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
+	"ryoku-rashin/internal/rank"
 	"ryoku-rashin/internal/redact"
 )
 
@@ -414,7 +415,7 @@ func replaceFileTx(tx *bbolt.Tx, file fileRecord, result extract.Result) error {
 		text := chunk.Text
 		id := recordID(file.Path, fmt.Sprint(chunk.Start), fmt.Sprint(chunk.End), hashBytes([]byte(text)))
 		terms := tokenFrequencies(text)
-		record := chunkRecord{ID: id, Path: file.Path, Start: chunk.Start, End: chunk.End, Text: text, Symbol: chunk.Symbol, Language: file.Language, Length: termCount(terms)}
+		record := chunkRecord{ID: id, Path: file.Path, Start: chunk.Start, End: chunk.End, Text: text, Symbol: chunk.Symbol, Language: file.Language, Length: rank.TermCount(terms)}
 		data, encodeErr := encode(record)
 		if encodeErr != nil {
 			return encodeErr

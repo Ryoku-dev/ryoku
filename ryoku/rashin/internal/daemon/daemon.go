@@ -27,9 +27,12 @@ type Deps struct {
 	Indexer   core.Indexer
 	Work      core.Work
 	Teams     core.Teams
-	Version   string
-	Events    *Broadcaster
-	Lock      *os.File
+	// Memory is what Rashin remembers between conversations; nil runs the
+	// daemon without it.
+	Memory  core.Memory
+	Version string
+	Events  *Broadcaster
+	Lock    *os.File
 	// Program is the file this daemon was started from, watched so a newer
 	// build takes over once nothing is running. Empty watches nothing.
 	Program string
@@ -97,6 +100,10 @@ func New(deps Deps) *Daemon {
 			return ok && deps.Teams.ScreenGranted(info)
 		}
 		deps.Teams.Bind(d.manager)
+	}
+	if deps.Memory != nil {
+		d.manager.memory = deps.Memory
+		deps.Memory.Bind(d.manager)
 	}
 	if deps.Harnesses != nil {
 		deps.Harnesses.OnLearned(d.harnessesLearned)
@@ -169,6 +176,8 @@ func (d *Daemon) Run(ctx context.Context) error {
 	d.scrubInBackground()
 	// sockets a daemon that died left behind lead nowhere
 	_ = os.RemoveAll(paths.AgentSocketsDir())
+	// nor do the checkpoint refs of sessions that are gone, temporary ones a crash ended included
+	go d.manager.sweepCheckpoints(ctx)
 	go func() { <-ctx.Done(); d.Shutdown() }()
 	if d.deps.Program != "" {
 		if watch, watchErr := watchProgram(d.deps.Program, d.retire); watchErr != nil {
@@ -353,6 +362,9 @@ func (d *Daemon) closeAll() error {
 		if d.deps.Teams != nil {
 			_ = d.deps.Teams.Close()
 		}
+		if d.deps.Memory != nil {
+			_ = d.deps.Memory.Close()
+		}
 		if d.deps.Indexer != nil {
 			_ = d.deps.Indexer.Close()
 		}
@@ -423,15 +435,30 @@ func (d *Daemon) stateChanged() {
 	}
 }
 
+// onIdleDeadline stops what idled out and, once nothing is busy, lets go of
+// what is loaded and exits. Only when the daemon would otherwise exit does
+// memory learn from the conversations still due, so a connected window never
+// cuts a conversation's quiet time short; the daemon then stays up while
+// memory learns and looks again at the next deadline.
 func (d *Daemon) onIdleDeadline() {
 	d.manager.idleStop(time.Now())
 	d.screens.idleStop(time.Now())
-	if !d.Idle() {
+	if !d.restingBesideMemory() {
 		d.stateChanged()
 		return
 	}
+	if d.deps.Memory != nil {
+		d.deps.Memory.Settle()
+		if d.deps.Memory.Busy() {
+			d.stateChanged()
+			return
+		}
+	}
 	if d.deps.Indexer != nil {
 		d.deps.Indexer.Release()
+	}
+	if d.deps.Memory != nil {
+		d.deps.Memory.Release()
 	}
 	// other programs hold the address of the local API, and the routines that
 	// are on run from the daemon's own clock, so either keeps it up at rest
@@ -443,6 +470,12 @@ func (d *Daemon) onIdleDeadline() {
 
 // Idle reports the exit predicate for tests and lifecycle diagnostics.
 func (d *Daemon) Idle() bool {
+	return d.restingBesideMemory() && (d.deps.Memory == nil || !d.deps.Memory.Busy())
+}
+
+// restingBesideMemory reports that no client is connected and nothing but
+// memory works.
+func (d *Daemon) restingBesideMemory() bool {
 	d.mu.RLock()
 	connections := len(d.clients)
 	d.mu.RUnlock()

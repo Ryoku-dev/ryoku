@@ -60,6 +60,11 @@ type needCard struct {
 	focused bool
 	// the whole detail is shown
 	all bool
+	// a suggestion's text is being edited before it is kept
+	editing bool
+	// the suggestions of a card of several and the ones answered on their own rows
+	rows     map[string]*suggestionRow
+	answered map[string]bool
 }
 
 // the key each option of a choice question answers to, by letter or by number
@@ -82,10 +87,14 @@ func choseLine(options []string, choice string) string {
 	return i18n.Tf("Chose %s: %s", choiceLetters[index:index+1], choice)
 }
 
-// NeedKey names a need: its approval, or its task when the task itself waits.
+// NeedKey names a need: its approval, its task when the task itself waits, or
+// the place its suggested memories came from.
 func NeedKey(need Need) string {
-	if need.Approval != nil {
+	switch {
+	case need.Approval != nil:
 		return need.Approval.ID
+	case len(need.Memories) > 0:
+		return suggestionKey(need.Memories[0])
 	}
 	return need.Task.ID
 }
@@ -190,6 +199,8 @@ func (c *NeedCards) layoutTablet(gtx layout.Context, e *env.Env, card *needCard,
 		children = c.restoreField(gtx, e, snapshot, card, need, gold)
 	case need.Approval != nil:
 		children = c.approvalField(gtx, e, snapshot, card, need, gold)
+	case len(need.Memories) > 0:
+		children = c.memoryField(gtx, e, snapshot, card, need, gold)
 	default:
 		_, tone, _ = TaskStanding(*need.Task)
 		children = c.blockedField(gtx, e, snapshot, card, need, gold)

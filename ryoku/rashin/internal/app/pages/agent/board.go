@@ -27,6 +27,7 @@ type board struct {
 	place     placement
 	approvals env.Approvals
 	more      kit.Plaque
+	temporary env.Temporary
 	starting  bool
 	tablets   map[string]*boardTablet
 	first     boardStart
@@ -65,10 +66,18 @@ func (b *board) layout(gtx layout.Context, e *env.Env, page *Page) layout.Dimens
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			content := look.PaneHeaderContent{Title: i18n.T("Agents"), Scrolled: b.scroll.Position.First > 0 || b.scroll.Position.Offset > 0}
+			content.Actions = []look.HeaderAction{b.temporary.Action()}
+			if b.temporary.On {
+				content.Facts = []look.HeaderFact{env.TemporaryMark()}
+			}
 			if running {
 				content.Menu = []kit.MenuItem{{Icon: look.Icon.Stop, Label: i18n.T("Stop every agent")}}
 			}
 			dimensions := b.header.Layout(gtx, e.Theme, e.Overlays, content)
+			if _, ok := b.header.ActionClicked(); ok {
+				b.temporary.On = !b.temporary.On
+				b.composer.Focus()
+			}
 			if _, ok := b.header.MenuClicked(); ok {
 				for _, info := range sessions[groupWorking] {
 					stopSession(e, info.ID)
@@ -189,6 +198,10 @@ func (b *board) layoutComposer(gtx layout.Context, e *env.Env, page *Page, snaps
 	if value, changed := b.approvals.Changed(); changed {
 		e.SetApprovals(env.AgentApprovals, value)
 	}
+	// the field itself says what a temporary session is, where it always fits
+	if b.temporary.On {
+		options.Placeholder = env.TemporaryAgentHint()
+	}
 	e.ComposerDesktop(&b.composer, &options)
 	gtx.Constraints.Min.X = gtx.Constraints.Max.X
 	harnesses := env.InstalledHarnesses(snapshot)
@@ -227,6 +240,7 @@ func (b *board) start(e *env.Env, snapshot state.Snapshot, submission chat.Submi
 	if !ok {
 		return
 	}
+	params.Temporary = b.temporary.On
 	b.starting = true
 	var info protocol.SessionInfo
 	e.Call(protocol.MSessionNew, params, &info, func(err error) {
@@ -236,6 +250,8 @@ func (b *board) start(e *env.Env, snapshot state.Snapshot, submission chat.Submi
 			e.Notify(err.Error())
 			return
 		}
+		// the next session is an ordinary one again
+		b.temporary.On = false
 		open(e, info.ID)
 		e.Submit(info.ID, false, submission)
 	})

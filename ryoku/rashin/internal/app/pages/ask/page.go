@@ -40,9 +40,17 @@ type Page struct {
 
 	menu env.ModelMenu
 
+	temporary env.Temporary
+	memory    memoryChoice
+	lines     env.MemoryLines
+	first     firstRun
+	// a temporary conversation that was kept: its copy is in history, so it ends without a word
+	kept string
+
 	rename  renameDialog
 	remove  removeDialog
 	handoff handoffDialog
+	keep    keepDialog
 }
 
 func New() *Page { return &Page{} }
@@ -52,6 +60,7 @@ func (p *Page) Select(e *env.Env, id string) {
 	if p.selected == id {
 		return
 	}
+	p.leave(e)
 	p.keepDraft(id)
 	p.selected, p.starting = id, false
 	if id == "" {
@@ -85,13 +94,17 @@ func (p *Page) NewLabel() string { return i18n.T("New ask") }
 func (p *Page) start(e *env.Env, submission chat.Submission) {
 	p.starting = true
 	var info protocol.SessionInfo
+	settings := e.Snapshot().Settings.Ask
 	params := protocol.SessionNewParams{
 		Kind: protocol.KindAsk, Origin: protocol.OriginApp, Model: p.draftRoute,
-		Mode: p.approvals.Value("", e.Snapshot().Settings.Ask.Approvals),
+		Mode:      p.approvals.Value("", settings.Approvals),
+		Temporary: p.temporary.On, Memory: memoryValue(p.memory.draft, p.temporary.On),
 	}
+	// the next new conversation is an ordinary one again
+	p.temporary.On = false
 	e.Call(protocol.MSessionNew, params, &info, func(err error) {
 		if err != nil {
-			p.starting = false
+			p.starting, p.temporary.On = false, params.Temporary
 			p.composer.SetText(submission.Text)
 			e.Notify(err.Error())
 			return
@@ -115,9 +128,19 @@ func (p *Page) start(e *env.Env, submission chat.Submission) {
 	})
 }
 
+// leaving a temporary conversation ends it, opening another or a new one alike
+func (p *Page) leave(e *env.Env) {
+	info, ok := e.Snapshot().Sessions[p.selected]
+	if !ok || !info.Temporary {
+		return
+	}
+	e.EndTemporary(info.ID, info.ID != p.kept)
+}
+
 func (p *Page) Overlay(gtx layout.Context, e *env.Env) bool {
 	p.rename.layout(gtx, e)
 	p.remove.layout(gtx, e, p)
 	p.handoff.layout(gtx, e)
-	return look.AnyOpen(&p.rename.dialog, &p.remove.confirm.Dialog, &p.handoff.dialog)
+	p.keep.layout(gtx, e, p)
+	return look.AnyOpen(&p.rename.dialog, &p.remove.dialog, &p.handoff.dialog, &p.keep.confirm.Dialog)
 }

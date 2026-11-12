@@ -21,7 +21,10 @@ type foldInfo struct {
 
 func isWorkRow(model *modelState, row *transcriptRow) bool {
 	switch row.kind {
-	case rowTool, rowThought:
+	case rowTool:
+		// a row whose only call gave way to its memory line shows nothing
+		return len(row.tools) > 0
+	case rowThought:
 		return true
 	case rowTerminal:
 		return model.terminalOwners[row.key] == ""

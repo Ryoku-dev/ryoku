@@ -1,0 +1,2 @@
+# go mod vendor copies the Hindsight client's code generator, a 30 MB jar no build reads
+vendor/github.com/vectorize-io/hindsight/hindsight-clients/go/openapi-generator-cli.jar

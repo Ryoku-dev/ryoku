@@ -29,6 +29,7 @@ const (
 	sectionPermissions
 	sectionBudget
 	sectionNotifications
+	sectionMemory
 	sectionExport
 	sectionDanger
 	sectionCount
@@ -83,6 +84,8 @@ type settingsTab struct {
 	notify     look.Select
 	notifyHeld teamsui.Held[string]
 
+	memory teamsui.TeamMemoryForm
+
 	export, pause, clear, remove kit.Plaque
 
 	// by team and harness, as one tab shows every team in turn
@@ -112,7 +115,7 @@ type saveBar struct {
 func settingsLabels() []string {
 	return []string{
 		i18n.T("Identity"), i18n.T("Crew and engines"), i18n.T("Sign-in for Teams"), i18n.T("Tools and access"), i18n.T("Permissions"),
-		i18n.T("Budget and limits"), i18n.T("Notifications"), i18n.T("Export"), i18n.T("Danger zone"),
+		i18n.T("Budget and limits"), i18n.T("Notifications"), i18n.T("Memory"), i18n.T("Export"), i18n.T("Danger zone"),
 	}
 }
 
@@ -239,6 +242,7 @@ func (s *settingsTab) groups(gtx layout.Context, e *env.Env, p *Page, team proto
 		s.permissionsSection(e, snapshot, team),
 		s.budgetSection(gtx, e, snapshot, team),
 		s.notifySection(e, snapshot, team),
+		s.memorySection(e, team),
 		s.exportSection(gtx, e, team),
 		s.dangerSection(gtx, e, p, snapshot, team),
 	}
@@ -803,6 +807,16 @@ func (s *settingsTab) notifySection(e *env.Env, snapshot appstate.Snapshot, team
 	}
 	return func(gtx layout.Context) layout.Dimensions {
 		return look.SettingsSection(gtx, th, i18n.T("Notifications"), rows)
+	}
+}
+
+func (s *settingsTab) memorySection(e *env.Env, team protocol.Team) layout.Widget {
+	th := e.Theme
+	rows := s.memory.Rows(e, team.TeamMemory(), func(memory protocol.TeamMemory, done func(error)) {
+		updateTeam(e, team.ID, map[string]any{"memory": memory}, done)
+	})
+	return func(gtx layout.Context) layout.Dimensions {
+		return look.SettingsSection(gtx, th, i18n.T("Memory"), rows)
 	}
 }
 

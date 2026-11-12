@@ -175,6 +175,31 @@ const (
 	MVaultEvents   = "vault.events"
 	MVaultMail     = "vault.mail"
 	MVaultMailTest = "vault.mail_test"
+
+	MSessionSetMemory = "session.set_memory"
+
+	MMemoryStatus      = "memory.status"
+	MMemoryList        = "memory.list"
+	MMemoryGet         = "memory.get"
+	MMemoryAdd         = "memory.add"
+	MMemoryEdit        = "memory.edit"
+	MMemoryForget      = "memory.forget"
+	MMemoryRestore     = "memory.restore"
+	MMemoryKeep        = "memory.keep"
+	MMemoryDismiss     = "memory.dismiss"
+	MMemoryUndo        = "memory.undo"
+	MMemoryRedo        = "memory.redo"
+	MMemoryChanges     = "memory.changes"
+	MMemoryForgetAll   = "memory.forget_all"
+	MMemorySearch      = "memory.search"
+	MMemorySessions    = "memory.sessions"
+	MMemoryCard        = "memory.card"
+	MMemoryImport      = "memory.import"
+	MMemorySuppress    = "memory.suppress"
+	MMemoryLearn       = "memory.learn"
+	MMemoryEngineTest  = "memory.engine_test"
+	MMemoryEngineSetup = "memory.engine_setup"
+	MMemoryEngineMove  = "memory.engine_move"
 )
 
 // Event names.
@@ -204,6 +229,8 @@ const (
 	EvtRoutine          = "routine"           // Routine
 	EvtRoutineRemoved   = "routine.removed"   // TeamRemoved
 	EvtVault            = "vault"             // VaultInfo
+	EvtMemoryChanged    = "memory.changed"    // MemoryChanged
+	EvtMemorySetup      = "memory.setup"      // MemorySetupProgress
 )
 
 // Method is one entry of the registry: its name, the Go types of its params and
@@ -390,6 +417,31 @@ var Methods = []Method{
 	m(MVaultEvents, VaultEventsParams{}, VaultEventsResult{}, "The vault's record of use, newest first."),
 	m(MVaultMail, MailAccountParams{}, VaultInfo{}, "Set or remove the mail account."),
 	m(MVaultMailTest, Empty{}, MailTestResult{}, "Log in to the mail account's server without sending."),
+
+	m(MSessionSetMemory, SetMemoryParams{}, SessionInfo{}, "Set what a conversation does with memory; after its first message only narrower."),
+
+	m(MMemoryStatus, Empty{}, MemoryStatus{}, "Memory as a whole: engine, counts, chart, learner and card."),
+	m(MMemoryList, MemoryListParams{}, MemoryListResult{}, "Memories by scope, state, words and sort."),
+	m(MMemoryGet, MemoryRefParams{}, Memory{}, "One memory with its earlier versions."),
+	m(MMemoryAdd, MemoryAddParams{}, MemoryChange{}, "Remember a fact."),
+	m(MMemoryEdit, MemoryEditParams{}, MemoryChange{}, "Change a memory's text, scope or pin."),
+	m(MMemoryForget, MemoryForgetParams{}, MemoryChange{}, "Forget memories; they are never learned again."),
+	m(MMemoryRestore, MemoryRestoreParams{}, MemoryChange{}, "Bring back a replaced memory or an earlier text."),
+	m(MMemoryKeep, MemoryIDsParams{}, MemoryChange{}, "Keep suggested memories."),
+	m(MMemoryDismiss, MemoryIDsParams{}, MemoryChange{}, "Dismiss suggested memories."),
+	m(MMemoryUndo, MemoryChangeParams{}, MemoryChange{}, "Undo a change."),
+	m(MMemoryRedo, MemoryChangeParams{}, MemoryChange{}, "Do an undone change again."),
+	m(MMemoryChanges, MemoryChangesParams{}, MemoryChangesResult{}, "Changes by id, with whether each was undone."),
+	m(MMemoryForgetAll, MemoryForgetAllParams{}, MemoryChange{}, "Forget every memory in a scope, or everything."),
+	m(MMemorySearch, MemorySearchParams{}, MemorySearchResult{}, "Memories by meaning and words, best first."),
+	m(MMemorySessions, MemorySessionsParams{}, MemorySessionsResult{}, "Past conversations by words, best first."),
+	m(MMemoryCard, MemoryCardParams{}, MemoryCard{}, "The card about the user that answers are given."),
+	m(MMemoryImport, MemoryImportParams{}, MemoryChange{}, "Split another assistant's memories into suggestions."),
+	m(MMemorySuppress, MemorySuppressParams{}, Empty{}, "Stop a memory being used in one conversation."),
+	m(MMemoryLearn, MemoryLearnParams{}, MemoryChange{}, "Learn from a conversation now."),
+	m(MMemoryEngineTest, MemoryEngineParams{}, MemoryEngineTest{}, "Check that an engine answers."),
+	m(MMemoryEngineSetup, MemoryEngineParams{}, Empty{}, "Set an engine up on this computer; progress arrives as memory.setup."),
+	m(MMemoryEngineMove, MemoryEngineParams{}, MemoryStatus{}, "Copy every memory to an engine and use it from then on."),
 }
 
 var methodIndex = func() map[string]Method {

@@ -15,6 +15,7 @@ import (
 	"ryoku-rashin/internal/app/chat"
 	"ryoku-rashin/internal/app/env"
 	"ryoku-rashin/internal/app/look"
+	"ryoku-rashin/internal/app/pages/memoryui"
 	"ryoku-rashin/internal/app/state"
 	"ryoku-rashin/internal/protocol"
 )
@@ -48,6 +49,9 @@ func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
 		e.Navigate(protocol.TabAsk, "")
 	}
 	attached, open := snapshot.Attached[p.selected]
+	if p.temporary.Pressed(gtx) {
+		p.pressTemporary(e)
+	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.layoutHeader(gtx, e, info, known) }),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return p.layoutBody(gtx, e, attached, open) }),
@@ -56,10 +60,19 @@ func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
 
 func (p *Page) layoutHeader(gtx layout.Context, e *env.Env, info protocol.SessionInfo, known bool) layout.Dimensions {
 	content := look.PaneHeaderContent{Title: i18n.T("New ask"), Scrolled: known && p.view.Scrolled()}
-	if known {
+	switch {
+	case known && info.Temporary:
+		content.Title = sessionTitle(info)
+		content.Facts = []look.HeaderFact{env.TemporaryMark()}
+		content.Actions = []look.HeaderAction{{Icon: look.Icon.Close, Description: i18n.T("Close this conversation")}}
+		content.Menu = []kit.MenuItem{{Icon: look.Icon.Check, Label: i18n.T("Keep this conversation")}}
+	case known:
 		content.Title = sessionTitle(info)
 		if origin := originLabel(info.Origin); origin != "" {
 			content.Facts = []look.HeaderFact{{Text: origin}}
+		}
+		if info.Memory == protocol.MemoryNone {
+			content.Facts = append(content.Facts, look.HeaderFact{Text: i18n.T("No memory")})
 		}
 		content.Actions = []look.HeaderAction{{Icon: look.Icon.Agents, Description: i18n.T("Move to Agent")}}
 		content.Menu = []kit.MenuItem{
@@ -67,20 +80,45 @@ func (p *Page) layoutHeader(gtx layout.Context, e *env.Env, info protocol.Sessio
 			{Divider: true},
 			{Icon: look.Icon.Delete, Label: i18n.T("Delete"), Danger: true},
 		}
+	default:
+		if p.temporary.On {
+			content.Facts = []look.HeaderFact{env.TemporaryMark()}
+		}
+		content.Actions = []look.HeaderAction{p.temporary.Action()}
 	}
 	dimensions := p.header.Layout(gtx, e.Theme, e.Overlays, content)
-	if _, ok := p.header.ActionClicked(); ok && known {
-		p.handoff.open(e, info.ID, "")
+	if _, ok := p.header.ActionClicked(); ok {
+		switch {
+		case known && info.Temporary:
+			e.Navigate(protocol.TabAsk, "")
+		case known:
+			p.handoff.open(e, info.ID, "")
+		default:
+			p.pressTemporary(e)
+		}
 	}
 	if item, ok := p.header.MenuClicked(); ok && known {
-		switch item {
-		case 0:
+		switch {
+		case info.Temporary:
+			p.keep.open(info)
+		case item == 0:
 			p.rename.open(info)
-		case 2:
-			p.remove.open(info.ID)
+		case item == 2:
+			p.remove.open(e, info.ID)
 		}
 	}
 	return dimensions
+}
+
+// the switch stands on a new conversation; from an open one it starts a new temporary one
+func (p *Page) pressTemporary(e *env.Env) {
+	p.composer.Focus()
+	if p.selected == "" && !p.starting {
+		p.temporary.On = !p.temporary.On
+		return
+	}
+	p.temporary.On = true
+	e.Navigate(protocol.TabAsk, "")
 }
 
 func (p *Page) layoutBody(gtx layout.Context, e *env.Env, attached state.Attached, open bool) layout.Dimensions {
@@ -147,6 +185,8 @@ func (p *Page) layoutTranscript(gtx layout.Context, e *env.Env, attached state.A
 	defer opacity.Pop()
 	view := gtx
 	view.Constraints = layout.Exact(size)
+	p.lines.Sync(e, e.Snapshot(), &p.view, attached.Model)
+	p.view.SetMemoryText(chat.MemoryText{Fact: memoryui.FactText, Plain: env.PlainMemory})
 	p.rise.Layout(view, e.Theme, p.selected, 8, func(gtx layout.Context) layout.Dimensions {
 		return p.view.Layout(gtx, e.Theme, e.Overlays, attached.Model)
 	})
@@ -166,9 +206,12 @@ func (p *Page) layoutHome(gtx layout.Context, e *env.Env, composer image.Rectang
 	look.Place(gtx, image.Rect(composer.Min.X, sentenceTop, composer.Max.X, sentenceTop+sentence),
 		kit.Text(th.Theme, th.T.Sentence, th.R.Fg, i18n.T("Ask about this machine")))
 	// the mode select in the composer carries the state, the sentence stays in one ink
-	may := p.approvals.Value("", e.Snapshot().Settings.Ask.Approvals)
+	note := env.ApprovalsNote(env.AskApprovals, p.approvals.Value("", e.Snapshot().Settings.Ask.Approvals))
+	if p.temporary.On {
+		note = i18n.T("Nothing here is saved or remembered.")
+	}
 	look.Place(gtx, image.Rect(composer.Min.X, proofTop, composer.Max.X, proofTop+proof),
-		kit.Text(th.Theme, th.T.Proof, th.R.Fg2, env.ApprovalsNote(env.AskApprovals, may)))
+		kit.Text(th.Theme, th.T.Proof, th.R.Fg2, note))
 
 	offset := op.Offset(image.Pt(composer.Min.X, composer.Max.Y+gtx.Dp(13))).Push(gtx.Ops)
 	tail.Add(gtx.Ops)
@@ -185,13 +228,16 @@ func (p *Page) layoutHome(gtx layout.Context, e *env.Env, composer image.Rectang
 	})
 }
 
-// the suggestions and the readiness line, measured before the composer is placed so the chart's room is known
+// the suggestions, or once the first-run card in their place, and the readiness line, measured before the composer is placed so the chart's room is known
 func (p *Page) layoutTail(gtx layout.Context, e *env.Env, width int) layout.Dimensions {
 	th := e.Theme
 	gtx.Constraints = layout.Constraints{Max: image.Pt(width, gtx.Constraints.Max.Y)}
 	texts := suggestionTexts()
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if firstRunShown(e.Snapshot()) {
+				return p.first.layout(gtx, e)
+			}
 			return look.Flow{Gap: 8, LineGap: 8}.Layout(gtx, len(texts), func(gtx layout.Context, index int) layout.Dimensions {
 				plaque := &p.suggestions[index]
 				plaque.Kind, plaque.Small, plaque.Label = kit.PlaqueTonal, true, texts[index]
@@ -222,6 +268,7 @@ func (p *Page) layoutComposer(gtx layout.Context, e *env.Env, attached state.Att
 	// with no conversation open the choice is what the next one starts with
 	settings := e.Snapshot().Settings.Ask
 	current, may := p.draftRoute, settings.Approvals
+	remembers, temporary, locked := p.memory.draft, p.temporary.On, false
 	if open {
 		info := attached.Info
 		options.Placeholder = i18n.T("Ask a follow-up")
@@ -229,6 +276,11 @@ func (p *Page) layoutComposer(gtx layout.Context, e *env.Env, attached state.Att
 		options.History = attached.Model.Prompts
 		options.Answer = p.view.Asking(attached.Model)
 		current, may = info.Model, info.Mode
+		remembers, temporary, locked = info.Memory, info.Temporary, len(attached.Model.Prompts()) > 0
+	}
+	// the field itself says what a temporary conversation is, where it always fits
+	if temporary {
+		options.Placeholder = env.TemporaryHint()
 	}
 	// nothing picked is what the daemon falls back to: the model Settings names
 	if current == "" {
@@ -243,6 +295,14 @@ func (p *Page) layoutComposer(gtx layout.Context, e *env.Env, attached state.Att
 		func(gtx layout.Context) layout.Dimensions {
 			return p.approvals.Layout(gtx, e, env.AskApprovals, p.selected, may, p.composer.FocusTag())
 		},
+	}
+	if memoryOn(e.Snapshot()) {
+		options.Controls = append(options.Controls, func(gtx layout.Context) layout.Dimensions {
+			return p.memory.layout(gtx, e, remembers, temporary, locked, p.composer.FocusTag())
+		})
+	}
+	if value, changed := p.memory.Changed(); changed {
+		p.memory.set(e, p.selected, value)
 	}
 	if value, changed := p.approvals.Changed(); changed {
 		if open {

@@ -54,6 +54,8 @@ type ProjectSettings struct {
 	// TrustedScripts are sha256 sums of repository setup scripts the user
 	// approved (.rashin/setup).
 	TrustedScripts []string `json:"trustedScripts,omitempty"`
+	// Memory is ProjectMemoryShared or ProjectMemoryKept.
+	Memory string `json:"memory,omitempty"`
 }
 
 // ProjectsResult lists projects, most recently active first.

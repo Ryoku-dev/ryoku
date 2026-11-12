@@ -93,6 +93,17 @@ func (p *Page) Overlay(gtx layout.Context, e *env.Env) bool {
 	return look.AnyOpen(&p.member.dialog, &p.drop.confirm.Dialog, &p.remove.confirm.Dialog, &p.imports.dialog)
 }
 
+// the Overview's Memory section previews the team's brief beside the content
+func (p *Page) HasPanel(e *env.Env) bool {
+	_, ok := teamsui.TeamByID(e.Snapshot().Teams, p.place.Team)
+	return ok && p.place.Draft == "" && p.place.View == env.TeamOverview && p.overview.memory.sheet.IsOpen()
+}
+
+func (p *Page) Panel(gtx layout.Context, e *env.Env) layout.Dimensions {
+	team, _ := teamsui.TeamByID(e.Snapshot().Teams, p.place.Team)
+	return p.overview.memory.layoutSheet(gtx, e, team)
+}
+
 func openTeam(e *env.Env, team, view string) {
 	e.NavigateTeams(env.TeamsPlace{Tab: protocol.TabTeams, Team: team, View: view})
 }

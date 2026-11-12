@@ -218,6 +218,8 @@ func demoTeams(now time.Time, settings protocol.Settings, events map[string][]pr
 	repo := teamFrom(demoTemplate("repo"), demoTeamRepo, "repo-watch", now.AddDate(0, 0, -40), 3_000_000,
 		protocol.Member{ID: "member-reviewer", Harness: "codex", Model: "gpt-5.6"},
 		protocol.Member{ID: "member-triager", Harness: "claude", Model: "haiku"})
+	// one team that also knows the card about the user, so its brief shows both halves
+	repo.Memory = &protocol.TeamMemory{Remember: true, CarryReport: true, ReadsYou: true, Suggest: true}
 	system := teamFrom(demoTemplate("system"), demoTeamSystem, "system-care", now.AddDate(0, 0, -18), 1_000_000,
 		protocol.Member{ID: "member-caretaker", Harness: "claude"})
 	system.Paused, system.PauseReason, system.Updated = true, protocol.PausedByYou, ago(26*time.Hour)

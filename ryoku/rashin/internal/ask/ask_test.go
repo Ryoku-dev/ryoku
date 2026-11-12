@@ -82,7 +82,7 @@ func testRunnerWith(t *testing.T, client llm.Client, teams core.Teams) core.Runn
 	t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
 	t.Setenv("XDG_CACHE_HOME", filepath.Join(root, "cache"))
 	t.Setenv("XDG_RUNTIME_DIR", filepath.Join(root, "runtime"))
-	factory := New(client, nil, teams)
+	factory := New(client, nil, teams, nil)
 	return factory.NewAsk(core.AskOptions{
 		Session: protocol.SessionInfo{ID: "ask-test", Model: "auto"},
 		Settings: func() protocol.Settings {
@@ -290,7 +290,7 @@ func TestFetchURLRefusesPrivateAddress(t *testing.T) {
 func TestAskModelStrictnessFollowsSessionPin(t *testing.T) {
 	t.Run("settings pin may fail over", func(t *testing.T) {
 		client := &scriptedClient{streams: []*scriptedStream{finalStream(llm.Delta{Text: "ok"})}}
-		runner := New(client, nil, nil).NewAsk(core.AskOptions{
+		runner := New(client, nil, nil, nil).NewAsk(core.AskOptions{
 			Session: protocol.SessionInfo{ID: "ask-settings", Model: "provider/model"},
 			Settings: func() protocol.Settings {
 				return protocol.Settings{Ask: protocol.AskSettings{Model: "provider/model"}}
@@ -329,7 +329,7 @@ func TestAskModelStrictnessFollowsSessionPin(t *testing.T) {
 		}
 		// the daemon makes the runner again from the stored session after it restarts
 		client := &scriptedClient{streams: []*scriptedStream{finalStream(llm.Delta{Text: "ok"})}}
-		again := New(client, nil, nil).NewAsk(core.AskOptions{Session: sink.info, Settings: func() protocol.Settings { return protocol.Settings{} }})
+		again := New(client, nil, nil, nil).NewAsk(core.AskOptions{Session: sink.info, Settings: func() protocol.Settings { return protocol.Settings{} }})
 		if _, err := again.Prompt(context.Background(), core.PromptInput{Turn: 1, Text: "hello"}, &recordingSink{}); err != nil {
 			t.Fatal(err)
 		}

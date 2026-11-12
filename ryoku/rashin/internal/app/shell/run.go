@@ -38,6 +38,7 @@ type Options struct {
 	WorkTab         string
 	Worktree        string
 	SettingsSection string
+	Memory          env.MemoryPlace
 	Teams           env.TeamsPlace
 	ZoomPercent     int
 	Script          string

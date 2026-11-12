@@ -27,6 +27,7 @@ const (
 	sectionAsk
 	sectionAgents
 	sectionTeams
+	sectionMemory
 	sectionIndex
 	sectionAppearance
 	sectionKeys
@@ -68,6 +69,7 @@ type Page struct {
 	idle      kit.Stepper
 	notices   kit.Toggle
 	teams     teamsPanel
+	memory    memoryPanel
 	install   env.HarnessInstall
 	instances map[string]*instanceEditor
 	fresh     instanceEditor
@@ -176,7 +178,7 @@ func (p *Page) New(*env.Env) {}
 func (p *Page) NewLabel() string { return "" }
 
 func (p *Page) Overlay(gtx layout.Context, e *env.Env) bool {
-	if p.api.overlay(gtx, e) {
+	if p.api.overlay(gtx, e) || p.memory.overlay(gtx, e) {
 		return true
 	}
 	if !p.offOpen {
@@ -209,6 +211,7 @@ func sections() [sectionCount]section {
 		{"ask", i18n.T("Ask"), look.Icon.Ask, i18n.T("answers model memory habits shell approvals changes")},
 		{"agents", i18n.T("Agents"), look.Icon.Agents, i18n.T("harness harnesses omp approvals notices idle")},
 		{"teams", i18n.T("Teams"), look.Icon.Teams, i18n.T("ledger budget spend members sandbox mail sign-in login harness hidden secrets")},
+		{"memory", i18n.T("Memory"), look.Icon.Memory, i18n.T("memory remember forget learn temporary privacy Honcho Hindsight")},
 		{"index", i18n.T("Index"), look.Icon.Index, i18n.T("search meaning semantic system folders hide code")},
 		{"appearance", i18n.T("Appearance"), look.Icon.Show, i18n.T("theme colours colors dark light contrast tint zoom motion")},
 		{"keys", i18n.T("Keyboard"), look.Icon.Key, i18n.T("keys shortcuts keybinds")},
@@ -315,6 +318,8 @@ func (p *Page) layoutSections(gtx layout.Context, e *env.Env, inset, width int) 
 				return p.layoutAgents(gtx, e)
 			case sectionTeams:
 				return p.layoutTeams(gtx, e)
+			case sectionMemory:
+				return stackBlocks(gtx, p.memoryBlocks(gtx, e, nil))
 			case sectionIndex:
 				return p.layoutIndex(gtx, e)
 			case sectionAppearance:

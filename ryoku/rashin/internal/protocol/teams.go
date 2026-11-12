@@ -39,6 +39,9 @@ type Team struct {
 	Running int `json:"running,omitempty"`
 	// Access widens or narrows what its agents' sandbox lets them reach.
 	Access TeamAccess `json:"access"`
+	// Memory is what the team keeps between runs and may know of the user;
+	// nil, for a team made before memory, takes DefaultTeamMemory.
+	Memory *TeamMemory `json:"memory,omitempty"`
 	// Stats is filled by the daemon from the team's tasks and spend.
 	Stats TeamStats `json:"stats"`
 }

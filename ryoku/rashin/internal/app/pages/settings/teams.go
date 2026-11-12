@@ -47,6 +47,7 @@ type teamsPanel struct {
 
 	hidden  teamsui.PathList
 	signIns map[string]*teamsui.SignInActions
+	memory  teamsui.TeamMemoryForm
 
 	keep look.Select
 }
@@ -296,6 +297,14 @@ func (t *teamsPanel) defaultsGroup(e *env.Env, snapshot state.Snapshot) layout.W
 			},
 		},
 	}
+	rows = append(rows, t.memory.Rows(e, stored.Memory, func(memory protocol.TeamMemory, done func(error)) {
+		e.SetSettings(map[string]any{"teams": map[string]any{"defaults": map[string]any{"memory": memory}}}, func(err error) {
+			if err != nil {
+				e.Notify(err.Error())
+			}
+			done(err)
+		})
+	})...)
 	caption := i18n.T("A new team copies these. Changing them later changes no team you already have.")
 	return teamsGroup(th, i18n.T("New teams start with"), caption, rows, save)
 }

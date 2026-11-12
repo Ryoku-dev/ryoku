@@ -100,6 +100,10 @@ type SessionInfo struct {
 	TeamTask  string `json:"teamTask,omitempty"`
 	Member    string `json:"member,omitempty"`
 	Approvals string `json:"approvals,omitempty"`
+	// Temporary sessions live in the daemon's memory only and end when
+	// closed; Memory is a MemoryRemember, MemoryUseOnly or MemoryNone value.
+	Temporary bool   `json:"temporary,omitempty"`
+	Memory    string `json:"memory,omitempty"`
 }
 
 // SessionEvent is one line of a session log and one session.event on the wire.
@@ -136,6 +140,7 @@ const (
 	EvAnswer             = "answer"
 	EvTitle              = "title"
 	EvGoal               = "goal"
+	EvMemory             = "memory"
 )
 
 // Attachment is a file on this machine sent with a prompt.

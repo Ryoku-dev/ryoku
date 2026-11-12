@@ -56,6 +56,16 @@ type Snapshot struct {
 	Approvals []protocol.Approval
 	Routines  []protocol.Routine
 	Vault     protocol.VaultInfo
+	// Memory is memory's status, nil when the daemon runs without it;
+	// MemoryChanges are the changes seen so far by id, and MemoryRevision
+	// moves with every memory.changed, so a page showing memories knows to
+	// load them again.
+	Memory         *protocol.MemoryStatus
+	MemoryChanges  map[string]protocol.MemoryChange
+	MemoryRevision uint64
+	// MemorySetup is the latest memory.setup progress, kept after its last
+	// step until the next setup starts or a snapshot replaces it.
+	MemorySetup *protocol.MemorySetupProgress
 }
 
 // Store reduces daemon snapshots and events into one app state.
@@ -78,28 +88,30 @@ type Store struct {
 	progress   map[string]protocol.IndexProgress
 	attached   map[string]*chat.Model
 	// what a session streamed while the replay that opens it was still on its way
-	arriving   map[string]*arrival
-	focus      protocol.UIOpenParams
-	notices    []protocol.Notice
-	screens    map[string]protocol.ScreenState
-	teamsState teamsState
-	gitNext    uint64
-	gitChanged map[string]map[uint64]func()
-	invalidate func()
+	arriving    map[string]*arrival
+	focus       protocol.UIOpenParams
+	notices     []protocol.Notice
+	screens     map[string]protocol.ScreenState
+	teamsState  teamsState
+	memoryState memoryState
+	gitNext     uint64
+	gitChanged  map[string]map[uint64]func()
+	invalidate  func()
 }
 
 func New(invalidate func()) *Store {
 	return &Store{
-		sessions:   make(map[string]protocol.SessionInfo),
-		progress:   make(map[string]protocol.IndexProgress),
-		attached:   make(map[string]*chat.Model),
-		arriving:   make(map[string]*arrival),
-		worktrees:  make(map[string][]protocol.WorktreeInfo),
-		tasks:      make(map[string][]protocol.TaskInfo),
-		reviews:    make(map[string][]protocol.ReviewComment),
-		gitChanged: make(map[string]map[uint64]func()),
-		teamsState: newTeamsState(),
-		invalidate: invalidate,
+		sessions:    make(map[string]protocol.SessionInfo),
+		progress:    make(map[string]protocol.IndexProgress),
+		attached:    make(map[string]*chat.Model),
+		arriving:    make(map[string]*arrival),
+		worktrees:   make(map[string][]protocol.WorktreeInfo),
+		tasks:       make(map[string][]protocol.TaskInfo),
+		reviews:     make(map[string][]protocol.ReviewComment),
+		gitChanged:  make(map[string]map[uint64]func()),
+		teamsState:  newTeamsState(),
+		memoryState: newMemoryState(),
+		invalidate:  invalidate,
 	}
 }
 
@@ -143,6 +155,7 @@ func (s *Store) ApplySnapshot(snapshot protocol.Snapshot) {
 	s.projects = cloneProjects(snapshot.Projects)
 	s.tasks = groupTasks(snapshot.Tasks)
 	s.teamsState.applySnapshotLocked(snapshot)
+	s.memoryState.applySnapshotLocked(snapshot)
 	s.screens = make(map[string]protocol.ScreenState, len(snapshot.Screens))
 	for _, screen := range snapshot.Screens {
 		s.screens[screen.Session] = screen
@@ -288,6 +301,9 @@ func (s *Store) Apply(event protocol.Event) error {
 	var listeners []func()
 	if handled, teamsErr := s.teamsState.applyLocked(event); handled {
 		err = teamsErr
+	}
+	if handled, memoryErr := s.memoryState.applyLocked(event); handled {
+		err = memoryErr
 	}
 	switch event.Event {
 	case protocol.EvtSessionEvent:
@@ -454,6 +470,7 @@ func (s *Store) Snapshot() Snapshot {
 		result.Screens[id] = screen
 	}
 	s.teamsState.snapshotLocked(&result)
+	s.memoryState.snapshotLocked(&result)
 	for id, progress := range s.progress {
 		result.Progress[id] = progress
 	}

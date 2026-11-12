@@ -24,6 +24,7 @@ type Page struct {
 
 	board    board
 	view     chat.View
+	lines    env.MemoryLines
 	composer chat.Composer
 	controls harnessControls
 	panel    changesPanel
@@ -51,6 +52,9 @@ type Page struct {
 func New() *Page { return &Page{} }
 
 func (p *Page) Select(e *env.Env, id string) {
+	if p.selected != id {
+		p.leave(e)
+	}
 	if id == "" {
 		p.keepDraft("")
 		p.controls.leave(e, p.selected)
@@ -77,6 +81,13 @@ func (p *Page) Select(e *env.Env, id string) {
 		// opening a session counts as reading it
 		e.Call(protocol.MSessionRead, protocol.SessionRef{ID: id}, new(protocol.Empty), nil)
 	})
+}
+
+// leaving a temporary session ends it, opening another or the board alike
+func (p *Page) leave(e *env.Env) {
+	if info, ok := e.Snapshot().Sessions[p.selected]; ok && info.Temporary {
+		e.EndTemporary(info.ID, true)
+	}
 }
 
 func (p *Page) FocusHome() any {
@@ -137,6 +148,12 @@ func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
 	if p.lost(known) {
 		p.selected = ""
 		e.Navigate(protocol.TabAgent, "")
+	}
+	// from a session it starts a new temporary one on the board
+	if p.board.temporary.Pressed(gtx) {
+		p.board.temporary.On = p.selected != "" || !p.board.temporary.On
+		e.Navigate(protocol.TabAgent, "")
+		p.board.focus(e)
 	}
 	return p.rise.Layout(gtx, e.Theme, p.selected, 8, func(gtx layout.Context) layout.Dimensions {
 		if !known {

@@ -78,6 +78,9 @@ func (s *Service) teamChanges(old, next protocol.Team) []string {
 	for _, path := range added(next.Access.Hidden, old.Access.Hidden) {
 		out = append(out, i18n.Tf("Stopped hiding %s from it.", path))
 	}
+	if old.TeamMemory() != next.TeamMemory() {
+		out = append(out, i18n.T("Changed what it remembers."))
+	}
 	return out
 }
 

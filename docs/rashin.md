@@ -207,6 +207,9 @@ Every path comes from `internal/paths`; nothing else spells one.
 | `$XDG_STATE_HOME/ryoku/rashin/teams/` | Teams: `state.json` (teams, routines, approvals), `tasks/<id>.json`, `ledger.jsonl` (Activity), `spend.json` |
 | `$XDG_STATE_HOME/ryoku/rashin/vault.db` | the credential vault: sealed values, the mail account, its record of use (bbolt, mode 0600) |
 | `$XDG_STATE_HOME/ryoku/rashin/harness-homes/<instance>/<team>/` | a team home's guard: `signed-in.json`, `blessed/` (its guarded paths as signed in) and `quarantine/<time>/` (what a run changed there, the newest 10) |
+| `$XDG_STATE_HOME/ryoku/rashin/memory/memory.db` | memory's ledger: where each fact came from, versions, tombstones, undo, suggestions, conversation summaries (bbolt) |
+| `$XDG_STATE_HOME/ryoku/rashin/memory/teams/<team>.md` | what a team remembers, one fact per line |
+| `$XDG_DATA_HOME/ryoku/vault/memory/rashin/` | what Rashin remembers of you (`you.md`) and each project (`projects/<slug>.md`), one fact per line |
 | `$XDG_DATA_HOME/ryoku/rashin/harness-homes/<instance>/<team>/` | a team's home for a harness instance, the `HOME` its sessions and Checks run it with (0700) |
 | `~/Teams/<slug>` | a team's folder, where its agents work (default) |
 | `$XDG_DATA_HOME/ryoku/worktrees/<project>/<name>` | worktrees Rashin creates (default) |
@@ -382,6 +385,7 @@ otherwise waits for the next start that finds the vault open.
 | `commands` | slash commands the harness offers |
 | `answer` | Ask only, before `turn_end`: actions, command plan, `needsAgent` and reason, `via` (provider/model) |
 | `title` | new title |
+| `memory` | what memory did in the conversation: `updated` (the change), `used` (the memories and whether the card was in the prompt), `looked` (past conversations opened), `refused` (reason, text) or `narrowed` (the new memory mode); scrubbed as it lands |
 
 Rules:
 
@@ -393,6 +397,20 @@ Rules:
 - Every open permission is answered exactly once: by the user, by policy, or
   with `cancelled` when the turn is cancelled or the agent stops.
 - Ask sessions keep the newest 200; Agent sessions stay until deleted.
+- `session.new {temporary: true}` makes a temporary session: its events stay
+  in the daemon's memory, nothing of it is written under `sessions/`, and it
+  is scrubbed in memory the way a stored log is on disk. It neither counts
+  toward Ask retention nor evicts a stored conversation. `session.list` and the
+  snapshot show it while the daemon holds it; `session.delete` or the daemon's
+  exit ends it. A team task's conversation is never temporary. Forking one
+  (`session.fork`) keeps it: the fork is an ordinary stored session.
+- `SessionInfo.memory` is what the conversation does with memory: empty
+  remembers (uses memory and is learned from), `use` uses it only, `off`
+  neither. It is set at `session.new` (`memory`); a temporary session starts
+  at `use` and never remembers. `session.set_memory {id, memory}` takes any
+  value before the first message; after it only a narrower one, and the
+  narrowing is written as a `memory` event with `narrowed`. Forks and
+  handoffs keep the mode.
 - A session nobody named takes its first prompt as its title, on one line of
   at most 60 characters, or the name of its first attachment when it has no
   words. A title the harness sends later replaces it.
@@ -1483,6 +1501,146 @@ keeps its MCP servers in `~/.claude.json`, which it rewrites as it runs, so
 that file is not guarded.
 The app check is a gate for agents, not a boundary against someone already
 running code as you who can start a `rashin-app` and inject into it.
+
+## Memory
+
+Rashin remembers facts about you and your work between conversations, the
+way a person who has worked with you would. It is off until you answer the
+first-run card in Ask (`memory.asked`), and while it is off nothing of it runs:
+no file is opened, no model is loaded, no timer is set.
+
+### What it keeps and where
+
+- **Facts, never orders.** Every memory is one fact of at most 280
+  characters ("The user prefers short answers"), never an instruction.
+  Nothing about you is ever written into a harness's own memory or
+  instruction files.
+- **Personal and project facts** are Markdown in the Ryoku vault,
+  `memory/rashin/you.md` and `memory/rashin/projects/<slug>.md`, one fact per
+  line. You may edit a line to change a memory or delete it to forget it;
+  Rashin reads the change the next time it uses the file. A line that reads
+  as an instruction or holds a secret stays on disk, marked blocked, and is
+  never used.
+- **Team facts** are `~/.local/state/ryoku/rashin/memory/teams/<team>.md`, out
+  of the vault, so no agent outside the team reads them.
+- **The ledger**, `memory/memory.db` in Rashin's state, keeps what the files
+  cannot: where each fact came from, its earlier versions, what was replaced
+  or forgotten (a forgotten fact is never learned again), the undo history,
+  suggestions and the summaries of past conversations.
+- A project is known by its repository's first commit, so a clone or a moved
+  folder keeps its facts. A project set to keep its memory
+  (`ProjectSettings.Memory = kept`) is recalled only inside itself, and what is
+  learned there stays there.
+
+### Learning
+
+- A conversation is learned from once it has been quiet for
+  `memory.quietMinutes` (10 by default), by one model call that reads only
+  your words, the final answer of each turn and your answers to questions and
+  permission requests, never tool output, files or web pages. Everything sent
+  is scrubbed of secrets first.
+- The model is a local one first (`memory.model = localFirst`), else the one
+  that answered the conversation; "Local only" waits for a local model and
+  "Any provider" uses Ask's route.
+- What a learning pass keeps shows in the conversation as "Memory updated",
+  with Undo. Temporary conversations, conversations set to use memory only or
+  not at all, and team tasks are never learned from. Teams, background agents
+  and imports only suggest: their suggestions wait under Suggested on the
+  Memory page and in the Inbox.
+- Before the daemon exits at idle it learns from every conversation still
+  waiting (`Settle`), and stays up until that is done.
+
+### Where memory is used
+
+- **Ask** gets a `# Memory` section in its system prompt: how to use memory,
+  the card about you (at most 1,375 characters) and how much more there is to
+  search. Each question also gets up to eight facts about you and the
+  conversation's project, fenced in `<memory-context>` on that turn's message
+  only: the stored conversation keeps what you typed, so the next turn never
+  carries the fence, and a fence the model repeats is cut from the answer as
+  it streams. "Used N memories" under the answer says which facts it drew on.
+  Trivial turns ("thanks", "ok") recall nothing.
+- **Ask's memory tools**: `memory_search`, `remember` (which may mark a fact
+  sensitive), `forget`, and `session_search` over past conversations when
+  Settings > Memory allows it. What `remember`, `forget` and `session_search`
+  do shows as memory's own line in the conversation, not as a tool row.
+- **Agents** (`memory.agents`) get the card and up to 2,200 characters of the
+  project's facts in their brief, and the same four tools from the `rashin`
+  MCP server, which the daemon turns on with `RASHIN_MEMORY=1` (and
+  `RASHIN_MEMORY_SESSIONS=1` for the conversation search).
+- **Teams** (`Team.Memory`): with Remember on, a team's members are told what
+  the team remembers and get `memory_search`, `remember` and `forget` over
+  their team's memory through their own socket; a fact about you or a project
+  becomes a suggestion, and only when the team may suggest and
+  `memory.teamSuggestions` is `ask`. With Carry report on, a routine's run
+  starts with the newest report of an earlier run that said something (at most
+  2,000 characters). With Reads you on, members also get the card. New teams
+  take Settings > Teams, New teams start with; removing a team forgets
+  everything it remembers.
+
+### Memory engines
+
+Memory is kept by the built-in store unless Settings > Memory picks another
+engine:
+
+- **Hindsight** runs on this computer or at an address you give. On this
+  computer, "Set up" uses `uv` to install Hindsight 1.2.1 into
+  `~/.local/share/ryoku/rashin/hindsight/venv`. The packages come from a lock
+  shipped inside `rashind`, and every package's hash is checked. The lock
+  leaves out the two proprietary packages Hindsight can load. Setup then
+  fetches its models and makes its database. Hindsight starts on the first
+  memory call that needs it, never at login. It stops when Rashin goes idle,
+  after one wait of at most 10 minutes if it still has work queued. While it
+  runs it uses about 1.2 GB.
+  - It listens only on 127.0.0.1, behind a random key kept in the vault
+    (`RASHIN_HINDSIGHT_KEY`). Its database password is random too
+    (`RASHIN_HINDSIGHT_DB`).
+  - Model traces, stored source text, its MCP endpoint and file uploads are
+    off.
+  - Its model calls go through Rashin's gateway on a loopback port that is
+    open only while it runs, using the model that memory learns with.
+  - At an address, it takes the name of a vault credential holding the key.
+- **Honcho** is a server you run or use, reached at its address with the name
+  of a vault credential. Rashin keeps to workspace `rashin-desktop` unless you
+  name another. Each scope is a peer that observes you, so facts never cross
+  scopes. Honcho's card is read-only.
+
+With an external engine, that engine learns from your conversations. Rashin
+still does recall, explicit remembering and forgetting, suggestions and chat
+notes. "Move" copies every active memory into the chosen engine, and "Test"
+checks that it answers.
+
+### Who may do what
+
+The daemon fills the caller from the connection, never from what a call
+says (`core.MemoryCaller`):
+
+- **The Rashin app** may call every `memory.*` method. Only the app may call
+  `memory.forget_all`, `memory.keep`, `memory.import`, `memory.engine_setup`
+  and `memory.engine_move` (`memory.UserOnly`), or change the `memory`
+  settings.
+- **A team task's agent**, on its session's own socket, may call only
+  `memory.search`, `memory.add` and `memory.forget`, over its own team.
+- **Anything else on the main socket**, such as an agent's MCP server or the
+  command line, may read, add, edit and forget. An add or forget that names
+  the conversation it was asked in shows there, unless that conversation is a
+  team task's.
+
+### Command line
+
+```
+rashin memory status
+rashin memory list [--scope you|projects|teams|<scope>] [--status suggested|replaced|blocked] [--query words] [--limit n]
+rashin memory search <words> [--scope s] [--limit n]
+rashin memory add <text> [--scope s] [--sensitive]
+rashin memory forget <id>...
+rashin memory card [--rebuild]
+rashin memory sessions <words> [--last 6h|7d|2w|1m] [--limit n]
+rashin memory learn <session>
+```
+
+Each prints TOON when piped and a table on a terminal; `--format
+human|json|toon` picks one.
 
 ## The app
 

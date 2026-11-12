@@ -18,6 +18,7 @@ var Icon struct {
 	Quote, Goal, Pause, Screen                                       *widget.Icon
 	Teams, Inbox, Routine, Vault, Report, Approval, Member, Mail     *widget.Icon
 	Schedule, Spend, Import, Export, Lead                            *widget.Icon
+	Memory, Pin, Pinned, Temporary, Redo                             *widget.Icon
 }
 
 // the filled variants mark the destination a navigation row stands for when it is the current one
@@ -95,6 +96,11 @@ func init() {
 	Icon.Import = kit.Icon(symbols.Download)
 	Icon.Export = kit.Icon(symbols.Upload)
 	Icon.Lead = kit.Icon(symbols.Stars)
+	Icon.Memory = kit.Icon(symbols.Neurology)
+	Icon.Pin = kit.Icon(symbols.Keep)
+	Icon.Pinned = kit.Icon(symbols.KeepFill)
+	Icon.Temporary = kit.Icon(symbols.HourglassEmpty)
+	Icon.Redo = kit.Icon(symbols.Redo)
 	IconFill.Inbox = kit.Icon(symbols.InboxFill)
 	IconFill.Teams = kit.Icon(symbols.GroupFill)
 	IconFill.Tasks = kit.Icon(symbols.AssignmentFill)

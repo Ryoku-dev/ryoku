@@ -14,7 +14,7 @@ import (
 
 func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 	snapshot := e.Snapshot()
-	needs := teamsui.Needs(snapshot)
+	needs := p.needs(e)
 	needed := make(map[string]bool, len(needs))
 	rows := make([]look.SideRow, 0, len(needs))
 	for _, need := range needs {
@@ -23,6 +23,11 @@ func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 		row := look.SideRow{ID: key, Tone: palette.Attention}
 		approval := need.Approval
 		switch {
+		case len(need.Memories) == 1:
+			row.Title, row.Facts = env.PlainMemory(need.Memories[0].Text), teamsui.SuggestedBy(snapshot, need.Memories[0])
+		case len(need.Memories) > 1:
+			row.Title = i18n.Tf("%d suggestions from %s", len(need.Memories), teamsui.SuggestedFrom(snapshot, need.Memories[0]))
+			row.Facts = teamsui.SuggestedBy(snapshot, need.Memories[0])
 		// a proposed team has no team yet, so it reads by where it came from
 		case approval != nil && approval.Kind == protocol.ApprovalTeam:
 			row.Title, row.Facts = approval.Title, teamsui.ApprovalWord(approval.Kind)

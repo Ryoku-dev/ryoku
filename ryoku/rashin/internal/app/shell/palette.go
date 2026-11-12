@@ -197,6 +197,11 @@ func (s *uiShell) commands(e *env.Env) []paletteAction {
 	shared := []paletteAction{
 		action(look.Icon.Key, i18n.T("Providers and keys"), command, func() { s.openSettings("providers") }),
 		action(look.Icon.Link, i18n.T("Local API address and key"), command, func() { s.openSettings("api") }),
+		action(look.Icon.Memory, i18n.T("Memory"), command, func() { s.openMemory(env.MemoryPlace{}) }),
+		action(look.Icon.Add, i18n.T("Add memory"), command, func() {
+			s.openMemory(env.MemoryPlace{})
+			s.memory.AddMemory()
+		}),
 		action(look.Icon.Steps, i18n.T("Keyboard shortcuts"), command, func() { s.openSettings("keys") }),
 		action(look.Icon.SidebarToggle, i18n.T("Fold or open the sidebar"), "Ctrl B", s.toggleSidebar),
 		action(look.Icon.Search, i18n.T("Search the index"), command, func() { s.openDestination(protocol.TabIndex) }),

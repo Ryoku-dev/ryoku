@@ -104,6 +104,8 @@ type Snapshot struct {
 	Approvals []Approval `json:"approvals,omitempty"`
 	Routines  []Routine  `json:"routines,omitempty"`
 	Vault     *VaultInfo `json:"vault,omitempty"`
+	// Memory is memory's status; nil when the daemon runs without memory.
+	Memory *MemoryStatus `json:"memory,omitempty"`
 }
 
 // SessionListParams filters session.list. Before is a session id: only older
@@ -145,6 +147,12 @@ type SessionNewParams struct {
 	TeamTask  string `json:"teamTask,omitempty"`
 	Member    string `json:"member,omitempty"`
 	Approvals string `json:"approvals,omitempty"`
+	// Temporary keeps the session in memory only: it is never written to
+	// disk, searched or learned from, and ends when it is closed.
+	Temporary bool `json:"temporary,omitempty"`
+	// Memory is what the session does with memory: a MemoryRemember,
+	// MemoryUseOnly or MemoryNone value.
+	Memory string `json:"memory,omitempty"`
 }
 
 // SessionRef names one session.
@@ -924,6 +932,8 @@ type TeamDefaults struct {
 	Budget    TeamBudget `json:"budget"`
 	// Notify is NotifyAll, NotifyNeeds or NotifyNone.
 	Notify string `json:"notify"`
+	// Memory is what a new team keeps between runs and may know of the user.
+	Memory TeamMemory `json:"memory"`
 }
 
 // QuietHours is a daily window in local time, "HH:MM" each way. To before
@@ -1079,6 +1089,7 @@ type Settings struct {
 	API       APISettings       `json:"api"`
 	Teams     TeamsSettings     `json:"teams"`
 	Providers ProvidersSettings `json:"providers"`
+	Memory    MemorySettings    `json:"memory"`
 }
 
 // ProvidersSettings are the providers' settings that are not keys. Local maps
@@ -1100,6 +1111,9 @@ const (
 	TabProjects = "projects"
 	TabIndex    = "index"
 	TabSettings = "settings"
+	// TabMemory is the Memory page, reached from Settings, a conversation's
+	// memory line and the palette rather than the sidebar.
+	TabMemory = "memory"
 
 	// Teams mode
 	TabInbox    = "inbox"

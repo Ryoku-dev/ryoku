@@ -2,36 +2,54 @@ package teams
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 
 	i18n "ryoku-i18n"
 
+	"ryoku-rashin/internal/core"
+	"ryoku-rashin/internal/memory"
+	"ryoku-rashin/internal/memory/render"
 	"ryoku-rashin/internal/protocol"
 )
 
+// SetMemory hands the service memory, which keeps what each team remembers
+// between runs; the daemon calls it once, before Bind.
+func (s *Service) SetMemory(m core.Memory) { s.memory = m }
+
+// Team is the team with this id, for memory to name a team's scope and
+// follow what it keeps.
+func (s *Service) Team(id string) (protocol.Team, bool) { return s.state.team(id) }
+
 // ToolEnv is what Rashin's MCP server is told for a team session: its team,
-// task, run token and whether it leads. Nil for any other session, and for a
-// team session whose run has ended.
+// task, run token, whether it leads and whether it has its team's memory.
+// Nil for any other session, and for a team session whose run has ended.
 func (s *Service) ToolEnv(info protocol.SessionInfo) map[string]string {
 	if info.TeamTask == "" {
 		return nil
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	r := s.runs[info.TeamTask]
 	if r == nil || r.Session != info.ID {
+		s.mu.Unlock()
 		return nil
 	}
 	env := map[string]string{"RASHIN_TEAM": r.Team, "RASHIN_TEAM_TASK": r.Task, "RASHIN_TEAM_TOKEN": r.Token}
 	if r.Lead {
 		env["RASHIN_TEAM_LEAD"] = "1"
 	}
+	s.mu.Unlock()
+	team, ok := s.state.team(info.Team)
+	if ok && s.memory != nil && team.TeamMemory().Remember && memory.On(s.settings()) {
+		env["RASHIN_MEMORY"] = "1"
+	}
 	return env
 }
 
 // Brief is the team part of what a team session's agent hears ahead of its
-// first prompt: who it is on the team, where it works, how the team works
-// and what it never sees.
+// first prompt: who it is on the team, where it works, how the team works,
+// what it never sees, what the team remembers and, for a routine's run, what
+// the run before it reported.
 func (s *Service) Brief(info protocol.SessionInfo) string {
 	if info.TeamTask == "" {
 		return ""
@@ -103,6 +121,19 @@ func (s *Service) Brief(info protocol.SessionInfo) string {
 	if team.Tools.Screen {
 		b.WriteString(i18n.T("You may use your own screen with the screen tools without asking first."))
 		b.WriteString("\n")
+	}
+	tm := team.TeamMemory()
+	if s.memory != nil && tm.Remember {
+		if text := s.memory.TeamBrief(team); text != "" {
+			b.WriteString(text)
+			b.WriteString("\n")
+		}
+	}
+	if tm.CarryReport && task.Routine != "" {
+		if last, ok := s.lastReport(task); ok {
+			b.WriteString(render.CarriedReport(last.Title, last.At, last.Body))
+			b.WriteString("\n")
+		}
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
@@ -294,4 +325,21 @@ func (s *Service) Busy() bool {
 	return len(s.state.tasks(func(t protocol.TeamTask) bool {
 		return t.Status == protocol.TaskWorking && t.Waiting == ""
 	})) > 0
+}
+
+// forgetTeam forgets everything a removed team remembers. It never fails the
+// removal: an engine that cannot forget now is recorded in Activity, and an
+// engine that is not running forgets the next time it starts.
+func (s *Service) forgetTeam(ctx context.Context, team protocol.Team) {
+	if s.memory == nil {
+		return
+	}
+	params, _ := json.Marshal(protocol.MemoryForgetAllParams{Scope: protocol.MemoryTeamPrefix + team.ID})
+	if _, err := s.memory.Handle(ctx, core.MemoryCaller{App: true}, protocol.MMemoryForgetAll, params); err != nil {
+		s.record(protocol.Activity{
+			Actor: "you", Action: "team.forget", Target: team.Name, OK: false,
+			Detail: i18n.Tf("Could not forget what the team remembers: %s", err.Error()),
+			Team:   team.ID, Initiator: protocol.InitiatorYou,
+		})
+	}
 }

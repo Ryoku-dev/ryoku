@@ -27,7 +27,8 @@ type metadata struct {
 	Runner json.RawMessage `json:"runner,omitempty"`
 }
 
-// Log is one durable session event stream.
+// Log is one session event stream: durable, or held in memory alone for a
+// temporary session.
 type Log struct {
 	mu     sync.Mutex
 	info   protocol.SessionInfo
@@ -57,7 +58,9 @@ func NewID(kind protocol.SessionKind, at time.Time) (string, error) {
 	return fmt.Sprintf("%s-%s-%s-%s", kind, at.Local().Format("20060102"), at.Local().Format("150405"), hex.EncodeToString(suffix[:])), nil
 }
 
-// Create creates a session and enforces Ask retention.
+// Create creates a session and enforces Ask retention. A temporary session
+// is held in memory only: nothing is written for it, and it neither counts
+// toward Ask retention nor evicts a stored session.
 func Create(info protocol.SessionInfo, runner json.RawMessage) (*Log, error) {
 	if info.Created.IsZero() {
 		info.Created = time.Now()
@@ -71,6 +74,9 @@ func Create(info protocol.SessionInfo, runner json.RawMessage) (*Log, error) {
 	}
 	if info.Updated.IsZero() {
 		info.Updated = info.Created
+	}
+	if info.Temporary {
+		return &Log{info: info, runner: append(json.RawMessage(nil), runner...), temporary: true}, nil
 	}
 	dir := paths.SessionDir(info.ID)
 	if err := paths.EnsureDir(dir); err != nil {
@@ -268,9 +274,12 @@ func (l *Log) writeLocked(ev protocol.SessionEvent) error {
 func (l *Log) Since(seq int64) ([]protocol.SessionEvent, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	events, _, err := loadEvents(filepath.Join(paths.SessionDir(l.info.ID), "events.jsonl"))
-	if err != nil {
-		return nil, err
+	events := l.events
+	if !l.temporary {
+		var err error
+		if events, _, err = loadEvents(filepath.Join(paths.SessionDir(l.info.ID), "events.jsonl")); err != nil {
+			return nil, err
+		}
 	}
 	i := sort.Search(len(events), func(i int) bool { return events[i].Seq > seq })
 	return append([]protocol.SessionEvent(nil), events[i:]...), nil
@@ -301,6 +310,9 @@ func (l *Log) Update(fn func(*protocol.SessionInfo), runner json.RawMessage) err
 }
 
 func (l *Log) persistMetaLocked() error {
+	if l.temporary {
+		return nil
+	}
 	b, err := json.MarshalIndent(metadata{SessionInfo: l.info, Runner: l.runner}, "", "  ")
 	if err != nil {
 		return err
@@ -314,6 +326,7 @@ func (l *Log) persistMetaLocked() error {
 	return os.Rename(tmp, path)
 }
 
+// Close ends the log; a temporary log drops its events.
 func (l *Log) Close() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -354,19 +367,34 @@ func List(kind protocol.SessionKind) ([]protocol.SessionInfo, error) {
 		}
 		out = append(out, m.SessionInfo)
 	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].Created.Equal(out[j].Created) {
-			return out[i].ID > out[j].ID
-		}
-		return out[i].Created.After(out[j].Created)
-	})
+	SortNewest(out)
 	return out, nil
+}
+
+// SortNewest orders sessions as List returns them, newest first.
+func SortNewest(list []protocol.SessionInfo) {
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].Created.Equal(list[j].Created) {
+			return list[i].ID > list[j].ID
+		}
+		return list[i].Created.After(list[j].Created)
+	})
 }
 
 // ReadInfo returns a stored session's metadata without opening its log.
 func ReadInfo(id string) (protocol.SessionInfo, error) {
 	m, err := readMeta(id)
 	return m.SessionInfo, err
+}
+
+// Events returns a stored session's events without opening its log for
+// writing; a truncated final event is left out.
+func Events(id string) ([]protocol.SessionEvent, error) {
+	if _, err := readMeta(id); err != nil {
+		return nil, err
+	}
+	events, _, err := loadEvents(filepath.Join(paths.SessionDir(id), "events.jsonl"))
+	return events, err
 }
 
 // Delete removes a session directory.

@@ -52,7 +52,9 @@ func askIdentity(mode string) string {
 	return askWho + "\n\n" + may + "\n\n" + askStyle
 }
 
-func (f *Factory) systemPrompt(settings protocol.Settings, terminal *protocol.TerminalContext, mode string) string {
+// systemPrompt is Ask's system prompt for mode; memory is the memory section
+// recall gave this turn, "" for none.
+func (f *Factory) systemPrompt(settings protocol.Settings, terminal *protocol.TerminalContext, mode, memory string) string {
 	var b strings.Builder
 	b.WriteString(askIdentity(mode))
 	b.WriteString("\n\n# Ryoku vault\n\n")
@@ -64,6 +66,10 @@ func (f *Factory) systemPrompt(settings protocol.Settings, terminal *protocol.Te
 	if settings.Ask.Habits {
 		b.WriteString("\n\n# User habits\n\n")
 		b.WriteString(f.habits.summary())
+	}
+	if memory != "" {
+		b.WriteString("\n\n")
+		b.WriteString(memory)
 	}
 	if terminal != nil {
 		b.WriteString("\n\n# Terminal context\n\n")

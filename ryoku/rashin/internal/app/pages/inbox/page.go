@@ -9,11 +9,13 @@ import (
 
 	"ryoku-rashin/internal/app/env"
 	"ryoku-rashin/internal/app/look"
+	"ryoku-rashin/internal/app/pages/teamsui"
 )
 
 type Page struct {
-	list  look.SideList
-	board board
+	list        look.SideList
+	board       board
+	suggestions teamsui.Suggestions
 }
 
 func New() *Page { return &Page{} }
@@ -26,8 +28,17 @@ func (p *Page) Select(e *env.Env, place env.TeamsPlace) {
 }
 
 func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
-	return p.board.layout(gtx, e)
+	return p.board.layout(gtx, e, p.needs(e))
 }
+
+// what needs the user, with the memories waiting to be kept or dismissed among them
+func (p *Page) needs(e *env.Env) []teamsui.Need {
+	p.suggestions.Want(e)
+	return teamsui.WithSuggestions(teamsui.Needs(e.Snapshot()), p.suggestions.Needs())
+}
+
+// Count is how many cards wait in the Inbox: every need, and one for each place memories were suggested from.
+func (p *Page) Count(e *env.Env) int { return len(p.needs(e)) }
 
 func (p *Page) New(e *env.Env) { e.NewTeamTask("") }
 

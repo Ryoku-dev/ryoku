@@ -92,18 +92,20 @@ func (w *Work) AfterTurn(ctx context.Context, session protocol.SessionInfo, turn
 	if err != nil {
 		return
 	}
-	post := checkpointPostRef(session.ID, turn)
-	_, checkpointErr := gitpkg.Checkpoint(ctx, path, post)
-	if checkpointErr != nil {
-		return
+	// a temporary conversation leaves no checkpoint ref in the repository
+	changed := false
+	if !session.Temporary {
+		post := checkpointPostRef(session.ID, turn)
+		if _, err := gitpkg.Checkpoint(ctx, path, post); err != nil {
+			return
+		}
+		if diff, diffErr := gitpkg.Diff(ctx, path, gitpkg.DiffOptions{Mode: protocol.DiffRange, From: checkpointRef(session.ID, turn), To: post}); diffErr == nil {
+			changed = len(diff.Files) > 0
+		}
 	}
 	status, err := w.gitStatus(ctx, path, true)
 	if err != nil {
 		return
-	}
-	changed := false
-	if diff, diffErr := gitpkg.Diff(ctx, path, gitpkg.DiffOptions{Mode: protocol.DiffRange, From: checkpointRef(session.ID, turn), To: post}); diffErr == nil {
-		changed = len(diff.Files) > 0
 	}
 	now := time.Now()
 	w.mu.Lock()

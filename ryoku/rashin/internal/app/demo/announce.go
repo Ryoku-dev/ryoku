@@ -20,7 +20,7 @@ func (s *server) announce(out *outbox, method string) {
 		events[protocol.EvtProvidersChanged] = protocol.ProvidersResult{Providers: append([]protocol.ProviderInfo(nil), s.data.snapshot.Providers...)}
 		// pausing every team stops what works, and the pages hear each task stop
 		teams = s.takeTeamsEvents()
-	case protocol.MProjectsAdd, protocol.MProjectsRemove:
+	case protocol.MProjectsAdd, protocol.MProjectsRemove, protocol.MProjectsSettings:
 		projects := append([]protocol.ProjectInfo(nil), s.data.snapshot.Projects...)
 		events[protocol.EvtProjectsChanged] = protocol.ProjectsResult{Projects: projects}
 	case protocol.MHarnessesProbe, protocol.MHarnessesTeamsOpen, protocol.MHarnessesTeamsDone:
@@ -36,6 +36,8 @@ func (s *server) announce(out *outbox, method string) {
 		// each change queued the team, task, approval, routine, vault and session events the daemon would broadcast, in order
 		teams = s.takeTeamsEvents()
 	}
+	// memory writes and settings that moved memory are heard after the response
+	teams = append(teams, s.takeMemoryEvents()...)
 	s.mu.Unlock()
 	for name, value := range events {
 		if wire, err := json.Marshal(value); err == nil {

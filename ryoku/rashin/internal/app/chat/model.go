@@ -22,6 +22,7 @@ const (
 	rowError
 	rowTurnEnd
 	rowGoal
+	rowMemory
 )
 
 type transcriptRow struct {
@@ -39,6 +40,7 @@ type transcriptRow struct {
 	err        protocol.ErrorData
 	goal       protocol.Goal
 	turn       *turnState
+	memory     *protocol.MemoryEventData
 }
 
 type permissionState struct {
@@ -63,6 +65,8 @@ type turnState struct {
 	footerAdded   bool
 	// when the turn started and ended, for how long it worked
 	began, ended time.Time
+	// memory lines written while it ran, which stand under its answer
+	memory []transcriptRow
 }
 
 type modelState struct {
@@ -81,6 +85,10 @@ type modelState struct {
 	turns      map[int]*turnState
 	turnOrder  []*turnState
 	activeTurn *turnState
+	// memory calls whose line has told them, so what still arrives for them is dropped
+	memoryCalls map[string]bool
+	// memory calls still waiting for the line that tells them
+	memoryTools []pendingCall
 
 	model    protocol.ChoiceData
 	mode     protocol.ChoiceData
@@ -99,6 +107,7 @@ func newModelState() *modelState {
 		terminalOwners: make(map[string]string),
 		children:       make(map[string][]*protocol.ToolData),
 		childByID:      make(map[string]*protocol.ToolData),
+		memoryCalls:    make(map[string]bool),
 		turns:          make(map[int]*turnState),
 	}
 }
@@ -217,6 +226,8 @@ func (state *modelState) apply(model *Model, event protocol.SessionEvent) {
 		if decodeEvent(event, &data) {
 			state.rows = append(state.rows, transcriptRow{kind: rowGoal, key: strconv.FormatInt(event.Seq, 10), seq: event.Seq, goal: data.Goal})
 		}
+	case protocol.EvMemory:
+		state.applyMemory(event, model.info.Kind)
 	}
 }
 
@@ -236,7 +247,7 @@ func (state *modelState) currentTurn() *turnState {
 
 func (state *modelState) applyTool(event protocol.SessionEvent) {
 	var incoming protocol.ToolData
-	if !decodeEvent(event, &incoming) || incoming.Call == "" {
+	if !decodeEvent(event, &incoming) || incoming.Call == "" || state.memoryCalls[incoming.Call] {
 		return
 	}
 	if current := state.childByID[incoming.Call]; current != nil {
@@ -279,6 +290,9 @@ func (state *modelState) applyTool(event protocol.SessionEvent) {
 	state.tools[incoming.Call] = index
 	if tool.Terminal != "" {
 		state.terminalOwners[tool.Terminal] = tool.Call
+	}
+	if name := memoryTool(tool); name != "" {
+		state.memoryTools = append(state.memoryTools, pendingCall{call: tool.Call, name: name, turn: state.currentTurn()})
 	}
 }
 
@@ -411,6 +425,8 @@ func (state *modelState) finishTurn(data protocol.TurnEndData, seq int64, at tim
 	}
 	if !turn.footerAdded {
 		turn.footerAdded = true
+		state.rows = append(state.rows, turn.memory...)
+		turn.memory = nil
 		state.rows = append(state.rows, transcriptRow{kind: rowTurnEnd, seq: seq, turn: turn})
 	}
 }

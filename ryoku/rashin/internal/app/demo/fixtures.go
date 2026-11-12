@@ -43,6 +43,7 @@ type fixtures struct {
 	setups    map[string]protocol.SetupResult
 	activity  map[string]protocol.ActivityResult
 	teams     teamsFixtures
+	memory    memoryFixtures
 	// how often the demo's API key was replaced
 	apiKeys int
 }
@@ -64,6 +65,8 @@ func makeFixtures() fixtures {
 		Turns:   2,
 		LastSeq: 8,
 		Preview: i18n.T("The indexer is rebuilding semantic vectors."),
+		// narrowed after learning ran, as its transcript shows
+		Memory: protocol.MemoryUseOnly,
 	}
 	askRunning := protocol.SessionInfo{
 		ID: "ask-20261110-103800-live", Kind: protocol.KindAsk, Title: i18n.T("What is using the build cache?"),
@@ -217,6 +220,10 @@ func makeFixtures() fixtures {
 		API:       protocol.APISettings{Enabled: true, Port: protocol.DefaultAPIPort},
 		Teams:     demoTeamsSettings(),
 		Providers: protocol.ProvidersSettings{Local: protocol.DefaultLocalAddresses()},
+		Memory: protocol.MemorySettings{
+			Asked: true, Use: true, Learn: true, Sessions: true, Agents: true,
+			TeamSuggestions: protocol.TeamSuggestAsk, Model: protocol.LearnLocalFirst, QuietMinutes: 10, Engine: protocol.MemoryBuiltin,
+		},
 	}
 	provider := protocol.ProviderInfo{
 		ID:         "openrouter",
@@ -604,12 +611,12 @@ func makeFixtures() fixtures {
 			Files:  diffFiles(diff),
 		}
 	}
-	result.events[ask.ID] = askEvents(ask)
+	result.events[ask.ID] = memoryTranscript(askEvents(ask))
 	result.events[askRunning.ID] = askEvents(askRunning)
-	result.events[askYesterday.ID] = askEvents(askYesterday)
+	result.events[askYesterday.ID] = cardTranscript(askEvents(askYesterday))
 	result.events[askWeek.ID] = askEvents(askWeek)
 	result.events[askEarlier.ID] = askEvents(askEarlier)
-	result.events[needs.ID] = agentEvents(needs, true)
+	result.events[needs.ID] = agentMemoryTranscript(agentEvents(needs, true))
 	result.events[working.ID] = agentEvents(working, false)
 	result.events[working.ID] = append(result.events[working.ID], subagentEvents(int64(len(result.events[working.ID])), now)...)
 	result.events[done.ID] = agentEvents(done, false)

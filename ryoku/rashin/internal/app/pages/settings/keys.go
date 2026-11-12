@@ -20,6 +20,7 @@ func everywhereKeys() []keyRow {
 	return []keyRow{
 		{i18n.T("Search sessions, projects and commands"), [][]string{{"Ctrl", "K"}}},
 		{i18n.T("Start something new where you are"), [][]string{{"Ctrl", "N"}}},
+		{i18n.T("Make a new conversation temporary"), [][]string{{"Ctrl", "Shift", "N"}}},
 		{i18n.T("Ask, Agents, Projects, Index"), [][]string{{"Ctrl", "1"}, {"Ctrl", "2"}, {"Ctrl", "3"}, {"Ctrl", "4"}}},
 		{i18n.T("Switch between Rashin and Teams"), [][]string{{"Ctrl", "T"}}},
 		{
@@ -55,6 +56,18 @@ func readingKeys() []keyRow {
 	}
 }
 
+func memoryKeys() []keyRow {
+	return []keyRow{
+		{i18n.T("Search memory"), [][]string{{"Ctrl", "F"}}},
+		{i18n.T("Move between memories"), [][]string{{"↑"}, {"↓"}}},
+		{i18n.T("Edit the memory"), [][]string{{"Enter"}}},
+		{i18n.T("Forget the memory, with Undo"), [][]string{{"Delete"}}},
+		{i18n.T("Pin or unpin the memory"), [][]string{{"P"}}},
+		{i18n.T("Keep or dismiss a suggestion"), [][]string{{"K"}, {"D"}}},
+		{i18n.T("Close the editor, then clear the search"), [][]string{{"Esc"}}},
+	}
+}
+
 func (p *Page) layoutKeys(gtx layout.Context, e *env.Env) layout.Dimensions {
 	th := e.Theme
 	slab := func(rows []keyRow) layout.Widget {
@@ -76,6 +89,10 @@ func (p *Page) layoutKeys(gtx layout.Context, e *env.Env) layout.Dimensions {
 		layout.Rigid(kit.Text(th.Theme, th.T.Title, th.R.Fg, i18n.T("In a conversation"))),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 		layout.Rigid(slab(readingKeys())),
+		layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout),
+		layout.Rigid(kit.Text(th.Theme, th.T.Title, th.R.Fg, i18n.T("On the Memory page"))),
+		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+		layout.Rigid(slab(memoryKeys())),
 	)
 }
 

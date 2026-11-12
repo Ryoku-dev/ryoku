@@ -46,16 +46,18 @@ var teamControl = map[string]bool{
 	protocol.MSessionHandoff:    true,
 	protocol.MSessionFork:       true,
 	protocol.MSessionRevertTurn: true,
+	protocol.MSessionSetMemory:  true,
 }
 
 // isAgentMethod reports a method that only a team task's agent calls.
 func isAgentMethod(method string) bool { return strings.HasPrefix(method, "teams.agent_") }
 
 // agentGate is what a connection on a team session's own socket may call:
-// the team tools, that session's goal and screen, acting as its agent, and
-// reading the indexes inside its team's folders. Everything else is refused.
+// the team tools, that session's goal and screen, acting as its agent,
+// reading the indexes inside its team's folders, and searching, remembering
+// and forgetting in its team's memory. Everything else is refused.
 func agentGate(session, method string, raw json.RawMessage) error {
-	if isAgentMethod(method) || agentIndex[method] {
+	if isAgentMethod(method) || agentIndex[method] || teamMemory[method] {
 		return nil
 	}
 	switch method {
@@ -128,28 +130,32 @@ func requireApp(c *connection) error {
 // settingsForApp reports whether a settings patch reaches what only the
 // Rashin app may change: the teams' settings, which set what their agents
 // may reach, the harness instances, whose command and environment team
-// agents run with, or the providers' settings, which name the addresses the
-// gateway sends requests to. A patch that replaces a whole object, or is no
-// object at all, reaches everything under it.
+// agents run with, the providers' settings, which name the addresses the
+// gateway sends requests to, or memory's, so no agent can turn memory on,
+// widen what it reads or point it at another server. A patch that replaces
+// a whole object, or is no object at all, reaches everything under it.
 func settingsForApp(patch json.RawMessage) bool {
 	var top map[string]json.RawMessage
 	if json.Unmarshal(patch, &top) != nil || top == nil {
 		return true
 	}
-	if _, ok := top["teams"]; ok {
-		return true
+	for _, key := range []string{"teams", "providers", "memory"} {
+		if _, ok := top[key]; ok {
+			return true
+		}
 	}
-	if _, ok := top["providers"]; ok {
-		return true
+	for object, field := range map[string]string{"agent": "instances"} {
+		raw, ok := top[object]
+		if !ok {
+			continue
+		}
+		var fields map[string]json.RawMessage
+		if json.Unmarshal(raw, &fields) != nil || fields == nil {
+			return true
+		}
+		if _, ok := fields[field]; ok {
+			return true
+		}
 	}
-	agent, ok := top["agent"]
-	if !ok {
-		return false
-	}
-	var fields map[string]json.RawMessage
-	if json.Unmarshal(agent, &fields) != nil || fields == nil {
-		return true
-	}
-	_, ok = fields["instances"]
-	return ok
+	return false
 }

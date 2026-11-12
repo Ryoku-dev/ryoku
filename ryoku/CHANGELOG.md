@@ -39,6 +39,23 @@
 - **Rashin is rebuilt as Ryoku's optional AI system.** Its free-model router,
   read-only Ask agent, external coding harnesses, project and system Index,
   command line and Lithic app now share one socket-activated daemon.
+- **Rashin remembers you.** Once you say yes in Ask, Rashin learns facts about
+  you and your projects from quiet conversations, keeps them as plain
+  Markdown in the vault (`memory/rashin/`) and gives Ask, agents and teams
+  what helps: a short card about you, the facts that fit the question, and
+  tools to search, remember and forget. Temporary conversations leave
+  nothing behind (`rashin/internal/memory`, `rashin/internal/ask/memory.go`).
+- **Rashin memory can use Hindsight or Honcho.** Hindsight is set up on this
+  computer with `uv` from a hashed lock, or reached at an address; Honcho at
+  an address. `ryoku-rashin` now ships the MIT Hindsight Go client and
+  validator.v2 (Apache-2.0), listed in NOTICE, and installs
+  LICENSE.validator (`rashin/internal/memory/external.go`).
+- **Teams remember between runs.** A team keeps facts of its own, a routine's
+  run starts with the last run's report, and what a team learns about you
+  waits in the Inbox as a suggestion (`rashin/internal/teams/hooks.go`).
+- **`rashin memory` reads and changes memory from a terminal**: status, list,
+  search, add, forget, card, past conversations and learning now
+  (`rashin/cmd/rashin/memory.go`).
 - **Rashin has a Teams mode.** A team is a lead and up to five more agents
   with one purpose and a folder of its own; give it a task and it works in an
   ordinary agent session, hands pieces to its members and leaves a report in

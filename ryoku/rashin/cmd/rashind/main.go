@@ -15,6 +15,8 @@ import (
 	"ryoku-rashin/internal/gateway"
 	"ryoku-rashin/internal/harness"
 	"ryoku-rashin/internal/index"
+	"ryoku-rashin/internal/index/embed"
+	"ryoku-rashin/internal/memory"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 	"ryoku-rashin/internal/redact"
@@ -94,16 +96,49 @@ func run() error {
 		gw.Close()
 		return err
 	}
-	deps := daemon.Deps{Gateway: gw, Asker: ask.New(gw, idx, crew), Harnesses: harness.New(), Indexer: idx, Work: work, Teams: crew, Version: version, Events: events, Lock: lock}
-	// every scrubbed transcript takes out the vault's values and the provider
-	// keys by name before the patterns run
+	// every scrubbed transcript and memory takes out the vault's values and
+	// the provider keys by name before the patterns run
 	defer redact.RegisterStore(crew.Scrubber, crew.VaultOpen)()
 	defer redact.RegisterStore(gw.Scrubber, nil)()
+	// memory reaches the daemon's settings once the daemon is made, which
+	// it is before memory runs anything
+	var d *daemon.Daemon
+	models := func(ctx context.Context) []protocol.ProviderInfo {
+		providers, _ := gw.Providers(ctx)
+		return providers
+	}
+	providerModels := func(ctx context.Context, provider string) []protocol.ModelInfo {
+		result, err := gw.Models(ctx, provider)
+		if err != nil {
+			return nil
+		}
+		return result.Models
+	}
+	mem := memory.Open(memory.Deps{
+		Settings:       settings,
+		Client:         gw,
+		Models:         models,
+		ProviderModels: providerModels,
+		Broadcast:      events.Broadcast,
+		Names:          memoryNames{work: work, teams: crew},
+		Embed: func() (memory.Embedder, func(), error) {
+			model, err := embed.Load()
+			if err != nil {
+				return nil, nil, err
+			}
+			return model, embed.Release, nil
+		},
+		Engines:   memory.NewEngines(memory.EngineDeps{Gateway: gw, Secrets: crew, Models: models, ProviderModels: providerModels}),
+		SetEngine: func(engine string) error { return d.SetMemoryEngine(engine) },
+	})
+	crew.SetMemory(mem)
+	asker := ask.New(gw, idx, crew, mem)
+	deps := daemon.Deps{Gateway: gw, Asker: asker, Harnesses: harness.New(), Indexer: idx, Work: work, Teams: crew, Memory: mem, Version: version, Events: events, Lock: lock}
 	// read now: once the file is replaced the kernel no longer names it
 	if program, programErr := os.Executable(); programErr == nil {
 		deps.Program = program
 	}
-	d := daemon.New(deps)
+	d = daemon.New(deps)
 	gw.OnChange(d.ProvidersChanged)
 	owned = false
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)

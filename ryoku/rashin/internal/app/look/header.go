@@ -22,6 +22,8 @@ const (
 	FactText FactKind = iota
 	FactLink
 	FactToken
+	// a trait in amber, for what will be destroyed: Lithic's Disposable rule
+	FactMark
 )
 
 type HeaderFact struct {
@@ -188,6 +190,8 @@ func (header *PaneHeader) layoutFact(gtx layout.Context, th *Theme, index int, f
 	switch fact.Kind {
 	case FactToken:
 		return TokenChip(th, fact.Text)(gtx)
+	case FactMark:
+		return kit.Text(th.Theme, th.T.Caption, th.R.Amber, fact.Text)(gtx)
 	case FactLink:
 		link := &header.links[index]
 		ink := th.R.Fg3

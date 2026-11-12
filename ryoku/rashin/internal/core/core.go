@@ -182,6 +182,72 @@ type Indexer interface {
 	Close() error
 }
 
+// MemoryCaller says who calls a memory.* method: the Rashin app, an agent
+// session through its MCP tools (Session), a team task's agent through its
+// own socket (Team and Task), or anything else on the socket, such as the
+// CLI. The daemon fills it from the connection; a caller never claims it.
+type MemoryCaller struct {
+	App     bool
+	Session string
+	Team    string
+	Task    string
+}
+
+// Recall is what Ask is given from memory for one turn. System goes into the
+// system prompt: the card and how to use memory. Context goes into this
+// turn's user message only and is never stored. Used is shown under the
+// answer. Tools offers the memory tools and Sessions the search of past
+// conversations.
+type Recall struct {
+	System   string
+	Context  string
+	Used     *protocol.MemoryEventData
+	Tools    bool
+	Sessions bool
+}
+
+// MemorySessions is what memory needs from the session manager: a session's
+// info and stored events, every stored session of a kind, and a way to put a
+// memory line into a session's transcript.
+type MemorySessions interface {
+	Info(id string) (protocol.SessionInfo, bool)
+	Events(id string) ([]protocol.SessionEvent, error)
+	List(kind protocol.SessionKind) []protocol.SessionInfo
+	EmitMemory(id string, data protocol.MemoryEventData)
+}
+
+// Memory is what Rashin remembers between conversations: the memory.*
+// methods, what Ask, agents and teams are told, and the hooks the session
+// manager calls. Nothing of it runs while memory is off.
+type Memory interface {
+	// Bind hands memory the session manager; the daemon calls it once at
+	// start.
+	Bind(sessions MemorySessions)
+	// Handle serves one memory.* method for from.
+	Handle(ctx context.Context, from MemoryCaller, method string, params json.RawMessage) (any, error)
+	// Status fills the snapshot and every memory.changed event.
+	Status(ctx context.Context) protocol.MemoryStatus
+	// Recall is memory for one Ask turn; zero when the session or the
+	// settings use none.
+	Recall(ctx context.Context, info protocol.SessionInfo, question string) Recall
+	// Brief is the memory part of an agent session's brief, "" for none.
+	Brief(info protocol.SessionInfo) string
+	// TeamBrief is what a team's members are told the team remembers, ""
+	// when it keeps nothing.
+	TeamBrief(team protocol.Team) string
+	// TurnEnded lets memory learn from a session once it goes quiet;
+	// SessionDeleted drops what memory kept of a deleted session.
+	TurnEnded(info protocol.SessionInfo)
+	SessionDeleted(id string)
+	// Settle learns from every conversation still waiting, ahead of the idle
+	// exit. It returns at once; Busy reports the work until it is done.
+	Settle()
+	Busy() bool
+	// Release drops loaded models and caches at rest.
+	Release()
+	Close() error
+}
+
 // SessionControl is the daemon's session manager as Work and Teams see it:
 // they create and prompt Agent sessions for tasks and review notes.
 type SessionControl interface {

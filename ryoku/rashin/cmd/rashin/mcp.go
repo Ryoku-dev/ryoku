@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	i18n "ryoku-i18n"
+	"ryoku-rashin/internal/brief"
 	"ryoku-rashin/internal/mcp"
 )
 
@@ -63,11 +64,19 @@ func serverTools(getenv func(string) string) (string, []mcp.Tool) {
 		tools = append(tools, screenTools(session)...)
 	}
 	// the daemon names the team task the session works and the run's token
-	if getenv("RASHIN_TEAM") != "" {
+	team := getenv("RASHIN_TEAM") != ""
+	if team {
 		session.token = getenv("RASHIN_TEAM_TOKEN")
 		session.lead = getenv("RASHIN_TEAM_LEAD") == "1"
 		instructions += " The team tools serve your team task: report ends it (quiet for a routine run where nothing changed), ask_user puts a decision or a choice of 2 to 6 options to the user, and credentials, http_request, send_mail and request_credential use your team's credentials and mail without you ever seeing a value."
 		tools = append(tools, teamTools(session)...)
+	}
+	// the daemon says whether the session uses memory and may search past
+	// conversations; a team's memory is its team's
+	if getenv("RASHIN_MEMORY") == "1" {
+		sessions := !team && getenv("RASHIN_MEMORY_SESSIONS") == "1"
+		instructions += " " + brief.MemoryInstructions(sessions)
+		tools = append(tools, memoryTools(session, team, sessions)...)
 	}
 	return instructions, tools
 }

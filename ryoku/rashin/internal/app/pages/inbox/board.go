@@ -43,9 +43,8 @@ const (
 	itemStart
 )
 
-func (b *board) layout(gtx layout.Context, e *env.Env) layout.Dimensions {
+func (b *board) layout(gtx layout.Context, e *env.Env, needs []teamsui.Need) layout.Dimensions {
 	snapshot := e.Snapshot()
-	needs := teamsui.Needs(snapshot)
 	items := b.items(snapshot, needs)
 	b.bringIntoView(items)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,

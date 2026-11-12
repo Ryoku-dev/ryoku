@@ -27,6 +27,7 @@ type overview struct {
 	crew    crewLive
 	steps   nextSteps
 	files   teamFiles
+	memory  memorySection
 
 	activity    load
 	entries     []protocol.Activity
@@ -62,6 +63,7 @@ func (o *overview) layout(gtx layout.Context, e *env.Env, team protocol.Team) la
 				return crewChart(gtx, th, snapshot, team.Members, o.crew.of(team.ID), fullCrew(th))
 			}),
 			o.latestReport(gtx, e, snapshot, team),
+			func(gtx layout.Context) layout.Dimensions { return o.memory.layout(gtx, e, team) },
 			o.files.layout(gtx, e, snapshot, team),
 		)
 	}

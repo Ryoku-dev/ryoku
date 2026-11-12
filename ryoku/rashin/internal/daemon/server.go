@@ -445,6 +445,12 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 			return nil, err
 		}
 		return d.manager.fork(ctx, p)
+	case protocol.MSessionSetMemory:
+		p, err := unmarshal[protocol.SetMemoryParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.manager.setMemory(p)
 	case protocol.MSessionRead:
 		p, err := unmarshal[protocol.SessionRef](raw)
 		if err != nil {
@@ -637,8 +643,6 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 	case protocol.MSettingsGet:
 		return d.Settings(), nil
 	case protocol.MSettingsSet:
-		d.settingsMu.Lock()
-		defer d.settingsMu.Unlock()
 		p, err := unmarshal[protocol.SettingsSetParams](raw)
 		if err != nil {
 			return nil, err
@@ -648,34 +652,7 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 				return nil, err
 			}
 		}
-		current := d.Settings()
-		next, err := config.Merge(current, p.Patch)
-		if err != nil {
-			return nil, err
-		}
-		// an instance removed later leaves the default unknown; only a new
-		// choice is checked, so unrelated changes still save
-		if chosen := next.Teams.Defaults.Harness; chosen != "" && chosen != current.Teams.Defaults.Harness && !harness.Known(chosen, next) {
-			return nil, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("No harness %s on this computer.", chosen))
-		}
-		next, err = config.SaveMerged(next)
-		if err != nil {
-			return nil, err
-		}
-		d.mu.Lock()
-		d.settings = next
-		d.mu.Unlock()
-		d.Broadcast(protocol.EvtSettingsChanged, next)
-		if d.deps.Teams != nil {
-			d.deps.Teams.SettingsChanged(next)
-		}
-		d.applyAPI()
-		d.stateChanged()
-		// a new address is a different server: its running state and models follow it
-		if d.deps.Gateway != nil && !maps.Equal(next.Providers.Local, current.Providers.Local) {
-			d.broadcastProviders(ctx)
-		}
-		return next, nil
+		return d.applySettings(ctx, p.Patch)
 	case protocol.MUIOpen:
 		p, err := unmarshal[protocol.UIOpenParams](raw)
 		if err != nil {
@@ -742,8 +719,47 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 			}
 			return d.deps.Teams.Handle(ctx, method, raw)
 		}
+		if isMemoryMethod(method) {
+			return d.memoryCall(ctx, c, method, raw)
+		}
 		return nil, protocol.Errorf(protocol.CodeUnsupported, "%s", i18n.Tf("Method %s is not supported.", method))
 	}
+}
+
+// applySettings merges patch into the settings, saves them and tells every
+// part that follows them. The caller has already checked who may change
+// what the patch reaches.
+func (d *Daemon) applySettings(ctx context.Context, patch json.RawMessage) (protocol.Settings, error) {
+	d.settingsMu.Lock()
+	defer d.settingsMu.Unlock()
+	current := d.Settings()
+	next, err := config.Merge(current, patch)
+	if err != nil {
+		return protocol.Settings{}, err
+	}
+	// an instance removed later leaves the default unknown; only a new
+	// choice is checked, so unrelated changes still save
+	if chosen := next.Teams.Defaults.Harness; chosen != "" && chosen != current.Teams.Defaults.Harness && !harness.Known(chosen, next) {
+		return protocol.Settings{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("No harness %s on this computer.", chosen))
+	}
+	next, err = config.SaveMerged(next)
+	if err != nil {
+		return protocol.Settings{}, err
+	}
+	d.mu.Lock()
+	d.settings = next
+	d.mu.Unlock()
+	d.Broadcast(protocol.EvtSettingsChanged, next)
+	if d.deps.Teams != nil {
+		d.deps.Teams.SettingsChanged(next)
+	}
+	d.applyAPI()
+	d.stateChanged()
+	// a new address is a different server: its running state and models follow it
+	if d.deps.Gateway != nil && !maps.Equal(next.Providers.Local, current.Providers.Local) {
+		d.broadcastProviders(ctx)
+	}
+	return next, nil
 }
 
 func requireAbsolutePath(path string) error {
@@ -916,6 +932,10 @@ func (d *Daemon) snapshot(ctx context.Context) (protocol.Snapshot, error) {
 	}
 	if d.deps.Teams != nil {
 		d.deps.Teams.Snapshot(ctx, &snapshot)
+	}
+	if d.deps.Memory != nil {
+		status := d.deps.Memory.Status(ctx)
+		snapshot.Memory = &status
 	}
 	return snapshot, nil
 }

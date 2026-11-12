@@ -48,6 +48,8 @@ func Serve(ctx context.Context, socket string) error {
 type server struct {
 	mu   sync.Mutex
 	data fixtures
+	// session events a method wrote, for the client to hear after its answer
+	told []protocol.SessionEventData
 }
 
 func (s *server) serve(ctx context.Context, connection net.Conn) {
@@ -90,6 +92,7 @@ func (s *server) serve(ctx context.Context, connection net.Conn) {
 		}
 		if response.Error == nil {
 			s.announce(out, frame.Method)
+			s.tellSessions(out, frame.Method, frame.Params)
 		}
 	}
 }
@@ -97,12 +100,16 @@ func (s *server) serve(ctx context.Context, connection net.Conn) {
 func (s *server) call(method string, raw json.RawMessage) (any, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if strings.HasPrefix(method, "memory.") {
+		return s.callMemory(method, raw)
+	}
 	switch method {
 	case protocol.MHello:
 		return protocol.HelloResult{Daemon: "rashind-demo", Version: "2.0.0-demo", Protocol: protocol.Version, Enabled: true}, nil
 	case protocol.MSubscribe:
 		snapshot := s.data.snapshot
 		s.fillTeamsSnapshot(&snapshot)
+		snapshot.Memory = s.memoryStatus()
 		return snapshot, nil
 	case protocol.MStatus:
 		return s.data.snapshot.Status, nil
@@ -171,6 +178,7 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 			return nil, err
 		}
 		info := s.newSession(params.Kind, params.Harness, params.Cwd, params.Project, params.Worktree, params.Branch, params.Task, "")
+		info.Temporary, info.Memory = params.Temporary, newMemoryMode(params)
 		if params.Title != "" {
 			info.Title = params.Title
 		}
@@ -251,6 +259,12 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 			s.replaceSession(info)
 		}
 		return protocol.Empty{}, nil
+	case protocol.MSessionSetMemory:
+		var params protocol.SetMemoryParams
+		if err := decode(raw, &params); err != nil {
+			return nil, err
+		}
+		return s.setMemory(params)
 	case protocol.MSessionSetOption, protocol.MSessionStart:
 		return protocol.Empty{}, nil
 	case protocol.MSessionQueue:
@@ -303,6 +317,7 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 			source.ID,
 		)
 		info.Title = source.Title + " copy"
+		info = s.forkFrom(source, info)
 		s.replaceSession(info)
 		return info, nil
 	case protocol.MSessionPrompt, protocol.MSessionSteer:

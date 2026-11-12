@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"ryoku-rashin/internal/brief"
@@ -29,6 +30,33 @@ func TestEveryAgentSessionIsHandedTheTeamTools(t *testing.T) {
 		}
 		if instructions == "" {
 			t.Fatal("the server says nothing about its tools")
+		}
+	}
+}
+
+func TestTheMemoryToolsComeOnlyWithMemory(t *testing.T) {
+	for _, test := range []struct {
+		env  map[string]string
+		want []string
+	}{
+		{map[string]string{"RASHIN_SESSION": "session-1"}, nil},
+		{map[string]string{"RASHIN_SESSION": "session-1", "RASHIN_MEMORY": "1"}, []string{brief.ToolMemorySearch, brief.ToolRemember, brief.ToolForget}},
+		{map[string]string{"RASHIN_SESSION": "session-1", "RASHIN_MEMORY": "1", "RASHIN_MEMORY_SESSIONS": "1"}, []string{brief.ToolMemorySearch, brief.ToolRemember, brief.ToolForget, brief.ToolSessionSearch}},
+		// a team keeps its own memory and never searches the user's conversations
+		{map[string]string{"RASHIN_SESSION": "session-2", "RASHIN_TEAM": "team-1", "RASHIN_TEAM_TOKEN": "token", "RASHIN_MEMORY": "1", "RASHIN_MEMORY_SESSIONS": "1"}, []string{brief.ToolMemorySearch, brief.ToolRemember, brief.ToolForget}},
+	} {
+		instructions, tools := serverTools(func(key string) string { return test.env[key] })
+		var got []string
+		for _, tool := range tools {
+			if brief.IsMemoryTool(tool.Name) {
+				got = append(got, tool.Name)
+			}
+		}
+		if strings.Join(got, ",") != strings.Join(test.want, ",") {
+			t.Fatalf("with %v the memory tools are %v, want %v", test.env, got, test.want)
+		}
+		if strings.Contains(instructions, "memory_search") != (len(test.want) > 0) {
+			t.Fatalf("with %v the instructions say %q", test.env, instructions)
 		}
 	}
 }

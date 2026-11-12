@@ -12,6 +12,7 @@ import (
 	i18n "ryoku-i18n"
 	"ryoku-rashin/internal/index/embed"
 	"ryoku-rashin/internal/protocol"
+	"ryoku-rashin/internal/rank"
 	"ryoku-rashin/internal/redact"
 )
 
@@ -193,7 +194,7 @@ func indexedPath(entry registryEntry, path string) string {
 	return filepath.ToSlash(filepath.Clean(path))
 }
 func containsPart(name, query string) bool {
-	for _, part := range splitIdentifier(name) {
+	for _, part := range rank.SplitIdentifier(name) {
 		if part == query || strings.HasPrefix(part, query) {
 			return true
 		}

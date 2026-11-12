@@ -351,6 +351,24 @@ func (s *Service) routineOpen(r protocol.Routine) bool {
 	return ok && taskIsOpen(task)
 }
 
+// lastReport is the report of the routine's run before task: the newest
+// other run of its routine that ended done with a report. A quiet report is
+// passed over, since it says only that nothing changed since the one before.
+func (s *Service) lastReport(task protocol.TeamTask) (protocol.TeamReport, bool) {
+	runs := s.state.tasks(func(t protocol.TeamTask) bool {
+		return t.Routine == task.Routine && t.ID != task.ID && t.Status == protocol.TaskDone &&
+			t.Report != nil && !t.Report.Quiet && strings.TrimSpace(t.Report.Body) != ""
+	})
+	var last protocol.TeamReport
+	found := false
+	for _, run := range runs {
+		if !found || run.Report.At.After(last.At) {
+			last, found = *run.Report, true
+		}
+	}
+	return last, found
+}
+
 // skipRoutine records a run the routine did not start.
 func (s *Service) skipRoutine(r protocol.Routine, reason string, now time.Time) {
 	updated, ok := s.clock.change(r.ID, func(r *protocol.Routine) bool {

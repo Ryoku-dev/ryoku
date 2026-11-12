@@ -36,6 +36,7 @@ type teamEdit struct {
 	Notify    string              `json:"notify"`
 	Running   int                 `json:"running"`
 	Access    protocol.TeamAccess `json:"access"`
+	Memory    protocol.TeamMemory `json:"memory"`
 }
 
 // listTeams lists every team by name with its stats.
@@ -156,10 +157,15 @@ func createdDetail(t protocol.Team) string {
 	return i18n.Tf("Made with %d members, working in %s.", len(t.Members), paths.Short(t.Folder))
 }
 
-// prepareTeam checks a new team as it would be stored: a team that names no
-// budget takes the teams defaults', with its template's turns per task.
-// Nothing is stored and no folder is made.
+// prepareTeam checks a new team as it would be stored: it keeps what the
+// teams defaults say new teams keep, and a team that names no budget takes
+// the teams defaults', with its template's turns per task. Nothing is stored
+// and no folder is made.
 func (s *Service) prepareTeam(team *protocol.Team, settings protocol.Settings) (map[string]string, error) {
+	if team.Memory == nil {
+		memory := settings.Teams.Defaults.Memory
+		team.Memory = &memory
+	}
 	if team.Budget == (protocol.TeamBudget{}) {
 		team.Budget = settings.Teams.Defaults.Budget
 		if template, ok := templateByID(team.Template); ok {
@@ -239,7 +245,7 @@ func (s *Service) updateTeam(ctx context.Context, p protocol.TeamUpdateParams) (
 	base, err := json.Marshal(teamEdit{
 		Name: current.Name, Purpose: current.Purpose, Folder: current.Folder, Members: current.Members,
 		Tools: current.Tools, Approvals: current.Approvals, Budget: current.Budget, Notify: current.Notify,
-		Running: current.Running, Access: current.Access,
+		Running: current.Running, Access: current.Access, Memory: current.TeamMemory(),
 	})
 	if err != nil {
 		return protocol.Team{}, err
@@ -266,6 +272,9 @@ func (s *Service) updateTeam(ctx context.Context, p protocol.TeamUpdateParams) (
 	team.Name, team.Purpose, team.Folder, team.Members = next.Name, next.Purpose, next.Folder, next.Members
 	team.Tools, team.Approvals, team.Budget, team.Notify = next.Tools, next.Approvals, next.Budget, next.Notify
 	team.Running, team.Access = next.Running, next.Access
+	if next.Memory != current.TeamMemory() {
+		team.Memory = &next.Memory
+	}
 	// a harness the team already runs on stays accepted after its definition went
 	kept := make(map[string]bool, len(current.Members))
 	for _, m := range current.Members {
@@ -302,8 +311,11 @@ func (s *Service) updateTeam(ctx context.Context, p protocol.TeamUpdateParams) (
 }
 
 // deleteTeam stops a team's work and removes it with its tasks, routines,
-// approvals and grants. Its folder stays: it holds what the team made.
-func (s *Service) deleteTeam(_ context.Context, id string) error {
+// approvals and grants, then forgets what it remembers. Its folder stays: it
+// holds what the team made. Forgetting comes last, so no task of the team can
+// remember anything after it, and a memory engine that fails never keeps the
+// team.
+func (s *Service) deleteTeam(ctx context.Context, id string) error {
 	team, ok := s.state.team(id)
 	if !ok {
 		return protocol.Errorf(protocol.CodeNotFound, "%s", i18n.Tf("No team %s.", id))
@@ -315,6 +327,7 @@ func (s *Service) deleteTeam(_ context.Context, id string) error {
 	if err := s.state.removeTeam(id); err != nil {
 		return err
 	}
+	s.forgetTeam(ctx, team)
 	for _, t := range tasks {
 		s.broadcast(protocol.EvtTeamTaskRemoved, protocol.TeamRemoved{ID: t.ID})
 	}

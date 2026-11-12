@@ -94,6 +94,9 @@ type Session struct {
 	Team string
 	// Writable are the folders a team agent may change besides its own.
 	Writable []string
+	// Memory is what Rashin remembers that the agent may use, with how to
+	// reach the rest; empty when the session uses no memory.
+	Memory string
 }
 
 // Agent is the text an external agent hears once, ahead of its first prompt.
@@ -173,6 +176,11 @@ func Agent(session Session) string {
 	if session.Team != "" {
 		b.WriteString("\n")
 		b.WriteString(session.Team)
+		b.WriteString("\n")
+	}
+	if session.Memory != "" {
+		b.WriteString("\n")
+		b.WriteString(session.Memory)
 		b.WriteString("\n")
 	}
 
