@@ -157,9 +157,10 @@
 - **Picking a lock screen marks it Active as soon as it is switched (#777).**
   It no longer spins on Applying while the sign-in screen waits for your
   password; a note says what is still pending, and a refused prompt shows why.
-- **Graphics & Power offers Performance on laptops with a monitor port on the
-  discrete GPU.** The page says it applies only while a monitor is plugged in
-  there at login, and that the built-in screen can then stay dark after sleep.
+- **Graphics offers Performance on laptops with a monitor port on the
+  discrete GPU.** The mode row and the Performance confirmation say it applies
+  only while a monitor is plugged in there at log in, and that the built-in
+  screen can then stay dark after sleep (`quickshell/pages/Graphics.qml`).
 - **Resetting a password in Users no longer hangs on "Saving" (#798).** The
   password pipe stayed open, so the helper waited for more input forever and
   every later account change, removing a person included, stayed busy too.
@@ -189,15 +190,15 @@
   `/dev/i2c-N` number is ignored, since it moves between boots), the old shared
   entry is copied to every stick on the next scan, and identical sticks list in
   a stable order (`backend/lighting.go`).
-- **A number typed into a Hub stepper keeps the row's real range.** Values
-  such as a niri strut of 200 or a workspace shadow drop of -10 were cut to
-  0..100; they now clamp to the limits the stepper buttons already use.
-- **Picking a lock screen marks it Active as soon as it is switched (#777).**
-  It no longer spins on Applying while the sign-in screen waits for your
-  password; a note says what is still pending, and a refused prompt shows why.
-- **Switch layouts says what Super+Space costs.** Picking it now notes that it
-  takes over the Space key, so Persian ZWNJ on Shift+Space and AltGr+Space stop
-  working, and that Alt+Shift keeps them (#781).
+- **A number typed into a stepper keeps the row's real range.** Values such as
+  a niri strut of 200 or a workspace shadow drop of -10 were cut to 0..100;
+  they now clamp to the limits the stepper buttons already use.
+- **Keyboard says what Super+Space costs.** Choosing it to switch layouts now
+  notes that it takes over the Space key, so Persian ZWNJ on Shift+Space and
+  AltGr+Space stop working, and that Alt+Shift keeps them
+  (`quickshell/pages/Keyboard.qml`, #781).
+- **Shortcuts names the grow, shrink and pause keys.** Their key caps read "=",
+  "-" and "Pause" rather than the raw key names (`quickshell/pages/Shortcuts.qml`).
 - **Clicking a saved Wi-Fi network notices when its password is rejected.** A
   stale saved password sometimes failed with nothing shown. A saved network now
   joins like every other join, and a failure reopens the password row
