@@ -1,6 +1,10 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Wallpaper Engine video wallpapers animate on hover in the picker (#807).**
+  Only local videos got the small preview clip, so workshop video cards stayed
+  still; they now get one too, built on the thumbnail job limit and skipped
+  while video previews are off.
 - **The launcher's weather follows the Celsius or Fahrenheit setting (#803).** A
   unit change that arrived while the first forecast was still loading was
   dropped, so the hero kept the locale's unit until the next refresh 15 minutes
