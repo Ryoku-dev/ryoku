@@ -66,30 +66,26 @@ const (
 	quietTo   = "07:00"
 )
 
-func (p *Page) layoutTeams(gtx layout.Context, e *env.Env) layout.Dimensions {
+func (p *Page) teamsBlocks(gtx layout.Context, e *env.Env, blocks []layout.Widget) []layout.Widget {
 	th := e.Theme
 	snapshot := e.Snapshot()
 	t := &p.teams
 	t.fill(snapshot.Settings.Teams)
-	groups := []layout.Widget{
-		t.runningGroup(e, snapshot.Settings.Teams),
+	running := t.runningGroup(e, snapshot.Settings.Teams)
+	title := func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("Teams"))),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
+			layout.Rigid(running),
+		)
+	}
+	return spacedBlocks(th, append(blocks, title),
 		t.defaultsGroup(e, snapshot),
 		t.askingGroup(e, snapshot.Settings.Teams),
 		t.signInGroup(e, snapshot, gtx.Now),
 		t.sandboxGroup(e, snapshot),
 		t.historyGroup(e, snapshot.Settings.Teams),
-	}
-	children := []layout.FlexChild{
-		layout.Rigid(kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("Teams"))),
-		layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
-	}
-	for index, group := range groups {
-		if index > 0 {
-			children = append(children, layout.Rigid(layout.Spacer{Height: th.Sp.S5}.Layout))
-		}
-		children = append(children, layout.Rigid(group))
-	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+	)
 }
 
 // a held field is filled again only when what is stored moved, by a save here or from elsewhere

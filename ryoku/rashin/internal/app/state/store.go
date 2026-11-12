@@ -97,6 +97,9 @@ type Store struct {
 	gitNext     uint64
 	gitChanged  map[string]map[uint64]func()
 	invalidate  func()
+	// the last snapshot handed out and the revision it shows
+	published   *Snapshot
+	publishedAt uint64
 }
 
 func New(invalidate func()) *Store {
@@ -425,6 +428,8 @@ func (s *Store) Apply(event protocol.Event) error {
 		}
 	}
 	if err != nil {
+		// an event that failed half way may still have written part of the store
+		s.changedLocked()
 		s.mu.Unlock()
 		return err
 	}
@@ -439,9 +444,16 @@ func (s *Store) Apply(event protocol.Event) error {
 	return nil
 }
 
+// Snapshot is the store at its current revision. Every caller until the next
+// change shares one copy, which is why a Snapshot is only ever read: pages ask
+// for it many times in a frame, and copying the store each time made a frame
+// allocate several hundred kilobytes.
 func (s *Store) Snapshot() Snapshot {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.published != nil && s.publishedAt == s.revision {
+		return *s.published
+	}
 	result := Snapshot{
 		Revision:   s.revision,
 		Epoch:      s.epoch,
@@ -477,6 +489,7 @@ func (s *Store) Snapshot() Snapshot {
 	for id, model := range s.attached {
 		result.Attached[id] = Attached{Info: model.Info(), Model: model}
 	}
+	s.published, s.publishedAt = &result, s.revision
 	return result
 }
 

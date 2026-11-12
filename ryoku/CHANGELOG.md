@@ -1,6 +1,11 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **Scrolling fast through Rashin's Settings no longer lags.** A frame lays
+  out only the groups on screen instead of all of Teams, Memory or Skills,
+  reads the app state without copying it and stops redrawing the sidebar's
+  icons, about half the time and a sixth of the memory per frame
+  (`rashin/internal/app/pages/settings/blocks.go`).
 - **Rashin shows each provider's logo.** Settings > Providers, the Ask model
   menu and the Agents harness picker lead each provider and harness with its
   mark from lobe-icons, drawn in Rashin's own ink and brighter under the

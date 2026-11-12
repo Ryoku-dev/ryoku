@@ -113,24 +113,6 @@ func (p *Page) memoryBlocks(gtx layout.Context, e *env.Env, blocks []layout.Widg
 	)
 }
 
-// the gap between the groups of a section
-func spacedBlocks(th *look.Theme, blocks []layout.Widget, groups ...layout.Widget) []layout.Widget {
-	for _, group := range groups {
-		blocks = append(blocks, func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Top: th.Sp.S5}.Layout(gtx, group)
-		})
-	}
-	return blocks
-}
-
-func stackBlocks(gtx layout.Context, blocks []layout.Widget) layout.Dimensions {
-	children := make([]layout.FlexChild, len(blocks))
-	for i, block := range blocks {
-		children[i] = layout.Rigid(block)
-	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
-}
-
 // the section's title and proof, with Open memory and Forget everything beside them and no gold: these toggles save themselves
 func (m *memoryPanel) layoutTitle(gtx layout.Context, th *look.Theme, proof string) layout.Dimensions {
 	m.open.Kind, m.open.Small, m.open.Label = kit.PlaqueTonal, true, i18n.T("Open memory")

@@ -39,6 +39,7 @@ const (
 type Page struct {
 	header look.PaneHeader
 	scroll look.Scroller
+	blocks blockList
 	// the sections stand in the sidebar's list with a search over them, a picker tops the column while the sidebar can't show them
 	sections look.SideList
 	find     kit.Search
@@ -116,7 +117,7 @@ func (p *Page) AskTurnOff() { p.offOpen, p.off.Dialog.Open, p.off.Danger = true,
 
 func (p *Page) jump(section int) {
 	p.current, p.jumped = section, true
-	p.scroll.ScrollTo(section)
+	p.scroll.ScrollTo(p.blocks.first(section))
 }
 
 func (p *Page) ListShown(shown bool) { p.listed = shown }
@@ -285,60 +286,18 @@ func (p *Page) layoutBody(gtx layout.Context, e *env.Env) layout.Dimensions {
 
 // follows the section at the top of the column, unless one was just picked and the list is still on its way
 func (p *Page) follow() {
-	first := p.scroll.Position.First
+	first, _ := p.blocks.locate(max(p.scroll.Position.First, 0))
 	if p.jumped {
 		p.jumped = first != p.current
 		return
 	}
-	p.current = min(max(first, 0), sectionCount-1)
+	p.current = first
 }
 
 func (p *Page) choose() {
 	if selected, ok := p.index.Selected(); ok && selected < sectionCount {
 		p.jump(selected)
 	}
-}
-
-// the list takes the pane out to its edge so the wheel works beside the column and the thumb stands at the edge
-func (p *Page) layoutSections(gtx layout.Context, e *env.Env, inset, width int) layout.Dimensions {
-	th := e.Theme
-	return p.scroll.Layout(gtx, th, sectionCount, func(gtx layout.Context, index int) layout.Dimensions {
-		top, bottom := th.Sp.S5, th.Sp.S1
-		if index == sectionCount-1 {
-			// room under the last section so it can still reach the top
-			bottom = th.Sp.S6
-		}
-		full := gtx.Constraints.Max.X
-		gtx.Constraints.Min.X, gtx.Constraints.Max.X = min(gtx.Constraints.Min.X, width), width
-		defer op.Offset(image.Pt(inset, 0)).Push(gtx.Ops).Pop()
-		dimensions := layout.Inset{Top: top, Bottom: bottom}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			switch index {
-			case sectionRashin:
-				return p.layoutRashin(gtx, e)
-			case sectionProviders:
-				return p.layoutProviders(gtx, e)
-			case sectionAPI:
-				return p.layoutAPI(gtx, e)
-			case sectionAsk:
-				return p.layoutAsk(gtx, e)
-			case sectionAgents:
-				return p.layoutAgents(gtx, e)
-			case sectionTeams:
-				return p.layoutTeams(gtx, e)
-			case sectionMemory:
-				return stackBlocks(gtx, p.memoryBlocks(gtx, e, nil))
-			case sectionSkills:
-				return stackBlocks(gtx, p.skillsBlocks(gtx, e, nil))
-			case sectionIndex:
-				return p.layoutIndex(gtx, e)
-			case sectionAppearance:
-				return p.layoutAppearance(gtx, e)
-			default:
-				return p.layoutKeys(gtx, e)
-			}
-		})
-		return layout.Dimensions{Size: image.Pt(full, dimensions.Size.Y)}
-	})
 }
 
 func set(e *env.Env, section string, values map[string]any) {
