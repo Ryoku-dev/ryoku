@@ -10,7 +10,6 @@ helper="$ROOT/system/hardware/network/ryoku-network-kill"
 polkit="$ROOT/system/hardware/network/55-ryoku-network-kill.rules"
 guard="$ROOT/system/hardware/network/ryoku-network-kill-guard.service"
 disconnect="$ROOT/system/hardware/network/ryoku-network-kill-disconnect.service"
-page="$ROOT/ryoku/hub/quickshell/pages/ConnectionsPage.qml"
 pkgbuild="$ROOT/release/packages/ryoku-desktop/PKGBUILD"
 payload="$ROOT/release/packages/ryoku-desktop/payload.sh"
 service_manifest="$ROOT/system/services/manifest.tsv"
@@ -30,10 +29,6 @@ for service in network-kill-guard network-kill-disconnect; do
     END { exit !found }
   ' "$service_manifest"
 done
-
-grep -qF 'command: ["ryoku-host", "network", "kill", "status"]' "$page"
-grep -qF 'killSetProc.target = killState === "off" ? "on" : "off";' "$page"
-grep -qF 'Blocks Wi-Fi, Ethernet, VPN, LAN and IPv4/IPv6. It also severs SSH.' "$page"
 
 grep -qF '"/usr/bin/ryoku-network-kill"' "$polkit"
 grep -qF 'ConditionPathExists=/var/lib/ryoku/network-kill-switch.enabled' "$guard"

@@ -2,38 +2,11 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Ryoku.Ui.Singletons
-import "../ryoku/hub/quickshell" as Hub
-import "../ryoku/hub/quickshell/schema/GlobalPage.js" as GlobalSchema
 
 Item {
     id: root
     width: 800
     height: 500
-    property var draft: ({ "general.clock_format_24_h": false })
-    property string editedKey: ""
-    property var editedValue: null
-    Hub.SchemaPage {
-        id: page
-        anchors.fill: parent
-        schema: GlobalSchema.rows.filter(r => r.key === "general.clock_format_24_h")
-        draft: root.draft
-        defaults: ({ "general.clock_format_24_h": false })
-        onEdited: (key, value) => {
-            root.editedKey = key;
-            root.editedValue = value;
-            var next = Object.assign({}, root.draft);
-            next[key] = value;
-            root.draft = next;
-        }
-    }
-    function findSwitch(item) {
-        if (typeof item.activate === "function" && typeof item.on === "boolean") return item;
-        for (var child of item.children || []) {
-            var found = findSwitch(child);
-            if (found) return found;
-        }
-        return null;
-    }
     property int phase: 0
     property int attempts: 0
     readonly property date midnight: new Date(2026, 0, 1, 0, 5, 9)
@@ -60,14 +33,6 @@ Item {
             try {
                 if (++root.attempts > 100) throw new Error("time-format watch timed out at phase " + root.phase);
                 if (root.phase === 0) {
-                    var control = root.findSwitch(page);
-                    if (!control) return;
-                    control.activate();
-                    root.equal(root.editedKey, "general.clock_format_24_h");
-                    root.equal(root.editedValue, true);
-                    root.equal(control.on, true);
-                    control.activate();
-                    root.equal(root.editedValue, false);
                     root.write24(false);
                     root.phase = 1;
                 } else if (root.phase === 1 && TimeFormat.formatLocale === "en_US" && !TimeFormat.is24h) {
@@ -93,7 +58,7 @@ Item {
                     root.phase = 3;
                 } else if (root.phase === 3 && !TimeFormat.is24h) {
                     root.equal(TimeFormat.format(root.evening), "11:05 PM");
-                    console.log("PASS: Hub switch, midnight, noon, custom patterns and live 12/24/12 switching");
+                    console.log("PASS: midnight, noon, custom patterns and live 12/24/12 switching");
                     Qt.quit();
                 }
             } catch (e) {

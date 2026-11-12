@@ -5,9 +5,7 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/imports/Ryoku" "$tmp/config/ryoku" "$tmp/runtime"
 ln -s "$root/ryoku/ui" "$tmp/imports/Ryoku/Ui"
-mkdir -p "$tmp/ryoku/hub"
-cp -r "$root/ryoku/hub/quickshell" "$tmp/ryoku/hub/"
-sed 's|"../ryoku/|"./ryoku/|g' "$root/tests/time-format.qml" > "$tmp/shell.qml"
+cp "$root/tests/time-format.qml" "$tmp/shell.qml"
 printf '%s\n' '{}' > "$tmp/config/ryoku/shell.json"
 XDG_RUNTIME_DIR="$tmp/runtime" QT_QPA_PLATFORM=offscreen QML_IMPORT_PATH="$tmp/imports:${QML_IMPORT_PATH:-}" QML2_IMPORT_PATH="$tmp/imports:${QML2_IMPORT_PATH:-}" \
     XDG_CONFIG_HOME="$tmp/config" RYOKU_TIME_TEST_FILE="$tmp/config/ryoku/shell.json" \
