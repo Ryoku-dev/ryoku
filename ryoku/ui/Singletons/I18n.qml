@@ -14,7 +14,7 @@ import "buspath.js" as BusPath
 // ever writes English.
 //
 // The language is a global shell setting (shell.json "language"), set from the
-// Hub's Global page and read off the settings frame, so changing it
+// Settings' Time & language page and read off the settings frame, so changing it
 // retranslates every open surface live -- no relogin. The same catalog serves
 // the Go installers and the installer's shell (ryoku/i18n/i18n.go,
 // installation/backend/lib/i18n.sh), so there is one set of strings for the

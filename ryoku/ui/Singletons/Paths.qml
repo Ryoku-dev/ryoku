@@ -43,7 +43,7 @@ Singleton {
         return paths.videosDir + "/Recordings";
     }
 
-    // The Recording page's `directory` key; empty means "wherever the default
+    // The Screen capture page's `directory` key; empty means "wherever the default
     // says", so a user who never touches it keeps following XDG_VIDEOS_DIR.
     property string configuredDir: ""
 

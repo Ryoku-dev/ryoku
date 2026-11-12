@@ -205,7 +205,7 @@ type App struct {
 // install/reconciliation path.
 func Apps() []App {
 	return []App{
-		{"kitty", "the default terminal (Settings > App Overrides repoints the terminal role)"},
+		{"kitty", "the default terminal (Ryoku Settings > Apps > Default apps repoints the terminal role)"},
 		{"fish", "the optional interactive shell"},
 		{"blesh", "Bash line editor"},
 		{"starship", "the shell prompt"},

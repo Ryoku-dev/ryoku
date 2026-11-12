@@ -1,5 +1,5 @@
 // Ryoku: let the active desktop user (in the wheel group) set the system time
-// zone without a password prompt, so the world-map picker in Settings > Global
+// zone without a password prompt, so the world-map picker in Ryoku Settings > Time & language
 // applies instantly. Scoped to the single timedate1 set-timezone action; no
 // other privilege is granted. Installed to /usr/share/polkit-1/rules.d/ by the
 // ryoku-desktop package.

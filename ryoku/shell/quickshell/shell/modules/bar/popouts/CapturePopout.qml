@@ -734,7 +734,7 @@ Item {
                 }
             }
             HoverHandler { id: moreHov; cursorShape: Qt.PointingHandCursor }
-            TapHandler { onTapped: Bus.run("hub open recording") }
+            TapHandler { onTapped: Bus.run("hub open screen-capture") }
         }
 
         // RECENT - screenshots and recordings in separate labelled groups; a click

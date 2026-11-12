@@ -102,9 +102,9 @@ func planWmPlugins(s wmPluginState, checkOnly bool, repair func([]string) (map[s
 		return okRes(i18n.T("%d enabled plugin(s) built for the installed compositor"), s.enabled)
 	}
 	list := strings.Join(s.stale, ", ")
-	toolchainAdvice := fmt.Sprintf(i18n.T("%s, then Settings > Plugins > Rebuild"), doctorInstallAdvice("base-devel", "cmake", "git"))
+	toolchainAdvice := fmt.Sprintf(i18n.T("%s, then Ryoku Settings > Windows > Window manager > Rebuild"), doctorInstallAdvice("base-devel", "cmake", "git"))
 	if hasPacman() {
-		toolchainAdvice = i18n.T("sudo pacman -S --needed base-devel cmake git, then Settings > Plugins > Rebuild")
+		toolchainAdvice = i18n.T("sudo pacman -S --needed base-devel cmake git, then Ryoku Settings > Windows > Window manager > Rebuild")
 	}
 	if !s.toolchain {
 		return warnRes(i18n.T("enabled plugin(s) built for another compositor build and this box cannot rebuild them (missing %s): %s"), strings.Join(s.missing, ", "), list).
@@ -117,7 +117,7 @@ func planWmPlugins(s wmPluginState, checkOnly bool, repair func([]string) (map[s
 	failed, err := repair(s.stale)
 	if err != nil {
 		return failRes(i18n.T("could not rebuild plugins (%s): %v"), list, err).
-			withFix(i18n.T("open Settings > Plugins and use Rebuild, which shows the build log"))
+			withFix(i18n.T("open Ryoku Settings > Windows > Window manager and use Rebuild, which shows the build log"))
 	}
 	if len(failed) > 0 {
 		names := make([]string, 0, len(failed))
@@ -126,7 +126,7 @@ func planWmPlugins(s wmPluginState, checkOnly bool, repair func([]string) (map[s
 		}
 		sort.Strings(names)
 		return failRes(i18n.T("rebuilt plugins, except %s"), strings.Join(names, "; ")).
-			withFix(i18n.T("open Settings > Plugins and use Rebuild, which shows the build log"))
+			withFix(i18n.T("open Ryoku Settings > Windows > Window manager and use Rebuild, which shows the build log"))
 	}
 	return fixedRes(i18n.T("rebuilt plugin(s) for the installed compositor: %s"), list)
 }

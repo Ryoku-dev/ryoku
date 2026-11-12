@@ -12,6 +12,9 @@
 - **Blur and shadows follow Window style.** `modules/decoration.lua` stops
   reading `performance.json` `disableBlur` / `disableShadows`; Window style's
   Blur and Shadows are the switches, and low power still strips both.
+- **The key sounds plugin points at the new Settings page.** A plugin built for
+  another Hyprland says to rebuild it from Ryoku Settings > Windows > Window
+  manager (`plugins/keysounds/main.cpp`).
 - **Workspace keys run in Lua.** Super+1..0 with Alt, Shift and the number
   pad, Super+H and Super+Alt+H no longer run the `ryoku-workspace` helper; the
   per-desktop slots and the scratchpad live in `modules/workspaces.lua`, so a

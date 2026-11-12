@@ -52,7 +52,7 @@ ryoku_network_backend() {
   write_file /mnt/etc/NetworkManager/conf.d/wifi-backend.conf <<EOF
 # Ryoku pins NetworkManager's Wi-Fi backend. iwd is the default; wpa_supplicant
 # is carried over when the install needed it (WPA3-SAE / phone hotspots iwd can
-# not associate with). Switch it in Settings -> Connections (ryoku-wifi-backend).
+# not associate with). Switch it in Ryoku Settings > Connections > Wi-Fi & internet (ryoku-wifi-backend).
 [device]
 wifi.backend=$backend
 EOF

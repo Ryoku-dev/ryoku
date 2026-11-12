@@ -46,7 +46,7 @@ Item {
 
             Text {
                 width: parent.width
-                text: I18n.tr("Change anything later in Ryoku Hub, or tune QS Bar from its own settings.")
+                text: I18n.tr("Change anything later in Ryoku Settings, including the bar.")
                 color: Tokens.inkDim
                 font.family: Tokens.ui
                 font.pixelSize: Tokens.fBody
@@ -60,12 +60,12 @@ Item {
                 spacing: Tokens.s3
 
                 Btn {
-                    text: I18n.tr("Open Ryoku Hub")
+                    text: I18n.tr("Open Ryoku Settings")
                     onAct: root.runCommand(["ryoku-shell", "hub", "open"])
                 }
                 Btn {
-                    text: I18n.tr("QS Bar settings")
-                    onAct: root.runCommand(["ryoku-shell", "bar", "settings"])
+                    text: I18n.tr("Bar settings")
+                    onAct: root.runCommand(["ryoku-shell", "hub", "open", "bar"])
                 }
                 Btn {
                     text: I18n.tr("Finish")

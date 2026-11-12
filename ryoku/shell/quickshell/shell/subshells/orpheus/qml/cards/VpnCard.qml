@@ -431,7 +431,7 @@ Item {
                     text: "Connection settings"
                     icon: "settings"
                     variant: "outline"
-                    onClicked: root.scene.openHub("connections")
+                    onClicked: root.scene.openHub("wifi")
                 }
             }
         }

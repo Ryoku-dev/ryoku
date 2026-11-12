@@ -15,7 +15,7 @@ import (
 	"ryoku-rashin/internal/protocol"
 )
 
-const rashin = `Rashin is Ryoku's optional assistant and the system this conversation runs in. One daemon, rashind, does the work: it starts on demand and stops when idle. Ryoku Hub > Rashin turns it on or off.
+const rashin = `Rashin is Ryoku's optional assistant and the system this conversation runs in. One daemon, rashind, does the work: it starts on demand and stops when idle. Ryoku Settings > Apps > Rashin turns it on or off.
 - Ask answers questions about this machine on free models through Rashin's own router. It opens from the Ask bar (Alt+Space by default), from ` + "`rashin <question>`" + ` in a terminal, and in the Ask tab of the Rashin app (Super+Alt+Space by default).
 - The Agents tab of the app runs coding harnesses such as Claude Code, Codex, omp and OpenCode as sessions Rashin owns. Projects holds their Git worktrees, commit graph, review and tasks. Index shows what is indexed.
 - Code search is built in: rashin search, find, def, outline, references, peek, impact and overview, run inside an indexed folder. ` + "`rashin index list`" + ` shows the indexes, and a project added to Rashin is indexed by itself.

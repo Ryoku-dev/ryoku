@@ -133,7 +133,7 @@ Singleton {
     function openDeviceSettings(deviceOrMac): bool {
         if (!root.canonicalizeMac(deviceOrMac))
             return false;
-        RyokuUi.Spawn.run(["ryoku-shell", "hub", "open", "connections"]);
+        RyokuUi.Spawn.run(["ryoku-shell", "hub", "open", "bluetooth"]);
         return true;
     }
 }

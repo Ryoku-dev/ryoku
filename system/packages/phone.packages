@@ -1,4 +1,4 @@
-# Installed only when Phone is enabled in Ryoku Hub.
+# Installed only when Phone is enabled in Ryoku Settings.
 kdeconnect
 scrcpy
 android-tools

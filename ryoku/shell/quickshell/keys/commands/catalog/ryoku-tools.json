@@ -36,7 +36,7 @@
       "group": "ryoku-apps",
       "title": "Open a preferred app",
       "command": "ryoku-app <role>",
-      "description": "Opens the app chosen for that role in Ryoku Hub, or the shipped default.",
+      "description": "Opens the app chosen for that role in Ryoku Settings, or the shipped default.",
       "tool": "ryoku-app",
       "level": "basic"
     },
@@ -1681,7 +1681,7 @@
       "group": "ryoku-internal",
       "title": "Read extended profile stats",
       "command": "ryoku-profile-stats",
-      "description": "Prints the ordered machine statistics consumed by Ryoku Hub's profile dossier.",
+      "description": "Prints the ordered machine statistics shown on the system card in Ryoku Settings > System > About.",
       "tool": "ryoku-profile-stats",
       "level": "internal"
     },
@@ -2909,7 +2909,7 @@
       "group": "ryoku-apps",
       "title": "Create a GPU passthrough VM",
       "command": "ryovm lg create --name <name> --os <system> --iso <iso>",
-      "description": "Creates a tuned GPU-passthrough machine through Ryoku Hub's hardware backend.",
+      "description": "Creates a tuned GPU-passthrough machine through the Ryoku Settings hardware backend.",
       "tool": "ryovm",
       "level": "advanced",
       "privileged": true

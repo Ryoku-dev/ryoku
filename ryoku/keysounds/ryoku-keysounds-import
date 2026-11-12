@@ -12,8 +12,7 @@ Usage: ryoku-keysounds-import <pack-dir> [--name <profile>] [--to <dir>]
 
 <pack-dir> holds config.json. The profile lands under --to (default
 ~/.local/share/ryoku/keysounds), as <profile> (default: the pack's name,
-slugged). Pick it as the profile in Settings > Plugins > Key sounds, or
-Settings > Window Manager > Behaviour on niri.
+slugged). Pick it as the profile in Ryoku Settings > Desktop > Sounds.
 Needs ffmpeg.
 """
 

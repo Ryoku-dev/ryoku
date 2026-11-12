@@ -44,9 +44,9 @@ Item {
         if (!bridge)
             return "";
         if (bridge.status === "off")
-            return I18n.tr("Rashin is off. Turn Rashin on in Ryoku Settings > Rashin.");
+            return I18n.tr("Rashin is off. Turn Rashin on in Ryoku Settings > Apps > Rashin.");
         if (bridge.status === "not-installed")
-            return I18n.tr("Rashin is not installed. Turn Rashin on in Ryoku Settings > Rashin.");
+            return I18n.tr("Rashin is not installed. Turn Rashin on in Ryoku Settings > Apps > Rashin.");
         if (bridge.status === "error")
             return bridge.client.errorText || I18n.tr("Rashin could not start. See %1").arg(bridge.client.logPath);
         return String(sessionState.error || bridge.errorText || "");

@@ -24,7 +24,7 @@ import (
 )
 
 // ErrDisabled means Rashin is turned off.
-var ErrDisabled = errors.New(i18n.T("Rashin is off. Turn it on in Ryoku Settings > Rashin, or run rashin on."))
+var ErrDisabled = errors.New(i18n.T("Rashin is off. Turn it on in Ryoku Settings > Apps > Rashin, or run rashin on."))
 
 // ErrUnreachable means Rashin is on but its daemon did not answer.
 var ErrUnreachable = errors.New(i18n.Tf("Rashin's daemon did not start. Check %s.", paths.DaemonLog()))

@@ -213,7 +213,7 @@ func (e ownerEnv) classify(arg string) ownership {
 	if underConfig && e.generated[rel] {
 		o.Class = "generated"
 		o.Writer = i18n.T("Ryoku Settings or the compositor provider")
-		o.Advice = i18n.T("Change it in Ryoku Hub or the owning command, never by hand: the provider rewrites it from its store.")
+		o.Advice = i18n.T("Change it in Ryoku Settings or the owning command, never by hand: the provider rewrites it from its store.")
 		return o
 	}
 
@@ -221,7 +221,7 @@ func (e ownerEnv) classify(arg string) ownership {
 	if underConfig && isStore(rel) {
 		o.Class = "store"
 		o.Writer = storeWriter(rel)
-		o.Advice = i18n.T("A Ryoku tool's store. Change it through its Ryoku Hub page or the owning command, not by hand.")
+		o.Advice = i18n.T("A Ryoku tool's store. Change it through its Ryoku Settings page or the owning command, not by hand.")
 		return o
 	}
 
@@ -248,7 +248,7 @@ func (e ownerEnv) classify(arg string) ownership {
 		o.Class = "ryoku"
 		o.Writer = i18n.T("the ryoku-desktop package, through materialize")
 		if rel == "quickshell" || strings.HasPrefix(rel, "quickshell/") {
-			o.Advice = i18n.T("Ryoku ships this and overwrites it on every update. The shell tree cannot be forked (a fork breaks the shell); change it through ryoku-shell, Ryoku Hub, or a plugin (`ryoku plugin`).")
+			o.Advice = i18n.T("Ryoku ships this and overwrites it on every update. The shell tree cannot be forked (a fork breaks the shell); change it through ryoku-shell, Ryoku Settings, or a plugin (`ryoku plugin`).")
 			return o
 		}
 		top := rel
@@ -379,14 +379,14 @@ func (e ownerEnv) ownershipMap() string {
 		"shipped files, so a change written straight into one is overwritten. Ask\n" +
 		"`ryoku owner <path>` before editing anything under ~/.config. In short:\n\n"))
 	b.WriteString(i18n.T("- Edit a shipped Ryoku file only through its overlay fork (`ryoku reset` undoes it).\n" +
-		"- Generated files belong to Ryoku Hub or a command, never a hand edit.\n" +
+		"- Generated files belong to Ryoku Settings or a command, never a hand edit.\n" +
 		"- Seeds and your own override files are edited in place and survive updates.\n" +
-		"- The shell tree (quickshell) cannot be forked; change it through ryoku-shell, the Hub, or a plugin.\n\n"))
+		"- The shell tree (quickshell) cannot be forked; change it through ryoku-shell, Ryoku Settings, or a plugin.\n\n"))
 
 	b.WriteString(i18n.T("## The overlay\n\n"))
 	b.WriteString(i18n.Tf("Your fork tree lives at `%s`. A regular file here wins over Ryoku's copy at\nthe mirrored ~/.config path on every update.\n\n", e.editsDir))
 	// The provider's generated settings also live in the overlay, out of sight;
-	// they are Ryoku Hub's, listed under Generated files, not the user's forks.
+	// they are Ryoku Settings', listed under Generated files, not the user's forks.
 	var forks []string
 	if rels, _ := sys.UserEditFiles(); len(rels) > 0 {
 		for _, rel := range rels {
@@ -418,7 +418,7 @@ func (e ownerEnv) ownershipMap() string {
 
 	if gen := sortedKeys(e.generated); len(gen) > 0 {
 		b.WriteString(i18n.T("## Generated files\n\n"))
-		b.WriteString(i18n.T("Written by Ryoku Hub or the compositor provider from a store. Change them in\nthe Hub, never by hand:\n\n"))
+		b.WriteString(i18n.T("Written by Ryoku Settings or the compositor provider from a store. Change them in\nRyoku Settings, never by hand:\n\n"))
 		for _, rel := range gen {
 			b.WriteString("- `" + rel + "`\n")
 		}
@@ -579,7 +579,7 @@ func (e ownerEnv) ryokuTreeGroups() []treeGroup {
 func (e ownerEnv) changeTarget(tree string) string {
 	top := strings.TrimSuffix(tree, "/")
 	if top == "quickshell" {
-		return i18n.T("ryoku-shell, Ryoku Hub, or `ryoku plugin`")
+		return i18n.T("ryoku-shell, Ryoku Settings, or `ryoku plugin`")
 	}
 	if ov, ok := e.overrideForTree[top]; ok {
 		return "`~/.config/" + ov + "`"

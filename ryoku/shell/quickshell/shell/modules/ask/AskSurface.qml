@@ -368,9 +368,9 @@ Rectangle {
                     Text {
                         width: parent.width
                         text: root.client.state === "not-installed"
-                            ? I18n.tr("Rashin is not installed. Turn Rashin on in Ryoku Settings > Rashin.")
+                            ? I18n.tr("Rashin is not installed. Turn Rashin on in Ryoku Settings > Apps > Rashin.")
                             : root.client.state === "off"
-                                ? I18n.tr("Rashin is off. Turn Rashin on in Ryoku Settings > Rashin.")
+                                ? I18n.tr("Rashin is off. Turn Rashin on in Ryoku Settings > Apps > Rashin.")
                                 : root.client.state === "error"
                                     ? (root.client.errorText || I18n.tr("Rashin could not start. See %1").arg(root.client.logPath))
                                     : I18n.tr("Connecting to Rashin")

@@ -242,7 +242,7 @@ optdepends=(
   'chromium: web browser'
   'kdialog: folder picker fallback for rice export/import when zenity is absent'
   'plasma-integration: full KDE platform theme for KDE apps (Dolphin, Kate); set QT_QPA_PLATFORMTHEME=kde'
-  'qemu-desktop: GPU-passthrough VM (Ryoku Settings > GPU)'
+  'qemu-desktop: GPU-passthrough VM (Ryoku Settings > System > Graphics)'
   'libvirt: VM management for the passthrough VM'
   'edk2-ovmf: UEFI and Secure Boot firmware for the VM'
   'swtpm: TPM 2.0 for the Windows 11 VM'

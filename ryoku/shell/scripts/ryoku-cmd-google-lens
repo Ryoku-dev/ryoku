@@ -136,7 +136,7 @@ if ! $opened; then
 fi
 
 if ! $opened; then
-	notify_failure "No web browser is available. Pick one in Settings > Default Apps."
+	notify_failure "No web browser is available. Pick one in Ryoku Settings > Apps > Default apps."
 	exit 1
 fi
 

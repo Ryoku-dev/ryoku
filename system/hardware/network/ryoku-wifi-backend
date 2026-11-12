@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# NetworkManager Wi-Fi backend switch, driven by Settings -> Connections.
+# NetworkManager Wi-Fi backend switch, driven by Ryoku Settings > Wi-Fi & internet.
 #
 # Ryoku defaults to iwd, but iwd's WPA3-SAE support is incomplete: WPA3-only and
 # mixed WPA2/WPA3 networks -- which most Android phone hotspots now are -- fail
@@ -59,7 +59,7 @@ apply() {
   local backend=$1
   mkdir -p "$(dirname "$CONF")"
   cat >"$CONF" <<EOF
-# Managed by ryoku-wifi-backend (Settings -> Connections). NetworkManager's
+# Managed by ryoku-wifi-backend (Ryoku Settings > Wi-Fi & internet). NetworkManager's
 # Wi-Fi backend: iwd is the Ryoku default; wpa_supplicant handles the WPA3-SAE
 # networks (Android phone hotspots) that iwd cannot yet associate with.
 [device]

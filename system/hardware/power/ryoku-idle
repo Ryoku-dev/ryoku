@@ -439,7 +439,7 @@ output-on  retry output wake for the current generation; a newer off cancels it
 
 The idle policy (enabled, onDesktops, and the per-stage dim/lock/screen-off/
 suspend timeouts for battery and AC) lives in ~/.config/ryoku/power.json under
-"idle"; edit it with `ryoku-power idle set` or the Hub's Machine page. A change
+"idle"; edit it with `ryoku-power idle set` or Ryoku Settings > System > Power & battery. A change
 runs `ryoku-idle apply`.
 
 Env:

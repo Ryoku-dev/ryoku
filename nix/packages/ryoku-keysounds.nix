@@ -59,7 +59,7 @@ pkgs.hyprlandPlugins.mkHyprlandPlugin {
     substituteInPlace \
       main.cpp \
       --replace-fail \
-        'rebuild it from Settings > Plugins' \
+        'rebuild it from Ryoku Settings > Windows > Window manager' \
         'restart Hyprland after updating the NixOS Ryoku generation'
   '';
 

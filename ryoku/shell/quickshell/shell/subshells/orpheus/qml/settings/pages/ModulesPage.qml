@@ -54,7 +54,7 @@ Item {
         { value: "clipboard", label: "Clipboard", icon: "content_paste" },
         { value: "capture", label: "Screenshot", icon: "screenshot_region" },
         { value: "wallpaper", label: "Wallpaper", icon: "wallpaper" },
-        { value: "hub", label: "Ryoku Hub", icon: "settings" }
+        { value: "hub", label: "Ryoku Settings", icon: "settings" }
     ]
 
     implicitHeight: content.implicitHeight

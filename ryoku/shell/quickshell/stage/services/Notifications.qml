@@ -402,7 +402,7 @@ Singleton {
     // Quickshell keeps one notification server per process and hands every
     // notification to each NotificationServer, so this one hears the same
     // traffic as shell/services/Notifs.qml. That server draws the banner and
-    // plays the arrival chime under Hub > General > Sounds. A sound from here
+    // plays the arrival chime under Settings > Desktop > Sounds. A sound from here
     // would be a second chime that neither the Hub nor Do Not Disturb silences.
 	NotificationServer {
         id: notifServer

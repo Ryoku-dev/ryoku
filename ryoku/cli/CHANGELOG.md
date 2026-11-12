@@ -8,6 +8,11 @@
   any package it could not remove. `phone disable` removes the packages first,
   so a refused removal leaves the phone set up as before
   (`internal/host/phone.go`).
+- **Doctor and help text name the new Settings pages.** Fixes point at Ryoku
+  Settings > Windows > Window manager for plugin rebuilds, Apps > Default apps,
+  System > Time & language and Devices > Keyboard, and every "Ryoku Hub"
+  mention reads Ryoku Settings (`internal/doctor/`, `internal/updater/owner.go`,
+  `internal/vault/generate.go`, `main.go`).
 - **`ryoku wm nest <dir> <width>x<height>` starts a hidden session.** It runs
   the compositor provider's nest verb where the provider claims
   `nestedSession` (niri), printing the nested display once it is up and

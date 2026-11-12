@@ -222,7 +222,7 @@ Item {
                     HoverHandler { id: recordingHover }
                     TapHandler {
                         onTapped: {
-                            Bus.run("hub open recording");
+                            Bus.run("hub open screen-capture");
                             panel.closeRequested();
                         }
                     }

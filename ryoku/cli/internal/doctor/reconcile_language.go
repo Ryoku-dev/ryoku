@@ -48,7 +48,7 @@ func reconcileShellLanguage(checkOnly bool) recResult {
 	// so only rewrite when the stored value itself named a language.
 	if code == "en" && !namesEnglish(name) {
 		return warnRes(i18n.Tf("shell.json language %q is not a language Ryoku ships", name)).
-			withFix(i18n.T("pick one again in Ryoku Settings > Global > Language"))
+			withFix(i18n.T("pick one again in Ryoku Settings > System > Time & language"))
 	}
 	if checkOnly {
 		return wouldRes(i18n.Tf("shell.json language is the old name %q, not the code %q", name, code))

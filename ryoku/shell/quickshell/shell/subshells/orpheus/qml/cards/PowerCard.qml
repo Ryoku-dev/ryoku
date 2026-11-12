@@ -154,10 +154,10 @@ Item {
 
             K.Button {
                 width: implicitWidth
-                text: "Graphics and power settings"
+                text: "Power settings"
                 icon: "settings"
                 variant: "outline"
-                onClicked: root.scene.openHub("gpu")
+                onClicked: root.scene.openHub("power")
             }
         }
     }

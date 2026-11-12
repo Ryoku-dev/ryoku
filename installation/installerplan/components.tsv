@@ -21,7 +21,7 @@ gamescope	Gamescope	gaming	Gaming	gamescope	-	on	apps	false	*	-	-	nested gaming 
 gamemode	GameMode	gaming	Gaming	gamemode	-	on	apps	false	*	-	-	performance governor used by Steam
 mangohud	MangoHud	gaming	Gaming	mangohud	-	on	apps	false	*	-	-	in-game FPS and frametime overlay
 controllers	Game controllers	gaming	Gaming	xpadneo-dkms,game-devices-udev	-	on	apps	false	*	-	-	wireless Xbox pads and controller access rules
-vm	Virtual machines	services	System services	qemu-desktop,edk2-ovmf,virglrenderer	-	on	apps	false	*	-	-	the VM behind Ryoku Settings > GPU > Machine
+vm	Virtual machines	services	System services	qemu-desktop,edk2-ovmf,virglrenderer	-	on	apps	false	*	-	-	the VM behind Ryoku Settings > System > Graphics
 docker	Docker	services	System services	docker	-	on	apps	false	*	-	-	the Cobalt engine the file stash uses
 flatpak	Flatpak	services	System services	flatpak	-	on	apps	false	*	-	-	portable app channel
 go	Go toolchain	developer	Developer toolchains	go	-	on	apps	false	*	-	-	-

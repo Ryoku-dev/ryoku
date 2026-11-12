@@ -207,7 +207,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     PHANDLE = handle;
 
     if (std::string(__hyprland_api_get_hash()) != __hyprland_api_get_client_hash()) {
-        HyprlandAPI::addNotification(PHANDLE, "[keysounds] built for another Hyprland: rebuild it from Settings > Plugins", CHyprColor{1.0, 0.2, 0.2, 1.0}, 6000);
+        HyprlandAPI::addNotification(PHANDLE, "[keysounds] built for another Hyprland: rebuild it from Ryoku Settings > Windows > Window manager", CHyprColor{1.0, 0.2, 0.2, 1.0}, 6000);
         throw std::runtime_error("[keysounds] version mismatch");
     }
 

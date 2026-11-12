@@ -20,11 +20,11 @@ Item {
         if (!installed)
             return "";
         if (category === "rices")
-            return I18n.tr("Switch it in Ryoku Hub → Appearance → Rices.");
+            return I18n.tr("Switch it in the wallpaper picker, under Rices.");
         if (category === "decors")
-            return I18n.tr("Choose it in Ryoku Hub → Profile → Hero.");
+            return I18n.tr("Choose it on the system card in Ryoku Settings > System > About.");
         if (category === "barstyles" || category === "subshells")
-            return I18n.tr("Press Apply to wear it, or switch it in Ryoku Hub.");
+            return I18n.tr("Press Apply to wear it, or switch it in Ryoku Settings > Desktop > Bar.");
         return "";
     }
     readonly property bool showingHint: !active && activationHint !== ""

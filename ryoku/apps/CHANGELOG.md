@@ -6,6 +6,12 @@
 - `ryostore/`: **Reduce motion follows Animations.** The store reads
   `theme.motion.reduce` from `shell.json` instead of the retired
   `performance.json` `reduceMotion` (`quickshell/App.qml`).
+- `ryostore/`: **Open in settings reaches the new Settings pages, and rices
+  open the wallpaper picker.** Bar styles and subshells open Bar, plugins and
+  bundles Add-ons, OSDs and notifications Notifications & pop-ups, sidebars
+  Quick settings and Fastfetch Terminal; rices run `ryogami wallpaper
+  collection rices` instead of the dead `appearance` page
+  (`backend/routing.go`).
 - `fish/`, `bash/`, `zsh/`: **Rashin can put proposed commands on the prompt
   without running them.** The hooks pass the last command and status to
   `rashin ask --buffer`, keep Alt+R transmute and stay inert when Rashin is not

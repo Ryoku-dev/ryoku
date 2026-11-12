@@ -26,7 +26,7 @@ func (profilesProvider) Category() Category {
 		ID:          profilesCategory,
 		Name:        "Profiles",
 		Group:       "EXTEND",
-		Description: "Install account profiles, then create or update their separate Linux accounts in Ryoku Hub.",
+		Description: "Install account profiles, then create or update their separate Linux accounts in Ryoku Settings > Accounts > Users.",
 	}
 }
 

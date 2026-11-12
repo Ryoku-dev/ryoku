@@ -246,10 +246,10 @@ func desktopBody() string {
 	body.WriteString("## Acting on this desktop\n\nUse the linked `ryoku` skill and name the GUI path before its command fallback. Run `ryoku owner <path>` before editing config.\n\n")
 	body.WriteString("## GUI map\n\n| Want to change | Open | Command |\n|---|---|---|\n")
 	for _, row := range [][3]string{
-		{"Wallpaper and palette", "Wallpaper picker", "`ryogami wallpaper ui`"},
-		{"Bar style", "Ryoku Hub > Bar Studio", "`ryoku-shell barstyle <id>`"},
+		{"Wallpaper and palette", "Wallpaper picker; Ryoku Settings > Appearance > Wallpaper & colours", "`ryogami wallpaper ui`"},
+		{"Bar style", "Ryoku Settings > Desktop > Bar", "`ryoku-shell barstyle <id>`"},
 		{"Dock layout", "Stage Editor > Dock", "`ryoku-shell dock list`"},
-		{"Desktop settings", "Ryoku Hub", "`ryoku-shell hub open <page>`"},
+		{"Desktop settings", "Ryoku Settings (Super + ,)", "`ryoku-shell hub open <page>[/<setting>]`"},
 	} {
 		fmt.Fprintf(&body, "| %s | %s | %s |\n", row[0], row[1], row[2])
 	}
@@ -272,7 +272,7 @@ func desktopBody() string {
 
 func barDockBody() string {
 	var body strings.Builder
-	body.WriteString("\n## Bar and dock\n\nThe active bar style and installed shell items are recorded in `~/.local/state/ryoku/store/shells.json`. Switch styles in Ryoku Hub > Bar Studio or with `ryoku-shell barstyle <id>`. The dock is shared by every style and is managed with `ryoku-shell dock show|hide|edge|autohide|pin|unpin|list`.\n")
+	body.WriteString("\n## Bar and dock\n\nThe active bar style and installed shell items are recorded in `~/.local/state/ryoku/store/shells.json`. Switch styles in Ryoku Settings > Desktop > Bar or with `ryoku-shell barstyle <id>`. The dock is shared by every style and is managed with `ryoku-shell dock show|hide|edge|autohide|pin|unpin|list`.\n")
 	path := filepath.Join(sys.Xdg("XDG_STATE_HOME", ".local/state"), "ryoku", "store", "shells.json")
 	var index struct {
 		Active string `json:"active"`

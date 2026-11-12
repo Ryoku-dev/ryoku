@@ -31,6 +31,28 @@
   `phone.microphone.enabled` are no longer modelled (`ipc/settings.go`), and
   the sidebar no longer computes a plugin card tab nothing used
   (`quickshell/shell/modules/sidebar/SidebarPlugins.qml`).
+- **Everything that opens Ryoku Settings names the new pages.** The capture
+  popout and Ryoshot open Screen capture, the quick settings gear opens Quick
+  settings, Displays, Sounds, Wi-Fi & internet, Power & battery and Keyboard
+  shortcuts, Orpheus' power and VPN cards open Power & battery and Wi-Fi &
+  internet, the earbuds card opens Bluetooth, and the launcher's Ryoku
+  Settings action goes through the daemon instead of starting `qs` itself.
+  `ryoku-shell hub open <page>[/<row>]` takes a page id or `page/row`; old
+  section names still resolve through the Settings alias table, and widgets,
+  stage and visualizer still open the Stage Editor (`ipc/control.go`,
+  `quickshell/shell/modules/sidebar/ControlsSettingsPopup.qml`,
+  `quickshell/shell/modules/launcher/shared/providers/actions/catalog.js`).
+- **The Stage Editor's "All bar settings", "All lock screen settings" and
+  "Background settings" rows open something.** They closed Edit Mode and then
+  did nothing; they now open Bar and Lock screen in Ryoku Settings and
+  Ryogami's settings (`quickshell/stage/GlobalStates.qml`).
+- **Welcome's bar button works.** It ran `ryoku-shell bar settings`, which no
+  longer exists; "Bar settings" now opens Ryoku Settings on Bar
+  (`quickshell/welcome/PageDone.qml`).
+- **Kit lists one command per Settings page.** The old section entries ("Open
+  Hub: Graphics and power", "Open Hub: Input", ...) are replaced by "Open
+  Settings: <page>" for every page, and Kit gains Ryogami's collection and
+  settings verbs (`quickshell/keys/commands/catalog/ryoku-cli.json`).
 - **Ryogami's settings are five tabs, and every place in them has an address.**
   The fourteen tabs regroup into Wallpaper (Library, Sources, Playback and
   displays, Transitions, Automation), Colours (Source, Scheme, Apps and

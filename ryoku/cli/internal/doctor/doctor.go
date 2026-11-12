@@ -4349,11 +4349,11 @@ func hyprDropins() []hyprDropin {
 		{
 			// user-owned and seeded once, so materialize never repairs it. no
 			// generator to re-run: reseed the default layout and let the user
-			// re-pick in settings (input).
+			// re-pick in Ryoku Settings > Devices > Keyboard.
 			name:     "keyboard.lua",
 			needLive: false,
 			seed: "-- Reset by ryoku doctor after a corrupt write. Re-pick your layout in\n" +
-				"-- ryoku settings (input), or edit this file; see the wiki for variants.\n" +
+				"-- Ryoku Settings > Devices > Keyboard, or edit this file; see the wiki for variants.\n" +
 				"hl.config({\n" +
 				"    input = {\n" +
 				"        kb_layout = \"us\",\n" +
@@ -4538,7 +4538,7 @@ func reconcileDisplayModes(checkOnly bool) recResult {
 	}
 	if err := exec.Command("ryoku-monitor", "settle").Run(); err != nil {
 		return warnRes(i18n.T("a display is below its available resolution and ryoku-monitor settle did not recover it")).
-			withFix(i18n.T("open Ryoku Settings > Displays and pick the resolution, or replug the cable"))
+			withFix(i18n.T("open Ryoku Settings > Devices > Displays and pick the resolution, or replug the cable"))
 	}
 	return fixedRes(i18n.T("re-asserted a display that came up below its available resolution"))
 }

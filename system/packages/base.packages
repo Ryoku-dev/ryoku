@@ -41,7 +41,7 @@ networkmanager
 iwd
 # wpa_supplicant: the alternate NetworkManager Wi-Fi backend. iwd stays the
 # default, but its WPA3-SAE support is incomplete (WPA3 / mixed networks like
-# Android phone hotspots fail to associate); Settings -> Connections can flip
+# Android phone hotspots fail to associate); Ryoku Settings > Wi-Fi & internet can flip
 # the backend to this one via ryoku-wifi-backend.
 wpa_supplicant
 # wireless-regdb: regulatory database; without it the WiFi domain caps at world-00 (low TX power)
@@ -166,7 +166,7 @@ nautilus
 # nautilus-python: runs the Ryoku stash actions in the file-manager right-click menu
 nautilus-python
 
-# Virtual machines (Ryoku Settings > GPU > Machine): a windowed VM runs in QEMU
+# Virtual machines (Ryoku Settings > System > Graphics): a windowed VM runs in QEMU
 # on the host GPU. edk2-ovmf is the UEFI firmware and virglrenderer the host-GL
 # acceleration; the optional GPU-passthrough stack (Looking Glass) installs on
 # demand from Ryoku Settings.

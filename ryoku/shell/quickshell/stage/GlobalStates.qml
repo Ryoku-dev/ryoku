@@ -496,5 +496,17 @@ Singleton {
     function toggleWelcome() {}
     function requestBarPlacement(bottom, vertical) {}
     function launchColorPicker() {}
-    function openSettingsPage(pageId, subPageId, sectionId) {}
+
+    // the copied edit pages name the reference's settings pages; ours live in Ryoku Settings and Ryogami
+    readonly property var settingsPages: ({
+        bar: "bar", lockScreen: "lock-screen", dictation: "voice-typing",
+        devicesPhone: "phone", about: "updates", power: "power"
+    })
+    function openSettingsPage(pageId, subPageId, sectionId) {
+        if (pageId === "wallpaper") {
+            Spawn.run(["ryogami", "wallpaper", "settings"]);
+            return;
+        }
+        Bus.run("hub open " + (root.settingsPages[pageId] ?? "bar"));
+    }
 }

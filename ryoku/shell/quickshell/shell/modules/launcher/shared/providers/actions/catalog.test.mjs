@@ -37,6 +37,7 @@ ok(entry("media-visualizer").surface === "visualizer", "Audio Visualizer toggles
 ok(entry("lock-screen").verb === "lock", "Lock Screen asks the daemon to lock");
 ok(entry("screen-record").verb === "record", "Screen Record asks the daemon to record");
 ok(entry("reload-shell").verb === "reload", "Reload Shell asks the daemon to reload");
+ok(entry("open-settings").verb === "hub open", "Ryoku Settings opens through the daemon's single instance");
 ok(
     CATALOG.filter(action => String(action.exec?.[0] || "").startsWith("ryoku-cmd-"))
         .every(action => !String(action.exec[0]).includes("/")),

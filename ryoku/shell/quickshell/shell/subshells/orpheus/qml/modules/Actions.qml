@@ -52,7 +52,7 @@ Item {
         case "clipboard": return "Clipboard history";
         case "capture": return "Screen capture";
         case "wallpaper": return "Wallpaper picker";
-        case "hub": return "Ryoku Hub";
+        case "hub": return "Ryoku Settings";
         default: return "Shortcut";
         }
     }

@@ -108,7 +108,7 @@ func reconcileDefaultAppAliases(checkOnly bool) recResult {
 	}
 	updated, changes, err := appAliasRepairPlan(raw, catalog)
 	if err != nil {
-		return warnRes(i18n.T("could not inspect saved default app roles: %v"), err).withFix("Ryoku Settings > Default Apps")
+		return warnRes(i18n.T("could not inspect saved default app roles: %v"), err).withFix("Ryoku Settings > Apps > Default apps")
 	}
 	if len(changes) == 0 {
 		return okRes(i18n.T("saved default app aliases are current"))

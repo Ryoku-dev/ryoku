@@ -1,4 +1,4 @@
-// NetworkManager Wi-Fi backend switch (Settings -> Connections), authorized
+// NetworkManager Wi-Fi backend switch (Ryoku Settings > Wi-Fi & internet), authorized
 // without a password so the toggle stays one click, matching the DNS switch.
 // Scoped to exactly /usr/bin/ryoku-wifi-backend for an active local user in the
 // wheel group. The helper only ever selects iwd or wpa_supplicant and takes no

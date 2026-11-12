@@ -411,7 +411,7 @@ kind_release() {
           title: $title,
           url: $url,
           description: ([($notes.intro | excerpt(700)), (if $counts != "" then "**\($counts)**" else "" end),
-            "Update from **Ryoku Hub → Updates**, or run `ryoku update`."] | map(select(. != "")) | join("\n\n")),
+            "Update from **Ryoku Settings > Updates**, or run `ryoku update`."] | map(select(. != "")) | join("\n\n")),
           fields: [
             {name: "Live now", value: ($editions.live | join(" · ")), inline: true},
             {name: "Still publishing", value: ($editions.pending | join(" · ")), inline: true},

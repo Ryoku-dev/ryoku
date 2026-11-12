@@ -17,8 +17,8 @@ import (
 // fprintd-verify at the beginning of the conversation, so the sensor scans while
 // the password field is live and the first success (touch OR type) wins. The
 // lock's PAM service (ryoku/lockscreen/.../assets/pam/ryoku-lock) names that
-// module unconditionally, and the Hub's Lockscreen page only offers the sddm/sudo
-// fingerprint toggles when it is present.
+// module unconditionally, and Settings' Sign-in & security page only offers the
+// sign-in, sudo and admin-prompt fingerprint toggles when it is present.
 //
 // The module is AUR-only (pam-fprint-grosshack) and ships in aur.packages, but
 // that set is installed once at post-install and never revisited by

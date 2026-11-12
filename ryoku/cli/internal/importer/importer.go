@@ -19,7 +19,7 @@ import (
 )
 
 func usageText() string {
-	return i18n.T("Usage: ryoku import <path> [flags]\n\n  <path>              a config folder, a dropped ~/.config, or a dotfiles tree\n  --url <git-url>     clone a dotfiles repo instead of reading a local path\n  --keep mine|ryoku   how to settle every keybind clash (default: mine)\n  --undo [<ts>]       roll back the last import, or the one stamped <ts>\n\nHeadless: scan, resolve all conflicts to one side, apply, print the change set.\nThe Hub's Import page is the interactive path for reviewing clash by clash.\n")
+	return i18n.T("Usage: ryoku import <path> [flags]\n\n  <path>              a config folder, a dropped ~/.config, or a dotfiles tree\n  --url <git-url>     clone a dotfiles repo instead of reading a local path\n  --keep mine|ryoku   how to settle every keybind clash (default: mine)\n  --undo [<ts>]       roll back the last import, or the one stamped <ts>\n\nHeadless: scan, resolve all conflicts to one side, apply, print the change set.\nRyoku Settings > System > Backup & import is the interactive path for reviewing clash by clash.\n")
 }
 
 // hubBin is the engine binary. It ships beside ryoku, so a bare name resolves

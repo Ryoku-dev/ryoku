@@ -107,5 +107,5 @@ ryoku_gpu_mode() {
 	log 'GPU mode: applying '\''%s'\'' -> ryoku-gpu mode %s for %s' "$RYOKU_GPU_MODE" "$mapped" "$u"
 	"$RYOKU_TARGET_CHROOT" /mnt runuser -u "$u" -- env "HOME=/home/$u" "USER=$u" "LOGNAME=$u" \
 		ryoku-gpu mode "$mapped" \
-		|| log 'GPU mode: warning, '\''ryoku-gpu mode %s'\'' failed (continuing; set it later from Ryoku Settings > GPU)' "$mapped"
+		|| log 'GPU mode: warning, '\''ryoku-gpu mode %s'\'' failed (continuing; set it later from Ryoku Settings > System > Graphics)' "$mapped"
 }

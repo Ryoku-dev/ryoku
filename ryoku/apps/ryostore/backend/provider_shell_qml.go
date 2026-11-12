@@ -37,7 +37,7 @@ var (
 			ID:          "launchers",
 			Name:        "App launchers",
 			Group:       "wear",
-			Description: "Community launchers for Super+Space. Install here, pick one in Settings -> App Launcher.",
+			Description: "Community launchers for Super+Space. Install here, pick one in Ryoku Settings > Desktop > App launcher.",
 		},
 		noun:    "launcher",
 		entry:   "Main.qml",
@@ -64,13 +64,13 @@ var (
 		views: dockViews,
 	}
 	// The overlays every bar style shares. Each ships one design of its own,
-	// "ryoku", drawn by the shell's OSD, popup and Controls hosts.
+	// "ryoku", drawn by the shell's OSD, popup and Quick settings hosts.
 	osdProducts = shellQMLProduct{
 		category: Category{
 			ID:          "osds",
 			Name:        "On-screen displays",
 			Group:       "wear",
-			Description: "Community volume, brightness and keyboard pop-ups. Install here, pick one in Settings -> Overlays.",
+			Description: "Community volume, brightness and keyboard pop-ups. Install here, pick one in Ryoku Settings > Desktop > Notifications & pop-ups.",
 		},
 		noun:     "OSD design",
 		entry:    "Osd.qml",
@@ -82,7 +82,7 @@ var (
 			ID:          "notifications",
 			Name:        "Notifications",
 			Group:       "wear",
-			Description: "Community notification cards. Install here, pick one in Settings -> Overlays.",
+			Description: "Community notification cards. Install here, pick one in Ryoku Settings > Desktop > Notifications & pop-ups.",
 		},
 		noun:     "notification design",
 		entry:    "Card.qml",
@@ -94,7 +94,7 @@ var (
 			ID:          "sidebars",
 			Name:        "Sidebars",
 			Group:       "wear",
-			Description: "Community designs for the Super+Esc panel. Install here, pick one in Settings -> Overlays.",
+			Description: "Community designs for the Super+Esc panel. Install here, pick one in Ryoku Settings > Desktop > Quick settings.",
 		},
 		noun:     "sidebar design",
 		entry:    "Sidebar.qml",

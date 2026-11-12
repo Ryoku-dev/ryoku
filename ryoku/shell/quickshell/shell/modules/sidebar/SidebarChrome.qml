@@ -47,7 +47,7 @@ Item {
             s: root.s
             glyph: "arrow_back"
             subtle: true
-            Accessible.name: I18n.tr("Back to controls")
+            Accessible.name: I18n.tr("Back to Quick settings")
             onClicked: root.home()
         }
 
@@ -60,7 +60,7 @@ Item {
             text: root.page === "wifi" ? I18n.tr("Wi-Fi")
                 : root.page === "bluetooth" ? I18n.tr("Bluetooth")
                 : root.page === "plugins" ? I18n.tr("Extensions")
-                : I18n.tr("Controls")
+                : I18n.tr("Quick settings")
             color: Tokens.ink
             font.family: Tokens.ui
             font.pixelSize: Tokens.fBody * root.s
@@ -87,10 +87,10 @@ Item {
                 s: root.s
                 glyph: "tune"
                 subtle: true
-                Accessible.name: I18n.tr("Ryoku Hub")
+                Accessible.name: I18n.tr("Quick settings in Ryoku Settings")
                 onClicked: {
                     root.closeRequested();
-                    Bus.run("hub open controls");
+                    Bus.run("hub open quick-settings");
                 }
             }
             CornerButton {

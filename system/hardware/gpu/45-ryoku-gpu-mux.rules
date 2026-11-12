@@ -1,4 +1,4 @@
-// The Hub's Machine page flips the hardware GPU MUX through
+// Ryoku Settings > System > Graphics flips the hardware GPU MUX through
 // `ryoku-gpu-mux set <mode>`, which writes a root-owned firmware knob. The
 // switch itself is already the user's deliberate act (a click on a named
 // control, and the knob only takes effect after a reboot the user confirms),

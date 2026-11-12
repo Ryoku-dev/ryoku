@@ -89,9 +89,9 @@ Item {
             st.launcherOpen = true;
         menu.close();
     }
-    // Quick controls opens the left sidebar; Settings opens Ryoku Settings on
+    // Quick settings opens the left sidebar; Settings opens Ryoku Settings on
     // its normal page, while Edit desktop above owns the Stage Editor entry.
-    function quickControls() {
+    function quickSettings() {
         Services.ShellState.requestSurfaceActive("sidebar-left", undefined);
         menu.close();
     }
@@ -142,7 +142,7 @@ Item {
             closeOnTrigger: false
             onTriggered: menu.newApplication()
         }
-        MenuRow { visible: menu.page === ""; icon: "tune"; label: I18n.tr("Quick controls"); onTriggered: menu.quickControls() }
+        MenuRow { visible: menu.page === ""; icon: "tune"; label: I18n.tr("Quick settings"); onTriggered: menu.quickSettings() }
 
         MenuSection { visible: menu.page === "" }
         MenuRow { visible: menu.page === ""; icon: "settings"; label: I18n.tr("General settings"); accent: true; closeOnTrigger: false; onTriggered: menu.openSettings() }

@@ -111,7 +111,7 @@
       "group": "ryoku-internal",
       "title": "Start a Hub update job",
       "command": "ryoku update --gui",
-      "description": "Starts the background update job controlled by Ryoku Hub.",
+      "description": "Starts the background update job controlled by Ryoku Settings.",
       "tool": "ryoku",
       "level": "internal",
       "editions": [
@@ -152,7 +152,7 @@
       "group": "ryoku-updates",
       "title": "Cancel a background update",
       "command": "ryoku update --cancel",
-      "description": "Cancels the update job started for Ryoku Hub.",
+      "description": "Cancels the update job started for Ryoku Settings.",
       "tool": "ryoku",
       "level": "advanced",
       "editions": [
@@ -2499,9 +2499,9 @@
     {
       "id": "ryoku.ryoku-shell.hub.open",
       "group": "ryoku-shell",
-      "title": "Open Ryoku Hub",
+      "title": "Open Ryoku Settings",
       "command": "ryoku-shell hub open",
-      "description": "Opens Ryoku Hub at its last settings page.",
+      "description": "Opens Ryoku Settings on Home, or raises it where it is.",
       "tool": "ryoku-shell",
       "level": "basic",
       "featured": true,
@@ -2512,11 +2512,25 @@
       ]
     },
     {
-      "id": "ryoku.ryoku-shell.hub.open.profile",
+      "id": "ryoku.ryogami.wallpaper.settings.colours",
+      "group": "ryoku-look",
+      "title": "Open Settings: Wallpaper & colours",
+      "command": "ryogami wallpaper settings colours",
+      "description": "Opens the Colours tab of Ryogami's settings, the home of Wallpaper & colours.",
+      "tool": "ryogami",
+      "level": "advanced",
+      "compositors": [
+        "hyprland",
+        "niri",
+        "wayfire"
+      ]
+    },
+    {
+      "id": "ryoku.ryoku-shell.hub.open.window-style",
       "group": "ryoku-shell",
-      "title": "Open Hub: Profile",
-      "command": "ryoku-shell hub open profile",
-      "description": "Opens Ryoku Hub directly on the Profile page.",
+      "title": "Open Settings: Window style",
+      "command": "ryoku-shell hub open window-style",
+      "description": "Opens Ryoku Settings on Window style, under Appearance.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -2526,95 +2540,11 @@
       ]
     },
     {
-      "id": "ryoku.ryoku-shell.hub.open.global",
+      "id": "ryoku.ryoku-shell.hub.open.fonts-icons",
       "group": "ryoku-shell",
-      "title": "Open Hub: General",
-      "command": "ryoku-shell hub open global",
-      "description": "Opens Ryoku Hub directly on the General page.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri",
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-shell.hub.open.updates",
-      "group": "ryoku-shell",
-      "title": "Open Hub: Updates",
-      "command": "ryoku-shell hub open updates",
-      "description": "Opens Ryoku Hub directly on the Updates page.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri",
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-shell.hub.open.displays",
-      "group": "ryoku-shell",
-      "title": "Open Hub: Displays",
-      "command": "ryoku-shell hub open displays",
-      "description": "Opens Ryoku Hub directly on the Displays page.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri",
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-shell.hub.open.connections",
-      "group": "ryoku-shell",
-      "title": "Open Hub: Connections",
-      "command": "ryoku-shell hub open connections",
-      "description": "Opens Ryoku Hub directly on the Connections page.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri",
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-shell.hub.open.phone",
-      "group": "ryoku-shell",
-      "title": "Open Hub: Phone",
-      "command": "ryoku-shell hub open phone",
-      "description": "Opens Ryoku Hub directly on the Phone page.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri",
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-shell.hub.open.input",
-      "group": "ryoku-shell",
-      "title": "Open Hub: Input",
-      "command": "ryoku-shell hub open input",
-      "description": "Opens Ryoku Hub directly on the Input page.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri",
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-shell.hub.open.gpu",
-      "group": "ryoku-shell",
-      "title": "Open Hub: Graphics and power",
-      "command": "ryoku-shell hub open gpu",
-      "description": "Opens Ryoku Hub directly on the Graphics and power page.",
+      "title": "Open Settings: Fonts & icons",
+      "command": "ryoku-shell hub open fonts-icons",
+      "description": "Opens Ryoku Settings on Fonts & icons, under Appearance.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -2626,9 +2556,9 @@
     {
       "id": "ryoku.ryoku-shell.hub.open.animations",
       "group": "ryoku-shell",
-      "title": "Open Hub: Animations",
+      "title": "Open Settings: Animations",
       "command": "ryoku-shell hub open animations",
-      "description": "Opens Ryoku Hub directly on the Animations page.",
+      "description": "Opens Ryoku Settings on Animations, under Appearance.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -2638,11 +2568,11 @@
       ]
     },
     {
-      "id": "ryoku.ryoku-shell.hub.open.lockscreen",
+      "id": "ryoku.ryoku-shell.hub.open.lock-screen",
       "group": "ryoku-shell",
-      "title": "Open Hub: Lockscreen",
-      "command": "ryoku-shell hub open lockscreen",
-      "description": "Opens Ryoku Hub directly on the Lockscreen page.",
+      "title": "Open Settings: Lock screen",
+      "command": "ryoku-shell hub open lock-screen",
+      "description": "Opens Ryoku Settings on Lock screen, under Appearance.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -2652,11 +2582,11 @@
       ]
     },
     {
-      "id": "ryoku.ryoku-shell.hub.open.windowmanager",
+      "id": "ryoku.ryoku-shell.hub.open.bar",
       "group": "ryoku-shell",
-      "title": "Open Hub: Window manager",
-      "command": "ryoku-shell hub open windowmanager",
-      "description": "Opens Ryoku Hub directly on the Window manager page.",
+      "title": "Open Settings: Bar",
+      "command": "ryoku-shell hub open bar",
+      "description": "Opens Ryoku Settings on Bar, under Desktop.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -2666,11 +2596,11 @@
       ]
     },
     {
-      "id": "ryoku.ryoku-shell.hub.open.plugins",
+      "id": "ryoku.ryoku-shell.hub.open.desktop-dock",
       "group": "ryoku-shell",
-      "title": "Open Hub: Plugins",
-      "command": "ryoku-shell hub open plugins",
-      "description": "Opens Ryoku Hub directly on the Plugins page.",
+      "title": "Open Settings: Desktop & dock",
+      "command": "ryoku-shell hub open desktop-dock",
+      "description": "Opens Ryoku Settings on Desktop & dock, under Desktop.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -2680,11 +2610,11 @@
       ]
     },
     {
-      "id": "ryoku.ryoku-shell.hub.open.layerrules",
+      "id": "ryoku.ryoku-shell.hub.open.quick-settings",
       "group": "ryoku-shell",
-      "title": "Open Hub: Layer rules",
-      "command": "ryoku-shell hub open layerrules",
-      "description": "Opens Ryoku Hub directly on the Layer rules page.",
+      "title": "Open Settings: Quick settings",
+      "command": "ryoku-shell hub open quick-settings",
+      "description": "Opens Ryoku Settings on Quick settings, under Desktop.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -2694,11 +2624,11 @@
       ]
     },
     {
-      "id": "ryoku.ryoku-shell.hub.open.bar-studio",
+      "id": "ryoku.ryoku-shell.hub.open.notifications",
       "group": "ryoku-shell",
-      "title": "Open Hub: Bar Studio",
-      "command": "ryoku-shell hub open bar-studio",
-      "description": "Opens Ryoku Hub directly on the Bar Studio page.",
+      "title": "Open Settings: Notifications & pop-ups",
+      "command": "ryoku-shell hub open notifications",
+      "description": "Opens Ryoku Settings on Notifications & pop-ups, under Desktop.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -2708,25 +2638,11 @@
       ]
     },
     {
-      "id": "ryoku.ryoku-shell.hub.open.desktop",
+      "id": "ryoku.ryoku-shell.hub.open.sounds",
       "group": "ryoku-shell",
-      "title": "Open Hub: Desktop",
-      "command": "ryoku-shell hub open desktop",
-      "description": "Opens Ryoku Hub directly on the Desktop page.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri",
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-shell.hub.open.controls",
-      "group": "ryoku-shell",
-      "title": "Open Hub: Controls",
-      "command": "ryoku-shell hub open controls",
-      "description": "Opens Ryoku Hub directly on the Controls page.",
+      "title": "Open Settings: Sounds",
+      "command": "ryoku-shell hub open sounds",
+      "description": "Opens Ryoku Settings on Sounds, under Desktop.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -2738,9 +2654,9 @@
     {
       "id": "ryoku.ryoku-shell.hub.open.launcher",
       "group": "ryoku-shell",
-      "title": "Open Hub: App launcher",
+      "title": "Open Settings: App launcher",
       "command": "ryoku-shell hub open launcher",
-      "description": "Opens Ryoku Hub directly on the App launcher page.",
+      "description": "Opens Ryoku Settings on App launcher, under Desktop.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -2750,11 +2666,11 @@
       ]
     },
     {
-      "id": "ryoku.ryoku-shell.hub.open.keybinds",
+      "id": "ryoku.ryoku-shell.hub.open.clipboard",
       "group": "ryoku-shell",
-      "title": "Open Hub: Keybinds",
-      "command": "ryoku-shell hub open keybinds",
-      "description": "Opens Ryoku Hub directly on the Keybinds page.",
+      "title": "Open Settings: Clipboard",
+      "command": "ryoku-shell hub open clipboard",
+      "description": "Opens Ryoku Settings on Clipboard, under Desktop.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -2764,11 +2680,11 @@
       ]
     },
     {
-      "id": "ryoku.ryoku-shell.hub.open.appoverrides",
+      "id": "ryoku.ryoku-shell.hub.open.window-behaviour",
       "group": "ryoku-shell",
-      "title": "Open Hub: App overrides",
-      "command": "ryoku-shell hub open appoverrides",
-      "description": "Opens Ryoku Hub directly on the App overrides page.",
+      "title": "Open Settings: Window behaviour",
+      "command": "ryoku-shell hub open window-behaviour",
+      "description": "Opens Ryoku Settings on Window behaviour, under Windows.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -2778,11 +2694,11 @@
       ]
     },
     {
-      "id": "ryoku.ryoku-shell.hub.open.windowrules",
+      "id": "ryoku.ryoku-shell.hub.open.shortcuts",
       "group": "ryoku-shell",
-      "title": "Open Hub: Window rules",
-      "command": "ryoku-shell hub open windowrules",
-      "description": "Opens Ryoku Hub directly on the Window rules page.",
+      "title": "Open Settings: Keyboard shortcuts",
+      "command": "ryoku-shell hub open shortcuts",
+      "description": "Opens Ryoku Settings on Keyboard shortcuts, under Windows.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -2792,11 +2708,11 @@
       ]
     },
     {
-      "id": "ryoku.ryoku-shell.hub.open.performance",
+      "id": "ryoku.ryoku-shell.hub.open.app-rules",
       "group": "ryoku-shell",
-      "title": "Open Hub: Performance",
-      "command": "ryoku-shell hub open performance",
-      "description": "Opens Ryoku Hub directly on the Performance page.",
+      "title": "Open Settings: App rules",
+      "command": "ryoku-shell hub open app-rules",
+      "description": "Opens Ryoku Settings on App rules, under Windows.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -2806,11 +2722,11 @@
       ]
     },
     {
-      "id": "ryoku.ryoku-shell.hub.open.session",
+      "id": "ryoku.ryoku-shell.hub.open.window-manager",
       "group": "ryoku-shell",
-      "title": "Open Hub: Session",
-      "command": "ryoku-shell hub open session",
-      "description": "Opens Ryoku Hub directly on the Session page.",
+      "title": "Open Settings: Window manager",
+      "command": "ryoku-shell hub open window-manager",
+      "description": "Opens Ryoku Settings on Window manager, under Windows.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -2820,11 +2736,11 @@
       ]
     },
     {
-      "id": "ryoku.ryoku-shell.hub.open.recording",
+      "id": "ryoku.ryoku-shell.hub.open.displays",
       "group": "ryoku-shell",
-      "title": "Open Hub: Recording",
-      "command": "ryoku-shell hub open recording",
-      "description": "Opens Ryoku Hub directly on the Recording page.",
+      "title": "Open Settings: Displays",
+      "command": "ryoku-shell hub open displays",
+      "description": "Opens Ryoku Settings on Displays, under Devices.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -2834,11 +2750,11 @@
       ]
     },
     {
-      "id": "ryoku.ryoku-shell.hub.open.dictation",
+      "id": "ryoku.ryoku-shell.hub.open.keyboard",
       "group": "ryoku-shell",
-      "title": "Open Hub: Dictation",
-      "command": "ryoku-shell hub open dictation",
-      "description": "Opens Ryoku Hub directly on the Dictation page.",
+      "title": "Open Settings: Keyboard",
+      "command": "ryoku-shell hub open keyboard",
+      "description": "Opens Ryoku Settings on Keyboard, under Devices.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -2848,11 +2764,11 @@
       ]
     },
     {
-      "id": "ryoku.ryoku-shell.hub.open.fastfetch",
+      "id": "ryoku.ryoku-shell.hub.open.mouse-touchpad",
       "group": "ryoku-shell",
-      "title": "Open Hub: Fastfetch",
-      "command": "ryoku-shell hub open fastfetch",
-      "description": "Opens Ryoku Hub directly on the Fastfetch page.",
+      "title": "Open Settings: Mouse & touchpad",
+      "command": "ryoku-shell hub open mouse-touchpad",
+      "description": "Opens Ryoku Settings on Mouse & touchpad, under Devices.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -2862,11 +2778,11 @@
       ]
     },
     {
-      "id": "ryoku.ryoku-shell.hub.open.import",
+      "id": "ryoku.ryoku-shell.hub.open.wifi",
       "group": "ryoku-shell",
-      "title": "Open Hub: Import config",
-      "command": "ryoku-shell hub open import",
-      "description": "Opens Ryoku Hub directly on the Import config page.",
+      "title": "Open Settings: Wi-Fi & internet",
+      "command": "ryoku-shell hub open wifi",
+      "description": "Opens Ryoku Settings on Wi-Fi & internet, under Connections.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -2876,11 +2792,95 @@
       ]
     },
     {
-      "id": "ryoku.ryoku-shell.hub.open.addons",
+      "id": "ryoku.ryoku-shell.hub.open.bluetooth",
       "group": "ryoku-shell",
-      "title": "Open Hub: Add-ons",
-      "command": "ryoku-shell hub open addons",
-      "description": "Opens Ryoku Hub directly on the Add-ons page.",
+      "title": "Open Settings: Bluetooth",
+      "command": "ryoku-shell hub open bluetooth",
+      "description": "Opens Ryoku Settings on Bluetooth, under Connections.",
+      "tool": "ryoku-shell",
+      "level": "advanced",
+      "compositors": [
+        "hyprland",
+        "niri",
+        "wayfire"
+      ]
+    },
+    {
+      "id": "ryoku.ryoku-shell.hub.open.phone",
+      "group": "ryoku-shell",
+      "title": "Open Settings: Phone",
+      "command": "ryoku-shell hub open phone",
+      "description": "Opens Ryoku Settings on Phone, under Connections.",
+      "tool": "ryoku-shell",
+      "level": "advanced",
+      "compositors": [
+        "hyprland",
+        "niri",
+        "wayfire"
+      ]
+    },
+    {
+      "id": "ryoku.ryoku-shell.hub.open.default-apps",
+      "group": "ryoku-shell",
+      "title": "Open Settings: Default apps",
+      "command": "ryoku-shell hub open default-apps",
+      "description": "Opens Ryoku Settings on Default apps, under Apps.",
+      "tool": "ryoku-shell",
+      "level": "advanced",
+      "compositors": [
+        "hyprland",
+        "niri",
+        "wayfire"
+      ]
+    },
+    {
+      "id": "ryoku.ryoku-shell.hub.open.startup-apps",
+      "group": "ryoku-shell",
+      "title": "Open Settings: Startup apps",
+      "command": "ryoku-shell hub open startup-apps",
+      "description": "Opens Ryoku Settings on Startup apps, under Apps.",
+      "tool": "ryoku-shell",
+      "level": "advanced",
+      "compositors": [
+        "hyprland",
+        "niri",
+        "wayfire"
+      ]
+    },
+    {
+      "id": "ryoku.ryoku-shell.hub.open.terminal",
+      "group": "ryoku-shell",
+      "title": "Open Settings: Terminal",
+      "command": "ryoku-shell hub open terminal",
+      "description": "Opens Ryoku Settings on Terminal, under Apps.",
+      "tool": "ryoku-shell",
+      "level": "advanced",
+      "compositors": [
+        "hyprland",
+        "niri",
+        "wayfire"
+      ]
+    },
+    {
+      "id": "ryoku.ryoku-shell.hub.open.screen-capture",
+      "group": "ryoku-shell",
+      "title": "Open Settings: Screen capture",
+      "command": "ryoku-shell hub open screen-capture",
+      "description": "Opens Ryoku Settings on Screen capture, under Apps.",
+      "tool": "ryoku-shell",
+      "level": "advanced",
+      "compositors": [
+        "hyprland",
+        "niri",
+        "wayfire"
+      ]
+    },
+    {
+      "id": "ryoku.ryoku-shell.hub.open.voice-typing",
+      "group": "ryoku-shell",
+      "title": "Open Settings: Voice typing",
+      "command": "ryoku-shell hub open voice-typing",
+      "description": "Opens Ryoku Settings on Voice typing, under Apps.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -2892,9 +2892,9 @@
     {
       "id": "ryoku.ryoku-shell.hub.open.rashin",
       "group": "ryoku-shell",
-      "title": "Open Hub: Rashin",
+      "title": "Open Settings: Rashin",
       "command": "ryoku-shell hub open rashin",
-      "description": "Opens Ryoku Hub directly on the Rashin page.",
+      "description": "Opens Ryoku Settings on Rashin, under Apps.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -2904,11 +2904,137 @@
       ]
     },
     {
-      "id": "ryoku.ryoku-shell.hub.open.credits",
+      "id": "ryoku.ryoku-shell.hub.open.add-ons",
       "group": "ryoku-shell",
-      "title": "Open Hub: Credits",
-      "command": "ryoku-shell hub open credits",
-      "description": "Opens Ryoku Hub directly on the Credits page.",
+      "title": "Open Settings: Add-ons",
+      "command": "ryoku-shell hub open add-ons",
+      "description": "Opens Ryoku Settings on Add-ons, under Apps.",
+      "tool": "ryoku-shell",
+      "level": "advanced",
+      "compositors": [
+        "hyprland",
+        "niri",
+        "wayfire"
+      ]
+    },
+    {
+      "id": "ryoku.ryoku-shell.hub.open.users",
+      "group": "ryoku-shell",
+      "title": "Open Settings: Users",
+      "command": "ryoku-shell hub open users",
+      "description": "Opens Ryoku Settings on Users, under Accounts.",
+      "tool": "ryoku-shell",
+      "level": "advanced",
+      "compositors": [
+        "hyprland",
+        "niri",
+        "wayfire"
+      ]
+    },
+    {
+      "id": "ryoku.ryoku-shell.hub.open.sign-in",
+      "group": "ryoku-shell",
+      "title": "Open Settings: Sign-in & security",
+      "command": "ryoku-shell hub open sign-in",
+      "description": "Opens Ryoku Settings on Sign-in & security, under Accounts.",
+      "tool": "ryoku-shell",
+      "level": "advanced",
+      "compositors": [
+        "hyprland",
+        "niri",
+        "wayfire"
+      ]
+    },
+    {
+      "id": "ryoku.ryoku-shell.hub.open.power",
+      "group": "ryoku-shell",
+      "title": "Open Settings: Power & battery",
+      "command": "ryoku-shell hub open power",
+      "description": "Opens Ryoku Settings on Power & battery, under System.",
+      "tool": "ryoku-shell",
+      "level": "advanced",
+      "compositors": [
+        "hyprland",
+        "niri",
+        "wayfire"
+      ]
+    },
+    {
+      "id": "ryoku.ryoku-shell.hub.open.graphics",
+      "group": "ryoku-shell",
+      "title": "Open Settings: Graphics",
+      "command": "ryoku-shell hub open graphics",
+      "description": "Opens Ryoku Settings on Graphics, under System.",
+      "tool": "ryoku-shell",
+      "level": "advanced",
+      "compositors": [
+        "hyprland",
+        "niri",
+        "wayfire"
+      ]
+    },
+    {
+      "id": "ryoku.ryoku-shell.hub.open.performance",
+      "group": "ryoku-shell",
+      "title": "Open Settings: Performance",
+      "command": "ryoku-shell hub open performance",
+      "description": "Opens Ryoku Settings on Performance, under System.",
+      "tool": "ryoku-shell",
+      "level": "advanced",
+      "compositors": [
+        "hyprland",
+        "niri",
+        "wayfire"
+      ]
+    },
+    {
+      "id": "ryoku.ryoku-shell.hub.open.time-language",
+      "group": "ryoku-shell",
+      "title": "Open Settings: Time & language",
+      "command": "ryoku-shell hub open time-language",
+      "description": "Opens Ryoku Settings on Time & language, under System.",
+      "tool": "ryoku-shell",
+      "level": "advanced",
+      "compositors": [
+        "hyprland",
+        "niri",
+        "wayfire"
+      ]
+    },
+    {
+      "id": "ryoku.ryoku-shell.hub.open.backup-import",
+      "group": "ryoku-shell",
+      "title": "Open Settings: Backup & import",
+      "command": "ryoku-shell hub open backup-import",
+      "description": "Opens Ryoku Settings on Backup & import, under System.",
+      "tool": "ryoku-shell",
+      "level": "advanced",
+      "compositors": [
+        "hyprland",
+        "niri",
+        "wayfire"
+      ]
+    },
+    {
+      "id": "ryoku.ryoku-shell.hub.open.about",
+      "group": "ryoku-shell",
+      "title": "Open Settings: About",
+      "command": "ryoku-shell hub open about",
+      "description": "Opens Ryoku Settings on About, under System.",
+      "tool": "ryoku-shell",
+      "level": "advanced",
+      "compositors": [
+        "hyprland",
+        "niri",
+        "wayfire"
+      ]
+    },
+    {
+      "id": "ryoku.ryoku-shell.hub.open.updates",
+      "group": "ryoku-shell",
+      "title": "Open Settings: Updates",
+      "command": "ryoku-shell hub open updates",
+      "description": "Opens Ryoku Settings on Updates.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -2920,9 +3046,9 @@
     {
       "id": "ryoku.ryoku-shell.hub.close",
       "group": "ryoku-shell",
-      "title": "Close Ryoku Hub",
+      "title": "Close Ryoku Settings",
       "command": "ryoku-shell hub close",
-      "description": "Closes the open Ryoku Hub window.",
+      "description": "Closes the open Ryoku Settings window.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -4231,6 +4357,48 @@
       "title": "Open wallpaper settings",
       "command": "ryogami wallpaper settings",
       "description": "Opens Ryogami settings, optionally at a named tab.",
+      "tool": "ryogami",
+      "level": "advanced",
+      "compositors": [
+        "hyprland",
+        "niri",
+        "wayfire"
+      ]
+    },
+    {
+      "id": "ryoku.ryogami.wallpaper.collection",
+      "group": "ryoku-look",
+      "title": "Open a wallpaper picker collection",
+      "command": "ryogami wallpaper collection <wallpapers|themes|rices|workshop>",
+      "description": "Opens the wallpaper picker on one collection.",
+      "tool": "ryogami",
+      "level": "advanced",
+      "compositors": [
+        "hyprland",
+        "niri",
+        "wayfire"
+      ]
+    },
+    {
+      "id": "ryoku.ryogami.settings.get",
+      "group": "ryoku-look",
+      "title": "Read a Ryogami setting",
+      "command": "ryogami settings get <key>",
+      "description": "Prints one Ryogami setting as JSON.",
+      "tool": "ryogami",
+      "level": "advanced",
+      "compositors": [
+        "hyprland",
+        "niri",
+        "wayfire"
+      ]
+    },
+    {
+      "id": "ryoku.ryogami.settings.set",
+      "group": "ryoku-look",
+      "title": "Change a Ryogami setting",
+      "command": "ryogami settings set <key> <value>",
+      "description": "Writes one Ryogami setting, the value read as JSON or else as text; null resets it. A single JSON object sets several keys in one write. It is the one writer of matugen.json and the theme keys.",
       "tool": "ryogami",
       "level": "advanced",
       "compositors": [
@@ -6321,7 +6489,7 @@
       "group": "ryoku-look",
       "title": "Save app-theme settings",
       "command": "ryoku-hub matugen set <json>",
-      "description": "Validates and saves the application theme-template selection.",
+      "description": "Hands matugen.json fields to `ryogami settings set`, merging the app-theme roster onto the stored one.",
       "tool": "ryoku-hub",
       "level": "advanced",
       "editions": [
@@ -8423,7 +8591,7 @@
       "group": "ryoku-internal",
       "title": "Write Matugen settings",
       "command": "ryoku-hub desktop matugen set <json>",
-      "description": "Writes the desktop palette-template settings supplied by the Hub.",
+      "description": "Hands the Hub's matugen.json fields to `ryogami settings set`, the file's one writer.",
       "tool": "ryoku-hub",
       "level": "internal"
     },
@@ -8595,8 +8763,8 @@
       "id": "ryoku.ryogami.wallpaper.settings.tab",
       "group": "ryoku-look",
       "title": "Open a wallpaper settings tab",
-      "command": "ryogami wallpaper settings <tab>",
-      "description": "Opens the selected Ryogami settings tab.",
+      "command": "ryogami wallpaper settings <wallpaper|colours|lighting|picker|system> [section] [control]",
+      "description": "Opens one Ryogami settings tab, optionally at a section and a control. Old tab names still work.",
       "tool": "ryogami",
       "level": "advanced"
     },

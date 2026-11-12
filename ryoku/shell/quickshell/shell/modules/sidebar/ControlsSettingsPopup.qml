@@ -116,7 +116,7 @@ QQC.Popup {
 
         Text {
             width: parent.width
-            text: I18n.tr("Where Controls opens on the screen")
+            text: I18n.tr("Where Quick settings opens on the screen")
             color: Tokens.inkFaint
             font.family: Tokens.ui
             font.pixelSize: Tokens.fSmall * root.s
@@ -159,7 +159,7 @@ QQC.Popup {
             stepSize: 1
             snapMode: QQC.Slider.SnapAlways
             value: SidebarState.edgeGap
-            Accessible.name: I18n.tr("Controls edge gap")
+            Accessible.name: I18n.tr("Quick settings edge gap")
             Accessible.description: I18n.tr("Distance from the screen edge")
             onMoved: SidebarState.setEdgeGap(value)
 
@@ -194,7 +194,7 @@ QQC.Popup {
 
         Text {
             width: parent.width
-            text: I18n.tr("Distance between Controls and the nearest screen edge")
+            text: I18n.tr("Distance between Quick settings and the nearest screen edge")
             color: Tokens.inkFaint
             font.family: Tokens.ui
             font.pixelSize: Tokens.fSmall * root.s
@@ -279,7 +279,7 @@ QQC.Popup {
 
         Text {
             width: parent.width
-            text: I18n.tr("OPEN IN RYOKU HUB")
+            text: I18n.tr("OPEN IN RYOKU SETTINGS")
             color: Tokens.inkMuted
             font.family: Tokens.mono
             font.pixelSize: Tokens.fMicro * root.s
@@ -289,12 +289,12 @@ QQC.Popup {
 
         Repeater {
             model: [
-                { label: "Controls", glyph: "tune", section: "controls" },
+                { label: "Quick settings", glyph: "tune", section: "quick-settings" },
                 { label: "Displays", glyph: "display_settings", section: "displays" },
-                { label: "Sound", glyph: "volume_up", section: "connections" },
-                { label: "Network", glyph: "wifi", section: "connections" },
-                { label: "Graphics & Power", glyph: "memory", section: "gpu" },
-                { label: "Keybinds", glyph: "keyboard", section: "keybinds" }
+                { label: "Sounds", glyph: "volume_up", section: "sounds" },
+                { label: "Wi-Fi & internet", glyph: "wifi", section: "wifi" },
+                { label: "Power & battery", glyph: "memory", section: "power" },
+                { label: "Keyboard shortcuts", glyph: "keyboard", section: "shortcuts" }
             ]
             delegate: QQC.AbstractButton {
                 id: hubRow

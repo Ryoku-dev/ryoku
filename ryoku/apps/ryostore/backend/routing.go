@@ -8,9 +8,9 @@ import (
 )
 
 var storeSections = map[string]struct{}{
-	"discover": {}, "library": {}, "rices": {}, "lockscreens": {},
+	"discover": {}, "library": {}, "rices": {}, "lockscreens": {}, "colorschemes": {},
 	"subshells": {}, "barstyles": {}, "docks": {}, "launchers": {}, "osds": {}, "notifications": {}, "sidebars": {},
-	"fastfetch": {}, "plugins": {}, "bundles": {}, "decors": {},
+	"fastfetch": {}, "plugins": {}, "omarchy-plugins": {}, "bundles": {}, "decors": {},
 	"launcher-images": {}, "fastfetch-emblems": {}, "ryotunes-skins": {},
 	"vesktop-themes": {}, "flatpak": {}, "profiles": {},
 }
@@ -20,26 +20,33 @@ func storeSection(section string) bool {
 	return ok
 }
 
-// settingsSection maps a Store category to the Hub page that applies or manages
-// it. The lockscreen page only edits config, not a store install, and the
-// flat-image categories (decors, launcher images) have no page at all, so none
-// of them appear here and none shows an "open in settings" action.
+// settingsSection maps a Store category to the Settings page, or "page/row",
+// that applies or manages it. The lockscreen page only edits config, not a
+// store install, and the flat-image categories (decors, launcher images) have
+// no page at all, so none of them appear here and none shows an "open in
+// settings" action.
 func settingsSection(category string) (string, bool) {
 	section, ok := map[string]string{
-		"rices":     "appearance",
-		"plugins":   "addons",
-		"bundles":   "addons",
-		"barstyles": "bar-studio",
-		"subshells": "subshells",
-		"launchers": "launcher",
-		// The overlays are worn on one Hub page.
-		"osds":          "overlays",
-		"notifications": "overlays",
-		"sidebars":      "overlays",
-		"fastfetch":     "fastfetch",
+		"plugins":       "add-ons",
+		"bundles":       "add-ons",
+		"barstyles":     "bar",
+		"subshells":     "bar",
+		"launchers":     "launcher",
+		"osds":          "notifications",
+		"notifications": "notifications",
+		"sidebars":      "quick-settings/panel-design",
+		"fastfetch":     "terminal",
 		"profiles":      "users",
 	}[category]
 	return section, ok
+}
+
+// itemRows prefixes the Add-ons row that opens one item's own page
+var itemRows = map[string]string{"plugins": "add-on:", "bundles": "bundle:"}
+
+// rices are worn from the wallpaper picker's Rices collection, not Settings
+var ryogamiRoutes = map[string][]string{
+	"rices": {"wallpaper", "collection", "rices"},
 }
 
 // editorSection maps a Store category the desktop editor wears to its Stage
@@ -52,7 +59,8 @@ func editorSection(category string) (string, bool) {
 func hasSettingsSection(category string) bool {
 	_, hub := settingsSection(category)
 	_, editor := editorSection(category)
-	return hub || editor
+	_, ryogami := ryogamiRoutes[category]
+	return hub || editor || ryogami
 }
 
 func runOpen(args []string) error {
@@ -77,20 +85,32 @@ func runSettings(args []string) error {
 		// an empty monitor means the focused one
 		return ryokuShell("ipc", "call", "desktop", "editSection", section, "")
 	}
+	if route, ok := ryogamiRoutes[args[0]]; ok {
+		return runReporting("ryogami", route...)
+	}
 	section, ok := settingsSection(args[0])
 	if !ok {
 		return fmt.Errorf("unknown settings category %q", args[0])
 	}
+	if prefix, ok := itemRows[args[0]]; ok && len(args) == 2 {
+		if !productIDPattern.MatchString(args[1]) {
+			return fmt.Errorf("settings %s needs a valid id", args[0])
+		}
+		section += "/" + prefix + args[1]
+	}
 	return ryokuShell("hub", "open", section)
 }
 
-func ryokuShell(args ...string) error {
-	out, err := exec.Command("ryoku-shell", args...).CombinedOutput()
+func ryokuShell(args ...string) error { return runReporting("ryoku-shell", args...) }
+
+// runReporting runs a hand-off command and reports its refusal to the caller
+func runReporting(name string, args ...string) error {
+	out, err := exec.Command(name, args...).CombinedOutput()
 	if err != nil {
 		if msg := strings.TrimSpace(string(out)); msg != "" {
-			return fmt.Errorf("ryoku-shell %s: %s", strings.Join(args, " "), msg)
+			return fmt.Errorf("%s %s: %s", name, strings.Join(args, " "), msg)
 		}
-		return fmt.Errorf("ryoku-shell %s: %w", strings.Join(args, " "), err)
+		return fmt.Errorf("%s %s: %w", name, strings.Join(args, " "), err)
 	}
 	return nil
 }
