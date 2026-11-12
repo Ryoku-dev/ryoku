@@ -151,6 +151,12 @@
   opt-out before removing its retired `ryovm.desktop` override.
 
 ### Fixed
+- **Removing a palette bridge integration can no longer get stuck.** A file
+  the user had already deleted, or a Zen profile that was gone, stopped the
+  removal before it updated its list of owned files, so every later try
+  stopped at the same place. A missing file now counts as removed, a file that
+  will not go stays listed for the next try, and the list always matches what
+  is left (`palette-bridge/remove-integrations.sh`).
 - **Rashin's composer takes the pointer and the keyboard.** An invisible drop
   area covered it, so no click reached the text, attach, the model or the
   harness. Typing also went nowhere after a menu, the search field or a

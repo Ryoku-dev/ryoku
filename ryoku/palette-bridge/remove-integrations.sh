@@ -21,9 +21,45 @@ case "${1:-}" in
   *) usage >&2; exit 2 ;;
 esac
 
-remove_owned_file() {
+# strip_lines <file> <grep args...>: keep only the lines grep selects. A file that
+# is already gone counts as done; a failure returns 1 instead of aborting, so the
+# caller can keep that path in the ledger.
+strip_lines() {
+  local path="$1" temporary status=0
+  shift
+  [[ -f "$path" ]] || return 0
+  temporary=$(mktemp) || return 1
+  grep "$@" "$path" > "$temporary" || (( $? == 1 )) || status=1
+  (( status )) || install -m 0644 "$temporary" "$path" || status=1
+  rm -f "$temporary"
+  return "$status"
+}
+
+# release_owned <path>: undo one ledger entry of the integration being removed.
+# Succeeds when the path is already gone, so a removal that stopped halfway, or a
+# file the user deleted first, finishes on the next run instead of failing forever.
+release_owned() {
   local path="$1"
-  [[ -f "$path" ]] && rm -f -- "$path"
+  case "$want:$path" in
+    spotify:"$config_root"/spicetify/Extensions/ryoku-wallpaper-colors.js|\
+    vesktop:"$data_root"/ryoku/palette-bridge/templates/vesktop-colors.css|\
+    vesktop:"$config_root"/ryoku/user_edits/matugen/templates/vesktop-colors.css|\
+    vesktop:"$config_root"/vesktop/themes/midnight-ryoku.theme.css|\
+    vesktop:"$(vesktop_flatpak_root)"/themes/midnight-ryoku.theme.css|\
+    vesktop:"$state_root"/vesktop/quickcss.sh|\
+    vesktop:"$state_root"/vesktop/palette.css|\
+    zen:"$data_root"/ryoku/palette-bridge/templates/zen.css|\
+    zen:"$config_root"/ryoku/user_edits/matugen/templates/zen.css|\
+    zen:*/chrome/ryoku-colors.css)
+      rm -f -- "$path"
+      ;;
+    zen:*/chrome/userChrome.css)
+      strip_lines "$path" -Fvx '@import "ryoku-colors.css";'
+      ;;
+    zen:*/user.js)
+      strip_lines "$path" -vE 'user_pref\("(toolkit\.legacyUserProfileCustomizations\.stylesheets", true|zen\.theme\.disable-lightweight", false)\);'
+      ;;
+  esac
 }
 
 remove_matugen_section() {
@@ -98,42 +134,24 @@ case "$want" in
     ;;
 esac
 
+# The ledger is rewritten from what is left: entries of this integration that
+# were undone go, ones that would not stay so the next removal retries them.
 if [[ -f "$ownership_file" ]]; then
+  kept=$(mktemp)
+  failed=0
   while IFS=$'\t' read -r integration path; do
-    [[ "$integration" == "$want" ]] || continue
-    case "$want:$path" in
-      spotify:"$config_root"/spicetify/Extensions/ryoku-wallpaper-colors.js|\
-      vesktop:"$data_root"/ryoku/palette-bridge/templates/vesktop-colors.css|\
-      vesktop:"$config_root"/ryoku/user_edits/matugen/templates/vesktop-colors.css|\
-      vesktop:"$config_root"/vesktop/themes/midnight-ryoku.theme.css|\
-      vesktop:"$(vesktop_flatpak_root)"/themes/midnight-ryoku.theme.css|\
-      vesktop:"$state_root"/vesktop/quickcss.sh|\
-      vesktop:"$state_root"/vesktop/palette.css|\
-      zen:"$data_root"/ryoku/palette-bridge/templates/zen.css|\
-      zen:"$config_root"/ryoku/user_edits/matugen/templates/zen.css)
-        remove_owned_file "$path"
-        ;;
-      zen:*/chrome/ryoku-colors.css)
-        remove_owned_file "$path"
-        ;;
-      zen:*/chrome/userChrome.css)
-        temporary=$(mktemp)
-        grep -Fvx '@import "ryoku-colors.css";' "$path" > "$temporary" || true
-        install -m 0644 "$temporary" "$path"
-        rm -f "$temporary"
-        ;;
-      zen:*/user.js)
-        temporary=$(mktemp)
-        grep -vE 'user_pref\("(toolkit\.legacyUserProfileCustomizations\.stylesheets", true|zen\.theme\.disable-lightweight", false)\);' "$path" > "$temporary" || true
-        install -m 0644 "$temporary" "$path"
-        rm -f "$temporary"
-        ;;
-    esac
+    if [[ "$integration" == "$want" ]]; then
+      release_owned "$path" && continue
+      failed=1
+    fi
+    printf '%s\t%s\n' "$integration" "$path" >> "$kept"
   done < "$ownership_file"
-  temporary=$(mktemp)
-  awk -F '\t' -v app="$want" '$1 != app' "$ownership_file" > "$temporary"
-  install -m 0600 "$temporary" "$ownership_file"
-  rm -f "$temporary"
+  install -m 0600 "$kept" "$ownership_file"
+  rm -f "$kept"
+  if (( failed )); then
+    printf 'Some %s integration files could not be removed; they stay listed, so removing it again retries them.\n' "$want" >&2
+    exit 1
+  fi
 fi
 
 printf 'Removed the %s integration files owned by Ryoku Palette Bridge.\n' "$want"

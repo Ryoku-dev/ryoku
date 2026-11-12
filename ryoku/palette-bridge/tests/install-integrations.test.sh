@@ -288,4 +288,48 @@ grep -Fq -- '--accent-2: #fedcba;' "$seeded_vesktop/settings/quickCss.css"
 [[ ! -e "$seeded_vesktop/themes/midnight-ryoku.theme.css" ]]
 run_flatpak_vesktop remove
 
+# A file the user deleted first, or a removal that stopped halfway, must never
+# leave removal stuck: what is gone counts as removed, what will not go stays in
+# the ledger for the next try, and the ledger always matches what is left.
+stuck="$test_root/stuck"
+stuck_ledger="$stuck/state/ryoku/palette-bridge/owned-files.tsv"
+gone_profile="$stuck/zen/gone.default"
+locked_chrome="$stuck/zen/locked.default/chrome"
+mkdir -p "$(dirname "$stuck_ledger")" "$stuck/home" "$locked_chrome"
+printf '/* ryoku */\n' > "$locked_chrome/ryoku-colors.css"
+other_line=$(printf 'vesktop\t%s' "$stuck/data/ryoku/palette-bridge/templates/vesktop-colors.css")
+locked_line=$(printf 'zen\t%s' "$locked_chrome/ryoku-colors.css")
+printf 'spotify\t%s\nzen\t%s\nzen\t%s\n%s\n%s\n' \
+  "$stuck/config/spicetify/Extensions/ryoku-wallpaper-colors.js" \
+  "$gone_profile/chrome/userChrome.css" "$gone_profile/user.js" \
+  "$locked_line" "$other_line" > "$stuck_ledger"
+run_stuck() {
+  HOME="$stuck/home" XDG_CONFIG_HOME="$stuck/config" XDG_DATA_HOME="$stuck/data" \
+    XDG_STATE_HOME="$stuck/state" FAKE_SPICETIFY_STATE="$state_file" PATH="$fake_bin:$PATH" \
+    "$project_root/remove-integrations.sh" "$1"
+}
+if ! run_stuck --spotify; then
+  printf 'FAIL: removing a Spotify file the user already deleted aborted\n' >&2; exit 1
+fi
+if (( EUID != 0 )); then
+  chmod 0555 "$locked_chrome"
+  if run_stuck --zen 2>/dev/null; then
+    chmod 0755 "$locked_chrome"
+    printf 'FAIL: removal reported success with a Zen file left behind\n' >&2; exit 1
+  fi
+  chmod 0755 "$locked_chrome"
+  if [[ "$(cat "$stuck_ledger")" != "$locked_line"$'\n'"$other_line" ]]; then
+    printf 'FAIL: ledger after a partial removal:\n%s\n' "$(cat "$stuck_ledger")" >&2; exit 1
+  fi
+fi
+if ! run_stuck --zen; then
+  printf 'FAIL: removing Zen again did not finish what the first try left\n' >&2; exit 1
+fi
+if [[ -e "$gone_profile" || -e "$locked_chrome/ryoku-colors.css" ]]; then
+  printf 'FAIL: Zen removal recreated a deleted profile or left an owned file\n' >&2; exit 1
+fi
+if [[ "$(cat "$stuck_ledger")" != "$other_line" ]]; then
+  printf 'FAIL: ledger after removal:\n%s\n' "$(cat "$stuck_ledger")" >&2; exit 1
+fi
+
 printf 'PASS: integration setup and removal are idempotent and preserve existing configuration\n'
