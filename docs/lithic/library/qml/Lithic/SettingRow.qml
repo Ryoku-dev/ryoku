@@ -60,8 +60,15 @@ T.AbstractButton {
         if (activatable && _available)
             activated();
     }
-    Keys.onReturnPressed: if (activatable && _available) activated()
-    Keys.onEnterPressed: if (activatable && _available) activated()
+    // only a row that acts takes Return; a key from a field inside the row goes on to the host
+    Keys.onReturnPressed: event => root._returnPressed(event)
+    Keys.onEnterPressed: event => root._returnPressed(event)
+    function _returnPressed(event) {
+        if (activeFocus && activatable && _available)
+            activated();
+        else
+            event.accepted = false;
+    }
 
     // the search spotlight shows once and fades; reduced motion holds it until the host clears it
     onHighlightedChanged: {
