@@ -4,7 +4,6 @@ import QtQuick.Layouts
 import QtQuick.Effects
 import Qt5Compat.GraphicalEffects
 import Quickshell
-import Quickshell.Io
 import Quickshell.Widgets
 import Ryoku.Ui.Singletons
 import Quickshell.Services.Mpris
@@ -34,7 +33,8 @@ AbstractBackgroundWidget {
     property list<real> visualizerPoints: []
 
     readonly property bool playing: player ? player.playbackState === MprisPlaybackState.Playing : false
-    readonly property string artUrl: root.player?.trackArtUrl ?? ""
+    // only the daemon's saved cover: an https Image can segfault qs (quickshell#1368)
+    readonly property string artUrl: ShellServices.Music.coverFor(root.player)
     readonly property string trackTitle: StringUtils.cleanMusicTitle(player?.trackTitle) || Translation.tr("No media")
     readonly property string trackArtist: player?.trackArtist || Translation.tr("Unknown Artist")
     readonly property string identity: player ? (player.identity ?? "") : ""
@@ -55,30 +55,6 @@ AbstractBackgroundWidget {
         return active ? Wm.windowsOnWorkspace(active.id).length > 0 : false;
     }
 
-    readonly property string artCachePath: `${Directories.coverArt}/${Qt.md5(root.artUrl)}`
-    property string downloadedArtUrl: ""
-    readonly property string artSource: root.artUrl.startsWith("file://") ? root.artUrl
-        : (root.artUrl !== "" && root.downloadedArtUrl === root.artUrl ? Qt.resolvedUrl(root.artCachePath) : "")
-    function refreshArtCache(): void {
-        if (!root.artUrl || root.artUrl.startsWith("file://") || artDownloader.running)
-            return;
-        artDownloader.requestUrl = root.artUrl;
-        artDownloader.requestPath = root.artCachePath;
-        artDownloader.running = true;
-    }
-    onArtUrlChanged: Qt.callLater(root.refreshArtCache)
-    Process {
-        id: artDownloader
-        property string requestUrl: ""
-        property string requestPath: ""
-        command: ["bash", "-c", "test -f \"$2\" || (curl -fLsS -- \"$1\" -o \"$2.tmp\" && mv -- \"$2.tmp\" \"$2\")", "art-cache", requestUrl, requestPath]
-        onExited: exitCode => {
-            if (exitCode === 0) root.downloadedArtUrl = requestUrl;
-            if (requestUrl !== root.artUrl) Qt.callLater(root.refreshArtCache);
-        }
-        Component.onCompleted: Qt.callLater(root.refreshArtCache)
-    }
-
     property string activeLyricText: ""
     property real lyricOpacity: 1.0
     property real lyricYOffset: 0.0
@@ -88,11 +64,11 @@ AbstractBackgroundWidget {
     property real titleYOffset: 0.0
 
 
-    readonly property bool useDynamicColors: (Config.options.background.widgets.media.dynamicAlbumColors ?? false) && root.artSource !== ""
+    readonly property bool useDynamicColors: (Config.options.background.widgets.media.dynamicAlbumColors ?? false) && root.artUrl !== ""
 
     ColorQuantizer {
         id: colorQuantizer
-        source: root.artSource
+        source: root.artUrl
         depth: 0
         rescaleSize: 1
     }

@@ -11,6 +11,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Services.Mpris
 import stage.modules.common
+import shell.services as ShellServices
 
 /**
  * A service that provides easy access to the active Mpris player.
@@ -310,11 +311,16 @@ Singleton {
 	property bool __reverse: false;
 
 	property var activeTrack;
+	// Only the cover the daemon saved, never a web address: an https Image can
+	// segfault qs (quickshell#1368). The last cover holds while the next resolves.
 	property string _artUrlFallback: "";
 	readonly property string artUrl: {
-		const url = activePlayer?.trackArtUrl;
-		return (url && url !== "") ? url : _artUrlFallback;
+		const cover = ShellServices.Music.coverFor(activePlayer);
+		return cover !== "" ? cover : _artUrlFallback;
 	}
+	onArtUrlChanged: if (root.artUrl !== "") root._artUrlFallback = root.artUrl;
+	// the player's own art URL the current track was built with
+	property string _trackArtSeen: "";
 
 	onAllPlayersChanged: {
 		if (root.localPlayerSelected && root.localPlayer) {
@@ -427,7 +433,6 @@ Singleton {
 
 		function onPostTrackChanged() {
 			if (root.activePlayer?.trackArtUrl) {
-				root._artUrlFallback = root.activePlayer.trackArtUrl;
 				root.updateTrack();
 			} else {
 				artlessTrackTimer.restart();
@@ -436,11 +441,9 @@ Singleton {
 
 		function onTrackArtUrlChanged() {
 			const url = root.activePlayer?.trackArtUrl;
-			if (url && url !== "") {
-				root._artUrlFallback = url;
+			if (url && url !== "")
 				artlessTrackTimer.stop();
-			}
-			if (root.activeTrack && root.activeTrack.artUrl === url) return;
+			if (root.activeTrack && root._trackArtSeen === url) return;
 			const r = root.__reverse;
 			root.updateTrack();
 			root.__reverse = r;
@@ -449,7 +452,6 @@ Singleton {
 
 	onActivePlayerChanged: {
 		if (root.activePlayer?.trackArtUrl) {
-			root._artUrlFallback = root.activePlayer.trackArtUrl;
 			root.updateTrack();
 		} else {
 			artlessTrackTimer.restart();
@@ -470,6 +472,7 @@ Singleton {
 
 	function updateTrack() {
 		//console.log(`update: ${this.activePlayer?.trackTitle ?? ""} : ${this.activePlayer?.trackArtists}`)
+		this._trackArtSeen = this.activePlayer?.trackArtUrl ?? "";
 		this.activeTrack = {
 			uniqueId: this.activePlayer?.uniqueId ?? 0,
 			artUrl: this.artUrl,

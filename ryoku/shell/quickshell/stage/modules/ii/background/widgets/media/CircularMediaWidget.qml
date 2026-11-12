@@ -1,5 +1,4 @@
 import Quickshell
-import Quickshell.Io
 import Quickshell.Widgets
 import Quickshell.Services.Mpris
 import QtQuick
@@ -38,50 +37,10 @@ AbstractBackgroundWidget {
     readonly property bool showDevicePill: Config.options.background.widgets.circular_media.showDevicePill ?? true
     readonly property MprisPlayer player: MprisController.activePlayer
     readonly property bool playing: player ? player.playbackState === MprisPlaybackState.Playing : false
-    readonly property string artUrl: player?.trackArtUrl ?? ""
+    // only the daemon's saved cover: an https Image can segfault qs (quickshell#1368)
+    readonly property string artSource: ShellServices.Music.coverFor(root.player)
     readonly property string trackTitle: StringUtils.cleanMusicTitle(player?.trackTitle) || Translation.tr("No media")
     readonly property string trackArtist: player?.trackArtist || Translation.tr("Unknown Artist")
-
-    property bool isLocalArt: artUrl.startsWith("file://")
-    property string artDownloadLocation: Directories.coverArt
-    property string artFileName: Qt.md5(artUrl)
-    property string artFilePath: `${artDownloadLocation}/${artFileName}`
-    property bool artDownloaded: false
-
-    readonly property string artSource: {
-        if (!artUrl)
-            return "";
-        if (isLocalArt)
-            return artUrl;
-        return artDownloaded ? Qt.resolvedUrl(artFilePath) : "";
-    }
-
-    onArtFilePathChanged: {
-        if (!artUrl || artUrl.length === 0) {
-            artDownloaded = false;
-            return;
-        }
-        if (isLocalArt) {
-            artDownloaded = true;
-            return;
-        }
-        artDownloader.targetFile = artUrl;
-        artDownloader.artFilePath = artFilePath;
-        artDownloader.artTempPath = artFilePath + ".tmp";
-        artDownloaded = false;
-        artDownloader.running = true;
-    }
-
-    Process {
-        id: artDownloader
-        property string targetFile: root.artUrl
-        property string artFilePath: root.artFilePath
-        property string artTempPath: root.artFilePath + ".tmp"
-        command: ["bash", "-c", `[ -f ${artFilePath} ] || (curl -4 -sSL '${targetFile}' -o '${artTempPath}' && mv '${artTempPath}' '${artFilePath}')`]
-        onExited: {
-            artDownloaded = true;
-        }
-    }
 
     ColorQuantizer {
         id: colorQuantizer
