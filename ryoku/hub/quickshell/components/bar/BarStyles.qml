@@ -4,6 +4,7 @@ import Ryoku.Ui.Singletons
 import "../.."
 import "../../Singletons"
 import "../../ShellIndex.js" as ShellIndex
+import "running.js" as Running
 
 // bar styles and complete desktops: installed ones from the shells index, the rest from the catalogue
 Item {
@@ -15,6 +16,31 @@ Item {
     property string busyId: ""
     property string busyVerb: ""
     property var failed: null
+    // the install or update Cancel stopped: { id, verb }
+    property var stopped: null
+    property bool cancelling: false
+    // a slow install shows its progress and a way to stop it
+    property bool slow: false
+    // the running install; it lives in Changes, so leaving the page does not stop it
+    property var installProc: null
+    readonly property var life: ({ alive: true })
+    Component.onDestruction: root.life.alive = false
+    // an install started before the page last closed is still this page's to show and to stop
+    Component.onCompleted: {
+        var run = Running.current;
+        if (!run || run.over || !run.proc)
+            return;
+        root.busyId = run.id;
+        root.busyVerb = run.verb;
+        root.installProc = run.proc;
+        var life = root.life;
+        run.proc.finished.connect(function (ok, out, err, code) {
+            if (life.alive)
+                root.installed(ok, err, code);
+        });
+        slowTimer.interval = Math.max(1, 10000 - (Date.now() - run.started));
+        slowTimer.restart();
+    }
 
     readonly property string active: {
         Settings.revision;
@@ -153,16 +179,17 @@ Item {
         return c.installed ? I18n.tr("Installed") : I18n.tr("Available in RyoStore");
     }
 
+    // an update comes first; the options of the style in use stay in their own section
     function actionOf(c) {
         if (root.busyId !== "" || root.blockedReason(c) !== "")
             return "";
+        if (root.updatable(c))
+            return "update";
         if (c.id === root.active && root.wearable(c)) {
             if (root.editorOf(c) !== "")
                 return "options";
             return root.hasOwnWindow(c) ? "settings" : "";
         }
-        if (root.updatable(c))
-            return "update";
         return c.installed ? "use" : "install";
     }
 
@@ -207,10 +234,47 @@ Item {
         if (!c || root.busyId !== "")
             return;
         root.failed = null;
+        root.stopped = null;
+        root.cancelling = false;
         root.busyId = id;
         root.busyVerb = verb;
-        installRun.command = ["ryostore", "install", c.category, c.id];
-        installRun.running = true;
+        var life = root.life;
+        var finish = Running.finish;
+        var run = { id: id, verb: verb, proc: null, started: Date.now(), over: false };
+        // a missing ryostore ends in an error at once instead of a tile busy forever
+        run.proc = Changes.run(["ryostore", "install", c.category, c.id], function (ok, out, err, code) {
+            run.over = true;
+            finish(run);
+            if (life.alive)
+                root.installed(ok, err, code);
+        });
+        if (run.over)
+            return;
+        Running.start(run);
+        root.installProc = run.proc;
+        slowTimer.interval = 10000;
+        slowTimer.restart();
+    }
+
+    function installed(ok, err, code) {
+        root.installProc = null;
+        if (root.cancelling)
+            root.stopped = { id: root.busyId, verb: root.busyVerb };
+        else if (!ok)
+            root.failed = { id: root.busyId, verb: root.busyVerb, message: err.trim(), missing: code === -1 };
+        slowTimer.stop();
+        root.slow = false;
+        root.cancelling = false;
+        root.busyId = "";
+        root.busyVerb = "";
+        root.refresh();
+    }
+
+    function cancel() {
+        if (!root.installProc || !root.installProc.running)
+            return;
+        root.cancelling = true;
+        root.installProc.signal(15);
     }
 
     function openOwnWindow(c) {
@@ -249,15 +313,9 @@ Item {
         }
     }
 
-    Process {
-        id: installRun
-        stderr: StdioCollector { id: installErr }
-        onExited: (code, status) => {
-            if (code !== 0)
-                root.failed = { id: root.busyId, verb: root.busyVerb, message: installErr.text.trim() };
-            root.busyId = "";
-            root.busyVerb = "";
-            root.refresh();
-        }
+    Timer {
+        id: slowTimer
+        interval: 10000
+        onTriggered: root.slow = root.installProc !== null
     }
 }

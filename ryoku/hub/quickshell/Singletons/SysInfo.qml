@@ -7,8 +7,9 @@ import Quickshell.Io
 // RAM, disk, ...) = the hub-side twin of the shell's SysInfo, read from the
 // shared ryoku-sysinfo helper. extended fields for the dossier (load, temp,
 // processes, swap, battery, network, packages, cursor, palette) come
-// from ryoku-profile-stats. both = one field per line, read once when the
-// window opens; each falls back to a placeholder when its source is absent.
+// from ryoku-profile-stats. both = one field per line, read once by load()
+// (About asks); at start only what Home shows is read, from cheap sources.
+// each falls back to a placeholder when its source is absent.
 Singleton {
     id: root
 
@@ -55,15 +56,94 @@ Singleton {
     property string sysCursor: "-"
     property string sysPalette: ""
 
+    // the full read-out: both helpers count packages through the package manager, so they run
+    // only when a page that shows them opens, and again on each visit
+    property bool loading: false
+    // a full read ended at least once; failed: the last one left a helper without an answer
+    property bool loaded: false
+    property bool failed: false
+    property var waiting: ({})
+    function load() {
+        if (root.loading)
+            return;
+        root.loading = true;
+        root.waiting = { poller: true, extra: true };
+        root.failed = false;
+        poller.running = true;
+        extra.running = true;
+        readLimit.restart();
+    }
+    // a helper whose answer landed owns its fields from then on
+    property bool baseLanded: false
+    property bool extraLanded: false
+    function ended(name, ok) {
+        if (ok && name === "poller")
+            root.baseLanded = true;
+        if (ok && name === "extra")
+            root.extraLanded = true;
+        if (!root.waiting[name])
+            return;
+        var w = Object.assign({}, root.waiting);
+        delete w[name];
+        root.waiting = w;
+        if (!ok)
+            root.failed = true;
+        if (Object.keys(w).length === 0) {
+            readLimit.stop();
+            root.loading = false;
+            root.loaded = true;
+        }
+    }
+    // a helper that hangs ends the read as failed after 10 s
+    Timer {
+        id: readLimit
+        interval: 10000
+        onTriggered: {
+            poller.running = false;
+            extra.running = false;
+            root.ended("poller", false);
+            root.ended("extra", false);
+        }
+    }
+
+    // Home's facts at start: distro, first graphics card, battery and active displays, read the
+    // same way the helpers read them, without the package manager
+    Process {
+        running: true
+        command: ["sh", "-c", "grep -m1 'PRETTY_NAME' /etc/os-release 2>/dev/null | cut -d'\"' -f2; "
+            + "lspci 2>/dev/null | grep -iE 'vga compatible|3d controller|display controller' | sed -n '1p' "
+            + "| sed -E 's/^[^ ]+ [^:]*: //; s/ \\(rev [0-9a-f]+\\)//; s/NVIDIA Corporation //; s/Advanced Micro Devices, Inc\\. //; s/Intel Corporation //; s/\\[AMD\\/ATI\\] //; s/.*\\[([^]]+)\\].*/\\1/' | xargs "
+            + "| awk '{ s = $0; if (length(s) > 30) { s = substr(s, 1, 31); if (s ~ /[ \\/]/) sub(/[ \\/][^ \\/]*$/, \"\", s); else s = substr(s, 1, 30); sub(/[ \\/,-]+$/, \"\", s) } print s }'; "
+            + "bat=-; for b in /sys/class/power_supply/BAT*; do [ -e \"$b/capacity\" ] || continue; bat=\"$(cat \"$b/capacity\")%\"; break; done; echo \"$bat\"; "
+            + "n=0; for e in /sys/class/drm/card*-*/enabled; do [ \"$(cat \"$e\" 2>/dev/null)\" = enabled ] && n=$((n + 1)); done; echo \"$n\""]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const l = text.split("\n");
+                if (l.length < 4)
+                    return;
+                // a helper's full answer, when it already landed, stays
+                if (!root.baseLanded) {
+                    root.sysDistro = (l[0] || "Linux").trim();
+                    root.sysGpu = (l[1] || "").trim() || "-";
+                }
+                if (!root.extraLanded) {
+                    root.sysBattery = (l[2] || "-").trim();
+                    root.sysMonitors = (l[3] || "-").trim();
+                }
+            }
+        }
+    }
+
     Process {
         id: poller
-        running: true
         command: ["bash", root.helper]
         stdout: StdioCollector {
             onStreamFinished: {
                 const l = text.split("\n");
-                if (l.length < 17)
+                if (l.length < 17) {
+                    root.ended("poller", false);
                     return;
+                }
                 root.sysUser = (l[0] || "user").trim();
                 root.sysHost = (l[1] || "host").trim();
                 root.sysDistro = (l[2] || "Linux").trim();
@@ -86,19 +166,21 @@ Singleton {
                 if (cn.length > 0)
                     root.codename = cn;
                 root.sysPackageManager = (l[19] || "").trim();
+                root.ended("poller", true);
             }
         }
     }
 
     Process {
         id: extra
-        running: true
         command: ["bash", root.helperExtra]
         stdout: StdioCollector {
             onStreamFinished: {
                 const l = text.split("\n");
-                if (l.length < 11)
+                if (l.length < 11) {
+                    root.ended("extra", false);
                     return;
+                }
                 root.sysLoad = (l[0] || "-").trim();
                 root.sysTemp = (l[1] || "-").trim();
                 root.sysProcs = (l[2] || "-").trim();
@@ -110,6 +192,7 @@ Singleton {
                 root.sysPkgAur = (l[8] || "-").trim();
                 root.sysCursor = (l[9] || "-").trim();
                 root.sysPalette = (l[10] || "").trim();
+                root.ended("extra", true);
             }
         }
     }

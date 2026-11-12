@@ -98,6 +98,15 @@ SettingRow {
                 row.rebindField();
             }
         }
+        // Escape drops a refused chord before it leaves the page; otherwise it passes on
+        Keys.onEscapePressed: event => {
+            event.accepted = row.attempt.length > 0;
+            if (!event.accepted)
+                return;
+            row.attempt = "";
+            row.attemptNote = "";
+            row.rebindField();
+        }
     }
 
     Plaque {

@@ -1,163 +1,180 @@
 import QtQuick
 import Quickshell
-import "hub/quickshell/barstudio" as BarStudio
+import Ryoku.FrameBars
+import Ryoku.Ui.Singletons
+import "Singletons"
 
+// The Bar page owns the Nacre editor: with Nacre in use, moving a widget
+// between the lane editor's sections stores the expected nacre layout, taking
+// one off the bar stores it unused, and each appearance row's control writes
+// its own nacre key. Reads go through Settings, which holds every write the
+// page made until the daemon answers, so the probe needs no daemon.
 ShellRoot {
-    id: root
+    id: probe
 
-    property var staged: null
-    property var labelFor: id => id === "activeWindow" ? "Active window"
-        : id === "connectivity" ? "Connections"
-        : id === "utils" ? "Recording" : id
+    property Item page: null
+    property int failures: 0
+    property int waited: 0
 
-    BarStudio.NacreEditor {
-        id: editor
-        width: 900
-        config: ({
-            islands: {
-                left: ["brand", "media", "activeWindow"],
-                center: ["clock", "workspaces", "resources"],
-                right: ["connectivity", "audio", "battery", "notifications", "tray"]
-            },
-            height: 40,
-            opacity: 0.82,
-            padding: 12,
-            spacing: 8,
-            islandGap: 14,
-            frameSize: 9,
-            frameRoundness: 9,
-            edgeMelt: 8,
-            islandScale: 1,
-            osdScale: 1,
-            frame: true,
-            occupiedWorkspaces: true,
-            workspaceStyle: "dots"
-        })
-        onStaged: value => root.staged = value
+    function fail(message) {
+        probe.failures++;
+        console.log("NACRE-EDITOR-PROBE-FAIL " + message);
     }
 
-    BarStudio.NacreIslandLane {
-        id: sparseLane
-        width: 260
-        islandId: "left"
-        items: ["brand"]
-        labelFor: root.labelFor
-    }
-
-    BarStudio.NacreIslandLane {
-        id: crowdedLane
-        width: 260
-        islandId: "right"
-        items: ["media", "brand", "utils", "weather", "activeWindow"]
-        labelFor: root.labelFor
-    }
-
-    BarStudio.NacreIslandLane {
-        id: emptyLane
-        width: 260
-        islandId: "center"
-        items: []
-        labelFor: root.labelFor
-    }
-
-    BarStudio.NacreWidgetChip {
-        id: longChip
-        widgetId: "activeWindow"
-        label: "An extremely long widget name"
-        sourceIsland: "left"
-        sourceIndex: 0
-    }
-
-    function require(condition, label) {
+    function require(condition, message) {
         if (!condition)
-            throw new Error("NACRE-EDITOR-PROBE-FAIL " + label);
+            probe.fail(message);
+        return condition;
     }
 
-    function findObject(item, name) {
+    function finish() {
+        console.log(probe.failures === 0 ? "NACRE-EDITOR-PROBE-PASS" : "NACRE-EDITOR-PROBE-FAILURES " + probe.failures);
+        Qt.quit();
+    }
+
+    function walk(item, test, out) {
         if (!item)
-            return null;
-        if (item.objectName === name)
-            return item;
-        const children = item.children || [];
-        for (const child of children) {
-            const found = root.findObject(child, name);
-            if (found)
-                return found;
-        }
-        return null;
+            return out;
+        if (test(item))
+            out.push(item);
+        const kids = item.children || [];
+        for (let i = 0; i < kids.length; i++)
+            probe.walk(kids[i], test, out);
+        return out;
     }
 
+    function laneEditor() {
+        return probe.walk(probe.page, o => o.lanes !== undefined && o.spare !== undefined && typeof o.moved === "function", [])[0] || null;
+    }
+
+    function control(rowId) {
+        return probe.walk(probe.page, o => typeof o.commit === "function" && o.row && o.row.id === rowId, [])[0] || null;
+    }
+
+    function same(a, b) {
+        return JSON.stringify(a) === JSON.stringify(b);
+    }
+
+    function nacre() {
+        return NacreConfig.normalize(Settings.get("nacre") || NacreConfig.defaultConfig());
+    }
+
+    // each appearance row: its control, the value to write, the nacre key it must land in
+    readonly property var appearance: [
+        ["bar-height", 48, "height"],
+        ["section-opacity", 0.7, "opacity"],
+        ["section-padding", 16, "padding"],
+        ["widget-spacing", 10, "spacing"],
+        ["section-gap", 20, "islandGap"],
+        ["section-size", 0.8, "islandScale"],
+        ["popup-size", 0.75, "osdScale"],
+        ["workspace-markers", "kanji", "workspaceStyle"],
+        ["used-workspaces", false, "occupiedWorkspaces"],
+        ["mark-opens", "quicksettings", "brandClick"],
+        ["nacre-frame", true, "frame"],
+        ["nacre-frame-size", 14, "frameSize"],
+        ["nacre-frame-corners", 18, "frameRoundness"],
+        ["edge-softness", 20, "edgeMelt"]
+    ]
+
+    function checkLanes() {
+        const lanes = probe.laneEditor();
+        if (!probe.require(lanes, "the page shows no lane editor"))
+            return;
+        const start = probe.nacre();
+        const id = start.islands.left[0];
+        probe.require(!!id, "the left section starts with a widget");
+        const want = NacreConfig.move(start, id, "left", "right", 1);
+        lanes.moved(id, "left", 0, "right", 1);
+        const moved = probe.nacre();
+        probe.require(probe.same(moved.islands, want.islands), "moving " + id + " to the right stores " + JSON.stringify(want.islands) + ", got " + JSON.stringify(moved.islands));
+        probe.require(moved.islands.left.indexOf(id) < 0 && moved.islands.right[1] === id, "the move leaves its source and lands at index 1");
+        const right = lanes.lanes.find(l => l.id === "right");
+        probe.require(right && right.items[1] === id, "the right lane shows the moved widget");
+
+        lanes.moved(id, "right", 1, "", -1);
+        const off = probe.nacre();
+        probe.require(off.islands.left.concat(off.islands.center, off.islands.right).indexOf(id) < 0, "taking " + id + " off removes it from every section");
+        probe.require(NacreConfig.unused(off).indexOf(id) >= 0 && lanes.spare.indexOf(id) >= 0, "a widget taken off shows under Not on the bar");
+    }
+
+    function checkAppearance() {
+        for (const [rowId, value, key] of probe.appearance) {
+            const c = probe.control(rowId);
+            if (!probe.require(c, "no control for " + rowId))
+                continue;
+            c.commit(value);
+            const got = Settings.get("nacre." + key);
+            probe.require(probe.same(got, value), rowId + " writes nacre." + key + " = " + JSON.stringify(value) + ", got " + JSON.stringify(got));
+        }
+    }
+
+    function openMore() {
+        probe.walk(probe.page, o => o.open !== undefined && o.text === I18n.tr("More options"), []).forEach(d => d.open = true);
+    }
+
+    FloatingWindow {
+        id: window
+        implicitWidth: 1100
+        implicitHeight: 800
+        visible: true
+        color: "black"
+
+        Item { id: overlay; anchors.fill: parent; z: 10 }
+    }
+
+    QtObject {
+        id: fakeHub
+        property Item overlayItem: overlay
+        property string sizeClass: "wide"
+        property string lastSection: ""
+        function navigate(page, row) {}
+        function pageAvailable(key) { return true; }
+        function rowAvailable(row) { return true; }
+        function providerRowsFor(page) { return []; }
+        function confirm(spec, onAccept) {}
+    }
+
+    // stages: wait for Nacre to be in use and its editor built, then lanes,
+    // then the frame toggle and More options so every row is drawn, then rows
     Timer {
-        interval: 0
+        id: stage
+        property int step: 0
+        interval: 100
+        repeat: true
         running: true
         onTriggered: {
-            require(editor.islandIds.length === 3, "three islands");
-            require(editor.placedCount === 11, "default placed widgets");
-            require(editor.unusedCount === 2, "default unused widgets");
-            const left = root.findObject(editor, "nacre-island-left");
-            const center = root.findObject(editor, "nacre-island-center");
-            const right = root.findObject(editor, "nacre-island-right");
-            require(left && center && right, "island lanes");
-            require(left.width === editor.width && center.width === editor.width
-                && right.width === editor.width, "full width lanes");
-            require(left.y < center.y && center.y < right.y, "stacked lanes");
-            require(crowdedLane.height > sparseLane.height, "wrapped lane grows");
-            require(root.findObject(emptyLane, "nacre-empty-drop-center"), "empty lane drop affordance");
-            crowdedLane.showDropPreview(12, 44);
-            require(crowdedLane.dragPreview && crowdedLane.dropIndex >= 0, "lane tracks insertion preview");
-            const marker = root.findObject(crowdedLane, "nacre-drop-marker-right");
-            require(marker && marker.visible && marker.x >= 0
-                && marker.x <= crowdedLane.width && marker.color.a > 0,
-                "insertion marker stays inside lane");
-            crowdedLane.hideDropPreview();
-            require(!crowdedLane.dragPreview && crowdedLane.dropIndex === -1, "lane clears insertion preview");
-            const palette = root.findObject(editor, "nacre-palette");
-            palette.showRemovalPreview();
-            require(palette.removalPreview, "palette exposes removal preview");
-            palette.hideRemovalPreview();
-            require(longChip.width <= 144, "long chip capped");
-            const dragVisual = root.findObject(longChip, "nacre-widget-visual-activeWindow");
-            require(dragVisual, "separate drag visual");
-            const slotX = longChip.x;
-            dragVisual.x = 80;
-            require(longChip.x === slotX, "drag visual preserves flow slot");
-            dragVisual.x = 0;
-            editor.moveWidget("brand", "left", "right", 1);
-            require(root.staged.islands.left.length === 2, "drag removes source");
-            require(root.staged.islands.right[1] === "brand", "drag inserts target");
-            editor.config = root.staged;
-            editor.setAppearance("height", 48);
-            require(root.staged.height === 48, "appearance stages");
-            editor.config = root.staged;
-            editor.setAppearance("frame", false);
-            require(root.staged.frame === false, "frame stages");
-            require(root.findObject(editor, "nacre-frame"), "frame control");
-            editor.config = root.staged;
-            editor.setAppearance("frameRoundness", 18);
-            require(root.staged.frameRoundness === 18, "frame roundness stages");
-            editor.config = root.staged;
-            editor.setAppearance("frameSize", 14);
-            require(root.staged.frameSize === 14, "frame size stages");
-            editor.config = root.staged;
-            editor.setAppearance("edgeMelt", 20);
-            require(root.staged.edgeMelt === 20, "edge melt stages");
-            require(root.findObject(editor, "nacre-frame-roundness"), "frame roundness control");
-            require(root.findObject(editor, "nacre-frame-size"), "frame size control");
-            require(root.findObject(editor, "nacre-edge-melt"), "edge melt control");
-            editor.config = root.staged;
-            editor.setAppearance("islandScale", 0.8);
-            require(root.staged.islandScale === 0.8, "island size stages");
-            editor.config = root.staged;
-            editor.setAppearance("osdScale", 0.75);
-            require(root.staged.osdScale === 0.75, "OSD size stages");
-            require(root.findObject(editor, "nacre-island-size"), "island size control");
-            require(root.findObject(editor, "nacre-osd-size"), "OSD size control");
-            require(root.findObject(editor, "nacre-workspace-style"), "workspace style control");
-            editor.config = root.staged;
-            editor.setAppearance("workspaceStyle", "kanji");
-            require(root.staged.workspaceStyle === "kanji", "workspace style stages");
-            console.log("NACRE-EDITOR-PROBE-PASS");
-            Qt.quit();
+            if (++probe.waited > 150) {
+                probe.fail("timed out at step " + stage.step + (probe.page ? " (style in use: " + probe.page.activeName + ", editor: " + probe.page.editor + ", lane editor: " + !!probe.laneEditor() + ", rows: " + probe.walk(probe.page, o => typeof o.commit === "function" && !!o.row, []).map(o => o.row.id).join(" ") + ", lanes-like: " + probe.walk(probe.page, o => o.lanes !== undefined, []).length + ")" : ""));
+                probe.finish();
+                return;
+            }
+            if (stage.step === 0) {
+                // the daemon's first settings frame, empty: every nacre key reads its default
+                Settings.apply({});
+                const c = Qt.createComponent(Qt.resolvedUrl("pages/Bar.qml"));
+                if (c.status !== Component.Ready) {
+                    probe.fail("Bar does not load: " + c.errorString());
+                    probe.finish();
+                    return;
+                }
+                probe.page = c.createObject(window.contentItem, { hub: fakeHub, width: 1100, height: 800 });
+                stage.step = 1;
+            } else if (stage.step === 1) {
+                if (probe.page.editor !== "nacre" || !probe.laneEditor())
+                    return;
+                probe.checkLanes();
+                const frame = probe.control("nacre-frame");
+                if (probe.require(frame, "no control for nacre-frame"))
+                    frame.commit(true);
+                probe.openMore();
+                stage.step = 2;
+            } else if (stage.step === 2) {
+                if (!probe.control("nacre-frame-size") || !probe.control("edge-softness"))
+                    return;
+                probe.checkAppearance();
+                probe.finish();
+            }
         }
     }
 }

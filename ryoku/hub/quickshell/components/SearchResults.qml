@@ -55,21 +55,49 @@ Item {
             root.chosen(root.hits[root.cursor]);
     }
 
-    onResultsChanged: root.cursor = 0
+    // the cursor starts on a hit whose own name is the query (a row over the page that holds
+    // it), else on one whose name contains it, else, when the best match is a page, on a row of
+    // that page whose own keywords hold the query, else on the best match; names are compared
+    // the way the query was split ("24-hour" as "24 hour")
+    function pickCursor() {
+        var plain = s => String(s || "").replace(/[_\-.\/]+/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+        var q = plain(root.query);
+        var named = q === "" ? -1 : root.hits.findIndex(e => plain(e.display) === q);
+        if (named < 0 && q !== "")
+            named = root.hits.findIndex(e => !e.isPage && plain(e.display).indexOf(q) >= 0);
+        if (named < 0 && q !== "" && root.hits.length > 0 && root.hits[0].isPage) {
+            var page = root.hits[0].groupKey;
+            named = root.hits.findIndex(e => !e.isPage && e.groupKey === page && (" " + plain(e.kw) + " ").indexOf(" " + q + " ") >= 0);
+        }
+        root.cursor = Math.max(0, named);
+    }
+    // the query and the hits drawn from its results update one after the other
+    onHitsChanged: root.pickCursor()
+    onQueryChanged: root.pickCursor()
 
     function escaped(s) {
         return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
-    // the label with the query's words underlined where they match
+    // the label with the query's words underlined where they match; accents are folded on both
+    // sides, as the index matches them ("unscharfe" marks "Unschärfe"), and spans map back to
+    // the label's own letters
     function marked(text) {
-        var words = root.query.toLowerCase().split(/[\s,.;:\/()&+-]+/).filter(w => w.length > 0);
-        var lower = String(text).toLowerCase();
+        text = String(text);
+        var fold = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        var words = fold(root.query).split(/[\s,.;:\/()&+_-]+/).filter(w => w.length > 0);
+        var lower = "", from = [];
+        for (var c = 0; c < text.length; c++) {
+            var f = fold(text[c]);
+            for (var x = 0; x < f.length; x++)
+                from.push(c);
+            lower += f;
+        }
         var spans = [];
         for (var i = 0; i < words.length; i++) {
             var at = lower.indexOf(words[i]);
             if (at >= 0)
-                spans.push([at, at + words[i].length]);
+                spans.push([from[at], from[at + words[i].length - 1] + 1]);
         }
         spans.sort((a, b) => a[0] - b[0]);
         var out = "", pos = 0;

@@ -1,0 +1,5 @@
+ImportFlow 1.0 ImportFlow.qml
+ImportSteps 1.0 ImportSteps.qml
+ResetStore 1.0 ResetStore.qml
+SetupStore 1.0 SetupStore.qml
+WorkLine 1.0 WorkLine.qml

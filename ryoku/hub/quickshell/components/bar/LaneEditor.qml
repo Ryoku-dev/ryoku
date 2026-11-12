@@ -18,6 +18,29 @@ Column {
     // the lane whose widget is being dragged, so it draws above its neighbours
     property string dragLane: ""
     property real tallest: 0
+    // the widget whose chip holds keyboard focus: a move from its menu, Undo or any redraw makes new
+    // chips, and the one for this widget takes focus back, marked when the keys had it
+    property string focusId: ""
+    property bool focusMarked: false
+    function noteFocus(chip) {
+        root.focusId = chip.widgetId;
+        root.focusMarked = chip.visualFocus;
+    }
+    // focus that left the chips for another control lets go; focus that fell out with a redrawn chip does not
+    function checkFocus() {
+        var now = root.Window.activeFocusItem;
+        for (var p = now; p; p = p.parent)
+            if (p === root)
+                return;
+        if (now && now !== root.Window.contentItem && !root.holds(now))
+            root.focusId = "";
+    }
+    function holds(item) {
+        for (var p = root.parent; p; p = p.parent)
+            if (p === item)
+                return true;
+        return false;
+    }
 
     // toIndex counts positions before the widget leaves its lane; toLane "" takes it off
     signal moved(string widgetId, string fromLane, int fromIndex, string toLane, int toIndex)
@@ -63,6 +86,7 @@ Column {
             actions.push({ label: I18n.tr("Take off the bar"), glyph: "remove", lane: "", index: root.spare.length });
         }
         menuPop.widgetId = chip.widgetId;
+        menuPop.keys = chip.visualFocus;
         menuPop.fromLane = from;
         menuPop.fromIndex = chip.position;
         menuPop.actions = actions;
@@ -216,6 +240,20 @@ Column {
         Accessible.name: root.labelFor(chip.widgetId)
         Accessible.description: root.laneTitle(chip.laneId)
 
+        onActiveFocusChanged: {
+            if (chip.activeFocus)
+                root.noteFocus(chip);
+            else
+                Qt.callLater(root.checkFocus);
+        }
+        // the chip joins the scene after it completes, so focus waits a turn
+        Component.onCompleted: {
+            if (root.focusId !== chip.widgetId)
+                return;
+            var reason = root.focusMarked ? Qt.TabFocusReason : Qt.OtherFocusReason;
+            Qt.callLater(() => chip.forceActiveFocus(reason));
+        }
+
         onClicked: root.openMenu(chip)
         Keys.onReturnPressed: root.openMenu(chip)
         Keys.onEnterPressed: root.openMenu(chip)
@@ -279,6 +317,8 @@ Column {
         property string fromLane: ""
         property int fromIndex: -1
         property var actions: []
+        // opened from the keys, so the moved widget's chip takes focus with the mark
+        property bool keys: false
 
         Menu {
             id: menu
@@ -287,8 +327,12 @@ Column {
             onTriggered: index => {
                 var a = menuPop.actions[index];
                 menuPop.close();
-                if (a && !a.divider)
-                    Qt.callLater(root.moved, menuPop.widgetId, menuPop.fromLane, menuPop.fromIndex, a.lane, a.index);
+                if (!a || a.divider)
+                    return;
+                // the chip that opened the menu goes with the move; its replacement in the new place takes focus
+                root.focusId = menuPop.widgetId;
+                root.focusMarked = menuPop.keys;
+                Qt.callLater(root.moved, menuPop.widgetId, menuPop.fromLane, menuPop.fromIndex, a.lane, a.index);
             }
         }
     }

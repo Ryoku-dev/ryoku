@@ -69,7 +69,7 @@ Item {
         };
     }
 
-    readonly property var displayRows: Quickshell.screens.map(s => root.screenRow(s))
+    readonly property var displayRows: Quickshell.screens.filter(s => String(s.name || "") !== "").map(s => root.screenRow(s))
 
     readonly property var ownWindowRows: root.ownWindow ? [{
         id: "own-settings-open", section: "options", label: "Open its settings",
@@ -99,7 +99,7 @@ Item {
         return -1;
     }
 
-    // search lands on drawn rows; a row the page draws itself lands on its section
+    // search lands on drawn rows; a row the page draws itself, or a section named in a deep link, lands on its section
     function focusRow(rowId) {
         if (!rowId)
             return;
@@ -114,9 +114,33 @@ Item {
             return;
         }
         var row = Schema.rows.find(r => r.id === rowId);
-        var at = root.sectionIndex(row ? row.section : "");
+        // a row of the style in use's own options waits a moment for the style's editor to be
+        // known (the shells index arrives after the page opens), then lands on its section
+        if (row && row.editor && row.editor !== root.editor && !editorWait.over) {
+            editorWait.rowId = rowId;
+            editorWait.restart();
+            return;
+        }
+        editorWait.over = false;
+        var at = root.sectionIndex(row ? row.section : rowId);
         if (at >= 0)
             page.chooseSection(at);
+    }
+    Timer {
+        id: editorWait
+        property string rowId: ""
+        property bool over: false
+        interval: 3000
+        onTriggered: {
+            editorWait.over = true;
+            root.focusRow(editorWait.rowId);
+        }
+    }
+    onEditorChanged: {
+        if (editorWait.running) {
+            editorWait.stop();
+            Qt.callLater(root.focusRow, editorWait.rowId);
+        }
     }
 
     function act(id, action) {
@@ -137,7 +161,7 @@ Item {
     function moveNacre(widgetId, fromLane, fromIndex, toLane, toIndex) {
         var next = toLane === "" ? NacreConfig.remove(root.nacre, widgetId)
             : NacreConfig.move(root.nacre, widgetId, fromLane, toLane, toIndex);
-        Changes.set(root.nacreBind, next, "Bar layout", "bar");
+        Changes.set(root.nacreBind, next, I18n.tr("Bar layout"), "bar");
     }
 
     // edge bar edits; adding a widget also shows the edge bar
@@ -158,7 +182,7 @@ Item {
             var target = fromZone === toZone && fromIndex < toIndex ? toIndex - 1 : toIndex;
             next = FrameBars.moveWidget(cfg, "left", fromZone, fromIndex, "left", toZone, target, BarCatalog);
         }
-        Changes.set(root.framesBind, next, "Edge bar widgets", "bar");
+        Changes.set(root.framesBind, next, I18n.tr("Edge bar widgets"), "bar");
     }
 
     function nacreLabel(id) {
@@ -331,16 +355,18 @@ Item {
                 HandoffRow {
                     width: parent.width
                     first: true
-                    text: I18n.tr("Dock design")
-                    detail: root.partDetail(I18n.tr("Choose and edit the dock in the Stage Editor"), "dock")
-                    command: ["ryoku-shell", "ipc", "call", "desktop", "editSection", "dock", ""]
+                    glyph: "arrow_forward"
+                    text: I18n.tr("Dock")
+                    detail: root.partDetail(I18n.tr("Choose the dock and edit it on Desktop & dock"), "dock")
+                    onTriggered: root.hub.navigate("desktop-dock", "dock-design")
                 }
                 HandoffRow {
                     width: parent.width
                     first: false
+                    glyph: "arrow_forward"
                     text: I18n.tr("Desktop widgets")
-                    detail: root.partDetail(I18n.tr("Place and arrange widgets on the desktop in the Stage Editor"), "desktopWidgets")
-                    command: ["ryoku-shell", "ipc", "call", "desktop", "editSection", "widgets", ""]
+                    detail: root.partDetail(I18n.tr("Place and arrange widgets on Desktop & dock"), "desktopWidgets")
+                    onTriggered: root.hub.navigate("desktop-dock", "edit-widgets")
                 }
                 HandoffRow {
                     width: parent.width

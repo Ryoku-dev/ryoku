@@ -44,14 +44,43 @@ Singleton {
         return { index: head.toUpperCase(), number: tail };
     }
 
+    property bool _readAgain: false
+
     function refresh() {
+        // a read already running may be hung: end it and start again once it has exited
+        if (versionProc.running) {
+            root._readAgain = true;
+            versionProc.running = false;
+            return;
+        }
         versionProc.running = true;
+        versionLimit.restart();
     }
 
     Process {
         id: versionProc
-        command: ["sh", "-c", "ryoku version 2>/dev/null"]
-        stdout: StdioCollector { onStreamFinished: root.rawVersion = this.text.trim() }
+        command: ["sh", "-c", "exec ryoku version 2>/dev/null"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const text = this.text.trim();
+                if (text.length > 0)
+                    root.rawVersion = text;
+            }
+        }
+        onExited: {
+            versionLimit.stop();
+            if (root._readAgain) {
+                root._readAgain = false;
+                root.refresh();
+            }
+        }
+    }
+
+    // the CLI answers in milliseconds; a read that hangs is ended so a later refresh can run
+    Timer {
+        id: versionLimit
+        interval: 10000
+        onTriggered: versionProc.running = false
     }
 
     Component.onCompleted: refresh()

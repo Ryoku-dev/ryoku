@@ -166,7 +166,7 @@ CutRect {
         width: Math.min(parent.width - LithicTokens.space.s5 * 2, 420)
         horizontalAlignment: Text.AlignHCenter
         text: !canvas.page.listed ? I18n.tr("Looking for displays")
-            : canvas.page.listFailed ? I18n.tr("Could not read your displays. Update the desktop, then try again.")
+            : canvas.page.listFailed ? I18n.tr("Your displays could not be read.")
             : I18n.tr("No displays found.")
         typeRole: "body"
         inkRole: "fg2"

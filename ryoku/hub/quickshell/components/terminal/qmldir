@@ -1,0 +1,8 @@
+ActionControl 1.0 ActionControl.qml
+LineEditor 1.0 LineEditor.qml
+PictureGallery 1.0 PictureGallery.qml
+PromptPreview 1.0 PromptPreview.qml
+ReadoutPreview 1.0 ReadoutPreview.qml
+StyleControl 1.0 StyleControl.qml
+TerminalStore 1.0 TerminalStore.qml
+TextArtControl 1.0 TextArtControl.qml

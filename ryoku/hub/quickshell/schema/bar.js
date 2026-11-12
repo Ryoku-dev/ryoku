@@ -139,10 +139,10 @@ var rows = [
       detail: "Styles with a settings window of their own open it from here",
       keywords: ["preferences", "configure", "customize"] },
 
-    { id: "dock-design", section: "parts", label: "Dock design", template: true,
-      detail: "Choose and edit the dock in the Stage Editor", keywords: ["dock", "stage editor", "launcher bar"] },
-    { id: "desktop-widgets", section: "parts", label: "Desktop widgets", template: true,
-      detail: "Place and arrange widgets on the desktop in the Stage Editor", keywords: ["widgets", "desktop", "stage editor"] },
+    { id: "dock-part", section: "parts", label: "Dock", template: true,
+      detail: "Choose the dock and edit it on Desktop & dock", keywords: ["dock design", "launcher bar"] },
+    { id: "widgets-part", section: "parts", label: "Desktop widgets", template: true,
+      detail: "Place and arrange widgets on Desktop & dock", keywords: ["widgets", "desktop"] },
     { id: "launcher-part", section: "parts", label: "App launcher", template: true,
       detail: "Choose the launcher and how it looks", keywords: ["launcher", "app search", "menu"] }
 ];

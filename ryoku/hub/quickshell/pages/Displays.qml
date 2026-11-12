@@ -36,6 +36,11 @@ Item {
     property bool applying: false
     property string applyError: ""
     property string layoutsError: ""
+    // what a saved-layout save or delete is doing while it runs ("" when idle)
+    property string layoutsWorking: ""
+    // repeats whatever last failed: an apply, a revert or a saved-layout step
+    property var applyRetry: null
+    property var layoutsRetry: null
 
     property string highlightId: ""
     property int currentSection: 0
@@ -55,6 +60,12 @@ Item {
     readonly property bool canMirror: Settings.supports("outputMirror")
     readonly property bool canHdr: Settings.supports("outputHdr")
     readonly property bool canNight: Settings.supports("nightLight")
+    // the window manager's own display rows, placed here by registry/provider-map.js
+    readonly property var providerRows: {
+        Changes.revision;
+        ProviderSchema.revision;
+        return page.hub.providerRowsFor(page.pageId).filter(r => page.hub.rowAvailable(r));
+    }
     readonly property bool clock24: Settings.get("general.clock_format_24_h") === true
 
     readonly property bool dirty: {
@@ -282,7 +293,22 @@ Item {
 
     function discard() {
         page.applyError = "";
+        page.applyRetry = null;
         page.loadRows(page.liveRows, false);
+    }
+
+    // why a display command failed, as the program put it, or "" when it said nothing;
+    // a missing or stuck program already says what to do
+    function failReason(err) {
+        var t = String(err || "").trim().split("\n").filter(l => l.trim().length > 0).pop() || "";
+        return t.replace(/^ryoku-hub:\s*/, "").replace(/[.:]$/, "");
+    }
+
+    function failText(what, err, code, next) {
+        if (code === -1)
+            return String(err || "").trim();
+        var why = page.failReason(err);
+        return why.length > 0 ? I18n.tr("%1: %2. %3").arg(what).arg(why).arg(next) : I18n.tr("%1. %2").arg(what).arg(next);
     }
 
     // apply, then ask to keep; no answer within 15 seconds goes back
@@ -293,10 +319,13 @@ Item {
         var next = JSON.stringify(page.specsAll());
         page.applying = true;
         page.applyError = "";
-        page.run(["ryoku-hub", "outputs", "apply", next], function (ok, out, err) {
+        page.applyRetry = null;
+        page.run(["ryoku-hub", "outputs", "apply", next], function (ok, out, err, code) {
             page.applying = false;
             if (!ok) {
-                page.applyError = err.trim() || I18n.tr("The window manager did not answer.");
+                page.applyError = page.failText(I18n.tr("Your displays did not take the change"), err, code,
+                                                I18n.tr("Retry, try other settings, or Discard to keep the ones you have."));
+                page.applyRetry = page.apply;
                 return;
             }
             page.committed = next;
@@ -320,10 +349,15 @@ Item {
     function revertTo(layout) {
         readback.stop();
         page.applying = true;
-        page.run(["ryoku-hub", "outputs", "apply", layout], function (ok, out, err) {
+        page.applyError = "";
+        page.applyRetry = null;
+        page.run(["ryoku-hub", "outputs", "apply", layout], function (ok, out, err, code) {
             page.applying = false;
-            if (!ok)
-                page.applyError = err.trim() || I18n.tr("The window manager did not answer.");
+            if (!ok) {
+                page.applyError = page.failText(I18n.tr("Your displays did not go back"), err, code,
+                                                I18n.tr("Retry, or set them below and apply."));
+                page.applyRetry = () => page.revertTo(layout);
+            }
             readback.restart();
         });
     }
@@ -348,14 +382,27 @@ Item {
         return I18n.tr("One display: %1 at %2 scale").replace("%1", res).replace("%2", Math.round(item.scale * 100) + "%");
     }
 
+    // a saved-layout step that failed says so under the list, with Retry
+    function layoutsFailed(what, err, code, retry) {
+        page.layoutsError = page.failText(what, err, code, I18n.tr("Retry, or run ryoku doctor in a terminal if it fails again."));
+        page.layoutsRetry = retry;
+    }
+
+    function layoutsStart(working) {
+        page.layoutsError = "";
+        page.layoutsRetry = null;
+        page.layoutsWorking = working || "";
+    }
+
     function saveLayout(name) {
         name = String(name || "").trim();
         if (name === "")
             return;
-        page.layoutsError = "";
-        page.run(["ryoku-hub", "outputs", "save", name, page.committed], function (ok, out, err) {
+        page.layoutsStart(I18n.tr("Saving %1").arg(name));
+        page.run(["ryoku-hub", "outputs", "save", name, page.committed], function (ok, out, err, code) {
+            page.layoutsWorking = "";
             if (!ok)
-                page.layoutsError = err.trim();
+                page.layoutsFailed(I18n.tr("%1 was not saved").arg(name), err, code, () => page.saveLayout(name));
             page.reloadSaved();
         });
         saveLayoutField.text = "";
@@ -365,10 +412,11 @@ Item {
         name = String(name || "").trim();
         if (name === "" || !page.sel)
             return;
-        page.layoutsError = "";
-        page.run(["ryoku-hub", "outputs", "preset-save", name, page.sel.mode, "" + page.sel.scale], function (ok, out, err) {
+        page.layoutsStart(I18n.tr("Saving %1").arg(name));
+        page.run(["ryoku-hub", "outputs", "preset-save", name, page.sel.mode, "" + page.sel.scale], function (ok, out, err, code) {
+            page.layoutsWorking = "";
             if (!ok)
-                page.layoutsError = err.trim();
+                page.layoutsFailed(I18n.tr("%1 was not saved").arg(name), err, code, () => page.saveResolution(name));
             page.reloadSaved();
         });
         saveResolutionField.text = "";
@@ -389,11 +437,11 @@ Item {
             return;
         var prev = page.committed;
         page.applying = true;
-        page.layoutsError = "";
-        page.run(["ryoku-hub", "outputs", "load", item.name], function (ok, out, err) {
+        page.layoutsStart();
+        page.run(["ryoku-hub", "outputs", "load", item.name], function (ok, out, err, code) {
             page.applying = false;
             if (!ok) {
-                page.layoutsError = err.trim();
+                page.layoutsFailed(I18n.tr("%1 did not apply").arg(item.name), err, code, () => page.useSaved(item));
                 return;
             }
             page.askKeep(prev);
@@ -407,14 +455,17 @@ Item {
             text: item.kind === "layout" ? I18n.tr("The saved layout goes. Your displays stay as they are.")
                                          : I18n.tr("The saved resolution goes. Your displays stay as they are."),
             actionText: I18n.tr("Delete")
-        }, function () {
-            page.layoutsError = "";
-            page.run(["ryoku-hub", "outputs", item.kind === "layout" ? "rm" : "preset-rm", item.name], function (ok, out, err) {
-                if (!ok)
-                    page.layoutsError = err.trim();
-                page.reloadSaved();
-            });
-        }, null);
+        }, () => page.removeSaved(item), null);
+    }
+
+    function removeSaved(item) {
+        page.layoutsStart(I18n.tr("Deleting %1").arg(item.name));
+        page.run(["ryoku-hub", "outputs", item.kind === "layout" ? "rm" : "preset-rm", item.name], function (ok, out, err, code) {
+            page.layoutsWorking = "";
+            if (!ok)
+                page.layoutsFailed(I18n.tr("%1 was not deleted").arg(item.name), err, code, () => page.removeSaved(item));
+            page.reloadSaved();
+        });
     }
 
     function sizeBind(name) {
@@ -449,6 +500,25 @@ Item {
         page.currentSection = index;
         page.indexHeld = true;
         page.scrollTo(item.mapToItem(flick.contentItem, 0, 0).y);
+        scrollAnim.focusItem = item;
+    }
+
+    // keyboard focus after a jump or a landing, as on every settings page: the row itself if
+    // it takes focus, else the first control inside it; nothing to focus leaves focus where it is
+    function focusIn(item) {
+        if (!item || !item.visible)
+            return;
+        if (item.activeFocusOnTab) {
+            item.forceActiveFocus(Qt.OtherFocusReason);
+            return;
+        }
+        var next = item.nextItemInFocusChain(true);
+        for (var p = next; p; p = p.parent) {
+            if (p === item) {
+                next.forceActiveFocus(Qt.OtherFocusReason);
+                return;
+            }
+        }
     }
 
     function followReading() {
@@ -479,9 +549,10 @@ Item {
         scrollAnim.start();
     }
 
-    // a hidden row leads to the row that shows it
+    // a hidden row leads to the row that shows it; a section named in a deep link, to its first row
     readonly property var landing: ({
-        "night-start": "night-schedule", "night-end": "night-schedule", "night-margin": "night-schedule",
+        "arrangement": "arrange", "display": "enabled", "layouts": "save-layout",
+        "night-start": "night-schedule", "night-end": "night-schedule", "night-margin": "night-schedule", "night-light": "night-on",
         "sdr-brightness": "colour", "saved": "save-layout",
         "mirror-all": "arrange", "extend": "arrange", "match-scale": "arrange", "set-main": "arrange"
     })
@@ -494,7 +565,8 @@ Item {
             return;
         }
         var id = rowId;
-        if (id === "position" && page.sel !== null) {
+        var folded = id === "position" || page.providerRows.some(r => r.id === id && r.more === true);
+        if (folded && page.sel !== null) {
             landTimer.rowId = id;
             landTimer.interval = moreDisplay.open ? 60 : LithicTokens.motion.unfold + 60;
             moreDisplay.open = true;
@@ -519,63 +591,48 @@ Item {
             return;
         page.indexHeld = false;
         page.highlightId = "";
-        scrollAnim.landing = id;
         page.scrollTo(item.mapToItem(flick.contentItem, 0, 0).y - flick.height / 3);
+        scrollAnim.landing = id;
+        scrollAnim.focusItem = item;
     }
 
+    // done(ok, out, err, code) runs once, also when the program is missing (code -1) or hangs
     function run(argv, done) {
-        var p = commandProc.createObject(page, { command: argv });
-        p.finished.connect(function (ok, out, err) {
-            if (done)
-                done(ok, out, err);
-            p.destroy();
-        });
-        p.running = true;
+        Changes.run(argv, done, { timeout: 30000 });
     }
 
+    // a missing program or a window manager that does not answer reads as a failure, not as no displays
+    property bool listing: false
     function reload() {
-        listProc.running = true;
+        if (page.listing)
+            return;
+        page.listing = true;
+        Changes.run(["ryoku-hub", "outputs"], function (ok, out, err) {
+            page.listing = false;
+            try {
+                if (!ok)
+                    throw err;
+                var arr = JSON.parse(out);
+                if (!Array.isArray(arr))
+                    throw "not a list";
+                page.liveRows = arr;
+                page.loadRows(arr, true);
+                page.listFailed = false;
+            } catch (e) {
+                console.warn("displays could not be read:", String(e).trim());
+                page.listFailed = true;
+            }
+            page.listed = true;
+            if (page.pendingRow !== "") {
+                Qt.callLater(page.focusRow, page.pendingRow);
+                page.pendingRow = "";
+            }
+        }, { timeout: 15000 });
     }
 
     function reloadSaved() {
         profilesProc.running = true;
         presetsProc.running = true;
-    }
-
-    Component {
-        id: commandProc
-        Process {
-            id: proc
-            signal finished(bool ok, string out, string err)
-            stdout: StdioCollector { id: cout }
-            stderr: StdioCollector { id: cerr }
-            onExited: (code, status) => proc.finished(code === 0, cout.text, cerr.text)
-        }
-    }
-
-    Process {
-        id: listProc
-        command: ["ryoku-hub", "outputs"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    var arr = JSON.parse(this.text);
-                    if (!Array.isArray(arr))
-                        throw "not a list";
-                    page.liveRows = arr;
-                    page.loadRows(arr, true);
-                    page.listFailed = false;
-                } catch (e) {
-                    page.listFailed = true;
-                }
-                page.listed = true;
-                if (page.pendingRow !== "") {
-                    Qt.callLater(page.focusRow, page.pendingRow);
-                    page.pendingRow = "";
-                }
-            }
-        }
     }
 
     Process {
@@ -639,12 +696,16 @@ Item {
     NumberAnimation {
         id: scrollAnim
         property string landing: ""
+        property Item focusItem: null
         target: flick
         property: "contentY"
         duration: Lithic.duration(LithicTokens.motion.navigate)
         easing.type: Easing.BezierSpline
         easing.bezierCurve: Lithic.curve
         onStopped: {
+            var focusItem = scrollAnim.focusItem;
+            scrollAnim.focusItem = null;
+            page.focusIn(focusItem);
             if (scrollAnim.landing === "")
                 return;
             page.highlightId = scrollAnim.landing;
@@ -654,7 +715,10 @@ Item {
     }
 
     // the night light lives as long as the window so its undo works from any page
-    Component.onCompleted: Changes.ensureStore("nightlight", Qt.resolvedUrl("../components/displays/NightLightStore.qml"))
+    Component.onCompleted: {
+        Changes.ensureStore("nightlight", Qt.resolvedUrl("../components/displays/NightLightStore.qml"));
+        page.reload();
+    }
 
     Flickable {
         id: flick
@@ -1012,6 +1076,16 @@ Item {
                             }
                         }
 
+                        Repeater {
+                            model: page.providerRows.filter(r => r.more !== true)
+                            delegate: BoundRow {
+                                required property var modelData
+                                host: page
+                                row: modelData
+                                rowId: modelData.id
+                            }
+                        }
+
                         Item {
                             width: 1
                             height: LithicTokens.size.settingsRowGap
@@ -1075,18 +1149,44 @@ Item {
                                     }
                                 }
                             }
+
+                            Repeater {
+                                model: page.providerRows.filter(r => r.more === true)
+                                delegate: BoundRow {
+                                    required property var modelData
+                                    host: page
+                                    row: modelData
+                                    rowId: modelData.id
+                                }
+                            }
                         }
                     }
                 }
 
-                Label {
+                Column {
                     width: parent.width
                     visible: page.sel === null
-                    text: !page.listed ? I18n.tr("Looking for displays") : I18n.tr("No displays to set up.")
-                    typeRole: "detail"
-                    inkRole: "fg3"
-                    wrapMode: Text.Wrap
-                    elide: Text.ElideNone
+                    spacing: LithicTokens.space.s3
+
+                    Label {
+                        width: parent.width
+                        text: !page.listed ? I18n.tr("Looking for displays")
+                            : page.listFailed ? I18n.tr("The displays could not be read. Run ryoku doctor in a terminal, then look again.")
+                            : I18n.tr("No displays to set up.")
+                        typeRole: "detail"
+                        ink: page.listFailed ? Lithic.jasper : Lithic.fg3
+                        wrapMode: Text.Wrap
+                        elide: Text.ElideNone
+                    }
+                    Plaque {
+                        visible: page.listFailed
+                        kind: "line"
+                        small: true
+                        glyph: "refresh"
+                        text: I18n.tr("Look again")
+                        busy: page.listing
+                        onClicked: page.reload()
+                    }
                 }
             }
 
@@ -1255,13 +1355,40 @@ Item {
 
                         Label {
                             width: parent.width
-                            visible: page.layoutsError.length > 0
+                            visible: page.layoutsWorking.length > 0
                             topPadding: LithicTokens.space.s2
-                            text: page.layoutsError
+                            text: page.layoutsWorking
                             typeRole: "detail"
-                            ink: Lithic.jasper
+                            inkRole: "fg2"
                             wrapMode: Text.Wrap
                             elide: Text.ElideNone
+                        }
+
+                        Row {
+                            visible: page.layoutsError.length > 0
+                            width: parent.width
+                            topPadding: LithicTokens.space.s2
+                            spacing: LithicTokens.space.s3
+
+                            Label {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: Math.min(implicitWidth, parent.width - layoutsRetryPlaque.width - LithicTokens.space.s3)
+                                text: page.layoutsError
+                                typeRole: "detail"
+                                ink: Lithic.jasper
+                                wrapMode: Text.Wrap
+                                elide: Text.ElideNone
+                            }
+                            Plaque {
+                                id: layoutsRetryPlaque
+                                visible: page.layoutsRetry !== null
+                                kind: "quiet"
+                                small: true
+                                glyph: "refresh"
+                                text: I18n.tr("Retry")
+                                enabled: !page.applying
+                                onClicked: page.layoutsRetry()
+                            }
                         }
                     }
                 }
@@ -1395,8 +1522,7 @@ Item {
             anchors.right: barActions.left
             anchors.rightMargin: LithicTokens.space.s4
             anchors.verticalCenter: parent.verticalCenter
-            text: page.applyError.length > 0
-                ? I18n.tr("Your displays did not take the change: %1").replace("%1", page.applyError)
+            text: page.applyError.length > 0 ? page.applyError
                 : page.applying ? I18n.tr("Applying")
                 : I18n.tr("Display changes are waiting. Apply them to try them out.")
             typeRole: "body"
@@ -1416,16 +1542,24 @@ Item {
                 kind: "quiet"
                 text: page.dirty ? I18n.tr("Discard") : I18n.tr("Dismiss")
                 enabled: !page.applying
-                onClicked: page.dirty ? page.discard() : (page.applyError = "")
+                onClicked: {
+                    if (page.dirty) {
+                        page.discard();
+                    } else {
+                        page.applyError = "";
+                        page.applyRetry = null;
+                    }
+                }
             }
             Plaque {
-                visible: page.dirty || page.applying
+                readonly property bool retrying: page.applyError.length > 0 && page.applyRetry !== null
+                visible: page.dirty || page.applying || retrying
                 kind: "gold"
-                glyph: "check"
-                text: I18n.tr("Apply")
+                glyph: retrying ? "refresh" : "check"
+                text: retrying ? I18n.tr("Retry") : I18n.tr("Apply")
                 busy: page.applying
-                enabled: page.dirty && !page.applying
-                onClicked: page.apply()
+                enabled: !page.applying && (page.dirty || retrying)
+                onClicked: retrying ? page.applyRetry() : page.apply()
             }
         }
     }
@@ -1610,10 +1744,12 @@ Item {
         id: bound
         required property Item host
         property string rowId: ""
+        // a row from outside the schema (a provider row); otherwise looked up by id
+        property var row: null
         property Component custom: null
         property bool first: false
         property string unavailable: ""
-        readonly property var spec: Schema.row(bound.rowId)
+        readonly property var spec: bound.row || Schema.row(bound.rowId)
         width: parent ? parent.width : 0
         spacing: LithicTokens.space.s1
         Component.onCompleted: bound.host.rowItems[bound.rowId] = bound
@@ -1635,16 +1771,17 @@ Item {
             onResetRequested: Changes.set(bound.spec.bind, Changes.defaultOf(bound.spec), bound.spec.label, "displays")
 
             Loader {
-                sourceComponent: bound.custom ? bound.custom : standard
+                active: bound.custom !== null
+                visible: active
+                sourceComponent: bound.custom
             }
 
-            Component {
-                id: standard
-                RowControl {
-                    row: bound.spec
-                    pageId: "displays"
-                    overlayParent: bound.host.hub.overlayItem
-                }
+            RowControl {
+                visible: bound.custom === null
+                row: bound.spec
+                pageId: "displays"
+                overlayParent: bound.host ? bound.host.hub.overlayItem : null
+                hub: bound.host ? bound.host.hub : null
             }
         }
 
@@ -1664,7 +1801,7 @@ Item {
         Label {
             anchors.verticalCenter: parent.verticalCenter
             width: Math.min(implicitWidth, parent.width - retry.width - LithicTokens.space.s3)
-            text: errorLine.error
+            text: I18n.tr(errorLine.error)
             typeRole: "detail"
             ink: Lithic.jasper
             wrapMode: Text.Wrap

@@ -42,6 +42,16 @@ Column {
         field.chord = Qt.binding(item.fieldChord);
     }
 
+    // Escape drops a refused chord before it leaves the page; otherwise it passes on
+    function dropAttempt(event) {
+        event.accepted = item.attempt.length > 0;
+        if (!event.accepted)
+            return;
+        item.attempt = "";
+        item.attemptNote = "";
+        item.rebindField();
+    }
+
     function take(chord) {
         const store = Binds.toStore(chord);
         const h = Binds.clash(item.host.holders, store, { kind: "custom", index: item.customIndex });
@@ -92,6 +102,7 @@ Column {
                     item.rebindField();
                 }
             }
+            Keys.onEscapePressed: event => item.dropAttempt(event)
         }
 
         IconPlaque {
@@ -122,6 +133,7 @@ Column {
         }
 
         TextField {
+            id: command
             visible: item.runs
             width: parent.width - actionPicker.width - parent.spacing
             mono: true
@@ -132,6 +144,14 @@ Column {
             onEditingFinished: {
                 if (text !== (item.entry.value || ""))
                     item.host.patchCustom(item.customIndex, "value", text);
+            }
+            // an undo puts the saved command back in the field
+            Connections {
+                target: item
+                function onEntryChanged() {
+                    if (!command.activeFocus)
+                        command.text = item.entry.value || "";
+                }
             }
         }
     }

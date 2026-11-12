@@ -1,15 +1,20 @@
 .pragma library
 
 // provider rows tag an old page, tab and group; this places each in a new page
-// and section. "page|tab|group" wins over "page|tab|*", then "page|*|group"
+// and section. "page|tab|group" wins over "page|tab|*", then "page|*|group". A
+// third element gates the rows on a capability when the row names none
 var table = {
     "animations||ANIMATIONS": ["animations", "per-animation"],
     "animations||CURVES": ["animations", "curves"],
     "animations||(action bar)": ["animations", "style"],
     "animations|Per-animation|*": ["animations", "per-animation"],
+    "animations|Per-animation|WINDOW OPEN": ["animations", "open-close"],
+    "animations|Per-animation|WINDOW CLOSE": ["animations", "open-close"],
+    "animations|Per-animation|WINDOW": ["animations", "open-close"],
     "animations|Window style|*": ["animations", "open-close"],
 
-    "layerrules|*|*": ["app-rules", "shell-layers"],
+    // the app rules page edits shell layers itself
+    "layerrules|*|*": null,
 
     "plugins|Cursor motion|*": ["mouse-touchpad", "pointer"],
     "plugins|Extra borders|*": ["window-style", "borders"],
@@ -20,7 +25,7 @@ var table = {
     "plugins|Title bars|*": ["window-style", "title-bars"],
     "plugins|Touch gestures|*": ["mouse-touchpad", "gestures"],
 
-    "windowmanager|Display|HDR": ["displays", "each-display"],
+    "windowmanager|Display|HDR": ["displays", "display", "outputHdr"],
     "windowmanager|Layout|TILING": ["window-behaviour", "tiling"],
     "windowmanager|Layout|DWINDLE": ["window-behaviour", "tiling"],
     "windowmanager|Layout|MASTER": ["window-behaviour", "tiling"],
@@ -36,7 +41,6 @@ var table = {
     "windowmanager|Layout|WORKSPACE BACKGROUND": ["window-behaviour", "workspaces"],
     "windowmanager|Layout|WORKSPACES": ["window-behaviour", "workspaces"],
     "windowmanager|Layout|WORKSPACE GRID": ["window-behaviour", "workspaces"],
-    "windowmanager|Layout|SETTINGS WINDOW": null,
 
     "windowmanager|Behaviour|DRAG GESTURES": ["mouse-touchpad", "gestures"],
     "windowmanager|Behaviour|KEY SOUNDS": ["sounds", "key-sounds"],
@@ -64,7 +68,14 @@ var table = {
     "windowmanager|Motion|WOBBLY WINDOWS": ["animations", "wobbly"]
 };
 
+// one row placed apart from its group, by its store key
+var byKey = {
+    "wm.niri.focusFollowsMouseScroll": ["window-behaviour", "focus"]
+};
+
 function placeOf(row) {
+    if (byKey.hasOwnProperty(row.key))
+        return { known: true, place: byKey[row.key] };
     var page = row.page || "windowmanager", tab = row.tab || "", group = row.group || "";
     var keys = [page + "|" + tab + "|" + group, page + "|" + tab + "|*", page + "|*|" + group, page + "|*|*"];
     for (var i = 0; i < keys.length; i++)
@@ -108,7 +119,9 @@ function controlOf(row) {
         return whole ? "stepper" : "slider";
     case "seg":
     case "chips":
-        return (row.opts || []).length <= 4 ? "segmented" : "picker";
+        // segments share the 320 px control column; longer choices read whole in a picker
+        var labels = optionsOf(row).map(function (o) { return o.label.length; });
+        return labels.length <= 4 && Math.max.apply(null, labels.concat([0])) * labels.length <= 36 ? "segmented" : "picker";
     case "pick": return "picker";
     case "text": return "text";
     case "color": return "color";
@@ -134,6 +147,8 @@ function normalize(row, place) {
     };
     if (row.caps)
         out.needs = { cap: row.caps };
+    else if (place[2])
+        out.needs = { cap: place[2] };
     if (row.lo !== undefined) out.min = row.lo;
     if (row.hi !== undefined) out.max = row.hi;
     if (row.unit && row.unit !== "%") out.unit = row.unit;
@@ -157,7 +172,8 @@ function mapRows(rows) {
             unknown.push(r);
             continue;
         }
-        if (!p.place)
+        // a list's per-item fields ("rules[i].name") belong to the page that edits the list
+        if (!p.place || String(r.key || "").indexOf("[") >= 0)
             continue;
         var n = normalize(r, p.place);
         if (!n.control)

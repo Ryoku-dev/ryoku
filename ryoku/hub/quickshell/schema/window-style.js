@@ -7,10 +7,10 @@ var sections = [
     { id: "corners", title: "Corners" },
     { id: "borders", title: "Borders" },
     { id: "opacity", title: "Opacity and dimming" },
-    { id: "blur", title: "Blur", missing: "Blur needs a window manager that supports it" },
-    { id: "shadows", title: "Shadows", missing: "Shadows need a window manager that draws them" },
-    { id: "glow", title: "Glow", missing: "Glow needs a window manager that draws it" },
-    { id: "title-bars", title: "Title bars", missing: "This window manager leaves title bars to each app" },
+    { id: "blur", title: "Blur" },
+    { id: "shadows", title: "Shadows" },
+    { id: "glow", title: "Glow", missing: "Glow needs a window manager that draws it." },
+    { id: "title-bars", title: "Title bars", missing: "This window manager leaves title bars to each app." },
     { id: "behind", title: "Behind the focused window" }
 ];
 
@@ -22,7 +22,7 @@ var rows = [
       keywords: ["rounding", "round", "radius"], control: "stepper", min: 0, max: 30, unit: "px",
       bind: d("appearance.rounding") },
     { id: "corner-softness", section: "corners", label: "Corner softness",
-      detail: "2 draws a circle; higher flattens the curve toward a square",
+      detail: "2 draws a circle; higher flattens the curve towards a square",
       keywords: ["rounding power", "squircle"], control: "stepper", min: 2, max: 8,
       bind: d("appearance.roundingPower"), more: true },
 
@@ -96,7 +96,11 @@ var rows = [
       keywords: ["modal"], control: "toggle",
       bind: d("appearance.dimModal"), more: true },
 
-    { id: "blur", section: "blur", label: "Blur",
+    { id: "panel-glass", section: "blur", label: "Glass on panels and the dock",
+      detail: "Frosted glass behind panels and the dock",
+      keywords: ["frost", "frosted", "glass", "translucent", "panels", "dock", "bar"], control: "toggle",
+      bind: { store: "settings", key: "theme.effects.glass", fallback: true }, "default": true },
+    { id: "blur", section: "blur", label: "Blur behind windows",
       detail: "Frosted glass behind see-through windows and the desktop",
       keywords: ["frost", "frosted", "glass", "translucent"], control: "toggle",
       bind: d("appearance.blurEnabled") },
@@ -161,7 +165,11 @@ var rows = [
       bind: d("appearance.blurNewOptimizations"), more: true,
       when: { bind: d("appearance.blurEnabled"), is: [true] } },
 
-    { id: "shadows", section: "shadows", label: "Shadows",
+    { id: "panel-shadows", section: "shadows", label: "Shadows under panels and the dock",
+      detail: "A soft drop shadow under panels and the dock",
+      keywords: ["drop shadow", "panels", "dock", "bar"], control: "toggle",
+      bind: { store: "settings", key: "theme.effects.shadows", fallback: true }, "default": true },
+    { id: "shadows", section: "shadows", label: "Shadows under windows",
       detail: "A soft drop shadow under every window",
       keywords: ["drop shadow"], control: "toggle",
       bind: d("appearance.shadowEnabled") },

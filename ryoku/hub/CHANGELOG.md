@@ -3,6 +3,38 @@
 ## Unreleased
 
 ### Fixed
+- **Folder choosers save the folder you are in.** Qt's own folder dialog
+  took the first subfolder it listed as soon as the folder loaded, so Open
+  saved a subfolder, and in a folder with no subfolders Open was greyed out.
+  Phone recordings, Screen capture's recording and screenshot folders, the
+  card design share in About and the setup folders in Backup & import now
+  use a Lithic chooser: it shows where you are (the folder's name, its path
+  with your home as ~), Up, and the subfolders as a list you move through
+  with the arrow keys, Home and End and open with Return, Space or a click;
+  "Use this folder" takes the folder shown, an empty one too. A folder that
+  no longer exists opens at the nearest one above it
+  (`ryoku/hub/quickshell/components/FolderChooser.qml`,
+  `tests/qml/tst_folderchooser.qml`).
+- **Settings search finds words in every language.** Search split text on
+  anything outside a to z, so German "Unschärfe" became "unsch" and "rfe"
+  and found nothing, and Japanese text made no words at all (16 of 38 page
+  titles and 52 of 165 section titles could not be found in Japanese). Words
+  are now letters and digits in any script with full case folding; a match
+  without accents ("unscharfe", "tastaturkurzel") counts just below the exact
+  spelling; and in Japanese, Chinese and Thai a word is found inside a longer
+  run ("ショートカット" in "キーボードショートカット"). English results and their
+  order are unchanged, held by a test over the real English entries
+  (`ryoku/shell/plugin/hubsearch.cpp`,
+  `ryoku/shell/plugin/tests/tst_hubsearch.cpp`).
+- **Window style switches the panels' glass and shadows on their own.** Its
+  Blur section has "Blur behind windows", shown only where the window manager
+  blurs, and "Glass on panels and the dock", always shown; Shadows splits the
+  same way into "Shadows under windows" and "Shadows under panels and the
+  dock". The panel rows set `shell.json` `theme.effects`, so a setup with
+  window blur off and glass on the panels can be kept. The Window style and
+  Appearance summaries name window blur only where it exists and always say
+  whether the panels are frosted (`schema/window-style.js`,
+  `registry/summaries.js`).
 - **Sound packs you add show up on Hyprland too.** The Sounds page's key
   sound profile listed packs added to your sounds folder only on niri;
   Hyprland showed the eleven shipped profiles alone while promising more.
@@ -192,6 +224,22 @@
   its effective config after Matugen renders, rather than keeping the older
   generated accent (`backend/fastfetch.go`, `backend/fastfetch_test.go`,
   `../shell/matugen/config.toml`).
+
+### Changed
+- **Settings opens faster and lighter.** Its own QML now loads by file URL
+  (`shell.qml` keeps only the pragma and loads `ShellBody.qml`), so Qt's disk
+  cache covers it from the second start on. The search index is built when
+  search is first used, then rebuilt once per change instead of once for
+  every value a settings frame sets. Home reads its facts from one small
+  read and the daemon's power-profiles topic, so `ryoku-sysinfo`,
+  `ryoku-profile-stats` and `powerprofilesctl` no longer run at every start;
+  the full read-out runs when About opens. The window manager's schema loads
+  when a page or search first needs it, and the confirmation dialog when
+  something first asks. A cold `ryoku-shell hub open <page>` passes the page
+  at launch (`RYOKU_HUB_START`), so a deep link no longer builds Home first
+  (`quickshell/shell.qml`, `quickshell/ShellBody.qml`, `quickshell/Hub.qml`,
+  `quickshell/components/Home.qml`, `quickshell/Singletons/SysInfo.qml`,
+  `../shell/ipc/control.go`).
 
 ### Added
 - **Credits name Geologica and Martian Mono.** Rashin's app and Lithic set

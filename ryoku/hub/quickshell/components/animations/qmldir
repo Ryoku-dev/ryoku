@@ -1,0 +1,7 @@
+CurveEditor 1.0 CurveEditor.qml
+CurveWorkshop 1.0 CurveWorkshop.qml
+GroupDialog 1.0 GroupDialog.qml
+LeafDialog 1.0 LeafDialog.qml
+LeafStore 1.0 LeafStore.qml
+MotionPreview 1.0 MotionPreview.qml
+PresetStore 1.0 PresetStore.qml

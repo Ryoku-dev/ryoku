@@ -8,7 +8,7 @@ var sections = [
     { id: "display", title: "Each display" },
     { id: "desktop-size", title: "Desktop size" },
     { id: "layouts", title: "Saved layouts" },
-    { id: "night-light", title: "Night light", missing: "Night light needs a window manager that can tint the screen" }
+    { id: "night-light", title: "Night light", missing: "Night light needs a window manager that can tint the screen." }
 ];
 
 function nl(key) { return { store: "nightlight", key: key }; }
@@ -99,11 +99,11 @@ var rows = [
       ],
       bind: nl("schedule"), "default": "off", needs: { cap: "nightLight" } },
     { id: "night-start", section: "night-light", label: "Starts at",
-      keywords: ["start time", "bedtime", "evening"], control: "time",
+      keywords: ["start time", "bedtime", "evening"], control: "stepper", min: 0, max: 1425, step: 15,
       bind: nl("startAt"), "default": 1320, needs: { cap: "nightLight" },
       when: { bind: nl("schedule"), is: ["clock"] } },
     { id: "night-end", section: "night-light", label: "Ends at",
-      keywords: ["end time", "wake", "morning"], control: "time",
+      keywords: ["end time", "wake", "morning"], control: "stepper", min: 0, max: 1425, step: 15,
       bind: nl("stopAt"), "default": 420, needs: { cap: "nightLight" },
       when: { bind: nl("schedule"), is: ["clock"] } },
     { id: "night-margin", section: "night-light", label: "Wait after sunset",

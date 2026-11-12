@@ -34,10 +34,12 @@ Singleton {
     // its config files still ride the `wm` topic below.
     property var caps: ({})
     property var deadKeys: []
-    // The active provider's window-rule action ids, in display order, carried on
-    // the same frame beside caps/deadKeys. Empty until the frame lands or when a
+    // The active provider's window-rule action ids, in display order, and the
+    // per-app look fields (desktop.appOverrides) it applies, carried on the
+    // same frame beside caps/deadKeys. Empty until the frame lands or when a
     // probe fails, so a consumer falls back to its own static list.
     property var windowRuleActions: []
+    property var appOverrideFields: []
     property var configFiles: []
     property string provider: ""
     property var windows: []
@@ -171,7 +173,7 @@ Singleton {
             var entry = root.pendingCalls[id];
             if (entry && entry.deadline <= now) {
                 Bus.cancel(entry.busId);
-                root.finishCall(id, false, "The shell daemon did not answer.");
+                root.finishCall(id, false, I18n.tr("The desktop service did not answer. Try again once it is running."));
             }
         }
     }
@@ -183,6 +185,7 @@ Singleton {
         root.caps = frame.caps || ({});
         root.deadKeys = frame.deadKeys || [];
         root.windowRuleActions = frame.windowRuleActions || [];
+        root.appOverrideFields = frame.appOverrideFields || [];
         // retire acked overlays before the new tree lands so reads get the daemon's value
         Writes.frame(root.writes);
         root.data = frame;

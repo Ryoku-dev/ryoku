@@ -1,6 +1,5 @@
 import QtQuick
 import Quickshell
-import Quickshell.Io
 import Quickshell.Wayland
 import Lithic
 import Ryoku.Ui.Singletons
@@ -23,6 +22,9 @@ Item {
     property string query: ""
     property Item recordingField: null
     property int recordCustom: -1
+    // a shortcut added but not saved yet: it shows after the saved ones until a write holds it
+    property bool draftOpen: false
+    property int draftBase: 0
 
     property var layout: []
     property string layoutSignature: ""
@@ -55,7 +57,7 @@ Item {
     readonly property var actionOptions: [
         { key: "exec", label: "Run a command" },
         { key: "close", label: "Close window" },
-        { key: "fullscreen", label: "Fullscreen" },
+        { key: "fullscreen", label: "Full screen" },
         { key: "togglefloating", label: "Float or tile" }
     ]
     // faces for the store tokens ChordField has none for
@@ -129,32 +131,58 @@ Item {
             page.setOff(bind, false);
     }
 
-    function writeCustom(list) {
-        Changes.set(page.customBind, list, I18n.tr("Your own shortcuts"), page.pageId);
+    function writeCustom(list, notice) {
+        Changes.set(page.customBind, list, I18n.tr("Your own shortcuts"), page.pageId, notice || "");
     }
 
+    // a shortcut just added shows at the end of the list, and is saved with its first keys, action
+    // or command, so adding it and recording its keys is one change with one Undo
     function patchCustom(index, field, value) {
         var list = page.custom.slice();
-        list[index] = Object.assign({}, list[index]);
+        var adding = page.draftShown() && index === list.length;
+        var blank = { keys: "", action: "exec", value: "", release: false };
+        if (adding && value === blank[field])
+            return;
+        list[index] = Object.assign({}, adding ? blank : list[index]);
         list[index][field] = value;
         if (field === "action" && value !== "exec")
             list[index].value = "";
-        page.writeCustom(list);
+        page.writeCustom(list, adding ? I18n.tr("Shortcut added") : "");
+        if (adding)
+            page.draftOpen = false;
+    }
+
+    // read from the saved list itself, so a rebuild during the write that saves it keeps one row
+    function draftShown() {
+        return page.draftOpen && page.custom.length <= page.draftBase;
     }
 
     function addCustom() {
         filter.clear();
         page.query = "";
-        var list = page.custom.slice();
-        list.push({ keys: "", action: "exec", value: "", release: false });
-        page.recordCustom = list.length - 1;
-        page.writeCustom(list);
+        if (page.draftShown()) {
+            var open = page.rowItems["custom." + page.custom.length];
+            if (open) {
+                page.land(open);
+                open.chordField.startRecording();
+            }
+            return;
+        }
+        page.recordCustom = page.custom.length;
+        page.draftBase = page.custom.length;
+        page.draftOpen = true;
+        page.rebuild();
     }
 
     function removeCustom(index) {
+        if (page.draftShown() && index === page.custom.length) {
+            page.draftOpen = false;
+            page.rebuild();
+            return;
+        }
         var list = page.custom.slice();
         list.splice(index, 1);
-        page.writeCustom(list);
+        page.writeCustom(list, I18n.tr("Shortcut removed"));
     }
 
     // a field records: hold the window manager's shortcuts so they reach it
@@ -215,8 +243,17 @@ Item {
             var gone = missing.filter(b => Binds.matches(q, page.bindText(b, sec.title)));
             if (shown.length === 0 && (q.length > 0 || gone.length === 0))
                 continue;
-            var note = gone.length === 0 ? ""
-                : I18n.tr("Not available with this window manager: %1").arg(gone.map(b => I18n.tr(b.label)).join(", "));
+            // the unavailable ones, gathered under the reason the window manager gives
+            var reasons = [];
+            gone.forEach(b => {
+                var why = I18n.tr(b.unhonored);
+                var known = reasons.find(r => r.why === why);
+                if (known)
+                    known.names.push(I18n.tr(b.label));
+                else
+                    reasons.push({ why: why, names: [I18n.tr(b.label)] });
+            });
+            var note = reasons.map(r => I18n.tr("Not available: %1. %2").arg(r.names.join(", ")).arg(r.why)).join("\n");
             out.push({ id: sec.id, title: sec.title, kind: "group", binds: shown, missing: note });
             sig.push(sec.id + ":" + shown.map(b => b.id).join(",") + "|" + note);
         }
@@ -224,6 +261,8 @@ Item {
         for (var i = 0; i < page.custom.length; i++)
             if (Binds.matches(q, page.customText(page.custom[i])))
                 customRows.push(i);
+        if (page.draftShown() && q.length === 0)
+            customRows.push(page.custom.length);
         if (q.length === 0 || customRows.length > 0) {
             out.push({ id: "custom", title: "Your own shortcuts", kind: "custom", indices: customRows, missing: "" });
             sig.push("custom:" + customRows.join(","));
@@ -246,28 +285,48 @@ Item {
     onModifierRowsChanged: page.rebuild()
     onCustomChanged: page.rebuild()
 
-    Process {
-        id: legend
-        command: ["ryoku-hub", "keybinds"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    page.categories = JSON.parse(this.text).categories || [];
-                } catch (e) {
-                    page.categories = [];
-                }
-                page.legendLoaded = true;
+    // the window manager's list of shortcuts; a newer read replaces one still running, and a read
+    // that fails or hangs ends in plain words with Retry, keeping the list it had
+    property string legendError: ""
+    property int legendGen: 0
+    function loadLegend() {
+        var gen = ++page.legendGen;
+        page.legendError = "";
+        Changes.run(["ryoku-hub", "keybinds"], (ok, out, err, code, late) => {
+            if (gen !== page.legendGen)
+                return;
+            var parsed = null;
+            try {
+                parsed = JSON.parse(out);
+            } catch (e) {}
+            page.legendLoaded = true;
+            if (!ok || !parsed || !Array.isArray(parsed.categories)) {
+                page.legendError = page.readError(err, code, late);
+                return;
             }
-        }
+            page.categories = parsed.categories;
+        }, { timeout: 15000 });
     }
+
+    function readError(err, code, late) {
+        var lead = I18n.tr("The list of shortcuts could not be read.");
+        if (late)
+            return lead + " " + I18n.tr("It did not answer in time. Retry, and if it fails again, update Ryoku.");
+        // Changes.run already put a missing program in plain words
+        if (code === -1)
+            return lead + " " + String(err || "").trim();
+        var lines = String(err || "").trim().split("\n").filter(l => l.trim().length > 0);
+        var why = lines.length > 0 ? lines[lines.length - 1].trim() : "";
+        return lead + " " + I18n.tr("Retry, and if it fails again, update Ryoku.") + (why ? " (" + why + ")" : "");
+    }
+
+    Component.onCompleted: page.loadLegend()
 
     // the saved legend names custom shortcuts the window manager cannot run
     Connections {
         target: Changes
         function onDesktopCommittedChanged() {
-            if (!legend.running)
-                legend.running = true;
+            page.loadLegend();
         }
     }
 
@@ -287,6 +346,9 @@ Item {
     }
 
     function sectionOfRow(rowId) {
+        // a section link names the section itself
+        if (page.layout.some(s => s.id === rowId))
+            return rowId;
         var schemaRow = Schema.rows.find(r => r.id === rowId);
         if (schemaRow)
             return schemaRow.section;
@@ -514,6 +576,31 @@ Item {
                 }
             }
 
+            // the first read: say so, with a working mark once it takes a moment
+            Row {
+                visible: !page.legendLoaded
+                spacing: LithicTokens.space.s2
+                bottomPadding: LithicTokens.space.s5
+                Working {
+                    anchors.verticalCenter: parent.verticalCenter
+                    active: !page.legendLoaded && legendWait.elapsed
+                    visible: active
+                }
+                Label {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: I18n.tr("Reading the shortcuts")
+                    typeRole: "detail"
+                    inkRole: "fg2"
+                }
+                Timer {
+                    id: legendWait
+                    property bool elapsed: false
+                    interval: 1000
+                    running: !page.legendLoaded
+                    onTriggered: elapsed = true
+                }
+            }
+
             Label {
                 visible: page.ready && page.query.length > 0 && page.layout.length === 0
                 width: parent.width
@@ -526,7 +613,7 @@ Item {
             }
 
             Label {
-                visible: page.legendLoaded && page.binds.length === 0
+                visible: page.legendLoaded && page.legendError === "" && page.binds.length === 0
                 width: parent.width
                 bottomPadding: LithicTokens.space.s5
                 text: I18n.tr("The window manager did not list its shortcuts, so they cannot be changed here right now.")
@@ -534,6 +621,31 @@ Item {
                 inkRole: "fg2"
                 wrapMode: Text.Wrap
                 elide: Text.ElideNone
+            }
+
+            Row {
+                visible: page.legendError !== ""
+                width: parent.width
+                spacing: LithicTokens.space.s3
+                bottomPadding: LithicTokens.space.s5
+
+                Label {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Math.min(implicitWidth, parent.width - legendRetry.width - LithicTokens.space.s3)
+                    text: page.legendError
+                    typeRole: "detail"
+                    ink: Lithic.jasper
+                    wrapMode: Text.Wrap
+                    elide: Text.ElideNone
+                }
+                Plaque {
+                    id: legendRetry
+                    kind: "quiet"
+                    small: true
+                    glyph: "refresh"
+                    text: I18n.tr("Retry")
+                    onClicked: page.loadLegend()
+                }
             }
 
             Repeater {
@@ -627,7 +739,7 @@ Item {
                                 }
 
                                 Label {
-                                    visible: sec.modelData.kind === "custom" && page.custom.length === 0
+                                    visible: sec.modelData.kind === "custom" && page.custom.length === 0 && !page.draftOpen
                                     width: parent.width
                                     text: I18n.tr("You have no shortcuts of your own yet.")
                                     typeRole: "body"
@@ -749,7 +861,7 @@ Item {
                     kind: "tonal"
                     small: true
                     glyph: "arrow_forward"
-                    text: I18n.tr("Change what Super+Enter opens")
+                    text: I18n.tr("Change which apps your shortcuts open")
                     onClicked: page.hub.navigate("default-apps", "")
                 }
             }

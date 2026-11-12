@@ -27,8 +27,9 @@ QtObject {
         return undefined;
     }
 
-    // optimistic: the confirming frame lands on the same values
+    // optimistic: the confirming frame lands on the same values; a failed write puts the old one back
     function write(key, v, done) {
+        var before = store.read(key);
         var args = null;
         switch (key) {
         case "on":
@@ -63,8 +64,13 @@ QtObject {
             done(true, "");
             return;
         }
-        Bus.call("nightlight.set", args, function (ok, result, error) {
-            done(ok === true, ok === true ? "" : String(error || ""));
+        Changes.call("nightlight.set", args, function (ok, error) {
+            if (!ok) {
+                console.warn("nightlight.set failed:", error);
+                store[key] = before;
+                Changes.touch();
+            }
+            done(ok, ok ? "" : I18n.tr("Night light did not change. Run ryoku doctor in a terminal, then retry."));
         });
     }
 

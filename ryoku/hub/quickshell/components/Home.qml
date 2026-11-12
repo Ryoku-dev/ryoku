@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell
 import Quickshell.Io
 import Lithic
 import Ryoku.Ui.Singletons
@@ -18,8 +19,33 @@ Item {
         var id = Registry.resolve(root.hub.lastSection);
         return id !== "" && root.hub.pageAvailable(id) && !Registry.page(id).handoff ? id : "";
     }
-    property string powerMode: ""
+    // the daemon's power-profiles topic, pushed; no process at start
+    readonly property string powerMode: {
+        var pp = Live.topic("powerprofiles");
+        var m = { "performance": "Performance", "balanced": "Balanced", "power-saver": "Power saver" };
+        return pp && m[pp.active_profile] ? I18n.tr(m[pp.active_profile]) : "";
+    }
     property string network: ""
+    readonly property bool serviceDown: root.hub.serviceDown
+
+    // a control reached with the keys comes into view
+    readonly property Item focusedItem: root.Window.activeFocusItem
+    onFocusedItemChanged: {
+        var item = root.focusedItem;
+        var p = item;
+        while (p && p !== flick.contentItem)
+            p = p.parent;
+        if (!p)
+            return;
+        var y = item.mapToItem(flick.contentItem, 0, 0).y;
+        var margin = LithicTokens.space.s5;
+        var foot = margin + (root.hub.noticeInset || 0);
+        var end = Math.max(0, flick.contentHeight - flick.height);
+        if (y < flick.contentY + margin)
+            flick.contentY = Math.max(0, y - margin);
+        else if (y + item.height > flick.contentY + flick.height - foot)
+            flick.contentY = Math.min(end, y + item.height - flick.height + foot);
+    }
 
     function focusRow(rowId) {}
 
@@ -28,9 +54,16 @@ Item {
         return s.length ? s.charAt(0).toUpperCase() + s.slice(1) : "";
     }
 
+    // an Attention string, translated, with %1, %2 from its args
+    function filled(text, args) {
+        var out = text ? I18n.tr(text) : "";
+        (args || []).forEach((a, i) => out = out.replace("%" + (i + 1), a));
+        return out;
+    }
+
     readonly property var facts: {
         var out = [];
-        var screens = parseInt(SysInfo.sysMonitors);
+        var screens = Quickshell.screens.length;
         if (screens > 0)
             out.push({ label: I18n.tr("Displays"), value: screens === 1 ? I18n.tr("One display") : I18n.tr("%1 displays").replace("%1", screens) });
         if (root.powerMode)
@@ -41,18 +74,6 @@ Item {
         if (SysInfo.sysGpu && SysInfo.sysGpu !== "-")
             out.push({ label: I18n.tr("Graphics"), value: SysInfo.sysGpu });
         return out;
-    }
-
-    Process {
-        running: true
-        command: ["powerprofilesctl", "get"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                var m = { "performance": "Performance", "balanced": "Balanced", "power-saver": "Power saver" };
-                var v = this.text.trim();
-                root.powerMode = m[v] ? I18n.tr(m[v]) : "";
-            }
-        }
     }
 
     Process {
@@ -76,8 +97,10 @@ Item {
 
         Column {
             id: board
-            x: Math.max(0, (flick.width - width) / 2)
-            width: Math.min(flick.width, LithicTokens.size.boardMax)
+            // centred while that leaves the scroll rail clear, else pushed left just enough
+            readonly property real usable: Math.max(0, flick.width - LithicTokens.size.scrollThumb - LithicTokens.space.s3)
+            x: Math.max(0, Math.min((flick.width - width) / 2, usable - width))
+            width: Math.min(usable, LithicTokens.size.boardMax)
             spacing: LithicTokens.space.s5
 
             Column {
@@ -86,7 +109,8 @@ Item {
 
                 Label {
                     width: parent.width
-                    text: !root.updateKnown ? I18n.tr("Checking for updates.")
+                    text: root.serviceDown && !root.updateKnown ? I18n.tr("Updates can't be checked right now.")
+                        : !root.updateKnown ? I18n.tr("Checking for updates.")
                         : Updates.available ? I18n.tr("An update is ready.") : I18n.tr("Ryoku is up to date.")
                     typeRole: "sentence"
                     wrapMode: Text.Wrap
@@ -105,6 +129,16 @@ Item {
                     }
                     typeRole: "proof"
                     inkRole: "fg2"
+                    wrapMode: Text.Wrap
+                    elide: Text.ElideNone
+                }
+                // the daemon gone for a few seconds: say so, rather than show stale facts as live
+                Label {
+                    width: parent.width
+                    visible: root.serviceDown
+                    text: I18n.tr("The desktop service is not answering, so what Settings shows may be out of date and changes may not take. Settings picks it up again by itself once it is back.")
+                    typeRole: "detail"
+                    ink: Lithic.jasper
                     wrapMode: Text.Wrap
                     elide: Text.ElideNone
                 }
@@ -128,7 +162,7 @@ Item {
                     spacing: 0
 
                     Section {
-                        visible: Updates.available || root.failures.length > 0
+                        visible: Updates.available || Attention.items.length > 0 || root.failures.length > 0
                         width: parent.width
                         title: I18n.tr("Needs you")
 
@@ -150,12 +184,38 @@ Item {
                                     }
                                 }
                                 Repeater {
-                                    model: root.failures
+                                    model: Attention.items
                                     delegate: SettingRow {
                                         required property var modelData
                                         required property int index
                                         width: parent.width
                                         first: index === 0 && !Updates.available
+                                        title: root.filled(modelData.title, modelData.args)
+                                        detail: root.filled(modelData.detail, modelData.args)
+                                        activatable: modelData.page !== "" && root.hub.pageAvailable(modelData.page)
+                                        onActivated: root.hub.navigate(modelData.page, modelData.row || "")
+                                        Plaque {
+                                            kind: "gold"
+                                            small: true
+                                            text: modelData.actionText ? I18n.tr(modelData.actionText) : I18n.tr("Open")
+                                            onClicked: {
+                                                if (modelData.action === "log-out")
+                                                    root.hub.logOut();
+                                                else if (modelData.command && modelData.command.length > 0)
+                                                    Spawn.run(modelData.command);
+                                                else
+                                                    root.hub.navigate(modelData.page, modelData.row || "");
+                                            }
+                                        }
+                                    }
+                                }
+                                Repeater {
+                                    model: root.failures
+                                    delegate: SettingRow {
+                                        required property var modelData
+                                        required property int index
+                                        width: parent.width
+                                        first: index === 0 && !Updates.available && Attention.items.length === 0
                                         title: modelData.entry ? I18n.tr("%1 did not change").replace("%1", I18n.tr(modelData.entry.label)) : ""
                                         detail: modelData.error
                                         Plaque {
@@ -234,10 +294,12 @@ Item {
                             Column {
                                 width: parent.width
                                 Repeater {
+                                    id: recentRows
                                     model: Changes.recent
                                     delegate: SettingRow {
                                         required property var modelData
                                         required property int index
+                                        readonly property alias undoButton: undoPlaque
                                         width: parent.width
                                         first: index === 0
                                         title: I18n.tr(modelData.label)
@@ -245,11 +307,13 @@ Item {
                                         activatable: modelData.page !== ""
                                         onActivated: root.hub.navigate(modelData.page, "")
                                         Plaque {
+                                            id: undoPlaque
                                             kind: "quiet"
                                             small: true
                                             glyph: "undo"
                                             text: I18n.tr("Undo")
-                                            onClicked: Changes.undoEntry(modelData)
+                                            // the keys pressed it when it shows the keyboard mark
+                                            onClicked: root.undoRecent(modelData, undoPlaque.visualFocus)
                                         }
                                     }
                                 }
@@ -258,6 +322,26 @@ Item {
                     }
                 }
             }
+        }
+    }
+
+    // the Undo removes its own row, so this runs from the board, not from the row
+    function undoRecent(entry, fromKeys) {
+        Changes.undoEntry(entry);
+        if (fromKeys)
+            refocusRecent.restart();
+    }
+
+    // the row an Undo came from is gone: the keyboard moves to the next Undo, or stays on Home
+    Timer {
+        id: refocusRecent
+        interval: 0
+        onTriggered: {
+            var next = recentRows.count > 0 ? recentRows.itemAt(0) : null;
+            if (next)
+                next.undoButton.forceActiveFocus(Qt.TabFocusReason);
+            else
+                root.forceActiveFocus(Qt.OtherFocusReason);
         }
     }
 
