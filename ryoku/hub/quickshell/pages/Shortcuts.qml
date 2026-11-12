@@ -68,6 +68,9 @@ Item {
         "mouse_down": I18n.tr("Scroll down"),
         "mouse:272": I18n.tr("Left button"),
         "mouse:273": I18n.tr("Right button"),
+        "minus": "-",
+        "equal": "=",
+        "XF86AudioPause": I18n.tr("Pause"),
         "XF86TouchpadToggle": I18n.tr("Touchpad"),
         "XF86TouchpadOn": I18n.tr("Touchpad on"),
         "XF86TouchpadOff": I18n.tr("Touchpad off")
