@@ -104,6 +104,7 @@ type savedConn struct {
 	id          string
 	typ         string
 	ssid        string
+	mode        string // 802-11-wireless.mode; "ap" for a hotspot
 	autoconnect bool
 	// vpnService is vpn.service-type for a type "vpn" profile, e.g.
 	// "org.freedesktop.NetworkManager.openvpn"; empty for every other type.
@@ -609,6 +610,7 @@ func (n *networkState) savedConnections() []savedConn {
 			if b, ok := w["ssid"].Value().([]byte); ok {
 				c.ssid = decodeSsid(b)
 			}
+			c.mode, _ = w["mode"].Value().(string)
 		}
 		if v := s["vpn"]; v != nil {
 			c.vpnService, _ = v["service-type"].Value().(string)
@@ -919,26 +921,36 @@ func (n *networkState) wifiForget(ssid string) error {
 	if ssid == "" {
 		return fmt.Errorf("empty ssid")
 	}
-	for _, c := range n.savedConnections() {
-		if c.typ == "802-11-wireless" && c.ssid == ssid {
-			return n.obj(c.path).Call(nmSettConnIface+".Delete", 0).Err
+	profiles := wifiProfiles(ssid, n.savedConnections())
+	if len(profiles) == 0 {
+		return fmt.Errorf("no saved network: %s", ssid)
+	}
+	var first error
+	for _, c := range profiles {
+		if err := n.obj(c.path).Call(nmSettConnIface+".Delete", 0).Err; err != nil && first == nil {
+			first = err
 		}
 	}
-	return fmt.Errorf("no saved network: %s", ssid)
+	return first
 }
 
-// wifiSetAutoconnect resolves the saved profile behind ssid and flips its
-// autoconnect, mirroring wifiForget's lookup by SSID.
+// wifiSetAutoconnect flips autoconnect on every saved profile behind ssid,
+// mirroring wifiForget's lookup by SSID: any profile left on still rejoins.
 func (n *networkState) wifiSetAutoconnect(ssid string, enabled bool) error {
 	if ssid == "" {
 		return fmt.Errorf("empty ssid")
 	}
-	for _, c := range n.savedConnections() {
-		if c.typ == "802-11-wireless" && c.ssid == ssid {
-			return n.updateAutoconnect(c.path, enabled)
+	profiles := wifiProfiles(ssid, n.savedConnections())
+	if len(profiles) == 0 {
+		return fmt.Errorf("no saved network: %s", ssid)
+	}
+	var first error
+	for _, c := range profiles {
+		if err := n.updateAutoconnect(c.path, enabled); err != nil && first == nil {
+			first = err
 		}
 	}
-	return fmt.Errorf("no saved network: %s", ssid)
+	return first
 }
 
 func (n *networkState) dnsFrame() map[string]any {
@@ -1328,23 +1340,33 @@ func apFrame(a *apInfo) map[string]any {
 	}
 }
 
-// ssidSaved reports whether a stored wifi profile matches ssid.
-func ssidSaved(ssid string, saved []savedConn) bool {
+// wifiProfiles returns every stored wifi profile that joins ssid. Profiles are
+// matched by the SSID they join, never by name: NetworkManager names a second
+// profile for an SSID "<ssid> 1", and an imported one can carry any name. A
+// hotspot (mode ap) that shares the name is not a saved network.
+func wifiProfiles(ssid string, saved []savedConn) []savedConn {
+	var out []savedConn
 	for _, c := range saved {
-		if c.typ == "802-11-wireless" && c.ssid == ssid {
-			return true
+		if c.typ == "802-11-wireless" && c.ssid == ssid && c.mode != "ap" {
+			out = append(out, c)
 		}
 	}
-	return false
+	return out
 }
 
-// ssidAutoconnect reports the autoconnect state of the stored wifi profile that
-// matches ssid, defaulting to true (NetworkManager's own default) when the
-// profile leaves the key unset. It is meaningful only for a saved network.
+// ssidSaved reports whether a stored wifi profile matches ssid.
+func ssidSaved(ssid string, saved []savedConn) bool {
+	return len(wifiProfiles(ssid, saved)) > 0
+}
+
+// ssidAutoconnect reports whether any stored wifi profile behind ssid
+// autoconnects (one that does still rejoins), defaulting to true
+// (NetworkManager's own default) when a profile leaves the key unset. It is
+// meaningful only for a saved network.
 func ssidAutoconnect(ssid string, saved []savedConn) bool {
-	for _, c := range saved {
-		if c.typ == "802-11-wireless" && c.ssid == ssid {
-			return c.autoconnect
+	for _, c := range wifiProfiles(ssid, saved) {
+		if c.autoconnect {
+			return true
 		}
 	}
 	return false
