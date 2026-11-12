@@ -1,6 +1,12 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The shell daemon edits a saved connection's IPv4 settings.** New
+  `network.ipGet` and `network.ipSet` read and write DHCP or a manual address,
+  gateway and DNS; on a live connection the old settings come back after 20
+  seconds unless `network.ipConfirm` keeps the new ones (`network.ipRevert`
+  undoes at once), so a wrong address that cuts the machine off undoes itself
+  (`ipc/network_ip.go`).
 - **Wallpaper Engine video wallpapers animate on hover in the picker (#807).**
   Only local videos got the small preview clip, so workshop video cards stayed
   still; they now get one too, built on the thumbnail job limit and skipped

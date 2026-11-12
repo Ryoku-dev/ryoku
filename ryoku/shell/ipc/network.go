@@ -65,6 +65,8 @@ type networkState struct {
 
 	cacheMu sync.Mutex
 	cache   *networkSnapshot
+
+	ip ipEdits // IPv4 changes waiting for confirmation (network_ip.go)
 }
 
 type networkSnapshot struct {
@@ -259,6 +261,7 @@ func (d *daemon) startNetwork() {
 		}
 		return nil, n.wgDelete(a.Uuid)
 	})
+	n.registerIPCalls(d)
 
 	n.publish()
 }
