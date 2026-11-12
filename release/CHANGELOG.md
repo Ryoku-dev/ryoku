@@ -183,6 +183,9 @@
   the other plugin packages.
 
 ### Fixed
+- **Wallpaper Engine scenes render with skwd-paper 1.0.0-beta.29.** Arch,
+  Fedora and Void move from beta.23 and Nix from beta.26, which fixes broken
+  geometry in some scenes; the packages now also require FreeType, which it links.
 - **The Hyprland share picker works with Hyprland 0.57 again.** The Arch and
   Fedora packages now ship upstream 0.3.0, which no longer parses Hyprland's
   workspace data through `hyprland-rs`. Outputs and Windows load again instead

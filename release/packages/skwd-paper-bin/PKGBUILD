@@ -4,26 +4,27 @@
 # from the upstream prebuilt Arch package. Pinned: bump pkgver and sha256sums to
 # follow a release, pkgrel alone for a recipe change.
 pkgname=skwd-paper-bin
-pkgver=1.0.0_beta.23
+pkgver=1.0.0_beta.29
 pkgrel=1
 pkgdesc="skwd-paper: still, video and Wallpaper Engine wallpaper renderers (Ryogami's Wallpaper Engine backend)"
 arch=('x86_64')
 url="https://github.com/liixini/skwd-wall"
 license=('GPL-3.0-or-later')
-# Runtime libraries of the prebuilt binaries, from the upstream .PKGINFO; FFmpeg ships privately inside.
-depends=('alsa-lib' 'dav1d' 'gcc-libs' 'libdrm' 'libglvnd' 'libpulse' 'libva'
+# Runtime libraries of the prebuilt binaries, from the upstream .PKGINFO plus freetype2, which the
+# text renderer links but upstream does not list; FFmpeg ships privately inside.
+depends=('alsa-lib' 'dav1d' 'freetype2' 'gcc-libs' 'libdrm' 'libglvnd' 'libpulse' 'libva'
          'libxkbcommon' 'libyuv' 'shaderc' 'vulkan-icd-loader' 'wayland' 'zlib')
 provides=('skwd-paper')
 conflicts=('skwd-paper')
 # Prebuilt and stripped upstream.
 options=('!strip' '!debug')
 # The upstream tag uses "-" where the asset name uses pacman's "_".
-_tag="v1.0.0-beta.23"
-_asset="skwd-paper-1.0.0_beta.23-1-x86_64.pkg.tar.zst"
+_tag="v1.0.0-beta.29"
+_asset="skwd-paper-1.0.0_beta.29-1-x86_64.pkg.tar.zst"
 source=("$pkgname-$pkgver.pkg.tar.zst::https://github.com/liixini/skwd-wall/releases/download/$_tag/$_asset")
 # A pacman package: unpacked by hand so .PKGINFO and .MTREE never land in $pkgdir.
 noextract=("$pkgname-$pkgver.pkg.tar.zst")
-sha256sums=('e1a6aabcf3971dc639bfd1893c635e130970362ac8be3e809ffd6ac1f07dd581')
+sha256sums=('cb867f8a8f812ad27a7fb9f6b563cd1f71640c075e93c2f3e072eb1c00cd5584')
 
 package() {
   bsdtar -xpf "$srcdir/$pkgname-$pkgver.pkg.tar.zst" -C "$pkgdir" usr
