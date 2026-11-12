@@ -79,6 +79,7 @@ T.TextField {
         typeRole: "detail"
     }
 
+    // help and errors wrap, so a message with a path in it is never cut short
     Label {
         id: helpLabel
         visible: root._supportText.length > 0
@@ -88,6 +89,8 @@ T.TextField {
         text: root._supportText
         typeRole: "caption"
         ink: root.errorText.length > 0 ? Lithic.jasper : Lithic.fg3
+        wrapMode: Text.Wrap
+        elide: Text.ElideNone
     }
 
     IconPlaque {
