@@ -2,12 +2,53 @@ package main
 
 import (
 	"fmt"
+	"image"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
+
+// customOutputMode turns theme.mode into the light or dark the shell's palette run picks for the same wallpaper.
+func (d *daemon) customOutputMode(img string) string {
+	switch mode := d.settingString("theme.mode"); mode {
+	case "light", "dark":
+		return mode
+	case "sun":
+		now := time.Now()
+		_, offset := now.Zone()
+		sunrise, sunset := d.sunWindow(now.YearDay(), offset)
+		if minute := now.Hour()*60 + now.Minute(); minute >= sunrise && minute < sunset {
+			return "light"
+		}
+		return "dark"
+	}
+	pix, err := decodeImage(img)
+	if err != nil || imageLuma(pix) < 0.5 {
+		return "dark"
+	}
+	return "light"
+}
+
+// imageLuma is the shell's smart-mode rule: mean BT.601 luma over a 64 by 64 grid, 0 to 1.
+func imageLuma(m *image.RGBA) float64 {
+	b := m.Bounds()
+	if b.Empty() {
+		return 0
+	}
+	sx, sy := max(1, b.Dx()/64), max(1, b.Dy()/64)
+	var sum, n float64
+	for y := b.Min.Y; y < b.Max.Y; y += sy {
+		for x := b.Min.X; x < b.Max.X; x += sx {
+			c := m.RGBAAt(x, y)
+			sum += 0.299*float64(c.R) + 0.587*float64(c.G) + 0.114*float64(c.B)
+			n++
+		}
+	}
+	return sum / n / 255
+}
 
 func (d *daemon) matugenIntegrationsConfigPath() string {
 	return filepath.Join(d.cfg.cacheDir(), "matugen-config.toml")
@@ -108,10 +149,7 @@ func (d *daemon) renderMatugenIntegrations(ev applyEvent) {
 	if strings.TrimSpace(command) == "" {
 		return
 	}
-	mode := d.settingString("matugen.mode")
-	if mode != "light" && mode != "dark" {
-		mode = "dark"
-	}
+	mode := d.customOutputMode(img)
 	scheme := d.settingString("matugen.schemeType")
 	if scheme == "" {
 		scheme = "scheme-tonal-spot"

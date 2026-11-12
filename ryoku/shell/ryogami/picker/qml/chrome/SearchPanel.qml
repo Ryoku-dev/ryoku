@@ -185,7 +185,7 @@ Item {
     function _openModelSetup() {
         if (!root.state) return
         root._close()
-        root.state.openSheet("settings", { tab: "filter", control: "semantic.models.import" })
+        root.state.openSheet("settings", { tab: "picker", section: "filter", control: "semantic.models.import" })
     }
     function _enableSemantic() { Settings.set("semantic.enabled", true); root._refreshStatus() }
 

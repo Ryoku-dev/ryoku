@@ -100,8 +100,6 @@ Item {
             return page === "appearance" || page.startsWith("component:");
         if (section === "dock")
             return page === "appearance" || page === "iiWidgets" || page === "widgets" || page.startsWith("apps:");
-        if (section === "style")
-            return page === "colours";
         if (section === "wallpaper")
             return page.startsWith("wallpapers");
         return false;
@@ -738,8 +736,6 @@ Item {
             if (root.page === "createFolder")
                 return Translation.tr("New App Folder");
         }
-        if (root.page === "colours")
-            return Translation.tr("Colour scheme");
         if (root.page === "desktopApps")
             return Translation.tr("Add apps to desktop");
         if (root.page === "desktopIcons")
@@ -940,7 +936,7 @@ Item {
                     : root.section === "lock"
                         ? Translation.tr("What the lock screen shows besides your widgets.")
                     : root.section === "style"
-                        ? Translation.tr("Presets, light or dark, and the colours everything is drawn in. Changes apply at once; undo takes them back.")
+                        ? Translation.tr("Save a look and switch back to it. Colours are set in the wallpaper picker.")
                     : root.section === "wallpaper"
                         ? (root.lockTab
                             ? Translation.tr("The picture behind the lock screen. Position and zoom are set on the Desktop tab.")
@@ -1099,7 +1095,7 @@ Item {
                         if (root.section === "lock")
                             return lockPage;
                         if (root.section === "style")
-                            return root.page === "colours" ? colourPage : stylePage;
+                            return stylePage;
                         if (root.section === "wallpaper")
                             return root.page.startsWith("wallpapers") ? wallpaperPage : wallpaperRootPage;
                         if (root.section === "bar") {
@@ -2080,7 +2076,6 @@ Item {
     Component {
         id: stylePage
         EditStylePage {
-            onOpenPageRequested: page => root.openPage(page)
             onFieldFocusRequested: field => root.requestFieldFocus(field)
             onFieldFocusReleased: root.releaseFieldFocus()
         }
@@ -2123,11 +2118,6 @@ Item {
             target: root.wallpaperPageTarget
             screenName: root.screenName
         }
-    }
-
-    Component {
-        id: colourPage
-        EditColourPage {}
     }
 
     // The lock screen's own face: the switches, whatever its toolbars have

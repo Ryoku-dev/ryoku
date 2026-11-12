@@ -2,8 +2,6 @@ module stage.modules.common.widgets
 ButtonGroup 1.0 ButtonGroup.qml
 CachedShapeCanvas 1.0 CachedShapeCanvas.qml
 Circle 1.0 Circle.qml
-ColorPreviewButton 1.0 ColorPreviewButton.qml
-ColorPreviewGrid 1.0 ColorPreviewGrid.qml
 ConfigSubPageHost 1.0 ConfigSubPageHost.qml
 CustomIcon 1.0 CustomIcon.qml
 FadeLoader 1.0 FadeLoader.qml

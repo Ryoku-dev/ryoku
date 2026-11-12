@@ -446,8 +446,8 @@ func TestMigrateLegacyConfig(t *testing.T) {
 	if _, ok := mat["schemeType"]; ok {
 		t.Errorf("hub-owned matugen.schemeType must not migrate into ryogami.json: %v", mat)
 	}
-	if mat["mode"] != "light" {
-		t.Errorf("matugen.mode should migrate: %v", mat)
+	if _, ok := mat["mode"]; ok {
+		t.Errorf("retired matugen.mode must not migrate: %v", mat)
 	}
 
 	if _, ok := m["daynight"]; ok {

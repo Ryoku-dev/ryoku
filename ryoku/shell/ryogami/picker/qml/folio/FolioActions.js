@@ -34,9 +34,13 @@ function _band(band) {
     };
 }
 
+// list settings reach QML as Qt sequences, which Array.isArray rejects
+function asList(v) {
+    return v !== null && typeof v === "object" && typeof v.length === "number" ? Array.prototype.slice.call(v) : [];
+}
+
 function _list(settings, key) {
-    var v = settings.value(key);
-    return Array.isArray(v) ? v.slice() : [];
+    return asList(settings.value(key));
 }
 
 function _push(settings, key, element) {
@@ -81,6 +85,7 @@ function run(action, args, settings, state, host) {
     switch (id) {
     case "OpenScheduleEditor": state.openSheet("schedule", ({})); return;
     case "OpenThemeDesigner": state.openSheet("themeDesigner", ({})); return;
+    case "OpenTimeLanguage": state.runAction(id, args); state.hideRequested(); return;
     case "CreateResolutionPresetBand": _push(settings, "filterBar.resolutionPresets", _band(args.band)); return;
     case "RemoveResolutionPreset": _removeAt(settings, "filterBar.resolutionPresets", args.index); return;
     case "AddPostCommand": _push(settings, "postProcessing", { type: "all", command: "" }); return;

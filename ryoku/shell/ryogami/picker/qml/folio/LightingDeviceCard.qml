@@ -122,7 +122,7 @@ Item {
                     Text {
                         width: parent.width
                         text: deviceCard.following
-                            ? I18n.tr("Matugen's live accent recolours this device whenever the wallpaper or fixed theme changes.")
+                            ? I18n.tr("Your palette's live accent recolours this device whenever the wallpaper or fixed theme changes.")
                             : I18n.tr("One click adopts the device, picks a colour-capable mode and starts following the palette. Turning it off hands the device back.")
                         font.family: Theme.sans
                         font.weight: Font.Normal

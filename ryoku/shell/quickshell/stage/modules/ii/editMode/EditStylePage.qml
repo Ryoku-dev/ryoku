@@ -13,7 +13,6 @@ StyledFlickable {
     contentHeight: column.implicitHeight
     clip: true
 
-    signal openPageRequested(string page)
     signal fieldFocusRequested(Item field)
     signal fieldFocusReleased()
 
@@ -39,48 +38,29 @@ StyledFlickable {
             onFieldFocusReleased: root.fieldFocusReleased()
         }
 
+        // Colours have one home, Ryogami's Colours tab; this row reports them and hands off.
         Ui.SettingCard {
             Layout.fillWidth: true
-            title: Translation.tr("PALETTE")
+            title: Translation.tr("COLOURS")
             collapsible: false
 
             Ui.SettingRow {
                 width: parent.width
-                label: Translation.tr("Light and dark")
-                desc: !MaterialThemeLoader.followsWallpaper
-                    ? Translation.tr("Choosing a mode returns to wallpaper colours.")
-                    : Translation.tr("Auto follows the wallpaper; Sun follows the day.")
-                block: true
-                enabled: !MaterialThemeLoader.busy
-
-                Ui.Chips {
-                    anchors.fill: parent
-                    options: ["smart", "sun", "light", "dark"]
-                    labels: ({
-                        smart: Translation.tr("Auto"),
-                        sun: Translation.tr("Sun"),
-                        light: Translation.tr("Light"),
-                        dark: Translation.tr("Dark")
-                    })
-                    current: MaterialThemeLoader.mode
-                    onChose: key => MaterialThemeLoader.setMode(key)
-                }
-            }
-
-            Ui.SettingRow {
-                width: parent.width
-                divider: true
-                label: Translation.tr("Colour scheme")
-                desc: root.colourSummary
-                controlWidth: chooseButton.implicitWidth
-                enabled: !MaterialThemeLoader.busy
+                label: Translation.tr("Wallpaper and colours")
+                desc: Translation.tr("%1. Mode, scheme and app colours live in the picker.")
+                    .arg(root.colourSummary)
+                controlWidth: openButton.implicitWidth
 
                 Ui.Btn {
-                    id: chooseButton
+                    id: openButton
                     anchors.fill: parent
-                    text: Translation.tr("Choose")
+                    text: Translation.tr("Open colours")
                     compact: true
-                    onAct: root.openPageRequested("colours")
+                    onAct: {
+                        Spawn.run(["ryogami", "wallpaper", "settings", "colours"]);
+                        if (!GlobalStates.editGuideActive)
+                            GlobalStates.editMode = false;
+                    }
                 }
             }
         }

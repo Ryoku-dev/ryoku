@@ -44,6 +44,11 @@ func main() {
 		if reply != "" && reply != "ok" {
 			fmt.Println(reply)
 		}
+	case "settings":
+		if err := clientSettings(args[1:]); err != nil {
+			fmt.Fprintln(os.Stderr, "ryogami:", err)
+			os.Exit(1)
+		}
 	case "upscale":
 		clientUpscale(args[1:])
 	case "upscale-worker":
@@ -52,9 +57,61 @@ func main() {
 			os.Exit(1)
 		}
 	default:
-		fmt.Fprintln(os.Stderr, "usage: ryogami [daemon | wallpaper set [--workspace] [--screen <output>] <path> | wallpaper preview [--screen <output>] <path> | wallpaper preview-clear | wallpaper assign|unassign [--screen <output>] | wallpaper <mode> ... | depth <set|clear> ... | upscale <start|status|cancel> ...]")
+		fmt.Fprintln(os.Stderr, "usage: ryogami [daemon | wallpaper set [--workspace] [--screen <output>] <path> | wallpaper preview [--screen <output>] <path> | wallpaper preview-clear | wallpaper assign|unassign [--screen <output>] | wallpaper settings [tab] [section] [control] | wallpaper collection <wallpapers|themes|rices|workshop> | wallpaper <mode> ... | settings get|set|reset <key> [value] | settings set <json object> | depth <set|clear> ... | upscale <start|status|cancel> ...]")
 		os.Exit(2)
 	}
+}
+
+// clientSettings reads and writes settings through the daemon, the single
+// writer of ryogami.json, matugen.json and the theme keys:
+//
+//	ryogami settings get <key>           the effective value, as JSON
+//	ryogami settings set <key> <value>   JSON when it parses, else plain text; null resets
+//	ryogami settings set <json object>   several keys at once, one write per file
+//	ryogami settings reset <key>         back to the default
+func clientSettings(args []string) error {
+	const usage = "usage: ryogami settings get|set|reset <key> [value] | settings set <json object>"
+	if len(args) < 2 {
+		return fmt.Errorf(usage)
+	}
+	key := args[1]
+	switch args[0] {
+	case "get":
+		res, err := sendRPC("settings.get", map[string]interface{}{"keys": []string{key}, "effective": true})
+		if err != nil {
+			return err
+		}
+		values, _ := res["values"].(map[string]interface{})
+		b, err := json.Marshal(values[key])
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(b))
+		return nil
+	case "set":
+		if len(args) == 2 {
+			batch, ok := parseSettingArg(key).(map[string]interface{})
+			if !ok || len(batch) == 0 {
+				return fmt.Errorf("usage: ryogami settings set <key> <value> | settings set <json object>")
+			}
+			_, err := sendRPC("settings.set", map[string]interface{}{"values": batch})
+			return err
+		}
+		_, err := sendRPC("settings.set", map[string]interface{}{"values": map[string]interface{}{key: parseSettingArg(strings.Join(args[2:], " "))}})
+		return err
+	case "reset":
+		_, err := sendRPC("settings.reset", map[string]interface{}{"keys": []string{key}})
+		return err
+	}
+	return fmt.Errorf(usage)
+}
+
+func parseSettingArg(s string) interface{} {
+	var v interface{}
+	if json.Unmarshal([]byte(s), &v) == nil {
+		return v
+	}
+	return s
 }
 
 func sendLine(line string) (string, error) {

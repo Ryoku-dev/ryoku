@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os/exec"
 	"sort"
@@ -54,18 +53,17 @@ var appThemeProbe = map[string]string{
 	"ryotunes":  "ryotunes",
 }
 
-func hubMatugenTemplates() map[string]bool {
-	out, err := exec.Command("ryoku-hub", "desktop", "matugen", "get").Output()
-	if err != nil {
-		return nil
+// matugenTemplates is the per-app roster in matugen.json; an app it does not name is themed, as the shell treats it.
+func matugenTemplates() map[string]bool {
+	out := map[string]bool{}
+	if m, ok := loadDoc("matugen")["templates"].(map[string]interface{}); ok {
+		for id, v := range m {
+			if b, ok := v.(bool); ok {
+				out[id] = b
+			}
+		}
 	}
-	var cfg struct {
-		Templates map[string]bool `json:"templates"`
-	}
-	if json.Unmarshal(out, &cfg) != nil {
-		return nil
-	}
-	return cfg.Templates
+	return out
 }
 
 func appThemeStatus(id string) string {
@@ -80,12 +78,12 @@ func appThemeStatus(id string) string {
 }
 
 func (d *daemon) themeAppsResult() map[string]interface{} {
-	roster := hubMatugenTemplates()
+	roster := matugenTemplates()
 	rows := make([]map[string]interface{}, 0, len(appThemeNames))
 	for id, name := range appThemeNames {
 		enabled, present := roster[id]
 		if !present {
-			continue
+			enabled = true
 		}
 		rows = append(rows, map[string]interface{}{
 			"id":      id,
@@ -104,10 +102,16 @@ func setAppTheme(id string, enabled bool) error {
 	if _, known := appThemeNames[id]; !known {
 		return fmt.Errorf("unknown app theme %q", id)
 	}
-	payload, _ := json.Marshal(map[string]interface{}{
-		"templates": map[string]bool{id: enabled},
+	err := updateDoc("matugen", func(m map[string]interface{}) bool {
+		roster, _ := m["templates"].(map[string]interface{})
+		if roster == nil {
+			roster = map[string]interface{}{}
+		}
+		roster[id] = enabled
+		m["templates"] = roster
+		return true
 	})
-	if err := exec.Command("ryoku-hub", "desktop", "matugen", "set", string(payload)).Run(); err != nil {
+	if err != nil {
 		return fmt.Errorf("app theme write: %w", err)
 	}
 	return nil

@@ -4,7 +4,6 @@ EditAlignBar 1.0 EditAlignBar.qml
 EditBarAppearancePage 1.0 EditBarAppearancePage.qml
 EditBarComponentPage 1.0 EditBarComponentPage.qml
 EditBarMenu 1.0 EditBarMenu.qml
-EditColourPage 1.0 EditColourPage.qml
 EditDesktopIconsPage 1.0 EditDesktopIconsPage.qml
 EditDockAppearancePage 1.0 EditDockAppearancePage.qml
 EditDockWidgetsPage 1.0 EditDockWidgetsPage.qml

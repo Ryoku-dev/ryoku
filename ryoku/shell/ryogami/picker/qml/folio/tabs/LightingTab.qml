@@ -4,11 +4,12 @@ import Ryoku.Ui.Singletons
 FolioTabData {
     tabKey: "lighting"
     title: I18n.tr("Lighting")
-    note: I18n.tr("Recolour keyboards, mice, headsets, RAM, motherboards and laptop keyboards from the wallpaper and theme palette through OpenRGB, asusd for ASUS laptops, and qmk_hid for QMK/VIA boards.")
+    note: I18n.tr("Recolour keyboards, mice, headsets, RAM, motherboards and laptop keyboards from your palette through OpenRGB, asusd for ASUS laptops, and qmk_hid for QMK and VIA boards.")
     sections: [
         {
+            key: "overview",
             title: I18n.tr("RGB lighting"),
-            subtitle: I18n.tr("Choose when Ryoku may reach lighting hardware, see the live Matugen accent, and detect connected devices."),
+            subtitle: I18n.tr("Choose when Ryoku may reach lighting hardware, see the live accent, and detect connected devices."),
             controls: [
                 { id: "lighting.overview",
                   key: null,
@@ -20,6 +21,7 @@ FolioTabData {
             ]
         },
         {
+            key: "devices",
             title: I18n.tr("Devices"),
             subtitle: I18n.tr("Adopt only the hardware Ryoku should control, then choose its effect, colours and live behaviour."),
             controls: [

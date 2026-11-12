@@ -446,19 +446,7 @@ func (m *managedProcess) ensure(extra ...string) bool {
 				m.kickPark()
 				return true
 			}
-			pending := pickerPendingEvent{
-				name: "ryogami.wall.toggle",
-				data: map[string]interface{}{},
-			}
-			for _, entry := range extra {
-				if tab, ok := strings.CutPrefix(entry, "RYOGAMI_START_SETTINGS="); ok {
-					pending = pickerPendingEvent{
-						name: "ryogami.wall.settings",
-						data: map[string]interface{}{"tab": tab},
-					}
-					break
-				}
-			}
+			pending := pickerPendingFor(extra)
 			if pending.name != "ryogami.wall.toggle" || !m.startVisible {
 				m.pending = pending
 			}
@@ -495,11 +483,46 @@ func (m *managedProcess) unsubscribed(id uint64) {
 	}
 }
 
-// A resident picker hears the event; a dead one cold-starts straight onto the folio.
-func (d *daemon) openSettings(tab string) {
-	if d.ui.ensure("RYOGAMI_START_SETTINGS=" + tab) {
-		d.broadcast("ryogami.wall.settings", map[string]interface{}{"tab": tab})
+// pickerPendingFor turns a cold-start environment into the event a starting
+// picker receives once it subscribes, so either path lands on the same view.
+func pickerPendingFor(extra []string) pickerPendingEvent {
+	env := map[string]string{}
+	for _, entry := range extra {
+		if k, v, ok := strings.Cut(entry, "="); ok {
+			env[k] = v
+		}
 	}
+	if tab, ok := env["RYOGAMI_START_SETTINGS"]; ok {
+		return pickerPendingEvent{name: "ryogami.wall.settings", data: settingsTarget(tab, env["RYOGAMI_START_SECTION"], env["RYOGAMI_START_CONTROL"])}
+	}
+	if name, ok := env["RYOGAMI_START_COLLECTION"]; ok {
+		return pickerPendingEvent{name: "ryogami.wall.collection", data: map[string]interface{}{"name": name}}
+	}
+	return pickerPendingEvent{name: "ryogami.wall.toggle", data: map[string]interface{}{}}
+}
+
+func settingsTarget(tab, section, control string) map[string]interface{} {
+	return map[string]interface{}{"tab": tab, "section": section, "control": control}
+}
+
+// A resident picker hears the event; a dead one cold-starts straight onto the folio.
+func (d *daemon) openSettings(tab, section, control string) {
+	if d.ui.ensure("RYOGAMI_START_SETTINGS="+tab, "RYOGAMI_START_SECTION="+section, "RYOGAMI_START_CONTROL="+control) {
+		d.broadcast("ryogami.wall.settings", settingsTarget(tab, section, control))
+	}
+}
+
+var pickerCollections = []string{"wallpapers", "themes", "rices", "workshop"}
+
+// openCollection shows the picker on one library collection, cold-starting it there if needed.
+func (d *daemon) openCollection(name string) error {
+	if !slices.Contains(pickerCollections, name) {
+		return fmt.Errorf("collection expects %s", strings.Join(pickerCollections, "|"))
+	}
+	if d.ui.ensure("RYOGAMI_START_COLLECTION=" + name) {
+		d.broadcast("ryogami.wall.collection", map[string]interface{}{"name": name})
+	}
+	return nil
 }
 
 func managedLogPath(label string) string {

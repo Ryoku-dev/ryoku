@@ -33,15 +33,6 @@ Item {
         onDismissed: sheet.dismissed()
     }
 
-    RectangularShadow {
-        anchors.fill: panel
-        offset.y: 16 * Theme.scale
-        blur: 28 * Theme.scale
-        color: Qt.rgba(0, 0, 0, 0.42)
-        opacity: sheet.reveal * (sheet.pageOpacity > 0.5 ? 1 : 0)
-        cached: true
-    }
-
     Rectangle {
         id: panel
         anchors.centerIn: parent

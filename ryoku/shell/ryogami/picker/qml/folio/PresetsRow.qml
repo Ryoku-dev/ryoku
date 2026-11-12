@@ -1,5 +1,6 @@
 import QtQuick
 import Ryoku.Ui.Singletons
+import "FolioActions.js" as Actions
 
 Item {
     id: row
@@ -13,8 +14,7 @@ Item {
 
     readonly property string _mode: String(Settings.value("components.wallpaperSelector.displayMode") || "slices")
     readonly property var _presets: {
-        var v = Settings.value("components.wallpaperSelector.presets");
-        return Array.isArray(v) ? v : [];
+        return Actions.asList(Settings.value("components.wallpaperSelector.presets"));
     }
 
     implicitHeight: col.implicitHeight

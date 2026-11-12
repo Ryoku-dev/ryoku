@@ -39,7 +39,7 @@ Item {
         if (!overview.report)
             return I18n.tr("Checking lighting support…")
         if (!overview.providerAvailable)
-            return I18n.tr("OpenRGB is not installed. Run ryoku doctor, or open Ryoku Hub > Updates, to install the default app set.")
+            return I18n.tr("OpenRGB is not installed. Run ryoku doctor, or open Ryoku Settings > Updates, to install the default app set.")
         if (overview.controller.busy && overview.controller.operation === "scan")
             return I18n.tr("Detecting devices… the first OpenRGB start can take up to a minute.")
         if (overview.controller.busy)
@@ -132,7 +132,7 @@ Item {
                 }
                 Text {
                     width: parent.width
-                    text: overview.report && overview.report.accent ? String(overview.report.accent) : I18n.tr("Waiting for the Matugen palette")
+                    text: overview.report && overview.report.accent ? String(overview.report.accent) : I18n.tr("Waiting for the palette")
                     font.family: Theme.sans
                     font.weight: Font.Medium
                     font.pixelSize: Theme.fontFine

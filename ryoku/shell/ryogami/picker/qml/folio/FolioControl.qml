@@ -138,7 +138,23 @@ Item {
         AppThemeRow { width: loader.width; control: fc.control; state: fc.state; options: fc.options
             reveal: fc.reveal } }
     Component { id: segmentC
-        Segment { width: loader.width; label: fc.control.label ? fc.control.label : ""; reveal: fc.reveal } }
+        Column {
+            width: loader.width
+            spacing: 6 * Theme.scale
+            Segment { width: parent.width; label: fc.control.label ? fc.control.label : ""; reveal: fc.reveal }
+            Text {
+                width: parent.width
+                visible: text.length > 0
+                text: fc.control.help ? fc.control.help : ""
+                font.family: Theme.sans
+                font.weight: Font.Medium
+                font.pixelSize: Theme.fontBase
+                color: Theme.withAlpha(Theme.surfaceText, 0.56 * fc.reveal)
+                lineHeight: 1.38
+                wrapMode: Text.WordWrap
+                renderType: Text.NativeRendering
+            }
+        } }
     Component { id: lightingC
         LightingRow { width: loader.width; control: fc.control; host: fc.host; reveal: fc.reveal } }
 }

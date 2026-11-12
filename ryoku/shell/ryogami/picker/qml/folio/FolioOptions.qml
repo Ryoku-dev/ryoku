@@ -1,5 +1,6 @@
 import QtQuick
 import Ryoku.Ui.Singletons
+import "FolioActions.js" as Actions
 
 // A control names a provider in its dynamic field; optionsFor() merges base options with the live entries.
 Item {
@@ -102,15 +103,13 @@ Item {
 
     function semanticModels() {
         var out = [];
-        var models = Settings.value("semantic.models");
-        if (Array.isArray(models)) {
-            for (var i = 0; i < models.length; i++) {
-                var m = models[i] || {};
-                var val = m.manifest !== undefined ? m.manifest : (m.id !== undefined ? m.id : "");
-                var lab = m.name !== undefined && m.name !== "" ? m.name : val;
-                if (val !== "")
-                    out.push({ value: val, label: lab });
-            }
+        var models = Actions.asList(Settings.value("semantic.models"));
+        for (var i = 0; i < models.length; i++) {
+            var m = models[i] || {};
+            var val = m.manifest !== undefined ? m.manifest : (m.id !== undefined ? m.id : "");
+            var lab = m.name !== undefined && m.name !== "" ? m.name : val;
+            if (val !== "")
+                out.push({ value: val, label: lab });
         }
         return out;
     }

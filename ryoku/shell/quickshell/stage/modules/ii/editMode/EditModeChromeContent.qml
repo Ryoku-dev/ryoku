@@ -299,7 +299,7 @@ Item {
                     section: "style"
                     iconText: "palette"
                     text: Translation.tr("Style")
-                    tooltip: Translation.tr("Presets, theme and colours")
+                    tooltip: Translation.tr("Style presets, and a way to your colours")
                 }
                 SectionChip {
                     section: "dock"

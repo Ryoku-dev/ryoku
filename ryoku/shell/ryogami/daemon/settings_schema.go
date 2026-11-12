@@ -64,7 +64,10 @@ func validateSetting(key string, value interface{}) error {
 	if !ok {
 		return fmt.Errorf("%s: unknown setting", key)
 	}
-	return spec.validate(value)
+	if err := spec.validate(value); err != nil {
+		return err
+	}
+	return validateDocValue(key, value)
 }
 
 func (s *settingSpec) validate(value interface{}) error {

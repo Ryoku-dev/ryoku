@@ -13,9 +13,6 @@ import (
 // the persist path because the file is rewritten by targeted patches only.
 type config struct {
 	Matugen struct {
-		Mode       string  `json:"mode"`
-		SchemeType string  `json:"schemeType"`
-		ColorIndex uint32  `json:"colorIndex"`
 		VideoFrame float64 `json:"videoFrame"`
 	} `json:"matugen"`
 	ResourceTier     string `json:"resource_tier"`
@@ -62,12 +59,6 @@ func configPath() string { return filepath.Join(ryokuConfigDir(), "ryogami.json"
 func loadConfig() config {
 	var c config
 	loadJSON(configPath(), &c)
-	if c.Matugen.Mode == "" {
-		c.Matugen.Mode = "dark"
-	}
-	if c.Matugen.SchemeType == "" {
-		c.Matugen.SchemeType = "scheme-tonal-spot"
-	}
 	if c.ResourceTier == "" {
 		c.ResourceTier = "medium"
 	}

@@ -5,7 +5,6 @@ import (
 	"math"
 	"math/rand/v2"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -1107,8 +1106,10 @@ func connectedOutputNames() []string {
 
 func (d *daemon) scheduleFire(r scheduleRule) {
 	// The theme mode goes first so the palette the apply triggers lands in the requested mode.
-	if r.mode != "" {
-		scheduleApplyMode(r.mode)
+	if r.mode == "light" || r.mode == "dark" {
+		if err := d.setSetting("theme.mode", r.mode); err != nil {
+			fmt.Fprintf(os.Stderr, "ryogami: schedule theme mode: %v\n", err)
+		}
 	}
 	set := strings.TrimSpace(r.set)
 	// A schedule apply supersedes a playlist the schedule assigned, unless this rule targets it.
@@ -1143,23 +1144,6 @@ func (d *daemon) scheduleFire(r scheduleRule) {
 			_ = d.applyWallpaperReason("schedule", typeOf(p), p, "set", nil, nil, nil)
 		}
 	}
-}
-
-func scheduleApplyMode(mode string) {
-	if mode != "light" && mode != "dark" {
-		return
-	}
-	bin, err := exec.LookPath("ryoku-hub")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "ryogami: schedule theme mode needs ryoku-hub on PATH\n")
-		return
-	}
-	cmd := exec.Command(bin, "desktop", "matugen", "set", fmt.Sprintf(`{"mode":%q}`, mode))
-	cmd.Stdin = nil
-	if err := cmd.Start(); err != nil {
-		return
-	}
-	go func() { _ = cmd.Wait() }()
 }
 
 func (d *daemon) resolveSetPath(set string) string {

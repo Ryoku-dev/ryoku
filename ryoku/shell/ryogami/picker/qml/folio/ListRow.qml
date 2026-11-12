@@ -14,7 +14,7 @@ Item {
 
     readonly property string base: row.group.base ? row.group.base : ""
     readonly property bool _resolution: row.base === "filterBar.resolutionPresets"
-    readonly property var _items: Array.isArray(arrsv.value) ? arrsv.value : []
+    readonly property var _items: Actions.asList(arrsv.value)
 
     implicitHeight: col.implicitHeight
 

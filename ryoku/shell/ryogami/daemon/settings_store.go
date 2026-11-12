@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -13,7 +12,7 @@ import (
 	"time"
 )
 
-// Each key persists in one store, chosen by its schema Store: ryogami.json, shell.json or the Hub's matugen store.
+// Each key persists in one store, chosen by its schema Store: ryogami.json, shell.json, or a document Ryogami owns (settings_docs.go).
 
 const (
 	settingsFlushDelay           = 300 * time.Millisecond
@@ -31,15 +30,7 @@ var settingsTombstone = &struct{}{}
 
 func isTombstone(v interface{}) bool { return v == settingsTombstone }
 
-func shellPath() string        { return filepath.Join(ryokuConfigDir(), "shell.json") }
-func matugenStorePath() string { return filepath.Join(ryokuConfigDir(), "matugen.json") }
-
-var hubFieldByKey = map[string]string{
-	"theme.mode":         "mode",
-	"matugen.schemeType": "schemeType",
-	"matugen.contrast":   "contrast",
-	"matugen.colorIndex": "sourceColorIndex",
-}
+func shellPath() string { return filepath.Join(ryokuConfigDir(), "shell.json") }
 
 // span has no shell token; the caller keeps it in ryogami.json.
 func modeToContentFit(mode string) string {
@@ -92,8 +83,8 @@ func settingValue(key string) interface{} {
 	switch spec.Store {
 	case "shell":
 		return shellSettingValue(spec)
-	case "hub":
-		return hubSettingValue(spec)
+	case "matugen", "theme":
+		return docSettingValue(spec)
 	default:
 		if v, ok := userRyogami(key); ok {
 			return v
@@ -115,14 +106,6 @@ func shellSettingValue(spec *settingSpec) interface{} {
 		return spec.Default
 	}
 	if v, ok := lookupDotted(loadShellTree(), shellKeyOf(spec)); ok {
-		return v
-	}
-	return spec.Default
-}
-
-func hubSettingValue(spec *settingSpec) interface{} {
-	field := hubFieldByKey[spec.Key]
-	if v, ok := loadHubMap()[field]; ok {
 		return v
 	}
 	return spec.Default
@@ -202,6 +185,7 @@ func (d *daemon) settingMap(key string) map[string]interface{} {
 }
 
 func (d *daemon) setSetting(key string, value interface{}) error {
+	value = normalizeSetting(key, value)
 	if _, ok := specFor(key); ok {
 		if err := validateSetting(key, value); err != nil {
 			return err
@@ -225,8 +209,8 @@ func (d *daemon) persistSetting(key string, value interface{}) error {
 	switch spec.Store {
 	case "shell":
 		return d.writeShell(spec, value)
-	case "hub":
-		return writeHub(spec, value)
+	case "matugen", "theme":
+		return writeDocSetting(spec, value)
 	default:
 		d.queueRyogami(key, value)
 		return nil
@@ -246,8 +230,8 @@ func (d *daemon) resetSetting(key string) error {
 			return deleteShellKey("wallpaper.content_fit")
 		}
 		return deleteShellKey(shellKeyOf(spec))
-	case "hub":
-		return writeHub(spec, spec.Default)
+	case "matugen", "theme":
+		return resetDocSetting(spec)
 	default:
 		d.queueRyogamiDelete(key)
 		return nil
@@ -269,28 +253,6 @@ func (d *daemon) writeShell(spec *settingSpec, value interface{}) error {
 		return nil
 	}
 	return patchShellFile(shellKeyOf(spec), value)
-}
-
-func writeHub(spec *settingSpec, value interface{}) error {
-	field := hubFieldByKey[spec.Key]
-	if field == "" {
-		return fmt.Errorf("no matugen field for %s", spec.Key)
-	}
-	v := value
-	if field == "sourceColorIndex" {
-		if n, ok := toNumber(value); ok {
-			v = int(n)
-		}
-	}
-	b, err := json.Marshal(map[string]interface{}{field: v})
-	if err != nil {
-		return err
-	}
-	out, err := exec.Command("ryoku-hub", "desktop", "matugen", "set", string(b)).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("ryoku-hub matugen set: %v: %s", err, strings.TrimSpace(string(out)))
-	}
-	return nil
 }
 
 func (d *daemon) queueRyogami(key string, value interface{}) {
@@ -409,18 +371,6 @@ func loadRyogamiTree() map[string]interface{} {
 
 func loadShellTree() map[string]interface{} {
 	b, err := os.ReadFile(shellPath())
-	if err != nil {
-		return nil
-	}
-	var m map[string]interface{}
-	if json.Unmarshal(b, &m) != nil {
-		return nil
-	}
-	return m
-}
-
-func loadHubMap() map[string]interface{} {
-	b, err := os.ReadFile(matugenStorePath())
 	if err != nil {
 		return nil
 	}

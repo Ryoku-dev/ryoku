@@ -34,7 +34,7 @@ Item {
         Text {
             width: parent.width
             visible: devicesView.report && !devicesView.providerAvailable
-            text: I18n.tr("OpenRGB is not installed. Run ryoku doctor, or open Ryoku Hub > Updates, to install the default app set.")
+            text: I18n.tr("OpenRGB is not installed. Run ryoku doctor, or open Ryoku Settings > Updates, to install the default app set.")
             font.family: Theme.sans
             font.weight: Font.Medium
             font.pixelSize: Theme.fontBase

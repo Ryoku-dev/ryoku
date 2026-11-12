@@ -137,6 +137,8 @@ var retiredKeys = []string{
 	"filterBar.orientation",
 	"filterBar.offsetX",
 	"filterBar.offsetY",
+	// custom outputs follow theme.mode, the one light-or-dark choice
+	"matugen.mode",
 }
 
 func isRetiredKey(path string) bool {
@@ -160,7 +162,7 @@ func migrateMerge(dst, src map[string]interface{}, prefix string) bool {
 			continue
 		}
 		if spec, ok := specFor(path); ok {
-			if spec.Store == "hub" || spec.Store == "shell" || spec.validate(sv) != nil {
+			if isDocStore(spec.Store) || spec.Store == "shell" || spec.validate(sv) != nil {
 				continue
 			}
 			if _, exists := dst[k]; !exists {

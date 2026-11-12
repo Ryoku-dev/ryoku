@@ -36,22 +36,36 @@ FocusScope {
     }
 
     // Pure data, so every tab can live at once.
-    PickerTab { id: tPicker }
-    FilterTab { id: tFilter }
-    PositionTab { id: tPosition }
-    DisplaysTab { id: tDisplays }
-    MotionTab { id: tMotion }
-    PlaybackTab { id: tPlayback }
-    PerformanceTab { id: tPerformance }
-    LibraryTab { id: tLibrary }
-    SourcesTab { id: tSources }
-    AutomationTab { id: tAutomation }
-    ThemeTab { id: tTheme }
+    WallpaperTab { id: tWallpaper }
+    ColoursTab { id: tColours }
     LightingTab { id: tLighting }
-    IntegrationsTab { id: tIntegrations }
-    LanguageTab { id: tLanguage }
-    readonly property var tabs: [tPicker, tFilter, tPosition, tDisplays, tMotion, tPlayback,
-        tPerformance, tLibrary, tSources, tAutomation, tTheme, tLighting, tIntegrations, tLanguage]
+    PickerTab { id: tPicker }
+    SystemTab { id: tSystem }
+    readonly property var tabs: [tWallpaper, tColours, tLighting, tPicker, tSystem]
+
+    // tab keys from before the regroup, as [tab, section, control]; Settings and scripts still pass them
+    readonly property var tabAliases: ({
+        library: ["wallpaper", "library"],
+        sources: ["wallpaper", "sources"],
+        displays: ["wallpaper", "playback"],
+        playback: ["wallpaper", "playback"],
+        transitions: ["wallpaper", "transitions"],
+        automation: ["wallpaper", "automation"],
+        theme: ["colours", "source"],
+        colors: ["colours", "source"],
+        integrations: ["system", "integrations"],
+        language: ["system", "integrations", "action.openTimeLanguage"],
+        filter: ["picker", "filter"],
+        position: ["picker", "position"],
+        motion: ["picker", "motion"],
+        performance: ["system", "performance"]
+    })
+    readonly property var controlAliases: ({
+        "theme.mode@matugen": "theme.mode",
+        "action.openThemeDesigner.fixed": "action.openThemeDesigner",
+        "action.openThemeDesigner.wallpaper": "action.openThemeDesigner",
+        "general.language": "action.openTimeLanguage"
+    })
     readonly property var lightingController: lighting
     LightingController {
         id: lighting
@@ -95,21 +109,67 @@ FocusScope {
 
     FolioOptions { id: folioOptions }
 
+    // tab, section and control each by key; a numeric section indexes a current tab, a control finds its own section
     function _applyArgs() {
         var a = folio.args;
         if (!a) return;
-        if (a.tab !== undefined) {
-            var ti = folio._tabIndex(a.tab);
-            if (ti >= 0) folio.activeTabIndex = ti;
+        var tab = a.tab === undefined || a.tab === null ? "" : a.tab;
+        var section = a.section === undefined || a.section === null || a.section === "-" ? "" : String(a.section);
+        var control = a.control === undefined || a.control === null ? "" : String(a.control);
+        var t = folio._tabIndex(tab);
+        var s = -1;
+        var alias = typeof tab === "string" ? folio.tabAliases[tab] : undefined;
+        if (t < 0 && alias) {
+            t = folio._tabIndex(alias[0]);
+            s = folio._sectionIndex(t, alias[1]);
+            if (control.length === 0 && alias.length > 2) control = alias[2];
         }
-        if (a.section !== undefined) folio.activeSectionIndex = Number(a.section) || 0;
-        if (a.control !== undefined) folio.jumpControlId = String(a.control);
+        if (t >= 0 && section.length > 0) {
+            var si = folio._sectionIndex(t, section);
+            if (si < 0 && !alias && /^[0-9]+$/.test(section)) si = Number(section);
+            if (si >= 0 && si < folio.tabs[t].sections.length) s = si;
+            else if (control.length === 0) control = section;
+        }
+        if (folio.controlAliases[control] !== undefined) control = folio.controlAliases[control];
+        if (control.length > 0) {
+            var at = folio._locateControl(control, t);
+            if (at) { t = at.tab; s = at.section; }
+            else control = "";
+        }
+        if (t < 0) return;
+        folio.activeTabIndex = t;
+        folio.activeSectionIndex = s >= 0 ? s : 0;
+        folio.jumpControlId = "";
+        if (control.length > 0) Qt.callLater(function () { folio.jumpControlId = control; });
     }
     function _tabIndex(id) {
-        if (typeof id === "number") return id;
+        if (typeof id === "number") return id >= 0 && id < folio.tabs.length ? id : -1;
         for (var i = 0; i < folio.tabs.length; i++)
             if (folio.tabs[i].tabKey === id) return i;
         return -1;
+    }
+    function _sectionIndex(t, key) {
+        if (t < 0) return -1;
+        var secs = folio.tabs[t].sections || [];
+        for (var i = 0; i < secs.length; i++)
+            if (secs[i].key === key) return i;
+        return -1;
+    }
+    // the preferred tab first, then the rest, so a control moved by the regroup is still found
+    function _locateControl(id, preferred) {
+        var order = [];
+        if (preferred >= 0) order.push(preferred);
+        for (var i = 0; i < folio.tabs.length; i++)
+            if (i !== preferred) order.push(i);
+        for (var o = 0; o < order.length; o++) {
+            var secs = folio.tabs[order[o]].sections || [];
+            for (var s = 0; s < secs.length; s++) {
+                var cs = secs[s].controls || [];
+                for (var c = 0; c < cs.length; c++)
+                    if (cs[c].id === id || cs[c].key === id) return { tab: order[o], section: s };
+            }
+        }
+        return null;
     }
 
     function _selectTab(i) { folio.activeTabIndex = i; folio.activeSectionIndex = 0; folio.jumpControlId = ""; }
@@ -149,8 +209,7 @@ FocusScope {
     function chooseProcess() { folio.processPickerOpen = true; }
     function _addProcess(name) {
         if (!name || name.length === 0) return;
-        var v = Settings.value("playback.processes");
-        var arr = Array.isArray(v) ? v.slice() : [];
+        var arr = Actions.asList(Settings.value("playback.processes"));
         if (arr.indexOf(name) < 0) { arr.push(name); Settings.set("playback.processes", arr); }
     }
 
@@ -161,8 +220,10 @@ FocusScope {
     FolioSheet {
         id: sheet
         reveal: folio.reveal
+        // the index carries the title, so an empty masthead would only be a band above the page
         showMasthead: false
-        pageOpacity: folio.isDesign ? 0.14 : 0.965
+        // a design section keeps the scene in view behind a surface plate that still carries the text
+        pageOpacity: folio.isDesign ? 0.8 : 0.965
         scrimAlpha: folio.isDesign ? 0.2 : 0.68
         onDismissed: folio.closeRequested()
 

@@ -59,9 +59,16 @@ PanelWindow {
         else
             picker.show()
     }
-    function openSettings(tab) {
+    function openSettings(tab, section, control) {
         picker.show()
-        pickerState.openSheet("settings", tab ? { tab: tab } : ({}))
+        pickerState.openSheet("settings", { tab: tab || "", section: section || "", control: control || "" })
+    }
+    function openCollection(name) {
+        if (["wallpapers", "themes", "rices", "workshop"].indexOf(name) < 0)
+            name = "wallpapers"
+        pickerState.closeSheet()
+        pickerState.setCollection(name)
+        picker.show()
     }
 
     function _screenByName(name) {

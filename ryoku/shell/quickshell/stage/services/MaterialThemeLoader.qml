@@ -7,9 +7,9 @@ import Quickshell.Io
 import stage
 import stage.modules.common
 
-// The Stage Editor's view of Ryoku's real colour controls. shell.json owns the
-// selected named theme, matugen.json owns the wallpaper palette knobs, and both
-// are read live so opening the drawer always reflects the running desktop.
+// The Stage Editor's view of Ryoku's real colour controls, for its style
+// presets. shell.json owns the selected named theme, matugen.json the wallpaper
+// palette knobs; both are read live. Colours are edited in Ryogami.
 Singleton {
     id: root
 
@@ -21,9 +21,7 @@ Singleton {
     property string mode: "smart"
     property string schemeType: "scheme-tonal-spot"
     property int sourceColorIndex: 0
-    property var themeCatalog: []
     property bool stateReady: false
-    property bool catalogReady: false
     property bool busy: false
     property string lastError: ""
     property int paletteSerial: 0
@@ -40,8 +38,6 @@ Singleton {
         "scheme-neutral",
         "scheme-monochrome"
     ]
-    readonly property var namedThemes: root.themeCatalog.filter(card =>
-        card && String(card.id ?? "") !== "Wallpaper")
 
     property var _jobs: []
     property var _rollbackJobs: []
@@ -97,9 +93,9 @@ Singleton {
         root.stateReady = true;
     }
 
-    // Every writer below is the same writer used by Ryoku Settings:
-    // `ryoku-shell theme` reaches settings.patch for theme.theme, while the Hub
-    // backend merge-writes matugen.json and the shell daemon repaints from it.
+    // The same writers Ryogami's Colours tab uses: `ryoku-shell theme` for
+    // theme.theme, and `ryogami settings set` for the matugen.json knobs, whose
+    // one writer is the ryogami daemon; the shell daemon repaints from them.
     function applyState(patch, recordHistory = true, tag = "") {
         if (root.busy)
             return false;
@@ -119,26 +115,17 @@ Singleton {
             });
         }
 
-        const matugen = {};
-        const oldMatugen = {};
-        if (before.mode !== after.mode) {
-            matugen.mode = after.mode;
-            oldMatugen.mode = before.mode;
-        }
-        if (before.schemeType !== after.schemeType) {
-            matugen.schemeType = after.schemeType;
-            oldMatugen.schemeType = before.schemeType;
-        }
-        if (before.sourceColorIndex !== after.sourceColorIndex) {
-            matugen.sourceColorIndex = after.sourceColorIndex;
-            oldMatugen.sourceColorIndex = before.sourceColorIndex;
-        }
-        if (Object.keys(matugen).length > 0) {
+        const knobs = [
+            ["mode", "theme.mode", v => v],
+            ["schemeType", "matugen.schemeType", v => v],
+            ["sourceColorIndex", "matugen.colorIndex", v => String(v)]
+        ];
+        for (const [field, key, arg] of knobs) {
+            if (before[field] === after[field])
+                continue;
             jobs.push({
-                command: ["ryoku-hub", "desktop", "matugen", "set",
-                    JSON.stringify(matugen)],
-                rollback: ["ryoku-hub", "desktop", "matugen", "set",
-                    JSON.stringify(oldMatugen)]
+                command: ["ryogami", "settings", "set", key, arg(after[field])],
+                rollback: ["ryogami", "settings", "set", key, arg(before[field])]
             });
         }
 
@@ -154,22 +141,6 @@ Singleton {
         root.busy = true;
         root.runNextJob();
         return true;
-    }
-
-    function setMode(value) {
-        return root.applyState({ themeName: "Wallpaper", mode: value });
-    }
-
-    function setSchemeType(value) {
-        return root.applyState({ themeName: "Wallpaper", schemeType: value });
-    }
-
-    function setSourceColorIndex(value) {
-        return root.applyState({ themeName: "Wallpaper", sourceColorIndex: value });
-    }
-
-    function setTheme(value) {
-        return root.applyState({ themeName: value });
     }
 
     function runNextJob() {
@@ -274,27 +245,6 @@ Singleton {
             }
             root._rollbackJobs = [root._currentUndo].concat(root._rollbackJobs);
             root.runNextJob();
-        }
-    }
-
-    Process {
-        id: catalogProcess
-        command: ["ryoku-shell", "theme", "catalog"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    const rows = JSON.parse(String(this.text || "[]"));
-                    root.themeCatalog = Array.isArray(rows) ? rows : [];
-                } catch (error) {
-                    root.themeCatalog = [];
-                }
-                root.catalogReady = true;
-            }
-        }
-        onExited: exitCode => {
-            if (exitCode !== 0)
-                root.catalogReady = true;
         }
     }
 

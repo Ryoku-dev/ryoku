@@ -52,6 +52,8 @@ Item {
         && !(root.field && root.field.flippedIndex >= 0)
     // The wall grid centres itself in the space below the masthead while it shows.
     readonly property bool obscured: root.state !== null && root.state.sheet !== "" && !root.state.sceneThrough
+    // a see-through design sheet keeps the bar's room so the preview stays true, but not the bar itself
+    readonly property bool behindSheet: root.state !== null && root.state.sheet !== "" && root.state.sceneThrough
     readonly property real edge: 22 * Theme.scale
     readonly property real gap: 14 * Theme.scale
     Binding {
@@ -104,7 +106,8 @@ Item {
     property int resIndex: -1
     function resPresets() {
         var p = root.val("filterBar.resolutionPresets", [])
-        return Array.isArray(p) ? p : []
+        // a list setting reaches QML as a Qt sequence, which Array.isArray rejects
+        return p && typeof p === "object" && typeof p.length === "number" ? Array.prototype.slice.call(p) : []
     }
     function cycleResolution() {
         if (!root.view) return
@@ -200,8 +203,8 @@ Item {
         color: Theme.withAlpha(Theme.surface, 0.95)
         border.width: 1
         border.color: Theme.withAlpha(Theme.outline, 0.5)
-        enabled: root.revealed
-        opacity: root.revealed ? 1 : 0
+        enabled: root.revealed && !root.behindSheet
+        opacity: root.revealed && !root.behindSheet ? 1 : 0
         visible: opacity > 0.01
         transform: Translate { y: (1 - slab.opacity) * -10 * Theme.scale }
         Behavior on opacity { NumberAnimation { duration: Theme.standard; easing.type: Theme.revealEasing } }

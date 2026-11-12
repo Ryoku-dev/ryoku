@@ -115,11 +115,24 @@ func (d *daemon) wallpaperVerb(line string) string {
 		}
 		return "ok"
 	case "settings":
-		tab := ""
-		if f := strings.Fields(rest); len(f) > 1 {
-			tab = f[1]
+		// settings [tab] [section] [control]; "-" skips a slot
+		f := strings.Fields(rest)
+		slot := func(i int) string {
+			if len(f) > i && f[i] != "-" {
+				return f[i]
+			}
+			return ""
 		}
-		d.openSettings(tab)
+		d.openSettings(slot(1), slot(2), slot(3))
+		return "ok"
+	case "collection":
+		f := strings.Fields(rest)
+		if len(f) < 2 {
+			return "err wallpaper: collection expects " + strings.Join(pickerCollections, "|")
+		}
+		if err := d.openCollection(f[1]); err != nil {
+			return "err wallpaper: " + err.Error()
+		}
 		return "ok"
 	case "resource":
 		f := strings.Fields(rest)

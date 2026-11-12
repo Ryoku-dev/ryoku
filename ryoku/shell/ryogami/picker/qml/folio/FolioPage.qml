@@ -63,8 +63,9 @@ Item {
     }
 
     property real _reveal: 1
-    onSectionChanged: { page._reveal = 0; revealAnim.restart(); }
-    onTabChanged: { page._reveal = 0; revealAnim.restart(); }
+    // a new page opens at its top; a deep link scrolls on from there
+    onSectionChanged: { page._reveal = 0; revealAnim.restart(); flick.contentY = 0; }
+    onTabChanged: { page._reveal = 0; revealAnim.restart(); flick.contentY = 0; }
     NumberAnimation { id: revealAnim; target: page; property: "_reveal"; from: 0; to: 1
         duration: Theme.standard; easing.type: Theme.revealEasing }
 
@@ -77,14 +78,29 @@ Item {
                 return;
             }
         }
+        if (page._placeRow(id)) {
+            page.flashId = id;
+            flashTimer.restart();
+        }
+    }
+    function _placeRow(id) {
         for (var i = 0; i < bodyRepeater.count; i++) {
             var d = bodyRepeater.itemAt(i);
             if (d && d.cid === id) {
                 flick.contentY = Math.max(0, Math.min(d.y - 12 * Theme.scale,
                     Math.max(0, flick.contentHeight - flick.height)));
-                return;
+                return true;
             }
         }
+        return false;
+    }
+    // a deep link or search result marks where it landed for a moment
+    property string flashId: ""
+    Timer { id: flashTimer; interval: 2400; onTriggered: page.flashId = "" }
+    // rows that fill in after the jump (the app list, display cards) must not push the landed row away
+    Connections {
+        target: body
+        function onHeightChanged() { if (flashTimer.running) page._placeRow(page.flashId) }
     }
     onJumpControlIdChanged: if (page.jumpControlId.length > 0) Qt.callLater(function () { page.scrollToControl(page.jumpControlId); })
 
@@ -180,6 +196,18 @@ Item {
                     implicitHeight: Math.max(groupLoader.height, dispLoader.height, listLoader.height, ctlLoader.height)
                     height: implicitHeight
                     visible: !dele.modelData.group || !!page.expandedGroups[dele.modelData.group]
+
+                    Rectangle {
+                        anchors.fill: parent
+                        anchors.margins: -10 * Theme.scale
+                        radius: Theme.radius
+                        color: Theme.withAlpha(Theme.primary, 0.14)
+                        border.width: 1
+                        border.color: Theme.withAlpha(Theme.primary, 0.5)
+                        opacity: page.flashId.length > 0 && page.flashId === dele.cid ? 1 : 0
+                        visible: opacity > 0
+                        Behavior on opacity { NumberAnimation { duration: Theme.standard } }
+                    }
 
                     Loader {
                         id: groupLoader

@@ -2,13 +2,14 @@ import QtQuick
 import Ryoku.Ui.Singletons
 
 FolioTabData {
-    tabKey: "performance"
-    title: I18n.tr("Performance")
-    note: I18n.tr("Resource limits for this machine and its displays.")
+    tabKey: "system"
+    title: I18n.tr("System")
+    note: I18n.tr("Resource limits, the overview backdrop, and the language Ryogami speaks.")
     sections: [
         {
-            title: I18n.tr("Power"),
-            subtitle: "",
+            key: "performance",
+            title: I18n.tr("Performance"),
+            subtitle: I18n.tr("Resource limits for this machine and its displays."),
             controls: [
                 { id: "performance.powerSource.info",
                   key: null,
@@ -58,7 +59,7 @@ FolioTabData {
                   key: "performance.batteryVideoIdleSeconds",
                   kind: "number",
                   label: I18n.tr("On-battery video idle pause"),
-                  help: I18n.tr("Pause video rendering, decode, and audio after this many idle seconds while discharging. The shorter of this and the Paper idle pause wins; 0 disables it."),
+                  help: I18n.tr("Pause video rendering, decode, and audio after this many idle seconds while discharging. The shorter of this and the scene idle pause wins; 0 disables it."),
                   unit: I18n.tr("s"),
                   search: ["performance.batteryVideoIdleSeconds", "on", "battery", "video", "idle", "pause", "s", "number"] },
                 { id: "performance.batteryWallpaperPerformance",
@@ -66,18 +67,15 @@ FolioTabData {
                   kind: "toggle",
                   label: I18n.tr("Wallpaper performance mode on battery"),
                   help: I18n.tr("While discharging, use direct NV12 video, hard cuts, and a 30 fps, 2048 px limit for native scenes. Less detail, much less work per frame."),
-                  search: ["performance.batteryWallpaperPerformance", "wallpaper", "performance", "mode", "battery", "toggle"] }
-            ]
-        },
-        {
-            title: I18n.tr("Picker rendering"),
-            subtitle: "",
-            controls: [
+                  search: ["performance.batteryWallpaperPerformance", "wallpaper", "performance", "mode", "battery", "toggle"] },
+                { id: "segment.performance.picker-rendering",
+                  kind: "segment",
+                  label: I18n.tr("Picker rendering") },
                 { id: "performance.weRenderer.info",
                   key: null,
                   kind: "static",
                   label: I18n.tr("Wallpaper Engine scene renderer"),
-                  help: I18n.tr("skwd-paper renders Wallpaper Engine scenes with Vulkan."),
+                  help: I18n.tr("Wallpaper Engine scenes render on the graphics card through Vulkan."),
                   search: ["wallpaper", "engine", "scene", "renderer", "static"] },
                 { id: "general.maxFps",
                   key: "general.maxFps",
@@ -92,13 +90,10 @@ FolioTabData {
                   label: I18n.tr("Keep loaded after closing"),
                   help: I18n.tr("Always keeps the picker ready, so it opens at once. A time frees its memory after the picker has been closed that long; the next open then starts it again."),
                   options: [{ value: 0, label: I18n.tr("Always") }, { value: 60, label: I18n.tr("1 minute") }, { value: 600, label: I18n.tr("10 minutes") }, { value: 3600, label: I18n.tr("1 hour") }, { value: 28800, label: I18n.tr("8 hours") }],
-                  search: ["performance.releaseAfterHideSeconds", "keep", "loaded", "memory", "release", "reopen", "chips"] }
-            ]
-        },
-        {
-            title: I18n.tr("Wallpaper efficiency"),
-            subtitle: "",
-            controls: [
+                  search: ["performance.releaseAfterHideSeconds", "keep", "loaded", "memory", "release", "reopen", "chips"] },
+                { id: "segment.performance.wallpaper-efficiency",
+                  kind: "segment",
+                  label: I18n.tr("Wallpaper efficiency") },
                 { id: "paper.performanceMode",
                   key: "paper.performanceMode",
                   kind: "toggle",
@@ -111,13 +106,10 @@ FolioTabData {
                   label: I18n.tr("Video decode budget"),
                   help: I18n.tr("How much memory and CPU Ryoku's own video engine may use."),
                   options: [{ value: "low", label: I18n.tr("Low") }, { value: "medium", label: I18n.tr("Medium") }, { value: "high", label: I18n.tr("High") }],
-                  search: ["resource", "tier", "memory", "video"] }
-            ]
-        },
-        {
-            title: I18n.tr("Bug report"),
-            subtitle: "",
-            controls: [
+                  search: ["resource", "tier", "memory", "video"] },
+                { id: "segment.performance.bug-report",
+                  kind: "segment",
+                  label: I18n.tr("Bug report") },
                 { id: "performance.bugReport.action",
                   key: null,
                   kind: "action",
@@ -125,6 +117,95 @@ FolioTabData {
                   help: I18n.tr("Bundle version, environment, and recent logs into one file to attach to an issue."),
                   action: "GenerateBugReport",
                   search: ["generate", "bug", "report", "action"] }
+            ]
+        },
+        {
+            key: "integrations",
+            title: I18n.tr("Integrations"),
+            subtitle: I18n.tr("Connect Ryogami to the overview and the rest of the desktop."),
+            controls: [
+                { id: "segment.integrations.overview-backdrop",
+                  kind: "segment",
+                  label: I18n.tr("Overview backdrop"),
+                  help: I18n.tr("Use an image, video, or Wallpaper Engine scene behind the overview. Blur and dim it independently of the desktop wallpaper."),
+                  visibleWhen: "cap.overviewBackdrop" },
+                { id: "overviewBackdrop.enabled",
+                  key: "overviewBackdrop.enabled",
+                  kind: "toggle",
+                  label: I18n.tr("Show wallpaper in overview"),
+                  help: I18n.tr("Show the separate overview backdrop. Animated backdrops pause while the overview is closed."),
+                  visibleWhen: "cap.overviewBackdrop",
+                  search: ["overview", "backdrop", "show", "toggle"] },
+                { id: "overviewBackdrop.followWallpaper",
+                  visibleWhen: "cap.overviewBackdrop",
+                  key: "overviewBackdrop.followWallpaper",
+                  kind: "toggle",
+                  label: I18n.tr("Always use the current wallpaper"),
+                  help: I18n.tr("Follow the wallpaper you apply. Turn off to choose a separate backdrop below."),
+                  search: ["follow", "wallpaper", "backdrop", "toggle"] },
+                { id: "overviewBackdrop.path",
+                  visibleWhen: "cap.overviewBackdrop",
+                  key: "overviewBackdrop.path",
+                  kind: "text",
+                  label: I18n.tr("Backdrop source"),
+                  help: I18n.tr("Choose Set as backdrop on a wallpaper, or enter an image, video, or Wallpaper Engine project path. Leave empty to use the last wallpaper."),
+                  placeholder: I18n.tr("~/Pictures/overview.jpg"),
+                  search: ["backdrop", "source", "image", "text"] },
+                { id: "action.refreshBackdrop",
+                  visibleWhen: "cap.overviewBackdrop",
+                  key: null,
+                  kind: "action",
+                  label: I18n.tr("Refresh backdrop now"),
+                  help: I18n.tr("Reload the selected source with the current blur, dimming, and theme settings."),
+                  action: "RefreshBackdrop",
+                  search: ["refresh", "backdrop", "action"] },
+                { id: "overviewBackdrop.blurEnabled",
+                  visibleWhen: "cap.overviewBackdrop",
+                  key: "overviewBackdrop.blurEnabled",
+                  kind: "toggle",
+                  label: I18n.tr("Blur the backdrop"),
+                  help: I18n.tr("Blur the overview copy while leaving the desktop wallpaper sharp."),
+                  search: ["blur", "backdrop", "toggle"] },
+                { id: "overviewBackdrop.blur",
+                  visibleWhen: "cap.overviewBackdrop",
+                  key: "overviewBackdrop.blur",
+                  kind: "number",
+                  label: I18n.tr("Blur radius"),
+                  help: I18n.tr("Gaussian blur radius applied to the copy. Higher is softer."),
+                  search: ["blur", "radius", "number"] },
+                { id: "overviewBackdrop.dim",
+                  visibleWhen: "cap.overviewBackdrop",
+                  key: "overviewBackdrop.dim",
+                  kind: "number",
+                  label: I18n.tr("Backdrop dimming"),
+                  help: I18n.tr("Darken the overview backdrop. 0 = none, 100 = black."),
+                  unit: I18n.tr("%"),
+                  search: ["backdrop", "dim", "number"] },
+                { id: "overviewBackdrop.autoTheme",
+                  visibleWhen: "cap.overviewBackdrop",
+                  key: "overviewBackdrop.autoTheme",
+                  kind: "toggle",
+                  label: I18n.tr("Auto-theme the backdrop"),
+                  help: I18n.tr("Recolour static images with a gowall theme palette. Videos and Wallpaper Engine scenes keep their original colours."),
+                  search: ["auto", "theme", "backdrop", "toggle"] },
+                { id: "overviewBackdrop.theme",
+                  visibleWhen: "cap.overviewBackdrop",
+                  key: "overviewBackdrop.theme",
+                  kind: "dropdown",
+                  label: I18n.tr("Backdrop theme"),
+                  help: I18n.tr("Palette used when auto-theming the backdrop."),
+                  dynamic: "recolourThemes",
+                  search: ["backdrop", "theme", "palette", "dropdown"] },
+                { id: "segment.integrations.language",
+                  kind: "segment",
+                  label: I18n.tr("Language") },
+                { id: "action.openTimeLanguage",
+                  key: null,
+                  kind: "action",
+                  label: I18n.tr("Open Time and language"),
+                  help: I18n.tr("Ryogami speaks the language chosen in Settings, under Time and language."),
+                  action: "OpenTimeLanguage",
+                  search: ["language", "translation", "locale", "interface", "time", "settings", "action"] }
             ]
         }
     ]

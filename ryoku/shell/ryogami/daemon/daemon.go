@@ -109,7 +109,7 @@ func (d *daemon) broadcast(name string, data interface{}) {
 	if err != nil {
 		return
 	}
-	if name == "ryogami.wall.toggle" || name == "ryogami.wall.settings" {
+	if name == "ryogami.wall.toggle" || name == "ryogami.wall.settings" || name == "ryogami.wall.collection" {
 		d.events.publishControl(string(b))
 		return
 	}

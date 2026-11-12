@@ -20,7 +20,7 @@ Item {
         Text {
             width: parent.width
             visible: !row.bridgeAvailable
-            text: I18n.tr("Lighting controls need the Ryoku Hub backend. Run ryoku doctor, or open Ryoku Hub > Updates, to restore the default app set.")
+            text: I18n.tr("Lighting controls need the Ryoku Settings backend. Run ryoku doctor, or open Ryoku Settings > Updates, to restore the default app set.")
             font.family: Theme.sans
             font.weight: Font.Medium
             font.pixelSize: Theme.fontBase

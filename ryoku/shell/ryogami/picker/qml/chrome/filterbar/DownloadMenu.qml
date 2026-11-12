@@ -57,7 +57,7 @@ BarMenu {
             if (row.enabled)
                 dl.state.openBrowser(row.key)
             else
-                dl.state.openSheet("settings", { tab: "sources", section: 0,
+                dl.state.openSheet("settings", { tab: "wallpaper", section: "sources",
                                                  control: dl._srcs.settingsControl(row.key, row.code) })
         }
         dl.close()

@@ -31,6 +31,64 @@
   `phone.microphone.enabled` are no longer modelled (`ipc/settings.go`), and
   the sidebar no longer computes a plugin card tab nothing used
   (`quickshell/shell/modules/sidebar/SidebarPlugins.qml`).
+- **Ryogami's settings are five tabs, and every place in them has an address.**
+  The fourteen tabs regroup into Wallpaper (Library, Sources, Playback and
+  displays, Transitions, Automation), Colours (Source, Scheme, Apps and
+  outputs, Palette bridge, Desktop accents, Designer), Lighting, Picker (Picker,
+  Filter and search, Layout and position, Motion, Picker keys) and System
+  (Performance, Integrations). `ryogami wallpaper settings <tab> [section]
+  [control]` lands on a section and scrolls to and marks the control, through
+  the event and a cold start alike, and the old tab keys (`theme`, `playback`,
+  `performance`, `language`...) still open where their settings went.
+  `ryogami wallpaper collection <wallpapers|themes|rices|workshop>` opens the
+  picker on a collection. The language row moved to Ryoku Settings; the System
+  tab links to Time and language (`ryogami/picker/qml/folio/`,
+  `ryogami/daemon/verbs.go`, `ryogami/daemon/process.go`).
+- **`ryogami settings get|set|reset <key>`, and one writer for matugen.json.**
+  The daemon now writes the palette knobs and the app roster in
+  `matugen.json` itself instead of through `ryoku-hub desktop matugen set`, and
+  owns the theme keys in `theme.json`; the Stage Editor's presets write through
+  the new verb (`ryogami/daemon/settings_docs.go`,
+  `quickshell/stage/services/MaterialThemeLoader.qml`).
+- **Colours gains GTK theme, the system accent and app theming.** The three
+  theme choices only the old Settings could change are rows in Colours: Theme
+  other apps (Apps and outputs), GTK theme and Match the system accent colour
+  (Desktop accents).
+- **The colour controls write what the shell reads.** The leading colour
+  offers all five dominant colours (it stopped at four), contrast is a -1 to 1
+  slider (it took -100 to 100 as text, which the daemon rejected), Light or dark
+  drops the duplicate Auto (stored `auto` reads and writes as the same
+  wallpaper-brightness rule), Smart leaves Colour character because the palette
+  run rejects it, the defaults match what the shell applies, and the Theme
+  designer appears once. Labels say what a control does: Matugen's toggle is
+  Run custom outputs, and Iris and Paper are gone from the copy.
+- **The Stage Editor's Style section hands colours to Ryogami.** Its palette
+  card is one row with the current colours and Open colours; style presets stay
+  (`quickshell/stage/modules/ii/editMode/EditStylePage.qml`; removed
+  `EditColourPage.qml` and the Stage copies of `ColorPreviewGrid.qml` and
+  `ColorPreviewButton.qml`).
+- **The picker's settings open each section at the top.** A page no longer
+  starts at the scroll position of the one before
+  (`ryogami/picker/qml/folio/FolioPage.qml`).
+- **A link to a picker setting keeps that setting in view.** It stays shown
+  and marked while rows above it load, such as the app list
+  (`ryogami/picker/qml/folio/FolioPage.qml`).
+- **List settings in the picker show their entries again.** Custom outputs,
+  saved styles, resolution presets, semantic models and processes all read as
+  empty, and adding an entry could replace the whole list
+  (`ryogami/picker/qml/folio/{FolioActions.js,ListRow.qml,SettingsFolio.qml,FolioOptions.qml,PresetsRow.qml}`,
+  `ryogami/picker/qml/chrome/FilterBar.qml`).
+- **The picker's settings copy says what each control does.** Transition
+  family and transition help no longer show raw placeholder text, per-display
+  placement says "Centre" and drops "Span", which never worked, Fill mode
+  explains that it is the default for displays without their own placement,
+  and the Motion help no longer points to "Motion settings" from inside Motion
+  (`ryogami/picker/qml/folio/tabs/`).
+- **Layout and position stays readable over the live scene.** The text keeps
+  its plate in light mode, the top bar no longer shows through the title or
+  leaves a band above the sheet, and folio sheets no longer cast a shadow
+  (`ryogami/picker/qml/folio/SettingsFolio.qml`,
+  `ryogami/picker/qml/chrome/FilterBar.qml`, `ryogami/picker/qml/kit/FolioSheet.qml`).
 - **Long graphics card names end at a word.** The system card and Settings
   showed names cut mid-word, such as "GeForce RTX 4060 Max-Q / Mobil"; a name
   over 30 characters now drops its last partial word or model and any separator
