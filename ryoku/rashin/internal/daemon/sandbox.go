@@ -30,10 +30,10 @@ func (d *Daemon) sandboxBase() sandbox.Spec {
 	return spec
 }
 
-// privateDirs are Rashin's own: its state and cache, the teams' folders,
-// the login keyrings and the vaults, resolved.
+// privateDirs are Rashin's own: its state and cache, the teams' and dreams'
+// folders, the login keyrings and the vaults, resolved.
 func privateDirs() []string {
-	dirs := []string{paths.StateDir(), paths.CacheDir(), paths.TeamsHome(), paths.Keyrings(), paths.VaultDir(), paths.LegacyVaultDir()}
+	dirs := []string{paths.StateDir(), paths.CacheDir(), paths.TeamsHome(), paths.DreamsHome(), paths.Keyrings(), paths.VaultDir(), paths.LegacyVaultDir()}
 	for index, dir := range dirs {
 		dirs[index] = paths.Resolved(dir)
 	}
@@ -80,11 +80,12 @@ func withAccess(spec sandbox.Spec, access protocol.TeamAccess) sandbox.Spec {
 }
 
 // hiddenFolder reports a team folder inside what Rashin always hides, other
-// than the teams' own home: binding it would uncover what it holds.
+// than the teams' and dreams' own homes: binding it would uncover what it
+// holds.
 func hiddenFolder(folder string) bool {
-	teams := paths.Resolved(paths.TeamsHome())
+	teams, dreams := paths.Resolved(paths.TeamsHome()), paths.Resolved(paths.DreamsHome())
 	return slices.ContainsFunc(alwaysHidden(), func(dir string) bool {
-		return dir != teams && paths.Within(dir, folder)
+		return dir != teams && dir != dreams && paths.Within(dir, folder)
 	})
 }
 

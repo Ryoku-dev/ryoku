@@ -230,6 +230,7 @@ func (s *server) finishTeamsHome(p protocol.HarnessTeamsDoneParams) (protocol.Ha
 			}
 			now := time.Now()
 			teams.Homes[at].SignedIn = &now
+			s.continueSignedInDream(home.Team, harness.ID)
 			return protocol.HarnessTeamsDoneResult{SignedIn: true, Text: i18n.Tf("%s is signed in for %s.", harness.Name, name)}, nil
 		}
 	}

@@ -48,7 +48,7 @@ func TestSettingsSignsATeamInToAHarness(t *testing.T) {
 		t.Fatal("a harness Rashin knows no sign-in for offers one")
 	}
 	for _, name := range []string{
-		"3 teams signed in, 1 not", "1 team signed in, 2 not", "Open the setup of Review account for Release notes",
+		"5 teams signed in, 1 not", "3 teams signed in, 2 not", "Open the setup of Review account for Release notes",
 		"Open the setup of Claude Code for Repo watch with News digest's config", "Every harness's own state", "~/Documents/taxes",
 	} {
 		if _, ok := stage.named(name); !ok {

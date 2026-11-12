@@ -24,7 +24,7 @@ type overview struct {
 	read    kit.Plaque
 	tasks   linkRows
 	coming  map[string]*kit.Click
-	crew    crewLive
+	crew    teamsui.CrewLive
 	steps   nextSteps
 	files   teamFiles
 	memory  memorySection
@@ -60,7 +60,7 @@ func (o *overview) layout(gtx layout.Context, e *env.Env, team protocol.Team) la
 			o.purpose(gtx, e, team),
 			o.steps.layout(gtx, e, snapshot, team),
 			section(th, i18n.T("The crew"), func(gtx layout.Context) layout.Dimensions {
-				return crewChart(gtx, th, snapshot, team.Members, o.crew.of(team.ID), fullCrew(th))
+				return teamsui.CrewChart(gtx, th, snapshot, team.Members, o.crew.Of(team.ID), teamsui.FullCrew(th))
 			}),
 			o.latestReport(gtx, e, snapshot, team),
 			func(gtx layout.Context) layout.Dimensions { return o.memory.layout(gtx, e, team) },

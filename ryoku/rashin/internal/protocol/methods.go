@@ -159,6 +159,8 @@ const (
 	MTeamsActivity       = "teams.activity"
 	MTeamsSpend          = "teams.spend"
 	MTeamsPrune          = "teams.prune"
+	MTeamsDreamCreate    = "teams.dream_create"
+	MTeamsDreamAnswer    = "teams.dream_answer"
 
 	MTeamsAgentReport      = "teams.agent_report"
 	MTeamsAgentDelegate    = "teams.agent_delegate"
@@ -168,6 +170,10 @@ const (
 	MTeamsAgentMail        = "teams.agent_mail"
 	MTeamsAgentRequest     = "teams.agent_request"
 	MTeamsAgentCredentials = "teams.agent_credentials"
+	MTeamsAgentHire        = "teams.agent_hire"
+	MTeamsAgentRelease     = "teams.agent_release"
+	MTeamsAgentDream       = "teams.agent_dream"
+	MTeamsAgentPresent     = "teams.agent_present"
 
 	MVaultInfo     = "vault.info"
 	MVaultAdd      = "vault.add"
@@ -406,6 +412,8 @@ var Methods = []Method{
 	m(MTeamsActivity, TeamActivityParams{}, ActivityResult{}, "The teams' ledger, newest first."),
 	m(MTeamsSpend, TeamSpendParams{}, TeamSpend{}, "A month of tokens by day, member, routine and engine."),
 	m(MTeamsPrune, TeamPruneParams{}, Empty{}, "Delete finished tasks with their sessions: past the kept days, or all of them."),
+	m(MTeamsDreamCreate, DreamCreateParams{}, Team{}, "Start a dream: a team whose manager hires and works until the objective is built and accepted."),
+	m(MTeamsDreamAnswer, DreamAnswerParams{}, Team{}, "Accept a dream's presentation, or send notes that keep its team working."),
 
 	m(MTeamsAgentReport, AgentReportParams{}, AgentAnswer{}, "For a team task's agent: hand back the report and end the task."),
 	m(MTeamsAgentDelegate, AgentDelegateParams{}, AgentAnswer{}, "For a lead's agent: give a member a piece of the task."),
@@ -415,6 +423,10 @@ var Methods = []Method{
 	m(MTeamsAgentMail, AgentMailParams{}, AgentAnswer{}, "For a team task's agent: send a mail once the user approves it."),
 	m(MTeamsAgentRequest, AgentCredentialRequestParams{}, AgentAnswer{}, "For a team task's agent: ask the user to add a credential."),
 	m(MTeamsAgentCredentials, AgentRef{}, AgentCredentialsResult{}, "For a team task's agent: the credentials its team may use."),
+	m(MTeamsAgentHire, AgentHireParams{}, Member{}, "For a dream's manager: add a member to the team."),
+	m(MTeamsAgentRelease, AgentReleaseParams{}, AgentAnswer{}, "For a dream's manager: let a member go once its work is done."),
+	m(MTeamsAgentDream, AgentDreamParams{}, AgentAnswer{}, "For a dream's manager: say where the dream stands."),
+	m(MTeamsAgentPresent, AgentPresentParams{}, AgentAnswer{}, "For a dream's manager: present the finished dream to the user."),
 
 	m(MVaultInfo, Empty{}, VaultInfo{}, "The vault's state and credentials, never a value."),
 	m(MVaultAdd, VaultAddParams{}, Credential{}, "Store a credential."),

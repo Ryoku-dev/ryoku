@@ -107,7 +107,7 @@ func open(dir string, v *vault.Vault, wake func(on bool), events core.Broadcaste
 	}
 	s.clock = newScheduler(s, wake)
 	s.effects = map[string]approvalEffect{
-		protocol.ApprovalAction:     s.effectAction,
+		protocol.ApprovalAction:     s.effectAsked,
 		protocol.ApprovalBudget:     s.effectBudget,
 		protocol.ApprovalMail:       s.effectMail,
 		protocol.ApprovalCredential: s.effectCredential,
@@ -143,7 +143,7 @@ func (s *Service) Bind(sessions core.TeamSessions) {
 func (s *Service) Handle(ctx context.Context, method string, raw json.RawMessage) (any, error) {
 	switch method {
 	case protocol.MTeamsList:
-		return s.listTeams(), nil
+		return withoutDreams(s.listTeams()), nil
 	case protocol.MTeamsTemplates:
 		return protocol.TeamTemplatesResult{Templates: templates()}, nil
 	case protocol.MTeamsCreate:
@@ -194,6 +194,10 @@ func (s *Service) Handle(ctx context.Context, method string, raw json.RawMessage
 		return call(raw, func(p protocol.TeamSpendParams) (any, error) { return s.spend(p) })
 	case protocol.MTeamsPrune:
 		return call(raw, func(p protocol.TeamPruneParams) (any, error) { return s.prune(ctx, p) })
+	case protocol.MTeamsDreamCreate:
+		return call(raw, func(p protocol.DreamCreateParams) (any, error) { return s.dreamCreate(ctx, p) })
+	case protocol.MTeamsDreamAnswer:
+		return call(raw, func(p protocol.DreamAnswerParams) (any, error) { return s.dreamAnswer(ctx, p) })
 
 	case protocol.MTeamsAgentReport:
 		return call(raw, func(p protocol.AgentReportParams) (any, error) { return s.agentReport(ctx, p) })
@@ -211,6 +215,14 @@ func (s *Service) Handle(ctx context.Context, method string, raw json.RawMessage
 		return call(raw, func(p protocol.AgentCredentialRequestParams) (any, error) { return s.agentRequest(ctx, p) })
 	case protocol.MTeamsAgentCredentials:
 		return call(raw, func(p protocol.AgentRef) (any, error) { return s.agentCredentials(ctx, p) })
+	case protocol.MTeamsAgentHire:
+		return call(raw, func(p protocol.AgentHireParams) (any, error) { return s.agentHire(ctx, p) })
+	case protocol.MTeamsAgentRelease:
+		return call(raw, func(p protocol.AgentReleaseParams) (any, error) { return s.agentRelease(ctx, p) })
+	case protocol.MTeamsAgentDream:
+		return call(raw, func(p protocol.AgentDreamParams) (any, error) { return s.agentDream(ctx, p) })
+	case protocol.MTeamsAgentPresent:
+		return call(raw, func(p protocol.AgentPresentParams) (any, error) { return s.agentPresent(ctx, p) })
 
 	case protocol.MVaultInfo:
 		return s.vaultInfo(), nil

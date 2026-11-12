@@ -24,6 +24,7 @@ var shortcutKeys = []event.Filter{
 	key.Filter{Name: "4", Required: key.ModShortcut},
 	key.Filter{Name: "5", Required: key.ModShortcut},
 	key.Filter{Name: "6", Required: key.ModShortcut},
+	key.Filter{Name: "7", Required: key.ModShortcut},
 	key.Filter{Name: "T", Required: key.ModShortcut},
 	key.Filter{Name: ",", Required: key.ModShortcut},
 	key.Filter{Name: "\\", Required: key.ModShortcut},
@@ -40,7 +41,7 @@ var escapeKey = key.Filter{Name: key.NameEscape}
 // each mode's destinations in the order Ctrl 1 onwards reaches them
 var (
 	rashinTabs = []string{protocol.TabAsk, protocol.TabAgent, protocol.TabProjects, protocol.TabIndex}
-	teamsTabs  = []string{protocol.TabInbox, protocol.TabTeams, protocol.TabWork, protocol.TabRoutines, protocol.TabVault, protocol.TabActivity}
+	teamsTabs  = []string{protocol.TabInbox, protocol.TabTeams, protocol.TabDreams, protocol.TabWork, protocol.TabRoutines, protocol.TabVault, protocol.TabActivity}
 )
 
 func teamsTab(tab string) bool { return slices.Contains(teamsTabs, tab) }
@@ -309,7 +310,7 @@ func (r *Router) HandleKeys(gtx layout.Context, overlays *look.Overlays) {
 			r.OnTogglePanel()
 		case e.Name == "T" && shortcut:
 			r.SwitchMode()
-		case shortcut && e.Name >= "1" && e.Name <= "6":
+		case shortcut && e.Name >= "1" && e.Name <= "7":
 			tabs := rashinTabs
 			if r.teams {
 				tabs = teamsTabs

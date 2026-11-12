@@ -883,6 +883,9 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 	case protocol.MShutdown:
 		return protocol.Empty{}, nil
 	default:
+		if answer, handled, err := s.callDreams(method, raw); handled {
+			return answer, err
+		}
 		if teamsMethod(method) {
 			return s.callTeams(method, raw)
 		}

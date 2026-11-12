@@ -138,7 +138,8 @@ func (d *Daemon) openTeamsHome(c *connection, raw json.RawMessage) (any, error) 
 
 // finishTeamsHome ends a sign-in or setup. Anything may call it, as the
 // terminal's rashin command does; only the token Rashin handed that terminal
-// ends one.
+// ends one. A team now signed in is told to Teams, so a dream that waited on
+// it goes on.
 func (d *Daemon) finishTeamsHome(raw json.RawMessage) (any, error) {
 	p, err := unmarshal[protocol.HarnessTeamsDoneParams](raw)
 	if err != nil {
@@ -156,6 +157,9 @@ func (d *Daemon) finishTeamsHome(raw json.RawMessage) (any, error) {
 	teamName, _ := d.teamName(team)
 	if !signed {
 		return protocol.HarnessTeamsDoneResult{Text: i18n.Tf("%s is not signed in to %s: the sign-in ended with status %d. Sign in again from Rashin.", teamName, name, p.Status)}, nil
+	}
+	if d.deps.Teams != nil {
+		d.deps.Teams.HomeSignedIn(id, team)
 	}
 	return protocol.HarnessTeamsDoneResult{SignedIn: true, Text: i18n.Tf("%s is signed in to %s. Rashin keeps this setup as it is now and puts it back before every task of the team.", teamName, name)}, nil
 }

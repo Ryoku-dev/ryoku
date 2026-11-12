@@ -626,6 +626,7 @@ func makeFixtures() fixtures {
 	result.events[idle.ID] = agentEvents(idle, false)
 	result.events[failed.ID] = agentEvents(failed, false)
 	result.teams = demoTeams(now, settings, result.events)
+	addDemoDreams(&result, now, settings)
 	return result
 }
 

@@ -496,7 +496,8 @@ func decidedAt(rec approvalRecord) time.Time {
 	return rec.Created
 }
 
-// cloneTeam copies what a caller could change through a shared slice or map.
+// cloneTeam copies what a caller could change through a shared slice, map or
+// dream.
 func cloneTeam(t protocol.Team) protocol.Team {
 	t.Members = append([]protocol.Member(nil), t.Members...)
 	for i := range t.Members {
@@ -510,6 +511,10 @@ func cloneTeam(t protocol.Team) protocol.Team {
 			doing[key] = value
 		}
 		t.Stats.Doing = doing
+	}
+	if t.Dream != nil {
+		dream := cloneDream(*t.Dream)
+		t.Dream = &dream
 	}
 	return t
 }

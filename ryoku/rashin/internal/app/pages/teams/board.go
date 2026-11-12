@@ -38,6 +38,8 @@ type board struct {
 
 func (b *board) layout(gtx layout.Context, e *env.Env, p *Page) layout.Dimensions {
 	snapshot := e.Snapshot()
+	// dreams are teams of their own destination
+	snapshot.Teams = teamsui.Ordinary(snapshot.Teams)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return b.layoutHeader(gtx, e, p) }),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {

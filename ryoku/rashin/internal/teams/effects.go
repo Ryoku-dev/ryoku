@@ -57,6 +57,7 @@ func (s *Service) effectBudget(_ context.Context, rec *approvalRecord, p protoco
 	s.record(protocol.Activity{Actor: protocol.InitiatorYou, Action: "team.resume", Target: team.Name, OK: true, Team: team.ID, Initiator: protocol.InitiatorYou, Detail: i18n.Tf("The spending limit is now %d tokens a month.", team.Budget.MonthTokens)})
 	s.clock.rearm()
 	s.pump()
+	s.runDream(team.ID, protocol.InitiatorYou)
 	rec.Result = i18n.Tf("The spending limit is now %d tokens a month.", team.Budget.MonthTokens)
 	return rec.Result, nil
 }

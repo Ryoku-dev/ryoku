@@ -1,6 +1,17 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **Rashin has Dreams: a team that works until what you asked for is built.**
+  You are the CEO; a manager agent interviews you about the design and the
+  task, hires the members it needs on harnesses the dream is signed in to,
+  hands out pieces, has them reviewed and tested, and presents the result
+  with evidence. Accept ends the dream, notes send the team back to work. A
+  dream runs without confirmations and without a token cap unless you set
+  one, keeps its own folder under `~/Dreams`, hidden from every other team,
+  and stops to ask if the manager stalls for six turns. Rashin's danger
+  floor still asks and sudo never runs; a dream has no device access such as
+  flashing a board. Parts of the manager's instructions are adapted from
+  Paperclip (MIT) (`rashin/internal/teams/dream*.go`, `rashin dreams`).
 - **Scrolling fast through Rashin's Settings no longer lags.** A frame lays
   out only the groups on screen instead of all of Teams, Memory or Skills,
   reads the app state without copying it and stops redrawing the sidebar's

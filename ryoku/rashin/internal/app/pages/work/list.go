@@ -14,7 +14,7 @@ import (
 func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 	th := e.Theme
 	snapshot := e.Snapshot()
-	tasks := teamsui.GroupTasks(snapshot, "")
+	tasks := teamsui.GroupTasks(snapshot, "", false)
 	groups := make([]look.SideGroup, 0, teamsui.GroupCount)
 	for at := teamsui.GroupNeeds; at < teamsui.GroupCount; at++ {
 		list := tasks[at]

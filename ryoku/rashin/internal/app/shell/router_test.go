@@ -144,7 +144,7 @@ func TestShortcutsReachTheirActions(t *testing.T) {
 		t.Fatalf("Ctrl T went to %q, want the Inbox in Teams mode", router.Tab)
 	}
 	for index, tab := range []string{
-		protocol.TabInbox, protocol.TabTeams, protocol.TabWork, protocol.TabRoutines, protocol.TabVault, protocol.TabActivity,
+		protocol.TabInbox, protocol.TabTeams, protocol.TabDreams, protocol.TabWork, protocol.TabRoutines, protocol.TabVault, protocol.TabActivity,
 	} {
 		board.press(key.Name('1'+rune(index)), key.ModShortcut)
 		if router.Tab != tab {

@@ -20,8 +20,9 @@ const expirySweep = time.Hour
 // ask stores a pending approval with the exact action it would run, holds
 // the caller's task on the user, and tells the user. It waits the settings'
 // approval hours, except a spending limit card, whose no only keeps paused a
-// team that already is, a proposed team, which nothing runs without, and a
-// restore notice, which asks nothing: those wait until answered.
+// team that already is, a proposed team, which nothing runs without, a
+// restore notice, which asks nothing, and a dream's own question, which its
+// dream waits on: those wait until answered.
 func (s *Service) ask(_ context.Context, c caller, a protocol.Approval, action any) (protocol.Approval, error) {
 	var raw json.RawMessage
 	if action != nil {
@@ -44,7 +45,8 @@ func (s *Service) ask(_ context.Context, c caller, a protocol.Approval, action a
 	a.Created = now
 	hours := approvalHours(s.settings())
 	a.Expires = time.Time{}
-	if a.Kind != protocol.ApprovalBudget && a.Kind != protocol.ApprovalTeam && a.Kind != protocol.ApprovalRestore {
+	_, dream := action.(dreamCard)
+	if a.Kind != protocol.ApprovalBudget && a.Kind != protocol.ApprovalTeam && a.Kind != protocol.ApprovalRestore && !dream {
 		a.Expires = now.Add(time.Duration(hours) * time.Hour)
 	}
 	a.Unwatched = s.nobodyWatching()

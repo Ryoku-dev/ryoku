@@ -23,6 +23,7 @@ import (
 	activitypage "ryoku-rashin/internal/app/pages/activity"
 	agentpage "ryoku-rashin/internal/app/pages/agent"
 	askpage "ryoku-rashin/internal/app/pages/ask"
+	dreamspage "ryoku-rashin/internal/app/pages/dreams"
 	inboxpage "ryoku-rashin/internal/app/pages/inbox"
 	indexpage "ryoku-rashin/internal/app/pages/index"
 	memorypage "ryoku-rashin/internal/app/pages/memory"
@@ -77,6 +78,7 @@ type uiShell struct {
 	memory   *memorypage.Page
 	inbox    *inboxpage.Page
 	teams    *teamspage.Page
+	dreams   *dreamspage.Page
 	work     *workpage.Page
 	routines *routinespage.Page
 	vault    *vaultpage.Page
@@ -134,7 +136,7 @@ func newShell(r *runtime, options Options) *uiShell {
 		runtime: r, router: NewRouter(route, options.Session, r.hub.Invalidate), preferences: preferences,
 		ask: askpage.New(), agent: agentpage.New(), projects: projectspage.New(),
 		index: indexpage.New(), settings: settingspage.New(), memory: memorypage.New(), listTab: listTab,
-		inbox: inboxpage.New(), teams: teamspage.New(), work: workpage.New(),
+		inbox: inboxpage.New(), teams: teamspage.New(), dreams: dreamspage.New(), work: workpage.New(),
 		routines: routinespage.New(), vault: vaultpage.New(), activity: activitypage.New(),
 	}
 	s.router.paletteTag = &s.palette

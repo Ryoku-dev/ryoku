@@ -1617,8 +1617,8 @@ home to another would spend a rotating refresh token twice.
 ### In the app
 
 - The Rashin and Teams switch in the top bar, or Ctrl T, switches the window
-  to Teams mode and back. Ctrl 1 to 6 pick its destinations: Inbox, Teams,
-  Work, Routines, Vault and Activity. Settings opened from Teams mode opens on
+  to Teams mode and back. Ctrl 1 to 7 pick its destinations: Inbox, Teams,
+  Dreams, Work, Routines, Vault and Activity. Settings opened from Teams mode opens on
   Settings > Teams, in six groups: Running (pause every team, tasks at once,
   tasks at once in one team, wake Rashin for routines), New teams start with
   (engine, permissions, budget, notifications), Asking and telling (how long a
@@ -1643,9 +1643,10 @@ home to another would spend a rotating refresh token twice.
   `work[/<task>]`, `routines`, `routines/new[/<team>]`,
   `routines/<routine>`, `vault[/<credential>]` and `activity`
   (`shell.TeamsRoute`). `rashin open --route <route>` opens `inbox`,
-  `activity`, `teams[/<team>[/<view>]]`, `work[/<task>]`,
-  `routines[/<routine>]` or `vault[/<credential>]` in a running window, or
-  starts the app there; a notification opens its place the same way.
+  `activity`, `teams[/<team>[/<view>]]`, `dreams[/<dream>|new]`,
+  `work[/<task>]`, `routines[/<routine>]` or `vault[/<credential>]` in a
+  running window, or starts the app there; a notification opens its place
+  the same way.
 - A task's page shows its transcript, what it waits on, its report and the
   engine it ran on, and answers its approvals inline.
 - The template picker, in the Inbox before the first team and in a new
@@ -1660,6 +1661,115 @@ home to another would spend a rotating refresh token twice.
   credential requests then wait in the Inbox; Not now records the answer
   (`teamsui/proposal.go`). The demo Inbox holds one, Translations, proposed
   in the agent session Polish provider cards, asking for `DEEPL_API_KEY`.
+
+### Dreams
+
+A dream is a team with a standing objective that runs until the objective is
+built, tested and accepted (`Team.Dream`, `internal/teams/dream*.go`,
+`protocol/dream.go`). The user is the CEO; the dream's lead is its
+**Manager**, an agent that interviews the CEO, plans, hires the members it
+needs, hands them pieces, has their work reviewed, tests the result and
+presents it. It is more than a `/goal`: a goal is one agent's objective
+across turns, a dream is a team's, and only the user ends it.
+
+- **Starting.** `teams.dream_create` (app only; `DreamCreateParams`: the
+  statement, an optional name and folder, the manager's harness, model and
+  options, and a monthly token cap) makes a team with one member, Manager,
+  working in `~/Dreams/<slug>`, and the manager's standing task, whose brief
+  is the statement. A dream runs with approvals `auto` and no token cap
+  unless one is given (`budget.monthTokens` 0); its tasks are exempt from
+  turns and minutes per task. `rashin dreams start <statement>` asks the
+  daemon and, since only the app may start a dream, opens the app's New
+  dream dialog (`dreams/new`); `rashin dreams list` lists them.
+- **Separate from Teams.** Dreams show only under Dreams in Teams mode:
+  `teams.list`, the teams agents read and `rashin teams list` leave them
+  out, while the subscribe snapshot keeps them for the app. `~/Dreams` is
+  always hidden, as `~/Teams` is, and a dream's own folder is bound back for
+  its own agents; a folder inside another dream's is refused as a writable
+  one.
+- **The manager's brief** (`dream_brief.go`) names the CEO's statement, what
+  the interview settled (`Dream.brief`), the phases, its tools, which
+  built-in skills fit which phase (Elephant and Goldfish to brainstorm, draft
+  and review; Spec Kit or OpenSpec for specs, plans and tasks; Superpowers
+  for test-first work and verification), and its rules: ask the CEO only
+  design or task questions, batched in one card, and never for confirmation;
+  hire small and release a member once its work is in; have work reviewed in
+  fresh context by a member who did not write it; test before presenting;
+  present with evidence. Parts of these instructions and of the tool texts
+  are adapted from Paperclip (MIT, see `ryoku/rashin/NOTICE`). A member a
+  dream hires gets the ordinary member brief, except that it asks the user
+  nothing and puts open questions in its report to the manager.
+- **Tools.** Only the manager's MCP server lists `hire`, `release`,
+  `dream_status` and `present` (`RASHIN_TEAM_DREAM`), and has no `report`.
+  The daemon checks the run token belongs to the dream's manager for
+  `teams.agent_hire`, `agent_release`, `agent_dream` and `agent_present`. A
+  hire takes the manager's engine unless it names one; its harness must be
+  signed in for this dream (per-team homes), or the hire is refused with the
+  harnesses that are. A team holds at most six members at a time. A member
+  with an open piece cannot be released.
+- **Phases.** `interviewing`, `designing`, `planning`, `building`,
+  `testing`, `presenting`, `done`. The manager sets the first five with
+  `dream_status`, with a one-sentence summary and its progress estimate;
+  `present` sets presenting; only the CEO's accepting sets done.
+- **The loop.** The manager works one standing task as a goal. It is held
+  while it waits on its members or the CEO and continued when that settles,
+  as any lead is. A report does not end it (`teams.agent_report` refuses),
+  a goal the manager completes is set again, a spent turn budget resumes,
+  and the pause the session manager makes after two idle turns resumes too.
+  A blocker the manager names with the goal tool becomes a question in the
+  Inbox. A failed turn, or the user stopping the conversation, ends the
+  standing task; Resume (`teams.pause` with `paused` false, also on a dream
+  that is not paused) runs that same task again in a new conversation, which
+  hears where the dream stands through its brief. A dream started before its
+  harness was signed in goes on by itself when that sign-in finishes
+  (`HomeSignedIn`, from `harnesses.teams_done`): its blocked standing task
+  runs again, so it is neither a finished task nor a card left waiting.
+- **Stall guard.** Six manager turns in a row without a tool call stop the
+  dream with an Inbox card, "<dream> has stalled: keep going?", carrying the
+  manager's last words, with Keep going and Pause the dream.
+- **Interview first, the team builds.** The manager's first turn asks the
+  CEO one batched round of design and task questions with `ask_user` (its
+  `question` field carries them in full), sharing its plan when the
+  statement looks complete; it never writes the product itself. `present` is
+  refused, with what to do instead, until the CEO has answered one of its
+  questions in this dream and a member it hired has finished a piece since
+  the last presentation. Every Rashin MCP tool refuses an argument it does
+  not take and names the ones it does.
+- **Presenting.** `present` (title, body, tests, files inside the folder)
+  waits as an Inbox card, "<dream> is ready: <title>", with Accept and Send
+  notes. `teams.dream_answer` (app only; `accepted`, or `notes` with the
+  note) answers the same card. Accepting ends the standing task with the
+  presentation as its report, stops whatever the team still works on and
+  marks the dream done; notes put it back to building and continue the
+  manager with them. A dream's questions, its stall card and its
+  presentation never expire. Questions and presentations reach the desktop
+  as notices under the dream's notify setting.
+- **Ledger.** `dream.start`, `dream.hire`, `dream.release`, `dream.phase`
+  (when the phase changes), `dream.present`, `dream.accept`, `dream.notes`,
+  `dream.stall` and `dream.resume`, beside the ordinary task entries.
+- **What a dream cannot do.** No confirmations does not mean no floor:
+  Rashin's danger tier still asks, and `sudo`, `doas` and `su` are never
+  run. A dream has no hardware or device access, such as flashing a board
+  over USB; it works in its folder and the folders the CEO adds to its
+  writable list, and the manager asks the CEO for a step on the device
+  itself.
+- **Proof with the scripted agent.** `RASHIN_ACP_TEST_MODE=dream` makes
+  `TestACPHelperProcess` play a dream: the manager sets phases, hires Ada,
+  delegates the page, releases her and presents; a member writes
+  `index.html` into the folder and reports.
+- **In the app.** Dreams (`pages/dreams`) lists every dream with its phase,
+  its manager's summary and its team, and its New dream dialog takes the
+  statement, a name, the manager's engine, Unlimited or a monthly cap, the
+  folder and how the manager signs in: from scratch, or from the setup of a
+  team signed in to that harness. A dream's page shows the statement, the
+  phases as words, where the manager says it stands, its sign-in, the
+  presentation with Accept and Send notes, its questions, the team as an
+  org chart under You (CEO), its work with the hires' tasks, tokens and
+  finished tasks over time, and its folder, with Pause and Resume. Routes are
+  `dreams`, `dreams/new` and `dreams/<id>`; `ui.open` with tab `dreams` and
+  team `new` or an id opens the same. The Teams list and board leave dreams
+  out. The demo has "ESP32 Wi-Fi setup page" building with a question
+  waiting and "Receipt renamer" presenting.
 
 ### Limits
 

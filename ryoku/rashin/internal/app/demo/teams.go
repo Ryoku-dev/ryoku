@@ -206,6 +206,22 @@ func teamFrom(template protocol.TeamTemplate, id, folder string, created time.Ti
 	}
 }
 
+// every task is stored with the engine it started on, the session that worked it and that session's transcript
+func (fx *teamsFixtures) addTask(settings protocol.Settings, events map[string][]protocol.SessionEvent, team protocol.Team, task protocol.TeamTask, preview, activity string, lines ...line) {
+	task.Team, task.MaxTurns = team.ID, team.Budget.TaskTurns
+	if task.Started != nil {
+		member, _ := teamMember(team, task.Member)
+		startEngine(&task, member, settings, "")
+	}
+	if task.Session != "" {
+		task.Sessions = []string{task.Session}
+		transcript := teamTranscript(task, lines)
+		events[task.Session] = transcript
+		fx.sessions = append(fx.sessions, teamSession(team, task, transcript, preview, activity))
+	}
+	fx.tasks = append(fx.tasks, task)
+}
+
 func demoTeams(now time.Time, settings protocol.Settings, events map[string][]protocol.SessionEvent) teamsFixtures {
 	clock := demoTeamsClock(now)
 	ago := func(d time.Duration) time.Time { return now.Add(-d) }
@@ -263,20 +279,8 @@ func demoTeams(now time.Time, settings protocol.Settings, events map[string][]pr
 		spend:   make(map[string]protocol.TeamSpend),
 		actions: make(map[string]demoAction),
 	}
-	// every task is stored with the engine it started on, the session that worked it and that session's transcript
 	add := func(team protocol.Team, task protocol.TeamTask, preview, activity string, lines ...line) {
-		task.Team, task.MaxTurns = team.ID, team.Budget.TaskTurns
-		if task.Started != nil {
-			member, _ := teamMember(team, task.Member)
-			startEngine(&task, member, settings, "")
-		}
-		if task.Session != "" {
-			task.Sessions = []string{task.Session}
-			transcript := teamTranscript(task, lines)
-			events[task.Session] = transcript
-			fx.sessions = append(fx.sessions, teamSession(team, task, transcript, preview, activity))
-		}
-		fx.tasks = append(fx.tasks, task)
+		fx.addTask(settings, events, team, task, preview, activity, lines...)
 	}
 	ended := i18n.T("Your report is with the user. The task has ended.")
 	blocked := i18n.T("The task is blocked. Rashin tells the user what you need.")

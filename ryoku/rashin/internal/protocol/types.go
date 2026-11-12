@@ -1087,7 +1087,7 @@ func TeamsAlwaysHidden() []HiddenGroup {
 		}},
 		{Kind: HiddenRyoku, Paths: []string{
 			"~/.local/state/ryoku", "~/.local/share/ryoku/rashin", "~/.local/share/ryoku/vault", "~/.cache/ryoku/rashin",
-			"~/Teams", "~/.config/dev.ryoku.ryotunes", "~/.local/share/dev.ryoku.ryotunes", "~/.local/state/ryotunes",
+			"~/Teams", "~/Dreams", "~/.config/dev.ryoku.ryotunes", "~/.local/share/dev.ryoku.ryotunes", "~/.local/state/ryotunes",
 		}},
 	}
 }
@@ -1141,6 +1141,7 @@ const (
 	// Teams mode
 	TabInbox    = "inbox"
 	TabTeams    = "teams"
+	TabDreams   = "dreams"
 	TabWork     = "work"
 	TabRoutines = "routines"
 	TabVault    = "vault"

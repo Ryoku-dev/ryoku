@@ -89,6 +89,24 @@ func ActivitySentence(entry protocol.Activity) string {
 		words = i18n.Tf("%s is close to its spending limit", target)
 	case "budget.stop":
 		words = i18n.Tf("%s reached its spending limit and paused", target)
+	case "dream.start":
+		words = i18n.Tf("%s started the dream %s", actor, target)
+	case "dream.hire":
+		words = i18n.Tf("%s hired %s", actor, target)
+	case "dream.release":
+		words = i18n.Tf("%s let %s go", actor, target)
+	case "dream.phase":
+		words = i18n.Tf("%s moved %s on to its next phase", actor, target)
+	case "dream.present":
+		words = i18n.Tf("%s presented %s", actor, target)
+	case "dream.accept":
+		words = i18n.Tf("%s accepted %s", actor, target)
+	case "dream.notes":
+		words = i18n.Tf("%s sent notes on %s", actor, target)
+	case "dream.stall":
+		words = i18n.Tf("%s stalled and asked you whether to go on", target)
+	case "dream.resume":
+		words = i18n.Tf("%s started %s again", actor, target)
 	default:
 		// an action the app doesn't know yet keeps its own name
 		words = strings.Join([]string{actor, entry.Action, target}, " ")

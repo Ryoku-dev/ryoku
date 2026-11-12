@@ -20,7 +20,7 @@ func (s *Service) armMinutes(taskID string) {
 // armMinutesLocked sets the one timer of a task's run to the end of its
 // team's minutes per task. The time it waited on the user's answers does
 // not count, so a task held on the user has no timer: releasing it arms one
-// again. The caller holds mu.
+// again. A dream's tasks have no time limit. The caller holds mu.
 func (s *Service) armMinutesLocked(taskID string) {
 	r := s.runs[taskID]
 	if r == nil {
@@ -35,7 +35,7 @@ func (s *Service) armMinutesLocked(taskID string) {
 		return
 	}
 	team, ok := s.state.team(t.Team)
-	if !ok || team.Budget.TaskMinutes <= 0 {
+	if !ok || team.Budget.TaskMinutes <= 0 || isDream(team) {
 		return
 	}
 	left := s.minutesEnd(t, team.Budget.TaskMinutes).Sub(s.now())

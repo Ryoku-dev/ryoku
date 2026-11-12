@@ -26,13 +26,16 @@ func (s *server) announce(out *outbox, method string) {
 	case protocol.MHarnessesProbe, protocol.MHarnessesTeamsOpen, protocol.MHarnessesTeamsDone:
 		harnesses := append([]protocol.HarnessInfo(nil), s.data.snapshot.Harnesses...)
 		events[protocol.EvtHarnessesChanged] = protocol.HarnessesResult{Harnesses: harnesses}
+		// a dream waiting on this sign-in starts its manager, and the pages hear it
+		teams = s.takeTeamsEvents()
 	case protocol.MProvidersEnable, protocol.MProvidersAddKey, protocol.MProvidersRemoveKey, protocol.MProvidersLimits:
 		providers := append([]protocol.ProviderInfo(nil), s.data.snapshot.Providers...)
 		events[protocol.EvtProvidersChanged] = protocol.ProvidersResult{Providers: providers}
 	case protocol.MTeamsCreate, protocol.MTeamsUpdate, protocol.MTeamsDelete, protocol.MTeamsPause, protocol.MTeamsImport,
 		protocol.MTeamsTaskCreate, protocol.MTeamsTaskStop, protocol.MTeamsTaskRetry, protocol.MTeamsTaskRead, protocol.MTeamsTaskDelete,
 		protocol.MTeamsRoutineCreate, protocol.MTeamsRoutineUpdate, protocol.MTeamsRoutineDelete, protocol.MTeamsRoutineRun,
-		protocol.MTeamsApprovalDecide, protocol.MTeamsPrune, protocol.MVaultAdd, protocol.MVaultUpdate, protocol.MVaultRemove, protocol.MVaultMail:
+		protocol.MTeamsApprovalDecide, protocol.MTeamsPrune, protocol.MVaultAdd, protocol.MVaultUpdate, protocol.MVaultRemove, protocol.MVaultMail,
+		protocol.MTeamsDreamCreate, protocol.MTeamsDreamAnswer:
 		// each change queued the team, task, approval, routine, vault and session events the daemon would broadcast, in order
 		teams = s.takeTeamsEvents()
 	}

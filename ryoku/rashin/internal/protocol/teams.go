@@ -45,6 +45,9 @@ type Team struct {
 	// SkillsOff are the built-in skill sets its members are not given; every
 	// set that is on in the settings reaches them unless named here.
 	SkillsOff []string `json:"skillsOff,omitempty"`
+	// Dream makes the team a dream: shown under Dreams rather than Teams,
+	// run by its manager without confirmations until the user accepts it.
+	Dream *Dream `json:"dream,omitempty"`
 	// Stats is filled by the daemon from the team's tasks and spend.
 	Stats TeamStats `json:"stats"`
 }

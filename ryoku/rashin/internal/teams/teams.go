@@ -344,12 +344,17 @@ func (s *Service) deleteTeam(ctx context.Context, id string) error {
 
 // pauseTeam pauses a team, stopping its working tasks, or lets it work again.
 // A team its spending limit paused starts again only with a higher limit.
+// Letting a dream work, paused or not, starts its manager again when no
+// standing task is open.
 func (s *Service) pauseTeam(_ context.Context, p protocol.TeamPauseParams) (protocol.Team, error) {
 	team, ok := s.state.team(p.ID)
 	if !ok {
 		return protocol.Team{}, protocol.Errorf(protocol.CodeNotFound, "%s", i18n.Tf("No team %s.", p.ID))
 	}
 	if team.Paused == p.Paused {
+		if !p.Paused {
+			s.runDream(team.ID, protocol.InitiatorYou)
+		}
 		current, _ := s.teamWithStats(team.ID)
 		return current, nil
 	}
@@ -394,6 +399,7 @@ func (s *Service) pauseTeam(_ context.Context, p protocol.TeamPauseParams) (prot
 	})
 	s.emitTeam(team.ID)
 	s.pump()
+	s.runDream(team.ID, protocol.InitiatorYou)
 	resumed, _ := s.teamWithStats(team.ID)
 	return resumed, nil
 }
@@ -580,7 +586,8 @@ func normaliseAccess(a *protocol.TeamAccess, own string) error {
 
 // writableFolder checks one folder a team may change besides its own: an
 // existing folder given by its full path, neither the home folder nor one
-// above it, and not inside the teams' folders unless inside the team's own.
+// above it, and not inside the teams' or dreams' folders unless inside the
+// team's own.
 func writableFolder(path, own string) (string, error) {
 	full := paths.Expand(strings.TrimSpace(path))
 	if !filepath.IsAbs(full) {
@@ -590,7 +597,8 @@ func writableFolder(path, own string) (string, error) {
 	if paths.Within(full, paths.Home()) {
 		return "", protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("Letting a team change %s would let it change everything.", path))
 	}
-	if paths.Within(paths.TeamsHome(), full) && (own == "" || !paths.Within(own, full)) {
+	inside := paths.Within(paths.TeamsHome(), full) || paths.Within(paths.DreamsHome(), full)
+	if inside && (own == "" || !paths.Within(own, full)) {
 		return "", protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("%s belongs to another team.", path))
 	}
 	info, err := os.Stat(full)

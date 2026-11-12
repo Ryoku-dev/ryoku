@@ -191,6 +191,10 @@ func TeamsDir() string { return filepath.Join(StateDir(), "teams") }
 // TeamsHome is where a new team's folder goes unless the user picks another.
 func TeamsHome() string { return filepath.Join(Home(), "Teams") }
 
+// DreamsHome is where a new dream's folder goes unless the user picks
+// another; like TeamsHome, every team agent sees it empty.
+func DreamsHome() string { return filepath.Join(Home(), "Dreams") }
+
 // CredentialVault holds the sealed credentials teams use and their record of
 // use. Its key lives in the login keyring, never beside it.
 func CredentialVault() string { return filepath.Join(StateDir(), "vault.db") }

@@ -40,19 +40,23 @@ func (item destination) glyph(current bool) *widget.Icon {
 	return item.icon
 }
 
+// the most destinations a mode has, Teams' seven
+const destinationsMax = 7
+
 // each mode's destinations, Rashin's fill the first four
-func destinations(teams bool) (items [6]destination, count int) {
+func destinations(teams bool) (items [destinationsMax]destination, count int) {
 	if teams {
-		return [6]destination{
+		return [destinationsMax]destination{
 			{protocol.TabInbox, i18n.T("Inbox"), "Ctrl 1", look.Icon.Inbox, look.IconFill.Inbox},
 			{protocol.TabTeams, i18n.T("Teams"), "Ctrl 2", look.Icon.Teams, look.IconFill.Teams},
-			{protocol.TabWork, i18n.T("Work"), "Ctrl 3", look.Icon.Tasks, look.IconFill.Tasks},
-			{protocol.TabRoutines, i18n.T("Routines"), "Ctrl 4", look.Icon.Routine, look.IconFill.Routine},
-			{protocol.TabVault, i18n.T("Vault"), "Ctrl 5", look.Icon.Vault, look.IconFill.Vault},
-			{protocol.TabActivity, i18n.T("Activity"), "Ctrl 6", look.Icon.Activity, look.IconFill.Activity},
-		}, 6
+			{protocol.TabDreams, i18n.T("Dreams"), "Ctrl 3", look.Icon.Dreams, look.IconFill.Dreams},
+			{protocol.TabWork, i18n.T("Work"), "Ctrl 4", look.Icon.Tasks, look.IconFill.Tasks},
+			{protocol.TabRoutines, i18n.T("Routines"), "Ctrl 5", look.Icon.Routine, look.IconFill.Routine},
+			{protocol.TabVault, i18n.T("Vault"), "Ctrl 6", look.Icon.Vault, look.IconFill.Vault},
+			{protocol.TabActivity, i18n.T("Activity"), "Ctrl 7", look.Icon.Activity, look.IconFill.Activity},
+		}, 7
 	}
-	return [6]destination{
+	return [destinationsMax]destination{
 		{protocol.TabAsk, i18n.T("Ask"), "Ctrl 1", look.Icon.Ask, look.IconFill.Ask},
 		{protocol.TabAgent, i18n.T("Agents"), "Ctrl 2", look.Icon.Agents, look.IconFill.Agents},
 		{protocol.TabProjects, i18n.T("Projects"), "Ctrl 3", look.Icon.Projects, look.IconFill.Projects},
@@ -85,14 +89,14 @@ type sidebar struct {
 	bare bool
 
 	fresh    navRow
-	rows     [6]navRow
+	rows     [destinationsMax]navRow
 	settings navRow
 	slab     look.Selection
 }
 
 type sidebarLayout struct {
 	fresh, settings image.Rectangle
-	rows            [6]image.Rectangle
+	rows            [destinationsMax]image.Rectangle
 	list            image.Rectangle
 	vein            int
 }

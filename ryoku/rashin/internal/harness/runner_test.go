@@ -502,6 +502,9 @@ func runFakeAgent(mode string) {
 			case "goal":
 				fakeGoalTurn(write, servers, prompts)
 				writePromptResult(write, promptID, "end_turn")
+			case "dream":
+				fakeDreamTurn(write, servers, prompts, message.Params)
+				writePromptResult(write, promptID, "end_turn")
 			case "screen":
 				fakeScreenTurn(write, servers)
 				writePromptResult(write, promptID, "end_turn")

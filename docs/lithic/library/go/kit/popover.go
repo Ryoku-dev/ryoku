@@ -172,6 +172,13 @@ func noteOverlayFocus(gtx layout.Context, tag event.Tag) {
 	}
 }
 
+// NoteFocus tells the enclosing Popover or Dialog about a host's own control
+// that takes keyboard focus, as kit fields and clickables tell it of
+// themselves: focus on tag counts as inside the overlay, and a dialog that
+// opens with nothing focused may move focus there first. Call it with the
+// control's focus tag while laying the control out.
+func NoteFocus(gtx layout.Context, tag event.Tag) { noteOverlayFocus(gtx, tag) }
+
 func enclosingPopover(state *overlayFocus) *Popover {
 	for ; state != nil; state = state.parent {
 		if state.owner != nil {

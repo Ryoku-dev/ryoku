@@ -60,3 +60,60 @@ func TestTheMemoryToolsComeOnlyWithMemory(t *testing.T) {
 		}
 	}
 }
+
+func TestOnlyADreamsManagerIsHandedTheDreamTools(t *testing.T) {
+	dream := []string{"hire", "release", "dream_status", "present"}
+	for _, test := range []struct {
+		env     map[string]string
+		dream   bool
+		reports bool
+	}{
+		{map[string]string{"RASHIN_SESSION": "s", "RASHIN_TEAM": "team-1", "RASHIN_TEAM_TOKEN": "token", "RASHIN_TEAM_LEAD": "1"}, false, true},
+		{map[string]string{"RASHIN_SESSION": "s", "RASHIN_TEAM": "team-1", "RASHIN_TEAM_TOKEN": "token"}, false, true},
+		// a dream's manager has no report: only the user's accepting ends a dream
+		{map[string]string{"RASHIN_SESSION": "s", "RASHIN_TEAM": "team-1", "RASHIN_TEAM_TOKEN": "token", "RASHIN_TEAM_LEAD": "1", "RASHIN_TEAM_DREAM": "1"}, true, false},
+	} {
+		_, tools := serverTools(func(key string) string { return test.env[key] })
+		names := map[string]bool{}
+		for _, tool := range tools {
+			names[tool.Name] = true
+		}
+		for _, name := range dream {
+			if names[name] != test.dream {
+				t.Fatalf("with %v the tool %s is offered: %v", test.env, name, names[name])
+			}
+		}
+		if names["report"] != test.reports || test.dream && !names["delegate"] {
+			t.Fatalf("with %v the tools are %v", test.env, names)
+		}
+	}
+}
+
+// A model that puts its words in an argument the tool does not take hears
+// which ones it does, rather than losing them; ask_user takes question.
+func TestAToolRefusesAnArgumentItDoesNotTake(t *testing.T) {
+	var args struct {
+		Title    string `json:"title"`
+		Question string `json:"question"`
+	}
+	err := toolArguments([]byte(`{"title":"Look","body":"Light or dark?"}`), &args, "title")
+	if err == nil || !strings.Contains(err.Error(), "body") || !strings.Contains(err.Error(), "title, question") {
+		t.Fatalf("an unknown argument: %v", err)
+	}
+	if err := toolArguments([]byte(`{"title":"Look","question":"Light or dark?"}`), &args, "title"); err != nil || args.Question != "Light or dark?" {
+		t.Fatalf("a known argument: %v, %+v", err, args)
+	}
+	_, tools := serverTools(func(key string) string {
+		return map[string]string{"RASHIN_SESSION": "s", "RASHIN_TEAM": "team-1", "RASHIN_TEAM_TOKEN": "token", "RASHIN_TEAM_DREAM": "1"}[key]
+	})
+	for _, tool := range tools {
+		if tool.Name != "ask_user" {
+			continue
+		}
+		if properties := tool.Input["properties"].(map[string]any); properties["question"] == nil {
+			t.Fatalf("ask_user takes %v", properties)
+		}
+		return
+	}
+	t.Fatal("no ask_user tool")
+}

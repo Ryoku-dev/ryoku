@@ -342,6 +342,9 @@ type Teams interface {
 	Working(harness, team string) bool
 	// TeamName is a team's name, false for a team that does not exist.
 	TeamName(team string) (string, bool)
+	// HomeSignedIn tells Teams that team finished signing in to harness, so
+	// a dream that waited on that sign-in goes on by itself.
+	HomeSignedIn(harness, team string)
 	// SkillsOff are the built-in skill sets a team's members are not given,
 	// besides those off for every model; nil for a team that does not exist.
 	SkillsOff(team string) []string

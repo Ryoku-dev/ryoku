@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strings"
 
 	i18n "ryoku-i18n"
@@ -19,12 +22,13 @@ func init() {
 
 // mcpSession is the agent session the server was started for, from the
 // environment its harness was given; token and lead are set for a session
-// that works a team task
+// that works a team task, and dream for the manager of a dream
 type mcpSession struct {
 	id    string
 	cwd   string
 	token string
 	lead  bool
+	dream bool
 }
 
 // path resolves a path the agent gave relative to its session folder
@@ -69,7 +73,12 @@ func serverTools(getenv func(string) string) (string, []mcp.Tool) {
 	if team {
 		session.token = getenv("RASHIN_TEAM_TOKEN")
 		session.lead = getenv("RASHIN_TEAM_LEAD") == "1"
-		instructions += " The team tools serve your team task: report ends it (quiet for a routine run where nothing changed), ask_user puts a decision or a choice of 2 to 6 options to the user, and credentials, http_request, send_mail and request_credential use your team's credentials and mail without you ever seeing a value."
+		session.dream = getenv("RASHIN_TEAM_DREAM") == "1"
+		if session.dream {
+			instructions += " The dream tools serve the dream you manage: ask_user puts design or task questions to the user, hire and release shape your team, delegate hands out pieces, dream_status says where the dream stands, and present hands the finished dream to the user, whose accepting alone ends it. credentials, http_request, send_mail and request_credential use the team's credentials and mail without you ever seeing a value."
+		} else {
+			instructions += " The team tools serve your team task: report ends it (quiet for a routine run where nothing changed), ask_user puts a decision or a choice of 2 to 6 options to the user, and credentials, http_request, send_mail and request_credential use your team's credentials and mail without you ever seeing a value."
+		}
 		tools = append(tools, teamTools(session)...)
 	}
 	// the daemon says whether the session uses memory and may search past
@@ -101,13 +110,22 @@ func toolCall(ctx context.Context, method string, params, result any) mcp.Result
 	return mcp.Text(out.String())
 }
 
-// toolArguments decodes a call's arguments and checks the required ones
+// toolArguments decodes a call's arguments and checks the required ones. An
+// argument the tool does not take is refused with the ones it does, so a
+// model retries instead of losing what it put there
 func toolArguments(raw json.RawMessage, target any, required ...string) error {
 	if err := json.Unmarshal(raw, target); err != nil {
 		return errors.New(i18n.T("The arguments are not valid JSON for this tool."))
 	}
 	var present map[string]json.RawMessage
 	_ = json.Unmarshal(raw, &present)
+	if known := argumentNames(target); known != nil {
+		for _, name := range slices.Sorted(maps.Keys(present)) {
+			if !slices.Contains(known, name) {
+				return errors.New(i18n.Tf("%s is not an argument of this tool; it takes %s. Call it again with your words in one of those.", name, strings.Join(known, ", ")))
+			}
+		}
+	}
 	for _, name := range required {
 		value, ok := present[name]
 		if !ok || string(value) == `""` || string(value) == "null" {
@@ -115,6 +133,23 @@ func toolArguments(raw json.RawMessage, target any, required ...string) error {
 		}
 	}
 	return nil
+}
+
+// argumentNames are the JSON names of the fields of the struct target points
+// to, in order; nil for any other target
+func argumentNames(target any) []string {
+	kind := reflect.TypeOf(target)
+	if kind == nil || kind.Kind() != reflect.Pointer || kind.Elem().Kind() != reflect.Struct {
+		return nil
+	}
+	var names []string
+	for index := range kind.Elem().NumField() {
+		name, _, _ := strings.Cut(kind.Elem().Field(index).Tag.Get("json"), ",")
+		if name != "" && name != "-" {
+			names = append(names, name)
+		}
+	}
+	return names
 }
 
 // schema builds a JSON schema for an object of the named properties
