@@ -19,6 +19,15 @@
   headless one exits at once.
 
 ### Fixed
+- `network/ryoku-dns`: **the DNS picker changes DNS where systemd-resolved
+  does the lookups.** NetworkManager stores `[global-dns]` but does not apply it
+  with its systemd-resolved backend, so every connection kept the DNS its
+  network handed out and choosing Cloudflare, Google or custom servers changed
+  nothing. With resolved running, ryoku-dns now stops NetworkManager pushing
+  connection DNS (`dns=none`) and gives the servers to resolved as its global
+  DNS for every domain; `dhcp` removes both and connection DNS returns.
+  `[global-dns]` is still written, so the bar shows the choice.
+  Covered by `tests/ryoku-dns.sh`.
 - `gpu/ryoku-gpu`: **Performance works again with a monitor on the discrete GPU.**
   When the laptop panel is on the built-in GPU but the dGPU has its own ports,
   Performance pins the dGPU at login only while a monitor is plugged into one.
