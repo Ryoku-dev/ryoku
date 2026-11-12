@@ -56,19 +56,6 @@ func (frame *AppFrame) Layout(gtx layout.Context, th *theme.Theme, content AppFr
 	window := gtx.Constraints.Max
 	frame.Class = ClassForWidth(gtx.Metric.PxToDp(window.X))
 	paint.FillShape(gtx.Ops, th.R.Ground, clip.Rect{Max: window}.Op())
-	if content.DismissOverlay != nil {
-		for {
-			value, ok := gtx.Event(key.Filter{Name: key.NameEscape})
-			if !ok {
-				break
-			}
-			if keyEvent, ok := value.(key.Event); ok && keyEvent.State == key.Press {
-				if content.DismissOverlay() {
-					gtx.Execute(op.InvalidateCmd{})
-				}
-			}
-		}
-	}
 	if frame.Class == FrameCompact {
 		frame.layoutCompact(gtx, th, content)
 	} else {
@@ -87,6 +74,21 @@ func (frame *AppFrame) Layout(gtx layout.Context, th *theme.Theme, content AppFr
 			content.Overlays(child)
 		}
 		presentOverlay(gtx, record.Stop(), frame.Preview != StateRest, window)
+	}
+	// Escape is read last, so the focused content (a menu, a Search with text,
+	// a dialog) takes it first and DismissOverlay hears only what is left
+	if content.DismissOverlay != nil {
+		for {
+			value, ok := gtx.Event(key.Filter{Name: key.NameEscape})
+			if !ok {
+				break
+			}
+			if keyEvent, ok := value.(key.Event); ok && keyEvent.State == key.Press {
+				if content.DismissOverlay() {
+					gtx.Execute(op.InvalidateCmd{})
+				}
+			}
+		}
 	}
 	return layout.Dimensions{Size: window}
 }

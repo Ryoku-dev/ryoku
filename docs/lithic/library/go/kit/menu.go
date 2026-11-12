@@ -34,8 +34,8 @@ type MenuItem struct {
 // Menu is a cut command list with latched item activation. Inside a popover
 // it takes keyboard focus on its first enabled item when it opens; Up and
 // Down move it, wrapping and skipping dividers and disabled items, Home and
-// End go to the ends, Return, Enter or Space chooses, and Escape closes the
-// popover.
+// End go to the ends, and Return, Enter or Space chooses through the item's
+// click. Escape reaches the popover, which closes.
 type Menu struct {
 	Preview State
 
@@ -112,8 +112,6 @@ func (m *Menu) handleKeys(gtx layout.Context) {
 				key.Filter{Focus: tag, Name: key.NameDownArrow},
 				key.Filter{Focus: tag, Name: key.NameHome},
 				key.Filter{Focus: tag, Name: key.NameEnd},
-				key.Filter{Focus: tag, Name: key.NameEnter},
-				key.Filter{Focus: tag, Name: key.NameEscape},
 			)
 			if !ok {
 				break
@@ -122,21 +120,8 @@ func (m *Menu) handleKeys(gtx layout.Context) {
 			if !ok || pressed.State != key.Press {
 				continue
 			}
-			switch pressed.Name {
-			case key.NameEnter:
-				// Return and Space already click through the item itself
-				if m.enabled(index) {
-					m.pending[index] = true
-					gtx.Execute(op.InvalidateCmd{})
-				}
-			case key.NameEscape:
-				if overlay != nil {
-					overlay.escape = true
-				}
-			default:
-				if next, moves := menuMove(len(m.clicks), m.enabled, index, pressed.Name); moves {
-					gtx.Execute(key.FocusCmd{Tag: &m.clicks[next].Clickable})
-				}
+			if next, moves := menuMove(len(m.clicks), m.enabled, index, pressed.Name); moves {
+				gtx.Execute(key.FocusCmd{Tag: &m.clicks[next].Clickable})
 			}
 		}
 	}

@@ -39,7 +39,8 @@ func (s *Search) Focus(gtx layout.Context) {
 // Layout draws and operates the search field.
 func (s *Search) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 	s.SingleLine = true
-	for {
+	// an empty search leaves Escape to whatever holds it
+	for s.Len() > 0 {
 		event, ok := gtx.Event(key.Filter{Focus: &s.Editor, Name: key.NameEscape})
 		if !ok {
 			break

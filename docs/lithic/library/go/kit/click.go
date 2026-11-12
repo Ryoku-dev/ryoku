@@ -1,6 +1,7 @@
 package kit
 
 import (
+	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/widget"
@@ -25,11 +26,29 @@ func (click *Click) Update(gtx layout.Context) (widget.Click, bool) {
 		gtx.Execute(op.InvalidateCmd{})
 		return event, true
 	}
+	if click.keypadEnter(gtx) {
+		gtx.Execute(op.InvalidateCmd{})
+		return widget.Click{NumClicks: 1}, true
+	}
 	event, ok := click.Clickable.Update(gtx)
 	if ok {
 		gtx.Execute(op.InvalidateCmd{})
 	}
 	return event, ok
+}
+
+// keypadEnter reports one press of the keypad Enter while focused; Clickable
+// itself answers Return and Space.
+func (click *Click) keypadEnter(gtx layout.Context) bool {
+	for {
+		value, ok := gtx.Event(key.Filter{Focus: &click.Clickable, Name: key.NameEnter})
+		if !ok {
+			return false
+		}
+		if pressed, ok := value.(key.Event); ok && pressed.State == key.Press {
+			return true
+		}
+	}
 }
 
 // Clicked reports one latched click.
@@ -41,6 +60,10 @@ func (click *Click) Clicked(gtx layout.Context) bool {
 // Layout drains current events into the latch before laying out widget.
 func (click *Click) Layout(gtx layout.Context, widget layout.Widget) layout.Dimensions {
 	caught := false
+	for click.keypadEnter(gtx) {
+		click.pending++
+		caught = true
+	}
 	for {
 		event, ok := click.Clickable.Update(gtx)
 		if !ok {
