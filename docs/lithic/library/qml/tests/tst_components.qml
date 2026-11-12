@@ -153,9 +153,11 @@ Item {
             compare(fleetRail.destinationY(1), 168 + 64 + 8);
             compare(fleetRail.destinationY(2), 640 - 16 - 64);
             compare(wideRail.tileWidth, 80, "a long label widens every tile up to the rail less s1 a side");
-            compare(wideRail.tileHeight(0), 64 + Lithic.type.caption.lineHeight, "a wrapped label grows its tile");
+            // one word too wide for the tile is shortened on its line, never split, so the tile keeps its height
+            compare(wideRail.tileHeight(0), 64, "a single long word does not grow its tile");
+            compare(wideRail.labelText(0).slice(-1), "…");
             compare(wideRail.tileHeight(1), 64);
-            compare(wideRail.destinationY(1), 96 + 80 + 8, "tiles below a grown tile move down");
+            compare(wideRail.destinationY(1), 96 + 64 + 8);
             wideRail.currentIndex = -1;
             compare(wideRail._shownIndex, -1);
             wideRail.currentIndex = 1;

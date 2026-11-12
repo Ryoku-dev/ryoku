@@ -35,6 +35,8 @@ T.Control {
     readonly property real tileWidth: {
         if (!expanded)
             return tileSize;
+        // reading the font measures the width again once the caption face is set
+        void captionMetrics.font;
         let widest = 0;
         for (let index = 0; index < destinations.length; ++index)
             widest = Math.max(widest, captionMetrics.advanceWidth(destinations[index].label || ""));
@@ -42,16 +44,53 @@ T.Control {
                                            Math.ceil(widest) + LithicTokens.space.s1 * 2));
     }
     readonly property real _labelWidth: tileWidth - LithicTokens.space.s1 * 2
-    // a label too wide for its tile wraps to a second line, and that tile grows by one
+    // a label too wide for its tile wraps between words to a second line, and that tile grows
+    // by one; a word too wide for the tile on its own is shortened with an ellipsis, never split
+    property var _labels: []
     readonly property var _tileHeights: {
         const heights = [];
         for (let index = 0; index < destinations.length; ++index) {
-            const wraps = expanded
-                && captionMetrics.advanceWidth(destinations[index].label || "") > _labelWidth;
-            heights.push(tileSize + (wraps ? Lithic.type.caption.lineHeight : 0));
+            const label = _labels[index];
+            const extra = expanded && label ? Math.min(2, label.lines) - 1 : 0;
+            heights.push(tileSize + Math.max(0, extra) * Lithic.type.caption.lineHeight);
         }
         return heights;
     }
+
+    function labelText(index) {
+        const label = _labels[index];
+        return label ? label.text : (destinations[index] ? destinations[index].label || "" : "");
+    }
+
+    // Lays each label out at the tile's label width: a run with no break inside (a German
+    // compound, unlike Japanese, which may break between characters) wider than the tile is
+    // elided on its own; the rest wraps between words.
+    function _layoutLabels() {
+        // before completion the caption metrics are not set yet, and reading the tile width
+        // then would keep a width measured in the default font
+        if (!_completed)
+            return;
+        const result = [];
+        labelProbe.width = _labelWidth;
+        wordElider.elideWidth = _labelWidth;
+        for (let index = 0; index < destinations.length; ++index) {
+            const words = String(destinations[index].label || "").split(" ");
+            for (let word = 0; word < words.length; ++word) {
+                labelProbe.text = words[word];
+                if (labelProbe.contentWidth > _labelWidth + 0.5) {
+                    wordElider.text = words[word];
+                    words[word] = wordElider.elidedText;
+                }
+            }
+            const text = words.join(" ");
+            labelProbe.text = text;
+            result.push({ text: text, lines: Math.max(1, labelProbe.lineCount) });
+        }
+        labelProbe.text = "";
+        _labels = result;
+    }
+    onDestinationsChanged: _layoutLabels()
+    on_LabelWidthChanged: _layoutLabels()
     readonly property real newY: (expanded ? LithicTokens.size.railNewYExpanded
                                            : LithicTokens.size.railNewYMedium)
                                  + (destinations.length > 0 ? tileHeight(0) - tileSize : 0)
@@ -63,7 +102,12 @@ T.Control {
         _glide = _shownIndex >= 0 && currentIndex >= 0;
         _shownIndex = currentIndex;
     }
-    Component.onCompleted: _shownIndex = currentIndex
+    property bool _completed: false
+    Component.onCompleted: {
+        _shownIndex = currentIndex
+        _completed = true
+        _layoutLabels()
+    }
 
     signal homeTriggered()
     signal destinationTriggered(int index, string label)
@@ -114,11 +158,29 @@ T.Control {
         font.family: Lithic.type.caption.family
         font.pixelSize: Lithic.type.caption.pixelSize
         font.weight: Lithic.type.caption.weight
+        onFontChanged: root._layoutLabels()
+    }
+
+    // measures a label the way a tile draws it, wrapping only where a line may break
+    Label {
+        id: labelProbe
+        visible: false
+        typeRole: "caption"
+        wrapMode: Text.WordWrap
+        elide: Text.ElideNone
+    }
+
+    TextMetrics {
+        id: wordElider
+        font: labelProbe.font
+        elide: Text.ElideRight
     }
 
     component DestinationButton: T.AbstractButton {
         id: destination
         required property string destinationLabel
+        // what the tile draws: the label, or with a word too wide for the tile shortened
+        property string shownLabel: destinationLabel
         required property string glyphName
         required property bool selected
         property bool notched: false
@@ -167,11 +229,11 @@ T.Control {
                 visible: showLabel
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: labelWidth > 0 ? labelWidth : undefined
-                text: destinationLabel
+                text: shownLabel
                 typeRole: "caption"
                 ink: selected ? Lithic.onSel : Lithic.fg2
                 horizontalAlignment: Text.AlignHCenter
-                wrapMode: labelWidth > 0 ? Text.Wrap : Text.NoWrap
+                wrapMode: labelWidth > 0 ? Text.WordWrap : Text.NoWrap
                 maximumLineCount: 2
             }
         }
@@ -238,6 +300,7 @@ T.Control {
                     notched: root.notchIndex === index
                     showLabel: root.expanded
                     labelWidth: root.expanded ? root._labelWidth : 0
+                    shownLabel: root.expanded ? root.labelText(index) : modelData.label
                     previewState: root.previewState
                     onClicked: {
                         root.currentIndex = index

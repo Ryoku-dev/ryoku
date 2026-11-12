@@ -680,8 +680,11 @@ are 56 in a 72 rail. The current tile is a `sel` fill that glides over
 240 ms; with no current destination, as on a host's own home view, no tile is
 filled, and the next one fills in place without gliding. Expanded tiles all
 take the width of the widest label plus 4 on each side, from 64 up to 80. A
-label wider than that wraps to two centred lines, breaking inside a word only
-when one word alone is too long, and its tile grows by one caption line. A
+label wider than that wraps to two centred lines, breaking only where a line
+may break: between words, or between characters in a script written without
+spaces. A word too wide for the tile on its own is never split: it is
+shortened with an ellipsis on its line and keeps its whole name for a screen
+reader. A tile grows by one caption line when its label takes a second. A
 host with other destinations keeps the same shape: it can hide New and its
 slot, stand every destination from a foot index on at the bottom in reading
 order, and mark one destination with an amber Notch at its top left, such as
