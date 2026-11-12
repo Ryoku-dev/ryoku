@@ -48,7 +48,9 @@ Item {
         { "name": "ryoku-discord", "by": "Ron (niqqudim)", "role": I18n.tr("default Discord theme (MIT)"), "url": "https://github.com/niqqudim/ryoku-discord" },
         { "name": "midnight", "by": "refact0r", "role": I18n.tr("Discord theme foundation (MIT)"), "url": "https://github.com/refact0r/midnight-discord" },
         { "name": "system24", "by": "refact0r", "role": I18n.tr("Discord theme foundation (MIT)"), "url": "https://github.com/refact0r/system24" },
-        { "name": "Material Symbols", "by": "Google", "role": I18n.tr("Rashin and Lithic icons (Apache-2.0)"), "url": "https://github.com/google/material-design-icons" }
+        { "name": "Material Symbols", "by": "Google", "role": I18n.tr("Rashin and Lithic icons (Apache-2.0)"), "url": "https://github.com/google/material-design-icons" },
+        { "name": "Geologica", "by": "Monokrom", "role": I18n.tr("Rashin and Lithic type (OFL-1.1)"), "url": "https://github.com/googlefonts/geologica" },
+        { "name": "Martian Mono", "by": "Evil Martians", "role": I18n.tr("Rashin and Lithic data type (OFL-1.1)"), "url": "https://github.com/evilmartians/mono" }
     ]
 
     // the alpha/beta crew, constantly stress-testing and filing bugs. each name

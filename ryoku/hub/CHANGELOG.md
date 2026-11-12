@@ -107,6 +107,9 @@
   `../shell/matugen/config.toml`).
 
 ### Added
+- **Credits name Geologica and Martian Mono.** Rashin's app and Lithic set
+  their type in Monokrom's Geologica and Evil Martians' Martian Mono, both
+  OFL-1.1 (`quickshell/pages/CreditsPage.qml`, `../../NOTICE`).
 - **Credits name Material Symbols.** Rashin's app and Lithic's Gio kit draw
   Google's Material Symbols (Apache-2.0) (`quickshell/pages/CreditsPage.qml`,
   `../../NOTICE`).
