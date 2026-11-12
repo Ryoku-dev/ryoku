@@ -50,7 +50,9 @@ Scope {
         title: I18n.tr("Ryoku Settings")
         implicitWidth: 1280
         implicitHeight: 800
-        minimumSize: Qt.size(640, 520)
+        // never smaller than the expanded layout: the icon-only rail and the
+        // pane-takes-the-page's-place view the owner rejected do not render
+        minimumSize: Qt.size(1280, 800)
         color: Lithic.ground
 
         // closing through the compositor quits too, so the single-instance lock releases
