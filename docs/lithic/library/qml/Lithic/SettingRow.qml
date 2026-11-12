@@ -22,7 +22,8 @@ T.AbstractButton {
     readonly property real _gap: first ? 0 : LithicTokens.size.settingsRowGap
     readonly property bool _hoverActive: activatable && _available && (hovered || previewState === "hover")
     readonly property bool _pressActive: activatable && _available && (down || previewState === "pressed")
-    readonly property bool _focusActive: activatable && (visualFocus || previewState === "focus")
+    // the ring follows focus on any row that takes it: activatable rows, and rows a page makes focusable
+    readonly property bool _focusActive: focusPolicy !== Qt.NoFocus && (visualFocus || previewState === "focus")
     readonly property bool _focusWithin: {
         let item = Window.activeFocusItem;
         while (item) {

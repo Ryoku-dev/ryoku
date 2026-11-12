@@ -38,6 +38,13 @@ Item {
             title: "Temperature units"
             changed: true
         }
+        SettingRow {
+            id: focusedCard
+            width: parent.width
+            title: "Pomodoro"
+            activatable: false
+            focusPolicy: Qt.StrongFocus
+        }
     }
 
     SignalSpy {
@@ -90,6 +97,21 @@ Item {
             fuzzyCompare(wideTag.y + wideTag.baselineOffset, wideTitle.y + wideTitle.baselineOffset, 0.5,
                          "a title that fits keeps the tag on its baseline");
             verify(wideTag.x > wideTitle.x + wideTitle.contentWidth, "after the title");
+        }
+
+        function ringShows(item) {
+            if (item.keyboardFocusVisible === true)
+                return true;
+            for (let index = 0; index < item.children.length; ++index) {
+                if (ringShows(item.children[index]))
+                    return true;
+            }
+            return false;
+        }
+
+        function test_aRowAPageMakesFocusableShowsTheRing() {
+            focusedCard.forceActiveFocus(Qt.TabFocusReason);
+            verify(ringShows(focusedCard), "keyboard focus on a row a page made focusable shows the ring");
         }
     }
 }
