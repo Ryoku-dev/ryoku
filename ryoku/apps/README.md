@@ -8,6 +8,8 @@ maps to a place under `~/.config` (except the small helper script noted below).
 - `kitty/` The terminal. JetBrains Mono Nerd Font, a beam cursor, and fish as the
   shell. `kitty.conf` includes `current-theme.conf`, which carries the Ryoku dark
   palette (background `#171717`, foreground `#CCD0CF`, accent `#F25623`).
+- `xfce4/helpers.rc` registers Kitty as Exo's preferred terminal, so Thunar's
+  "Open Terminal Here" action works outside an Xfce session.
 - `fastfetch/` The branded system readout. `config.jsonc` owns its emblem,
   content and fixed colours. `ryoku-fastfetch` can merge the Matugen palette
   sibling into a cached effective config, leaving the user's file untouched.
