@@ -14,6 +14,8 @@ Column {
     readonly property var selectedCard: root.styles.card(root.selectedId)
 
     signal act(string styleId, string action)
+    // a card is clicked or opened with the keys: the page shows its detail modal
+    signal detailRequested(string styleId)
     // once per page open: where the tile in use sits, so the page can bring it into view
     signal revealActive(real top, real bottom)
     property bool revealed: false
@@ -146,9 +148,10 @@ Column {
         accessibleName: I18n.tr("Bar styles")
         model: root.tiles
         onActivated: index => {
+            // a card click or Enter opens its detail; the plaque beside it still acts at once
             var tile = root.tiles[index];
-            if (tile && tile.action !== "")
-                root.act(tile.id, tile.action);
+            if (tile)
+                root.detailRequested(tile.id);
         }
         onCurrentIndexChanged: {
             if (root.refreshing || currentIndex < 0 || currentIndex >= root.tiles.length)
@@ -179,6 +182,7 @@ Column {
             onClicked: {
                 gallery.forceActiveFocus(Qt.MouseFocusReason);
                 gallery.select(index);
+                root.detailRequested(modelData.id);
             }
             onActionTriggered: {
                 root.picked = true;

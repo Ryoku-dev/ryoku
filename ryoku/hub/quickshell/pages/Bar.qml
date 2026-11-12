@@ -143,6 +143,22 @@ Item {
         }
     }
 
+    // a card's detail modal: opened by a click or Enter, it shows the style large
+    property string detailId: ""
+    readonly property var detailCard: catalog.card(detailId)
+    function openDetail(id) {
+        root.detailId = id;
+        detailDialog.open();
+    }
+
+    StyleDetailDialog {
+        id: detailDialog
+        parent: root.hub.overlayItem
+        card: root.detailCard
+        styles: catalog
+        onAct: (styleId, action) => root.act(styleId, action)
+    }
+
     function act(id, action) {
         var c = catalog.card(id);
         if (!c)
@@ -262,6 +278,7 @@ Item {
         StyleGallery {
             styles: catalog
             onAct: (styleId, action) => root.act(styleId, action)
+            onDetailRequested: styleId => root.openDetail(styleId)
             onRevealActive: (top, bottom) => {
                 if (root.landed)
                     return;
