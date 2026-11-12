@@ -422,6 +422,22 @@ func TestWelcomeBuiltinWindowRule(t *testing.T) {
 	}
 }
 
+func TestSettingsBuiltinWindowRuleOpensFloating(t *testing.T) {
+	out := string(genSettings(defaultStore()))
+	want := "window-rule {\n" +
+		"    match title=\"^Ryoku Settings$\"\n" +
+		"    open-floating true\n" +
+		"    default-column-width { fixed 1280; }\n" +
+		"    default-window-height { fixed 800; }\n" +
+		"}\n"
+	if !strings.Contains(out, want) {
+		t.Errorf("Ryoku Settings must open as a centred 1280x800 floating window, not tiled\n%s", out)
+	}
+	if strings.Count(out, `match title="^Ryoku Settings$"`) != 1 {
+		t.Errorf("the Settings builtin rule must be emitted once\n%s", out)
+	}
+}
+
 func TestRyoportAndRyotunesBuiltinWindowRules(t *testing.T) {
 	out := string(genSettings(defaultStore()))
 	ryoport := "window-rule {\n" +

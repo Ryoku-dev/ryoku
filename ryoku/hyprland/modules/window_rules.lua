@@ -10,6 +10,9 @@ end
 
 -- Rule expressions only see the whole monitor. Once the Hub opens, fit its
 -- page inside the work area with the same gaps and border a tiled window gets.
+-- It opens at its designed size, centred in the work area, not filling it, so
+-- it reads as a floating panel; the work-area clamp keeps it clear of the bar
+-- and frame and off small monitors.
 local function fit_page_to_work_area(win)
     if not win or win.title ~= "Ryoku Settings" then return end
     local mon = win.monitor
@@ -24,8 +27,11 @@ local function fit_page_to_work_area(win)
     local top = r.top + gap.top + border
     local right = r.right + gap.right + border
     local bottom = r.bottom + gap.bottom + border
-    local width, height = mw - left - right, mh - top - bottom
-    local x, y = mon.x + left, mon.y + top
+    local areaW, areaH = mw - left - right, mh - top - bottom
+    local width = math.min(1280, areaW)
+    local height = math.min(800, areaH)
+    local x = mon.x + left + (areaW - width) / 2
+    local y = mon.y + top + (areaH - height) / 2
     local target = "address:" .. win.address
     hl.dispatch(hl.dsp.window.resize({ x = math.floor(width + 0.5), y = math.floor(height + 0.5), exact = true, window = target }))
     hl.dispatch(hl.dsp.window.move({ x = math.floor(x + 0.5), y = math.floor(y + 0.5), window = target }))

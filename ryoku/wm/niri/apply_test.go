@@ -766,8 +766,20 @@ func TestApplyKeepsSettingsOnNormalColumn(t *testing.T) {
 	store := writeStore(t, `{"wm":{"niri":{"settingsWindow":{"mode":"custom","width":0.5,"height":0.5}}}}`)
 	capApply(t, store)
 	settings := readGen(t, dir, "settings.kdl")
-	if strings.Contains(settings, `match title="^Ryoku Settings$"`) {
-		t.Fatalf("a retired settingsWindow value must not size the Settings window:\n%s", settings)
+	// The retired settingsWindow value must not size the Settings window. The
+	// only Settings rule is the builtin floating one at its designed 1280x800;
+	// the retired value adds no second rule of its own.
+	want := "window-rule {\n" +
+		"    match title=\"^Ryoku Settings$\"\n" +
+		"    open-floating true\n" +
+		"    default-column-width { fixed 1280; }\n" +
+		"    default-window-height { fixed 800; }\n" +
+		"}\n"
+	if !strings.Contains(settings, want) {
+		t.Fatalf("the retired settingsWindow value must not change the Settings builtin rule:\n%s", settings)
+	}
+	if strings.Count(settings, `match title="^Ryoku Settings$"`) != 1 {
+		t.Fatalf("the retired settingsWindow value must not add a second Settings rule:\n%s", settings)
 	}
 	validateGen(t, dir, "settings.kdl", "rebinds.kdl")
 }
