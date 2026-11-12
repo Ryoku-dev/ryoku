@@ -46,6 +46,13 @@ T.SpinBox {
     to: 100
     stepSize: 1
     editable: false
+    // a setting reads as a plain number, as on the web and in Gio: no separator in a port or a year
+    textFromValue: (value, locale) => Number(value).toLocaleString(root._plainLocale, "f", 0)
+    readonly property var _plainLocale: {
+        const plain = Qt.locale(root.locale.name)
+        plain.numberOptions = Locale.OmitGroupSeparator
+        return plain
+    }
     focusPolicy: Qt.StrongFocus
     implicitWidth: LithicTokens.size.iconPlaqueSmall * 2
                    + LithicTokens.size.stepperGap * 2

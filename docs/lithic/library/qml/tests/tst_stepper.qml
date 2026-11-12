@@ -61,6 +61,7 @@ Item {
             keyClick(Qt.Key_Return);
             compare(port.value, 37421, "an editable stepper takes a typed value");
             compare(portModified.count, 1);
+            compare(port.displayText, "37421", "a port reads without a thousands separator");
         }
 
         function test_typedValueCommitsWhenFocusLeaves() {
