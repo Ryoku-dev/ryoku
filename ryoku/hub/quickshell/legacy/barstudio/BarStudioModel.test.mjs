@@ -2,9 +2,9 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const Model = require("./BarStudioModel.js");
-const FrameBars = require("../../../shell/framebars/FrameBars.js");
-const BarCatalog = require("../../../shell/framebars/BarCatalog.js");
-const MenuCatalog = require("../../../shell/framebars/MenuCatalog.js");
+const FrameBars = require("../../../../shell/framebars/FrameBars.js");
+const BarCatalog = require("../../../../shell/framebars/BarCatalog.js");
+const MenuCatalog = require("../../../../shell/framebars/MenuCatalog.js");
 
 let failed = 0;
 function ok(value, message) {

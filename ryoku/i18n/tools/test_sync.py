@@ -55,6 +55,42 @@ class CatalogueExtractionTest(unittest.TestCase):
             "Open panel", "Pieces", "Choose what this shell shows.",
         })
 
+    def test_hub_registry_and_schema_copy_are_catalogued(self):
+        with tempfile.TemporaryDirectory() as hub:
+            os.makedirs(os.path.join(hub, "registry"))
+            os.makedirs(os.path.join(hub, "schema"))
+            with open(os.path.join(hub, "registry", "summaries.js"), "w", encoding="utf-8") as fh:
+                fh.write('var still = {\n    "fonts-icons": "Fonts and the pointer",\n};\n'
+                         'function corners(ctx) { return ctx.tr("%1 px corners").replace("%1", 4); }\n')
+            with open(os.path.join(hub, "schema", "demo.js"), "w", encoding="utf-8") as fh:
+                fh.write('var title = "Demo";\nvar lead = "What this page changes.";\n'
+                         'var sections = [{ id: "glass", title: "Glass", missing: "Needs blur" }];\n'
+                         'var rows = [{ id: "blur", section: "glass", label: "Blur", detail: "Frosted glass",\n'
+                         '    keywords: ["frost"], control: "segmented", actionText: "Open",\n'
+                         '    options: [{ value: "strong", label: "Strong" }] }];\n')
+
+            keys = set()
+            sync._scan_hub_data(keys, hub)
+
+        self.assertEqual(keys, {
+            "Fonts and the pointer", "%1 px corners", "Demo", "What this page changes.",
+            "Glass", "Needs blur", "Blur", "Frosted glass", "Open", "Strong",
+        })
+
+    def test_provider_rows_copy_is_catalogued(self):
+        with tempfile.TemporaryDirectory() as wm:
+            os.makedirs(os.path.join(wm, "demo"))
+            with open(os.path.join(wm, "demo", "schema_anim.json"), "w", encoding="utf-8") as fh:
+                json.dump([{"group": "WORKSPACE SWITCH", "key": "wm.demo.anim.mode",
+                            "label": "Style", "desc": "How this animation runs",
+                            "opts": ["default", "ease_out"],
+                            "optLabels": {"default": "Demo default"}}], fh)
+
+            keys = set()
+            sync._scan_provider_rows(keys, wm)
+
+        self.assertEqual(keys, {"Style", "How this animation runs", "Demo default", "Ease out"})
+
     def test_store_environment_selects_catalogue_root(self):
         with tempfile.TemporaryDirectory() as store:
             qml = os.path.join(store, "subshells", "demo", "qml")

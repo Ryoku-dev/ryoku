@@ -2,7 +2,7 @@
 """Ryoku i18n sync: keep the per-language catalogs current from English.
 
 A developer only ever writes English, wrapped at the point it is displayed:
-`I18n.tr("...")` in QML, a Hub schema label/desc/group, `i18n.T("...")` in Go,
+`I18n.tr("...")` in QML, a Hub registry or schema field, `i18n.T("...")` in Go,
 `t "..."` in the installer's shell. This tool does the rest:
 
   langs    print the language codes this repo ships (one per line), so CI and
@@ -95,7 +95,7 @@ QML_ROOT = os.path.join(REPO, "ryoku")
 # the Lithic library's own words (Changed, Cancel, ...), which Ryoku's apps
 # route through Lithic.tr to I18n.tr
 LITHIC_QML_ROOT = os.path.join(REPO, "docs", "lithic", "library", "qml", "Lithic")
-SCHEMA_DIR = os.path.join(REPO, "ryoku", "hub", "quickshell", "schema")
+HUB_ROOT = os.path.join(REPO, "ryoku", "hub", "quickshell")
 GO_ROOTS = [os.path.join(REPO, p) for p in
             ("installation/tui", "ryoku-shell-installer", "ryoku/cli",
              "ryoku/shell/ipc", "ryoku/hub/backend", "ryoku/apps/ryostore/backend",
@@ -115,7 +115,12 @@ GO_CALL = re.compile(r'\b(?:i18n\.)?Tf?\(\s*"((?:\\.|[^"\\])*)"')
 # sentinel the TUI parses and is deliberately absent.
 SH_CALL = re.compile(
     r"""(?:^|[|(&;`$]|\s)(?:tf?|log|die)\s+(["'])((?:\\.|(?!\1).)*)\1""", re.M)
-SCHEMA_FIELD = re.compile(r'"(?:tab|label|desc|group)"\s*:\s*"((?:\\.|[^"\\])*)"')
+# the Hub's registry and page schemas: the fields its frame shows through
+# I18n.tr, the summaries' ctx.tr templates and the values of their `still` map
+HUB_FIELD = re.compile(r'\b(?:title|lead|label|detail|missing|actionText)\s*:\s*"((?:\\.|[^"\\])*)"')
+HUB_VAR = re.compile(r'^var (?:title|lead)\s*=\s*"((?:\\.|[^"\\])*)"', re.M)
+HUB_TR = re.compile(r'\bctx\.tr\(\s*"((?:\\.|[^"\\])*)"')
+HUB_STILL = re.compile(r'^var still\s*=\s*\{(.*?)^\};', re.M | re.S)
 # the shortcut catalogue (ryoku/wm/binds.go) and each compositor's reason for a
 # bind it cannot honour are Go data that Kit and the Hub show through I18n.tr.
 WM_ROOT = os.path.join(REPO, "ryoku", "wm")
@@ -134,9 +139,9 @@ def _unescape(lit):
         return lit
 
 
-# schema .js for full-bleed pages is documentation, not rendered copy: its
-# label/desc/group hold engineering notes, not UI. These markers drop that noise
-# so only real, displayed strings become translation keys.
+# data-model copy can hold engineering notes and placeholder rows rather than
+# UI. These markers drop that noise so only real, displayed strings become
+# translation keys.
 NOISE = ("SettingSection", "PluginPlacementEditor", "disclosure)", "readout)",
          "Repeater", "bespoke", "transient page state", "(no ", "(none", "(header",
          "(action", "(install", "(bottom", "(plugin", "(embedded", "(field")
@@ -149,7 +154,6 @@ def _noise(s):
 def _brand(s):
     return any(ord(c) >= 0x3000 for c in s)          # CJK / kana / kanji
 
-OPTS_ARR = re.compile(r'"opts"\s*:\s*\[([^\]]*)\]', re.S)
 PAGE_OPTS = re.compile(r'\boptions\s*:\s*\[([^\]]*)\]', re.S)   # inline page option arrays
 STR_LIT = re.compile(r'"((?:\\.|[^"\\])*)"')
 # data-model display fields, key quoted ("label":) or not (label:).
@@ -220,6 +224,52 @@ def _scan_qml(keys, root_dir, include_model_fields=False):
                         keys.add(s)
 
 
+def _scan_hub_data(keys, hub_root):
+    # keywords stay English: search matches them beside the translated titles
+    for sub in ("registry", "schema"):
+        data_dir = os.path.join(hub_root, sub)
+        if not os.path.isdir(data_dir):
+            continue
+        for f in sorted(os.listdir(data_dir)):
+            if not f.endswith(".js"):
+                continue
+            text = open(os.path.join(data_dir, f), encoding="utf-8", errors="ignore").read()
+            bodies = HUB_FIELD.findall(text) + HUB_VAR.findall(text) + HUB_TR.findall(text)
+            for block in HUB_STILL.findall(text):
+                bodies += MAP_VALUE.findall(block)
+            for body in bodies:
+                s = _unescape(body).strip()
+                if s and not _brand(s):
+                    keys.add(s)
+
+
+def _scan_provider_rows(keys, wm_root):
+    # an option without its own name shows its value the way the Hub's
+    # provider map words it: first letter capitalised, underscores as spaces
+    for root, dirs, files in os.walk(wm_root):
+        dirs[:] = [d for d in dirs if d not in ("vendor", "testdata", ".git")]
+        for f in files:
+            if not (f.startswith("schema") and f.endswith(".json")):
+                continue
+            try:
+                with open(os.path.join(root, f), encoding="utf-8") as fh:
+                    rows = json.load(fh)
+            except (OSError, ValueError):
+                continue
+            for row in rows if isinstance(rows, list) else []:
+                if not isinstance(row, dict):
+                    continue
+                names = row.get("optLabels") or {}
+                shown = [row.get("label"), row.get("desc")]
+                for value in row.get("opts") or []:
+                    key = value if isinstance(value, str) else json.dumps(value)
+                    name = str(names.get(key, key))
+                    shown.append(name[:1].upper() + name[1:].replace("_", " "))
+                for s in shown:
+                    if isinstance(s, str) and s.strip():
+                        keys.add(s.strip())
+
+
 def _catalogue_qml_roots(store_root=None):
     root = store_root if store_root is not None else os.environ.get("RYOKU_STORE_SRC", "")
     if not root:
@@ -245,43 +295,13 @@ def extract_keys(store_root=None):
     _scan_qml(keys, LITHIC_QML_ROOT)
     for root in _catalogue_qml_roots(store_root):
         _scan_qml(keys, root, include_model_fields=True)
-    if os.path.isdir(SCHEMA_DIR):
-        for f in os.listdir(SCHEMA_DIR):
-            if not f.endswith(".js"):
-                continue
-            text = open(os.path.join(SCHEMA_DIR, f), encoding="utf-8", errors="ignore").read()
-            for body in SCHEMA_FIELD.findall(text):
-                s = _unescape(body).strip()
-                if s and not _noise(s):
-                    keys.add(s)
-            # seg/chips option values (the controls translate their display)
-            for arr in OPTS_ARR.findall(text):
-                for body in STR_LIT.findall(arr):
-                    s = _unescape(body).strip()
-                    if s and not _noise(s) and not _brand(s):
-                        keys.add(s)
-    # the Hub rail's nav + group names are data-driven, so I18n.tr() wraps them by
-    # variable, not literal; pull them from Hub.qml's groups array (unquoted
-    # `name: "..."`, so the quoted-key kanji jpName map is not matched).
-    hub = os.path.join(REPO, "ryoku", "hub", "quickshell", "Hub.qml")
-    if os.path.isfile(hub):
-        text = open(hub, encoding="utf-8", errors="ignore").read()
-        for body in re.findall(r'\bname:\s*"([^"]+)"', text):
-            s = body.strip()
-            if s and not _noise(s):
-                keys.add(s)
-    # each page declares its title/eyebrow/blurb as string properties, wrapped by
-    # variable at render, so pull the literals from the page files.
-    pages = os.path.join(REPO, "ryoku", "hub", "quickshell", "pages")
+    _scan_hub_data(keys, HUB_ROOT)
+    pages = os.path.join(HUB_ROOT, "pages")
     if os.path.isdir(pages):
         for f in os.listdir(pages):
             if not f.endswith(".qml"):
                 continue
             text = open(os.path.join(pages, f), encoding="utf-8", errors="ignore").read()
-            for body in re.findall(r'\bp(?:Title|Eyebrow|Blurb)\s*:\s*"((?:\\.|[^"\\])*)"', text):
-                s = _unescape(body).strip()
-                if s and not _noise(s):
-                    keys.add(s)
             # data-model display labels ({key, label} arrays, FnCard names, ...);
             # the controls / render sites translate them, brand kana excluded.
             for body in MODEL_LABEL.findall(text):
@@ -323,6 +343,7 @@ def extract_keys(store_root=None):
                 s = _unescape(body).strip()
                 if _copy(s):
                     keys.add(s)
+    _scan_provider_rows(keys, WM_ROOT)
     for root_dir in SH_ROOTS:
         for root, dirs, files in os.walk(root_dir):
             dirs[:] = [d for d in dirs if d not in ("vendor", "testdata", ".git")]

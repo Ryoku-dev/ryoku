@@ -44,6 +44,8 @@ Singleton {
 
 
     property var lastChecked: null
+    // a page that shows checkedAgo turns the minute tick on while it is open
+    property bool clockShown: false
     property int tick: 0
     readonly property string checkedAgo: {
         root.tick;
@@ -90,7 +92,7 @@ Singleton {
 
     Timer {
         interval: 30000
-        running: true
+        running: root.clockShown
         repeat: true
         onTriggered: root.tick++
     }

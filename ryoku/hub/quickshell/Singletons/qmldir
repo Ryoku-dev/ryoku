@@ -7,3 +7,4 @@ singleton Settings Settings.qml
 singleton UserSchemes UserSchemes.qml
 singleton ProviderSchema ProviderSchema.qml
 singleton Host Host.qml
+singleton Changes Changes.qml
