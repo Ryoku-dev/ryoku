@@ -670,6 +670,11 @@
   (`rashin/backend/quick.go`, `rashin/backend/backend_cmd.go`).
 
 ### Removed
+- **Ryoku Settings no longer has a custom window size.** It always opens at
+  each compositor's full-page fit; the stored size and Hyprland's generated
+  `settings_window.lua` are dropped by `ryoku doctor`
+  (`wm/{hyprland,niri,wayfire}/`, `hyprland/modules/window_rules.lua`,
+  `cli/internal/doctor/reconcile_retired_settings_window.go`).
 - **Rashin no longer knows prowl-agent.** It runs only the `prowl` binary, and
   the standalone `prowl api` server it used to spawn is replaced by the
   gateway's own code routes.

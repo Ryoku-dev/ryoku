@@ -119,9 +119,6 @@
       "launch": {
         "animation": "rise"
       },
-      "matugen": {
-        "mode": "dark"
-      },
       "motion": {
         "filterSwapSpeed": "fast"
       },
@@ -2916,7 +2913,6 @@
         "desktopNotifications": true,
         "enabled": true,
         "microphone": {
-          "enabled": false,
           "micGain": 100,
           "monitor": false,
           "setDefault": false
@@ -3039,12 +3035,6 @@
             "radius_window": 8
           },
           "window_opacity": 1
-        },
-        "matugen": {
-          "contrast": 0,
-          "mode": "Dark",
-          "preference": "Darkness",
-          "scheme_type": "Expressive"
         },
         "motion": {
           "reduce": false,

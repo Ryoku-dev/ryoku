@@ -113,9 +113,6 @@
       "launch": {
         "animation": "rise"
       },
-      "matugen": {
-        "mode": "dark"
-      },
       "motion": {
         "filterSwapSpeed": "fast"
       },
@@ -2691,12 +2688,6 @@
             "radius_window": 8
           },
           "window_opacity": 1
-        },
-        "matugen": {
-          "contrast": 0,
-          "mode": "Dark",
-          "preference": "Darkness",
-          "scheme_type": "Expressive"
         },
         "motion": {
           "reduce": false,

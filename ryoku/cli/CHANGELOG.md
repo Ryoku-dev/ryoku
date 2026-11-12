@@ -359,6 +359,30 @@
   still a warning (`internal/doctor/reconcile_limine_images.go`).
 
 ### Removed
+- **`ryoku doctor` moves the retired look and unit keys to their one home.**
+  `performance.json` `reduceMotion` and `motionSpeed` fold into `shell.json`
+  `theme.motion`; a true `disableBlur` or `disableShadows` turns off both
+  Window style's blur or shadows behind windows in `desktop.json` (and
+  re-applies the window manager) and the panels' glass or shadows in
+  `shell.json` `theme.effects`, while false or absent leaves the panels at
+  their default, on; the unread `liveWallpaper60` and
+  `pauseLiveWallpaperWhenFullscreen` go; the
+  launcher's own `weatherUnit` carries into `shell.json` while that is Auto;
+  `shell.json` sheds `general.temperature_unit`, `theme.matugen` and
+  `phone.microphone.enabled`; Ryogami's `matugen.mode` carries into
+  `matugen.json` and old `auto` / `scheme-smart` values become `smart` /
+  `scheme-tonal-spot` (`internal/doctor/reconcile_retired_perf_keys.go`,
+  `internal/doctor/reconcile_retired_launcher_weather_unit.go`,
+  `internal/doctor/reconcile_retired_temperature_unit.go`,
+  `internal/doctor/reconcile_retired_shell_matugen.go`,
+  `internal/doctor/reconcile_retired_phone_mic_switch.go`,
+  `internal/doctor/reconcile_retired_matugen_mode.go`).
+- **`ryoku doctor` drops the retired Settings window size and Advanced
+  switch.** `desktop.json` sheds every `wm.<provider>.settingsWindow`, the
+  generated module that size rendered is removed from the live tree and the
+  user_edits overlay, and `hub.toml` sheds `[ui] advanced`, each keeping every
+  sibling (`internal/doctor/reconcile_retired_settings_window.go`,
+  `internal/doctor/reconcile_retired_hub_advanced.go`).
 - **`ryoku doctor` removes the unread nested frame switch.** Existing
   `shell.json` files shed the retired key while preserving every sibling
   setting (`internal/doctor/doctor.go`).
