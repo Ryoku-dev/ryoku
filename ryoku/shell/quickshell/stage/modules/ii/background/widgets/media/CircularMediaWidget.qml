@@ -44,7 +44,8 @@ AbstractBackgroundWidget {
 
     ColorQuantizer {
         id: colorQuantizer
-        source: root.artSource
+        // the quantizer reads files only; an inline data: cover keeps the theme colours
+        source: root.artSource.startsWith("file://") ? root.artSource : ""
         depth: 2 // Extract 4 colors so we get a better color representation
         rescaleSize: 1
     }
@@ -65,7 +66,7 @@ AbstractBackgroundWidget {
         color: root.artDominantColor
     }
 
-    readonly property bool useDynamicColors: root.useAlbumColors && root.artSource !== ""
+    readonly property bool useDynamicColors: root.useAlbumColors && colorQuantizer.source.toString() !== ""
 
     // Vibrant button coloring using only colPrimary, colOnPrimary, and colPrimaryContainer
     readonly property color activeAccentColor: root.useDynamicColors ? blendedColors.colPrimary : WidgetColorScheme.colors.colPrimary

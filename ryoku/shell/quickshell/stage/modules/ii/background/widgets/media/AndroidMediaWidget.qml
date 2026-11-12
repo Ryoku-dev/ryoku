@@ -64,11 +64,12 @@ AbstractBackgroundWidget {
     property real titleYOffset: 0.0
 
 
-    readonly property bool useDynamicColors: (Config.options.background.widgets.media.dynamicAlbumColors ?? false) && root.artUrl !== ""
+    readonly property bool useDynamicColors: (Config.options.background.widgets.media.dynamicAlbumColors ?? false) && colorQuantizer.source.toString() !== ""
 
     ColorQuantizer {
         id: colorQuantizer
-        source: root.artUrl
+        // the quantizer reads files only; an inline data: cover keeps the theme colours
+        source: root.artUrl.startsWith("file://") ? root.artUrl : ""
         depth: 0
         rescaleSize: 1
     }

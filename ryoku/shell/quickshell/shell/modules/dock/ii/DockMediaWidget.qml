@@ -110,11 +110,12 @@ Item {
     }
 
     // ── Dynamic Color Scheme & M3 Tokens ──────────────────────────────────
-    readonly property bool useDynamicColors: (Config.options?.media?.dynamicAlbumColors ?? false) && root.artUrl !== ""
+    readonly property bool useDynamicColors: (Config.options?.media?.dynamicAlbumColors ?? false) && colorQuantizer.source.toString() !== ""
 
     ColorQuantizer {
         id: colorQuantizer
-        source: root.artUrl
+        // the quantizer reads files only; an inline data: cover keeps the theme colours
+        source: root.artUrl.startsWith("file://") ? root.artUrl : ""
         depth: 0
         rescaleSize: 1
     }
