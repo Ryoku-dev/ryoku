@@ -55,8 +55,8 @@ function temp(celsius, unit) {
     const c = Number(celsius);
     if (!isFinite(c)) return "n/a";
     return unit === "fahrenheit"
-        ? Math.round(c * 9 / 5 + 32) + " F"
-        : Math.round(c) + " C";
+        ? Math.round(c * 9 / 5 + 32) + " °F"
+        : Math.round(c) + " °C";
 }
 
 if (typeof module !== "undefined" && module.exports)

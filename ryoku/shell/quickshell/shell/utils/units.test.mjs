@@ -30,9 +30,9 @@ eq(tempUnit("fahrenheit", "de_DE.UTF-8"), "fahrenheit", "an explicit Fahrenheit 
 eq(tempUnit("auto", "en_US.UTF-8"), "fahrenheit", "auto follows a US locale");
 eq(tempUnit("auto", "de_DE.UTF-8"), "celsius", "auto follows a metric locale");
 eq(tempUnit("auto", ""), "celsius", "no locale falls back to Celsius");
-eq(temp(21.6, "celsius"), "22 C", "a Celsius reading rounds to the degree");
-eq(temp(21.6, "fahrenheit"), "71 F", "a Fahrenheit reading converts and rounds");
-eq(temp(0, "fahrenheit"), "32 F", "freezing in Fahrenheit");
+eq(temp(21.6, "celsius"), "22 °C", "a Celsius reading rounds to the degree");
+eq(temp(21.6, "fahrenheit"), "71 °F", "a Fahrenheit reading converts and rounds");
+eq(temp(0, "fahrenheit"), "32 °F", "freezing in Fahrenheit");
 eq(temp(NaN, "celsius"), "n/a", "a missing reading is not a temperature");
 
 if (failed > 0) {

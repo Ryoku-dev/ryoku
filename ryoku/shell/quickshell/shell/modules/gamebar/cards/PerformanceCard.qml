@@ -27,7 +27,7 @@ GameBarCard {
         if (base.length > 0)
             return base.replace("x", " x ");
         const out = Wm.outputByName(card.monitorName);
-        return out ? out.width + " x " + out.height : "n/a";
+        return out ? out.width + " x " + out.height : I18n.tr("n/a");
     }
 
     function readMode(clear) {
@@ -126,14 +126,14 @@ GameBarCard {
             s: card.s
             width: parent.width
             label: I18n.tr("Refresh")
-            value: card.hz > 0 ? card.hz + " Hz" : "n/a"
+            value: card.hz > 0 ? card.hz + " Hz" : I18n.tr("n/a")
         }
         GameBarDataRow {
             s: card.s
             width: parent.width
             label: I18n.tr("Temperature")
             value: card.mon.gpuTempAvailable ? Units.temp(card.mon.gpuTemp, card.tempUnit)
-                : (card.mon.cpuTempAvailable ? Units.temp(card.mon.cpuTemp, card.tempUnit) : "n/a")
+                : (card.mon.cpuTempAvailable ? Units.temp(card.mon.cpuTemp, card.tempUnit) : I18n.tr("n/a"))
         }
 
         GameBarMeter {
@@ -147,7 +147,7 @@ GameBarCard {
             s: card.s
             width: parent.width
             label: I18n.tr("GPU")
-            value: card.mon.gpuAvailable ? Units.pct(card.mon.gpuPercent / 100) : "n/a"
+            value: card.mon.gpuAvailable ? Units.pct(card.mon.gpuPercent / 100) : I18n.tr("n/a")
             fraction: card.mon.gpuAvailable ? card.mon.gpuPercent / 100 : 0
             tint: Theme.tertiary
         }
@@ -164,7 +164,7 @@ GameBarCard {
             label: I18n.tr("VRAM")
             value: card.mon.gpuMemoryAvailable
                 ? Units.gib(card.mon.gpuMemoryUsedGiB) + " / " + Units.gib(card.mon.gpuMemoryTotalGiB)
-                : "n/a"
+                : I18n.tr("n/a")
             fraction: card.mon.gpuMemoryAvailable && card.mon.gpuMemoryTotalGiB > 0
                 ? card.mon.gpuMemoryUsedGiB / card.mon.gpuMemoryTotalGiB : 0
             tint: Theme.tertiary

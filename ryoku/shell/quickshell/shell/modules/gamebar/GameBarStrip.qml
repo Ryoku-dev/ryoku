@@ -5,6 +5,7 @@ import Quickshell
 import shell.services
 import "../../components"
 import "look"
+import Ryoku.Ui.Singletons
 
 // The overlay taskbar: widget buttons, a separator, the clock and the
 // battery. A button shows its widget, a second press hides it.
@@ -31,9 +32,9 @@ Rectangle {
 
     property string clock: ""
 
+    // the hour cycle follows the one clock preference every other clock reads
     function tick() {
-        const d = new Date();
-        root.clock = Qt.formatTime(d, "HH:mm");
+        root.clock = TimeFormat.format(new Date());
     }
 
     Component.onCompleted: root.tick()
@@ -47,6 +48,12 @@ Rectangle {
 
     onVisibleChanged: if (root.visible) root.tick()
     onEnabledChanged: if (root.enabled) root.tick()
+
+    Connections {
+        target: TimeFormat
+        function onIs24hChanged() { root.tick(); }
+        function onFormatLocaleChanged() { root.tick(); }
+    }
 
     Row {
         id: row

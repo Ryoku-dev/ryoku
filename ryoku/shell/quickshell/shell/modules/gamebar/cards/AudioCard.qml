@@ -38,7 +38,7 @@ GameBarCard {
             muted: card.sinkAudio ? card.sinkAudio.muted : false
             valueLabel: card.sinkAudio
                 ? (card.sinkAudio.muted ? I18n.tr("off") : Math.round(card.sinkAudio.volume * 100) + "%")
-                : "n/a"
+                : I18n.tr("n/a")
             peakNode: Audio.sink
             peakEnabled: card.polling && !!Audio.sink
             onMoved: v => { if (card.sinkAudio) card.sinkAudio.volume = v; }
@@ -54,7 +54,7 @@ GameBarCard {
             muted: card.sourceAudio ? card.sourceAudio.muted : false
             valueLabel: card.sourceAudio
                 ? (card.sourceAudio.muted ? I18n.tr("off") : Math.round(card.sourceAudio.volume * 100) + "%")
-                : "n/a"
+                : I18n.tr("n/a")
             peakNode: Audio.source
             peakEnabled: card.polling && !!Audio.source
             onMoved: v => { if (card.sourceAudio) card.sourceAudio.volume = v; }
