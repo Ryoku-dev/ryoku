@@ -869,7 +869,7 @@ Dialog {
 
 A confirmation dialog with an optional exact-name gate.
 
-- Properties: `title`, `text`, `actionText`, `requiredName`, `destructive`, `busy`, `overlayParent`, `opener`, `previewState`, `previewEmbedded`, `previewOpen`, and `inputText`. `ready` and `opened` are read only.
+- Properties: `title`, `text`, `actionText` (default "Confirm"), `cancelText` (default "Cancel", the quiet first action, such as Revert), `requiredName`, `destructive`, `busy`, `overlayParent`, `opener`, `previewState`, `previewEmbedded`, `previewOpen`, and `inputText`. `ready` and `opened` are read only.
 - Signals: `confirmed()` and `cancelled()`
 - Functions: `open()`, `close()`, and `reset()`
 - Preview: `previewState`, plus either `previewEmbedded` or `previewOpen`
@@ -895,13 +895,16 @@ A stacked transient notice with an optional undo-style action and draining blade
 
 A responsive vertical rail or compact bottom rail with Home, destinations, and the New menu. The selected destination is a `sel` fill.
 
-- Properties: `sizeClass`, `currentIndex`, `destinations`, `newMenuItems`, `overlayParent`, `previewState`, `previewNewOpen`, `showNew`, `footIndex`, and `notchIndex`. Read-only properties are `compact`, `expanded`, `railWidth`, `tileSize`, `startY`, `newY`, and `compactColumns`.
+- Properties: `sizeClass`, `currentIndex`, `destinations`, `newMenuItems`, `overlayParent`, `previewState`, `previewNewOpen`, `showNew`, `footIndex`, `notchIndex`, and `brandMark`. Read-only properties are `compact`, `expanded`, `railWidth`, `tileSize`, `tileWidth`, `startY`, `newY`, and `compactColumns`.
 - Signals: `homeTriggered()`, `destinationTriggered(int index, string label)`, and `newItemTriggered(int index, string label)`
-- Functions: `destinationY(index)`, `compactColumn(index)`, and `toggleNewMenu()`
+- Functions: `destinationY(index)`, `tileHeight(index)`, `compactColumn(index)`, and `toggleNewMenu()`
 - Destination and New-menu entries: objects with `label` and `glyph`
 - `showNew` (default true): false hides the New plaque, and its slot, in every size class.
 - `footIndex` (default the last destination): destinations before it stack from `startY`, New taking the slot after the first; the destinations from it on keep their order as one group standing on the foot, `size.railItemBottomInset` above the bottom. With three destinations the defaults draw today's rail.
 - `notchIndex` (default -1): an amber `Notch` at that tile's top-left corner, the one badge the rail may show.
+- `currentIndex` -1: no destination is current (Home is), so no `sel` tile is drawn; it reappears in place on the next destination and glides between destinations as before.
+- Expanded labels: every tile takes the widest label's width plus `space.s1` a side, from `tileSize` (64) to the rail less `space.s1` a side (80), centred, and the `sel` tile follows it. A label still too wide wraps to two centred lines, at word boundaries unless one word alone is too long, and its tile grows by one caption line, moving the tiles below it. Ryoport's short labels keep the 64 tiles. Medium and compact are unchanged.
+- `brandMark` (default null): a host mark passed to both BrandMarks; see BrandMark's `mark`.
 - Compact: Home, the first destination, New when shown, then the rest, in equal columns.
 - Preview: `previewState`. `previewNewOpen` embeds the New popover.
 
@@ -909,7 +912,8 @@ A responsive vertical rail or compact bottom rail with Home, destinations, and t
 
 The interactive Home mark used by the rail.
 
-- Properties: `markSize` and `previewState`. `forcedHover` and `forcedPress` are read only.
+- Properties: `markSize`, `mark`, and `previewState`. `forcedHover` and `forcedPress` are read only.
+- `mark` (default null, which draws Ryoport's octagon and pointer): a `Component` for the host's own mark, sized to the `sel` square inset by its cut. Draw it in `Lithic.onSel` with at most one `Lithic.jasper` accent; the square, size, cut, Home role, hover, press and focus stay the library's.
 - Signal: inherited `clicked()`
 - Preview: `previewState`
 
@@ -943,8 +947,8 @@ A line chart with a hatched area, baseline, optional ticks, and an empty state.
 
 The responsive application frame that composes a rail, optional list pane, work pane, window controls, and overlay host.
 
-- Properties: the default `workData` child list, plus `listData`, `overlayData`, `showList`, `compactView`, `customDecorations`, `currentDestination`, `destinations`, `showNew`, `footIndex`, `notchIndex`, `compactBar`, `windowControlsComponent`, and `previewState`. Read-only properties are `sizeClass`, `compact`, `railWidth`, `listWidth`, `contentX`, and `paneBottom`.
-- `showNew`, `footIndex` and `notchIndex` pass through to `Rail`. `compactBar` (default true): false shows no bottom rail in compact, the panes run to the bottom, and the host provides its own navigation.
+- Properties: the default `workData` child list, plus `listData`, `overlayData`, `showList`, `compactView`, `customDecorations`, `currentDestination`, `destinations`, `showNew`, `footIndex`, `notchIndex`, `brandMark`, `compactBar`, `windowControlsComponent`, and `previewState`. Read-only properties are `sizeClass`, `compact`, `railWidth`, `listWidth`, `contentX`, and `paneBottom`.
+- `showNew`, `footIndex`, `notchIndex` and `brandMark` pass through to `Rail`. `compactBar` (default true): false shows no bottom rail in compact, the panes run to the bottom, and the host provides its own navigation.
 - Signals: `homeTriggered()`, `destinationTriggered(int index, string label)`, `newItemTriggered(int index, string label)`, `minimizeRequested()`, `maximizeRequested()`, and `closeRequested()`
 - Preview: `previewState`
 

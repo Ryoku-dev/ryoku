@@ -27,6 +27,8 @@ function tokenDuration(element, name) {
 }
 
 function hydrateBrandMark(mark) {
+  // a host's own svg replaces the octagon; the library only paints the square around it
+  if (mark.querySelector(':scope > svg:not([data-l-brand="library"])')) return;
   const apothem = tokenNumber(mark, '--lithic-size-brand-octagon-apothem-ratio');
   const point = tokenNumber(mark, '--lithic-size-brand-point-ratio');
   const near = tokenNumber(mark, '--lithic-size-brand-pointer-near-ratio');
@@ -42,6 +44,7 @@ function hydrateBrandMark(mark) {
 
   svg.setAttribute('viewBox', '0 0 1 1');
   svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('data-l-brand', 'library');
   octagon.setAttribute('class', 'l-brand-mark-octagon');
   octagon.setAttribute('points', [
     [center - tangent, center - apothem],
@@ -351,7 +354,41 @@ function updateFrame(frame) {
   emit(frame, 'lithic:size-class', {sizeClass: next});
 }
 
+function fitRailTiles(rail) {
+  const sizeClass = rail.closest('.l-app-frame')?.dataset.lSizeClass;
+  const labels = [...rail.querySelectorAll('.l-rail-destination .l-rail-label')];
+  if (sizeClass === 'medium' || sizeClass === 'compact') {
+    rail.style.removeProperty('--l-rail-tile-width');
+    labels.forEach(label => label.closest('.l-rail-destination').style.removeProperty('--l-rail-extra-lines'));
+    return;
+  }
+  const probe = documentFor(rail).createElement('span');
+  probe.className = 'l-rail-label';
+  probe.setAttribute('aria-hidden', 'true');
+  probe.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;inline-size:max-content;max-inline-size:none';
+  rail.append(probe);
+  let widest = 0;
+  labels.forEach(label => {
+    probe.textContent = label.textContent.trim();
+    widest = Math.max(widest, probe.getBoundingClientRect().width);
+  });
+  probe.remove();
+  const inset = tokenNumber(rail, '--lithic-space-s1');
+  const least = tokenNumber(rail, '--lithic-size-rail-destination-expanded');
+  const most = tokenNumber(rail, '--lithic-size-rail-expanded') - 2 * inset;
+  const next = `${Math.min(most, Math.max(least, Math.ceil(widest) + 2 * inset))}px`;
+  if (rail.style.getPropertyValue('--l-rail-tile-width') !== next) rail.style.setProperty('--l-rail-tile-width', next);
+  // a wrapped label grows its tile by each extra caption line
+  const line = tokenNumber(rail, '--lithic-type-caption-line');
+  labels.forEach(label => {
+    const extra = String(Math.max(0, Math.round(label.getBoundingClientRect().height / line) - 1));
+    const tile = label.closest('.l-rail-destination');
+    if (tile.style.getPropertyValue('--l-rail-extra-lines') !== extra) tile.style.setProperty('--l-rail-extra-lines', extra);
+  });
+}
+
 function syncRailSelection(rail) {
+  fitRailTiles(rail);
   const current = rail.querySelector('.l-rail-destination[aria-current="page"]');
   let selection = rail.querySelector(':scope > .l-rail-selection');
   if (!selection) {
@@ -541,6 +578,8 @@ function initOverlays(root) {
     state.railObservers ||= [];
     state.railObservers.push(observer);
   });
+  // label widths are only true once the faces have loaded
+  documentRoot.fonts?.ready.then(() => root.querySelectorAll('.l-rail').forEach(syncRailSelection));
 
   root.querySelectorAll('.l-app-frame').forEach(frame => {
     updateFrame(frame);

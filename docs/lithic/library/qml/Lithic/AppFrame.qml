@@ -19,6 +19,7 @@ T.Control {
     property bool showNew: true
     property int footIndex: destinations.length - 1
     property int notchIndex: -1
+    property Component brandMark: null
     // false: compact shows no bottom rail and the host brings its own navigation
     property bool compactBar: true
     property Component windowControlsComponent: defaultWindowControls
@@ -72,6 +73,7 @@ T.Control {
             showNew: root.showNew
             footIndex: root.footIndex
             notchIndex: root.notchIndex
+            brandMark: root.brandMark
             onHomeTriggered: root.homeTriggered()
             onDestinationTriggered: (index, label) => {
                 root.currentDestination = index

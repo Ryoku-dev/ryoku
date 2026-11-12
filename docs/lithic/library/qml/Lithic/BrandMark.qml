@@ -6,6 +6,8 @@ T.AbstractButton {
 
     property real markSize: LithicTokens.size.brandMark
     property string previewState: ""
+    // the host's own mark in onSel, with at most one jasper accent; null draws Ryoport's octagon
+    property Component mark: null
     readonly property bool forcedHover: previewState === "hover"
     readonly property bool forcedPress: previewState === "pressed"
 
@@ -38,57 +40,74 @@ T.AbstractButton {
         }
     }
 
-    contentItem: Canvas {
+    contentItem: Item {
         y: root.down || root.forcedPress ? Lithic.pressSink : 0
-        antialiasing: true
 
-        onWidthChanged: requestPaint()
-        onHeightChanged: requestPaint()
-        Connections {
-            target: Lithic
-            function onOnSelChanged() { parent.requestPaint() }
-            function onJasperChanged() { parent.requestPaint() }
+        // the host's mark fits inside the square, inset by its cut
+        Loader {
+            readonly property real inset: Math.min(root.width, root.height) * LithicTokens.size.brandCutRatio
+            x: inset
+            y: inset
+            width: Math.max(0, parent.width - inset * 2)
+            height: Math.max(0, parent.height - inset * 2)
+            active: root.mark !== null
+            sourceComponent: root.mark
         }
 
-        onPaint: {
-            const context = getContext("2d")
-            context.reset()
-            const side = Math.min(width, height)
-            const centerX = width / 2
-            const centerY = height / 2
-            const apothem = side * LithicTokens.size.brandOctagonApothemRatio
-            const diagonal = apothem * (Math.SQRT2 - 1)
+        Canvas {
+            id: octagon
+            anchors.fill: parent
+            visible: root.mark === null
+            antialiasing: true
 
-            context.strokeStyle = Lithic.onSel
-            context.lineWidth = LithicTokens.size.brandOutline
-            context.lineJoin = "miter"
-            context.beginPath()
-            context.moveTo(centerX - diagonal, centerY - apothem)
-            context.lineTo(centerX + diagonal, centerY - apothem)
-            context.lineTo(centerX + apothem, centerY - diagonal)
-            context.lineTo(centerX + apothem, centerY + diagonal)
-            context.lineTo(centerX + diagonal, centerY + apothem)
-            context.lineTo(centerX - diagonal, centerY + apothem)
-            context.lineTo(centerX - apothem, centerY + diagonal)
-            context.lineTo(centerX - apothem, centerY - diagonal)
-            context.closePath()
-            context.stroke()
+            onWidthChanged: requestPaint()
+            onHeightChanged: requestPaint()
+            Connections {
+                target: Lithic
+                function onOnSelChanged() { octagon.requestPaint() }
+                function onJasperChanged() { octagon.requestPaint() }
+            }
 
-            const pointRadius = side * LithicTokens.size.brandPointRatio
-            context.fillStyle = Lithic.onSel
-            context.fillRect(centerX - pointRadius, centerY - pointRadius,
-                             pointRadius * 2, pointRadius * 2)
+            onPaint: {
+                const context = getContext("2d")
+                context.reset()
+                const side = Math.min(width, height)
+                const centerX = width / 2
+                const centerY = height / 2
+                const apothem = side * LithicTokens.size.brandOctagonApothemRatio
+                const diagonal = apothem * (Math.SQRT2 - 1)
 
-            context.fillStyle = Lithic.jasper
-            context.beginPath()
-            context.moveTo(centerX + side * LithicTokens.size.brandPointerNearRatio,
-                           centerY + side * LithicTokens.size.brandPointerNearRatio)
-            context.lineTo(centerX + side * LithicTokens.size.brandPointerFarRatio,
-                           centerY + side * LithicTokens.size.brandPointerMidRatio)
-            context.lineTo(centerX + side * LithicTokens.size.brandPointerMidRatio,
-                           centerY + side * LithicTokens.size.brandPointerFarRatio)
-            context.closePath()
-            context.fill()
+                context.strokeStyle = Lithic.onSel
+                context.lineWidth = LithicTokens.size.brandOutline
+                context.lineJoin = "miter"
+                context.beginPath()
+                context.moveTo(centerX - diagonal, centerY - apothem)
+                context.lineTo(centerX + diagonal, centerY - apothem)
+                context.lineTo(centerX + apothem, centerY - diagonal)
+                context.lineTo(centerX + apothem, centerY + diagonal)
+                context.lineTo(centerX + diagonal, centerY + apothem)
+                context.lineTo(centerX - diagonal, centerY + apothem)
+                context.lineTo(centerX - apothem, centerY + diagonal)
+                context.lineTo(centerX - apothem, centerY - diagonal)
+                context.closePath()
+                context.stroke()
+
+                const pointRadius = side * LithicTokens.size.brandPointRatio
+                context.fillStyle = Lithic.onSel
+                context.fillRect(centerX - pointRadius, centerY - pointRadius,
+                                 pointRadius * 2, pointRadius * 2)
+
+                context.fillStyle = Lithic.jasper
+                context.beginPath()
+                context.moveTo(centerX + side * LithicTokens.size.brandPointerNearRatio,
+                               centerY + side * LithicTokens.size.brandPointerNearRatio)
+                context.lineTo(centerX + side * LithicTokens.size.brandPointerFarRatio,
+                               centerY + side * LithicTokens.size.brandPointerMidRatio)
+                context.lineTo(centerX + side * LithicTokens.size.brandPointerMidRatio,
+                               centerY + side * LithicTokens.size.brandPointerFarRatio)
+                context.closePath()
+                context.fill()
+            }
         }
     }
 }

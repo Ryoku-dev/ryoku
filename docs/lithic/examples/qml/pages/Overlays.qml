@@ -6,6 +6,31 @@ Item {
 
     implicitHeight: content.implicitHeight + LithicTokens.space.s5 * 2
 
+    // a host's own mark: two onSel strokes and one jasper accent, as a Ryoku app would draw it
+    component HostMark: Item {
+        Rectangle {
+            x: 0
+            y: 0
+            width: parent.width * 0.22
+            height: parent.height
+            color: Lithic.onSel
+        }
+        Rectangle {
+            x: parent.width * 0.22
+            y: 0
+            width: parent.width * 0.78
+            height: parent.height * 0.22
+            color: Lithic.onSel
+        }
+        Rectangle {
+            x: parent.width * 0.62
+            y: parent.height * 0.5
+            width: parent.width * 0.38
+            height: parent.height * 0.38
+            color: Lithic.jasper
+        }
+    }
+
     component SpecimenFrame: CutRect {
         id: frame
 
@@ -273,19 +298,27 @@ Item {
                 id: longRailFrame
                 width: (specimens.width - specimens.columnSpacing) / specimens.columns
                 title: "Rail"
-                stateLabel: "Long, foot destination with an update notch, no New; expanded and medium"
+                stateLabel: "Host mark and notched foot; wrapped labels; medium"
                 stageHeight: LithicTokens.size.windowDefaultHeight
 
                 readonly property var settingsPages: [
                     { label: "Appearance", glyph: "palette" },
-                    { label: "Bar", glyph: "view_day" },
                     { label: "Desktop", glyph: "desktop_windows" },
-                    { label: "Displays", glyph: "monitor" },
-                    { label: "Keyboard", glyph: "keyboard" },
-                    { label: "Mouse", glyph: "mouse" },
-                    { label: "Sound", glyph: "volume_up" },
-                    { label: "Notices", glyph: "notifications" },
+                    { label: "Windows", glyph: "select_window" },
+                    { label: "Devices", glyph: "devices" },
+                    { label: "Connections", glyph: "wifi" },
+                    { label: "Apps", glyph: "apps" },
+                    { label: "Accounts", glyph: "person" },
+                    { label: "System", glyph: "memory" },
                     { label: "Updates", glyph: "system_update" }
+                ]
+                readonly property var germanPages: [
+                    { label: "Erscheinungsbild", glyph: "palette" },
+                    { label: "Schreibtisch", glyph: "desktop_windows" },
+                    { label: "Fenster", glyph: "select_window" },
+                    { label: "Geräte und Drucker", glyph: "devices" },
+                    { label: "Verbindungen", glyph: "wifi" },
+                    { label: "Aktualisierungen", glyph: "system_update" }
                 ]
 
                 Rail {
@@ -294,13 +327,25 @@ Item {
                     height: parent.height
                     sizeClass: "expanded"
                     destinations: longRailFrame.settingsPages
-                    currentIndex: 2
+                    currentIndex: 0
                     showNew: false
                     footIndex: 8
                     notchIndex: 8
+                    brandMark: Component { HostMark {} }
                 }
                 Rail {
                     x: LithicTokens.space.s4 + LithicTokens.size.railExpanded + LithicTokens.space.s6
+                    width: LithicTokens.size.railExpanded
+                    height: parent.height
+                    sizeClass: "expanded"
+                    destinations: longRailFrame.germanPages
+                    currentIndex: 0
+                    showNew: false
+                    footIndex: 5
+                    brandMark: Component { HostMark {} }
+                }
+                Rail {
+                    x: LithicTokens.space.s4 + (LithicTokens.size.railExpanded + LithicTokens.space.s6) * 2
                     width: LithicTokens.size.railMedium
                     height: parent.height
                     sizeClass: "medium"
@@ -309,19 +354,27 @@ Item {
                     showNew: false
                     footIndex: 8
                     notchIndex: 8
+                    brandMark: Component { HostMark {} }
                 }
             }
 
             SpecimenFrame {
                 width: (specimens.width - specimens.columnSpacing) / specimens.columns
                 title: "BrandMark"
-                stateLabel: "Home"
+                stateLabel: "Home; then a host's mark, with keyboard focus"
                 stageHeight: LithicTokens.space.s6 * 3
 
-                BrandMark {
+                Row {
                     anchors.centerIn: parent
-                    markSize: LithicTokens.size.brandMark
-                    previewState: "focus"
+                    spacing: LithicTokens.space.s6
+                    BrandMark {
+                        markSize: LithicTokens.size.brandMark
+                    }
+                    BrandMark {
+                        markSize: LithicTokens.size.brandMark
+                        mark: Component { HostMark {} }
+                        previewState: "focus"
+                    }
                 }
             }
 

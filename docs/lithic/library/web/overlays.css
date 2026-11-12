@@ -471,6 +471,14 @@
   min-height: var(--lithic-size-rail-home-expanded);
 }
 
+/* every expanded tile shares the width the widest label needs; overlays.js measures it */
+.l-rail-destination {
+  width: var(--l-rail-tile-width, var(--lithic-size-rail-destination-expanded));
+  min-height: calc(var(--lithic-size-rail-destination-expanded) + var(--lithic-type-caption-line) * var(--l-rail-extra-lines, 0));
+  grid-template-columns: minmax(0, 1fr);
+  padding-inline: var(--lithic-space-s1);
+}
+
 .l-rail-destination:hover,
 .l-rail-home:hover,
 .l-rail-destination[data-l-state="hover"],
@@ -501,8 +509,11 @@
 }
 
 .l-rail-label {
+  max-inline-size: 100%;
   color: var(--lithic-fg3);
   font: var(--lithic-type-caption-weight) var(--lithic-type-caption-size)/var(--lithic-type-caption-line) var(--lithic-type-caption-family);
+  text-align: center;
+  overflow-wrap: break-word;
 }
 
 .l-rail-destination[aria-current="page"] .l-rail-label {
@@ -557,6 +568,7 @@
   display: grid;
   place-items: center;
   background: var(--lithic-sel);
+  color: var(--lithic-on-sel);
   clip-path: polygon(
     var(--l-brand-cut) 0,
     calc(100% - var(--l-brand-cut)) 0,
@@ -573,6 +585,17 @@
   width: 100%;
   height: 100%;
   overflow: visible;
+}
+
+/* a host mark sits inside the square inset by its cut and paints with currentColor */
+.l-brand-mark > svg:not([data-l-brand="library"]) {
+  width: calc(100% * (1 - 2 * var(--lithic-size-brand-cut-ratio)));
+  height: calc(100% * (1 - 2 * var(--lithic-size-brand-cut-ratio)));
+  overflow: hidden;
+}
+
+.l-brand-mark__accent {
+  color: var(--lithic-jasper);
 }
 
 .l-brand-mark-octagon {

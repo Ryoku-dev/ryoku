@@ -17,38 +17,42 @@ import (
 )
 
 type overlaysPage struct {
-	popover          kit.Popover
-	popoverAnchor    kit.Plaque
-	menuPopover      kit.Popover
-	menuAnchor       kit.Plaque
-	menu             kit.Menu
-	picker           kit.Picker
-	dialog           kit.Dialog
-	dialogCancel     kit.Plaque
-	dialogAction     kit.Plaque
-	confirm          kit.Confirm
-	tooltip          kit.Tooltip
-	tooltipAnchor    kit.Plaque
-	placard          kit.Placard
-	noticePushed     bool
-	rail             kit.Rail
-	newPlaque        kit.NewPlaque
-	sectionIndex     kit.SectionIndex
-	sectionPicker    kit.SectionIndex
-	chart            kit.EngravedChart
-	appFrame         kit.AppFrame
-	appRail          kit.Rail
-	appPlacard       kit.Placard
-	appNotice        bool
-	fleetIcon        *widget.Icon
-	activityIcon     *widget.Icon
-	settingsIcon     *widget.Icon
-	menuItems        []kit.MenuItem
-	destinations     []kit.RailDestination
-	longRail         kit.Rail
-	longRailNew      kit.Rail
-	compactRail      kit.Rail
-	longDestinations []kit.RailDestination
+	popover              kit.Popover
+	popoverAnchor        kit.Plaque
+	menuPopover          kit.Popover
+	menuAnchor           kit.Plaque
+	menu                 kit.Menu
+	picker               kit.Picker
+	dialog               kit.Dialog
+	dialogCancel         kit.Plaque
+	dialogAction         kit.Plaque
+	confirm              kit.Confirm
+	tooltip              kit.Tooltip
+	tooltipAnchor        kit.Plaque
+	placard              kit.Placard
+	noticePushed         bool
+	rail                 kit.Rail
+	newPlaque            kit.NewPlaque
+	sectionIndex         kit.SectionIndex
+	sectionPicker        kit.SectionIndex
+	chart                kit.EngravedChart
+	appFrame             kit.AppFrame
+	appRail              kit.Rail
+	appPlacard           kit.Placard
+	appNotice            bool
+	fleetIcon            *widget.Icon
+	activityIcon         *widget.Icon
+	settingsIcon         *widget.Icon
+	menuItems            []kit.MenuItem
+	destinations         []kit.RailDestination
+	longRail             kit.Rail
+	longRailNew          kit.Rail
+	compactRail          kit.Rail
+	longDestinations     []kit.RailDestination
+	settingsRail         kit.Rail
+	germanRail           kit.Rail
+	settingsDestinations []kit.RailDestination
+	germanDestinations   []kit.RailDestination
 }
 
 var overlaysGallery = newOverlaysPage()
@@ -108,6 +112,18 @@ func newOverlaysPage() *overlaysPage {
 		{Label: "Updates", Icon: page.activityIcon, Notch: true},
 		{Label: "About", Icon: page.settingsIcon},
 	}
+	settingsIcons := []*widget.Icon{
+		kit.Icon(symbols.DesktopWindows), page.fleetIcon, kit.Icon(symbols.Fullscreen),
+		kit.Icon(symbols.DeviceHub), kit.Icon(symbols.Link), kit.Icon(symbols.FormatListBulleted),
+		kit.Icon(symbols.Group), page.settingsIcon, kit.Icon(symbols.Download),
+	}
+	english := []string{"Appearance", "Desktop", "Windows", "Devices", "Connections", "Apps", "Accounts", "System", "Updates"}
+	german := []string{"Erscheinungsbild", "Schreibtisch", "Fenster", "Geräte", "Verbindungen", "Apps", "Konten", "System", "Aktualisierungen"}
+	for index, icon := range settingsIcons {
+		notch := index == len(settingsIcons)-1
+		page.settingsDestinations = append(page.settingsDestinations, kit.RailDestination{Label: english[index], Icon: icon, Notch: notch})
+		page.germanDestinations = append(page.germanDestinations, kit.RailDestination{Label: german[index], Icon: icon, Notch: notch})
+	}
 	page.chart = kit.EngravedChart{
 		Values: []float64{18, 22, 37, 31, 49, 44, 62, 53, 71, 58, 66, 73},
 		Min:    math.NaN(), Max: math.NaN(), Height: unit.Dp(tokens.SizePinnedTileMinHeight),
@@ -118,6 +134,34 @@ func newOverlaysPage() *overlaysPage {
 
 func (page *overlaysPage) confirmField(value string) {
 	page.confirm.SetConfirmationText(value)
+}
+
+// settingsRailSpecimen draws a Settings rail: no New, Updates alone at the
+// foot, and a host mark in place of Ryoport's octagon.
+func (page *overlaysPage) settingsRailSpecimen(gtx layout.Context, th *theme.Theme, rail *kit.Rail, destinations []kit.RailDestination) layout.Dimensions {
+	size := image.Pt(gtx.Dp(tokens.SizeRailExpanded), gtx.Dp(galleryHeight))
+	child := gtx
+	child.Constraints = layout.Exact(size)
+	rail.HideNew = true
+	if rail.Brand == nil {
+		rail.Brand = hostMark(th)
+	}
+	rail.Layout(child, th, destinations, 4, kit.FrameExpanded)
+	return layout.Dimensions{Size: size}
+}
+
+// hostMark is a sample app mark: two onSel stones and one jasper accent, each
+// cut on one corner so the chamfer reads at this small size.
+func hostMark(th *theme.Theme) kit.BrandMarkFunc {
+	return func(gtx layout.Context, size unit.Dp) layout.Dimensions {
+		side := gtx.Dp(size)
+		part := func(fraction float32) int { return int(float32(side)*fraction + .5) }
+		cut := gtx.Dp(th.Cut.Small)
+		kit.FillCutCorners(gtx.Ops, image.Rect(0, part(.3), part(.45), side), cut, 0, 0, 0, th.R.OnSel)
+		kit.FillCutCorners(gtx.Ops, image.Rect(part(.55), part(.55), side, side), 0, cut, 0, 0, th.R.OnSel)
+		kit.FillCutCorners(gtx.Ops, image.Rect(part(.55), 0, side, part(.4)), 0, cut, 0, 0, th.R.Jasper)
+		return layout.Dimensions{Size: image.Pt(side, side)}
+	}
 }
 
 func (page *overlaysPage) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions {
@@ -283,6 +327,16 @@ func (page *overlaysPage) navigationSection(th *theme.Theme) layout.Widget {
 						page.compactRail.HideNew = true
 						page.compactRail.Layout(child, th, page.destinations, 0, kit.FrameCompact)
 						return layout.Dimensions{Size: size}
+					}),
+				})
+			},
+			func(gtx layout.Context) layout.Dimensions {
+				return grid(gtx, 3, th.Sp.S3, []layout.Widget{
+					specimen(th, "Settings rail with a host mark, labels fit the tile", func(gtx layout.Context) layout.Dimensions {
+						return page.settingsRailSpecimen(gtx, th, &page.settingsRail, page.settingsDestinations)
+					}),
+					specimen(th, "Settings rail in German, long labels wrap", func(gtx layout.Context) layout.Dimensions {
+						return page.settingsRailSpecimen(gtx, th, &page.germanRail, page.germanDestinations)
 					}),
 				})
 			},

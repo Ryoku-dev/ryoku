@@ -7,6 +7,7 @@ import (
 
 	"gioui.org/f32"
 	"gioui.org/layout"
+	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
@@ -15,8 +16,18 @@ import (
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 )
 
+// BrandMarkFunc draws a host's own mark at size, in onSel with at most one
+// jasper accent. The constraints are the square left inside the mark's cut.
+type BrandMarkFunc func(gtx layout.Context, size unit.Dp) layout.Dimensions
+
 // BrandMark returns the Home mark in selection roles with a jasper pointer.
 func BrandMark(th *theme.Theme, size unit.Dp) layout.Widget {
+	return BrandMarkWith(th, size, nil)
+}
+
+// BrandMarkWith returns the Home mark with mark drawn inside its selection
+// square in place of the octagon and pointer; a nil mark draws BrandMark.
+func BrandMarkWith(th *theme.Theme, size unit.Dp, mark BrandMarkFunc) layout.Widget {
 	return func(gtx layout.Context) layout.Dimensions {
 		requested := gtx.Dp(size)
 		dimensions := gtx.Constraints.Constrain(image.Pt(requested, requested))
@@ -28,7 +39,10 @@ func BrandMark(th *theme.Theme, size unit.Dp) layout.Widget {
 		bounds := image.Rectangle{Min: offset, Max: offset.Add(image.Pt(diameter, diameter))}
 		cut := int(float32(diameter)*tokens.SizeBrandCutRatio + .5)
 		FillCut(gtx.Ops, bounds, cut, th.R.Sel)
-
+		if mark != nil {
+			drawHostMark(gtx, bounds.Inset(cut), mark)
+			return layout.Dimensions{Size: dimensions}
+		}
 		center := f32.Pt(float32(bounds.Min.X)+float32(diameter)/2, float32(bounds.Min.Y)+float32(diameter)/2)
 		apothem := float32(diameter) * tokens.SizeBrandOctagonApothemRatio
 		points := brandOctagon(center, apothem)
@@ -47,6 +61,23 @@ func BrandMark(th *theme.Theme, size unit.Dp) layout.Widget {
 		paint.FillShape(gtx.Ops, th.R.Jasper, clip.Outline{Path: pointer.End()}.Op())
 		return layout.Dimensions{Size: dimensions}
 	}
+}
+
+// drawHostMark centres the host's mark inside inner and clips it there.
+func drawHostMark(gtx layout.Context, inner image.Rectangle, mark BrandMarkFunc) {
+	if inner.Empty() {
+		return
+	}
+	child := gtx
+	child.Constraints = layout.Constraints{Max: inner.Size()}
+	record := op.Record(gtx.Ops)
+	dims := mark(child, gtx.Metric.PxToDp(inner.Dx()))
+	call := record.Stop()
+	area := clip.Rect(inner).Push(gtx.Ops)
+	offset := op.Offset(inner.Min.Add(image.Pt((inner.Dx()-dims.Size.X)/2, (inner.Dy()-dims.Size.Y)/2))).Push(gtx.Ops)
+	call.Add(gtx.Ops)
+	offset.Pop()
+	area.Pop()
 }
 
 func brandOctagon(center f32.Point, apothem float32) [8]f32.Point {

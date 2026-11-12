@@ -582,10 +582,11 @@ Library: QML Lithic.Dialog, web .l-dialog, Go kit.Dialog, terminal term.RenderDi
 
 ### Confirm
 
-Confirm composes Dialog with body, Cancel and a danger or gold action. It may
-require the resource name in a TextField 21 below the body before enabling
-the action. The action names the verb, never Yes. Reference:
-`ui/kit/confirm.go`.
+Confirm composes Dialog with body, Cancel and a danger or gold action. The
+quiet action reads Cancel unless the host names it, such as Revert when a
+change is kept or undone. It may require the resource name in a TextField 21
+below the body before enabling the action. The action names the verb, never
+Yes. Reference: `ui/kit/confirm.go`.
 
 Library: QML Lithic.Confirm, web .l-confirm, Go kit.Confirm, terminal term.RenderConfirm
 
@@ -614,13 +615,18 @@ Library: QML Lithic.Placard, web .l-placard, Go kit.Placard, terminal term.Rende
 Rail owns Home, Fleet, New and Activity, with Settings at the bottom.
 Destination icons are 21. Expanded tiles are 64 in an 88 rail; medium tiles
 are 56 in a 72 rail. The current tile is a `sel` fill that glides over
-240 ms. A host with other destinations keeps the same shape: it can hide New
-and its slot, stand every destination from a foot index on at the bottom in
-reading order, and mark one destination with an amber Notch at its top left,
-such as a pending update. Compact gives the home mark, New and each
-destination an equal column in a 64 high bottom bar with 48 high tiles, so it
-suits five or fewer; a host with more turns the bar off and navigates from
-its list pane. Reference: `ui/app/rail.go`.
+240 ms; with no current destination, as on a host's own home view, no tile is
+filled, and the next one fills in place without gliding. Expanded tiles all
+take the width of the widest label plus 4 on each side, from 64 up to 80. A
+label wider than that wraps to two centred lines, breaking inside a word only
+when one word alone is too long, and its tile grows by one caption line. A
+host with other destinations keeps the same shape: it can hide New and its
+slot, stand every destination from a foot index on at the bottom in reading
+order, and mark one destination with an amber Notch at its top left, such as
+a pending update. Compact gives the home mark, New and each destination an
+equal column in a 64 high bottom bar with 48 high tiles, so it suits five or
+fewer; a host with more turns the bar off and navigates from its list pane.
+Reference: `ui/app/rail.go`.
 
 Library: QML Lithic.Rail, web .l-rail, Go kit.Rail, terminal -
 
@@ -628,8 +634,10 @@ Library: QML Lithic.Rail, web .l-rail, Go kit.Rail, terminal -
 
 The mark is Home. It is a `sel` square cut at 22 percent of its size with an
 `onSel` octagon at 28 percent apothem, a 1.5 dp outline and centre point, plus
-a small jasper pointer. It is not page decoration. Reference:
-`ui/kit/brand.go`.
+a small jasper pointer. Another app draws its own mark in place of the
+octagon and pointer: in `onSel` with at most one `jasper` accent, centred in
+the square inset by its cut, while the square, its size, cut and Home role
+stay the library's. It is not page decoration. Reference: `ui/kit/brand.go`.
 
 Library: QML Lithic.BrandMark, web .l-brand-mark, Go kit.BrandMark, terminal -
 

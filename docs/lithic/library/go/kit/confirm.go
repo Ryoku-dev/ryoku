@@ -8,10 +8,12 @@ import (
 )
 
 // Confirm composes a dialog with cancel, a named action, and optional typed proof.
+// CancelText names the cancel plaque; empty means "Cancel".
 type Confirm struct {
-	Dialog  Dialog
-	Danger  bool
-	Preview State
+	Dialog     Dialog
+	Danger     bool
+	CancelText string
+	Preview    State
 
 	cancel, confirm Plaque
 	field           TextField
@@ -63,7 +65,10 @@ func (c *Confirm) Layout(gtx layout.Context, th *theme.Theme, title, body, actio
 	}
 	keep := func(gtx layout.Context) layout.Dimensions {
 		c.cancel.Kind = PlaqueQuiet
-		c.cancel.Label = "Cancel"
+		c.cancel.Label = c.CancelText
+		if c.cancel.Label == "" {
+			c.cancel.Label = "Cancel"
+		}
 		c.cancel.Preview = c.Preview
 		return c.cancel.Layout(gtx, th)
 	}

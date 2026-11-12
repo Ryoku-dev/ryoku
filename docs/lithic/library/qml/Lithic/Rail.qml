@@ -22,6 +22,7 @@ T.Control {
     property bool showNew: true
     property int footIndex: destinations.length - 1
     property int notchIndex: -1
+    property Component brandMark: null
     readonly property bool compact: sizeClass === "compact"
     readonly property bool expanded: sizeClass === "expanded"
     readonly property real railWidth: expanded ? LithicTokens.size.railExpanded
@@ -30,8 +31,39 @@ T.Control {
                                                : LithicTokens.size.railDestinationMedium
     readonly property real startY: expanded ? LithicTokens.size.railStartExpanded
                                              : LithicTokens.size.railStartMedium
-    readonly property real newY: expanded ? LithicTokens.size.railNewYExpanded
-                                           : LithicTokens.size.railNewYMedium
+    // expanded tiles share the widest label's width, from the tile size to the rail less s1 a side
+    readonly property real tileWidth: {
+        if (!expanded)
+            return tileSize;
+        let widest = 0;
+        for (let index = 0; index < destinations.length; ++index)
+            widest = Math.max(widest, captionMetrics.advanceWidth(destinations[index].label || ""));
+        return Math.max(tileSize, Math.min(railWidth - LithicTokens.space.s1 * 2,
+                                           Math.ceil(widest) + LithicTokens.space.s1 * 2));
+    }
+    readonly property real _labelWidth: tileWidth - LithicTokens.space.s1 * 2
+    // a label too wide for its tile wraps to a second line, and that tile grows by one
+    readonly property var _tileHeights: {
+        const heights = [];
+        for (let index = 0; index < destinations.length; ++index) {
+            const wraps = expanded
+                && captionMetrics.advanceWidth(destinations[index].label || "") > _labelWidth;
+            heights.push(tileSize + (wraps ? Lithic.type.caption.lineHeight : 0));
+        }
+        return heights;
+    }
+    readonly property real newY: (expanded ? LithicTokens.size.railNewYExpanded
+                                           : LithicTokens.size.railNewYMedium)
+                                 + (destinations.length > 0 ? tileHeight(0) - tileSize : 0)
+    // -1 means no destination is current (the brand mark is home); the tile reappears in place
+    property int _shownIndex: -1
+    property bool _glide: false
+    readonly property int _selectionIndex: Math.max(0, Math.min(_shownIndex, destinations.length - 1))
+    onCurrentIndexChanged: {
+        _glide = _shownIndex >= 0 && currentIndex >= 0;
+        _shownIndex = currentIndex;
+    }
+    Component.onCompleted: _shownIndex = currentIndex
 
     signal homeTriggered()
     signal destinationTriggered(int index, string label)
@@ -43,15 +75,25 @@ T.Control {
     padding: 0
     Accessible.role: Accessible.Pane
 
+    function tileHeight(index) {
+        return index >= 0 && index < _tileHeights.length ? _tileHeights[index] : tileSize
+    }
+
     // destinations before footIndex stack from startY, New taking the slot after the first;
     // the rest keep their order as one group standing on the foot
     function destinationY(index) {
-        const step = tileSize + LithicTokens.size.railTileGap
+        const gap = LithicTokens.size.railTileGap
         const foot = Math.max(0, Math.min(footIndex, destinations.length))
-        if (index < foot)
-            return startY + (index + (showNew && index > 0 ? 1 : 0)) * step
-        const below = destinations.length - 1 - index
-        return height - LithicTokens.size.railItemBottomInset - tileSize - below * step
+        if (index < foot) {
+            let y = startY + (showNew && index > 0 ? tileSize + gap : 0)
+            for (let above = 0; above < index; ++above)
+                y += tileHeight(above) + gap
+            return y
+        }
+        let y = height - LithicTokens.size.railItemBottomInset
+        for (let below = destinations.length - 1; below >= index; --below)
+            y -= tileHeight(below) + (below > index ? gap : 0)
+        return y
     }
 
     readonly property int compactColumns: 1 + destinations.length + (showNew ? 1 : 0)
@@ -67,6 +109,13 @@ T.Control {
             newPopover.open()
     }
 
+    FontMetrics {
+        id: captionMetrics
+        font.family: Lithic.type.caption.family
+        font.pixelSize: Lithic.type.caption.pixelSize
+        font.weight: Lithic.type.caption.weight
+    }
+
     component DestinationButton: T.AbstractButton {
         required property string destinationLabel
         required property string glyphName
@@ -74,6 +123,8 @@ T.Control {
         property bool notched: false
         property string previewState: ""
         property bool showLabel: true
+        // 0 keeps the label on one line, as the medium and compact rails draw it
+        property real labelWidth: 0
 
         hoverEnabled: true
         activeFocusOnTab: true
@@ -114,9 +165,13 @@ T.Control {
             Label {
                 visible: showLabel
                 anchors.horizontalCenter: parent.horizontalCenter
+                width: labelWidth > 0 ? labelWidth : undefined
                 text: destinationLabel
                 typeRole: "caption"
                 ink: selected ? Lithic.onSel : Lithic.fg2
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: labelWidth > 0 ? Text.Wrap : Text.NoWrap
+                maximumLineCount: 2
             }
         }
 
@@ -141,14 +196,15 @@ T.Control {
 
             CutRect {
                 id: verticalSelection
-                x: (parent.width - root.tileSize) / 2
-                y: root.destinationY(Math.max(0, Math.min(root.currentIndex,
-                                                          root.destinations.length - 1)))
-                width: root.tileSize
-                height: root.tileSize
+                visible: root._shownIndex >= 0
+                x: (parent.width - root.tileWidth) / 2
+                y: root.destinationY(root._selectionIndex)
+                width: root.tileWidth
+                height: root.tileHeight(root._selectionIndex)
                 fill: Lithic.sel
                 cut: LithicTokens.cut.mid
-                ChiselNumberBehavior on y { duration: LithicTokens.motion.select }
+                ChiselNumberBehavior on y { enabled: root._glide; duration: LithicTokens.motion.select }
+                ChiselNumberBehavior on height { enabled: root._glide; duration: LithicTokens.motion.select }
             }
 
             BrandMark {
@@ -161,6 +217,7 @@ T.Control {
                 width: LithicTokens.size.brandMark
                 height: width
                 markSize: width
+                mark: root.brandMark
                 previewState: root.previewState
                 onClicked: root.homeTriggered()
             }
@@ -172,13 +229,14 @@ T.Control {
                     required property int index
                     x: (verticalRail.width - width) / 2
                     y: root.destinationY(index)
-                    width: root.tileSize
-                    height: root.tileSize
+                    width: root.tileWidth
+                    height: root.tileHeight(index)
                     destinationLabel: modelData.label
                     glyphName: modelData.glyph
                     selected: root.currentIndex === index
                     notched: root.notchIndex === index
                     showLabel: root.expanded
+                    labelWidth: root.expanded ? root._labelWidth : 0
                     previewState: root.previewState
                     onClicked: {
                         root.currentIndex = index
@@ -206,15 +264,14 @@ T.Control {
             readonly property real columnWidth: width / root.compactColumns
 
             CutRect {
-                x: root.compactColumn(Math.max(0, Math.min(root.currentIndex,
-                                                           root.destinations.length - 1)))
-                   * bottomRail.columnWidth
+                visible: root._shownIndex >= 0
+                x: root.compactColumn(root._selectionIndex) * bottomRail.columnWidth
                 y: (parent.height - LithicTokens.size.railDestinationCompact) / 2
                 width: bottomRail.columnWidth
                 height: LithicTokens.size.railDestinationCompact
                 fill: Lithic.sel
                 cut: LithicTokens.cut.small
-                ChiselNumberBehavior on x { duration: LithicTokens.motion.select }
+                ChiselNumberBehavior on x { enabled: root._glide; duration: LithicTokens.motion.select }
             }
 
             BrandMark {
@@ -225,6 +282,7 @@ T.Control {
                 width: LithicTokens.size.brandMarkCompact
                 height: width
                 markSize: width
+                mark: root.brandMark
                 previewState: root.previewState
                 onClicked: root.homeTriggered()
             }

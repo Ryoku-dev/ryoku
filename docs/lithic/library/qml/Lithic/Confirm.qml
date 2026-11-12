@@ -7,6 +7,7 @@ T.Control {
     property string title: ""
     property string text: ""
     property string actionText: Lithic.tr("Confirm")
+    property string cancelText: Lithic.tr("Cancel")
     property string requiredName: ""
     property bool destructive: true
     property bool busy: false
@@ -47,7 +48,7 @@ T.Control {
         previewEmbedded: root.previewEmbedded || root.previewOpen
         actions: [
             {
-                text: Lithic.tr("Cancel"),
+                text: root.cancelText,
                 kind: "quiet",
                 closeOnTrigger: true
             },

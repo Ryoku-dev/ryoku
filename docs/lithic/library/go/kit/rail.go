@@ -2,12 +2,14 @@ package kit
 
 import (
 	"image"
+	"time"
 
 	"gioui.org/io/semantic"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"gioui.org/text"
 	"gioui.org/unit"
 	"gioui.org/widget"
 
@@ -33,19 +35,27 @@ type railItemState struct {
 // Destinations before FootIndex stack from the top, with New after the first
 // one; destinations from FootIndex on stay in reading order as one group
 // anchored to the foot. A zero FootIndex means the last destination alone.
+// Brand, when set, draws the host's mark inside Home's selection square in
+// place of the octagon.
 type Rail struct {
 	Preview   State
 	NewOpen   bool
 	HideNew   bool
 	FootIndex int
+	Brand     BrandMarkFunc
 
-	home        railItemState
-	newPlaque   NewPlaque
-	items       []railItemState
-	selection   anim.Tween
-	homePending bool
-	newPending  bool
-	pending     []bool
+	home      railItemState
+	newPlaque NewPlaque
+	items     []railItemState
+	selection anim.Tween
+	// selectionShown records whether the last frame drew a selection
+	selectionShown bool
+	homePending    bool
+	newPending     bool
+	pending        []bool
+	heights        []int
+	wrapped        []bool
+	measure        op.Ops
 }
 
 func (r *Rail) prepare(destinations []RailDestination) {
@@ -100,31 +110,51 @@ func (r *Rail) layoutVertical(gtx layout.Context, th *theme.Theme, destinations 
 		start = gtx.Dp(tokens.SizeRailStartMedium)
 		homeSize = gtx.Dp(tokens.SizeRailHomeMedium)
 	}
+	labels := class == FrameExpanded
+	tileWidth := tile
+	r.sizeTiles(len(destinations), tile)
+	room := 0
+	if labels {
+		pad := gtx.Dp(th.Sp.S1)
+		widest := 0
+		for _, destination := range destinations {
+			widest = max(widest, r.labelWidth(gtx, th, destination.Label))
+		}
+		tileWidth = railTileWidth(widest, tile, width, pad)
+		room = tileWidth - 2*pad
+		r.wrapLabels(gtx, th, destinations, room, tile)
+	}
 	gap := gtx.Dp(tokens.SizeRailTileGap)
-	positions := railPositions(len(destinations), r.FootIndex, !r.HideNew, start, tile, gap, height-gtx.Dp(tokens.SizeRailItemBottomInset))
-	if selected >= 0 && selected < len(positions) {
-		r.selection.Duration = th.Motion.Select
-		r.selection.Ease = anim.EaseChisel
-		r.selection.Set(gtx, float32(positions[selected]))
-		y := int(r.selection.Value(gtx) + .5)
-		x := (width - tile) / 2
+	positions := railPositions(r.heights, r.FootIndex, !r.HideNew, start, tile, gap, height-gtx.Dp(tokens.SizeRailItemBottomInset))
+	x := (width - tileWidth) / 2
+	shown := selected >= 0 && selected < len(positions)
+	if shown {
+		y := int(r.placeSelection(gtx, th.Motion.Select, float32(positions[selected])) + .5)
 		offset := op.Offset(image.Pt(x, y)).Push(gtx.Ops)
-		tileBounds, tileCut := image.Rect(0, 0, tile, tile), gtx.Dp(th.Cut.Mid)
+		tileBounds, tileCut := image.Rect(0, 0, tileWidth, r.heights[selected]), gtx.Dp(th.Cut.Mid)
 		FillCut(gtx.Ops, tileBounds, tileCut, th.R.Sel)
 
 		offset.Pop()
 	}
+	r.selectionShown = shown
 	layoutAt(gtx, image.Pt((width-homeSize)/2, gtx.Dp(tokens.SizeRailHomeTop)), image.Pt(homeSize, homeSize), func(gtx layout.Context) layout.Dimensions {
 		return r.layoutHome(gtx, th, false)
 	})
 	for index, destination := range destinations {
 		index, destination := index, destination
-		layoutAt(gtx, image.Pt((width-tile)/2, positions[index]), image.Pt(tile, tile), func(gtx layout.Context) layout.Dimensions {
-			return r.layoutDestination(gtx, th, &r.items[index], destination, index == selected, class == FrameExpanded)
+		layoutAt(gtx, image.Pt(x, positions[index]), image.Pt(tileWidth, r.heights[index]), func(gtx layout.Context) layout.Dimensions {
+			wrap := 0
+			if r.wrapped[index] {
+				wrap = room
+			}
+			return r.layoutDestination(gtx, th, &r.items[index], destination, index == selected, labels, wrap)
 		})
 	}
 	if !r.HideNew {
 		newY := start + tile + gap
+		if len(r.heights) > 0 {
+			newY = start + r.heights[0] + gap
+		}
 		newCompact := class != FrameExpanded
 		newWidth, newHeight := gtx.Dp(tokens.SizeNewPlaqueWidth), gtx.Dp(tokens.SizeNewPlaqueHeight)
 		if newCompact {
@@ -140,23 +170,81 @@ func (r *Rail) layoutVertical(gtx layout.Context, th *theme.Theme, destinations 
 	return layout.Dimensions{Size: image.Pt(width, height)}
 }
 
-// railPositions places count destinations in a rail whose foot edge is foot:
-// those before footIndex from start, leaving a slot after the first one for
-// New, and the rest as one reading-order group ending at foot.
-func railPositions(count, footIndex int, newSlot bool, start, tile, gap, foot int) []int {
+// placeSelection returns the selection fill's position for target. After a
+// frame with no selection the fill appears in place; otherwise it glides.
+func (r *Rail) placeSelection(gtx layout.Context, duration time.Duration, target float32) float32 {
+	if !r.selectionShown {
+		r.selection = anim.Tween{}
+	}
+	r.selection.Duration = duration
+	r.selection.Ease = anim.EaseChisel
+	r.selection.Set(gtx, target)
+	return r.selection.Value(gtx)
+}
+
+// railTileWidth is the shared expanded tile width: the widest label plus pad
+// on each side, never narrower than floor nor wider than the rail less pad on
+// each side. A label wider than the result less its pads wraps.
+func railTileWidth(widest, floor, railWidth, pad int) int {
+	ceiling := max(floor, railWidth-2*pad)
+	return min(max(widest+2*pad, floor), ceiling)
+}
+
+func (r *Rail) sizeTiles(count, tile int) {
+	if cap(r.heights) < count {
+		r.heights = make([]int, count)
+		r.wrapped = make([]bool, count)
+	}
+	r.heights = r.heights[:count]
+	r.wrapped = r.wrapped[:count]
+	for index := range r.heights {
+		r.heights[index], r.wrapped[index] = tile, false
+	}
+}
+
+func (r *Rail) labelWidth(gtx layout.Context, th *theme.Theme, label string) int {
+	r.measure.Reset()
+	measure := gtx
+	measure.Ops = &r.measure
+	measure.Constraints = layout.Constraints{Max: image.Pt(1<<20, gtx.Constraints.Max.Y)}
+	return Label{Style: th.T.Caption, Color: th.R.Fg2, MaxLines: 1}.Layout(measure, th, label).Size.X
+}
+
+// wrapLabels marks labels that need a second line inside room and grows
+// their tiles by one caption line.
+func (r *Rail) wrapLabels(gtx layout.Context, th *theme.Theme, destinations []RailDestination, room, tile int) {
+	line := gtx.Sp(th.T.Caption.Line)
+	for index, destination := range destinations {
+		if r.labelWidth(gtx, th, destination.Label) > room {
+			r.wrapped[index] = true
+			r.heights[index] = tile + line
+		}
+	}
+}
+
+// railPositions places destinations of the given heights in a rail whose
+// foot edge is foot: those before footIndex from start, leaving a slot of
+// newHeight after the first one for New, and the rest as one reading-order
+// group ending at foot.
+func railPositions(heights []int, footIndex int, newSlot bool, start, newHeight, gap, foot int) []int {
+	count := len(heights)
 	if footIndex <= 0 || footIndex > count {
 		footIndex = count - 1
 	}
 	positions := make([]int, count)
-	for index := range positions {
-		if index < footIndex {
-			positions[index] = start + index*(tile+gap)
-			if index > 0 && newSlot {
-				positions[index] += tile + gap
-			}
-			continue
+	y := start
+	for index := range footIndex {
+		positions[index] = y
+		y += heights[index] + gap
+		if index == 0 && newSlot {
+			y += newHeight + gap
 		}
-		positions[index] = foot - tile - (count-1-index)*(tile+gap)
+	}
+	y = foot
+	for index := count - 1; index >= max(footIndex, 0); index-- {
+		y -= heights[index]
+		positions[index] = y
+		y -= gap
 	}
 	return positions
 }
@@ -179,24 +267,23 @@ func (r *Rail) layoutBottom(gtx layout.Context, th *theme.Theme, destinations []
 		}
 		return (index + 1 + newSlot) * columnWidth
 	}
-	if selected >= 0 && selected < len(destinations) {
-		r.selection.Duration = th.Motion.Select
-		r.selection.Ease = anim.EaseChisel
-		r.selection.Set(gtx, float32(position(selected)))
-		x := int(r.selection.Value(gtx) + .5)
+	shown := selected >= 0 && selected < len(destinations)
+	if shown {
+		x := int(r.placeSelection(gtx, th.Motion.Select, float32(position(selected))) + .5)
 		offset := op.Offset(image.Pt(x, y)).Push(gtx.Ops)
 		tileBounds, tileCut := image.Rect(0, 0, columnWidth, tileHeight), gtx.Dp(th.Cut.Small)
 		FillCut(gtx.Ops, tileBounds, tileCut, th.R.Sel)
 
 		offset.Pop()
 	}
+	r.selectionShown = shown
 	layoutAt(gtx, image.Pt(0, y), image.Pt(columnWidth, tileHeight), func(gtx layout.Context) layout.Dimensions {
 		return r.layoutHome(gtx, th, true)
 	})
 	for index, destination := range destinations {
 		index, destination := index, destination
 		layoutAt(gtx, image.Pt(position(index), y), image.Pt(columnWidth, tileHeight), func(gtx layout.Context) layout.Dimensions {
-			return r.layoutDestination(gtx, th, &r.items[index], destination, index == selected, true)
+			return r.layoutDestination(gtx, th, &r.items[index], destination, index == selected, true, 0)
 		})
 	}
 	if !r.HideNew {
@@ -228,7 +315,7 @@ func (r *Rail) layoutHome(gtx layout.Context, th *theme.Theme, label bool) layou
 			if label {
 				markSize = unit.Dp(tokens.SizeBrandMarkCompact)
 			}
-			mark := layout.Rigid(BrandMark(th, markSize))
+			mark := layout.Rigid(BrandMarkWith(th, markSize, r.Brand))
 			if !label {
 				return layout.Flex{Axis: layout.Vertical, Alignment: layout.Middle}.Layout(gtx, mark)
 			}
@@ -245,7 +332,9 @@ func (r *Rail) layoutHome(gtx layout.Context, th *theme.Theme, label bool) layou
 	return dimensions
 }
 
-func (r *Rail) layoutDestination(gtx layout.Context, th *theme.Theme, state *railItemState, destination RailDestination, selected, labels bool) layout.Dimensions {
+// layoutDestination draws one tile; a positive wrap is the width a label
+// wraps to on two centred lines.
+func (r *Rail) layoutDestination(gtx layout.Context, th *theme.Theme, state *railItemState, destination RailDestination, selected, labels bool, wrap int) layout.Dimensions {
 	cut := gtx.Dp(th.Cut.Mid)
 	dimensions := state.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		semantic.Button.Add(gtx.Ops)
@@ -287,7 +376,13 @@ func (r *Rail) layoutDestination(gtx layout.Context, th *theme.Theme, state *rai
 			return layout.Flex{Axis: layout.Vertical, Alignment: layout.Middle}.Layout(gtx,
 				iconWidget,
 				layout.Rigid(layout.Spacer{Height: unit.Dp(tokens.SizeRailItemLabelGap)}.Layout),
-				layout.Rigid(Text(th, th.T.Caption, ink, destination.Label)),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if wrap <= 0 {
+						return Text(th, th.T.Caption, ink, destination.Label)(gtx)
+					}
+					gtx.Constraints.Min.X, gtx.Constraints.Max.X = wrap, wrap
+					return Label{Style: th.T.Caption, Color: ink, MaxLines: 2, Align: text.Middle}.Layout(gtx, th, destination.Label)
+				}),
 			)
 		})
 	})
