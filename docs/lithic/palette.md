@@ -142,9 +142,9 @@ field nobody can find until they press it.
 | `gold`, `goldInk` | `primary`, chroma `min(0.15, 1.4 × C)` | the action fill; gold type and hairlines on stone |
 | `onGold` | the gold hue, chroma 0.03 | ink on the action fill |
 | `jasper` | the hue of `error`, chroma 0.17 | failed, unreachable, destructive |
-| `sel` | `secondaryContainer` mixed halfway toward `primaryContainer`, chroma up to 0.03 | the selection; see [the selection](#the-selection) |
-| `onSel` | the selection hue, chroma 0.03 | ink on a selection |
-| `onSel2` | `mix(onSel → sel, 0.2)` | quiet ink on a selection (facts, proofs, counts) |
+| `sel` | `secondaryContainer` mixed halfway toward `primaryContainer`, chroma up to 0.03; the sun in the signature | the selection; see [the selection](#the-selection) |
+| `onSel` | black in dark mode, the paper in light | ink on a selection |
+| `onSel2` | `mix(onSel → sel, 0.2)`, floored at 4.5:1 on `sel` | quiet ink on a selection (facts, proofs, counts) |
 
 A role the palette lacks takes its dye from `dye.fallback`: hue 41 (the sun)
 for gold, 16 for jasper, and the warm neutral hue 72 at a low chroma for the
@@ -152,16 +152,15 @@ rest.
 
 ### The selection
 
-The selection is a strong fill. In the signature it is bone, the ink tone
-itself, with black ink on it in dark mode, as on ryoku.dev. On a palette it
-is the same idea dyed by the wallpaper: a light bone near `fg` in dark mode
-and a dark one in light mode, carrying only a hint of the wallpaper (chroma
-0.03 at most). Material derives the containers from the same seed as the
-primary, so a stronger tint would turn the selection into a paler copy of
-gold; bone and gold must never be confused. The fill alone marks the place,
-so nothing is drawn on it, no bar and no outline. In every case the parity
-suite runs, `sel` stands 6.7:1 or more from every plane, `onSel` 11.8:1 or
-more on it, and `onSel2` 8.2:1 or more.
+The selection is a strong fill. In the signature it is the sun, the same
+orange as the mark's tip (`#ce5e32`, what Rashin paints its logo with), with
+black ink on it in dark mode and the paper in light. The owner ruled the
+default accent orange on 2026-11-12: bone read as beige and hid what is
+selected. While following the wallpaper the selection dyes from the
+wallpaper's container, as before.
+The fill alone marks the place, so nothing is drawn on it, no bar and no
+outline. In every case the parity suite runs, `sel` stands 3:1 or more from
+every plane, `onSel` 4.5:1 or more on it, and `onSel2` 4.5:1 or more.
 
 ### Contrast and tint
 
