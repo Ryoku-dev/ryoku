@@ -412,7 +412,11 @@ Item {
             Column {
                 id: column
                 x: root.roomy && root.heroLeft ? plate.width - root.side - width : root.side
-                y: root.roomy ? LithicTokens.space.s6 + LithicTokens.space.s5 : LithicTokens.space.s6 + LithicTokens.space.s4
+                // centred in the plate when the column is shorter than it, so the room
+                // sits above and below alike instead of one void under the last block
+                y: root.roomy ? Math.max(LithicTokens.space.s6 + LithicTokens.space.s5,
+                                         Math.round((flick.height - column.height) / 2))
+                              : LithicTokens.space.s6 + LithicTokens.space.s4
                 width: root.columnWidth
                 spacing: LithicTokens.space.s5
 
