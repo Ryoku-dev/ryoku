@@ -135,6 +135,16 @@
   filesystem read-only except its team folder, Rashin's state and the keyrings
   hidden, and its own socket that serves only its own tools
   (`rashin/internal/sandbox`, `rashin/internal/daemon/sandbox.go`).
+- **Team agents can no longer reach your computer's daemons or desktop.**
+  Every Rashin sandbox (team agents, harness Checks, team screen apps and a
+  Read only Ask) now sees an empty `/run`, so the Docker, libvirt, system
+  bus, Tailscale and systemd sockets are gone from it, and Nix's, Incus' and
+  LXD's sockets are hidden too. Programs inside run through `rashin scope`,
+  which on Linux 6.12 or newer keeps them from other programs' hidden
+  sockets, such as your desktop's X server, and from signalling anything
+  outside; Settings > Teams says when the kernel is too old. Names still
+  resolve, and the network stays shared (`rashin/internal/sandbox`,
+  `rashin/cmd/rashin/scope.go`).
 - **Team agents never see your secrets.** Every team sandbox and harness Check
   always hides SSH and GPG keys, password stores, keyrings, git and `gh`
   credentials, cloud CLIs, package registry tokens, browsers, mail and chat

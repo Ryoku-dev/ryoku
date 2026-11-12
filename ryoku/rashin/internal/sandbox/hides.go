@@ -5,11 +5,11 @@ import "path/filepath"
 // Hides reports whether the host's own path cannot be read inside the
 // sandbox: whether the most specific of the spec's steps that holds it,
 // taken in the order mounts applies them, is one that covers it (a Hidden
-// path, the private runtime dir, /tmp, /dev/shm, or a bind that places
-// something else there) rather than one that shows it again (ReadOnly,
-// Folder, Writable or a bind of itself). A Hidden path counts whether or not
-// it exists yet, so a file that comes later is hidden all the same. Paths
-// are compared as written, cleaned.
+// path, the private runtime dir, /tmp, /dev/shm, /run, or a bind that places
+// something else there) rather than one that shows it again (what runMounts
+// shows under /run, ReadOnly, Folder, Writable or a bind of itself). A Hidden
+// path counts whether or not it exists yet, so a file that comes later is
+// hidden all the same. Paths are compared as written, cleaned.
 func (spec Spec) Hides(path string) bool {
 	path = filepath.Clean(path)
 	hidden, best := false, -1
@@ -22,8 +22,11 @@ func (spec Spec) Hides(path string) bool {
 			hidden, best = hides, depth(target)
 		}
 	}
-	for _, private := range []string{"/tmp", "/dev/shm"} {
+	for _, private := range []string{"/tmp", "/dev/shm", runDir} {
 		step(private, true)
+	}
+	for _, shown := range runMounts(resolvConf, runDir, runShown) {
+		step(shown.target, false)
 	}
 	for _, target := range spec.Hidden {
 		step(target, true)

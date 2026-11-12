@@ -17,6 +17,7 @@ import (
 	"ryoku-rashin/internal/config"
 	"ryoku-rashin/internal/harness"
 	"ryoku-rashin/internal/protocol"
+	"ryoku-rashin/internal/sandbox"
 	"ryoku-rashin/internal/teams"
 )
 
@@ -912,7 +913,7 @@ func (d *Daemon) status(ctx context.Context) protocol.Status {
 	status := protocol.Status{
 		Version: d.deps.Version, Enabled: settings.Enabled, Running: true, PID: os.Getpid(),
 		UptimeSec: int64(time.Since(d.started).Seconds()), Clients: clients, Sessions: d.manager.counts(),
-		Gateway: d.deps.Gateway.Status(ctx), API: d.apiInfo(),
+		Gateway: d.deps.Gateway.Status(ctx), API: d.apiInfo(), Unscoped: !sandbox.Scoped(),
 	}
 	if list, err := d.deps.Harnesses.List(ctx, false); err == nil {
 		for _, h := range list {

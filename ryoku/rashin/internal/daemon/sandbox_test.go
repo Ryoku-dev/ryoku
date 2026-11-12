@@ -8,6 +8,7 @@ import (
 
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
+	"ryoku-rashin/internal/sandbox"
 )
 
 // accessTeams gives every session the same team access.
@@ -139,5 +140,59 @@ func TestAgentAndScreenSandboxesTakeTheTeamsAccess(t *testing.T) {
 	screen := d.screenSandbox(team.ID)
 	if screen == nil || !slices.Contains(screen.Hidden, paths.Resolved(secret)) || slices.Contains(screen.Writable, paths.Resolved(shared)) {
 		t.Fatalf("the screen's sandbox = %+v", screen)
+	}
+}
+
+// Every Rashin sandbox (a team agent's, a Check's, a team screen's and a
+// read-only Ask's) covers the host's /run, keeps the host daemons outside it
+// hidden, drops the system bus address and runs its program through the
+// rashin command's scope.
+func TestEverySandboxCoversRunAndRunsThroughTheScope(t *testing.T) {
+	isolateDaemon(t)
+	shortRuntime(t)
+	bin := t.TempDir()
+	rashin := filepath.Join(bin, "rashin")
+	if err := os.WriteFile(rashin, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	d := New(Deps{Teams: &accessTeams{}})
+	t.Cleanup(d.closeAgentSockets)
+	team, err := d.manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent, Cwd: filepath.Join(paths.TeamsHome(), "one"), Team: "team-1", TeamTask: "task-1", Member: "member-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ask, err := d.manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent, Cwd: paths.Home()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	agent, err := d.agentSandbox(team)
+	if err != nil {
+		t.Fatal(err)
+	}
+	asking, err := d.askSandbox(ask)
+	if err != nil {
+		t.Fatal(err)
+	}
+	probe := d.probeSandbox()
+	for name, spec := range map[string]*sandbox.Spec{"agent": agent, "check": &probe, "screen": d.screenSandbox(team.ID), "ask": asking} {
+		for _, path := range []string{"/run/dbus/system_bus_socket", "/run/docker.sock", "/run/libvirt/libvirt-sock"} {
+			if !spec.Hides(path) {
+				t.Errorf("the %s sandbox shows %s", name, path)
+			}
+		}
+		if spec.Scope != rashin {
+			t.Errorf("the %s sandbox runs through %q, not the rashin command", name, spec.Scope)
+		}
+	}
+	for _, spec := range []*sandbox.Spec{agent, &probe} {
+		if !slices.Contains(spec.Unset, "DBUS_SYSTEM_BUS_ADDRESS") {
+			t.Errorf("the system bus address crosses: %v", spec.Unset)
+		}
+		for _, path := range []string{"/nix/var/nix/daemon-socket", "/var/lib/incus"} {
+			if !spec.Hides(path) {
+				t.Errorf("%s shows", path)
+			}
+		}
 	}
 }

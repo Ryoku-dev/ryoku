@@ -1,8 +1,10 @@
 // Package sandbox runs a program inside a bubblewrap sandbox: the host
-// filesystem read-only except the paths the sandbox is given, its own PID and
-// IPC namespaces, and an empty private runtime directory that holds only the
-// sockets placed in it. Team agents and the programs they open run there, so
-// they reach the daemon only through their own socket.
+// filesystem read-only except the paths the sandbox is given, an empty /run
+// (no host daemon's socket), its own PID and IPC namespaces, an empty private
+// runtime directory that holds only the sockets placed in it, and, where the
+// kernel allows, a Landlock scope that keeps it from abstract Unix sockets
+// and from signalling anything outside it. Team agents and the programs they
+// open run there, so they reach the daemon only through their own socket.
 package sandbox
 
 import (
@@ -54,6 +56,10 @@ type Spec struct {
 	ClearEnv bool
 	// Unset is removed inside, and wins over Env.
 	Unset []string
+	// Scope is the rashin command; set, the program runs through `rashin
+	// scope`, which keeps it from abstract Unix sockets and from signalling
+	// what runs outside its Landlock domain where the kernel allows that.
+	Scope string
 }
 
 // mount is one filesystem step, applied at target inside the sandbox.
@@ -63,8 +69,11 @@ type mount struct {
 }
 
 // baseArgs is the sandbox every Spec starts from: the host filesystem
-// read-only, fresh /proc and /dev, private /tmp and /dev/shm, its own PID and
-// IPC namespaces and terminal session. The network stays shared.
+// read-only, fresh /proc and /dev, private /tmp, /dev/shm and /run, its own
+// PID and IPC namespaces and terminal session. /run holds the host daemons'
+// sockets (Docker, libvirt, the system bus, Nix and more) that reach root or
+// the machine, so only what runMounts names shows there again. The network
+// stays shared.
 func baseArgs() []string {
 	return []string{
 		"--ro-bind", "/", "/",
@@ -72,11 +81,74 @@ func baseArgs() []string {
 		"--dev", "/dev",
 		"--tmpfs", "/tmp",
 		"--tmpfs", "/dev/shm",
+		"--tmpfs", runDir,
 		"--unshare-pid",
 		"--unshare-ipc",
 		"--new-session",
 		"--die-with-parent",
 	}
+}
+
+// runDir is the host's /run, empty in every sandbox.
+const runDir = "/run"
+
+// resolvConf is where name resolution reads its servers.
+const resolvConf = "/etc/resolv.conf"
+
+// runShown are what shows again under the empty /run where it exists: the
+// system NixOS runs from, its setuid wrappers and its graphics drivers.
+var runShown = []string{"/run/current-system", "/run/booted-system", "/run/wrappers", "/run/opengl-driver", "/run/opengl-driver-32"}
+
+// runMounts shows read-only again, under the empty run dir, the file
+// resolv names when it leads there (systemd-resolved's stub, NetworkManager's
+// or resolvconf's), each link of the way as a link, and what of shown exists.
+// A link stays a link, so a system dir reached through one is never copied.
+func runMounts(resolv, run string, shown []string) []mount {
+	var out []mount
+	seen := make(map[string]bool)
+	add := func(m mount) {
+		if !seen[m.target] {
+			seen[m.target] = true
+			out = append(out, m)
+		}
+	}
+	path := resolv
+	for range 16 {
+		info, err := os.Lstat(path)
+		if err != nil {
+			break
+		}
+		if info.Mode().Type() != fs.ModeSymlink {
+			if inside(path, run) && info.Mode().IsRegular() {
+				add(mount{path, []string{"--ro-bind", path, path}})
+			}
+			break
+		}
+		target, err := os.Readlink(path)
+		if err != nil {
+			break
+		}
+		if inside(path, run) {
+			add(mount{path, []string{"--symlink", target, path}})
+		}
+		if !filepath.IsAbs(target) {
+			target = filepath.Join(filepath.Dir(path), target)
+		}
+		path = filepath.Clean(target)
+	}
+	for _, path := range shown {
+		info, err := os.Lstat(path)
+		switch {
+		case err != nil || !inside(path, run):
+		case info.Mode().Type() == fs.ModeSymlink:
+			if target, err := os.Readlink(path); err == nil {
+				add(mount{path, []string{"--symlink", target, path}})
+			}
+		default:
+			add(mount{path, []string{"--ro-bind", path, path}})
+		}
+	}
+	return out
 }
 
 // Command returns the full argv that runs argv inside the sandbox. Every path
@@ -114,6 +186,9 @@ func Command(spec Spec, argv []string) ([]string, error) {
 		start = "/"
 	}
 	args = append(args, "--chdir", filepath.Clean(start), "--")
+	if spec.Scope != "" {
+		args = append(args, spec.Scope, "scope", "--")
+	}
 	return append(args, argv...), nil
 }
 
@@ -148,7 +223,7 @@ func (spec Spec) mounts() ([]mount, error) {
 		binds = append(binds, Bind{Source: source, Target: target})
 	}
 
-	var mounts []mount
+	mounts := runMounts(resolvConf, runDir, runShown)
 	for _, path := range spec.Hidden {
 		path, info, err := optional(path)
 		if err != nil {

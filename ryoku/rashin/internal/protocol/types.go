@@ -83,6 +83,10 @@ type Status struct {
 	API       APIInfo       `json:"api"`
 	Harnesses int           `json:"harnesses"`
 	Indexes   int           `json:"indexes"`
+	// Unscoped says this kernel cannot keep sandboxed programs from abstract
+	// Unix sockets and from signalling what runs outside them (Landlock ABI
+	// 6, Linux 6.12).
+	Unscoped bool `json:"unscoped,omitempty"`
 }
 
 // Snapshot is the subscribe result: everything a client renders at start.
@@ -1028,6 +1032,10 @@ const (
 	HiddenChat      = "chat"
 	HiddenHistories = "histories"
 	HiddenRyoku     = "ryoku"
+	// HiddenHost are host daemons' sockets that reach root or the machine:
+	// all of /run, which every sandbox replaces with an empty one, and those
+	// that live elsewhere.
+	HiddenHost = "host"
 )
 
 // HiddenGroup is one kind of secret and the paths that hold it.
@@ -1039,8 +1047,8 @@ type HiddenGroup struct {
 // TeamsAlwaysHidden are the places credentials and private state live, hidden
 // from every team agent and every harness Check whatever the settings say,
 // as each sandbox shares the network and anything it reads can leave. Paths
-// are under the user's home, written "~/". Every harness's own state is
-// hidden as well (HarnessInfo.State).
+// are under the user's home, written "~/", or absolute for host daemons.
+// Every harness's own state is hidden as well (HarnessInfo.State).
 func TeamsAlwaysHidden() []HiddenGroup {
 	return []HiddenGroup{
 		{Kind: HiddenKeys, Paths: []string{
@@ -1088,6 +1096,9 @@ func TeamsAlwaysHidden() []HiddenGroup {
 		{Kind: HiddenRyoku, Paths: []string{
 			"~/.local/state/ryoku", "~/.local/share/ryoku/rashin", "~/.local/share/ryoku/vault", "~/.cache/ryoku/rashin",
 			"~/Teams", "~/Dreams", "~/.config/dev.ryoku.ryotunes", "~/.local/share/dev.ryoku.ryotunes", "~/.local/state/ryotunes",
+		}},
+		{Kind: HiddenHost, Paths: []string{
+			"/run", "/nix/var/nix/daemon-socket", "/var/lib/incus", "/var/lib/lxd/unix.socket", "/var/snap/lxd/common/lxd/unix.socket",
 		}},
 	}
 }

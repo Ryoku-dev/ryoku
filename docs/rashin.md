@@ -809,10 +809,13 @@ The Ask runner (`internal/ask`) is Rashin's own agent loop on the gateway.
   `internal/harness/sandbox.go`): the whole filesystem read-only; writable
   only the harness's own state under its home (the instance's `HOME`, else
   the user's: `~/.omp`, `~/.claude`, `~/.codex`, ...) and a private `/tmp`
-  and `/dev/shm` that are gone afterwards; nothing hidden and the
-  environment kept, so it signs in with the user's own credentials; an empty
-  runtime dir of its own, so no session bus, display or SSH agent, with the
-  Ask's own socket where the daemon's would be. That socket (`askGate`)
+  and `/dev/shm` that are gone afterwards; nothing of the user's hidden and
+  the environment kept, so it signs in with the user's own credentials; an
+  empty runtime dir of its own, so no session bus, display or SSH agent, with
+  the Ask's own socket where the daemon's would be. Like every Rashin
+  sandbox it sees `/run` empty and runs through `rashin scope` (see Teams,
+  Sandbox), so no host daemon's socket, system bus or abstract socket is
+  within its reach. That socket (`askGate`)
   serves only what Ask's tools call: index reads, this conversation's memory,
   the skills, `teams.list`, `teams.templates` and `teams.propose`. Rashin
   then offers the harness no `fs` or `terminal` of its own. Switching the
@@ -1486,24 +1489,52 @@ Every team agent runs inside bubblewrap (`bwrap`, `internal/sandbox`,
     Signal, Telegram, Element), shell and REPL histories (bash, zsh, fish,
     atuin, python, node, psql, mysql, sqlite, less) and Rashin's and
     Ryoku's own private state (`~/.local/state/ryoku`, Rashin's data and
-    cache, Ryotunes' sign-ins).
+    cache, Ryotunes' sign-ins);
+  - host daemons' sockets, which reach root or the machine: all of `/run`
+    (Docker, libvirt, the system bus, Tailscale, polkit, systemd's varlink
+    sockets, the user runtime dirs), which every sandbox sees as an empty
+    tmpfs, and those that live elsewhere: Nix's daemon socket, Incus and
+    LXD. Under the empty `/run` only what name resolution needs shows again,
+    read-only: the file `/etc/resolv.conf` leads to when it lies there
+    (systemd-resolved's stub, NetworkManager's or resolvconf's, each link as
+    a link), and on NixOS `/run/current-system`, `/run/booted-system`,
+    `/run/wrappers` and `/run/opengl-driver`. glibc falls back from nscd and
+    nss-resolve to files and DNS by itself, so names still resolve.
 
   `teams.hidden` (Settings > Teams > Sandbox) is only the user's own
   additions, and the team's own `access.hidden` adds to it. A writable
   folder inside anything always hidden is left out, and a team folder there
   is refused ("The team's folder ... is inside a place Rashin hides from
   every team."). `/tmp`, `/dev/shm` and `XDG_RUNTIME_DIR` are private, and
-  PID and IPC namespaces are its own. There is no session bus, no display,
+  PID and IPC namespaces are its own. There is no session bus, no system
+  bus (`DBUS_SYSTEM_BUS_ADDRESS` is unset), no display,
   no SSH agent. The agent starts from an empty environment
   (`sandbox.Spec.ClearEnv`): it keeps only `PATH`, the language and locale,
   the terminal, the time zone, who it runs as, the runtime dir, the proxy
   variables and the certificate paths, beside its instance's own `env` and
   what Rashin sets, so an API key the login session exported does not cross.
   The network is shared: harnesses reach their model online, so an agent
-  reaches what you can, and Settings > Teams says so. The daemon's own
+  reaches what you can, services listening on this computer's localhost and
+  on your tailnet included, and Settings > Teams says so. The daemon's own
   programs stay visible, read-only, wherever they run from, and so does a
   harness's own program that lives inside its hidden state
   (`~/.hermes/hermes-agent`).
+- **Scope.** A shared network also shares abstract Unix sockets, such as an
+  X server's `@/tmp/.X11-unix/X0`. So every sandbox (team agents, Checks,
+  team screen apps and a Read only Ask) runs its program through `rashin
+  scope -- <command>`: on one locked OS thread it sets no new privileges,
+  makes a Landlock domain that handles no file or network access but scopes
+  abstract Unix sockets and signals to itself
+  (`LANDLOCK_SCOPE_ABSTRACT_UNIX_SOCKET | LANDLOCK_SCOPE_SIGNAL`), restricts
+  itself and execs the command from that thread (`sandbox.Exec`). Connecting
+  to an abstract socket made outside the domain, or signalling a process
+  outside it, fails with EPERM. This needs Landlock ABI 6 (Linux 6.12); an
+  older kernel, or Landlock off, runs the command unscoped, and Settings >
+  Teams > Sandbox says so (`Status.unscoped`). A kernel that can scope but
+  refuses runs nothing. The daemon uses the rashin command beside it, and
+  one that does not know `scope` yet leaves the sandbox unscoped and says so
+  in its log. X11 apps on a team's own screen cannot use an abstract X
+  socket either; Wayland apps are unaffected.
 - The agent reaches Rashin only through its task's own socket,
   `$XDG_RUNTIME_DIR/rashin/agents/<session>/rashin.sock`, which the sandbox
   sees at the main socket's path. It serves that session's team tools, goal
@@ -1781,9 +1812,10 @@ across turns, a dream is a team's, and only the user ends it.
 The sandbox and the vault keep a team's agents from your secrets and from
 acting unasked, not everything else. A program you run yourself, outside a
 team, still runs as you: it can reach your login keyring and start the app.
-The network is shared, so abstract Unix sockets and the system bus stay
-reachable from a sandbox, and `/run` outside the runtime directory is visible
-read-only. A team agent reads the rest of your files, read-only, like any
+The network is shared, so services listening on localhost or your tailnet
+stay reachable from a sandbox; the host's `/run` and abstract sockets do not
+(the latter only where the kernel can scope them, see Sandbox). A team agent
+reads the rest of your files, read-only, like any
 program you run; only the hidden paths above are kept from it. Claude Code
 keeps its MCP servers in `~/.claude.json`, which it rewrites as it runs, so
 that file is not guarded.

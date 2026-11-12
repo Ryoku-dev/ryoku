@@ -2,8 +2,11 @@ package daemon
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
+	"sync"
+	"time"
 
 	i18n "ryoku-i18n"
 	"ryoku-rashin/internal/harness"
@@ -13,21 +16,53 @@ import (
 )
 
 // agentUnset are the ways out of a sandbox an agent would otherwise inherit:
-// the user's session bus, display, SSH agent and keyring, and a daemon to
-// start.
-var agentUnset = []string{"DBUS_SESSION_BUS_ADDRESS", "WAYLAND_DISPLAY", "DISPLAY", "SSH_AUTH_SOCK", "GNOME_KEYRING_CONTROL", "RASHIN_DAEMON"}
+// the user's session bus and the system bus, display, SSH agent and keyring,
+// and a daemon to start.
+var agentUnset = []string{"DBUS_SESSION_BUS_ADDRESS", "DBUS_SYSTEM_BUS_ADDRESS", "WAYLAND_DISPLAY", "DISPLAY", "SSH_AUTH_SOCK", "GNOME_KEYRING_CONTROL", "RASHIN_DAEMON"}
 
 // sandboxBase is what every team sandbox starts from. It never sees what
 // Rashin always hides (alwaysHidden) or the paths Settings > Teams adds, has
-// an empty runtime dir of its own, and still sees Rashin's own programs
-// wherever they run from. Every path is resolved, as the sandbox compares
-// them as written.
+// an empty runtime dir of its own, still sees Rashin's own programs wherever
+// they run from, and runs its program through the rashin command's scope.
+// Every path is resolved, as the sandbox compares them as written.
 func (d *Daemon) sandboxBase() sandbox.Spec {
-	spec := sandbox.Spec{RuntimeDir: paths.Resolved(filepath.Dir(paths.RuntimeDir())), ReadOnly: d.programDirs(), Hidden: alwaysHidden()}
+	spec := sandbox.Spec{RuntimeDir: paths.Resolved(filepath.Dir(paths.RuntimeDir())), ReadOnly: d.programDirs(), Hidden: alwaysHidden(), Scope: d.scopeCommand()}
 	for _, path := range d.Settings().Teams.Hidden {
 		spec.Hidden = append(spec.Hidden, paths.Resolved(paths.Expand(path)))
 	}
 	return spec
+}
+
+// scopeKnown remembers, per rashin command and its modification time,
+// whether it knows `rashin scope`.
+var scopeKnown sync.Map
+
+// scopeCommand is the rashin command sandboxes run their program through, ""
+// when it is older than `rashin scope`: an older one would take "scope" for
+// a question to Ask, and the program would never start. It says so in the
+// log once per command.
+func (d *Daemon) scopeCommand() string {
+	rashin := d.commandPath()
+	info, err := os.Stat(rashin)
+	if rashin == "" || err != nil {
+		return ""
+	}
+	key := rashin + "\x00" + info.ModTime().String()
+	if known, ok := scopeKnown.Load(key); ok {
+		if known.(bool) {
+			return rashin
+		}
+		return ""
+	}
+	check := exec.Command(rashin, "__is-command", "scope")
+	check.WaitDelay = time.Second
+	known := check.Run() == nil
+	scopeKnown.Store(key, known)
+	if !known {
+		d.warn("sandbox: %s has no scope command; sandboxed programs run unscoped until it is updated", rashin)
+		return ""
+	}
+	return rashin
 }
 
 // privateDirs are Rashin's own: its state and cache, the teams' and dreams'
@@ -188,5 +223,6 @@ func (d *Daemon) askSandbox(info protocol.SessionInfo) (*sandbox.Spec, error) {
 		Binds:      []sandbox.Bind{{Source: paths.Resolved(dir), Target: runtime}},
 		Env:        map[string]string{"RASHIN_SOCKET": filepath.Join(runtime, filepath.Base(paths.AgentSocket(info.ID)))},
 		Unset:      agentUnset,
+		Scope:      d.scopeCommand(),
 	}, nil
 }

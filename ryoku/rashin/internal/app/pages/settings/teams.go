@@ -422,9 +422,16 @@ func (t *teamsPanel) sandboxGroup(e *env.Env, snapshot state.Snapshot) layout.Wi
 		},
 		{
 			Title:   i18n.T("Network"),
-			Detail:  i18n.T("Harnesses reach their model online, so an agent reaches what you can."),
+			Detail:  i18n.T("Harnesses reach their model online, so an agent reaches what you can, services on this computer's localhost and your tailnet included."),
 			Control: kit.Text(th.Theme, th.T.Label, th.R.Fg2, i18n.T("Shared")),
 		},
+	}
+	if snapshot.Status.Unscoped {
+		// the kernel's Landlock is older than scopes, so an abstract socket such as the desktop's X server stays reachable
+		rows = append(rows, look.Setting{
+			Title:  i18n.T("Hidden sockets"),
+			Detail: i18n.T("This computer's kernel cannot keep team agents away from other programs' hidden sockets, such as your desktop's X server. Linux 6.12 or newer can."),
+		})
 	}
 	return teamsGroup(th, i18n.T("Sandbox"), "", rows, nil)
 }
@@ -488,6 +495,8 @@ func hiddenKindName(kind string) string {
 		return i18n.T("Shell histories")
 	case protocol.HiddenRyoku:
 		return i18n.T("Rashin and Ryoku private state")
+	case protocol.HiddenHost:
+		return i18n.T("Host daemons (all of /run: Docker, libvirt, the system bus and more)")
 	}
 	return kind
 }
