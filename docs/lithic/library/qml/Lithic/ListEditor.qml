@@ -54,21 +54,25 @@ T.Control {
         _editIndex = index;
     }
 
-    function cancel() {
+    // fromKeys: Escape or Return closed the form; otherwise the control that closed it says
+    // whether the keys are in use. Focus goes back marked when they are.
+    function cancel(fromKeys) {
         const index = _editIndex;
         if (index < 0)
             return;
+        const keyboard = fromKeys === true || _keysInUse();
         _editIndex = -1;
-        _focusLater(index, index >= count ? "add" : "edit", false, false);
+        _focusLater(index, index >= count ? "add" : "edit", false, keyboard);
     }
 
-    function done() {
+    function done(fromKeys) {
         if (!editorValid)
             return;
         const index = _editIndex;
         const value = _editor.value();
+        const keyboard = fromKeys === true || _keysInUse();
         _editIndex = -1;
-        _focusLater(index, index >= count ? "add" : "edit", true, false);
+        _focusLater(index, index >= count ? "add" : "edit", true, keyboard);
         if (index >= count)
             added(value);
         else
@@ -78,9 +82,10 @@ T.Control {
     function remove(index) {
         if (index < 0 || index >= count)
             return;
+        const keyboard = _keysInUse();
         if (_editIndex === index)
             _editIndex = -1;
-        _focusLater(count > 1 ? Math.min(index, count - 2) : -1, count > 1 ? "remove" : "add", true, false);
+        _focusLater(count > 1 ? Math.min(index, count - 2) : -1, count > 1 ? "remove" : "add", true, keyboard);
         removed(index);
     }
 
@@ -96,6 +101,19 @@ T.Control {
         Qt.callLater(_restoreFocus);
     }
 
+    function _keysInUse() {
+        const item = root.Window.activeFocusItem;
+        return !!item && item.visualFocus === true;
+    }
+
+    // the target may already hold focus with an unmarked reason (a dialog or popup restored it
+    // first), so the reason is set as well
+    function _focusWithReason(item, reason) {
+        item.forceActiveFocus(reason);
+        if (item.focusReason !== undefined)
+            item.focusReason = reason;
+    }
+
     function _restoreFocus() {
         const target = _refocus;
         if (!target || target.awaitModel)
@@ -106,7 +124,7 @@ T.Control {
         if (entry)
             entry.focusPart(target.part, reason);
         else if (addPlaque.visible)
-            addPlaque.forceActiveFocus(reason);
+            _focusWithReason(addPlaque, reason);
     }
 
     function _within(item, ancestor) {
@@ -187,7 +205,7 @@ T.Control {
             Accessible.name: adding ? root.addText : Lithic.tr("Edit %1").arg(root.titleAt(editIndex))
 
             Keys.onEscapePressed: function(event) {
-                root.cancel();
+                root.cancel(true);
                 event.accepted = true;
             }
 
@@ -224,7 +242,7 @@ T.Control {
                         return;
                     if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier | Qt.ShiftModifier))
                         return;
-                    root.done();
+                    root.done(true);
                     event.accepted = true;
                 }
             }
@@ -307,7 +325,7 @@ T.Control {
                 function focusPart(part, reason) {
                     const target = part === "handle" && handle.visible ? handle
                                  : part === "remove" ? removePlaque : editPlaque;
-                    target.forceActiveFocus(reason);
+                    root._focusWithReason(target, reason);
                 }
 
                 Item {

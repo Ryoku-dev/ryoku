@@ -47,7 +47,8 @@ T.Control {
             width: root.width
             height: root.open ? implicitHeight : 0
             opacity: root.open ? 1 : 0
-            clip: true
+            // clipped only while it folds or unfolds, so a focus ring at its edge stays whole at rest
+            clip: height < implicitHeight - 0.5
             enabled: root.open
             Accessible.ignored: !root.open
 
