@@ -2,7 +2,9 @@ package host
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,7 +51,7 @@ func (a *App) fingerprintStatus() int {
 		status.Reason = i18n.T("Fingerprint authentication integration is not installed on this edition.")
 	}
 	for _, target := range fingerprintPAMTargets {
-		body, err := os.ReadFile(filepath.Join(a.cfg.PAMDir, target))
+		body, _, _, err := a.readPAM(target)
 		status.Targets[target] = err == nil && strings.Contains(string(body), "pam_fprintd_grosshack")
 	}
 	if err := json.NewEncoder(a.cfg.Stdout).Encode(status); err != nil {
@@ -63,16 +65,19 @@ func (a *App) setFingerprintPAM(target string, enabled bool) int {
 		return a.failf("%s", i18n.T("Fingerprint authentication integration is not installed on this edition."))
 	}
 	path := filepath.Join(a.cfg.PAMDir, target)
-	body, err := os.ReadFile(path)
+	body, mode, vendor, err := a.readPAM(target)
 	if err != nil {
 		return a.failf(i18n.T("read %s: %v"), path, err)
 	}
-	info, err := os.Stat(path)
-	if err != nil {
-		return a.failf(i18n.T("inspect %s: %v"), path, err)
+	if vendor && !enabled {
+		// the vendor stack carries no fingerprint line, so there is nothing to undo
+		fmt.Fprintln(a.cfg.Stdout, target)
+		return ExitOK
 	}
-	if err := os.WriteFile(path+".ryoku-fp-bak", body, info.Mode().Perm()); err != nil {
-		return a.failf(i18n.T("back up %s: %v"), path, err)
+	if !vendor {
+		if err := os.WriteFile(path+".ryoku-fp-bak", body, mode); err != nil {
+			return a.failf(i18n.T("back up %s: %v"), path, err)
+		}
 	}
 
 	lines := strings.Split(strings.TrimSuffix(string(body), "\n"), "\n")
@@ -85,11 +90,48 @@ func (a *App) setFingerprintPAM(target string, enabled bool) int {
 			filtered = append(filtered, line)
 		}
 	}
-	if err := os.WriteFile(path, []byte(strings.Join(filtered, "\n")+"\n"), info.Mode().Perm()); err != nil {
+	out := strings.Join(filtered, "\n") + "\n"
+	// An /etc copy that is the vendor stack again once the line is gone goes
+	// away, so the service follows the vendor file through package updates
+	// again; a copy with local edits stays.
+	if !enabled {
+		v, err := os.ReadFile(filepath.Join(a.cfg.VendorPAMDir, target))
+		if err == nil && strings.TrimSuffix(string(v), "\n") == strings.TrimSuffix(out, "\n") {
+			if err := os.Remove(path); err != nil {
+				return a.failf(i18n.T("remove %s: %v"), path, err)
+			}
+			fmt.Fprintln(a.cfg.Stdout, target)
+			return ExitOK
+		}
+	}
+	if err := os.WriteFile(path, []byte(out), mode); err != nil {
 		return a.failf(i18n.T("write %s: %v"), path, err)
 	}
 	fmt.Fprintln(a.cfg.Stdout, target)
 	return ExitOK
+}
+
+// readPAM returns a service's PAM stack and whether it came from the vendor
+// directory. Newer packages (polkit 128) ship their stack only there, and PAM
+// reads it whenever /etc has no file of that name, so a missing /etc file is
+// not a missing service.
+func (a *App) readPAM(target string) (body []byte, mode os.FileMode, vendor bool, err error) {
+	path := filepath.Join(a.cfg.PAMDir, target)
+	info, err := os.Stat(path)
+	if err == nil {
+		body, err = os.ReadFile(path)
+		return body, info.Mode().Perm(), false, err
+	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		return nil, 0, false, err
+	}
+	vpath := filepath.Join(a.cfg.VendorPAMDir, target)
+	vinfo, verr := os.Stat(vpath)
+	if verr != nil {
+		return nil, 0, false, err
+	}
+	body, err = os.ReadFile(vpath)
+	return body, vinfo.Mode().Perm(), true, err
 }
 
 func (a *App) fingerprintModulePresent() bool {
