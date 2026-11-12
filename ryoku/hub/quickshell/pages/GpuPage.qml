@@ -249,6 +249,12 @@ Item {
     function modeLabel(m) { return m.length ? m.charAt(0).toUpperCase() + m.slice(1) : ""; }
 
     Component.onCompleted: pg.reload()
+    // true while the first-load backend reads are in flight; the Hub keeps the
+    // page hidden until they land (capped) so its cards don't pop in and
+    // re-split the grid after the page is already on screen.
+    readonly property bool loading: capsProc.running || ptPackagesProc.running
+        || modeProc.running || tuneProc.running || presetProc.running
+        || muxProc.running || cpuActiveProc.running || cpuCapsProc.running
 
     // ── backends ─────────────────────────────────────────────────────────────
     Process {

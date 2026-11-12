@@ -1375,7 +1375,11 @@ Rectangle {
         // above, never the loaded item, so the chrome holds still through an
         // async page swap (only the page content fades). A porting page (no
         // file) stays framed too.
-        readonly property bool full: hub.pageFile(hub.section) !== "" && !hub.framedSet[hub.section]
+        // the section on screen, not the one just clicked: the incoming page
+        // loads async, and until it reveals the outgoing page keeps its own
+        // frame (a porting page never loads, so it takes the click).
+        readonly property string laidOut: hub.pageFile(hub.section) === "" ? hub.section : pageHost.shown
+        readonly property bool full: hub.pageFile(pageArea.laidOut) !== "" && !hub.framedSet[pageArea.laidOut]
         anchors.top: parent.top
         anchors.bottom: pageArea.full ? parent.bottom : bar.top
         anchors.topMargin: pageArea.full ? 0 : Tokens.s5
@@ -1461,13 +1465,77 @@ Rectangle {
                 l.opacity = 1;
                 inAnim.target = l; inAnim.from = pageHost.dir * pageHost.slide; inAnim.to = 0;
                 inAnim.restart();
-                if (out && out !== l && out.item) {
-                    out.z = 0;
-                    pageHost.parking = out;
-                    outAnim.target = out; outAnim.from = out.x; outAnim.to = -pageHost.dir * pageHost.slide;
-                    outAnim.restart();
-                } else if (out && out !== l) {
-                    out.opacity = 0; out.x = 0;
+                // pages paint no background, so an outgoing page left on screen
+                // shows through the incoming one and then vanishes in one frame
+                // (the "snap"). Hide it as the incoming page takes over.
+                if (out && out !== l) {
+                    outAnim.stop();
+                    out.z = 0; out.opacity = 0; out.x = 0;
+                    pageHost.parking = null;
+                }
+            }
+            // A page's card grids (CardColumns) re-lay for a while after it
+            // loads, as its cards' heights settle (a heavy page like
+            // Animations takes a couple of hundred ms). Revealing on onLoaded
+            // showed those unlaid frames (cards stacked over each other) and
+            // then a snap, so the incoming page stays hidden until every grid
+            // on it reports `settled` and the page is not still fetching
+            // (`loading`), capped so a page that never settles still shows.
+            // The waiting page stays visible at opacity 0 (and takes no
+            // input): Qt lays out only visible items, so a page hidden while
+            // it waited reported settled cards that re-laid the moment it
+            // appeared.
+            property Item settling: null
+            property var settleGrids: []
+            function settleThenReveal(l) {
+                pageHost.endSettle();
+                pageHost.settling = l;
+                var grids = [], stack = l.item ? [l.item] : [];
+                while (stack.length) {
+                    var it = stack.pop();
+                    if (it.settled !== undefined && it.colWidth !== undefined) {
+                        grids.push(it);
+                        continue;
+                    }
+                    var kids = it.children;
+                    if (kids) for (var i = 0; i < kids.length; i++) stack.push(kids[i]);
+                }
+                pageHost.settleGrids = grids;
+                for (var g = 0; g < grids.length; g++)
+                    grids[g].settledChanged.connect(pageHost.checkSettled);
+                if (l.item && l.item.loading !== undefined)
+                    l.item.loadingChanged.connect(pageHost.checkSettled);
+                settleCap.restart();
+                pageHost.checkSettled();
+            }
+            function endSettle() {
+                settleCap.stop();
+                var l = pageHost.settling;
+                for (var g = 0; g < pageHost.settleGrids.length; g++)
+                    pageHost.settleGrids[g].settledChanged.disconnect(pageHost.checkSettled);
+                if (l && l.item && l.item.loading !== undefined)
+                    l.item.loadingChanged.disconnect(pageHost.checkSettled);
+                pageHost.settleGrids = [];
+                pageHost.settling = null;
+            }
+            function checkSettled() {
+                var l = pageHost.settling;
+                if (!l || (l.item && l.item.loading === true))
+                    return;
+                for (var g = 0; g < pageHost.settleGrids.length; g++)
+                    if (!pageHost.settleGrids[g].settled)
+                        return;
+                pageHost.endSettle();
+                pageHost.reveal(l);
+            }
+            Timer {
+                id: settleCap
+                interval: 250
+                onTriggered: {
+                    var l = pageHost.settling;
+                    pageHost.endSettle();
+                    if (l)
+                        pageHost.reveal(l);
                 }
             }
             NumberAnimation {
@@ -1500,12 +1568,13 @@ Rectangle {
                 opacity: 1
                 // hidden once parked, so the idle page stops taking hover
                 // (a stale tooltip was leaking through the overlay layer).
-                visible: opacity > 0.01
+                visible: opacity > 0.01 || pageHost.settling === la
+                enabled: opacity > 0.01
                 onLoaded: {
                     if (item) {
                         item.hub = hub;
                     }
-                    pageHost.reveal(la);
+                    pageHost.settleThenReveal(la);
                 }
             }
             Loader {
@@ -1515,12 +1584,13 @@ Rectangle {
                 x: 0
                 asynchronous: true
                 opacity: 0
-                visible: opacity > 0.01
+                visible: opacity > 0.01 || pageHost.settling === lb
+                enabled: opacity > 0.01
                 onLoaded: {
                     if (item) {
                         item.hub = hub;
                     }
-                    pageHost.reveal(lb);
+                    pageHost.settleThenReveal(lb);
                 }
             }
         }
