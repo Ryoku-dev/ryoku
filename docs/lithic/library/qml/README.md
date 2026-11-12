@@ -672,7 +672,7 @@ A section title followed by an arbitrary measured body.
 
 #### Facts
 
-A divided label and value list with optional monospace literal values.
+A label and value list with optional monospace literal values. Labels keep the 140 column and values start `s4` after it; either side wraps, and a row grows past 44 to fit its taller side.
 
 - Property: `facts`
 - Fact entries: objects with `label`, `value`, and optional `literal`

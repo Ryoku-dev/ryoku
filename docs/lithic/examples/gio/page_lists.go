@@ -233,7 +233,12 @@ func listsSection(th *theme.Theme) layout.Widget {
 
 func listsFacts(th *theme.Theme) layout.Widget {
 	return section(th, "Facts", specimen(th, "Label and value rows", kit.Facts(th, []kit.Fact{
-		{Label: "Server", Value: "ally"}, {Label: "Address", Value: "192.0.2.24", Mono: true}, {Label: "Console", Value: "/dev/ttyUSB0", Mono: true}, {Label: "Snapshot"},
+		{Label: "Server", Value: "ally"},
+		{Label: "Address", Value: "ops@192.0.2.18", Mono: true},
+		{Label: "Console", Value: "/dev/ttyUSB0", Mono: true},
+		{Label: "Snapshot kept before the last update", Value: "Yesterday"},
+		{Label: "Snapshot path", Value: "/var/lib/ryoport/snapshots/ubuntu-24.04/before-update.qcow2", Mono: true},
+		{Label: "Last error"},
 	})))
 }
 

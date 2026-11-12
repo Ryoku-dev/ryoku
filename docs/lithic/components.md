@@ -488,9 +488,17 @@ Library: QML Lithic.ListEditor, web .l-list-editor, Go kit.ListEditor, terminal 
 
 ### Facts
 
-Facts are 44 high label and value rows separated by 1 dp `vein` lines. Labels
-use `fg3` in a 140 column. Values use `fg`, switching to mono only for literal
-data. An absent value is `-`. Reference: `ui/kit/facts.go`.
+Facts are label and value rows at least 44 high, lying open with no line
+between them. Labels use `fg3` in a 140 column, so the values of a table line
+up, and each value starts 21 (`s4`, the gap between a setting's text and its
+control) after the column, in `fg`, switching to mono only for literal data. A
+longer label wraps inside its column and a longer value wraps inside the rest;
+neither elides, since translations run long. A row grows past 44 to fit its
+taller side, and both sides centre in it. When the table is narrower than the
+column and the gap, the column gives way first. An absent value is `-`. The
+terminal, where a row is one line, keeps a 17 cell column (140 over `s2`), 2
+cells of gap (`s4` over `s2`), and a `vein` rule across the table between
+rows. Reference: `ui/kit/facts.go`.
 
 Library: QML Lithic.Facts, web .l-facts, Go kit.Facts, terminal term.RenderFacts
 

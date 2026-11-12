@@ -521,9 +521,12 @@
   font: var(--lithic-type-body-weight) var(--lithic-type-body-size)/var(--lithic-type-body-line) var(--lithic-type-body-family);
 }
 
+/* Labels keep the 140 column and values start s4 after it; either side wraps
+   and the row grows past 44 to fit its taller side */
 .l-facts__row {
   display: grid;
   grid-template-columns: minmax(0, var(--lithic-size-facts-label-width)) minmax(0, 1fr);
+  column-gap: var(--lithic-space-s4);
   align-items: center;
   min-block-size: var(--lithic-size-facts-row-height);
   font-variant-numeric: tabular-nums;

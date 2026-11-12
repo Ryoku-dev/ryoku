@@ -105,7 +105,7 @@ Lists, containers, state, and progress:
 - `RenderMineralField(Theme, MineralField) string`
 - `RenderSlab(Theme, Slab) string`
 - `RenderSection(Theme, Section) string`
-- `RenderFacts(Theme, Facts) string`, with `[]Fact`
+- `RenderFacts(Theme, Facts) string`, with `[]Fact`; `Facts.Width` bounds the table so values wrap too
 - `RenderAside(Theme, Aside) string`
 - `RenderDraftColumns(Theme, DraftColumns) string`
 - `RenderClaim(Theme, Claim) string`

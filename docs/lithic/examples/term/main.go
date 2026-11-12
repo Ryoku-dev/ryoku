@@ -191,8 +191,15 @@ func lists(th term.Theme, width int) string {
 		state{"Failed", term.RenderMineralField(th, term.MineralField{Tone: palette.Failed, Content: "scratch-arch failed to start"})})
 	specimen(&b, "Slab", state{"Default", term.RenderSlab(th, term.Slab{Content: "Console router  /dev/ttyUSB0", Width: 42})})
 	specimen(&b, "Section", state{"Default", term.RenderSection(th, term.Section{Title: "Connection", Body: "Server identity and routing"})})
+	specimen(&b, "Facts", state{"Values", term.RenderFacts(th, term.Facts{Width: min(64, width-8), Rows: []term.Fact{
+		{Label: "Server", Value: "ally"},
+		{Label: "Address", Value: "ops@192.0.2.18", Literal: true},
+		{Label: "Console", Value: "/dev/ttyUSB0", Literal: true},
+		{Label: "Snapshot kept before the last update", Value: "Yesterday"},
+		{Label: "Snapshot path", Value: "/var/lib/ryoport/snapshots/ubuntu-24.04/before-update.qcow2", Literal: true},
+		{Label: "Last error"},
+	}})})
 	facts := term.Facts{Rows: []term.Fact{{Label: "Server", Value: "ally"}, {Label: "Address", Value: "ops@192.0.2.18", Literal: true}, {Label: "Machine", Value: "ubuntu-24.04"}}}
-	specimen(&b, "Facts", state{"Values", term.RenderFacts(th, facts)})
 	aside := term.Aside{Title: "Server to connect", Facts: facts, Preview: "ssh ops@192.0.2.18", Width: 44}
 	specimen(&b, "Aside", state{"Live summary", term.RenderAside(th, aside)})
 	specimen(&b, "Draft columns",

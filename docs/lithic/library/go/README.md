@@ -252,7 +252,7 @@ func layoutHost(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 | `HeaderContent` | Set `Tone`, `Mark`, `Name`, `Progress`, `Proof []Span`, `Note`, `Marks []Mark`, `Actions []*Plaque`, and `Below`. |
 | `Slab` | `Slab(gtx, ink, cut, body)` is the general painted container. `SlabContent(gtx, th, body)` supplies the standard stone1 plane and inset. |
 | `Section` | `Section(th, title, body)` returns a titled widget with canonical gaps. |
-| `Fact`, `Facts` | A `Fact` has `Label`, `Value`, and `Mono`. `Facts(th, []Fact)` returns a flat label and value table. |
+| `Fact`, `Facts` | A `Fact` has `Label`, `Value`, and `Mono`. `Facts(th, []Fact)` returns a flat label and value table: labels keep the 140 column, values start `s4` after it, either side wraps, and a row grows past 44 to fit its taller side. |
 | `Aside` | `Aside(gtx, th, title, rows...)` lays out a live draft summary. Build rows with `AsideFact`, `AsideNote`, and `AsidePreview`. |
 | `DraftColumns` | `DraftColumns(gtx, th, form, aside)` stacks or splits the two widgets at the canonical breakpoint. |
 | `Claim` | `Claim(th, tone, word)` returns a tone flake and plain state word. |

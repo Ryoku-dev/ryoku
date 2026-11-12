@@ -468,11 +468,12 @@ Item {
             Facts {
                 width: LithicTokens.size.draftFormMax
                 facts: [
-                    { label: "Host", value: "ally" },
-                    { label: "Address", value: "192.0.2.18", literal: true },
-                    { label: "Session", value: "ops" },
+                    { label: "Server", value: "ally" },
+                    { label: "Address", value: "ops@192.0.2.18", literal: true },
                     { label: "Console", value: "/dev/ttyUSB0", literal: true },
-                    { label: "Last transfer", value: "" }
+                    { label: "Snapshot kept before the last update", value: "Yesterday" },
+                    { label: "Snapshot path", value: "/var/lib/ryoport/snapshots/ubuntu-24.04/before-update.qcow2", literal: true },
+                    { label: "Last error", value: "" }
                 ]
             }
         }
