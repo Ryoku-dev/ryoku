@@ -166,6 +166,7 @@ T.AbstractButton {
                 anchors.verticalCenter: parent.verticalCenter
             }
 
+            // two caption lines fill the status line's height, so a narrow tile wraps its status, never cuts it
             Label {
                 x: working.visible ? working.width + LithicTokens.space.s2 : 0
                 anchors.verticalCenter: parent.verticalCenter
@@ -173,7 +174,8 @@ T.AbstractButton {
                 text: root.unavailable.length > 0 ? root.unavailable : root.status
                 typeRole: "caption"
                 ink: root._quietInk
-                maximumLineCount: 1
+                wrapMode: Text.Wrap
+                maximumLineCount: 2
             }
 
             Plaque {
