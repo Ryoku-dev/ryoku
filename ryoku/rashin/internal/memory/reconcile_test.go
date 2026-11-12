@@ -35,6 +35,7 @@ func TestAsOfDatesRelativeFacts(t *testing.T) {
 		{"The user got new binoculars three weeks ago", "The user got new binoculars three weeks ago (as of 26 May 2023)"},
 		{"The user saw goldfinches return last Tuesday", "The user saw goldfinches return last Tuesday (as of 26 May 2023)"},
 		{"The user moved to Lisbon the other day", "The user moved to Lisbon the other day (as of 26 May 2023)"},
+		{"The user is saving for a trip to Japan next spring", "The user is saving for a trip to Japan next spring (as of 26 May 2023)"},
 		{"The user got new binoculars on 5 May 2023", "The user got new binoculars on 5 May 2023"},
 		{"Lastly, the user prefers agony aunts on Thursdays", "Lastly, the user prefers agony aunts on Thursdays"},
 	} {
