@@ -1,6 +1,6 @@
 # Lithic for Go
 
-This module is the shared Lithic foundation for Gio applications and terminal applications. It reads the live Ryoku palette, maps it into semantic roles, exposes the generated token scales, and provides motion and drawing primitives that do no work at rest.
+This module is the shared Lithic foundation for Gio applications and terminal applications. It resolves the signature, or the live Ryoku palette when the reader follows the wallpaper, maps it into semantic roles, exposes the generated token scales, and provides motion and drawing primitives that do no work at rest.
 
 ## Add the module
 
@@ -35,7 +35,7 @@ import (
 A normal Gio setup is:
 
 ```go
-roles := palette.FromPalette(palette.Load(palette.Follow), palette.Look{})
+roles := palette.FromPalette(palette.Load(palette.Dark), palette.Look{})
 th := theme.New(roles)
 ```
 
@@ -43,24 +43,25 @@ th := theme.New(roles)
 
 ## Palette API
 
-`palette` uses only the Go standard library. It reads these files in precedence order:
+Every Lithic app opens in the signature, the ryoku.dev stock. Following the wallpaper is a choice the reader makes in the app, never the default. `palette` uses only the Go standard library. `Load(Dark)` and `Load(Light)` read only `/etc/os-release`, for the edition accent. `Load(Follow)` reads these files in precedence order:
 
 1. `$XDG_CONFIG_HOME/ryoku/shell.json`, key `themePalette`
-2. `$XDG_CACHE_HOME/ryoku/colors.json` when wallpaper following is enabled or the mode is forced
+2. `$XDG_CACHE_HOME/ryoku/colors.json` unless `$XDG_CONFIG_HOME/ryoku/theme.json` sets `followWallpaper` to false
 3. the signature fallback, with the edition accent from `/etc/os-release`
 
 `XDG_CONFIG_HOME` defaults to `~/.config`; `XDG_CACHE_HOME` defaults to `~/.cache`.
 
 Exported API:
 
-- `Mode`: `Follow`, `Dark`, `Light`.
-- `Palette`: source `Roles`, resolved `Dark`, `Forced`, and `Source` values before Lithic mapping.
-- `Load(mode) Palette`: resolves source precedence and mode.
+- `Mode`: `Dark` (the zero value and the default), `Light`, `Follow`. `Mode.String()` gives `dark`, `light` or `follow`.
+- `ParseMode(name) (Mode, error)`: reads `dark`, `light` or `follow`; an empty name is `Dark`, an unknown one is `Dark` and an error.
+- `Palette`: source `Roles`, resolved `Dark` and `Source` values before Lithic mapping.
+- `Load(mode) Palette`: the signature for `Dark` and `Light`; for `Follow`, the source precedence above, dark when the palette's `surface` is.
 - `Contrast`: `Standard`, `High`. `Tint`: `TintOff`, `TintLow`, `TintMedium`.
 - `Look`: the reader's `Contrast` and `Tint`. The zero look (standard, off) is the library default.
 - `ParseLook(contrast, tint) Look`: reads `standard` or `high` and `off`, `low` or `medium`; an unknown string gives the zero value of its field.
 - `FromPalette(Palette, Look) Roles`: with no palette, returns the signature table for the mode and contrast, with an edition's colour as gold; with one, dyes every role at its step on the tone ladder for the mode and contrast (see [palette.md](../../palette.md#3-mapping-palette-roles-to-lithic-roles)).
-- `Watch(ctx, mode, fn)`: watches the three parent directories with inotify, coalesces file replacement, and calls `fn` only when the resolved palette changes. `mode` is a function so an application can change its mode without rebuilding the watcher.
+- `Watch(ctx, mode, fn)`: watches the three parent directories with inotify, coalesces file replacement, and calls `fn` only when the resolved palette changes. `mode` is a function so an application can change its mode without rebuilding the watcher. Only `Follow` reads the files, so run it only while following.
 - `Tone`: `Idle`, `Alive`, `Becoming`, `Attention`, `Paused`, `Failed`.
 - `Roles`: `Ground`, `Stone1`, `Stone2`, `Stone3`, `Stone4`, `Slab`, `Field`, `Vein`, `Edge`, `Fg`, `Fg2`, `Fg3`, `Sel`, `OnSel`, `OnSel2`, `Gold`, `OnGold`, `GoldInk`, `Jade`, `Lapis`, `Amber`, `Jasper`, `Scrim`, `Dark`, `Source`.
 - `Roles.Stone(tone)`: returns the mineral ink for a tone.
@@ -71,7 +72,7 @@ Exported API:
 - `InkOn(background)`: picks black or white by contrast.
 - `ContrastRatio(a, b)`: returns the WCAG contrast ratio.
 
-Forced dark and light modes keep the signature neutrals and take only the accents from the palette, the selection included. The tint applies only when following a palette, and it changes chroma, never lightness. Fixed minerals always come from tokens.
+Dark and light are the signature tables as they stand, with the edition's colour as gold; no palette file changes them. The tint applies only when following a palette, and it changes chroma, never lightness. Fixed minerals always come from tokens.
 
 ## Fonts
 
@@ -250,7 +251,7 @@ func layoutHost(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 | `MineralField` | An animated tone-derived plane with no caller fields. Call `Layout(gtx, th, tone, body)`. |
 | `Header` | Owns the mineral field behind a selected resource. Pass `HeaderContent` to `Layout(gtx, th, content)`. |
 | `HeaderContent` | Set `Tone`, `Mark`, `Name`, `Progress`, `Proof []Span`, `Note`, `Marks []Mark`, `Actions []*Plaque`, and `Below`. |
-| `Slab` | `Slab(gtx, ink, cut, body)` is the general painted container. `SlabContent(gtx, th, body)` supplies the standard stone1 plane and inset. |
+| `Slab` | `Slab(gtx, ink, cut, body)` is the general painted container. `SlabContent(gtx, th, body)` supplies the standard slab: the `slab` fill, a `vein` hairline in light mode, the mid cut and the inset. `TonedSlabContent(gtx, th, tone, body)` dyes it with the tone's mineral field for the one hero plane of a view. `SlabRows(gtx, th, rows...)` sets rows apart by space inside a standard slab, and `SlabSurface(gtx, th, bounds, cut, fill)` paints the plane alone. |
 | `Section` | `Section(th, title, body)` returns a titled widget with canonical gaps. |
 | `Fact`, `Facts` | A `Fact` has `Label`, `Value`, and `Mono`. `Facts(th, []Fact)` returns a flat label and value table: labels keep the 140 column, values start `s4` after it, either side wraps, and a row grows past 44 to fit its taller side. |
 | `Aside` | `Aside(gtx, th, title, rows...)` lays out a live draft summary. Build rows with `AsideFact`, `AsideNote`, and `AsidePreview`. |
@@ -316,13 +317,14 @@ argument.
 | `Picker` | A labelled field and popover menu. Set `Preview` and `PreviewKeys` (an open preview drawn as opened from the keys, with the ring on the current choice). Call `Focus`, `Open`, `Show`, `Close`, `Layout(gtx, th, label, options, selected)`, and `Changed(gtx) (int, bool)`. A click, or Space, Return or Down on the anchor, opens it with focus on the current choice; only a key open shows the keyboard ring there. Choosing or Escape returns focus to the anchor. |
 | `Dialog` | A protected deferred surface. Set `Open`, optional `Width`, optional focus-return `Opener`, and `Preview`. Call `Layout(gtx, th, title, body, actions...)`, `Dismiss(gtx)`, and the clear-on-read `Closed() bool`. A dialog that opens with nothing inside it focused moves focus to its first enabled kit control on the next frame; one whose content focuses its own field on open keeps that. For a `Confirm` that is the typed-name field when one is required, otherwise Cancel, so Return on a fresh Confirm cancels and Tab then Return confirms. Escape closes it after its content had the chance to use the key, and focus returns to `Opener`. |
 | `Confirm` | A dialog with cancel, action, and optional typed proof. Set `Dialog`, `Danger`, `CancelText` (the cancel plaque's label; empty means "Cancel", so a keep-or-revert dialog can say "Keep"), and `Preview`. Call `SetConfirmationText`, `ConfirmationText`, `Layout(gtx, th, title, body, action, typeToConfirm) bool`, and `Closed() bool`. `Layout` returns true for the accepted action. |
+| `NoteFocus` | `NoteFocus(gtx, tag)` tells the enclosing `Popover` or `Dialog` about a host's own focusable control, such as a multi-line editor, the way kit fields and clickables tell it of themselves: focus on `tag` counts as inside the overlay, and a dialog that opens with nothing focused may move focus there first. Call it while laying the control out. |
 | `Tooltip` | Delayed pointer detail. Set `Preview`, then call `Layout(gtx, th, tip, widget)`. |
 | `Placard` | A bottom-edge notice stack. Set `Preview`. `Push(now, text, action)` returns an identity, `Dismiss(id)` removes it, `Layout(gtx, th)` draws the stack, and `Action(gtx) (int, bool)` returns an activated identity. A notice's life and blade stand still while the pointer rests on it or its action holds focus, and go on once both leave. |
 | `BrandMark`, `BrandMarkWith`, `BrandMarkFunc` | `BrandMark(th, size)` returns the Home mark widget. `BrandMarkWith(th, size, mark)` draws a host's own `BrandMarkFunc func(gtx, size unit.Dp) layout.Dimensions` in place of the octagon and pointer: the library keeps the `sel` square, size and cut, and centres the mark in the square inset by its cut, clipped there; the host draws in `onSel` with at most one `jasper` accent. A nil mark draws `BrandMark`. |
 | `NewPlaque` | The rail's sole gold action. Set embedded `Click` and `Preview`, then call `Layout(gtx, th, compact, open)`. Consume activation through the embedded `Clicked(gtx)`. |
 | `RailDestination` | Set `Label`, `Icon`, and `Notch`. |
 | `Rail` | Main navigation. Set `Preview`, `NewOpen`, `HideNew`, `FootIndex`, and `Brand BrandMarkFunc`. Destinations before `FootIndex` stack from the top with New after the first one; destinations from `FootIndex` on keep reading order as one group anchored to the foot. Zero means the last destination alone, today's layout; a value equal to the count puts none at the foot. `HideNew` drops New from the rail and from the compact bar, whose columns are Home, the destinations and New. Mark a destination with `RailDestination.Notch`. `Brand` draws the host's mark in Home, expanded and compact; nil draws the octagon. In the expanded rail every tile takes the widest label plus `s1` each side, at least the 64 tile and at most the rail less `s1` each side (80); a label wider than that wraps to two centred lines at word boundaries, breaking inside a word only when one word is too long, and its tile grows by one caption line. Medium and compact are unchanged. Call `Layout(gtx, th, destinations, selected, class)`, `HomeClicked()`, `NewClicked()`, and `Selected() (int, bool)`. |
-| `SectionIndex` | Settings-page navigation. Set `Preview`. Call `Layout(gtx, th, labels, current, class)` and `Selected() (int, bool)`. It renders rows in `FrameExpanded`, horizontal chips in `FrameMedium`, and no index in `FrameCompact`. |
+| `SectionIndex` | Settings-page navigation. Set `Preview`. Call `Layout(gtx, th, labels, current, class)` and `Selected() (int, bool)`. It renders rows in `FrameExpanded` and a Picker at the top of the column in `FrameMedium` and `FrameCompact`. |
 | `EngravedChart` | A polyline over a clipped hatch. Set `Values`, `Min`, `Max`, `Height`, `Ticks`, and `Empty`, then call `Layout(gtx, th)`. Use `math.NaN()` for an automatically derived bound. |
 | `AppFrame` | The window composition root. `Class` is the resolved output and `Preview` forces overlay preview. `HideCompactBar` leaves the compact class without the bottom rail so the host navigates on its own. The host owns its `Rail` and passes its layout as `AppFrameContent.Rail`, so a host mark goes on `Rail.Brand`; the frame draws no mark of its own. Call `Layout(gtx, th, AppFrameContent)`. `DismissOverlay` hears Escape only after the frame's content (an open menu, a dialog, a Search with text, a ListEditor field) had the chance to use it. |
 | `AppFrameContent` | Set `Rail`, `List`, `Work`, `Overlays`, `WindowControls`, and `DismissOverlay func() bool`. |
@@ -400,12 +402,12 @@ the Go module directory:
 ```sh
 go run ./cmd/lithic-tokens
 go run ./cmd/lithic-tokens -check
-go run ./cmd/lithic-roles --mode dark
+go run ./cmd/lithic-roles --mode follow
 ```
 
 The first command regenerates stack outputs. The second checks without writing.
-The roles command prints the roles resolved on the current machine. Do not
-hand-edit generated token files.
+The roles command prints the roles resolved on the current machine for a mode
+(`dark` unless `--mode` names another). Do not hand-edit generated token files.
 
 ## Gallery
 

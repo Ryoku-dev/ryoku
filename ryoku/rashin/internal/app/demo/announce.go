@@ -16,24 +16,31 @@ func (s *server) announce(out *outbox, method string) {
 		s.data.snapshot.Status.API = demoAPI(s.data.snapshot.Settings.API)
 		events[protocol.EvtSettingsChanged] = s.data.snapshot.Settings
 		events[protocol.EvtAPIChanged] = s.data.snapshot.Status.API
+		// a local provider's address lives in the settings and shows on its row
+		events[protocol.EvtProvidersChanged] = protocol.ProvidersResult{Providers: append([]protocol.ProviderInfo(nil), s.data.snapshot.Providers...)}
 		// pausing every team stops what works, and the pages hear each task stop
 		teams = s.takeTeamsEvents()
-	case protocol.MProjectsAdd, protocol.MProjectsRemove:
+	case protocol.MProjectsAdd, protocol.MProjectsRemove, protocol.MProjectsSettings:
 		projects := append([]protocol.ProjectInfo(nil), s.data.snapshot.Projects...)
 		events[protocol.EvtProjectsChanged] = protocol.ProjectsResult{Projects: projects}
-	case protocol.MHarnessesProbe:
+	case protocol.MHarnessesProbe, protocol.MHarnessesTeamsOpen, protocol.MHarnessesTeamsDone:
 		harnesses := append([]protocol.HarnessInfo(nil), s.data.snapshot.Harnesses...)
 		events[protocol.EvtHarnessesChanged] = protocol.HarnessesResult{Harnesses: harnesses}
-	case protocol.MProvidersEnable, protocol.MProvidersAddKey, protocol.MProvidersRemoveKey:
+		// a dream waiting on this sign-in starts its manager, and the pages hear it
+		teams = s.takeTeamsEvents()
+	case protocol.MProvidersEnable, protocol.MProvidersAddKey, protocol.MProvidersRemoveKey, protocol.MProvidersLimits:
 		providers := append([]protocol.ProviderInfo(nil), s.data.snapshot.Providers...)
 		events[protocol.EvtProvidersChanged] = protocol.ProvidersResult{Providers: providers}
 	case protocol.MTeamsCreate, protocol.MTeamsUpdate, protocol.MTeamsDelete, protocol.MTeamsPause, protocol.MTeamsImport,
 		protocol.MTeamsTaskCreate, protocol.MTeamsTaskStop, protocol.MTeamsTaskRetry, protocol.MTeamsTaskRead, protocol.MTeamsTaskDelete,
 		protocol.MTeamsRoutineCreate, protocol.MTeamsRoutineUpdate, protocol.MTeamsRoutineDelete, protocol.MTeamsRoutineRun,
-		protocol.MTeamsApprovalDecide, protocol.MTeamsPrune, protocol.MVaultAdd, protocol.MVaultUpdate, protocol.MVaultRemove, protocol.MVaultMail:
+		protocol.MTeamsApprovalDecide, protocol.MTeamsPrune, protocol.MVaultAdd, protocol.MVaultUpdate, protocol.MVaultRemove, protocol.MVaultMail,
+		protocol.MTeamsDreamCreate, protocol.MTeamsDreamAnswer:
 		// each change queued the team, task, approval, routine, vault and session events the daemon would broadcast, in order
 		teams = s.takeTeamsEvents()
 	}
+	// memory writes and settings that moved memory are heard after the response
+	teams = append(teams, s.takeMemoryEvents()...)
 	s.mu.Unlock()
 	for name, value := range events {
 		if wire, err := json.Marshal(value); err == nil {

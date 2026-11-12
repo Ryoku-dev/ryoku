@@ -14,7 +14,10 @@ import (
 )
 
 func (r *runner) handleRequest(message rpcMessage) {
-	if r.sandbox != nil && (strings.HasPrefix(message.Method, "fs/") || strings.HasPrefix(message.Method, "terminal/")) {
+	r.mu.Lock()
+	boxed := r.boxed
+	r.mu.Unlock()
+	if boxed && (strings.HasPrefix(message.Method, "fs/") || strings.HasPrefix(message.Method, "terminal/")) {
 		r.respondRequestError(message.ID, errors.New(i18n.T("Rashin does not read, write or run anything for an agent in a sandbox. Use your own tools.")))
 		return
 	}
@@ -102,15 +105,29 @@ func (r *runner) handlePermissionRequest(message rpcMessage) {
 		})
 		return
 	}
-	policy := protocol.ApprovalsReadOnly
-	if r.opts.Approvals != nil {
-		policy = r.opts.Approvals()
+	var verdict askVerdict
+	var reason string
+	var danger bool
+	if r.opts.Ask {
+		title := ""
+		if request.ToolCall.Title != nil {
+			title = *request.ToolCall.Title
+		}
+		verdict, reason, danger = r.askDecides(data.Kind, title, request.ToolCall.RawInput)
+		options = askOptions(options, danger)
+	} else {
+		verdict = askAsks
+		if policy := r.approvalPolicy(); policy == protocol.ApprovalsAuto || policy == protocol.ApprovalsReadOnly && isReadOnlyKind(data.Kind) {
+			verdict = askAllows
+		}
 	}
-	auto := policy == protocol.ApprovalsAuto
-	if policy == protocol.ApprovalsReadOnly {
-		auto = isReadOnlyKind(data.Kind)
+	// the policy answers for the user: a call it allows runs, one it refuses
+	// is turned down and the user told why
+	answer := allow
+	if verdict == askRefuses {
+		answer = rejectOption(options)
 	}
-	if auto && allow != "" {
+	if verdict != askAsks && answer != "" {
 		r.mu.Lock()
 		conn := r.conn
 		cancelled := r.turnCancelled
@@ -125,14 +142,24 @@ func (r *runner) handlePermissionRequest(message rpcMessage) {
 			return
 		}
 		if conn != nil {
-			_ = conn.respond(message.ID, selectedPermission(allow))
+			_ = conn.respond(message.ID, selectedPermission(answer))
+		}
+		if verdict == askRefuses {
+			r.askRefused(requestID, data.Call, data.Kind, data.Title, reason)
+			return
 		}
 		r.emit(protocol.EvPermissionResolved, protocol.PermissionResolvedData{
-			Request: requestID, Option: allow, Outcome: "selected", By: "policy",
+			Request: requestID, Option: answer, Outcome: "selected", By: "policy",
 		})
 		return
 	}
 	open := permissionRequest{id: append(json.RawMessage(nil), message.ID...), publicID: requestID, call: data.Call, options: options}
+	if r.opts.Ask {
+		id := open.id
+		open.respond = func(conn *connection, option string) error {
+			return conn.respond(id, selectedPermission(r.askAnswer(option, options)))
+		}
+	}
 	r.mu.Lock()
 	if r.turnCancelled {
 		conn := r.conn
@@ -203,8 +230,14 @@ func (r *runner) handleReadFile(message rpcMessage) {
 		}
 		return conn.respond(message.ID, map[string]string{"content": content})
 	}
-	policy := r.approvalPolicy()
-	if !inside || policy == protocol.ApprovalsAsk {
+	// an Ask reads the whole machine, as Ask's own read_file does, but never
+	// a credential
+	if r.opts.Ask {
+		if err := askReadable(target); err != nil {
+			r.respondRequestError(message.ID, err)
+			return
+		}
+	} else if policy := r.approvalPolicy(); !inside || policy == protocol.ApprovalsAsk {
 		r.requestFilePermission(message, protocol.ToolRead, request.Path, "", read)
 		return
 	}
@@ -255,6 +288,23 @@ func (r *runner) handleWriteFile(message rpcMessage) {
 		return
 	}
 	policy := r.approvalPolicy()
+	if r.opts.Ask {
+		policy = r.askMode()
+		if err := askReadable(target); err != nil {
+			r.respondRequestError(message.ID, err)
+			return
+		}
+		if policy == protocol.ApprovalsReadOnly {
+			r.askRefused("", "", protocol.ToolEdit, request.Path, i18n.T("writing a file changes the machine"))
+			r.respondRequestError(message.ID, errors.New(i18n.T("This Ask is Read only: Rashin refused the write. Tell the user what to change, or that switching the conversation to Ask first lets you do it.")))
+			return
+		}
+		r.mu.Lock()
+		if r.askAllowed {
+			policy = protocol.ApprovalsAuto
+		}
+		r.mu.Unlock()
+	}
 	if policy == protocol.ApprovalsReadOnly {
 		r.respondRequestError(message.ID, errors.New(i18n.T("This session is read-only. Change approvals before writing files.")))
 		return

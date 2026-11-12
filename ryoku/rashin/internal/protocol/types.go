@@ -83,6 +83,10 @@ type Status struct {
 	API       APIInfo       `json:"api"`
 	Harnesses int           `json:"harnesses"`
 	Indexes   int           `json:"indexes"`
+	// Unscoped says this kernel cannot keep sandboxed programs from abstract
+	// Unix sockets and from signalling what runs outside them (Landlock ABI
+	// 6, Linux 6.12).
+	Unscoped bool `json:"unscoped,omitempty"`
 }
 
 // Snapshot is the subscribe result: everything a client renders at start.
@@ -104,6 +108,8 @@ type Snapshot struct {
 	Approvals []Approval `json:"approvals,omitempty"`
 	Routines  []Routine  `json:"routines,omitempty"`
 	Vault     *VaultInfo `json:"vault,omitempty"`
+	// Memory is memory's status; nil when the daemon runs without memory.
+	Memory *MemoryStatus `json:"memory,omitempty"`
 }
 
 // SessionListParams filters session.list. Before is a session id: only older
@@ -145,6 +151,12 @@ type SessionNewParams struct {
 	TeamTask  string `json:"teamTask,omitempty"`
 	Member    string `json:"member,omitempty"`
 	Approvals string `json:"approvals,omitempty"`
+	// Temporary keeps the session in memory only: it is never written to
+	// disk, searched or learned from, and ends when it is closed.
+	Temporary bool `json:"temporary,omitempty"`
+	// Memory is what the session does with memory: a MemoryRemember,
+	// MemoryUseOnly or MemoryNone value.
+	Memory string `json:"memory,omitempty"`
 }
 
 // SessionRef names one session.
@@ -274,21 +286,39 @@ type KeyInfo struct {
 	Checked   *time.Time `json:"checked,omitempty"`
 }
 
-// ProviderInfo describes one catalogue provider and its state here.
+// ProviderInfo describes one provider and its state here. Tier is the
+// provider's own (free, credits or paid; local for a server on this computer
+// or the local network); a model may carry another, as ModelInfo.Tier says.
 type ProviderInfo struct {
-	ID            string     `json:"id"`
-	Name          string     `json:"name"`
-	Tier          string     `json:"tier"`
-	Keyless       bool       `json:"keyless,omitempty"`
-	Enabled       bool       `json:"enabled"`
-	Configured    bool       `json:"configured"`
-	Keys          []KeyInfo  `json:"keys,omitempty"`
-	Models        int        `json:"models"`
-	Available     int        `json:"available"`
+	ID         string    `json:"id"`
+	Name       string    `json:"name"`
+	Tier       string    `json:"tier"`
+	Keyless    bool      `json:"keyless,omitempty"`
+	Enabled    bool      `json:"enabled"`
+	Configured bool      `json:"configured"`
+	Keys       []KeyInfo `json:"keys,omitempty"`
+	// Models counts the provider's chat models: the curated ones and what its
+	// own listing adds. Free counts those that cost nothing to use, free or
+	// paid from credits the provider renews.
+	Models    int `json:"models"`
+	Free      int `json:"free,omitempty"`
+	Available int `json:"available"`
+	// Listed is when the provider's own model listing was last read; nil
+	// while Rashin knows only its curated models.
+	Listed        *time.Time `json:"listed,omitempty"`
 	Signup        string     `json:"signup,omitempty"`
 	KeyHint       string     `json:"keyHint,omitempty"`
 	Note          string     `json:"note,omitempty"`
 	CooldownUntil *time.Time `json:"cooldownUntil,omitempty"`
+	// Local marks a model server on this computer or the local network.
+	// Address is where Rashin reaches its OpenAI-compatible API, and Running
+	// says it answered the last time Rashin asked for its models.
+	Local   bool   `json:"local,omitempty"`
+	Address string `json:"address,omitempty"`
+	Running bool   `json:"running,omitempty"`
+	// Limits is what Rashin knows of the provider's allowance and what it
+	// sent there; nil for a local provider.
+	Limits *ProviderLimits `json:"limits,omitempty"`
 }
 
 // ProvidersResult lists providers.
@@ -329,11 +359,25 @@ type ProviderTestResult struct {
 	Message   string `json:"message,omitempty"`
 }
 
-// ModelInfo describes one free chat model.
+// Model tiers. Auto, Fast and Smart route among free, credits and local
+// models only; a paid model answers only when it is the model asked for.
+const (
+	// TierFree is a model free to use, with or without a key.
+	TierFree = "free"
+	// TierCredits is a model paid for with credits a provider renews for free.
+	TierCredits = "credits"
+	// TierPaid is a model the key's owner pays for.
+	TierPaid = "paid"
+	// TierLocal is a model served on this computer or the local network.
+	TierLocal = "local"
+)
+
+// ModelInfo describes one chat model. Tier is one of the model tiers.
 type ModelInfo struct {
 	ID            string     `json:"id"`
 	Provider      string     `json:"provider"`
 	Name          string     `json:"name"`
+	Tier          string     `json:"tier"`
 	Context       int        `json:"context,omitempty"`
 	Tools         bool       `json:"tools,omitempty"`
 	Reasoning     bool       `json:"reasoning,omitempty"`
@@ -341,11 +385,19 @@ type ModelInfo struct {
 	Rank          int        `json:"rank,omitempty"`
 	Available     bool       `json:"available"`
 	CooldownUntil *time.Time `json:"cooldownUntil,omitempty"`
+	// Listed is a model only the provider's own listing names, not one of
+	// Rashin's curated models. ToolsKnown says whether Tools is known: Auto,
+	// Fast and Smart never send a model whose tool support is unknown, which
+	// still answers when it is picked by name.
+	Listed     bool `json:"listed,omitempty"`
+	ToolsKnown bool `json:"toolsKnown,omitempty"`
 }
 
-// ModelsParams filters models.list by provider.
+// ModelsParams filters models.list by provider. Fresh reads the providers'
+// own listings again now; each is read at most once a minute, whoever asks.
 type ModelsParams struct {
 	Provider string `json:"provider,omitempty"`
+	Fresh    bool   `json:"fresh,omitempty"`
 }
 
 // Routes the gateway always accepts as a model.
@@ -397,12 +449,105 @@ type HarnessInfo struct {
 	Install   string   `json:"install,omitempty"`
 	// Custom marks a harness instance the user added in settings.
 	Custom bool `json:"custom,omitempty"`
-	// Capabilities are learned from the agent's initialize answer the first
-	// time it runs, and kept per binary.
+	// Capabilities are learned from the agent's initialize answer each time
+	// it runs in the user's own home, and kept per binary. A team's runs keep
+	// their own in TeamHome.Capabilities and never change these.
 	Capabilities *HarnessCapabilities `json:"capabilities,omitempty"`
 	// Setup is what the harness's own settings say it will use, read from
 	// its files and never written.
 	Setup []HarnessFact `json:"setup,omitempty"`
+	// State are the paths under HOME the harness keeps its own state in,
+	// written "~/.omp". Every team sandbox hides them, for every harness.
+	State []string `json:"state,omitempty"`
+	// Teams is how teams run the harness, nil for one that is not installed.
+	Teams *HarnessTeams `json:"teams,omitempty"`
+}
+
+// HarnessTeams is how teams run a harness. Each team has a home of its own
+// for each harness it uses: team sessions and Check run the harness with HOME
+// there, so every team signs in apart from the user's own setup, which every
+// team sandbox hides, and apart from every other team.
+type HarnessTeams struct {
+	// Login is the command a sign-in runs in a team's home; empty when Rashin
+	// knows none, which leaves the setup.
+	Login []string `json:"login,omitempty"`
+	// Guarded are the paths under a team home, relative to it, that Rashin
+	// puts back as they were signed in before every team task and shows
+	// read-only while one runs.
+	Guarded []string `json:"guarded,omitempty"`
+	// Homes are the team homes that exist, by team. A team without one is
+	// not signed in.
+	Homes []TeamHome `json:"homes,omitempty"`
+}
+
+// TeamHome is one team's home for one harness.
+type TeamHome struct {
+	Team string `json:"team"`
+	Home string `json:"home"`
+	// SignedIn is when the user last finished a sign-in or the setup there;
+	// nil until then and while one is open. A team task on a harness its
+	// team is not signed in to ends blocked.
+	SignedIn *time.Time `json:"signedIn,omitempty"`
+	// Opening is set while a sign-in or setup terminal is open.
+	Opening bool `json:"opening,omitempty"`
+	// Capabilities are what the harness reported when it last ran in this
+	// home, kept per binary; nil until a task or Check ran it there.
+	Capabilities *HarnessCapabilities `json:"capabilities,omitempty"`
+}
+
+// TeamCapabilities is what a harness reported in team's home, nil until it
+// ran there. It never falls back to the user's own: a team's account may
+// offer other models.
+func (h HarnessInfo) TeamCapabilities(team string) *HarnessCapabilities {
+	home, _ := h.Teams.HomeOf(team)
+	return home.Capabilities
+}
+
+// HomeOf is team's home for the harness, false when it has none.
+func (t *HarnessTeams) HomeOf(team string) (TeamHome, bool) {
+	if t == nil {
+		return TeamHome{}, false
+	}
+	for _, home := range t.Homes {
+		if home.Team == team {
+			return home, true
+		}
+	}
+	return TeamHome{}, false
+}
+
+// HarnessTeamsOpenParams opens a terminal in a team's home for a harness:
+// its sign-in, or with Setup a shell there.
+type HarnessTeamsOpenParams struct {
+	// ID is a HarnessInfo ID; Team the team whose home it is.
+	ID    string `json:"id"`
+	Team  string `json:"team"`
+	Setup bool   `json:"setup,omitempty"`
+	// CopyFrom, with Setup, names another team signed in to the same
+	// harness: the guarded config it signed in with (never its login) is
+	// copied into this team's home first, for setups that keep a key in
+	// config.
+	CopyFrom string `json:"copyFrom,omitempty"`
+}
+
+// HarnessTeamsOpenResult is what the app runs in a terminal: Argv ends by
+// calling harnesses.teams_done with the token it carries.
+type HarnessTeamsOpenResult struct {
+	Argv []string `json:"argv"`
+	Home string   `json:"home"`
+}
+
+// HarnessTeamsDoneParams finishes a sign-in or setup: the token its terminal
+// was given and the exit status of what ran there.
+type HarnessTeamsDoneParams struct {
+	Token  string `json:"token"`
+	Status int    `json:"status"`
+}
+
+// HarnessTeamsDoneResult says whether the harness is signed in for teams now.
+type HarnessTeamsDoneResult struct {
+	SignedIn bool   `json:"signedIn"`
+	Text     string `json:"text"`
 }
 
 // HarnessFact is one line of a harness's own setup: a label and its value.
@@ -460,6 +605,9 @@ type HarnessesResult struct {
 type HarnessProbeParams struct {
 	// ID is a HarnessInfo ID.
 	ID string `json:"id"`
+	// Team is the team whose home the harness runs in; a Check without one
+	// says the team has to be saved and signed in first.
+	Team string `json:"team,omitempty"`
 	// Model and Options, when set, are picked as a team task would pick
 	// them.
 	Model   string            `json:"model,omitempty"`
@@ -722,11 +870,15 @@ func KnownApprovals(value string) bool {
 }
 
 // AskSettings configures Ask. Approvals is what a new Ask in the app may do;
-// asks from the bar and the terminal stay read-only.
+// asks from the bar and the terminal stay read-only. Harness is the harness
+// or instance id that answers a new Ask in the app over ACP, "" for Rashin's
+// own providers; the app passes it when it creates the session, so asks from
+// the bar and the terminal stay on the providers.
 type AskSettings struct {
 	Model     string `json:"model"`
 	Habits    bool   `json:"habits"`
 	Approvals string `json:"approvals"`
+	Harness   string `json:"harness,omitempty"`
 }
 
 // AgentSettings configures Agent sessions.
@@ -782,9 +934,9 @@ type TeamsSettings struct {
 	// QuietHours, when set, holds desktop notifications back between From
 	// and To; what needs the user still waits in the Inbox.
 	QuietHours *QuietHours `json:"quietHours,omitempty"`
-	// Hidden are paths every team agent sees as empty, written as given
-	// ("~/.ssh" or absolute). Nil means DefaultTeamsHidden(); an empty list
-	// hides nothing beyond what Rashin always hides, so it is always written.
+	// Hidden are the user's own paths every team agent sees as empty, written
+	// as given ("~/Private" or absolute), beside what Rashin always hides:
+	// TeamsAlwaysHidden and every harness's own state.
 	Hidden []string `json:"hidden"`
 	// KeepDays is how long finished tasks and their sessions are kept: one
 	// of TeamsKeepDays, 0 keeping them forever.
@@ -806,6 +958,8 @@ type TeamDefaults struct {
 	Budget    TeamBudget `json:"budget"`
 	// Notify is NotifyAll, NotifyNeeds or NotifyNone.
 	Notify string `json:"notify"`
+	// Memory is what a new team keeps between runs and may know of the user.
+	Memory TeamMemory `json:"memory"`
 }
 
 // QuietHours is a daily window in local time, "HH:MM" each way. To before
@@ -867,27 +1021,116 @@ const (
 // task.
 var TeamsKeepDays = []int{0, 30, 90, 365}
 
-// DefaultTeamsHidden are the paths hidden from every team agent unless the
-// user changed the list: keys, cloud and cluster credentials, and browser
-// profiles.
-func DefaultTeamsHidden() []string {
-	return []string{
-		"~/.ssh", "~/.gnupg", "~/.password-store", "~/.aws", "~/.kube",
-		"~/.docker", "~/.netrc", "~/.git-credentials", "~/.mozilla", "~/.zen",
-		"~/.config/chromium", "~/.config/google-chrome",
-		"~/.config/BraveSoftware", "~/.local/share/keyrings",
+// Kinds of secrets every team sandbox hides.
+const (
+	HiddenKeys      = "keys"
+	HiddenGit       = "git"
+	HiddenCloud     = "cloud"
+	HiddenPackages  = "packages"
+	HiddenBrowsers  = "browsers"
+	HiddenMail      = "mail"
+	HiddenChat      = "chat"
+	HiddenHistories = "histories"
+	HiddenRyoku     = "ryoku"
+	// HiddenHost are host daemons' sockets that reach root or the machine:
+	// all of /run, which every sandbox replaces with an empty one, and those
+	// that live elsewhere.
+	HiddenHost = "host"
+)
+
+// HiddenGroup is one kind of secret and the paths that hold it.
+type HiddenGroup struct {
+	Kind  string   `json:"kind"`
+	Paths []string `json:"paths"`
+}
+
+// TeamsAlwaysHidden are the places credentials and private state live, hidden
+// from every team agent and every harness Check whatever the settings say,
+// as each sandbox shares the network and anything it reads can leave. Paths
+// are under the user's home, written "~/", or absolute for host daemons.
+// Every harness's own state is hidden as well (HarnessInfo.State).
+func TeamsAlwaysHidden() []HiddenGroup {
+	return []HiddenGroup{
+		{Kind: HiddenKeys, Paths: []string{
+			"~/.ssh", "~/.gnupg", "~/.password-store", "~/.local/share/keyrings", "~/.local/share/kwalletd",
+			"~/.pki", "~/.config/Bitwarden", "~/.config/Bitwarden CLI", "~/.config/op", "~/.config/1Password",
+			"~/.1password", "~/.config/keepassxc", "~/.local/share/gopass", "~/.config/gopass", "~/.config/sops",
+		}},
+		{Kind: HiddenGit, Paths: []string{
+			"~/.git-credentials", "~/.config/git/credentials", "~/.netrc", "~/.config/gh", "~/.config/hub",
+			"~/.config/glab-cli",
+		}},
+		{Kind: HiddenCloud, Paths: []string{
+			"~/.aws", "~/.config/gcloud", "~/.azure", "~/.kube", "~/.docker", "~/.terraform.d", "~/.terraformrc",
+			"~/.vault-token", "~/.config/rclone", "~/.config/doctl", "~/.config/hcloud", "~/.oci", "~/.fly",
+			"~/.wrangler", "~/.config/.wrangler", "~/.supabase", "~/.local/share/com.vercel.cli",
+		}},
+		{Kind: HiddenPackages, Paths: []string{
+			"~/.npmrc", "~/.yarnrc", "~/.yarnrc.yml", "~/.pypirc", "~/.cargo/credentials", "~/.cargo/credentials.toml",
+			"~/.gem/credentials", "~/.m2/settings.xml", "~/.m2/settings-security.xml", "~/.gradle/gradle.properties",
+			"~/.config/composer/auth.json", "~/.pub-cache/credentials.json", "~/.config/dart/pub-credentials.json",
+			"~/.nuget/NuGet/NuGet.Config",
+		}},
+		{Kind: HiddenBrowsers, Paths: []string{
+			"~/.mozilla", "~/.zen", "~/.librewolf", "~/.waterfox", "~/.floorp", "~/.config/chromium",
+			"~/.config/google-chrome", "~/.config/google-chrome-beta", "~/.config/google-chrome-unstable",
+			"~/.config/BraveSoftware", "~/.config/vivaldi", "~/.config/vivaldi-snapshot", "~/.config/microsoft-edge",
+			"~/.config/microsoft-edge-beta", "~/.config/microsoft-edge-dev", "~/.config/opera", "~/.config/thorium",
+			"~/.local/share/epiphany", "~/.var/app",
+		}},
+		{Kind: HiddenMail, Paths: []string{
+			"~/.thunderbird", "~/.local/share/evolution", "~/.config/evolution", "~/.local/share/geary",
+			"~/.config/geary", "~/.config/aerc", "~/.msmtprc", "~/.config/msmtp", "~/.mbsyncrc", "~/.muttrc",
+			"~/.config/mutt", "~/.config/neomutt",
+		}},
+		{Kind: HiddenChat, Paths: []string{
+			"~/.config/discord", "~/.config/discordcanary", "~/.config/discordptb", "~/.config/vesktop",
+			"~/.config/Vencord", "~/.config/equibop", "~/.config/legcord", "~/.config/WebCord", "~/.config/Slack",
+			"~/.config/Signal", "~/.local/share/TelegramDesktop", "~/.config/Element", "~/.config/Element-Nightly",
+		}},
+		{Kind: HiddenHistories, Paths: []string{
+			"~/.bash_history", "~/.zsh_history", "~/.zhistory", "~/.histfile", "~/.local/share/fish/fish_history",
+			"~/.local/share/atuin", "~/.python_history", "~/.node_repl_history", "~/.psql_history",
+			"~/.mysql_history", "~/.sqlite_history", "~/.lesshst",
+		}},
+		{Kind: HiddenRyoku, Paths: []string{
+			"~/.local/state/ryoku", "~/.local/share/ryoku/rashin", "~/.local/share/ryoku/vault", "~/.cache/ryoku/rashin",
+			"~/Teams", "~/Dreams", "~/.config/dev.ryoku.ryotunes", "~/.local/share/dev.ryoku.ryotunes", "~/.local/state/ryotunes",
+		}},
+		{Kind: HiddenHost, Paths: []string{
+			"/run", "/nix/var/nix/daemon-socket", "/var/lib/incus", "/var/lib/lxd/unix.socket", "/var/snap/lxd/common/lxd/unix.socket",
+		}},
 	}
+}
+
+// TeamsAlwaysHiddenPaths are every path of TeamsAlwaysHidden, in order.
+func TeamsAlwaysHiddenPaths() []string {
+	var out []string
+	for _, group := range TeamsAlwaysHidden() {
+		out = append(out, group.Paths...)
+	}
+	return out
 }
 
 // Settings is rashin.json. Enabled is changed only by rashin on and off.
 type Settings struct {
-	Enabled bool           `json:"enabled"`
-	Ask     AskSettings    `json:"ask"`
-	Agent   AgentSettings  `json:"agent"`
-	Daemon  DaemonSettings `json:"daemon"`
-	Index   IndexSettings  `json:"index"`
-	API     APISettings    `json:"api"`
-	Teams   TeamsSettings  `json:"teams"`
+	Enabled   bool              `json:"enabled"`
+	Ask       AskSettings       `json:"ask"`
+	Agent     AgentSettings     `json:"agent"`
+	Daemon    DaemonSettings    `json:"daemon"`
+	Index     IndexSettings     `json:"index"`
+	API       APISettings       `json:"api"`
+	Teams     TeamsSettings     `json:"teams"`
+	Providers ProvidersSettings `json:"providers"`
+	Memory    MemorySettings    `json:"memory"`
+	Skills    SkillsSettings    `json:"skills"`
+}
+
+// ProvidersSettings are the providers' settings that are not keys. Local maps
+// a local provider's id to the address of its OpenAI-compatible API; only the
+// Rashin app may change one, since the gateway sends requests there.
+type ProvidersSettings struct {
+	Local map[string]string `json:"local,omitempty"`
 }
 
 // SettingsSetParams carries a JSON merge patch (RFC 7396) over Settings.
@@ -902,10 +1145,14 @@ const (
 	TabProjects = "projects"
 	TabIndex    = "index"
 	TabSettings = "settings"
+	// TabMemory is the Memory page, reached from Settings, a conversation's
+	// memory line and the palette rather than the sidebar.
+	TabMemory = "memory"
 
 	// Teams mode
 	TabInbox    = "inbox"
 	TabTeams    = "teams"
+	TabDreams   = "dreams"
 	TabWork     = "work"
 	TabRoutines = "routines"
 	TabVault    = "vault"

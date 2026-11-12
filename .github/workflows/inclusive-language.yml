@@ -77,7 +77,7 @@ jobs:
               [[ -f $file ]] || continue
 
               case "$file" in
-                ryoku/assets/*|ryoku/lockscreen/qylock/*|docs/media/*|tmp/*)
+                ryoku/assets/*|ryoku/lockscreen/qylock/*|ryoku/rashin/internal/skills/sets/*|docs/media/*|tmp/*)
                   continue
                   ;;
                 *.bash|*.conf|*.lua|*.css|*.desktop|*.ini|*.json|*.kdl|*.md|*.mdx|*.rules|*.sample|*.service|*.sh|*.timer|*.toml|*.tpl|*.txt|*.xml|*.yaml|*.yml|AGENTS.md|CONTRIBUTING.md|CODE_OF_CONDUCT.md|README.md|SECURITY.md|bin/*|tests/*|docs/*|.github/workflows/*|.woke.yml)

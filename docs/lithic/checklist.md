@@ -1,19 +1,22 @@
 # Checklist
 
 Use this to review a surface that claims to be Lithic: a new app, a new page,
-a port of an existing screen. Take a screenshot at each size class in a dark
-and in a light Ryoku palette, at Contrast standard and high and with Tint off
-and on, and go down the list. Every "no" is a defect.
+a port of an existing screen. Take a screenshot at each size class in the dark
+and light signature and, following, in a dark and in a light Ryoku palette, at
+Contrast standard and high and with Tint off and on, and go down the list.
+Every "no" is a defect.
 
 ## Colour
 
 - [ ] No colour value appears in the UI code except the signature fallback
       and the three fixed minerals (jade, lapis, amber), both clearly marked.
-- [ ] Changing the wallpaper changes ground, panes, bone and gold; jade,
-      lapis and amber stay.
-- [ ] A named theme (`themePalette`) wins over the wallpaper palette.
-- [ ] Forcing light on a dark wallpaper gives signature neutrals with the
-      wallpaper's gold.
+- [ ] The app opens in the signature, the ryoku.dev stock, even while a
+      wallpaper palette exists; following the wallpaper is a choice the
+      reader makes in the app.
+- [ ] Following, changing the wallpaper changes ground, panes, bone and gold;
+      jade, lapis and amber stay.
+- [ ] Following, a named theme (`themePalette`) wins over the wallpaper
+      palette.
 - [ ] `contrast(goldInk, stone2) >= 4.5` and
       `contrast(jasper, stone2) >= 4.5`; danger fill ink is
       `inkOn(jasper)`.
@@ -29,7 +32,8 @@ and on, and go down the list. Every "no" is a defect.
 - [ ] Rows on `stone4` hover with `fg` at alpha 0.06 and press at 0.08.
       They never step down to `stone3`; lower planes keep the plane-up recipe.
 - [ ] Nothing relies on one tone step to be found at rest. Fields carry their
-      `edge` hairline, slabs and overlays their `vein` hairline.
+      `edge` hairline, overlays their `vein` hairline, and slabs theirs in
+      light mode.
 - [ ] Slabs, menus and dialogs lift: in dark mode they are lighter than or
       equal to their plane, in light mode their hairline sets them off. No
       container is darker than the plane it stands on.
@@ -78,7 +82,9 @@ and on, and go down the list. Every "no" is a defect.
 - [ ] Work-pane body and tabs keep 34 side insets; mineral headers and
       Settings keep 36; full pages use the 760 column.
 - [ ] With no selection, the work pane shows the Now board: fleet proof,
-      pinned tiles, Needs you, Running now, This computer and Recent activity.
+      pinned tiles, Needs you, Running now, This computer, Recent activity,
+      and a chart section of how the fleet moved over time, its proof line in
+      words.
 - [ ] Host meters use quiet `fg2` and turn amber at 90 percent.
 - [ ] Draft forms are no wider than 600; from 820, an Aside previews what
       saving writes. Errors wait until a field was edited and left.
@@ -143,7 +149,8 @@ and on, and go down the list. Every "no" is a defect.
 ## Review artefacts
 
 Attach to the review: screenshots at expanded, medium and compact; the same
-page in a dark and a light palette, at Contrast high and with Tint on; the
+page in the signature and following a dark and a light palette, at Contrast
+high and with Tint on; the
 output of the palette hookup check and its
 [contrast targets](palette.md#contrast-targets) (§8 of
 [palette.md](palette.md)); a note of any item above that was deliberately

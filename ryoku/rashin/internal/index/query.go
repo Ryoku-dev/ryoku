@@ -11,8 +11,9 @@ import (
 
 	i18n "ryoku-i18n"
 	"ryoku-rashin/internal/index/embed"
-	"ryoku-rashin/internal/index/extract"
 	"ryoku-rashin/internal/protocol"
+	"ryoku-rashin/internal/rank"
+	"ryoku-rashin/internal/redact"
 )
 
 func (e *Engine) queryStore(ctx context.Context, ref protocol.IndexRef) (registryEntry, *indexStore, error) {
@@ -193,7 +194,7 @@ func indexedPath(entry registryEntry, path string) string {
 	return filepath.ToSlash(filepath.Clean(path))
 }
 func containsPart(name, query string) bool {
-	for _, part := range splitIdentifier(name) {
+	for _, part := range rank.SplitIdentifier(name) {
 		if part == query || strings.HasPrefix(part, query) {
 			return true
 		}
@@ -305,7 +306,7 @@ func (e *Engine) References(ctx context.Context, p protocol.NameParams) (protoco
 		if readErr != nil {
 			continue
 		}
-		scanner := bufio.NewScanner(strings.NewReader(extract.RedactSource(string(source))))
+		scanner := bufio.NewScanner(strings.NewReader(redact.Patterns(string(source), nil)))
 		scanner.Buffer(make([]byte, 64<<10), 4<<20)
 		line := 0
 		for scanner.Scan() {
@@ -390,7 +391,7 @@ func readLines(path string, start, end, maxLines int, maxBytes int64) (string, i
 	if err != nil {
 		return "", 0, 0, false, err
 	}
-	lines := strings.Split(extract.RedactSource(string(data)), "\n")
+	lines := strings.Split(redact.Patterns(string(data), nil), "\n")
 	if start < 1 {
 		start = 1
 	}

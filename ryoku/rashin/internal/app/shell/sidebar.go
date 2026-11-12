@@ -40,19 +40,23 @@ func (item destination) glyph(current bool) *widget.Icon {
 	return item.icon
 }
 
+// the most destinations a mode has, Teams' seven
+const destinationsMax = 7
+
 // each mode's destinations, Rashin's fill the first four
-func destinations(teams bool) (items [6]destination, count int) {
+func destinations(teams bool) (items [destinationsMax]destination, count int) {
 	if teams {
-		return [6]destination{
+		return [destinationsMax]destination{
 			{protocol.TabInbox, i18n.T("Inbox"), "Ctrl 1", look.Icon.Inbox, look.IconFill.Inbox},
 			{protocol.TabTeams, i18n.T("Teams"), "Ctrl 2", look.Icon.Teams, look.IconFill.Teams},
-			{protocol.TabWork, i18n.T("Work"), "Ctrl 3", look.Icon.Tasks, look.IconFill.Tasks},
-			{protocol.TabRoutines, i18n.T("Routines"), "Ctrl 4", look.Icon.Routine, look.IconFill.Routine},
-			{protocol.TabVault, i18n.T("Vault"), "Ctrl 5", look.Icon.Vault, look.IconFill.Vault},
-			{protocol.TabActivity, i18n.T("Activity"), "Ctrl 6", look.Icon.Activity, look.IconFill.Activity},
-		}, 6
+			{protocol.TabDreams, i18n.T("Dreams"), "Ctrl 3", look.Icon.Dreams, look.IconFill.Dreams},
+			{protocol.TabWork, i18n.T("Work"), "Ctrl 4", look.Icon.Tasks, look.IconFill.Tasks},
+			{protocol.TabRoutines, i18n.T("Routines"), "Ctrl 5", look.Icon.Routine, look.IconFill.Routine},
+			{protocol.TabVault, i18n.T("Vault"), "Ctrl 6", look.Icon.Vault, look.IconFill.Vault},
+			{protocol.TabActivity, i18n.T("Activity"), "Ctrl 7", look.Icon.Activity, look.IconFill.Activity},
+		}, 7
 	}
-	return [6]destination{
+	return [destinationsMax]destination{
 		{protocol.TabAsk, i18n.T("Ask"), "Ctrl 1", look.Icon.Ask, look.IconFill.Ask},
 		{protocol.TabAgent, i18n.T("Agents"), "Ctrl 2", look.Icon.Agents, look.IconFill.Agents},
 		{protocol.TabProjects, i18n.T("Projects"), "Ctrl 3", look.Icon.Projects, look.IconFill.Projects},
@@ -85,14 +89,14 @@ type sidebar struct {
 	bare bool
 
 	fresh    navRow
-	rows     [6]navRow
+	rows     [destinationsMax]navRow
 	settings navRow
 	slab     look.Selection
 }
 
 type sidebarLayout struct {
 	fresh, settings image.Rectangle
-	rows            [6]image.Rectangle
+	rows            [destinationsMax]image.Rectangle
 	list            image.Rectangle
 	vein            int
 }
@@ -313,10 +317,11 @@ func drawNavRow(gtx layout.Context, th *look.Theme, row *navRow, fold float32, c
 	opacity := paint.PushOpacity(gtx.Ops, 1-fold)
 	defer opacity.Pop()
 	trailing := gtx.Dp(look.SideInset)
+	// a count is a number and reads in the sans; a shortcut is a key, so it keeps the mono
 	if content.count > 0 {
-		trailing += drawTrailingText(gtx, th, strconv.Itoa(content.count), th.R.Amber)
+		trailing += drawTrailingText(gtx, th, th.T.Caption, strconv.Itoa(content.count), th.R.Amber)
 	} else if content.hint != "" {
-		trailing += drawTrailingText(gtx, th, content.hint, hint)
+		trailing += drawTrailingText(gtx, th, th.T.MonoSm, content.hint, hint)
 	}
 	left := gtx.Dp(look.SideInset) + glyph + gtx.Dp(13)
 	label := gtx
@@ -326,13 +331,13 @@ func drawNavRow(gtx layout.Context, th *look.Theme, row *navRow, fold float32, c
 	offset.Pop()
 }
 
-func drawTrailingText(gtx layout.Context, th *look.Theme, value string, ink color.NRGBA) int {
+func drawTrailingText(gtx layout.Context, th *look.Theme, style look.TextStyle, value string, ink color.NRGBA) int {
 	size := gtx.Constraints.Max
 	width := gtx.Dp(look.SidebarExpanded) - 2*gtx.Dp(8)
 	record := op.Record(gtx.Ops)
 	measure := gtx
 	measure.Constraints = layout.Constraints{Max: image.Pt(width/2, size.Y)}
-	dimensions := kit.RawText(th.Theme, th.T.MonoSm, ink, value)(measure)
+	dimensions := kit.RawText(th.Theme, style, ink, value)(measure)
 	call := record.Stop()
 	offset := op.Offset(image.Pt(width-gtx.Dp(look.SideInset)-dimensions.Size.X, (size.Y-dimensions.Size.Y)/2)).Push(gtx.Ops)
 	call.Add(gtx.Ops)

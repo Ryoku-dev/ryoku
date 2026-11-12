@@ -20,6 +20,7 @@ import (
 	registry "ryoku-rashin/internal/harness"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
+	"ryoku-rashin/internal/skills"
 	"ryoku-rashin/internal/vault"
 )
 
@@ -38,6 +39,8 @@ type Service struct {
 	// defaultHarness is the registry's default harness for these settings,
 	// the last step of the engine chain
 	defaultHarness func(protocol.Settings) string
+	// signedIn reports whether a team is signed in to a harness
+	signedIn func(harness, team string) (time.Time, bool)
 	// teamsSettings are the teams settings last seen, so a change is told
 	// from what it changed
 	teamsSettings protocol.TeamsSettings
@@ -47,9 +50,16 @@ type Service struct {
 	runs   map[string]*run
 	clock  *scheduler
 	vault  *vault.Vault
+	// memory keeps what teams remember; nil when the daemon runs without it
+	memory core.Memory
+	// skills are the built-in skill sets its members are given; nil when the
+	// daemon runs without them
+	skills *skills.Library
 
 	// effects carry out an approval's action once the user decides, by kind
 	effects map[string]approvalEffect
+	// proposing keeps two proposals from both passing the open limit
+	proposing sync.Mutex
 
 	background context.Context
 	cancel     context.CancelFunc
@@ -81,7 +91,7 @@ func open(dir string, v *vault.Vault, wake func(on bool), events core.Broadcaste
 	}
 	background, cancel := context.WithCancel(context.Background())
 	s := &Service{
-		events: events, settings: settings, now: time.Now, vault: v, defaultHarness: registry.DefaultID,
+		events: events, settings: settings, now: time.Now, vault: v, defaultHarness: registry.DefaultID, signedIn: registry.SignedIn,
 		runs: make(map[string]*run), background: background, cancel: cancel,
 	}
 	var err error
@@ -97,20 +107,23 @@ func open(dir string, v *vault.Vault, wake func(on bool), events core.Broadcaste
 	}
 	s.clock = newScheduler(s, wake)
 	s.effects = map[string]approvalEffect{
-		protocol.ApprovalAction:     s.effectAction,
+		protocol.ApprovalAction:     s.effectAsked,
 		protocol.ApprovalBudget:     s.effectBudget,
 		protocol.ApprovalMail:       s.effectMail,
 		protocol.ApprovalCredential: s.effectCredential,
 		protocol.ApprovalRequest:    s.effectRequest,
+		protocol.ApprovalTeam:       s.effectTeam,
 	}
 	return s, nil
 }
 
 // Bind hands the service the session manager and starts what runs by itself:
 // queued tasks, the routine clock and the daily pruning. Tasks a restart
-// left while every team is paused stop.
+// left while every team is paused stop, and team homes every team on a
+// harness once shared become one team's own first.
 func (s *Service) Bind(sessions core.TeamSessions) {
 	settings := s.settings()
+	s.migrateHomes()
 	s.mu.Lock()
 	s.sessions = sessions
 	s.teamsSettings = settings.Teams
@@ -130,11 +143,13 @@ func (s *Service) Bind(sessions core.TeamSessions) {
 func (s *Service) Handle(ctx context.Context, method string, raw json.RawMessage) (any, error) {
 	switch method {
 	case protocol.MTeamsList:
-		return s.listTeams(), nil
+		return withoutDreams(s.listTeams()), nil
 	case protocol.MTeamsTemplates:
 		return protocol.TeamTemplatesResult{Templates: templates()}, nil
 	case protocol.MTeamsCreate:
 		return call(raw, func(p protocol.TeamCreateParams) (any, error) { return s.createTeam(ctx, p) })
+	case protocol.MTeamsPropose:
+		return call(raw, func(p protocol.TeamProposeParams) (any, error) { return s.proposeTeam(ctx, p) })
 	case protocol.MTeamsUpdate:
 		return call(raw, func(p protocol.TeamUpdateParams) (any, error) { return s.updateTeam(ctx, p) })
 	case protocol.MTeamsDelete:
@@ -179,6 +194,10 @@ func (s *Service) Handle(ctx context.Context, method string, raw json.RawMessage
 		return call(raw, func(p protocol.TeamSpendParams) (any, error) { return s.spend(p) })
 	case protocol.MTeamsPrune:
 		return call(raw, func(p protocol.TeamPruneParams) (any, error) { return s.prune(ctx, p) })
+	case protocol.MTeamsDreamCreate:
+		return call(raw, func(p protocol.DreamCreateParams) (any, error) { return s.dreamCreate(ctx, p) })
+	case protocol.MTeamsDreamAnswer:
+		return call(raw, func(p protocol.DreamAnswerParams) (any, error) { return s.dreamAnswer(ctx, p) })
 
 	case protocol.MTeamsAgentReport:
 		return call(raw, func(p protocol.AgentReportParams) (any, error) { return s.agentReport(ctx, p) })
@@ -196,6 +215,14 @@ func (s *Service) Handle(ctx context.Context, method string, raw json.RawMessage
 		return call(raw, func(p protocol.AgentCredentialRequestParams) (any, error) { return s.agentRequest(ctx, p) })
 	case protocol.MTeamsAgentCredentials:
 		return call(raw, func(p protocol.AgentRef) (any, error) { return s.agentCredentials(ctx, p) })
+	case protocol.MTeamsAgentHire:
+		return call(raw, func(p protocol.AgentHireParams) (any, error) { return s.agentHire(ctx, p) })
+	case protocol.MTeamsAgentRelease:
+		return call(raw, func(p protocol.AgentReleaseParams) (any, error) { return s.agentRelease(ctx, p) })
+	case protocol.MTeamsAgentDream:
+		return call(raw, func(p protocol.AgentDreamParams) (any, error) { return s.agentDream(ctx, p) })
+	case protocol.MTeamsAgentPresent:
+		return call(raw, func(p protocol.AgentPresentParams) (any, error) { return s.agentPresent(ctx, p) })
 
 	case protocol.MVaultInfo:
 		return s.vaultInfo(), nil

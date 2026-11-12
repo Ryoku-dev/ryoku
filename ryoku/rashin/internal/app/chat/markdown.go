@@ -83,10 +83,17 @@ func parseMarkdown(source string) []markdownBlock {
 			items := make([]markdownListItem, 0)
 			for index < len(lines) {
 				depth, ordered, number, text, matched := markdownListLine(lines[index])
-				if !matched {
+				if matched {
+					items = append(items, markdownListItem{depth: depth, ordered: ordered, number: number, text: text})
+					index++
+					continue
+				}
+				// an indented line that starts nothing of its own carries on the item above, as a wrapped item is written
+				if !listContinuation(lines, index) {
 					break
 				}
-				items = append(items, markdownListItem{depth: depth, ordered: ordered, number: number, text: text})
+				last := &items[len(items)-1]
+				last.text += " " + strings.TrimSpace(lines[index])
 				index++
 			}
 			blocks = append(blocks, markdownBlock{kind: markdownList, items: items})
@@ -151,6 +158,14 @@ func startsMarkdownBlock(lines []string, index int) bool {
 		return true
 	}
 	return index+1 < len(lines) && strings.Contains(line, "|") && isTableSeparator(lines[index+1])
+}
+
+func listContinuation(lines []string, index int) bool {
+	line := lines[index]
+	if strings.TrimSpace(line) == "" || (line[0] != ' ' && line[0] != '\t') {
+		return false
+	}
+	return !startsMarkdownBlock(lines, index)
 }
 
 func markdownHeadingLine(line string) (int, string) {

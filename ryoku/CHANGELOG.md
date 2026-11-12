@@ -1,6 +1,52 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **Rashin has Dreams: a team that works until what you asked for is built.**
+  You are the CEO; a manager agent interviews you about the design and the
+  task, hires the members it needs on harnesses the dream is signed in to,
+  hands out pieces, has them reviewed and tested, and presents the result
+  with evidence. Accept ends the dream, notes send the team back to work. A
+  dream runs without confirmations and without a token cap unless you set
+  one, keeps its own folder under `~/Dreams`, hidden from every other team,
+  and stops to ask if the manager stalls for six turns. Rashin's danger
+  floor still asks and sudo never runs; a dream has no device access such as
+  flashing a board. Parts of the manager's instructions are adapted from
+  Paperclip (MIT) (`rashin/internal/teams/dream*.go`, `rashin dreams`).
+- **Scrolling fast through Rashin's Settings no longer lags.** A frame lays
+  out only the groups on screen instead of all of Teams, Memory or Skills,
+  reads the app state without copying it and stops redrawing the sidebar's
+  icons, about half the time and a sixth of the memory per frame
+  (`rashin/internal/app/pages/settings/blocks.go`).
+- **Rashin shows each provider's logo.** Settings > Providers, the Ask model
+  menu and the Agents harness picker lead each provider and harness with its
+  mark from lobe-icons, drawn in Rashin's own ink and brighter under the
+  pointer; a provider lobe-icons has no mark for shows its initial
+  (`rashin/internal/app/look/logos`, `bin/ryoku-dev-sync-provider-logos`).
+- **Rashin's Ask can answer through Codex, Claude Code or omp.** Settings >
+  Ask > Answer with picks Rashin's providers or any installed harness; new
+  asks in the app then run on that harness with its own models in the
+  composer, which says what answers. Read only, Ask first and YOLO still
+  decide what it may change, and in Read only the harness runs in a sandbox
+  that keeps the whole computer read-only, so a harness that writes without
+  asking changes nothing either. A harness that cannot start says why, and
+  asks from the bar and the terminal stay on the providers
+  (`rashin/internal/harness/ask.go`, `rashin/internal/daemon/sandbox.go`).
+- **Rashin lists every model a provider serves.** Each provider's own listing
+  is read, with your key or none where it is public, kept for six hours and
+  merged with Rashin's picks, so NVIDIA shows its whole free catalogue and
+  OpenRouter its 454 models, 15 of them free. A model counts as free only when
+  its listing says so, and Auto, Fast and Smart use only free models whose tool
+  support is known. Seventeen free providers came in from the free-provider
+  lists (`rashin/internal/gateway/discover.go`).
+- **Settings > Providers says how much of each free allowance is left.** A
+  folded provider gets one line such as "Free tokens today: 412,300 of
+  500,000 left, as of 2 min ago" or "Credits: $4.21 of $10 left", and the
+  unfolded one lists every window with where it came from beside what
+  Rashin sent there today and this month. Figures come from the providers'
+  rate-limit headers, from OpenRouter, DeepSeek, SiliconFlow and Pollinations
+  account endpoints (read at most every ten minutes, only while Providers or
+  the Ask model menu is open, or on Test), and otherwise from the limits the
+  free-provider lists document (`rashin/internal/gateway/limits.go`).
 - **Kairos looks and works like Android 17.** Quick settings is a full shade
   now, with paged tiles you can move, resize, add and remove, brightness and
   volume sliders, the media control, grouped notifications and a power menu
@@ -39,6 +85,42 @@
 - **Rashin is rebuilt as Ryoku's optional AI system.** Its free-model router,
   read-only Ask agent, external coding harnesses, project and system Index,
   command line and Lithic app now share one socket-activated daemon.
+- **Rashin remembers you.** Once you say yes in Ask, Rashin learns facts about
+  you and your projects from quiet conversations, keeps them as plain
+  Markdown in the vault (`memory/rashin/`) and gives Ask, agents and teams
+  what helps: a short card about you, the facts that fit the question, and
+  tools to search, remember and forget. Temporary conversations leave
+  nothing behind (`rashin/internal/memory`, `rashin/internal/ask/memory.go`).
+- **Rashin memory can use Hindsight or Honcho.** Hindsight is set up on this
+  computer with `uv` from a hashed lock, or reached at an address; Honcho at
+  an address. `ryoku-rashin` now ships the MIT Hindsight Go client and
+  validator.v2 (Apache-2.0), listed in NOTICE, and installs
+  LICENSE.validator (`rashin/internal/memory/external.go`).
+- **Rashin credits the projects its memory adapts.** `rashin/NOTICE` has a
+  block for each source of the code and prompts the memory took, from Hermes
+  Agent, OpenClaw, Hindsight, nanobot, PicoClaw, Engram, OpenAI Codex, mem0,
+  Letta and Letta Code, and the package installs `LICENSE.apache-2.0` beside it.
+- **Every Rashin model has Superpowers, OpenSpec, Spec Kit and Elephant and
+  Goldfish built in.** Ask, agents and team members are told the sets that
+  are on and search and read them with the `skills` and `skill` tools; a team
+  lead is pointed to Elephant and Goldfish for designs and to Spec Kit or
+  OpenSpec for larger features, and team sandboxes see the skills read-only.
+  Sets turn off for every model or per team (`rashin/internal/skills`).
+- **`rashin skills` lists, searches and reads the built-in skills**, and
+  `rashin skills setup speckit [dir]` puts Spec Kit's scripts and templates
+  into a project that lacks them (`rashin/cmd/rashin/skills.go`).
+- **Rashin credits the skill sets it ships.** Superpowers, OpenSpec, Spec Kit
+  and Elephant and Goldfish are vendored unchanged from pinned commits in
+  `rashin/internal/skills/sets`, which `bin/ryoku-dev-sync-rashin-skills`
+  rebuilds; `rashin/NOTICE` has a block for each, and the package installs
+  their licenses as `LICENSE.superpowers`, `LICENSE.openspec`,
+  `LICENSE.speckit` and `LICENSE.egm`.
+- **Teams remember between runs.** A team keeps facts of its own, a routine's
+  run starts with the last run's report, and what a team learns about you
+  waits in the Inbox as a suggestion (`rashin/internal/teams/hooks.go`).
+- **`rashin memory` reads and changes memory from a terminal**: status, list,
+  search, add, forget, card, past conversations and learning now
+  (`rashin/cmd/rashin/memory.go`).
 - **Rashin has a Teams mode.** A team is a lead and up to five more agents
   with one purpose and a folder of its own; give it a task and it works in an
   ordinary agent session, hands pieces to its members and leaves a report in
@@ -53,6 +135,40 @@
   filesystem read-only except its team folder, Rashin's state and the keyrings
   hidden, and its own socket that serves only its own tools
   (`rashin/internal/sandbox`, `rashin/internal/daemon/sandbox.go`).
+- **Team agents can no longer reach your computer's daemons or desktop.**
+  Every Rashin sandbox (team agents, harness Checks, team screen apps and a
+  Read only Ask) now sees an empty `/run`, so the Docker, libvirt, system
+  bus, Tailscale and systemd sockets are gone from it, and Nix's, Incus' and
+  LXD's sockets are hidden too. Programs inside run through `rashin scope`,
+  which on Linux 6.12 or newer keeps them from other programs' hidden
+  sockets, such as your desktop's X server, and from signalling anything
+  outside; Settings > Teams says when the kernel is too old. Names still
+  resolve, and the network stays shared (`rashin/internal/sandbox`,
+  `rashin/cmd/rashin/scope.go`).
+- **Team agents never see your secrets.** Every team sandbox and harness Check
+  always hides SSH and GPG keys, password stores, keyrings, git and `gh`
+  credentials, cloud CLIs, package registry tokens, browsers, mail and chat
+  apps, shell histories, Rashin's own state and every harness's own state,
+  whatever the hidden list says, and a team agent starts without the login
+  session's environment. Settings > Teams > Sandbox shows that list as fixed
+  lines above your own (`rashin/internal/protocol/types.go`,
+  `rashin/internal/daemon/sandbox.go`).
+- **Teams sign in separately.** Each team runs each of its harnesses in a
+  home of its own, so a team can no longer change your own omp, hermes or
+  claude setup, nor read or change another team's. A team's Settings tab
+  opens a harness's sign-in or setup in its home, and a setup can start from
+  another team's config, never its login; a task of a team that is not
+  signed in waits with Sign in for Teams in the Inbox. While a task runs,
+  the home's instructions, config, skills, memories and extensions are
+  read-only, and before each one Rashin puts them back as you signed them in,
+  moves what a run added into a quarantine and tells you once
+  (`rashin/internal/harness/teamhome.go`).
+- **Rashin keeps secrets out of its logs and team agents out of other
+  indexes.** Session logs are scrubbed of vault values, provider keys and
+  token-shaped secrets after every turn, split ones included, and the old
+  ones once; a team agent reads only the indexes inside its own folders and
+  is no longer sent to the vault its sandbox hides (`rashin/internal/redact`,
+  `rashin/internal/session/scrub.go`, `rashin/internal/daemon/indexscope.go`).
 - **Teams can work on a schedule.** Routines give a team a task on a cron
   schedule; while one is on the daemon stays up and `rashind-routines` wakes
   it after a login or a reboot (`rashin/internal/teams/schedule.go`).

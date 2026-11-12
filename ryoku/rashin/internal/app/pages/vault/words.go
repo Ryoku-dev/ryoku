@@ -62,7 +62,7 @@ func outcomeWord(outcome string) (string, palette.Tone) {
 	return outcome, palette.Idle
 }
 
-// the teams that may use a credential, by name
+// the teams that may use a credential, by name, as a sentence without its period
 func teamNames(teams []protocol.Team, ids []string) string {
 	if len(ids) == 0 {
 		return i18n.T("No team may use it")
@@ -71,5 +71,5 @@ func teamNames(teams []protocol.Team, ids []string) string {
 	for _, id := range ids {
 		names = append(names, teamsui.TeamName(teams, id))
 	}
-	return strings.Join(names, ", ")
+	return i18n.Tf("%s may use it", strings.Join(names, ", "))
 }

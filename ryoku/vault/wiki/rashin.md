@@ -46,9 +46,16 @@ Teams is the app's second mode, opened with the Teams button beside the search
 field or Ctrl T. A team is a lead and up to five more agents, each on a harness
 and model you pick, with one purpose and a folder of its own (`~/Teams/<name>`
 by default). You give it a task, or a routine gives it one on a schedule, and
-it hands back a report in the Inbox. Templates start a Research desk, a Mail
-desk, a Repo watch, a System care team or a blank one.
+it hands back a report in the Inbox. Templates come in three levels: light
+(System care, Mail desk), medium (Repo watch, Research desk) and advanced
+(News desk, three members on two models with two routines), or start blank.
+Repo watch asks for a `GITHUB_TOKEN` and News desk for a `NEWS_API_KEY` once
+the team exists. Teams do not talk to each other.
 
+- **Proposals**: when you ask an agent or Ask for a team, it proposes one with
+  `propose_team` (or `rashin teams propose <file.json>` from a terminal). The
+  proposal waits in the Inbox; Create team makes it and then asks for its
+  credentials, Not now makes nothing. At most five wait at once.
 - **Approvals**: a mail, a request carrying a credential for the first time on
   a host, or a credential the team asks for waits for you in the Inbox or on
   the task's page, showing exactly what will be sent. Always trusts that one

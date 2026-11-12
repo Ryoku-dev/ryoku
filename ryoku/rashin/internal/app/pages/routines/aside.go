@@ -72,7 +72,7 @@ func nextRow(th *look.Theme, now, at time.Time) layout.Widget {
 	when, soon := look.When(now, at), look.Until(now, at)
 	return func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
-		children := []layout.FlexChild{layout.Flexed(1, kit.Text(th.Theme, th.T.Mono, th.R.Fg, when))}
+		children := []layout.FlexChild{layout.Flexed(1, kit.Text(th.Theme, th.T.Body, th.R.Fg, when))}
 		if soon != when {
 			children = append(children, layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, soon)))
 		}
@@ -117,7 +117,7 @@ func (a *asideState) historyRow(th *look.Theme, e *env.Env, index int, task prot
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 						layout.Rigid(kit.Text(th.Theme, th.T.Body, ink, said)),
-						layout.Rigid(kit.Text(th.Theme, th.T.MonoSm, th.R.Fg3, i18n.Tf("%s · %s", word, look.Ago(gtx.Now, at)))),
+						layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, look.Clauses(word, look.Ago(gtx.Now, at)))),
 					)
 				}),
 			)

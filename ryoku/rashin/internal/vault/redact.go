@@ -80,34 +80,71 @@ func Scrub(text, value, name string) string {
 	return replaceForms(text, forms)
 }
 
+// ValuesScrubber returns a scrubber that replaces every form of each value
+// with ‹its name›, as Redact does for the vault's own values: values maps
+// each value to its name, and a value too short to tell from an ordinary
+// word is left alone. The forms are made once, for every text it scrubs.
+func ValuesScrubber(values map[string]string) func(string) string {
+	var forms []named
+	for value, name := range values {
+		if len(value) < minRedacted {
+			continue
+		}
+		for _, form := range valueForms(value) {
+			forms = append(forms, named{form, name})
+		}
+	}
+	return formsScrubber(forms)
+}
+
+// formsScrubber replaces forms in each text it is given, longest first.
+func formsScrubber(forms []named) func(string) string {
+	if len(forms) == 0 {
+		return func(text string) string { return text }
+	}
+	sort.SliceStable(forms, func(i, j int) bool { return len(forms[i].form) > len(forms[j].form) })
+	return func(text string) string {
+		if text == "" {
+			return text
+		}
+		return replaceForms(text, forms)
+	}
+}
+
 // Redact replaces every form of every current credential value in text with
 // ‹NAME›. It opens the values once per call. Without the key no value has
 // left the vault, so the text is returned as it is.
 func (v *Vault) Redact(text string) string {
-	if text == "" || v.db == nil {
+	if text == "" {
 		return text
 	}
-	aead := v.cipher()
-	if aead == nil {
-		return text
-	}
+	return v.Scrubber()(text)
+}
+
+// Scrubber opens every current credential value once and returns what
+// Redact does with them, for a pass over many texts. It holds the values,
+// so it is dropped when the pass ends. Without the key it changes nothing.
+func (v *Vault) Scrubber() func(string) string {
 	var forms []named
-	_ = v.db.View(func(tx *bbolt.Tx) error {
-		sealed := tx.Bucket(bucketValues)
-		return tx.Bucket(bucketCredentials).ForEach(func(_, raw []byte) error {
-			var c protocol.Credential
-			if json.Unmarshal(raw, &c) != nil {
+	aead := v.cipher()
+	if v.db != nil && aead != nil {
+		_ = v.db.View(func(tx *bbolt.Tx) error {
+			sealed := tx.Bucket(bucketValues)
+			return tx.Bucket(bucketCredentials).ForEach(func(_, raw []byte) error {
+				var c protocol.Credential
+				if json.Unmarshal(raw, &c) != nil {
+					return nil
+				}
+				value, err := unseal(aead, c.ID, c.Version, sealed.Get(valueKey(c.ID, c.Version)))
+				if err != nil || len(value) < minRedacted {
+					return nil
+				}
+				for _, form := range valueForms(value) {
+					forms = append(forms, named{form, c.Name})
+				}
 				return nil
-			}
-			value, err := unseal(aead, c.ID, c.Version, sealed.Get(valueKey(c.ID, c.Version)))
-			if err != nil || len(value) < minRedacted {
-				return nil
-			}
-			for _, form := range valueForms(value) {
-				forms = append(forms, named{form, c.Name})
-			}
-			return nil
+			})
 		})
-	})
-	return replaceForms(text, forms)
+	}
+	return formsScrubber(forms)
 }

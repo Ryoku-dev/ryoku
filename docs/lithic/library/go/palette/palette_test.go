@@ -84,19 +84,68 @@ func TestThePaletteDyesAndTheLadderSetsLightness(t *testing.T) {
 	}
 }
 
-func TestForcedModesKeepSignatureNeutrals(t *testing.T) {
-	for _, dark := range []bool{true, false} {
-		r := FromPalette(Palette{Roles: wallpaper(150, 0.06, 0.2), Dark: dark, Forced: true, Source: "wallpaper"}, Look{})
-		signature := Signature(dark)
-		assertColor(t, "ground", r.Ground, signature.Ground)
-		assertColor(t, "stone2", r.Stone2, signature.Stone2)
-		assertColor(t, "slab", r.Slab, signature.Slab)
-		assertColor(t, "field", r.Field, signature.Field)
-		assertColor(t, "fg", r.Fg, signature.Fg)
-		assertColor(t, "edge", r.Edge, signature.Edge)
-		if hue := dyeOf(r.Gold).H; angle(hue, 150) > 3 {
-			t.Errorf("dark %v gold hue = %.1f, want the primary's 150", dark, hue)
+func TestDarkAndLightAreTheSignatureWhileAWallpaperPaletteExists(t *testing.T) {
+	config, cache := t.TempDir(), t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", config)
+	t.Setenv("XDG_CACHE_HOME", cache)
+	useOSRelease(t, "arch")
+	colors := map[string]any{}
+	for key, value := range wallpaper(150, 0.06, 0.2) {
+		colors[key] = hexColor(value.R, value.G, value.B)
+	}
+	writeJSON(t, filepath.Join(cache, "ryoku", "colors.json"), colors)
+	writeJSON(t, filepath.Join(config, "ryoku", "theme.json"), map[string]any{"followWallpaper": true})
+	for _, test := range []struct {
+		mode Mode
+		dark bool
+	}{{Dark, true}, {Light, false}} {
+		loaded := Load(test.mode)
+		if loaded.Source != "signature" || loaded.Dark != test.dark || len(loaded.Roles) != 0 {
+			t.Fatalf("Load(%v) = %+v, want the bare %v signature", test.mode, loaded, test.mode)
 		}
+		if FromPalette(loaded, Look{}) != Signature(test.dark) {
+			t.Fatalf("Load(%v) does not paint the signature", test.mode)
+		}
+	}
+	if loaded := Load(Follow); loaded.Source != "wallpaper" {
+		t.Fatalf("Load(Follow) source = %q, want wallpaper", loaded.Source)
+	}
+}
+
+func TestASchemeAppliesOnlyWhenFollowing(t *testing.T) {
+	config, cache := t.TempDir(), t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", config)
+	t.Setenv("XDG_CACHE_HOME", cache)
+	useOSRelease(t, "arch")
+	writeJSON(t, filepath.Join(config, "ryoku", "shell.json"), map[string]any{"themePalette": map[string]any{"primary": hexColor(9, 8, 7)}})
+	if loaded := Load(Dark); loaded.Source != "signature" {
+		t.Fatalf("Load(Dark) source = %q, want signature", loaded.Source)
+	}
+	if loaded := Load(Follow); loaded.Source != "scheme" {
+		t.Fatalf("Load(Follow) source = %q, want scheme", loaded.Source)
+	}
+}
+
+func TestUnfollowedWallpaperFallsBackToTheSignature(t *testing.T) {
+	config, cache := t.TempDir(), t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", config)
+	t.Setenv("XDG_CACHE_HOME", cache)
+	useOSRelease(t, "arch")
+	writeJSON(t, filepath.Join(cache, "ryoku", "colors.json"), map[string]any{"primary": hexColor(1, 2, 3), "surface": hexColor(250, 250, 250)})
+	writeJSON(t, filepath.Join(config, "ryoku", "theme.json"), map[string]any{"followWallpaper": false})
+	loaded := Load(Follow)
+	if loaded.Source != "signature" || !loaded.Dark {
+		t.Fatalf("Load(Follow) = %+v, want the dark signature", loaded)
+	}
+}
+
+func TestFollowTakesItsModeFromTheSurface(t *testing.T) {
+	config, cache := t.TempDir(), t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", config)
+	t.Setenv("XDG_CACHE_HOME", cache)
+	writeJSON(t, filepath.Join(cache, "ryoku", "colors.json"), map[string]any{"primary": hexColor(1, 2, 3), "surface": hexColor(250, 250, 250)})
+	if loaded := Load(Follow); loaded.Source != "wallpaper" || loaded.Dark {
+		t.Fatalf("Load(Follow) = %+v, want a light wallpaper", loaded)
 	}
 }
 
@@ -243,26 +292,34 @@ func TestNamedSchemeWinsOverWallpaper(t *testing.T) {
 	assertColor(t, "named primary", loaded.Roles["primary"], color.NRGBA{R: 9, G: 8, B: 7, A: 255})
 }
 
-func TestEditionAccentOnSignatureFallback(t *testing.T) {
+func TestEditionAccentOnSignatureInEveryMode(t *testing.T) {
 	config, cache := t.TempDir(), t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", config)
 	t.Setenv("XDG_CACHE_HOME", cache)
+	useOSRelease(t, "fedora")
+	want, ok := parseColor(tokens.Edition["fedora"])
+	if !ok {
+		t.Fatal("fedora token is not a colour")
+	}
+	for _, mode := range []Mode{Dark, Light, Follow} {
+		loaded := Load(mode)
+		if loaded.Source != "signature" {
+			t.Fatalf("Load(%v) source = %q", mode, loaded.Source)
+		}
+		assertColor(t, mode.String()+" edition gold", FromPalette(loaded, Look{}).Gold, want)
+	}
+}
+
+// useOSRelease points the edition lookup at an os-release naming id.
+func useOSRelease(t *testing.T, id string) {
+	t.Helper()
 	path := filepath.Join(t.TempDir(), "os-release")
-	if err := os.WriteFile(path, []byte("ID=fedora\n"), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte("ID="+id+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	previous := osReleasePath
 	osReleasePath = path
 	t.Cleanup(func() { osReleasePath = previous })
-	loaded := Load(Follow)
-	if loaded.Source != "signature" {
-		t.Fatalf("source = %q", loaded.Source)
-	}
-	want, ok := parseColor(tokens.Edition["fedora"])
-	if !ok {
-		t.Fatal("fedora token is not a colour")
-	}
-	assertColor(t, "edition gold", FromPalette(loaded, Look{}).Gold, want)
 }
 
 // wallpaper is a Material-style palette whose every role sits at one hue.

@@ -145,9 +145,26 @@ func PastedDir() string { return filepath.Join(RuntimeDir(), "pasted") }
 // latest frame.
 func ScreensDir() string { return filepath.Join(RuntimeDir(), "screens") }
 
+// DataDir holds what Rashin keeps that is neither state nor cache: the
+// screen home, the team homes and the built-in skills written out.
+func DataDir() string { return filepath.Join(DataHome(), "ryoku", "rashin") }
+
+// SkillsDir holds the built-in skills written out of the program, in one
+// folder named for their content hash.
+func SkillsDir() string { return filepath.Join(DataDir(), "skills") }
+
 // ScreenHome is the HOME of the apps agents open on their screens, kept apart
 // from the user's and kept between screens so a login made there lasts.
-func ScreenHome() string { return filepath.Join(DataHome(), "ryoku", "rashin", "screen-home") }
+func ScreenHome() string { return filepath.Join(DataDir(), "screen-home") }
+
+// HarnessHomes holds the team homes: one HOME per harness instance that team
+// sessions run it with, so a harness signs in for teams apart from the user.
+func HarnessHomes() string { return filepath.Join(DataDir(), "harness-homes") }
+
+// HarnessHomeGuard holds, per harness instance, the copy of its team home's
+// guarded paths made when the user signed in, and the quarantine of what a
+// team changed there since.
+func HarnessHomeGuard() string { return filepath.Join(StateDir(), "harness-homes") }
 
 // Keyrings holds the login keyrings, which keep the credential vault's key.
 func Keyrings() string { return filepath.Join(DataHome(), "keyrings") }
@@ -173,6 +190,10 @@ func TeamsDir() string { return filepath.Join(StateDir(), "teams") }
 
 // TeamsHome is where a new team's folder goes unless the user picks another.
 func TeamsHome() string { return filepath.Join(Home(), "Teams") }
+
+// DreamsHome is where a new dream's folder goes unless the user picks
+// another; like TeamsHome, every team agent sees it empty.
+func DreamsHome() string { return filepath.Join(Home(), "Dreams") }
 
 // CredentialVault holds the sealed credentials teams use and their record of
 // use. Its key lives in the login keyring, never beside it.

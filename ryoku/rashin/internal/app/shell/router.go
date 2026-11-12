@@ -2,6 +2,7 @@ package shell
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 
 	"gioui.org/io/event"
@@ -23,6 +24,7 @@ var shortcutKeys = []event.Filter{
 	key.Filter{Name: "4", Required: key.ModShortcut},
 	key.Filter{Name: "5", Required: key.ModShortcut},
 	key.Filter{Name: "6", Required: key.ModShortcut},
+	key.Filter{Name: "7", Required: key.ModShortcut},
 	key.Filter{Name: "T", Required: key.ModShortcut},
 	key.Filter{Name: ",", Required: key.ModShortcut},
 	key.Filter{Name: "\\", Required: key.ModShortcut},
@@ -39,13 +41,16 @@ var escapeKey = key.Filter{Name: key.NameEscape}
 // each mode's destinations in the order Ctrl 1 onwards reaches them
 var (
 	rashinTabs = []string{protocol.TabAsk, protocol.TabAgent, protocol.TabProjects, protocol.TabIndex}
-	teamsTabs  = []string{protocol.TabInbox, protocol.TabTeams, protocol.TabWork, protocol.TabRoutines, protocol.TabVault, protocol.TabActivity}
+	teamsTabs  = []string{protocol.TabInbox, protocol.TabTeams, protocol.TabDreams, protocol.TabWork, protocol.TabRoutines, protocol.TabVault, protocol.TabActivity}
 )
 
 func teamsTab(tab string) bool { return slices.Contains(teamsTabs, tab) }
 
 // every page, each draws the dialogs it owns whichever one is shown
-var pageTabs = slices.Concat(rashinTabs, []string{protocol.TabSettings}, teamsTabs)
+var pageTabs = slices.Concat(rashinTabs, []string{protocol.TabSettings, protocol.TabMemory}, teamsTabs)
+
+// full pages that belong to neither mode, they keep the mode and the list they were opened from
+func standaloneTab(tab string) bool { return tab == protocol.TabSettings || tab == protocol.TabMemory }
 
 type Place struct {
 	Tab             string
@@ -54,6 +59,11 @@ type Place struct {
 	ProjectView     string
 	Worktree        string
 	SettingsSection string
+	// what the Memory page shows, as env.MemoryPlace names it
+	MemoryFilter string
+	MemoryScope  string
+	Memory       string
+	MemoryCard   bool
 	// what a Teams destination has open, as env.TeamsPlace names it
 	Team       string
 	TeamView   string
@@ -68,6 +78,7 @@ type Place struct {
 func (place Place) key() string {
 	return strings.Join([]string{
 		place.Tab, place.Session, place.Project, place.Team, place.TeamTask, place.Routine, place.Credential, place.Draft, place.Template,
+		place.MemoryFilter, place.MemoryScope, place.Memory, strconv.FormatBool(place.MemoryCard),
 	}, "\x00")
 }
 
@@ -139,7 +150,7 @@ func (r *Router) SwitchMode() {
 
 func (r *Router) remember(place Place) {
 	switch {
-	case place.Tab == protocol.TabSettings:
+	case standaloneTab(place.Tab):
 	case teamsTab(place.Tab):
 		r.teams, r.lastTeams = true, place
 	default:
@@ -151,6 +162,7 @@ func (r *Router) Navigate(tab, session string) {
 	place := r.Current()
 	if validTab(tab) && tab != place.Tab {
 		place.Team, place.TeamView, place.TeamTask, place.Routine, place.Credential, place.Draft, place.Template = "", "", "", "", "", "", ""
+		place.MemoryFilter, place.MemoryScope, place.Memory, place.MemoryCard = "", "", "", false
 		place.Tab = tab
 	}
 	place.Session = session
@@ -298,7 +310,7 @@ func (r *Router) HandleKeys(gtx layout.Context, overlays *look.Overlays) {
 			r.OnTogglePanel()
 		case e.Name == "T" && shortcut:
 			r.SwitchMode()
-		case shortcut && e.Name >= "1" && e.Name <= "6":
+		case shortcut && e.Name >= "1" && e.Name <= "7":
 			tabs := rashinTabs
 			if r.teams {
 				tabs = teamsTabs
@@ -325,5 +337,5 @@ func (r *Router) HandleKeys(gtx layout.Context, overlays *look.Overlays) {
 }
 
 func validTab(tab string) bool {
-	return tab == protocol.TabSettings || slices.Contains(rashinTabs, tab) || teamsTab(tab)
+	return standaloneTab(tab) || slices.Contains(rashinTabs, tab) || teamsTab(tab)
 }

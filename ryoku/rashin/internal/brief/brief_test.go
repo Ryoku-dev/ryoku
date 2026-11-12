@@ -87,6 +87,36 @@ func TestTheBriefClaimsOnlyWhatIsThere(t *testing.T) {
 	}
 }
 
+// A team task's agent runs in a sandbox that hides the vault, so it is not
+// sent there; it is told instead what it can change and what looks empty.
+func TestATeamAgentIsToldWhatItsSandboxReaches(t *testing.T) {
+	vault := machine(t, true)
+	text := Agent(Session{
+		Info:     protocol.SessionInfo{Cwd: "/teams/digest", Team: "team-1", TeamTask: "task-1"},
+		Writable: []string{"/home/me/Projects/site"},
+		Team:     "Your team is Digest.",
+	})
+	for _, gone := range []string{vault, "this machine's map", "ryoku owner", "vault wiki page"} {
+		if strings.Contains(text, gone) {
+			t.Errorf("the team brief still says %q", gone)
+		}
+	}
+	for _, want := range []string{
+		"- Folder: /teams/digest",
+		"You can change only this folder and /home/me/Projects/site;",
+		"the Ryoku vault, the credential vault, other teams' folders and the paths Settings > Teams hides look empty",
+		"code search reaches only the indexes inside the folders you can change",
+		"Rashin is Ryoku's optional assistant", "Your team is Digest.",
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("the team brief does not say %q", want)
+		}
+	}
+	if solo := Agent(Session{Info: protocol.SessionInfo{Cwd: "/work/app"}}); !strings.Contains(solo, "The vault wiki page rashin is the full guide.") || strings.Contains(solo, "- Reach:") {
+		t.Error("a session of no team lost the vault or was told of a sandbox")
+	}
+}
+
 func TestTheVaultTextIsCutToItsBudget(t *testing.T) {
 	machine(t, true)
 	text := Vault(400)

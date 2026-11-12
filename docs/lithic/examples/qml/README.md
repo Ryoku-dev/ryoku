@@ -9,7 +9,7 @@ QT_FORCE_STDERR_LOGGING=1 \
   qml6 -I ../../library/qml Gallery.qml
 ```
 
-`LITHIC_MODE` accepts `follow`, `dark`, or `light`. Set `QT_FORCE_STDERR_LOGGING=1` on every plain QML run so Qt writes diagnostics to stderr instead of sending them only to the journal.
+`LITHIC_MODE` accepts `dark` (the default, the signature), `light`, or `follow`. Set `QT_FORCE_STDERR_LOGGING=1` on every plain QML run so Qt writes diagnostics to stderr instead of sending them only to the journal.
 
 ## Pages
 
@@ -41,7 +41,7 @@ QT_QPA_PLATFORM=offscreen \
   qml6 -I ../../library/qml Gallery.qml
 ```
 
-Set `LITHIC_PALETTE_JSON=/path/to/colors.json` when a deterministic palette should replace the live palette. The file may contain Material roles directly or wrap them in `themePalette`.
+Set `LITHIC_PALETTE_JSON=/path/to/colors.json` with `LITHIC_MODE=follow` when a deterministic palette should replace the live palette; dark and light keep the signature. The file may contain Material roles directly or wrap them in `themePalette`.
 
 The gallery is 1440 dp wide, at least 900 dp high, and grows to the loaded page's complete `implicitHeight`.
 

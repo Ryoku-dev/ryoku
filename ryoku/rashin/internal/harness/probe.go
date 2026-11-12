@@ -22,10 +22,13 @@ import (
 // last option.
 var probeTimeout = 30 * time.Second
 
-// Probe starts a harness once the way a team task would, sandboxed in a
-// folder of its own under the cache, opens a session without a prompt, picks
-// the model and options given and stops it. What the harness reports is
-// recorded as for any start. One probe runs per harness at a time.
+// Probe starts a harness once without a prompt, picks the model and options
+// given and stops it. With a team it runs the way that team's task would,
+// sandboxed in base in the team's own home; without one it runs as an Agents
+// session does, as the user in the user's own home, to read the user's list.
+// Either way it works in a folder of its own under the cache, and what the
+// harness reports is recorded for that home alone. One probe runs per
+// harness at a time.
 func (r *Registry) Probe(ctx context.Context, params protocol.HarnessProbeParams, base sandbox.Spec) (protocol.HarnessProbeResult, error) {
 	settings, err := config.Load()
 	if err != nil {
@@ -80,6 +83,10 @@ func (r *Registry) probe(ctx context.Context, id string, params protocol.Harness
 	if !info.Installed {
 		return false, i18n.Tf("%s is not installed.", name)
 	}
+	team := params.Team
+	if _, signed := SignedIn(id, team); team != "" && !signed {
+		return false, i18n.Tf("This team is not signed in to %s. Sign it in for Teams first.", name)
+	}
 	dir := probeDir(id)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return false, err.Error()
@@ -87,15 +94,18 @@ func (r *Registry) probe(ctx context.Context, id string, params protocol.Harness
 	defer os.RemoveAll(dir)
 	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
 	defer cancel()
-	spec := base
-	spec.Folder = paths.Resolved(dir)
-	agent, err := r.NewAgent(ctx, core.HarnessOptions{
-		Session:   protocol.SessionInfo{Kind: protocol.KindAgent, Harness: id, Cwd: dir, Origin: protocol.OriginTeam},
+	options := core.HarnessOptions{
+		Session:   protocol.SessionInfo{Kind: protocol.KindAgent, Harness: id, Cwd: dir},
 		Harness:   id,
 		Cwd:       dir,
 		Approvals: func() string { return protocol.ApprovalsReadOnly },
-		Sandbox:   &spec,
-	})
+	}
+	if team != "" {
+		spec := base
+		spec.Folder = paths.Resolved(dir)
+		options.Session.Origin, options.Session.Team, options.Sandbox = protocol.OriginTeam, team, &spec
+	}
+	agent, err := r.NewAgent(ctx, options)
 	if err != nil {
 		return false, err.Error()
 	}
@@ -110,10 +120,9 @@ func (r *Registry) probe(ctx context.Context, id string, params protocol.Harness
 	if err := agent.Start(ctx, sink); err != nil {
 		return false, failed(err)
 	}
-	learned, _ := r.info(ctx, id)
 	catalog := protocol.HarnessCapabilities{}
-	if learned.Capabilities != nil {
-		catalog = *learned.Capabilities
+	if learned := r.capabilitiesFor(id, info.Path, team); learned != nil {
+		catalog = *learned
 	}
 	var took []string
 	if params.Model != "" {
@@ -131,10 +140,16 @@ func (r *Registry) probe(ctx context.Context, id string, params protocol.Harness
 		}
 		took = append(took, picked)
 	}
-	if len(took) != 0 {
+	switch {
+	case team == "" && len(took) != 0:
+		return true, i18n.Tf("%s started and took %s.", name, strings.Join(took, ", "))
+	case team == "" && catalog.DefaultModel != "":
+		return true, i18n.Tf("%s started on %s.", name, choiceName(catalog.ModelList, catalog.DefaultModel))
+	case team == "":
+		return true, i18n.Tf("%s started.", name)
+	case len(took) != 0:
 		return true, i18n.Tf("%s started in the sandbox and took %s.", name, strings.Join(took, ", "))
-	}
-	if catalog.DefaultModel != "" {
+	case catalog.DefaultModel != "":
 		return true, i18n.Tf("%s started in the sandbox on %s.", name, choiceName(catalog.ModelList, catalog.DefaultModel))
 	}
 	return true, i18n.Tf("%s started in the sandbox.", name)
@@ -154,14 +169,19 @@ func (r *Registry) info(ctx context.Context, id string) (protocol.HarnessInfo, b
 	return protocol.HarnessInfo{}, false
 }
 
-// probeDir is the folder a probe of id runs in. An instance id is the user's
-// to choose, so it is escaped to stay one name inside the probe folder.
+// probeDir is the folder a probe of id runs in.
 func probeDir(id string) string {
+	return filepath.Join(paths.CacheDir(), "probe", instanceName(id))
+}
+
+// instanceName is a harness id as one file name. An instance id is the
+// user's to choose, so it is escaped to stay one name inside its folder.
+func instanceName(id string) string {
 	name := url.PathEscape(id)
 	if name == "." || name == ".." {
 		name = strings.ReplaceAll(name, ".", "%2E")
 	}
-	return filepath.Join(paths.CacheDir(), "probe", name)
+	return name
 }
 
 func choiceName(choices []protocol.Choice, id string) string {

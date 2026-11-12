@@ -93,7 +93,7 @@ func (d *askDialog) keep(team protocol.Team) {
 			chosen = member
 		}
 	}
-	d.engine.Keep = chosen
+	d.engine.Keep, d.engine.Team = chosen, team.ID
 	key := team.ID + "\x00" + d.memberID
 	if key != d.engineFor {
 		d.engineFor = key
@@ -126,10 +126,8 @@ func (d *askDialog) body(gtx layout.Context, e *env.Env, teams []protocol.Team, 
 	}
 	// the lead hands pieces to the members, so naming the lead itself would change nothing
 	leads := i18n.T("The lead takes it and hands pieces to the others.")
-	for _, member := range team.Members {
-		if member.Lead {
-			leads = i18n.Tf("%s · %s", leads, teamsui.MemberEngine(snapshot, member).Short())
-		}
+	if lead, at := teamsui.Lead(team.Members); at >= 0 {
+		leads = i18n.Tf("The lead takes it on %s and hands pieces to the others.", teamsui.MemberEngine(snapshot, lead).Short())
 	}
 	members := []look.SelectOption{{Label: i18n.T("The lead decides"), Detail: leads}}
 	ids := []string{""}
@@ -141,7 +139,7 @@ func (d *askDialog) body(gtx layout.Context, e *env.Env, teams []protocol.Team, 
 		if member.ID == d.memberID {
 			memberIndex = len(ids)
 		}
-		members = append(members, look.SelectOption{Label: member.Name, Detail: i18n.Tf("%s · %s", member.Title, teamsui.MemberEngine(snapshot, member).Short())})
+		members = append(members, look.SelectOption{Label: member.Name, Detail: i18n.Tf("%s on %s", member.Title, teamsui.MemberEngine(snapshot, member).Short())})
 		ids = append(ids, member.ID)
 	}
 	d.team.Form, d.team.Label, d.team.Icon = look.SelectQuiet, i18n.T("Team"), look.Icon.Teams

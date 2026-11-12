@@ -56,6 +56,16 @@ type Snapshot struct {
 	Approvals []protocol.Approval
 	Routines  []protocol.Routine
 	Vault     protocol.VaultInfo
+	// Memory is memory's status, nil when the daemon runs without it;
+	// MemoryChanges are the changes seen so far by id, and MemoryRevision
+	// moves with every memory.changed, so a page showing memories knows to
+	// load them again.
+	Memory         *protocol.MemoryStatus
+	MemoryChanges  map[string]protocol.MemoryChange
+	MemoryRevision uint64
+	// MemorySetup is the latest memory.setup progress, kept after its last
+	// step until the next setup starts or a snapshot replaces it.
+	MemorySetup *protocol.MemorySetupProgress
 }
 
 // Store reduces daemon snapshots and events into one app state.
@@ -78,28 +88,33 @@ type Store struct {
 	progress   map[string]protocol.IndexProgress
 	attached   map[string]*chat.Model
 	// what a session streamed while the replay that opens it was still on its way
-	arriving   map[string]*arrival
-	focus      protocol.UIOpenParams
-	notices    []protocol.Notice
-	screens    map[string]protocol.ScreenState
-	teamsState teamsState
-	gitNext    uint64
-	gitChanged map[string]map[uint64]func()
-	invalidate func()
+	arriving    map[string]*arrival
+	focus       protocol.UIOpenParams
+	notices     []protocol.Notice
+	screens     map[string]protocol.ScreenState
+	teamsState  teamsState
+	memoryState memoryState
+	gitNext     uint64
+	gitChanged  map[string]map[uint64]func()
+	invalidate  func()
+	// the last snapshot handed out and the revision it shows
+	published   *Snapshot
+	publishedAt uint64
 }
 
 func New(invalidate func()) *Store {
 	return &Store{
-		sessions:   make(map[string]protocol.SessionInfo),
-		progress:   make(map[string]protocol.IndexProgress),
-		attached:   make(map[string]*chat.Model),
-		arriving:   make(map[string]*arrival),
-		worktrees:  make(map[string][]protocol.WorktreeInfo),
-		tasks:      make(map[string][]protocol.TaskInfo),
-		reviews:    make(map[string][]protocol.ReviewComment),
-		gitChanged: make(map[string]map[uint64]func()),
-		teamsState: newTeamsState(),
-		invalidate: invalidate,
+		sessions:    make(map[string]protocol.SessionInfo),
+		progress:    make(map[string]protocol.IndexProgress),
+		attached:    make(map[string]*chat.Model),
+		arriving:    make(map[string]*arrival),
+		worktrees:   make(map[string][]protocol.WorktreeInfo),
+		tasks:       make(map[string][]protocol.TaskInfo),
+		reviews:     make(map[string][]protocol.ReviewComment),
+		gitChanged:  make(map[string]map[uint64]func()),
+		teamsState:  newTeamsState(),
+		memoryState: newMemoryState(),
+		invalidate:  invalidate,
 	}
 }
 
@@ -143,6 +158,7 @@ func (s *Store) ApplySnapshot(snapshot protocol.Snapshot) {
 	s.projects = cloneProjects(snapshot.Projects)
 	s.tasks = groupTasks(snapshot.Tasks)
 	s.teamsState.applySnapshotLocked(snapshot)
+	s.memoryState.applySnapshotLocked(snapshot)
 	s.screens = make(map[string]protocol.ScreenState, len(snapshot.Screens))
 	for _, screen := range snapshot.Screens {
 		s.screens[screen.Session] = screen
@@ -289,6 +305,9 @@ func (s *Store) Apply(event protocol.Event) error {
 	if handled, teamsErr := s.teamsState.applyLocked(event); handled {
 		err = teamsErr
 	}
+	if handled, memoryErr := s.memoryState.applyLocked(event); handled {
+		err = memoryErr
+	}
 	switch event.Event {
 	case protocol.EvtSessionEvent:
 		var data protocol.SessionEventData
@@ -409,6 +428,8 @@ func (s *Store) Apply(event protocol.Event) error {
 		}
 	}
 	if err != nil {
+		// an event that failed half way may still have written part of the store
+		s.changedLocked()
 		s.mu.Unlock()
 		return err
 	}
@@ -423,9 +444,16 @@ func (s *Store) Apply(event protocol.Event) error {
 	return nil
 }
 
+// Snapshot is the store at its current revision. Every caller until the next
+// change shares one copy, which is why a Snapshot is only ever read: pages ask
+// for it many times in a frame, and copying the store each time made a frame
+// allocate several hundred kilobytes.
 func (s *Store) Snapshot() Snapshot {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.published != nil && s.publishedAt == s.revision {
+		return *s.published
+	}
 	result := Snapshot{
 		Revision:   s.revision,
 		Epoch:      s.epoch,
@@ -454,12 +482,14 @@ func (s *Store) Snapshot() Snapshot {
 		result.Screens[id] = screen
 	}
 	s.teamsState.snapshotLocked(&result)
+	s.memoryState.snapshotLocked(&result)
 	for id, progress := range s.progress {
 		result.Progress[id] = progress
 	}
 	for id, model := range s.attached {
 		result.Attached[id] = Attached{Info: model.Info(), Model: model}
 	}
+	s.published, s.publishedAt = &result, s.revision
 	return result
 }
 

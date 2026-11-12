@@ -293,7 +293,7 @@ func (d *draft) layoutAside(gtx layout.Context, e *env.Env, members []protocol.M
 	snapshot := e.Snapshot()
 	rows := []layout.Widget{
 		func(gtx layout.Context) layout.Dimensions {
-			return crewChart(gtx, th, snapshot, members, nil, miniCrew(th))
+			return teamsui.CrewChart(gtx, th, snapshot, members, nil, teamsui.MiniCrew(th))
 		},
 		kit.AsideNote(th.Theme, i18n.Tf("Works in %s.", paths.Short(d.folderPath()))),
 		kit.AsideNote(th.Theme, i18n.T("Runs in a sandbox: it reads your files but writes only in its folder, and never reaches your keyring, the vault or other teams.")),

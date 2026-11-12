@@ -107,7 +107,7 @@ func drawPaletteRow(gtx layout.Context, th *look.Theme, state *paletteRow, actio
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 			layout.Flexed(1, kit.RawText(th.Theme, th.T.Label, th.R.Fg, action.label)),
 			layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
-			layout.Rigid(kit.RawText(th.Theme, th.T.MonoSm, th.R.Fg3, action.kind)),
+			layout.Rigid(kit.RawText(th.Theme, th.T.Caption, th.R.Fg3, action.kind)),
 		)
 	})
 }

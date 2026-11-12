@@ -297,3 +297,10 @@ func (s *server) memberName(teamID, memberID string) string {
 	}
 	return i18n.T("A removed member")
 }
+
+func (s *server) teamName(id string) string {
+	if index := s.data.teams.teamIndex(id); index >= 0 {
+		return s.data.teams.teams[index].Name
+	}
+	return i18n.T("A removed team")
+}

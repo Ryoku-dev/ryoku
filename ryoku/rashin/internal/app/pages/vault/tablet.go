@@ -58,7 +58,7 @@ func (t *tablet) layout(gtx layout.Context, e *env.Env, p *Page, teams []protoco
 		}
 		children = append(children,
 			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-			layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2, teamNames(teams, credential.Teams)+" · "+usedWords(gtx, credential))),
+			layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2, i18n.Tf("%s. %s.", teamNames(teams, credential.Teams), usedWords(gtx, credential)))),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
@@ -74,13 +74,13 @@ func (t *tablet) layout(gtx layout.Context, e *env.Env, p *Page, teams []protoco
 	})
 }
 
-// when it was last used and how often, or that it never was
+// how often it was used and when last, or that it never was
 func usedWords(gtx layout.Context, credential protocol.Credential) string {
 	if credential.LastUsed == nil || credential.Uses == 0 {
-		return i18n.T("never used")
+		return i18n.T("Never used")
 	}
 	if credential.Uses == 1 {
-		return i18n.Tf("used %s, once", look.Ago(gtx.Now, *credential.LastUsed))
+		return i18n.Tf("Used once, %s", look.Ago(gtx.Now, *credential.LastUsed))
 	}
-	return i18n.Tf("used %s, %d times", look.Ago(gtx.Now, *credential.LastUsed), credential.Uses)
+	return i18n.Tf("Used %d times, last %s", credential.Uses, look.Ago(gtx.Now, *credential.LastUsed))
 }

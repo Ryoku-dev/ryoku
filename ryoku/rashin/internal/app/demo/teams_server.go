@@ -34,7 +34,13 @@ func (s *server) callTeams(method string, raw json.RawMessage) (any, error) {
 	case protocol.MTeamsTemplates:
 		return protocol.TeamTemplatesResult{Templates: demoTemplates()}, nil
 	case protocol.MTeamsCreate:
-		return teamsCall(raw, func(p protocol.TeamCreateParams) (any, error) { return s.createTeam(p, false) })
+		return teamsCall(raw, func(p protocol.TeamCreateParams) (any, error) {
+			team, err := s.createTeam(p, false)
+			if err == nil {
+				s.askForCredentials(team, demoTemplate(p.Template).Credentials)
+			}
+			return team, err
+		})
 	case protocol.MTeamsUpdate:
 		return teamsCall(raw, func(p protocol.TeamUpdateParams) (any, error) { return s.updateTeam(p) })
 	case protocol.MTeamsDelete:
@@ -228,7 +234,7 @@ func (s *server) createTeam(p protocol.TeamCreateParams, imported bool) (protoco
 		}
 		routines = append(routines, routine)
 	}
-	t.spend[team.ID] = protocol.TeamSpend{Team: team.ID, Month: demoMonth(Epoch), Cap: team.Budget.MonthTokens, Days: spreadMonth(Epoch, 0, 1)}
+	t.spend[team.ID] = protocol.TeamSpend{Team: team.ID, Month: demoMonth(Epoch), Cap: team.Budget.MonthTokens, Days: monthDays(Epoch)}
 	s.record(protocol.Activity{Action: action, Target: team.Name, OK: true, Team: team.ID})
 	for _, routine := range routines {
 		t.routines = append(t.routines, routine)
@@ -858,7 +864,7 @@ func (s *server) teamSpend(p protocol.TeamSpendParams) (protocol.TeamSpend, erro
 		spend.Cap = t.teams[index].Budget.MonthTokens
 		return spend, nil
 	}
-	all := protocol.TeamSpend{Month: month, Days: spreadMonth(Epoch, 0, 1)}
+	all := protocol.TeamSpend{Month: month, Days: monthDays(Epoch)}
 	for _, team := range s.listTeams() {
 		spend := t.spend[team.ID]
 		all.Tokens += spend.Tokens
@@ -874,6 +880,8 @@ func (s *server) teamSpend(p protocol.TeamSpendParams) (protocol.TeamSpend, erro
 			if index < len(spend.Days) {
 				all.Days[index].Input += spend.Days[index].Input
 				all.Days[index].Output += spend.Days[index].Output
+				all.Days[index].Tasks += spend.Days[index].Tasks
+				all.Days[index].Routines += spend.Days[index].Routines
 			}
 		}
 	}

@@ -7,11 +7,9 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/op"
-	"gioui.org/unit"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
-	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/env"
@@ -93,7 +91,7 @@ func (strip *goalStrip) layout(gtx layout.Context, e *env.Env, info protocol.Ses
 				layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
 				layout.Flexed(1, kit.RawText(th.Theme, th.T.Label, th.R.Fg, firstGoalLine(goal.Objective))),
 				layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
-				layout.Rigid(kit.RawText(th.Theme, th.T.MonoSm, th.R.Fg3, facts)),
+				layout.Rigid(kit.RawText(th.Theme, th.T.Caption, th.R.Fg3, facts)),
 			}
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, append(row, buttons...)...)
 		}
@@ -109,9 +107,7 @@ func (strip *goalStrip) layout(gtx layout.Context, e *env.Env, info protocol.Ses
 		)
 	})
 	content := record.Stop()
-	bounds, cut := image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid)
-	kit.FillCut(gtx.Ops, bounds, cut, th.R.Slab)
-	kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), th.R.Vein)
+	kit.SlabSurface(gtx, th.Theme, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid), th.R.Slab)
 	content.Add(gtx.Ops)
 	return dimensions
 }
@@ -130,7 +126,7 @@ func stripClaim(status string) (palette.Tone, string) {
 	return palette.Becoming, i18n.T("Goal")
 }
 
-// "turn 3 of 30 · 4 min", the time running until the goal ends
+// "turn 3 of 30, 4 min", the time running until the goal ends
 func goalFacts(goal *protocol.Goal, now time.Time) string {
 	end := now
 	if goal.Ended != nil {
@@ -144,7 +140,7 @@ func goalFacts(goal *protocol.Goal, now time.Time) string {
 	if minutes < 1 {
 		return turns
 	}
-	return turns + " · " + i18n.Tf("%d min", minutes)
+	return look.Clauses(turns, i18n.Tf("%d min", minutes))
 }
 
 func firstGoalLine(objective string) string {
@@ -171,7 +167,7 @@ func goalFact(info protocol.SessionInfo) string {
 		return ""
 	}
 	if goal.Status == protocol.GoalPaused {
-		return i18n.T("Goal paused") + " · "
+		return i18n.T("Goal paused")
 	}
-	return i18n.Tf("Goal, turn %d of %d", min(goal.Turns+1, goal.MaxTurns), goal.MaxTurns) + " · "
+	return i18n.Tf("Goal, turn %d of %d", min(goal.Turns+1, goal.MaxTurns), goal.MaxTurns)
 }

@@ -39,10 +39,11 @@ type slab struct {
 // a team's tile: its whole face opens the team, its button gives the team a task
 type teamTile struct {
 	slab
-	give kit.Plaque
+	give  kit.Plaque
+	month teamsui.MonthSpend
 }
 
-// a tile lifts off the pane as a slab does, a quiet one is only its vein until hovered; a notch ink marks the corner of a team that needs the user
+// a tile lifts off the pane as a slab does, a quiet one is bare until hovered; a notch ink marks the corner of a team that needs the user
 func (s *slab) layout(gtx layout.Context, th *look.Theme, quiet bool, notch color.NRGBA, body layout.Widget) layout.Dimensions {
 	lit := look.Transition(gtx, &s.hover, s.click.Hovered(), th.Motion.HoverIn, th.Motion.HoverOut)
 	press := look.Transition(gtx, &s.press, s.click.Pressed(), th.Motion.Press, th.Motion.Press)
@@ -56,15 +57,14 @@ func (s *slab) layout(gtx layout.Context, th *look.Theme, quiet bool, notch colo
 		if quiet {
 			fill = palette.WithAlpha(th.R.Slab, lit)
 		}
-		kit.FillCut(gtx.Ops, bounds, cut, palette.Mix(fill, th.R.Fg, tokens.AlphaPressRow*press))
-		kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(1)), th.R.Vein)
+		kit.SlabSurface(gtx, th.Theme, bounds, cut, palette.Mix(fill, th.R.Fg, tokens.AlphaPressRow*press))
 		kit.Notch(gtx.Ops, image.Point{}, gtx.Dp(th.Cut.Notch), notch)
 		call.Add(gtx.Ops)
 		return dimensions
 	})
 }
 
-// who the team is and how it stands, what it is for, its crew, what it is at, its month, and its one action at the foot
+// who the team is and how it stands, what it is for, its crew, what it is at, its month's line and meter, and its one action at the foot
 func (b *board) layoutTile(gtx layout.Context, e *env.Env, snapshot appstate.Snapshot, working []protocol.TeamTask, team protocol.Team) layout.Dimensions {
 	th := e.Theme
 	tile := b.tile(team.ID)
@@ -118,8 +118,15 @@ func (b *board) layoutTile(gtx layout.Context, e *env.Env, snapshot appstate.Sna
 		)
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	}
+	spark := teamsui.TokensTrend(gtx.Now, tile.month.Spend(), "")
+	// a sparkline under the meter needs no day labels; the board's own chart carries them
+	spark.Proof, spark.Empty, spark.Ticks, spark.Height = "", "", nil, 48
 	foot := func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return look.HoldUntil(gtx, tile.month.Loaded(), func(gtx layout.Context) layout.Dimensions { return spark.Layout(gtx, th) })
+			}),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 			layout.Rigid(teamsui.MonthMeter(th, team.Stats.MonthTokens, team.Budget.MonthTokens, team.Budget.WarnPercent)),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -183,7 +190,7 @@ func crewStrip(th *look.Theme, members []protocol.Member) layout.Widget {
 			}
 			children = append(children, layout.Rigid(teamsui.Mark(th, member.Name, crewMark, member.Lead)))
 		}
-		led := i18n.Tf("Led by %s · %s", lead.Name, membersWord(len(members)))
+		led := i18n.Tf("Led by %s, %s", lead.Name, membersWord(len(members)))
 		children = append(children,
 			layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
 			layout.Flexed(1, kit.Text(th.Theme, th.T.Detail, th.R.Fg2, led)),
@@ -200,7 +207,7 @@ func nowLine(now time.Time, snapshot appstate.Snapshot, working []protocol.TeamT
 			continue
 		}
 		if member := teamsui.MemberName(team, task.Member); member != "" {
-			return i18n.Tf("Now: %s · %s", task.Title, member), true
+			return i18n.Tf("Now: %s, with %s", task.Title, member), true
 		}
 		return i18n.Tf("Now: %s", task.Title), true
 	}

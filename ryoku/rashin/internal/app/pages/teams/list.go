@@ -15,9 +15,9 @@ import (
 
 // List draws every team by name with how its crew stands.
 func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
-	snapshot := e.Snapshot()
-	rows := make([]look.SideRow, 0, len(snapshot.Teams))
-	for _, team := range snapshot.Teams {
+	teams := teamsui.Ordinary(e.Snapshot().Teams)
+	rows := make([]look.SideRow, 0, len(teams))
+	for _, team := range teams {
 		rows = append(rows, teamRow(e.Theme, team))
 	}
 	p.list.Empty = i18n.T("Teams you make are listed here.")
@@ -43,7 +43,7 @@ func teamRow(th *look.Theme, team protocol.Team) look.SideRow {
 	_, tone, working := teamsui.TeamStanding(team)
 	row := look.SideRow{
 		ID: team.ID, Title: team.Name, Working: working,
-		Facts: i18n.Tf("%s · %d working", membersWord(len(team.Members)), team.Stats.Working),
+		Facts: i18n.Tf("%s, %d working", membersWord(len(team.Members)), team.Stats.Working),
 	}
 	if tone == palette.Attention {
 		row.Tone = tone

@@ -5,11 +5,14 @@ revision=1
 archs="x86_64"
 short_desc="Ryoku Rashin AI system"
 maintainer="Ryoku <releases@ryoku.dev>"
-license="GPL-3.0-or-later, Apache-2.0, OFL-1.1"
+license="GPL-3.0-or-later, Apache-2.0, OFL-1.1, MIT"
 homepage="https://ryoku.dev"
 hostmakedepends="go pkg-config"
 makedepends="wayland-devel libxkbcommon-devel libglvnd-devel Vulkan-Headers"
 depends="ryoku-desktop>=${version} wayland libxkbcommon libglvnd vulkan-loader bubblewrap"
+# xbps has no optional dependencies: uv, which sets up Hindsight, the optional
+# memory engine, is optional and comes with the desktop package set
+# (void/packages/translations.tsv), so it is not a depends.
 distfiles="https://repo.ryoku.dev/sources/ryoku-${version}.tar.gz"
 checksum=SKIP
 wrksrc="ryoku-${version}"

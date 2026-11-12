@@ -43,6 +43,7 @@ type fixtures struct {
 	setups    map[string]protocol.SetupResult
 	activity  map[string]protocol.ActivityResult
 	teams     teamsFixtures
+	memory    memoryFixtures
 	// how often the demo's API key was replaced
 	apiKeys int
 }
@@ -64,6 +65,8 @@ func makeFixtures() fixtures {
 		Turns:   2,
 		LastSeq: 8,
 		Preview: i18n.T("The indexer is rebuilding semantic vectors."),
+		// narrowed after learning ran, as its transcript shows
+		Memory: protocol.MemoryUseOnly,
 	}
 	askRunning := protocol.SessionInfo{
 		ID: "ask-20261110-103800-live", Kind: protocol.KindAsk, Title: i18n.T("What is using the build cache?"),
@@ -212,15 +215,20 @@ func makeFixtures() fixtures {
 				},
 			},
 		},
-		Daemon: protocol.DaemonSettings{IdleExitMinutes: 5},
-		Index:  protocol.IndexSettings{System: true, Semantic: true},
-		API:    protocol.APISettings{Enabled: true, Port: protocol.DefaultAPIPort},
-		Teams:  demoTeamsSettings(),
+		Daemon:    protocol.DaemonSettings{IdleExitMinutes: 5},
+		Index:     protocol.IndexSettings{System: true, Semantic: true},
+		API:       protocol.APISettings{Enabled: true, Port: protocol.DefaultAPIPort},
+		Teams:     demoTeamsSettings(),
+		Providers: protocol.ProvidersSettings{Local: protocol.DefaultLocalAddresses()},
+		Memory: protocol.MemorySettings{
+			Asked: true, Use: true, Learn: true, Sessions: true, Agents: true,
+			TeamSuggestions: protocol.TeamSuggestAsk, Model: protocol.LearnLocalFirst, QuietMinutes: 10, Engine: protocol.MemoryBuiltin,
+		},
 	}
 	provider := protocol.ProviderInfo{
 		ID:         "openrouter",
 		Name:       "OpenRouter",
-		Tier:       "free",
+		Tier:       protocol.TierCredits,
 		Enabled:    true,
 		Configured: true,
 		Models:     8,
@@ -232,7 +240,7 @@ func makeFixtures() fixtures {
 	keyless := protocol.ProviderInfo{
 		ID:         "puter",
 		Name:       "Puter",
-		Tier:       "renewable",
+		Tier:       protocol.TierFree,
 		Keyless:    true,
 		Enabled:    true,
 		Configured: true,
@@ -477,14 +485,14 @@ func makeFixtures() fixtures {
 				Running:   true,
 				Clients:   1,
 				Sessions:  protocol.SessionCounts{Ask: 1, Agent: 5, Working: 2, Alive: 2},
-				Gateway:   protocol.GatewayStatus{Providers: 2, Models: 9, Keyless: 1},
+				Gateway:   protocol.GatewayStatus{Providers: 4, Models: 16, Keyless: 2},
 				API:       demoAPI(settings.API),
 				Harnesses: 3,
 				Indexes:   2,
 			},
 			Sessions:  []protocol.SessionInfo{working, needs, failed, done, idle, ask},
 			Settings:  settings,
-			Providers: []protocol.ProviderInfo{provider, keyless},
+			Providers: append(demoLocalProviders(settings.Providers), provider, keyless, demoAnthropic(), demoOpenAI()),
 			Harnesses: demoHarnesses(now),
 			Indexes:   indexes,
 			Projects:  projects,
@@ -497,10 +505,7 @@ func makeFixtures() fixtures {
 				{ID: protocol.RouteFast, Name: i18n.T("Fast")},
 				{ID: protocol.RouteSmart, Name: i18n.T("Smart")},
 			},
-			Models: []protocol.ModelInfo{
-				{ID: "free", Provider: "openrouter", Name: i18n.T("Free router"), Available: true, Tools: true},
-				{ID: "gpt-oss-120b", Provider: "puter", Name: "GPT OSS 120B", Available: true, Tools: true},
-			},
+			Models: demoAskModels(),
 		},
 		worktrees: map[string]protocol.WorktreesResult{
 			demoProjectHyperion: {Project: demoProjectHyperion, Worktrees: hyperionWorktrees},
@@ -580,11 +585,12 @@ func makeFixtures() fixtures {
 			},
 		},
 	}
-	result.snapshot.Sessions = append(result.snapshot.Sessions, askRunning, askYesterday, askWeek, askEarlier)
-	result.snapshot.Status.Sessions.Ask = 5
+	askHarness, askHarnessEvents := harnessAsk(now)
+	result.snapshot.Sessions = append(result.snapshot.Sessions, askRunning, askHarness, askYesterday, askWeek, askEarlier)
+	result.snapshot.Status.Sessions.Ask = 6
 	result.snapshot.Status.Sessions.Working = 3
 	result.snapshot.Status.Sessions.Alive = 3
-	result.snapshot.Providers = append(result.snapshot.Providers, demoProviderCatalogue()...)
+	result.snapshot.Providers = withDemoListings(withDemoLimits(append(result.snapshot.Providers, demoProviderCatalogue()...), now), result.models.Models, now)
 	result.snapshot.Status.Gateway = protocol.GatewayStatus{Providers: 6, Models: 25, Keyless: 3}
 	for _, commit := range commits {
 		result.commits[commit.Hash] = protocol.GitCommitDetail{
@@ -606,12 +612,13 @@ func makeFixtures() fixtures {
 			Files:  diffFiles(diff),
 		}
 	}
-	result.events[ask.ID] = askEvents(ask)
+	result.events[ask.ID] = memoryTranscript(askEvents(ask))
 	result.events[askRunning.ID] = askEvents(askRunning)
-	result.events[askYesterday.ID] = askEvents(askYesterday)
+	result.events[askYesterday.ID] = cardTranscript(askEvents(askYesterday))
 	result.events[askWeek.ID] = askEvents(askWeek)
 	result.events[askEarlier.ID] = askEvents(askEarlier)
-	result.events[needs.ID] = agentEvents(needs, true)
+	result.events[askHarness.ID] = askHarnessEvents
+	result.events[needs.ID] = agentMemoryTranscript(agentEvents(needs, true))
 	result.events[working.ID] = agentEvents(working, false)
 	result.events[working.ID] = append(result.events[working.ID], subagentEvents(int64(len(result.events[working.ID])), now)...)
 	result.events[done.ID] = agentEvents(done, false)
@@ -619,6 +626,7 @@ func makeFixtures() fixtures {
 	result.events[idle.ID] = agentEvents(idle, false)
 	result.events[failed.ID] = agentEvents(failed, false)
 	result.teams = demoTeams(now, settings, result.events)
+	addDemoDreams(&result, now, settings)
 	return result
 }
 
@@ -650,19 +658,19 @@ func demoProviderCatalogue() []protocol.ProviderInfo {
 				{ID: "nvidia-demo", Label: i18n.T("Main"), Status: protocol.KeyHealthy, Masked: "nvapi-••••4b31"},
 			},
 		},
-		{ID: "ovh", Name: "OVHcloud", Tier: "renewable", Keyless: true, Enabled: true, Configured: true, Models: 3, Available: 3},
-		{ID: "kilo", Name: "Kilo", Tier: "renewable", Keyless: true, Enabled: true, Configured: true, Models: 2, Available: 2},
+		{ID: "ovh", Name: "OVHcloud", Tier: protocol.TierFree, Keyless: true, Enabled: true, Configured: true, Models: 3, Available: 3},
+		{ID: "kilo", Name: "Kilo", Tier: protocol.TierFree, Keyless: true, Enabled: true, Configured: true, Models: 2, Available: 2},
 	}
 	catalogue := []string{
-		"Anthropic", "Cerebras", "Chutes", "Cloudflare", "Cohere", "DeepInfra",
+		"Cerebras", "Chutes", "Cloudflare", "Cohere", "DeepInfra",
 		"DeepSeek", "Fireworks", "GitHub Models", "Google AI Studio", "Hugging Face",
-		"Mistral", "Moonshot", "Nebius", "Novita", "OpenAI", "Perplexity", "Qwen",
+		"Mistral", "Moonshot", "Nebius", "Novita", "Perplexity", "Qwen",
 		"SambaNova", "Together", "xAI", "Zhipu",
 	}
 	for index, name := range catalogue {
 		id := strings.ToLower(strings.NewReplacer(" ", "-", "_", "-").Replace(name))
 		providers = append(providers, protocol.ProviderInfo{
-			ID: id, Name: name, Tier: "catalogue", Models: 2 + index%5, KeyHint: "key-...",
+			ID: id, Name: name, Tier: protocol.TierFree, Models: 2 + index%5, KeyHint: "key-...",
 		})
 	}
 	return providers
@@ -771,7 +779,15 @@ func demoCommits(now time.Time) ([]protocol.GitCommit, []protocol.GitRef) {
 			Subject: i18n.T("Start Rashin Work"),
 		},
 	}
-	history := make([]string, 58)
+	// how many of the older commits landed on each day before today, newest first: idle weekends, a quiet weekday and a busy day
+	perDay := []int{3, 0, 0, 4, 9, 2, 3, 5, 0, 1, 2, 4, 0, 6, 3, 0, 0, 2, 1, 4, 2, 1, 0, 0, 3, 2, 0, 1}
+	var times []time.Time
+	for back, count := range perDay {
+		for step := range count {
+			times = append(times, now.Add(-time.Duration(back+1)*24*time.Hour-time.Duration(step+1)*50*time.Minute))
+		}
+	}
+	history := make([]string, len(times))
 	for index := range history {
 		history[index] = fmt.Sprintf("%040x", index+1)
 	}
@@ -798,7 +814,7 @@ func demoCommits(now time.Time) ([]protocol.GitCommit, []protocol.GitRef) {
 		}
 		commits = append(commits, protocol.GitCommit{
 			Hash: hash, Parents: parents, Author: []string{"Ren", "Aki", "Agent"}[index%3],
-			Time: now.Add(-time.Duration(25+index*3) * time.Hour), Subject: subjects[index%len(subjects)],
+			Time: times[index], Subject: subjects[index%len(subjects)],
 		})
 	}
 	refs := []protocol.GitRef{

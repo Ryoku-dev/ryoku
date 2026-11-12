@@ -6,9 +6,9 @@ Use this page to follow the system from palette input to a finished surface, the
 
 ```mermaid
 flowchart TD
-    A[Named Ryoku scheme] --> D[Palette precedence and mode]
-    B[Wallpaper palette] --> D
-    C[Signature fallback and edition accent] --> D
+    C[Signature and edition accent, the default] --> D[Mode and palette precedence]
+    A[Named Ryoku scheme, when following] --> D
+    B[Wallpaper palette, when following] --> D
     D --> E[Roles: ground, stones, ink, selection, action, minerals]
     E --> F[Tokens: space, cuts, type, motion, alpha, size]
     F --> G1[Foundation primitives]
@@ -26,7 +26,7 @@ flowchart TD
     H --> I5[Terminal surfaces]
 ```
 
-The named scheme is first, a wallpaper palette is second when wallpaper following is active, and the signature fallback is last. Forced dark or light keeps signature neutrals and takes accents from the active palette. [Palette](palette.md) defines the full resolution rule.
+Every Lithic app opens in the signature, the ryoku.dev stock: dark and light mode paint it with the edition accent and read no palette. Follow mode is the reader's choice; there the named scheme is first, a wallpaper palette is second when wallpaper following is active, and the signature fallback is last. [Palette](palette.md) defines the full resolution rule.
 
 ## Component index
 
@@ -137,6 +137,7 @@ Icons are Material Symbols Sharp in every stack. QML and the web set the font's 
 | Explain a form's consequence | [Aside](components.md#aside) beside the draft. |
 | Show a collection of resources | [RowList](components.md#rowlist) made from [Tablet](components.md#tablet) rows. |
 | Show a few label and value facts | [Facts](components.md#facts). |
+| Show how something moved over time | An [EngravedChart](components.md#engravedchart) in a section open on the pane, under a proof line in words. |
 | Explain that a collection is empty | [Empty](components.md#empty) with the next action. |
 
 ## Patterns
@@ -146,7 +147,7 @@ The archetypes define composition. [Layout](layout.md) owns their geometry and s
 | Archetype | Build it from | Geometry | Picture |
 |---|---|---|---|
 | List and detail window | `AppFrame`, `Rail`, a list `Pane` with `Search`, `Filters` and `RowList`, then a work `Pane` with `MineralField`, `Header` and `Tabs`. | [List pane and work pane](layout.md#the-list-pane) | [Fleet](media/sheet-fleet.png) |
-| The Now board | `AppFrame`, `Sentence`, attention `Section`, `Claim`, one gold `Plaque` and `BladeProgress`. | [The work pane](layout.md#the-work-pane) | [Now](media/sheet-now.png) |
+| The Now board | `AppFrame`, `Sentence`, attention `Section`, `Claim`, one gold `Plaque`, `BladeProgress` and an `EngravedChart` section. | [The work pane](layout.md#the-work-pane) | [Now](media/sheet-now.png) |
 | A draft with its aside | `DraftColumns` with a `Section` and `Slab` of fields beside an `Aside`; optional settings go in `Disclosure`. | [The work pane](layout.md#the-work-pane) | [Draft](media/sheet-draft.png) |
 | A settings page with a section index | `AppFrame`, `SectionIndex` (a Picker below expanded), repeated `Section` and `Slab` groups, then the appropriate controls. | [Full pages](layout.md#full-pages) | [Settings](media/sheet-settings.png) |
 | A dialog flow | `Dialog`, plain copy, fields when required, line Cancel and one gold or danger action; use `Confirm` for irreversible work. | [Overlays and the Escape stack](layout.md#overlays-and-the-escape-stack) | [Memento](media/sheet-memento.png) |

@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -25,6 +26,7 @@ var (
 	bucketUsage     = []byte("usage")
 	bucketStats     = []byte("stats")
 	bucketAPI       = []byte("api")
+	bucketListings  = []byte("listings")
 )
 
 type keyRecord struct {
@@ -88,7 +90,7 @@ func openStore(stateDir string) (*store, error) {
 	}
 	s := &store{db: db, aead: aead}
 	if err := db.Update(func(tx *bbolt.Tx) error {
-		for _, name := range [][]byte{bucketKeys, bucketProviders, bucketCooldowns, bucketUsage, bucketStats, bucketAPI} {
+		for _, name := range [][]byte{bucketKeys, bucketProviders, bucketCooldowns, bucketUsage, bucketStats, bucketAPI, bucketListings} {
 			if _, err := tx.CreateBucketIfNotExists(name); err != nil {
 				return err
 			}
@@ -279,6 +281,38 @@ func (s *store) removeKey(id, providerID string) error {
 	})
 }
 
+// secrets maps every value the store keeps sealed, each provider key and the
+// local API's key, to the name Gateway.Redact replaces it with. A value that
+// cannot be opened is left out.
+func (s *store) secrets() map[string]string {
+	out := map[string]string{}
+	_ = s.db.View(func(tx *bbolt.Tx) error {
+		_ = tx.Bucket(bucketKeys).ForEach(func(_, value []byte) error {
+			var record keyRecord
+			if json.Unmarshal(value, &record) != nil {
+				return nil
+			}
+			if plain, err := s.open(record.Sealed); err == nil && plain != "" {
+				out[plain] = keyName(record.Provider)
+			}
+			return nil
+		})
+		if sealed := tx.Bucket(bucketAPI).Get(apiKeyName); sealed != nil {
+			if plain, err := s.open(sealed); err == nil && plain != "" {
+				out[plain] = "RASHIN_API_KEY"
+			}
+		}
+		return nil
+	})
+	return out
+}
+
+// keyName is how a provider's key is named where it is redacted, such as
+// OPENROUTER_API_KEY.
+func keyName(provider string) string {
+	return strings.ToUpper(strings.NewReplacer("-", "_", ".", "_", " ", "_").Replace(provider)) + "_API_KEY"
+}
+
 func (s *store) providerEnabled(id string) (bool, error) {
 	enabled := true
 	err := s.db.View(func(tx *bbolt.Tx) error {
@@ -325,6 +359,27 @@ func (s *store) cooldown(scope string, now time.Time) (time.Time, bool, error) {
 		return time.Time{}, false, err
 	}
 	return record.Until, true, nil
+}
+
+// modelCooldowns returns every model of a provider resting at now and until
+// when, in one pass: a provider may list hundreds of models.
+func (s *store) modelCooldowns(providerID string, now time.Time) (map[string]time.Time, error) {
+	cooling := make(map[string]time.Time)
+	prefix := []byte(modelScope(providerID, ""))
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		cursor := tx.Bucket(bucketCooldowns).Cursor()
+		for key, value := cursor.Seek(prefix); key != nil && bytes.HasPrefix(key, prefix); key, value = cursor.Next() {
+			var record cooldownRecord
+			if err := json.Unmarshal(value, &record); err != nil {
+				return err
+			}
+			if record.Until.After(now) {
+				cooling[string(key[len(prefix):])] = record.Until
+			}
+		}
+		return nil
+	})
+	return cooling, err
 }
 
 func usageKey(day, providerID, modelID string) []byte {

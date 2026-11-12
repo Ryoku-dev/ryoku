@@ -140,24 +140,23 @@ func (f *teamFiles) layout(gtx layout.Context, e *env.Env, snapshot appstate.Sna
 	return section(th, i18n.T("Files"), stack(th, rows))
 }
 
-// where the file stands and when it changed, and the report that names it, which opens its task
+// where the file stands, when it changed and the report that names it, which opens its task, set apart by space
 func fileFacts(gtx layout.Context, th *look.Theme, row *fileRow, file teamFile, where string, task protocol.TeamTask, fromReport bool) layout.Dimensions {
-	facts := look.Ago(gtx.Now, file.modified)
+	gap := layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout)
+	var children []layout.FlexChild
+	// the folder is a path, so it is the one literal on the line
 	if where != "." && where != "" {
-		facts = i18n.Tf("%s · %s", where, facts)
+		children = append(children, layout.Rigid(kit.Text(th.Theme, th.T.MonoSm, th.R.Fg3, where)), gap)
 	}
-	children := []layout.FlexChild{layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, facts))}
+	children = append(children, layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, look.Ago(gtx.Now, file.modified))))
 	if fromReport {
 		title := task.Report.Title
 		if title == "" {
 			title = task.Title
 		}
-		children = append(children,
-			layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, "  ·  ")),
-			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-				return look.Link(gtx, th, &row.report, i18n.Tf("From “%s”", title))
-			}),
-		)
+		children = append(children, gap, layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			return look.Link(gtx, th, &row.report, i18n.Tf("From “%s”", title))
+		}))
 	}
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Baseline}.Layout(gtx, children...)
 }

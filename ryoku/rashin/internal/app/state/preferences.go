@@ -24,6 +24,13 @@ const (
 	TintMedium       = "medium"
 )
 
+// the stored words of the colours; Rashin opens in the ryoku.dev stock and follows the wallpaper only when asked
+const (
+	ColoursRyoku      = "ryoku"
+	ColoursRyokuLight = "ryoku-light"
+	ColoursWallpaper  = "wallpaper"
+)
+
 // window and frame state only, nothing the daemon owns
 type AppPreferences struct {
 	Width         int  `json:"width,omitempty"`
@@ -32,7 +39,8 @@ type AppPreferences struct {
 	SidebarFolded bool `json:"sidebarFolded,omitempty"`
 	SidePanelOpen bool `json:"sidePanelOpen,omitempty"`
 	ReduceMotion  bool `json:"reduceMotion,omitempty"`
-	// the look's contrast and tint words
+	// the colours word and the look's contrast and tint words
+	Colours  string `json:"colours,omitempty"`
 	Contrast string `json:"contrast,omitempty"`
 	Tint     string `json:"tint,omitempty"`
 	// notices are on until asked off, so the absent key means on
@@ -44,6 +52,8 @@ type AppPreferences struct {
 	InTeams bool      `json:"inTeams,omitempty"`
 	// next steps hidden on a team's Overview, step keys by team id
 	HiddenSteps map[string][]string `json:"hiddenSteps,omitempty"`
+	// the model a new agent session starts on, model id by harness id; absent is the harness's own default
+	AgentModels map[string]string `json:"agentModels,omitempty"`
 }
 
 // the work the window had open when it closed
@@ -65,6 +75,11 @@ func (p AppPreferences) Normalize() AppPreferences {
 		p.ZoomPercent = DefaultZoom
 	}
 	p.ZoomPercent = min(MaxZoom, max(MinZoom, p.ZoomPercent))
+	switch p.Colours {
+	case ColoursRyoku, ColoursRyokuLight, ColoursWallpaper:
+	default:
+		p.Colours = ColoursRyoku
+	}
 	switch p.Contrast {
 	case ContrastStandard, ContrastHigh:
 	default:

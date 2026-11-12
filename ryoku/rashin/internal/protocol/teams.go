@@ -15,8 +15,8 @@ type Team struct {
 	ID      string `json:"id"`
 	Name    string `json:"name"`
 	Purpose string `json:"purpose"`
-	// Template names the template the team started from: research, mail,
-	// repo, system or blank.
+	// Template names the template the team started from: system, mail,
+	// repo, research, news or blank.
 	Template string `json:"template,omitempty"`
 	// Folder is where the team works and keeps what it makes.
 	Folder  string    `json:"folder"`
@@ -39,6 +39,15 @@ type Team struct {
 	Running int `json:"running,omitempty"`
 	// Access widens or narrows what its agents' sandbox lets them reach.
 	Access TeamAccess `json:"access"`
+	// Memory is what the team keeps between runs and may know of the user;
+	// nil, for a team made before memory, takes DefaultTeamMemory.
+	Memory *TeamMemory `json:"memory,omitempty"`
+	// SkillsOff are the built-in skill sets its members are not given; every
+	// set that is on in the settings reaches them unless named here.
+	SkillsOff []string `json:"skillsOff,omitempty"`
+	// Dream makes the team a dream: shown under Dreams rather than Teams,
+	// run by its manager without confirmations until the user accepts it.
+	Dream *Dream `json:"dream,omitempty"`
 	// Stats is filled by the daemon from the team's tasks and spend.
 	Stats TeamStats `json:"stats"`
 }
@@ -196,18 +205,66 @@ type TeamStats struct {
 	Tasks int `json:"tasks"`
 }
 
+// Template levels: how much a template asks of the user to set up and run.
+const (
+	LevelLight    = "light"
+	LevelMedium   = "medium"
+	LevelAdvanced = "advanced"
+)
+
 // TeamTemplate is a ready-made team a new one can start from.
 type TeamTemplate struct {
-	ID          string         `json:"id"`
-	Name        string         `json:"name"`
-	Purpose     string         `json:"purpose"`
-	Description string         `json:"description"`
-	Members     []Member       `json:"members"`
-	Tools       TeamTools      `json:"tools"`
-	Approvals   string         `json:"approvals"`
-	Budget      TeamBudget     `json:"budget"`
-	Routines    []RoutineDraft `json:"routines,omitempty"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Purpose     string `json:"purpose"`
+	Description string `json:"description"`
+	// Level is LevelLight, LevelMedium or LevelAdvanced; empty for the blank
+	// template, which is offered last.
+	Level     string         `json:"level"`
+	Members   []Member       `json:"members"`
+	Tools     TeamTools      `json:"tools"`
+	Approvals string         `json:"approvals"`
+	Budget    TeamBudget     `json:"budget"`
+	Routines  []RoutineDraft `json:"routines,omitempty"`
+	// Credentials are what the team will ask for; a team made from the
+	// template asks for each one it does not have yet.
+	Credentials []CredentialNeed `json:"credentials,omitempty"`
 }
+
+// CredentialNeed is a credential a proposed team will need. When the team is
+// created it becomes a credential request in the Inbox, where the user types
+// the value.
+type CredentialNeed struct {
+	// Name is the credential's name, such as GITHUB_TOKEN.
+	Name string `json:"name"`
+	// Hosts are where it may be sent, such as api.github.com.
+	Hosts []string `json:"hosts"`
+	// Why is one sentence the user reads.
+	Why string `json:"why"`
+}
+
+// TeamProposeParams proposes a team to the user. It is validated as
+// teams.create would validate Team and waits in the Inbox as an
+// ApprovalTeam; approving it creates the team, then opens one credential
+// request per Credentials entry.
+type TeamProposeParams struct {
+	Team        TeamCreateParams `json:"team"`
+	Credentials []CredentialNeed `json:"credentials,omitempty"`
+	// Reason is why it is proposed, in the proposer's words.
+	Reason string `json:"reason"`
+	// Session is the session that proposed it, if any.
+	Session string `json:"session,omitempty"`
+}
+
+// Team proposal limits.
+const (
+	// ProposalsOpenMax is the most team proposals waiting on the user at once.
+	ProposalsOpenMax = 5
+	// ProposalCredentialsMax is the most credentials a proposal may name.
+	ProposalCredentialsMax = 8
+	// ProposalReasonMax is the most runes in a proposal's reason.
+	ProposalReasonMax = 600
+)
 
 // TeamTemplatesResult lists the templates in the order they are offered.
 type TeamTemplatesResult struct {
@@ -334,7 +391,10 @@ type TeamTask struct {
 	Sessions []string    `json:"sessions,omitempty"`
 	Report   *TeamReport `json:"report,omitempty"`
 	// Reason says why a task is blocked or stopped.
-	Reason   string     `json:"reason,omitempty"`
+	Reason string `json:"reason,omitempty"`
+	// SignIn names the harness a blocked task waits to be signed in for
+	// teams (HarnessTeams); a retry after the sign-in runs it.
+	SignIn   string     `json:"signIn,omitempty"`
 	Usage    TokenUsage `json:"usage"`
 	Turns    int        `json:"turns"`
 	MaxTurns int        `json:"maxTurns"`
@@ -517,6 +577,12 @@ const (
 	ApprovalRequest    = "request"
 	ApprovalAction     = "action"
 	ApprovalBudget     = "budget"
+	// ApprovalTeam is a proposed team: approving it creates the team.
+	ApprovalTeam = "team"
+	// ApprovalRestore tells the user Rashin put back what changed in a
+	// harness's team home since the sign-in. It asks nothing: DecideOnce
+	// marks it read, and it waits until then.
+	ApprovalRestore = "restore"
 )
 
 // Approval statuses.
@@ -589,12 +655,17 @@ type Approval struct {
 	// Choice is the option the user picked, kept for the record.
 	Choice string `json:"choice,omitempty"`
 	// Result is what came of an approved action, for the record.
-	Result  string     `json:"result,omitempty"`
-	Created time.Time  `json:"created"`
-	Decided *time.Time `json:"decided,omitempty"`
-	Expires time.Time  `json:"expires"`
+	Result string `json:"result,omitempty"`
+	// Proposal is the proposed team of an ApprovalTeam.
+	Proposal *TeamProposeParams `json:"proposal,omitempty"`
+	Created  time.Time          `json:"created"`
+	Decided  *time.Time         `json:"decided,omitempty"`
+	Expires  time.Time          `json:"expires"`
 	// Unwatched marks an approval asked while no Rashin window was open.
 	Unwatched bool `json:"unwatched,omitempty"`
+	// Repeats counts the times an ApprovalRestore notice happened again, the
+	// same, before the user read it; 0 for once.
+	Repeats int `json:"repeats,omitempty"`
 }
 
 // ApprovalsParams lists approvals, newest first; Pending keeps only those
@@ -655,11 +726,16 @@ type TeamSpendParams struct {
 	Month string `json:"month,omitempty"`
 }
 
-// DaySpend is one day's tokens.
+// DaySpend is one day's tokens and the tasks that ended that day.
 type DaySpend struct {
 	Day    string `json:"day"`
 	Input  int64  `json:"input"`
 	Output int64  `json:"output"`
+	// Tasks is the tasks that ended that day, done or blocked; a task
+	// retried and ended again counts again on the day it ended.
+	Tasks int `json:"tasks,omitempty"`
+	// Routines is those of Tasks that were routine runs.
+	Routines int `json:"routines,omitempty"`
 }
 
 // NamedSpend is the tokens and runs of one member, routine, team or engine.

@@ -107,6 +107,7 @@ func (p *pageState) startWatch(e projectEnvironment, project string) {
 		p.graph.Refresh()
 		p.changes.loadedPath = ""
 		p.activity.loaded = ""
+		p.overview.commits.loaded = ""
 	})
 }
 

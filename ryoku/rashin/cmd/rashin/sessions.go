@@ -249,8 +249,8 @@ func launchApp(p protocol.UIOpenParams) int {
 }
 
 // parseTeamsRoute reads a Teams mode route, the way a notification names
-// what it is about: inbox, teams[/<team>[/<view>]], work[/<task>],
-// routines[/<routine>], vault[/<credential>] or activity
+// what it is about: inbox, teams[/<team>[/<view>]], dreams[/<dream>|new],
+// work[/<task>], routines[/<routine>], vault[/<credential>] or activity
 func parseTeamsRoute(route string, p *protocol.UIOpenParams) error {
 	parts := strings.Split(strings.Trim(route, "/"), "/")
 	invalid := fmt.Errorf("%s", i18n.Tf("%s is not a Teams route.", route))
@@ -268,6 +268,13 @@ func parseTeamsRoute(route string, p *protocol.UIOpenParams) error {
 		}
 		if len(parts) > 2 {
 			p.View = parts[2]
+		}
+	case protocol.TabDreams:
+		if len(parts) > 2 {
+			return invalid
+		}
+		if len(parts) == 2 {
+			p.Team = parts[1]
 		}
 	case protocol.TabWork, protocol.TabRoutines, protocol.TabVault:
 		if len(parts) > 2 {
@@ -305,6 +312,8 @@ func teamsRoute(p protocol.UIOpenParams) string {
 			}
 		}
 		return route
+	case protocol.TabDreams:
+		return joinRoute(p.Tab, p.Team)
 	case protocol.TabWork:
 		return joinRoute(p.Tab, p.TeamTask)
 	case protocol.TabRoutines:

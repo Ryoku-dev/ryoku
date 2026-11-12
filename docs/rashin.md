@@ -73,7 +73,7 @@ ryoku/rashin/
   internal/client/      socket client, daemon start, used by CLI and app
   internal/daemon/      server, dispatch, lifecycle, session manager
   internal/session/     event log store
-  internal/gateway/     built-in free-model router
+  internal/gateway/     built-in model router: free, paid and local providers
   internal/ask/         native Ask runner, tools, command safety
   internal/attachment/  what an attached file is, read for a model
   internal/brief/       what every request is told about Ryoku, the vault and Rashin
@@ -81,6 +81,7 @@ ryoku/rashin/
   internal/index/       index engine, embedding model, queries
   internal/teams/       Teams: teams, tasks, approvals, routines, budgets, ledger
   internal/vault/       the credential vault: sealed values, mail account, record of use
+  internal/redact/      the one secret scrubber: stored values by name, token shapes, assignments
   internal/sandbox/     the bubblewrap sandbox team agents run in
   internal/app/         Gio client (shell, state, pages, chat widgets, desktop, demo)
   systemd/              rashind.socket, rashind.service, rashind-routines.timer and .service
@@ -205,6 +206,12 @@ Every path comes from `internal/paths`; nothing else spells one.
 | `$XDG_STATE_HOME/ryoku/rashin/activity/<project>.jsonl` | a project's action ledger |
 | `$XDG_STATE_HOME/ryoku/rashin/teams/` | Teams: `state.json` (teams, routines, approvals), `tasks/<id>.json`, `ledger.jsonl` (Activity), `spend.json` |
 | `$XDG_STATE_HOME/ryoku/rashin/vault.db` | the credential vault: sealed values, the mail account, its record of use (bbolt, mode 0600) |
+| `$XDG_STATE_HOME/ryoku/rashin/harness-homes/<instance>/<team>/` | a team home's guard: `signed-in.json`, `blessed/` (its guarded paths as signed in) and `quarantine/<time>/` (what a run changed there, the newest 10) |
+| `$XDG_STATE_HOME/ryoku/rashin/memory/memory.db` | memory's ledger: where each fact came from, versions, tombstones, undo, suggestions, conversation summaries (bbolt) |
+| `$XDG_STATE_HOME/ryoku/rashin/memory/teams/<team>.md` | what a team remembers, one fact per line |
+| `$XDG_DATA_HOME/ryoku/vault/memory/rashin/` | what Rashin remembers of you (`you.md`) and each project (`projects/<slug>.md`), one fact per line |
+| `$XDG_DATA_HOME/ryoku/rashin/harness-homes/<instance>/<team>/` | a team's home for a harness instance, the `HOME` its sessions and Checks run it with (0700) |
+| `$XDG_DATA_HOME/ryoku/rashin/skills/<hash>/` | the built-in skills written out, one folder named for their content hash (see Skills) |
 | `~/Teams/<slug>` | a team's folder, where its agents work (default) |
 | `$XDG_DATA_HOME/ryoku/worktrees/<project>/<name>` | worktrees Rashin creates (default) |
 | `$XDG_CACHE_HOME/ryoku/rashin/index/<id>/index.db` | one index (bbolt) |
@@ -237,7 +244,8 @@ XDG variables; `RASHIN_SOCKET` overrides the socket for a client.
       "budget": {"monthTokens": 2000000, "warnPercent": 80, "taskTurns": 20, "taskMinutes": 60}
     },
     "approvalHours": 24, "hidden": null, "keepDays": 0
-  }
+  },
+  "skills": {"off": []}
 }
 ```
 
@@ -250,6 +258,11 @@ XDG variables; `RASHIN_SOCKET` overrides the socket for a client.
   command still waits). The daemon does not apply it by itself: the app
   passes it when it creates a session, so an ask from the bar or a terminal
   stays read-only.
+- `ask.harness`: the harness or instance id that answers a new ask in the
+  app over ACP, `""` (the default) for Rashin's own providers. The app passes
+  it at `session.new` as `harness`, so asks from the bar and a terminal stay
+  on the providers, and a conversation keeps what answered it. A patch that
+  touches it comes only from the Rashin app.
 - `agent.harness`: default harness id for new Agent sessions; empty picks the
   first installed one in the table order below.
 - `agent.approvals`: `read-only` (reads run, writes ask), `ask` (everything
@@ -273,16 +286,20 @@ XDG variables; `RASHIN_SOCKET` overrides the socket for a client.
 - `teams.approvalHours`: how long a question waits before it counts as no, 1
   to 168. `teams.quietHours` (`{"from": "22:00", "to": "07:30"}`, local time,
   may cross midnight): no desktop notification inside the window.
-- `teams.hidden`: paths every team agent sees as empty. `null` is the built-in
-  list (`~/.ssh`, `~/.gnupg`, `~/.password-store`, cloud and cluster
-  credentials, browser profiles, `~/.local/share/keyrings`); `[]` hides
-  nothing beyond what Rashin always hides. At most 64.
+- `teams.hidden`: the user's own paths every team agent sees as empty, beside
+  what Rashin always hides (see Teams, Sandbox), which no list can drop.
+  `null` and `[]` add nothing. At most 64.
 - `teams.keepDays`: 0 keeps finished tasks forever; 30, 90 or 365 deletes older
   ones with their conversations.
+- `skills.off`: the built-in skill sets turned off for every model (see
+  Skills); every set is on unless named here.
 
 Clients change settings only through `settings.set`; the daemon writes the file
-atomically and broadcasts `settings.changed`. A patch that touches `teams` or
-`agent.instances` comes only from the Rashin app.
+atomically and broadcasts `settings.changed`. A patch that touches `teams`,
+`providers`, `memory`, `skills`, `agent.instances` or `ask.harness` comes only
+from the Rashin app (`settingsForApp`): what runs the user's questions and
+what team agents run with are the user's to choose. Asks from the bar and a
+terminal stay on Rashin's providers whatever `ask.harness` says.
 
 ## Protocol
 
@@ -332,6 +349,33 @@ A session is either `ask` or `agent`. Its log is `events.jsonl`: one
 `meta.json` holds `SessionInfo` plus private runner state (the harness's own
 session id for resume). Both are written by the daemon only.
 
+The log keeps no secret (`internal/session/scrub.go`, `internal/redact`). A
+user event is scrubbed the moment it lands, and a turn once its end is
+written: the deltas of each streamed message and terminal are merged first,
+so a secret split across them is found whole, and every other string an
+event carries, tool output included, is scrubbed as it is. `redact.Exact`
+takes out the current value of every vault credential and stored provider
+key by name (`‹NAME›`) and every token whose prefix gives it away (sk-,
+ghp_, github_pat_, glpat-, gho_, xox*-, AKIA, AIza, hf_, gsk_, JWTs, private
+key blocks); ordinary text is left alone. When anything matched, the turn's
+events are rewritten in one rename, with the session's title and preview.
+A token a scrub finds is remembered for the rest of the session
+(`redact.Learner`), whole and as its body after the prefix when that is at
+least 16 characters, so a model restating it later without the prefix, even
+in pieces, is scrubbed too. These live in the daemon's memory only and are
+never written or logged.
+The sessions written before this are scrubbed once (`internal/daemon/migrate.go`),
+in the background once the socket listens. A pass opens the stored values
+once (`redact.Snapshot`) and drops them when it ends. A session nothing has
+open is read and scrubbed beside its files and put in place only if they did
+not change meanwhile; one that changed is taken up again later, and one that
+was deleted is skipped. With every store open one pass does it all and marks
+`scrub-sessions` and `scrub-sessions-values` under `migrated/`. While the
+vault is locked the pass leaves its values in and marks only `scrub-sessions`;
+the full pass runs the first time the vault opens while the daemon is up
+(`redact.Complete`), looks again a minute after a pass that failed, and
+otherwise waits for the next start that finds the vault open.
+
 ### Event kinds
 
 | Kind | Data |
@@ -353,6 +397,7 @@ session id for resume). Both are written by the daemon only.
 | `commands` | slash commands the harness offers |
 | `answer` | Ask only, before `turn_end`: actions, command plan, `needsAgent` and reason, `via` (provider/model) |
 | `title` | new title |
+| `memory` | what memory did in the conversation: `updated` (the change), `used` (the memories and whether the card was in the prompt), `looked` (past conversations opened), `refused` (reason, text) or `narrowed` (the new memory mode); scrubbed as it lands |
 
 Rules:
 
@@ -364,6 +409,20 @@ Rules:
 - Every open permission is answered exactly once: by the user, by policy, or
   with `cancelled` when the turn is cancelled or the agent stops.
 - Ask sessions keep the newest 200; Agent sessions stay until deleted.
+- `session.new {temporary: true}` makes a temporary session: its events stay
+  in the daemon's memory, nothing of it is written under `sessions/`, and it
+  is scrubbed in memory the way a stored log is on disk. It neither counts
+  toward Ask retention nor evicts a stored conversation. `session.list` and the
+  snapshot show it while the daemon holds it; `session.delete` or the daemon's
+  exit ends it. A team task's conversation is never temporary. Forking one
+  (`session.fork`) keeps it: the fork is an ordinary stored session.
+- `SessionInfo.memory` is what the conversation does with memory: empty
+  remembers (uses memory and is learned from), `use` uses it only, `off`
+  neither. It is set at `session.new` (`memory`); a temporary session starts
+  at `use` and never remembers. `session.set_memory {id, memory}` takes any
+  value before the first message; after it only a narrower one, and the
+  narrowing is written as a `memory` event with `narrowed`. Forks and
+  handoffs keep the mode.
 - A session nobody named takes its first prompt as its title, on one line of
   at most 60 characters, or the name of its first attachment when it has no
   words. A title the harness sends later replaces it.
@@ -390,12 +449,49 @@ Other programs reach it only through the local API below, which is off until
 asked for; without it the router opens no port.
 
 - **Catalogue** (`internal/gateway/catalog.json`, embedded): curated
-  OpenAI-compatible providers with free or renewable tiers. Each entry has an
-  id, name, base URL, auth (`bearer`, `none`, `cloudflare` account plus token),
-  `keyless`, signup URL, extra headers, and its free chat models (id, name,
-  context, tools, reasoning, vision, quality rank, speed rank). Derived from
-  Prowl's MIT catalogue (attributed in `ryoku/rashin/NOTICE`). Non-chat models
-  (speech, transcription, guard, embedding, image) are never listed.
+  OpenAI-compatible providers. Each entry has an id, name, tier, base URL, auth
+  (`bearer`, `none`, `cloudflare` account plus token), `keyless`, signup URL,
+  extra headers, `completionTokens` (send `max_completion_tokens`, which
+  OpenAI's reasoning models take instead of `max_tokens`), a `listing` (how
+  the provider lists its models, below), and its curated chat models (id, name,
+  an optional tier of its own, context, tools, reasoning, vision, quality rank,
+  speed rank), which may be none when the listing brings them. Derived from
+  Prowl's MIT catalogue; base URLs, what each needs to sign up and the free
+  allowances in the notes were checked against awesome-free-llm-apis and
+  Free-LLM (both MIT, attributed in `ryoku/rashin/NOTICE`), which also gave the
+  providers added since: Z.AI, Routeway, Requesty, Api.Airforce, Kiosapi.id,
+  MegaNova AI, LLMTR, AIHubMix, BazaarLink, OpenTyphoon, LLM.kiwi, SEA-LION,
+  Inferbase, Gonka Broker, Token Harbor, Moark and Vercel AI Gateway. Non-chat
+  models (speech, transcription, guard, embedding, image) are never listed.
+- **Tiers** (`ModelInfo.Tier`, `ProviderInfo.Tier`): `free`, `credits` (free
+  credits a provider renews), `paid` (the key's owner is billed) and `local`.
+  A model's tier is its provider's unless it names its own: Google Gemini's
+  Flash models are free, Gemini 4 Carbon and Argon are paid; Mistral Large 4
+  is paid. OpenAI (GPT-5.6 Sol, Terra, Luna; the GPT-6 models call tools only
+  through the Responses API and are not listed) and Anthropic (Claude Fable
+  5.2, Opus, Sonnet and Haiku 5.5, through its OpenAI-compatible endpoint) are
+  paid providers with a bearer key.
+- **Auto stays free**: `auto`, `auto:fast` and `auto:smart` never route to a
+  paid model, and a pin to another model never fails over to one. A paid model
+  answers only when it is the model asked for. They also pass by a model whose
+  tool support nobody knows (`ModelInfo.ToolsKnown` false): it answers only
+  when it is picked by name, with or without tools. A key test runs on a free
+  model of the provider when it has one, since a free-plan key is refused a
+  paid model.
+- **Local providers** (`internal/gateway/local.go`): `ollama-local` (Ollama)
+  and `llamacpp` (llama-server), tier `local`, keyless. Their addresses are
+  `providers.local` in rashin.json (defaults `http://127.0.0.1:11434/v1` and
+  `http://127.0.0.1:8080/v1`). Only `localhost`, loopback and private-network
+  IP addresses are accepted, a patch to `providers` is the Rashin app's alone
+  (`settingsForApp`), and the gateway's own client for them uses no proxy and
+  refuses at connect time any address that is not loopback or private. Models
+  come from `GET {address}/models`, trusted for 30 s (Test asks again);
+  embedding models are skipped and the rest are assumed to take tools. A
+  server that does not answer reads "Not running", has no models and is never
+  routed, which is not an error. Auto tries a running local model first;
+  Fast and Smart rank them like any other. Settings > Providers shows them in
+  an "On this computer" group with an address field and Save, and `rashin
+  providers` prints their address and whether they run.
 - **Keys**: one record per key in `gateway.db`, the secret sealed with
   AES-256-GCM under `master.key`. Health is honest: `healthy` only after a real
   completion through that key, `error` only after the provider rejects the key
@@ -426,6 +522,119 @@ asked for; without it the router opens no port.
 - **Zero setup**: keyless providers work with no key, so Ask answers on a fresh
   machine when one of them is up. When nothing is available Ask says so and
   names the next step (add a free key in Rashin > Settings > Providers).
+
+### Model lists
+
+A provider's curated models are a few; its own listing has the rest
+(`internal/gateway/listing.go`, `discover.go`). Rashin reads it, merges it with
+the catalogue and keeps it in `gateway.db` (bucket `listings`):
+
+- **Where**: `GET {baseURL}/models` with the provider's first working key, or
+  none for a keyless provider or a public listing (`listing.public`: NVIDIA,
+  OpenRouter, Hugging Face, OpenCode Zen, Pollinations and most added
+  providers). The key goes to the provider's own address and nowhere else, and
+  a refusal is reported by its status alone. Some providers list their own way
+  (`listing.shape`, `listing.url`): Anthropic `/v1/models` with `x-api-key`
+  and `anthropic-version`, paged by `after_id`; Cloudflare
+  `accounts/{id}/ai/models/search` (Text Generation, paged); Cohere's own
+  `/v1/models?endpoint=chat`; the GitHub Models catalogue. Google's
+  OpenAI-compatible `/models` names models `models/...`, which is dropped.
+- **What is read**: every field the providers use for context
+  (`context_length`, `top_provider`, `max_context_length`, `context_window`),
+  tools (`supported_parameters`, `capabilities`, `supports_tool_calling`, the
+  Hugging Face router's `supports_tools`), pictures, and price (OpenRouter's
+  `pricing.prompt` and `completion`, `input` and `output`, OpenCode Zen's
+  `cost`, `isFree`, `is_free`, `paid_only`, a `tier`). An entry the listing
+  marks as speech, picture, video or embedding, or that takes or gives no text,
+  is left out; one odd entry never costs the rest.
+- **Free stays honest** (`listedTier`): a paid provider's models are paid. A
+  model the listing marks free (a `:free` or `-free` id, a free flag, tier or
+  tag, or prompt and completion prices of zero) takes its provider's tier,
+  free or credits. Otherwise a mixed provider (`listing.mixed`: OpenRouter,
+  Kilo, OpenCode Zen, Hugging Face, Ollama Cloud, Zhipu, Z.AI and the
+  aggregators) lists it as paid; a keyless mixed provider (Kilo) does not
+  list it at all, since only its free models answer without a key; a free
+  provider's model the listing prices is paid; a keyless provider's priced
+  model stays free (OVH's prices are its keyed plan's); a credits provider
+  spends its credits on the rest.
+- **Merge**: the curated models come first and keep their facts (and take the
+  listing's context when they had none); a listed model matching one by id,
+  any case, adds nothing. Listed models rank below curated ones, so Auto tries
+  Rashin's picks first. `ModelInfo.Listed` marks them.
+- **When**: a listing is trusted for 6 hours. A stale one, or one read without
+  the key there is now, is read again in the background whenever the providers
+  are asked for (`providers.list`, `models.list`, a chat turn's routing), so
+  nothing ever waits on it; one that failed waits 15 minutes and what it last
+  listed stays. `models.list` with `fresh` reads the listings now and waits for
+  them (Settings' Read the list again), at most once a minute per provider
+  whoever asks; a second ask in that minute is answered from the cache. Adding
+  a key reads that provider's listing before the key is tested, and Test reads
+  it again. A change is announced with `providers.changed`.
+- **Counts**: `ProviderInfo.Models` is the merged count, `Free` how many cost
+  nothing (free or credits), and `Listed` when the listing was last read.
+  On 2026-11-12 a scratch gateway with no key read OVH (9 models, all free),
+  Kilo (13, all free, the 356 it bills left out) and OpenRouter's public
+  listing (454 models, 15 free, 439 paid).
+- **In the app**: a provider's head says its real count ("1 key, 73 models,
+  all free", "454 models, 15 free"). Opened, it lists its models under the
+  key and Test rows (`pages/settings/providers_models.go`): where the list
+  comes from, a search field and Read the list again, then up to 30 models
+  with id, tier, context, tools (or "tools unknown") and pictures, and how
+  many more the search would find. The list is asked for when the row opens
+  and when the provider's counts or listing time change, sorted once and
+  matched once per query, never per frame. Ask's model menu (`env.ModelMenu`)
+  carries every listed model in its Free, Local and Paid groups and searches
+  them; a listed model whose tools are unknown says so, and a provider without
+  a key shows only Rashin's picks of what a key would open.
+
+### Allowances
+
+`ProviderInfo.Limits` (`protocol/limits.go`) says what Rashin knows of a
+provider's allowance: windows of a minute, a day or a month, each a limit and
+what is left of requests or tokens, with when it refills, when it was seen and
+where it came from; the credits left; and Rashin's own count of requests and
+tokens sent there today and this month (UTC, from the usage store). A local
+provider has none.
+
+- **Headers** (`internal/gateway/ratelimit.go`): every answer, success or
+  refusal, is read for `x-ratelimit-{limit,remaining,reset}-{requests,tokens}`
+  (a minute for OpenAI; Groq's request headers count a day), the suffixed
+  `-minute`/`-day`/`-month` forms Cerebras and SambaNova send, GitHub Models'
+  `renewalperiod` and `timeremaining`, the bare `x-ratelimit-limit` trio, the
+  unitless Kong form OVHcloud sends (`x-ratelimit-limit-minute`, requests),
+  `anthropic-ratelimit-*`, and the IETF `RateLimit-*` fields in both drafts.
+  A window of an hour or a second is left out rather than misnamed. The latest
+  figures per provider are kept in memory and in the `limits` bucket of
+  `gateway.db`, so they outlive a restart; a window past its reset reads full.
+  An answer does not broadcast `providers.changed` by itself.
+- **Account endpoints** (`internal/gateway/account.go`): OpenRouter
+  `GET /api/v1/key` (the free-model requests of the UTC day, the key's credit
+  cap, its spend, whether the account ever bought credits) and
+  `GET /api/v1/credits` (the balance, which only a management key may read),
+  DeepSeek `GET /user/balance`, SiliconFlow `GET /v1/user/info` and
+  Pollinations `GET /account/balance`. They are read with the provider's first
+  key that is not refused, at most every ten minutes per provider (the time of
+  the last read is stored, so a restart or a second client does not speed it
+  up), and only when the app calls `providers.limits` (Settings > Providers
+  shown, at most once a minute, or the Ask model menu open) or on Test, which
+  reads whatever the pacing says. A failed read keeps the last figures; nothing
+  of it is logged and no key or body leaves the read.
+- **Documented** (`internal/gateway/documented.go`): where a provider reports
+  no live figure for a window, the free limit published by the two MIT lists
+  the catalogue comes from (awesome-freellm-apis, Free-LLM) stands in, marked
+  `documented`, such as NVIDIA's 40 requests a minute or ModelScope's 2,000
+  requests a day. Limits per hour or in provider units (Cloudflare's neurons)
+  are not listed.
+
+Settings > Providers gives a folded provider one line under its head: a live
+daily window first ("Free tokens today: 412,300 of 500,000 left, as of 2 min
+ago."), then credits ("Credits: $4.21 of $10 left."), then a live monthly or
+minute window, else the documented limit beside what Rashin sent ("Documented
+free limit: 1,000 requests a day. Rashin sent 18 requests today."), else "Groq
+does not report a daily limit. Rashin sent 18,200 tokens today." A provider
+nobody set up and nothing was sent to has no line. Unfolded, Allowance lists
+every window with where it came from, the credits and both counts
+(`internal/app/pages/settings/limits.go`).
 
 ### Local API
 
@@ -566,6 +775,57 @@ The Ask runner (`internal/ask`) is Rashin's own agent loop on the gateway.
 - **Handoff**: `session.handoff` opens an Agent session (default harness unless
   named) whose first user event carries the question, what was attached to
   it, the answer and the reason; with `run` it prompts at once.
+- **Model**: a session without a model of its own asks the one `ask.model`
+  names, and that one may fail over to another. A model the user picks for a
+  conversation (`session.set_model`; the app sends it right after
+  `session.new`, before the first question) is pinned: the session records
+  `pinned`, every request is strict, and the model answers or the turn says
+  why it could not, never another model in its place. The pin survives the
+  daemon restarting and is carried into a fork; picking Auto, Fast or Smart
+  takes it back.
+- **Answered by a harness** (`internal/harness/ask.go`,
+  `internal/daemon/askharness.go`): an Ask made with `harness` runs that
+  harness's ACP runner from the home folder instead of Rashin's router. It is
+  briefed once with Ask's own brief (`brief.Ask`: who Ask is and what its
+  mode allows, the vault, Rashin, skills, teams, memory), handed Rashin's MCP
+  tools (no screen), and the composer's model list is the harness's own
+  `configOptions`. Ask's mode decides each call, never `agent.approvals`: a
+  call `command.ReadOnlyToolCall` proves a read runs in every mode; a command
+  that asks for a password or reads a credential never runs; Read only
+  refuses everything else the harness asks about and shows each refusal as a
+  request Rashin answered itself; Ask first puts it to the user ("always" is
+  kept by Rashin and sent to the harness as once, so a later mode still
+  decides); YOLO runs it, except a `danger` command, which asks without
+  "always". In Ask first and YOLO, files Rashin reads or writes for the
+  harness are read anywhere but credential paths and written only under the
+  home folder. The harness's own modes never reach the session; a mode
+  changed later is said ahead of the next question. A harness that is not
+  installed or not signed in fails the turn with its reason and nothing else
+  answers. `run` is refused for such a conversation.
+- **Read only holds whatever the harness does.** Some harnesses write files
+  or run commands in their own process without asking (omp's write tool
+  does). So while an Ask is Read only its harness runs in bubblewrap
+  (`askSandbox` in `internal/daemon/sandbox.go`, `askSandboxFor` in
+  `internal/harness/sandbox.go`): the whole filesystem read-only; writable
+  only the harness's own state under its home (the instance's `HOME`, else
+  the user's: `~/.omp`, `~/.claude`, `~/.codex`, ...) and a private `/tmp`
+  and `/dev/shm` that are gone afterwards; nothing of the user's hidden and
+  the environment kept, so it signs in with the user's own credentials; an
+  empty runtime dir of its own, so no session bus, display or SSH agent, with
+  the Ask's own socket where the daemon's would be. Like every Rashin
+  sandbox it sees `/run` empty and runs through `rashin scope` (see Teams,
+  Sandbox), so no host daemon's socket, system bus or abstract socket is
+  within its reach. That socket (`askGate`)
+  serves only what Ask's tools call: index reads, this conversation's memory,
+  the skills, `teams.list`, `teams.templates` and `teams.propose`. Rashin
+  then offers the harness no `fs` or `terminal` of its own. Switching the
+  Ask across Read only restarts the harness on its next turn, inside the
+  sandbox or out of it, loading its session back when it can. Without
+  bubblewrap a Read only Ask on a harness does not start.
+- **Bar and terminal asks stay on the providers.** The bar and `rashin
+  <question>` ask through `ask`, which takes no harness, so they are
+  answered by Rashin's providers whatever `ask.harness` says. Only the app
+  reads `ask.harness` and passes it at `session.new`.
 
 ### In a terminal
 
@@ -632,15 +892,26 @@ sandbox (see Teams), is offered neither: Rashin refuses its `fs/` and
   ran is opened, so the composer shows the model, mode and options the
   harness will really use, and stops the agent again if the session is left
   with nothing asked.
+- **The model it starts on**: `session.new` may carry a `model`. Right after
+  `session/new` the runner puts the fresh harness session on it
+  (`session/set_model`, or `session/set_config_option` where the agent offers
+  a model option), after it has learned the harness's own default for the
+  capabilities cache. A session the agent loads back keeps its own model, and
+  one that starts over is put on the last model set. A harness that refuses
+  the model leaves the session on its default with a warning notice; it still
+  starts.
 - **The brief** (`internal/brief`, `internal/daemon/brief.go`): the first
   prompt of an agent session carries one text block ahead of the user's own:
   that it runs inside Rashin on Ryoku, the session's folder, project and
   branch, where the Ryoku vault is and how to use it, what Rashin is, and the
   code search commands over its folder with the languages the index holds, so
   an agent whose own index or search skill skips a language knows to come
-  here. A session the agent loads back is not briefed again; one that had to
-  start over is. The folder's repository is indexed when the session's agent
-  is created (see Index), so the search is there when the agent looks.
+  here. A team task's agent, whose sandbox hides the vault, is not sent there:
+  it is told in one line what it can change, what looks empty and that code
+  search reaches only the indexes inside its folders. A session the agent
+  loads back is not briefed again; one that had to start over is. The
+  folder's repository is indexed when the session's agent is created (see
+  Index), so the search is there when the agent looks.
 - **Rashin's tools** (`internal/mcp`, `cmd/rashin/mcp*.go`,
   `internal/daemon/tools.go`): every agent session is handed one stdio MCP
   server, `rashin mcp`, in the `mcpServers` of `session/new` and
@@ -730,10 +1001,13 @@ The index engine (`internal/index`) is pure Go.
   bare symbol. Each index records the extractor version it was built with;
   when an extractor improves, the next refresh rereads only that extractor's
   languages.
-- **Redaction**: secrets (key patterns, private key blocks, `password`/`token`
-  style assignments in every common syntax, credentials in URLs) are replaced
-  before anything is stored, and again on the source text `peek`, `def` and
-  `references` return.
+- **Redaction** (`redact.Patterns`, the patterns of `redact.Strict`):
+  secrets (key patterns, private key blocks, `password`/`token` style
+  assignments in every common syntax, credentials in URLs, bearer headers)
+  are replaced before anything is stored, and again on the source text
+  `peek`, `def` and `references` return. `internal/redact` is the one
+  scrubber: `Exact` is for what must stay word for word (session logs),
+  `Strict` for what Rashin learns or indexes from text.
 - **Storage**: one bbolt file per index: files (path, hash, size, mtime,
   language), symbols, chunks, an inverted index for BM25, int8 vectors and the
   counts `list` reports. Refresh is incremental by content hash and runs before
@@ -934,12 +1208,53 @@ routine is on.
   paths hidden from it) and a notify level (`all`, `needs`, `none`). A paused
   team starts no task and fires no routine, and neither does any team while
   `teams.paused` is on.
-- **Templates**: Research desk, Mail desk, Repo watch, System care and New
-  team. Repo watch brings the routine Morning review (`0 9 * * 1-5`) and
-  System care one at `0 18 * * *`, both off.
+- **Templates**, each with a level (`TeamTemplate.level`) and offered in
+  this order: light System care and Mail desk; medium Repo watch and Research
+  desk; advanced News desk; then New team. System care brings Evening check
+  (`0 18 * * *`) and Repo watch Morning review (`0 9 * * 1-5`). News desk is
+  an Editor (lead), a Reader on Claude Code with haiku and a Fact checker,
+  with Weekly digest (`0 8 * * 1`) bound to the Editor and Breaking news
+  (`0 * * * *`) bound to the Reader. Every routine arrives off. A template
+  names the credentials its team needs (`TeamTemplate.credentials`): Repo
+  watch `GITHUB_TOKEN` for `api.github.com`, News desk `NEWS_API_KEY` for
+  `newsapi.org`. A team made from it opens a credential request for each
+  one the vault does not hold; a name the vault holds for other teams is not
+  asked for again, and Activity says to let this team use it.
+- Teams do not talk to each other. No tool reaches another team: `delegate`
+  finds members only in the caller's own team, `~/Teams` is hidden from every
+  team agent and only its own folder is visible, and a folder inside another
+  team's is refused as a writable one. Two teams share only a credential the
+  user lets both use.
 - `teams.export` writes a team's definition into its folder, without history
   or credential values; `teams.import` makes a paused team from one, its
   routines off.
+
+### Proposals
+
+Any agent or person may propose a team; only the user makes one.
+
+- `teams.propose` (`TeamProposeParams`: the team as `teams.create` takes it,
+  the credentials it will need, the reason and the proposing session) is open
+  to any client because it only asks. What the proposal leaves empty comes
+  from the template it names, and the template's credentials join its own.
+  It is checked exactly as `teams.create` checks a team, its routines
+  included, without making anything. A proposed team works only in its own
+  folder under `~/Teams` (a folder or writable folders are refused) and its
+  routines arrive off.
+- It waits in the Inbox as a `team` approval (`Approval.proposal`) that never
+  expires. At most five wait at once; a sixth is refused.
+- Approving makes the team, then opens one credential request per credential
+  it names, as `request_credential` would; the approval's team becomes the
+  new team. Saying no makes nothing. Both go into Activity, the ask under the
+  proposing session's title.
+- Every agent session's `rashin mcp` offers `teams_templates`, `teams_list`
+  and `propose_team` (`brief.TeamTools`, one definition shared with Ask), and
+  Ask has the same three in every mode. The brief tells every agent what a
+  team is, that teams do not talk to each other, and when and how to propose
+  one (`brief.Teams`).
+- `rashin teams [list|templates]` prints them, and `rashin teams propose
+  <file.json>` (or `-` for standard input) proposes a team from a
+  `TeamProposeParams` document.
 
 ### Engines
 
@@ -954,15 +1269,28 @@ such as effort.
   default always names what it resolves to: "Teams default (Claude Code)",
   "Same as Agents (Codex)", "Opus 5.5 (harness default)".
 - A harness's models, its default model and its options are learned each
-  time it starts and kept per harness id with the binary's path and
-  modification time, so two instances of one binary keep their own lists;
-  `harnesses.changed` tells the app. Until a harness has started, a model is
-  typed by its id.
+  time it starts and kept per home and harness id with the binary's path and
+  modification time (`harness-capabilities.json`: `entries` for the user's
+  own home, as the file always held, `homes.<team>` for each team's), so two
+  instances of one binary keep their own lists, and a team's run never
+  replaces the user's list nor the user's a team's: a team's account may
+  offer other models. `HarnessInfo.capabilities` is the user's,
+  `TeamHome.capabilities` a team's. The user's pickers (Ask, Agents) read the
+  user's; a team's engine form and task details read the team's and never
+  borrow the user's: a team that has not run the harness shows no list and
+  says to Check to read its models, and a form with no saved team offers no
+  read. `harnesses.changed` tells the app. Until a harness has started in a
+  home, a model there is typed by its id.
 - Check (`harnesses.probe`, the app's alone) starts the harness once in a
   team sandbox with the chosen model and options, without a prompt and within
   30 seconds, and says whether it took them: "Claude Code started in the
-  sandbox and took Haiku 4.5." or the harness's own error. It records what it
-  learned.
+  sandbox and took Haiku 4.5." or the harness's own error. It runs in the
+  team's own home for that harness (`HarnessProbeParams.team`), put back as
+  it was signed in first, so it meets what that team's task would; a team
+  not signed in to the harness is not started ("This team is not signed in
+  to Oh My Pi."), and a team's engine form offers no Check before the team
+  is saved. What it learned is kept as that team's. A probe with no team
+  runs in the user's own home instead (Agents' Read the list).
 - A member may name a harness that is not installed any more; it reads "not
   installed" wherever the engine shows. An id this computer never knew is
   refused.
@@ -1004,9 +1332,9 @@ such as effort.
   environment (`RASHIN_TEAM`, `RASHIN_TEAM_TOKEN`, `RASHIN_TEAM_LEAD`):
   `report`, `ask_user`, `credentials`, `http_request`, `send_mail`,
   `request_credential`, and for the lead `delegate` and `team_status`, beside
-  the usual code search, goal and screen tools. Each is a `teams.agent_*`
-  call carrying the run's token, which the daemon checks against that
-  session's live run.
+  the code search, goal, screen and teams tools every agent session gets.
+  Each is a `teams.agent_*` call carrying the run's token, which the daemon
+  checks against that session's live run.
 - Only the daemon starts a task's session (`session.new` naming a team is
   refused), and only the Rashin app answers for it, prompts, steers or ends
   it.
@@ -1018,8 +1346,8 @@ such as effort.
   once, as shown. `send_mail` and `http_request` ask by themselves, so agents
   are told not to ask first with `ask_user`.
 - Kinds: `mail`, `credential` (a credential's first use on a host),
-  `request` (an agent asks for one its team lacks), `action` (`ask_user`) and
-  `budget`.
+  `request` (an agent asks for one its team lacks), `action` (`ask_user`),
+  `budget` and `team` (a proposed team, see Proposals).
 - Answers are once, always or deny, with an optional note the agent reads;
   a `request` is answered with the value itself.
   Always is offered for one credential on one host for one team, or one mail
@@ -1031,7 +1359,7 @@ such as effort.
   and any note, and the ledger records `approval.choose` with the option.
 - An approval nobody answers expires as denied after `teams.approvalHours`
   (default 24). A budget card does not expire: the team stays paused until it
-  is answered.
+  is answered. Nor does a proposed team.
 - They are answered in the Inbox or on the task's page, and every decision
   goes into Activity.
 
@@ -1062,6 +1390,9 @@ such as effort.
 
 - Tokens are counted per turn from the usage the harness reports and kept
   per day, member, routine and engine (`teams.spend`, the team's Spend view).
+  Each day also counts the tasks that ended on it, done or blocked, and how
+  many of them were routine runs; a retried task counts again on the day it
+  ends again.
   A new team that names no budget takes the one in Settings > Teams, New
   teams start with (2,000,000 tokens a month, a warning at 80%, 20 turns and
   60 minutes per task); a limit of 0 is no limit.
@@ -1133,22 +1464,91 @@ Every team agent runs inside bubblewrap (`bwrap`, `internal/sandbox`,
 `internal/daemon/sandbox.go`):
 
 - The whole filesystem is read-only. The team's folder, the folders the team
-  may change (`access.writable`), the harness's own state (such as `~/.omp`
-  or `~/.claude`) and `~/.cache` are writable. Rashin's state and cache, the
-  login keyrings, `~/Teams` (the other teams' folders) and the Ryoku vault are
-  always hidden, and so are `teams.hidden` (by default `~/.ssh`, `~/.gnupg`,
-  cloud and cluster credentials and browser profiles) and the team's own
-  `access.hidden`; an agent sees them empty. `/tmp`, `/dev/shm` and
-  `XDG_RUNTIME_DIR` are private, and PID and IPC namespaces are its own. There
-  is no session bus, no display, no SSH agent. The network is shared:
-  harnesses reach their model online, so an agent reaches what you can, and
-  Settings > Teams says so. The daemon's own programs stay visible, read-only,
-  wherever they run from.
+  may change (`access.writable`) and the team's own home for its harness (see
+  Sign-in for Teams) are writable, that home's guarded paths excepted; every
+  other team home is hidden. Nothing else is writable, not the user's `~/.cache` and not the
+  user's own harness state. What Rashin always hides (`alwaysHidden`) an
+  agent sees empty, whatever the settings say:
+  - Rashin's state and cache, the login keyrings, `~/Teams` (the other
+    teams' folders) and the Ryoku vault;
+  - every harness's own state under the user's home (`HarnessInfo.state`:
+    `~/.omp`, `~/.claude`, `~/.claude.json`, `~/.codex`, `~/.hermes`,
+    `~/.gemini`, `~/.qwen`, the opencode and goose dirs), for every harness;
+  - the places credentials live (`protocol.TeamsAlwaysHidden`): SSH, GPG,
+    password stores and managers (pass, gopass, Bitwarden, 1Password,
+    KeePassXC, sops), the login and KDE keyrings, git credentials, `gh` and
+    `hub` and `glab`, cloud CLIs (aws, gcloud, azure, kube, docker,
+    terraform, the vault token, rclone, doctl, hcloud, oci, fly, wrangler,
+    supabase, vercel), package registry tokens (`.npmrc`, `.yarnrc`,
+    `.pypirc`, cargo, gem, maven, gradle, composer, pub, NuGet), browsers
+    (the Firefox family with Zen, LibreWolf, Waterfox and Floorp; the
+    Chromium family with Chrome, Brave, Vivaldi, Edge, Opera and Thorium;
+    Epiphany; every Flatpak app's data under `~/.var/app`), mail clients
+    (Thunderbird, Evolution, Geary, aerc, msmtp, mbsync, mutt, neomutt),
+    chat apps (Discord, Vesktop, Vencord, Equibop, Legcord, WebCord, Slack,
+    Signal, Telegram, Element), shell and REPL histories (bash, zsh, fish,
+    atuin, python, node, psql, mysql, sqlite, less) and Rashin's and
+    Ryoku's own private state (`~/.local/state/ryoku`, Rashin's data and
+    cache, Ryotunes' sign-ins);
+  - host daemons' sockets, which reach root or the machine: all of `/run`
+    (Docker, libvirt, the system bus, Tailscale, polkit, systemd's varlink
+    sockets, the user runtime dirs), which every sandbox sees as an empty
+    tmpfs, and those that live elsewhere: Nix's daemon socket, Incus and
+    LXD. Under the empty `/run` only what name resolution needs shows again,
+    read-only: the file `/etc/resolv.conf` leads to when it lies there
+    (systemd-resolved's stub, NetworkManager's or resolvconf's, each link as
+    a link), and on NixOS `/run/current-system`, `/run/booted-system`,
+    `/run/wrappers` and `/run/opengl-driver`. glibc falls back from nscd and
+    nss-resolve to files and DNS by itself, so names still resolve.
+
+  `teams.hidden` (Settings > Teams > Sandbox) is only the user's own
+  additions, and the team's own `access.hidden` adds to it. A writable
+  folder inside anything always hidden is left out, and a team folder there
+  is refused ("The team's folder ... is inside a place Rashin hides from
+  every team."). `/tmp`, `/dev/shm` and `XDG_RUNTIME_DIR` are private, and
+  PID and IPC namespaces are its own. There is no session bus, no system
+  bus (`DBUS_SYSTEM_BUS_ADDRESS` is unset), no display,
+  no SSH agent. The agent starts from an empty environment
+  (`sandbox.Spec.ClearEnv`): it keeps only `PATH`, the language and locale,
+  the terminal, the time zone, who it runs as, the runtime dir, the proxy
+  variables and the certificate paths, beside its instance's own `env` and
+  what Rashin sets, so an API key the login session exported does not cross.
+  The network is shared: harnesses reach their model online, so an agent
+  reaches what you can, services listening on this computer's localhost and
+  on your tailnet included, and Settings > Teams says so. The daemon's own
+  programs stay visible, read-only, wherever they run from, and so does a
+  harness's own program that lives inside its hidden state
+  (`~/.hermes/hermes-agent`).
+- **Scope.** A shared network also shares abstract Unix sockets, such as an
+  X server's `@/tmp/.X11-unix/X0`. So every sandbox (team agents, Checks,
+  team screen apps and a Read only Ask) runs its program through `rashin
+  scope -- <command>`: on one locked OS thread it sets no new privileges,
+  makes a Landlock domain that handles no file or network access but scopes
+  abstract Unix sockets and signals to itself
+  (`LANDLOCK_SCOPE_ABSTRACT_UNIX_SOCKET | LANDLOCK_SCOPE_SIGNAL`), restricts
+  itself and execs the command from that thread (`sandbox.Exec`). Connecting
+  to an abstract socket made outside the domain, or signalling a process
+  outside it, fails with EPERM. This needs Landlock ABI 6 (Linux 6.12); an
+  older kernel, or Landlock off, runs the command unscoped, and Settings >
+  Teams > Sandbox says so (`Status.unscoped`). A kernel that can scope but
+  refuses runs nothing. The daemon uses the rashin command beside it, and
+  one that does not know `scope` yet leaves the sandbox unscoped and says so
+  in its log. X11 apps on a team's own screen cannot use an abstract X
+  socket either; Wayland apps are unaffected.
 - The agent reaches Rashin only through its task's own socket,
   `$XDG_RUNTIME_DIR/rashin/agents/<session>/rashin.sock`, which the sandbox
   sees at the main socket's path. It serves that session's team tools, goal
   and screen and the index methods that read; everything else is refused
-  ("An agent can use only its own tools here.").
+  ("An agent can use only its own tools here."). The index methods reach only
+  the indexes whose every root lies inside the team's folder or a folder it
+  may change, none of them hidden, never the system index: `index.list` names
+  only those, a `cwd` must lie inside those folders, and any other index is
+  refused ("An agent can read only the indexes inside its team's folders.",
+  `internal/daemon/indexscope.go`). Inside them, every file the agent's
+  sandbox hides (what Rashin always hides, Settings > Teams' list and the
+  team's own) leaves every hit, symbol, reference, change, overview and
+  impact, a definition there gives way to a visible namesake, and a peek,
+  outline or impact of one is refused the same way (`sandbox.Spec.Hides`).
 - Programs an agent opens on its screen run in the same sandbox, with the
   screen's display and private bus. A harness Check runs in a sandbox like a
   team agent's, in a folder of its own that goes when it ends.
@@ -1164,44 +1564,506 @@ Every team agent runs inside bubblewrap (`bwrap`, `internal/sandbox`,
   run their agents in a sandbox, which needs bubblewrap. Install the
   bubblewrap package." Every package lane depends on it.
 
+### Sign-in for Teams
+
+A team never runs a harness as the user's own setup, nor in another team's.
+Each team has a home for each harness instance it uses,
+`$XDG_DATA_HOME/ryoku/rashin/harness-homes/<instance>/<team>/` (0700,
+`harness/teamhome.go`), and the team's sessions and Checks run it with `HOME`
+and the XDG base dirs there. Its sign-in, its settings and its state (its
+transcripts too) live there; the user's own (`~/.omp`, `~/.hermes`, ...) and
+every other team's home stay hidden from the team's sandbox (the whole
+`harness-homes` folder is hidden, then the team's own home bound again).
+Nothing a sign-in made is ever copied between homes: a login copied from one
+home to another would spend a rotating refresh token twice.
+
+- **Signing in.** A team's Settings tab has a Sign-in for Teams group with
+  each harness its members run on, signed in or not, and Settings > Teams
+  sums it up per harness ("3 teams signed in on Claude Code, 1 not") with
+  the same actions per team. Sign in (`harnesses.teams_open` with the team,
+  the app's alone) opens a terminal through `ryoku-app terminal` that runs
+  the harness's login with `HOME` at the team's home: `omp login`, `hermes
+  model`, `claude auth login`, `codex login`, `opencode auth login`,
+  `gemini`, `qwen` and `goose configure` (a custom instance takes the login
+  of the harness it runs). Open setup opens a shell there instead, to write
+  the harness's config by hand; it may start from another team's setup on
+  the same harness (`copyFrom`): the guarded config that team signed in with
+  is copied in, `.ssh` and everything the sign-in made (logins, sessions,
+  databases) never, for setups that keep a key in config such as a custom
+  provider in omp's `models.yml`. When the terminal's command ends, it calls
+  `rashin teams home-done <token> <status>` (`harnesses.teams_done`, which
+  needs the one-time token that terminal was handed); a setup, or a sign-in
+  that exited 0, signs the team in. While a terminal is open the team reads
+  as not signed in; a home a task of the team works in now is refused.
+- **Git identity.** A team home's `.gitconfig` only includes the user's
+  `~/.gitconfig` and `~/.config/git/config`, which stay readable in the
+  sandbox, so commits a team makes carry the user's name; git credentials
+  stay hidden.
+- **A task of a team not signed in** to its harness ends blocked with "This
+  team is not signed in to Oh My Pi. Sign it in for Teams, then retry the
+  task." (`TeamTask.signIn` names the harness). Its Inbox card and the
+  team's Next steps offer Sign in for Teams, for that team.
+- **The guarded home.** A run must not leave instructions or code that its
+  team's next run, or the next sign-in, would follow. Every harness
+  definition names its guarded paths, relative to the home: instructions,
+  config, MCP and provider config, skills, memories, extensions, plugins,
+  hooks, agents and prompts (for omp `.omp/agent/{config.yml,models.yml,
+  mcp.json,AGENTS.md,SYSTEM.md,APPEND_SYSTEM.md,extensions,skills,
+  managed-skills,memories,agents,commands,prompts,hooks,rules,tools}` and
+  `.omp/plugins`; for hermes `.hermes/{config.yaml,.env,SOUL.md,AGENTS.md,
+  memories,skills,plugins,hooks,cron,pairing}`), and every home guards them
+  all, with what git, shells, ssh and package managers read from `HOME`
+  (`.gitconfig`, `.config/git`, `.agents`, the bash, zsh and fish startup
+  files, `.ssh`, `.npmrc`, `.yarnrc`, pip and cargo config). While a team
+  task or Check runs, those that exist are mounted read-only
+  (`harness.ReadOnlyGuarded`; links are left out), so a run cannot change
+  them mid-run; one that does not exist yet can be made, and goes at the
+  next restore. When a sign-in or setup ends, Rashin keeps a copy of them
+  under `$XDG_STATE_HOME/ryoku/rashin/harness-homes/<instance>/<team>/blessed/`.
+  Before every task, Check and sign-in of the team it puts them back: a
+  changed one goes back to the kept copy, and one that is new, or a link
+  where a guarded folder or one above it should be, moves into
+  `.../<instance>/<team>/quarantine/<time>/`, which keeps its newest 10. The
+  home is written through `os.Root` and moves go through the folder they
+  sit in, so a link a run planted leads nothing out of the home. Anything
+  put back is recorded in Activity (`home.restore`) and left in the Inbox
+  as a notice under the team (approval kind `restore`, answered Got it,
+  never expiring); the same notice again before it is read counts up
+  (`Approval.repeats`) instead of adding a card. Runtime files (logins,
+  sessions, caches, logs, databases) are never touched.
+- **Writes a harness makes to its guarded paths.** omp writes none of them
+  while it works (a real omp team task and Check left nothing to put back).
+  Hermes writes `.hermes/memories` and `.hermes/skills` when its own memory
+  and skill tools run, and `.hermes/cron` for its own schedules: in a team
+  task those fail, read-only, which is meant, since a team's lasting memory
+  and skills are what the user sets up. Fish writes `fish_variables` in
+  `.config/fish` and ssh `known_hosts` in `.ssh`; both only warn.
+- **From one home per harness.** A home every team on a harness once shared
+  (`harness-homes/<instance>/` with its record beside it) becomes, when the
+  daemon starts, the home of the team whose task last ran on that harness,
+  else of the one team that uses it (Activity `home.migrate`); the other
+  teams are not signed in to it. One no team can be found for stays as it
+  was, unused.
+
 ### In the app
 
 - The Rashin and Teams switch in the top bar, or Ctrl T, switches the window
-  to Teams mode and back. Ctrl 1 to 6 pick its destinations: Inbox, Teams,
-  Work, Routines, Vault and Activity. Settings opened from Teams mode opens on
-  Settings > Teams, in five groups: Running (pause every team, tasks at once,
+  to Teams mode and back. Ctrl 1 to 7 pick its destinations: Inbox, Teams,
+  Dreams, Work, Routines, Vault and Activity. Settings opened from Teams mode opens on
+  Settings > Teams, in six groups: Running (pause every team, tasks at once,
   tasks at once in one team, wake Rashin for routines), New teams start with
   (engine, permissions, budget, notifications), Asking and telling (how long a
-  question waits, quiet hours), Sandbox (the hidden list and the network) and
-  History (how long finished tasks stay). Toggles and selects save as they
+  question waits, quiet hours), Sign-in for Teams (per harness teams use, how
+  many teams are signed in to it, with Sign in and Open setup per team), Sandbox (what is always
+  hidden, as fixed lines, then the user's own hidden list, and the network)
+  and History (how long finished tasks stay). Toggles and selects save as they
   change; numbers and text save with their group's Save.
 - A team's Settings tab holds everything that team decides, its budget and
-  limits included. Its Overview adds Next steps (a member's harness not
-  installed, a credential it asked for, a routine that is off, a team that
-  never ran, each with one action and each hideable) and Files, the newest
-  files in its folder with the report each came from.
+  limits included, and its Sign-in for Teams group. Its Overview adds Next
+  steps (a member's harness not installed, a harness the team is not signed
+  in to, a credential it asked for, a
+  routine that is off, a team that never ran, each with one action and each
+  hideable) and Files, the newest files in its folder with the report each
+  came from.
+- The Work board opens with Finished, a chart of every team's tasks that
+  ended each day this month, and Routines with Runs, the routine runs among
+  them (`teams.spend` days, `tasks` and `routines`). Activity has no chart: it
+  reads the ledger a page at a time.
 - Routes: `inbox`, `teams`, `teams/new[/<template>]`, `teams/<team>[/<view>]`
   (views `overview`, `work`, `routines`, `spend`, `settings`),
   `work[/<task>]`, `routines`, `routines/new[/<team>]`,
   `routines/<routine>`, `vault[/<credential>]` and `activity`
   (`shell.TeamsRoute`). `rashin open --route <route>` opens `inbox`,
-  `activity`, `teams[/<team>[/<view>]]`, `work[/<task>]`,
-  `routines[/<routine>]` or `vault[/<credential>]` in a running window, or
-  starts the app there; a notification opens its place the same way.
+  `activity`, `teams[/<team>[/<view>]]`, `dreams[/<dream>|new]`,
+  `work[/<task>]`, `routines[/<routine>]` or `vault[/<credential>]` in a
+  running window, or starts the app there; a notification opens its place
+  the same way.
 - A task's page shows its transcript, what it waits on, its report and the
   engine it ran on, and answers its approvals inline.
+- The template picker, in the Inbox before the first team and in a new
+  team's Start from, groups the templates under Light, Medium and Advanced,
+  each with one line on what that level asks of you, and puts New team last
+  under From scratch (`teamsui.LayoutGroups`).
+- A proposed team waits in the Inbox as a card, even before any team exists:
+  its name and purpose, its permissions and tools, the reason in the
+  proposer's words and the conversation it came from (a link that opens it),
+  its members with their engines, its routines (each off until you turn it
+  on) and the credentials it will ask for. Create team makes it, and its
+  credential requests then wait in the Inbox; Not now records the answer
+  (`teamsui/proposal.go`). The demo Inbox holds one, Translations, proposed
+  in the agent session Polish provider cards, asking for `DEEPL_API_KEY`.
+
+### Dreams
+
+A dream is a team with a standing objective that runs until the objective is
+built, tested and accepted (`Team.Dream`, `internal/teams/dream*.go`,
+`protocol/dream.go`). The user is the CEO; the dream's lead is its
+**Manager**, an agent that interviews the CEO, plans, hires the members it
+needs, hands them pieces, has their work reviewed, tests the result and
+presents it. It is more than a `/goal`: a goal is one agent's objective
+across turns, a dream is a team's, and only the user ends it.
+
+- **Starting.** `teams.dream_create` (app only; `DreamCreateParams`: the
+  statement, an optional name and folder, the manager's harness, model and
+  options, and a monthly token cap) makes a team with one member, Manager,
+  working in `~/Dreams/<slug>`, and the manager's standing task, whose brief
+  is the statement. A dream runs with approvals `auto` and no token cap
+  unless one is given (`budget.monthTokens` 0); its tasks are exempt from
+  turns and minutes per task. `rashin dreams start <statement>` asks the
+  daemon and, since only the app may start a dream, opens the app's New
+  dream dialog (`dreams/new`); `rashin dreams list` lists them.
+- **Separate from Teams.** Dreams show only under Dreams in Teams mode:
+  `teams.list`, the teams agents read and `rashin teams list` leave them
+  out, while the subscribe snapshot keeps them for the app. `~/Dreams` is
+  always hidden, as `~/Teams` is, and a dream's own folder is bound back for
+  its own agents; a folder inside another dream's is refused as a writable
+  one.
+- **The manager's brief** (`dream_brief.go`) names the CEO's statement, what
+  the interview settled (`Dream.brief`), the phases, its tools, which
+  built-in skills fit which phase (Elephant and Goldfish to brainstorm, draft
+  and review; Spec Kit or OpenSpec for specs, plans and tasks; Superpowers
+  for test-first work and verification), and its rules: ask the CEO only
+  design or task questions, batched in one card, and never for confirmation;
+  hire small and release a member once its work is in; have work reviewed in
+  fresh context by a member who did not write it; test before presenting;
+  present with evidence. Parts of these instructions and of the tool texts
+  are adapted from Paperclip (MIT, see `ryoku/rashin/NOTICE`). A member a
+  dream hires gets the ordinary member brief, except that it asks the user
+  nothing and puts open questions in its report to the manager.
+- **Tools.** Only the manager's MCP server lists `hire`, `release`,
+  `dream_status` and `present` (`RASHIN_TEAM_DREAM`), and has no `report`.
+  The daemon checks the run token belongs to the dream's manager for
+  `teams.agent_hire`, `agent_release`, `agent_dream` and `agent_present`. A
+  hire takes the manager's engine unless it names one; its harness must be
+  signed in for this dream (per-team homes), or the hire is refused with the
+  harnesses that are. A team holds at most six members at a time. A member
+  with an open piece cannot be released.
+- **Phases.** `interviewing`, `designing`, `planning`, `building`,
+  `testing`, `presenting`, `done`. The manager sets the first five with
+  `dream_status`, with a one-sentence summary; `present` sets presenting;
+  only the CEO's accepting sets done.
+- **The loop.** The manager works one standing task as a goal. It is held
+  while it waits on its members or the CEO and continued when that settles,
+  as any lead is. A report does not end it (`teams.agent_report` refuses),
+  a goal the manager completes is set again, a spent turn budget resumes,
+  and the pause the session manager makes after two idle turns resumes too.
+  A blocker the manager names with the goal tool becomes a question in the
+  Inbox. A failed turn, or the user stopping the conversation, ends the
+  standing task; Resume (`teams.pause` with `paused` false, also on a dream
+  that is not paused) runs that same task again in a new conversation, which
+  hears where the dream stands through its brief. A dream started before its
+  harness was signed in goes on by itself when that sign-in finishes
+  (`HomeSignedIn`, from `harnesses.teams_done`): its blocked standing task
+  runs again, so it is neither a finished task nor a card left waiting.
+- **Stall guard.** Six manager turns in a row without a tool call stop the
+  dream with an Inbox card, "<dream> has stalled: keep going?", carrying the
+  manager's last words, with Keep going and Pause the dream.
+- **Interview first, the team builds.** The manager's first turn asks the
+  CEO one batched round of design and task questions with `ask_user`
+  (`question` carries them in full; without a `title` the card takes the
+  question's first sentence), sharing its plan when the statement looks
+  complete; it never writes the product itself. `present` is refused, with
+  what to do instead, until the CEO has answered one of its questions in
+  this dream and a member it hired has finished a piece since the last
+  presentation. Every Rashin MCP tool refuses an argument it does not take
+  and names the ones it does.
+- **Presenting.** `present` (title, body, tests, files inside the folder)
+  waits as an Inbox card, "<dream> is ready: <title>", with Accept and Send
+  notes. `teams.dream_answer` (app only; `accepted`, or `notes` with the
+  note) answers the same card. Accepting ends the standing task with the
+  presentation as its report, stops whatever the team still works on and
+  marks the dream done; notes put it back to building and continue the
+  manager with them. A dream's questions, its stall card and its
+  presentation never expire. Questions and presentations reach the desktop
+  as notices under the dream's notify setting.
+- **Ledger.** `dream.start`, `dream.hire`, `dream.release`, `dream.phase`
+  (when the phase changes), `dream.present`, `dream.accept`, `dream.notes`,
+  `dream.stall` and `dream.resume`, beside the ordinary task entries.
+- **What a dream cannot do.** No confirmations does not mean no floor:
+  Rashin's danger tier still asks, and `sudo`, `doas` and `su` are never
+  run. A dream has no hardware or device access, such as flashing a board
+  over USB; it works in its folder and the folders the CEO adds to its
+  writable list, and the manager asks the CEO for a step on the device
+  itself.
+- **Proof with the scripted agent.** `RASHIN_ACP_TEST_MODE=dream` makes
+  `TestACPHelperProcess` play a dream: the manager sets phases, hires Ada,
+  delegates the page, releases her and presents; a member writes
+  `index.html` into the folder and reports.
+- **In the app.** Dreams (`pages/dreams`) lists every dream with its phase,
+  its manager's summary and its team, and its New dream dialog takes the
+  statement, a name, the manager's engine, Unlimited or a monthly cap, the
+  folder and how the manager signs in: from scratch, or from the setup of a
+  team signed in to that harness. A dream's page shows the statement, the
+  phases as words, where the manager says it stands, a bar that follows the
+  phase (inside building, the pieces done out of those handed out this
+  round; presenting sits at 95%), its sign-in, the presentation with Accept
+  and Send notes and, under it, who built it from Rashin's own task records
+  (role, harness and model of each member who worked this round, whatever
+  the manager wrote), its questions, the team as an org chart under You
+  (CEO), its work with the hires' tasks, tokens and tasks that ended done
+  over time, and its folder, with Pause and Resume. Routes are
+  `dreams`, `dreams/new` and `dreams/<id>`; `ui.open` with tab `dreams` and
+  team `new` or an id opens the same. The Teams list and board leave dreams
+  out. The demo has "ESP32 Wi-Fi setup page" building with a question
+  waiting and "Receipt renamer" presenting.
 
 ### Limits
 
 The sandbox and the vault keep a team's agents from your secrets and from
 acting unasked, not everything else. A program you run yourself, outside a
 team, still runs as you: it can reach your login keyring and start the app.
-The network is shared, so abstract Unix sockets and the system bus stay
-reachable from a sandbox, and `/run` outside the runtime directory is visible
-read-only. A team agent reads the rest of your files, read-only, like any
-program you run; only the hidden paths above are kept from it. The app check
-is a gate for agents, not a boundary against someone already running code as
-you who can start a `rashin-app` and inject into it.
+The network is shared, so services listening on localhost or your tailnet
+stay reachable from a sandbox; the host's `/run` and abstract sockets do not
+(the latter only where the kernel can scope them, see Sandbox). A team agent
+reads the rest of your files, read-only, like any
+program you run; only the hidden paths above are kept from it. Claude Code
+keeps its MCP servers in `~/.claude.json`, which it rewrites as it runs, so
+that file is not guarded.
+The app check is a gate for agents, not a boundary against someone already
+running code as you who can start a `rashin-app` and inject into it.
+
+## Memory
+
+Rashin remembers facts about you and your work between conversations, the
+way a person who has worked with you would. It is off until you answer the
+first-run card in Ask (`memory.asked`), and while it is off nothing of it runs:
+no file is opened, no model is loaded, no timer is set.
+
+### What it keeps and where
+
+- **Facts, never orders.** Every memory is one fact of at most 280
+  characters ("The user prefers short answers"), never an instruction.
+  Nothing about you is ever written into a harness's own memory or
+  instruction files.
+- **Personal and project facts** are Markdown in the Ryoku vault,
+  `memory/rashin/you.md` and `memory/rashin/projects/<slug>.md`, one fact per
+  line. You may edit a line to change a memory or delete it to forget it;
+  Rashin reads the change the next time it uses the file. A line that reads
+  as an instruction or holds a secret stays on disk, marked blocked, and is
+  never used.
+- **Team facts** are `~/.local/state/ryoku/rashin/memory/teams/<team>.md`, out
+  of the vault, so no agent outside the team reads them.
+- **The ledger**, `memory/memory.db` in Rashin's state, keeps what the files
+  cannot: where each fact came from, its earlier versions, what was replaced
+  or forgotten (a forgotten fact is never learned again), the undo history,
+  suggestions and the summaries of past conversations.
+- A project is known by its repository's first commit, so a clone or a moved
+  folder keeps its facts. A project set to keep its memory
+  (`ProjectSettings.Memory = kept`) is recalled only inside itself, and what is
+  learned there stays there.
+
+### Learning
+
+- A conversation is learned from once it has been quiet for
+  `memory.quietMinutes` (10 by default), by one model call that reads only
+  your words, the final answer of each turn and your answers to questions and
+  permission requests, never tool output, files or web pages. Everything sent
+  is scrubbed of secrets first.
+- That call first lists the dated or counted things you did or plan, then
+  keeps the facts worth having later: what happened when and where, for how
+  long and with whom, how many, what you prefer, never an interest you did
+  not state. Dates are written absolute; a fact that still says "three weeks
+  ago" or "last month" gets "(as of <the conversation's day>)". Only the
+  facts are stored, and each conversation's summary keeps its names,
+  numbers, dates and the key advice.
+- The model is a local one first (`memory.model = localFirst`), else the one
+  that answered the conversation; "Local only" waits for a local model and
+  "Any provider" uses Ask's route.
+- What a learning pass keeps shows in the conversation as "Memory updated",
+  with Undo. Temporary conversations, conversations set to use memory only or
+  not at all, and team tasks are never learned from. Teams, background agents
+  and imports only suggest: their suggestions wait under Suggested on the
+  Memory page and in the Inbox.
+- Before the daemon exits at idle it learns from every conversation still
+  waiting (`Settle`), and stays up until that is done.
+
+### Where memory is used
+
+- **Ask** gets a `# Memory` section in its system prompt: how to use memory,
+  the card about you (at most 1,375 characters) and how much more there is to
+  search. Each question also gets facts about you and the conversation's
+  project, fenced in `<memory-context>` on that turn's message only: every
+  fact it may read when they all fit the fence, else up to eight that bear on
+  the question. With past conversations allowed in Settings > Memory, a
+  question that looks back ("did I", "when did I", "what did you say") or
+  that no fact bears on also gets matching lines of earlier conversations,
+  with their day and title, an answer of Rashin's ahead of yours when you ask
+  what it said, and a long line cut around the sentence that matches. The
+  stored conversation keeps what you typed, so the next turn never carries
+  the fence, and a fence the model repeats is cut from the answer as it
+  streams. "Used N memories" under the answer says which facts it drew on.
+  Trivial turns ("thanks", "ok") recall nothing.
+- **Ask's memory tools**: `memory_search`, `remember` (which may mark a fact
+  sensitive), `forget`, and `session_search` over past conversations when
+  Settings > Memory allows it. What `remember`, `forget` and `session_search`
+  do shows as memory's own line in the conversation, not as a tool row.
+- **Agents** (`memory.agents`) get the card and up to 2,200 characters of the
+  project's facts in their brief, and the same four tools from the `rashin`
+  MCP server, which the daemon turns on with `RASHIN_MEMORY=1` (and
+  `RASHIN_MEMORY_SESSIONS=1` for the conversation search).
+- **Teams** (`Team.Memory`): with Remember on, a team's members are told what
+  the team remembers and get `memory_search`, `remember` and `forget` over
+  their team's memory through their own socket; a fact about you or a project
+  becomes a suggestion, and only when the team may suggest and
+  `memory.teamSuggestions` is `ask`. With Carry report on, a routine's run
+  starts with the newest report of an earlier run that said something (at most
+  2,000 characters). With Reads you on, members also get the card. New teams
+  take Settings > Teams, New teams start with; removing a team forgets
+  everything it remembers.
+
+### Memory engines
+
+Memory is kept by the built-in store unless Settings > Memory picks another
+engine:
+
+- **Hindsight** runs on this computer or at an address you give. On this
+  computer, "Set up" uses `uv` to install Hindsight 1.2.1 into
+  `~/.local/share/ryoku/rashin/hindsight/venv`. The packages come from a lock
+  shipped inside `rashind`, and every package's hash is checked. The lock
+  leaves out the two proprietary packages Hindsight can load. Setup then
+  fetches its models and makes its database. Hindsight starts on the first
+  memory call that needs it, never at login. It stops when Rashin goes idle,
+  after one wait of at most 10 minutes if it still has work queued. While it
+  runs it uses about 1.2 GB.
+  - It listens only on 127.0.0.1, behind a random key kept in the vault
+    (`RASHIN_HINDSIGHT_KEY`). Its database password is random too
+    (`RASHIN_HINDSIGHT_DB`).
+  - Model traces, stored source text, its MCP endpoint and file uploads are
+    off.
+  - Its model calls go through Rashin's gateway on a loopback port that is
+    open only while it runs, using the model that memory learns with.
+  - At an address, it takes the name of a vault credential holding the key.
+- **Honcho** is a server you run or use, reached at its address with the name
+  of a vault credential. Rashin keeps to workspace `rashin-desktop` unless you
+  name another. Each scope is a peer that observes you, so facts never cross
+  scopes. Honcho's card is read-only.
+
+With an external engine, that engine learns from your conversations. Rashin
+still does recall, explicit remembering and forgetting, suggestions and chat
+notes. "Move" copies every active memory into the chosen engine, and "Test"
+checks that it answers.
+
+Packages list `uv` as an optional dependency: `optdepends` on Arch and
+CachyOS, `Suggests` on Fedora, the desktop package set on Void, and `withUv`
+in the Nix package. On NixOS, Hindsight also needs `programs.nix-ld`.
+
+### Who may do what
+
+The daemon fills the caller from the connection, never from what a call
+says (`core.MemoryCaller`):
+
+- **The Rashin app** may call every `memory.*` method. Only the app may call
+  `memory.forget_all`, `memory.keep`, `memory.import`, `memory.engine_setup`
+  and `memory.engine_move` (`memory.UserOnly`), or change the `memory`
+  settings.
+- **A team task's agent**, on its session's own socket, may call only
+  `memory.search`, `memory.add` and `memory.forget`, over its own team.
+- **Anything else on the main socket**, such as an agent's MCP server or the
+  command line, may read, add, edit and forget. An add or forget that names
+  the conversation it was asked in shows there, unless that conversation is a
+  team task's.
+
+### Command line
+
+```
+rashin memory status
+rashin memory list [--scope you|projects|teams|<scope>] [--status suggested|replaced|blocked] [--query words] [--limit n]
+rashin memory search <words> [--scope s] [--limit n]
+rashin memory add <text> [--scope s] [--sensitive]
+rashin memory forget <id>...
+rashin memory card [--rebuild]
+rashin memory sessions <words> [--last 6h|7d|2w|1m] [--limit n]
+rashin memory learn <session>
+```
+
+Each prints TOON when piped and a table on a terminal; `--format
+human|json|toon` picks one.
+
+## Skills
+
+Rashin ships four skill sets built in and gives them to every model it runs:
+Ask, every agent session and every team.
+
+| Set | id | By | Licence | Pinned | Skills |
+|---|---|---|---|---|---|
+| Superpowers | `superpowers` | Jesse Vincent | MIT | `22f0b463e7a5` | 14: brainstorming, plans, test-driven development, systematic debugging, review, worktrees, verification |
+| OpenSpec | `openspec` | Fission AI | MIT | `d12c28177767` | 12 `openspec-*`: propose, apply, verify and archive a change; need the `openspec` command |
+| Spec Kit | `speckit` | GitHub | MIT | `979b0a3c1277` | 9 `speckit-*`: constitution, specify, clarify, plan, tasks, implement and checks; need `.specify/` in the project |
+| Elephant and Goldfish | `egm` | Google | Apache-2.0 | `84145300b9e0` | 7 `egm-*`: brainstorm, draft, review, resolve and drift reports for design documents; the user starts each by name |
+
+### Where they lie
+
+- **Vendored unchanged** under `ryoku/rashin/internal/skills/sets/<id>/`
+  (`bin/ryoku-dev-sync-rashin-skills` takes each set again from its pinned
+  commit) and embedded in `rashind`. What Rashin says about a set (its
+  summary, what it needs, its setup) is a Go table in
+  `internal/skills/catalog.go`, never a line inside a vendored file.
+- **The index** is read once from each `SKILL.md`'s frontmatter: `name`,
+  `description` and `disable-model-invocation`, which makes the skill one the
+  user starts by name (`Manual`, "When you ask" in the app).
+- **Written out on first use** to `$XDG_DATA_HOME/ryoku/rashin/skills/<hash>/`,
+  named for the tree's content: whole into a temporary folder, then renamed,
+  and every other folder there removed. A file starting with `#!` is
+  executable. Nothing runs while Rashin is off and nothing runs on a timer.
+- **Never in a harness's own folders.** Rashin does not write into
+  `~/.claude/skills` or any other user's harness config; agents read the
+  skills where Rashin keeps them.
+
+### Who is told what
+
+- **Ask** gets a short `# Skills` section in its system prompt (each set that
+  is on with its skills' names and where they lie, kept to about 1,200
+  characters) and two tools: `skills` searches by BM25 over each skill's
+  name and description (an empty query lists them) and `skill` reads a
+  skill's `SKILL.md` or one of its files. The model hears a skill whole; the
+  transcript shows its start.
+- **An agent session** hears the same list in its brief, with the folder and
+  one line on use: search with `skills` before a task, read with `skill` or
+  open the files at their paths, and start a skill the user starts by name
+  only when the user names it. Its `rashin mcp` server offers `skills` and
+  `skill` to every session.
+- **A team task's agent** hears its team's sets in the team's part of the
+  brief: those on for every model, less the team's `skillsOff`. A lead also
+  hears that designs and reviews go best with Elephant and Goldfish and
+  features of many steps with Spec Kit or OpenSpec. Its sandbox shows each of
+  those sets read-only at the same path, inside the data dir it otherwise
+  sees empty, so a set the team is not given stays hidden, and its own socket
+  answers `skills.*` within its team's sets.
+
+### Turning sets off
+
+Rashin > Settings > Skills turns a set off for every model (`skills.off`),
+and a team's Settings > Skills turns one off for its members (`skillsOff`
+through `teams.update`, recorded in Activity). Only the Rashin app changes
+either. A set that is off is listed with `on` false and is absent from
+search, reading, prompts, briefs and sandboxes.
+
+### Needs and setup
+
+- **OpenSpec** needs the `openspec` command (`npm install -g
+  @fission-ai/openspec`); its skills say what to do without it.
+  `skills.list` reports each need and whether `PATH` has it, and the
+  prompts name a missing one with its install command.
+- **Spec Kit** needs `bash` and `git`, and its `.specify/` scripts and
+  templates in the project. `rashin skills setup speckit [dir]` copies them
+  in, as Spec Kit's own `specify init` would, and refuses a project that
+  already has `.specify/`. The brief says so beside the Spec Kit skills.
+
+### Methods and command line
+
+`skills.list` (every set, its skills, needs and whether it is on, and the
+folder they lie in), `skills.search` and `skills.get` (a skill's file, read
+only inside its folder: no `..`, no links).
+
+```
+rashin skills list
+rashin skills search <words> [--limit n]
+rashin skills read <set/name> [file]
+rashin skills setup speckit [dir]
+```
+
+`list` and `search` print TOON when piped and a table on a terminal;
+`--format human|json|toon` picks one.
 
 ## The app
 
@@ -1229,13 +2091,21 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
   session exists until the first message is sent, and sending it moves the
   composer to the foot of the column. Its list groups asks by day. An open ask
   shows the transcript in the reading column with the composer at its foot,
-  the route choice (Auto, Fast, Smart or one free model), what the
-  conversation may do (Read only, Ask first or YOLO, see Ask), answer actions
-  and Move to Agent. With no conversation open that choice is what the next
-  one starts with and is `ask.approvals`; the line over the composer says it
-  in words, and YOLO is drawn in the attention tone wherever it shows. A
-  change Ask asks for is a request card like an agent's. An answer that was
-  stopped or cut off says so under it.
+  the model choice, what the conversation may do (Read only, Ask first or
+  YOLO, see Ask), answer actions and Move to Agent. With no conversation open
+  those choices are what the next one starts with: the model shows `ask.model`
+  until one is picked, and what it may do is `ask.approvals`; the line over the
+  composer says it in words, and YOLO is drawn in the attention tone wherever
+  it shows. The model list always has its search field: Auto, Fast and Smart
+  first, then the models under Free (keyless and free tiers), Local (servers on
+  this computer that answer now) and Paid (providers you hold a key for). A
+  paid provider without a key shows its models unpickable with "Add a key in
+  Providers", and a model the conversation uses that no provider offers now
+  stays listed, unpickable, so the choice never reads as Auto. The list is
+  read again whenever the providers change, and Settings > Ask picks
+  `ask.model` from the same list. A model picked here is pinned (see
+  Ask). A change Ask asks for is a request card like an agent's. An answer that
+  was stopped or cut off says so under it.
 - **Agents** opens on its Now board: what needs you in one sentence, a
   composer that starts a session in a project and worktree with a harness, then
   the sessions that need you, are working or finished recently. A board with no
@@ -1244,12 +2114,19 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
   install page, in place of the composer. The harness picked for a session
   becomes `agent.harness`, so the board, the dialogs and Settings always agree,
   and so does the asking choice beside it (`agent.approvals`: ask before
-  changes, ask every time, YOLO). Under the board's composer stands what the
-  picked harness will run with (its own setup, see Agent). A session's
-  composer carries the model, the mode and every option its harness offers,
-  each as a select, and the asking choice; opening a session that never ran
-  brings its harness up to learn them, with "Starting" in their place
-  meanwhile (`pages/agent/controls.go`).
+  changes, ask every time, YOLO). Beside the harness stands the model the
+  session will start on, from the list the harness gave when it last started:
+  "Harness default (name)" first, then its models. The pick is remembered per
+  harness in the app's preferences (`agentModels`) and sent with `session.new`.
+  A harness that never ran has no list yet; Read the list starts it once
+  without a prompt in the user's own home, as an Agents session runs
+  (`harnesses.probe` with no team), and keeps the list as the user's. The
+  full dialog has the same model field. Under the board's composer
+  stands what the picked harness will run with (its own setup, see Agent). A
+  session's composer carries the model, the mode and every option its harness
+  offers, each as a select, and the asking choice; opening a session that
+  never ran brings its harness up to learn them, with "Starting" in their
+  place meanwhile (`pages/agent/controls.go`).
   Its list groups sessions by Needs you, Working, Done and Idle. A session
   shows its project, worktree, branch and harness in the header, the transcript
   (work as single lines that unfold, permission requests, plans, diffs), queue
@@ -1371,10 +2248,26 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
   Ask (the model route, what a new ask may do, shell habits), Agents (the
   default harness, approvals, notices, the idle stop, the harnesses found with
   what each will run with, how to install the rest, your own harnesses), Teams
-  (Tasks at once), Index, Appearance (zoom, contrast, tint, reduce motion) and
+  (Tasks at once), Index, Appearance (zoom, colours, contrast, tint, reduce motion) and
   Keyboard (every shortcut). Its list runs to the pane's edge, so the wheel
   moves it from beside the column too.
   Project settings live with the project.
+- **Colours**: Rashin opens in the ryoku.dev stock (Ryoku: black, bone and the
+  orange sun; Ryoku light on warm grey), whatever the wallpaper is. Wallpaper
+  in Settings > Appearance takes the desktop's palette instead, and only then
+  is Tint offered and the palette files watched. The pick is stored in the
+  app's preferences (`colours`: `ryoku`, `ryoku-light` or `wallpaper`) and
+  repaints the window at once.
+- **Provider logos** (`internal/app/look/logo.go`, `look/logos`): Settings >
+  Providers, the Ask model menu and the Agents harness picker lead each
+  provider and harness with its mark from lobe-icons (MIT, pinned), in fg2 and
+  fg under the pointer or when chosen, never in brand colours; a provider
+  lobe-icons has no mark for shows its initial. `look/logos/list.txt` names
+  the mark for every catalogue provider and harness (a test fails on a
+  provider missing from it), and `bin/ryoku-dev-sync-provider-logos` renders
+  the mono SVGs into 96 px coverage masks, since their even-odd fills and arcs
+  are beyond Lithic's symbols pipeline. The app scales and tints a mask once
+  per size and ink.
 - **The desktop** is reached through `internal/app/desktop` only: the file
   chooser (XDG portal `FileChooser`), the clipboard's image (`wl-paste`),
   notices (`org.freedesktop.Notifications`) and starting other programs: the
@@ -1408,10 +2301,11 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
 - **Motion** follows `docs/lithic/motion.md`; an idle window draws no frames.
 - **Off or unreachable**: one pane saying so with the next step; no retry
   loop faster than the client's 2 s reconnect.
-- `rashin-app --demo --png out.png [--size WxH --mode dark|light --route ...
-  --zoom N]` renders against an in-process demo daemon; with `--script` and
-  `--shots` it plays a motion story and returns its frames side by side. The
-  stories live in `internal/app/shell/testdata/motion`.
+- `rashin-app --demo --png out.png [--size WxH --mode dark|light|follow --route ...
+  --zoom N]` renders against an in-process demo daemon (`--mode` paints that
+  run only, over the stored Colours); with `--script` and `--shots` it plays a
+  motion story and returns its frames side by side. The stories live in
+  `internal/app/shell/testdata/motion`.
 - **Driven like a person** (`internal/app/shell/stage_test.go`): the tests run
   the whole app against the demo daemon with a real input router and no
   window, find controls by the name a screen reader would say, and press and

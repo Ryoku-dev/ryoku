@@ -25,6 +25,18 @@
   metadata names the license and the package installs them as
   `/usr/share/licenses/ryoku-rashin/LICENSE.geologica` and
   `LICENSE.martian-mono`.
+- **`ryoku-rashin` ships the Apache-2.0 text for its memory.** Rashin's memory
+  adapts code and prompts from Codex, mem0, Letta and Letta Code (Apache-2.0)
+  and from Hermes Agent, OpenClaw, Hindsight, nanobot, PicoClaw and Engram
+  (MIT). `ryoku/rashin/NOTICE` credits each, with Codex's NOTICE and the MIT
+  texts, and every edition installs
+  `/usr/share/licenses/ryoku-rashin/LICENSE.apache-2.0`.
+- **`ryoku-rashin` ships the licenses of its built-in skill sets.** Rashin
+  carries Superpowers, OpenSpec and Spec Kit (MIT) and Elephant and Goldfish
+  (Apache-2.0) as skills for every model. `ryoku/rashin/NOTICE` credits each,
+  and every edition, Nix included, installs their own files as
+  `/usr/share/licenses/ryoku-rashin/LICENSE.superpowers`, `LICENSE.openspec`,
+  `LICENSE.speckit` and `LICENSE.egm`.
 - **Ryoport is its own package now.** Arch and CachyOS import the official
   `ryoku-dev/ryoport` release into stable and testing beside Ryotunes. The
   desktop package no longer carries Ryoport or its VM and console dependencies,

@@ -33,6 +33,8 @@ type resumeState struct {
 	Generation uint64 `json:"generation,omitempty"`
 	// Briefed is the agent session that was already told where it runs.
 	Briefed string `json:"briefed,omitempty"`
+	// AskTold is the mode an Ask's harness was last told it works in.
+	AskTold string `json:"askTold,omitempty"`
 }
 
 type permissionRequest struct {
@@ -72,9 +74,14 @@ type runner struct {
 
 	environment        map[string]string
 	reportCapabilities func(protocol.HarnessCapabilities)
-	// sandbox wraps the agent's command in its sandbox; set, Rashin offers the
-	// agent no file or terminal access of its own
+	// sandbox wraps the agent's command in its sandbox; while the running
+	// agent is in it (boxed), Rashin offers it no file or terminal access of
+	// its own
 	sandbox func([]string) ([]string, error)
+	// sandboxWhen says whether the next start goes in the sandbox; nil
+	// always does
+	sandboxWhen func() bool
+	boxed       bool
 
 	sessionID     string
 	loadSession   bool
@@ -90,6 +97,14 @@ type runner struct {
 	briefed       string
 	usage         *protocol.TokenUsage
 	turnCancelled bool
+	// pick is the model the session was opened with or last set to; a fresh
+	// harness session is put on it, a loaded one keeps its own
+	pick string
+	// askAllowed is set once the user of an Ask allows changes for the rest
+	// of the conversation; Read only takes it back
+	askAllowed bool
+	// askTold is the mode an Ask's harness was last told it works in
+	askTold string
 
 	permissions map[string]permissionRequest
 	tools       map[string]trackedTool
@@ -126,6 +141,7 @@ func newRunner(opts core.HarnessOptions, argv []string, options ...runnerOption)
 	r := &runner{
 		opts:        opts,
 		argv:        append([]string(nil), argv...),
+		pick:        opts.Session.Model,
 		permissions: make(map[string]permissionRequest),
 		tools:       make(map[string]trackedTool),
 		terminals:   make(map[string]*terminal),
@@ -134,6 +150,7 @@ func newRunner(opts core.HarnessOptions, argv []string, options ...runnerOption)
 	if json.Unmarshal(opts.Resume, &resume) == nil {
 		r.generation = resume.Generation
 		r.briefed = resume.Briefed
+		r.askTold = resume.AskTold
 	}
 	for _, option := range options {
 		option(r)
@@ -288,6 +305,18 @@ func (r *runner) SetModel(ctx context.Context, model string, sink core.Sink) err
 	if err := r.ensureStarted(ctx, sink); err != nil {
 		return err
 	}
+	if err := r.setModel(ctx, model); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	r.pick = model
+	r.mu.Unlock()
+	return nil
+}
+
+// setModel puts the started harness session on model. It does not start the
+// harness, so initialize can call it while it holds startMu.
+func (r *runner) setModel(ctx context.Context, model string) error {
 	r.mu.Lock()
 	sessionID, option := r.sessionID, r.modelOption
 	r.mu.Unlock()
@@ -435,7 +464,7 @@ func (r *runner) Alive() bool {
 
 func (r *runner) State() json.RawMessage {
 	r.mu.Lock()
-	state := resumeState{ACPSession: r.sessionID, Load: r.loadSession, Generation: r.generation, Briefed: r.briefed}
+	state := resumeState{ACPSession: r.sessionID, Load: r.loadSession, Generation: r.generation, Briefed: r.briefed, AskTold: r.askTold}
 	if state.ACPSession == "" && len(r.opts.Resume) != 0 {
 		_ = json.Unmarshal(r.opts.Resume, &state)
 	}
@@ -492,9 +521,10 @@ func (r *runner) killAgentAfterCancel() {
 func (r *runner) ensureStarted(ctx context.Context, sink core.Sink) error {
 	r.startMu.Lock()
 	defer r.startMu.Unlock()
+	boxed := r.sandbox != nil && (r.sandboxWhen == nil || r.sandboxWhen())
 	r.mu.Lock()
 	r.sink = sink
-	if r.alive && r.conn != nil && !r.conn.Closed() {
+	if r.alive && r.conn != nil && !r.conn.Closed() && r.boxed == boxed {
 		r.mu.Unlock()
 		return nil
 	}
@@ -513,7 +543,7 @@ func (r *runner) ensureStarted(ctx context.Context, sink core.Sink) error {
 		return errors.New(i18n.T("The agent command is empty. Choose an installed harness."))
 	}
 	argv := r.argv
-	if r.sandbox != nil {
+	if boxed {
 		wrapped, err := r.sandbox(argv)
 		if err != nil {
 			return err
@@ -553,6 +583,7 @@ func (r *runner) ensureStarted(ctx context.Context, sink core.Sink) error {
 	r.stdin = stdin
 	r.conn = conn
 	r.alive = true
+	r.boxed = boxed
 	r.waitDone = done
 	r.stderr = stderr
 	r.generation++
@@ -580,7 +611,9 @@ func (r *runner) ensureStarted(ctx context.Context, sink core.Sink) error {
 func (r *runner) initialize(ctx context.Context) error {
 	// a sandboxed agent works with its own tools inside its sandbox; what
 	// Rashin read, wrote or ran for it would happen outside
-	local := r.sandbox == nil
+	r.mu.Lock()
+	local := !r.boxed
+	r.mu.Unlock()
 	result, err := r.conn.request(ctx, "initialize", map[string]any{
 		"protocolVersion": acpProtocolVersion,
 		"clientCapabilities": map[string]any{
@@ -663,11 +696,31 @@ func (r *runner) initialize(ctx context.Context) error {
 		capabilities.DefaultModel = r.model
 	}
 	report := r.reportCapabilities
+	pick, offers := r.pick, capabilities.Models
 	r.mu.Unlock()
 	if report != nil {
 		report(capabilities)
 	}
+	if method == "session/new" && offers && pick != "" && pick != capabilities.DefaultModel {
+		r.applyPick(ctx, pick)
+	}
 	return nil
+}
+
+// applyPick puts a fresh harness session on the model it was opened with. A
+// harness that refuses it leaves the session on its default and says so: a
+// model it no longer offers must not keep the session from starting.
+func (r *runner) applyPick(ctx context.Context, pick string) {
+	if err := r.setModel(ctx, pick); err != nil {
+		r.mu.Lock()
+		current := r.model
+		r.mu.Unlock()
+		r.emit(protocol.EvtNotice, protocol.Notice{
+			Level:   protocol.NoticeWarn,
+			Text:    i18n.Tf("The harness did not take the model %s, so this session runs on %s. %v", pick, current, err),
+			Session: r.opts.Session.ID,
+		})
+	}
 }
 
 func (r *runner) processExited(cmd *exec.Cmd, err error) {

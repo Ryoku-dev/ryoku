@@ -22,6 +22,7 @@ import (
 	gitcore "ryoku-rashin/internal/git"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
+	"ryoku-rashin/internal/redact"
 	"ryoku-rashin/internal/sandbox"
 	store "ryoku-rashin/internal/session"
 )
@@ -81,10 +82,12 @@ type sessionManager struct {
 	broadcast func(string, any)
 	changed   func()
 	warn      func(string, ...any)
-	// brief is what an agent session is told ahead of its first prompt, and
-	// prepare readies its folder; the daemon sets both, tests leave them nil
-	brief   func(protocol.SessionInfo) string
-	prepare func(protocol.SessionInfo)
+	// brief is what an agent session is told ahead of its first prompt,
+	// askBrief what a harness answering an Ask is, and prepare readies an
+	// agent's folder; the daemon sets them, tests leave them nil
+	brief    func(protocol.SessionInfo) string
+	askBrief func(protocol.SessionInfo) string
+	prepare  func(protocol.SessionInfo)
 	// tools are the MCP servers an agent session is handed
 	tools func(protocol.SessionInfo) []core.MCPServer
 	// ended hears that a session was stopped or deleted, so what it held ends too
@@ -94,23 +97,36 @@ type sessionManager struct {
 	// sets both, tests leave them nil
 	teams   core.Teams
 	watched func() bool
-	// sandbox is the sandbox a team session's agent runs in; the daemon sets
-	// it, tests leave it nil
-	sandbox func(protocol.SessionInfo) (*sandbox.Spec, error)
+	// sandbox is the sandbox a team session's agent runs in, and askSandbox
+	// the one a harness that answers an Ask runs in while it is read-only;
+	// the daemon sets them, tests leave them nil
+	sandbox    func(protocol.SessionInfo) (*sandbox.Spec, error)
+	askSandbox func(protocol.SessionInfo) (*sandbox.Spec, error)
+	// memory hears every finished turn and every deleted session; the
+	// daemon sets it when memory is built in, tests leave it nil
+	memory core.Memory
 }
 
 func newSessionManager(asker core.Asker, harnesses core.Harnesses, work core.Work, settings func() protocol.Settings, broadcast func(string, any), changed func(), warn func(string, ...any)) *sessionManager {
 	return &sessionManager{items: make(map[string]*managedSession), asker: asker, harnesses: harnesses, work: work, settings: settings, broadcast: broadcast, changed: changed, warn: warn}
 }
 
+// Info is a session's info. A session the manager does not hold is read
+// from disk without being opened, so asking about many sessions holds none
+// of them open.
 func (m *sessionManager) Info(id string) (protocol.SessionInfo, bool) {
-	s, err := m.get(id)
-	if err != nil {
-		return protocol.SessionInfo{}, false
+	m.mu.Lock()
+	s := m.items[id]
+	m.mu.Unlock()
+	if s != nil {
+		return s.log.Info(), true
 	}
-	return s.log.Info(), true
+	info, err := store.ReadInfo(id)
+	return info, err == nil
 }
 
+// List is every stored session of kind. A temporary session is never
+// stored, so it is never here.
 func (m *sessionManager) List(kind protocol.SessionKind) []protocol.SessionInfo {
 	list, err := store.List(kind)
 	if err != nil {
@@ -184,6 +200,14 @@ func (m *sessionManager) create(p protocol.SessionNewParams) (protocol.SessionIn
 	if p.Kind != protocol.KindAsk && p.Kind != protocol.KindAgent {
 		return protocol.SessionInfo{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Session kind must be ask or agent."))
 	}
+	// a team task's conversation is its audit trail, so it is always kept
+	if p.Temporary && (p.Team != "" || p.TeamTask != "" || p.Member != "") {
+		return protocol.SessionInfo{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("A team task's conversation can't be temporary."))
+	}
+	memory, err := startingMemory(p.Memory, p.Temporary)
+	if err != nil {
+		return protocol.SessionInfo{}, err
+	}
 	if p.Kind == protocol.KindAgent {
 		if p.Cwd == "" {
 			p.Cwd = paths.Home()
@@ -205,8 +229,12 @@ func (m *sessionManager) create(p protocol.SessionNewParams) (protocol.SessionIn
 	if p.Kind == protocol.KindAgent {
 		state = protocol.StateStopped
 	}
-	info := protocol.SessionInfo{ID: id, Kind: p.Kind, Title: p.Title, Harness: p.Harness, Model: p.Model, Cwd: p.Cwd, Origin: origin, State: state, Created: now, Updated: now, Project: p.Project, Worktree: p.Worktree, Branch: p.Branch, Task: p.Task}
-	if info.Model == "" && info.Kind == protocol.KindAsk {
+	info := protocol.SessionInfo{ID: id, Kind: p.Kind, Title: p.Title, Harness: strings.TrimSpace(p.Harness), Model: p.Model, Cwd: p.Cwd, Origin: origin, State: state, Created: now, Updated: now, Project: p.Project, Worktree: p.Worktree, Branch: p.Branch, Task: p.Task, Temporary: p.Temporary, Memory: memory}
+	// an Ask a harness answers runs it from the home folder and starts on the
+	// harness's own model, which Rashin's routes do not name
+	if info.Kind == protocol.KindAsk && info.Harness != "" {
+		info.Cwd = paths.Home()
+	} else if info.Model == "" && info.Kind == protocol.KindAsk {
 		info.Model = m.settings().Ask.Model
 	}
 	// only the client says an Ask may change the machine: the bar and the
@@ -242,6 +270,18 @@ func (m *sessionManager) persist(s *managedSession, kind string, data any) error
 	ev, err := s.log.Append(kind, data)
 	if err != nil {
 		return err
+	}
+	// the log keeps no secret: the user's prompt and a memory line are
+	// scrubbed as they land and the whole turn, its streamed text merged,
+	// once it ends
+	scrub := s.log.ScrubLast
+	if kind == protocol.EvTurnEnd {
+		scrub = s.log.ScrubTurn
+	}
+	if kind == protocol.EvUser || kind == protocol.EvMemory || kind == protocol.EvTurnEnd {
+		if _, err := scrub(redact.Exact); err != nil {
+			m.warn("scrub session %s: %v", s.log.Info().ID, err)
+		}
 	}
 	infoChanged := false
 	switch kind {
@@ -508,16 +548,19 @@ func (m *sessionManager) ensureRunner(ctx context.Context, s *managedSession) (c
 		info := s.log.Info()
 		resume := s.log.Runner()
 		harness := info.Harness
-		if harness == "" {
+		if harness == "" && info.Kind == protocol.KindAgent {
 			harness = m.settings().Agent.Harness
 		}
 		s.mu.Unlock()
 
 		var runner core.Runner
 		var err error
-		if info.Kind == protocol.KindAsk {
+		switch {
+		case info.Kind == protocol.KindAsk && harness == "":
 			runner = m.asker.NewAsk(core.AskOptions{Session: info, Settings: m.settings})
-		} else {
+		case info.Kind == protocol.KindAsk:
+			runner, err = m.askHarness(ctx, s, info, resume)
+		default:
 			// a team task's session keeps its team's approvals; others follow the setting
 			approvals := func() string {
 				if own := s.log.Info().Approvals; own != "" {
@@ -585,8 +628,8 @@ func (m *sessionManager) prompt(ctx context.Context, p protocol.PromptParams, ha
 	if p.Run = strings.TrimSpace(p.Run); p.Run != "" {
 		// refused before the turn exists, so the client can still send the
 		// command to a terminal
-		if s.log.Info().Kind != protocol.KindAsk {
-			return protocol.PromptResult{}, 0, protocol.Errorf(protocol.CodeUnsupported, "%s", i18n.T("Only an Ask conversation runs a command for you. Run it in a terminal."))
+		if info := s.log.Info(); info.Kind != protocol.KindAsk || info.Harness != "" {
+			return protocol.PromptResult{}, 0, protocol.Errorf(protocol.CodeUnsupported, "%s", i18n.T("Only an Ask conversation on Rashin's providers runs a command for you. Run it in a terminal."))
 		}
 		if reason, needs := command.NeedsTerminal(p.Run); needs {
 			return protocol.PromptResult{}, 0, protocol.Errorf(protocol.CodeUnsupported, "%s", i18n.Tf("This command needs a terminal: %s.", reason))
@@ -664,7 +707,9 @@ func (m *sessionManager) startPrompt(ctx context.Context, s *managedSession, p p
 	turn := info.Turns + 1
 	s.goalTurn = info.Goal != nil && info.Goal.Status == protocol.GoalActive
 	s.mu.Unlock()
-	if info.Kind == protocol.KindAgent && m.work != nil {
+	// a temporary conversation leaves nothing behind, checkpoint refs in the
+	// user's repository included
+	if info.Kind == protocol.KindAgent && m.work != nil && !info.Temporary {
 		checkpointed, checkpointErr := m.work.BeforeTurn(ctx, info, turn)
 		if checkpointErr != nil {
 			if m.warn != nil {
@@ -798,6 +843,7 @@ func (m *sessionManager) runTurn(ctx context.Context, s *managedSession, runner 
 	close(s.finishDone)
 	s.finishDone = nil
 	m.emitInfoLocked(s)
+	ended := s.log.Info()
 	s.mu.Unlock()
 
 	if m.work != nil && info.Kind == protocol.KindAgent {
@@ -805,6 +851,10 @@ func (m *sessionManager) runTurn(ctx context.Context, s *managedSession, runner 
 	}
 	if m.teams != nil && info.TeamTask != "" {
 		m.teams.AfterTurn(context.Background(), info, protocol.TurnEndData{Turn: input.Turn, Stop: stop, Usage: result.Usage})
+	}
+	// a temporary conversation is never learned from, so memory never hears of it
+	if m.memory != nil && !ended.Temporary {
+		m.memory.TurnEnded(ended)
 	}
 	s.mu.Lock()
 	calls := s.turnCalls
@@ -1019,10 +1069,54 @@ func (m *sessionManager) revertTurn(ctx context.Context, p protocol.TurnParams) 
 		return protocol.GitOpResult{}, err
 	}
 	info := s.log.Info()
+	if info.Temporary {
+		return protocol.GitOpResult{}, protocol.Errorf(protocol.CodeUnavailable, "%s", i18n.T("Turn revert is not available in a temporary conversation."))
+	}
 	if info.Worktree != "" && m.worktreeRunning(info.Worktree) {
 		return protocol.GitOpResult{}, protocol.Errorf(protocol.CodeConflict, "%s", i18n.T("A session is still running in this worktree."))
 	}
 	return m.work.RevertTurn(ctx, info, p.Turn)
+}
+
+// checkpointRefs is where Work keeps each session's turn checkpoints, one
+// namespace per session id.
+const checkpointRefs = "refs/rashin/checkpoints/"
+
+// sweepCheckpoints deletes, in every project Work knows, the checkpoint refs
+// of sessions that are not stored: a deleted session whose refs a failure
+// kept, or one that was never stored at all. A session the manager holds
+// keeps its refs.
+func (m *sessionManager) sweepCheckpoints(ctx context.Context) {
+	if m.work == nil {
+		return
+	}
+	for _, project := range m.work.Projects(ctx) {
+		out, err := gitcore.Run(ctx, project.Root, "for-each-ref", "--format=%(refname)", checkpointRefs)
+		if err != nil {
+			continue
+		}
+		swept := map[string]bool{}
+		for _, ref := range strings.Split(string(out), "\n") {
+			id, _, _ := strings.Cut(strings.TrimPrefix(strings.TrimSpace(ref), checkpointRefs), "/")
+			if id == "" || swept[id] || m.holds(id) {
+				continue
+			}
+			if _, err := store.ReadInfo(id); !errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			swept[id] = true
+			if err := gitcore.DeleteRefs(ctx, project.Root, checkpointRefs+id+"/"); err != nil && m.warn != nil {
+				m.warn("sweep checkpoints of %s in %s: %v", id, project.Root, err)
+			}
+		}
+	}
+}
+
+// holds reports whether the manager holds session id.
+func (m *sessionManager) holds(id string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.items[id] != nil
 }
 
 func (m *sessionManager) worktreeRunning(worktree string) bool {
@@ -1084,6 +1178,7 @@ func (m *sessionManager) fork(ctx context.Context, p protocol.ForkParams) (proto
 		Kind: sourceInfo.Kind, Harness: sourceInfo.Harness, Cwd: sourceInfo.Cwd,
 		Model: sourceInfo.Model, Title: sourceInfo.Title, Origin: sourceInfo.Origin,
 		Project: sourceInfo.Project, Worktree: sourceInfo.Worktree, Branch: sourceInfo.Branch, Task: sourceInfo.Task,
+		Memory: sourceInfo.Memory,
 	})
 	if err != nil {
 		return protocol.SessionInfo{}, err
@@ -1120,6 +1215,7 @@ func (m *sessionManager) fork(ctx context.Context, p protocol.ForkParams) (proto
 	}
 	if err := target.log.Update(func(i *protocol.SessionInfo) {
 		i.Parent = sourceInfo.ID
+		i.Pinned = sourceInfo.Pinned
 		i.Turns = turns
 		i.Preview = preview
 		i.State = state
@@ -1444,9 +1540,7 @@ func (m *sessionManager) delete(id string) error {
 		return err
 	}
 	info := s.log.Info()
-	if info.Worktree != "" {
-		_ = gitcore.DeleteRefs(context.Background(), info.Worktree, "refs/rashin/checkpoints/"+id+"/")
-	}
+	m.discard(info)
 	if err := s.coalescer.Close(); err != nil {
 		return err
 	}
@@ -1456,12 +1550,46 @@ func (m *sessionManager) delete(id string) error {
 	m.mu.Lock()
 	delete(m.items, id)
 	m.mu.Unlock()
-	if err := store.Delete(id); err != nil {
-		return err
+	if !info.Temporary {
+		if err := store.Delete(id); err != nil {
+			return err
+		}
 	}
 	m.broadcast(protocol.EvtSessionsChanged, protocol.SessionsChanged{Removed: []string{id}})
 	m.changed()
 	return nil
+}
+
+// discard ends what a deleted session leaves outside its log: its turns'
+// checkpoints and what memory kept of it.
+func (m *sessionManager) discard(info protocol.SessionInfo) {
+	if info.Worktree != "" {
+		_ = gitcore.DeleteRefs(context.Background(), info.Worktree, checkpointRefs+info.ID+"/")
+	}
+	if m.memory != nil {
+		m.memory.SessionDeleted(info.ID)
+	}
+}
+
+// withTemporary adds the temporary sessions the manager holds, of kind or
+// of every kind when kind is empty, to stored, newest first.
+func (m *sessionManager) withTemporary(stored []protocol.SessionInfo, kind protocol.SessionKind) []protocol.SessionInfo {
+	m.mu.Lock()
+	items := make([]*managedSession, 0, len(m.items))
+	for _, s := range m.items {
+		items = append(items, s)
+	}
+	m.mu.Unlock()
+	added := false
+	for _, s := range items {
+		if info := s.log.Info(); info.Temporary && (kind == "" || info.Kind == kind) {
+			stored, added = append(stored, info), true
+		}
+	}
+	if added {
+		store.SortNewest(stored)
+	}
+	return stored
 }
 
 func (m *sessionManager) list(p protocol.SessionListParams) (protocol.SessionListResult, error) {
@@ -1469,6 +1597,7 @@ func (m *sessionManager) list(p protocol.SessionListParams) (protocol.SessionLis
 	if err != nil {
 		return protocol.SessionListResult{}, err
 	}
+	all = m.withTemporary(all, p.Kind)
 	if p.Before != "" {
 		found := false
 		for index, info := range all {
@@ -1509,6 +1638,7 @@ func (m *sessionManager) recent(limit int) ([]protocol.SessionInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	all = m.withTemporary(all, "")
 	out := make([]protocol.SessionInfo, 0, min(limit, len(all)))
 	for _, info := range all {
 		if len(out) == limit {
@@ -1523,6 +1653,7 @@ func (m *sessionManager) recent(limit int) ([]protocol.SessionInfo, error) {
 
 func (m *sessionManager) counts() protocol.SessionCounts {
 	all, _ := store.List("")
+	all = m.withTemporary(all, "")
 	var c protocol.SessionCounts
 	for _, info := range all {
 		if info.Kind == protocol.KindAsk {
@@ -1574,6 +1705,10 @@ func (m *sessionManager) shutdown(deadline time.Duration) {
 			_ = m.stop(info.ID)
 			_ = s.coalescer.Close()
 			_ = s.log.Close()
+			// a temporary session ends with the daemon
+			if info.Temporary {
+				m.discard(info)
+			}
 		}(s)
 	}
 	done := make(chan struct{})
@@ -1602,7 +1737,8 @@ func (m *sessionManager) idleStop(now time.Time) {
 		s.mu.Lock()
 		running, pending, runner, lastActivity := s.running, len(s.permissions), s.runner, s.lastActivity
 		s.mu.Unlock()
-		due := info.Kind == protocol.KindAgent && !running && pending == 0 && runner != nil && runner.Alive() && now.Sub(lastActivity) >= time.Duration(minutes)*time.Minute
+		// an Ask a harness answers holds its process up just as an agent does
+		due := !running && pending == 0 && runner != nil && runner.Alive() && now.Sub(lastActivity) >= time.Duration(minutes)*time.Minute
 		if due {
 			go func(id string) { _ = m.stop(id) }(info.ID)
 		}

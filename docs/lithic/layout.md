@@ -69,8 +69,8 @@ away.
 Top to bottom, with the list inset 10 from the pane sides:
 
 1. The page title in `section` ("Fleet") over one sentence of state in `body`
-   ("Three running. mika-server needs you.") with the attention name in
-   amber.
+   ("Three running. mika-server needs you.") in one ink; the state shows on
+   the row.
 2. The search field (280 wide at rest, growing to the pane) with its
    shortcut hint ("/"); Ctrl K opens the command palette instead.
 3. The filters with live counts: All, Machines, Servers, Consoles.
@@ -88,8 +88,9 @@ marks, act row) uses 36 side insets, then tabs in a 44 strip inset 34 at the
 sides, then tab content inset 34 on `stone2`. Tabs are at most five per
 resource kind.
 
-With nothing selected, the work pane shows the **Now board** as sections.
-Its content is centred up to 1240 wide:
+With nothing selected, the work pane shows the **Now board** as sections open
+on the pane under their `section` titles; only the thing that needs you may
+stand on a toned slab. Its content is centred up to 1240 wide:
 
 1. The fleet sentence in `sentence`, followed by one proof line.
 2. Pinned resource tiles, each with state and one action. A tile is at least
@@ -100,6 +101,13 @@ Its content is centred up to 1240 wide:
 4. Needs you and Running now use rows with one action. This computer shows
    CPU, memory and free VM-disk space as quiet `fg2` BladeMeters. A meter
    turns amber at 90 percent.
+5. The board shows how the fleet moved over time as a chart section, open on
+   the pane like the rest: a `section` title, one proof line in `detail`
+   `fg2` that says in words what the line shows ("38 jobs ran this week; the
+   busiest day was Tuesday with 11"), then an EngravedChart. It stands beside
+   or above the lists of what needs you, never in place of the sentence. When
+   the data is too short for a line, the chart's own `fg3` sentence stands
+   there instead.
 
 Drafts occupy the work pane under a header. The form column is at most 600
 wide. From 820 available width, an Aside sits 34 to its right, 300 to 400
@@ -128,12 +136,12 @@ Activity and Settings omit the list pane and take the remaining width.
 | compact | full width | the same Picker at the top of the column | same |
 
 Each section is a `section` title, 13 gap, a slab, 21 below. The slab is the
-`slab` role with a 1 dp `vein` hairline, cut 7 with a 21 inset: in dark mode
-it is lighter than the work pane, in light mode its hairline sets it off.
-Setting rows inside a slab are a title in `row` with a detail in `detail`
-`fg2` 2 below, and the control (toggle, picker, segmented, stepper, slider)
-right-aligned and no wider than 320; rows are 13 apart, with a `vein` line
-between them.
+`slab` role, cut 7 with a 21 inset: in dark mode it is lighter than the work
+pane, in light mode a step lighter with a 1 dp `vein` hairline that sets it
+off. Setting rows inside a slab are a title in `row` with a detail in
+`detail` `fg2` 2 below, and the control (toggle, picker, segmented, stepper,
+slider) right-aligned and no wider than 320; rows are 21 apart, separated by
+space, not rules.
 
 The index follows the reading position: a section becomes current when less
 than a third of it is still visible above the next; at the very end the last
@@ -337,8 +345,8 @@ which leaves only its gaps. A block of code keeps its slab.
 cut 7 carries it: the command in `mono`, why in `detail`, its
 claim (how far it reaches) and one line plaque that runs it. The slab stands
 where the text shows the command, in place of the block of code, and never
-again under it. Several commands share one slab under a `title`, a `vein`
-hairline between them.
+again under it. Several commands share one slab under a `title`, set apart by
+space.
 
 **Running it stays in the conversation.** The plaque runs the command in
 place: the command stands where a question would, in `mono` on the question's
@@ -347,8 +355,8 @@ that shows nothing until the command ends reads as a button that did nothing.
 A second, small icon plaque opens a terminal for the reader who wants one,
 and it is the only action when the command needs a keyboard. A running line
 carries the Working flakes and, from three seconds on, the time it has taken
-in `monoSm`; while it runs its unfolded output shows its end, not its start,
-since that is where the news is.
+in `caption` with tabular figures; while it runs its unfolded output shows
+its end, not its start, since that is where the news is.
 
 **Text can be marked.** Every paragraph, question and block of code can be
 selected with the pointer and copied, with `sel` at 60% under the marked
@@ -429,16 +437,18 @@ while the column is scrolled beneath it.
 
 **The work beside it.** When a conversation changes files, the side panel
 shows the changes without leaving the conversation: a file per row with its
-status letter, path and counts in `mono`, each unfolding to its diff. The
-panel never takes gold; committing belongs to the full review.
+status letter and path in `mono` and its counts in `caption`, each unfolding
+to its diff. The panel never takes gold; committing belongs to the full
+review.
 
 A destination with nothing open shows its Now board in the content pane: the
-`sentence`, one `proof` line, then what needs the reader first. A board with
-nothing to report does not stand empty. It says where work can start, on
-slabs under a `title`: the places to work in with the one action
-that picks each, or, when the thing every action needs is missing, the way
-to get it. A list in the sidebar that has no rows yet says in one `caption`
-line what will stand there.
+`sentence`, one `proof` line, then what needs the reader first, with a chart
+section of how the destination's work moved beside or above it, as on the
+[Now board](#the-work-pane). A board with nothing to report does not stand
+empty. It says where work can start, on slabs under a `title`: the places to
+work in with the one action that picks each, or, when the thing every action
+needs is missing, the way to get it. A list in the sidebar that has no rows
+yet says in one `caption` line what will stand there.
 
 Search has one entry point, the top bar field. It finds conversations,
 projects and commands, and Ctrl K focuses it. Its results open under the

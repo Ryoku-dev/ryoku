@@ -14,8 +14,9 @@ import (
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 )
 
-// SectionIndex tracks settings sections as a side list of bladed rows at
-// expanded width and as a picker at the top of the column when narrower.
+// SectionIndex tracks settings sections as a side list whose current row is a
+// sel fill at expanded width, and as a picker at the top of the column when
+// narrower.
 type SectionIndex struct {
 	Preview State
 

@@ -24,6 +24,7 @@ type stepKind uint8
 const (
 	stepMemberHarness stepKind = iota
 	stepDefaultHarness
+	stepSignIn
 	stepCredential
 	stepMail
 	stepFirstTask
@@ -35,9 +36,10 @@ type nextStep struct {
 	// key names the step for as long as it stands, so hiding it keeps it hidden
 	key, line, action string
 	kind              stepKind
-	// the routine to turn on, or the task a credential request waits in
+	// the routine to turn on, the task a credential request waits in, or the harness to sign in
 	subject protocol.Routine
 	task    string
+	harness string
 }
 
 type stepRow struct {
@@ -108,8 +110,8 @@ func (n *nextSteps) layout(gtx layout.Context, e *env.Env, snapshot appstate.Sna
 	})
 }
 
-// what the team lacks, most blocking first: an engine that cannot start, a credential or a mail account
-// its work waits on, a first task, then routines that are off; at most stepsShown, less what the user hid
+// what the team lacks, most blocking first: an engine that cannot start or is not signed in for teams, a credential
+// or a mail account its work waits on, a first task, then routines that are off; at most stepsShown, less what the user hid
 func teamSteps(snapshot appstate.Snapshot, team protocol.Team, hidden []string) []nextStep {
 	var steps []nextStep
 	add := func(step nextStep) {
@@ -132,6 +134,12 @@ func teamSteps(snapshot appstate.Snapshot, team protocol.Team, hidden []string) 
 		}
 		if defaultMissing {
 			add(nextStep{key: "harness:default", kind: stepDefaultHarness, line: i18n.T("The harness its members run on by default is not installed."), action: i18n.T("Open Settings")})
+		}
+		// one step a harness, however many members run on it
+		for _, harness := range teamsui.TeamHarnesses(snapshot, team) {
+			if teamsui.NotSignedIn(harness, team.ID) {
+				add(nextStep{key: "signin:" + harness.ID, kind: stepSignIn, line: i18n.Tf("%s is not signed in for Teams.", harness.Name), action: i18n.T("Sign in for Teams"), harness: harness.ID})
+			}
 		}
 	}
 	for _, approval := range snapshot.Approvals {
@@ -172,6 +180,8 @@ func takeStep(e *env.Env, team protocol.Team, step nextStep) {
 		openTeam(e, team.ID, env.TeamSettings)
 	case stepDefaultHarness:
 		e.OpenSettings("teams")
+	case stepSignIn:
+		teamsui.SignInForTeams(e, step.harness, team.ID, nil)
 	case stepCredential:
 		// the value is typed into the request's own card, on its task or in the Inbox
 		if step.task != "" {

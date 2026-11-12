@@ -48,6 +48,8 @@ func Serve(ctx context.Context, socket string) error {
 type server struct {
 	mu   sync.Mutex
 	data fixtures
+	// session events a method wrote, for the client to hear after its answer
+	told []protocol.SessionEventData
 }
 
 func (s *server) serve(ctx context.Context, connection net.Conn) {
@@ -76,6 +78,7 @@ func (s *server) serve(ctx context.Context, connection net.Conn) {
 			return
 		}
 		if frame.Method == protocol.MSessionPrompt && response.Error == nil {
+			s.wakeFirst(out, frame.Params)
 			go s.playTurn(ctx, out, frame.Params)
 		}
 		if frame.Method == protocol.MSessionPermission && response.Error == nil {
@@ -89,6 +92,7 @@ func (s *server) serve(ctx context.Context, connection net.Conn) {
 		}
 		if response.Error == nil {
 			s.announce(out, frame.Method)
+			s.tellSessions(out, frame.Method, frame.Params)
 		}
 	}
 }
@@ -96,17 +100,24 @@ func (s *server) serve(ctx context.Context, connection net.Conn) {
 func (s *server) call(method string, raw json.RawMessage) (any, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if strings.HasPrefix(method, "memory.") {
+		return s.callMemory(method, raw)
+	}
+	if strings.HasPrefix(method, "skills.") {
+		return s.callSkills(method, raw)
+	}
 	switch method {
 	case protocol.MHello:
 		return protocol.HelloResult{Daemon: "rashind-demo", Version: "2.0.0-demo", Protocol: protocol.Version, Enabled: true}, nil
 	case protocol.MSubscribe:
 		snapshot := s.data.snapshot
 		s.fillTeamsSnapshot(&snapshot)
+		snapshot.Memory = s.memoryStatus()
 		return snapshot, nil
 	case protocol.MStatus:
 		return s.data.snapshot.Status, nil
 	case protocol.MModelsList:
-		return s.data.models, nil
+		return s.listModels(raw)
 	case protocol.MProvidersList:
 		return protocol.ProvidersResult{Providers: s.data.snapshot.Providers}, nil
 	case protocol.MHarnessesList:
@@ -117,6 +128,18 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 			return nil, err
 		}
 		return s.probeHarness(params)
+	case protocol.MHarnessesTeamsOpen:
+		var params protocol.HarnessTeamsOpenParams
+		if err := decode(raw, &params); err != nil {
+			return nil, err
+		}
+		return s.openTeamsHome(params)
+	case protocol.MHarnessesTeamsDone:
+		var params protocol.HarnessTeamsDoneParams
+		if err := decode(raw, &params); err != nil {
+			return nil, err
+		}
+		return s.finishTeamsHome(params)
 	case protocol.MIndexList:
 		return protocol.IndexesResult{Indexes: s.data.snapshot.Indexes}, nil
 	case protocol.MSettingsGet:
@@ -158,8 +181,13 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 			return nil, err
 		}
 		info := s.newSession(params.Kind, params.Harness, params.Cwd, params.Project, params.Worktree, params.Branch, params.Task, "")
+		info.Temporary, info.Memory = params.Temporary, newMemoryMode(params)
 		if params.Title != "" {
 			info.Title = params.Title
+		}
+		// the model the session was opened on, as the daemon keeps it
+		if params.Model != "" {
+			info.Model = params.Model
 		}
 		if params.Kind == protocol.KindAsk {
 			info.Mode = params.Mode
@@ -234,6 +262,12 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 			s.replaceSession(info)
 		}
 		return protocol.Empty{}, nil
+	case protocol.MSessionSetMemory:
+		var params protocol.SetMemoryParams
+		if err := decode(raw, &params); err != nil {
+			return nil, err
+		}
+		return s.setMemory(params)
 	case protocol.MSessionSetOption, protocol.MSessionStart:
 		return protocol.Empty{}, nil
 	case protocol.MSessionQueue:
@@ -286,6 +320,7 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 			source.ID,
 		)
 		info.Title = source.Title + " copy"
+		info = s.forkFrom(source, info)
 		s.replaceSession(info)
 		return info, nil
 	case protocol.MSessionPrompt, protocol.MSessionSteer:
@@ -304,17 +339,20 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 		if err := mergeInto(params.Patch, &s.data.snapshot.Settings); err != nil {
 			return nil, err
 		}
+		if err := s.syncLocalProviders(); err != nil {
+			return nil, err
+		}
 		s.syncCustomHarnesses()
 		if s.data.snapshot.Settings.Teams.Paused != paused {
 			s.holdEveryTeam(!paused)
 		}
 		return s.data.snapshot.Settings, nil
 	case protocol.MGatewayUsage:
-		day := Epoch.Format("2006-01-02")
-		return protocol.GatewayUsage{Days: 7, Rows: []protocol.UsageRow{
-			{Day: day, Provider: "openrouter", Model: "free-router", Requests: 41, OK: 38, Failed: 3, InputTokens: 61200, OutputTokens: 18400},
-			{Day: day, Provider: "puter", Model: "gpt-oss-120b", Requests: 12, OK: 12, InputTokens: 9800, OutputTokens: 4100, Estimated: true},
-		}}, nil
+		var params protocol.UsageParams
+		if err := decode(raw, &params); err != nil {
+			return nil, err
+		}
+		return demoUsage(Epoch, params.Days), nil
 	case protocol.MGatewayAPI:
 		return s.data.snapshot.Status.API, nil
 	case protocol.MGatewayAPIKey:
@@ -377,7 +415,13 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 		}
 		return protocol.ProviderInfo{}, nil
 	case protocol.MProvidersTest:
-		return protocol.ProviderTestResult{Provider: "demo", OK: true, Model: "free", LatencyMs: 84, Message: i18n.T("Ready")}, nil
+		var params protocol.ProviderParams
+		if err := decode(raw, &params); err != nil {
+			return nil, err
+		}
+		return s.testProvider(params.Provider), nil
+	case protocol.MProvidersLimits:
+		return protocol.Empty{}, nil
 	case protocol.MIndexSearch:
 		return protocol.SearchResult{
 			Index:    demoProjectHyperion,
@@ -839,6 +883,9 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 	case protocol.MShutdown:
 		return protocol.Empty{}, nil
 	default:
+		if answer, handled, err := s.callDreams(method, raw); handled {
+			return answer, err
+		}
 		if teamsMethod(method) {
 			return s.callTeams(method, raw)
 		}

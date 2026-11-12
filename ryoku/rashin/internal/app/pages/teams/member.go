@@ -122,6 +122,7 @@ func (d *memberDialog) layout(gtx layout.Context, e *env.Env) {
 // who the member is first, then the engine it runs on as a group of its own
 func (d *memberDialog) rows(e *env.Env) []layout.Widget {
 	th := e.Theme
+	d.form.engine.Team = d.team.ID
 	engine := []layout.Widget{
 		kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("Engine")),
 		d.form.engineField(e),

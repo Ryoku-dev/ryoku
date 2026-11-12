@@ -54,6 +54,7 @@ func TestUserOnlyMethodsNeedTheApp(t *testing.T) {
 		{protocol.MTeamsAgentMail, false},
 		{protocol.MTeamsAgentRequest, false},
 		{protocol.MTeamsList, false},
+		{protocol.MTeamsPropose, false},
 		{protocol.MTeamsApprovals, false},
 		{protocol.MTeamsActivity, false},
 		{protocol.MVaultInfo, false},

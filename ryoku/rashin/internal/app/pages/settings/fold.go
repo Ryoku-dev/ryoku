@@ -5,7 +5,6 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/op"
-	"gioui.org/unit"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
@@ -25,6 +24,7 @@ type foldHead struct {
 	Title, Detail string
 	// sets the detail in mono, for a command or a path
 	Mono  bool
+	Mark  look.Mark
 	Trail layout.Widget
 }
 
@@ -67,7 +67,18 @@ func (row *foldRow) layoutHead(gtx layout.Context, th *look.Theme, open bool, he
 		if head.Mono {
 			detail = th.T.MonoSm
 		}
-		children := []layout.FlexChild{
+		var children []layout.FlexChild
+		if head.Mark.ID != "" {
+			ink := th.R.Fg2
+			if open || row.click.Hovered() {
+				ink = th.R.Fg
+			}
+			children = append(children,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions { return look.Logo(gtx, th, head.Mark, 20, ink) }),
+				layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
+			)
+		}
+		children = append(children,
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 					layout.Rigid(kit.RawText(th.Theme, th.T.Row, th.R.Fg, head.Title)),
@@ -75,7 +86,7 @@ func (row *foldRow) layoutHead(gtx layout.Context, th *look.Theme, open bool, he
 				)
 			}),
 			layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
-		}
+		)
 		if head.Trail != nil {
 			children = append(children, layout.Rigid(head.Trail), layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout))
 		}
@@ -102,9 +113,7 @@ func foldSlab(gtx layout.Context, th *look.Theme, count int, row func(layout.Con
 	}
 	y += pad
 	call := record.Stop()
-	bounds, cut := image.Rect(0, 0, width, y), gtx.Dp(th.Cut.Mid)
-	kit.FillCut(gtx.Ops, bounds, cut, th.R.Slab)
-	kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), th.R.Vein)
+	kit.SlabSurface(gtx, th.Theme, image.Rect(0, 0, width, y), gtx.Dp(th.Cut.Mid), th.R.Slab)
 	call.Add(gtx.Ops)
 	return layout.Dimensions{Size: image.Pt(width, y)}
 }

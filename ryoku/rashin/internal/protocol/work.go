@@ -54,6 +54,8 @@ type ProjectSettings struct {
 	// TrustedScripts are sha256 sums of repository setup scripts the user
 	// approved (.rashin/setup).
 	TrustedScripts []string `json:"trustedScripts,omitempty"`
+	// Memory is ProjectMemoryShared or ProjectMemoryKept.
+	Memory string `json:"memory,omitempty"`
 }
 
 // ProjectsResult lists projects, most recently active first.
@@ -668,7 +670,7 @@ type TaskDraft struct {
 	Deps  []int  `json:"deps,omitempty"`
 }
 
-// TaskPlanParams asks the free-model router to split a goal into tasks.
+// TaskPlanParams asks the model router to split a goal into tasks.
 type TaskPlanParams struct {
 	Project string `json:"project"`
 	Goal    string `json:"goal"`

@@ -81,6 +81,21 @@ func (e *Env) runHere(session, command string) {
 	})
 }
 
+// the daemon knows the team's home for the harness and its sign-in, the app owns the terminal it runs in; copyFrom only with setup, done may be nil
+func (e *Env) OpenTeamsHome(harness, team string, setup bool, copyFrom string, done func(error)) {
+	var result protocol.HarnessTeamsOpenResult
+	params := protocol.HarnessTeamsOpenParams{ID: harness, Team: team, Setup: setup, CopyFrom: copyFrom}
+	e.Call(protocol.MHarnessesTeamsOpen, params, &result, func(err error) {
+		e.Report(err)
+		if err == nil && len(result.Argv) > 0 {
+			e.terminal(result.Argv...)
+		}
+		if done != nil {
+			done(err)
+		}
+	})
+}
+
 func (e *Env) terminal(inner ...string) {
 	e.launch(desktop.LaunchRequest{
 		Name: "ryoku-app", Args: append([]string{"terminal", "--"}, inner...), Front: terminalFront,

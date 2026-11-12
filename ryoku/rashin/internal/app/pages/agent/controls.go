@@ -19,7 +19,7 @@ type harnessControls struct {
 	revision uint64
 	current  [2]string
 
-	model, mode choiceList
+	model, mode env.ChoiceList
 	extras      []extraChoice
 
 	modelSelect, modeSelect look.Select
@@ -34,26 +34,9 @@ type harnessControls struct {
 	woke string
 }
 
-type choiceList struct {
-	options  []look.SelectOption
-	ids      []string
-	selected int
-}
-
 type extraChoice struct {
 	id, name, category string
-	list               choiceList
-}
-
-func listOf(choices []protocol.Choice, current string) choiceList {
-	list := choiceList{options: make([]look.SelectOption, len(choices)), ids: make([]string, len(choices)), selected: -1}
-	for index, choice := range choices {
-		list.options[index], list.ids[index] = env.ChoiceOption(choice), choice.ID
-		if choice.ID == current {
-			list.selected = index
-		}
-	}
-	return list
+	list               env.ChoiceList
 }
 
 // rebuilds the lists only when the harness reported something new: a model list runs to hundreds
@@ -75,13 +58,13 @@ func (c *harnessControls) sync(attached state.Attached) {
 	if mode.Current == "" {
 		mode.Current = info.Mode
 	}
-	c.model, c.mode = listOf(model.Options, model.Current), listOf(mode.Options, mode.Current)
+	c.model, c.mode = env.ListOf(model.Options, model.Current), env.ListOf(mode.Options, mode.Current)
 	c.extras = c.extras[:0]
 	for _, option := range attached.Model.Options() {
 		if len(option.Choices) == 0 {
 			continue
 		}
-		c.extras = append(c.extras, extraChoice{id: option.ID, name: option.Name, category: option.Category, list: listOf(option.Choices, option.Current)})
+		c.extras = append(c.extras, extraChoice{id: option.ID, name: option.Name, category: option.Category, list: env.ListOf(option.Choices, option.Current)})
 		if c.extraSelects[option.ID] == nil {
 			c.extraSelects[option.ID] = new(look.Select)
 		}
@@ -89,7 +72,7 @@ func (c *harnessControls) sync(attached state.Attached) {
 }
 
 func (c *harnessControls) known() bool {
-	return len(c.model.ids) > 0 || len(c.mode.ids) > 0 || len(c.extras) > 0
+	return len(c.model.IDs) > 0 || len(c.mode.IDs) > 0 || len(c.extras) > 0
 }
 
 // brings the harness of a session that never ran up, so its choices are there before the first prompt
@@ -153,17 +136,17 @@ func (c *harnessControls) widgets(e *env.Env, snapshot state.Snapshot, info prot
 			})
 		})
 	}
-	if len(c.model.ids) > 0 {
+	if len(c.model.IDs) > 0 {
 		quiet(&c.modelSelect, i18n.T("Model"))
 		controls = append(controls, func(gtx layout.Context) layout.Dimensions {
-			return c.modelSelect.LayoutOptions(gtx, th, e.Overlays, c.model.options, c.model.selected)
+			return c.modelSelect.LayoutOptions(gtx, th, e.Overlays, c.model.Options, c.model.Selected)
 		})
 	}
 	// a mode with nothing to switch to is not a choice
-	if len(c.mode.ids) > 1 {
+	if len(c.mode.IDs) > 1 {
 		quiet(&c.modeSelect, i18n.T("Mode"))
 		controls = append(controls, func(gtx layout.Context) layout.Dimensions {
-			return c.modeSelect.LayoutOptions(gtx, th, e.Overlays, c.mode.options, c.mode.selected)
+			return c.modeSelect.LayoutOptions(gtx, th, e.Overlays, c.mode.Options, c.mode.Selected)
 		})
 	}
 	for _, extra := range c.extras {
@@ -171,7 +154,7 @@ func (c *harnessControls) widgets(e *env.Env, snapshot state.Snapshot, info prot
 		quiet(selection, extra.name)
 		selection.Icon = optionIcon(extra.category)
 		controls = append(controls, func(gtx layout.Context) layout.Dimensions {
-			return selection.LayoutOptions(gtx, th, e.Overlays, extra.list.options, extra.list.selected)
+			return selection.LayoutOptions(gtx, th, e.Overlays, extra.list.Options, extra.list.Selected)
 		})
 	}
 	controls = append(controls, func(gtx layout.Context) layout.Dimensions {
@@ -181,15 +164,15 @@ func (c *harnessControls) widgets(e *env.Env, snapshot state.Snapshot, info prot
 }
 
 func (c *harnessControls) update(e *env.Env, id string) {
-	if index, changed := c.modelSelect.Changed(); changed && index >= 0 && index < len(c.model.ids) {
-		e.Call(protocol.MSessionSetModel, protocol.SetModelParams{ID: id, Model: c.model.ids[index]}, new(protocol.Empty), e.Report)
+	if index, changed := c.modelSelect.Changed(); changed && index >= 0 && index < len(c.model.IDs) {
+		e.Call(protocol.MSessionSetModel, protocol.SetModelParams{ID: id, Model: c.model.IDs[index]}, new(protocol.Empty), e.Report)
 	}
-	if index, changed := c.modeSelect.Changed(); changed && index >= 0 && index < len(c.mode.ids) {
-		e.Call(protocol.MSessionSetMode, protocol.SetModeParams{ID: id, Mode: c.mode.ids[index]}, new(protocol.Empty), e.Report)
+	if index, changed := c.modeSelect.Changed(); changed && index >= 0 && index < len(c.mode.IDs) {
+		e.Call(protocol.MSessionSetMode, protocol.SetModeParams{ID: id, Mode: c.mode.IDs[index]}, new(protocol.Empty), e.Report)
 	}
 	for _, extra := range c.extras {
-		if index, changed := c.extraSelects[extra.id].Changed(); changed && index >= 0 && index < len(extra.list.ids) {
-			params := protocol.SetOptionParams{ID: id, Option: extra.id, Value: extra.list.ids[index]}
+		if index, changed := c.extraSelects[extra.id].Changed(); changed && index >= 0 && index < len(extra.list.IDs) {
+			params := protocol.SetOptionParams{ID: id, Option: extra.id, Value: extra.list.IDs[index]}
 			e.Call(protocol.MSessionSetOption, params, new(protocol.Empty), e.Report)
 		}
 	}

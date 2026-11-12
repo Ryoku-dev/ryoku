@@ -7,6 +7,7 @@ import (
 
 	"ryoku-i18n"
 
+	"ryoku-rashin/internal/app/env"
 	"ryoku-rashin/internal/app/state"
 	"ryoku-rashin/internal/protocol"
 )
@@ -17,18 +18,18 @@ type Engine struct {
 	Harness string
 	// empty when unknown
 	Version string
-	// "Haiku 4.5", "Sonnet 4.5 (harness default)" or "Harness default model"
+	// "Haiku 4.5", "Sonnet 4.5 (its default)" or "Its default model"
 	Model string
 	// the options a member or task sets, as "effort high", empty without any
 	Extra   string
 	Missing bool
 }
 
-// "Claude Code · Haiku 4.5 · effort high"
+// "Haiku 4.5 on Claude Code, effort high"
 func (e Engine) Line() string {
-	line := i18n.Tf("%s · %s", e.Harness, e.Model)
+	line := i18n.Tf("%s on %s", e.Model, e.Harness)
 	if e.Extra != "" {
-		line = i18n.Tf("%s · %s", line, e.Extra)
+		line = i18n.Tf("%s, %s", line, e.Extra)
 	}
 	return line
 }
@@ -39,7 +40,7 @@ func (e Engine) Short() string { return e.Model }
 // what a member's next task starts on, through the chain the daemon starts it with
 func MemberEngine(snapshot state.Snapshot, member protocol.Member) Engine {
 	harness, model, options := protocol.ResolveEngine(member, snapshot.Settings, registryDefault(snapshot.Harnesses))
-	return describeEngine(snapshot.Harnesses, harness, model, options, member.Harness == "")
+	return describeEngine(snapshot.Harnesses, harness, model, options, member.Harness == "", "")
 }
 
 // a started task keeps what it ran on even after its session and member are gone; before
@@ -47,7 +48,7 @@ func MemberEngine(snapshot state.Snapshot, member protocol.Member) Engine {
 func TaskEngine(snapshot state.Snapshot, task protocol.TeamTask) Engine {
 	harness, model, options := TaskEngineIDs(snapshot, task)
 	fromDefaults := task.Harness == "" && taskMember(snapshot, task).Harness == ""
-	return describeEngine(snapshot.Harnesses, harness, model, options, fromDefaults)
+	return describeEngine(snapshot.Harnesses, harness, model, options, fromDefaults, task.Team)
 }
 
 // the same chain by the ids the harness takes, for details that show a model's own id
@@ -65,8 +66,12 @@ func TaskEngineIDs(snapshot state.Snapshot, task protocol.TeamTask) (harness, mo
 	return harness, model, options
 }
 
-func describeEngine(harnesses []protocol.HarnessInfo, id, model string, options map[string]string, fromDefaults bool) Engine {
-	info, found := harnessByID(harnesses, id)
+// team is the team whose home the engine runs in, whose own list names its models; "" names them from the user's
+func describeEngine(harnesses []protocol.HarnessInfo, id, model string, options map[string]string, fromDefaults bool, team string) Engine {
+	info, found := env.HarnessByID(harnesses, id)
+	if team != "" {
+		info.Capabilities, info.Setup = info.TeamCapabilities(team), nil
+	}
 	engine := Engine{Missing: !found || !info.Installed}
 	switch {
 	case id == "":
@@ -91,36 +96,12 @@ func describeEngine(harnesses []protocol.HarnessInfo, id, model string, options 
 // an empty model is the harness's own default, named when the harness reported it or its settings say it
 func modelWords(info protocol.HarnessInfo, model string) string {
 	if model != "" {
-		return modelName(info.Capabilities, model)
+		return env.ModelName(info.Capabilities, model)
 	}
-	if model := defaultModel(info); model != "" {
-		return i18n.Tf("%s (harness default)", modelName(info.Capabilities, model))
+	if model := env.HarnessDefaultModel(info); model != "" {
+		return i18n.Tf("%s (its default)", env.ModelName(info.Capabilities, model))
 	}
-	return i18n.T("Harness default model")
-}
-
-// the model id a new session of the harness starts on, empty when neither the harness nor its settings said
-func defaultModel(info protocol.HarnessInfo) string {
-	if info.Capabilities != nil && info.Capabilities.DefaultModel != "" {
-		return info.Capabilities.DefaultModel
-	}
-	for _, fact := range info.Setup {
-		if fact.Label == i18n.T("Model") && fact.Value != "" {
-			return fact.Value
-		}
-	}
-	return ""
-}
-
-func modelName(capabilities *protocol.HarnessCapabilities, id string) string {
-	if capabilities != nil {
-		for _, choice := range capabilities.ModelList {
-			if choice.ID == id && choice.Name != "" {
-				return choice.Name
-			}
-		}
-	}
-	return id
+	return i18n.T("Its default model")
 }
 
 // options read in the order the harness offers them, any it no longer offers after them by id
@@ -158,15 +139,6 @@ func registryDefault(harnesses []protocol.HarnessInfo) string {
 		}
 	}
 	return ""
-}
-
-func harnessByID(harnesses []protocol.HarnessInfo, id string) (protocol.HarnessInfo, bool) {
-	for _, harness := range harnesses {
-		if harness.ID == id {
-			return harness, true
-		}
-	}
-	return protocol.HarnessInfo{}, false
 }
 
 // a task without a member goes to the lead; a removed member leaves the zero member, which follows the defaults

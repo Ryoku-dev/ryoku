@@ -7,7 +7,7 @@ has four pages: `foundation`, `controls`, `lists`, and `overlays`.
 From this directory:
 
 ```sh
-go run . --page foundation --width 120 --mode follow
+go run . --page foundation --width 120
 go run . --page controls --width 120 --mode dark
 go run . --page lists --width 120 --mode light
 go run . --page overlays --width 120 --mode follow
@@ -21,8 +21,8 @@ go run . --page <page> --width 120 --mode <mode> [--glyphs console|unicode]
 ```
 
 `--page` defaults to `foundation`, `--width` defaults to 120, and `--mode`
-defaults to `follow`. Leave `--glyphs` unset to use Unicode except when
-`TERM=linux`.
+defaults to `dark`, the signature; `follow` reads this machine's palette. Leave
+`--glyphs` unset to use Unicode except when `TERM=linux`.
 
 Capture coloured output through a PTY. Lip Gloss downsamples colours when
 standard output is not a terminal, so redirecting the command straight to a

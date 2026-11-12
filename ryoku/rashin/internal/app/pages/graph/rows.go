@@ -320,7 +320,7 @@ func (v *viewState) layoutRefChips(gtx layout.Context, e *env.Env, refs []protoc
 				body := func(gtx layout.Context) layout.Dimensions {
 					return drawChip(gtx, e, nil, i18n.Tf("+%d", len(rest)), e.Theme.R.Stone4, e.Theme.R.Fg2, color.NRGBA{})
 				}
-				return tip.Layout(gtx, e.Theme, e.Overlays, strings.Join(labels, " · "), body)
+				return tip.Layout(gtx, e.Theme, e.Overlays, look.Clauses(labels...), body)
 			}),
 		)
 	}

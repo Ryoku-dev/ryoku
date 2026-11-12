@@ -60,7 +60,7 @@ func (d *Daemon) handoff(ctx context.Context, p protocol.HandoffParams) (protoco
 	info, err := d.manager.newSession(ctx, protocol.SessionNewParams{
 		Kind: protocol.KindAgent, Harness: p.Harness, Cwd: cwd, Origin: protocol.OriginApp,
 		Title: source.log.Info().Title, Project: p.Project, Worktree: p.Worktree,
-		Base: p.Base, Branch: p.Branch, Name: p.Name,
+		Base: p.Base, Branch: p.Branch, Name: p.Name, Memory: source.log.Info().Memory,
 	})
 	if err != nil {
 		return protocol.SessionInfo{}, err

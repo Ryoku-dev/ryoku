@@ -23,6 +23,8 @@ type board struct {
 	// coming rows are clicked by their place in Coming up
 	coming [comingLimit]kit.Click
 	start  kit.Plaque
+	// every team's month, for the line of routine runs each day
+	month teamsui.MonthSpend
 }
 
 type boardItem struct {
@@ -37,6 +39,7 @@ type boardItem struct {
 const (
 	itemLead = iota
 	itemNoTeam
+	itemRuns
 	itemSection
 	itemComing
 	itemRoutine
@@ -45,6 +48,7 @@ const (
 func (b *board) layout(gtx layout.Context, e *env.Env, page *Page) layout.Dimensions {
 	snapshot := e.Snapshot()
 	runs := comingRuns(gtx.Now, snapshot, &page.schedules, comingLimit)
+	b.month.Want(e, gtx.Now)
 	items := b.items(snapshot, runs)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -74,6 +78,7 @@ func (b *board) items(snapshot state.Snapshot, runs []run) []boardItem {
 	if len(snapshot.Teams) == 0 {
 		return append(items, boardItem{kind: itemNoTeam})
 	}
+	items = append(items, boardItem{kind: itemRuns})
 	if len(runs) > 0 {
 		items = append(items, boardItem{kind: itemSection, title: i18n.T("Coming up"), count: len(runs)})
 		for index, next := range runs {
@@ -135,6 +140,8 @@ func (b *board) layoutItem(
 		return layout.Inset{Bottom: th.Sp.S5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return b.layoutNoTeam(gtx, e)
 		})
+	case itemRuns:
+		return b.layoutRuns(gtx, e)
 	case itemSection:
 		return layout.Inset{Top: th.Sp.S3, Bottom: th.Sp.S2}.Layout(gtx, look.SectionTitle(th, item.title, item.count))
 	case itemComing:

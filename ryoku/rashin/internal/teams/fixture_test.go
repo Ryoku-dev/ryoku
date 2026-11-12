@@ -354,9 +354,13 @@ func newHarness(t *testing.T, maxRunning int) *harness {
 
 // newHarnessWith binds a service on the default settings as edit leaves
 // them, with the fake harness the test teams run on known and the registry's
-// default.
+// default. Rashin's state and data dirs are the test's own, and every team
+// counts as signed in to every harness; a test of signing in sets
+// h.s.signedIn back to the real record.
 func newHarnessWith(t *testing.T, edit func(*protocol.Settings)) *harness {
 	t.Helper()
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	h := &harness{
 		dir:      t.TempDir(),
 		sessions: newFakeSessions(),
@@ -377,6 +381,7 @@ func newHarnessWith(t *testing.T, edit func(*protocol.Settings)) *harness {
 	}
 	s.now = h.clock.now
 	s.defaultHarness = func(protocol.Settings) string { return "fake" }
+	s.signedIn = func(string, string) (time.Time, bool) { return time.Time{}, true }
 	t.Cleanup(func() { _ = s.Close() })
 	h.s = s
 	s.Bind(h.sessions)

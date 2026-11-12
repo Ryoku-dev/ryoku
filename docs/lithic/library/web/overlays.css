@@ -717,6 +717,7 @@
 }
 
 .l-engraved-chart {
+  margin: 0;
   color: var(--lithic-fg);
 }
 

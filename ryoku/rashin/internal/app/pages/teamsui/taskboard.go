@@ -28,6 +28,9 @@ type TaskBoard struct {
 	Team string
 	// Empty is what the grouped list says while the board has no task.
 	Empty string
+	// Pieces shows what a lead handed out beside its own tasks, as a dream's
+	// Work does, whose manager holds one task for the whole dream.
+	Pieces bool
 
 	tablets map[string]*kit.Tablet
 	older   kit.Plaque
@@ -59,7 +62,7 @@ const (
 // Rows reads the frame's tasks and how wide the pane is, and returns how many
 // rows the board has and how many tasks it shows.
 func (b *TaskBoard) Rows(gtx layout.Context, snapshot state.Snapshot) (rows, tasks int) {
-	b.tasks = GroupTasks(snapshot, b.Team)
+	b.tasks = GroupTasks(snapshot, b.Team, b.Pieces)
 	for _, list := range b.tasks {
 		tasks += len(list)
 	}
@@ -200,7 +203,7 @@ func (b *TaskBoard) layoutTablet(gtx layout.Context, e *env.Env, snapshot state.
 	}
 	facts := TaskEngine(snapshot, task).Short()
 	if member := MemberOf(snapshot, task.Team, task.Member); member != "" {
-		facts = i18n.Tf("%s · %s", member, facts)
+		facts = i18n.Tf("%s on %s", member, facts)
 	}
 	content := kit.TabletContent{
 		Title: task.Title, Facts: facts, Claim: word, Tone: tone,

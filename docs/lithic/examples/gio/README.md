@@ -6,7 +6,7 @@ It has four pages: `foundation`, `controls`, `lists`, and `overlays`.
 From this directory, open any page in a window:
 
 ```sh
-go run . --page foundation --mode follow
+go run . --page foundation
 go run . --page controls --mode dark
 go run . --page lists --mode light
 go run . --page overlays --mode follow
@@ -28,11 +28,13 @@ cd docs/lithic/examples/gio
 go run . --page <page> --mode <mode> [--png <file>]
 ```
 
-`--page` defaults to `foundation` and `--mode` defaults to `follow`. Omit
-`--png` to open a window. PNG output is 1440 dp wide at scale 1 and grows to
-the complete page height.
+`--page` defaults to `foundation` and `--mode` defaults to `dark`, the
+signature; `follow` reads this machine's palette. Omit `--png` to open a
+window. PNG output is 1440 dp wide at scale 1 and grows to the complete page
+height.
 
-Each page uses the live palette roles, generated tokens, type styles, cuts, and
-interaction recipes. Interactive components set `Preview kit.State` so the
-requested final state is present on the first captured frame. Overlay previews
-draw in place. The live components use the normal deferred overlay path.
+Each page uses the resolved palette roles, generated tokens, type styles,
+cuts, and interaction recipes. Interactive components set `Preview kit.State`
+so the requested final state is present on the first captured frame. Overlay
+previews draw in place. The live components use the normal deferred overlay
+path.

@@ -5,11 +5,12 @@
 block_at: major
 
 # Third-party and generated trees keep the security and syntax checks but skip
-# style checks; the ShellCheck workflow skips the same two vendored trees.
+# style checks; the ShellCheck workflow skips the same vendored trees.
 vendored:
   - "**/vendor/**"
   - "ryoku/lockscreen/qylock/**"
   - "ryoku/i18n/catalog/**"
+  - "ryoku/rashin/internal/skills/sets/**"
   - "**/*.qmltypes"
 
 tools:

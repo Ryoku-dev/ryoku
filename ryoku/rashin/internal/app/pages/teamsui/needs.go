@@ -8,27 +8,28 @@ import (
 	"ryoku-rashin/internal/protocol"
 )
 
-// one thing that needs the user: a pending approval, or a task that stopped
-// short and waits for them to look
+// memory suggestions wait here beside approvals so the Inbox stays the one place that asks the user
 type Need struct {
 	Approval *protocol.Approval
 	Task     *protocol.TeamTask
+	Memories []protocol.Memory
 	At       time.Time
 }
 
-// the task a need is about: the approval's task, or the task that waits
+// a task page folds in only the answers about its own task
 func (need Need) taskID() string {
-	if need.Approval != nil {
+	switch {
+	case need.Approval != nil:
 		return need.Approval.Task
-	}
-	if need.Task != nil {
+	case need.Task != nil:
 		return need.Task.ID
+	case len(need.Memories) > 0:
+		return need.Memories[0].Source.Task
 	}
 	return ""
 }
 
-// what needs the user across every team, oldest first so nothing waits behind
-// what came later
+// oldest first so nothing waits behind what came later
 func Needs(snapshot state.Snapshot) []Need {
 	var needs []Need
 	waiting := make(map[string]bool)

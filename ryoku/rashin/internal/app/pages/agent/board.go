@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"fmt"
 	"image"
 	"time"
 
@@ -28,6 +27,7 @@ type board struct {
 	place     placement
 	approvals env.Approvals
 	more      kit.Plaque
+	temporary env.Temporary
 	starting  bool
 	tablets   map[string]*boardTablet
 	first     boardStart
@@ -66,10 +66,18 @@ func (b *board) layout(gtx layout.Context, e *env.Env, page *Page) layout.Dimens
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			content := look.PaneHeaderContent{Title: i18n.T("Agents"), Scrolled: b.scroll.Position.First > 0 || b.scroll.Position.Offset > 0}
+			content.Actions = []look.HeaderAction{b.temporary.Action()}
+			if b.temporary.On {
+				content.Facts = []look.HeaderFact{env.TemporaryMark()}
+			}
 			if running {
 				content.Menu = []kit.MenuItem{{Icon: look.Icon.Stop, Label: i18n.T("Stop every agent")}}
 			}
 			dimensions := b.header.Layout(gtx, e.Theme, e.Overlays, content)
+			if _, ok := b.header.ActionClicked(); ok {
+				b.temporary.On = !b.temporary.On
+				b.composer.Focus()
+			}
 			if _, ok := b.header.MenuClicked(); ok {
 				for _, info := range sessions[groupWorking] {
 					stopSession(e, info.ID)
@@ -137,13 +145,7 @@ func (b *board) layoutItem(
 			return b.first.layoutPlaces(gtx, e, snapshot, b)
 		})
 	case itemSection:
-		return layout.Inset{Top: th.Sp.S3, Bottom: th.Sp.S2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Baseline}.Layout(gtx,
-				layout.Rigid(kit.Text(th.Theme, th.T.Title, th.R.Fg, item.title)),
-				layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
-				layout.Rigid(kit.Text(th.Theme, th.T.MonoSm, th.R.Fg3, fmt.Sprint(item.count))),
-			)
-		})
+		return layout.Inset{Top: th.Sp.S3, Bottom: th.Sp.S2}.Layout(gtx, look.SectionTitle(th, item.title, item.count))
 	default:
 		bottom := th.Sp.S1
 		if last {
@@ -169,7 +171,8 @@ func (b *board) layoutLead(
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return kit.Sentence(gtx, th.Theme, th.T.Sentence, th.R.Fg, boardSentence(th, sessions))
+			// the sentence stays in one ink, the rows below carry each agent's state
+			return kit.Sentence(gtx, th.Theme, th.T.Sentence, th.R.Fg, []kit.Span{{Text: boardSentence(sessions)}})
 		}),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 		layout.Rigid(kit.Text(th.Theme, th.T.Proof, th.R.Fg2, boardProof(gtx.Now, sessions))),
@@ -195,14 +198,14 @@ func (b *board) layoutComposer(gtx layout.Context, e *env.Env, page *Page, snaps
 	if value, changed := b.approvals.Changed(); changed {
 		e.SetApprovals(env.AgentApprovals, value)
 	}
+	// the field itself says what a temporary session is, where it always fits
+	if b.temporary.On {
+		options.Placeholder = env.TemporaryAgentHint()
+	}
 	e.ComposerDesktop(&b.composer, &options)
 	gtx.Constraints.Min.X = gtx.Constraints.Max.X
 	harnesses := env.InstalledHarnesses(snapshot)
-	picked := harnesses[b.place.pick.Index(snapshot, harnesses)]
-	note := th.R.Fg3
-	if may == protocol.ApprovalsAuto {
-		note = th.R.Amber
-	}
+	picked := b.place.picked(snapshot, harnesses)
 	children := []layout.FlexChild{
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			dimensions := b.composer.Layout(gtx, th, options)
@@ -214,27 +217,30 @@ func (b *board) layoutComposer(gtx layout.Context, e *env.Env, page *Page, snaps
 		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-				layout.Flexed(1, kit.Text(th.Theme, th.T.Caption, note, env.ApprovalsNote(env.AgentApprovals, may))),
+				// the mode select carries the state, the note beside it stays in one ink
+				layout.Flexed(1, kit.Text(th.Theme, th.T.Caption, th.R.Fg3, env.ApprovalsNote(env.AgentApprovals, may))),
 				layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions { return b.more.Layout(gtx, th.Theme) }),
 			)
 		}),
 	}
-	// what the picked harness will run with, from its own settings, so the choice is made knowing it
-	if facts := env.HarnessFacts(picked); len(facts) > 0 {
+	// what the session will run with, the model picked here over the harness's own, so the choice is made knowing it
+	if facts := env.StartFacts(b.place.model.reader.Info(snapshot, picked.ID), e.AgentModels[picked.ID]); len(facts) > 0 {
 		children = append(children,
 			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return env.LayoutFacts(gtx, th, facts) }),
 		)
 	}
+	children = append(children, b.place.model.noteRows(th)...)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
 func (b *board) start(e *env.Env, snapshot state.Snapshot, submission chat.Submission) {
-	params, ok := b.place.params(snapshot, details{name: worktreeName(submission.Text)})
+	params, ok := b.place.params(snapshot, e.AgentModels, details{name: worktreeName(submission.Text)})
 	if !ok {
 		return
 	}
+	params.Temporary = b.temporary.On
 	b.starting = true
 	var info protocol.SessionInfo
 	e.Call(protocol.MSessionNew, params, &info, func(err error) {
@@ -244,6 +250,8 @@ func (b *board) start(e *env.Env, snapshot state.Snapshot, submission chat.Submi
 			e.Notify(err.Error())
 			return
 		}
+		// the next session is an ordinary one again
+		b.temporary.On = false
 		open(e, info.ID)
 		e.Submit(info.ID, false, submission)
 	})
@@ -296,19 +304,19 @@ func harnessMark(th *look.Theme, name string) layout.Widget {
 	}
 }
 
-func boardSentence(th *look.Theme, sessions [groupCount][]protocol.SessionInfo) []kit.Span {
+func boardSentence(sessions [groupCount][]protocol.SessionInfo) string {
 	needs, working := len(sessions[groupNeeds]), len(sessions[groupWorking])
 	switch {
 	case needs == 1:
-		return []kit.Span{{Text: i18n.T("One agent"), Color: th.R.Amber}, {Text: i18n.T(" needs you.")}}
+		return i18n.T("One agent needs you.")
 	case needs > 1:
-		return []kit.Span{{Text: i18n.Tf("%s agents", look.CountStart(needs)), Color: th.R.Amber}, {Text: i18n.T(" need you.")}}
+		return i18n.Tf("%s agents need you.", look.CountStart(needs))
 	case working == 1:
-		return []kit.Span{{Text: i18n.T("One agent is working.")}}
+		return i18n.T("One agent is working.")
 	case working > 1:
-		return []kit.Span{{Text: i18n.Tf("%s agents are working.", look.CountStart(working))}}
+		return i18n.Tf("%s agents are working.", look.CountStart(working))
 	default:
-		return []kit.Span{{Text: i18n.T("No agents are running.")}}
+		return i18n.T("No agents are running.")
 	}
 }
 

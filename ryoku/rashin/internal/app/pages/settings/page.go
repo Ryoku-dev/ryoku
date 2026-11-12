@@ -18,7 +18,6 @@ import (
 
 	"ryoku-rashin/internal/app/env"
 	"ryoku-rashin/internal/app/look"
-	"ryoku-rashin/internal/protocol"
 )
 
 const (
@@ -28,6 +27,8 @@ const (
 	sectionAsk
 	sectionAgents
 	sectionTeams
+	sectionMemory
+	sectionSkills
 	sectionIndex
 	sectionAppearance
 	sectionKeys
@@ -38,6 +39,7 @@ const (
 type Page struct {
 	header look.PaneHeader
 	scroll look.Scroller
+	blocks blockList
 	// the sections stand in the sidebar's list with a search over them, a picker tops the column while the sidebar can't show them
 	sections look.SideList
 	find     kit.Search
@@ -56,13 +58,14 @@ type Page struct {
 	open      string
 	// provider ids in the order they were sorted into when Settings opened
 	providerOrder []string
-	usage         usage
+	usage         env.Usage
+	limits        env.LimitsWatch
 	api           apiPanel
 
-	models      protocol.ModelsResult
-	modelsReady bool
-	route       look.Select
-	habits      kit.Toggle
+	models     env.ModelMenu
+	route      look.Select
+	answerWith look.Select
+	habits     kit.Toggle
 
 	harness   look.Select
 	approvals look.Select
@@ -70,6 +73,8 @@ type Page struct {
 	idle      kit.Stepper
 	notices   kit.Toggle
 	teams     teamsPanel
+	memory    memoryPanel
+	skills    skillsPanel
 	install   env.HarnessInstall
 	instances map[string]*instanceEditor
 	fresh     instanceEditor
@@ -81,6 +86,7 @@ type Page struct {
 
 	zoom     kit.Stepper
 	motion   kit.Toggle
+	colours  kit.Segmented
 	contrast kit.Segmented
 	tint     kit.Segmented
 }
@@ -91,7 +97,10 @@ func New() *Page {
 
 // a name it doesn't know leaves the page where it is
 func (p *Page) OpenSection(name string) {
-	p.providerOrder, p.usage.asked = nil, false
+	p.providerOrder = nil
+	p.usage.Forget()
+	p.limits.Forget()
+	p.skills.list.Forget()
 	// the older names still lead to their section
 	aliases := map[string]string{"about": "rashin", "agent": "agents", "keyboard": "keys"}
 	if alias, ok := aliases[name]; ok {
@@ -108,7 +117,7 @@ func (p *Page) AskTurnOff() { p.offOpen, p.off.Dialog.Open, p.off.Danger = true,
 
 func (p *Page) jump(section int) {
 	p.current, p.jumped = section, true
-	p.scroll.ScrollTo(section)
+	p.scroll.ScrollTo(p.blocks.first(section))
 }
 
 func (p *Page) ListShown(shown bool) { p.listed = shown }
@@ -176,7 +185,7 @@ func (p *Page) New(*env.Env) {}
 func (p *Page) NewLabel() string { return "" }
 
 func (p *Page) Overlay(gtx layout.Context, e *env.Env) bool {
-	if p.api.overlay(gtx, e) {
+	if p.api.overlay(gtx, e) || p.memory.overlay(gtx, e) {
 		return true
 	}
 	if !p.offOpen {
@@ -204,11 +213,13 @@ type section struct {
 func sections() [sectionCount]section {
 	return [sectionCount]section{
 		{"rashin", i18n.T("Rashin"), look.Icon.Thought, i18n.T("on off turn daemon log about version")},
-		{"providers", i18n.T("Providers"), look.Icon.Graph, i18n.T("models routing route keys usage spend free")},
+		{"providers", i18n.T("Providers"), look.Icon.Graph, i18n.T("models routing route keys usage spend free paid local ollama llama.cpp address")},
 		{"api", i18n.T("Local API"), look.Icon.Link, i18n.T("address port key token exports openai")},
-		{"ask", i18n.T("Ask"), look.Icon.Ask, i18n.T("answers model memory habits shell approvals changes")},
+		{"ask", i18n.T("Ask"), look.Icon.Ask, i18n.T("answers answer with engine harness codex claude omp model memory habits shell approvals changes")},
 		{"agents", i18n.T("Agents"), look.Icon.Agents, i18n.T("harness harnesses omp approvals notices idle")},
-		{"teams", i18n.T("Teams"), look.Icon.Teams, i18n.T("ledger budget spend members sandbox mail")},
+		{"teams", i18n.T("Teams"), look.Icon.Teams, i18n.T("ledger budget spend members sandbox mail sign-in login harness hidden secrets")},
+		{"memory", i18n.T("Memory"), look.Icon.Memory, i18n.T("memory remember forget learn temporary privacy Honcho Hindsight")},
+		{"skills", i18n.T("Skills"), look.Icon.Skills, i18n.T("skills built in sets specs plans designs reviews debugging tests teams")},
 		{"index", i18n.T("Index"), look.Icon.Index, i18n.T("search meaning semantic system folders hide code")},
 		{"appearance", i18n.T("Appearance"), look.Icon.Show, i18n.T("theme colours colors dark light contrast tint zoom motion")},
 		{"keys", i18n.T("Keyboard"), look.Icon.Key, i18n.T("keys shortcuts keybinds")},
@@ -227,7 +238,6 @@ func (item section) matches(query string) bool {
 }
 
 func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
-	p.loadModels(e)
 	th := e.Theme
 	for {
 		event, ok := gtx.Event(key.Filter{Name: "F", Required: key.ModShortcut})
@@ -276,68 +286,18 @@ func (p *Page) layoutBody(gtx layout.Context, e *env.Env) layout.Dimensions {
 
 // follows the section at the top of the column, unless one was just picked and the list is still on its way
 func (p *Page) follow() {
-	first := p.scroll.Position.First
+	first, _ := p.blocks.locate(max(p.scroll.Position.First, 0))
 	if p.jumped {
 		p.jumped = first != p.current
 		return
 	}
-	p.current = min(max(first, 0), sectionCount-1)
+	p.current = first
 }
 
 func (p *Page) choose() {
 	if selected, ok := p.index.Selected(); ok && selected < sectionCount {
 		p.jump(selected)
 	}
-}
-
-// the list takes the pane out to its edge so the wheel works beside the column and the thumb stands at the edge
-func (p *Page) layoutSections(gtx layout.Context, e *env.Env, inset, width int) layout.Dimensions {
-	th := e.Theme
-	return p.scroll.Layout(gtx, th, sectionCount, func(gtx layout.Context, index int) layout.Dimensions {
-		top, bottom := th.Sp.S5, th.Sp.S1
-		if index == sectionCount-1 {
-			// room under the last section so it can still reach the top
-			bottom = th.Sp.S6
-		}
-		full := gtx.Constraints.Max.X
-		gtx.Constraints.Min.X, gtx.Constraints.Max.X = min(gtx.Constraints.Min.X, width), width
-		defer op.Offset(image.Pt(inset, 0)).Push(gtx.Ops).Pop()
-		dimensions := layout.Inset{Top: top, Bottom: bottom}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			switch index {
-			case sectionRashin:
-				return p.layoutRashin(gtx, e)
-			case sectionProviders:
-				return p.layoutProviders(gtx, e)
-			case sectionAPI:
-				return p.layoutAPI(gtx, e)
-			case sectionAsk:
-				return p.layoutAsk(gtx, e)
-			case sectionAgents:
-				return p.layoutAgents(gtx, e)
-			case sectionTeams:
-				return p.layoutTeams(gtx, e)
-			case sectionIndex:
-				return p.layoutIndex(gtx, e)
-			case sectionAppearance:
-				return p.layoutAppearance(gtx, e)
-			default:
-				return p.layoutKeys(gtx, e)
-			}
-		})
-		return layout.Dimensions{Size: image.Pt(full, dimensions.Size.Y)}
-	})
-}
-
-func (p *Page) loadModels(e *env.Env) {
-	if p.modelsReady {
-		return
-	}
-	p.modelsReady = true
-	e.Call(protocol.MModelsList, protocol.ModelsParams{}, &p.models, func(err error) {
-		if err != nil {
-			p.modelsReady = false
-		}
-	})
 }
 
 func set(e *env.Env, section string, values map[string]any) {

@@ -9,6 +9,7 @@
 package chat
 
 import (
+	"image/color"
 	"sync"
 	"time"
 
@@ -61,6 +62,31 @@ const (
 	// typed; View.Answer turns one into the ActPermission that says so.
 	ActAllow
 	ActRefuse
+	// ActMemoryUndo undoes the memory change named by Value and
+	// ActMemoryRedo does it again.
+	ActMemoryUndo
+	ActMemoryRedo
+	// ActMemoryEdit opens the memory named by Value on the Memory page.
+	ActMemoryEdit
+	// ActMemoryCard shows what Ask sees: the card about the reader.
+	ActMemoryCard
+	// ActMemorySuppress stops the memory named by Value being used in this
+	// conversation again.
+	ActMemorySuppress
+	// ActMemoryKeep and ActMemoryDismiss answer the suggested memory named
+	// by Value.
+	ActMemoryKeep
+	ActMemoryDismiss
+	// ActRememberOnce remembers Value, a sensitive fact the reader chose to
+	// keep this once.
+	ActRememberOnce
+	// ActMemorySettings opens Settings > Memory.
+	ActMemorySettings
+	// ActOpenVault opens the vault.
+	ActOpenVault
+	// ActOpenSession opens the past conversation named by Value; Option is
+	// its kind.
+	ActOpenSession
 )
 
 // Action is one user request raised by the view.
@@ -275,6 +301,40 @@ func (v *View) Scrolled() bool {
 	position := v.ensureState().scroller.Position
 	return position.First > 0 || position.Offset > 0
 }
+
+// MemoryChanges lists the memory changes this transcript's lines show, so the
+// page can ask the daemon after those the store has not heard of.
+func (m *Model) MemoryChanges() []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.state == nil {
+		return nil
+	}
+	var ids []string
+	for index := range m.state.rows {
+		if row := &m.state.rows[index]; row.kind == rowMemory && row.memory.Change != nil {
+			ids = append(ids, row.memory.Change.ID)
+		}
+	}
+	return ids
+}
+
+// SetMemoryChanges hands the view the latest word on memory changes by id,
+// so a line whose change was undone, here or on the Memory page, says so.
+func (v *View) SetMemoryChanges(changes map[string]protocol.MemoryChange) {
+	v.ensureState().changes = changes
+}
+
+// MemoryText says how the memory lines' popovers set a memory's text, the
+// way the Memory page does: Fact draws it with its code spans in mono, Plain
+// gives it on one line without their marks.
+type MemoryText struct {
+	Fact  func(gtx layout.Context, th *look.Theme, ink color.NRGBA, text string) layout.Dimensions
+	Plain func(text string) string
+}
+
+// SetMemoryText hands the view how memories' text is set.
+func (v *View) SetMemoryText(text MemoryText) { v.ensureState().memoryText = text }
 
 // ComposerOptions configure one frame of the composer.
 type ComposerOptions struct {

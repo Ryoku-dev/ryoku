@@ -129,7 +129,7 @@ func (w *whenBuilder) configure() {
 	w.minute.Unit = i18n.T("minutes past the hour")
 	w.day.Min, w.day.Max, w.day.Step = 1, 28, 1
 	w.day.Unit = i18n.T("day of the month")
-	w.clock.Label, w.clock.Placeholder, w.clock.Mono = i18n.T("At"), "09:00", true
+	w.clock.Label, w.clock.Placeholder = i18n.T("At"), "09:00"
 	w.custom.Label, w.custom.Placeholder, w.custom.Mono = i18n.T("Schedule"), "30 8 * * 1-5", true
 	w.custom.Help = i18n.T("minute hour day month weekday, such as 30 8 * * 1-5")
 }

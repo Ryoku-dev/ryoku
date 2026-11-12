@@ -25,10 +25,12 @@ type settingsDialog struct {
 	protect                          look.Select
 	protectSelected                  int
 	save, cancel                     kit.Plaque
+	memory                           projectMemory
 }
 
 func (d *settingsDialog) open(info protocol.ProjectInfo) {
 	d.project, d.dialog.Open, d.dialog.Width = info, true, 640
+	d.memory.filled = false
 	settings := info.Settings
 	d.base.SetText(settings.BaseRef)
 	d.root.SetText(settings.WorktreeRoot)
@@ -114,6 +116,9 @@ func (d *settingsDialog) rows(e *env.Env) []layout.Widget {
 				d.protectSelected = index
 			}
 			return dimensions
+		},
+		func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: th.Sp.S3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions { return d.memory.layout(gtx, e, d) })
 		},
 	}
 }

@@ -1,0 +1,67 @@
+# Which lobe-icons mono mark stands for each provider and harness Rashin names.
+# One line each: the Rashin id, then the icon's file name under
+# packages/static-svg/icons without .svg, or - where lobe-icons has none and the
+# app draws the provider's initial. Every provider in the gateway catalogue is
+# listed. After editing, run bin/ryoku-dev-sync-provider-logos.
+
+# gateway catalogue
+openai openai
+anthropic anthropic
+ovh -
+kilo kilocode
+groq groq
+cerebras cerebras
+nvidia nvidia
+openrouter openrouter
+mistral mistral
+google gemini
+github github
+cloudflare cloudflare
+sambanova sambanova
+llm7 -
+ollama ollama
+opencode opencode
+huggingface huggingface
+chutes chutes
+zhipu zhipu
+zai zai
+siliconflow siliconcloud
+modelscope modelscope
+pollinations pollinations
+aion aionlabs
+agnes agnesai
+alibaba alibabacloud
+xai xai
+deepseek deepseek
+cohere cohere
+nscale -
+nebius nebius
+routeway -
+requesty -
+airforce -
+kiosapi -
+meganova -
+llmtr -
+aihubmix aihubmix
+bazaarlink -
+opentyphoon -
+llmkiwi -
+sealion -
+inferbase -
+gonka -
+tokenharbor -
+moark giteeai
+vercel vercel
+
+# local servers
+ollama-local ollama
+llamacpp -
+
+# harnesses
+claude claude
+codex codex
+gemini gemini
+qwen qwen
+hermes hermesagent
+goose goose
+omp -

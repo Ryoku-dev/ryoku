@@ -38,13 +38,19 @@ type Env struct {
 	NewTeamTask func(team string)
 	// OpenSettings shows one section of Settings, named as in its index.
 	OpenSettings func(section string)
-	Post         func(func())
-	Class        look.Class
+	// OpenMemory shows the Memory page at a filter, with a memory's editor
+	// open when ID is set.
+	OpenMemory func(MemoryPlace)
+	Post       func(func())
+	Class      look.Class
 	// PanelOpen says whether the side panel is shown; TogglePanel flips it.
 	PanelOpen   bool
 	TogglePanel func()
 	// Notify shows a transient result at the foot of the content pane.
 	Notify func(text string)
+	// NotifyAction shows a transient result with one action beside it, run
+	// when it is pressed before the notice goes.
+	NotifyAction func(text, action string, act func())
 	// Zoom is the app's zoom in percent and SetZoom changes it; ReduceMotion
 	// and SetReduceMotion do the same for the app's own motion setting.
 	Zoom            int
@@ -57,6 +63,11 @@ type Env struct {
 	Contrast string
 	Tint     string
 	SetLook  func(contrast, tint string)
+	// Colours is the word of the colours the window paints ("ryoku", the
+	// ryoku.dev stock and the default, "ryoku-light" or "wallpaper");
+	// SetColours stores a pick and repaints the window at once.
+	Colours    string
+	SetColours func(colours string)
 	// Notices says whether the desktop is told when an agent needs the reader.
 	Notices    bool
 	SetNotices func(bool)
@@ -65,6 +76,11 @@ type Env struct {
 	// step keys by team id; HideStep hides one more.
 	HiddenSteps map[string][]string
 	HideStep    func(team, step string)
+	// AgentModels is the model a new agent session starts on, model id by
+	// harness id, absent for the harness's own default; SetAgentModel
+	// remembers one, "" going back to the default.
+	AgentModels   map[string]string
+	SetAgentModel func(harness, model string)
 }
 
 func (e *Env) Snapshot() state.Snapshot { return e.Store.Snapshot() }
@@ -203,6 +219,8 @@ func HandleChatActions(gtx layout.Context, e *Env, id string, actions []chat.Act
 			}
 		case chat.ActUnqueue:
 			e.Call(protocol.MSessionUnqueue, protocol.UnqueueParams{ID: id, Queue: action.Value}, new(protocol.SessionInfo), nil)
+		default:
+			e.memoryAction(id, action)
 		}
 	}
 }

@@ -42,7 +42,7 @@ func execute() (int, error) {
 	project := flag.String("project", "", i18n.T("Open this project"))
 	view := flag.String("view", "", i18n.T("Project view: overview, graph, changes, tasks or activity"))
 	worktree := flag.String("worktree", "", i18n.T("Open this worktree"))
-	mode := flag.String("mode", "follow", i18n.T("Palette mode: follow, dark or light"))
+	mode := flag.String("mode", "", i18n.T("Palette for this run, over the Colours setting: dark, light or follow"))
 	zoom := flag.Int("zoom", 0, i18n.T("App zoom percent from 80 to 150"))
 	script := flag.String("script", "", i18n.T("Storyboard event script"))
 	shotText := flag.String("shots", "", i18n.T("Storyboard shot times in milliseconds"))
@@ -70,7 +70,7 @@ func execute() (int, error) {
 	options := shell.Options{
 		Demo: *demoMode, PNG: *pngPath, Width: width, Height: height, Mode: *mode,
 		Route: target.tab, Session: target.session, Project: target.project,
-		WorkTab: target.workTab, Worktree: target.worktree, SettingsSection: target.settingsSection, Teams: target.teams,
+		WorkTab: target.workTab, Worktree: target.worktree, SettingsSection: target.settingsSection, Memory: target.memory, Teams: target.teams,
 		ZoomPercent: *zoom, Script: *script, Shots: shots,
 	}
 	if options.PNG != "" {
@@ -135,6 +135,8 @@ func exitAfterShell(options shell.Options, lock *state.AppLock) {
 type routeTarget struct {
 	tab, session, project, workTab, worktree string
 	settingsSection                          string
+	// what the Memory page shows, when the route names it
+	memory env.MemoryPlace
 	// a Teams place, when the route names one
 	teams env.TeamsPlace
 }
@@ -235,6 +237,8 @@ func parseRouteTarget(value string) routeTarget {
 		if len(parts) > 1 {
 			target.settingsSection = parts[1]
 		}
+	case protocol.TabMemory:
+		target.memory, _ = shell.MemoryRoute(value)
 	}
 	return target
 }

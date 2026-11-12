@@ -16,6 +16,9 @@ func TestEveryTeamsRouteParses(t *testing.T) {
 		"teams/new/research":     {Tab: protocol.TabTeams, Draft: env.DraftTeam, Template: "research"},
 		"teams/team-a1":          {Tab: protocol.TabTeams, Team: "team-a1"},
 		"teams/team-a1/spend":    {Tab: protocol.TabTeams, Team: "team-a1", View: env.TeamSpend},
+		"dreams":                 {Tab: protocol.TabDreams},
+		"dreams/new":             {Tab: protocol.TabDreams, Draft: env.DraftDream},
+		"dreams/dream-esp32":     {Tab: protocol.TabDreams, Team: "dream-esp32"},
 		"work":                   {Tab: protocol.TabWork},
 		"work/task-6f1c2a9e":     {Tab: protocol.TabWork, Task: "task-6f1c2a9e"},
 		"routines":               {Tab: protocol.TabRoutines},
@@ -45,7 +48,7 @@ func TestTheModeSwitchGoesBothWays(t *testing.T) {
 	if stage.shell.router.Tab != protocol.TabInbox || !stage.shell.router.TeamsMode() {
 		t.Fatalf("the Teams segment went to %q, want the Inbox", stage.shell.router.Tab)
 	}
-	for _, name := range []string{"Inbox", "Teams", "Work", "Routines", "Vault", "Activity"} {
+	for _, name := range []string{"Inbox", "Teams", "Dreams", "Work", "Routines", "Vault", "Activity"} {
 		if _, ok := stage.named(name); !ok {
 			t.Errorf("Teams mode shows no %s", name)
 		}

@@ -22,20 +22,77 @@ type definition struct {
 	name       string
 	commands   [][]string
 	installURL string
-	// state is what the harness writes under its HOME, relative to it: the
-	// only places beside its folder and cache it may write in a sandbox
+	// state is what the harness writes under its HOME, relative to it. Every
+	// team sandbox hides it under the user's home, for every harness.
 	state []string
+	// guarded are the paths under a team home, relative to it, that tell the
+	// harness what to do or run: instructions, config, MCP and provider
+	// config, skills, memories, extensions, plugins, hooks, agents and
+	// prompts. Rashin keeps them as they were signed in (teamhome.go).
+	guarded []string
+	// login signs the harness in, run in a terminal with HOME at its team
+	// home; nil leaves its setup to a shell there.
+	login []string
+	// programs are paths inside its state, relative to HOME, that hold the
+	// harness's own program, shown read-only again where its state is hidden.
+	programs []string
 }
 
 var definitions = []definition{
-	{id: "claude", name: "Claude Code", commands: [][]string{{"claude-code-acp"}, {"claude-agent-acp"}}, installURL: "https://github.com/zed-industries/claude-agent-acp", state: []string{".claude", ".claude.json"}},
-	{id: "codex", name: "Codex", commands: [][]string{{"codex-acp"}}, installURL: "https://github.com/zed-industries/codex-acp", state: []string{".codex"}},
-	{id: "opencode", name: "OpenCode", commands: [][]string{{"opencode", "acp"}}, installURL: "https://opencode.ai/docs/acp", state: []string{".local/share/opencode", ".config/opencode", ".local/state/opencode"}},
-	{id: "gemini", name: "Gemini CLI", commands: [][]string{{"gemini", "--experimental-acp"}}, installURL: "https://github.com/google-gemini/gemini-cli", state: []string{".gemini"}},
-	{id: "qwen", name: "Qwen Code", commands: [][]string{{"qwen", "--experimental-acp"}}, installURL: "https://github.com/QwenLM/qwen-code", state: []string{".qwen"}},
-	{id: "hermes", name: "Hermes", commands: [][]string{{"hermes", "acp"}}, installURL: "https://github.com/NousResearch/hermes-agent", state: []string{".hermes"}},
-	{id: "omp", name: "Oh My Pi", commands: [][]string{{"omp", "acp"}}, installURL: "https://github.com/can1357/oh-my-pi", state: []string{".omp"}},
-	{id: "goose", name: "Goose", commands: [][]string{{"goose", "acp"}}, installURL: "https://block.github.io/goose/docs/guides/acp-clients", state: []string{".config/goose", ".local/share/goose", ".local/state/goose"}},
+	{
+		id: "claude", name: "Claude Code", commands: [][]string{{"claude-code-acp"}, {"claude-agent-acp"}}, installURL: "https://github.com/zed-industries/claude-agent-acp",
+		state:   []string{".claude", ".claude.json", ".config/claude"},
+		guarded: []string{".claude/CLAUDE.md", ".claude/settings.json", ".claude/settings.local.json", ".claude/agents", ".claude/commands", ".claude/skills", ".claude/hooks", ".claude/plugins", ".claude/output-styles", ".claude/rules"},
+		login:   []string{"claude", "auth", "login"},
+	},
+	{
+		id: "codex", name: "Codex", commands: [][]string{{"codex-acp"}}, installURL: "https://github.com/zed-industries/codex-acp",
+		state:   []string{".codex"},
+		guarded: []string{".codex/config.toml", ".codex/AGENTS.md", ".codex/AGENTS.override.md", ".codex/prompts", ".codex/skills", ".codex/rules"},
+		login:   []string{"codex", "login"},
+	},
+	{
+		id: "opencode", name: "OpenCode", commands: [][]string{{"opencode", "acp"}}, installURL: "https://opencode.ai/docs/acp",
+		state:   []string{".local/share/opencode", ".config/opencode", ".local/state/opencode"},
+		guarded: []string{".config/opencode"},
+		login:   []string{"opencode", "auth", "login"},
+	},
+	{
+		id: "gemini", name: "Gemini CLI", commands: [][]string{{"gemini", "--experimental-acp"}}, installURL: "https://github.com/google-gemini/gemini-cli",
+		state:   []string{".gemini"},
+		guarded: []string{".gemini/settings.json", ".gemini/GEMINI.md", ".gemini/commands", ".gemini/extensions", ".gemini/agents", ".gemini/.env"},
+		login:   []string{"gemini"},
+	},
+	{
+		id: "qwen", name: "Qwen Code", commands: [][]string{{"qwen", "--experimental-acp"}}, installURL: "https://github.com/QwenLM/qwen-code",
+		state:   []string{".qwen"},
+		guarded: []string{".qwen/settings.json", ".qwen/QWEN.md", ".qwen/commands", ".qwen/extensions", ".qwen/agents", ".qwen/.env"},
+		login:   []string{"qwen"},
+	},
+	{
+		id: "hermes", name: "Hermes", commands: [][]string{{"hermes", "acp"}}, installURL: "https://github.com/NousResearch/hermes-agent",
+		state:    []string{".hermes"},
+		guarded:  []string{".hermes/config.yaml", ".hermes/.env", ".hermes/SOUL.md", ".hermes/AGENTS.md", ".hermes/memories", ".hermes/skills", ".hermes/plugins", ".hermes/hooks", ".hermes/cron", ".hermes/pairing"},
+		login:    []string{"hermes", "model"},
+		programs: []string{".hermes/hermes-agent", ".hermes/bin"},
+	},
+	{
+		id: "omp", name: "Oh My Pi", commands: [][]string{{"omp", "acp"}}, installURL: "https://github.com/can1357/oh-my-pi",
+		state: []string{".omp"},
+		guarded: []string{
+			".omp/agent/config.yml", ".omp/agent/models.yml", ".omp/agent/mcp.json", ".omp/agent/AGENTS.md", ".omp/agent/SYSTEM.md",
+			".omp/agent/APPEND_SYSTEM.md", ".omp/agent/extensions", ".omp/agent/skills", ".omp/agent/managed-skills", ".omp/agent/memories",
+			".omp/agent/agents", ".omp/agent/commands", ".omp/agent/prompts", ".omp/agent/hooks", ".omp/agent/rules", ".omp/agent/tools",
+			".omp/plugins",
+		},
+		login: []string{"omp", "login"},
+	},
+	{
+		id: "goose", name: "Goose", commands: [][]string{{"goose", "acp"}}, installURL: "https://block.github.io/goose/docs/guides/acp-clients",
+		state:   []string{".config/goose", ".local/share/goose", ".local/state/goose"},
+		guarded: []string{".config/goose"},
+		login:   []string{"goose", "configure"},
+	},
 }
 
 type versionEntry struct {
@@ -46,9 +103,10 @@ type versionEntry struct {
 
 // Registry discovers installed harnesses and creates lazy runners.
 type Registry struct {
-	mu                 sync.Mutex
-	versions           map[string]versionEntry
-	capabilities       map[string]capabilityEntry
+	mu       sync.Mutex
+	versions map[string]versionEntry
+	// capabilities are by home (userHome or a team), then harness id
+	capabilities       map[string]map[string]capabilityEntry
 	capabilitiesLoaded bool
 	// learned runs after capabilities are recorded
 	learned func()
@@ -185,6 +243,10 @@ func (r *Registry) List(ctx context.Context, refresh bool) ([]protocol.HarnessIn
 	out := make([]protocol.HarnessInfo, 0, len(found))
 	for _, c := range found {
 		info := protocol.HarnessInfo{ID: c.id, Name: c.name, Install: c.install, Custom: c.custom, Default: !c.collides && c.id == chosen && chosen != ""}
+		def, known := definitionOf(c.id, c.command)
+		if known {
+			info.State = homeRelative(def.state)
+		}
 		switch {
 		case c.collides:
 			info.Install = i18n.T("This custom harness id conflicts with a built-in harness. Choose a different id.")
@@ -193,7 +255,10 @@ func (r *Registry) List(ctx context.Context, refresh bool) ([]protocol.HarnessIn
 			info.Path = c.path
 			info.Command = c.command
 			info.Version = r.version(ctx, c.path, refresh)
-			info.Capabilities = r.capabilitiesFor(c.id, c.path)
+			info.Capabilities = r.capabilitiesFor(c.id, c.path, userHome)
+			info.Teams = teamsOf(c.id, def.login, func(team string) *protocol.HarnessCapabilities {
+				return r.capabilitiesFor(c.id, c.path, team)
+			})
 			if !c.custom {
 				info.Setup = setupOf(c.id)
 			}
@@ -223,18 +288,29 @@ func (r *Registry) NewAgent(_ context.Context, opts core.HarnessOptions) (core.R
 			return nil, errors.New(i18n.T("The selected agent harness is not installed. Install it and try again."))
 		}
 		id, path := c.id, c.path
+		// a team's run is in its own home, whose account may offer other models than the user's
+		home := userHome
+		if opts.Sandbox != nil {
+			home = opts.Session.Team
+		}
 		options := []runnerOption{withCapabilityReporter(func(capabilities protocol.HarnessCapabilities) {
-			r.recordCapabilities(id, path, capabilities)
+			r.recordCapabilities(id, path, home, capabilities)
 		})}
 		if c.custom {
 			options = append(options, withEnvironment(c.env))
 		}
-		if opts.Sandbox != nil {
-			spec, sandboxErr := sandboxFor(*opts.Sandbox, stateOf(c.id, c.command), c.env)
+		switch {
+		case opts.Sandbox != nil && opts.Ask:
+			options = append(options, withAskSandbox(askSandboxFor(*opts.Sandbox, c.id, c.command, c.env)))
+		case opts.Sandbox != nil:
+			spec, sandboxErr := sandboxFor(*opts.Sandbox, c.id, opts.Session.Team, c.command, c.env)
 			if sandboxErr != nil {
 				return nil, sandboxErr
 			}
 			options = append(options, withSandbox(spec))
+		}
+		if opts.Ask {
+			return askRunner{newRunner(opts, c.command, options...)}, nil
 		}
 		return newRunner(opts, c.command, options...), nil
 	}

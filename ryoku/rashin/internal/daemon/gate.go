@@ -10,6 +10,7 @@ import (
 
 // agentIndex are the index methods an agent may call from its sandbox: the
 // ones that read an index, never the ones that add, remove or rebuild one.
+// agentIndexCall holds them to the indexes inside the team's folders.
 var agentIndex = map[string]bool{
 	protocol.MIndexList:       true,
 	protocol.MIndexStatus:     true,
@@ -45,16 +46,19 @@ var teamControl = map[string]bool{
 	protocol.MSessionHandoff:    true,
 	protocol.MSessionFork:       true,
 	protocol.MSessionRevertTurn: true,
+	protocol.MSessionSetMemory:  true,
 }
 
 // isAgentMethod reports a method that only a team task's agent calls.
 func isAgentMethod(method string) bool { return strings.HasPrefix(method, "teams.agent_") }
 
 // agentGate is what a connection on a team session's own socket may call:
-// the team tools, that session's goal and screen, acting as its agent, and
-// reading the index. Everything else is refused.
+// the team tools, that session's goal and screen, acting as its agent,
+// reading the indexes inside its team's folders, searching, remembering
+// and forgetting in its team's memory, and reading its team's built-in
+// skills. Everything else is refused.
 func agentGate(session, method string, raw json.RawMessage) error {
-	if isAgentMethod(method) || agentIndex[method] {
+	if isAgentMethod(method) || agentIndex[method] || teamMemory[method] || isSkillsMethod(method) {
 		return nil
 	}
 	switch method {
@@ -82,6 +86,21 @@ func agentGate(session, method string, raw json.RawMessage) error {
 		if p.ID == session && (p.Op == protocol.ScreenAsk || p.Op == protocol.ScreenStop) {
 			return nil
 		}
+	}
+	return protocol.Errorf(protocol.CodeForbidden, "%s", i18n.T("An agent can use only its own tools here."))
+}
+
+// askGate is what a connection on a read-only Ask's own socket may call, the
+// harness that answers it running sandboxed: what Ask's tools call, reading
+// the indexes, searching, remembering and forgetting for this conversation,
+// reading the built-in skills, reading the teams and proposing one.
+// Everything else, a session that could act among it, is refused.
+func askGate(method string) error {
+	switch {
+	case agentIndex[method], sessionMemory[method], isSkillsMethod(method):
+		return nil
+	case method == protocol.MTeamsList, method == protocol.MTeamsTemplates, method == protocol.MTeamsPropose:
+		return nil
 	}
 	return protocol.Errorf(protocol.CodeForbidden, "%s", i18n.T("An agent can use only its own tools here."))
 }
@@ -126,25 +145,35 @@ func requireApp(c *connection) error {
 
 // settingsForApp reports whether a settings patch reaches what only the
 // Rashin app may change: the teams' settings, which set what their agents
-// may reach, or the harness instances, whose command and environment team
-// agents run with. A patch that replaces a whole object, or is no object at
-// all, reaches everything under it.
+// may reach, the harness instances, whose command and environment team
+// agents run with, the harness that answers Ask, which decides what runs
+// the user's questions, the providers' settings, which name the addresses
+// the gateway sends requests to, memory's, so no agent can turn memory on,
+// widen what it reads or point it at another server, or the skills', so no
+// agent chooses what every model is told. A patch that replaces a whole
+// object, or is no object at all, reaches everything under it.
 func settingsForApp(patch json.RawMessage) bool {
 	var top map[string]json.RawMessage
 	if json.Unmarshal(patch, &top) != nil || top == nil {
 		return true
 	}
-	if _, ok := top["teams"]; ok {
-		return true
+	for _, key := range []string{"teams", "providers", "memory", "skills"} {
+		if _, ok := top[key]; ok {
+			return true
+		}
 	}
-	agent, ok := top["agent"]
-	if !ok {
-		return false
+	for object, field := range map[string]string{"agent": "instances", "ask": "harness"} {
+		raw, ok := top[object]
+		if !ok {
+			continue
+		}
+		var fields map[string]json.RawMessage
+		if json.Unmarshal(raw, &fields) != nil || fields == nil {
+			return true
+		}
+		if _, ok := fields[field]; ok {
+			return true
+		}
 	}
-	var fields map[string]json.RawMessage
-	if json.Unmarshal(agent, &fields) != nil || fields == nil {
-		return true
-	}
-	_, ok = fields["instances"]
-	return ok
+	return false
 }

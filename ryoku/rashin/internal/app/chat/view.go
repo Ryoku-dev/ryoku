@@ -60,7 +60,15 @@ type viewState struct {
 	codes       map[string]*codeVisual
 	inlines     map[string]*inlineState
 	tables      map[string]*tableState
+	memory      map[string]*memoryVisual
 	menu        kit.Menu
+	// the latest word on memory changes by id, so a line whose change was undone says so
+	changes map[string]protocol.MemoryChange
+	// the memory popover open now, closed by an action that leaves for another place
+	popover any
+	// conversations whose one refusal offer was answered
+	offered    map[string]bool
+	memoryText MemoryText
 
 	// inline paragraphs set this frame and the one before, and the frame's number
 	shown, wasShown []*inlineState
@@ -103,6 +111,8 @@ func (state *viewState) ensure() {
 	state.codes = make(map[string]*codeVisual)
 	state.inlines = make(map[string]*inlineState)
 	state.tables = make(map[string]*tableState)
+	state.memory = make(map[string]*memoryVisual)
+	state.offered = make(map[string]bool)
 }
 
 func (state *viewState) takeActions() []Action {
@@ -188,7 +198,7 @@ func (state *viewState) buildVisible(model *modelState) {
 			turn++
 		}
 		state.turnOf = append(state.turnOf, turn)
-		if row.kind == rowTerminal && model.terminalOwners[row.key] != "" {
+		if row.kind == rowTerminal && model.terminalOwners[row.key] != "" || row.kind == rowTool && len(row.tools) == 0 {
 			continue
 		}
 		if fold := state.folds[index]; fold != nil {
@@ -221,7 +231,7 @@ func (state *viewState) gapBefore(model *modelState, position int) unit.Dp {
 		return 34
 	case previous == rowUser:
 		return 21
-	case isWork(current) && isWork(previous):
+	case isWork(current) && isWork(previous), current == rowMemory && previous == rowMemory:
 		return 2
 	case current == rowTurnEnd:
 		return 8
@@ -279,6 +289,8 @@ func (state *viewState) layoutRow(gtx layout.Context, th *look.Theme, block bloc
 		return state.layoutTurnFoot(gtx, th, block)
 	case rowGoal:
 		return state.layoutGoalEvent(gtx, th, row.goal, "goal:"+row.key)
+	case rowMemory:
+		return state.layoutMemory(gtx, th, block)
 	default:
 		return layout.Dimensions{}
 	}
@@ -450,8 +462,7 @@ func slab(gtx layout.Context, th *look.Theme, inset unit.Dp, body layout.Widget)
 	dimensions := layout.UniformInset(inset).Layout(gtx, body)
 	call := record.Stop()
 	bounds, cut := image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid)
-	kit.FillCut(gtx.Ops, bounds, cut, th.R.Slab)
-	kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(1)), th.R.Vein)
+	kit.SlabSurface(gtx, th.Theme, bounds, cut, th.R.Slab)
 	call.Add(gtx.Ops)
 	return dimensions
 }

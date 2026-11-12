@@ -25,6 +25,8 @@ type board struct {
 	start     teamsui.TeamStart
 	// a need, or a task whose need, to bring into view on the next frame
 	reveal string
+	// every team's month, read once the Inbox opens and again when the snapshot says it moved
+	month teamsui.MonthSpend
 }
 
 type boardItem struct {
@@ -41,9 +43,8 @@ const (
 	itemStart
 )
 
-func (b *board) layout(gtx layout.Context, e *env.Env) layout.Dimensions {
+func (b *board) layout(gtx layout.Context, e *env.Env, needs []teamsui.Need) layout.Dimensions {
 	snapshot := e.Snapshot()
-	needs := teamsui.Needs(snapshot)
 	items := b.items(snapshot, needs)
 	b.bringIntoView(items)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
@@ -71,15 +72,16 @@ func (b *board) layout(gtx layout.Context, e *env.Env) layout.Dimensions {
 
 func (b *board) items(snapshot state.Snapshot, needs []teamsui.Need) []boardItem {
 	items := []boardItem{{kind: itemLead}}
-	if len(snapshot.Teams) == 0 {
-		return append(items, boardItem{kind: itemStart})
-	}
-	// open needs and the ones answered here, so an answer folds where its card stood
-	if shown := b.needs.Shown(needs); len(shown) > 0 {
+	// open needs and the ones answered here, so an answer folds where its card stood; a proposed team can wait here before any team exists
+	shown := b.needs.Shown(needs)
+	if len(shown) > 0 {
 		items = append(items, boardItem{kind: itemNeeds, count: len(needs)})
 		for _, need := range shown {
 			items = append(items, boardItem{kind: itemNeed, need: need})
 		}
+	}
+	if len(snapshot.Teams) == 0 {
+		return append(items, boardItem{kind: itemStart, count: len(shown)})
 	}
 	return append(items, boardItem{kind: itemColumns})
 }
@@ -123,7 +125,12 @@ func (b *board) layoutItem(
 			return b.needs.Layout(gtx, e, item.need)
 		})
 	case itemStart:
-		return layout.Inset{Bottom: th.Sp.S5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		// under cards it stands apart as the columns do
+		top := unit.Dp(0)
+		if item.count > 0 {
+			top = th.Sp.S3
+		}
+		return layout.Inset{Top: top, Bottom: th.Sp.S5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return b.start.Layout(gtx, e, b.templates.List(e))
 		})
 	}

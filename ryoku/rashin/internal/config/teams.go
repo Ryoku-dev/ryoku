@@ -21,6 +21,7 @@ func defaultTeams() protocol.TeamsSettings {
 			Approvals: protocol.ApprovalsAsk,
 			Budget:    protocol.TeamBudget{MonthTokens: 2_000_000, WarnPercent: 80, TaskTurns: 20, TaskMinutes: 60},
 			Notify:    protocol.NotifyAll,
+			Memory:    protocol.DefaultTeamMemory,
 		},
 	}
 }

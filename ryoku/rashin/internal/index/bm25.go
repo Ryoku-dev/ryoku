@@ -3,11 +3,12 @@ package index
 import (
 	"bytes"
 	"encoding/binary"
-	"math"
 	"sort"
 	"strconv"
 
 	"go.etcd.io/bbolt"
+
+	"ryoku-rashin/internal/rank"
 )
 
 func (s *indexStore) bm25(query string, limit int) ([]rankedChunk, error) {
@@ -75,10 +76,7 @@ func (s *indexStore) bm25(query string, limit int) ([]rankedChunk, error) {
 		}
 		var score float64
 		for term, frequency := range frequencies {
-			tf := float64(frequency)
-			df := float64(documentFrequency[term])
-			idf := math.Log(1 + (float64(documents)-df+0.5)/(df+0.5))
-			score += idf * tf * 2.2 / (tf + 1.2*(1-0.75+0.75*float64(chunk.Length)/average))
+			score += rank.BM25Term(float64(frequency), float64(documentFrequency[term]), documents, chunk.Length, average)
 		}
 		ranked = append(ranked, rankedChunk{chunk: chunk, score: score})
 	}

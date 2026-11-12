@@ -16,7 +16,7 @@ import (
 )
 
 func init() {
-	register(&Command{Name: "providers", Group: "providers", Usage: "[list|add|rm|test|enable|disable]", Summary: "Manage free model providers.", Run: runProviders})
+	register(&Command{Name: "providers", Group: "providers", Usage: "[list|add|rm|test|enable|disable]", Summary: "Manage model providers: free, paid and on this computer.", Run: runProviders})
 	register(&Command{Name: "models", Group: "providers", Usage: "[provider]", Summary: "List available models.", Run: runModels})
 	register(&Command{Name: "usage", Group: "providers", Usage: "[--days n]", Summary: "Show model usage.", Run: runUsage})
 }
@@ -37,7 +37,11 @@ func runProviders(args []string) int {
 			return report(err)
 		}
 		for _, p := range result.Providers {
-			fmt.Fprintf(os.Stdout, "%s\t%s\t%d/%d\n", p.ID, providerState(p), p.Available, p.Models)
+			fmt.Fprintf(os.Stdout, "%s\t%s\t%s\t%d/%d", p.ID, p.Tier, providerState(p), p.Available, p.Models)
+			if p.Local {
+				fmt.Fprintf(os.Stdout, "\t%s", p.Address)
+			}
+			fmt.Fprintln(os.Stdout)
 		}
 		return 0
 	}
@@ -58,13 +62,16 @@ func runProviders(args []string) int {
 }
 
 func providerState(p protocol.ProviderInfo) string {
-	if !p.Enabled {
+	switch {
+	case !p.Enabled:
 		return i18n.T("disabled")
-	}
-	if p.Available == 0 {
+	case p.Local && !p.Running:
+		return i18n.T("not running")
+	case p.Available == 0:
 		return i18n.T("unavailable")
+	default:
+		return i18n.T("available")
 	}
-	return i18n.T("available")
 }
 
 func providerAdd(args []string) int {
@@ -177,7 +184,7 @@ func printModels(w io.Writer, result protocol.ModelsResult) {
 		if model.Available {
 			state = i18n.T("available")
 		}
-		fmt.Fprintf(w, "%s\t%s\n", model.ID, state)
+		fmt.Fprintf(w, "%s\t%s\t%s\n", model.ID, model.Tier, state)
 	}
 }
 

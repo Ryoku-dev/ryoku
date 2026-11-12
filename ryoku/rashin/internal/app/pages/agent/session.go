@@ -13,6 +13,7 @@ import (
 	"ryoku-rashin/internal/app/chat"
 	"ryoku-rashin/internal/app/env"
 	"ryoku-rashin/internal/app/look"
+	"ryoku-rashin/internal/app/pages/memoryui"
 	"ryoku-rashin/internal/app/state"
 	"ryoku-rashin/internal/protocol"
 )
@@ -128,7 +129,10 @@ func (p *Page) layoutHeader(gtx layout.Context, e *env.Env, info protocol.Sessio
 }
 
 func sessionFacts(snapshot state.Snapshot, info protocol.SessionInfo) []look.HeaderFact {
-	facts := make([]look.HeaderFact, 0, 4)
+	facts := make([]look.HeaderFact, 0, 5)
+	if info.Temporary {
+		facts = append(facts, env.TemporaryMark())
+	}
 	if project := projectName(snapshot, info.Project); project != "" {
 		facts = append(facts, look.HeaderFact{Text: project, Kind: look.FactLink})
 		if worktree, ok := worktreeOf(snapshot, info); ok && !worktree.Main {
@@ -169,6 +173,8 @@ func (p *Page) layoutConversation(gtx layout.Context, e *env.Env, attached state
 
 	view := gtx
 	view.Constraints = layout.Exact(image.Pt(size.X, max(0, top-gtx.Dp(8))))
+	p.lines.Sync(e, e.Snapshot(), &p.view, attached.Model)
+	p.view.SetMemoryText(chat.MemoryText{Fact: memoryui.FactText, Plain: env.PlainMemory})
 	p.view.Layout(view, e.Theme, e.Overlays, attached.Model)
 	p.handleActions(gtx, e, attached.Info, p.view.Actions())
 
@@ -192,6 +198,9 @@ func (p *Page) layoutComposer(gtx layout.Context, e *env.Env, attached state.Att
 		Placeholder: i18n.T("Tell the agent what to do"), Busy: busy, Queue: info.Queue, CanAttach: true,
 		History: attached.Model.Prompts, Commands: func() []protocol.Command { return sessionCommands(attached.Model.Commands()) },
 		Controls: p.controls.widgets(e, e.Snapshot(), info, p.composer.FocusTag()),
+	}
+	if info.Temporary {
+		options.Placeholder = env.TemporaryAgentHint()
 	}
 	options.Answer = p.view.Asking(attached.Model)
 	e.ComposerDesktop(&p.composer, &options)

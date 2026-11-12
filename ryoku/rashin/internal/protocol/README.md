@@ -69,6 +69,7 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
 | `providers.remove_key` | `RemoveKeyParams` | `ProviderInfo` |
 | `providers.test` | `ProviderParams` | `ProviderTestResult` |
 | `providers.enable` | `EnableProviderParams` | `ProviderInfo` |
+| `providers.limits` | `ProviderParams` | `Empty` (then `providers.changed`) |
 | `models.list` | `ModelsParams` | `ModelsResult` |
 | `gateway.usage` | `UsageParams` | `GatewayUsage` |
 | `gateway.api` | | `APIInfo` |
@@ -116,7 +117,7 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
 | `teams.approvals` | `ApprovalsParams` | `ApprovalsResult` |
 | `teams.approval_decide` | `ApprovalDecideParams` (once, always, deny, provide with a value, or choose with a `choice` among the approval's `options`) | `Approval` |
 | `teams.activity` | `TeamActivityParams` | `ActivityResult` |
-| `teams.spend` | `TeamSpendParams` | `TeamSpend` (`engines`: ids are harness and model joined by `\x1f`) |
+| `teams.spend` | `TeamSpendParams` | `TeamSpend` (`engines`: ids are harness and model joined by `\x1f`; `days` count the tasks that ended done or blocked and the routine runs among them) |
 | `teams.prune` | `TeamPruneParams` (finished tasks past `teams.keepDays`, or every finished one with `all`; their sessions go too, their files stay) | |
 | `teams.agent_report` | `AgentReportParams` (`quiet`: nothing changed since the last run) | `AgentAnswer` |
 | `teams.agent_delegate` | `AgentDelegateParams` (the lead only) | `AgentAnswer` |

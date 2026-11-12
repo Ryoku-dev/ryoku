@@ -15,6 +15,7 @@ import (
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/env"
@@ -22,13 +23,14 @@ import (
 	activitypage "ryoku-rashin/internal/app/pages/activity"
 	agentpage "ryoku-rashin/internal/app/pages/agent"
 	askpage "ryoku-rashin/internal/app/pages/ask"
+	dreamspage "ryoku-rashin/internal/app/pages/dreams"
 	inboxpage "ryoku-rashin/internal/app/pages/inbox"
 	indexpage "ryoku-rashin/internal/app/pages/index"
+	memorypage "ryoku-rashin/internal/app/pages/memory"
 	projectspage "ryoku-rashin/internal/app/pages/projects"
 	routinespage "ryoku-rashin/internal/app/pages/routines"
 	settingspage "ryoku-rashin/internal/app/pages/settings"
 	teamspage "ryoku-rashin/internal/app/pages/teams"
-	"ryoku-rashin/internal/app/pages/teamsui"
 	vaultpage "ryoku-rashin/internal/app/pages/vault"
 	workpage "ryoku-rashin/internal/app/pages/work"
 	"ryoku-rashin/internal/app/state"
@@ -73,8 +75,10 @@ type uiShell struct {
 	projects *projectspage.Page
 	index    *indexpage.Page
 	settings *settingspage.Page
+	memory   *memorypage.Page
 	inbox    *inboxpage.Page
 	teams    *teamspage.Page
+	dreams   *dreamspage.Page
 	work     *workpage.Page
 	routines *routinespage.Page
 	vault    *vaultpage.Page
@@ -91,6 +95,8 @@ type uiShell struct {
 	panel      anim.Tween
 	rise       look.Rise
 	placards   look.Placards
+	// what each placard's action does, by the placard's id
+	placardActs map[int]func()
 	// whose list the sidebar shows, settings keeps the list of where you came from
 	listTab string
 
@@ -123,14 +129,14 @@ func newShell(r *runtime, options Options) *uiShell {
 		route = protocol.TabProjects
 	}
 	listTab := route
-	if route == protocol.TabSettings {
+	if standaloneTab(route) {
 		listTab = protocol.TabAsk
 	}
 	s := &uiShell{
 		runtime: r, router: NewRouter(route, options.Session, r.hub.Invalidate), preferences: preferences,
 		ask: askpage.New(), agent: agentpage.New(), projects: projectspage.New(),
-		index: indexpage.New(), settings: settingspage.New(), listTab: listTab,
-		inbox: inboxpage.New(), teams: teamspage.New(), work: workpage.New(),
+		index: indexpage.New(), settings: settingspage.New(), memory: memorypage.New(), listTab: listTab,
+		inbox: inboxpage.New(), teams: teamspage.New(), dreams: dreamspage.New(), work: workpage.New(),
 		routines: routinespage.New(), vault: vaultpage.New(), activity: activitypage.New(),
 	}
 	s.router.paletteTag = &s.palette
@@ -143,6 +149,9 @@ func newShell(r *runtime, options Options) *uiShell {
 	s.router.OnPlace = s.applyPlace
 	s.posts.invalidate = r.hub.Invalidate
 	s.settings.OpenSection(options.SettingsSection)
+	if route == protocol.TabMemory {
+		s.router.Replace(memoryPlace(options.Memory))
+	}
 	switch {
 	case options.Project != "":
 		s.navigateWork(options.Project, options.WorkTab, options.Worktree)
@@ -236,9 +245,11 @@ func (s *uiShell) persistedPreferences(preferences state.AppPreferences) state.A
 	preferences.SidebarFolded = s.preferences.SidebarFolded
 	preferences.SidePanelOpen = s.preferences.SidePanelOpen
 	preferences.ReduceMotion = s.preferences.ReduceMotion
+	preferences.Colours = s.preferences.Colours
 	preferences.Contrast, preferences.Tint = s.preferences.Contrast, s.preferences.Tint
 	preferences.MuteNotices = s.preferences.MuteNotices
 	preferences.HiddenSteps = s.preferences.HiddenSteps
+	preferences.AgentModels = s.preferences.AgentModels
 	preferences.Last = lastPlace(s.router.lastRashin)
 	preferences.Teams = lastPlace(s.router.lastTeams)
 	preferences.InTeams = s.router.TeamsMode()
@@ -249,16 +260,19 @@ func (s *uiShell) environment() *env.Env {
 	e := &env.Env{
 		Theme: s.runtime.Theme(), Store: s.runtime.store, Client: s.runtime.client, Overlays: &s.overlay,
 		Navigate: s.navigate, NavigateWork: s.navigateWork, NavigateTeams: s.navigateTeams,
-		OpenSettings: s.openSettings, Post: s.posts.Post,
+		OpenSettings: s.openSettings, OpenMemory: s.openMemory, Post: s.posts.Post,
 		Class: s.class, PanelOpen: s.preferences.SidePanelOpen, TogglePanel: s.togglePanel,
-		Notify: func(text string) { s.placards.Push(s.now, text, "") },
-		Zoom:   s.preferences.ZoomPercent, SetZoom: s.setZoom,
+		Notify:       func(text string) { s.placards.Push(s.now, text, "") },
+		NotifyAction: s.notifyAction,
+		Zoom:         s.preferences.ZoomPercent, SetZoom: s.setZoom,
 		ReduceMotion: s.preferences.ReduceMotion, SetReduceMotion: s.setReduceMotion,
 		Notices: !s.preferences.MuteNotices, SetNotices: s.setNotices,
 		Desktop: s.desktop,
 	}
 	e.HiddenSteps, e.HideStep = s.preferences.HiddenSteps, s.hideStep
+	e.AgentModels, e.SetAgentModel = s.preferences.AgentModels, s.setAgentModel
 	e.Contrast, e.Tint, e.SetLook = s.preferences.Contrast, s.preferences.Tint, s.setLook
+	e.Colours, e.SetColours = s.runtime.colours(), s.setColours
 	// the work page owns the dialog, any page may open it
 	e.NewTeamTask = func(team string) { s.work.Ask(e, team) }
 	return e
@@ -277,6 +291,8 @@ func (s *uiShell) page(tab string) env.Page {
 		return s.index
 	case protocol.TabSettings:
 		return s.settings
+	case protocol.TabMemory:
+		return s.memory
 	default:
 		return s.ask
 	}
@@ -297,6 +313,37 @@ func (s *uiShell) openSettings(section string) {
 	s.router.Push(Place{Tab: protocol.TabSettings, SettingsSection: section})
 }
 
+func (s *uiShell) openMemory(place env.MemoryPlace) {
+	s.router.Push(memoryPlace(place))
+}
+
+func memoryPlace(place env.MemoryPlace) Place {
+	return Place{Tab: protocol.TabMemory, MemoryFilter: place.Filter, MemoryScope: place.Scope, Memory: place.ID, MemoryCard: place.Card}
+}
+
+// a placard's action runs only while its placard stands, and the stack never holds more than a few
+func (s *uiShell) notifyAction(text, action string, act func()) {
+	if s.placardActs == nil {
+		s.placardActs = make(map[int]func())
+	}
+	id := s.placards.Push(s.now, text, action)
+	s.placardActs[id] = act
+	for old := range s.placardActs {
+		if old <= id-tokens.SizePlacardStackCount {
+			delete(s.placardActs, old)
+		}
+	}
+}
+
+func (s *uiShell) runPlacardAction(gtx layout.Context) {
+	if id, ok := s.placards.Action(gtx); ok {
+		if act := s.placardActs[id]; act != nil {
+			delete(s.placardActs, id)
+			act()
+		}
+	}
+}
+
 func (s *uiShell) openDestination(tab string) {
 	s.router.Push(Place{Tab: tab})
 }
@@ -304,7 +351,7 @@ func (s *uiShell) openDestination(tab string) {
 func (s *uiShell) applyPlace(place Place) {
 	e := s.environment()
 	s.sheet.open = false
-	if place.Tab != protocol.TabSettings {
+	if !standaloneTab(place.Tab) {
 		s.listTab = place.Tab
 	}
 	if place.Tab != protocol.TabProjects {
@@ -318,6 +365,8 @@ func (s *uiShell) applyPlace(place Place) {
 	case protocol.TabProjects:
 		place = s.projectsHome(e, place)
 		s.projects.Open(e, place.Project, normalizeProjectView(place.ProjectView), place.Worktree)
+	case protocol.TabMemory:
+		s.memory.Open(e, env.MemoryPlace{Filter: place.MemoryFilter, Scope: place.MemoryScope, ID: place.Memory, Card: place.MemoryCard})
 	case protocol.TabSettings:
 		section := place.SettingsSection
 		// from teams mode settings opens on what every team shares, the rest of settings is a scroll away
@@ -354,7 +403,7 @@ func normalizeProjectView(view string) string {
 }
 
 func (s *uiShell) newCurrent(e *env.Env) {
-	if s.router.Tab == protocol.TabSettings {
+	if standaloneTab(s.router.Tab) {
 		s.openDestination(s.listTab)
 	}
 	s.page(s.listTab).New(e)
@@ -442,6 +491,13 @@ func (s *uiShell) setLook(contrast, tint string) {
 	s.runtime.setLook(s.preferences.Contrast, s.preferences.Tint)
 }
 
+// the window shows the pick at once and it is what the next start opens in, whatever --mode painted this run
+func (s *uiShell) setColours(word string) {
+	s.preferences.Colours = word
+	s.preferences = s.preferences.Normalize()
+	s.runtime.setColours(s.preferences.Colours)
+}
+
 // ui.open from the daemon, a second launch, the bar or the command line asking the running app to show something
 func (s *uiShell) applyFocus(e *env.Env) {
 	focus := e.Snapshot().Focus
@@ -482,7 +538,7 @@ func (s *uiShell) Frame(gtx layout.Context) layout.Dimensions {
 	s.router.NeedsYou = s.agent.NeedsYou(e)
 	s.router.Inbox = 0
 	if s.router.TeamsMode() {
-		s.router.Inbox = len(teamsui.Needs(e.Snapshot()))
+		s.router.Inbox = s.inbox.Count(e)
 	}
 	// the project list can arrive after projects was opened without one
 	if current := s.router.Current(); current.Tab == protocol.TabProjects && current.Project == "" {

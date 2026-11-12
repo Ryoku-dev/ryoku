@@ -14,7 +14,7 @@ import (
 func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 	th := e.Theme
 	snapshot := e.Snapshot()
-	tasks := teamsui.GroupTasks(snapshot, "")
+	tasks := teamsui.GroupTasks(snapshot, "", false)
 	groups := make([]look.SideGroup, 0, teamsui.GroupCount)
 	for at := teamsui.GroupNeeds; at < teamsui.GroupCount; at++ {
 		list := tasks[at]
@@ -37,7 +37,7 @@ func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 				if at == teamsui.GroupQueued {
 					when = look.Ago(gtx.Now, task.Created)
 				}
-				row.Trail = kit.Text(th.Theme, th.T.MonoSm, th.R.Fg3, when)
+				row.Trail = kit.Text(th.Theme, th.T.Caption, th.R.Fg3, when)
 			}
 			rows = append(rows, row)
 		}

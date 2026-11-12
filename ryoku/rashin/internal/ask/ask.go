@@ -14,10 +14,12 @@ import (
 	"unicode/utf8"
 
 	i18n "ryoku-i18n"
+	"ryoku-rashin/internal/brief"
 	"ryoku-rashin/internal/core"
 	"ryoku-rashin/internal/llm"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
+	"ryoku-rashin/internal/skills"
 )
 
 const (
@@ -30,24 +32,34 @@ const (
 type Factory struct {
 	client llm.Client
 	index  core.Indexer
+	teams  core.Teams
+	memory core.Memory
+	skills *skills.Library
 	habits habitCache
 	doctor doctorCache
 }
 
-// New creates the native Ask runner factory.
-func New(client llm.Client, idx core.Indexer) *Factory {
-	return &Factory{client: client, index: idx}
+// New creates the native Ask runner factory. teams serves the team tools and
+// memory what Ask remembers; nil leaves either unavailable.
+func New(client llm.Client, idx core.Indexer, teams core.Teams, memory core.Memory) *Factory {
+	return &Factory{client: client, index: idx, teams: teams, memory: memory}
 }
 
 // NewAsk creates one stateful Ask session. A session whose mode is not a known
 // approvals value, which is every session made before modes and every one
-// asked from the bar or a terminal, is read-only.
+// asked from the bar or a terminal, is read-only. A session whose model the
+// user picked keeps asking only that model after the daemon restarts.
 func (f *Factory) NewAsk(opts core.AskOptions) core.Runner {
 	mode := opts.Session.Mode
 	if !protocol.KnownApprovals(mode) {
 		mode = protocol.ApprovalsReadOnly
 	}
-	return &runner{factory: f, opts: opts, model: opts.Session.Model, mode: mode}
+	return &runner{factory: f, opts: opts, model: opts.Session.Model, strict: opts.Session.Pinned && pinned(opts.Session.Model), mode: mode}
+}
+
+// pinned says whether model names one model rather than a route.
+func pinned(model string) bool {
+	return model != "" && model != protocol.RouteAuto && model != protocol.RouteFast && model != protocol.RouteSmart
 }
 
 type runner struct {
@@ -120,9 +132,17 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 		}
 		asked = told
 	}
-	messages := []llm.Message{{Role: llm.RoleSystem, Content: r.factory.systemPrompt(settings, in.Terminal, mode)}}
+	recall := r.recall(ctx, in)
+	// said before the answer streams, so the line sits above it
+	if recall.Used != nil {
+		sink.Emit(protocol.EvMemory, *recall.Used)
+	}
+	skillsText, skillTools := r.factory.skillsSection(settings)
+	tools := append(askTools(mode), memoryTools(recall)...)
+	tools = append(tools, skillTools...)
+	messages := []llm.Message{{Role: llm.RoleSystem, Content: r.factory.systemPrompt(settings, in.Terminal, mode, recall.System, skillsText)}}
 	messages = append(messages, historyMessages(in.History, historyBudgetBytes)...)
-	messages = append(messages, asked)
+	messages = append(messages, withRecalled(asked, recall.Context))
 
 	var usage protocol.TokenUsage
 	var last llm.Final
@@ -130,7 +150,7 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 	handedBack := false
 	for round := range rounds {
 		stream, err := r.factory.client.Stream(ctx, llm.Request{
-			Model: model, Strict: strict, Messages: messages, Tools: askTools(mode), MaxTokens: 4096,
+			Model: model, Strict: strict, Messages: messages, Tools: tools, MaxTokens: 4096,
 		})
 		if err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
@@ -150,6 +170,12 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 			roundVisible.WriteString(delta)
 			sink.Emit(protocol.EvText, protocol.TextData{Message: messageID, Delta: delta})
 		})
+		fence, thoughtFence := newFenceScrubber(), newFenceScrubber()
+		thought := func(delta string) {
+			if delta != "" {
+				sink.Emit(protocol.EvThought, protocol.TextData{Message: messageID, Delta: delta})
+			}
+		}
 		for {
 			delta, nextErr := stream.Next()
 			if nextErr == io.EOF {
@@ -164,13 +190,15 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 			}
 			if delta.Text != "" {
 				raw.WriteString(delta.Text)
-				filter.Write(delta.Text)
+				filter.Write(fence.Feed(delta.Text))
 			}
 			if delta.Reasoning != "" {
-				sink.Emit(protocol.EvThought, protocol.TextData{Message: messageID, Delta: delta.Reasoning})
+				thought(thoughtFence.Feed(delta.Reasoning))
 			}
 			calls = append(calls, delta.ToolCalls...)
 		}
+		filter.Write(fence.Flush())
+		thought(thoughtFence.Flush())
 		filter.Close()
 		last = stream.Final()
 		_ = stream.Close()
@@ -213,6 +241,15 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 				}
 				continue
 			}
+			if brief.IsMemoryTool(call.Name) && handed(tools, call.Name) {
+				messages = append(messages, llm.Message{
+					Role: llm.RoleTool, ToolCallID: call.ID, Name: call.Name, Content: r.factory.runMemoryTool(ctx, call, r.opts.Session.ID, sink),
+				})
+				if ctx.Err() != nil {
+					return core.TurnResult{Stop: protocol.StopCancelled, Usage: usagePtr(usage)}, nil
+				}
+				continue
+			}
 			if call.Name == "system_query" {
 				messages = append(messages, llm.Message{
 					Role: llm.RoleTool, ToolCallID: call.ID, Name: call.Name, Content: r.query(ctx, call, sink, cwd),
@@ -226,7 +263,14 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 			sink.Emit(protocol.EvTool, protocol.ToolData{
 				Call: call.ID, Title: title, Kind: kind, Status: protocol.ToolRunning, Input: input,
 			})
-			output, nextPlan, toolErr := r.factory.runTool(ctx, call, in.Terminal)
+			var output string
+			var nextPlan *protocol.CommandPlan
+			var toolErr error
+			if brief.IsSkillTool(call.Name) && handed(tools, call.Name) {
+				output, toolErr = r.factory.runSkillTool(call, settings)
+			} else {
+				output, nextPlan, toolErr = r.factory.runTool(ctx, call, in.Terminal, r.opts.Session.ID)
+			}
 			if nextPlan != nil {
 				plan = nextPlan
 			}
@@ -239,12 +283,13 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 					output += "\n" + toolErr.Error()
 				}
 			}
+			told := truncateRunes(output, toldLimit(call.Name))
 			output = truncateRunes(output, 6000)
 			sink.Emit(protocol.EvTool, protocol.ToolData{
 				Call: call.ID, Title: title, Kind: kind, Status: status, Output: output,
 			})
 			messages = append(messages, llm.Message{
-				Role: llm.RoleTool, ToolCallID: call.ID, Name: call.Name, Content: output,
+				Role: llm.RoleTool, ToolCallID: call.ID, Name: call.Name, Content: told,
 			})
 			if ctx.Err() != nil {
 				return core.TurnResult{Stop: protocol.StopCancelled, Usage: usagePtr(usage)}, nil
@@ -295,12 +340,15 @@ func (r *runner) Permission(request, option string) error {
 	return nil
 }
 
+// SetModel pins model for the rest of the session; a route lets every model
+// answer again. The pin is kept in the session, so a runner made again for it
+// stays strict.
 func (r *runner) SetModel(_ context.Context, model string, sink core.Sink) error {
+	strict := pinned(model)
 	r.mu.Lock()
-	r.model = model
-	r.strict = model != "" && model != protocol.RouteAuto && model != protocol.RouteFast && model != protocol.RouteSmart
+	r.model, r.strict = model, strict
 	r.mu.Unlock()
-	sink.Update(func(info *protocol.SessionInfo) { info.Model = model })
+	sink.Update(func(info *protocol.SessionInfo) { info.Model, info.Pinned = model, strict })
 	return nil
 }
 
@@ -336,7 +384,7 @@ func modelError(err error) error {
 	if errors.As(err, &refused) {
 		return protocol.Errorf(protocol.CodeUnavailable, "%s", refused.Reason)
 	}
-	return protocol.Errorf(protocol.CodeUnavailable, "%s", i18n.Tf("Ask could not start a free model response: %v. Add a free key in Rashin > Settings > Providers.", err))
+	return protocol.Errorf(protocol.CodeUnavailable, "%s", i18n.Tf("Ask could not start an answer: %v. See which providers can answer in Rashin > Settings > Providers.", err))
 }
 
 func usagePtr(u protocol.TokenUsage) *protocol.TokenUsage {

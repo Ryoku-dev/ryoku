@@ -23,7 +23,8 @@ func (s *stage) provider(id string) protocol.ProviderInfo {
 // Every switch in Settings is driven here by the pointer. One that reads its
 // own flip a frame late sends back the value it had, and looks fine doing it.
 func TestSettingsSwitchesChangeWhatTheyName(t *testing.T) {
-	stage := newStage(t, image.Pt(1440, 900))
+	// tall enough that an unfolded provider's switch is in view under the allowance lines of the rows above it
+	stage := newStage(t, image.Pt(1440, 1300))
 	settings := func() protocol.Settings { return stage.runtime.store.Snapshot().Settings }
 
 	stage.open("settings/providers")

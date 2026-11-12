@@ -78,6 +78,15 @@ func (s *Service) teamChanges(old, next protocol.Team) []string {
 	for _, path := range added(next.Access.Hidden, old.Access.Hidden) {
 		out = append(out, i18n.Tf("Stopped hiding %s from it.", path))
 	}
+	if old.TeamMemory() != next.TeamMemory() {
+		out = append(out, i18n.T("Changed what it remembers."))
+	}
+	for _, set := range added(old.SkillsOff, next.SkillsOff) {
+		out = append(out, i18n.Tf("Took the skill set %s from it.", set))
+	}
+	for _, set := range added(next.SkillsOff, old.SkillsOff) {
+		out = append(out, i18n.Tf("Gave it the skill set %s again.", set))
+	}
 	return out
 }
 

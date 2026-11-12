@@ -7,6 +7,7 @@ import (
 	"gioui.org/layout"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/env"
@@ -20,16 +21,19 @@ func (t *taskView) layoutAside(gtx layout.Context, e *env.Env, snapshot state.Sn
 	th := e.Theme
 	word, _, _ := teamsui.TaskStanding(task)
 	var rows []layout.Widget
-	// the member's screen leads, watched while it works on it
+	// the member's screen leads, watched while it works on it; an approval card waiting on the page keeps the gold
 	if screen, ok := screenOf(snapshot, task); ok {
-		rows = append(rows, func(gtx layout.Context) layout.Dimensions { return t.screen.layout(gtx, e, snapshot, task, screen) })
+		gold := len(heldBy(snapshot, task.ID)) == 0
+		rows = append(rows, func(gtx layout.Context) layout.Dimensions {
+			return t.screen.layout(gtx, e, snapshot, task, screen, gold)
+		})
 	}
 	rows = append(rows,
-		kit.AsideFact(th.Theme, i18n.T("Status"), word),
-		kit.AsideFact(th.Theme, i18n.T("Team"), teamsui.TeamName(snapshot.Teams, task.Team)),
+		wordFact(th, i18n.T("Status"), word),
+		wordFact(th, i18n.T("Team"), teamsui.TeamName(snapshot.Teams, task.Team)),
 	)
 	if member := teamsui.MemberOf(snapshot, task.Team, task.Member); member != "" {
-		rows = append(rows, kit.AsideFact(th.Theme, i18n.T("Member"), member))
+		rows = append(rows, wordFact(th, i18n.T("Member"), member))
 	}
 	rows = append(rows, engineFacts(th, snapshot, task)...)
 	turns := fmt.Sprint(task.Turns)
@@ -37,16 +41,16 @@ func (t *taskView) layoutAside(gtx layout.Context, e *env.Env, snapshot state.Sn
 		turns = i18n.Tf("%d of %d", task.Turns, task.MaxTurns)
 	}
 	rows = append(rows,
-		kit.AsideFact(th.Theme, i18n.T("Origin"), teamsui.Origin(snapshot.Teams, snapshot.Routines, task)),
-		kit.AsideFact(th.Theme, i18n.T("Turns"), turns),
-		kit.AsideFact(th.Theme, i18n.T("Tokens"), i18n.Tf("%s in, %s out",
+		wordFact(th, i18n.T("Origin"), teamsui.Origin(snapshot.Teams, snapshot.Routines, task)),
+		wordFact(th, i18n.T("Turns"), turns),
+		wordFact(th, i18n.T("Tokens"), i18n.Tf("%s in, %s out",
 			teamsui.Tokens(int64(task.Usage.Input)), teamsui.Tokens(int64(task.Usage.Output)))),
 	)
 	if task.Started != nil {
-		rows = append(rows, kit.AsideFact(th.Theme, i18n.T("Started"), look.When(gtx.Now, *task.Started)))
+		rows = append(rows, wordFact(th, i18n.T("Started"), look.When(gtx.Now, *task.Started)))
 	}
 	if task.Ended != nil {
-		rows = append(rows, kit.AsideFact(th.Theme, i18n.T("Finished"), look.When(gtx.Now, *task.Ended)))
+		rows = append(rows, wordFact(th, i18n.T("Finished"), look.When(gtx.Now, *task.Ended)))
 	}
 	if pieces := piecesOf(snapshot, task.ID); len(pieces) > 0 {
 		rows = append(rows, func(gtx layout.Context) layout.Dimensions { return t.layoutPieces(gtx, e, snapshot, pieces) })
@@ -55,6 +59,22 @@ func (t *taskView) layoutAside(gtx layout.Context, e *env.Env, snapshot state.Sn
 		rows = append(rows, func(gtx layout.Context) layout.Dimensions { return layoutApprovals(gtx, th, approvals) })
 	}
 	return kit.Aside(gtx, th.Theme, i18n.T("Details"), rows...)
+}
+
+// a labelled value a person reads, in the sans; kit.AsideFact sets its value in mono, which only a literal such as a model id takes
+func wordFact(th *look.Theme, label, value string) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		width := min(gtx.Constraints.Max.X, gtx.Dp(tokens.SizeFactsLabelWidth))
+		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Baseline}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				gtx.Constraints.Min.X, gtx.Constraints.Max.X = width, width
+				return kit.Text(th.Theme, th.T.Body, th.R.Fg2, label)(gtx)
+			}),
+			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+				return kit.Label{Style: th.T.Body, Color: th.R.Fg, MaxLines: 2}.Layout(gtx, th.Theme, value)
+			}),
+		)
+	}
 }
 
 // the pieces the lead handed out, oldest first, as they were given
@@ -99,10 +119,7 @@ func (t *taskView) layoutPieces(gtx layout.Context, e *env.Env, snapshot state.S
 		if link.Hovered() {
 			ink = th.R.Fg
 		}
-		facts := word
-		if member := teamsui.MemberOf(snapshot, piece.Team, piece.Member); member != "" {
-			facts = i18n.Tf("%s · %s", member, word)
-		}
+		facts := look.Clauses(teamsui.MemberOf(snapshot, piece.Team, piece.Member), word)
 		children = append(children,
 			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {

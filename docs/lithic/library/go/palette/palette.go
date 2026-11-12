@@ -12,51 +12,26 @@ import (
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 )
 
-// Mode selects live palette following or forced signature neutrals.
-type Mode uint8
-
-const (
-	Follow Mode = iota
-	Dark
-	Light
-)
-
 // Palette is the decoded source palette before it is mapped to Lithic roles.
 type Palette struct {
 	Roles  map[string]color.NRGBA
 	Dark   bool
-	Forced bool
 	Source string
 }
 
 var osReleasePath = "/etc/os-release"
 
-// Load resolves the Ryoku palette files using their defined precedence.
+// Load resolves the source palette for a mode. Dark and Light are the
+// signature and read only os-release, whose edition accent takes the sun's
+// place. Follow reads the desktop's files: a shell.json themePalette scheme
+// wins, then the wallpaper's colors.json unless theme.json turns
+// followWallpaper off, then the signature with the edition accent; the mode
+// is dark when the palette's surface is.
 func Load(mode Mode) Palette {
-	named := nestedRoles(readObject(shellSettingsPath()), "themePalette")
-	follow := true
-	if object := readObject(themeSettingsPath()); object != nil {
-		if value, ok := object["followWallpaper"].(bool); ok {
-			follow = value
-		}
-	}
-
 	roles := make(map[string]color.NRGBA)
 	source := "signature"
-	if follow || mode != Follow {
-		wallpaper := colorRoles(readObject(palettePath()))
-		for key, value := range wallpaper {
-			roles[key] = value
-		}
-		if len(wallpaper) != 0 {
-			source = "wallpaper"
-		}
-	}
-	for key, value := range named {
-		roles[key] = value
-	}
-	if len(named) != 0 {
-		source = "scheme"
+	if mode == Follow {
+		source = followed(roles)
 	}
 	if source == "signature" {
 		if accent, ok := editionColor(osReleasePath); ok {
@@ -64,16 +39,41 @@ func Load(mode Mode) Palette {
 		}
 	}
 
-	forced := mode != Follow
 	dark := mode != Light
-	if !forced {
-		dark = true
-		if surface, ok := roles["surface"]; ok {
-			luma := (0.299*float64(surface.R) + 0.587*float64(surface.G) + 0.114*float64(surface.B)) / 255
-			dark = luma <= 0.5
+	if surface, ok := roles["surface"]; ok && mode == Follow {
+		luma := (0.299*float64(surface.R) + 0.587*float64(surface.G) + 0.114*float64(surface.B)) / 255
+		dark = luma <= 0.5
+	}
+	return Palette{Roles: roles, Dark: dark, Source: source}
+}
+
+// followed copies the desktop's palette into roles, the wallpaper first and a
+// named scheme over it, and returns the source that won.
+func followed(roles map[string]color.NRGBA) string {
+	source := "signature"
+	wallpaper := true
+	if object := readObject(themeSettingsPath()); object != nil {
+		if value, ok := object["followWallpaper"].(bool); ok {
+			wallpaper = value
 		}
 	}
-	return Palette{Roles: roles, Dark: dark, Forced: forced, Source: source}
+	if wallpaper {
+		found := colorRoles(readObject(palettePath()))
+		for key, value := range found {
+			roles[key] = value
+		}
+		if len(found) != 0 {
+			source = "wallpaper"
+		}
+	}
+	named := nestedRoles(readObject(shellSettingsPath()), "themePalette")
+	for key, value := range named {
+		roles[key] = value
+	}
+	if len(named) != 0 {
+		source = "scheme"
+	}
+	return source
 }
 
 // FromPalette maps a source palette to the complete Lithic role set. Without
@@ -98,34 +98,30 @@ func FromPalette(p Palette, look Look) Roles {
 		return withMinerals(r, steps)
 	}
 
-	// A forced mode keeps the signature's neutrals; following paints them
-	// from the palette's surface and on-surface on the ladder.
-	r := signatureNeutrals(table, p)
-	if !p.Forced {
-		fallback := tokens.DyeFallback
-		neutral := dye{C: fallback["stoneChroma"], H: fallback["neutralHue"]}
-		groundChroma := fallback["groundChroma"]
-		ink := dye{C: fallback["inkChroma"], H: fallback["neutralHue"]}
-		if surface, ok := p.Roles[tokens.PaletteDye["neutral"]]; ok {
-			d := dyeOf(surface)
-			factor := tintFactor(look.Tint)
-			neutral = dye{C: min(tokens.DyeChroma["stone"], d.C) * factor, H: d.H}
-			groundChroma = min(tokens.DyeChroma["ground"], d.C*tokens.DyeBoost["ground"]) * factor
-		}
-		if onSurface, ok := p.Roles[tokens.PaletteDye["ink"]]; ok {
-			d := dyeOf(onSurface)
-			ink = dye{C: min(tokens.DyeChroma["ink"], d.C), H: d.H}
-		}
-		vein := dye{C: neutral.C * tokens.DyeBoost["vein"], H: neutral.H}
-		r.Ground = toned(steps["ground"], dye{C: groundChroma, H: neutral.H})
-		r.Stone1, r.Stone2 = toned(steps["stone1"], neutral), toned(steps["stone2"], neutral)
-		r.Stone3, r.Stone4 = toned(steps["stone3"], neutral), toned(steps["stone4"], neutral)
-		r.Slab, r.Field = toned(steps["slab"], neutral), toned(steps["field"], neutral)
-		r.Vein, r.Edge = toned(steps["vein"], vein), toned(steps["edge"], vein)
-		r.Fg, r.Fg2, r.Fg3 = toned(steps["fg"], ink), toned(steps["fg2"], ink), toned(steps["fg3"], ink)
-	}
-
+	// The palette's surface and on-surface dye the neutrals on the ladder.
+	r := Roles{Scrim: tableColor(table, "scrim"), Dark: p.Dark, Source: p.Source}
 	fallback := tokens.DyeFallback
+	neutral := dye{C: fallback["stoneChroma"], H: fallback["neutralHue"]}
+	groundChroma := fallback["groundChroma"]
+	ink := dye{C: fallback["inkChroma"], H: fallback["neutralHue"]}
+	if surface, ok := p.Roles[tokens.PaletteDye["neutral"]]; ok {
+		d := dyeOf(surface)
+		factor := tintFactor(look.Tint)
+		neutral = dye{C: min(tokens.DyeChroma["stone"], d.C) * factor, H: d.H}
+		groundChroma = min(tokens.DyeChroma["ground"], d.C*tokens.DyeBoost["ground"]) * factor
+	}
+	if onSurface, ok := p.Roles[tokens.PaletteDye["ink"]]; ok {
+		d := dyeOf(onSurface)
+		ink = dye{C: min(tokens.DyeChroma["ink"], d.C), H: d.H}
+	}
+	vein := dye{C: neutral.C * tokens.DyeBoost["vein"], H: neutral.H}
+	r.Ground = toned(steps["ground"], dye{C: groundChroma, H: neutral.H})
+	r.Stone1, r.Stone2 = toned(steps["stone1"], neutral), toned(steps["stone2"], neutral)
+	r.Stone3, r.Stone4 = toned(steps["stone3"], neutral), toned(steps["stone4"], neutral)
+	r.Slab, r.Field = toned(steps["slab"], neutral), toned(steps["field"], neutral)
+	r.Vein, r.Edge = toned(steps["vein"], vein), toned(steps["edge"], vein)
+	r.Fg, r.Fg2, r.Fg3 = toned(steps["fg"], ink), toned(steps["fg2"], ink), toned(steps["fg3"], ink)
+
 	gold := dye{C: fallback["goldChroma"], H: fallback["goldHue"]}
 	jasper := dye{C: tokens.DyeChroma["jasper"], H: fallback["jasperHue"]}
 	sel := dye{C: fallback["selChroma"], H: fallback["neutralHue"]}

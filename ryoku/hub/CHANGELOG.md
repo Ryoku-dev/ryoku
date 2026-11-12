@@ -309,6 +309,27 @@
   `../shell/ipc/control.go`).
 
 ### Added
+- **Credits name where Rashin's provider logos come from.** Ryoku Settings >
+  System > About > Credits lists lobe-icons by LobeHub (MIT): the provider and
+  harness marks in Rashin are its marks, drawn in Rashin's own ink; the marks
+  belong to their owners and only name each provider
+  (`quickshell/schema/about.js`, `../../NOTICE`).
+- **Credits name the free provider lists Rashin draws on.** The base URLs,
+  sign-up needs and free allowances in Rashin's provider catalogue, and the
+  providers it added, come from awesome-free-llm-apis by open-free-llm-api and
+  Free-LLM by nejib1 (MIT); Ryoku Settings > System > About > Credits lists
+  both (`quickshell/schema/about.js`, `../rashin/NOTICE`).
+- **Credits name the skill sets Rashin ships.** Superpowers by Jesse Vincent,
+  OpenSpec by Fission-AI and Spec Kit by GitHub (MIT) and Google's Elephant
+  and Goldfish (Apache-2.0) are built in for every Rashin model, and Ryoku
+  Settings > System > About > Credits lists them
+  (`quickshell/schema/about.js`, `../../NOTICE`).
+- **Credits name the projects Rashin's memory and dreams adapt.** Hermes
+  Agent, OpenClaw, Hindsight, nanobot, PicoClaw and Engram (MIT) and OpenAI
+  Codex, mem0, Letta and Letta Code (Apache-2.0) gave its safety patterns,
+  filters, ranking and prompts, and Paperclip (MIT) the brief a dream's
+  manager follows; Ryoku Settings > System > About > Credits lists them
+  (`quickshell/schema/about.js`, `../../NOTICE`).
 - **Credits name Geologica and Martian Mono.** Rashin's app and Lithic set
   their type in Monokrom's Geologica and Evil Martians' Martian Mono, both
   OFL-1.1 (`quickshell/pages/CreditsPage.qml`, `../../NOTICE`).

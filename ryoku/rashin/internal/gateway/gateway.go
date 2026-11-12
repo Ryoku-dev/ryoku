@@ -1,4 +1,5 @@
-// Package gateway provides Rashin's in-process free-model router.
+// Package gateway provides Rashin's in-process model router: free, paid and
+// local providers behind one OpenAI-compatible chat client.
 package gateway
 
 import (
@@ -7,13 +8,16 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	i18n "ryoku-i18n"
+	"ryoku-rashin/internal/llm"
 	"ryoku-rashin/internal/protocol"
+	"ryoku-rashin/internal/vault"
 )
 
 const (
@@ -23,10 +27,12 @@ const (
 
 // Gateway is Rashin's provider catalogue, credential vault and chat router.
 type Gateway struct {
-	catalog catalog
-	store   *store
-	client  *http.Client
-	now     func() time.Time
+	catalog  catalog
+	store    *store
+	client   *http.Client
+	local    localServers
+	settings func() protocol.Settings
+	now      func() time.Time
 
 	ctx      context.Context
 	cancel   context.CancelFunc
@@ -37,10 +43,16 @@ type Gateway struct {
 
 	apiMu  sync.Mutex
 	apiKey string
+
+	// limits is what each provider last said of its allowance
+	limits limitBook
+	// listings are the providers' own model listings (discover.go)
+	listings listings
 }
 
-// Open opens the gateway database and embedded free-provider catalogue.
-func Open(stateDir string) (*Gateway, error) {
+// Open opens the gateway database and embedded provider catalogue. settings
+// gives the addresses of the local providers each time they are needed.
+func Open(stateDir string, settings func() protocol.Settings) (*Gateway, error) {
 	catalog, err := loadCatalog()
 	if err != nil {
 		return nil, err
@@ -61,9 +73,12 @@ func Open(stateDir string) (*Gateway, error) {
 			TLSHandshakeTimeout:   10 * time.Second,
 			ResponseHeaderTimeout: firstByteBudget,
 		}},
-		now:    time.Now,
-		ctx:    ctx,
-		cancel: cancel,
+		local:    newLocalServers(),
+		settings: settings,
+		now:      time.Now,
+		listings: newListings(),
+		ctx:      ctx,
+		cancel:   cancel,
 	}, nil
 }
 
@@ -83,11 +98,49 @@ func (g *Gateway) notifyChange() {
 	}
 }
 
-// Providers returns catalogue and local key state without exposing a secret.
-func (g *Gateway) Providers(ctx context.Context) ([]protocol.ProviderInfo, error) {
-	infos := make([]protocol.ProviderInfo, 0, len(g.catalog.Providers))
+// providers lists every provider: the local ones first, then the catalogue
+// with what each provider's own listing adds. fresh asks the local servers
+// now instead of trusting a recent answer.
+func (g *Gateway) providers(ctx context.Context, fresh bool) []*provider {
+	local := g.localProviders(ctx, fresh)
+	all := make([]*provider, 0, len(local)+len(g.catalog.Providers))
+	for i := range local {
+		all = append(all, &local[i])
+	}
 	for i := range g.catalog.Providers {
-		info, err := g.providerInfo(ctx, &g.catalog.Providers[i])
+		all = append(all, g.listed(&g.catalog.Providers[i]))
+	}
+	return all
+}
+
+// findProvider finds a local or catalogue provider by id. fresh asks the
+// local servers now, and reads a catalogue provider's listing again (at most
+// once a minute).
+func (g *Gateway) findProvider(ctx context.Context, id string, fresh bool) (*provider, error) {
+	id = strings.ToLower(strings.TrimSpace(id))
+	if slices.Contains(protocol.LocalProviders, id) {
+		for _, p := range g.localProviders(ctx, fresh) {
+			if p.ID == id {
+				return &p, nil
+			}
+		}
+	}
+	if p, ok := g.catalog.findProvider(id); ok {
+		if fresh {
+			g.refreshListings(ctx, []string{id})
+		}
+		return g.listed(p), nil
+	}
+	return nil, fmt.Errorf(i18n.T("Rashin has no provider %s"), id)
+}
+
+// Providers returns every provider and its local key state without exposing
+// a secret.
+func (g *Gateway) Providers(ctx context.Context) ([]protocol.ProviderInfo, error) {
+	providers := g.providers(ctx, false)
+	infos := make([]protocol.ProviderInfo, 0, len(providers))
+	for _, p := range providers {
+		info, err := g.providerInfo(ctx, p)
 		if err != nil {
 			return nil, err
 		}
@@ -106,6 +159,18 @@ func (g *Gateway) providerInfo(_ context.Context, p *provider) (protocol.Provide
 		return protocol.ProviderInfo{}, err
 	}
 	info := protocol.ProviderInfo{ID: p.ID, Name: p.Name, Tier: p.Tier, Keyless: p.Keyless, Enabled: enabled, Configured: p.Keyless || len(records) > 0, Models: len(p.Models), Signup: p.Signup, KeyHint: p.KeyHint, Note: p.Note}
+	if p.Tier == protocol.TierLocal {
+		info.Local, info.Address, info.Running = true, p.BaseURL, p.running
+	} else {
+		for i := range p.Models {
+			if p.tierOf(&p.Models[i]) != protocol.TierPaid {
+				info.Free++
+			}
+		}
+		if read := g.listingRead(p.ID); !read.IsZero() {
+			info.Listed = &read
+		}
+	}
 	if until, ok, err := g.store.cooldown(providerScope(p.ID), g.now()); err != nil {
 		return protocol.ProviderInfo{}, err
 	} else if ok {
@@ -132,22 +197,25 @@ func (g *Gateway) providerInfo(_ context.Context, p *provider) (protocol.Provide
 		}
 	}
 	if usable && enabled {
+		cooling, err := g.store.modelCooldowns(p.ID, g.now())
+		if err != nil {
+			return protocol.ProviderInfo{}, err
+		}
 		for _, m := range p.Models {
-			if _, cooling, err := g.store.cooldown(modelScope(p.ID, m.ID), g.now()); err != nil {
-				return protocol.ProviderInfo{}, err
-			} else if !cooling {
+			if _, ok := cooling[m.ID]; !ok {
 				info.Available++
 			}
 		}
 	}
+	info.Limits = g.providerLimits(p)
 	return info, nil
 }
 
 // AddKey stores a credential as unknown, then tests it with real inference.
 func (g *Gateway) AddKey(ctx context.Context, params protocol.AddKeyParams) (protocol.ProviderInfo, error) {
-	p, ok := g.catalog.findProvider(params.Provider)
-	if !ok {
-		return protocol.ProviderInfo{}, fmt.Errorf(i18n.T("Provider is not in Rashin's free-model catalogue: %s"), params.Provider)
+	p, err := g.findProvider(ctx, params.Provider, false)
+	if err != nil {
+		return protocol.ProviderInfo{}, err
 	}
 	secret := strings.TrimSpace(params.Key)
 	if p.Keyless {
@@ -163,18 +231,26 @@ func (g *Gateway) AddKey(ctx context.Context, params protocol.AddKeyParams) (pro
 	g.wg.Add(1)
 	go func() {
 		defer g.wg.Done()
+		// a key may list more than the public listing, and the test picks from what it lists
+		listCtx, cancelList := context.WithTimeout(g.ctx, listingBudget)
+		g.refreshListings(listCtx, []string{p.ID})
+		cancelList()
+		tested := p
+		if listed, err := g.findProvider(g.ctx, p.ID, false); err == nil {
+			tested = listed
+		}
 		probeCtx, cancel := context.WithTimeout(g.ctx, firstByteBudget)
 		defer cancel()
-		_, _ = g.testKey(probeCtx, p, record.ID)
+		_, _ = g.testKey(probeCtx, tested, record.ID)
 	}()
 	return g.providerInfo(ctx, p)
 }
 
 // RemoveKey removes one credential by its opaque id.
 func (g *Gateway) RemoveKey(ctx context.Context, params protocol.RemoveKeyParams) (protocol.ProviderInfo, error) {
-	p, ok := g.catalog.findProvider(params.Provider)
-	if !ok {
-		return protocol.ProviderInfo{}, fmt.Errorf(i18n.T("Provider is not in Rashin's free-model catalogue: %s"), params.Provider)
+	p, err := g.findProvider(ctx, params.Provider, false)
+	if err != nil {
+		return protocol.ProviderInfo{}, err
 	}
 	if err := g.store.removeKey(params.Key, p.ID); err != nil {
 		return protocol.ProviderInfo{}, err
@@ -184,9 +260,9 @@ func (g *Gateway) RemoveKey(ctx context.Context, params protocol.RemoveKeyParams
 
 // EnableProvider changes whether a provider participates in routing.
 func (g *Gateway) EnableProvider(ctx context.Context, params protocol.EnableProviderParams) (protocol.ProviderInfo, error) {
-	p, ok := g.catalog.findProvider(params.Provider)
-	if !ok {
-		return protocol.ProviderInfo{}, fmt.Errorf(i18n.T("Provider is not in Rashin's free-model catalogue: %s"), params.Provider)
+	p, err := g.findProvider(ctx, params.Provider, false)
+	if err != nil {
+		return protocol.ProviderInfo{}, err
 	}
 	if err := g.store.setProviderEnabled(p.ID, params.Enabled); err != nil {
 		return protocol.ProviderInfo{}, err
@@ -194,11 +270,17 @@ func (g *Gateway) EnableProvider(ctx context.Context, params protocol.EnableProv
 	return g.providerInfo(ctx, p)
 }
 
-// Test runs a real one-token completion on the provider's best tool model.
+// Test runs a real one-token completion on the provider's best tool model. A
+// local provider's server is asked for its models first.
 func (g *Gateway) Test(ctx context.Context, providerID string) (protocol.ProviderTestResult, error) {
-	p, ok := g.catalog.findProvider(providerID)
-	if !ok {
-		return protocol.ProviderTestResult{}, fmt.Errorf(i18n.T("Provider is not in Rashin's free-model catalogue: %s"), providerID)
+	p, err := g.findProvider(ctx, providerID, true)
+	if err != nil {
+		return protocol.ProviderTestResult{}, err
+	}
+	// Check also reads the account's limits, whatever the pacing says
+	defer g.checkAccount(p)
+	if p.Tier == protocol.TierLocal && !p.running {
+		return protocol.ProviderTestResult{Provider: p.ID, Message: i18n.Tf("Not running at %s.", p.BaseURL)}, nil
 	}
 	if p.Keyless {
 		return g.testKey(ctx, p, "")
@@ -259,7 +341,8 @@ func (g *Gateway) testKey(ctx context.Context, p *provider, keyID string) (proto
 		result.Message = g.redactKeyMessage(keyID, safeProviderError(0, "", err))
 		return result, nil
 	}
-	if !produced {
+	// a reasoning model can spend the one token thinking: stopping at the limit is still an answer
+	if !produced && stream.finish != llm.FinishLength {
 		result.Message = i18n.T("Provider returned no completion content")
 		return result, nil
 	}
@@ -272,6 +355,9 @@ func (g *Gateway) testKey(ctx context.Context, p *provider, keyID string) (proto
 	return result, nil
 }
 
+// bestToolModel is the model a provider is tested on: the best tool model it
+// serves without billing, or its best paid one when it has nothing else. A
+// key on a free plan is refused a paid model, which says nothing of the key.
 func bestToolModel(p *provider) (*model, bool) {
 	var models []*model
 	for i := range p.Models {
@@ -282,7 +368,13 @@ func bestToolModel(p *provider) (*model, bool) {
 	if len(models) == 0 {
 		return nil, false
 	}
-	sort.Slice(models, func(i, j int) bool { return models[i].QualityRank > models[j].QualityRank })
+	sort.Slice(models, func(i, j int) bool {
+		left, right := p.tierOf(models[i]) == protocol.TierPaid, p.tierOf(models[j]) == protocol.TierPaid
+		if left != right {
+			return right
+		}
+		return models[i].QualityRank > models[j].QualityRank
+	})
 	return models[0], true
 }
 
@@ -337,19 +429,50 @@ func (g *Gateway) redactKeyMessage(keyID, message string) string {
 	return message
 }
 
-// Models returns the curated free chat catalogue and the three routing choices.
-func (g *Gateway) Models(_ context.Context, providerID string) (protocol.ModelsResult, error) {
-	providerID = strings.ToLower(strings.TrimSpace(providerID))
+// Redact replaces every form of every stored provider key, and of the local
+// API's key, in text with its name, such as ‹OPENROUTER_API_KEY›.
+func (g *Gateway) Redact(text string) string {
+	if text == "" {
+		return text
+	}
+	return g.Scrubber()(text)
+}
+
+// Scrubber opens every stored key once and returns what Redact does with
+// them, for a pass over many texts. The daemon registers it with the redact
+// package; it holds the keys, so it is dropped when the pass ends.
+func (g *Gateway) Scrubber() func(string) string {
+	return vault.ValuesScrubber(g.store.secrets())
+}
+
+// Models returns every chat model with its tier, the local ones a running
+// server serves first, and the three routing choices, which stay free. A
+// provider's listing that is stale is read again in the background; Fresh
+// reads the listings now, each at most once a minute, and waits for them.
+func (g *Gateway) Models(ctx context.Context, params protocol.ModelsParams) (protocol.ModelsResult, error) {
 	result := protocol.ModelsResult{Routes: []protocol.Choice{
-		{ID: protocol.RouteAuto, Name: i18n.T("Auto"), Description: i18n.T("Best available free model")},
-		{ID: protocol.RouteFast, Name: i18n.T("Fast"), Description: i18n.T("Lowest measured time to first token")},
-		{ID: protocol.RouteSmart, Name: i18n.T("Smart"), Description: i18n.T("Highest quality rank")},
+		{ID: protocol.RouteAuto, Name: i18n.T("Auto"), Description: i18n.T("Best free model available, one on this computer first")},
+		{ID: protocol.RouteFast, Name: i18n.T("Fast"), Description: i18n.T("Free model with the lowest measured time to first token")},
+		{ID: protocol.RouteSmart, Name: i18n.T("Smart"), Description: i18n.T("Free model with the highest quality rank")},
 	}}
-	for i := range g.catalog.Providers {
-		p := &g.catalog.Providers[i]
-		if providerID != "" && p.ID != providerID {
-			continue
+	var providers []*provider
+	if strings.TrimSpace(params.Provider) == "" {
+		if params.Fresh {
+			ids := make([]string, 0, len(g.catalog.Providers))
+			for i := range g.catalog.Providers {
+				ids = append(ids, g.catalog.Providers[i].ID)
+			}
+			g.refreshListings(ctx, ids)
 		}
+		providers = g.providers(ctx, params.Fresh)
+	} else {
+		p, err := g.findProvider(ctx, params.Provider, params.Fresh)
+		if err != nil {
+			return protocol.ModelsResult{}, err
+		}
+		providers = []*provider{p}
+	}
+	for _, p := range providers {
 		enabled, err := g.store.providerEnabled(p.ID)
 		if err != nil {
 			return protocol.ModelsResult{}, err
@@ -362,21 +485,18 @@ func (g *Gateway) Models(_ context.Context, providerID string) (protocol.ModelsR
 		if err != nil {
 			return protocol.ModelsResult{}, err
 		}
-		for _, m := range p.Models {
-			until, modelCooling, err := g.store.cooldown(modelScope(p.ID, m.ID), g.now())
-			if err != nil {
-				return protocol.ModelsResult{}, err
-			}
-			info := protocol.ModelInfo{ID: p.ID + "/" + m.ID, Provider: p.ID, Name: m.Name, Context: m.Context, Tools: m.Tools, Reasoning: m.Reasoning, Vision: m.Vision, Rank: m.QualityRank, Available: enabled && usable && !providerCooling && !modelCooling}
+		cooling, err := g.store.modelCooldowns(p.ID, g.now())
+		if err != nil {
+			return protocol.ModelsResult{}, err
+		}
+		for i := range p.Models {
+			m := &p.Models[i]
+			until, modelCooling := cooling[m.ID]
+			info := protocol.ModelInfo{ID: p.ID + "/" + m.ID, Provider: p.ID, Name: m.Name, Tier: p.tierOf(m), Context: m.Context, Tools: m.Tools, Reasoning: m.Reasoning, Vision: m.Vision, Rank: m.QualityRank, Available: enabled && usable && !providerCooling && !modelCooling, Listed: m.listed, ToolsKnown: !m.toolsUnknown}
 			if modelCooling {
 				info.CooldownUntil = &until
 			}
 			result.Models = append(result.Models, info)
-		}
-	}
-	if providerID != "" {
-		if _, ok := g.catalog.findProvider(providerID); !ok {
-			return protocol.ModelsResult{}, fmt.Errorf(i18n.T("Provider is not in Rashin's free-model catalogue: %s"), providerID)
 		}
 	}
 	return result, nil

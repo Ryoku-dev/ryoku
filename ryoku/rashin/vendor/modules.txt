@@ -76,6 +76,9 @@ github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette
 github.com/ryoku-dev/ryoku/docs/lithic/library/go/symbols
 github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme
 github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens
+# github.com/vectorize-io/hindsight/hindsight-clients/go v0.0.0-20261110140217-0eb02d8c418e
+## explicit; go 1.18
+github.com/vectorize-io/hindsight/hindsight-clients/go
 # go.etcd.io/bbolt v1.4.3
 ## explicit; go 1.23
 go.etcd.io/bbolt
@@ -123,6 +126,9 @@ golang.org/x/text/secure/bidirule
 golang.org/x/text/transform
 golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
+# gopkg.in/validator.v2 v2.0.1
+## explicit; go 1.18
+gopkg.in/validator.v2
 # ryoku-i18n v0.0.0 => ../i18n
 ## explicit; go 1.23
 ryoku-i18n

@@ -70,7 +70,8 @@ Read this page first. The companion pages go deeper on one subject each:
    degrees: a job's progress, a meter, and the current tab's underline.
 
 7. **Engraved data.** Charts are a fine foreground line over a 45 degree
-   hatch, labels in Martian Mono, no coloured area fills.
+   hatch, labels in Martian Mono, no coloured area fills. An overview screen
+   shows how what it oversees moved over time with one.
 
 8. **One family, set monumentally.** The selected thing's name is the one big
    line in a view (Geologica Bold at 52 sp). Everything else is at working
@@ -109,12 +110,14 @@ comments and in reviews so everyone means the same thing.
 ## 3. Materials: roles, not colours
 
 Lithic has no palette of its own. Every colour in a Lithic surface is a
-**role**. Following the wallpaper, the live Ryoku palette (matugen) dyes each
-role while Lithic keeps its lightness on a fixed ladder, so an app matches the
-wallpaper, changes with it, and never loses its contrast. Without a palette
-the roles are the **signature**, the ryoku.dev stock: black paper, bone ink
-and the dark orange sun as the one action; its tables live in `tokens.json`.
-[palette.md](palette.md) is the complete recipe. The short version:
+**role**. Every Lithic app opens in the signature, the ryoku.dev stock.
+Following the wallpaper is a choice the reader makes in the app, never the
+default. The **signature** is black paper, bone ink and the dark orange sun
+as the one action (a warm grey paper in light mode); its tables live in
+`tokens.json`. When the reader chooses to follow, the live Ryoku palette
+(matugen) dyes each role while Lithic keeps its lightness on a fixed ladder,
+so the app matches the wallpaper, changes with it, and never loses its
+contrast. [palette.md](palette.md) is the complete recipe. The short version:
 
 | Role | Used for | Following, dyed by |
 |---|---|---|
@@ -135,15 +138,16 @@ and the dark orange sun as the one action; its tables live in `tokens.json`.
 | `scrim` | behind dialogs | `scrim` |
 
 In light mode the ladder runs from the other end, so the ground is the
-darkest stone and the work pane among the lightest; there a slab sits at the
-work pane's tone and its hairline sets it off. Jade, lapis and amber do not
-follow the palette because they carry meaning; a Ryoku user must read "alive"
-the same way on every wallpaper.
+darkest stone and the work pane among the lightest; there a slab sits a step
+lighter than the work pane and its hairline sets it off. Jade, lapis and
+amber do not follow the palette because they carry meaning; a Ryoku user
+must read "alive" the same way on every wallpaper.
 
 The reader sets the look on top: **Contrast** (standard or high) spreads the
 stones, slab, field and vein further from the ground and moves the inks out,
 and **Tint** (off, low or medium) lets the ground and stones take more of the
-wallpaper's colour without changing any lightness.
+wallpaper's colour without changing any lightness, so it only shows while
+following.
 [palette.md](palette.md#contrast-and-tint) has the recipe.
 
 Two named rules govern the roles:
@@ -334,7 +338,11 @@ With no resource selected, the work pane is the Now board. It places the
 fleet sentence and proof above pinned tiles, then from 860 dp splits Needs
 you and Running now from This computer and Recent activity. Pinned tiles and
 rows expose one action. Host CPU, memory and VM disk use quiet `fg2` meters
-that turn amber at 90 percent.
+that turn amber at 90 percent. An overview also shows how what it oversees
+moved over time: an engraved chart in a section open on the pane, with a
+proof line in words saying what the line shows, beside or above the lists of
+what needs you. A chart never replaces the sentence, and short data shows the
+chart's sentence instead.
 
 Full pages such as Settings use a 760 dp content column. At expanded width a
 200 dp SectionIndex sits 34 dp to its left inside a centred 994 dp region;
@@ -411,14 +419,14 @@ the implementation recipe.
 Sentence case, plain verbs, the same word through a whole flow: a plaque that
 says Start produces "Starting" and then "Running". A state always comes with
 its proof ("Online, 23 ms"; "Needs you, sign-in failed 2 min ago"). Errors
-say what happened and what to do. Empty states offer the next step. Space
+say what happened and what to do. Empty states offer the next step. Martian
 Mono wraps only the literal parts. [copy.md](copy.md) has the word lists.
 
 ## 11. Do and don't
 
 Do:
 
-- Use roles, never colour values, so the live palette can fill them.
+- Use roles, never colour values, so the signature or the live palette can fill them.
 - Spend gold on one action per view; give the actions beside it line or
   tonal plaques.
 - Lift a container from its plane: lighter or equal in dark mode, set off by

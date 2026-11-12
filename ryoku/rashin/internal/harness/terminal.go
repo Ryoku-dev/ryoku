@@ -13,6 +13,8 @@ import (
 	"syscall"
 	"unicode/utf8"
 
+	"ryoku-i18n"
+	"ryoku-rashin/internal/ask/command"
 	"ryoku-rashin/internal/protocol"
 )
 
@@ -58,6 +60,16 @@ func (r *runner) handleTerminalCreate(message rpcMessage) {
 	if request.Command == "" {
 		r.respondRequestError(message.ID, errors.New("terminal command is empty"))
 		return
+	}
+	// a Read only Ask runs only what reads, whether or not the agent asked
+	// first; in the modes that may act its permission request decided
+	if r.opts.Ask && r.askMode() == protocol.ApprovalsReadOnly {
+		if line := terminalLine(request.Command, request.Args); !command.ReadOnly(line) {
+			reason := command.WhyNotReadOnly(line)
+			r.askRefused("", "", protocol.ToolExecute, line, reason)
+			r.respondRequestError(message.ID, errors.New(i18n.Tf("This Ask is Read only: Rashin refused to run this, since %s. Tell the user what it would do, or that switching the conversation to Ask first lets you run it.", reason)))
+			return
+		}
 	}
 	cwd := request.Cwd
 	if cwd == "" {

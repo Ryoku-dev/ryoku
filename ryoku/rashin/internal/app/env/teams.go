@@ -14,10 +14,12 @@ type TeamsPlace struct {
 	Template   string
 }
 
-// Drafts a Teams page opens in its work pane.
+// Drafts a Teams page opens: a team or a routine in its work pane, a dream
+// in its dialog.
 const (
 	DraftTeam    = "team"
 	DraftRoutine = "routine"
+	DraftDream   = "dream"
 )
 
 // Views of a team page, as TeamsPlace.View names them.

@@ -70,6 +70,11 @@ func (s *recordingSink) Update(change func(*protocol.SessionInfo)) { change(&s.i
 
 func testRunner(t *testing.T, client llm.Client) core.Runner {
 	t.Helper()
+	return testRunnerWith(t, client, nil)
+}
+
+func testRunnerWith(t *testing.T, client llm.Client, teams core.Teams) core.Runner {
+	t.Helper()
 	root := t.TempDir()
 	t.Setenv("HOME", root)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
@@ -77,7 +82,7 @@ func testRunner(t *testing.T, client llm.Client) core.Runner {
 	t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
 	t.Setenv("XDG_CACHE_HOME", filepath.Join(root, "cache"))
 	t.Setenv("XDG_RUNTIME_DIR", filepath.Join(root, "runtime"))
-	factory := New(client, nil)
+	factory := New(client, nil, teams, nil)
 	return factory.NewAsk(core.AskOptions{
 		Session: protocol.SessionInfo{ID: "ask-test", Model: "auto"},
 		Settings: func() protocol.Settings {
@@ -285,7 +290,7 @@ func TestFetchURLRefusesPrivateAddress(t *testing.T) {
 func TestAskModelStrictnessFollowsSessionPin(t *testing.T) {
 	t.Run("settings pin may fail over", func(t *testing.T) {
 		client := &scriptedClient{streams: []*scriptedStream{finalStream(llm.Delta{Text: "ok"})}}
-		runner := New(client, nil).NewAsk(core.AskOptions{
+		runner := New(client, nil, nil, nil).NewAsk(core.AskOptions{
 			Session: protocol.SessionInfo{ID: "ask-settings", Model: "provider/model"},
 			Settings: func() protocol.Settings {
 				return protocol.Settings{Ask: protocol.AskSettings{Model: "provider/model"}}
@@ -311,6 +316,31 @@ func TestAskModelStrictnessFollowsSessionPin(t *testing.T) {
 		}
 		if !client.calls[0].Strict {
 			t.Fatal("session model pin was not marked strict")
+		}
+	})
+
+	t.Run("a pin outlives its runner", func(t *testing.T) {
+		sink := &recordingSink{info: protocol.SessionInfo{ID: "ask-pinned", Model: "auto"}}
+		if err := testRunner(t, &scriptedClient{}).SetModel(context.Background(), "provider/model", sink); err != nil {
+			t.Fatal(err)
+		}
+		if !sink.info.Pinned || sink.info.Model != "provider/model" {
+			t.Fatalf("the session kept %+v, want the picked model pinned", sink.info)
+		}
+		// the daemon makes the runner again from the stored session after it restarts
+		client := &scriptedClient{streams: []*scriptedStream{finalStream(llm.Delta{Text: "ok"})}}
+		again := New(client, nil, nil, nil).NewAsk(core.AskOptions{Session: sink.info, Settings: func() protocol.Settings { return protocol.Settings{} }})
+		if _, err := again.Prompt(context.Background(), core.PromptInput{Turn: 1, Text: "hello"}, &recordingSink{}); err != nil {
+			t.Fatal(err)
+		}
+		if len(client.calls) != 1 || !client.calls[0].Strict || client.calls[0].Model != "provider/model" {
+			t.Fatalf("a restored pin asked %+v, want only the picked model", client.calls)
+		}
+		if err := again.SetModel(context.Background(), protocol.RouteAuto, sink); err != nil {
+			t.Fatal(err)
+		}
+		if sink.info.Pinned {
+			t.Fatal("going back to Auto kept the pin")
 		}
 	})
 }

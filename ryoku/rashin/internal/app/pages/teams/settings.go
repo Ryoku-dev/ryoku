@@ -24,10 +24,13 @@ import (
 const (
 	sectionIdentity = iota
 	sectionCrew
+	sectionSignIn
 	sectionAccess
 	sectionPermissions
 	sectionBudget
 	sectionNotifications
+	sectionMemory
+	sectionSkills
 	sectionExport
 	sectionDanger
 	sectionCount
@@ -82,7 +85,13 @@ type settingsTab struct {
 	notify     look.Select
 	notifyHeld teamsui.Held[string]
 
+	memory teamsui.TeamMemoryForm
+	skills skillsSection
+
 	export, pause, clear, remove kit.Plaque
+
+	// by team and harness, as one tab shows every team in turn
+	signIns map[string]*teamsui.SignInActions
 }
 
 type memberRow struct {
@@ -107,8 +116,8 @@ type saveBar struct {
 
 func settingsLabels() []string {
 	return []string{
-		i18n.T("Identity"), i18n.T("Crew and engines"), i18n.T("Tools and access"), i18n.T("Permissions"),
-		i18n.T("Budget and limits"), i18n.T("Notifications"), i18n.T("Export"), i18n.T("Danger zone"),
+		i18n.T("Identity"), i18n.T("Crew and engines"), i18n.T("Sign-in for Teams"), i18n.T("Tools and access"), i18n.T("Permissions"),
+		i18n.T("Budget and limits"), i18n.T("Notifications"), i18n.T("Memory"), i18n.T("Skills"), i18n.T("Export"), i18n.T("Danger zone"),
 	}
 }
 
@@ -230,10 +239,13 @@ func (s *settingsTab) groups(gtx layout.Context, e *env.Env, p *Page, team proto
 	return []layout.Widget{
 		s.identitySection(gtx, e, p, team),
 		s.crewSection(gtx, e, p, snapshot, team),
+		s.signInSection(gtx, e, snapshot, team),
 		s.accessSection(gtx, e, snapshot, team),
 		s.permissionsSection(e, snapshot, team),
 		s.budgetSection(gtx, e, snapshot, team),
 		s.notifySection(e, snapshot, team),
+		s.memorySection(e, team),
+		s.skills.layout(e, snapshot, team),
 		s.exportSection(gtx, e, team),
 		s.dangerSection(gtx, e, p, snapshot, team),
 	}
@@ -383,12 +395,44 @@ func (s *settingsTab) crewSection(gtx layout.Context, e *env.Env, p *Page, snaps
 	}
 }
 
+// the team's own home for each harness its members start on, signed in apart from the other teams and from the user
+func (s *settingsTab) signInSection(gtx layout.Context, e *env.Env, snapshot appstate.Snapshot, team protocol.Team) layout.Widget {
+	th := e.Theme
+	harnesses := teamsui.TeamHarnesses(snapshot, team)
+	if s.signIns == nil {
+		s.signIns = make(map[string]*teamsui.SignInActions)
+	}
+	rows := make([]layout.Widget, 0, len(harnesses)+1)
+	for _, harness := range harnesses {
+		key := team.ID + "\x00" + harness.ID
+		actions := s.signIns[key]
+		if actions == nil {
+			actions = new(teamsui.SignInActions)
+			s.signIns[key] = actions
+		}
+		rows = append(rows, func(gtx layout.Context) layout.Dimensions {
+			return actions.Row(gtx, e, harness, team, harness.Name, gtx.Now)
+		})
+	}
+	if len(harnesses) == 0 {
+		rows = append(rows, quiet(th, i18n.T("None of its members runs on an installed harness.")))
+	}
+	rows = append(rows, quiet(th, i18n.T("This team runs each harness in a home of its own, signed in apart from the other teams and from you. Your own harness folders stay hidden from it.")))
+	return func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("Sign-in for Teams"))),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return kit.SlabRows(gtx, th.Theme, rows...) }),
+		)
+	}
+}
+
 // the engine line wraps rather than cuts, so a long model id reads whole
 func (s *settingsTab) layoutMember(e *env.Env, snapshot appstate.Snapshot, team protocol.Team, member protocol.Member, row *memberRow) layout.Widget {
 	th := e.Theme
 	about := member.Title
 	if member.Lead {
-		about = i18n.Tf("Leads the team · %s", member.Title)
+		about = i18n.Tf("Leads the team as %s", member.Title)
 	}
 	engine := teamsui.MemberEngine(snapshot, member)
 	ink := th.R.Fg2
@@ -766,6 +810,16 @@ func (s *settingsTab) notifySection(e *env.Env, snapshot appstate.Snapshot, team
 	}
 	return func(gtx layout.Context) layout.Dimensions {
 		return look.SettingsSection(gtx, th, i18n.T("Notifications"), rows)
+	}
+}
+
+func (s *settingsTab) memorySection(e *env.Env, team protocol.Team) layout.Widget {
+	th := e.Theme
+	rows := s.memory.Rows(e, team.TeamMemory(), func(memory protocol.TeamMemory, done func(error)) {
+		updateTeam(e, team.ID, map[string]any{"memory": memory}, done)
+	})
+	return func(gtx layout.Context) layout.Dimensions {
+		return look.SettingsSection(gtx, th, i18n.T("Memory"), rows)
 	}
 }
 

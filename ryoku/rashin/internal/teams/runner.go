@@ -13,6 +13,7 @@ import (
 
 	i18n "ryoku-i18n"
 
+	registry "ryoku-rashin/internal/harness"
 	"ryoku-rashin/internal/protocol"
 )
 
@@ -28,6 +29,8 @@ type run struct {
 	Model string
 	// timer ends the task at its time limit
 	timer *time.Timer
+	// idle counts a dream manager's turns in a row without a tool call
+	idle int
 }
 
 // maxPieces bounds the open pieces one task may hand out.
@@ -78,9 +81,14 @@ func (s *Service) newTask(ctx context.Context, team, member, title, brief, origi
 		return protocol.TeamTask{}, protocol.Errorf(protocol.CodeConflict, "%s", i18n.Tf("%s has no member to work on it.", t.Name))
 	}
 	now := s.now()
+	turns := t.Budget.TaskTurns
+	// a dream's tasks are exempt from the turns per task: their goal resumes when spent
+	if isDream(t) {
+		turns = protocol.TeamTaskTurnsMax
+	}
 	task := protocol.TeamTask{
 		ID: newID("task"), Team: t.ID, Title: taskTitle(title, brief), Brief: brief, Status: protocol.TaskReady,
-		Member: assignee.ID, Parent: parent, Origin: origin, Routine: routine, MaxTurns: t.Budget.TaskTurns,
+		Member: assignee.ID, Parent: parent, Origin: origin, Routine: routine, MaxTurns: turns,
 		Model: model, Options: options, Created: now, Updated: now,
 	}
 	if err := s.state.putTask(task); err != nil {
@@ -195,11 +203,7 @@ func (s *Service) retryTask(_ context.Context, p protocol.TeamTaskRetryParams) (
 	if note := strings.TrimSpace(p.Note); note != "" {
 		t.Brief += "\n\n" + i18n.Tf("When you ran this before: %s", note)
 	}
-	t.Status, t.Waiting, t.Report, t.Reason = protocol.TaskReady, "", nil, ""
-	t.Session, t.Started, t.Ended, t.Read, t.Steps = "", nil, nil, false, 0
-	// a run again takes its member's engine as it is now
-	t.Harness, t.Model, t.Options = "", "", nil
-	t.Updated = s.now()
+	runAgain(&t, s.now())
 	err := s.state.putTask(t)
 	s.mu.Unlock()
 	if err != nil {
@@ -212,6 +216,15 @@ func (s *Service) retryTask(_ context.Context, p protocol.TeamTaskRetryParams) (
 		t = current
 	}
 	return t, nil
+}
+
+// runAgain readies an ended task to run again in a new session, on its
+// member's engine as it is now.
+func runAgain(t *protocol.TeamTask, now time.Time) {
+	t.Status, t.Waiting, t.Report, t.Reason, t.SignIn = protocol.TaskReady, "", nil, "", ""
+	t.Session, t.Started, t.Ended, t.Read, t.Steps = "", nil, nil, false, 0
+	t.Harness, t.Model, t.Options = "", "", nil
+	t.Updated = now
 }
 
 // deleteTask stops a task, then removes it and the pieces it handed out.
@@ -314,14 +327,16 @@ func teamLimit(team protocol.Team, settings protocol.TeamsSettings) int {
 // for it, in the team's folder under the team's approvals, then the task as
 // the session's goal, which starts its first turn. The task keeps the
 // engine it started with; an option the harness refuses is left at the
-// harness's default and said so in the ledger.
+// harness's default and said so in the ledger. A harness not signed in for
+// teams blocks it; one that is runs in its team home, put back as it was
+// signed in.
 func (s *Service) start(task protocol.TeamTask) {
 	ctx := s.background
-	var harnessID, model string
+	var harnessID, model, signIn string
 	var options map[string]string
 	fail := func(session string, reason string) {
 		ended, ok := s.endTask(task.ID, func(t *protocol.TeamTask) {
-			t.Status, t.Reason = protocol.TaskBlocked, reason
+			t.Status, t.Reason, t.SignIn = protocol.TaskBlocked, reason, signIn
 			if harnessID != "" {
 				t.Harness, t.Model, t.Options = harnessID, model, maps.Clone(options)
 			}
@@ -349,6 +364,15 @@ func (s *Service) start(task protocol.TeamTask) {
 	harnessID, model, options = s.taskEngine(member, task)
 	if harnessID == "" {
 		fail("", i18n.T("No harness is installed to run it."))
+		return
+	}
+	if _, signed := s.signedIn(harnessID, team.ID); !signed {
+		signIn = harnessID
+		fail("", i18n.Tf("This team is not signed in to %s. Sign it in for Teams, then retry the task.", registry.Name(harnessID, s.settings())))
+		return
+	}
+	if err := s.RestoreHome(harnessID, team.ID); err != nil {
+		fail("", i18n.Tf("Rashin could not put the team's %s home back as it was signed in: %v", registry.Name(harnessID, s.settings()), err))
 		return
 	}
 	if err := os.MkdirAll(team.Folder, 0o700); err != nil {
@@ -480,8 +504,8 @@ func (s *Service) live(task, session string) bool {
 
 // endTask finishes an open task once: change sets how it ended, the run is
 // dropped so its token answers no more, the steps its session took are kept,
-// and the session is let go once its turn is over. It reports false when the
-// task had already ended.
+// the day's spend counts it, and the session is let go once its turn is
+// over. It reports false when the task had already ended.
 func (s *Service) endTask(id string, change func(*protocol.TeamTask)) (protocol.TeamTask, bool) {
 	// the session is asked before the lock, as engage does
 	var steps int
@@ -507,6 +531,7 @@ func (s *Service) endTask(id string, change func(*protocol.TeamTask)) (protocol.
 	}
 	delete(s.runs, id)
 	s.mu.Unlock()
+	s.countEnded(t)
 	s.emitTask(t)
 	if t.Session != "" {
 		s.retire(t.Session)

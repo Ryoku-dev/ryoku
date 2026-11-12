@@ -22,6 +22,8 @@ const (
 	FactText FactKind = iota
 	FactLink
 	FactToken
+	// a trait in amber, for what will be destroyed: Lithic's Disposable rule
+	FactMark
 )
 
 type HeaderFact struct {
@@ -174,7 +176,7 @@ func (header *PaneHeader) layoutFacts(gtx layout.Context, th *Theme, content Pan
 				if fact.Crumb {
 					return layout.Inset{Left: 2, Right: 2}.Layout(gtx, IconWidget(Icon.ChevronRight, 14, th.R.Fg3))
 				}
-				return layout.Spacer{Width: 10}.Layout(gtx)
+				return layout.Spacer{Width: th.Sp.S3}.Layout(gtx)
 			}))
 		}
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -188,6 +190,8 @@ func (header *PaneHeader) layoutFact(gtx layout.Context, th *Theme, index int, f
 	switch fact.Kind {
 	case FactToken:
 		return TokenChip(th, fact.Text)(gtx)
+	case FactMark:
+		return kit.Text(th.Theme, th.T.Caption, th.R.Amber, fact.Text)(gtx)
 	case FactLink:
 		link := &header.links[index]
 		ink := th.R.Fg3

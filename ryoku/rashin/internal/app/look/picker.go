@@ -70,7 +70,7 @@ func (p *picker) match(options []SelectOption) {
 	words := strings.Fields(strings.ToLower(p.query))
 	p.matches = p.matches[:0]
 	for index, option := range options {
-		text := strings.ToLower(option.Label + " " + option.Detail)
+		text := strings.ToLower(option.Label + " " + option.Detail + " " + option.Group)
 		found := true
 		for _, word := range words {
 			if !strings.Contains(text, word) {
@@ -85,8 +85,7 @@ func (p *picker) match(options []SelectOption) {
 }
 
 // returns the option picked this frame, or -1
-func (p *picker) Layout(gtx layout.Context, th *Theme, options []SelectOption, selected int) (layout.Dimensions, int) {
-	searched := len(options) >= pickerSearchFrom
+func (p *picker) Layout(gtx layout.Context, th *Theme, options []SelectOption, selected int, searched bool) (layout.Dimensions, int) {
 	picked := -1
 	if query := strings.TrimSpace(p.search.Text()); query != p.query {
 		p.query, p.cursor = query, 0
@@ -172,7 +171,14 @@ func (p *picker) Layout(gtx layout.Context, th *Theme, options []SelectOption, s
 			if row.click.Hovered() && !disabled {
 				hovered = at
 			}
-			return p.layoutRow(gtx, th, row, options[index], index == selected, at == p.cursor && !disabled)
+			option := func(gtx layout.Context) layout.Dimensions {
+				return p.layoutRow(gtx, th, row, options[index], index == selected, at == p.cursor && !disabled)
+			}
+			group := options[index].Group
+			if group == "" || (at > 0 && options[p.matches[at-1]].Group == group) {
+				return option(gtx)
+			}
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, layout.Rigid(groupHeading(th, group, at == 0)), layout.Rigid(option))
 		})
 	}))
 	dimensions := layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
@@ -212,10 +218,25 @@ func (p *picker) usable(options []SelectOption, at, step int) int {
 	return (at%count + count) % count
 }
 
+// a run's name over its first row, in the type the side list heads its groups with
+func groupHeading(th *Theme, group string, first bool) layout.Widget {
+	inset := layout.Inset{Top: 12, Bottom: 4, Left: 12, Right: 12}
+	if first {
+		inset.Top = 4
+	}
+	return func(gtx layout.Context) layout.Dimensions {
+		return inset.Layout(gtx, kit.Text(th.Theme, th.T.Group, th.R.Fg3, group))
+	}
+}
+
 // a row is as tall as what it says: a second line wraps, it is never cut
 func (p *picker) layoutRow(gtx layout.Context, th *Theme, row *pickerRow, option SelectOption, chosen, raised bool) layout.Dimensions {
 	width := gtx.Constraints.Max.X
 	inset, glyph, gap := gtx.Dp(12), gtx.Dp(18), gtx.Dp(10)
+	lead := 0
+	if option.Mark.ID != "" {
+		lead = glyph + gap
+	}
 	gtx.Constraints.Min = image.Point{}
 	if option.Disabled {
 		// drawn at alpha.disabled by the kit's text, and screen readers hear it as unavailable
@@ -228,7 +249,7 @@ func (p *picker) layoutRow(gtx layout.Context, th *Theme, row *pickerRow, option
 		semantic.EnabledOp(!option.Disabled).Add(gtx.Ops)
 		record := op.Record(gtx.Ops)
 		content := gtx
-		content.Constraints = layout.Constraints{Max: image.Pt(max(0, width-2*inset-glyph-gap), gtx.Constraints.Max.Y)}
+		content.Constraints = layout.Constraints{Max: image.Pt(max(0, width-2*inset-glyph-gap-lead), gtx.Constraints.Max.Y)}
 		said := layout.Flex{Axis: layout.Vertical}.Layout(content,
 			layout.Rigid(kit.Text(th.Theme, th.T.Label, th.R.Fg, option.Label)),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -253,7 +274,16 @@ func (p *picker) layoutRow(gtx layout.Context, th *Theme, row *pickerRow, option
 			}
 			PlaceIcon(gtx, Icon.Check, image.Pt(width-inset-glyph, top+(gtx.Sp(th.T.Label.Line)-glyph)/2), 18, ink)
 		}
-		offset := op.Offset(image.Pt(inset, top)).Push(gtx.Ops)
+		if lead > 0 {
+			ink := th.R.Fg2
+			if raised || chosen {
+				ink = th.R.Fg
+			}
+			at := op.Offset(image.Pt(inset, top+(gtx.Sp(th.T.Label.Line)-glyph)/2)).Push(gtx.Ops)
+			Logo(gtx, th, option.Mark, 18, ink)
+			at.Pop()
+		}
+		offset := op.Offset(image.Pt(inset+lead, top)).Push(gtx.Ops)
 		call.Add(gtx.Ops)
 		offset.Pop()
 		return layout.Dimensions{Size: size}

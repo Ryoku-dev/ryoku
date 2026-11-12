@@ -450,7 +450,7 @@ Item {
 
             StateSpecimen {
                 stateName: "Three options"
-                Segmented { anchors.centerIn: parent; model: ["Follow", "Dark", "Light"]; accessibleName: "Mode" }
+                Segmented { anchors.centerIn: parent; model: ["Dark", "Light", "Follow"]; accessibleName: "Mode" }
             }
             StateSpecimen {
                 stateName: "Second selected"
@@ -603,8 +603,8 @@ Item {
                         SettingRow {
                             width: parent.width
                             title: "Mode"
-                            detail: "Follow the palette or keep one mode."
-                            Segmented { model: ["Follow", "Dark", "Light"]; accessibleName: "Mode" }
+                            detail: "Keep the signature or follow the wallpaper."
+                            Segmented { model: ["Dark", "Light", "Follow"]; accessibleName: "Mode" }
                         }
                         SettingRow {
                             width: parent.width

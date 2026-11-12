@@ -64,6 +64,9 @@ func (m *MultiLine) Layout(gtx layout.Context, th *Theme) layout.Dimensions {
 		m.wantFocus = false
 		gtx.Execute(key.FocusCmd{Tag: &m.Editor})
 	}
+	// an enclosing kit dialog or popover counts this field as its own, so a
+	// dialog that focuses it on open keeps it there
+	kit.NoteFocus(gtx, &m.Editor)
 	children := make([]layout.FlexChild, 0, 5)
 	if m.Label != "" {
 		children = append(children,

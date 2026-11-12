@@ -26,6 +26,7 @@ type placement struct {
 	project, worktree, harness  look.Select
 	projectIndex, worktreeIndex int
 	pick                        env.HarnessPick
+	model                       modelPick
 	primed                      bool
 }
 
@@ -68,15 +69,15 @@ func (place *placement) worktreeLabels(snapshot state.Snapshot) []string {
 	return labels
 }
 
-func harnessLabels(harnesses []protocol.HarnessInfo) []string {
+func harnessOptions(harnesses []protocol.HarnessInfo) []look.SelectOption {
 	if len(harnesses) == 0 {
-		return []string{i18n.T("No harness installed")}
+		return []look.SelectOption{{Label: i18n.T("No harness installed")}}
 	}
-	labels := make([]string, len(harnesses))
+	options := make([]look.SelectOption, len(harnesses))
 	for index, harness := range harnesses {
-		labels[index] = harness.Name
+		options[index] = look.SelectOption{Label: harness.Name, Mark: look.Mark{ID: harness.ID, Name: harness.Name}}
 	}
-	return labels
+	return options
 }
 
 // home is the composer's text: a choice made in its row gives the keyboard back to it
@@ -102,8 +103,13 @@ func (place *placement) controls(e *env.Env, home any) []layout.Widget {
 	}
 	harnesses := env.InstalledHarnesses(snapshot)
 	controls = append(controls, func(gtx layout.Context) layout.Dimensions {
-		return place.harness.Layout(gtx, th, e.Overlays, harnessLabels(harnesses), place.pick.Index(snapshot, harnesses))
+		return place.harness.LayoutOptions(gtx, th, e.Overlays, harnessOptions(harnesses), place.pick.Index(snapshot, harnesses))
 	})
+	if len(harnesses) > 0 {
+		controls = append(controls, func(gtx layout.Context) layout.Dimensions {
+			return place.model.layout(gtx, e, place.picked(e.Snapshot(), harnesses), look.SelectQuiet, home)
+		})
+	}
 	place.update(e, harnesses)
 	return controls
 }
@@ -117,6 +123,7 @@ func (place *placement) update(e *env.Env, harnesses []protocol.HarnessInfo) {
 	}
 	if index, changed := place.harness.Changed(); changed {
 		place.pick.Use(e, harnesses, index)
+		place.model.reader.Clear()
 	}
 }
 
@@ -124,14 +131,20 @@ type details struct {
 	folder, name, base, branch string
 }
 
-func (place *placement) params(snapshot state.Snapshot, more details) (protocol.SessionNewParams, bool) {
+// the harness new sessions start on; harnesses is what InstalledHarnesses returned and is not empty
+func (place *placement) picked(snapshot state.Snapshot, harnesses []protocol.HarnessInfo) protocol.HarnessInfo {
+	return harnesses[place.pick.Index(snapshot, harnesses)]
+}
+
+// models is the pick remembered for each harness
+func (place *placement) params(snapshot state.Snapshot, models map[string]string, more details) (protocol.SessionNewParams, bool) {
 	harnesses := env.InstalledHarnesses(snapshot)
 	if len(harnesses) == 0 {
 		return protocol.SessionNewParams{}, false
 	}
 	place.clamp(snapshot)
-	harness := harnesses[place.pick.Index(snapshot, harnesses)].ID
-	params := protocol.SessionNewParams{Kind: protocol.KindAgent, Harness: harness, Origin: protocol.OriginApp}
+	harness := place.picked(snapshot, harnesses).ID
+	params := protocol.SessionNewParams{Kind: protocol.KindAgent, Harness: harness, Model: models[harness], Origin: protocol.OriginApp}
 	if place.projectIndex == 0 {
 		params.Cwd = strings.TrimSpace(more.folder)
 		if params.Cwd == "" {

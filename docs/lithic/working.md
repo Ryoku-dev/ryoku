@@ -9,10 +9,10 @@ Use this page for a new surface, a redesign or a migration. The same sequence ap
 3. **List the states.** Give each state a tone, one plain word and a proof. A colour without a word is not a state.
 4. **Find the one consequential action.** Give only that action a gold plaque. Keep following actions as line plaques and rare actions in an overflow menu.
 5. **Compose from the map.** Use [map.md](map.md) to choose components before writing custom presentation.
-6. **Hook the palette.** Use roles from [palette.md](palette.md), never colour values. Let the library resolve named, wallpaper, forced-mode and fallback sources.
+6. **Hook the palette.** Use roles from [palette.md](palette.md), never colour values. Open in the signature (dark mode, the default) and let the library resolve the named, wallpaper and fallback sources only when the reader chooses to follow the wallpaper.
 7. **Set the motion budget.** Use [motion.md](motion.md), move only in response to a cause, stop when the response ends, and keep nothing moving at rest.
 8. **Write the copy.** Use [copy.md](copy.md) for sentence case, claims, proofs, labels and consequences.
-9. **Review and render.** Follow [checklist.md](checklist.md), inspect follow, dark and light modes, and compare the render with the relevant sheet.
+9. **Review and render.** Follow [checklist.md](checklist.md), inspect dark, light and follow modes, and compare the render with the relevant sheet.
 
 ## Adopt a library
 
@@ -34,7 +34,7 @@ Run a gallery page from its directory:
 
 ```sh
 cd docs/lithic/examples/qml
-QT_FORCE_STDERR_LOGGING=1 LITHIC_PAGE=controls LITHIC_MODE=follow qml6 -I ../../library/qml Gallery.qml
+QT_FORCE_STDERR_LOGGING=1 LITHIC_PAGE=controls LITHIC_MODE=dark qml6 -I ../../library/qml Gallery.qml
 ```
 
 `previewState` forces an interactive state for galleries. Overlays use `previewOpen` or `previewEmbedded`. A `CutRect` owns its children through its content item, so bind `cut` and `fill` to the `CutRect` by id. Read the [QML library README](library/qml/README.md) for each public property and signal.
@@ -58,17 +58,17 @@ Fields use the `l-field-control l-cut` wrapper. Search uses `l-search l-cut`. Us
 Use the module `github.com/ryoku-dev/ryoku/docs/lithic/library/go`, resolve roles once and build one theme:
 
 ```go
-roles := palette.FromPalette(palette.Load(palette.Follow), palette.Look{})
+roles := palette.FromPalette(palette.Load(palette.Dark), palette.Look{})
 th := theme.New(roles)
 ```
 
-`palette.Look{}` is standard contrast with tint off; pass `palette.ParseLook(contrast, tint)` to follow the reader's setting. Keep `kit` values in the owning view and call their `Layout` methods. Set a component's `Preview` field to `kit.StateHover`, `kit.StatePressed` or `kit.StateFocus` for a forced gallery state. Run a gallery page with `cd docs/lithic/examples/gio && go run . --page controls --mode follow`. From `docs/lithic/library/go`, `go run ./cmd/lithic-roles --mode dark` prints the roles resolved on the current machine. Gio icons come from package `symbols`; add a name to `symbols/list.txt` and run `go run ./cmd/lithic-symbols`. Read the [Go library README](library/go/README.md) for package and component APIs.
+`palette.Dark`, the zero `palette.Mode`, is the signature; `palette.Light` is its light stock. Pass `palette.Follow` only when the reader chooses to follow the wallpaper, and run `palette.Watch` only while following. `palette.ParseMode` reads `dark`, `light` or `follow` from a setting or flag. `palette.Look{}` is standard contrast with tint off; pass `palette.ParseLook(contrast, tint)` to follow the reader's setting. Keep `kit` values in the owning view and call their `Layout` methods. Set a component's `Preview` field to `kit.StateHover`, `kit.StatePressed` or `kit.StateFocus` for a forced gallery state. Run a gallery page with `cd docs/lithic/examples/gio && go run . --page controls --mode dark`. From `docs/lithic/library/go`, `go run ./cmd/lithic-roles --mode follow` prints the roles resolved from this machine's palette. Gio icons come from package `symbols`; add a name to `symbols/list.txt` and run `go run ./cmd/lithic-symbols`. Read the [Go library README](library/go/README.md) for package and component APIs.
 
 ### Terminal
 
 Import `github.com/ryoku-dev/ryoku/docs/lithic/library/go/term`, create a theme with `term.NewTheme(mode)`, then call a pure render entry such as `term.RenderPlaque(th, term.Plaque{...})`. Interactive components expose Bubble Tea v2 models such as `term.TextFieldModel` and `term.MenuModel`.
 
-Run a page with `cd docs/lithic/examples/term && go run . --page controls --width 120 --mode follow`. The Unicode glyph set is the default. The console set is selected when `TERM=linux` or `LITHIC_GLYPHS=console`; `LITHIC_GLYPHS=unicode` forces Unicode. Applications may call `term.SetGlyphMode(term.GlyphConsole)` or `term.SetGlyphMode(term.GlyphUnicode)`.
+Run a page with `cd docs/lithic/examples/term && go run . --page controls --width 120 --mode dark`. The Unicode glyph set is the default. The console set is selected when `TERM=linux` or `LITHIC_GLYPHS=console`; `LITHIC_GLYPHS=unicode` forces Unicode. Applications may call `term.SetGlyphMode(term.GlyphConsole)` or `term.SetGlyphMode(term.GlyphUnicode)`.
 
 ## Upgrade a Ryoku QML surface
 
@@ -181,7 +181,7 @@ Use the same cutover in each stack. Inventory the surface, choose an archetype, 
 
 ## Verify
 
-Use `foundation`, `controls`, `lists` or `overlays` for `<page>`, and `follow`, `dark` or `light` for `<mode>`.
+Use `foundation`, `controls`, `lists` or `overlays` for `<page>`, and `dark`, `light` or `follow` for `<mode>`.
 
 ### QML
 
@@ -189,7 +189,7 @@ Keep `QT_FORCE_STDERR_LOGGING=1` so QML failures stay with the command instead o
 
 ```sh
 cd docs/lithic/examples/qml
-QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=offscreen QML_XHR_ALLOW_FILE_READ=1 LITHIC_PAGE=controls LITHIC_MODE=follow LITHIC_CAPTURE_PATH=/tmp/lithic-qml.png qml6 -I ../../library/qml Gallery.qml
+QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=offscreen QML_XHR_ALLOW_FILE_READ=1 LITHIC_PAGE=controls LITHIC_MODE=dark LITHIC_CAPTURE_PATH=/tmp/lithic-qml.png qml6 -I ../../library/qml Gallery.qml
 ```
 
 The behaviour tests drive the QML components with real key and pointer events: keyboard order, Return and Escape, focus moves, signals and size changes. Run them after any change under `library/qml/Lithic`, and add a failing case first when you fix a behaviour bug:
@@ -210,7 +210,7 @@ python -m http.server 8000
 Then take a Chromium screenshot at the gallery's reference width from another terminal:
 
 ```sh
-chromium --headless --disable-gpu --window-size=1440,900 --screenshot=/tmp/lithic-web.png 'http://127.0.0.1:8000/examples/web/controls.html?mode=follow'
+chromium --headless --disable-gpu --window-size=1440,900 --screenshot=/tmp/lithic-web.png 'http://127.0.0.1:8000/examples/web/controls.html?mode=dark'
 ```
 
 ### Go with Gio
@@ -219,7 +219,7 @@ Use `--png` for a headless render:
 
 ```sh
 cd docs/lithic/examples/gio
-go run . --page controls --mode follow --png /tmp/lithic-gio.png
+go run . --page controls --mode dark --png /tmp/lithic-gio.png
 ```
 
 ### Terminal
@@ -228,7 +228,7 @@ Allocate a PTY so terminal width, colour and glyph detection match a real termin
 
 ```sh
 cd docs/lithic/examples/term
-script --quiet --return --command 'go run . --page controls --width 120 --mode follow' /dev/null
+script --quiet --return --command 'go run . --page controls --width 120 --mode dark' /dev/null
 ```
 
 Repeat with `LITHIC_GLYPHS=console` and `LITHIC_GLYPHS=unicode` when changing terminal geometry or glyph use.
@@ -245,7 +245,7 @@ The [parity guide](library/parity/README.md) describes the compared cases and to
 
 ### Sheets
 
-Serve `docs/lithic` with the web command above, then open a source from the [sheet index](examples/sheets/README.md). Add `?mode=dark` or `?mode=light` to force a mode and compare it with the matching PNG in [media](media/).
+Serve `docs/lithic` with the web command above, then open a source from the [sheet index](examples/sheets/README.md). Sheets open in the dark signature; add `?mode=light` for the light stock, or `?mode=follow&palette=<url>` to follow a palette, and compare it with the matching PNG in [media](media/).
 
 ### Check by eye
 
@@ -258,4 +258,4 @@ Serve `docs/lithic` with the web command above, then open a source from the [she
 - Overlays sit one tone up, close in the documented Escape order and swallow the dismissing click.
 - Motion stops after the response. An idle capture has no moving element.
 - Copy is sentence case and names consequences before irreversible actions.
-- Follow, dark and light keep text, controls and state readable. Reduced motion changes instantly without losing state.
+- Dark, light and follow keep text, controls and state readable. Reduced motion changes instantly without losing state.

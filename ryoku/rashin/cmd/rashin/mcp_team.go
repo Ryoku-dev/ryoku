@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 
 	i18n "ryoku-i18n"
@@ -13,7 +14,9 @@ import (
 
 // teamTools are the tools of an agent working a team task: its report, its
 // questions to the user, and the credentials and mail it uses without ever
-// seeing a value. Only a lead hands out pieces and reads how they went.
+// seeing a value. Only a lead hands out pieces and reads how they went, and
+// only a dream's manager shapes its team and presents the dream, which no
+// report ends.
 func teamTools(session mcpSession) []mcp.Tool {
 	choices := map[string]any{
 		"type":        "array",
@@ -21,6 +24,10 @@ func teamTools(session mcpSession) []mcp.Tool {
 		"minItems":    2,
 		"maxItems":    protocol.ApprovalOptionsMax,
 		"description": "For a choice: 2 to 6 short, different answers the user picks one of. Leave it out for a yes or no question.",
+	}
+	ask := "Ask the user to decide before you do something that leaves this computer or cannot be undone, or to choose between ways to go on by giving 2 to 6 options. Never ask about a mail or a request: send_mail and http_request show the user the exact mail or request and ask by themselves. End your turn after asking; Rashin continues the task with their answer or the option they chose."
+	if session.dream {
+		ask = dreamAsk
 	}
 	tools := []mcp.Tool{
 		{
@@ -51,22 +58,23 @@ func teamTools(session mcpSession) []mcp.Tool {
 		},
 		{
 			Name:        "ask_user",
-			Description: "Ask the user to decide before you do something that leaves this computer or cannot be undone, or to choose between ways to go on by giving 2 to 6 options. Never ask about a mail or a request: send_mail and http_request show the user the exact mail or request and ask by themselves. End your turn after asking; Rashin continues the task with their answer or the option they chose.",
-			Input: schema([]string{"title"}, map[string]any{
-				"title":   stringProperty("One line saying what you want to do, or what the user should choose."),
-				"detail":  stringProperty("Exactly what would happen, so the user can judge it."),
-				"options": choices,
+			Description: ask,
+			Input: schema([]string{}, map[string]any{
+				"title":    stringProperty("One line saying what you want to do, or what the user should choose. Taken from the question when left out."),
+				"question": stringProperty("The question or questions in full, as the user should read them."),
+				"detail":   stringProperty("Exactly what would happen, so the user can judge it."),
+				"options":  choices,
 			}),
 			Call: func(ctx context.Context, raw json.RawMessage) mcp.Result {
-				var args struct {
-					Title   string   `json:"title"`
-					Detail  string   `json:"detail"`
-					Options []string `json:"options"`
-				}
-				if err := toolArguments(raw, &args, "title"); err != nil {
+				var args askArguments
+				if err := toolArguments(raw, &args); err != nil {
 					return mcp.Failure(err)
 				}
-				return teamAnswer(ctx, session, protocol.MTeamsAgentAsk, protocol.AgentAskParams{AgentRef: session.agent(), Title: args.Title, Detail: args.Detail, Options: args.Options})
+				title, detail, err := args.card()
+				if err != nil {
+					return mcp.Failure(err)
+				}
+				return teamAnswer(ctx, session, protocol.MTeamsAgentAsk, protocol.AgentAskParams{AgentRef: session.agent(), Title: title, Detail: detail, Options: args.Options})
 			},
 		},
 		{
@@ -166,10 +174,13 @@ func teamTools(session mcpSession) []mcp.Tool {
 			},
 		},
 	}
+	if session.dream {
+		tools = slices.DeleteFunc(tools, func(tool mcp.Tool) bool { return tool.Name == "report" })
+	}
 	if !session.lead {
 		return tools
 	}
-	return append(tools,
+	tools = append(tools,
 		mcp.Tool{
 			Name:        "delegate",
 			Description: "Give one piece of your task to a member of your team, by name. They work on it in their own session and report back to you. End your turn after delegating; Rashin continues you with their reports.",
@@ -207,6 +218,47 @@ func teamTools(session mcpSession) []mcp.Tool {
 			},
 		},
 	)
+	if session.dream {
+		tools = append(tools, dreamTools(session)...)
+	}
+	return tools
+}
+
+// askTitleRunes bounds a card title taken from the question
+const askTitleRunes = 60
+
+// askArguments are what ask_user takes
+type askArguments struct {
+	Title    string   `json:"title"`
+	Question string   `json:"question"`
+	Detail   string   `json:"detail"`
+	Options  []string `json:"options"`
+}
+
+// card is the Inbox card's title and body: the question leads the body,
+// and a call that gives only a question takes its first sentence as the title
+func (args askArguments) card() (string, string, error) {
+	title, question := strings.TrimSpace(args.Title), strings.TrimSpace(args.Question)
+	if title == "" && question == "" {
+		return "", "", errors.New(i18n.T("Give the question, the title, or both."))
+	}
+	if title == "" {
+		title = protocol.ClipWords(firstSentence(question), askTitleRunes)
+	}
+	return title, strings.TrimSpace(question + "\n\n" + strings.TrimSpace(args.Detail)), nil
+}
+
+// firstSentence is text up to its first line break, or its first full stop,
+// question or exclamation mark that ends a sentence
+func firstSentence(text string) string {
+	line, _, _ := strings.Cut(text, "\n")
+	runes := []rune(line)
+	for index, r := range runes {
+		if strings.ContainsRune(".?!", r) && (index+1 == len(runes) || runes[index+1] == ' ') {
+			return string(runes[:index+1])
+		}
+	}
+	return strings.TrimSpace(line)
 }
 
 // teamAnswer runs one team method that answers in words and returns them
@@ -264,4 +316,120 @@ func (session mcpSession) teamReady() error {
 
 func arrayProperty(description string) map[string]any {
 	return map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": description}
+}
+
+// Portions adapted from paperclipai/paperclip skills/paperclip/SKILL.md
+// "The Heartbeat Procedure", human input questions @ 4e519bd4286e (MIT,
+// Copyright (c) 2025 Paperclip AI). Modified by Ryoku: one ask_user card to
+// the dream's CEO, about design or task only, never a confirmation.
+const dreamAsk = "Ask the CEO, the user, a design or task question; never ask for confirmation or permission, as a dream runs without them. Your first turn always asks one round, even when the statement looks complete: then share your plan and ask what to change. Put every question that does not depend on another's answer in one card, written out in full in its question field, rather than one card each; give 2 to 6 options when the CEO should pick between ways to go on. End your turn after asking; Rashin continues you with their answer."
+
+// dreamTools are the tools only a dream's manager has: hiring and releasing
+// members, saying where the dream stands and presenting it
+func dreamTools(session mcpSession) []mcp.Tool {
+	phases := []string{protocol.DreamInterviewing, protocol.DreamDesigning, protocol.DreamPlanning, protocol.DreamBuilding, protocol.DreamTesting}
+	return []mcp.Tool{
+		{
+			Name: "hire",
+			// Portions adapted from paperclipai/paperclip
+			// skills/paperclip-create-agent/references/baseline-role-guide.md @ 4e519bd4286e
+			// (MIT, Copyright (c) 2025 Paperclip AI). Modified by Ryoku: a dream member on a
+			// harness the dream is signed in to.
+			Description: "Add a member to your dream's team, for a responsibility it can own end to end. Its instructions are a short paragraph on its identity and the responsibility it owns, not an operating manual: Rashin gives every member the rules of the team. A small hire is not an incomplete hire. Leave harness and model out to use your own engine; the dream must be signed in to the harness, and a refusal names the ones it is.",
+			Input: schema([]string{"name", "title", "instructions"}, map[string]any{
+				"name":         stringProperty("The member's name, such as Ada."),
+				"title":        stringProperty("Its role in a few words, such as Firmware engineer."),
+				"instructions": stringProperty("A short paragraph: who the member is and the responsibility it owns."),
+				"harness":      stringProperty("The harness id to run it on, empty for yours."),
+				"model":        stringProperty("The model id, empty for the harness's default or yours."),
+				"why":          stringProperty("One sentence for the user on why the dream needs this member."),
+			}),
+			Call: func(ctx context.Context, raw json.RawMessage) mcp.Result {
+				var args struct {
+					Name         string `json:"name"`
+					Title        string `json:"title"`
+					Instructions string `json:"instructions"`
+					Harness      string `json:"harness"`
+					Model        string `json:"model"`
+					Why          string `json:"why"`
+				}
+				if err := toolArguments(raw, &args, "name", "title", "instructions"); err != nil {
+					return mcp.Failure(err)
+				}
+				if err := session.teamReady(); err != nil {
+					return mcp.Failure(err)
+				}
+				var hired protocol.Member
+				params := protocol.AgentHireParams{AgentRef: session.agent(), Name: args.Name, Title: args.Title, Instructions: args.Instructions, Harness: args.Harness, Model: args.Model, Why: args.Why}
+				if err := daemonCall(ctx, protocol.MTeamsAgentHire, params, &hired); err != nil {
+					return mcp.Failure(err)
+				}
+				return mcp.Text(hired.Name + " is on the team. Hand them a piece with delegate.")
+			},
+		},
+		{
+			Name:        "release",
+			Description: "Let a member go once its work is in, so the team stays small. A member still working on a piece stays.",
+			Input: schema([]string{"member"}, map[string]any{
+				"member": stringProperty("The member's name."),
+				"why":    stringProperty("One sentence for the user on why."),
+			}),
+			Call: func(ctx context.Context, raw json.RawMessage) mcp.Result {
+				var args struct {
+					Member string `json:"member"`
+					Why    string `json:"why"`
+				}
+				if err := toolArguments(raw, &args, "member"); err != nil {
+					return mcp.Failure(err)
+				}
+				return teamAnswer(ctx, session, protocol.MTeamsAgentRelease, protocol.AgentReleaseParams{AgentRef: session.agent(), Member: args.Member, Why: args.Why})
+			},
+		},
+		{
+			Name:        "dream_status",
+			Description: "Tell the user where the dream stands: its phase, one sentence and, once the interview settled it, the brief. Call it whenever the phase changes and after each meaningful step. Presenting is reached with present, and done only when the user accepts.",
+			Input: schema([]string{"phase", "summary"}, map[string]any{
+				"phase":   map[string]any{"type": "string", "enum": phases, "description": "The phase the dream is in."},
+				"summary": stringProperty("One sentence on where the dream stands, for the user."),
+				"brief":   stringProperty("What the interview settled: what will be built, for whom, and how it will be checked."),
+			}),
+			Call: func(ctx context.Context, raw json.RawMessage) mcp.Result {
+				var args struct {
+					Phase   string `json:"phase"`
+					Summary string `json:"summary"`
+					Brief   string `json:"brief"`
+				}
+				if err := toolArguments(raw, &args, "phase", "summary"); err != nil {
+					return mcp.Failure(err)
+				}
+				return teamAnswer(ctx, session, protocol.MTeamsAgentDream, protocol.AgentDreamParams{AgentRef: session.agent(), Phase: args.Phase, Summary: args.Summary, Brief: args.Brief})
+			},
+		},
+		{
+			Name:        "present",
+			Description: "Present the finished dream to the user once it is built, tested and reviewed: what was built, how to use it, the tests you ran and what they showed, and the files to look at. The user accepts it, which ends the dream, or sends notes, which continue you. End your turn after presenting.",
+			Input: schema([]string{"title", "body"}, map[string]any{
+				"title": stringProperty("One line naming what was built."),
+				"body":  stringProperty("In Markdown: what was built, how to use it, and the evidence it works."),
+				"tests": stringProperty("The tests you ran and what they showed."),
+				"files": arrayProperty("Paths of the files to look at, inside the dream's folder."),
+			}),
+			Call: func(ctx context.Context, raw json.RawMessage) mcp.Result {
+				var args struct {
+					Title string   `json:"title"`
+					Body  string   `json:"body"`
+					Tests string   `json:"tests"`
+					Files []string `json:"files"`
+				}
+				if err := toolArguments(raw, &args, "title", "body"); err != nil {
+					return mcp.Failure(err)
+				}
+				files := make([]string, 0, len(args.Files))
+				for _, file := range args.Files {
+					files = append(files, session.path(file))
+				}
+				return teamAnswer(ctx, session, protocol.MTeamsAgentPresent, protocol.AgentPresentParams{AgentRef: session.agent(), Title: args.Title, Body: args.Body, Tests: args.Tests, Files: files})
+			},
+		},
+	}
 }

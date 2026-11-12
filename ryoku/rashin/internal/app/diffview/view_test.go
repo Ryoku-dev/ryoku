@@ -76,7 +76,7 @@ type diffFrame struct {
 }
 
 func newDiffFrame(files ...protocol.FileDiff) *diffFrame {
-	return &diffFrame{now: time.Unix(100, 0), theme: look.New(0, palette.Look{}), result: protocol.DiffResult{Files: files}}
+	return &diffFrame{now: time.Unix(100, 0), theme: look.New(palette.Dark, palette.Look{}), result: protocol.DiffResult{Files: files}}
 }
 
 func (f *diffFrame) layout(options Options) {

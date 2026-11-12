@@ -37,9 +37,9 @@ func DiffCount(th *Theme, added, removed int, on bool) layout.Widget {
 			addInk, removeInk = th.R.OnSel, th.R.OnSel
 		}
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-			layout.Rigid(kit.RawText(th.Theme, th.T.MonoSm, addInk, fmt.Sprintf("+%d", added))),
+			layout.Rigid(kit.RawText(th.Theme, th.T.Caption, addInk, fmt.Sprintf("+%d", added))),
 			layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
-			layout.Rigid(kit.RawText(th.Theme, th.T.MonoSm, removeInk, fmt.Sprintf("−%d", removed))),
+			layout.Rigid(kit.RawText(th.Theme, th.T.Caption, removeInk, fmt.Sprintf("−%d", removed))),
 		)
 	}
 }

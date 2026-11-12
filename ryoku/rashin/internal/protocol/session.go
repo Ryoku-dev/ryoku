@@ -49,11 +49,14 @@ const (
 
 // SessionInfo describes one session. The daemon owns every field.
 type SessionInfo struct {
-	ID      string       `json:"id"`
-	Kind    SessionKind  `json:"kind"`
-	Title   string       `json:"title"`
-	Harness string       `json:"harness,omitempty"`
-	Model   string       `json:"model,omitempty"`
+	ID      string      `json:"id"`
+	Kind    SessionKind `json:"kind"`
+	Title   string      `json:"title"`
+	Harness string      `json:"harness,omitempty"`
+	Model   string      `json:"model,omitempty"`
+	// Pinned marks Model as one the user picked for this Ask session: it is
+	// asked alone and never fails over to another model.
+	Pinned  bool         `json:"pinned,omitempty"`
 	Mode    string       `json:"mode,omitempty"`
 	Cwd     string       `json:"cwd,omitempty"`
 	Origin  string       `json:"origin"`
@@ -97,6 +100,10 @@ type SessionInfo struct {
 	TeamTask  string `json:"teamTask,omitempty"`
 	Member    string `json:"member,omitempty"`
 	Approvals string `json:"approvals,omitempty"`
+	// Temporary sessions live in the daemon's memory only and end when
+	// closed; Memory is a MemoryRemember, MemoryUseOnly or MemoryNone value.
+	Temporary bool   `json:"temporary,omitempty"`
+	Memory    string `json:"memory,omitempty"`
 }
 
 // SessionEvent is one line of a session log and one session.event on the wire.
@@ -133,6 +140,7 @@ const (
 	EvAnswer             = "answer"
 	EvTitle              = "title"
 	EvGoal               = "goal"
+	EvMemory             = "memory"
 )
 
 // Attachment is a file on this machine sent with a prompt.

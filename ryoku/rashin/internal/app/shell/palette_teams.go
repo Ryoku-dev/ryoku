@@ -35,6 +35,11 @@ func (s *uiShell) teamsCommands(e *env.Env) []paletteAction {
 			s.openDestination(protocol.TabVault)
 			s.vault.New(e)
 		}},
+		{icon: look.Icon.Dreams, label: i18n.T("New dream"), kind: command, run: func() {
+			s.openDestination(protocol.TabDreams)
+			s.dreams.New(e)
+		}},
+		{icon: look.Icon.Dreams, label: i18n.T("Dreams"), kind: "Ctrl 3", run: func() { s.openDestination(protocol.TabDreams) }},
 	}
 }
 
@@ -48,8 +53,12 @@ func (s *uiShell) teamsPlaces(snapshot state.Snapshot) []paletteAction {
 	actions := make([]paletteAction, 0, len(snapshot.Teams)+len(tasks)+len(snapshot.Routines))
 	for _, team := range snapshot.Teams {
 		place := env.TeamsPlace{Tab: protocol.TabTeams, Team: team.ID}
+		icon, kind := look.Icon.Teams, i18n.T("Team")
+		if team.Dream != nil {
+			place.Tab, icon, kind = protocol.TabDreams, look.Icon.Dreams, i18n.T("Dream")
+		}
 		actions = append(actions, paletteAction{
-			icon: look.Icon.Teams, label: team.Name, kind: i18n.T("Team"), run: func() { s.navigateTeams(place) },
+			icon: icon, label: team.Name, kind: kind, run: func() { s.navigateTeams(place) },
 		})
 	}
 	finished := 0
@@ -108,6 +117,9 @@ func (s *uiShell) teamsPlaceAction(snapshot state.Snapshot, place Place) (palett
 		return paletteAction{}, false
 	case place.Team != "":
 		team, ok := teamsui.TeamByID(snapshot.Teams, place.Team)
+		if team.Dream != nil {
+			return paletteAction{icon: look.Icon.Dreams, label: team.Name, kind: i18n.T("Dream"), run: run}, ok
+		}
 		return paletteAction{icon: look.Icon.Teams, label: team.Name, kind: i18n.T("Team"), run: run}, ok
 	}
 	items, count := destinations(true)

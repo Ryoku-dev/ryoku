@@ -59,10 +59,13 @@ func (s *Service) caller(ctx context.Context, ref protocol.AgentRef) (caller, er
 // agentReport takes the report that ends a task: it is kept for the user,
 // the goal ends, and what waited on the task moves on. A quiet report, which
 // only a routine's run may give, ends the run done without marking it
-// unread or notifying.
+// unread or notifying. A dream's standing task takes no report.
 func (s *Service) agentReport(ctx context.Context, p protocol.AgentReportParams) (protocol.AgentAnswer, error) {
 	c, err := s.caller(ctx, p.AgentRef)
 	if err != nil {
+		return protocol.AgentAnswer{}, err
+	}
+	if err := s.dreamReport(c); err != nil {
 		return protocol.AgentAnswer{}, err
 	}
 	team, ok := s.state.team(c.Team)

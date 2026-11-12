@@ -475,6 +475,9 @@ func runFakeAgent(mode string) {
 					"currentModeId":  "code",
 				}
 			}
+			if mode == "pick" {
+				result["models"] = fakePickModels(chosen["model"])
+			}
 			write(map[string]any{"jsonrpc": "2.0", "id": rawID(message.ID), "result": result})
 		case "session/prompt":
 			prompts++
@@ -499,9 +502,17 @@ func runFakeAgent(mode string) {
 			case "goal":
 				fakeGoalTurn(write, servers, prompts)
 				writePromptResult(write, promptID, "end_turn")
+			case "dream":
+				fakeDreamTurn(write, servers, prompts, message.Params)
+				writePromptResult(write, promptID, "end_turn")
 			case "screen":
 				fakeScreenTurn(write, servers)
 				writePromptResult(write, promptID, "end_turn")
+			case "home-probe":
+				fakeHomeProbeTurn(write, servers)
+				writePromptResult(write, promptID, "end_turn")
+			case "options-ask":
+				fakeAskTurn(write, message.Params)
 			case "permissions":
 				writePermission(write, 100, "read-1", "read")
 			case "cancel":
@@ -511,10 +522,16 @@ func runFakeAgent(mode string) {
 				write(map[string]any{"jsonrpc": "2.0", "id": 200, "method": "fs/write_text_file", "params": map[string]any{"sessionId": "fake-session", "path": os.Getenv("RASHIN_ACP_TEST_FILE"), "content": "new"}})
 			case "terminal":
 				write(map[string]any{"jsonrpc": "2.0", "id": 200, "method": "terminal/create", "params": map[string]any{"sessionId": "fake-session", "command": "printf", "args": []string{"terminal-ok"}}})
+			case "ask-writes":
+				fakeAskWrites(write)
+				writePromptResult(write, promptID, "end_turn")
 			case "resume-load", "resume-new":
 				writePromptResult(write, promptID, "end_turn")
 			case "environment":
 				writeUpdate(write, map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]string{"type": "text", "text": os.Getenv("RASHIN_CUSTOM_VALUE")}})
+				writePromptResult(write, promptID, "end_turn")
+			case "pick":
+				writeUpdate(write, map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]string{"type": "text", "text": "model " + chosen["model"]}})
 				writePromptResult(write, promptID, "end_turn")
 			case "capabilities":
 				writePromptResult(write, promptID, "end_turn")
@@ -592,6 +609,8 @@ func runFakeAgent(mode string) {
 				writeUpdate(write, map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]string{"type": "text", "text": "restarted"}})
 				writePromptResult(write, promptID, "end_turn")
 			}
+		case "session/set_model":
+			fakeSetModel(write, message, chosen)
 		case "session/set_config_option":
 			var params struct {
 				ConfigID string `json:"configId"`
@@ -751,6 +770,8 @@ func runFakeAgent(mode string) {
 				writePromptResult(write, promptID, "end_turn")
 			case "sandboxed":
 				fakeSandboxedAnswer(write, message, promptID)
+			case "options-ask":
+				fakeAskAnswered(write, message, promptID)
 			}
 		}
 	}

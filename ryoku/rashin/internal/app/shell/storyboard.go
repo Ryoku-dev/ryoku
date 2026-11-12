@@ -213,5 +213,8 @@ func (s *uiShell) openStoryboardRoute(route string) {
 			place.SettingsSection = parts[1]
 		}
 		s.router.Push(place)
+	case protocol.TabMemory:
+		place, _ := MemoryRoute(route)
+		s.openMemory(place)
 	}
 }

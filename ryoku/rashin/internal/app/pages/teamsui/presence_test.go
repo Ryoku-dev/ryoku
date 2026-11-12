@@ -15,11 +15,11 @@ func TestWorkedKeepsItsStepsWithoutTheSession(t *testing.T) {
 	task := protocol.TeamTask{
 		ID: "task-a", Status: protocol.TaskDone, Session: "agent-a", Started: &started, Ended: &ended, Steps: 4,
 	}
-	if words, _ := Worked(state.Snapshot{}, task); words != "Worked for 52s · 4 steps" {
-		t.Errorf("without its session the task reads %q, want %q", words, "Worked for 52s · 4 steps")
+	if words, _ := Worked(state.Snapshot{}, task); words != "Worked for 52s in 4 steps" {
+		t.Errorf("without its session the task reads %q, want %q", words, "Worked for 52s in 4 steps")
 	}
 	loaded := state.Snapshot{Sessions: map[string]protocol.SessionInfo{"agent-a": {ID: "agent-a", Steps: 6}}}
-	if words, _ := Worked(loaded, task); words != "Worked for 52s · 6 steps" {
-		t.Errorf("with its session the task reads %q, want %q", words, "Worked for 52s · 6 steps")
+	if words, _ := Worked(loaded, task); words != "Worked for 52s in 6 steps" {
+		t.Errorf("with its session the task reads %q, want %q", words, "Worked for 52s in 6 steps")
 	}
 }

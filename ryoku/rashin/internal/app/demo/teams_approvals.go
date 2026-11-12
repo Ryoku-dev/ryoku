@@ -23,6 +23,9 @@ func (s *server) decideApproval(p protocol.ApprovalDecideParams) (protocol.Appro
 	}
 	request, choice := approval.Kind == protocol.ApprovalRequest, len(approval.Options) > 0
 	switch {
+	// a notice asks nothing, it is only marked read
+	case approval.Kind == protocol.ApprovalRestore && p.Decision != protocol.DecideOnce:
+		return protocol.Approval{}, badRequest(i18n.T("That is not an answer to this."))
 	case p.Decision == protocol.DecideDeny:
 	case p.Decision == protocol.DecideChoose && choice:
 		if !slices.Contains(approval.Options, p.Choice) {
@@ -41,13 +44,26 @@ func (s *server) decideApproval(p protocol.ApprovalDecideParams) (protocol.Appro
 	default:
 		return protocol.Approval{}, badRequest(i18n.T("That is not an answer to this."))
 	}
+	// a proposed team is made before the answer is kept, so a team the daemon refuses leaves the card open
+	made := approval.Kind == protocol.ApprovalTeam && p.Decision == protocol.DecideOnce
+	var team protocol.Team
+	if made {
+		var err error
+		if team, err = s.makeProposedTeam(index); err != nil {
+			return protocol.Approval{}, err
+		}
+	}
 	t.approvals[index].Note = strings.TrimSpace(p.Note)
 	text := s.approvalEffect(index, p.Decision, p.Value)
 	s.settleApproval(index, p.Decision, t.approvals[index].Note)
 	if approval.Task != "" {
 		s.releaseTeamTask(approval.Task, text)
 	}
-	return t.approvals[index], nil
+	decided := t.approvals[index]
+	if made {
+		s.askForCredentials(team, approval.Proposal.Credentials)
+	}
+	return decided, nil
 }
 
 // records an answer without running anything, as when a task stops or its team goes

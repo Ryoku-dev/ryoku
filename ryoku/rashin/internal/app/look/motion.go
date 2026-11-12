@@ -312,7 +312,7 @@ func drawMorphIcon(
 	opacity := paint.PushOpacity(gtx.Ops, min(alpha, 1))
 	centre := f32.Pt(float32(size)/2, float32(size)/2)
 	transform := op.Affine(f32.AffineId().Scale(centre, f32.Pt(scale, scale))).Push(gtx.Ops)
-	icon.Layout(child, ink)
+	layoutIcon(child, icon, ink)
 	transform.Pop()
 	opacity.Pop()
 	return dimensions

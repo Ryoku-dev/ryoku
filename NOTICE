@@ -156,3 +156,191 @@ client with Vencord. The rest of the Game Bar follows the layout of end-4's
 illogical-impulse overlay (https://github.com/end-4/dots-hyprland) without
 copying its code. ii-p3drovfx is released under the GNU General Public License
 version 3; the ported portions keep that license, compatible with Ryoku's GPL-3.
+
+Parts of Rashin's memory (ryoku/rashin/internal/memory/, internal/ask/fence.go
+and the memory tools in internal/brief/memorytools.go) are adapted from Hermes
+Agent by Nous Research (https://github.com/NousResearch/hermes-agent) at commit
+fe664929: the threat patterns memory is scanned for, the fence around recalled
+memory and its streaming scrubber, the trivial-prompt gate, the secret
+scrubber's token shape, the learner's grounding rule and the remember and
+past-conversation search wording. It is a modified version: the patterns are
+rewritten for RE2 with Rashin's paths and ids, the fence uses Rashin's tags,
+and the prompts are worded for one-line facts. It is released under the MIT
+License, whose text ryoku/rashin/NOTICE carries with the copyright line and the
+ryoku-rashin package installs as /usr/share/licenses/ryoku-rashin/NOTICE; that
+license is compatible with Ryoku's GPL-3 distribution.
+
+Parts of Rashin's memory and ranking (ryoku/rashin/internal/memory/,
+internal/rank/rerank.go and internal/brief/memorytools.go) are adapted from
+OpenClaw by the OpenClaw Foundation (https://github.com/openclaw/openclaw) at
+commit 3978ab10: the recall-intent patterns, the transcript filters, the checks
+on the learner's operations, the untrusted-notes sentence and caps in recall,
+maximal marginal relevance reranking and parts of the memory tool descriptions.
+It is a modified version: ported to Go with RE2 patterns, using Rashin's fence
+and markers, and reranking over Rashin's tokens. It is released under the MIT
+License, whose text ryoku/rashin/NOTICE carries with the copyright line and the
+ryoku-rashin package installs as /usr/share/licenses/ryoku-rashin/NOTICE; that
+license is compatible with Ryoku's GPL-3 distribution.
+
+Parts of Rashin's memory and ranking (ryoku/rashin/internal/memory/,
+internal/rank/rerank.go and internal/brief/memorytools.go) are adapted from
+Hindsight by Vectorize AI (https://github.com/vectorize-io/hindsight) at commit
+7cec128b: the recency boost, the budget for recalled facts, the merge-or-keep
+rule, the defences against invented ids, the fact extraction, consolidation and
+reading rules in the prompts and parts of the remember and forget tool
+descriptions. It is a modified version: budgets count characters, the
+merge-or-keep rule is checked in Go rather than by a model, and the prompts are
+worded for one-line facts. It is released under the MIT License, whose text
+ryoku/rashin/NOTICE carries with the copyright line and the ryoku-rashin
+package installs as /usr/share/licenses/ryoku-rashin/NOTICE; that license is
+compatible with Ryoku's GPL-3 distribution.
+
+Parts of Rashin's memory (ryoku/rashin/internal/memory/) are adapted from
+nanobot by Xubin Ren and the nanobot contributors
+(https://github.com/HKUDS/nanobot) at commit 9f7ae6fb: how the card shares its
+room between old and new facts, the patterns that strip a model's reasoning
+blocks and the archive and dream consolidation wording in the learner's
+prompts. It is a modified version: the card counts characters and works on
+lines, the patterns are rewritten for RE2, and the working-state handoff is
+left out. It is released under the MIT License, whose text ryoku/rashin/NOTICE
+carries with the copyright line and the ryoku-rashin package installs as
+/usr/share/licenses/ryoku-rashin/NOTICE; that license is compatible with
+Ryoku's GPL-3 distribution.
+
+Parts of Rashin's memory (ryoku/rashin/internal/memory/ and
+internal/brief/memorytools.go) are adapted from PicoClaw by the PicoClaw
+contributors (https://github.com/sipeed/picoclaw) at commit bbf6893c, which
+builds on nanobot: the recent-span syntax for past-conversation search, the
+shorter prompt the learner retries with after a reply that is not valid JSON
+and the note that summaries are approximate. It is a modified version: the
+pattern is compiled once and the learner has two rungs with no raw fallback. It
+is released under the MIT License, whose text ryoku/rashin/NOTICE carries with
+the copyright line and the ryoku-rashin package installs as
+/usr/share/licenses/ryoku-rashin/NOTICE; that license is compatible with
+Ryoku's GPL-3 distribution.
+
+Parts of Rashin's memory (ryoku/rashin/internal/memory/ and
+internal/brief/memorytools.go) are adapted from Engram by Alan Buscaglia
+(https://github.com/Gentleman-Programming/engram) at commit a5d4fa7b: the
+<private> scrubber, the normalisation that finds duplicate facts, the result
+counts, forget by id and bookkeeping rules in the memory tool descriptions and
+the rule that a failed read is not evidence of absence. It is a modified
+version: whitespace and word-end punctuation are handled differently and the
+wording is Rashin's own; Rashin does not use the Engram name or branding. It is
+released under the MIT License, whose text ryoku/rashin/NOTICE carries with the
+copyright line and the ryoku-rashin package installs as
+/usr/share/licenses/ryoku-rashin/NOTICE; that license is compatible with
+Ryoku's GPL-3 distribution.
+
+Parts of Rashin's memory (ryoku/rashin/internal/memory/ and
+internal/brief/memorytools.go) are adapted from OpenAI Codex by OpenAI
+(https://github.com/openai/codex) at commit b75ec48a: the phase 1 and phase 2
+memory templates in the learner's prompts, the phase 1 output schema, how a
+conversation is selected and stripped of what the harness injected, the shape
+of the card, the ad hoc note wording of the remember tool and the rule that
+memory is history, not proof. It is a modified version: the output is Rashin's
+JSON fact operations, the personal scope is a profile rather than task history
+and consolidation is a single call. It is released under the Apache License
+2.0; ryoku/rashin/NOTICE carries Codex's NOTICE ("OpenAI Codex / Copyright 2025
+OpenAI"), and the ryoku-rashin package installs the license as
+/usr/share/licenses/ryoku-rashin/LICENSE.apache-2.0. That license is compatible
+with Ryoku's GPL-3 distribution.
+
+Parts of Rashin's memory (ryoku/rashin/internal/memory/ and
+internal/brief/memorytools.go) are adapted from mem0 by Taranjeet Singh and the
+mem0ai/mem0 contributors (https://github.com/mem0ai/mem0) at commit f1791daa:
+the learner's extraction, update and import prompts, the facts-list answer and
+fenced JSON parsing, short ids for existing facts, the noise filters for
+conversation text and the memory-triage tests and forget wording in the memory
+tool descriptions. It is a modified version: each fact carries its scope and
+sensitivity, a delete becomes a supersede, and the chat-platform filters are
+left out. The forget wording comes from mem0's Hermes plugin, which also
+carries Nous Research's MIT notice. It is released under the Apache License
+2.0; ryoku/rashin/NOTICE carries the copyright line, and the ryoku-rashin
+package installs the license as
+/usr/share/licenses/ryoku-rashin/LICENSE.apache-2.0. That license is compatible
+with Ryoku's GPL-3 distribution.
+
+Parts of Rashin's memory (ryoku/rashin/internal/memory/ and
+internal/brief/memorytools.go) are adapted from Letta by the Letta authors
+(https://github.com/letta-ai/letta) at commit 56ba9c25, the last commit with
+the server's source: the read-only memory block and its metadata line in
+recall, the consolidation principles in the learner's card prompt and the
+self-contained-fact and five-result rules in the memory tool descriptions. It
+is a modified version: one read-only block holds the card about the user, the
+metadata counts facts and conversations only, and the wording is Rashin's own.
+It is released under the Apache License 2.0; ryoku/rashin/NOTICE carries the
+copyright line, and the ryoku-rashin package installs the license as
+/usr/share/licenses/ryoku-rashin/LICENSE.apache-2.0. That license is compatible
+with Ryoku's GPL-3 distribution.
+
+Parts of Rashin's memory (ryoku/rashin/internal/memory/prompts.go and
+internal/brief/memorytools.go) are adapted from Letta Code by the Letta authors
+(https://github.com/letta-ai/letta-code) at commit 417a8b7b: the reflection and
+core-memory maintenance wording in the learner's prompts and the Memory tool's
+rule to open the matching memory rather than work from assumptions. It is a
+modified version: there are no files, git or procedures, a stale fact is
+superseded rather than archived, and the examples are new. It is released under
+the Apache License 2.0; ryoku/rashin/NOTICE carries the copyright line, and the
+ryoku-rashin package installs the license as
+/usr/share/licenses/ryoku-rashin/LICENSE.apache-2.0. That license is compatible
+with Ryoku's GPL-3 distribution.
+
+Rashin's built-in Superpowers skill set
+(ryoku/rashin/internal/skills/sets/superpowers) is the Superpowers skills by
+Jesse Vincent (https://github.com/obra/superpowers) at commit 22f0b463: every
+skill except diagnosing-superpowers, which debugs the Claude Code plugin
+itself, shipped unmodified. It is released under the MIT License, whose text
+ryoku/rashin/NOTICE carries with the copyright line and the ryoku-rashin
+package installs as /usr/share/licenses/ryoku-rashin/LICENSE.superpowers; that
+license is compatible with Ryoku's GPL-3 distribution.
+
+Rashin's built-in OpenSpec skill set
+(ryoku/rashin/internal/skills/sets/openspec) is the twelve openspec-* skills by
+the OpenSpec contributors (https://github.com/Fission-AI/OpenSpec) at commit
+d12c2817, shipped unmodified; they run the openspec command, which Ryoku does
+not ship. It is released under the MIT License, whose text ryoku/rashin/NOTICE
+carries with the copyright line and the ryoku-rashin package installs as
+/usr/share/licenses/ryoku-rashin/LICENSE.openspec; that license is compatible
+with Ryoku's GPL-3 distribution.
+
+Rashin's built-in Spec Kit skill set (ryoku/rashin/internal/skills/sets/speckit)
+is the speckit-* skills and the .specify/ scripts and templates that Spec Kit by
+GitHub (https://github.com/github/spec-kit) renders with its own specify init
+at commit 979b0a3c, shipped unmodified without the CLI's install records. It is
+released under the MIT License, whose text ryoku/rashin/NOTICE carries with the
+copyright line and the ryoku-rashin package installs as
+/usr/share/licenses/ryoku-rashin/LICENSE.speckit; that license is compatible
+with Ryoku's GPL-3 distribution.
+
+Rashin's built-in Elephant and Goldfish skill set
+(ryoku/rashin/internal/skills/sets/egm) is the seven egm-* skills of the
+Elephant-Goldfish Model by Google
+(https://github.com/google/elephant-goldfish-model) at commit 84145300, with
+the reviewer agents and document standards they name and the Codex and Claude
+notes they link to, shipped unmodified without their tests. It is released
+under the Apache License 2.0; ryoku/rashin/NOTICE carries the copyright line
+("Copyright 2026 Google LLC"), and the ryoku-rashin package installs the
+license as /usr/share/licenses/ryoku-rashin/LICENSE.egm and
+/usr/share/licenses/ryoku-rashin/LICENSE.apache-2.0. That license is compatible
+with Ryoku's GPL-3 distribution.
+
+The provider and harness logos in the Rashin app
+(ryoku/rashin/internal/app/look/logos) are the mono marks of lobe-icons by
+LobeHub (https://github.com/lobehub/lobe-icons) at commit ea434b96, rendered by
+bin/ryoku-dev-sync-provider-logos. It is a modified version: each mark is
+rasterized to a coverage mask and drawn in the app's own ink, never in the
+brand's colours. The marks belong to their owners and are shown only to name
+each provider. It is released under the MIT License, whose text
+ryoku/rashin/NOTICE carries with the copyright line ("Copyright (c) 2023
+LobeHub"); that license is compatible with Ryoku's GPL-3 distribution.
+
+Parts of the instructions a Rashin dream's manager is briefed with
+(ryoku/rashin/internal/teams/dream_brief.go) and of its tool texts
+(ryoku/rashin/cmd/rashin/mcp_team.go) are adapted from Paperclip
+(https://github.com/paperclipai/paperclip) at commit 4e519bd4286e: its
+heartbeat procedure, hiring guide and plans-to-tasks skill. It is a modified
+version, rewritten for a dream's manager. It is released under the MIT
+License, whose text ryoku/rashin/NOTICE carries with the copyright line
+("Copyright (c) 2025 Paperclip AI"); that license is compatible with Ryoku's
+GPL-3 distribution.

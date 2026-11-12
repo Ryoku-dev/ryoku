@@ -31,7 +31,7 @@ func MonthMeter(th *look.Theme, used, limit int64, warn int) layout.Widget {
 				return dimensions
 			}),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-			layout.Rigid(kit.Text(th.Theme, th.T.MonoSm, th.R.Fg2, TokensOf(used, limit))),
+			layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg2, TokensOf(used, limit))),
 		)
 	}
 }

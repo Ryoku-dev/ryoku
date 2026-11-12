@@ -10,7 +10,7 @@ import (
     "github.com/ryoku-dev/ryoku/docs/lithic/library/go/term"
 )
 
-th := term.NewTheme(palette.Follow)
+th := term.NewTheme(palette.Dark)
 view := term.RenderPlaque(th, term.Plaque{Label: "Connect", Kind: term.PlaqueGold})
 ```
 
@@ -23,7 +23,7 @@ require (
 )
 ```
 
-`Theme` carries the `palette.Roles` returned by `palette.FromPalette(palette.Load(mode), palette.Look{})`. An application that offers contrast and tint builds `term.Theme{Roles: palette.FromPalette(palette.Load(mode), look)}` with the reader's `palette.Look`. Terminal applications choose whether to paint the `ground` role.
+`Theme` carries the `palette.Roles` returned by `palette.FromPalette(palette.Load(mode), palette.Look{})`. `palette.Dark`, the default, and `palette.Light` are the signature; pass `palette.Follow` only when the reader chooses to follow the wallpaper. An application that offers contrast and tint builds `term.Theme{Roles: palette.FromPalette(palette.Load(mode), look)}` with the reader's `palette.Look`. Terminal applications choose whether to paint the `ground` role.
 
 ## Glyph sets
 

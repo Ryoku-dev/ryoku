@@ -39,11 +39,11 @@ func MemberOf(snapshot state.Snapshot, teamID, member string) string {
 	return MemberName(team, member)
 }
 
-// a row's second line: the team and who works on the task
+// a row's second line: who works on the task on which team, "Curator on News digest"
 func TaskFacts(snapshot state.Snapshot, task protocol.TeamTask) string {
 	name := TeamName(snapshot.Teams, task.Team)
 	if member := MemberOf(snapshot, task.Team, task.Member); member != "" {
-		return i18n.Tf("%s · %s", name, member)
+		return i18n.Tf("%s on %s", member, name)
 	}
 	return name
 }

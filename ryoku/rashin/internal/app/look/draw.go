@@ -37,7 +37,7 @@ func PlaceIcon(gtx layout.Context, icon *widget.Icon, at image.Point, size unit.
 	offset := op.Offset(at).Push(gtx.Ops)
 	child := gtx
 	child.Constraints = layout.Exact(image.Pt(pixels, pixels))
-	icon.Layout(child, ink)
+	layoutIcon(child, icon, ink)
 	offset.Pop()
 }
 
@@ -48,8 +48,32 @@ func IconWidget(icon *widget.Icon, size unit.Dp, ink color.NRGBA) layout.Widget 
 			return layout.Dimensions{Size: image.Pt(pixels, pixels)}
 		}
 		gtx.Constraints = layout.Exact(image.Pt(pixels, pixels))
-		return icon.Layout(gtx, ink)
+		return layoutIcon(gtx, icon, ink)
 	}
+}
+
+type inkedIcon struct {
+	icon        *widget.Icon
+	constraints layout.Constraints
+	ink         color.NRGBA
+}
+
+// a widget.Icon keeps one picture, so a glyph shown at two sizes or inks in a frame was drawn again and sent to the GPU every frame
+var inkedIcons = make(map[inkedIcon]*widget.Icon)
+
+func layoutIcon(gtx layout.Context, icon *widget.Icon, ink color.NRGBA) layout.Dimensions {
+	key := inkedIcon{icon, gtx.Constraints, ink}
+	held := inkedIcons[key]
+	if held == nil {
+		// inks fading through a hover would grow it without end
+		if len(inkedIcons) >= 512 {
+			clear(inkedIcons)
+		}
+		copied := *icon
+		held = &copied
+		inkedIcons[key] = held
+	}
+	return held.Layout(gtx, ink)
 }
 
 func FillRect(gtx layout.Context, rectangle image.Rectangle, ink color.NRGBA) {

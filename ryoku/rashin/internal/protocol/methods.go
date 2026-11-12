@@ -42,6 +42,7 @@ const (
 	MProvidersRemoveKey = "providers.remove_key"
 	MProvidersTest      = "providers.test"
 	MProvidersEnable    = "providers.enable"
+	MProvidersLimits    = "providers.limits"
 	MModelsList         = "models.list"
 	MGatewayUsage       = "gateway.usage"
 	MGatewayAPI         = "gateway.api"
@@ -49,6 +50,10 @@ const (
 
 	MHarnessesList  = "harnesses.list"
 	MHarnessesProbe = "harnesses.probe"
+	// MHarnessesTeamsOpen and MHarnessesTeamsDone open a sign-in or the setup
+	// in a harness's team home and finish it.
+	MHarnessesTeamsOpen = "harnesses.teams_open"
+	MHarnessesTeamsDone = "harnesses.teams_done"
 
 	MIndexList       = "index.list"
 	MIndexAdd        = "index.add"
@@ -131,6 +136,7 @@ const (
 	MTeamsList           = "teams.list"
 	MTeamsTemplates      = "teams.templates"
 	MTeamsCreate         = "teams.create"
+	MTeamsPropose        = "teams.propose"
 	MTeamsUpdate         = "teams.update"
 	MTeamsDelete         = "teams.delete"
 	MTeamsPause          = "teams.pause"
@@ -153,6 +159,8 @@ const (
 	MTeamsActivity       = "teams.activity"
 	MTeamsSpend          = "teams.spend"
 	MTeamsPrune          = "teams.prune"
+	MTeamsDreamCreate    = "teams.dream_create"
+	MTeamsDreamAnswer    = "teams.dream_answer"
 
 	MTeamsAgentReport      = "teams.agent_report"
 	MTeamsAgentDelegate    = "teams.agent_delegate"
@@ -162,6 +170,10 @@ const (
 	MTeamsAgentMail        = "teams.agent_mail"
 	MTeamsAgentRequest     = "teams.agent_request"
 	MTeamsAgentCredentials = "teams.agent_credentials"
+	MTeamsAgentHire        = "teams.agent_hire"
+	MTeamsAgentRelease     = "teams.agent_release"
+	MTeamsAgentDream       = "teams.agent_dream"
+	MTeamsAgentPresent     = "teams.agent_present"
 
 	MVaultInfo     = "vault.info"
 	MVaultAdd      = "vault.add"
@@ -170,6 +182,35 @@ const (
 	MVaultEvents   = "vault.events"
 	MVaultMail     = "vault.mail"
 	MVaultMailTest = "vault.mail_test"
+
+	MSessionSetMemory = "session.set_memory"
+
+	MMemoryStatus      = "memory.status"
+	MMemoryList        = "memory.list"
+	MMemoryGet         = "memory.get"
+	MMemoryAdd         = "memory.add"
+	MMemoryEdit        = "memory.edit"
+	MMemoryForget      = "memory.forget"
+	MMemoryRestore     = "memory.restore"
+	MMemoryKeep        = "memory.keep"
+	MMemoryDismiss     = "memory.dismiss"
+	MMemoryUndo        = "memory.undo"
+	MMemoryRedo        = "memory.redo"
+	MMemoryChanges     = "memory.changes"
+	MMemoryForgetAll   = "memory.forget_all"
+	MMemorySearch      = "memory.search"
+	MMemorySessions    = "memory.sessions"
+	MMemoryCard        = "memory.card"
+	MMemoryImport      = "memory.import"
+	MMemorySuppress    = "memory.suppress"
+	MMemoryLearn       = "memory.learn"
+	MMemoryEngineTest  = "memory.engine_test"
+	MMemoryEngineSetup = "memory.engine_setup"
+	MMemoryEngineMove  = "memory.engine_move"
+
+	MSkillsList   = "skills.list"
+	MSkillsGet    = "skills.get"
+	MSkillsSearch = "skills.search"
 )
 
 // Event names.
@@ -199,6 +240,8 @@ const (
 	EvtRoutine          = "routine"           // Routine
 	EvtRoutineRemoved   = "routine.removed"   // TeamRemoved
 	EvtVault            = "vault"             // VaultInfo
+	EvtMemoryChanged    = "memory.changed"    // MemoryChanged
+	EvtMemorySetup      = "memory.setup"      // MemorySetupProgress
 )
 
 // Method is one entry of the registry: its name, the Go types of its params and
@@ -254,13 +297,16 @@ var Methods = []Method{
 	m(MProvidersRemoveKey, RemoveKeyParams{}, ProviderInfo{}, "Remove a provider key."),
 	m(MProvidersTest, ProviderParams{}, ProviderTestResult{}, "Run a one-token completion through a provider."),
 	m(MProvidersEnable, EnableProviderParams{}, ProviderInfo{}, "Turn a provider on or off for routing."),
-	m(MModelsList, ModelsParams{}, ModelsResult{}, "Free chat models and routes."),
+	m(MProvidersLimits, ProviderParams{}, Empty{}, "Read the providers' account limits again where they are older than ten minutes; the result arrives as providers.changed."),
+	m(MModelsList, ModelsParams{}, ModelsResult{}, "Chat models, their tier and the routes."),
 	m(MGatewayUsage, UsageParams{}, GatewayUsage{}, "Requests and tokens per day, provider and model."),
 	m(MGatewayAPI, Empty{}, APIInfo{}, "The local API: whether it is on, where it listens."),
 	m(MGatewayAPIKey, APIKeyParams{}, APIKey{}, "The key other programs present to the local API; rotate replaces it."),
 
 	m(MHarnessesList, HarnessesListParams{}, HarnessesResult{}, "External harnesses and whether they are installed."),
 	m(MHarnessesProbe, HarnessProbeParams{}, HarnessProbeResult{}, "Start a harness once in a team sandbox, without a prompt, to read its models and check a model and options."),
+	m(MHarnessesTeamsOpen, HarnessTeamsOpenParams{}, HarnessTeamsOpenResult{}, "Open a terminal in a harness's team home: its sign-in, or a shell for its setup. The Rashin app's alone."),
+	m(MHarnessesTeamsDone, HarnessTeamsDoneParams{}, HarnessTeamsDoneResult{}, "Finish a sign-in or setup the terminal it opened in was given the token for, and record what it set up."),
 
 	m(MIndexList, Empty{}, IndexesResult{}, "Indexes."),
 	m(MIndexAdd, IndexAddParams{}, IndexInfo{}, "Register and index a project folder."),
@@ -336,13 +382,14 @@ var Methods = []Method{
 	m(MTasksStart, TaskStartParams{}, TaskStartResult{}, "Start a task in a new worktree with an Agent session."),
 	m(MTasksGate, GateParams{}, TaskInfo{}, "Open a decision gate on a task."),
 	m(MTasksResolveGate, GateResolveParams{}, TaskInfo{}, "Resolve a decision gate."),
-	m(MTasksPlan, TaskPlanParams{}, TaskPlanResult{}, "Draft tasks for a goal with the free-model router."),
+	m(MTasksPlan, TaskPlanParams{}, TaskPlanResult{}, "Draft tasks for a goal with the model router."),
 
 	m(MActivityList, ActivityParams{}, ActivityResult{}, "A project's action ledger, newest first."),
 
 	m(MTeamsList, Empty{}, TeamsResult{}, "Teams by name."),
 	m(MTeamsTemplates, Empty{}, TeamTemplatesResult{}, "The ready-made teams a new one can start from."),
 	m(MTeamsCreate, TeamCreateParams{}, Team{}, "Create a team, with its routines."),
+	m(MTeamsPropose, TeamProposeParams{}, Approval{}, "Propose a team; the user approves it in the Inbox, which creates it."),
 	m(MTeamsUpdate, TeamUpdateParams{}, Team{}, "Apply a JSON merge patch to a team."),
 	m(MTeamsDelete, TeamRef{}, Empty{}, "Delete a team, its tasks, routines and grants; its folder stays."),
 	m(MTeamsPause, TeamPauseParams{}, Team{}, "Pause a team, or let it work again."),
@@ -365,6 +412,8 @@ var Methods = []Method{
 	m(MTeamsActivity, TeamActivityParams{}, ActivityResult{}, "The teams' ledger, newest first."),
 	m(MTeamsSpend, TeamSpendParams{}, TeamSpend{}, "A month of tokens by day, member, routine and engine."),
 	m(MTeamsPrune, TeamPruneParams{}, Empty{}, "Delete finished tasks with their sessions: past the kept days, or all of them."),
+	m(MTeamsDreamCreate, DreamCreateParams{}, Team{}, "Start a dream: a team whose manager hires and works until the objective is built and accepted."),
+	m(MTeamsDreamAnswer, DreamAnswerParams{}, Team{}, "Accept a dream's presentation, or send notes that keep its team working."),
 
 	m(MTeamsAgentReport, AgentReportParams{}, AgentAnswer{}, "For a team task's agent: hand back the report and end the task."),
 	m(MTeamsAgentDelegate, AgentDelegateParams{}, AgentAnswer{}, "For a lead's agent: give a member a piece of the task."),
@@ -374,6 +423,10 @@ var Methods = []Method{
 	m(MTeamsAgentMail, AgentMailParams{}, AgentAnswer{}, "For a team task's agent: send a mail once the user approves it."),
 	m(MTeamsAgentRequest, AgentCredentialRequestParams{}, AgentAnswer{}, "For a team task's agent: ask the user to add a credential."),
 	m(MTeamsAgentCredentials, AgentRef{}, AgentCredentialsResult{}, "For a team task's agent: the credentials its team may use."),
+	m(MTeamsAgentHire, AgentHireParams{}, Member{}, "For a dream's manager: add a member to the team."),
+	m(MTeamsAgentRelease, AgentReleaseParams{}, AgentAnswer{}, "For a dream's manager: let a member go once its work is done."),
+	m(MTeamsAgentDream, AgentDreamParams{}, AgentAnswer{}, "For a dream's manager: say where the dream stands."),
+	m(MTeamsAgentPresent, AgentPresentParams{}, AgentAnswer{}, "For a dream's manager: present the finished dream to the user."),
 
 	m(MVaultInfo, Empty{}, VaultInfo{}, "The vault's state and credentials, never a value."),
 	m(MVaultAdd, VaultAddParams{}, Credential{}, "Store a credential."),
@@ -382,6 +435,35 @@ var Methods = []Method{
 	m(MVaultEvents, VaultEventsParams{}, VaultEventsResult{}, "The vault's record of use, newest first."),
 	m(MVaultMail, MailAccountParams{}, VaultInfo{}, "Set or remove the mail account."),
 	m(MVaultMailTest, Empty{}, MailTestResult{}, "Log in to the mail account's server without sending."),
+
+	m(MSessionSetMemory, SetMemoryParams{}, SessionInfo{}, "Set what a conversation does with memory; after its first message only narrower."),
+
+	m(MMemoryStatus, Empty{}, MemoryStatus{}, "Memory as a whole: engine, counts, chart, learner and card."),
+	m(MMemoryList, MemoryListParams{}, MemoryListResult{}, "Memories by scope, state, words and sort."),
+	m(MMemoryGet, MemoryRefParams{}, Memory{}, "One memory with its earlier versions."),
+	m(MMemoryAdd, MemoryAddParams{}, MemoryChange{}, "Remember a fact."),
+	m(MMemoryEdit, MemoryEditParams{}, MemoryChange{}, "Change a memory's text, scope or pin."),
+	m(MMemoryForget, MemoryForgetParams{}, MemoryChange{}, "Forget memories; they are never learned again."),
+	m(MMemoryRestore, MemoryRestoreParams{}, MemoryChange{}, "Bring back a replaced memory or an earlier text."),
+	m(MMemoryKeep, MemoryIDsParams{}, MemoryChange{}, "Keep suggested memories."),
+	m(MMemoryDismiss, MemoryIDsParams{}, MemoryChange{}, "Dismiss suggested memories."),
+	m(MMemoryUndo, MemoryChangeParams{}, MemoryChange{}, "Undo a change."),
+	m(MMemoryRedo, MemoryChangeParams{}, MemoryChange{}, "Do an undone change again."),
+	m(MMemoryChanges, MemoryChangesParams{}, MemoryChangesResult{}, "Changes by id, with whether each was undone."),
+	m(MMemoryForgetAll, MemoryForgetAllParams{}, MemoryChange{}, "Forget every memory in a scope, or everything."),
+	m(MMemorySearch, MemorySearchParams{}, MemorySearchResult{}, "Memories by meaning and words, best first."),
+	m(MMemorySessions, MemorySessionsParams{}, MemorySessionsResult{}, "Past conversations by words, best first."),
+	m(MMemoryCard, MemoryCardParams{}, MemoryCard{}, "The card about the user that answers are given."),
+	m(MMemoryImport, MemoryImportParams{}, MemoryChange{}, "Split another assistant's memories into suggestions."),
+	m(MMemorySuppress, MemorySuppressParams{}, Empty{}, "Stop a memory being used in one conversation."),
+	m(MMemoryLearn, MemoryLearnParams{}, MemoryChange{}, "Learn from a conversation now."),
+	m(MMemoryEngineTest, MemoryEngineParams{}, MemoryEngineTest{}, "Check that an engine answers."),
+	m(MMemoryEngineSetup, MemoryEngineParams{}, Empty{}, "Set an engine up on this computer; progress arrives as memory.setup."),
+	m(MMemoryEngineMove, MemoryEngineParams{}, MemoryStatus{}, "Copy every memory to an engine and use it from then on."),
+
+	m(MSkillsList, Empty{}, SkillsResult{}, "The built-in skill sets, their skills and where they lie."),
+	m(MSkillsGet, SkillParams{}, SkillContent{}, "Read a skill's SKILL.md or one of its files."),
+	m(MSkillsSearch, SkillsSearchParams{}, SkillsSearchResult{}, "Skills that fit what is about to be done, best first."),
 }
 
 var methodIndex = func() map[string]Method {

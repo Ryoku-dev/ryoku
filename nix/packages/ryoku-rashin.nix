@@ -1,6 +1,9 @@
 {
   pkgs,
   src,
+  # uv sets up Hindsight, the optional memory engine. Its Python and wheels
+  # are prebuilt for FHS systems, so on NixOS it also needs programs.nix-ld.
+  withUv ? false,
 }:
 
 let
@@ -58,7 +61,8 @@ pkgs.buildGoModule {
     done
     # Teams run their agents, and the programs those open, inside bwrap.
     wrapProgram "$out/bin/rashind" \
-      --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.bubblewrap ]}
+      --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.bubblewrap ]} \
+      ${pkgs.lib.optionalString withUv "--suffix PATH : ${pkgs.lib.makeBinPath [ pkgs.uv ]}"}
     for collector in ryoku-ai-usage claude-usage codex-usage opencode-usage; do
       install -Dm755 "usage/$collector" "$out/bin/$collector"
     done
@@ -91,6 +95,14 @@ pkgs.buildGoModule {
       "$out/share/licenses/ryoku-rashin/LICENSE.geologica"
     install -Dm644 vendor/github.com/ryoku-dev/ryoku/docs/lithic/library/go/fonts/MartianMono-OFL.txt \
       "$out/share/licenses/ryoku-rashin/LICENSE.martian-mono"
+    install -Dm644 vendor/gopkg.in/validator.v2/LICENSE \
+      "$out/share/licenses/ryoku-rashin/LICENSE.validator"
+    install -Dm644 LICENSE.apache-2.0 \
+      "$out/share/licenses/ryoku-rashin/LICENSE.apache-2.0"
+    for set in superpowers openspec speckit egm; do
+      install -Dm644 "internal/skills/sets/$set/LICENSE" \
+        "$out/share/licenses/ryoku-rashin/LICENSE.$set"
+    done
 
     runHook postInstall
   '';
@@ -102,6 +114,7 @@ pkgs.buildGoModule {
       pkgs.lib.licenses.gpl3Plus
       pkgs.lib.licenses.asl20
       pkgs.lib.licenses.ofl
+      pkgs.lib.licenses.mit
     ];
     mainProgram = "rashin-app";
     platforms = [ "x86_64-linux" ];

@@ -81,7 +81,8 @@ if command -v shellcheck >/dev/null 2>&1; then
 				*.sh | *.bash) files+=("$f") ;;
 				*) first=; IFS= read -r first <"$f" 2>/dev/null || true; [[ $first == '#!'*bash* ]] && files+=("$f") ;;
 			esac
-		done < <(git diff -z --name-only --diff-filter=ACM "$base" "$local_sha" -- . ':(glob,exclude)**/vendor/**')
+		done < <(git diff -z --name-only --diff-filter=ACM "$base" "$local_sha" -- . ':(glob,exclude)**/vendor/**' \
+			':(exclude)ryoku/lockscreen/qylock' ':(exclude)ryoku/rashin/internal/skills/sets')
 	done <"$push_updates"
 	if ((${#files[@]} > 0)); then
 		printf '%s\0' "${files[@]}" | sort -zu | xargs -0 -r shellcheck -x -s bash --severity=warning \

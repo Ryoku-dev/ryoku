@@ -38,8 +38,8 @@ func (s *uiShell) layoutFrame(gtx layout.Context, e *env.Env) {
 		bottom -= gtx.Dp(look.BottomNav) + gap
 	}
 	page, listPage := s.page(s.router.Tab), s.page(s.listTab)
-	// settings lists its own sections, the New plaque still speaks for where it was opened from
-	if s.router.Tab == protocol.TabSettings {
+	// settings and memory list their own index, the New plaque still speaks for where they were opened from
+	if standaloneTab(s.router.Tab) {
 		listPage = page
 	}
 	if indexed, ok := page.(env.Indexed); ok {
@@ -130,6 +130,7 @@ func (s *uiShell) layoutContent(gtx layout.Context, e *env.Env, page env.Page) l
 		return page.Content(gtx, e)
 	})
 	s.placards.Layout(gtx, e.Theme)
+	s.runPlacardAction(gtx)
 	return dimensions
 }
 

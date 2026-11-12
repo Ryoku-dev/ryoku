@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -15,21 +16,33 @@ import (
 )
 
 // probeSettings sets up one instance of the fake agent, in mode, as the only
-// harness, with every Rashin path in fresh folders.
+// harness, with every Rashin path in fresh folders, signed in for teams.
 func probeSettings(t *testing.T, mode string) {
 	t.Helper()
-	t.Setenv("PATH", t.TempDir())
+	// only bubblewrap stays on PATH, as the sandbox runs it by name
+	bin := t.TempDir()
+	if bwrap, err := exec.LookPath("bwrap"); err == nil {
+		if err := os.Symlink(bwrap, filepath.Join(bin, "bwrap")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", bin)
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	writeHarnessSettings(t, []protocol.HarnessInstance{{
 		ID:      "fake",
 		Name:    "Fake agent",
 		Command: []string{os.Args[0], "-test.run=^TestACPHelperProcess$"},
 		Env:     map[string]string{"RASHIN_ACP_TEST_MODE": mode},
 	}})
+	signInForTeams(t, "fake", probeTeam)
 }
+
+// probeTeam is the team the probe tests check a harness for.
+const probeTeam = "team-probe"
 
 // probeBase is a team agent's sandbox without a folder, which still runs this
 // test binary from its build folder under /tmp; probes that start an agent
@@ -64,16 +77,19 @@ func TestAProbeStartsTheHarnessAndSaysWhatItTook(t *testing.T) {
 	registry := New()
 	learned := 0
 	registry.OnLearned(func() { learned++ })
-	result, err := registry.Probe(context.Background(), protocol.HarnessProbeParams{ID: "fake", Model: "small", Options: map[string]string{"thinking": "high"}}, base)
+	result, err := registry.Probe(context.Background(), protocol.HarnessProbeParams{ID: "fake", Team: probeTeam, Model: "small", Options: map[string]string{"thinking": "high"}}, base)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !result.OK || result.Message != "Fake agent started in the sandbox and took Small, thinking High." {
 		t.Fatalf("the probe said %+v", result)
 	}
-	capabilities := result.Harness.Capabilities
+	capabilities := result.Harness.TeamCapabilities(probeTeam)
 	if result.Harness.ID != "fake" || capabilities == nil || len(capabilities.ModelList) != 2 || capabilities.DefaultModel != "big" || len(capabilities.Options) != 1 {
 		t.Fatalf("the probe left the harness reading %+v", result.Harness)
+	}
+	if result.Harness.Capabilities != nil {
+		t.Fatalf("a Check in a team's home wrote the user's own list: %+v", result.Harness.Capabilities)
 	}
 	if learned == 0 {
 		t.Fatal("the probe's catalog was not announced")
@@ -82,9 +98,42 @@ func TestAProbeStartsTheHarnessAndSaysWhatItTook(t *testing.T) {
 		t.Fatalf("the probe folder is still there: %v", err)
 	}
 
-	result, err = registry.Probe(context.Background(), protocol.HarnessProbeParams{ID: "fake"}, base)
+	result, err = registry.Probe(context.Background(), protocol.HarnessProbeParams{ID: "fake", Team: probeTeam}, base)
 	if err != nil || !result.OK || result.Message != "Fake agent started in the sandbox on Big." {
 		t.Fatalf("a bare probe said %+v, %v", result, err)
+	}
+	result, err = registry.Probe(context.Background(), protocol.HarnessProbeParams{ID: "fake", Team: "team-elsewhere"}, base)
+	if err != nil || result.OK || !strings.Contains(result.Message, "not signed in") {
+		t.Fatalf("a team not signed in was checked: %+v, %v", result, err)
+	}
+}
+
+// A probe without a team reads the user's own list, as the Agents board's
+// Read the list does, and leaves every team's list alone; a team's list
+// never stands in for the user's.
+func TestAProbeWithoutATeamReadsTheUsersOwnList(t *testing.T) {
+	probeSettings(t, "options")
+	registry := New()
+	info, ok := registry.info(context.Background(), "fake")
+	if !ok {
+		t.Fatal("no fake harness")
+	}
+	registry.recordCapabilities("fake", info.Path, probeTeam, protocol.HarnessCapabilities{ModelList: []protocol.Choice{{ID: "team-only"}}, DefaultModel: "team-only"})
+	if info, _ := registry.info(context.Background(), "fake"); info.Capabilities != nil {
+		t.Fatalf("a team's list shows as the user's: %+v", info.Capabilities)
+	}
+	result, err := registry.Probe(context.Background(), protocol.HarnessProbeParams{ID: "fake"}, sandbox.Spec{})
+	if err != nil || !result.OK || result.Message != "Fake agent started on Big." {
+		t.Fatalf("the user's probe said %+v, %v", result, err)
+	}
+	if own := result.Harness.Capabilities; own == nil || len(own.ModelList) != 2 || own.DefaultModel != "big" {
+		t.Fatalf("the user's list reads %+v", own)
+	}
+	if team := result.Harness.TeamCapabilities(probeTeam); team == nil || team.DefaultModel != "team-only" {
+		t.Fatalf("the user's probe changed the team's list: %+v", team)
+	}
+	if other := result.Harness.TeamCapabilities("team-elsewhere"); other != nil {
+		t.Fatalf("a team that never ran the harness reads %+v", other)
 	}
 }
 
@@ -92,7 +141,7 @@ func TestAProbeStartsTheHarnessAndSaysWhatItTook(t *testing.T) {
 // can act on.
 func TestAProbeSaysWhatTheHarnessRefused(t *testing.T) {
 	probeSettings(t, "options")
-	result, err := New().Probe(context.Background(), protocol.HarnessProbeParams{ID: "fake", Options: map[string]string{"speed": "fast"}}, probeBase(t))
+	result, err := New().Probe(context.Background(), protocol.HarnessProbeParams{ID: "fake", Team: probeTeam, Options: map[string]string{"speed": "fast"}}, probeBase(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +158,7 @@ func TestAProbeGivesUpOnASilentHarness(t *testing.T) {
 	probeTimeout = 300 * time.Millisecond
 	t.Cleanup(func() { probeTimeout = saved })
 	started := time.Now()
-	result, err := New().Probe(context.Background(), protocol.HarnessProbeParams{ID: "fake"}, base)
+	result, err := New().Probe(context.Background(), protocol.HarnessProbeParams{ID: "fake", Team: probeTeam}, base)
 	if err != nil {
 		t.Fatal(err)
 	}

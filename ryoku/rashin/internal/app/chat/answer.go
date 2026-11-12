@@ -6,8 +6,6 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/op"
-	"gioui.org/op/clip"
-	"gioui.org/op/paint"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
@@ -132,17 +130,11 @@ func (state *viewState) layoutCommands(gtx layout.Context, th *look.Theme, plan 
 			if !several && command.Why == "" {
 				command.Why = plan.Summary
 			}
-			if index > 0 {
-				children = append(children,
-					layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						size := image.Pt(gtx.Constraints.Max.X, max(1, gtx.Dp(1)))
-						paint.FillShape(gtx.Ops, th.R.Vein, clip.Rect(image.Rectangle{Max: size}).Op())
-						return layout.Dimensions{Size: size}
-					}),
-				)
-			}
-			if len(children) > 0 {
+			// space, not a rule, sets one command off from the next
+			switch {
+			case index > 0:
+				children = append(children, layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout))
+			case len(children) > 0:
 				children = append(children, layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout))
 			}
 			commandKey := key + ":" + strconv.Itoa(index)

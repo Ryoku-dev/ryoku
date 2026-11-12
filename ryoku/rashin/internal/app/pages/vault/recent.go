@@ -66,14 +66,16 @@ func pulse(vault protocol.VaultInfo) string {
 // one use: when, which credential, for which team and where, and what came of it
 func layoutEvent(gtx layout.Context, th *look.Theme, teams []protocol.Team, event protocol.VaultEvent, named bool) layout.Dimensions {
 	word, tone := outcomeWord(event.Outcome)
-	where := make([]string, 0, 2)
-	if event.Team != "" {
-		where = append(where, teamsui.TeamName(teams, event.Team))
+	where := ""
+	switch team := teamsui.TeamName(teams, event.Team); {
+	case event.Team != "" && event.Host != "":
+		where = i18n.Tf("%s at %s", team, event.Host)
+	case event.Team != "":
+		where = team
+	default:
+		where = event.Host
 	}
-	if event.Host != "" {
-		where = append(where, event.Host)
-	}
-	children := []layout.FlexChild{look.Cell(gtx.Dp(96), kit.Text(th.Theme, th.T.MonoSm, th.R.Fg3, look.Ago(gtx.Now, event.Time)))}
+	children := []layout.FlexChild{look.Cell(gtx.Dp(96), kit.Text(th.Theme, th.T.Caption, th.R.Fg3, look.Ago(gtx.Now, event.Time)))}
 	if named {
 		children = append(children, look.Cell(gtx.Dp(168), kit.Text(th.Theme, th.T.Mono, th.R.Fg, event.Name)))
 	}
@@ -81,7 +83,7 @@ func layoutEvent(gtx layout.Context, th *look.Theme, teams []protocol.Team, even
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = gtx.Constraints.Max.X
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-				layout.Rigid(kit.Text(th.Theme, th.T.Body, th.R.Fg2, strings.Join(where, " · "))),
+				layout.Rigid(kit.Text(th.Theme, th.T.Body, th.R.Fg2, where)),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					if event.Detail == "" {
 						return layout.Dimensions{}
@@ -94,7 +96,7 @@ func layoutEvent(gtx layout.Context, th *look.Theme, teams []protocol.Team, even
 	if event.Unwatched {
 		children = append(children,
 			layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
-			layout.Rigid(kit.Text(th.Theme, th.T.MonoSm, th.R.Fg3, i18n.T("Nobody watching"))),
+			layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, i18n.T("Nobody watching"))),
 		)
 	}
 	children = append(children,

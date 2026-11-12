@@ -41,7 +41,7 @@ func TestATaskPagesWaitingChoiceTakesItsLetter(t *testing.T) {
 		approval := stage.approval(choiceApproval)
 		return approval.Decision == protocol.DecideChoose && approval.Choice == choiceB
 	})
-	if _, ok := stage.named("Chose B · " + choiceB); !ok {
+	if _, ok := stage.named("Chose B: " + choiceB); !ok {
 		t.Fatalf("the card did not fold to the choice; on screen: %v", stage.names())
 	}
 }
@@ -76,7 +76,7 @@ func TestAFocusedNoteKeepsTheLetters(t *testing.T) {
 // on the Inbox the keys go to the card that holds them, so a letter alone answers nothing
 func TestTheInboxAnswersOnlyTheFocusedCard(t *testing.T) {
 	// tall enough that the choice card stands in the board without scrolling
-	stage := newStage(t, image.Pt(1440, 3000))
+	stage := newStage(t, image.Pt(1440, 4400))
 	stage.open("inbox")
 	var title image.Rectangle
 	for _, node := range stage.nodes() {

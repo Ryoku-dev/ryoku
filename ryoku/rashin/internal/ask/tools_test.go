@@ -81,10 +81,10 @@ func TestSearchCodeUsesOnlyRegisteredProjectIndex(t *testing.T) {
 			{ID: protocol.IndexSystem, Kind: protocol.IndexSystem, Root: "/"},
 			{ID: "elsewhere", Kind: protocol.IndexProject, Root: filepath.Join(root, "other")},
 		}}
-		factory := New(nil, indexer)
+		factory := New(nil, indexer, nil, nil)
 		result, _, err := factory.runTool(context.Background(), llm.ToolCall{
 			Name: "search_code", Arguments: `{"query":"harnesses"}`,
-		}, &protocol.TerminalContext{Cwd: cwd})
+		}, &protocol.TerminalContext{Cwd: cwd}, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -113,10 +113,10 @@ func TestSearchCodeUsesOnlyRegisteredProjectIndex(t *testing.T) {
 			},
 			searchData: protocol.SearchResult{Index: "inner"},
 		}
-		factory := New(nil, indexer)
+		factory := New(nil, indexer, nil, nil)
 		if _, _, err := factory.runTool(context.Background(), llm.ToolCall{
 			Name: "search_code", Arguments: `{"query":"harnesses"}`,
-		}, &protocol.TerminalContext{Cwd: cwd}); err != nil {
+		}, &protocol.TerminalContext{Cwd: cwd}, ""); err != nil {
 			t.Fatal(err)
 		}
 		if indexer.addCalls != 0 {
@@ -131,10 +131,10 @@ func TestSearchCodeUsesOnlyRegisteredProjectIndex(t *testing.T) {
 
 func TestSearchSystemUsesExistingIndex(t *testing.T) {
 	indexer := &searchCodeIndexer{}
-	factory := New(nil, indexer)
+	factory := New(nil, indexer, nil, nil)
 	if _, _, err := factory.runTool(context.Background(), llm.ToolCall{
 		Name: "search_system", Arguments: `{"query":"harnesses"}`,
-	}, nil); err != nil {
+	}, nil, ""); err != nil {
 		t.Fatal(err)
 	}
 	if len(indexer.searches) != 1 || indexer.searches[0].ID != protocol.IndexSystem ||

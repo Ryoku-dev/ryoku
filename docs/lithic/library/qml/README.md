@@ -36,15 +36,16 @@ Ryoku ships the module compiled: `build.sh <qml-import-dir>` builds it to byteco
 
 `Lithic` reads palette files through synchronous `file://` XHR only during startup and an explicit `reload()`. Plain QML therefore needs `QML_XHR_ALLOW_FILE_READ=1`. Set `QT_FORCE_STDERR_LOGGING=1` on every plain QML run so Qt writes warnings to stderr instead of sending them only to the journal. The library never polls and has no palette timer.
 
-Resolution order is:
+Every Lithic app opens in the signature, the ryoku.dev stock. Following the wallpaper is a choice the reader makes in the app, never the default. `mode` is `dark` unless the app or `LITHIC_MODE` sets it; `dark` and `light` paint the signature tables with the `/etc/os-release` edition colour as the action accent and use no palette, the host's included. Only `follow` resolves, in this order:
 
-1. `themePalette` from `$XDG_CONFIG_HOME/ryoku/shell.json`.
-2. `$XDG_CACHE_HOME/ryoku/colors.json` when wallpaper following is enabled, or in a forced mode.
-3. Signature roles with the `/etc/os-release` edition colour as the action accent.
+1. A host palette from `setPalette` or `LITHIC_PALETTE_JSON`.
+2. `themePalette` from `$XDG_CONFIG_HOME/ryoku/shell.json`.
+3. `$XDG_CACHE_HOME/ryoku/colors.json` unless `$XDG_CONFIG_HOME/ryoku/theme.json` sets `followWallpaper` to false.
+4. Signature roles with the edition colour as the action accent.
 
-`$XDG_CONFIG_HOME/ryoku/theme.json` provides `followWallpaper`, defaulting to true. `LITHIC_MODE` accepts `follow`, `dark`, or `light`. `LITHIC_PALETTE_JSON` names a palette file override for deterministic gallery and test runs. Forced dark and light modes keep signature neutrals and read only accents from the supplied palette.
+`LITHIC_MODE` accepts `dark`, `light`, or `follow`. `LITHIC_PALETTE_JSON` names a palette file override for deterministic gallery and test runs.
 
-A Quickshell host should watch the files it already owns and feed the resolved palette to the library. `FileView.watchChanges` follows atomic file replacement without polling:
+A Quickshell host that offers following should watch the files it already owns while the reader follows, and feed the resolved palette to the library. `FileView.watchChanges` follows atomic file replacement without polling:
 
 ```qml
 import Quickshell.Io
@@ -75,7 +76,7 @@ The host remains responsible for applying named-scheme precedence when it watche
 
 | Name | Type | Meaning |
 |---|---|---|
-| `mode` | string | `follow`, `dark`, or `light`. Invalid values reset to `follow`. |
+| `mode` | string | `dark` (default), `light`, or `follow`. Invalid values reset to `dark`. |
 | `contrast` | string | `standard` (default) or `high`. Invalid values reset to `standard`. See [palette.md](../../palette.md#contrast-and-tint). |
 | `tint` | string | `off` (default), `low`, or `medium`. Invalid values reset to `off`. |
 | `dark` | bool, read only | Resolved palette brightness. |
@@ -105,7 +106,7 @@ Each token candidate list is checked against `Qt.fontFamilies()` in order, and t
 
 | Function | Result |
 |---|---|
-| `setPalette(object, mode)` | Injects a host palette, optionally unwraps `themePalette`, sets a valid mode, and resolves roles. |
+| `setPalette(object, mode)` | Injects a host palette, optionally unwraps `themePalette`, sets a valid mode, and resolves roles. The palette paints only in `follow`. |
 | `reload()` | Clears host injection and rereads the environment and palette files. |
 | `stone(tone)` | State mineral for `idle`, `alive`, `becoming`, `attention`, `paused`, or `failed`. |
 | `mineralField(tone)` | Mineral-field colour for a canonical tone. |
@@ -420,7 +421,7 @@ A spin box with quiet decrement and increment faces either side of a field box h
 
 #### Filters
 
-A bounded row of filter chips with counts. Chips rest on tonal `field` plates; the `sel` fill glides to the selected chip.
+A bounded row of filter chips with counts in `caption` with tabular figures. A resting chip has no fill; hover shows the `field` fill, and the `sel` fill glides to the selected chip.
 
 - Properties: `model`, `currentIndex`, `previewState`, and `accessibleName`
 - Signal: `activated(int index)`
@@ -442,7 +443,7 @@ A track of 2 to 5 equal-width options. The selected segment is an inset `sel` fi
 
 ```qml
 Segmented {
-    model: ["Follow", "Dark", "Light"]
+    model: ["Dark", "Light", "Follow"]
     currentIndex: modeIndex
     onActivated: index => modeIndex = index
 }
@@ -667,9 +668,9 @@ A detail header with a mark, name, proof, note, traits, actions, and an optional
 
 #### Slab
 
-A lifted cut container: `slab` fill and a 1 dp `vein` hairline inside the cut, with configurable inset, fill, and cut depth.
+A lifted cut container: the `slab` fill, with a 1 dp `vein` hairline inside the cut in light mode, and a configurable inset, fill, and cut depth. A `tone` other than idle dyes it with that state's mineral field for the one hero plane of a view.
 
-- Properties: `inset`, `fill`, `cut`, and the default `content` child list. Read-only properties are `bodyItem`, `contentImplicitWidth`, and `contentImplicitHeight`.
+- Properties: `inset`, `tone`, `fill`, `cut`, and the default `content` child list. Read-only properties are `bodyItem`, `contentImplicitWidth`, and `contentImplicitHeight`.
 - Preview: none
 
 #### Section
@@ -681,7 +682,7 @@ A section title followed by an arbitrary measured body.
 
 #### Facts
 
-A label and value list with optional monospace literal values. Labels keep the 140 column and values start `s4` after it; either side wraps, and a row grows past 44 to fit its taller side.
+A label and value list, rows set apart by their height with no rules, with optional monospace literal values. Labels keep the 140 column and values start `s4` after it; either side wraps, and a row grows past 44 to fit its taller side.
 
 - Property: `facts`
 - Fact entries: objects with `label`, `value`, and optional `literal`

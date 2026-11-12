@@ -1,6 +1,6 @@
 # Lithic
 
-Lithic is Ryoku's UI language: cut, not molded. It builds calm, flat surfaces from live palette roles, 45 degree cuts, plain state words and motion that answers an action and then stops.
+Lithic is Ryoku's UI language: cut, not molded. It builds calm, flat surfaces from palette roles, 45 degree cuts, plain state words and motion that answers an action and then stops. Every Lithic app opens in the signature, the ryoku.dev stock; following the wallpaper is a choice the reader makes in the app.
 
 ![Fleet list and detail window in Lithic](media/sheet-fleet.png)
 
@@ -94,7 +94,7 @@ Add `docs/lithic/library/qml` to the import path and use `import Lithic`. Run a 
 
 ```sh
 cd docs/lithic/examples/qml
-QT_FORCE_STDERR_LOGGING=1 LITHIC_PAGE=foundation LITHIC_MODE=follow qml6 -I ../../library/qml Gallery.qml
+QT_FORCE_STDERR_LOGGING=1 LITHIC_PAGE=foundation LITHIC_MODE=dark qml6 -I ../../library/qml Gallery.qml
 ```
 
 ### Web
@@ -103,7 +103,7 @@ Include `<link rel="stylesheet" href="/library/web/lithic.css">`, then run `impo
 
 ```sh
 cd docs/lithic && python -m http.server 8000
-# http://127.0.0.1:8000/examples/web/foundation.html?mode=follow
+# http://127.0.0.1:8000/examples/web/foundation.html?mode=dark
 ```
 
 ### Go with Gio
@@ -112,7 +112,7 @@ Import `github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit` with the `palette
 
 ```sh
 cd docs/lithic/examples/gio
-go run . --page foundation --mode follow
+go run . --page foundation --mode dark
 ```
 
 ### Terminal
@@ -121,7 +121,7 @@ Import `github.com/ryoku-dev/ryoku/docs/lithic/library/go/term`. Run the termina
 
 ```sh
 cd docs/lithic/examples/term
-go run . --page controls --width 120 --mode follow
+go run . --page controls --width 120 --mode dark
 ```
 
 ## Design sheets
@@ -141,6 +141,7 @@ The [sheet index](examples/sheets/README.md) links every source sheet.
 ## Rules
 
 - Use palette roles, never colour values in a surface.
+- Open in the signature. Follow the wallpaper only when the reader chooses it in the app.
 - Cut corners at 45 degrees or leave them square. Do not round them.
 - Do not add shadows, gradients, glows, inset wells or status dots. Blur can
   be used where it fits and looks good, as a faint hint under a picture or on a

@@ -80,8 +80,10 @@ func rashinProof(snapshot state.Snapshot) string {
 
 func (p *Page) layoutAsk(gtx layout.Context, e *env.Env) layout.Dimensions {
 	th := e.Theme
-	settings := e.Snapshot().Settings.Ask
-	labels, ids, selected := p.routeOptions(settings.Model)
+	snapshot := e.Snapshot()
+	settings := snapshot.Settings.Ask
+	p.models.Load(e, snapshot)
+	options, ids, selected := p.models.Choices(settings.Model)
 	p.habits.Value = settings.Habits
 	mayIDs := [...]string{protocol.ApprovalsReadOnly, protocol.ApprovalsAsk, protocol.ApprovalsAuto}
 	mayLabels := []string{i18n.T("Never"), i18n.T("After asking you"), i18n.T("Without asking (YOLO)")}
@@ -91,13 +93,34 @@ func (p *Page) layoutAsk(gtx layout.Context, e *env.Env) layout.Dimensions {
 			selectedMay = index
 		}
 	}
+	answerers, answering := env.AskEngines(snapshot)
+	answererLabels := make([]string, len(answerers))
+	for index, answerer := range answerers {
+		answererLabels[index] = answerer.Name
+		if !answerer.Installed {
+			answererLabels[index] = i18n.Tf("%s (not installed)", answerer.Name)
+		}
+	}
 	return look.SettingsSection(gtx, th, i18n.T("Ask"), []look.Setting{
 		{
-			Title:  i18n.T("Answers come from"),
-			Detail: i18n.T("Auto picks a free model that is up and fits the question. A named model is used whenever it is available."),
+			Title:  i18n.T("Answer with"),
+			Detail: answererDetail(answerers[answering]),
 			Control: func(gtx layout.Context) layout.Dimensions {
 				gtx.Constraints.Min.X = gtx.Dp(260)
-				dimensions := p.route.Layout(gtx, th, e.Overlays, labels, selected)
+				dimensions := p.answerWith.Layout(gtx, th, e.Overlays, answererLabels, answering)
+				if index, changed := p.answerWith.Changed(); changed && index < len(answerers) {
+					set(e, "ask", map[string]any{"harness": answerers[index].ID})
+				}
+				return dimensions
+			},
+		},
+		{
+			Title:  i18n.T("Providers answer on"),
+			Detail: i18n.T("Auto picks a free model that is up and fits the question, one on this computer first. A model named here is asked first and another takes over when it can't answer. A paid model answers only when you name it."),
+			Control: func(gtx layout.Context) layout.Dimensions {
+				gtx.Constraints.Min.X = gtx.Dp(260)
+				p.route.Searched = true
+				dimensions := p.route.LayoutOptions(gtx, th, e.Overlays, options, selected)
 				if index, changed := p.route.Changed(); changed && index < len(ids) {
 					set(e, "ask", map[string]any{"model": ids[index]})
 				}
@@ -128,24 +151,16 @@ func (p *Page) layoutAsk(gtx layout.Context, e *env.Env) layout.Dimensions {
 	})
 }
 
-func (p *Page) routeOptions(current string) (labels, ids []string, selected int) {
-	for _, route := range p.models.Routes {
-		labels, ids = append(labels, route.Name), append(ids, route.ID)
+// what changes with what answers, said where it is picked
+func answererDetail(answerer env.AskEngine) string {
+	switch {
+	case answerer.ID == "":
+		return i18n.T("Rashin's own router answers with the models below and Ask's own tools. A harness such as Codex, Claude Code or omp can answer new asks here instead, with its own models, tools and sign-in. Asks from the bar and the terminal always use Rashin's providers.")
+	case !answerer.Installed:
+		return i18n.Tf("%s is not installed, so a new ask here says so and is not answered. Install it under Agents or pick another.", answerer.Name)
+	default:
+		return i18n.Tf("%s answers new asks in this app with its own models, tools and sign-in, and what Ask may change still holds. Asks you already have keep what answered them, and asks from the bar and the terminal use Rashin's providers.", answerer.Name)
 	}
-	for _, model := range p.models.Models {
-		if model.Available {
-			labels, ids = append(labels, model.Name), append(ids, model.Provider+"/"+model.ID)
-		}
-	}
-	if len(ids) == 0 {
-		return []string{i18n.T("Auto")}, []string{protocol.RouteAuto}, 0
-	}
-	for index, id := range ids {
-		if id == current {
-			selected = index
-		}
-	}
-	return labels, ids, selected
 }
 
 func (p *Page) layoutAgents(gtx layout.Context, e *env.Env) layout.Dimensions {
@@ -319,8 +334,16 @@ func (p *Page) layoutAppearance(gtx layout.Context, e *env.Env) layout.Dimension
 	th := e.Theme
 	p.zoom.Value, p.zoom.Min, p.zoom.Max, p.zoom.Step, p.zoom.Unit = e.Zoom, state.MinZoom, state.MaxZoom, state.ZoomStep, "%"
 	p.motion.Value = e.ReduceMotion
+	colours := [...]string{state.ColoursRyoku, state.ColoursRyokuLight, state.ColoursWallpaper}
+	coloursDetails := [...]string{
+		i18n.T("The ryoku.dev colours: black, bone and the orange sun."),
+		i18n.T("The ryoku.dev colours in daylight: warm grey, dark ink and the orange sun."),
+		i18n.T("Colours from your wallpaper, like the rest of the desktop."),
+	}
 	contrasts := [...]string{state.ContrastStandard, state.ContrastHigh}
 	tints := [...]string{state.TintOff, state.TintLow, state.TintMedium}
+	p.colours.Labels = []string{i18n.T("Ryoku"), i18n.T("Ryoku light"), i18n.T("Wallpaper")}
+	p.colours.Selected = choiceIndex(colours[:], e.Colours)
 	p.contrast.Labels = []string{i18n.T("Standard"), i18n.T("High")}
 	p.contrast.Selected = choiceIndex(contrasts[:], e.Contrast)
 	p.tint.Labels = []string{i18n.T("Off"), i18n.T("Low"), i18n.T("Medium")}
@@ -335,7 +358,7 @@ func (p *Page) layoutAppearance(gtx layout.Context, e *env.Env) layout.Dimension
 			return dimensions
 		}
 	}
-	return look.SettingsSection(gtx, th, i18n.T("Appearance"), []look.Setting{
+	settings := []look.Setting{
 		{
 			Title:  i18n.T("Zoom"),
 			Detail: i18n.T("Ctrl + and Ctrl - change it from anywhere. Ctrl 0 sets it back."),
@@ -356,7 +379,10 @@ func (p *Page) layoutAppearance(gtx layout.Context, e *env.Env) layout.Dimension
 		},
 		{
 			Title:  i18n.T("Colours"),
-			Detail: i18n.T("Rashin takes its colours from your wallpaper. Contrast and Tint change how its surfaces use them."),
+			Detail: coloursDetails[p.colours.Selected],
+			Control: segmented(&p.colours, func(index int) {
+				e.SetColours(colours[index])
+			}),
 		},
 		{
 			Title:  i18n.T("Contrast"),
@@ -365,14 +391,18 @@ func (p *Page) layoutAppearance(gtx layout.Context, e *env.Env) layout.Dimension
 				e.SetLook(contrasts[index], tints[p.tint.Selected])
 			}),
 		},
-		{
+	}
+	// the stock has no wallpaper to draw from, so Tint would do nothing there
+	if colours[p.colours.Selected] == state.ColoursWallpaper {
+		settings = append(settings, look.Setting{
 			Title:  i18n.T("Tint"),
 			Detail: i18n.T("Tint draws your wallpaper's colour into the surfaces."),
 			Control: segmented(&p.tint, func(index int) {
 				e.SetLook(contrasts[p.contrast.Selected], tints[index])
 			}),
-		},
-	})
+		})
+	}
+	return look.SettingsSection(gtx, th, i18n.T("Appearance"), settings)
 }
 
 // the stored words are normalised when read, so falling back to the first option is never seen

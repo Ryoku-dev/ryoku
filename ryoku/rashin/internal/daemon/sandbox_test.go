@@ -8,6 +8,7 @@ import (
 
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
+	"ryoku-rashin/internal/sandbox"
 )
 
 // accessTeams gives every session the same team access.
@@ -18,45 +19,65 @@ type accessTeams struct {
 
 func (t *accessTeams) Access(protocol.SessionInfo) protocol.TeamAccess { return t.access }
 
-// With no list of its own, a team agent sees the built-in private paths as
-// empty, expanded from "~/"; a list the user set replaces them, and an empty
-// one hides nothing beyond Rashin's own dirs.
-func TestTeamSandboxesHideTheSettingsList(t *testing.T) {
+// Every team sandbox hides the places credentials live and every harness's
+// own state, whatever the settings say: the user's list only adds to them,
+// and an empty one hides exactly what Rashin always hides.
+func TestTeamSandboxesAlwaysHideSecretsAndTheSettingsListAddsToThem(t *testing.T) {
 	isolateDaemon(t)
 	d := &Daemon{}
-	d.settings.Teams.Hidden = nil
-	spec := d.sandboxBase()
-	for _, path := range []string{"~/.ssh", "~/.gnupg", "~/.config/chromium", "~/.local/share/keyrings"} {
-		want := paths.Resolved(filepath.Join(paths.Home(), path[2:]))
-		if !slices.Contains(spec.Hidden, want) {
-			t.Fatalf("the default list does not hide %s: %v", want, spec.Hidden)
+	for _, hidden := range [][]string{nil, {}, {"~/Private", "/srv/secrets"}} {
+		d.settings.Teams.Hidden = hidden
+		spec := d.sandboxBase()
+		for _, path := range []string{
+			"~/.ssh", "~/.gnupg", "~/.config/gh", "~/.hermes", "~/.codex", "~/.claude", "~/.omp", "~/.config/chromium",
+			"~/.config/vivaldi", "~/.librewolf", "~/.config/vesktop", "~/.config/Signal", "~/.local/share/TelegramDesktop",
+			"~/.bash_history", "~/.zsh_history", "~/.local/share/fish/fish_history", "~/.aws", "~/.config/gcloud",
+			"~/.vault-token", "~/.config/rclone", "~/.npmrc", "~/.pypirc", "~/.cargo/credentials.toml", "~/.thunderbird",
+			"~/.local/share/keyrings", "~/.local/state/ryoku",
+		} {
+			if !slices.Contains(spec.Hidden, paths.Resolved(paths.Expand(path))) {
+				t.Fatalf("with the list %v the sandbox does not hide %s", hidden, path)
+			}
+		}
+		for _, private := range []string{paths.StateDir(), paths.CacheDir(), paths.TeamsHome(), paths.VaultDir()} {
+			if !slices.Contains(spec.Hidden, paths.Resolved(private)) {
+				t.Fatalf("the sandbox does not hide %s", private)
+			}
 		}
 	}
-	for _, private := range []string{paths.StateDir(), paths.CacheDir(), paths.TeamsHome(), paths.VaultDir()} {
-		if !slices.Contains(spec.Hidden, paths.Resolved(private)) {
-			t.Fatalf("the sandbox does not hide %s", private)
-		}
-	}
-
-	d.settings.Teams.Hidden = []string{"~/Private", "/srv/secrets"}
-	spec = d.sandboxBase()
-	if !slices.Contains(spec.Hidden, paths.Resolved(filepath.Join(paths.Home(), "Private"))) || !slices.Contains(spec.Hidden, paths.Resolved("/srv/secrets")) {
+	if spec := d.sandboxBase(); !slices.Contains(spec.Hidden, paths.Resolved(filepath.Join(paths.Home(), "Private"))) || !slices.Contains(spec.Hidden, paths.Resolved("/srv/secrets")) {
 		t.Fatalf("the user's list is not hidden: %v", spec.Hidden)
 	}
-	if slices.Contains(spec.Hidden, paths.Resolved(filepath.Join(paths.Home(), ".ssh"))) {
-		t.Fatalf("a list the user set still hides the defaults: %v", spec.Hidden)
-	}
-
 	d.settings.Teams.Hidden = []string{}
-	spec = d.sandboxBase()
-	if len(spec.Hidden) != len(privateDirs()) {
-		t.Fatalf("an empty list hides more than Rashin's dirs: %v", spec.Hidden)
+	if spec := d.sandboxBase(); !slices.Equal(spec.Hidden, alwaysHidden()) {
+		t.Fatalf("an empty list hides other than what Rashin always hides: %v", spec.Hidden)
 	}
+}
+
+// A team folder inside what Rashin always hides is refused, as binding it
+// would uncover it; one under the teams' home is a team's own.
+func TestATeamFolderInsideAHiddenPlaceIsRefused(t *testing.T) {
+	isolateDaemon(t)
+	shortRuntime(t)
+	d := New(Deps{})
+	for _, folder := range []string{filepath.Join(paths.Home(), ".ssh"), filepath.Join(paths.Home(), ".omp", "agent"), filepath.Join(paths.StateDir(), "x")} {
+		info, err := d.manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent, Cwd: folder, Team: "team-1", TeamTask: "task-1", Member: "member-1"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := d.agentSandbox(info); err == nil {
+			t.Fatalf("a team folder in %s was given a sandbox", folder)
+		}
+		if _, err := os.Stat(folder); !os.IsNotExist(err) {
+			t.Fatalf("the refused folder %s was made", folder)
+		}
+	}
+	t.Cleanup(d.closeAgentSockets)
 }
 
 // A team's own access widens and narrows its agents' sandbox: its hidden
 // paths join the list, and its writable folders become writable when they
-// exist and do not reach into Rashin's private dirs.
+// exist and do not reach into what Rashin always hides.
 func TestTeamAccessWidensAndNarrowsTheSandbox(t *testing.T) {
 	isolateDaemon(t)
 	home := paths.Home()
@@ -68,7 +89,9 @@ func TestTeamAccessWidensAndNarrowsTheSandbox(t *testing.T) {
 	ownCache := filepath.Join(own, "cache")
 	otherTeam := filepath.Join(paths.TeamsHome(), "two")
 	state := paths.StateDir()
-	for _, dir := range []string{ownCache, otherTeam, state} {
+	gh := filepath.Join(home, ".config", "gh")
+	omp := filepath.Join(home, ".omp", "agent")
+	for _, dir := range []string{ownCache, otherTeam, state, gh, omp} {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			t.Fatal(err)
 		}
@@ -78,7 +101,7 @@ func TestTeamAccessWidensAndNarrowsTheSandbox(t *testing.T) {
 	spec := d.sandboxBase()
 	spec.Folder = paths.Resolved(own)
 	spec = withAccess(spec, protocol.TeamAccess{
-		Writable: []string{shared, filepath.Join(home, "Gone"), otherTeam, state, ownCache},
+		Writable: []string{shared, filepath.Join(home, "Gone"), otherTeam, state, gh, omp, ownCache},
 		Hidden:   []string{filepath.Join(home, "Projects", "site", ".env")},
 	})
 	want := []string{paths.Resolved(shared), paths.Resolved(ownCache)}
@@ -117,5 +140,59 @@ func TestAgentAndScreenSandboxesTakeTheTeamsAccess(t *testing.T) {
 	screen := d.screenSandbox(team.ID)
 	if screen == nil || !slices.Contains(screen.Hidden, paths.Resolved(secret)) || slices.Contains(screen.Writable, paths.Resolved(shared)) {
 		t.Fatalf("the screen's sandbox = %+v", screen)
+	}
+}
+
+// Every Rashin sandbox (a team agent's, a Check's, a team screen's and a
+// read-only Ask's) covers the host's /run, keeps the host daemons outside it
+// hidden, drops the system bus address and runs its program through the
+// rashin command's scope.
+func TestEverySandboxCoversRunAndRunsThroughTheScope(t *testing.T) {
+	isolateDaemon(t)
+	shortRuntime(t)
+	bin := t.TempDir()
+	rashin := filepath.Join(bin, "rashin")
+	if err := os.WriteFile(rashin, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	d := New(Deps{Teams: &accessTeams{}})
+	t.Cleanup(d.closeAgentSockets)
+	team, err := d.manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent, Cwd: filepath.Join(paths.TeamsHome(), "one"), Team: "team-1", TeamTask: "task-1", Member: "member-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ask, err := d.manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent, Cwd: paths.Home()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	agent, err := d.agentSandbox(team)
+	if err != nil {
+		t.Fatal(err)
+	}
+	asking, err := d.askSandbox(ask)
+	if err != nil {
+		t.Fatal(err)
+	}
+	probe := d.probeSandbox()
+	for name, spec := range map[string]*sandbox.Spec{"agent": agent, "check": &probe, "screen": d.screenSandbox(team.ID), "ask": asking} {
+		for _, path := range []string{"/run/dbus/system_bus_socket", "/run/docker.sock", "/run/libvirt/libvirt-sock"} {
+			if !spec.Hides(path) {
+				t.Errorf("the %s sandbox shows %s", name, path)
+			}
+		}
+		if spec.Scope != rashin {
+			t.Errorf("the %s sandbox runs through %q, not the rashin command", name, spec.Scope)
+		}
+	}
+	for _, spec := range []*sandbox.Spec{agent, &probe} {
+		if !slices.Contains(spec.Unset, "DBUS_SYSTEM_BUS_ADDRESS") {
+			t.Errorf("the system bus address crosses: %v", spec.Unset)
+		}
+		for _, path := range []string{"/nix/var/nix/daemon-socket", "/var/lib/incus"} {
+			if !spec.Hides(path) {
+				t.Errorf("%s shows", path)
+			}
+		}
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	i18n "ryoku-i18n"
@@ -35,6 +36,8 @@ type teamEdit struct {
 	Notify    string              `json:"notify"`
 	Running   int                 `json:"running"`
 	Access    protocol.TeamAccess `json:"access"`
+	Memory    protocol.TeamMemory `json:"memory"`
+	SkillsOff []string            `json:"skillsOff"`
 }
 
 // listTeams lists every team by name with its stats.
@@ -118,38 +121,94 @@ func (s *Service) fillStats(teams []protocol.Team) {
 	}
 }
 
-// createTeam makes a team and the routines it starts with.
+// createTeam makes a team and the routines it starts with, then asks for the
+// credentials its template needs that the vault does not hold.
 func (s *Service) createTeam(ctx context.Context, p protocol.TeamCreateParams) (protocol.Team, error) {
-	now := s.now()
-	team := protocol.Team{
+	template, _ := templateByID(p.Template)
+	return s.makeTeam(ctx, p, template.Credentials)
+}
+
+// makeTeam makes a team and its routines, then opens a credential request
+// for each of needs the vault does not hold.
+func (s *Service) makeTeam(ctx context.Context, p protocol.TeamCreateParams, needs []protocol.CredentialNeed) (protocol.Team, error) {
+	team, err := s.addTeam(ctx, newTeam(p, s.now()), p.Routines, "team.create", createdDetail)
+	if err != nil || len(needs) == 0 {
+		return team, err
+	}
+	s.askNeeds(ctx, team, needs)
+	asked, _ := s.teamWithStats(team.ID)
+	return asked, nil
+}
+
+// newTeam is the team teams.create would make from p, not yet checked.
+func newTeam(p protocol.TeamCreateParams, now time.Time) protocol.Team {
+	return protocol.Team{
 		ID: newID("team"), Name: p.Name, Purpose: p.Purpose, Template: p.Template,
 		Folder: p.Folder, Members: p.Members, Tools: p.Tools, Approvals: p.Approvals,
 		Budget: p.Budget, Notify: p.Notify, Running: p.Running, Access: p.Access,
 		Created: now, Updated: now,
 	}
-	detail := func(t protocol.Team) string {
-		if len(t.Members) == 1 {
-			return i18n.Tf("Made with one member, working in %s.", paths.Short(t.Folder))
-		}
-		return i18n.Tf("Made with %d members, working in %s.", len(t.Members), paths.Short(t.Folder))
-	}
-	return s.addTeam(ctx, team, p.Routines, "team.create", detail)
 }
 
-// addTeam validates and stores a new team, then creates its routines through
-// the routine path. A routine that cannot be made takes the team back out,
-// so a create either happens whole or not at all. A team that names no
-// budget takes the teams defaults', with its template's turns per task.
-func (s *Service) addTeam(ctx context.Context, team protocol.Team, drafts []protocol.RoutineDraft, action string, detail func(protocol.Team) string) (protocol.Team, error) {
-	settings := s.settings()
+// createdDetail is the ledger's detail for a team just made.
+func createdDetail(t protocol.Team) string {
+	if len(t.Members) == 1 {
+		return i18n.Tf("Made with one member, working in %s.", paths.Short(t.Folder))
+	}
+	return i18n.Tf("Made with %d members, working in %s.", len(t.Members), paths.Short(t.Folder))
+}
+
+// prepareTeam checks a new team as it would be stored: it keeps what the
+// teams defaults say new teams keep, and a team that names no budget takes
+// the teams defaults', with its template's turns per task. Nothing is stored
+// and no folder is made.
+func (s *Service) prepareTeam(team *protocol.Team, settings protocol.Settings) (map[string]string, error) {
+	if team.Memory == nil {
+		memory := settings.Teams.Defaults.Memory
+		team.Memory = &memory
+	}
 	if team.Budget == (protocol.TeamBudget{}) {
 		team.Budget = settings.Teams.Defaults.Budget
 		if template, ok := templateByID(team.Template); ok {
 			team.Budget.TaskTurns = template.Budget.TaskTurns
 		}
 	}
-	renamed, err := normaliseTeam(&team, true, settings, nil)
+	return normaliseTeam(team, true, settings, nil)
+}
+
+// checkNewTeam checks what teams.create would check of p, its routines
+// included, without storing anything or making its folder.
+func (s *Service) checkNewTeam(p protocol.TeamCreateParams) error {
+	team := newTeam(p, s.now())
+	renamed, err := s.prepareTeam(&team, s.settings())
 	if err != nil {
+		return err
+	}
+	on := 0
+	for _, draft := range p.Routines {
+		r := protocol.Routine{
+			Team: team.ID, Title: draft.Title, Brief: draft.Brief,
+			Member: routineMember(team, draft.Member, renamed), Schedule: draft.Schedule, Enabled: draft.Enabled,
+		}
+		if err := s.routineFits(team, &r, on); err != nil {
+			return err
+		}
+		if r.Enabled {
+			on++
+		}
+	}
+	return nil
+}
+
+// addTeam validates and stores a new team, then creates its routines through
+// the routine path. A routine that cannot be made takes the team back out,
+// so a create either happens whole or not at all.
+func (s *Service) addTeam(ctx context.Context, team protocol.Team, drafts []protocol.RoutineDraft, action string, detail func(protocol.Team) string) (protocol.Team, error) {
+	renamed, err := s.prepareTeam(&team, s.settings())
+	if err != nil {
+		return protocol.Team{}, err
+	}
+	if err := makeFolder(team.Folder); err != nil {
 		return protocol.Team{}, err
 	}
 	if err := s.state.putTeam(team); err != nil {
@@ -187,7 +246,7 @@ func (s *Service) updateTeam(ctx context.Context, p protocol.TeamUpdateParams) (
 	base, err := json.Marshal(teamEdit{
 		Name: current.Name, Purpose: current.Purpose, Folder: current.Folder, Members: current.Members,
 		Tools: current.Tools, Approvals: current.Approvals, Budget: current.Budget, Notify: current.Notify,
-		Running: current.Running, Access: current.Access,
+		Running: current.Running, Access: current.Access, Memory: current.TeamMemory(), SkillsOff: current.SkillsOff,
 	})
 	if err != nil {
 		return protocol.Team{}, err
@@ -214,12 +273,19 @@ func (s *Service) updateTeam(ctx context.Context, p protocol.TeamUpdateParams) (
 	team.Name, team.Purpose, team.Folder, team.Members = next.Name, next.Purpose, next.Folder, next.Members
 	team.Tools, team.Approvals, team.Budget, team.Notify = next.Tools, next.Approvals, next.Budget, next.Notify
 	team.Running, team.Access = next.Running, next.Access
+	team.SkillsOff = slices.DeleteFunc(slices.Compact(slices.Sorted(slices.Values(next.SkillsOff))), func(id string) bool { return id == "" })
+	if next.Memory != current.TeamMemory() {
+		team.Memory = &next.Memory
+	}
 	// a harness the team already runs on stays accepted after its definition went
 	kept := make(map[string]bool, len(current.Members))
 	for _, m := range current.Members {
 		kept[m.Harness] = true
 	}
 	if _, err := normaliseTeam(&team, false, s.settings(), kept); err != nil {
+		return protocol.Team{}, err
+	}
+	if err := makeFolder(team.Folder); err != nil {
 		return protocol.Team{}, err
 	}
 	changes := s.teamChanges(current, team)
@@ -247,8 +313,11 @@ func (s *Service) updateTeam(ctx context.Context, p protocol.TeamUpdateParams) (
 }
 
 // deleteTeam stops a team's work and removes it with its tasks, routines,
-// approvals and grants. Its folder stays: it holds what the team made.
-func (s *Service) deleteTeam(_ context.Context, id string) error {
+// approvals and grants, then forgets what it remembers. Its folder stays: it
+// holds what the team made. Forgetting comes last, so no task of the team can
+// remember anything after it, and a memory engine that fails never keeps the
+// team.
+func (s *Service) deleteTeam(ctx context.Context, id string) error {
 	team, ok := s.state.team(id)
 	if !ok {
 		return protocol.Errorf(protocol.CodeNotFound, "%s", i18n.Tf("No team %s.", id))
@@ -260,6 +329,7 @@ func (s *Service) deleteTeam(_ context.Context, id string) error {
 	if err := s.state.removeTeam(id); err != nil {
 		return err
 	}
+	s.forgetTeam(ctx, team)
 	for _, t := range tasks {
 		s.broadcast(protocol.EvtTeamTaskRemoved, protocol.TeamRemoved{ID: t.ID})
 	}
@@ -274,12 +344,17 @@ func (s *Service) deleteTeam(_ context.Context, id string) error {
 
 // pauseTeam pauses a team, stopping its working tasks, or lets it work again.
 // A team its spending limit paused starts again only with a higher limit.
+// Letting a dream work, paused or not, starts its manager again when no
+// standing task is open.
 func (s *Service) pauseTeam(_ context.Context, p protocol.TeamPauseParams) (protocol.Team, error) {
 	team, ok := s.state.team(p.ID)
 	if !ok {
 		return protocol.Team{}, protocol.Errorf(protocol.CodeNotFound, "%s", i18n.Tf("No team %s.", p.ID))
 	}
 	if team.Paused == p.Paused {
+		if !p.Paused {
+			s.runDream(team.ID, protocol.InitiatorYou)
+		}
 		current, _ := s.teamWithStats(team.ID)
 		return current, nil
 	}
@@ -324,6 +399,7 @@ func (s *Service) pauseTeam(_ context.Context, p protocol.TeamPauseParams) (prot
 	})
 	s.emitTeam(team.ID)
 	s.pump()
+	s.runDream(team.ID, protocol.InitiatorYou)
 	resumed, _ := s.teamWithStats(team.ID)
 	return resumed, nil
 }
@@ -394,7 +470,7 @@ func normaliseTeam(t *protocol.Team, fresh bool, settings protocol.Settings, kep
 	if t.Running < 0 || t.Running > protocol.TeamsPerTeamMax {
 		return nil, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("Tasks at once in one team must be between 1 and %d.", protocol.TeamsPerTeamMax))
 	}
-	folder, err := resolveFolder(t.Folder, t.Name)
+	folder, err := teamFolder(t.Folder, t.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -510,7 +586,8 @@ func normaliseAccess(a *protocol.TeamAccess, own string) error {
 
 // writableFolder checks one folder a team may change besides its own: an
 // existing folder given by its full path, neither the home folder nor one
-// above it, and not inside the teams' folders unless inside the team's own.
+// above it, and not inside the teams' or dreams' folders unless inside the
+// team's own.
 func writableFolder(path, own string) (string, error) {
 	full := paths.Expand(strings.TrimSpace(path))
 	if !filepath.IsAbs(full) {
@@ -520,7 +597,8 @@ func writableFolder(path, own string) (string, error) {
 	if paths.Within(full, paths.Home()) {
 		return "", protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("Letting a team change %s would let it change everything.", path))
 	}
-	if paths.Within(paths.TeamsHome(), full) && (own == "" || !paths.Within(own, full)) {
+	inside := paths.Within(paths.TeamsHome(), full) || paths.Within(paths.DreamsHome(), full)
+	if inside && (own == "" || !paths.Within(own, full)) {
 		return "", protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("%s belongs to another team.", path))
 	}
 	info, err := os.Stat(full)
@@ -530,9 +608,9 @@ func writableFolder(path, own string) (string, error) {
 	return paths.Short(full), nil
 }
 
-// resolveFolder turns a team's folder into a full path, defaulting to its
-// own folder under the Teams home, and makes sure it exists.
-func resolveFolder(folder, name string) (string, error) {
+// teamFolder turns a team's folder into a full path, defaulting to its own
+// folder under the Teams home. A path that exists must be a folder.
+func teamFolder(folder, name string) (string, error) {
 	folder = paths.Expand(strings.TrimSpace(folder))
 	if folder == "" {
 		folder = filepath.Join(paths.TeamsHome(), slugName(name))
@@ -541,14 +619,18 @@ func resolveFolder(folder, name string) (string, error) {
 		return "", protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("The team's folder must be a full path."))
 	}
 	folder = filepath.Clean(folder)
-	if err := paths.EnsureDir(folder); err != nil {
-		return "", protocol.Errorf(protocol.CodeUnavailable, "%s", i18n.Tf("Rashin cannot make the folder %s: %v.", paths.Short(folder), err))
-	}
-	info, err := os.Stat(folder)
-	if err != nil || !info.IsDir() {
+	if info, err := os.Stat(folder); err == nil && !info.IsDir() {
 		return "", protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("%s is not a folder.", paths.Short(folder)))
 	}
 	return folder, nil
+}
+
+// makeFolder makes sure a team's folder exists.
+func makeFolder(folder string) error {
+	if err := paths.EnsureDir(folder); err != nil {
+		return protocol.Errorf(protocol.CodeUnavailable, "%s", i18n.Tf("Rashin cannot make the folder %s: %v.", paths.Short(folder), err))
+	}
+	return nil
 }
 
 var slugPart = regexp.MustCompile(`[^\p{L}\p{N}]+`)

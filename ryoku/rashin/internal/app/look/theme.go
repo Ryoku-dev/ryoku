@@ -3,7 +3,6 @@ package look
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 	libtheme "github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme"
@@ -23,25 +22,12 @@ func New(mode palette.Mode, look palette.Look) *Theme {
 	return &Theme{Theme: libtheme.New(roles), Mode: mode, Look: look}
 }
 
-func ParseMode(value string) (palette.Mode, error) {
-	switch value {
-	case "", "follow":
-		return palette.Follow, nil
-	case "dark":
-		return palette.Dark, nil
-	case "light":
-		return palette.Light, nil
-	default:
-		return palette.Follow, fmt.Errorf("unknown palette mode %q", value)
-	}
-}
-
-// Watch follows the resolved Ryoku palette and returns replacements to apply on
-// the window goroutine.
-func Watch(ctx context.Context, mode func() palette.Mode, look func() palette.Look, changed func(*Theme)) {
-	palette.Watch(ctx, mode, func(resolved palette.Palette) {
+// Watch follows the desktop's palette, which only the Follow mode reads, and
+// returns replacements to apply on the window goroutine.
+func Watch(ctx context.Context, look func() palette.Look, changed func(*Theme)) {
+	palette.Watch(ctx, func() palette.Mode { return palette.Follow }, func(resolved palette.Palette) {
 		current := look()
 		roles := palette.FromPalette(resolved, current)
-		changed(&Theme{Theme: libtheme.New(roles), Mode: mode(), Look: current})
+		changed(&Theme{Theme: libtheme.New(roles), Mode: palette.Follow, Look: current})
 	})
 }

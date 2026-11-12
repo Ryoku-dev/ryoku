@@ -2,7 +2,6 @@ package chat
 
 import (
 	"strconv"
-	"strings"
 
 	"gioui.org/layout"
 
@@ -22,7 +21,10 @@ type foldInfo struct {
 
 func isWorkRow(model *modelState, row *transcriptRow) bool {
 	switch row.kind {
-	case rowTool, rowThought:
+	case rowTool:
+		// a row whose only call gave way to its memory line shows nothing
+		return len(row.tools) > 0
+	case rowThought:
 		return true
 	case rowTerminal:
 		return model.terminalOwners[row.key] == ""
@@ -101,20 +103,24 @@ func (state *viewState) layoutFold(gtx layout.Context, th *look.Theme, anchor in
 			label = i18n.Tf("You stopped it after %s", waitedFor(fold.turn.ended.Sub(fold.turn.began)))
 		}
 	}
-	var parts []string
+	var steps, thoughts string
 	switch {
 	case fold.steps == 1:
-		parts = append(parts, i18n.T("1 step"))
+		steps = i18n.T("1 step")
 	case fold.steps > 1:
-		parts = append(parts, i18n.Tf("%d steps", fold.steps))
+		steps = i18n.Tf("%d steps", fold.steps)
 	}
 	switch {
 	case fold.thoughts == 1:
-		parts = append(parts, i18n.T("1 thought"))
+		thoughts = i18n.T("1 thought")
 	case fold.thoughts > 1:
-		parts = append(parts, i18n.Tf("%d thoughts", fold.thoughts))
+		thoughts = i18n.Tf("%d thoughts", fold.thoughts)
 	}
-	line := workLine{icon: look.Icon.Steps, label: label, prose: strings.Join(parts, " · "), expandable: true}
+	prose := steps + thoughts
+	if steps != "" && thoughts != "" {
+		prose = i18n.Tf("%s and %s", steps, thoughts)
+	}
+	line := workLine{icon: look.Icon.Steps, label: label, prose: prose, expandable: true}
 	head := func(gtx layout.Context) layout.Dimensions { return state.layoutLine(gtx, th, visual, line) }
 	if !visual.open {
 		return head(gtx)

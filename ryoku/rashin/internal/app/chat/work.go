@@ -36,6 +36,8 @@ type workVisual struct {
 	since time.Time
 	// a subagent's time between the reports that carry it
 	clock *agentClock
+	// a line that opens a popover was pressed, for its owner to open or close it
+	pressed bool
 }
 
 type workLine struct {
@@ -48,6 +50,8 @@ type workLine struct {
 	running    bool
 	failed     bool
 	expandable bool
+	// it opens a popover on a press instead of unfolding
+	pops bool
 }
 
 func (state *viewState) workVisual(key string) *workVisual {
@@ -79,8 +83,12 @@ func toolRunning(tool *protocol.ToolData) bool {
 func (state *viewState) layoutLine(gtx layout.Context, th *look.Theme, visual *workVisual, line workLine) layout.Dimensions {
 	height := gtx.Dp(32)
 	limit := gtx.Constraints.Max.X
-	if visual.click.Clicked(gtx) && line.expandable {
-		visual.open = !visual.open
+	pressable := line.expandable || line.pops
+	if visual.click.Clicked(gtx) {
+		if line.expandable {
+			visual.open = !visual.open
+		}
+		visual.pressed = line.pops
 	}
 	reserve := 0
 	if line.running {
@@ -105,18 +113,19 @@ func (state *viewState) layoutLine(gtx layout.Context, th *look.Theme, visual *w
 		})
 		x += dimensions.Size.X
 	}
-	hovered := visual.hover.Hovered() && line.expandable
+	hovered := visual.hover.Hovered() && pressable
 	ink := th.R.Fg2
 	if hovered || visual.open {
 		ink = th.R.Fg
 	}
 	put(0, look.IconWidget(line.icon, 16, th.R.Fg3))
 	put(gtx.Dp(8), kit.RawText(th.Theme, th.T.Label, ink, line.label))
+	// the parts of a line are set apart by space, never by a separator glyph
 	if line.literal != "" {
-		put(gtx.Dp(8), kit.RawText(th.Theme, th.T.MonoSm, th.R.Fg3, line.literal))
+		put(gtx.Dp(th.Sp.S3), kit.RawText(th.Theme, th.T.MonoSm, th.R.Fg3, line.literal))
 	}
 	if line.prose != "" {
-		put(gtx.Dp(8), kit.RawText(th.Theme, th.T.Caption, th.R.Fg3, line.prose))
+		put(gtx.Dp(th.Sp.S3), kit.RawText(th.Theme, th.T.Caption, th.R.Fg3, line.prose))
 	}
 	reserve = 0
 	if line.running {
@@ -125,7 +134,7 @@ func (state *viewState) layoutLine(gtx layout.Context, th *look.Theme, visual *w
 		})
 	}
 	if line.waited != "" {
-		put(gtx.Dp(8), kit.RawText(th.Theme, th.T.MonoSm, th.R.Fg3, line.waited))
+		put(gtx.Dp(8), kit.RawText(th.Theme, th.T.Caption, th.R.Fg3, line.waited))
 	}
 	if line.failed {
 		put(gtx.Dp(13), kit.Claim(th.Theme, palette.Failed, i18n.T("Failed")))
@@ -143,12 +152,12 @@ func (state *viewState) layoutLine(gtx layout.Context, th *look.Theme, visual *w
 
 	size := image.Pt(x, height)
 	dimensions, hover := visual.hover.Layout(gtx, th, func(gtx layout.Context) layout.Dimensions {
-		if !line.expandable {
+		if !pressable {
 			return layout.Dimensions{Size: size}
 		}
 		return visual.click.Layout(gtx, func(gtx layout.Context) layout.Dimensions { return layout.Dimensions{Size: size} })
 	})
-	if line.expandable && hover > 0 {
+	if pressable && hover > 0 {
 		pad := gtx.Dp(8)
 		plane := image.Rect(-pad, 0, size.X+pad, size.Y)
 		kit.FillCut(gtx.Ops, plane, gtx.Dp(th.Cut.Small), palette.WithAlpha(th.R.Stone3, hover))
@@ -394,8 +403,7 @@ func (state *viewState) layoutToolDiff(gtx layout.Context, th *look.Theme, tool 
 		dimensions := view.Layout(gtx, th, result, diffview.Options{Overlays: state.overlays, FoldOver: 80, Headless: true})
 		call := record.Stop()
 		bounds, cut := image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid)
-		kit.FillCut(gtx.Ops, bounds, cut, th.R.Slab)
-		kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(1)), th.R.Vein)
+		kit.SlabSurface(gtx, th.Theme, bounds, cut, th.R.Slab)
 		call.Add(gtx.Ops)
 		return dimensions
 	}

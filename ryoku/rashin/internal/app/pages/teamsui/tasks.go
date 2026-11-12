@@ -51,11 +51,11 @@ func GroupOf(task protocol.TeamTask) Group {
 }
 
 // the top-level tasks by group; pieces a lead handed out stand on their
-// task's page, not beside it, and team "" keeps every team's
-func GroupTasks(snapshot state.Snapshot, team string) [GroupCount][]protocol.TeamTask {
+// task's page, not beside it, unless pieces asks for them; team "" keeps every team's
+func GroupTasks(snapshot state.Snapshot, team string, pieces bool) [GroupCount][]protocol.TeamTask {
 	var groups [GroupCount][]protocol.TeamTask
 	for _, task := range snapshot.TeamTasks {
-		if task.Parent != "" || team != "" && task.Team != team {
+		if task.Parent != "" && !pieces || team != "" && task.Team != team {
 			continue
 		}
 		at := GroupOf(task)

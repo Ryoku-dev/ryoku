@@ -167,15 +167,21 @@ func (s *Service) patchRoutine(id string, patch map[string]any) (protocol.Routin
 }
 
 // validRoutine checks and normalises a routine before it is stored: its team
-// exists, it has a title and a brief, its member belongs to the team, its
-// schedule parses and runs no more often than RoutineMinInterval, and no
-// more than RoutinesEnabledMax routines are on. The caller holds the edit
-// lock.
+// exists and routineFits accepts it with the routines already on. The
+// caller holds the edit lock.
 func (s *Service) validRoutine(r *protocol.Routine) error {
 	team, ok := s.state.team(r.Team)
 	if !ok {
 		return protocol.Errorf(protocol.CodeNotFound, "%s", i18n.Tf("No team %s.", r.Team))
 	}
+	return s.routineFits(team, r, 0)
+}
+
+// routineFits checks and normalises a routine of team: it has a title and a
+// brief, its member belongs to the team, its schedule parses and runs no
+// more often than RoutineMinInterval, and with the routines stored and
+// pending more about to be turned on, no more than RoutinesEnabledMax are on.
+func (s *Service) routineFits(team protocol.Team, r *protocol.Routine, pending int) error {
 	r.Title, r.Brief, r.Schedule = strings.TrimSpace(r.Title), strings.TrimSpace(r.Brief), strings.TrimSpace(r.Schedule)
 	r.Sentence, r.NextRun = "", nil
 	if r.Title == "" {
@@ -215,7 +221,7 @@ func (s *Service) validRoutine(r *protocol.Routine) error {
 	if !r.Enabled {
 		return nil
 	}
-	on := 0
+	on := pending
 	for _, other := range s.state.routines() {
 		if other.Enabled && other.ID != r.ID {
 			on++
@@ -343,6 +349,24 @@ func (s *Service) routineOpen(r protocol.Routine) bool {
 	}
 	task, ok := s.state.task(r.LastTask)
 	return ok && taskIsOpen(task)
+}
+
+// lastReport is the report of the routine's run before task: the newest
+// other run of its routine that ended done with a report. A quiet report is
+// passed over, since it says only that nothing changed since the one before.
+func (s *Service) lastReport(task protocol.TeamTask) (protocol.TeamReport, bool) {
+	runs := s.state.tasks(func(t protocol.TeamTask) bool {
+		return t.Routine == task.Routine && t.ID != task.ID && t.Status == protocol.TaskDone &&
+			t.Report != nil && !t.Report.Quiet && strings.TrimSpace(t.Report.Body) != ""
+	})
+	var last protocol.TeamReport
+	found := false
+	for _, run := range runs {
+		if !found || run.Report.At.After(last.At) {
+			last, found = *run.Report, true
+		}
+	}
+	return last, found
 }
 
 // skipRoutine records a run the routine did not start.

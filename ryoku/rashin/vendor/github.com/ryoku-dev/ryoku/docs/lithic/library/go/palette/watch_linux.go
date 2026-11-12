@@ -15,7 +15,9 @@ import (
 
 const watchMask = syscall.IN_CLOSE_WRITE | syscall.IN_MOVED_TO | syscall.IN_CREATE | syscall.IN_DELETE | syscall.IN_DELETE_SELF | syscall.IN_MOVE_SELF
 
-// Watch follows palette file replacement and calls fn when the resolved palette changes.
+// Watch follows palette file replacement and calls fn when the resolved
+// palette changes. Only Follow reads those files, so an app watches while
+// it follows the wallpaper.
 func Watch(ctx context.Context, mode func() Mode, fn func(Palette)) error {
 	fd, err := syscall.InotifyInit1(syscall.IN_CLOEXEC)
 	if err != nil {
@@ -175,5 +177,5 @@ func firstSeparator(path string) int {
 }
 
 func equalPalette(a, b Palette) bool {
-	return a.Dark == b.Dark && a.Forced == b.Forced && a.Source == b.Source && maps.Equal(a.Roles, b.Roles)
+	return a.Dark == b.Dark && a.Source == b.Source && maps.Equal(a.Roles, b.Roles)
 }

@@ -26,7 +26,7 @@ func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 			}
 			facts := p.schedules.Sentence(routine)
 			if live(snapshot, routine) && routine.NextRun != nil {
-				facts = i18n.Tf("%s · %s", facts, look.Until(gtx.Now, *routine.NextRun))
+				facts = look.Clauses(facts, look.Until(gtx.Now, *routine.NextRun))
 			}
 			row := look.SideRow{ID: routine.ID, Title: routine.Title, Facts: facts, Menu: true}
 			if word, tone := teamsui.RoutineStanding(routine); word != "" {

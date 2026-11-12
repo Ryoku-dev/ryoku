@@ -9,6 +9,7 @@ arrow_upward
 assignment fill
 assignment_turned_in
 attachment
+bedtime fill
 call_split
 check
 chevron_right
@@ -39,21 +40,26 @@ fullscreen
 fullscreen_exit
 group fill
 history
+hourglass_empty
 home
 inbox fill
 key
+keep fill
 lightbulb
 link
 lock
 lock_open
 mail
+menu_book
 more_vert
 my_location
+neurology
 open_in_new
 pause
 person
 play_arrow
 refresh
+redo
 remove
 restart_alt
 schedule

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"maps"
 	"net"
 	"os"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 	"ryoku-rashin/internal/config"
 	"ryoku-rashin/internal/harness"
 	"ryoku-rashin/internal/protocol"
+	"ryoku-rashin/internal/sandbox"
 	"ryoku-rashin/internal/teams"
 )
 
@@ -108,10 +110,20 @@ func (c *connection) serve() {
 func (c *connection) handle(frame protocol.Frame) {
 	ctx := context.Background()
 	var refused error
+	// a connection on a session's own socket is a team task's agent, or the
+	// harness of an Ask that is read-only
+	ask := false
 	if c.session != "" {
+		info, ok := c.daemon.manager.Info(c.session)
+		ask = ok && info.Kind == protocol.KindAsk && info.Team == ""
+	}
+	switch {
+	case ask:
+		refused = askGate(frame.Method)
+	case c.session != "":
 		refused = agentGate(c.session, frame.Method, frame.Params)
 		ctx = teams.WithAgentSession(ctx, c.session)
-	} else {
+	default:
 		refused = c.daemon.mainGate(c, frame.Method, frame.Params)
 	}
 	if refused != nil {
@@ -129,7 +141,13 @@ func (c *connection) handle(frame protocol.Frame) {
 		})
 		return
 	}
-	result, err := c.daemon.dispatch(ctx, c, frame.Method, frame.Params)
+	var result any
+	var err error
+	if c.session != "" && !ask && agentIndex[frame.Method] {
+		result, err = c.daemon.agentIndexCall(ctx, c, frame.Method, frame.Params)
+	} else {
+		result, err = c.daemon.dispatch(ctx, c, frame.Method, frame.Params)
+	}
 	c.respond(*frame.ID, result, err)
 }
 
@@ -438,6 +456,12 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 			return nil, err
 		}
 		return d.manager.fork(ctx, p)
+	case protocol.MSessionSetMemory:
+		p, err := unmarshal[protocol.SetMemoryParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.manager.setMemory(p)
 	case protocol.MSessionRead:
 		p, err := unmarshal[protocol.SessionRef](raw)
 		if err != nil {
@@ -499,12 +523,18 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 			d.broadcastProviders(ctx)
 		}
 		return out, err
+	case protocol.MProvidersLimits:
+		p, err := unmarshal[protocol.ProviderParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return protocol.Empty{}, d.deps.Gateway.RefreshLimits(ctx, p.Provider)
 	case protocol.MModelsList:
 		p, err := unmarshal[protocol.ModelsParams](raw)
 		if err != nil {
 			return nil, err
 		}
-		return d.deps.Gateway.Models(ctx, p.Provider)
+		return d.deps.Gateway.Models(ctx, p)
 	case protocol.MGatewayAPI:
 		return d.apiInfo(), nil
 	case protocol.MGatewayAPIKey:
@@ -533,6 +563,10 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 		return out, err
 	case protocol.MHarnessesProbe:
 		return d.probeHarness(ctx, c, raw)
+	case protocol.MHarnessesTeamsOpen:
+		return d.openTeamsHome(c, raw)
+	case protocol.MHarnessesTeamsDone:
+		return d.finishTeamsHome(raw)
 	case protocol.MIndexList:
 		list, err := d.deps.Indexer.List(ctx)
 		return protocol.IndexesResult{Indexes: list}, err
@@ -626,8 +660,6 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 	case protocol.MSettingsGet:
 		return d.Settings(), nil
 	case protocol.MSettingsSet:
-		d.settingsMu.Lock()
-		defer d.settingsMu.Unlock()
 		p, err := unmarshal[protocol.SettingsSetParams](raw)
 		if err != nil {
 			return nil, err
@@ -637,30 +669,7 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 				return nil, err
 			}
 		}
-		current := d.Settings()
-		next, err := config.Merge(current, p.Patch)
-		if err != nil {
-			return nil, err
-		}
-		// an instance removed later leaves the default unknown; only a new
-		// choice is checked, so unrelated changes still save
-		if chosen := next.Teams.Defaults.Harness; chosen != "" && chosen != current.Teams.Defaults.Harness && !harness.Known(chosen, next) {
-			return nil, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("No harness %s on this computer.", chosen))
-		}
-		next, err = config.SaveMerged(next)
-		if err != nil {
-			return nil, err
-		}
-		d.mu.Lock()
-		d.settings = next
-		d.mu.Unlock()
-		d.Broadcast(protocol.EvtSettingsChanged, next)
-		if d.deps.Teams != nil {
-			d.deps.Teams.SettingsChanged(next)
-		}
-		d.applyAPI()
-		d.stateChanged()
-		return next, nil
+		return d.applySettings(ctx, p.Patch)
 	case protocol.MUIOpen:
 		p, err := unmarshal[protocol.UIOpenParams](raw)
 		if err != nil {
@@ -727,8 +736,50 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 			}
 			return d.deps.Teams.Handle(ctx, method, raw)
 		}
+		if isMemoryMethod(method) {
+			return d.memoryCall(ctx, c, method, raw)
+		}
+		if isSkillsMethod(method) {
+			return d.skillsCall(c, method, raw)
+		}
 		return nil, protocol.Errorf(protocol.CodeUnsupported, "%s", i18n.Tf("Method %s is not supported.", method))
 	}
+}
+
+// applySettings merges patch into the settings, saves them and tells every
+// part that follows them. The caller has already checked who may change
+// what the patch reaches.
+func (d *Daemon) applySettings(ctx context.Context, patch json.RawMessage) (protocol.Settings, error) {
+	d.settingsMu.Lock()
+	defer d.settingsMu.Unlock()
+	current := d.Settings()
+	next, err := config.Merge(current, patch)
+	if err != nil {
+		return protocol.Settings{}, err
+	}
+	// an instance removed later leaves the default unknown; only a new
+	// choice is checked, so unrelated changes still save
+	if chosen := next.Teams.Defaults.Harness; chosen != "" && chosen != current.Teams.Defaults.Harness && !harness.Known(chosen, next) {
+		return protocol.Settings{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("No harness %s on this computer.", chosen))
+	}
+	next, err = config.SaveMerged(next)
+	if err != nil {
+		return protocol.Settings{}, err
+	}
+	d.mu.Lock()
+	d.settings = next
+	d.mu.Unlock()
+	d.Broadcast(protocol.EvtSettingsChanged, next)
+	if d.deps.Teams != nil {
+		d.deps.Teams.SettingsChanged(next)
+	}
+	d.applyAPI()
+	d.stateChanged()
+	// a new address is a different server: its running state and models follow it
+	if d.deps.Gateway != nil && !maps.Equal(next.Providers.Local, current.Providers.Local) {
+		d.broadcastProviders(ctx)
+	}
+	return next, nil
 }
 
 func requireAbsolutePath(path string) error {
@@ -862,7 +913,7 @@ func (d *Daemon) status(ctx context.Context) protocol.Status {
 	status := protocol.Status{
 		Version: d.deps.Version, Enabled: settings.Enabled, Running: true, PID: os.Getpid(),
 		UptimeSec: int64(time.Since(d.started).Seconds()), Clients: clients, Sessions: d.manager.counts(),
-		Gateway: d.deps.Gateway.Status(ctx), API: d.apiInfo(),
+		Gateway: d.deps.Gateway.Status(ctx), API: d.apiInfo(), Unscoped: !sandbox.Scoped(),
 	}
 	if list, err := d.deps.Harnesses.List(ctx, false); err == nil {
 		for _, h := range list {
@@ -901,6 +952,10 @@ func (d *Daemon) snapshot(ctx context.Context) (protocol.Snapshot, error) {
 	}
 	if d.deps.Teams != nil {
 		d.deps.Teams.Snapshot(ctx, &snapshot)
+	}
+	if d.deps.Memory != nil {
+		status := d.deps.Memory.Status(ctx)
+		snapshot.Memory = &status
 	}
 	return snapshot, nil
 }
