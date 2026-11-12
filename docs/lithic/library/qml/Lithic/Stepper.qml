@@ -9,6 +9,38 @@ T.SpinBox {
     property string accessibleName: Lithic.tr("Value")
 
     readonly property bool _focusActive: enabled && (visualFocus || previewState === "focus")
+    // an editable stepper sizes its field for the widest bound, so a typed value fits
+    readonly property real _valueWidth: editable ? Math.max(valueLabel.implicitWidth, boundMetrics.advanceWidth)
+                                                 : valueLabel.implicitWidth
+
+    function _commit() {
+        const typed = root.valueFromText(valueInput.text, root.locale)
+        if (typeof typed === "number" && !isNaN(typed)) {
+            const low = Math.min(from, to)
+            const high = Math.max(from, to)
+            const stepped = stepSize > 0 ? from + Math.round((typed - from) / stepSize) * stepSize : typed
+            const next = Math.max(low, Math.min(high, stepped))
+            if (next !== value) {
+                value = next
+                valueModified()
+            }
+        }
+        _showValue()
+    }
+
+    function _showValue() {
+        valueInput.text = Qt.binding(() => root.displayText)
+    }
+
+    TextMetrics {
+        id: boundMetrics
+        font: valueLabel.font
+        text: {
+            const low = root.textFromValue(root.from, root.locale)
+            const high = root.textFromValue(root.to, root.locale)
+            return low.length > high.length ? low : high
+        }
+    }
 
     from: 0
     to: 100
@@ -18,7 +50,7 @@ T.SpinBox {
     implicitWidth: LithicTokens.size.iconPlaqueSmall * 2
                    + LithicTokens.size.stepperGap * 2
                    + LithicTokens.space.s2 * 2
-                   + valueLabel.implicitWidth
+                   + root._valueWidth
                    + (unit.length > 0 ? LithicTokens.size.stepperUnitGap + unitLabel.implicitWidth : 0)
     implicitHeight: LithicTokens.size.iconPlaqueSmall
     opacity: enabled ? 1 : Lithic.disabledOpacity
@@ -75,6 +107,7 @@ T.SpinBox {
             width: Math.max(0, parent.width - x * 2)
             height: parent.height
             restCut: LithicTokens.cut.small
+            focused: valueInput.activeFocus
         }
 
         Label {
@@ -83,10 +116,41 @@ T.SpinBox {
             anchors.horizontalCenterOffset: root.unit.length > 0
                                             ? -(LithicTokens.size.stepperUnitGap + unitLabel.implicitWidth) / 2
                                             : 0
+            visible: !root.editable
             text: root.displayText
             typeRole: "label"
             numeric: true
             inkRole: "fg"
+        }
+
+        TextInput {
+            id: valueInput
+            anchors.verticalCenter: valueLabel.verticalCenter
+            anchors.horizontalCenter: valueLabel.horizontalCenter
+            width: root._valueWidth
+            visible: root.editable
+            enabled: root.editable && root.enabled
+            focus: root.editable
+            horizontalAlignment: TextInput.AlignHCenter
+            font: valueLabel.font
+            color: Lithic.fg
+            selectionColor: Lithic.sel
+            selectedTextColor: Lithic.onSel
+            selectByMouse: true
+            inputMethodHints: Qt.ImhFormattedNumbersOnly
+            text: root.displayText
+            onActiveFocusChanged: activeFocus ? selectAll() : root._commit()
+            Keys.onReturnPressed: root._commit()
+            Keys.onEnterPressed: root._commit()
+            // Escape drops an unsaved edit; with nothing typed it goes on, so a dialog can close
+            Keys.onEscapePressed: event => {
+                if (text !== root.displayText) {
+                    root._showValue()
+                    selectAll()
+                } else {
+                    event.accepted = false
+                }
+            }
         }
 
         Label {
@@ -108,7 +172,7 @@ T.SpinBox {
         faceEnabled: root.enabled && root.value > root.from
         faceHovered: faceEnabled && (root.down.hovered || root.previewState === "hover")
         facePressed: faceEnabled && (root.down.pressed || root.previewState === "pressed")
-        faceFocused: root._focusActive && root.value >= root.to
+        faceFocused: !root.editable && root._focusActive && root.value >= root.to
     }
 
     up.indicator: StepperFace {
@@ -118,6 +182,6 @@ T.SpinBox {
         faceEnabled: root.enabled && root.value < root.to
         faceHovered: faceEnabled && root.up.hovered
         facePressed: faceEnabled && root.up.pressed
-        faceFocused: root._focusActive && faceEnabled
+        faceFocused: !root.editable && root._focusActive && faceEnabled
     }
 }

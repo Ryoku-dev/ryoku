@@ -406,7 +406,7 @@ A blade-track slider with a cut handle and keyboard stepping.
 
 #### Stepper
 
-A spin box with quiet decrement and increment faces either side of a field box holding the value and an optional unit.
+A spin box with quiet decrement and increment faces either side of a field box holding the value and an optional unit. With `editable`, the field takes a typed value: Return, Enter or leaving it commits within the bounds and on the step, Escape drops the edit, and the arrows still step. Parsing goes through `valueFromText`, so a host that formats with `textFromValue` parses its own format.
 
 - Properties: inherited `from`, `to`, `value`, `stepSize`, `editable`, and `enabled`, plus `unit`, `previewState`, and `accessibleName`
 - Signal: inherited `valueModified()`

@@ -181,6 +181,13 @@ value. The value stands in a 32 high field cut 6, with the `field` fill and
 `edge` hairline of a TextField. The unit follows 4 later in `fg3`. Disable an
 end plaque at its bound. Reference: `ui/kit/stepper.go`.
 
+An editable stepper takes a typed value for ranges too wide to step through,
+such as a port. Its field fits the widest bound. Return, Enter or leaving the
+field commits the typed value, clamped to the bounds and snapped to the step.
+Escape drops an unsaved edit; with nothing typed it passes on, so a dialog can
+close. The arrow keys still step, and the field shows the focus edge while it
+holds the caret.
+
 Library: QML Lithic.Stepper, web .l-stepper, Go kit.Stepper, terminal term.RenderStepper
 
 ### Filters
