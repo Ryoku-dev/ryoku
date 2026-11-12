@@ -52,6 +52,17 @@ install)
 		"$destdir/usr/share/licenses/ryoku-rashin/LICENSE.geologica"
 	install -Dm644 "$RYOKU_SRC/ryoku/rashin/vendor/github.com/ryoku-dev/ryoku/docs/lithic/library/go/fonts/MartianMono-OFL.txt" \
 		"$destdir/usr/share/licenses/ryoku-rashin/LICENSE.martian-mono"
+	# the vendored Hindsight client checks values with validator.v2, under Apache-2.0
+	install -Dm644 "$RYOKU_SRC/ryoku/rashin/vendor/gopkg.in/validator.v2/LICENSE" \
+		"$destdir/usr/share/licenses/ryoku-rashin/LICENSE.validator"
+	# the memory learner, card and tools adapt Codex, mem0, Letta and Letta Code, under Apache-2.0
+	install -Dm644 "$RYOKU_SRC/ryoku/rashin/LICENSE.apache-2.0" \
+		"$destdir/usr/share/licenses/ryoku-rashin/LICENSE.apache-2.0"
+	# the built-in skill sets: Superpowers, OpenSpec and Spec Kit under MIT, EGM under Apache-2.0
+	for set in superpowers openspec speckit egm; do
+		install -Dm644 "$RYOKU_SRC/ryoku/rashin/internal/skills/sets/$set/LICENSE" \
+			"$destdir/usr/share/licenses/ryoku-rashin/LICENSE.$set"
+	done
 	if [ "$init" = systemd ]; then
 		for unit in rashind.socket rashind.service ryoku-ai-usage.service ryoku-ai-usage.timer \
 			rashind-routines.service rashind-routines.timer; do

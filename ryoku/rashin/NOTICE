@@ -82,3 +82,536 @@ SIL Open Font License 1.1
 
 The full license texts are installed beside this notice as LICENSE.geologica
 and LICENSE.martian-mono.
+
+Hindsight Go client
+
+Rashin talks to Hindsight, its optional memory engine, through the official
+Hindsight Go client (github.com/vectorize-io/hindsight, hindsight-clients/go
+at the v1.2.1 release), vendored unchanged.
+
+Copyright (c) 2025 Vectorize AI, Inc.
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+validator.v2
+
+The Hindsight client checks values with gopkg.in/validator.v2 v2.0.1,
+Copyright 2014 Roberto Teixeira, vendored unchanged.
+
+Apache License 2.0
+
+The full license text is installed beside this notice as LICENSE.validator.
+
+Memory safety, fence and prompts (Hermes Agent)
+
+Parts of Rashin's memory are adapted from Hermes Agent by Nous Research
+(https://github.com/NousResearch/hermes-agent) at commit fe664929: the threat
+patterns memory is scanned for (internal/memory/scan.go), the fence around
+recalled memory, its system note and the streaming scrubber for it
+(internal/memory/render, internal/ask/fence.go), the trivial-prompt gate
+(internal/memory/gate.go), the token shape the secret scrubber looks for
+(internal/memory/scrub.go), the two stores and the grounding rule in the
+learner's prompts (internal/memory/prompts.go) and the wording of the remember
+and past-conversation search tools (internal/brief/memorytools.go). It is a
+modified version: the patterns are rewritten for RE2, the agent's own paths and
+ids are Rashin's and the vault's, the fence uses Rashin's tags, and the prompts
+are worded for one-line facts in personal and project scope.
+
+Copyright (c) 2025 Nous Research
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Memory filters, checks and reranking (OpenClaw)
+
+Parts of Rashin's memory are adapted from OpenClaw by the OpenClaw Foundation
+(https://github.com/openclaw/openclaw) at commit 3978ab10: the recall-intent
+patterns (internal/memory/gate.go), the transcript filters for tool calls, role
+tags and slash commands (internal/memory/input.go), the checks on the learner's
+operations, its injection filter and the markers of Rashin's own text
+(internal/memory/reconcile.go), the untrusted-notes sentence and the caps on
+recalled memory (internal/memory/render), maximal marginal relevance reranking
+(internal/rank/rerank.go) and parts of the memory tool descriptions
+(internal/brief/memorytools.go). It is a modified version: ported to Go with
+the lookaround patterns rewritten for RE2, using Rashin's fence and markers,
+and reranking by Jaccard similarity over Rashin's tokens.
+
+Copyright (c) 2026 OpenClaw Foundation
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Memory ranking, budgets and prompts (Hindsight)
+
+Parts of Rashin's memory are adapted from Hindsight by Vectorize AI
+(https://github.com/vectorize-io/hindsight) at commit 7cec128b: the recency
+boost in reranking (internal/rank/rerank.go), the budget for recalled facts
+(internal/memory/render), the merge-or-keep rule and the defences against
+invented ids (internal/memory/dedup.go, internal/memory/reconcile.go), the fact
+extraction, consolidation and reading rules in the learner's and recall prompts
+(internal/memory/prompts.go, internal/memory/render) and parts of the remember
+and forget tool descriptions (internal/brief/memorytools.go). It is a modified
+version: budgets count characters instead of tokens, the merge-or-keep rule is
+checked in Go instead of asked of a model, and the prompts are worded for
+one-line facts.
+
+Copyright (c) 2025 Vectorize AI, Inc.
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Memory card and consolidation wording (nanobot)
+
+Parts of Rashin's memory are adapted from nanobot by Xubin Ren and the nanobot
+contributors (https://github.com/HKUDS/nanobot) at commit 9f7ae6fb: how the
+card shares its room between the old card and new facts
+(internal/memory/card.go), the patterns that strip a model's reasoning blocks
+(internal/memory/scrub.go) and the archive and dream consolidation wording in
+the learner's prompts (internal/memory/prompts.go). It is a modified version:
+the card counts characters and works on lines, the patterns are rewritten for
+RE2, and the prompts leave out the working-state handoff.
+
+Copyright (c) 2025-present Xubin Ren and the nanobot contributors
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Past-conversation search and learner fallback (PicoClaw)
+
+Parts of Rashin's memory are adapted from PicoClaw by the PicoClaw contributors
+(https://github.com/sipeed/picoclaw) at commit bbf6893c, which builds on
+nanobot: the recent-span syntax for past-conversation search
+(internal/memory/chats.go, internal/brief/memorytools.go), the shorter prompt
+the learner retries with when a reply is not valid JSON
+(internal/memory/learner.go) and the note that summaries are approximate
+(internal/memory/render). It is a modified version: the pattern is compiled
+once, and the learner has two rungs, the full prompt and the short one, with no
+raw fallback.
+
+Copyright (c) 2026 PicoClaw contributors
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Private text, duplicates and tool wording (Engram)
+
+Parts of Rashin's memory are adapted from Engram by Alan Buscaglia
+(https://github.com/Gentleman-Programming/engram) at commit a5d4fa7b: the
+scrubber for text the user wraps in <private> (internal/memory/scrub.go), the
+normalisation that finds duplicate facts (internal/memory/dedup.go), the result
+counts, forget by id and bookkeeping rules in the memory tool descriptions
+(internal/brief/memorytools.go) and the rule that a failed read is not evidence
+of absence (internal/memory/render). It is a modified version: the scrubber
+keeps the surrounding whitespace, punctuation at the ends of words is dropped
+too, and the wording is Rashin's own. Rashin does not use the Engram name or
+branding.
+
+Copyright (c) 2026 Alan Buscaglia
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Memory learner and card prompts (OpenAI Codex)
+
+Parts of Rashin's memory are adapted from OpenAI Codex
+(https://github.com/openai/codex) at commit b75ec48a: the phase 1 and phase 2
+memory templates in the learner's prompts (internal/memory/prompts.go), the
+phase 1 output schema (internal/memory/llmjson.go), how a conversation is
+selected and stripped of what the harness injected (internal/memory/input.go),
+the shape of the card (internal/memory/card.go), the ad hoc note wording of the
+remember tool (internal/brief/memorytools.go) and the rule that memory is
+history, not proof (internal/memory/render). It is a modified version: the
+output is Rashin's JSON fact operations, the personal scope is a profile rather
+than task history, agent consolidation is a single call, and the card is one
+fact per line under a character cap.
+
+OpenAI Codex
+Copyright 2025 OpenAI
+
+Apache License 2.0
+
+The full license text is installed beside this notice as LICENSE.apache-2.0.
+
+Memory extraction and update prompts (mem0)
+
+Parts of Rashin's memory are adapted from mem0 by Taranjeet Singh and the
+mem0ai/mem0 contributors (https://github.com/mem0ai/mem0) at commit f1791daa:
+the learner's extraction and update prompts and the import prompt
+(internal/memory/prompts.go), the facts-list answer and the fenced JSON parsing
+(internal/memory/llmjson.go), short ids for existing facts
+(internal/memory/reconcile.go), the noise filters for conversation text
+(internal/memory/input.go) and the memory-triage tests and forget wording in
+the memory tool descriptions (internal/brief/memorytools.go). It is a modified
+version: each fact carries its scope and whether it is sensitive, a delete
+becomes a supersede since only the user forgets, an unknown id drops its
+operation, and the chat-platform filters are left out. The forget wording comes
+from mem0's Hermes plugin, which also carries Nous Research's MIT notice,
+reproduced in the Hermes Agent block above.
+
+Copyright 2023 Taranjeet Singh and the mem0ai/mem0 contributors
+
+Apache License 2.0
+
+The full license text is installed beside this notice as LICENSE.apache-2.0.
+
+Memory block and consolidation wording (Letta)
+
+Parts of Rashin's memory are adapted from Letta by the Letta authors
+(https://github.com/letta-ai/letta) at commit 56ba9c25, the last commit with
+the server's source (the pinned head, 8816d3a8, has none, under the same
+license): the read-only memory block and its metadata line in recall
+(internal/memory/render), the consolidation principles in the learner's card
+prompt (internal/memory/prompts.go) and the self-contained-fact and five-result
+rules in the memory tool descriptions (internal/brief/memorytools.go). It is a
+modified version: one read-only block holds the card about the user with its
+size in characters, the metadata counts facts and searchable conversations
+only, and the wording is Rashin's own.
+
+Copyright 2023, Letta authors
+
+Apache License 2.0
+
+The full license text is installed beside this notice as LICENSE.apache-2.0.
+
+Memory reflection prompts (Letta Code)
+
+Parts of Rashin's memory are adapted from Letta Code by the Letta authors
+(https://github.com/letta-ai/letta-code) at commit 417a8b7b: the reflection and
+core-memory maintenance wording in the learner's prompts
+(internal/memory/prompts.go) and the Memory tool's rule to open the matching
+memory rather than work from assumptions (internal/brief/memorytools.go). It is
+a modified version: there are no files, no git and no procedures, a stale fact
+is superseded rather than archived, and the examples are new.
+
+Copyright 2025, Letta authors
+
+Apache License 2.0
+
+The full license text is installed beside this notice as LICENSE.apache-2.0.
+
+Superpowers skills
+
+Rashin ships the Superpowers skills by Jesse Vincent
+(https://github.com/obra/superpowers) at commit 22f0b463 as a built-in skill
+set (internal/skills/sets/superpowers): every skill except
+diagnosing-superpowers, which debugs the Claude Code plugin itself, vendored
+unchanged. The set's LICENSE is installed beside this notice as
+LICENSE.superpowers.
+
+Copyright (c) 2025 Jesse Vincent
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+OpenSpec skills
+
+Rashin ships the OpenSpec skills by the OpenSpec contributors
+(https://github.com/Fission-AI/OpenSpec) at commit d12c2817 as a built-in
+skill set (internal/skills/sets/openspec): the twelve openspec-* skills,
+vendored unchanged. They run the openspec command, which Rashin does not ship.
+The set's LICENSE is installed beside this notice as LICENSE.openspec.
+
+Copyright (c) 2024 OpenSpec Contributors
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Spec Kit skills
+
+Rashin ships the Spec Kit skills by GitHub (https://github.com/github/spec-kit)
+at commit 979b0a3c as a built-in skill set (internal/skills/sets/speckit): the
+speckit-* skills and the .specify/ scripts and templates that Spec Kit's own
+specify init renders from that commit, unchanged, without the CLI's install
+records. The set's LICENSE is installed beside this notice as LICENSE.speckit.
+
+Copyright GitHub, Inc.
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Elephant and Goldfish skills
+
+Rashin ships the Elephant-Goldfish Model skills by Google
+(https://github.com/google/elephant-goldfish-model) at commit 84145300 as a
+built-in skill set (internal/skills/sets/egm): the seven egm-* skills without
+their tests, the reviewer agents and document standards they name, and the
+Codex and Claude notes they link to, vendored unchanged. The set's LICENSE is
+also installed beside this notice as LICENSE.egm.
+
+Copyright 2026 Google LLC
+
+Apache License 2.0
+
+The full license text is installed beside this notice as LICENSE.apache-2.0.
+
+Free provider facts (awesome-free-llm-apis and Free-LLM)
+
+The provider catalogue (internal/gateway/catalog.json) takes facts from two
+lists of free model APIs, checked on 2026-11-11: base URLs, whether a card or a
+phone is needed, and the free allowances in the providers' notes, and from them
+the providers Rashin added that answer in OpenAI's shape. Facts only, no prose.
+
+awesome-free-llm-apis (https://github.com/open-free-llm-api/awesome-free-llm-apis)
+Copyright (c) 2026 open-free-llm-api
+
+Free-LLM (https://github.com/nejib1/Free-LLM)
+Copyright (c) 2026 Free-LLM
+
+Both are under the MIT License:
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Provider logos (lobe-icons)
+
+The Rashin app names AI providers and agent harnesses with their marks from
+lobe-icons by LobeHub (https://github.com/lobehub/lobe-icons) at commit
+ea434b96: the mono SVGs of packages/static-svg, which
+bin/ryoku-dev-sync-provider-logos renders into the masks under
+internal/app/look/logos/masks, beside the upstream LICENSE. It is a modified
+version: each mark is rasterized to a 96 pixel coverage mask and drawn in the
+app's own ink, never in the brand's colours. The marks belong to their owners
+and are shown only to name each provider.
+
+Copyright (c) 2023 LobeHub
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Rashin dreams (Paperclip)
+
+Parts of the standing instructions a dream's manager is briefed with, and of
+the texts of its ask_user and hire tools, are adapted from Paperclip
+(https://github.com/paperclipai/paperclip) at commit 4e519bd4286e: its
+heartbeat procedure in skills/paperclip/SKILL.md, the hiring guide and
+checklist under skills/paperclip-create-agent/references, and
+skills/paperclip-converting-plans-to-tasks/SKILL.md. It is a modified
+version: the rules are rewritten for a dream's manager, which asks the user
+only design or task questions, hires on a signed-in harness without an
+approval step, hands out pieces with delegate and works one standing goal in
+place of heartbeats.
+
+Copyright (c) 2025 Paperclip AI
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

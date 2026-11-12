@@ -1893,6 +1893,10 @@ still does recall, explicit remembering and forgetting, suggestions and chat
 notes. "Move" copies every active memory into the chosen engine, and "Test"
 checks that it answers.
 
+Packages list `uv` as an optional dependency: `optdepends` on Arch and
+CachyOS, `Suggests` on Fedora, the desktop package set on Void, and `withUv`
+in the Nix package. On NixOS, Hindsight also needs `programs.nix-ld`.
+
 ### Who may do what
 
 The daemon fills the caller from the connection, never from what a call

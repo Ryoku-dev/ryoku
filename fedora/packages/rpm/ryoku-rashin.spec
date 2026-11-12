@@ -2,7 +2,7 @@ Name:           ryoku-rashin
 Version:        0.1
 Release:        1%{?dist}
 Summary:        Ryoku Rashin AI system
-License:        GPL-3.0-or-later AND Apache-2.0 AND OFL-1.1
+License:        GPL-3.0-or-later AND Apache-2.0 AND OFL-1.1 AND MIT
 URL:            https://ryoku.dev
 Source0:        ryoku-%{version}.tar.gz
 %global debug_package %{nil}
@@ -25,6 +25,8 @@ Requires:       mesa-libEGL
 Requires:       vulkan-loader
 Requires:       bubblewrap
 Requires:       hicolor-icon-theme
+# Rashin installs Hindsight, its optional memory engine, with uv only when asked.
+Suggests:       uv
 
 %description
 Rashin provides Ryoku's optional AI daemon, command line and Gio application.

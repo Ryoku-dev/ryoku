@@ -9,8 +9,13 @@ pkgdesc="Ryoku Rashin AI system"
 arch=('x86_64')
 url="https://ryoku.dev"
 # The app's Material Symbols icons are Apache-2.0 and its Geologica and Martian
-# Mono faces OFL-1.1; the rest of the package is GPL-3.0-or-later.
-license=('GPL-3.0-or-later' 'Apache-2.0' 'OFL-1.1')
+# Mono faces OFL-1.1; the vendored Hindsight client is MIT and its validator
+# Apache-2.0; memory adapts MIT code and prompts (Hermes Agent, OpenClaw,
+# Hindsight, nanobot, PicoClaw, Engram) and Apache-2.0 ones (Codex, mem0, Letta,
+# Letta Code); the built-in skill sets are MIT (Superpowers, OpenSpec, Spec Kit)
+# and Apache-2.0 (Elephant and Goldfish); the rest of the package is
+# GPL-3.0-or-later.
+license=('GPL-3.0-or-later' 'Apache-2.0' 'OFL-1.1' 'MIT')
 # Keep Rashin on the same update as its desktop integration.
 depends=(
   "ryoku-desktop=$pkgver"
@@ -22,6 +27,8 @@ depends=(
   # Teams run their agents, and the programs those open, inside bwrap.
   'bubblewrap'
 )
+# Rashin installs Hindsight, its optional memory engine, with uv only when asked.
+optdepends=('uv: set up Hindsight, the optional memory engine, on this computer')
 makedepends=('go' 'pkgconf' 'vulkan-headers')
 source=()
 
