@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	wm "ryoku-wm"
 )
 
 // The Hyprland compositor plugins the desktop manages. A plugin is one .so
@@ -38,7 +40,7 @@ type pluginDef struct {
 var bundledPlugins = []pluginDef{
 	{
 		ID: "hyprbars", Name: "Title bars",
-		Desc: "A bar with the window's title and close/maximise buttons above every window.",
+		Desc: "A bar with the window's name and close and maximise buttons above every window.",
 		Repo: "https://github.com/hyprwm/hyprland-plugins", Plugin: "hyprbars",
 		Package: "ryoku-hypr-plugins",
 		Docs:    "https://github.com/hyprwm/hyprland-plugins/tree/main/hyprbars",
@@ -46,7 +48,7 @@ var bundledPlugins = []pluginDef{
 	},
 	{
 		ID: "hyprglass", Name: "Glass",
-		Desc: "Liquid-glass blur and refraction on windows.",
+		Desc: "Frosted glass windows that bend what is behind them.",
 		Repo: "https://github.com/hyprnux/hyprglass", Plugin: "hyprglass",
 		Package: "hyprglass",
 		Docs:    "https://github.com/hyprnux/hyprglass#configuration",
@@ -54,7 +56,7 @@ var bundledPlugins = []pluginDef{
 	},
 	{
 		ID: "imgborders", Name: "Image borders",
-		Desc: "Tiles an image of your choosing around each window as its border.",
+		Desc: "Tiles a picture of your choice around each window as its frame.",
 		Repo: "https://codeberg.org/zacoons/imgborders", Plugin: "imgborders",
 		Package: "imgborders",
 		Docs:    "https://codeberg.org/zacoons/imgborders#configuration",
@@ -62,7 +64,7 @@ var bundledPlugins = []pluginDef{
 	},
 	{
 		ID: "dynamic-cursors", Name: "Cursor motion",
-		Desc: "Realistic pointer motion (rotate, tilt, stretch) and shake-to-find magnify.",
+		Desc: "A pointer that tilts, turns or stretches as it moves, and grows when you shake it.",
 		Repo: "https://github.com/VirtCode/hypr-dynamic-cursors", Plugin: "dynamic-cursors",
 		Package: "hypr-dynamic-cursors",
 		Docs:    "https://github.com/VirtCode/hypr-dynamic-cursors#configuration",
@@ -78,7 +80,7 @@ var bundledPlugins = []pluginDef{
 	},
 	{
 		ID: "borders-plus-plus", Name: "Extra borders",
-		Desc: "One or two static borders outside the window's own, each with its colour and width.",
+		Desc: "One or two extra outlines around each window, each with its own colour and width.",
 		Repo: "https://github.com/hyprwm/hyprland-plugins", Plugin: "borders-plus-plus",
 		Package: "ryoku-hypr-plugins",
 		Docs:    "https://github.com/hyprwm/hyprland-plugins/tree/main/borders-plus-plus",
@@ -86,7 +88,7 @@ var bundledPlugins = []pluginDef{
 	},
 	{
 		ID: "hyprgrass", Name: "Touch gestures",
-		Desc: "Swipe, pinch, and long-press touchscreen gestures that drive windows and workspaces.",
+		Desc: "Swipe, pinch and long-press on a touchscreen to move windows and switch workspaces.",
 		Repo: "https://github.com/horriblename/hyprgrass", Plugin: "hyprgrass",
 		Package: "hyprgrass",
 		Docs:    "https://github.com/horriblename/hyprgrass/blob/master/docs/configuration.md",
@@ -106,19 +108,14 @@ var bundledPlugins = []pluginDef{
 // keysoundsUserDir is where the user's own key sound profiles go, created on
 // demand with a README so "My sounds" opens a folder that explains itself.
 func keysoundsUserDir() string {
-	base := os.Getenv("XDG_DATA_HOME")
-	if base == "" {
-		home, _ := os.UserHomeDir()
-		base = filepath.Join(home, ".local", "share")
-	}
-	dir := filepath.Join(base, "ryoku", "keysounds")
+	dir := wm.KeysoundsUserDir()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return dir
 	}
 	readme := filepath.Join(dir, "README")
 	if !fileExists(readme) {
 		_ = os.WriteFile(readme, []byte(`Your key sound profiles. Each folder here is one profile, picked by name in
-Settings > Plugins > Key sounds; a folder named like a shipped profile
+Ryoku Settings > Desktop > Sounds; a folder named like a shipped profile
 replaces it.
 
 From a Mechvibes pack (mechvibes.com, or github.com/hainguyents13/mechvibes
@@ -146,7 +143,7 @@ func keysoundsShippedDir() string {
 	if local := filepath.Join(userPluginDir(), "keysounds"); fileExists(filepath.Join(local, "cherry-mx-brown")) {
 		return local
 	}
-	return "/usr/share/ryoku/keysounds"
+	return wm.KeysoundsShippedDir
 }
 
 func bundledByID(id string) (pluginDef, bool) {
@@ -755,7 +752,7 @@ func pluginRosterNow() pluginRoster {
 			continue
 		}
 		seen[id] = true
-		d := pluginDef{ID: id, Name: id, Plugin: id, Loaded: id, Desc: "Installed by hyprpm from " + filepath.Base(filepath.Dir(p)) + "."}
+		d := pluginDef{ID: id, Name: id, Plugin: id, Loaded: id, Desc: "Added with Hyprland's own plugin manager."}
 		roster.Plugins = append(roster.Plugins, describePlugin(d, o, target, loaded, comp.Live))
 	}
 	return roster

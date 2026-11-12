@@ -302,7 +302,10 @@ func TestMissingNamesTheAbsentProgram(t *testing.T) {
 		if got := b.Missing(present); got != "" {
 			t.Errorf("%s has its program but reads missing: %q", b.ID, got)
 		}
-		if got := b.Missing(absent); got != b.Needs+" is not installed." {
+		if b.NeedsName == "" || b.NeedsName == b.Needs {
+			t.Errorf("%s names its program %q, not the app the user installs", b.ID, b.Needs)
+		}
+		if got := b.Missing(absent); got != b.NeedsName+" is not installed." {
 			t.Errorf("%s missing reason = %q", b.ID, got)
 		}
 	}

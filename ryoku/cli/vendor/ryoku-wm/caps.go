@@ -196,6 +196,10 @@ type Caps struct {
 	// compositor accepts a different set, so the window-rules editor lists only
 	// what the active one can actually apply, never a control that writes nothing.
 	WindowRuleActions []string `json:"windowRuleActions,omitempty"`
+	// AppOverrideFields are the desktop.appOverrides fields (opacity, rounding,
+	// borderSize, blur, shadow, dim, anim, opaque) this provider's config writer
+	// applies, so App rules shows a look override only where it takes effect.
+	AppOverrideFields []string `json:"appOverrideFields,omitempty"`
 }
 
 // Has reports whether the provider can honour want. A zero Caps supports

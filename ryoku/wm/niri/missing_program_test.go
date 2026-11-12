@@ -33,7 +33,7 @@ func TestAbsentProgramDropsItsBind(t *testing.T) {
 	}
 	reported := false
 	for _, u := range report {
-		if strings.Contains(u.Key, "ALT + Space") && u.Reason == "rashind is not installed." {
+		if strings.Contains(u.Key, "ALT + Space") && u.Reason == "Rashin is not installed." {
 			reported = true
 		}
 	}
@@ -42,7 +42,7 @@ func TestAbsentProgramDropsItsBind(t *testing.T) {
 	}
 	for _, r := range bindRows(s) {
 		if r.ID == "shell.ask" {
-			if r.Unhonored != "rashind is not installed." {
+			if r.Unhonored != "Rashin is not installed." {
 				t.Fatalf("shell.ask row reason = %q", r.Unhonored)
 			}
 			return

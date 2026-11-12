@@ -3,6 +3,47 @@
 ## Unreleased
 
 ### Fixed
+- **Sound packs you add show up on Hyprland too.** The Sounds page's key
+  sound profile listed packs added to your sounds folder only on niri;
+  Hyprland showed the eleven shipped profiles alone while promising more.
+  Both now list every installed pack through one shared helper
+  (`ryoku/wm/keysounds.go`), and the row says the same thing on both.
+- **Window manager settings read in plain words.** The rows a window manager
+  adds to Settings were checked and reworded for people who never read a
+  config file: no raw commands, file paths or config names ("Skip hotkey overlay"
+  is now "Skip the shortcut list at sign-in", "Decoration owner" is "Who
+  draws title bars"), option names like "slave" or "Nearest" read as "Side
+  window" and "Sharp", and plugin descriptions follow suit. Every animation
+  Hyprland's config sets has a proper name on the Animations page ("Border
+  colour", "Panels and menus open" instead of "layersIn"). The reasons a
+  window manager gives for what it cannot do (on Window manager, Keyboard
+  shortcuts, App rules and Displays) are full sentences in plain words too
+  ("Niri can't dim windows.", not "niri has no window dimming"). Keyboard
+  shortcuts names binds the same way: "Full screen" in place of
+  "Fullscreen", "Stack windows as tabs" in place of "Group windows
+  (tabbed)", and your own shortcuts read alike under every window manager.
+  Tests keep dashes, commands, paths, key chords, US spellings, lowercase
+  starts and bracketed asides out of that copy and every shipped animation
+  named, and the plugin descriptions, animation names and the install
+  button now reach translation (`ryoku/wm/*/schema*.json`, `ryoku/wm/binds.go`,
+  `ryoku/wm/*_copy_test.go`, `ryoku/i18n/tools/sync.py`).
+- **The Super+K cheatsheet shows your shortcuts on niri and wayfire.** Their
+  providers answered the legend from defaults when asked without a store path,
+  which is how the cheatsheet and Keyboard shortcuts ask, so rebinds and
+  custom shortcuts made in Settings never appeared; they now read the saved
+  store (`ryoku/wm/{niri,wayfire}/config_binds.go`).
+- **App rules offers only what the window manager applies.** Each provider
+  now lists its window-rule actions from the same table its config writer
+  renders, so Hyprland stops offering blur and layer-only actions it never
+  wrote for windows and gains Never take focus, Keep focus, Keep its shape and
+  its own dim, animation and opaque actions; providers also report which
+  per-app look overrides they write, so niri hides Never dim, No animations
+  and Always fully opaque, and wayfire keeps Opacity alone
+  (`ryoku/wm/*/window_rule_actions.go`, `ryoku/wm/*/caps.go`).
+- **Key sound profiles read as switch names** ("Cherry MX Brown", not
+  "Cherry-mx-brown"), and niri's own screenshot folder row is titled "Save
+  niri's own screenshots to" so it no longer reads as Screen capture's
+  folder row (`ryoku/wm/{hyprland,niri}/schema.json`).
 - **Rashin has one honest master switch.** Its Settings page reads the new
   daemon status without starting it, shows Ask, Agent and Index readiness, and
   owns package installation and removal; Updates now sends Fix with AI through

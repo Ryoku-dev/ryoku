@@ -46,7 +46,7 @@ func TestAbsentProgramRowSaysSo(t *testing.T) {
 			row = catalogRow(c, true, nil, nil)
 		}
 	}
-	if row.Unhonored != "rashin-app is not installed." {
+	if row.Unhonored != "Rashin is not installed." {
 		t.Fatalf("shell.rashin row reason = %q", row.Unhonored)
 	}
 	if len(row.Keys) == 0 {

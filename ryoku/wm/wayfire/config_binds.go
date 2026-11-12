@@ -145,13 +145,13 @@ func keybindWhy(k Keybind) string {
 		return ""
 	}
 	if k.Action != "exec" {
-		return fmt.Sprintf("wayfire binds shell commands; it cannot bind the %q action.", k.Action)
+		return "Wayfire shortcuts can only run commands, not this action."
 	}
 	if strings.TrimSpace(k.Value) == "" {
-		return "an exec bind needs a command to run."
+		return "A shortcut that runs a command needs a command."
 	}
 	if _, ok := toWayfireActivator(k.Keys); !ok {
-		return fmt.Sprintf("wayfire cannot bind the chord %q.", k.Keys)
+		return "Wayfire can't use this key combination."
 	}
 	return ""
 }
@@ -211,7 +211,7 @@ func shippedBinds() map[string]wayfireBind {
 		"window.pin":          {section: "wm-actions", key: "toggle_sticky"},
 		"window.resize":       {key: "window_preset_width", cmd: "ryoku-wm-wayfire act window.presetWidth", label: "Step window width", hint: "Cycle the window through full, three-quarter and half width"},
 		"window.presetHeight": {key: "window_preset_height", cmd: "ryoku-wm-wayfire act window.presetHeight"},
-		"column.tabbed":       {reason: "wayfire 0.11 simple-tile has split layouts but no tabbed layout."},
+		"column.tabbed":       {reason: "Wayfire can't stack windows as tabs."},
 		// simple-tile toggles its own leaves; the act fits floating windows.
 		"column.maximize": {
 			key: "column_maximize", cmd: "ryoku-wm-wayfire act window.maximize",
@@ -237,8 +237,8 @@ func shippedBinds() map[string]wayfireBind {
 		"move.right":        {key: "move_right", cmd: "ryoku-wm-wayfire act window.moveBy right"},
 		"move.up":           {key: "move_up", cmd: "ryoku-wm-wayfire act window.moveBy up"},
 		"move.down":         {key: "move_down", cmd: "ryoku-wm-wayfire act window.moveBy down"},
-		"column.mergeLeft":  {reason: "wayfire 0.11 simple-tile can reorder windows by dragging, but exposes no keyboard merge action."},
-		"column.mergeRight": {reason: "wayfire 0.11 simple-tile can reorder windows by dragging, but exposes no keyboard merge action."},
+		"column.mergeLeft":  {reason: "Wayfire can reorder windows by dragging, but not with the keyboard."},
+		"column.mergeRight": {reason: "Wayfire can reorder windows by dragging, but not with the keyboard."},
 
 		// Resize. One press steps the size an eighth of the screen from the
 		// top-left corner, with a floor so a window cannot crush itself out
@@ -260,12 +260,12 @@ func shippedBinds() map[string]wayfireBind {
 		"workspace.moveWindowSilent.numpad": {section: "vswitch", key: "send_win_{n}"},
 		"workspace.prev":                    {key: "workspace_prev", cmd: "ryoku-wm-wayfire act workspace.cycle -1"},
 		"workspace.next":                    {key: "workspace_next", cmd: "ryoku-wm-wayfire act workspace.cycle 1"},
-		"workspace.prevWheel":               {reason: "wayfire 0.11 exposes wheel direction only to axis callbacks; command and vswitch bindings cannot distinguish scroll up from scroll down."},
-		"workspace.nextWheel":               {reason: "wayfire 0.11 exposes wheel direction only to axis callbacks; command and vswitch bindings cannot distinguish scroll up from scroll down."},
+		"workspace.prevWheel":               {reason: "Wayfire shortcuts can't tell scrolling up from scrolling down."},
+		"workspace.nextWheel":               {reason: "Wayfire shortcuts can't tell scrolling up from scrolling down."},
 		"workspace.moveWindowPrev":          {key: "workspace_move_window_prev", cmd: "ryoku-wm-wayfire act window.moveToWorkspaceBy -1"},
 		"workspace.moveWindowNext":          {key: "workspace_move_window_next", cmd: "ryoku-wm-wayfire act window.moveToWorkspaceBy 1"},
-		"workspace.reorderUp":               {reason: "wayfire workspaces are fixed cells in a grid, so their order cannot be changed."},
-		"workspace.reorderDown":             {reason: "wayfire workspaces are fixed cells in a grid, so their order cannot be changed."},
+		"workspace.reorderUp":               {reason: "Wayfire's workspaces sit in a fixed grid, so they can't be reordered."},
+		"workspace.reorderDown":             {reason: "Wayfire's workspaces sit in a fixed grid, so they can't be reordered."},
 		"workspace.hideWindow":              {key: "workspace_hide_window", cmd: "ryoku-wm-wayfire act window.hide focused"},
 		"workspace.scratchpad":              {key: "workspace_scratchpad", cmd: "ryoku-wm-wayfire act workspace.toggleSpecial scratchpad"},
 		"workspace.overview":                {key: "workspace_overview", cmd: "ryoku-shell overview"},
@@ -361,7 +361,7 @@ type wayfireExclusive struct {
 // legend and the claim can never drift from the config they describe.
 func wayfireExclusives() []wayfireExclusive {
 	return []wayfireExclusive{
-		{section: "zoom", key: "modifier", chord: "SUPER", label: "Zoom", hint: "Hold Super and roll the wheel to magnify the desktop"},
+		{section: "zoom", key: "modifier", chord: "SUPER", label: "Zoom", hint: "Hold the zoom key and roll the wheel to magnify the desktop"},
 		{section: "grid", key: "slot_bl", chord: "SUPER + CTRL + KP_1", label: "Tile bottom-left"},
 		{section: "grid", key: "slot_b", chord: "SUPER + CTRL + KP_2", label: "Tile bottom"},
 		{section: "grid", key: "slot_br", chord: "SUPER + CTRL + KP_3", label: "Tile bottom-right"},
@@ -440,7 +440,7 @@ func resolveBinds(s wayfireStore) ([]outBind, []wm.Unhonored) {
 	claimed := map[string]string{}
 	for _, ex := range wayfireExclusives() {
 		if act, ok := toWayfireActivator(ex.chord); ok && claimed[act] == "" {
-			claimed[act] = "wayfire's own " + ex.label
+			claimed[act] = "Wayfire's " + ex.label + " shortcut"
 		}
 	}
 
@@ -466,7 +466,7 @@ func resolveBinds(s wayfireStore) ([]outBind, []wm.Unhonored) {
 			if taker != owner {
 				report = append(report, wm.Unhonored{
 					Key:    reportKey,
-					Reason: fmt.Sprintf("the chord is already taken by %s.", taker),
+					Reason: fmt.Sprintf("These keys are already used by %s.", taker),
 				})
 			}
 			return
@@ -498,7 +498,7 @@ func resolveBinds(s wayfireStore) ([]outBind, []wm.Unhonored) {
 		if k.Release {
 			ob.option = fmt.Sprintf("release_binding_ryoku_%d", i)
 		}
-		emit(fmt.Sprintf("desktop.keybinds[%d]", i), "a custom bind", k.Keys, ob, true)
+		emit(fmt.Sprintf("desktop.keybinds[%d]", i), "one of your own shortcuts", k.Keys, ob, true)
 	}
 
 	cat := wm.ShippedBinds()
@@ -591,7 +591,7 @@ func resolveBinds(s wayfireStore) ([]outBind, []wm.Unhonored) {
 				if isRebound != rebound {
 					continue
 				}
-				emit(fmt.Sprintf("desktop.keybinds (default %s)", chord), "another shipped bind", to, member, true)
+				emit(fmt.Sprintf("desktop.keybinds (default %s)", chord), "another shortcut", to, member, true)
 			}
 		}
 	}
@@ -610,7 +610,7 @@ func resolveBinds(s wayfireStore) ([]outBind, []wm.Unhonored) {
 			if claimed[activator] != "" {
 				continue
 			}
-			claimed[activator] = "another shipped bind"
+			claimed[activator] = "another shortcut"
 			ob := t.ob
 			ob.activator = activator
 			out = append(out, ob)
@@ -743,7 +743,7 @@ func bindRows(s wayfireStore) []wm.BindRow {
 		rows = append(rows, wm.BindRow{
 			ID:         fmt.Sprintf("custom.%d", i),
 			Category:   "Custom",
-			Label:      customLabel(k),
+			Label:      wm.CustomBindLabel(k.Action, k.Value),
 			Keys:       wm.DisplayKeys(chord),
 			Default:    chord,
 			Chord:      chord,
@@ -754,19 +754,6 @@ func bindRows(s wayfireStore) []wm.BindRow {
 	}
 
 	return rows
-}
-
-// customLabel names a store row for the legend. wayfire's only expressible
-// custom is a command, so an exec row names what it runs; any other action
-// keeps its own name beside the reason it has no wayfire spelling.
-func customLabel(k Keybind) string {
-	if k.Action == "exec" || k.Action == "" {
-		if v := strings.TrimSpace(k.Value); v != "" {
-			return "Run: " + v
-		}
-		return "Run command"
-	}
-	return "Action: " + k.Action
 }
 
 // rebindable reports whether the Hub may let a user record a new chord over
@@ -785,13 +772,14 @@ func rebindable(cb wm.CatalogBind) bool {
 
 // runBinds prints the effective bind legend as a JSON array of wm.BindRow,
 // read through the store so the chords reflect what the session actually
-// emits.
+// emits. With no path it reads the saved store, which is how the seam client
+// (and so the cheatsheet and the Hub) asks.
 func runBinds(args []string) error {
-	storePath := ""
+	path := storePath()
 	if len(args) > 0 {
-		storePath = args[0]
+		path = args[0]
 	}
-	rows := bindRows(loadStore(storePath))
+	rows := bindRows(loadStore(path))
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(rows)

@@ -103,6 +103,7 @@ func unhonored(storePath string) []wm.Unhonored {
 	var out []wm.Unhonored
 	out = append(out, unhonoredLeaves(ns.Desktop["appearance"], "appearance", appearanceEmitted, appearanceReason)...)
 	out = append(out, unhonoredLeaves(ns.Desktop["input"], "input", inputEmitted, inputReason)...)
+	out = append(out, unhonoredFocusMode(ns.Desktop["input"])...)
 	out = append(out, unhonoredLeaves(ns.Desktop["cursor"], "cursor", cursorEmitted, cursorReason)...)
 	out = append(out, unhonoredWindowRules(ns.Desktop["windowRules"])...)
 	out = append(out, unhonoredAppOverrides(ns.Desktop["appOverrides"])...)
@@ -153,7 +154,7 @@ var desktopHandled = map[string]bool{
 
 var appearanceEmitted = map[string]bool{
 	"gapsIn": true, "gapsOut": true, "borderSize": true, "rounding": true,
-	"activeBorder": true, "inactiveBorder": true, "animations": true,
+	"activeBorder": true, "inactiveBorder": true, "borderFollowsPalette": true, "animations": true,
 	"activeOpacity": true, "inactiveOpacity": true,
 	"shadowEnabled": true, "shadowRange": true, "shadowColor": true,
 	"shadowSpread": true, "shadowOffsetX": true, "shadowOffsetY": true,
@@ -162,31 +163,31 @@ var appearanceEmitted = map[string]bool{
 func appearanceReason(leaf string) string {
 	switch {
 	case strings.HasPrefix(leaf, "blur"):
-		return "niri 26.04's window blur renders translucent windows opaque, so Ryoku leaves it off."
+		return "Niri's window blur makes see-through windows solid, so Ryoku leaves it off."
 	case leaf == "shadowPower":
-		return "niri's shadow block has no sharpness or falloff field."
+		return "Niri's shadows have no sharpness setting."
 	case leaf == "shadowSharp":
-		return "niri's shadow block has no hard-edge option; its shadow is always soft."
+		return "Niri's shadows are always soft."
 	case leaf == "shadowScale":
-		return "niri's shadow block has no scale field."
+		return "Niri can't change a shadow's size."
 	case strings.HasPrefix(leaf, "glow"):
-		return "niri has no glow."
+		return "Niri has no glow."
 	case strings.HasPrefix(leaf, "dim"):
-		return "niri has no window dimming."
+		return "Niri can't dim windows."
 	case leaf == "fullscreenOpacity":
-		return "niri window rules have no fullscreen match."
+		return "Niri can't give full-screen windows their own opacity."
 	case leaf == "roundingPower":
-		return "niri corner rounding has no power curve."
+		return "Niri's rounded corners have one fixed shape."
 	case leaf == "layout":
-		return "niri uses its own scrollable-tiling layout."
+		return "Niri arranges windows in its own scrolling row."
 	case leaf == "windowStyle":
-		return "niri has no window-open style presets; set the window-open animation on the Animations page instead."
+		return "Niri has no window-open styles; set the window-open animation on the Animations page instead."
 	case leaf == "wobblyWindows":
-		return "niri has no wobbly-windows effect."
+		return "Niri has no wobbly windows."
 	case leaf == "animatedBorder" || leaf == "borderAngleSpeed":
-		return "niri's border gradient is static; there is no rotating-gradient animation."
+		return "Niri's border gradient can't spin."
 	}
-	return "niri has no matching appearance control."
+	return "Niri has no matching appearance setting."
 }
 
 var inputEmitted = map[string]bool{
@@ -201,9 +202,20 @@ var inputEmitted = map[string]bool{
 func inputReason(leaf string) string {
 	switch leaf {
 	case "workspaceSwipe", "swipeFingers", "swipeInvert", "swipeCreateNew", "swipeDistance":
-		return "niri's touchpad workspace gesture is built in and takes no finger count, distance, inversion or create-new."
+		return "Niri's touchpad workspace swipe is built in, with no setting for fingers, distance, direction or new workspaces."
 	}
-	return "niri has no matching input control."
+	return "Niri has no matching input setting."
+}
+
+// unhonoredFocusMode names the one focus mode niri cannot keep: it always focuses a clicked window.
+func unhonoredFocusMode(raw json.RawMessage) []wm.Unhonored {
+	var in struct {
+		FollowMouse int `json:"followMouse"`
+	}
+	if len(raw) == 0 || json.Unmarshal(raw, &in) != nil || in.FollowMouse != 3 {
+		return nil
+	}
+	return []wm.Unhonored{{Key: "desktop.input.followMouse", Reason: "Niri always moves focus to a window you click."}}
 }
 
 var cursorEmitted = map[string]bool{
@@ -211,7 +223,7 @@ var cursorEmitted = map[string]bool{
 }
 
 func cursorReason(leaf string) string {
-	return "niri has no matching cursor control."
+	return "Niri has no matching pointer setting."
 }
 
 // unhonoredLeaves reports each present leaf of a desktop.* object that niri does
@@ -253,7 +265,7 @@ func unhonoredWindowRules(raw json.RawMessage) []wm.Unhonored {
 		}
 		out = append(out, wm.Unhonored{
 			Key:    fmt.Sprintf("desktop.windowRules[%d]", i),
-			Reason: fmt.Sprintf("niri window rules have no %q action.", r.Action),
+			Reason: "Niri can't apply this to a window.",
 		})
 	}
 	return out
@@ -271,21 +283,21 @@ func unhonoredAppOverrides(raw json.RawMessage) []wm.Unhonored {
 	for i, a := range apps {
 		var lost []string
 		if a.Shadow == "off" {
-			lost = append(lost, "shadow")
+			lost = append(lost, "the shadow")
 		}
 		if a.Dim == "off" {
-			lost = append(lost, "dim")
+			lost = append(lost, "dimming")
 		}
 		if a.Anim == "off" {
-			lost = append(lost, "animation")
+			lost = append(lost, "animations")
 		}
 		if a.Opaque == "on" {
-			lost = append(lost, "opaque")
+			lost = append(lost, "full opacity")
 		}
 		if len(lost) > 0 {
 			out = append(out, wm.Unhonored{
 				Key:    fmt.Sprintf("desktop.appOverrides[%d]", i),
-				Reason: "niri cannot set per-window " + strings.Join(lost, ", ") + ".",
+				Reason: "Niri can't set " + joinWords(lost) + " for one app.",
 			})
 		}
 	}
@@ -293,8 +305,8 @@ func unhonoredAppOverrides(raw json.RawMessage) []wm.Unhonored {
 }
 
 // unhonoredDesktopMisc reports a top-level desktop.* key with no handler. A
-// display-shaped key points at monitors.kdl, which owns layout, so a skipped
-// monitor block is visible rather than silently lost.
+// display-shaped key points at the Displays page, which owns layout, so a
+// skipped monitor block is visible rather than silently lost.
 func unhonoredDesktopMisc(desktop map[string]json.RawMessage) []wm.Unhonored {
 	keys := make([]string, 0)
 	for k := range desktop {
@@ -305,10 +317,10 @@ func unhonoredDesktopMisc(desktop map[string]json.RawMessage) []wm.Unhonored {
 	sort.Strings(keys)
 	out := make([]wm.Unhonored, 0, len(keys))
 	for _, k := range keys {
-		reason := "niri has no setting for this."
+		reason := "Niri has no setting for this."
 		l := strings.ToLower(k)
 		if strings.Contains(l, "display") || strings.Contains(l, "monitor") || strings.Contains(l, "output") {
-			reason = "Display layout lives in monitors.kdl, not the desktop store."
+			reason = "Arrange displays on the Displays page instead."
 		}
 		out = append(out, wm.Unhonored{Key: "desktop." + k, Reason: reason})
 	}
@@ -335,7 +347,7 @@ func unhonoredForeign(wmns map[string]json.RawMessage) []wm.Unhonored {
 	for _, name := range names {
 		out = append(out, wm.Unhonored{
 			Key:    "wm." + name,
-			Reason: fmt.Sprintf("These %s-only settings have no niri equivalent. They stay in the store and return if you switch back.", titleName(name)),
+			Reason: fmt.Sprintf("These %s settings have no Niri equivalent. They stay saved and come back if you switch back.", titleName(name)),
 		})
 	}
 	return out
@@ -346,4 +358,12 @@ func titleName(s string) string {
 		return s
 	}
 	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// joinWords lists words the way a sentence does: "a", "a and b", "a, b and c".
+func joinWords(words []string) string {
+	if len(words) < 2 {
+		return strings.Join(words, "")
+	}
+	return strings.Join(words[:len(words)-1], ", ") + " and " + words[len(words)-1]
 }

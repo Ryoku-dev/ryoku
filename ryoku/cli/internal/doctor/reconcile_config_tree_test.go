@@ -185,7 +185,7 @@ func TestReconcileConfigTreeHealsTheSwitchedAwayTreeOnly(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(home, ".config", "hypr", "hyprland.lua"), []byte("-- live tree\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	for _, leaf := range []string{"settings.lua", "settings_window.lua", "rebinds.lua"} {
+	for _, leaf := range []string{"settings.lua", "rebinds.lua"} {
 		if err := os.WriteFile(filepath.Join(home, ".config", "hypr", leaf), []byte("-- generated\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}

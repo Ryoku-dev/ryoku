@@ -76,16 +76,10 @@ var capsManifest = []wm.Capability{
 	wm.CapNestedSession,
 }
 
-// windowRuleActions are the neutral window-rule action ids niri's config writer
-// honours, in the order the Hub offers them. niri models a different set from
-// Hyprland (no pin, its own tabbed/scroll mechanics instead), so the window-rules
-// editor lists only what this compositor can actually apply.
-var windowRuleActions = []string{
-	"float", "tile", "fullscreen", "maximize", "norounding", "opacity",
-	"workspace", "noborder", "noshadow", "blur", "noblur", "xray",
-	"columnwidth", "minsize", "maxsize", "scrollfactor", "tiledstate",
-	"babaisfloat", "blockout",
-}
+// appOverrideFields are the per-app look fields appOverrideProps writes. niri
+// has no per-window dim, animation or force-opaque switch, and a shadow is
+// dropped through the noshadow window rule instead, so those stay off the list.
+var appOverrideFields = []string{"opacity", "rounding", "borderSize", "blur"}
 
 // The packages ryoku-desktop-niri is made of: the variant package itself, niri,
 // the xwayland-satellite X11 bridge, and the GNOME portal backend its caps
@@ -127,6 +121,7 @@ func runCaps() error {
 		NightLightProcess: "wlsunset",
 		Packages:          compositorPackages,
 		WindowRuleActions: windowRuleActions,
+		AppOverrideFields: appOverrideFields,
 	}
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")

@@ -255,11 +255,11 @@ func TestUnhonoredNamesForeignAndSubmap(t *testing.T) {
 		}
 		if strings.HasPrefix(u.Key, "wm.hyprland") {
 			foreign++
-			if !strings.Contains(u.Reason, "Hyprland") || !strings.Contains(u.Reason, "store") {
-				t.Errorf("foreign reason should name Hyprland and the store: %q", u.Reason)
+			if !strings.Contains(u.Reason, "Hyprland") || !strings.Contains(u.Reason, "saved") {
+				t.Errorf("foreign reason should name Hyprland and say the settings stay saved: %q", u.Reason)
 			}
 		}
-		if strings.Contains(strings.ToLower(u.Reason), "submap") {
+		if u.Key == "desktop.keybinds[0]" && strings.Contains(u.Reason, "shortcut") {
 			submap = true
 		}
 	}
@@ -267,7 +267,7 @@ func TestUnhonoredNamesForeignAndSubmap(t *testing.T) {
 		t.Error("desktop.appearance.blurContrast must be reported unhonored, naming blur")
 	}
 	if !submap {
-		t.Error("a submap keybind must be reported unhonored, naming submap")
+		t.Error("a submap keybind must be reported unhonored as an action a shortcut cannot run")
 	}
 	if foreign != 1 {
 		t.Errorf("wm.hyprland reported %d entries, want exactly one aggregated line", foreign)
@@ -387,7 +387,7 @@ func TestAppearanceShadowAndOpacityEmitted(t *testing.T) {
 		"desktop.appearance.shadowPower":       "shadow",
 		"desktop.appearance.shadowSharp":       "shadow",
 		"desktop.appearance.shadowScale":       "shadow",
-		"desktop.appearance.fullscreenOpacity": "fullscreen",
+		"desktop.appearance.fullscreenOpacity": "full-screen",
 	}
 	for key, term := range unhonored {
 		if !strings.Contains(reason[key], term) {
@@ -690,13 +690,50 @@ func TestGlobalBlurUnhonored(t *testing.T) {
 			t.Errorf("desktop.appearance.%s must be reported unhonored now that niri has no window blur", k)
 			continue
 		}
-		if !strings.Contains(strings.ToLower(r), "opaque") {
-			t.Errorf("desktop.appearance.%s reason must explain the opaque blur: %q", k, r)
+		if !strings.Contains(strings.ToLower(r), "solid") {
+			t.Errorf("desktop.appearance.%s reason must explain that blur makes windows solid: %q", k, r)
 		}
 	}
 	for _, u := range rep.Unhonored {
 		if strings.HasPrefix(u.Key, "desktop.appOverrides") && strings.Contains(strings.ToLower(u.Reason), "blur") {
 			t.Errorf("per-app blur is honoured; must not be reported as a loss: %q", u.Reason)
+		}
+	}
+}
+
+// niri always focuses a clicked window, so the keyboard-only mode is a reported
+// loss, while the click-with-scrolling mode is what niri does anyway.
+func TestKeyboardOnlyFocusUnhonored(t *testing.T) {
+	niriHome(t)
+	for mode, want := range map[string]bool{"1": false, "2": false, "3": true} {
+		store := writeStore(t, `{"desktop":{"input":{"followMouse":`+mode+`}}}`)
+		rep := capApply(t, store, "--preview")
+		reason := ""
+		for _, u := range rep.Unhonored {
+			if u.Key == "desktop.input.followMouse" {
+				reason = u.Reason
+			}
+		}
+		if (reason != "") != want {
+			t.Errorf("followMouse %s: reported unhonored = %q, want reported %v", mode, reason, want)
+		}
+		if want && !strings.Contains(reason, "click") {
+			t.Errorf("followMouse %s: reason must say niri focuses a clicked window: %q", mode, reason)
+		}
+	}
+}
+
+// niri's border follows the live palette (config_layout reads the recorded
+// colours), so a following or a pinned border is honoured, never a reported loss.
+func TestBorderPaletteChoiceIsHonoured(t *testing.T) {
+	niriHome(t)
+	for _, follow := range []string{"true", "false"} {
+		store := writeStore(t, `{"desktop":{"appearance":{"borderFollowsPalette":`+follow+`,"activeBorder":"#112233"}}}`)
+		rep := capApply(t, store, "--preview")
+		for _, u := range rep.Unhonored {
+			if strings.Contains(strings.ToLower(u.Key), "border") {
+				t.Errorf("borderFollowsPalette %s: %s reported unhonored: %q", follow, u.Key, u.Reason)
+			}
 		}
 	}
 }
@@ -724,55 +761,13 @@ func TestWindowStyleReasonPointsAtAnimations(t *testing.T) {
 	}
 }
 
-func TestApplySettingsWindowSize(t *testing.T) {
-	t.Run("full page default", func(t *testing.T) {
-		dir := niriHome(t)
-		store := writeStore(t, `{}`)
-		capApply(t, store)
-		settings := readGen(t, dir, "settings.kdl")
-		if strings.Contains(settings, `match title="^Ryoku Settings$"`) {
-			t.Fatalf("default settings must keep niri's normal column:\n%s", settings)
-		}
-		validateGen(t, dir, "settings.kdl", "rebinds.kdl")
-	})
-
-	t.Run("custom half", func(t *testing.T) {
-		dir := niriHome(t)
-		store := writeStore(t, `{"wm":{"niri":{"settingsWindow":{"mode":"custom","width":0.5,"height":0.5}}}}`)
-		capApply(t, store)
-		settings := readGen(t, dir, "settings.kdl")
-		want := "window-rule {\n" +
-			"    match title=\"^Ryoku Settings$\"\n" +
-			"    open-floating true\n" +
-			"    default-column-width { proportion 0.5; }\n" +
-			"    default-window-height { proportion 0.5; }\n" +
-			"}\n"
-		if !strings.Contains(settings, want) {
-			t.Fatalf("custom settings window rule missing:\n%s", settings)
-		}
-		validateGen(t, dir, "settings.kdl", "rebinds.kdl")
-	})
-}
-
-func TestSettingsWindowSchemaAndDefaults(t *testing.T) {
-	if got := defaultStore().Niri.SettingsWindow; got != (SettingsWindow{Mode: "full", Width: 0.5, Height: 0.5}) {
-		t.Fatalf("default settings window = %+v", got)
+func TestApplyKeepsSettingsOnNormalColumn(t *testing.T) {
+	dir := niriHome(t)
+	store := writeStore(t, `{"wm":{"niri":{"settingsWindow":{"mode":"custom","width":0.5,"height":0.5}}}}`)
+	capApply(t, store)
+	settings := readGen(t, dir, "settings.kdl")
+	if strings.Contains(settings, `match title="^Ryoku Settings$"`) {
+		t.Fatalf("a retired settingsWindow value must not size the Settings window:\n%s", settings)
 	}
-	rows, err := loadSchemaRows()
-	if err != nil {
-		t.Fatal(err)
-	}
-	blob, err := json.Marshal(rows)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, key := range []string{
-		`"wm.niri.settingsWindow.mode"`,
-		`"wm.niri.settingsWindow.width"`,
-		`"wm.niri.settingsWindow.height"`,
-	} {
-		if !bytes.Contains(blob, []byte(key)) {
-			t.Errorf("schema missing %s", key)
-		}
-	}
+	validateGen(t, dir, "settings.kdl", "rebinds.kdl")
 }

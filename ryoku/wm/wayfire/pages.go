@@ -49,5 +49,5 @@ func fitPage(v wayfireView) error {
 	if err != nil {
 		return err
 	}
-	return configurePlaced(v.ID, settingsWindowRect(out, readFitInsets(), loadStore(storePath()).Wayfire.SettingsWindow))
+	return configurePlaced(v.ID, fitRect(out, readFitInsets()))
 }

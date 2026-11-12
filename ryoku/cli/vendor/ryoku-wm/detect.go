@@ -249,9 +249,16 @@ var configFiles = map[string][]string{
 // copy the updater re-lays. A pure function of the store, so clearing the store
 // clears these, and a reset that restores pure defaults removes them.
 var generatedConfig = map[string][]string{
-	ProviderHyprland: {"hypr/settings.lua", "hypr/settings_window.lua", "hypr/rebinds.lua", "ryoku/user_edits/hypr/settings.lua", "ryoku/user_edits/hypr/settings_window.lua", "ryoku/user_edits/hypr/rebinds.lua"},
+	ProviderHyprland: {"hypr/settings.lua", "hypr/rebinds.lua", "ryoku/user_edits/hypr/settings.lua", "ryoku/user_edits/hypr/rebinds.lua"},
 	ProviderNiri:     {"niri/settings.kdl", "niri/rebinds.kdl", "ryoku/user_edits/niri/settings.kdl", "ryoku/user_edits/niri/rebinds.kdl"},
 	ProviderWayfire:  {"wayfire/wayfire.ini", "ryoku/user_edits/wayfire/wayfire.ini"},
+}
+
+// retiredGeneratedConfig are files a provider's apply authored once and no
+// longer does, relative to ~/.config. Nothing loads them, but the overlay would
+// re-lay its copy into the live tree on every update, so doctor removes them.
+var retiredGeneratedConfig = map[string][]string{
+	ProviderHyprland: {"hypr/settings_window.lua", "ryoku/user_edits/hypr/settings_window.lua"},
 }
 
 // ConfigFiles are a provider's user-editable config paths (the hand-edit escape
@@ -264,6 +271,12 @@ func ConfigFiles(name string) []string {
 // ~/.config. Empty for an unknown provider.
 func GeneratedConfig(name string) []string {
 	return append([]string(nil), generatedConfig[name]...)
+}
+
+// RetiredGeneratedConfig are the config files a provider's apply used to
+// author, relative to ~/.config. Empty for an unknown provider.
+func RetiredGeneratedConfig(name string) []string {
+	return append([]string(nil), retiredGeneratedConfig[name]...)
 }
 
 const generatedBaselineMarkerPrefix = "# ryoku-baseline-sha256="

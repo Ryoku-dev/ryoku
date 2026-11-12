@@ -199,29 +199,6 @@ type WayfirePlacement struct {
 	Mode string `json:"mode"`
 }
 
-type SettingsWindow struct {
-	Mode   string  `json:"mode"`
-	Width  float64 `json:"width"`
-	Height float64 `json:"height"`
-}
-
-func normalizeSettingsWindow(v SettingsWindow) SettingsWindow {
-	if v.Mode != "custom" {
-		v.Mode = "full"
-	}
-	if v.Width < 0.25 {
-		v.Width = 0.25
-	} else if v.Width > 1 {
-		v.Width = 1
-	}
-	if v.Height < 0.25 {
-		v.Height = 0.25
-	} else if v.Height > 1 {
-		v.Height = 1
-	}
-	return v
-}
-
 // Depthdeck mirrors the [depthdeck] option block one for one, so the deck's
 // knobs are store leaves the Hub can draw and apply can write back verbatim.
 type Depthdeck struct {
@@ -244,19 +221,18 @@ type Depthdeck struct {
 // key. This is the wayfire twin of wm.niri.*, so the Hub can surface them
 // without every other compositor pretending to have them.
 type Wayfire struct {
-	Animation      WayfireAnim         `json:"animation"`
-	Tiling         WayfireTiling       `json:"tiling"`
-	Workspace      WayfireWorkspace    `json:"workspace"`
-	Decoration     WayfireDecoration   `json:"decoration"`
-	Blur           WayfireBlur         `json:"blur"`
-	Wobbly         WayfireWobbly       `json:"wobbly"`
-	Zoom           WayfireZoom         `json:"zoom"`
-	FastSwitcher   WayfireFastSwitcher `json:"fastSwitcher"`
-	Focus          WayfireFocus        `json:"focus"`
-	XWayland       WayfireXWayland     `json:"xwayland"`
-	Placement      WayfirePlacement    `json:"placement"`
-	SettingsWindow SettingsWindow      `json:"settingsWindow"`
-	Depthdeck      Depthdeck           `json:"depthdeck"`
+	Animation    WayfireAnim         `json:"animation"`
+	Tiling       WayfireTiling       `json:"tiling"`
+	Workspace    WayfireWorkspace    `json:"workspace"`
+	Decoration   WayfireDecoration   `json:"decoration"`
+	Blur         WayfireBlur         `json:"blur"`
+	Wobbly       WayfireWobbly       `json:"wobbly"`
+	Zoom         WayfireZoom         `json:"zoom"`
+	FastSwitcher WayfireFastSwitcher `json:"fastSwitcher"`
+	Focus        WayfireFocus        `json:"focus"`
+	XWayland     WayfireXWayland     `json:"xwayland"`
+	Placement    WayfirePlacement    `json:"placement"`
+	Depthdeck    Depthdeck           `json:"depthdeck"`
 }
 
 // WayfireAnim is the compositor's animation tree. The duration kinds map to
@@ -375,9 +351,8 @@ func defaultStore() wayfireStore {
 				Buttons:       "BTN_LEFT | BTN_MIDDLE | BTN_RIGHT",
 				WithModifiers: false, PassThrough: true,
 			},
-			XWayland:       WayfireXWayland{Mode: "true"},
-			Placement:      WayfirePlacement{Mode: "center"},
-			SettingsWindow: SettingsWindow{Mode: "full", Width: 0.5, Height: 0.5},
+			XWayland:  WayfireXWayland{Mode: "true"},
+			Placement: WayfirePlacement{Mode: "center"},
 			Depthdeck: Depthdeck{
 				Enabled: true, Scatter: true, CardEdgeScatter: true,
 				CardScatterReshuffle: true, CardPeekMin: 24, CardPeekMax: 80,
@@ -417,7 +392,6 @@ func loadStore(path string) wayfireStore {
 	s.Cursor.Theme = wm.ResolveCursorTheme(s.Cursor.Theme)
 	if raw, ok := ns.WM["wayfire"]; ok {
 		_ = json.Unmarshal(raw, &s.Wayfire)
-		s.Wayfire.SettingsWindow = normalizeSettingsWindow(s.Wayfire.SettingsWindow)
 	}
 	return s
 }

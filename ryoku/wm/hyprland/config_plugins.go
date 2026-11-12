@@ -136,7 +136,7 @@ func genPlugins(o Overrides) string {
 	}
 	for _, pb := range blocks {
 		if pb.so == "" {
-			fmt.Fprintf(&b, "-- %s: no copy built for this Hyprland; rebuild it from Settings > Plugins\n\n", pb.id)
+			fmt.Fprintf(&b, "-- %s: no copy built for this Hyprland; rebuild it from Ryoku Settings > Windows > Window manager\n\n", pb.id)
 			continue
 		}
 		b.WriteString(pb.loadLua())

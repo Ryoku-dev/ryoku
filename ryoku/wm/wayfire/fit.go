@@ -20,9 +20,6 @@ const (
 	fitTolerance  = 2
 	restoreWidth  = 1000
 	restoreHeight = 660
-	// The Settings layout needs this much room to remain usable.
-	settingsMinWidth  = 1120
-	settingsMinHeight = 820
 )
 
 type fitInsets struct {
@@ -71,22 +68,6 @@ func fitRect(out wayfireOutput, in fitInsets) wayfireGeometry {
 		Y:      math.Round(wa.Y + in.vert),
 		Width:  math.Round(math.Max(wa.Width-2*in.horiz, 1)),
 		Height: math.Round(math.Max(wa.Height-2*in.vert, 1)),
-	}
-}
-
-func settingsWindowRect(out wayfireOutput, in fitInsets, v SettingsWindow) wayfireGeometry {
-	full := fitRect(out, in)
-	v = normalizeSettingsWindow(v)
-	if v.Mode != "custom" {
-		return full
-	}
-	width := math.Round(math.Max(full.Width*v.Width, math.Min(settingsMinWidth, full.Width)))
-	height := math.Round(math.Max(full.Height*v.Height, math.Min(settingsMinHeight, full.Height)))
-	return wayfireGeometry{
-		X:      math.Round(full.X + (full.Width-width)/2),
-		Y:      math.Round(full.Y + (full.Height-height)/2),
-		Width:  width,
-		Height: height,
 	}
 }
 

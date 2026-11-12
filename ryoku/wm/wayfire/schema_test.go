@@ -95,8 +95,8 @@ func TestSchemaRowsResolveAgainstStore(t *testing.T) {
 			}
 		}
 	}
-	if got := pageCounts["windowmanager"]; got != 50 {
-		t.Errorf("windowmanager rows = %d, want 50", got)
+	if got := pageCounts["windowmanager"]; got != 47 {
+		t.Errorf("windowmanager rows = %d, want 47", got)
 	}
 	if got := pageCounts["animations"]; got != 9 {
 		t.Errorf("animation rows = %d, want 9", got)

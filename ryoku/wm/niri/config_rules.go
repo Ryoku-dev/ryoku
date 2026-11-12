@@ -69,7 +69,7 @@ func writeUserLayerRule(b *strings.Builder, r LayerRule) {
 // writeWindowRules emits the global corner radius and opacity, then each user
 // window rule and per-app override niri can express. Rules niri cannot express
 // are reported unhonored by apply, not silently dropped here.
-func writeWindowRules(b *strings.Builder, a Appearance, settingsWindow SettingsWindow, rules []WindowRule, apps []AppOverride) {
+func writeWindowRules(b *strings.Builder, a Appearance, rules []WindowRule, apps []AppOverride) {
 	if a.Rounding > 0 {
 		b.WriteString("window-rule {\n")
 		fmt.Fprintf(b, "    geometry-corner-radius %d\n", a.Rounding)
@@ -77,9 +77,6 @@ func writeWindowRules(b *strings.Builder, a Appearance, settingsWindow SettingsW
 		b.WriteString("}\n\n")
 	}
 	writeOpacityRules(b, a)
-	if props := settingsWindowRuleProps(settingsWindow); len(props) > 0 {
-		writeRuleBlock(b, "", "^Ryoku Settings$", props)
-	}
 	for _, r := range builtinWindowRules {
 		writeRuleBlock(b, r.class, r.title, r.props)
 	}
@@ -103,18 +100,6 @@ type builtinRule struct {
 	class string
 	title string
 	props []string
-}
-
-func settingsWindowRuleProps(v SettingsWindow) []string {
-	v = normalizeSettingsWindow(v)
-	if v.Mode != "custom" {
-		return nil
-	}
-	return []string{
-		"open-floating true",
-		fmt.Sprintf("default-column-width { proportion %s; }", kdlFloat(v.Width)),
-		fmt.Sprintf("default-window-height { proportion %s; }", kdlFloat(v.Height)),
-	}
 }
 
 var builtinWindowRules = []builtinRule{
@@ -170,49 +155,15 @@ func writeRuleBlock(b *strings.Builder, class, title string, props []string) {
 }
 
 // windowRuleProps translates one neutral window-rule action into niri property
-// lines, or returns nil when niri has no expression for it. The size and
-// background-effect actions span several lines, so they carry their own inner
-// indentation and writeRuleBlock re-indents each element by one level.
+// lines through windowRuleTable, or returns nil when niri has no expression for
+// it. The size and background-effect actions span several lines, so they carry
+// their own inner indentation and writeRuleBlock re-indents each element by one
+// level.
 func windowRuleProps(r WindowRule) []string {
-	switch r.Action {
-	case "float":
-		return []string{"open-floating true"}
-	case "tile":
-		return []string{"open-floating false"}
-	case "fullscreen":
-		return []string{"open-fullscreen true"}
-	case "maximize":
-		return []string{"open-maximized true"}
-	case "norounding":
-		return []string{"geometry-corner-radius 0"}
-	case "opacity":
-		return []string{fmt.Sprintf("opacity %s", kdlFloat(parseFloat(r.Value, 1)))}
-	case "workspace":
-		return []string{fmt.Sprintf("open-on-workspace %s", kdlStr(r.Value))}
-	case "noborder":
-		return []string{"border {", "    off", "}"}
-	case "columnwidth":
-		return []string{fmt.Sprintf("default-column-width { proportion %s; }", kdlFloat(parseFloat(r.Value, 0.5)))}
-	case "minsize":
-		return sizeProps("min", r.Value)
-	case "maxsize":
-		return sizeProps("max", r.Value)
-	case "scrollfactor":
-		return []string{fmt.Sprintf("scroll-factor %s", kdlNum(parseFloat(r.Value, 1)))}
-	case "tiledstate":
-		return []string{"tiled-state true"}
-	case "babaisfloat":
-		return []string{"baba-is-float true"}
-	case "noshadow":
-		return []string{"shadow {", "    off", "}"}
-	case "blur":
-		return []string{"background-effect {", "    blur true", "}"}
-	case "noblur":
-		return []string{"background-effect {", "    blur false", "}"}
-	case "xray":
-		return []string{"background-effect {", "    xray true", "}"}
-	case "blockout":
-		return []string{`block-out-from "screencast"`}
+	for _, a := range windowRuleTable {
+		if a.id == r.Action {
+			return a.props(r.Value)
+		}
 	}
 	return nil
 }

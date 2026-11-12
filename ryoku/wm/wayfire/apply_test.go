@@ -568,7 +568,7 @@ func TestDecorPluginAbsent(t *testing.T) {
 		t.Errorf("stock decoration border was not retained:\n%s", body)
 	}
 
-	const reason = "The Ryoku window decor plugin is missing; it ships with ryoku-desktop-wayfire."
+	const reason = "Ryoku's window frames for Wayfire are missing; reinstall Ryoku's Wayfire desktop to get them back."
 	got := map[string]string{}
 	for _, u := range unhonored(store) {
 		got[u.Key] = u.Reason
@@ -691,19 +691,19 @@ func TestUnhonoredNamesLosses(t *testing.T) {
 	}
 	for key, contains := range map[string]string{
 		"desktop.appearance.inactiveOpacity": "cannot change it when focus moves",
-		"desktop.appearance.rounding":        "Ryoku window decor plugin is missing",
-		"desktop.appearance.shadowColor":     "Ryoku window decor plugin is missing",
-		"desktop.appearance.shadowEnabled":   "Ryoku window decor plugin is missing",
-		"desktop.appearance.shadowOffsetX":   "Ryoku window decor plugin is missing",
-		"desktop.appearance.shadowOffsetY":   "Ryoku window decor plugin is missing",
-		"desktop.appearance.shadowRange":     "Ryoku window decor plugin is missing",
-		"desktop.appearance.shadowSpread":    "Ryoku window decor plugin is missing",
-		"desktop.input.followMouse":          "no focus-follows-pointer mode",
-		"desktop.input.middleClickPaste":     "no primary-selection switch",
-		"desktop.cursor.hideOnKeyPress":      "no inactivity timeout or keypress-hide option",
-		"desktop.cursor.inactiveTimeout":     "no inactivity timeout or keypress-hide option",
-		"desktop.windows":                    "no tame-on-open",
-		"wm.niri":                            "These Niri-only settings have no wayfire equivalent",
+		"desktop.appearance.rounding":        "window frames for Wayfire are missing",
+		"desktop.appearance.shadowColor":     "window frames for Wayfire are missing",
+		"desktop.appearance.shadowEnabled":   "window frames for Wayfire are missing",
+		"desktop.appearance.shadowOffsetX":   "window frames for Wayfire are missing",
+		"desktop.appearance.shadowOffsetY":   "window frames for Wayfire are missing",
+		"desktop.appearance.shadowRange":     "window frames for Wayfire are missing",
+		"desktop.appearance.shadowSpread":    "window frames for Wayfire are missing",
+		"desktop.input.followMouse":          "can't focus the window under the pointer",
+		"desktop.input.middleClickPaste":     "pasting with the middle button",
+		"desktop.cursor.hideOnKeyPress":      "can't hide it after a while or while you type",
+		"desktop.cursor.inactiveTimeout":     "can't hide it after a while or while you type",
+		"desktop.windows":                    "apps that open maximised",
+		"wm.niri":                            "These Niri settings have no Wayfire equivalent",
 	} {
 		if !strings.Contains(got[key], contains) {
 			t.Errorf("%s = %q, want it to contain %q", key, got[key], contains)
@@ -908,13 +908,13 @@ func TestWindowRuleRendering(t *testing.T) {
 			t.Errorf("wayfireRule(%+v) must be lost, got %q", r, rule)
 		}
 	}
-	if _, why := renderRule("x", "", "float", ""); !strings.Contains(why, `no "float" action`) {
-		t.Errorf("an unknown action must name it, got %q", why)
+	if _, why := renderRule("x", "", "float", ""); why != "Wayfire can't apply this to a window." {
+		t.Errorf("an unknown action must say it cannot apply, got %q", why)
 	}
-	if _, why := renderRule("", "", "maximize", ""); !strings.Contains(why, "app id or title") {
+	if _, why := renderRule("", "", "maximize", ""); !strings.Contains(why, "app ID or a title") {
 		t.Errorf("an unanchored rule must say so, got %q", why)
 	}
-	if _, why := renderRule("x", "", "workspace", "3"); !strings.Contains(why, "grid coordinates") {
+	if _, why := renderRule("x", "", "workspace", "3"); !strings.Contains(why, "a column and a row") {
 		t.Errorf("a linear workspace index must name the grid format, got %q", why)
 	}
 }
@@ -969,10 +969,10 @@ func TestBindsUnhonored(t *testing.T) {
 	for _, u := range unhonored(store) {
 		got[u.Key] = u.Reason
 	}
-	if !strings.Contains(got["desktop.keybinds[0]"], `cannot bind the "close" action`) {
+	if !strings.Contains(got["desktop.keybinds[0]"], "can only run commands") {
 		t.Errorf("keybinds[0] = %q", got["desktop.keybinds[0]"])
 	}
-	if !strings.Contains(got["desktop.keybinds[1]"], "cannot bind the chord") {
+	if !strings.Contains(got["desktop.keybinds[1]"], "can't use this key combination") {
 		t.Errorf("keybinds[1] = %q", got["desktop.keybinds[1]"])
 	}
 	if !strings.Contains(got["desktop.keybinds[2]"], "needs a command") {
@@ -1218,17 +1218,14 @@ func TestApplyRefusesWhenTheShippedDefaultsAreMissing(t *testing.T) {
 	}
 }
 
-func TestApplyWritesCustomSettingsWindowRule(t *testing.T) {
+func TestApplyKeepsSettingsOnPageFit(t *testing.T) {
 	dir := wayfireHome(t)
 	withDefaults(t, "[core]\nplugins = window-rules place simple-tile\n")
 	store := writeStore(t, `{"wm":{"wayfire":{"settingsWindow":{"mode":"custom","width":0.5,"height":0.5}}}}`)
-	rep := capApply(t, store)
-	if len(rep.Written) != 1 {
-		t.Fatalf("written = %v, want wayfire.ini", rep.Written)
-	}
+	capApply(t, store)
 	config := readGen(t, dir, "wayfire.ini")
-	want := `ryoku_builtin_hub = on created if title is "Ryoku Settings" then set geometry_ppt 25 25 50 50`
+	want := `ryoku_builtin_hub = on created if title is "Ryoku Settings" then ` + pageFit
 	if !strings.Contains(config, want) {
-		t.Fatalf("custom settings window rule missing %q:\n%s", want, config)
+		t.Fatalf("a retired settingsWindow value must not size the Settings window, want %q:\n%s", want, config)
 	}
 }

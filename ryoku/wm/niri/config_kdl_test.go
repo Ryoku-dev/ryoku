@@ -316,6 +316,18 @@ func TestInputExclusivesEmitted(t *testing.T) {
 	}
 }
 
+// Only "follows the pointer" writes focus-follows-mouse: niri scrolls the window
+// under the pointer without it, so the click modes must leave it out.
+func TestFocusFollowsMouseOnlyForTheFollowMode(t *testing.T) {
+	for mode, want := range map[int]bool{0: false, 1: true, 2: false, 3: false} {
+		s := defaultStore()
+		s.Input.FollowMouse = mode
+		if got := strings.Contains(string(genSettings(s)), "focus-follows-mouse"); got != want {
+			t.Errorf("followMouse %d: focus-follows-mouse written = %v, want %v", mode, got, want)
+		}
+	}
+}
+
 // The gestures block keeps the bare hot-corner switch by default and only tunes
 // the drag-edge gestures when the user moved them off niri's own numbers.
 func TestGesturesDndTuning(t *testing.T) {

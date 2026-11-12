@@ -62,16 +62,9 @@ var capsManifest = []wm.Capability{
 	wm.CapPersistentScreenCapture,
 }
 
-// windowRuleActions are the neutral window-rule action ids genWindowRule and
-// genLayerRule accept, in the order the Hub offers them. It is the source the
-// window-rules editor reads, so a control is never shown for a property this
-// provider's config writer would drop.
-var windowRuleActions = []string{
-	"float", "tile", "pin", "fullscreen", "maximize", "center", "immediate",
-	"pseudo", "norounding", "noborder", "opacity", "size", "move", "workspace",
-	"idleinhibit", "suppressevent", "blur", "noanim", "blurpopups", "xray",
-	"abovelock", "noshadow", "ignorealpha", "dimaround",
-}
+// appOverrideFields are the per-app look fields genAppOverride writes: all of
+// them, as hl.window_rule properties.
+var appOverrideFields = []string{"opacity", "rounding", "borderSize", "blur", "shadow", "dim", "anim", "opaque"}
 
 // The packages ryoku-desktop-hyprland is made of: the variant package itself,
 // Hyprland, its plugins, its portal and its satellites. Kept in step with that
@@ -118,6 +111,7 @@ func runCaps() error {
 		NightLightProcess: "hyprsunset",
 		Packages:          compositorPackages,
 		WindowRuleActions: windowRuleActions,
+		AppOverrideFields: appOverrideFields,
 	}
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")

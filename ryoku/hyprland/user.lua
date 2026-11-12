@@ -5,7 +5,7 @@
 --
 -- --- who owns what --------------------------------------------------------
 --   Ryoku defaults   the base modules           replaced by updates   don't edit
---   Ryoku Settings   settings*.lua, rebinds.lua the GUI writes these edit in-app
+--   Ryoku Settings   settings.lua, rebinds.lua  the GUI writes these  edit in-app
 --   you              this file (edit it here); whole-file forks in user_edits  yours
 --
 -- --- take over a whole module ---------------------------------------------

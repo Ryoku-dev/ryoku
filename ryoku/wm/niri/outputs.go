@@ -219,26 +219,26 @@ func outputsUnhonored(layout []wm.OutputLayout) []wm.Unhonored {
 		if o.Mirror != "" && o.Mirror != "none" {
 			unh = append(unh, wm.Unhonored{
 				Key:    "displays." + o.Name + ".mirror",
-				Reason: "niri does not mirror one output onto another",
+				Reason: "Niri can't show one display's picture on another.",
 			})
 		}
 		if o.ColorMode != "" && o.ColorMode != "srgb" {
 			unh = append(unh, wm.Unhonored{
 				Key:    "displays." + o.Name + ".colorMode",
-				Reason: "niri has no HDR or wide-gamut colour pipeline",
+				Reason: "Niri has no HDR or wide colour mode.",
 			})
 		}
 		if o.SdrBrightness > 0 && o.SdrBrightness != 1 {
 			unh = append(unh, wm.Unhonored{
 				Key:    "displays." + o.Name + ".sdrBrightness",
-				Reason: "niri has no HDR SDR-brightness control",
+				Reason: "Niri has no brightness setting for everyday content in HDR.",
 			})
 		}
 		if o.Mode != "" && advertised != nil {
 			if modes, ok := advertised[o.Name]; ok && !modes[o.Mode] {
 				unh = append(unh, wm.Unhonored{
 					Key:    "displays." + o.Name + ".mode",
-					Reason: fmt.Sprintf("niri cannot force the non-advertised mode %s; the panel stays at its preferred mode", o.Mode),
+					Reason: fmt.Sprintf("Niri can't use %s because the display doesn't offer it, so it keeps its preferred mode.", o.Mode),
 				})
 			}
 		}

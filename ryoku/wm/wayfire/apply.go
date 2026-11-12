@@ -587,27 +587,27 @@ func appearanceReason(leaf string) string {
 	case leaf == "rounding" || leaf == "roundingPower" ||
 		leaf == "shadowEnabled" || leaf == "shadowRange" || leaf == "shadowColor" ||
 		leaf == "shadowOffsetX" || leaf == "shadowOffsetY" || leaf == "shadowSpread":
-		return "The Ryoku window decor plugin is missing; it ships with ryoku-desktop-wayfire."
+		return "Ryoku's window frames for Wayfire are missing; reinstall Ryoku's Wayfire desktop to get them back."
 	case strings.HasPrefix(leaf, "shadow"):
-		return "The Ryoku window decor plugin has no matching control for this shadow setting."
+		return "Ryoku's window frames for Wayfire have no setting for this shadow option."
 	case leaf == "inactiveOpacity":
 		return "Wayfire can set one opacity when a window opens, but cannot change it when focus moves."
 	case strings.HasSuffix(leaf, "Opacity") || leaf == "fullscreenOpacity":
-		return "Wayfire has no matching dynamic window-opacity state."
+		return "Wayfire can't change a window's opacity while it is open."
 	case strings.HasPrefix(leaf, "glow"):
-		return "wayfire has no glow."
+		return "Wayfire has no glow."
 	case strings.HasPrefix(leaf, "dim"):
-		return "wayfire has no window dimming."
+		return "Wayfire can't dim windows."
 	case strings.HasPrefix(leaf, "blur"):
-		return "Wayfire's blur plugin has no equivalent for this neutral blur control."
+		return "Wayfire's blur has no matching setting."
 	case leaf == "layout":
-		return "Wayfire uses simple-tile for every window and cannot select Hyprland's dwindle, master or scrolling algorithms."
+		return "Wayfire tiles every window one way and can't use Hyprland's other layouts."
 	case leaf == "windowStyle":
-		return "wayfire has no window-open style presets; set the window-open animation on the Animations page instead."
+		return "Wayfire has no window-open styles; set the window-open animation on the Animations page instead."
 	case leaf == "animatedBorder" || leaf == "borderAngleSpeed":
-		return "wayfire's border colour is static; there is no rotating-border animation."
+		return "Wayfire's border colour can't move."
 	}
-	return "wayfire has no matching appearance control."
+	return "Wayfire has no matching appearance setting."
 }
 
 var inputEmitted = map[string]bool{
@@ -623,13 +623,13 @@ var inputEmitted = map[string]bool{
 func inputReason(leaf string) string {
 	switch leaf {
 	case "followMouse":
-		return "Wayfire core supports click-to-focus, but has no focus-follows-pointer mode."
+		return "Wayfire focuses a window when you click it, but can't focus the window under the pointer."
 	case "middleClickPaste":
-		return "Wayfire has no primary-selection switch."
+		return "Wayfire can't turn off pasting with the middle button."
 	case "swipeInvert", "swipeCreateNew", "swipeDistance":
-		return "wayfire's workspace swipe has no inversion, create-new or distance setting."
+		return "Wayfire's workspace swipe has no setting for direction, new workspaces or distance."
 	}
-	return "wayfire has no matching input control."
+	return "Wayfire has no matching input setting."
 }
 
 var cursorEmitted = map[string]bool{
@@ -637,7 +637,7 @@ var cursorEmitted = map[string]bool{
 }
 
 func cursorReason(leaf string) string {
-	return "Wayfire input exposes cursor theme and size, but no inactivity timeout or keypress-hide option."
+	return "Wayfire can set the pointer's look and size, but can't hide it after a while or while you type."
 }
 
 // unhonoredLeaves reports each present leaf of a desktop.* object that wayfire
@@ -723,7 +723,7 @@ func unhonoredAppOverrides(raw json.RawMessage) []wm.Unhonored {
 			if _, ok := wayfireOverride(a); !ok {
 				out = append(out, wm.Unhonored{
 					Key:    fmt.Sprintf("desktop.appOverrides[%d]", i),
-					Reason: "wayfire window rules need an app id or title to match on.",
+					Reason: "Wayfire's window rules need an app ID or a title to match.",
 				})
 				continue
 			}
@@ -734,7 +734,7 @@ func unhonoredAppOverrides(raw json.RawMessage) []wm.Unhonored {
 		}
 		out = append(out, wm.Unhonored{
 			Key:    fmt.Sprintf("desktop.appOverrides[%d]", i),
-			Reason: "wayfire cannot set per-window " + strings.Join(lost, ", ") + ".",
+			Reason: "Wayfire can't set " + joinWords(lost) + " for one app.",
 		})
 	}
 	return out
@@ -760,9 +760,9 @@ func unhonoredDesktopMisc(desktop map[string]json.RawMessage) []wm.Unhonored {
 
 func desktopMiscReason(key string) string {
 	if key == "windows" {
-		return "Wayfire has no tame-on-open: unmaximizing a created view would also remove simple-tile's default tile."
+		return "Wayfire can't put apps that open maximised back in a tile without taking them out of tiling."
 	}
-	return "wayfire has no setting for this."
+	return "Wayfire has no setting for this."
 }
 
 // unhonoredForeign collapses each non-wayfire namespace that carries content
@@ -785,7 +785,7 @@ func unhonoredForeign(wmns map[string]json.RawMessage) []wm.Unhonored {
 	for _, name := range names {
 		out = append(out, wm.Unhonored{
 			Key:    "wm." + name,
-			Reason: fmt.Sprintf("These %s-only settings have no wayfire equivalent. They stay in the store and return if you switch back.", titleName(name)),
+			Reason: fmt.Sprintf("These %s settings have no Wayfire equivalent. They stay saved and come back if you switch back.", titleName(name)),
 		})
 	}
 	return out
@@ -796,4 +796,12 @@ func titleName(s string) string {
 		return s
 	}
 	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// joinWords lists words the way a sentence does: "a", "a and b", "a, b and c".
+func joinWords(words []string) string {
+	if len(words) < 2 {
+		return strings.Join(words, "")
+	}
+	return strings.Join(words[:len(words)-1], ", ") + " and " + words[len(words)-1]
 }

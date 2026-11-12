@@ -17,7 +17,7 @@
     "group": "WORKSPACE SWITCH",
     "key": "wm.wayfire.animation.workspaceSwitch.curve",
     "label": "Curve",
-    "desc": "Easing curve the animation follows",
+    "desc": "How the animation speeds up and slows down",
     "ctl": "chips",
     "src": "desktop.json",
     "opts": [
@@ -27,10 +27,10 @@
       "easeOutElastic"
     ],
     "optLabels": {
-      "linear": "Linear",
-      "circle": "Circle",
-      "sigmoid": "Sigmoid",
-      "easeOutElastic": "Elastic"
+      "linear": "Even",
+      "circle": "Smooth",
+      "sigmoid": "Ease in and out",
+      "easeOutElastic": "Springy"
     },
     "page": "animations"
   },
@@ -52,7 +52,7 @@
     "group": "WINDOW",
     "key": "wm.wayfire.animation.window.curve",
     "label": "Curve",
-    "desc": "Easing curve the animation follows",
+    "desc": "How the animation speeds up and slows down",
     "ctl": "chips",
     "src": "desktop.json",
     "opts": [
@@ -62,10 +62,10 @@
       "easeOutElastic"
     ],
     "optLabels": {
-      "linear": "Linear",
-      "circle": "Circle",
-      "sigmoid": "Sigmoid",
-      "easeOutElastic": "Elastic"
+      "linear": "Even",
+      "circle": "Smooth",
+      "sigmoid": "Ease in and out",
+      "easeOutElastic": "Springy"
     },
     "page": "animations"
   },
@@ -87,7 +87,7 @@
     "group": "SNAP",
     "key": "wm.wayfire.animation.snap.curve",
     "label": "Curve",
-    "desc": "Easing curve the animation follows",
+    "desc": "How the animation speeds up and slows down",
     "ctl": "chips",
     "src": "desktop.json",
     "opts": [
@@ -97,10 +97,10 @@
       "easeOutElastic"
     ],
     "optLabels": {
-      "linear": "Linear",
-      "circle": "Circle",
-      "sigmoid": "Sigmoid",
-      "easeOutElastic": "Elastic"
+      "linear": "Even",
+      "circle": "Smooth",
+      "sigmoid": "Ease in and out",
+      "easeOutElastic": "Springy"
     },
     "page": "animations"
   },
@@ -146,8 +146,8 @@
     "tab": "Window style",
     "group": "MINIMIZE",
     "key": "wm.wayfire.animation.minimizeStyle",
-    "label": "Minimize effect",
-    "desc": "Effect used when a window is minimized",
+    "label": "Minimise effect",
+    "desc": "Effect used when a window is minimised",
     "ctl": "chips",
     "src": "desktop.json",
     "opts": ["none", "zoom", "squeezimize"],

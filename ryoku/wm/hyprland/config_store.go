@@ -145,31 +145,6 @@ type Windows struct {
 	TameMaximizeOnOpen bool `json:"tameMaximizeOnOpen"`
 }
 
-// SettingsWindow is the provider-owned size of the Hub window. Full keeps the
-// shipped work-area fit; custom scales that same area and stays centred.
-type SettingsWindow struct {
-	Mode   string  `json:"mode"`
-	Width  float64 `json:"width"`
-	Height float64 `json:"height"`
-}
-
-func normalizeSettingsWindow(v SettingsWindow) SettingsWindow {
-	if v.Mode != "custom" {
-		v.Mode = "full"
-	}
-	if v.Width < 0.25 {
-		v.Width = 0.25
-	} else if v.Width > 1 {
-		v.Width = 1
-	}
-	if v.Height < 0.25 {
-		v.Height = 0.25
-	} else if v.Height > 1 {
-		v.Height = 1
-	}
-	return v
-}
-
 // WindowRule = one user rule: optional class/title match + one action.
 type WindowRule struct {
 	Class  string `json:"class"`
@@ -344,7 +319,6 @@ type Overrides struct {
 	Input          Input             `json:"input"`
 	Cursor         Cursor            `json:"cursor"`
 	Windows        Windows           `json:"windows"`
-	SettingsWindow SettingsWindow    `json:"settingsWindow"`
 	Env            []EnvVar          `json:"env"`
 	WindowRules    []WindowRule      `json:"windowRules"`
 	Autostart      []Autostart       `json:"autostart"`
@@ -411,16 +385,15 @@ func defaultOverrides() Overrides {
 			WorkspaceSwipe: false, SwipeFingers: 3,
 			SwipeInvert: true, SwipeCreateNew: true, SwipeDistance: 300,
 		},
-		Cursor:         Cursor{Theme: "Bibata-Modern-Ice", Size: 24, InactiveTimeout: 0, HideOnKeyPress: false},
-		Windows:        Windows{TameMaximizeOnOpen: true},
-		SettingsWindow: SettingsWindow{Mode: "full", Width: 0.5, Height: 0.5},
-		Env:            []EnvVar{},
-		WindowRules:    []WindowRule{},
-		Autostart:      []Autostart{},
-		Keybinds:       []Keybind{},
-		Anim:           Anim{Items: []AnimItem{}, Curves: []AnimCurve{}},
-		LayerRules:     []LayerRule{},
-		AppOverrides:   []AppOverride{},
+		Cursor:       Cursor{Theme: "Bibata-Modern-Ice", Size: 24, InactiveTimeout: 0, HideOnKeyPress: false},
+		Windows:      Windows{TameMaximizeOnOpen: true},
+		Env:          []EnvVar{},
+		WindowRules:  []WindowRule{},
+		Autostart:    []Autostart{},
+		Keybinds:     []Keybind{},
+		Anim:         Anim{Items: []AnimItem{}, Curves: []AnimCurve{}},
+		LayerRules:   []LayerRule{},
+		AppOverrides: []AppOverride{},
 		Plugins: Plugins{
 			DynamicCursors:  DynamicCursors{Enabled: false, Mode: "tilt", Shake: true, Magnify: 4.0},
 			Hyprbars:        Hyprbars{Enabled: false, Height: 26, TextSize: 11, Blur: true, Buttons: true},
@@ -440,13 +413,12 @@ func defaultOverrides() Overrides {
 // active. Everything else is desktop.* intent every compositor honours. This is
 // the one split table, driving both the reader and splitStore.
 var wmHyprlandFields = map[string]bool{
-	"dwindle":        true,
-	"render":         true,
-	"master":         true,
-	"anim":           true,
-	"layerRules":     true,
-	"plugins":        true,
-	"settingsWindow": true,
+	"dwindle":    true,
+	"render":     true,
+	"master":     true,
+	"anim":       true,
+	"layerRules": true,
+	"plugins":    true,
 }
 
 // neutralStore is desktop.json on disk: { "desktop": {...}, "wm": { "hyprland":
@@ -501,7 +473,6 @@ func readNeutralStore(path string) (neutralStore, bool) {
 // normalizeOverrides replaces the nil slices a partial store leaves behind so
 // the generators never range a nil.
 func normalizeOverrides(o Overrides) Overrides {
-	o.SettingsWindow = normalizeSettingsWindow(o.SettingsWindow)
 	if o.Env == nil {
 		o.Env = []EnvVar{}
 	}

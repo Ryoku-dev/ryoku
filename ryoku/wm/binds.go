@@ -89,9 +89,10 @@ type CatalogBind struct {
 	// Needs is the program the bind launches when that program is an optional
 	// app the user may remove. A provider registers no chord for a bind whose
 	// program is absent, so a key never opens a surface that can only say the
-	// app is missing, and the legend row names the program instead of listing
-	// a dead key.
-	Needs string
+	// app is missing, and the legend row says so instead of listing a dead key.
+	// NeedsName is what the user knows and installs that program as.
+	Needs     string
+	NeedsName string
 }
 
 // HasProgram reports whether name resolves on PATH. It is the lookup Missing
@@ -102,12 +103,40 @@ func HasProgram(name string) bool {
 }
 
 // Missing is the legend line for a bind whose program is not installed, or ""
-// when the bind needs nothing or has what it needs.
+// when the bind needs nothing or has what it needs. It names the app the user
+// installs, not the program inside it.
 func (c CatalogBind) Missing(has func(string) bool) string {
 	if c.Needs == "" || has(c.Needs) {
 		return ""
 	}
-	return fmt.Sprintf("%s is not installed.", c.Needs)
+	return fmt.Sprintf("%s is not installed.", c.NeedsName)
+}
+
+// CustomBindLabel is the legend text for one of the user's own shortcuts,
+// worded the way the catalogue words the same behaviour, so every provider's
+// Keyboard shortcuts page names a custom row alike whatever it can honour.
+func CustomBindLabel(action, value string) string {
+	v := strings.TrimSpace(value)
+	switch action {
+	case "exec", "":
+		if v == "" {
+			return "Run a command"
+		}
+		return "Run: " + v
+	case "close":
+		return "Close window"
+	case "fullscreen":
+		return "Full screen"
+	case "togglefloating":
+		return "Float or tile"
+	case "workspace":
+		return "Focus workspace " + v
+	case "movetoworkspace":
+		return "Send to workspace " + v
+	case "movetoworkspacesilent":
+		return "Send to workspace " + v + " quietly"
+	}
+	return strings.ToUpper(action[:1]) + action[1:]
 }
 
 // ShellCloseCheck succeeds when the active subshell or bar style handles the
@@ -129,12 +158,12 @@ const QmlEnv = `env QML_IMPORT_PATH="$HOME/.local/lib/qt6/qml" QML2_IMPORT_PATH=
 var catalogue = []CatalogBind{
 	// Windows
 	{ID: "window.close", Category: "Windows", Label: "Close window", Hint: "Close the focused window", Chord: "SUPER + Q", Kind: BindWM},
-	{ID: "window.fullscreen", Category: "Windows", Label: "Fullscreen", Hint: "Toggle fullscreen on the focused window", Chord: "SUPER + F", Kind: BindWM},
+	{ID: "window.fullscreen", Category: "Windows", Label: "Full screen", Hint: "Make the focused window full screen, or bring it back", Chord: "SUPER + F", Kind: BindWM},
 	{ID: "window.float", Category: "Windows", Label: "Float or tile", Hint: "Float the window, or tile it back", Chord: "SUPER + A", Kind: BindWM},
 	{ID: "window.pin", Category: "Windows", Label: "Pin window", Hint: "Keep a floating window on every workspace", Chord: "SUPER + SHIFT + P", Kind: BindWM},
-	{ID: "window.resize", Category: "Windows", Label: "Resize mode", Hint: "Resize from the keyboard: arrows or hjkl, Esc exits", Chord: "SUPER + R", Kind: BindWM},
+	{ID: "window.resize", Category: "Windows", Label: "Resize mode", Hint: "Resize the window with the arrow keys; Escape stops", Chord: "SUPER + R", Kind: BindWM},
 	{ID: "window.presetHeight", Category: "Windows", Label: "Step window height", Hint: "Cycle the window through its preset heights", Chord: "SUPER + SHIFT + R", Kind: BindWM},
-	{ID: "column.tabbed", Category: "Windows", Label: "Group windows (tabbed)", Hint: "Stack the column into tabs, one window showing at a time", Chord: "SUPER + T", Kind: BindWM},
+	{ID: "column.tabbed", Category: "Windows", Label: "Stack windows as tabs", Hint: "Stack the column into tabs, one window showing at a time", Chord: "SUPER + T", Kind: BindWM},
 	{ID: "column.maximize", Category: "Windows", Label: "Maximise", Hint: "Fill the screen width, keeping gaps and bar", Chord: "SUPER + D", Kind: BindWM},
 	{ID: "column.center", Category: "Windows", Label: "Centre", Hint: "Centre the focused window on screen", Chord: "SUPER + C", Kind: BindWM},
 	{ID: "window.focusPrevious", Category: "Windows", Label: "Last window", Hint: "Switch to the previously focused window", Chord: "ALT + Tab", Kind: BindWM},
@@ -208,20 +237,20 @@ var catalogue = []CatalogBind{
 
 	// Shell
 	{ID: "shell.launcher", Category: "Shell", Label: "App launcher", Chord: "SUPER + Space", Kind: BindShell},
-	{ID: "shell.ask", Category: "Shell", Label: "Ask Rashin", Hint: "Ask Rashin about this machine", Chord: "ALT + Space", Kind: BindShell, Needs: "rashind"},
-	{ID: "shell.rashin", Category: "Shell", Label: "Rashin", Hint: "The Rashin app; a second press focuses it", Chord: "SUPER + ALT + Space", Kind: BindShell, Needs: "rashin-app"},
+	{ID: "shell.ask", Category: "Shell", Label: "Ask Rashin", Hint: "Ask Rashin about this machine", Chord: "ALT + Space", Kind: BindShell, Needs: "rashind", NeedsName: "Rashin"},
+	{ID: "shell.rashin", Category: "Shell", Label: "Rashin", Hint: "The Rashin app; a second press focuses it", Chord: "SUPER + ALT + Space", Kind: BindShell, Needs: "rashin-app", NeedsName: "Rashin"},
 	{ID: "shell.cheatsheet", Category: "Shell", Label: "Kit", Hint: "Press again to close", Chord: "SUPER + K", Kind: BindShell},
 	{ID: "shell.lock", Category: "Shell", Label: "Lock the screen", Chord: "SUPER + L", Kind: BindShell},
-	{ID: "shell.quicksettings", Category: "Shell", Label: "Quick settings", Hint: "Power, logout, restart, shutdown, wifi", Chord: "SUPER + Escape", Kind: BindShell},
+	{ID: "shell.quicksettings", Category: "Shell", Label: "Quick settings", Hint: "Power, sign out, restart, shut down and Wi-Fi", Chord: "SUPER + Escape", Kind: BindShell},
 	{ID: "shell.wallpaper", Category: "Shell", Label: "Wallpaper picker", Chord: "SUPER + W", Kind: BindShell},
 	{ID: "shell.wallpaperRandom", Category: "Shell", Label: "Random wallpaper", Hint: "Random wallpaper with a random transition", Chord: "SUPER + SHIFT + W", Kind: BindShell},
 	{ID: "shell.ryoport", Category: "Shell", Label: "Ryoport", Hint: "Summon the fleet dashboard to this workspace", Chord: "SUPER + SHIFT + V", Kind: BindShell},
 	{ID: "shell.clipboard", Category: "Shell", Label: "Clipboard", Chord: "SUPER + V", Kind: BindShell},
-	{ID: "shell.visualizer", Category: "Shell", Label: "Audio visualiser", Hint: "Toggle the desktop visualiser", Chord: "SUPER + M", Kind: BindShell},
+	{ID: "shell.visualizer", Category: "Shell", Label: "Audio visualiser", Hint: "Show or hide the desktop visualiser", Chord: "SUPER + M", Kind: BindShell},
 	{ID: "shell.visualizerOverlay", Category: "Shell", Label: "Visualiser over windows", Hint: "Raise it above windows; again to flip back", Chord: "SUPER + SHIFT + M", Kind: BindShell},
 	{ID: "shell.visualizerPlace", Category: "Shell", Label: "Place the visualiser", Hint: "Drag the ring or orb into place", Chord: "SUPER + ALT + M", Kind: BindShell},
 	{ID: "shell.voice", Category: "Shell", Label: "Voice typing", Hint: "Speech to text; tap again to stop", Chord: "SUPER + grave", Kind: BindShell},
-	{ID: "shell.settings", Category: "Shell", Label: "Ryoku settings", Chord: "SUPER + comma", Kind: BindShell},
+	{ID: "shell.settings", Category: "Shell", Label: "Settings", Chord: "SUPER + comma", Kind: BindShell},
 	{ID: "shell.stageEditor", Category: "Shell", Label: "Stage Editor", Hint: "Edit the desktop on the focused screen", Chord: "SUPER + SHIFT + D", Kind: BindShell},
 	{ID: "shell.screenshot", Category: "Shell", Label: "Capture", Hint: "Screenshot and recording", Chord: "SUPER + SHIFT + S", Kind: BindShell},
 	{ID: "shell.screenshotPrint", Category: "Shell", Label: "Screenshot", Chord: "Print", Kind: BindShell},
@@ -243,7 +272,7 @@ var catalogue = []CatalogBind{
 	// Hardware. Locked for the same reason as media: the laptop's function keys.
 	{ID: "hardware.brightnessUp", Category: "Hardware", Label: "Brightness up", Chord: "XF86MonBrightnessUp", Kind: BindShell, Locked: true},
 	{ID: "hardware.brightnessDown", Category: "Hardware", Label: "Brightness down", Chord: "XF86MonBrightnessDown", Kind: BindShell, Locked: true},
-	{ID: "hardware.touchpadToggle", Category: "Hardware", Label: "Toggle touchpad", Chord: "XF86TouchpadToggle", Kind: BindShell, Locked: true},
+	{ID: "hardware.touchpadToggle", Category: "Hardware", Label: "Turn the touchpad on or off", Chord: "XF86TouchpadToggle", Kind: BindShell, Locked: true},
 	{ID: "hardware.touchpadOn", Category: "Hardware", Label: "Touchpad on", Chord: "XF86TouchpadOn", Kind: BindShell, Locked: true},
 	{ID: "hardware.touchpadOff", Category: "Hardware", Label: "Touchpad off", Chord: "XF86TouchpadOff", Kind: BindShell, Locked: true},
 

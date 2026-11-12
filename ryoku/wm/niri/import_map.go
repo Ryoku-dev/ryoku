@@ -480,7 +480,7 @@ func (m *niriImportMapper) mapBinds(node *kdlNode) {
 			}
 		} else if store, ok := importedCustomBind(combo, action); ok {
 			mapped.Store = store
-			desc = customLabel(Keybind{Keys: combo, Action: fmt.Sprint(store["action"]), Value: fmt.Sprint(store["value"])})
+			desc = wm.CustomBindLabel(fmt.Sprint(store["action"]), fmt.Sprint(store["value"]))
 		} else {
 			m.keepWrappedDisabled("binds", bind, "bind", fmt.Sprintf("The action %q has no neutral keybind mapping, so the preserved bind is disabled.", action.Name))
 			continue

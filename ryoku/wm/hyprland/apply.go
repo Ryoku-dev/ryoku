@@ -10,14 +10,14 @@ import (
 )
 
 // apply, defaults and session: the write half of the seam for Hyprland. apply
-// renders the neutral store into settings.lua, settings_window.lua and
-// rebinds.lua and reports what it could not express; defaults hands the Hub the
+// renders the neutral store into settings.lua and rebinds.lua and reports what
+// it could not express; defaults hands the Hub the
 // baseline it overlays user values on; session prints the wayland-session entry
 // the installer writes when the compositor package shipped none.
 
 // runApply renders the neutral store into the Hyprland config and prints an
 // ApplyReport. With --preview it pushes the state live and writes nothing;
-// otherwise it writes the three generated modules and the caller reloads.
+// otherwise it writes the two generated modules and the caller reloads.
 func runApply(args []string) error {
 	preview := false
 	storePath := ""
@@ -55,9 +55,6 @@ func runApply(args []string) error {
 	if err := writeOverlayLua("settings.lua", []byte(genLua(o, follow))); err != nil {
 		return err
 	}
-	if err := writeOverlayLua("settings_window.lua", []byte(genSettingsWindowLua(o.SettingsWindow))); err != nil {
-		return err
-	}
 	if err := writeOverlayLua("rebinds.lua", renderRebinds(o)); err != nil {
 		return err
 	}
@@ -66,7 +63,6 @@ func runApply(args []string) error {
 		Provider: wm.ProviderHyprland,
 		Written: []string{
 			filepath.Join(hyprConfigDir(), "settings.lua"),
-			filepath.Join(hyprConfigDir(), "settings_window.lua"),
 			filepath.Join(hyprConfigDir(), "rebinds.lua"),
 		},
 		Unhonored:    unhonored(storePath),

@@ -180,17 +180,17 @@ func TestResolveEmitsCatalogue(t *testing.T) {
 		reasons = append(reasons, u.Key+": "+u.Reason)
 	}
 	joined := strings.Join(reasons, "\n")
-	if !strings.Contains(joined, "(default SUPER + T)") || !strings.Contains(joined, "tabbed") {
+	if !strings.Contains(joined, "(default SUPER + T)") || !strings.Contains(joined, "tabs") {
 		t.Errorf("an impossible behaviour must be reported:\n%s", joined)
 	}
 	wantUnhonored := map[string]string{
-		"desktop.keybinds (default SUPER + T)":            "no tabbed layout",
-		"desktop.keybinds (default SUPER + bracketleft)":  "no keyboard merge action",
-		"desktop.keybinds (default SUPER + bracketright)": "no keyboard merge action",
-		"desktop.keybinds (default SUPER + mouse_up)":     "axis callbacks",
-		"desktop.keybinds (default SUPER + mouse_down)":   "axis callbacks",
-		"desktop.keybinds (default SUPER + CTRL + Prior)": "fixed cells",
-		"desktop.keybinds (default SUPER + CTRL + Next)":  "fixed cells",
+		"desktop.keybinds (default SUPER + T)":            "stack windows as tabs",
+		"desktop.keybinds (default SUPER + bracketleft)":  "not with the keyboard",
+		"desktop.keybinds (default SUPER + bracketright)": "not with the keyboard",
+		"desktop.keybinds (default SUPER + mouse_up)":     "scrolling up from scrolling down",
+		"desktop.keybinds (default SUPER + mouse_down)":   "scrolling up from scrolling down",
+		"desktop.keybinds (default SUPER + CTRL + Prior)": "fixed grid",
+		"desktop.keybinds (default SUPER + CTRL + Next)":  "fixed grid",
 	}
 	if len(report) != len(wantUnhonored) {
 		t.Errorf("default unhonored report has %d rows, want %d: %v", len(report), len(wantUnhonored), report)
@@ -206,7 +206,7 @@ func TestResolveEmitsCatalogue(t *testing.T) {
 		}
 	}
 	for _, u := range report {
-		if strings.Contains(u.Reason, "already taken") {
+		if strings.Contains(u.Reason, "already used by") {
 			t.Errorf("a clean default store must not lose a claim: %v", u)
 		}
 	}
@@ -268,7 +268,7 @@ func TestResolvePriority(t *testing.T) {
 	if foundClose {
 		t.Error("the displaced default must not be emitted beside it")
 	}
-	if !strings.Contains(strings.Join(reportStrings(report), "\n"), "already taken by a custom bind") {
+	if !strings.Contains(strings.Join(reportStrings(report), "\n"), "already used by one of your own shortcuts") {
 		t.Errorf("the displaced default must be reported: %v", report)
 	}
 
@@ -276,7 +276,7 @@ func TestResolvePriority(t *testing.T) {
 	s = defaultStore()
 	s.Keybinds = []Keybind{{Keys: "SUPER + CTRL + KP_4", Action: "exec", Value: "x"}}
 	_, report = resolveBinds(s)
-	if !strings.Contains(strings.Join(reportStrings(report), "\n"), "wayfire's own Tile left") {
+	if !strings.Contains(strings.Join(reportStrings(report), "\n"), "Wayfire's Tile left shortcut") {
 		t.Errorf("a chord wayfire's own config holds must stay reported: %v", report)
 	}
 
@@ -509,9 +509,9 @@ func TestBindRowsCustoms(t *testing.T) {
 	switch {
 	case customs[0].Label != "Run: alacritty" || customs[0].Unhonored != "":
 		t.Errorf("exec row = %+v", customs[0])
-	case !strings.Contains(customs[1].Unhonored, `cannot bind the "close" action`):
+	case !strings.Contains(customs[1].Unhonored, "can only run commands"):
 		t.Errorf("non-exec row unhonored = %q", customs[1].Unhonored)
-	case !strings.Contains(customs[2].Unhonored, "cannot bind the chord"):
+	case !strings.Contains(customs[2].Unhonored, "can't use this key combination"):
 		t.Errorf("wheel row unhonored = %q", customs[2].Unhonored)
 	case !strings.Contains(customs[3].Unhonored, "needs a command"):
 		t.Errorf("empty command row unhonored = %q", customs[3].Unhonored)

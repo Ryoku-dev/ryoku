@@ -53,7 +53,7 @@ Singleton {
         if (next === null)
             return;
         // the file has no runtime keys so keep the last frame's
-        const keep = ["caps", "deadKeys", "windowRuleActions"];
+        const keep = ["caps", "deadKeys", "windowRuleActions", "appOverrideFields"];
         for (let i = 0; i < keep.length; i++)
             if (!(keep[i] in next) && root._data && keep[i] in root._data)
                 next[keep[i]] = root._data[keep[i]];

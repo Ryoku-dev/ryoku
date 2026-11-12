@@ -80,7 +80,7 @@ func shippedBinds() map[string]niriBind {
 		"window.fullscreen": {action: "fullscreen-window"},
 		// The catalogue names this "Float or tile", which is niri's mechanic too.
 		"window.float": {action: "toggle-window-floating"},
-		"window.pin":   {reason: "niri has no pin-window action."},
+		"window.pin":   {reason: "Niri can't keep a window on every workspace."},
 		// The catalogue's resize row is Hyprland's keyboard submap; niri has no
 		// such mode. niri's answer to resizing is stepping the column through its
 		// preset widths, so the chord drives that and the copy is rewritten to
@@ -131,10 +131,10 @@ func shippedBinds() map[string]niriBind {
 		"workspace.moveWindowNext":          {action: "move-column-to-workspace-down"},
 		"workspace.reorderUp":               {action: "move-workspace-up"},
 		"workspace.reorderDown":             {action: "move-workspace-down"},
-		"workspace.hideWindow":              {reason: "niri has no scratchpad workspace."},
-		"workspace.scratchpad":              {reason: "niri has no scratchpad workspace."},
+		"workspace.hideWindow":              {reason: "Niri has no scratchpad."},
+		"workspace.scratchpad":              {reason: "Niri has no scratchpad."},
 		"workspace.overview":                {action: "toggle-overview"},
-		"workspace.overviewDesktops":        {reason: "niri has no desktop blocks to step through, so this would only open the same overview as SUPER + Tab."},
+		"workspace.overviewDesktops":        {reason: "Niri has no groups of workspaces to step through, so this would only open the overview."},
 
 		// Displays
 		"display.focus.left":          {action: "focus-monitor-left"},
@@ -201,8 +201,8 @@ func shippedBinds() map[string]niriBind {
 		"hardware.touchpadOff":    {action: spawnArgs("ryoku-wm-niri", "act", "input.touchpad", "off")},
 
 		// Mouse
-		"mouse.move":   {reason: "niri moves windows with Mod and drag natively."},
-		"mouse.resize": {reason: "niri resizes windows with Mod and drag natively."},
+		"mouse.move":   {reason: "Niri moves a window when you hold the main modifier key and drag."},
+		"mouse.resize": {reason: "Niri resizes a window when you hold the main modifier key and drag its edge."},
 	}
 }
 
@@ -287,7 +287,7 @@ func resolveBinds(s niriStore) ([]outBind, []wm.Unhonored) {
 		}
 		niriChord, ok := toNiriChord(k.Keys)
 		if !ok {
-			report = append(report, wm.Unhonored{Key: fmt.Sprintf("desktop.keybinds[%d]", i), Reason: fmt.Sprintf("niri cannot bind the chord %q.", k.Keys)})
+			report = append(report, wm.Unhonored{Key: fmt.Sprintf("desktop.keybinds[%d]", i), Reason: "Niri can't use this key combination."})
 			continue
 		}
 		emit(k.Keys, niriChord, action, false, false, false, 0)
@@ -456,7 +456,7 @@ func bindRows(s niriStore) []wm.BindRow {
 		row := wm.BindRow{
 			ID:         fmt.Sprintf("custom.%d", i),
 			Category:   "Custom",
-			Label:      customLabel(k),
+			Label:      wm.CustomBindLabel(k.Action, k.Value),
 			Keys:       wm.DisplayKeys(chord),
 			Default:    chord,
 			Chord:      chord,
@@ -468,7 +468,7 @@ func bindRows(s niriStore) []wm.BindRow {
 			row.Unhonored = reason
 		default:
 			if _, ok := toNiriChord(chord); !ok {
-				row.Unhonored = fmt.Sprintf("niri cannot bind the chord %q.", k.Keys)
+				row.Unhonored = "Niri can't use this key combination."
 			}
 		}
 		rows = append(rows, row)
@@ -491,13 +491,15 @@ func rebindable(cb wm.CatalogBind) bool {
 }
 
 // runBinds prints the effective bind legend as a JSON array of wm.BindRow, read
-// through the store so the chords reflect what the session actually emits.
+// through the store so the chords reflect what the session actually emits. With
+// no path it reads the saved store, which is how the seam client (and so the
+// cheatsheet and the Hub) asks.
 func runBinds(args []string) error {
-	storePath := ""
+	path := storePath()
 	if len(args) > 0 {
-		storePath = args[0]
+		path = args[0]
 	}
-	rows := bindRows(loadStore(storePath))
+	rows := bindRows(loadStore(path))
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(rows)
@@ -536,46 +538,19 @@ func customAction(k Keybind) (action, reason string) {
 		if n, ok := workspaceIndex(k.Value); ok {
 			return fmt.Sprintf("focus-workspace %d", n), ""
 		}
-		return "", fmt.Sprintf("niri needs a workspace number, not %q.", k.Value)
+		return "", fmt.Sprintf("Niri needs a workspace number here, not %q.", k.Value)
 	case "movetoworkspace":
 		if n, ok := workspaceIndex(k.Value); ok {
 			return fmt.Sprintf("move-window-to-workspace %d", n), ""
 		}
-		return "", fmt.Sprintf("niri needs a workspace number, not %q.", k.Value)
+		return "", fmt.Sprintf("Niri needs a workspace number here, not %q.", k.Value)
 	case "movetoworkspacesilent":
 		if n, ok := workspaceIndex(k.Value); ok {
 			return fmt.Sprintf("move-window-to-workspace %d focus=false", n), ""
 		}
-		return "", fmt.Sprintf("niri needs a workspace number, not %q.", k.Value)
+		return "", fmt.Sprintf("Niri needs a workspace number here, not %q.", k.Value)
 	}
-	return "", fmt.Sprintf("niri has no bind action for %q.", k.Action)
-}
-
-// customLabel is the human text the legend shows for a store keybind, derived
-// from its action so the row reads like the shipped legend rather than a raw
-// dispatcher name. It stands independent of customAction: a bind niri cannot
-// honour still reads its intent, with the reason carried in Unhonored.
-func customLabel(k Keybind) string {
-	switch k.Action {
-	case "exec", "":
-		if v := strings.TrimSpace(k.Value); v != "" {
-			return "Run: " + v
-		}
-		return "Run command"
-	case "close":
-		return "Close window"
-	case "fullscreen":
-		return "Fullscreen"
-	case "togglefloating":
-		return "Float or tile"
-	case "workspace":
-		return "Focus workspace " + strings.TrimSpace(k.Value)
-	case "movetoworkspace":
-		return "Send to workspace " + strings.TrimSpace(k.Value)
-	case "movetoworkspacesilent":
-		return "Send to workspace " + strings.TrimSpace(k.Value) + " quietly"
-	}
-	return k.Action
+	return "", "Niri can't run this action from a shortcut."
 }
 
 // workspaceIndex parses a custom bind's workspace value as a positive flat index,

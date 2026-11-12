@@ -36,44 +36,25 @@ func ruleStr(s string) string {
 	return strconv.Quote(s)
 }
 
-// renderRule turns one neutral rule into wayfire's language, or into the reason
-// it has none. The signal is "created": the neutral actions are open-time
-// properties, the same moments niri's open-* rules fire on.
+// renderRule turns one neutral rule into wayfire's language through
+// windowRuleTable, or into the reason it has none. The signal is "created": the
+// neutral actions are open-time properties, the same moments niri's open-* rules
+// fire on.
 func renderRule(class, title, action, value string) (string, string) {
 	cond, ok := ruleCondition(class, title)
 	if !ok {
-		return "", "wayfire window rules need an app id or title to match on."
+		return "", "Wayfire's window rules need an app ID or a title to match."
 	}
-	switch action {
-	case "maximize":
-		return "on created if " + cond + " then maximize", ""
-	case "pin":
-		return "on created if " + cond + " then sticky", ""
-	case "opacity":
-		v, ok := ruleOpacity(value)
-		if !ok {
-			return "", fmt.Sprintf("wayfire cannot apply %q to the value %q.", action, value)
-		}
-		return "on created if " + cond + " then set alpha " + v, ""
-	case "workspace":
-		v := strings.TrimSpace(value)
-		coords := strings.Fields(v)
-		if len(coords) != 2 {
-			return "", fmt.Sprintf("wayfire workspace rules need grid coordinates \"x y\", not the value %q.", value)
-		}
-		for i, c := range coords {
-			n, err := strconv.Atoi(c)
-			limit := 5
-			if i == 1 {
-				limit = 2
+	for _, a := range windowRuleTable {
+		if a.id == action {
+			then, why := a.then(value)
+			if why != "" {
+				return "", why
 			}
-			if err != nil || n < 0 || n >= limit {
-				return "", fmt.Sprintf("wayfire workspace rules need coordinates inside the 5x2 grid, not the value %q.", value)
-			}
+			return "on created if " + cond + " then " + then, ""
 		}
-		return "on created if " + cond + " then assign_workspace " + v, ""
 	}
-	return "", fmt.Sprintf("wayfire window rules have no %q action.", action)
+	return "", "Wayfire can't apply this to a window."
 }
 
 // wayfireRule is renderRule for a whole row; ok is false when the row has no
@@ -112,25 +93,25 @@ func overrideLost(a AppOverride) []string {
 		lost = append(lost, "opacity")
 	}
 	if a.Rounding >= 0 {
-		lost = append(lost, "rounding")
+		lost = append(lost, "rounded corners")
 	}
 	if a.BorderSize >= 0 {
-		lost = append(lost, "border")
+		lost = append(lost, "a border")
 	}
 	if a.Blur != "" && a.Blur != "inherit" {
 		lost = append(lost, "blur")
 	}
 	if a.Shadow != "" && a.Shadow != "inherit" {
-		lost = append(lost, "shadow")
+		lost = append(lost, "the shadow")
 	}
 	if a.Dim != "" && a.Dim != "inherit" {
-		lost = append(lost, "dim")
+		lost = append(lost, "dimming")
 	}
 	if a.Anim != "" && a.Anim != "inherit" {
-		lost = append(lost, "animation")
+		lost = append(lost, "animations")
 	}
 	if a.Opaque != "" && a.Opaque != "inherit" {
-		lost = append(lost, "opaque")
+		lost = append(lost, "full opacity")
 	}
 	return lost
 }
@@ -163,22 +144,6 @@ const (
 	compactGeometry = "set geometry_ppt 20 24 60 52"
 	phoneGeometry   = "set geometry_ppt 31 6 38 88"
 )
-
-func settingsWindowAction(v SettingsWindow) string {
-	v = normalizeSettingsWindow(v)
-	if v.Mode != "custom" {
-		return pageFit
-	}
-	width, height := v.Width*100, v.Height*100
-	x, y := (100-width)/2, (100-height)/2
-	return fmt.Sprintf(
-		"set geometry_ppt %s %s %s %s",
-		strconv.FormatFloat(x, 'f', -1, 64),
-		strconv.FormatFloat(y, 'f', -1, 64),
-		strconv.FormatFloat(width, 'f', -1, 64),
-		strconv.FormatFloat(height, 'f', -1, 64),
-	)
-}
 
 var wayfireBuiltinRules = []wayfireBuiltinRule{
 	{key: "system_pavucontrol", condition: `app_id is "pavucontrol"`, floating: true},
@@ -242,15 +207,11 @@ func tileByDefaultMatcher() string {
 	return defaultTileByMatcher
 }
 
-func genBuiltinWindowRules(d *iniDoc, settingsWindow SettingsWindow) {
+func genBuiltinWindowRules(d *iniDoc) {
 	for _, r := range wayfireBuiltinRules {
-		action := r.action
-		if r.key == "hub" {
-			action = settingsWindowAction(settingsWindow)
-		}
-		if action != "" {
+		if r.action != "" {
 			d.set("window-rules", "ryoku_builtin_"+r.key,
-				"on created if "+r.condition+" then "+action)
+				"on created if "+r.condition+" then "+r.action)
 		}
 	}
 }
@@ -262,7 +223,7 @@ func genBuiltinWindowRules(d *iniDoc, settingsWindow SettingsWindow) {
 // so their more specific alpha value wins.
 func genWindowRules(s wayfireStore) iniDoc {
 	var d iniDoc
-	genBuiltinWindowRules(&d, s.Wayfire.SettingsWindow)
+	genBuiltinWindowRules(&d)
 	if a := s.Appearance.ActiveOpacity; a >= 0 && a < 1 {
 		d.set("window-rules", "ryoku_active_opacity",
 			"on created if type is \"toplevel\" then set alpha "+strconv.FormatFloat(a, 'f', -1, 64))

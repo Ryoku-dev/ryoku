@@ -90,13 +90,9 @@ var capsManifest = []wm.Capability{
 	wm.CapSystemLidEdgeSource,
 }
 
-// windowRuleActions are the neutral window-rule action ids the wayfire rule
-// writer honours, in the order the Hub offers them. wayfire's rule language is
-// its own (a signal, a condition, an action), so only the ids with a wayfire
-// spelling appear; apply reports a stored row outside this set as unhonored.
-var windowRuleActions = []string{
-	"pin", "maximize", "opacity", "workspace",
-}
+// appOverrideFields are the per-app look fields genWindowRules writes: opacity
+// alone, as an alpha rule; apply reports every other one unhonored.
+var appOverrideFields = []string{"opacity"}
 
 // The packages ryoku-desktop-wayfire is made of: the variant package itself,
 // wayfire, the X11 bridge wayfire runs natively, the wlroots portal backend
@@ -136,6 +132,7 @@ func runCaps() error {
 		NightLightProcess: "wlsunset",
 		Packages:          compositorPackages,
 		WindowRuleActions: windowRuleActions,
+		AppOverrideFields: appOverrideFields,
 	}
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")

@@ -186,13 +186,13 @@ func outputsUnhonored(layout []wm.OutputLayout) []wm.Unhonored {
 		if o.ColorMode != "" && o.ColorMode != "srgb" && o.ColorMode != "hdr" {
 			unh = append(unh, wm.Unhonored{
 				Key:    "displays." + o.Name + ".colorMode",
-				Reason: "wayfire has no separate wide-gamut colour mode",
+				Reason: "Wayfire has no separate wide colour mode.",
 			})
 		}
 		if o.SdrBrightness > 0 && o.SdrBrightness != 1 {
 			unh = append(unh, wm.Unhonored{
 				Key:    "displays." + o.Name + ".sdrBrightness",
-				Reason: "wayfire has no HDR SDR-brightness control",
+				Reason: "Wayfire has no brightness setting for everyday content in HDR.",
 			})
 		}
 	}

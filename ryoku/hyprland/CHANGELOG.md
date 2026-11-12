@@ -35,6 +35,11 @@
   routing to the iRiS region toolbar when iRiS is the bar style
   (`modules/binds.lua`, `modules/ryoshot.lua`).
 
+### Removed
+- **The Settings window no longer reads `settings_window.lua`.** Ryoku
+  Settings always opens at the full-page work-area fit
+  (`modules/window_rules.lua`, `user.lua`).
+
 ### Fixed
 - **Translucent tiled windows blur again.** The default near-opaque tiles keep
   their cheaper path while lower opacity from the Hub restores blur.

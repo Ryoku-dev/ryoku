@@ -28,13 +28,13 @@ import (
 // here falls through to a generic reason, which the parity test rejects: a bind
 // dropped from the Lua must be given its reason here on purpose, never silently.
 var hyprUnhonored = map[string]string{
-	"window.presetHeight":    "The resize mode covers this.",
-	"column.first":           "Hyprland has no column model.",
-	"column.last":            "Hyprland has no column model.",
-	"resize.resetHeight":     "The resize mode covers this.",
-	"workspace.reorderUp":    "Hyprland workspaces are numbered slots and cannot be reordered.",
-	"workspace.reorderDown":  "Hyprland workspaces are numbered slots and cannot be reordered.",
-	"shell.inhibitShortcuts": "Hyprland has no shortcut inhibit toggle.",
+	"window.presetHeight":    "Use the resize shortcut instead.",
+	"column.first":           "Hyprland has no columns.",
+	"column.last":            "Hyprland has no columns.",
+	"resize.resetHeight":     "Use the resize shortcut instead.",
+	"workspace.reorderUp":    "Hyprland's workspaces are numbered and can't be reordered.",
+	"workspace.reorderDown":  "Hyprland's workspaces are numbered and can't be reordered.",
+	"shell.inhibitShortcuts": "Hyprland can't take shortcuts back from an app that grabbed them.",
 }
 
 // runBinds prints the effective bind legend as a JSON array of wm.BindRow, the
@@ -280,7 +280,7 @@ func customRow(i int, k Keybind) (wm.BindRow, bool) {
 	row := wm.BindRow{
 		ID:         fmt.Sprintf("custom.%d", i),
 		Category:   "Custom",
-		Label:      customLabel(k),
+		Label:      wm.CustomBindLabel(k.Action, k.Value),
 		Keys:       wm.DisplayKeys(k.Keys),
 		Default:    k.Keys,
 		Chord:      k.Keys,
@@ -293,26 +293,6 @@ func customRow(i int, k Keybind) (wm.BindRow, bool) {
 	return row, true
 }
 
-func customLabel(k Keybind) string {
-	switch k.Action {
-	case "exec", "":
-		return "Run: " + strings.TrimSpace(k.Value)
-	case "close":
-		return "Close window"
-	case "fullscreen":
-		return "Fullscreen"
-	case "togglefloating":
-		return "Float or tile"
-	case "workspace":
-		return "Focus workspace " + strings.TrimSpace(k.Value)
-	case "movetoworkspace":
-		return "Send to workspace " + strings.TrimSpace(k.Value)
-	case "movetoworkspacesilent":
-		return "Send to workspace " + strings.TrimSpace(k.Value) + " quietly"
-	}
-	return capitalize(k.Action)
-}
-
 // customUnhonored mirrors genKeybind: Hyprland emits the exec and the three
 // window actions; any other action produces no bind, so the row is reported with
 // a reason instead of silently doing nothing.
@@ -321,7 +301,7 @@ func customUnhonored(k Keybind) (string, bool) {
 	case "exec", "", "close", "fullscreen", "togglefloating":
 		return "", false
 	}
-	return fmt.Sprintf("Hyprland has no bind action for %q.", k.Action), true
+	return "Hyprland can't run this action from a shortcut.", true
 }
 
 // parsedBind is one Lua bind after evaluation: the chord it registers (a family

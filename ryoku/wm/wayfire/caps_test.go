@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -174,5 +176,78 @@ func TestDeniesNestedSession(t *testing.T) {
 	c := wm.Caps{Supports: capsManifest}
 	if c.Has(wm.CapNestedSession) {
 		t.Error("wayfire has no nest verb; the manifest must not claim nested sessions")
+	}
+}
+
+// every window-rule action any provider or the App rules page knows
+var knownRuleActions = []string{
+	"float", "tile", "pin", "fullscreen", "maximize", "center", "pseudo", "keepaspectratio",
+	"size", "move", "workspace", "columnwidth", "minsize", "maxsize", "tiledstate",
+	"norounding", "noborder", "opacity", "opaque", "blur", "noblur", "noshadow", "nodim",
+	"noanim", "xray", "babaisfloat", "nofocus", "stayfocused", "suppressevent",
+	"scrollfactor", "blockout", "idleinhibit", "immediate",
+}
+
+func sampleRuleValue(action string) string {
+	switch action {
+	case "workspace":
+		return "1 1"
+	case "opacity":
+		return "0.5"
+	}
+	return "1"
+}
+
+// App rules offers exactly the advertised actions, so an advertised action the
+// writer drops is a dead control and a rendered one left out is a lost feature;
+// apply's report must say the same.
+func TestAdvertisedWindowRuleActionsAreTheRenderedOnes(t *testing.T) {
+	for _, a := range append(append([]string{}, knownRuleActions...), windowRuleActions...) {
+		listed := false
+		for _, l := range windowRuleActions {
+			listed = listed || l == a
+		}
+		r := WindowRule{Class: "foo", Action: a, Value: sampleRuleValue(a)}
+		_, rendered := wayfireRule(r)
+		raw, _ := json.Marshal([]WindowRule{r})
+		reported := len(unhonoredWindowRules(raw)) > 0
+		if listed != rendered || rendered == reported {
+			t.Errorf("action %q: advertised=%v rendered=%v reported unhonored=%v", a, listed, rendered, reported)
+		}
+	}
+}
+
+// one stored override per look field, set the way App rules writes it
+var lookSamples = map[string]string{
+	"opacity": `"opacity":0.8`, "rounding": `"rounding":4`, "borderSize": `"borderSize":0`,
+	"blur": `"blur":"off"`, "shadow": `"shadow":"off"`, "dim": `"dim":"off"`,
+	"anim": `"anim":"off"`, "opaque": `"opaque":"on"`,
+}
+
+// App rules shows a look override only where it is advertised, so each
+// advertised field must reach the config, each other one must not, and apply
+// must report exactly the ones that do not.
+func TestAppOverrideFieldsAreTheWrittenOnes(t *testing.T) {
+	for _, f := range appOverrideFields {
+		if lookSamples[f] == "" {
+			t.Errorf("advertised look field %q is not one App rules writes", f)
+		}
+	}
+	for field, sample := range lookSamples {
+		raw := fmt.Sprintf(`[{"class":"foo","title":"","opacity":-1,"rounding":-1,"borderSize":-1,`+
+			`"blur":"inherit","shadow":"inherit","dim":"inherit","anim":"inherit","opaque":"inherit",%s}]`, sample)
+		s := defaultStore()
+		if err := json.Unmarshal([]byte(raw), &s.AppOverrides); err != nil {
+			t.Fatal(err)
+		}
+		listed := false
+		for _, l := range appOverrideFields {
+			listed = listed || l == field
+		}
+		_, written := genWindowRules(s).get("window-rules", "ryoku_override_0")
+		reported := len(unhonoredAppOverrides(json.RawMessage(raw))) > 0
+		if listed != written || written == reported {
+			t.Errorf("look field %q: advertised=%v written=%v reported unhonored=%v", field, listed, written, reported)
+		}
 	}
 }

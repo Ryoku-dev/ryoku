@@ -86,7 +86,8 @@ func writeInput(b *strings.Builder, in Input, n Niri) {
 	}
 	b.WriteString("    }\n")
 
-	if in.FollowMouse != 0 {
+	// niri already sends scrolling to the window under the pointer, so only mode 1 needs the line
+	if in.FollowMouse == 1 {
 		if n.FocusFollowScroll >= 0 {
 			fmt.Fprintf(b, "    focus-follows-mouse max-scroll-amount=%s\n", kdlStr(fmt.Sprintf("%d%%", n.FocusFollowScroll)))
 		} else {

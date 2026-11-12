@@ -8,32 +8,8 @@ local function fit(w, h)
     }
 end
 
-local settings_window = { mode = "full", width = 0.5, height = 0.5 }
-if package.searchpath == nil or package.searchpath("settings_window", package.path) then
-    local ok, configured = pcall(require, "settings_window")
-    if ok and type(configured) == "table" then settings_window = configured end
-end
-
-local function settings_fraction(value)
-    return math.max(0.25, math.min(tonumber(value) or 0.5, 1))
-end
-
--- The Settings layout needs this much room to remain usable.
-local SETTINGS_MIN_WIDTH, SETTINGS_MIN_HEIGHT = 1120, 820
-
-local function page()
-    if settings_window.mode == "custom" then
-        return {
-            "monitor_w * " .. settings_fraction(settings_window.width),
-            "monitor_h * " .. settings_fraction(settings_window.height),
-        }
-    end
-    return { "monitor_w * 0.99", "monitor_h * 0.96" }
-end
-
--- Rule expressions only see the whole monitor. Once the Hub opens, fit its full
--- page or custom fraction inside the work area with the same gaps and border a
--- tiled window gets.
+-- Rule expressions only see the whole monitor. Once the Hub opens, fit its
+-- page inside the work area with the same gaps and border a tiled window gets.
 local function fit_page_to_work_area(win)
     if not win or win.title ~= "Ryoku Settings" then return end
     local mon = win.monitor
@@ -48,14 +24,8 @@ local function fit_page_to_work_area(win)
     local top = r.top + gap.top + border
     local right = r.right + gap.right + border
     local bottom = r.bottom + gap.bottom + border
-    local aw, ah = mw - left - right, mh - top - bottom
-    local width, height = aw, ah
-    if settings_window.mode == "custom" then
-        width = math.max(aw * settings_fraction(settings_window.width), math.min(SETTINGS_MIN_WIDTH, aw))
-        height = math.max(ah * settings_fraction(settings_window.height), math.min(SETTINGS_MIN_HEIGHT, ah))
-    end
-    local x = mon.x + left + (aw - width) / 2
-    local y = mon.y + top + (ah - height) / 2
+    local width, height = mw - left - right, mh - top - bottom
+    local x, y = mon.x + left, mon.y + top
     local target = "address:" .. win.address
     hl.dispatch(hl.dsp.window.resize({ x = math.floor(width + 0.5), y = math.floor(height + 0.5), exact = true, window = target }))
     hl.dispatch(hl.dsp.window.move({ x = math.floor(x + 0.5), y = math.floor(y + 0.5), window = target }))
@@ -124,7 +94,7 @@ hl.window_rule({
 	name   = "float-ryoku-settings",
 	match  = { title = "^(Ryoku Settings)$" },
 	float  = true,
-	size   = page(),
+	size   = { "monitor_w * 0.99", "monitor_h * 0.96" },
 	center = true,
 })
 

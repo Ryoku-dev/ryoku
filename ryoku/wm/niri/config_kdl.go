@@ -65,7 +65,7 @@ func genSettings(s niriStore) []byte {
 	writeMisc(&b, s.Niri)
 	writeEnvironment(&b, s.Env, s.Apps)
 	writeAutostart(&b, s.Autostart)
-	writeWindowRules(&b, s.Appearance, s.Niri.SettingsWindow, s.WindowRules, s.AppOverrides)
+	writeWindowRules(&b, s.Appearance, s.WindowRules, s.AppOverrides)
 	writeBlockOut(&b, s.Niri.BlockOutApps)
 	writeLayerRules(&b, s.Niri.LayerRules)
 	return []byte(b.String())

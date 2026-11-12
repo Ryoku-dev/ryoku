@@ -4,7 +4,7 @@
     "group": "WORKSPACE SWITCH",
     "key": "wm.niri.anim.workspaceSwitch.mode",
     "label": "Style",
-    "desc": "How this animation runs, or off to disable it",
+    "desc": "How it moves: a spring, an ease, or not at all",
     "ctl": "chips",
     "src": "desktop.json",
     "page": "animations",
@@ -15,7 +15,7 @@
       "ease"
     ],
     "optLabels": {
-      "default": "Niri default",
+      "default": "Default",
       "off": "Off",
       "spring": "Spring",
       "ease": "Ease"
@@ -26,7 +26,7 @@
     "group": "WORKSPACE SWITCH",
     "key": "wm.niri.anim.workspaceSwitch.durationMs",
     "label": "Duration",
-    "desc": "Length of the ease, in milliseconds",
+    "desc": "How long the ease takes, in milliseconds",
     "ctl": "step",
     "src": "desktop.json",
     "lo": 25,
@@ -44,7 +44,7 @@
     "group": "WORKSPACE SWITCH",
     "key": "wm.niri.anim.workspaceSwitch.curve",
     "label": "Curve",
-    "desc": "Easing curve the animation follows",
+    "desc": "How the ease speeds up and slows down",
     "ctl": "chips",
     "src": "desktop.json",
     "page": "animations",
@@ -55,10 +55,10 @@
       "ease-out-expo"
     ],
     "optLabels": {
-      "linear": "Linear",
-      "ease-out-quad": "Out quad",
-      "ease-out-cubic": "Out cubic",
-      "ease-out-expo": "Out expo"
+      "linear": "Even",
+      "ease-out-quad": "Gentle",
+      "ease-out-cubic": "Smooth",
+      "ease-out-expo": "Sharp"
     },
     "when": {
       "wm.niri.anim.workspaceSwitch.mode": [
@@ -70,8 +70,8 @@
     "tab": "Per-animation",
     "group": "WORKSPACE SWITCH",
     "key": "wm.niri.anim.workspaceSwitch.dampingRatio",
-    "label": "Damping",
-    "desc": "Spring damping ratio; lower bounces more",
+    "label": "Bounce",
+    "desc": "How much the spring bounces; lower bounces more",
     "ctl": "slid",
     "src": "desktop.json",
     "lo": 0.1,
@@ -87,8 +87,8 @@
     "tab": "Per-animation",
     "group": "WORKSPACE SWITCH",
     "key": "wm.niri.anim.workspaceSwitch.stiffness",
-    "label": "Stiffness",
-    "desc": "Spring stiffness; higher snaps faster",
+    "label": "Spring strength",
+    "desc": "How quickly the spring snaps into place; higher is faster",
     "ctl": "step",
     "src": "desktop.json",
     "lo": 1,
@@ -104,8 +104,8 @@
     "tab": "Per-animation",
     "group": "WORKSPACE SWITCH",
     "key": "wm.niri.anim.workspaceSwitch.epsilon",
-    "label": "Epsilon",
-    "desc": "Spring rest threshold; smaller settles longer",
+    "label": "Settle point",
+    "desc": "How close the spring must get before it stops; smaller settles longer",
     "ctl": "text",
     "src": "desktop.json",
     "eg": "0.0001",
@@ -122,7 +122,7 @@
     "group": "WINDOW OPEN",
     "key": "wm.niri.anim.windowOpen.mode",
     "label": "Style",
-    "desc": "How this animation runs, or off to disable it",
+    "desc": "How it moves: a spring, an ease, or not at all",
     "ctl": "chips",
     "src": "desktop.json",
     "page": "animations",
@@ -133,7 +133,7 @@
       "ease"
     ],
     "optLabels": {
-      "default": "Niri default",
+      "default": "Default",
       "off": "Off",
       "spring": "Spring",
       "ease": "Ease"
@@ -144,7 +144,7 @@
     "group": "WINDOW OPEN",
     "key": "wm.niri.anim.windowOpen.durationMs",
     "label": "Duration",
-    "desc": "Length of the ease, in milliseconds",
+    "desc": "How long the ease takes, in milliseconds",
     "ctl": "step",
     "src": "desktop.json",
     "lo": 25,
@@ -162,7 +162,7 @@
     "group": "WINDOW OPEN",
     "key": "wm.niri.anim.windowOpen.curve",
     "label": "Curve",
-    "desc": "Easing curve the animation follows",
+    "desc": "How the ease speeds up and slows down",
     "ctl": "chips",
     "src": "desktop.json",
     "page": "animations",
@@ -173,10 +173,10 @@
       "ease-out-expo"
     ],
     "optLabels": {
-      "linear": "Linear",
-      "ease-out-quad": "Out quad",
-      "ease-out-cubic": "Out cubic",
-      "ease-out-expo": "Out expo"
+      "linear": "Even",
+      "ease-out-quad": "Gentle",
+      "ease-out-cubic": "Smooth",
+      "ease-out-expo": "Sharp"
     },
     "when": {
       "wm.niri.anim.windowOpen.mode": [
@@ -188,8 +188,8 @@
     "tab": "Per-animation",
     "group": "WINDOW OPEN",
     "key": "wm.niri.anim.windowOpen.dampingRatio",
-    "label": "Damping",
-    "desc": "Spring damping ratio; lower bounces more",
+    "label": "Bounce",
+    "desc": "How much the spring bounces; lower bounces more",
     "ctl": "slid",
     "src": "desktop.json",
     "lo": 0.1,
@@ -205,8 +205,8 @@
     "tab": "Per-animation",
     "group": "WINDOW OPEN",
     "key": "wm.niri.anim.windowOpen.stiffness",
-    "label": "Stiffness",
-    "desc": "Spring stiffness; higher snaps faster",
+    "label": "Spring strength",
+    "desc": "How quickly the spring snaps into place; higher is faster",
     "ctl": "step",
     "src": "desktop.json",
     "lo": 1,
@@ -222,8 +222,8 @@
     "tab": "Per-animation",
     "group": "WINDOW OPEN",
     "key": "wm.niri.anim.windowOpen.epsilon",
-    "label": "Epsilon",
-    "desc": "Spring rest threshold; smaller settles longer",
+    "label": "Settle point",
+    "desc": "How close the spring must get before it stops; smaller settles longer",
     "ctl": "text",
     "src": "desktop.json",
     "eg": "0.0001",
@@ -240,7 +240,7 @@
     "group": "WINDOW CLOSE",
     "key": "wm.niri.anim.windowClose.mode",
     "label": "Style",
-    "desc": "How this animation runs, or off to disable it",
+    "desc": "How it moves: a spring, an ease, or not at all",
     "ctl": "chips",
     "src": "desktop.json",
     "page": "animations",
@@ -251,7 +251,7 @@
       "ease"
     ],
     "optLabels": {
-      "default": "Niri default",
+      "default": "Default",
       "off": "Off",
       "spring": "Spring",
       "ease": "Ease"
@@ -262,7 +262,7 @@
     "group": "WINDOW CLOSE",
     "key": "wm.niri.anim.windowClose.durationMs",
     "label": "Duration",
-    "desc": "Length of the ease, in milliseconds",
+    "desc": "How long the ease takes, in milliseconds",
     "ctl": "step",
     "src": "desktop.json",
     "lo": 25,
@@ -280,7 +280,7 @@
     "group": "WINDOW CLOSE",
     "key": "wm.niri.anim.windowClose.curve",
     "label": "Curve",
-    "desc": "Easing curve the animation follows",
+    "desc": "How the ease speeds up and slows down",
     "ctl": "chips",
     "src": "desktop.json",
     "page": "animations",
@@ -291,10 +291,10 @@
       "ease-out-expo"
     ],
     "optLabels": {
-      "linear": "Linear",
-      "ease-out-quad": "Out quad",
-      "ease-out-cubic": "Out cubic",
-      "ease-out-expo": "Out expo"
+      "linear": "Even",
+      "ease-out-quad": "Gentle",
+      "ease-out-cubic": "Smooth",
+      "ease-out-expo": "Sharp"
     },
     "when": {
       "wm.niri.anim.windowClose.mode": [
@@ -306,8 +306,8 @@
     "tab": "Per-animation",
     "group": "WINDOW CLOSE",
     "key": "wm.niri.anim.windowClose.dampingRatio",
-    "label": "Damping",
-    "desc": "Spring damping ratio; lower bounces more",
+    "label": "Bounce",
+    "desc": "How much the spring bounces; lower bounces more",
     "ctl": "slid",
     "src": "desktop.json",
     "lo": 0.1,
@@ -323,8 +323,8 @@
     "tab": "Per-animation",
     "group": "WINDOW CLOSE",
     "key": "wm.niri.anim.windowClose.stiffness",
-    "label": "Stiffness",
-    "desc": "Spring stiffness; higher snaps faster",
+    "label": "Spring strength",
+    "desc": "How quickly the spring snaps into place; higher is faster",
     "ctl": "step",
     "src": "desktop.json",
     "lo": 1,
@@ -340,8 +340,8 @@
     "tab": "Per-animation",
     "group": "WINDOW CLOSE",
     "key": "wm.niri.anim.windowClose.epsilon",
-    "label": "Epsilon",
-    "desc": "Spring rest threshold; smaller settles longer",
+    "label": "Settle point",
+    "desc": "How close the spring must get before it stops; smaller settles longer",
     "ctl": "text",
     "src": "desktop.json",
     "eg": "0.0001",
@@ -358,7 +358,7 @@
     "group": "VIEW MOVEMENT",
     "key": "wm.niri.anim.horizontalViewMovement.mode",
     "label": "Style",
-    "desc": "How this animation runs, or off to disable it",
+    "desc": "How it moves: a spring, an ease, or not at all",
     "ctl": "chips",
     "src": "desktop.json",
     "page": "animations",
@@ -369,7 +369,7 @@
       "ease"
     ],
     "optLabels": {
-      "default": "Niri default",
+      "default": "Default",
       "off": "Off",
       "spring": "Spring",
       "ease": "Ease"
@@ -380,7 +380,7 @@
     "group": "VIEW MOVEMENT",
     "key": "wm.niri.anim.horizontalViewMovement.durationMs",
     "label": "Duration",
-    "desc": "Length of the ease, in milliseconds",
+    "desc": "How long the ease takes, in milliseconds",
     "ctl": "step",
     "src": "desktop.json",
     "lo": 25,
@@ -398,7 +398,7 @@
     "group": "VIEW MOVEMENT",
     "key": "wm.niri.anim.horizontalViewMovement.curve",
     "label": "Curve",
-    "desc": "Easing curve the animation follows",
+    "desc": "How the ease speeds up and slows down",
     "ctl": "chips",
     "src": "desktop.json",
     "page": "animations",
@@ -409,10 +409,10 @@
       "ease-out-expo"
     ],
     "optLabels": {
-      "linear": "Linear",
-      "ease-out-quad": "Out quad",
-      "ease-out-cubic": "Out cubic",
-      "ease-out-expo": "Out expo"
+      "linear": "Even",
+      "ease-out-quad": "Gentle",
+      "ease-out-cubic": "Smooth",
+      "ease-out-expo": "Sharp"
     },
     "when": {
       "wm.niri.anim.horizontalViewMovement.mode": [
@@ -424,8 +424,8 @@
     "tab": "Per-animation",
     "group": "VIEW MOVEMENT",
     "key": "wm.niri.anim.horizontalViewMovement.dampingRatio",
-    "label": "Damping",
-    "desc": "Spring damping ratio; lower bounces more",
+    "label": "Bounce",
+    "desc": "How much the spring bounces; lower bounces more",
     "ctl": "slid",
     "src": "desktop.json",
     "lo": 0.1,
@@ -441,8 +441,8 @@
     "tab": "Per-animation",
     "group": "VIEW MOVEMENT",
     "key": "wm.niri.anim.horizontalViewMovement.stiffness",
-    "label": "Stiffness",
-    "desc": "Spring stiffness; higher snaps faster",
+    "label": "Spring strength",
+    "desc": "How quickly the spring snaps into place; higher is faster",
     "ctl": "step",
     "src": "desktop.json",
     "lo": 1,
@@ -458,8 +458,8 @@
     "tab": "Per-animation",
     "group": "VIEW MOVEMENT",
     "key": "wm.niri.anim.horizontalViewMovement.epsilon",
-    "label": "Epsilon",
-    "desc": "Spring rest threshold; smaller settles longer",
+    "label": "Settle point",
+    "desc": "How close the spring must get before it stops; smaller settles longer",
     "ctl": "text",
     "src": "desktop.json",
     "eg": "0.0001",
@@ -476,7 +476,7 @@
     "group": "WINDOW MOVEMENT",
     "key": "wm.niri.anim.windowMovement.mode",
     "label": "Style",
-    "desc": "How this animation runs, or off to disable it",
+    "desc": "How it moves: a spring, an ease, or not at all",
     "ctl": "chips",
     "src": "desktop.json",
     "page": "animations",
@@ -487,7 +487,7 @@
       "ease"
     ],
     "optLabels": {
-      "default": "Niri default",
+      "default": "Default",
       "off": "Off",
       "spring": "Spring",
       "ease": "Ease"
@@ -498,7 +498,7 @@
     "group": "WINDOW MOVEMENT",
     "key": "wm.niri.anim.windowMovement.durationMs",
     "label": "Duration",
-    "desc": "Length of the ease, in milliseconds",
+    "desc": "How long the ease takes, in milliseconds",
     "ctl": "step",
     "src": "desktop.json",
     "lo": 25,
@@ -516,7 +516,7 @@
     "group": "WINDOW MOVEMENT",
     "key": "wm.niri.anim.windowMovement.curve",
     "label": "Curve",
-    "desc": "Easing curve the animation follows",
+    "desc": "How the ease speeds up and slows down",
     "ctl": "chips",
     "src": "desktop.json",
     "page": "animations",
@@ -527,10 +527,10 @@
       "ease-out-expo"
     ],
     "optLabels": {
-      "linear": "Linear",
-      "ease-out-quad": "Out quad",
-      "ease-out-cubic": "Out cubic",
-      "ease-out-expo": "Out expo"
+      "linear": "Even",
+      "ease-out-quad": "Gentle",
+      "ease-out-cubic": "Smooth",
+      "ease-out-expo": "Sharp"
     },
     "when": {
       "wm.niri.anim.windowMovement.mode": [
@@ -542,8 +542,8 @@
     "tab": "Per-animation",
     "group": "WINDOW MOVEMENT",
     "key": "wm.niri.anim.windowMovement.dampingRatio",
-    "label": "Damping",
-    "desc": "Spring damping ratio; lower bounces more",
+    "label": "Bounce",
+    "desc": "How much the spring bounces; lower bounces more",
     "ctl": "slid",
     "src": "desktop.json",
     "lo": 0.1,
@@ -559,8 +559,8 @@
     "tab": "Per-animation",
     "group": "WINDOW MOVEMENT",
     "key": "wm.niri.anim.windowMovement.stiffness",
-    "label": "Stiffness",
-    "desc": "Spring stiffness; higher snaps faster",
+    "label": "Spring strength",
+    "desc": "How quickly the spring snaps into place; higher is faster",
     "ctl": "step",
     "src": "desktop.json",
     "lo": 1,
@@ -576,8 +576,8 @@
     "tab": "Per-animation",
     "group": "WINDOW MOVEMENT",
     "key": "wm.niri.anim.windowMovement.epsilon",
-    "label": "Epsilon",
-    "desc": "Spring rest threshold; smaller settles longer",
+    "label": "Settle point",
+    "desc": "How close the spring must get before it stops; smaller settles longer",
     "ctl": "text",
     "src": "desktop.json",
     "eg": "0.0001",
@@ -594,7 +594,7 @@
     "group": "WINDOW RESIZE",
     "key": "wm.niri.anim.windowResize.mode",
     "label": "Style",
-    "desc": "How this animation runs, or off to disable it",
+    "desc": "How it moves: a spring, an ease, or not at all",
     "ctl": "chips",
     "src": "desktop.json",
     "page": "animations",
@@ -605,7 +605,7 @@
       "ease"
     ],
     "optLabels": {
-      "default": "Niri default",
+      "default": "Default",
       "off": "Off",
       "spring": "Spring",
       "ease": "Ease"
@@ -616,7 +616,7 @@
     "group": "WINDOW RESIZE",
     "key": "wm.niri.anim.windowResize.durationMs",
     "label": "Duration",
-    "desc": "Length of the ease, in milliseconds",
+    "desc": "How long the ease takes, in milliseconds",
     "ctl": "step",
     "src": "desktop.json",
     "lo": 25,
@@ -634,7 +634,7 @@
     "group": "WINDOW RESIZE",
     "key": "wm.niri.anim.windowResize.curve",
     "label": "Curve",
-    "desc": "Easing curve the animation follows",
+    "desc": "How the ease speeds up and slows down",
     "ctl": "chips",
     "src": "desktop.json",
     "page": "animations",
@@ -645,10 +645,10 @@
       "ease-out-expo"
     ],
     "optLabels": {
-      "linear": "Linear",
-      "ease-out-quad": "Out quad",
-      "ease-out-cubic": "Out cubic",
-      "ease-out-expo": "Out expo"
+      "linear": "Even",
+      "ease-out-quad": "Gentle",
+      "ease-out-cubic": "Smooth",
+      "ease-out-expo": "Sharp"
     },
     "when": {
       "wm.niri.anim.windowResize.mode": [
@@ -660,8 +660,8 @@
     "tab": "Per-animation",
     "group": "WINDOW RESIZE",
     "key": "wm.niri.anim.windowResize.dampingRatio",
-    "label": "Damping",
-    "desc": "Spring damping ratio; lower bounces more",
+    "label": "Bounce",
+    "desc": "How much the spring bounces; lower bounces more",
     "ctl": "slid",
     "src": "desktop.json",
     "lo": 0.1,
@@ -677,8 +677,8 @@
     "tab": "Per-animation",
     "group": "WINDOW RESIZE",
     "key": "wm.niri.anim.windowResize.stiffness",
-    "label": "Stiffness",
-    "desc": "Spring stiffness; higher snaps faster",
+    "label": "Spring strength",
+    "desc": "How quickly the spring snaps into place; higher is faster",
     "ctl": "step",
     "src": "desktop.json",
     "lo": 1,
@@ -694,8 +694,8 @@
     "tab": "Per-animation",
     "group": "WINDOW RESIZE",
     "key": "wm.niri.anim.windowResize.epsilon",
-    "label": "Epsilon",
-    "desc": "Spring rest threshold; smaller settles longer",
+    "label": "Settle point",
+    "desc": "How close the spring must get before it stops; smaller settles longer",
     "ctl": "text",
     "src": "desktop.json",
     "eg": "0.0001",
@@ -712,7 +712,7 @@
     "group": "CONFIG NOTIFICATION",
     "key": "wm.niri.anim.configNotificationOpenClose.mode",
     "label": "Style",
-    "desc": "How this animation runs, or off to disable it",
+    "desc": "How it moves: a spring, an ease, or not at all",
     "ctl": "chips",
     "src": "desktop.json",
     "page": "animations",
@@ -723,7 +723,7 @@
       "ease"
     ],
     "optLabels": {
-      "default": "Niri default",
+      "default": "Default",
       "off": "Off",
       "spring": "Spring",
       "ease": "Ease"
@@ -734,7 +734,7 @@
     "group": "CONFIG NOTIFICATION",
     "key": "wm.niri.anim.configNotificationOpenClose.durationMs",
     "label": "Duration",
-    "desc": "Length of the ease, in milliseconds",
+    "desc": "How long the ease takes, in milliseconds",
     "ctl": "step",
     "src": "desktop.json",
     "lo": 25,
@@ -752,7 +752,7 @@
     "group": "CONFIG NOTIFICATION",
     "key": "wm.niri.anim.configNotificationOpenClose.curve",
     "label": "Curve",
-    "desc": "Easing curve the animation follows",
+    "desc": "How the ease speeds up and slows down",
     "ctl": "chips",
     "src": "desktop.json",
     "page": "animations",
@@ -763,10 +763,10 @@
       "ease-out-expo"
     ],
     "optLabels": {
-      "linear": "Linear",
-      "ease-out-quad": "Out quad",
-      "ease-out-cubic": "Out cubic",
-      "ease-out-expo": "Out expo"
+      "linear": "Even",
+      "ease-out-quad": "Gentle",
+      "ease-out-cubic": "Smooth",
+      "ease-out-expo": "Sharp"
     },
     "when": {
       "wm.niri.anim.configNotificationOpenClose.mode": [
@@ -778,8 +778,8 @@
     "tab": "Per-animation",
     "group": "CONFIG NOTIFICATION",
     "key": "wm.niri.anim.configNotificationOpenClose.dampingRatio",
-    "label": "Damping",
-    "desc": "Spring damping ratio; lower bounces more",
+    "label": "Bounce",
+    "desc": "How much the spring bounces; lower bounces more",
     "ctl": "slid",
     "src": "desktop.json",
     "lo": 0.1,
@@ -795,8 +795,8 @@
     "tab": "Per-animation",
     "group": "CONFIG NOTIFICATION",
     "key": "wm.niri.anim.configNotificationOpenClose.stiffness",
-    "label": "Stiffness",
-    "desc": "Spring stiffness; higher snaps faster",
+    "label": "Spring strength",
+    "desc": "How quickly the spring snaps into place; higher is faster",
     "ctl": "step",
     "src": "desktop.json",
     "lo": 1,
@@ -812,8 +812,8 @@
     "tab": "Per-animation",
     "group": "CONFIG NOTIFICATION",
     "key": "wm.niri.anim.configNotificationOpenClose.epsilon",
-    "label": "Epsilon",
-    "desc": "Spring rest threshold; smaller settles longer",
+    "label": "Settle point",
+    "desc": "How close the spring must get before it stops; smaller settles longer",
     "ctl": "text",
     "src": "desktop.json",
     "eg": "0.0001",
@@ -830,7 +830,7 @@
     "group": "SCREENSHOT UI",
     "key": "wm.niri.anim.screenshotUiOpen.mode",
     "label": "Style",
-    "desc": "How this animation runs, or off to disable it",
+    "desc": "How it moves: a spring, an ease, or not at all",
     "ctl": "chips",
     "src": "desktop.json",
     "page": "animations",
@@ -841,7 +841,7 @@
       "ease"
     ],
     "optLabels": {
-      "default": "Niri default",
+      "default": "Default",
       "off": "Off",
       "spring": "Spring",
       "ease": "Ease"
@@ -852,7 +852,7 @@
     "group": "SCREENSHOT UI",
     "key": "wm.niri.anim.screenshotUiOpen.durationMs",
     "label": "Duration",
-    "desc": "Length of the ease, in milliseconds",
+    "desc": "How long the ease takes, in milliseconds",
     "ctl": "step",
     "src": "desktop.json",
     "lo": 25,
@@ -870,7 +870,7 @@
     "group": "SCREENSHOT UI",
     "key": "wm.niri.anim.screenshotUiOpen.curve",
     "label": "Curve",
-    "desc": "Easing curve the animation follows",
+    "desc": "How the ease speeds up and slows down",
     "ctl": "chips",
     "src": "desktop.json",
     "page": "animations",
@@ -881,10 +881,10 @@
       "ease-out-expo"
     ],
     "optLabels": {
-      "linear": "Linear",
-      "ease-out-quad": "Out quad",
-      "ease-out-cubic": "Out cubic",
-      "ease-out-expo": "Out expo"
+      "linear": "Even",
+      "ease-out-quad": "Gentle",
+      "ease-out-cubic": "Smooth",
+      "ease-out-expo": "Sharp"
     },
     "when": {
       "wm.niri.anim.screenshotUiOpen.mode": [
@@ -896,8 +896,8 @@
     "tab": "Per-animation",
     "group": "SCREENSHOT UI",
     "key": "wm.niri.anim.screenshotUiOpen.dampingRatio",
-    "label": "Damping",
-    "desc": "Spring damping ratio; lower bounces more",
+    "label": "Bounce",
+    "desc": "How much the spring bounces; lower bounces more",
     "ctl": "slid",
     "src": "desktop.json",
     "lo": 0.1,
@@ -913,8 +913,8 @@
     "tab": "Per-animation",
     "group": "SCREENSHOT UI",
     "key": "wm.niri.anim.screenshotUiOpen.stiffness",
-    "label": "Stiffness",
-    "desc": "Spring stiffness; higher snaps faster",
+    "label": "Spring strength",
+    "desc": "How quickly the spring snaps into place; higher is faster",
     "ctl": "step",
     "src": "desktop.json",
     "lo": 1,
@@ -930,8 +930,8 @@
     "tab": "Per-animation",
     "group": "SCREENSHOT UI",
     "key": "wm.niri.anim.screenshotUiOpen.epsilon",
-    "label": "Epsilon",
-    "desc": "Spring rest threshold; smaller settles longer",
+    "label": "Settle point",
+    "desc": "How close the spring must get before it stops; smaller settles longer",
     "ctl": "text",
     "src": "desktop.json",
     "eg": "0.0001",
@@ -948,7 +948,7 @@
     "group": "OVERVIEW ZOOM",
     "key": "wm.niri.anim.overviewOpenClose.mode",
     "label": "Style",
-    "desc": "How this animation runs, or off to disable it",
+    "desc": "How it moves: a spring, an ease, or not at all",
     "ctl": "chips",
     "src": "desktop.json",
     "page": "animations",
@@ -959,7 +959,7 @@
       "ease"
     ],
     "optLabels": {
-      "default": "Niri default",
+      "default": "Default",
       "off": "Off",
       "spring": "Spring",
       "ease": "Ease"
@@ -970,7 +970,7 @@
     "group": "OVERVIEW ZOOM",
     "key": "wm.niri.anim.overviewOpenClose.durationMs",
     "label": "Duration",
-    "desc": "Length of the ease, in milliseconds",
+    "desc": "How long the ease takes, in milliseconds",
     "ctl": "step",
     "src": "desktop.json",
     "lo": 25,
@@ -988,7 +988,7 @@
     "group": "OVERVIEW ZOOM",
     "key": "wm.niri.anim.overviewOpenClose.curve",
     "label": "Curve",
-    "desc": "Easing curve the animation follows",
+    "desc": "How the ease speeds up and slows down",
     "ctl": "chips",
     "src": "desktop.json",
     "page": "animations",
@@ -999,10 +999,10 @@
       "ease-out-expo"
     ],
     "optLabels": {
-      "linear": "Linear",
-      "ease-out-quad": "Out quad",
-      "ease-out-cubic": "Out cubic",
-      "ease-out-expo": "Out expo"
+      "linear": "Even",
+      "ease-out-quad": "Gentle",
+      "ease-out-cubic": "Smooth",
+      "ease-out-expo": "Sharp"
     },
     "when": {
       "wm.niri.anim.overviewOpenClose.mode": [
@@ -1014,8 +1014,8 @@
     "tab": "Per-animation",
     "group": "OVERVIEW ZOOM",
     "key": "wm.niri.anim.overviewOpenClose.dampingRatio",
-    "label": "Damping",
-    "desc": "Spring damping ratio; lower bounces more",
+    "label": "Bounce",
+    "desc": "How much the spring bounces; lower bounces more",
     "ctl": "slid",
     "src": "desktop.json",
     "lo": 0.1,
@@ -1031,8 +1031,8 @@
     "tab": "Per-animation",
     "group": "OVERVIEW ZOOM",
     "key": "wm.niri.anim.overviewOpenClose.stiffness",
-    "label": "Stiffness",
-    "desc": "Spring stiffness; higher snaps faster",
+    "label": "Spring strength",
+    "desc": "How quickly the spring snaps into place; higher is faster",
     "ctl": "step",
     "src": "desktop.json",
     "lo": 1,
@@ -1048,8 +1048,8 @@
     "tab": "Per-animation",
     "group": "OVERVIEW ZOOM",
     "key": "wm.niri.anim.overviewOpenClose.epsilon",
-    "label": "Epsilon",
-    "desc": "Spring rest threshold; smaller settles longer",
+    "label": "Settle point",
+    "desc": "How close the spring must get before it stops; smaller settles longer",
     "ctl": "text",
     "src": "desktop.json",
     "eg": "0.0001",
