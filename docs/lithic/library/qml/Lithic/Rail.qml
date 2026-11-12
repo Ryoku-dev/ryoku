@@ -7,18 +7,21 @@ T.Control {
     property string sizeClass: "expanded"
     property int currentIndex: 0
     property var destinations: [
-        { label: "Fleet", glyph: "dns" },
-        { label: "Activity", glyph: "history" },
-        { label: "Settings", glyph: "tune" }
+        { label: Lithic.tr("Fleet"), glyph: "dns" },
+        { label: Lithic.tr("Activity"), glyph: "history" },
+        { label: Lithic.tr("Settings"), glyph: "tune" }
     ]
     property var newMenuItems: [
-        { label: "Server", glyph: "dns" },
-        { label: "Console", glyph: "terminal" },
-        { label: "Instant machine", glyph: "bolt" }
+        { label: Lithic.tr("Server"), glyph: "dns" },
+        { label: Lithic.tr("Console"), glyph: "terminal" },
+        { label: Lithic.tr("Instant machine"), glyph: "bolt" }
     ]
     property Item overlayParent: null
     property string previewState: ""
     property bool previewNewOpen: false
+    property bool showNew: true
+    property int footIndex: destinations.length - 1
+    property int notchIndex: -1
     readonly property bool compact: sizeClass === "compact"
     readonly property bool expanded: sizeClass === "expanded"
     readonly property real railWidth: expanded ? LithicTokens.size.railExpanded
@@ -40,22 +43,27 @@ T.Control {
     padding: 0
     Accessible.role: Accessible.Pane
 
+    // destinations before footIndex stack from startY, New taking the slot after the first;
+    // the rest keep their order as one group standing on the foot
     function destinationY(index) {
-        if (index === 0)
-            return startY
-        if (index === 1)
-            return newY + tileSize + LithicTokens.size.railTileGap
-        return height - LithicTokens.size.railItemBottomInset - tileSize
+        const step = tileSize + LithicTokens.size.railTileGap
+        const foot = Math.max(0, Math.min(footIndex, destinations.length))
+        if (index < foot)
+            return startY + (index + (showNew && index > 0 ? 1 : 0)) * step
+        const below = destinations.length - 1 - index
+        return height - LithicTokens.size.railItemBottomInset - tileSize - below * step
     }
 
+    readonly property int compactColumns: 1 + destinations.length + (showNew ? 1 : 0)
+
     function compactColumn(index) {
-        return index === 0 ? 1 : index + 2
+        return index === 0 ? 1 : index + 1 + (showNew ? 1 : 0)
     }
 
     function toggleNewMenu() {
         if (newPopover.opened)
             newPopover.close()
-        else
+        else if (showNew)
             newPopover.open()
     }
 
@@ -63,6 +71,7 @@ T.Control {
         required property string destinationLabel
         required property string glyphName
         required property bool selected
+        property bool notched: false
         property string previewState: ""
         property bool showLabel: true
 
@@ -109,6 +118,16 @@ T.Control {
                 typeRole: "caption"
                 ink: selected ? Lithic.onSel : Lithic.fg2
             }
+        }
+
+        // the one badge the rail may show: something here needs you
+        Notch {
+            visible: notched
+            anchors.left: parent.left
+            anchors.top: parent.top
+            size: LithicTokens.cut.notch
+            fill: Lithic.amber
+            corner: "topLeft"
         }
     }
 
@@ -158,6 +177,7 @@ T.Control {
                     destinationLabel: modelData.label
                     glyphName: modelData.glyph
                     selected: root.currentIndex === index
+                    notched: root.notchIndex === index
                     showLabel: root.expanded
                     previewState: root.previewState
                     onClicked: {
@@ -172,7 +192,7 @@ T.Control {
                 id: verticalNew
                 x: (parent.width - width) / 2
                 y: root.newY
-                visible: !root.compact
+                visible: !root.compact && root.showNew
                 menuOpen: root.previewNewOpen || newPopover.opened
                 previewState: root.previewState
                 onClicked: root.toggleNewMenu()
@@ -183,7 +203,7 @@ T.Control {
             id: bottomRail
             anchors.fill: parent
             visible: root.compact
-            readonly property real columnWidth: width / LithicTokens.size.railBottomColumns
+            readonly property real columnWidth: width / root.compactColumns
 
             CutRect {
                 x: root.compactColumn(Math.max(0, Math.min(root.currentIndex,
@@ -212,7 +232,7 @@ T.Control {
                 anchors.horizontalCenter: compactHomeMark.horizontalCenter
                 y: compactHomeMark.y + compactHomeMark.height
                    + LithicTokens.size.railItemLabelGap
-                text: "Home"
+                text: Lithic.tr("Home")
                 typeRole: "caption"
                 inkRole: "fg2"
             }
@@ -229,6 +249,7 @@ T.Control {
                     destinationLabel: modelData.label
                     glyphName: modelData.glyph
                     selected: root.currentIndex === index
+                    notched: root.notchIndex === index
                     showLabel: true
                     previewState: root.previewState
                     onClicked: {
@@ -241,6 +262,7 @@ T.Control {
 
             NewPlaque {
                 id: compactNew
+                visible: root.showNew
                 x: bottomRail.columnWidth * 2
                    + (bottomRail.columnWidth - width) / 2
                 y: (parent.height - height) / 2
@@ -257,7 +279,7 @@ T.Control {
         parent: root.overlayParent ? root.overlayParent : root.parent
         anchorItem: root.compact ? compactNew : verticalNew
         opener: anchorItem
-        previewEmbedded: root.previewNewOpen
+        previewEmbedded: root.previewNewOpen && root.showNew
         placementSide: "right"
 
         Menu {

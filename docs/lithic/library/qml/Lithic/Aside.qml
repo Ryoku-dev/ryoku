@@ -3,7 +3,7 @@ import QtQuick
 Slab {
     id: root
 
-    property string title: "Preview"
+    property string title: Lithic.tr("Preview")
     property var facts: []
     property string preview: ""
 

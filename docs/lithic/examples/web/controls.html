@@ -36,6 +36,9 @@
     .menu-stage { display: grid; justify-items: start; gap: var(--lithic-space-s2); }
     .menu-stage .l-popover[data-l-static-open] { position: relative; inset: auto; opacity: 1; transform: none; }
     .visually-hidden { position: absolute; width: var(--lithic-size-hairline); height: var(--lithic-size-hairline); padding: 0; margin: calc(-1 * var(--lithic-size-hairline)); overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+    .setting-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--lithic-size-settings-control-max) * 2)), 1fr)); gap: var(--lithic-space-s5) var(--lithic-space-s4); }
+    .setting-specimen { justify-items: stretch; }
+    .color-stage .l-popover[data-l-static-open] { position: relative; inset: auto; grid-column: 1 / -1; margin-block-start: var(--lithic-size-popover-anchor-gap); opacity: 1; transform: none; }
   </style>
 </head>
 <body>
@@ -334,6 +337,220 @@
         <div class="specimen">
           <span class="l-type-caption">Open</span>
           <div class="l-disclosure"><button class="l-plaque l-quiet" type="button" data-l-disclosure-trigger aria-expanded="true" aria-controls="disclosure-open">Hide connection facts</button><div class="l-disclosure-content" id="disclosure-open"><p class="disclosure-copy l-type-body">prowl at 192.0.2.24 is alive</p></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="setting-row-heading">
+      <h2 class="l-type-section" id="setting-row-heading">SettingRow</h2>
+      <div class="setting-grid">
+        <div class="specimen setting-specimen">
+          <span class="l-type-caption">Rows in a slab; the first row draws no line</span>
+          <div class="l-slab l-cut">
+            <div class="l-setting-row">
+              <div class="l-setting-row__text"><span class="l-setting-row__title">Wake on connect</span><span class="l-setting-row__mark">Changed</span><span class="l-setting-row__detail">Start the console when ally answers.</span></div>
+              <div class="l-setting-row__control"><button class="l-toggle" type="button" role="switch" aria-checked="true" aria-label="Wake on connect"></button></div>
+            </div>
+            <div class="l-setting-row">
+              <div class="l-setting-row__text"><span class="l-setting-row__title">Contrast</span><span class="l-setting-row__detail">High contrast spreads the stones further apart.</span></div>
+              <div class="l-setting-row__control"><div class="l-segmented l-cut" aria-label="Contrast"><button class="l-segment" type="button" aria-checked="true" data-value="standard">Standard</button><button class="l-segment" type="button" aria-checked="false" data-value="high">High</button></div></div>
+            </div>
+            <div class="l-setting-row">
+              <div class="l-setting-row__text"><span class="l-setting-row__title">Console cores</span></div>
+              <div class="l-setting-row__control"><div class="l-stepper" role="group" aria-label="Console cores" data-value="4" data-min="1" data-max="8" data-step="1"><button class="l-icon-plaque l-quiet l-small" type="button" data-l-stepper="decrement" aria-label="Fewer cores"><span class="l-glyph" aria-hidden="true">remove</span></button><span class="l-stepper-reading l-cut"><output class="l-stepper-value" role="spinbutton" tabindex="0" aria-label="Console cores">4</output><span class="l-stepper-unit">cores</span></span><button class="l-icon-plaque l-quiet l-small" type="button" data-l-stepper="increment" aria-label="More cores"><span class="l-glyph" aria-hidden="true">add</span></button></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="specimen setting-specimen">
+          <span class="l-type-caption">Long title and detail wrap, never cut</span>
+          <div class="l-slab l-cut">
+            <div class="l-setting-row">
+              <div class="l-setting-row__text"><span class="l-setting-row__title">Keep the console router connected while every machine on ally is stopped</span><span class="l-setting-row__detail">Ryoport holds the serial line on /dev/ttyUSB0 open so the next start of ubuntu-24.04 or fedora-43 can attach without waiting for the router to wake.</span></div>
+              <div class="l-setting-row__control"><button class="l-toggle" type="button" role="switch" aria-checked="false" aria-label="Keep the console router connected"></button></div>
+            </div>
+          </div>
+        </div>
+        <div class="specimen setting-specimen">
+          <span class="l-type-caption">Changed at rest: the mark shows, the reset waits</span>
+          <div class="l-slab l-cut">
+            <div class="l-setting-row" data-l-changed>
+              <div class="l-setting-row__text"><span class="l-setting-row__title">Poll interval</span><span class="l-setting-row__mark">Changed</span><span class="l-setting-row__detail">How often the fleet is checked while it is on screen.</span></div>
+              <span class="l-setting-row__reset l-focus-ring"><button class="l-icon-plaque l-quiet l-small" type="button"><span class="l-glyph" aria-hidden="true">restart_alt</span></button></span>
+              <div class="l-setting-row__control"><div class="l-segmented l-cut" aria-label="Poll interval"><button class="l-segment" type="button" aria-checked="false" data-value="3">3 s</button><button class="l-segment" type="button" aria-checked="true" data-value="15">15 s</button></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="specimen setting-specimen">
+          <span class="l-type-caption">Changed and hovered: the reset shows</span>
+          <div class="l-slab l-cut">
+            <div class="l-setting-row" data-l-changed data-l-state="hover">
+              <div class="l-setting-row__text"><span class="l-setting-row__title">Poll interval</span><span class="l-setting-row__mark">Changed</span><span class="l-setting-row__detail">How often the fleet is checked while it is on screen.</span></div>
+              <span class="l-setting-row__reset l-focus-ring"><button class="l-icon-plaque l-quiet l-small" type="button"><span class="l-glyph" aria-hidden="true">restart_alt</span></button></span>
+              <div class="l-setting-row__control"><div class="l-segmented l-cut" aria-label="Poll interval"><button class="l-segment" type="button" aria-checked="false" data-value="3">3 s</button><button class="l-segment" type="button" aria-checked="true" data-value="15">15 s</button></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="specimen setting-specimen">
+          <span class="l-type-caption">Changed with keyboard focus on the reset</span>
+          <div class="l-slab l-cut">
+            <div class="l-setting-row" data-l-changed data-l-state="focus">
+              <div class="l-setting-row__text"><span class="l-setting-row__title">Poll interval</span><span class="l-setting-row__mark">Changed</span><span class="l-setting-row__detail">How often the fleet is checked while it is on screen.</span></div>
+              <span class="l-setting-row__reset l-focus-ring" data-l-state="focus"><button class="l-icon-plaque l-quiet l-small" type="button"><span class="l-glyph" aria-hidden="true">restart_alt</span></button></span>
+              <div class="l-setting-row__control"><div class="l-segmented l-cut" aria-label="Poll interval"><button class="l-segment" type="button" aria-checked="false" data-value="3">3 s</button><button class="l-segment" type="button" aria-checked="true" data-value="15">15 s</button></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="specimen setting-specimen">
+          <span class="l-type-caption">Unavailable: the control is disabled and the reason replaces the detail</span>
+          <div class="l-slab l-cut">
+            <div class="l-setting-row" aria-disabled="true">
+              <div class="l-setting-row__text"><span class="l-setting-row__title">Share console</span><span class="l-setting-row__detail">Needs a console router on ally.</span></div>
+              <div class="l-setting-row__control"><button class="l-toggle" type="button" role="switch" aria-checked="false" aria-label="Share console"></button></div>
+            </div>
+          </div>
+        </div>
+        <div class="specimen setting-specimen">
+          <span class="l-type-caption">Activatable rows: rest, hover, pressed, keyboard focus</span>
+          <div class="l-slab l-cut">
+            <div class="l-setting-row" data-l-activatable role="button">
+              <div class="l-setting-row__text"><span class="l-setting-row__title">Servers</span><span class="l-setting-row__detail">Three servers, mika-server needs you.</span></div>
+              <div class="l-setting-row__control"><span class="l-glyph" aria-hidden="true">chevron_right</span></div>
+            </div>
+            <div class="l-setting-row" data-l-activatable role="button" data-l-state="hover">
+              <div class="l-setting-row__text"><span class="l-setting-row__title">Images</span><span class="l-setting-row__detail">Four images on prowl.</span></div>
+              <div class="l-setting-row__control"><span class="l-glyph" aria-hidden="true">chevron_right</span></div>
+            </div>
+            <div class="l-setting-row" data-l-activatable role="button" data-l-state="pressed">
+              <div class="l-setting-row__text"><span class="l-setting-row__title">Credentials</span><span class="l-setting-row__detail">Keys for ally and mika-server.</span></div>
+              <div class="l-setting-row__control"><span class="l-glyph" aria-hidden="true">chevron_right</span></div>
+            </div>
+            <div class="l-setting-row" data-l-activatable role="button" data-l-state="focus">
+              <div class="l-setting-row__text"><span class="l-setting-row__title">Console router</span><span class="l-setting-row__detail">Serial device /dev/ttyUSB0.</span></div>
+              <div class="l-setting-row__control"><span class="l-glyph" aria-hidden="true">chevron_right</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="specimen setting-specimen">
+          <span class="l-type-caption">Highlighted, the first frame of the spotlight a search lands on</span>
+          <div class="l-slab l-cut">
+            <div class="l-setting-row" data-l-state="highlight">
+              <div class="l-setting-row__text"><span class="l-setting-row__title">Auto-start prowl</span><span class="l-setting-row__detail">Start prowl when the desktop session begins.</span></div>
+              <div class="l-setting-row__control"><button class="l-toggle" type="button" role="switch" aria-checked="true" aria-label="Auto-start prowl"></button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="chord-heading">
+      <h2 class="l-type-section" id="chord-heading">ChordField</h2>
+      <div class="specimen-grid">
+        <div class="specimen"><span class="l-type-caption">Set</span><div class="l-chord-field" data-value="Super+Shift+Return"><button class="l-chord-field__control l-cut" type="button" aria-label="Shortcut for Open terminal"></button></div></div>
+        <div class="specimen"><span class="l-type-caption">Not set</span><div class="l-chord-field" data-value=""><button class="l-chord-field__control l-cut" type="button" aria-label="Shortcut for Open console"></button></div></div>
+        <div class="specimen"><span class="l-type-caption">Recording</span><div class="l-chord-field" data-value="Super+Shift+Return" data-l-recording><button class="l-chord-field__control l-cut" type="button" aria-label="Shortcut for Open terminal"></button></div></div>
+        <div class="specimen"><span class="l-type-caption">Conflict</span><div class="l-chord-field" data-value="Super+Q" data-l-conflict="Already used by Close window"><button class="l-chord-field__control l-cut" type="button" aria-label="Shortcut for Stop mika-server"></button></div></div>
+        <div class="specimen"><span class="l-type-caption">Hover</span><div class="l-chord-field" data-value="Ctrl+Alt+Delete"><button class="l-chord-field__control l-cut" type="button" aria-label="Shortcut for Lock screen" data-l-state="hover"></button></div></div>
+        <div class="specimen"><span class="l-type-caption">Keyboard focus</span><div class="l-chord-field" data-value="Super+Prior"><button class="l-chord-field__control l-cut" type="button" aria-label="Shortcut for Previous workspace" data-l-state="focus"></button></div></div>
+        <div class="specimen"><span class="l-type-caption">Number pad key</span><div class="l-chord-field" data-value="Super+KP_3"><button class="l-chord-field__control l-cut" type="button" aria-label="Shortcut for Workspace three"></button></div></div>
+        <div class="specimen"><span class="l-type-caption">Function key alone</span><div class="l-chord-field" data-value="F11"><button class="l-chord-field__control l-cut" type="button" aria-label="Shortcut for Fullscreen"></button></div></div>
+        <div class="specimen"><span class="l-type-caption">Media key alone</span><div class="l-chord-field" data-value="XF86AudioRaiseVolume"><button class="l-chord-field__control l-cut" type="button" aria-label="Shortcut for Volume up"></button></div></div>
+        <div class="specimen"><span class="l-type-caption">Disabled</span><div class="l-chord-field" data-value="Super+L"><button class="l-chord-field__control l-cut" type="button" aria-label="Shortcut for Lock screen" disabled></button></div></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="color-heading">
+      <h2 class="l-type-section" id="color-heading">ColorField</h2>
+      <div class="specimen-grid">
+        <div class="specimen">
+          <span class="l-type-caption">Rest with a label</span>
+          <div class="l-color-field" data-value="#ce5e32" data-l-allow-alpha>
+            <span class="l-color-field__swatch" aria-hidden="true"></span>
+            <label class="l-field"><span class="l-field-label">Accent</span><span class="l-field-control l-cut"><input class="l-text-field"><button class="l-icon-plaque l-quiet l-small l-color-field__disclosure" type="button" data-l-popover="accent-colours" aria-label="Choose accent colour"><span class="l-glyph" aria-hidden="true">expand_more</span></button></span></label>
+            <div class="l-popover l-cut l-color-field__panel" id="accent-colours" aria-label="Accent colour">
+              <div class="l-color-field__swatches" role="listbox" aria-label="Palette colours">
+                <button class="l-menu-item" type="button" role="option" data-l-role="gold"><span class="l-menu-item-label">Accent</span></button>
+                <button class="l-menu-item" type="button" role="option" data-l-role="jade"><span class="l-menu-item-label">Jade</span></button>
+                <button class="l-menu-item" type="button" role="option" data-l-role="lapis"><span class="l-menu-item-label">Lapis</span></button>
+                <button class="l-menu-item" type="button" role="option" data-l-role="amber"><span class="l-menu-item-label">Amber</span></button>
+              </div>
+              <hr class="l-menu-divider" role="separator">
+              <div class="l-color-field__body">
+                <label class="l-field"><span class="l-field-label">Hex</span><span class="l-field-control l-cut"><input class="l-text-field"></span></label>
+                <label class="l-color-field__alpha"><span class="l-field-label">Opacity</span><span class="l-slider-field"><input class="l-slider" type="range" min="0" max="100" step="1" aria-label="Opacity"><span class="l-slider-rail"><span class="l-slider-fill"></span><span class="l-slider-handle"></span></span></span><output data-l-slider-value></output></label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="specimen">
+          <span class="l-type-caption">Translucent, the hatch shows through</span>
+          <div class="l-color-field" data-value="#ce5e3266" data-l-allow-alpha>
+            <span class="l-color-field__swatch" aria-hidden="true"></span>
+            <label class="l-field"><span class="l-field-control l-cut"><input class="l-text-field" aria-label="Selection tint, hex"><button class="l-icon-plaque l-quiet l-small l-color-field__disclosure" type="button" data-l-popover="tint-colours" aria-label="Choose selection tint"><span class="l-glyph" aria-hidden="true">expand_more</span></button></span></label>
+            <div class="l-popover l-cut l-color-field__panel" id="tint-colours" aria-label="Selection tint">
+              <div class="l-color-field__swatches" role="listbox" aria-label="Palette colours">
+                <button class="l-menu-item" type="button" role="option" data-l-role="gold"><span class="l-menu-item-label">Accent</span></button>
+                <button class="l-menu-item" type="button" role="option" data-l-role="sel"><span class="l-menu-item-label">Selection</span></button>
+              </div>
+              <hr class="l-menu-divider" role="separator">
+              <div class="l-color-field__body">
+                <label class="l-field"><span class="l-field-label">Hex</span><span class="l-field-control l-cut"><input class="l-text-field"></span></label>
+                <label class="l-color-field__alpha"><span class="l-field-label">Opacity</span><span class="l-slider-field"><input class="l-slider" type="range" min="0" max="100" step="1" aria-label="Opacity"><span class="l-slider-rail"><span class="l-slider-fill"></span><span class="l-slider-handle"></span></span></span><output data-l-slider-value></output></label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="specimen">
+          <span class="l-type-caption">Invalid hex</span>
+          <div class="l-color-field" data-value="#ce5e32">
+            <span class="l-color-field__swatch" aria-hidden="true"></span>
+            <label class="l-field" data-error><span class="l-field-label">Accent</span><span class="l-field-control l-cut"><input class="l-text-field" value="#ce5e3" aria-invalid="true" aria-describedby="colour-error"><button class="l-icon-plaque l-quiet l-small l-color-field__disclosure" type="button" data-l-popover="error-colours" aria-label="Choose accent colour"><span class="l-glyph" aria-hidden="true">expand_more</span></button></span><span class="l-field-help" id="colour-error">Use a colour like #ce5e32</span></label>
+            <div class="l-popover l-cut l-color-field__panel" id="error-colours" aria-label="Accent colour">
+              <div class="l-color-field__swatches" role="listbox" aria-label="Palette colours">
+                <button class="l-menu-item" type="button" role="option" data-l-role="gold"><span class="l-menu-item-label">Accent</span></button>
+              </div>
+              <hr class="l-menu-divider" role="separator">
+              <div class="l-color-field__body">
+                <label class="l-field"><span class="l-field-label">Hex</span><span class="l-field-control l-cut"><input class="l-text-field"></span></label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="specimen">
+          <span class="l-type-caption">Field focus and disclosure hover</span>
+          <div class="l-color-field" data-value="#ce5e32">
+            <span class="l-color-field__swatch" aria-hidden="true"></span>
+            <label class="l-field"><span class="l-field-control l-cut"><input class="l-text-field" aria-label="Accent colour, hex" data-l-state="focus"><button class="l-icon-plaque l-quiet l-small l-color-field__disclosure" type="button" data-l-popover="focus-colours" aria-label="Choose accent colour" data-l-state="hover"><span class="l-glyph" aria-hidden="true">expand_more</span></button></span></label>
+            <div class="l-popover l-cut l-color-field__panel" id="focus-colours" aria-label="Accent colour">
+              <div class="l-color-field__swatches" role="listbox" aria-label="Palette colours">
+                <button class="l-menu-item" type="button" role="option" data-l-role="gold"><span class="l-menu-item-label">Accent</span></button>
+              </div>
+              <hr class="l-menu-divider" role="separator">
+              <div class="l-color-field__body">
+                <label class="l-field"><span class="l-field-label">Hex</span><span class="l-field-control l-cut"><input class="l-text-field"></span></label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="specimen wide color-stage">
+          <span class="l-type-caption">Open: palette swatches, the current one checked, a hovered row, hex and opacity</span>
+          <div class="l-color-field" data-value="#ce5e32" data-l-allow-alpha>
+            <span class="l-color-field__swatch" aria-hidden="true"></span>
+            <label class="l-field"><span class="l-field-label">Accent</span><span class="l-field-control l-cut"><input class="l-text-field"><button class="l-icon-plaque l-quiet l-small l-color-field__disclosure" type="button" data-l-popover="open-colours" aria-expanded="true" aria-label="Choose accent colour"><span class="l-glyph" aria-hidden="true">expand_less</span></button></span></label>
+            <div class="l-popover l-cut l-color-field__panel" id="open-colours" aria-label="Accent colour" data-l-static-open>
+              <div class="l-color-field__swatches" role="listbox" aria-label="Palette colours">
+                <button class="l-menu-item" type="button" role="option" data-l-role="gold"><span class="l-menu-item-label">Accent</span></button>
+                <button class="l-menu-item" type="button" role="option" data-l-role="jade" data-l-state="hover"><span class="l-menu-item-label">Jade</span></button>
+                <button class="l-menu-item" type="button" role="option" data-l-role="lapis"><span class="l-menu-item-label">Lapis</span></button>
+                <button class="l-menu-item" type="button" role="option" data-l-role="amber"><span class="l-menu-item-label">Amber</span></button>
+                <button class="l-menu-item" type="button" role="option" data-l-role="jasper"><span class="l-menu-item-label">Jasper</span></button>
+              </div>
+              <hr class="l-menu-divider" role="separator">
+              <div class="l-color-field__body">
+                <label class="l-field"><span class="l-field-label">Hex</span><span class="l-field-control l-cut"><input class="l-text-field"></span></label>
+                <label class="l-color-field__alpha"><span class="l-field-label">Opacity</span><span class="l-slider-field"><input class="l-slider" type="range" min="0" max="100" step="1" aria-label="Opacity"><span class="l-slider-rail"><span class="l-slider-fill"></span><span class="l-slider-handle"></span></span></span><output data-l-slider-value></output></label>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>

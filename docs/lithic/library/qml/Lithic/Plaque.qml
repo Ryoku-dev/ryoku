@@ -31,7 +31,7 @@ T.AbstractButton {
 
     Accessible.role: Accessible.Button
     Accessible.name: accessibleName.length > 0 ? accessibleName : text
-    Accessible.description: busy ? "Busy" : ""
+    Accessible.description: busy ? Lithic.tr("Busy") : ""
 
     Keys.onPressed: function(event) {
         if (busy && (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter))

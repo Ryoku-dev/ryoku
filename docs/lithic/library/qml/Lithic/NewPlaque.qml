@@ -13,8 +13,8 @@ Plaque {
     kind: "gold"
     small: compact
     glyph: menuOpen ? "close" : "add"
-    text: compact ? "" : "New"
-    accessibleName: menuOpen ? "Close New menu" : "New"
+    text: compact ? "" : Lithic.tr("New")
+    accessibleName: menuOpen ? Lithic.tr("Close New menu") : Lithic.tr("New")
 
     contentItem: Column {
         spacing: root.compact ? 0 : LithicTokens.size.newPlaqueLabelGap

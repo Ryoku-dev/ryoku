@@ -41,6 +41,7 @@ QtObject {
         readonly property int field: 320
         readonly property int focusIn: 120
         readonly property int focusOut: 100
+        readonly property int highlight: 1600
         readonly property int hoverIn: 160
         readonly property int hoverOut: 100
         readonly property int menuIn: 160
@@ -88,6 +89,7 @@ QtObject {
         readonly property int chartTick: 4
         readonly property int controlPressCutGrow: 4
         readonly property int controlPressSink: 1
+        readonly property real designPreviewRatio: 1.6
         readonly property int dialogActionGap: 8
         readonly property int dialogActionsGap: 34
         readonly property int dialogConfirmFieldGap: 21

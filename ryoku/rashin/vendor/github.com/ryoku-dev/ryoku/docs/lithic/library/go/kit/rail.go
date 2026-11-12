@@ -29,10 +29,15 @@ type railItemState struct {
 	hover, focus, notch anim.Tween
 }
 
-// Rail owns Home, the three destinations, and the sole gold New plaque.
+// Rail owns Home, the destinations, and the sole gold New plaque.
+// Destinations before FootIndex stack from the top, with New after the first
+// one; destinations from FootIndex on stay in reading order as one group
+// anchored to the foot. A zero FootIndex means the last destination alone.
 type Rail struct {
-	Preview State
-	NewOpen bool
+	Preview   State
+	NewOpen   bool
+	HideNew   bool
+	FootIndex int
 
 	home        railItemState
 	newPlaque   NewPlaque
@@ -96,16 +101,7 @@ func (r *Rail) layoutVertical(gtx layout.Context, th *theme.Theme, destinations 
 		homeSize = gtx.Dp(tokens.SizeRailHomeMedium)
 	}
 	gap := gtx.Dp(tokens.SizeRailTileGap)
-	positions := make([]int, len(destinations))
-	for index := range positions {
-		positions[index] = start + index*(tile+gap)
-		if index > 0 {
-			positions[index] += tile + gap
-		}
-	}
-	if len(positions) > 0 {
-		positions[len(positions)-1] = height - gtx.Dp(tokens.SizeRailItemBottomInset) - tile
-	}
+	positions := railPositions(len(destinations), r.FootIndex, !r.HideNew, start, tile, gap, height-gtx.Dp(tokens.SizeRailItemBottomInset))
 	if selected >= 0 && selected < len(positions) {
 		r.selection.Duration = th.Motion.Select
 		r.selection.Ease = anim.EaseChisel
@@ -127,34 +123,61 @@ func (r *Rail) layoutVertical(gtx layout.Context, th *theme.Theme, destinations 
 			return r.layoutDestination(gtx, th, &r.items[index], destination, index == selected, class == FrameExpanded)
 		})
 	}
-	newY := start + tile + gap
-	newCompact := class != FrameExpanded
-	newWidth, newHeight := gtx.Dp(tokens.SizeNewPlaqueWidth), gtx.Dp(tokens.SizeNewPlaqueHeight)
-	if newCompact {
-		newWidth, newHeight = gtx.Dp(tokens.SizeNewPlaqueWidthCompact), gtx.Dp(tokens.SizeNewPlaqueHeightCompact)
+	if !r.HideNew {
+		newY := start + tile + gap
+		newCompact := class != FrameExpanded
+		newWidth, newHeight := gtx.Dp(tokens.SizeNewPlaqueWidth), gtx.Dp(tokens.SizeNewPlaqueHeight)
+		if newCompact {
+			newWidth, newHeight = gtx.Dp(tokens.SizeNewPlaqueWidthCompact), gtx.Dp(tokens.SizeNewPlaqueHeightCompact)
+		}
+		layoutAt(gtx, image.Pt((width-newWidth)/2, newY+(tile-newHeight)/2), image.Pt(newWidth, newHeight), func(gtx layout.Context) layout.Dimensions {
+			r.newPlaque.Preview = r.Preview
+			return r.newPlaque.Layout(gtx, th, newCompact, r.NewOpen)
+		})
 	}
-	layoutAt(gtx, image.Pt((width-newWidth)/2, newY+(tile-newHeight)/2), image.Pt(newWidth, newHeight), func(gtx layout.Context) layout.Dimensions {
-		r.newPlaque.Preview = r.Preview
-		return r.newPlaque.Layout(gtx, th, newCompact, r.NewOpen)
-	})
 	r.poll(gtx)
 	surface.Pop()
 	return layout.Dimensions{Size: image.Pt(width, height)}
+}
+
+// railPositions places count destinations in a rail whose foot edge is foot:
+// those before footIndex from start, leaving a slot after the first one for
+// New, and the rest as one reading-order group ending at foot.
+func railPositions(count, footIndex int, newSlot bool, start, tile, gap, foot int) []int {
+	if footIndex <= 0 || footIndex > count {
+		footIndex = count - 1
+	}
+	positions := make([]int, count)
+	for index := range positions {
+		if index < footIndex {
+			positions[index] = start + index*(tile+gap)
+			if index > 0 && newSlot {
+				positions[index] += tile + gap
+			}
+			continue
+		}
+		positions[index] = foot - tile - (count-1-index)*(tile+gap)
+	}
+	return positions
 }
 
 func (r *Rail) layoutBottom(gtx layout.Context, th *theme.Theme, destinations []RailDestination, selected int) layout.Dimensions {
 	width, height := gtx.Constraints.Max.X, gtx.Constraints.Max.Y
 	surface := clip.Rect{Max: image.Pt(width, height)}.Push(gtx.Ops)
 	paint.Fill(gtx.Ops, th.R.Stone1)
-	columns := tokens.SizeRailBottomColumns
-	columnWidth := width / columns
+	newSlot := 1
+	if r.HideNew {
+		newSlot = 0
+	}
+	// home, each destination and New share equal columns; three destinations give the token's five
+	columnWidth := width / (1 + len(destinations) + newSlot)
 	tileHeight := gtx.Dp(tokens.SizeRailDestinationCompact)
 	y := (height - tileHeight) / 2
 	position := func(index int) int {
 		if index == 0 {
 			return columnWidth
 		}
-		return (index + 2) * columnWidth
+		return (index + 1 + newSlot) * columnWidth
 	}
 	if selected >= 0 && selected < len(destinations) {
 		r.selection.Duration = th.Motion.Select
@@ -176,12 +199,14 @@ func (r *Rail) layoutBottom(gtx layout.Context, th *theme.Theme, destinations []
 			return r.layoutDestination(gtx, th, &r.items[index], destination, index == selected, true)
 		})
 	}
-	layoutAt(gtx, image.Pt(2*columnWidth, y), image.Pt(columnWidth, tileHeight), func(gtx layout.Context) layout.Dimensions {
-		return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			r.newPlaque.Preview = r.Preview
-			return r.newPlaque.Layout(gtx, th, true, r.NewOpen)
+	if !r.HideNew {
+		layoutAt(gtx, image.Pt(2*columnWidth, y), image.Pt(columnWidth, tileHeight), func(gtx layout.Context) layout.Dimensions {
+			return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				r.newPlaque.Preview = r.Preview
+				return r.newPlaque.Layout(gtx, th, true, r.NewOpen)
+			})
 		})
-	})
+	}
 	r.poll(gtx)
 	surface.Pop()
 	return layout.Dimensions{Size: image.Pt(width, height)}

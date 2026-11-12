@@ -38,6 +38,13 @@
     .working-sample { display: flex; align-items: center; gap: var(--lithic-space-s3); }
     .becoming-sample { display: grid; gap: var(--lithic-space-s2); }
     .becoming-sample .l-becoming-name { font: var(--lithic-type-title-weight) var(--lithic-type-title-size)/var(--lithic-type-title-line) var(--lithic-type-title-family); }
+    .tile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--lithic-size-catalogue-tile-width-max)), 1fr)); gap: var(--lithic-space-s3); }
+    .tile-grid > .specimen { justify-items: start; }
+    .gallery-stage { max-inline-size: calc(var(--lithic-size-catalogue-tile-width-max) * 4 + var(--lithic-space-s2) * 3); padding: var(--lithic-space-s3); background: var(--lithic-stone2); }
+    .scroll-demo { block-size: calc(var(--lithic-space-s6) * 3); display: grid; align-content: start; gap: var(--lithic-size-row-list-gap); padding-inline-end: var(--lithic-space-s2); background: var(--lithic-stone2); }
+    .scroll-demo.short { block-size: auto; }
+    .scroll-demo.sideways { display: flex; align-content: normal; block-size: auto; padding-block-end: var(--lithic-space-s2); padding-inline-end: 0; }
+    .scroll-demo.sideways .l-tablet { flex: 0 0 var(--lithic-size-list-medium); }
     @media (max-width: 900px) { .page-head { align-items: start; flex-direction: column; } .pane-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -306,6 +313,96 @@
       <div class="showcase-grid">
         <div class="specimen becoming-sample"><span class="state-label">Active, 62 percent</span><span class="l-becoming-name" role="progressbar" aria-label="Creating windows-11" aria-valuemin="0" aria-valuemax="100" aria-valuenow="62" aria-busy="true" data-tone="becoming">windows-11</span><div class="l-blade l-blade-progress" role="progressbar" aria-label="Installing image" aria-valuemin="0" aria-valuemax="100" aria-valuenow="62" aria-busy="true" style="--l-fraction:0.62"></div><code class="l-type-caption">Installing the image on mika-server</code></div>
         <div class="specimen becoming-sample"><span class="state-label">Complete</span><span class="l-becoming-name" role="progressbar" aria-label="fedora-43 complete" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" aria-busy="false" data-tone="alive">fedora-43</span><div class="l-blade l-blade-progress" role="progressbar" aria-label="Machine ready" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" aria-busy="false" style="--l-fraction:1"></div><code class="l-type-caption">Machine ready on prowl</code></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="design-tile-heading">
+      <h2 class="l-type-section" id="design-tile-heading">DesignTile</h2>
+      <div class="tile-grid">
+        <div class="specimen"><span class="state-label">Rest with a preview</span>
+          <article class="l-design-tile l-cut" aria-label="Sumi" data-value="sumi"><span class="l-design-tile__preview"><img src="../../media/sheet-now.png" alt=""></span><span class="l-design-tile__text"><span class="l-design-tile__title">Sumi</span><span class="l-design-tile__resource" data-l-resource="light">Light</span><span class="l-design-tile__status">Installed</span></span></article>
+        </div>
+        <div class="specimen"><span class="state-label">No preview: hatch placeholder</span>
+          <article class="l-design-tile l-cut" aria-label="Line" data-value="line"><span class="l-design-tile__preview"></span><span class="l-design-tile__text"><span class="l-design-tile__title">Line</span><span class="l-design-tile__resource" data-l-resource="light">Light</span><span class="l-design-tile__status">Installed</span></span></article>
+        </div>
+        <div class="specimen"><span class="state-label">Current</span>
+          <article class="l-design-tile l-cut" aria-label="Orpheus" data-value="orpheus" aria-current="true"><span class="l-design-tile__preview"><img src="../../media/sheet-fleet.png" alt=""></span><span class="l-design-tile__text"><span class="l-design-tile__title">Orpheus</span><span class="l-design-tile__resource" data-l-resource="standard">Standard</span><span class="l-design-tile__status">In use</span></span></article>
+        </div>
+        <div class="specimen"><span class="state-label">Selected</span>
+          <article class="l-design-tile l-cut" aria-label="Sumi" data-value="sumi" aria-selected="true"><span class="l-design-tile__preview"><img src="../../media/sheet-now.png" alt=""></span><span class="l-design-tile__text"><span class="l-design-tile__title">Sumi</span><span class="l-design-tile__resource" data-l-resource="light">Light</span><span class="l-design-tile__status">Installed</span><button class="l-design-tile__action l-plaque l-line l-small" type="button">Preview</button></span></article>
+        </div>
+        <div class="specimen"><span class="state-label">Current and selected</span>
+          <article class="l-design-tile l-cut" aria-label="Orpheus" data-value="orpheus" aria-current="true" aria-selected="true"><span class="l-design-tile__preview"><img src="../../media/sheet-fleet.png" alt=""></span><span class="l-design-tile__text"><span class="l-design-tile__title">Orpheus</span><span class="l-design-tile__resource" data-l-resource="standard">Standard</span><span class="l-design-tile__status">In use</span></span></article>
+        </div>
+        <div class="specimen"><span class="state-label">Hover</span>
+          <article class="l-design-tile l-cut" aria-label="Iris" data-value="iris" data-l-state="hover"><span class="l-design-tile__preview"><img src="../../media/sheet-settings.png" alt=""></span><span class="l-design-tile__text"><span class="l-design-tile__title">Iris</span><span class="l-design-tile__resource" data-l-resource="standard">Standard</span><span class="l-design-tile__status">Installed</span></span></article>
+        </div>
+        <div class="specimen"><span class="state-label">Pressed</span>
+          <article class="l-design-tile l-cut" aria-label="Iris" data-value="iris" data-l-state="pressed"><span class="l-design-tile__preview"><img src="../../media/sheet-settings.png" alt=""></span><span class="l-design-tile__text"><span class="l-design-tile__title">Iris</span><span class="l-design-tile__resource" data-l-resource="standard">Standard</span><span class="l-design-tile__status">Installed</span></span></article>
+        </div>
+        <div class="specimen"><span class="state-label">Selected with keyboard focus</span>
+          <article class="l-design-tile l-cut" aria-label="Sumi" data-value="sumi" aria-selected="true" data-l-state="focus"><span class="l-design-tile__preview"><img src="../../media/sheet-now.png" alt=""></span><span class="l-design-tile__text"><span class="l-design-tile__title">Sumi</span><span class="l-design-tile__resource" data-l-resource="light">Light</span><span class="l-design-tile__status">Installed</span></span></article>
+        </div>
+        <div class="specimen"><span class="state-label">Unavailable, with the reason</span>
+          <article class="l-design-tile l-cut" aria-label="Halo" data-value="halo" aria-disabled="true"><span class="l-design-tile__preview"><img src="../../media/sheet-tile.png" alt=""></span><span class="l-design-tile__text"><span class="l-design-tile__title">Halo</span><span class="l-design-tile__resource" data-l-resource="standard">Standard</span><span class="l-design-tile__status">Needs Hyprland</span></span></article>
+        </div>
+        <div class="specimen"><span class="state-label">Busy</span>
+          <article class="l-design-tile l-cut" aria-label="Halo" data-value="halo" aria-busy="true"><span class="l-design-tile__preview"><img src="../../media/sheet-tile.png" alt=""></span><span class="l-design-tile__text"><span class="l-design-tile__title">Halo</span><span class="l-design-tile__resource" data-l-resource="standard">Standard</span><span class="l-design-tile__status"><span class="l-working" role="status" aria-label="Installing" aria-busy="true"></span>Installing</span></span></article>
+        </div>
+        <div class="specimen"><span class="state-label">Heavy, with the one gold action</span>
+          <article class="l-design-tile l-cut" aria-label="Aurora" data-value="aurora"><span class="l-design-tile__preview"><img src="../../media/sheet-becoming.png" alt=""></span><span class="l-design-tile__text"><span class="l-design-tile__title">Aurora</span><span class="l-design-tile__resource" data-l-resource="heavy">Heavy</span><span class="l-design-tile__status">Not installed</span><button class="l-design-tile__action l-plaque l-gold l-small" type="button"><span class="l-glyph" aria-hidden="true">download</span>Install</button></span></article>
+        </div>
+        <div class="specimen"><span class="state-label">Line action</span>
+          <article class="l-design-tile l-cut" aria-label="Line" data-value="line"><span class="l-design-tile__preview"></span><span class="l-design-tile__text"><span class="l-design-tile__title">Line</span><span class="l-design-tile__resource" data-l-resource="light">Light</span><span class="l-design-tile__status">Installed</span><button class="l-design-tile__action l-plaque l-line l-small" type="button">Preview</button></span></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="design-gallery-heading">
+      <h2 class="l-type-section" id="design-gallery-heading">DesignGallery</h2>
+      <div class="specimen gallery-stage">
+        <span class="state-label">Bar styles: arrow keys move the selection, Enter activates</span>
+        <div class="l-design-gallery" aria-label="Bar styles">
+          <article class="l-design-tile l-cut" data-value="orpheus" aria-current="true"><span class="l-design-tile__preview"><img src="../../media/sheet-fleet.png" alt=""></span><span class="l-design-tile__text"><span class="l-design-tile__title">Orpheus</span><span class="l-design-tile__resource" data-l-resource="standard">Standard</span><span class="l-design-tile__status">In use</span></span></article>
+          <article class="l-design-tile l-cut" data-value="sumi" aria-selected="true"><span class="l-design-tile__preview"><img src="../../media/sheet-now.png" alt=""></span><span class="l-design-tile__text"><span class="l-design-tile__title">Sumi</span><span class="l-design-tile__resource" data-l-resource="light">Light</span><span class="l-design-tile__status">Installed</span><button class="l-design-tile__action l-plaque l-line l-small" type="button">Preview</button></span></article>
+          <article class="l-design-tile l-cut" data-value="iris"><span class="l-design-tile__preview"><img src="../../media/sheet-settings.png" alt=""></span><span class="l-design-tile__text"><span class="l-design-tile__title">Iris</span><span class="l-design-tile__resource" data-l-resource="standard">Standard</span><span class="l-design-tile__status">Installed</span></span></article>
+          <article class="l-design-tile l-cut" data-value="aurora"><span class="l-design-tile__preview"><img src="../../media/sheet-becoming.png" alt=""></span><span class="l-design-tile__text"><span class="l-design-tile__title">Aurora</span><span class="l-design-tile__resource" data-l-resource="heavy">Heavy</span><span class="l-design-tile__status">Not installed</span></span></article>
+          <article class="l-design-tile l-cut" data-value="halo" aria-disabled="true"><span class="l-design-tile__preview"><img src="../../media/sheet-tile.png" alt=""></span><span class="l-design-tile__text"><span class="l-design-tile__title">Halo</span><span class="l-design-tile__resource" data-l-resource="standard">Standard</span><span class="l-design-tile__status">Needs Hyprland</span></span></article>
+          <article class="l-design-tile l-cut" data-value="line"><span class="l-design-tile__preview"></span><span class="l-design-tile__text"><span class="l-design-tile__title">Line</span><span class="l-design-tile__resource" data-l-resource="light">Light</span><span class="l-design-tile__status">Installed</span></span></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="scroll-heading">
+      <h2 class="l-type-section" id="scroll-heading">ScrollRail</h2>
+      <div class="showcase-grid">
+        <div class="specimen"><span class="state-label">Overflowing at rest</span>
+          <div class="l-scroll scroll-demo" tabindex="0" aria-label="Fleet machines">
+            <article class="l-tablet l-notch" data-tone="alive"><span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">computer</span></span><span class="l-tablet__copy"><span class="l-tablet__title">ubuntu-24.04</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Running</span></span></span></article>
+            <article class="l-tablet l-notch" data-tone="idle"><span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">dns</span></span><span class="l-tablet__copy"><span class="l-tablet__title">fedora-43</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Stopped</span></span></span></article>
+            <article class="l-tablet l-notch" data-tone="attention"><span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">warning</span></span><span class="l-tablet__copy"><span class="l-tablet__title">mika-server</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Needs you</span></span></span></article>
+            <article class="l-tablet l-notch" data-tone="idle"><span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">computer</span></span><span class="l-tablet__copy"><span class="l-tablet__title">alpine-instant</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Stopped</span></span></span></article>
+          </div>
+        </div>
+        <div class="specimen"><span class="state-label">Hover</span>
+          <div class="l-scroll scroll-demo" tabindex="0" aria-label="Fleet machines, hover" data-l-state="hover">
+            <article class="l-tablet l-notch" data-tone="alive"><span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">computer</span></span><span class="l-tablet__copy"><span class="l-tablet__title">ubuntu-24.04</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Running</span></span></span></article>
+            <article class="l-tablet l-notch" data-tone="idle"><span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">dns</span></span><span class="l-tablet__copy"><span class="l-tablet__title">fedora-43</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Stopped</span></span></span></article>
+            <article class="l-tablet l-notch" data-tone="attention"><span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">warning</span></span><span class="l-tablet__copy"><span class="l-tablet__title">mika-server</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Needs you</span></span></span></article>
+            <article class="l-tablet l-notch" data-tone="idle"><span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">computer</span></span><span class="l-tablet__copy"><span class="l-tablet__title">alpine-instant</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Stopped</span></span></span></article>
+          </div>
+        </div>
+        <div class="specimen"><span class="state-label">Content fits: no thumb</span>
+          <div class="l-scroll scroll-demo short" tabindex="0" aria-label="Servers">
+            <article class="l-tablet l-notch" data-tone="alive"><span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">dns</span></span><span class="l-tablet__copy"><span class="l-tablet__title">ally</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Online</span></span></span></article>
+          </div>
+        </div>
+        <div class="specimen"><span class="state-label">Overflowing sideways</span>
+          <div class="l-scroll scroll-demo sideways" tabindex="0" aria-label="Images">
+            <article class="l-tablet" data-tone="idle"><span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">album</span></span><span class="l-tablet__copy"><span class="l-tablet__title">ubuntu-24.04</span></span></article>
+            <article class="l-tablet" data-tone="idle"><span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">album</span></span><span class="l-tablet__copy"><span class="l-tablet__title">fedora-43</span></span></article>
+          </div>
+        </div>
       </div>
     </section>
   </main>

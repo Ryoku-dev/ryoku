@@ -4,8 +4,12 @@ Row {
     id: root
 
     property string tone: "idle"
-    property string text: tone === "idle"
-        ? "Idle"
+    property string text: tone === "alive" ? Lithic.tr("Alive")
+        : tone === "becoming" ? Lithic.tr("Becoming")
+        : tone === "attention" ? Lithic.tr("Attention")
+        : tone === "paused" ? Lithic.tr("Paused")
+        : tone === "failed" ? Lithic.tr("Failed")
+        : tone === "idle" ? Lithic.tr("Idle")
         : tone.charAt(0).toUpperCase() + tone.slice(1)
     property real progress: tone === "becoming" ? 1 : tone === "idle" ? 0 : 1
 

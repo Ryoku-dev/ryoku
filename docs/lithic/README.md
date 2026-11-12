@@ -34,6 +34,7 @@ Lithic is Ryoku's UI language: cut, not molded. It builds calm, flat surfaces fr
 | `library/web/fonts.css` | Load Geologica and Martian Mono from `library/go/fonts`. |
 | `library/web/foundation.css` | Style roles, type and cut primitives. |
 | `library/web/controls.css` | Style controls. |
+| `library/web/segmented.css` and `segmented.js` | Style and run the segmented control. |
 | `library/web/lists.css` | Style lists, containers, state and progress. |
 | `library/web/overlays.css` | Style overlays, navigation and data views. |
 | `library/web/lithic.js` | Initialize the web library. |

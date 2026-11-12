@@ -212,6 +212,66 @@
   display: none;
 }
 
+.l-scroll {
+  --l-scroll-thumb: var(--lithic-edge);
+  overflow: auto;
+  overscroll-behavior: contain;
+  /* the root's inherited scrollbar-color would switch Chromium off its pseudo-elements */
+  scrollbar-color: auto;
+  scrollbar-width: auto;
+}
+
+/* Firefox takes the standard properties; Chromium ignores its pseudo-elements once they are set */
+@supports not selector(::-webkit-scrollbar) {
+  .l-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: var(--l-scroll-thumb) transparent;
+  }
+
+  .l-scroll:is(:hover, [data-l-state="hover"]) {
+    --l-scroll-thumb: var(--lithic-fg3);
+  }
+}
+
+.l-scroll::-webkit-scrollbar {
+  inline-size: var(--lithic-size-scroll-thumb);
+  block-size: var(--lithic-size-scroll-thumb);
+  background: transparent;
+}
+
+.l-scroll::-webkit-scrollbar-track,
+.l-scroll::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.l-scroll::-webkit-scrollbar-button {
+  display: none;
+  inline-size: 0;
+  block-size: 0;
+}
+
+/* both ends cut at 45 degrees, the same parallelogram RowList draws */
+.l-scroll::-webkit-scrollbar-thumb:vertical {
+  min-block-size: var(--lithic-size-scroll-thumb-min);
+  background:
+    linear-gradient(to top right, var(--l-scroll-thumb) 50%, transparent 50%) top / 100% var(--lithic-size-scroll-thumb) no-repeat,
+    linear-gradient(to bottom left, var(--l-scroll-thumb) 50%, transparent 50%) bottom / 100% var(--lithic-size-scroll-thumb) no-repeat,
+    linear-gradient(var(--l-scroll-thumb), var(--l-scroll-thumb)) center / 100% calc(100% - 2 * var(--lithic-size-scroll-thumb)) no-repeat;
+}
+
+.l-scroll::-webkit-scrollbar-thumb:horizontal {
+  min-inline-size: var(--lithic-size-scroll-thumb-min);
+  background:
+    linear-gradient(to bottom left, var(--l-scroll-thumb) 50%, transparent 50%) left / var(--lithic-size-scroll-thumb) 100% no-repeat,
+    linear-gradient(to top right, var(--l-scroll-thumb) 50%, transparent 50%) right / var(--lithic-size-scroll-thumb) 100% no-repeat,
+    linear-gradient(var(--l-scroll-thumb), var(--l-scroll-thumb)) center / calc(100% - 2 * var(--lithic-size-scroll-thumb)) 100% no-repeat;
+}
+
+.l-scroll::-webkit-scrollbar-thumb:is(:hover, :active),
+.l-scroll[data-l-state="hover"]::-webkit-scrollbar-thumb {
+  --l-scroll-thumb: var(--lithic-fg3);
+}
+
 .l-group {
   display: grid;
   min-inline-size: 0;
@@ -727,4 +787,370 @@
   .l-blade-progress[data-indeterminate="true"]::after {
     transform: none;
   }
+}
+
+.l-setting-row {
+  --l-row-plane: transparent;
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  gap: var(--lithic-space-s4);
+  min-block-size: var(--lithic-size-facts-row-height);
+  color: var(--lithic-fg);
+  outline: none;
+}
+
+/* the plane bleeds past the row box so text never touches its edge */
+.l-setting-row::before {
+  content: "";
+  position: absolute;
+  inset: calc(-1 * var(--lithic-space-s1)) calc(-1 * var(--lithic-space-s2));
+  z-index: -1;
+  background: var(--l-row-plane);
+  clip-path: polygon(
+    var(--lithic-cut-small) 0,
+    calc(100% - var(--lithic-cut-small)) 0,
+    100% var(--lithic-cut-small),
+    100% calc(100% - var(--lithic-cut-small)),
+    calc(100% - var(--lithic-cut-small)) 100%,
+    var(--lithic-cut-small) 100%,
+    0 calc(100% - var(--lithic-cut-small)),
+    0 var(--lithic-cut-small)
+  );
+  pointer-events: none;
+  transition: background-color var(--lithic-motion-hover-out) var(--lithic-motion-curve);
+}
+
+.l-setting-row + .l-setting-row {
+  margin-block-start: var(--lithic-size-settings-row-gap);
+}
+
+/* the divider sits centred in the gap above every row but the first */
+.l-setting-row + .l-setting-row > .l-setting-row__text::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: calc(-1 * (var(--lithic-size-settings-row-gap) + var(--lithic-size-hairline)) / 2);
+  block-size: var(--lithic-size-hairline);
+  background: var(--lithic-vein);
+  pointer-events: none;
+}
+
+.l-setting-row__text {
+  flex: 1 1 0;
+  min-inline-size: 0;
+  font: var(--lithic-type-row-weight) var(--lithic-type-row-size)/var(--lithic-type-row-line) var(--lithic-type-row-family);
+  overflow-wrap: anywhere;
+}
+
+.l-setting-row__title {
+  color: var(--lithic-fg);
+  font: inherit;
+}
+
+.l-setting-row__mark {
+  margin-inline-start: var(--lithic-space-s3);
+  color: var(--lithic-fg3);
+  font: var(--lithic-type-detail-weight) var(--lithic-type-detail-size)/var(--lithic-type-detail-line) var(--lithic-type-detail-family);
+  white-space: nowrap;
+}
+
+.l-setting-row__detail {
+  display: block;
+  margin-block-start: var(--lithic-size-settings-detail-gap);
+  color: var(--lithic-fg2);
+  font: var(--lithic-type-detail-weight) var(--lithic-type-detail-size)/var(--lithic-type-detail-line) var(--lithic-type-detail-family);
+}
+
+.l-setting-row__reset {
+  flex: 0 0 auto;
+  margin-inline-end: calc(var(--lithic-space-s2) - var(--lithic-space-s4));
+  opacity: 0;
+  transition:
+    opacity var(--lithic-motion-hover-out) var(--lithic-motion-curve),
+    color var(--lithic-motion-hover-out) var(--lithic-motion-curve),
+    transform var(--lithic-motion-press) var(--lithic-motion-curve),
+    --l-cut-depth var(--lithic-motion-press) var(--lithic-motion-curve);
+}
+
+.l-setting-row:is(:hover, :focus-within, [data-l-state="hover"], [data-l-state="focus"]) .l-setting-row__reset {
+  opacity: 1;
+  transition-duration: var(--lithic-motion-hover-in), var(--lithic-motion-hover-in), var(--lithic-motion-press), var(--lithic-motion-press);
+}
+
+.l-setting-row:not([data-l-changed]) :is(.l-setting-row__mark, .l-setting-row__reset),
+.l-setting-row[aria-disabled="true"] .l-setting-row__reset {
+  display: none;
+}
+
+.l-setting-row__control {
+  flex: 0 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-inline-size: 0;
+  max-inline-size: var(--lithic-size-settings-control-max);
+}
+
+.l-setting-row[data-l-activatable]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+
+.l-setting-row[data-l-activatable]:not([aria-disabled="true"]):is(:hover, [data-l-state="hover"]) {
+  --l-row-plane: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-hover-plane) * 100%), transparent);
+}
+
+.l-setting-row[data-l-activatable]:not([aria-disabled="true"]):is(:hover, [data-l-state="hover"])::before {
+  transition-duration: var(--lithic-motion-hover-in);
+}
+
+.l-setting-row[data-l-activatable]:not([aria-disabled="true"]):is(:active, [data-l-state="pressed"]) {
+  --l-row-plane: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-press-row) * 100%), transparent);
+}
+
+/* the keyboard ring follows the plane's cut, grown like FocusRing */
+.l-setting-row[data-l-activatable]::after {
+  --l-ring-cut: calc(var(--lithic-cut-small) + min(var(--lithic-cut-small), var(--lithic-size-focus-cut-grow)));
+  --l-ring-out: calc(var(--lithic-size-focus-ring-width) + var(--lithic-size-focus-ring-gap));
+  --l-ring-w: var(--lithic-size-focus-ring-width);
+  content: "";
+  position: absolute;
+  inset: calc(-1 * (var(--lithic-space-s1) + var(--l-ring-out))) calc(-1 * (var(--lithic-space-s2) + var(--l-ring-out)));
+  z-index: 1;
+  opacity: 0;
+  background: var(--lithic-fg2);
+  clip-path: polygon(evenodd,
+    calc(var(--l-ring-cut) + var(--l-ring-out)) 0,
+    calc(100% - var(--l-ring-cut) - var(--l-ring-out)) 0,
+    100% calc(var(--l-ring-cut) + var(--l-ring-out)),
+    100% calc(100% - var(--l-ring-cut) - var(--l-ring-out)),
+    calc(100% - var(--l-ring-cut) - var(--l-ring-out)) 100%,
+    calc(var(--l-ring-cut) + var(--l-ring-out)) 100%,
+    0 calc(100% - var(--l-ring-cut) - var(--l-ring-out)),
+    0 calc(var(--l-ring-cut) + var(--l-ring-out)),
+    calc(var(--l-ring-w) + var(--l-ring-cut) + var(--lithic-size-focus-ring-gap)) var(--l-ring-w),
+    var(--l-ring-w) calc(var(--l-ring-w) + var(--l-ring-cut) + var(--lithic-size-focus-ring-gap)),
+    var(--l-ring-w) calc(100% - var(--l-ring-w) - var(--l-ring-cut) - var(--lithic-size-focus-ring-gap)),
+    calc(var(--l-ring-w) + var(--l-ring-cut) + var(--lithic-size-focus-ring-gap)) calc(100% - var(--l-ring-w)),
+    calc(100% - var(--l-ring-w) - var(--l-ring-cut) - var(--lithic-size-focus-ring-gap)) calc(100% - var(--l-ring-w)),
+    calc(100% - var(--l-ring-w)) calc(100% - var(--l-ring-w) - var(--l-ring-cut) - var(--lithic-size-focus-ring-gap)),
+    calc(100% - var(--l-ring-w)) calc(var(--l-ring-w) + var(--l-ring-cut) + var(--lithic-size-focus-ring-gap)),
+    calc(100% - var(--l-ring-w) - var(--l-ring-cut) - var(--lithic-size-focus-ring-gap)) var(--l-ring-w)
+  );
+  pointer-events: none;
+  transition: opacity var(--lithic-motion-focus-out) var(--lithic-motion-curve);
+}
+
+[data-l-keyboard] .l-setting-row[data-l-activatable]:focus-visible::after,
+.l-setting-row[data-l-activatable][data-l-state="focus"]::after {
+  opacity: 1;
+  transition-duration: var(--lithic-motion-focus-in);
+}
+
+.l-setting-row[data-l-activatable]:not([aria-disabled="true"]):is(:active, [data-l-state="pressed"])::before {
+  transition-duration: var(--lithic-motion-press);
+}
+
+.l-setting-row[data-l-highlight]::before {
+  animation: l-setting-row-highlight var(--lithic-motion-highlight) var(--lithic-motion-curve) 1;
+}
+
+.l-setting-row[data-l-state="highlight"]::before {
+  background: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-hover-plane) * 100%), transparent);
+}
+
+@keyframes l-setting-row-highlight {
+  from { background-color: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-hover-plane) * 100%), transparent); }
+  to { background-color: transparent; }
+}
+
+.l-setting-row[aria-disabled="true"] .l-setting-row__detail {
+  color: var(--lithic-fg3);
+}
+
+.l-setting-row[aria-disabled="true"] .l-setting-row__control {
+  opacity: var(--lithic-alpha-disabled);
+  pointer-events: none;
+}
+
+.l-design-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--lithic-size-catalogue-tile-width-min)), 1fr));
+  gap: var(--lithic-space-s2);
+  align-items: start;
+}
+
+.l-design-tile {
+  --l-fill: var(--lithic-slab);
+  --l-stroke: var(--lithic-vein);
+  --l-stroke-width: var(--lithic-size-hairline);
+  --l-cut: var(--lithic-cut-small);
+  --l-preview-cut: round(nearest, calc(var(--lithic-cut-small) - var(--lithic-space-s1) * 0.585786), 1px);
+  display: grid;
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-inline-size: var(--lithic-size-catalogue-tile-width-max);
+  color: var(--lithic-fg);
+  cursor: pointer;
+  outline: none;
+  transition: color var(--lithic-motion-select) var(--lithic-motion-curve);
+}
+
+.l-design-tile::after {
+  transition: background-color var(--lithic-motion-hover-out) var(--lithic-motion-curve);
+}
+
+.l-design-tile:is(:hover, [data-l-state="hover"]):not([aria-selected="true"]) {
+  --l-fill: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-hover-plane) * 100%), var(--lithic-slab));
+}
+
+.l-design-tile:is(:hover, [data-l-state="hover"]):not([aria-selected="true"])::after {
+  transition-duration: var(--lithic-motion-hover-in);
+}
+
+.l-design-tile:is(:active, [data-l-state="pressed"]):not([aria-selected="true"]) {
+  --l-fill: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-press-row) * 100%), var(--lithic-slab));
+}
+
+.l-design-tile:is(:active, [data-l-state="pressed"]):not([aria-selected="true"])::after {
+  transition-duration: var(--lithic-motion-press);
+}
+
+.l-design-tile[aria-selected="true"] {
+  --l-fill: var(--lithic-sel);
+  --l-stroke: transparent;
+  color: var(--lithic-on-sel);
+}
+
+.l-design-tile__preview {
+  display: block;
+  margin: var(--lithic-space-s1) var(--lithic-space-s1) 0;
+  aspect-ratio: var(--lithic-size-design-preview-ratio);
+  overflow: hidden;
+  background-color: var(--lithic-field);
+  clip-path: polygon(
+    var(--l-preview-cut) 0,
+    calc(100% - var(--l-preview-cut)) 0,
+    100% var(--l-preview-cut),
+    100% 100%,
+    0 100%,
+    0 var(--l-preview-cut)
+  );
+}
+
+.l-design-tile__preview:not(:has(img)) {
+  --l-hatch-color: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-hatch) * 100%), transparent);
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 calc(var(--lithic-size-chart-hatch-gap) - var(--lithic-size-chart-hatch-line)),
+    var(--l-hatch-color) calc(var(--lithic-size-chart-hatch-gap) - var(--lithic-size-chart-hatch-line)) var(--lithic-size-chart-hatch-gap)
+  );
+}
+
+.l-design-tile__preview > img {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+.l-design-tile[aria-disabled="true"] .l-design-tile__preview {
+  opacity: var(--lithic-alpha-disabled);
+}
+
+.l-design-tile__text {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "title resource" "status action";
+  grid-template-rows: auto minmax(var(--lithic-size-plaque-height-small), auto);
+  align-items: center;
+  column-gap: var(--lithic-space-s2);
+  padding: var(--lithic-space-s2) var(--lithic-space-s3);
+}
+
+.l-design-tile[aria-current="true"] .l-design-tile__text {
+  background: var(--lithic-sel);
+  color: var(--lithic-on-sel);
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% calc(100% - var(--lithic-cut-small)),
+    calc(100% - var(--lithic-cut-small)) 100%,
+    var(--lithic-cut-small) 100%,
+    0 calc(100% - var(--lithic-cut-small))
+  );
+}
+
+.l-design-tile__title {
+  grid-area: title;
+  min-inline-size: 0;
+  font: var(--lithic-type-row-weight) var(--lithic-type-row-size)/var(--lithic-type-row-line) var(--lithic-type-row-family);
+  overflow-wrap: anywhere;
+}
+
+.l-design-tile__resource {
+  grid-area: resource;
+  color: var(--lithic-fg2);
+  font: var(--lithic-type-detail-weight) var(--lithic-type-detail-size)/var(--lithic-type-detail-line) var(--lithic-type-detail-family);
+  white-space: nowrap;
+}
+
+.l-design-tile__resource[data-l-resource="heavy"] {
+  color: var(--lithic-amber);
+}
+
+.l-design-tile__status {
+  grid-area: status;
+  display: flex;
+  align-items: center;
+  gap: var(--lithic-space-s1);
+  min-inline-size: 0;
+  color: var(--lithic-fg2);
+  font: var(--lithic-type-caption-weight) var(--lithic-type-caption-size)/var(--lithic-type-caption-line) var(--lithic-type-caption-family);
+  overflow-wrap: anywhere;
+}
+
+.l-design-tile__status > .l-working {
+  --l-working-size: var(--lithic-type-caption-line);
+  flex: 0 0 auto;
+}
+
+.l-design-tile:not([aria-busy="true"]) .l-design-tile__status > .l-working {
+  display: none;
+}
+
+:is(.l-design-tile[aria-selected="true"], .l-design-tile[aria-current="true"] .l-design-tile__text) :is(.l-design-tile__status, .l-design-tile__resource:not([data-l-resource="heavy"])) {
+  color: var(--lithic-on-sel2);
+}
+
+.l-design-tile__action {
+  grid-area: action;
+  justify-self: end;
+}
+
+/* the ring is a FocusRing child because the tile's cut owns both pseudo-elements */
+.l-design-tile__ring {
+  --l-cut: var(--lithic-cut-small);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+[data-l-keyboard] .l-design-tile:focus-visible > .l-design-tile__ring::before,
+.l-design-tile[data-l-state="focus"] > .l-design-tile__ring::before {
+  opacity: 1;
+  transition-duration: var(--lithic-motion-focus-in);
+}
+
+/* gold ink reads poorly on bone, so a non-gold action takes the on kind there */
+:is(.l-design-tile[aria-selected="true"], .l-design-tile[aria-current="true"]) .l-design-tile__action:not(.l-gold) {
+  --l-fill: var(--lithic-sel);
+  --l-active-fill: var(--l-fill);
+  --l-stroke: transparent;
+  --l-ink: var(--lithic-on-sel);
+}
+
+:is(.l-design-tile[aria-selected="true"], .l-design-tile[aria-current="true"]) .l-design-tile__action:not(.l-gold):is(:hover, [data-l-state="hover"]):not(:disabled):not([aria-disabled="true"]) {
+  --l-active-fill: color-mix(in srgb, var(--l-fill), white calc(var(--lithic-alpha-hover-fill) * 100%));
 }

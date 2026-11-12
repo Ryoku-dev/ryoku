@@ -54,6 +54,7 @@ person
 play_arrow
 refresh
 remove
+restart_alt
 schedule
 search
 settings fill

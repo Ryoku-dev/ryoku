@@ -8,7 +8,7 @@ T.Control {
     property var ticks: []
     property real minimum: Number.NaN
     property real maximum: Number.NaN
-    property string emptyText: "Not enough data yet"
+    property string emptyText: Lithic.tr("Not enough data yet")
     property color lineInk: Lithic.fg
     property color baselineInk: Lithic.vein
     property string previewState: ""
@@ -18,7 +18,7 @@ T.Control {
     implicitHeight: LithicTokens.space.s6 * 2 + Lithic.type.monoSm.lineHeight
     padding: 0
     Accessible.role: Accessible.Chart
-    Accessible.name: "Data chart"
+    Accessible.name: Lithic.tr("Data chart")
 
     function rangeMinimum() {
         if (!Number.isNaN(minimum))

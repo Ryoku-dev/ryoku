@@ -57,6 +57,18 @@ T.TextField {
         }
     }
 
+    // the template draws no placeholder of its own
+    Label {
+        x: root.leftPadding
+        y: root._labelHeight + (LithicTokens.size.textFieldHeight - height) / 2
+        width: Math.max(0, root.width - root.leftPadding - root.rightPadding)
+        visible: root.text.length === 0 && root.preeditText.length === 0 && root.placeholderText.length > 0
+        text: root.placeholderText
+        typeRole: root.mono ? "mono" : "body"
+        ink: root.placeholderTextColor
+        Accessible.ignored: true
+    }
+
     Label {
         id: fieldLabel
         visible: root.label.length > 0
@@ -85,7 +97,7 @@ T.TextField {
         small: true
         kind: "quiet"
         glyph: root.revealed ? "visibility_off" : "visibility"
-        accessibleName: root.revealed ? "Hide value" : "Show value"
+        accessibleName: root.revealed ? Lithic.tr("Hide value") : Lithic.tr("Show value")
         onClicked: {
             root.revealed = !root.revealed;
             root.forceActiveFocus();

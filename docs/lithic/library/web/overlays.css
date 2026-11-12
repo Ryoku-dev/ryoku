@@ -529,6 +529,27 @@
   margin-block-start: auto;
 }
 
+.l-rail-foot {
+  width: 100%;
+  display: grid;
+  justify-items: center;
+  gap: var(--lithic-size-rail-tile-gap);
+  margin-block-start: auto;
+}
+
+.l-rail-foot > .l-rail-settings {
+  margin-block-start: 0;
+}
+
+:is(.l-rail, .l-app-frame)[data-l-show-new="false"] .l-new-plaque {
+  display: none;
+}
+
+/* the update marker on a rail tile is amber */
+.l-rail-destination.l-notch {
+  --l-notch-color: var(--lithic-amber);
+}
+
 .l-brand-mark {
   --l-brand-cut: calc(var(--lithic-size-brand-cut-ratio) * 100%);
   width: var(--lithic-size-brand-mark);
@@ -852,6 +873,20 @@ svg.l-engraved-chart {
 .l-app-frame[data-l-size-class="compact"] .l-new-plaque { grid-column: 3; grid-row: 1; }
 .l-app-frame[data-l-size-class="compact"] .l-rail-primary > :nth-child(3) { grid-column: 4; }
 .l-app-frame[data-l-size-class="compact"] .l-rail-settings { grid-column: 5; grid-row: 1; margin: 0; }
+.l-app-frame[data-l-size-class="compact"] .l-rail-foot { display: contents; }
+.l-app-frame[data-l-size-class="compact"] .l-rail-foot > .l-rail-settings { grid-column: auto; }
+
+.l-app-frame[data-l-size-class="compact"][data-l-compact-bar="false"] {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.l-app-frame[data-l-size-class="compact"][data-l-compact-bar="false"] .l-rail {
+  display: none;
+}
+
+.l-app-frame[data-l-size-class="compact"][data-l-compact-bar="false"] .l-app-frame-work {
+  margin-block-end: 0;
+}
 
 .l-app-frame[data-l-size-class="compact"] .l-rail-label {
   display: block;

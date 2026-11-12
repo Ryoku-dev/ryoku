@@ -8,6 +8,9 @@ const boundMarks = new WeakSet();
 const toneAnimations = new WeakMap();
 let rowIdentity = 0;
 
+const SETTING_ROW_INTERACTIVE = 'a[href], button, input, select, textarea, label, [contenteditable="true"], [role="switch"], [role="slider"], [role="spinbutton"], [role="combobox"], [tabindex]';
+const TILE_MOVES = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End']);
+
 function all(root, selector) {
   const matches = root instanceof Element && root.matches(selector) ? [root] : [];
   return matches.concat(Array.from(root.querySelectorAll(selector)));
@@ -396,6 +399,8 @@ function setupWithin(root) {
 
 export function initLists(root) {
   setupWithin(root);
+  initSettingRows(root);
+  initDesignGalleries(root);
   const Observer = documentFor(root).defaultView?.MutationObserver;
   if (!Observer) return;
 
@@ -442,6 +447,154 @@ export function initLists(root) {
     attributes: true,
     childList: true,
     subtree: true,
+  });
+}
+
+function emit(element, name, detail = {}) {
+  element.dispatchEvent(new CustomEvent(name, {bubbles: true, composed: true, detail}));
+}
+
+function unavailable(row) {
+  return row.getAttribute('aria-disabled') === 'true';
+}
+
+export function syncSettingRow(row) {
+  const off = unavailable(row);
+  const control = row.querySelector(':scope > .l-setting-row__control');
+  if (control) control.inert = off;
+  if (row.hasAttribute('data-l-activatable')) row.tabIndex = off ? -1 : 0;
+  const resetPart = row.querySelector(':scope > .l-setting-row__reset');
+  const reset = resetPart?.matches('button') ? resetPart : resetPart?.querySelector('button');
+  const title = row.querySelector('.l-setting-row__title')?.textContent.trim();
+  if (reset && title && !reset.hasAttribute('aria-label')) reset.setAttribute('aria-label', `Reset ${title}`);
+}
+
+function activate(row) {
+  if (unavailable(row)) return;
+  emit(row, 'lithic:activate', {row});
+}
+
+function initSettingRows(root) {
+  all(root, '.l-setting-row').forEach(syncSettingRow);
+
+  const observer = new MutationObserver(records => {
+    const rows = new Set();
+    records.forEach(record => {
+      if (record.target.matches?.('.l-setting-row')) rows.add(record.target);
+    });
+    rows.forEach(syncSettingRow);
+  });
+  observer.observe(root, {subtree: true, attributes: true, attributeFilter: ['aria-disabled', 'data-l-activatable']});
+
+  root.addEventListener('click', event => {
+    const reset = event.target.closest('.l-setting-row__reset');
+    if (reset) {
+      const row = reset.closest('.l-setting-row');
+      if (row && !unavailable(row)) emit(row, 'lithic:reset', {row});
+      return;
+    }
+    const row = event.target.closest('.l-setting-row[data-l-activatable]');
+    if (!row) return;
+    const inner = event.target.closest(SETTING_ROW_INTERACTIVE);
+    if (inner && inner !== row && row.contains(inner)) return;
+    activate(row);
+  });
+
+  root.addEventListener('keydown', event => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const row = event.target;
+    if (!row.matches?.('.l-setting-row[data-l-activatable]')) return;
+    event.preventDefault();
+    if (!event.repeat) activate(row);
+  });
+}
+
+function tilesOf(gallery) {
+  return [...gallery.querySelectorAll(':scope > .l-design-tile')];
+}
+
+function detailFor(tile) {
+  const gallery = tile.closest('.l-design-gallery');
+  return {tile, value: tile.dataset.value, index: gallery ? tilesOf(gallery).indexOf(tile) : 0};
+}
+
+function ensureRing(tile) {
+  if (tile.querySelector(':scope > .l-design-tile__ring')) return;
+  const ring = tile.ownerDocument.createElement('span');
+  ring.className = 'l-design-tile__ring l-focus-ring';
+  ring.setAttribute('aria-hidden', 'true');
+  tile.append(ring);
+}
+
+function columns(tiles) {
+  if (!tiles.length) return 1;
+  const top = tiles[0].getBoundingClientRect().top;
+  const count = tiles.findIndex(tile => tile.getBoundingClientRect().top > top + 1);
+  return count < 0 ? tiles.length : Math.max(1, count);
+}
+
+export function selectTile(tile, {notify = true, focus = false} = {}) {
+  const gallery = tile.closest('.l-design-gallery');
+  const tiles = gallery ? tilesOf(gallery) : [tile];
+  const changed = tile.getAttribute('aria-selected') !== 'true';
+  tiles.forEach(candidate => {
+    candidate.setAttribute('aria-selected', String(candidate === tile));
+    candidate.tabIndex = candidate === tile ? 0 : -1;
+  });
+  if (focus) tile.focus({preventScroll: false});
+  if (notify && changed) emit(tile, 'lithic:select', detailFor(tile));
+}
+
+function nextTile(gallery, current, key) {
+  const tiles = tilesOf(gallery);
+  const index = tiles.indexOf(current);
+  if (key === 'Home') return tiles[0];
+  if (key === 'End') return tiles.at(-1);
+  const step = key === 'ArrowLeft' ? -1 : key === 'ArrowRight' ? 1 : key === 'ArrowUp' ? -columns(tiles) : columns(tiles);
+  return tiles[Math.min(tiles.length - 1, Math.max(0, index + step))];
+}
+
+function initDesignGalleries(root) {
+  all(root, '.l-design-gallery').forEach(gallery => {
+    if (!gallery.hasAttribute('role')) gallery.setAttribute('role', 'listbox');
+    const tiles = tilesOf(gallery);
+    const selected = tiles.find(tile => tile.getAttribute('aria-selected') === 'true');
+    tiles.forEach(tile => {
+      if (!tile.hasAttribute('role')) tile.setAttribute('role', 'option');
+      if (!tile.hasAttribute('aria-selected')) tile.setAttribute('aria-selected', 'false');
+      tile.tabIndex = tile === (selected || tiles[0]) ? 0 : -1;
+    });
+  });
+  all(root, '.l-design-tile').forEach(tile => {
+    ensureRing(tile);
+    if (!tile.closest('.l-design-gallery') && !tile.hasAttribute('tabindex')) tile.tabIndex = 0;
+  });
+
+  root.addEventListener('click', event => {
+    const tile = event.target.closest('.l-design-tile');
+    if (!tile) return;
+    const action = event.target.closest('.l-design-tile__action');
+    if (action) {
+      if (!action.matches(':disabled, [aria-disabled="true"], [aria-busy="true"]')) emit(tile, 'lithic:action', detailFor(tile));
+      return;
+    }
+    if (tile.closest('.l-design-gallery')) selectTile(tile);
+    emit(tile, 'lithic:activate', detailFor(tile));
+  });
+
+  root.addEventListener('keydown', event => {
+    const tile = event.target;
+    if (!tile.matches?.('.l-design-tile')) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      if (!event.repeat) emit(tile, 'lithic:activate', detailFor(tile));
+      return;
+    }
+    const gallery = tile.closest('.l-design-gallery');
+    if (!gallery || !TILE_MOVES.has(event.key)) return;
+    event.preventDefault();
+    const next = nextTile(gallery, tile, event.key);
+    if (next && next !== tile) selectTile(next, {focus: true});
   });
 }
 

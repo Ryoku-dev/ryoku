@@ -169,6 +169,34 @@ listed are internal animation or interaction state.
 | `Filters` | Mutually exclusive filter chips. Set `Labels`, `Counts`, `Selected`, and `Preview`. Call `Layout(gtx, th)` and `Changed() (int, bool)`. |
 | `Tabs` | A horizontal selector of up to the token limit. Set `Labels`, `Selected`, and `Preview`. Call `Layout(gtx, th)` and `Changed() (int, bool)`. |
 | `Disclosure` | Animated optional content. Set `Open` and `Preview`, then call `Layout(gtx, th, content)`. Closed content is disabled while it leaves. |
+| `SettingRow` | One setting in a settings slab. Set `Title`, `Detail`, `Changed`, `Unavailable`, `Highlight float32`, `Activatable`, `First`, and `Preview`, then call `Layout(gtx, th, control)`; the control sits at the right, no wider than `settingsControlMax`. Title and detail wrap and never elide. A row draws the vein line above itself unless `First`. `Changed` adds the "Changed" mark and keeps a slot for the reset icon plaque, shown while the row is hovered or the row or reset holds focus; read `Reset.Clicked(gtx)`. A non-empty `Unavailable` disables the control and replaces the detail. With `Activatable`, the whole row is a pointer and keyboard target: read `Row.Clicked(gtx)` and flip the row's toggle there. The host drives `Highlight` from 1 to 0 over `tokens.MotionHighlight` on the chisel curve, for example with an `anim.Tween`. `Hovered()` reports the pointer. |
+| `ChordField` | A keyboard shortcut field. Set embedded `Click`, `Chord`, `Label` (accessible name), `Placeholder` (default "Not set"), `Conflict`, `Preview`, and `PreviewRecording`. Call `Layout(gtx, th)`, `Focus(gtx)`, `Recording() bool`, the clear-on-read `Recorded() (string, bool)` and `Cleared() bool`. The field never changes `Chord` itself and never talks to the compositor; hold a shortcut inhibitor while `Recording` is true. |
+| `ColorField` | A colour value field. Set `Color`, `Label` (accessible name), `AllowAlpha`, `Swatches []ColorSwatch` (each a `Label` and a `Color`), and `Preview`; a non-rest preview with `Show()` draws the open popover in place. Call `Layout(gtx, th)`, the clear-on-read `Picked() (color.NRGBA, bool)`, `Open`, `Show`, `Close(gtx)`, `Focus(gtx)`, and `SubmitHex(text)`. A pick also sets `Color`. |
+
+### ChordField keys
+
+Recording starts on a click, Enter or Space. The next press with Super, Ctrl,
+Alt or Shift and a non-modifier key, or a function key alone, records the
+canonical chord: modifiers in the order Super, Ctrl, Alt, Shift, then the key,
+joined by `+`, with the key named as `Combos.js` `qtKeyName` names it
+(`Super+Shift+Return`, `Ctrl+minus`, `Super+Prior`). Escape cancels; Backspace
+or Delete alone clears; with a modifier they record. Losing focus cancels.
+Keycaps show the faces `ryoku/wm` `DisplayKeys` gives (`Enter`, `Page Up`,
+`Num 3`).
+
+Gio reports fewer keys than Qt or a browser, so a Gio host cannot record:
+
+- letters on a non-Latin layout: Gio names a key only for an ASCII keysym, so
+  a Cyrillic or Greek letter produces no key event;
+- `Print`, `Insert`, `F13` to `F24` and every media key (`XF86Audio*`,
+  `XF86MonBrightness*`): Gio has no names for them and sends nothing;
+- number-pad digits and `-`, `/`, `.` as `KP_` keys: they arrive as their
+  main-row twins (`KP_3` records as `3`); only number-pad Enter (`KP_Enter`),
+  `*` (`KP_Multiply`) and `+` (`KP_Add`) without Shift stay distinct.
+
+Gio names the produced symbol rather than the key, so the field folds the US
+shifted symbols back (`Shift+!` records as `Shift+1`). The field still shows
+any of these chords when the host sets them.
 
 ### Control examples
 
@@ -210,6 +238,9 @@ func layoutHost(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 | `Tablet` | An interactive resource row. Set embedded `Click`, `Pane color.NRGBA`, and `Preview`. Pass `TabletContent` to `Layout(gtx, th, content, selected, listFocused)`. Call `Clicked(gtx)` or `DoubleClicked(gtx)`. |
 | `TabletContent` | Set `Mark layout.Widget`, `Title`, `Facts`, `FactsWidget`, `FactsMono`, `Claim`, `Proof`, `Tone`, `Progress`, and `Action *Plaque`. `FactsWidget` replaces the plain facts string when supplied. |
 | `RowList` | A scrolling keyboard list with one selection slab. Set `Preview`. Call `Focus(gtx)`, `Layout(gtx, th, count, selected, row)`, `Changed() (int, bool)`, and `Activated() (int, bool)`. Both result methods report their current ready flag. |
+| `ScrollRail` | The RowList thumb for any vertical `layout.List` pane: `edge` at rest, `fg3` on hover or drag, shown only while the content overflows. Set `Preview`. After the list's layout, call `Layout(gtx, th, list, count)` in the same bounds; the rail draws at the right edge and hit-tests a lane `s3` wide there. Dragging the thumb scrolls and a press on the track pages; the wheel and the keys stay with the pane. `Dragging()` reports a held thumb. |
+| `DesignTile` | One look in a gallery of looks. Set embedded `Click`, `Title`, `Status`, `Resource Mark` (`Attention` draws Heavy in amber), `Image paint.ImageOp` (the zero value draws a hatch), `Current`, `Selected`, `Busy`, `Unavailable`, `ActionText`, `ActionGold`, `ActionIcon`, and `Preview`. Call `Layout(gtx, th)` at the tile width, `Clicked(gtx)` and `ActionTriggered(gtx)`. The preview is 16:10 (`tokens.SizeDesignPreviewRatio`), cropped to fill; the second line always reserves a small plaque's height so tiles in a row align. The action is a small line plaque, an on plaque while the tile is current or selected, and gold only with `ActionGold`. |
+| `DesignGallery` | A grid of design tiles: as many columns as `catalogueTileWidthMin` tiles allow with `s2` between, so the focus ring's outset never touches a neighbour, tiles up to `catalogueTileWidthMax`. Set `Preview` (`StateFocus` rings the selected tile). Call `Layout(gtx, th, tiles, selected)`, `Changed() (int, bool)`, `Activated() (int, bool)`, `Focus(gtx, tiles, selected)`, and `Columns()`. It sets each tile's `Selected` and reads its clicks, so use `Changed` and `Activated` rather than `Clicked`; arrow keys, Home and End move the selection and focus, Enter or Space activates. |
 | `GroupHeader` | `GroupHeader(th, title, count)` returns a widget. A nonpositive count renders nothing. |
 | `Skeleton` | Static list placeholders. Set `Active` and `Rows`, then call `Layout(gtx, th)`. An inactive skeleton occupies no space and requests no frames. |
 | `Empty` | An empty state. Set `Icon`, `Title`, `Body`, and `Actions []*Plaque`, then call `Layout(gtx, th)`. |
@@ -288,10 +319,10 @@ argument.
 | `BrandMark` | `BrandMark(th, size)` returns the Home mark widget. |
 | `NewPlaque` | The rail's sole gold action. Set embedded `Click` and `Preview`, then call `Layout(gtx, th, compact, open)`. Consume activation through the embedded `Clicked(gtx)`. |
 | `RailDestination` | Set `Label`, `Icon`, and `Notch`. |
-| `Rail` | Main navigation. Set `Preview` and `NewOpen`. Call `Layout(gtx, th, destinations, selected, class)`, `HomeClicked()`, `NewClicked()`, and `Selected() (int, bool)`. |
+| `Rail` | Main navigation. Set `Preview`, `NewOpen`, `HideNew`, and `FootIndex`. Destinations before `FootIndex` stack from the top with New after the first one; destinations from `FootIndex` on keep reading order as one group anchored to the foot. Zero means the last destination alone, today's layout; a value equal to the count puts none at the foot. `HideNew` drops New from the rail and from the compact bar, whose columns are Home, the destinations and New. Mark a destination with `RailDestination.Notch`. Call `Layout(gtx, th, destinations, selected, class)`, `HomeClicked()`, `NewClicked()`, and `Selected() (int, bool)`. |
 | `SectionIndex` | Settings-page navigation. Set `Preview`. Call `Layout(gtx, th, labels, current, class)` and `Selected() (int, bool)`. It renders rows in `FrameExpanded`, horizontal chips in `FrameMedium`, and no index in `FrameCompact`. |
 | `EngravedChart` | A polyline over a clipped hatch. Set `Values`, `Min`, `Max`, `Height`, `Ticks`, and `Empty`, then call `Layout(gtx, th)`. Use `math.NaN()` for an automatically derived bound. |
-| `AppFrame` | The window composition root. `Class` is the resolved output and `Preview` forces overlay preview. Call `Layout(gtx, th, AppFrameContent)`. |
+| `AppFrame` | The window composition root. `Class` is the resolved output and `Preview` forces overlay preview. `HideCompactBar` leaves the compact class without the bottom rail so the host navigates on its own. Call `Layout(gtx, th, AppFrameContent)`. |
 | `AppFrameContent` | Set `Rail`, `List`, `Work`, `Overlays`, `WindowControls`, and `DismissOverlay func() bool`. |
 | `FrameClass` | `FrameCompact`, `FrameMedium`, or `FrameExpanded`. `ClassForWidth(width)` resolves the token breakpoints. |
 

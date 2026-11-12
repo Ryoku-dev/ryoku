@@ -119,6 +119,13 @@ QtObject {
     property bool _loading: false
     property var _resolved: _signature(true)
 
+    // a host's translator turns the library's own English words into the reader's language
+    property var translator: null
+
+    function tr(text) {
+        return translator ? translator(text) : text;
+    }
+
     function duration(milliseconds) {
         return reduceMotion ? 0 : milliseconds;
     }

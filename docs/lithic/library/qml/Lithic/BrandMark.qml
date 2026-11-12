@@ -13,7 +13,7 @@ T.AbstractButton {
     implicitHeight: markSize
     activeFocusOnTab: true
     hoverEnabled: true
-    Accessible.name: "Home"
+    Accessible.name: Lithic.tr("Home")
     Accessible.role: Accessible.Button
     opacity: enabled ? 1 : LithicTokens.alpha.disabled
 

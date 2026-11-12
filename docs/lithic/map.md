@@ -62,6 +62,8 @@ Icons are Material Symbols Sharp in every stack. QML and the web set the font's 
 | Segmented | Pick one of two to five options shown at once. | [Segmented](components.md#segmented) | `Segmented` | `l-segmented` | `kit.Segmented` | `-` | `-` |
 | Tabs | Switch among a few views of the same resource. | [Tabs](components.md#tabs) | `Tabs` | `l-tabs` | `kit.Tabs` | `term.RenderTabs` | `ui/kit/tabs.go` |
 | Disclosure | Reveal optional or advanced content in place. | [Disclosure](components.md#disclosure) | `Disclosure` | `l-disclosure` | `kit.Disclosure` | `term.RenderDisclosure` | `ui/kit/disclosure.go` |
+| ChordField | Record and show one keyboard shortcut as keycaps. | [ChordField](components.md#chordfield) | `ChordField` | `l-chord-field` | `kit.ChordField` | `-` | `-` |
+| ColorField | Choose one colour from roles or as hex, with optional opacity. | [ColorField](components.md#colorfield) | `ColorField` | `l-color-field` | `kit.ColorField` | `-` | `-` |
 
 ### Lists, containers, state and progress
 
@@ -69,6 +71,7 @@ Icons are Material Symbols Sharp in every stack. QML and the web set the font's 
 |---|---|---|---|---|---|---|---|
 | Tablet | Show one resource row with identity, claim, proof and one row action. | [Tablet](components.md#tablet) | `Tablet` | `l-tablet` | `kit.Tablet` | `term.RenderTablet` | `ui/kit/row.go` |
 | RowList | Navigate and select a scrolling set of tablets. | [RowList](components.md#rowlist) | `RowList` | `l-row-list` | `kit.RowList` | `term.RenderRowList` | `ui/kit/rowlist.go` |
+| ScrollRail | Show and drag the scroll position of any scrolling pane. | [ScrollRail](components.md#scrollrail) | `ScrollRail` | `l-scroll` | `kit.ScrollRail` | `-` | `-` |
 | GroupHeader | Name and count a meaningful group of rows. | [GroupHeader](components.md#groupheader) | `GroupHeader` | `l-group-header` | `kit.GroupHeader` | `term.RenderGroupHeader` | `ui/kit/groupheader.go` |
 | Skeleton | Hold list geometry while data is loading. | [Skeleton](components.md#skeleton) | `Skeleton` | `l-skeleton` | `kit.Skeleton` | `-` | `ui/kit/skeleton.go` |
 | Empty | Explain an empty result and name the next step. | [Empty](components.md#empty) | `Empty` | `l-empty` | `kit.Empty` | `term.RenderEmpty` | `ui/kit/empty.go` |
@@ -77,6 +80,9 @@ Icons are Material Symbols Sharp in every stack. QML and the web set the font's 
 | Header | Compose a resource mark, name, proof, note, marks and actions. | [Header](components.md#header) | `Header` | `l-header` | `kit.Header` | `-` | `ui/pages/common/header.go` |
 | Slab | Group related settings or form fields on one cut plane. | [Slab](components.md#slab) | `Slab` | `l-slab` | `kit.Slab` | `term.RenderSlab` | `ui/pages/common/section.go` |
 | Section | Give a slab or content group a readable title and spacing. | [Section](components.md#section) | `Section` | `l-section` | `kit.Section` | `term.RenderSection` | `ui/pages/common/section.go` |
+| SettingRow | Lay out one setting with its words, control, changed mark and reset. | [SettingRow](components.md#settingrow) | `SettingRow` | `l-setting-row` | `kit.SettingRow` | `-` | `-` |
+| DesignTile | Show one look with its preview, state, resource cost and action. | [DesignTile](components.md#designtile) | `DesignTile` | `l-design-tile` | `kit.DesignTile` | `-` | `-` |
+| DesignGallery | Lay out design tiles in a grid navigated by keyboard. | [DesignGallery](components.md#designgallery) | `DesignGallery` | `l-design-gallery` | `kit.DesignGallery` | `-` | `-` |
 | Facts | Show compact label and value rows. | [Facts](components.md#facts) | `Facts` | `l-facts` | `kit.Facts` | `term.RenderFacts` | `ui/kit/facts.go` |
 | Aside | Explain what a form will do before it is committed. | [Aside](components.md#aside) | `Aside` | `l-aside` | `kit.Aside` | `term.RenderAside` | `ui/pages/common/draft.go` |
 | DraftColumns | Keep a draft form and its aside together across size classes. | [DraftColumns](components.md#draftcolumns) | `DraftColumns` | `l-draft-columns` | `kit.DraftColumns` | `term.RenderDraftColumns` | `ui/pages/common/draft.go` |

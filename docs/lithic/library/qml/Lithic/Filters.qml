@@ -7,7 +7,7 @@ T.Control {
     property var model: []
     property int currentIndex: 0
     property string previewState: ""
-    property string accessibleName: "Filters"
+    property string accessibleName: Lithic.tr("Filters")
 
     signal activated(int index)
 

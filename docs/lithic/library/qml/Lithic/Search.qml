@@ -7,7 +7,7 @@ T.TextField {
     property string glyph: "search"
     property string shortcutHint: ""
     property string previewState: ""
-    property string accessibleName: "Search"
+    property string accessibleName: Lithic.tr("Search")
 
     readonly property bool _hoverActive: enabled && (hovered || previewState === "hover")
     readonly property bool _pressActive: enabled && previewState === "pressed"
@@ -56,6 +56,18 @@ T.TextField {
         size: LithicTokens.size.searchIcon
     }
 
+    // the template draws no placeholder of its own
+    Label {
+        x: root.leftPadding
+        width: Math.max(0, root.width - root.leftPadding - root.rightPadding)
+        anchors.verticalCenter: parent.verticalCenter
+        visible: root.text.length === 0 && root.preeditText.length === 0 && root.placeholderText.length > 0
+        text: root.placeholderText
+        typeRole: "body"
+        ink: root.placeholderTextColor
+        Accessible.ignored: true
+    }
+
     Label {
         id: hintLabel
         anchors.right: parent.right
@@ -75,7 +87,7 @@ T.TextField {
         small: true
         kind: "quiet"
         glyph: "close"
-        accessibleName: "Clear search"
+        accessibleName: Lithic.tr("Clear search")
         onClicked: {
             root.clear();
             root.forceActiveFocus();

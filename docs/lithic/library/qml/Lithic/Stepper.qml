@@ -6,7 +6,7 @@ T.SpinBox {
 
     property string unit: ""
     property string previewState: ""
-    property string accessibleName: "Value"
+    property string accessibleName: Lithic.tr("Value")
 
     readonly property bool _focusActive: enabled && (visualFocus || previewState === "focus")
 

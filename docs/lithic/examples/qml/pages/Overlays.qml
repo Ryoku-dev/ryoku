@@ -141,6 +141,30 @@ Item {
             }
 
             SpecimenFrame {
+                id: colorFrame
+                width: (specimens.width - specimens.columnSpacing) / specimens.columns
+                title: "ColorField"
+                stageHeight: LithicTokens.space.s6 * 9
+                ColorField {
+                    x: LithicTokens.space.s5
+                    y: LithicTokens.space.s5
+                    width: LithicTokens.size.settingsControlMax
+                    label: "Accent colour"
+                    color: Lithic.gold
+                    allowAlpha: true
+                    swatches: [
+                        { label: "Gold", color: Lithic.gold },
+                        { label: "Bone", color: Lithic.sel },
+                        { label: "Jade", color: Lithic.jade },
+                        { label: "Lapis", color: Lithic.lapis },
+                        { label: "Amber", color: Lithic.amber }
+                    ]
+                    overlayParent: colorFrame.stageItem
+                    previewOpen: true
+                }
+            }
+
+            SpecimenFrame {
                 id: dialogFrame
                 width: (specimens.width - specimens.columnSpacing) / specimens.columns
                 title: "Dialog"
@@ -246,6 +270,49 @@ Item {
             }
 
             SpecimenFrame {
+                id: longRailFrame
+                width: (specimens.width - specimens.columnSpacing) / specimens.columns
+                title: "Rail"
+                stateLabel: "Long, foot destination with an update notch, no New; expanded and medium"
+                stageHeight: LithicTokens.size.windowDefaultHeight
+
+                readonly property var settingsPages: [
+                    { label: "Appearance", glyph: "palette" },
+                    { label: "Bar", glyph: "view_day" },
+                    { label: "Desktop", glyph: "desktop_windows" },
+                    { label: "Displays", glyph: "monitor" },
+                    { label: "Keyboard", glyph: "keyboard" },
+                    { label: "Mouse", glyph: "mouse" },
+                    { label: "Sound", glyph: "volume_up" },
+                    { label: "Notices", glyph: "notifications" },
+                    { label: "Updates", glyph: "system_update" }
+                ]
+
+                Rail {
+                    x: LithicTokens.space.s4
+                    width: LithicTokens.size.railExpanded
+                    height: parent.height
+                    sizeClass: "expanded"
+                    destinations: longRailFrame.settingsPages
+                    currentIndex: 2
+                    showNew: false
+                    footIndex: 8
+                    notchIndex: 8
+                }
+                Rail {
+                    x: LithicTokens.space.s4 + LithicTokens.size.railExpanded + LithicTokens.space.s6
+                    width: LithicTokens.size.railMedium
+                    height: parent.height
+                    sizeClass: "medium"
+                    destinations: longRailFrame.settingsPages
+                    currentIndex: 8
+                    showNew: false
+                    footIndex: 8
+                    notchIndex: 8
+                }
+            }
+
+            SpecimenFrame {
                 width: (specimens.width - specimens.columnSpacing) / specimens.columns
                 title: "BrandMark"
                 stateLabel: "Home"
@@ -341,6 +408,26 @@ Item {
                             fraction: 0.68
                             fill: Lithic.fg2
                         }
+                    }
+                }
+            }
+
+            SpecimenFrame {
+                width: (specimens.width - specimens.columnSpacing) / specimens.columns
+                title: "AppFrame"
+                stateLabel: "Compact, no bottom bar; the host brings its own navigation"
+                stageHeight: LithicTokens.size.windowMinHeight
+
+                AppFrame {
+                    anchors.fill: parent
+                    showList: false
+                    compactBar: false
+
+                    Column {
+                        width: parent.width
+                        spacing: LithicTokens.space.s3
+                        Label { text: "Settings"; typeRole: "sentence" }
+                        Picker { width: parent.width; options: ["Appearance", "Bar", "Desktop"]; currentIndex: 0 }
                     }
                 }
             }

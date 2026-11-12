@@ -17,34 +17,38 @@ import (
 )
 
 type overlaysPage struct {
-	popover       kit.Popover
-	popoverAnchor kit.Plaque
-	menuPopover   kit.Popover
-	menuAnchor    kit.Plaque
-	menu          kit.Menu
-	picker        kit.Picker
-	dialog        kit.Dialog
-	dialogCancel  kit.Plaque
-	dialogAction  kit.Plaque
-	confirm       kit.Confirm
-	tooltip       kit.Tooltip
-	tooltipAnchor kit.Plaque
-	placard       kit.Placard
-	noticePushed  bool
-	rail          kit.Rail
-	newPlaque     kit.NewPlaque
-	sectionIndex  kit.SectionIndex
-	sectionPicker kit.SectionIndex
-	chart         kit.EngravedChart
-	appFrame      kit.AppFrame
-	appRail       kit.Rail
-	appPlacard    kit.Placard
-	appNotice     bool
-	fleetIcon     *widget.Icon
-	activityIcon  *widget.Icon
-	settingsIcon  *widget.Icon
-	menuItems     []kit.MenuItem
-	destinations  []kit.RailDestination
+	popover          kit.Popover
+	popoverAnchor    kit.Plaque
+	menuPopover      kit.Popover
+	menuAnchor       kit.Plaque
+	menu             kit.Menu
+	picker           kit.Picker
+	dialog           kit.Dialog
+	dialogCancel     kit.Plaque
+	dialogAction     kit.Plaque
+	confirm          kit.Confirm
+	tooltip          kit.Tooltip
+	tooltipAnchor    kit.Plaque
+	placard          kit.Placard
+	noticePushed     bool
+	rail             kit.Rail
+	newPlaque        kit.NewPlaque
+	sectionIndex     kit.SectionIndex
+	sectionPicker    kit.SectionIndex
+	chart            kit.EngravedChart
+	appFrame         kit.AppFrame
+	appRail          kit.Rail
+	appPlacard       kit.Placard
+	appNotice        bool
+	fleetIcon        *widget.Icon
+	activityIcon     *widget.Icon
+	settingsIcon     *widget.Icon
+	menuItems        []kit.MenuItem
+	destinations     []kit.RailDestination
+	longRail         kit.Rail
+	longRailNew      kit.Rail
+	compactRail      kit.Rail
+	longDestinations []kit.RailDestination
 }
 
 var overlaysGallery = newOverlaysPage()
@@ -94,6 +98,15 @@ func newOverlaysPage() *overlaysPage {
 		{Label: "Fleet", Icon: page.fleetIcon},
 		{Label: "Activity", Icon: page.activityIcon},
 		{Label: "Settings", Icon: page.settingsIcon, Notch: true},
+	}
+	page.longDestinations = []kit.RailDestination{
+		{Label: "Look", Icon: kit.Icon(symbols.DesktopWindows)},
+		{Label: "Desktop", Icon: page.fleetIcon},
+		{Label: "Keys", Icon: kit.Icon(symbols.Key)},
+		{Label: "Privacy", Icon: kit.Icon(symbols.Lock)},
+		{Label: "Files", Icon: kit.Icon(symbols.Folder)},
+		{Label: "Updates", Icon: page.activityIcon, Notch: true},
+		{Label: "About", Icon: page.settingsIcon},
 	}
 	page.chart = kit.EngravedChart{
 		Values: []float64{18, 22, 37, 31, 49, 44, 62, 53, 71, 58, 66, 73},
@@ -240,6 +253,35 @@ func (page *overlaysPage) navigationSection(th *theme.Theme) layout.Widget {
 						child := gtx
 						child.Constraints = layout.Exact(size)
 						page.rail.Layout(child, th, page.destinations, 2, kit.FrameExpanded)
+						return layout.Dimensions{Size: size}
+					}),
+				})
+			},
+			func(gtx layout.Context) layout.Dimensions {
+				return grid(gtx, 3, th.Sp.S3, []layout.Widget{
+					specimen(th, "Long rail without New, two destinations at the foot, Updates notched", func(gtx layout.Context) layout.Dimensions {
+						size := image.Pt(gtx.Dp(tokens.SizeRailExpanded), gtx.Dp(tokens.SizeWindowDefaultHeight))
+						child := gtx
+						child.Constraints = layout.Exact(size)
+						page.longRail.HideNew = true
+						page.longRail.FootIndex = len(page.longDestinations) - 2
+						page.longRail.Layout(child, th, page.longDestinations, 1, kit.FrameExpanded)
+						return layout.Dimensions{Size: size}
+					}),
+					specimen(th, "Long rail, medium, with New", func(gtx layout.Context) layout.Dimensions {
+						size := image.Pt(gtx.Dp(tokens.SizeRailMedium), gtx.Dp(tokens.SizeWindowDefaultHeight))
+						child := gtx
+						child.Constraints = layout.Exact(size)
+						page.longRailNew.FootIndex = len(page.longDestinations) - 2
+						page.longRailNew.Layout(child, th, page.longDestinations, 0, kit.FrameMedium)
+						return layout.Dimensions{Size: size}
+					}),
+					specimen(th, "Compact bottom rail without New", func(gtx layout.Context) layout.Dimensions {
+						size := image.Pt(gtx.Constraints.Max.X, gtx.Dp(tokens.SizeRailBottomHeight))
+						child := gtx
+						child.Constraints = layout.Exact(size)
+						page.compactRail.HideNew = true
+						page.compactRail.Layout(child, th, page.destinations, 0, kit.FrameCompact)
 						return layout.Dimensions{Size: size}
 					}),
 				})

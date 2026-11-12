@@ -43,6 +43,12 @@ func (p *IconPlaque) Clicked(gtx layout.Context) bool {
 
 // Layout draws the icon plaque.
 func (p *IconPlaque) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions {
+	return p.layoutWith(gtx, th, &p.Click)
+}
+
+// layoutWith draws the plaque's look while click owns its interaction, so a
+// component can expose that click as its own field.
+func (p *IconPlaque) layoutWith(gtx layout.Context, th *theme.Theme, click *Click) layout.Dimensions {
 	size := unit.Dp(tokens.SizeIconPlaque)
 	iconSize := unit.Dp(tokens.SizeIconPlaqueIcon)
 	if p.Small {
@@ -56,15 +62,15 @@ func (p *IconPlaque) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensio
 		interaction = interaction.Disabled()
 	}
 	cut := gtx.Dp(th.Cut.Small)
-	dims := p.Click.Layout(interaction, func(gtx layout.Context) layout.Dimensions {
+	dims := click.Layout(interaction, func(gtx layout.Context) layout.Dimensions {
 		gtx.Source = original.Source
 		semantic.Button.Add(gtx.Ops)
 		semantic.DescriptionOp(p.Description).Add(gtx.Ops)
 		semantic.EnabledOp(original.Source.Enabled() && !p.Busy).Add(gtx.Ops)
-		pressed := previewTransition(original, &p.press, p.Preview, StatePressed, p.Pressed() && !p.Busy, th.Motion.Press, th.Motion.Press)
+		pressed := previewTransition(original, &p.press, p.Preview, StatePressed, click.Pressed() && !p.Busy, th.Motion.Press, th.Motion.Press)
 		cut = gtx.Dp(th.Cut.Small) + int(float32(gtx.Dp(unit.Dp(tokens.SizeControlPressCutGrow)))*pressed+.5)
 		sink := int(float32(gtx.Dp(unit.Dp(tokens.SizeControlPressSink)))*pressed + .5)
-		hover := previewTransition(original, &p.hover, p.Preview, StateHover, p.Hovered() && !p.Busy, th.Motion.HoverIn, th.Motion.HoverOut)
+		hover := previewTransition(original, &p.hover, p.Preview, StateHover, click.Hovered() && !p.Busy, th.Motion.HoverIn, th.Motion.HoverOut)
 		bounds := image.Rectangle{Max: constrainSize(gtx, image.Pt(pixels, pixels))}
 		ink := drawPlaqueSurface(original, th, bounds, cut, p.Kind, hover)
 		is := gtx.Dp(iconSize)
@@ -80,7 +86,7 @@ func (p *IconPlaque) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensio
 		}
 		return layout.Dimensions{Size: bounds.Size()}
 	})
-	focus := previewTransition(original, &p.focus, p.Preview, StateFocus, original.Focused(&p.Click.Clickable), th.Motion.FocusIn, th.Motion.FocusOut)
+	focus := previewTransition(original, &p.focus, p.Preview, StateFocus, original.Focused(&click.Clickable), th.Motion.FocusIn, th.Motion.FocusOut)
 	FocusRingAlpha(original, th, image.Rectangle{Max: dims.Size}, cut, focus)
 	return dims
 }

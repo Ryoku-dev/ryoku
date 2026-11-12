@@ -6,7 +6,7 @@ T.Control {
 
     property string title: ""
     property string text: ""
-    property string actionText: "Confirm"
+    property string actionText: Lithic.tr("Confirm")
     property string requiredName: ""
     property bool destructive: true
     property bool busy: false
@@ -47,7 +47,7 @@ T.Control {
         previewEmbedded: root.previewEmbedded || root.previewOpen
         actions: [
             {
-                text: "Cancel",
+                text: Lithic.tr("Cancel"),
                 kind: "quiet",
                 closeOnTrigger: true
             },
@@ -87,7 +87,7 @@ T.Control {
                 visible: root.requiredName.length > 0
                 width: parent.width
                 label: root.requiredName.length > 0
-                       ? "Type " + root.requiredName + " to confirm" : ""
+                       ? Lithic.tr("Type %1 to confirm").arg(root.requiredName) : ""
                 placeholderText: root.requiredName
             }
         }

@@ -4,8 +4,8 @@ Item {
     id: root
 
     property string glyph: "inbox"
-    property string title: "Nothing here yet"
-    property string body: "Create the first item to continue."
+    property string title: Lithic.tr("Nothing here yet")
+    property string body: Lithic.tr("Create the first item to continue.")
     property var actions: []
 
     signal actionTriggered(int index)

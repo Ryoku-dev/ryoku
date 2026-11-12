@@ -798,3 +798,278 @@
     transition-duration: 0s;
   }
 }
+
+.l-chord-field {
+  display: inline-grid;
+  gap: var(--lithic-size-text-field-help-gap);
+  width: var(--lithic-size-text-field-default-width);
+  max-width: 100%;
+}
+
+.l-chord-field__control {
+  --l-fill: var(--lithic-field);
+  --l-stroke: var(--lithic-edge);
+  --l-stroke-width: var(--lithic-size-hairline);
+  --l-cut: var(--lithic-cut-mid);
+  display: flex;
+  align-items: center;
+  gap: var(--lithic-space-s1);
+  width: 100%;
+  min-height: var(--lithic-size-text-field-height);
+  padding-inline: var(--lithic-size-text-field-inset);
+  overflow: hidden;
+  color: var(--lithic-fg);
+  text-align: start;
+  font: var(--lithic-type-body-weight) var(--lithic-type-body-size)/var(--lithic-type-body-line) var(--lithic-type-body-family);
+  outline: none;
+  cursor: pointer;
+}
+
+.l-chord-field__control::before {
+  transition: background-color var(--lithic-motion-focus-out) var(--lithic-motion-curve);
+}
+
+.l-chord-field__control::after {
+  transition: background-color var(--lithic-motion-hover-out) var(--lithic-motion-curve);
+}
+
+.l-chord-field__control:is(:hover, [data-l-state="hover"]):not(:disabled) {
+  --l-fill: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-hover-plane) * 100%), var(--lithic-field));
+}
+
+.l-chord-field__control:is(:hover, [data-l-state="hover"]):not(:disabled)::after {
+  transition-duration: var(--lithic-motion-hover-in);
+}
+
+.l-chord-field[data-l-conflict]:not([data-l-conflict=""]) .l-chord-field__control {
+  --l-stroke: var(--lithic-jasper);
+}
+
+[data-l-keyboard] .l-chord-field__control:focus-visible,
+.l-chord-field__control[data-l-state="focus"],
+.l-chord-field[data-l-recording] .l-chord-field__control {
+  --l-stroke: var(--lithic-fg2);
+}
+
+[data-l-keyboard] .l-chord-field__control:focus-visible::before,
+.l-chord-field__control[data-l-state="focus"]::before,
+.l-chord-field[data-l-recording] .l-chord-field__control::before {
+  transition-duration: var(--lithic-motion-focus-in);
+}
+
+.l-chord-field__control:disabled {
+  opacity: var(--lithic-alpha-disabled);
+  pointer-events: none;
+}
+
+.l-chord-field__key {
+  --l-fill: var(--lithic-field);
+  --l-stroke: var(--lithic-edge);
+  --l-stroke-width: var(--lithic-size-hairline);
+  --l-cut: var(--lithic-cut-token);
+  flex: 0 0 auto;
+  padding: var(--lithic-space-s1) var(--lithic-space-s2);
+  color: var(--lithic-fg);
+  font: var(--lithic-type-label-weight) var(--lithic-type-label-size)/var(--lithic-type-label-line) var(--lithic-type-label-family);
+  white-space: nowrap;
+}
+
+.l-chord-field__placeholder,
+.l-chord-field__prompt {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.l-chord-field__placeholder {
+  color: var(--lithic-fg3);
+}
+
+.l-chord-field__prompt {
+  color: var(--lithic-fg2);
+}
+
+.l-chord-field__conflict {
+  color: var(--lithic-jasper);
+  font: var(--lithic-type-caption-weight) var(--lithic-type-caption-size)/var(--lithic-type-caption-line) var(--lithic-type-caption-family);
+}
+
+.l-chord-field__conflict:empty {
+  display: none;
+}
+
+.l-color-field {
+  --l-color: transparent;
+  display: inline-grid;
+  grid-template-columns: var(--lithic-size-text-field-height) minmax(0, 1fr);
+  grid-template-areas:
+    ". label"
+    "swatch control"
+    ". help";
+  column-gap: var(--lithic-space-s2);
+  align-items: center;
+  width: var(--lithic-size-settings-control-max);
+  max-width: 100%;
+}
+
+/* the hex field's parts join the field grid so the plate lines up with the box, label or not */
+.l-color-field > .l-field {
+  display: contents;
+}
+
+.l-color-field > .l-field > .l-field-label {
+  grid-area: label;
+  margin-block-end: var(--lithic-size-text-field-label-gap);
+}
+
+.l-color-field > .l-field > .l-field-control {
+  grid-area: control;
+  min-width: 0;
+}
+
+.l-color-field > .l-field > .l-field-help {
+  grid-area: help;
+  margin-block-start: var(--lithic-size-text-field-help-gap);
+}
+
+.l-color-field .l-text-field {
+  width: 100%;
+  font: var(--lithic-type-mono-weight) var(--lithic-type-mono-size)/var(--lithic-type-mono-line) var(--lithic-type-mono-family);
+}
+
+.l-color-field > .l-field .l-text-field {
+  padding-inline-end: calc(var(--lithic-size-text-field-secret-action) + var(--lithic-size-text-field-secret-inset) + var(--lithic-size-text-field-inset));
+}
+
+.l-color-field__disclosure {
+  position: absolute;
+  inset-block-start: calc((var(--lithic-size-text-field-height) - var(--lithic-size-text-field-secret-action)) / 2);
+  inset-inline-end: var(--lithic-size-text-field-secret-inset);
+}
+
+.l-color-field__swatch,
+.l-color-field__chip {
+  --l-swatch-cut: var(--lithic-cut-token);
+  --l-swatch-inner: max(0px, calc(var(--l-swatch-cut) - var(--lithic-size-hairline) * 0.585786));
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  background-color: var(--lithic-field);
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 calc(var(--lithic-size-chart-hatch-gap) - var(--lithic-size-chart-hatch-line)),
+    color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-hatch) * 100%), transparent) calc(var(--lithic-size-chart-hatch-gap) - var(--lithic-size-chart-hatch-line)) var(--lithic-size-chart-hatch-gap)
+  );
+  clip-path: polygon(
+    var(--l-swatch-cut) 0,
+    calc(100% - var(--l-swatch-cut)) 0,
+    100% var(--l-swatch-cut),
+    100% calc(100% - var(--l-swatch-cut)),
+    calc(100% - var(--l-swatch-cut)) 100%,
+    var(--l-swatch-cut) 100%,
+    0 calc(100% - var(--l-swatch-cut)),
+    0 var(--l-swatch-cut)
+  );
+}
+
+.l-color-field__swatch {
+  grid-area: swatch;
+  width: var(--lithic-size-text-field-height);
+  height: var(--lithic-size-text-field-height);
+}
+
+.l-color-field__chip {
+  width: var(--lithic-size-menu-icon);
+  height: var(--lithic-size-menu-icon);
+}
+
+.l-color-field__swatch::after,
+.l-color-field__chip::after,
+.l-color-field__swatch::before,
+.l-color-field__chip::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.l-color-field__swatch::after,
+.l-color-field__chip::after {
+  background: var(--l-color);
+}
+
+.l-color-field__swatch::before,
+.l-color-field__chip::before {
+  z-index: 1;
+  background: var(--lithic-edge);
+  clip-path: polygon(evenodd,
+    var(--l-swatch-cut) 0,
+    calc(100% - var(--l-swatch-cut)) 0,
+    100% var(--l-swatch-cut),
+    100% calc(100% - var(--l-swatch-cut)),
+    calc(100% - var(--l-swatch-cut)) 100%,
+    var(--l-swatch-cut) 100%,
+    0 calc(100% - var(--l-swatch-cut)),
+    0 var(--l-swatch-cut),
+    calc(var(--lithic-size-hairline) + var(--l-swatch-inner)) var(--lithic-size-hairline),
+    var(--lithic-size-hairline) calc(var(--lithic-size-hairline) + var(--l-swatch-inner)),
+    var(--lithic-size-hairline) calc(100% - var(--lithic-size-hairline) - var(--l-swatch-inner)),
+    calc(var(--lithic-size-hairline) + var(--l-swatch-inner)) calc(100% - var(--lithic-size-hairline)),
+    calc(100% - var(--lithic-size-hairline) - var(--l-swatch-inner)) calc(100% - var(--lithic-size-hairline)),
+    calc(100% - var(--lithic-size-hairline)) calc(100% - var(--lithic-size-hairline) - var(--l-swatch-inner)),
+    calc(100% - var(--lithic-size-hairline)) calc(var(--lithic-size-hairline) + var(--l-swatch-inner)),
+    calc(100% - var(--lithic-size-hairline) - var(--l-swatch-inner)) var(--lithic-size-hairline)
+  );
+}
+
+.l-color-field__panel {
+  --l-cut: var(--lithic-cut-menu);
+  width: var(--lithic-size-settings-control-max);
+  max-width: calc(100vw - var(--lithic-space-s4));
+  padding-block: var(--lithic-size-menu-padding-vertical);
+}
+
+.l-color-field__swatches {
+  display: grid;
+}
+
+.l-color-field__body {
+  display: grid;
+  gap: var(--lithic-space-s3);
+  padding: var(--lithic-space-s3);
+}
+
+.l-color-field__body .l-field {
+  width: 100%;
+}
+
+.l-color-field__alpha {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "label label"
+    "slider value";
+  align-items: center;
+  column-gap: var(--lithic-space-s3);
+  row-gap: var(--lithic-size-text-field-label-gap);
+}
+
+.l-color-field__alpha > .l-field-label {
+  grid-area: label;
+}
+
+.l-color-field__alpha > .l-slider-field {
+  grid-area: slider;
+  width: 100%;
+}
+
+.l-color-field__alpha > [data-l-slider-value] {
+  grid-area: value;
+  color: var(--lithic-fg2);
+  font: var(--lithic-type-label-weight) var(--lithic-type-label-size)/var(--lithic-type-label-line) var(--lithic-type-label-family);
+  font-variant-numeric: tabular-nums;
+}
+
+.l-color-field:not([data-l-allow-alpha]) .l-color-field__alpha {
+  display: none;
+}

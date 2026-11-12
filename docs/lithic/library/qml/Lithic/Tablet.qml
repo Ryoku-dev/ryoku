@@ -6,7 +6,7 @@ T.AbstractButton {
 
     property alias title: root.text
     property string facts: ""
-    property string claim: "Idle"
+    property string claim: Lithic.tr("Idle")
     property string proof: ""
     property string tone: "idle"
     property real progress: 0

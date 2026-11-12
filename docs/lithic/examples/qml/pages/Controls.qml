@@ -50,36 +50,6 @@ Item {
         }
     }
 
-    component SettingRow: Item {
-        id: settingRow
-
-        required property string title
-        required property string detail
-        default property alias control: controlHost.data
-
-        width: parent ? parent.width : 0
-        implicitHeight: Math.max(copy.implicitHeight, LithicTokens.size.segmentHeight)
-
-        Column {
-            id: copy
-            anchors.left: parent.left
-            anchors.right: controlHost.left
-            anchors.rightMargin: LithicTokens.space.s4
-            anchors.verticalCenter: parent.verticalCenter
-
-            Label { width: parent.width; text: settingRow.title; typeRole: "row" }
-            Label { width: parent.width; text: settingRow.detail; typeRole: "detail" }
-        }
-
-        Item {
-            id: controlHost
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            width: childrenRect.width
-            height: childrenRect.height
-        }
-    }
-
     Column {
         id: content
         x: LithicTokens.space.s5
@@ -619,26 +589,303 @@ Item {
                     anchors.fill: parent
                     Column {
                         width: parent.width
-                        spacing: LithicTokens.space.s3
                         SettingRow {
+                            width: parent.width
+                            first: true
                             title: "Autostart"
                             detail: "Open ubuntu-24.04 when Ryoport starts."
                             Toggle { checked: true }
                         }
-                        Rectangle { width: parent.width; height: LithicTokens.size.hairline; color: Lithic.vein }
                         SettingRow {
+                            width: parent.width
                             title: "Mode"
                             detail: "Follow the palette or keep one mode."
                             Segmented { model: ["Follow", "Dark", "Light"]; accessibleName: "Mode" }
                         }
-                        Rectangle { width: parent.width; height: LithicTokens.size.hairline; color: Lithic.vein }
                         SettingRow {
+                            width: parent.width
                             title: "CPU cores"
                             detail: "Cores given to fedora-43 on prowl."
                             Stepper { from: 1; to: 8; value: 4; unit: "cores"; accessibleName: "CPU cores" }
                         }
                     }
                 }
+            }
+        }
+
+        ComponentSection {
+            sectionName: "SettingRow"
+
+            StateSpecimen {
+                stateName: "Rest"
+                specimenWidth: LithicTokens.size.draftFormMax
+                specimenHeight: restRow.implicitHeight
+                Slab {
+                    id: restRow
+                    anchors.fill: parent
+                    SettingRow {
+                        width: parent.width
+                        first: true
+                        title: "Show seconds"
+                        detail: "The bar clock counts every second."
+                        Toggle { text: ""; Accessible.name: "Show seconds" }
+                    }
+                }
+            }
+            StateSpecimen {
+                stateName: "Changed"
+                specimenWidth: LithicTokens.size.draftFormMax
+                specimenHeight: changedRow.implicitHeight
+                Slab {
+                    id: changedRow
+                    anchors.fill: parent
+                    SettingRow {
+                        width: parent.width
+                        first: true
+                        changed: true
+                        title: "Clock format"
+                        detail: "How the bar writes the time."
+                        Picker { options: ["24 hour", "12 hour"]; currentIndex: 1 }
+                    }
+                }
+            }
+            StateSpecimen {
+                stateName: "Changed, hover shows reset"
+                specimenWidth: LithicTokens.size.draftFormMax
+                specimenHeight: resetRow.implicitHeight
+                Slab {
+                    id: resetRow
+                    anchors.fill: parent
+                    SettingRow {
+                        width: parent.width
+                        first: true
+                        changed: true
+                        previewState: "hover"
+                        title: "Clock format"
+                        detail: "How the bar writes the time."
+                        Picker { options: ["24 hour", "12 hour"]; currentIndex: 1 }
+                    }
+                }
+            }
+            StateSpecimen {
+                stateName: "Activatable hover preview"
+                specimenWidth: LithicTokens.size.draftFormMax
+                specimenHeight: hoverRow.implicitHeight
+                Slab {
+                    id: hoverRow
+                    anchors.fill: parent
+                    SettingRow {
+                        width: parent.width
+                        first: true
+                        activatable: true
+                        previewState: "hover"
+                        title: "Dim inactive windows"
+                        detail: "Windows without focus sit a step darker."
+                        Toggle { checked: true; Accessible.name: "Dim inactive windows" }
+                    }
+                }
+            }
+            StateSpecimen {
+                stateName: "Activatable pressed preview"
+                specimenWidth: LithicTokens.size.draftFormMax
+                specimenHeight: pressedRow.implicitHeight
+                Slab {
+                    id: pressedRow
+                    anchors.fill: parent
+                    SettingRow {
+                        width: parent.width
+                        first: true
+                        activatable: true
+                        previewState: "pressed"
+                        title: "Wallpaper"
+                        detail: "Choose the picture behind the desktop."
+                        Glyph { name: "chevron_right"; ink: Lithic.fg2; size: LithicTokens.size.iconPlaqueIcon }
+                    }
+                }
+            }
+            StateSpecimen {
+                stateName: "Keyboard focus preview"
+                specimenWidth: LithicTokens.size.draftFormMax
+                specimenHeight: focusRow.implicitHeight
+                Slab {
+                    id: focusRow
+                    anchors.fill: parent
+                    SettingRow {
+                        width: parent.width
+                        first: true
+                        activatable: true
+                        previewState: "focus"
+                        title: "Dim inactive windows"
+                        detail: "Windows without focus sit a step darker."
+                        Toggle { Accessible.name: "Dim inactive windows" }
+                    }
+                }
+            }
+            StateSpecimen {
+                stateName: "Unavailable"
+                specimenWidth: LithicTokens.size.draftFormMax
+                specimenHeight: unavailableRow.implicitHeight
+                Slab {
+                    id: unavailableRow
+                    anchors.fill: parent
+                    SettingRow {
+                        width: parent.width
+                        first: true
+                        title: "Second display"
+                        detail: "Where the second bar sits."
+                        unavailable: "Connect a second display to choose this."
+                        Picker { options: ["Left", "Right"]; currentIndex: 0 }
+                    }
+                }
+            }
+            StateSpecimen {
+                stateName: "Highlighted by search, start of the fade"
+                specimenWidth: LithicTokens.size.draftFormMax
+                specimenHeight: highlightRow.implicitHeight
+                Slab {
+                    id: highlightRow
+                    anchors.fill: parent
+                    SettingRow {
+                        width: parent.width
+                        first: true
+                        previewState: "highlight"
+                        title: "Night light"
+                        detail: "Warm the screen after sunset."
+                        Toggle { checked: true; Accessible.name: "Night light" }
+                    }
+                }
+            }
+            StateSpecimen {
+                stateName: "Long title and detail wrap"
+                specimenWidth: LithicTokens.size.draftFormMax
+                specimenHeight: wrapRow.implicitHeight
+                Slab {
+                    id: wrapRow
+                    anchors.fill: parent
+                    SettingRow {
+                        width: parent.width
+                        first: true
+                        changed: true
+                        title: "Keep the bar visible over full screen windows on every display"
+                        detail: "Games and videos still cover it when they ask for exclusive full screen, so this only applies to ordinary windows."
+                        Toggle { checked: true; Accessible.name: "Keep the bar visible" }
+                    }
+                }
+            }
+            StateSpecimen {
+                stateName: "Rows stacked with veins"
+                specimenWidth: LithicTokens.size.draftFormMax
+                specimenHeight: stackRows.implicitHeight
+                Slab {
+                    id: stackRows
+                    anchors.fill: parent
+                    Column {
+                        width: parent.width
+                        SettingRow {
+                            width: parent.width
+                            first: true
+                            title: "Show seconds"
+                            detail: "The bar clock counts every second."
+                            Toggle { Accessible.name: "Show seconds" }
+                        }
+                        SettingRow {
+                            width: parent.width
+                            title: "Clock format"
+                            detail: "How the bar writes the time."
+                            Segmented { model: ["24 hour", "12 hour"]; accessibleName: "Clock format" }
+                        }
+                        SettingRow {
+                            width: parent.width
+                            title: "Workspaces"
+                            Stepper { from: 1; to: 10; value: 5; accessibleName: "Workspaces" }
+                        }
+                    }
+                }
+            }
+        }
+
+        ComponentSection {
+            sectionName: "ChordField"
+
+            StateSpecimen {
+                stateName: "Not set"
+                ChordField { anchors.centerIn: parent; accessibleName: "Open launcher" }
+            }
+            StateSpecimen {
+                stateName: "Chord"
+                ChordField { anchors.centerIn: parent; chord: "Super+Shift+Return"; accessibleName: "Open terminal" }
+            }
+            StateSpecimen {
+                stateName: "Store spelling, shown canonical"
+                ChordField { anchors.centerIn: parent; chord: "SHIFT + SUPER + Q"; accessibleName: "Close window" }
+            }
+            StateSpecimen {
+                stateName: "Number pad and Page Up"
+                ChordField { anchors.centerIn: parent; chord: "Ctrl+Alt+KP_3+Prior"; accessibleName: "Move window" }
+            }
+            StateSpecimen {
+                stateName: "Media key alone"
+                ChordField { anchors.centerIn: parent; chord: "XF86AudioRaiseVolume"; accessibleName: "Raise volume" }
+            }
+            StateSpecimen {
+                stateName: "Recording"
+                ChordField { anchors.centerIn: parent; previewState: "recording"; chord: "Super+D"; accessibleName: "Show desktop" }
+            }
+            StateSpecimen {
+                stateName: "Conflict"
+                specimenHeight: LithicTokens.space.s6 + LithicTokens.space.s5
+                ChordField { anchors.centerIn: parent; chord: "Super+Q"; conflict: "Already used by Close window"; accessibleName: "Lock screen" }
+            }
+            StateSpecimen {
+                stateName: "Hover preview"
+                ChordField { anchors.centerIn: parent; chord: "Super+Space"; previewState: "hover"; accessibleName: "Switch layout" }
+            }
+            StateSpecimen {
+                stateName: "Pressed preview"
+                ChordField { anchors.centerIn: parent; chord: "Super+Space"; previewState: "pressed"; accessibleName: "Switch layout" }
+            }
+            StateSpecimen {
+                stateName: "Keyboard focus preview"
+                ChordField { anchors.centerIn: parent; chord: "Super+grave"; previewState: "focus"; accessibleName: "Overview" }
+            }
+            StateSpecimen {
+                stateName: "Disabled"
+                ChordField { anchors.centerIn: parent; chord: "Super+L"; enabled: false; accessibleName: "Lock screen" }
+            }
+        }
+
+        ComponentSection {
+            sectionName: "ColorField"
+
+            StateSpecimen {
+                stateName: "Colour"
+                specimenHeight: LithicTokens.space.s6 + LithicTokens.space.s5
+                ColorField { anchors.centerIn: parent; width: LithicTokens.size.searchWidth; label: "Accent colour"; color: "#ce5e32" }
+            }
+            StateSpecimen {
+                stateName: "With alpha"
+                specimenHeight: LithicTokens.space.s6 + LithicTokens.space.s5
+                ColorField { anchors.centerIn: parent; width: LithicTokens.size.searchWidth; label: "Bar tint"; allowAlpha: true; color: Qt.rgba(0.29, 0.44, 0.65, 0.6) }
+            }
+            StateSpecimen {
+                stateName: "Invalid hex"
+                specimenHeight: LithicTokens.space.s6 + LithicTokens.space.s5
+                ColorField { anchors.centerIn: parent; width: LithicTokens.size.searchWidth; label: "Border colour"; color: "#7ab8a0"; previewState: "error" }
+            }
+            StateSpecimen {
+                stateName: "Hover preview"
+                specimenHeight: LithicTokens.space.s6 + LithicTokens.space.s5
+                ColorField { anchors.centerIn: parent; width: LithicTokens.size.searchWidth; label: "Accent colour"; color: "#ce5e32"; previewState: "hover" }
+            }
+            StateSpecimen {
+                stateName: "Keyboard focus preview"
+                specimenHeight: LithicTokens.space.s6 + LithicTokens.space.s5
+                ColorField { anchors.centerIn: parent; width: LithicTokens.size.searchWidth; label: "Accent colour"; color: "#ce5e32"; previewState: "focus" }
+            }
+            StateSpecimen {
+                stateName: "Disabled"
+                specimenHeight: LithicTokens.space.s6 + LithicTokens.space.s5
+                ColorField { anchors.centerIn: parent; width: LithicTokens.size.searchWidth; label: "Accent colour"; color: "#ce5e32"; enabled: false }
             }
         }
 

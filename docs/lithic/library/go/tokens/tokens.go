@@ -67,6 +67,7 @@ const (
 	SizeChartTick                  = 4
 	SizeControlPressCutGrow        = 4
 	SizeControlPressSink           = 1
+	SizeDesignPreviewRatio         = 1.6
 	SizeDialogActionGap            = 8
 	SizeDialogActionsGap           = 34
 	SizeDialogConfirmFieldGap      = 21
@@ -280,6 +281,7 @@ const (
 	MotionField        time.Duration = 320 * time.Millisecond
 	MotionFocusIn      time.Duration = 120 * time.Millisecond
 	MotionFocusOut     time.Duration = 100 * time.Millisecond
+	MotionHighlight    time.Duration = 1600 * time.Millisecond
 	MotionHoverIn      time.Duration = 160 * time.Millisecond
 	MotionHoverOut     time.Duration = 100 * time.Millisecond
 	MotionMenuIn       time.Duration = 160 * time.Millisecond

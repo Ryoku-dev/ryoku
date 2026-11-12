@@ -12,9 +12,9 @@ The web library is plain CSS and ES modules. It has no package dependency, build
 | `palette.js` | Palette loading, role mapping, contrast, mixing, and tone helpers. |
 | `fonts.css` | Geologica and Martian Mono, loaded from `../go/fonts`, the library's one copy of the faces. |
 | `foundation.css` | Base type, cut geometry, state primitives, focus, and interaction recipes. |
-| `controls.css` and `controls.js` | Controls presentation and behavior. |
+| `controls.css` and `controls.js` | Controls presentation and behavior, including ChordField and ColorField. |
 | `segmented.css` and `segmented.js` | Segmented presentation and behavior. |
-| `lists.css` and `lists.js` | Lists, containers, state, and progress presentation and behavior. |
+| `lists.css` and `lists.js` | Lists, containers, state, and progress presentation and behavior, including SettingRow, the ScrollRail utility, DesignTile, and DesignGallery. |
 | `overlays.css` and `overlays.js` | Overlays, navigation, data, and app-frame presentation and behavior. |
 | `tokens.css` and `tokens.js` | Generated views of the shared token source. Do not edit them by hand. |
 
@@ -57,7 +57,7 @@ Palette role changes always snap. Core marks the root with `data-l-snap` for two
 
 ## Entry module
 
-`core.js` owns the API. `lithic.js` imports the four component modules and re-exports the same default and named exports, so application code normally imports `lithic.js`. The default export is `Lithic`:
+`core.js` owns the API. `lithic.js` imports every component module and re-exports the same default and named exports, so application code normally imports `lithic.js`. The default export is `Lithic`:
 
 - `await Lithic.init(root = document)` applies signature roles synchronously before fetching an optional palette, then applies the resolved roles, installs focus and reduced-motion tracking, and runs every registered module once for that root. It returns the final role object.
 - `Lithic.setMode(mode)` accepts `follow`, `dark`, or `light`, reapplies the current palette to every initialized root without colour interpolation, and returns the selected mode.
@@ -326,12 +326,12 @@ RowList:
 | Confirm | `dialog.l-dialog.l-confirm` contains `l-confirm-field`, an input marked `data-l-confirm-input`, and an action marked `data-l-confirm-action`. | `data-l-confirm-name` is the exact required text. The library writes native `disabled` and `aria-disabled` on the action. | Bubbled `lithic:confirm-valid` on the dialog with `detail.valid` and `detail.value`, plus Dialog events. | Child controls support their own states. |
 | Tooltip | An anchor marked `data-l-tooltip="<id>"` targets `l-tooltip l-cut#<id>`. | The library adds the tooltip ID to the anchor's `aria-describedby`, writes `role="tooltip"` and `popover="manual"`, and manages `hidden` plus `data-l-open`. `data-l-static-open` embeds a preview. | None. | None. Use `data-l-static-open` for an open preview. |
 | Placard | `l-placard-stack` contains `l-placard l-cut`. A placard contains `l-placard-message`, optional `l-placard-action l-cut`, and `l-placard-blade`. A close or undo control uses `data-l-placard-close`. | Dispatch `lithic:placard-show` with `detail.target` as an element or ID to open it. `data-l-autoclose` enables the token lifetime. The library manages `hidden`, `data-l-open`, and `data-l-draining`. `data-l-static-open` embeds a preview. | `lithic:open` on show and `lithic:placard-dismiss` with `detail.reason` on dismissal. | `hover`, `focus`, and `pressed` on `l-placard-action`. |
-| Rail | `nav.l-rail` contains `l-rail-home`, `l-rail-primary`, `l-rail-destination`, optional `l-rail-settings`, and labels with `l-rail-label`. The library creates `l-rail-selection l-cut`, the gliding `sel` fill of the current destination. | Reads `aria-current="page"` and `data-destination`. Clicking a destination moves `aria-current`. Managed `data-l-selection-ready` switches the selected destination from its own fill to the gliding slab. | `lithic:navigate` on the selected destination with `detail.destination`. | `hover`, `focus`, and `pressed` on home and destination elements. |
+| Rail | `nav.l-rail` contains `l-rail-home`, `l-rail-primary`, `l-rail-destination`, an optional foot, and labels with `l-rail-label`. The primary group stacks destinations from the start, with the New plaque after the first destination when it is shown. The foot is either one `l-rail-settings` destination or an `l-rail-foot` group whose destinations keep their order and sit anchored to the foot; the group is the web form of `footIndex`, and three destinations with Settings at the foot reproduce the default layout. `l-notch` on a destination draws the amber update notch at its top-left (the web form of `notchIndex`). The library creates `l-rail-selection l-cut`, the gliding `sel` fill of the current destination. | Reads `aria-current="page"` and `data-destination`. `data-l-show-new="false"` on the rail or its AppFrame hides the New plaque (`showNew`); leaving the plaque out of the markup does the same. Clicking a destination moves `aria-current`. Managed `data-l-selection-ready` switches the selected destination from its own fill to the gliding slab. | `lithic:navigate` on the selected destination with `detail.destination`. | `hover`, `focus`, and `pressed` on home and destination elements. |
 | BrandMark | `l-brand-mark` is an empty span. JavaScript fills it with an SVG using `l-brand-mark-octagon`, `l-brand-mark-point`, and `l-brand-mark-pointer`. | The generated SVG is `aria-hidden="true"`. Use `aria-hidden="true"` for a decorative mark or give the containing Home control its accessible name. | None. | None. |
 | NewPlaque | `button.l-new-plaque.l-cut` contains `l-glyph` and optional `l-new-add`, `l-new-close`, and `l-rail-label` children. It can also be a Popover opener. | CSS reads `aria-expanded` to swap add and close glyphs. Popover behavior reads `data-l-popover` and manages the normal opener ARIA. | Popover events when used as an opener. | `hover`, `focus`, and `pressed`. |
 | SectionIndex | `nav.l-section-index` contains cut anchors whose `href` points to page section IDs; its `aria-label` names the column. Wide, it is a side list whose current row is a `sel` fill. Narrower, it is a Picker at the top of the column, never a chip strip: the library builds `l-section-index-picker` with an `l-picker` and an option for every anchor. | Reads and writes `aria-current` and the `l-place-row` class on the anchors, and keeps the picker value and option selection in step. Managed `data-l-hold` preserves a clicked link until scrolling resumes. `data-l-size-class="medium|compact"` on the index or its AppFrame switches to the picker. Choosing an option follows its anchor. | `lithic:section-change` on the index with `detail.target` set to the current hash; the generated picker emits the Picker events. | `hover`, `focus`, and `pressed` on links and buttons. |
 | EngravedChart | `l-engraved-chart` wraps an SVG. Its parts are `l-engraved-chart-hatch`, `l-engraved-chart-field`, `l-engraved-chart-line`, `l-engraved-chart-baseline`, `l-engraved-chart-tick`, and `l-engraved-chart-label`. Use `l-engraved-chart-empty` when no series exists. | No component attribute is read. Give the figure or SVG an accessible name when it carries information. | None. | None. |
-| AppFrame | `l-app-frame` contains an `l-rail` and cut panes using `l-app-frame-pane`, `l-app-frame-list`, and `l-app-frame-work`. Optional native controls use `l-app-frame-window-controls`. | `data-l-no-list` removes the list column. `data-l-preview-size="expanded|medium|compact"` forces a gallery size. The library otherwise measures the frame and writes `data-l-size-class`. | `lithic:size-class` with `detail.sizeClass` whenever the class changes. Escape outside an open overlay dispatches `lithic:escape`. | Child navigation and controls support their own states. |
+| AppFrame | `l-app-frame` contains an `l-rail` and cut panes using `l-app-frame-pane`, `l-app-frame-list`, and `l-app-frame-work`. Optional native controls use `l-app-frame-window-controls`. | `data-l-no-list` removes the list column. `data-l-compact-bar="false"` (`compactBar`) drops the bottom rail at the compact size, so the work pane takes the full height and the host navigates. `data-l-show-new="false"` passes to its rail. `data-l-preview-size="expanded|medium|compact"` forces a gallery size. The library otherwise measures the frame and writes `data-l-size-class`. | `lithic:size-class` with `detail.sizeClass` whenever the class changes. Escape outside an open overlay dispatches `lithic:escape`. | Child navigation and controls support their own states. |
 
 Popover:
 
@@ -376,6 +376,104 @@ AppFrame:
 
 `overlays.js` exports `initOverlays(root)`.
 
+### Settings rows, galleries, and value fields
+
+| Component | Classes and elements | Attributes and ARIA | Events | `data-l-state` |
+|---|---|---|---|---|
+| SettingRow | `div.l-setting-row` contains `l-setting-row__text` (an `l-setting-row__title` in the row type, an optional `l-setting-row__mark` reading "Changed", and an optional `l-setting-row__detail` in the detail type and `fg2`, `settingsDetailGap` below), an optional `l-setting-row__reset`, and `l-setting-row__control`. The reset is a small quiet IconPlaque with the `restart_alt` glyph; put the class on its `l-focus-ring` wrapper so keyboard focus draws the cut ring. Title and detail wrap and never elide. The control sits at the right, at most `settingsControlMax` wide and `s4` from the text. Rows are siblings in a Slab, `settingsRowGap` apart, at least `factsRowHeight` high; every row after the first draws a `vein` line centred in the gap above it. The hover, press, and spotlight plane bleeds `s2` sideways and `s1` up and down, cut small. | `data-l-changed` shows the mark and reserves the reset's slot; the reset shows while the row is hovered or holds focus. The library names a reset without `aria-label` "Reset <title>". `aria-disabled="true"` marks the row unavailable: the control drops to `disabledOpacity` and becomes `inert`, and the detail turns `fg3`; write the reason into `l-setting-row__detail`. `data-l-highlight` runs the search spotlight once: the hover plane fades to clear over `motion.highlight` on the chisel curve; remove the attribute after the row's `animationend`. `data-l-activatable` makes the whole row a target: the library manages `tabindex`, the row hovers with the hover-plane recipe and presses with the row recipe, and a click outside an interactive child, Enter, or Space activates it. Give an activatable row its role, such as `button` for a hand-off row. | `lithic:reset` on the row from the reset with `detail.row`. `lithic:activate` on an activatable row with `detail.row`. | `hover`, `pressed`, and `focus` on the row; `highlight` holds the first frame of the spotlight. |
+| ScrollRail | `l-scroll` on any scroll container. | Nothing is read. The thumb is `scrollThumb` thick and at least `scrollThumbMin` long, `edge` at rest and `fg3` on hover or drag, with both ends cut at 45 degrees, on a clear track. Chromium draws it with the WebKit scrollbar pseudo-elements; Firefox uses `scrollbar-width: thin` and `scrollbar-color` in the same roles and draws its own square thumb. The browser shows it only while the content overflows; dragging scrolls, a press on the track pages, and the wheel stays with the pane. | Native scroll events. | `hover` on the container. |
+| DesignTile | `article.l-design-tile.l-cut` is a small-cut `slab` tile with a `vein` hairline. It contains `l-design-tile__preview` with an `img` cropped to fill at `designPreviewRatio` (an empty preview draws the Hatch placeholder) and `l-design-tile__text` holding `l-design-tile__title`, an optional `l-design-tile__resource`, `l-design-tile__status` (an optional `l-working` first child), and an optional `l-design-tile__action`, a small Plaque: `l-line` by default, `l-gold` only for the one consequential action. The second line always reserves the small plaque height. The library appends `l-design-tile__ring`, the tile's FocusRing. | `aria-current="true"` marks the look in use: a `sel` plane under the text block with `onSel` ink. `aria-selected="true"` is the selection: the whole tile on `sel`. A non-gold action on either plane takes the `on` kind. `aria-disabled="true"` marks it unavailable: the status carries the reason and the preview drops to `disabledOpacity`; the tile stays selectable. `aria-busy="true"` shows the Working mark; give the mark its own `aria-busy`. `data-l-resource="light|standard|heavy"` labels the resource mark; heavy is amber. A tile outside a gallery receives `tabindex="0"`. | `lithic:activate` on a click, Enter, or Space and `lithic:action` from the action plaque, each with `detail.tile`, `detail.value`, and `detail.index`. | `hover`, `pressed`, and `focus`. |
+| DesignGallery | `div.l-design-gallery` holds `l-design-tile` children in a CSS grid of `auto-fill` columns at least `catalogueTileWidthMin` wide, `s2` apart, so the focus ring never touches a neighbour. Tiles stretch up to `catalogueTileWidthMax`. Name it with `aria-label`. | The library supplies `role="listbox"` and `role="option"`, and manages `aria-selected` and roving `tabindex`. Arrow keys move the selection by one tile or one row, Home and End jump, Enter or Space activates. A click selects and activates. | `lithic:select` from the newly selected tile, plus the tile events, each with `detail.tile`, `detail.value`, and `detail.index`. | The tile states. |
+| ChordField | `div.l-chord-field` contains `button.l-chord-field__control.l-cut`, a TextField box (`field` fill, `edge` hairline, `textFieldHeight` high). Give the control an `aria-label`. The library renders the chord as `kbd.l-chord-field__key.l-cut` keycaps (`field` fill, `edge` hairline, cut token, label type, `s1` by `s2` padding, `s1` apart, no plus glyphs), or `l-chord-field__placeholder` in `fg3`, or while recording `l-chord-field__prompt` "Press a shortcut" in `fg2`, and keeps an `l-chord-field__conflict` line in `jasper` under the box. | `data-value` holds the canonical chord. `data-l-placeholder` replaces "Not set". A non-empty `data-l-conflict` draws the `jasper` hairline and the error line, which the control names with `aria-describedby`. Activating the control starts recording; the library manages `data-l-recording` and `aria-pressed`. While recording, the next key with at least one modifier, or F1 to F24 or a media key alone, records; Escape cancels; Backspace or Delete with no modifier clears; Tab with no modifier and leaving the field cancel; auto-repeat is ignored. The field never talks to the compositor. | `lithic:recording` with `detail.recording` whenever recording starts or stops, so the host can hold a compositor shortcut inhibitor while it is true. `lithic:record` with `detail.chord`. `lithic:clear`. | `hover` and `focus` on the control. `data-l-recording` on the field previews recording. |
+| ColorField | `div.l-color-field` is a grid of `l-color-field__swatch` (a `textFieldHeight` square, cut token, with an `edge` hairline, the colour over the Hatch so alpha shows) and the hex TextField: an `l-field` with an optional `l-field-label`, the `l-field-control l-cut` around a mono `input.l-text-field` and an `l-color-field__disclosure` small quiet IconPlaque at the trailing edge marked `data-l-popover`, and an optional `l-field-help`. The disclosure opens `div.l-popover.l-cut.l-color-field__panel`, `settingsControlMax` wide, holding `l-color-field__swatches[role="listbox"]` of `l-menu-item[role="option"]` rows, an `l-menu-divider`, and `l-color-field__body` with a Hex `l-field` and an optional `l-color-field__alpha`: an Opacity label, a Slider from 0 to 100, and a `data-l-slider-value` output. | `data-value` holds the colour. `data-l-allow-alpha` shows the opacity slider and admits alpha hex. A swatch option carries a hex `data-value` or `data-l-role="<role>"`, which reads that palette role live; the library adds its `l-color-field__chip`. Hex takes `#rgb` or `#rrggbb`, and `#rgba` or `#rrggbbaa` (CSS order) only with alpha; it is written lowercase with eight digits only below full opacity. Enter or leaving a hex field commits; an invalid value writes `data-error`, `aria-invalid`, and the help "Use a colour like #ce5e32", keeps the typed text, and emits nothing. The library writes `--l-color`, every hex field, the slider, and `aria-selected` on the matching swatch, which shows the menu check. Choosing a swatch closes the panel. | `lithic:pick` on the field with `detail.color` when a swatch, a valid hex, or the opacity slider changes the colour. The panel emits the Popover events. | `focus` on a hex field; `hover`, `pressed`, and `focus` on the disclosure and swatch rows. `data-l-static-open` on the panel previews it open. |
+
+SettingRow:
+
+```html
+<div class="l-slab l-cut">
+  <div class="l-setting-row" data-l-changed>
+    <div class="l-setting-row__text">
+      <span class="l-setting-row__title">Poll interval</span>
+      <span class="l-setting-row__mark">Changed</span>
+      <span class="l-setting-row__detail">How often the fleet is checked while it is on screen.</span>
+    </div>
+    <span class="l-setting-row__reset l-focus-ring">
+      <button class="l-icon-plaque l-quiet l-small" type="button"><span class="l-glyph" aria-hidden="true">restart_alt</span></button>
+    </span>
+    <div class="l-setting-row__control">
+      <button class="l-toggle" type="button" role="switch" aria-checked="true" aria-label="Poll fast"></button>
+    </div>
+  </div>
+</div>
+```
+
+ChordField:
+
+```html
+<div class="l-chord-field" data-value="Super+Shift+Return">
+  <button class="l-chord-field__control l-cut" type="button" aria-label="Shortcut for Open terminal"></button>
+</div>
+```
+
+A chord is its modifiers in the order Super, Ctrl, Alt, Shift, then the key, joined with `+`. Keys follow the names Ryoku's Hub records (`Combos.qtKeyName`): letters in upper case, digits, `F1` to `F24`, `Return`, `Space`, `Tab`, `Left`, `Right`, `Up`, `Down`, `BackSpace`, `Delete`, `Home`, `End`, `Prior`, `Next`, `Insert`, `Print`, `minus`, `equal`, `comma`, `period`, `slash`, `backslash`, `semicolon`, `apostrophe`, `bracketleft`, `bracketright`, `grave`, `KP_0` to `KP_9` whichever way NumLock sits, `KP_Enter`, `KP_Add`, `KP_Subtract`, `KP_Multiply`, `KP_Divide`, `KP_Decimal`, and the `XF86Audio` and `XF86MonBrightness` media keys. Letters and digits come from `KeyboardEvent.key` when it is Latin, so a remapped layout records the letter it types, and fall back to `KeyboardEvent.code` otherwise, so Shift with a digit records the digit and a non-Latin layout still records a key. Punctuation and the number pad come from `code`. Keycaps show the faces of `wm.DisplayKeys`: `Return` reads Enter, `Prior` Page Up, `KP_3` Num 3, `XF86AudioRaiseVolume` Vol +.
+
+ColorField:
+
+```html
+<div class="l-color-field" data-value="#ce5e32" data-l-allow-alpha>
+  <span class="l-color-field__swatch" aria-hidden="true"></span>
+  <label class="l-field">
+    <span class="l-field-label">Accent</span>
+    <span class="l-field-control l-cut">
+      <input class="l-text-field">
+      <button class="l-icon-plaque l-quiet l-small l-color-field__disclosure" type="button"
+              data-l-popover="accent-colours" aria-label="Choose accent colour"><span class="l-glyph" aria-hidden="true">expand_more</span></button>
+    </span>
+  </label>
+  <div class="l-popover l-cut l-color-field__panel" id="accent-colours" aria-label="Accent colour">
+    <div class="l-color-field__swatches" role="listbox" aria-label="Palette colours">
+      <button class="l-menu-item" type="button" role="option" data-l-role="gold"><span class="l-menu-item-label">Accent</span></button>
+      <button class="l-menu-item" type="button" role="option" data-l-role="jade"><span class="l-menu-item-label">Jade</span></button>
+    </div>
+    <hr class="l-menu-divider" role="separator">
+    <div class="l-color-field__body">
+      <label class="l-field"><span class="l-field-label">Hex</span><span class="l-field-control l-cut"><input class="l-text-field"></span></label>
+      <label class="l-color-field__alpha">
+        <span class="l-field-label">Opacity</span>
+        <span class="l-slider-field"><input class="l-slider" type="range" min="0" max="100" step="1" aria-label="Opacity"><span class="l-slider-rail"><span class="l-slider-fill"></span><span class="l-slider-handle"></span></span></span>
+        <output data-l-slider-value></output>
+      </label>
+    </div>
+  </div>
+</div>
+```
+
+DesignGallery:
+
+```html
+<div class="l-design-gallery" aria-label="Bar styles">
+  <article class="l-design-tile l-cut" data-value="orpheus" aria-current="true" aria-selected="true">
+    <span class="l-design-tile__preview"><img src="orpheus.png" alt=""></span>
+    <span class="l-design-tile__text">
+      <span class="l-design-tile__title">Orpheus</span>
+      <span class="l-design-tile__resource" data-l-resource="standard">Standard</span>
+      <span class="l-design-tile__status">In use</span>
+    </span>
+  </article>
+  <article class="l-design-tile l-cut" data-value="aurora" aria-busy="true">
+    <span class="l-design-tile__preview"></span>
+    <span class="l-design-tile__text">
+      <span class="l-design-tile__title">Aurora</span>
+      <span class="l-design-tile__resource" data-l-resource="heavy">Heavy</span>
+      <span class="l-design-tile__status"><span class="l-working" role="status" aria-label="Installing" aria-busy="true"></span>Installing</span>
+      <button class="l-design-tile__action l-plaque l-line l-small" type="button">Cancel</button>
+    </span>
+  </article>
+</div>
+```
+
+ChordField and ColorField live in `controls.css` and `controls.js`, which also export `keyToken(event)`, `chordFrom(event)`, `displayKeys(chord)`, `renderChordField(field)`, `parseHex(text, allowAlpha)`, `formatHex(color)`, and `syncColorField(field)`. SettingRow, ScrollRail, DesignTile, and DesignGallery live in `lists.css` and `lists.js`, which also export `syncSettingRow(row)` and `selectTile(tile, {notify = true, focus = false})`.
+
 ## Browser requirements
 
 The web kit targets current Firefox and Chromium. It relies on native `<dialog>` support for modal focus and cancellation. Popovers use the Popover API when it is available, with the same `data-l-open` behavior and a positioned fallback when it is not. CSS container queries drive component-local changes such as Header type sizing. The styles and behavior also use `:has()`, `color-mix()`, `ResizeObserver`, `MutationObserver`, and the Web Animations API.
@@ -392,7 +490,7 @@ The web gallery lives in `examples/web/`. Every page:
 6. uses fleet demonstration data and no invented desktop surface;
 7. has no motion at rest.
 
-The index links `foundation.html`, `controls.html`, `lists.html`, and `overlays.html`. Component modules register behavior through `Lithic.register` rather than adding page-local behavior.
+The index links `foundation.html`, `controls.html`, `lists.html`, and `overlays.html`. SettingRow, ChordField, and ColorField are on `controls.html`; DesignTile, DesignGallery, and ScrollRail on `lists.html`; the long Rail on `overlays.html`. Component modules register behavior through `Lithic.register` rather than adding page-local behavior.
 
 To render with this box's live palette, place a temporary copy beside the pages before starting the documented server, then remove it after capture:
 

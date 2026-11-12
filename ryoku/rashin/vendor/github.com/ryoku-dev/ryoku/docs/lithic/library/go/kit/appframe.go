@@ -31,9 +31,12 @@ type AppFrameContent struct {
 }
 
 // AppFrame owns ground, size class, pane placement, deferred overlays, and Escape routing.
+// HideCompactBar leaves the compact class without a bottom rail; the host
+// then navigates on its own.
 type AppFrame struct {
-	Class   FrameClass
-	Preview State
+	Class          FrameClass
+	Preview        State
+	HideCompactBar bool
 }
 
 // ClassForWidth resolves the canonical breakpoint for a width in dp.
@@ -121,7 +124,11 @@ func (frame *AppFrame) layoutCompact(gtx layout.Context, th *theme.Theme, conten
 	bottomHeight := gtx.Dp(tokens.SizeRailBottomHeight)
 	gap := gtx.Dp(tokens.SizePaneGap)
 	top := gtx.Dp(tokens.SizePaneTop)
-	paneHeight := max(0, window.Y-bottomHeight-gap-top)
+	bar := !frame.HideCompactBar
+	paneHeight := max(0, window.Y-top)
+	if bar {
+		paneHeight = max(0, window.Y-bottomHeight-gap-top)
+	}
 	body, work := content.List, false
 	if content.Work != nil {
 		body, work = content.Work, true
@@ -129,7 +136,7 @@ func (frame *AppFrame) layoutCompact(gtx layout.Context, th *theme.Theme, conten
 	if body != nil {
 		layoutAt(gtx, image.Pt(0, top), image.Pt(window.X, paneHeight), frame.pane(th, work, body))
 	}
-	if content.Rail != nil {
+	if bar && content.Rail != nil {
 		layoutAt(gtx, image.Pt(0, max(0, window.Y-bottomHeight)), image.Pt(window.X, bottomHeight), content.Rail)
 	}
 }

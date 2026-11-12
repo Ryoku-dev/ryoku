@@ -13,7 +13,7 @@ T.Control {
     property string previewState: ""
     property string morePreviewState: ""
     property string accessibleName: text
-    property string moreAccessibleName: "More actions"
+    property string moreAccessibleName: Lithic.tr("More actions")
 
     signal mainClicked()
     signal moreClicked()

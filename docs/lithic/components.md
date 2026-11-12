@@ -235,6 +235,47 @@ never a bare chevron. Reference: `ui/kit/disclosure.go`.
 
 Library: QML Lithic.Disclosure, web .l-disclosure, Go kit.Disclosure, terminal term.RenderDisclosure
 
+### ChordField
+
+ChordField holds one keyboard shortcut on the text field's surface: 44 high,
+cut 7, at least 160 wide. At rest the chord shows as keycaps from a 14 inset,
+4 apart with no "+" between them. Each keycap is a 24 high cut 3 plate with a
+`field` fill and a 1 dp `edge` hairline, its face in `label` type 8 from each
+side. An empty field shows its placeholder, "Not set", in `fg3`.
+
+Click, Enter or Space starts recording: the surface takes the field's focus
+hairline and reads "Press a shortcut" in `fg2`. A key with at least one of
+Super, Ctrl, Alt or Shift held, or a function or media key alone, records the
+chord. Escape or losing focus cancels, and Backspace or Delete clears.
+Shifted symbols fold back to their key, so Shift+1 records as `Shift+1`. The
+field never changes its own chord; the host decides, and holds the
+compositor's shortcut inhibitor while the field is recording. A clash shows a
+`caption` line in `jasper` 4 below the surface: "Already used by Close
+window".
+
+Chord text is canonical: Super, Ctrl, Alt and Shift in that order, then the
+key, joined by "+", as in `Super+Shift+Return`. Key names follow Ryoku's
+`wm.NormChord` and keycap faces follow `wm.DisplayKeys` ("Page Up", "Num 3").
+Gio cannot see letters on non-Latin layouts, Print, Insert, F13 to F24 or
+media keys; the Go README lists the gaps.
+
+Library: QML Lithic.ChordField, web .l-chord-field, Go kit.ChordField, terminal -
+
+### ColorField
+
+ColorField holds one colour. A 44 square plate shows it over a Hatch, so
+transparency reads, with a 1 dp `edge` hairline and a 3 cut. The hex value
+sits 8 to the right in a mono text field whose trailing quiet icon plaque
+opens a Popover cut like a Menu: the host's role swatches, each a 20 plate
+beside its name with the current one checked, a Hex field, and an Opacity
+slider when transparency is allowed. Choosing a swatch or committing valid hex
+with Enter or by leaving the field picks the colour. `#abc`, `#aabbcc` and
+`#aabbccdd` are accepted and written back as lowercase `#rrggbb` or
+`#rrggbbaa`. Anything else shows the field's error state, "Use a colour like
+#ce5e32", and picks nothing.
+
+Library: QML Lithic.ColorField, web .l-color-field, Go kit.ColorField, terminal -
+
 ## Lists, containers and state
 
 ### Tablet
@@ -261,6 +302,19 @@ scroll thumb is a 3 wide `vein` blade with a 12 minimum. A wheel notch glides
 Reference: `ui/kit/rowlist.go` and `scroll.go`.
 
 Library: QML Lithic.RowList, web .l-row-list, Go kit.RowList, terminal term.RenderRowList
+
+### ScrollRail
+
+ScrollRail is the scroll thumb for any scrolling pane that is not a RowList.
+It shows only while the content overflows: a 3 wide blade with both ends cut
+at 45 degrees and a 12 minimum, in `edge` at rest and `fg3` while hovered or
+dragged, standing alone where RowList's `vein` thumb has its selection beside
+it. Dragging the thumb scrolls; a press on the track pages by one view over
+140 ms. Its pointer target reaches 8 into the pane, and the wheel stays with
+the pane. On the web it is the `.l-scroll` utility; Firefox draws its own thin
+square thumb in the same roles.
+
+Library: QML Lithic.ScrollRail, web .l-scroll, Go kit.ScrollRail, terminal -
 
 ### GroupHeader
 
@@ -333,6 +387,59 @@ slab. Major full-page regions use 55 between them. Reference:
 `ui/pages/settings/view.go`.
 
 Library: QML Lithic.Section, web .l-section, Go kit.Section, terminal term.RenderSection
+
+### SettingRow
+
+SettingRow is one setting in a settings slab. Its title is `row` type in
+`fg`, with an optional `detail` line in `fg2` 2 below it; both wrap and never
+elide, since translations run long. The control sits at the right,
+vertically centred, at most 320 wide, with 21 between it and the text. A row
+is at least 44 high, and rows stack 13 apart with a 1 dp `vein` line centred
+in the gap; the first row draws no line.
+
+A changed row adds "Changed" in `detail` type and `fg3` on the title's
+baseline, 13 after it, and a small quiet reset icon plaque 8 before the
+control. The plaque's slot stays reserved while the row is changed, so the
+control never shifts; the plaque shows while the row is hovered or holds
+focus. An unavailable row disables its control and shows the reason in `fg3`
+in place of the detail.
+
+A row the whole of which acts, such as a toggle or a hand-off, takes the
+pointer and Enter or Space; only such rows show hover and press, on a plane
+that bleeds 8 to each side and 4 above and below with a 6 cut. When search
+lands on a row, that plane appears at the hover tone and fades to clear over
+1600 ms on the chisel curve, once; with reduced motion it holds until the
+host clears it.
+
+Library: QML Lithic.SettingRow, web .l-setting-row, Go kit.SettingRow, terminal -
+
+### DesignTile
+
+DesignTile is one look in a gallery: a bar style, a lock screen, a launcher.
+It is a 6 cut `slab` tile with a 1 dp `vein` hairline. A preview fills the top
+at 16:10 inside a 4 inset, cropped to fill and clipped to the concentric cut,
+or a Hatch on `field` while there is none. Below it, 8 in and 13 from the
+sides, the title in `row` type shares a line with the resource mark: Light,
+Standard or Heavy in `detail` type, Heavy in `amber`. The second line always
+reserves 32, holding the status in `caption` and `fg2`, or the reason the
+look cannot be used, and an optional small action plaque at the right, so
+tiles in a row align.
+
+The look in use takes a `sel` plane under its text block; a selected tile is
+`sel` whole. On `sel`, ink turns `onSel`, and an action that is not gold
+takes the `on` kind, since gold ink on bone reads poorly. An unavailable
+tile dims its preview, and a busy one shows Working before its status.
+
+Library: QML Lithic.DesignTile, web .l-design-tile, Go kit.DesignTile, terminal -
+
+### DesignGallery
+
+DesignGallery lays design tiles in a grid: as many columns as fit tiles of
+at least 200, 8 apart so a focus ring never touches a neighbour, each tile
+stretching up to 260. The arrow keys move the selection by tile and by row,
+Home and End jump to the ends, and Enter activates the selected look.
+
+Library: QML Lithic.DesignGallery, web .l-design-gallery, Go kit.DesignGallery, terminal -
 
 ### Facts
 
@@ -507,8 +614,13 @@ Library: QML Lithic.Placard, web .l-placard, Go kit.Placard, terminal term.Rende
 Rail owns Home, Fleet, New and Activity, with Settings at the bottom.
 Destination icons are 21. Expanded tiles are 64 in an 88 rail; medium tiles
 are 56 in a 72 rail. The current tile is a `sel` fill that glides over
-240 ms. Compact moves the same destinations into five equal columns in a 64
-high bottom bar with 48 high tiles. Reference: `ui/app/rail.go`.
+240 ms. A host with other destinations keeps the same shape: it can hide New
+and its slot, stand every destination from a foot index on at the bottom in
+reading order, and mark one destination with an amber Notch at its top left,
+such as a pending update. Compact gives the home mark, New and each
+destination an equal column in a 64 high bottom bar with 48 high tiles, so it
+suits five or fewer; a host with more turns the bar off and navigates from
+its list pane. Reference: `ui/app/rail.go`.
 
 Library: QML Lithic.Rail, web .l-rail, Go kit.Rail, terminal -
 
@@ -555,8 +667,9 @@ Library: QML Lithic.EngravedChart, web .l-engraved-chart, Go kit.EngravedChart, 
 
 AppFrame fills the window with `ground`, selects expanded, medium or compact
 at 1280 and 760, and composes Rail, optional list Pane, work Pane, overlays
-and window controls. It owns the compact bottom bar and keeps overlay order
-and Escape behavior consistent. Reference: `ui/app/layout.go`, `rail.go`,
-`overlays.go` and `window.go`.
+and window controls. It owns the compact bottom bar, which a host with many
+destinations turns off so the panes run to the bottom, passes the Rail's
+options through, and keeps overlay order and Escape behavior consistent.
+Reference: `ui/app/layout.go`, `rail.go`, `overlays.go` and `window.go`.
 
 Library: QML Lithic.AppFrame, web .l-app-frame, Go kit.AppFrame, terminal -

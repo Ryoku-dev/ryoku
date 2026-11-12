@@ -12,10 +12,15 @@ T.Control {
     property bool customDecorations: true
     property int currentDestination: 0
     property var destinations: [
-        { label: "Fleet", glyph: "dns" },
-        { label: "Activity", glyph: "history" },
-        { label: "Settings", glyph: "tune" }
+        { label: Lithic.tr("Fleet"), glyph: "dns" },
+        { label: Lithic.tr("Activity"), glyph: "history" },
+        { label: Lithic.tr("Settings"), glyph: "tune" }
     ]
+    property bool showNew: true
+    property int footIndex: destinations.length - 1
+    property int notchIndex: -1
+    // false: compact shows no bottom rail and the host brings its own navigation
+    property bool compactBar: true
     property Component windowControlsComponent: defaultWindowControls
     property string previewState: ""
     readonly property string sizeClass: width >= LithicTokens.breakpoint.expanded
@@ -31,7 +36,7 @@ T.Control {
                                       ? LithicTokens.size.listExpanded
                                       : LithicTokens.size.listMedium
     readonly property real contentX: railWidth + (compact ? 0 : LithicTokens.size.paneGap)
-    readonly property real paneBottom: compact
+    readonly property real paneBottom: compact && compactBar
                                        ? height - LithicTokens.size.railBottomHeight
                                          - LithicTokens.size.paneGap
                                        : height
@@ -55,6 +60,7 @@ T.Control {
         Rail {
             id: rail
             x: 0
+            visible: !root.compact || root.compactBar
             y: root.compact ? root.height - LithicTokens.size.railBottomHeight : 0
             width: root.compact ? root.width : root.railWidth
             height: root.compact ? LithicTokens.size.railBottomHeight : root.height
@@ -63,6 +69,9 @@ T.Control {
             destinations: root.destinations
             overlayParent: overlayHost
             previewState: root.previewState
+            showNew: root.showNew
+            footIndex: root.footIndex
+            notchIndex: root.notchIndex
             onHomeTriggered: root.homeTriggered()
             onDestinationTriggered: (index, label) => {
                 root.currentDestination = index
@@ -145,7 +154,7 @@ T.Control {
                 kind: "quiet"
                 glyph: "remove"
                 text: ""
-                accessibleName: "Minimize"
+                accessibleName: Lithic.tr("Minimize")
                 onClicked: root.minimizeRequested()
             }
             Plaque {
@@ -153,7 +162,7 @@ T.Control {
                 kind: "quiet"
                 glyph: "crop_square"
                 text: ""
-                accessibleName: "Maximize"
+                accessibleName: Lithic.tr("Maximize")
                 onClicked: root.maximizeRequested()
             }
             Plaque {
@@ -161,7 +170,7 @@ T.Control {
                 kind: "quiet"
                 glyph: "close"
                 text: ""
-                accessibleName: "Close"
+                accessibleName: Lithic.tr("Close")
                 onClicked: root.closeRequested()
             }
         }

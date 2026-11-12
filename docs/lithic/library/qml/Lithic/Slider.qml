@@ -5,7 +5,7 @@ T.Slider {
     id: root
 
     property string previewState: ""
-    property string accessibleName: "Value"
+    property string accessibleName: Lithic.tr("Value")
 
     readonly property bool _hoverActive: enabled && (hovered || previewState === "hover")
     readonly property bool _pressActive: enabled && (pressed || previewState === "pressed")

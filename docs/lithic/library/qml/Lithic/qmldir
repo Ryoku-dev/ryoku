@@ -11,6 +11,8 @@ Glyph 1.0 Glyph.qml
 Hatch 1.0 Hatch.qml
 Label 1.0 Label.qml
 Notch 1.0 Notch.qml
+internal ColorSwatch ColorSwatch.qml
+internal CutClip CutClip.qml
 internal FieldSurface FieldSurface.qml
 internal PlaqueRecipe PlaqueRecipe.qml
 
@@ -21,8 +23,12 @@ BecomingName 1.0 BecomingName.qml
 BladeMeter 1.0 BladeMeter.qml
 BladeProgress 1.0 BladeProgress.qml
 BrandMark 1.0 BrandMark.qml
+ChordField 1.0 ChordField.qml
 Claim 1.0 Claim.qml
+ColorField 1.0 ColorField.qml
 Confirm 1.0 Confirm.qml
+DesignGallery 1.0 DesignGallery.qml
+DesignTile 1.0 DesignTile.qml
 Dialog 1.0 Dialog.qml
 Disclosure 1.0 Disclosure.qml
 DraftColumns 1.0 DraftColumns.qml
@@ -44,11 +50,13 @@ Plaque 1.0 Plaque.qml
 Popover 1.0 Popover.qml
 Rail 1.0 Rail.qml
 RowList 1.0 RowList.qml
+ScrollRail 1.0 ScrollRail.qml
 Search 1.0 Search.qml
 Section 1.0 Section.qml
 SectionIndex 1.0 SectionIndex.qml
 Segmented 1.0 Segmented.qml
 Sentence 1.0 Sentence.qml
+SettingRow 1.0 SettingRow.qml
 Skeleton 1.0 Skeleton.qml
 Slab 1.0 Slab.qml
 Slider 1.0 Slider.qml

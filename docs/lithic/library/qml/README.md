@@ -172,6 +172,18 @@ The temporary objects expose:
 - `easing`: `Easing.BezierSpline`
 - `easingCurve`: the same list as `curve`
 
+## Translation
+
+Every word the library shows or announces on its own (Cancel, Changed, Reset %1, Not set, the rail's Home and New, key faces, accessible names) goes through `Lithic.tr("...")`, with the English literal written inside the call so a catalogue extractor can find it. Words with a value use a `%1` template that is translated first: `Lithic.tr("Reset %1").arg(title)`.
+
+A translated host sets the translator once:
+
+```qml
+Component.onCompleted: Lithic.translator = s => I18n.tr(s)
+```
+
+`tr` reads `translator`, and a translator may read reactive state such as a catalogue revision, so bindings that show these words update when the language or the translator changes. Defaults that are properties, such as `ChordField.placeholder` or `Confirm.actionText`, stay overridable. An untranslated host needs nothing: with no translator the words stay English.
+
 ## Primitives
 
 ### CutRect
@@ -309,7 +321,7 @@ Role-aware text.
 
 ## Component reference
 
-This reference covers the 45 component types after the `# components` marker in `Lithic/qmldir`. Each API list names the properties, signals, and functions added by Lithic, plus the inherited template members used in normal calls. Standard Qt Quick properties remain available. A `previewState` accepts `""`, `hover`, `pressed`, or `focus`. A component only responds to states it can draw.
+This reference covers the 51 component types after the `# components` marker in `Lithic/qmldir`. Each API list names the properties, signals, and functions added by Lithic, plus the inherited template members used in normal calls. Standard Qt Quick properties remain available. A `previewState` accepts `""`, `hover`, `pressed`, or `focus`, plus the extra states a component names below. A component only responds to states it can draw.
 
 Fields (`TextField`, `Search`, the `Picker` anchor and the `Stepper` value box) share one surface: `field` fill, a 1 dp `edge` hairline at rest, an `fg2` hairline with focus and `jasper` on error. Selected rows, chips and segments are a `sel` fill and nothing more.
 
@@ -447,6 +459,86 @@ A quiet plaque that unfolds arbitrary child content.
 - Properties: `open`, `text`, `glyph`, `previewState`, `accessibleName`, and the default `disclosureContent` child list
 - Signal: `toggled(bool open)`
 - Preview: `previewState`
+
+#### SettingRow
+
+One setting in a settings `Slab`: a title in `row` over an optional detail in `detail` `fg2`, `size.settingsDetailGap` apart, both wrapping and never elided, with the control at the right, vertically centred and kept `space.s4` from the text. A row is at least `size.factsRowHeight` high. A row that is not `first` carries the `size.settingsRowGap` above itself with a 1 dp `vein` line centred in it, so rows stack in a `Column` with no spacing.
+
+- Properties: inherited `enabled`, plus `title`, `detail`, `changed`, `unavailable`, `highlighted`, `activatable`, `first`, `plane`, `previewState`, and the default `control` child list. Read-only `hovered` is inherited.
+- Signals: `resetRequested()` and `activated()`
+- `changed`: a "Changed" mark in `detail` `fg3` on the title's baseline, `space.s3` after it, and a small quiet `restart_alt` `IconPlaque` named "Reset <title>" between the text and the control. Its slot stays while `changed`, so nothing shifts; the plaque fades in while the row is hovered or holds focus.
+- `unavailable`: a non-empty reason disables the control slot and the reset plaque and replaces the detail in `fg3`. Lithic controls draw themselves at `disabledOpacity`.
+- `activatable`: the whole row is a pointer and keyboard target. Enter, Return and Space emit `activated()`; hosts flip the row's toggle or open a hand-off. Hover mixes `fg` into `plane` at `alpha.hoverPlane`, press adds the row-press tint, and the keyboard ring follows the plane. The plane reaches `space.s2` past the row's sides and `space.s1` past its top and bottom, cut `cut.small`.
+- `highlighted`: the search spotlight. Setting it shows the plane at the hover colour and fades it to clear once over `motion.highlight` on the chisel curve; the host clears the flag afterwards. Under reduced motion the plane holds until the flag clears.
+- The control slot is a `Row` with `space.s2` between children, at most `size.settingsControlMax` wide by contract; give a wide control that width.
+- Preview: `previewState`, plus `highlight` for the spotlight at full strength
+
+```qml
+Slab {
+    Column {
+        width: parent.width
+        SettingRow {
+            width: parent.width
+            first: true
+            activatable: true
+            title: "Dim inactive windows"
+            detail: "Windows without focus sit a step darker."
+            changed: dimInactive !== defaults.dimInactive
+            onActivated: dimInactive = !dimInactive
+            onResetRequested: dimInactive = defaults.dimInactive
+            Toggle { checked: dimInactive; onToggled: dimInactive = checked }
+        }
+    }
+}
+```
+
+#### ChordField
+
+A keyboard shortcut field. At rest the chord shows as keycaps: each a `cut.token` plate with the `field` fill and an `edge` hairline, `label` type with `space.s1` above and below and `space.s2` either side, `space.s1` apart, no "+" glyph. With no chord the field shows the placeholder in `fg3`. The field itself is a `TextField` box.
+
+- Properties: `chord`, `placeholder` (default "Not set"), `conflict`, `accessibleName`, and `previewState`. Read-only `recording` and `keys`, the faces on the caps.
+- Signals: `recorded(string chord)` and `cleared()`
+- Functions: `startRecording()`, `cancelRecording()`, `canonical(text)`, `displayKeys(text)`, and `keyName(event)`
+- Recording: a click, Enter, Return or Space starts it; the field reads "Press a shortcut" in `fg2` with the `fg2` focus hairline. The next press holding Super, Ctrl, Alt or Shift with another key, or F1 to F24 or a media key alone, sets `chord` and emits `recorded`. Escape cancels. Backspace or Delete with no modifier clears `chord` and emits `cleared()`; with a modifier they record (`Super+BackSpace`). Auto-repeat is ignored, bare Tab still moves focus, and losing focus cancels. Hold a compositor shortcut inhibitor while `recording` is true; the field never talks to the compositor.
+- Chord text: modifiers in the order Super, Ctrl, Alt, Shift, then the key, joined by "+" with no spaces (`Super+Shift+Return`). Key names follow the Hub's `Combos.qtKeyName` (`Q`, `1`, `F5`, `Return`, `Space`, `Prior`, `minus`, `grave`, `KP_3`, `KP_Enter`) plus `XF86AudioRaiseVolume`, `XF86AudioLowerVolume`, `XF86AudioMute`, `XF86AudioMicMute`, `XF86AudioPlay`, `XF86AudioNext`, `XF86AudioPrev`, `XF86MonBrightnessUp` and `XF86MonBrightnessDown`. The number pad always records `KP_<digit>`, whichever way NumLock sits, and Qt's shifted symbols fold back to their key, so Shift with 1 records `1`, not `!`. `chord` accepts any spelling, such as the store's `SUPER + Q`, and shows it canonically.
+- Caps show `wm.DisplayKeys` faces: `Return` reads Enter, `Prior` Page Up, `KP_3` Num 3, `XF86AudioRaiseVolume` Vol +.
+- `conflict`: a `jasper` hairline and a wrapping `caption` line in `jasper`, `size.textFieldHelpGap` below the field ("Already used by Close window").
+- Preview: `previewState`, plus `recording`
+
+```qml
+ChordField {
+    accessibleName: "Open terminal"
+    chord: binds.terminal
+    conflict: binds.clash(chord)
+    onRecordingChanged: inhibitor.enabled = recording
+    onRecorded: chord => binds.terminal = chord
+    onCleared: binds.terminal = ""
+}
+```
+
+#### ColorField
+
+A colour value: a 44 square swatch plate (`cut.token`, the colour over a `Hatch` so alpha shows, `edge` hairline), `space.s2` from a mono hex `TextField`, whose trailing slot holds a small quiet `expand_more` `IconPlaque` that opens a `Popover`. The popover is a `Menu` plane `size.settingsControlMax` wide: the host's swatches as menu rows with a 20 plate, the current one checked like a menu item, then the hex field and, with `allowAlpha`, an "Opacity" slider with its percent.
+
+- Properties: `color`, `label`, `allowAlpha`, `swatches`, `overlayParent`, `accessibleName`, `previewState`, and `previewOpen`. Read-only `opened`, `hex` and `invalidText`.
+- Signal: `picked(color c)`
+- Functions: `open()`, `close()`, `toggle()`, `choose(value)`, `formatHex(value)`, and `parseHex(text)`
+- Swatch entries: objects with `label` and `color`
+- Hex: `#rgb` and `#rrggbb`, plus `#rgba` and `#rrggbbaa` in CSS order when `allowAlpha`. It shows lowercase, with alpha only below full opacity. Enter or leaving the field commits a valid value; an invalid one shows the field's error, "Use a colour like #ce5e32", and emits nothing. Choosing a swatch closes the popover; moving the opacity slider picks as it moves.
+- Preview: `previewState` (`hover`; `focus` rings the disclosure; `error` shows a half-typed value) and `previewOpen`
+
+```qml
+ColorField {
+    label: "Accent colour"
+    color: settings.accent
+    swatches: [
+        { label: "Gold", color: Lithic.gold },
+        { label: "Jade", color: Lithic.jade }
+    ]
+    overlayParent: appOverlay
+    onPicked: c => settings.accent = c
+}
+```
 
 ### Lists, containers and state
 
@@ -603,6 +695,60 @@ A wrapping flow of styled text spans.
 - Span entries: objects with `text` and optional `mono`
 - Preview: none
 
+#### ScrollRail
+
+The cut scroll thumb for any `Flickable` pane, the thumb `RowList` draws: `size.scrollThumb` wide, at least `size.scrollThumbMin` long, both ends cut `cut.token` at 45 degrees. It shows only while the content overflows, in `edge` at rest and `fg3` under the pointer or while dragged. Dragging the thumb scrolls; a press on the track pages by one view over `motion.wheel`. The wheel stays with the pane, and the keyboard scrolls the pane, not the rail. Its pointer target reaches `space.s2` into the pane.
+
+- Properties: `flickable` and `previewState`. `overflowing` is read only.
+- Functions: `scrollTo(contentY)` and `page(direction)`
+- Preview: `previewState` (`hover`)
+
+```qml
+Flickable {
+    id: page
+    anchors.fill: parent
+    contentHeight: column.implicitHeight
+}
+ScrollRail {
+    anchors.top: page.top
+    anchors.bottom: page.bottom
+    anchors.right: page.right
+    flickable: page
+}
+```
+
+#### DesignTile
+
+One look in a gallery of looks: bar styles, lock screens, launchers, notifications. A `cut.small` tile on `slab` with a 1 dp `vein` hairline. The preview sits `space.s1` inside the top and sides at `size.designPreviewRatio` (16:10), cropped to fill and clipped to concentric top cuts, or a `Hatch` on `field` when there is no image. Below, with `space.s2` above and below and `space.s3` at the sides: the title in `row` with the resource mark in `detail` at the right, then the status in `caption` `fg2` beside an optional small action `Plaque`. The second line always keeps `size.plaqueHeightSmall`, so tiles in a grid line up.
+
+- Properties: inherited `enabled`, plus `title`, `status`, `resource`, `source`, `current`, `selected`, `unavailable`, `busy`, `actionText`, `actionKind` (default `line`; `gold` only for the one consequential action; over bone, while `current` or `selected`, any other kind draws as `on`), `actionGlyph`, `focusVisible`, and `previewState`
+- `resource`: `""`, `light`, `standard` or `heavy`, shown as the translated Light, Standard or Heavy; heavy is `amber`, and on bone every mark takes `onSel2`.
+- Signals: inherited `clicked()` and `actionTriggered()`
+- `current`: the look in use, a `sel` plane under the text with `onSel` ink; the host passes the status, such as "In use". `selected`: the whole tile on `sel` and its hairline gone, so the bone frame around the preview tells it from `current`. `unavailable`: the reason in the status line and the preview at `disabledOpacity`; the tile stays selectable. `busy`: `Working` before the status.
+- `focusVisible` lets a container that owns keyboard focus, such as `DesignGallery`, ring its selected tile.
+- Preview: `previewState`
+
+#### DesignGallery
+
+A `GridView` of looks whose delegate defaults to `DesignTile`. Columns fit `size.catalogueTileWidthMin` tiles `space.s2` apart, so a ringed tile never meets its neighbour, and tiles stretch up to `size.catalogueTileWidthMax`. Arrow keys move the selection, Home and End jump to the ends, and Enter, Return or Space activates; a click selects and activates. Its implicit height holds every row, so it scrolls with its page; a fixed shorter height scrolls the grid with a `ScrollRail`.
+
+- Properties: `model`, `currentIndex`, `delegate`, `accessibleName`, and `previewState`. Read-only `gridView`, `gap`, `columns`, `tileWidth`, and `tileHeight`.
+- Signals: `activated(int index)` and `actionTriggered(int index)`
+- Functions: `select(index)` and `activate(index)`
+- Model entries: objects with `title`, `status`, `resource`, `source`, `current`, `unavailable`, `busy`, `actionText`, `actionKind`, and `actionGlyph`
+- Preview: `previewState` (`focus` rings the selected tile)
+
+```qml
+DesignGallery {
+    width: parent.width
+    accessibleName: "Bar styles"
+    model: barStyles
+    currentIndex: barStyles.findIndex(style => style.current)
+    onActivated: index => previewStyle(barStyles[index])
+    onActionTriggered: index => install(barStyles[index])
+}
+```
+
 ### Progress
 
 #### BladeMeter
@@ -749,10 +895,14 @@ A stacked transient notice with an optional undo-style action and draining blade
 
 A responsive vertical rail or compact bottom rail with Home, destinations, and the New menu. The selected destination is a `sel` fill.
 
-- Properties: `sizeClass`, `currentIndex`, `destinations`, `newMenuItems`, `overlayParent`, `previewState`, and `previewNewOpen`. Read-only properties are `compact`, `expanded`, `railWidth`, `tileSize`, `startY`, and `newY`.
+- Properties: `sizeClass`, `currentIndex`, `destinations`, `newMenuItems`, `overlayParent`, `previewState`, `previewNewOpen`, `showNew`, `footIndex`, and `notchIndex`. Read-only properties are `compact`, `expanded`, `railWidth`, `tileSize`, `startY`, `newY`, and `compactColumns`.
 - Signals: `homeTriggered()`, `destinationTriggered(int index, string label)`, and `newItemTriggered(int index, string label)`
 - Functions: `destinationY(index)`, `compactColumn(index)`, and `toggleNewMenu()`
 - Destination and New-menu entries: objects with `label` and `glyph`
+- `showNew` (default true): false hides the New plaque, and its slot, in every size class.
+- `footIndex` (default the last destination): destinations before it stack from `startY`, New taking the slot after the first; the destinations from it on keep their order as one group standing on the foot, `size.railItemBottomInset` above the bottom. With three destinations the defaults draw today's rail.
+- `notchIndex` (default -1): an amber `Notch` at that tile's top-left corner, the one badge the rail may show.
+- Compact: Home, the first destination, New when shown, then the rest, in equal columns.
 - Preview: `previewState`. `previewNewOpen` embeds the New popover.
 
 #### BrandMark
@@ -793,7 +943,8 @@ A line chart with a hatched area, baseline, optional ticks, and an empty state.
 
 The responsive application frame that composes a rail, optional list pane, work pane, window controls, and overlay host.
 
-- Properties: the default `workData` child list, plus `listData`, `overlayData`, `showList`, `compactView`, `customDecorations`, `currentDestination`, `destinations`, `windowControlsComponent`, and `previewState`. Read-only properties are `sizeClass`, `compact`, `railWidth`, `listWidth`, `contentX`, and `paneBottom`.
+- Properties: the default `workData` child list, plus `listData`, `overlayData`, `showList`, `compactView`, `customDecorations`, `currentDestination`, `destinations`, `showNew`, `footIndex`, `notchIndex`, `compactBar`, `windowControlsComponent`, and `previewState`. Read-only properties are `sizeClass`, `compact`, `railWidth`, `listWidth`, `contentX`, and `paneBottom`.
+- `showNew`, `footIndex` and `notchIndex` pass through to `Rail`. `compactBar` (default true): false shows no bottom rail in compact, the panes run to the bottom, and the host provides its own navigation.
 - Signals: `homeTriggered()`, `destinationTriggered(int index, string label)`, `newItemTriggered(int index, string label)`, `minimizeRequested()`, `maximizeRequested()`, and `closeRequested()`
 - Preview: `previewState`
 

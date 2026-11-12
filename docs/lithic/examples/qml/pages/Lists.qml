@@ -5,6 +5,8 @@ Item {
     id: root
 
     implicitHeight: content.implicitHeight + LithicTokens.space.s5 * 2
+    // a picture of a look for the DesignTile previews; any image does
+    readonly property url lookPreview: Qt.resolvedUrl("../../../media/sheet-settings.png")
 
     component HostMark: CutRect {
         fill: Lithic.stone3
@@ -693,6 +695,172 @@ Item {
                     "chunk 348 of 512",
                     "verified 2.7 GiB"
                 ]
+            }
+        }
+
+        Showcase {
+            title: "DesignTile"
+
+            State {
+                stateName: "No preview, hatch placeholder"
+                specimenWidth: LithicTokens.size.catalogueTileWidthMax
+                specimenHeight: placeholderTile.implicitHeight
+                DesignTile { id: placeholderTile; anchors.fill: parent; title: "Sumi"; status: "Ink rail on the left edge"; resource: "light" }
+            }
+            State {
+                stateName: "Preview"
+                specimenWidth: LithicTokens.size.catalogueTileWidthMax
+                specimenHeight: previewTile.implicitHeight
+                DesignTile { id: previewTile; anchors.fill: parent; title: "Shima"; status: "Islands for each part"; resource: "standard"; source: root.lookPreview }
+            }
+            State {
+                stateName: "Current"
+                specimenWidth: LithicTokens.size.catalogueTileWidthMax
+                specimenHeight: currentTile.implicitHeight
+                DesignTile { id: currentTile; anchors.fill: parent; title: "Orpheus"; status: "In use"; resource: "standard"; current: true; actionText: "Edit"; actionGlyph: "tune"; source: root.lookPreview }
+            }
+            State {
+                stateName: "Selected"
+                specimenWidth: LithicTokens.size.catalogueTileWidthMax
+                specimenHeight: selectedTile.implicitHeight
+                DesignTile { id: selectedTile; anchors.fill: parent; title: "Shima"; status: "Islands for each part"; resource: "standard"; selected: true; source: root.lookPreview }
+            }
+            State {
+                stateName: "Current and selected"
+                specimenWidth: LithicTokens.size.catalogueTileWidthMax
+                specimenHeight: bothTile.implicitHeight
+                DesignTile { id: bothTile; anchors.fill: parent; title: "Orpheus"; status: "In use"; resource: "standard"; current: true; selected: true; source: root.lookPreview }
+            }
+            State {
+                stateName: "Hover preview with action"
+                specimenWidth: LithicTokens.size.catalogueTileWidthMax
+                specimenHeight: hoverTile.implicitHeight
+                DesignTile { id: hoverTile; anchors.fill: parent; title: "Sumi"; status: "Ink rail on the left edge"; resource: "light"; actionText: "Preview"; actionGlyph: "visibility"; previewState: "hover" }
+            }
+            State {
+                stateName: "Pressed preview"
+                specimenWidth: LithicTokens.size.catalogueTileWidthMax
+                specimenHeight: pressedTile.implicitHeight
+                DesignTile { id: pressedTile; anchors.fill: parent; title: "Sumi"; status: "Ink rail on the left edge"; resource: "light"; previewState: "pressed" }
+            }
+            State {
+                stateName: "Keyboard focus preview"
+                specimenWidth: LithicTokens.size.catalogueTileWidthMax
+                specimenHeight: focusTile.implicitHeight
+                DesignTile { id: focusTile; anchors.fill: parent; title: "Shima"; status: "Islands for each part"; resource: "standard"; previewState: "focus"; source: root.lookPreview }
+            }
+            State {
+                stateName: "Unavailable"
+                specimenWidth: LithicTokens.size.catalogueTileWidthMax
+                specimenHeight: unavailableTile.implicitHeight
+                DesignTile { id: unavailableTile; anchors.fill: parent; title: "Iris"; status: "Glass bar"; unavailable: "Needs niri; this desktop runs Hyprland"; resource: "heavy"; source: root.lookPreview }
+            }
+            State {
+                stateName: "Busy"
+                specimenWidth: LithicTokens.size.catalogueTileWidthMax
+                specimenHeight: busyTile.implicitHeight
+                DesignTile { id: busyTile; anchors.fill: parent; title: "Iris"; status: "Installing"; busy: true; resource: "heavy" }
+            }
+            State {
+                stateName: "Gold action, heavy mark"
+                specimenWidth: LithicTokens.size.catalogueTileWidthMax
+                specimenHeight: actionTile.implicitHeight
+                DesignTile { id: actionTile; anchors.fill: parent; title: "Iris"; status: "Not installed"; resource: "heavy"; actionText: "Install"; actionKind: "gold"; actionGlyph: "download" }
+            }
+            State {
+                stateName: "Disabled"
+                specimenWidth: LithicTokens.size.catalogueTileWidthMax
+                specimenHeight: disabledTile.implicitHeight
+                DesignTile { id: disabledTile; anchors.fill: parent; title: "Sumi"; status: "Ink rail on the left edge"; resource: "light"; enabled: false }
+            }
+        }
+
+        Showcase {
+            title: "DesignGallery"
+
+            State {
+                stateName: "Columns fit 200 to 260 tiles 8 apart; keyboard focus on the selected tile"
+                specimenWidth: parent.width
+                specimenHeight: looks.implicitHeight
+                DesignGallery {
+                    id: looks
+                    anchors.fill: parent
+                    accessibleName: "Bar styles"
+                    currentIndex: 2
+                    previewState: "focus"
+                    model: [
+                        { title: "Orpheus", status: "In use", resource: "standard", current: true, source: root.lookPreview },
+                        { title: "Sumi", status: "Ink rail on the left edge", resource: "light" },
+                        { title: "Shima", status: "Islands for each part", resource: "standard", source: root.lookPreview },
+                        { title: "Iris", status: "Installing", resource: "heavy", busy: true },
+                        { title: "Kumo", status: "Floating clusters", resource: "light", actionText: "Install", actionGlyph: "download" },
+                        { title: "Tsuki", status: "Glass bar", resource: "heavy", unavailable: "Needs niri; this desktop runs Hyprland" },
+                        { title: "Line", status: "One hairline and the clock", resource: "light" }
+                    ]
+                }
+            }
+        }
+
+        Showcase {
+            title: "ScrollRail"
+
+            Repeater {
+                model: [
+                    { name: "Overflowing, at the top", position: 0, state: "" },
+                    { name: "Scrolled halfway", position: 0.5, state: "" },
+                    { name: "Hover preview", position: 1, state: "hover" },
+                    { name: "No overflow, hidden", position: 0, state: "", short: true }
+                ]
+
+                delegate: State {
+                    id: railState
+                    required property var modelData
+                    stateName: modelData.name
+                    specimenHeight: LithicTokens.size.listMedium / 2
+
+                    CutRect {
+                        anchors.fill: parent
+                        fill: Lithic.stone2
+
+                        Flickable {
+                            id: pane
+                            anchors.fill: parent
+                            anchors.margins: LithicTokens.space.s2
+                            clip: true
+                            contentWidth: width
+                            contentHeight: settingNames.implicitHeight
+                            contentY: Math.max(0, contentHeight - height) * railState.modelData.position
+                            boundsBehavior: Flickable.StopAtBounds
+
+                            Column {
+                                id: settingNames
+                                width: pane.width
+                                Repeater {
+                                    model: railState.modelData.short
+                                           ? ["Appearance", "Bar", "Desktop"]
+                                           : ["Appearance", "Bar", "Desktop", "Displays", "Keyboard", "Mouse", "Notifications", "Sound", "Wallpaper", "Windows"]
+                                    delegate: Label {
+                                        required property string modelData
+                                        width: settingNames.width
+                                        height: LithicTokens.size.sectionIndexRow / 2
+                                        verticalAlignment: Text.AlignVCenter
+                                        text: modelData
+                                        typeRole: "body"
+                                    }
+                                }
+                            }
+                        }
+
+                        ScrollRail {
+                            anchors.top: pane.top
+                            anchors.bottom: pane.bottom
+                            anchors.right: parent.right
+                            anchors.rightMargin: LithicTokens.space.s1
+                            flickable: pane
+                            previewState: railState.modelData.state
+                        }
+                    }
+                }
             }
         }
     }

@@ -20,6 +20,7 @@ T.Control {
                     + (label.length > 0
                        ? Lithic.type.detail.lineHeight + LithicTokens.space.s1 : 0)
     activeFocusOnTab: true
+    opacity: enabled ? 1 : Lithic.disabledOpacity
     Accessible.role: Accessible.ComboBox
     Accessible.name: label
     Accessible.description: value

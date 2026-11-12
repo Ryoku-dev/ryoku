@@ -205,6 +205,9 @@ func (page *controlsPage) Layout(gtx layout.Context, th *theme.Theme) layout.Dim
 			page.rowsSection(th),
 			page.menuSection(th),
 			page.disclosureSection(th),
+			settingsSpecimens.settingRowSection(th),
+			settingsSpecimens.chordFieldSection(th),
+			settingsSpecimens.colorFieldSection(th),
 		)
 	})
 }

@@ -50,6 +50,7 @@
   --lithic-size-chart-tick: 4px;
   --lithic-size-control-press-cut-grow: 4px;
   --lithic-size-control-press-sink: 1px;
+  --lithic-size-design-preview-ratio: 1.6;
   --lithic-size-dialog-action-gap: 8px;
   --lithic-size-dialog-actions-gap: 34px;
   --lithic-size-dialog-confirm-field-gap: 21px;
@@ -313,6 +314,7 @@
   --lithic-motion-field: 320ms;
   --lithic-motion-focus-in: 120ms;
   --lithic-motion-focus-out: 100ms;
+  --lithic-motion-highlight: 1600ms;
   --lithic-motion-hover-in: 160ms;
   --lithic-motion-hover-out: 100ms;
   --lithic-motion-menu-in: 160ms;

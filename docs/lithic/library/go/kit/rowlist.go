@@ -177,9 +177,7 @@ func (list *lithicList) Layout(gtx layout.Context, th *theme.Theme, count int, e
 	}
 	top, height, ok := rowListThumb(dimensions.Size.Y, list.Position.Length, list.Position.First, list.Position.Offset, count, gtx.Dp(tokens.SizeScrollThumbMin))
 	if ok {
-		width := max(1, gtx.Dp(tokens.SizeScrollThumb))
-		x := dimensions.Size.X - width
-		FillCut(gtx.Ops, image.Rect(x, top, x+width, top+height), min(width/2, height/2), th.R.Vein)
+		drawScrollThumb(gtx, dimensions.Size.X, top, height, th.R.Vein)
 	}
 	return dimensions
 }
