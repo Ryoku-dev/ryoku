@@ -45,6 +45,17 @@ Item {
             activatable: false
             focusPolicy: Qt.StrongFocus
         }
+        SettingRow {
+            id: resettable
+            width: parent.width
+            title: "Brightness"
+            changed: true
+            onResetRequested: changed = false
+            TextField {
+                id: resetField
+                width: 120
+            }
+        }
     }
 
     SignalSpy {
@@ -112,6 +123,29 @@ Item {
         function test_aRowAPageMakesFocusableShowsTheRing() {
             focusedCard.forceActiveFocus(Qt.TabFocusReason);
             verify(ringShows(focusedCard), "keyboard focus on a row a page made focusable shows the ring");
+        }
+
+        function named(item, name) {
+            if (item.accessibleName === name)
+                return item;
+            for (let index = 0; index < item.children.length; ++index) {
+                const found = named(item.children[index], name);
+                if (found)
+                    return found;
+            }
+            return null;
+        }
+
+        function test_aResetFromTheKeysMovesFocusToTheRowControl() {
+            resettable.changed = true;
+            const reset = named(resettable, "Reset Brightness");
+            verify(reset !== null, "a changed row offers its reset");
+            reset.forceActiveFocus(Qt.TabFocusReason);
+            keyClick(Qt.Key_Return);
+            compare(resettable.changed, false, "Return on the reset resets the row");
+            verify(!reset.activeFocus, "the keys leave the hidden reset button");
+            verify(resetField.activeFocus, "the keys land on the row's own control");
+            compare(resetField.focusReason, Qt.TabFocusReason, "with the keyboard mark");
         }
     }
 }

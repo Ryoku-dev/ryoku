@@ -85,6 +85,27 @@ T.AbstractButton {
     }
     Component.onCompleted: if (highlighted) highlightedChanged()
 
+    // a reset hides its own button and a hidden item keeps the keys, so they move on to the row's control
+    onChangedChanged: if (!changed && resetPlaque.activeFocus) _leaveReset()
+    function _leaveReset() {
+        const reason = resetPlaque.visualFocus ? Qt.TabFocusReason : Qt.OtherFocusReason;
+        const next = resetPlaque.nextItemInFocusChain(true);
+        const target = next && _within(next, controlHost) ? next
+            : focusPolicy !== Qt.NoFocus ? root : next;
+        if (!target || target === resetPlaque)
+            return;
+        target.forceActiveFocus(reason);
+        if (target.focusReason !== undefined)
+            target.focusReason = reason;
+    }
+    function _within(item, ancestor) {
+        for (let it = item; it; it = it.parent) {
+            if (it === ancestor)
+                return true;
+        }
+        return false;
+    }
+
     NumberAnimation {
         id: spotFade
         target: root
