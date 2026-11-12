@@ -1,6 +1,12 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The shell daemon reports wired adapters and saved Ethernet profiles.** The
+  `network` topic gains `ethernet` (each adapter's state, speed, address and
+  profile in use) and `ethernetProfiles`, and new `network.ethernetConnect`,
+  `network.ethernetDisconnect` and `network.ethernetSetAutoconnect` act on
+  them; a wired call refuses a Wi-Fi or VPN profile and any adapter that is
+  not wired (`ipc/network_ethernet.go`).
 - **The shell daemon edits a saved connection's IPv4 settings.** New
   `network.ipGet` and `network.ipSet` read and write DHCP or a manual address,
   gateway and DNS; on a live connection the old settings come back after 20

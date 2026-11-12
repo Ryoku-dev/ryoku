@@ -106,6 +106,7 @@ type savedConn struct {
 	id          string
 	typ         string
 	ssid        string
+	iface       string // connection.interface-name; "" when any adapter may use it
 	autoconnect bool
 	// vpnService is vpn.service-type for a type "vpn" profile, e.g.
 	// "org.freedesktop.NetworkManager.openvpn"; empty for every other type.
@@ -262,6 +263,7 @@ func (d *daemon) startNetwork() {
 		return nil, n.wgDelete(a.Uuid)
 	})
 	n.registerIPCalls(d)
+	n.registerEthernetCalls(d)
 
 	n.publish()
 }
@@ -432,13 +434,15 @@ func (n *networkState) snapshotState() *networkSnapshot {
 
 	return &networkSnapshot{
 		frame: map[string]any{
-			"wifi":         wifi,
-			"wired":        wired,
-			"connection":   connection,
-			"accessPoints": aps,
-			"wireguard":    n.wireguardTunnels(saved, active),
-			"vpn":          vpnProfileFrames(saved, n.vpnLiveState(saved, active)),
-			"dns":          n.dnsFrame(),
+			"wifi":             wifi,
+			"wired":            wired,
+			"connection":       connection,
+			"accessPoints":     aps,
+			"wireguard":        n.wireguardTunnels(saved, active),
+			"vpn":              vpnProfileFrames(saved, n.vpnLiveState(saved, active)),
+			"dns":              n.dnsFrame(),
+			"ethernet":         ethernetFrames(n.wiredDevices()),
+			"ethernetProfiles": ethernetProfileFrames(saved, active),
 		},
 		aps: apsByPath,
 	}
@@ -599,6 +603,7 @@ func (n *networkState) savedConnections() []savedConn {
 			c.typ, _ = conn["type"].Value().(string)
 			c.id, _ = conn["id"].Value().(string)
 			c.uuid, _ = conn["uuid"].Value().(string)
+			c.iface, _ = conn["interface-name"].Value().(string)
 			// NetworkManager omits connection.autoconnect when it is on (its
 			// default), so an absent key means enabled; only an explicit false
 			// turns it off.
