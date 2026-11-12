@@ -1,8 +1,7 @@
 // Kairos: one dynamic island on the top edge, carrying the clock. The window
 // holds the open island whole, masks input to the island, and reserves only the
 // resting band, so tiled windows clear the pill without the surface ever
-// resizing during the morph. While the now-playing panel is pinned open the
-// window covers the screen and a click anywhere off the panel dismisses it.
+// resizing during the morph.
 
 pragma ComponentBehavior: Bound
 
@@ -11,6 +10,7 @@ import Quickshell
 import Quickshell.Wayland
 import shell.services
 import shell.modules.stage.frame
+import Ryoku.Ui.Singletons
 import "components" as C
 import "settings" as S
 
@@ -39,6 +39,17 @@ Item {
         if (scene.quickOpen)
             S.SettingsState.close();
     }
+    Connections {
+        target: S.SettingsState
+        function onQuickSettingsRequested() {
+            var name = scene.modelData ? String(scene.modelData.name) : "";
+            var focused = String(Wm.focusedOutput || "");
+            var mine = focused.length > 0 ? focused === name
+                : Quickshell.screens.length > 0 && String(Quickshell.screens[0].name) === name;
+            if (mine)
+                scene.toggleQuickSettings();
+        }
+    }
 
     PanelWindow {
         id: win
@@ -60,8 +71,8 @@ Item {
             ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
         WlrLayershell.namespace: "ryoku-bar"
 
-        // Rests as tall as the island's tallest state so the surface never
-        // resizes: the pill is what grows.
+        // as tall as the screen so the surface never resizes mid-morph, and so the shade's
+        // click-away is this one window: hyprland keeps the pointer on an exclusive layer
         anchors { top: true; left: true; right: true }
         implicitHeight: frameLayer.extent
 
@@ -70,10 +81,17 @@ Item {
 
         // The bar belongs to the desktop card while this monitor is being edited.
         mask: Region {
-            x: Math.round(win.inputRect.x)
-            y: Math.round(win.inputRect.y)
-            width: Math.round(win.inputRect.width)
-            height: Math.round(win.inputRect.height)
+            x: scene.quickOpen ? 0 : Math.round(win.inputRect.x)
+            y: scene.quickOpen ? 0 : Math.round(win.inputRect.y)
+            width: scene.quickOpen ? win.width : Math.round(win.inputRect.width)
+            height: scene.quickOpen ? win.height : Math.round(win.inputRect.height)
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            enabled: scene.quickOpen
+            acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+            onPressed: scene.quickOpen = false
         }
 
         StageFramedLayer {
@@ -81,7 +99,7 @@ Item {
             interactive: false
             screenName: win.screen?.name ?? ""
             edge: "top"
-            restThickness: island.reach
+            restThickness: win.screen?.height ?? 1080
             screenWidth: win.screen?.width ?? 1920
             screenHeight: win.screen?.height ?? 1080
 
@@ -94,6 +112,7 @@ Item {
                 x: Math.round(parent.width / 2 - island.clockRestCentre)
                 suspended: win.state ? win.state.launcherOpen : false
                 quickOpen: scene.quickOpen
+                screenHeight: win.screen?.height ?? 1080
                 onSettingsToggled: scene.toggleSettings()
                 onQuickSettingsToggled: scene.toggleQuickSettings()
                 onQuickCloseRequested: scene.quickOpen = false
@@ -105,27 +124,5 @@ Item {
         targetScreen: scene.modelData
         open: scene.settingsOpen
         onCloseRequested: S.SettingsState.close()
-    }
-
-    // A transparent full-output layer under the bar that exists only while quick
-    // settings is open, so a click anywhere off the island closes it. It is below
-    // the bar (Bottom < Top), so the island still takes its own clicks, and it is
-    // gone when closed, so the desktop is never blocked.
-    PanelWindow {
-        id: dismiss
-        screen: scene.modelData
-        visible: scene.quickOpen
-        color: "transparent"
-        anchors { top: true; bottom: true; left: true; right: true }
-        exclusionMode: ExclusionMode.Ignore
-        WlrLayershell.layer: WlrLayer.Bottom
-        WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
-        WlrLayershell.namespace: "ryoku-kairos-dismiss"
-
-        MouseArea {
-            anchors.fill: parent
-            acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
-            onPressed: scene.quickOpen = false
-        }
     }
 }

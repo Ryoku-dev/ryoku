@@ -4,28 +4,20 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import shell.services
-import shell.barkit as Pill
 import Ryoku.Ui.Singletons
-import "../kit" as K
+import "../../kit"
 
+// scale and resolution go through ryoku-monitor, which only the hyprland provider (outputMirror) has
 Column {
     id: page
 
     property var host
 
-    spacing: 12
+    spacing: 8
 
-    // This page drives the displays through ryoku-monitor, the Hyprland
-    // provider's engine; outputMirror is the capability only that provider
-    // reports, so the surface hides itself where it would be dead rather than
-    // offering controls that cannot apply.
-    visible: Wm.caps.outputMirror === true
-
-    readonly property color fill: Theme.shadow
-    readonly property color ink: Theme.ink(fill, 7)
-    readonly property color accent: Theme.primary
-    function dim(a) { return Qt.rgba(page.ink.r, page.ink.g, page.ink.b, a) }
-
+    readonly property bool engine: Wm.caps.outputMirror === true
+    // the screens stand in until ryoku-monitor answers, and stay if it never does
+    property bool fromEngine: false
     property var mons: []
     property bool loading: true
     property bool failed: false
@@ -37,6 +29,8 @@ Column {
     readonly property int ddcCacheMs: 10000
 
     readonly property var scaleTargets: [1, 1.25, 1.5, 1.75, 2]
+    readonly property int coolK: 6500
+    readonly property int warmK: 2500
 
     function monitorCmd(args) {
         var script = 'if command -v ryoku-monitor >/dev/null 2>&1; then exec ryoku-monitor "$@"; '
@@ -68,13 +62,21 @@ Column {
     function modeLabel(mode) {
         var r = /^(\d+)x(\d+)@([\d.]+)Hz$/.exec(String(mode || ""));
         if (!r) return String(mode || "");
-        return r[1] + "\u00D7" + r[2] + "  @  " + Math.round(parseFloat(r[3])) + " Hz";
+        return I18n.tr("%1 at %2 Hz").replace("%1", r[1] + "\u00D7" + r[2]).replace("%2", Math.round(parseFloat(r[3])));
+    }
+    function describe(m) {
+        if (page.fromEngine) return page.modeLabel(page.modeOf(m));
+        if (m.model) return m.model;
+        return page.isInternal(m.name) ? I18n.tr("Built-in display") : I18n.tr("External display");
     }
     function ddcBusFor(name) {
         var mons = Devices.ddcMonitors || [];
         for (var i = 0; i < mons.length; i++)
             if (mons[i] && mons[i].label === name) return mons[i].bus;
         return "";
+    }
+    function canDim(m) {
+        return page.isInternal(m.name) ? Devices.backlightAvailable : page.ddcBusFor(m.name) !== "";
     }
     function cacheDdc(bus, pct) {
         if (!page.host || bus === "")
@@ -92,19 +94,43 @@ Column {
         page.host.monitorSnapshot = monitors;
         page.host.monitorSnapshotValid = true;
     }
+    function screenSnapshot() {
+        var out = [];
+        var list = Quickshell.screens;
+        for (var i = 0; i < list.length; i++)
+            out.push({ name: list[i].name, model: list[i].model || "" });
+        return out;
+    }
+    function useScreens() {
+        page.fromEngine = false;
+        page.mons = page.screenSnapshot();
+        page.queueDdcReads();
+    }
+    function readMonitors() {
+        if (listProc.running) return;
+        listProc.command = page.monitorCmd(["list"]);
+        listProc.running = true;
+    }
     function initialize() {
         if (page.initialized || !page.host)
             return;
         page.initialized = true;
+        page.failed = false;
+        if (!page.engine) {
+            page.loading = false;
+            page.useScreens();
+            return;
+        }
         if (page.host.monitorSnapshotValid) {
+            page.fromEngine = true;
             page.mons = page.host.monitorSnapshot || [];
             page.loading = false;
-            page.failed = false;
             page.queueDdcReads();
             return;
         }
-        listProc.command = page.monitorCmd(["list"]);
-        listProc.running = true;
+        page.loading = true;
+        page.useScreens();
+        page.readMonitors();
     }
     function brightOf(m) {
         if (page.isInternal(m.name))
@@ -192,6 +218,12 @@ Column {
         page.apply();
         page.expanded = "";
     }
+    function warmthOf(kelvin) {
+        return Math.max(0, Math.min(1, (page.coolK - Number(kelvin || 4000)) / (page.coolK - page.warmK)));
+    }
+    function kelvinAt(warmth) {
+        return Math.round((page.coolK - Math.max(0, Math.min(1, warmth)) * (page.coolK - page.warmK)) / 50) * 50;
+    }
 
     Process {
         id: listProc
@@ -201,6 +233,7 @@ Column {
             var parsed = null;
             try { parsed = JSON.parse(listOut.text); } catch (e) { parsed = null; }
             if (parsed instanceof Array) {
+                page.fromEngine = true;
                 page.mons = parsed;
                 page.cacheMonitors(parsed);
                 page.failed = false;
@@ -232,272 +265,296 @@ Column {
     Timer {
         id: refreshTimer
         interval: 900
-        onTriggered: if (!listProc.running) {
-            listProc.command = page.monitorCmd(["list"]);
-            listProc.running = true;
-        }
+        onTriggered: page.readMonitors()
     }
     Connections {
         target: Devices
         function onDdcMonitorsChanged() { Qt.callLater(page.queueDdcReads); }
     }
-
-    onHostChanged: page.initialize()
-    Component.onCompleted: page.initialize()
-
-    Item {
-        width: parent.width
-        height: 36
-
-        K.QsBack {
-            id: back
-            anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-            onClicked: page.host.back()
-        }
-        Text {
-            anchors { left: back.right; leftMargin: 12; verticalCenter: parent.verticalCenter }
-            text: I18n.tr("Display")
-            color: page.ink
-            font.family: Theme.fontPrimary
-            font.pixelSize: 18
-            font.weight: Font.DemiBold
+    Connections {
+        target: Quickshell
+        enabled: !page.fromEngine
+        function onScreensChanged() {
+            page.mons = page.screenSnapshot();
+            page.queueDdcReads();
         }
     }
 
-    Text {
-        visible: page.loading || page.failed
-        text: page.failed ? I18n.tr("Could not read the displays") : I18n.tr("Reading displays\u2026")
-        color: page.dim(0.5)
-        font.family: Theme.fontPrimary
-        font.pixelSize: 13
+    onHostChanged: page.initialize()
+    onEngineChanged: {
+        page.initialized = false;
+        page.initialize();
+    }
+    Component.onCompleted: page.initialize()
+
+    TopBar {
+        width: parent.width
+        title: I18n.tr("Display")
+        onBack: page.host.back()
+    }
+
+    Column {
+        width: parent.width
+        visible: page.engine && (page.loading || page.failed)
+        topPadding: 20
+        bottomPadding: 12
+        spacing: 12
+
+        Label {
+            width: parent.width
+            horizontalAlignment: Text.AlignHCenter
+            role: "body"
+            color: Md.inkMuted
+            wrapMode: Text.Wrap
+            elide: Text.ElideNone
+            text: page.failed ? I18n.tr("Could not read the display layout, so scale and resolution are missing. Try again in a moment.")
+                : I18n.tr("Reading the display layout\u2026")
+        }
+        Button {
+            anchors.horizontalCenter: parent.horizontalCenter
+            visible: page.failed
+            variant: "tonal"
+            icon: "refresh"
+            text: I18n.tr("Try again")
+            onClicked: {
+                page.loading = true;
+                page.failed = false;
+                page.readMonitors();
+            }
+        }
+    }
+
+    SectionLabel {
+        visible: page.mons.length > 0
+        text: page.mons.length > 1 ? I18n.tr("Displays") : page.fromEngine ? I18n.tr("Screen") : I18n.tr("Brightness")
     }
 
     Repeater {
         model: page.mons
-        delegate: Rectangle {
-            id: monCard
+        delegate: Column {
+            id: mon
             required property var modelData
+            readonly property bool dims: page.canDim(mon.modelData)
+            readonly property bool open: page.expanded === mon.modelData.name
+            readonly property var modes: page.fromEngine ? (mon.modelData.modes || []) : []
             width: parent.width
-            radius: 20
-            color: page.dim(0.06)
-            height: cardColumn.implicitHeight + 28
+            spacing: Md.seam
 
-            Column {
-                id: cardColumn
-                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 14 }
-                spacing: 10
+            ListItem {
+                width: parent.width
+                position: mon.dims || page.fromEngine ? "first" : "only"
+                clickable: false
+                icon: page.isInternal(mon.modelData.name) ? "laptop" : "monitor"
+                headline: mon.modelData.name
+                supporting: mon.dims ? page.describe(mon.modelData)
+                    : I18n.tr("Set its brightness with the buttons on the display")
+                wrapSupporting: !mon.dims
 
-                Item {
-                    width: parent.width
-                    height: 42
-
-                    Rectangle {
-                        id: monDisc
-                        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                        width: 38
-                        height: 38
-                        radius: 19
-                        color: page.dim(0.12)
-                        Pill.GlyphIcon {
-                            anchors.centerIn: parent
-                            width: 20
-                            height: 20
-                            name: "monitor"
-                            color: page.dim(0.85)
-                        }
-                    }
-                    Column {
-                        anchors {
-                            left: monDisc.right; leftMargin: 10
-                            right: monFocus.left; rightMargin: 8
-                            verticalCenter: parent.verticalCenter
-                        }
-                        spacing: 1
-                        Text {
-                            width: parent.width
-                            text: monCard.modelData.name
-                            color: page.ink
-                            font.family: Theme.fontPrimary
-                            font.pixelSize: 15
-                            font.weight: Font.DemiBold
-                            elide: Text.ElideRight
-                        }
-                        Text {
-                            width: parent.width
-                            text: monCard.modelData.width + "\u00D7" + monCard.modelData.height
-                                + "  \u00B7  " + Math.round(monCard.modelData.refresh) + " Hz"
-                                + "  \u00B7  " + page.fmtScale(monCard.modelData.scale)
-                            color: page.dim(0.6)
-                            font.family: Theme.fontPrimary
-                            font.pixelSize: 11
-                            elide: Text.ElideRight
-                        }
-                    }
-                    Text {
-                        id: monFocus
-                        visible: monCard.modelData.focused === true
-                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                        text: I18n.tr("focused")
-                        color: page.accent
-                        font.family: Theme.fontPrimary
-                        font.pixelSize: 10
-                        font.weight: Font.DemiBold
-                    }
+                Label {
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: page.fromEngine && mon.modelData.focused === true && page.mons.length > 1
+                    role: "caption"
+                    color: Md.accent
+                    text: I18n.tr("Focused")
                 }
+            }
 
-                K.QsFader {
-                    width: parent.width
-                    glyph: "sun"
-                    value: page.brightOf(monCard.modelData)
-                    onMoved: (v) => page.setBright(monCard.modelData, v)
+            Segment {
+                visible: mon.dims
+                position: page.fromEngine ? "middle" : "last"
+                height: 72
+
+                Slider {
+                    id: bright
+                    anchors {
+                        left: parent.left; leftMargin: 14
+                        right: brightText.left; rightMargin: 12
+                        verticalCenter: parent.verticalCenter
+                    }
+                    icon: "light_mode"
+                    value: page.brightOf(mon.modelData)
+                    // ddc writes are slow, so an external display only takes where the drag lands
+                    onMoved: v => { if (page.isInternal(mon.modelData.name)) page.setBright(mon.modelData, v); }
+                    onCommitted: v => page.setBright(mon.modelData, v)
                 }
-
-                Row {
-                    spacing: 8
-
-                    Repeater {
-                        model: page.chipsFor(monCard.modelData)
-                        delegate: K.QsChip {
-                            required property var modelData
-                            readonly property var mon: monCard.modelData
-                            text: page.fmtScale(Number(modelData))
-                            active: Math.abs(Number(modelData) - mon.scale) < 0.005
-                            onClicked: page.setScale(mon.name, Number(modelData))
-                        }
-                    }
+                Label {
+                    id: brightText
+                    anchors { right: parent.right; rightMargin: 18; verticalCenter: parent.verticalCenter }
+                    width: 40
+                    horizontalAlignment: Text.AlignRight
+                    role: "label"
+                    font.family: Md.mono
+                    color: Md.inkMuted
+                    text: Math.round((bright.dragging ? bright.live : bright.value) * 100) + "%"
                 }
+            }
 
-                Item {
-                    id: resRow
-                    width: parent.width
-                    height: 34
-
-                    Text {
-                        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                        text: I18n.tr("Resolution")
-                        color: page.dim(0.6)
-                        font.family: Theme.fontPrimary
-                        font.pixelSize: 12
-                    }
-                    Row {
-                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                        spacing: 2
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: page.modeLabel(page.modeOf(monCard.modelData))
-                            color: page.dim(0.85)
-                            font.family: Theme.fontPrimary
-                            font.pixelSize: 12
-                        }
-                        Pill.MaterialIcon {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: page.expanded === monCard.modelData.name ? "expand_less" : "chevron_right"
-                            color: page.dim(0.6)
-                            font.pixelSize: 19
-                        }
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: page.expanded = page.expanded === monCard.modelData.name
-                            ? "" : monCard.modelData.name
-                    }
-                }
+            Segment {
+                visible: page.fromEngine
+                position: "middle"
+                height: scaleColumn.implicitHeight + 28
 
                 Column {
-                    visible: page.expanded === monCard.modelData.name
-                    width: parent.width
-                    spacing: 4
+                    id: scaleColumn
+                    anchors { left: parent.left; right: parent.right; top: parent.top; margins: 14; leftMargin: 18 }
+                    spacing: 10
 
-                    Repeater {
-                        model: monCard.modelData.modes || []
-                        delegate: Rectangle {
-                            id: modeRow
-                            required property var modelData
-                            readonly property var mon: monCard.modelData
-                            readonly property bool current: String(modelData) === page.modeOf(mon)
-                            width: parent.width
-                            height: 34
-                            radius: 12
-                            color: modeRow.current
-                                ? Qt.rgba(page.accent.r, page.accent.g, page.accent.b, 0.16)
-                                : (modeHover.hovered ? page.dim(0.10) : "transparent")
+                    Label {
+                        role: "title"
+                        font.pixelSize: 15
+                        text: I18n.tr("Scale")
+                    }
+                    Flow {
+                        width: parent.width
+                        spacing: 8
 
-                            Text {
-                                anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
-                                text: page.modeLabel(String(modeRow.modelData))
-                                color: modeRow.current ? page.ink : page.dim(0.75)
-                                font.family: Theme.fontPrimary
-                                font.pixelSize: 12
-                            }
-                            Pill.MaterialIcon {
-                                visible: modeRow.current
-                                anchors { right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
-                                text: "check"
-                                color: page.accent
-                                font.pixelSize: 17
-                            }
-                            HoverHandler { id: modeHover }
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: page.setMode(modeRow.mon.name, String(modeRow.modelData))
+                        Repeater {
+                            model: page.fromEngine ? page.chipsFor(mon.modelData) : []
+                            delegate: Chip {
+                                required property var modelData
+                                text: page.fmtScale(Number(modelData))
+                                selected: Math.abs(Number(modelData) - mon.modelData.scale) < 0.005
+                                onClicked: page.setScale(mon.modelData.name, Number(modelData))
                             }
                         }
+                    }
+                }
+            }
+
+            ListItem {
+                width: parent.width
+                visible: page.fromEngine
+                position: mon.open ? "middle" : "last"
+                headline: I18n.tr("Resolution")
+                supporting: page.fromEngine ? page.modeLabel(page.modeOf(mon.modelData)) : ""
+                onClicked: page.expanded = mon.open ? "" : mon.modelData.name
+
+                Icon {
+                    anchors.verticalCenter: parent.verticalCenter
+                    name: mon.open ? "expand_less" : "expand_more"
+                    size: 22
+                    color: Md.inkMuted
+                }
+            }
+
+            Repeater {
+                model: mon.open ? mon.modes : []
+                delegate: ListItem {
+                    id: modeRow
+                    required property var modelData
+                    required property int index
+                    readonly property bool current: String(modeRow.modelData) === page.modeOf(mon.modelData)
+                    width: parent.width
+                    position: modeRow.index === mon.modes.length - 1 ? "last" : "middle"
+                    selected: modeRow.current
+                    headline: page.modeLabel(String(modeRow.modelData))
+                    onClicked: page.setMode(mon.modelData.name, String(modeRow.modelData))
+
+                    Icon {
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: modeRow.current
+                        name: "check"
+                        size: 20
+                        color: modeRow.text
                     }
                 }
             }
         }
     }
 
-    Rectangle {
-        visible: page.mons.length > 0
+    Column {
         width: parent.width
-        height: 64
-        radius: 20
-        color: page.dim(0.06)
+        topPadding: 8
+        spacing: Md.seam
 
-        Rectangle {
-            id: nightDisc
-            anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
-            width: 38
-            height: 38
-            radius: 19
-            color: page.dim(0.12)
-            Pill.GlyphIcon {
-                anchors.centerIn: parent
-                width: 19
-                height: 19
-                name: "moon"
-                color: page.dim(0.85)
+        ListItem {
+            width: parent.width
+            position: "first"
+            selected: Nightlight.on
+            icon: "nightlight"
+            headline: I18n.tr("Night light")
+            supporting: Nightlight.on ? I18n.tr("On")
+                : Nightlight.schedule === "sun" ? I18n.tr("Turns on at sunset")
+                : Nightlight.schedule === "clock" ? I18n.tr("Turns on at the hours you set")
+                : I18n.tr("Off")
+            onClicked: Nightlight.setEnabled(!Nightlight.on, Nightlight.temperature)
+
+            Switch {
+                anchors.verticalCenter: parent.verticalCenter
+                checked: Nightlight.on
+                onToggled: v => Nightlight.setEnabled(v, Nightlight.temperature)
             }
         }
-        Column {
-            anchors {
-                left: nightDisc.right; leftMargin: 10
-                right: nightSwitch.left; rightMargin: 10
-                verticalCenter: parent.verticalCenter
+
+        Segment {
+            position: "middle"
+            height: 72
+
+            Slider {
+                id: warmth
+                anchors {
+                    left: parent.left; leftMargin: 14
+                    right: warmthText.left; rightMargin: 12
+                    verticalCenter: parent.verticalCenter
+                }
+                icon: "thermostat"
+                step: 0.025
+                value: page.warmthOf(Nightlight.temperature)
+                // every daemon call reruns the backend
+                onCommitted: v => Nightlight.setTemperature(page.kelvinAt(v))
             }
-            spacing: 1
-            Text {
-                text: I18n.tr("Night Light")
-                color: page.ink
-                font.family: Theme.fontPrimary
-                font.pixelSize: 14
-                font.weight: Font.DemiBold
-            }
-            Text {
-                text: Toggles.nightOn ? I18n.tr("On") : I18n.tr("Off")
-                color: page.dim(0.6)
-                font.family: Theme.fontPrimary
-                font.pixelSize: 11
+            Label {
+                id: warmthText
+                anchors { right: parent.right; rightMargin: 18; verticalCenter: parent.verticalCenter }
+                width: 56
+                horizontalAlignment: Text.AlignRight
+                role: "label"
+                font.family: Md.mono
+                color: Md.inkMuted
+                text: (warmth.dragging ? page.kelvinAt(warmth.live) : Nightlight.temperature) + " K"
             }
         }
-        K.QsSwitch {
-            id: nightSwitch
-            anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
-            value: Toggles.nightOn
-            onToggled: Toggles.toggleNight()
+
+        Segment {
+            position: "last"
+            height: scheduleColumn.implicitHeight + 28
+
+            Column {
+                id: scheduleColumn
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 14; leftMargin: 18 }
+                spacing: 10
+
+                Label {
+                    role: "title"
+                    font.pixelSize: 15
+                    text: I18n.tr("Schedule")
+                }
+                Flow {
+                    width: parent.width
+                    spacing: 8
+
+                    Chip {
+                        text: I18n.tr("Manual")
+                        selected: Nightlight.schedule === "off"
+                        onClicked: Nightlight.setSchedule(false)
+                    }
+                    Chip {
+                        icon: "wb_twilight"
+                        text: I18n.tr("Sunset to sunrise")
+                        selected: Nightlight.schedule === "sun"
+                        onClicked: Nightlight.setSchedule(true)
+                    }
+                    // custom hours are set in the hub
+                    Chip {
+                        visible: Nightlight.schedule === "clock"
+                        icon: "schedule"
+                        text: I18n.tr("Custom hours")
+                        selected: true
+                    }
+                }
+            }
         }
     }
+
+    Item { width: 1; height: 4 }
 }

@@ -1,0 +1,20 @@
+singleton Md 1.0 Md.qml
+Button 1.0 Button.qml
+Chip 1.0 Chip.qml
+Dots 1.0 Dots.qml
+EmptyState 1.0 EmptyState.qml
+Icon 1.0 Icon.qml
+IconButton 1.0 IconButton.qml
+Label 1.0 Label.qml
+ListItem 1.0 ListItem.qml
+Slider 1.0 Slider.qml
+StateLayer 1.0 StateLayer.qml
+SectionLabel 1.0 SectionLabel.qml
+Segment 1.0 Segment.qml
+Spring 1.0 Spring.qml
+SpringValue 1.0 SpringValue.qml
+Switch 1.0 Switch.qml
+TextField 1.0 TextField.qml
+Tile 1.0 Tile.qml
+TopBar 1.0 TopBar.qml
+Wavy 1.0 Wavy.qml

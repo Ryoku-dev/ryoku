@@ -1674,6 +1674,33 @@ func TestBarStyleDefaultsToOrpheus(t *testing.T) {
 	}
 }
 
+func TestMigrateRetiresKairosKeys(t *testing.T) {
+	out, changed, err := migrateDockStore([]byte(`{"kairos":{"dateWheel":false,"musicPeek":120,"scale":1.1},"dock":{"pinned":["kitty"]}}`))
+	if err != nil || !changed {
+		t.Fatalf("migrateDockStore: changed=%v err=%v", changed, err)
+	}
+	var config map[string]any
+	if err := json.Unmarshal(out, &config); err != nil {
+		t.Fatal(err)
+	}
+	kairos := config["kairos"].(map[string]any)
+	if _, ok := kairos["dateWheel"]; ok {
+		t.Fatalf("kairos.dateWheel survived: %v", kairos)
+	}
+	if _, ok := kairos["musicPeek"]; ok {
+		t.Fatalf("kairos.musicPeek survived: %v", kairos)
+	}
+	if kairos["scale"] != 1.1 {
+		t.Fatalf("kairos.scale changed: %v", kairos)
+	}
+	if pins := config["dock"].(map[string]any)["pinned"].([]any); len(pins) != 1 || pins[0] != "kitty" {
+		t.Fatalf("dock pins changed: %v", pins)
+	}
+	if _, again, err := migrateDockStore(out); err != nil || again {
+		t.Fatalf("migration is not idempotent: changed=%v err=%v", again, err)
+	}
+}
+
 func TestMigrateAudioBoost(t *testing.T) {
 	out, changed, err := migrateDockStore([]byte(`{"qsbar":{"audioBoost":true,"barGapTop":3},"audio":{}}`))
 	if err != nil || !changed {

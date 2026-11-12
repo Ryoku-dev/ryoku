@@ -1,9 +1,9 @@
-// Kairos: the system tray, folded into the island's own hover face instead of
-// a separate window. A caret rides in the sliver already left under the date
-// wheel; a click grows the pill by exactly the row (or menu) beneath it, so
-// the tray reads as one more thing the island opens into, not a bolt-on panel.
-// Right-click on an icon swaps the row for that app's own dbusmenu tree, read
-// live off the tray daemon -- still inside the same pill.
+// Kairos: the system tray, folded into the island's hover face instead of a
+// separate window. A caret rides in the sliver under the compact tiles; a click
+// grows the pill by exactly the row (or menu) beneath it, so the tray reads as
+// one more thing the island opens into, not a bolt-on panel. Right-click on an
+// icon swaps the row for that app's own dbusmenu tree, read live off the tray
+// daemon, still inside the same pill.
 
 pragma ComponentBehavior: Bound
 
@@ -114,9 +114,7 @@ Item {
     }
 
     // ── sizing ───────────────────────────────────────────────────────────────
-    // caretBand is the sliver already reserved beneath the date wheel at rest
-    // (see Island's hoverHeight/reach): the caret alone must fit inside it so
-    // the pill never grows just to show that a tray exists.
+    // the caret alone fits the sliver under the compact tiles, so a tray existing never grows the pill
     readonly property real caretBand: 14
     readonly property real rowH: 26
     readonly property real topPad: 6
@@ -142,15 +140,9 @@ Item {
         ? flyout.topPad + flyout.headerH + flyout.headerGap
             + flyout.menuViewportHeight + flyout.bottomPad
         : 0
-    // What Island must grow the pill by, under the caret band, for the current
-    // state. Capped so callers can reserve a fixed maximum once (see
-    // Island.trayMaxExtra) instead of resizing the surface live.
+    // what Island grows the pill by under the caret band
     readonly property real extraHeight: flyout.menuService !== "" ? flyout.menuExtra
         : (flyout.open ? flyout.listExtra : 0)
-    // The tallest this flyout can ever add, derived from the same constants so
-    // the island's fixed reserve cannot drift from it.
-    readonly property real maxExtra: flyout.topPad + flyout.headerH + flyout.headerGap
-        + flyout.maxVisibleRows * flyout.rowH + flyout.bottomPad
 
     implicitHeight: flyout.caretBand + flyout.extraHeight
 

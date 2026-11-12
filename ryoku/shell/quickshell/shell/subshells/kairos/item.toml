@@ -1,11 +1,11 @@
 id = "kairos"
 name = "Kairos"
-version = "1.0.0"
-summary = "A clock island that grows into controls and tools."
-description = "Kairos keeps a compact clock island at rest, then expands into music, quick settings, and a matching application launcher."
+version = "2.0.0"
+summary = "A clock island that opens into Android-style quick settings."
+description = "Kairos keeps a compact clock island at rest that shows volume and brightness as you change them, then opens into music, Android-style quick settings with tiles, notifications and a power menu, and a matching app drawer."
 license = "GPL-3.0-or-later"
 authors = ["Ryoku Team"]
-tags = ["island", "clock", "launcher"]
+tags = ["island", "clock", "launcher", "android", "material"]
 accent = "#f1b85b"
 surface = "#14120f"
 preview = "preview.webp"
@@ -14,8 +14,12 @@ official = true
 [shell]
 entry = "qml/Scene.qml"
 frameHost = "each"
-owns = []
+owns = ["osd", "notifications"]
 modules = []
+
+[shell.ownsSetting]
+osd = "kairos.islandOsd"
+notifications = "kairos.islandNotifications"
 
 [shell.settings]
 ipc = "kairos"
@@ -26,6 +30,6 @@ hubEditor = ""
 [[provides.launcher]]
 id = "kairos"
 name = "Kairos"
-description = "The Kairos clock island expands into app search."
+description = "The Kairos clock island opens into an Android-style app drawer."
 entry = "qml/launcher/Main.qml"
 preview = "qml/launcher/Preview.qml"

@@ -21,14 +21,15 @@ Singleton {
                 category: "subshells",
                 source: "shipped",
                 name: I18n.tr("Kairos"),
-                version: "1.0.0",
-                summary: I18n.tr("A clock island that grows into controls and tools."),
+                version: "2.0.0",
+                summary: I18n.tr("A clock island that opens into Android-style quick settings."),
                 dir: "subshells/kairos",
                 entry: "subshells/kairos/qml/Scene.qml",
                 inUse: false,
                 prepared: true,
                 frameHost: "each",
-                owns: [],
+                owns: ["osd", "notifications"],
+                ownsSetting: { osd: "kairos.islandOsd", notifications: "kairos.islandNotifications" },
                 modules: [],
                 settings: { ipc: "kairos", call: "settings", args: [], hubEditor: "" },
                 provides: {
@@ -36,7 +37,7 @@ Singleton {
                     launcher: [{
                         id: "kairos",
                         name: I18n.tr("Kairos"),
-                        description: I18n.tr("The Kairos clock island expands into app search."),
+                        description: I18n.tr("The Kairos clock island opens into an Android-style app drawer."),
                         entry: "subshells/kairos/qml/launcher/Main.qml",
                         preview: "subshells/kairos/qml/launcher/Preview.qml"
                     }],

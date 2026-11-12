@@ -1989,6 +1989,14 @@ func migrateDockStore(raw []byte) ([]byte, bool, error) {
 		}
 	}
 
+	for _, path := range retiredShellPaths {
+		removed, err := deleteJSONPath(top, path)
+		if err != nil {
+			return nil, false, err
+		}
+		changed = changed || removed
+	}
+
 	if !changed {
 		return nil, false, nil
 	}
@@ -2002,6 +2010,12 @@ func migrateDockStore(raw []byte) ([]byte, bool, error) {
 		return nil, false, err
 	}
 	return append(out, '\n'), true, nil
+}
+
+// kairos dropped its date wheel for the android glance face and its music peek for hover-to-open
+var retiredShellPaths = [][]string{
+	{"kairos", "dateWheel"},
+	{"kairos", "musicPeek"},
 }
 
 var retiredStageEditorPaths = [][]string{

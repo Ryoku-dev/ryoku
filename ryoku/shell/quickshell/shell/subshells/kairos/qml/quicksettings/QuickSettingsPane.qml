@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import shell.services
 import Ryoku.Ui.Singletons
+import "../kit"
 
 // The quick-settings face drawn inside the island's clock pill. The island owns
 // the growth; this owns the pages and the push between them: two scrollers, only
@@ -23,6 +24,8 @@ Item {
     property var monitorSnapshot: []
     property bool monitorSnapshotValid: false
 
+    readonly property real contentHeight: (pane.frontIsA ? loaderA : loaderB).implicitHeight
+
     function holdDevices(held) {
         if (pane.devicesHeld === held)
             return;
@@ -31,6 +34,8 @@ Item {
             Devices.startProbes(pane);
         else
             Devices.stopProbes(pane);
+        PowerProfiles.setActive(pane, held);
+        Tailscale.setActive(pane, held);
     }
 
     function urlFor(id) {
@@ -38,15 +43,20 @@ Item {
         if (id === "bluetooth") return "pages/BluetoothPage.qml";
         if (id === "display") return "pages/DisplayPage.qml";
         if (id === "sound") return "pages/SoundPage.qml";
+        if (id === "edit") return "pages/EditPage.qml";
+        if (id === "power") return "pages/PowerPage.qml";
         return "pages/HomePage.qml";
     }
     function go(id) {
         if (pane.page === id) return;
+        // the old page's focused field dies with it, and escape has to keep reaching the island
+        pane.forceActiveFocus();
         pane.dir = (id === "home") ? -1 : 1;
         pane.page = id;
     }
     function back() { pane.go("home"); }
     function close() { if (pane.host) pane.host.quickCloseRequested(); }
+    function openIslandSettings() { if (pane.host) pane.host.settingsToggled(); }
 
     function reset() {
         pane.page = "home";
@@ -77,7 +87,11 @@ Item {
         if (pane.visible)
             pane.holdDevices(true);
     }
-    Component.onDestruction: Devices.stopProbes(pane)
+    Component.onDestruction: {
+        Devices.stopProbes(pane);
+        PowerProfiles.setActive(pane, false);
+        Tailscale.setActive(pane, false);
+    }
 
     Timer {
         id: releaseProbes
@@ -143,12 +157,12 @@ Item {
         property real slide: 0
         opacity: 1
         Behavior on opacity {
-            enabled: !Motion.reduce
-            NumberAnimation { duration: Motion.morph; easing.type: Motion.easeStandard }
+            enabled: !Md.still
+            NumberAnimation { duration: Md.standard; easing.type: Easing.OutCubic }
         }
         Behavior on slide {
-            enabled: !Motion.reduce
-            NumberAnimation { duration: Motion.morph; easing.type: Motion.easeStandard }
+            enabled: !Md.still
+            Spring {}
         }
         Loader {
             id: loaderA
@@ -172,12 +186,12 @@ Item {
         opacity: 0
         visible: false
         Behavior on opacity {
-            enabled: !Motion.reduce
-            NumberAnimation { duration: Motion.morph; easing.type: Motion.easeStandard }
+            enabled: !Md.still
+            NumberAnimation { duration: Md.standard; easing.type: Easing.OutCubic }
         }
         Behavior on slide {
-            enabled: !Motion.reduce
-            NumberAnimation { duration: Motion.morph; easing.type: Motion.easeStandard }
+            enabled: !Md.still
+            Spring {}
         }
         Loader {
             id: loaderB

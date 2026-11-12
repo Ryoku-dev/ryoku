@@ -1,3 +1,15 @@
 singleton SettingsState 1.0 SettingsState.qml
 IslandSettings 1.0 IslandSettings.qml
 SettingsWindow 1.0 SettingsWindow.qml
+SettingsNav 1.0 SettingsNav.qml
+DetailPane 1.0 DetailPane.qml
+SearchBar 1.0 SearchBar.qml
+CategoryRow 1.0 CategoryRow.qml
+MainSwitch 1.0 MainSwitch.qml
+SliderItem 1.0 SliderItem.qml
+ResetDialog 1.0 ResetDialog.qml
+IslandPage 1.0 IslandPage.qml
+ClockPage 1.0 ClockPage.qml
+MusicPage 1.0 MusicPage.qml
+WeatherPage 1.0 WeatherPage.qml
+TilesPage 1.0 TilesPage.qml

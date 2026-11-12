@@ -6,14 +6,10 @@ import Quickshell
 import Quickshell.Wayland
 import shell.services
 import Ryoku.Ui.Singletons
-import shell.barkit as Pill
-import "../quicksettings/kit" as K
+import "../kit"
 import "." as S
 
-// Kairos' own settings, opened from the island gear. It belongs to the bar
-// style: it is instantiated by the kairos Scene, so it exists only while kairos
-// is the active bar, and only the gear opens it. Chrome follows the island --
-// the same near-black fill, hairline rim, accent and mono readouts.
+// android's large-screen settings: categories with search on the left, the chosen page on the right
 PanelWindow {
     id: root
 
@@ -21,45 +17,107 @@ PanelWindow {
     property bool open: false
     signal closeRequested()
 
-    readonly property color fill: Theme.shadow
-    readonly property color ink: Theme.ink(fill, 7)
-    readonly property color accent: Theme.primary
-    function dim(a) { return Qt.rgba(root.ink.r, root.ink.g, root.ink.b, a) }
-
-    readonly property var routes: [
-        { id: "island", icon: "crop_16_9", label: I18n.tr("Island"),
-          desc: I18n.tr("How the clock island looks and where it floats.") },
-        { id: "clock", icon: "schedule", label: I18n.tr("Clock"),
-          desc: I18n.tr("The time the island shows and the date wheel it opens over.") },
-        { id: "music", icon: "music_note", label: I18n.tr("Music"),
-          desc: I18n.tr("The now-playing bubble that grows beside the island.") },
-        { id: "weather", icon: "thermostat", label: I18n.tr("Weather"),
-          desc: I18n.tr("The temperature unit on the island's weather card.") }
-    ]
     property string route: "island"
-    function routeDef(id) {
-        for (var i = 0; i < root.routes.length; i++)
-            if (root.routes[i].id === id) return root.routes[i];
-        return root.routes[0];
+    property string routeKey: ""
+    property bool confirmReset: false
+    // the card only starts to appear once the window has put out its first frame, so the opening never
+    // spends its first steps waiting on the compositor
+    property bool shown: false
+
+    function mix(a, b, amount) { return Theme.blend(Md.alpha(a, amount), b) }
+    function swatch(c) { return Theme.inkOn(Md.base, c, 7) }
+
+    readonly property bool stockTiles: JSON.stringify(island.tiles) === JSON.stringify(island.defaultTiles)
+    readonly property var categories: [
+        { id: "island", group: 0, desc: I18n.tr("How big the clock island is, where it floats and what it shows."), icon: "crop_16_9", title: I18n.tr("Island"), hue: root.swatch(Theme.primary),
+          summary: I18n.tr("%1%, %2 px from the top").arg(Math.round(island.scale * 100)).arg(Math.round(island.topGap)) },
+        { id: "clock", group: 0, desc: I18n.tr("The time the island reads."), icon: "schedule", title: I18n.tr("Clock"), hue: root.swatch(Theme.secondary),
+          summary: I18n.tr("%1, %2").arg(island.clock12h ? I18n.tr("12-hour") : I18n.tr("24-hour"))
+              .arg(island.clockSeconds ? I18n.tr("seconds on") : I18n.tr("seconds off")) },
+        { id: "music", group: 0, desc: I18n.tr("The now-playing bubble that grows beside the island."), icon: "music_note", title: I18n.tr("Music"), hue: root.swatch(Theme.tertiary),
+          summary: island.music ? I18n.tr("On, beside the clock") : I18n.tr("Off") },
+        { id: "weather", group: 0, desc: I18n.tr("The weather quick settings shows, and where it is for."), icon: "partly_cloudy_day", title: I18n.tr("Weather"),
+          hue: root.swatch(root.mix(Theme.primary, Theme.tertiary, 0.5)),
+          summary: I18n.tr("%1, %2").arg(Config.weatherUnit === "fahrenheit" ? "\u00B0F" : "\u00B0C")
+              .arg(Config.weatherLocation.length > 0 ? Config.weatherLocation : I18n.tr("automatic location")) },
+        { id: "tiles", group: 1, desc: I18n.tr("The tiles at the top of quick settings."), icon: "grid_view", title: I18n.tr("Quick settings"),
+          hue: root.swatch(root.mix(Theme.secondary, Theme.tertiary, 0.5)),
+          summary: root.stockTiles ? I18n.tr("Default tiles") : I18n.tr("%1 tiles, arranged by you").arg(island.tiles.length) },
+        { id: "reset", group: 2, icon: "restart_alt", title: I18n.tr("Reset island settings"), hue: Md.error,
+          summary: I18n.tr("Put the island back the way it shipped"), desc: "" }
+    ]
+    readonly property var entries: [
+        { page: "island", key: "scale", title: I18n.tr("Island size"), words: "scale bigger smaller zoom" },
+        { page: "island", key: "topGap", title: I18n.tr("Top offset"), words: "position gap margin height edge" },
+        { page: "island", key: "islandOsd", title: I18n.tr("Volume and brightness"), words: "osd level sound show in the island" },
+        { page: "island", key: "islandNotifications", title: I18n.tr("Show notifications in the island"), words: "banner heads-up alerts popup" },
+        { page: "island", key: "tray", title: I18n.tr("App tray"), words: "system tray caret icons" },
+        { page: "clock", key: "clock12h", title: I18n.tr("12-hour clock"), words: "24 hour time format am pm" },
+        { page: "clock", key: "clockSeconds", title: I18n.tr("Show seconds"), words: "time tick" },
+        { page: "music", key: "music", title: I18n.tr("Music island"), words: "now playing media player song" },
+        { page: "weather", key: "unit", title: I18n.tr("Temperature unit"), words: "celsius fahrenheit degrees" },
+        { page: "weather", key: "showLocation", title: I18n.tr("Show location"), words: "place city name" },
+        { page: "weather", key: "location", title: I18n.tr("Weather location"), words: "automatic city search place network" },
+        { page: "tiles", key: "editTiles", title: I18n.tr("Edit tiles"), words: "add remove move resize pencil shade" },
+        { page: "tiles", key: "resetTiles", title: I18n.tr("Reset tiles"), words: "default layout shade" },
+        { page: "reset", key: "", title: I18n.tr("Reset island settings"), words: "default restore" }
+    ]
+    function category(id) {
+        for (var i = 0; i < root.categories.length; i++)
+            if (root.categories[i].id === id)
+                return root.categories[i];
+        return root.categories[0];
+    }
+    function paneOf(id) {
+        return id === "clock" ? clockPane : id === "music" ? musicPane : id === "weather" ? weatherPane
+            : id === "tiles" ? tilesPane : islandPane;
     }
 
-    property real reveal: root.open ? 1 : 0
-    visible: reveal > 0.001
-    Behavior on reveal {
-        enabled: !Motion.reduce
-        NumberAnimation { duration: Motion.morph; easing.type: Motion.easeStandard }
+    function go(id, key) {
+        if (id === "reset") {
+            root.confirmReset = true;
+            card.forceActiveFocus();
+            return;
+        }
+        root.route = id;
+        root.routeKey = key;
+        var pane = root.paneOf(id);
+        Qt.callLater(function () { pane.reveal(key); });
     }
-    onOpenChanged: if (!root.open) root.route = "island"
+    function dismiss() {
+        if (root.confirmReset)
+            root.confirmReset = false;
+        else if (nav.query.length > 0)
+            nav.query = "";
+        else
+            root.closeRequested();
+        card.forceActiveFocus();
+    }
 
-    S.IslandSettings { id: cfg }
+    onOpenChanged: {
+        root.confirmReset = false;
+        nav.query = "";
+        root.routeKey = "";
+        if (!root.open || Md.still)
+            root.shown = root.open;
+    }
+
+    S.IslandSettings { id: island }
 
     screen: root.targetScreen
+    visible: root.open || card.opacity > 0.001
     color: "transparent"
     anchors { top: true; bottom: true; left: true; right: true }
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.namespace: "ryoku-kairos-settings"
     WlrLayershell.keyboardFocus: root.open ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+
+    Connections {
+        target: card.Window.window
+        enabled: root.open && !root.shown
+        function onFrameSwapped() { root.shown = true; }
+    }
 
     MouseArea {
         anchors.fill: parent
@@ -75,562 +133,118 @@ PanelWindow {
         spread: 2
         offset: Qt.vector2d(0, 14)
         color: Qt.rgba(0, 0, 0, 0.62)
-        opacity: root.reveal
+        opacity: card.opacity
+        scale: card.scale
     }
 
     Rectangle {
         id: card
         anchors.centerIn: parent
-        width: Math.min(640, root.width - 48)
-        height: Math.min(548, root.height - 96)
-        radius: 30
-        color: root.fill
+        width: Math.min(880, root.width - 48)
+        height: Math.min(640, root.height - 96)
+        radius: Md.rXxl
+        color: Md.base
         border.width: 1
-        border.color: root.dim(0.16)
+        border.color: Md.outlineSoft
         clip: true
 
-        opacity: root.reveal
+        // only opacity and scale move, on one texture while they do, so no text is laid out or drawn per frame
+        opacity: root.shown ? 1 : 0
+        scale: root.shown ? 1 : 0.94
+        layer.enabled: card.opacity < 0.999 || Math.abs(card.scale - 1) > 0.001
+        layer.smooth: true
+        Behavior on opacity {
+            enabled: !Md.still
+            NumberAnimation { duration: Md.fast }
+        }
+        Behavior on scale {
+            enabled: !Md.still
+            Spring {}
+        }
+
         focus: root.open
         Keys.onPressed: function (e) {
-            if (e.key === Qt.Escape) { root.closeRequested(); e.accepted = true; }
-        }
-        MouseArea { anchors.fill: parent; onClicked: {} }
-
-        Rectangle {
-            id: rail
-            anchors { top: parent.top; bottom: parent.bottom; left: parent.left }
-            width: 188
-            color: root.dim(0.04)
-            Rectangle {
-                anchors { top: parent.top; bottom: parent.bottom; right: parent.right }
-                width: 1
-                color: root.dim(0.10)
-            }
-
-            Column {
-                anchors { top: parent.top; left: parent.left; right: parent.right }
-                anchors.topMargin: 22
-                anchors.leftMargin: 14
-                anchors.rightMargin: 14
-                spacing: 4
-
-                Column {
-                    width: parent.width
-                    leftPadding: 10
-                    bottomPadding: 14
-                    spacing: 1
-                    Text {
-                        text: I18n.tr("Kairos")
-                        color: root.ink
-                        font.family: Theme.fontPrimary
-                        font.pixelSize: 17
-                        font.weight: Font.DemiBold
-                    }
-                    Text {
-                        text: I18n.tr("Island settings")
-                        color: root.dim(0.55)
-                        font.family: Theme.fontPrimary
-                        font.pixelSize: 11
-                    }
-                }
-
-                Repeater {
-                    model: root.routes
-                    delegate: RailEntry { }
-                }
+            if (e.key === Qt.Key_Escape) {
+                root.dismiss();
+                e.accepted = true;
+            } else if (!root.confirmReset && e.text.length === 1 && e.text >= " " && !(e.modifiers & Qt.ControlModifier)) {
+                nav.searchField.forceActiveFocus();
+                nav.query += e.text;
+                e.accepted = true;
             }
         }
+        MouseArea { anchors.fill: parent }
 
-        Column {
-            id: content
-            anchors {
-                top: parent.top; left: rail.right; right: parent.right
-                topMargin: 26; leftMargin: 26; rightMargin: 26
-            }
-            spacing: 6
-
-            Text {
-                text: root.routeDef(root.route).label
-                color: root.ink
-                font.family: Theme.fontPrimary
-                font.pixelSize: 20
-                font.weight: Font.DemiBold
-            }
-            Text {
-                width: parent.width
-                text: root.routeDef(root.route).desc
-                color: root.dim(0.58)
-                font.family: Theme.fontPrimary
-                font.pixelSize: 12
-                wrapMode: Text.WordWrap
-            }
-        }
-
-        Loader {
-            id: page
-            anchors {
-                top: content.bottom; topMargin: 22
-                left: rail.right; right: parent.right
-                leftMargin: 26; rightMargin: 26
-            }
-            sourceComponent: root.route === "clock" ? pageClock
-                : root.route === "music" ? pageMusic
-                : root.route === "weather" ? pageWeather : pageIsland
-        }
-
-        Rectangle {
-            id: reset
-            anchors {
-                left: rail.right; right: parent.right; bottom: parent.bottom
-                leftMargin: 26; rightMargin: 26; bottomMargin: 22
-            }
-            height: 40
-            radius: 12
-            color: resetHover.hovered ? root.dim(0.08) : "transparent"
-            border.width: 1
-            border.color: root.dim(0.14)
-            Text {
-                anchors.centerIn: parent
-                text: I18n.tr("Reset island settings")
-                color: root.ink
-                font.family: Theme.fontPrimary
-                font.pixelSize: 12
-            }
-            HoverHandler { id: resetHover }
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: cfg.reset()
-            }
-        }
-    }
-
-    // ---- pages ----
-
-    Component {
-        id: pageIsland
-        Column {
-            width: page.width
-            spacing: 20
-
-            SliderRow {
-                width: parent.width
-                title: I18n.tr("Island size")
-                subtitle: I18n.tr("Scales the clock island, resting and expanded.")
-                from: 80; to: 130
-                value: Math.round(cfg.scale * 100)
-                suffix: "%"
-                onCommitted: (v) => cfg.set("scale", v / 100)
-            }
-            SliderRow {
-                width: parent.width
-                title: I18n.tr("Top offset")
-                subtitle: I18n.tr("How far the island floats below the screen's top edge.")
-                from: 0; to: 24
-                value: Math.round(cfg.topGap)
-                suffix: " px"
-                onCommitted: (v) => cfg.set("topGap", v)
-            }
-        }
-    }
-
-    Component {
-        id: pageClock
-        Column {
-            width: page.width
-            spacing: 6
-
-            ToggleRow {
-                width: parent.width
-                title: I18n.tr("12-hour clock")
-                subtitle: I18n.tr("Read the time as 1-12 instead of 00-23.")
-                value: cfg.clock12h
-                onToggled: (v) => cfg.set("clock12h", v)
-            }
-            ToggleRow {
-                width: parent.width
-                title: I18n.tr("Show seconds")
-                subtitle: I18n.tr("Tick the clock every second.")
-                value: cfg.clockSeconds
-                onToggled: (v) => cfg.set("clockSeconds", v)
-            }
-            ToggleRow {
-                width: parent.width
-                title: I18n.tr("Date wheel")
-                subtitle: I18n.tr("Roll the days over the clock when it opens.")
-                value: cfg.dateWheel
-                onToggled: (v) => cfg.set("dateWheel", v)
-            }
-            ToggleRow {
-                width: parent.width
-                title: I18n.tr("App tray")
-                subtitle: I18n.tr("A caret under the clock opens the system tray.")
-                value: cfg.tray
-                onToggled: (v) => cfg.set("tray", v)
-            }
-        }
-    }
-
-    Component {
-        id: pageMusic
-        Column {
-            width: page.width
-            spacing: 6
-
-            ToggleRow {
-                width: parent.width
-                title: I18n.tr("Music island")
-                subtitle: I18n.tr("Show the now-playing bubble beside the clock.")
-                value: cfg.music
-                onToggled: (v) => cfg.set("music", v)
-            }
-            SliderRow {
-                width: parent.width
-                title: I18n.tr("Peek size")
-                subtitle: I18n.tr("How far the bubble opens on hover.")
-                from: 70; to: 140
-                value: Math.round(cfg.musicPeek)
-                suffix: " px"
-                onCommitted: (v) => cfg.set("musicPeek", v)
-            }
-        }
-    }
-
-    Component {
-        id: pageWeather
-        Column {
-            id: wxPage
-            width: page.width
-            spacing: 14
-            property bool searchMode: Config.weatherLocation.length > 0
-
-            Text {
-                width: parent.width
-                text: I18n.tr("Temperature unit")
-                color: root.ink
-                font.family: Theme.fontPrimary
-                font.pixelSize: 14
-                font.weight: Font.DemiBold
-            }
-            Text {
-                width: parent.width
-                text: I18n.tr("How the island's weather card reads temperature.")
-                color: root.dim(0.55)
-                font.family: Theme.fontPrimary
-                font.pixelSize: 11
-                wrapMode: Text.WordWrap
-            }
-            Row {
-                spacing: 8
-
-                K.QsChip {
-                    text: "\u00B0C"
-                    active: Config.weatherUnit !== "fahrenheit"
-                    onClicked: Weather.setUnit("celsius")
-                }
-                K.QsChip {
-                    text: "\u00B0F"
-                    active: Config.weatherUnit === "fahrenheit"
-                    onClicked: Weather.setUnit("fahrenheit")
-                }
-            }
-
-            ToggleRow {
-                width: parent.width
-                title: I18n.tr("Show location")
-                subtitle: I18n.tr("Show the place above the temperature on the weather card.")
-                value: cfg.showLocation
-                onToggled: (v) => cfg.set("showLocation", v)
-            }
-
-            Text {
-                width: parent.width
-                text: I18n.tr("Location")
-                color: root.ink
-                font.family: Theme.fontPrimary
-                font.pixelSize: 14
-                font.weight: Font.DemiBold
-            }
-            Text {
-                width: parent.width
-                text: I18n.tr("Find the place by network address, or search for a city.")
-                color: root.dim(0.55)
-                font.family: Theme.fontPrimary
-                font.pixelSize: 11
-                wrapMode: Text.WordWrap
-            }
-            Row {
-                spacing: 8
-
-                K.QsChip {
-                    text: I18n.tr("Automatic")
-                    active: !wxPage.searchMode
-                    onClicked: {
-                        wxPage.searchMode = false;
-                        if (Config.weatherLocation.length > 0)
-                            cfg.setGlobal("weatherLocation", "");
-                    }
-                }
-                K.QsChip {
-                    text: I18n.tr("Search a place")
-                    active: wxPage.searchMode
-                    onClicked: {
-                        wxPage.searchMode = true;
-                        Qt.callLater(function () { placeField.forceActiveFocus(); });
-                    }
-                }
-            }
-            Rectangle {
-                visible: wxPage.searchMode
-                width: parent.width
-                height: 40
-                radius: 12
-                color: root.dim(0.12)
-
-                TextInput {
-                    id: placeField
-                    anchors {
-                        left: parent.left; right: parent.right
-                        leftMargin: 12; rightMargin: 12
-                        verticalCenter: parent.verticalCenter
-                    }
-                    text: Config.weatherLocation
-                    color: root.ink
-                    font.family: Theme.fontPrimary
-                    font.pixelSize: 13
-                    selectionColor: root.accent
-                    selectedTextColor: root.fill
-                    onAccepted: cfg.setGlobal("weatherLocation", text)
-                }
-            }
-            K.QsAction {
-                visible: wxPage.searchMode
-                text: I18n.tr("Apply")
-                onClicked: cfg.setGlobal("weatherLocation", placeField.text)
-            }
-        }
-    }
-
-    // ---- kit ----
-
-    component ToggleRow: Item {
-        id: tr
-
-        property string title: ""
-        property string subtitle: ""
-        property bool value: false
-        signal toggled(bool v)
-
-        implicitHeight: tr.subtitle.length > 0 ? 60 : 44
-        width: parent ? parent.width : 0
-
-        Column {
-            anchors {
-                left: parent.left; right: sw.left; rightMargin: 18
-                verticalCenter: parent.verticalCenter
-            }
-            spacing: 2
-            Text {
-                width: parent.width
-                text: tr.title
-                color: root.ink
-                font.family: Theme.fontPrimary
-                font.pixelSize: 14
-                font.weight: Font.DemiBold
-                elide: Text.ElideRight
-            }
-            Text {
-                visible: tr.subtitle.length > 0
-                width: parent.width
-                text: tr.subtitle
-                color: root.dim(0.55)
-                font.family: Theme.fontPrimary
-                font.pixelSize: 11
-                wrapMode: Text.WordWrap
-                maximumLineCount: 2
-                elide: Text.ElideRight
-            }
-        }
-
-        Rectangle {
-            id: sw
-            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-            width: 42
-            height: 24
-            radius: 12
-            color: tr.value ? root.accent : root.dim(0.16)
-            Behavior on color {
-                enabled: !Motion.reduce
-                ColorAnimation { duration: Motion.fast; easing.type: Motion.easeStandard }
-            }
-            Rectangle {
-                width: 18
-                height: 18
-                radius: 9
-                y: (parent.height - height) / 2
-                x: tr.value ? parent.width - width - 3 : 3
-                color: tr.value ? root.fill : root.dim(0.85)
-                Behavior on x {
-                    enabled: !Motion.reduce
-                    NumberAnimation { duration: Motion.fast; easing.type: Motion.easeStandard }
-                }
-            }
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: tr.toggled(!tr.value)
-            }
-        }
-    }
-
-    component SliderRow: Item {
-        id: sr
-
-        property string title: ""
-        property string subtitle: ""
-        property real from: 0
-        property real to: 100
-        property real value: 0
-        property string suffix: ""
-        property real live: value
-        property bool dragging: false
-        signal committed(real v)
-
-        implicitHeight: (sr.subtitle.length > 0 ? 36 : 20) + 26
-        width: parent ? parent.width : 0
-
-        readonly property real frac: Math.max(0, Math.min(1,
-            (sr.live - sr.from) / Math.max(0.0001, sr.to - sr.from)))
-        function valAt(mx) {
-            return sr.from + Math.max(0, Math.min(1, mx / Math.max(1, track.width)))
-                * (sr.to - sr.from);
-        }
-        onValueChanged: if (!sr.dragging) sr.live = sr.value
-        Component.onCompleted: sr.live = sr.value
-
-        Column {
-            anchors { top: parent.top; left: parent.left; right: parent.right }
-            spacing: 2
-            Row {
-                width: parent.width
-                Text {
-                    width: parent.width - amount.width
-                    text: sr.title
-                    color: root.ink
-                    font.family: Theme.fontPrimary
-                    font.pixelSize: 14
-                    font.weight: Font.DemiBold
-                    elide: Text.ElideRight
-                }
-                Text {
-                    id: amount
-                    width: implicitWidth
-                    text: Math.round(sr.live) + sr.suffix
-                    color: root.accent
-                    font.family: Theme.mono
-                    font.pixelSize: 13
-                    horizontalAlignment: Text.AlignRight
-                }
-            }
-            Text {
-                visible: sr.subtitle.length > 0
-                width: parent.width
-                text: sr.subtitle
-                color: root.dim(0.55)
-                font.family: Theme.fontPrimary
-                font.pixelSize: 11
-                wrapMode: Text.WordWrap
-                maximumLineCount: 1
-                elide: Text.ElideRight
-            }
+        S.SettingsNav {
+            id: nav
+            anchors { top: parent.top; bottom: parent.bottom; left: parent.left; margins: 16 }
+            width: 332
+            categories: root.categories
+            entries: root.entries
+            route: root.route
+            routeKey: root.routeKey
+            onPicked: function (page, key) { root.go(page, key); }
+            onSearchLeft: root.dismiss()
         }
 
         Item {
-            id: track
-            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-            height: 20
+            id: detail
+            anchors { top: parent.top; bottom: parent.bottom; left: nav.right; right: parent.right; leftMargin: 16; rightMargin: 20 }
 
-            Rectangle {
-                anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter }
-                height: 6
-                radius: 3
-                color: root.dim(0.16)
-            }
-            Rectangle {
-                anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                width: track.width * sr.frac
-                height: 6
-                radius: 3
-                color: root.accent
-            }
-            Rectangle {
-                width: 15
-                height: 15
-                radius: 7.5
-                color: root.accent
-                border.width: 2
-                border.color: root.fill
-                anchors.verticalCenter: parent.verticalCenter
-                x: Math.max(0, Math.min(track.width - width, track.width * sr.frac - width / 2))
-            }
-            MouseArea {
+            S.DetailPane {
+                id: islandPane
                 anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onPressed: (m) => { sr.dragging = true; sr.live = sr.valAt(m.x); }
-                onPositionChanged: (m) => { if (sr.dragging) sr.live = sr.valAt(m.x); }
-                onReleased: {
-                    if (sr.dragging) {
-                        sr.dragging = false;
-                        sr.committed(Math.round(sr.live));
-                    }
+                current: root.route === "island"
+                title: root.category("island").title
+                description: root.category("island").desc
+                S.IslandPage { width: parent.width; cfg: island }
+            }
+            S.DetailPane {
+                id: clockPane
+                anchors.fill: parent
+                current: root.route === "clock"
+                title: root.category("clock").title
+                description: root.category("clock").desc
+                S.ClockPage { width: parent.width; cfg: island; live: root.open }
+            }
+            S.DetailPane {
+                id: musicPane
+                anchors.fill: parent
+                current: root.route === "music"
+                title: root.category("music").title
+                description: root.category("music").desc
+                S.MusicPage { width: parent.width; cfg: island }
+            }
+            S.DetailPane {
+                id: weatherPane
+                anchors.fill: parent
+                current: root.route === "weather"
+                title: root.category("weather").title
+                description: root.category("weather").desc
+                S.WeatherPage {
+                    width: parent.width
+                    cfg: island
+                    onFieldLeft: card.forceActiveFocus()
                 }
-                onCanceled: sr.dragging = false
+            }
+            S.DetailPane {
+                id: tilesPane
+                anchors.fill: parent
+                current: root.route === "tiles"
+                title: root.category("tiles").title
+                description: root.category("tiles").desc
+                S.TilesPage { width: parent.width; cfg: island }
             }
         }
-    }
 
-    component RailEntry: Item {
-        id: re
-
-        required property var modelData
-        readonly property bool active: root.route === re.modelData.id
-
-        width: parent ? parent.width : 0
-        height: 44
-
-        Rectangle {
+        S.ResetDialog {
             anchors.fill: parent
-            radius: 12
-            color: re.active ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.16)
-                : (reHover.hovered ? root.dim(0.06) : "transparent")
-            Behavior on color {
-                enabled: !Motion.reduce
-                ColorAnimation { duration: Motion.fast; easing.type: Motion.easeStandard }
+            open: root.confirmReset
+            onCancelled: root.confirmReset = false
+            onConfirmed: {
+                island.reset();
+                root.confirmReset = false;
             }
-        }
-        Row {
-            anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
-            spacing: 12
-            Pill.MaterialIcon {
-                anchors.verticalCenter: parent.verticalCenter
-                text: re.modelData.icon
-                color: re.active ? root.accent : root.dim(0.7)
-                font.pixelSize: 18
-            }
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: re.modelData.label
-                color: re.active ? root.ink : root.dim(0.72)
-                font.family: Theme.fontPrimary
-                font.pixelSize: 13
-                font.weight: re.active ? Font.DemiBold : Font.Normal
-            }
-        }
-        HoverHandler { id: reHover }
-        MouseArea {
-            anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-            onClicked: root.route = re.modelData.id
         }
     }
 }

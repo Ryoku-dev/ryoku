@@ -20,6 +20,7 @@ FrameSurfaceLifecycle ../modules/bar/FrameSurfaceLifecycle.qml
 MusicBars ../modules/bar/MusicBars.qml
 TrayMenu ../modules/bar/TrayMenu.qml
 NotificationCard ../modules/notifications/NotificationCard.qml
+OsdSource ../modules/osd/OsdSource.qml
 Popout ../modules/bar/popouts/Popout.qml
 PopoutChip ../modules/bar/popouts/PopoutChip.qml
 PopoutCard ../modules/bar/popouts/PopoutCard.qml

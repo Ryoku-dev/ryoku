@@ -1,283 +1,238 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import Quickshell.Widgets
 import shell.services
-import shell.barkit as Pill
 import Ryoku.Ui.Singletons
-import "../kit" as K
+import "../../kit"
+import "../Segments.js" as Segments
 
 Column {
     id: page
 
     property var host
 
-    spacing: 12
-
-    readonly property color fill: Theme.shadow
-    readonly property color ink: Theme.ink(fill, 7)
-    readonly property color accent: Theme.primary
-    function dim(a) { return Qt.rgba(page.ink.r, page.ink.g, page.ink.b, a) }
+    spacing: 8
 
     readonly property var sink: Audio.sink
     readonly property var source: Audio.source
-    readonly property real outVol: (page.sink && page.sink.audio) ? page.sink.audio.volume : 0
-    readonly property bool outMuted: (page.sink && page.sink.audio) ? page.sink.audio.muted : false
-    readonly property real inVol: (page.source && page.source.audio) ? page.source.audio.volume : 0
-    readonly property bool inMuted: (page.source && page.source.audio) ? page.source.audio.muted : false
+    readonly property var outputs: Audio.outputs.filter(Audio.alive)
+    readonly property var inputs: Audio.inputs.filter(Audio.alive)
+    readonly property var apps: Audio.streams.filter(Audio.alive)
 
-    function setOut(v) {
-        if (!page.sink || !page.sink.audio) return;
-        var a = page.sink.audio;
-        if (a.muted && v > 0) a.muted = false;
-        a.volume = Math.max(0, Math.min(1, v));
+    function glyphFor(n) {
+        var g = Audio.nodeIcon(n);
+        return g === "monitor" ? "tv" : g;
     }
-    function setIn(v) {
-        if (!page.source || !page.source.audio) return;
-        var a = page.source.audio;
-        if (a.muted && v > 0) a.muted = false;
-        a.volume = Math.max(0, Math.min(1, v));
+    function setVolume(audio, v) {
+        if (!audio) return;
+        if (audio.muted && v > 0) audio.muted = false;
+        audio.volume = Math.max(0, Math.min(1, v));
     }
-    function toggleOut() { if (page.sink && page.sink.audio) page.sink.audio.muted = !page.sink.audio.muted; }
-    function toggleIn() { if (page.source && page.source.audio) page.source.audio.muted = !page.source.audio.muted; }
-
-    Item {
-        width: parent.width
-        height: 36
-
-        K.QsBack {
-            id: back
-            anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-            onClicked: page.host.back()
-        }
-        Text {
-            anchors { left: back.right; leftMargin: 12; verticalCenter: parent.verticalCenter }
-            text: I18n.tr("Sound")
-            color: page.ink
-            font.family: Theme.fontPrimary
-            font.pixelSize: 18
-            font.weight: Font.DemiBold
-        }
+    function toggleMute(audio) {
+        if (audio) audio.muted = !audio.muted;
+    }
+    function deviceNote(n) {
+        var pct = Audio.batteryOf(n);
+        return pct >= 0 ? I18n.tr("Battery %1%").replace("%1", pct) : "";
     }
 
-    Text {
-        text: I18n.tr("Output")
-        color: page.dim(0.55)
-        font.family: Theme.fontPrimary
-        font.pixelSize: 12
-    }
-
-    Rectangle {
-        width: parent.width
+    component Level: Segment {
+        id: level
+        property var audio: null
+        property string iconOn: ""
+        property string iconOff: ""
+        readonly property bool muted: !!level.audio && level.audio.muted
         height: 72
-        radius: 18
-        color: page.dim(0.06)
 
-        K.QsFader {
+        Slider {
+            id: levelSlider
             anchors {
                 left: parent.left; leftMargin: 14
-                right: muteBtn.left; rightMargin: 10
+                right: levelText.left; rightMargin: 12
                 verticalCenter: parent.verticalCenter
             }
-            icon: page.outMuted ? "volume_off" : "volume_up"
-            value: page.outVol
-            onMoved: (v) => page.setOut(v)
+            enabled: level.audio !== null
+            value: level.audio ? level.audio.volume : 0
+            muted: level.muted
+            icon: level.muted || levelSlider.value <= 0 ? level.iconOff : level.iconOn
+            iconClickable: true
+            onMoved: v => page.setVolume(level.audio, v)
+            onCommitted: v => page.setVolume(level.audio, v)
+            onIconClicked: page.toggleMute(level.audio)
         }
-        Item {
-            id: muteBtn
-            anchors { right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
-            width: 38
-            height: 38
-            Rectangle {
-                anchors.fill: parent
-                radius: 19
-                color: page.outMuted
-                    ? Qt.rgba(page.accent.r, page.accent.g, page.accent.b, 0.28)
-                    : (muteHover.hovered ? page.dim(0.14) : page.dim(0.08))
-            }
-            Pill.MaterialIcon {
-                anchors.centerIn: parent
-                text: page.outMuted ? "volume_off" : "volume_up"
-                color: page.outMuted ? page.accent : page.ink
-                font.pixelSize: 19
-            }
-            HoverHandler { id: muteHover }
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: page.toggleOut()
-            }
+        Label {
+            id: levelText
+            anchors { right: muteButton.left; rightMargin: 6; verticalCenter: parent.verticalCenter }
+            width: 40
+            horizontalAlignment: Text.AlignRight
+            role: "label"
+            font.family: Md.mono
+            color: Md.inkMuted
+            text: level.audio ? Math.round((levelSlider.dragging ? levelSlider.live : levelSlider.value) * 100) + "%" : ""
+        }
+        IconButton {
+            id: muteButton
+            anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+            enabled: level.audio !== null
+            variant: "tonal"
+            checked: level.muted
+            icon: level.muted ? level.iconOff : level.iconOn
+            tip: level.muted ? I18n.tr("Unmute") : I18n.tr("Mute")
+            onClicked: page.toggleMute(level.audio)
         }
     }
 
+    component DeviceRow: ListItem {
+        id: device
+        required property var modelData
+        required property int index
+        property int count: 1
+        property int offset: 0
+        property var current: null
+        signal picked()
+        width: parent ? parent.width : 0
+        position: Segments.position(device.index + device.offset, device.count + device.offset)
+        selected: device.modelData === device.current
+        icon: page.glyphFor(device.modelData)
+        headline: Audio.nodeLabel(device.modelData)
+        supporting: page.deviceNote(device.modelData)
+        onClicked: device.picked()
+
+        Icon {
+            anchors.verticalCenter: parent.verticalCenter
+            visible: device.selected
+            name: "check"
+            size: 20
+            color: device.text
+        }
+    }
+
+    TopBar {
+        width: parent.width
+        title: I18n.tr("Sound")
+        onBack: page.host.back()
+    }
+
+    SectionLabel { text: I18n.tr("Output") }
     Column {
         width: parent.width
-        spacing: 8
+        spacing: Md.seam
 
+        Level {
+            position: page.outputs.length > 0 ? "first" : "only"
+            audio: page.sink ? page.sink.audio : null
+            iconOn: "volume_up"
+            iconOff: "volume_off"
+        }
         Repeater {
-            model: Audio.outputs.filter(Audio.alive)
-            delegate: Rectangle {
-                id: outRow
-                required property var modelData
-                readonly property bool active: outRow.modelData === Audio.sink
-                width: parent.width
-                height: 52
-                radius: 16
-                color: outRow.active
-                    ? Qt.rgba(page.accent.r, page.accent.g, page.accent.b, 0.12)
-                    : page.dim(0.05)
-
-                Rectangle {
-                    id: outDisc
-                    anchors { left: parent.left; leftMargin: 9; verticalCenter: parent.verticalCenter }
-                    width: 34
-                    height: 34
-                    radius: 17
-                    color: page.dim(0.10)
-                    Pill.GlyphIcon {
-                        anchors.centerIn: parent
-                        width: 18
-                        height: 18
-                        name: Audio.nodeIcon(outRow.modelData)
-                        color: page.dim(0.85)
-                    }
-                }
-                Text {
-                    anchors {
-                        left: outDisc.right; leftMargin: 10
-                        right: outCheck.left; rightMargin: 8
-                        verticalCenter: parent.verticalCenter
-                    }
-                    text: Audio.nodeLabel(outRow.modelData)
-                    color: page.ink
-                    font.family: Theme.fontPrimary
-                    font.pixelSize: 13
-                    elide: Text.ElideRight
-                }
-                Pill.MaterialIcon {
-                    id: outCheck
-                    anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
-                    visible: outRow.active
-                    text: "check"
-                    color: page.accent
-                    font.pixelSize: 18
-                }
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: Audio.setOutput(outRow.modelData)
-                }
+            model: page.outputs
+            delegate: DeviceRow {
+                count: page.outputs.length
+                offset: 1
+                current: page.sink
+                onPicked: Audio.setOutput(modelData)
             }
         }
     }
 
-    Text {
-        text: I18n.tr("Input")
-        color: page.dim(0.55)
-        font.family: Theme.fontPrimary
-        font.pixelSize: 12
-    }
-
-    Rectangle {
-        width: parent.width
-        height: 72
-        radius: 18
-        color: page.dim(0.06)
-
-        K.QsFader {
-            anchors {
-                left: parent.left; leftMargin: 14
-                right: micBtn.left; rightMargin: 10
-                verticalCenter: parent.verticalCenter
-            }
-            icon: page.inMuted ? "mic_off" : "mic"
-            value: page.inVol
-            onMoved: (v) => page.setIn(v)
-        }
-        Item {
-            id: micBtn
-            anchors { right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
-            width: 38
-            height: 38
-            Rectangle {
-                anchors.fill: parent
-                radius: 19
-                color: page.inMuted
-                    ? Qt.rgba(page.accent.r, page.accent.g, page.accent.b, 0.28)
-                    : (micHover.hovered ? page.dim(0.14) : page.dim(0.08))
-            }
-            Pill.MaterialIcon {
-                anchors.centerIn: parent
-                text: page.inMuted ? "mic_off" : "mic"
-                color: page.inMuted ? page.accent : page.ink
-                font.pixelSize: 19
-            }
-            HoverHandler { id: micHover }
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: page.toggleIn()
-            }
-        }
-    }
-
+    SectionLabel { text: I18n.tr("Microphone") }
     Column {
         width: parent.width
-        spacing: 8
+        spacing: Md.seam
+
+        Level {
+            position: page.inputs.length > 0 ? "first" : "only"
+            audio: page.source ? page.source.audio : null
+            iconOn: "mic"
+            iconOff: "mic_off"
+        }
+        Repeater {
+            model: page.inputs
+            delegate: DeviceRow {
+                count: page.inputs.length
+                offset: 1
+                current: page.source
+                onPicked: Audio.setInput(modelData)
+            }
+        }
+    }
+
+    SectionLabel {
+        visible: page.apps.length > 0
+        text: I18n.tr("Apps")
+    }
+    Column {
+        width: parent.width
+        visible: page.apps.length > 0
+        spacing: Md.seam
 
         Repeater {
-            model: Audio.inputs.filter(Audio.alive)
-            delegate: Rectangle {
-                id: inRow
+            model: page.apps
+            delegate: Segment {
+                id: app
                 required property var modelData
-                readonly property bool active: inRow.modelData === Audio.source
-                width: parent.width
-                height: 52
-                radius: 16
-                color: inRow.active
-                    ? Qt.rgba(page.accent.r, page.accent.g, page.accent.b, 0.12)
-                    : page.dim(0.05)
+                required property int index
+                readonly property var audio: app.modelData ? app.modelData.audio : null
+                readonly property bool muted: !!app.audio && app.audio.muted
+                position: Segments.position(app.index, page.apps.length)
+                height: 100
 
                 Rectangle {
-                    id: inDisc
-                    anchors { left: parent.left; leftMargin: 9; verticalCenter: parent.verticalCenter }
-                    width: 34
-                    height: 34
-                    radius: 17
-                    color: page.dim(0.10)
-                    Pill.GlyphIcon {
+                    id: appDisc
+                    anchors { left: parent.left; leftMargin: 14; top: parent.top; topMargin: 12 }
+                    width: 28
+                    height: 28
+                    radius: 14
+                    color: Md.containerHighest
+
+                    IconImage {
                         anchors.centerIn: parent
-                        width: 18
-                        height: 18
-                        name: Audio.nodeIcon(inRow.modelData)
-                        color: page.dim(0.85)
+                        width: 20
+                        height: 20
+                        source: Audio.streamIcon(app.modelData)
+                        opacity: app.muted ? 0.4 : 1
                     }
                 }
-                Text {
+                Label {
                     anchors {
-                        left: inDisc.right; leftMargin: 10
-                        right: inCheck.left; rightMargin: 8
-                        verticalCenter: parent.verticalCenter
+                        left: appDisc.right; leftMargin: 10
+                        right: appText.left; rightMargin: 8
+                        verticalCenter: appDisc.verticalCenter
                     }
-                    text: Audio.nodeLabel(inRow.modelData)
-                    color: page.ink
-                    font.family: Theme.fontPrimary
-                    font.pixelSize: 13
-                    elide: Text.ElideRight
+                    role: "title"
+                    font.pixelSize: 15
+                    color: app.muted ? Md.inkMuted : Md.ink
+                    text: Audio.streamName(app.modelData)
                 }
-                Pill.MaterialIcon {
-                    id: inCheck
-                    anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
-                    visible: inRow.active
-                    text: "check"
-                    color: page.accent
-                    font.pixelSize: 18
+                Label {
+                    id: appText
+                    anchors { right: parent.right; rightMargin: 18; verticalCenter: appDisc.verticalCenter }
+                    role: "label"
+                    font.family: Md.mono
+                    color: Md.inkMuted
+                    text: app.audio ? Math.round((appLevel.dragging ? appLevel.live : appLevel.value) * 100) + "%" : ""
                 }
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: Audio.setInput(inRow.modelData)
+                Slider {
+                    id: appLevel
+                    anchors {
+                        left: parent.left; leftMargin: 14
+                        right: parent.right; rightMargin: 14
+                        bottom: parent.bottom; bottomMargin: 12
+                    }
+                    height: 44
+                    enabled: app.audio !== null
+                    value: app.audio ? app.audio.volume : 0
+                    muted: app.muted
+                    icon: app.muted || appLevel.value <= 0 ? "volume_off" : "volume_up"
+                    iconClickable: true
+                    onMoved: v => page.setVolume(app.audio, v)
+                    onCommitted: v => page.setVolume(app.audio, v)
+                    onIconClicked: page.toggleMute(app.audio)
                 }
             }
         }
     }
+
+    Item { width: 1; height: 4 }
 }

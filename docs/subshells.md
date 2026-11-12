@@ -280,36 +280,73 @@ stones. Made by neur0map.
 
 ## Kairos
 
-Kairos is a single island at the top centre that carries the clock: hovering
-opens it into a rolling date wheel, a track that plays adds a cover bubble beside
-it, and Super+Space grows the same island into its own app launcher when the
-Kairos launcher is picked (`docs/launcher.md`).
+Kairos is a single island at the top centre that carries the clock, drawn in
+Android 17's Material 3 Expressive language on its own kit
+(`subshells/kairos/qml/kit/`: tokens, tiles, the thick slider, wavy progress,
+segmented lists, switches, buttons). Motion runs on every rendered frame,
+whatever the screen's refresh rate: the island's big morphs (hover, shade,
+music, the bubble appearing) are damped springs in `kit/SpringValue.qml`,
+stepped by a `FrameAnimation`, so a hover reversed mid-way keeps its momentum;
+smaller shape changes use `kit/Spring.qml`, the M3E expressive spatial curves.
+Never use Qt's `SpringAnimation` here: it advances in whole 16 ms steps, so on
+a 120 or 165 Hz screen it moves every second or third frame. The clock pill and
+the music bubble are one `Ryoku.Blobs` liquid body: the bubble buds out of the
+clock when a track starts, melts into it when they come close, jiggles as it
+moves, and is absorbed back as the shade opens. Content is laid out once at its
+open size and only slides or scales while the body grows, so nothing re-lays out
+mid-motion.
 
-Its settings open from the gear in the top-right of the expanded clock island,
-from Bar Studio's OPEN SETTINGS, or with `ryoku-shell ipc call kairos settings`.
-The window is styled like the island, near-black with a hairline rim and the
-same accent, and has three routes over the same `shell.json` namespace:
+Hovering the clock opens Android's first pull, the glance: the time slides
+from the pill into a large clock with the date and battery under it, today's
+weather on the right, and up to five round chips. The chips, and whether the
+weather and battery show, are chosen on the shade's edit page
+(`kairos.glanceTiles`, `kairos.glanceWeather`, `kairos.glanceBattery`).
+A chip toggles on a click and opens its detail page in the shade on a right
+click; the gear opens Kairos settings and the expand button opens the full
+shade. A playing track adds a cover bubble beside the clock that grows
+straight into the now-playing panel while the pointer rests on it; a click on
+the panel raises the player. Super+Space grows the same island into its app
+drawer when the Kairos launcher is picked (`docs/launcher.md`).
 
-| Route | Holds |
-|---|---|
-| Island | clock island size, top offset |
-| Clock | 12-hour time, seconds, the date wheel |
-| Music | the now-playing bubble and its hover peek |
+At rest the pill carries Android's status cues: a red dot while the screen
+records and an accent dot for unread notifications. Kairos owns two of Ryoku's
+surfaces (`owns = ["osd", "notifications"]`), each with its own switch:
 
-Every control writes the `kairos` key in `shell.json` through the shell daemon
-(the sole writer) and applies live through `Config.kairos`.
+| Surface | What Kairos draws | Switch |
+|---|---|---|
+| `osd` | Volume, microphone and brightness changes widen the resting pill into a level bar | `kairos.islandOsd` |
+| `notifications` | A new notification grows the pill into a heads-up card; hover holds it, a click runs its default action, close or a swipe up puts it away | `kairos.islandNotifications` |
 
-Left of the gear, the **tune** icon grows the expanded clock island into its own
-quick settings. This is not a second window: the island's own pill morphs to the
-panel size on the same surface, with the clock and date wheel fading out and the
-panel fading in, so open and close read as one body. It carries the radio tiles,
-a weather card in place of a media card, Display and Sound fader rows, and the
-notification list. Each tile opens a page in place: **Wi-Fi** (networks,
-password, disconnect), **Bluetooth** (connected, saved, nearby, pair and
-disconnect), **Sound** (output and input volume, mute, device pick) and
-**Display** (per-output brightness, scale, resolution and Night Light). It lives
-in `subshells/kairos/qml/quicksettings/` and closes on a click outside it, when
-the pointer moves away, on Escape, or on the tune icon again.
+With a switch off, the ownership lapses and Ryoku's own OSD or banners return.
+The OSD reads `shell.barkit`'s `OsdSource`, so its triggers and startup grace are
+Ryoku's own.
+
+Its settings open from the gear on the glance, from Bar Studio's OPEN
+SETTINGS, or with `ryoku-shell ipc call kairos settings`. The window is laid
+out like Android's large-screen Settings: a searchable list of categories with
+coloured icons and live summaries on the left, the selected page on the right.
+Every page is built once with the window, which fades and scales in only after
+its first frame is drawn. Every control writes the `kairos` key in `shell.json`
+through the shell daemon (the sole writer) and applies live through
+`Config.kairos`. Doctor drops the retired `kairos.dateWheel` and
+`kairos.musicPeek` keys.
+
+The glance's expand button (or `ryoku-shell ipc call kairos quickSettings`,
+which a keybind can run) grows the island into an Android-style shade. This is
+not a second window: the island's own pill morphs to the shade on the same
+surface and grows to its page's height. Top to bottom it holds the
+time, date and weather with the battery, Ryoku Settings and the power menu;
+brightness and volume sliders, each with a button to its detail page; paged
+tiles (four columns, three rows a page) with an edit button and page dots; the
+media control while something plays; and the notifications grouped by app,
+which swipe away. Tiles toggle on a click and open their detail page from the
+chevron of a large Wi-Fi or Bluetooth tile or on a right click. The edit page
+moves, resizes, removes and adds tiles; the order lives in `kairos.tiles` as
+`[{id, large}]`. The power menu locks and sleeps at once and asks for a second
+press before it shuts down, restarts or logs out. Detail pages: **Wi-Fi**,
+**Bluetooth**, **Sound** and **Display**. It lives in
+`subshells/kairos/qml/quicksettings/` and closes on a click outside it or on
+Escape.
 
 ## Writing an item
 

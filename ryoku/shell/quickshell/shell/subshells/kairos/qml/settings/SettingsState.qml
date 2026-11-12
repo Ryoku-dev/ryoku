@@ -9,6 +9,9 @@ Singleton {
     property bool open: false
     property var screen: null
 
+    // every Scene hears this and only the one on the focused output answers
+    signal quickSettingsRequested()
+
     function show(target) {
         if (root.open)
             return;
@@ -25,6 +28,9 @@ Singleton {
         target: "kairos"
         function settings(): void {
             root.show(null);
+        }
+        function quickSettings(): void {
+            root.quickSettingsRequested();
         }
     }
 }

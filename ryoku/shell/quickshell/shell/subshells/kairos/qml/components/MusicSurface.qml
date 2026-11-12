@@ -1,42 +1,30 @@
-// The Kairos music island in three sizes, all driven by the caller: the cover
-// bubble beside the clock, the peek a hover opens (cover, track, transport) and
-// the full now-playing panel a click opens (the cover blurred into an ambient
-// wash behind a theme tint, the track, its progress and its transport).
-//
-// The peek and the full panel share a width, so only the height and the corner
-// radius move between them; the cover is one item whose size, position and corner
-// all interpolate, and the transport is one row that glides from its compact
-// right-aligned place into the full row.
-
 import QtQuick
 import QtQuick.Effects
+import Quickshell.Services.Mpris
 import shell.services
-import shell.barkit as Pill
+import Ryoku.Ui.Singletons
+import "../kit"
 import "../IslandMetrics.js" as Island
 
 Rectangle {
     id: surface
 
     required property var player
-    // 0..1 hover extension, 0..1 full panel. Both 0 is the bubble.
-    required property real peek
+    // 0 is the bubble, 1 the panel; a spring may carry it a little past either end
     required property real full
 
-    property color ink: "#ffffff"
-    property color accent: "#7fd4d4"
-    property real peekHeight: Island.musicPeekHeight
+    property color ink: Md.ink
+    property color accent: Md.accent
 
-    signal activated()
-
-    // Scrub state while the user drags (or clicks) the progress bar to seek.
-    property bool scrubbing: false
-    property real scrubFrac: 0
+    // the island keeps the panel open while a drag strays off it
+    readonly property bool scrubbing: seekBar.scrubbing
     readonly property bool clockHeld: surface.full > 0.5
     readonly property bool seekable: surface.player !== null
         && surface.player.canSeek && surface.length > 0
 
-    readonly property real extend: Math.max(surface.peek, surface.full)
-    readonly property real peekVis: surface.peek * (1 - surface.full)
+    readonly property real shown: Math.max(0, Math.min(1, surface.full))
+    // content arrives late on open and is the first thing to leave on close
+    readonly property real fullVis: Math.max(0, Math.min(1, (surface.full - 0.4) / 0.45))
     readonly property string artUrl: surface.player ? (surface.player.trackArtUrl || "") : ""
     readonly property bool hasArt: surface.artUrl.length > 0
     readonly property bool playing: surface.player !== null && surface.player.isPlaying
@@ -59,53 +47,60 @@ Rectangle {
         return String(surface.player.identity
             || surface.player.dbusName || "").replace(/^org\.mpris\.MediaPlayer2\./, "");
     }
+    readonly property string outputName: Audio.sink ? Audio.nodeLabel(Audio.sink) : ""
+    readonly property bool canShuffle: surface.player !== null && surface.player.shuffleSupported
+    readonly property bool canLoop: surface.player !== null && surface.player.loopSupported
 
-    function clockText(seconds) {
-        var s = Math.max(0, Math.floor(seconds || 0));
-        var m = Math.floor(s / 60);
-        var r = s % 60;
-        return m + ":" + (r < 10 ? "0" + r : String(r));
+    readonly property int controlSize: 40
+    readonly property int playFull: 56
+    readonly property int controlGap: 12
+    readonly property real fullPlayX: (Island.musicWidth - surface.playFull) / 2
+    readonly property real fullNextX: surface.fullPlayX + surface.playFull + surface.controlGap
+    readonly property real fullPrevX: surface.fullPlayX - surface.controlGap - surface.controlSize
+    readonly property real fullControlY: Island.musicTransportY + (surface.playFull - surface.controlSize) / 2
+
+    // past the bubble end the spring shrinks the bubble by its own size, so the
+    // settle is a small pulse rather than a fraction of the whole panel
+    function span(bubble, open) {
+        return surface.full >= 0 ? bubble + (open - bubble) * surface.full : bubble * (1 + surface.full);
+    }
+
+    // off, queue, track, off, as Android cycles it
+    function cycleLoop() {
+        if (surface.player.loopState === MprisLoopState.None)
+            surface.player.loopState = MprisLoopState.Playlist;
+        else if (surface.player.loopState === MprisLoopState.Playlist)
+            surface.player.loopState = MprisLoopState.Track;
+        else
+            surface.player.loopState = MprisLoopState.None;
     }
 
     onClockHeldChanged: Music.holdClock(surface, surface.clockHeld)
     Component.onCompleted: Music.holdClock(surface, surface.clockHeld)
     Component.onDestruction: Music.holdClock(surface, false)
 
-    width: Island.bubbleSize + (Island.musicWidth - Island.bubbleSize) * surface.extend
-    height: Island.bubbleSize
-        + (surface.peekHeight - Island.bubbleSize) * surface.peek
-        + (Island.musicHeight - Island.bubbleSize) * surface.full
-    radius: Island.bubbleSize / 2
-        + (Island.musicPeekRadius - Island.bubbleSize / 2) * surface.peek
-        + (Island.musicRadius - Island.bubbleSize / 2) * surface.full
-    color: Theme.shadow
-    // A hairline rim so the panel's rounded shape reads on any wallpaper -- its
-    // pure-black frame would otherwise vanish into a dark desktop.
-    border.width: 1
-    border.color: Qt.rgba(surface.ink.r, surface.ink.g, surface.ink.b, 0.16)
+    width: surface.span(Island.bubbleSize, Island.musicWidth)
+    height: surface.span(Island.bubbleSize, Island.musicHeight)
+    radius: surface.span(Island.bubbleSize / 2, Island.musicRadius)
+    // the island draws the body, one liquid with the clock
+    color: "transparent"
     clip: true
 
-    // The whole island is the click target; the transport below takes its own
-    // clicks first, being later in the draw order.
+    // tapping the media control opens its app, as on Android
     MouseArea {
         anchors.fill: parent
+        enabled: surface.player !== null && surface.player.canRaise
         cursorShape: Qt.PointingHandCursor
-        onClicked: surface.activated()
+        onClicked: surface.player.raise()
     }
 
-    // ── the ambient backdrop ─────────────────────────────────────────────────
-    // The full panel's cover, blurred into an even wash and inset so the pill's
-    // near-black reads as a bezel around it. The whole group renders to one layer
-    // that blurs it and masks it to a rounded rect (glassMask), so its corners
-    // follow the frame instead of poking square into the bezel. A low accent tint
-    // recolours the wash with the wallpaper palette; a soft dark scrim, deeper
-    // toward the transport, keeps the text legible.
+    // one layer so the blur and the rounded mask apply to the whole wash at once
     Item {
         id: glass
         anchors.fill: parent
         anchors.margins: Island.framePad
-        visible: surface.full > 0.001
-        opacity: surface.full
+        visible: surface.shown > 0.001
+        opacity: surface.shown
         readonly property real radius: Math.max(0, surface.radius - Island.framePad)
         layer.enabled: surface.backdropActive
         layer.smooth: surface.backdropActive
@@ -120,8 +115,6 @@ Rectangle {
             brightness: -0.05
         }
 
-        // A palette wash under the art, and the whole backdrop when the blur is
-        // off or there is no cover.
         Rectangle {
             anchors.fill: parent
             radius: glass.radius
@@ -146,14 +139,14 @@ Rectangle {
             anchors.fill: parent
             radius: glass.radius
             gradient: Gradient {
-                GradientStop { position: 0.0; color: Qt.rgba(0, 0, 0, 0.26) }
-                GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.5) }
+                GradientStop { position: 0.0; color: Qt.rgba(0, 0, 0, 0.34) }
+                GradientStop { position: 0.55; color: Qt.rgba(0, 0, 0, 0.46) }
+                GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.62) }
             }
         }
     }
 
-    // The rounded mask for the ambient group; a sibling so the group's own layer
-    // can sample it without masking the mask.
+    // a sibling so the group's layer can sample it without masking the mask
     Rectangle {
         id: glassMask
         x: glass.x
@@ -165,15 +158,6 @@ Rectangle {
         layer.enabled: surface.backdropActive
     }
 
-    // The peek's own tinted fill, so the compact bar reads as part of the theme.
-    Rectangle {
-        anchors.fill: parent
-        radius: surface.radius
-        color: surface.accent
-        opacity: 0.14 * surface.peekVis
-    }
-
-    // A soft shadow lifts the cover off the ambient wash in the full panel.
     RectangularShadow {
         anchors.fill: cover
         radius: cover.radius
@@ -181,36 +165,25 @@ Rectangle {
         spread: 0
         offset: Qt.vector2d(0, 4)
         color: Qt.rgba(0, 0, 0, 0.5)
-        opacity: surface.full
+        opacity: surface.shown
     }
 
-    // ── the cover ────────────────────────────────────────────────────────────
-    // A circle in the bubble, a round square in the peek and the panel, ringed in
-    // black. One item, interpolated through all three sizes.
     Item {
         id: cover
-        x: Island.coverPeekX * surface.peek + Island.coverX * surface.full
-        y: Island.coverPeekY * surface.peek + Island.coverY * surface.full
-        width: Island.bubbleSize
-            + (Island.coverPeek - Island.bubbleSize) * surface.peek
-            + (Island.coverOpen - Island.bubbleSize) * surface.full
+        x: Island.coverX * surface.shown
+        y: Island.coverY * surface.shown
+        width: surface.span(Island.bubbleSize, Island.coverOpen)
         height: width
-        readonly property real radius: Island.bubbleSize / 2
-            + (Island.coverPeekRadius - Island.bubbleSize / 2) * surface.peek
-            + (Island.coverRadius - Island.bubbleSize / 2) * surface.full
-
+        readonly property real radius: Math.max(0, surface.span(Island.bubbleSize / 2, Island.coverRadius))
 
         Rectangle {
             anchors.fill: parent
             radius: cover.radius
-            color: Qt.darker(surface.accent, 1.5)
+            color: Md.accentContainer
             visible: !surface.hasArt
         }
 
-        // The art is clipped through a mask layer, not a Shape fill: an
-        // invisible Image feeding ShapePath.fillItem never repainted once the
-        // art arrived, and the bubble stayed blank. The cover is static, so the
-        // two small layers cost nothing per frame.
+        // a mask layer, not ShapePath.fillItem: the invisible Image source never repainted once art arrived
         Rectangle {
             id: coverMask
             anchors.fill: parent
@@ -232,12 +205,13 @@ Rectangle {
             layer.effect: MultiEffect { maskEnabled: true; maskSource: coverMask }
         }
 
-        Pill.MaterialIcon {
+        Icon {
             anchors.centerIn: parent
             visible: !surface.hasArt
-            text: "music_note"
-            color: surface.ink
-            font.pixelSize: Math.round(cover.height * 0.4)
+            name: "music_note"
+            filled: true
+            size: Math.round(cover.height * 0.42)
+            color: Md.onAccentContainer
         }
 
         Rectangle {
@@ -245,242 +219,207 @@ Rectangle {
             radius: cover.radius
             color: "transparent"
             border.width: 2
-            border.color: Theme.shadow
+            border.color: Md.base
         }
     }
 
-    // ── the peek's track line ────────────────────────────────────────────────
-    Column {
-        id: peekMeta
-        x: Island.coverPeekX + Island.coverPeek + 14
-        y: 25
-        width: 332 - x
-        spacing: 2
-        opacity: surface.peekVis
-
-        Text {
-            width: parent.width
-            text: surface.player ? (surface.player.trackTitle || "") : ""
-            color: surface.ink
-            font.family: Theme.fontPrimary
-            font.pixelSize: 15
-            font.weight: Font.DemiBold
-            elide: Text.ElideRight
-        }
-        Text {
-            width: parent.width
-            text: surface.player
-                ? Theme.joinArtists(surface.player.trackArtists, surface.player.trackArtist) : ""
-            color: Qt.rgba(surface.ink.r, surface.ink.g, surface.ink.b, 0.7)
-            font.family: Theme.fontPrimary
-            font.pixelSize: 11
-            elide: Text.ElideRight
-        }
-    }
-
-    // ── the full panel's track ───────────────────────────────────────────────
-    Column {
-        id: meta
-        x: Island.coverX + Island.coverOpen + 20
-        y: 32
-        width: Island.musicWidth - x - 20
-        spacing: 2
-        opacity: surface.full
-
-        Text {
-            width: parent.width
-            text: surface.player ? (surface.player.trackTitle || "") : ""
-            color: surface.ink
-            font.family: Theme.fontPrimary
-            font.pixelSize: 22
-            font.weight: Font.DemiBold
-            elide: Text.ElideRight
-        }
-        Text {
-            width: parent.width
-            height: 16
-            text: surface.player
-                ? Theme.joinArtists(surface.player.trackArtists, surface.player.trackArtist) : ""
-            color: Qt.rgba(surface.ink.r, surface.ink.g, surface.ink.b, 0.78)
-            font.family: Theme.fontPrimary
-            font.pixelSize: 14
-            elide: Text.ElideRight
-        }
-        Text {
-            width: parent.width
-            height: 15
-            visible: surface.player && (surface.player.trackAlbum || "").length > 0
-            text: surface.player ? (surface.player.trackAlbum || "") : ""
-            color: Qt.rgba(surface.ink.r, surface.ink.g, surface.ink.b, 0.5)
-            font.family: Theme.fontPrimary
-            font.pixelSize: 12
-            elide: Text.ElideRight
-        }
-        Text {
-            width: parent.width
-            height: 15
-            visible: surface.source.length > 0
-            text: surface.source
-            color: Qt.rgba(surface.accent.r, surface.accent.g, surface.accent.b, 0.85)
-            font.family: Theme.fontPrimary
-            font.pixelSize: 12
-            elide: Text.ElideRight
-        }
-    }
-
-    // ── progress, full panel only: click or drag the bar to seek ─────────────
     Item {
-        id: seek
-        x: meta.x
-        y: 140
-        width: meta.width
-        height: 24
-        opacity: surface.full
-        visible: surface.full > 0.01
+        id: meta
+        x: Island.coverX + Island.coverOpen + 16
+        y: Island.coverY
+        width: Island.musicWidth - x - Island.coverX
+        height: Island.coverOpen
+        opacity: surface.fullVis
+        visible: opacity > 0.01
 
-        // What the fill shows: the live position, or the scrub target while dragging.
-        readonly property real shownFrac: surface.scrubbing ? surface.scrubFrac : surface.fraction
-        function fracAt(mx) { return Math.max(0, Math.min(1, mx / width)); }
-
-        Rectangle {
-            id: track
+        Label {
+            id: sourceLabel
             anchors.left: parent.left
+            anchors.right: output.visible ? output.left : parent.right
+            anchors.rightMargin: output.visible ? 12 : 0
+            anchors.top: parent.top
+            height: 20
+            role: "label"
+            color: Md.alpha(Md.ink, 0.82)
+            text: surface.source
+        }
+
+        Row {
+            id: output
             anchors.right: parent.right
-            anchors.verticalCenter: parent.top
-            anchors.verticalCenterOffset: 5
-            height: surface.scrubbing ? 7 : 5
-            radius: height / 2
-            color: Qt.rgba(surface.ink.r, surface.ink.g, surface.ink.b, 0.22)
-            Behavior on height {
-                enabled: !Motion.reduce
-                NumberAnimation { duration: Motion.fast; easing.type: Motion.easeStandard }
-            }
+            anchors.verticalCenter: sourceLabel.verticalCenter
+            spacing: 4
+            visible: surface.outputName.length > 0
 
-            Rectangle {
-                id: fill
-                width: parent.width * seek.shownFrac
-                height: parent.height
-                radius: parent.radius
-                color: surface.accent
-            }
-
-            // The draggable knob, shown only when the player can seek.
-            Rectangle {
-                width: 13
-                height: 13
-                radius: height / 2
-                color: surface.accent
-                border.width: 2
-                border.color: Theme.shadow
+            Icon {
+                id: outputIcon
                 anchors.verticalCenter: parent.verticalCenter
-                x: Math.max(-height / 2, Math.min(parent.width - height / 2, fill.width - height / 2))
-                opacity: surface.seekable ? surface.full : 0
-                scale: surface.scrubbing ? 1.3 : 1
-                Behavior on scale {
-                    enabled: !Motion.reduce
-                    NumberAnimation { duration: Motion.fast; easing.type: Motion.easeStandard }
-                }
+                name: Audio.sinkIsBluez ? "headphones" : "speaker"
+                size: 16
+                color: Md.alpha(Md.ink, 0.82)
+            }
+            Label {
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.min(implicitWidth, meta.width * 0.5 - outputIcon.width - output.spacing)
+                role: "caption"
+                color: Md.alpha(Md.ink, 0.82)
+                text: surface.outputName
             }
         }
 
-        // Hit target, taller than the bar so it is easy to grab; commits the seek
-        // on release and previews it live while dragging.
-        MouseArea {
+        Column {
             anchors.left: parent.left
             anchors.right: parent.right
-            anchors.verticalCenter: track.verticalCenter
-            height: 22
-            enabled: surface.seekable
-            cursorShape: Qt.PointingHandCursor
-            preventStealing: true
-            onPressed: mouse => { surface.scrubbing = true; surface.scrubFrac = seek.fracAt(mouse.x); }
-            onPositionChanged: mouse => { if (surface.scrubbing) surface.scrubFrac = seek.fracAt(mouse.x); }
-            onReleased: {
-                if (surface.player && surface.scrubbing)
-                    Music.seekPosition(surface.scrubFrac * surface.length);
-                surface.scrubbing = false;
-            }
-            onCanceled: surface.scrubbing = false
-        }
+            anchors.bottom: parent.bottom
+            spacing: 2
 
-        Text {
-            anchors.left: parent.left
-            anchors.top: track.bottom
-            anchors.topMargin: 3
-            text: surface.clockText(surface.scrubbing
-                ? surface.scrubFrac * surface.length : surface.position)
-            color: Qt.rgba(surface.ink.r, surface.ink.g, surface.ink.b, 0.6)
-            font.family: Theme.mono
-            font.pixelSize: 10
-        }
-        Text {
-            anchors.right: parent.right
-            anchors.top: track.bottom
-            anchors.topMargin: 3
-            text: surface.length > 0 ? surface.clockText(surface.length) : ""
-            color: Qt.rgba(surface.ink.r, surface.ink.g, surface.ink.b, 0.6)
-            font.family: Theme.mono
-            font.pixelSize: 10
+            Label {
+                width: parent.width
+                role: "title"
+                font.pixelSize: 19
+                text: Music.title
+            }
+            Label {
+                width: parent.width
+                role: "body"
+                color: Md.alpha(Md.ink, 0.82)
+                text: Music.artist
+            }
+            Label {
+                width: parent.width
+                visible: Music.album.length > 0
+                role: "caption"
+                color: Md.alpha(Md.ink, 0.6)
+                text: Music.album
+            }
         }
     }
 
-    // ── transport ────────────────────────────────────────────────────────────
-    // One row, compact and right-aligned in the peek, centred under the track in
-    // the full panel; it glides between the two as the panel grows.
     Row {
-        id: transport
-        x: 340 * surface.peek + 255 * surface.full
-        y: 30 * surface.peek + 170 * surface.full
-        spacing: 16
-        opacity: surface.extend
+        x: Island.coverX
+        y: Island.musicSeekY
+        width: Island.musicWidth - 2 * Island.coverX
+        height: 24
+        spacing: 8
+        opacity: surface.fullVis
+        visible: opacity > 0.01
 
-        Pill.MaterialIcon {
-            anchors.verticalCenter: parent.verticalCenter
-            text: "skip_previous"
-            color: surface.ink
-            opacity: surface.player && surface.player.canGoPrevious ? 0.9 : 0.3
-            font.pixelSize: 20
-            MouseArea {
-                anchors.fill: parent
-                anchors.margins: -6
-                cursorShape: Qt.PointingHandCursor
-                onClicked: if (surface.player && surface.player.canGoPrevious) surface.player.previous()
-            }
-        }
-
-        Rectangle {
+        Label {
+            id: elapsed
             anchors.verticalCenter: parent.verticalCenter
             width: 40
-            height: 40
-            radius: height / 2
-            color: Qt.rgba(surface.accent.r, surface.accent.g, surface.accent.b, 0.28)
-
-            Pill.MaterialIcon {
-                anchors.centerIn: parent
-                text: surface.playing ? "pause" : "play_arrow"
-                fill: 1
-                color: surface.ink
-                font.pixelSize: 22
-            }
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: if (surface.player && surface.player.canTogglePlaying) surface.player.togglePlaying()
-            }
+            horizontalAlignment: Text.AlignRight
+            role: "caption"
+            font.family: Md.mono
+            font.pixelSize: 11
+            color: Md.alpha(Md.ink, 0.82)
+            text: Music.stamp(seekBar.scrubbing ? seekBar.scrub * surface.length : surface.position)
         }
-
-        Pill.MaterialIcon {
+        Wavy {
+            id: seekBar
             anchors.verticalCenter: parent.verticalCenter
-            text: "skip_next"
-            color: surface.ink
-            opacity: surface.player && surface.player.canGoNext ? 0.9 : 0.3
-            font.pixelSize: 20
-            MouseArea {
-                anchors.fill: parent
-                anchors.margins: -6
-                cursorShape: Qt.PointingHandCursor
-                onClicked: if (surface.player && surface.player.canGoNext) surface.player.next()
-            }
+            width: parent.width - elapsed.width - total.width - 2 * parent.spacing
+            height: 24
+            progress: surface.fraction
+            playing: surface.playing
+            seekable: surface.seekable
+            trackColor: Md.alpha(Md.ink, 0.26)
+            onSeek: function (fraction) { Music.seekPosition(fraction * surface.length); }
         }
+        Label {
+            id: total
+            anchors.verticalCenter: parent.verticalCenter
+            width: 40
+            role: "caption"
+            font.family: Md.mono
+            font.pixelSize: 11
+            color: Md.alpha(Md.ink, 0.82)
+            text: surface.length > 0 ? Music.stamp(surface.length) : ""
+        }
+    }
+
+    IconButton {
+        x: surface.fullPrevX - surface.controlGap - surface.controlSize
+        y: surface.fullControlY
+        size: surface.controlSize
+        icon: "shuffle"
+        tip: I18n.tr("Shuffle")
+        checked: surface.canShuffle && surface.player.shuffle
+        opacity: surface.fullVis
+        visible: surface.canShuffle && surface.fullVis > 0.01
+        onClicked: surface.player.shuffle = !surface.player.shuffle
+    }
+
+    IconButton {
+        x: surface.fullPrevX
+        y: surface.fullControlY
+        size: surface.controlSize
+        icon: "skip_previous"
+        tip: I18n.tr("Previous")
+        enabled: surface.player !== null && surface.player.canGoPrevious
+        opacity: surface.fullVis * (enabled ? 1 : 0.38)
+        visible: surface.fullVis > 0.01
+        onClicked: surface.player.previous()
+    }
+
+    Rectangle {
+        id: play
+        readonly property real shapeT: playHit.pressed ? 1.25 : surface.playing ? 1 : 0
+        property real squareness: play.shapeT
+        Behavior on squareness {
+            enabled: !Md.still
+            Spring { speed: "fast" }
+        }
+
+        x: surface.fullPlayX
+        y: Island.musicTransportY
+        width: surface.playFull
+        height: width
+        radius: width * (0.5 - 0.25 * play.squareness)
+        color: Md.accent
+        opacity: surface.fullVis
+        visible: surface.fullVis > 0.01
+
+        Accessible.role: Accessible.Button
+        Accessible.name: surface.playing ? I18n.tr("Pause") : I18n.tr("Play")
+
+        Icon {
+            anchors.centerIn: parent
+            name: surface.playing ? "pause" : "play_arrow"
+            size: 28
+            filled: true
+            color: Md.onAccent
+        }
+        StateLayer {
+            id: playHit
+            radius: play.radius
+            tint: Md.onAccent
+            enabled: surface.player !== null && surface.player.canTogglePlaying
+            onActivated: surface.player.togglePlaying()
+        }
+    }
+
+    IconButton {
+        x: surface.fullNextX
+        y: surface.fullControlY
+        size: surface.controlSize
+        icon: "skip_next"
+        tip: I18n.tr("Next")
+        enabled: surface.player !== null && surface.player.canGoNext
+        opacity: surface.fullVis * (enabled ? 1 : 0.38)
+        visible: surface.fullVis > 0.01
+        onClicked: surface.player.next()
+    }
+
+    IconButton {
+        x: surface.fullNextX + surface.controlSize + surface.controlGap
+        y: surface.fullControlY
+        size: surface.controlSize
+        icon: surface.canLoop && surface.player.loopState === MprisLoopState.Track ? "repeat_one" : "repeat"
+        tip: I18n.tr("Repeat")
+        checked: surface.canLoop && surface.player.loopState !== MprisLoopState.None
+        opacity: surface.fullVis
+        visible: surface.canLoop && surface.fullVis > 0.01
+        onClicked: surface.cycleLoop()
     }
 }

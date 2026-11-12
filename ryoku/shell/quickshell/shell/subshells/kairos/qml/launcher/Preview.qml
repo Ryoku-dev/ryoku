@@ -1,10 +1,8 @@
-// The Kairos launcher's Ryoku Settings preview. Visual only: the variant takes
-// no settings yet, so nothing here is editable.
+// visual only: the variant takes no settings yet
 
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Layouts
 import QtQuick.Effects
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
@@ -17,13 +15,32 @@ Item {
 
     implicitWidth: 720
     implicitHeight: 250
+    clip: true
 
-    readonly property var days: [
-        { "week": "M", "day": "7" }, { "week": "T", "day": "8" },
-        { "week": "WED", "day": "9" }, { "week": "T", "day": "10" },
-        { "week": "F", "day": "11" }, { "week": "S", "day": "12" }
+    readonly property color accentContainer: Qt.rgba(Tokens.sun.r, Tokens.sun.g, Tokens.sun.b, 0.28)
+    readonly property var suggested: [
+        { "glyph": "public", "name": "Firefox" }, { "glyph": "terminal", "name": "Kitty" },
+        { "glyph": "folder", "name": "Files" }, { "glyph": "music_note", "name": "Ryotunes" },
+        { "glyph": "settings", "name": "Settings" }
     ]
-    readonly property var apps: ["Firefox", "Kitty", "Files"]
+    readonly property var grid: ["calculate", "calendar_month", "photo_camera", "mail", "code"]
+
+    component AppGlyph: Rectangle {
+        property string glyph: ""
+        width: 44
+        height: 44
+        radius: 22
+        color: Tokens.tint10
+
+        Text {
+            anchors.centerIn: parent
+            text: parent.glyph
+            color: Tokens.ink
+            font.family: "Material Symbols Rounded"
+            font.pixelSize: 22
+            Accessible.ignored: true
+        }
+    }
 
     Rectangle {
         anchors.fill: parent
@@ -31,15 +48,16 @@ Item {
     }
 
     Rectangle {
-        id: island
+        id: drawer
 
-        anchors.centerIn: parent
-        width: Math.min(parent.width - Tokens.s6, 420)
-        height: 214
-        radius: 34
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: 8
+        width: 440
+        height: 290
+        radius: 32
         color: Tokens.paperLift
         border.width: Tokens.border
-        border.color: Tokens.line
+        border.color: Tokens.lineSoft
 
         RectangularShadow {
             anchors.fill: parent
@@ -51,145 +69,127 @@ Item {
         }
 
         Text {
-            id: clock
             anchors.horizontalCenter: parent.horizontalCenter
-            y: 16
+            y: 8
             text: "12:07"
             color: Tokens.ink
             font.family: Tokens.mono
-            font.pixelSize: 30
+            font.pixelSize: 26
             font.weight: Font.Medium
             font.letterSpacing: 1
         }
 
-        Row {
-            id: wheel
+        Rectangle {
+            id: search
             anchors.horizontalCenter: parent.horizontalCenter
-            anchors.top: clock.bottom
-            anchors.topMargin: 8
-            spacing: 6
+            y: 48
+            width: parent.width - 40
+            height: 40
+            radius: height / 2
+            color: Tokens.tint10
+
+            Text {
+                id: lens
+                anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
+                text: "search"
+                color: Tokens.inkDim
+                font.family: "Material Symbols Rounded"
+                font.pixelSize: 18
+                Accessible.ignored: true
+            }
+            Text {
+                anchors { left: lens.right; leftMargin: 10; verticalCenter: parent.verticalCenter }
+                text: I18n.tr("Search apps")
+                color: Tokens.inkFaint
+                font.family: Tokens.ui
+                font.pixelSize: 13
+            }
+            Text {
+                anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
+                text: "visibility_off"
+                color: Tokens.inkDim
+                font.family: "Material Symbols Rounded"
+                font.pixelSize: 18
+                Accessible.ignored: true
+            }
+        }
+
+        Text {
+            x: 30
+            y: 98
+            text: I18n.tr("Suggested")
+            color: Tokens.inkMuted
+            font.family: Tokens.ui
+            font.pixelSize: 11
+            font.weight: Font.Medium
+        }
+
+        Row {
+            id: suggestedRow
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: 116
 
             Repeater {
-                model: root.days
+                model: root.suggested
 
                 delegate: Item {
-                    id: slot
-                    required property int index
+                    id: cell
                     required property var modelData
-                    readonly property bool on: slot.index === 2
+                    required property int index
+                    readonly property bool on: cell.index === 0
 
-                    width: 46
-                    height: 66
+                    width: 80
+                    height: 78
 
                     Rectangle {
-                        anchors.centerIn: parent
-                        width: 40
-                        height: 56
-                        radius: 11
-                        color: slot.on ? Tokens.tint10 : "transparent"
+                        anchors.fill: parent
+                        anchors.margins: 2
+                        radius: 20
+                        color: cell.on ? root.accentContainer : "transparent"
                     }
-                    Column {
-                        anchors.centerIn: parent
-                        spacing: 1
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: slot.modelData.week
-                            color: slot.on ? Tokens.ink : Tokens.inkFaint
-                            font.family: Tokens.ui
-                            font.pixelSize: 10
-                            font.weight: slot.on ? Font.DemiBold : Font.Normal
-                            font.letterSpacing: slot.on ? 1 : 0
-                        }
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: slot.modelData.day
-                            color: slot.on ? Tokens.sun : Tokens.inkDim
-                            font.family: Tokens.mono
-                            font.pixelSize: slot.on ? 21 : 18
-                        }
+                    AppGlyph {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        y: 8
+                        glyph: cell.modelData.glyph
+                    }
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        y: 58
+                        text: cell.modelData.name
+                        color: Tokens.ink
+                        font.family: Tokens.ui
+                        font.pixelSize: 11
+                        font.weight: cell.on ? Font.Medium : Font.Normal
                     }
                 }
             }
         }
 
         Rectangle {
-            id: searchRow
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.top: wheel.bottom
-            anchors.topMargin: 4
-            width: parent.width - 2 * Tokens.s5
-            height: 34
-            radius: height / 2
-            color: Tokens.tint5
-            border.width: Tokens.border
-            border.color: Tokens.lineSoft
-
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 13
-                spacing: 8
-
-                Text {
-                    text: "search"
-                    color: Tokens.inkDim
-                    font.family: "Material Symbols Rounded"
-                    font.pixelSize: 16
-                    Accessible.ignored: true
-                }
-                Text {
-                    Layout.fillWidth: true
-                    text: I18n.tr("Search")
-                    color: Tokens.inkFaint
-                    font.family: Tokens.ui
-                    font.pixelSize: 12
-                }
-            }
+            x: 30
+            y: suggestedRow.y + suggestedRow.height + 6
+            width: parent.width - 60
+            height: 1
+            color: Tokens.lineSoft
         }
 
-        Column {
-            id: appRows
+        Row {
             anchors.horizontalCenter: parent.horizontalCenter
-            anchors.top: searchRow.bottom
-            anchors.topMargin: 3
-            width: parent.width - 2 * Tokens.s5
-            spacing: 1
+            y: suggestedRow.y + suggestedRow.height + 15
 
             Repeater {
-                model: root.apps
+                model: root.grid
 
                 delegate: Item {
-                    id: appRow
-                    required property var modelData
-                    required property int index
-                    readonly property bool on: appRow.index === 0
+                    id: gridCell
+                    required property string modelData
+                    width: 80
+                    height: 78
 
-                    width: appRows.width
-                    height: 22
-
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: 8
-                        color: appRow.on ? Tokens.tint10 : "transparent"
-                    }
-                    Text {
-                        anchors.left: parent.left
-                        anchors.leftMargin: 10 + (appRow.on ? 5 : 0)
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: appRow.modelData
-                        color: appRow.on ? Tokens.ink : Tokens.inkMuted
-                        font.family: Tokens.ui
-                        font.pixelSize: 11
-                        font.weight: appRow.on ? Font.DemiBold : Font.Normal
-                    }
-                    Text {
-                        anchors.right: parent.right
-                        anchors.rightMargin: 12
-                        anchors.verticalCenter: parent.verticalCenter
-                        visible: appRow.on
-                        text: I18n.tr("Run")
-                        color: Tokens.sun
-                        font.family: Tokens.ui
-                        font.pixelSize: 9
+                    AppGlyph {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        y: 8
+                        glyph: gridCell.modelData
                     }
                 }
             }

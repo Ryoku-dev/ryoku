@@ -1,6 +1,41 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **Kairos looks and works like Android 17.** Quick settings is a full shade
+  now, with paged tiles you can move, resize, add and remove, brightness and
+  volume sliders, the media control, grouped notifications and a power menu
+  (`shell/subshells/kairos/qml/quicksettings`, `qml/kit`).
+- **The Kairos island shows what changed.** Volume, mic and brightness
+  changes widen the clock into a level bar, new notifications drop out of it
+  as cards you can act on, and a dot says when something is unread or the
+  screen is recording. Both have a switch in Kairos settings.
+- **Kairos quick settings stays open until you click outside it.** The pointer
+  wandering off no longer closes it, and `ryoku-shell ipc call kairos
+  quickSettings` opens it from a keybind.
+- **Hovering the Kairos island opens Android's first pull.** A large clock
+  with the date, battery and today's weather, and five round chips you can
+  toggle right there. The date wheel is gone.
+- **Kairos moves at your screen's refresh rate.** The island, shade, launcher,
+  tiles and switches grow and settle the way Android 17 does on every frame,
+  so a 144 or 165 Hz screen no longer sees it step at about 60, and reversing
+  a hover keeps its momentum.
+- **Edit Kairos tiles the Android way.** Drag tiles to reorder them, drag a
+  tile's handle to resize it, drag it to the top to remove it, and choose the
+  chips, weather and battery the island shows when you hover it.
+- **The Kairos music bubble opens on hover.** Rest the pointer on it and it
+  grows straight into the now-playing panel; a click raises the player. The
+  peek size setting is gone.
+- **Kairos settings look like Android's large-screen Settings.** A searchable
+  list of categories with live summaries beside the selected page, and the
+  window opens without a stutter or a flash of text.
+- **The Kairos island is one liquid body.** The music bubble buds out of the
+  clock, melts into it up close and jiggles as it moves, and opening the
+  island no longer redraws its text every frame.
+- **The Kairos launcher is an app drawer.** Super+Space grows the island into
+  a search field, the five apps you open most and every app in a grid, with
+  arrow keys and a right-click menu for each app's own actions. Kairos
+  settings, the music island and the Wi-Fi, Bluetooth, Display and Sound
+  pages share the same look.
 - **Rashin is rebuilt as Ryoku's optional AI system.** Its free-model router,
   read-only Ask agent, external coding harnesses, project and system Index,
   command line and Lithic app now share one socket-activated daemon.

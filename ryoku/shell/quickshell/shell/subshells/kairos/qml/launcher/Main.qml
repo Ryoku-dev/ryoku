@@ -1,32 +1,33 @@
-// Kairos' launcher: the island bar style's app launcher, opened with Super+Space.
-// The pill grows from the resting island to the full panel, so the shortcut reads
-// as the island opening; the head is the clock, then the search row and the apps.
-//
-// The window maps at full size so the pill can morph without buffer resizes.
+// the window maps at full size so the pill can morph without buffer resizes
 
 import QtQuick
 import QtQuick.Effects
-import QtQuick.Layouts
 import Quickshell
+import Quickshell.Io
 import Quickshell.Wayland
-import Quickshell.Widgets
 import shell.services as Ryoku
 import Ryoku.Ui.Singletons
 import Ryoku.Text
 import "../IslandMetrics.js" as Island
 import "../components" as Bar
+import "../kit"
 
 Scope {
     id: root
 
-    // ── launcher contract (docs/launcher.md) ─────────────────────────────────
+    // launcher contract, see docs/launcher.md
     property bool openRequested: false
     readonly property bool shown: openRequested || closeSettler.running
     property string monitor: ""
-    Timer { id: closeSettler; interval: Math.max(1, Ryoku.Motion.morph) }
+    Timer {
+        id: closeSettler
+        interval: Math.max(1, Md.morph)
+        onTriggered: root.flushBump()
+    }
 
     function show(mon) {
         closeSettler.stop();
+        root.flushBump();
         root.monitor = mon || "";
         root.query = "";
         root.sel = 0;
@@ -41,33 +42,75 @@ Scope {
     }
     function toggle(mon) { root.openRequested ? root.hide() : root.show(mon); }
     function stateDump() {
+        const e = root.cells[root.sel];
         return {
             open: root.openRequested,
             query: root.query,
             selectedIndex: root.sel,
-            resultCount: root.rows.length,
+            selectedId: e ? String(e.id) : "",
+            resultCount: root.listed.length,
+            suggestedCount: root.nSug,
             showHidden: root.showHidden
         };
     }
 
-    // ── geometry ─────────────────────────────────────────────────────────────
-    readonly property int panelW: 470
-    readonly property int panelRadius: 40
-    readonly property int padX: 26
-    readonly property int rowH: 38
-    readonly property int visibleRows: 6
+    readonly property int cols: 5
+    readonly property int cellW: 88
+    readonly property int cellH: 98
+    readonly property int padX: 20
+    readonly property int panelW: root.cols * root.cellW + 2 * root.padX
+    readonly property int panelRadius: Md.rXxl
     readonly property int clockCentreY: 39
-    readonly property int searchY: 76
-    readonly property int searchH: 40
-    readonly property int listY: 126
-    readonly property int listH: root.visibleRows * root.rowH
-    readonly property int panelH: root.listY + root.listH + 24
+    readonly property int searchY: 72
+    readonly property int searchH: 52
+    readonly property int drawerY: root.searchY + root.searchH + 12
+    readonly property int sugLabelH: 26
+    readonly property int headerH: root.sugLabelH + root.cellH + 8
+    // a row always peeks out at the bottom, with or without the suggested row
+    readonly property int drawerH: root.headerH + root.cellH * 3 + 34
+    readonly property int panelH: root.drawerY + root.drawerH + 12
+    readonly property int pageRows: 3
 
-    readonly property color fill: Ryoku.Theme.shadow
-    readonly property color ink: Ryoku.Theme.ink(fill, 7)
-    readonly property color accent: Ryoku.Theme.primary
+    readonly property string usagePath:
+        (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state"))
+            + "/ryoku/launcher-usage.json"
+    property var usage: ({})
 
-    // ── apps ─────────────────────────────────────────────────────────────────
+    function parseUsage(raw) {
+        try {
+            const v = raw && raw.length ? JSON.parse(raw) : {};
+            return v && typeof v === "object" && !Array.isArray(v) ? v : {};
+        } catch (e) {
+            return {};
+        }
+    }
+    function count(id) {
+        const c = id ? root.usage[id] : 0;
+        return typeof c === "number" ? c : 0;
+    }
+    // re-read first so a launch another launcher counted meanwhile survives
+    function bump(id) {
+        if (!id)
+            return;
+        usageFile.reload();
+        const disk = root.parseUsage(usageFile.text());
+        disk[id] = (typeof disk[id] === "number" ? disk[id] : 0) + 1;
+        usageFile.setText(JSON.stringify(disk));
+        root.usage = disk;
+    }
+
+    FileView {
+        id: usageFile
+        path: root.usagePath
+        blockLoading: true
+        atomicWrites: true
+        watchChanges: true
+        printErrors: false
+        onFileChanged: reload()
+        onLoaded: root.usage = root.parseUsage(text())
+        onLoadFailed: root.usage = ({})
+    }
+
     property string query: ""
     property int sel: 0
     property bool showHidden: false
@@ -84,22 +127,54 @@ Scope {
 
     readonly property var catalogue: DesktopEntries.applications.values
         .filter(a => root.showHidden || !a.noDisplay)
-    readonly property var rows: FuzzyRanker.prefixRank(root.catalogue, root.query, "name")
+    readonly property var listed: FuzzyRanker.prefixRank(root.catalogue, root.query, "name")
+    readonly property var suggested: root.query.length > 0 ? [] : root.catalogue
+        .filter(a => root.count(a.id) > 0)
+        .sort((a, b) => root.count(b.id) - root.count(a.id) || String(a.name).localeCompare(String(b.name)))
+        .slice(0, root.cols)
+    readonly property int nSug: root.suggested.length
+    readonly property var cells: root.suggested.concat(root.listed)
+    readonly property int rowCount: (root.nSug > 0 ? 1 : 0) + Math.ceil(root.listed.length / root.cols)
 
-    function step(d) {
-        if (root.rows.length === 0)
-            return;
-        root.sel = Math.max(0, Math.min(root.rows.length - 1, root.sel + d));
+    function rowOf(i) {
+        if (i < root.nSug)
+            return 0;
+        return (root.nSug > 0 ? 1 : 0) + Math.floor((i - root.nSug) / root.cols);
     }
-    function run() {
-        const e = root.rows[root.sel];
-        if (!e)
+    function colOf(i) { return i < root.nSug ? i : (i - root.nSug) % root.cols; }
+    function indexAt(row, col) {
+        if (root.nSug > 0 && row === 0)
+            return Math.min(col, root.nSug - 1);
+        const r = row - (root.nSug > 0 ? 1 : 0);
+        const inRow = Math.min(root.cols, root.listed.length - r * root.cols);
+        return root.nSug + r * root.cols + Math.min(col, inRow - 1);
+    }
+    function moveRows(d) {
+        if (root.cells.length === 0)
             return;
+        const row = Math.max(0, Math.min(root.rowCount - 1, root.rowOf(root.sel) + d));
+        root.sel = root.indexAt(row, root.colOf(root.sel));
+    }
+    function moveBy(d) {
+        if (root.cells.length === 0)
+            return;
+        root.sel = Math.max(0, Math.min(root.cells.length - 1, root.sel + d));
+    }
+    // counted after the close settles so the suggested row can't reshuffle mid-collapse
+    property string pendingBump: ""
+    function flushBump() {
+        const id = root.pendingBump;
+        root.pendingBump = "";
+        root.bump(id);
+    }
+    function launch(entry, action) {
+        if (!entry)
+            return;
+        root.flushBump();
+        root.pendingBump = String(entry.id);
         root.hide();
-        Ryoku.AppLaunch.run(e, null);
+        Ryoku.AppLaunch.run(entry, action);
     }
-    // 0 until the morph reaches a band, 1 when it has: the reveal ramp the search
-    // row and the list ride in on.
     function revealed(from, to, progress) {
         return Math.max(0, Math.min(1, (progress - from) / (to - from)));
     }
@@ -121,18 +196,14 @@ Scope {
                 root.openRequested ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             anchors { top: true; bottom: true; left: true; right: true }
 
-            // The morph starts only once the surface is on screen: a Behavior
-            // started at the state flip would run its course while the window is
-            // still mapping, and the launcher would appear already open. Derived
-            // rather than latched, so a quick close-then-open -- the window still
-            // mapped, so no visibility change -- grows straight away instead of
-            // staying collapsed.
+            // derived, not latched: a Behavior started before the surface maps
+            // would finish unseen, and a quick reopen must grow again
             readonly property bool armed: root.openRequested && win.backingWindowVisible
             property real p: win.armed ? 1 : 0
 
             Behavior on p {
-                enabled: !Ryoku.Motion.reduce
-                NumberAnimation { duration: Ryoku.Motion.morph; easing.type: Ryoku.Motion.easeStandard }
+                enabled: !Md.still
+                Spring {}
             }
 
             readonly property real startWidth: startClock.implicitWidth + 2 * Island.restPadX
@@ -141,6 +212,85 @@ Scope {
             readonly property real clockCentre:
                 Island.restHeight / 2
                     + (root.clockCentreY - Island.restHeight / 2) * p
+
+            property var menuEntry: null
+            property Item menuReturn: null
+
+            function openMenu(entry, at) {
+                win.menuReturn = grid.activeFocus ? grid : field;
+                win.menuEntry = entry;
+                menu.current = 0;
+                menu.x = Math.max(8, Math.min(win.width - menu.width - 8, at.x));
+                const h = menu.implicitHeight;
+                const below = at.y + h + 8 <= win.height;
+                menu.y = Math.max(8, Math.min(win.height - h - 8, below ? at.y : at.y - h));
+                menu.forceActiveFocus();
+            }
+            function closeMenu() {
+                win.menuEntry = null;
+                (win.menuReturn || field).forceActiveFocus();
+            }
+            function cellItem(i) {
+                if (i < root.nSug)
+                    return grid.headerItem ? grid.headerItem.cellAt(i) : null;
+                return grid.itemAtIndex(i - root.nSug);
+            }
+            function menuForSelection() {
+                const item = win.cellItem(root.sel);
+                if (!item)
+                    return;
+                win.openMenu(root.cells[root.sel],
+                    item.mapToItem(win.contentItem, item.width / 2, item.height / 2));
+            }
+            function ensureVisible() {
+                if (root.sel < root.nSug)
+                    grid.positionViewAtBeginning();
+                else
+                    grid.positionViewAtIndex(root.sel - root.nSug, GridView.Contain);
+            }
+            // Left and Right stay with the text cursor while there is text
+            function navKey(event, fromField) {
+                const k = event.key;
+                const textual = fromField && field.text.length > 0;
+                if (k === Qt.Key_Escape)
+                    root.hide();
+                else if (k === Qt.Key_Return || k === Qt.Key_Enter)
+                    root.launch(root.cells[root.sel], null);
+                else if (k === Qt.Key_Down)
+                    root.moveRows(1);
+                else if (k === Qt.Key_Up)
+                    root.moveRows(-1);
+                else if (k === Qt.Key_PageDown)
+                    root.moveRows(root.pageRows);
+                else if (k === Qt.Key_PageUp)
+                    root.moveRows(-root.pageRows);
+                else if (k === Qt.Key_Right && !textual)
+                    root.moveBy(1);
+                else if (k === Qt.Key_Left && !textual)
+                    root.moveBy(-1);
+                else if (k === Qt.Key_Tab || k === Qt.Key_Backtab)
+                    (fromField ? grid : field).forceActiveFocus();
+                else if (k === Qt.Key_Menu || (k === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier)))
+                    win.menuForSelection();
+                else
+                    return false;
+                event.accepted = true;
+                return true;
+            }
+
+            Connections {
+                target: root
+                function onSelChanged() { win.ensureVisible(); }
+                function onQueryChanged() { grid.positionViewAtBeginning(); }
+                function onOpenRequestedChanged() {
+                    win.menuEntry = null;
+                    if (!root.openRequested)
+                        return;
+                    field.text = "";
+                    field.forceActiveFocus();
+                    grid.positionViewAtBeginning();
+                }
+            }
 
             MouseArea {
                 anchors.fill: parent
@@ -168,9 +318,8 @@ Scope {
                     + (root.panelH - Island.restHeight) * win.p)
                 radius: Island.restHeight / 2
                     + (root.panelRadius - Island.restHeight / 2) * win.p
-                color: root.fill
-                // Everything below the clock is laid out for the open panel; the
-                // clip is what makes it arrive as the island grows.
+                color: Md.base
+                // the clip is what makes the drawer arrive as the island grows
                 clip: true
                 MouseArea {
                     anchors.fill: parent
@@ -180,13 +329,12 @@ Scope {
 
                 Bar.Clock { id: clock }
 
-                // Never drawn: holds the resting pill's width, which is where the
-                // morph starts.
+                // never drawn: the resting pill's width, where the morph starts
                 Text {
                     id: startClock
                     visible: false
                     text: clock.time
-                    font.family: Ryoku.Theme.mono
+                    font.family: Md.mono
                     font.pixelSize: Island.restFontSize
                 }
 
@@ -194,201 +342,248 @@ Scope {
                     anchors.horizontalCenter: parent.horizontalCenter
                     y: Math.round(win.clockCentre - height / 2)
                     text: clock.time
-                    color: root.ink
-                    font.family: Ryoku.Theme.mono
+                    color: Md.ink
+                    font.family: Md.mono
                     font.pixelSize: Math.round(win.clockPx)
                     font.weight: Font.Medium
                     font.letterSpacing: 1
                 }
 
                 Rectangle {
-                    id: searchRow
+                    id: searchPill
                     anchors.horizontalCenter: parent.horizontalCenter
                     y: root.searchY
-                    width: parent.width - 2 * root.padX
+                    width: root.panelW - 2 * root.padX
                     height: root.searchH
                     radius: height / 2
-                    color: Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.08)
+                    color: field.activeFocus ? Md.containerHigh : Md.container
                     opacity: root.revealed(0.35, 0.8, win.p)
+                    Behavior on color {
+                        enabled: !Md.still
+                        ColorAnimation { duration: Md.fast }
+                    }
 
-                    RowLayout {
+                    MouseArea {
                         anchors.fill: parent
-                        anchors.leftMargin: 16
-                        anchors.rightMargin: 8
-                        spacing: 10
+                        cursorShape: Qt.IBeamCursor
+                        onPressed: field.forceActiveFocus()
+                    }
 
-                        Text {
-                            text: "search"
-                            color: root.ink
-                            opacity: 0.75
-                            font.family: "Material Symbols Rounded"
-                            font.pixelSize: 19
+                    Icon {
+                        id: lens
+                        anchors { left: parent.left; leftMargin: 18; verticalCenter: parent.verticalCenter }
+                        name: "search"
+                        size: 22
+                        color: Md.inkMuted
+                    }
+
+                    TextInput {
+                        id: field
+                        anchors {
+                            left: lens.right; leftMargin: 14
+                            right: hiddenToggle.left; rightMargin: 8
+                            verticalCenter: parent.verticalCenter
                         }
-                        TextInput {
-                            id: field
-                            Layout.fillWidth: true
-                            color: root.ink
-                            font.family: Ryoku.Theme.fontPrimary
-                            font.pixelSize: 15
-                            selectByMouse: true
-                            onTextChanged: if (text !== root.query) { root.query = text; root.sel = 0; }
-                            Connections {
-                                target: root
-                                function onOpenRequestedChanged() {
-                                    if (!root.openRequested)
-                                        return;
-                                    field.text = "";
-                                    field.forceActiveFocus();
-                                }
-                            }
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                visible: field.text.length === 0
-                                text: I18n.tr("Search")
-                                color: root.ink
-                                opacity: 0.45
-                                font: field.font
-                            }
-                            Keys.onEscapePressed: root.hide()
-                            Keys.onReturnPressed: root.run()
-                            Keys.onEnterPressed: root.run()
-                            Keys.onDownPressed: root.step(1)
-                            Keys.onUpPressed: root.step(-1)
-                            Keys.onPressed: event => {
-                                if (event.key === Qt.Key_PageDown) { root.step(6); event.accepted = true; }
-                                else if (event.key === Qt.Key_PageUp) { root.step(-6); event.accepted = true; }
-                            }
+                        clip: true
+                        color: Md.ink
+                        font.family: Md.font
+                        font.pixelSize: 16
+                        selectionColor: Md.accent
+                        selectedTextColor: Md.onAccent
+                        selectByMouse: true
+                        onTextChanged: if (text !== root.query) { root.query = text; root.sel = 0; }
+                        Keys.onPressed: event => win.navKey(event, true)
+
+                        Label {
+                            anchors.fill: parent
+                            visible: field.text.length === 0
+                            role: "body"
+                            font.pixelSize: 16
+                            text: I18n.tr("Search apps")
+                            color: Md.inkFaint
                         }
-                        Rectangle {
-                            Layout.preferredWidth: 30
-                            Layout.preferredHeight: 30
-                            radius: height / 2
-                            color: Qt.rgba(root.ink.r, root.ink.g, root.ink.b,
-                                root.showHidden ? 0.22 : 0.07)
-                            Text {
-                                anchors.centerIn: parent
-                                text: root.showHidden ? "visibility" : "visibility_off"
-                                color: root.ink
-                                opacity: 0.85
-                                font.family: "Material Symbols Rounded"
-                                font.pixelSize: 17
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: { root.showHidden = !root.showHidden; root.sel = 0; }
-                            }
+                    }
+
+                    IconButton {
+                        id: hiddenToggle
+                        anchors { right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
+                        icon: root.showHidden ? "visibility" : "visibility_off"
+                        checked: root.showHidden
+                        tip: root.showHidden ? I18n.tr("Hide hidden apps") : I18n.tr("Show hidden apps")
+                        activeFocusOnTab: false
+                        onClicked: {
+                            root.showHidden = !root.showHidden;
+                            root.sel = 0;
                         }
                     }
                 }
 
                 Item {
-                    id: listWrap
+                    id: drawer
                     anchors.horizontalCenter: parent.horizontalCenter
-                    y: root.listY
-                    width: parent.width - 2 * root.padX
-                    height: root.listH
+                    y: root.drawerY
+                    width: root.cols * root.cellW
+                    height: root.drawerH
                     opacity: root.revealed(0.5, 1, win.p)
 
-                    Rectangle {
+                    GridView {
+                        id: grid
                         anchors.fill: parent
-                        radius: 14
-                        color: Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.04)
-                    }
-
-                    Text {
-                        anchors.centerIn: parent
-                        visible: root.rows.length === 0
-                        text: I18n.tr("No matches")
-                        color: root.ink
-                        opacity: 0.5
-                        font.family: Ryoku.Theme.fontPrimary
-                        font.pixelSize: 13
-                    }
-
-                    ListView {
-                        id: list
-                        anchors.fill: parent
-                        anchors.margins: 4
                         clip: true
-                        model: ScriptModel { values: root.rows }
-                        // root.sel is the selection, not the view's own current item:
-                        // a ListView rewrites currentIndex when its model changes or an
-                        // ApplyRange pulls it into view, which killed the binding and
-                        // left the plate parked on one row while Enter ran another. The
-                        // plate is placed from sel below, and the list scrolls to it.
+                        cellWidth: root.cellW
+                        cellHeight: root.cellH
+                        boundsBehavior: Flickable.StopAtBounds
+                        cacheBuffer: root.cellH * 4
+                        keyNavigationEnabled: false
+                        // a view rewrites currentIndex on model changes, so the
+                        // plate would sit on one app while Enter ran another
                         currentIndex: -1
                         highlightFollowsCurrentItem: false
-                        boundsBehavior: Flickable.StopAtBounds
-                        cacheBuffer: root.rowH * 8
-
-                        Connections {
-                            target: root
-                            function onSelChanged() { list.positionViewAtIndex(root.sel, ListView.Contain) }
-                        }
-                        highlight: Rectangle {
-                            y: root.sel * root.rowH
-                            width: list.width
-                            height: root.rowH
-                            radius: 11
-                            color: Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.10)
-                            Behavior on y {
-                                enabled: !root.settling
-                                NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+                        model: ScriptModel { values: root.listed }
+                        Keys.onPressed: event => {
+                            if (win.navKey(event, false))
+                                return;
+                            if (event.key === Qt.Key_Backspace) {
+                                field.forceActiveFocus();
+                                field.remove(field.text.length - 1, field.text.length);
+                                event.accepted = true;
+                            } else if (event.text.length > 0 && event.text.charCodeAt(0) >= 32
+                                    && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier))) {
+                                field.forceActiveFocus();
+                                field.insert(field.text.length, event.text);
+                                event.accepted = true;
                             }
                         }
 
-                        delegate: Item {
-                            id: appRow
-                            required property int index
+                        header: Item {
+                            id: head
+                            width: grid.width
+                            height: root.nSug > 0 ? root.headerH : 0
+                            visible: root.nSug > 0
+
+                            function cellAt(i) { return suggestions.itemAt(i); }
+
+                            Label {
+                                x: 12
+                                height: root.sugLabelH
+                                role: "label"
+                                color: Md.inkMuted
+                                text: I18n.tr("Suggested")
+                            }
+
+                            Row {
+                                y: root.sugLabelH
+                                Repeater {
+                                    id: suggestions
+                                    model: root.suggested
+                                    delegate: AppCell {
+                                        required property var modelData
+                                        required property int index
+                                        width: root.cellW
+                                        height: root.cellH
+                                        entry: modelData
+                                        selected: index === root.sel
+                                        animate: !root.settling
+                                        onActivated: root.launch(modelData, null)
+                                        onSecondary: (x, y) => {
+                                            root.sel = index;
+                                            win.openMenu(modelData, mapToItem(win.contentItem, x, y));
+                                        }
+                                    }
+                                }
+                            }
+
+                            Rectangle {
+                                x: 12
+                                y: root.sugLabelH + root.cellH + 4
+                                width: parent.width - 24
+                                height: 1
+                                color: Md.outlineSoft
+                            }
+                        }
+
+                        delegate: AppCell {
                             required property var modelData
-                            width: ListView.view.width
-                            height: root.rowH
-                            readonly property bool on: appRow.index === root.sel
-
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: 12 + (appRow.on ? 6 : 0)
-                                anchors.rightMargin: 14
-                                spacing: 11
-                                Behavior on anchors.leftMargin {
-                                    enabled: !root.settling
-                                    NumberAnimation { duration: 180; easing.type: Easing.InOutQuad }
-                                }
-
-                                IconImage {
-                                    implicitSize: 20
-                                    source: Ryoku.Icons.path((appRow.modelData && appRow.modelData.icon)
-                                        || "application-x-executable", true)
-                                }
-                                Text {
-                                    Layout.fillWidth: true
-                                    text: appRow.modelData ? appRow.modelData.name : ""
-                                    color: root.ink
-                                    font.family: Ryoku.Theme.fontPrimary
-                                    font.pixelSize: 13
-                                    font.weight: appRow.on ? Font.DemiBold : Font.Normal
-                                    elide: Text.ElideRight
-                                }
-                                Text {
-                                    visible: appRow.on
-                                    text: I18n.tr("Run")
-                                    color: root.accent
-                                    font.family: Ryoku.Theme.fontPrimary
-                                    font.pixelSize: 11
-                                }
+                            required property int index
+                            width: root.cellW
+                            height: root.cellH
+                            entry: modelData
+                            selected: index + root.nSug === root.sel
+                            animate: !root.settling
+                            onActivated: root.launch(modelData, null)
+                            onSecondary: (x, y) => {
+                                root.sel = index + root.nSug;
+                                win.openMenu(modelData, mapToItem(win.contentItem, x, y));
                             }
+                        }
+                    }
 
-                            MouseArea {
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onEntered: root.sel = appRow.index
-                                onClicked: { root.sel = appRow.index; root.run(); }
+                    Column {
+                        anchors.centerIn: parent
+                        width: parent.width - 48
+                        visible: root.query.length > 0 && root.listed.length === 0
+                        spacing: 8
+
+                        Icon {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            name: "search_off"
+                            size: 40
+                            color: Md.inkFaint
+                        }
+                        Label {
+                            width: parent.width
+                            horizontalAlignment: Text.AlignHCenter
+                            role: "title"
+                            text: I18n.tr("No apps match \"%1\"").replace("%1", root.query)
+                        }
+                        Label {
+                            width: parent.width
+                            horizontalAlignment: Text.AlignHCenter
+                            role: "body"
+                            color: Md.inkMuted
+                            wrapMode: Text.Wrap
+                            text: root.showHidden
+                                ? I18n.tr("Check the spelling or try fewer letters.")
+                                : I18n.tr("Check the spelling, or look among hidden apps.")
+                        }
+                        Item { width: 1; height: 4 }
+                        Button {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            visible: !root.showHidden
+                            variant: "tonal"
+                            icon: "visibility"
+                            text: I18n.tr("Show hidden apps")
+                            onClicked: {
+                                root.showHidden = true;
+                                root.sel = 0;
                             }
                         }
                     }
                 }
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                z: 5
+                visible: win.menuEntry !== null
+                acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+                onPressed: win.closeMenu()
+            }
+
+            AppMenu {
+                id: menu
+                z: 6
+                width: implicitWidth
+                height: implicitHeight
+                maxHeight: win.height - 16
+                visible: win.menuEntry !== null
+                entry: win.menuEntry
+                onPicked: action => {
+                    const entry = win.menuEntry;
+                    win.menuEntry = null;
+                    root.launch(entry, action);
+                }
+                onDismissed: win.closeMenu()
             }
         }
     }

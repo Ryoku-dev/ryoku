@@ -2,472 +2,495 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import shell.services
-import shell.barkit as Pill
 import Ryoku.Ui.Singletons
-import "../kit" as K
+import Quickshell
+import "../../kit"
+import "../Segments.js" as Segments
 
 Column {
     id: page
 
     property var host
 
-    spacing: 12
-
-    readonly property color fill: Theme.shadow
-    readonly property color ink: Theme.ink(fill, 7)
-    readonly property color accent: Theme.primary
-    function dim(a) { return Qt.rgba(page.ink.r, page.ink.g, page.ink.b, a) }
+    spacing: 8
 
     property string pendingSsid: ""
     property string pendingBssid: ""
-    property string password: ""
+    property int callId: -1
+    property string callKey: ""
+    property string errorKey: ""
+    property string errorText: ""
+    property bool scanning: false
     property bool hiddenOpen: false
-    property string hiddenSsid: ""
-    property string hiddenPassword: ""
-    property bool hiddenConnecting: false
-    property int hiddenPendingId: -1
-    property bool hiddenError: false
 
-    readonly property bool connected: Network.wifiConnectivity === "Connected"
-    readonly property var aps: {
-        var list = (Network.accessPoints || []).slice();
-        var out = [];
+    readonly property string hiddenKey: "\u0000hidden"
+    readonly property bool joined: Network.wifiConnectivity === "Connected"
+    readonly property bool joining: Network.wifiConnectivity === "Connecting"
+    readonly property var current: {
+        var list = Network.accessPoints || [];
         for (var i = 0; i < list.length; i++)
-            if (list[i] && !list[i].active) out.push(list[i]);
-        out.sort(function (a, b) {
-            if (a.saved !== b.saved) return a.saved ? -1 : 1;
-            return (b.strength || 0) - (a.strength || 0);
-        });
+            if (list[i] && list[i].active) return list[i];
+        return null;
+    }
+    // android lists networks, not radios
+    readonly property var nets: {
+        var list = Network.accessPoints || [];
+        var best = ({});
+        for (var i = 0; i < list.length; i++) {
+            var ap = list[i];
+            if (!ap || !ap.ssid || ap.active || ap.ssid === Network.activeSsid) continue;
+            var had = best[ap.ssid];
+            if (!had || (ap.strength || 0) > (had.strength || 0))
+                best[ap.ssid] = Object.assign({}, ap, { saved: ap.saved || (had ? had.saved : false) });
+            else if (ap.saved)
+                had.saved = true;
+        }
+        var out = Object.keys(best).map(function (k) { return best[k]; });
+        out.sort(function (a, b) { return (b.strength || 0) - (a.strength || 0); });
         return out;
     }
+    readonly property var savedNets: page.nets.filter(function (ap) { return ap.saved; })
+    readonly property var newNets: page.nets.filter(function (ap) { return !ap.saved; })
+    // rows are kept per name across frames, so they read the latest frame from here
+    readonly property var byName: {
+        var out = ({});
+        for (var i = 0; i < page.nets.length; i++)
+            out[page.nets[i].ssid] = page.nets[i];
+        return out;
+    }
+    function signalGlyph(strength) {
+        var v = Number(strength || 0);
+        if (v > 75) return "signal_wifi_4_bar";
+        if (v > 50) return "network_wifi_3_bar";
+        if (v > 25) return "network_wifi_2_bar";
+        if (v > 0) return "network_wifi_1_bar";
+        return "signal_wifi_0_bar";
+    }
     function isOpen(ap) {
-        var s = String(ap.security || "").toLowerCase();
+        var s = String(ap && ap.security || "").toLowerCase();
         return s === "" || s === "none";
     }
-    function securityLabel(ap) {
-        if (page.isOpen(ap)) return I18n.tr("Open");
-        return String(ap.security || "").toUpperCase();
+    function securityName(ap) {
+        var s = String(ap && ap.security || "");
+        if (s === "Enterprise") return I18n.tr("Enterprise");
+        return I18n.tr("Secured with %1").replace("%1", s.toUpperCase());
     }
-    function connect(ap) {
+    function bandName(ap) {
+        return ap && ap.band ? I18n.tr("%1 GHz").replace("%1", ap.band) : "";
+    }
+    function statusOf(ap) {
+        if (page.callKey === ap.ssid) return I18n.tr("Connecting\u2026");
+        if (page.errorKey === ap.ssid) return page.errorText;
+        if (ap.saved) return I18n.tr("Saved");
+        if (page.isOpen(ap)) return I18n.tr("Open network");
+        return page.securityName(ap);
+    }
+
+    function scan() {
+        if (!Network.wifiRadio) return;
+        page.scanning = true;
+        Network.refresh();
+        scanDone.restart();
+    }
+    function begin(key, ssid, password, bssid, hidden) {
+        page.errorKey = "";
+        page.errorText = "";
+        page.callKey = key;
+        page.callId = Network.connectWifi(ssid, password, bssid, hidden);
+    }
+    // a hidden field keeps nothing focused, so Escape would stop reaching the island
+    function settleFocus() {
+        if (page.host) page.host.forceActiveFocus();
+    }
+    function choose(ap) {
+        page.hiddenOpen = false;
         if (ap.saved || page.isOpen(ap)) {
-            Network.connectWifi(ap.ssid, "", ap.bssid);
-            page.cancelPassword();
+            page.pendingSsid = "";
+            page.settleFocus();
+            page.begin(ap.ssid, ap.ssid, "", ap.bssid || "", false);
             return;
         }
-        page.pendingSsid = ap.ssid;
+        page.errorKey = page.errorKey === ap.ssid ? page.errorKey : "";
+        page.pendingSsid = page.pendingSsid === ap.ssid ? "" : ap.ssid;
         page.pendingBssid = ap.bssid || "";
-        page.password = "";
-        Qt.callLater(function () { if (pwField) pwField.forceActiveFocus(); });
+        if (page.pendingSsid === "") page.settleFocus();
     }
-    function submitPassword() {
-        if (page.pendingSsid === "") return;
-        Network.connectWifi(page.pendingSsid, page.password, page.pendingBssid);
-        page.cancelPassword();
+    function submitPassword(password) {
+        if (page.pendingSsid === "" || password.length === 0) return;
+        var ssid = page.pendingSsid;
+        page.settleFocus();
+        page.pendingSsid = "";
+        page.begin(ssid, ssid, password, page.pendingBssid, false);
     }
     function cancelPassword() {
+        page.settleFocus();
+        if (page.errorKey === page.pendingSsid) page.errorKey = "";
         page.pendingSsid = "";
         page.pendingBssid = "";
-        page.password = "";
-        if (pwField) pwField.focus = false;
     }
     function openHidden() {
+        page.pendingSsid = "";
+        page.errorKey = page.errorKey === page.hiddenKey ? "" : page.errorKey;
         page.hiddenOpen = true;
-        page.hiddenError = false;
-        Qt.callLater(function () { if (hiddenSsidField) hiddenSsidField.forceActiveFocus(); });
     }
     function cancelHidden() {
+        page.settleFocus();
         page.hiddenOpen = false;
-        page.hiddenConnecting = false;
-        page.hiddenPendingId = -1;
-        page.hiddenSsid = "";
-        page.hiddenPassword = "";
-        page.hiddenError = false;
+        if (page.errorKey === page.hiddenKey) page.errorKey = "";
     }
-    function submitHidden() {
-        if (page.hiddenSsid === "" || page.hiddenConnecting) return;
-        page.hiddenError = false;
-        page.hiddenConnecting = true;
-        page.hiddenPendingId = Network.connectWifi(page.hiddenSsid, page.hiddenPassword, "", true);
+    function submitHidden(ssid, password) {
+        var name = ssid.trim();
+        if (name === "" || page.callKey === page.hiddenKey) return;
+        page.begin(page.hiddenKey, name, password, "", true);
     }
+    // forgetting drops the saved password, so the first press only arms it
+    property string forgetArmed: ""
+    function forget(ssid) {
+        if (page.forgetArmed !== ssid) {
+            page.forgetArmed = ssid;
+            disarmForget.restart();
+            return;
+        }
+        page.forgetArmed = "";
+        if (page.pendingSsid === ssid) page.cancelPassword();
+        Network.forgetWifi(ssid);
+    }
+    Timer {
+        id: disarmForget
+        interval: 3000
+        onTriggered: page.forgetArmed = ""
+    }
+
     Connections {
         target: Network
         function onReplied(id, ok, error) {
-            if (id !== page.hiddenPendingId) return;
-            page.hiddenConnecting = false;
-            page.hiddenPendingId = -1;
-            if (ok)
-                page.cancelHidden();
-            else {
-                page.hiddenError = true;
-                page.hiddenPassword = "";
+            if (id !== page.callId) return;
+            var key = page.callKey;
+            page.callId = -1;
+            page.callKey = "";
+            if (ok) {
+                if (key === page.hiddenKey) page.cancelHidden();
+                return;
+            }
+            page.errorKey = key;
+            page.errorText = error && error.length > 0 ? error : I18n.tr("Could not connect");
+            // a refused password is the usual cause, so ask for it again in place
+            if (key !== page.hiddenKey) {
+                for (var i = 0; i < page.nets.length; i++)
+                    if (page.nets[i].ssid === key && !page.isOpen(page.nets[i])) {
+                        page.pendingSsid = key;
+                        page.pendingBssid = page.nets[i].bssid || "";
+                    }
             }
         }
     }
-
-    Item {
-        width: parent.width
-        height: 36
-
-        K.QsBack {
-            id: back
-            anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-            onClicked: page.host.back()
-        }
-        Text {
-            anchors { left: back.right; leftMargin: 12; verticalCenter: parent.verticalCenter }
-            text: I18n.tr("Wi-Fi")
-            color: page.ink
-            font.family: Theme.fontPrimary
-            font.pixelSize: 18
-            font.weight: Font.DemiBold
-        }
-        Row {
-            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-            spacing: 10
-
-            Item {
-                width: 36
-                height: 36
-                Rectangle {
-                    anchors.fill: parent
-                    radius: 18
-                    color: scanHover.hovered ? page.dim(0.12) : "transparent"
-                }
-                Pill.MaterialIcon {
-                    anchors.centerIn: parent
-                    text: "refresh"
-                    color: page.dim(0.8)
-                    font.pixelSize: 19
-                }
-                HoverHandler { id: scanHover }
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: Network.refresh()
-                }
+    // the daemon replies once NetworkManager settles; the network going active is the same answer, sooner
+    Connections {
+        target: Network
+        enabled: page.callKey !== "" && page.callKey !== page.hiddenKey
+        function onActiveSsidChanged() {
+            if (Network.activeSsid === page.callKey && page.joined) {
+                page.callId = -1;
+                page.callKey = "";
             }
-            K.QsSwitch {
+        }
+    }
+    Timer {
+        id: scanDone
+        interval: 15000
+        onTriggered: page.scanning = false
+    }
+    Component.onCompleted: if (page.nets.length === 0) page.scan()
+
+    component NetRow: Column {
+        id: net
+        required property var modelData
+        required property int index
+        property int count: 1
+        readonly property var ap: page.byName[net.modelData.ssid] || net.modelData
+        readonly property bool asking: page.pendingSsid === net.ap.ssid
+        readonly property string slot: Segments.position(net.index, net.count)
+        width: parent ? parent.width : 0
+        spacing: Md.seam
+
+        ListItem {
+            width: parent.width
+            position: !net.asking ? net.slot
+                : (net.slot === "only" ? "first" : net.slot === "last" ? "middle" : net.slot)
+            icon: page.signalGlyph(net.ap.strength)
+            headline: net.ap.ssid
+            supporting: page.statusOf(net.ap)
+            onClicked: page.choose(net.ap)
+
+            Icon {
                 anchors.verticalCenter: parent.verticalCenter
-                value: Network.wifiRadio
-                onToggled: (v) => Network.setWifiEnabled(v)
+                visible: !page.isOpen(net.ap)
+                name: "lock"
+                size: 18
+                color: Md.inkMuted
+            }
+            IconButton {
+                anchors.verticalCenter: parent.verticalCenter
+                visible: net.ap.saved === true
+                icon: page.forgetArmed === net.ap.ssid ? "delete_forever" : "delete"
+                iconSize: 20
+                danger: true
+                checked: page.forgetArmed === net.ap.ssid
+                tip: checked ? I18n.tr("Press again to forget") : I18n.tr("Forget")
+                onClicked: page.forget(net.ap.ssid)
+            }
+        }
+
+        Segment {
+            visible: net.asking
+            position: net.slot === "only" || net.slot === "last" ? "last" : "middle"
+            height: form.implicitHeight + 28
+
+            onVisibleChanged: if (visible) {
+                secret.text = "";
+                secret.field.forceActiveFocus();
+            }
+
+            Column {
+                id: form
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 14 }
+                spacing: 10
+
+                Row {
+                    width: parent.width
+                    spacing: 8
+
+                    TextField {
+                        id: secret
+                        width: parent.width - reveal.width - parent.spacing
+                        placeholder: I18n.tr("Password")
+                        password: !reveal.checked
+                        error: page.errorKey === net.ap.ssid
+                        onAccepted: page.submitPassword(secret.text)
+                        onEscaped: page.cancelPassword()
+                    }
+                    IconButton {
+                        id: reveal
+                        anchors.verticalCenter: parent.verticalCenter
+                        icon: reveal.checked ? "visibility_off" : "visibility"
+                        tip: reveal.checked ? I18n.tr("Hide password") : I18n.tr("Show password")
+                        onClicked: reveal.checked = !reveal.checked
+                    }
+                }
+                Label {
+                    width: parent.width
+                    visible: page.errorKey === net.ap.ssid
+                    role: "caption"
+                    color: Md.error
+                    wrapMode: Text.Wrap
+                    text: page.errorText
+                }
+                Row {
+                    anchors.right: parent.right
+                    spacing: 8
+
+                    Button {
+                        variant: "text"
+                        text: I18n.tr("Cancel")
+                        onClicked: page.cancelPassword()
+                    }
+                    Button {
+                        variant: "filled"
+                        text: I18n.tr("Connect")
+                        enabled: secret.text.length > 0
+                        onClicked: page.submitPassword(secret.text)
+                    }
+                }
             }
         }
     }
 
-    Text {
-        visible: !Network.wifiRadio
-        text: I18n.tr("Wi-Fi is off")
-        color: page.dim(0.55)
-        font.family: Theme.fontPrimary
-        font.pixelSize: 13
-    }
-
-    Rectangle {
-        id: connectedRow
-        visible: Network.wifiRadio && page.connected
+    TopBar {
         width: parent.width
-        height: 64
-        radius: 18
-        color: page.dim(0.06)
+        title: I18n.tr("Wi-Fi")
+        onBack: page.host.back()
 
-        Rectangle {
-            id: connDisc
-            anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
-            width: 42
-            height: 42
-            radius: 21
-            color: page.accent
-            Pill.GlyphIcon {
-                anchors.centerIn: parent
-                width: 20
-                height: 20
-                name: "wifi"
-                color: page.fill
-            }
+        IconButton {
+            anchors.verticalCenter: parent.verticalCenter
+            visible: Network.wifiPresent && Network.wifiRadio
+            icon: "refresh"
+            checked: page.scanning
+            tip: page.scanning ? I18n.tr("Scanning") : I18n.tr("Scan for networks")
+            onClicked: page.scan()
         }
-        Column {
-            anchors {
-                left: connDisc.right; leftMargin: 12
-                right: connAction.left; rightMargin: 10
-                verticalCenter: parent.verticalCenter
-            }
-            spacing: 1
-            Text {
-                width: parent.width
-                text: Network.activeSsid
-                color: page.ink
-                font.family: Theme.fontPrimary
-                font.pixelSize: 14
-                font.weight: Font.DemiBold
-                elide: Text.ElideRight
-            }
-            Text {
-                text: I18n.tr("Connected")
-                color: page.dim(0.6)
-                font.family: Theme.fontPrimary
-                font.pixelSize: 11
-            }
-        }
-        K.QsAction {
-            id: connAction
-            anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
-            text: I18n.tr("Disconnect")
-            onClicked: Network.disconnectWifi()
+        Switch {
+            anchors.verticalCenter: parent.verticalCenter
+            visible: Network.wifiPresent
+            checked: Network.wifiRadio
+            onToggled: v => Network.setWifiEnabled(v)
         }
     }
 
-    Text {
-        visible: Network.wifiRadio
-        text: I18n.tr("Networks")
-        color: page.dim(0.55)
-        font.family: Theme.fontPrimary
-        font.pixelSize: 12
+    EmptyState {
+        visible: !Network.wifiPresent
+        icon: "wifi_off"
+        title: I18n.tr("No Wi-Fi adapter")
+        body: I18n.tr("This computer has no Wi-Fi hardware the system can use. A cable or a USB Wi-Fi adapter gets it online.")
+    }
+
+    EmptyState {
+        visible: Network.wifiPresent && !Network.wifiRadio
+        icon: "wifi_off"
+        title: I18n.tr("Wi-Fi is off")
+        body: I18n.tr("Turn it on to see the networks around you and join one.")
+        action: I18n.tr("Turn on Wi-Fi")
+        onActed: Network.setWifiEnabled(true)
     }
 
     Column {
-        visible: Network.wifiRadio
         width: parent.width
+        visible: Network.wifiPresent && Network.wifiRadio
         spacing: 8
 
-        Repeater {
-            model: page.aps
-            delegate: Rectangle {
-                id: apRow
-                required property var modelData
-                width: parent.width
-                height: 58
-                radius: 18
-                color: apRow.modelData.saved
-                    ? Qt.rgba(page.accent.r, page.accent.g, page.accent.b, 0.10)
-                    : page.dim(0.05)
+        ListItem {
+            width: parent.width
+            visible: Network.activeSsid.length > 0 && (page.joined || page.joining)
+            selected: true
+            clickable: false
+            icon: page.signalGlyph(Network.wifi.strength)
+            headline: Network.activeSsid
+            supporting: page.joining ? I18n.tr("Connecting\u2026")
+                : (page.bandName(page.current).length > 0
+                    ? I18n.tr("Connected on %1").replace("%1", page.bandName(page.current))
+                    : I18n.tr("Connected"))
 
-                Rectangle {
-                    id: apDisc
-                    anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
-                    width: 38
-                    height: 38
-                    radius: 19
-                    color: page.dim(0.10)
-                    Pill.GlyphIcon {
-                        anchors.centerIn: parent
-                        width: 19
-                        height: 19
-                        name: "wifi"
-                        color: page.dim(0.85)
-                        opacity: 0.45 + 0.55 * Math.max(0, Math.min(1, (apRow.modelData.strength || 0) / 100))
-                    }
+            Button {
+                anchors.verticalCenter: parent.verticalCenter
+                variant: "tonal"
+                text: I18n.tr("Disconnect")
+                onClicked: Network.disconnectWifi()
+            }
+            IconButton {
+                anchors.verticalCenter: parent.verticalCenter
+                visible: !page.current || page.current.saved === true
+                icon: page.forgetArmed === Network.activeSsid ? "delete_forever" : "delete"
+                iconSize: 20
+                danger: true
+                checked: page.forgetArmed === Network.activeSsid
+                tip: checked ? I18n.tr("Press again to forget") : I18n.tr("Forget")
+                onClicked: page.forget(Network.activeSsid)
+            }
+        }
+
+        SectionLabel {
+            visible: page.savedNets.length > 0
+            text: I18n.tr("Saved networks")
+        }
+        Column {
+            width: parent.width
+            visible: page.savedNets.length > 0
+            spacing: Md.seam
+
+            Repeater {
+                model: ScriptModel { values: page.savedNets; objectProp: "ssid" }
+                delegate: NetRow { count: page.savedNets.length }
+            }
+        }
+
+        SectionLabel {
+            visible: page.newNets.length > 0
+            text: I18n.tr("Available networks")
+        }
+        Column {
+            width: parent.width
+            visible: page.newNets.length > 0
+            spacing: Md.seam
+
+            Repeater {
+                model: ScriptModel { values: page.newNets; objectProp: "ssid" }
+                delegate: NetRow { count: page.newNets.length }
+            }
+        }
+
+        EmptyState {
+            visible: page.nets.length === 0
+            icon: page.scanning ? "wifi_find" : "wifi_off"
+            title: page.scanning ? I18n.tr("Looking for networks\u2026") : I18n.tr("No networks found")
+            body: page.scanning ? I18n.tr("Networks in range appear here in a moment.")
+                : I18n.tr("Scan again, or move closer to the router.")
+            action: page.scanning ? "" : I18n.tr("Scan again")
+            onActed: page.scan()
+        }
+
+        Column {
+            width: parent.width
+            topPadding: 8
+            spacing: Md.seam
+
+            ListItem {
+                width: parent.width
+                position: page.hiddenOpen ? "first" : "only"
+                icon: "add"
+                headline: I18n.tr("Join a hidden network")
+                supporting: page.callKey === page.hiddenKey ? I18n.tr("Connecting\u2026") : ""
+                onClicked: page.hiddenOpen ? page.cancelHidden() : page.openHidden()
+            }
+
+            Segment {
+                visible: page.hiddenOpen
+                position: "last"
+                height: hiddenForm.implicitHeight + 28
+
+                onVisibleChanged: if (visible) {
+                    hiddenName.text = "";
+                    hiddenSecret.text = "";
+                    hiddenName.field.forceActiveFocus();
                 }
+
                 Column {
-                    anchors {
-                        left: apDisc.right; leftMargin: 10
-                        right: apAction.left; rightMargin: 10
-                        verticalCenter: parent.verticalCenter
-                    }
-                    spacing: 1
-                    Text {
+                    id: hiddenForm
+                    anchors { left: parent.left; right: parent.right; top: parent.top; margins: 14 }
+                    spacing: 10
+
+                    TextField {
+                        id: hiddenName
                         width: parent.width
-                        text: apRow.modelData.ssid || ""
-                        color: page.ink
-                        font.family: Theme.fontPrimary
-                        font.pixelSize: 13
-                        font.weight: Font.DemiBold
-                        elide: Text.ElideRight
+                        placeholder: I18n.tr("Network name")
+                        onAccepted: hiddenSecret.field.forceActiveFocus()
+                        onEscaped: page.cancelHidden()
                     }
-                    Text {
+                    TextField {
+                        id: hiddenSecret
                         width: parent.width
-                        text: page.securityLabel(apRow.modelData)
-                            + (apRow.modelData.band ? "  \u00B7  " + apRow.modelData.band : "")
-                        color: page.dim(0.6)
-                        font.family: Theme.fontPrimary
-                        font.pixelSize: 11
-                        elide: Text.ElideRight
+                        placeholder: I18n.tr("Password, if it has one")
+                        password: true
+                        error: page.errorKey === page.hiddenKey
+                        onAccepted: page.submitHidden(hiddenName.text, hiddenSecret.text)
+                        onEscaped: page.cancelHidden()
                     }
-                }
-                K.QsAction {
-                    id: apAction
-                    anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
-                    text: I18n.tr("Connect")
-                    onClicked: page.connect(apRow.modelData)
-                }
-            }
-        }
-
-        Text {
-            visible: page.aps.length === 0
-            text: I18n.tr("No networks found")
-            color: page.dim(0.5)
-            font.family: Theme.fontPrimary
-            font.pixelSize: 12
-        }
-
-        K.QsAction {
-            visible: Network.wifiRadio
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: I18n.tr("Connect to a hidden network")
-            onClicked: page.openHidden()
-        }
-    }
-
-    Rectangle {
-        id: pwCard
-        visible: page.pendingSsid !== ""
-        width: parent.width
-        height: pwColumn.implicitHeight + 28
-        radius: 18
-        color: page.dim(0.08)
-
-        Column {
-            id: pwColumn
-            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 14 }
-            spacing: 10
-
-            Text {
-                width: parent.width
-                text: I18n.tr("Password for %1").replace("%1", page.pendingSsid)
-                color: page.ink
-                font.family: Theme.fontPrimary
-                font.pixelSize: 13
-                font.weight: Font.DemiBold
-                elide: Text.ElideRight
-            }
-            Rectangle {
-                width: parent.width
-                height: 40
-                radius: 12
-                color: page.dim(0.12)
-                TextInput {
-                    id: pwField
-                    anchors {
-                        left: parent.left; right: parent.right
-                        leftMargin: 12; rightMargin: 12
-                        verticalCenter: parent.verticalCenter
+                    Label {
+                        width: parent.width
+                        visible: page.errorKey === page.hiddenKey
+                        role: "caption"
+                        color: Md.error
+                        wrapMode: Text.Wrap
+                        text: page.errorText
                     }
-                    echoMode: TextInput.Password
-                    color: page.ink
-                    font.family: Theme.fontPrimary
-                    font.pixelSize: 13
-                    selectionColor: page.accent
-                    selectedTextColor: page.fill
-                    onAccepted: page.submitPassword()
-                }
-            }
-            Row {
-                spacing: 10
-                K.QsAction {
-                    text: I18n.tr("Connect")
-                    onClicked: page.submitPassword()
-                }
-                K.QsAction {
-                    text: I18n.tr("Cancel")
-                    onClicked: page.cancelPassword()
+                    Row {
+                        anchors.right: parent.right
+                        spacing: 8
+
+                        Button {
+                            variant: "text"
+                            text: I18n.tr("Cancel")
+                            onClicked: page.cancelHidden()
+                        }
+                        Button {
+                            variant: "filled"
+                            text: page.callKey === page.hiddenKey ? I18n.tr("Connecting\u2026") : I18n.tr("Connect")
+                            enabled: hiddenName.text.trim().length > 0 && page.callKey !== page.hiddenKey
+                            onClicked: page.submitHidden(hiddenName.text, hiddenSecret.text)
+                        }
+                    }
                 }
             }
         }
     }
 
-    Rectangle {
-        id: hiddenCard
-        visible: page.hiddenOpen
-        width: parent.width
-        height: hiddenColumn.implicitHeight + 28
-        radius: 18
-        color: page.dim(0.08)
-
-        Column {
-            id: hiddenColumn
-            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 14 }
-            spacing: 10
-
-            Text {
-                width: parent.width
-                text: I18n.tr("Hidden network")
-                color: page.ink
-                font.family: Theme.fontPrimary
-                font.pixelSize: 13
-                font.weight: Font.DemiBold
-            }
-            Rectangle {
-                width: parent.width
-                height: 40
-                radius: 12
-                color: page.dim(0.12)
-                TextInput {
-                    id: hiddenSsidField
-                    anchors {
-                        left: parent.left; right: parent.right
-                        leftMargin: 12; rightMargin: 12
-                        verticalCenter: parent.verticalCenter
-                    }
-                    text: page.hiddenSsid
-                    onTextChanged: { page.hiddenSsid = text; page.hiddenError = false; }
-                    color: page.ink
-                    font.family: Theme.fontPrimary
-                    font.pixelSize: 13
-                    selectionColor: page.accent
-                    selectedTextColor: page.fill
-                    clip: true
-                    Keys.onPressed: function(event) { if (event.key === Qt.Key_Escape) { page.cancelHidden(); event.accepted = true; } }
-                    Text {
-                        anchors.fill: parent
-                        verticalAlignment: Text.AlignVCenter
-                        text: I18n.tr("Network name (SSID)")
-                        color: page.dim(0.4)
-                        font: hiddenSsidField.font
-                        visible: hiddenSsidField.text.length === 0 && !hiddenSsidField.activeFocus
-                    }
-                }
-            }
-            Rectangle {
-                width: parent.width
-                height: 40
-                radius: 12
-                color: page.dim(0.12)
-                TextInput {
-                    id: hiddenPwField
-                    anchors {
-                        left: parent.left; right: parent.right
-                        leftMargin: 12; rightMargin: 12
-                        verticalCenter: parent.verticalCenter
-                    }
-                    text: page.hiddenPassword
-                    onTextChanged: { page.hiddenPassword = text; page.hiddenError = false; }
-                    echoMode: TextInput.Password
-                    color: page.ink
-                    font.family: Theme.fontPrimary
-                    font.pixelSize: 13
-                    selectionColor: page.accent
-                    selectedTextColor: page.fill
-                    onAccepted: page.submitHidden()
-                    Keys.onPressed: function(event) { if (event.key === Qt.Key_Escape) { page.cancelHidden(); event.accepted = true; } }
-                    Text {
-                        anchors.fill: parent
-                        verticalAlignment: Text.AlignVCenter
-                        text: I18n.tr("Password (leave empty if open)")
-                        color: page.dim(0.4)
-                        font: hiddenPwField.font
-                        visible: hiddenPwField.text.length === 0 && !hiddenPwField.activeFocus
-                    }
-                }
-            }
-            Text {
-                width: parent.width
-                visible: page.hiddenError
-                text: I18n.tr("Could not connect")
-                color: Theme.error
-                font.family: Theme.fontPrimary
-                font.pixelSize: 11
-            }
-            Row {
-                spacing: 10
-                K.QsAction {
-                    text: page.hiddenConnecting ? I18n.tr("Connecting…") : I18n.tr("Connect")
-                    onClicked: page.submitHidden()
-                }
-                K.QsAction {
-                    text: I18n.tr("Cancel")
-                    onClicked: page.cancelHidden()
-                }
-            }
-        }
-    }
+    Item { width: 1; height: 4 }
 }

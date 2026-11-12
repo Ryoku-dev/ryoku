@@ -1,14 +1,14 @@
-// Kairos: the island bar style. The clock is the centre island -- it rests as a
-// small pill on the screen's centre line and expands there, symmetric, into the
-// clock over the rolling date wheel. The music island is a bubble to its left
-// that peeks open to the transport on hover and opens into the full now-playing
-// panel on a click; the expanding clock pushes the bubble aside, and moving the
-// pointer off the open panel closes it.
+// Kairos: the island bar style. The clock rests as a small pill on the screen's
+// centre line; hovering grows it there into android's first pull (the glance
+// and the compact tiles), and the expand button grows the same pill on into the
+// full quick-settings shade. The music island is a bubble to its left that opens
+// straight into the now-playing panel while the pointer is over it.
 
 import QtQuick
 import QtQuick.Effects
+import Ryoku.Blobs
 import shell.services
-import shell.barkit as Pill
+import "../kit"
 import "../settings" as S
 import "../quicksettings" as Q
 import "../IslandMetrics.js" as Island
@@ -17,19 +17,10 @@ import "." as C
 Item {
     id: island
 
-    // True while the launcher owns the island; both then rest, and the launcher's
-    // own pill (which starts at the clock's exact size) covers the clock.
+    // the launcher's own pill starts at the clock's exact size and covers it, so both rest
     property bool suspended: false
-    // Quick settings is the island itself growing into the panel: one surface,
-    // one pill, one animation. Open pins the clock out and the music aside.
     property bool quickOpen: false
-    property real quickProgress: island.quickOpen ? 1 : 0
-    readonly property real quickWidth: 472
-    readonly property real quickHeight: 500
-    Behavior on quickProgress {
-        enabled: !Motion.reduce
-        NumberAnimation { duration: Motion.morph; easing.type: Motion.easeStandard }
-    }
+    property real screenHeight: 1080
 
     signal settingsToggled()
     signal quickSettingsToggled()
@@ -43,72 +34,72 @@ Item {
     readonly property real restHeight: cfg.restHeight
     readonly property real restFontSize: cfg.restFontSize
     readonly property real band: topGap + restHeight
-    // Reserve the tallest state so the surface never resizes mid-morph: only the
-    // pill grows.
-    readonly property real reach: topGap
-        + Math.max(cfg.hoverHeight + island.trayMaxExtra, Island.musicHeight, island.quickHeight)
-        + Island.shadowBleed
 
-    // ── the music island ─────────────────────────────────────────────────────
-    // Rests as a bubble beside the clock. A hover peeks the transport open; a
-    // click opens the full now-playing panel. Moving the pointer off the island
-    // closes it again -- no click needed -- and a track never opens it by itself.
-    property bool pinnedFull: false
-    onHasTrackChanged: if (!island.hasTrack) island.pinnedFull = false
-    // Leaving the island (hover lost through the grace timer) closes the panel,
-    // unless a progress-bar scrub is in flight -- a drag may stray off the panel.
-    readonly property bool musicScrubbing: music.scrubbing
-    onMusicHoveredChanged: if (!island.musicHovered && !island.musicScrubbing) island.pinnedFull = false
-    onMusicScrubbingChanged: if (!island.musicScrubbing && !island.musicHovered) island.pinnedFull = false
-
-    function toggleFull() { island.pinnedFull = !island.pinnedFull; }
-
-    readonly property bool full: island.pinnedFull && !island.suspended
-    property real fullProgress: island.full ? 1 : 0
-    property real peekProgress:
-        (island.musicHovered && island.hasTrack && !island.full && !island.suspended) ? 1 : 0
-    property real trackPresence: (island.hasTrack && cfg.music) ? 1 : 0
-
-    Behavior on fullProgress {
-        enabled: !Motion.reduce
-        NumberAnimation { duration: Motion.morph; easing.type: Motion.easeStandard }
+    // ── the quick-settings shade ─────────────────────────────────────────────
+    readonly property real quickWidth: 472
+    readonly property real quickPad: 16
+    // taller pages scroll inside the shade
+    readonly property real quickMax: Math.max(420, Math.min(860, island.screenHeight - island.topGap - 24))
+    property real quickHeight: Math.min(island.quickMax, pane.contentHeight + 2 * island.quickPad)
+    Behavior on quickHeight {
+        enabled: !Md.still && island.quickProgress > 0.99
+        Spring { speed: "fast" }
     }
-    Behavior on peekProgress {
-        enabled: !Motion.reduce
-        NumberAnimation { duration: Motion.morph; easing.type: Motion.easeStandard }
-    }
-    Behavior on trackPresence {
-        enabled: !Motion.reduce
-        NumberAnimation { duration: Motion.fast; easing.type: Motion.easeStandard }
-    }
-
-    // ── the clock island ─────────────────────────────────────────────────────
-    property real clockProgress: ((island.clockHovered || island.quickOpen) && !island.suspended) ? 1 : 0
-    Behavior on clockProgress {
-        enabled: !Motion.reduce && !island.suspended
-        NumberAnimation { duration: Motion.morph; easing.type: Motion.easeStandard }
-    }
+    SpringValue { id: quickSpring; target: island.quickOpen ? 1 : 0 }
+    readonly property real quickProgress: quickSpring.value
+    // the pointer drifting off never closes the shade, only a click outside or escape
     onQuickOpenChanged: {
-        island.quickArmed = false;
-        if (island.quickOpen) {
-            armTimer.restart();
-            Qt.callLater(function () { clockPill.forceActiveFocus(); });
+        if (!island.quickOpen)
+            return;
+        Notifs.markSeen();
+        Qt.callLater(function () { clockPill.forceActiveFocus(); });
+    }
+
+    // a compact tile's detail page opens the shade on that page; its other actions fold the glance
+    property string pendingPage: ""
+    function openShadeAt(page) {
+        island.pendingPage = page;
+        if (!island.quickOpen)
+            island.quickSettingsToggled();
+        else
+            pane.go(page);
+    }
+    Connections {
+        target: pane
+        function onVisibleChanged() {
+            if (pane.visible && island.pendingPage !== "") {
+                pane.go(island.pendingPage);
+                island.pendingPage = "";
+            }
         }
     }
-    property bool quickArmed: false
-    Timer {
-        id: armTimer
-        interval: 500
-        onTriggered: island.quickArmed = true
+    QtObject {
+        id: glanceHost
+        function go(page) { island.openShadeAt(page); }
+        function close() { clockGrace.stop(); island.clockHovered = false; }
     }
-    // Leaving the island closes quick settings, so it never lingers after the
-    // pointer walks away. Armed only after the open settles, so the click that
-    // opened it can never immediately close it.
-    onClockHoveredChanged: if (!island.clockHovered && island.quickOpen && island.quickArmed) island.quickCloseRequested();
 
-    // Hover intent, one timer each: a pointer crossing the gap between the two
-    // islands must not collapse the one it left mid-reach, and leaving one must
-    // not cancel the other's hover.
+    // ── the music island ─────────────────────────────────────────────────────
+    // a scrub may stray off the panel, so it holds the panel open until release
+    readonly property bool full: (island.musicHovered || music.scrubbing)
+        && island.hasTrack && !island.suspended && !island.quickOpen
+    SpringValue { id: fullSpring; target: island.full ? 1 : 0 }
+    readonly property real fullProgress: fullSpring.value
+    SpringValue { id: trackSpring; target: (island.hasTrack && cfg.music) ? 1 : 0 }
+    readonly property real trackPresence: trackSpring.value
+
+    // ── the clock island ─────────────────────────────────────────────────────
+    // hovering a heads-up holds the card, it shouldn't open the clock under it
+    readonly property bool clockWanted: (island.clockHovered && !headsUp.showing) || island.quickOpen
+    // the launcher's pill takes over at the clock's resting size, so the island drops there at once
+    SpringValue { id: clockSpring; target: (island.clockWanted && !island.suspended) ? 1 : 0 }
+    onSuspendedChanged: if (island.suspended) clockSpring.snap()
+    readonly property real clockProgress: clockSpring.value
+    readonly property real glanceReveal: Math.max(0, Math.min(1, (island.clockProgress - 0.5) / 0.4))
+        * Math.max(0, 1 - 2 * island.quickProgress)
+
+    // one grace timer each, so crossing the gap between the islands collapses neither mid-reach;
+    // the music opens only after a short dwell so a pointer passing along the top edge leaves it shut
     property bool musicHovered: false
     property bool clockHovered: false
     Timer {
@@ -117,51 +108,50 @@ Item {
         onTriggered: island.clockHovered = false
     }
     Timer {
+        id: musicIntent
+        interval: 140
+        onTriggered: island.musicHovered = true
+    }
+    Timer {
         id: musicGrace
         interval: 320
         onTriggered: island.musicHovered = false
     }
 
     // ── geometry ─────────────────────────────────────────────────────────────
-    // Measured at a fixed size, so the growing clock cannot feed back into the
-    // width it is growing inside.
+    // measured at a fixed size so the growing clock can't feed back into its own width
     readonly property real restWidth: Math.round(metrics.implicitWidth + 2 * cfg.restPadX)
-    readonly property real hoverWidth: Math.round(island.restWidth
-        + (cfg.hoverWidth - island.restWidth) * island.clockProgress)
-    // The tray caret already lives in the sliver left under the date wheel at
-    // rest; opening it (or an app's menu) grows the pill by exactly that much
-    // more, so the tray reads as one more thing the island opens into.
-    readonly property bool trayHostActive: island.clockHovered && !island.suspended && !island.quickOpen
+    readonly property real restingWidth: island.restWidth + Math.max(
+        (osdLayer.wantedWidth - island.restWidth) * osdLayer.progress,
+        (headsUp.wantedWidth - island.restWidth) * headsUp.progress)
+    readonly property real restingHeight: island.restHeight
+        + (headsUp.wantedHeight - island.restHeight) * headsUp.progress
+    readonly property real hoverWidth: Math.round(island.restingWidth
+        + (cfg.hoverWidth - island.restingWidth) * island.clockProgress)
+    readonly property bool trayHostActive: island.clockWanted && !island.suspended && !island.quickOpen
     property real trayExtra: trayFlyout.extraHeight
     Behavior on trayExtra {
-        enabled: !Motion.reduce
-        NumberAnimation { duration: Motion.fast; easing.type: Motion.easeStandard }
+        enabled: !Md.still
+        Spring { speed: "fast" }
     }
-    // A fixed reserve for the window's own canvas (see Scene's `reach`-sized
-    // PanelWindow): capped once at the flyout's own maximum, never live, so the
-    // surface is created at its largest size and never resizes mid-morph.
-    readonly property real trayMaxExtra: trayFlyout.maxExtra
-    readonly property real hoverHeight: Math.round(island.restHeight
-        + (cfg.hoverHeight + island.trayExtra - island.restHeight) * island.clockProgress)
-    readonly property real baseRadius: cfg.restHeight / 2
-        + (cfg.hoverRadius - cfg.restHeight / 2) * island.clockProgress
+    readonly property real hoverHeight: Math.round(island.restingHeight
+        + (cfg.hoverHeight + island.trayExtra - island.restingHeight) * island.clockProgress)
+    readonly property real restingRadius: cfg.restHeight / 2 + (28 - cfg.restHeight / 2) * headsUp.progress
+    readonly property real baseRadius: island.restingRadius
+        + (cfg.hoverRadius - island.restingRadius) * island.clockProgress
     readonly property real clockWidth: Math.round(island.hoverWidth
         + (island.quickWidth - island.hoverWidth) * island.quickProgress)
     readonly property real clockHeight: Math.round(island.hoverHeight
         + (island.quickHeight - island.hoverHeight) * island.quickProgress)
-    readonly property real clockRadius: island.baseRadius
-        + (40 - island.baseRadius) * island.quickProgress
+    readonly property real clockRadius: island.baseRadius + (32 - island.baseRadius) * island.quickProgress
 
-    // How far to the left of the clock the music reaches (0 with no track).
+    // the clock rests centred and grows symmetric, so it needs this much room left of its resting
+    // edge (or the music's reach) without leaving the item
     readonly property real musicExtent: (music.width + Island.bubbleGap) * island.trackPresence
-    // The clock rests centred and expands symmetric, so it reaches this far left
-    // of its resting edge; reserve that (or the music's extent) so it has room to
-    // grow left without leaving the item.
-    readonly property real clockGrowMax: (Math.max(cfg.hoverWidth, island.quickWidth) - island.restWidth) / 2
+    readonly property real clockGrowMax: (Math.max(cfg.hoverWidth, island.quickWidth,
+        osdLayer.wantedWidth, headsUp.wantedWidth) - island.restWidth) / 2
     readonly property real clockRestLeft: Math.max(island.clockGrowMax, island.musicExtent)
-    // The clock's resting centre, fixed in item coordinates: the scene lands it on
-    // the screen's centre line, so the clock never drifts as the music opens and
-    // it always expands around that line.
+    // fixed in item coordinates and landed on the screen's centre line by the scene
     readonly property real clockRestCentre: island.clockRestLeft + island.restWidth / 2
 
     width: Math.round(island.clockRestCentre + island.clockWidth / 2)
@@ -169,29 +159,70 @@ Item {
 
     readonly property color fill: Theme.shadow
     readonly property color ink: Theme.ink(fill, 7)
+    // the bubble buds out of the clock when a track starts and is absorbed back as the shade opens
+    readonly property real musicPresence: Math.max(0, Math.min(1, island.trackPresence))
+        * (1 - Math.max(0, Math.min(1, island.quickProgress)))
+
+    // the clock and the music are one liquid body: within the smoothing reach they melt together
+    // and each shape jiggles with its own speed as it moves
+    BlobGroup {
+        id: liquid
+        color: island.fill
+        smoothing: 12
+        borderWidth: 1
+        borderColor: Theme.blend(Qt.rgba(island.ink.r, island.ink.g, island.ink.b, 0.16), island.fill)
+        shadowStrength: 0
+        shadowSize: 0
+    }
+    BlobRect {
+        id: musicBody
+        group: liquid
+        z: -1
+        // every shape in a group draws even when hidden, so an absent bubble shrinks to nothing
+        // tucked inside the clock
+        readonly property bool present: island.musicPresence > 0.01
+        width: musicBody.present ? music.width * island.musicPresence : 0
+        height: musicBody.present ? music.height * (0.4 + 0.6 * island.musicPresence) : 0
+        x: musicBody.present ? music.x + music.width - musicBody.width : clockPill.x + clockPill.width / 2
+        y: musicBody.present ? (music.height - musicBody.height) / 2 * (1 - island.musicPresence) : clockPill.height / 2
+        radius: Math.min(music.radius, musicBody.height / 2, musicBody.width / 2)
+        // only the bare bubble jiggles, a stretched panel body would slide out from under its content
+        deformScale: island.fullProgress > 0.05 ? 0 : 0.0004
+    }
+    BlobRect {
+        id: clockBody
+        group: liquid
+        z: -1
+        x: clockPill.x
+        y: clockPill.y
+        width: clockPill.width
+        height: clockPill.height
+        radius: Math.min(island.clockRadius, clockPill.height / 2)
+        // its centre only moves because it grows, and a velocity stretch would squeeze the body
+        // narrower than the content it holds
+        deformScale: 0
+    }
 
     C.MusicSurface {
         id: music
-        // Pinned just left of the clock's live left edge, so the expanding clock
-        // pushes the bubble aside instead of covering it; grows leftward.
+        // pinned to the clock's live left edge so the growing clock pushes it aside
         x: island.clockRestCentre - island.clockWidth / 2 - Island.bubbleGap - width
         z: 0
         player: island.player
-        peek: island.peekProgress
-        peekHeight: cfg.musicPeek
         full: island.fullProgress
         ink: island.ink
         accent: Theme.primary
-        opacity: island.trackPresence * (island.quickOpen ? 0 : 1)
-        onActivated: island.toggleFull()
+        opacity: island.musicPresence
+        enabled: !island.quickOpen
 
         HoverHandler {
-            id: musicHover
             onHoveredChanged: {
                 if (hovered) {
                     musicGrace.stop();
-                    island.musicHovered = true;
+                    if (!island.musicHovered)
+                        musicIntent.restart();
                 } else {
+                    musicIntent.stop();
                     musicGrace.restart();
                 }
             }
@@ -200,22 +231,25 @@ Item {
 
     Rectangle {
         id: clockPill
-        // Grows symmetric around its fixed resting centre, over the music.
         x: island.clockRestCentre - island.clockWidth / 2
         y: 0
         z: 2
         width: island.clockWidth
         height: island.clockHeight
         radius: island.clockRadius
-        color: island.fill
-        // A hairline rim so the pill's rounded shape reads on any wallpaper --
-        // its pure-black fill would otherwise vanish into a dark desktop.
-        border.width: 1
-        border.color: Qt.rgba(island.ink.r, island.ink.g, island.ink.b, 0.16)
+        // the liquid body underneath draws the pill; this only holds and clips the content
+        color: "transparent"
         clip: true
 
+        // presses on the shade's own gaps stay on the shade instead of reaching the click-away area
+        MouseArea {
+            anchors.fill: parent
+            enabled: island.quickOpen
+            acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+            onPressed: function (event) { event.accepted = true; }
+        }
+
         HoverHandler {
-            id: clockHover
             onHoveredChanged: {
                 if (hovered) {
                     clockGrace.stop();
@@ -237,171 +271,106 @@ Item {
 
         C.Clock { id: clock }
 
+        C.IslandOsd {
+            id: osdLayer
+            anchors { left: parent.left; right: parent.right; top: parent.top }
+            height: cfg.restHeight
+            active: cfg.islandOsd
+            blocked: island.clockWanted || island.suspended
+        }
+
+        C.HeadsUp {
+            id: headsUp
+            width: headsUp.wantedWidth
+            height: parent.height
+            x: (parent.width - width) / 2
+            active: cfg.islandNotifications
+            blocked: island.quickOpen || island.suspended
+            yielding: osdLayer.showing
+            onOpenShade: island.quickSettingsToggled()
+        }
+
+        // red while recording, accent for unread notifications
+        Rectangle {
+            readonly property real rest: (1 - island.clockProgress) * (1 - osdLayer.progress) * (1 - headsUp.progress)
+            x: Math.round(cfg.restPadX / 2 - width / 2)
+            y: Math.round((cfg.restHeight - height) / 2)
+            width: 6
+            height: 6
+            radius: 3
+            color: Recorder.active ? Theme.error : Theme.primary
+            visible: (Recorder.active || Notifs.hasUnread) && rest > 0.01
+            opacity: Math.max(0, Math.min(1, rest))
+        }
+
         Text {
             id: metrics
             visible: false
             text: clock.time
             font.family: Theme.mono
             font.pixelSize: cfg.restFontSize
+            font.weight: Font.Medium
         }
 
-        // One Text at native size per step, never two copies crossfading: a
-        // whole-pixel step keeps the growth crisp and cannot ghost.
+        // its groups are pinned to the pill's edges, so growing slides them instead of re-laying out
+        C.Glance {
+            id: glance
+            anchors.fill: parent
+            reveal: island.glanceReveal
+            uiScale: cfg.scale
+            tiles: cfg.glanceTiles
+            showLocation: cfg.showLocation
+            showWeather: cfg.glanceWeather
+            showBattery: cfg.glanceBattery
+            host: glanceHost
+            enabled: island.glanceReveal > 0.95
+            onExpandRequested: island.quickSettingsToggled()
+            onSettingsRequested: island.settingsToggled()
+        }
+
+        // the shared element: one Text at the glance's size, scaled down into the resting pill,
+        // so the move is a transform and the glyphs are never rebuilt mid-motion
         Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            y: Math.round(cfg.restHeight / 2
-                + (cfg.hoverClockCentreY - cfg.restHeight / 2) * island.clockProgress
-                - height / 2)
+            readonly property real p: island.clockProgress
+            readonly property real restScale: cfg.restFontSize / cfg.hoverFontSize
+            transformOrigin: Item.TopLeft
+            scale: restScale + (1 - restScale) * p
+            x: (parent.width - width * scale) / 2 * (1 - p) + (glance.x + Island.glancePad * cfg.scale) * p
+            y: (cfg.restHeight - height * scale) / 2 * (1 - p) + Island.glanceClockY * cfg.scale * p
             text: clock.time
             color: island.ink
             font.family: Theme.mono
-            font.pixelSize: Math.round(cfg.restFontSize
-                + (cfg.hoverFontSize - cfg.restFontSize) * island.clockProgress)
-            font.letterSpacing: 0.5 + 0.5 * island.clockProgress
-            opacity: 1 - island.quickProgress
+            font.pixelSize: cfg.hoverFontSize
+            font.weight: Font.Medium
+            opacity: Math.max(0, (1 - 2 * island.quickProgress) * (1 - osdLayer.progress) * (1 - headsUp.progress))
         }
 
-        C.DateWheel {
-            id: wheel
-            visible: cfg.dateWheel && island.clockProgress > 0.01
-            anchors.horizontalCenter: parent.horizontalCenter
-            y: cfg.wheelTop
-            width: parent.width
-            height: cfg.wheelHeight
-            ink: island.ink
-            accent: Theme.primary
-            locale: Config.formatLoc
-            reveal: Math.max(0, Math.min(1, (island.clockProgress - 0.3) / 0.55))
-            opacity: wheel.reveal * (1 - island.quickProgress)
-        }
-
-        // The quick-settings face, drawn inside the same pill so the island reads
-        // as one body opening.
         Q.QuickSettingsPane {
             id: pane
-            anchors.fill: parent
-            anchors.topMargin: 50
-            anchors.leftMargin: 16
-            anchors.rightMargin: 16
-            anchors.bottomMargin: 16
+            width: island.quickWidth - 2 * island.quickPad
+            height: Math.max(0, parent.height - 2 * island.quickPad)
+            x: (parent.width - width) / 2
+            y: island.quickPad
             visible: island.quickProgress > 0.01
-            opacity: Math.max(0, Math.min(1, (island.quickProgress - 0.35) / 0.5))
+            opacity: Math.max(0, Math.min(1, (island.quickProgress - 0.25) / 0.45))
             enabled: island.quickProgress > 0.95
             host: island
         }
 
-        // The system tray folds into the sliver already left under the date
-        // wheel; opening it (or an app's menu) is what grows the pill further.
         C.TrayFlyout {
             id: trayFlyout
             anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter }
-            width: parent.width
+            width: cfg.hoverWidth
             ink: island.ink
             accent: Theme.primary
             hostActive: island.trayHostActive
-            visible: cfg.tray && island.clockProgress > 0.5 && !island.quickOpen
-            opacity: Math.max(0, Math.min(1, (island.clockProgress - 0.5) / 0.4))
-            enabled: island.clockProgress > 0.95
-        }
-
-        // Quick settings sit just left of the gear; both ride the expansion.
-        Item {
-            id: quickButton
-            anchors.top: parent.top
-            anchors.right: settingsButton.left
-            anchors.rightMargin: 6
-            anchors.topMargin: 8
-            width: 32
-            height: 32
-            visible: island.clockProgress > 0.01
-            opacity: Math.max(0, Math.min(1, (island.clockProgress - 0.35) / 0.4))
-
-            Rectangle {
-                anchors.fill: parent
-                radius: width / 2
-                color: Qt.rgba(island.ink.r, island.ink.g, island.ink.b,
-                    quickHover.hovered ? 0.14 : 0)
-                Behavior on color {
-                    enabled: !Motion.reduce
-                    ColorAnimation { duration: Motion.fast; easing.type: Motion.easeStandard }
-                }
-            }
-
-            Pill.MaterialIcon {
-                anchors.centerIn: parent
-                text: "tune"
-                color: island.ink
-                opacity: 0.75
-                font.pixelSize: 18
-            }
-
-            HoverHandler { id: quickHover }
-
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: island.quickSettingsToggled()
-            }
-        }
-
-        // The power readout sits in the top-left corner, opposite the gear: a
-        // laptop shows its battery and charge, a desktop the all-inclusive
-        // glyph. It fades in with the expansion, so the resting pill stays a
-        // bare clock.
-        C.BatteryIndicator {
-            anchors.top: parent.top
-            anchors.left: parent.left
-            anchors.topMargin: 12
-            anchors.leftMargin: 18
-            ink: island.ink
-            reveal: Math.max(0, Math.min(1, (island.clockProgress - 0.35) / 0.4))
-        }
-
-        // A gear in the top-right corner opens Ryoku Settings; it fades in as the
-        // island expands, so the resting pill stays a bare clock.
-        Item {
-            id: settingsButton
-            anchors.top: parent.top
-            anchors.right: parent.right
-            anchors.topMargin: 8
-            anchors.rightMargin: 10
-            width: 32
-            height: 32
-            visible: island.clockProgress > 0.01
-            opacity: Math.max(0, Math.min(1, (island.clockProgress - 0.35) / 0.4))
-
-            Rectangle {
-                anchors.fill: parent
-                radius: width / 2
-                color: Qt.rgba(island.ink.r, island.ink.g, island.ink.b,
-                    settingsHover.hovered ? 0.14 : 0)
-                Behavior on color {
-                    enabled: !Motion.reduce
-                    ColorAnimation { duration: Motion.fast; easing.type: Motion.easeStandard }
-                }
-            }
-
-            Pill.MaterialIcon {
-                anchors.centerIn: parent
-                text: "settings"
-                color: island.ink
-                opacity: 0.75
-                font.pixelSize: 18
-            }
-
-            HoverHandler { id: settingsHover }
-
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: island.settingsToggled()
-            }
+            visible: cfg.tray && island.glanceReveal > 0.01
+            opacity: island.glanceReveal
+            enabled: island.glanceReveal > 0.95
         }
     }
 
-    // A battery at 20% or lower rings the island in error red. A brief pulse
-    // every few seconds keeps the warning noticeable without repainting forever;
-    // reduced motion leaves the ring static.
+    // a battery at 20% or lower rings the island in red, with a brief pulse every few seconds
     Rectangle {
         id: lowBatteryRing
         anchors.fill: clockPill
@@ -415,7 +384,7 @@ Item {
         z: 1
 
         SequentialAnimation on opacity {
-            running: lowBatteryRing.visible && !Motion.reduce
+            running: lowBatteryRing.visible && !Md.still
             loops: Animation.Infinite
             PauseAnimation { duration: 4200 }
             NumberAnimation { from: 1; to: 0.35; duration: 500; easing.type: Easing.InOutSine }
@@ -423,26 +392,25 @@ Item {
         }
     }
 
-    // One shadow per island: a single shadow around the root would smear the
-    // empty space between them. The clock's rides above the music so the
-    // expanding pill still reads as floating over it.
+    // shadows sit under the liquid body, one per shape so the gap between them stays clear
     RectangularShadow {
-        anchors.fill: music
-        radius: music.radius
+        anchors.fill: musicBody
+        radius: musicBody.radius
         blur: 30
         spread: 2
         offset: Qt.vector2d(0, 6)
         color: Qt.rgba(0, 0, 0, 0.6)
-        opacity: island.trackPresence * (island.quickOpen ? 0 : 1)
-        z: -1
+        opacity: island.musicPresence
+        visible: musicBody.present
+        z: -2
     }
     RectangularShadow {
         anchors.fill: clockPill
-        radius: clockPill.radius
+        radius: clockBody.radius
         blur: 24
         spread: 2
         offset: Qt.vector2d(0, 4)
         color: Qt.rgba(0, 0, 0, 0.6)
-        z: 1
+        z: -2
     }
 }

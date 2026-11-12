@@ -30,7 +30,8 @@ and any launcher installed from RyoStore (see
 An item contributes a launcher with `[[provides.launcher]]` in its `item.toml`
 (see `docs/subshells.md`). The shipped Kairos subshell provides **Kairos**, the
 island launcher: the pill grows out of Kairos's resting island at the top of the
-screen into the clock, the app search and the app list. Store items provide
+screen into an Android-style app drawer, with a search field, the five apps you
+open most and every app A to Z in a grid. Store items provide
 others, such as Spotlight from the Shima bar style and Python from the Python
 subshell. The page tags them `FROM <ITEM>`. Selecting one puts its item in use,
 so a packed item is unpacked first, and the default launcher previews and runs
