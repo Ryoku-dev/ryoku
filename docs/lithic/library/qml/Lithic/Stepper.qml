@@ -176,8 +176,15 @@ T.SpinBox {
                 // the field stays the stepper's focus child after focus moves elsewhere; drop it, so coming back lands on the stepper
                 Qt.callLater(() => { if (!valueInput.activeFocus) valueInput.focus = false })
             }
-            Keys.onReturnPressed: root._leaveField()
-            Keys.onEnterPressed: root._leaveField()
+            // Return commits and goes on, as a TextField's does, so a form around the stepper hears it
+            Keys.onReturnPressed: event => {
+                root._leaveField()
+                event.accepted = false
+            }
+            Keys.onEnterPressed: event => {
+                root._leaveField()
+                event.accepted = false
+            }
             // Escape drops an unsaved edit; with nothing typed it goes on, so a dialog can close
             Keys.onEscapePressed: event => {
                 const edited = text !== root.displayText
