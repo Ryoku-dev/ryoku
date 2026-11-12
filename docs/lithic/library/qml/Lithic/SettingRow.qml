@@ -142,14 +142,16 @@ T.AbstractButton {
             width: root._textWidth
             spacing: LithicTokens.size.settingsDetailGap
 
+            // the changed tag sits beside a title that fits on one line with it, else on its own line below
             Item {
+                readonly property bool _tagInline: titleLabel.implicitWidth + LithicTokens.space.s3
+                                                   + changedMark.implicitWidth <= width
                 width: parent.width
-                height: titleLabel.height
+                height: titleLabel.height + (root.changed && !_tagInline ? changedMark.height : 0)
 
                 Label {
                     id: titleLabel
-                    width: Math.min(implicitWidth,
-                                    parent.width - (root.changed ? changedMark.implicitWidth + LithicTokens.space.s3 : 0))
+                    width: Math.min(implicitWidth, parent.width)
                     text: root.text
                     typeRole: "row"
                     wrapMode: Text.Wrap
@@ -159,8 +161,8 @@ T.AbstractButton {
                 Label {
                     id: changedMark
                     visible: root.changed
-                    x: titleLabel.contentWidth + LithicTokens.space.s3
-                    anchors.baseline: titleLabel.baseline
+                    x: parent._tagInline ? titleLabel.contentWidth + LithicTokens.space.s3 : 0
+                    y: parent._tagInline ? titleLabel.baselineOffset - baselineOffset : titleLabel.height
                     text: Lithic.tr("Changed")
                     typeRole: "detail"
                     inkRole: "fg3"
