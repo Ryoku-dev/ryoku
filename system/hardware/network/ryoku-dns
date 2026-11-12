@@ -1,9 +1,25 @@
 #!/usr/bin/env bash
+# System DNS switch behind the bar's DNS picker (the shell
+# daemon's network.dnsSet runs it; 50-ryoku-dns.rules lets wheel run it
+# without a password).
+#
+#   ryoku-dns dhcp                      the servers each connection hands out
+#   ryoku-dns cloudflare | google       that provider's servers, system-wide
+#   ryoku-dns custom <server>...        these servers, system-wide
+#
+# The servers are always recorded as NetworkManager [global-dns], which is what
+# the daemon reads back. Where systemd-resolved does the lookups, that alone
+# changes nothing: NetworkManager keeps pushing each connection's own DNS to
+# resolved, which asks those servers too. So there NetworkManager stops pushing
+# DNS (dns=none) and the servers become resolved's global DNS, the only ones it
+# then asks. dhcp removes both files and NetworkManager pushes connection DNS
+# again.
 set -euo pipefail
 
-conf=/etc/NetworkManager/conf.d/20-ryoku-dns.conf
+conf=${RYOKU_DNS_NM_CONF:-/etc/NetworkManager/conf.d/20-ryoku-dns.conf}
+resolved_conf=${RYOKU_DNS_RESOLVED_CONF:-/etc/systemd/resolved.conf.d/20-ryoku-dns.conf}
+host=${RYOKU_DNS_HOST:-ryoku-host}
 provider=${1:-}
-conf_dir=${conf%/*}
 tmp=
 
 cleanup() {
@@ -11,24 +27,46 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if (( EUID != 0 )); then
+# RYOKU_DNS_TEST lets the hermetic test run this unprivileged against temporary
+# paths; pkexec clears the environment, so it never reaches a privileged run.
+if (( EUID != 0 )) && [[ -z ${RYOKU_DNS_TEST:-} ]]; then
   exec pkexec "$(readlink -f "$0")" "$@"
 fi
 
-write_dns() {
-  local servers=$1
-  install -d -m755 "$conf_dir"
-  tmp=$(mktemp "$conf_dir/.20-ryoku-dns.conf.XXXXXX")
-  cat >"$tmp" <<EOF
-# Managed by ryoku-dns. Run ryoku-dns dhcp to restore connection-provided DNS.
-[global-dns]
+uses_resolved() {
+  "$host" svc --system is-active systemd-resolved >/dev/null 2>&1
+}
 
-[global-dns-domain-*]
-servers=$servers
-EOF
+# write_file PATH CONTENT: replace PATH atomically, 0644
+write_file() {
+  local path=$1 dir=${1%/*}
+  install -d -m755 "$dir"
+  tmp=$(mktemp "$dir/.${path##*/}.XXXXXX")
+  printf '%s' "$2" >"$tmp"
   chmod 0644 "$tmp"
-  mv -f -- "$tmp" "$conf"
+  mv -f -- "$tmp" "$path"
   tmp=
+}
+
+# write_dns SERVER...: record the servers, and on resolved make them the only ones
+write_dns() {
+  local list nm=""
+  list=$(IFS=,; printf '%s' "$*")
+  if uses_resolved; then
+    nm=$'[main]\ndns=none\n\n'
+    write_file "$resolved_conf" "# Managed by ryoku-dns. Run ryoku-dns dhcp to restore connection-provided DNS.
+[Resolve]
+DNS=$*
+Domains=~.
+"
+  else
+    rm -f -- "$resolved_conf"
+  fi
+  write_file "$conf" "# Managed by ryoku-dns. Run ryoku-dns dhcp to restore connection-provided DNS.
+${nm}[global-dns]
+[global-dns-domain-*]
+servers=$list
+"
 }
 
 valid_server() {
@@ -44,12 +82,13 @@ valid_server() {
     /usr/bin/getent ahosts "$server" >/dev/null
 }
 
+override=1
 case "${provider,,}" in
   cloudflare)
-    write_dns "1.1.1.1,1.0.0.1,2606:4700:4700::1111,2606:4700:4700::1001"
+    write_dns 1.1.1.1 1.0.0.1 2606:4700:4700::1111 2606:4700:4700::1001
     ;;
   google)
-    write_dns "8.8.8.8,8.8.4.4,2001:4860:4860::8888,2001:4860:4860::8844"
+    write_dns 8.8.8.8 8.8.4.4 2001:4860:4860::8888 2001:4860:4860::8844
     ;;
   custom)
     shift
@@ -57,11 +96,11 @@ case "${provider,,}" in
     for server in "$@"; do
       valid_server "$server" || { echo "invalid DNS server: $server" >&2; exit 1; }
     done
-    servers=$(IFS=,; printf '%s' "$*")
-    write_dns "$servers"
+    write_dns "$@"
     ;;
   dhcp)
-    rm -f "$conf"
+    override=0
+    rm -f -- "$conf" "$resolved_conf"
     ;;
   *)
     echo "usage: ryoku-dns <dhcp|cloudflare|google|custom> [servers...]" >&2
@@ -69,7 +108,21 @@ case "${provider,,}" in
     ;;
 esac
 
-if ryoku-host svc --system is-active NetworkManager; then
-  nmcli general reload conf >/dev/null || ryoku-host svc --system reload NetworkManager
+resolved=0
+uses_resolved && resolved=1
+if (( resolved && ! override )); then
+  # drop the global servers first, so connection DNS takes over as it returns
+  "$host" svc --system reload systemd-resolved || true
+fi
+if "$host" svc --system is-active NetworkManager; then
+  nmcli general reload conf >/dev/null || "$host" svc --system reload NetworkManager
   nmcli general reload dns-full >/dev/null 2>&1 || true
+fi
+if (( resolved && override )); then
+  # NetworkManager has stopped pushing DNS but leaves what it pushed in place;
+  # revert every link so resolved asks only its global servers
+  while read -r link; do
+    resolvectl revert "$link" || true
+  done < <(resolvectl dns | sed -nE 's/^Link [0-9]+ \(([^)]+)\).*/\1/p')
+  "$host" svc --system reload systemd-resolved || true
 fi
