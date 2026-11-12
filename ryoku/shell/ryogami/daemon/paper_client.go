@@ -35,8 +35,6 @@ const (
 type paperSource struct {
 	Kind       string                 `json:"kind"`
 	Path       string                 `json:"path"`
-	Engine     string                 `json:"engine,omitempty"`
-	FrameRate  string                 `json:"frame_rate,omitempty"`
 	Properties map[string]interface{} `json:"properties,omitempty"`
 }
 
