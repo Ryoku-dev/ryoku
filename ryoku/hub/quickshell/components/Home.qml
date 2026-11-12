@@ -263,6 +263,8 @@ Item {
             out.push({ key: key("Ryoku"), value: root.release });
         if (Settings.provider)
             out.push({ key: key("Window manager"), value: root.title(Settings.provider) });
+        if (SysInfo.sysGpu && SysInfo.sysGpu !== "-")
+            out.push({ key: key("Graphics"), value: SysInfo.sysGpu });
         if (root.upFor)
             out.push({ key: key("Up for"), value: root.upFor });
         out.push({ key: key("Network"), value: root.network ? root.network : I18n.tr("Not connected") });
