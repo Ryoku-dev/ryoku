@@ -36,9 +36,7 @@ T.Control {
             next = (next + step + items.length) % items.length
             if (itemEnabled(next)) {
                 focusedIndex = next
-                const item = itemRepeater.itemAt(next)
-                if (item)
-                    item.forceActiveFocus(reason === undefined ? Qt.TabFocusReason : reason)
+                _focusAt(next, reason === undefined ? Qt.TabFocusReason : reason)
                 return
             }
         }
@@ -58,9 +56,16 @@ T.Control {
             return
         }
         focusedIndex = index
+        _focusAt(index, fromKeys ? Qt.TabFocusReason : Qt.OtherFocusReason)
+    }
+
+    // an item that kept focus from an earlier open is focused already, so its reason is set as well
+    function _focusAt(index, reason) {
         const item = itemRepeater.itemAt(index)
-        if (item)
-            item.forceActiveFocus(fromKeys ? Qt.TabFocusReason : Qt.OtherFocusReason)
+        if (!item)
+            return
+        item.forceActiveFocus(reason)
+        item.focusReason = reason
     }
 
     Keys.onDownPressed: moveFocus(1)
@@ -80,9 +85,10 @@ T.Control {
             event.accepted = true
         }
     }
+    // a menu that takes focus itself marks its item only when the keys brought it there
     onActiveFocusChanged: {
         if (activeFocus && focusedIndex < 0)
-            moveFocus(1)
+            moveFocus(1, visualFocus ? Qt.TabFocusReason : Qt.OtherFocusReason)
     }
 
     background: CutRect {

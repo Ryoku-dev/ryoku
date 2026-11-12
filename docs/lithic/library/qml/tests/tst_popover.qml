@@ -51,6 +51,26 @@ Item {
         }
     }
 
+    Plaque {
+        id: focusOpener
+        x: 220
+        y: 20
+        text: "More"
+        onClicked: focusPopover.open()
+    }
+
+    Popover {
+        id: focusPopover
+        parent: host
+        anchorItem: focusOpener
+        opener: focusOpener
+
+        Menu {
+            focus: true
+            items: [{ label: "Pin" }, { label: "Hide" }]
+        }
+    }
+
     property int chosen: -1
 
     TestCase {
@@ -60,8 +80,11 @@ Item {
         function cleanup() {
             edgePopover.close();
             menuPopover.close();
-            tryVerify(() => !edgePopover.visible && !menuPopover.visible);
+            focusPopover.close();
+            tryVerify(() => !edgePopover.visible && !menuPopover.visible && !focusPopover.visible);
             host.chosen = -1;
+            // closing hands focus back to an opener; each test starts with nothing focused
+            host.forceActiveFocus();
         }
 
         function test_popoverKeepsAMarginFromTheWindowEdges() {
@@ -85,6 +108,32 @@ Item {
             keyClick(Qt.Key_Down);
             keyClick(Qt.Key_Return);
             compare(host.chosen, 1, "Down then Return chooses the second item");
+        }
+
+        function test_menuInPopoverShowsTheRingAfterAKeyOpen() {
+            menuOpener.forceActiveFocus(Qt.TabFocusReason);
+            keyClick(Qt.Key_Return);
+            tryVerify(() => menuPopover.opened);
+            const focused = host.Window.window.activeFocusItem;
+            verify(focused && focused.text === "Copy", "the first item holds focus, got " + (focused ? focused.text : null));
+            verify(focused.visualFocus, "a key open shows the keyboard ring on the first item");
+        }
+
+        function test_aMenuThatTakesFocusItselfMarksOnlyAfterAKeyOpen() {
+            mouseClick(focusOpener);
+            tryVerify(() => focusPopover.opened);
+            let focused = host.Window.window.activeFocusItem;
+            verify(focused && focused.text === "Pin", "the first item holds focus, got " + (focused ? focused.text : null));
+            verify(!focused.visualFocus, "a pointer open shows no keyboard ring");
+            focusPopover.close();
+            tryVerify(() => !focusPopover.visible);
+            host.forceActiveFocus();
+            focusOpener.forceActiveFocus(Qt.TabFocusReason);
+            keyClick(Qt.Key_Return);
+            tryVerify(() => focusPopover.opened);
+            focused = host.Window.window.activeFocusItem;
+            verify(focused && focused.text === "Pin", "the first item holds focus after a key open");
+            verify(focused.visualFocus, "a key open shows the keyboard ring");
         }
     }
 }

@@ -93,17 +93,20 @@ T.Popup {
     }
 
     // A menu inside the popover takes focus on its first enabled item, so the
-    // arrows and Return reach it; focus already inside the content stays where
-    // it is. Only an opener that held keyboard focus shows the keyboard ring there.
+    // arrows and Return reach it; focus already elsewhere in the content stays where
+    // it is. Only a popover the keys opened shows the keyboard ring there; the opener
+    // has lost focus to the popup by now, so the mark comes from before it opened.
     function _focusMenu() {
+        const menu = _findMenu(liveContent)
         const window = liveContent.Window.window
         for (let item = window ? window.activeFocusItem : null; item; item = item.parent) {
+            if (item === menu)
+                break
             if (item === liveContent)
                 return
         }
-        const menu = _findMenu(liveContent)
         if (menu)
-            menu.focusItem(-1, opener !== null && opener.visualFocus === true)
+            menu.focusItem(-1, _markOpener)
     }
 
     function _findMenu(item) {
