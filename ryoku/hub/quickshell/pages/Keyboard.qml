@@ -57,6 +57,9 @@ Item {
             return Object.assign({}, row, { unavailable: I18n.tr("The styles of this layout could not be read") });
         if (row.id === "variant" && root.variantsLoaded && root.variants.length === 0)
             return Object.assign({}, row, { unavailable: I18n.tr("This layout has no other styles") });
+        // xkb's Super+Space switch redefines Space in every layout
+        if (row.id === "switch-layouts" && root.switchKeys === "grp:win_space_toggle")
+            return Object.assign({}, row, { detail: I18n.tr("Super+Space takes over the Space key, so Shift+Space and AltGr+Space type a plain space. Alt+Shift keeps them.") });
         return row;
     }
 
