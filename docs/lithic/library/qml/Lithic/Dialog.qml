@@ -110,13 +110,15 @@ T.Dialog {
         return null
     }
 
-    // Qt leaves focus on a control that hides, or drops it to the popup when one goes away; move it on
+    // Qt leaves focus on a control that hides, drops it to the popup when one goes away, or hands it
+    // to the page under a modal dialog when the focused action is rebuilt away; move it back in
     readonly property Item _activeItem: contentColumn.Window.activeFocusItem
     readonly property bool _focusStranded: opened && !previewEmbedded && _activeItem !== null
-        && (_activeItem === contentColumn.parent || (_inside(_activeItem) && !_activeItem.visible))
+        && (_activeItem === contentColumn.parent || (_inside(_activeItem) && !_activeItem.visible)
+            || (modal && !_inOverlay(_activeItem)))
     on_FocusStrandedChanged: {
         if (_focusStranded)
-            Qt.callLater(_rehomeFocus, _activeItem.visualFocus === true)
+            Qt.callLater(_rehomeFocus, _openedFromKeys || _activeItem.visualFocus === true)
     }
 
     function _inside(item) {
@@ -127,12 +129,29 @@ T.Dialog {
         return false
     }
 
+    // what a modal dialog may hold focus in (itself, a menu or dialog it opens) lives in the window's
+    // overlay, the popup item's parent while it shows; when that is unknown, focus counts as inside
+    function _inOverlay(item) {
+        const overlay = contentColumn.parent ? contentColumn.parent.parent : null
+        if (!overlay)
+            return true
+        for (let current = item; current; current = current.parent) {
+            if (current === overlay)
+                return true
+        }
+        return false
+    }
+
     function _rehomeFocus(fromKeys) {
         if (!_focusStranded)
             return
         const first = _firstTabStop(contentColumn)
-        if (first)
-            first.forceActiveFocus(fromKeys ? Qt.TabFocusReason : Qt.OtherFocusReason)
+        if (!first)
+            return
+        const reason = fromKeys ? Qt.TabFocusReason : Qt.OtherFocusReason
+        first.forceActiveFocus(reason)
+        if (first.focusReason !== undefined)
+            first.focusReason = reason
     }
 
     background: DialogPlane {
