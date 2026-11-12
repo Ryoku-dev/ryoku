@@ -37,7 +37,7 @@ var pages = {
     "lock-screen": { title: "Lock screen", category: "appearance",
         keywords: ["lock", "lockscreen", "screensaver", "greeter", "skin", "qylock"] },
 
-    "bar": { title: "Bar", category: "desktop",
+    "bar": { title: "Bar", category: "desktop", file: "Bar",
         keywords: ["bar", "bar style", "subshell", "panel", "taskbar", "frame", "edge bars", "widgets", "obi", "orpheus", "shima"] },
     "desktop-dock": { title: "Desktop & dock", category: "desktop",
         keywords: ["desktop", "dock", "widgets", "stage", "visualizer", "reload cover", "icons"] },

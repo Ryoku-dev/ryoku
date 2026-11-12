@@ -1,0 +1,150 @@
+.pragma library
+
+var title = "Bar";
+var lead = "Which bar your desktop draws, the displays it shows on, and how the bar in use is set up.";
+
+var sections = [
+    { id: "style", title: "Bar style" },
+    { id: "displays", title: "Show the bar on" },
+    { id: "options", title: "This style's options" },
+    { id: "parts", title: "Parts it brings" }
+];
+
+function s(key, fallback) {
+    return fallback === undefined ? { store: "settings", key: key } : { store: "settings", key: key, fallback: fallback };
+}
+
+// template rows feed search only; editor rows show while the style in use declares that editor
+var rows = [
+    { id: "style-gallery", section: "style", label: "Bar style", template: true,
+      detail: "Choose the bar your desktop draws, or a complete desktop",
+      keywords: ["subshell", "complete desktop", "shell", "switch", "install", "update", "theme", "look", "orpheus", "kairos", "nacre", "obi", "sumi", "shima"] },
+    { id: "browse-store", section: "style", label: "Browse RyoStore",
+      detail: "Find more bar styles and complete desktops",
+      keywords: ["store", "download", "more styles", "subshells"], control: "handoff",
+      command: ["ryostore", "open", "barstyles"], actionText: "Open" },
+
+    { id: "show-bar", section: "displays", label: "Show the bar on a display", template: true,
+      detail: "Turn the bar off on any connected display",
+      keywords: ["monitor", "screen", "per display", "hide the bar", "second monitor", "external"] },
+
+    { id: "widget-activeWindow", section: "options", editor: "obi", label: "Active window",
+      detail: "The focused window's title, far left", keywords: ["title", "focused"],
+      control: "toggle", bind: s("obi.activeWindow", true), "default": true },
+    { id: "widget-resources", section: "options", editor: "obi", label: "Resources",
+      detail: "Processor and memory use", keywords: ["cpu", "ram", "memory"],
+      control: "toggle", bind: s("obi.resources", true), "default": true },
+    { id: "widget-media", section: "options", editor: "obi", label: "Media",
+      detail: "What is playing, with a music visualizer", keywords: ["music", "now playing", "visualizer"],
+      control: "toggle", bind: s("obi.media", true), "default": true },
+    { id: "widget-audio", section: "options", editor: "obi", label: "Sound",
+      detail: "Output and input volume, with a mixer", keywords: ["volume", "audio", "mixer", "microphone"],
+      control: "toggle", bind: s("obi.audio", true), "default": true },
+    { id: "widget-clock", section: "options", editor: "obi", label: "Clock",
+      detail: "Time and date", keywords: ["time", "date"],
+      control: "toggle", bind: s("obi.clock", true), "default": true },
+    { id: "widget-connectivity", section: "options", editor: "obi", label: "Connections",
+      detail: "Wi-Fi and Bluetooth", keywords: ["wifi", "network", "bluetooth"],
+      control: "toggle", bind: s("obi.connectivity", true), "default": true },
+    { id: "widget-battery", section: "options", editor: "obi", label: "Battery",
+      detail: "Charge and power mode", keywords: ["power", "charge"],
+      control: "toggle", bind: s("obi.battery", true), "default": true },
+    { id: "widget-tray", section: "options", editor: "obi", label: "Tray",
+      detail: "Icons of apps running in the background", keywords: ["system tray", "status icons"],
+      control: "toggle", bind: s("obi.tray", true), "default": true },
+    { id: "widget-weather", section: "options", editor: "obi", label: "Weather",
+      detail: "Current conditions", keywords: ["forecast", "temperature"],
+      control: "toggle", bind: s("obi.weather", true), "default": true },
+
+    { id: "bar-layout", section: "options", editor: "nacre", label: "Arrange the bar", template: true,
+      detail: "Move widgets between the bar's left, middle and right sections, or take them off",
+      keywords: ["layout", "widgets", "drag", "order", "islands", "sections", "lanes"] },
+    { id: "bar-height", section: "options", editor: "nacre", nacreKey: "height", label: "Bar height",
+      detail: "How tall the bar is", keywords: ["size", "thickness"],
+      control: "slider", min: 32, max: 56, step: 1, unit: "px", bind: s("nacre.height") },
+    { id: "section-opacity", section: "options", editor: "nacre", nacreKey: "opacity", label: "Section opacity",
+      detail: "How solid the sections are; under 100% shows the desktop behind",
+      keywords: ["transparency", "transparent", "alpha", "island opacity"],
+      control: "slider", min: 0.45, max: 1, step: 0.01, pct: true, bind: s("nacre.opacity") },
+    { id: "section-padding", section: "options", editor: "nacre", nacreKey: "padding", label: "Room inside sections",
+      detail: "Space between a section's edge and its widgets", keywords: ["padding", "island padding"],
+      control: "slider", min: 6, max: 24, step: 1, unit: "px", bind: s("nacre.padding") },
+    { id: "widget-spacing", section: "options", editor: "nacre", nacreKey: "spacing", label: "Space between widgets",
+      detail: "Gap between neighbouring widgets in a section", keywords: ["spacing", "gap"],
+      control: "slider", min: 2, max: 18, step: 1, unit: "px", bind: s("nacre.spacing") },
+    { id: "section-gap", section: "options", editor: "nacre", nacreKey: "islandGap", label: "Space between sections",
+      detail: "Gap between the left, middle and right sections", keywords: ["island gap", "gap"],
+      control: "slider", min: 6, max: 32, step: 1, unit: "px", bind: s("nacre.islandGap") },
+    { id: "section-size", section: "options", editor: "nacre", nacreKey: "islandScale", label: "Section size",
+      detail: "Scale the sections and everything in them", keywords: ["island size", "scale", "zoom"],
+      control: "slider", min: 0.65, max: 1.25, step: 0.01, pct: true, bind: s("nacre.islandScale") },
+    { id: "popup-size", section: "options", editor: "nacre", nacreKey: "osdScale", label: "Pop-up size",
+      detail: "Scale the volume, brightness and other pop-ups the bar shows", keywords: ["osd", "popup", "scale"],
+      control: "slider", min: 0.65, max: 1.25, step: 0.01, pct: true, bind: s("nacre.osdScale") },
+    { id: "workspace-markers", section: "options", editor: "nacre", nacreKey: "workspaceStyle", label: "Workspace markers",
+      detail: "How the bar shows each workspace", keywords: ["workspaces", "dots", "numbers", "kanji"],
+      control: "segmented", options: [
+          { label: "Dots", value: "dots" }, { label: "Numbers", value: "numbers" }, { label: "Kanji", value: "kanji" }
+      ], bind: s("nacre.workspaceStyle") },
+    { id: "used-workspaces", section: "options", editor: "nacre", nacreKey: "occupiedWorkspaces", label: "Only workspaces in use",
+      detail: "Show the workspaces that hold windows instead of the first five",
+      keywords: ["occupied", "empty workspaces", "hide"], control: "toggle", bind: s("nacre.occupiedWorkspaces") },
+    { id: "mark-opens", section: "options", editor: "nacre", nacreKey: "brandClick", label: "The Ryoku mark opens",
+      detail: "What a click on the mark at the bar's start opens", keywords: ["brand", "logo", "click"],
+      control: "segmented", options: [
+          { label: "App launcher", value: "launcher" }, { label: "Quick settings", value: "quicksettings" }
+      ], bind: s("nacre.brandClick") },
+    { id: "nacre-frame", section: "options", editor: "nacre", nacreKey: "frame", label: "Screen frame",
+      detail: "A frame around the screen's edge that the sections join", keywords: ["border", "frame", "edge"],
+      control: "toggle", bind: s("nacre.frame") },
+    { id: "nacre-frame-size", section: "options", editor: "nacre", nacreKey: "frameSize", label: "Frame thickness",
+      detail: "How far the frame reaches into the screen", keywords: ["frame size", "border"],
+      control: "slider", min: 2, max: 24, step: 1, unit: "px", bind: s("nacre.frameSize"),
+      when: { bind: s("nacre.frame"), is: [true] } },
+    { id: "nacre-frame-corners", section: "options", editor: "nacre", nacreKey: "frameRoundness", label: "Frame corner radius",
+      detail: "How rounded the frame's inner corners are", keywords: ["roundness", "rounding"],
+      control: "slider", min: 0, max: 32, step: 1, unit: "px", bind: s("nacre.frameRoundness"),
+      when: { bind: s("nacre.frame"), is: [true] } },
+    { id: "edge-softness", section: "options", editor: "nacre", nacreKey: "edgeMelt", label: "Edge softness",
+      detail: "How smoothly the sections flow into the frame", keywords: ["edge melt", "smoothing", "blend"],
+      control: "slider", min: 1, max: 32, step: 1, unit: "px", bind: s("nacre.edgeMelt"), more: true },
+
+    { id: "draw-frame", section: "options", editor: "frame-rails", label: "Draw the frame",
+      detail: "A band around the whole desktop", keywords: ["border", "frame", "edge"],
+      control: "toggle", bind: s("frameEnabled", true), "default": true },
+    { id: "frame-opacity", section: "options", editor: "frame-rails", label: "Frame opacity",
+      detail: "How solid the frame is", keywords: ["transparency", "alpha"],
+      control: "slider", min: 0.5, max: 1, step: 0.01, pct: true, bind: s("frameOpacity", 1), "default": 1,
+      when: { bind: s("frameEnabled", true), is: [true] } },
+    { id: "frame-thickness", section: "options", editor: "frame-rails", label: "Frame thickness",
+      detail: "How far the band reaches into the screen", keywords: ["size", "width", "border"],
+      control: "stepper", min: 0, max: 24, unit: "px", bind: s("frameThickness", 2), "default": 2,
+      when: { bind: s("frameEnabled", true), is: [true] } },
+    { id: "frame-corners", section: "options", editor: "frame-rails", label: "Frame corner radius",
+      detail: "How rounded the frame cuts the screen's corners", keywords: ["rounding", "radius"],
+      control: "stepper", min: 0, max: 40, unit: "px", bind: s("frameCorner", 8), "default": 8,
+      when: { bind: s("frameEnabled", true), is: [true] } },
+    { id: "edge-bar", section: "options", editor: "frame-rails", railKey: "enabled", label: "Edge bar",
+      detail: "The bar along the left edge of the screen", keywords: ["rail", "left bar", "side bar"],
+      control: "toggle", bind: s("frameBars.rails.left.enabled") },
+    { id: "edge-bar-width", section: "options", editor: "frame-rails", railKey: "size", label: "Edge bar width",
+      detail: "How far the edge bar reaches into the screen", keywords: ["rail size", "thickness"],
+      control: "slider", min: 24, max: 112, step: 1, unit: "px", bind: s("frameBars.rails.left.size"),
+      when: { bind: s("frameBars.rails.left.enabled"), is: [true] } },
+    { id: "edge-bar-widgets", section: "options", editor: "frame-rails", label: "Widgets on the edge bar", template: true,
+      detail: "Add, order and remove the widgets at the top, middle and bottom of the edge bar",
+      keywords: ["rail widgets", "zones", "order"] },
+
+    { id: "own-settings", section: "options", label: "Open its settings", template: true,
+      detail: "Styles with a settings window of their own open it from here",
+      keywords: ["preferences", "configure", "customize"] },
+
+    { id: "dock-design", section: "parts", label: "Dock design", template: true,
+      detail: "Choose and edit the dock in the Stage Editor", keywords: ["dock", "stage editor", "launcher bar"] },
+    { id: "desktop-widgets", section: "parts", label: "Desktop widgets", template: true,
+      detail: "Place and arrange widgets on the desktop in the Stage Editor", keywords: ["widgets", "desktop", "stage editor"] },
+    { id: "launcher-part", section: "parts", label: "App launcher", template: true,
+      detail: "Choose the launcher and how it looks", keywords: ["launcher", "app search", "menu"] }
+];
+
+var related = ["desktop-dock", "launcher", "displays", "performance"];
