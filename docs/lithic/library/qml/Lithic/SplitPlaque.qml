@@ -102,6 +102,8 @@ T.Control {
                     id: working
                     visible: segment.segmentBusy
                     active: segment.segmentBusy
+                    // the glyph's slot, so a busy segment keeps its width
+                    width: size
                     size: root.small ? LithicTokens.size.plaqueIconSmall : LithicTokens.size.plaqueIcon
                 }
 

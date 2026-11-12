@@ -96,6 +96,8 @@ T.AbstractButton {
                 id: working
                 visible: root.busy
                 active: root.busy
+                // the glyph's slot, so a busy plaque keeps its width
+                width: root.glyphSize
                 size: root.glyphSize
             }
 

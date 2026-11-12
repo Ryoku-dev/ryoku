@@ -7,7 +7,10 @@ Item {
     property real size: LithicTokens.size.iconPlaqueIcon
     property real _phase: 0
 
-    implicitWidth: size
+    // the flakes are taller than wide, so each slanted bar reaches past its own box; the box is the band they draw
+    implicitWidth: size * ((LithicTokens.size.workingFlakeCount - 1)
+                           * (LithicTokens.size.workingFlakeWidthRatio + LithicTokens.size.workingFlakeGapRatio)
+                           + 2 * LithicTokens.size.workingFlakeHeightRatio - LithicTokens.size.workingFlakeWidthRatio)
     implicitHeight: size * LithicTokens.size.workingFlakeHeightRatio
 
     // the flakes exist only while the spinner shows, so an idle control carries none
