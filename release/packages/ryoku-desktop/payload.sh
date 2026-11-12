@@ -165,6 +165,21 @@ EOF
   chmod -R u=rwX,go=rX "$pkgdir/usr/lib/qt6/qml/Ryoku/Ui"
   chmod -R u=rwX,go=rX "$pkgdir/usr/lib/qt6/qml/Ryoku/PluginKit"
 
+  # Lithic: the design system the Hub draws with (docs/lithic), compiled with
+  # Geologica and Martian Mono inside the plugin, so their licenses ship too
+  local lithic_build="$RYOKU_BUILD_DIR/qml/Lithic"
+  [[ -f $lithic_build/qmldir ]] || {
+    printf 'payload.sh: %s has no compiled Lithic; run the build step first\n' "$lithic_build" >&2
+    exit 1
+  }
+  install -d "$pkgdir/usr/lib/qt6/qml/Lithic"
+  cp -a "$lithic_build/." "$pkgdir/usr/lib/qt6/qml/Lithic/"
+  chmod -R u=rwX,go=rX "$pkgdir/usr/lib/qt6/qml/Lithic"
+  install -Dm644 "$_repo/docs/lithic/library/go/fonts/Geologica-OFL.txt" \
+    "$pkgdir/usr/share/licenses/ryoku-desktop/LICENSE.geologica"
+  install -Dm644 "$_repo/docs/lithic/library/go/fonts/MartianMono-OFL.txt" \
+    "$pkgdir/usr/share/licenses/ryoku-desktop/LICENSE.martian-mono"
+
   # Ryoku.FrameBars: the shared frame-bar schema + menu/bar catalogs every
   # config root imports (shell/services/Config.qml, the launcher, widgets, and
   # plugin surfaces via PluginKit). Quickshell sandboxes a relative import to the
@@ -688,6 +703,14 @@ case "${1:-}" in
     else
       RYOKU_UI_BUILD="$RYOKU_BUILD_DIR/ui-build" \
         "$_repo/ryoku/ui/build.sh" "$RYOKU_BUILD_DIR/qml"
+    fi
+    if [[ -n ${RYOKU_PREBUILT_DIR:-} && -f $RYOKU_PREBUILT_DIR/qml/Lithic/qmldir ]]; then
+      mkdir -p "$RYOKU_BUILD_DIR/qml"
+      rm -rf "$RYOKU_BUILD_DIR/qml/Lithic"
+      cp -a "$RYOKU_PREBUILT_DIR/qml/Lithic" "$RYOKU_BUILD_DIR/qml/"
+    else
+      LITHIC_QML_BUILD="$RYOKU_BUILD_DIR/lithic-build" \
+        "$_repo/docs/lithic/library/qml/build.sh" "$RYOKU_BUILD_DIR/qml"
     fi
     ;;
   install)

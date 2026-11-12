@@ -14,10 +14,10 @@ pkgdesc="Ryoku desktop: Quickshell configuration, helpers, and runtime (composit
 # Compiled desktop helpers make the payload architecture-specific.
 arch=('x86_64')
 url="https://ryoku.dev"
-# The Ryoku Discord theme for Vesktop is MIT; the rest of the package is
-# GPL-3.0-or-later.
-license=('GPL-3.0-or-later' 'MIT')
-# go builds the app helpers, cmake and Qt6 the compiled apps and Ryoku.Ui
+# The Ryoku Discord theme for Vesktop is MIT and the Geologica and Martian Mono
+# faces inside the Lithic module are OFL-1.1; the rest is GPL-3.0-or-later.
+license=('GPL-3.0-or-later' 'MIT' 'OFL-1.1')
+# go builds the app helpers, cmake and Qt6 the compiled apps, Ryoku.Ui and Lithic
 makedepends=('go' 'cmake' 'ninja' 'qt6-declarative')
 depends=(
   # Ryoku. the monorepo components are pinned to this build's own version:

@@ -23,6 +23,9 @@ Lithic is Ryoku's UI language: cut, not molded. It builds calm, flat surfaces fr
 | `library/qml/Lithic/` | Provide the `Lithic` QML module and one QML type per component. |
 | `library/qml/Lithic/qmldir` | Register the QML module, singleton and public types. |
 | `library/qml/Lithic/LithicTokens.qml` | Expose the generated QML token singleton. |
+| `library/qml/CMakeLists.txt` | Compile the module to bytecode with the Geologica and Martian Mono faces inside the plugin. |
+| `library/qml/build.sh` | Build and install the compiled module into a QML import directory (packages run it). |
+| `library/qml/install.sh` | Copy the module's sources and faces into a dev box's import root so edits show on reload. |
 | [library/qml/README.md](library/qml/README.md) | Document QML installation, imports and public API. |
 | `library/web/` | Provide dependency-free CSS and ES modules for browser surfaces. |
 | `library/web/tokens.css` | Expose generated non-colour CSS tokens. |

@@ -2,7 +2,7 @@ Name:           ryoku-desktop
 Version:        0.1
 Release:        1%{?dist}
 Summary:        ryoku-desktop desktop component
-License:        GPL-3.0-or-later AND MIT
+License:        GPL-3.0-or-later AND MIT AND OFL-1.1
 URL:            https://ryoku.dev
 Source0:        ryoku-%{version}.tar.gz
 %global debug_package %{nil}

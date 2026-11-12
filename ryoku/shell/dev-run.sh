@@ -16,6 +16,7 @@ bin="$here/ipc/ryoku-shell"
 # Keep the shared pure-QML module in step with this checkout too; HeroCrop and
 # the other design-system components are imported by the live launcher.
 "$here/../ui/install.sh" "$HOME/.local/lib/qt6/qml"
+"$here/../../docs/lithic/library/qml/install.sh" "$HOME/.local/lib/qt6/qml"
 
 # the shared frame-bar schema + catalogs live in Ryoku.FrameBars, imported by
 # every config root and the Hub Bar Studio; install it so the dev loop resolves

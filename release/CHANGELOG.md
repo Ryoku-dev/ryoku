@@ -1,6 +1,12 @@
 # Release / Packaging Changelog
 
 ## Unreleased
+- **`ryoku-desktop` ships the Lithic QML module.** The design system the new
+  Settings app draws with is compiled to bytecode with Geologica and Martian
+  Mono inside the plugin and installed at `/usr/lib/qt6/qml/Lithic` on Arch,
+  CachyOS, Fedora and Void; Nix builds it as `ryoku-lithic`. The package now
+  declares OFL-1.1 and installs both font licenses; a dev box copies the
+  sources with `docs/lithic/library/qml/install.sh` from deploy.sh.
 - **Rashin now ships as one opt-in package on every edition.** It builds the
   daemon, command line and Gio app from vendor, and the built-in router and
   index take over from the retired Prowl service. The `prowl` package is no

@@ -197,6 +197,10 @@ let
     inherit pkgs src qmlRoot;
   };
 
+  lithic = import ./ryoku-lithic.nix {
+    inherit pkgs src qmlRoot;
+  };
+
   pluginKit = mkPureQmlModule {
     pname = "ryoku-plugin-kit";
     moduleName = "PluginKit";
@@ -222,7 +226,10 @@ let
     meta = {
       description = "Combined Ryoku Qt/QML module tree";
       homepage = "https://github.com/Ryoku-dev/ryoku-arch";
-      license = pkgs.lib.licenses.gpl3Only;
+      license = [
+        pkgs.lib.licenses.gpl3Only
+        pkgs.lib.licenses.ofl
+      ];
       platforms = [ "x86_64-linux" ];
     };
   } ''
@@ -231,6 +238,10 @@ let
     cp -a \
       ${ui}/${qmlRoot}/Ryoku/Ui \
       "$out/${qmlRoot}/Ryoku/Ui"
+
+    cp -a \
+      ${lithic}/${qmlRoot}/Lithic \
+      "$out/${qmlRoot}/Lithic"
 
     cp -a \
       ${pluginKit}/${qmlRoot}/Ryoku/PluginKit \
@@ -320,6 +331,7 @@ in
     mapleMonoNF
 
     ui
+    lithic
     pluginKit
     frameBars
     wmHyprlandQml

@@ -134,7 +134,8 @@ and Bold and Martian Mono at its normal width in Regular and Bold, and renamed
 to one family each; the glyphs are otherwise unchanged. They are released
 under the SIL Open Font License 1.1, which ships unchanged beside them and
 allows bundling the fonts with software under any license, so it is
-compatible with Ryoku's GPL-3 distribution. The Rashin app embeds them, and the
-ryoku-rashin package installs those licenses as
-/usr/share/licenses/ryoku-rashin/LICENSE.geologica and
-/usr/share/licenses/ryoku-rashin/LICENSE.martian-mono.
+compatible with Ryoku's GPL-3 distribution. The Rashin app and the compiled
+Lithic QML module embed them. The ryoku-rashin package installs those licenses
+as /usr/share/licenses/ryoku-rashin/LICENSE.geologica and LICENSE.martian-mono,
+and the ryoku-desktop package, which ships the Lithic module, installs them as
+/usr/share/licenses/ryoku-desktop/LICENSE.geologica and LICENSE.martian-mono.

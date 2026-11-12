@@ -74,6 +74,10 @@ prepare_prebuilt() {
       printf 'module Ryoku.Ui.Singletons\n' > "$dir/qml/Ryoku/Ui/Singletons/qmldir"
       printf '// fixture\n' > "$dir/qml/Ryoku/Ui/Singletons/ryoku-ui-singletons.qmltypes"
       fake_binary "$dir/qml/Ryoku/Ui/Singletons/libryoku-ui-singletons.so"
+      mkdir -p "$dir/qml/Lithic"
+      printf 'module Lithic\n' > "$dir/qml/Lithic/qmldir"
+      printf '// fixture\n' > "$dir/qml/Lithic/lithic.qmltypes"
+      fake_binary "$dir/qml/Lithic/liblithic.so"
       ;;
     ryoku-desktop-niri)
       fake_binary "$dir/ryoku-wm-niri"
@@ -171,7 +175,7 @@ stage_arch() {
 make_source_view() {
   local view=$1 entry
   mkdir -p "$view"
-  for entry in CODENAME LICENSE release ryoku system void fedora; do
+  for entry in CODENAME LICENSE docs release ryoku system void fedora; do
     ln -s "$root/$entry" "$view/$entry"
   done
 }
@@ -216,7 +220,7 @@ stage_void() {
 
 fedora_root="$work/fedora-root"
 mkdir -p "$fedora_root/fedora/packages/rpm" "$fedora_root/fedora/packages"
-for entry in CODENAME LICENSE release ryoku system void; do
+for entry in CODENAME LICENSE docs release ryoku system void; do
   ln -s "$root/$entry" "$fedora_root/$entry"
 done
 ln -s "$root/fedora/system" "$fedora_root/fedora/system"

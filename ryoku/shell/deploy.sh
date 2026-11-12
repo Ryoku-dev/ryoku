@@ -1072,6 +1072,8 @@ piece modules "shell and Hub modules"
 # (hyprland/modules/env.lua).
 say "installing Ryoku.Ui module"
 "$here/../ui/install.sh" "$qmldir"
+say "installing Lithic module"
+"$here/../../docs/lithic/library/qml/install.sh" "$qmldir"
 
 # Install the translation catalog + langs.json where every surface's I18n looks
 # first on a dev box (~/.local/share/ryoku/i18n). Without this the shell and Hub
