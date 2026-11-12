@@ -543,7 +543,8 @@ A colour value: a 44 square swatch plate (`cut.token`, the colour over a `Hatch`
 - Signal: `picked(color c)`
 - Functions: `open()`, `close()`, `toggle()`, `choose(value)`, `formatHex(value)`, and `parseHex(text)`
 - Swatch entries: objects with `label` and `color`
-- Hex: `#rgb` and `#rrggbb`, plus `#rgba` and `#rrggbbaa` in CSS order when `allowAlpha`. It shows lowercase, with alpha only below full opacity. Enter or leaving the field commits a valid value; an invalid one shows the field's error, "Use a colour like #ce5e32", and emits nothing. Choosing a swatch closes the popover; moving the opacity slider picks as it moves.
+- Hex: `#rgb` and `#rrggbb`, plus `#rgba` and `#rrggbbaa` in CSS order when `allowAlpha`. It shows lowercase, with alpha only below full opacity. Return, Enter or leaving the hex commits a valid value; Return on an invalid one keeps the caret there and shows the field's error, "Use a colour like #ce5e32", emitting nothing. Escape drops an edit and its error, and with nothing typed goes on, so a dialog can close. Choosing a swatch closes the popover; moving the opacity slider picks as it moves.
+- Keys: the ColorField holds keyboard focus itself, as an editable Stepper does, so Ctrl+Z reaches whoever holds it; its hex shows the focus edge while that focus came from the keys. Focus comes back to it after a pick (with the keyboard mark when the pick came from the keys) and after Return or Escape in the hex. A typed character opens the hex with that character; a click into the hex edits it; Tab moves on to the disclosure plaque, never into the hex.
 - Preview: `previewState` (`hover`; `focus` rings the disclosure; `error` shows a half-typed value) and `previewOpen`
 
 ```qml

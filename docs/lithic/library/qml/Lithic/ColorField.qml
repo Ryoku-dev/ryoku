@@ -27,6 +27,17 @@ T.Control {
     Accessible.role: Accessible.Grouping
     Accessible.name: accessibleName
     Accessible.description: hex
+    // the field holds focus itself, so Ctrl+Z reaches whoever holds it; a typed
+    // character opens the hex with that character, and a click into the hex edits it
+    focusPolicy: Qt.StrongFocus
+    Keys.onPressed: event => {
+        if (hexField.activeFocus || event.text.length !== 1 || event.text.charCodeAt(0) <= 32
+                || (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)))
+            return
+        hexField.forceActiveFocus(Qt.OtherFocusReason)
+        hexField.text = event.text
+        event.accepted = true
+    }
 
     function _channel(value) {
         const text = Math.round(Math.max(0, Math.min(1, value)) * 255).toString(16);
@@ -69,15 +80,23 @@ T.Control {
     function commit(field) {
         if (field.text === hex) {
             field.errorText = "";
-            return;
+            return true;
         }
         const value = parseHex(field.text);
         if (value === null) {
             field.errorText = invalidText;
-            return;
+            return false;
         }
         choose(value);
+        return true;
     }
+
+    // clearing the hex's focus hands it back to the field, with the keyboard mark
+    function _leaveHex() {
+        root.forceActiveFocus(Qt.TabFocusReason);
+    }
+
+    property bool _pickedFromKeys: false
 
     function open() {
         if (enabled)
@@ -145,9 +164,34 @@ T.Control {
             mono: true
             text: root.hex
             rightPadding: root._disclosureSlot
-            previewState: root.previewState === "focus" ? "" : root.previewState
+            // the field's own focus shows on the hex, as a stepper's does on its value
+            previewState: root.previewState === "focus" ? ""
+                        : root.visualFocus ? "focus" : root.previewState
+            focusPolicy: Qt.ClickFocus
+            activeFocusOnTab: false
             Accessible.name: Lithic.tr("%1 hex").arg(root.accessibleName)
-            onEditingFinished: root.commit(hexField)
+            onActiveFocusChanged: if (!activeFocus) root.commit(hexField)
+            // Return commits a valid hex and refuses any other, keeping the stored colour
+            Keys.onReturnPressed: { if (root.commit(hexField)) root._leaveHex() }
+            Keys.onEnterPressed: { if (root.commit(hexField)) root._leaveHex() }
+            // Escape drops an edit and its error; with nothing typed it goes on, so a dialog can close
+            Keys.onEscapePressed: event => {
+                const edited = hexField.text !== root.hex || hexField.errorText.length > 0
+                hexField.text = root.hex
+                hexField.errorText = ""
+                root._leaveHex()
+                event.accepted = edited
+            }
+        }
+
+        // beside the hex rather than inside it, so keys on it never reach the text input;
+        // it still fades with the hex when the field is off, as it did inside it
+        Item {
+            x: hexField.x
+            y: hexField.y
+            width: hexField.width
+            height: hexField.height
+            opacity: hexField.opacity
 
             IconPlaque {
                 id: disclosure
@@ -168,9 +212,13 @@ T.Control {
         id: popover
         parent: root.overlayParent ? root.overlayParent : root.parent
         anchorItem: hexField
-        opener: disclosure
+        // a pick hands focus back to the field, not the disclosure, so the app's undo hears Ctrl+Z
+        opener: root
         previewEmbedded: root.previewOpen
+        // a pick from the keys keeps the keyboard mark on the field
+        onClosed: if (root._pickedFromKeys) root.focusReason = Qt.TabFocusReason
         onOpened: {
+            root._pickedFromKeys = false;
             const row = swatchRepeater.count > 0 ? swatchRepeater.itemAt(Math.max(0, panel.currentSwatch)) : null;
             if (row)
                 row.forceActiveFocus(Qt.TabFocusReason);
@@ -225,8 +273,8 @@ T.Control {
                             root.choose(modelData.color);
                             popover.close();
                         }
-                        Keys.onReturnPressed: clicked()
-                        Keys.onEnterPressed: clicked()
+                        Keys.onReturnPressed: { root._pickedFromKeys = true; clicked() }
+                        Keys.onEnterPressed: { root._pickedFromKeys = true; clicked() }
                         Keys.onDownPressed: nextItemInFocusChain(true).forceActiveFocus(Qt.TabFocusReason)
                         Keys.onUpPressed: nextItemInFocusChain(false).forceActiveFocus(Qt.BacktabFocusReason)
 
