@@ -117,6 +117,7 @@ T.Control {
     }
 
     component DestinationButton: T.AbstractButton {
+        id: destination
         required property string destinationLabel
         required property string glyphName
         required property bool selected
@@ -147,8 +148,8 @@ T.Control {
                 y: -outset
                 width: parent.width + outset * 2
                 height: parent.height + outset * 2
-                keyboardFocusVisible: parent.parent.visualFocus
-                                      || parent.parent.previewState === "focus"
+                keyboardFocusVisible: destination.visualFocus
+                                      || destination.previewState === "focus"
                 cut: LithicTokens.cut.mid
             }
         }
