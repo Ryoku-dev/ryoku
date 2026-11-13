@@ -1,6 +1,10 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **An imported WireGuard tunnel starts switched off.** nmcli saves an
+  imported tunnel with auto-connect on and brings it up at once, so a tunnel
+  that routes everything took over the machine's traffic the moment it was
+  imported; `network.wgImport` now leaves it off with auto-connect off.
 - **The shell daemon reads and edits a VPN connection's settings.** New
   `network.vpnGet` (details, and a tunnel's traffic while up),
   `network.vpnSetAutoconnect`, `network.wgEdit` (a tunnel's name and peer),

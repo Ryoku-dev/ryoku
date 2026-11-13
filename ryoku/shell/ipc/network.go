@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -221,11 +222,11 @@ func (d *daemon) startNetwork() {
 		}
 		return nil, n.wgSetActive(a.Uuid, false)
 	})
-	// wgImport mirrors the reference exactly: it is the one place the reference
-	// shells out (contract 06 sec 4 runs `nmcli connection import type
-	// wireguard file <path>`), because parsing a .conf into NetworkManager's
-	// nested settings is what nmcli's importer already does. This is an action,
-	// not a status read, so it is not the polling defect the topic replaces.
+	// wgImport shells out as the reference does (contract 06 sec 4 runs
+	// `nmcli connection import type wireguard file <path>`), because parsing a
+	// .conf into NetworkManager's nested settings is what nmcli's importer
+	// already does. This is an action, not a status read, so it is not the
+	// polling defect the topic replaces.
 	d.registerCall("network.wgImport", func(raw json.RawMessage) (any, error) {
 		var a struct {
 			Path string `json:"path"`
@@ -233,7 +234,8 @@ func (d *daemon) startNetwork() {
 		if err := json.Unmarshal(raw, &a); err != nil {
 			return nil, err
 		}
-		return nil, wgImport(a.Path)
+		_, err := n.wgImport(a.Path)
+		return nil, err
 	})
 	d.registerCall("network.vpnActivate", func(raw json.RawMessage) (any, error) {
 		var a struct {
@@ -1055,17 +1057,47 @@ func (n *networkState) wgDelete(uuid string) error {
 	return n.obj(conn).Call(nmSettConnIface+".Delete", 0).Err
 }
 
-// wgImport runs nmcli's WireGuard config importer, exactly as the reference
-// does (contract 06 sec 4).
-func wgImport(path string) error {
+var importedUuid = regexp.MustCompile(`\(([0-9a-f-]{36})\)`)
+
+// wgImportFile runs nmcli's WireGuard config importer, as the reference does
+// (contract 06 sec 4), and returns the new profile's UUID.
+func wgImportFile(path string) (string, error) {
 	if path == "" {
-		return fmt.Errorf("empty path")
+		return "", fmt.Errorf("empty path")
 	}
 	out, err := exec.Command("nmcli", "connection", "import", "type", "wireguard", "file", path).CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("wireguard import failed: %v: %s", err, out)
+		return "", fmt.Errorf("wireguard import failed: %s", strings.TrimSpace(string(out)))
 	}
-	return nil
+	m := importedUuid.FindStringSubmatch(string(out))
+	if m == nil {
+		return "", fmt.Errorf("wireguard import gave no profile: %s", strings.TrimSpace(string(out)))
+	}
+	return m[1], nil
+}
+
+// wgImport imports a tunnel and leaves it off. nmcli saves an imported
+// tunnel with auto-connect on and brings it up at once, so a tunnel that
+// routes everything would take over the machine's traffic the moment it was
+// imported; it now waits to be switched on.
+func (n *networkState) wgImport(path string) (string, error) {
+	uuid, err := wgImportFile(path)
+	if err != nil {
+		return "", err
+	}
+	conn, err := n.connByUuid(uuid)
+	if err != nil {
+		return "", err
+	}
+	if err := n.updateAutoconnect(conn, false); err != nil {
+		return uuid, err
+	}
+	if ac, up := n.activeConnections()[uuid]; up {
+		if err := n.obj(nmPath).Call(nmIface+".DeactivateConnection", 0, ac).Err; err != nil {
+			return uuid, err
+		}
+	}
+	return uuid, nil
 }
 
 // --- typed property reads ---

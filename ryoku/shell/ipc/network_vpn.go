@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"net/netip"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -428,8 +427,6 @@ func wgConfText(s map[string]map[string]dbus.Variant, secrets map[string]dbus.Va
 	return b.String(), nil
 }
 
-var importedUuid = regexp.MustCompile(`\(([0-9a-f-]{36})\)`)
-
 // wgReplace loads an edited .conf in place of a tunnel and returns the new
 // UUID. A tunnel that is up goes down first, since nmcli brings an imported
 // one up at once on the same interface; a file nmcli refuses then brings the
@@ -459,21 +456,16 @@ func (n *networkState) wgReplace(uuid, path string) (string, error) {
 			_ = n.obj(nmPath).Call(nmIface+".ActivateConnection", 0, old.path, dbus.ObjectPath("/"), dbus.ObjectPath("/")).Store(&active)
 		}
 	}
-	out, err := exec.Command("nmcli", "connection", "import", "type", "wireguard", "file", path).CombinedOutput()
+	newUuid, err := wgImportFile(path)
 	if err != nil {
 		restore()
-		return "", fmt.Errorf("the file was not loaded: %s", strings.TrimSpace(string(out)))
+		return "", fmt.Errorf("the file was not loaded: %v", err)
 	}
-	m := importedUuid.FindStringSubmatch(string(out))
-	if m == nil {
-		restore()
-		return "", fmt.Errorf("the file was loaded but its new profile was not found: %s", strings.TrimSpace(string(out)))
-	}
-	fresh, err := n.connByUuid(m[1])
+	fresh, err := n.connByUuid(newUuid)
 	if err != nil {
 		return "", err
 	}
-	if ac, up := n.activeConnections()[m[1]]; up && !wasActive {
+	if ac, up := n.activeConnections()[newUuid]; up && !wasActive {
 		_ = n.obj(nmPath).Call(nmIface+".DeactivateConnection", 0, ac).Err
 	}
 	s, err := n.editableSettings(fresh)
@@ -491,5 +483,5 @@ func (n *networkState) wgReplace(uuid, path string) (string, error) {
 	if filepath.Dir(filepath.Clean(path)) == wgExportDir() {
 		_ = os.Remove(path)
 	}
-	return m[1], nil
+	return newUuid, nil
 }
