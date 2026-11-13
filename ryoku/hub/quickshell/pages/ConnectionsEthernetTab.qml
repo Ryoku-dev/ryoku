@@ -220,6 +220,7 @@ Item {
                         block: true
                         ConnectionsIpEditor {
                             width: parent.width
+                            framed: false
                             uuid: card.profile ? card.profile.uuid : ""
                             fresh: tab.ipStarted.indexOf(uuid) < 0
                             onStarted: if (tab.ipStarted.indexOf(uuid) < 0) tab.ipStarted = tab.ipStarted.concat([uuid])

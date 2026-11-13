@@ -22,6 +22,8 @@ Item {
     property string notice: ""
     // the .conf written out by Open .conf, until it is loaded back
     property string exportPath: ""
+    // Remove tunnel was tapped once; a second tap within 3 s removes it
+    property bool removeArmed: false
 
     readonly property bool wireguard: panel.info !== null && panel.info.type === "wireguard"
     readonly property var peer: panel.wireguard && panel.info.peers.length > 0 ? panel.info.peers[0] : null
@@ -118,6 +120,25 @@ Item {
             panel.exportPath = "";
             panel.replaced(result.uuid);
         });
+    }
+
+    function remove() {
+        if (!panel.removeArmed) {
+            panel.removeArmed = true;
+            disarm.restart();
+            return;
+        }
+        disarm.stop();
+        panel.removeArmed = false;
+        panel.busy = true;
+        panel.error = "";
+        NetworkTopic.wireguardDelete(panel.uuid, panel.done);
+    }
+
+    Timer {
+        id: disarm
+        interval: 3000
+        onTriggered: panel.removeArmed = false
     }
 
     onUuidChanged: panel.load(true)
@@ -357,6 +378,29 @@ Item {
             font.family: Tokens.mono
             font.pixelSize: Tokens.fSmall
             wrapMode: Text.WrapAnywhere
+        }
+
+        Row {
+            visible: panel.wireguard
+            spacing: Tokens.s2
+            Label {
+                anchors.verticalCenter: parent.verticalCenter
+                text: I18n.tr("TUNNEL")
+            }
+            Btn {
+                anchors.verticalCenter: parent.verticalCenter
+                compact: true
+                primary: panel.removeArmed
+                text: panel.removeArmed ? I18n.tr("Confirm · Remove") : I18n.tr("Remove tunnel")
+                onAct: panel.remove()
+            }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: I18n.tr("Deletes it from this machine.")
+                color: Tokens.inkMuted
+                font.family: Tokens.ui
+                font.pixelSize: Tokens.fSmall
+            }
         }
 
         Text {

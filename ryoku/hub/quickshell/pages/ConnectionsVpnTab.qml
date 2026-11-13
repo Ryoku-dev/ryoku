@@ -15,8 +15,6 @@ Item {
 
     property string busyUuid: ""
     property string error: ""
-    // the tunnel whose Remove was tapped once; a second tap removes it
-    property string removeArmed: ""
     // the tunnel or profile whose settings are open under its row
     property string openUuid: ""
 
@@ -34,24 +32,6 @@ Item {
         tab.busyUuid = uuid;
         tab.error = "";
         NetworkTopic.vpnSet(uuid, on, tab.done);
-    }
-    function remove(uuid) {
-        if (tab.removeArmed !== uuid) {
-            tab.removeArmed = uuid;
-            disarm.restart();
-            return;
-        }
-        disarm.stop();
-        tab.removeArmed = "";
-        tab.busyUuid = uuid;
-        tab.error = "";
-        NetworkTopic.wireguardDelete(uuid, tab.done);
-    }
-
-    Timer {
-        id: disarm
-        interval: 3000
-        onTriggered: tab.removeArmed = ""
     }
 
     FileDialogHost {
@@ -111,7 +91,7 @@ Item {
                     SettingRow {
                         width: parent.width
                         label: I18n.tr("Add a tunnel")
-                        desc: I18n.tr("Import the .conf file your VPN provider gives you.")
+                        desc: I18n.tr("Import the .conf file your VPN provider gives you. It starts switched off.")
                         controlWidth: importBtn.implicitWidth
                         enabled: NetworkTopic.ready && tab.busyUuid === ""
                         Btn {
@@ -150,14 +130,6 @@ Item {
                                         primary: wgItem.open
                                         text: I18n.tr("Settings") + (wgItem.open ? " \u25b4" : " \u25be")
                                         onAct: tab.openUuid = wgItem.open ? "" : wgItem.modelData.uuid
-                                    }
-                                    Btn {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        compact: true
-                                        primary: tab.removeArmed === wgItem.modelData.uuid
-                                        armed: tab.busyUuid === ""
-                                        text: tab.removeArmed === wgItem.modelData.uuid ? I18n.tr("Confirm · Remove") : I18n.tr("Remove")
-                                        onAct: tab.remove(wgItem.modelData.uuid)
                                     }
                                     Sw {
                                         anchors.verticalCenter: parent.verticalCenter
