@@ -28,6 +28,9 @@
 /docs/lithic/library/qml/build/
 /ryoku/shell/plugin/dist/
 /release/repo/out/
+# makepkg keeps its download cache beside the PKGBUILD; the model is a pinned
+# source URL, not a file the repo carries
+/release/packages/*/*.gguf
 *.iso
 __pycache__/
 *.pyc
