@@ -308,6 +308,7 @@ Item {
     CardEditor {
         id: editor
         parent: root.hub.overlayItem
+        hub: root.hub
     }
 
     Component {
@@ -448,15 +449,23 @@ Item {
             Item {
                 anchors.fill: parent
                 clip: true
-                SystemCard {
+                // the card IS Home's plate, loaded by URL (a static import would
+                // clash with the components directory and cycle through the editor)
+                Loader {
                     id: still
-                    transformOrigin: Item.TopLeft
-                    scale: plate.width / still.designWidth
-                    Component.onCompleted: root.stillCard = still
-                    Component.onDestruction: {
-                        if (root.stillCard === still)
-                            root.stillCard = null;
+                    anchors.centerIn: parent
+                    width: plate.width
+                    height: plate.height
+                    Component.onCompleted: setSource("../components/Home.qml", { hub: root.hub, preview: true })
+                    onLoaded: {
+                        item.width = item.designWidth;
+                        item.height = item.designHeight;
+                        item.transformOrigin = Item.TopLeft;
+                        item.scale = plate.width / item.designWidth;
+                        root.stillCard = item;
                     }
+                    onItemChanged: if (!item)
+                        root.stillCard = null;
                 }
             }
             HoverHandler { cursorShape: Qt.PointingHandCursor }

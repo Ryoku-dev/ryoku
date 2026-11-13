@@ -15,6 +15,9 @@ Dialog {
     id: root
 
     property string pageId: "about"
+    // the live plate preview is Home itself; Home loads this editor by URL, so
+    // hub arrives from the loader before the dialog opens
+    property var hub: null
     // opened from Home: the same design, with Settings' own colours beside it
     property bool home: false
     readonly property string configDir: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku"
@@ -41,25 +44,19 @@ Dialog {
 
     readonly property var gallery: ["david.png", "aurelius.png", "laocoon.png", "moon.png", "needle.png",
                                     "katana.png", "hawk.png", "mic.png", "camera.png", "rashin-hero.png"]
+    // only the blocks Home's plate draws; a toggle for a part the plate does not
+    // show would be a dead switch
     readonly property var parts: [
         { id: "epithets", label: I18n.tr("Big words") },
         { id: "telemetry", label: I18n.tr("Live readings") },
-        { id: "specs", label: I18n.tr("Display, window manager and uptime") },
-        { id: "packages", label: I18n.tr("Packages") },
-        { id: "palette", label: I18n.tr("Colour strip") },
-        { id: "barcode", label: I18n.tr("Barcode") },
-        { id: "signal", label: I18n.tr("Signal") },
-        { id: "marginalia", label: I18n.tr("Edge line") },
-        { id: "watermark", label: I18n.tr("Background glyph"), gloss: true }
+        { id: "specs", label: I18n.tr("Display, window manager and uptime") }
     ]
 
     // which parts each "Show" choice turns on; the choice and the parts are one
     // change, so its Undo brings back parts switched by hand
     readonly property var presets: ({
-        full: { epithets: true, telemetry: true, specs: true, packages: true, palette: true,
-                barcode: true, signal: true, watermark: true, marginalia: true },
-        minimal: { epithets: false, telemetry: false, specs: true, packages: false, palette: false,
-                   barcode: false, signal: false, watermark: false, marginalia: true }
+        full: { epithets: true, telemetry: true, specs: true },
+        minimal: { epithets: false, telemetry: false, specs: true }
     })
     function setLayout(preset) {
         var now = root.val("layout", ({})) || {};
@@ -129,12 +126,32 @@ Dialog {
                 Item {
                     anchors.fill: parent
                     clip: true
-                    SystemCard {
+                    // the preview is the real plate: Home itself, loaded by URL and
+                    // inert, so it cannot drift from what Settings actually opens on.
+                    // Home hands this editor its hub only after the editor is built,
+                    // so the plate waits for it
+                    Loader {
                         id: liveCard
-                        live: root.opened
-                        showHidden: true
-                        transformOrigin: Item.TopLeft
-                        scale: frame.width / liveCard.designWidth
+                        anchors.centerIn: parent
+                        width: frame.width
+                        height: frame.height
+                        Component.onCompleted: if (root.hub) liveCard.loadPlate()
+                        Connections {
+                            target: root
+                            function onHubChanged() {
+                                if (root.hub && !liveCard.item)
+                                    liveCard.loadPlate();
+                            }
+                        }
+                        function loadPlate() {
+                            setSource("../Home.qml", { hub: root.hub, preview: true });
+                        }
+                        onLoaded: {
+                            item.width = item.designWidth;
+                            item.height = item.designHeight;
+                            item.transformOrigin = Item.TopLeft;
+                            item.scale = frame.width / item.designWidth;
+                        }
                     }
                 }
 

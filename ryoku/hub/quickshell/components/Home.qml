@@ -14,6 +14,11 @@ Item {
     id: root
 
     required property var hub
+    // drawn as the live card's preview (Customise, About): the plate at its design
+    // size, its own controls inert, so the preview IS Home and cannot drift from it
+    property bool preview: false
+    readonly property real designWidth: 1280
+    readonly property real designHeight: 800
 
     readonly property bool compact: root.hub.sizeClass === "compact"
     // from here the figure stands beside the column; narrower, behind its head
@@ -62,22 +67,35 @@ Item {
 
     function focusRow(rowId) {}
 
-    // the look's editor, made the first time it is asked for
+    // the look's editor, made the first time it is asked for; the loader builds
+    // it on a later frame, so the open waits for it
+    property bool wantCustomise: false
     function customise() {
         Changes.ensureStore("card", Qt.resolvedUrl("about/CardStore.qml"));
+        if (editorLoader.item) {
+            editorLoader.item.opener = customisePlaque;
+            editorLoader.item.open();
+            return;
+        }
+        wantCustomise = true;
         editorLoader.active = true;
-        editorLoader.item.opener = customisePlaque;
-        editorLoader.item.open();
     }
 
     Loader {
         id: editorLoader
         active: false
-        sourceComponent: Component {
-            CardEditor {
-                parent: root.hub.overlayItem
-                pageId: ""
-                home: true
+        // loaded by URL, not imported: the editor draws this plate, so a static
+        // import here would be a cycle
+        source: Qt.resolvedUrl("about/CardEditor.qml")
+        onLoaded: {
+            item.parent = root.hub.overlayItem;
+            item.hub = root.hub;
+            item.pageId = "";
+            item.home = true;
+            if (root.wantCustomise) {
+                root.wantCustomise = false;
+                item.opener = customisePlaque;
+                item.open();
             }
         }
     }
@@ -95,17 +113,19 @@ Item {
     readonly property bool shown: root.visible && root.Window.window !== null && root.Window.window.visible
     readonly property bool focused: root.Window.window !== null && root.Window.window.active
     readonly property bool readingsOn: root.blockOn("telemetry")
+    // only the live plate drives the sampler; a preview reads it, it does not
+    // set its pace (two bindings to one property would fight)
     Binding {
         target: LiveStats
         property: "active"
         value: true
-        when: root.shown && root.readingsOn
+        when: !root.preview && root.shown && root.readingsOn
     }
     Binding {
         target: LiveStats
         property: "interval"
         value: root.focused ? 3000 : 15000
-        when: root.shown
+        when: !root.preview && root.shown
     }
 
     readonly property int seriesLength: 40
@@ -375,6 +395,7 @@ Item {
             // the top bar: the search, where the reader left off, and the look
             Item {
                 id: topBar
+                visible: !root.preview
                 x: root.side
                 y: LithicTokens.space.s3
                 // the window's close control stands in the pane's top right corner
@@ -527,6 +548,7 @@ Item {
                                     Plaque {
                                         kind: "gold"
                                         small: true
+                                        enabled: !root.preview
                                         text: I18n.tr("Open Updates")
                                         onClicked: root.hub.navigate("updates", "")
                                     }
@@ -541,12 +563,13 @@ Item {
                                         plane: Lithic.mineralField("attention")
                                         title: root.filled(modelData.title, modelData.args)
                                         detail: root.filled(modelData.detail, modelData.args)
-                                        activatable: modelData.page !== "" && root.hub.pageAvailable(modelData.page)
+                                        activatable: !root.preview && modelData.page !== "" && root.hub.pageAvailable(modelData.page)
                                         onActivated: root.hub.navigate(modelData.page, modelData.row || "")
                                         Plaque {
                                             // one gold on the plate: the first thing that waits
                                             kind: index === 0 && !Updates.available ? "gold" : "line"
                                             small: true
+                                            enabled: !root.preview
                                             text: modelData.actionText ? I18n.tr(modelData.actionText) : I18n.tr("Open")
                                             onClicked: {
                                                 if (modelData.action === "log-out")
@@ -572,6 +595,7 @@ Item {
                                         Plaque {
                                             kind: "line"
                                             small: true
+                                            enabled: !root.preview
                                             glyph: "refresh"
                                             text: I18n.tr("Retry")
                                             onClicked: Changes.retry(modelData.entry.bind)
@@ -701,6 +725,7 @@ Item {
                         x: -sideInset
                         kind: "quiet"
                         small: true
+                        enabled: !root.preview
                         glyph: "arrow_forward"
                         text: I18n.tr("About this computer")
                         onClicked: root.hub.navigate("about", "")
@@ -737,6 +762,7 @@ Item {
                                     id: undoPlaque
                                     kind: "quiet"
                                     small: true
+                                    enabled: !root.preview
                                     glyph: "undo"
                                     text: I18n.tr("Undo")
                                     // the keys pressed it when it shows the keyboard mark
