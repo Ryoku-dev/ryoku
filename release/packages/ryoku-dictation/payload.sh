@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 set -eu
 
 : "${RYOKU_SRC:?RYOKU_SRC is required}"
@@ -36,13 +36,13 @@ install)
 	install -Dm755 -s "$build/ryoku-dictate" "$destdir/usr/bin/ryoku-dictate"
 	libdir="$destdir/usr/lib/ryoku/dictation"
 	mkdir -p "$libdir"
-	for lib in $(find "$build" \( -name 'libtranscribe.so*' -o -name 'libggml*.so*' \) \
-		-not -type d -not -type l | sort -u); do
+	while IFS= read -r -d '' lib; do
 		install -m755 -s "$lib" "$libdir/$(basename "$lib")"
-	done
-	for link in $(find "$build" -type l \( -name 'libtranscribe.so*' -o -name 'libggml*.so*' \)); do
+	done < <(find "$build" \( -name 'libtranscribe.so*' -o -name 'libggml*.so*' \) \
+		-not -type d -not -type l -print0 | sort -zu)
+	while IFS= read -r -d '' link; do
 		ln -sfn "$(basename "$(readlink -f "$link")")" "$libdir/$(basename "$link")"
-	done
+	done < <(find "$build" -type l \( -name 'libtranscribe.so*' -o -name 'libggml*.so*' \) -print0)
 	install -Dm644 "$RYOKU_SRC/ryoku/dictation/NOTICE.md" \
 		"$destdir/usr/share/licenses/ryoku-dictation/NOTICE.md"
 	install -Dm644 "$RYOKU_SRC/ryoku/dictation/README.md" \

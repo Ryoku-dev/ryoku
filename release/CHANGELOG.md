@@ -1,6 +1,8 @@
 # Release / Packaging Changelog
 
 ## Unreleased
+- **Dictation packaging handles build paths containing spaces.** Private
+  speech libraries and their versioned links are copied without splitting paths.
 - **`ryoku-dictation` ships on every edition.** The daemon, its pinned
   transcribe.cpp engine and the bundled English model build from source into one
   package (Arch, Fedora, Void, Nix), with a Vulkan backend in optional
