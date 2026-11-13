@@ -1,0 +1,21 @@
+# Template file for 'ttf-geologica'
+pkgname=ttf-geologica
+version=0.1.0
+revision=1
+short_desc="Geologica TTF for the Ryoku shell and Hub"
+maintainer="Ryoku <releases@ryoku.dev>"
+license="OFL-1.1"
+homepage="https://github.com/googlefonts/geologica"
+# vendored from the checkout, not a download: the repo's static cuts are the
+# exact bytes the shell and Hub embed, so system and embedded match.
+distfiles="https://repo.ryoku.dev/sources/ryoku-${version}.tar.gz"
+checksum=SKIP
+wrksrc="ryoku-${version}"
+
+do_install() {
+	local f
+	for f in Regular Medium Bold; do
+		vinstall "docs/lithic/library/go/fonts/Geologica-${f}.ttf" 644 usr/share/fonts/TTF
+	done
+	vinstall docs/lithic/library/go/fonts/Geologica-OFL.txt 644 usr/share/licenses/ttf-geologica
+}

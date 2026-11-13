@@ -322,6 +322,12 @@ ttf-material-symbols-variable
 # kept current by `ryoku update`. Its AUR pkgbase builds with fontforge and could
 # not bake headless in the ISO CI, so it lives here as a reliable repo package.
 otf-space-grotesk
+# ttf-geologica: the Geologica UI sans the shell/Hub render for the brand type
+# stack. Ships from [ryoku] (release/packages/ttf-geologica), vendored from the
+# checkout's cuts (docs/lithic/library/go/fonts) so the system face byte-matches
+# the one the shell and Hub embed; pacstrapped on every install and kept current
+# by `ryoku update`.
+ttf-geologica
 # ttf-maple-mono-nf: Maple Mono (Nerd Font) monospace face offered for the
 # terminal and code. Ships from [ryoku] (release/packages/ttf-maple-mono-nf) as
 # the upstream prebuilt NF release, so it pacstraps on install and updates with

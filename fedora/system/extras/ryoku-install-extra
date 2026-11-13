@@ -22,8 +22,12 @@ RELEASES = {
     "material-symbols": ("27e9ef1d", "https://raw.githubusercontent.com/google/material-design-icons/27e9ef1dbeedc13d682fece4a58e1eda4cb0961a/variablefont/MaterialSymbolsRounded%5BFILL%2CGRAD%2Copsz%2Cwght%5D.ttf", "7f3a16d9aa1b6f367eadc1614ad27308ae2c0e91e617e2069f122afd9f0c3c58", "share/fonts/MaterialSymbolsRounded.ttf"),
     "jetbrains-mono-nerd-fonts": ("3.3.0", "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.3.0/JetBrainsMono.tar.xz", "7d171ea3884be22fc08bf1a1aee640a3dc93f031989c27f6f9ceb30a6a668de1", "share/fonts/JetBrainsMonoNerdFont"),
     "space-mono-nerd-fonts": ("3.3.0", "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.3.0/SpaceMono.tar.xz", "a2058cfc43eee5a170208c6e90fa77d8f0aa755e0d213e795f70781f7d807942", "share/fonts/SpaceMonoNerdFont"),
+    # geologica is vendored from the checkout (docs/lithic/library/go/fonts), not
+    # a download: the repo's static cuts are the exact bytes the shell and Hub
+    # embed, so system and embedded match. empty url/digest mark it vendored.
+    "geologica": ("0.1.0", "", "", "share/fonts/Geologica"),
 }
-FONTS = ("space-grotesk", "material-symbols", "jetbrains-mono-nerd-fonts", "space-mono-nerd-fonts")
+FONTS = ("geologica", "space-grotesk", "material-symbols", "jetbrains-mono-nerd-fonts", "space-mono-nerd-fonts")
 
 
 def download(url, digest):
@@ -64,7 +68,8 @@ def install(name, root=None):
             for p, h in saved["files"].items()
         ):
             return
-    data = download(url, digest)
+    # vendored entries (geologica) carry no url and read from the checkout below.
+    data = download(url, digest) if url else None
     files = {}
     install_links = {}
     if name == "matugen":
@@ -119,6 +124,11 @@ def install(name, root=None):
                     raise ValueError("unsafe archive path")
                 if member.isfile() and member.name.endswith(".ttf"):
                     files[str(Path(relative) / path.name)] = archive.extractfile(member).read()
+    elif name == "geologica":
+        fonts = Path("docs/lithic/library/go/fonts")
+        for weight in ("Regular", "Medium", "Bold"):
+            files[str(Path(relative) / f"Geologica-{weight}.ttf")] = (fonts / f"Geologica-{weight}.ttf").read_bytes()
+        files[str(Path(relative) / "Geologica-OFL.txt")] = (fonts / "Geologica-OFL.txt").read_bytes()
     else:
         files[relative] = data
     if not files:

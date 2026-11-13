@@ -113,7 +113,8 @@ cache = root / ".rpm-extras"
 cache.mkdir()
 for version, url, digest, relative in extra.RELEASES.values():
     del version, relative
-    (cache / digest).write_bytes(extra.download(url, digest))
+    if url:  # vendored entries (geologica) read from the checkout, not a download
+        (cache / digest).write_bytes(extra.download(url, digest))
 PYEXTRAS
 
 cat > "$tree/.rpm-release" <<META

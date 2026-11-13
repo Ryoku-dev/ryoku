@@ -1,0 +1,32 @@
+# Maintainer: Ryoku <releases@ryoku.dev>
+#
+# ttf-geologica = the Geologica UI sans the Ryoku shell and Hub render for the
+# brand type stack (Fraunces headlines + Geologica UI). It is the face Rashin and
+# the Lithic shell embed, so the system face and the embedded face match.
+#
+# Shipped from [ryoku], not the AUR. The bytes are the repo's own vendored cuts
+# (docs/lithic/library/go/fonts/): the static Regular/Medium/Bold instances the
+# shell and Hub FontLoader embed, plus the OFL beside them. Built from the
+# checkout, so there is no download and no build to fail; it always resolves and
+# reaches every box on install (pacstrapped from base.packages) and on
+# `ryoku update`.
+#
+# build-from-checkout package: it tracks the monorepo RYOKU_PKGVER, not an
+# upstream font release, because the shipped bytes are the checkout's cuts.
+pkgname=ttf-geologica
+pkgver=${RYOKU_PKGVER:-0.1.0}
+pkgrel=1
+pkgdesc="Geologica TTF (the Ryoku shell/Hub brand UI font)"
+arch=('any')
+url="https://github.com/googlefonts/geologica"
+license=('OFL-1.1')
+source=()
+
+_repo="$startdir/../../.."
+
+package() {
+  install -Dm644 "$_repo/docs/lithic/library/go/fonts/Geologica-Regular.ttf" "$pkgdir/usr/share/fonts/TTF/Geologica-Regular.ttf"
+  install -Dm644 "$_repo/docs/lithic/library/go/fonts/Geologica-Medium.ttf"  "$pkgdir/usr/share/fonts/TTF/Geologica-Medium.ttf"
+  install -Dm644 "$_repo/docs/lithic/library/go/fonts/Geologica-Bold.ttf"    "$pkgdir/usr/share/fonts/TTF/Geologica-Bold.ttf"
+  install -Dm644 "$_repo/docs/lithic/library/go/fonts/Geologica-OFL.txt"     "$pkgdir/usr/share/licenses/ttf-geologica/OFL.txt"
+}

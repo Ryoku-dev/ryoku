@@ -162,6 +162,7 @@ nvibrant-bin	nvibrant	extra	repo=ryoku
 nvidia-utils	-	hardware:nvidia	Deferred: Void's nvidia drives Turing and newer only and blacklists nouveau; NVIDIA GPUs stay on nouveau until the driver step picks a branch per GPU.
 openrgb	openrgb	desktop	
 otf-space-grotesk	otf-space-grotesk	desktop	repo=ryoku
+ttf-geologica	@repo	desktop	Ryoku-owned package built from the checkout.
 pacman	-	desktop	Replaced by the ryoku-host XBPS backend.
 pacman-contrib	-	desktop	Pacman-only tooling; the XBPS backend does not use it.
 pam-fprint-grosshack	-	extra	No Void repository package.

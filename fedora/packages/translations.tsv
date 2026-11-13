@@ -158,6 +158,7 @@ nvibrant-bin	nvibrant	extra	Ryoku-owned RPM.
 nvidia-utils	-	hardware:nvidia	Fedora NVIDIA drivers require RPM Fusion and hardware-specific selection.
 openrgb	openrgb	desktop	
 otf-space-grotesk	ryoku-extras	desktop	Bundled by the Ryoku extras RPM.
+ttf-geologica	ryoku-extras	desktop	Bundled by the Ryoku extras RPM.
 pacman	-	desktop	Pacman is not used on Fedora.
 pacman-contrib	-	desktop	Pacman-only tooling is not used on Fedora.
 pam-fprint-grosshack	-	extra	No Fedora package provides this Arch package.
