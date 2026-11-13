@@ -22,7 +22,7 @@ var rows = [
     { id: "interface-font", section: "fonts", label: "Interface font",
       detail: "The typeface apps and the desktop use for their text",
       keywords: ["font", "typeface", "system font", "ui font", "family", "gtk font", "qt font"],
-      control: "custom", bind: s("fontFamily", "Space Grotesk"), "default": "Space Grotesk" },
+      control: "custom", bind: s("fontFamily", "Geologica"), "default": "Geologica" },
     { id: "monospace-font", section: "fonts", label: "Monospace font",
       detail: "The fixed-width typeface for terminals and code",
       keywords: ["terminal font", "mono", "code font", "fixed width", "kitty", "nerd font"],

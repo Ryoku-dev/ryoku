@@ -3195,7 +3195,7 @@ Singleton {
                     property string iconNerd: "JetBrainsMono Nerd Font"
                     property string monospace: "JetBrainsMono Nerd Font" // clipboard metadata
                     property string reading: "Readex Pro" // cookie clock quote
-                    property string expressive: "Space Grotesk" // desktop widgets font, overview workspace number, user profile config
+                    property string expressive: "Geologica" // desktop widgets font, overview workspace number, user profile config
                     property bool roundnessFull: true
                 }
                 property JsonObject transparency: JsonObject {

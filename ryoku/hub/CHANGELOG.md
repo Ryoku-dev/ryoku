@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Changed
+- **The interface font defaults to Geologica.** The brand UI face the site and
+  the shell use, so the Settings default, the bind fallback and the theme token
+  all resolve to Geologica; the monospace default is unchanged
+  (`quickshell/schema/fonts-icons.js`, `quickshell/Singletons/Theme.qml`).
 - **Settings opens on a cover, like ryoku.dev.** Home is the old Hub's
   Profile plate rebuilt in Lithic and composed like the site's cover: the
   Caracalla Farnese marble (a real photograph, credited beside it and in

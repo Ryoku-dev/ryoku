@@ -37,7 +37,7 @@ Singleton {
     property alias dateDesign:   adapter.dateDesign     // inline | badge | stacked
 
     // widget typography: the sans family every clock face and Theme.font widget
-    // renders with. Empty = the built-in default (Space Grotesk); a bundled or
+    // renders with. Empty = the built-in default (Geologica); a bundled or
     // installed family name overrides it. Picked in Hub -> Widgets.
     property alias widgetFont: adapter.widgetFont
 

@@ -1,6 +1,13 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **The desktop and apps now render in Geologica, the brand UI face.** A new
+  ttf-geologica package ships the same cuts the shell and Hub embed, and it is
+  the default for GTK, Qt and the shell on every edition; the terminal keeps
+  its own face (`release/packages/ttf-geologica`,
+  `void/packages/srcpkgs/ttf-geologica`,
+  `fedora/system/extras/ryoku-install-extra`, `system/packages/base.packages`,
+  `ryoku/shell/ipc/matugen.go`, `ryoku/ui/Singletons/Tokens.qml`).
 - **Rashin has Dreams: a team that works until what you asked for is built.**
   You are the CEO; a manager agent interviews you about the design and the
   task, hires the members it needs on harnesses the dream is signed in to,

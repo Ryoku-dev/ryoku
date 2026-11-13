@@ -33,9 +33,9 @@ Column {
     }
     MenuTextField {
         // Global across every desktop widget (this is where the Hub kept it);
-        // blank falls back to the built-in Space Grotesk.
+        // blank falls back to the built-in Geologica.
         label: I18n.tr("Widget font (all widgets)")
-        placeholder: I18n.tr("Space Grotesk")
+        placeholder: I18n.tr("Geologica")
         text: Config.widgetFont
         onCommitted: (v) => Config.set("widgetFont", v)
     }

@@ -399,7 +399,7 @@ func mustJSON(v any) []byte {
 }
 
 // applyRyokuTheme resets the desktop to the Ryoku signature in one move: the
-// frame-bars style, square corners everywhere, Space Grotesk type across the
+// frame-bars style, square corners everywhere, Geologica type across the
 // shell and apps, and the grainy-mono palette. Wired to the Appearance and Rices pages.
 func applyRyokuTheme() error {
 	// Merge so sizing, weather and preserved sidebar content choices survive.
@@ -415,7 +415,7 @@ func applyRyokuTheme() error {
 		"roundness":   0,
 		"frameRadius": 0,
 		"osdRadius":   0,
-		"fontFamily":  "Space Grotesk",
+		"fontFamily":  "Geologica",
 	})
 	// square window corners: pin the appearance override the provider reads.
 	_ = withDesktopLock(func() error {
@@ -424,7 +424,7 @@ func applyRyokuTheme() error {
 		return atomicWrite(desktopStorePath(), mustJSON(ns), 0o644)
 	})
 	// GTK type now; the Hyprland autostart pins it on the next login.
-	_ = exec.Command("gsettings", "set", "org.gnome.desktop.interface", "font-name", "Space Grotesk 11").Run()
+	_ = exec.Command("gsettings", "set", "org.gnome.desktop.interface", "font-name", "Geologica 11").Run()
 	// clear any active-rice marker: the signature is a fresh look, not a rice,
 	// so the Rices page must not keep showing the last rice as applied.
 	setActiveRice("")

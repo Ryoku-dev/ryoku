@@ -203,7 +203,7 @@ Singleton {
     // Primary is the shell UI face; empty resolves to the platform default sans,
     // matching the reference's inherited system font. secondary/tertiary are
     // override slots that inherit primary until a theme sets them.
-    readonly property string fontPrimary:   Config.fontFamily.length > 0 ? Config.fontFamily : "Space Grotesk"
+    readonly property string fontPrimary:   Config.fontFamily.length > 0 ? Config.fontFamily : "Geologica"
     readonly property string fontSecondary: fontPrimary
     readonly property string fontTertiary:  fontPrimary
     readonly property int fontSm: 14

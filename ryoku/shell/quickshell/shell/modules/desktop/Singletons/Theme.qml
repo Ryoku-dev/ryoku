@@ -75,7 +75,7 @@ Singleton {
     readonly property string display: "Fraunces"
     // sans for every clock face and desktop widget. Follows the user's widget
     // font (Hub -> Widgets), bundled faces included, falling back to the default.
-    readonly property string font:   Config.widgetFont.length > 0 ? Config.widgetFont : "Space Grotesk"
+    readonly property string font:   Config.widgetFont.length > 0 ? Config.widgetFont : "Geologica"
     readonly property string fontJp: "Noto Sans CJK JP"
     readonly property string mono:   "JetBrainsMono Nerd Font"
     // Material Symbols Rounded ligatures, for the icon glyph a menu row or quick

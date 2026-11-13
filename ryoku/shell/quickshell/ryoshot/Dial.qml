@@ -23,7 +23,7 @@ Item {
         anchors.horizontalCenter: parent.horizontalCenter
         text: dial.label
         color: dial.idle
-        font.family: "Space Grotesk"
+        font.family: "Geologica"
         font.pixelSize: 12
         font.weight: Font.Medium
     }

@@ -5,7 +5,7 @@
 .window {
   background-color: {{colors.surface.default.hex}};
   color: {{colors.on_surface.default.hex}};
-  font-family: "Space Grotesk", sans-serif;
+  font-family: "Geologica", sans-serif;
   font-size: 14px;
 }
 

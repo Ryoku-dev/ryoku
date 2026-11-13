@@ -37,7 +37,7 @@ Item {
         anchors.top: parent.top
         text: sl.label
         color: sl.idle
-        font.family: "Space Grotesk"
+        font.family: "Geologica"
         font.pixelSize: 12
         font.weight: Font.Medium
     }

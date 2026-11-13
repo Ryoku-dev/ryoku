@@ -70,7 +70,7 @@ Singleton {
     readonly property real shadowOpacity: 0.5
     // type stack + brutalist geometry, the website language.
     readonly property string display: "Fraunces"
-    readonly property string font: "Space Grotesk"
+    readonly property string font: "Geologica"
     readonly property string fontJp: "Noto Sans CJK JP"
     readonly property string mono: "JetBrainsMono Nerd Font"
     readonly property int radius: 0

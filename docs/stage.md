@@ -103,7 +103,7 @@ a rounded card while its live wallpaper is blurred and dimmed around it, with a
 soft shadow lifting the card from the surround. `EditModeCard.qml` supplies
 that treatment and `Desktop.qml` mounts it around the real wallpaper, stage,
 widgets, desktop icons, and editor frames. The island's `Appearance.qml` maps
-its paper, ink, spacing, and Space Grotesk, Fraunces, and mono type to Ryoku.Ui
+its paper, ink, spacing, and Geologica, Fraunces, and mono type to Ryoku.Ui
 tokens.
 
 The toolbar is **Desktop** | **Widgets** | **Wallpaper** | **Style** |

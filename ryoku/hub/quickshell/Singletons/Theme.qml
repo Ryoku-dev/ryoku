@@ -6,7 +6,7 @@ import Quickshell
 // A near-black canvas so the one vermillion accent (力 mark, active section,
 // focused search, numerals) reads as deliberate, never a wash. Warm-white type,
 // gold used only as kintsugi. Depth from hairlines + hard offset shadows, not
-// gradients. Display face is Fraunces (editorial serif); UI is Space Grotesk;
+// gradients. Display face is Fraunces (editorial serif); UI is Geologica;
 // labels are JetBrains Mono. Mirrors ryoku-site/app/assets/css/tokens.css.
 Singleton {
     // brand: one vermillion, sparingly + boldly. (site --sun / --sun-deep)
@@ -51,7 +51,7 @@ Singleton {
 
     // type stack, mirrors the website.
     readonly property string display: "Fraunces"                 // editorial serif headlines
-    readonly property string font:    "Space Grotesk"            // UI / body
+    readonly property string font:    "Geologica"            // UI / body
     readonly property string fontJp:  "Noto Sans CJK JP"         // kanji marks
     readonly property string mono:    "JetBrainsMono Nerd Font"  // labels / code
 

@@ -62,7 +62,8 @@ QML running against a stale plugin.
 | `ryoku-hypr-plugins`, `hyprglass`, `imgborders`, `hypr-dynamic-cursors` | Hyprland compositor plugins Ryoku Settings can toggle |
 | `hyprland-preview-share-picker` | The screen-share source chooser the portal calls by name |
 | `ryoku-cursors`, `ryoku-cursor-material` | The Bibata cursor set (the default pointer) and the optional Material variant |
-| `otf-space-grotesk` | Space Grotesk, the UI sans |
+| `otf-space-grotesk` | Space Grotesk, the legacy UI sans |
+| `ttf-geologica` | Geologica, the UI sans |
 | `ryoku-keyring` | The signing keys for the `[ryoku]` repo |
 | `limine-mkinitcpio-hook`, `limine-snapper-sync` | Boot-menu regeneration and the snapshots submenu |
 

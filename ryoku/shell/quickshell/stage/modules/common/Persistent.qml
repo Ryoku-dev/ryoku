@@ -722,7 +722,7 @@ Singleton {
                     property string iconNerd: "JetBrainsMono Nerd Font"
                     property string monospace: "JetBrainsMono Nerd Font"
                     property string reading: "Readex Pro"
-                    property string expressive: "Space Grotesk"
+                    property string expressive: "Geologica"
                     property bool roundnessFull: false
                 }
             }

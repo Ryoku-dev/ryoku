@@ -1675,7 +1675,7 @@ func fontChoice(frame []byte) (family, mono string, size int) {
 	}
 	_ = json.Unmarshal(frame, &doc)
 	if family = strings.TrimSpace(doc.FontFamily); family == "" {
-		family = "Space Grotesk"
+		family = "Geologica"
 	}
 	if mono = strings.TrimSpace(doc.TerminalFontFamily); mono == "" {
 		mono = "JetBrainsMono Nerd Font"

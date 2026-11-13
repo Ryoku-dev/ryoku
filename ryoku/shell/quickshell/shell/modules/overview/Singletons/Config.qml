@@ -8,12 +8,12 @@ Singleton {
     id: root
 
     property alias matchWallpaper: themeAdapter.followWallpaper
-    property string fontFamily: "Space Grotesk"
+    property string fontFamily: "Geologica"
     property real fontScale: 1.0
 
     function refreshFonts() {
         const family = Ui.ShellSettings.get("fontFamily", null);
-        root.fontFamily = typeof family === "string" ? family : "Space Grotesk";
+        root.fontFamily = typeof family === "string" ? family : "Geologica";
         const scale = Ui.ShellSettings.get("fontScale", null);
         root.fontScale = scale !== null && isFinite(Number(scale)) ? Number(scale) : 1.0;
     }

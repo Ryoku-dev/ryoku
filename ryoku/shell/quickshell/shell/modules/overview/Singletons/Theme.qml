@@ -36,7 +36,7 @@ Singleton {
 
     // type stack + brutalist geometry (website language).
     readonly property string display: "Fraunces"
-    readonly property string font:    Config.fontFamily.length > 0 ? Config.fontFamily : "Space Grotesk"
+    readonly property string font:    Config.fontFamily.length > 0 ? Config.fontFamily : "Geologica"
     readonly property string fontJp:  "Noto Sans CJK JP"
     readonly property string mono:    "JetBrainsMono Nerd Font"
     // brand mark + name, user-overridable via ~/.config/ryoku/brand.json (Shell ->

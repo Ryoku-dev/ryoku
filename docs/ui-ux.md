@@ -3,7 +3,7 @@
 The desktop is **Lithic**: cut stone, not molded plastic. Flat stone planes
 set a step apart, every corner cut at 45 degrees or left square, bone for where
 you are, gold for what you can do, and a small set of minerals that mean a state
-only when they sit beside a word. Space Grotesk carries everything a person
+only when they sit beside a word. Geologica carries everything a person
 reads, Space Mono carries data, and motion answers a cause and then stops.
 
 Lithic has no colours of its own. Every colour on the desktop is a role, and the
@@ -275,7 +275,7 @@ Self-hosted, no CDN. Two families and one seal face, one role each:
 
 |Role|Family|Token|
 |---|---|---|
-|Everything a person reads: names, sentences, labels, prose, buttons|**Space Grotesk**|`Tokens.ui` (a user's configured UI font overrides it)|
+|Everything a person reads: names, sentences, labels, prose, buttons|**Geologica**|`Tokens.ui` (a user's configured UI font overrides it)|
 |Literal data only: addresses, ports, paths, ids, counts, chart ticks|**Space Mono**|`Tokens.mono`|
 |The 力 and 十 seals, and nothing else|**Noto Sans CJK JP**|`Tokens.jp`|
 
@@ -1093,8 +1093,8 @@ palette chain, measured copy, disclosure over walls) and changes the rest:
 |`paper`, `paperLift`, `ink`, `inkDim`, `inkMuted`, `inkFaint`, `bone`, `inkOnBone`, `sun`, `alert`|`ground`, `stone1..4`, `vein`, `fg`, `fg2`, `fg3`, `sel`, `onSel`, `onSel2`, `gold`, `onGold`, `goldInk`, `jasper`, `jade`, `lapis`, `amber`, `scrim`|
 |emphasis by inversion only, no accent in content|bone for place, gold for the one consequential action, minerals with words for state|
 |`alert` fixed red|`jasper` from the palette's `error`, `amber` fixed for needs-you, the amber notch as the one badge|
-|Fraunces display, `fTitle` 32, `fHero` 34, `fValue` 26|Space Grotesk Bold at `fName` 52, `fSentence` 34, `fSection` 21|
-|tracked uppercase mono labels, kanji glosses on nav and eyebrows|sentence case Space Grotesk; the 力 seal stays as the brand mark only|
+|Fraunces display, `fTitle` 32, `fHero` 34, `fValue` 26|Geologica Bold at `fName` 52, `fSentence` 34, `fSection` 21|
+|tracked uppercase mono labels, kanji glosses on nav and eyebrows|sentence case Geologica; the 力 seal stays as the brand mark only|
 |`radius` 6, round dots, round knobs|the cut scale 3 / 4 / 6 / 7 / 12 / 16, flakes, a cut knob|
 |spacing 4 8 12 16 24 32 48|4 8 13 21 34 55|
 |`rowH` 48, `ctlH` 26, `railW` 268|`rowH` 56 (48 compact), `ctlH` 40 (32 small), `fieldH` 44, `railW` 88 / 72|

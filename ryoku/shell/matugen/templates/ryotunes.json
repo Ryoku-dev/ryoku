@@ -30,7 +30,7 @@
       "alert": "{{colors.error.light.hex}}"
     }
   },
-  "type": { "display": "Fraunces", "ui": "Space Grotesk", "mono": "SpaceMono Nerd Font" },
+  "type": { "display": "Fraunces", "ui": "Geologica", "mono": "SpaceMono Nerd Font" },
   "shape": { "radius": 8, "radiusCard": 12 },
   "accent": "artwork",
   "wash": 1.0

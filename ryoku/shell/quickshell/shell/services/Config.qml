@@ -343,7 +343,7 @@ Singleton {
         property bool deckFrostEnabled: true
         property real deckFrost: 0.45
         property real fontScale: 1.3
-        property string fontFamily: "Space Grotesk"
+        property string fontFamily: "Geologica"
         property string terminalFontFamily: "JetBrainsMono Nerd Font"
         property int fontSize: 11
         property string weatherLocation: ""

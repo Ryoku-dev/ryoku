@@ -100,7 +100,7 @@ Singleton {
 
     // ── type ─────────────────────────────────────────────────────────────
     readonly property string display: "Fraunces"
-    property string ui: "Space Grotesk"
+    property string ui: "Geologica"
     property string mono: "SpaceMono Nerd Font"
     readonly property string jp: "Noto Sans CJK JP"
 
@@ -277,7 +277,7 @@ Singleton {
         var bars = ({});
         var widgets = ({});
         var monoFont = "SpaceMono Nerd Font";
-        var uiFont = "Space Grotesk";
+        var uiFont = "Geologica";
         if (o) {
             if (typeof o.themePalette === "object" && o.themePalette !== null)
                 pal = o.themePalette;
