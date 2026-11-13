@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+### Added
+- **A WireGuard tunnel's or VPN profile's settings open under its row in
+  Connections > VPN.** Both get auto-connect and what they connect to; a
+  tunnel also shows its traffic while up, edits its name, endpoint, allowed
+  IPs and keepalive, sets its address and DNS with the IP settings box, and
+  opens as a .conf in the text editor to load back with Load changes;
+  Remove moved there from the row (`pages/ConnectionsVpnDetails.qml`).
+- **Connections has an Ethernet tab.** Each wired adapter gets a card with
+  its link (profile, speed and address), Connect or Disconnect, the saved
+  profile to use when there are several, Auto-connect, and the same IP
+  settings a saved Wi-Fi network has. It goes through the shell daemon, and
+  `ryoku-shell hub open ethernet` opens the tab
+  (`pages/ConnectionsEthernetTab.qml`).
+- **A saved Wi-Fi network's IP settings can be changed in Connections.** IP
+  settings, beside Auto-reconnect, switches between DHCP and a manual address
+  and gateway and sets the network's DNS servers. A change on the network in
+  use reverts after 20 seconds unless it is kept (`pages/ConnectionsIpEditor.qml`).
+- **Connections has VPN and DNS tabs.** VPN lists the saved WireGuard
+  tunnels, with on/off, import from a .conf and remove, and NetworkManager VPN
+  profiles with on/off; DNS picks the system resolver (DHCP, Cloudflare,
+  Google or custom servers). Both go through the shell daemon, the same calls
+  the bar makes, and `ryoku-shell hub open vpn` or `dns` opens the tab
+  (`pages/ConnectionsVpnTab.qml`, `pages/ConnectionsDnsTab.qml`,
+  `Singletons/NetworkTopic.qml`).
+
 ### Fixed
 - **Graphics & Power offers Performance on laptops with a monitor port on the
   discrete GPU.** The page says it applies only while a monitor is plugged in

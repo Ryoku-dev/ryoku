@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -65,6 +66,8 @@ type networkState struct {
 
 	cacheMu sync.Mutex
 	cache   *networkSnapshot
+
+	ip ipEdits // IPv4 changes waiting for confirmation (network_ip.go)
 }
 
 type networkSnapshot struct {
@@ -104,6 +107,7 @@ type savedConn struct {
 	id          string
 	typ         string
 	ssid        string
+	iface       string // connection.interface-name; "" when any adapter may use it
 	autoconnect bool
 	// vpnService is vpn.service-type for a type "vpn" profile, e.g.
 	// "org.freedesktop.NetworkManager.openvpn"; empty for every other type.
@@ -218,11 +222,11 @@ func (d *daemon) startNetwork() {
 		}
 		return nil, n.wgSetActive(a.Uuid, false)
 	})
-	// wgImport mirrors the reference exactly: it is the one place the reference
-	// shells out (contract 06 sec 4 runs `nmcli connection import type
-	// wireguard file <path>`), because parsing a .conf into NetworkManager's
-	// nested settings is what nmcli's importer already does. This is an action,
-	// not a status read, so it is not the polling defect the topic replaces.
+	// wgImport shells out as the reference does (contract 06 sec 4 runs
+	// `nmcli connection import type wireguard file <path>`), because parsing a
+	// .conf into NetworkManager's nested settings is what nmcli's importer
+	// already does. This is an action, not a status read, so it is not the
+	// polling defect the topic replaces.
 	d.registerCall("network.wgImport", func(raw json.RawMessage) (any, error) {
 		var a struct {
 			Path string `json:"path"`
@@ -230,7 +234,8 @@ func (d *daemon) startNetwork() {
 		if err := json.Unmarshal(raw, &a); err != nil {
 			return nil, err
 		}
-		return nil, wgImport(a.Path)
+		_, err := n.wgImport(a.Path)
+		return nil, err
 	})
 	d.registerCall("network.vpnActivate", func(raw json.RawMessage) (any, error) {
 		var a struct {
@@ -259,6 +264,9 @@ func (d *daemon) startNetwork() {
 		}
 		return nil, n.wgDelete(a.Uuid)
 	})
+	n.registerIPCalls(d)
+	n.registerEthernetCalls(d)
+	n.registerVpnCalls(d)
 
 	n.publish()
 }
@@ -429,13 +437,15 @@ func (n *networkState) snapshotState() *networkSnapshot {
 
 	return &networkSnapshot{
 		frame: map[string]any{
-			"wifi":         wifi,
-			"wired":        wired,
-			"connection":   connection,
-			"accessPoints": aps,
-			"wireguard":    n.wireguardTunnels(saved, active),
-			"vpn":          vpnProfileFrames(saved, n.vpnLiveState(saved, active)),
-			"dns":          n.dnsFrame(),
+			"wifi":             wifi,
+			"wired":            wired,
+			"connection":       connection,
+			"accessPoints":     aps,
+			"wireguard":        n.wireguardTunnels(saved, active),
+			"vpn":              vpnProfileFrames(saved, n.vpnLiveState(saved, active)),
+			"dns":              n.dnsFrame(),
+			"ethernet":         ethernetFrames(n.wiredDevices()),
+			"ethernetProfiles": ethernetProfileFrames(saved, active),
 		},
 		aps: apsByPath,
 	}
@@ -596,6 +606,7 @@ func (n *networkState) savedConnections() []savedConn {
 			c.typ, _ = conn["type"].Value().(string)
 			c.id, _ = conn["id"].Value().(string)
 			c.uuid, _ = conn["uuid"].Value().(string)
+			c.iface, _ = conn["interface-name"].Value().(string)
 			// NetworkManager omits connection.autoconnect when it is on (its
 			// default), so an absent key means enabled; only an explicit false
 			// turns it off.
@@ -649,9 +660,10 @@ func (n *networkState) wireguardTunnels(saved []savedConn, active map[string]dbu
 		}
 		_, isActive := active[c.uuid]
 		out = append(out, map[string]any{
-			"uuid":   c.uuid,
-			"name":   c.id,
-			"active": isActive,
+			"uuid":        c.uuid,
+			"name":        c.id,
+			"active":      isActive,
+			"autoconnect": c.autoconnect,
 		})
 	}
 	return out
@@ -1045,17 +1057,47 @@ func (n *networkState) wgDelete(uuid string) error {
 	return n.obj(conn).Call(nmSettConnIface+".Delete", 0).Err
 }
 
-// wgImport runs nmcli's WireGuard config importer, exactly as the reference
-// does (contract 06 sec 4).
-func wgImport(path string) error {
+var importedUuid = regexp.MustCompile(`\(([0-9a-f-]{36})\)`)
+
+// wgImportFile runs nmcli's WireGuard config importer, as the reference does
+// (contract 06 sec 4), and returns the new profile's UUID.
+func wgImportFile(path string) (string, error) {
 	if path == "" {
-		return fmt.Errorf("empty path")
+		return "", fmt.Errorf("empty path")
 	}
 	out, err := exec.Command("nmcli", "connection", "import", "type", "wireguard", "file", path).CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("wireguard import failed: %v: %s", err, out)
+		return "", fmt.Errorf("wireguard import failed: %s", strings.TrimSpace(string(out)))
 	}
-	return nil
+	m := importedUuid.FindStringSubmatch(string(out))
+	if m == nil {
+		return "", fmt.Errorf("wireguard import gave no profile: %s", strings.TrimSpace(string(out)))
+	}
+	return m[1], nil
+}
+
+// wgImport imports a tunnel and leaves it off. nmcli saves an imported
+// tunnel with auto-connect on and brings it up at once, so a tunnel that
+// routes everything would take over the machine's traffic the moment it was
+// imported; it now waits to be switched on.
+func (n *networkState) wgImport(path string) (string, error) {
+	uuid, err := wgImportFile(path)
+	if err != nil {
+		return "", err
+	}
+	conn, err := n.connByUuid(uuid)
+	if err != nil {
+		return "", err
+	}
+	if err := n.updateAutoconnect(conn, false); err != nil {
+		return uuid, err
+	}
+	if ac, up := n.activeConnections()[uuid]; up {
+		if err := n.obj(nmPath).Call(nmIface+".DeactivateConnection", 0, ac).Err; err != nil {
+			return uuid, err
+		}
+	}
+	return uuid, nil
 }
 
 // --- typed property reads ---
@@ -1130,12 +1172,13 @@ func vpnProfileFrames(saved []savedConn, live map[string]vpnLive) []map[string]a
 		}
 		l, isActive := live[c.uuid]
 		out = append(out, map[string]any{
-			"uuid":       c.uuid,
-			"name":       c.id,
-			"service":    vpnServiceName(c.vpnService),
-			"active":     isActive,
-			"connecting": isActive && l.connecting,
-			"ip4":        l.ip4,
+			"uuid":        c.uuid,
+			"name":        c.id,
+			"service":     vpnServiceName(c.vpnService),
+			"active":      isActive,
+			"connecting":  isActive && l.connecting,
+			"ip4":         l.ip4,
+			"autoconnect": c.autoconnect,
 		})
 	}
 	return out

@@ -1,6 +1,28 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **An imported WireGuard tunnel starts switched off.** nmcli saves an
+  imported tunnel with auto-connect on and brings it up at once, so a tunnel
+  that routes everything took over the machine's traffic the moment it was
+  imported; `network.wgImport` now leaves it off with auto-connect off.
+- **The shell daemon reads and edits a VPN connection's settings.** New
+  `network.vpnGet` (details, and a tunnel's traffic while up),
+  `network.vpnSetAutoconnect`, `network.wgEdit` (a tunnel's name and peer),
+  `network.wgExport` (the tunnel as a private .conf) and `network.wgReplace`
+  (an edited .conf loaded back in its place); the `network` topic's
+  WireGuard and VPN entries carry auto-connect (`ipc/network_vpn.go`).
+- **The shell daemon reports wired adapters and saved Ethernet profiles.** The
+  `network` topic gains `ethernet` (each adapter's state, speed, address and
+  profile in use) and `ethernetProfiles`, and new `network.ethernetConnect`,
+  `network.ethernetDisconnect` and `network.ethernetSetAutoconnect` act on
+  them; a wired call refuses a Wi-Fi or VPN profile and any adapter that is
+  not wired (`ipc/network_ethernet.go`).
+- **The shell daemon edits a saved connection's IPv4 settings.** New
+  `network.ipGet` and `network.ipSet` read and write DHCP or a manual address,
+  gateway and DNS; on a live connection the old settings come back after 20
+  seconds unless `network.ipConfirm` keeps the new ones (`network.ipRevert`
+  undoes at once), so a wrong address that cuts the machine off undoes itself
+  (`ipc/network_ip.go`).
 - **Wallpaper Engine video wallpapers animate on hover in the picker (#807).**
   Only local videos got the small preview clip, so workshop video cards stayed
   still; they now get one too, built on the thumbnail job limit and skipped
