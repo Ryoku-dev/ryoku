@@ -124,6 +124,11 @@ QtObject {
     function write(key, v, done) {
         if (key.indexOf("model@") === 0)
             key = "model";
+        if (key === "model") {
+            var selected = store.modelFor(String(v));
+            if (selected)
+                v = selected.path;
+        }
         var numeric = { "silenceMs": true, "maxDurationSecs": true, "typeDelayMs": true };
         var before = numeric[key] ? store[key] : String(store[key]);
         store[key] = numeric[key] ? Number(v) : String(v);

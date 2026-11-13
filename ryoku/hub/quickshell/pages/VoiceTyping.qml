@@ -168,7 +168,29 @@ Item {
         }
     }
 
-    readonly property var schema: ({ title: Schema.title, lead: Schema.lead, sections: Schema.sections, rows: Schema.rows, related: Schema.related })
+    readonly property var schema: {
+        var rows = Schema.rows.filter(r => r.template !== true
+            && (r.id !== "vt-install" || (root.loaded && !root.installed))
+            && (r.id !== "vt-remove" || root.installed)).map(function (r) {
+                if (r.id !== "vt-enabled" || !root.installed || !root.current)
+                    return r;
+                return Object.assign({}, r, {
+                    detail: I18n.tr("Using %1.").arg(I18n.tr(root.current.label)) + " " + I18n.tr(r.detail)
+                });
+            });
+        if (root.store) {
+            rows = rows.concat(root.store.models.map(m => ({
+                id: "model-" + m.id,
+                section: "model",
+                label: m.label,
+                detail: root.modelDetail(m),
+                control: "custom",
+                activatable: true,
+                modelId: m.id
+            })));
+        }
+        return { title: Schema.title, lead: Schema.lead, sections: Schema.sections, rows: rows, related: Schema.related };
+    }
 
     // each model row the catalogue reports takes the model control; the device
     // and behaviour rows are plain controls the frame draws itself

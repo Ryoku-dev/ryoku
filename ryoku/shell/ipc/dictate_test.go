@@ -64,7 +64,7 @@ func fakeDictateServer(t *testing.T) (commands chan string, broadcast func(strin
 						mu.Lock()
 						current := state
 						mu.Unlock()
-						_, _ = conn.Write([]byte("state " + current + "\nenabled true\nend\n"))
+						_, _ = conn.Write([]byte("state " + current + "\nenabled true\nlimit 120\nend\n"))
 					case "start":
 						mu.Lock()
 						state = "recording"
@@ -110,7 +110,8 @@ func TestDictationFramesReachTheTopic(t *testing.T) {
 	d := &daemon{sup: map[string]bool{"shell": true}, activeMon: "DP-1", quit: make(chan struct{})}
 	t.Cleanup(func() { close(d.quit) })
 	d.dictTopic = d.registerTopic("dictation")
-	d.dictFrame = dictationFrame{State: "idle", Enabled: true, Device: "auto", Mode: "paste"}
+	d.dictFrame = dictationFrame{State: "idle", Enabled: true, Device: "auto", Mode: "paste",
+		MaxDurationSecs: 120}
 
 	client, server := net.Pipe()
 	go d.streamDictation(client)
@@ -155,6 +156,10 @@ func TestDictationFramesReachTheTopic(t *testing.T) {
 	// are never cleared by an event that does not carry them.
 	if frame.Mode != "paste" || frame.Device != "auto" {
 		t.Fatalf("frame lost its settings: %+v", frame)
+	}
+	// the card measures the recording against this, so it must survive too
+	if frame.MaxDurationSecs != 120 {
+		t.Fatalf("MaxDurationSecs = %d, want 120", frame.MaxDurationSecs)
 	}
 	_ = server.Close()
 }
@@ -242,6 +247,56 @@ func TestVoiceFallsToTheOffNoteWithoutTheEngine(t *testing.T) {
 	case got := <-calls:
 		t.Fatalf("a refused tap emitted shell IPC %q", got)
 	case <-time.After(300 * time.Millisecond):
+	}
+}
+
+// The card measures the recording against the engine's own automatic stop, so
+// the status pull must carry it into the topic: a card without it shows no
+// blade at all.
+func TestDictateStatusCarriesTheStopLimit(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_RUNTIME_DIR", dir)
+
+	replies := "state idle\nmodel /usr/share/ryoku/dictation/models/parakeet.gguf\n" +
+		"backend CPU\ndevice auto\nenabled true\nmode paste\nlanguage auto\n" +
+		"limit 90\ngpu none\nend\n"
+	listener, err := net.Listen("unix", filepath.Join(dir, "ryoku-dictate.sock"))
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			go func(conn net.Conn) {
+				defer conn.Close()
+				scanner := bufio.NewScanner(conn)
+				for scanner.Scan() {
+					if scanner.Text() == "status" {
+						_, _ = conn.Write([]byte(replies))
+					}
+				}
+			}(conn)
+		}
+	}()
+
+	d := &daemon{sup: map[string]bool{"shell": true}, quit: make(chan struct{})}
+	t.Cleanup(func() { close(d.quit) })
+	d.dictTopic = d.registerTopic("dictation")
+	d.dictConn = &dictateConn{}
+
+	if _, err := d.dictateStatus(); err != nil {
+		t.Fatalf("dictateStatus: %v", err)
+	}
+	frame := readFrame(t, d)
+	if frame.MaxDurationSecs != 90 {
+		t.Fatalf("MaxDurationSecs = %d, want 90", frame.MaxDurationSecs)
+	}
+	if frame.Model == "" || frame.Backend != "CPU" {
+		t.Fatalf("status frame lost its engine fields: %+v", frame)
 	}
 }
 

@@ -4,53 +4,105 @@ import QtQuick
 import Quickshell
 import Ryoku.Ui
 
-// QML view of the daemon's `dictation` topic: the state of Ryoku's voice typing,
-// the microphone level history the card draws, and the last tap that could not
-// dictate. The popup reads this; nothing in the desktop talks to the dictation
-// daemon directly, and nothing here polls.
 Singleton {
     id: root
 
     property var frame: ({})
     property var levels: []
-    property real drift: 0
-    // when the last tap could not dictate, and why: the card flashes this
-    property int attentionAt: 0
+    property var microphoneFloor: []
+    property real activity: 0
+    property int calibrationSamples: 0
+    property real attentionAt: 0
     property string attentionReason: ""
+    property bool showingOff: false
+    property bool melting: false
 
-    readonly property string state: frame && frame.state ? frame.state : "idle"
+    readonly property string state: frame.state || "idle"
     readonly property bool live: state === "recording"
     readonly property bool busy: live || state === "transcribing" || state === "inserting"
     readonly property bool loading: state === "loading"
     readonly property bool failed: state === "error"
-    readonly property bool showingOff: attentionReason !== "" && (Date.now() - attentionAt) < 2200
+    readonly property bool present: busy || loading || failed || showingOff
+    readonly property bool active: present || melting
+    readonly property string modelName: String(frame.model || "").split("/").pop()
+    readonly property real decibels: 20 * Math.log10(Math.max(0.000001, Number(frame.level || 0)))
 
-    // the card exists only while the engine has something to say: an idle
-    // desktop maps no window and runs no timer
-    readonly property bool active: busy || loading || failed || showingOff
+    // This trace shows speech variation, not absolute input gain. Calibrate
+    // against the recent microphone floor so a hot input starts at rest too.
+    function measure(rms: real): real {
+        if (!isFinite(rms) || rms <= 0) {
+            root.activity *= 0.65;
+            return root.activity;
+        }
+        const db = 20 * Math.log10(Math.max(0.000001, rms));
+        const recent = root.microphoneFloor.slice(-63);
+        recent.push(db);
+        root.microphoneFloor = recent;
+        const sorted = recent.slice().sort((a, b) => a - b);
+        // PipeWire may ramp up over its first buffers. A short median estimate
+        // keeps that ramp from becoming the floor for the whole recording.
+        if (root.calibrationSamples < 8) {
+            root.calibrationSamples++;
+            if (root.calibrationSamples === 8) {
+                root.microphoneFloor = [sorted[Math.floor(sorted.length / 2)]];
+            }
+            return 0;
+        }
+        // A low percentile ignores isolated buffer dropouts without letting
+        // ordinary speech raise the baseline immediately.
+        const floor = sorted[Math.floor((sorted.length - 1) * 0.2)];
+        const excess = Math.max(0, db - floor - 0.75);
+        const target = Math.sqrt(Math.min(1, excess / 6));
+        root.activity += (target - root.activity) * (target > root.activity ? 0.8 : 0.35);
+        return root.activity;
+    }
 
-    readonly property int historyLength: 88
+    onPresentChanged: {
+        if (present) {
+            melt.stop();
+            melting = false;
+        } else {
+            melting = true;
+            melt.restart();
+        }
+    }
 
-    function push(level: real) {
-        const next = root.levels.slice(-(root.historyLength - 1));
-        next.push(Math.max(0, Math.min(1, level || 0)));
-        root.levels = next;
+    Timer {
+        id: melt
+        interval: 240
+        onTriggered: root.melting = false
+    }
+    Timer {
+        id: refusal
+        interval: 2200
+        onTriggered: {
+            root.showingOff = false;
+            root.attentionReason = "";
+        }
     }
 
     function apply(data) {
         const wasRecording = root.live;
         root.frame = data || {};
-        if (root.live && !wasRecording)
-            root.levels = [];
-        if (root.live)
-            root.push(root.frame.level);
-        const stamp = root.frame.attentionMs || 0;
+        if (root.live) {
+            if (!wasRecording) {
+                root.microphoneFloor = [];
+                root.activity = 0;
+                root.calibrationSamples = 0;
+                root.levels = Array(64).fill(0);
+            }
+            const sample = measure(Number(root.frame.level || 0));
+            const next = root.levels.slice(-63);
+            next.push(sample);
+            root.levels = next;
+        }
+        const stamp = Number(root.frame.attentionMs || 0);
         if (stamp > 0 && stamp !== root.attentionAt) {
             root.attentionAt = stamp;
             root.attentionReason = root.frame.notice || "off";
+            root.showingOff = true;
+            refusal.restart();
         }
-        if (root.attentionReason !== "" && !root.showingOff)
-            root.attentionReason = "";
     }
 
     BusTopic {
@@ -58,16 +110,5 @@ Singleton {
         topic: "dictation"
         onUpdated: root.apply(topic.data)
     }
-
-    Timer {
-        interval: 33
-        repeat: true
-        running: root.live
-        onTriggered: {
-            root.drift = (root.drift + 0.18) % 6.28318;
-            root.push(root.frame.level);
-        }
-    }
-
     Component.onCompleted: root.apply(topic.data)
 }

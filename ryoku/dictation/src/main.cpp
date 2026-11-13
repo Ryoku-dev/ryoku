@@ -354,6 +354,8 @@ void handleCommand(Session& session, int fd, const std::string& line) {
         reply(fd, std::string("enabled ") + (session.config.enabled ? "true" : "false"));
         reply(fd, "mode " + session.config.mode);
         reply(fd, "language " + (session.config.language.empty() ? "auto" : session.config.language));
+        // the card measures the recording against the automatic stop
+        reply(fd, "limit " + std::to_string(session.config.maxDurationSecs));
         std::string which;
         reply(fd, std::string("gpu ") + (ryoku::gpuAvailable(which) ? which : "none"));
         reply(fd, "end");

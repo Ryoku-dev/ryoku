@@ -17,18 +17,29 @@ seconds of idleness.
 |---|---|
 | `ryoku-dictate` | one process: PipeWire capture, inference, text insertion, its own settings file |
 | `ryoku-shell` (`ipc/dictate.go`) | holds the connection, mirrors the state into the `dictation` bus topic |
-| the voice card | `shell/modules/dictation/DictationSurface.qml`: a shell-owned popup that reads that topic, so it is the same card under every bar style — state, the level as engraved data, elapsed time against the automatic stop |
+| the voice card | `shell/modules/dictation/DictationSurface.qml`: a transparent, card-sized window at the focused screen's top-left, shared by every bar style |
 | `ryoku-hub dictation` | the Settings page's backend: settings file, model catalogue, downloads |
 
 Capture is a single 16 kHz mono PipeWire stream, and the same buffer feeds the
 model and the meter, so the wave on screen is exactly what is being transcribed.
 There is no second capture stream, no cava process and no bridge binary.
 
+The card fades and lifts into place, then closes after transcription finishes.
+Its Lithic engraved trace shows activity above the recent microphone baseline,
+not absolute input gain. A short startup calibration keeps hot microphones at
+rest until the sound changes; speech gets a quick rise and a softer release.
+The separate dB readout remains the absolute captured level. Samples ease
+between updates, and the chart range stays fixed so silence cannot expand into
+a high plateau. While transcribing, Lithic's Working mark indicates progress
+without pretending to be microphone activity. The card takes no pointer or
+keyboard input.
+
 Text arrives either by paste (the clipboard plus Ctrl+V, the default, because a
 busy application drops synthesised keystrokes) or by typing, which the daemon
 does itself over the Wayland virtual-keyboard protocol: one keymap carrying the
-characters of the batch, one press per character. `wtype` is no longer part of
-dictation.
+characters of the batch, one press per character. Each upload has a distinct
+map identity so repeated dictations still type correctly after focus returns
+from another app or the physical keyboard. `wtype` is no longer part of dictation.
 
 ## Models
 
@@ -45,10 +56,16 @@ pipeline, so the numbers compare.
 | whisper-large-v3-turbo | 886 MB | 2.01% | about 100 |
 
 The first ships inside the package, so dictation works on a fresh install with
-no download. The others are installed from Settings; each is pinned by SHA-256
-in `ryoku/hub/backend/dictation.go`, downloaded to a `.part` file and renamed
-only after the hash matches, so a cancelled or corrupt transfer can never become
-the model the daemon loads. Every installing row shows **Cancel**.
+no download. Settings > Apps > Voice typing names the selected model beside the
+toggle and marks it **In use** under **Engine and model**. The other models have
+**Download** controls; installed models have **Use** controls. A completed
+download selects that model, while an unfinished download leaves the current
+choice alone.
+
+Each model is pinned by SHA-256 in `ryoku/hub/backend/dictation.go`, downloaded
+to a `.part` file and renamed only after the hash matches, so a cancelled or
+corrupt transfer can never become the model the daemon loads. Every installing
+row shows **Cancel**.
 
 ## The CPU and GPU switch
 
@@ -86,6 +103,7 @@ ryoku/dictation/build/dictate-test    # settings, UTF-8, keymap, WAV
 ryoku/dictation/build/ryoku-dictate --selftest clip.wav --model model.gguf
 RYOKU_TEST_HUB_BIN=/path/to/ryoku-hub python3 tests/voice-typing-page.py
 RYOKU_TEST_HUB_BIN=/path/to/ryoku-hub python3 tests/dictation-store.py
+python3 tests/dictation-levels.py
 ```
 
 A dictation can also be proved end to end without a microphone: a PipeWire

@@ -6,6 +6,7 @@
 #include <xkbcommon/xkbcommon.h>
 
 #include <cerrno>
+#include <chrono>
 #include <csignal>
 #include <cstdio>
 #include <cstring>
@@ -102,7 +103,9 @@ std::string buildKeymap(const std::vector<std::pair<unsigned, std::string>>& key
 
     std::string out;
     out += "xkb_keymap {\n";
-    out += "xkb_keycodes \"ryoku\" {\n";
+    // an identical map can stay cached after focus restores the physical layout
+    const auto generation = std::chrono::steady_clock::now().time_since_epoch().count();
+    out += "xkb_keycodes \"ryoku_" + std::to_string(generation) + "\" {\n";
     out += "  minimum = 8;\n";
     out += "  maximum = " + std::to_string(maximum) + ";\n";
     for (const auto& [evdev, name] : keys) {

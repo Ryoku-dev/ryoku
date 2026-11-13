@@ -43,10 +43,12 @@ type dictationFrame struct {
 	// a tap that could not dictate: the card flashes this for a moment
 	AttentionMs int64  `json:"attentionMs,omitempty"`
 	Notice      string `json:"notice,omitempty"`
-	Device      string `json:"device,omitempty"`
-	Mode        string `json:"mode,omitempty"`
-	Language    string `json:"language,omitempty"`
-	GPU         string `json:"gpu,omitempty"`
+	// the engine's own automatic stop, so the card can measure against it
+	MaxDurationSecs int64  `json:"maxDurationSecs,omitempty"`
+	Device          string `json:"device,omitempty"`
+	Mode            string `json:"mode,omitempty"`
+	Language        string `json:"language,omitempty"`
+	GPU             string `json:"gpu,omitempty"`
 }
 
 type dictateConn struct {
@@ -235,6 +237,8 @@ func (d *daemon) dictateStatus() (any, error) {
 			frame.GPU = value
 		case "enabled":
 			frame.Enabled = value == "true"
+		case "limit":
+			frame.MaxDurationSecs, _ = strconv.ParseInt(value, 10, 64)
 		}
 	}
 	d.publishDictation(frame)
@@ -258,6 +262,9 @@ func (d *daemon) publishDictation(frame dictationFrame) {
 	if frame.Mode == "" {
 		frame.Mode = d.dictFrame.Mode
 	}
+	if frame.MaxDurationSecs == 0 {
+		frame.MaxDurationSecs = d.dictFrame.MaxDurationSecs
+	}
 	if frame.Language == "" {
 		frame.Language = d.dictFrame.Language
 	}
@@ -275,9 +282,8 @@ func (d *daemon) publishDictation(frame dictationFrame) {
 	d.dictTopic.publish(body)
 }
 
-// watchDictation keeps the connection to the daemon and turns its line events
-// into topic frames plus surface open/close. A missing daemon is normal: it is
-// started on demand, and it exits after idling.
+// watchDictation mirrors the engine's events. A missing daemon is normal:
+// it starts on demand and exits after idling.
 func (d *daemon) watchDictation() {
 	for {
 		select {
@@ -288,6 +294,10 @@ func (d *daemon) watchDictation() {
 		conn, err := net.DialTimeout("unix", dictateSocket(), 500*time.Millisecond)
 		if err != nil {
 			time.Sleep(700 * time.Millisecond)
+			continue
+		}
+		if _, err := d.dictateStatus(); err != nil {
+			_ = conn.Close()
 			continue
 		}
 		d.streamDictation(conn)
@@ -418,7 +428,11 @@ func (d *daemon) voice() string {
 	}
 	if _, err := d.dictateCommand(command); err != nil {
 		log.Printf("ryoku-shell: dictation %s: %v", command, err)
-		return shellIpc("openSurface", d.activeMonitor(), "voice-off")
+		frame := d.currentDictation()
+		frame.State = "error"
+		frame.Error = err.Error()
+		d.publishDictation(frame)
+		return "ok"
 	}
 	if command == "start" && d.currentDictation().State != "recording" {
 		// The event connection had not caught the transition yet (it is a long

@@ -13,6 +13,11 @@ project(ryoku-dictate LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+# The payload flattens the engine and ggml modules into one private directory.
+# Each shared object needs its own origin path: the executable's RUNPATH is
+# not inherited by transitive dependencies.
+set(CMAKE_BUILD_RPATH "$ORIGIN")
+set(CMAKE_BUILD_RPATH_USE_ORIGIN ON)
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
