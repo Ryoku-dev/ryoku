@@ -156,6 +156,10 @@ let
     inherit pkgs src qmlRoot;
   };
 
+  dictation = import ./ryoku-dictation.nix {
+    inherit pkgs src;
+  };
+
 
   mkPureQmlModule =
     {
@@ -336,6 +340,7 @@ in
     frameBars
     wmHyprlandQml
     blobs
+    dictation
     qml
 
     xwaylandSatellite

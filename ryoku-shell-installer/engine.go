@@ -260,7 +260,7 @@ var bootChainSkip = map[string]bool{
 // daemon, from the [ryoku] repo) and matugen (the palette generator, from the
 // official repo) are hard ryoku-desktop depends the packages step already
 // pulled; no AUR build is needed.
-var aurPkgs = []string{"bibata-cursor-theme-bin", "localsend-bin", "voxtype-bin"}
+var aurPkgs = []string{"bibata-cursor-theme-bin", "localsend-bin"}
 
 var browserChoices = installerplan.IDs(installerplan.Browser)
 var loginShellChoices = installerplan.IDs(installerplan.LoginShell)
@@ -2104,7 +2104,7 @@ func stepPackages(e *engine) error {
 	}
 	if !d.fromSource {
 		for _, pkg := range selectedInstallPackages(e.p) {
-			if pkg == "localsend-bin" || pkg == "voxtype-bin" {
+			if pkg == "localsend-bin" {
 				continue
 			}
 			pkgs = append(pkgs, d.local(pkg))
@@ -2956,9 +2956,6 @@ func selectedAURPackages(p *plan) []string {
 	var pkgs []string
 	for _, pkg := range aurPkgs {
 		if pkg == "localsend-bin" && !p.componentOn("localsend") {
-			continue
-		}
-		if pkg == "voxtype-bin" && !p.componentOn("voxtype") {
 			continue
 		}
 		pkgs = append(pkgs, pkg)

@@ -5,10 +5,11 @@ exec 2>&1
 load_session_env
 BIN=${RYOKU_BIN_DIR:-/usr/bin}
 
+# The daemon is started on demand by ryoku-shell (Super+`) and by Settings, and
+# exits on its own when idle; runit only needs the session plumbing in place.
 wait_env WAYLAND_DISPLAY "${RYOKU_WAIT_WAYLAND:-60}" || exec sv down .
 load_session_env
 wait_service pipewire "${RYOKU_WAIT_PIPEWIRE:-60}" || exec sv down .
-wait_service pipewire-pulse "${RYOKU_WAIT_PIPEWIRE:-60}" || exec sv down .
-require_bin "$BIN/voxtype" || exec sv down .
+require_bin "$BIN/ryoku-dictate" || exec sv down .
 
-exec "$BIN/voxtype" -q daemon
+exec "$BIN/ryoku-dictate" --serve

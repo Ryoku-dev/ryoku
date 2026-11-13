@@ -39,7 +39,7 @@ pipewire	user	session-core	pipewire.service	pipewire	none
 pipewire-pulse	user	session-core	pipewire-pulse.service	pipewire-pulse	none
 wireplumber	user	session-core	wireplumber.service	wireplumber	none
 ryoku-eq	user	on-demand	ryoku-eq.service	ryoku-eq	preserve
-voxtype	user	on-demand	voxtype.service	voxtype	preserve
+ryoku-dictate	user	on-demand	ryoku-dictate.service	ryoku-dictate	preserve
 ryoku-ai-usage-worker	user	on-demand	ryoku-ai-usage.service	-	preserve
 rashind-routines-worker	user	on-demand	rashind-routines.service	-	preserve
 ryoku-session-target	user	on-demand	ryoku-session.target	-	preserve

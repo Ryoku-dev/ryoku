@@ -1,0 +1,41 @@
+# Template file for 'ryoku-dictation'
+pkgname=ryoku-dictation
+version=1.0.0
+revision=1
+archs="x86_64"
+short_desc="Ryoku voice typing: local speech-to-text with Parakeet and Whisper"
+maintainer="Ryoku <releases@ryoku.dev>"
+license="GPL-3.0-or-later"
+homepage="https://ryoku.dev"
+hostmakedepends="cmake ninja pkgconf"
+makedepends="pipewire-devel wayland-devel libxkbcommon-devel"
+depends="pipewire wayland libxkbcommon wl-clipboard"
+distfiles="https://repo.ryoku.dev/sources/ryoku-${version}.tar.gz
+ https://huggingface.co/handy-computer/parakeet-tdt_ctc-110m-gguf/resolve/main/parakeet-tdt_ctc-110m-Q8_0.gguf"
+wrksrc="ryoku-${version}"
+
+_model="parakeet-tdt_ctc-110m-Q8_0.gguf"
+_model_hash="7dd44c74a331d788a4e5f8b16913b3feb29ced22cf5613aad0e0f6cd30516296"
+
+_payload() {
+	RYOKU_SRC="$wrksrc" \
+	RYOKU_BUILD_DIR="${wrksrc%/*}/${pkgname}-payload-build" \
+	RYOKU_PKGVER="$version" \
+	RYOKU_RELEASE="$version" \
+	RYOKU_CHANNEL="${RYOKU_CHANNEL:-stable}" \
+	RYOKU_NAME="${RYOKU_NAME:-Ryoku}" \
+		"$wrksrc/release/packages/$pkgname/payload.sh" "$@"
+}
+
+do_build() {
+	_payload build
+}
+
+do_install() {
+	mkdir -p "${wrksrc%/*}/${pkgname}-payload-build"
+	cp -f "$XBPS_SRCDISTDIR/$pkgname-$version/$_model" \
+		"${wrksrc%/*}/${pkgname}-payload-build/$_model"
+	# The runit service itself ships from ryoku-desktop, which installs every
+	# void/init/user directory wholesale; nothing to place here.
+	_payload install "$DESTDIR" runit
+}

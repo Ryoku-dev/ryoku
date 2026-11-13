@@ -204,7 +204,7 @@ func TestPackageAdviceUsesHostInstallCommand(t *testing.T) {
 func TestPackageAvailableAURUsesHostPolicy(t *testing.T) {
 	pacmanRunner := &fakeRunner{}
 	app, _, _ := testApp(pacmanRunner, map[string]string{"RYOKU_HOST_PKGMGR": "pacman", "RYOKU_HOST_INIT": "systemd"})
-	if code := app.Package([]string{"available", "--aur", "voxtype"}); code != ExitOK {
+	if code := app.Package([]string{"available", "--aur", "localsend-bin"}); code != ExitOK {
 		t.Fatalf("pacman AUR availability exit = %d", code)
 	}
 	if len(pacmanRunner.commands) != 0 {

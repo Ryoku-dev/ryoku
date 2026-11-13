@@ -273,7 +273,7 @@ func TestComponentAvailabilityByEdition(t *testing.T) {
 					t.Errorf("%s availability = %+v, found %v", id, availability, ok)
 				}
 			}
-			for _, id := range []string{"localsend", "voxtype"} {
+			for _, id := range []string{"localsend"} {
 				availability, ok := plan.Component(id)
 				if !ok || availability.Available != test.aurAvailable {
 					t.Errorf("%s availability = %+v, want available %v", id, availability, test.aurAvailable)

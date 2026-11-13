@@ -215,7 +215,7 @@ func TestVoidOffersOnlyPackagedProductChoices(t *testing.T) {
 		}
 	}
 	for _, row := range appRowsForVariant(variantVoid) {
-		if row.ID == "localsend" || row.ID == "voxtype" || strings.Contains(strings.ToUpper(row.Sub), "AUR") {
+		if row.ID == "localsend" || strings.Contains(strings.ToUpper(row.Sub), "AUR") {
 			t.Errorf("Void app picker offers unavailable row %+v", row)
 		}
 	}

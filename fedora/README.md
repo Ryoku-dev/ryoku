@@ -86,7 +86,8 @@ pulls in the script and label plugins it draws with, and `ryoku-plymouth-apply`
 images on install. Later updates rebuild only while it is still the default.
 Wayfire is unavailable because Fedora ships
 0.10.1 and Ryoku requires 0.11. AUR-only extras such as Zen Browser, LocalSend,
-Voxtype, Looking Glass, and SteamCMD are not shipped in the Fedora lane.
+Looking Glass and SteamCMD are not shipped in the Fedora lane. Voice typing ships
+here as `ryoku-dictation`, built from source like the other Ryoku packages.
 
 Ryoku leaves NVIDIA GPUs on nouveau. To install NVIDIA's driver, add RPM Fusion
 and create a signing key for the driver:

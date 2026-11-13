@@ -1,0 +1,41 @@
+# Maintainer: Ryoku <releases@ryoku.dev>
+#
+# Ryoku Dictation: Ryoku's own voice typing engine.
+#
+# A small C++ daemon that records through PipeWire, transcribes locally with
+# transcribe.cpp (Parakeet or Whisper, ggml) and types the words into the
+# focused window over the Wayland virtual-keyboard protocol. It replaces the
+# Voxtype dependency, its Python config editor and the cava meter.
+#
+# The engine is built from source at a pinned upstream revision, and the model
+# the package ships is a pinned download with a pinned hash, so an install needs
+# no AUR, no Python and no second process at runtime.
+pkgname=ryoku-dictation
+pkgver=${RYOKU_PKGVER:-1.0.0}
+pkgrel=1
+pkgdesc="Ryoku voice typing: local speech-to-text with Parakeet and Whisper"
+arch=('x86_64')
+url="https://ryoku.dev"
+license=('GPL-3.0-or-later')
+depends=('glibc' 'gcc-libs' 'pipewire' 'wayland' 'libxkbcommon' 'wl-clipboard')
+makedepends=('cmake' 'ninja' 'gcc' 'pkgconf' 'git')
+source=("parakeet-tdt_ctc-110m-Q8_0.gguf::https://huggingface.co/handy-computer/parakeet-tdt_ctc-110m-gguf/resolve/main/parakeet-tdt_ctc-110m-Q8_0.gguf")
+sha256sums=('7dd44c74a331d788a4e5f8b16913b3feb29ced22cf5613aad0e0f6cd30516296')
+
+_repo="$startdir/../../.."
+
+build() {
+  RYOKU_SRC="$_repo" \
+  RYOKU_BUILD_DIR="$srcdir" \
+    "$startdir/payload.sh" build
+}
+
+check() {
+  ctest --test-dir "$srcdir/build" --output-on-failure
+}
+
+package() {
+  RYOKU_SRC="$_repo" \
+  RYOKU_BUILD_DIR="$srcdir" \
+    "$startdir/payload.sh" install "$pkgdir" systemd
+}

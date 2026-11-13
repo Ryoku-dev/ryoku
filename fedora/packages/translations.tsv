@@ -263,7 +263,6 @@ v4l2loopback-dkms	v4l2loopback v4l2loopback-dkms	optional	Provided by a restrict
 vdirsyncer	vdirsyncer	desktop	
 vimix-cursors	vimix-cursors	desktop	Ryoku-owned RPM.
 virglrenderer	virglrenderer	desktop	
-voxtype-bin	voxtype	extra	Ryoku-owned RPM.
 vulkan-icd-loader	vulkan-loader	desktop	
 vulkan-intel	mesa-vulkan-drivers	hardware:intel	
 vulkan-radeon	mesa-vulkan-drivers	hardware:amd	

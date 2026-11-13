@@ -39,11 +39,6 @@ localsend-bin
 
 # GlazePKG (gpk) ships first-class from the [ryoku] repo now, not the AUR.
 
-# Speech-to-text for the pill Super+` voice dictation (tap-to-toggle + mic wave).
-# Voxtype is an offline Whisper daemon the shell drives via `voxtype record`; it
-# ships every engine (Whisper + the ONNX set) and types through wtype.
-voxtype-bin
-
 # Display + UI fonts for the Ryoku brand type stack: Fraunces (variable serif,
 # editorial headlines). Space Grotesk (the UI sans) now ships from the [ryoku]
 # repo (base.packages + release/packages/otf-space-grotesk) because its AUR

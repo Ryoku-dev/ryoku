@@ -128,6 +128,10 @@ depends=(
   # ryoku doctor enables its user unit and retires any old awww-daemon. See
   # release/packages/ryogami/PKGBUILD.
   'ryogami'
+  # ryoku-dictation: Ryoku's own voice typing. A hard depend because the voice
+  # keybind is shipped, and the package carries the English model so dictation
+  # works on a fresh install with no download.
+  'ryoku-dictation'
   # live (video) wallpapers: the daemon grabs one frame with ffmpeg to derive the
   # wallpaper palette. official repo, so a hard depend reaches existing boxes.
   'ffmpeg'
@@ -182,7 +186,7 @@ depends=(
   'tesseract-data-eng'   # English OCR language data
   'zbar'                 # QR-code scanning (pill Super+D)
   'gpu-screen-recorder'  # the screen recorder behind the capture card and `ryoku-shell record`
-  'wtype'                # voice-dictation typing on Wayland (Voxtype)
+  'wtype'                # Rashin's screen control types through it on Wayland
   'libqalculate'         # calculator backend (launcher Super+Space)
   'upower'               # battery + power status (pill/bar battery indicator)
   'power-profiles-daemon'

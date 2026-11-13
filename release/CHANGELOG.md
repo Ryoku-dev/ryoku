@@ -1,6 +1,13 @@
 # Release / Packaging Changelog
 
 ## Unreleased
+- **`ryoku-dictation` ships on every edition.** The daemon, its pinned
+  transcribe.cpp engine and the bundled English model build from source into one
+  package (Arch, Fedora, Void, Nix), with a Vulkan backend in optional
+  `ryoku-dictation-vulkan`. It is a `ryoku-desktop` dependency because the voice
+  keybind is shipped, and its user service stays on-demand. `voxtype-bin` is
+  gone from the AUR set, the installer component list and the Fedora and Void
+  recipes.
 - **`ryoku-desktop` ships the Lithic QML module.** The design system the new
   Settings app draws with is compiled to bytecode with Geologica and Martian
   Mono inside the plugin and installed at `/usr/lib/qt6/qml/Lithic` on Arch,

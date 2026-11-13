@@ -90,16 +90,18 @@ Attribution-ShareAlike; the warning, plug, unplug and device sounds
 (dialog-warning, power-plug, power-unplug, device-added, device-removed) are by
 Ivica Bukvic, Creative Commons Attribution-ShareAlike.
 
-The Redux dictation adapter (ryoku/hub/backend/assets/redux/adapter.py) is
-voxtype-redux-adapter v0.2.0 by Sipper1236
-(https://github.com/Sipper1236/voxtype-redux-adapter), shipped unmodified
-inside ryoku-hub and installed with the Redux model from the Hub's Dictation
-page. It is released under the MIT License, which ships beside it and in the
-notice the installer writes; that license is compatible with Ryoku's GPL-3
-distribution. The installer builds parakeet.cpp by the parakeet.cpp authors
-(https://github.com/mudler/parakeet.cpp, MIT) with its ggml submodule on the
-user's machine and downloads Moondream's Parakeet Redux weights, derived from
-NVIDIA Parakeet TDT 0.6B v3 (CC-BY-4.0); neither ships in a Ryoku package.
+Voice typing (`ryoku-dictation`, `ryoku/dictation/`) builds
+transcribe.cpp v0.4.2 by handy-computer
+(https://github.com/handy-computer/transcribe.cpp, MIT) from a pinned release
+tarball, and runs it on ggml (MIT) with the CPU backend linked in; optional GPU
+backend packages build ggml's Vulkan module from the same source. The English
+model the package ships, parakeet-tdt_ctc-110m-Q8_0.gguf, is NVIDIA's Parakeet
+family converted and quantised by handy-computer
+(https://huggingface.co/handy-computer/parakeet-tdt_ctc-110m-gguf) under
+CC-BY-4.0, derived from NVIDIA Parakeet TDT. Models a user downloads from
+Settings carry their licence in the catalogue. The Wayland virtual-keyboard
+protocol the daemon implements is MIT, from wlroots. The full notice ships
+beside the package as `ryoku/dictation/NOTICE.md`.
 
 The default Vesktop and Equibop theme
 (ryoku/apps/vesktop/themes/ryoku-discord.theme.css) is ryoku.theme.css v3.0.0

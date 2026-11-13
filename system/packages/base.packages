@@ -303,7 +303,8 @@ zbar
 # of ryoku-desktop, so the ISO carries it either way.
 gpu-screen-recorder
 
-# Voice dictation (pill Super+`, Voxtype from voxtype-bin): wtype types the
+# Rashin's screen control types through wtype; Ryoku dictation types with its
+# own virtual-keyboard client (ryoku-dictation) and needs nothing here. wtype: types the
 # transcription into the focused app on Wayland.
 wtype
 

@@ -240,7 +240,7 @@ def classify(procs):
             g = "compositor"
         elif unit.startswith("ryoku-") or unit.startswith("app-limine") or comm in ("limine-snapper-", "ryoku-clamshell"):
             g = "session-daemons"
-        elif unit == "voxtype.service":
+        elif unit == "ryoku-dictate.service":
             g = "dictation"
         elif comm in PLATFORM or unit.split("@")[0] in ("pipewire.service", "wireplumber.service", "pipewire-pulse.service"):
             g = "platform"
