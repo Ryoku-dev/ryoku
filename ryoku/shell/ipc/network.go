@@ -264,6 +264,7 @@ func (d *daemon) startNetwork() {
 	})
 	n.registerIPCalls(d)
 	n.registerEthernetCalls(d)
+	n.registerVpnCalls(d)
 
 	n.publish()
 }
@@ -657,9 +658,10 @@ func (n *networkState) wireguardTunnels(saved []savedConn, active map[string]dbu
 		}
 		_, isActive := active[c.uuid]
 		out = append(out, map[string]any{
-			"uuid":   c.uuid,
-			"name":   c.id,
-			"active": isActive,
+			"uuid":        c.uuid,
+			"name":        c.id,
+			"active":      isActive,
+			"autoconnect": c.autoconnect,
 		})
 	}
 	return out
@@ -1138,12 +1140,13 @@ func vpnProfileFrames(saved []savedConn, live map[string]vpnLive) []map[string]a
 		}
 		l, isActive := live[c.uuid]
 		out = append(out, map[string]any{
-			"uuid":       c.uuid,
-			"name":       c.id,
-			"service":    vpnServiceName(c.vpnService),
-			"active":     isActive,
-			"connecting": isActive && l.connecting,
-			"ip4":        l.ip4,
+			"uuid":        c.uuid,
+			"name":        c.id,
+			"service":     vpnServiceName(c.vpnService),
+			"active":      isActive,
+			"connecting":  isActive && l.connecting,
+			"ip4":         l.ip4,
+			"autoconnect": c.autoconnect,
 		})
 	}
 	return out

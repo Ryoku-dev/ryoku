@@ -1,6 +1,12 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The shell daemon reads and edits a VPN connection's settings.** New
+  `network.vpnGet` (details, and a tunnel's traffic while up),
+  `network.vpnSetAutoconnect`, `network.wgEdit` (a tunnel's name and peer),
+  `network.wgExport` (the tunnel as a private .conf) and `network.wgReplace`
+  (an edited .conf loaded back in its place); the `network` topic's
+  WireGuard and VPN entries carry auto-connect (`ipc/network_vpn.go`).
 - **The shell daemon reports wired adapters and saved Ethernet profiles.** The
   `network` topic gains `ethernet` (each adapter's state, speed, address and
   profile in use) and `ethernetProfiles`, and new `network.ethernetConnect`,
