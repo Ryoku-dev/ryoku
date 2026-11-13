@@ -17,6 +17,8 @@ Item {
     property string error: ""
     // the tunnel whose Remove was tapped once; a second tap removes it
     property string removeArmed: ""
+    // the tunnel or profile whose settings are open under its row
+    property string openUuid: ""
 
     function done(ok, error) {
         tab.busyUuid = "";
@@ -123,32 +125,62 @@ Item {
 
                     Repeater {
                         model: NetworkTopic.wireguard
-                        delegate: SettingRow {
-                            id: wgRow
+                        delegate: Column {
+                            id: wgItem
                             required property var modelData
+                            readonly property bool open: tab.openUuid === wgItem.modelData.uuid
                             width: parent ? parent.width : 0
-                            label: wgRow.modelData.name || ""
-                            desc: wgRow.modelData.active ? I18n.tr("Connected") : I18n.tr("Off")
-                            controlWidth: wgControls.implicitWidth
-                            enabled: tab.busyUuid === "" || tab.busyUuid === wgRow.modelData.uuid
-                            Row {
-                                id: wgControls
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: Tokens.s2
-                                Btn {
+
+                            SettingRow {
+                                id: wgRow
+                                width: wgItem.width
+                                label: wgItem.modelData.name || ""
+                                desc: (wgItem.modelData.active ? I18n.tr("Connected") : I18n.tr("Off"))
+                                    + (wgItem.modelData.autoconnect ? " · " + I18n.tr("auto-connect") : "")
+                                controlWidth: wgControls.implicitWidth
+                                enabled: tab.busyUuid === "" || tab.busyUuid === wgItem.modelData.uuid
+                                Row {
+                                    id: wgControls
+                                    anchors.right: parent.right
                                     anchors.verticalCenter: parent.verticalCenter
-                                    compact: true
-                                    primary: tab.removeArmed === wgRow.modelData.uuid
-                                    armed: tab.busyUuid === ""
-                                    text: tab.removeArmed === wgRow.modelData.uuid ? I18n.tr("Confirm · Remove") : I18n.tr("Remove")
-                                    onAct: tab.remove(wgRow.modelData.uuid)
+                                    spacing: Tokens.s2
+                                    Btn {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        compact: true
+                                        primary: wgItem.open
+                                        text: I18n.tr("Settings") + (wgItem.open ? " \u25b4" : " \u25be")
+                                        onAct: tab.openUuid = wgItem.open ? "" : wgItem.modelData.uuid
+                                    }
+                                    Btn {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        compact: true
+                                        primary: tab.removeArmed === wgItem.modelData.uuid
+                                        armed: tab.busyUuid === ""
+                                        text: tab.removeArmed === wgItem.modelData.uuid ? I18n.tr("Confirm · Remove") : I18n.tr("Remove")
+                                        onAct: tab.remove(wgItem.modelData.uuid)
+                                    }
+                                    Sw {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        on: wgItem.modelData.active === true
+                                        onToggled: function(next) { tab.setWireguard(wgItem.modelData.uuid, next); }
+                                    }
                                 }
-                                Sw {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    on: wgRow.modelData.active === true
-                                    onToggled: function(next) { tab.setWireguard(wgRow.modelData.uuid, next); }
+                            }
+
+                            Loader {
+                                x: Tokens.s4
+                                width: wgItem.width - Tokens.s4 * 2
+                                active: wgItem.open
+                                visible: active
+                                sourceComponent: ConnectionsVpnDetails {
+                                    uuid: wgItem.modelData.uuid
+                                    onReplaced: function(fresh) { tab.openUuid = fresh; }
                                 }
+                            }
+                            Item {
+                                visible: wgItem.open
+                                width: 1
+                                height: Tokens.s3
                             }
                         }
                     }
@@ -168,27 +200,60 @@ Item {
 
                     Repeater {
                         model: NetworkTopic.vpn
-                        delegate: SettingRow {
-                            id: vpnRow
+                        delegate: Column {
+                            id: vpnItem
                             required property var modelData
+                            readonly property bool open: tab.openUuid === vpnItem.modelData.uuid
                             width: parent ? parent.width : 0
-                            label: vpnRow.modelData.name || ""
-                            desc: {
-                                var kind = vpnRow.modelData.service || I18n.tr("VPN");
-                                if (vpnRow.modelData.connecting)
-                                    return kind + " · " + I18n.tr("Connecting...");
-                                if (vpnRow.modelData.active)
-                                    return kind + " · " + (vpnRow.modelData.ip4 || I18n.tr("Connected"));
-                                return kind + " · " + I18n.tr("Off");
+
+                            SettingRow {
+                                id: vpnRow
+                                readonly property var modelData: vpnItem.modelData
+                                width: vpnItem.width
+                                label: vpnRow.modelData.name || ""
+                                desc: {
+                                    var kind = vpnRow.modelData.service || I18n.tr("VPN");
+                                    if (vpnRow.modelData.connecting)
+                                        return kind + " · " + I18n.tr("Connecting...");
+                                    if (vpnRow.modelData.active)
+                                        return kind + " · " + (vpnRow.modelData.ip4 || I18n.tr("Connected"));
+                                    return kind + " · " + I18n.tr("Off");
+                                }
+                                controlWidth: vpnControls.implicitWidth
+                                enabled: tab.busyUuid === "" || tab.busyUuid === vpnRow.modelData.uuid
+                                Row {
+                                    id: vpnControls
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: Tokens.s2
+                                    Btn {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        compact: true
+                                        primary: vpnItem.open
+                                        text: I18n.tr("Settings") + (vpnItem.open ? " \u25b4" : " \u25be")
+                                        onAct: tab.openUuid = vpnItem.open ? "" : vpnItem.modelData.uuid
+                                    }
+                                    Sw {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        on: vpnRow.modelData.active === true
+                                        onToggled: function(next) { tab.setVpn(vpnRow.modelData.uuid, next); }
+                                    }
+                                }
                             }
-                            controlWidth: vpnSw.implicitWidth
-                            enabled: tab.busyUuid === "" || tab.busyUuid === vpnRow.modelData.uuid
-                            Sw {
-                                id: vpnSw
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                on: vpnRow.modelData.active === true
-                                onToggled: function(next) { tab.setVpn(vpnRow.modelData.uuid, next); }
+
+                            Loader {
+                                x: Tokens.s4
+                                width: vpnItem.width - Tokens.s4 * 2
+                                active: vpnItem.open
+                                visible: active
+                                sourceComponent: ConnectionsVpnDetails {
+                                    uuid: vpnItem.modelData.uuid
+                                }
+                            }
+                            Item {
+                                visible: vpnItem.open
+                                width: 1
+                                height: Tokens.s3
                             }
                         }
                     }

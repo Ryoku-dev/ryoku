@@ -3,6 +3,12 @@
 ## Unreleased
 
 ### Added
+- **A WireGuard tunnel's or VPN profile's settings open under its row in
+  Connections > VPN.** Both get auto-connect and what they connect to; a
+  tunnel also shows its traffic while up, edits its name, endpoint, allowed
+  IPs and keepalive, sets its address and DNS with the IP settings box, and
+  opens as a .conf in the text editor to load back with Load changes
+  (`pages/ConnectionsVpnDetails.qml`).
 - **Connections has an Ethernet tab.** Each wired adapter gets a card with
   its link (profile, speed and address), Connect or Disconnect, the saved
   profile to use when there are several, Auto-connect, and the same IP

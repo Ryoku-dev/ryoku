@@ -60,6 +60,27 @@ Singleton {
     function ethernetSetAutoconnect(uuid, on, completion) {
         return root.send("network.ethernetSetAutoconnect", { uuid: uuid, autoconnect: on }, completion);
     }
+    // A WireGuard tunnel's or VPN profile's details; a tunnel that is up adds
+    // rxBytes and txBytes. wgEdit changes a tunnel's name and one peer, picked
+    // by publicKey, and answers applied false when a tunnel that is up only
+    // takes it on its next connect. wgExport writes the tunnel out as a
+    // private .conf and answers its path; wgReplace loads that file back in
+    // place of the tunnel and answers the new uuid.
+    function vpnGet(uuid, completion) {
+        return root.send("network.vpnGet", { uuid: uuid }, completion);
+    }
+    function vpnSetAutoconnect(uuid, on, completion) {
+        return root.send("network.vpnSetAutoconnect", { uuid: uuid, autoconnect: on }, completion);
+    }
+    function wgEdit(uuid, edit, completion) {
+        return root.send("network.wgEdit", Object.assign({ uuid: uuid }, edit), completion);
+    }
+    function wgExport(uuid, completion) {
+        return root.send("network.wgExport", { uuid: uuid }, completion);
+    }
+    function wgReplace(uuid, path, completion) {
+        return root.send("network.wgReplace", { uuid: uuid, path: path }, completion);
+    }
     // A saved connection's IPv4 settings. ipSet on a live connection answers
     // with revertSeconds: the old settings come back then unless ipConfirm
     // keeps the new ones; ipRevert brings them back at once.
@@ -146,17 +167,25 @@ Singleton {
         }
     }
 
+    function same(a, b) {
+        return JSON.stringify(a) === JSON.stringify(b);
+    }
     function apply(line) {
         try {
             var f = JSON.parse(line);
             if (!f || typeof f !== "object" || Array.isArray(f))
                 return;
-            if (f.dns)
+            // A frame comes on every NetworkManager change, most of them
+            // elsewhere (a Wi-Fi signal); a list only changes when its content
+            // does, so the rows built from it are not rebuilt for nothing.
+            if (f.dns && !root.same(f.dns, root.dns))
                 root.dns = f.dns;
-            root.wireguard = Array.isArray(f.wireguard) ? f.wireguard : [];
-            root.vpn = Array.isArray(f.vpn) ? f.vpn : [];
-            root.ethernet = Array.isArray(f.ethernet) ? f.ethernet : [];
-            root.ethernetProfiles = Array.isArray(f.ethernetProfiles) ? f.ethernetProfiles : [];
+            var lists = ["wireguard", "vpn", "ethernet", "ethernetProfiles"];
+            for (var i = 0; i < lists.length; ++i) {
+                var next = Array.isArray(f[lists[i]]) ? f[lists[i]] : [];
+                if (!root.same(next, root[lists[i]]))
+                    root[lists[i]] = next;
+            }
             root.ready = true;
         } catch (e) {
             // A malformed frame keeps the last good state.

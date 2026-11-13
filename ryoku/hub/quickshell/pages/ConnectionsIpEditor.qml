@@ -31,10 +31,18 @@ Item {
     // start from the saved settings, dropping edits kept from an earlier
     // time the box was shown (a running revert is kept)
     property bool fresh: false
+    // a tunnel's address is always set by hand and has no gateway: the box
+    // shows only the address and DNS
+    property bool tunnel: false
+    // drawn in its own bordered box; off inside a panel that has one
+    property bool framed: true
+    // the label column; a panel around the box can match its own
+    property int labelWidth: 84
+    readonly property int pad: ed.framed ? Tokens.s4 : 0
     // the box has picked up its connection's settings or kept edits
     signal started()
 
-    implicitHeight: col.implicitHeight + Tokens.s4 * 2
+    implicitHeight: col.implicitHeight + ed.pad * 2
 
     function servers(text) {
         return String(text || "").split(/[\s,]+/).filter(function(s) { return s.length > 0; });
@@ -111,7 +119,7 @@ Item {
                 ed.error = error || I18n.tr("Could not read this network's IP settings.");
                 return;
             }
-            ed.method = result.method === "manual" ? "manual" : "auto";
+            ed.method = ed.tunnel || result.method === "manual" ? "manual" : "auto";
             addressField.text = result.address || "";
             gatewayField.text = result.gateway || "";
             dnsField.text = (result.dns || []).join(", ");
@@ -206,8 +214,7 @@ Item {
     }
 
     // the label column of the box; the fields fill what is left
-    readonly property int labelWidth: 84
-    readonly property int fieldsWidth: Math.max(160, ed.width - Tokens.s4 * 3 - ed.labelWidth)
+    readonly property int fieldsWidth: Math.max(160, ed.width - ed.pad * 2 - Tokens.s4 - ed.labelWidth)
 
     component BoxLabel: Text {
         width: ed.labelWidth
@@ -220,6 +227,7 @@ Item {
 
     Rectangle {
         id: box
+        visible: ed.framed
         width: ed.width
         height: col.implicitHeight + Tokens.s4 * 2
         color: "transparent"
@@ -230,13 +238,14 @@ Item {
 
     Column {
         id: col
-        x: Tokens.s4
-        y: Tokens.s4
-        width: ed.width - Tokens.s4 * 2
+        x: ed.pad
+        y: ed.pad
+        width: ed.width - ed.pad * 2
         spacing: Tokens.s3
         enabled: ed.loaded && !ed.busy
 
         Row {
+            visible: !ed.tunnel
             spacing: Tokens.s4
             BoxLabel {
                 anchors.verticalCenter: parent.verticalCenter
@@ -269,10 +278,11 @@ Item {
                     onFocusedChanged: ed.focusMoved("address", focused)
                     width: Math.min(200, (ed.fieldsWidth - gatewayLabel.implicitWidth - Tokens.s2 * 2) * 0.55)
                     tabular: true
-                    placeholder: "192.168.1.50/24"
+                    placeholder: ed.tunnel ? "10.0.0.2/32" : "192.168.1.50/24"
                 }
                 Text {
                     id: gatewayLabel
+                    visible: !ed.tunnel
                     anchors.verticalCenter: parent.verticalCenter
                     text: I18n.tr("GATEWAY")
                     color: Tokens.inkDim
@@ -283,6 +293,7 @@ Item {
                 }
                 Field {
                     id: gatewayField
+                    visible: !ed.tunnel
                     onEdited: ed.dirty = true
                     onFocusedChanged: ed.focusMoved("gateway", focused)
                     width: Math.min(160, (ed.fieldsWidth - gatewayLabel.implicitWidth - Tokens.s2 * 2) * 0.45)
@@ -306,7 +317,7 @@ Item {
                     onFocusedChanged: ed.focusMoved("dns", focused)
                     width: Math.min(300, ed.fieldsWidth - applyBtn.width - Tokens.s2)
                     tabular: true
-                    placeholder: I18n.tr("from the network")
+                    placeholder: ed.tunnel ? I18n.tr("none") : I18n.tr("from the network")
                 }
                 Btn {
                     id: applyBtn
