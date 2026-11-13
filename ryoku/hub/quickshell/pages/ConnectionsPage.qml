@@ -549,8 +549,6 @@ Item {
         property string forgetArmed: ""
         property bool forgetBusy: false
 
-        readonly property real colMax: 720
-
         function isSecured(ssid) {
             var sec = wifi.securityMap[ssid];
             return sec !== undefined && sec !== "" && sec !== "--";
@@ -1086,12 +1084,7 @@ Item {
 
         Item {
             id: wifiContent
-            // the list reads as one column; with the poster that used to fill the
-            // right side gone, that column is centred rather than pinned left.
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: Math.min(parent.width, wifi.colMax)
+            anchors.fill: parent
 
             // header row: "WI-FI" label + hairline + scan button.
             Item {
@@ -1838,10 +1831,7 @@ Item {
 
         Item {
             id: btContent
-            anchors.top: parent.top
-            anchors.left: parent.left
-            anchors.bottom: parent.bottom
-            width: Math.min(parent.width, 720)
+            anchors.fill: parent
 
             Item {
                 id: btHeader
@@ -1993,8 +1983,8 @@ Item {
                     visible: bt.adapterOn && bt.devices.length > 0
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    width: Math.min(parent.width, 640)
+                    anchors.left: parent.left
+                    anchors.right: parent.right
                     contentWidth: width
                     contentHeight: devCol.implicitHeight + 8
                     clip: true
@@ -2291,9 +2281,11 @@ Item {
         Column {
             id: hsForm
             anchors.left: parent.left
+            anchors.right: parent.right
+            // the gutter the scrolling tabs keep for their scroll rail
+            anchors.rightMargin: Tokens.s4
             anchors.top: hsHead.bottom
             anchors.topMargin: Tokens.s6
-            width: Math.min(parent.width, 600)
             spacing: Tokens.s5
 
             // big toggle card: glyph, label, live status, switch. active is a
