@@ -1,73 +1,95 @@
 # Dictation
 
-Voice typing runs on [Voxtype](https://github.com/peteonrails/voxtype). Ryoku
-Settings > Apps > Voice typing (`ryoku/hub/quickshell/pages/VoiceTyping.qml`, backed by
-`ryoku-hub voxtype`) switches it on, picks the engine and model, downloads or
-removes models and manages the user service. `Super + grave` starts and stops
+Voice typing is Ryoku's own. `ryoku-dictate` records the microphone, transcribes
+on the machine and types the words into the window that has focus.
+`Super + grave` starts and stops it; Ryoku Settings > Apps > Voice typing
+(`ryoku/hub/quickshell/pages/VoiceTyping.qml`, backed by `ryoku-hub dictation`)
+switches it on, chooses the model, and picks the computer that runs it.
+
+The source is `ryoku/dictation/` and the package is `ryoku-dictation`, on every
+edition. Nothing about it comes from an AUR helper, and nothing runs while the
+feature is off: the user unit is on-demand, and the model is unmapped after 90
+seconds of idleness.
+
+## How it works
+
+| Piece | What it does |
+|---|---|
+| `ryoku-dictate` | one process: PipeWire capture, inference, text insertion, its own settings file |
+| `ryoku-shell` (`ipc/dictate.go`) | holds the connection, mirrors the state into the `dictation` bus topic |
+| the voice card | `shell/modules/dictation/DictationSurface.qml`: a shell-owned popup that reads that topic, so it is the same card under every bar style — state, the level as engraved data, elapsed time against the automatic stop |
+| `ryoku-hub dictation` | the Settings page's backend: settings file, model catalogue, downloads |
+
+Capture is a single 16 kHz mono PipeWire stream, and the same buffer feeds the
+model and the meter, so the wave on screen is exactly what is being transcribed.
+There is no second capture stream, no cava process and no bridge binary.
+
+Text arrives either by paste (the clipboard plus Ctrl+V, the default, because a
+busy application drops synthesised keystrokes) or by typing, which the daemon
+does itself over the Wayland virtual-keyboard protocol: one keymap carrying the
+characters of the batch, one press per character. `wtype` is no longer part of
 dictation.
 
-## Engines
+## Models
 
-| Option | What runs |
-|---|---|
-| Whisper models (Tiny to Large Turbo) | Stock Voxtype with a local Whisper model in `~/.local/share/voxtype/models`. |
-| Redux Multilingual + Adapter | NVIDIA Parakeet through a resident worker, 25 European languages. systemd desktops only. |
-| OpenAI API | Cloud Whisper with your own key; audio leaves the machine. |
+The engine is [transcribe.cpp](https://github.com/handy-computer/transcribe.cpp)
+(MIT), pinned to a release and built from source into the package, running ggml.
+Word error rate is LibriSpeech test-clean at Q8_0, from the engine's own
+pipeline, so the numbers compare.
 
-Every option uses the stock `voxtype` binary, so selecting one never needs sudo.
-Each model installs into a staging directory first and is published in one
-atomic step, so a cancelled or failed install never replaces the selected model.
-Every installing card shows **Cancel**, which stops the installer and all of its
-children.
+| Model | Size | WER | Languages |
+|---|---|---|---|
+| parakeet-tdt_ctc-110m | 135 MB | 2.43% | English |
+| parakeet-tdt-0.6b-v2 | 730 MB | 1.69% | English |
+| parakeet-ultra | 740 MB | 1.80% | 25 European |
+| whisper-large-v3-turbo | 886 MB | 2.01% | about 100 |
 
-## Redux
+The first ships inside the package, so dictation works on a fresh install with
+no download. The others are installed from Settings; each is pinned by SHA-256
+in `ryoku/hub/backend/dictation.go`, downloaded to a `.part` file and renamed
+only after the hash matches, so a cancelled or corrupt transfer can never become
+the model the daemon loads. Every installing row shows **Cancel**.
 
-Redux is built on the machine when it is picked, which keeps the native runtime
-out of the packages and matched to the CPU it runs on. The installer
-(`ryoku/hub/backend/assets/redux/setup.py`, embedded in `ryoku-hub`):
+## The CPU and GPU switch
 
-1. checks for Python 3.11, git, cmake, a C++ compiler and make, and names the
-   install command for the edition (`ryoku-host pkg advice`) when one is missing;
-2. builds the CPU parakeet.cpp runtime from a pinned commit, at low priority on
-   half the cores at most, so the desktop stays responsive;
-3. downloads the Redux model at a pinned revision and checks its SHA-256;
-4. publishes the model, the runtime, the Voxtype Redux adapter, its worker unit,
-   a licence notice and an ownership receipt.
+The engine library and its compute backends are shared modules in
+`/usr/lib/ryoku/dictation`, so the switch is a setting and not a reinstall: the
+base package ships the CPU module, and the optional `ryoku-dictation-vulkan`
+package adds the Vulkan module beside it. Settings offers Automatic, CPU and GPU,
+and asking for GPU with no backend installed is refused with that reason rather
+than quietly running on the CPU, because the point of asking was speed.
 
-The card shows the step it is on (fetching the source, preparing the build,
-building the runtime, downloading the model, installing) and one progress bar
-across all of them. The installer prints only those steps and percentages; the
-build's own output goes to `~/.local/state/ryoku/redux-install.log`, which a
-failed build names.
+Measured on an 11-second clip (Ryzen 9 7940HS, RTX 4060 / Radeon 780M): the
+bundled 110M model takes 117 ms on the CPU and 42 ms on Vulkan; the 0.6B model
+takes 485 ms and 113 ms. A GPU backend compiles its shaders on the first real
+run, which measured 11 s on a cold box, so the daemon warms the model while the
+card still says Preparing.
 
-When Redux is selected, Voxtype calls the adapter as its Whisper CLI, and the
-adapter hands each recording to the resident `voxtype-redux.service` over a
-socket in `$XDG_RUNTIME_DIR/voxtype-redux`. A drop-in on `voxtype.service` makes
-it start the worker. Picking another model stops and disables the worker and
-keeps the files for a quick switch back. The minus button removes every file the
-receipt lists; files changed since the install are reported and kept.
+## Settings
 
-| File | What it is |
-|---|---|
-| `~/.local/share/voxtype/models/redux-packed.gguf` | the model |
-| `~/.local/bin/voxtype-redux` | the adapter in client mode, Voxtype's CLI |
-| `~/.local/share/voxtype-redux/` | the worker, `runtime/libparakeet.so`, `NOTICE.md` and the receipt |
-| `~/.config/systemd/user/voxtype-redux.service` | the worker unit |
+`~/.config/ryoku/dictation.conf`, flat `key=value`, written only by Settings and
+re-read by the daemon over its socket, so a change takes effect without a
+restart: `enabled`, `source`, `model`, `device`, `language`, `mode`,
+`max_duration_secs`, `silence_ms`, `silence_db`, `type_delay_ms`,
+`idle_unload_secs`. The tool's `README.md` documents each one, the socket
+protocol and the model catalogue.
 
-## Credits and licences
-
-The adapter is [voxtype-redux-adapter](https://github.com/Sipper1236/voxtype-redux-adapter)
-by Sipper1236 (MIT), shipped unmodified. The runtime is
-[parakeet.cpp](https://github.com/mudler/parakeet.cpp) (MIT) with its ggml
-submodule. The weights are Moondream's
-[Parakeet Redux](https://huggingface.co/moondream/parakeet-redux), derived from
-NVIDIA Parakeet TDT 0.6B v3 (CC-BY-4.0). The pinned revisions and checksum are in
-`ryoku/hub/backend/assets/redux/UPSTREAM.md`.
+Removing the feature leaves nothing behind: `ryoku-host pkg remove
+ryoku-dictation` stops the on-demand unit, and no other part of the desktop
+needs it.
 
 ## Tests
 
-From `ryoku/hub/backend`: `go test ./...` and
-`python -m unittest discover -s assets/redux -p '*_test.py'`. The offscreen
-cancellation test drives the real page: build `ryoku-hub`, then run
-`RYOKU_TEST_HUB_BIN=/absolute/path/to/ryoku-hub python tests/dictation-cancel.py`
-from the repository root.
+```bash
+ryoku/dictation/build.sh              # CMake + Ninja, fetches the pinned engine
+ryoku/dictation/build/dictate-test    # settings, UTF-8, keymap, WAV
+ryoku/dictation/build/ryoku-dictate --selftest clip.wav --model model.gguf
+RYOKU_TEST_HUB_BIN=/path/to/ryoku-hub python3 tests/voice-typing-page.py
+RYOKU_TEST_HUB_BIN=/path/to/ryoku-hub python3 tests/dictation-store.py
+```
+
+A dictation can also be proved end to end without a microphone: a PipeWire
+loopback pair gives a virtual microphone, `pw-play` sends a clip into it, and the
+daemon's `final` event carries the text. `RYOKU_DICTATE_NO_INSERT=1` keeps the
+words out of the focused window while testing. The recipe is in
+`ryoku/dictation/README.md`.

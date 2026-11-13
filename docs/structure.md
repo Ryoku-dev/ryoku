@@ -75,6 +75,13 @@ truth for the live desktop.
   `modules/` and no `scripts/`, since the neutral settings come from the store
   and the keybind helpers are shell verbs. It deploys to `~/.config/niri/`.
   See `docs/compositors.md`.
+- `dictation/` voice typing, Ryoku's own: `src/` is the `ryoku-dictate` daemon
+  (PipeWire capture, transcribe.cpp inference, Wayland virtual-keyboard
+  insertion), `proto/` the protocol XML it generates from, `systemd/user/` its
+  on-demand unit, and `README.md` the socket contract, the settings file and the
+  model catalogue. The desktop reaches it only through `ryoku-shell`
+  (`ipc/dictate.go`), and Settings through `ryoku-hub dictation`. See
+  `docs/dictation.md`.
 - `keysounds/` the key-press sounds both compositors share: `profiles.txt`
   (the Mechvibes packs the eleven shipped profiles are cut from) and
   `ryoku-keysounds-import`, the tool a user runs on any pack from mechvibes.com.

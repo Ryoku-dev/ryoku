@@ -206,7 +206,7 @@ Everything behind the pill's Super+D, Super+U, and voice tools.
 | `zbar` | QR-code scanning |
 | `gpu-screen-recorder` | GPU-only screen capture and encode, replay-capable, on every compositor |
 | `hyprsunset` (Hyprland), `wlsunset` (niri) | The night-light color-temperature toggle: each variant ships its compositor's gamma backend |
-| `wtype` | Types voice-dictation output into the focused app |
+| `wtype` | Types Rashin's screen-control text into the focused app |
 | `libqalculate` | The launcher's calculator backend |
 | `songrec` | The launcher's Recognize Music |
 
@@ -304,7 +304,6 @@ repositories instead.
 | Package | Role |
 |---|---|
 | `yay-bin` | The AUR helper, bootstrapped first so the rest can build |
-| `voxtype-bin` | The Whisper voice-dictation daemon with curated local English and multilingual models (pill Super+`) |
 | `localsend-bin` | AirDrop-style LAN file sharing, spoken by the file stash |
 | `nvibrant-bin` | NVIDIA digital vibrance for the pill's saturation fader |
 | `game-devices-udev` | udev rules and battery reporting for DualSense and Switch Pro pads |
