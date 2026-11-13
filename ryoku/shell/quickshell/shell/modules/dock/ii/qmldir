@@ -76,7 +76,6 @@ CornerCutouts 1.0 common/CornerCutouts.qml
 DashedBorder 1.0 settings/DashedBorder.qml
 DatePickerPopup 1.0 widgets/DatePickerPopup.qml
 singleton DateUtils 1.0 functions/DateUtils.qml
-singleton DictationService 1.0 services/DictationService.qml
 DiskConfig 1.0 settings/DiskConfig.qml
 DiskTile 1.0 utilities/DiskTile.qml
 Dock 1.0 Dock.qml

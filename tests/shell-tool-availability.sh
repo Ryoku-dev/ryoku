@@ -90,7 +90,9 @@ declare -A need=(
   [night-light-hyprland]=hyprsunset
   [night-light-niri]=wlsunset
   [voice-type]=wtype
-  [voice-stt]=voxtype-bin
+  # voice typing is Ryoku's own engine: one package holds the daemon, the
+  # inference library and the shipped model, so a fresh box dictates offline.
+  [voice-stt]=ryoku-dictation
   # key sounds on niri: the Hub's Window Manager page installs
   # ryoku-keysounds-niri on demand (the samples come from
   # ryoku-keysounds-profiles), so neither is a default install but both must
@@ -123,6 +125,16 @@ declare -A need=(
 missing=()
 if ! hard_depend "${need[palette-bridge]}"; then
   echo "::error::Palette Bridge must be a desktop runtime dependency so Ryogami integrations can be set up on every install." >&2
+  exit 1
+fi
+# The voice keybind is shipped, so the engine must reach every install path, and it
+# must stay on-demand: with dictation off there is no process and no model in RAM.
+if ! hard_depend ryoku-dictation; then
+  echo "::error::Dictation must be a ryoku-desktop dependency so the voice keybind works on every install." >&2
+  exit 1
+fi
+if ! awk -F '\t' '$1 == "ryoku-dictate" && $2 == "user" && $3 == "on-demand" { found = 1 } END { exit !found }' "$ROOT/system/services/manifest.tsv"; then
+  echo "::error::Dictation must stay an on-demand user service: off means no process and no model." >&2
   exit 1
 fi
 if ! awk -F '\t' '$1 == "ryoku-palette-bridge" && $2 == "user" && $3 == "on-demand" { found = 1 } END { exit !found }' "$ROOT/system/services/manifest.tsv"; then

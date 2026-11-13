@@ -50,7 +50,6 @@ Singleton {
         readonly property var notes: StageCfg.Config.options.notes
         readonly property var bluetoothDeviceImages: StageCfg.Config.options.bluetoothDeviceImages
         readonly property var contextMenu: StageCfg.Config.options.contextMenu
-        readonly property var dictation: StageCfg.Config.options.dictation
         readonly property var dockToPanel: StageCfg.Config.options.dockToPanel
         readonly property var dynamicIsland: StageCfg.Config.options.dynamicIsland
         readonly property var hacks: StageCfg.Config.options.hacks

@@ -1,6 +1,12 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The voice card now reads the dictation bus topic.** It shows the engine's
+  own state (preparing, listening, transcribing, typing, failed), the microphone
+  level as engraved data instead of a glowing wave, the elapsed time and the
+  finished words, and it closes when the daemon says idle. `ryoku-shell` holds
+  the single connection to `ryoku-dictate`, mirrors it into the `dictation`
+  topic and calls `dictation.*`; the Voxtype state watcher is gone.
 - **Reduce motion and Speed retime the whole shell.** The shell's own
   animations, the launcher, overview, wallpaper, dock and welcome tour read
   Animations' `theme.motion.reduce` and `theme.motion.scale` in `shell.json`;

@@ -81,8 +81,8 @@ func main() {
 			fmt.Fprintln(os.Stderr, "ryoku-hub:", err)
 			os.Exit(1)
 		}
-	case "voxtype":
-		if err := runVoxtype(args[1:]); err != nil {
+	case "dictation":
+		if err := runDictation(args[1:]); err != nil {
 			fmt.Fprintln(os.Stderr, "ryoku-hub:", err)
 			os.Exit(1)
 		}
@@ -225,9 +225,9 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  ryoku-hub lighting follow <device>|--all on|off")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub lighting accent [#RRGGBB]")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub lighting save|release <device>")
-	fmt.Fprintln(os.Stderr, "  ryoku-hub voxtype get|ensure")
-	fmt.Fprintln(os.Stderr, "  ryoku-hub voxtype set <json>")
-	fmt.Fprintln(os.Stderr, "  ryoku-hub voxtype download|rmmodel <preset-key>")
+	fmt.Fprintln(os.Stderr, "  ryoku-hub dictation get|models")
+	fmt.Fprintln(os.Stderr, "  ryoku-hub dictation set <json>")
+	fmt.Fprintln(os.Stderr, "  ryoku-hub dictation install|remove <model-id>")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub palette-bridge status|install|service|integration|doctor [<source>]")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub share status")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub rice list|preflight|capture|apply|restore|save|fork|delete|import|publish|setwall|files|export")

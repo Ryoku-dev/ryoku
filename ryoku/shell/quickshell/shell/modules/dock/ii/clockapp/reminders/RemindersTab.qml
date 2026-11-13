@@ -4,6 +4,8 @@ import QtQuick
 import QtQuick.Layouts
 import stage.modules.common.widgets
 import stage.services
+import Ryoku.Ui
+import Ryoku.Ui.Singletons
 import "../../services/reminders/RemindersLogic.js" as Logic
 import "../.."
 
@@ -19,6 +21,11 @@ import "../.."
  */
 Item {
     id: root
+
+    BusTopic {
+        id: dictationTopic
+        topic: "dictation"
+    }
 
     property date now: new Date()
     property bool compact: false
@@ -972,16 +979,22 @@ Item {
                     }
                 }
 
-                // Dictation types into the focused field, so focus it first.
+                // Dictation types into the focused field, so focus it first. The daemon
+                // owns the state; this reads it from the bus topic.
                 ClockIconButton {
-                    visible: DictationService.enabled
-                    symbol: DictationService.recording ? "graphic_eq" : "mic"
+                    visible: dictationTopic.data ? dictationTopic.data.enabled === true : false
+                    symbol: dictationTopic.data && dictationTopic.data.state === "recording"
+                        ? "graphic_eq" : "mic"
                     size: 40
-                    toggled: DictationService.busy
-                    tooltip: DictationService.recording ? Translation.tr("Stop dictating") : Translation.tr("Dictate")
+                    toggled: dictationTopic.data
+                        ? dictationTopic.data.state === "recording"
+                          || dictationTopic.data.state === "transcribing"
+                        : false
+                    tooltip: dictationTopic.data && dictationTopic.data.state === "recording"
+                        ? Translation.tr("Stop dictating") : Translation.tr("Dictate")
                     onClicked: {
                         quickField.forceActiveFocus();
-                        DictationService.toggle();
+                        Bus.call("dictation.toggle");
                     }
                 }
             }

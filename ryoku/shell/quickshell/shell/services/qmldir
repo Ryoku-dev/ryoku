@@ -63,3 +63,4 @@ singleton AppLaunch AppLaunch.qml
 singleton Icons Icons.qml
 singleton BatteryAlerts BatteryAlerts.qml
 singleton Visualizer Visualizer.qml
+singleton Dictation Dictation.qml

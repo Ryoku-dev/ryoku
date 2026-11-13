@@ -327,24 +327,6 @@ func spawnLocker(_ int) error {
 	return nil
 }
 
-// voxtypeRecord starts or stops dictation on the running Voxtype daemon (the
-// Super+` tap). Voxtype is an optional AUR app (voxtype-bin); absent, this is a
-// no-op and the voice surface stays a plain mic meter. `voxtype record` drives
-// the user service in place (Voxtype's own hotkey is disabled so the shell owns
-// Super+`). verb is "start" or "stop".
-func voxtypeRecord(verb string) {
-	if _, err := exec.LookPath("voxtype"); err != nil {
-		return
-	}
-	// reap the short-lived record client in the background so it does not linger
-	// as a zombie; voxtypeRecord fires once per tap (start on show, stop on hide).
-	cmd := exec.Command("voxtype", "record", verb)
-	if err := cmd.Start(); err != nil {
-		return
-	}
-	go func() { _ = cmd.Wait() }()
-}
-
 func hostUserServiceActive(unit string) bool {
 	return exec.Command("ryoku-host", "svc", "is-active", unit).Run() == nil
 }
@@ -356,16 +338,6 @@ func stopHostUserService(unit string) error {
 		return nil
 	}
 	return err
-}
-
-// dictationReady reports whether a Super+` tap can actually dictate: Voxtype
-// installed and its user service running. When it can't, the pill shows an
-// "off" note instead of a listening wave that would capture nothing.
-func dictationReady() bool {
-	if _, err := exec.LookPath("voxtype"); err != nil {
-		return false
-	}
-	return hostUserServiceActive("voxtype.service")
 }
 
 func stateDir() string {

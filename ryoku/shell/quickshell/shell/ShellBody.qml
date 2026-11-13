@@ -11,6 +11,7 @@ import "modules/desktop"
 // qualified since an unqualified Motion.qml and Visualizer.qml shadow the shell.services singletons and fail to load
 import "modules/visualizer" as Viz
 import "modules/bar"
+import "modules/dictation"
 import "modules/sidebar"
 import "modules/dock"
 import "modules/launcher"
@@ -295,6 +296,15 @@ Scope {
             // The frame bar (Phase 2): reads its own reveal from this slice.
             Frame {
                 modelData: perScreen.modelData
+            }
+
+            // Voice typing's card is the shell's own, not the bar's: it exists
+            // for as long as the engine has something to say, on whichever screen
+            // has focus, so it looks the same under every bar style and subshell.
+            LazyLoader {
+                id: dictationLoader
+                activeAsync: Dictation.active
+                DictationSurface { }
             }
 
             // nothing of the Game Bar exists while it is closed with no pins

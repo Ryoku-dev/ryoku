@@ -142,10 +142,11 @@ type daemon struct {
 	lockQuiesced    atomic.Bool // rejects new lock launches during generation cutover
 	failMu          sync.Mutex
 	lastFail        map[string]string // component -> last line it died with
-	voiceMu         sync.Mutex        // serializes voice (Super+`) toggles
-	voiceWatchMu    sync.Mutex        // allows only one live voxtype follow stream
-	voiceOn         bool              // dictation active; guarded by voiceMu
-	voiceStop       chan struct{}     // reaps the live voxtype state stream; nil when none
+	voiceMu         sync.Mutex        // serializes voice (Super+`) taps
+	dictTopic       *stateTopic       // `dictation`: state, level, text
+	dictConn        *dictateConn      // one-shot commands to ryoku-dictate
+	dictateMu       sync.Mutex        // guards dictFrame
+	dictFrame       dictationFrame    // last frame seen from ryoku-dictate
 	prompter        *prompter         // GNOME keyring system prompter (nil when unavailable)
 	wmc             *wm.Client        // sole path to the compositor
 	wmMu            sync.Mutex        // guards the compositor state the wm watcher keeps warm
@@ -472,6 +473,7 @@ func (d *daemon) bootstrap() {
 	d.startPowerProfiles()
 	d.startNetwork()
 	d.startBluez()
+	d.startDictation()
 	d.startNightlight()
 	go d.watchSunMode()
 	d.startOsd()
@@ -1687,49 +1689,6 @@ func (d *daemon) dispatch(line string) string {
 	default:
 		return "err unknown command: " + cmd
 	}
-}
-
-// voice handles the Super+` tap. With dictation running it toggles Voxtype's
-// transcription and the pill's mic-wave together (first tap records and shows
-// the wave; the next stops, transcribes, and hides it). With dictation off it
-// just flashes an "off" note on the pill. Tap-to-toggle rides only the key-press
-// edge: Hyprland won't deliver a release once the modifier lifts first, which
-// would otherwise leave a hold-to-talk recording stuck on.
-//
-// Dictation can also end without a tap (Voxtype stops on silence or finishes
-// transcribing), so the ON edge starts a state watcher that closes the surface
-// when Voxtype reports idle (#244). The watcher is spawned before `record
-// start` so it cannot miss the transition into recording.
-func (d *daemon) voice() string {
-	d.voiceMu.Lock()
-	defer d.voiceMu.Unlock()
-	if !dictationReady() {
-		d.voiceOn = false
-		if d.voiceStop != nil {
-			close(d.voiceStop)
-			d.voiceStop = nil
-		}
-		d.ensure("shell")
-		return shellIpc("openSurface", d.activeMonitor(), "voice-off")
-	}
-	d.voiceOn = !d.voiceOn
-	if d.voiceOn {
-		d.ensure("shell")
-		if d.voiceStop != nil {
-			close(d.voiceStop)
-		}
-		stop := make(chan struct{})
-		d.voiceStop = stop
-		go d.watchVoice(stop)
-		voxtypeRecord("start")
-		return shellIpc("openSurface", d.activeMonitor(), "voice")
-	}
-	if d.voiceStop != nil {
-		close(d.voiceStop)
-		d.voiceStop = nil
-	}
-	voxtypeRecord("stop")
-	return shellIpc("closeSurface", d.activeMonitor(), "voice")
 }
 
 // reload restarts every supervised component by terminating it; the supervisor

@@ -182,12 +182,12 @@ function pageSummary(id, ctx) {
             return ctx.tr("Records at %1 fps").replace("%1", ctx.value({ store: "recording", key: "fps" }));
         return ctx.tr(still[id]);
     case "voice-typing":
-        if (ctx.value({ store: "voxtype", key: "loaded" }) !== true)
+        if (ctx.value({ store: "dictation", key: "loaded" }) !== true)
             return ctx.tr(still[id]);
-        if (ctx.value({ store: "voxtype", key: "installed" }) !== true)
+        if (ctx.value({ store: "dictation", key: "installed" }) !== true)
             return ctx.tr("Not installed");
-        return ctx.value({ store: "voxtype", key: "enabled" }) === true
-            ? ctx.tr("On, %1").replace("%1", ctx.tr(String(ctx.value({ store: "voxtype", key: "presetLabel" }) || "")))
+        return ctx.value({ store: "dictation", key: "enabled" }) === true
+            ? ctx.tr("On, %1").replace("%1", ctx.tr(String(ctx.value({ store: "dictation", key: "modelLabel" }) || "")))
             : ctx.tr("Off");
     case "rashin":
         var rashinStates = { absent: "Not installed", off: "Off", idle: "On", running: "On and running" };

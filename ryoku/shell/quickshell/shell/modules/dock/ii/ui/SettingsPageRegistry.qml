@@ -234,14 +234,6 @@ Singleton {
             "aliases": ["App Search", "Search Prefixes", "App Aliases", "Search Modules", "Quicklinks", "Search Shortcuts", "Type to search", "Type to run", "KRunner", "Launcher Privacy", "Search matching", "Typo tolerance", "Fuzzy matching", "Best match", "Result priority", "Clipboard", "Clipboard History", "Content detectors"]
         },
         {
-            "id": "dictation",
-            "name": "Dictation",
-            "icon": "mic",
-            "component": "modules/settings/configs/DictationConfig.qml",
-            "subPages": [],
-            "aliases": ["Speech to text", "Voice typing", "Voxtype", "Whisper", "Transcription", "Dictate"]
-        },
-        {
             "id": "cheatSheet",
             // A keyboard-shortcut reference, on a device with no keyboard.
             "families": ["ii", "waffle"],
@@ -478,7 +470,7 @@ Singleton {
         {
             "id": "tools",
             "name": "Tools",
-            "pageIds": ["launcher", "dictation", "screenCapture", "notifications", "overlays", "modes", "cheatSheet"]
+            "pageIds": ["launcher", "screenCapture", "notifications", "overlays", "modes", "cheatSheet"]
         },
         {
             "id": "servicesIntegrations",

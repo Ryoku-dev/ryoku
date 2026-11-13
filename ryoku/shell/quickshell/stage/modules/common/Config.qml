@@ -1454,36 +1454,7 @@ Singleton {
             console.log("[Config] Reconciled AI settings and sidebar startup policy");
         }
 
-        // v8 -> v9: the bar gained the dictation indicator. Like the recording
-        // one it takes no space until dictation is actually running, so adding
-        // it to an existing layout is invisible to anyone who never turns
-        // dictation on.
-        if (from < 9 && raw.bar?.layouts !== undefined && raw.bar.layouts !== null && typeof raw.bar.layouts === "object") {
-            const dictationLayouts = raw.bar.layouts;
-            const dictationSections = ["left", "center", "right"];
-            const dictationPresent = dictationSections.some(k => Array.isArray(dictationLayouts[k]) && dictationLayouts[k].some(e => e && e.id === "dictation_indicator"));
-            if (!dictationPresent) {
-                if (!Array.isArray(dictationLayouts.left))
-                    dictationLayouts.left = [];
-                const afterRecord = dictationLayouts.left.findIndex(e => e && e.id === "record_indicator");
-                const entry = {
-                    "centered": false,
-                    "id": "dictation_indicator",
-                    "visible": true
-                };
-                dictationLayouts.left.splice(afterRecord === -1 ? dictationLayouts.left.length : afterRecord + 1, 0, entry);
-                console.log("[Config] Migrated bar layout: added dictation_indicator");
-            }
-        }
 
-        // v9 -> v10: dictation defaults to pasting rather than typing. Typing
-        // synthesises one keystroke per character, which several applications
-        // drop under load — the words arrive a letter short. Only the old
-        // default is moved; anyone who picked "clipboard" keeps it.
-        if (from < 10 && raw.dictation !== undefined && raw.dictation !== null && typeof raw.dictation === "object" && raw.dictation.outputMode === "type") {
-            raw.dictation.outputMode = "paste";
-            console.log("[Config] Migrated dictation output mode: type -> paste");
-        }
 
         // v10 -> v11: screen recording quality stops being a raw bitrate. Mbps
         // means nothing without knowing the resolution it is spent on, so the
@@ -4966,7 +4937,6 @@ Singleton {
                     property bool disableNotification: false
                     property bool disableOsd: false
                     property bool disableRecording: false
-                    property bool disableDictation: false
                     property bool disableTimer: false
                     property bool disableClipboard: false
                     property bool disableLocalSend: false
@@ -5532,49 +5502,6 @@ Singleton {
                 property string code: "0;P;d;1;0l;10;0o;2;1b;0"
             }
 
-            // Speech typed into the focused window, through voxtype. Off by
-            // default: nothing installs voxtype or downloads a speech model on
-            // its own, so a fresh install would otherwise ship a dictation key
-            // that can only ever answer "not installed".
-            property JsonObject dictation: JsonObject {
-                property bool enabled: false
-                // "fast" (base, 142 MB) or "accurate" (large-v3-turbo, 1.6 GB).
-                // A size/latency choice; the language below picks the variant.
-                property string quality: "fast"
-                // "auto" to let Whisper detect it, a single code ("fr"), or
-                // several comma-separated ("en,fr") to detect within that set.
-                property string language: "en"
-                property bool translateToEnglish: false
-                // "paste" (clipboard + Ctrl+V), "type" (synthesised keystrokes),
-                // or "clipboard" (copy only). Paste is the default because
-                // typing races the receiving app and loses characters in
-                // plenty of them; pasting arrives in one piece.
-                property string outputMode: "paste"
-                property bool pauseMedia: true
-                property bool soundFeedback: false
-                property int maxDurationSecs: 60
-                // CPU threads for transcription. 0 leaves it to the shell,
-                // which keeps one core free; Whisper's own default is four
-                // regardless of how many the machine has.
-                property int threads: 0
-                // Primes Whisper with a punctuated sample so it punctuates in
-                // kind. Empty picks one to match the language.
-                property string punctuationHint: ""
-                // Milliseconds between synthesised keystrokes. Voxtype types
-                // with no gap by default, which silently loses characters in
-                // plenty of apps — the words arrive one letter short.
-                property int typeDelayMs: 5
-                // Voxtype's own notification carrying the finished text. Worth
-                // keeping on: with the text pasted into another window, this is
-                // the only place it can be read back if it landed somewhere
-                // unexpected.
-                property bool notifyOnTranscription: true
-                property bool showIndicator: true
-                // Keeps the microphone in the bar while idle, as a click target
-                // for anyone who would rather not reach for the keybind.
-                property bool alwaysShowIndicator: false
-                property bool showInIsland: true
-            }
 
             property JsonObject dock: JsonObject {
                 property bool enable: false

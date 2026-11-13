@@ -51,7 +51,7 @@ Popout {
         : (body.item ? body.item.implicitHeight : 0)
 
     // Card popouts float off the frame lip.
-    edgeGap: (root.kind === "music" || root.kind === "bluetooth" || root.kind === "battery" || root.kind === "network" || root.kind === "voice" || root.kind === "sysmon" || root.kind === "audio" || root.kind === "screenshot") ? 10 * root.s : 0
+    edgeGap: (root.kind === "music" || root.kind === "bluetooth" || root.kind === "battery" || root.kind === "network" || root.kind === "sysmon" || root.kind === "audio" || root.kind === "screenshot") ? 10 * root.s : 0
 
     readonly property bool sideMenu: root.edge === "left" || root.edge === "right"
 
@@ -82,8 +82,7 @@ Popout {
         active: root.effectiveOpen
         width: root.openW
         height: root.openH
-        sourceComponent: root.kind === "voice" ? voiceBody
-            : root.kind === "keyring" ? keyringBody
+        sourceComponent: root.kind === "keyring" ? keyringBody
             : root.kind === "polkit" ? polkitBody
             : root.kind === "music" ? musicBody
             : root.kind === "bluetooth" ? bluetoothBody
@@ -96,16 +95,6 @@ Popout {
     }
 
 
-    Component {
-        id: voiceBody
-        VoicePopout {
-            s: root.s
-            off: root.off
-            capture: root.menuOpen && !root.off
-            open: root.effectiveOpen
-            onCloseRequested: root.requestClose()
-        }
-    }
     Component {
         id: polkitBody
         PolkitPopout {

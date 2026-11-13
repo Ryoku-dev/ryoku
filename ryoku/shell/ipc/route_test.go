@@ -109,7 +109,7 @@ func TestDispatchFrameSurface(t *testing.T) {
 // Malformed bar/menu input is rejected before any shell IPC is emitted, and the
 // surface/voice verbs each emit their exact openSurface call on the shell target.
 func TestDispatchSurfaceRouting(t *testing.T) {
-	t.Setenv("PATH", t.TempDir()) // no voxtype on PATH: voice falls to the "off" note
+	t.Setenv("PATH", t.TempDir()) // no engine on PATH: voice falls to the "off" note
 	calls := make(chan string, 4)
 	stubShellIpc(t, calls)
 
@@ -136,12 +136,6 @@ func TestDispatchSurfaceRouting(t *testing.T) {
 	}
 	if got := <-calls; got != "openSurface DP-1 sidebar-left" {
 		t.Fatalf("quick-settings alias shell IPC = %q", got)
-	}
-	if got := d.dispatch("voice"); got != "ok" {
-		t.Fatalf("dispatch(voice) = %q, want ok", got)
-	}
-	if got := <-calls; got != "openSurface DP-1 voice-off" {
-		t.Fatalf("voice shell IPC = %q", got)
 	}
 }
 

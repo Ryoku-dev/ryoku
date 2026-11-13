@@ -3,6 +3,12 @@
 ## Unreleased
 
 ### Changed
+- **Voice typing is one store over the new engine.** `ryoku-hub dictation` owns
+  the settings file, the pinned model catalogue with SHA-256 checks and the
+  downloads, and the page now offers the model, the computer that runs it
+  (Automatic, CPU or GPU), the microphone and how the words arrive. The Voxtype
+  store, the Redux build steps and the cloud-key section are gone, and the
+  credits name transcribe.cpp and NVIDIA Parakeet.
 - **The interface font defaults to Geologica.** The brand UI face the site and
   the shell use, so the Settings default, the bind fallback and the theme token
   all resolve to Geologica; the monospace default is unchanged

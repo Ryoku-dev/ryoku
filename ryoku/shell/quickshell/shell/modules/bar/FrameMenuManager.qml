@@ -73,7 +73,6 @@ Item {
     readonly property var surfaces: {
         const out = [];
         out.push(
-            { id: "voice", kind: "voice", anchor: "bottom", minWidth: 380 },
             { id: "keyring", kind: "keyring", anchor: "top", minWidth: 420 },
             // polkit asks for an administrator password: same island as the
             // keyring prompt, and modal for the same reason.
@@ -124,7 +123,7 @@ Item {
         const mon = menuState[monitorName];
         if (!mon) return false;
         for (const anchor in mon)
-            if (mon[anchor] && mon[anchor].kind && mon[anchor].kind !== "menu" && mon[anchor].id !== "voice" && mon[anchor].id !== "music" && mon[anchor].id !== "bluetooth" && mon[anchor].id !== "battery" && mon[anchor].id !== "network" && mon[anchor].id !== "sysmon" && mon[anchor].id !== "audio" && mon[anchor].id !== "screenshot") return true;
+            if (mon[anchor] && mon[anchor].kind && mon[anchor].kind !== "menu" && mon[anchor].id !== "music" && mon[anchor].id !== "bluetooth" && mon[anchor].id !== "battery" && mon[anchor].id !== "network" && mon[anchor].id !== "sysmon" && mon[anchor].id !== "audio" && mon[anchor].id !== "screenshot") return true;
         return false;
     }
     // Keyboard focus the frame raises while something is open (contract 05 sec
@@ -137,7 +136,7 @@ Item {
             const rec = mon[anchor];
             if (!rec) continue;
             if (rec.id === "network") return "ondemand";
-            if (rec.kind && rec.kind !== "menu" && rec.id !== "voice" && rec.id !== "music" && rec.id !== "bluetooth" && rec.id !== "battery" && rec.id !== "network" && rec.id !== "sysmon" && rec.id !== "audio" && rec.id !== "screenshot") return "exclusive";
+            if (rec.kind && rec.kind !== "menu" && rec.id !== "music" && rec.id !== "bluetooth" && rec.id !== "battery" && rec.id !== "network" && rec.id !== "sysmon" && rec.id !== "audio" && rec.id !== "screenshot") return "exclusive";
         }
         return "none";
     }
@@ -456,7 +455,7 @@ Item {
         let next = state;
         for (const anchor in mon) {
             const rec = mon[anchor];
-            if (!rec || rec.id === keepId || rec.id === "voice" || rec.id === "keyring") continue;
+            if (!rec || rec.id === keepId || rec.id === "keyring") continue;
             root.surfaceClosed(rec.id, rec);
             next = MenuState.closeAt(next, root.monitorName, anchor);
         }
@@ -464,8 +463,7 @@ Item {
     }
     function openSurface(id, ownerRect, requestedMonitor, context) {
         if (requestedMonitor !== undefined && requestedMonitor !== "" && requestedMonitor !== root.monitorName) return;
-        const voiceOff = id === "voice-off";
-        const surfaceID = voiceOff ? "voice" : id;
+        const surfaceID = id;
         if (surfaceID.indexOf("plugin:") === 0) {
             root.openPlugin(surfaceID.substring(7));
             return;
@@ -476,7 +474,7 @@ Item {
         // a bar button and its command both read as one toggle. Keyring and
         // voice are daemon lifecycle surfaces, not user toggles: a fresh prompt
         // or a re-show must replace the live record, never dismiss it.
-        const daemonOwned = surfaceID === "keyring" || surfaceID === "voice";
+        const daemonOwned = surfaceID === "keyring";
         // Where this surface is currently open. Its live anchor may differ from
         // the config anchor because a rail widget welds its popout to its edge.
         // Find it wherever it lives so asking again closes it.
@@ -543,7 +541,7 @@ Item {
             if (root.activeIdAt("top") === id) root.closeAt("top");
             return;
         }
-        root.closeMenu(id === "voice-off" ? "voice" : id);
+        root.closeMenu(id);
     }
     function retireKeyringPrompt(promptId) {
         const active = MenuState.activeAt(root.menuState, root.monitorName, "top");
