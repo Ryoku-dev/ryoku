@@ -1,14 +1,16 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **Voice typing survives Hyperion updates**, doctor keeps the source-installed
+  engine when an older desktop package is still installed
 - **Voice typing is Ryoku's own.** A new `ryoku-dictate` daemon records the
   microphone over PipeWire, transcribes on the machine with transcribe.cpp
   (Parakeet or Whisper on ggml) and puts the words into the focused window, by
   paste or by typing through the Wayland virtual-keyboard protocol. Voxtype, its
   AUR package, its Python config editor, the Redux adapter and the cava meter
-  behind the voice card are gone. The package ships the 135 MB English Parakeet
-  model, so dictation works on a fresh install with no download and nothing runs
-  while it is off. `Super + grave` is unchanged. See `docs/dictation.md`.
+  behind the voice card are gone. Models download separately in Settings and
+  the engine starts on demand. `Super + grave` is unchanged, see
+  `docs/dictation.md`.
 - **The desktop and apps now render in Geologica, the brand UI face.** A new
   ttf-geologica package ships the same cuts the shell and Hub embed, and it is
   the default for GTK, Qt and the shell on every edition; the terminal keeps

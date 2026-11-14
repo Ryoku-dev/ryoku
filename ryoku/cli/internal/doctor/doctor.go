@@ -5131,8 +5131,10 @@ func reconcileConflictingRyokuFiles(checkOnly bool) recResult {
 	if result, applicable := pacmanHost(i18n.T("pacman file ownership checks")); !applicable {
 		return result
 	}
-	// Only a packaged box hits the conflict. A dev checkout has no ryoku-desktop,
-	// and deploy.sh's unowned helpers there are correct, so leave them be.
+	// source updates keep the base package installed too
+	if sys.ResolveRepo() != "" {
+		return okRes(i18n.T("source checkout; deploy-seeded helpers are expected"))
+	}
 	if !sys.PkgInstalled("ryoku-desktop") {
 		return okRes(i18n.T("dev checkout (no ryoku-desktop); deploy-seeded helpers are expected"))
 	}

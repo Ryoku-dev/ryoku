@@ -103,6 +103,10 @@ new service definition without enabling it; an active engine is restarted
 unless `deploy.sh --no-reload` was requested. Enabling voice typing remains a
 separate user choice, and pressing its shortcut starts the engine on demand.
 
+Doctor uses the source checkout to identify this update lane, even when an older
+desktop package is still installed, so it keeps the deployed engine instead of
+removing it as an unowned package conflict.
+
 ## Tests
 
 ```bash

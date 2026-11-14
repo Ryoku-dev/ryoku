@@ -1,6 +1,9 @@
 package doctor
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
 	"testing"
 
 	"ryoku-cli/internal/host"
@@ -115,6 +118,64 @@ func TestPacmanReconcilersAreNeutralOnOtherPackageManagers(t *testing.T) {
 		t.Run(check.name, func(t *testing.T) {
 			if got := check.run(); got.status != recOK && got.status != recNote {
 				t.Fatalf("result = %#v, want a neutral result", got)
+			}
+		})
+	}
+}
+
+func TestConflictingFilesRespectSourceUpdates(t *testing.T) {
+	for _, source := range []string{"checkout", "missing checkout", "packages"} {
+		t.Run(source, func(t *testing.T) {
+			stubPacmanHost(t, true)
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+			t.Setenv("XDG_STATE_HOME", filepath.Join(home, ".local", "state"))
+			t.Setenv("RYOKU_REPO", "")
+			bin := filepath.Join(home, "bin")
+			engine := filepath.Join(home, "usr", "bin", "ryoku-dictate")
+			t.Setenv("RYOKU_TEST_ENGINE", engine)
+			writeFile(t, filepath.Join(bin, "pacman"), "#!/bin/sh\ncase \"$1\" in\n-Q) exit 0;;\n-Qo) exit 1;;\n*) exit 2;;\nesac\n")
+			writeFile(t, filepath.Join(bin, "sudo"), "#!/bin/sh\n[ \"$#\" -eq 3 ] && [ \"$1\" = rm ] && [ \"$2\" = -f ] && [ \"$3\" = \"$RYOKU_TEST_ENGINE\" ] || exit 2\nexec /usr/bin/rm -f -- \"$3\"\n")
+			for _, tool := range []string{"pacman", "sudo"} {
+				if err := os.Chmod(filepath.Join(bin, tool), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+			if source != "packages" {
+				repo := filepath.Join(home, "checkout")
+				if source == "checkout" {
+					if out, err := exec.Command("git", "init", "-q", repo).CombinedOutput(); err != nil {
+						t.Fatalf("git init: %v: %s", err, out)
+					}
+				}
+				writeFile(t, filepath.Join(home, ".local", "state", "ryoku", "repo"), repo)
+			}
+			oldGlobs := ryokuSystemGlobs
+			ryokuSystemGlobs = []string{engine}
+			t.Cleanup(func() { ryokuSystemGlobs = oldGlobs })
+			for _, checkOnly := range []bool{true, false} {
+				writeFile(t, engine, "installed voice engine")
+				result := reconcileConflictingRyokuFiles(checkOnly)
+				want := recOK
+				if source != "checkout" {
+					want = recWouldFix
+					if !checkOnly {
+						want = recFixed
+					}
+				}
+				if result.status != want {
+					t.Fatalf("checkOnly=%v: result=%+v, want %s", checkOnly, result, want.label())
+				}
+				_, err := os.Stat(engine)
+				if source == "checkout" || checkOnly {
+					if err != nil {
+						t.Fatalf("checkOnly=%v: installed engine was removed: %v", checkOnly, err)
+					}
+				} else if !os.IsNotExist(err) {
+					t.Fatalf("package-only cleanup left the unowned engine: %v", err)
+				}
 			}
 		})
 	}
