@@ -16,9 +16,8 @@ following third-party work.
 
 - Upstream: https://github.com/ggml-org/ggml (as vendored inside transcribe.cpp)
 - Licence: MIT
-- Used as: the tensor runtime under transcribe.cpp. The CPU backend is linked
-  in; Vulkan, CUDA and ROCm backends are optional modules built by the
-  `ryoku-dictation-vulkan` (and friends) packages.
+- Used as: the tensor runtime under transcribe.cpp. The engine package includes
+  the CPU and Vulkan backend modules.
 
 ## Silero VAD
 
@@ -32,8 +31,8 @@ following third-party work.
 - Weights: NVIDIA Parakeet, converted and quantised by handy-computer
   (https://huggingface.co/handy-computer/parakeet-tdt_ctc-110m-gguf)
 - Licence: CC-BY-4.0
-- Shipped as: `/usr/share/ryoku/dictation/models/parakeet-tdt_ctc-110m-Q8_0.gguf`
-  (135 MB), pinned by SHA-256 in the package.
+- Available as: a separate 135 MB download in Settings, pinned by SHA-256 in
+  the model catalogue; weights are not part of the engine package.
 - Attribution: NVIDIA Parakeet, via handy-computer's GGUF conversion.
 
 ## Optional models

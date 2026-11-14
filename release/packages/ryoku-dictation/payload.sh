@@ -4,7 +4,6 @@ set -eu
 : "${RYOKU_SRC:?RYOKU_SRC is required}"
 : "${RYOKU_BUILD_DIR:?RYOKU_BUILD_DIR is required}"
 
-model=parakeet-tdt_ctc-110m-Q8_0.gguf
 build="$RYOKU_BUILD_DIR/build"
 
 case "${1:-}" in
@@ -18,7 +17,7 @@ build)
 	cmake -S "$RYOKU_SRC/ryoku/dictation" -B "$build" -G Ninja \
 		-DCMAKE_BUILD_TYPE=Release \
 		-DRYOKU_DICTATION_TEST=ON \
-		-DRYOKU_DICTATION_GPU=OFF \
+		-DRYOKU_DICTATION_GPU=ON \
 		"${engine[@]}"
 	cmake --build "$build" -j"$(nproc)"
 	;;
@@ -48,12 +47,6 @@ install)
 	install -Dm644 "$RYOKU_SRC/ryoku/dictation/README.md" \
 		"$destdir/usr/share/doc/ryoku-dictation/README.md"
 
-	# The model the package ships: dictation works on first boot, offline, with
-	# no download. It is never loaded until the user turns dictation on.
-	if [ -f "$RYOKU_BUILD_DIR/$model" ]; then
-		install -Dm644 "$RYOKU_BUILD_DIR/$model" \
-			"$destdir/usr/share/ryoku/dictation/models/$model"
-	fi
 
 	if [ "$init" = systemd ]; then
 		install -Dm644 "$RYOKU_SRC/ryoku/dictation/systemd/user/ryoku-dictate.service" \

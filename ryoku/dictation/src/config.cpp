@@ -43,7 +43,7 @@ std::string Config::path() {
     return env("XDG_CONFIG_HOME", env("HOME", ".") + "/.config") + "/ryoku/dictation.conf";
 }
 
-std::string Config::shippedModel() {
+std::string Config::systemModel() {
     return env("RYOKU_DICTATION_PREFIX", "")
         + "/usr/share/ryoku/dictation/models/parakeet-tdt_ctc-110m-Q8_0.gguf";
 }
@@ -101,16 +101,14 @@ std::string Config::resolveModel(const Config& config) {
     if (!config.model.empty())
         return std::filesystem::exists(config.model) ? config.model : std::string();
 
-    const std::string shipped = shippedModel();
-    const std::string name = std::filesystem::path(shipped).filename().string();
+    const std::string system = systemModel();
+    const std::string name = std::filesystem::path(system).filename().string();
     const std::string user = userModelDir() + "/" + name;
     if (std::filesystem::exists(user))
         return user;
-    if (std::filesystem::exists(shipped))
-        return shipped;
+    if (std::filesystem::exists(system))
+        return system;
 
-    // Nothing at the shipped name: take any model the Hub installed, newest
-    // first, so a hand-picked multilingual model still runs.
     std::string newest;
     std::filesystem::file_time_type newestAt{};
     std::error_code ec;

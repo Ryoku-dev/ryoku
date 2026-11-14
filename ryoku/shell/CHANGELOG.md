@@ -3,8 +3,10 @@
 ## Unreleased
 - **Voice typing starts off until you enable it, and its toggle now works in
   both directions without the shortcut or voice card reporting the wrong state**
-- Source updates now rebuild an installed voice engine too, without starting
-  an inactive one or leaving an older native daemon behind.
+- **Hyperion updates install the voice engine even when it was missing**
+  CPU and Vulkan support arrive together, while models download only from Settings.
+- Service startup failures now show their actual cause without cutting off
+  the voice card's error text.
 - **Type mode now inserts the spoken text after focus changes instead of
   sending the physical keys from a cached layout.**
 - **Voice typing now names the selected model and shows the model catalogue

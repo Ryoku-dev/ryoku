@@ -49,7 +49,7 @@ through `ryoku-hub dictation`.
 |---|---|---|
 | `enabled` | `false` | explicit opt-in; turning it off cancels capture or transcription |
 | `source` | empty | microphone node; empty or `default` is the session default |
-| `model` | empty | explicit `.gguf`; empty resolves the shipped model, then a user copy, then the newest user model |
+| `model` | empty | explicit `.gguf`; otherwise an installed user model or existing system model |
 | `device` | `auto` | `auto`, `cpu` or `gpu`. `gpu` refuses to fall back silently |
 | `language` | empty | hint for Parakeet v3/Ultra and Whisper; empty lets the model decide |
 | `mode` | `paste` | `paste` (clipboard + Ctrl+V) or `type` (synthesised keys) |
@@ -61,20 +61,22 @@ through `ryoku-hub dictation`.
 
 ## Models
 
-The package ships `parakeet-tdt_ctc-110m-Q8_0` (135 MB, English, 2.43% WER on
-LibriSpeech test-clean). The Hub installs more into
-`$XDG_DATA_HOME/ryoku/dictation/models` from a pinned catalogue with SHA-256
-checks: Parakeet 0.6B (1.69%, English), Parakeet Ultra (1.80%, 25 European
-languages), Whisper large-v3-turbo (2.01%, ~100 languages). Downloads stage in
-`<file>.part` and are renamed only after the hash matches.
+The engine package contains no speech model and updates never fetch one.
+Settings downloads models into `$XDG_DATA_HOME/ryoku/dictation/models` only
+when the user chooses Download: Parakeet 110M (135 MB, English, 2.43% WER),
+Parakeet 0.6B (1.69%, English), Parakeet Ultra (1.80%, 25 European languages),
+and Whisper large-v3-turbo (2.01%, about 100 languages). Downloads stage in
+`<file>.part` and are renamed and selected only after the SHA-256 matches.
+Existing user and system models remain discoverable.
 
 ## Compute: the CPU and GPU switch
 
 The engine library and every ggml backend module live in one directory,
-`/usr/lib/ryoku/dictation`, which is also where the daemon looks at startup. The
-base package ships `libggml-cpu.so`; the optional `ryoku-dictation-vulkan`
-package drops `libggml-vulkan.so` beside it, and `device=gpu` in the settings
-file (or Settings > Apps > Voice typing) uses it. Nothing is reinstalled to switch.
+`/usr/lib/ryoku/dictation`, which is also where the daemon looks at startup.
+The engine package includes both `libggml-cpu.so` and `libggml-vulkan.so`.
+GPU availability is probed on the machine using it and still requires a working
+Vulkan driver. `device=gpu` requests it explicitly; Automatic can use the CPU
+when no usable GPU is available.
 
 | Model (11 s clip) | CPU | Vulkan |
 |---|---|---|
@@ -103,11 +105,12 @@ directory) and `RYOKU_DICTATION_PREFIX` (a staging root, so `makepkg`, `nix` and
 The engine is fetched at a pinned tag and hash by CMake; point `TRANSCRIBE_SRC`
 at a checkout to build offline.
 
-The shell's source deploy calls `./deploy.sh` when the engine is already
-installed. It installs missing PipeWire, Wayland and xkbcommon development
-files, builds the package payload and replaces the installed native files.
-It only restarts an active user service; `--no-reload` leaves the current
-process alone. `DESTDIR` stages the same payload without changing services.
+Every shell source deploy calls `./deploy.sh`, including machines without an
+existing engine. It installs missing native development tools, builds the
+model-free package payload and installs the executable, private CPU/Vulkan
+libraries and on-demand service. It refreshes the user manager's unit metadata
+and restarts only an active service; `--no-reload` leaves the process alone.
+`DESTDIR` stages the same payload without changing services.
 
 A dictation can be proved end to end without a microphone: make a loopback pair,
 play a clip into it, record from the other end.

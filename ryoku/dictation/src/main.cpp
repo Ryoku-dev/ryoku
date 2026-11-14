@@ -109,7 +109,7 @@ struct Session {
             return true;
         const std::string path = ryoku::Config::resolveModel(config);
         if (path.empty()) {
-            fail("no speech model installed");
+            fail("Download a speech model in Settings > Voice typing");
             return false;
         }
         publish("loading");

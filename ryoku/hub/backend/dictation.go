@@ -65,7 +65,7 @@ type dictationModel struct {
 	Size      string `json:"size"`
 	SizeBytes int64  `json:"sizeBytes"`
 	Licence   string `json:"licence"`
-	Bundled   bool   `json:"bundled"`
+	Removable bool   `json:"removable"`
 	Installed bool   `json:"installed"`
 	Path      string `json:"path"`
 	URL       string `json:"-"`
@@ -100,12 +100,11 @@ type dictationSnapshot struct {
 	Backends         string `json:"backends"`
 	ActiveModel      string `json:"activeModel"`
 	// the compute backend the running daemon reports, e.g. "Vulkan0" or "CPU"
-	ActiveBackend  string            `json:"activeBackend"`
-	Running        bool              `json:"running"`
-	State          string            `json:"state"`
-	Models         []dictationModel  `json:"models"`
-	Sources        []dictationSource `json:"sources"`
-	BundledModelID string            `json:"bundledModelId"`
+	ActiveBackend string            `json:"activeBackend"`
+	Running       bool              `json:"running"`
+	State         string            `json:"state"`
+	Models        []dictationModel  `json:"models"`
+	Sources       []dictationSource `json:"sources"`
 }
 
 func dictationConfPath() string {
@@ -116,8 +115,8 @@ func dictationModelsDir() string {
 	return filepath.Join(dataHome(), "ryoku", "dictation", "models")
 }
 
-func dictationBundledPath() string {
-	return "/usr/share/ryoku/dictation/models/parakeet-tdt_ctc-110m-Q8_0.gguf"
+func dictationSystemModelsDir() string {
+	return filepath.Join(orDefault(os.Getenv("RYOKU_DICTATION_PREFIX"), "/"), "usr", "share", "ryoku", "dictation", "models")
 }
 
 // The catalogue is pinned: a model is a known file with a known hash, not a
@@ -127,12 +126,11 @@ func dictationCatalogue() []dictationModel {
 	return []dictationModel{
 		{
 			ID: "parakeet-110m", Label: "Parakeet 110M", Language: "English",
-			Detail: "The model Ryoku ships. Small, quick, and accurate enough for everyday dictation.",
+			Detail: "Small, quick, and accurate enough for everyday English dictation.",
 			WER:    "2.43%", Size: "135 MB", SizeBytes: 135373280, Licence: "CC-BY-4.0",
-			Bundled: true,
-			URL:     "https://huggingface.co/handy-computer/parakeet-tdt_ctc-110m-gguf/resolve/main/parakeet-tdt_ctc-110m-Q8_0.gguf",
-			SHA256:  "7dd44c74a331d788a4e5f8b16913b3feb29ced22cf5613aad0e0f6cd30516296",
-			File:    "parakeet-tdt_ctc-110m-Q8_0.gguf",
+			URL:    "https://huggingface.co/handy-computer/parakeet-tdt_ctc-110m-gguf/resolve/main/parakeet-tdt_ctc-110m-Q8_0.gguf",
+			SHA256: "7dd44c74a331d788a4e5f8b16913b3feb29ced22cf5613aad0e0f6cd30516296",
+			File:   "parakeet-tdt_ctc-110m-Q8_0.gguf",
 		},
 		{
 			ID: "parakeet-v2", Label: "Parakeet 0.6B", Language: "English",
@@ -213,40 +211,54 @@ func dictationInt(values map[string]string, key string, fallback int) int {
 	return fallback
 }
 
+func dictationModelInventory(configured string) []dictationModel {
+	models := dictationCatalogue()
+	userDir, systemDir := dictationModelsDir(), dictationSystemModelsDir()
+	configuredName := filepath.Base(configured)
+	for i := range models {
+		owned := filepath.Join(userDir, models[i].File)
+		path := owned
+		installed := fileExists(path)
+		if !installed {
+			path = filepath.Join(systemDir, models[i].File)
+			installed = fileExists(path)
+		}
+		if configuredName == models[i].File && fileExists(configured) {
+			path, installed = configured, true
+		}
+		if installed {
+			models[i].Path = path
+			models[i].Installed = true
+			models[i].Removable = filepath.Clean(path) == owned
+		}
+	}
+	return models
+}
+
 func dictationGet() error {
 	values := dictationValues()
-	models := dictationCatalogue()
-	for i := range models {
-		path := filepath.Join(dictationModelsDir(), models[i].File)
-		models[i].Path = path
-		if models[i].Bundled {
-			models[i].Path = dictationBundledPath()
-			models[i].Installed = fileExists(models[i].Path)
-			continue
-		}
-		models[i].Installed = fileExists(path)
-		if !models[i].Installed {
-			models[i].Path = ""
-		}
-	}
+	engine := dictationEnginePath()
 
 	snapshot := dictationSnapshot{
-		Enabled:        values["enabled"] == "true" || values["enabled"] == "1" || values["enabled"] == "yes" || values["enabled"] == "on",
-		Source:         values["source"],
-		Model:          values["model"],
-		Device:         orDefault(values["device"], "auto"),
-		Language:       values["language"],
-		Mode:           orDefault(values["mode"], "paste"),
-		MaxDuration:    dictationInt(values, "max_duration_secs", 120),
-		SilenceMs:      dictationInt(values, "silence_ms", 1500),
-		SilenceDb:      dictationInt(values, "silence_db", -45),
-		TypeDelayMs:    dictationInt(values, "type_delay_ms", 2),
-		Engine:         onPath("ryoku-dictate"),
-		Models:         models,
-		Sources:        dictationSources(),
-		BundledModelID: "parakeet-110m",
+		Enabled:     values["enabled"] == "true" || values["enabled"] == "1" || values["enabled"] == "yes" || values["enabled"] == "on",
+		Source:      values["source"],
+		Model:       values["model"],
+		Device:      orDefault(values["device"], "auto"),
+		Language:    values["language"],
+		Mode:        orDefault(values["mode"], "paste"),
+		MaxDuration: dictationInt(values, "max_duration_secs", 120),
+		SilenceMs:   dictationInt(values, "silence_ms", 1500),
+		SilenceDb:   dictationInt(values, "silence_db", -45),
+		TypeDelayMs: dictationInt(values, "type_delay_ms", 2),
+		Engine:      engine != "",
+		Models:      dictationModelInventory(values["model"]),
+		Sources:     dictationSources(),
 	}
-	snapshot.Backends, snapshot.GPU = dictationBackends()
+	var resolvedModel string
+	snapshot.Backends, snapshot.GPU, resolvedModel = dictationEngineConfig(engine)
+	if snapshot.Model == "" {
+		snapshot.Model = resolvedModel
+	}
 	snapshot.PackageAvailable, snapshot.PackageReason = dictationPackageAvailability()
 	snapshot.ActiveModel, snapshot.State, snapshot.Running, snapshot.ActiveBackend = dictationStatus()
 	body, err := json.Marshal(snapshot)
@@ -264,26 +276,34 @@ func orDefault(value, fallback string) string {
 	return value
 }
 
-// dictationBackends asks the binary which compute backends it was built with and
-// which one is actually present. A GPU toggle that cannot light up is worse than
-// no toggle, so the page shows exactly this.
-func dictationBackends() (backends, gpu string) {
-	out, err := exec.Command("ryoku-dictate", "--print-config").Output()
+func dictationEnginePath() string {
+	system := filepath.Join(orDefault(os.Getenv("RYOKU_DICTATION_PREFIX"), "/"), "usr", "bin", "ryoku-dictate")
+	if fileExists(system) {
+		return system
+	}
+	path, _ := exec.LookPath("ryoku-dictate")
+	return path
+}
+
+func dictationEngineConfig(engine string) (backends, gpu, model string) {
+	out, err := exec.Command(engine, "--print-config").Output()
 	if err != nil {
-		return "cpu", "none"
+		return "cpu", "none", ""
 	}
 	for _, line := range strings.Split(string(out), "\n") {
 		if strings.HasPrefix(line, "backend=") {
 			backends = strings.TrimSpace(strings.TrimPrefix(line, "backend="))
+		} else if strings.HasPrefix(line, "model=") {
+			model = strings.TrimSpace(strings.TrimPrefix(line, "model="))
 		}
 	}
 	backends = orDefault(backends, "cpu")
 	for _, candidate := range []string{"vulkan", "cuda", "rocm"} {
 		if strings.Contains(backends, candidate) {
-			return backends, candidate
+			return backends, candidate, model
 		}
 	}
-	return backends, "none"
+	return backends, "none", model
 }
 
 func dictationSources() []dictationSource {
@@ -424,8 +444,8 @@ func dictationSet(raw string) error {
 			return errors.New("device must be auto, cpu or gpu")
 		}
 		if *update.Device == "gpu" {
-			if _, gpu := dictationBackends(); gpu == "none" {
-				return errors.New("no GPU backend is installed; install ryoku-dictation-vulkan first")
+			if _, gpu, _ := dictationEngineConfig(dictationEnginePath()); gpu == "none" {
+				return errors.New("GPU dictation is unavailable on this machine; a working Vulkan driver and GPU backend are required")
 			}
 		}
 		changes["device"] = *update.Device
@@ -511,19 +531,7 @@ func dictationWriteConf(changes map[string]string) error {
 }
 
 func dictationModels() error {
-	models := dictationCatalogue()
-	for i := range models {
-		path := filepath.Join(dictationModelsDir(), models[i].File)
-		if models[i].Bundled {
-			models[i].Installed = fileExists(dictationBundledPath())
-			models[i].Path = dictationBundledPath()
-			continue
-		}
-		models[i].Installed = fileExists(path)
-		if models[i].Installed {
-			models[i].Path = path
-		}
-	}
+	models := dictationModelInventory(dictationValues()["model"])
 	body, err := json.Marshal(models)
 	if err != nil {
 		return err
@@ -543,9 +551,6 @@ func dictationInstall(id string) error {
 	}
 	if chosen == nil {
 		return fmt.Errorf("unknown model: %s", id)
-	}
-	if chosen.Bundled {
-		return errors.New("the bundled model ships with ryoku-dictation and is always installed")
 	}
 
 	dir := dictationModelsDir()
@@ -637,10 +642,10 @@ func dictationRemove(id string) error {
 	if chosen == nil {
 		return fmt.Errorf("unknown model: %s", id)
 	}
-	if chosen.Bundled {
-		return errors.New("the bundled model belongs to the ryoku-dictation package")
-	}
 	path := filepath.Join(dictationModelsDir(), chosen.File)
+	if !fileExists(path) && fileExists(filepath.Join(dictationSystemModelsDir(), chosen.File)) {
+		return errors.New("this model is installed system-wide; only downloaded models can be removed here")
+	}
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return err
 	}

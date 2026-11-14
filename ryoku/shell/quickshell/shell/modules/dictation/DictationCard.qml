@@ -17,6 +17,7 @@ Item {
     property real levelDb: -120
     property string modelName: ""
     property string errorText: ""
+    implicitHeight: Math.ceil((root.failed ? Math.max(120, proofLabel.implicitHeight + 56) : 120) * root.s)
 
     readonly property string word: offNote ? I18n.tr("Dictation is off")
         : failed ? I18n.tr("Dictation failed")
@@ -54,6 +55,7 @@ Item {
             visible: !root.live && (root.busy || root.loading)
         }
         L.Label {
+            id: proofLabel
             x: 16
             y: 40
             width: parent.width - 32
@@ -61,7 +63,8 @@ Item {
             text: root.proof
             typeRole: "detail"
             inkRole: "fg2"
-            elide: Text.ElideRight
+            wrapMode: root.failed ? Text.Wrap : Text.NoWrap
+            elide: root.failed ? Text.ElideNone : Text.ElideRight
         }
         EngravedLevel {
             x: 16

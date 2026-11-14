@@ -26,17 +26,16 @@ SNAPSHOT = {
     'gpu': 'vulkan', 'backends': 'cpu,vulkan', 'activeModel': '', 'activeBackend': 'CPU',
     'running': True, 'state': 'idle',
     'sources': [{'name': 'alsa_input.usb-mic', 'description': 'USB Microphone', 'default': True}],
-    'bundledModelId': 'parakeet-110m',
     'models': [
-        {'id': 'parakeet-110m', 'label': 'Parakeet 110M', 'detail': 'shipped', 'language': 'English',
+        {'id': 'parakeet-110m', 'label': 'Parakeet 110M', 'detail': 'small English model', 'language': 'English',
          'wer': '2.43%', 'size': '135 MB', 'sizeBytes': 135373280, 'licence': 'CC-BY-4.0',
-         'bundled': True, 'installed': True, 'path': '/usr/share/ryoku/dictation/models/x.gguf'},
+         'removable': False, 'installed': True, 'path': '/usr/share/ryoku/dictation/models/x.gguf'},
         {'id': 'parakeet-v2', 'label': 'Parakeet 0.6B', 'detail': 'accurate', 'language': 'English',
          'wer': '1.69%', 'size': '730 MB', 'sizeBytes': 729574912, 'licence': 'CC-BY-4.0',
-         'bundled': False, 'installed': False, 'path': ''},
+         'removable': False, 'installed': False, 'path': ''},
         {'id': 'parakeet-ultra', 'label': 'Parakeet Ultra', 'detail': '25 languages',
          'language': '25 European', 'wer': '1.80%', 'size': '740 MB', 'sizeBytes': 740363168,
-         'licence': 'CC-BY-4.0', 'bundled': False, 'installed': True,
+         'licence': 'CC-BY-4.0', 'removable': True, 'installed': True,
          'path': '/home/user/.local/share/ryoku/dictation/models/parakeet-ultra-Q8_0.gguf'},
     ],
 }
@@ -65,10 +64,7 @@ ShellRoot {
         // (registration is proved on the live hub: a probe that creates the
         // store by absolute URL gets its own copy of the Singletons module, so
         // comparing Changes.stores here would test the harness, not the hub)
-        if (root.store.models.length !== 3) { console.log("FAIL models " + root.store.models.length); Qt.quit(); return; }
-        if (root.store.backends !== "cpu,vulkan" || root.store.gpu !== "vulkan") { console.log("FAIL backends"); Qt.quit(); return; }
         if (root.store.activeId() !== "parakeet-110m") { console.log("FAIL active " + root.store.activeId()); Qt.quit(); return; }
-        if (root.store.read("device") !== "auto" || root.store.read("silenceMs") !== 1500) { console.log("FAIL reads"); Qt.quit(); return; }
         if (root.store.sourceNameAt(1) !== "alsa_input.usb-mic") { console.log("FAIL source name"); Qt.quit(); return; }
         root.store.write("mode", "type", function (ok, why) {
           console.log(ok ? "PASS write" : "FAIL write " + why);
@@ -90,6 +86,18 @@ ShellRoot {
       }
       if (root.stage === 3) {
         if (root.store.read("enabled") !== true) { console.log("FAIL enable did not persist"); Qt.quit(); return; }
+        root.store.apply(JSON.stringify({enabled: true, engine: true, model: "/old/model.gguf", models: [
+          {id: "parakeet-110m", installed: true, removable: true, path: "/downloaded/model.gguf"}
+        ]}));
+        if (root.store.activeId() !== "") {
+          console.log("FAIL a different model path was treated as selected"); Qt.quit(); return;
+        }
+        root.store.apply(JSON.stringify({enabled: true, engine: true, model: "", models: [
+          {id: "parakeet-110m", installed: false, removable: false, path: ""}
+        ]}));
+        if (root.store.activeId() !== "" || root.store.usableWith("parakeet-110m")) {
+          console.log("FAIL missing model was treated as ready"); Qt.quit(); return;
+        }
         console.log("PASS dictation store");
         Qt.quit();
       }

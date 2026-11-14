@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -451,5 +452,50 @@ func TestDictationOptInDoesNotDependOnARunningEngine(t *testing.T) {
 		if got := d.dictationEnabled(); got != step.enabled {
 			t.Fatalf("configuration %q: enabled=%t, want %t", step.body, got, step.enabled)
 		}
+	}
+}
+
+func TestVoiceReportsServiceStartFailure(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_RUNTIME_DIR", dir)
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("PATH", dir)
+	if err := os.MkdirAll(filepath.Join(dir, "ryoku"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "ryoku", "dictation.conf"), []byte("enabled=true\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	failure := "engine executable unavailable"
+	if err := os.WriteFile(filepath.Join(dir, "ryoku-host"), []byte("#!/bin/sh\nprintf '%s\\n' '"+failure+"' >&2\nexit 1\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	d := &daemon{quit: make(chan struct{})}
+	d.startDictation()
+	defer close(d.quit)
+	d.voice()
+	frame := d.currentDictation()
+	if frame.State != "error" || !strings.Contains(frame.Error, failure) {
+		t.Fatalf("the voice card lost the startup failure: %+v", frame)
+	}
+}
+
+func TestDictationDoesNotTreatAStaleSocketAsReady(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_RUNTIME_DIR", dir)
+	t.Setenv("PATH", dir)
+	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: dictateSocket(), Net: "unix"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	listener.SetUnlinkOnClose(false)
+	if err := listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "ryoku-host"), []byte("#!/bin/sh\nexit 1\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := (&daemon{}).ensureDictate(); err == nil {
+		t.Fatal("an abandoned socket suppressed service startup")
 	}
 }

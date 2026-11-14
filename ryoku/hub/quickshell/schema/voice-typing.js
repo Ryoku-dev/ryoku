@@ -24,20 +24,20 @@ var rows = [
       keywords: ["dictation", "speech to text", "stt", "microphone", "dictate", "on", "off"],
       control: "toggle", bind: vt("enabled"), "default": false },
     { id: "vt-install", section: "voice", label: "Install voice typing",
-      detail: "Voice typing needs the Ryoku engine, about 140 MB with the shipped model. A terminal opens to confirm the install",
+      detail: "Install the Ryoku engine. Speech models are downloaded separately below",
       keywords: ["install", "engine", "package", "dictation", "ryoku-dictation"], control: "custom", activatable: true },
     { id: "vt-shortcut", section: "voice", label: "Voice typing shortcut",
       detail: "Change the keys that start and stop voice typing",
       keywords: ["hotkey", "keybind", "shortcut", "super grave"], control: "link", link: "shortcuts" },
 
     { id: "vt-device", section: "model", label: "Runs on",
-      detail: "Automatic uses the GPU when a backend is installed. CPU needs nothing extra and is quick for the smaller models",
+      detail: "Automatic uses a supported GPU with a working Vulkan driver. CPU is available on every machine",
       keywords: ["gpu", "cpu", "vulkan", "cuda", "acceleration", "speed", "backend"],
       control: "segmented", options: [
           { label: "Automatic", value: "auto" }, { label: "CPU", value: "cpu" }, { label: "GPU", value: "gpu" }
       ], bind: vt("device"), "default": "auto" },
 
-    model("parakeet-110m", "Parakeet 110M", "English only. The model Ryoku ships: 135 MB, no download needed", ["parakeet", "english", "small", "shipped"]),
+    model("parakeet-110m", "Parakeet 110M", "English only. Small and quick, 135 MB download", ["parakeet", "english", "small", "download"]),
     model("parakeet-v2", "Parakeet 0.6B", "English only. Clearly more accurate, still quick on a CPU", ["parakeet", "english", "accurate"]),
     model("parakeet-ultra", "Parakeet Ultra", "25 European languages, detected by itself", ["parakeet", "ultra", "european", "multilingual"]),
     model("whisper-turbo", "Whisper Large v3 Turbo", "About 100 languages, for anything outside Parakeet's set", ["whisper", "turbo", "multilingual", "languages"]),

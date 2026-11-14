@@ -22,7 +22,7 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
-option(RYOKU_DICTATION_GPU "Build the Vulkan ggml backend" OFF)
+option(RYOKU_DICTATION_GPU "Build the Vulkan ggml backend" ON)
 option(RYOKU_DICTATION_TEST "Build the unit tests" ON)
 
 find_package(PkgConfig REQUIRED)

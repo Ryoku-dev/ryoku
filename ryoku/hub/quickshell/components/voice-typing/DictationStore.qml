@@ -64,12 +64,6 @@ QtObject {
         return store.sources[index - 1].name;
     }
 
-    function basename(path) {
-        var t = String(path || "");
-        var slash = t.lastIndexOf("/");
-        return slash === -1 ? t : t.substring(slash + 1);
-    }
-
     function modelFor(id) {
         for (var i = 0; i < store.models.length; i++)
             if (store.models[i].id === id)
@@ -77,26 +71,19 @@ QtObject {
         return null;
     }
 
-    // which catalogue entry the daemon is actually using: an explicit path wins,
-    // otherwise the shipped model
     function activeId() {
         var path = String(store.model || "");
-        if (path.length === 0) {
-            for (var i = 0; i < store.models.length; i++)
-                if (store.models[i].bundled === true)
-                    return store.models[i].id;
+        if (path.length === 0)
             return "";
-        }
-        var name = store.basename(path);
         for (var j = 0; j < store.models.length; j++)
-            if (store.models[j].path === path || store.basename(store.models[j].path) === name)
+            if (store.models[j].installed === true && store.models[j].path === path)
                 return store.models[j].id;
         return "";
     }
 
     function usableWith(id) {
         var m = store.modelFor(id);
-        return m !== null && (m.bundled === true || m.installed === true);
+        return m !== null && m.installed === true;
     }
 
     // "model@<id>" is one model row's way to choose the model: the same value as "model"

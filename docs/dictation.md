@@ -55,12 +55,11 @@ pipeline, so the numbers compare.
 | parakeet-ultra | 740 MB | 1.80% | 25 European |
 | whisper-large-v3-turbo | 886 MB | 2.01% | about 100 |
 
-The first ships inside the package, so dictation works on a fresh install with
-no download. Settings > Apps > Voice typing names the selected model beside the
-toggle and marks it **In use** under **Engine and model**. The other models have
-**Download** controls; installed models have **Use** controls. A completed
-download selects that model, while an unfinished download leaves the current
-choice alone.
+Updates deliver the engine, not speech models. Every model has an explicit
+**Download** control in Settings > Apps > Voice typing, including Parakeet 110M.
+Installed models have **Use** controls, and the selected model is marked
+**In use** under **Engine and model**. A completed, verified download selects
+that model, while an unfinished download leaves the current choice alone.
 
 Each model is pinned by SHA-256 in `ryoku/hub/backend/dictation.go`, downloaded
 to a `.part` file and renamed only after the hash matches, so a cancelled or
@@ -69,15 +68,15 @@ row shows **Cancel**.
 
 ## The CPU and GPU switch
 
-The engine library and its compute backends are shared modules in
-`/usr/lib/ryoku/dictation`, so the switch is a setting and not a reinstall: the
-base package ships the CPU module, and the optional `ryoku-dictation-vulkan`
-package adds the Vulkan module beside it. Settings offers Automatic, CPU and GPU,
-and asking for GPU with no backend installed is refused with that reason rather
-than quietly running on the CPU, because the point of asking was speed.
+The engine package includes CPU and Vulkan modules together under
+`/usr/lib/ryoku/dictation`; GPU support no longer needs a separate package.
+Settings probes the engine on the machine using it. A working Vulkan driver
+and supported GPU are still required; CPU remains available when they are
+absent. Asking explicitly for an unavailable GPU reports that failure rather
+than silently switching to CPU.
 
 Measured on an 11-second clip (Ryzen 9 7940HS, RTX 4060 / Radeon 780M): the
-bundled 110M model takes 117 ms on the CPU and 42 ms on Vulkan; the 0.6B model
+110M model takes 117 ms on the CPU and 42 ms on Vulkan; the 0.6B model
 takes 485 ms and 113 ms. A GPU backend compiles its shaders on the first real
 run, which measured 11 s on a cold box, so the daemon warms the model while the
 card still says Preparing.
@@ -97,15 +96,12 @@ turning it off cancels the current recording or transcription. Checking status
 does not start the engine, and the shortcut checks the saved choice rather than
 treating a stopped process as a disabled feature.
 
-Source updates rebuild an already-installed voice engine through the same
-payload as the package, including its private libraries. They refresh a running
-engine without starting an inactive one; `deploy.sh --no-reload` leaves the
-current process alone. A source update does not install or enable voice typing
-when the feature is absent.
-
-Removing the feature leaves nothing behind: `ryoku-host pkg remove
-ryoku-dictation` stops the on-demand unit, and no other part of the desktop
-needs it.
+Source updates install the voice engine even when it was absent, through the
+same model-free payload as the package. The executable, private CPU/Vulkan
+libraries and on-demand service arrive together. The user manager reloads the
+new service definition without enabling it; an active engine is restarted
+unless `deploy.sh --no-reload` was requested. Enabling voice typing remains a
+separate user choice, and pressing its shortcut starts the engine on demand.
 
 ## Tests
 

@@ -11,7 +11,6 @@ namespace ryoku {
 // defaults below. Nothing here is a compositor or shell concept.
 struct Config {
     bool enabled = false;
-    // Empty picks the shipped model; an explicit path wins over it.
     std::string model;
     // auto | cpu | gpu. gpu refuses to fall back silently: a user who asked for
     // the GPU must hear that the backend is missing, not feel a slow CPU.
@@ -36,13 +35,8 @@ struct Config {
     static Config load();
     static std::string path();
 
-    // /usr/share/ryoku/dictation/models/... — the model the package ships.
-    // RYOKU_DICTATION_PREFIX relocates the whole read-only tree, so a package
-    // staging directory can be proved without installing it.
-    static std::string shippedModel();
+    static std::string systemModel();
     static std::string userModelDir();
-    // explicit path, then the user copy of the shipped name, then the shipped
-    // file, then the newest .gguf in the user directory. Empty when none exists.
     static std::string resolveModel(const Config& config);
 
     static const char* sourceKey();

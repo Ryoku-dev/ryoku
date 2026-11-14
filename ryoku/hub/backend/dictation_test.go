@@ -20,6 +20,7 @@ func isolate(t *testing.T) (conf string) {
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
 	t.Setenv("XDG_RUNTIME_DIR", filepath.Join(home, "run"))
+	t.Setenv("RYOKU_DICTATION_PREFIX", home)
 	t.Setenv("PATH", t.TempDir())
 	return dictationConfPath()
 }
@@ -149,15 +150,51 @@ func TestDictationDownloadVerifiesBeforePublishing(t *testing.T) {
 	}
 }
 
-func TestDictationRemoveRefusesTheBundledModel(t *testing.T) {
+func TestDictationRemovesDownloadedRecommendedModel(t *testing.T) {
 	isolate(t)
-	if err := dictationRemove("parakeet-110m"); err == nil {
-		t.Error("the bundled model was removed from under the package")
-	} else if !strings.Contains(err.Error(), "package") {
-		t.Errorf("removal refusal should explain why, got %q", err)
+	path := filepath.Join(dictationModelsDir(), dictationCatalogue()[0].File)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
 	}
-	if err := dictationRemove("no-such-model"); err == nil {
-		t.Error("an unknown model id was accepted")
+	if err := os.WriteFile(path, []byte("downloaded model"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := dictationWriteConf(map[string]string{"model": path}); err != nil {
+		t.Fatal(err)
+	}
+	model := dictationModelInventory(path)[0]
+	if !model.Installed || !model.Removable || model.Path != path {
+		t.Fatalf("downloaded model is not usable and removable: %+v", model)
+	}
+	if err := dictationRemove(model.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("downloaded model survived removal: %v", err)
+	}
+	if dictationValues()["model"] != "" {
+		t.Fatal("removed model is still selected")
+	}
+}
+
+func TestDictationSystemModelsRemainReadOnly(t *testing.T) {
+	isolate(t)
+	path := filepath.Join(dictationSystemModelsDir(), dictationCatalogue()[0].File)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("existing system model"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	model := dictationModelInventory("")[0]
+	if !model.Installed || model.Removable || model.Path != path {
+		t.Fatalf("system model is not usable and read-only: %+v", model)
+	}
+	if err := dictationRemove(model.ID); err == nil {
+		t.Fatal("user removal accepted a system model")
+	}
+	if !fileExists(path) {
+		t.Fatal("user removal deleted a system model")
 	}
 }
 
@@ -204,12 +241,6 @@ func TestDictationGetReportsTheEngine(t *testing.T) {
 	}
 	if snapshot.Engine {
 		t.Error("the engine was reported installed with nothing on PATH")
-	}
-	if snapshot.BundledModelID == "" {
-		t.Error("no bundled model named")
-	}
-	if len(snapshot.Models) != 4 {
-		t.Errorf("catalogue has %d entries, want 4", len(snapshot.Models))
 	}
 }
 

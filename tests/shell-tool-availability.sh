@@ -90,8 +90,7 @@ declare -A need=(
   [night-light-hyprland]=hyprsunset
   [night-light-niri]=wlsunset
   [voice-type]=wtype
-  # voice typing is Ryoku's own engine: one package holds the daemon, the
-  # inference library and the shipped model, so a fresh box dictates offline.
+  # the engine and both compute backends arrive before any model is downloaded
   [voice-stt]=ryoku-dictation
   # key sounds on niri: the Hub's Window Manager page installs
   # ryoku-keysounds-niri on demand (the samples come from

@@ -701,13 +701,6 @@ piece_end
 install -m755 "$here/../hub/backend/ryoku-hub" "$bindir/ryoku-hub"
 say "installed $bindir/ryoku-hub"
 
-if command -v ryoku-dictate >/dev/null 2>&1; then
-  piece dictation "ryoku-dictate, the voice typing engine"
-  dictation_args=()
-  (( reload )) || dictation_args+=(--no-reload)
-  "$here/../dictation/deploy.sh" "${dictation_args[@]}"
-  piece_end
-fi
 # Build beside the destination so a failed build keeps the working copy.
 piece rashin "Rashin, the optional AI system"
 rashin_module="$here/../rashin"
@@ -769,6 +762,7 @@ build_go "$here/../cli" ryoku
 build_go "$here/../cli" ryoku-host ./cmd/ryoku-host
 piece_end
 install -m755 "$here/../cli/ryoku" "$bindir/ryoku"
+install -m755 "$here/../cli/ryoku-host" "$bindir/ryoku-host"
 # every system helper the package ships to /usr/bin, by the same globs, so a new
 # hardware or container helper reaches a checkout the moment it lands.
 for s in "$here/../../system/hardware"/*/ryoku-* "$here/../../system/containers"/ryoku-*; do
@@ -793,6 +787,12 @@ say "installed the AI-usage guard and collectors to $bindir"
 "$bindir/ryoku" vault refresh \
   || say "vault refresh failed: run $bindir/ryoku vault refresh to retry"
 say "installed Ryoku CLI and hardware helpers"
+
+piece dictation "ryoku-dictate, the voice typing engine"
+dictation_args=()
+(( reload )) || dictation_args+=(--no-reload)
+PATH="$bindir:$PATH" "$here/../dictation/deploy.sh" "${dictation_args[@]}"
+piece_end
 
 # Privileged network helpers + their polkit rules. A packaged install ships these
 # to /usr/bin and /usr/share/polkit-1/rules.d; a dev box has neither, so pkexec

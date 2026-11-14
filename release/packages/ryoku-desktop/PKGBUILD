@@ -128,9 +128,7 @@ depends=(
   # ryoku doctor enables its user unit and retires any old awww-daemon. See
   # release/packages/ryogami/PKGBUILD.
   'ryogami'
-  # ryoku-dictation: Ryoku's own voice typing. A hard depend because the voice
-  # keybind is shipped, and the package carries the English model so dictation
-  # works on a fresh install with no download.
+  # the shortcut needs an engine even before the user downloads a speech model
   'ryoku-dictation'
   # live (video) wallpapers: the daemon grabs one frame with ffmpeg to derive the
   # wallpaper palette. official repo, so a hard depend reaches existing boxes.

@@ -18,7 +18,7 @@ PanelWindow {
     anchors { top: true; left: true }
     margins { top: Math.round(24 * root.s); left: Math.round(24 * root.s) }
     implicitWidth: Math.round(344 * s)
-    implicitHeight: Math.round((expanded ? 136 : 64) * s)
+    implicitHeight: Math.round((expanded ? Math.max(136, card.implicitHeight / s + 16) : 64) * s)
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.namespace: "ryoku-dictation"
@@ -63,6 +63,7 @@ PanelWindow {
         }
 
         DictationCard {
+            id: card
             anchors.fill: parent
             s: root.s
             state: Dictation.state

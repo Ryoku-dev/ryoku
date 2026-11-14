@@ -96,7 +96,7 @@ transcribe_backend_request pickBackend(const std::string& device, std::string& e
         if (transcribe_backend_available(backend))
             return backend;
     }
-    err = "GPU backend is not installed";
+    err = "GPU support is unavailable; check the engine installation and Vulkan driver";
     return TRANSCRIBE_BACKEND_AUTO;
 }
 

@@ -42,6 +42,10 @@ qt6-quick3d
 vulkan-headers
 mesa
 
+# dictation's Vulkan backend needs glslc and the Vulkan loader at build time
+shaderc
+vulkan-icd-loader
+
 # ryoku-desktop and ryomanager still build their GTK3/WebKit hosts.
 gtk3
 webkit2gtk-4.1

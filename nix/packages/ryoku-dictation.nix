@@ -10,12 +10,6 @@ let
     hash = "sha256-VFU3Thitqg15/0gQSxMQnRXdYALt2pme2hF5qG6gnFs=";
   };
 
-  # The English model the package ships, so dictation works on first boot with no
-  # download and nothing is loaded until the user turns dictation on.
-  model = pkgs.fetchurl {
-    url = "https://huggingface.co/handy-computer/parakeet-tdt_ctc-110m-gguf/resolve/main/parakeet-tdt_ctc-110m-Q8_0.gguf";
-    hash = "sha256-fdRMdKMx14ik5fixaROz/rKc7SLPVhOq0OD2zTBRYpY=";
-  };
 in
 pkgs.stdenv.mkDerivation {
   pname = "ryoku-dictation";
@@ -23,15 +17,15 @@ pkgs.stdenv.mkDerivation {
 
   inherit src;
   dontUnpack = true;
+  dontConfigure = true;
 
-  nativeBuildInputs = [ pkgs.cmake pkgs.ninja pkgs.pkg-config ];
-  buildInputs = [ pkgs.pipewire pkgs.wayland pkgs.libxkbcommon ];
+  nativeBuildInputs = [ pkgs.cmake pkgs.ninja pkgs.pkg-config pkgs.shaderc ];
+  buildInputs = [ pkgs.pipewire pkgs.wayland pkgs.libxkbcommon pkgs.vulkan-headers pkgs.vulkan-loader ];
 
   buildPhase = ''
     runHook preBuild
     mkdir -p build-root engine
     tar xzf ${engineTar} -C engine --strip-components=1
-    cp ${model} build-root/parakeet-tdt_ctc-110m-Q8_0.gguf
     RYOKU_SRC=$src \
     RYOKU_BUILD_DIR="$PWD/build-root" \
     TRANSCRIBE_SRC="$PWD/engine" \

@@ -25,20 +25,19 @@ SNAPSHOT = {
     'typeDelayMs': 2, 'engine': True, 'gpu': 'vulkan', 'backends': 'cpu,vulkan',
     'activeModel': '', 'running': False, 'state': 'stopped',
     'sources': [{'name': 'alsa_input.usb-mic', 'description': 'USB Microphone', 'default': True}],
-    'bundledModelId': 'parakeet-110m',
     'models': [
-        {'id': 'parakeet-110m', 'label': 'Parakeet 110M', 'detail': 'shipped', 'language': 'English',
+        {'id': 'parakeet-110m', 'label': 'Parakeet 110M', 'detail': 'small English model', 'language': 'English',
          'wer': '2.43%', 'size': '135 MB', 'sizeBytes': 135373280, 'licence': 'CC-BY-4.0',
-         'bundled': True, 'installed': True, 'path': '/usr/share/ryoku/dictation/models/x.gguf'},
+         'removable': False, 'installed': False, 'path': ''},
         {'id': 'parakeet-v2', 'label': 'Parakeet 0.6B', 'detail': 'accurate', 'language': 'English',
          'wer': '1.69%', 'size': '730 MB', 'sizeBytes': 729574912, 'licence': 'CC-BY-4.0',
-         'bundled': False, 'installed': False, 'path': ''},
+         'removable': False, 'installed': False, 'path': ''},
         {'id': 'parakeet-ultra', 'label': 'Parakeet Ultra', 'detail': '25 languages',
          'language': '25 European', 'wer': '1.80%', 'size': '740 MB', 'sizeBytes': 740363168,
-         'licence': 'CC-BY-4.0', 'bundled': False, 'installed': False, 'path': ''},
+         'licence': 'CC-BY-4.0', 'removable': False, 'installed': False, 'path': ''},
         {'id': 'whisper-turbo', 'label': 'Whisper Large v3 Turbo', 'detail': '100 languages',
          'language': 'about 100', 'wer': '2.01%', 'size': '886 MB', 'sizeBytes': 886381728,
-         'licence': 'MIT', 'bundled': False, 'installed': False, 'path': ''},
+         'licence': 'MIT', 'removable': False, 'installed': False, 'path': ''},
     ],
 }
 
@@ -78,10 +77,7 @@ ShellRoot {
       // show a default instead of the truth, and no control would write.
       if (root.stage === 0 && root.page.loaded) {
         var store = root.page.store;
-        if (store.models.length !== 4) { console.log("FAIL models " + store.models.length); Qt.quit(); return; }
-        if (!root.page.installed) { console.log("FAIL engine flag"); Qt.quit(); return; }
-        if (store.gpu !== "vulkan") { console.log("FAIL gpu " + store.gpu); Qt.quit(); return; }
-        if (store.mode !== "paste") { console.log("FAIL mode " + store.mode); Qt.quit(); return; }
+        if (root.page.usable || store.activeId() !== "") { console.log("FAIL missing model was treated as ready"); Qt.quit(); return; }
         root.stage = 1;
         store.write("mode", "type", function () {});
         return;

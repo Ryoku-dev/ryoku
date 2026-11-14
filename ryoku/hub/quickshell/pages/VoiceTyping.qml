@@ -34,9 +34,11 @@ Item {
 
     readonly property string stateLine: !root.loaded ? ""
         : !root.installed ? I18n.tr("The Ryoku engine is not installed.")
-        : root.store.enabled && root.current && root.store.activeBackend !== ""
-            ? I18n.tr("On, listening with %1 on %2.").arg(I18n.tr(root.current.label)).arg(root.store.activeBackend)
-        : root.store.enabled && root.current ? I18n.tr("On, listening with %1.").arg(I18n.tr(root.current.label))
+        : !root.store.enabled ? I18n.tr("Off.")
+        : !root.usable ? I18n.tr("Choose or download a speech model below to use voice typing.")
+        : root.store.state === "recording" && root.current && root.store.activeBackend !== ""
+            ? I18n.tr("Listening with %1 on %2.").arg(I18n.tr(root.current.label)).arg(root.store.activeBackend)
+        : root.current ? I18n.tr("On, ready to use %1.").arg(I18n.tr(root.current.label))
         : I18n.tr("Off.")
 
     // model rows carry the accuracy and size that decide them, in mono because
@@ -48,10 +50,8 @@ Item {
             parts.push(I18n.tr("Downloading"));
         else if (root.store.removing === m.id)
             parts.push(I18n.tr("Removing"));
-        else if (m.bundled === true)
-            parts.push(I18n.tr("Shipped"));
         else
-            parts.push(m.installed === true ? I18n.tr("Downloaded") : m.size);
+            parts.push(m.installed === true ? I18n.tr("Installed") : m.size);
         return parts.join(" · ") + "\n" + I18n.tr(m.detail);
     }
 
@@ -64,7 +64,7 @@ Item {
         var m = root.store.modelFor(id);
         if (!m || root.store.downloading !== "" || root.store.removing !== "")
             return;
-        if (m.bundled === true || m.installed === true) {
+        if (m.installed === true) {
             Changes.set(root.choiceBind(id), id, "Speech model", "voice-typing");
             return;
         }
@@ -84,11 +84,9 @@ Item {
         var m = root.store.modelFor(id);
         if (!m)
             return;
-        var inUse = root.store.activeId() === id;
         root.hub.confirm({
             title: I18n.tr("Remove %1?").arg(I18n.tr(m.label)),
-            text: inUse ? I18n.tr("The model is deleted from this computer. Voice typing falls back to the shipped model.")
-                        : I18n.tr("The model is deleted from this computer. You can download it again."),
+            text: I18n.tr("The model is deleted from this computer. You can download it again."),
             actionText: I18n.tr("Remove"),
             store: "dictation"
         }, function () { root.store.removeModel(id); });
@@ -264,7 +262,7 @@ Item {
             readonly property bool busy: model !== null && root.store.downloading === model.id
             readonly property bool removing: model !== null && root.store.removing === model.id
             readonly property bool inUse: model !== null && root.store.activeId() === model.id
-            readonly property bool ready: model !== null && (model.bundled === true || model.installed === true)
+            readonly property bool ready: model !== null && model.installed === true
             function activate() {
                 if (ctl.model && !ctl.busy && !ctl.inUse)
                     root.choose(ctl.model.id);
@@ -316,7 +314,7 @@ Item {
                 onClicked: ctl.activate()
             }
             IconPlaque {
-                visible: !ctl.busy && ctl.model !== null && ctl.model.bundled !== true && ctl.model.installed === true
+                visible: !ctl.busy && ctl.model !== null && ctl.model.installed === true && ctl.model.removable === true
                 enabled: root.store.downloading === "" && root.store.removing === ""
                 kind: "quiet"
                 small: true

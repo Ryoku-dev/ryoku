@@ -99,7 +99,11 @@ func (c *dictateConn) exchange(line string) ([]string, error) {
 	if _, err := conn.Write([]byte(line + "\n")); err != nil {
 		return nil, err
 	}
-	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	timeout := 2 * time.Second
+	if line == "start" || line == "toggle" {
+		timeout = time.Minute
+	}
+	_ = conn.SetReadDeadline(time.Now().Add(timeout))
 	reader := bufio.NewReader(conn)
 	var replies []string
 	for {
@@ -127,19 +131,34 @@ func (c *dictateConn) close() {
 	}
 }
 
-// ensureDictate starts the on-demand unit when its socket is missing. A failed
-// start is not fatal: the caller reports the reason the surface shows.
-func (d *daemon) ensureDictate() {
-	if _, err := os.Stat(dictateSocket()); err == nil {
-		return
+func (d *daemon) ensureDictate() error {
+	socket := dictateSocket()
+	ready := func() bool {
+		conn, err := net.DialTimeout("unix", socket, 100*time.Millisecond)
+		if err != nil {
+			return false
+		}
+		_ = conn.Close()
+		return true
 	}
-	_ = exec.Command("ryoku-host", "svc", "--user", "start", dictateService).Run()
+	if ready() {
+		return nil
+	}
+	out, err := exec.Command("ryoku-host", "svc", "--user", "start", dictateService).CombinedOutput()
+	if err != nil {
+		why := strings.TrimSpace(string(out))
+		if why == "" {
+			why = err.Error()
+		}
+		return fmt.Errorf("voice engine could not start: %s", why)
+	}
 	for range 20 {
-		if _, err := os.Stat(dictateSocket()); err == nil {
-			return
+		if ready() {
+			return nil
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
+	return errors.New("voice engine did not open its socket; check the ryoku-dictate service log")
 }
 
 // startDictation registers the topic and the calls, then keeps one connection
@@ -193,7 +212,9 @@ func (d *daemon) startDictation() {
 }
 
 func (d *daemon) dictateCommand(command string) (any, error) {
-	d.ensureDictate()
+	if err := d.ensureDictate(); err != nil {
+		return nil, err
+	}
 	replies, err := d.dictConn.send(command)
 	if err != nil {
 		return nil, err
@@ -444,8 +465,10 @@ func (d *daemon) voice() string {
 		d.publishDictation(frame)
 		return "ok"
 	}
-	d.ensureDictate()
-	_, err := d.dictateStatus()
+	err := d.ensureDictate()
+	if err == nil {
+		_, err = d.dictateStatus()
+	}
 	state := d.currentDictation().State
 	var command string
 	if state == "recording" {
