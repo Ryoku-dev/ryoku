@@ -97,6 +97,12 @@ turning it off cancels the current recording or transcription. Checking status
 does not start the engine, and the shortcut checks the saved choice rather than
 treating a stopped process as a disabled feature.
 
+Source updates rebuild an already-installed voice engine through the same
+payload as the package, including its private libraries. They refresh a running
+engine without starting an inactive one; `deploy.sh --no-reload` leaves the
+current process alone. A source update does not install or enable voice typing
+when the feature is absent.
+
 Removing the feature leaves nothing behind: `ryoku-host pkg remove
 ryoku-dictation` stops the on-demand unit, and no other part of the desktop
 needs it.

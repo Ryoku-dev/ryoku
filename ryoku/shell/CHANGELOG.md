@@ -3,6 +3,8 @@
 ## Unreleased
 - **Voice typing starts off until you enable it, and its toggle now works in
   both directions without the shortcut or voice card reporting the wrong state**
+- Source updates now rebuild an installed voice engine too, without starting
+  an inactive one or leaving an older native daemon behind.
 - **Type mode now inserts the spoken text after focus changes instead of
   sending the physical keys from a cached layout.**
 - **Voice typing now names the selected model and shows the model catalogue

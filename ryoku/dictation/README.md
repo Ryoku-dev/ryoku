@@ -103,6 +103,12 @@ directory) and `RYOKU_DICTATION_PREFIX` (a staging root, so `makepkg`, `nix` and
 The engine is fetched at a pinned tag and hash by CMake; point `TRANSCRIBE_SRC`
 at a checkout to build offline.
 
+The shell's source deploy calls `./deploy.sh` when the engine is already
+installed. It installs missing PipeWire, Wayland and xkbcommon development
+files, builds the package payload and replaces the installed native files.
+It only restarts an active user service; `--no-reload` leaves the current
+process alone. `DESTDIR` stages the same payload without changing services.
+
 A dictation can be proved end to end without a microphone: make a loopback pair,
 play a clip into it, record from the other end.
 

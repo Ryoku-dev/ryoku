@@ -700,6 +700,14 @@ build_go "$here/../hub/backend" ryoku-hub
 piece_end
 install -m755 "$here/../hub/backend/ryoku-hub" "$bindir/ryoku-hub"
 say "installed $bindir/ryoku-hub"
+
+if command -v ryoku-dictate >/dev/null 2>&1; then
+  piece dictation "ryoku-dictate, the voice typing engine"
+  dictation_args=()
+  (( reload )) || dictation_args+=(--no-reload)
+  "$here/../dictation/deploy.sh" "${dictation_args[@]}"
+  piece_end
+fi
 # Build beside the destination so a failed build keeps the working copy.
 piece rashin "Rashin, the optional AI system"
 rashin_module="$here/../rashin"
