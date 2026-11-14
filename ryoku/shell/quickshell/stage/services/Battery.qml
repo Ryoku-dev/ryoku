@@ -11,9 +11,11 @@ Singleton {
     id: root
 
     readonly property var displayDevice: UPower.displayDevice
-    // The display device is synthetic on some UPower versions and can lose
-    // laptop-battery metadata while the real pack remains present.
-    readonly property var device: {
+
+    // Presence, health and the charge-limit sysfs path stay on the physical
+    // battery pick (first present pack), which keeps its laptop-battery
+    // metadata where the synthetic display device does not.
+    readonly property var physicalDevice: {
         const devices = UPower.devices?.values ?? [];
         for (let i = 0; i < devices.length; ++i) {
             const candidate = devices[i];
@@ -23,11 +25,39 @@ Singleton {
         return root.displayDevice;
     }
 
+    // The display device is synthetic on some UPower versions and can lose
+    // laptop-battery metadata while the real pack remains present.
+    // Level and charge state follow the aggregate, not one pack: on a
+    // two-battery machine the first pack can sit parked by its controller
+    // ("Not charging" at 99 %) for hours while the other carries the load,
+    // and binding to it froze the readout and the low-battery warnings.
+    // An unusable aggregate falls back to the active pack, then to the
+    // physical pick.
+    readonly property var device: {
+        const agg = root.displayDevice;
+        if (agg && agg.ready !== false
+                && agg.state !== UPowerDeviceState.Unknown)
+            return agg;
+        let fallback = null;
+        const devices = UPower.devices?.values ?? [];
+        for (let i = 0; i < devices.length; ++i) {
+            const candidate = devices[i];
+            if (!candidate?.isLaptopBattery || !candidate?.isPresent) continue;
+            if (candidate.state === UPowerDeviceState.Discharging
+                    || candidate.state === UPowerDeviceState.Charging)
+                return candidate;
+            if (fallback === null) fallback = candidate;
+        }
+        return fallback ?? root.physicalDevice;
+    }
+
     // A battery that has not reported yet lies: 0 %, state Unknown. Anything that acts on the level
     // (warnings, automatic suspend) waits for this instead of trusting cold-start values.
-    readonly property bool deviceReady: (device?.ready ?? false) && (device?.isPresent ?? false)
+    readonly property bool deviceReady: (physicalDevice?.ready ?? false)
+        && (physicalDevice?.isPresent ?? false)
 
-    property bool available: (device?.isLaptopBattery ?? false) && (device?.isPresent ?? false)
+    property bool available: (physicalDevice?.isLaptopBattery ?? false)
+        && (physicalDevice?.isPresent ?? false)
     property var chargeState: device?.state ?? UPowerDeviceState.Unknown
     property bool isCharging: chargeState == UPowerDeviceState.Charging
     readonly property bool isFullyCharged: chargeState == UPowerDeviceState.FullyCharged
@@ -35,7 +65,11 @@ Singleton {
     // The AC line, not the battery state, is what says whether a charger is attached: a pack held at
     // its charge limit reports Discharging or PendingCharge at ~0 W with the charger plugged in.
     readonly property bool onAc: !UPower.onBattery
-    property bool isPluggedIn: onAc || isCharging || isFullyCharged
+    // A parked pack (its controller holding it at 99 % "Not charging") reports
+    // FullyCharged for hours while the machine runs off the other battery, so
+    // "fully charged" is not evidence of a plug on a two-battery laptop; the
+    // AC line above is the plug signal.
+    property bool isPluggedIn: onAc || isCharging
         || chargeState == UPowerDeviceState.PendingCharge
 
     // UPower exposes a floating estimate that jitters below one displayed
@@ -70,15 +104,15 @@ Singleton {
         && (chargeLimitReached || (isPluggedIn && (isFullyCharged || percent >= 100)))
 
     property real health: {
-        if (!root.available || !(device?.healthSupported ?? false))
+        if (!root.available || !(physicalDevice?.healthSupported ?? false))
             return 0;
-        const value = Number(device.healthPercentage) || 0;
+        const value = Number(physicalDevice.healthPercentage) || 0;
         if (value === 0)
             return 0.01;
         return value < 1 ? value * 100 : value;
     }
 
-    property string batteryNativePath: root.available ? String(device?.nativePath ?? "") : ""
+    property string batteryNativePath: root.available ? String(physicalDevice?.nativePath ?? "") : ""
 
     property int cycles: -1
 
