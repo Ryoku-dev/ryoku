@@ -70,7 +70,7 @@ Singleton {
 
     readonly property real rateW: !levelDev ? 0
         : (discharging ? -levelDev.changeRate : (charging ? levelDev.changeRate : 0))
-    readonly property real capacityWh: levelDev ? levelDev.energyCapacity : 0
+    readonly property real capacityWh: batDev ? batDev.energyCapacity : 0
 
     readonly property bool healthSupported: batDev ? batDev.healthSupported : false
     readonly property int health: batDev ? Math.round(batDev.healthPercentage) : 0

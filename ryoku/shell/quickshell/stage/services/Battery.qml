@@ -54,7 +54,7 @@ Singleton {
     // A battery that has not reported yet lies: 0 %, state Unknown. Anything that acts on the level
     // (warnings, automatic suspend) waits for this instead of trusting cold-start values.
     readonly property bool deviceReady: (physicalDevice?.ready ?? false)
-        && (physicalDevice?.isPresent ?? false)
+        && (physicalDevice?.isPresent ?? false) && (device?.ready ?? false)
 
     property bool available: (physicalDevice?.isLaptopBattery ?? false)
         && (physicalDevice?.isPresent ?? false)
@@ -65,12 +65,11 @@ Singleton {
     // The AC line, not the battery state, is what says whether a charger is attached: a pack held at
     // its charge limit reports Discharging or PendingCharge at ~0 W with the charger plugged in.
     readonly property bool onAc: !UPower.onBattery
-    // A parked pack (its controller holding it at 99 % "Not charging") reports
-    // FullyCharged for hours while the machine runs off the other battery, so
-    // "fully charged" is not evidence of a plug on a two-battery laptop; the
-    // AC line above is the plug signal.
-    property bool isPluggedIn: onAc || isCharging
-        || chargeState == UPowerDeviceState.PendingCharge
+    // Charge states describe the battery, not the AC line: a parked or stale
+    // pack can read FullyCharged or PendingCharge for hours while the machine
+    // runs off another battery, and both would read as "plugged in". Only the
+    // AC line answers "is a charger attached".
+    property bool isPluggedIn: onAc
 
     // UPower exposes a floating estimate that jitters below one displayed
     // percent. Quantize at the shared service so battery faces do not restart
