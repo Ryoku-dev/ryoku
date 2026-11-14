@@ -19,7 +19,8 @@ for (let attempt = 1; attempt <= 3; attempt++) {
     ]);
     clearTimeout(timer);
     const log = stdout + stderr;
-    if (code !== 0 || !log.includes('ICONS_SMOKE_PASS') || /decodeErrors=[1-9]/.test(log)) {
+    if (code !== 0 || /ICONS_SMOKE_(FAIL|TIMEOUT)/.test(log)
+        || !log.includes('ICONS_SMOKE_PASS') || /decodeErrors=[1-9]/.test(log)) {
         console.error(log);
         throw new Error(`Icon runtime check failed on attempt ${attempt}`);
     }
