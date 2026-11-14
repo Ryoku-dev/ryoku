@@ -26,6 +26,9 @@ profiles="$tmp/profiles"
 # Isolate the implicit applied-layout file from the real ~/.config (autoscale
 # reads it and apply writes it). Per-test overrides point elsewhere.
 export RYOKU_MONITORS_APPLIED="$tmp/applied-default.json"
+# Pinned outputs in the developer's own monitors_user.lua are skipped by
+# autoscale, so the DPI and recall checks below must not see them.
+export RYOKU_MONITORS_USER="$tmp/monitors_user-default.lua"
 
 # CI runners are VM guests themselves, so pin VM detection off; the DPI
 # assertions below must exercise the real buckets. The virtual-display tests
