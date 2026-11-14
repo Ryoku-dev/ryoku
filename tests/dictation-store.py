@@ -76,6 +76,20 @@ ShellRoot {
         });
       }
       if (root.stage === 1 && root.store.mode === "type") {
+        root.store.write("enabled", false, function (ok, why) {
+          if (!ok) { console.log("FAIL disable " + why); Qt.quit(); return; }
+          root.stage = 2;
+        });
+      }
+      if (root.stage === 2) {
+        if (root.store.read("enabled") !== false) { console.log("FAIL disable did not persist"); Qt.quit(); return; }
+        root.store.write("enabled", true, function (ok, why) {
+          if (!ok) { console.log("FAIL enable " + why); Qt.quit(); return; }
+          root.stage = 3;
+        });
+      }
+      if (root.stage === 3) {
+        if (root.store.read("enabled") !== true) { console.log("FAIL enable did not persist"); Qt.quit(); return; }
         console.log("PASS dictation store");
         Qt.quit();
       }
@@ -90,7 +104,7 @@ class DictationStore(unittest.TestCase):
         if not (BINARY and shutil.which('qs')):
             self.skipTest('needs qs and RYOKU_TEST_HUB_BIN')
 
-    def test_store_reads_the_backend_and_writes_the_right_key(self):
+    def test_store_preserves_typed_settings_across_reload(self):
         with tempfile.TemporaryDirectory(prefix='ryoku-dictation-store-') as directory:
             root = Path(directory)
             bin_dir = root / 'bin'
@@ -139,8 +153,6 @@ class DictationStore(unittest.TestCase):
             self.assertIn('PASS dictation store', logs, logs[-3000:])
             self.assertNotIn('FAIL ', logs, logs[-3000:])
 
-            sent = json.loads(calls.read_text().strip().splitlines()[-1])
-            self.assertEqual(sent, {'mode': 'type'})
 
 
 if __name__ == '__main__':

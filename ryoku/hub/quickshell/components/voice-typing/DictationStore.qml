@@ -17,7 +17,7 @@ QtObject {
     property bool packageAvailable: false
     property string packageReason: ""
 
-    property bool enabled: true
+    property bool enabled: false
     property string device: "auto"
     property string mode: "paste"
     property string source: ""
@@ -130,8 +130,8 @@ QtObject {
                 v = selected.path;
         }
         var numeric = { "silenceMs": true, "maxDurationSecs": true, "typeDelayMs": true };
-        var before = numeric[key] ? store[key] : String(store[key]);
-        store[key] = numeric[key] ? Number(v) : String(v);
+        var before = store[key];
+        store[key] = key === "enabled" ? v === true : numeric[key] ? Number(v) : String(v);
         Changes.touch();
         var body = {};
         body[key] = store[key];

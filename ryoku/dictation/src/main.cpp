@@ -304,7 +304,12 @@ void handleSet(Session& session, const std::string& args) {
         return;
     const std::string key = args.substr(0, space);
     const std::string value = args.substr(space + 1);
-    if (key == "device" && (value == "auto" || value == "cpu" || value == "gpu")) {
+    if (key == "enabled" && (value == "true" || value == "false")) {
+        session.config.enabled = value == "true";
+        if (!session.config.enabled)
+            session.cancel();
+        broadcast("enabled " + value);
+    } else if (key == "device" && (value == "auto" || value == "cpu" || value == "gpu")) {
         session.config.device = value;
         // A device change parks the loaded model; the next start reloads it.
         session.engine.unload();

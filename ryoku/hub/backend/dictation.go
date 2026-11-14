@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -230,7 +231,7 @@ func dictationGet() error {
 	}
 
 	snapshot := dictationSnapshot{
-		Enabled:        values["enabled"] != "false",
+		Enabled:        values["enabled"] == "true" || values["enabled"] == "1" || values["enabled"] == "yes" || values["enabled"] == "on",
 		Source:         values["source"],
 		Model:          values["model"],
 		Device:         orDefault(values["device"], "auto"),
@@ -380,7 +381,15 @@ func dictationNotify(line string) {
 	}
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(time.Second))
-	_, _ = conn.Write([]byte(line + "\n"))
+	if _, err := conn.Write([]byte(line + "\n")); err != nil {
+		return
+	}
+	reader := bufio.NewScanner(conn)
+	for reader.Scan() {
+		if reply := reader.Text(); reply == "ok" || strings.HasPrefix(reply, "error ") {
+			return
+		}
+	}
 }
 
 func dictationSet(raw string) error {
@@ -446,11 +455,14 @@ func dictationSet(raw string) error {
 		return err
 	}
 
-	live := []string{"device", "mode", "language", "model"}
+	live := []string{"enabled", "device", "mode", "language", "model"}
 	for _, key := range live {
 		if value, ok := changes[key]; ok {
 			dictationNotify("set " + key + " " + orDefault(value, "auto"))
 		}
+	}
+	if update.Enabled != nil {
+		_ = daemonCall("dictation.status", nil, nil)
 	}
 	return dictationGet()
 }

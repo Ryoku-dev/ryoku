@@ -97,7 +97,11 @@ Singleton {
             root.levels = next;
         }
         const stamp = Number(root.frame.attentionMs || 0);
-        if (stamp > 0 && stamp !== root.attentionAt) {
+        if (root.frame.enabled === true) {
+            refusal.stop();
+            root.showingOff = false;
+            root.attentionReason = "";
+        } else if (stamp > 0 && stamp !== root.attentionAt) {
             root.attentionAt = stamp;
             root.attentionReason = root.frame.notice || "off";
             root.showingOff = true;

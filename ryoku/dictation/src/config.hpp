@@ -10,7 +10,7 @@ namespace ryoku {
 // meaning, the Hub edits the same keys, and a missing file simply means the
 // defaults below. Nothing here is a compositor or shell concept.
 struct Config {
-    bool enabled = true;
+    bool enabled = false;
     // Empty picks the shipped model; an explicit path wins over it.
     std::string model;
     // auto | cpu | gpu. gpu refuses to fall back silently: a user who asked for

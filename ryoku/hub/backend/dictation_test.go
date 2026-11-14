@@ -212,3 +212,41 @@ func TestDictationGetReportsTheEngine(t *testing.T) {
 		t.Errorf("catalogue has %d entries, want 4", len(snapshot.Models))
 	}
 }
+
+func TestDictationRequiresExplicitOptIn(t *testing.T) {
+	isolate(t)
+	snapshot := func() dictationSnapshot {
+		t.Helper()
+		out := captureStdout(t, func() {
+			if err := dictationGet(); err != nil {
+				t.Fatal(err)
+			}
+		})
+		var state dictationSnapshot
+		if err := json.Unmarshal([]byte(out), &state); err != nil {
+			t.Fatal(err)
+		}
+		return state
+	}
+	if snapshot().Enabled {
+		t.Fatal("a new user must not have voice typing enabled")
+	}
+	for _, step := range []struct {
+		update  string
+		enabled bool
+	}{
+		{`{"mode":"type"}`, false},
+		{`{"enabled":true}`, true},
+		{`{"device":"cpu"}`, true},
+		{`{"enabled":false}`, false},
+	} {
+		captureStdout(t, func() {
+			if err := dictationSet(step.update); err != nil {
+				t.Fatal(err)
+			}
+		})
+		if got := snapshot().Enabled; got != step.enabled {
+			t.Fatalf("after %s: enabled=%t, want %t", step.update, got, step.enabled)
+		}
+	}
+}

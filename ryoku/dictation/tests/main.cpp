@@ -68,11 +68,14 @@ void testConfig() {
     const auto fallback = ryoku::Config::load();
     check(fallback.device == "auto", "an unknown device keeps auto");
     check(fallback.mode == "paste", "an unknown mode keeps paste");
+    check(!fallback.enabled, "an omitted enabled key requires opt-in");
+
+    writeFile(std::string(home) + "/ryoku/dictation.conf", "enabled=true\n");
+    check(ryoku::Config::load().enabled, "an explicit opt-in survives loading");
 
     std::remove((std::string(home) + "/ryoku/dictation.conf").c_str());
     const auto defaults = ryoku::Config::load();
-    check(defaults.enabled && defaults.device == "auto" && defaults.mode == "paste",
-          "a missing file is the defaults");
+    check(!defaults.enabled, "a missing configuration requires opt-in");
 }
 
 void testUtf8() {

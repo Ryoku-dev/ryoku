@@ -7,9 +7,9 @@ on the machine and types the words into the window that has focus.
 switches it on, chooses the model, and picks the computer that runs it.
 
 The source is `ryoku/dictation/` and the package is `ryoku-dictation`, on every
-edition. Nothing about it comes from an AUR helper, and nothing runs while the
-feature is off: the user unit is on-demand, and the model is unmapped after 90
-seconds of idleness.
+edition. Nothing about it comes from an AUR helper. Voice typing is off until
+you enable it in Settings. The shortcut starts the user unit on demand, and the
+model is unmapped after 90 seconds of idleness.
 
 ## How it works
 
@@ -90,6 +90,12 @@ restart: `enabled`, `source`, `model`, `device`, `language`, `mode`,
 `max_duration_secs`, `silence_ms`, `silence_db`, `type_delay_ms`,
 `idle_unload_secs`. The tool's `README.md` documents each one, the socket
 protocol and the model catalogue.
+
+A missing `enabled` key means off; an explicit saved choice survives updates.
+The toggle updates the running engine and the shell's status together, and
+turning it off cancels the current recording or transcription. Checking status
+does not start the engine, and the shortcut checks the saved choice rather than
+treating a stopped process as a disabled feature.
 
 Removing the feature leaves nothing behind: `ryoku-host pkg remove
 ryoku-dictation` stops the on-demand unit, and no other part of the desktop

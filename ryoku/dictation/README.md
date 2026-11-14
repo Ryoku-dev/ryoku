@@ -30,12 +30,12 @@ process for the meter, no second capture stream.
 `$XDG_RUNTIME_DIR/ryoku-dictate.sock`, one line per message.
 
 - commands: `start`, `stop`, `cancel`, `toggle`, `status`,
-  `set <device|mode|language|model> <value>`, `quit`
+  `set <enabled|device|mode|language|model> <value>`, `quit`
 - replies: `ok`, `end`, and `state/model/backend/device/mode/language/gpu/enabled`
   lines for `status`
 - events: `state <loading|recording|transcribing|inserting|idle|error>`,
   `level <rms> <peak>`, `final <text>` (`\n`, `\r`, `\\` escaped), `took <ms>`,
-  `error <text>`, `backend <name>`, `model <path>`, `note <text>`
+  `error <text>`, `backend <name>`, `model <path>`, `enabled <true|false>`, `note <text>`
 
 `ryoku-shell` holds one connection open, mirrors it into the `dictation` bus
 topic and opens/closes the voice card from it. The Hub talks to the same socket
@@ -47,7 +47,7 @@ through `ryoku-hub dictation`.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `enabled` | `true` | off means no capture, no model, no process work |
+| `enabled` | `false` | explicit opt-in; turning it off cancels capture or transcription |
 | `source` | empty | microphone node; empty or `default` is the session default |
 | `model` | empty | explicit `.gguf`; empty resolves the shipped model, then a user copy, then the newest user model |
 | `device` | `auto` | `auto`, `cpu` or `gpu`. `gpu` refuses to fall back silently |
@@ -109,8 +109,10 @@ play a clip into it, record from the other end.
 ```bash
 pw-loopback --capture-props='media.class=Audio/Sink node.name=ryoku-test-sink' \
             --playback-props='media.class=Audio/Source node.name=ryoku-test-mic' &
-printf 'source=ryoku-test-mic\nsilence_ms=0\n' > /tmp/dictation.conf   # point XDG_CONFIG_HOME at it
-RYOKU_DICTATE_NO_INSERT=1 ryoku-dictate --serve &
+config=$(mktemp -d)
+mkdir -p "$config/ryoku"
+printf 'enabled=true\nsource=ryoku-test-mic\nsilence_ms=0\n' > "$config/ryoku/dictation.conf"
+XDG_CONFIG_HOME="$config" RYOKU_DICTATE_NO_INSERT=1 ryoku-dictate --serve &
 # start → pw-play --target ryoku-test-sink clip.wav → stop → read `final`
 ```
 

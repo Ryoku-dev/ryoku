@@ -147,7 +147,7 @@ func (d *daemon) ensureDictate() {
 func (d *daemon) startDictation() {
 	d.dictTopic = d.registerTopic("dictation")
 	d.dictConn = &dictateConn{}
-	d.dictFrame = dictationFrame{State: "idle", Enabled: true, Device: "auto", Mode: "paste"}
+	d.dictFrame = dictationFrame{State: "idle", Enabled: d.dictationEnabled(), Device: "auto", Mode: "paste"}
 
 	d.registerCall("dictation.start", func(json.RawMessage) (any, error) {
 		return d.dictateCommand("start")
@@ -209,12 +209,16 @@ func (d *daemon) dictateCommand(command string) (any, error) {
 // dictateStatus asks the daemon for the values the Hub edits and folds them
 // into the topic, so a reload of the Hub needs no separate reader.
 func (d *daemon) dictateStatus() (any, error) {
-	d.ensureDictate()
+	d.refreshDictationEnabled()
+	frame := d.currentDictation()
+	if _, err := os.Stat(dictateSocket()); os.IsNotExist(err) {
+		d.publishDictation(frame)
+		return frame, nil
+	}
 	replies, err := d.dictConn.send("status")
 	if err != nil {
 		return nil, err
 	}
-	frame := d.currentDictation()
 	for _, line := range replies {
 		key, value, ok := strings.Cut(line, " ")
 		if !ok {
@@ -235,8 +239,6 @@ func (d *daemon) dictateStatus() (any, error) {
 			frame.Language = value
 		case "gpu":
 			frame.GPU = value
-		case "enabled":
-			frame.Enabled = value == "true"
 		case "limit":
 			frame.MaxDurationSecs, _ = strconv.ParseInt(value, 10, 64)
 		}
@@ -271,6 +273,7 @@ func (d *daemon) publishDictation(frame dictationFrame) {
 	if frame.GPU == "" {
 		frame.GPU = d.dictFrame.GPU
 	}
+	// audio frames can arrive after the user changes the saved opt-in
 	frame.Enabled = d.dictFrame.Enabled
 	d.dictFrame = frame
 	d.dictateMu.Unlock()
@@ -324,6 +327,9 @@ func (d *daemon) streamDictation(conn net.Conn) {
 			continue
 		}
 		key, value, _ := strings.Cut(line, " ")
+		if key == "enabled" {
+			d.refreshDictationEnabled()
+		}
 		frame := d.currentDictation()
 		switch key {
 		case "state":
@@ -363,6 +369,8 @@ func (d *daemon) streamDictation(conn net.Conn) {
 		case "gpu":
 			frame.GPU = value
 			d.publishDictation(frame)
+		case "enabled":
+			d.publishDictation(frame)
 		}
 	}
 }
@@ -395,13 +403,31 @@ func unescapeDictation(text string) string {
 	return out.String()
 }
 
-// dictationState is what the voice verb needs before it decides.
+// The saved opt-in is independent of whether the on-demand engine is running.
 func (d *daemon) dictationEnabled() bool {
-	if _, err := os.Stat(dictateSocket()); err != nil {
+	body, err := os.ReadFile(filepath.Join(ryokuConfigDir(), "dictation.conf"))
+	if err != nil {
 		return false
 	}
-	frame := d.currentDictation()
-	return frame.Enabled
+	enabled := false
+	for _, line := range strings.Split(string(body), "\n") {
+		key, value, ok := strings.Cut(line, "=")
+		if ok && strings.TrimSpace(key) == "enabled" {
+			value = strings.TrimSpace(value)
+			enabled = value == "true" || value == "1" || value == "yes" || value == "on"
+		}
+	}
+	return enabled
+}
+
+func (d *daemon) refreshDictationEnabled() bool {
+	d.dictateMu.Lock()
+	defer d.dictateMu.Unlock()
+	d.dictFrame.Enabled = d.dictationEnabled()
+	if d.dictFrame.Enabled && d.dictFrame.Notice == "off" {
+		d.dictFrame.Notice, d.dictFrame.AttentionMs = "", 0
+	}
+	return d.dictFrame.Enabled
 }
 
 // voice is the Super+` tap. The card opens on the daemon's own "recording"
@@ -409,8 +435,7 @@ func (d *daemon) dictationEnabled() bool {
 func (d *daemon) voice() string {
 	d.voiceMu.Lock()
 	defer d.voiceMu.Unlock()
-	d.ensureDictate()
-	if !d.dictationEnabled() {
+	if !d.refreshDictationEnabled() {
 		// the card is driven by the topic, so a refused tap says so through the
 		// topic rather than opening a surface the bar may not own
 		frame := d.currentDictation()
@@ -419,6 +444,8 @@ func (d *daemon) voice() string {
 		d.publishDictation(frame)
 		return "ok"
 	}
+	d.ensureDictate()
+	_, err := d.dictateStatus()
 	state := d.currentDictation().State
 	var command string
 	if state == "recording" {
@@ -426,7 +453,10 @@ func (d *daemon) voice() string {
 	} else {
 		command = "start"
 	}
-	if _, err := d.dictateCommand(command); err != nil {
+	if err == nil {
+		_, err = d.dictateCommand(command)
+	}
+	if err != nil {
 		log.Printf("ryoku-shell: dictation %s: %v", command, err)
 		frame := d.currentDictation()
 		frame.State = "error"

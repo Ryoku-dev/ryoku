@@ -22,7 +22,7 @@ var rows = [
     { id: "vt-enabled", section: "voice", label: "Voice typing",
       detail: "Press its shortcut to type with your voice in the app in front; press it again to stop",
       keywords: ["dictation", "speech to text", "stt", "microphone", "dictate", "on", "off"],
-      control: "toggle", bind: vt("enabled"), "default": true },
+      control: "toggle", bind: vt("enabled"), "default": false },
     { id: "vt-install", section: "voice", label: "Install voice typing",
       detail: "Voice typing needs the Ryoku engine, about 140 MB with the shipped model. A terminal opens to confirm the install",
       keywords: ["install", "engine", "package", "dictation", "ryoku-dictation"], control: "custom", activatable: true },

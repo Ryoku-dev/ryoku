@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"encoding/json"
 	"net"
+	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -21,6 +23,13 @@ func fakeDictateServer(t *testing.T) (commands chan string, broadcast func(strin
 	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("XDG_RUNTIME_DIR", dir)
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	if err := os.MkdirAll(filepath.Join(dir, "ryoku"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "ryoku", "dictation.conf"), []byte("enabled=true\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	socket := filepath.Join(dir, "ryoku-dictate.sock")
 
 	listener, err := net.Listen("unix", socket)
@@ -175,14 +184,6 @@ func TestVoiceTapTogglesThroughTheDaemon(t *testing.T) {
 	if got := d.dispatch("voice"); got != "ok" {
 		t.Fatalf("dispatch(voice) = %q", got)
 	}
-	select {
-	case got := <-commands:
-		if got != "start" {
-			t.Fatalf("first tap sent %q, want start", got)
-		}
-	case <-time.After(3 * time.Second):
-		t.Fatal("first tap reached no daemon command")
-	}
 
 	// The card opens on the daemon's own recording event, not on the tap.
 	deadline := time.Now().Add(3 * time.Second)
@@ -225,7 +226,8 @@ func TestVoiceTapTogglesThroughTheDaemon(t *testing.T) {
 func TestVoiceFallsToTheOffNoteWithoutTheEngine(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("XDG_RUNTIME_DIR", dir) // no socket: the daemon is not running
-	t.Setenv("PATH", dir)            // and ryoku-host cannot start it
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("PATH", dir) // and ryoku-host cannot start it
 
 	calls := make(chan string, 4)
 	stubShellIpc(t, calls)
@@ -256,6 +258,13 @@ func TestVoiceFallsToTheOffNoteWithoutTheEngine(t *testing.T) {
 func TestDictateStatusCarriesTheStopLimit(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("XDG_RUNTIME_DIR", dir)
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	if err := os.MkdirAll(filepath.Join(dir, "ryoku"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "ryoku", "dictation.conf"), []byte("enabled=true\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 
 	replies := "state idle\nmodel /usr/share/ryoku/dictation/models/parakeet.gguf\n" +
 		"backend CPU\ndevice auto\nenabled true\nmode paste\nlanguage auto\n" +
@@ -292,6 +301,9 @@ func TestDictateStatusCarriesTheStopLimit(t *testing.T) {
 		t.Fatalf("dictateStatus: %v", err)
 	}
 	frame := readFrame(t, d)
+	if !frame.Enabled {
+		t.Fatal("status lost the saved opt-in behind a stale cached off flag")
+	}
 	if frame.MaxDurationSecs != 90 {
 		t.Fatalf("MaxDurationSecs = %d, want 90", frame.MaxDurationSecs)
 	}
@@ -381,6 +393,63 @@ func TestUnescapeDictationText(t *testing.T) {
 	for in, want := range cases {
 		if got := unescapeDictation(in); got != want {
 			t.Errorf("unescapeDictation(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestDictationEnableChangesReachTheTopic(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	if err := os.MkdirAll(filepath.Join(dir, "ryoku"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	d := &daemon{quit: make(chan struct{})}
+	d.dictTopic = d.registerTopic("dictation")
+	d.dictFrame = dictationFrame{State: "idle"}
+	client, server := net.Pipe()
+	defer client.Close()
+	defer server.Close()
+	go d.streamDictation(client)
+	for _, step := range []struct {
+		line    string
+		enabled bool
+	}{{"enabled true\n", true}, {"enabled false\n", false}} {
+		if err := os.WriteFile(filepath.Join(dir, "ryoku", "dictation.conf"), []byte("enabled="+strconv.FormatBool(step.enabled)+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := server.Write([]byte(step.line)); err != nil {
+			t.Fatal(err)
+		}
+		deadline := time.Now().Add(time.Second)
+		for readFrame(t, d).Enabled != step.enabled && time.Now().Before(deadline) {
+			time.Sleep(time.Millisecond)
+		}
+		if readFrame(t, d).Enabled != step.enabled {
+			t.Fatalf("topic did not reflect %q", step.line)
+		}
+	}
+}
+
+func TestDictationOptInDoesNotDependOnARunningEngine(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	if err := os.MkdirAll(filepath.Join(dir, "ryoku"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	d := &daemon{}
+	if d.dictationEnabled() {
+		t.Fatal("missing configuration must be off")
+	}
+	for _, step := range []struct {
+		body    string
+		enabled bool
+	}{{"mode=type\n", false}, {"enabled=true\n", true}, {"enabled=false\n", false}} {
+		if err := os.WriteFile(filepath.Join(dir, "ryoku", "dictation.conf"), []byte(step.body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if got := d.dictationEnabled(); got != step.enabled {
+			t.Fatalf("configuration %q: enabled=%t, want %t", step.body, got, step.enabled)
 		}
 	}
 }

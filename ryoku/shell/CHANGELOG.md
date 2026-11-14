@@ -1,6 +1,8 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Voice typing starts off until you enable it, and its toggle now works in
+  both directions without the shortcut or voice card reporting the wrong state**
 - **Type mode now inserts the spoken text after focus changes instead of
   sending the physical keys from a cached layout.**
 - **Voice typing now names the selected model and shows the model catalogue

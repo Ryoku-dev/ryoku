@@ -23,6 +23,10 @@ ShellRoot {
             if (!ok) throw new Error(reason);
         }
         try {
+            Dictation.apply({state: "idle", enabled: false, notice: "off", attentionMs: 1});
+            require(Dictation.showingOff, "a disabled shortcut needs its off notice");
+            Dictation.apply({state: "idle", enabled: true, notice: "off", attentionMs: 2});
+            require(!Dictation.showingOff, "turning voice typing on must dismiss the off notice");
             Dictation.apply({state: "idle"});
             for (let i = 0; i < 32; i++) feed(0.5);
             require(Math.max.apply(null, Dictation.levels) < 0.01,
