@@ -20,7 +20,7 @@ process for the meter, no second capture stream.
 | `src/main.cpp` | the daemon: socket, state machine, silence stop, idle unload |
 | `src/capture.cpp` | one PipeWire stream; the same buffer feeds the model and the meter |
 | `src/engine.cpp` | the transcribe.cpp boundary, ~150 lines so the engine can be swapped |
-| `src/insert.cpp` | virtual-keyboard typing, clipboard paste, the keymap it uploads |
+| `src/insert.cpp` | seat-layout typing, a Unicode map for other characters, and clipboard paste |
 | `src/config.cpp` | `~/.config/ryoku/dictation.conf` |
 | `src/wav.cpp` | a WAV reader for `--selftest` |
 | `proto/virtual-keyboard-unstable-v1.xml` | the protocol we implement (MIT, wlroots) |

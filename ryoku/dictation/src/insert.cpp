@@ -4,6 +4,7 @@
 
 #include <wayland-client.h>
 #include <xkbcommon/xkbcommon.h>
+#include <xkbcommon/xkbcommon-keysyms.h>
 
 #include <cerrno>
 #include <chrono>
@@ -17,6 +18,7 @@
 
 #include <algorithm>
 #include <map>
+#include <string_view>
 
 namespace ryoku {
 namespace {
@@ -123,6 +125,41 @@ std::string buildKeymap(const std::vector<std::pair<unsigned, std::string>>& key
     return out;
 }
 
+bool keyStrokeFor(xkb_keymap* keymap, uint32_t codepoint, KeyStroke& stroke) {
+    if (!keymap)
+        return false;
+    const auto symbol = codepoint == '\n' ? XKB_KEY_Return
+        : codepoint == '\t' ? XKB_KEY_Tab : xkb_utf32_to_keysym(codepoint);
+    uint32_t allowed = 0;
+    for (const auto* name : {XKB_MOD_NAME_SHIFT, "Mod5"}) {
+        const auto index = xkb_keymap_mod_get_index(keymap, name);
+        if (index != XKB_MOD_INVALID && index < 32)
+            allowed |= 1u << index;
+    }
+    for (auto key = xkb_keymap_min_keycode(keymap); key <= xkb_keymap_max_keycode(keymap); key++) {
+        if (key < 8)
+            continue;
+        for (uint32_t group = 0; group < xkb_keymap_num_layouts_for_key(keymap, key); group++) {
+            for (uint32_t level = 0; level < xkb_keymap_num_levels_for_key(keymap, key, group); level++) {
+                const xkb_keysym_t* symbols = nullptr;
+                if (xkb_keymap_key_get_syms_by_level(keymap, key, group, level, &symbols) != 1
+                    || symbols[0] != symbol)
+                    continue;
+                xkb_mod_mask_t masks[16];
+                const auto count = xkb_keymap_key_get_mods_for_level(keymap, key, group, level,
+                                                                    masks, 16);
+                for (size_t i = 0; i < count; i++) {
+                    if ((masks[i] & ~allowed) == 0) {
+                        stroke = {key - 8, masks[i], group};
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    return false;
+}
+
 Inserter::~Inserter() { close(); }
 
 void Inserter::close() {
@@ -133,6 +170,19 @@ void Inserter::close() {
     if (manager) {
         zwp_virtual_keyboard_manager_v1_destroy(manager);
         manager = nullptr;
+    }
+    if (seatKeyboard) {
+        wl_keyboard_release(seatKeyboard);
+        seatKeyboard = nullptr;
+    }
+    xkb_keymap_unref(seatKeymap);
+    seatKeymap = nullptr;
+    xkb_context_unref(context);
+    context = nullptr;
+    if (seatKeymapFd >= 0) {
+        ::close(seatKeymapFd);
+        seatKeymapFd = -1;
+        seatKeymapSize = 0;
     }
     if (seat) {
         wl_seat_release(seat);
@@ -199,14 +249,63 @@ bool Inserter::connect(std::string& err) {
         return false;
     }
     manager = state.manager;
-    keyboard = zwp_virtual_keyboard_manager_v1_create_virtual_keyboard(manager, state.seat);
+    seat = state.seat;
+    keyboard = zwp_virtual_keyboard_manager_v1_create_virtual_keyboard(manager, seat);
     if (!keyboard) {
         err = "cannot create the virtual keyboard";
         close();
         return false;
     }
     wl_display_roundtrip(display);
+    seatKeyboard = wl_seat_get_keyboard(seat);
+    static const wl_keyboard_listener listener = {
+        keymapReceived,
+        [](void*, wl_keyboard*, uint32_t, wl_surface*, wl_array*) {},
+        [](void*, wl_keyboard*, uint32_t, wl_surface*) {},
+        [](void*, wl_keyboard*, uint32_t, uint32_t, uint32_t, uint32_t) {},
+        [](void*, wl_keyboard*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t) {},
+        [](void*, wl_keyboard*, int32_t, int32_t) {},
+    };
+    wl_keyboard_add_listener(seatKeyboard, &listener, this);
+    wl_display_roundtrip(display);
     return true;
+}
+
+void Inserter::keymapReceived(void* data, wl_keyboard*, uint32_t format, int32_t fd,
+                             uint32_t size) {
+    auto& inserter = *static_cast<Inserter*>(data);
+    if (format != WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1 || size == 0) {
+        ::close(fd);
+        return;
+    }
+    const auto* text = static_cast<const char*>(mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0));
+    if (text == MAP_FAILED) {
+        ::close(fd);
+        return;
+    }
+    // don't adopt the temporary Unicode map we uploaded ourselves
+    if (std::string_view(text, size).find("xkb_keycodes \"ryoku_") != std::string_view::npos) {
+        munmap(const_cast<char*>(text), size);
+        ::close(fd);
+        return;
+    }
+    if (!inserter.context)
+        inserter.context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+    auto* keymap = inserter.context
+        ? xkb_keymap_new_from_buffer(inserter.context, text, size, XKB_KEYMAP_FORMAT_TEXT_V1,
+                                    XKB_KEYMAP_COMPILE_NO_FLAGS)
+        : nullptr;
+    munmap(const_cast<char*>(text), size);
+    if (!keymap) {
+        ::close(fd);
+        return;
+    }
+    xkb_keymap_unref(inserter.seatKeymap);
+    if (inserter.seatKeymapFd >= 0)
+        ::close(inserter.seatKeymapFd);
+    inserter.seatKeymap = keymap;
+    inserter.seatKeymapFd = fd;
+    inserter.seatKeymapSize = size;
 }
 
 bool Inserter::upload(const std::vector<std::pair<unsigned, std::string>>& keys,
@@ -264,6 +363,43 @@ bool Inserter::type(const std::string& utf8, int delayMs, std::string& err) {
     if (codepoints.empty())
         return true;
 
+    std::map<uint32_t, KeyStroke> strokes;
+    bool mapped = seatKeymapFd >= 0;
+    for (const auto cp : codepoints) {
+        if (!mapped)
+            break;
+        if (strokes.count(cp))
+            continue;
+        KeyStroke stroke;
+        mapped = keyStrokeFor(seatKeymap, cp, stroke);
+        if (mapped)
+            strokes.emplace(cp, stroke);
+    }
+    if (mapped) {
+        zwp_virtual_keyboard_v1_keymap(keyboard, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1,
+                                      seatKeymapFd, seatKeymapSize);
+        sync();
+        uint32_t modifiers = UINT32_MAX, group = UINT32_MAX;
+        for (const auto cp : codepoints) {
+            const auto& stroke = strokes.at(cp);
+            if (modifiers != stroke.modifiers || group != stroke.group) {
+                modifiers = stroke.modifiers;
+                group = stroke.group;
+                zwp_virtual_keyboard_v1_modifiers(keyboard, modifiers, 0, 0, group);
+            }
+            sendKey(stroke.evdev, true);
+            sync();
+            if (delayMs > 0)
+                usleep(static_cast<useconds_t>(delayMs) * 1000);
+            sendKey(stroke.evdev, false);
+            sync();
+            usleep(1500);
+        }
+        zwp_virtual_keyboard_v1_modifiers(keyboard, 0, 0, 0, 0);
+        sync();
+        return displayHealthy(display, err);
+    }
+
     constexpr size_t slots = sizeof(textCodes) / sizeof(textCodes[0]);
     size_t at = 0;
     while (at < codepoints.size()) {
@@ -303,15 +439,25 @@ bool Inserter::pasteShortcut(std::string& err) {
         err = "no virtual keyboard";
         return false;
     }
-    if (!upload({{codeControl, "Control_L"}, {codeV, "v"}}, err))
+    KeyStroke stroke{codeV, 0, 0};
+    const auto control = seatKeymap ? xkb_keymap_mod_get_index(seatKeymap, XKB_MOD_NAME_CTRL)
+                                   : XKB_MOD_INVALID;
+    uint32_t modifiers = 4;
+    if (seatKeymapFd >= 0 && control != XKB_MOD_INVALID && control < 32
+        && keyStrokeFor(seatKeymap, 'v', stroke)) {
+        modifiers = (1u << control) | stroke.modifiers;
+        zwp_virtual_keyboard_v1_keymap(keyboard, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1,
+                                      seatKeymapFd, seatKeymapSize);
+    } else if (!upload({{codeControl, "Control_L"}, {codeV, "v"}}, err)) {
         return false;
+    }
 
-    zwp_virtual_keyboard_v1_modifiers(keyboard, 4 /* ctrl */, 0, 0, 0);
+    zwp_virtual_keyboard_v1_modifiers(keyboard, modifiers, 0, 0, stroke.group);
     sync();
-    sendKey(codeV, true);
+    sendKey(stroke.evdev, true);
     sync();
     usleep(2000);
-    sendKey(codeV, false);
+    sendKey(stroke.evdev, false);
     sync();
     zwp_virtual_keyboard_v1_modifiers(keyboard, 0, 0, 0, 0);
     sync();

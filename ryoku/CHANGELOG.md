@@ -1,6 +1,9 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **Stopping voice typing keeps the text field focused**, held shortcut modifiers
+  no longer turn typed text into workspace actions, and typing follows the
+  desktop keyboard layout in native and XWayland apps
 - **Voice typing survives Hyperion updates**, doctor keeps the source-installed
   engine when an older desktop package is still installed
 - **Voice typing is Ryoku's own.** A new `ryoku-dictate` daemon records the

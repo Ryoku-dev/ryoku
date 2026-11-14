@@ -142,7 +142,7 @@ hl.bind(K(mod .. " + ALT + Tab"), hl.dsp.global("ryoku:overview")) -- workspace 
 hl.bind(K(mod .. " + M"),         hl.dsp.global("ryoku:visualizer"))        -- toggle the desktop audio visualiser
 hl.bind(K(mod .. " + SHIFT + M"), hl.dsp.global("ryoku:visualizer-overlay")) -- raise the visualiser over windows (flip back to desktop)
 hl.bind(K(mod .. " + ALT + M"),   hl.dsp.global("ryoku:visualizer-place"))   -- move the audio visualiser: drag the ring or orb into place
-hl.bind(K(mod .. " + grave"),     hl.dsp.exec_cmd("ryoku-shell voice"))             -- voice typing: speech-to-text with a mic wave (tap again to stop)
+hl.bind(K(mod .. " + grave"),     require("modules.voice"))                       -- voice typing: tap again to stop
 hl.bind(K(mod .. " + comma"),     hl.dsp.exec_cmd("ryoku-shell settings"))      -- settings
 hl.bind(K(mod .. " + SHIFT + D"), hl.dsp.exec_cmd("ryoku-shell hub open widgets")) -- Stage Editor: edit the desktop on the focused screen
 hl.bind(K(mod .. " + SHIFT + S"), hl.dsp.exec_cmd("ryoku-cmd-ryoshot")) -- screenshot: capture, annotate and beautify

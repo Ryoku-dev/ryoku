@@ -8,6 +8,9 @@
 struct wl_display;
 struct wl_registry;
 struct wl_seat;
+struct wl_keyboard;
+struct xkb_context;
+struct xkb_keymap;
 struct zwp_virtual_keyboard_manager_v1;
 struct zwp_virtual_keyboard_v1;
 
@@ -15,10 +18,8 @@ namespace ryoku {
 
 // Typing into the focused window through the Wayland virtual-keyboard protocol.
 //
-// This is what wtype does, done in-process so the package needs no helper: one
-// keymap carrying the characters of the batch, one press/release per character.
-// The app keeps its own layout; nothing here touches XKB state outside the
-// keymap we upload and the keys we send.
+// Text uses the seat's layout when it can represent the requested characters;
+// a temporary Unicode map handles characters outside that layout.
 class Inserter {
 public:
     Inserter() = default;
@@ -38,10 +39,16 @@ private:
     bool upload(const std::vector<std::pair<unsigned, std::string>>& keys, std::string& err);
     bool sendKey(unsigned evdev, bool down);
     void sync();
+    static void keymapReceived(void*, wl_keyboard*, uint32_t, int32_t, uint32_t);
 
     wl_display* display = nullptr;
     wl_registry* registry = nullptr;
     wl_seat* seat = nullptr;
+    wl_keyboard* seatKeyboard = nullptr;
+    xkb_context* context = nullptr;
+    xkb_keymap* seatKeymap = nullptr;
+    int seatKeymapFd = -1;
+    uint32_t seatKeymapSize = 0;
     zwp_virtual_keyboard_manager_v1* manager = nullptr;
     zwp_virtual_keyboard_v1* keyboard = nullptr;
     uint32_t serial = 0;
@@ -53,6 +60,14 @@ std::vector<uint32_t> utf8Codepoints(const std::string& text);
 std::string keysymName(uint32_t codepoint);
 // A complete xkb_keymap for the given (evdev code, keysym name) pairs.
 std::string buildKeymap(const std::vector<std::pair<unsigned, std::string>>& keys);
+
+struct KeyStroke {
+    unsigned evdev = 0;
+    uint32_t modifiers = 0;
+    uint32_t group = 0;
+};
+
+bool keyStrokeFor(xkb_keymap* keymap, uint32_t codepoint, KeyStroke& stroke);
 
 // Puts text on the Wayland clipboard by way of wl-copy. False when wl-clipboard
 // is missing, which the daemon reports instead of silently losing the words.

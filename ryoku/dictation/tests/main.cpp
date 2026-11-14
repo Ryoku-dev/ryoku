@@ -102,19 +102,52 @@ void testUtf8() {
 
 void testKeymap() {
     const auto keymap = ryoku::buildKeymap({{9, "U0061"}, {10, "U0062"}});
-    check(keymap.find("xkb_keymap") == 0, "keymap starts with xkb_keymap");
-    check(keymap.find("<K17> = 17;") != std::string::npos, "evdev 9 is xkb keycode 17");
-    check(keymap.find("key <K17> {[ U0061 ]};") != std::string::npos, "symbol row for a");
-    check(keymap.find("key <K18> {[ U0062 ]};") != std::string::npos, "symbol row for b");
-    check(keymap.find("include \"complete\"") != std::string::npos, "types and compat included");
-
     // A keymap the engine can actually compile is the real contract.
     struct xkb_context* context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
     struct xkb_keymap* compiled =
         xkb_keymap_new_from_string(context, keymap.c_str(), XKB_KEYMAP_FORMAT_TEXT_V1,
                                    XKB_KEYMAP_COMPILE_NO_FLAGS);
     check(compiled != nullptr, "xkbcommon compiles the keymap");
+    if (!compiled) {
+        xkb_context_unref(context);
+        return;
+    }
+    struct xkb_state* state = xkb_state_new(compiled);
+    check(xkb_state_key_get_one_sym(state, 17) == 'a', "uploaded keymap types a");
+    check(xkb_state_key_get_one_sym(state, 18) == 'b', "uploaded keymap types b");
+    xkb_state_unref(state);
     xkb_keymap_unref(compiled);
+    xkb_context_unref(context);
+}
+
+void testSeatKeymap() {
+    auto* context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+    for (const char* layout : {"us", "de"}) {
+        xkb_rule_names names{"evdev", "pc105", layout, "", ""};
+        auto* keymap = xkb_keymap_new_from_names(context, &names, XKB_KEYMAP_COMPILE_NO_FLAGS);
+        check(keymap != nullptr, "seat layout compiles");
+        if (!keymap)
+            continue;
+        auto* state = xkb_state_new(keymap);
+        std::vector<uint32_t> characters{'a', 'A', 'y', 'Y', 'z', 'Z', ' ', '!', '@', '1'};
+        if (std::strcmp(layout, "de") == 0)
+            characters.insert(characters.end(), {0x00E4, 0x20AC});
+        for (const auto character : characters) {
+            ryoku::KeyStroke stroke;
+            const bool found = ryoku::keyStrokeFor(keymap, character, stroke);
+            check(found, "text has a stroke in the seat layout");
+            if (!found)
+                continue;
+            xkb_state_update_mask(state, stroke.modifiers, 0, 0, 0, 0, stroke.group);
+            check(xkb_state_key_get_utf32(state, stroke.evdev + 8) == character,
+                  "physical stroke produces the requested character");
+        }
+        ryoku::KeyStroke unsupported;
+        check(!ryoku::keyStrokeFor(keymap, 0x1F600, unsupported),
+              "a character outside the seat layout needs Unicode insertion");
+        xkb_state_unref(state);
+        xkb_keymap_unref(keymap);
+    }
     xkb_context_unref(context);
 }
 
@@ -169,6 +202,7 @@ int main() {
     testConfig();
     testUtf8();
     testKeymap();
+    testSeatKeymap();
     testWav();
     std::printf("%s (%d failure%s)\n", failures == 0 ? "PASS" : "FAIL", failures,
                 failures == 1 ? "" : "s");

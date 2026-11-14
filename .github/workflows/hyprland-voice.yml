@@ -1,0 +1,35 @@
+name: Hyprland voice shortcut
+
+on:
+  pull_request:
+    paths:
+      - 'ryoku/hyprland/modules/voice.lua'
+      - 'ryoku/hyprland/modules/binds.lua'
+      - 'tests/hyprland-voice.lua'
+      - '.github/workflows/hyprland-voice.yml'
+  push:
+    branches:
+      - main
+      - unstable-dev
+      - hyperion
+    paths:
+      - 'ryoku/hyprland/modules/voice.lua'
+      - 'ryoku/hyprland/modules/binds.lua'
+      - 'tests/hyprland-voice.lua'
+      - '.github/workflows/hyprland-voice.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  voice:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua
+        run: sudo apt-get update && sudo apt-get install -y lua5.4
+      - name: Wait for shortcut modifiers before insertion
+        run: |
+          luac5.4 -p ryoku/hyprland/modules/voice.lua tests/hyprland-voice.lua
+          lua5.4 tests/hyprland-voice.lua

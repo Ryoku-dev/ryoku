@@ -36,10 +36,15 @@ keyboard input.
 
 Text arrives either by paste (the clipboard plus Ctrl+V, the default, because a
 busy application drops synthesised keystrokes) or by typing, which the daemon
-does itself over the Wayland virtual-keyboard protocol: one keymap carrying the
-characters of the batch, one press per character. Each upload has a distinct
-map identity so repeated dictations still type correctly after focus returns
-from another app or the physical keyboard. `wtype` is no longer part of dictation.
+does itself over the Wayland virtual-keyboard protocol. It uses the seat's real
+layout for characters available there, so native and XWayland apps receive the
+same letters, punctuation and modifier keys. Characters outside that layout use
+a temporary Unicode map for native Wayland apps. Typing leaves the clipboard
+alone; `wtype` is no longer part of dictation.
+
+The shortcut waits for held modifiers to be released before starting or stopping
+voice typing on Hyprland. A quick transcription must not turn its first letters
+into workspace shortcuts while Super is still down.
 
 ## Models
 
