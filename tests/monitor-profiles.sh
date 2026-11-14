@@ -313,6 +313,35 @@ JSON
 runD "$tmp/dock-boot.json" autoscale >/dev/null
 eDP | grep -qF 'mode = "2560x1600@165"' || fail "booting undocked left the panel off behind the FALLBACK output"
 grep -qF '"FALLBACK"' "$conf" && fail "the FALLBACK placeholder was written into monitors.lua"
+# The Hub applied while the panel was already off: it sends back the 0x0@60 at
+# -1x-1 placeholder Hyprland reports for a disabled output. Unplugging HDMI must
+# wake the panel at a real mode, not write the placeholder as a monitor rule.
+cat >"$tmp/dock-off.json" <<'JSON'
+[
+  {"name":"eDP-1","make":"Acme","model":"Panel","serial":"P1","width":0,"height":0,"refreshRate":60.0,"x":-1,"y":-1,"scale":1.0,"transform":0,"vrr":false,"disabled":true,"focused":false,"availableModes":["2560x1600@165.000Hz"]},
+  {"name":"HDMI-A-1","make":"Acme","model":"Desk","serial":"D1","width":2560,"height":1440,"refreshRate":144.0,"x":0,"y":0,"scale":1.0,"transform":0,"vrr":false,"disabled":false,"focused":true,"availableModes":["2560x1440@144.000Hz"]}
+]
+JSON
+placeholder_layout='[
+  {"id":"Acme|Panel|P1","output":"eDP-1","mode":"0x0@60","position":"-1x-1","scale":1,"transform":0,"vrr":0,"mirror":"none","disabled":true},
+  {"id":"Acme|Desk|D1","output":"HDMI-A-1","mode":"2560x1440@144","position":"0x0","scale":1,"transform":0,"vrr":0,"mirror":"none","disabled":false}
+]'
+runP() {
+  local fixture="$1"
+  shift
+  RYOKU_MONITOR_JSON="$fixture" RYOKU_MONITORS_CONF="$conf" \
+    RYOKU_MONITORS_DIR="$tmp/none-dock" RYOKU_MONITORS_APPLIED="$tmp/placeholder-applied.json" "$mon" "$@"
+}
+runP "$tmp/dock-off.json" apply "$placeholder_layout" >/dev/null
+jq -e '[.monitors[] | select(.mode == "0x0@60" or .position == "-1x-1")] | length == 0' \
+  "$tmp/placeholder-applied.json" >/dev/null \
+  || fail "apply saved the disabled-output placeholder geometry"
+printf '%s' "{\"monitors\":$placeholder_layout}" >"$tmp/placeholder-applied.json"
+runP "$tmp/dock-panel.json" autoscale >/dev/null
+eDP | grep -qF '0x0' && fail "undocked fallback wrote the 0x0 placeholder mode"
+eDP | grep -qF '"-1x-1"' && fail "undocked fallback wrote the -1x-1 placeholder position"
+eDP | grep -qF 'mode = "preferred", position = "auto"' \
+  || fail "undocked fallback did not wake the placeholder panel at preferred/auto"
 
 # --- fallback debounce: a returning enabled output wins before the disabled
 # panel is woken. Repeated hotplug hooks share one wait and one fallback. --------

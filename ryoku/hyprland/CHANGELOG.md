@@ -28,6 +28,11 @@
   (`modules/binds.lua`, `modules/ryoshot.lua`).
 
 ### Fixed
+- **Unplugging the external monitor no longer leaves an invalid layout.** A
+  panel turned off in Displays was saved with the 0x0 at -1x-1 placeholder
+  Hyprland reports for a disabled output, and the hotplug fallback woke it with
+  that geometry. `ryoku-monitor` now swaps the placeholder for preferred/auto on
+  every apply, save and recall, which also repairs layouts saved before (#854).
 - **Taking headphones off no longer starts paused music.** The pause media key
   now only pauses on Hyprland, niri and Wayfire, while the play key still
   toggles, and one tap that sends both keys still acts once (#764).
