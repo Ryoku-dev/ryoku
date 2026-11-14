@@ -1,3 +1,4 @@
+import shell.services as ShellIcons
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -1782,7 +1783,7 @@ Variants {
                                                         let ic = dockButton.icon;
                                                         if (!ic) return "";
                                                         if (ic.startsWith("file://") || ic.startsWith("image://") || ic.startsWith("http://") || ic.startsWith("https://")) return ic;
-                                                        return ic.startsWith("/") ? "file://" + ic : "image://icon/" + ic;
+                                                        return ShellIcons.Icons.path(ic, true);
                                                     }
 
                                                     onStatusChanged: {
@@ -2255,7 +2256,7 @@ Variants {
                                                         let ic = model.icon || "";
                                                         if (!ic) return "";
                                                         if (ic.startsWith("file://") || ic.startsWith("image://") || ic.startsWith("http://") || ic.startsWith("https://")) return ic;
-                                                        return ic.startsWith("/") ? "file://" + ic : "image://icon/" + ic;
+                                                        return ShellIcons.Icons.path(ic, true);
                                                     }
                                                     onStatusChanged: {
                                                         if (status === Image.Error) failedLoad = true;
@@ -2723,7 +2724,7 @@ Variants {
                                                         let ic = pickerDelegate.resolvedItem.icon || "";
                                                         if (!ic) return "";
                                                         if (ic.startsWith("file://") || ic.startsWith("image://") || ic.startsWith("http://") || ic.startsWith("https://")) return ic;
-                                                        return ic.startsWith("/") ? "file://" + ic : "image://icon/" + ic;
+                                                        return ShellIcons.Icons.path(ic, true);
                                                     }
 
                                                     onStatusChanged: {

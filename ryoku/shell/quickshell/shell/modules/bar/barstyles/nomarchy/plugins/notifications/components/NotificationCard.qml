@@ -2,6 +2,7 @@
 // ListModel references. The popup container drives lifetime; the history
 // panel drives static rendering. Both use the same component.
 
+import shell.services as ShellIcons
 import QtQuick 6.11
 import QtQuick.Layouts
 import Quickshell
@@ -63,7 +64,7 @@ BorderSurface {
     if (value.indexOf("file://") === 0 || value.indexOf("image://") === 0) return value
     if (value.charAt(0) === "/") return Util.fileUrl(value)
     if (value.indexOf(":") > 0) return value
-    return Quickshell.iconPath(value, "")
+    return ShellIcons.Icons.path(value, "")
   }
 
   implicitWidth: Style.space(380)

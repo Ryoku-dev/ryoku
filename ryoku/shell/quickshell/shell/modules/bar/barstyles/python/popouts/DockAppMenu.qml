@@ -1,3 +1,4 @@
+import shell.services as ShellIcons
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -276,7 +277,8 @@ PanelWindow {
                             anchors.verticalCenter: parent.verticalCenter
                             width: dockAppMenuWindow.s(20)
                             height: dockAppMenuWindow.s(20)
-                            source: DockAppMenuController.appIcon ? (DockAppMenuController.appIcon.indexOf("/") !== -1 || DockAppMenuController.appIcon.startsWith("image://") ? DockAppMenuController.appIcon : ("image://icon/" + DockAppMenuController.appIcon)) : ""
+                            source: DockAppMenuController.appIcon && DockAppMenuController.appIcon.startsWith("image://") && !DockAppMenuController.appIcon.startsWith("image://icon/")
+                                ? DockAppMenuController.appIcon : ShellIcons.Icons.path(DockAppMenuController.appIcon, true)
                             sourceSize.width: width
                             sourceSize.height: height
                             fillMode: Image.PreserveAspectFit

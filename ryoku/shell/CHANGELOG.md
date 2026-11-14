@@ -1,6 +1,9 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- Route remaining dock, launcher, tray and notification theme icons through the
+  shared file resolver, avoiding the Qt icon provider during asynchronous image
+  loading at startup. Preserve non-theme image providers for app menu images.
 - **Wallpaper Engine video wallpapers animate on hover in the picker (#807).**
   Only local videos got the small preview clip, so workshop video cards stayed
   still; they now get one too, built on the thumbnail job limit and skipped
