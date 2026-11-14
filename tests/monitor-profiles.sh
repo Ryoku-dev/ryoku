@@ -342,6 +342,15 @@ eDP | grep -qF '0x0' && fail "undocked fallback wrote the 0x0 placeholder mode"
 eDP | grep -qF '"-1x-1"' && fail "undocked fallback wrote the -1x-1 placeholder position"
 eDP | grep -qF 'mode = "preferred", position = "auto"' \
   || fail "undocked fallback did not wake the placeholder panel at preferred/auto"
+# -1x-1 beside a real mode on an enabled output is a chosen position, not the
+# placeholder, so it is kept.
+RYOKU_MONITOR_JSON="$tmp/dock-both.json" RYOKU_MONITORS_CONF="$tmp/explicit-pos.lua" \
+  RYOKU_MONITORS_DIR="$tmp/none-dock" RYOKU_MONITORS_APPLIED="$tmp/explicit-pos-applied.json" "$mon" apply '[
+  {"id":"Acme|Panel|P1","output":"eDP-1","mode":"2560x1600@165","position":"1600x0","scale":1.6,"transform":0,"vrr":0,"mirror":"none","disabled":false},
+  {"id":"Acme|Desk|D1","output":"HDMI-A-1","mode":"2560x1440@144","position":"-1x-1","scale":1,"transform":0,"vrr":0,"mirror":"none","disabled":false}
+]' >/dev/null
+grep 'output = "HDMI-A-1"' "$tmp/explicit-pos.lua" | grep -qF 'position = "-1x-1"' \
+  || fail "apply moved an enabled output away from an explicit -1x-1 position"
 
 # --- fallback debounce: a returning enabled output wins before the disabled
 # panel is woken. Repeated hotplug hooks share one wait and one fallback. --------
