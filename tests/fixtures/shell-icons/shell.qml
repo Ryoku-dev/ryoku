@@ -61,6 +61,13 @@ ShellRoot {
                         if (!path.startsWith("file://")) throw new Error("Provider URL leaked: " + path);
                         if (Services.Icons.path("image://icon/" + name, true) !== path) throw new Error("Provider input failed");
                         if (Services.Icons.path("missing-test-icon-2381", name) !== path) throw new Error("Fallback failed");
+                        const withExtension = name + ".svg";
+                        if (!Services.Icons.has(withExtension)) {
+                            const baseName = withExtension.replace(/\.(png|svg|xpm|ico)$/i, "");
+                            if (Services.Icons.path(withExtension, "") !== "") throw new Error("Unexpected first-lookup fallback");
+                            const resolved = Services.Icons.path(withExtension, "") || Services.Icons.path(baseName, true);
+                            if (resolved !== path) throw new Error("Extension-stripped lookup failed");
+                        }
                     }
                     if (Services.Icons.path("missing-test-icon-2381", true) !== "") throw new Error("Missing icon check failed");
                     root.names = names;

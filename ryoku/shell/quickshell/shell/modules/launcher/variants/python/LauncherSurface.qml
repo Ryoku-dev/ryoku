@@ -1677,7 +1677,7 @@ PanelWindow {
                                                     if (ic.startsWith("/")) return "file://" + ic;
 
                                                     let baseName = ic.replace(/\.(png|svg|xpm|ico)$/i, "");
-                                                    return ShellIcons.Icons.path(ic, true) || ShellIcons.Icons.path(baseName, true);
+                                                    return ShellIcons.Icons.path(ic, "") || ShellIcons.Icons.path(baseName, true);
                                                 }
 
                                                 sourceSize: Qt.size(64, 64)
