@@ -149,7 +149,8 @@ T.AbstractButton {
                 text: root.trailing
                 typeRole: "monoSm"
                 inkRole: "fg3"
-                opacity: root._lit || !root.expanded ? 1 : 0.55
+                // a shut folder says how much it holds; an open one shows it instead
+                opacity: !root.expanded ? 1 : root._lit ? 0.6 : 0
                 Behavior on opacity { NumberAnimation { duration: Tone.quick } }
             }
             Glyph {

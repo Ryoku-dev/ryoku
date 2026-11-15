@@ -12,6 +12,9 @@ Flickable {
     required property var hub
     // category id -> open; the open page's category is opened for it
     property var open: ({})
+    // the folder the tree opened by itself to show the open page, shut again when the reader
+    // goes on to another folder; one the reader opened stays as they left it
+    property string followed: ""
     // the first build stands still; from then on folders unfold and the mark travels
     property bool animate: false
 
@@ -56,7 +59,16 @@ Flickable {
     function isOpen(id) {
         return root.open[id] === true;
     }
+    // the reader opens or shuts a folder: the mark slides between the open page's line and
+    // its folder's when that is the folder moved
     function setExpanded(id, value) {
+        if (root.followed === id)
+            root.followed = "";
+        if (id === root.shownCategory)
+            mark.travel();
+        root.place(id, value);
+    }
+    function place(id, value) {
         if (root.isOpen(id) === value)
             return;
         var next = Object.assign({}, root.open);
@@ -65,6 +77,16 @@ Flickable {
     }
     function toggle(id) {
         root.setExpanded(id, !root.isOpen(id));
+    }
+    // the open page's folder opens with it
+    function follow(categoryId) {
+        if (root.followed !== "" && root.followed !== categoryId)
+            root.place(root.followed, false);
+        root.followed = "";
+        if (categoryId !== "" && !root.isOpen(categoryId)) {
+            root.place(categoryId, true);
+            root.followed = categoryId;
+        }
     }
     // Up and Down walk the lines on show, in reading order
     function step(from, direction) {
@@ -106,13 +128,20 @@ Flickable {
     }
     readonly property bool onLeaf: !!root.activeLeaf && !!root.activeFolder && root.activeFolder.expanded
 
+    // the folder of the page shown before, so a move within one folder slides the mark while a
+    // move to another, whose folders open and shut under it, sets it down there afresh
+    property string shownCategory: ""
     Connections {
         target: root.hub
         function onPageIdChanged() {
             var p = Registry.page(root.hub.pageId);
-            if (p)
-                root.setExpanded(p.category, true);
-            mark.travel();
+            var category = p ? p.category : "";
+            if (category !== "" && category === root.shownCategory)
+                mark.travel();
+            else
+                mark.arrive();
+            root.shownCategory = category;
+            root.follow(category);
             keepShown.restart();
         }
     }
@@ -128,8 +157,8 @@ Flickable {
 
     Component.onCompleted: {
         var p = Registry.page(root.hub.pageId);
-        if (p)
-            root.setExpanded(p.category, true);
+        root.shownCategory = p ? p.category : "";
+        root.follow(root.shownCategory);
         Qt.callLater(() => root.animate = true);
     }
 
@@ -145,6 +174,11 @@ Flickable {
         function travel() {
             mark.moving = root.animate;
             settle.restart();
+        }
+        function arrive() {
+            mark.moving = false;
+            if (root.animate)
+                land.restart();
         }
         visible: !!root.activeFolder
         x: root.onLeaf ? 26 : 4
@@ -170,6 +204,13 @@ Flickable {
             interval: Tone.move + 40
             onTriggered: mark.moving = false
         }
+        // set down at a new folder: it grows out from the line's start as the folder opens
+        ParallelAnimation {
+            id: land
+            NumberAnimation { target: mark; property: "opacity"; from: 0; to: 1; duration: Tone.move; easing.type: Easing.OutCubic }
+            NumberAnimation { target: markScale; property: "xScale"; from: 0.6; to: 1; duration: Tone.move + 80; easing.type: Easing.OutCubic }
+        }
+        transform: Scale { id: markScale; origin.x: 0 }
     }
 
     Column {
@@ -185,10 +226,6 @@ Flickable {
                 category: modelData
                 tree: root
                 expanded: root.isOpen(modelData.id)
-                onExpandedChanged: {
-                    if (holdsPage)
-                        mark.travel();
-                }
             }
         }
     }

@@ -120,10 +120,13 @@ takes every surface from the palette in use.
   category is a folder and every page a leaf hung on its folder's guide line,
   each with its glyph (`glyphs` in `registry.js`), like a project tree. A
   folder opens and shuts on a click or Right and Left; its pages slide in one
-  after another. The open page's folder opens with it, and one wash travels to
-  the open page wherever it is (to its folder while that is shut). Up and Down
-  walk the lines on show; Down from the search enters the tree. A page that
-  hands off to another app shows an open-in-new mark.
+  after another. The open page's folder opens with it and shuts again when
+  the reader goes on to another folder, unless they opened it themselves. One
+  wash marks the open page: it slides between pages of one folder and grows in
+  at a page in another, and rests on the folder while that is shut. A shut
+  folder shows how many pages it holds. Up and Down walk the lines on show;
+  Down from the search enters the tree. A page that hands off to another app
+  shows an open-in-new mark.
 - **The outline** (`nav/NavOutline.qml`). Under the open page hang its
   sections. The one being read is marked as the page scrolls, and choosing
   one brings it to the top. A page offers it through `outline` (the section
