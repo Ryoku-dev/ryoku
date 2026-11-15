@@ -3,6 +3,15 @@
 ## Unreleased
 
 ### Fixed
+- **Home and About no longer fly apart under the pointer.** The spring the
+  statue, light and card followed the pointer on diverged and threw them off
+  the page; they follow it through a steady chase now
+  (`quickshell/components/Chase.qml`).
+- **The card's shine is smooth.** The holo foil is a soft colour wash and one
+  sheen of light instead of coarse dots (`quickshell/shaders/foil.frag`).
+- **Your own card picture is chosen by looking at it.** A picture chooser
+  shows thumbnails and a large preview instead of a file list
+  (`quickshell/components/ImageChooser.qml`).
 - **The system card on About shows again.** It was drawn at no size because it
   was scaled before its plate had a width, and a saved picture of it had no
   paper, so its words vanished on a light viewer (`quickshell/pages/About.qml`,

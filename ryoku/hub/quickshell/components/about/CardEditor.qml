@@ -8,6 +8,7 @@ import Lithic
 import Ryoku.Ui as RyokuUi
 import Ryoku.Ui.Singletons
 import "../../Singletons"
+import ".."
 
 // customize the system card beside a live copy of it; every change applies at
 // once through Changes, with Undo
@@ -93,12 +94,13 @@ Dialog {
         }
     }
 
-    RyokuUi.FileDialogHost {
+    // pictures shown as pictures, so the card's figure is chosen by eye
+    ImageChooser {
         id: imagePick
         // the body takes its size from its first child, so this one lives beside it
         parent: root.parent
-        title: I18n.tr("Choose an image for the card")
-        nameFilters: [I18n.tr("Images") + " (*.png *.jpg *.jpeg *.webp *.gif *.bmp)"]
+        overlayParent: root.hub ? root.hub.overlayItem : null
+        title: I18n.tr("Choose a picture for the card")
         currentFolder: "file://" + Paths.picturesDir
         onAccepted: root.adopt(imagePick.selectedFile)
     }

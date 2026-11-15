@@ -318,45 +318,41 @@ Item {
     // light rests behind the figure's head. A still card (About, a saved picture) stands flat
     readonly property bool depthOn: !root.preview && root.roomy
     readonly property bool pointed: root.depthOn && pointer.hovered
-    // the pointer's place, -1..1 each way; a stiff spring keeps the motion a frame or two
-    // behind the pointer, not a beat behind it
-    property real tiltX: 0
-    property real tiltY: 0
-    Behavior on tiltX {
-        enabled: !Lithic.reduceMotion
-        SpringAnimation { spring: 30; damping: 1; mass: 0.5; epsilon: 0.002 }
-    }
-    Behavior on tiltY {
-        enabled: !Lithic.reduceMotion
-        SpringAnimation { spring: 30; damping: 1; mass: 0.5; epsilon: 0.002 }
-    }
-    // where the light stands on the plate, in its pixels
-    property real lightX: 0
-    property real lightY: 0
-    Behavior on lightX {
-        enabled: !Lithic.reduceMotion
-        SpringAnimation { spring: 30; damping: 1; mass: 0.5; epsilon: 0.5 }
-    }
-    Behavior on lightY {
-        enabled: !Lithic.reduceMotion
-        SpringAnimation { spring: 30; damping: 1; mass: 0.5; epsilon: 0.5 }
-    }
+    // the pointer's place, -1..1 each way, and the light's, in the plate's pixels; each
+    // follows its target at once and settles without overshoot (Chase)
+    Chase { id: chaseX }
+    Chase { id: chaseY }
+    Chase { id: chaseLightX; epsilon: 0.5 }
+    Chase { id: chaseLightY; epsilon: 0.5 }
+    readonly property real tiltX: chaseX.value
+    readonly property real tiltY: chaseY.value
+    readonly property real lightX: chaseLightX.value
+    readonly property real lightY: chaseLightY.value
+    property bool lightPlaced: false
     property real lightStrength: root.pointed ? 1 : 0.8
     Behavior on lightStrength {
         NumberAnimation { duration: Tone.move; easing.type: Easing.OutCubic }
     }
     function point(p) {
-        if (!root.pointed || plate.width <= 0 || plate.height <= 0) {
-            root.tiltX = 0;
-            root.tiltY = 0;
-            root.lightX = figure.x + figure.width * 0.5;
-            root.lightY = figure.y + figure.height * 0.22;
+        if (!root.pointed || !p || plate.width <= 0 || plate.height <= 0) {
+            chaseX.target = 0;
+            chaseY.target = 0;
+            // the light rests behind the figure's head; set there at once the first time
+            var rx = figure.x + figure.width * 0.5, ry = figure.y + figure.height * 0.22;
+            if (!root.lightPlaced) {
+                chaseLightX.snap(rx);
+                chaseLightY.snap(ry);
+                root.lightPlaced = figure.height > 0;
+            } else {
+                chaseLightX.target = rx;
+                chaseLightY.target = ry;
+            }
             return;
         }
-        root.tiltX = Math.max(-1, Math.min(1, (p.x - plate.width / 2) / (plate.width / 2)));
-        root.tiltY = Math.max(-1, Math.min(1, (p.y - plate.height / 2) / (plate.height / 2)));
-        root.lightX = p.x;
-        root.lightY = p.y;
+        chaseX.target = Math.max(-1, Math.min(1, (p.x - plate.width / 2) / (plate.width / 2)));
+        chaseY.target = Math.max(-1, Math.min(1, (p.y - plate.height / 2) / (plate.height / 2)));
+        chaseLightX.target = p.x;
+        chaseLightY.target = p.y;
     }
     onPointedChanged: root.point(pointer.point.position)
     Connections {

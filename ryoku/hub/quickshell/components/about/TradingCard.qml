@@ -90,7 +90,6 @@ Item {
         property vector2d size: Qt.vector2d(width, height)
         property vector2d shift: card.foil
         property real strength: 1
-        property real cell: 1
         property real cut: 22
         fragmentShader: Qt.resolvedUrl("../../shaders/foil.frag.qsb")
     }
@@ -116,7 +115,6 @@ Item {
             property vector2d size: Qt.vector2d(width, height)
             property vector2d shift: card.foil
             property real strength: card.faceFoil
-            property real cell: 2
             property real cut: 14
             fragmentShader: Qt.resolvedUrl("../../shaders/foil.frag.qsb")
         }
@@ -188,7 +186,6 @@ Item {
             property vector2d size: Qt.vector2d(width, height)
             property vector2d shift: card.foil
             property real strength: card.windowFoil
-            property real cell: 2
             property real cut: 6
             fragmentShader: Qt.resolvedUrl("../../shaders/foil.frag.qsb")
         }

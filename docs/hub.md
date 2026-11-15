@@ -245,7 +245,8 @@ with no slab:
   figure small beside the name, under the top bar.
 - **Depth.** On a roomy Home the plate answers the pointer in three planes:
   the figure turns toward it in perspective on its own foot (up to 9° and
-  5°, on a stiff spring that reaches the pointer within about 20 ms) and
+  5°, following it through `components/Chase.qml`, which closes 90% of a move
+  in about 80 ms and never overshoots) and
   catches the accent on the edges that face it (`shaders/rim.frag`), the
   carved word drifts the other way behind it, and the column moves a little
   with it. A light of 1-bit dots follows the pointer, drawn only in a box
@@ -296,8 +297,9 @@ memory, the strongest graphics card's class and the display's rate and width,
 and six tiers from Common (no foil, a bone border) through Uncommon, Rare (the
 sun's border, holo window), Holo rare (foil face, gold edge) and Ultra rare
 (gold border, full art, sparkles) to Secret rare (a foil border). The foil is
-`shaders/foil.frag`, the four state colours as 1-bit bands with a streak that
-slides as the card tilts toward the pointer. Beside it, the points and the
+`shaders/foil.frag`: a soft wash of the four state colours and one sheen of
+light, smooth and held under 60% opacity, sliding as the card tilts toward the
+pointer. Beside it, the points and the
 tier ladder say how rare the card is and what the next tier takes; resting on
 a tier shows its look.
 
@@ -306,7 +308,9 @@ a tier shows its look.
 design (the `.ryoprofile` envelope) into the PNG as a `tEXt` chunk named
 `ryoprofile` (`backend/profilecard.go`). Anyone sees a picture; **Open a card**
 and **Paste a card** (`ryoku-hub profile import <path>|--clipboard`) take the
-design back out of it, or out of a `.ryoprofile`. A picture a chat app
+design back out of it, or out of a `.ryoprofile`. The figure's own picture is chosen in
+`components/ImageChooser.qml`, which shows a folder's pictures as thumbnails
+with a large preview, and Pictures, Wallpapers, Downloads and Home to jump to. A picture a chat app
 re-encoded has lost the chunk, and Settings says so.
 
 A page drawn by `components/SettingsPage.qml` is a sheet, with the same shape

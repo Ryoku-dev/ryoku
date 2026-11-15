@@ -469,11 +469,17 @@ Item {
                 width: trading.designWidth * stage.cardScale
                 height: stage.cardHeight
                 readonly property bool pointed: tilt.hovered && !Lithic.reduceMotion
-                property real tx: pointed ? (tilt.point.position.x / width - 0.5) * 2 : 0
-                property real ty: pointed ? (tilt.point.position.y / height - 0.5) * 2 : 0
-                // a stiff spring: the card keeps up with the pointer and only eases the end
-                Behavior on tx { SpringAnimation { spring: 30; damping: 1; mass: 0.5; epsilon: 0.002 } }
-                Behavior on ty { SpringAnimation { spring: 30; damping: 1; mass: 0.5; epsilon: 0.002 } }
+                // the card follows the pointer at once and settles without overshoot
+                Chase {
+                    id: chaseX
+                    target: holder.pointed ? Math.max(-1, Math.min(1, (tilt.point.position.x / holder.width - 0.5) * 2)) : 0
+                }
+                Chase {
+                    id: chaseY
+                    target: holder.pointed ? Math.max(-1, Math.min(1, (tilt.point.position.y / holder.height - 0.5) * 2)) : 0
+                }
+                readonly property real tx: chaseX.value
+                readonly property real ty: chaseY.value
 
                 TradingCard {
                     id: trading
