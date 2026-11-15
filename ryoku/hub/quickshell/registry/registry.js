@@ -3,7 +3,7 @@
 // rail order; pages in their list order
 var categories = [
     { id: "appearance", label: "Appearance", glyph: "palette",
-      pages: ["wallpaper-colours", "window-style", "fonts-icons", "animations", "lock-screen"] },
+      pages: ["style", "wallpaper-colours", "window-style", "fonts-icons", "animations", "lock-screen"] },
     { id: "desktop", label: "Desktop", glyph: "dashboard",
       pages: ["bar", "desktop-dock", "quick-settings", "notifications", "sounds", "launcher", "clipboard", "game-bar"] },
     { id: "windows", label: "Windows", glyph: "select_window",
@@ -25,6 +25,8 @@ var ryogamiTheme = ["ryogami", "wallpaper", "settings", "colours"];
 var ryogamiWallpaper = ["ryogami", "wallpaper", "settings"];
 
 var pages = {
+    "style": { title: "Style", category: "appearance", file: "Style",
+        keywords: ["style", "design", "design language", "look", "material", "material you", "lithic", "adwaita", "gnome", "fluent", "windows 11", "rounded", "shape", "colour scheme"] },
     "wallpaper-colours": { title: "Wallpaper & colours", category: "appearance", handoff: ryogamiTheme,
         keywords: ["wallpaper", "background", "colours", "colors", "theme", "palette", "scheme", "accent", "dark", "light", "matugen", "ryogami"] },
     "window-style": { title: "Window style", category: "appearance", file: "WindowStyle",
@@ -185,7 +187,7 @@ function page(id) {
 
 // each page's mark in the navigation tree (Material Symbols names)
 var glyphs = {
-    "wallpaper-colours": "wallpaper", "window-style": "rounded_corner", "fonts-icons": "match_case",
+    "style": "style", "wallpaper-colours": "wallpaper", "window-style": "rounded_corner", "fonts-icons": "match_case",
     "animations": "animation", "lock-screen": "lock",
     "bar": "toolbar", "desktop-dock": "dock_to_bottom", "quick-settings": "toggle_on",
     "notifications": "notifications", "sounds": "volume_up", "launcher": "manage_search",

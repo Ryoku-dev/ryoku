@@ -58,6 +58,10 @@ var still = {
 
 function pageSummary(id, ctx) {
     switch (id) {
+    case "style": {
+        var design = { lithic: "Lithic", material: "Material", adwaita: "Adwaita", fluent: "Fluent" }[ctx.settings("theme.design")] || "Lithic";
+        return ctx.tr("%1 design").replace("%1", ctx.tr(design));
+    }
     case "window-style":
         if (!ctx.desktopReady)
             return ctx.tr("Corners, borders, blur and shadows");

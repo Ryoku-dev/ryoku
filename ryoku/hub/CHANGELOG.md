@@ -3,6 +3,12 @@
 ## Unreleased
 
 ### Changed
+- **A Style page chooses the desktop's design.** Appearance opens on Style: a
+  gallery of Lithic, Material, Adwaita and Fluent, each drawn as a small
+  Settings window in that design and in the colours it would wear, and the
+  desktop's colour scheme with a hand-off to change it. Settings itself
+  switches the moment you choose (`quickshell/pages/Style.qml`,
+  `components/style/`, `schema/style.js`).
 - **Settings fits its design and loses the grey.** In Lithic the page and its
   groups of rows lie on the paper as cut hairline boxes instead of grey
   fills; the round designs lift them in their palette's surfaces. The sidebar

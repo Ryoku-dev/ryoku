@@ -24,9 +24,20 @@ see `docs/lithic/`) and reads the shared singletons in `Ryoku.Ui.Singletons`
 (`I18n`, `Bus`, `ShellSettings`, `Spawn`). It holds no palette of its own, and
 reduce motion follows the desktop's `theme.motion.reduce` setting.
 
-### Colours
+### Design and colours
 
-Settings opens in the Lithic signature, the ryoku.dev stock: black paper, bone
+Settings draws in the desktop's design language, `theme.design` in the shell
+settings, chosen on the **Style** page (Appearance): Lithic, Material, Adwaita
+or Fluent. The page shows each design as a small Settings window drawn in it
+(`components/style/StyleCard.qml`, every shape a `CutRect` with its `design`
+set) and the desktop's colour scheme with a hand-off to change it. Lithic
+cuts its corners and draws every plane by its hairline on one paper; the round
+designs wear the desktop's palette as Material roles and lift the page and its
+cards off the sidebar (`Singletons/Tone.qml` `planes()`; the library side is
+in docs/lithic/palette.md §2a). `ryoku/ui` Tokens rounds the shell's own
+surfaces with the same choice.
+
+Under Lithic, Settings opens in the signature, the ryoku.dev stock: black paper, bone
 ink and the sun as the one action, whatever the wallpaper. Following the
 wallpaper is the reader's choice, never the default. **Customise** on Home
 holds it: Settings wears Dark, Light or Wallpaper, with Contrast (standard or
@@ -40,6 +51,8 @@ first frame already wears the choice, and `ShellBody.qml` binds Lithic's
 mode; only following reads a palette from them, so in Dark and Light a reload
 repaints nothing. A
 `LITHIC_MODE` in the environment (a gallery or test run) wins over the choice.
+These colours are Lithic's alone: a round design wears the desktop's palette
+whatever they say.
 
 ## How it opens
 
@@ -109,12 +122,14 @@ way: something Home does not show waits until the page that shows it opens.
 ## The layout
 
 `Hub.qml` owns the frame, so a page only draws its content. The sidebar lies on
-the ground; the page pane is lifted a step off it, and `Singletons/Tone.qml`
-takes every surface from the palette in use.
+the ground and the page pane beside it; `Singletons/Tone.qml` takes every
+surface from the design and palette in use, and every shape is a `CutRect`, so
+its corners follow the design.
 
-- **The sidebar** (`components/nav/HubSidebar.qml`). Home stands at its head:
-  the Ryoku mark and "Settings", washed while Home shows. The search field
-  sits under it, then the tree, and Updates at the foot, with a dot while an
+- **The sidebar** (`components/nav/HubSidebar.qml`). Its title line holds the
+  Ryoku mark and SETTINGS, quiet, with one action at its end that shuts every
+  folder but the open page's. The search field sits under it, then the tree,
+  whose first line is Home, and Updates at the foot, with a dot while an
   update is ready.
 - **The tree** (`nav/NavTree.qml`, `NavFolder.qml`, `NavRow.qml`). Every
   category is a folder and every page a leaf hung on its folder's guide line,
@@ -234,7 +249,8 @@ everywhere:
   it.
 - **The outline.** The page's sections hang under its line in the sidebar and
   follow the reading position; there is no index or picker on the page.
-- **Sections.** Each is a title over a filled card of rows (`Tone.card`). Rows
+- **Sections.** Each is a title over a card of rows (`Tone.card`): a cut
+  hairline box in Lithic, a filled card in the round designs. Rows
   marked `more: true` fold under **More options** at the foot of their
   section. A section whose rows were all hidden by the window manager says so
   with its `missing` text, or disappears when it has none.

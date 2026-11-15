@@ -37,6 +37,7 @@
 .import "graphics.js" as Graphics
 .import "performance.js" as Performance
 .import "game-bar.js" as GameBar
+.import "style.js" as Style
 
 // each migrated page's schema by its registry `file`, so search reaches its rows
 var byFile = {
@@ -77,7 +78,8 @@ var byFile = {
     "Bar": Bar,
     "Displays": Displays,
     "Updates": Updates,
-    "Shortcuts": Shortcuts
+    "Shortcuts": Shortcuts,
+    "Style": Style
 };
 
 function forFile(file) {
