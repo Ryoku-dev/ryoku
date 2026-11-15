@@ -27,6 +27,8 @@ Item {
     property var slabBodies: ({})
     // rows -> rows, applied once the provider rows join the schema's
     property var adaptRows: null
+    // a live illustration of the page's settings, shown beside the page's head
+    property Component headerPreview: null
     // the page's scroll view, for bespoke content that measures itself in it
     readonly property Flickable flickable: flick
 
@@ -715,6 +717,7 @@ Item {
                 width: parent.width
                 hub: page.hub
                 pageId: page.pageId
+                preview: page.headerPreview
                 title: page.schema ? I18n.tr(page.schema.title) : ""
                 lead: page.schema && page.schema.lead ? I18n.tr(page.schema.lead) : ""
                 stateLine: page.stateLine

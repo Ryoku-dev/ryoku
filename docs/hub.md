@@ -15,7 +15,7 @@ extend it.
 | `ryoku/hub/quickshell/registry/` | `registry.js` (categories, pages, their glyphs, aliases, hand-offs, Needs you probes), `summaries.js` (each page's live line, shown when the tree peeks into it), `provider-map.js` (where window-manager rows go) |
 | `ryoku/hub/quickshell/schema/` | one `<page-id>.js` per page: its sections and rows; `index.js` lists them for search |
 | `ryoku/hub/quickshell/pages/` | one `<Name>.qml` per page, loaded into the page pane |
-| `ryoku/hub/quickshell/components/` | the shared parts (`SettingsPage`, `PageHeader`, `RowControl`, `Home`, `SearchDoor`, `SearchResults`, `DesignShelf`, ...), the sidebar in `nav/`, and one `<page-id>/` folder per page for that page's own parts and stores |
+| `ryoku/hub/quickshell/components/` | the shared parts (`SettingsPage`, `PageHeader`, `RowControl`, `Home`, `SearchDoor`, `SearchResults`, `DesignShelf`, ...), the sidebar in `nav/`, the pages' live previews in `previews/`, and one `<page-id>/` folder per page for that page's own parts and stores |
 | `ryoku/hub/quickshell/Singletons/` | `Changes` (the write path), `Settings` (the shell settings), `Look` (Settings' own colours), `Tone` (its surfaces and motion), `ProviderSchema`, `Attention`, `Live`, `Host` |
 | `ryoku/hub/backend/` | `ryoku-hub`, the Go program the pages call for anything outside the shell daemon |
 
@@ -150,7 +150,14 @@ takes every surface from the palette in use.
   open page, which slides in as it opens. A page starts with
   `components/PageHeader.qml`: its category, its name with the page's own
   actions (Reset page) on the same line, what it is for, and any note, then
-  its first section. The close button stands in the pane's corner. Escape and
+  its first section. A page may show a live preview at its head's right
+  (`SettingsPage.headerPreview`, drawn from `components/previews/`): Window
+  style draws a window in front of another in the page's corners, frame,
+  see-through, dimming and shadow, Window behaviour three tiled windows in its
+  gaps, and Fonts & icons the chosen faces and size. Each reads the same binds
+  as the rows and follows a change as it is made; they illustrate the
+  settings, they are not pictures of the screen. The close button stands in
+  the pane's corner. Escape and
   Alt+Left step back: out of the results, then out of the search, then out of
   a page's own sub-view (`back()` on the page), then Home, and then the window
   quits.

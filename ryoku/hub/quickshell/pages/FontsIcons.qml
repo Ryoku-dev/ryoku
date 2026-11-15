@@ -3,6 +3,7 @@ import Ryoku.Ui.Singletons
 import "../Singletons"
 import "../components"
 import "../components/fonts-icons"
+import "../components/previews"
 import "../schema/fonts-icons.js" as Schema
 
 // typefaces, text size, icons, the pointer and the desktop's glosses
@@ -25,6 +26,7 @@ Item {
         anchors.fill: parent
         hub: root.hub
         pageId: "fonts-icons"
+        headerPreview: Component { FontsPreview {} }
         schema: Schema
         controls: ({
             "interface-font": interfaceFont,

@@ -5,9 +5,10 @@ import "../Singletons"
 import "../registry/registry.js" as Registry
 
 // the head of a page: where it lives, its name, what it is for, and what it says about the
-// machine now. The page's own actions (Reset page) stand on the name's line, clear of the
-// window's close button; nothing else takes room above the first section
-Column {
+// machine now. The page's own actions (Reset page) stand on the name's line; a page with a
+// preview shows it at the head's right, under the window's close button, where the head would
+// otherwise leave the pane's width empty. Nothing else takes room above the first section
+Item {
     id: root
 
     required property var hub
@@ -17,98 +18,117 @@ Column {
     property string stateLine: ""
     property string note: ""
     default property alias actions: actionRow.data
+    // a live illustration of the page's settings (components/previews/), or null
+    property Component preview: null
 
     readonly property var category: {
         var p = Registry.page(root.pageId);
         return p ? Registry.category(p.category) : null;
     }
+    readonly property bool previewed: root.preview !== null && root.width >= 660
+    readonly property real previewWidth: 264
 
-    spacing: 0
-    bottomPadding: 26
+    height: Math.max(words.height, root.previewed ? previewSlot.y + previewSlot.height : 0) + 26
 
-    Row {
-        height: 22
-        spacing: 6
-        // a page named as its category (Updates) does not say it twice
-        visible: !!root.category && I18n.tr(root.category.label) !== root.title
+    Column {
+        id: words
+        width: root.previewed ? root.width - root.previewWidth - 28 : root.width
 
-        Glyph {
-            anchors.verticalCenter: parent.verticalCenter
-            name: root.category ? root.category.glyph : ""
-            size: 14
-            ink: Tone.accent
-        }
-        Label {
-            anchors.verticalCenter: parent.verticalCenter
-            text: root.category ? I18n.tr(root.category.label) : ""
-            typeRole: "group"
-            inkRole: "fg3"
-            font.capitalization: Font.AllUppercase
-            font.letterSpacing: 1.2
-        }
-    }
-
-    Item {
-        width: root.width
-        height: Math.max(titleLabel.height, actionRow.height)
-
-        Label {
-            id: titleLabel
-            width: Math.min(implicitWidth, parent.width - actionRow.width - 56)
-            anchors.verticalCenter: parent.verticalCenter
-            text: root.title
-            typeRole: "sentence"
-            font.pixelSize: 28
-            lineHeight: 36
-        }
-        // the window's close button stands in the corner above this line's end
         Row {
-            id: actionRow
-            anchors.right: parent.right
-            anchors.rightMargin: 44
-            anchors.verticalCenter: parent.verticalCenter
+            height: 22
             spacing: 6
-        }
-    }
+            // a page named as its category (Updates) does not say it twice
+            visible: !!root.category && I18n.tr(root.category.label) !== root.title
 
-    Label {
-        width: Math.min(parent.width - 44, 720)
-        visible: root.lead.length > 0
-        topPadding: 4
-        text: root.lead
-        typeRole: "body"
-        inkRole: "fg2"
-        wrapMode: Text.Wrap
-        elide: Text.ElideNone
-    }
-    Label {
-        width: Math.min(parent.width - 44, 720)
-        visible: root.stateLine.length > 0
-        topPadding: 6
-        text: root.stateLine
-        typeRole: "detail"
-        inkRole: "fg"
-        wrapMode: Text.Wrap
-        elide: Text.ElideNone
-    }
-    Row {
-        visible: root.note.length > 0
-        topPadding: 8
-        spacing: 6
-
-        Glyph {
-            name: "info"
-            size: 14
-            ink: Lithic.fg3
-            y: 2
+            Glyph {
+                anchors.verticalCenter: parent.verticalCenter
+                name: root.category ? root.category.glyph : ""
+                size: 14
+                ink: Tone.accent
+            }
+            Label {
+                anchors.verticalCenter: parent.verticalCenter
+                text: root.category ? I18n.tr(root.category.label) : ""
+                typeRole: "group"
+                inkRole: "fg3"
+                font.capitalization: Font.AllUppercase
+                font.letterSpacing: 1.2
+            }
         }
+
+        Item {
+            width: words.width
+            height: Math.max(titleLabel.height, actionRow.height)
+
+            Label {
+                id: titleLabel
+                width: Math.min(implicitWidth, parent.width - actionRow.width - 12)
+                anchors.verticalCenter: parent.verticalCenter
+                text: root.title
+                typeRole: "sentence"
+                font.pixelSize: 28
+                lineHeight: 36
+            }
+            // with no preview, the window's close button stands in the corner above this
+            // line's end
+            Row {
+                id: actionRow
+                anchors.right: parent.right
+                anchors.rightMargin: root.previewed ? 0 : 44
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 6
+            }
+        }
+
         Label {
-            width: Math.min(implicitWidth, root.width - 64)
-            text: root.note
-            typeRole: "caption"
-            inkRole: "fg3"
+            width: root.previewed ? parent.width : Math.min(parent.width - 44, 720)
+            visible: root.lead.length > 0
+            topPadding: 4
+            text: root.lead
+            typeRole: "body"
+            inkRole: "fg2"
             wrapMode: Text.Wrap
             elide: Text.ElideNone
         }
+        Label {
+            width: root.previewed ? parent.width : Math.min(parent.width - 44, 720)
+            visible: root.stateLine.length > 0
+            topPadding: 6
+            text: root.stateLine
+            typeRole: "detail"
+            inkRole: "fg"
+            wrapMode: Text.Wrap
+            elide: Text.ElideNone
+        }
+        Row {
+            visible: root.note.length > 0
+            topPadding: 8
+            spacing: 6
+
+            Glyph {
+                name: "info"
+                size: 14
+                ink: Lithic.fg3
+                y: 2
+            }
+            Label {
+                width: Math.min(implicitWidth, words.width - 20)
+                text: root.note
+                typeRole: "caption"
+                inkRole: "fg3"
+                wrapMode: Text.Wrap
+                elide: Text.ElideNone
+            }
+        }
+    }
+
+    Loader {
+        id: previewSlot
+        active: root.previewed
+        anchors.right: parent.right
+        y: 44
+        width: root.previewWidth
+        height: 128
+        sourceComponent: root.preview
     }
 }

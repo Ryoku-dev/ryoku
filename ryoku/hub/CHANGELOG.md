@@ -3,6 +3,12 @@
 ## Unreleased
 
 ### Changed
+- **Pages show what their settings do.** Window style draws a window in
+  front of another in your corners, frame, see-through, dimming and shadow;
+  Window behaviour draws three tiled windows in your gaps; Fonts & icons shows
+  your faces and size. Each preview stands at the page's head, where the pane
+  was empty, and follows a change as you make it
+  (`quickshell/components/previews/`, `components/PageHeader.qml`).
 - **Settings is browsed as a folder tree.** The rail, the hidden page list
   and the tabs above each page are gone; the sidebar now holds the search and
   every category as a folder with its pages hung on a guide line, like a

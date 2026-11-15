@@ -4,6 +4,7 @@ import Ryoku.Ui.Singletons
 import "../Singletons"
 import "../components"
 import "../components/window-behaviour"
+import "../components/previews"
 import "../schema/window-behaviour.js" as Schema
 
 // tiling, gaps, focus, moving, workspaces: the shared rows and the window manager's own
@@ -44,6 +45,7 @@ Item {
         anchors.fill: parent
         hub: root.hub
         pageId: "window-behaviour"
+        headerPreview: Component { TilingPreview {} }
         schema: root.schema
         bodies: root.layoutShown ? { tiling: sketchBody } : {}
     }
