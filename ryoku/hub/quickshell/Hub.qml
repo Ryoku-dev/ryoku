@@ -907,9 +907,10 @@ FocusScope {
                 anchors.right: parent.right
                 anchors.rightMargin: 22
                 anchors.bottom: colophon.top
-                width: parent.width * 0.6
+                width: parent.width - 60
                 height: 200
                 number: Numbering.pageNumber(hub.pageId, hub.gate)
+                gloss: Registry.gloss(hub.pageId)
             }
 
             Masthead {

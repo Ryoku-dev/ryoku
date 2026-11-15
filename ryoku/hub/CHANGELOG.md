@@ -15,7 +15,9 @@
   sections are numbered, and the room under the tree holds the live figures
   and an activity map of how long the machine was on each day, as a
   contribution graph (`ryoku-hub activity`). The clock, the figures and a slow scan over the plates run only while
-  Settings is focused, and never with reduced motion
+  Settings is focused, and never with reduced motion. Japanese runs through
+  it all: each line's kanji in the index, the masthead, a vertical gloss by
+  each plate, the folio and the motto, under Show Japanese glosses
   (`quickshell/components/sheet/`, `Singletons/Ambient.qml`,
   `components/nav/`, `components/PageHeader.qml`, `shaders/plate.frag`,
   `art/plates/`, `../../NOTICE`).

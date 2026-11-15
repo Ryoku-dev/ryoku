@@ -67,6 +67,20 @@ Item {
             font.capitalization: Font.AllUppercase
             font.letterSpacing: 1.4
         }
+        Label {
+            visible: UiPreferences.showJapaneseGloss
+            text: {
+                var p = root.page;
+                if (!p)
+                    return Registry.gloss("home");
+                var c = Registry.gloss(p.category), g = Registry.gloss(p.id);
+                return c === g ? g : c + "・" + g;
+            }
+            typeRole: "caption"
+            font.pixelSize: 11
+            font.letterSpacing: 1
+            inkRole: "fg3"
+        }
     }
 
     Item {

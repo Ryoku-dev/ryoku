@@ -136,6 +136,18 @@ Item {
         return { on: on.length, avg: on.length ? sum / on.length : 0, streak: streak };
     }
 
+    Label {
+        visible: UiPreferences.showJapaneseGloss
+        anchors.right: parent.right
+        anchors.rightMargin: 8
+        anchors.verticalCenter: figures.verticalCenter
+        text: "稼働"
+        typeRole: "caption"
+        font.pixelSize: 11
+        font.letterSpacing: 2
+        inkRole: "fg3"
+    }
+
     Row {
         id: figures
         x: 8

@@ -139,7 +139,8 @@ its corners follow the design.
   numbers its sections: Home is 00, each folder its number in mono (01
   Appearance to 08 System, 09 Updates at the foot) and its name in spaced
   capitals, with a leader line to the count of its pages
-  (`registry/numbering.js`). Pages carry no glyph. A
+  (`registry/numbering.js`). Pages carry no glyph. Every line ends in its
+  Japanese gloss, the real word (`kanji` in `registry.js`). A
   folder opens and shuts on a click or Right and Left; its pages slide in one
   after another. The open page's folder opens with it and shuts again when
   the reader goes on to another folder, unless they opened it themselves. One
@@ -187,6 +188,11 @@ its corners follow the design.
   barcode (`Colophon`). A page that fits leaves its foot to its folio, its
   number set huge and faint, which rolls to the next number when another
   page opens (`Folio`). Sections are numbered and ruled (`01 / 07`).
+  Japanese runs through the sheet as it did through the stable Hub: the
+  masthead carries the category's and page's kanji, the page's kanji stands
+  vertically beside its plate or preview (`Tategaki`), the folio sets it
+  huge beside the number, and the colophon carries 力と美のために. All of it
+  follows Fonts & icons › Show Japanese glosses (`UiPreferences`).
 - **Life at rest** (`Singletons/Ambient.qml`). Only while Settings is the
   focused window and motion is not reduced: the clock ticks, the figures
   sample, and every 11 s a scan crosses the plates at 30 frames a second.

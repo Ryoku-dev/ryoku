@@ -243,6 +243,7 @@ Flickable {
             width: column.width
             glyph: "home"
             numeral: "00"
+            gloss: Registry.gloss("home")
             text: I18n.tr("Home")
             selected: root.hub.pageId === ""
             wash: selected

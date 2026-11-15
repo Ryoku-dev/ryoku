@@ -1,12 +1,13 @@
 import QtQuick
 import QtQuick.Templates as T
 import Lithic
+import Ryoku.Ui.Singletons
 import "../../Singletons"
 
 // one line of the navigation tree: a folder (a category) or a leaf (a page). Its place in
 // the tree is drawn by the guide the parent folder lays down; the row draws its own branch
-// tick, its number (a sheet's index, as ryoku.dev numbers its sections) or mark, and name,
-// and answers the pointer with a quiet wash and a small lean
+// tick, its number (a sheet's index, as ryoku.dev numbers its sections) or mark, its name
+// and its kanji gloss, and answers the pointer with a quiet wash and a small lean
 T.AbstractButton {
     id: root
 
@@ -14,6 +15,8 @@ T.AbstractButton {
     property string glyph: ""
     // the line's place in the index ("01"), drawn in mono instead of a mark
     property string numeral: ""
+    // its Japanese gloss, shown while the desktop's glosses are on
+    property string gloss: ""
     property bool folder: false
     property bool expanded: false
     property bool selected: false
@@ -151,7 +154,7 @@ T.AbstractButton {
             id: name
             anchors.left: number.visible ? number.right : mark.visible ? mark.right : parent.left
             anchors.leftMargin: number.visible || mark.visible ? 10 : root.indent + 8 + body.lean
-            anchors.right: tail.left
+            anchors.right: glossLabel.visible ? glossLabel.left : tail.left
             anchors.rightMargin: 6
             anchors.verticalCenter: parent.verticalCenter
             text: root.text
@@ -162,15 +165,32 @@ T.AbstractButton {
             font.letterSpacing: root.numeral !== "" ? 1.4 : 0
         }
 
-        // an index line's leader, from its name to its count
+        // an index line's leader, from its name to its gloss or count
         Rectangle {
             visible: root.numeral !== "" && width > 6
             anchors.verticalCenter: parent.verticalCenter
             x: name.x + name.contentWidth + 10
-            width: tail.x - 8 - x
+            width: (glossLabel.visible ? glossLabel.x : tail.x) - 8 - x
             height: 1
             color: root._lit || root.expanded ? Tone.guideLit : Tone.guide
             Behavior on color {
+                ColorAnimation { duration: Tone.quick }
+            }
+        }
+
+        // the line's Japanese gloss, its seal beside the Latin name
+        Label {
+            id: glossLabel
+            visible: root.gloss !== "" && UiPreferences.showJapaneseGloss
+            anchors.right: tail.left
+            anchors.rightMargin: tail.width > 0 ? 8 : 0
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.gloss
+            typeRole: "caption"
+            font.pixelSize: root.folder || root.numeral !== "" ? 12 : 11
+            font.letterSpacing: 1
+            ink: root.selected || root.holdsSelection || (root.folder && root.expanded) ? Tone.accent : root._lit ? Lithic.fg2 : Lithic.fg3
+            Behavior on ink {
                 ColorAnimation { duration: Tone.quick }
             }
         }

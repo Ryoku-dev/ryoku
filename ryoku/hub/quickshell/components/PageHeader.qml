@@ -34,10 +34,14 @@ Item {
     readonly property var plate: root.category ? Plates.forCategory(root.category.id) : null
     readonly property real previewWidth: 264
     readonly property real plateWidth: Math.min(288, root.width * 0.32)
-    readonly property real sideWidth: root.previewed ? root.previewWidth : root.plated ? root.plateWidth : 0
+    // the page's kanji set vertically beside the plate or preview, while glosses are on
+    readonly property bool glossed: UiPreferences.showJapaneseGloss && Registry.gloss(root.pageId) !== ""
+        && (root.previewed || root.plated)
+    readonly property real glossRoom: root.glossed ? 36 : 0
+    readonly property real sideWidth: (root.previewed ? root.previewWidth : root.plated ? root.plateWidth : 0) + root.glossRoom
 
     height: Math.max(words.height, root.previewed ? previewSlot.y + previewSlot.height : 0,
-        root.plated ? plateSlot.height : 0) + 26
+        root.plated ? plateSlot.height : 0, root.glossed ? tategaki.y + tategaki.height : 0) + 26
 
     Column {
         id: words
@@ -143,6 +147,15 @@ Item {
         width: root.previewWidth
         height: 128
         sourceComponent: root.preview
+    }
+
+    Tategaki {
+        id: tategaki
+        visible: root.glossed
+        x: root.width - root.sideWidth + 2
+        y: 4
+        gloss: Registry.gloss(root.pageId)
+        category: root.category ? Registry.gloss(root.category.id) : ""
     }
 
     Plate {

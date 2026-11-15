@@ -6,6 +6,7 @@ import "../../Singletons"
 import ".."
 import "../../registry/summaries.js" as Summaries
 import "../../registry/numbering.js" as Numbering
+import "../../registry/registry.js" as Registry
 import "../sheet"
 
 // Settings' sidebar, laid out like an editor's project tree: the app's own title line with the
@@ -45,7 +46,7 @@ Rectangle {
             anchors.right: collapse.left
             anchors.rightMargin: 6
             anchors.verticalCenter: parent.verticalCenter
-            text: I18n.tr("Settings")
+            text: I18n.tr("Settings") + (UiPreferences.showJapaneseGloss ? "  設定" : "")
             typeRole: "group"
             inkRole: "fg2"
             font.capitalization: Font.AllUppercase
@@ -165,6 +166,7 @@ Rectangle {
             folder: false
             glyph: "system_update"
             numeral: Numbering.categoryNumber("updates")
+            gloss: Registry.gloss("updates")
             text: I18n.tr("Updates")
             selected: root.hub.pageId === "updates"
             notch: Updates.available

@@ -185,6 +185,30 @@ function page(id) {
     return Object.assign({ id: id, glyph: glyphs[id] || "article" }, p);
 }
 
+// each category's and page's Japanese gloss, set beside its Latin name while the desktop's
+// Japanese glosses are on. Latin names the thing, the kanji is its seal; every gloss is the
+// real word, never decoration (the stable Hub's set where it had one)
+var kanji = {
+    "home": "表紙", "appearance": "外観", "desktop": "卓上", "windows": "窓", "devices": "機器",
+    "connections": "接続", "apps": "応用", "accounts": "利用者", "system": "系統",
+    "style": "様式", "wallpaper-colours": "壁紙", "window-style": "窓飾", "fonts-icons": "書体",
+    "animations": "動き", "lock-screen": "施錠",
+    "bar": "帯", "desktop-dock": "卓上", "quick-settings": "早設", "notifications": "通知",
+    "sounds": "音", "launcher": "起動", "clipboard": "写し", "game-bar": "遊戯",
+    "window-behaviour": "配置", "shortcuts": "操作", "app-rules": "規則", "window-manager": "合成",
+    "displays": "画面", "keyboard": "鍵盤", "mouse-touchpad": "指針",
+    "wifi": "無線", "bluetooth": "近接", "phone": "電話",
+    "default-apps": "既定", "startup-apps": "始動", "terminal": "端末", "screen-capture": "録画",
+    "voice-typing": "音声", "rashin": "羅針", "add-ons": "拡張",
+    "users": "人々", "sign-in": "認証",
+    "power": "電力", "graphics": "演算", "performance": "性能", "time-language": "言語",
+    "backup-import": "取込", "about": "概要", "updates": "更新"
+};
+
+function gloss(id) {
+    return kanji[id || "home"] || "";
+}
+
 // each page's mark in the navigation tree (Material Symbols names)
 var glyphs = {
     "style": "style", "wallpaper-colours": "wallpaper", "window-style": "rounded_corner", "fonts-icons": "match_case",

@@ -3,6 +3,7 @@ import Lithic
 import Ryoku.Ui.Singletons
 import "../../Singletons"
 import "../../registry/numbering.js" as Numbering
+import "../../registry/registry.js" as Registry
 
 // a category in the navigation tree: its folder line, then its pages hung on a guide. The
 // pages unfold with the folder, each a beat after the one above it
@@ -49,6 +50,7 @@ Column {
         folder: true
         glyph: root.category.glyph
         numeral: Numbering.categoryNumber(root.category.id)
+        gloss: Registry.gloss(root.category.id)
         text: I18n.tr(root.category.label)
         expanded: root.expanded
         holdsSelection: root.holdsPage && !root.expanded
@@ -123,6 +125,7 @@ Column {
                         id: leaf
                         width: entry.width
                         depth: 1
+                        gloss: Registry.gloss(entry.modelData.id)
                         text: I18n.tr(entry.modelData.title)
                         selected: entry.open
                         trailingGlyph: entry.modelData.handoff ? "open_in_new" : ""

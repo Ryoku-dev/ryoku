@@ -1,14 +1,17 @@
 import QtQuick
 import Lithic
+import Ryoku.Ui.Singletons
 import "../../Singletons"
 
-// the page's folio: its number set huge and faint in the sheet's lower corner, behind the
+// the page's folio: its number (and its kanji) set huge and faint in the sheet's lower corner, behind the
 // page, so a short page's empty foot still reads as part of the sheet. A new page's number
 // rolls in over the old one
 Item {
     id: root
 
     property string number: ""
+    // the page's kanji, set large and faint beside the number while glosses are on
+    property string gloss: ""
 
     clip: true
 
@@ -36,6 +39,18 @@ Item {
         easing.type: Easing.OutCubic
     }
 
+    Label {
+        visible: UiPreferences.showJapaneseGloss && root.gloss !== ""
+        anchors.right: incoming.left
+        anchors.rightMargin: 18
+        anchors.bottom: incoming.bottom
+        anchors.bottomMargin: incoming.height * 0.12
+        opacity: incoming.opacity
+        text: root.gloss
+        typeRole: "title"
+        font.pixelSize: 96
+        ink: incoming.ink
+    }
     Label {
         id: incoming
         anchors.right: parent.right
