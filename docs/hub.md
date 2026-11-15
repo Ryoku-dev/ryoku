@@ -245,13 +245,15 @@ with no slab:
   figure small beside the name, under the top bar.
 - **Depth.** On a roomy Home the plate answers the pointer in three planes:
   the figure turns toward it in perspective on its own foot (up to 9° and
-  5°, on a spring) and catches the accent on the edges that face it
-  (`shaders/rim.frag`), the carved word drifts the other way behind it, and
-  the column moves a little with it. A light of 1-bit dots follows the
-  pointer and, left alone, rests behind the figure's head, with a few motes
-  of dust drifting up through it at 15 frames a second while Settings is in
-  front (`shaders/light.frag`). A still card (About's, a saved picture)
-  stands flat on its own paper.
+  5°, on a stiff spring that reaches the pointer within about 20 ms) and
+  catches the accent on the edges that face it (`shaders/rim.frag`), the
+  carved word drifts the other way behind it, and the column moves a little
+  with it. A light of 1-bit dots follows the pointer, drawn only in a box
+  around itself so moving it repaints a patch of the plate; left alone, it
+  rests behind the figure's head, with a few motes of dust drifting up
+  through it at 15 frames a second while Settings is in front
+  (`shaders/light.frag`). A still card (About's, a saved picture) stands flat
+  on its own paper.
 - **The name and the motto.** The name is the plate's one monument, over the
   user and host names and the clock, then the reader's line, by default the
   motto "For the sake of power and beauty." with its gloss, and a tick ruler

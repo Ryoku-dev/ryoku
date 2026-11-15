@@ -471,8 +471,9 @@ Item {
                 readonly property bool pointed: tilt.hovered && !Lithic.reduceMotion
                 property real tx: pointed ? (tilt.point.position.x / width - 0.5) * 2 : 0
                 property real ty: pointed ? (tilt.point.position.y / height - 0.5) * 2 : 0
-                Behavior on tx { SpringAnimation { spring: 2.6; damping: 0.3; epsilon: 0.002 } }
-                Behavior on ty { SpringAnimation { spring: 2.6; damping: 0.3; epsilon: 0.002 } }
+                // a stiff spring: the card keeps up with the pointer and only eases the end
+                Behavior on tx { SpringAnimation { spring: 30; damping: 1; mass: 0.5; epsilon: 0.002 } }
+                Behavior on ty { SpringAnimation { spring: 30; damping: 1; mass: 0.5; epsilon: 0.002 } }
 
                 TradingCard {
                     id: trading

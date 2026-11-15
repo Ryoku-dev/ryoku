@@ -318,41 +318,53 @@ Item {
     // light rests behind the figure's head. A still card (About, a saved picture) stands flat
     readonly property bool depthOn: !root.preview && root.roomy
     readonly property bool pointed: root.depthOn && pointer.hovered
+    // the pointer's place, -1..1 each way; a stiff spring keeps the motion a frame or two
+    // behind the pointer, not a beat behind it
     property real tiltX: 0
     property real tiltY: 0
     Behavior on tiltX {
         enabled: !Lithic.reduceMotion
-        SpringAnimation { spring: 2.4; damping: 0.32; epsilon: 0.002 }
+        SpringAnimation { spring: 30; damping: 1; mass: 0.5; epsilon: 0.002 }
     }
     Behavior on tiltY {
         enabled: !Lithic.reduceMotion
-        SpringAnimation { spring: 2.4; damping: 0.32; epsilon: 0.002 }
+        SpringAnimation { spring: 30; damping: 1; mass: 0.5; epsilon: 0.002 }
     }
-    // where the light stands on the plate, 0..1
-    property point lightAt: Qt.point(0.5, 0.4)
-    Behavior on lightAt {
+    // where the light stands on the plate, in its pixels
+    property real lightX: 0
+    property real lightY: 0
+    Behavior on lightX {
         enabled: !Lithic.reduceMotion
-        PropertyAnimation { duration: Tone.move * 2; easing.type: Easing.OutCubic }
+        SpringAnimation { spring: 30; damping: 1; mass: 0.5; epsilon: 0.5 }
+    }
+    Behavior on lightY {
+        enabled: !Lithic.reduceMotion
+        SpringAnimation { spring: 30; damping: 1; mass: 0.5; epsilon: 0.5 }
     }
     property real lightStrength: root.pointed ? 1 : 0.8
     Behavior on lightStrength {
-        NumberAnimation { duration: Tone.move * 2; easing.type: Easing.OutCubic }
+        NumberAnimation { duration: Tone.move; easing.type: Easing.OutCubic }
     }
-    readonly property point restLight: Qt.point((figure.x + figure.width * 0.5) / Math.max(1, plate.width),
-                                                (figure.y + figure.height * 0.22) / Math.max(1, plate.height))
     function point(p) {
         if (!root.pointed || plate.width <= 0 || plate.height <= 0) {
             root.tiltX = 0;
             root.tiltY = 0;
-            root.lightAt = root.restLight;
+            root.lightX = figure.x + figure.width * 0.5;
+            root.lightY = figure.y + figure.height * 0.22;
             return;
         }
         root.tiltX = Math.max(-1, Math.min(1, (p.x - plate.width / 2) / (plate.width / 2)));
         root.tiltY = Math.max(-1, Math.min(1, (p.y - plate.height / 2) / (plate.height / 2)));
-        root.lightAt = Qt.point(p.x / plate.width, p.y / plate.height);
+        root.lightX = p.x;
+        root.lightY = p.y;
     }
     onPointedChanged: root.point(pointer.point.position)
-    onRestLightChanged: if (!root.pointed) root.lightAt = root.restLight
+    Connections {
+        target: figure
+        function onXChanged() { if (!root.pointed) root.point(null); }
+        function onYChanged() { if (!root.pointed) root.point(null); }
+        function onHeightChanged() { if (!root.pointed) root.point(null); }
+    }
 
     // the dust in the light drifts only while Settings is in front and Home on show
     property real moteTime: 0
@@ -415,14 +427,18 @@ Item {
                 minimumPixelSize: 48
             }
 
-            // the light the figure stands in
+            // the light the figure stands in, drawn only in a box around itself so a moving
+            // light repaints a patch of the plate, not all of it
             ShaderEffect {
                 visible: root.depthOn
-                anchors.fill: parent
+                readonly property real radius: Math.max(160, figure.height * 0.42)
+                x: Math.round(root.lightX - width / 2)
+                y: Math.round(root.lightY - height / 2)
+                width: Math.round(radius * 3.4)
+                height: width
                 property color tint: Lithic.alpha(Lithic.dark ? Lithic.sel : Lithic.fg, Lithic.dark ? 0.55 : 0.32)
                 property vector2d size: Qt.vector2d(width, height)
-                property vector2d center: Qt.vector2d(root.lightAt.x, root.lightAt.y)
-                property real radius: Math.max(160, figure.height * 0.42)
+                property vector2d center: Qt.vector2d(0.5, 0.5)
                 property real strength: root.lightStrength
                 property real time: root.moteTime
                 property real motes: Ambient.on ? 1 : 0
@@ -473,8 +489,8 @@ Item {
                     property color tint: Lithic.sel
                     property vector2d texel: Qt.vector2d(1 / Math.max(1, figure.width), 1 / Math.max(1, figure.height))
                     property vector2d lightDir: {
-                        var dx = root.lightAt.x * plate.width - (figure.x + figure.width / 2);
-                        var dy = root.lightAt.y * plate.height - (figure.y + figure.height / 2);
+                        var dx = root.lightX - (figure.x + figure.width / 2);
+                        var dy = root.lightY - (figure.y + figure.height / 2);
                         var l = Math.max(1, Math.sqrt(dx * dx + dy * dy));
                         return Qt.vector2d(dx / l, dy / l);
                     }
