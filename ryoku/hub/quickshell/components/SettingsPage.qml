@@ -780,6 +780,7 @@ Item {
                         Slab {
                             width: parent.width
                             visible: sec.modelData.rows.length > 0 || sec.hasMore || !!page.slabBodies[sec.modelData.id]
+                            fill: Tone.card
 
                             Column {
                                 width: parent.width

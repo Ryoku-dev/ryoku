@@ -11,8 +11,10 @@
   the reading, and resting the pointer on a page peeks at what it holds now.
   A page opens straight on its name, with Reset page on the same line; the
   section dropdown, the running head and the ruler are gone, so the first
-  setting sits near the top (`quickshell/Hub.qml`, `components/nav/`,
-  `components/PageHeader.qml`, `Singletons/Tone.qml`).
+  setting sits near the top. The page lies on a pane lifted off the sidebar
+  and each section's settings stand on a filled card instead of a hairline
+  box (`quickshell/Hub.qml`, `components/nav/`, `components/PageHeader.qml`,
+  `Singletons/Tone.qml`).
 - **Voice typing is one store over the new engine.** `ryoku-hub dictation` owns
   the settings file, the pinned model catalogue with SHA-256 checks and the
   downloads, and the page now offers the model, the computer that runs it
