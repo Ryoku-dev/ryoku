@@ -124,9 +124,12 @@ takes every surface from the palette in use.
   the reader goes on to another folder, unless they opened it themselves. One
   wash marks the open page: it slides between pages of one folder and grows in
   at a page in another, and rests on the folder while that is shut. A shut
-  folder shows how many pages it holds. Up and Down walk the lines on show;
-  Down from the search enters the tree. A page that hands off to another app
-  shows an open-in-new mark.
+  folder shows how many pages it holds. Up and Down walk the lines on show,
+  the open page's sections included; Down from the search enters the tree and
+  Up from its first line goes back. Return opens a line, Right opens a folder,
+  Left shuts it (from a page, its own). Ctrl+Tab and Ctrl+Shift+Tab leaf
+  through the pages in the tree's order from anywhere in Settings. A page that
+  hands off to another app shows an open-in-new mark.
 - **The outline** (`nav/NavOutline.qml`). Under the open page hang its
   sections. The one being read is marked as the page scrolls, and choosing
   one brings it to the top. A page offers it through `outline` (the section

@@ -768,7 +768,21 @@ FocusScope {
         } else if (event.key === Qt.Key_Escape) {
             hub.back();
             event.accepted = true;
+        } else if (ctrl && (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)) {
+            hub.flipPage(event.key === Qt.Key_Backtab || (event.modifiers & Qt.ShiftModifier) ? -1 : 1);
+            event.accepted = true;
         }
+    }
+
+    // Ctrl+Tab and Ctrl+Shift+Tab leaf through the pages in the tree's order, as an editor
+    // steps through its open files; from Home they start at the first page or the last
+    function flipPage(direction) {
+        var ids = Registry.allPageIds().filter(id => hub.pageAvailable(id) && !Registry.page(id).handoff);
+        if (ids.length === 0)
+            return;
+        var at = ids.indexOf(hub.pageId);
+        var next = at < 0 ? (direction > 0 ? 0 : ids.length - 1) : (at + direction + ids.length) % ids.length;
+        hub.navigate(ids[next], "");
     }
 
     Process {
