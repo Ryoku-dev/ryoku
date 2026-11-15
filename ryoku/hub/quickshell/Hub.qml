@@ -45,12 +45,27 @@ FocusScope {
     readonly property string sizeClass: hub.width >= 1180 ? "expanded" : hub.wide ? "medium" : "compact"
     readonly property Item search: sidebar.search
     readonly property Item overlayItem: overlayLayer
-    // the open page's sections and the one being read, which the sidebar hangs under its line
-    readonly property var outline: content.item && content.item.outline ? content.item.outline : []
-    readonly property int outlineIndex: content.item && content.item.currentSection !== undefined ? content.item.currentSection : -1
+    // the open page's sections and the one being read, which the sidebar hangs under its line.
+    // They come from the page, or from the settings sheet a page wraps (its direct child) while
+    // that sheet is the one on show
+    readonly property Item outlined: {
+        var page = content.item;
+        if (!page)
+            return null;
+        if (page.outline !== undefined)
+            return page;
+        for (var i = 0; i < page.children.length; i++) {
+            var sheet = page.children[i];
+            if (sheet.outline !== undefined && sheet.visible)
+                return sheet;
+        }
+        return null;
+    }
+    readonly property var outline: hub.outlined ? hub.outlined.outline : []
+    readonly property int outlineIndex: hub.outlined ? hub.outlined.currentSection : -1
     function chooseSection(index) {
-        if (content.item && typeof content.item.chooseSection === "function")
-            content.item.chooseSection(index);
+        if (hub.outlined)
+            hub.outlined.chooseSection(index);
     }
     readonly property var changes: Changes
     readonly property bool searching: hub.query.trim().length > 0

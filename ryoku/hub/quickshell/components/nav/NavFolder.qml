@@ -52,6 +52,7 @@ Column {
         holdsSelection: root.holdsPage && !root.expanded
         trailing: String(root.pages.length)
         onClicked: root.tree.toggle(root.category.id)
+        onHoveredChanged: root.tree.hover(head, { id: root.category.id, glyph: root.category.glyph, title: root.category.label, folder: true }, head.hovered)
         onFolded: open => root.tree.setExpanded(root.category.id, open)
         onStepped: direction => root.tree.step(head, direction)
     }
@@ -73,7 +74,10 @@ Column {
             y: 0
             width: 1
             height: Math.max(0, leafColumn.lastBranchY)
-            color: Tone.guide
+            // the guide of the open page's folder is drawn brighter, as an editor lights the
+            // indent the cursor stands in
+            color: root.holdsPage ? Tone.guideLit : Tone.guide
+            Behavior on color { ColorAnimation { duration: Tone.move } }
         }
 
         Column {

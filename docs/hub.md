@@ -131,13 +131,15 @@ takes every surface from the palette in use.
   sections. The one being read is marked as the page scrolls, and choosing
   one brings it to the top. A page offers it through `outline` (the section
   names), `currentSection` and `chooseSection(index)`; `SettingsPage`,
-  `Displays` and `Shortcuts` each do.
-- **The peek.** Resting the pointer on a page's line shows a card beside it
-  with the page's live line from `registry/summaries.js`:
-  `pageSummary(id, ctx)`, with the fixed lines in its `still` table. It reads
-  live state through `ctx` (shell settings, the window manager store, daemon
-  topics, watched files, Needs you items), so it changes when the setting
-  does. Moving along the tree slides the card with the pointer.
+  `Displays` and `Shortcuts` each do, and the frame reads it from the page or
+  from the settings sheet the page wraps (its direct child, while on show).
+- **The peek.** Resting the pointer on a line shows a card beside it with
+  that part's live line from `registry/summaries.js`: `pageSummary(id, ctx)`
+  for a page, with the fixed lines in its `still` table, and
+  `categorySentence(id, ctx)` for a folder. They read live state through
+  `ctx` (shell settings, the window manager store, daemon topics, watched
+  files, Needs you items), so a line changes when the setting does. Moving
+  along the tree slides the card with the pointer.
 - **The search field** replaces the tree with results while there is a query.
   `/`, `Ctrl+K`, `Ctrl+F` and the search on Home focus it, wherever Settings
   is; Up, Down and Return move through the results. An empty search that

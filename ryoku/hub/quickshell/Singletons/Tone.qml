@@ -14,6 +14,7 @@ Singleton {
     readonly property color card: Lithic.dark ? Lithic.mix(Lithic.stone3, Lithic.stone4, 0.7) : Lithic.stone4
     readonly property color line: Lithic.alpha(Lithic.fg, Lithic.dark ? 0.08 : 0.1)
     readonly property color guide: Lithic.alpha(Lithic.fg, Lithic.dark ? 0.16 : 0.2)
+    readonly property color guideLit: Lithic.alpha(Lithic.fg, Lithic.dark ? 0.36 : 0.42)
     readonly property color hover: Lithic.alpha(Lithic.fg, Lithic.dark ? 0.06 : 0.07)
     readonly property color press: Lithic.alpha(Lithic.fg, Lithic.dark ? 0.1 : 0.12)
     readonly property color accent: Lithic.sel

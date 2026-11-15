@@ -29,7 +29,8 @@ Column {
     Row {
         height: 22
         spacing: 6
-        visible: !!root.category
+        // a page named as its category (Updates) does not say it twice
+        visible: !!root.category && I18n.tr(root.category.label) !== root.title
 
         Glyph {
             anchors.verticalCenter: parent.verticalCenter

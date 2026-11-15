@@ -185,7 +185,8 @@ Rectangle {
         }
         x: root.width + (peek.on ? 4 : -4)
         y: Math.max(8, Math.min(root.height - card.height - 8, peek.rowY - card.height / 2))
-        width: 288
+        // as wide as its words, up to a comfortable line
+        width: Math.min(300, Math.max(heading.implicitWidth, summaryLabel.implicitWidth) + 28)
         height: card.height
         opacity: peek.on ? 1 : 0
         visible: opacity > 0
@@ -232,6 +233,7 @@ Rectangle {
                 spacing: 4
 
                 Row {
+                    id: heading
                     spacing: 8
                     Glyph {
                         anchors.verticalCenter: parent.verticalCenter
@@ -247,8 +249,11 @@ Rectangle {
                     }
                 }
                 Label {
-                    width: parent.width
-                    text: tree.peekPage ? Summaries.pageSummary(tree.peekPage.id, root.hub.summaries) : ""
+                    id: summaryLabel
+                    width: Math.min(implicitWidth, parent.width)
+                    text: !tree.peekPage ? ""
+                        : tree.peekPage.folder ? Summaries.categorySentence(tree.peekPage.id, root.hub.summaries)
+                        : Summaries.pageSummary(tree.peekPage.id, root.hub.summaries)
                     typeRole: "detail"
                     inkRole: "fg2"
                     wrapMode: Text.Wrap
