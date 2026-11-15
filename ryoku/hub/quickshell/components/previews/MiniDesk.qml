@@ -9,7 +9,8 @@ Rectangle {
 
     default property alias scene: stage.data
 
-    radius: Tone.radiusSmall
+    // a screen: square in Lithic, rounded as the design rounds its cards
+    radius: Tone.flat ? 0 : Lithic.cornerRadius(Tone.cardCut, width, height)
     clip: true
     gradient: Gradient {
         orientation: Gradient.Horizontal

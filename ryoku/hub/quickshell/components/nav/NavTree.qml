@@ -1,5 +1,6 @@
 import QtQuick
 import Lithic
+import Ryoku.Ui.Singletons
 import "../../Singletons"
 import "../../registry/registry.js" as Registry
 
@@ -103,9 +104,23 @@ Flickable {
     }
     // the first line, for the keys coming down from the search
     function focusFirst() {
-        var first = folders.count > 0 ? folders.itemAt(0) : null;
-        if (first)
-            first.header.forceActiveFocus(Qt.TabFocusReason);
+        homeRow.forceActiveFocus(Qt.TabFocusReason);
+    }
+    // shut every folder but the open page's, as an editor collapses its tree
+    function collapseAll() {
+        var p = Registry.page(root.hub.pageId);
+        var keep = p ? p.category : "";
+        var next = {};
+        if (keep !== "" && root.isOpen(keep))
+            next[keep] = true;
+        root.followed = "";
+        root.open = next;
+    }
+    readonly property bool anyOpen: {
+        for (var id in root.open)
+            if (root.open[id] === true)
+                return true;
+        return false;
     }
     function reveal(item) {
         var y = item.mapToItem(root.contentItem, 0, 0).y;
@@ -171,7 +186,7 @@ Flickable {
     clip: true
 
     // the open page's mark: a wash under its line, or under its shut folder
-    Rectangle {
+    CutRect {
         id: mark
         property bool moving: false
         function travel() {
@@ -191,8 +206,8 @@ Flickable {
         anchors.rightMargin: 4
         y: root.onLeaf ? root.activeLeaf.treeY : root.activeFolder ? root.activeFolder.treeY : 0
         height: root.onLeaf ? root.activeLeaf.lineHeight : root.activeFolder ? root.activeFolder.header.height : 0
-        radius: Tone.radiusSmall
-        color: Tone.accentSoft
+        cut: Tone.rowCut
+        fill: Tone.select
         Behavior on y {
             enabled: mark.moving
             NumberAnimation { duration: Tone.move; easing.type: Easing.OutCubic }
@@ -222,6 +237,18 @@ Flickable {
     Column {
         id: column
         width: root.width
+
+        NavRow {
+            id: homeRow
+            width: column.width
+            glyph: "home"
+            text: I18n.tr("Home")
+            selected: root.hub.pageId === ""
+            wash: selected
+            implicitHeight: 34
+            onClicked: root.hub.goHome()
+            onStepped: direction => root.step(homeRow, direction)
+        }
 
         Repeater {
             id: folders

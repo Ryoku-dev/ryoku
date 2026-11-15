@@ -42,20 +42,22 @@ T.AbstractButton {
     Keys.onReturnPressed: root.clicked()
     Keys.onEnterPressed: root.clicked()
 
+    // each plane is a CutRect, so a row's corners follow the design: cut for Lithic, a pill
+    // for Material, a soft corner for the rest
     background: Item {
-        Rectangle {
+        CutRect {
             anchors.fill: parent
             anchors.leftMargin: root.indent + 4
-            radius: Tone.radiusSmall
-            color: Tone.accentSoft
+            cut: Tone.rowCut
+            fill: Tone.select
             opacity: root.wash ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: Tone.quick } }
         }
-        Rectangle {
+        CutRect {
             anchors.fill: parent
             anchors.leftMargin: root.indent + 4
-            radius: Tone.radiusSmall
-            color: root.down ? Tone.press : Tone.hover
+            cut: Tone.rowCut
+            fill: root.down ? Tone.press : Tone.hover
             opacity: root._lit || root.down ? 1 : 0
             Behavior on opacity {
                 NumberAnimation {
@@ -64,14 +66,13 @@ T.AbstractButton {
                 }
             }
         }
-        Rectangle {
+        CutRect {
             visible: root.visualFocus
             anchors.fill: parent
             anchors.leftMargin: root.indent + 4
-            radius: Tone.radiusSmall
-            color: "transparent"
-            border.width: 1
-            border.color: Lithic.fg2
+            cut: Tone.rowCut
+            strokeWidth: 1
+            strokeColor: Lithic.fg2
         }
         // the branch from the folder's guide to this leaf
         Rectangle {
@@ -116,7 +117,8 @@ T.AbstractButton {
             anchors.verticalCenter: parent.verticalCenter
             name: root.glyph
             size: root.folder ? 18 : 17
-            ink: root.selected || root.holdsSelection ? Tone.accent : root._lit ? Lithic.fg : Lithic.fg2
+            // Lithic marks the open page in its sun; a round design inks it as its selection
+            ink: root.selected ? (Tone.flat ? Tone.accent : Tone.selectInk) : root.holdsSelection ? Tone.accent : root._lit ? Lithic.fg : Lithic.fg2
             font.variableAxes: ({ "FILL": root.selected || (root.folder && root.expanded) ? 1 : 0 })
             Behavior on ink {
                 ColorAnimation { duration: Tone.quick }
@@ -136,7 +138,7 @@ T.AbstractButton {
             anchors.verticalCenter: parent.verticalCenter
             text: root.text
             typeRole: root.folder ? "label" : "detail"
-            ink: root.selected ? Lithic.fg : root._lit || root.holdsSelection ? Lithic.fg : root.folder ? Lithic.fg : Lithic.fg2
+            ink: root.selected ? Tone.selectInk : root._lit || root.holdsSelection ? Lithic.fg : root.folder ? Lithic.fg : Lithic.fg2
             font.weight: root.selected || root.folder ? Font.DemiBold : Font.Normal
         }
 

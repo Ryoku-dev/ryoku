@@ -868,17 +868,21 @@ FocusScope {
             color: Tone.side
         }
 
-        // the page pane, lifted a step off the ground the sidebar lies on
-        Rectangle {
+        // the page pane: in Lithic the same paper as the sidebar, drawn by its cut hairline; in
+        // a round design lifted a step off it
+        CutRect {
             id: pane
             x: hub.wide ? hub.sideWidth : 8
             y: 8
             width: parent.width - x - 8
             height: parent.height - 16
-            radius: Tone.radius
-            color: Tone.pane
-            border.width: 1
-            border.color: Tone.line
+            cutTopLeft: Tone.paneCut
+            cutTopRight: Tone.paneCut
+            cutBottomLeft: Tone.cardCut
+            cutBottomRight: Tone.cardCut
+            fill: Tone.pane
+            strokeWidth: 1
+            strokeColor: Tone.paneStroke
             Behavior on x {
                 NumberAnimation { duration: Tone.move; easing.type: Easing.OutCubic }
             }

@@ -4,7 +4,7 @@ import "../../Singletons"
 
 // Fonts & icons' preview: the interface font large and at the chosen size, and a line in the
 // monospace font, each in the face picked on the page
-Rectangle {
+CutRect {
     id: root
 
     function v(key, fallback) {
@@ -16,10 +16,10 @@ Rectangle {
     readonly property string mono: root.v("terminalFontFamily", "JetBrainsMono Nerd Font")
     readonly property real size: root.v("fontSize", 11)
 
-    radius: Tone.radiusSmall
-    color: Tone.card
-    border.width: 1
-    border.color: Tone.line
+    cut: Tone.cardCut
+    fill: Tone.card
+    strokeWidth: 1
+    strokeColor: Tone.flat ? Lithic.vein : "transparent"
 
     Text {
         id: big

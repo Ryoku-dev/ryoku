@@ -19,12 +19,12 @@ T.AbstractButton {
     Keys.onReturnPressed: root.clicked()
     Keys.onEnterPressed: root.clicked()
 
-    background: Rectangle {
-        radius: width / 2
-        color: root.down ? Tone.press : Tone.hover
+    background: CutRect {
+        cut: Tone.rowCut
+        fill: root.down ? Tone.press : Tone.hover
         opacity: root.hovered || root.down || root.visualFocus ? 1 : 0
-        border.width: root.visualFocus ? 1 : 0
-        border.color: Lithic.fg2
+        strokeWidth: root.visualFocus ? 1 : 0
+        strokeColor: Lithic.fg2
         Behavior on opacity { NumberAnimation { duration: Tone.quick } }
     }
 

@@ -6,8 +6,9 @@ import "../../Singletons"
 import ".."
 import "../../registry/summaries.js" as Summaries
 
-// Settings' sidebar: Home at the head, the search under it, then the whole of Settings as a
-// tree (or the search's results while there is a query), and Updates at the foot
+// Settings' sidebar, laid out like an editor's project tree: the app's own title line with the
+// tree's one action, the search, then the whole of Settings as a tree (or the search's results
+// while there is a query), and Updates at the foot
 Rectangle {
     id: root
 
@@ -18,71 +19,56 @@ Rectangle {
 
     color: Tone.side
 
-    T.AbstractButton {
-        id: home
-        x: 8
-        y: 10
-        width: root.width - 16
-        height: 44
-        hoverEnabled: true
-        focusPolicy: Qt.TabFocus
-        Accessible.role: Accessible.Button
-        Accessible.name: I18n.tr("Home")
-        readonly property bool here: root.hub.pageId === ""
-        onClicked: root.hub.goHome()
-        Keys.onReturnPressed: home.clicked()
-        Keys.onEnterPressed: home.clicked()
+    // the title line: the mark and the app's name, quiet, and collapse-all at its end
+    Item {
+        id: head
+        x: 12
+        y: 8
+        width: root.width - 20
+        height: 40
 
-        background: Rectangle {
-            radius: Tone.radiusSmall
-            color: home.here ? Tone.accentSoft : home.down ? Tone.press : Tone.hover
-            opacity: home.here || home.hovered || home.visualFocus ? 1 : 0
-            border.width: home.visualFocus ? 1 : 0
-            border.color: Lithic.fg2
-            Behavior on opacity { NumberAnimation { duration: Tone.quick } }
+        RyokuMark {
+            id: brand
+            anchors.left: parent.left
+            anchors.leftMargin: 2
+            anchors.verticalCenter: parent.verticalCenter
+            width: 20
+            height: 18
+            ink: Lithic.fg
+            accent: Tone.accent
         }
-
-        contentItem: Item {
-            RyokuMark {
-                id: brand
-                anchors.left: parent.left
-                anchors.leftMargin: 8
-                anchors.verticalCenter: parent.verticalCenter
-                width: 26
-                height: 23
-                ink: Lithic.fg
-                accent: Tone.accent
-                rotation: home.hovered && !Lithic.reduceMotion ? -8 : 0
-                Behavior on rotation {
-                    NumberAnimation { duration: Tone.move; easing.type: Easing.OutBack; easing.overshoot: 2.2 }
-                }
-            }
-            Column {
-                anchors.left: brand.right
-                anchors.leftMargin: 12
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                Label {
-                    width: parent.width
-                    text: I18n.tr("Settings")
-                    typeRole: "row"
-                    font.weight: Font.Bold
-                }
-                Label {
-                    width: parent.width
-                    text: home.here ? I18n.tr("Home") : I18n.tr("Back to Home")
-                    typeRole: "caption"
-                    inkRole: "fg3"
-                }
-            }
+        Label {
+            anchors.left: brand.right
+            anchors.leftMargin: 10
+            anchors.right: collapse.left
+            anchors.rightMargin: 6
+            anchors.verticalCenter: parent.verticalCenter
+            text: I18n.tr("Settings")
+            typeRole: "group"
+            inkRole: "fg2"
+            font.capitalization: Font.AllUppercase
+            font.letterSpacing: 1.6
+        }
+        IconButton {
+            id: collapse
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            width: 30
+            height: 30
+            glyph: "unfold_less"
+            accessibleName: I18n.tr("Close every folder")
+            enabled: tree.anyOpen && !root.hub.searching
+            opacity: enabled ? 1 : 0.35
+            onClicked: tree.collapseAll()
         }
     }
 
     Search {
         id: searchField
-        x: 12
-        y: home.y + home.height + 10
-        width: root.width - 24
+        x: 10
+        y: head.y + head.height + 2
+        width: root.width - 20
+        height: 36
         placeholderText: I18n.tr("Search settings")
         shortcutHint: "/"
         accessibleName: I18n.tr("Search settings")
@@ -200,33 +186,23 @@ Rectangle {
             NumberAnimation { duration: Tone.move; easing.type: Easing.OutCubic }
         }
 
-        Rectangle {
+        CutRect {
             x: 2
             y: 4
             width: card.width
             height: card.height
-            radius: Tone.radius
-            color: Lithic.alpha("#000000", Lithic.dark ? 0.45 : 0.12)
+            cut: Tone.cardCut
+            fill: Lithic.alpha("#000000", Lithic.dark ? 0.5 : 0.12)
         }
-        // the point toward the line it tells about
-        Rectangle {
-            x: -4
-            y: Math.max(10, Math.min(card.height - 20, peek.rowY - peek.y - 5))
-            width: 10
-            height: 10
-            rotation: 45
-            color: Tone.card
-            border.width: 1
-            border.color: Tone.line
-        }
-        Rectangle {
+        // a popover's plane: the paper itself in Lithic, drawn by its hairline
+        CutRect {
             id: card
             width: parent.width
             height: words.implicitHeight + 24
-            radius: Tone.radius
-            color: Tone.card
-            border.width: 1
-            border.color: Tone.line
+            cut: Tone.cardCut
+            fill: Tone.flat ? Lithic.ground : Lithic.stone4
+            strokeWidth: 1
+            strokeColor: Lithic.vein
 
             Column {
                 id: words

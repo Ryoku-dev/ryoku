@@ -3,6 +3,12 @@
 ## Unreleased
 
 ### Changed
+- **Settings fits its design and loses the grey.** In Lithic the page and its
+  groups of rows lie on the paper as cut hairline boxes instead of grey
+  fills; the round designs lift them in their palette's surfaces. The sidebar
+  opens on a quiet title line with a close-every-folder action, Home is the
+  tree's first line, and every row, wash, button and card takes its corners
+  from the design (`quickshell/Singletons/Tone.qml`, `components/nav/`).
 - **Pages show what their settings do.** Window style draws a window in
   front of another in your corners, frame, see-through, dimming and shadow;
   Window behaviour draws three tiled windows in your gaps; Animations opens

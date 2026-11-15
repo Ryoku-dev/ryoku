@@ -60,15 +60,15 @@ Item {
                 Keys.onDownPressed: root.tree.step(line, 1)
 
                 background: Item {
-                    Rectangle {
+                    CutRect {
                         anchors.fill: parent
                         anchors.leftMargin: 46
                         anchors.rightMargin: 4
-                        radius: Tone.radiusSmall
-                        color: line.down ? Tone.press : Tone.hover
+                        cut: Tone.rowCut
+                        fill: line.down ? Tone.press : Tone.hover
                         opacity: line.hovered || line.visualFocus ? 1 : 0
-                        border.width: line.visualFocus ? 1 : 0
-                        border.color: Lithic.fg2
+                        strokeWidth: line.visualFocus ? 1 : 0
+                        strokeColor: Lithic.fg2
                         Behavior on opacity { NumberAnimation { duration: Tone.quick } }
                     }
                 }
