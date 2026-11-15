@@ -206,8 +206,8 @@ with no slab:
   network. About keeps the table of every fact.
 - **Recently changed** lists the session's changes with Undo, once there are
   any.
-- **The top bar** holds the search, "Continue in" the page the reader left
-  off on, and Customise.
+- **The top bar** holds "Continue in" the page the reader left off on, and
+  Customise; in a narrow window, whose sidebar is put away, the search too.
 
 Customise opens the card editor (`components/about/CardEditor.qml`) with
 Settings' colours on top. The plate and About's system card are one design:
@@ -221,25 +221,20 @@ belong to the poster in About, where it is saved as an image or shared.
 A page drawn by `components/SettingsPage.qml` is a sheet, with the same shape
 everywhere:
 
-- **The running head.** A hairline across the top that ends in the page's
-  place among its category's pages (`02 / 05`), and begins with the
-  category's name where no pane beside the page already shows it
-  (`components/SheetHead.qml`). It draws in from the left as the page opens.
-- **The head.** The schema's title and its one-sentence `lead`, a state line
-  when the page passes one, a note when the window manager hides some rows,
-  and a tick ruler that closes the head.
+- **The head** (`components/PageHeader.qml`). The category's glyph and name,
+  unless the page is named like it; the schema's title with the page's own
+  actions on the same line; its one-sentence `lead`, a state line when the
+  page passes one, and a note when the window manager hides some rows. A
+  page's preview, when it has one, stands at the head's right.
 - **The entrance.** The first sections rise in turn as the page opens, 40 ms
   apart; a rebuild after that moves nothing, and reduced motion plays none of
   it.
-- **The section index.** A page with four or more sections gets one, beside
-  the column when the page is wide enough and above it as a picker when it is
-  not. It follows the reading position.
-- **Sections.** Each is a titled slab of rows; a hairline runs from the title
-  to the column's edge and ends in the section's number when the page has two
-  or more. Rows marked `more: true` fold
-  under **More options** at the foot of their section. A section whose rows were
-  all hidden by the window manager says so with its `missing` text, or
-  disappears when it has none.
+- **The outline.** The page's sections hang under its line in the sidebar and
+  follow the reading position; there is no index or picker on the page.
+- **Sections.** Each is a title over a filled card of rows (`Tone.card`). Rows
+  marked `more: true` fold under **More options** at the foot of their
+  section. A section whose rows were all hidden by the window manager says so
+  with its `missing` text, or disappears when it has none.
 - **Related.** A schema's `related` page ids end the page as links, skipping
   pages that are not available.
 

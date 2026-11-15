@@ -32,6 +32,7 @@ Item {
 
     Column {
         id: words
+        anchors.left: parent.left
         width: root.previewed ? root.width - root.previewWidth - 28 : root.width
 
         Row {

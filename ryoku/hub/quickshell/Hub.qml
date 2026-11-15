@@ -75,12 +75,6 @@ FocusScope {
         provider: Settings.provider,
         supports: function (cap) { return Settings.supports(cap); }
     })
-    readonly property var category: Registry.category(hub.categoryId)
-    readonly property var categoryPages: {
-        Settings.revision;
-        return Registry.pagesOf(hub.categoryId, hub.gate);
-    }
-
     // the provider schema is read once a page or search needs it; Home never does
     readonly property bool providerWanted: hub.pageId !== "" || hub.searchArmed
 
@@ -274,6 +268,9 @@ FocusScope {
         // choosing the open page again returns it to its start (a page with sub-views)
         if (again && !row && content.item && typeof content.item.reset === "function")
             content.item.reset();
+        // a narrow window put its drawer away: the keys go to the page it opened
+        if (!hub.wide)
+            hub.focusContent();
     }
 
     function goHome() {
@@ -313,7 +310,18 @@ FocusScope {
         }
         hub.closeOverlays();
         sidebar.tree.setExpanded(c.id, true);
+        hub.openDrawer();
+    }
+
+    // a narrow window draws its sidebar out over the page, with the keys in the tree
+    function openDrawer() {
         hub.narrowView = "nav";
+        sidebar.tree.focusFirst();
+    }
+    // a window that grows wide has no drawer to leave open for the next time it narrows
+    onWideChanged: {
+        if (hub.wide)
+            hub.narrowView = "work";
     }
 
     // a shell word, quoted
@@ -877,7 +885,8 @@ FocusScope {
                     // scroll rail riding the right edge
                     anchors.leftMargin: content.flush ? 0 : 28
                     anchors.rightMargin: content.flush ? 0 : 4
-                    anchors.topMargin: content.flush ? 1 : 12
+                    // a narrow window's drawer and close buttons stand over the page's top
+                    anchors.topMargin: content.flush ? 1 : hub.wide ? 12 : 52
                     anchors.bottomMargin: 1
                 }
             }
@@ -889,7 +898,7 @@ FocusScope {
                 y: 10
                 glyph: "menu"
                 accessibleName: I18n.tr("Show all settings")
-                onClicked: hub.narrowView = "nav"
+                onClicked: hub.openDrawer()
             }
 
             IconButton {
@@ -940,6 +949,8 @@ FocusScope {
             hub: hub
             width: hub.sideWidth
             height: parent.height
+            // put away in a narrow window, it takes no keys either
+            enabled: hub.wide || hub.narrowView === "nav"
             x: hub.wide || hub.narrowView === "nav" ? 0 : -width - 1
             Behavior on x {
                 NumberAnimation { duration: Tone.move; easing.type: Easing.OutCubic }

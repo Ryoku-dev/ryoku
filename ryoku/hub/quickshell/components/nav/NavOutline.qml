@@ -9,6 +9,7 @@ Item {
     id: root
 
     required property var hub
+    required property var tree
     property bool shown: false
     property bool animate: true
     readonly property var sections: root.hub.outline
@@ -24,9 +25,11 @@ Item {
         NumberAnimation { duration: Tone.unfold; easing.type: Easing.OutCubic }
     }
 
-    // the thread the sections hang on, from under the page's mark to the last of them
+    // the thread the sections hang on, from under the page's mark to the last of them; every
+    // part is placed by anchors, so a right-to-left language mirrors it
     Rectangle {
-        x: 36
+        anchors.left: parent.left
+        anchors.leftMargin: 36
         y: 0
         width: 1
         height: Math.max(0, list.implicitHeight - root.rowHeight / 2)
@@ -53,23 +56,28 @@ Item {
                 onClicked: root.hub.chooseSection(line.index)
                 Keys.onReturnPressed: line.clicked()
                 Keys.onEnterPressed: line.clicked()
+                Keys.onUpPressed: root.tree.step(line, -1)
+                Keys.onDownPressed: root.tree.step(line, 1)
 
-                background: Rectangle {
-                    x: 46
-                    width: parent.width - x - 4
-                    height: parent.height
-                    radius: Tone.radiusSmall
-                    color: line.down ? Tone.press : Tone.hover
-                    opacity: line.hovered || line.visualFocus ? 1 : 0
-                    border.width: line.visualFocus ? 1 : 0
-                    border.color: Lithic.fg2
-                    Behavior on opacity { NumberAnimation { duration: Tone.quick } }
+                background: Item {
+                    Rectangle {
+                        anchors.fill: parent
+                        anchors.leftMargin: 46
+                        anchors.rightMargin: 4
+                        radius: Tone.radiusSmall
+                        color: line.down ? Tone.press : Tone.hover
+                        opacity: line.hovered || line.visualFocus ? 1 : 0
+                        border.width: line.visualFocus ? 1 : 0
+                        border.color: Lithic.fg2
+                        Behavior on opacity { NumberAnimation { duration: Tone.quick } }
+                    }
                 }
 
                 contentItem: Item {
                     Rectangle {
                         id: node
-                        x: 36 - width / 2 + 0.5
+                        anchors.left: parent.left
+                        anchors.leftMargin: 36 - width / 2 + 0.5
                         anchors.verticalCenter: parent.verticalCenter
                         width: line.here ? 7 : 5
                         height: width
@@ -81,14 +89,16 @@ Item {
                         Behavior on color { ColorAnimation { duration: Tone.quick } }
                     }
                     Label {
-                        x: 55 + (line.hovered && !line.here ? 2 : 0)
-                        width: parent.width - x - 10
+                        anchors.left: parent.left
+                        anchors.leftMargin: 55 + (line.hovered && !line.here ? 2 : 0)
+                        anchors.right: parent.right
+                        anchors.rightMargin: 10
                         anchors.verticalCenter: parent.verticalCenter
                         text: line.modelData
                         typeRole: "caption"
                         ink: line.here ? Lithic.fg : line.hovered ? Lithic.fg2 : Lithic.fg3
                         font.weight: line.here ? Font.DemiBold : Font.Normal
-                        Behavior on x { NumberAnimation { duration: Tone.move; easing.type: Easing.OutCubic } }
+                        Behavior on anchors.leftMargin { NumberAnimation { duration: Tone.move; easing.type: Easing.OutCubic } }
                         Behavior on ink { ColorAnimation { duration: Tone.quick } }
                     }
                 }

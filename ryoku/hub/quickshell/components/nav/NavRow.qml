@@ -37,7 +37,8 @@ T.AbstractButton {
     Keys.onUpPressed: root.stepped(-1)
     Keys.onDownPressed: root.stepped(1)
     Keys.onRightPressed: if (root.folder && !root.expanded) root.folded(true)
-    Keys.onLeftPressed: if (root.folder && root.expanded) root.folded(false)
+    // Left on a page line goes back up to its folder, shutting it
+    Keys.onLeftPressed: if (!root.folder || root.expanded) root.folded(false)
     Keys.onReturnPressed: root.clicked()
     Keys.onEnterPressed: root.clicked()
 
@@ -75,7 +76,8 @@ T.AbstractButton {
         // the branch from the folder's guide to this leaf
         Rectangle {
             visible: root.depth > 0
-            x: root.indent - 6
+            anchors.left: parent.left
+            anchors.leftMargin: root.indent - 6
             anchors.verticalCenter: parent.verticalCenter
             width: 8
             height: 1
@@ -91,15 +93,17 @@ T.AbstractButton {
             NumberAnimation { duration: Tone.move; easing.type: Easing.OutCubic }
         }
 
+        // placed by anchors, so a right-to-left language mirrors the whole line
         Glyph {
             id: chevron
             visible: root.folder
-            x: root.indent + 8
+            anchors.left: parent.left
+            anchors.leftMargin: root.indent + 8
             anchors.verticalCenter: parent.verticalCenter
-            name: "chevron_right"
+            name: root.LayoutMirroring.enabled ? "chevron_left" : "chevron_right"
             size: 16
             ink: root._lit ? Lithic.fg : Lithic.fg3
-            rotation: root.expanded ? 90 : 0
+            rotation: root.expanded ? (root.LayoutMirroring.enabled ? -90 : 90) : 0
             Behavior on rotation {
                 NumberAnimation { duration: Tone.move; easing.type: Easing.OutBack; easing.overshoot: 1.6 }
             }
@@ -107,7 +111,8 @@ T.AbstractButton {
 
         Glyph {
             id: mark
-            x: (root.folder ? chevron.x + chevron.width + 6 : root.indent + 6) + body.lean
+            anchors.left: parent.left
+            anchors.leftMargin: (root.folder ? root.indent + 8 + 16 + 6 : root.indent + 6) + body.lean
             anchors.verticalCenter: parent.verticalCenter
             name: root.glyph
             size: root.folder ? 18 : 17

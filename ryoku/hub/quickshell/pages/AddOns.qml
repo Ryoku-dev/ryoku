@@ -15,7 +15,6 @@ Item {
     // the add-on or bundle open in its own view: { kind: "plugin" | "bundle", id }
     property var detail: null
     property string pendingOpen: ""
-    readonly property bool ownBack: root.hub.sizeClass === "expanded"
 
     readonly property var store: Changes.stores["addons"] || null
     readonly property bool omarchyShown: !!root.store && root.store.omarchyAvailable
@@ -733,7 +732,6 @@ Item {
             Plaque {
                 id: back
                 x: detailPage.columnX
-                visible: root.ownBack
                 kind: "quiet"
                 small: true
                 glyph: "arrow_back"
@@ -908,7 +906,6 @@ Item {
             Plaque {
                 id: bback
                 x: bundlePage.columnX
-                visible: root.ownBack
                 kind: "quiet"
                 small: true
                 glyph: "arrow_back"

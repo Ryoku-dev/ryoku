@@ -88,7 +88,8 @@ Flickable {
             root.followed = categoryId;
         }
     }
-    // Up and Down walk the lines on show, in reading order
+    // Up and Down walk the lines on show, in reading order; Up from the first goes back to
+    // the search the keys came down from
     function step(from, direction) {
         var next = from.nextItemInFocusChain(direction > 0);
         for (var p = next; p; p = p.parent)
@@ -97,6 +98,8 @@ Flickable {
                 root.reveal(next);
                 return;
             }
+        if (direction < 0)
+            root.hub.search.forceActiveFocus(Qt.TabFocusReason);
     }
     // the first line, for the keys coming down from the search
     function focusFirst() {
@@ -181,9 +184,12 @@ Flickable {
                 land.restart();
         }
         visible: !!root.activeFolder
-        x: root.onLeaf ? 26 : 4
+        // anchored, so a right-to-left language mirrors it with the lines it marks
+        anchors.left: parent.left
+        anchors.leftMargin: root.onLeaf ? 26 : 4
+        anchors.right: parent.right
+        anchors.rightMargin: 4
         y: root.onLeaf ? root.activeLeaf.treeY : root.activeFolder ? root.activeFolder.treeY : 0
-        width: root.width - x - 4
         height: root.onLeaf ? root.activeLeaf.lineHeight : root.activeFolder ? root.activeFolder.header.height : 0
         radius: Tone.radiusSmall
         color: Tone.accentSoft
@@ -191,7 +197,7 @@ Flickable {
             enabled: mark.moving
             NumberAnimation { duration: Tone.move; easing.type: Easing.OutCubic }
         }
-        Behavior on x {
+        Behavior on anchors.leftMargin {
             enabled: root.animate
             NumberAnimation { duration: Tone.move; easing.type: Easing.OutCubic }
         }

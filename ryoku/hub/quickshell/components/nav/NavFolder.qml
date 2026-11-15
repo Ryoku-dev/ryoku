@@ -70,7 +70,8 @@ Column {
 
         // the guide the pages hang on, from the folder's chevron down to the last page's branch
         Rectangle {
-            x: 16
+            anchors.left: parent.left
+            anchors.leftMargin: 16
             y: 0
             width: 1
             height: Math.max(0, leafColumn.lastBranchY)
@@ -137,6 +138,7 @@ Column {
 
                     NavOutline {
                         hub: root.hub
+                        tree: root.tree
                         shown: entry.open
                         animate: root.tree.animate
                     }

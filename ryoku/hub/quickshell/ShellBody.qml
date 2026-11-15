@@ -50,8 +50,8 @@ Scope {
         title: I18n.tr("Ryoku Settings")
         implicitWidth: 1280
         implicitHeight: 800
-        // never smaller than the expanded layout: the icon-only rail and the
-        // pane-takes-the-page's-place view the owner rejected do not render
+        // never smaller than the sidebar beside the page; the drawer a narrower window
+        // keeps it in is only for a compositor that sizes the window below this anyway
         minimumSize: Qt.size(1280, 800)
         color: Lithic.ground
 

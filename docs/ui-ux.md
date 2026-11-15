@@ -79,7 +79,7 @@ a **claim** is a state word and its **proof** is the fact behind it, and
 
 Two things stay Ryoku's whatever the palette does. The **力 seal** is the brand
 mark, drawn in its own fixed vermillion, and it is used as a mark (the Home
-mark atop Ryoku Settings' rail, the welcome window, the lockscreen family), never as decoration or
+mark atop Ryoku Settings' sidebar, the welcome window, the lockscreen family), never as decoration or
 state. And the three meaning minerals, jade, lapis and amber, never follow the
 wallpaper, so "alive" reads the same on every rice; jasper does follow the
 palette's `error`, so destructive controls agree with the rest of the desktop.
@@ -525,33 +525,30 @@ and pages come from `ryoku/hub/quickshell/registry/registry.js`; each page is
 it is one large surface (Displays, Keyboard shortcuts), and adds its own
 surfaces. `docs/hub.md` is the guide to building and extending it.
 
-- **The rail.** The 力 seal as the Home mark at the top, then the categories as
-  destinations: Appearance, Desktop, Windows, Devices, Connections, Apps,
-  Accounts and System, with Updates at the rail foot. The current category is a
-  bone tile that travels to its new place. The only marker a tile may carry is
-  an amber notch, and only Updates carries it, when an update is available.
-- **The list pane.** On Home it lists every category with a one-line summary
-  under the title Settings; in a category it shows the category's name, a
-  sentence about it, and its pages. The search field ("Search settings", `/`)
-  sits above the list and replaces it with results while there is a query. An
-  old page id still lands right, because the registry's `aliases` table maps
-  the retired id to its new page.
-- **The work pane.** Home (what needs you, your desktop, this computer, and
-  recently changed settings with Undo), or the open page.
-- **The page head.** The page title and its one-sentence lead in `fg2`, then a
-  state line when the page has one, and a note when the window manager hides
-  some rows. A page with four or more sections gets a section index, beside the
-  column when the page is wide enough and above it when it is not.
+- **The sidebar.** The 力 seal and "Settings" at its head go Home. Under them
+  the search field ("Search settings", `/`) and the tree: every category a
+  folder (Appearance, Desktop, Windows, Devices, Connections, Apps, Accounts,
+  System) with its pages hung on a guide line, the open page washed and its
+  sections hung under it, and Updates at the foot with a dot while an update
+  is ready. Resting on a line peeks at its live summary; a query replaces the
+  tree with results. An old page id still lands right, because the
+  registry's `aliases` table maps the retired id to its new page.
+- **The page pane.** Lifted a step off the sidebar: Home (what needs you, your
+  desktop, this computer, and recently changed settings with Undo), or the
+  open page.
+- **The page head.** The category, then the page title with the page's own
+  actions on its line, its one-sentence lead in `fg2`, a state line when the
+  page has one, and a note when the window manager hides some rows. A page
+  may show a live preview of its settings at the head's right.
 - **Sections.** Each section is a titled slab of rows; deep rows fold under
   **More options** at its foot. A page whose schema names related pages ends on
   a Related section linking to them.
 - **No action bar.** A change applies when it is made and is kept. The placard
   at the foot of the window names it and offers Undo while it drains, and Home
   keeps the session's recent changes with Undo too.
-- **The page measure.** A page is one reading column, capped at
-  `settingsExpandedMax` (`settingsMediumMax` at the medium size) and centred in
-  the work pane: a wider window buys room for the side index, never a longer
-  row and never a wider void.
+- **The page measure.** A page is one reading column, capped at 960 and
+  centred in the page pane: a wider window never buys a longer row or a wider
+  void.
 - **A list of values is tablets, wherever it lives.** The same rhythm as the
   settings slabs: `s4` insets, one row height, 4 between rows, label in `fg`
   over its note in `fg3`, the state as a notch and a claim. A hand-built page
@@ -761,7 +758,7 @@ Kit keeps five tools behind one search field:
 ### Its own window
 
 - **Ryoku Settings** the settings app (`ryoku/hub/quickshell/`, run as
-  `qs -c hub`). Its rail, list pane and page head set the pattern every page
+  `qs -c hub`). Its sidebar tree and page head set the pattern every page
   follows; see "The chrome every page inherits" above.
 - **the apps** standalone Ryoku apps read the same tokens and carry no theme of
   their own: **ryostore** is the catalogue for rices, lockscreens, plugins, bar

@@ -610,7 +610,7 @@ Item {
                     }
                 }
 
-                // a window without the rail lists the categories here, the one place they stand
+                // a window whose sidebar is put away lists the categories here too
                 Column {
                     visible: root.compact
                     width: parent.width

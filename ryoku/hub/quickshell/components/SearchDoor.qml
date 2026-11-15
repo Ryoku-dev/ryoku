@@ -3,8 +3,8 @@ import QtQuick.Templates as T
 import Lithic
 import Ryoku.Ui.Singletons
 
-// the search as it stands on Home: it looks like the field at rest and opens the
-// navigation pane, where the field itself takes the keys
+// the search as it stands on Home in a narrow window: it looks like the field at rest and
+// draws the sidebar out, where the field itself takes the keys
 T.AbstractButton {
     id: root
 
