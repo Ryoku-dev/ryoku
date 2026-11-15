@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Fixed
+- **The system card's text is sharp.** It was drawn for its full size and
+  blurred when the card was shown smaller or saved; it now scales cleanly, and
+  an expand button on Home shows the card large to read it whole
+  (`quickshell/components/about/TradingCard.qml`, `CardViewer.qml`).
 - **Home and About no longer fly apart under the pointer.** The spring the
   statue, light and card followed the pointer on diverged and threw them off
   the page; they follow it through a steady chase now

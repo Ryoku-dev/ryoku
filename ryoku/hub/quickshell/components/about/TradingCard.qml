@@ -151,6 +151,8 @@ Item {
 
     // the head: its stage, its name, its power
     Label {
+        // drawn as outlines, so it stays sharp at any scale the card is shown or saved at
+        renderType: Text.QtRendering
         x: 34
         y: 26
         text: I18n.tr("Ryoku machine") + "  ·  " + I18n.tr(card.tier.name) + (UiPreferences.showJapaneseGloss ? "  ·  力の機械" : "")
@@ -161,6 +163,7 @@ Item {
         inkRole: "fg2"
     }
     Label {
+        renderType: Text.QtRendering
         id: nameLabel
         x: 32
         y: 42
@@ -172,6 +175,7 @@ Item {
         elide: Text.ElideRight
     }
     Label {
+        renderType: Text.QtRendering
         id: powerLabel
         anchors.right: parent.right
         anchors.rightMargin: 34
@@ -183,6 +187,7 @@ Item {
         ink: card.shine
     }
     Label {
+        renderType: Text.QtRendering
         anchors.right: powerLabel.left
         anchors.rightMargin: 6
         anchors.baseline: powerLabel.baseline
@@ -228,6 +233,7 @@ Item {
             fragmentShader: Qt.resolvedUrl("../../shaders/foil.frag.qsb")
         }
         Text {
+            renderType: Text.QtRendering
             anchors.horizontalCenter: parent.horizontalCenter
             y: 24
             text: String(card.f("text.epithets", []).length > 0 ? card.f("text.epithets", [])[0] : "Ryoku")
@@ -262,6 +268,7 @@ Item {
         strokeWidth: 1
         strokeColor: Lithic.alpha(Lithic.fg, 0.25)
         Label {
+            renderType: Text.QtRendering
             anchors.centerIn: parent
             width: parent.width - 24
             horizontalAlignment: Text.AlignHCenter
@@ -273,6 +280,7 @@ Item {
         }
     }
     Label {
+        renderType: Text.QtRendering
         x: 40
         y: window.y + window.height + 30
         width: card.width - 80
@@ -313,6 +321,7 @@ Item {
                     cut: 6
                     fill: Lithic.alpha(Lithic.sel, 0.18)
                     Glyph {
+                        renderType: Text.QtRendering
                         anchors.centerIn: parent
                         name: modelData.glyph
                         size: 18
@@ -324,12 +333,14 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     width: parent.width - 44 - 120
                     Label {
+                        renderType: Text.QtRendering
                         text: modelData.name
                         typeRole: "label"
                         font.pixelSize: 19
                         font.weight: Font.Bold
                     }
                     Label {
+                        renderType: Text.QtRendering
                         width: parent.width
                         text: modelData.detail
                         typeRole: "detail"
@@ -339,6 +350,7 @@ Item {
                     }
                 }
                 Label {
+                    renderType: Text.QtRendering
                     id: amount
                     anchors.right: unit.left
                     anchors.rightMargin: 4
@@ -350,6 +362,7 @@ Item {
                     ink: card.shine
                 }
                 Label {
+                    renderType: Text.QtRendering
                     id: unit
                     anchors.right: parent.right
                     anchors.baseline: amount.baseline
@@ -374,6 +387,7 @@ Item {
                 width: (card.width - 80) / 3
                 spacing: 2
                 Label {
+                    renderType: Text.QtRendering
                     text: modelData.name
                     typeRole: "monoSm"
                     font.pixelSize: 10
@@ -382,6 +396,7 @@ Item {
                     inkRole: "fg3"
                 }
                 Label {
+                    renderType: Text.QtRendering
                     width: parent.width - 8
                     text: card.known(modelData.value) ? modelData.value : "-"
                     typeRole: "mono"
@@ -403,6 +418,7 @@ Item {
         strokeWidth: 1
         strokeColor: Lithic.alpha(Lithic.gold, 0.6)
         Label {
+            renderType: Text.QtRendering
             anchors.left: parent.left
             anchors.leftMargin: 14
             anchors.right: gloss.left
@@ -416,6 +432,7 @@ Item {
             elide: Text.ElideRight
         }
         Label {
+            renderType: Text.QtRendering
             id: gloss
             visible: UiPreferences.showJapaneseGloss
             anchors.right: parent.right
@@ -441,6 +458,7 @@ Item {
             accent: Lithic.sel
         }
         Label {
+            renderType: Text.QtRendering
             anchors.verticalCenter: parent.verticalCenter
             text: card.release + "  ·  " + card.serial
             typeRole: "monoSm"
@@ -455,6 +473,7 @@ Item {
         y: 836
         spacing: 8
         Label {
+            renderType: Text.QtRendering
             anchors.verticalCenter: parent.verticalCenter
             text: I18n.tr(card.tier.name).toUpperCase() + "  ·  " + I18n.tr("%1 pts").replace("%1", card.rarity.points)
             typeRole: "monoSm"
@@ -463,6 +482,7 @@ Item {
             ink: card.level >= 3 ? Lithic.gold : Lithic.fg2
         }
         Label {
+            renderType: Text.QtRendering
             anchors.verticalCenter: parent.verticalCenter
             text: card.tier.mark
             typeRole: "label"

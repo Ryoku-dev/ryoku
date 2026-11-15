@@ -274,8 +274,10 @@ with no slab:
   network. About keeps the table of every fact.
 - **Recently changed** lists the session's changes with Undo, once there are
   any.
-- **The top bar** holds "Continue in" the page the reader left off on, Share
-  and Customise; in a narrow window, whose sidebar is put away, the search too.
+- **The top bar** holds "Continue in" the page the reader left off on, an
+  expand button that shows the system card large over a shade
+  (`components/about/CardViewer.qml`; Escape or a click beside it closes it),
+  Share and Customise; in a narrow window, whose sidebar is put away, the search too.
   Share copies the system card to the clipboard as a picture that carries its
   design (`CardShare`), drawing the card out of sight once the machine's full
   read-out is in; the button says Copied, and a line under it says what to do
@@ -316,7 +318,8 @@ discrete graphics card, in tens), the figure in a holo window (the reader's
 own picture fills it), a type line with the card's number (from the host
 name), the distro, window manager and graphics card, the processor, display
 and memory as its moves, uptime, packages and kernel as its traits, the motto
-as flavour text, and the figure's credit as "Illus.". It asks SysInfo for the
+as flavour text, and the figure's credit as "Illus.". Its text is drawn as outlines
+(`Text.QtRendering`), so it stays sharp at any scale it is shown or saved at. It asks SysInfo for the
 full read-out when it is drawn. Home shows it in the figure's place when
 Layout says so, turning toward the pointer. The machine sets its rarity
 (`registry/rarity.js`, tested by `rarity.test.mjs`): points for threads,

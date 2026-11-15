@@ -143,6 +143,21 @@ Item {
         }
     }
 
+    // the card large, to read it whole; made the first time it is asked for
+    function expandCard() {
+        viewerLoader.active = true;
+        if (viewerLoader.item)
+            viewerLoader.item.open();
+    }
+    Loader {
+        id: viewerLoader
+        active: false
+        parent: root.hub ? root.hub.overlayItem : root
+        anchors.fill: parent
+        sourceComponent: CardViewer {}
+        onLoaded: item.open()
+    }
+
     Loader {
         id: editorLoader
         active: false
@@ -632,13 +647,25 @@ Item {
                 Plaque {
                     id: continuePlaque
                     anchors.verticalCenter: parent.verticalCenter
-                    visible: root.continuePage !== "" && x + implicitWidth < sharePlaque.x - LithicTokens.space.s2
+                    visible: root.continuePage !== "" && x + implicitWidth < expandPlaque.x - LithicTokens.space.s2
                     x: door.visible ? door.x + door.width + LithicTokens.space.s2 : 0
                     kind: "quiet"
                     small: true
                     glyph: "arrow_forward"
                     text: root.continuePage !== "" ? I18n.tr("Continue in %1").replace("%1", I18n.tr(Registry.page(root.continuePage).title)) : ""
                     onClicked: root.hub.navigate(root.continuePage, "")
+                }
+                Plaque {
+                    id: expandPlaque
+                    anchors.right: sharePlaque.left
+                    anchors.rightMargin: LithicTokens.space.s2
+                    anchors.verticalCenter: parent.verticalCenter
+                    kind: "quiet"
+                    small: true
+                    glyph: "open_in_full"
+                    text: ""
+                    accessibleName: I18n.tr("Show your system card large")
+                    onClicked: root.expandCard()
                 }
                 Plaque {
                     id: sharePlaque
