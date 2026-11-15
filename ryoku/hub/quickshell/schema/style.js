@@ -6,7 +6,7 @@ var lead = "How every Ryoku surface looks: its design, its colours, and light or
 var sections = [
     { id: "design", title: "Design" },
     { id: "colours", title: "Colours" },
-    { id: "scheme", title: "Colour scheme" }
+    { id: "scheme", title: "Palette in use" }
 ];
 
 var designs = [

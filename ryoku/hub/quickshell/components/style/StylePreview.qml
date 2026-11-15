@@ -77,8 +77,19 @@ DesignScope {
             id: heading
             x: 18
             y: 14
-            text: I18n.tr("Corners")
+            text: I18n.tr("Sample section")
             typeRole: "section"
+        }
+        // a stamp in the corner, so the sample never reads as a setting
+        Label {
+            anchors.right: parent.right
+            anchors.rightMargin: 18
+            anchors.verticalCenter: heading.verticalCenter
+            text: I18n.tr("Example")
+            typeRole: "group"
+            inkRole: "fg3"
+            font.capitalization: Font.AllUppercase
+            font.letterSpacing: 1.6
         }
 
         CutRect {
@@ -104,7 +115,7 @@ DesignScope {
                     height: 46
                     Label {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: I18n.tr("Round the corners")
+                        text: I18n.tr("A switch")
                         typeRole: "row"
                     }
                     Toggle {
@@ -120,13 +131,13 @@ DesignScope {
                     height: 50
                     Label {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: I18n.tr("Shape")
+                        text: I18n.tr("A choice")
                         typeRole: "row"
                     }
                     Segmented {
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
-                        model: [I18n.tr("Square"), I18n.tr("Soft"), I18n.tr("Round")]
+                        model: [I18n.tr("One"), I18n.tr("Two"), I18n.tr("Three")]
                         currentIndex: 1
                         focusPolicy: Qt.NoFocus
                         onActivated: index => currentIndex = index
@@ -138,7 +149,7 @@ DesignScope {
                     height: 46
                     Label {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: I18n.tr("Radius")
+                        text: I18n.tr("A slider")
                         typeRole: "row"
                     }
                     Slider {
@@ -162,13 +173,13 @@ DesignScope {
             Plaque {
                 kind: "quiet"
                 small: true
-                text: I18n.tr("Reset")
+                text: I18n.tr("A button")
                 focusPolicy: Qt.NoFocus
             }
             Plaque {
                 small: true
-                glyph: "check"
-                text: I18n.tr("Apply")
+                glyph: "star"
+                text: I18n.tr("The action")
                 focusPolicy: Qt.NoFocus
             }
         }

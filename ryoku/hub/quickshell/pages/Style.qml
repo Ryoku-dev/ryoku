@@ -77,17 +77,42 @@ Item {
                 }
             }
 
-            Item {
+            // the preview is an example: say so before it, so its switches never read as settings
+            Row {
                 width: parent.width
-                height: caption.height
+                spacing: 10
+                CutRect {
+                    id: chip
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: chipLabel.implicitWidth + 16
+                    height: 22
+                    cut: LithicTokens.cut.small
+                    fill: "transparent"
+                    strokeWidth: 1
+                    strokeColor: Lithic.fg3
+                    Label {
+                        id: chipLabel
+                        anchors.centerIn: parent
+                        text: I18n.tr("Example")
+                        typeRole: "group"
+                        inkRole: "fg2"
+                        font.capitalization: Font.AllUppercase
+                        font.letterSpacing: 1.2
+                    }
+                }
                 Label {
                     id: caption
-                    width: parent.width
-                    text: root.shown === root.chosen
-                        ? I18n.tr("In use: %1. Rest on another design to try it here.").replace("%1", I18n.tr(Schema.designs.find(d => d.value === root.shown).label))
-                        : I18n.tr("Trying %1, which you can use here. Choose it to use it everywhere.").replace("%1", I18n.tr(Schema.designs.find(d => d.value === root.shown).label))
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - chip.width - parent.spacing
+                    text: (root.shown === root.chosen
+                        ? I18n.tr("How Settings looks in %1, the design in use.")
+                        : I18n.tr("How Settings would look in %1. Choose its tile to use it."))
+                        .replace("%1", I18n.tr(Schema.designs.find(d => d.value === root.shown).label))
+                        + " " + I18n.tr("Its controls only show the design; they change nothing.")
                     typeRole: "caption"
                     inkRole: "fg2"
+                    wrapMode: Text.Wrap
+                    elide: Text.ElideNone
                 }
             }
 
