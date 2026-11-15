@@ -18,6 +18,9 @@
   `components/Home.qml`).
 
 ### Changed
+- **Share your card from Home.** A Share button beside Customise copies your
+  system card to the clipboard, ready to paste in a chat; anyone with Ryoku
+  can open it as a card (`quickshell/components/Home.qml`).
 - **The system card has its own studio, and lives on Home.** Customise opens
   the card studio beside a live preview of the card or of Home: choose the
   figure; frame your own picture by dragging and scrolling, with zoom,

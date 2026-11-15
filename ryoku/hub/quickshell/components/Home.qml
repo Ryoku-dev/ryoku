@@ -82,6 +82,67 @@ Item {
         editorLoader.active = true;
     }
 
+    // Share on the top bar copies the system card as a picture that carries its design. The
+    // card is drawn out of sight the first time it is asked for, once the machine's full
+    // read-out is in, and kept for the next copy
+    property bool sharePending: false
+    property bool shareDone: false
+    function shareCard() {
+        if (homeShare.job !== "" || root.sharePending)
+            return;
+        homeShare.error = "";
+        root.shareDone = false;
+        root.sharePending = true;
+        shareCardLoader.active = true;
+        if (!SysInfo.loaded && !SysInfo.loading)
+            SysInfo.load();
+        shareWait.tries = 0;
+        shareWait.restart();
+    }
+    Timer {
+        id: shareWait
+        property int tries: 0
+        interval: 150
+        repeat: true
+        onTriggered: {
+            var ready = !!shareCardLoader.item && SysInfo.loaded === true && !SysInfo.loading;
+            if (!ready && ++shareWait.tries < 40)
+                return;
+            shareWait.stop();
+            root.sharePending = false;
+            homeShare.take("copy");
+        }
+    }
+    CardShare {
+        id: homeShare
+        hub: root.hub
+        card: shareCardLoader.item
+        onJobChanged: {
+            if (homeShare.job === "" && homeShare.last === "copy") {
+                root.shareDone = homeShare.error === "";
+                shareSaid.restart();
+            }
+        }
+    }
+    Timer {
+        id: shareSaid
+        interval: 4000
+        onTriggered: {
+            root.shareDone = false;
+            homeShare.error = "";
+        }
+    }
+    Item {
+        width: 0
+        height: 0
+        clip: true
+        Loader {
+            id: shareCardLoader
+            active: false
+            sourceComponent: TradingCard {}
+        }
+    }
+
     Loader {
         id: editorLoader
         active: false
@@ -571,13 +632,40 @@ Item {
                 Plaque {
                     id: continuePlaque
                     anchors.verticalCenter: parent.verticalCenter
-                    visible: root.continuePage !== "" && x + implicitWidth < customisePlaque.x - LithicTokens.space.s2
+                    visible: root.continuePage !== "" && x + implicitWidth < sharePlaque.x - LithicTokens.space.s2
                     x: door.visible ? door.x + door.width + LithicTokens.space.s2 : 0
                     kind: "quiet"
                     small: true
                     glyph: "arrow_forward"
                     text: root.continuePage !== "" ? I18n.tr("Continue in %1").replace("%1", I18n.tr(Registry.page(root.continuePage).title)) : ""
                     onClicked: root.hub.navigate(root.continuePage, "")
+                }
+                Plaque {
+                    id: sharePlaque
+                    anchors.right: customisePlaque.left
+                    anchors.rightMargin: LithicTokens.space.s2
+                    anchors.verticalCenter: parent.verticalCenter
+                    kind: "quiet"
+                    small: true
+                    glyph: root.shareDone ? "check" : "share"
+                    text: topBar.width < 420 ? "" : root.shareDone ? I18n.tr("Copied") : I18n.tr("Share")
+                    accessibleName: I18n.tr("Copy your system card to share it")
+                    busy: root.sharePending || homeShare.job === "copy"
+                    onClicked: root.shareCard()
+                }
+                // how the copy went, under the buttons, for a few seconds
+                Label {
+                    anchors.right: parent.right
+                    anchors.top: parent.bottom
+                    anchors.topMargin: LithicTokens.space.s1
+                    width: Math.min(implicitWidth, 420)
+                    visible: shareSaid.running && (homeShare.error !== "" || root.shareDone)
+                    text: homeShare.error !== "" ? homeShare.error : I18n.tr("Your card is on the clipboard. Paste it in a chat; anyone with Ryoku can open it as a card.")
+                    typeRole: "caption"
+                    ink: homeShare.error !== "" ? Lithic.jasper : Lithic.fg2
+                    horizontalAlignment: Text.AlignRight
+                    wrapMode: Text.Wrap
+                    elide: Text.ElideNone
                 }
                 Plaque {
                     id: customisePlaque

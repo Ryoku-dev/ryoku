@@ -274,8 +274,12 @@ with no slab:
   network. About keeps the table of every fact.
 - **Recently changed** lists the session's changes with Undo, once there are
   any.
-- **The top bar** holds "Continue in" the page the reader left off on, and
-  Customise; in a narrow window, whose sidebar is put away, the search too.
+- **The top bar** holds "Continue in" the page the reader left off on, Share
+  and Customise; in a narrow window, whose sidebar is put away, the search too.
+  Share copies the system card to the clipboard as a picture that carries its
+  design (`CardShare`), drawing the card out of sight once the machine's full
+  read-out is in; the button says Copied, and a line under it says what to do
+  with it, or why it could not.
 
 Customise opens the **card studio** (`components/about/CardEditor.qml`), where
 everything about the reader's look and system card lives. Its preview shows
