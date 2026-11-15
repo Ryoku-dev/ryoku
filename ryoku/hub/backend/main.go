@@ -146,6 +146,11 @@ func main() {
 			fmt.Fprintln(os.Stderr, "ryoku-hub:", err)
 			os.Exit(1)
 		}
+	case "activity":
+		if err := runActivity(args[1:]); err != nil {
+			fmt.Fprintln(os.Stderr, "ryoku-hub:", err)
+			os.Exit(1)
+		}
 	case "wifi":
 		if err := runWifi(args[1:], os.Stdin); err != nil {
 			fmt.Fprintln(os.Stderr, "ryoku-hub:", err)
@@ -238,6 +243,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  ryoku-hub reload-cover import <path>")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub reload-cover prune [<managed-path>]")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub clipboard stats|prune")
+	fmt.Fprintln(os.Stderr, "  ryoku-hub activity [<days>]")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub import scan <path|url>")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub import apply <decisions.json|->")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub import undo [<ts>]")

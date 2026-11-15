@@ -12,8 +12,9 @@
   scroll, and a colophon with the save state, the pointer's position and
   the page as a barcode. Pages without a preview carry a dithered classical
   sculpture with its credit, a short page fills its foot with its number,
-  sections are numbered, and the room under the tree holds a live processor
-  trace. The clock, the trace and a slow scan over the plates run only while
+  sections are numbered, and the room under the tree holds the live figures
+  and an activity map of how long the machine was on each day, as a
+  contribution graph (`ryoku-hub activity`). The clock, the figures and a slow scan over the plates run only while
   Settings is focused, and never with reduced motion
   (`quickshell/components/sheet/`, `Singletons/Ambient.qml`,
   `components/nav/`, `components/PageHeader.qml`, `shaders/plate.frag`,

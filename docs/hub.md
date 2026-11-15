@@ -151,8 +151,14 @@ its corners follow the design.
   Left shuts it (from a page, its own). Ctrl+Tab and Ctrl+Shift+Tab leaf
   through the pages in the tree's order from anywhere in Settings. A page that
   hands off to another app shows an open-in-new mark. The room the tree
-  leaves under itself holds a live trace of the processor
-  (`components/sheet/Trace.qml`).
+  leaves under itself holds the machine's live figures and an activity map
+  (`components/sheet/Activity.qml`): one square a day for the last weeks, as
+  a contribution graph draws it, lit by how long the machine was on that
+  day, with the days on, the hours a day and the streak under it; resting on
+  a square reads that day out. `ryoku-hub activity [days]` computes the hours
+  from the journal: every boot's first to last entry, less the time
+  systemd-sleep spent suspended or hibernated, split at local midnight. With
+  no journal it reports source `none` and the map stays hidden.
 - **The outline** (`nav/NavOutline.qml`). Under the open page hang its
   sections. The one being read is marked as the page scrolls, and choosing
   one brings it to the top. A page offers it through `outline` (the section
@@ -182,8 +188,8 @@ its corners follow the design.
   number set huge and faint, which rolls to the next number when another
   page opens (`Folio`). Sections are numbered and ruled (`01 / 07`).
 - **Life at rest** (`Singletons/Ambient.qml`). Only while Settings is the
-  focused window and motion is not reduced: the clock ticks, the trace
-  samples, and every 11 s a scan crosses the plates at 30 frames a second.
+  focused window and motion is not reduced: the clock ticks, the figures
+  sample, and every 11 s a scan crosses the plates at 30 frames a second.
   Between scans nothing moves, and an unfocused window draws nothing.
 - **The page pane.** Home (`components/Home.qml`), to the pane's edges, or the
   open page, which slides in as it opens. A page starts with

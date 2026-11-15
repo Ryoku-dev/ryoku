@@ -115,8 +115,8 @@ Rectangle {
             anchors.rightMargin: -3
         }
 
-        // the room the tree leaves under itself holds a live trace of the machine
-        Trace {
+        // the room the tree leaves under itself holds the machine now and its activity map
+        Activity {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
