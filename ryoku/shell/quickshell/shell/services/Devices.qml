@@ -2,6 +2,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Ryoku.Ui
 import Ryoku.Ui.Singletons
 import "lib/displays.js" as Displays
 
@@ -66,13 +67,10 @@ Singleton {
             root.probeOwners = root.probeOwners.concat([owner]);
         // An open re-reads live values only; the monitor set comes from the cache.
         root.probeDisplays();
-        root.readBacklight();
     }
 
     function stopProbes(owner) {
         root.probeOwners = root.probeOwners.filter(candidate => candidate !== owner);
-        if (!root.probesWanted)
-            blRead.running = false;
         // ddcDetect keeps running: killing the walk left the answer unknown, so
         // the next open started it again, and every open after that.
     }
@@ -121,36 +119,38 @@ Singleton {
         return m ? parseInt(m[1], 10) : -1;
     }
 
-    // --- internal backlight (brightnessctl): the laptop panel, distinct from
-    // the external ddc monitors above. backlightPct stays -1 until the first
-    // read, and on a machine with no backlight device the reader never sets it,
-    // so backlightAvailable stays false and the fader hides.
+    // --- internal backlight: the laptop panel, distinct from the external ddc
+    // monitors above. The daemon owns both halves now: a sysfs watcher is the
+    // one place every writer (media keys, the slider, the brightness verb)
+    // converges, and `backlight.set` writes through the same
+    // ryoku-hw-backlight selector the keys use, so a phantom nvidia_* device
+    // never receives a write that changes nothing (#221), and the class
+    // filter keeps brightnessctl off its fallback pick, a keyboard LED. This
+    // is the view: backlightPct stays -1 until a frame says a device exists,
+    // so backlightAvailable stays false and the fader hides. Drag echo writes
+    // the property optimistically; the watcher's frame lands on the same
+    // number.
     property int backlightPct: -1
     readonly property bool backlightAvailable: root.backlightPct >= 0
 
-    function readBacklight() {
-        if (!root.probesWanted)
+    function applyBacklight(frame) {
+        if (!frame || frame.available !== true)
             return;
-        blRead.running = false;
-        blRead.running = true;
+        if (typeof frame.pct === "number" && frame.pct >= 0)
+            root.backlightPct = frame.pct;
     }
 
     // set the panel brightness to `pct`%, floored at 1 so it never blacks out.
-    // tracks the value optimistically so the fader does not snap back while the
-    // poll catches up.
     function setBacklight(pct) {
         var p = Math.max(1, Math.min(100, Math.round(pct)));
         root.backlightPct = p;
-        // Resolve the panel through ryoku-hw-backlight, the same selector the
-        // media keys and the OSD daemon use, so the fader drives the connected
-        // internal panel. brightnessctl's own default pick lands on a phantom
-        // nvidia_*/acpi_video device on a laptop with a discrete GPU, and the
-        // write then succeeds against a device that changes nothing (#221).
-        // With no backlight at all the selector prints nothing, and the class
-        // keeps brightnessctl off its fallback pick, a keyboard LED.
-        Quickshell.execDetached(["bash", "-c",
-            "BL=$(ryoku-hw-backlight 2>/dev/null); brightnessctl -c backlight ${BL:+-d \"$BL\"} set \"$1%\" >/dev/null 2>&1",
-            "_", String(p)]);
+        Bus.call("backlight.set", { pct: p });
+    }
+
+    BusTopic {
+        id: backlightFeed
+        topic: "backlight"
+        onUpdated: root.applyBacklight(backlightFeed.data)
     }
 
     // eDP/LVDS is the backlight's business and Writeback is not an output, so
@@ -195,21 +195,6 @@ Singleton {
                         mons.push({ bus: bus[1], label: conn ? conn[1] : "BUS " + bus[1] });
                 }
                 root.ddcMonitors = mons;
-            }
-        }
-    }
-
-    Process {
-        id: blRead
-        command: ["bash", "-c", "BL=$(ryoku-hw-backlight 2>/dev/null); brightnessctl -c backlight ${BL:+-d \"$BL\"} -m 2>/dev/null | awk -F, 'NR==1{print substr($4,1,length($4)-1)}'"]
-        running: false
-        stdout: StdioCollector {
-            onStreamFinished: {
-                if (!root.probesWanted)
-                    return;
-                var v = parseInt(this.text.trim());
-                if (!isNaN(v))
-                    root.backlightPct = v;
             }
         }
     }

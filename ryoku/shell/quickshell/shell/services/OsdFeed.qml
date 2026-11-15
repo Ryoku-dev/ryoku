@@ -4,12 +4,14 @@ import QtQuick
 import Quickshell
 import Ryoku.Ui
 
-// QML view of the daemon `osd` topic. The volume and mic OSDs read PipeWire
-// directly (Ryoku owns the audio graph in QML), but brightness has no
+// QML view of the daemon `osd` and `audio` topics. Brightness has no
 // QML-observable source: the media keys and the brightness verb both drive the
 // backlight directly, so the daemon watches the primary backlight and pushes
-// {brightness:{seq,value}} here. The brightness OSD shows when `brightnessSeq`
-// advances and binds `brightness` (0..1) to its bar. Contract 12 sec 3, sec 9.
+// {brightness:{seq,value}} here. The brightness OSD shows when
+// `brightnessSeq` advances and binds `brightness` (0..1) to its bar. Default
+// sink/source levels arrive on the `audio` topic, read from PipeWire by the
+// daemon, so the volume and mic OSDs need no Pipewire object either.
+// Contract 12 sec 3, sec 9.
 Singleton {
     id: root
 
@@ -18,6 +20,15 @@ Singleton {
     property int previewSeq: 0
     property real expectedMicVolume: -1
     property double expectedMicVolumeAt: 0
+
+    // Default-device levels from the daemon `audio` topic. A -1 in the frame
+    // means the server was unreadable at read time; the last real value stays.
+    property real volume: 0
+    property bool muted: false
+    property real micVolume: 0
+    property bool micMuted: false
+    property string sinkName: ""
+    property string sourceName: ""
 
     function expectMicVolume(value) {
         root.expectedMicVolume = value
@@ -65,11 +76,32 @@ Singleton {
         }
     }
 
+    function applyAudio(frame) {
+        if (!frame)
+            return;
+        if (typeof frame.volume === "number" && frame.volume >= 0)
+            root.volume = frame.volume;
+        root.muted = frame.muted === true;
+        if (typeof frame.mic_volume === "number" && frame.mic_volume >= 0)
+            root.micVolume = frame.mic_volume;
+        root.micMuted = frame.mic_muted === true;
+        if (typeof frame.sink === "string")
+            root.sinkName = frame.sink;
+        if (typeof frame.source === "string")
+            root.sourceName = frame.source;
+    }
+
     // Subscribe once for the whole shell; every screen's brightness OSD reads
     // this singleton rather than subscribing itself.
     BusTopic {
         id: topicFeed
         topic: "osd"
         onUpdated: root.apply(topicFeed.data)
+    }
+
+    BusTopic {
+        id: audioFeed
+        topic: "audio"
+        onUpdated: root.applyAudio(audioFeed.data)
     }
 }

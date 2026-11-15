@@ -174,6 +174,8 @@ type daemon struct {
 	polkit          *polkitAgent           // PolicyKit1 authentication agent (nil when unavailable)
 	settings        *settingsStore         // shell.json store (nil until startSettings)
 	pp              *powerProfilesState    // power-profiles-daemon bus state
+	battery         *batteryState          // UPower battery readout (nil when no system bus)
+	audioLevels     *audioState            // default-device volume readout (PipeWire via pactl)
 	keypress        *keypressManager       // evdev key stream while the overlay is enabled
 	mousemap        *mouseMapManager       // per-mouse evdev grab + uinput clone remapper
 	sun             *sunState              // latest weather sunrise/sunset window
@@ -471,12 +473,14 @@ func (d *daemon) bootstrap() {
 	d.startMusic()
 	d.startCalendar()
 	d.startPowerProfiles()
+	d.startBattery()
 	d.startNetwork()
 	d.startBluez()
 	d.startDictation()
 	d.startNightlight()
 	go d.watchSunMode()
 	d.startOsd()
+	d.startAudio()
 	d.prompter = startKeyringPrompter()
 	if d.prompter != nil {
 		d.prompter.mon = d.activeMonitor

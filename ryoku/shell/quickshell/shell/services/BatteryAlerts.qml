@@ -17,7 +17,7 @@ Singleton {
     readonly property int lowThreshold: Math.max(5, Math.min(50, Number(settings.warningPercent ?? 25)))
     readonly property int criticalThreshold: Math.max(1, Math.min(lowThreshold - 1, Number(settings.criticalPercent ?? 10)))
     readonly property bool present: Battery.present
-    readonly property bool ready: present && Battery.batDev.ready
+    readonly property bool ready: present && Battery.ready
     readonly property bool onAc: Battery.onAc
     readonly property bool discharging: Battery.discharging
     readonly property real percent: ready ? Battery.frac * 100 : NaN

@@ -1,6 +1,14 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **The bar's battery, brightness and volume readouts come from the shell
+  daemon.** UPower, the panel backlight and the PipeWire default levels are
+  read once in Go and streamed on the `battery`, `backlight` and `audio`
+  bus topics; the QML services are views of those frames, so the shell
+  tracks no extra D-Bus devices, the brightness fader lost its 1.5s poll and
+  the volume OSD needs no PipeWire object
+  (`ryoku/shell/ipc/battery.go`, `ryoku/shell/ipc/audio.go`,
+  `ryoku/shell/quickshell/shell/services/Battery.qml`).
 - **Stopping voice typing keeps the text field focused**, held shortcut modifiers
   no longer turn typed text into workspace actions, and typing follows the
   desktop keyboard layout in native and XWayland apps

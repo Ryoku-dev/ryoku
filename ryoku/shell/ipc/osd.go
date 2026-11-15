@@ -3,7 +3,9 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,19 +16,23 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// osd.go feeds the brightness OSD. The volume and mic OSDs read PipeWire
-// directly in QML, where Ryoku already owns the audio graph, so their change
-// events and value are observable without the daemon. Brightness has no such
-// QML-observable source: the media keys and the `brightness` verb both drive
-// ryoku-cmd-brightness straight to the backlight, so the daemon watches the
-// primary backlight and pushes a fraction plus a monotonically rising sequence
-// to the `osd` topic. QML shows the brightness OSD when the sequence advances
-// and binds `value` to the slider; the bucket->icon mapping lives once in QML
-// beside the volume and mic buckets. Contract 12 sec 3, sec 9.
+// osd.go feeds the brightness OSD and owns the panel backlight. Brightness
+// has no QML-observable source: the media keys and the `brightness` verb both
+// drive ryoku-cmd-brightness straight to the backlight, so the daemon watches
+// the primary backlight and pushes a fraction plus a monotonically rising
+// sequence to the `osd` topic. QML shows the brightness OSD when the sequence
+// advances and binds `value` to the slider; the bucket->icon mapping lives
+// once in QML beside the volume and mic buckets. The panel level itself — the
+// fader's live value and whether a fader renders at all — rides the separate
+// `backlight` topic, and `backlight.set` writes through the same selector the
+// keys use, so every writer converges on the one watcher that persists the
+// level. Volume and mic levels moved to the daemon the same way (audio.go).
+// Contract 12 sec 3, sec 9.
 
 type osdState struct {
-	topic *stateTopic
-	seq   int
+	topic     *stateTopic
+	backlight *stateTopic
+	seq       int
 }
 
 // backlightLevelPath is where the last user-set panel level lives across
@@ -131,14 +137,64 @@ func readSysInt(path string) (int, bool) {
 	return n, true
 }
 
-// startOsd registers the `osd` topic and, when a backlight exists, starts the
-// watcher goroutine that republishes on every brightness change.
+// startOsd registers the `osd` and `backlight` topics, the `backlight.set`
+// call, and, when a backlight exists, starts the watcher goroutine that
+// republishes on every brightness change.
 func (d *daemon) startOsd() {
-	o := &osdState{topic: d.registerTopic("osd")}
+	o := &osdState{topic: d.registerTopic("osd"), backlight: d.registerTopic("backlight")}
 	o.publish(0)
+	o.publishBacklight(0, false)
+	d.registerCall("backlight.set", func(raw json.RawMessage) (any, error) {
+		var args struct {
+			Pct *int `json:"pct"`
+		}
+		if err := json.Unmarshal(raw, &args); err != nil {
+			return nil, err
+		}
+		if args.Pct == nil {
+			return nil, fmt.Errorf("backlight.set: pct required")
+		}
+		if *args.Pct < 1 || *args.Pct > 100 {
+			return nil, fmt.Errorf("backlight.set: pct out of range: %d", *args.Pct)
+		}
+		return nil, setPanelBrightness(*args.Pct)
+	})
 	if dev := backlightDevice(); dev != "" {
 		go o.watchBacklight(dev)
 	}
+}
+
+// publishBacklight ships the panel level for the faders, plus the
+// availability flag that decides whether a fader renders at all. The percent
+// is the same linear value the OSD publishes, rounded to whole percent
+// because the fader's label and drag echo are integers.
+func (o *osdState) publishBacklight(frac float64, available bool) {
+	if o.backlight == nil {
+		return
+	}
+	pct := -1
+	if available {
+		pct = int(math.Round(frac * 100))
+	}
+	frame, _ := json.Marshal(map[string]any{"available": available, "pct": pct})
+	o.backlight.publish(frame)
+}
+
+// setPanelBrightness writes the requested percent through
+// ryoku-hw-backlight, the same selector the media keys and the OSD slider
+// use, so a phantom nvidia_* device never receives a write that changes
+// nothing (#221). The class filter keeps brightnessctl off its fallback
+// pick, a keyboard LED, when the selector names nothing. The watcher
+// observes the result and persists the level.
+func setPanelBrightness(pct int) error {
+	out, err := exec.Command("bash", "-c",
+		"BL=$(ryoku-hw-backlight 2>/dev/null); brightnessctl -c backlight ${BL:+-d \"$BL\"} set \"$1%\"",
+		"_", strconv.Itoa(pct)).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("backlight set %d%%: %w: %s",
+			pct, err, strings.TrimSpace(string(out)))
+	}
+	return nil
 }
 
 // publish writes the current osd frame. The topic drops a byte-identical frame,
@@ -220,6 +276,7 @@ func (o *osdState) watchBacklightNode(dev string, maxb int) bool {
 	publish := func() {
 		if frac, raw, ok := readBrightnessFraction(dev, maxb); ok {
 			o.publish(frac)
+			o.publishBacklight(frac, true)
 			saveObservedBacklight(raw)
 		}
 	}

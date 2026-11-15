@@ -1,13 +1,12 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import Quickshell.Services.Pipewire
 import shell.services
 import Ryoku.Ui.Singletons
 
 // One state source feeds both the shipped visuals and installed designs.
-// Volume and microphone read PipeWire, brightness reads the daemon OSD feed,
-// and keyboard layout comes from the shared layout service.
+// Volume, microphone, and brightness all read the daemon's `audio`/`osd`
+// topics, and keyboard layout comes from the shared layout service.
 //
 // A fresh shell receives initial device values as it connects. Those signals
 // are not user actions, so volume, microphone and brightness arm after a short
@@ -24,18 +23,15 @@ QtObject {
     readonly property bool isBrightness: kind === "brightness"
     readonly property bool isKeyboard: kind === "keyboard"
 
-    readonly property var device: isVolume ? Pipewire.defaultAudioSink
-        : isMic ? Pipewire.defaultAudioSource : null
-    readonly property var audio: (device && device.audio) ? device.audio : null
-    readonly property bool muted: audio ? audio.muted : false
+    readonly property bool muted: isMic ? OsdFeed.micMuted : OsdFeed.muted
     // Audio boost can legitimately reach 150%, so the scale must keep unity
     // visible instead of making every boosted keypress look identical.
     readonly property real maxValue: (isVolume && Config.audio
         && Config.audio.boost === true) ? 1.5 : 1.0
     readonly property real value: isBrightness
         ? OsdFeed.brightness
-        : ((isVolume || isMic) && audio
-            ? Math.max(0, Math.min(root.maxValue, audio.volume)) : 0)
+        : Math.max(0, Math.min(root.maxValue,
+            isMic ? OsdFeed.micVolume : OsdFeed.volume))
     readonly property bool over: root.value > 1.005
     readonly property string layout: KeyboardLayout.variant || I18n.tr("Unknown")
     readonly property string label: isKeyboard
@@ -65,8 +61,8 @@ QtObject {
     // grace and only a later switch shows.
     property bool flashing: false
     property bool armed: false
-    readonly property var gateSource: root.isBrightness ? OsdFeed
-        : (root.isVolume || root.isMic) ? root.audio
+    readonly property var gateSource: (root.isBrightness || root.isVolume
+            || root.isMic) ? OsdFeed
         : (root.isKeyboard && KeyboardLayout.variant !== "") ? KeyboardLayout : null
 
     function armWhenReady() {
@@ -99,17 +95,24 @@ QtObject {
         onTriggered: root.flashing = false
     }
 
-    property PwObjectTracker tracker: PwObjectTracker {
-        objects: root.device ? [root.device] : []
-    }
-
     property Connections audioEvents: Connections {
-        target: root.audio
-        function onVolumesChanged() {
-            if (!root.isMic || (root.audio && OsdFeed.acceptsMicVolume(root.audio.volume)))
+        target: (root.isVolume || root.isMic) ? OsdFeed : null
+        function onVolumeChanged() {
+            if (root.isVolume)
                 root.flash(false);
         }
-        function onMutedChanged() { root.flash(false); }
+        function onMutedChanged() {
+            if (root.isVolume)
+                root.flash(false);
+        }
+        function onMicVolumeChanged() {
+            if (root.isMic && OsdFeed.acceptsMicVolume(OsdFeed.micVolume))
+                root.flash(false);
+        }
+        function onMicMutedChanged() {
+            if (root.isMic)
+                root.flash(false);
+        }
     }
 
     property Connections brightnessEvents: Connections {

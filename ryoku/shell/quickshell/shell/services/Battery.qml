@@ -1,59 +1,65 @@
 pragma Singleton
 import QtQuick
 import Quickshell
-import Quickshell.Services.UPower
+import Ryoku.Ui
 import Ryoku.Ui.Singletons
 
-// Laptop battery state from UPower's display device. A desktop without a
-// battery reports present=false so the rail omits the display-only status chip.
-// The fuller state remains available to the preserved sidebar logic.
+// Laptop battery state from the daemon's "battery" topic (UPower read in Go).
+// A desktop without a battery reports present=false so the rail omits the
+// display-only status chip. The wire carries raw device facts; every label,
+// bucket, and signed rate is derived here, exactly as when the read lived in
+// this file. The physical-battery pick (the synthetic display device drops
+// health and presence on a limited cell) now lives daemon-side.
 Singleton {
     id: root
 
-    readonly property var dev: UPower.displayDevice
+    // UPower device states, mirrored from the spec for the derivations.
+    readonly property int stateUnknown: 0
+    readonly property int stateCharging: 1
+    readonly property int stateDischarging: 2
+    readonly property int stateFullyCharged: 4
 
-    // synthetic displayDevice omits Capacity (health); pull it from the real
-    // physical battery in the device list instead.
-    readonly property var batDev: {
-        var list = UPower.devices ? UPower.devices.values : [];
-        for (var i = 0; i < list.length; i++) {
-            if (list[i] && list[i].isLaptopBattery && list[i].isPresent)
-                return list[i];
-        }
-        return dev;
-    }
+    property bool present: false
+    // True once the daemon's first battery frame has arrived: the readout is
+    // loaded, so alert logic can trust the percentage. The QML UPower wrapper
+    // carried the same gate as batDev.ready.
+    property bool ready: false
+    property real pctRaw: 0
+    property int state: stateUnknown
+    property bool onAcRaw: true
+    property real energyRate: 0
+    property real energyFull: 0
+    property bool healthSupported: false
+    property real healthRaw: 0
+    property real timeToEmpty: 0
+    property real timeToFull: 0
 
-    // presence comes from the physical battery pick: the synthetic display
-    // device drops ready/isLaptopBattery on some upower versions once the
-    // cell sits fully charged on AC, which blanked every battery readout.
-    readonly property bool present: batDev !== null && batDev.isLaptopBattery && batDev.isPresent
-    readonly property real frac: batDev ? Math.max(0, Math.min(1, batDev.percentage)) : 0
+    readonly property real frac: Math.max(0, Math.min(1, pctRaw / 100))
     readonly property int pct: Math.round(frac * 100)
-    readonly property int state: batDev ? batDev.state : UPowerDeviceState.Unknown
 
-    readonly property bool charging: state === UPowerDeviceState.Charging
-    readonly property bool full: state === UPowerDeviceState.FullyCharged || pct >= 100
-    readonly property bool discharging: state === UPowerDeviceState.Discharging
+    readonly property bool charging: state === stateCharging
+    readonly property bool full: state === stateFullyCharged || pct >= 100
+    readonly property bool discharging: state === stateDischarging
     readonly property bool low: !charging && pct <= 20
 
-    // Real line-power state. UPower's global OnBattery tracks the mains adapter,
-    // not the cell, so a full battery idling on AC still reads as on-AC and
-    // pulling the plug flips immediately. This is the signal for "may I enter a
-    // high-performance mode", which charging/discharging cannot answer on a
-    // machine that holds the cell at a charge limit. No battery reads as AC.
-    readonly property bool onAc: !UPower.onBattery
+    // Real line-power state. UPower's global OnBattery tracks the mains
+    // adapter, not the cell, so a full battery idling on AC still reads as
+    // on-AC and pulling the plug flips immediately. This is the signal for
+    // "may I enter a high-performance mode", which charging/discharging
+    // cannot answer on a machine that holds the cell at a charge limit.
+    // No battery reads as AC.
+    readonly property bool onAc: onAcRaw
 
-    readonly property real rateW: !batDev ? 0
-        : (discharging ? -batDev.changeRate : (charging ? batDev.changeRate : 0))
-    readonly property real capacityWh: batDev ? batDev.energyCapacity : 0
+    readonly property real rateW: !present ? 0
+        : (discharging ? -energyRate : (charging ? energyRate : 0))
+    readonly property real capacityWh: present ? energyFull : 0
 
-    readonly property bool healthSupported: batDev ? batDev.healthSupported : false
-    readonly property int health: batDev ? Math.round(batDev.healthPercentage) : 0
+    readonly property int health: healthSupported ? Math.round(healthRaw) : 0
 
-    readonly property bool hasTime: !batDev ? false
-        : (charging ? batDev.timeToFull > 0 : (discharging ? batDev.timeToEmpty > 0 : false))
-    readonly property string timeStr: !batDev ? ""
-        : (charging ? fmt(batDev.timeToFull) : (discharging ? fmt(batDev.timeToEmpty) : ""))
+    readonly property bool hasTime: charging ? timeToFull > 0
+        : (discharging ? timeToEmpty > 0 : false)
+    readonly property string timeStr: charging ? fmt(timeToFull)
+        : (discharging ? fmt(timeToEmpty) : "")
 
     readonly property string stateLabel: charging ? I18n.tr("Charging")
         : (full ? I18n.tr("On AC · Full")
@@ -66,5 +72,34 @@ Singleton {
         if (h > 0)
             return I18n.tr("%1h %2m").arg(h).arg(m);
         return I18n.tr("%1m").arg(m);
+    }
+
+    function apply(frame) {
+        if (!frame)
+            return;
+        root.ready = true;
+        root.present = frame.present === true;
+        if (typeof frame.pct === "number")
+            root.pctRaw = frame.pct;
+        if (typeof frame.state === "number")
+            root.state = frame.state;
+        root.onAcRaw = frame.on_ac === true;
+        if (typeof frame.energy_rate === "number")
+            root.energyRate = frame.energy_rate;
+        if (typeof frame.energy_full === "number")
+            root.energyFull = frame.energy_full;
+        root.healthSupported = frame.health_supported === true;
+        if (typeof frame.health === "number")
+            root.healthRaw = frame.health;
+        if (typeof frame.time_to_empty === "number")
+            root.timeToEmpty = frame.time_to_empty;
+        if (typeof frame.time_to_full === "number")
+            root.timeToFull = frame.time_to_full;
+    }
+
+    BusTopic {
+        id: topicFeed
+        topic: "battery"
+        onUpdated: root.apply(topicFeed.data)
     }
 }

@@ -39,15 +39,6 @@ Column {
     }
     Component.onDestruction: Devices.stopProbes(root)
 
-    // the brightness keys move the backlight out from under us, so re-read on a
-    // slow poll while the sidebar is open.
-    Timer {
-        interval: 1500
-        running: root.active && Devices.backlightAvailable
-        repeat: true
-        triggeredOnStart: true
-        onTriggered: Devices.readBacklight()
-    }
     Timer {
         id: blDebounce
         interval: 40

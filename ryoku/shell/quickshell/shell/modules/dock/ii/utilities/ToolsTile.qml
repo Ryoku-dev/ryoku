@@ -1,7 +1,5 @@
 import QtQuick
 import QtQuick.Layouts
-import Quickshell.Services.Pipewire
-import Quickshell.Services.UPower
 import Ryoku.Ui.Singletons
 import stage.modules.common.widgets
 import stage.services
@@ -64,7 +62,7 @@ UtilityTile {
         case "wallpaper":
             break;
         case "mic": {
-            const muted = Pipewire.defaultAudioSource?.audio?.muted ?? false;
+            const muted = ShellServices.OsdFeed.micMuted;
             tool.symbol = muted ? "mic_off" : "mic";
             tool.title = muted ? Translation.tr("Unmute microphone") : Translation.tr("Mute microphone");
             tool.active = !muted;
