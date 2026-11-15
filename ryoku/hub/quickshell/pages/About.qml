@@ -453,15 +453,15 @@ Item {
                 // clash with the components directory and cycle through the editor)
                 Loader {
                     id: still
-                    anchors.centerIn: parent
-                    width: plate.width
-                    height: plate.height
+                    // unsized, so it never resizes the card from its design size; the card is
+                    // scaled down to the plate instead
                     Component.onCompleted: setSource("../components/Home.qml", { hub: root.hub, preview: true })
                     onLoaded: {
                         item.width = item.designWidth;
                         item.height = item.designHeight;
                         item.transformOrigin = Item.TopLeft;
-                        item.scale = plate.width / item.designWidth;
+                        // bound, not set: the plate has no width yet when the card loads
+                        item.scale = Qt.binding(() => plate.width / item.designWidth);
                         root.stillCard = item;
                     }
                     onItemChanged: if (!item)

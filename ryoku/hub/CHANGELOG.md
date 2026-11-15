@@ -2,7 +2,18 @@
 
 ## Unreleased
 
+### Fixed
+- **The system card on About shows again.** It was drawn at no size because it
+  was scaled before its plate had a width, and a saved picture of it had no
+  paper, so its words vanished on a light viewer (`quickshell/pages/About.qml`,
+  `components/Home.qml`).
+
 ### Changed
+- **Home's card has depth.** The figure turns toward the pointer in
+  perspective and catches its light on the edges facing it, the carved word
+  drifts behind and the column in front, and a dotted light with drifting
+  dust follows the pointer and rests behind the figure's head
+  (`quickshell/components/Home.qml`, `shaders/light.frag`, `shaders/rim.frag`).
 - **Settings reads as an instrument sheet.** The structure stays; the look
   takes back what people missed from the stable Hub. The sidebar is a
   numbered index (00 Home, 01 Appearance to 09 Updates) in spaced capitals

@@ -312,6 +312,64 @@ Item {
             flick.contentY = Math.min(end, y + item.height - flick.height + foot);
     }
 
+    // the plate answers the pointer in depth: the figure turns toward it and catches its
+    // light on the edges that face it, the carved word drifts behind and the column a little
+    // in front, and a dotted light follows it. Left alone, everything eases back and the
+    // light rests behind the figure's head. A still card (About, a saved picture) stands flat
+    readonly property bool depthOn: !root.preview && root.roomy
+    readonly property bool pointed: root.depthOn && pointer.hovered
+    property real tiltX: 0
+    property real tiltY: 0
+    Behavior on tiltX {
+        enabled: !Lithic.reduceMotion
+        SpringAnimation { spring: 2.4; damping: 0.32; epsilon: 0.002 }
+    }
+    Behavior on tiltY {
+        enabled: !Lithic.reduceMotion
+        SpringAnimation { spring: 2.4; damping: 0.32; epsilon: 0.002 }
+    }
+    // where the light stands on the plate, 0..1
+    property point lightAt: Qt.point(0.5, 0.4)
+    Behavior on lightAt {
+        enabled: !Lithic.reduceMotion
+        PropertyAnimation { duration: Tone.move * 2; easing.type: Easing.OutCubic }
+    }
+    property real lightStrength: root.pointed ? 1 : 0.8
+    Behavior on lightStrength {
+        NumberAnimation { duration: Tone.move * 2; easing.type: Easing.OutCubic }
+    }
+    readonly property point restLight: Qt.point((figure.x + figure.width * 0.5) / Math.max(1, plate.width),
+                                                (figure.y + figure.height * 0.22) / Math.max(1, plate.height))
+    function point(p) {
+        if (!root.pointed || plate.width <= 0 || plate.height <= 0) {
+            root.tiltX = 0;
+            root.tiltY = 0;
+            root.lightAt = root.restLight;
+            return;
+        }
+        root.tiltX = Math.max(-1, Math.min(1, (p.x - plate.width / 2) / (plate.width / 2)));
+        root.tiltY = Math.max(-1, Math.min(1, (p.y - plate.height / 2) / (plate.height / 2)));
+        root.lightAt = Qt.point(p.x / plate.width, p.y / plate.height);
+    }
+    onPointedChanged: root.point(pointer.point.position)
+    onRestLightChanged: if (!root.pointed) root.lightAt = root.restLight
+
+    // the dust in the light drifts only while Settings is in front and Home on show
+    property real moteTime: 0
+    Timer {
+        interval: 66
+        repeat: true
+        running: root.depthOn && root.shown && Ambient.on
+        onTriggered: root.moteTime += 0.066
+    }
+
+    // a still card (About's, a saved picture) carries its own paper; Home lies on the pane's
+    Rectangle {
+        anchors.fill: parent
+        visible: root.preview
+        color: Lithic.ground
+    }
+
     Flickable {
         id: flick
         anchors.fill: parent
@@ -324,6 +382,12 @@ Item {
             id: plate
             width: flick.width
             height: Math.max(flick.height, column.y + column.height + LithicTokens.space.s5 + (root.hub.noticeInset || 0))
+
+            HoverHandler {
+                id: pointer
+                enabled: root.depthOn
+                onPointChanged: root.point(pointer.point.position)
+            }
 
             // the word carved behind the statue, as on ryoku.dev's cover: Ryoku, or the
             // reader's own first big word. The one line set in capitals. On the black paper
@@ -341,12 +405,28 @@ Item {
                 horizontalAlignment: Text.AlignHCenter
                 text: String(carved.words.length > 0 ? carved.words[0] : "Ryoku")
                 color: Lithic.dark ? Lithic.mix(Lithic.ground, Lithic.gold, 0.34) : Lithic.mix(Lithic.ground, Lithic.fg, 0.18)
+                // far back: it drifts against the pointer
+                transform: Translate { x: -root.tiltX * 22; y: -root.tiltY * 10 }
                 font.family: Lithic.font.sans
                 font.weight: Font.Bold
                 font.capitalization: Font.AllUppercase
                 font.pixelSize: Math.round(figure.height * 0.34)
                 fontSizeMode: Text.HorizontalFit
                 minimumPixelSize: 48
+            }
+
+            // the light the figure stands in
+            ShaderEffect {
+                visible: root.depthOn
+                anchors.fill: parent
+                property color tint: Lithic.alpha(Lithic.dark ? Lithic.sel : Lithic.fg, Lithic.dark ? 0.55 : 0.32)
+                property vector2d size: Qt.vector2d(width, height)
+                property vector2d center: Qt.vector2d(root.lightAt.x, root.lightAt.y)
+                property real radius: Math.max(160, figure.height * 0.42)
+                property real strength: root.lightStrength
+                property real time: root.moteTime
+                property real motes: Ambient.on ? 1 : 0
+                fragmentShader: Qt.resolvedUrl("../shaders/light.frag.qsb")
             }
 
             CardFigure {
@@ -371,6 +451,36 @@ Item {
                 // a figure of dots is the lit side of the stone: bone on the black paper, and
                 // the lightest stone on the light paper, never a negative
                 ink: Lithic.dark ? Lithic.fg : Lithic.stone4
+                // the middle plane: it turns toward the pointer in perspective on its own foot
+                transform: [
+                    Rotation {
+                        origin.x: figure.width / 2
+                        origin.y: figure.height
+                        axis { x: 0; y: 1; z: 0 }
+                        angle: root.tiltX * 9
+                    },
+                    Rotation {
+                        origin.x: figure.width / 2
+                        origin.y: figure.height
+                        axis { x: 1; y: 0; z: 0 }
+                        angle: -root.tiltY * 5
+                    },
+                    Translate { x: root.tiltX * 10; y: root.tiltY * 5 }
+                ]
+                // lit from the pointer while it is on the plate
+                layer.enabled: root.depthOn && root.lightStrength > 0.6
+                layer.effect: ShaderEffect {
+                    property color tint: Lithic.sel
+                    property vector2d texel: Qt.vector2d(1 / Math.max(1, figure.width), 1 / Math.max(1, figure.height))
+                    property vector2d lightDir: {
+                        var dx = root.lightAt.x * plate.width - (figure.x + figure.width / 2);
+                        var dy = root.lightAt.y * plate.height - (figure.y + figure.height / 2);
+                        var l = Math.max(1, Math.sqrt(dx * dx + dy * dy));
+                        return Qt.vector2d(dx / l, dy / l);
+                    }
+                    property real strength: (root.lightStrength - 0.55) / 0.45
+                    fragmentShader: Qt.resolvedUrl("../shaders/rim.frag.qsb")
+                }
             }
 
             // the museum label the photograph's licence asks for, upright in the gutter beside
@@ -435,6 +545,8 @@ Item {
 
             Column {
                 id: column
+                // the near plane: a little with the pointer
+                transform: Translate { x: root.tiltX * 4; y: root.tiltY * 2 }
                 x: root.roomy && root.heroLeft ? plate.width - root.side - width : root.side
                 // centred in the plate when the column is shorter than it, so the room
                 // sits above and below alike instead of one void under the last block
