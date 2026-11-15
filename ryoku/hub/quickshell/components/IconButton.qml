@@ -16,6 +16,8 @@ T.AbstractButton {
     focusPolicy: Qt.TabFocus
     Accessible.role: Accessible.Button
     Accessible.name: root.accessibleName
+    Keys.onReturnPressed: root.clicked()
+    Keys.onEnterPressed: root.clicked()
 
     background: Rectangle {
         radius: width / 2

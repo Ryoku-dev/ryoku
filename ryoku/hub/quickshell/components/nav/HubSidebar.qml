@@ -30,6 +30,8 @@ Rectangle {
         Accessible.name: I18n.tr("Home")
         readonly property bool here: root.hub.pageId === ""
         onClicked: root.hub.goHome()
+        Keys.onReturnPressed: home.clicked()
+        Keys.onEnterPressed: home.clicked()
 
         background: Rectangle {
             radius: Tone.radiusSmall

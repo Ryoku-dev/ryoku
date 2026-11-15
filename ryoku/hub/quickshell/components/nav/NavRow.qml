@@ -38,6 +38,8 @@ T.AbstractButton {
     Keys.onDownPressed: root.stepped(1)
     Keys.onRightPressed: if (root.folder && !root.expanded) root.folded(true)
     Keys.onLeftPressed: if (root.folder && root.expanded) root.folded(false)
+    Keys.onReturnPressed: root.clicked()
+    Keys.onEnterPressed: root.clicked()
 
     background: Item {
         Rectangle {

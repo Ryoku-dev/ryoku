@@ -51,6 +51,8 @@ Item {
                 Accessible.role: Accessible.Button
                 Accessible.name: line.modelData
                 onClicked: root.hub.chooseSection(line.index)
+                Keys.onReturnPressed: line.clicked()
+                Keys.onEnterPressed: line.clicked()
 
                 background: Rectangle {
                     x: 46
