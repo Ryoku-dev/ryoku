@@ -1,8 +1,8 @@
 # Ryoku Settings
 
 Ryoku Settings is the desktop's settings app: one floating window that opens
-on Home, the reader's profile plate, with a rail of categories, each category's
-pages, and a search over every page and row. The
+on Home, the reader's profile plate, with a sidebar that holds the whole of
+Settings as a folder tree, and a search over every page and row. The
 product is "Ryoku Settings"; the code, the binary, the package and the config
 directory keep the internal name `hub`. This guide is how it is built and how to
 extend it.
@@ -11,12 +11,12 @@ extend it.
 |---|---|
 | `ryoku/hub/quickshell/shell.qml` | the entry point `qs -c hub` loads: the root-only pragma and a loader for `ShellBody.qml` |
 | `ryoku/hub/quickshell/ShellBody.qml` | the `FloatingWindow`, the palette watchers and the IPC targets |
-| `ryoku/hub/quickshell/Hub.qml` | the frame: rail, navigation pane, search, work pane, navigation, notices |
-| `ryoku/hub/quickshell/registry/` | `registry.js` (categories, pages, aliases, hand-offs, Needs you probes), `summaries.js` (the navigation pane's lines), `provider-map.js` (where window-manager rows go) |
+| `ryoku/hub/quickshell/Hub.qml` | the frame: sidebar, page pane, search, navigation, notices |
+| `ryoku/hub/quickshell/registry/` | `registry.js` (categories, pages, their glyphs, aliases, hand-offs, Needs you probes), `summaries.js` (each page's live line, shown when the tree peeks into it), `provider-map.js` (where window-manager rows go) |
 | `ryoku/hub/quickshell/schema/` | one `<page-id>.js` per page: its sections and rows; `index.js` lists them for search |
-| `ryoku/hub/quickshell/pages/` | one `<Name>.qml` per page, loaded into the work pane |
-| `ryoku/hub/quickshell/components/` | the shared parts (`SettingsPage`, `RowControl`, `Home`, `SearchDoor`, `SearchResults`, `DesignShelf`, ...) and one `<page-id>/` folder per page for that page's own parts and stores |
-| `ryoku/hub/quickshell/Singletons/` | `Changes` (the write path), `Settings` (the shell settings), `Look` (Settings' own colours), `ProviderSchema`, `Attention`, `Live`, `Host` |
+| `ryoku/hub/quickshell/pages/` | one `<Name>.qml` per page, loaded into the page pane |
+| `ryoku/hub/quickshell/components/` | the shared parts (`SettingsPage`, `PageHeader`, `RowControl`, `Home`, `SearchDoor`, `SearchResults`, `DesignShelf`, ...), the sidebar in `nav/`, and one `<page-id>/` folder per page for that page's own parts and stores |
+| `ryoku/hub/quickshell/Singletons/` | `Changes` (the write path), `Settings` (the shell settings), `Look` (Settings' own colours), `Tone` (its surfaces and motion), `ProviderSchema`, `Attention`, `Live`, `Host` |
 | `ryoku/hub/backend/` | `ryoku-hub`, the Go program the pages call for anything outside the shell daemon |
 
 The UI is drawn with the Lithic QML library (`docs/lithic/library/qml/Lithic`,
@@ -108,44 +108,56 @@ way: something Home does not show waits until the page that shows it opens.
 
 ## The layout
 
-`Hub.qml` owns the frame, a Lithic `AppFrame`, so a page only draws its content.
+`Hub.qml` owns the frame, so a page only draws its content. The sidebar lies on
+the ground; the page pane is lifted a step off it, and `Singletons/Tone.qml`
+takes every surface from the palette in use.
 
-- **The rail.** The Ryoku mark at the top goes Home. The nine categories follow
-  in `registry.js` order, with Updates at the foot; Updates carries a notch
-  while an update is ready and opens its page directly. The categories stand
-  here and nowhere else. A category's tile opens the page it last showed this
-  session, or its first page (`categoryStart()`).
-- **The navigation pane.** It shows only while a category is open or the
-  search is: the category's name and sentence, the search field, and the
-  category's pages, each title over a one-line summary. On Home there is no
-  pane and the plate takes its room. It is 300 wide, the search at rest plus
-  its insets. The lines come
-  from `registry/summaries.js`: `categorySentence(id, ctx)` and
-  `pageSummary(id, ctx)`, with the fixed lines in its `still` table. They read
+- **The sidebar** (`components/nav/HubSidebar.qml`). Home stands at its head:
+  the Ryoku mark and "Settings", washed while Home shows. The search field
+  sits under it, then the tree, and Updates at the foot, with a dot while an
+  update is ready.
+- **The tree** (`nav/NavTree.qml`, `NavFolder.qml`, `NavRow.qml`). Every
+  category is a folder and every page a leaf hung on its folder's guide line,
+  each with its glyph (`glyphs` in `registry.js`), like a project tree. A
+  folder opens and shuts on a click or Right and Left; its pages slide in one
+  after another. The open page's folder opens with it, and one wash travels to
+  the open page wherever it is (to its folder while that is shut). Up and Down
+  walk the lines on show; Down from the search enters the tree. A page that
+  hands off to another app shows an open-in-new mark.
+- **The outline** (`nav/NavOutline.qml`). Under the open page hang its
+  sections. The one being read is marked as the page scrolls, and choosing
+  one brings it to the top. A page offers it through `outline` (the section
+  names), `currentSection` and `chooseSection(index)`; `SettingsPage`,
+  `Displays` and `Shortcuts` each do.
+- **The peek.** Resting the pointer on a page's line shows a card beside it
+  with the page's live line from `registry/summaries.js`:
+  `pageSummary(id, ctx)`, with the fixed lines in its `still` table. It reads
   live state through `ctx` (shell settings, the window manager store, daemon
-  topics, watched files, Needs you items), so a summary changes when the
-  setting does. A page that hands off to another app shows an open-in-new mark.
-- **The search field** sits in the pane and replaces its list with results
-  while there is a query. `/`, `Ctrl+K`, `Ctrl+F` and the search on Home open
-  the pane and focus it, wherever Settings is; Up, Down and Return move through
-  the list or the results. An empty search that loses the keys closes again.
-  Besides pages, sections and rows it finds Home's own two entries, Customise
-  Home and Settings colours, which open Home's editor.
-- **The work pane.** Home (`components/Home.qml`), or the open page. Escape and
+  topics, watched files, Needs you items), so it changes when the setting
+  does. Moving along the tree slides the card with the pointer.
+- **The search field** replaces the tree with results while there is a query.
+  `/`, `Ctrl+K`, `Ctrl+F` and the search on Home focus it, wherever Settings
+  is; Up, Down and Return move through the results. An empty search that
+  loses the keys closes again. Besides pages, sections and rows it finds
+  Home's own two entries, Customise Home and Settings colours, which open
+  Home's editor.
+- **The page pane.** Home (`components/Home.qml`), to the pane's edges, or the
+  open page, which slides in as it opens. A page starts with
+  `components/PageHeader.qml`: its category, its name with the page's own
+  actions (Reset page) on the same line, what it is for, and any note, then
+  its first section. The close button stands in the pane's corner. Escape and
   Alt+Left step back: out of the results, then out of the search, then out of
   a page's own sub-view (`back()` on the page), then Home, and then the window
   quits.
-- **Sizes.** Expanded shows the pane and the page side by side. Narrower
-  windows show one of the two: a category's tile shows its pages in the page's
-  place, a page opens with a Back plaque that returns there, and the search
-  stands over the page it was opened from. Compact has no rail, so Home lists
-  the categories under the profile, the one place they stand there.
+- **Sizes.** From 880 wide the sidebar stands beside the pane. Narrower, it is
+  a drawer the pane's menu button draws out over a shade, and the search on
+  Home draws it out too. Compact Home lists the categories under the profile.
 
 ### Home
 
 Home is the profile plate, the old Hub's Profile rebuilt in Lithic and
-composed like the cover of ryoku.dev. It lies on the ground in the work pane's
-place (`AppFrame.workFlush`), with no pane and no slab:
+composed like the cover of ryoku.dev. It fills the page pane to its edges,
+with no slab:
 
 - **The statue and the word.** The stock figure is the site's own: the
   Caracalla Farnese, a real photograph (`art/caracalla.png`, Marie-Lan Nguyen,
@@ -224,10 +236,11 @@ There is no Save and no action bar: a change applies when it is made. See
 
 `registry/registry.js` is the one list of what exists.
 
-- `categories` is the rail, in order, each with its `id`, `label`, `glyph` and
-  its `pages` in list order.
+- `categories` is the tree's folders, in order, each with its `id`, `label`,
+  `glyph` and its `pages` in list order.
 - `pages` maps a page id to `title`, `category`, `file` (the `pages/<file>.qml`
-  to load), `keywords` for search, and optionally `needs` or `handoff`.
+  to load), `keywords` for search, and optionally `needs` or `handoff`. Its
+  glyph in the tree comes from `glyphs`.
 - `needs: { cap: "<capability>" }` shows the page only when the window manager
   claims that capability (`docs/compositors.md`); `needs: { provider: true }`
   shows it only while a provider is known. Until the first settings frame

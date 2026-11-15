@@ -11,3 +11,4 @@ singleton Changes Changes.qml
 singleton Live Live.qml
 singleton Attention Attention.qml
 singleton Look Look.qml
+singleton Tone Tone.qml

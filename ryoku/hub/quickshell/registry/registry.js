@@ -180,8 +180,27 @@ function page(id) {
     var p = pages[id];
     if (!p)
         return null;
-    return Object.assign({ id: id }, p);
+    return Object.assign({ id: id, glyph: glyphs[id] || "article" }, p);
 }
+
+// each page's mark in the navigation tree (Material Symbols names)
+var glyphs = {
+    "wallpaper-colours": "wallpaper", "window-style": "rounded_corner", "fonts-icons": "match_case",
+    "animations": "animation", "lock-screen": "lock",
+    "bar": "toolbar", "desktop-dock": "dock_to_bottom", "quick-settings": "toggle_on",
+    "notifications": "notifications", "sounds": "volume_up", "launcher": "manage_search",
+    "clipboard": "content_paste", "game-bar": "sports_esports",
+    "window-behaviour": "view_quilt", "shortcuts": "keyboard_command_key", "app-rules": "rule",
+    "window-manager": "layers",
+    "displays": "monitor", "keyboard": "keyboard", "mouse-touchpad": "mouse",
+    "wifi": "wifi", "bluetooth": "bluetooth", "phone": "smartphone",
+    "default-apps": "star", "startup-apps": "rocket_launch", "terminal": "terminal",
+    "screen-capture": "screenshot_monitor", "voice-typing": "mic", "rashin": "explore", "add-ons": "extension",
+    "users": "group", "sign-in": "fingerprint",
+    "power": "battery_charging_full", "graphics": "developer_board", "performance": "speed",
+    "time-language": "language", "backup-import": "backup", "about": "info",
+    "updates": "system_update"
+};
 
 function category(id) {
     for (var i = 0; i < categories.length; i++)

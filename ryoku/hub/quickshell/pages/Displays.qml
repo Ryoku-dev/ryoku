@@ -77,17 +77,10 @@ Item {
         return page.draft.filter(m => !m.disabled).length;
     }
 
-    readonly property bool sideIndex: page.width >= LithicTokens.size.settingsExpandedMax
-        + LithicTokens.size.sectionIndexWidth + LithicTokens.size.sectionIndexGap
-    readonly property real columnWidth: page.sideIndex
-        ? Math.min(page.width - LithicTokens.size.sectionIndexWidth - LithicTokens.size.sectionIndexGap, LithicTokens.size.settingsExpandedMax)
-        : Math.min(page.width, page.hub.sizeClass === "expanded" ? LithicTokens.size.settingsExpandedMax : LithicTokens.size.settingsMediumMax)
-    readonly property real groupX: page.sideIndex
-        ? Math.max(0, (page.width - page.columnWidth - LithicTokens.size.sectionIndexWidth - LithicTokens.size.sectionIndexGap) / 2)
-        : Math.max(0, (page.width - page.columnWidth) / 2)
-    readonly property real columnX: page.sideIndex
-        ? page.groupX + LithicTokens.size.sectionIndexWidth + LithicTokens.size.sectionIndexGap
-        : page.groupX
+    readonly property real columnWidth: Math.min(page.width - LithicTokens.size.scrollThumb - LithicTokens.space.s3, 960)
+    readonly property real columnX: Math.max(0, (page.width - page.columnWidth) / 2)
+    // the page's sections by name, for the outline the sidebar hangs under the open page
+    readonly property var outline: Schema.sections.map(s => I18n.tr(s.title))
 
     readonly property string stateLine: {
         page.tick;
@@ -737,49 +730,13 @@ Item {
             width: page.columnWidth
             spacing: 0
 
-            SheetSiblings {
+            PageHeader {
                 width: parent.width
                 hub: page.hub
-            }
-
-            Label {
-                width: parent.width
-                text: I18n.tr(Schema.title)
-                typeRole: "name"
-            }
-            Item { width: 1; height: LithicTokens.space.s2 }
-            Label {
-                width: parent.width
-                text: I18n.tr(Schema.lead)
-                typeRole: "body"
-                inkRole: "fg2"
-                wrapMode: Text.Wrap
-                elide: Text.ElideNone
-            }
-            Label {
-                width: parent.width
-                visible: page.stateLine.length > 0
-                topPadding: LithicTokens.space.s1
-                text: page.stateLine
-                typeRole: "detail"
-                wrapMode: Text.Wrap
-                elide: Text.ElideNone
-            }
-            Item { width: 1; height: LithicTokens.space.s5 }
-
-            SectionIndex {
-                visible: !page.sideIndex
-                width: Math.min(parent.width, LithicTokens.size.settingsControlMax)
-                sizeClass: "medium"
-                sections: Schema.sections.map(s => I18n.tr(s.title))
-                currentIndex: page.currentSection
-                overlayParent: page.hub.overlayItem
-                onActivated: index => page.chooseSection(index)
-            }
-            Item {
-                visible: !page.sideIndex
-                width: 1
-                height: LithicTokens.space.s5
+                pageId: "displays"
+                title: I18n.tr(Schema.title)
+                lead: I18n.tr(Schema.lead)
+                stateLine: page.stateLine
             }
 
             Section {
@@ -1486,17 +1443,6 @@ Item {
                 }
             }
         }
-    }
-
-    SectionIndex {
-        visible: page.sideIndex
-        x: page.groupX
-        y: 0
-        width: LithicTokens.size.sectionIndexWidth
-        sizeClass: "expanded"
-        sections: Schema.sections.map(s => I18n.tr(s.title))
-        currentIndex: page.currentSection
-        onActivated: index => page.chooseSection(index)
     }
 
     ScrollRail {

@@ -3,6 +3,16 @@
 ## Unreleased
 
 ### Changed
+- **Settings is browsed as a folder tree.** The rail, the hidden page list
+  and the tabs above each page are gone; the sidebar now holds the search and
+  every category as a folder with its pages hung on a guide line, like a
+  project tree. Folders open with their pages sliding in one by one, one wash
+  travels to the open page, the open page's sections hang under it and follow
+  the reading, and resting the pointer on a page peeks at what it holds now.
+  A page opens straight on its name, with Reset page on the same line; the
+  section dropdown, the running head and the ruler are gone, so the first
+  setting sits near the top (`quickshell/Hub.qml`, `components/nav/`,
+  `components/PageHeader.qml`, `Singletons/Tone.qml`).
 - **Voice typing is one store over the new engine.** `ryoku-hub dictation` owns
   the settings file, the pinned model catalogue with SHA-256 checks and the
   downloads, and the page now offers the model, the computer that runs it

@@ -79,17 +79,10 @@ Item {
     readonly property var errors: [page.rebindsBind, page.offBind, page.customBind]
         .filter(b => Changes.error(b).length > 0)
 
-    readonly property bool sideIndex: page.layout.length >= 4
-        && page.width >= LithicTokens.size.settingsExpandedMax + LithicTokens.size.sectionIndexWidth + LithicTokens.size.sectionIndexGap
-    readonly property real columnWidth: page.sideIndex
-        ? Math.min(page.width - LithicTokens.size.sectionIndexWidth - LithicTokens.size.sectionIndexGap, LithicTokens.size.settingsExpandedMax)
-        : Math.min(page.width, page.hub.sizeClass === "expanded" ? LithicTokens.size.settingsExpandedMax : LithicTokens.size.settingsMediumMax)
-    readonly property real groupX: page.sideIndex
-        ? Math.max(0, (page.width - page.columnWidth - LithicTokens.size.sectionIndexWidth - LithicTokens.size.sectionIndexGap) / 2)
-        : Math.max(0, (page.width - page.columnWidth) / 2)
-    readonly property real columnX: page.sideIndex
-        ? page.groupX + LithicTokens.size.sectionIndexWidth + LithicTokens.size.sectionIndexGap
-        : page.groupX
+    readonly property real columnWidth: Math.min(page.width - LithicTokens.size.scrollThumb - LithicTokens.space.s3, 960)
+    readonly property real columnX: Math.max(0, (page.width - page.columnWidth) / 2)
+    // the page's sections by name, for the outline the sidebar hangs under the open page
+    readonly property var outline: page.layout.map(s => I18n.tr(s.title))
 
     function shown(chord) {
         return Binds.shown(chord, page.faces);
@@ -510,49 +503,21 @@ Item {
             width: page.columnWidth
             spacing: 0
 
-            SheetSiblings {
+            PageHeader {
                 width: parent.width
                 hub: page.hub
+                pageId: "shortcuts"
+                title: I18n.tr(Schema.title)
+                lead: I18n.tr(Schema.lead)
             }
 
-            Label {
-                width: parent.width
-                text: I18n.tr(Schema.title)
-                typeRole: "name"
-            }
-            Item { width: 1; height: LithicTokens.space.s2 }
-            Label {
-                width: parent.width
-                text: I18n.tr(Schema.lead)
-                typeRole: "body"
-                inkRole: "fg2"
-                wrapMode: Text.Wrap
-                elide: Text.ElideNone
-            }
-            Item { width: 1; height: LithicTokens.space.s5 }
-
-            Flow {
-                width: parent.width
-                spacing: LithicTokens.space.s3
-
-                Search {
-                    id: filter
-                    width: Math.min(body.width, LithicTokens.size.settingsControlMax)
-                    placeholderText: I18n.tr("Filter shortcuts")
-                    accessibleName: I18n.tr("Filter shortcuts")
-                    enabled: page.ready
-                    onTextChanged: page.query = text.trim()
-                }
-
-                SectionIndex {
-                    visible: !page.sideIndex && page.layout.length >= 4
-                    width: Math.min(body.width, LithicTokens.size.settingsControlMax)
-                    sizeClass: "medium"
-                    sections: page.layout.map(s => I18n.tr(s.title))
-                    currentIndex: page.currentSection
-                    overlayParent: page.hub.overlayItem
-                    onActivated: index => page.chooseSection(index)
-                }
+            Search {
+                id: filter
+                width: Math.min(body.width, LithicTokens.size.settingsControlMax)
+                placeholderText: I18n.tr("Filter shortcuts")
+                accessibleName: I18n.tr("Filter shortcuts")
+                enabled: page.ready
+                onTextChanged: page.query = text.trim()
             }
             Item { width: 1; height: LithicTokens.space.s5 }
 
@@ -874,17 +839,6 @@ Item {
                 }
             }
         }
-    }
-
-    SectionIndex {
-        visible: page.sideIndex
-        x: page.groupX
-        y: 0
-        width: LithicTokens.size.sectionIndexWidth
-        sizeClass: "expanded"
-        sections: page.layout.map(s => I18n.tr(s.title))
-        currentIndex: page.currentSection
-        onActivated: index => page.chooseSection(index)
     }
 
     ScrollRail {

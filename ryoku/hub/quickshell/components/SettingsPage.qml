@@ -44,23 +44,8 @@ Item {
     property var rowItems: ({})
     property var sectionItems: ({})
 
-    // the sheet's running head: its category, and its place among the category's pages
-    function pad(n) {
-        return n < 10 ? "0" + n : String(n);
-    }
-    readonly property var sheetPages: {
-        var p = Registry.page(page.pageId);
-        return p ? Registry.pagesOf(p.category, page.hub.gate) : [];
-    }
-    readonly property string sheetCategory: {
-        var p = Registry.page(page.pageId);
-        var c = p ? Registry.category(p.category) : null;
-        return c ? I18n.tr(c.label) : "";
-    }
-    readonly property string sheetMark: {
-        var at = page.sheetPages.findIndex(p => p.id === page.pageId);
-        return at >= 0 && page.sheetPages.length >= 2 ? page.pad(at + 1) + " / " + page.pad(page.sheetPages.length) : "";
-    }
+    // the page's sections by name, for the outline the sidebar hangs under the open page
+    readonly property var outline: page.layout.map(s => I18n.tr(s.title))
     // every row the page draws now, across its sections and their More options
     function shownRows() {
         var out = [];
@@ -95,21 +80,11 @@ Item {
     }
 
     readonly property bool ready: Changes.desktopReady && Settings.loaded && ProviderSchema.ready
-    // the scroll rail sits at the right edge, so the column never runs under it
+    // the scroll rail sits at the right edge, so the column never runs under it; past its
+    // widest the column stands centred in the pane
     readonly property real usableWidth: Math.max(0, page.width - LithicTokens.size.scrollThumb - LithicTokens.space.s3)
-    readonly property bool sideIndex: page.layout.length >= 4
-        && page.usableWidth >= LithicTokens.size.settingsExpandedMax + LithicTokens.size.sectionIndexWidth + LithicTokens.size.sectionIndexGap
-    readonly property real columnWidth: page.sideIndex
-        ? Math.min(page.usableWidth - LithicTokens.size.sectionIndexWidth - LithicTokens.size.sectionIndexGap, LithicTokens.size.settingsExpandedMax)
-        : Math.min(page.usableWidth, page.hub.sizeClass === "expanded" ? LithicTokens.size.settingsExpandedMax : LithicTokens.size.settingsMediumMax)
-    // centred in the page while that leaves the rail clear, else pushed left just enough
-    readonly property real groupWidth: page.sideIndex
-        ? page.columnWidth + LithicTokens.size.sectionIndexWidth + LithicTokens.size.sectionIndexGap
-        : page.columnWidth
-    readonly property real groupX: Math.max(0, Math.min((page.width - page.groupWidth) / 2, page.usableWidth - page.groupWidth))
-    readonly property real columnX: page.sideIndex
-        ? page.groupX + LithicTokens.size.sectionIndexWidth + LithicTokens.size.sectionIndexGap
-        : page.groupX
+    readonly property real columnWidth: Math.min(page.usableWidth, 960)
+    readonly property real columnX: Math.max(0, Math.min((page.width - page.columnWidth) / 2, page.usableWidth - page.columnWidth))
 
     function whenMet(row) {
         if (!row.when)
@@ -202,7 +177,6 @@ Item {
     onAdaptRowsChanged: page.rebuild()
     Component.onCompleted: {
         page.rebuild();
-        sheetHead.play();
     }
     Connections {
         target: Changes
@@ -594,8 +568,8 @@ Item {
         }
     }
 
-    // after the section index moves the page: the first thing in the section that takes the
-    // keys, in reading order (a body drawn above the rows comes first), else its first row
+    // after the outline moves the page: the first thing in the section that takes the keys, in
+    // reading order (a body drawn above the rows comes first), else its first row
     function focusInSection(sid, reason) {
         var why = reason === undefined ? Qt.TabFocusReason : reason;
         var sec = page.sectionItems[sid];
@@ -606,21 +580,12 @@ Item {
         }
         var data = page.sectionData[sid];
         var first = data && data.rows.length > 0 ? page.rowItems[data.rows[0].id] : null;
-        // a section with nothing to focus (a plain list): the keys rest on the section index, so
-        // no control left off screen (or the search field) acts on the next key and Tab goes on
-        // into the page; the page does not scroll for it
-        if (first) {
+        // a section with nothing to focus (a plain list): the keys rest on the page, so no
+        // control left off screen acts on the next key and Tab goes on into the page
+        if (first)
             page.focusRowItem(first, why);
-            return;
-        }
-        var index = page.sideIndex ? sideSectionIndex : compactIndex;
-        var stop = index.visible ? index.nextItemInFocusChain(true) : null;
-        if (stop && page.contains(index, stop)) {
-            page.focusQuietly = true;
-            stop.forceActiveFocus(Qt.OtherFocusReason);
-        } else {
+        else
             page.forceActiveFocus(Qt.OtherFocusReason);
-        }
     }
 
     // the index follows the reading position; after a jump it holds the chosen section
@@ -746,62 +711,18 @@ Item {
             width: page.columnWidth
             spacing: 0
 
-            // the running head: the category where no pane beside the page names it, a
-            // hairline across, and this sheet's place among the category's pages
-            SheetHead {
-                id: sheetHead
-                width: parent.width
-                label: page.hub.wide ? "" : page.sheetCategory
-                mark: page.sheetMark
-            }
-            // the category's other pages, so the wide window needs no page list beside
-            // the page: the one open reads as chosen, the rest are one click away
-            SheetSiblings {
+            PageHeader {
                 width: parent.width
                 hub: page.hub
-            }
-            Label {
-                width: parent.width
-                text: page.schema ? I18n.tr(page.schema.title) : ""
-                typeRole: "name"
-            }
-            Item { width: 1; height: LithicTokens.space.s2 }
-            Label {
-                width: parent.width
-                text: page.schema && page.schema.lead ? I18n.tr(page.schema.lead) : ""
-                typeRole: "body"
-                inkRole: "fg2"
-                wrapMode: Text.Wrap
-                elide: Text.ElideNone
-            }
-            Label {
-                width: parent.width
-                visible: page.stateLine.length > 0
-                topPadding: LithicTokens.space.s1
-                text: page.stateLine
-                typeRole: "detail"
-                wrapMode: Text.Wrap
-                elide: Text.ElideNone
-            }
-            Label {
-                width: parent.width
-                visible: page.someHidden
-                topPadding: LithicTokens.space.s1
-                text: I18n.tr("Some options are hidden because this window manager does not support them.")
-                typeRole: "detail"
-                inkRole: "fg3"
-                wrapMode: Text.Wrap
-                elide: Text.ElideNone
-            }
-            // a page whose rows stand away from their defaults offers to put them back
-            Row {
-                width: parent.width
-                visible: page.hasChanges
-                topPadding: LithicTokens.space.s2
-                spacing: LithicTokens.space.s2
-                layoutDirection: Qt.RightToLeft
+                pageId: page.pageId
+                title: page.schema ? I18n.tr(page.schema.title) : ""
+                lead: page.schema && page.schema.lead ? I18n.tr(page.schema.lead) : ""
+                stateLine: page.stateLine
+                note: page.someHidden ? I18n.tr("Some options are hidden because this window manager does not support them.") : ""
 
+                // a page whose rows stand away from their defaults offers to put them back
                 Plaque {
+                    visible: page.hasChanges
                     kind: "quiet"
                     small: true
                     glyph: "restart_alt"
@@ -809,33 +730,6 @@ Item {
                     accessibleName: I18n.tr("Reset this page to its defaults")
                     onClicked: page.resetPage()
                 }
-            }
-
-            Item { width: 1; height: LithicTokens.space.s3 }
-            TickRuler {
-                width: Math.min(parent.width, implicitWidth)
-            }
-            Item { width: 1; height: LithicTokens.space.s5 }
-
-            SectionIndex {
-                id: compactIndex
-                visible: !page.sideIndex && page.layout.length >= 4
-                width: Math.min(parent.width, LithicTokens.size.settingsControlMax)
-                sizeClass: "medium"
-                sections: page.layout.map(s => I18n.tr(s.title))
-                overlayParent: page.hub.overlayItem
-                onActivated: index => page.chooseSection(index)
-            }
-            // choosing assigns the index's currentIndex, which would end a plain binding
-            Binding {
-                target: compactIndex
-                property: "currentIndex"
-                value: page.currentSection
-            }
-            Item {
-                visible: !page.sideIndex && page.layout.length >= 4
-                width: 1
-                height: LithicTokens.space.s5
             }
 
             // one delegate per section id, kept while the section stays, so a rebuild
@@ -856,8 +750,6 @@ Item {
                     }
                     width: body.width
                     title: I18n.tr(modelData.title)
-                    ruled: true
-                    mark: page.layout.length >= 2 ? page.pad(sec.index + 1) : ""
                     Component.onCompleted: {
                         page.sectionItems[sec.sid] = sec;
                         // the first sections rise in turn as the page opens; later ones stand
@@ -984,22 +876,6 @@ Item {
                 }
             }
         }
-    }
-
-    SectionIndex {
-        id: sideSectionIndex
-        visible: page.sideIndex
-        x: page.groupX
-        y: 0
-        width: LithicTokens.size.sectionIndexWidth
-        sizeClass: "expanded"
-        sections: page.layout.map(s => I18n.tr(s.title))
-        onActivated: index => page.chooseSection(index)
-    }
-    Binding {
-        target: sideSectionIndex
-        property: "currentIndex"
-        value: page.currentSection
     }
 
     // scrolling under a resting pointer keeps its position; only a real move counts

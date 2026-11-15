@@ -392,25 +392,28 @@ Item {
                 }
             }
 
-            // the top bar: the search, where the reader left off, and the look
+            // the top bar: where the reader left off, and the look; a narrow window, whose
+            // sidebar is put away, keeps the search here too, clear of the drawer's button
             Item {
                 id: topBar
                 visible: !root.preview
-                x: root.side
+                x: root.side + (root.hub.wide ? 0 : 40)
                 y: LithicTokens.space.s3
                 // the window's close control stands in the pane's top right corner
-                width: plate.width - root.side - LithicTokens.size.iconPlaqueSmall - LithicTokens.space.s2 - LithicTokens.space.s3
+                width: plate.width - x - LithicTokens.size.iconPlaqueSmall - LithicTokens.space.s2 - LithicTokens.space.s3
                 height: LithicTokens.size.searchHeight
 
                 SearchDoor {
                     id: door
+                    visible: !root.hub.wide
                     width: Math.min(LithicTokens.size.searchWidth, topBar.width - customisePlaque.width - LithicTokens.space.s2)
                     onClicked: root.hub.focusSearch()
                 }
                 Plaque {
+                    id: continuePlaque
                     anchors.verticalCenter: parent.verticalCenter
-                    visible: root.continuePage !== "" && door.x + door.width + LithicTokens.space.s2 + implicitWidth < customisePlaque.x - LithicTokens.space.s2
-                    x: door.x + door.width + LithicTokens.space.s2
+                    visible: root.continuePage !== "" && x + implicitWidth < customisePlaque.x - LithicTokens.space.s2
+                    x: door.visible ? door.x + door.width + LithicTokens.space.s2 : 0
                     kind: "quiet"
                     small: true
                     glyph: "arrow_forward"

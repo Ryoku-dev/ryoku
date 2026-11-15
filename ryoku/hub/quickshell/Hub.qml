@@ -8,8 +8,8 @@ import Ryoku.Ui as RyokuUi
 import Ryoku.Text
 import "Singletons"
 import "components"
+import "components/nav"
 import "registry/registry.js" as Registry
-import "registry/summaries.js" as Summaries
 import "registry/provider-map.js" as ProviderMap
 import "schema/index.js" as Schemas
 import "ShellIndex.js" as ShellIndex
@@ -25,28 +25,33 @@ FocusScope {
         if (hub.pageId === "about")
             SysInfo.load();
     }
-    // "home": no category is open and the rail selects nothing; "category": one is
+    // "home": no page is open; "category": one is
     property string listMode: "home"
-    // the navigation pane holds the search, and in a narrow window the open category's pages.
-    // Expanded shows it only for the search; narrower windows show one of the two, the pane
-    // ("nav") or the page ("work")
-    readonly property bool wide: frame.sizeClass === "expanded"
+    // the sidebar stands beside the page while the window is wide enough; narrower, it is a
+    // drawer the page lies under ("nav" while it is drawn out, "work" while it is put away)
+    readonly property bool wide: hub.width >= 880
     property string narrowView: "work"
-    // search was asked for: the pane shows for it even on Home, where no category is open
+    readonly property real sideWidth: 272
+    // search was asked for: the field keeps the keys until it is left empty
     property bool searchOpen: false
-    readonly property bool navShown: hub.wide ? (hub.searchOpen || hub.searching)
-                                               : hub.narrowView === "nav"
     // the page each category last showed this session, so its tile returns there
     property var lastInCategory: ({})
     property string query: ""
-    property int listCursor: -1
     property string lastSection: ""
     property string usersProfileId: ""
     property bool quitting: false
     property string loadedKey: ""
 
-    readonly property string sizeClass: frame.sizeClass
+    readonly property string sizeClass: hub.width >= 1180 ? "expanded" : hub.wide ? "medium" : "compact"
+    readonly property Item search: sidebar.search
     readonly property Item overlayItem: overlayLayer
+    // the open page's sections and the one being read, which the sidebar hangs under its line
+    readonly property var outline: content.item && content.item.outline ? content.item.outline : []
+    readonly property int outlineIndex: content.item && content.item.currentSection !== undefined ? content.item.currentSection : -1
+    function chooseSection(index) {
+        if (content.item && typeof content.item.chooseSection === "function")
+            content.item.chooseSection(index);
+    }
     readonly property var changes: Changes
     readonly property bool searching: hub.query.trim().length > 0
 
@@ -200,15 +205,10 @@ FocusScope {
     function setCategory(id) {
         hub.categoryId = id;
         hub.listMode = "category";
-        frame.currentDestination = Math.max(0, Registry.categoryIndex(id));
-        hub.listCursor = -1;
     }
 
-    // no category is open: the rail selects nothing and the pane leaves with it
     function leaveCategory() {
         hub.listMode = "home";
-        frame.currentDestination = -1;
-        hub.listCursor = -1;
     }
 
     // a dialog or popover left open over the page closes when Settings goes elsewhere, so keys
@@ -280,8 +280,8 @@ FocusScope {
         return pages.length > 0 ? pages[0].id : "";
     }
 
-    // a category's tile: beside the pane its page opens at once; a narrower window shows the
-    // category's pages to choose from
+    // a category from Home's list: a wide window opens its page at once; a narrow one draws
+    // the sidebar out with the category's folder open, to choose from
     function openCategory(index) {
         var c = Registry.categories[index];
         if (!c)
@@ -297,26 +297,8 @@ FocusScope {
             return;
         }
         hub.closeOverlays();
-        hub.setCategory(c.id);
-        hub.pageId = "";
-        hub.unloadContent();
+        sidebar.tree.setExpanded(c.id, true);
         hub.narrowView = "nav";
-    }
-
-    // a window that grows wide shows the open category's page beside its pane; one that
-    // narrows shows the pane alone when no page is open
-    onWideChanged: {
-        if (hub.listMode !== "category" || hub.pageId !== "")
-            return;
-        if (hub.wide) {
-            var start = hub.categoryStart(hub.categoryId);
-            if (start !== "")
-                hub.navigate(start, "", true);
-            else
-                hub.goHome();
-        } else {
-            hub.narrowView = "nav";
-        }
     }
 
     // a shell word, quoted
@@ -400,21 +382,34 @@ FocusScope {
         }
     }
 
-    // the keys go to what the work pane shows, or stay with the frame while it shows nothing
+    // the keys go to what the work pane shows
     function focusContent() {
-        if (content.item && stage.visible)
+        if (content.item)
             content.item.forceActiveFocus(Qt.OtherFocusReason);
         else
             hub.forceActiveFocus(Qt.OtherFocusReason);
     }
 
-    // the search closes: on Home the pane leaves with it, and a narrow window gets back the
-    // page or Home the pane stood over
+    // the search closes, and a narrow window puts the sidebar away again
     function closeSearch() {
         hub.searchOpen = false;
-        if (!hub.wide && (hub.pageId !== "" || hub.listMode === "home"))
+        if (!hub.wide)
             hub.narrowView = "work";
         hub.focusContent();
+    }
+
+    // an empty search that lost the keys is over
+    function searchLeftField() {
+        searchLeft.restart();
+    }
+    Timer {
+        id: searchLeft
+        interval: 0
+        onTriggered: {
+            if (search.activeFocus || hub.searching || !hub.searchOpen)
+                return;
+            hub.searchOpen = false;
+        }
     }
 
     // Escape and Alt+Left: results, then the search field, then the page, then Home, then the
@@ -430,25 +425,17 @@ FocusScope {
             return;
         }
         if (!hub.wide && hub.narrowView === "nav") {
-            hub.goHome();
+            hub.narrowView = "work";
             hub.focusContent();
             return;
         }
         // a page with its own sub-view steps out of it first; back() returns true when it did
         if (hub.pageId !== "" && content.item && typeof content.item.back === "function" && content.item.back())
             return;
-        if (hub.pageId !== "" && !hub.wide) {
-            // a narrow window steps back to the category's pages
-            hub.pageId = "";
-            hub.unloadContent();
-            hub.narrowView = "nav";
-            hub.forceActiveFocus(Qt.OtherFocusReason);
-            return;
-        }
         if (hub.listMode !== "home") {
             hub.goHome();
             // the keys stay in the work pane: Home's first control takes them, so Tab goes on
-            // there, not to the rail
+            // there, not to the sidebar
             if (content.item) {
                 var first = content.item.nextItemInFocusChain(true);
                 var inside = false;
@@ -487,16 +474,9 @@ FocusScope {
             content.item.focusRow(rowId);
     }
 
-    // a narrow window that shows a category's pages keeps no page or Home alive under them
-    function unloadContent() {
-        hub.loadedKey = "";
-        content.source = "";
-    }
-
     // search
 
-    // the pane opens for the search wherever Settings is; a narrow window shows it in the
-    // page's place and keeps the page under it
+    // the search is the sidebar's; a narrow window draws the sidebar out for it
     function focusSearch() {
         hub.searchOpen = true;
         if (!hub.wide)
@@ -734,30 +714,17 @@ FocusScope {
             content.item.forceActiveFocus(Qt.OtherFocusReason);
     }
 
+    // Up and Down in the search: through the results, or down into the tree
     function moveCursor(delta) {
-        if (hub.searching) {
-            resultsList.move(delta);
-            return;
-        }
-        var n = hub.listMode === "category" ? hub.categoryPages.length : 0;
-        if (n === 0)
-            return;
-        hub.listCursor = hub.listCursor < 0 ? (delta > 0 ? 0 : n - 1) : Math.max(0, Math.min(n - 1, hub.listCursor + delta));
-        var item = pageRepeater.itemAt(hub.listCursor);
-        if (item)
-            listFlick.contentY = Math.max(0, Math.min(item.y, Math.max(0, item.y + item.height - listFlick.height), listFlick.contentHeight - listFlick.height));
+        if (hub.searching)
+            sidebar.results.move(delta);
+        else if (delta > 0)
+            sidebar.tree.focusFirst();
     }
 
     function openCursor() {
-        if (hub.searching) {
-            resultsList.activate();
-            return;
-        }
-        if (hub.listCursor < 0 || hub.listMode !== "category")
-            return;
-        var p = hub.categoryPages[hub.listCursor];
-        if (p)
-            hub.navigate(p.id, "");
+        if (hub.searching)
+            sidebar.results.activate();
     }
 
     Keys.onPressed: event => {
@@ -855,334 +822,206 @@ FocusScope {
         onTriggered: hub.openPendingStart(true)
     }
 
-    AppFrame {
+    Item {
         id: frame
         anchors.fill: parent
-        destinations: Registry.categories.map(c => ({ label: I18n.tr(c.label), glyph: c.glyph }))
-        showNew: false
-        footIndex: Registry.categories.length - 1
-        notchIndex: Updates.available ? Registry.categories.length - 1 : -1
-        compactBar: false
-        brandMark: Component {
-            RyokuMark {
-                ink: Lithic.onSel
-                accent: Lithic.jasper
-            }
-        }
-        // the pane stands beside the page only when expanded; narrower, it takes the page's place.
-        // It holds the search and a short index, so it is as wide as the search at rest
-        showList: hub.wide && hub.navShown
-        listWidth: LithicTokens.size.searchWidth + 2 * LithicTokens.size.listInset
-        compactView: "work"
-        // Home is a plate of its own on the ground
-        workFlush: hub.loadedKey === "home" && stage.visible
-        windowControlsComponent: closeControl
-        onHomeTriggered: hub.goHome()
-        onDestinationTriggered: (index, label) => hub.openCategory(index)
-        onCloseRequested: hub.requestQuit()
 
-        Item {
-            id: workArea
+        Rectangle {
             anchors.fill: parent
+            color: Tone.side
+        }
 
-            Plaque {
-                id: backPlaque
-                visible: !hub.wide && stage.visible && hub.pageId !== ""
-                kind: "quiet"
-                small: true
-                glyph: "arrow_back"
-                text: I18n.tr("Back")
-                onClicked: hub.back()
+        // the page pane, lifted a step off the ground the sidebar lies on
+        Rectangle {
+            id: pane
+            x: hub.wide ? hub.sideWidth : 8
+            y: 8
+            width: parent.width - x - 8
+            height: parent.height - 16
+            radius: Tone.radius
+            color: Tone.pane
+            border.width: 1
+            border.color: Tone.line
+            Behavior on x {
+                NumberAnimation { duration: Tone.move; easing.type: Easing.OutCubic }
             }
 
             Item {
                 id: stage
-                property real lift: 0
-                visible: hub.wide || hub.narrowView === "work"
-                y: (backPlaque.visible ? backPlaque.height + LithicTokens.space.s3 : 0) + stage.lift
+                property real shift: 0
+                x: stage.shift
                 width: parent.width
-                height: parent.height - (backPlaque.visible ? backPlaque.height + LithicTokens.space.s3 : 0)
+                height: parent.height
+                clip: true
 
                 Loader {
                     id: content
+                    readonly property bool flush: hub.loadedKey === "home"
                     anchors.fill: parent
+                    // Home is a plate to its edges; a page keeps clear of the pane's rim, its
+                    // scroll rail riding the right edge
+                    anchors.leftMargin: content.flush ? 0 : 28
+                    anchors.rightMargin: content.flush ? 0 : 4
+                    anchors.topMargin: content.flush ? 1 : 12
+                    anchors.bottomMargin: 1
                 }
             }
 
-            // where the navigation pane stands in a narrow window: in the page's place
-            Item {
-                id: navSlot
-                visible: !hub.wide && hub.narrowView === "nav"
-                width: Math.min(parent.width, LithicTokens.size.dialogWidth + LithicTokens.space.s5)
-                height: parent.height
+            // a narrow window keeps its sidebar in a drawer, drawn out from here
+            IconButton {
+                visible: !hub.wide
+                x: 10
+                y: 10
+                glyph: "menu"
+                accessibleName: I18n.tr("Show all settings")
+                onClicked: hub.narrowView = "nav"
             }
 
-            // the navigation pane: the search, then the open category's pages
-            Item {
-                id: listArea
-                parent: hub.wide ? listSlot : navSlot
-                anchors.fill: parent
-                anchors.leftMargin: hub.wide ? LithicTokens.size.listInset : 0
-                anchors.rightMargin: hub.wide ? LithicTokens.size.listInset : 0
-
-                readonly property bool inCategory: hub.listMode === "category"
-
-                Column {
-                    id: listHead
-                    width: parent.width
-                    spacing: LithicTokens.space.s2
-
-                    Plaque {
-                        visible: !hub.wide
-                        kind: "quiet"
-                        small: true
-                        glyph: "arrow_back"
-                        text: I18n.tr("Back")
-                        onClicked: hub.back()
-                    }
-                    Label {
-                        width: parent.width
-                        leftPadding: LithicTokens.space.s3
-                        text: listArea.inCategory && hub.category ? I18n.tr(hub.category.label) : I18n.tr("Search")
-                        typeRole: "section"
-                    }
-                    Label {
-                        width: parent.width
-                        visible: listArea.inCategory && text.length > 0
-                        leftPadding: LithicTokens.space.s3
-                        rightPadding: LithicTokens.space.s3
-                        text: Summaries.categorySentence(hub.categoryId, hub.summaries)
-                        typeRole: "body"
-                        inkRole: "fg2"
-                        wrapMode: Text.Wrap
-                        elide: Text.ElideNone
-                    }
-                    Item { width: 1; height: LithicTokens.space.s1 }
-                    Search {
-                        id: search
-                        width: parent.width
-                        placeholderText: I18n.tr("Search settings")
-                        shortcutHint: "/"
-                        accessibleName: I18n.tr("Search settings")
-                        Keys.onUpPressed: hub.moveCursor(-1)
-                        Keys.onDownPressed: hub.moveCursor(1)
-                        Keys.onReturnPressed: hub.openCursor()
-                        Keys.onEnterPressed: hub.openCursor()
-                        onTextChanged: hub.query = text
-                        onActiveFocusChanged: {
-                            // build the index as the field is reached, before the first key
-                            if (activeFocus)
-                                hub.armSearch();
-                            else
-                                searchLeft.restart();
-                        }
-                    }
-                    Label {
-                        width: parent.width
-                        visible: !listArea.inCategory && !hub.searching
-                        leftPadding: LithicTokens.space.s3
-                        rightPadding: LithicTokens.space.s3
-                        text: I18n.tr("Every setting, by its name or by what it does.")
-                        typeRole: "caption"
-                        inkRole: "fg3"
-                        wrapMode: Text.Wrap
-                        elide: Text.ElideNone
-                    }
-                    Item { width: 1; height: LithicTokens.space.s2 }
-                }
-
-                // an empty search that lost the keys is over: on Home the pane leaves, and a
-                // narrow window gets its page back
-                Timer {
-                    id: searchLeft
-                    interval: 0
-                    onTriggered: {
-                        if (search.activeFocus || hub.searching || !hub.searchOpen)
-                            return;
-                        hub.searchOpen = false;
-                        if (!hub.wide && hub.narrowView === "nav" && (hub.pageId !== "" || hub.listMode === "home"))
-                            hub.narrowView = "work";
-                    }
-                }
-
-                Flickable {
-                    id: listFlick
-                    visible: !hub.searching && listArea.inCategory
-                    anchors.top: listHead.bottom
-                    anchors.bottom: parent.bottom
-                    width: parent.width
-                    contentHeight: pageColumn.height + LithicTokens.space.s4
-                    boundsBehavior: Flickable.StopAtBounds
-                    clip: true
-
-                    Column {
-                        id: pageColumn
-                        width: parent.width
-                        spacing: LithicTokens.size.rowListGap
-
-                        Repeater {
-                            id: pageRepeater
-                            model: hub.categoryPages
-                            delegate: PageRow {
-                                required property var modelData
-                                required property int index
-                                width: pageColumn.width
-                                text: I18n.tr(modelData.title)
-                                summary: Summaries.pageSummary(modelData.id, hub.summaries)
-                                trailingGlyph: modelData.handoff ? "open_in_new" : ""
-                                selected: modelData.id === hub.pageId
-                                cursor: hub.listCursor === index
-                                onClicked: hub.navigate(modelData.id, "")
-                            }
-                        }
-                    }
-                }
-
-                ScrollRail {
-                    flickable: listFlick
-                    visible: listFlick.visible && overflowing
-                    anchors.top: listFlick.top
-                    anchors.bottom: listFlick.bottom
-                    anchors.right: parent.right
-                    anchors.rightMargin: hub.wide ? -LithicTokens.size.listInset + 2 : 0
-                }
-
-                SearchResults {
-                    id: resultsList
-                    visible: hub.searching
-                    anchors.top: listHead.bottom
-                    anchors.bottom: parent.bottom
-                    width: parent.width
-                    hub: hub
-                    query: hub.searchText
-                    results: hub.results
-                    nearby: hub.nearby
-                    onChosen: entry => hub.choose(entry)
-                }
-            }
-
-            ParallelAnimation {
-                id: rise
-                NumberAnimation {
-                    target: stage
-                    property: "opacity"
-                    from: 0
-                    to: 1
-                    duration: Lithic.duration(LithicTokens.motion.navigate)
-                    easing.type: Easing.BezierSpline
-                    easing.bezierCurve: Lithic.curve
-                }
-                NumberAnimation {
-                    target: stage
-                    property: "lift"
-                    from: LithicTokens.size.workPaneRise
-                    to: 0
-                    duration: Lithic.duration(LithicTokens.motion.navigate)
-                    easing.type: Easing.BezierSpline
-                    easing.bezierCurve: Lithic.curve
-                }
+            IconButton {
+                anchors.right: parent.right
+                anchors.rightMargin: 10
+                y: 10
+                glyph: "close"
+                accessibleName: I18n.tr("Close Settings")
+                onClicked: hub.requestQuit()
             }
         }
 
-        listData: [
-            Item {
-                id: listSlot
-                anchors.fill: parent
+        ParallelAnimation {
+            id: rise
+            NumberAnimation {
+                target: stage
+                property: "opacity"
+                from: 0
+                to: 1
+                duration: Tone.move
+                easing.type: Easing.OutCubic
             }
-        ]
+            NumberAnimation {
+                target: stage
+                property: "shift"
+                from: Lithic.reduceMotion ? 0 : 14
+                to: 0
+                duration: Tone.move + 60
+                easing.type: Easing.OutCubic
+            }
+        }
 
-        overlayData: [
-            Item {
-                id: overlayLayer
+        // the drawer's shade over the page while the sidebar is drawn out of a narrow window
+        Rectangle {
+            anchors.fill: parent
+            color: Lithic.scrim
+            opacity: !hub.wide && hub.narrowView === "nav" ? 1 : 0
+            visible: opacity > 0
+            Behavior on opacity { NumberAnimation { duration: Tone.move } }
+            MouseArea {
                 anchors.fill: parent
+                onClicked: hub.narrowView = "work"
+            }
+        }
 
-                // made the first time something asks for a confirmation
-                Loader {
-                    id: confirmLoader
-                    active: false
-                    sourceComponent: Component {
-                        Confirm {
-                            id: confirmDialog
-                            property var yes: null
-                            property var no: null
-                            property string lead: ""
-                            property int remaining: 0
-                            overlayParent: overlayLayer
-                            text: confirmDialog.remaining > 0
-                                ? (confirmDialog.lead.length > 0 ? confirmDialog.lead + " " : "")
-                                  + I18n.tr("Reverting in %1 s.").replace("%1", confirmDialog.remaining)
-                                : confirmDialog.lead
-                            function answer(accepted) {
-                                countdown.stop();
-                                var run = accepted ? confirmDialog.yes : confirmDialog.no;
-                                confirmDialog.yes = null;
-                                confirmDialog.no = null;
-                                if (run)
-                                    run();
-                            }
-                            onConfirmed: confirmDialog.answer(true)
-                            onCancelled: confirmDialog.answer(false)
-                            // Escape or the scrim close it without a button
-                            onOpenedChanged: {
-                                if (!confirmDialog.opened && (confirmDialog.yes || confirmDialog.no))
-                                    confirmDialog.answer(false);
-                            }
+        HubSidebar {
+            id: sidebar
+            hub: hub
+            width: hub.sideWidth
+            height: parent.height
+            x: hub.wide || hub.narrowView === "nav" ? 0 : -width - 1
+            Behavior on x {
+                NumberAnimation { duration: Tone.move; easing.type: Easing.OutCubic }
+            }
+        }
+
+        // the dialogs and notices stand over everything
+        Item {
+            id: overlayLayer
+            anchors.fill: parent
+
+            // made the first time something asks for a confirmation
+            Loader {
+                id: confirmLoader
+                active: false
+                sourceComponent: Component {
+                    Confirm {
+                        id: confirmDialog
+                        property var yes: null
+                        property var no: null
+                        property string lead: ""
+                        property int remaining: 0
+                        overlayParent: overlayLayer
+                        text: confirmDialog.remaining > 0
+                            ? (confirmDialog.lead.length > 0 ? confirmDialog.lead + " " : "")
+                              + I18n.tr("Reverting in %1 s.").replace("%1", confirmDialog.remaining)
+                            : confirmDialog.lead
+                        function answer(accepted) {
+                            countdown.stop();
+                            var run = accepted ? confirmDialog.yes : confirmDialog.no;
+                            confirmDialog.yes = null;
+                            confirmDialog.no = null;
+                            if (run)
+                                run();
+                        }
+                        onConfirmed: confirmDialog.answer(true)
+                        onCancelled: confirmDialog.answer(false)
+                        // Escape or the scrim close it without a button
+                        onOpenedChanged: {
+                            if (!confirmDialog.opened && (confirmDialog.yes || confirmDialog.no))
+                                confirmDialog.answer(false);
                         }
                     }
                 }
+            }
 
-                Timer {
-                    id: countdown
-                    interval: 1000
-                    repeat: true
-                    onTriggered: {
-                        var d = confirmLoader.item;
-                        d.remaining--;
-                        if (d.remaining <= 0) {
-                            d.answer(false);
-                            d.close();
-                        }
+            Timer {
+                id: countdown
+                interval: 1000
+                repeat: true
+                onTriggered: {
+                    var d = confirmLoader.item;
+                    d.remaining--;
+                    if (d.remaining <= 0) {
+                        d.answer(false);
+                        d.close();
                     }
                 }
+            }
 
-                Item {
-                    id: placards
-                    anchors.fill: parent
-                    property var cards: []
+            Item {
+                id: placards
+                anchors.fill: parent
+                property var cards: []
 
-                    // newest at the foot; a drag or held key on one setting updates its own notice,
-                    // while discrete changes (those with a notice of their own) each get a card
-                    function announce(entry) {
-                        var key = Changes.keyOf(entry.bind);
-                        var top = placards.cards.length > 0 ? placards.cards[0] : null;
-                        if (top && top.key === key && !entry.notice && !top.entry.notice) {
-                            top.entry = entry;
-                            top.open();
-                            return;
-                        }
-                        var stale = entry.notice ? [] : placards.cards.filter(p => p.key === key && !p.entry.notice);
-                        var keep = [placardComponent.createObject(placards, { entry: entry, key: key })]
-                            .concat(placards.cards.filter(p => stale.indexOf(p) < 0));
-                        var drop = stale.concat(keep.slice(LithicTokens.size.placardStackCount));
-                        placards.cards = keep.slice(0, LithicTokens.size.placardStackCount);
+                // newest at the foot; a drag or held key on one setting updates its own notice,
+                // while discrete changes (those with a notice of their own) each get a card
+                function announce(entry) {
+                    var key = Changes.keyOf(entry.bind);
+                    var top = placards.cards.length > 0 ? placards.cards[0] : null;
+                    if (top && top.key === key && !entry.notice && !top.entry.notice) {
+                        top.entry = entry;
+                        top.open();
+                        return;
+                    }
+                    var stale = entry.notice ? [] : placards.cards.filter(p => p.key === key && !p.entry.notice);
+                    var keep = [placardComponent.createObject(placards, { entry: entry, key: key })]
+                        .concat(placards.cards.filter(p => stale.indexOf(p) < 0));
+                    var drop = stale.concat(keep.slice(LithicTokens.size.placardStackCount));
+                    placards.cards = keep.slice(0, LithicTokens.size.placardStackCount);
+                    for (var i = 0; i < placards.cards.length; i++)
+                        placards.cards[i].stackIndex = i;
+                    for (var j = 0; j < drop.length; j++)
+                        drop[j].close();
+                    placards.cards[0].open();
+                }
+
+                function closed(card) {
+                    if (placards.cards.indexOf(card) >= 0) {
+                        placards.cards = placards.cards.filter(p => p !== card);
                         for (var i = 0; i < placards.cards.length; i++)
                             placards.cards[i].stackIndex = i;
-                        for (var j = 0; j < drop.length; j++)
-                            drop[j].close();
-                        placards.cards[0].open();
                     }
-
-                    function closed(card) {
-                        if (placards.cards.indexOf(card) >= 0) {
-                            placards.cards = placards.cards.filter(p => p !== card);
-                            for (var i = 0; i < placards.cards.length; i++)
-                                placards.cards[i].stackIndex = i;
-                        }
-                        card.destroy();
-                    }
+                    card.destroy();
                 }
             }
-        ]
+        }
     }
 
     Component {
@@ -1199,24 +1038,6 @@ FocusScope {
             actionText: I18n.tr("Undo")
             onActionTriggered: Changes.undoEntry(card.entry)
             onClosed: placards.closed(card)
-        }
-    }
-
-    // the window's own controls: a labelled Close plaque that stands clear of
-    // the pane's cut corner, not an X stranded in it
-    Component {
-        id: closeControl
-        Row {
-            spacing: LithicTokens.space.s1
-
-            Plaque {
-                small: true
-                kind: "quiet"
-                glyph: "close"
-                text: I18n.tr("Close")
-                accessibleName: I18n.tr("Close Settings")
-                onClicked: hub.requestQuit()
-            }
         }
     }
 }
