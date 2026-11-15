@@ -109,7 +109,7 @@ var pages = {
     "backup-import": { title: "Backup & import", category: "system", file: "BackupImport",
         keywords: ["import", "backup", "export", "restore", "dotfiles", "migrate", "reset all"] },
     "about": { title: "About", category: "system", file: "About",
-        keywords: ["about", "version", "edition", "hardware", "system card", "profile", "credits"] },
+        keywords: ["about", "version", "edition", "hardware", "credits"] },
 
     "updates": { title: "Updates", category: "updates", file: "Updates",
         keywords: ["update", "upgrade", "version", "what's new", "rollback", "snapshots"] }
@@ -117,7 +117,7 @@ var pages = {
 
 // old ids and names that callers use today
 var aliases = {
-    "profile": "about", "credits": "about", "global": "time-language", "connections": "wifi",
+    "credits": "about", "global": "time-language", "connections": "wifi",
     "input": "keyboard", "cursor": "fonts-icons", "gpu": "graphics", "lockscreen": "lock-screen",
     "windowmanager": "window-behaviour", "windows": "window-behaviour", "plugins": "window-manager",
     "layerrules": "app-rules", "windowrules": "app-rules", "appoverrides": "app-rules",

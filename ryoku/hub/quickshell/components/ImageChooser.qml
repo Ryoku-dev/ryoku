@@ -22,6 +22,8 @@ Item {
     property url currentFolder: StandardPaths.writableLocation(StandardPaths.PicturesLocation)
     property url selectedFile: ""
     property Item overlayParent: null
+    // more files to list beside pictures (a card design, "*.ryoprofile"); shown with a mark
+    property var extraFilters: []
     readonly property bool showing: dialog.visible
 
     signal accepted()
@@ -93,7 +95,7 @@ Item {
     FolderListModel {
         id: files
         folder: host.path === "" ? "" : host.urlOf(host.path)
-        nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.gif", "*.bmp", "*.PNG", "*.JPG", "*.JPEG", "*.WEBP"]
+        nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.gif", "*.bmp", "*.PNG", "*.JPG", "*.JPEG", "*.WEBP"].concat(host.extraFilters)
         showDirsFirst: true
         showHidden: false
         showDotAndDotDot: false
@@ -180,6 +182,7 @@ Item {
                         required property string filePath
                         required property bool fileIsDir
                         readonly property bool isChosen: !fileIsDir && host.chosen === filePath
+                        readonly property bool picture: !fileIsDir && /\.(png|jpe?g|webp|gif|bmp)$/i.test(fileName)
                         width: grid.cellWidth
                         height: grid.cellHeight
 
@@ -196,17 +199,17 @@ Item {
                             clip: true
 
                             Glyph {
-                                visible: cell.fileIsDir
+                                visible: !cell.picture
                                 anchors.centerIn: parent
-                                name: "folder"
+                                name: cell.fileIsDir ? "folder" : "description"
                                 size: 34
                                 ink: Lithic.fg3
                             }
                             Image {
-                                visible: !cell.fileIsDir
+                                visible: cell.picture
                                 anchors.fill: parent
                                 anchors.margins: 1
-                                source: cell.fileIsDir ? "" : host.urlOf(cell.filePath)
+                                source: cell.picture ? host.urlOf(cell.filePath) : ""
                                 sourceSize.width: 240
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
@@ -268,7 +271,7 @@ Item {
                         anchors.fill: parent
                         anchors.margins: 12
                         anchors.bottomMargin: 44
-                        source: host.shown !== "" ? host.urlOf(host.shown) : ""
+                        source: /\.(png|jpe?g|webp|gif|bmp)$/i.test(host.shown) ? host.urlOf(host.shown) : ""
                         sourceSize.width: 720
                         fillMode: Image.PreserveAspectFit
                         asynchronous: true

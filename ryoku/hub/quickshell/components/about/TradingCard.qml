@@ -22,6 +22,8 @@ Item {
     property bool live: false
     // a tier to show instead of the machine's own (About's rarity ladder previews them), or -1
     property int showLevel: -1
+    // the figure, for whoever lets the reader drag it to frame it
+    readonly property Item figure: cardFigure
     readonly property bool secret: card.level >= 5
     // a Secret rare's own life while it is live: the facets turn, a light crosses the card
     // every few seconds, the sparkles drift. A still card (a saved picture) stands at time 0
@@ -37,6 +39,13 @@ Item {
     readonly property real sweepAt: {
         var t = card.clock % 4.2;
         return t < 1.2 ? -0.4 + 1.8 * (t / 1.2) : -1;
+    }
+
+    // the card prints the machine's whole read-out (cores, display, packages), which Settings
+    // reads only when something asks for it
+    Component.onCompleted: {
+        if (!SysInfo.loaded && !SysInfo.loading)
+            SysInfo.load();
     }
 
     width: card.designWidth
@@ -229,12 +238,15 @@ Item {
             font.pixelSize: 120
         }
         CardFigure {
+            id: cardFigure
             readonly property real aspect: card.heroKind === "default" ? stockAspect : 900 / 1157
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom
-            // from Ultra rare the figure fills its window, a full art
-            height: card.level >= 4 ? parent.height + 20 : parent.height - 18
-            width: Math.round(height * aspect)
+            // your own picture fills the window, as a photo card's art does; a figure stands
+            // in it, and from Ultra rare fills it, a full art
+            readonly property bool fills: card.heroKind === "custom"
+            height: fills ? parent.height - 6 : card.level >= 4 ? parent.height + 20 : parent.height - 18
+            width: fills ? parent.width - 6 : Math.round(height * aspect)
             soft: true
             ink: Lithic.dark ? Lithic.fg : Lithic.stone4
         }

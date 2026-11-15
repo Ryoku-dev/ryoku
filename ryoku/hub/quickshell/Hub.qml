@@ -670,12 +670,18 @@ FocusScope {
         }
         // Home's own look: the profile opens its editor
         var looks = [
-            { label: "Customise Home", detail: "Your figure, name and words, and which parts Home shows",
-              kw: "profile hero picture image avatar banner name tagline figure card dashboard" }
+            { label: "Customise Home", detail: "Your figure, name and words, and which parts Home shows", studio: "picture",
+              kw: "profile hero picture image avatar banner name tagline figure dashboard" },
+            { label: "Adjust your card's picture", detail: "Zoom, move and tune your own picture, as a photo or in dots", studio: "adjust",
+              kw: "image photo zoom crop resize position brightness contrast colour dither dots black white" },
+            { label: "System card", detail: "Your computer as a trading card, its rarity, and copying or opening one", studio: "share",
+              kw: "system card trading card rarity holo secret rare share copy save paste open flex pokemon ryoprofile" },
+            { label: "Show the card on Home", detail: "Home opens on the plate or on your system card", studio: "layout",
+              kw: "home view card plate layout start page" }
         ];
         for (var k = 0; k < looks.length; k++)
             out.push({
-                kind: "home", page: "", row: "", command: [],
+                kind: "home", studio: looks[k].studio, page: "", row: "", command: [],
                 display: I18n.tr(looks[k].label), label: hub.both(looks[k].label), desc: hub.both(looks[k].detail), kw: looks[k].kw,
                 group: "", tab: "", sectionName: hub.both("Home"), isPage: false,
                 groupKey: "home", groupTitle: I18n.tr("Home"), crumb: I18n.tr("Home")
@@ -719,10 +725,10 @@ FocusScope {
     }
 
     // Home's look: its editor opens over Home
-    function customiseHome() {
+    function customiseHome(tab) {
         hub.goHome();
         if (content.item && typeof content.item.customise === "function")
-            content.item.customise();
+            content.item.customise(tab || "picture");
     }
 
     function choose(entry) {
@@ -733,7 +739,7 @@ FocusScope {
             return;
         }
         if (entry.kind === "home") {
-            hub.customiseHome();
+            hub.customiseHome(entry.studio);
             return;
         }
         hub.navigate(entry.page, entry.row);

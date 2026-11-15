@@ -18,6 +18,15 @@
   `components/Home.qml`).
 
 ### Changed
+- **The system card has its own studio, and lives on Home.** Customise opens
+  the card studio beside a live preview of the card or of Home: choose the
+  figure; frame your own picture by dragging and scrolling, with zoom,
+  position, fill or whole picture, brightness, contrast and colour, shown as a
+  photo, in black and white or in dots; set the words and the layout; and see
+  the card's rarity and copy, save, open or paste cards. Home can open on the
+  card instead of the plate, and About no longer carries the card
+  (`quickshell/components/about/CardEditor.qml`, `CardShare.qml`,
+  `CardFigure.qml`, `components/Home.qml`, `pages/About.qml`).
 - **The system card is a trading card you can flex.** About shows your
   computer as a collectible card: its power, the figure in a holo window, the
   processor, display and memory as moves, and a rarity your hardware earns,

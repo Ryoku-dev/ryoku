@@ -1,11 +1,10 @@
 .pragma library
 
 var title = "About";
-var lead = "What this computer runs and is made of, the system card you can share, and the people Ryoku is built on.";
+var lead = "What this computer runs and is made of, and the people Ryoku is built on.";
 
 var sections = [
     { id: "computer", title: "This computer" },
-    { id: "card", title: "System card" },
     { id: "credits", title: "Credits" }
 ];
 
@@ -42,35 +41,7 @@ var rows = [
       keywords: ["copy", "clipboard", "report", "bug report", "system info", "neofetch"],
       control: "custom", activatable: true },
 
-    { id: "card-preview", section: "card", label: "System card", template: true,
-      detail: "A trading card of this computer: your figure and words, its parts as moves, and a rarity your hardware earns",
-      keywords: ["profile", "trading card", "pokemon", "rarity", "holo", "flex", "showcase", "rice", "hero"] },
-    { id: "card-copy", section: "card", label: "Copy the card",
-      detail: "A picture to paste in a chat. It carries the card's design, so anyone with Ryoku can use it",
-      keywords: ["copy", "clipboard", "share", "send", "image", "picture", "flex"],
-      control: "custom", activatable: true },
-    { id: "card-image", section: "card", label: "Save the card",
-      detail: "The same picture as a file in your Pictures folder",
-      keywords: ["export image", "png", "screenshot", "share", "picture", "save"],
-      control: "custom", activatable: true },
-    { id: "card-edit", section: "card", label: "Customise the card",
-      detail: "Pick the figure, the words and which parts show",
-      keywords: ["edit", "customize", "profile", "hero", "figure", "image", "dither", "preset", "tagline", "name", "blocks"],
-      control: "custom", activatable: true },
-    { id: "card-use", section: "card", label: "Open a card",
-      detail: "Use the design of a card someone shared: its picture, or a .ryoprofile file",
-      keywords: ["import profile", "ryoprofile", "open", "use card", "png"],
-      control: "custom", activatable: true, more: true },
-    { id: "card-paste", section: "card", label: "Paste a card",
-      detail: "Use the design of a card picture you copied",
-      keywords: ["paste", "clipboard", "use card", "import"],
-      control: "custom", activatable: true, more: true },
-    { id: "card-reset", section: "card", label: "Back to the stock card",
-      detail: "Forgets your figure, words and choices",
-      keywords: ["reset profile", "default card", "marble"],
-      control: "custom", activatable: true, more: true },
-
-    { id: "credit-caracalla", section: "credits", label: "Caracalla Farnese", detail: "The statue on Home and on the system card: photograph by Marie-Lan Nguyen, CC BY 2.5, cut from its background",
+    { id: "credit-caracalla", section: "credits", label: "Caracalla Farnese", detail: "The statue on Home and the system card: photograph by Marie-Lan Nguyen, CC BY 2.5, cut from its background",
       control: "handoff", command: link("https://commons.wikimedia.org/wiki/File:Caracalla_MAN_Napoli_Inv6033_n01.jpg"), actionText: "Visit", keywords: ["credits", "thanks", "statue", "photo", "licence"] },
     { id: "credit-qylock", section: "credits", label: "qylock", detail: "Lock screen, by Darkkal44",
       control: "handoff", command: link("https://github.com/Darkkal44/qylock"), actionText: "Visit", keywords: ["credits", "thanks"] },

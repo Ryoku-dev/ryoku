@@ -15,6 +15,7 @@ layout(std140, binding = 0) uniform buf {
     float develop;
     float scan;
     float band;
+    float invert;
 };
 layout(binding = 1) uniform sampler2D src;
 
@@ -35,6 +36,8 @@ void main() {
     vec2 uv = qt_TexCoord0;
     vec4 c = texture(src, uv);
     float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+    // a dark subject on a pale ground: the shadows take the dots
+    lum = mix(lum, 1.0 - lum, invert);
 
     // the plate develops from the top down
     float reveal = clamp((develop * 1.35 - uv.y) / 0.35, 0.0, 1.0);

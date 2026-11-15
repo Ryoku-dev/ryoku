@@ -69,15 +69,16 @@ Item {
 
     // the look's editor, made the first time it is asked for; the loader builds
     // it on a later frame, so the open waits for it
-    property bool wantCustomise: false
-    function customise() {
+    // the card studio opens on a tab: "picture", "adjust", "words", "layout" or "share"
+    property string wantCustomise: ""
+    function customise(tab) {
         Changes.ensureStore("card", Qt.resolvedUrl("about/CardStore.qml"));
         if (editorLoader.item) {
             editorLoader.item.opener = customisePlaque;
-            editorLoader.item.open();
+            editorLoader.item.openOn(tab || "picture");
             return;
         }
-        wantCustomise = true;
+        wantCustomise = tab || "picture";
         editorLoader.active = true;
     }
 
@@ -91,11 +92,11 @@ Item {
             item.parent = root.hub.overlayItem;
             item.hub = root.hub;
             item.pageId = "";
-            item.home = true;
-            if (root.wantCustomise) {
-                root.wantCustomise = false;
+            if (root.wantCustomise !== "") {
+                var tab = root.wantCustomise;
+                root.wantCustomise = "";
                 item.opener = customisePlaque;
-                item.open();
+                item.openOn(tab);
             }
         }
     }
@@ -317,6 +318,11 @@ Item {
     // in front, and a dotted light follows it. Left alone, everything eases back and the
     // light rests behind the figure's head. A still card (About, a saved picture) stands flat
     readonly property bool depthOn: !root.preview && root.roomy
+    // Home shows the plate, or the reader's system card in the figure's place (the studio's
+    // Layout); the card needs the room only a roomy plate has
+    readonly property bool cardView: root.roomy && root.f("homeView", "plate") === "card"
+    // the figure, for the studio to measure while the reader drags it
+    readonly property Item figureItem: figure
     readonly property bool pointed: root.depthOn && pointer.hovered
     // the pointer's place, -1..1 each way, and the light's, in the plate's pixels; each
     // follows its target at once and settles without overshoot (Chase)
@@ -403,7 +409,7 @@ Item {
             // reads salmon, so there it is cut into the stone, a step darker than the paper
             Text {
                 id: carved
-                visible: root.roomy && root.blockOn("epithets")
+                visible: root.roomy && root.blockOn("epithets") && !root.cardView
                 readonly property var words: root.f("text.epithets", [])
                 readonly property real room: root.heroLeft ? column.x - LithicTokens.space.s3 - x
                                                            : plate.width - root.gutter - x
@@ -426,7 +432,7 @@ Item {
             // the light the figure stands in, drawn only in a box around itself so a moving
             // light repaints a patch of the plate, not all of it
             ShaderEffect {
-                visible: root.depthOn
+                visible: root.depthOn && !root.cardView
                 readonly property real radius: Math.max(160, figure.height * 0.42)
                 x: Math.round(root.lightX - width / 2)
                 y: Math.round(root.lightY - height / 2)
@@ -452,7 +458,7 @@ Item {
                 // meets the window's edge. On a narrow plate it stands beside the name instead
                 readonly property real crown: topBar.y + topBar.height + LithicTokens.space.s2
                 readonly property real sole: column.y + waits.y + waits.height
-                visible: root.roomy || root.beside
+                visible: (root.roomy || root.beside) && !root.cardView
                 height: root.roomy ? Math.round(Math.min(flick.height - LithicTokens.space.s6, figure.room / figure.aspect))
                                    : Math.round(Math.max(0, Math.min(root.besideWidth / figure.aspect, figure.sole - figure.crown)))
                 width: Math.round(height * figure.aspect)
@@ -499,7 +505,7 @@ Item {
             // the figure as ryoku.dev sets its edge line: off the marble and whole at any
             // roomy size. A narrow plate leaves it to About's credits
             Item {
-                visible: root.labelled
+                visible: root.labelled && !root.cardView
                 width: creditLabel.height
                 height: creditLabel.width
                 x: root.heroLeft ? LithicTokens.space.s4 : plate.width - LithicTokens.space.s4 - width
@@ -511,6 +517,37 @@ Item {
                     text: I18n.tr("Caracalla Farnese, marble, Naples. Photo Marie-Lan Nguyen, CC BY 2.5")
                     typeRole: "monoSm"
                     inkRole: "fg3"
+                }
+            }
+
+            // the system card in the figure's place, when Home shows the card; it turns toward
+            // the pointer and its foil slides, as on the studio's preview
+            Item {
+                id: homeCard
+                visible: root.cardView
+                readonly property real room: Math.max(0, root.heroLeft ? column.x - LithicTokens.space.s5 - root.gutter
+                                                                       : plate.width - root.gutter - column.x - column.width - LithicTokens.space.s5)
+                readonly property real crown: topBar.y + topBar.height + LithicTokens.space.s3
+                // a playing card's shape, TradingCard's design size
+                readonly property size design: Qt.size(630, 880)
+                readonly property real scaleTo: Math.min(homeCard.room / homeCard.design.width,
+                                                         (flick.height - homeCard.crown - LithicTokens.space.s5) / homeCard.design.height)
+                width: homeCard.design.width * homeCard.scaleTo
+                height: homeCard.design.height * homeCard.scaleTo
+                x: Math.round((root.heroLeft ? root.gutter : column.x + column.width + LithicTokens.space.s5) + (homeCard.room - width) / 2)
+                y: Math.round(homeCard.crown + (flick.height - homeCard.crown - LithicTokens.space.s5 - height) / 2)
+                transform: [
+                    Rotation { origin.x: homeCard.width / 2; origin.y: homeCard.height / 2; axis { x: 0; y: 1; z: 0 } angle: root.tiltX * 9 },
+                    Rotation { origin.x: homeCard.width / 2; origin.y: homeCard.height / 2; axis { x: 1; y: 0; z: 0 } angle: -root.tiltY * 6 }
+                ]
+                Loader {
+                    active: root.cardView
+                    sourceComponent: TradingCard {
+                        transformOrigin: Item.TopLeft
+                        scale: homeCard.scaleTo
+                        foil: Qt.vector2d(root.tiltX, root.tiltY)
+                        live: root.pointed && Ambient.on
+                    }
                 }
             }
 

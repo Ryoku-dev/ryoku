@@ -234,9 +234,9 @@ with no slab:
   CC BY 2.5). Its museum label stands upright in a gutter at the plate's outer
   edge, beside the figure and off the marble, wherever the figure stands
   beside the column; a narrow plate leaves it to About's credits, and the root
-  `NOTICE` carries the source, as the licence asks. About's system card draws
+  `NOTICE` carries the source, as the licence asks. The system card draws
   the same photograph (`components/about/CardFigure.qml`); a figure the reader
-  chose (a gallery figure or their own picture, dithered) takes its place on
+  chose (a gallery figure or their own picture) takes its place on
   both. Behind it the word Ryoku is carved, the one line set in capitals:
   oxblood on the black paper (the sun mixed 34% into it), cut into the stone
   on the light paper (the ink mixed 18% into it, since the sun's mix turns
@@ -253,7 +253,7 @@ with no slab:
   around itself so moving it repaints a patch of the plate; left alone, it
   rests behind the figure's head, with a few motes of dust drifting up
   through it at 15 frames a second while Settings is in front
-  (`shaders/light.frag`). A still card (About's, a saved picture) stands flat
+  (`shaders/light.frag`). A still plate (the studio's preview) stands flat
   on its own paper.
 - **The name and the motto.** The name is the plate's one monument, over the
   user and host names and the clock, then the reader's line, by default the
@@ -277,22 +277,45 @@ with no slab:
 - **The top bar** holds "Continue in" the page the reader left off on, and
   Customise; in a narrow window, whose sidebar is put away, the search too.
 
-Customise opens the card editor (`components/about/CardEditor.qml`). The
-plate and About's system card share one design: both read
-`Ryoku.Ui.Singletons.ProfileStore` (`profile.json`), draw the figure with
-`components/about/CardFigure.qml`, and are edited through the `card` store, so
-every change has its notice and Undo. Home honours the figure and its side,
-the name, the line under it, the big words and the Live readings and facts
-parts.
+Customise opens the **card studio** (`components/about/CardEditor.qml`), where
+everything about the reader's look and system card lives. Its preview shows
+the card or Home's plate as they will be; its tabs are:
 
-About shows the system card as a trading card
-(`components/about/TradingCard.qml`, 630 x 880, a playing card's shape): the
-name and its 力 power (threads, memory and a discrete graphics card, in tens),
-the figure in a holo window, a type line with the card's number (from the host
+- **Picture**: the stock Caracalla, the reader's own picture, chosen by eye in
+  `components/ImageChooser.qml` (a folder's pictures as thumbnails with a large
+  preview, and Pictures, Wallpapers, Downloads and Home to jump to), or a
+  gallery figure.
+- **Adjust** (own picture): the look (Photo, Black & white or Dots), Fill or
+  Whole picture, zoom, position, brightness, contrast, colour (photo) or dot
+  size and ink (dots), and Reset. Dragging the picture on the preview moves it
+  and the wheel zooms it. A new picture starts as a photo filling its frame.
+- **Words**: the name, the line under it and the big words.
+- **Layout**: whether Home shows the plate or the card (`homeView`), the
+  plate's parts and the figure's side.
+- **Share**: the card's rarity, the tier ladder (resting on a tier shows its
+  look on the preview), Copy, Save, Open a card, Paste a card and Back to stock
+  (`components/about/CardShare.qml`).
+
+Search reaches the studio on its tabs: Customise Home, Adjust your card's
+picture, System card and Show the card on Home. The plate, the card and the
+studio share one design: they read `Ryoku.Ui.Singletons.ProfileStore`
+(`profile.json`), draw the figure with `components/about/CardFigure.qml`, and
+are edited through the `card` store, so every change has its notice and Undo.
+CardFigure frames the reader's picture (`zoom`, `focalX`, `focalY`, `fit`),
+tunes it (`brightness`, `contrast`, `saturation`) and draws it in its `style`:
+`photo`, `mono`, or `dither` through `shaders/plate.frag` (a picture chosen
+before there was a style was dithered, and stays so).
+
+The system card is a trading card (`components/about/TradingCard.qml`, 630 x
+880, a playing card's shape): the name and its 力 power (threads, memory and a
+discrete graphics card, in tens), the figure in a holo window (the reader's
+own picture fills it), a type line with the card's number (from the host
 name), the distro, window manager and graphics card, the processor, display
 and memory as its moves, uptime, packages and kernel as its traits, the motto
-as flavour text, and the figure's credit as "Illus.". The machine sets its
-rarity (`registry/rarity.js`, tested by `rarity.test.mjs`): points for threads,
+as flavour text, and the figure's credit as "Illus.". It asks SysInfo for the
+full read-out when it is drawn. Home shows it in the figure's place when
+Layout says so, turning toward the pointer. The machine sets its rarity
+(`registry/rarity.js`, tested by `rarity.test.mjs`): points for threads,
 memory, the strongest graphics card's class and the display's rate and width,
 and six tiers from Common (no foil, a bone border) through Uncommon, Rare (the
 sun's border, holo window), Holo rare (foil face, gold edge) and Ultra rare
@@ -303,19 +326,14 @@ name, twice the sparkles drifting and turning, beating stars and a light that
 crosses the whole card every few seconds (`shaders/sweep.frag`), all at 30
 frames a second while the card is under the pointer. The foil is
 `shaders/foil.frag`: a soft wash of the four state colours and one sheen of
-light, smooth and held under 60% opacity, sliding as the card tilts toward the
-pointer. Beside it, the points and the
-tier ladder say how rare the card is and what the next tier takes; resting on
-a tier shows its look.
+light, smooth and held under 60% opacity, sliding as the card tilts.
 
-**Copy the card** and **Save the card** draw it at twice its size and run
+**Copy** and **Save** draw the card at twice its size and run
 `ryoku-hub profile card <picture> --copy|<path>`, which writes the card's
 design (the `.ryoprofile` envelope) into the PNG as a `tEXt` chunk named
 `ryoprofile` (`backend/profilecard.go`). Anyone sees a picture; **Open a card**
 and **Paste a card** (`ryoku-hub profile import <path>|--clipboard`) take the
-design back out of it, or out of a `.ryoprofile`. The figure's own picture is chosen in
-`components/ImageChooser.qml`, which shows a folder's pictures as thumbnails
-with a large preview, and Pictures, Wallpapers, Downloads and Home to jump to. A picture a chat app
+design back out of it, or out of a `.ryoprofile`. A picture a chat app
 re-encoded has lost the chunk, and Settings says so.
 
 A page drawn by `components/SettingsPage.qml` is a sheet, with the same shape
