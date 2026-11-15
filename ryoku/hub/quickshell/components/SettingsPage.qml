@@ -48,6 +48,9 @@ Item {
 
     // the page's sections by name, for the outline the sidebar hangs under the open page
     readonly property var outline: page.layout.map(s => I18n.tr(s.title))
+    // how far the page is read, 0..1, or -1 while it fits, for the masthead's ruler
+    readonly property real readProgress: flick.contentHeight > flick.height + 1
+        ? flick.contentY / (flick.contentHeight - flick.height) : -1
     // every row the page draws now, across its sections and their More options
     function shownRows() {
         var out = [];
@@ -55,12 +58,13 @@ Item {
         return out;
     }
 
-    // the header offers Reset page when any drawn row stands away from its default
-    readonly property bool hasChanges: {
+    // how many drawn rows stand away from their defaults; the header offers Reset page then
+    readonly property int changedCount: {
         page.layoutSignature;
         Changes.revision;
-        return page.shownRows().some(r => Changes.isChanged(r));
+        return page.shownRows().filter(r => Changes.isChanged(r)).length;
     }
+    readonly property bool hasChanges: page.changedCount > 0
 
     function resetPage() {
         Changes.resetPage(page.shownRows(), page.pageId, page.schema ? page.schema.title : "");
@@ -722,6 +726,16 @@ Item {
                 lead: page.schema && page.schema.lead ? I18n.tr(page.schema.lead) : ""
                 stateLine: page.stateLine
                 note: page.someHidden ? I18n.tr("Some options are hidden because this window manager does not support them.") : ""
+                facts: {
+                    page.layoutSignature;
+                    var two = n => (n < 10 ? "0" : "") + n;
+                    var rows = page.shownRows().length;
+                    return [
+                        { label: I18n.tr("Sections"), value: two(page.layout.length) },
+                        rows > 0 ? { label: I18n.tr("Settings"), value: two(rows) } : null,
+                        { label: I18n.tr("Changed"), value: two(page.changedCount), lit: page.changedCount > 0 }
+                    ].filter(f => f !== null);
+                }
 
                 // a page whose rows stand away from their defaults offers to put them back
                 Plaque {
@@ -753,6 +767,9 @@ Item {
                     }
                     width: body.width
                     title: I18n.tr(modelData.title)
+                    // numbered and ruled, as a sheet numbers its parts
+                    ruled: true
+                    mark: (sec.index < 9 ? "0" : "") + (sec.index + 1) + " / " + (sectionModel.count < 10 ? "0" : "") + sectionModel.count
                     Component.onCompleted: {
                         page.sectionItems[sec.sid] = sec;
                         // the first sections rise in turn as the page opens; later ones stand

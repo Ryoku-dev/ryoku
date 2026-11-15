@@ -357,3 +357,18 @@ Generic licence (https://creativecommons.org/licenses/by/2.5/). It was
 upscaled, cut from its background, scaled down and cropped to the marble, as
 on ryoku.dev. The credit shows beside the statue on Home and in Settings,
 About, Credits.
+
+The plates at the head of Ryoku Settings' pages
+(ryoku/hub/quickshell/art/plates/) are derived from ryoku.dev's sculpture
+plates, which are photographs on Wikimedia Commons: "Laocoon Pio-Clementino
+Inv1059-1064-1067 n6", "Thermae boxer Massimo Inv1055 n7" and "Herakles
+Farnese MAN Napoli Inv6001 n11" by Marie-Lan Nguyen (CC BY 3.0, CC BY 2.5
+and CC BY 2.5), "Belvedere Torso, Hellenistic period, Vatican Museums (1)"
+by Richard Mortel (CC BY 2.0), "Gianlorenzo bernini, ratto di proserpina,
+1621-22, 05 mano nella carne" by Sailko (CC BY 3.0), "'David' by
+Michelangelo FI Acca JBS 049" by Jörg Bittner Unna (CC BY 4.0), "Colossal
+hand, Roman, Musei Capitolini" by Daderot (CC0 1.0), and "Dying Gaul Musei
+Capitolini MC747" by Jastrow and "Atlante" by Roberto De Martino (public
+domain). They were graded to grey, cropped and scaled down, and Settings
+draws them as an ordered dither. Each credit shows under its plate, with the
+file pages in ryoku/hub/quickshell/registry/plates.js.

@@ -242,6 +242,7 @@ Flickable {
             id: homeRow
             width: column.width
             glyph: "home"
+            numeral: "00"
             text: I18n.tr("Home")
             selected: root.hub.pageId === ""
             wash: selected

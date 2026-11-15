@@ -2,12 +2,14 @@ import QtQuick
 import Lithic
 import Ryoku.Ui.Singletons
 import "../Singletons"
+import "sheet"
 import "../registry/registry.js" as Registry
+import "../registry/plates.js" as Plates
 
-// the head of a page: where it lives, its name, what it is for, and what it says about the
-// machine now. The page's own actions (Reset page) stand on the name's line; a page with a
-// preview shows it at the head's right, under the window's close button, where the head would
-// otherwise leave the pane's width empty. Nothing else takes room above the first section
+// the head of a page under the masthead (which says where it lives): its name, what it is
+// for, and what it says about the machine now. The page's own actions (Reset page) stand on
+// the name's line. At the head's right, where it would otherwise leave the pane's width
+// empty, a page with a preview shows it; any other page shows its category's dithered plate
 Item {
     id: root
 
@@ -17,6 +19,8 @@ Item {
     property string lead: ""
     property string stateLine: ""
     property string note: ""
+    // the page's figures in a spec strip under the words: [{ label, value, lit }]
+    property var facts: []
     default property alias actions: actionRow.data
     // a live illustration of the page's settings (components/previews/), or null
     property Component preview: null
@@ -26,36 +30,19 @@ Item {
         return p ? Registry.category(p.category) : null;
     }
     readonly property bool previewed: root.preview !== null && root.width >= 660
+    readonly property bool plated: !root.previewed && root.width >= 720 && !!root.plate
+    readonly property var plate: root.category ? Plates.forCategory(root.category.id) : null
     readonly property real previewWidth: 264
+    readonly property real plateWidth: Math.min(288, root.width * 0.32)
+    readonly property real sideWidth: root.previewed ? root.previewWidth : root.plated ? root.plateWidth : 0
 
-    height: Math.max(words.height, root.previewed ? previewSlot.y + previewSlot.height : 0) + 26
+    height: Math.max(words.height, root.previewed ? previewSlot.y + previewSlot.height : 0,
+        root.plated ? plateSlot.height : 0) + 26
 
     Column {
         id: words
         anchors.left: parent.left
-        width: root.previewed ? root.width - root.previewWidth - 28 : root.width
-
-        Row {
-            height: 22
-            spacing: 6
-            // a page named as its category (Updates) does not say it twice
-            visible: !!root.category && I18n.tr(root.category.label) !== root.title
-
-            Glyph {
-                anchors.verticalCenter: parent.verticalCenter
-                name: root.category ? root.category.glyph : ""
-                size: 14
-                ink: Tone.accent
-            }
-            Label {
-                anchors.verticalCenter: parent.verticalCenter
-                text: root.category ? I18n.tr(root.category.label) : ""
-                typeRole: "group"
-                inkRole: "fg3"
-                font.capitalization: Font.AllUppercase
-                font.letterSpacing: 1.2
-            }
-        }
+        width: root.sideWidth > 0 ? root.width - root.sideWidth - 28 : root.width
 
         Item {
             width: words.width
@@ -67,22 +54,21 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.title
                 typeRole: "sentence"
-                font.pixelSize: 28
-                lineHeight: 36
+                font.pixelSize: 32
+                lineHeight: 40
             }
-            // with no preview, the window's close button stands in the corner above this
+            // the window's close button stands in the masthead, so the actions keep to the
             // line's end
             Row {
                 id: actionRow
                 anchors.right: parent.right
-                anchors.rightMargin: root.previewed ? 0 : 44
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 6
             }
         }
 
         Label {
-            width: root.previewed ? parent.width : Math.min(parent.width - 44, 720)
+            width: root.sideWidth > 0 ? parent.width : Math.min(parent.width - 44, 720)
             visible: root.lead.length > 0
             topPadding: 4
             text: root.lead
@@ -92,7 +78,7 @@ Item {
             elide: Text.ElideNone
         }
         Label {
-            width: root.previewed ? parent.width : Math.min(parent.width - 44, 720)
+            width: root.sideWidth > 0 ? parent.width : Math.min(parent.width - 44, 720)
             visible: root.stateLine.length > 0
             topPadding: 6
             text: root.stateLine
@@ -121,6 +107,32 @@ Item {
                 elide: Text.ElideNone
             }
         }
+
+        Row {
+            visible: root.facts.length > 0
+            topPadding: 16
+            spacing: 18
+
+            Repeater {
+                model: root.facts
+                delegate: Row {
+                    required property var modelData
+                    spacing: 6
+                    Label {
+                        text: modelData.label
+                        typeRole: "monoSm"
+                        inkRole: "fg3"
+                        font.capitalization: Font.AllUppercase
+                        font.letterSpacing: 1.2
+                    }
+                    Label {
+                        text: modelData.value
+                        typeRole: "monoSm"
+                        ink: modelData.lit ? Tone.accent : Lithic.fg
+                    }
+                }
+            }
+        }
     }
 
     Loader {
@@ -131,5 +143,15 @@ Item {
         width: root.previewWidth
         height: 128
         sourceComponent: root.preview
+    }
+
+    Plate {
+        id: plateSlot
+        visible: root.plated
+        anchors.right: parent.right
+        y: 4
+        width: root.plateWidth
+        height: implicitHeight
+        plate: root.plated ? root.plate : null
     }
 }

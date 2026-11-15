@@ -41,11 +41,11 @@ DesignScope {
 
         Repeater {
             model: [
-                { glyph: "palette", text: "Appearance", folder: true },
-                { glyph: "style", text: "Style", on: true },
-                { glyph: "rounded_corner", text: "Window style" },
-                { glyph: "match_case", text: "Fonts & icons" },
-                { glyph: "dashboard", text: "Desktop", folder: true }
+                { numeral: "01", text: "Appearance", folder: true },
+                { text: "Style", on: true },
+                { text: "Window style" },
+                { text: "Fonts & icons" },
+                { numeral: "02", text: "Desktop", folder: true }
             ]
             delegate: NavRow {
                 required property var modelData
@@ -53,7 +53,7 @@ DesignScope {
                 folder: modelData.folder === true
                 expanded: modelData.text === "Appearance"
                 depth: modelData.folder ? 0 : 1
-                glyph: modelData.glyph
+                numeral: modelData.numeral || ""
                 text: I18n.tr(modelData.text)
                 selected: modelData.on === true
                 wash: modelData.on === true

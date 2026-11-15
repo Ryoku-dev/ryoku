@@ -5,6 +5,8 @@ import Ryoku.Ui.Singletons
 import "../../Singletons"
 import ".."
 import "../../registry/summaries.js" as Summaries
+import "../../registry/numbering.js" as Numbering
+import "../sheet"
 
 // Settings' sidebar, laid out like an editor's project tree: the app's own title line with the
 // tree's one action, the search, then the whole of Settings as a tree (or the search's results
@@ -113,6 +115,15 @@ Rectangle {
             anchors.rightMargin: -3
         }
 
+        // the room the tree leaves under itself holds a live trace of the machine
+        Trace {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 6
+            visible: !root.hub.searching && parent.height - tree.contentHeight >= implicitHeight + 28
+        }
+
         SearchResults {
             id: resultsList
             anchors.fill: parent
@@ -153,6 +164,7 @@ Rectangle {
             width: parent.width
             folder: false
             glyph: "system_update"
+            numeral: Numbering.categoryNumber("updates")
             text: I18n.tr("Updates")
             selected: root.hub.pageId === "updates"
             notch: Updates.available

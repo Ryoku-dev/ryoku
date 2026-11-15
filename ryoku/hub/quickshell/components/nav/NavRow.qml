@@ -5,12 +5,15 @@ import "../../Singletons"
 
 // one line of the navigation tree: a folder (a category) or a leaf (a page). Its place in
 // the tree is drawn by the guide the parent folder lays down; the row draws its own branch
-// tick, mark and name, and answers the pointer with a quiet wash and a small lean
+// tick, its number (a sheet's index, as ryoku.dev numbers its sections) or mark, and name,
+// and answers the pointer with a quiet wash and a small lean
 T.AbstractButton {
     id: root
 
     property int depth: 0
     property string glyph: ""
+    // the line's place in the index ("01"), drawn in mono instead of a mark
+    property string numeral: ""
     property bool folder: false
     property bool expanded: false
     property bool selected: false
@@ -112,6 +115,7 @@ T.AbstractButton {
 
         Glyph {
             id: mark
+            visible: root.numeral === "" && root.glyph !== ""
             anchors.left: parent.left
             anchors.leftMargin: (root.folder ? root.indent + 8 + 16 + 6 : root.indent + 6) + body.lean
             anchors.verticalCenter: parent.verticalCenter
@@ -130,16 +134,45 @@ T.AbstractButton {
         }
 
         Label {
+            id: number
+            visible: root.numeral !== ""
+            anchors.left: parent.left
+            anchors.leftMargin: (root.folder ? root.indent + 8 + 16 + 4 : root.indent + 6) + body.lean
+            anchors.baseline: name.baseline
+            text: root.numeral
+            typeRole: "monoSm"
+            ink: root.selected || root.holdsSelection || (root.folder && root.expanded) ? Tone.accent : root._lit ? Lithic.fg : Lithic.fg3
+            Behavior on ink {
+                ColorAnimation { duration: Tone.quick }
+            }
+        }
+
+        Label {
             id: name
-            anchors.left: mark.right
-            anchors.leftMargin: 10
+            anchors.left: number.visible ? number.right : mark.visible ? mark.right : parent.left
+            anchors.leftMargin: number.visible || mark.visible ? 10 : root.indent + 8 + body.lean
             anchors.right: tail.left
             anchors.rightMargin: 6
             anchors.verticalCenter: parent.verticalCenter
             text: root.text
-            typeRole: root.folder ? "label" : "detail"
+            typeRole: root.numeral !== "" ? "group" : root.folder ? "label" : "detail"
             ink: root.selected ? Tone.selectInk : root._lit || root.holdsSelection ? Lithic.fg : root.folder ? Lithic.fg : Lithic.fg2
             font.weight: root.selected || root.folder ? Font.DemiBold : Font.Normal
+            font.capitalization: root.numeral !== "" ? Font.AllUppercase : Font.MixedCase
+            font.letterSpacing: root.numeral !== "" ? 1.4 : 0
+        }
+
+        // an index line's leader, from its name to its count
+        Rectangle {
+            visible: root.numeral !== "" && width > 6
+            anchors.verticalCenter: parent.verticalCenter
+            x: name.x + name.contentWidth + 10
+            width: tail.x - 8 - x
+            height: 1
+            color: root._lit || root.expanded ? Tone.guideLit : Tone.guide
+            Behavior on color {
+                ColorAnimation { duration: Tone.quick }
+            }
         }
 
         Item {

@@ -9,10 +9,12 @@ import Ryoku.Text
 import "Singletons"
 import "components"
 import "components/nav"
+import "components/sheet"
 import "registry/registry.js" as Registry
 import "registry/provider-map.js" as ProviderMap
 import "schema/index.js" as Schemas
 import "ShellIndex.js" as ShellIndex
+import "registry/numbering.js" as Numbering
 
 // the Settings frame: a rail of categories, the category's pages, the page
 FocusScope {
@@ -389,6 +391,16 @@ FocusScope {
     // how much of the work pane's foot the newest notice covers, so pages keep controls above it
     readonly property real noticeInset: placards.cards.length > 0 && placards.cards[0]
         ? placards.cards[0].height + LithicTokens.space.s4 : 0
+
+    // the sheet's small life at rest runs only while Settings is the focused window
+    Binding {
+        target: Ambient
+        property: "on"
+        value: !!hub.Window.window && hub.Window.window.active && !Lithic.reduceMotion
+    }
+    // how far the open page is read, 0..1, or -1 for one that does not scroll
+    readonly property real readProgress: hub.outlined && hub.outlined.readProgress !== undefined
+        ? hub.outlined.readProgress : -1
 
     // the desktop service unreachable for a few seconds (a short gap at start is normal)
     property bool serviceDown: false
@@ -885,12 +897,37 @@ FocusScope {
                 NumberAnimation { duration: Tone.move; easing.type: Easing.OutCubic }
             }
 
+            // the registration sheet the page is printed on
+            RegSheet {
+                anchors.fill: parent
+            }
+            // a page that fits leaves the sheet's foot empty; its folio fills it
+            Folio {
+                visible: hub.pageId !== "" && hub.readProgress < 0
+                anchors.right: parent.right
+                anchors.rightMargin: 22
+                anchors.bottom: colophon.top
+                width: parent.width * 0.6
+                height: 200
+                number: Numbering.pageNumber(hub.pageId, hub.gate)
+            }
+
+            Masthead {
+                id: masthead
+                hub: hub
+                x: hub.wide ? 28 : 52
+                y: 4
+                width: parent.width - x - 10
+                progress: hub.readProgress
+            }
+
             Item {
                 id: stage
                 property real shift: 0
                 x: stage.shift
+                y: masthead.y + masthead.height
                 width: parent.width
-                height: parent.height
+                height: colophon.y - y
                 clip: true
 
                 Loader {
@@ -901,10 +938,21 @@ FocusScope {
                     // scroll rail riding the right edge
                     anchors.leftMargin: content.flush ? 0 : 28
                     anchors.rightMargin: content.flush ? 0 : 4
-                    // a narrow window's drawer and close buttons stand over the page's top
-                    anchors.topMargin: content.flush ? 1 : hub.wide ? 12 : 52
+                    anchors.topMargin: content.flush ? 1 : 8
                     anchors.bottomMargin: 1
                 }
+            }
+
+            Colophon {
+                id: colophon
+                hub: hub
+                x: 28
+                y: parent.height - height - 6
+                width: parent.width - x - 20
+                pointer: sheetPointer.hovered ? sheetPointer.point.position : null
+            }
+            HoverHandler {
+                id: sheetPointer
             }
 
             // a narrow window keeps its sidebar in a drawer, drawn out from here
@@ -920,7 +968,7 @@ FocusScope {
             IconButton {
                 anchors.right: parent.right
                 anchors.rightMargin: 10
-                y: 10
+                y: 6
                 glyph: "close"
                 accessibleName: I18n.tr("Close Settings")
                 onClicked: hub.requestQuit()

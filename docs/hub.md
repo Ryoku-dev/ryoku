@@ -135,7 +135,11 @@ its corners follow the design.
   update is ready.
 - **The tree** (`nav/NavTree.qml`, `NavFolder.qml`, `NavRow.qml`). Every
   category is a folder and every page a leaf hung on its folder's guide line,
-  each with its glyph (`glyphs` in `registry.js`), like a project tree. A
+  like a project tree, and the tree reads as a sheet's index, as ryoku.dev
+  numbers its sections: Home is 00, each folder its number in mono (01
+  Appearance to 08 System, 09 Updates at the foot) and its name in spaced
+  capitals, with a leader line to the count of its pages
+  (`registry/numbering.js`). Pages carry no glyph. A
   folder opens and shuts on a click or Right and Left; its pages slide in one
   after another. The open page's folder opens with it and shuts again when
   the reader goes on to another folder, unless they opened it themselves. One
@@ -146,7 +150,9 @@ its corners follow the design.
   Up from its first line goes back. Return opens a line, Right opens a folder,
   Left shuts it (from a page, its own). Ctrl+Tab and Ctrl+Shift+Tab leaf
   through the pages in the tree's order from anywhere in Settings. A page that
-  hands off to another app shows an open-in-new mark.
+  hands off to another app shows an open-in-new mark. The room the tree
+  leaves under itself holds a live trace of the processor
+  (`components/sheet/Trace.qml`).
 - **The outline** (`nav/NavOutline.qml`). Under the open page hang its
   sections. The one being read is marked as the page scrolls, and choosing
   one brings it to the top. A page offers it through `outline` (the section
@@ -165,11 +171,26 @@ its corners follow the design.
   is; Up, Down and Return move through the results. An empty search that
   loses the keys closes again. Besides pages, sections and rows it finds
   Home's own entry, Customise Home, which opens Home's editor.
+- **The sheet** (`components/sheet/`). The page pane is printed like an
+  instrument sheet: a faint registration grid with corner crosses
+  (`RegSheet`), a masthead over the page with its number and place
+  (`§ 08.1 SYSTEM / POWER & BATTERY`), its place among all pages, the window
+  manager, the bar and the clock, over a tick ruler whose marker follows the
+  scroll (`Masthead`), and a colophon at its foot with whether every change
+  is live yet, where the pointer stands, and the page's id as a Code 39
+  barcode (`Colophon`). A page that fits leaves its foot to its folio, its
+  number set huge and faint, which rolls to the next number when another
+  page opens (`Folio`). Sections are numbered and ruled (`01 / 07`).
+- **Life at rest** (`Singletons/Ambient.qml`). Only while Settings is the
+  focused window and motion is not reduced: the clock ticks, the trace
+  samples, and every 11 s a scan crosses the plates at 30 frames a second.
+  Between scans nothing moves, and an unfocused window draws nothing.
 - **The page pane.** Home (`components/Home.qml`), to the pane's edges, or the
   open page, which slides in as it opens. A page starts with
-  `components/PageHeader.qml`: its category, its name with the page's own
-  actions (Reset page) on the same line, what it is for, and any note, then
-  its first section. A page may show a live preview at its head's right
+  `components/PageHeader.qml`: its name with the page's own actions (Reset
+  page) on the same line, what it is for, any note, and a spec strip of its
+  sections, settings and changed settings, then its first section. A page may
+  show a live preview at its head's right
   (`SettingsPage.headerPreview`, drawn from `components/previews/`): Window
   style draws a window in front of another in the page's corners, frame,
   see-through, dimming and shadow, Window behaviour three tiled windows in its
@@ -177,8 +198,12 @@ its corners follow the design.
   speed (standing still while animations are off or motion is reduced), and
   Fonts & icons the chosen faces and size. Each reads the same binds
   as the rows and follows a change as it is made; they illustrate the
-  settings, they are not pictures of the screen. The close button stands in
-  the pane's corner. Escape and
+  settings, they are not pictures of the screen. Any other page shows its
+  category's plate there (`components/sheet/Plate.qml`): a classical
+  sculpture from ryoku.dev's plates set as a live ordered dither in the ink
+  (`shaders/plate.frag`), which develops in from the top as it arrives, with
+  its credit under it (`registry/plates.js`, `art/plates/`). The close button
+  stands at the masthead's end. Escape and
   Alt+Left step back: out of the results, then out of the search, then out of
   a page's own sub-view (`back()` on the page), then Home, and then the window
   quits.

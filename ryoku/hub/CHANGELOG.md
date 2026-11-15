@@ -3,6 +3,21 @@
 ## Unreleased
 
 ### Changed
+- **Settings reads as an instrument sheet.** The structure stays; the look
+  takes back what people missed from the stable Hub. The sidebar is a
+  numbered index (00 Home, 01 Appearance to 09 Updates) in spaced capitals
+  with leader lines, and pages lose their icons. Each page is printed on a
+  faint registration grid under a masthead with its number, place, the
+  window manager, the bar and a ticking clock over a ruler that follows the
+  scroll, and a colophon with the save state, the pointer's position and
+  the page as a barcode. Pages without a preview carry a dithered classical
+  sculpture with its credit, a short page fills its foot with its number,
+  sections are numbered, and the room under the tree holds a live processor
+  trace. The clock, the trace and a slow scan over the plates run only while
+  Settings is focused, and never with reduced motion
+  (`quickshell/components/sheet/`, `Singletons/Ambient.qml`,
+  `components/nav/`, `components/PageHeader.qml`, `shaders/plate.frag`,
+  `art/plates/`, `../../NOTICE`).
 - **Style holds the colours, and its previews are real.** Under the design
   tiles, a piece of Settings made of real controls shows the design you rest
   on, at its real size, and can be used before you choose it. The Colours
