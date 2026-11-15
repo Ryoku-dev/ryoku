@@ -13,10 +13,19 @@ Item {
     readonly property real _grownCut: cut + LithicTokens.size.focusCutGrow
     visible: keyboardFocusVisible
 
-    // the ring is drawn only while it shows, so an idle control carries no shape for it
+    // the ring is drawn only while it shows, so an idle control carries no shape for it; a
+    // design that rounds its corners rounds the ring with them
+    Rectangle {
+        visible: root.visible && Lithic.shape.corner === "round"
+        anchors.fill: parent
+        color: "transparent"
+        border.width: root.ringWidth
+        border.color: root.color
+        radius: Lithic.cornerRadius(root._grownCut, root.width, root.height)
+    }
     Loader {
         anchors.fill: parent
-        active: root.visible
+        active: root.visible && Lithic.shape.corner !== "round"
         sourceComponent: Component {
             Shape {
                 anchors.fill: parent

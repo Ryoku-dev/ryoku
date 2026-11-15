@@ -42,6 +42,13 @@ corners. A 1 dp stroke is drawn inside. Its inner cut is
 `cut - width * (2 - sqrt(2))`, which keeps the stroke even around the
 chamfer. Reference: `ui/kit/draw.go`.
 
+In the QML library a CutRect follows the desktop's design (`shell.json`
+`theme.design`, see palette.md §2a): Lithic cuts its corners, the round
+designs draw the same shape as a rounded rectangle whose radius
+`Lithic.cornerRadius(cut, width, height)` derives from the cut. `design`
+names another design for one shape, which is how a preview of a design not in
+use draws itself.
+
 Library: QML Lithic.CutRect, web .l-cut, Go kit.FillCut and kit.StrokeCut, terminal -
 
 ### Notch

@@ -1,6 +1,12 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **One design language for the whole desktop.** The shell settings gain
+  `theme.design` (Lithic, Material, Adwaita or Fluent; Lithic by default),
+  validated by the daemon. Settings and every Lithic surface redraw their
+  shapes and colours in it, and `ryoku/ui` Tokens rounds the shell's own
+  surfaces with it (`ipc/settings.go`, `ui/Singletons/Tokens.qml`,
+  `docs/lithic/library/qml/Lithic`).
 - **Voice typing starts off until you enable it, and its toggle now works in
   both directions without the shortcut or voice card reporting the wrong state**
 - **Hyperion updates install the voice engine even when it was missing**

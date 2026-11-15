@@ -75,6 +75,9 @@ var (
 	menuExpansionValues   = []string{"AlwaysExpanded", "ExpandBothWays", "ExpandUp", "ExpandDown"}
 	contentFitValues      = []string{"Contain", "Cover", "Fill", "ScaleDown", "Center", "Tile"}
 	videoEngineValues     = []string{"ryogami", "in_shell"}
+	// theme.design: the design language every Ryoku surface draws in (shape, surfaces,
+	// selection), read by the Lithic library and ryoku/ui Tokens
+	designValues          = []string{"lithic", "material", "adwaita", "fluent"}
 	quickSettingsIconVals = []string{"Arch", "Fedora", "Hyprland", "Nix"}
 	orientationValues     = []string{"Horizontal", "Vertical"}
 	locQueryTypeValues    = []string{"Coordinates", "City"}
@@ -184,6 +187,7 @@ type locationQuery struct {
 
 type themeSettings struct {
 	Theme      string           `json:"theme"`
+	Design     string           `json:"design"`
 	Attributes attributesConfig `json:"attributes"`
 	Motion     motionConfig     `json:"motion"`
 	Effects    effectsConfig    `json:"effects"`
@@ -435,6 +439,7 @@ func defaultSettings() *settings {
 		},
 		Theme: themeSettings{
 			Theme:   "Default",
+			Design:  "lithic",
 			Motion:  motionConfig{Scale: 1, Reduce: false},
 			Effects: effectsConfig{Glass: true, Shadows: true},
 			Attributes: attributesConfig{
@@ -657,6 +662,12 @@ func (t *themeSettings) normalize(v *validator) {
 			}
 		}
 	}
+	// a design this build does not know (written by a newer or an older one) loads as
+	// Lithic rather than resetting the schema; a patch naming one is refused
+	if !v.strict && !inSet(designValues, t.Design) {
+		t.Design = "lithic"
+	}
+	v.enum("theme.design", t.Design, designValues)
 	v.rangeI("theme.attributes.sizing.radius_widget", &t.Attributes.Sizing.RadiusWidget, 0, 1000)
 	v.rangeI("theme.attributes.sizing.radius_window", &t.Attributes.Sizing.RadiusWindow, 0, 1000)
 	v.rangeI("theme.attributes.sizing.border_width", &t.Attributes.Sizing.BorderWidth, 0, 20)

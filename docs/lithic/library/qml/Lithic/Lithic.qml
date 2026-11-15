@@ -35,6 +35,38 @@ QtObject {
     readonly property color amber: _resolved.amber
     readonly property color jasper: _resolved.jasper
     readonly property color scrim: _resolved.scrim
+    // where a selection lies: a soft tone under the chosen item and the ink on it
+    readonly property color container: _resolved.container
+    readonly property color containerInk: _resolved.onContainer
+
+    // The design language the desktop draws in (shell.json theme.design): its corners, its
+    // surfaces and where its colours come from. Lithic cuts its corners and keeps its own
+    // signature unless the reader follows the wallpaper; the others round their corners and
+    // wear the desktop's palette (a named scheme over the wallpaper's Material roles).
+    // A control at most `pill` high is drawn as a pill, a larger plane rounds by its cut times
+    // `scale`, never past `max`.
+    readonly property var designs: ({
+        "lithic": { id: "lithic", corner: "cut", scale: 1, pill: 0, max: 16, palette: "own" },
+        "material": { id: "material", corner: "round", scale: 2.6, pill: 56, max: 28, palette: "desktop" },
+        "adwaita": { id: "adwaita", corner: "round", scale: 1.6, pill: 26, max: 14, palette: "desktop" },
+        "fluent": { id: "fluent", corner: "round", scale: 0.75, pill: 22, max: 8, palette: "desktop" }
+    })
+    readonly property string design: _environmentDesign !== "" ? _environmentDesign : _fileDesign
+    readonly property var shape: designs[design] || designs.lithic
+    // the desktop's own palette as Material roles, for a preview of a design not in use
+    readonly property var desktopRoles: _desktopRoles()
+
+    // the corner a shape with this cut wears in a design (the one in use when none is named):
+    // a cut length for Lithic, a radius for the rest
+    function cornerRadius(cut, width, height, designId) {
+        var profile = designId ? (designs[designId] || shape) : shape;
+        if (profile.corner === "cut" || cut <= 0)
+            return cut;
+        var least = Math.max(0, Math.min(width, height));
+        if (least <= profile.pill)
+            return least / 2;
+        return Math.min(cut * profile.scale, profile.max, least / 2);
+    }
 
     // the one copy of the faces sits in the Go library, which embeds it
     readonly property list<QtObject> _faces: [
@@ -117,7 +149,14 @@ QtObject {
     property bool _hasEditionAccent: false
     property bool _ready: false
     property bool _loading: false
+    property string _fileDesign: "lithic"
+    property string _environmentDesign: ""
     property var _resolved: _signature(true)
+
+    onDesignChanged: {
+        if (!_loading)
+            _resolve();
+    }
 
     // a host's translator turns the library's own English words into the reader's language
     property var translator: null
@@ -576,14 +615,13 @@ QtObject {
         for (var i = 0; i < pairs.length; ++i)
             fields[pairs[i][0]] = _toned(steps.mineralField, { c: LithicTokens.dye.mineral[pairs[i][1]], h: _dyeOf(result[pairs[i][1]]).h });
         result.mineralFields = fields;
+        result.container = alpha(result.sel, result.dark ? 0.16 : 0.14);
+        result.onContainer = result.fg;
         return result;
     }
 
-    // Only follow reads a palette: the host's, or the desktop's files with a
-    // named scheme over the wallpaper
-    function _combined() {
-        if (mode !== "follow")
-            return { roles: {}, source: "signature" };
+    // the desktop's palette: the host's, or the files with a named scheme over the wallpaper
+    function _desktopRoles() {
         if (_injectedSet)
             return { roles: _injected, source: "host" };
         var roles = {};
@@ -601,6 +639,47 @@ QtObject {
         return { roles: roles, source: sourceName };
     }
 
+    // Only follow reads a palette into Lithic's own ladder
+    function _combined() {
+        if (mode !== "follow")
+            return { roles: {}, source: "signature" };
+        return _desktopRoles();
+    }
+
+    // A design that wears the desktop's palette takes its Material roles as they are: the
+    // surfaces step through the surface containers, the selection is the primary, a soft
+    // selection the secondary container. A role the palette lacks keeps the toned ladder's
+    function _materialFrom(roles, sourceName, isDark) {
+        var result = _rolesFrom(roles, sourceName, isDark, null);
+        function take(role, key) {
+            if (_isColor(roles[key]))
+                result[role] = Qt.color(roles[key]);
+        }
+        take("ground", "surface");
+        take("stone1", "surfaceContainerLow");
+        take("stone2", "surface");
+        take("stone3", "surfaceContainer");
+        take("stone4", "surfaceContainerHigh");
+        take("slab", "surface");
+        take("field", "surfaceContainerHighest");
+        take("vein", "outlineVariant");
+        take("edge", "outline");
+        take("fg", "onSurface");
+        take("fg2", "onSurfaceVariant");
+        if (_isColor(roles.onSurfaceVariant) && _isColor(roles.surface))
+            result.fg3 = _mixBytes(roles.onSurfaceVariant, roles.surface, 0.22);
+        take("sel", "primary");
+        take("onSel", "onPrimary");
+        result.onSel2 = _mixBytes(result.onSel, result.sel, LithicTokens.alpha.onSel2);
+        take("gold", "tertiary");
+        take("goldInk", "tertiary");
+        take("onGold", "onTertiary");
+        take("jasper", "error");
+        take("container", "secondaryContainer");
+        take("onContainer", "onSecondaryContainer");
+        return result;
+    }
+
     function _publish(result) {
         _resolved = result;
         onSel = result.onSel;
@@ -608,13 +687,24 @@ QtObject {
         onGold = result.onGold;
     }
 
-    function _resolve() {
+    // every role a design would wear now, for the one in use or for a preview of another
+    function rolesFor(designId) {
+        var profile = designs[designId] || designs.lithic;
+        if (profile.palette === "desktop") {
+            var desktop = _desktopRoles();
+            if (_isColor(desktop.roles.surface))
+                return _materialFrom(desktop.roles, desktop.source, _luma(Qt.color(desktop.roles.surface)) <= 0.5);
+        }
         var combined = _combined();
         var roles = combined.roles;
         var isDark = mode !== "light";
         if (mode === "follow" && _isColor(roles.surface))
             isDark = _luma(Qt.color(roles.surface)) <= 0.5;
-        _publish(_rolesFrom(roles, combined.source, isDark, _hasEditionAccent ? _editionAccent : null));
+        return _rolesFrom(roles, combined.source, isDark, _hasEditionAccent ? _editionAccent : null);
+    }
+
+    function _resolve() {
+        _publish(rolesFor(design));
     }
 
     function _load() {
@@ -632,6 +722,10 @@ QtObject {
         _named = shell && typeof shell.themePalette === "object" && shell.themePalette !== null
                 ? _cleanRoles(shell.themePalette)
                 : {};
+        var chosenDesign = shell && shell.theme && typeof shell.theme.design === "string" ? shell.theme.design : "";
+        _fileDesign = designs[chosenDesign] ? chosenDesign : "lithic";
+        var environmentDesign = environment("LITHIC_DESIGN");
+        _environmentDesign = designs[environmentDesign] ? environmentDesign : "";
         var theme = _readObject(configHome + "/ryoku/theme.json");
         _followWallpaper = theme && typeof theme.followWallpaper === "boolean"
                 ? theme.followWallpaper

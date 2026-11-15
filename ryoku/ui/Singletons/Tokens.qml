@@ -132,7 +132,10 @@ Singleton {
     readonly property int s7: px(48)
 
     // ── geometry ─────────────────────────────────────────────────────────
-    readonly property int radius: px(6)
+    // the design language the desktop draws in (shell.json theme.design); the corner every
+    // surface rounds by follows it: Lithic and Fluent stay tight, Adwaita and Material round
+    property string design: "lithic"
+    readonly property int radius: px(design === "material" ? 16 : design === "adwaita" ? 12 : 6)
     readonly property real border: 1
     readonly property int rowH: px(48)
     readonly property int cellH: px(104)
@@ -278,6 +281,7 @@ Singleton {
         var widgets = ({});
         var monoFont = "SpaceMono Nerd Font";
         var uiFont = "Geologica";
+        var designName = "lithic";
         if (o) {
             if (typeof o.themePalette === "object" && o.themePalette !== null)
                 pal = o.themePalette;
@@ -297,6 +301,9 @@ Singleton {
             const w = displays && displays.widgets;
             if (w && typeof w === "object")
                 widgets = w;
+            const d = o.theme && o.theme.design;
+            if (d === "material" || d === "adwaita" || d === "fluent")
+                designName = d;
             if (typeof o.fontFamily === "string" && o.fontFamily.length) { uiFont = o.fontFamily; monoFont = o.fontFamily; }
         }
         t.namedScheme = pal;
@@ -307,8 +314,9 @@ Singleton {
         t.widgetVisibility = widgets;
         t.ui = uiFont;
         t.mono = monoFont;
+        t.design = designName;
     }
-    readonly property var _namedPaths: ["themePalette", "theme.motion", "displays.ui_scale", "displays.bar", "displays.widgets", "fontFamily"]
+    readonly property var _namedPaths: ["themePalette", "theme.motion", "theme.design", "displays.ui_scale", "displays.bar", "displays.widgets", "fontFamily"]
     Connections {
         target: ShellSettings
         function onChanged(paths) {

@@ -65,6 +65,35 @@ signature.
 
 Following, dark or light is decided by the palette's `surface` luma.
 
+### 2a. The design language (QML library)
+
+`shell.json` `theme.design` names the design the whole desktop draws in:
+`lithic` (the default), `material`, `adwaita` or `fluent`; `LITHIC_DESIGN` in
+the environment overrides it for one run. The daemon validates it and
+`ryoku/ui` Tokens reads it too, so its shell surfaces round their corners with
+it. In the QML library:
+
+- **Lithic** resolves exactly as above.
+- **The round designs** ignore the app's mode and wear the desktop's palette
+  (the host's, else a named scheme over the wallpaper's roles) as its Material
+  roles, without the toned ladder: `ground` and `stone2` are `surface`,
+  `stone1` `surfaceContainerLow`, `stone3` `surfaceContainer`, `stone4`
+  `surfaceContainerHigh`, `field` `surfaceContainerHighest`, `vein` and `edge`
+  `outlineVariant` and `outline`, the inks `onSurface` and `onSurfaceVariant`,
+  `sel` and `onSel` `primary` and `onPrimary`, `gold` `tertiary`, `jasper`
+  `error`. A role the palette lacks keeps the toned value. With no palette at
+  all they wear the signature.
+- Every design publishes `container` and `containerInk`, the soft tone under
+  a selection and the ink on it: the round designs' `secondaryContainer` and
+  `onSecondaryContainer`, Lithic's `sel` at 16 percent and `fg`.
+- `Lithic.designs` holds each design's corner: a control at most `pill` high
+  is a pill, a larger shape rounds by its cut times `scale`, never past `max`
+  (Material 2.6 to 28, Adwaita 1.6 to 14, Fluent 0.75 to 8).
+  `Lithic.rolesFor(design)` returns every role a design would wear now.
+
+The Go and web libraries do not read `theme.design` yet; they always draw
+Lithic.
+
 ## 3. Mapping palette roles to Lithic roles
 
 Inputs: the palette and mode from §2, plus the reader's **look**: a contrast

@@ -533,6 +533,45 @@ func TestLoadCoercesRetiredTheme(t *testing.T) {
 	}
 }
 
+// TestThemeDesign checks the design language: a file without it loads as Lithic, an
+// unknown one on disk loads as Lithic with the rest of the theme kept, a patch to a
+// known design sticks, and a patch to an unknown one is refused.
+func TestThemeDesign(t *testing.T) {
+	t.Run("absent and unknown load as lithic", func(t *testing.T) {
+		for _, body := range []string{
+			`{"theme":{"attributes":{"sizing":{"border_width":5}}}}`,
+			`{"theme":{"design":"brutalist","attributes":{"sizing":{"border_width":5}}}}`,
+		} {
+			path := filepath.Join(t.TempDir(), "shell.json")
+			if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+				t.Fatalf("seed file: %v", err)
+			}
+			s := newSettingsStore(path)
+			if got := s.cur.Theme.Design; got != "lithic" {
+				t.Fatalf("%s: design = %q, want lithic", body, got)
+			}
+			if got := s.cur.Theme.Attributes.Sizing.BorderWidth; got != 5 {
+				t.Fatalf("%s: border_width = %d, want 5 kept", body, got)
+			}
+		}
+	})
+	t.Run("patch", func(t *testing.T) {
+		s := newTestStore(t)
+		if err := s.patch("theme.design", rm(`"material"`)); err != nil {
+			t.Fatalf("patch material: %v", err)
+		}
+		if got := frameGet(t, s.frameLocked(), "theme.design"); got != "material" {
+			t.Fatalf("theme.design = %v, want material", got)
+		}
+		if err := s.patch("theme.design", rm(`"brutalist"`)); err == nil {
+			t.Fatalf("patch to an unknown design was accepted")
+		}
+		if got := frameGet(t, s.frameLocked(), "theme.design"); got != "material" {
+			t.Fatalf("theme.design = %v after a refused patch, want material kept", got)
+		}
+	})
+}
+
 // TestMalformedFileFirstLoad checks the first-load fallback: an unparseable file
 // yields shipped defaults with no passthrough keys, while a parseable file whose
 // schema does not validate keeps its passthrough keys and resets only the schema.
