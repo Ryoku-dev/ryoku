@@ -22,6 +22,22 @@ Item {
     property bool live: false
     // a tier to show instead of the machine's own (About's rarity ladder previews them), or -1
     property int showLevel: -1
+    readonly property bool secret: card.level >= 5
+    // a Secret rare's own life while it is live: the facets turn, a light crosses the card
+    // every few seconds, the sparkles drift. A still card (a saved picture) stands at time 0
+    property real clock: 0
+    // stepped at 30 frames a second: facets and drifting sparks read the same, at half the cost
+    Timer {
+        interval: 33
+        repeat: true
+        running: card.secret && card.live && !Lithic.reduceMotion
+        onTriggered: card.clock += 0.033
+    }
+    // the sweep's place across the card: crosses in 1.2 s, then rests 3 s off the card
+    readonly property real sweepAt: {
+        var t = card.clock % 4.2;
+        return t < 1.2 ? -0.4 + 1.8 * (t / 1.2) : -1;
+    }
 
     width: card.designWidth
     height: card.designHeight
@@ -74,29 +90,32 @@ Item {
     ]
     readonly property string release: Updates.currentName || Updates.currentVersion || "Ryoku"
 
-    // the card's border and its face; a Secret rare's border is all foil
+    // the card's border and its face. A Secret rare's border is cut like a diamond
     CutRect {
         anchors.fill: parent
         cut: 22
         fill: card.rim
     }
     ShaderEffect {
-        visible: card.level >= 5
+        visible: card.secret
         anchors.fill: parent
-        property color c1: Lithic.sel
+        property color c1: Lithic.jasper
         property color c2: Lithic.gold
-        property color c3: Lithic.lapis
-        property color c4: Lithic.jade
+        property color c3: Lithic.jade
+        property color c4: Lithic.lapis
+        property color c5: Lithic.sel
         property vector2d size: Qt.vector2d(width, height)
         property vector2d shift: card.foil
-        property real strength: 1
+        property real time: card.clock
         property real cut: 22
-        fragmentShader: Qt.resolvedUrl("../../shaders/foil.frag.qsb")
+        property real facet: 9
+        fragmentShader: Qt.resolvedUrl("../../shaders/diamond.frag.qsb")
     }
     CutRect {
         id: face
         anchors.fill: parent
-        anchors.margins: 14
+        // a Secret rare's diamond border is set wider, so the stone shows
+        anchors.margins: card.secret ? 20 : 14
         cut: 14
         fill: Lithic.stone1
         // from Holo rare the face is edged in gold
@@ -104,18 +123,19 @@ Item {
         strokeColor: card.level >= 3 ? Lithic.gold : Lithic.alpha(Lithic.fg, 0.2)
         clip: true
 
-        // the face's own foil, from Rare up
+        // the face's own foil, from Rare up; a Secret rare's is every mineral, etched
         ShaderEffect {
             visible: card.faceFoil > 0
             anchors.fill: parent
-            property color c1: Lithic.sel
+            property color c1: card.secret ? Lithic.jasper : Lithic.sel
             property color c2: Lithic.gold
-            property color c3: Lithic.lapis
-            property color c4: Lithic.jade
+            property color c3: card.secret ? Lithic.jade : Lithic.lapis
+            property color c4: card.secret ? Lithic.lapis : Lithic.jade
             property vector2d size: Qt.vector2d(width, height)
             property vector2d shift: card.foil
-            property real strength: card.faceFoil
+            property real strength: card.secret ? 0.42 : card.faceFoil
             property real cut: 14
+            property real etch: card.secret ? 1 : 0
             fragmentShader: Qt.resolvedUrl("../../shaders/foil.frag.qsb")
         }
     }
@@ -132,6 +152,7 @@ Item {
         inkRole: "fg2"
     }
     Label {
+        id: nameLabel
         x: 32
         y: 42
         width: 400
@@ -161,6 +182,13 @@ Item {
         font.pixelSize: 22
         ink: card.level >= 4 ? Lithic.gold : Lithic.sel
     }
+    // a Secret rare's name is gilded too
+    Binding {
+        target: nameLabel
+        property: "ink"
+        value: Lithic.gold
+        when: card.secret
+    }
 
     // the figure in its holo window
     CutRect {
@@ -179,14 +207,15 @@ Item {
             visible: card.windowFoil > 0
             anchors.fill: parent
             anchors.margins: 3
-            property color c1: Lithic.sel
+            property color c1: card.secret ? Lithic.jasper : Lithic.sel
             property color c2: Lithic.gold
-            property color c3: Lithic.lapis
-            property color c4: Lithic.jade
+            property color c3: card.secret ? Lithic.jade : Lithic.lapis
+            property color c4: card.secret ? Lithic.lapis : Lithic.jade
             property vector2d size: Qt.vector2d(width, height)
             property vector2d shift: card.foil
             property real strength: card.windowFoil
             property real cut: 6
+            property real etch: card.secret ? 0.6 : 0
             fragmentShader: Qt.resolvedUrl("../../shaders/foil.frag.qsb")
         }
         Text {
@@ -427,21 +456,34 @@ Item {
             typeRole: "label"
             font.pixelSize: 15
             ink: card.level >= 2 ? Lithic.gold : Lithic.fg2
+            // a Secret rare's stars beat while it is live
+            SequentialAnimation on scale {
+                running: card.secret && card.live && !Lithic.reduceMotion
+                loops: Animation.Infinite
+                NumberAnimation { to: 1.25; duration: 260; easing.type: Easing.OutCubic }
+                NumberAnimation { to: 1; duration: 520; easing.type: Easing.InOutSine }
+                PauseAnimation { duration: 1400 }
+            }
         }
     }
 
-    // from Ultra rare up, sparkles over the figure; they twinkle while the card is live
+    // from Ultra rare up, sparkles over the figure; they twinkle while the card is live. A
+    // Secret rare has twice as many, and they drift up and turn
     Repeater {
-        model: card.level >= 4 ? [[0.12, 0.2, 18], [0.86, 0.14, 24], [0.78, 0.52, 14], [0.18, 0.62, 20], [0.52, 0.08, 12], [0.92, 0.78, 16]] : []
+        model: card.level < 4 ? []
+            : [[0.12, 0.2, 18], [0.86, 0.14, 24], [0.78, 0.52, 14], [0.18, 0.62, 20], [0.52, 0.08, 12], [0.92, 0.78, 16]]
+              .concat(card.secret ? [[0.3, 0.4, 10], [0.66, 0.3, 16], [0.08, 0.86, 12], [0.44, 0.7, 14], [0.62, 0.9, 10], [0.96, 0.4, 12]] : [])
         delegate: Text {
             id: spark
             required property var modelData
             required property int index
-            x: window.x + window.width * modelData[0] - width / 2
-            y: window.y + window.height * modelData[1] - height / 2
+            readonly property real rise: card.secret ? ((card.clock * 0.05 + spark.index * 0.137) % 1) : 0
+            x: window.x + window.width * modelData[0] - width / 2 + (card.secret ? Math.sin(card.clock * 0.9 + spark.index) * 6 : 0)
+            y: window.y + window.height * (card.secret ? (modelData[1] + 1 - spark.rise * 0.35) % 1 : modelData[1]) - height / 2
+            rotation: card.secret ? card.clock * (spark.index % 2 ? 40 : -30) : 0
             text: "✦"
             font.pixelSize: modelData[2]
-            color: index % 2 ? Lithic.gold : Lithic.fg
+            color: card.secret ? [Lithic.gold, Lithic.fg, Lithic.jade, Lithic.lapis][spark.index % 4] : spark.index % 2 ? Lithic.gold : Lithic.fg
             opacity: 0.85
             SequentialAnimation on opacity {
                 running: card.live && !Lithic.reduceMotion
@@ -452,5 +494,16 @@ Item {
                 PauseAnimation { duration: 1200 }
             }
         }
+    }
+
+    // the light that crosses a Secret rare now and then, over everything on it
+    ShaderEffect {
+        visible: card.secret && card.sweepAt > -0.5
+        anchors.fill: parent
+        property color tint: Lithic.gold
+        property vector2d size: Qt.vector2d(width, height)
+        property real pos: card.sweepAt
+        property real cut: 22
+        fragmentShader: Qt.resolvedUrl("../../shaders/sweep.frag.qsb")
     }
 }

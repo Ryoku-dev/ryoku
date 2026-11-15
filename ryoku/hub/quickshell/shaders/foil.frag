@@ -15,6 +15,7 @@ layout(std140, binding = 0) uniform buf {
     vec2 shift;
     float strength;
     float cut;
+    float etch;
 };
 
 vec3 band(float t) {
@@ -39,6 +40,9 @@ void main() {
     float along = uv.x * 0.75 + uv.y * 0.35 - (0.55 + shift.x * 0.6 + shift.y * 0.25);
     float sheen = exp(-along * along / 0.012);
 
+    // an etched card has fine raised lines that catch the wash
+    float lines = 0.5 + 0.5 * sin((uv.x * 0.6 - uv.y) * size.y * 0.9);
+    swell *= mix(1.0, 0.35 + 0.9 * lines, etch);
     float a = strength * (0.22 * swell + 0.55 * sheen);
     vec3 col = mix(wash, vec3(1.0), sheen * 0.45);
     fragColor = vec4(col, 1.0) * clamp(a, 0.0, 0.6) * inside * qt_Opacity;

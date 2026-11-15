@@ -296,7 +296,12 @@ rarity (`registry/rarity.js`, tested by `rarity.test.mjs`): points for threads,
 memory, the strongest graphics card's class and the display's rate and width,
 and six tiers from Common (no foil, a bone border) through Uncommon, Rare (the
 sun's border, holo window), Holo rare (foil face, gold edge) and Ultra rare
-(gold border, full art, sparkles) to Secret rare (a foil border). The foil is
+(gold border, full art, sparkles) to Secret rare: a wider border cut like a
+diamond (`shaders/diamond.frag`, facets that catch the minerals' colours as the
+card tilts, some flashing white), an etched foil of every mineral, a gilded
+name, twice the sparkles drifting and turning, beating stars and a light that
+crosses the whole card every few seconds (`shaders/sweep.frag`), all at 30
+frames a second while the card is under the pointer. The foil is
 `shaders/foil.frag`: a soft wash of the four state colours and one sheen of
 light, smooth and held under 60% opacity, sliding as the card tilts toward the
 pointer. Beside it, the points and the
