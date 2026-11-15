@@ -154,7 +154,9 @@ takes every surface from the palette in use.
   (`SettingsPage.headerPreview`, drawn from `components/previews/`): Window
   style draws a window in front of another in the page's corners, frame,
   see-through, dimming and shadow, Window behaviour three tiled windows in its
-  gaps, and Fonts & icons the chosen faces and size. Each reads the same binds
+  gaps, Animations a window opening and closing in the chosen effect and
+  speed (standing still while animations are off or motion is reduced), and
+  Fonts & icons the chosen faces and size. Each reads the same binds
   as the rows and follows a change as it is made; they illustrate the
   settings, they are not pictures of the screen. The close button stands in
   the pane's corner. Escape and

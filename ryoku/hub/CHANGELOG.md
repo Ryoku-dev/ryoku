@@ -5,8 +5,9 @@
 ### Changed
 - **Pages show what their settings do.** Window style draws a window in
   front of another in your corners, frame, see-through, dimming and shadow;
-  Window behaviour draws three tiled windows in your gaps; Fonts & icons shows
-  your faces and size. Each preview stands at the page's head, where the pane
+  Window behaviour draws three tiled windows in your gaps; Animations opens
+  and closes a window over and over in your effect and speed; Fonts & icons
+  shows your faces and size. Each preview stands at the page's head, where the pane
   was empty, and follows a change as you make it
   (`quickshell/components/previews/`, `components/PageHeader.qml`).
 - **Settings is browsed as a folder tree.** The rail, the hidden page list

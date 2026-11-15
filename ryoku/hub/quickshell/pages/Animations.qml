@@ -4,6 +4,7 @@ import Ryoku.Ui.Singletons
 import "../Singletons"
 import "../components"
 import "../components/animations"
+import "../components/previews"
 import "../registry/provider-map.js" as ProviderMap
 import "../components/animations/anim.js" as Anim
 import "../schema/animations.js" as Schema
@@ -174,6 +175,7 @@ Item {
         anchors.fill: parent
         hub: root.hub
         pageId: "animations"
+        headerPreview: Component { AnimationPreview {} }
         schema: Schema
         adaptRows: rows => root.adapt(rows)
         footers: {
