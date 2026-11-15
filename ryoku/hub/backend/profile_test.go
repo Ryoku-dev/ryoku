@@ -2,6 +2,10 @@ package main
 
 import (
 	"bytes"
+	"errors"
+	"image"
+	"image/color"
+	"image/png"
 	"os"
 	"path/filepath"
 	"testing"
@@ -140,5 +144,81 @@ func TestProfileImportFailedSettingsWriteLeavesNoTrace(t *testing.T) {
 	}
 	if got, err := os.ReadFile(heroPath); err != nil || !bytes.Equal(got, sampleHero) {
 		t.Fatalf("hero after a good import = %v (%v), want the sample", got, err)
+	}
+}
+
+// A card picture carries the design: written into the PNG, it opens again as the
+// same design, while the picture itself stays a valid PNG that keeps its pixels.
+func TestCardPictureCarriesTheDesign(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	if err := os.MkdirAll(profileHeroDir(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(profileConfigPath(), []byte(sampleProfile), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(profileHeroDir(), "hero.png"), sampleHero, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rendered := filepath.Join(t.TempDir(), "rendered.png")
+	writeTinyPNG(t, rendered)
+	card := filepath.Join(t.TempDir(), "card.png")
+	if err := writeCard(rendered, card); err != nil {
+		t.Fatalf("writeCard: %v", err)
+	}
+	f, err := os.Open(card)
+	if err != nil {
+		t.Fatal(err)
+	}
+	img, err := png.Decode(f)
+	f.Close()
+	if err != nil || img.Bounds().Dx() != 3 {
+		t.Fatalf("the card is no longer the picture: %v", err)
+	}
+
+	// someone else opens the card
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	if err := importProfile(card); err != nil {
+		t.Fatalf("importProfile(card): %v", err)
+	}
+	got, _ := os.ReadFile(profileConfigPath())
+	hero, _ := os.ReadFile(filepath.Join(profileHeroDir(), "hero.png"))
+	if string(got) != sampleProfile || !bytes.Equal(hero, sampleHero) {
+		t.Fatalf("the design did not come back whole: %s", got)
+	}
+}
+
+// A plain picture (or one whose design a chat app stripped) is refused, and the
+// reader's own card stays as it was.
+func TestCardWithoutDesignIsRefused(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	if err := os.MkdirAll(profileDir(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(profileConfigPath(), []byte(sampleProfile), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	plain := filepath.Join(t.TempDir(), "plain.png")
+	writeTinyPNG(t, plain)
+	if err := importProfile(plain); !errors.Is(err, errNoCardDesign) {
+		t.Fatalf("got %v, want errNoCardDesign", err)
+	}
+	got, _ := os.ReadFile(profileConfigPath())
+	if string(got) != sampleProfile {
+		t.Fatal("a refused picture changed the card")
+	}
+}
+
+func writeTinyPNG(t *testing.T, path string) {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, 3, 2))
+	img.Set(1, 1, color.RGBA{200, 100, 50, 255})
+	var b bytes.Buffer
+	if err := png.Encode(&b, img); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, b.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }

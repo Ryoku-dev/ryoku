@@ -8,6 +8,7 @@ import "../Singletons"
 import "../components"
 import "../components/about"
 import "../schema/about.js" as Schema
+import "../registry/rarity.js" as Rarity
 
 // what this computer runs and is made of, the system card, and the credits
 Item {
@@ -123,30 +124,33 @@ Item {
             page.chooseSection(at);
     }
 
-    // the still card on the page is the one the picture is taken from
-    property Item stillCard: null
+    // the trading card on the page is the one the pictures are taken from
+    property Item tradingCard: null
     // the credits footer holding the testers, where their deep link lands
     property Item crewItem: null
 
-    function saveImage() {
+    // copy ("copy") or save ("save") the card: it is drawn into a picture at twice its
+    // size, and the card tool writes the card's design into that picture
+    function takeCard(job) {
         root.cardError = "";
         root.cardMessage = "";
-        root.cardLast = "image";
-        if (!root.stillCard) {
+        root.cardLast = job;
+        if (!root.tradingCard) {
             root.cardError = I18n.tr("The card is not drawn yet. Scroll to it, then try again.");
             return;
         }
-        var path = Paths.picturesDir + "/ryoku-card-" + Qt.formatDateTime(new Date(), "yyyyMMdd-HHmmss") + ".png";
-        root.cardJob = "image";
-        var card = root.stillCard;
+        var rendered = (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-card-render.png";
+        var name = String(SysInfo.sysUser || "card").replace(/[^A-Za-z0-9._-]/g, "") || "card";
+        var dst = job === "copy" ? "--copy" : Paths.picturesDir + "/ryoku-card-" + name + "-" + Qt.formatDateTime(new Date(), "yyyyMMdd-HHmmss") + ".png";
+        root.cardJob = job;
+        var card = root.tradingCard;
         var ok = card.grabToImage(function (result) {
-            root.cardJob = "";
-            if (result.saveToFile(path)) {
-                root.cardFile = path;
-                root.cardMessage = I18n.tr("Saved to %1").replace("%1", root.tilde(path));
-            } else {
-                root.cardError = I18n.tr("The picture could not be saved in %1. Check that the folder exists and can be written to, then try again.").replace("%1", root.tilde(Paths.picturesDir));
+            if (!result.saveToFile(rendered)) {
+                root.cardJob = "";
+                root.cardError = I18n.tr("The card could not be drawn into a picture. Try again.");
+                return;
             }
+            root.runCard(job, dst, rendered);
         }, Qt.size(card.designWidth * 2, card.designHeight * 2));
         if (!ok) {
             root.cardJob = "";
@@ -154,54 +158,55 @@ Item {
         }
     }
 
-    function shareDesign(folder) {
-        var name = String(SysInfo.sysUser || "card").replace(/[^A-Za-z0-9._-]/g, "") || "card";
-        root.cardFile = folder + "/ryoku-" + name + ".ryoprofile";
-        root.runCard("share", root.cardFile);
-    }
-
-    function useDesign(file) {
+    // use someone's card: a card picture or .ryoprofile file ("use"), or the card picture on
+    // the clipboard ("paste")
+    function useDesign(job, file) {
         root.hub.confirm({
-            title: I18n.tr("Use this card design?"),
-            text: I18n.tr("Its figure, words and choices replace your card's. To keep yours, share it first."),
+            title: I18n.tr("Use this card's design?"),
+            text: I18n.tr("Its figure, words and choices replace your card's. To keep yours, copy or save it first."),
             actionText: I18n.tr("Use it"),
             destructive: false
-        }, () => {
-            root.cardFile = "";
-            root.runCard("use", file);
-        });
+        }, () => root.runCard(job, file, ""));
     }
 
-    // a refused share or use, in plain words with its next step; the tool's own
-    // words ("open …: permission denied", JSON parse errors) are not shown
+    // a refused card job, in plain words with its next step; the tool's own words
+    // ("open …: permission denied", JSON parse errors) are not shown
     function cardRefusal(job, err) {
         var e = String(err || "");
-        var use = job === "use";
+        var use = job === "use" || job === "paste";
         if (/no space left/i.test(e))
             return use ? I18n.tr("The disk is full, so the design could not be used. Free some space, then press Retry.")
-                       : I18n.tr("The disk is full, so the design could not be written. Free some space, then press Retry.");
-        if (use && /ryoprofile|hero|invalid character|unexpected end|cannot unmarshal/i.test(e))
-            return I18n.tr("That file is not a card design, or it is damaged. Choose a .ryoprofile someone shared with Open.");
+                       : I18n.tr("The disk is full, so the card could not be saved. Free some space, then press Retry.");
+        if (job === "paste" && /no picture/i.test(e))
+            return I18n.tr("The clipboard holds no picture. Copy a Ryoku card first, then press Paste.");
+        if (use && /not a Ryoku card|stripped/i.test(e))
+            return I18n.tr("That picture is not a Ryoku card, or the app it came through stripped the design from it. Ask for the card as a file.");
+        if (use && /ryoprofile|hero|not a PNG|cut short|no end|invalid character|unexpected end|cannot unmarshal/i.test(e))
+            return I18n.tr("That file is not a card, or it is damaged. Choose a card picture or a .ryoprofile with Open.");
+        if (job === "copy" && /wl-copy/i.test(e))
+            return I18n.tr("The card could not be put on the clipboard. Save it instead, or press Retry.");
         if (/permission denied|read-only file system|operation not permitted/i.test(e))
             return use ? I18n.tr("Settings is not allowed to read that file or save your card. Check the file's permissions, then press Retry, or choose another file with Open.")
-                       : I18n.tr("Settings is not allowed to write in that folder. Change the folder's permissions, then press Retry, or choose another folder with Share.");
+                       : I18n.tr("Settings is not allowed to write in %1. Check the folder's permissions, then press Retry.").replace("%1", root.tilde(Paths.picturesDir));
         if (/no such file|not a directory/i.test(e))
             return use ? I18n.tr("That file is no longer there. Choose another with Open.")
-                       : I18n.tr("That folder is no longer there. Choose another with Share.");
+                       : I18n.tr("%1 is not there. Create it, then press Retry.").replace("%1", root.tilde(Paths.picturesDir));
         return use ? I18n.tr("That design could not be used. Press Retry, or choose another file with Open.")
-                   : I18n.tr("The design could not be written. Press Retry, or choose another folder with Share.");
+                   : I18n.tr("The card could not be made. Press Retry.");
     }
 
     // the last card job, so Retry runs it again
     property string cardLast: ""
     property string cardArg: ""
-    function runCard(job, path) {
+    function runCard(job, arg, rendered) {
         root.cardError = "";
         root.cardMessage = "";
         root.cardLast = job;
-        root.cardArg = path;
+        root.cardArg = arg;
         root.cardJob = job;
-        var argv = ["ryoku-hub", "profile", job === "use" ? "import" : "export", path];
+        var argv = job === "use" ? ["ryoku-hub", "profile", "import", arg]
+            : job === "paste" ? ["ryoku-hub", "profile", "import", "--clipboard"]
+            : ["ryoku-hub", "profile", "card", rendered, arg];
         Changes.run(argv, function (ok, out, err, code) {
             root.cardJob = "";
             if (code === -1) {
@@ -214,16 +219,21 @@ Item {
                 root.cardError = root.cardRefusal(job, err);
                 return;
             }
-            root.cardMessage = job === "use" ? I18n.tr("The card uses the shared design")
-                : I18n.tr("Shared as %1").replace("%1", root.tilde(root.cardFile));
+            if (job === "copy")
+                root.cardMessage = I18n.tr("Copied. Paste it in a chat or anywhere; Ryoku Settings opens it as a card.");
+            else if (job === "save") {
+                root.cardFile = arg;
+                root.cardMessage = I18n.tr("Saved to %1").replace("%1", root.tilde(arg));
+            } else
+                root.cardMessage = I18n.tr("Your card uses the shared design");
         }, { timeout: 30000 });
     }
 
     function retryCard() {
-        if (root.cardLast === "image")
-            root.saveImage();
+        if (root.cardLast === "copy" || root.cardLast === "save")
+            root.takeCard(root.cardLast);
         else if (root.cardLast !== "")
-            root.runCard(root.cardLast, root.cardArg);
+            root.runCard(root.cardLast, root.cardArg, "");
     }
 
     function resetCard() {
@@ -261,18 +271,11 @@ Item {
         }
     }
 
-    FolderChooser {
-        id: shareTo
-        overlayParent: root.hub.overlayItem
-        title: I18n.tr("Share the card's design into")
-        onAccepted: root.shareDesign(root.localPath(shareTo.selectedFolder))
-    }
-
     RyokuUi.FileDialogHost {
         id: openDesign
-        title: I18n.tr("Open a card design")
-        nameFilters: [I18n.tr("Card designs") + " (*.ryoprofile)"]
-        onAccepted: root.useDesign(root.localPath(openDesign.selectedFile))
+        title: I18n.tr("Open a card")
+        nameFilters: [I18n.tr("Ryoku cards") + " (*.png *.ryoprofile)"]
+        onAccepted: root.useDesign("use", root.localPath(openDesign.selectedFile))
     }
 
     Timer {
@@ -289,8 +292,9 @@ Item {
         schema: root.schema
         stateLine: root.stateLine
         controls: {
-            var c = { "copy-details": copyControl, "card-edit": editControl, "card-image": imageControl,
-                      "card-share": shareControl, "card-use": useControl, "card-reset": resetControl };
+            var c = { "copy-details": copyControl, "card-edit": editControl, "card-copy": copyCardControl,
+                      "card-image": imageControl, "card-use": useControl, "card-paste": pasteControl,
+                      "card-reset": resetControl };
             Schema.rows.forEach(r => { if (r.fact) c[r.id] = factControl; });
             return c;
         }
@@ -384,27 +388,27 @@ Item {
     }
 
     Component {
-        id: imageControl
+        id: copyCardControl
         Plaque {
-            function activate() { if (root.cardJob === "") root.saveImage(); }
-            kind: "quiet"
+            function activate() { if (root.cardJob === "") root.takeCard("copy"); }
+            kind: "gold"
             small: true
-            glyph: "image"
-            text: I18n.tr("Save")
-            busy: root.cardJob === "image"
+            glyph: "content_copy"
+            text: I18n.tr("Copy")
+            busy: root.cardJob === "copy"
             onClicked: activate()
         }
     }
 
     Component {
-        id: shareControl
+        id: imageControl
         Plaque {
-            function activate() { if (root.cardJob === "") shareTo.open(); }
+            function activate() { if (root.cardJob === "") root.takeCard("save"); }
             kind: "quiet"
             small: true
-            glyph: "share"
-            text: I18n.tr("Share")
-            busy: root.cardJob === "share"
+            glyph: "image"
+            text: I18n.tr("Save")
+            busy: root.cardJob === "save"
             onClicked: activate()
         }
     }
@@ -423,6 +427,19 @@ Item {
     }
 
     Component {
+        id: pasteControl
+        Plaque {
+            function activate() { if (root.cardJob === "") root.useDesign("paste", ""); }
+            kind: "quiet"
+            small: true
+            glyph: "content_paste"
+            text: I18n.tr("Paste")
+            busy: root.cardJob === "paste"
+            onClicked: activate()
+        }
+    }
+
+    Component {
         id: resetControl
         Plaque {
             function activate() { root.resetCard(); }
@@ -433,46 +450,181 @@ Item {
         }
     }
 
-    // the card itself, still, sized to the column; a click opens the editor
+    // the card itself, standing in the section with its rarity beside it. It tilts toward the
+    // pointer and its foil slides; resting on a tier in the ladder shows that tier's look.
+    // A click opens the editor
     Component {
         id: cardBody
-        CutRect {
-            id: plate
-            height: width * 10 / 16
-            cut: LithicTokens.cut.small
-            fill: Lithic.ground
-            strokeColor: Lithic.vein
-            strokeWidth: LithicTokens.size.hairline
-            Accessible.role: Accessible.Button
-            Accessible.name: I18n.tr("System card, customise it")
+        Item {
+            id: stage
+            readonly property real cardHeight: Math.min(600, Math.max(420, width * 0.62))
+            readonly property real cardScale: stage.cardHeight / trading.designHeight
+            height: stage.cardHeight + 24
+            property int preview: -1
 
             Item {
-                anchors.fill: parent
-                clip: true
-                // the card IS Home's plate, loaded by URL (a static import would
-                // clash with the components directory and cycle through the editor)
-                Loader {
-                    id: still
-                    // unsized, so it never resizes the card from its design size; the card is
-                    // scaled down to the plate instead
-                    Component.onCompleted: setSource("../components/Home.qml", { hub: root.hub, preview: true })
-                    onLoaded: {
-                        item.width = item.designWidth;
-                        item.height = item.designHeight;
-                        item.transformOrigin = Item.TopLeft;
-                        // bound, not set: the plate has no width yet when the card loads
-                        item.scale = Qt.binding(() => plate.width / item.designWidth);
-                        root.stillCard = item;
-                    }
-                    onItemChanged: if (!item)
-                        root.stillCard = null;
+                id: holder
+                x: 4
+                y: 12
+                width: trading.designWidth * stage.cardScale
+                height: stage.cardHeight
+                readonly property bool pointed: tilt.hovered && !Lithic.reduceMotion
+                property real tx: pointed ? (tilt.point.position.x / width - 0.5) * 2 : 0
+                property real ty: pointed ? (tilt.point.position.y / height - 0.5) * 2 : 0
+                Behavior on tx { SpringAnimation { spring: 2.6; damping: 0.3; epsilon: 0.002 } }
+                Behavior on ty { SpringAnimation { spring: 2.6; damping: 0.3; epsilon: 0.002 } }
+
+                TradingCard {
+                    id: trading
+                    transformOrigin: Item.TopLeft
+                    scale: stage.cardScale
+                    foil: Qt.vector2d(holder.tx, holder.ty)
+                    live: holder.pointed || stage.preview >= 0
+                    showLevel: stage.preview
+                    Component.onCompleted: root.tradingCard = trading
+                    Component.onDestruction: if (root.tradingCard === trading) root.tradingCard = null
                 }
+                transform: [
+                    Rotation {
+                        origin.x: holder.width / 2
+                        origin.y: holder.height / 2
+                        axis { x: 0; y: 1; z: 0 }
+                        angle: holder.tx * 10
+                    },
+                    Rotation {
+                        origin.x: holder.width / 2
+                        origin.y: holder.height / 2
+                        axis { x: 1; y: 0; z: 0 }
+                        angle: -holder.ty * 8
+                    }
+                ]
+                HoverHandler {
+                    id: tilt
+                    cursorShape: Qt.PointingHandCursor
+                }
+                TapHandler {
+                    onTapped: {
+                        editor.opener = null;
+                        editor.open();
+                    }
+                }
+                Accessible.role: Accessible.Button
+                Accessible.name: I18n.tr("System card, customise it")
             }
-            HoverHandler { cursorShape: Qt.PointingHandCursor }
-            TapHandler {
-                onTapped: {
-                    editor.opener = null;
-                    editor.open();
+
+            // how rare this machine's card is, and what the next tier takes
+            Column {
+                x: holder.x + holder.width + LithicTokens.space.s6
+                y: 18
+                width: Math.max(0, stage.width - x)
+                spacing: LithicTokens.space.s2
+
+                Label {
+                    text: I18n.tr("Rarity")
+                    typeRole: "group"
+                    inkRole: "fg3"
+                    font.capitalization: Font.AllUppercase
+                    font.letterSpacing: 1.6
+                }
+                Label {
+                    width: parent.width
+                    text: I18n.tr("Your machine draws a %1 card").replace("%1", I18n.tr(trading.rarity.tier.name))
+                    typeRole: "sentence"
+                    font.pixelSize: 24
+                    wrapMode: Text.Wrap
+                    elide: Text.ElideNone
+                }
+                Label {
+                    width: parent.width
+                    text: trading.rarity.next
+                        ? I18n.tr("%1 points. %2 more for %3.").replace("%1", trading.rarity.points).replace("%2", trading.rarity.toNext).replace("%3", I18n.tr(trading.rarity.next.name))
+                        : I18n.tr("%1 points, the rarest card there is.").replace("%1", trading.rarity.points)
+                    typeRole: "body"
+                    inkRole: "fg2"
+                    wrapMode: Text.Wrap
+                    elide: Text.ElideNone
+                }
+
+                // where the points come from
+                Row {
+                    topPadding: LithicTokens.space.s2
+                    spacing: LithicTokens.space.s5
+                    Repeater {
+                        model: trading.rarity.parts
+                        delegate: Column {
+                            required property var modelData
+                            Label {
+                                text: ({ cpu: I18n.tr("Processor"), ram: I18n.tr("Memory"), gpu: I18n.tr("Graphics"), display: I18n.tr("Display") })[modelData.id]
+                                typeRole: "caption"
+                                inkRole: "fg3"
+                            }
+                            Label {
+                                text: "+" + modelData.points
+                                typeRole: "mono"
+                                font.pixelSize: 20
+                                ink: modelData.points > 0 ? Lithic.fg : Lithic.fg3
+                            }
+                        }
+                    }
+                }
+
+                // the ladder: every tier, this card's lit; resting on one shows its look
+                Column {
+                    topPadding: LithicTokens.space.s4
+                    width: parent.width
+                    Repeater {
+                        model: Rarity.tiers
+                        delegate: Item {
+                            id: rung
+                            required property var modelData
+                            required property int index
+                            readonly property bool mine: index === trading.rarity.level
+                            readonly property bool reached: index <= trading.rarity.level
+                            width: parent.width
+                            height: 30
+                            CutRect {
+                                anchors.fill: parent
+                                cut: LithicTokens.cut.small
+                                fill: rung.mine ? Tone.select : over.hovered ? Tone.hover : "transparent"
+                            }
+                            Label {
+                                x: 10
+                                width: 44
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: modelData.mark
+                                typeRole: "label"
+                                ink: rung.reached && rung.index >= 2 ? Lithic.gold : rung.reached ? Lithic.fg : Lithic.fg3
+                            }
+                            Label {
+                                x: 60
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: I18n.tr(modelData.name)
+                                typeRole: "label"
+                                font.weight: rung.mine ? Font.DemiBold : Font.Normal
+                                ink: rung.mine ? Tone.selectInk : rung.reached ? Lithic.fg : Lithic.fg3
+                            }
+                            Label {
+                                anchors.right: parent.right
+                                anchors.rightMargin: 10
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: I18n.tr("%1 pts").replace("%1", modelData.min)
+                                typeRole: "monoSm"
+                                inkRole: "fg3"
+                            }
+                            HoverHandler {
+                                id: over
+                                onHoveredChanged: stage.preview = hovered ? rung.index : (stage.preview === rung.index ? -1 : stage.preview)
+                            }
+                        }
+                    }
+                }
+                Label {
+                    width: parent.width
+                    text: I18n.tr("Rest on a tier to see its look. Copy the card to show it off; anyone with Ryoku can open it as a design.")
+                    typeRole: "caption"
+                    inkRole: "fg3"
+                    wrapMode: Text.Wrap
+                    elide: Text.ElideNone
                 }
             }
         }

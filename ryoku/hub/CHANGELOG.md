@@ -9,6 +9,17 @@
   `components/Home.qml`).
 
 ### Changed
+- **The system card is a trading card you can flex.** About shows your
+  computer as a collectible card: its power, the figure in a holo window, the
+  processor, display and memory as moves, and a rarity your hardware earns,
+  from a plain Common to a gold-bordered, sparkling Secret rare. The card
+  tilts toward the pointer and its foil slides; a ladder beside it shows the
+  points and what the next tier takes, and previews each tier. Copy puts the
+  card on the clipboard and Save writes it to Pictures; either picture
+  carries the card's design, so Open or Paste turns someone's card into
+  yours. Share's .ryoprofile row is gone (`quickshell/components/about/TradingCard.qml`,
+  `registry/rarity.js`, `shaders/foil.frag`, `pages/About.qml`,
+  `backend/profilecard.go`).
 - **Home's card has depth.** The figure turns toward the pointer in
   perspective and catches its light on the edges facing it, the carved word
   drifts behind and the column in front, and a dotted light with drifting

@@ -275,13 +275,37 @@ with no slab:
   Customise; in a narrow window, whose sidebar is put away, the search too.
 
 Customise opens the card editor (`components/about/CardEditor.qml`). The
-plate and About's system card are one design:
-both read `Ryoku.Ui.Singletons.ProfileStore` (`profile.json`), draw the figure
-with `components/about/CardFigure.qml`, and are edited through the `card`
-store, so every change has its notice and Undo. Home honours the figure and
-its side, the name, the line under it, the big words and the Live readings and
-facts parts; the card's other parts (packages, colour strip, barcode, signal)
-belong to the poster in About, where it is saved as an image or shared.
+plate and About's system card share one design: both read
+`Ryoku.Ui.Singletons.ProfileStore` (`profile.json`), draw the figure with
+`components/about/CardFigure.qml`, and are edited through the `card` store, so
+every change has its notice and Undo. Home honours the figure and its side,
+the name, the line under it, the big words and the Live readings and facts
+parts.
+
+About shows the system card as a trading card
+(`components/about/TradingCard.qml`, 630 x 880, a playing card's shape): the
+name and its 力 power (threads, memory and a discrete graphics card, in tens),
+the figure in a holo window, a type line with the card's number (from the host
+name), the distro, window manager and graphics card, the processor, display
+and memory as its moves, uptime, packages and kernel as its traits, the motto
+as flavour text, and the figure's credit as "Illus.". The machine sets its
+rarity (`registry/rarity.js`, tested by `rarity.test.mjs`): points for threads,
+memory, the strongest graphics card's class and the display's rate and width,
+and six tiers from Common (no foil, a bone border) through Uncommon, Rare (the
+sun's border, holo window), Holo rare (foil face, gold edge) and Ultra rare
+(gold border, full art, sparkles) to Secret rare (a foil border). The foil is
+`shaders/foil.frag`, the four state colours as 1-bit bands with a streak that
+slides as the card tilts toward the pointer. Beside it, the points and the
+tier ladder say how rare the card is and what the next tier takes; resting on
+a tier shows its look.
+
+**Copy the card** and **Save the card** draw it at twice its size and run
+`ryoku-hub profile card <picture> --copy|<path>`, which writes the card's
+design (the `.ryoprofile` envelope) into the PNG as a `tEXt` chunk named
+`ryoprofile` (`backend/profilecard.go`). Anyone sees a picture; **Open a card**
+and **Paste a card** (`ryoku-hub profile import <path>|--clipboard`) take the
+design back out of it, or out of a `.ryoprofile`. A picture a chat app
+re-encoded has lost the chunk, and Settings says so.
 
 A page drawn by `components/SettingsPage.qml` is a sheet, with the same shape
 everywhere:

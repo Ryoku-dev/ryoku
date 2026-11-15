@@ -82,12 +82,13 @@ func exportProfile(dstPath string) error {
 	return atomicWrite(dstPath, out, 0o644)
 }
 
-// importProfile validates a .ryoprofile at srcPath and unpacks it: the embedded
-// hero image into profile/, then the settings into profile.json. Everything is
-// decoded and validated before any write, so a parse/validation failure leaves
-// the existing profile untouched.
+// importProfile validates a design and unpacks it: the embedded hero image into
+// profile/, then the settings into profile.json. srcPath is a .ryoprofile, a card
+// PNG carrying one (profilecard.go), or "--clipboard" for a card picture on the
+// clipboard. Everything is decoded and validated before any write, so a
+// parse/validation failure leaves the existing profile untouched.
 func importProfile(srcPath string) error {
-	raw, err := os.ReadFile(srcPath)
+	raw, err := cardEnvelopeFrom(srcPath)
 	if err != nil {
 		return err
 	}
@@ -138,7 +139,7 @@ func importProfile(srcPath string) error {
 
 func runProfile(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("profile needs export|import")
+		return fmt.Errorf("profile needs export|import|card")
 	}
 	switch args[0] {
 	case "export":
@@ -148,9 +149,14 @@ func runProfile(args []string) error {
 		return exportProfile(args[1])
 	case "import":
 		if len(args) < 2 {
-			return fmt.Errorf("profile import needs a path")
+			return fmt.Errorf("profile import needs a path or --clipboard")
 		}
 		return importProfile(args[1])
+	case "card":
+		if len(args) < 3 {
+			return fmt.Errorf("profile card needs the rendered picture and a path or --copy")
+		}
+		return writeCard(args[1], args[2])
 	default:
 		return fmt.Errorf("unknown profile subcommand: %s", args[0])
 	}
