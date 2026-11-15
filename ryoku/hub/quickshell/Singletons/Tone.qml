@@ -13,17 +13,18 @@ Singleton {
     readonly property bool flat: design === "lithic"
 
     // the planes a design lays out, from a role set (Lithic itself, or Lithic.rolesFor(id)
-    // for a preview of another design)
+    // for a preview of another design). Lithic: one paper, every plane a hairline. Material:
+    // the page a step up from the ground, its cards a step more, no lines. Adwaita: a sidebar
+    // set apart from the page, cards on it. Fluent: layered planes, each with a thin outline
     function planes(id, r) {
-        var flat = id === "lithic";
-        return {
-            side: id === "material" || id === "adwaita" ? r.stone1 : r.ground,
-            pane: id === "fluent" ? r.stone3 : r.stone2,
-            paneStroke: flat || id === "fluent" ? r.vein : "transparent",
-            // a plain slab (r.slab) is drawn by its hairline alone; a filled one stands on its fill
-            card: flat ? r.slab : id === "material" ? r.stone1 : id === "adwaita" ? r.stone3 : r.stone4,
-            cardStroke: flat ? r.vein : "transparent"
-        };
+        if (id === "material")
+            return { side: r.ground, pane: r.stone1, paneStroke: "transparent", card: r.stone3, cardStroke: "transparent" };
+        if (id === "adwaita")
+            return { side: r.stone3, pane: r.ground, paneStroke: "transparent", card: r.stone4, cardStroke: "transparent" };
+        if (id === "fluent")
+            return { side: r.ground, pane: r.stone3, paneStroke: r.vein, card: r.stone4, cardStroke: Lithic.alpha(r.vein, 0.7) };
+        // a plain slab (r.slab) is drawn by its hairline alone
+        return { side: r.ground, pane: r.stone2, paneStroke: r.vein, card: r.slab, cardStroke: r.vein };
     }
     readonly property var _planes: planes(design, Lithic)
 

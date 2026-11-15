@@ -3,6 +3,14 @@
 ## Unreleased
 
 ### Changed
+- **Style holds the colours, and its previews are real.** Under the design
+  tiles, a piece of Settings made of real controls shows the design you rest
+  on, at its real size, and can be used before you choose it. The Colours
+  section sets Ryoku's colours or the wallpaper's, light or dark for the
+  whole desktop, contrast and tint, which stay the same whatever the design.
+  Each design now lays out its planes its own way. The colour choice under
+  Customise on Home is gone (`quickshell/pages/Style.qml`,
+  `components/style/`, `Singletons/Tone.qml`).
 - **A Style page chooses the desktop's design.** Appearance opens on Style: a
   gallery of Lithic, Material, Adwaita and Fluent, each drawn as a small
   Settings window in that design and in the colours it would wear, and the

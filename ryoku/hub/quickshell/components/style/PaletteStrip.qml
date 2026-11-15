@@ -3,8 +3,9 @@ import Lithic
 import Ryoku.Ui.Singletons
 import "../../Singletons"
 
-// the desktop's colour scheme as the round designs wear it: where it comes from, then its
-// key colours side by side with their roles, read live from the palette files
+// the desktop's colour scheme: where it comes from, then its key colours side by side with
+// their roles, read live from the palette files. Ryoku's surfaces wear it when Colours is
+// Wallpaper; the bars, terminal and apps wear it either way
 Column {
     id: root
 
@@ -25,7 +26,7 @@ Column {
         width: root.width
         text: root.desktop.source === "scheme" ? I18n.tr("A fixed colour scheme, the same whatever the wallpaper.")
             : root.desktop.source === "wallpaper" ? I18n.tr("Drawn from your wallpaper, and redrawn when it changes.")
-            : I18n.tr("No desktop palette yet, so the round designs wear Ryoku's own colours.")
+            : I18n.tr("No desktop palette yet; it appears once a wallpaper is set.")
         typeRole: "detail"
         inkRole: "fg2"
         wrapMode: Text.Wrap

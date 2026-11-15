@@ -26,33 +26,34 @@ reduce motion follows the desktop's `theme.motion.reduce` setting.
 
 ### Design and colours
 
-Settings draws in the desktop's design language, `theme.design` in the shell
-settings, chosen on the **Style** page (Appearance): Lithic, Material, Adwaita
-or Fluent. The page shows each design as a small Settings window drawn in it
-(`components/style/StyleCard.qml`, every shape a `CutRect` with its `design`
-set) and the desktop's colour scheme with a hand-off to change it. Lithic
-cuts its corners and draws every plane by its hairline on one paper; the round
-designs wear the desktop's palette as Material roles and lift the page and its
-cards off the sidebar (`Singletons/Tone.qml` `planes()`; the library side is
-in docs/lithic/palette.md §2a). `ryoku/ui` Tokens rounds the shell's own
-surfaces with the same choice.
+Settings wears the desktop's look, set on the **Style** page (Appearance) and
+kept in the shell settings, so every Ryoku surface wears it too:
 
-Under Lithic, Settings opens in the signature, the ryoku.dev stock: black paper, bone
-ink and the sun as the one action, whatever the wallpaper. Following the
-wallpaper is the reader's choice, never the default. **Customise** on Home
-holds it: Settings wears Dark, Light or Wallpaper, with Contrast (standard or
-high) and, while following, Tint. `Singletons/Look.qml` keeps the three in the
-shell settings as `hub.colours` (`ryoku`, `light`, `wallpaper`),
-`hub.contrast` and `hub.tint`, written through `Changes` like any setting, so
-each has its notice and Undo. `Look` reads `shell.json` once at start, so the
-first frame already wears the choice, and `ShellBody.qml` binds Lithic's
-`mode`, `contrast` and `tint` to it. It also reloads Lithic whenever
-`shell.json`, `theme.json` or the generated `colors.json` changes, in every
-mode; only following reads a palette from them, so in Dark and Light a reload
-repaints nothing. A
-`LITHIC_MODE` in the environment (a gallery or test run) wins over the choice.
-These colours are Lithic's alone: a round design wears the desktop's palette
-whatever they say.
+- **Design** (`theme.design`): Lithic, Material, Adwaita or Fluent. Four tiles
+  show each design's shapes in small (`components/style/StyleChoice.qml`);
+  resting on one shows it below in a piece of Settings at its real size, made of
+  real controls you can use (`StylePreview.qml`, inside a Lithic `DesignScope`
+  so every `CutRect` in it draws that design). The preview stays on the last
+  design rested on until one is chosen. Lithic cuts its corners and draws every
+  plane by its hairline on one paper; Material lifts the page and its cards in
+  steps, Adwaita sets the sidebar apart, Fluent outlines layered planes
+  (`Singletons/Tone.qml` `planes()`).
+- **Colours** (`theme.colours`): Ryoku's own signature or the desktop's
+  palette (the wallpaper's, or a fixed scheme). The same in every design:
+  changing the design never changes the colours.
+- **Light or dark**: the desktop's, ryogami's `theme.mode` (Dark, Light,
+  Automatic from the wallpaper, Sun from the time of day), set through
+  `ryogami settings`. Ryoku's colours take it too.
+- **Contrast** and, for Lithic on the wallpaper's colours, **Tint**
+  (`theme.contrast`, `theme.tint`).
+
+The Lithic library reads all of it from the files (docs/lithic/palette.md §2a)
+and `ShellBody.qml` reloads it whenever `shell.json`, `theme.json`,
+`matugen.json` or the generated `colors.json` changes. A `LITHIC_MODE` in the
+environment (a gallery or test run) wins over the colours, and `LITHIC_DESIGN`
+over the design. `ryoku/ui` Tokens rounds the shell's own surfaces with the
+design. Settings once had colours of its own (`hub.colours`, `hub.contrast`,
+`hub.tint`, under Customise on Home); `ryoku doctor` carries them into these.
 
 ## How it opens
 
@@ -162,8 +163,7 @@ its corners follow the design.
   `/`, `Ctrl+K`, `Ctrl+F` and the search on Home focus it, wherever Settings
   is; Up, Down and Return move through the results. An empty search that
   loses the keys closes again. Besides pages, sections and rows it finds
-  Home's own two entries, Customise Home and Settings colours, which open
-  Home's editor.
+  Home's own entry, Customise Home, which opens Home's editor.
 - **The page pane.** Home (`components/Home.qml`), to the pane's edges, or the
   open page, which slides in as it opens. A page starts with
   `components/PageHeader.qml`: its category, its name with the page's own
@@ -227,8 +227,8 @@ with no slab:
 - **The top bar** holds "Continue in" the page the reader left off on, and
   Customise; in a narrow window, whose sidebar is put away, the search too.
 
-Customise opens the card editor (`components/about/CardEditor.qml`) with
-Settings' colours on top. The plate and About's system card are one design:
+Customise opens the card editor (`components/about/CardEditor.qml`). The
+plate and About's system card are one design:
 both read `Ryoku.Ui.Singletons.ProfileStore` (`profile.json`), draw the figure
 with `components/about/CardFigure.qml`, and are edited through the `card`
 store, so every change has its notice and Undo. Home honours the figure and

@@ -207,41 +207,6 @@ Dialog {
                 spacing: LithicTokens.space.s5
 
                 Section {
-                    visible: root.home
-                    width: parent.width
-                    title: I18n.tr("Colours")
-                    Slab {
-                        width: parent.width
-                        Column {
-                            width: parent.width
-                            spacing: LithicTokens.space.s4
-                            Choice {
-                                title: I18n.tr("Settings wears")
-                                detail: I18n.tr("Ryoku's own black and bone, its light paper, or the colours of your wallpaper")
-                                model: [I18n.tr("Dark"), I18n.tr("Light"), I18n.tr("Wallpaper")]
-                                index: Math.max(0, Look.coloursChoices.indexOf(Changes.value(Look.colours)))
-                                onPicked: at => Changes.set(Look.colours, Look.coloursChoices[at], I18n.tr("Settings colours"), root.pageId)
-                            }
-                            Choice {
-                                title: I18n.tr("Contrast")
-                                detail: I18n.tr("High sets fields and lines further from the paper and the text stronger")
-                                model: [I18n.tr("Standard"), I18n.tr("High")]
-                                index: Math.max(0, Look.contrastChoices.indexOf(Changes.value(Look.contrast)))
-                                onPicked: at => Changes.set(Look.contrast, Look.contrastChoices[at], I18n.tr("Settings contrast"), root.pageId)
-                            }
-                            Choice {
-                                visible: Changes.value(Look.colours) === "wallpaper"
-                                title: I18n.tr("Tint")
-                                detail: I18n.tr("How much of the wallpaper's colour the paper takes")
-                                model: [I18n.tr("Off"), I18n.tr("Low"), I18n.tr("Medium")]
-                                index: Math.max(0, Look.tintChoices.indexOf(Changes.value(Look.tint)))
-                                onPicked: at => Changes.set(Look.tint, Look.tintChoices[at], I18n.tr("Settings tint"), root.pageId)
-                            }
-                        }
-                    }
-                }
-
-                Section {
                     width: parent.width
                     title: I18n.tr("Figure")
                     Column {
@@ -443,41 +408,6 @@ Dialog {
             anchors.top: flick.top
             anchors.bottom: flick.bottom
             anchors.right: flick.right
-        }
-    }
-
-    // one choice among a few shown at once: its words, then the options under them at
-    // full width, since the column beside the card is narrow
-    component Choice: Column {
-        id: choice
-        property string title: ""
-        property string detail: ""
-        property var model: []
-        property int index: 0
-        signal picked(int at)
-        width: parent ? parent.width : 0
-        spacing: LithicTokens.space.s2
-        Label {
-            width: parent.width
-            text: choice.title
-            typeRole: "row"
-        }
-        Label {
-            width: parent.width
-            visible: choice.detail.length > 0
-            text: choice.detail
-            typeRole: "detail"
-            wrapMode: Text.Wrap
-            elide: Text.ElideNone
-        }
-        Segmented {
-            width: Math.min(parent.width, implicitWidth)
-            model: choice.model
-            Binding on currentIndex {
-                value: choice.index
-            }
-            accessibleName: choice.title
-            onActivated: at => choice.picked(at)
         }
     }
 

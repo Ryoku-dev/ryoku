@@ -656,12 +656,10 @@ FocusScope {
                 crumb: hub.entryCrumb([I18n.tr("Appearance"), I18n.tr(wp.title)])
             });
         }
-        // Home's own look: the profile and Settings' colours open its editor
+        // Home's own look: the profile opens its editor
         var looks = [
             { label: "Customise Home", detail: "Your figure, name and words, and which parts Home shows",
-              kw: "profile hero picture image avatar banner name tagline figure card dashboard" },
-            { label: "Settings colours", detail: "Dark, light or the colours of your wallpaper",
-              kw: "theme dark mode light mode follow wallpaper palette contrast tint accent settings look" }
+              kw: "profile hero picture image avatar banner name tagline figure card dashboard" }
         ];
         for (var k = 0; k < looks.length; k++)
             out.push({

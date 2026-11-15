@@ -60,7 +60,8 @@ function pageSummary(id, ctx) {
     switch (id) {
     case "style": {
         var design = { lithic: "Lithic", material: "Material", adwaita: "Adwaita", fluent: "Fluent" }[ctx.settings("theme.design")] || "Lithic";
-        return ctx.tr("%1 design").replace("%1", ctx.tr(design));
+        var colours = ctx.settings("theme.colours") === "wallpaper" ? "wallpaper colours" : "Ryoku's colours";
+        return ctx.tr("%1 design in %2").replace("%1", ctx.tr(design)).replace("%2", ctx.tr(colours));
     }
     case "window-style":
         if (!ctx.desktopReady)

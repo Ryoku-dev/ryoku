@@ -27,24 +27,6 @@ Scope {
         value: Settings.get("theme.motion.reduce") === true
     }
 
-    // Settings opens in the signature; following the wallpaper is the reader's choice (Look)
-    Binding {
-        target: Lithic
-        property: "mode"
-        value: Look.mode
-        when: !Look.forced
-    }
-    Binding {
-        target: Lithic
-        property: "contrast"
-        value: Look.contrastNow
-    }
-    Binding {
-        target: Lithic
-        property: "tint"
-        value: Look.tintNow
-    }
-
     FloatingWindow {
         id: win
         title: I18n.tr("Ryoku Settings")
@@ -67,7 +49,9 @@ Scope {
         }
     }
 
-    // the palette follows the files Lithic resolves it from
+    // the look follows the files Lithic resolves it from: the colours, light or dark, contrast,
+    // tint and design are the desktop's (Appearance > Style), so Settings wears what every
+    // Ryoku surface does
     FileView {
         path: root.configHome + "/ryoku/shell.json"
         watchChanges: true
@@ -82,6 +66,12 @@ Scope {
     }
     FileView {
         path: root.cacheHome + "/ryoku/colors.json"
+        watchChanges: true
+        printErrors: false
+        onFileChanged: Lithic.reload()
+    }
+    FileView {
+        path: root.configHome + "/ryoku/matugen.json"
         watchChanges: true
         printErrors: false
         onFileChanged: Lithic.reload()
