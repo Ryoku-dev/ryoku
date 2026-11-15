@@ -288,6 +288,7 @@ func reconcilers() []reconciler {
 		{i18n.T("retired cursor keys"), reconcileRetiredCursorLeaf},
 		{i18n.T("retired settings window size"), reconcileRetiredSettingsWindow},
 		{i18n.T("retired Advanced switch"), reconcileRetiredHubAdvanced},
+		{i18n.T("retired Settings colours"), reconcileRetiredHubColours},
 		{i18n.T("session target units"), reconcileSessionTarget},
 		{i18n.T("Turnstile session bus"), reconcileTurnstile},
 		{i18n.T("user service activation"), reconcileServiceManifest},

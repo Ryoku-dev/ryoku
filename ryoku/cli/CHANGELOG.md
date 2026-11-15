@@ -1,6 +1,12 @@
 # Ryoku CLI Changelog
 
 ## Unreleased
+- **Settings' own colours become the desktop's.** `ryoku doctor` carries
+  `hub.colours`, `hub.contrast` and `hub.tint` in shell.json into
+  `theme.colours`, `theme.contrast` and `theme.tint` while those still hold
+  their shipped values, then drops the hub keys; "light" carries as Ryoku's
+  colours, since light or dark is the desktop's now
+  (`internal/doctor/reconcile_retired_hub_colours.go`).
 - **A failed phone setup leaves the computer as it was.** `ryoku-host phone
   enable` used to undo a failure by running the full disable, which also
   removed packages and settings from an earlier setup. It now puts back only

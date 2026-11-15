@@ -5,6 +5,7 @@ Blade 1.0 Blade.qml
 ChiselColorBehavior 1.0 ChiselColorBehavior.qml
 ChiselNumberBehavior 1.0 ChiselNumberBehavior.qml
 CutRect 1.0 CutRect.qml
+DesignScope 1.0 DesignScope.qml
 Flake 1.0 Flake.qml
 FocusRing 1.0 FocusRing.qml
 Glyph 1.0 Glyph.qml

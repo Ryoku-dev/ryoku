@@ -77,7 +77,13 @@ var (
 	videoEngineValues     = []string{"ryogami", "in_shell"}
 	// theme.design: the design language every Ryoku surface draws in (shape, surfaces,
 	// selection), read by the Lithic library and ryoku/ui Tokens
-	designValues          = []string{"lithic", "material", "adwaita", "fluent"}
+	designValues = []string{"lithic", "material", "adwaita", "fluent"}
+	// theme.colours: whether Ryoku's own surfaces wear Ryoku's signature colours or the
+	// desktop's palette (the wallpaper's, or a named scheme); light or dark is the
+	// desktop's (matugen.json mode), so it is not kept here
+	coloursValues         = []string{"ryoku", "wallpaper"}
+	contrastValues        = []string{"standard", "high"}
+	tintValues            = []string{"off", "low", "medium"}
 	quickSettingsIconVals = []string{"Arch", "Fedora", "Hyprland", "Nix"}
 	orientationValues     = []string{"Horizontal", "Vertical"}
 	locQueryTypeValues    = []string{"Coordinates", "City"}
@@ -188,6 +194,9 @@ type locationQuery struct {
 type themeSettings struct {
 	Theme      string           `json:"theme"`
 	Design     string           `json:"design"`
+	Colours    string           `json:"colours"`
+	Contrast   string           `json:"contrast"`
+	Tint       string           `json:"tint"`
 	Attributes attributesConfig `json:"attributes"`
 	Motion     motionConfig     `json:"motion"`
 	Effects    effectsConfig    `json:"effects"`
@@ -438,10 +447,13 @@ func defaultSettings() *settings {
 			WeatherLocationQuery: locationQuery{Type: "Coordinates", Lat: 0, Lon: 0, Name: "", Country: ""},
 		},
 		Theme: themeSettings{
-			Theme:   "Default",
-			Design:  "lithic",
-			Motion:  motionConfig{Scale: 1, Reduce: false},
-			Effects: effectsConfig{Glass: true, Shadows: true},
+			Theme:    "Default",
+			Design:   "lithic",
+			Colours:  "ryoku",
+			Contrast: "standard",
+			Tint:     "off",
+			Motion:   motionConfig{Scale: 1, Reduce: false},
+			Effects:  effectsConfig{Glass: true, Shadows: true},
 			Attributes: attributesConfig{
 				Font:          fontConfig{Primary: "", Secondary: "", Tertiary: ""},
 				Sizing:        sizingConfig{RadiusWidget: 8, RadiusWindow: 8, BorderWidth: 2},
@@ -564,6 +576,16 @@ func (v *validator) enum(path, val string, set []string) {
 	}
 }
 
+// known is enum for a choice a newer or older build may have written: a file load
+// (lenient) turns an unknown value into def, a patch (strict) refuses it
+func (v *validator) known(path, val string, set []string, def string) string {
+	if !v.strict && !inSet(set, val) {
+		return def
+	}
+	v.enum(path, val, set)
+	return val
+}
+
 func (v *validator) nonEmpty(path, val string) {
 	if v.err != nil {
 		return
@@ -662,12 +684,12 @@ func (t *themeSettings) normalize(v *validator) {
 			}
 		}
 	}
-	// a design this build does not know (written by a newer or an older one) loads as
-	// Lithic rather than resetting the schema; a patch naming one is refused
-	if !v.strict && !inSet(designValues, t.Design) {
-		t.Design = "lithic"
-	}
-	v.enum("theme.design", t.Design, designValues)
+	// a value this build does not know (written by a newer or an older one) loads as the
+	// shipped one rather than resetting the schema; a patch naming one is refused
+	t.Design = v.known("theme.design", t.Design, designValues, "lithic")
+	t.Colours = v.known("theme.colours", t.Colours, coloursValues, "ryoku")
+	t.Contrast = v.known("theme.contrast", t.Contrast, contrastValues, "standard")
+	t.Tint = v.known("theme.tint", t.Tint, tintValues, "off")
 	v.rangeI("theme.attributes.sizing.radius_widget", &t.Attributes.Sizing.RadiusWidget, 0, 1000)
 	v.rangeI("theme.attributes.sizing.radius_window", &t.Attributes.Sizing.RadiusWindow, 0, 1000)
 	v.rangeI("theme.attributes.sizing.border_width", &t.Attributes.Sizing.BorderWidth, 0, 20)

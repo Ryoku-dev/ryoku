@@ -7,6 +7,13 @@
   shapes and colours in it, and `ryoku/ui` Tokens rounds the shell's own
   surfaces with it (`ipc/settings.go`, `ui/Singletons/Tokens.qml`,
   `docs/lithic/library/qml/Lithic`).
+- **Ryoku's colours are one choice in every design.** The shell settings gain
+  `theme.colours` (Ryoku's or the wallpaper's), `theme.contrast` and
+  `theme.tint`, validated by the daemon. The Lithic library reads them with
+  the desktop's light or dark, so switching the design keeps the colours, and
+  Ryoku's colours follow the desktop to light. A `DesignScope` draws real
+  controls in a design not in use (`ipc/settings.go`,
+  `docs/lithic/library/qml/Lithic`).
 - **Voice typing starts off until you enable it, and its toggle now works in
   both directions without the shortcut or voice card reporting the wrong state**
 - **Hyperion updates install the voice engine even when it was missing**

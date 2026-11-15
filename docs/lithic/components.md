@@ -46,8 +46,9 @@ In the QML library a CutRect follows the desktop's design (`shell.json`
 `theme.design`, see palette.md §2a): Lithic cuts its corners, the round
 designs draw the same shape as a rounded rectangle whose radius
 `Lithic.cornerRadius(cut, width, height)` derives from the cut. `design`
-names another design for one shape, which is how a preview of a design not in
-use draws itself.
+names another design for one shape, and every CutRect inside a
+`DesignScope` draws the scope's design, which is how a preview of a design
+not in use draws real controls.
 
 Library: QML Lithic.CutRect, web .l-cut, Go kit.FillCut and kit.StrokeCut, terminal -
 

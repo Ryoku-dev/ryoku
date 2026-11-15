@@ -16,13 +16,17 @@ Item {
     property alias cutNE: root.cutTopRight
     property alias cutSE: root.cutBottomRight
     property alias cutSW: root.cutBottomLeft
-    // the design language to draw in, "" for the desktop's: Lithic cuts each corner, the
-    // others round it (Lithic.cornerRadius)
+    // the design language to draw in: this shape's own, else the nearest DesignScope's, else
+    // the desktop's. Lithic cuts each corner, the others round it (Lithic.cornerRadius)
     property string design: ""
-    readonly property bool rounded: (root.design !== "" ? (Lithic.designs[root.design] || Lithic.shape) : Lithic.shape).corner === "round"
+    readonly property string _design: root.design !== "" ? root.design : root._scope ? root._scope.lithicDesign : ""
+    readonly property bool rounded: (root._design !== "" ? (Lithic.designs[root._design] || Lithic.shape) : Lithic.shape).corner === "round"
     function _radius(cut) {
-        return Lithic.cornerRadius(cut, root.width, root.height, root.design);
+        return Lithic.cornerRadius(cut, root.width, root.height, root._design);
     }
+    property Item _scope: null
+    onParentChanged: root._scope = Lithic.designScope(root)
+    Component.onCompleted: root._scope = Lithic.designScope(root)
     default property alias content: contentItem.data
 
     function _bounded(value) {

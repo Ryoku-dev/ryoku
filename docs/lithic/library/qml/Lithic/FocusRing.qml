@@ -12,20 +12,26 @@ Item {
     readonly property real outset: gap + ringWidth
     readonly property real _grownCut: cut + LithicTokens.size.focusCutGrow
     visible: keyboardFocusVisible
+    // the nearest DesignScope's design, else the desktop's
+    property Item _scope: null
+    onParentChanged: root._scope = Lithic.designScope(root)
+    Component.onCompleted: root._scope = Lithic.designScope(root)
+    readonly property string _design: root._scope ? root._scope.lithicDesign : ""
+    readonly property bool _round: (root._design !== "" ? (Lithic.designs[root._design] || Lithic.shape) : Lithic.shape).corner === "round"
 
     // the ring is drawn only while it shows, so an idle control carries no shape for it; a
     // design that rounds its corners rounds the ring with them
     Rectangle {
-        visible: root.visible && Lithic.shape.corner === "round"
+        visible: root.visible && root._round
         anchors.fill: parent
         color: "transparent"
         border.width: root.ringWidth
         border.color: root.color
-        radius: Lithic.cornerRadius(root._grownCut, root.width, root.height)
+        radius: Lithic.cornerRadius(root._grownCut, root.width, root.height, root._design)
     }
     Loader {
         anchors.fill: parent
-        active: root.visible && Lithic.shape.corner !== "round"
+        active: root.visible && !root._round
         sourceComponent: Component {
             Shape {
                 anchors.fill: parent

@@ -687,10 +687,23 @@ QtObject {
         onGold = result.onGold;
     }
 
-    // every role a design would wear now, for the one in use or for a preview of another
+    // the nearest DesignScope holding an item, or null: everything inside one draws in its
+    // design, so a preview can show real controls in a design not in use
+    function designScope(item) {
+        for (var p = item ? item.parent : null; p; p = p.parent) {
+            if (typeof p.lithicDesign === "string")
+                return p;
+        }
+        return null;
+    }
+
+    // every role a design would wear now, for the one in use or for a preview of another.
+    // Ryoku's colours (dark or light) are the signature in every design; the desktop's
+    // colours (follow) are the toned ladder in Lithic and the palette's own Material
+    // roles in the round designs
     function rolesFor(designId) {
         var profile = designs[designId] || designs.lithic;
-        if (profile.palette === "desktop") {
+        if (profile.palette === "desktop" && mode === "follow") {
             var desktop = _desktopRoles();
             if (_isColor(desktop.roles.surface))
                 return _materialFrom(desktop.roles, desktop.source, _luma(Qt.color(desktop.roles.surface)) <= 0.5);
@@ -712,7 +725,8 @@ QtObject {
         _ready = false;
         _environment = _readEnvironment();
         var environmentMode = environment("LITHIC_MODE");
-        if (_validMode(environmentMode))
+        var forced = _validMode(environmentMode);
+        if (forced)
             mode = environmentMode;
 
         var home = environment("HOME") || "";
@@ -733,6 +747,19 @@ QtObject {
         _wallpaper = _cleanRoles(_readObject(cacheHome + "/ryoku/colors.json"));
         _editionAccent = _parseEdition(_readText("/etc/os-release"));
         _hasEditionAccent = _editionAccent.a > 0;
+        // the desktop's look, unless a gallery or test run names its own mode: Ryoku's
+        // colours or the desktop's (shell.json theme.colours), contrast and tint, and light
+        // or dark as the desktop's palette is (matugen.json mode; smart and sun leave it
+        // to the palette's surface)
+        if (!forced) {
+            var look = shell && shell.theme && typeof shell.theme === "object" ? shell.theme : {};
+            var knobs = _readObject(configHome + "/ryoku/matugen.json");
+            var tone = knobs && (knobs.mode === "dark" || knobs.mode === "light") ? knobs.mode : "";
+            var light = tone === "light" || (tone === "" && _isColor(_wallpaper.surface) && _luma(Qt.color(_wallpaper.surface)) > 0.5);
+            mode = look.colours === "wallpaper" ? "follow" : light ? "light" : "dark";
+            contrast = look.contrast === "high" ? "high" : "standard";
+            tint = look.tint === "low" || look.tint === "medium" ? look.tint : "off";
+        }
 
         var overridePath = environment("LITHIC_PALETTE_JSON");
         if (overridePath) {
