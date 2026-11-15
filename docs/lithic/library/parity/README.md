@@ -16,7 +16,7 @@ Run it after changing the palette groups in `tokens.json`, anything in `go/palet
 
 Each case writes real config and cache files into a temporary home, then compares what
 each stack paints for a mode and a look (contrast and tint, standard and off unless named).
-Every Lithic app opens in the signature, so dark and light must paint it whatever the
+Ryoku's colours are the signature, so dark and light must paint it whatever the
 files hold: in those modes each case also checks that Go painted exactly what the
 `signature` case painted (`<case> <mode> is the signature`), and the browser receives the
 palette with this host's edition, as a daemon route would serve it.

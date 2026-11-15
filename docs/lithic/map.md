@@ -26,7 +26,7 @@ flowchart TD
     H --> I5[Terminal surfaces]
 ```
 
-Every Lithic app opens in the signature, the ryoku.dev stock: dark and light mode paint it with the edition accent and read no palette. Follow mode is the reader's choice; there the named scheme is first, a wallpaper palette is second when wallpaper following is active, and the signature fallback is last. [Palette](palette.md) defines the full resolution rule.
+Every Ryoku app wears the desktop's style and colours ([styles.md](styles.md)). Ryoku's colours are the signature, the ryoku.dev stock: dark and light mode paint it with the edition accent and read no palette. The wallpaper's colours are follow mode; there the named scheme is first, a wallpaper palette is second when wallpaper following is active, and the signature fallback is last. [Palette](palette.md) defines the full resolution rule.
 
 ## Component index
 

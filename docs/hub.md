@@ -37,7 +37,8 @@ kept in the shell settings, so every Ryoku surface wears it too:
   design rested on until one is chosen. Lithic cuts its corners and draws every
   plane by its hairline on one paper; Material lifts the page and its cards in
   steps, Adwaita sets the sidebar apart, Fluent outlines layered planes
-  (`Singletons/Tone.qml` `planes()`).
+  (`Lithic.planes()`, which `Singletons/Tone.qml` reads). The rule every app
+  meets is `docs/lithic/styles.md`.
 - **Colours** (`theme.colours`): Ryoku's own signature or the desktop's
   palette (the wallpaper's, or a fixed scheme). The same in every design:
   changing the design never changes the colours.

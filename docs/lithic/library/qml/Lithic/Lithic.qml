@@ -68,6 +68,25 @@ QtObject {
         return Math.min(cut * profile.scale, profile.max, least / 2);
     }
 
+    // the planes a window lays out in a design, from a role set (Lithic itself, or
+    // rolesFor(id) for a preview): side (rail or sidebar), pane (the page) and card (a group
+    // of rows), each with a stroke that is transparent where the design draws none.
+    // Lithic: one paper, every plane a hairline. Material: the page a step up from the
+    // ground, its cards a step more, no lines. Adwaita: the sidebar set apart, cards on the
+    // page. Fluent: layered planes, each with a thin outline
+    function planes(designId, r) {
+        var roles = r || root;
+        var id = designs[designId] ? designId : shape.id;
+        if (id === "material")
+            return { side: roles.ground, pane: roles.stone1, paneStroke: "transparent", card: roles.stone3, cardStroke: "transparent" };
+        if (id === "adwaita")
+            return { side: roles.stone3, pane: roles.ground, paneStroke: "transparent", card: roles.stone4, cardStroke: "transparent" };
+        if (id === "fluent")
+            return { side: roles.ground, pane: roles.stone3, paneStroke: roles.vein, card: roles.stone4, cardStroke: alpha(roles.vein, 0.7) };
+        // a plain slab is drawn by its hairline alone
+        return { side: roles.ground, pane: roles.stone2, paneStroke: roles.vein, card: roles.slab, cardStroke: roles.vein };
+    }
+
     // the one copy of the faces sits in the Go library, which embeds it
     readonly property list<QtObject> _faces: [
         FontLoader { source: "../../go/fonts/Geologica-Regular.ttf" },

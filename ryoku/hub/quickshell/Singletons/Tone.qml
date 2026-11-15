@@ -12,21 +12,8 @@ Singleton {
     readonly property string design: Lithic.shape.id
     readonly property bool flat: design === "lithic"
 
-    // the planes a design lays out, from a role set (Lithic itself, or Lithic.rolesFor(id)
-    // for a preview of another design). Lithic: one paper, every plane a hairline. Material:
-    // the page a step up from the ground, its cards a step more, no lines. Adwaita: a sidebar
-    // set apart from the page, cards on it. Fluent: layered planes, each with a thin outline
-    function planes(id, r) {
-        if (id === "material")
-            return { side: r.ground, pane: r.stone1, paneStroke: "transparent", card: r.stone3, cardStroke: "transparent" };
-        if (id === "adwaita")
-            return { side: r.stone3, pane: r.ground, paneStroke: "transparent", card: r.stone4, cardStroke: "transparent" };
-        if (id === "fluent")
-            return { side: r.ground, pane: r.stone3, paneStroke: r.vein, card: r.stone4, cardStroke: Lithic.alpha(r.vein, 0.7) };
-        // a plain slab (r.slab) is drawn by its hairline alone
-        return { side: r.ground, pane: r.stone2, paneStroke: r.vein, card: r.slab, cardStroke: r.vein };
-    }
-    readonly property var _planes: planes(design, Lithic)
+    // the planes of the style in use, from the library
+    readonly property var _planes: Lithic.planes()
 
     readonly property color side: _planes.side
     readonly property color pane: _planes.pane

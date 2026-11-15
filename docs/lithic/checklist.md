@@ -1,18 +1,38 @@
 # Checklist
 
 Use this to review a surface that claims to be Lithic: a new app, a new page,
-a port of an existing screen. Take a screenshot at each size class in the dark
-and light signature and, following, in a dark and in a light Ryoku palette, at
-Contrast standard and high and with Tint off and on, and go down the list.
-Every "no" is a defect.
+a port of an existing screen. Take a screenshot at each size class in each of
+the four styles, in Ryoku's colours and the wallpaper's (on a colourful
+wallpaper), in dark and in light, at Contrast standard and high and with Tint
+off and on, and go down the list. Every "no" is a defect. The Colour, Shape
+and Space sections below describe the Lithic style.
+
+## Styles and colours
+
+The rule is [styles.md](styles.md).
+
+- [ ] The surface draws in Lithic, Material, Adwaita and Fluent, taken from
+      `theme.design`; switching the style while it is open reshapes it at once.
+- [ ] It wears Ryoku's colours by default and the wallpaper's when
+      `theme.colours` says so; switching changes it at once.
+- [ ] Switching the style never changes the colours, and switching the
+      colours never changes the shapes.
+- [ ] Dark and light both work in both colour sources, and follow the
+      desktop's Light or dark.
+- [ ] It has no style or colour picker of its own; at most it links to
+      Settings › Style.
+- [ ] No `radius` is set by hand: every shape is a cut drawn by the library's
+      cut primitive, and the window's planes come from the library.
+- [ ] Its stack is marked "Yes" in the table in
+      [styles.md](styles.md#where-each-stack-stands), or the review says it is
+      not done.
 
 ## Colour
 
 - [ ] No colour value appears in the UI code except the signature fallback
       and the three fixed minerals (jade, lapis, amber), both clearly marked.
-- [ ] The app opens in the signature, the ryoku.dev stock, even while a
-      wallpaper palette exists; following the wallpaper is a choice the
-      reader makes in the app.
+- [ ] On Ryoku's colours, the surface is the signature, the ryoku.dev stock,
+      even while a wallpaper palette exists.
 - [ ] Following, changing the wallpaper changes ground, panes, bone and gold;
       jade, lapis and amber stay.
 - [ ] Following, a named theme (`themePalette`) wins over the wallpaper
@@ -46,7 +66,7 @@ Every "no" is a defect.
 
 ## Shape
 
-- [ ] No rounded corner anywhere. No pill.
+- [ ] In Lithic, no rounded corner anywhere and no pill.
 - [ ] Cuts come from the scale: 3, 4, 5, 6, 7, 12, 16 (8 for menus and
       placards, 4 for tooltips). Nothing in between.
 - [ ] Every control with a cut has a fill or a hairline that clears APCA

@@ -36,7 +36,7 @@ Ryoku ships the module compiled: `build.sh <qml-import-dir>` builds it to byteco
 
 `Lithic` reads palette files through synchronous `file://` XHR only during startup and an explicit `reload()`. Plain QML therefore needs `QML_XHR_ALLOW_FILE_READ=1`. Set `QT_FORCE_STDERR_LOGGING=1` on every plain QML run so Qt writes warnings to stderr instead of sending them only to the journal. The library never polls and has no palette timer.
 
-Every Lithic app opens in the signature, the ryoku.dev stock. Following the wallpaper is a choice the reader makes in the app, never the default. `mode` is `dark` unless the app or `LITHIC_MODE` sets it; `dark` and `light` paint the signature tables with the `/etc/os-release` edition colour as the action accent and use no palette, the host's included. Only `follow` resolves, in this order:
+The library wears the desktop's look ([styles.md](../../styles.md)): it reads `theme.design`, `theme.colours`, `theme.contrast`, `theme.tint` and the desktop's light or dark, so an app sets none of them. `LITHIC_MODE` and `LITHIC_DESIGN` override the files for one run. Ryoku's colours are `dark` or `light`, the wallpaper's are `follow`; `dark` and `light` paint the signature tables with the `/etc/os-release` edition colour as the action accent and use no palette, the host's included. Only `follow` resolves, in this order:
 
 1. A host palette from `setPalette` or `LITHIC_PALETTE_JSON`.
 2. `themePalette` from `$XDG_CONFIG_HOME/ryoku/shell.json`.
@@ -45,30 +45,32 @@ Every Lithic app opens in the signature, the ryoku.dev stock. Following the wall
 
 `LITHIC_MODE` accepts `dark`, `light`, or `follow`. `LITHIC_PALETTE_JSON` names a palette file override for deterministic gallery and test runs.
 
-A Quickshell host that offers following should watch the files it already owns while the reader follows, and feed the resolved palette to the library. `FileView.watchChanges` follows atomic file replacement without polling:
+A Quickshell host watches the four files the look comes from and calls `Lithic.reload()` when one changes; it never sets the mode, contrast, tint or palette itself. `FileView.watchChanges` follows atomic file replacement without polling:
 
 ```qml
+import Quickshell
 import Quickshell.Io
 import Lithic
 
-FileView {
-    id: paletteFile
-    path: palettePath
-    watchChanges: true
-    onFileChanged: reload()
-    onLoaded: {
-        var parsed = {};
-        try {
-            parsed = JSON.parse(text() || "{}");
-        } catch (error) {
-            parsed = {};
+Scope {
+    id: look
+    readonly property string config: Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config"
+    readonly property string cache: Quickshell.env("XDG_CACHE_HOME") || Quickshell.env("HOME") + "/.cache"
+    Variants {
+        model: [look.config + "/ryoku/shell.json", look.config + "/ryoku/theme.json",
+                look.config + "/ryoku/matugen.json", look.cache + "/ryoku/colors.json"]
+        FileView {
+            required property string modelData
+            path: modelData
+            watchChanges: true
+            printErrors: false
+            onFileChanged: Lithic.reload()
         }
-        Lithic.setPalette(parsed, "follow");
     }
 }
 ```
 
-The host remains responsible for applying named-scheme precedence when it watches all three files. Call `setPalette` again after each watched reload. Palette changes snap to the new roles. State changes may animate separately.
+Palette changes snap to the new roles. State changes may animate separately. Ryoku Settings' `ShellBody.qml` is a working host.
 
 ## Lithic singleton
 
@@ -76,9 +78,11 @@ The host remains responsible for applying named-scheme precedence when it watche
 
 | Name | Type | Meaning |
 |---|---|---|
-| `mode` | string | `dark` (default), `light`, or `follow`. Invalid values reset to `dark`. |
-| `contrast` | string | `standard` (default) or `high`. Invalid values reset to `standard`. See [palette.md](../../palette.md#contrast-and-tint). |
-| `tint` | string | `off` (default), `low`, or `medium`. Invalid values reset to `off`. |
+| `mode` | string | `dark`, `light`, or `follow`, read from the desktop's `theme.colours` and light or dark ([styles.md](../../styles.md)). Set it only in a gallery or test, through `LITHIC_MODE`. |
+| `contrast` | string | `standard` or `high`, read from `theme.contrast`. See [palette.md](../../palette.md#contrast-and-tint). |
+| `tint` | string | `off`, `low`, or `medium`, read from `theme.tint`. |
+| `design` | string, read only | The style in use: `lithic`, `material`, `adwaita` or `fluent`, read from `theme.design`; `LITHIC_DESIGN` overrides it for one run. |
+| `shape` | object, read only | The style's corner profile from `designs`: `corner` (`cut` or `round`), `scale`, `pill`, `max`. |
 | `dark` | bool, read only | Resolved palette brightness. |
 | `source` | string, read only | `signature`, `wallpaper`, `scheme`, or `host`. |
 | `reduceMotion` | bool | Makes `duration(ms)` return zero. |
@@ -86,7 +90,7 @@ The host remains responsible for applying named-scheme precedence when it watche
 
 ### Roles
 
-Every role is a read-only `color`: `ground`, `stone1`, `stone2`, `stone3`, `stone4`, `slab`, `field`, `vein`, `edge`, `fg`, `fg2`, `fg3`, `sel`, `onSel`, `onSel2`, `gold`, `onGold`, `goldInk`, `jade`, `lapis`, `amber`, `jasper`, and `scrim`.
+Every role is a read-only `color`: `ground`, `stone1`, `stone2`, `stone3`, `stone4`, `slab`, `field`, `vein`, `edge`, `fg`, `fg2`, `fg3`, `sel`, `onSel`, `onSel2`, `gold`, `onGold`, `goldInk`, `jade`, `lapis`, `amber`, `jasper`, `scrim`, and `container` with `containerInk` (the soft tone under a selection and the ink on it).
 
 Use `Lithic.inkOn(Lithic.jasper)` for danger-fill content. Do not assume a fixed light or dark danger ink.
 
@@ -115,6 +119,16 @@ Each token candidate list is checked against `Qt.fontFamilies()` in order, and t
 | `inkOn(c)` | Black or white, whichever has greater contrast on `c`. |
 | `contrastRatio(a, b)` | WCAG contrast ratio. |
 | `environment(name)` | Process environment value, or an empty string. Intended for gallery hosts. |
+
+### Styles
+
+| Function or type | Result |
+|---|---|
+| `planes(design, roles)` | The window's planes in a style: `side`, `pane`, `paneStroke`, `card`, `cardStroke`. Both arguments are optional: the style in use and its roles. |
+| `cornerRadius(cut, width, height, design)` | The corner a shape with this cut wears in a style: the cut in Lithic, a radius in the others. `CutRect` and `FocusRing` call it for you. |
+| `rolesFor(design)` | Every role a style would wear now, for a preview of a style not in use. |
+| `desktopRoles` | The desktop's palette as `{ roles, source }`, whatever the colours choice. |
+| `DesignScope { lithicDesign }` | Every `CutRect` and `FocusRing` inside draws this style. For previews. |
 
 ### Recipes
 
@@ -195,7 +209,7 @@ Component.onCompleted: Lithic.undo = () => Changes.undo(page.id)
 
 ### CutRect
 
-A filled polygon with independent 45 degree corner cuts and an optional wholly inside stroke.
+A filled shape with independent corner cuts and an optional wholly inside stroke. In the Lithic style the corners are 45 degree cuts; in the other styles the same shape is drawn with the rounded corner `Lithic.cornerRadius()` derives from the cut, so give every shape its cut and never a radius. `design` draws one shape in a named style; inside a `DesignScope`, the scope's style wins over the desktop's.
 
 - `fill: color`
 - `strokeColor: color`

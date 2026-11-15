@@ -1,13 +1,13 @@
 # Applying the Ryoku palette
 
-Lithic has no colours of its own. It has **roles**. Every Lithic app opens
-in the signature, the ryoku.dev stock. Following the wallpaper is a choice
-the reader makes in the app, never the default. When the reader makes it,
-the roles are filled from the palette the Ryoku desktop is already using, so
-the app matches the wallpaper, the chosen theme and every other Ryoku
-surface, and changes with them. This page is the complete recipe. Implement
-it once, as one function from palette to roles, and never write a colour
-value anywhere else in the app.
+Lithic has no colours of its own. It has **roles**. The reader chooses the
+colours once for the whole desktop, in Settings › Appearance › Style: Ryoku's
+own colours (the signature, the ryoku.dev stock, and the default) or the
+desktop's palette, from the wallpaper or a fixed scheme. Every Ryoku app wears
+that choice; [styles.md](styles.md) is the rule and where the choice lives.
+This page is the recipe that turns either source into roles. Implement it once,
+as one function from palette to roles, and never write a colour value anywhere
+else in the app.
 
 Reference: `ui/theme/palette.go` (`FromPalette`) and
 `internal/palette/palette.go` (`Load`), `edition.go`, `watch.go` in Ryoport.
@@ -65,45 +65,36 @@ signature.
 
 Following, dark or light is decided by the palette's `surface` luma.
 
-### 2a. The desktop's look (QML library)
+### 2a. Which source the desktop chose
 
-Unless `LITHIC_MODE` names a mode, the QML library takes the app's look from
-the desktop's files, which every Ryoku surface shares (chosen on Settings'
-Style page, validated by the shell daemon):
+The desktop's choice ([styles.md](styles.md#where-the-choice-lives)) sets the
+mode of §2, unless `LITHIC_MODE` names one for the run:
 
-- `shell.json` `theme.colours`: `ryoku` paints the signature (§5) in dark or
-  light, `wallpaper` follows (§2). Light or dark for the signature is
-  `matugen.json` `mode` when it is `dark` or `light`, else (smart, sun) the
-  palette's `surface` luma.
-- `theme.contrast` (`standard`, `high`) and `theme.tint` (`off`, `low`,
-  `medium`) are the look of §3.
-- `theme.design` names the design: `lithic` (the default), `material`,
-  `adwaita` or `fluent`; `LITHIC_DESIGN` overrides it for one run. `ryoku/ui`
-  Tokens reads it too, so the shell's own surfaces round their corners with it.
+- `theme.colours` `ryoku` is the signature (§5): dark or light as
+  `matugen.json` `mode` says (`dark`, `light`), else (`smart`, `sun`) as the
+  palette's `surface` luma says. `wallpaper` is follow (§2).
+- `theme.contrast` and `theme.tint` are the look of §3.
 
-The colours do not depend on the design. On Ryoku's colours every design
-wears the signature. Following, Lithic tones its ladder from the palette (§3)
-and the round designs take the palette's Material roles as they are:
-`ground` and `stone2` are `surface`, `stone1` `surfaceContainerLow`, `stone3`
-`surfaceContainer`, `stone4` `surfaceContainerHigh`, `field`
-`surfaceContainerHighest`, `vein` and `edge` `outlineVariant` and `outline`,
-the inks `onSurface` and `onSurfaceVariant`, `sel` and `onSel` `primary` and
-`onPrimary`, `gold` `tertiary`, `jasper` `error`. A role the palette lacks
-keeps the toned value.
+The colours never depend on the style. On Ryoku's colours every style wears
+the signature. Following, Lithic tones its ladder from the palette (§3), while
+Material, Adwaita and Fluent take the palette's Material roles as they are:
 
-- Every design publishes `container` and `containerInk`, the soft tone under
-  a selection and the ink on it: the round designs' `secondaryContainer` and
-  `onSecondaryContainer` when following, else `sel` at 16 percent and `fg`.
-- `Lithic.designs` holds each design's corner: a control at most `pill` high
-  is a pill, a larger shape rounds by its cut times `scale`, never past `max`
-  (Material 2.6 to 28, Adwaita 1.6 to 14, Fluent 0.75 to 8).
-  `Lithic.rolesFor(design)` returns every role a design would wear now.
-- A `DesignScope { lithicDesign: "material" }` makes every `CutRect` and
-  focus ring inside it draw that design, so real controls can preview a
-  design not in use; colours stay the app's.
+| Lithic role | Material role |
+|---|---|
+| `ground`, `stone2`, `slab` | `surface` |
+| `stone1` | `surfaceContainerLow` |
+| `stone3` | `surfaceContainer` |
+| `stone4` | `surfaceContainerHigh` |
+| `field` | `surfaceContainerHighest` |
+| `vein`, `edge` | `outlineVariant`, `outline` |
+| `fg`, `fg2` | `onSurface`, `onSurfaceVariant` |
+| `sel`, `onSel` | `primary`, `onPrimary` |
+| `gold`, `goldInk`, `onGold` | `tertiary`, `tertiary`, `onTertiary` |
+| `jasper` | `error` |
+| `container`, `containerInk` | `secondaryContainer`, `onSecondaryContainer` |
 
-The Go and web libraries do not read `theme.design` yet; they always draw
-Lithic.
+A role the palette lacks keeps its toned value. On Ryoku's colours, and in
+Lithic, `container` is `sel` at 16 percent and `containerInk` is `fg`.
 
 ## 3. Mapping palette roles to Lithic roles
 

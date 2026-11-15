@@ -34,14 +34,25 @@ the principles, the cut grammar, the stones, the type ramp and the motion.*
 
 ## Design language
 
-Cut, not molded. Nine rules, and everything below is one of them applied.
+**Every Ryoku UI follows the reader's style and colours.** The reader picks
+one of four styles (Lithic, Material, Adwaita, Fluent) and Ryoku's own colours
+or the wallpaper's, light or dark, once, in Settings › Appearance › Style.
+Every surface and every app made for Ryoku draws in that choice, follows a
+change live, and keeps no picker of its own. The rule, where the choice lives
+and how to meet it in each stack: `docs/lithic/styles.md`. Read it before
+building anything visible.
 
-1. **Cut, not molded.** Corners are cut at 45 degrees or square, never rounded.
+Lithic is the default style and the language the rest of this page describes:
+cut, not molded. Nine rules, and everything below is one of them applied.
+
+1. **Cut, not molded.** In Lithic, corners are cut at 45 degrees or square.
    The cut follows the scale of the thing: 16 on panes and dialogs, 12 for a
    row's state notch, 7 on buttons and fields, 6 on small controls, 4 on a
-   toggle track, 3 on tokens. Only content (a logo, a chart, the VRAM ring) may
-   curve. The outer window rounding is the compositor's and the user's knob;
-   inside our surfaces nothing rounds.
+   toggle track, 3 on tokens. The other styles round the same shapes: a
+   surface gives every shape its cut and the library turns it into the style's
+   corner, so nothing sets a radius by hand. Only content (a logo, a chart, the
+   VRAM ring) may curve freely. The outer window rounding is the compositor's
+   and the user's knob.
 2. **Flat planes.** Every surface is one flat tone. Depth is the order of tones:
    ground, stone 1, stone 2, stone 3, stone 4, then bone. No gradient, glow,
    blur, inner shadow or inset well. An overlay is a solid scrim and a slab one
@@ -304,6 +315,9 @@ language, numerals in prose included. Setting a surface in mono makes it a
 terminal, and setting a label in caps makes it a poster; Lithic is neither.
 
 ## Shape: the cut scale
+
+This is the Lithic style; Material, Adwaita and Fluent draw the same cuts as
+rounded corners (`docs/lithic/styles.md`).
 
 A cut is a 45 degree chamfer measured along one edge, and the eight-point
 outline of a rectangle with cut `c` on every corner is

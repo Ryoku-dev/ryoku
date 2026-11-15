@@ -16,7 +16,8 @@ New here? Read these in order, then keep them open while you work:
 - `docs/conventions.md` how code and configuration are written here.
 - `docs/ui-ux.md` the desktop's look and motion, and how to build or replicate it.
 - `docs/lithic/` the Lithic design language itself: roles from the palette, cuts,
-  type, components, motion, and the kits for building it in any stack.
+  type, components, motion, and the kits for building it in any stack. Start
+  with `docs/lithic/styles.md`, the rule every Ryoku UI meets.
 - `docs/development.md` the workflow: deploy, test, the commit gates, and research.
 - `docs/updates.md` how a change reaches a running machine, and the delivery contract.
 
@@ -71,6 +72,13 @@ These are not negotiable. Most are enforced by the git hooks in `.githooks/`.
    removed or renamed `shell.json` key needs a doctor
    reconciler, and work reaches users only once `main` fast-forwards. See
    `docs/updates.md`; `ryoku-dev-verify-delivery` enforces it.
+
+9. **Every Ryoku UI wears the reader's style and colours.** Anything Ryoku draws,
+   in any stack, draws in the four styles (Lithic, Material, Adwaita, Fluent),
+   in Ryoku's own colours (the default) or the wallpaper's, light or dark, as
+   chosen once in Settings › Appearance › Style, and follows a change live. No
+   app keeps its own style or colour picker, and no surface sets a corner
+   radius or a colour value by hand. See `docs/lithic/styles.md`.
 
 ## Top-level map
 

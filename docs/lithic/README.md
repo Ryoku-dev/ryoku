@@ -1,6 +1,6 @@
 # Lithic
 
-Lithic is Ryoku's UI language: cut, not molded. It builds calm, flat surfaces from palette roles, 45 degree cuts, plain state words and motion that answers an action and then stops. Every Lithic app opens in the signature, the ryoku.dev stock; following the wallpaper is a choice the reader makes in the app.
+Lithic is Ryoku's UI language: cut, not molded. It builds calm, flat surfaces from palette roles, 45 degree cuts, plain state words and motion that answers an action and then stops. It is also the default of four **styles** (Lithic, Material, Adwaita, Fluent), and every Ryoku app draws in whichever the reader chose, in Ryoku's own colours or the wallpaper's. Start with [styles.md](styles.md): it is the rule every Ryoku app must meet.
 
 ![Fleet list and detail window in Lithic](media/sheet-fleet.png)
 
@@ -11,6 +11,7 @@ Lithic is Ryoku's UI language: cut, not molded. It builds calm, flat surfaces fr
 | `README.md` | Start here, choose a reading path and import a library. |
 | [map.md](map.md) | Find the component or pattern that fits an intent. |
 | [working.md](working.md) | Build a new surface or upgrade an existing one. |
+| [styles.md](styles.md) | The rule: every Ryoku app draws in the four styles, in Ryoku's colours or the wallpaper's, and how to meet it. |
 | [design.md](design.md) | Define the language, principles, shape and type. |
 | [palette.md](palette.md) | Resolve Ryoku palette sources into Lithic roles. |
 | [components.md](components.md) | Specify component anatomy, state, interaction and accessibility. |
@@ -84,7 +85,7 @@ Lithic is Ryoku's UI language: cut, not molded. It builds calm, flat surfaces fr
 
 ## Read order
 
-Read [design.md](design.md), [palette.md](palette.md) and [map.md](map.md) first. Read [components.md](components.md) and [layout.md](layout.md) while composing a surface, then [motion.md](motion.md) and [copy.md](copy.md). Follow [working.md](working.md) for implementation and finish with [checklist.md](checklist.md).
+Read [styles.md](styles.md) first: it is short and it is the rule. Then [design.md](design.md), [palette.md](palette.md) and [map.md](map.md). Read [components.md](components.md) and [layout.md](layout.md) while composing a surface, then [motion.md](motion.md) and [copy.md](copy.md). Follow [working.md](working.md) for implementation and finish with [checklist.md](checklist.md).
 
 ## Quick start
 
@@ -140,9 +141,9 @@ The [sheet index](examples/sheets/README.md) links every source sheet.
 
 ## Rules
 
+- Draw in the desktop's style and colours ([styles.md](styles.md)): all four styles, Ryoku's colours and the wallpaper's, light and dark. Never offer a style or colour picker of your own.
 - Use palette roles, never colour values in a surface.
-- Open in the signature. Follow the wallpaper only when the reader chooses it in the app.
-- Cut corners at 45 degrees or leave them square. Do not round them.
+- Give every shape a cut from the scale and draw it with the library's cut primitive. Lithic cuts it at 45 degrees; the other styles round it. Never set a corner radius yourself.
 - Do not add shadows, gradients, glows, inset wells or status dots. Blur can
   be used where it fits and looks good, as a faint hint under a picture or on a
   scrim ([design.md](design.md#blur-where-it-fits)).
@@ -151,4 +152,4 @@ The [sheet index](examples/sheets/README.md) links every source sheet.
 - Take dimensions, type and motion from the tokens.
 - Use sentence case.
 - Move only in response to an action, and stop when the response is complete.
-- Check dark, light and follow modes before calling a surface complete.
+- Check all four styles, Ryoku's colours and the wallpaper's, dark and light before calling a surface complete.

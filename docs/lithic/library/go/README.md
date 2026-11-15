@@ -43,7 +43,7 @@ th := theme.New(roles)
 
 ## Palette API
 
-Every Lithic app opens in the signature, the ryoku.dev stock. Following the wallpaper is a choice the reader makes in the app, never the default. `palette` uses only the Go standard library. `Load(Dark)` and `Load(Light)` read only `/etc/os-release`, for the edition accent. `Load(Follow)` reads these files in precedence order:
+A Ryoku app wears the desktop's style and colours ([styles.md](../../styles.md)). This library does not read that choice yet: the app passes `Dark`, `Light` or `Follow` itself, from `theme.colours` and the desktop's light or dark, and every shape is drawn in the Lithic style. `palette` uses only the Go standard library. `Load(Dark)` and `Load(Light)` read only `/etc/os-release`, for the edition accent. `Load(Follow)` reads these files in precedence order:
 
 1. `$XDG_CONFIG_HOME/ryoku/shell.json`, key `themePalette`
 2. `$XDG_CACHE_HOME/ryoku/colors.json` unless `$XDG_CONFIG_HOME/ryoku/theme.json` sets `followWallpaper` to false

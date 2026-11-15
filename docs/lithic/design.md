@@ -17,6 +17,7 @@ Read this page first. The companion pages go deeper on one subject each:
 
 | Page | Subject |
 |---|---|
+| [styles.md](styles.md) | The rule every Ryoku app meets: the four styles, Ryoku's colours and the wallpaper's, and where the reader's choice lives. Read it first. |
 | [palette.md](palette.md) | Where colour comes from: applying the live Ryoku matugen palette to Lithic's roles. There are no colour values in Lithic, only roles and a mapping. |
 | [components.md](components.md) | The component catalogue: anatomy, geometry, states and motion for every control. |
 | [layout.md](layout.md) | Size classes, the rail, panes, pages, overlays, focus and keyboard. |
@@ -114,14 +115,14 @@ comments and in reviews so everyone means the same thing.
 ## 3. Materials: roles, not colours
 
 Lithic has no palette of its own. Every colour in a Lithic surface is a
-**role**. Every Lithic app opens in the signature, the ryoku.dev stock.
-Following the wallpaper is a choice the reader makes in the app, never the
-default. The **signature** is black paper, bone ink and the dark orange sun
-as the one action (a warm grey paper in light mode); its tables live in
-`tokens.json`. When the reader chooses to follow, the live Ryoku palette
-(matugen) dyes each role while Lithic keeps its lightness on a fixed ladder,
-so the app matches the wallpaper, changes with it, and never loses its
-contrast. [palette.md](palette.md) is the complete recipe. The short version:
+**role**. The reader picks the colours once for the whole desktop
+([styles.md](styles.md)): Ryoku's own, the default, or the wallpaper's. Ryoku's
+own are the **signature**: black paper, bone ink and the dark orange sun as
+the one action (a warm grey paper in light mode); its tables live in
+`tokens.json`. On the wallpaper's colours, the live Ryoku palette (matugen)
+dyes each role while Lithic keeps its lightness on a fixed ladder, so the app
+matches the wallpaper, changes with it, and never loses its contrast.
+[palette.md](palette.md) is the complete recipe. The short version:
 
 | Role | Used for | Following, dyed by |
 |---|---|---|
@@ -258,6 +259,11 @@ Sentence case everywhere. Never all caps, not even for group headers; a
 cover's carved word is the one line in capitals.
 
 ## 5. Shape: the cut scale
+
+This section is the Lithic style. Every shape still takes its cut from this
+scale in Material, Adwaita and Fluent; the library turns the cut into that
+style's rounded corner ([styles.md](styles.md#the-four-styles)), so a surface
+writes cuts only and never a radius.
 
 A cut is a 45 degree chamfer measured along one edge. The eight-point outline
 of a rectangle `(x0, y0, x1, y1)` with cut `c` on every corner is
@@ -455,10 +461,12 @@ Do:
 
 Don't:
 
-- Round a corner or draw a pill.
+- Round a corner or draw a pill yourself; the library does it for the
+  round styles.
 - Add a shadow, gradient, glow or inset well, or sink anything below its plane.
-- Stack a lighter slab on a lighter pane: a group is drawn by its hairline,
-  not by a fill.
+- Stack a lighter slab on a lighter pane in the Lithic style: a group is
+  drawn by its hairline, not by a fill. The other styles take their planes
+  from the library (`Lithic.planes()`), never from a tone picked by hand.
 - Blur a control, type or a state, or use blur in place of a tone step.
 - Use gold for status, decoration or navigation; use bone for anything but the current place.
 - Use Martian Mono for prose, labels, counts or proofs; it is for literal data.

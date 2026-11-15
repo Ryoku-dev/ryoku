@@ -9,10 +9,10 @@ Use this page for a new surface, a redesign or a migration. The same sequence ap
 3. **List the states.** Give each state a tone, one plain word and a proof. A colour without a word is not a state.
 4. **Find the one consequential action.** Give only that action a gold plaque. Keep following actions as line plaques and rare actions in an overflow menu.
 5. **Compose from the map.** Use [map.md](map.md) to choose components before writing custom presentation.
-6. **Hook the palette.** Use roles from [palette.md](palette.md), never colour values. Open in the signature (dark mode, the default) and let the library resolve the named, wallpaper and fallback sources only when the reader chooses to follow the wallpaper.
+6. **Hook the style and the palette.** Follow [styles.md](styles.md): read the desktop's style and colours, draw every shape as a cut through the library, take planes from the library, and use roles from [palette.md](palette.md), never colour values. Ryoku's colours are the default; the wallpaper's are the reader's desktop-wide choice, never an in-app one.
 7. **Set the motion budget.** Use [motion.md](motion.md), move only in response to a cause, stop when the response ends, and keep nothing moving at rest.
 8. **Write the copy.** Use [copy.md](copy.md) for sentence case, claims, proofs, labels and consequences.
-9. **Review and render.** Follow [checklist.md](checklist.md), inspect dark, light and follow modes, and compare the render with the relevant sheet.
+9. **Review and render.** Follow [checklist.md](checklist.md), inspect all four styles, Ryoku's colours and the wallpaper's, dark and light, and compare the render with the relevant sheet.
 
 ## Adopt a library
 

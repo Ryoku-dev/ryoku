@@ -34,7 +34,7 @@ Serve `library/web/` without changing the relative paths between its files. Incl
 
 ## Palette input
 
-Every Lithic app opens in the signature, the ryoku.dev stock. Following the wallpaper is a choice the reader makes in the app, never the default. `?mode=dark`, `?mode=light`, and `?mode=follow` select the mode; dark is the default. Dark and light paint the signature tables from `tokens.js`, with an edition named in the palette descriptor as the action, and ignore every palette role. Only follow resolves `?palette=`; without it, follow applies the signature too. `?contrast=standard|high` and `?tint=off|low|medium` select the look; standard and off are the defaults, and an unknown value is ignored.
+A Ryoku page wears the desktop's style and colours ([styles.md](../../styles.md)). This library does not read that choice yet: the page passes the mode itself, and every shape is drawn in the Lithic style. `?mode=dark`, `?mode=light`, and `?mode=follow` select the mode; dark is the default. Dark and light paint the signature tables from `tokens.js`, with an edition named in the palette descriptor as the action, and ignore every palette role. Only follow resolves `?palette=`; without it, follow applies the signature too. `?contrast=standard|high` and `?tint=off|low|medium` select the look; standard and off are the defaults, and an unknown value is ignored.
 
 A normal page cannot read `~/.cache/ryoku/colors.json` or `/etc/os-release`. A Ryoku app should expose a narrow daemon route that serves only the resolved palette input, then point the page at it:
 

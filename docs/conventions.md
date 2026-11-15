@@ -104,6 +104,15 @@ own native format under its own directory: `kitty.conf`,
 That is correct, not a violation. Do not invent a Lua wrapper for a tool that
 reads its own format.
 
+## Every UI follows the reader's style and colours
+
+A surface or app made for Ryoku draws in the style and the colours the reader
+chose in Settings › Appearance › Style: Lithic, Material, Adwaita or Fluent,
+in Ryoku's colours or the wallpaper's, light or dark. It reads that choice,
+follows a change live and never offers its own picker. Give every shape a cut
+and let the library draw the corner; take colours from roles. The rule and the
+per-stack recipe: `docs/lithic/styles.md`.
+
 ## No duplication
 
 Search before adding. There is one source for each config, script, value, and

@@ -19,7 +19,7 @@ DesignScope {
         Lithic.tint;
         return Lithic.rolesFor(root.lithicDesign);
     }
-    readonly property var p: Tone.planes(root.lithicDesign, root.r)
+    readonly property var p: Lithic.planes(root.lithicDesign, root.r)
 
     implicitHeight: 276
 
