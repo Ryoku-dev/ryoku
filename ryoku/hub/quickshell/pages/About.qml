@@ -219,7 +219,7 @@ Item {
             spacing: LithicTokens.space.s2
             Label {
                 width: parent.width
-                text: I18n.tr("The crash test crew, the alpha and beta testers who break it first")
+                text: I18n.tr("The people who helped lift Ryoku up in its alpha days, testing it before anyone else")
                 typeRole: "row"
                 wrapMode: Text.Wrap
                 elide: Text.ElideNone
