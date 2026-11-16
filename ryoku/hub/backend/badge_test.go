@@ -157,6 +157,8 @@ func TestBadgeActivationDevice(t *testing.T) {
 	}
 	key := filepath.Join(t.TempDir(), "mika.key")
 	os.WriteFile(key, []byte(base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{2}, 32))), 0644)
+	// a restrictive umask would have masked the mode WriteFile asked for
+	os.Chmod(key, 0644)
 	if _, e = loadIssuerSeed("mika", key); e == nil {
 		t.Fatal("public key file accepted")
 	}
