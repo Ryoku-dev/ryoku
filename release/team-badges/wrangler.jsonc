@@ -6,12 +6,16 @@
   "workers_dev": false,
   "routes": [{ "pattern": "team.ryoku.dev", "custom_domain": true }],
   "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "ryoku-team" }],
+  "triggers": { "crons": ["17 3 * * *"] },
   "ratelimits": [
     { "name": "READ_LIMITER", "namespace_id": "2026111501", "simple": { "limit": 120, "period": 60 } },
-    { "name": "WRITE_LIMITER", "namespace_id": "2026111502", "simple": { "limit": 20, "period": 60 } }
+    { "name": "WRITE_LIMITER", "namespace_id": "2026111502", "simple": { "limit": 20, "period": 60 } },
+    { "name": "PULL_LIMITER", "namespace_id": "2026111603", "simple": { "limit": 10, "period": 60 } }
   ],
   "vars": {
     "OWNER_KEY": "tlIg8prWfO0dMfd9IO3qxklONGHbSq7w3bUiu6QWuro=",
-    "MIKA_KEY": "TtnSdWqRm4UPQ4JXa5IG8yBKp/xbxTudgO/C/AeBnUg="
+    "MIKA_KEY": "TtnSdWqRm4UPQ4JXa5IG8yBKp/xbxTudgO/C/AeBnUg=",
+    "CARD_LIMIT": "20000",
+    "PULL_SECONDS": "900"
   }
 }

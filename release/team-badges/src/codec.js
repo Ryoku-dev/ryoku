@@ -116,8 +116,9 @@ export async function verifyCode(kind, text, env = {}) {
 }
 export function cardPayload(record) {
   requireThat(record && typeof record === 'object' && !Array.isArray(record), 'Invalid card record');
-  requireThat(Object.keys(record).sort().join(',') === 'body,id,picture,sig,updated,v', 'Invalid record fields');
+  requireThat(Object.keys(record).filter(key => key !== 'device').sort().join(',') === 'body,id,picture,sig,updated,v', 'Invalid record fields');
   requireThat(record.v === 2 && typeof record.id === 'string' && CARD_ID.test(record.id) && Number.isSafeInteger(record.updated) && record.updated >= 0, 'Invalid card metadata');
+  requireThat(record.device === undefined || unbase64(record.device).length === 32, 'Invalid card device');
   requireThat(record.picture === '' || (typeof record.picture === 'string' && SHA.test(record.picture)), 'Invalid picture hash');
   const body = unbase64(record.body);
   requireThat(body.length >= 19 && body.length <= 78 && body[0] >> 4 === 3 && (body[0] & 3) === 0 && ((body[0] >> 2) & 3) <= 2 && body[5] >> 5 <= 5 && ((body[5] >> 2) & 7) <= 5, 'Invalid card body');
@@ -137,6 +138,34 @@ export function cardPayload(record) {
 }
 export async function verifyCard(record, device) {
   return verifySignature(device, unbase64(record.sig), 'ryoku-card-v2', cardPayload(record));
+}
+// the id comes from the device key, so a record carrying that key vouches for itself
+export async function verifyDeviceCard(record) {
+  cardPayload(record);
+  if (record.device === undefined) return false;
+  const device = unbase64(record.device);
+  return await cardId(device) === record.id && verifyCard(record, device);
+}
+function u64(value) {
+  const bytes = new Uint8Array(8);
+  new DataView(bytes.buffer).setBigUint64(0, BigInt(value));
+  return bytes;
+}
+const fresh = (at, now) => Number.isSafeInteger(at) && at >= 0 && Math.abs(now - at) <= 600;
+export async function verifyDelete(request, devices, now) {
+  requireThat(request && typeof request === 'object' && !Array.isArray(request) && Object.keys(request).sort().join(',') === 'at,id,sig', 'Invalid card delete');
+  requireThat(typeof request.id === 'string' && CARD_ID.test(request.id) && fresh(request.at, now), 'Invalid card id or timestamp');
+  const signature = unbase64(request.sig), payload = concat(unhex(request.id), u64(request.at));
+  for (const device of devices) if (await verifySignature(device, signature, 'ryoku-card-delete-v1', payload)) return true;
+  return false;
+}
+// resolves to the badge when its own device signed a recent pull, throws otherwise
+export async function verifyHolder(holder, env, now) {
+  requireThat(holder && typeof holder === 'object' && !Array.isArray(holder) && Object.keys(holder).sort().join(',') === 'at,badge,sig', 'Invalid holder');
+  requireThat(fresh(holder.at, now), 'Invalid holder time');
+  const badge = await verifyCode('RYB', holder.badge, env);
+  requireThat(await verifySignature(badge.device, unbase64(holder.sig), 'ryoku-pull-v1', concat(unhex(badge.id), u64(holder.at))), 'Invalid holder signature');
+  return badge;
 }
 export async function verifyUpload(header, method, path, sha, env, now) {
   requireThat(typeof header === 'string', 'Missing upload authorization');

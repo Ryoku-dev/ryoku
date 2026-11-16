@@ -3,6 +3,124 @@ import { InputError, verifyCode } from './codec.js';
 const ATTEMPTS = 8;
 const condition = object => object ? { etagMatches: object.etag } : { etagDoesNotMatch: '*' };
 const conflict = message => { throw new InputError(message, 409); };
+const same = (a, b) => Object.keys(a).length === Object.keys(b).length && Object.keys(a).every(key => Object.hasOwn(b, key) && b[key] === a[key]);
+const isMap = value => value && typeof value === 'object' && !Array.isArray(value);
+
+const INDEX = 'cards/index.json';
+const RECORD_KEY = /^cards\/([0-9a-f]{16})\.json$/;
+const EXPIRY_SECONDS = 90 * 86400;
+// three R2 calls per card, 300 keeps a run under the 1,000 calls a free invocation gets
+const EXPIRY_BATCH = 300;
+// a copy fetched before a delete still fits the 600 s upload window for a while, so keep refusing it
+const TOMBSTONE_SECONDS = 3600;
+const indexMemos = new WeakMap();
+
+export async function* objects(bucket, prefix) {
+  let cursor;
+  do {
+    const page = await bucket.list({ prefix, ...(cursor ? { cursor } : {}) });
+    for (const object of page.objects) yield object;
+    cursor = page.truncated ? page.cursor : undefined;
+    if (page.truncated && !cursor) throw new Error('Invalid storage pagination');
+  } while (cursor);
+}
+export async function storedRecord(object) {
+  if (!object) return null;
+  try {
+    const record = JSON.parse(await object.text());
+    return isMap(record) && Number.isSafeInteger(record.updated) ? record : null;
+  } catch { return null; }
+}
+async function removeRecord(env, id, object) {
+  const pictureKey = object.customMetadata?.pictureKey;
+  await env.BUCKET.delete([`cards/${id}.json`, ...(pictureKey ? [pictureKey] : [])]);
+}
+
+function indexMemo(env) {
+  let memo = indexMemos.get(env.BUCKET);
+  if (!memo) indexMemos.set(env.BUCKET, memo = { data: null, loaded: 0, pending: null, generation: 0 });
+  return memo;
+}
+// a read that started before a write here must not overwrite what the write remembered
+function remember(env, data, generation) {
+  const memo = indexMemo(env);
+  if (generation !== undefined && generation !== memo.generation) return;
+  memo.generation++;
+  memo.data = data;
+  memo.loaded = Date.now();
+}
+// records from before the index existed join it when it's first created
+async function seedCards(env) {
+  const cards = {};
+  for await (const { key } of objects(env.BUCKET, 'cards/')) {
+    const id = RECORD_KEY.exec(key)?.[1];
+    const record = id ? await storedRecord(await env.BUCKET.get(key)) : null;
+    if (record) cards[id] = record.updated;
+  }
+  return cards;
+}
+async function loadIndex(env) {
+  const generation = indexMemo(env).generation;
+  const stored = await env.BUCKET.get(INDEX);
+  let data;
+  if (stored) {
+    const value = JSON.parse(await stored.text());
+    if (value?.v !== 1 || !isMap(value.cards) || !isMap(value.deleted)) throw new Error('Invalid card index');
+    data = { cards: value.cards, deleted: value.deleted };
+  } else data = { cards: await seedCards(env), deleted: {} };
+  remember(env, data, generation);
+  return { stored, ...data };
+}
+export async function cardIndex(env) {
+  const memo = indexMemo(env);
+  if (memo.data && Date.now() - memo.loaded < 30_000) return memo.data;
+  memo.pending ??= loadIndex(env).finally(() => { memo.pending = null; });
+  await memo.pending;
+  return memo.data;
+}
+export async function admitRecord(env, record, limit) {
+  const index = await loadIndex(env);
+  if (Object.hasOwn(index.deleted, record.id) && record.updated <= index.deleted[record.id]) throw new InputError('Card record is not newer');
+  if (!Object.hasOwn(index.cards, record.id) && Object.keys(index.cards).length >= limit) throw new InputError('Card service is full', 507);
+  return index;
+}
+// each entry comes from the record read after the index, so whichever conditional write lands last saw every record change before it
+export async function reconcileIndex(env, ids, now, { tombstones = {}, loaded } = {}) {
+  for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+    const { stored, cards, deleted } = attempt === 0 && loaded ? loaded : await loadIndex(env);
+    const next = { cards: { ...cards }, deleted: {} };
+    for (const [id, at] of [...Object.entries(deleted), ...Object.entries(tombstones)]) {
+      if (at > now - TOMBSTONE_SECONDS && !(next.deleted[id] >= at)) next.deleted[id] = at;
+    }
+    for (const id of ids) {
+      const object = await env.BUCKET.get(`cards/${id}.json`);
+      let record = await storedRecord(object);
+      // an old copy uploaded beside a delete must not bring the card back
+      if (record && Object.hasOwn(next.deleted, id) && record.updated <= next.deleted[id]) { await removeRecord(env, id, object); record = null; }
+      if (record) next.cards[id] = record.updated; else delete next.cards[id];
+    }
+    // skipping is only safe when no record was read, a reconcile that saw a newer record has to move the etag
+    if (stored && !ids.length && same(next.cards, cards) && same(next.deleted, deleted)) return;
+    if (await env.BUCKET.put(INDEX, JSON.stringify({ v: 1, ...next }), { onlyIf: condition(stored), httpMetadata: { contentType: 'application/json' } })) {
+      remember(env, next);
+      return;
+    }
+  }
+  conflict('Card index changed concurrently');
+}
+export async function deleteRecord(env, id, object, record, now) {
+  await removeRecord(env, id, object);
+  await reconcileIndex(env, [id], now, { tombstones: record ? { [id]: record.updated } : {} });
+}
+export async function expireCards(env, now) {
+  const cutoff = now - EXPIRY_SECONDS, loaded = await loadIndex(env);
+  const stale = Object.keys(loaded.cards).filter(id => loaded.cards[id] < cutoff).slice(0, EXPIRY_BATCH);
+  for (const id of stale) {
+    const object = await env.BUCKET.get(`cards/${id}.json`), record = await storedRecord(object);
+    if (object && !(record?.updated >= cutoff)) await removeRecord(env, id, object);
+  }
+  await reconcileIndex(env, stale, now, { loaded });
+}
 
 export async function reserveBadge(env, badge, initialActive) {
   const key = `logins/${badge.login.toLowerCase()}.json`;

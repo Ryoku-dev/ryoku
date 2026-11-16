@@ -42,6 +42,20 @@ export async function record(device, fields = {}) {
   record.sig = base64(await sign(device, 'ryoku-card-v2', cardPayload(record)));
   return record;
 }
+export async function deviceRecord(device, fields = {}) {
+  return record(device, { device: base64(device.raw), ...fields });
+}
+function u64(value) {
+  const bytes = new Uint8Array(8);
+  new DataView(bytes.buffer).setBigUint64(0, BigInt(value));
+  return bytes;
+}
+export async function deleteRequest(device, id, at = now()) {
+  return { id, at, sig: base64(await sign(device, 'ryoku-card-delete-v1', concat(unhex(id), u64(at)))) };
+}
+export async function holderProof(device, badge, badgeId, at = now()) {
+  return { badge, at, sig: base64(await sign(device, 'ryoku-pull-v1', concat(unhex(badgeId), u64(at)))) };
+}
 export async function uploadHeader(signer, issuer, path, bytes, seconds = now(), method = 'PUT') {
   const payload = new TextEncoder().encode(`${method}\n${path}\n${seconds}\n${await digest(bytes)}`);
   return `${issuer}.${seconds}.${base64(await sign(signer, 'ryoku-upload-v1', payload))}`;
@@ -68,7 +82,7 @@ export class Bucket {
     return value ? { ...metadata, body: new Response(value).body, text: async () => new TextDecoder().decode(value) } : null;
   }
   async head(key) { return this.data.has(key) ? { key, ...this.metadata.get(key) } : null; }
-  async delete(key) { this.data.delete(key); this.metadata.delete(key); }
+  async delete(keys) { for (const key of [keys].flat()) { this.data.delete(key); this.metadata.delete(key); } }
   async list({ prefix, cursor }) {
     const matches = [...this.data.keys()].filter(key => key.startsWith(prefix)).sort();
     const start = Number(cursor || 0), end = start + 2;

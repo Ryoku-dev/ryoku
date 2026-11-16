@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import { base64, digest, verifyCode } from '../src/codec.js';
 import { call, cardBody, code, jpeg, keys, record, setup } from './helpers.js';
 
+// list counts inventory listings, creating the card index lists cards/ once on its own
 function countReads(bucket) {
   const counts = { list: 0, badges: 0, cards: 0, other: 0 };
   const list = bucket.list.bind(bucket), get = bucket.get.bind(bucket);
-  bucket.list = async options => { counts.list++; return list(options); };
+  bucket.list = async options => { if (!options.prefix.startsWith('cards/')) counts.list++; return list(options); };
   bucket.get = async key => {
     counts[key.startsWith('badges/') ? 'badges' : key.startsWith('cards/') ? 'cards' : 'other']++;
     return get(key);

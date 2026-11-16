@@ -165,7 +165,8 @@
       "updated": 1794787200,
       "body": "NAAAAAAAfgb4cmA9yJkIbmV1cjBtYXALdGVzdCB2ZWN0b3IABGhhd2sA",
       "picture": "",
-      "sig": "YzjvoxMtEIIKPekvd8o4LDo+xvssNMcCo22QLYh4yY29++v4DXDUY965NDR2ySz/HCAlbdKuYvmGxDYLQe1QAA=="
+      "sig": "YzjvoxMtEIIKPekvd8o4LDo+xvssNMcCo22QLYh4yY29++v4DXDUY965NDR2ySz/HCAlbdKuYvmGxDYLQe1QAA==",
+      "device": "7UkoxijRwsbq6QM4kFmVYSlZJzpcY/k2NsFGFKyHN9E="
     },
     "valid": true
   },
@@ -180,7 +181,8 @@
       "updated": 1794787201,
       "body": "NAAAAAAAfgb4cmA9yJkIbmV1cjBtYXALdGVzdCB2ZWN0b3IABGhhd2sA",
       "picture": "",
-      "sig": "YzjvoxMtEIIKPekvd8o4LDo+xvssNMcCo22QLYh4yY29++v4DXDUY965NDR2ySz/HCAlbdKuYvmGxDYLQe1QAA=="
+      "sig": "YzjvoxMtEIIKPekvd8o4LDo+xvssNMcCo22QLYh4yY29++v4DXDUY965NDR2ySz/HCAlbdKuYvmGxDYLQe1QAA==",
+      "device": "7UkoxijRwsbq6QM4kFmVYSlZJzpcY/k2NsFGFKyHN9E="
     },
     "valid": false
   },
@@ -195,7 +197,8 @@
       "updated": 1794787200,
       "body": "NAAAAAAAfgb4cmA9yJkIbmV1cjBtYXALdGVzdCB2ZWN0b3IABGhhd2sA",
       "picture": "",
-      "sig": "YzjvoxMtEIIKPekvd8o4LDo+xvssNMcCo22QLYh4yY29++v4DXDUY965NDR2ySz/HCAlbdKuYvmGxDYLQe1QAA=="
+      "sig": "YzjvoxMtEIIKPekvd8o4LDo+xvssNMcCo22QLYh4yY29++v4DXDUY965NDR2ySz/HCAlbdKuYvmGxDYLQe1QAA==",
+      "device": "7UkoxijRwsbq6QM4kFmVYSlZJzpcY/k2NsFGFKyHN9E="
     },
     "valid": false
   },
@@ -210,7 +213,8 @@
       "updated": 1794787200,
       "body": "NAAAAAAAfgb4cmA9yJkIbmV1cjBtYXALdGVzdCB2ZWN0b3IABGhhd2sA",
       "picture": "",
-      "sig": "YzjvoxMtEIIKPekvd8o4LDo+xvssNMcCo22QLYh4yY29++v4DXDUY965NDR2ySz/HCAlbdKuYvmGxDYLQe1QAA=="
+      "sig": "YzjvoxMtEIIKPekvd8o4LDo+xvssNMcCo22QLYh4yY29++v4DXDUY965NDR2ySz/HCAlbdKuYvmGxDYLQe1QAA==",
+      "device": "7UkoxijRwsbq6QM4kFmVYSlZJzpcY/k2NsFGFKyHN9E="
     },
     "valid": false
   },
@@ -225,8 +229,190 @@
       "updated": 1794787200,
       "body": "NAAAAAAAfgb4cmA9yJkIbmV1cjBtYXALdGVzdCB2ZWN0b3IABGhhd2sA",
       "picture": "",
+      "sig": "YzjvoxMtEIIKPekvd8o4LDo+xvssNMcCo22QLYh4yY29++v4DXDUY965NDR2ySz/HCAlbdKuYvmGxDYLQe1QAA==",
+      "device": "7UkoxijRwsbq6QM4kFmVYSlZJzpcY/k2NsFGFKyHN9E="
+    },
+    "valid": false
+  },
+  {
+    "kind": "deviceCard",
+    "mikaKey": "gTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5Q=",
+    "ownerKey": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=",
+    "record": {
+      "v": 2,
+      "id": "7e06f872603dc899",
+      "updated": 1794787200,
+      "body": "NAAAAAAAfgb4cmA9yJkIbmV1cjBtYXALdGVzdCB2ZWN0b3IABGhhd2sA",
+      "picture": "",
+      "sig": "YzjvoxMtEIIKPekvd8o4LDo+xvssNMcCo22QLYh4yY29++v4DXDUY965NDR2ySz/HCAlbdKuYvmGxDYLQe1QAA==",
+      "device": "7UkoxijRwsbq6QM4kFmVYSlZJzpcY/k2NsFGFKyHN9E="
+    },
+    "valid": true
+  },
+  {
+    "kind": "deviceCard",
+    "mikaKey": "gTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5Q=",
+    "ownerKey": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=",
+    "record": {
+      "v": 2,
+      "id": "7e06f872603dc899",
+      "updated": 1794787200,
+      "body": "NAAAAAAAfgb4cmA9yJkIbmV1cjBtYXALdGVzdCB2ZWN0b3IABGhhd2sA",
+      "picture": "",
       "sig": "YzjvoxMtEIIKPekvd8o4LDo+xvssNMcCo22QLYh4yY29++v4DXDUY965NDR2ySz/HCAlbdKuYvmGxDYLQe1QAA=="
     },
+    "valid": false
+  },
+  {
+    "kind": "deviceCard",
+    "mikaKey": "gTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5Q=",
+    "ownerKey": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=",
+    "record": {
+      "v": 2,
+      "id": "7e06f872603dc899",
+      "updated": 1794787200,
+      "body": "NAAAAAAAfgb4cmA9yJkIbmV1cjBtYXALdGVzdCB2ZWN0b3IABGhhd2sA",
+      "picture": "",
+      "sig": "YzjvoxMtEIIKPekvd8o4LDo+xvssNMcCo22QLYh4yY29++v4DXDUY965NDR2ySz/HCAlbdKuYvmGxDYLQe1QAA==",
+      "device": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w="
+    },
+    "valid": false
+  },
+  {
+    "kind": "deviceCard",
+    "mikaKey": "gTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5Q=",
+    "ownerKey": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=",
+    "record": {
+      "v": 2,
+      "id": "7e06f872603dc899",
+      "updated": 1794787200,
+      "body": "NAAAAAAAfgb4cmA9yJkIbmV1cjBtYXALdGVzdCB2ZWN0b3IABGhhd2sA",
+      "picture": "",
+      "sig": "YzjvoxMtEIIKPekvd8o4LDo+xvssNMcCo22QLYh4yY29++v4DXDUY965NDR2ySz/HCAlbdKuYvmGxDYLQe1QAA==",
+      "device": "7UkoxijRwsbq6QM4kFmVYSlZJzpcY/k2NsFGFKyHNw=="
+    },
+    "valid": false
+  },
+  {
+    "kind": "deviceCard",
+    "mikaKey": "gTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5Q=",
+    "ownerKey": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=",
+    "record": {
+      "v": 2,
+      "id": "7e06f872603dc899",
+      "updated": 1794787201,
+      "body": "NAAAAAAAfgb4cmA9yJkIbmV1cjBtYXALdGVzdCB2ZWN0b3IABGhhd2sA",
+      "picture": "",
+      "sig": "YzjvoxMtEIIKPekvd8o4LDo+xvssNMcCo22QLYh4yY29++v4DXDUY965NDR2ySz/HCAlbdKuYvmGxDYLQe1QAA==",
+      "device": "7UkoxijRwsbq6QM4kFmVYSlZJzpcY/k2NsFGFKyHN9E="
+    },
+    "valid": false
+  },
+  {
+    "kind": "deviceCard",
+    "mikaKey": "gTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5Q=",
+    "ownerKey": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=",
+    "record": {
+      "v": 2,
+      "id": "7e06f872603dc899",
+      "updated": 1794787200,
+      "body": "NAAAAAAAfgb4cmA9yJkIbmV1cjBtYXALdGVzdCB2ZWN0b3IABGhhd2sA",
+      "picture": "",
+      "sig": "wbDEP+6W8loOaolxK6dKAwOmc/Us0FDB+JVbTZQ0cyNxg6lMNKd3qU60VjRs+vBCAjUuo6j5eaT+7JqZacn+Bg==",
+      "device": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w="
+    },
+    "valid": false
+  },
+  {
+    "at": 1794787200,
+    "deviceKey": "7UkoxijRwsbq6QM4kFmVYSlZJzpcY/k2NsFGFKyHN9E=",
+    "id": "7e06f872603dc899",
+    "kind": "cardDelete",
+    "mikaKey": "gTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5Q=",
+    "now": 1794787800,
+    "ownerKey": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=",
+    "sig": "Iqkq8bYN1cxRjm/3yucOiXX1TlVtOsyyUz4cq0+L2Wa4hknQWMV+zDTilMrZDmQKal8GdwRczYUxTy3hyUYHCQ==",
+    "valid": true
+  },
+  {
+    "at": 1794787200,
+    "deviceKey": "7UkoxijRwsbq6QM4kFmVYSlZJzpcY/k2NsFGFKyHN9E=",
+    "id": "7e06f872603dc899",
+    "kind": "cardDelete",
+    "mikaKey": "gTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5Q=",
+    "now": 1794787801,
+    "ownerKey": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=",
+    "sig": "Iqkq8bYN1cxRjm/3yucOiXX1TlVtOsyyUz4cq0+L2Wa4hknQWMV+zDTilMrZDmQKal8GdwRczYUxTy3hyUYHCQ==",
+    "valid": false
+  },
+  {
+    "at": 1794787201,
+    "deviceKey": "7UkoxijRwsbq6QM4kFmVYSlZJzpcY/k2NsFGFKyHN9E=",
+    "id": "7e06f872603dc899",
+    "kind": "cardDelete",
+    "mikaKey": "gTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5Q=",
+    "now": 1794787200,
+    "ownerKey": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=",
+    "sig": "Iqkq8bYN1cxRjm/3yucOiXX1TlVtOsyyUz4cq0+L2Wa4hknQWMV+zDTilMrZDmQKal8GdwRczYUxTy3hyUYHCQ==",
+    "valid": false
+  },
+  {
+    "at": 1794787200,
+    "deviceKey": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=",
+    "id": "7e06f872603dc899",
+    "kind": "cardDelete",
+    "mikaKey": "gTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5Q=",
+    "now": 1794787200,
+    "ownerKey": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=",
+    "sig": "Iqkq8bYN1cxRjm/3yucOiXX1TlVtOsyyUz4cq0+L2Wa4hknQWMV+zDTilMrZDmQKal8GdwRczYUxTy3hyUYHCQ==",
+    "valid": false
+  },
+  {
+    "holder": {
+      "at": 1794787200,
+      "badge": "RYB-080G9-VA953-32HME-2RVNE-J0SRJ-1CSAR-99B4K-KMQ33-Z4V3D-GA62J-P8EDY-H04Z0-GVK5E-NS30V-B1E19-0V4HA-XKA5D-20433-D68AT-WV4NR-ZSWVF-W2ZM8-VVE9Q-M1Z4H-M3RPV-4FP8K-PG58F-2FGAH-Q3Y8M-XBSPR-YHJWT-D7QXK-YCRA6-2W8Y3-6Q0EG-4",
+      "sig": "rCwCJorV4mkyjxg3+wFg7RfNjl7UFgVLOttzQo8WvT+XigMHAo8TzuTdNhibajK+uMDNihnTkcUjBse0awSbDA=="
+    },
+    "kind": "pullHolder",
+    "mikaKey": "gTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5Q=",
+    "now": 1794787800,
+    "ownerKey": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=",
+    "valid": true
+  },
+  {
+    "holder": {
+      "at": 1794787200,
+      "badge": "RYB-080G9-VA953-32HME-2RVNE-J0SRJ-1CSAR-99B4K-KMQ33-Z4V3D-GA62J-P8EDY-H04Z0-GVK5E-NS30V-B1E19-0V4HA-XKA5D-20433-D68AT-WV4NR-ZSWVF-W2ZM8-VVE9Q-M1Z4H-M3RPV-4FP8K-PG58F-2FGAH-Q3Y8M-XBSPR-YHJWT-D7QXK-YCRA6-2W8Y3-6Q0EG-4",
+      "sig": "q3POsA+nAdLzIMiRygeT5P9VvfEWp5V6G5z1kq70bHstODc/FACy8l73olMNkpdHp4l5kOD6uoJ1KwPP/mypAA=="
+    },
+    "kind": "pullHolder",
+    "mikaKey": "gTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5Q=",
+    "now": 1794787200,
+    "ownerKey": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=",
+    "valid": false
+  },
+  {
+    "holder": {
+      "at": 1794787200,
+      "badge": "RYB-080G9-VA953-32HME-2RVNE-J0SRJ-1CSAR-99B4K-KMQ33-Z4V3D-GA62J-P8EDY-H04Z0-GVK5E-NS30V-B1E19-0V4HA-XKA5D-20433-D68AT-WV4NR-ZSWVF-W2ZM8-VVE9Q-M1Z4H-M3RPV-4FP8K-PG58F-2FGAH-Q3Y8M-XBSPR-YHJWT-D7QXK-YCRA6-2W8Y3-6Q0EG-4",
+      "sig": "rCwCJorV4mkyjxg3+wFg7RfNjl7UFgVLOttzQo8WvT+XigMHAo8TzuTdNhibajK+uMDNihnTkcUjBse0awSbDA=="
+    },
+    "kind": "pullHolder",
+    "mikaKey": "gTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5Q=",
+    "now": 1794787801,
+    "ownerKey": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=",
+    "valid": false
+  },
+  {
+    "holder": {
+      "at": 1794787200,
+      "badge": "RYB-080G9-VA953-32HME-2RVNE-J0SRJ-1CSAR-99B4K-KMQ33-Z4V3D-GA62J-P8EDY-H04Z0-GVK5E-NS30V-B1E19-0V4HA-XKA5D-20433-D68AT-WV4NR-ZSWVF-W2ZM8-VVE9Q-M1Z4H-M3RPV-4FP8K-PG58F-2FGAH-Q3Y8M-XBSPR-YHJWT-D7QXK-YCRA6-2W8Y3-6Q0EG-4",
+      "sig": "rSwCJorV4mkyjxg3+wFg7RfNjl7UFgVLOttzQo8WvT+XigMHAo8TzuTdNhibajK+uMDNihnTkcUjBse0awSbDA=="
+    },
+    "kind": "pullHolder",
+    "mikaKey": "gTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5Q=",
+    "now": 1794787200,
+    "ownerKey": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=",
     "valid": false
   },
   {
