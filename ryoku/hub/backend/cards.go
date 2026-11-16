@@ -43,6 +43,7 @@ type cardHardware struct {
 	Refresh  int    `json:"refresh"`
 	Width    int    `json:"width"`
 	GPUClass int    `json:"gpuClass"`
+	IGPU     bool   `json:"igpu"`
 	GPU      string `json:"gpu"`
 	Distro   string `json:"distro"`
 	WM       string `json:"wm"`
@@ -199,7 +200,7 @@ func entryForDesign(d codedDesign, levels [][]int) binderCard {
 		Name: d.name, Tagline: d.tagline, Epithet: d.epithet,
 		Hero: cardHero{Kind: "default"},
 		HW: cardHardware{Threads: d.threads, RamGb: d.ramGb, Refresh: d.refresh, Width: d.width,
-			GPUClass: d.gpuClass, GPU: d.gpu,
+			GPUClass: d.gpuClass, IGPU: d.igpu, GPU: d.gpu,
 			Distro: []string{"", "Arch Linux", "CachyOS", "Fedora", "Void", "NixOS"}[d.distro],
 			WM:     []string{"", "Hyprland", "Niri", "Wayfire"}[d.wm]},
 		Levels:     levels,

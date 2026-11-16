@@ -103,8 +103,11 @@
   `cardonline.go`, `cardrecord.go`, `release/team-badges/`).
 - **Built-in graphics count toward a card's rarity.** Intel and AMD graphics
   in the processor earn 1 point, the strong ones (Radeon 680M to 890M, Arc 130V
-  and 140V) 2 and Strix Halo 3. They earn no power, which stays for discrete
-  cards, and a discrete card wins a tie (`quickshell/registry/rarity.js`,
+  and 140V) 2 and Strix Halo 3, and built-in graphics beside a graphics card
+  add 1 point on top of it. They earn no power, which stays for discrete
+  cards, and a discrete card wins a tie. Cards now use card code version 4,
+  which carries that; an older Ryoku says to update before it can read them
+  (`quickshell/registry/rarity.js`, `backend/cardcode.go`,
   `Singletons/CardCode.qml`, `components/about/TradingCard.qml`,
   `BinderCompare.qml`).
 - **Every badge reads as issued by neur0map.** The certificate's fine print

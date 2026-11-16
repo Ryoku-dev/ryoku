@@ -72,13 +72,29 @@ function discrete(cls, name) {
     return cls > 0 && !integrated(name);
 }
 
-// m: { threads, ramGb, gpuClass or gpus: [names], refresh, width }
+// built-in graphics beside a discrete card, which earn one point on top of the card's class
+function bothGraphics(names) {
+    var built = false, card = false;
+    for (var i = 0; i < names.length; i++) {
+        var n = String(names[i] || "");
+        if (integrated(n))
+            built = true;
+        else if (gpuClass(n) > 0)
+            card = true;
+    }
+    return built && card;
+}
+
+// m: { threads, ramGb, gpuClass and igpu (as a card carries them) or gpus: [names], refresh, width }
 // -> { points, tier, next, toNext, parts: [{ id, points }] }
 function of(m) {
+    var carried = typeof m.gpuClass === "number";
+    var best = carried ? m.gpuClass : (m.gpus || []).reduce((top, g) => Math.max(top, gpuClass(g)), 0);
+    var beside = carried ? m.igpu === true : bothGraphics(m.gpus || []);
     var parts = [
         { id: "cpu", points: step(m.threads || 0, [4, 8, 12, 16, 24, 32]) },
         { id: "ram", points: step(m.ramGb || 0, [8, 16, 32, 64, 128]) },
-        { id: "gpu", points: typeof m.gpuClass === "number" ? m.gpuClass : (m.gpus || []).reduce((best, g) => Math.max(best, gpuClass(g)), 0) },
+        { id: "gpu", points: best + (beside ? 1 : 0) },
         { id: "display", points: step(m.refresh || 0, [144, 240]) + step(m.width || 0, [2560, 3840]) }
     ];
     var points = parts.reduce((a, p) => a + p.points, 0);

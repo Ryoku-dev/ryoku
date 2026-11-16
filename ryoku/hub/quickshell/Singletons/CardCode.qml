@@ -22,9 +22,11 @@ Singleton {
     readonly property int displayWidth: root.num(/^(\d+)/, SysInfo.sysResolution)
     readonly property string strongestGpu: Rarity.strongest([SysInfo.sysGpu, SysInfo.sysGpu2])
     readonly property int graphicsClass: Rarity.gpuClass(root.strongestGpu)
+    readonly property bool builtInBeside: Rarity.bothGraphics([SysInfo.sysGpu, SysInfo.sysGpu2])
     readonly property string gpu: root.strongestGpu.replace(/NVIDIA |GeForce |AMD |Radeon |Intel | Laptop GPU| Max-Q/gi, "").trim()
     readonly property var argv: ["ryoku-hub", "profile", "code", "--threads", String(root.threads), "--ram", String(root.ramGb),
         "--refresh", String(root.refreshRate), "--width", String(root.displayWidth), "--gpu-class", String(root.graphicsClass),
+        "--igpu=" + String(root.builtInBeside),
         "--gpu", root.gpu, "--distro", root.distro, "--wm", Settings.provider || ""]
     onArgvChanged: { root.refresh(); Badge.scheduleSync(); }
 

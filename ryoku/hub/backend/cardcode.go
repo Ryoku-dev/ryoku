@@ -31,8 +31,10 @@ const (
 	rulerTick   = 2.0
 	rulerCount  = 138
 	rulerUnit   = 2.5 // a level's height step; level n stands (n+1) units tall
-	codeVersion = 3
-	codeParity  = 20 // parity bytes: up to 10 misread bytes are repaired
+	codeVersion = 4
+	// version 3 has the same body without the integrated-graphics bit; it is still read
+	oldestReadVersion = 3
+	codeParity        = 20 // parity bytes: up to 10 misread bytes are repaired
 )
 
 // the rulers' tops, in design units; each heads a band the card sets one move in, clear
@@ -65,12 +67,14 @@ type cardCode struct {
 }
 
 type codedDesign struct {
-	kind       int // 0 stock, 1 gallery, 2 own picture
-	threads    int
-	ramGb      int
-	refresh    int
-	width      int
-	gpuClass   int
+	kind     int // 0 stock, 1 gallery, 2 own picture
+	threads  int
+	ramGb    int
+	refresh  int
+	width    int
+	gpuClass int
+	// built-in graphics beside a discrete card: one more rarity point
+	igpu       bool
 	distro     int
 	wm         int
 	cardID     [8]byte
@@ -138,7 +142,7 @@ func shortGPU(s string) string {
 
 func (d codedDesign) bytes() []byte {
 	out := []byte{
-		codeVersion<<4 | byte(d.kind)<<2,
+		codeVersion<<4 | byte(d.kind)<<2 | igpuBit(d.igpu),
 		byte(min(255, max(0, d.threads))),
 		byte(min(255, max(0, d.ramGb))),
 		byte(min(255, max(0, d.refresh/2))),
@@ -155,23 +159,38 @@ func (d codedDesign) bytes() []byte {
 	return out
 }
 
+func igpuBit(on bool) byte {
+	if on {
+		return 1
+	}
+	return 0
+}
+
 func parseDesign(b []byte) (codedDesign, error) {
-	if len(b) > 0 && b[0]>>4 != codeVersion {
+	if len(b) > 0 && (b[0]>>4 < oldestReadVersion || b[0]>>4 > codeVersion) {
 		switch v := b[0] >> 4; {
-		case v > 0 && v < codeVersion:
+		case v > 0 && v < oldestReadVersion:
 			return codedDesign{}, errOldCardCode
 		case v > codeVersion:
 			return codedDesign{}, errNewCardCode
 		}
 		return codedDesign{}, errNoCardCode
 	}
-	if len(b) < 19 || len(b) > 78 || b[0]&3 != 0 || b[0]>>2&3 > 2 || b[5]>>5 > 5 || b[5]>>2&7 > 5 {
+	if len(b) < 19 || len(b) > 78 {
+		return codedDesign{}, errNoCardCode
+	}
+	// the low bit is the built-in graphics flag from version 4; the bit above it stays clear
+	spare := byte(2)
+	if b[0]>>4 < 4 {
+		spare = 3
+	}
+	if b[0]&spare != 0 || b[0]>>2&3 > 2 || b[5]>>5 > 5 || b[5]>>2&7 > 5 {
 		return codedDesign{}, errNoCardCode
 	}
 	d := codedDesign{
 		kind: int(b[0]>>2) & 3, threads: int(b[1]), ramGb: int(b[2]),
 		refresh: int(b[3]) * 2, width: int(b[4]) * 32,
-		gpuClass: int(b[5] >> 5), distro: int(b[5]>>2) & 7, wm: int(b[5]) & 3,
+		gpuClass: int(b[5] >> 5), igpu: b[0]&1 == 1, distro: int(b[5]>>2) & 7, wm: int(b[5]) & 3,
 		cardID: [8]byte(b[6:14]),
 	}
 	rest := b[14:]
@@ -447,6 +466,7 @@ func cardDesignArgs(args []string) (codedDesign, error) {
 	flags.IntVar(&d.refresh, "refresh", 0, "")
 	flags.IntVar(&d.width, "width", 0, "")
 	flags.IntVar(&d.gpuClass, "gpu-class", 0, "")
+	flags.BoolVar(&d.igpu, "igpu", false, "")
 	flags.StringVar(&d.gpu, "gpu", "", "")
 	flags.StringVar(&distro, "distro", "", "")
 	flags.StringVar(&wm, "wm", "", "")

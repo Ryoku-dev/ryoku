@@ -42,9 +42,16 @@ test("only a discrete card adds power, and it wins a tie with built-in graphics"
     assert.equal(R.strongest(["Radeon 780M", ""]), "Radeon 780M");
 });
 
-test("the strongest of several graphics cards counts", () => {
-    const r = R.of({ threads: 0, ramGb: 0, gpus: ["Phoenix1", "GeForce RTX 4080"], refresh: 0, width: 0 });
-    assert.equal(r.parts.find(p => p.id === "gpu").points, 4);
+test("the strongest card counts, and built-in graphics beside it add one point", () => {
+    const both = R.of({ threads: 0, ramGb: 0, gpus: ["Phoenix1", "GeForce RTX 4080"], refresh: 0, width: 0 });
+    assert.equal(both.parts.find(p => p.id === "gpu").points, 5);
+    const twoCards = R.of({ threads: 0, ramGb: 0, gpus: ["GeForce RTX 4080", "GeForce GTX 1650"], refresh: 0, width: 0 });
+    assert.equal(twoCards.parts.find(p => p.id === "gpu").points, 4);
+    const builtInOnly = R.of({ threads: 0, ramGb: 0, gpus: ["Phoenix1"], refresh: 0, width: 0 });
+    assert.equal(builtInOnly.parts.find(p => p.id === "gpu").points, 1);
+    // a traded card carries the flag instead of names
+    assert.equal(R.of({ gpuClass: 4, igpu: true }).parts.find(p => p.id === "gpu").points, 5);
+    assert.equal(R.of({ gpuClass: 4, igpu: false }).parts.find(p => p.id === "gpu").points, 4);
 });
 
 test("a traded graphics class takes precedence over names, including class zero", () => {
@@ -58,9 +65,9 @@ test("tiers climb with the machine, from a thin laptop to a workstation", () => 
     const gamer = R.of({ threads: 16, ramGb: 46, gpus: ["GeForce RTX 4060 Max-Q", "Phoenix1"], refresh: 165, width: 2560 });
     const beast = R.of({ threads: 32, ramGb: 128, gpus: ["GeForce RTX 5090"], refresh: 240, width: 3840 });
     assert.equal(thin.tier.id, "common");
-    assert.equal(gamer.tier.id, "rare");
-    assert.equal(gamer.toNext, 1);
-    assert.equal(gamer.next.id, "holo");
+    assert.equal(gamer.tier.id, "holo");
+    assert.equal(gamer.points, 12);
+    assert.equal(gamer.next.id, "ultra");
     assert.equal(beast.tier.id, "secret");
     assert.equal(beast.next, null);
 });

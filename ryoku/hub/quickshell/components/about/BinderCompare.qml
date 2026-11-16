@@ -9,7 +9,7 @@ Column {
     required property var entry
     spacing: LithicTokens.space.s3
     readonly property var mine: ({ threads: CardCode.threads, ramGb: CardCode.ramGb, refresh: CardCode.refreshRate,
-        width: CardCode.displayWidth, gpuClass: CardCode.graphicsClass })
+        width: CardCode.displayWidth, gpuClass: CardCode.graphicsClass, igpu: CardCode.builtInBeside })
     readonly property var ownRarity: Rarity.of(root.mine)
     readonly property var theirRarity: Rarity.of(root.entry.hw)
     readonly property var rows: [

@@ -138,7 +138,7 @@ func TestCardCodeReadsTicksSnappedToWholePixels(t *testing.T) {
 // to update, instead of blaming the picture.
 func TestCardCodeNamesTheVersionThatMadeIt(t *testing.T) {
 	body := (codedDesign{name: "friend", cardID: [8]byte{1, 2, 3, 4, 5, 6, 7, 8}}).bytes()
-	for version, want := range map[byte]error{1: errOldCardCode, 2: errOldCardCode, 4: errNewCardCode, 0: errNoCardCode} {
+	for version, want := range map[byte]error{1: errOldCardCode, 2: errOldCardCode, 5: errNewCardCode, 0: errNoCardCode} {
 		other := append([]byte{}, body...)
 		other[0] = version<<4 | other[0]&0x0f
 		levels, err := encodeFrame(other)
@@ -149,6 +149,31 @@ func TestCardCodeNamesTheVersionThatMadeIt(t *testing.T) {
 		if _, _, err := readCard(card); !errors.Is(err, want) {
 			t.Fatalf("v%d card: %v, want %v", version, err, want)
 		}
+	}
+}
+
+// Version 4 carries built-in graphics beside a discrete card; a card shared before, version 3,
+// still opens, without it, and a version 3 body with the flag bit set is not a card.
+func TestCardCodeCarriesBuiltInGraphicsAndReadsVersion3(t *testing.T) {
+	d := codedDesign{name: "friend", gpuClass: 2, igpu: true, gpu: "RTX 4060", cardID: [8]byte{1, 2, 3, 4, 5, 6, 7, 8}}
+	levels, err := encodeLevels(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, got, err := readCard(drawCard(levels, 2, color.RGBA{18, 12, 0, 255}, color.RGBA{226, 214, 196, 255})); err != nil || got != d {
+		t.Fatalf("v4 card: %+v (%v)", got, err)
+	}
+	old := d.bytes()
+	old[0] = 3<<4 | old[0]&0x0e
+	got, err := parseDesign(old)
+	want := d
+	want.igpu = false
+	if err != nil || got != want {
+		t.Fatalf("v3 card: %+v (%v)", got, err)
+	}
+	old[0] |= 1
+	if _, err := parseDesign(old); !errors.Is(err, errNoCardCode) {
+		t.Fatalf("v3 body with the flag bit: %v", err)
 	}
 }
 

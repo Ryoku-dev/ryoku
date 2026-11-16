@@ -444,7 +444,8 @@ Layout says so, turning toward the pointer. The machine sets its rarity
 memory, the strongest graphics card's class and the display's rate and width.
 Graphics built into the processor count too: class 1, 2 for the strong ones
 (Radeon 680M to 890M, Arc 130V and 140V) and 3 for Strix Halo, recognised from
-the full name or the eight characters a card carries. Only a discrete card adds
+the full name or the eight characters a card carries. Built-in graphics beside a
+discrete card add one point on top of the card's class. Only a discrete card adds
 power, and it is the one counted when it ties with the built-in graphics. There are
 six tiers from Common (no foil, a bone border) through Uncommon, Rare (the
 sun's border, holo window), Holo rare (foil face, gold edge) and Ultra rare
@@ -463,10 +464,12 @@ and keeps nothing else: the three tick rulers that rule off the card's parts are
 its **card code** (`backend/cardcode.go`, read by `Singletons/CardCode.qml`
 through `ryoku-hub profile code`). Each tick is one of four heights, two bits;
 the first and last tick of each ruler stand full height to calibrate ink, paper
-and scale. Version 3 carries the name, the line under it, the first big word,
+and scale. Version 4 carries the name, the line under it, the first big word,
 the figure (stock, a gallery figure by name, or the reader's own picture),
 threads, memory, refresh rate, display width, graphics class and short name,
-distro, window manager and the eight-byte device-derived card id. A card that
+whether built-in graphics sit beside a discrete card (the low bit of the first
+byte), distro, window manager and the eight-byte device-derived card id. Version
+3 cards, the same without that bit, still open. A card that
 decodes cleanly but carries another code version is refused by name: the binder
 says whether the friend or the reader has to update. The body has a length, a
 CRC and 20 bytes of Reed-Solomon parity (`backend/reedsolomon.go`) that repair
