@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Keeps remembered per-output layouts on workspaces created after login. Reads the
+# compositor's state stream through the seam and re-runs `restore` on every
+# workspaces frame. restore is a no-op while the display link is on, and
+# re-applying an unchanged layout is harmless.
+set -uo pipefail
+
+ryoku-wm-hyprland watch 2>/dev/null | while IFS= read -r frame; do
+    if [[ $(jq -r '.kind // empty' <<<"$frame" 2>/dev/null) == workspaces ]]; then
+        ryoku-output-tiling restore >/dev/null 2>&1 || true
+    fi
+done

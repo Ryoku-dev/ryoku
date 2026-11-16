@@ -28,6 +28,8 @@ hl.on("hyprland.start", function()
     -- Live workspace layouts do not survive a compositor restart; this re-applies
     -- the per-output tiling kept while the display link is off (no-op when linked).
     hl.exec_cmd("command -v ryoku-output-tiling >/dev/null 2>&1 && ryoku-output-tiling restore")
+    -- Re-applies the same layouts to workspaces created after login.
+    hl.exec_cmd("command -v ryoku-output-tiling-watch >/dev/null 2>&1 && ryoku-output-tiling-watch")
     -- Per-device Bluetooth codec memory. WirePlumber restores a device's PROFILE
     -- across reconnects but not its A2DP codec, so a user who picked one has to
     -- pick it again every single time the buds come back. `watch` reconciles on
