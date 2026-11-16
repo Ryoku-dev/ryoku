@@ -293,20 +293,21 @@ Item {
     }
 
     // the moves: each part, what it is, and its number
-    Column {
+    // each move stands in the band under its ruler, clear of the tallest tick
+    Item {
         id: moveList
         x: 40
-        y: 566
         width: card.width - 80
-        spacing: 2
+        readonly property var bands: CardCode.code ? CardCode.code.ys : [550, 608, 666]
 
         Repeater {
             model: card.moves
             delegate: Item {
                 required property var modelData
                 required property int index
+                y: moveList.bands[Math.min(index, moveList.bands.length - 1)] + 12
                 width: moveList.width
-                height: 54
+                height: 44
                 CutRect {
                     x: 0
                     anchors.verticalCenter: parent.verticalCenter

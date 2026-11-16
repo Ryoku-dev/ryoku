@@ -43,8 +43,9 @@ const (
 	codeParity  = 20 // parity bytes: up to 10 misread bytes are repaired
 )
 
-// the rulers' tops, in design units; the card keeps these lines free for them
-var rulerY = []float64{552, 622, 678}
+// the rulers' tops, in design units; each heads a band the card sets one move in, clear
+// of the tallest tick
+var rulerY = []float64{550, 608, 666}
 
 // the card's window, inside its stroke, where the reader's own picture fills it
 var windowRect = image.Rect(35, 112, 35+560, 112+390)
