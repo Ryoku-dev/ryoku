@@ -1,159 +1,210 @@
 # Map
 
-Use this page to follow the system from palette input to a finished surface, then choose the smallest component or pattern that fits the intent.
+Use this page to find the part that fits an intent, and where it lives: the
+Hub component that draws it in Ryoku Settings, the Lithic library type, and
+its web, Gio and terminal counterparts where they exist. Ryoku Settings (the
+Hub, `ryoku/hub/quickshell/`) is the reference; [components.md](components.md)
+and [layout.md](layout.md) give every part's geometry.
 
 ## The system
 
 ```mermaid
 flowchart TD
-    C[Signature and edition accent, the default] --> D[Mode and palette precedence]
-    A[Named Ryoku scheme, when following] --> D
-    B[Wallpaper palette, when following] --> D
-    D --> E[Roles: ground, stones, ink, selection, action, minerals]
-    E --> F[Tokens: space, cuts, type, motion, alpha, size]
-    F --> G1[Foundation primitives]
-    F --> G2[Controls]
-    F --> G3[Lists, containers, state and progress]
-    F --> G4[Overlays, navigation, data and window]
-    G1 --> H[Patterns]
-    G2 --> H
-    G3 --> H
-    G4 --> H
-    H --> I1[Apps]
-    H --> I2[Hub pages]
-    H --> I3[Shell surfaces]
-    H --> I4[Web surfaces]
-    H --> I5[Terminal surfaces]
+    A[Ryoku colours: the ryoku.dev palette, the default] --> C[Light or dark, contrast, tint]
+    B[Wallpaper colours: the Matugen palette] --> C
+    C --> D[Roles: ground, stones, inks, sel, gold, minerals]
+    S[Style: Lithic, Material, Adwaita, Fluent] --> E[Corners and planes]
+    D --> F[Lithic library: tokens and parts]
+    E --> F
+    F --> H[Ryoku Settings: frame, sidebar tree, page sheet, Home]
+    H --> I1[Ryoku apps]
+    H --> I2[Shell surfaces]
+    H --> I3[Web and terminal surfaces]
 ```
 
-Every Ryoku app wears the desktop's style and colours ([styles.md](styles.md)). Ryoku's colours are the signature, the ryoku.dev stock: dark and light mode paint it with the edition accent and read no palette. The wallpaper's colours are follow mode; there the named scheme is first, a wallpaper palette is second when wallpaper following is active, and the signature fallback is last. [Palette](palette.md) defines the full resolution rule.
+Colours and style are separate choices. Choosing Ryoku's colours replaces the
+wallpaper's scheme completely; choosing a style changes corners and planes
+and never the colours ([styles.md](styles.md), [palette.md](palette.md)).
+
+## Hub patterns
+
+The parts the Hub draws itself, and the patterns it composes from the
+library. Hub paths are relative to `ryoku/hub/quickshell/`; `-` means no
+stack has a counterpart.
+
+| Pattern | What it is for | Spec | Hub component | Lithic type | Web, Gio, terminal |
+|---|---|---|---|---|---|
+| Frame | the window: sidebar tree beside one page pane on one paper | [The frame](layout.md#the-frame) | `Hub.qml`, `ShellBody.qml` | `CutRect`, `Lithic.planes()` | - |
+| Registration sheet | the dots, plus marks and registration marks under every page | [The registration sheet](layout.md#the-registration-sheet) | `components/sheet/RegSheet.qml` | - | - |
+| Masthead | the mono line over the page: number, place, gloss, facts, tick ruler and scroll marker | [The masthead](layout.md#the-masthead) | `components/sheet/Masthead.qml` | `Label` | - |
+| Colophon | the motto and the page's barcode at the sheet's foot | [The colophon](layout.md#the-colophon) | `components/sheet/Colophon.qml`, `components/about/CardBarcode.qml` | `Label` | - |
+| Folio | a short page's number, huge and faint, in its empty foot | [The folio](layout.md#the-folio) | `components/sheet/Folio.qml` | `Label` | - |
+| Plate | a category's dithered sculpture beside the page head | [The page sheet](layout.md#the-page-sheet) | `components/sheet/Plate.qml`, `registry/plates.js`, `shaders/plate.frag` | - | - |
+| Tategaki | the page's kanji set vertically beside the plate or preview | [The page sheet](layout.md#the-page-sheet) | `components/sheet/Tategaki.qml` | `Label` | - |
+| Tick ruler | ticks 8 apart, every fifth tall, a first segment in the lead ink | [The cover](layout.md#the-cover) | `components/TickRuler.qml` | - | - |
+| Sidebar tree | all of Settings as numbered folders and leaves | [The sidebar tree](layout.md#the-sidebar-tree) | `components/nav/HubSidebar.qml`, `NavTree.qml`, `NavFolder.qml`, `NavRow.qml` | `Search`, `ScrollRail`, `CutRect` | - |
+| Section outline | the open page's sections under its leaf, with section nodes | [The sidebar tree](layout.md#the-sidebar-tree) | `components/nav/NavOutline.qml` | - | - |
+| Activity map | the machine now and a contribution map of the hours it was on | [Charts on overview screens](components.md#charts-on-overview-screens) | `components/sheet/Activity.qml`, `Singletons/LiveStats.qml` | - | - |
+| Peek | a page's live summary beside its tree line | [The sidebar tree](layout.md#the-sidebar-tree) | `components/nav/HubSidebar.qml`, `registry/summaries.js` | `CutRect`, `Glyph`, `Label` | - |
+| Page sheet | one settings page: head, ruled sections, slabs, rows | [The page sheet](layout.md#the-page-sheet) | `components/SettingsPage.qml` | `Section`, `Slab`, `SettingRow`, `Disclosure`, `ScrollRail` | Go `kit.Section`, `kit.Slab`, `kit.SettingRow` |
+| Page head | title, page actions, lead, state, note, spec strip, preview or plate | [The page sheet](layout.md#the-page-sheet) | `components/PageHeader.qml` | `Label`, `Plaque` | - |
+| Setting row control | the control a row's schema asks for | [Setting row](components.md#setting-row) | `components/RowControl.qml` | `Toggle`, `Segmented`, `Slider`, `Stepper`, `Picker`, `TextField`, `ColorField`, `ChordField`, `PathField`, `Plaque` | see the component index |
+| Search and results | find any page, section or setting | [Search](components.md#search) | `components/SearchResults.qml`, `components/SearchDoor.qml`, `components/PageRow.qml`, `Hub.qml:538-704` | `Search` | web `.l-search`, Go `kit.Search`, terminal `term.RenderSearch` |
+| Notices with Undo | announce every change and offer to take it back | [Notices with Undo](components.md#notices-with-undo) | `Hub.qml:1104-1158`, `Singletons/Changes.qml` | `Placard` | web `.l-placard`, Go `kit.Placard`, terminal `term.RenderPlacard` |
+| Confirm | ask before a consequential or timed change | [Dialogs and confirms](components.md#dialogs-and-confirms) | `Hub.qml:381-399, 1055-1102` | `Confirm`, `Dialog` | web `.l-confirm`, Go `kit.Confirm`, terminal `term.RenderConfirm` |
+| Info button | explain a row in a popover | [Popovers, menus and info buttons](components.md#popovers-menus-and-info-buttons) | `components/IconButton.qml`, `components/about/CardOnlineSwitch.qml` | `Popover`, `CutRect` | web `.l-popover`, Go `kit.Popover` |
+| IconButton | the window's close, the drawer, collapse and info buttons | [IconButton](components.md#iconbutton) | `components/IconButton.qml` | `CutRect`, `Glyph` | - |
+| Long work | nothing for a second, then Working, then progress with Cancel | [Empty, waiting and error states](components.md#empty-waiting-and-error-states) | `components/backup-import/WorkLine.qml`, `components/add-ons/TaskLine.qml` | `Working`, `BladeProgress` | web `.l-working`, Go `kit.Working`, terminal `term.RenderWorking` |
+| The cover | Home: who the reader is, what waits, this computer | [The cover](layout.md#the-cover) | `components/Home.qml` | `Slab`, `Claim`, `EngravedChart`, `Plaque` | - |
+| Readings | how this computer moves, as engraved charts | [Charts on overview screens](components.md#charts-on-overview-screens) | `components/Home.qml:947-992`, `Singletons/LiveStats.qml` | `EngravedChart` | web `.l-engraved-chart`, Go `kit.EngravedChart` |
+| System card | the reader's machine as a trading card | [System card](components.md#system-card) | `components/about/TradingCard.qml`, `CardShare.qml`, `registry/rarity.js` | `CutRect`, `Label` | - |
+| Binder | friends' cards, compared | [Binder](components.md#binder) | `components/about/Binder.qml`, `BinderCard.qml`, `BinderCompare.qml`, `CardViewer.qml` | `Plaque`, `CutRect` | - |
+| Card studio | customise the card and Home | [Card studio](components.md#card-studio) | `components/about/CardEditor.qml`, `BadgeTab.qml` | `Dialog`, `Segmented`, `Slab`, `SettingRow` | - |
+| Badge seal | a team badge's two-ink seal | [Emblem](components.md#emblem) | `components/badge/Emblem.qml` | - | - |
+| Certificate | the badge's signed certificate | [Certificate](components.md#certificate) | `components/badge/Certificate.qml` | `CutRect` | - |
+| Ryoku mark | the current Ryoku logo, the cut 力 | [The sidebar tree](layout.md#the-sidebar-tree) | `components/RyokuMark.qml` (`ryoku/assets/brand/logo-mark-v2.png`) | - | - |
+| Motion helpers | groups rising in turn; pointer follow without overshoot | [motion.md](motion.md) | `components/Reveal.qml`, `components/Chase.qml`, `Singletons/Ambient.qml`, `Singletons/Tone.qml` | `ChiselColorBehavior`, `ChiselNumberBehavior` | - |
 
 ## Component index
 
-The QML names are types from `import Lithic`. Web names are classes, with state carried by ARIA and `data-*` attributes. Go names are exported types or functions in package `kit`. Terminal names are pure render functions in package `term`; `-` means that stack has no terminal form. A terminal render function takes the corresponding data type when the component has data, and interactive components also expose a Bubble Tea model such as `term.TextFieldModel` or `term.MenuModel`. Reference paths are relative to Ryoport.
+The QML names are types from `import Lithic` (`docs/lithic/library/qml/Lithic/qmldir`).
+Web names are classes in `docs/lithic/library/web/`, with state carried by ARIA
+and `data-*` attributes. Go names are in package `kit` of
+`docs/lithic/library/go`. Terminal names are pure render functions in package
+`term`; interactive ones also expose a Bubble Tea model such as
+`term.TextFieldModel`. `-` means that stack has no form of it. The last column
+names one Hub file that uses the part.
 
-Icons are Material Symbols Sharp in every stack. QML and the web set the font's ligatures. Gio draws them from package `symbols`, IconVG data generated from `symbols/list.txt` by `go run ./cmd/lithic-symbols` in `library/go` (`-check` reports a stale `symbols.go`); add a name to the list to use a new icon.
+Icons are Material Symbols Sharp in every stack. QML and the web set the
+font's ligatures. Gio draws them from package `symbols`, generated from
+`symbols/list.txt` by `go run ./cmd/lithic-symbols` in `library/go` (`-check`
+reports a stale `symbols.go`); add a name to the list to use a new icon.
 
 ### Foundation
 
-| Component | What it is for | Spec | QML type | Web class | Go name in `kit` | Terminal render function | Ryoport reference file |
+| Component | What it is for | Spec | QML type | Web class | Go name in `kit` | Terminal render function | In the Hub |
 |---|---|---|---|---|---|---|---|
-| Icon | Show a semantic glyph beside an accessible name. | [Icon](components.md#icon) | `Glyph` | `l-glyph` | `kit.Icon` | `-` | `ui/kit/text.go` |
-| CutRect | Draw a filled or stroked plane with independent 45 degree corner cuts. | [CutRect](components.md#cutrect) | `CutRect` | `l-cut` | `kit.FillCut`, `kit.StrokeCut` | `-` | `ui/kit/draw.go` |
-| Notch | Mark one state or pending change at a corner. | [Notch](components.md#notch) | `Notch` | `l-notch` | `kit.Notch` | `term.RenderNotch` | `ui/kit/token.go` |
-| Blade | Draw a bar with a 45 degree leading edge. | [Blade](components.md#blade) | `Blade` | `l-blade` | `kit.Blade` | `term.RenderBlade` | `ui/kit/blade.go` |
-| Flake | Show a state mineral or a fraction of becoming. | [Flake](components.md#flake) | `Flake` | `l-flake` | `kit.Flake` | `term.RenderFlake` | `ui/kit/token.go` |
-| Hatch | Engrave a static 45 degree field. | [Hatch](components.md#hatch) | `Hatch` | `l-hatch` | `kit.Hatch` | `-` | `ui/kit/chart.go` |
-| FocusRing | Show keyboard focus outside a cut control. | [FocusRing](components.md#focusring) | `FocusRing` | `l-focus-ring` | `kit.FocusRing` | `-` | `ui/kit/focus.go` |
+| Icon | Show a semantic glyph beside an accessible name. | [Icon](components.md#icon) | `Glyph` | `l-glyph` | `kit.Icon` | `-` | `components/nav/NavRow.qml` |
+| CutRect | Draw a filled or stroked plane with independent 45 degree corner cuts. | [CutRect](components.md#cutrect) | `CutRect` | `l-cut` | `kit.FillCut`, `kit.StrokeCut` | `-` | `Hub.qml` |
+| FocusRing | Show keyboard focus outside a cut part. | [FocusRing](components.md#focusring) | `FocusRing` | `l-focus-ring` | `kit.FocusRing` | `-` | `components/PageRow.qml` |
+| Hatch | Engrave a static 45 degree field. | [Hatch](components.md#hatch) | `Hatch` | `l-hatch` | `kit.Hatch` | `-` | `components/displays/ArrangeCanvas.qml` |
+| Flake | Show a state mineral or a fraction of becoming. | [Flake](components.md#flake) | `Flake` | `l-flake` | `kit.Flake` | `term.RenderFlake` | `components/updates/RunView.qml` |
 
-### Controls
+### Plaques and controls
 
-| Component | What it is for | Spec | QML type | Web class | Go name in `kit` | Terminal render function | Ryoport reference file |
+| Component | What it is for | Spec | QML type | Web class | Go name in `kit` | Terminal render function | In the Hub |
 |---|---|---|---|---|---|---|---|
-| Plaque | Run one labelled action with gold, line, tonal, quiet, selected or danger treatment. | [Plaque](components.md#plaque) | `Plaque` | `l-plaque` | `kit.Plaque` | `term.RenderPlaque` | `ui/kit/button.go` |
-| SplitPlaque | Pair a main action with a menu of alternatives. | [SplitPlaque](components.md#splitplaque) | `SplitPlaque` | `l-split-plaque` | `kit.SplitPlaque` | `term.RenderSplitPlaque` | `ui/kit/splitbutton.go` |
-| IconPlaque | Run a compact action whose glyph has an accessible description. | [IconPlaque](components.md#iconplaque) | `IconPlaque` | `l-icon-plaque` | `kit.IconPlaque` | `-` | `ui/kit/iconbutton.go` |
-| TextField | Enter or edit text, with label, help, error and secret states. | [TextField](components.md#textfield) | `TextField` | `l-text-field` | `kit.TextField` | `term.RenderTextField` | `ui/kit/textfield.go` |
-| Search | Narrow a collection with a clearable query. | [Search](components.md#search) | `Search` | `l-search` | `kit.Search` | `term.RenderSearch` | `ui/kit/search.go` |
-| Toggle | Switch one setting on or off. | [Toggle](components.md#toggle) | `Toggle` | `l-toggle` | `kit.Toggle` | `term.RenderToggle` | `ui/kit/toggle.go` |
-| Slider | Change a bounded quantity by feel. | [Slider](components.md#slider) | `Slider` | `l-slider` | `kit.Slider` | `-` | `ui/kit/slider.go` |
-| Stepper | Change a bounded number in exact steps. | [Stepper](components.md#stepper) | `Stepper` | `l-stepper` | `kit.Stepper` | `term.RenderStepper` | `ui/kit/stepper.go` |
-| Filters | Narrow a list with exclusive chips and live counts. | [Filters](components.md#filters) | `Filters` | `l-filters` | `kit.Filters` | `term.RenderFilters` | `ui/kit/filters.go` |
-| Segmented | Pick one of two to five options shown at once. | [Segmented](components.md#segmented) | `Segmented` | `l-segmented` | `kit.Segmented` | `-` | `-` |
-| Tabs | Switch among a few views of the same resource. | [Tabs](components.md#tabs) | `Tabs` | `l-tabs` | `kit.Tabs` | `term.RenderTabs` | `ui/kit/tabs.go` |
-| Disclosure | Reveal optional or advanced content in place. | [Disclosure](components.md#disclosure) | `Disclosure` | `l-disclosure` | `kit.Disclosure` | `term.RenderDisclosure` | `ui/kit/disclosure.go` |
-| ChordField | Record and show one keyboard shortcut as keycaps. | [ChordField](components.md#chordfield) | `ChordField` | `l-chord-field` | `kit.ChordField` | `-` | `-` |
-| ColorField | Choose one colour from roles or as hex, with optional opacity. | [ColorField](components.md#colorfield) | `ColorField` | `l-color-field` | `kit.ColorField` | `-` | `-` |
-| PathField | Choose a file or folder, or type its path. | [PathField](components.md#pathfield) | `PathField` | `l-path-field` | `kit.PathField` | `-` | `-` |
+| Plaque | Run one labelled action, in its tier. | [Plaque tiers](components.md#plaque-tiers) | `Plaque` | `l-plaque` | `kit.Plaque` | `term.RenderPlaque` | `components/SettingsPage.qml` |
+| IconPlaque | Run a compact action whose glyph has an accessible name. | [IconPlaque](components.md#iconplaque) | `IconPlaque` | `l-icon-plaque` | `kit.IconPlaque` | `-` | `components/FolderChooser.qml` |
+| SettingRow | Lay out one setting with its words, control, Changed tag and reset plaque. | [Setting row](components.md#setting-row) | `SettingRow` | `l-setting-row` | `kit.SettingRow` | `-` | `components/SettingsPage.qml` |
+| Toggle | Switch one setting on or off. | [Toggle](components.md#toggle) | `Toggle` | `l-toggle` | `kit.Toggle` | `term.RenderToggle` | `components/RowControl.qml` |
+| Segmented | Pick one of two to five options shown at once, or switch tabs. | [Segmented](components.md#segmented) | `Segmented` | `l-segmented` | `kit.Segmented` | `-` | `components/about/CardEditor.qml` |
+| Slider | Change a bounded quantity by feel. | [Slider](components.md#slider) | `Slider` | `l-slider` | `kit.Slider` | `-` | `components/RowControl.qml` |
+| Stepper | Change a bounded number in exact steps. | [Stepper](components.md#stepper) | `Stepper` | `l-stepper` | `kit.Stepper` | `term.RenderStepper` | `pages/Displays.qml` |
+| Picker | Choose one value from many. | [Picker](components.md#picker) | `Picker` | `l-picker` | `kit.Picker` | `term.RenderPicker` | `components/RowControl.qml` |
+| TextField | Enter or edit text, with label, help, error and secret states. | [TextField](components.md#textfield) | `TextField` | `l-text-field` | `kit.TextField` | `term.RenderTextField` | `components/RowControl.qml` |
+| ChordField | Record and show one keyboard shortcut as keycaps. | [ChordField](components.md#chordfield) | `ChordField` | `l-chord-field` | `kit.ChordField` | `-` | `components/shortcuts/BindRow.qml` |
+| ColorField | Choose one colour from roles or as hex. | [ColorField](components.md#colorfield) | `ColorField` | `l-color-field` | `kit.ColorField` | `-` | `components/RowControl.qml` |
+| PathField | Choose a file or folder, or type its path. | [PathField](components.md#pathfield) | `PathField` | `l-path-field` | `kit.PathField` | `-` | `components/RowControl.qml` |
+| Disclosure | Reveal optional settings in place. | [Disclosure](components.md#disclosure) | `Disclosure` | `l-disclosure` | `kit.Disclosure` | `term.RenderDisclosure` | `components/SettingsPage.qml` |
+| ListEditor | Add, edit, remove and reorder the items of a list in place. | [ListEditor](components.md#listeditor) | `ListEditor` | `l-list-editor` | `kit.ListEditor` | `-` | `components/launcher/AppListEditor.qml` |
+| DesignTile | Show one look with its preview, state and action. | [Design tiles](components.md#design-tiles) | `DesignTile` | `l-design-tile` | `kit.DesignTile` | `-` | `pages/LockScreen.qml` |
+| DesignGallery | Lay out design tiles in a grid navigated by keyboard. | [Design tiles](components.md#design-tiles) | `DesignGallery` | `l-design-gallery` | `kit.DesignGallery` | `-` | `components/bar/StyleGallery.qml` |
 
-### Lists, containers, state and progress
+### Rows, containers and state
 
-| Component | What it is for | Spec | QML type | Web class | Go name in `kit` | Terminal render function | Ryoport reference file |
+| Component | What it is for | Spec | QML type | Web class | Go name in `kit` | Terminal render function | In the Hub |
 |---|---|---|---|---|---|---|---|
-| Tablet | Show one resource row with identity, claim, proof and one row action. | [Tablet](components.md#tablet) | `Tablet` | `l-tablet` | `kit.Tablet` | `term.RenderTablet` | `ui/kit/row.go` |
-| RowList | Navigate and select a scrolling set of tablets. | [RowList](components.md#rowlist) | `RowList` | `l-row-list` | `kit.RowList` | `term.RenderRowList` | `ui/kit/rowlist.go` |
-| ScrollRail | Show and drag the scroll position of any scrolling pane. | [ScrollRail](components.md#scrollrail) | `ScrollRail` | `l-scroll` | `kit.ScrollRail` | `-` | `-` |
-| GroupHeader | Name and count a meaningful group of rows. | [GroupHeader](components.md#groupheader) | `GroupHeader` | `l-group-header` | `kit.GroupHeader` | `term.RenderGroupHeader` | `ui/kit/groupheader.go` |
-| Skeleton | Hold list geometry while data is loading. | [Skeleton](components.md#skeleton) | `Skeleton` | `l-skeleton` | `kit.Skeleton` | `-` | `ui/kit/skeleton.go` |
-| Empty | Explain an empty result and name the next step. | [Empty](components.md#empty) | `Empty` | `l-empty` | `kit.Empty` | `term.RenderEmpty` | `ui/kit/empty.go` |
-| Pane | Separate rail, list and work planes on the ground. | [Pane](components.md#pane) | `Pane` | `l-pane` | `kit.Pane` | `-` | `ui/pages/common/pane.go` |
-| MineralField | Give a selected resource a field toned by its state. | [MineralField](components.md#mineralfield) | `MineralField` | `l-mineral-field` | `kit.MineralField` | `term.RenderMineralField` | `ui/kit/field.go` |
-| Header | Compose a resource mark, name, proof, note, marks and actions. | [Header](components.md#header) | `Header` | `l-header` | `kit.Header` | `-` | `ui/pages/common/header.go` |
-| Slab | Group related settings or form fields on one cut plane. | [Slab](components.md#slab) | `Slab` | `l-slab` | `kit.Slab` | `term.RenderSlab` | `ui/pages/common/section.go` |
-| Section | Give a slab or content group a readable title and spacing. | [Section](components.md#section) | `Section` | `l-section` | `kit.Section` | `term.RenderSection` | `ui/pages/common/section.go` |
-| SettingRow | Lay out one setting with its words, control, changed mark and reset. | [SettingRow](components.md#settingrow) | `SettingRow` | `l-setting-row` | `kit.SettingRow` | `-` | `-` |
-| DesignTile | Show one look with its preview, state, resource cost and action. | [DesignTile](components.md#designtile) | `DesignTile` | `l-design-tile` | `kit.DesignTile` | `-` | `-` |
-| DesignGallery | Lay out design tiles in a grid navigated by keyboard. | [DesignGallery](components.md#designgallery) | `DesignGallery` | `l-design-gallery` | `kit.DesignGallery` | `-` | `-` |
-| ListEditor | Add, edit, remove and reorder the items of a list in place. | [ListEditor](components.md#listeditor) | `ListEditor` | `l-list-editor` | `kit.ListEditor` | `-` | `-` |
-| Facts | Show compact label and value rows. | [Facts](components.md#facts) | `Facts` | `l-facts` | `kit.Facts` | `term.RenderFacts` | `ui/kit/facts.go` |
-| Aside | Explain what a form will do before it is committed. | [Aside](components.md#aside) | `Aside` | `l-aside` | `kit.Aside` | `term.RenderAside` | `ui/pages/common/draft.go` |
-| DraftColumns | Keep a draft form and its aside together across size classes. | [DraftColumns](components.md#draftcolumns) | `DraftColumns` | `l-draft-columns` | `kit.DraftColumns` | `term.RenderDraftColumns` | `ui/pages/common/draft.go` |
-| Claim | Pair a state flake with its plain state word. | [Claim](components.md#claim) | `Claim` | `l-claim` | `kit.Claim` | `term.RenderClaim` | `ui/kit/token.go` |
-| Marks | List short resource traits without competing with state. | [Marks](components.md#marks) | `Marks` | `l-marks` | `kit.Marks` | `term.RenderMarks` | `ui/pages/common/marks.go` |
-| Sentence | Compose one readable sentence from semantic spans. | [Sentence](components.md#sentence) | `Sentence` | `l-sentence` | `kit.Sentence` | `term.RenderSentence` | `ui/pages/common/sentence.go` |
-| BladeMeter | Show a stable measured fraction such as disk or memory use. | [BladeMeter](components.md#blademeter) | `BladeMeter` | `l-blade-meter` | `kit.BladeMeter` | `term.RenderBladeMeter` | `ui/kit/blade.go` |
-| BladeProgress | Show determinate or indeterminate job progress. | [BladeProgress](components.md#bladeprogress) | `BladeProgress` | `l-blade-progress` | `kit.BladeProgress` | `term.RenderBladeProgress` | `ui/kit/blade.go` |
-| Working | Show bounded activity inside a plaque or beside a sentence. | [Working](components.md#working) | `Working` | `l-working` | `kit.Working` | `term.RenderWorking` | `ui/kit/working.go` |
-| BecomingName | Fill a resource name to show creation progress. | [BecomingName](components.md#becomingname) | `BecomingName` | `l-becoming-name` | `kit.BecomingName` | `-` | `ui/pages/common/header.go` |
+| Slab | Group a section's rows on one cut plane; toned for what needs the reader. | [Slab](components.md#slab) | `Slab` | `l-slab` | `kit.Slab` | `term.RenderSlab` | `components/SettingsPage.qml` |
+| Section | Title a group, ruled with its section ordinal on a page sheet. | [Section](components.md#section) | `Section` | `l-section` | `kit.Section` | `term.RenderSection` | `components/SettingsPage.qml` |
+| Facts | Show label and value rows. | [Facts](components.md#facts) | `Facts` | `l-facts` | `kit.Facts` | `term.RenderFacts` | `pages/Keyboard.qml` |
+| RowList | Navigate and select a scrolling list. | [RowList](components.md#rowlist) | `RowList` | `l-row-list` | `kit.RowList` | `term.RenderRowList` | `components/keyboard/LayoutChooser.qml` |
+| Tablet | Show one resource row with identity, claim, proof and one action. | [Tablet](components.md#tablet) | `Tablet` | `l-tablet` | `kit.Tablet` | `term.RenderTablet` | `components/launcher/AppListEditor.qml` |
+| Claim | Pair a state flake with its plain state word. | [Claim, Marks and Sentence](components.md#claim-marks-and-sentence) | `Claim` | `l-claim` | `kit.Claim` | `term.RenderClaim` | `components/Home.qml` |
+| Marks | List short traits without competing with state. | [Claim, Marks and Sentence](components.md#claim-marks-and-sentence) | `Marks` | `l-marks` | `kit.Marks` | `term.RenderMarks` | `components/users/PersonSlab.qml` |
+| Sentence | Compose one readable sentence from spans. | [Claim, Marks and Sentence](components.md#claim-marks-and-sentence) | `Sentence` | `l-sentence` | `kit.Sentence` | `term.RenderSentence` | `pages/Updates.qml` |
+| ScrollRail | Show and drag the scroll position of a scrolling pane. | [ScrollRail](components.md#scrollrail) | `ScrollRail` | `l-scroll` | `kit.ScrollRail` | `-` | `components/SettingsPage.qml` |
+| Empty | Explain an empty result and name the next step. | [Empty, waiting and error states](components.md#empty-waiting-and-error-states) | `Empty` | `l-empty` | `kit.Empty` | `term.RenderEmpty` | `pages/LockScreen.qml` |
 
-### Overlays, navigation, data and window
+### Progress, overlays and data
 
-| Component | What it is for | Spec | QML type | Web class | Go name in `kit` | Terminal render function | Ryoport reference file |
+| Component | What it is for | Spec | QML type | Web class | Go name in `kit` | Terminal render function | In the Hub |
 |---|---|---|---|---|---|---|---|
-| Popover | Place an anchored overlay and keep it inside the window. | [Popover](components.md#popover) | `Popover` | `l-popover` | `kit.Popover` | `-` | `ui/kit/popover.go` |
-| Menu | Present a short list of actions, shortcuts and dividers. | [Menu](components.md#menu) | `Menu` | `l-menu` | `kit.Menu` | `term.RenderMenu` | `ui/kit/menu.go` |
-| Picker | Choose one value from a set. | [Picker](components.md#picker) | `Picker` | `l-picker` | `kit.Picker` | `term.RenderPicker` | `ui/kit/picker.go` |
-| Dialog | Hold a decision that interrupts the current task. | [Dialog](components.md#dialog) | `Dialog` | `l-dialog` | `kit.Dialog` | `term.RenderDialog` | `ui/kit/dialog.go` |
-| Confirm | Require explicit confirmation, optionally by typed name. | [Confirm](components.md#confirm) | `Confirm` | `l-confirm` | `kit.Confirm` | `term.RenderConfirm` | `ui/kit/confirm.go` |
-| Tooltip | Add short pointer-only detail after a hover delay. | [Tooltip](components.md#tooltip) | `Tooltip` | `l-tooltip` | `kit.Tooltip` | `-` | `ui/kit/tooltip.go` |
-| Placard | Report transient feedback, with optional undo. | [Placard](components.md#placard) | `Placard` | `l-placard` | `kit.Placard` | `term.RenderPlacard` | `ui/kit/placard.go` |
-| Rail | Navigate the main destinations of an app. | [Rail](components.md#rail) | `Rail` | `l-rail` | `kit.Rail` | `-` | `ui/app/rail.go` |
-| BrandMark | Return to Home from the first rail destination. | [BrandMark](components.md#brandmark) | `BrandMark` | `l-brand-mark` | `kit.BrandMark` | `-` | `ui/kit/brand.go` |
-| NewPlaque | Open the New menu from the rail's one gold action. | [NewPlaque](components.md#newplaque) | `NewPlaque` | `l-new-plaque` | `kit.NewPlaque` | `-` | `ui/kit/newplaque.go` |
-| SectionIndex | Follow and navigate a settings page's sections, as a side list or a Picker. | [SectionIndex](components.md#sectionindex) | `SectionIndex` | `l-section-index` | `kit.SectionIndex` | `-` | `ui/pages/settings/view.go` |
-| EngravedChart | Show a small series as a line over static hatch. | [EngravedChart](components.md#engravedchart) | `EngravedChart` | `l-engraved-chart` | `kit.EngravedChart` | `-` | `ui/kit/chart.go` |
-| AppFrame | Arrange the ground, panes and size class of a window. | [AppFrame](components.md#appframe) | `AppFrame` | `l-app-frame` | `kit.AppFrame` | `-` | `ui/app/layout.go` |
+| Working | Show activity when no fraction is known. | [Empty, waiting and error states](components.md#empty-waiting-and-error-states) | `Working` | `l-working` | `kit.Working` | `term.RenderWorking` | `components/backup-import/WorkLine.qml` |
+| BladeProgress | Show job progress, determinate or not. | [Empty, waiting and error states](components.md#empty-waiting-and-error-states) | `BladeProgress` | `l-blade-progress` | `kit.BladeProgress` | `term.RenderBladeProgress` | `components/add-ons/TaskLine.qml` |
+| BladeMeter | Show a measured fraction such as storage. | [Charts on overview screens](components.md#charts-on-overview-screens) | `BladeMeter` | `l-blade-meter` | `kit.BladeMeter` | `term.RenderBladeMeter` | `components/users/PersonSlab.qml` |
+| EngravedChart | Show how a reading moved, as a line over hatch. | [Charts on overview screens](components.md#charts-on-overview-screens) | `EngravedChart` | `l-engraved-chart` | `kit.EngravedChart` | `-` | `components/Home.qml` |
+| Placard | Announce a change, with Undo. | [Notices with Undo](components.md#notices-with-undo) | `Placard` | `l-placard` | `kit.Placard` | `term.RenderPlacard` | `Hub.qml` |
+| Dialog | Hold a decision, a chooser or an editor over the window. | [Dialogs and confirms](components.md#dialogs-and-confirms) | `Dialog` | `l-dialog` | `kit.Dialog` | `term.RenderDialog` | `components/about/CardEditor.qml` |
+| Confirm | Require explicit confirmation, optionally by typed name or with a countdown. | [Dialogs and confirms](components.md#dialogs-and-confirms) | `Confirm` | `l-confirm` | `kit.Confirm` | `term.RenderConfirm` | `Hub.qml` |
+| Popover | Place an anchored overlay and keep it inside the window. | [Popovers, menus and info buttons](components.md#popovers-menus-and-info-buttons) | `Popover` | `l-popover` | `kit.Popover` | `-` | `components/about/CardOnlineSwitch.qml` |
+| Menu | Present a short list of actions or choices. | [Popovers, menus and info buttons](components.md#popovers-menus-and-info-buttons) | `Menu` | `l-menu` | `kit.Menu` | `term.RenderMenu` | `components/app-rules/ChooserPopover.qml` |
+| Search | Narrow a collection with a clearable query. | [Search](components.md#search) | `Search` | `l-search` | `kit.Search` | `term.RenderSearch` | `components/nav/HubSidebar.qml` |
 
-## Choosing a component
+### Parts for other app shapes
+
+The Hub does not use these. Rashin, Ryotunes and Ryoport do, for window shapes
+the Hub does not have.
+
+| Component | What it is for | Spec | QML type | Web class | Go name in `kit` | Terminal render function | Used by |
+|---|---|---|---|---|---|---|---|
+| Notch | Mark one state or pending change at a corner. | [Notch](components.md#notch) | `Notch` | `l-notch` | `kit.Notch` | `term.RenderNotch` | Rashin |
+| Blade | Draw a bar with a 45 degree leading edge. | [Blade](components.md#blade) | `Blade` | `l-blade` | `kit.Blade` | `term.RenderBlade` | Ryotunes |
+| Tabs | Switch among a few views of one resource. | [Tabs](components.md#tabs) | `Tabs` | `l-tabs` | `kit.Tabs` | `term.RenderTabs` | Rashin, Ryotunes |
+| Filters | Narrow a list with exclusive chips and live counts. | [Filters](components.md#filters) | `Filters` | `l-filters` | `kit.Filters` | `term.RenderFilters` | Rashin, Ryotunes |
+| GroupHeader | Name and count a group of rows. | [GroupHeader](components.md#groupheader) | `GroupHeader` | `l-group-header` | `kit.GroupHeader` | `term.RenderGroupHeader` | Rashin, Ryotunes |
+| Skeleton | Hold a list's shape while it loads. | [Skeleton](components.md#skeleton) | `Skeleton` | `l-skeleton` | `kit.Skeleton` | `-` | Rashin, Ryotunes |
+| Tooltip | Name an unlabelled control under the pointer. | [Tooltip](components.md#tooltip) | `Tooltip` | `l-tooltip` | `kit.Tooltip` | `-` | Ryoport |
+| SectionIndex | Follow and navigate a settings page's sections beside the column. | [SectionIndex](components.md#sectionindex) | `SectionIndex` | `l-section-index` | `kit.SectionIndex` | `-` | Rashin, Ryotunes |
+| Aside | Preview what a draft will make or write. | [Aside and DraftColumns](components.md#aside-and-draftcolumns) | `Aside` | `l-aside` | `kit.Aside` | `term.RenderAside` | Rashin |
+| DraftColumns | Keep a draft form and its aside together. | [Aside and DraftColumns](components.md#aside-and-draftcolumns) | `DraftColumns` | `l-draft-columns` | `kit.DraftColumns` | `term.RenderDraftColumns` | Rashin |
+| AppFrame | Arrange a list and detail window. | [The list and detail frame](components.md#the-list-and-detail-frame) | `AppFrame` | `l-app-frame` | `kit.AppFrame` | `-` | Ryoport |
+| Rail | Navigate a list and detail window's destinations. | [The list and detail frame](components.md#the-list-and-detail-frame) | `Rail` | `l-rail` | `kit.Rail` | `-` | Ryoport |
+| NewPlaque | Open the New menu from the rail. | [The list and detail frame](components.md#the-list-and-detail-frame) | `NewPlaque` | `l-new-plaque` | `kit.NewPlaque` | `-` | Ryoport |
+| Pane | Separate the rail, list and work planes. | [The list and detail frame](components.md#the-list-and-detail-frame) | `Pane` | `l-pane` | `kit.Pane` | `-` | Ryoport |
+| Header | Head a selected resource. | [The list and detail frame](components.md#the-list-and-detail-frame) | `Header` | `l-header` | `kit.Header` | `-` | Ryoport |
+| MineralField | Tone a resource's header by its state. | [The list and detail frame](components.md#the-list-and-detail-frame) | `MineralField` | `l-mineral-field` | `kit.MineralField` | `term.RenderMineralField` | Ryoport |
+| SplitPlaque | Pair a main action with a menu of alternatives. | [The list and detail frame](components.md#the-list-and-detail-frame) | `SplitPlaque` | `l-split-plaque` | `kit.SplitPlaque` | `term.RenderSplitPlaque` | Ryoport |
+| BecomingName | Fill a resource's name as it is made. | [The list and detail frame](components.md#the-list-and-detail-frame) | `BecomingName` | `l-becoming-name` | `kit.BecomingName` | `-` | Ryoport |
+
+The library's `BrandMark` is not the Ryoku logo; Ryoku's mark is the cut 力
+the Hub draws as `components/RyokuMark.qml`.
+
+## Choosing a part
 
 | Intent | Choose |
 |---|---|
-| The one consequential action in the view | A gold [Plaque](components.md#plaque). |
-| Actions beside the consequential action | Line plaques, or tonal plaques for secondary verbs. |
-| A rare or destructive action | A quiet overflow [IconPlaque](components.md#iconplaque) and [Menu](components.md#menu), then [Confirm](components.md#confirm) before an irreversible change. |
-| A state | [Notch](components.md#notch), [Claim](components.md#claim) or [Flake](components.md#flake), always with a word and proof nearby. |
-| Switch among views of one resource | [Tabs](components.md#tabs). |
-| Narrow a list | [Filters](components.md#filters), or [Search](components.md#search) when the set is large. |
-| Choose one of many values | [Picker](components.md#picker). |
-| Choose one of two to five options worth seeing at once | [Segmented](components.md#segmented). |
-| Turn one setting on or off | [Toggle](components.md#toggle). |
-| Change a bounded number exactly | [Stepper](components.md#stepper). |
-| Change a bounded number by feel | [Slider](components.md#slider). |
-| Show work in progress | [BladeProgress](components.md#bladeprogress) for progress, [Working](components.md#working) when no fraction is known, and [BecomingName](components.md#becomingname) for a resource being created. |
-| Ask for a decision that cannot be undone | [Confirm](components.md#confirm) in a [Dialog](components.md#dialog). |
-| Report feedback that can be taken back | [Placard](components.md#placard) with Undo. |
-| Add pointer-only detail | [Tooltip](components.md#tooltip). |
-| Reveal optional settings | [Disclosure](components.md#disclosure). |
-| Explain a form's consequence | [Aside](components.md#aside) beside the draft. |
-| Show a collection of resources | [RowList](components.md#rowlist) made from [Tablet](components.md#tablet) rows. |
-| Show a few label and value facts | [Facts](components.md#facts). |
-| Show how something moved over time | An [EngravedChart](components.md#engravedchart) in a section open on the pane, under a proof line in words. |
-| Explain that a collection is empty | [Empty](components.md#empty) with the next action. |
+| The one consequential action in a view | A `gold` [plaque](components.md#plaque-tiers). |
+| Everything else you can do | `quiet` plaques; a `line` plaque for the action beside the gold one. |
+| A destructive action | A [confirm](components.md#dialogs-and-confirms) with a `danger` action that names the verb. |
+| A change the reader may want back | Apply it at once and announce it with a [placard](components.md#notices-with-undo) with Undo. |
+| A state | A [claim](components.md#claim-marks-and-sentence): a flake and a plain word, with its proof beside it. |
+| One setting | A [setting row](components.md#setting-row) on a section's slab. |
+| On or off | A [toggle](components.md#toggle). |
+| Two to five options worth seeing at once, or tabs | A [segmented](components.md#segmented) control. |
+| One of many values | A [picker](components.md#picker). |
+| A bounded number by feel, or exactly | A [slider](components.md#slider), or a [stepper](components.md#stepper). |
+| Settings most people never change | "More options", a [disclosure](components.md#disclosure) at the slab's foot. |
+| A list the reader edits | A [list editor](components.md#listeditor). |
+| Why a setting does what it does | An [info button](components.md#popovers-menus-and-info-buttons) beside its control. |
+| What a page holds, under the pointer | The sidebar tree's [peek](layout.md#the-sidebar-tree); the Hub has no tooltips. |
+| Work under way | Nothing for a second, then [Working](components.md#empty-waiting-and-error-states), then a blade with Cancel past 10 s. |
+| How something moved over time | An [engraved chart](components.md#charts-on-overview-screens) under its name and value. |
+| Nothing to show | A claim line, a `missing` note, or [Empty](components.md#empty-waiting-and-error-states) with the next step. |
+| A new settings page | The [page sheet](layout.md#the-page-sheet): `SettingsPage` with a schema, or the same head and ruled sections drawn by hand. |
 
-## Patterns
+## Window shapes
 
-The archetypes define composition. [Layout](layout.md) owns their geometry and size-class changes. The sheets show finished pictures.
+[Layout](layout.md) owns each shape's geometry. Renders are of the real Hub.
 
-| Archetype | Build it from | Geometry | Picture |
+| Shape | Build it from | Geometry | Picture |
 |---|---|---|---|
-| List and detail window | `AppFrame`, `Rail`, a list `Pane` with `Search`, `Filters` and `RowList`, then a work `Pane` with `MineralField`, `Header` and `Tabs`. | [List pane and work pane](layout.md#the-list-pane) | [Fleet](media/sheet-fleet.png) |
-| The Now board | `AppFrame`, `Sentence`, attention `Section`, `Claim`, one gold `Plaque`, `BladeProgress` and an `EngravedChart` section. | [The work pane](layout.md#the-work-pane) | [Now](media/sheet-now.png) |
-| A draft with its aside | `DraftColumns` with a `Section` and `Slab` of fields beside an `Aside`; optional settings go in `Disclosure`. | [The work pane](layout.md#the-work-pane) | [Draft](media/sheet-draft.png) |
-| A settings page with a section index | `AppFrame`, `SectionIndex` (a Picker below expanded), a running head and tick ruler over repeated ruled `Section` and `Slab` groups, then the appropriate controls. | [Full pages](layout.md#full-pages) | [Settings](media/sheet-settings.png) |
-| A cover | A photograph of a sculpture beside one text column on the ground: the carved word, the name, the motto with its tick, a datasheet and `EngravedChart` readings. For a home, never for a working surface. | [The cover](layout.md#the-cover) | Ryoku Settings' Home |
-| A dialog flow | `Dialog`, plain copy, fields when required, line Cancel and one gold or danger action; use `Confirm` for irreversible work. | [Overlays and the Escape stack](layout.md#overlays-and-the-escape-stack) | [Memento](media/sheet-memento.png) |
-| The compact class | One `Pane`, a 64 high bottom form of `Rail`, full-width content, and Back when detail replaces a list. | [Size classes](layout.md#size-classes) | [Tile](media/sheet-tile.png) |
-
-## Gallery renders
-
-The component galleries are [Foundation](media/gallery-foundation.png), [Controls](media/gallery-controls.png), [Lists](media/gallery-lists.png) and [Overlays](media/gallery-overlays.png). The terminal reference is [Terminal controls](media/term-controls.png).
+| A settings window | The frame: the sidebar tree beside one page pane on the paper, the registration sheet, masthead and colophon, overlays above. | [The frame](layout.md#the-frame) | [Page](media/hub-page-dark.png) |
+| A settings page | `SettingsPage`: the page head with its spec strip and plate, ruled `Section`s with their ordinals, `Slab`s of `SettingRow`s, "More options", Related. | [The page sheet](layout.md#the-page-sheet) | [Page](media/hub-page-dark.png), [light](media/hub-page-light.png) |
+| A cover | Home: the figure or system card beside one column of name, motto and tick ruler, what waits, the datasheet and readings, recent changes. | [The cover](layout.md#the-cover) | [Home](media/hub-home-dark.png), [readings](media/hub-overview-dark.png) |
+| A decision | `Confirm` over the scrim: quiet Cancel and one danger or gold action that names the verb. | [Overlays and the Escape stack](layout.md#overlays-and-the-escape-stack) | [Dialog](media/hub-dialog-dark.png) |
+| An editor over the window | A `Dialog` with `Segmented` tabs and one gold Done; every change applies at once. | [Card studio](components.md#card-studio) | [Studio](media/hub-studio-dark.png) |
+| A collection | The binder: a cut-16 panel over a shade, a header with its actions, a grid ordered by what matters. | [Binder](components.md#binder) | [Binder](media/hub-binder-dark.png) |
+| A list and detail window | Ryoport's shape: rail, list pane, work pane. | [The list and detail window](layout.md#the-list-and-detail-window) | - |
+| A player window | Ryotunes's shape: top bar, sidebar, content, side panel, player bar. | [The player window](layout.md#the-player-window) | - |
+| A conversation window | Rashin's shape: sidebar, one reading column and its composer. | [The conversation window](layout.md#the-conversation-window) | - |

@@ -16,7 +16,7 @@ extend it.
 | `ryoku/hub/quickshell/schema/` | one `<page-id>.js` per page: its sections and rows; `index.js` lists them for search |
 | `ryoku/hub/quickshell/pages/` | one `<Name>.qml` per page, loaded into the page pane |
 | `ryoku/hub/quickshell/components/` | the shared parts (`SettingsPage`, `PageHeader`, `RowControl`, `Home`, `SearchDoor`, `SearchResults`, `DesignShelf`, ...), the sidebar in `nav/`, the pages' live previews in `previews/`, and one `<page-id>/` folder per page for that page's own parts and stores |
-| `ryoku/hub/quickshell/Singletons/` | `Changes` (the write path), `Settings` (the shell settings), `Look` (Settings' own colours), `Tone` (its surfaces and motion), `ProviderSchema`, `Attention`, `Live`, `Host` |
+| `ryoku/hub/quickshell/Singletons/` | `Changes` (the write path), `Settings` (the shell settings), `Tone` (its surfaces and motion), `Ambient` (life at rest), `ProviderSchema`, `Attention`, `Live`, `Host` |
 | `ryoku/hub/backend/` | `ryoku-hub`, the Go program the pages call for anything outside the shell daemon |
 
 The UI is drawn with the Lithic QML library (`docs/lithic/library/qml/Lithic`,
@@ -142,8 +142,9 @@ its corners follow the design.
   (`registry/numbering.js`). Pages carry no glyph. Every line ends in its
   Japanese gloss, the real word (`kanji` in `registry.js`). A
   folder opens and shuts on a click or Right and Left; its pages slide in one
-  after another. The open page's folder opens with it and shuts again when
-  the reader goes on to another folder, unless they opened it themselves. One
+  after another, 18 ms apart. The open page's folder opens with it and shuts
+  again when the reader goes on to another folder, unless they opened it
+  themselves. One
   wash marks the open page: it slides between pages of one folder and grows in
   at a page in another, and rests on the folder while that is shut. A shut
   folder shows how many pages it holds. Up and Down walk the lines on show,
@@ -183,9 +184,8 @@ its corners follow the design.
   (`RegSheet`), a masthead over the page with its number and place
   (`§ 08.1 SYSTEM / POWER & BATTERY`), its place among all pages, the window
   manager, the bar and the clock, over a tick ruler whose marker follows the
-  scroll (`Masthead`), and a colophon at its foot with whether every change
-  is live yet, where the pointer stands, and the page's id as a Code 39
-  barcode (`Colophon`). A page that fits leaves its foot to its folio, its
+  scroll (`Masthead`), and a colophon at its foot with the page's id as a
+  Code 39 barcode (`Colophon`). A page that fits leaves its foot to its folio, its
   number set huge and faint, which rolls to the next number when another
   page opens (`Folio`). Sections are numbered and ruled (`01 / 07`).
   Japanese runs through the sheet as it did through the stable Hub: the
@@ -509,11 +509,11 @@ always shows your own machine.
 A page drawn by `components/SettingsPage.qml` is a sheet, with the same shape
 everywhere:
 
-- **The head** (`components/PageHeader.qml`). The category's glyph and name,
-  unless the page is named like it; the schema's title with the page's own
-  actions on the same line; its one-sentence `lead`, a state line when the
-  page passes one, and a note when the window manager hides some rows. A
-  page's preview, when it has one, stands at the head's right.
+- **The head** (`components/PageHeader.qml`). The schema's title (the masthead
+  above it says where the page lives) with the page's own actions on the same
+  line; its one-sentence `lead`, a state line when the page passes one, and a
+  note when the window manager hides some rows. At the head's right stands the
+  page's live preview when it has one, otherwise its category's dithered plate.
 - **The entrance.** The first sections rise in turn as the page opens, 40 ms
   apart; a rebuild after that moves nothing, and reduced motion plays none of
   it.

@@ -1,24 +1,59 @@
-# Working with Lithic
+# Working with the Ryoku language
 
-Use this page for a new surface, a redesign or a migration. The same sequence applies in every stack.
+Use this page for a new surface, a redesign or a migration. Ryoku Settings
+(the Hub, `ryoku/hub/quickshell/`) is the reference: when a rule here and the
+Hub seem to disagree, open the Hub file named and do what it does. The same
+sequence applies in every stack.
 
 ## Workflow
 
-1. **Say who uses it, how often and for how long.** A shell control seen every minute needs a different density from a setup flow used once.
-2. **Pick the archetype.** Choose the list and detail window, Now board, draft with aside, settings page, dialog flow, player window, conversation window or compact class in [layout.md](layout.md).
-3. **List the states.** Give each state a tone, one plain word and a proof. A colour without a word is not a state.
-4. **Find the one consequential action.** Give only that action a gold plaque. Keep following actions as line plaques and rare actions in an overflow menu.
-5. **Compose from the map.** Use [map.md](map.md) to choose components before writing custom presentation.
-6. **Hook the style and the palette.** Follow [styles.md](styles.md): read the desktop's style and colours, draw every shape as a cut through the library, take planes from the library, and use roles from [palette.md](palette.md), never colour values. Ryoku's colours are the default; the wallpaper's are the reader's desktop-wide choice, never an in-app one.
-7. **Set the motion budget.** Use [motion.md](motion.md), move only in response to a cause, stop when the response ends, and keep nothing moving at rest.
-8. **Write the copy.** Use [copy.md](copy.md) for sentence case, claims, proofs, labels and consequences.
-9. **Review and render.** Follow [checklist.md](checklist.md), inspect all four styles, Ryoku's colours and the wallpaper's, dark and light, and compare the render with the relevant sheet.
+1. **Say who uses it, how often and for how long.** A shell control seen
+   every minute needs a different density from a setup flow used once.
+2. **Pick the window shape** in [layout.md](layout.md). A settings window is
+   the Hub's: the sidebar tree beside a sheet of ruled sections.
+3. **List the states.** Give each state a mineral, one plain word and a
+   proof. A colour without a word is not a state.
+4. **Find the one consequential action.** Only that action is a `gold`
+   plaque; secondary actions are `line`, everything else `quiet`
+   ([palette.md](palette.md#4-which-role-goes-where)).
+5. **Compose from the map.** Use [map.md](map.md) and the Hub's own parts
+   before writing custom presentation.
+6. **Hook the style and the palette.** Follow [styles.md](styles.md): read
+   the desktop's style and colours, draw every shape as a cut through the
+   library, take planes from the library, and use roles
+   ([palette.md](palette.md)), never colour values.
+7. **Set the motion.** Follow [motion.md](motion.md): move in answer to a
+   cause, stop when the answer ends, and keep life at rest behind the
+   focused-window and reduce-motion gate.
+8. **Write the copy.** Follow [copy.md](copy.md).
+9. **Review and render.** Follow [checklist.md](checklist.md), render the
+   surface in each style, on Ryoku's colours and the wallpaper's, dark and
+   light, and compare it with the Hub renders in [media/](media/).
+
+## Read the Hub first
+
+| To build | Read |
+|---|---|
+| the window frame: sidebar, page pane, sheet | `Hub.qml:901-1002`, `components/sheet/` |
+| the style adapter: planes, washes, cuts, durations | `Singletons/Tone.qml` |
+| a settings page from a schema | `components/SettingsPage.qml`, `components/RowControl.qml`, `schema/` |
+| the sidebar tree, outline and search | `components/nav/` |
+| a change with a notice and Undo | `Hub.qml:838-845, 1104-1158`, `Singletons/Changes.qml` |
+| an overview with graphs | `components/Home.qml` readings, `EngravedChart` |
+| a confirm | `hub.confirm()` in `Hub.qml:381-399` |
+| life at rest | `Singletons/Ambient.qml`, `Hub.qml:405-410` |
+| pointer follow, section entrance | `components/Chase.qml`, `components/Reveal.qml` |
+
+The pattern names (sheet, masthead, colophon, folio, plate, registration
+marks, tick ruler, plaque tiers, sidebar tree, section nodes) are defined in
+[design.md](design.md#2-vocabulary).
 
 ## Adopt a library
 
 ### QML
 
-Add `docs/lithic/library/qml` to the import path and import the module:
+Add `docs/lithic/library/qml` to the import path and import the module, as
+the Hub does in 164 of its files:
 
 ```qml
 import Lithic
@@ -30,14 +65,21 @@ Plaque {
 }
 ```
 
-Run a gallery page from its directory:
+At the surface's root, bind `Lithic.reduceMotion` to the desktop's
+`theme.motion.reduce` and call `Lithic.reload()` when the palette files
+change, as `ryoku/hub/quickshell/ShellBody.qml:23-78` does. Run a gallery
+page from its directory:
 
 ```sh
 cd docs/lithic/examples/qml
 QT_FORCE_STDERR_LOGGING=1 LITHIC_PAGE=controls LITHIC_MODE=dark qml6 -I ../../library/qml Gallery.qml
 ```
 
-`previewState` forces an interactive state for galleries. Overlays use `previewOpen` or `previewEmbedded`. A `CutRect` owns its children through its content item, so bind `cut` and `fill` to the `CutRect` by id. Read the [QML library README](library/qml/README.md) for each public property and signal.
+`previewState` forces an interactive state for galleries. Overlays use
+`previewOpen` or `previewEmbedded`. A `CutRect` owns its children through
+its content item, so bind `cut` and `fill` to the `CutRect` by id. Read the
+[QML library README](library/qml/README.md) for each public property and
+signal.
 
 ### Web
 
@@ -51,171 +93,279 @@ Load the aggregate stylesheet, import the aggregate module and initialize it:
 </script>
 ```
 
-Fields use the `l-field-control l-cut` wrapper. Search uses `l-search l-cut`. Use `data-l-state` for forced gallery states and static open frames for overlays. Serve `docs/lithic`, then open `examples/web/<page>.html?mode=<mode>&palette=<url>`. Read the [web library README](library/web/README.md) for component markup and attributes.
+Fields use the `l-field-control l-cut` wrapper. Search uses
+`l-search l-cut`. Use `data-l-state` for forced gallery states and static
+open frames for overlays. Serve `docs/lithic`, then open
+`examples/web/<page>.html?mode=<mode>&palette=<url>`. Read the
+[web library README](library/web/README.md) for component markup and
+attributes.
 
 ### Go with Gio
 
-Use the module `github.com/ryoku-dev/ryoku/docs/lithic/library/go`, resolve roles once and build one theme:
+Use the module `github.com/ryoku-dev/ryoku/docs/lithic/library/go`, resolve
+roles once and build one theme:
 
 ```go
 roles := palette.FromPalette(palette.Load(palette.Dark), palette.Look{})
 th := theme.New(roles)
 ```
 
-`palette.Dark`, the zero `palette.Mode`, is the signature; `palette.Light` is its light stock. Pass `palette.Follow` only when the reader chooses to follow the wallpaper, and run `palette.Watch` only while following. `palette.ParseMode` reads `dark`, `light` or `follow` from a setting or flag. `palette.Look{}` is standard contrast with tint off; pass `palette.ParseLook(contrast, tint)` to follow the reader's setting. Keep `kit` values in the owning view and call their `Layout` methods. Set a component's `Preview` field to `kit.StateHover`, `kit.StatePressed` or `kit.StateFocus` for a forced gallery state. Run a gallery page with `cd docs/lithic/examples/gio && go run . --page controls --mode dark`. From `docs/lithic/library/go`, `go run ./cmd/lithic-roles --mode follow` prints the roles resolved from this machine's palette. Gio icons come from package `symbols`; add a name to `symbols/list.txt` and run `go run ./cmd/lithic-symbols`. Read the [Go library README](library/go/README.md) for package and component APIs.
+`palette.Dark`, the zero `palette.Mode`, is Ryoku's signature;
+`palette.Light` is its light table. Pass `palette.Follow` when the desktop's
+`theme.colours` is `wallpaper`, and run `palette.Watch` only while following.
+`palette.ParseMode` reads `dark`, `light` or `follow`;
+`palette.ParseLook(contrast, tint)` reads the reader's contrast and tint.
+Keep `kit` values in the owning view and call their `Layout` methods. Set a
+component's `Preview` field to `kit.StateHover`, `kit.StatePressed` or
+`kit.StateFocus` for a forced gallery state. From `docs/lithic/library/go`,
+`go run ./cmd/lithic-roles --mode follow` prints the roles resolved from
+this machine's palette. Gio icons come from package `symbols`; add a name to
+`symbols/list.txt` and run `go run ./cmd/lithic-symbols`. Read the
+[Go library README](library/go/README.md) for package and component APIs.
 
 ### Terminal
 
-Import `github.com/ryoku-dev/ryoku/docs/lithic/library/go/term`, create a theme with `term.NewTheme(mode)`, then call a pure render entry such as `term.RenderPlaque(th, term.Plaque{...})`. Interactive components expose Bubble Tea v2 models such as `term.TextFieldModel` and `term.MenuModel`.
+Import `github.com/ryoku-dev/ryoku/docs/lithic/library/go/term`, create a
+theme with `term.NewTheme(mode)`, then call a pure render entry such as
+`term.RenderPlaque(th, term.Plaque{...})`. Interactive components expose
+Bubble Tea v2 models such as `term.TextFieldModel` and `term.MenuModel`.
 
-Run a page with `cd docs/lithic/examples/term && go run . --page controls --width 120 --mode dark`. The Unicode glyph set is the default. The console set is selected when `TERM=linux` or `LITHIC_GLYPHS=console`; `LITHIC_GLYPHS=unicode` forces Unicode. Applications may call `term.SetGlyphMode(term.GlyphConsole)` or `term.SetGlyphMode(term.GlyphUnicode)`.
+The Unicode glyph set is the default. The console set is selected when
+`TERM=linux` or `LITHIC_GLYPHS=console`; `LITHIC_GLYPHS=unicode` forces
+Unicode. Applications may call `term.SetGlyphMode(term.GlyphConsole)` or
+`term.SetGlyphMode(term.GlyphUnicode)`.
 
 ## Upgrade a Ryoku QML surface
 
-The current `ryoku/ui` library is a paper-and-ink system. Its palette singleton, rounded rectangles, inverted bone selection and decorative sheet vocabulary must be replaced as one surface, not mixed with Lithic one control at a time.
+Many shell surfaces still draw with `Ryoku.Ui` Tokens, which rounds where
+the Hub cuts and does not read the desktop's colour choice
+([styles.md](styles.md#where-each-stack-stands)). Replace a surface as one
+piece, the way the Hub was built: never mix rounded Tokens controls with cut
+Lithic ones on one surface.
 
 ### Map the current roles
 
-| Current `Tokens.qml` role | Lithic destination | Migration note |
+| `Tokens.qml` role | Ryoku role | Note |
 |---|---|---|
-| `defaultPaper` | signature `ground` | Keep fallback values only in the generated signature. Do not read the default directly. |
-| `defaultPaperLift` | signature `slab` | Overlay fallback belongs to `stone4`, selected by the component rather than this old role. |
-| `defaultInk` | signature `fg` | Keep fallback data inside the token output. |
-| `defaultInkDim` | signature `fg2` | Keep fallback data inside the token output. |
-| `paper` | `ground` | Use `stone1` or `stone2` for panes placed on the ground. |
-| `paperLift` | `slab` for containers inside a pane, `stone4` for overlays | Choose by component anatomy. One raised colour no longer serves both jobs. |
-| `light` | resolved palette mode | Ask the Lithic theme for its mode. Do not infer local decoration colours. |
-| `ink` | `fg` | Primary text and marks. |
-| `inkDim` | `fg2` | Secondary text and controls. |
-| `inkMuted` | `fg2` | Use the role directly. Do not preserve the old alpha layer. |
-| `inkFaint` | `fg3` | Tertiary copy and proof. |
-| `bone` | `sel` | Selection is a strong fill: bone in the signature, a wallpaper-tinted bone when following. The fill alone marks the place. |
-| `inkOnBone` | `onSel` | Primary ink on selection. |
-| `inkOnBoneDim` | `onSel2` | Secondary ink on selection. |
-| `lineOnBone` | `onSel2` | Use sparingly for selected-state detail. |
-| `keycapDark`, `keycapLight` | no fixed chrome role | Remove the fixed pair and build keycap chrome from the active stone and foreground roles. |
-| `keycapOnDark`, `keycapOnLight` | no fixed chrome role | Pair keycap text with the selected live foreground role. |
-| `line`, `lineSoft` | `vein` | Lithic has one hairline role for boundaries, plus `edge` around fields. Hierarchy comes from plane and spacing, not extra line alphas. |
-| `lineStrong` | `vein` for boundaries, `edge` for fields, `fg2` for keyboard focus | Use the component recipe instead of a stronger general border. |
-| `tint5` | plane hover recipe | Step the plane one tone up. Do not carry the tint token across. |
-| `tint10` | transparent or filled hover recipe | Let the component recipe mix the correct ink or fill. |
-| `tint16` | press recipe | Deepen the cut and sink content, or use the row press wash. |
-| `sun` | `gold` | Use only for the one consequential action. Use minerals for state. |
-| `sunDeep` | `goldInk` | Use for line actions that accompany the gold action. |
-| `alert` | `jasper` | Resolve it from the palette and tone it for contrast. Do not keep a fixed alert colour. |
+| `paper`, `defaultPaper` | `ground` | the window and sidebar; take panes from `Lithic.planes()` |
+| `paperLift`, `defaultPaperLift` | `slab` for a group in a page, `stone4` for what floats | choose by what the plane is |
+| `light` | `Lithic.dark` | ask the library; never infer it |
+| `ink`, `defaultInk` | `fg` | |
+| `inkDim`, `inkMuted`, `defaultInkDim` | `fg2` | use the role, not an alpha layer |
+| `inkFaint` | `fg3` | |
+| `bone` | `container` under the chosen item, `sel` for its marks; `sel` fill for a control that is on | the Hub marks the open page with a wash and the sun, not an inverted plate (`components/nav/NavRow.qml:55-61, 128`) |
+| `inkOnBone`, `inkOnBoneDim`, `lineOnBone` | `containerInk` on the wash; `onSel`, `onSel2` on a `sel` fill | |
+| `line`, `lineSoft` | `vein` | one hairline role for planes and rules |
+| `lineStrong` | `edge` for a field, `fg2` for keyboard focus | |
+| `tint5`, `tint10` | a hover wash: `fg` at a small alpha, as `Tone.hover` | `Singletons/Tone.qml:26` |
+| `tint16` | a press wash, as `Tone.press`, or the plaque's press | `Tone.qml:27` |
+| `sun` | `gold` | the one consequential action |
+| `sunDeep` | `goldInk` | `line` plaques |
+| `alert` | `jasper` | |
+| `keycapDark`, `keycapLight`, `keycapOnDark`, `keycapOnLight` | the live stone and ink roles | no fixed keycap pair |
 
-The old font, spacing, geometry and duration properties also move to `LithicTokens.type`, `LithicTokens.space`, `LithicTokens.cut`, `LithicTokens.size` and `LithicTokens.motion`. `radius` has no destination. Replace the rounded shape with the component's cut.
+Fonts, spacing, geometry and durations move to `LithicTokens.font`,
+`type`, `space`, `cut`, `size` and `motion`. `radius` has no destination:
+give the shape its cut.
 
 ### Map the current components
 
-| Current `ryoku/ui` component | Lithic replacement |
+| `ryoku/ui` component | Replacement |
 |---|---|
-| `Btn` | `Plaque`; map `primary` to `kind: "gold"` only when it is the task's consequential action. |
-| `IconBtn` | `IconPlaque` with `glyph` and an accessible description. |
-| `Field` | `TextField`, or `Search` when the value narrows a collection. |
-| `Sw` | `Toggle`. |
-| `Step` | `Stepper`. |
-| `Slid` | `Slider`. |
-| `Chips` | `Filters` when narrowing a list. Use `Tabs` when switching views. |
-| `Tabs` | `Tabs`; remove inverted plates and use the moving blade. |
-| `Seg` | `Segmented` for two to five options of one setting, `Tabs` for views, `Filters` for narrowing, or `Picker` for a longer set. Choose by intent rather than appearance. |
-| `Multi` | A `Slab` of labelled `Toggle` rows for independent membership. |
-| `PickBar` and `Picker` | One `Picker` with its `Popover` and `Menu`. |
-| `Gallery` | `Picker` for one choice, or `RowList` when each option needs proof or secondary facts. |
-| `Empty` | `Empty`; replace the ornament and coded label with a title, explanation and next action. |
-| `Cell` | A setting row inside `Section` and `Slab`, composed with the appropriate Lithic control. |
-| `SettingRow` | A setting row inside `Slab`; keep label and detail before the right-aligned control. |
-| `SettingCard` | `Section` plus `Slab`; add `Disclosure` only when the content is optional. |
-| `Section` | `Section` plus `Slab`; remove register marks and tracked suffixes. |
-| `CardColumns` | The chosen layout archetype, usually `AppFrame` for a page or `DraftColumns` for a form and aside. |
-| `ActionBar` | A plain action row made from `Plaque` components, with a `Claim` for saved state and a `Placard` for result or undo. Nothing pulses at rest. |
-| `Preview` | App-owned content inside a `Pane` or `Slab`. Keep its label in normal sentence case. |
-| `AvatarImage` | The mark slot in `Header`, when identity needs an image. |
-| `Barcode` | App-owned content inside a `Slab`; use roles and token dimensions. |
-| `FingerprintScan` | App-owned content composed with `Claim`, `BladeProgress` and proof. |
-| `ScrollRail` and `WheelScroll` | Scrolling owned by `RowList` or the containing pane, using the Lithic thumb and wheel motion. |
-| `Anim` and `Entrance` | Lithic motion helpers and the single motion curve. Remove idle loops. |
-| `PickFile` and `AppPicker` | A `Dialog` containing `Search`, `RowList` or `Picker`, with explicit cancel and choose plaques. |
-| `FileDialogHost` | Keep the native dialog lifetime wrapper behind the surface. It has no Lithic visual replacement. |
-| `BusTopic`, `BusIpcHandler`, `ShellSetting` and `DeferredFileView` | Keep these data and runtime seams behind the surface. They do not draw and have no Lithic visual replacement. |
-| `KeyboardMap` | `Section` and `Facts`, with shortcuts as proof text. |
-| `Keycap`, `KeyChord` and `KeypressStack` | Compose `CutRect`, `Sentence` and `Marks` from live roles. Keep the shortcut meaning, not fixed keycap colours. |
-| `AuraField` and `SpectrumField` | App-owned visualizer content inside a `Pane`; use `EngravedChart` only for a real series. Nothing animates while inactive. |
-| `DitherImage` and `HeroCrop` | App-owned media content inside a `Pane` or `Slab`; the frame still uses Lithic roles and cuts. |
-| `Grain`, `Motif`, `Marginalia`, `Pixel`, `Reg`, `Ticks` and `Watermark` | Remove decorative sheet chrome. Preserve a part only when it communicates app-owned data, then rebuild it from a named component. |
+| `Btn` | `Plaque`, `quiet` by default; `gold` only for the one consequential action |
+| `IconBtn` | `IconPlaque`, or the Hub's `IconButton` pattern (`components/IconButton.qml`) |
+| `Field` | `TextField`, or `Search` when the value narrows a list |
+| `Sw`, `Step`, `Slid` | `Toggle`, `Stepper`, `Slider` |
+| `Seg`, `Chips` | `Segmented` for two to five options of one setting, `Picker` for a longer set |
+| `Tabs` | `Segmented`, as the card studio switches its tabs (`media/hub-studio-dark.png`) |
+| `Multi` | a `Slab` of labelled `Toggle` rows |
+| `PickBar`, `Picker`, `Gallery` | one `Picker` with its `Popover` and `Menu`, or `RowList` when each option needs facts |
+| `Empty` | `Empty`: a title, an explanation and the next action |
+| `Cell`, `SettingRow`, `SettingCard`, `Section` | `SettingRow` rows in a `Slab` under a ruled `Section`; `Disclosure` only for optional content |
+| `CardColumns` | the Hub's frame (`Hub.qml:901-1002`) or the shape in [layout.md](layout.md) |
+| `ActionBar` | plaques on the page, a `Claim` for saved state, and a placard with Undo for each change |
+| `ScrollRail`, `WheelScroll` | Lithic `ScrollRail` |
+| `Anim`, `Entrance` | `Lithic.duration()`, the Hub's `Reveal` and `Chase` ([motion.md](motion.md)) |
+| `PickFile`, `AppPicker` | a `Dialog` with `Search`, `RowList` or `Picker`; `PathField` for a path |
+| `KeyboardMap`, `Keycap`, `KeyChord`, `KeypressStack` | `Section` and `Facts` to show shortcuts, `ChordField` to record one; keys from `CutRect`, `Sentence` and `Marks` |
+| `Barcode` | the Hub's colophon barcode (`components/about/CardBarcode.qml`) |
+| `DitherImage`, `HeroCrop` | the Hub's dithered plate (`components/sheet/Plate.qml`, `shaders/plate.frag`) |
+| `Reg`, `Ticks`, `Marginalia`, `Watermark`, `Grain`, `Motif`, `Pixel` | the Hub's sheet parts: `RegSheet`, `Masthead`, `TickRuler`, `Folio`, `Colophon`; drop the rest |
+| `AuraField`, `SpectrumField` | app content; `EngravedChart` for a real series |
+| `FileDialogHost`, `BusTopic`, `BusIpcHandler`, `ShellSetting`, `DeferredFileView` | keep them: they do not draw, and the Hub uses them too |
 
 ### Order of work for one QML surface
 
-1. Inventory every state, action, old token read and reusable `Ryoku.Ui` component on the surface.
-2. Pick one archetype from [layout.md](layout.md) and sketch its panes, sections and overlay order.
-3. Add the Lithic import and palette host at the surface boundary.
-4. Replace the outer ground, panes and size-class layout first.
-5. Replace controls and rows from the outside in, using the mapping above.
-6. Replace local colour, size, type and duration expressions with roles and generated tokens.
-7. Rebuild state as a tone, word and proof. Move rare and destructive actions into the overflow path.
-8. Remove the old imports, old token reads, rounded shapes, ornament and idle animation from that surface.
-9. Check keyboard focus, Escape order, reduced motion and all three palette modes, then render and compare.
+1. Inventory every state, action, old token read and `Ryoku.Ui` component on
+   the surface.
+2. Pick the shape from [layout.md](layout.md) and sketch its panes, sections
+   and overlays.
+3. Add the Lithic import, the reload and the reduce-motion binding at the
+   surface's root.
+4. Replace the ground, panes and size classes first.
+5. Replace controls and rows from the outside in, using the maps above.
+6. Replace local colour, size, type and duration expressions with roles and
+   tokens.
+7. Rebuild each state as a mineral, a word and a proof.
+8. Remove the old imports, token reads, rounded shapes and idle animation
+   from that surface.
+9. Check keyboard focus, Escape order, reduced motion, each style, both
+   colour sources, dark and light; then render it and compare it with the
+   Hub.
 
-Do not ship a half-migrated surface that mixes rounded paper-and-ink controls with cut Lithic controls. Do not keep hardcoded colours, old alpha tints, copied dimensions or compatibility aliases. Migrate the whole surface and remove the old path from its call sites.
+Do not ship a half-migrated surface. Do not keep hardcoded colours, old
+alpha tints, copied dimensions or compatibility aliases.
 
 ## Upgrade other stacks
 
-Use the same cutover in each stack. Inventory the surface, choose an archetype, attach the library at the boundary, replace the outside structure before controls, remove the old styling source, then inspect all modes.
+Use the same cutover in each stack: inventory the surface, choose its shape,
+attach the library at the boundary, replace the outside structure before
+controls, remove the old styling source, then inspect every look.
 
 | Stack | Inventory | Attach roles and tokens | Replace | Remove | Check |
 |---|---|---|---|---|---|
-| Web | Existing classes, inline styles, ARIA state, overlays and layout breakpoints. | Load `lithic.css`, call `Lithic.init()` and let it set `--lithic-*` roles. | Move markup to `l-*` components and native ARIA state, then adopt the matching archetype. | Inline colour and geometry values, rounded cards, shadow layers, blur on controls or type, duplicated interaction scripts. | Keyboard, focus, Escape, pointer dismissal, follow, dark, light and reduced motion in Firefox and Chromium. |
-| Gio | Theme colours, widget state, click ownership, layout dimensions and frame invalidation. | Resolve `palette`, create one `theme.Theme`, and pass it through every `kit` layout. | Keep `kit` values in the owning view and compose the archetype from their `Layout` methods. | Local paint recipes, copied cuts, duplicated click handling and idle invalidation. | Keyboard and pointer paths, compact and expanded layouts, palette modes, reduced motion and zero frames at rest. |
-| Terminal | Local Lip Gloss styles, width rules, focus order, commands and status strings. | Create one `term.Theme` with `term.NewTheme(mode)` and pass it to each render function or model. | Use the terminal subset in [map.md](map.md#component-index), preserving claim, proof and action order. | Literal terminal colours, decorative borders that replace meaning, independent spacing scales and colour-only state. | Narrow and 120-column widths, keyboard order, both glyph sets, ANSI output in dark and light terminals, and readable state without colour. |
+| Web | classes, inline styles, ARIA state, overlays, breakpoints | load `lithic.css`, call `Lithic.init()` and let it set `--lithic-*` roles | move markup to `l-*` components and native ARIA state | inline colour and geometry values, rounded cards, duplicated interaction scripts | keyboard, focus, Escape, pointer dismissal, follow, dark, light and reduced motion in Firefox and Chromium |
+| Gio | theme colours, widget state, click ownership, dimensions, frame invalidation | resolve `palette`, create one `theme.Theme`, pass it through every `kit` layout | compose the shape from `kit` values kept in the owning view | local paint recipes, copied cuts, duplicated click handling, idle invalidation | keyboard and pointer, each size class, every palette mode, reduced motion, no frames at rest |
+| Terminal | Lip Gloss styles, width rules, focus order, status strings | one `term.Theme` from `term.NewTheme(mode)` | the terminal subset in [map.md](map.md), keeping claim, proof and action order | literal terminal colours, decorative borders that replace meaning, colour-only state | a narrow and a 120-column width, keyboard order, both glyph sets, dark and light terminals, state readable without colour |
 
 ## Add a component across the stacks
 
-1. Write the component contract in [components.md](components.md), including anatomy, states, interaction, accessibility and the `Library:` line.
-2. Add every shared dimension, cut, type, motion or alpha to [tokens.json](tokens.json). From `docs/lithic/library/go`, run `go run ./cmd/lithic-tokens` to update generated QML, CSS, JavaScript and Go outputs. Use `-check` when only checking generated output.
-3. Add the public QML type under `library/qml/Lithic` and register it in `qmldir`.
-4. Add the web class and behaviour under `library/web`, registering behaviour through `core.js` and the aggregate `lithic.js` entry.
-5. Add the Gio API under `library/go/kit`, using roles, generated tokens and `kit.Click` for every clickable.
-6. Add a pure `term.Render<Name>` function under `library/go/term` when the component reads well in a terminal. Add a data type when it carries data and a Bubble Tea model when it owns interaction.
-7. Add every supported state to the QML, web and Gio gallery pages, and to the terminal gallery when it has a terminal form.
-8. Add or update the component row in [map.md](map.md#component-index) with the exact public names in each stack.
+1. Write the component contract in [components.md](components.md): anatomy,
+   states, interaction, accessibility and the `Library:` line.
+2. Add every shared dimension, cut, type, motion or alpha to
+   [tokens.json](tokens.json). From `docs/lithic/library/go`, run
+   `go run ./cmd/lithic-tokens` to regenerate the QML, CSS, JavaScript and Go
+   outputs; add `-check` to only check them.
+3. Add the QML type under `library/qml/Lithic` and register it in `qmldir`.
+4. Add the web class and behaviour under `library/web`, registering behaviour
+   through `core.js` and the aggregate `lithic.js` entry.
+5. Add the Gio API under `library/go/kit`, using roles, tokens and
+   `kit.Click` for every clickable.
+6. Add a pure `term.Render<Name>` under `library/go/term` when the component
+   reads well in a terminal.
+7. Add every supported state to the gallery pages.
+8. Add or update its row in [map.md](map.md).
 
 ## Verify
 
-Use `foundation`, `controls`, `lists` or `overlays` for `<page>`, and `dark`, `light` or `follow` for `<mode>`.
+Never verify on the live desktop. A screen capture grabs whatever the reader
+is looking at, and opening Settings the normal way
+(`ryoku-shell hub open`) puts it on their screen. Render in a private
+headless compositor instead.
 
-### QML
+### Render the Hub privately
 
-Keep `QT_FORCE_STDERR_LOGGING=1` so QML failures stay with the command instead of going only to the journal. This recipe writes a headless capture:
+This is how the reference renders in [media/](media/) were made. It runs
+Settings in its own headless weston, with the real settings read through the
+daemon, and touches nothing on the reader's screen.
+
+1. A private runtime directory, holding a link to the shell daemon's socket
+   so pages show the real settings:
+
+   ```sh
+   rt=/run/user/$(id -u)/hubprobe
+   mkdir -m700 -p "$rt"
+   ln -sf "/run/user/$(id -u)/ryoku-shell.sock" "$rt/ryoku-shell.sock"
+   ```
+
+2. Weston, headless. `--debug` is required, or the screenshooter does
+   nothing:
+
+   ```sh
+   env -i PATH="$PATH" HOME="$HOME" XDG_RUNTIME_DIR="$rt" \
+       weston --debug --backend=headless --renderer=gl --socket=hubprobe-0 \
+       --width=1440 --height=900 --idle-time=0 &
+   ```
+
+3. Settings in it, run from the repository root:
+
+   ```sh
+   env -i PATH="$PATH" HOME="$HOME" USER="$USER" LANG="${LANG:-en_US.UTF-8}" \
+       QML_IMPORT_PATH="$PWD/docs/lithic/library/qml:$HOME/.local/lib/qt6/qml" \
+       XDG_RUNTIME_DIR="$rt" WAYLAND_DISPLAY="$rt/hubprobe-0" \
+       QT_QPA_PLATFORM=wayland QT_WAYLAND_DISABLE_WINDOWDECORATION=1 \
+       RYOKU_BUS_CLIENT=hub-probe RYOKU_TEAM_URL=http://127.0.0.1:1 \
+       RYOKU_HUB_START=window-style LITHIC_MODE=dark \
+       qs -p ryoku/hub/quickshell &
+   ```
+
+   - `RYOKU_HUB_START` opens a page, or `page/row` (`Hub.qml:849`).
+   - `RYOKU_BUS_CLIENT` keeps the probe from registering as Settings, so the
+     daemon still sends the reader's `hub open` to their own window
+     (`ryoku/shell/plugin/busclient.cpp:63-67`).
+   - `RYOKU_TEAM_URL` points card updates at a dead port, so the probe makes
+     no network calls.
+   - `LITHIC_MODE=dark|light` paints Ryoku's colours; `follow` paints the
+     wallpaper's. `LITHIC_DESIGN=material|adwaita|fluent` renders another
+     style.
+
+4. After about ten seconds, capture. The file lands in `~/Pictures` upside
+   down:
+
+   ```sh
+   WAYLAND_DISPLAY=hubprobe-0 XDG_RUNTIME_DIR="$rt" weston-screenshooter
+   magick ~/Pictures/wayland-screenshot-<time>.png -flip hub-page-dark.png
+   rm ~/Pictures/wayland-screenshot-<time>.png
+   ```
+
+5. Tear down: kill the probe (`qs list --all` names it by its `hubprobe`
+   display), kill weston, remove `"$rt"`.
+
+Things to know:
+
+- Opening a page with `RYOKU_HUB_START` records it as the reader's last page
+  (`Hub.qml:268-277`). Set it back afterwards with
+  `ryoku-hub config set section <page>`.
+- The headless window is never focused, so `Ambient` stays off and the
+  render shows the window at rest ([motion.md](motion.md#motion-at-rest)).
+- There is no pointer. To open an overlay (search, a confirm, the card
+  studio, the binder), add a temporary `Timer` that calls `hub.focusSearch()`,
+  `hub.logOut()`, `hub.customiseHome("picture")` or `hub.openBinder()` in a
+  copy of the tree, never in the repository, and render the copy.
+- Compare the result with the reference renders:
+  [home](media/hub-home-dark.png), [page](media/hub-page-dark.png),
+  [overview](media/hub-overview-dark.png),
+  [search](media/hub-search-dark.png),
+  [dialog](media/hub-dialog-dark.png),
+  [studio](media/hub-studio-dark.png) and
+  [binder](media/hub-binder-dark.png), each with a `-light` twin.
+
+### QML galleries and behaviour tests
+
+Keep `QT_FORCE_STDERR_LOGGING=1` so QML failures stay with the command. This
+writes a headless capture of a gallery page:
 
 ```sh
 cd docs/lithic/examples/qml
 QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=offscreen QML_XHR_ALLOW_FILE_READ=1 LITHIC_PAGE=controls LITHIC_MODE=dark LITHIC_CAPTURE_PATH=/tmp/lithic-qml.png qml6 -I ../../library/qml Gallery.qml
 ```
 
-The behaviour tests drive the QML components with real key and pointer events: keyboard order, Return and Escape, focus moves, signals and size changes. Run them after any change under `library/qml/Lithic`, and add a failing case first when you fix a behaviour bug:
+The behaviour tests drive the QML components with real key and pointer
+events. Run them after any change under `library/qml/Lithic`, and add a
+failing case first when you fix a behaviour bug:
 
 ```sh
 QT_QPA_PLATFORM=offscreen "$(qmake6 -query QT_HOST_BINS)/qmltestrunner" -import docs/lithic/library/qml -input docs/lithic/library/qml/tests
 ```
 
+Use `foundation`, `controls`, `lists` or `overlays` for a gallery page, and
+`dark`, `light` or `follow` for its mode.
+
 ### Web
 
-Serve the Lithic root in one terminal:
+Serve the Lithic root, then take a Chromium screenshot from another
+terminal:
 
 ```sh
 cd docs/lithic
 python -m http.server 8000
 ```
 
-Then take a Chromium screenshot at the gallery's reference width from another terminal:
-
 ```sh
 chromium --headless --disable-gpu --window-size=1440,900 --screenshot=/tmp/lithic-web.png 'http://127.0.0.1:8000/examples/web/controls.html?mode=dark'
 ```
 
 ### Go with Gio
-
-Use `--png` for a headless render:
 
 ```sh
 cd docs/lithic/examples/gio
@@ -224,38 +374,42 @@ go run . --page controls --mode dark --png /tmp/lithic-gio.png
 
 ### Terminal
 
-Allocate a PTY so terminal width, colour and glyph detection match a real terminal:
+Allocate a PTY so width, colour and glyph detection match a real terminal:
 
 ```sh
 cd docs/lithic/examples/term
 script --quiet --return --command 'go run . --page controls --width 120 --mode dark' /dev/null
 ```
 
-Repeat with `LITHIC_GLYPHS=console` and `LITHIC_GLYPHS=unicode` when changing terminal geometry or glyph use.
+Repeat with `LITHIC_GLYPHS=console` and `LITHIC_GLYPHS=unicode` when
+changing terminal geometry or glyph use.
 
 ### Palette parity
 
-After changing the palette groups in `tokens.json`, `library/go/palette`, `library/web/palette.js` or `library/qml/Lithic/Lithic.qml`, run:
+After changing the palette groups in `tokens.json`, `library/go/palette`,
+`library/web/palette.js` or `library/qml/Lithic/Lithic.qml`, run:
 
 ```sh
 docs/lithic/library/parity/check.sh
 ```
 
-The [parity guide](library/parity/README.md) describes the compared cases and tool overrides.
-
-### Sheets
-
-Serve `docs/lithic` with the web command above, then open a source from the [sheet index](examples/sheets/README.md). Sheets open in the dark signature; add `?mode=light` for the light stock, or `?mode=follow&palette=<url>` to follow a palette, and compare it with the matching PNG in [media](media/).
+The [parity guide](library/parity/README.md) describes the cases.
 
 ### Check by eye
 
-- The surface matches one archetype and changes structure at its documented size class.
-- Every plane uses a role and every dimension comes from a token.
-- Corners are square or cut. There are no rounded cards, shadows, gradients, glows, inset wells or status dots. Any blur is a faint hint under a picture or on a scrim, and the type over it reads as it does on the bare plane ([design.md](design.md#blur-where-it-fits)).
-- Only one action per view is gold. Navigation and state do not spend gold.
-- Every state has a mineral shape, a word and nearby proof.
-- Hover, press and keyboard focus follow the shared recipes. Pointer focus does not leave a keyboard ring.
-- Overlays sit one tone up, close in the documented Escape order and swallow the dismissing click.
-- Motion stops after the response. An idle capture has no moving element.
-- Copy is sentence case and names consequences before irreversible actions.
-- Dark, light and follow keep text, controls and state readable. Reduced motion changes instantly without losing state.
+- The surface has one shape from [layout.md](layout.md), drawn like the Hub.
+- Every plane uses a role and every dimension a token; no colour value.
+- In Lithic every corner is cut; nothing sets a radius. No lit top edge on a
+  button, no vertical accent bar on the left of an option, no glossy or
+  heavily dithered shine.
+- Text is Geologica; data, numbering and running heads are Martian Mono.
+- Kanji gloss shows only behind `UiPreferences.showJapaneseGloss`.
+- One action per view is gold. The accent marks place only.
+- Every state has a mineral, a word and a proof nearby.
+- An overview presents its data with graphs.
+- Hover, press and keyboard focus follow the shared recipes; pointer focus
+  leaves no keyboard ring.
+- Motion stops after it answers. Unfocused, the window draws nothing.
+- Each style, both colour sources, dark and light keep text, controls and
+  state readable. Reduced motion changes everything at once without losing
+  state.
