@@ -314,7 +314,9 @@ func (t *trayState) addItem(service, sender string) {
 	t.mu.Unlock()
 
 	if t.isWatcher {
-		_ = t.conn.Emit(dbus.ObjectPath(watcherPath), watcherIface+".StatusNotifierItemRegistered", service)
+		// Emit the resolved key, not the raw argument: a path-only registration
+		// (libayatana-appindicator) carries no bus name, and hosts cannot reach it.
+		_ = t.conn.Emit(dbus.ObjectPath(watcherPath), watcherIface+".StatusNotifierItemRegistered", key)
 	}
 	t.refreshItem(it)
 	t.refreshMenu(it)
