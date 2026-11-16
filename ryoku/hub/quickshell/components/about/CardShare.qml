@@ -5,15 +5,15 @@ import Ryoku.Ui.Singletons
 import "../../Singletons"
 import ".."
 
-// the system card's sharing: Copy and Save draw `card` (a TradingCard) at twice its size and
-// let `ryoku-hub profile card` write the card's design into the picture; Open and Paste take a
-// design back out of a card picture, the clipboard or a .ryoprofile. `message` and `error`
-// say how the last one went, and retry() runs it again
+// the system card's sharing: Copy and Save draw a still card at twice its size, its code
+// rulers carrying the design in its pixels, and `ryoku-hub profile card` adds the whole design
+// for a file sent as it is. Open and Paste take a design back out of a card picture (from the
+// pixels when a chat app re-encoded it), the clipboard or a .ryoprofile. `message` and
+// `error` say how the last one went, and retry() runs it again
 Item {
     id: root
 
     required property var hub
-    property Item card: null
     property string pageId: ""
 
     property string message: ""
@@ -24,28 +24,59 @@ Item {
     property string arg: ""
     readonly property var cardAll: ({ store: "card", key: "*" })
 
-    visible: false
+    // drawn, so the still card can be grabbed, but out of sight
     width: 0
     height: 0
+    clip: true
 
     function tilde(p) {
         var home = Quickshell.env("HOME") || "";
         return home.length > 1 && String(p).indexOf(home) === 0 ? "~" + String(p).slice(home.length) : String(p);
     }
 
+    // the card is drawn once the machine's full read-out and the card's code are in
     function take(job) {
+        if (root.job !== "")
+            return;
         root.error = "";
         root.message = "";
         root.last = job;
-        if (!root.card) {
-            root.error = I18n.tr("The card is not drawn yet. Try again in a moment.");
-            return;
+        root.job = job;
+        stillLoader.active = true;
+        if (!SysInfo.loaded && !SysInfo.loading)
+            SysInfo.load();
+        ready.tries = 0;
+        ready.restart();
+    }
+    Timer {
+        id: ready
+        property int tries: 0
+        interval: 150
+        repeat: true
+        onTriggered: {
+            var ok = !!stillLoader.item && SysInfo.loaded === true && !SysInfo.loading && CardCode.ready;
+            if (!ok && ++ready.tries < 40)
+                return;
+            ready.stop();
+            if (!CardCode.ready) {
+                root.job = "";
+                root.error = I18n.tr("The card's code could not be made. Update Ryoku, then try again.");
+                return;
+            }
+            root.draw(root.job);
         }
+    }
+    Loader {
+        id: stillLoader
+        active: false
+        sourceComponent: TradingCard {}
+    }
+
+    function draw(job) {
         var rendered = (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-card-render.png";
         var name = String(SysInfo.sysUser || "card").replace(/[^A-Za-z0-9._-]/g, "") || "card";
         var dst = job === "copy" ? "--copy" : Paths.picturesDir + "/ryoku-card-" + name + "-" + Qt.formatDateTime(new Date(), "yyyyMMdd-HHmmss") + ".png";
-        root.job = job;
-        var card = root.card;
+        var card = stillLoader.item;
         var ok = card.grabToImage(function (result) {
             if (!result.saveToFile(rendered)) {
                 root.job = "";
@@ -70,6 +101,12 @@ Item {
             root.use("paste", "");
     }
     function use(job, file) {
+        // a picture the card tool cannot read (WebP, AVIF, ...) is turned into a PNG first
+        if (job === "use" && !/\.(png|jpe?g|gif|ryoprofile)$/i.test(file)) {
+            convert.pending = file;
+            convert.source = "file://" + file;
+            return;
+        }
         root.hub.confirm({
             title: I18n.tr("Use this card's design?"),
             text: I18n.tr("Its figure, words and choices replace your card's. To keep yours, copy or save it first."),
@@ -96,8 +133,10 @@ Item {
                        : I18n.tr("The disk is full, so the card could not be saved. Free some space, then press Retry.");
         if (job === "paste" && /no picture/i.test(e))
             return I18n.tr("The clipboard holds no picture. Copy a Ryoku card first, then press Paste.");
-        if (use && /not a Ryoku card|stripped/i.test(e))
-            return I18n.tr("That picture is not a Ryoku card, or the app it came through stripped the design from it. Ask for the card as a file.");
+        if (use && /card code|not a Ryoku card|stripped/i.test(e))
+            return I18n.tr("Settings could not read a card in that picture. Use the whole card picture as it was shared, not a crop or a screenshot of part of it.");
+        if (use && /could not be read/i.test(e))
+            return I18n.tr("That picture could not be read. Choose another with Open.");
         if (use && /ryoprofile|hero|not a PNG|cut short|no end|invalid character|unexpected end|cannot unmarshal/i.test(e))
             return I18n.tr("That file is not a card, or it is damaged. Choose a card picture with Open.");
         if (job === "copy" && /wl-copy/i.test(e))
@@ -147,6 +186,31 @@ Item {
             root.take(root.last);
         else if (root.last !== "")
             root.run(root.last, root.arg, "");
+    }
+
+    Image {
+        id: convert
+        property string pending: ""
+        asynchronous: true
+        onStatusChanged: {
+            if (convert.pending === "" || convert.status === Image.Loading || convert.status === Image.Null)
+                return;
+            var file = convert.pending;
+            convert.pending = "";
+            if (convert.status !== Image.Ready) {
+                root.error = I18n.tr("That picture could not be read. Choose another with Open.");
+                return;
+            }
+            var out = (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-card-open.png";
+            convert.grabToImage(function (result) {
+                if (result.saveToFile(out))
+                    root.use("use", out);
+                else
+                    root.error = I18n.tr("That picture could not be read. Choose another with Open.");
+            }, Qt.size(convert.sourceSize.width, convert.sourceSize.height));
+        }
+        width: sourceSize.width
+        height: sourceSize.height
     }
 
     // a card someone shared is a picture, so it is chosen by looking at it

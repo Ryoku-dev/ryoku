@@ -307,12 +307,6 @@ Item {
                 required property int index
                 width: moveList.width
                 height: 54
-                Rectangle {
-                    visible: index > 0
-                    width: parent.width
-                    height: 1
-                    color: Lithic.alpha(Lithic.fg, 0.14)
-                }
                 CutRect {
                     x: 0
                     anchors.verticalCenter: parent.verticalCenter
@@ -370,6 +364,32 @@ Item {
                     typeRole: "monoSm"
                     font.pixelSize: 11
                     inkRole: "fg2"
+                }
+            }
+        }
+    }
+
+    // the card's code: three tick rulers that rule off the parts of the card and carry its
+    // design in their tick heights, so a picture of it that went through a chat app still
+    // opens as a card (Singletons/CardCode.qml, backend/cardcode.go). Where they stand,
+    // the card keeps clear. The window above stays where the code reads an own picture
+    Repeater {
+        model: CardCode.code ? CardCode.code.ys.length : 0
+        delegate: Item {
+            id: ruler
+            required property int index
+            readonly property var levels: CardCode.code.levels[ruler.index]
+            x: CardCode.code.x
+            y: CardCode.code.ys[ruler.index]
+            Repeater {
+                model: ruler.levels.length
+                delegate: Rectangle {
+                    required property int index
+                    x: index * CardCode.code.pitch
+                    width: CardCode.code.tick
+                    height: (ruler.levels[index] + 1) * CardCode.code.unit
+                    color: card.level >= 4 ? Lithic.gold : Lithic.fg2
+                    antialiasing: false
                 }
             }
         }

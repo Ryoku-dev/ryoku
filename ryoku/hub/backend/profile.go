@@ -152,6 +152,8 @@ func runProfile(args []string) error {
 			return fmt.Errorf("profile import needs a path or --clipboard")
 		}
 		return importProfile(args[1])
+	case "code":
+		return printCardCode()
 	case "card":
 		if len(args) < 3 {
 			return fmt.Errorf("profile card needs the rendered picture and a path or --copy")

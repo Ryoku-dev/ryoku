@@ -247,6 +247,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  ryoku-hub profile export <path>")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub profile import <path>|--clipboard")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub profile card <rendered.png> <path>|--copy")
+	fmt.Fprintln(os.Stderr, "  ryoku-hub profile code")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub import scan <path|url>")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub import apply <decisions.json|->")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub import undo [<ts>]")

@@ -335,13 +335,26 @@ frames a second while the card is under the pointer. The foil is
 `shaders/foil.frag`: a soft wash of the four state colours and one sheen of
 light, smooth and held under 60% opacity, sliding as the card tilts.
 
-**Copy** and **Save** draw the card at twice its size and run
-`ryoku-hub profile card <picture> --copy|<path>`, which writes the card's
-design (the `.ryoprofile` envelope) into the PNG as a `tEXt` chunk named
-`ryoprofile` (`backend/profilecard.go`). Anyone sees a picture; **Open a card**
-and **Paste a card** (`ryoku-hub profile import <path>|--clipboard`) take the
-design back out of it, or out of a `.ryoprofile`. A picture a chat app
-re-encoded has lost the chunk, and Settings says so.
+**Copy** and **Save** draw a still card at twice its size (`CardShare`).
+The design travels in the card's pixels, because a chat app re-encodes a picture
+and keeps nothing else: the three tick rulers that rule off the card's parts are
+its **card code** (`backend/cardcode.go`, read by `Singletons/CardCode.qml`
+through `ryoku-hub profile code`). Each tick is one of four heights, two bits;
+the first and last tick of each ruler stand full height to calibrate ink, paper
+and scale. The bits carry the name, the line under it, the first big word, the
+figure (stock, a gallery figure by name, or the reader's own picture) and the
+layout, with a length, a CRC and 20 bytes of Reed-Solomon parity
+(`backend/reedsolomon.go`) that repair up to 10 misread bytes. Ticks are
+measured by the ink they lay down over a period, so a resize keeps them
+readable: a card reads back from the full picture down to about 560 pixels wide,
+through JPEG and WebP. An own picture comes back lifted from the card's window.
+`ryoku-hub profile card` also writes the whole design, own picture at full size,
+into the PNG as a `tEXt` chunk named `ryoprofile`; a file sent as it is keeps it,
+and Open prefers it. **Open a card** and **Paste a card**
+(`ryoku-hub profile import <path>|--clipboard`) take the design back out of a
+card picture, the clipboard or a `.ryoprofile`; a picture Go cannot decode (WebP,
+AVIF) is turned into a PNG first. A crop, a screenshot of part of a card or a
+picture shrunk too far is refused and says so.
 
 A page drawn by `components/SettingsPage.qml` is a sheet, with the same shape
 everywhere:

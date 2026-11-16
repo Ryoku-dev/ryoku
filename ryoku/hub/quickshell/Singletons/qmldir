@@ -12,3 +12,4 @@ singleton Live Live.qml
 singleton Attention Attention.qml
 singleton Tone Tone.qml
 singleton Ambient Ambient.qml
+singleton CardCode CardCode.qml

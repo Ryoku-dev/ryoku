@@ -82,41 +82,15 @@ Item {
         editorLoader.active = true;
     }
 
-    // Share on the top bar copies the system card as a picture that carries its design. The
-    // card is drawn out of sight the first time it is asked for, once the machine's full
-    // read-out is in, and kept for the next copy
-    property bool sharePending: false
+    // Share on the top bar copies the system card as a picture that carries its design
     property bool shareDone: false
     function shareCard() {
-        if (homeShare.job !== "" || root.sharePending)
-            return;
-        homeShare.error = "";
         root.shareDone = false;
-        root.sharePending = true;
-        shareCardLoader.active = true;
-        if (!SysInfo.loaded && !SysInfo.loading)
-            SysInfo.load();
-        shareWait.tries = 0;
-        shareWait.restart();
-    }
-    Timer {
-        id: shareWait
-        property int tries: 0
-        interval: 150
-        repeat: true
-        onTriggered: {
-            var ready = !!shareCardLoader.item && SysInfo.loaded === true && !SysInfo.loading;
-            if (!ready && ++shareWait.tries < 40)
-                return;
-            shareWait.stop();
-            root.sharePending = false;
-            homeShare.take("copy");
-        }
+        homeShare.take("copy");
     }
     CardShare {
         id: homeShare
         hub: root.hub
-        card: shareCardLoader.item
         onJobChanged: {
             if (homeShare.job === "" && homeShare.last === "copy") {
                 root.shareDone = homeShare.error === "";
@@ -130,16 +104,6 @@ Item {
         onTriggered: {
             root.shareDone = false;
             homeShare.error = "";
-        }
-    }
-    Item {
-        width: 0
-        height: 0
-        clip: true
-        Loader {
-            id: shareCardLoader
-            active: false
-            sourceComponent: TradingCard {}
         }
     }
 
@@ -677,7 +641,7 @@ Item {
                     glyph: homeShare.error !== "" && shareSaid.running ? "error" : root.shareDone ? "check" : "share"
                     text: topBar.width < 420 ? "" : root.shareDone ? I18n.tr("Copied") : I18n.tr("Share")
                     accessibleName: I18n.tr("Copy your system card to share it")
-                    busy: root.sharePending || homeShare.job === "copy"
+                    busy: homeShare.job === "copy"
                     onClicked: root.shareCard()
                 }
                 // a copy that failed says why on the bar itself, in the room left of the buttons;

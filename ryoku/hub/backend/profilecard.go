@@ -1,9 +1,10 @@
 package main
 
-// The shareable system card: a PNG of the card Settings draws, with the card's
-// design (the .ryoprofile envelope) carried inside it as a tEXt chunk. Anyone
-// sees a picture; Ryoku Settings opens the same file, or the same picture from
-// the clipboard, as a design to use. The chunk is ASCII (base64 of the
+// The shareable system card: a PNG of the card Settings draws. Its design travels
+// twice: in its pixels as the card code (cardcode.go), which survives a chat app
+// re-encoding the picture, and whole (the .ryoprofile envelope, own picture at full
+// size) in a tEXt chunk, which a file sent as it is keeps. Opening a card prefers
+// the chunk and falls back to the code. The chunk is ASCII (base64 of the
 // envelope's JSON), so tEXt's Latin-1 rule never mangles a Japanese tagline.
 
 import (
@@ -149,15 +150,26 @@ func cardEnvelopeFrom(path string) ([]byte, error) {
 	var raw []byte
 	var err error
 	if path == "--clipboard" {
-		raw, err = exec.Command("wl-paste", "--no-newline", "--type", "image/png").Output()
+		for _, kind := range []string{"image/png", "image/jpeg"} {
+			if raw, err = exec.Command("wl-paste", "--no-newline", "--type", kind).Output(); err == nil && len(raw) > 0 {
+				break
+			}
+		}
 		if err != nil || len(raw) == 0 {
 			return nil, fmt.Errorf("the clipboard holds no picture: %w", errNoCardDesign)
 		}
 	} else if raw, err = os.ReadFile(path); err != nil {
 		return nil, err
 	}
-	if !bytes.HasPrefix(raw, pngSignature) {
+	if bytes.HasPrefix(raw, []byte("{")) {
 		return raw, nil
 	}
-	return extractCardDesign(raw)
+	// a card saved straight from Settings still carries its whole design; one that went
+	// through a chat app has only its pixels, and the card code in them
+	if bytes.HasPrefix(raw, pngSignature) {
+		if env, err := extractCardDesign(raw); err == nil {
+			return env, nil
+		}
+	}
+	return envelopeFromPixels(raw)
 }

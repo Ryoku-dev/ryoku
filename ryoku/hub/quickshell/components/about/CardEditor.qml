@@ -132,7 +132,6 @@ Dialog {
         id: share
         parent: root.parent
         hub: root.hub
-        card: liveCard
         pageId: root.pageId
     }
 

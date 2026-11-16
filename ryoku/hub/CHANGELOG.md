@@ -3,6 +3,13 @@
 ## Unreleased
 
 ### Fixed
+- **A card shared through a chat app opens as a card.** Chat apps re-encode
+  pictures and drop their hidden data, so the card now carries its design in its
+  pixels: the three tick rulers between its parts encode the name, words, figure
+  and layout, with error correction, and survive resizing and JPEG or WebP. Your
+  own picture comes back from the card's window (`backend/cardcode.go`,
+  `backend/reedsolomon.go`, `quickshell/Singletons/CardCode.qml`,
+  `quickshell/components/about/TradingCard.qml`, `CardShare.qml`).
 - **The system card's text is sharp.** It was drawn for its full size and
   blurred when the card was shown smaller or saved; it now scales cleanly, and
   an expand button on Home shows the card large to read it whole

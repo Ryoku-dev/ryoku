@@ -201,8 +201,8 @@ func TestCardWithoutDesignIsRefused(t *testing.T) {
 	}
 	plain := filepath.Join(t.TempDir(), "plain.png")
 	writeTinyPNG(t, plain)
-	if err := importProfile(plain); !errors.Is(err, errNoCardDesign) {
-		t.Fatalf("got %v, want errNoCardDesign", err)
+	if err := importProfile(plain); !errors.Is(err, errNoCardCode) {
+		t.Fatalf("got %v, want errNoCardCode", err)
 	}
 	got, _ := os.ReadFile(profileConfigPath())
 	if string(got) != sampleProfile {
