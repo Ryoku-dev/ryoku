@@ -87,16 +87,14 @@ Item {
             var k = pg.rows[i].key;
             if (k) d[k] = OutputScope.readValue(pg.draft, pg.linked, pg.activeOutput, k);
         }
-        // a non-main output shows the layout it has live, not the global draft;
-        // with no saved entry it shows the global value, the same as eDP-1
-        if (!pg.linked && pg.activeOutput !== "" && pg.activeOutput !== pg.outputNames[0])
-            d["desktop.appearance.layout"] = (pg.tilingState.outputs && pg.tilingState.outputs[pg.activeOutput])
-                || pg.draft["desktop.appearance.layout"];
+        // a non-main output shows the layout it has live; with none it shows the
+        // shared value, the same as the main screen
+        if (pg.scopedView)
+            d["desktop.appearance.layout"] = pg.liveLayout(pg.activeOutput) || pg.draft["desktop.appearance.layout"];
         return d;
     }
-    // true when a non-main output is selected with the link off: only its tiling
-    // row shows, and the compositor tab (picker, cannot-do list) stays on the main screen
-    readonly property bool scopedView: !pg.linked && pg.activeOutput !== "" && pg.activeOutput !== pg.outputNames[0]
+    // a non-main output is selected with the link off: only its tiling row
+    // shows, and the compositor tab (picker, cannot-do list) stays on the main screen
     readonly property var settingsSchema: {
         var d = pg.scopedDraft, out = [];
         for (var i = 0; i < pg.rows.length; i++) {
@@ -123,11 +121,46 @@ Item {
     readonly property string switchTab: I18n.tr("Compositor")
 
     // Display link: linked (default) keeps every setting on all screens;
-    // unlinked lets each output own its settings. The output list comes from
-    // the backend the Displays page reads, not Wm, so the page never depends on
-    // a live compositor being present.
+    // unlinked lets each output own its tiling layout. Only a provider with a
+    // per-workspace layout (Wm.caps.perWorkspaceLayout) offers it; elsewhere the
+    // link row is absent and every output shares the one layout.
+    // the Hub's own caps frame, the same gate every Hub page uses; reading the Wm
+    // singleton at load time crashes the page where no compositor is connected
+    readonly property bool perOutput: Settings.supports("perWorkspaceLayout")
     property bool linked: true
     property string selectedOutput: ""
+    // the saved state is the source of truth: startup and every failed write re-read it
+    Process {
+        id: tilingGet
+        command: ["ryoku-output-tiling", "get"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    var st = JSON.parse(this.text);
+                    pg.linked = st.linked !== false;
+                } catch (e) { pg.linked = true; }
+            }
+        }
+    }
+    // each write goes through the helper, which applies it through the compositor
+    // seam and saves it; a non-zero exit is shown and the real state is re-read
+    Process {
+        id: tilingSet
+        stderr: StdioCollector { id: tilingSetErr }
+        onExited: (code) => {
+            pg.tilingError = code === 0 ? "" : (tilingSetErr.text.trim() || I18n.tr("Couldn't set the layout."));
+            tilingGet.running = true;
+        }
+    }
+    Process {
+        id: tilingLink
+        stderr: StdioCollector { id: tilingLinkErr }
+        onExited: (code) => {
+            pg.tilingError = code === 0 ? "" : (tilingLinkErr.text.trim() || I18n.tr("Couldn't change the display link."));
+            tilingGet.running = true;
+        }
+    }
     property var outputNames: []
     Process {
         id: outputsProc
@@ -144,40 +177,52 @@ Item {
         }
     }
     readonly property string activeOutput: OutputScope.resolveOutput(pg.outputNames, pg.selectedOutput)
-    // live per-output tiling; ryoku-output-tiling applies it and remembers it for login
-    property var tilingState: ({ linked: true, outputs: {} })
-    Process {
-        id: tilingGet
-        command: ["ryoku-output-tiling", "get"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: { try { pg.tilingState = JSON.parse(this.text); } catch (e) {} }
-        }
+    // the layout each non-main output has live, read from the compositor's own
+    // workspace list; empty when the output has no workspace of its own
+    function liveLayout(output) {
+        if (!Wm.ready) return "";
+        var ws = Wm.workspaces || [];
+        for (var i = 0; i < ws.length; i++)
+            if (ws[i].output === output && ws[i].layout) return ws[i].layout;
+        return "";
     }
-    Process {
-        id: tilingProc
-        stdout: StdioCollector {
-            onStreamFinished: tilingGet.running = true
-        }
+    readonly property bool scopedView: pg.perOutput && !pg.linked && pg.activeOutput !== "" && pg.activeOutput !== pg.outputNames[0]
+    // applies a layout to every workspace of one output through the seam; a
+    // failure is reported and the page re-reads the real state
+    property string tilingError: ""
+    function setOutputLayout(output, layout) {
+        tilingSet.command = ["ryoku-output-tiling", "set", output, layout];
+        tilingSet.running = true;
     }
-    Process {
-        id: tilingLinkProc
-        stdout: StdioCollector {
-            onStreamFinished: tilingGet.running = true
-        }
+    function setLink(on) {
+        pg.linked = on;
+        tilingLink.command = ["ryoku-output-tiling", "link", on ? "on" : "off"];
+        tilingLink.running = true;
     }
     Component {
         id: linkRowC
-        OutputTabs {
-            outputs: pg.outputNames
-            linked: pg.linked
-            selected: pg.activeOutput
-            onLinkToggled: (v) => {
-                pg.linked = v;
-                tilingLinkProc.command = ["ryoku-output-tiling", "link", v ? "on" : "off"];
-                tilingLinkProc.running = true;
+        Column {
+            width: parent ? parent.width : implicitWidth
+            spacing: Tokens.s2
+            OutputTabs {
+                outputs: pg.outputNames
+                linked: pg.linked
+                selected: pg.activeOutput
+                onLinkToggled: (v) => {
+                    if (!v && pg.selectedOutput === "") pg.selectedOutput = pg.outputNames[1] || "";
+                    pg.setLink(v);
+                }
+                onChose: (o) => pg.selectedOutput = o
             }
-            onChose: (o) => pg.selectedOutput = o
+            Text {
+                visible: pg.tilingError !== ""
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: pg.tilingError
+                color: Tokens.ink
+                font.family: Tokens.ui
+                font.pixelSize: Tokens.fSmall
+            }
         }
     }
 
@@ -196,19 +241,18 @@ Item {
         onEdited: (k, v) => {
             // a non-main output's tiling applies live to its own workspaces; it is
             // not part of the Save draft, so Save and the linked view stay as they are
-            if (!pg.linked && pg.activeOutput !== "" && pg.activeOutput !== pg.outputNames[0] && k === "desktop.appearance.layout") {
-                tilingProc.command = ["ryoku-output-tiling", "set", pg.activeOutput, v];
-                tilingProc.running = true;
+            if (pg.scopedView && k === "desktop.appearance.layout") {
+                pg.setOutputLayout(pg.activeOutput, v);
                 return;
             }
-            if (pg.hub) pg.hub.hyprEdit(OutputScope.editKey(pg.linked, pg.activeOutput, k), v);
+            if (pg.hub) pg.hub.hyprEdit(k, v);
         }
         onPickRequested: (r) => { if (pg.hub) pg.hub.openPick(r); }
         // Which compositor is running, how to change it, and what it cannot do
         // are about the compositor rather than about any group of settings, so
         // they get a tab of their own instead of repeating above every tab.
         tailTabs: pg.scopedView ? [] : [pg.switchTab]
-        headerExtra: linkRowC
+        headerExtra: pg.perOutput ? linkRowC : null
 
         Column {
             width: parent.width
