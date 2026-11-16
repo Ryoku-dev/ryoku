@@ -2,6 +2,13 @@ const STABLE_RELEASE = /^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$/;
 const ISO_SIDECARS = ["", ".sha256", ".sig", ".json", ".js"];
 const DEBRIS_AGE_MS = 48 * 60 * 60 * 1000;
 
+// The newest frozen repository directory is what a channel serves now; the
+// other five are the rollback depth `ryoku rollback` and `ryoku track <tag>`
+// can still reach.
+export const DEFAULT_KEEP_PACKAGES = 6;
+// The current ISO release and the two before it, per variant and channel.
+export const DEFAULT_KEEP_ISO_VERSIONS = 3;
+
 function timestamp(value) {
   if (typeof value !== "string" && !(value instanceof Date)) return NaN;
   return Date.parse(value);
@@ -13,10 +20,18 @@ function newestFirst(a, b) {
 
 function packageGroups(root, objects) {
   const groups = [
-    { id: "packages:arch:stable", base: `${root}releases/` },
-    { id: "packages:void:stable", base: `${root}void/releases/` },
-    { id: "packages:arch:unstable", base: `${root}channels/testing/builds/` },
-    { id: "packages:void:unstable", base: `${root}void/channels/testing/builds/` },
+    { id: "packages:arch:stable", base: `${root}releases/`, head: `${root}x86_64/release.json` },
+    { id: "packages:void:stable", base: `${root}void/releases/`, head: `${root}void/x86_64/release.json` },
+    {
+      id: "packages:arch:unstable",
+      base: `${root}channels/testing/builds/`,
+      head: `${root}channels/testing/x86_64/release.json`,
+    },
+    {
+      id: "packages:void:unstable",
+      base: `${root}void/channels/testing/builds/`,
+      head: `${root}void/channels/testing/x86_64/release.json`,
+    },
   ];
   const escapedRoot = root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const fedoraReleases = new Set();
@@ -26,12 +41,30 @@ function packageGroups(root, objects) {
     if (match) fedoraReleases.add(match[1]);
   }
   for (const release of [...fedoraReleases].sort((a, b) => Number(a) - Number(b))) {
+    const edition = `${root}fedora/${release}/`;
     groups.push(
-      { id: `packages:fedora:${release}:stable`, base: `${root}fedora/${release}/releases/` },
-      { id: `packages:fedora:${release}:unstable`, base: `${root}fedora/${release}/channels/testing/builds/` },
+      { id: `packages:fedora:${release}:stable`, base: `${edition}releases/`, head: `${edition}x86_64/release.json` },
+      {
+        id: `packages:fedora:${release}:unstable`,
+        base: `${edition}channels/testing/builds/`,
+        head: `${edition}channels/testing/x86_64/release.json`,
+      },
     );
   }
   return groups;
+}
+
+function positiveInteger(value, name) {
+  const number = typeof value === "number" ? value : Number.parseInt(value, 10);
+  if (!Number.isInteger(number) || number < 1) throw new Error(`${name} must be a positive integer`);
+  return number;
+}
+
+// Stable ISOs are grouped by their release tag, so a rebuild of the same tag
+// counts as the same version. Any other ref (main, unstable-dev) has no
+// release identity: each such image is its own version.
+function isoVersion(installerRef, key) {
+  return STABLE_RELEASE.test(installerRef) ? installerRef : key;
 }
 
 function versionDirectory(key, base) {
@@ -105,8 +138,8 @@ function filterLedger(key, ledger, objectKeys, deleted, root) {
 
 export function planRetention(facts, options = {}) {
   const root = (options.root ?? "stable/").replace(/\/*$/, "/");
-  const keep = Number.parseInt(options.keep ?? 10, 10);
-  if (!Number.isInteger(keep) || keep < 1) throw new Error("KEEP must be a positive integer");
+  const keepPackages = positiveInteger(options.keepPackages ?? DEFAULT_KEEP_PACKAGES, "KEEP_PACKAGES");
+  const keepIsoVersions = positiveInteger(options.keepIsoVersions ?? DEFAULT_KEEP_ISO_VERSIONS, "KEEP_ISO_VERSIONS");
   const now = timestamp(options.now ?? new Date());
   if (!Number.isFinite(now)) throw new Error("now must be a valid date");
 
@@ -117,6 +150,7 @@ export function planRetention(facts, options = {}) {
   const manifests = facts.manifests ?? {};
   const pointers = facts.pointers ?? {};
   const ledgers = facts.ledgers ?? {};
+  const heads = facts.heads ?? {};
   const groups = [];
   const skipped = [];
   const debris = [];
@@ -147,7 +181,8 @@ export function planRetention(facts, options = {}) {
       const release = releases[directory.releaseKey];
       const time = timestamp(release?.date);
       if (!Number.isFinite(time)) badDate = true;
-      versions.push({ name: directory.name, time, objects: directory.objects });
+      const tag = typeof release?.release === "string" ? release.release : null;
+      versions.push({ name: directory.name, time, tag, objects: directory.objects });
     }
 
     if (badDate) {
@@ -156,9 +191,16 @@ export function planRetention(facts, options = {}) {
       continue;
     }
 
+    // The frozen directory the moving head serves is never dropped, even when
+    // newer frozen directories exist (a publish that froze but never moved).
+    const served = typeof heads[definition.head]?.release === "string" ? heads[definition.head].release : null;
     versions.sort(newestFirst);
-    const kept = versions.slice(0, keep);
-    const dropped = versions.slice(keep);
+    const kept = [];
+    const dropped = [];
+    for (const [index, version] of versions.entries()) {
+      if (index < keepPackages || (served !== null && version.tag === served)) kept.push(version);
+      else dropped.push(version);
+    }
     for (const version of dropped) {
       for (const object of version.objects) deleteKeys.add(object.key);
     }
@@ -197,7 +239,7 @@ export function planRetention(facts, options = {}) {
     const channel = installerRef === "main" || STABLE_RELEASE.test(installerRef) ? "stable" : "unstable";
     const group = `isos:${variant}:${channel}`;
     const members = isoGroups.get(group) ?? [];
-    members.push({ name: object.key, time, object });
+    members.push({ name: object.key, time, version: isoVersion(installerRef, object.key), object });
     isoGroups.set(group, members);
   }
 
@@ -208,10 +250,22 @@ export function planRetention(facts, options = {}) {
       continue;
     }
     members.sort(newestFirst);
-    const ordinaryKept = new Set(members.slice(0, keep).map((member) => member.name));
+    // Walk newest first: the newest build of each of the newest
+    // keepIsoVersions versions survives; older rebuilds of a kept version and
+    // every older version go, unless a latest pointer names them.
+    const versions = new Set();
+    const kept = [];
     const dropped = [];
-    for (const member of members.slice(keep)) {
-      if (protectedIsos.has(member.name)) continue;
+    for (const member of members) {
+      let keepMember = protectedIsos.has(member.name);
+      if (!versions.has(member.version) && versions.size < keepIsoVersions) {
+        versions.add(member.version);
+        keepMember = true;
+      }
+      if (keepMember) {
+        kept.push(member);
+        continue;
+      }
       dropped.push(member);
       for (const suffix of ISO_SIDECARS) {
         const key = `${member.name}${suffix}`;
@@ -221,7 +275,7 @@ export function planRetention(facts, options = {}) {
     groups.push({
       group,
       kind: "isos",
-      kept: members.filter((member) => ordinaryKept.has(member.name) || protectedIsos.has(member.name)).map((member) => member.name),
+      kept: kept.map((member) => member.name),
       dropped: dropped.map((member) => member.name),
       skipped: false,
     });
@@ -235,7 +289,8 @@ export function planRetention(facts, options = {}) {
   }
 
   return {
-    keep,
+    keepPackages,
+    keepIsoVersions,
     root,
     groups,
     skipped,

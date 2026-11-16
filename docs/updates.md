@@ -680,15 +680,19 @@ on one origin.
    and check that `https://shell.ryoku.dev/install.sh` matches it byte for byte.
 
 The scheduled Cloudflare Worker in `release/r2-retention/` runs every six hours.
-It keeps the newest ten stable releases and unstable builds per package edition
-and Fedora release. For editions that publish images, it also keeps the newest
-ten ISOs. An ISO and all its sidecars are deleted together. Incomplete frozen
-directories without `release.json` are removed after 48 hours.
+It keeps six frozen package directories per package edition, channel, and
+Fedora release: the one the channel serves and five to roll back to. For
+editions that publish images, it keeps the current ISO version and the two
+before it, one image (the newest build) per version, variant, and channel. An
+ISO and all its sidecars are deleted together. Incomplete frozen directories
+without `release.json` are removed after 48 hours.
 
-Retention never touches the moving repository heads, `latest*.json` pointers or
-the ISOs they name, the ledgers except to remove deleted entries, the signing
-key, or the bucket-root `install.sh`. Each run logs one JSON line per group and
-an `r2_retention_total` line.
+Retention never touches the moving repository heads or the frozen directory
+they serve, `latest*` pointers or the ISOs they name, the ledgers except to
+remove deleted entries, the signing key, or anything outside `stable/` such as
+the bucket-root `install.sh`. Each run logs one JSON line per group and an
+`r2_retention_total` line. `node release/r2-retention/plan.js` prints the exact
+delete list against the live bucket without changing it.
 
 `ryoku track unstable` and `ryoku track stable --source` build and track a git
 checkout instead of packages (see `docs/development.md`). An explicitly

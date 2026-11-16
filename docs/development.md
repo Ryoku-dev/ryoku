@@ -317,10 +317,12 @@ The signed image, manifest, scan results, and sidecars land in the Actions run's
 public bucket and no release ledger or latest pointer moves.
 
 The R2 retention Worker lives in `release/r2-retention/`. Run its focused tests
-with `node --test release/r2-retention/test/*.test.js`, then deploy from that
-directory with `npx wrangler deploy`. For a first deployment, set its top-level
-`DRY_RUN` value to `1`, inspect one scheduled run with `npx wrangler tail
-ryoku-r2-retention`, then restore `DRY_RUN` to `0` and deploy again.
+with `node --test release/r2-retention/test/*.test.js` and review the exact
+delete list with `CLOUDFLARE_ACCOUNT_ID=<id> node release/r2-retention/plan.js`,
+then deploy from that directory with `npx wrangler deploy`; no workflow
+deploys it. For a policy change, set its top-level `DRY_RUN` value to `1`,
+inspect one scheduled run with `npx wrangler tail ryoku-r2-retention`, then
+restore `DRY_RUN` to `0` and deploy again.
 
 ## Commit gates
 

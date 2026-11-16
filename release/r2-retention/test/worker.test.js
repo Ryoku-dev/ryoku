@@ -65,12 +65,12 @@ async function quietly(run) {
   }
 }
 
-test("reads KEEP from Worker vars", async () => {
+test("reads KEEP_PACKAGES from Worker vars", async () => {
   const bucket = packageBucket();
   await quietly(() => runRetention({
     BUCKET: bucket,
     ROOT: "stable/",
-    KEEP: "2",
+    KEEP_PACKAGES: "2",
     DRY_RUN: "0",
     OPERATION_BUDGET: "100",
   }));
@@ -86,7 +86,8 @@ test("dry-run mode never writes", async () => {
   await quietly(() => runRetention({
     BUCKET: bucket,
     ROOT: "stable/",
-    KEEP: "1",
+    KEEP_PACKAGES: "1",
+    KEEP_ISO_VERSIONS: "1",
     DRY_RUN: "1",
     OPERATION_BUDGET: "100",
   }));
@@ -115,7 +116,7 @@ test("discovers Fedora releases and updates their ledgers", async () => {
   await quietly(() => runRetention({
     BUCKET: bucket,
     ROOT: "stable/",
-    KEEP: "1",
+    KEEP_PACKAGES: "1",
     DRY_RUN: "0",
     OPERATION_BUDGET: "100",
   }));
@@ -127,4 +128,23 @@ test("discovers Fedora releases and updates their ledgers", async () => {
   assert.equal(bucket.puts.length, 1);
   assert.equal(bucket.puts[0].key, "stable/fedora/44/releases/index.json");
   assert.deepEqual(JSON.parse(bucket.puts[0].body).releases.map((release) => release.tag), ["v2"]);
+});
+
+test("defaults to six package directories and keeps the one the head serves", async () => {
+  const bucket = new Bucket();
+  for (let version = 1; version <= 8; version += 1) {
+    const date = `2026-10-0${version}T00:00:00Z`;
+    const prefix = `stable/releases/v${version}/x86_64/`;
+    bucket.add(`${prefix}release.json`, JSON.stringify({ release: `v${version}`, date }), date);
+    bucket.add(`${prefix}ryoku.pkg.tar.zst`, "package", date);
+  }
+  bucket.add("stable/x86_64/release.json", JSON.stringify({ release: "v1", date: "2026-10-01T00:00:00Z" }), "2026-10-09T00:00:00Z");
+  bucket.add("stable/x86_64/ryoku.pkg.tar.zst", "package", "2026-10-09T00:00:00Z");
+
+  await quietly(() => runRetention({ BUCKET: bucket, ROOT: "stable/", DRY_RUN: "0", OPERATION_BUDGET: "100" }));
+
+  assert.deepEqual(bucket.deleted.sort(), [
+    "stable/releases/v2/x86_64/release.json",
+    "stable/releases/v2/x86_64/ryoku.pkg.tar.zst",
+  ]);
 });

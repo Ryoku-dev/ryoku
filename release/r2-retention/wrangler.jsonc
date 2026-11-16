@@ -15,7 +15,8 @@
   ],
   "vars": {
     "ROOT": "stable/",
-    "KEEP": "10",
+    "KEEP_PACKAGES": "6",
+    "KEEP_ISO_VERSIONS": "3",
     "DRY_RUN": "0",
     "OPERATION_BUDGET": "900"
   },
@@ -33,7 +34,8 @@
       ],
       "vars": {
         "ROOT": "stable/",
-        "KEEP": "10",
+        "KEEP_PACKAGES": "6",
+        "KEEP_ISO_VERSIONS": "3",
         "DRY_RUN": "1",
         "OPERATION_BUDGET": "900"
       }

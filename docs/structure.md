@@ -335,10 +335,12 @@ serves them with no release infrastructure.
   tested unstable builds, then rebuilds their ledgers with
   `bin/ryoku-release-ledger`.
 - `r2-retention/` is the scheduled Cloudflare Worker for the shared `ryoku-iso`
-  bucket. Its planner keeps ten stable releases and unstable builds per package
-  edition and Fedora release. For editions that publish images, it keeps ten
-  ISOs per variant and channel. It removes incomplete frozen uploads after 48
-  hours and preserves moving heads, current pointers, and protected objects.
+  bucket. Its planner keeps six frozen package directories (the current one
+  plus five rollback targets) per edition, channel, and Fedora release, and the
+  newest build of the three newest ISO versions per variant and channel. It
+  removes incomplete frozen uploads after 48 hours and preserves moving heads,
+  current pointers, and protected objects. `plan.js` prints its exact delete
+  list without changing the bucket.
 
 ## `void/` the Void Linux port
 

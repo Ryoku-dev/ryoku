@@ -1,6 +1,15 @@
 # Release / Packaging Changelog
 
 ## Unreleased
+- **The R2 bucket keeps three ISO versions and six package snapshots.**
+  `r2-retention/` now keeps the current ISO and the two releases before it per
+  variant (only the newest build of each version) and six frozen package
+  directories per edition and channel, enough for a five-step rollback, instead
+  of ten of each. It never drops the frozen directory a channel head serves.
+  `plan.js` prints the exact delete list against the live bucket using only
+  list and get calls. The deployed Worker predated Fedora retention, so Fedora
+  testing builds had piled up to 87 per release; deploying this change takes
+  the bucket from 339 GB to about 93 GB.
 - **Dictation packaging handles build paths containing spaces.** Private
   speech libraries and their versioned links are copied without splitting paths.
 - **Voice typing ships CPU and Vulkan support together on every edition**

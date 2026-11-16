@@ -1,4 +1,4 @@
-import { planRetention } from "./planner.js";
+import { DEFAULT_KEEP_ISO_VERSIONS, DEFAULT_KEEP_PACKAGES, planRetention } from "./planner.js";
 
 const CONNECTIONS = 4;
 const CORE_LEDGER_KEYS = [
@@ -13,10 +13,16 @@ const CORE_PACKAGE_BASES = [
   "channels/testing/builds/",
   "void/channels/testing/builds/",
 ];
+const CORE_HEAD_KEYS = [
+  "x86_64/release.json",
+  "void/x86_64/release.json",
+  "channels/testing/x86_64/release.json",
+  "void/channels/testing/x86_64/release.json",
+];
 
 class OperationBudgetError extends Error {}
 
-class Operations {
+export class Operations {
   constructor(limit) {
     this.limit = limit;
     this.used = 0;
@@ -94,6 +100,7 @@ export async function gatherFacts(bucket, root, operations) {
     .sort((a, b) => Number(a) - Number(b));
   const packageBases = [...CORE_PACKAGE_BASES];
   const ledgerKeys = [...CORE_LEDGER_KEYS];
+  const headKeys = [...CORE_HEAD_KEYS];
   for (const release of fedoraReleases) {
     packageBases.push(
       `fedora/${release}/releases/`,
@@ -102,6 +109,10 @@ export async function gatherFacts(bucket, root, operations) {
     ledgerKeys.push(
       `fedora/${release}/releases/index.json`,
       `fedora/${release}/channels/testing/index.json`,
+    );
+    headKeys.push(
+      `fedora/${release}/x86_64/release.json`,
+      `fedora/${release}/channels/testing/x86_64/release.json`,
     );
   }
 
@@ -136,11 +147,13 @@ export async function gatherFacts(bucket, root, operations) {
     ...manifestKeys.map((key) => ({ kind: "manifest", key })),
     ...pointerKeys.map((key) => ({ kind: "pointer", key })),
     ...ledgerKeys.map((key) => ({ kind: "ledger", key: `${root}${key}` })),
+    ...headKeys.map((key) => ({ kind: "head", key: `${root}${key}` })),
   ];
   const values = await mapConcurrent(reads, CONNECTIONS, (item) => readJson(bucket, operations, item.key));
-  const parsed = { release: {}, manifest: {}, pointer: {}, ledger: {} };
+  const parsed = { release: {}, manifest: {}, pointer: {}, ledger: {}, head: {} };
   reads.forEach((item, index) => {
-    if (item.kind !== "ledger" || values[index]) parsed[item.kind][item.key] = values[index];
+    const optional = item.kind === "ledger" || item.kind === "head";
+    if (!optional || values[index]) parsed[item.kind][item.key] = values[index];
   });
 
   return {
@@ -149,10 +162,11 @@ export async function gatherFacts(bucket, root, operations) {
     manifests: parsed.manifest,
     pointers: parsed.pointer,
     ledgers: parsed.ledger,
+    heads: parsed.head,
   };
 }
 
-function keysForGroup(group, plan) {
+export function keysForGroup(group, plan) {
   if (group.kind === "isos") {
     return plan.deleteKeys.filter((key) => group.dropped.some((iso) => key === iso || key.startsWith(`${iso}.`)));
   }
@@ -220,16 +234,31 @@ function logPlan(plan, facts, dryRun, operations) {
   }));
 }
 
+// buildPlan only lists and reads; it never deletes or writes. The scheduled
+// Worker and the local plan.js dry run share it.
+export async function buildPlan(bucket, operations, options = {}) {
+  const root = rootPath(options.root);
+  const facts = await gatherFacts(bucket, root, operations);
+  const plan = planRetention(facts, {
+    root,
+    keepPackages: options.keepPackages,
+    keepIsoVersions: options.keepIsoVersions,
+    now: options.now ?? new Date(),
+  });
+  return { facts, plan };
+}
+
 export async function runRetention(env) {
-  const root = rootPath(env.ROOT);
-  const keep = Number.parseInt(env.KEEP ?? "10", 10);
   const dryRun = env.DRY_RUN === "1";
   const operationLimit = Number.parseInt(env.OPERATION_BUDGET ?? "900", 10);
   const operations = new Operations(operationLimit);
 
   try {
-    const facts = await gatherFacts(env.BUCKET, root, operations);
-    const plan = planRetention(facts, { root, keep, now: new Date() });
+    const { facts, plan } = await buildPlan(env.BUCKET, operations, {
+      root: env.ROOT,
+      keepPackages: env.KEEP_PACKAGES ?? DEFAULT_KEEP_PACKAGES,
+      keepIsoVersions: env.KEEP_ISO_VERSIONS ?? DEFAULT_KEEP_ISO_VERSIONS,
+    });
     const deleteBatches = Math.ceil(plan.deleteKeys.length / 1000);
     const needed = dryRun ? 0 : deleteBatches + plan.ledgerEdits.length;
     if (!operations.canFit(needed)) {
