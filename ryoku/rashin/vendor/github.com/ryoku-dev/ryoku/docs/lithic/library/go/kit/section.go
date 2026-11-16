@@ -33,7 +33,7 @@ type SectionStyle struct {
 
 // Layout draws the head, then body s3 below it (slabTitleGap) and slabBelow after it.
 func (section SectionStyle) Layout(gtx layout.Context, th *theme.Theme, body layout.Widget) layout.Dimensions {
-	head := section.head(gtx, th)
+	head, _ := section.head(gtx, th)
 	y := head.Size.Y + gtx.Dp(tokens.SizeSlabTitleGap)
 	width := head.Size.X
 	if body != nil {
@@ -50,14 +50,20 @@ func (section SectionStyle) Layout(gtx layout.Context, th *theme.Theme, body lay
 	return layout.Dimensions{Size: gtx.Constraints.Constrain(image.Pt(width, y))}
 }
 
-// head draws the title, the mark and the rule (Section.qml:31-54). A plain head is the
-// one-line Text it always was, eliding at the width given.
-func (section SectionStyle) head(gtx layout.Context, th *theme.Theme) layout.Dimensions {
+// head draws the title, the mark and the rule (Section.qml:31-54), and returns the head's
+// size and the rule it drew (empty when none). A plain head is the one-line Text it always
+// was, eliding at the width given.
+func (section SectionStyle) head(gtx layout.Context, th *theme.Theme) (layout.Dimensions, image.Rectangle) {
 	gtx.Constraints.Min.Y = 0
 	if !section.Ruled && section.Mark == "" {
-		return Text(th, th.T.Section, th.R.Fg, section.Title)(gtx)
+		return Text(th, th.T.Section, th.R.Fg, section.Title)(gtx), image.Rectangle{}
 	}
-	title := layoutTracked(gtx, th, th.T.Section, disabledInk(gtx, th, th.R.Fg), 0, section.Title, false)
+	// the title is measured at its own width: a caller that stretches its children (a
+	// vertical Flex under Min.X = Max.X) would otherwise make the title as wide as the head
+	// and leave the rule no room
+	titleGtx := gtx
+	titleGtx.Constraints.Min = image.Point{}
+	title := layoutTracked(titleGtx, th, th.T.Section, disabledInk(gtx, th, th.R.Fg), 0, section.Title, false)
 	width := max(gtx.Constraints.Max.X, title.Size.X)
 	end := width
 	if section.Mark != "" {
@@ -66,13 +72,15 @@ func (section SectionStyle) head(gtx layout.Context, th *theme.Theme) layout.Dim
 		mastheadPaint(gtx, mark, th.T.MonoSm, disabledInk(gtx, th, th.R.Fg3), end, title.Size.Y/2)
 		end -= gtx.Dp(th.Sp.S3)
 	}
+	var rule image.Rectangle
 	if section.Ruled && section.Title != "" {
 		start := title.Size.X + gtx.Dp(th.Sp.S3)
 		hair := max(1, gtx.Dp(tokens.SizeHairline))
 		top := (title.Size.Y - hair) / 2
 		if end > start {
-			paint.FillShape(gtx.Ops, th.R.Vein, clip.Rect(image.Rect(start, top, end, top+hair)).Op())
+			rule = image.Rect(start, top, end, top+hair)
+			paint.FillShape(gtx.Ops, th.R.Vein, clip.Rect(rule).Op())
 		}
 	}
-	return layout.Dimensions{Size: image.Pt(width, title.Size.Y), Baseline: title.Baseline}
+	return layout.Dimensions{Size: image.Pt(width, title.Size.Y), Baseline: title.Baseline}, rule
 }
