@@ -25,6 +25,7 @@ device_hub
 difference
 done_all
 download fill
+download_done
 drag_handle
 drag_indicator
 edit
@@ -56,6 +57,7 @@ lightbulb
 link
 lock
 lock_open
+lyrics
 mail
 menu_book
 more_vert
@@ -69,6 +71,7 @@ play_arrow fill
 playlist_add
 playlist_play
 queue_music
+radio
 radio_button_checked
 redo
 refresh
@@ -79,6 +82,7 @@ restart_alt
 schedule
 search
 settings fill
+share
 shuffle
 side_navigation fill
 skip_next fill
