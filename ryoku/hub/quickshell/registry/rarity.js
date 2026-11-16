@@ -21,7 +21,15 @@ function step(v, bounds) {
     return n;
 }
 
-// a graphics card's class from its name: 0 built in, 1 entry, up to 5 for a flagship
+// graphics built into the processor, from its full name or the eight-character one a card
+// carries ("Vega Ser", "UHD Grap", "Phoenix1"): AMD names them by their chip, Intel by its series
+function integrated(name) {
+    var s = String(name || "").toLowerCase();
+    return /\b(uhd|iris|vega|hd graph|xe graph|arc grap|integrated)|^graphics|radeon graphics|phoenix|rembrandt|raphael|cezanne|renoir|lucienne|barcelo|mendocin|van gogh|hawk poi|strix|krackan|picasso|\b[6-9]\d0m\b|\b80[56]0s\b|\barc 1[34]0v\b/.test(s);
+}
+
+// a graphics card's class from its name: 1 for graphics built into the processor (2 for the
+// strong ones, 3 for Strix Halo's), 1 to 5 for a discrete card from entry to flagship, 0 unknown
 function gpuClass(name) {
     var s = String(name || "").toLowerCase();
     if (/rtx\s*pro|\ba[456]000\b|\bh100\b|\bh200\b|\bb200\b/.test(s))
@@ -39,7 +47,29 @@ function gpuClass(name) {
     }
     if (/\barc\s*[ab]\d{3}/.test(s))
         return 2;
-    return 0;
+    if (!integrated(s))
+        return 0;
+    if (/\b80[56]0s\b/.test(s))
+        return 3;
+    return /\b(680m|7\d0m|8\d0m|1[34]0v)\b/.test(s) ? 2 : 1;
+}
+
+// the card that counts among several: the highest class, a discrete one when they tie
+function strongest(names) {
+    var best = "";
+    for (var i = 0; i < names.length; i++) {
+        var n = String(names[i] || "");
+        var c = gpuClass(n), b = gpuClass(best);
+        if (n !== "" && (best === "" || c > b || (c === b && integrated(best) && !integrated(n))))
+            best = n;
+    }
+    return best;
+}
+
+// a discrete card earns power on top of its rarity points; built-in graphics only the points.
+// cls is the class a card carries, name its graphics card's (short) name
+function discrete(cls, name) {
+    return cls > 0 && !integrated(name);
 }
 
 // m: { threads, ramGb, gpuClass or gpus: [names], refresh, width }

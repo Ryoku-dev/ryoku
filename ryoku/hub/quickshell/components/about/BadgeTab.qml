@@ -70,7 +70,7 @@ Column {
             Label { width: parent.width; text: Badge.badge ? Badge.badge.login : I18n.tr("Activate a code below"); typeRole: "body"; wrapMode: Text.Wrap; elide: Text.ElideNone }
             Label {
                 width: parent.width
-                text: Badge.badge ? I18n.tr("Issued by %1 · %2").replace("%1", Badge.badge.issuer === "owner" ? "nero" : "Mika").replace("%2", Badge.badge.issued) : ""
+                text: Badge.badge ? I18n.tr("Issued by %1 · %2").replace("%1", "neur0map").replace("%2", Badge.badge.issued) : ""
                 visible: !!Badge.badge
                 typeRole: "detail"
                 inkRole: "fg2"

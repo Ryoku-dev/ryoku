@@ -20,9 +20,9 @@ Singleton {
     readonly property int ramGb: root.num(/\/\s*(\d+)/, SysInfo.sysRam) || Math.round(SysInfo.memoryKb / 1048576)
     readonly property int refreshRate: root.num(/(\d+)/, SysInfo.sysRefresh)
     readonly property int displayWidth: root.num(/^(\d+)/, SysInfo.sysResolution)
-    readonly property int graphicsClass: Math.max(Rarity.gpuClass(SysInfo.sysGpu), Rarity.gpuClass(SysInfo.sysGpu2))
-    readonly property string gpu: String(Rarity.gpuClass(SysInfo.sysGpu2) > Rarity.gpuClass(SysInfo.sysGpu) ? SysInfo.sysGpu2 : SysInfo.sysGpu)
-        .replace(/NVIDIA |GeForce |AMD |Radeon |Intel | Laptop GPU| Max-Q/gi, "").trim()
+    readonly property string strongestGpu: Rarity.strongest([SysInfo.sysGpu, SysInfo.sysGpu2])
+    readonly property int graphicsClass: Rarity.gpuClass(root.strongestGpu)
+    readonly property string gpu: root.strongestGpu.replace(/NVIDIA |GeForce |AMD |Radeon |Intel | Laptop GPU| Max-Q/gi, "").trim()
     readonly property var argv: ["ryoku-hub", "profile", "code", "--threads", String(root.threads), "--ram", String(root.ramGb),
         "--refresh", String(root.refreshRate), "--width", String(root.displayWidth), "--gpu-class", String(root.graphicsClass),
         "--gpu", root.gpu, "--distro", root.distro, "--wm", Settings.provider || ""]

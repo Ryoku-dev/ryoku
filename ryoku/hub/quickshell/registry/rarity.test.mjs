@@ -16,8 +16,30 @@ test("graphics cards rank by their class, laptops and built-in ones included", (
     assert.equal(R.gpuClass("GeForce GTX 1660 Ti"), 1);
     assert.equal(R.gpuClass("Radeon RX 7900 XTX"), 5);
     assert.equal(R.gpuClass("Radeon RX 6500 XT"), 1);
-    assert.equal(R.gpuClass("Phoenix1"), 0);
-    assert.equal(R.gpuClass("UHD Graphics 620"), 0);
+    assert.equal(R.gpuClass("Radeon RX 7600M XT"), 2);
+    assert.equal(R.gpuClass("Some unknown adapter"), 0);
+});
+
+// lspci names AMD's built-in graphics by chip and Intel's by series; a traded card carries
+// only the first eight characters after the vendor is cut
+test("built-in graphics earn points, the strong ones more, from full and card names", () => {
+    for (const name of ["Phoenix1", "UHD Graphics 620", "Iris Xe Graphics", "Radeon Vega Series / Radeon Vega Mobile",
+        "Vega Ser", "UHD Grap", "Iris Xe ", "HD Graph", "Raphael", "Arc Grap"])
+        assert.equal(R.gpuClass(name), 1, name);
+    for (const name of ["Radeon 780M", "780M", "880M / 8", "Radeon 680M", "Intel Arc Graphics 140V"])
+        assert.equal(R.gpuClass(name), 2, name);
+    assert.equal(R.gpuClass("Radeon 8060S"), 3);
+});
+
+test("only a discrete card adds power, and it wins a tie with built-in graphics", () => {
+    assert.equal(R.discrete(1, "Vega Ser"), false);
+    assert.equal(R.discrete(1, "GTX 1650"), true);
+    assert.equal(R.discrete(0, "RTX 4060"), false);
+    assert.ok(R.power(16, 16, R.discrete(1, "UHD Grap")) < R.power(16, 16, R.discrete(1, "GTX 1650")));
+    assert.equal(R.strongest(["UHD Graphics 630", "GeForce GTX 1650 Mobile"]), "GeForce GTX 1650 Mobile");
+    assert.equal(R.strongest(["GeForce GTX 1650 Mobile", "UHD Graphics 630"]), "GeForce GTX 1650 Mobile");
+    assert.equal(R.strongest(["Phoenix1", "GeForce RTX 4060 Max-Q"]), "GeForce RTX 4060 Max-Q");
+    assert.equal(R.strongest(["Radeon 780M", ""]), "Radeon 780M");
 });
 
 test("the strongest of several graphics cards counts", () => {

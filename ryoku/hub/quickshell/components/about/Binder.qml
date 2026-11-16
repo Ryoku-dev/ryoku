@@ -63,7 +63,7 @@ Item {
         var badge = entry.badge;
         var role = badge.role.charAt(0).toUpperCase() + badge.role.slice(1);
         return I18n.tr("Verified %1 · issued by %2 · %3").replace("%1", role)
-            .replace("%2", badge.issuer === "owner" ? "nero" : "Mika").replace("%3", badge.issued);
+            .replace("%2", "neur0map").replace("%3", badge.issued);
     }
 
     function open() {

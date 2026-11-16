@@ -19,7 +19,8 @@ Column {
         { label: "Display width", own: root.mine.width, theirs: root.entry.hw.width, unit: " px" },
         { label: "Graphics class", own: root.mine.gpuClass, theirs: root.entry.hw.gpuClass, unit: " / 5" },
         { label: "Rarity points", own: root.ownRarity.points, theirs: root.theirRarity.points, unit: "" },
-        { label: "Power", own: Rarity.power(root.mine.threads, root.mine.ramGb, root.mine.gpuClass > 0), theirs: Rarity.power(root.entry.hw.threads, root.entry.hw.ramGb, root.entry.hw.gpuClass > 0), unit: "" }
+        { label: "Power", own: Rarity.power(root.mine.threads, root.mine.ramGb, Rarity.discrete(CardCode.graphicsClass, CardCode.strongestGpu)),
+          theirs: Rarity.power(root.entry.hw.threads, root.entry.hw.ramGb, Rarity.discrete(root.entry.hw.gpuClass, root.entry.hw.gpu)), unit: "" }
     ]
     Component.onCompleted: { if (!SysInfo.loaded && !SysInfo.loading) SysInfo.load(); }
     Label { text: I18n.tr("Compare"); typeRole: "title" }

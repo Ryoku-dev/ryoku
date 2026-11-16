@@ -112,7 +112,7 @@ T.Popup {
                 Column {
                     spacing: 8
                     Label { text: I18n.tr("Issued by"); typeRole: "monoSm"; font.pixelSize: 12; inkRole: "fg3" }
-                    Label { text: root.entry && root.entry.issuer === "mika" ? "Mika" : "nero"; typeRole: "label"; font.pixelSize: 20 }
+                    Label { text: "neur0map"; typeRole: "label"; font.pixelSize: 20 }
                 }
                 Column {
                     spacing: 8
@@ -137,7 +137,8 @@ T.Popup {
             }
             Label {
                 x: 680; y: 631; width: 330; horizontalAlignment: Text.AlignRight
-                text: "ED25519  /  RYOKU TEAM"
+                // every badge is issued by neur0map; Mika signs tester and contributor badges for him
+                text: root.entry && root.entry.issuer === "mika" ? "ED25519  /  SIGNED BY MIKA" : "ED25519  /  SIGNED BY NEUR0MAP"
                 typeRole: "monoSm"; font.pixelSize: 11; inkRole: "fg3"; font.letterSpacing: 1
             }
         }

@@ -336,8 +336,10 @@ tester, 貢 contributor, 雪 NixOS, 核 core, the Ryoku mark for the founder).
 Each role keeps one ink whatever the theme, matching its Discord role. While in
 view the rim turns slowly and a light runs round the code; reduced motion holds
 it still. **View certificate** opens the details beside a large seal. Mika can
-issue Tester and Contributor badges, and nero can issue every role, including
-NixOS, Core and Founder.
+sign Tester and Contributor badges, and nero can sign every role, including
+NixOS, Core and Founder. Every badge reads as issued by neur0map; the
+certificate's fine print names the key that signed it (Mika or neur0map), and
+Mika keeps revoking the tester badges it signed when someone leaves the testers.
 Each GitHub login may hold at most eight active badges; revoke an old machine's
 badge before adding a ninth.
 The owner's signing tools appear only when the owner key is available in the
@@ -419,8 +421,12 @@ as flavour text, and the figure's credit as "Illus.". Its text is drawn as outli
 full read-out when it is drawn. Home shows it in the figure's place when
 Layout says so, turning toward the pointer. The machine sets its rarity
 (`registry/rarity.js`, tested by `rarity.test.mjs`): points for threads,
-memory, the strongest graphics card's class and the display's rate and width,
-and six tiers from Common (no foil, a bone border) through Uncommon, Rare (the
+memory, the strongest graphics card's class and the display's rate and width.
+Graphics built into the processor count too: class 1, 2 for the strong ones
+(Radeon 680M to 890M, Arc 130V and 140V) and 3 for Strix Halo, recognised from
+the full name or the eight characters a card carries. Only a discrete card adds
+power, and it is the one counted when it ties with the built-in graphics. There are
+six tiers from Common (no foil, a bone border) through Uncommon, Rare (the
 sun's border, holo window), Holo rare (foil face, gold edge) and Ultra rare
 (gold border, full art, sparkles) to Secret rare: a wider border cut like a
 diamond (`shaders/diamond.frag`, facets that catch the minerals' colours as the

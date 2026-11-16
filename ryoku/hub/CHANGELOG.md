@@ -84,6 +84,16 @@
   `components/Home.qml`).
 
 ### Changed
+- **Built-in graphics count toward a card's rarity.** Intel and AMD graphics
+  in the processor earn 1 point, the strong ones (Radeon 680M to 890M, Arc 130V
+  and 140V) 2 and Strix Halo 3. They earn no power, which stays for discrete
+  cards, and a discrete card wins a tie (`quickshell/registry/rarity.js`,
+  `Singletons/CardCode.qml`, `components/about/TradingCard.qml`,
+  `BinderCompare.qml`).
+- **Every badge reads as issued by neur0map.** The certificate's fine print
+  still names the key that signed it, so Mika keeps revoking the tester badges
+  it signed (`quickshell/components/badge/Certificate.qml`,
+  `components/about/BadgeTab.qml`, `Binder.qml`).
 - **The binder shows the rarest cards first.** Cards as rare as each other are
   newest first (`quickshell/components/about/Binder.qml`, `registry/rarity.js`).
 - **Removing a card from the binder asks first**

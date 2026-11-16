@@ -98,7 +98,8 @@ Item {
     readonly property int threads: card.hw ? card.hw.threads : card.num(/(\d+)\s*T/, SysInfo.sysCpuCores) || card.num(/(\d+)/, SysInfo.sysCpuCores)
     readonly property int ramGb: card.hw ? card.hw.ramGb : card.num(/\/\s*(\d+)/, SysInfo.sysRam) || Math.round(SysInfo.memoryKb / 1048576)
     readonly property int refresh: card.hw ? card.hw.refresh : card.num(/(\d+)/, SysInfo.sysRefresh)
-    readonly property bool discrete: card.hw ? card.hw.gpuClass > 0 : Math.max(Rarity.gpuClass(SysInfo.sysGpu), Rarity.gpuClass(SysInfo.sysGpu2)) > 0
+    readonly property bool discrete: card.hw ? Rarity.discrete(card.hw.gpuClass, card.hw.gpu)
+        : Rarity.discrete(CardCode.graphicsClass, CardCode.strongestGpu)
     readonly property int screenWidth: card.hw ? card.hw.width : card.num(/^(\d+)/, SysInfo.sysResolution)
     readonly property var rarity: Rarity.of(card.hw || { threads: card.threads, ramGb: card.ramGb, gpus: [SysInfo.sysGpu, SysInfo.sysGpu2],
                                               refresh: card.refresh, width: card.screenWidth })
