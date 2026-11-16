@@ -131,7 +131,8 @@ func TestStoredCardCannotOverridePictureOrWords(t *testing.T) {
 	if err := os.WriteFile(path, raw, 0600); err != nil {
 		t.Fatal(err)
 	}
-	cards, err := listCards()
+	view, err := listCards()
+	cards := view.Cards
 	if err != nil || len(cards) != 1 || cards[0].Name != "friend" {
 		t.Fatalf("unsafe stored words: %+v (%v)", cards, err)
 	}

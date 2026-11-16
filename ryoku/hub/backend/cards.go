@@ -14,7 +14,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 )
@@ -62,6 +61,10 @@ type binderCard struct {
 	Design     *badgeCardDesign `json:"design"`
 	Verified   bool             `json:"verified"`
 	BadgeCheck string           `json:"badgeCheck"`
+	// Record is "live" for the owner's verified record from the team service, "kept" for the
+	// last one verified after the service let it go, and empty for the shared picture alone
+	Record        string `json:"record"`
+	RecordUpdated int64  `json:"recordUpdated"`
 }
 
 func cardsDir() string {
@@ -158,8 +161,11 @@ func addCard(path string) (binderCard, error) {
 		}
 		entry.Hero = cardHero{Kind: "custom", File: imagePath, Rev: pictureRev(picture.Bytes())}
 	}
-	list, listErr := teamList(false)
-	if listErr != nil {
+	s, err := binderPullAdded(entry.ID)
+	if err != nil {
+		return binderCard{}, err
+	}
+	if s.Checked == 0 {
 		entry.BadgeCheck = "offline"
 	}
 	encoded, err := json.Marshal(entry)
@@ -184,7 +190,7 @@ func addCard(path string) (binderCard, error) {
 	if err != nil {
 		return binderCard{}, errors.Join(err, before.restore())
 	}
-	return recordEnrichCard(entry, list, listErr), nil
+	return recordEnrichCard(entry, s, s.team()), nil
 }
 
 func entryForDesign(d codedDesign, levels [][]int) binderCard {
@@ -201,7 +207,8 @@ func entryForDesign(d codedDesign, levels [][]int) binderCard {
 	}
 }
 
-func listCardsWithTeam(list teamVerifiedList, listErr error) ([]binderCard, error) {
+// storedCards reads the binder as shared, before any record from the team service
+func storedCards() ([]binderCard, error) {
 	cards := []binderCard{}
 	files, err := os.ReadDir(cardsDir())
 	if os.IsNotExist(err) {
@@ -245,15 +252,8 @@ func listCardsWithTeam(list teamVerifiedList, listErr error) ([]binderCard, erro
 				safe.Hero.Rev = entry.Hero.Rev
 			}
 		}
-		entry = safe
-		cards = append(cards, recordEnrichCard(entry, list, listErr))
+		cards = append(cards, safe)
 	}
-	sort.Slice(cards, func(i, j int) bool {
-		if cards[i].Added.Equal(cards[j].Added) {
-			return cards[i].ID < cards[j].ID
-		}
-		return cards[i].Added.After(cards[j].Added)
-	})
 	return cards, nil
 }
 
@@ -297,20 +297,12 @@ func runCards(args []string) error {
 		if len(args) != 1 {
 			return fmt.Errorf("cards list|refresh takes no arguments")
 		}
-		if args[0] == "refresh" {
-			if _, err := teamList(true); err != nil {
-				cards, listErr := listCardsOffline()
-				if listErr != nil {
-					return listErr
-				}
-				return printJSON(cards)
-			}
-		}
-		cards, err := listCards()
+		// refresh asks no sooner than list: the gate sets when the binder may check again
+		view, err := listCards()
 		if err != nil {
 			return err
 		}
-		return printJSON(cards)
+		return printJSON(view)
 	case "remove":
 		if len(args) != 2 {
 			return fmt.Errorf("cards remove needs a card id")

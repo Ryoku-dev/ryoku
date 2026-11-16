@@ -84,6 +84,17 @@
   `components/Home.qml`).
 
 ### Changed
+- **Anyone can keep their card up to date for friends.** A switch on the card
+  studio's Share and Badge tabs, with a plain explanation behind its info
+  button, puts your card online without a badge: friends who added it see your
+  changes without a new picture. Only your computer can change it, a card left
+  unchanged for 3 months goes offline, and turning the switch off takes it
+  offline; friends keep the copy they have. The binder checks all its cards in
+  one request at times the server sets, says when it last checked and when the
+  next check is, and says when updates are paused for the day. Badge holders
+  check without waiting (`quickshell/components/about/CardOnlineSwitch.qml`,
+  `Binder.qml`, `Singletons/Badge.qml`, `backend/cardpull.go`,
+  `cardonline.go`, `cardrecord.go`, `release/team-badges/`).
 - **Built-in graphics count toward a card's rarity.** Intel and AMD graphics
   in the processor earn 1 point, the strong ones (Radeon 680M to 890M, Arc 130V
   and 140V) 2 and Strix Halo 3. They earn no power, which stays for discrete

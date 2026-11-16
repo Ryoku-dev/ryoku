@@ -194,20 +194,20 @@ func TestTeamListIgnoresInvalidAndRevoked(t *testing.T) {
 		t.Fatal(list, e)
 	}
 }
-func TestCardRecordVerifyReplayAndBinderAuthority(t *testing.T) {
+func TestCardRecordVerifiesByBadgeOrDevice(t *testing.T) {
 	owner, _, device := badgeTestKeys(t)
-	setCardMachine(t)
-	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	id := cardID(badgeDevicePublic(device))
-	code := badgeTestCode(t, 1, 4, owner, device, "neur0map")
-	b, _ := badgeParse(code)
+	b, _ := badgeParse(badgeTestCode(t, 1, 4, owner, device, "neur0map"))
 	d := codedDesign{cardID: id, name: "record name", tagline: "real words", kind: 1, gallerySrc: "hawk", threads: 32}
 	record, e := recordSign(d, nil, device, 1000)
-	if e != nil {
-		t.Fatal(e)
+	if e != nil || record.Device != base64.StdEncoding.EncodeToString(badgeDevicePublic(device)) {
+		t.Fatal(record, e)
 	}
 	if _, e = recordVerify(record, b); e != nil {
 		t.Fatal(e)
+	}
+	if got, e := recordVerifyDevice(record); e != nil || got.name != d.name {
+		t.Fatal(got, e)
 	}
 	swapped := b
 	swapped.device = badgeDevicePublic(bytes.Repeat([]byte{7}, 32))
@@ -219,41 +219,39 @@ func TestCardRecordVerifyReplayAndBinderAuthority(t *testing.T) {
 	if _, e = recordVerify(bad, b); e == nil {
 		t.Fatal("tampered record accepted")
 	}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/v1/list":
-			json.NewEncoder(w).Encode(teamWireList{V: 1, Badges: []string{code}})
-		case "/v1/cards/" + b.CardID:
-			json.NewEncoder(w).Encode(record)
-		default:
-			http.NotFound(w, r)
+	if _, e = recordVerifyDevice(bad); e == nil {
+		t.Fatal("tampered device record accepted")
+	}
+	// another machine's key, offered as the device, owns neither the card id nor the badge
+	claimed := record
+	claimed.Device = base64.StdEncoding.EncodeToString(swapped.device)
+	if _, e = recordVerifyDevice(claimed); e == nil {
+		t.Fatal("a device that does not hash to the card id was trusted")
+	}
+	if _, e = recordVerify(claimed, b); e == nil {
+		t.Fatal("a record naming another device verified through the badge")
+	}
+	short := record
+	short.Device = base64.StdEncoding.EncodeToString(badgeDevicePublic(device)[:31])
+	loose := record
+	last := strings.IndexByte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/", record.Device[42])
+	loose.Device = record.Device[:42] + string("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"[last^1]) + "="
+	for _, r := range []cardRecord{short, loose} {
+		if _, e = recordVerifyDevice(r); e == nil {
+			t.Fatal("malformed device accepted", r.Device)
 		}
-	}))
-	t.Cleanup(srv.Close)
-	t.Setenv("RYOKU_TEAM_URL", srv.URL)
-	if _, _, _, e = recordFetch(b); e != nil {
+	}
+	// a record from before devices were published proves itself only through a badge
+	old := record
+	old.Device = ""
+	if _, e = recordVerifyFor(old, teamVerifiedList{Badges: []badgeInfo{b}}); e != nil {
 		t.Fatal(e)
 	}
-	record, _ = recordSign(d, nil, device, 999)
-	if _, _, _, e = recordFetch(b); e == nil {
-		t.Fatal("record replay accepted")
+	if _, e = recordVerifyFor(old, teamVerifiedList{}); e == nil {
+		t.Fatal("a record without device verified without a badge")
 	}
-	record, _ = recordSign(d, nil, device, 1001)
-	imageDesign := codedDesign{cardID: id, name: "forged image", tagline: "fake"}
-	entry, e := addCard(sharedCard(t, imageDesign, "png"))
-	if e != nil || !entry.Verified || entry.Name != d.name || entry.Tagline != d.tagline || entry.Hero.Source != "hawk.png" || entry.HW.Threads != 32 {
-		t.Fatal("record did not override image", entry, e)
-	}
-	cards, e := listCards()
-	if e != nil || len(cards) != 1 || cards[0].Name != d.name {
-		t.Fatal(cards, e)
-	}
-	srv.Close()
-	cache, _ := teamCacheDir()
-	os.Remove(filepath.Join(cache, "list.json"))
-	cards, e = listCards()
-	if e != nil || len(cards) != 1 || cards[0].Verified || cards[0].Badge != nil || cards[0].BadgeCheck != "offline" || cards[0].Name != imageDesign.name {
-		t.Fatal("offline path", cards, e)
+	if _, e = recordVerifyFor(record, teamVerifiedList{}); e != nil {
+		t.Fatal(e)
 	}
 }
 func TestRecordPictureAndSyncSkipsUnchanged(t *testing.T) {
@@ -276,10 +274,6 @@ func TestRecordPictureAndSyncSkipsUnchanged(t *testing.T) {
 	}
 	writes := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/v1/list" {
-			json.NewEncoder(w).Encode(teamWireList{V: 1, Badges: []string{code}})
-			return
-		}
 		if r.Method == "PUT" {
 			var request struct {
 				Record  cardRecord `json:"record"`
@@ -333,10 +327,6 @@ func TestRecordSyncRecoversFromGateRefusals(t *testing.T) {
 	unseen, refuse := 1, ""
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Date", time.Unix(gateNow, 0).UTC().Format(http.TimeFormat))
-		if r.URL.Path == "/v1/list" {
-			json.NewEncoder(w).Encode(teamWireList{V: 1, Badges: []string{code}})
-			return
-		}
 		var request struct {
 			Record cardRecord `json:"record"`
 		}
@@ -391,73 +381,67 @@ func TestRecordSyncRecoversFromGateRefusals(t *testing.T) {
 }
 
 // Once a friend's card verified, a gate that fails for a moment leaves it verified with the
-// record and picture last seen; a cached record that no longer verifies, or a badge gone from
-// the team list, leaves it unverified.
+// record and picture last seen; a cached record that no longer verifies leaves it unverified.
+// Without the badge the card stays live through its device, while a record from before devices
+// were published falls back to the shared picture.
 func TestBinderKeepsTheLastVerifiedRecord(t *testing.T) {
 	owner, _, device := badgeTestKeys(t)
 	setCardMachine(t)
+	g := newFakeGate(t)
 	id := cardID(badgeDevicePublic(device))
 	code := badgeTestCode(t, 1, 4, owner, device, "friend")
-	b, _ := badgeParse(code)
+	g.badges = []string{code}
 	picture := jpegOf(t, image.NewRGBA(image.Rect(0, 0, 56, 39)), 80)
-	record, e := recordSign(codedDesign{cardID: id, name: "record name", kind: 2, threads: 24}, picture, device, 1000)
+	d := codedDesign{cardID: id, name: "record name", kind: 2, threads: 24}
+	record, e := recordSign(d, picture, device, 1000)
 	if e != nil {
 		t.Fatal(e)
 	}
-	failing, listed, downloads := false, true, 0
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/v1/list":
-			list := teamWireList{V: 1}
-			if listed {
-				list.Badges = []string{code}
-			}
-			json.NewEncoder(w).Encode(list)
-		case failing:
-			w.WriteHeader(http.StatusTooManyRequests)
-		case r.URL.Path == "/v1/cards/"+b.CardID:
-			json.NewEncoder(w).Encode(record)
-		case r.URL.Path == "/v1/cards/"+b.CardID+"/"+record.Picture+".jpg":
-			downloads++
-			w.Write(picture)
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	defer srv.Close()
-	t.Setenv("RYOKU_TEAM_URL", srv.URL)
+	g.records[record.ID], g.pictures[record.Picture] = record, picture
 	verified := func(c binderCard) bool {
-		return c.Verified && c.BadgeCheck == "ok" && c.Badge != nil && c.Name == "record name" && c.HW.Threads == 24 &&
+		return c.Verified && c.BadgeCheck == "ok" && c.Badge != nil && c.Name == "record name" && c.HW.Threads == 24 && c.Record == "live" &&
 			c.Hero.Kind == "custom" && c.Hero.Rev == record.Picture[:12] && strings.HasSuffix(c.Hero.File, "-record.png")
 	}
 	entry, e := addCard(sharedCard(t, codedDesign{cardID: id, name: "picture name", kind: 2}, "png"))
 	if e != nil || !verified(entry) {
 		t.Fatal("record not applied", entry, e)
 	}
-	if cards, e := listCards(); e != nil || len(cards) != 1 || !verified(cards[0]) || downloads != 1 {
-		t.Fatal("an unchanged picture was downloaded again", downloads, cards, e)
+	makeDue(t)
+	if view := listed(t); len(view.Cards) != 1 || !verified(view.Cards[0]) || g.pictureGets != 1 {
+		t.Fatal("an unchanged picture was downloaded again", g.pictureGets, view)
 	}
-	failing = true
-	if cards, e := listCards(); e != nil || len(cards) != 1 || !verified(cards[0]) {
-		t.Fatal("a failing gate dropped the verified card", cards, e)
+	g.block = func(w http.ResponseWriter) { w.WriteHeader(http.StatusInternalServerError) }
+	makeDue(t)
+	if view := listed(t); view.Paused != "offline" || len(view.Cards) != 1 || !verified(view.Cards[0]) {
+		t.Fatal("a failing gate dropped the verified card", view)
 	}
 	cache, _ := teamCacheDir()
-	path := filepath.Join(cache, "record-"+b.CardID+".json")
+	path := filepath.Join(cache, "record-"+record.ID+".json")
 	kept, _ := os.ReadFile(path)
 	tampered := record
 	tampered.Updated++
 	raw, _ := json.Marshal(tampered)
 	os.WriteFile(path, raw, 0o600)
-	if cards, _ := listCards(); len(cards) != 1 || cards[0].Verified || cards[0].BadgeCheck != "unverified" || cards[0].Name != "picture name" {
-		t.Fatal("a tampered cached record verified", cards)
+	if c := listed(t).Cards[0]; c.Verified || c.BadgeCheck != "unverified" || c.Name != "picture name" || c.Record != "" {
+		t.Fatal("a tampered cached record verified", c)
 	}
 	os.WriteFile(path, kept, 0o600)
-	failing, listed = false, false
-	if _, e := teamList(true); e != nil {
-		t.Fatal(e)
+	g.block, g.badges = nil, nil
+	makeDue(t)
+	if c := listed(t).Cards[0]; c.Verified || c.BadgeCheck != "none" || c.Badge != nil || c.Record != "live" || c.Name != "record name" {
+		t.Fatal("a badge gone from the gate's answer kept its card verified, or the device record was dropped", c)
 	}
-	if cards, _ := listCards(); len(cards) != 1 || cards[0].Verified || cards[0].BadgeCheck != "none" {
-		t.Fatal("a badge gone from the list kept its card verified", cards)
+	old, _ := recordSign(d, picture, device, 1001)
+	old.Device = ""
+	g.records[old.ID], g.badges = old, []string{code}
+	makeDue(t)
+	if c := listed(t).Cards[0]; !verified(c) || c.RecordUpdated != 1001 {
+		t.Fatal("a record without its device did not verify through the badge", c)
+	}
+	g.badges = nil
+	makeDue(t)
+	if c := listed(t).Cards[0]; c.Verified || c.Record != "" || c.Name != "picture name" {
+		t.Fatal("a record without its device stayed trusted without the badge", c)
 	}
 }
 func TestTeamHTTPBoundariesAndCache(t *testing.T) {
@@ -543,6 +527,42 @@ func TestWriteVectors(t *testing.T) {
 	bad.ID = cardIDText(badgeDevicePublic(owner))
 	add("card", false, map[string]any{"record": bad, "deviceKey": base64.StdEncoding.EncodeToString(badgeDevicePublic(device))})
 	add("card", false, map[string]any{"record": record, "deviceKey": base64.StdEncoding.EncodeToString(badgeDevicePublic(owner))})
+	// device records prove themselves: the device must hash to the id and sign the record
+	add("deviceCard", true, map[string]any{"record": record})
+	for _, key := range []string{"", base64.StdEncoding.EncodeToString(badgeDevicePublic(owner)), base64.StdEncoding.EncodeToString(badgeDevicePublic(device)[:31])} {
+		bad = record
+		bad.Device = key
+		add("deviceCard", false, map[string]any{"record": bad})
+	}
+	bad = record
+	bad.Updated++
+	add("deviceCard", false, map[string]any{"record": bad})
+	// another key claims the card id and signs for it
+	bad = record
+	bad.Device = base64.StdEncoding.EncodeToString(badgeDevicePublic(owner))
+	claimed, _ := recordPayload(bad)
+	bad.Sig = base64.StdEncoding.EncodeToString(signDomain(owner, "ryoku-card-v2", claimed))
+	add("deviceCard", false, map[string]any{"record": bad})
+	at := int64(1794787200)
+	withdrawal, _ := recordDeletePayload(record.ID, at)
+	deleteSig := base64.StdEncoding.EncodeToString(signDomain(device, "ryoku-card-delete-v1", withdrawal))
+	deviceKey := base64.StdEncoding.EncodeToString(badgeDevicePublic(device))
+	add("cardDelete", true, map[string]any{"id": record.ID, "at": at, "sig": deleteSig, "deviceKey": deviceKey, "now": at + 600})
+	add("cardDelete", false, map[string]any{"id": record.ID, "at": at, "sig": deleteSig, "deviceKey": deviceKey, "now": at + 601})
+	add("cardDelete", false, map[string]any{"id": record.ID, "at": at + 1, "sig": deleteSig, "deviceKey": deviceKey, "now": at})
+	add("cardDelete", false, map[string]any{"id": record.ID, "at": at, "sig": deleteSig, "deviceKey": base64.StdEncoding.EncodeToString(badgeDevicePublic(owner)), "now": at})
+	holderPayload, _ := pullHolderPayload(badge.ID, at)
+	holder := func(seed []byte) map[string]any {
+		return map[string]any{"badge": code, "at": at, "sig": base64.StdEncoding.EncodeToString(signDomain(seed, "ryoku-pull-v1", holderPayload))}
+	}
+	add("pullHolder", true, map[string]any{"holder": holder(device), "now": at + 600})
+	add("pullHolder", false, map[string]any{"holder": holder(owner), "now": at})
+	add("pullHolder", false, map[string]any{"holder": holder(device), "now": at + 601})
+	flipped := holder(device)
+	flippedSig, _ := base64.StdEncoding.DecodeString(flipped["sig"].(string))
+	flippedSig[0] ^= 1
+	flipped["sig"] = base64.StdEncoding.EncodeToString(flippedSig)
+	add("pullHolder", false, map[string]any{"holder": flipped, "now": at})
 	now := int64(1794787200)
 	path := "/v1/pending/" + fmt.Sprintf("%x", sha)
 	method := "PUT"

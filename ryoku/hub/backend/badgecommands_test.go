@@ -106,31 +106,26 @@ func TestBadgeCommandsPublishInspectHolderRevoke(t *testing.T) {
 	}
 }
 
+// The gate's answer may carry badges for other cards; only the badge whose card id matches
+// vouches for the record, however high another badge's role.
 func TestRecordSelectsOnlyMatchingCardID(t *testing.T) {
 	owner, _, device := badgeTestKeys(t)
 	setCardMachine(t)
-	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	g := newFakeGate(t)
 	id := cardID(badgeDevicePublic(device))
 	other := bytes.Repeat([]byte{8}, 32)
-	highest := badgeTestCode(t, 1, 5, owner, other, "other")
-	matching := badgeTestCode(t, 1, 4, owner, device, "neur0map")
-	d := codedDesign{cardID: id, name: "real"}
-	record, e := recordSign(d, nil, device, 1000)
+	g.badges = []string{badgeTestCode(t, 1, 5, owner, other, "other"), badgeTestCode(t, 1, 4, owner, device, "neur0map")}
+	record, e := recordSign(codedDesign{cardID: id, name: "real"}, nil, device, 1000)
 	if e != nil {
 		t.Fatal(e)
 	}
-	requests := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { requests++; json.NewEncoder(w).Encode(record) }))
-	defer server.Close()
-	t.Setenv("RYOKU_TEAM_URL", server.URL)
-	raw, _ := json.Marshal(teamWireList{V: 1, Badges: []string{highest, matching}})
-	list, e := teamVerifyList(raw)
-	if e != nil {
-		t.Fatal(e)
+	g.records[record.ID] = record
+	entry, e := addCard(sharedCard(t, codedDesign{cardID: id, name: "fake"}, "png"))
+	if e != nil || !entry.Verified || entry.Name != "real" || entry.Badge.Login != "neur0map" || len(g.batches) != 1 {
+		t.Fatal(entry, e, g.batches)
 	}
-	entry := recordEnrichCard(entryForDesign(codedDesign{cardID: id, name: "fake"}, nil), list, nil)
-	if !entry.Verified || entry.Name != "real" || entry.Badge.Login != "neur0map" || requests != 1 {
-		t.Fatal(entry, requests)
+	if s, _ := pullLoad(); len(s.Badges) != 1 {
+		t.Fatal("kept a badge for a card not in the binder", s.Badges)
 	}
 }
 
@@ -229,23 +224,30 @@ func TestRecordCannotClaimAnotherDeviceCardID(t *testing.T) {
 
 func TestKnownHolderRecordFailuresRemainUnverified(t *testing.T) {
 	owner, _, device := badgeTestKeys(t)
-	setCardMachine(t)
 	b, _ := badgeParse(badgeTestCode(t, 1, 4, owner, device, "neur0map"))
-	entry := entryForDesign(codedDesign{cardID: cardID(b.device), name: "picture facts"}, nil)
-	for _, response := range []string{"missing", `{"v":1}`, `{"v":2,"id":"wrong"}`} {
-		t.Run(response, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if response == "missing" {
-					http.NotFound(w, r)
-					return
-				}
-				io.WriteString(w, response)
-			}))
-			defer server.Close()
-			t.Setenv("RYOKU_TEAM_URL", server.URL)
-			got := recordEnrichCard(entry, teamVerifiedList{Badges: []badgeInfo{b}}, nil)
-			if got.BadgeCheck != "unverified" || got.Verified || got.Badge != nil || got.Design != nil || got.Name != entry.Name {
-				t.Fatal("untrusted picture gained badge", got)
+	design := codedDesign{cardID: cardID(b.device), name: "forged words"}
+	foreign := bytes.Repeat([]byte{8}, 32)
+	// another machine signs the badge holder's card and offers its own key as the device
+	signedElsewhere := cardRecord{V: 2, ID: b.CardID, Updated: 1000, Body: base64.StdEncoding.EncodeToString(design.bytes()),
+		Device: base64.StdEncoding.EncodeToString(badgeDevicePublic(foreign))}
+	payload, _ := recordPayload(signedElsewhere)
+	signedElsewhere.Sig = base64.StdEncoding.EncodeToString(signDomain(foreign, "ryoku-card-v2", payload))
+	for name, record := range map[string]any{
+		"missing":        nil,
+		"old version":    map[string]any{"v": 1, "id": b.CardID, "updated": 1000},
+		"wrong id":       map[string]any{"v": 2, "id": "wrong", "updated": 1000},
+		"foreign device": signedElsewhere,
+	} {
+		t.Run(name, func(t *testing.T) {
+			setCardMachine(t)
+			g := newFakeGate(t)
+			g.badges = []string{b.Code}
+			if record != nil {
+				g.extra = []any{record}
+			}
+			got, e := addCard(sharedCard(t, codedDesign{cardID: cardID(b.device), name: "picture facts"}, "png"))
+			if e != nil || got.BadgeCheck != "unverified" || got.Verified || got.Badge != nil || got.Design != nil || got.Name != "picture facts" || got.Record != "" {
+				t.Fatal("untrusted picture gained badge", got, e)
 			}
 		})
 	}

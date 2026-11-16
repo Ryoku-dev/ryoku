@@ -376,12 +376,21 @@ JSON result and `ryoku-hub design pack <folder> <out.zip>` to make the checked,
 deterministic zip. Fetching a design verifies its hash before extraction.
 
 Settings reads badge status on opening, after badge or design actions and
-every ten minutes while open. An active badge publishes a signed card record
-three seconds after profile or hardware-code changes settle, and only once the
-machine's full read-out and the card's code (with its distro) are in; Settings
-starts the read-out for it when no page has. Published sooner, a record carried
-no threads, refresh rate or width and dropped the card's rarity in every binder.
-A custom picture is drawn into a fresh temporary still without the seal, which
+every ten minutes while open.
+
+**Live cards.** Anyone can keep their card online: the switch **Keep my card up
+to date for friends** (`components/about/CardOnlineSwitch.qml`, on the studio's
+Share and Badge tabs, with an info button that explains it plainly) runs
+`ryoku-hub badge online on|off` and is on by default only with a badge. While it
+is on, Settings publishes a signed card record three seconds after profile or
+hardware-code changes settle, and only once the machine's full read-out and the
+card's code (with its distro) are in; Settings starts the read-out for it when
+no page has. Published sooner, a record carried no threads, refresh rate or
+width and dropped the card's rarity in every binder. The record carries the
+machine's public key (`device`), whose hash is the card id, so it needs no
+badge: only that machine can sign it, and binders check the signature
+themselves. Turning the switch off sends a DELETE signed by the same key. A
+custom picture is drawn into a fresh temporary still without the seal, which
 overlaps the figure's corner and would leave a clipped copy in the picture; the
 backend crops and bounds it, then the temporary still is deleted. A local
 design preview is never published. Each record is stamped after the last one
@@ -391,17 +400,28 @@ than ten minutes off, it is stamped again in the gate's time from its `Date`
 header; when a gate replica hasn't seen a badge published a moment ago, it is
 sent again six seconds later. Any other refusal is shown with the gate's
 reason. A sync or status error clears itself once the next one succeeds.
+team.ryoku.dev deletes a record nobody has changed in 90 days; binders keep the
+copy they have.
 
-Binder **Refresh** checks the saved cards again. Verified cards show their
-role, issuer, date and certificate, with facts and pictures from the signed
-record rather than the shared image. The record and its picture are kept in
+**The binder's check.** One request (`POST /v1/cards/batch`,
+`backend/cardpull.go`) carries every card id with the version the binder holds,
+and returns only the records that changed, the active badges and team designs
+for those cards, and the server's next check time. The binder asks nothing
+before that time (`$XDG_CACHE_HOME/ryoku/team/pull.json`); all times are the
+server's UTC epoch seconds, adjusted by the measured offset, so a time zone or
+clock change on the reader's machine buys no extra check, and the gate rate
+limits checks per address on its side. A badge holder signs each check with the
+badge's device key and is exempt: no wait between checks and no per-address
+check limit, only the 120-a-minute flood limit everyone has. When Cloudflare's
+daily request cap is reached, the binder says updates are paused and resume at
+the next UTC midnight, taken from the server's `Date` header. Cards show as
+**Live** (its owner's changes reach you), **no longer online** (the last
+version you got, after its owner turned the switch off or left it unchanged for
+90 days), or a picture only. Verified badges still show their role, issuer,
+date and certificate. Records and pictures are kept in
 `$XDG_CACHE_HOME/ryoku/team` (`record-<card id>.json` and `.jpg`), so an
-unchanged picture isn't downloaded again, and when the gate can't hand over a
-fresh record (a dropped connection, the rate limit), the last one this binder
-verified stands in, checked against the badge again. Only the badge leaving the
-team list drops it. Offline and unverified cards say so. When no signed record
-can be checked, the binder shows no badge and explains that the facts come from
-the picture.
+unchanged picture isn't downloaded again and the last verified copy stands in
+whenever the gate can't answer.
 
 A card's picture file is rewritten in place when it changes, and Qt keeps an
 image it has loaded by its URL, so the figure's URL carries a revision: a

@@ -49,6 +49,8 @@ type badgeStatusResult struct {
 	Published bool         `json:"published"`
 	Owner     bool         `json:"owner"`
 	Design    *badgeDesign `json:"design"`
+	// Online is whether this machine keeps its card on the team service for friends' binders
+	Online bool `json:"online"`
 }
 
 func badgeDesignFor(list teamVerifiedList, b badgeInfo) *badgeDesign {
@@ -82,6 +84,9 @@ func badgeStatus(refresh bool) (badgeStatusResult, error) {
 	ownerSeed, e := loadIssuerSeed("owner", "")
 	defer clear(ownerSeed)
 	out.Owner = e == nil
+	if out.Online, e = recordOnline(); e != nil {
+		return out, e
+	}
 	if b, e := badgeActive(); e == nil {
 		out.Badge = badgeViewFor(b, true)
 		if list, e := teamList(refresh); e == nil {
@@ -207,7 +212,7 @@ func badgeRevoke(args []string) error {
 }
 func badgeCommand(args []string) error {
 	if len(args) == 0 {
-		return errors.New("badge needs status|activate|sync|issue|revoke|inspect|holder|list")
+		return errors.New("badge needs status|activate|online|sync|issue|revoke|inspect|holder|list")
 	}
 	switch args[0] {
 	case "status":
@@ -232,6 +237,18 @@ func badgeCommand(args []string) error {
 		}
 		if teamPublish("/v1/badges", b.Code) {
 			_, _ = teamList(true)
+		}
+		out, e := badgeStatus(false)
+		if e != nil {
+			return e
+		}
+		return printJSON(out)
+	case "online":
+		if len(args) != 2 || (args[1] != "on" && args[1] != "off") {
+			return errors.New("badge online needs on or off")
+		}
+		if e := recordSetOnline(args[1] == "on"); e != nil {
+			return e
 		}
 		out, e := badgeStatus(false)
 		if e != nil {

@@ -13,6 +13,8 @@ Singleton {
     readonly property var badge: status.badge || null
     readonly property var ownBadge: root.badge
     readonly property bool owner: status.owner === true
+    // the card's signed record is published for friends' binders; anyone may opt in, badge or not
+    readonly property bool online: status.online === true
     readonly property var design: status.design || null
     property var preview: null
     property var checked: null
@@ -86,12 +88,12 @@ Singleton {
         root.errorFrom = "";
         root.message = "";
         Changes.run(argv, function(ok, out, err) {
-            root.job = "";
             if (!ok) {
                 if (action === "check") {
                     try { root.checked = JSON.parse(out); } catch (e) { root.checked = null; }
                 }
                 root.error = root.words(err);
+                root.errorFrom = action;
             } else {
                 try { done(out.trim() === "" ? ({}) : JSON.parse(out)); }
                 catch (e) { root.error = I18n.tr("The badge tool returned an unreadable answer. Try again."); }
@@ -104,6 +106,11 @@ Singleton {
             root.status = result;
             root.message = I18n.tr("Badge activated");
             root.scheduleSync();
+        });
+    }
+    function setOnline(on) {
+        root.run("online", ["ryoku-hub", "badge", "online", on ? "on" : "off"], function(result) {
+            root.status = result;
         });
     }
     function issue(fields) {
@@ -146,11 +153,11 @@ Singleton {
         });
     }
     function scheduleSync() {
-        if (root.badge)
+        if (root.online)
             settle.restart();
     }
     function sync() {
-        if (!root.badge)
+        if (!root.online)
             return;
         if (!root.factsReady) {
             // the full read-out runs only for pages that show it; onFactsReadyChanged comes back
@@ -204,6 +211,7 @@ Singleton {
     Timer { interval: 600000; repeat: true; running: root.settingsOpen; onTriggered: root.refresh(true) }
     onSettingsOpenChanged: { if (root.settingsOpen) root.refresh(true); }
     onBadgeChanged: root.scheduleSync()
+    onOnlineChanged: root.scheduleSync()
     onFactsReadyChanged: { if (root.factsReady) root.scheduleSync(); }
     Connections { target: ProfileStore; function onDataChanged() { root.scheduleSync(); } }
     Component.onCompleted: root.refresh()

@@ -17,7 +17,8 @@ Item {
     // The binder supplies its store context separately from the traded entry.
     property string cardsStoreRoot: ""
     property string tradedId: ""
-    property bool verifiedRecord: false
+    // the friend's signed record supplied this picture (live or kept), so its copy may be shown
+    property bool recordPicture: false
     // a figure drawn at another size than its dots asks for soft sampling, or the dots beat
     property bool soft: false
     readonly property string configDir: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku"
@@ -46,7 +47,7 @@ Item {
         var base = hero.cardsStoreRoot + "/" + hero.tradedId;
         var path = String(hero.config.file || "");
         var rev = String(hero.config.rev || "");
-        var url = path === base + ".png" || (hero.verifiedRecord && path === base + "-record.png") ? hero.fileUrl(path) : "";
+        var url = path === base + ".png" || (hero.recordPicture && path === base + "-record.png") ? hero.fileUrl(path) : "";
         return url !== "" && /^[0-9a-f]{12}$/.test(rev) ? url + "?v=" + rev : url;
     }
 

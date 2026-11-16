@@ -677,6 +677,14 @@ Dialog {
                             }
                         }
 
+                        Slab {
+                            width: parent.width
+                            CardOnlineSwitch {
+                                width: parent.width
+                                hub: root.hub
+                            }
+                        }
+
                         Flow {
                             width: parent.width
                             spacing: LithicTokens.space.s2

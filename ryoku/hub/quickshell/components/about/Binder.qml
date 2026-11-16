@@ -20,6 +20,13 @@ Item {
     property bool inspecting: false
     property string error: ""
     property string message: ""
+    // the last pull of friends' card records, in the team service's epoch seconds
+    property real checked: 0
+    property real next: 0
+    // "", "busy", "daily" or "offline": why the last pull did not reach the team service
+    property string paused: ""
+    // Refresh asked before the next check is due: the backend answers from its cache, so no spinner
+    property bool quiet: false
     property real arrival: 1
     readonly property string configDir: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku"
     readonly property string cardsStoreRoot: (Quickshell.env("XDG_DATA_HOME") || (Quickshell.env("HOME") + "/.local/share")) + "/ryoku/cards"
@@ -29,7 +36,7 @@ Item {
     Certificate {
         id: certificate
         parent: root.parent
-        badge: root.selected && root.selected.verified === true && root.selected.badgeCheck === "ok" ? root.selected.badge || null : null
+        badge: root.selected && root.badgeVerified(root.selected) ? root.selected.badge : null
         spec: certificate.badge && root.selected.design && root.selected.design.spec ? root.selected.design.spec.badge : null
     }
 
@@ -37,33 +44,75 @@ Item {
     function ordered(list) {
         return list.slice().sort((a, b) => Rarity.rarest(a.hw, b.hw) || Date.parse(b.added) - Date.parse(a.added));
     }
+    function take(out) {
+        var pull = JSON.parse(out);
+        if (!pull || !Array.isArray(pull.cards))
+            throw new Error("binder shape");
+        root.entries = root.ordered(pull.cards);
+        root.checked = Number(pull.checked) || 0;
+        root.next = Number(pull.next) || 0;
+        root.paused = String(pull.paused || "");
+    }
+    // the gate paces binders by a next check; a badge holder's binder gets none (next <= checked)
+    readonly property bool paced: root.next > root.checked
     function refresh() {
+        if (root.job !== "")
+            return;
+        var before = root.checked;
+        root.quiet = root.paced && root.next > Date.now() / 1000;
         root.run("refresh", ["ryoku-hub", "cards", "refresh"], function(out) {
             try {
                 var id = root.selected ? root.selected.id : "";
-                root.entries = root.ordered(JSON.parse(out));
+                root.take(out);
                 if (id !== "")
                     root.selected = root.entries.find(entry => entry.id === id) || null;
                 if (!root.selected)
                     root.inspecting = false;
-                root.message = I18n.tr("Binder refreshed");
+                // a paused pull explains itself in the line under the header
+                if (root.paused === "")
+                    root.message = root.checked > before || !root.paced ? I18n.tr("Binder refreshed")
+                        : I18n.tr("Cards update again after %1").replace("%1", root.clock(root.next));
             } catch (e) { root.error = I18n.tr("Your binder could not be refreshed. Try again."); }
         });
     }
+    // the server's epoch seconds in this machine's clock and zone; a day other than today names it
+    function clock(seconds) {
+        var d = new Date(seconds * 1000);
+        var time = TimeFormat.format(d);
+        return d.toDateString() === new Date().toDateString() ? time
+            : Qt.formatDate(d, TimeFormat.locale.dateFormat(Locale.ShortFormat)) + " " + time;
+    }
+    readonly property string pulse: {
+        if (root.paused === "daily")
+            return I18n.tr("Card updates are paused for today. Your cards stay as you last saw them. They resume at %1.").replace("%1", root.clock(root.next));
+        if (root.paused === "busy")
+            return I18n.tr("Too many checks at once. Try again in a minute.");
+        if (root.paused === "offline")
+            return I18n.tr("Card updates could not be checked. Your cards stay as you last saw them. Connect and press Refresh.");
+        if (root.checked <= 0)
+            return "";
+        if (!root.paced)
+            return I18n.tr("Checked %1").replace("%1", root.clock(root.checked));
+        return I18n.tr("Checked %1 · next check after %2").replace("%1", root.clock(root.checked)).replace("%2", root.clock(root.next));
+    }
 
+    function badgeVerified(entry) {
+        return entry.verified === true && entry.badgeCheck === "ok" && !!entry.badge;
+    }
     function verification(entry) {
         if (!entry)
             return "";
-        if (entry.badgeCheck === "offline")
-            return I18n.tr("Offline: badge and card updates could not be checked. Connect and press Refresh.");
-        if (entry.badgeCheck === "unverified")
-            return I18n.tr("Unverified: the signed card record could not be checked, so these facts come from the picture.");
-        if (!entry.verified || !entry.badge)
-            return I18n.tr("Unverified: this card has no verified badge and signed card record.");
-        var badge = entry.badge;
-        var role = badge.role.charAt(0).toUpperCase() + badge.role.slice(1);
-        return I18n.tr("Verified %1 · issued by %2 · %3").replace("%1", role)
-            .replace("%2", "neur0map").replace("%3", badge.issued);
+        if (root.badgeVerified(entry)) {
+            var badge = entry.badge;
+            var role = badge.role.charAt(0).toUpperCase() + badge.role.slice(1);
+            return I18n.tr("Verified %1 · issued by %2 · %3").replace("%1", role)
+                .replace("%2", "neur0map").replace("%3", badge.issued);
+        }
+        if (entry.record === "live")
+            return I18n.tr("Live card: when they change it, your binder shows it.");
+        if (entry.record === "kept")
+            return I18n.tr("This card is no longer online: its owner turned it off or hasn't changed it in 3 months. This is the last version you got.");
+        return I18n.tr("This card is a picture. It changes only when they send you a new one.");
     }
 
     function open() {
@@ -131,7 +180,7 @@ Item {
         if (root.job !== "")
             return;
         root.run("list", ["ryoku-hub", "cards", "list"], function (out) {
-            try { root.entries = root.ordered(JSON.parse(out)); }
+            try { root.take(out); }
             catch (e) { root.error = I18n.tr("Your binder could not be read. Close it and open it again to retry."); }
         });
     }
@@ -183,10 +232,10 @@ Item {
     function picturePath(entry) {
         if (!entry || !entry.hero || !/^[0-9a-f]{16}$/.test(String(entry.id || "")) || root.cardsStoreRoot.charAt(0) !== "/")
             return "";
-        var verified = entry.verified === true && entry.badgeCheck === "ok";
+        var record = root.badgeVerified(entry) || entry.record === "live" || entry.record === "kept";
         var base = root.cardsStoreRoot + "/" + entry.id;
         var path = String(entry.hero.file || "");
-        return path === base + ".png" || (verified && path === base + "-record.png") ? path : "";
+        return path === base + ".png" || (record && path === base + "-record.png") ? path : "";
     }
     function usePicture() {
         var hero = root.selected.hero;
@@ -300,14 +349,29 @@ Item {
             spacing: LithicTokens.space.s2
             Plaque { kind: "gold"; small: true; glyph: "content_paste"; text: I18n.tr("Paste a card"); enabled: root.job === ""; busy: root.job === "add"; onClicked: root.add("") }
             Plaque { kind: "line"; small: true; glyph: "file_open"; text: I18n.tr("Open a card"); enabled: root.job === ""; busy: root.job === "convert"; onClicked: chooser.open() }
-            Plaque { kind: "quiet"; small: true; glyph: "refresh"; text: I18n.tr("Refresh"); enabled: root.job === ""; busy: root.job === "refresh"; onClicked: root.refresh() }
+            Plaque { kind: "quiet"; small: true; glyph: "refresh"; text: I18n.tr("Refresh"); enabled: root.job === ""; busy: root.job === "refresh" && !root.quiet; onClicked: root.refresh() }
             IconButton { glyph: "close"; accessibleName: I18n.tr("Close the binder"); onClicked: root.close() }
+        }
+        Label {
+            id: pulseLine
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: heading.bottom
+            anchors.leftMargin: LithicTokens.space.s5
+            anchors.rightMargin: LithicTokens.space.s5
+            anchors.topMargin: LithicTokens.space.s2
+            text: root.pulse
+            visible: text !== ""
+            typeRole: "caption"
+            inkRole: root.paused !== "" ? "fg2" : "fg3"
+            wrapMode: Text.Wrap
+            elide: Text.ElideNone
         }
         Label {
             id: notice
             anchors.left: parent.left
             anchors.right: parent.right
-            anchors.top: heading.bottom
+            anchors.top: pulseLine.visible ? pulseLine.bottom : heading.bottom
             anchors.margins: LithicTokens.space.s5
             text: root.error || root.message || (root.job === "list" ? I18n.tr("Reading your binder…") : "")
             visible: text !== ""
@@ -320,7 +384,7 @@ Item {
             id: body
             anchors.left: parent.left
             anchors.right: parent.right
-            anchors.top: notice.visible ? notice.bottom : heading.bottom
+            anchors.top: notice.visible ? notice.bottom : pulseLine.visible ? pulseLine.bottom : heading.bottom
             anchors.bottom: parent.bottom
             anchors.margins: LithicTokens.space.s5
             active: root.opened
@@ -475,12 +539,12 @@ Item {
                         width: parent.width
                         text: root.verification(root.selected)
                         typeRole: "detail"
-                        ink: root.selected.verified ? Lithic.gold : Lithic.fg2
+                        ink: root.badgeVerified(root.selected) ? Lithic.gold : Lithic.fg2
                         wrapMode: Text.Wrap
                         elide: Text.ElideNone
                     }
                     Plaque {
-                        visible: root.selected.verified === true && !!root.selected.badge && root.selected.badgeCheck === "ok"
+                        visible: root.badgeVerified(root.selected)
                         small: true
                         kind: "line"
                         text: I18n.tr("View certificate")

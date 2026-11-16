@@ -25,12 +25,15 @@ Item {
     property bool live: false
     property var traded: null
     property string cardsStoreRoot: ""
-    readonly property bool verifiedRecord: !!card.traded && card.traded.verified === true && card.traded.badgeCheck === "ok"
-    property var badge: card.traded ? (card.verifiedRecord ? card.traded.badge || null : null) : Badge.ownBadge
+    readonly property bool badgeVerified: !!card.traded && card.traded.verified === true && card.traded.badgeCheck === "ok"
+    // a verified record carries the friend's picture whether or not they hold a badge; the seal and
+    // a team design still need the badge
+    readonly property bool recordPicture: card.badgeVerified || (!!card.traded && (card.traded.record === "live" || card.traded.record === "kept"))
+    property var badge: card.traded ? (card.badgeVerified ? card.traded.badge || null : null) : Badge.ownBadge
     // the seal overlaps the figure's corner: the still a record's picture is cut from leaves it
     // off, or a friend's binder shows a clipped copy under (or, unverified, instead of) the seal
     property bool sealed: true
-    property var design: card.traded ? (card.verifiedRecord ? card.traded.design || null : null) : Badge.ownDesign
+    property var design: card.traded ? (card.badgeVerified ? card.traded.design || null : null) : Badge.ownDesign
     readonly property var designSpec: card.design ? card.design.spec || card.design : null
     readonly property var cardSpec: card.designSpec && card.designSpec.card ? card.designSpec.card : null
     readonly property var palette: card.cardSpec ? card.cardSpec.palette : null
@@ -331,7 +334,7 @@ Item {
             visible: !card.cardSpec
             cardsStoreRoot: card.cardsStoreRoot
             tradedId: card.traded ? String(card.traded.id || "") : ""
-            verifiedRecord: card.verifiedRecord
+            recordPicture: card.recordPicture
             readonly property real aspect: card.heroKind === "default" ? stockAspect : 900 / 1157
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom

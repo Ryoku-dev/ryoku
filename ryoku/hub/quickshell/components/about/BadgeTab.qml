@@ -85,6 +85,11 @@ Column {
         visible: text !== ""
         ink: Badge.error || root.copyError ? Lithic.jasper : Lithic.fg2
     }
+    CardOnlineSwitch {
+        width: parent.width
+        hub: root.hub
+        showsError: false
+    }
     Label { text: I18n.tr("Your request code"); typeRole: "section" }
     Note { text: I18n.tr("Testers and contributors: run /badge in the claim-badge channel on Discord. Team members: send this request code to nero. A code works only on this machine.") }
     TextField { width: parent.width; text: Badge.request; readOnly: true; Accessible.name: I18n.tr("Your request code") }

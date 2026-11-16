@@ -130,7 +130,8 @@ func TestCardsSameOwnerReplacesKeepingAdded(t *testing.T) {
 	if _, err := os.Stat(entry.Hero.File); !os.IsNotExist(err) {
 		t.Fatalf("replacement left the old own picture: %v", err)
 	}
-	cards, err := listCards()
+	view, err := listCards()
+	cards := view.Cards
 	if err != nil || len(cards) != 1 || !reflect.DeepEqual(cards[0], updated) {
 		t.Fatalf("replaced card list = %+v (%v)", cards, err)
 	}
@@ -169,7 +170,8 @@ func TestCardsReplacedPictureGetsANewRevision(t *testing.T) {
 	if err != nil || second.Hero.File != first.Hero.File || second.Hero.Rev == first.Hero.Rev || !validPictureRev(second.Hero.Rev) {
 		t.Fatalf("replaced picture kept its revision: %+v then %+v (%v)", first.Hero, second.Hero, err)
 	}
-	cards, err := listCards()
+	view, err := listCards()
+	cards := view.Cards
 	if err != nil || len(cards) != 1 || cards[0].Hero.Rev != second.Hero.Rev {
 		t.Fatalf("listed revision: %+v (%v)", cards, err)
 	}
@@ -204,7 +206,7 @@ func TestCardsListOrderAndRemove(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-	if strings.TrimSpace(out) != "[]" {
+	if strings.TrimSpace(out) != `{"cards":[],"checked":0,"next":0,"paused":""}` {
 		t.Fatalf("empty binder = %q", out)
 	}
 	var entries []binderCard
@@ -224,7 +226,8 @@ func TestCardsListOrderAndRemove(t *testing.T) {
 		}
 		entries = append(entries, entry)
 	}
-	cards, err := listCards()
+	view, err := listCards()
+	cards := view.Cards
 	if err != nil || len(cards) != 3 || cards[0].ID != entries[2].ID || cards[1].ID != entries[1].ID || cards[2].ID != entries[0].ID {
 		t.Fatalf("list order = %+v (%v)", cards, err)
 	}
@@ -236,7 +239,8 @@ func TestCardsListOrderAndRemove(t *testing.T) {
 			t.Fatalf("remove left %s: %v", ext, err)
 		}
 	}
-	cards, err = listCards()
+	view, err = listCards()
+	cards = view.Cards
 	if err != nil || len(cards) != 2 {
 		t.Fatalf("list after remove = %+v (%v)", cards, err)
 	}

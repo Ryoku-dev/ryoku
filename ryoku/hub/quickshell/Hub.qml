@@ -21,7 +21,7 @@ import "registry/numbering.js" as Numbering
 FocusScope {
     id: hub
     Binding { target: Badge; property: "settingsOpen"; value: hub.visible }
-    // a badge holder's custom picture is published from a fresh still of the card, rendered here
+    // an online card's custom picture is published from a fresh still of the card, rendered here
     CardShare {
         id: badgeCapture
         hub: hub

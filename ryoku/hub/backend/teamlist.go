@@ -33,6 +33,12 @@ func teamVerifyList(raw []byte) (teamVerifiedList, error) {
 	if wire.V != 1 {
 		return teamVerifiedList{}, errors.New("unknown team list version")
 	}
+	return teamVerifyWire(wire), nil
+}
+
+// teamVerifyWire keeps the codes that verify: badges not revoked, and each team login's newest
+// approved design
+func teamVerifyWire(wire teamWireList) teamVerifiedList {
 	out := teamVerifiedList{V: 1, Badges: []badgeInfo{}, Revoked: []revokeInfo{}, Designs: []rydInfo{}}
 	byID := map[string]badgeInfo{}
 	for _, text := range wire.Badges {
@@ -82,7 +88,7 @@ func teamVerifyList(raw []byte) (teamVerifiedList, error) {
 	for _, key := range order {
 		out.Designs = append(out.Designs, newest[key])
 	}
-	return out, nil
+	return out
 }
 func teamList(refresh bool) (teamVerifiedList, error) {
 	dir, e := teamCacheDir()
