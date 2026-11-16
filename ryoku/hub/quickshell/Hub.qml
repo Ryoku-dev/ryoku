@@ -979,10 +979,6 @@ FocusScope {
                 x: 28
                 y: parent.height - height - 6
                 width: parent.width - x - 20
-                pointer: sheetPointer.hovered ? sheetPointer.point.position : null
-            }
-            HoverHandler {
-                id: sheetPointer
             }
 
             // a narrow window keeps its sidebar in a drawer, drawn out from here

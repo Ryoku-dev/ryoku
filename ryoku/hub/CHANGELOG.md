@@ -84,6 +84,11 @@
   `components/Home.qml`).
 
 ### Changed
+- **The page foot keeps only the motto and the page's code.** The "Saved, live
+  on your desktop" line, its state square and the pointer's X/Y readout are
+  gone from the colophon; the shared action bar drops the same line, its `///`
+  mark and pulsing dot (`quickshell/components/sheet/Colophon.qml`,
+  `quickshell/Hub.qml`, `../ui/ActionBar.qml`).
 - **Anyone can keep their card up to date for friends.** A switch on the card
   studio's Share and Badge tabs, off until you turn it on (badge holders too),
   with a plain explanation behind its info button, puts your card online

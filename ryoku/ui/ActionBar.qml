@@ -14,7 +14,7 @@ Item {
     id: bar
 
     property int dirty: 0
-    property string cleanText: I18n.tr("SAVED · LIVE ON YOUR DESKTOP")
+    property string cleanText: ""
     property string savingText: ""
 
     signal saved()
@@ -32,26 +32,6 @@ Item {
         anchors.leftMargin: Tokens.s5
         spacing: Tokens.s3
 
-        Text {
-            anchors.verticalCenter: parent.verticalCenter
-            text: "///"
-            color: Tokens.inkFaint
-            font.family: Tokens.mono
-            font.pixelSize: 10
-        }
-        Rectangle {
-            width: 6; height: 6
-            anchors.verticalCenter: parent.verticalCenter
-            // no colour in the chrome: the unsaved heartbeat is ink, and the
-            // /// cluster beside it carries the sheet's mark.
-            color: Tokens.ink
-            SequentialAnimation on opacity {
-                running: bar.dirty > 0
-                loops: Animation.Infinite
-                NumberAnimation { to: 0.3; duration: 600 }
-                NumberAnimation { to: 1.0; duration: 600 }
-            }
-        }
         Text {
             anchors.verticalCenter: parent.verticalCenter
             text: bar.dirty > 0
