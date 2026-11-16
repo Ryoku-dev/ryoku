@@ -10,14 +10,14 @@ const Scope = sandbox.module.exports;
 
 test("linked: only the first output tab is active, and every write targets the global scope", () => {
     const outs = ["eDP-1", "DP-1"];
-    assert.deepEqual(Scope.activeOutputs(outs, true), ["eDP-1"]);
+    assert.deepEqual(Array.from(Scope.activeOutputs(outs, true)), ["eDP-1"]);
     assert.equal(Scope.writeScope(outs, true, "DP-1"), "");
     assert.equal(Scope.readScope(outs, true, "DP-1"), "");
 });
 
 test("unlinked: every output tab is active and reads and writes its own scope", () => {
     const outs = ["eDP-1", "DP-1"];
-    assert.deepEqual(Scope.activeOutputs(outs, false), ["eDP-1", "DP-1"]);
+    assert.deepEqual(Array.from(Scope.activeOutputs(outs, false)), ["eDP-1", "DP-1"]);
     assert.equal(Scope.writeScope(outs, false, "DP-1"), "DP-1");
     assert.equal(Scope.readScope(outs, false, "DP-1"), "DP-1");
 });
