@@ -51,9 +51,14 @@ test('card records bind timestamp, body, key-derived id and picture to the devic
   assert.equal(await verifyCard(valid, other.raw), false);
   for (const changed of [{ updated: valid.updated + 1 }, { picture: 'ab'.repeat(32) }]) assert.equal(await verifyCard({ ...valid, ...changed }, device.raw), false);
   for (const changed of [{ v: 1 }, { id: 'abcdef0000000000' }, { updated: -1 }, { updated: 1.5 }, { body: '' }, { extra: 1 }, { sig: 'not base64' }]) await assert.rejects(verifyCard({ ...valid, ...changed }, device.raw));
-  for (const [position, value] of [[0, 0x20], [0, 0x3c], [0, 0x31], [5, 0xc0], [5, 0x18], [14, 255]]) {
+  // 0x31: a version 3 body with the built-in graphics bit; 0x42: the spare bit in version 4; 0x50: version 5
+  for (const [position, value] of [[0, 0x20], [0, 0x3c], [0, 0x31], [0, 0x42], [0, 0x50], [5, 0xc0], [5, 0x18], [14, 255]]) {
     const bytes = cardBody(valid.id); bytes[position] = value;
     assert.throws(() => cardPayload({ ...valid, body: base64(bytes) }));
+  }
+  for (const first of [0x40, 0x41, 0x45]) {
+    const bytes = cardBody(valid.id); bytes[0] = first;
+    cardPayload({ ...valid, body: base64(bytes) });
   }
   const invalidUtf8 = new Uint8Array([...cardBody(valid.id).slice(0, 14), 1, 255, 0, 0, 0, 0]);
   assert.throws(() => cardPayload({ ...valid, body: base64(invalidUtf8) }));

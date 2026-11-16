@@ -121,7 +121,9 @@ export function cardPayload(record) {
   requireThat(record.device === undefined || unbase64(record.device).length === 32, 'Invalid card device');
   requireThat(record.picture === '' || (typeof record.picture === 'string' && SHA.test(record.picture)), 'Invalid picture hash');
   const body = unbase64(record.body);
-  requireThat(body.length >= 19 && body.length <= 78 && body[0] >> 4 === 3 && (body[0] & 3) === 0 && ((body[0] >> 2) & 3) <= 2 && body[5] >> 5 <= 5 && ((body[5] >> 2) & 7) <= 5, 'Invalid card body');
+  // version 4 adds the built-in graphics bit (bit 0); version 3 cards keep both low bits clear
+  const version = body[0] >> 4, spare = version === 4 ? 2 : 3;
+  requireThat(body.length >= 19 && body.length <= 78 && (version === 3 || version === 4) && (body[0] & spare) === 0 && ((body[0] >> 2) & 3) <= 2 && body[5] >> 5 <= 5 && ((body[5] >> 2) & 7) <= 5, 'Invalid card body');
   requireThat(hex(body.subarray(6, 14)) === record.id, 'Card id mismatch');
   let offset = 14;
   for (const cap of [14, 20, 7, 10, 8]) {
