@@ -1,4 +1,4 @@
-%global readex_commit 1a5aaa4c15edb043c37113a8cddf020235917050
+%global readex_commit 563dfbb36ae45e52ec50829b016ce724ac2fca70
 
 Name:           ttf-readex-pro
 Version:        1.204

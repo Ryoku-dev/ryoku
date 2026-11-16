@@ -1,6 +1,6 @@
 # Template file for 'ryotunes'
 pkgname=ryotunes
-version=1.2.1
+version=1.2.6
 revision=1
 archs="x86_64"
 build_style=cargo
@@ -14,7 +14,7 @@ maintainer="Ryoku <releases@ryoku.dev>"
 license="GPL-3.0-or-later"
 homepage="https://github.com/Ryoku-dev/ryotunes"
 distfiles="${homepage}/releases/download/v${version}/ryotunes-${version}.tar.gz"
-checksum=36be6f5891acc74df35681b9927e4202867dd2f1d29824188ec42c8d7311a5d5
+checksum=51c426493e0ad38a9dabd8764edfffaab8fd50b2b6eec26b861fa1b0b60045d2
 nocross=yes
 
 # The repository build stamps version and checksum with Ryotunes' newest 1.x

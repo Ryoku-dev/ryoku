@@ -1,9 +1,9 @@
 # Template file for 'prowl'
 pkgname=prowl
-version=0.17.2
+version=0.17.3
 revision=1
 archs="x86_64"
-_commit=5ba05eb922ff023e3cbc2b9a3768829179bca980
+_commit=173fc779b17008a1a0d495313eaf2ba31c185103
 wrksrc="prowl-${_commit}"
 hostmakedepends="go"
 makedepends="sqlite-devel"
@@ -13,7 +13,7 @@ maintainer="Ryoku <releases@ryoku.dev>"
 license="MIT"
 homepage="https://github.com/neur0map/prowl"
 distfiles="https://github.com/neur0map/prowl/archive/${_commit}.tar.gz"
-checksum=08fbd327fccd1210b19b621914f134e38eaf196ea216f11f9036e83c40c0212f
+checksum=6b9866281debc46ca997b3777d11db5fc6fda20ed8c2cfedbedbf77960d3f5c9
 conflicts="prowl-agent>=0"
 replaces="prowl-agent>=0"
 

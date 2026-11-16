@@ -1,6 +1,6 @@
 # Template file for 'gpu-screen-recorder'
 pkgname=gpu-screen-recorder
-version=6.1.3
+version=6.1.7
 revision=1
 build_style=meson
 configure_args="-Dsystemd=false -Dcapabilities=false -Dnvidia_suspend_fix=false"
@@ -15,4 +15,4 @@ maintainer="Ryoku Linux <team@ryoku.dev>"
 license="GPL-3.0-only"
 homepage="https://git.dec05eba.com/gpu-screen-recorder/about"
 distfiles="https://dec05eba.com/snapshot/gpu-screen-recorder.git.${version}.tar.gz"
-checksum=7932921ccb52a32c324c1718fc4f982a9cbe59c11f99a22255791a8eb41214ce
+checksum=17be095ed8c6200c467c1477cc127c97b056b25071443d015e0ef026cf3fcd73

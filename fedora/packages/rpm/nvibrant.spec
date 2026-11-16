@@ -1,5 +1,5 @@
 Name:           nvibrant
-Version:        1.3.0
+Version:        1.3.1
 Release:        1%{?dist}
 Summary:        NVIDIA digital vibrance and dithering on Wayland
 License:        MIT

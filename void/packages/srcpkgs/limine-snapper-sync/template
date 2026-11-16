@@ -1,6 +1,6 @@
 # Template file for 'limine-snapper-sync'
 pkgname=limine-snapper-sync
-version=1.32.1
+version=1.33.0
 revision=1
 archs="x86_64"
 hostmakedepends="mandrel gettext"
@@ -14,7 +14,7 @@ distfiles="https://gitlab.com/Zesko/limine-snapper-sync/-/archive/${version}/lim
  https://repo1.maven.org/maven2/tools/jackson/core/jackson-databind/3.2.3/jackson-databind-3.2.3.jar
  https://repo1.maven.org/maven2/tools/jackson/core/jackson-core/3.2.3/jackson-core-3.2.3.jar
  https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-annotations/2.22/jackson-annotations-2.22.jar"
-checksum="29bcd51503a0168ca836023efb4cdbd63b6ec4578eb69fb959a33dfa48aa844c
+checksum=" 904a01950e8c79477ba1c6ec7d134ef77f77fe0e5c1729127bf733b346794ef0
  235b72436af983857e44efa42449f4f0a2c571e69d6c5d9dd1253ae7d192dcf2
  a0c17e7e665a5e95c82f5fb45c0fec2ae3dc556c80f0016452c9c84cd23f3817
  21ddb598807d3a51a876704eb979d9296e1c6a6f47ab1826ff88c6d6a127a2d0"

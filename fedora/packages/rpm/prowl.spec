@@ -1,9 +1,9 @@
-%global prowl_commit 5ba05eb922ff023e3cbc2b9a3768829179bca980
+%global prowl_commit 173fc779b17008a1a0d495313eaf2ba31c185103
 %global ryoku_vendor go
 
 Name:           prowl
-Version:        0.17.2
-Release:        3%{?dist}
+Version:        0.17.3
+Release:        1%{?dist}
 Summary:        Prowl model gateway and code intelligence for Ryoku Rashin
 License:        MIT
 URL:            https://github.com/neur0map/prowl

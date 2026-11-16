@@ -1,6 +1,6 @@
 # Template file for 'voxtype'
 pkgname=voxtype
-version=1.1.0
+version=1.2.2
 revision=1
 archs="x86_64"
 create_wrksrc=yes
@@ -12,7 +12,7 @@ maintainer="Ryoku <releases@ryoku.dev>"
 license="MIT"
 homepage="https://github.com/peteonrails/voxtype"
 distfiles="${homepage}/releases/download/v${version}/voxtype-${version}-1.x86_64.rpm"
-checksum=bec4afe2e4c0a75e2453931eea276bbf736b10bae14479ca2019a252263447f4
+checksum=dac5e4dab34299d68cc5890a46ebd79e4ac48c789bf53423c58c67e55743b8a5
 provides="voxtype-bin-${version}_${revision}"
 conflicts="voxtype-bin>=0"
 conf_files="/etc/voxtype/config.toml"

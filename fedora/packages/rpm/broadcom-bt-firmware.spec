@@ -1,4 +1,4 @@
-%global upstream_version 12.0.1.1105_p4
+%global upstream_version 12.0.1.1105_p5
 
 Name:           broadcom-bt-firmware
 Version:        12.0.1.1105

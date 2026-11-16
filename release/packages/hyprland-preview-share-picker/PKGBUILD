@@ -1,8 +1,8 @@
 # Maintainer: Ryoku <releases@ryoku.dev>
 pkgname=hyprland-preview-share-picker
-pkgver=0.3.0
+pkgver=0.3.1
 pkgrel=1
-_commit=7e11349d3f6ecae75b42be73d6a258503656cc8f
+_commit=07602efe7a65dcef5399e22c162edf9fc331c46d
 pkgdesc="Preview-based screen-share source picker for Hyprland"
 arch=('x86_64')
 url="https://github.com/WhySoBad/hyprland-preview-share-picker"

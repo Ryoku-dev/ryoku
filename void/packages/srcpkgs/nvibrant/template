@@ -1,6 +1,6 @@
 # Template file for 'nvibrant'
 pkgname=nvibrant
-version=1.3.0
+version=1.3.1
 revision=1
 archs="x86_64"
 create_wrksrc=yes
@@ -13,7 +13,7 @@ license="MIT"
 homepage="https://github.com/Tremeschin/nvibrant"
 distfiles="${homepage}/releases/download/v${version}/nvibrant-${version}-py3-none-manylinux_2_17_x86_64.whl
  ${homepage}/raw/v${version}/license.txt"
-checksum="d60a080b52e4a16e16d16a7d4b6405a32a3fe1b8ee0df65dc3685213ef0393e8
+checksum=" d23fdfb75d78f8e94459bb6d741c6e3f1780b20deb0d0fac55b5aef3a915d6bf
  015b42dfc301724c0f8ac8de7658e36801a7a86463d91024bf173ee9ceec495f"
 provides="nvibrant-bin-${version}_${revision}"
 conflicts="nvibrant-bin>=0"

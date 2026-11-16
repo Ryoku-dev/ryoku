@@ -3,7 +3,7 @@ set -euo pipefail
 
 : "${RYOKU_FETCH_TREE:?}"
 package=hyprland-preview-share-picker
-commit=7e11349d3f6ecae75b42be73d6a258503656cc8f
+commit=07602efe7a65dcef5399e22c162edf9fc331c46d
 root="$RYOKU_FETCH_TREE/.rpm-$package"
 dest="$root/$package"
 rm -rf "$root"
