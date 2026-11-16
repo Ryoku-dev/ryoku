@@ -257,7 +257,9 @@ func badgeCommand(args []string) error {
 		if len(args) != 2 || !badgeLoginPattern.MatchString(args[1]) {
 			return errors.New("badge holder needs a GitHub login")
 		}
-		list, e := teamList(false)
+		// Mika asks this before accepting a team design, often minutes after the badge was
+		// activated, so it reads the current list rather than a cached copy
+		list, e := teamList(true)
 		if e != nil {
 			return e
 		}

@@ -317,8 +317,11 @@ before there was a style was dithered, and stays so).
 #### Badges and team designs
 
 Open **Home > Customise > Badge**, or search for Badge. Copy **Your request
-code** and use `/badge` in Discord for Tester or Contributor. Team members send
-the request code to nero instead. Paste the returned badge code into Activate.
+code** and run `/badge` in the **claim-badge** channel, under **Badges** on the
+Ryoku Discord, for Tester or Contributor. Team members send the request code to
+nero instead. Paste the returned badge code into Activate. The Badges category
+also holds the private **core** and **nixos-team** channels, where team designs
+are submitted, and nero's **card-review** channel, where they are approved.
 Codes are signed and tied to this machine's device key, not unlocked by a setting
 or by copying the codebase. The 16-hex card id comes from the first eight bytes
 of SHA-256 over `ryoku-card-id-v1`, a zero byte and the device public key, not

@@ -86,7 +86,7 @@ Column {
         ink: Badge.error || root.copyError ? Lithic.jasper : Lithic.fg2
     }
     Label { text: I18n.tr("Your request code"); typeRole: "section" }
-    Note { text: I18n.tr("Testers and contributors: use /badge in Discord. Team members: send this request code to nero. A code works only on this machine.") }
+    Note { text: I18n.tr("Testers and contributors: run /badge in the claim-badge channel on Discord. Team members: send this request code to nero. A code works only on this machine.") }
     TextField { width: parent.width; text: Badge.request; readOnly: true; Accessible.name: I18n.tr("Your request code") }
     Plaque { small: true; kind: "line"; glyph: "content_copy"; text: I18n.tr("Copy request code"); enabled: Badge.request !== ""; onClicked: root.copy(Badge.request) }
     TextField { id: activation; width: parent.width; placeholderText: I18n.tr("Paste your badge code"); Accessible.name: I18n.tr("Badge activation code") }
