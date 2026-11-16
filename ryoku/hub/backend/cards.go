@@ -64,12 +64,15 @@ func validCardID(id string) bool {
 
 func cardPicture(path string) ([]byte, error) {
 	if path != "--clipboard" {
-		return os.ReadFile(path)
+		return readPictureFile(path)
 	}
 	for _, kind := range []string{"image/png", "image/jpeg"} {
-		raw, err := exec.Command("wl-paste", "--no-newline", "--type", kind).Output()
+		raw, err := readLimitedCommand(exec.Command("wl-paste", "--no-newline", "--type", kind), maxPictureBytes)
 		if err == nil && len(raw) > 0 {
 			return raw, nil
+		}
+		if errors.Is(err, errPictureTooLarge) {
+			return nil, err
 		}
 	}
 	return nil, fmt.Errorf("the clipboard holds no picture: %w", errNoCardCode)
@@ -81,9 +84,9 @@ func addCard(path string) (binderCard, error) {
 	if err != nil {
 		return entry, err
 	}
-	img, _, err := image.Decode(bytes.NewReader(raw))
+	img, err := decodePicture(raw)
 	if err != nil {
-		return entry, errNoCardCode
+		return entry, errors.Join(errNoCardCode, err)
 	}
 	levels, err := readLevels(img)
 	if err != nil {
@@ -104,23 +107,15 @@ func addCard(path string) (binderCard, error) {
 	if err != nil {
 		return entry, err
 	}
-	entry = binderCard{
-		ID: hex.EncodeToString(d.owner[:]), Added: time.Now().UTC().Truncate(time.Second),
-		Name: d.name, Tagline: d.tagline, Epithet: d.epithet,
-		Hero: cardHero{Kind: "default"},
-		HW: cardHardware{Threads: d.threads, RamGb: d.ramGb, Refresh: d.refresh, Width: d.width,
-			GPUClass: d.gpuClass, GPU: d.gpu,
-			Distro: []string{"", "Arch Linux", "CachyOS", "Fedora", "Void", "NixOS"}[d.distro],
-			WM:     []string{"", "Hyprland", "Niri", "Wayfire"}[d.wm]},
-		Levels: levels,
-	}
+	entry = entryForDesign(d, levels)
+	entry.Added = time.Now().UTC().Truncate(time.Second)
 	dir, err := filepath.Abs(cardsDir())
 	if err != nil {
 		return binderCard{}, err
 	}
 	jsonPath := filepath.Join(dir, entry.ID+".json")
 	imagePath := filepath.Join(dir, entry.ID+".png")
-	if old, err := os.ReadFile(jsonPath); err == nil {
+	if old, err := readBoundedFile(jsonPath, 64<<10); err == nil {
 		var previous binderCard
 		if err := json.Unmarshal(old, &previous); err != nil {
 			return binderCard{}, err
@@ -174,6 +169,19 @@ func addCard(path string) (binderCard, error) {
 	return entry, nil
 }
 
+func entryForDesign(d codedDesign, levels [][]int) binderCard {
+	return binderCard{
+		ID:   hex.EncodeToString(d.owner[:]),
+		Name: d.name, Tagline: d.tagline, Epithet: d.epithet,
+		Hero: cardHero{Kind: "default"},
+		HW: cardHardware{Threads: d.threads, RamGb: d.ramGb, Refresh: d.refresh, Width: d.width,
+			GPUClass: d.gpuClass, GPU: d.gpu,
+			Distro: []string{"", "Arch Linux", "CachyOS", "Fedora", "Void", "NixOS"}[d.distro],
+			WM:     []string{"", "Hyprland", "Niri", "Wayfire"}[d.wm]},
+		Levels: levels,
+	}
+}
+
 func listCards() ([]binderCard, error) {
 	cards := []binderCard{}
 	files, err := os.ReadDir(cardsDir())
@@ -184,10 +192,10 @@ func listCards() ([]binderCard, error) {
 		return nil, err
 	}
 	for _, file := range files {
-		if file.IsDir() || !strings.HasSuffix(file.Name(), ".json") || !validCardID(strings.TrimSuffix(file.Name(), ".json")) {
+		if !file.Type().IsRegular() || !strings.HasSuffix(file.Name(), ".json") || !validCardID(strings.TrimSuffix(file.Name(), ".json")) {
 			continue
 		}
-		raw, err := os.ReadFile(filepath.Join(cardsDir(), file.Name()))
+		raw, err := readBoundedFile(filepath.Join(cardsDir(), file.Name()), 64<<10)
 		if err != nil {
 			return nil, err
 		}
@@ -195,6 +203,27 @@ func listCards() ([]binderCard, error) {
 		if err := json.Unmarshal(raw, &entry); err != nil {
 			return nil, err
 		}
+		d, err := decodeLevels(entry.Levels)
+		if err != nil || entry.ID != strings.TrimSuffix(file.Name(), ".json") || entry.ID != hex.EncodeToString(d.owner[:]) {
+			return nil, fmt.Errorf("invalid stored card")
+		}
+		safe := entryForDesign(d, entry.Levels)
+		safe.Added = entry.Added
+		if d.kind == 1 {
+			safe.Hero = cardHero{Kind: "gallery", Source: d.gallerySrc + ".png"}
+		}
+		if d.kind == 2 {
+			expected, err := filepath.Abs(filepath.Join(cardsDir(), entry.ID+".png"))
+			if err != nil || entry.Hero.File != expected {
+				return nil, fmt.Errorf("invalid stored card picture")
+			}
+			info, err := os.Lstat(expected)
+			if err != nil || !info.Mode().IsRegular() {
+				return nil, fmt.Errorf("invalid stored card picture")
+			}
+			safe.Hero = cardHero{Kind: "custom", File: expected}
+		}
+		entry = safe
 		cards = append(cards, entry)
 	}
 	sort.Slice(cards, func(i, j int) bool {

@@ -211,6 +211,7 @@ Item {
                                 anchors.margins: 1
                                 source: cell.picture ? host.urlOf(cell.filePath) : ""
                                 sourceSize.width: 240
+                                sourceSize.height: 240
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
                                 cache: true
@@ -273,6 +274,7 @@ Item {
                         anchors.bottomMargin: 44
                         source: /\.(png|jpe?g|webp|gif|bmp)$/i.test(host.shown) ? host.urlOf(host.shown) : ""
                         sourceSize.width: 720
+                        sourceSize.height: 720
                         fillMode: Image.PreserveAspectFit
                         asynchronous: true
                     }

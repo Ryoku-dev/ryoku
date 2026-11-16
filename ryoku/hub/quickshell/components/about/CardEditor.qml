@@ -53,6 +53,8 @@ Dialog {
     readonly property var heroFallback: ({ kind: "default", source: "", zoom: 1, focalX: 0.5, focalY: 0.4, dither: 1, invert: false })
     readonly property var hero: Object.assign({}, root.heroFallback, root.val("hero", root.heroFallback) || {})
     readonly property bool custom: root.hero.kind === "custom"
+    readonly property string customPicture: root.custom && /^hero\.(png|jpg|jpeg|webp|gif|bmp|avif)$/.test(String(root.hero.source || ""))
+        ? imagePick.urlOf(root.configDir + "/profile/" + root.hero.source) : ""
     readonly property string style: root.hero.style || "dither"
     function setHero(patch, label) {
         root.put("hero", root.heroFallback, Object.assign({}, root.hero, patch), label);
@@ -96,11 +98,15 @@ Dialog {
     // a picked image is copied beside profile.json so it stays and can travel; a new picture
     // starts as a photo, framed to fill
     function adopt(url) {
-        var path = decodeURIComponent(String(url).replace(/^file:\/\//, ""));
-        var dot = path.lastIndexOf(".");
-        var ext = (dot >= 0 ? path.slice(dot + 1) : "png").toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
+        var path = imagePick.localPath(url);
+        var ext = path.slice(path.lastIndexOf(".") + 1).toLowerCase();
+        // Only local raster images may become profile art; SVG can refer to other resources.
+        if (path === "" || !/^(png|jpg|jpeg|webp|gif|bmp|avif)$/.test(ext)) {
+            root.imageError = I18n.tr("Choose another picture");
+            return;
+        }
         copyProc.ext = ext;
-        copyProc.command = ["install", "-D", "-m", "644", path, root.configDir + "/profile/hero." + ext];
+        copyProc.command = ["install", "-D", "-m", "644", "--", path, root.configDir + "/profile/hero." + ext];
         root.imageError = "";
         copyProc.running = true;
     }
@@ -328,7 +334,7 @@ Dialog {
                             Tile {
                                 label: root.custom ? I18n.tr("Change") : I18n.tr("Your picture")
                                 photo: true
-                                art: root.custom && root.hero.source ? "file://" + root.configDir + "/profile/" + root.hero.source : ""
+                                art: root.customPicture
                                 chosen: root.custom
                                 onPicked: imagePick.open()
                             }
@@ -774,6 +780,8 @@ Dialog {
                 anchors.margins: LithicTokens.space.s1
                 visible: tile.photo && String(tile.art).length > 0
                 source: tile.art
+                sourceSize.width: 240
+                sourceSize.height: 240
                 fillMode: tile.photo ? Image.PreserveAspectCrop : Image.PreserveAspectFit
                 asynchronous: true
             }

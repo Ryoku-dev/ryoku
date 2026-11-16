@@ -8,12 +8,18 @@ package main
 // nothing when the file is not a valid .ryoprofile.
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image/png"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 func profileDir() string {
@@ -28,14 +34,222 @@ func profileConfigPath() string { return filepath.Join(profileDir(), "profile.js
 
 func profileHeroDir() string { return filepath.Join(profileDir(), "profile") }
 
-// profileModel peeks at just the hero fields export needs; the rest of the
-// document is carried verbatim (see exportProfile) so nothing is lost or
-// reformatted on a round-trip.
+// profileModel peeks at the hero fields. Other fields stay byte-exact unless
+// import must rewrite a custom hero's source to the canonical PNG filename.
 type profileModel struct {
 	Hero struct {
 		Kind   string `json:"kind"`
 		Source string `json:"source"`
 	} `json:"hero"`
+}
+
+const maxProfileBytes = 64 << 10
+const maxProfileEnvelopeBytes = 24 << 20
+
+var profilePictureName = regexp.MustCompile(`^[a-z0-9_-]+\.(png|jpg|jpeg|gif)$`)
+
+// JSON needs its own envelope bound and UTF-8 rejection before Unmarshal,
+// which otherwise silently replaces malformed bytes.
+func readProfileFile(path string, limit int64) ([]byte, error) {
+	raw, err := readBoundedFile(path, limit)
+	if err != nil {
+		return nil, fmt.Errorf("read profile file: %w", err)
+	}
+	if !utf8.Valid(raw) {
+		return nil, fmt.Errorf("profile file is not valid UTF-8")
+	}
+	return raw, nil
+}
+
+func profileObject(raw json.RawMessage) (map[string]json.RawMessage, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return nil, err
+	}
+	if fields == nil {
+		return nil, fmt.Errorf("expected a profile object")
+	}
+	return fields, nil
+}
+
+func profileChoice(raw json.RawMessage, choices ...string) error {
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return fmt.Errorf("expected a string choice")
+	}
+	for _, choice := range choices {
+		if value == choice {
+			return nil
+		}
+	}
+	return fmt.Errorf("unknown profile choice")
+}
+
+func profilePlainText(raw json.RawMessage, limit int) error {
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return fmt.Errorf("expected profile text")
+	}
+	if utf8.RuneCountInString(value) > limit {
+		return fmt.Errorf("profile text exceeds %d characters", limit)
+	}
+	// Qt's automatic rich-text detection must not interpret a shared name or
+	// motto as markup. Format controls can also disguise paths and UI text.
+	for _, r := range value {
+		if unicode.IsControl(r) || unicode.In(r, unicode.Cf) || strings.ContainsRune("<>&", r) || r == utf8.RuneError {
+			return fmt.Errorf("profile text contains markup or control characters")
+		}
+	}
+	return nil
+}
+
+func profileStringList(raw json.RawMessage, limit int, validate func(json.RawMessage) error) error {
+	var values []json.RawMessage
+	if err := json.Unmarshal(raw, &values); err != nil || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return fmt.Errorf("expected a profile list")
+	}
+	if len(values) > limit {
+		return fmt.Errorf("profile list exceeds %d entries", limit)
+	}
+	for _, value := range values {
+		if err := validate(value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Keep the imported surface closed to future path, command or URL fields.
+// Numeric limits mirror CardEditor.qml rather than Qt's coercion rules.
+func validateProfile(raw json.RawMessage) (profileModel, error) {
+	var model profileModel
+	if len(raw) > maxProfileBytes || !utf8.Valid(raw) {
+		return model, fmt.Errorf("profile settings are oversized or not valid UTF-8")
+	}
+	fields, err := profileObject(raw)
+	if err != nil {
+		return model, err
+	}
+	for key, value := range fields {
+		err = nil
+		switch key {
+		case "preset":
+			err = profileChoice(value, "", "full", "minimal")
+		case "heroSide":
+			err = profileChoice(value, "", "left", "right")
+		case "homeView":
+			err = profileChoice(value, "", "plate", "card")
+		case "hero":
+			err = validateProfileHero(value)
+		case "blocks":
+			var blocks map[string]json.RawMessage
+			blocks, err = profileObject(value)
+			for block, enabled := range blocks {
+				switch block {
+				case "epithets", "telemetry", "specs", "packages", "palette", "barcode", "signal", "watermark", "marginalia":
+				default:
+					err = fmt.Errorf("unknown profile block")
+				}
+				if err != nil {
+					break
+				}
+				if string(bytes.TrimSpace(enabled)) != "true" && string(bytes.TrimSpace(enabled)) != "false" {
+					err = fmt.Errorf("profile block must be boolean")
+					break
+				}
+			}
+		case "text":
+			var text map[string]json.RawMessage
+			text, err = profileObject(value)
+			for field, content := range text {
+				switch field {
+				case "name", "watermarkGlyph":
+					err = profilePlainText(content, 128)
+				case "tagline", "marginalia":
+					err = profilePlainText(content, 512)
+				case "epithets", "verse":
+					err = profileStringList(content, 16, func(v json.RawMessage) error { return profilePlainText(v, 128) })
+				default:
+					err = fmt.Errorf("unknown profile text field")
+				}
+				if err != nil {
+					break
+				}
+			}
+		case "vitals":
+			err = profileStringList(value, 5, func(v json.RawMessage) error { return profileChoice(v, "core", "gpu", "mem", "net", "frac") })
+		case "specs":
+			err = profileStringList(value, 3, func(v json.RawMessage) error { return profileChoice(v, "resolution", "compositor", "uptime") })
+		default:
+			err = fmt.Errorf("unknown profile field")
+		}
+		if err != nil {
+			return model, fmt.Errorf("profile %s: %w", key, err)
+		}
+	}
+	if err := json.Unmarshal(raw, &model); err != nil {
+		return model, err
+	}
+	return model, nil
+}
+
+func validateProfileHero(raw json.RawMessage) error {
+	fields, err := profileObject(raw)
+	if err != nil {
+		return err
+	}
+	for key, value := range fields {
+		switch key {
+		case "kind":
+			err = profileChoice(value, "", "default", "gallery", "custom")
+		case "source":
+			var source string
+			err = json.Unmarshal(value, &source)
+			if err == nil && (bytes.Equal(bytes.TrimSpace(value), []byte("null")) || len(source) > 128 || source != "" && !profilePictureName.MatchString(source)) {
+				err = fmt.Errorf("hero source must be a bare image filename")
+			}
+		case "style":
+			err = profileChoice(value, "", "photo", "mono", "dither")
+		case "fit", "invert":
+			if string(bytes.TrimSpace(value)) != "true" && string(bytes.TrimSpace(value)) != "false" {
+				err = fmt.Errorf("hero flag must be boolean")
+			}
+		case "zoom", "focalX", "focalY", "brightness", "contrast", "saturation", "dither":
+			low, high := 0.0, 1.0
+			switch key {
+			case "zoom":
+				low, high = 1, 4
+			case "dither":
+				low, high = 1, 6
+			case "brightness", "contrast":
+				low, high = -0.6, 0.6
+			case "saturation":
+				low, high = -1, 1
+			}
+			var n float64
+			err = json.Unmarshal(value, &n)
+			if err == nil && (bytes.Equal(bytes.TrimSpace(value), []byte("null")) || n < low || n > high) {
+				err = fmt.Errorf("hero %s must be between %g and %g", key, low, high)
+			}
+		default:
+			err = fmt.Errorf("unknown hero field")
+		}
+		if err != nil {
+			return err
+		}
+	}
+	var model profileModel
+	if err := json.Unmarshal(append(append([]byte(`{"hero":`), raw...), '}'), &model); err != nil {
+		return err
+	}
+	ext := filepath.Ext(model.Hero.Source)
+	if model.Hero.Kind == "gallery" && (ext != ".png" && ext != ".gif" || !validGalleryName(strings.TrimSuffix(model.Hero.Source, ext))) {
+		return fmt.Errorf("gallery hero needs a bare gallery filename")
+	}
+	if model.Hero.Kind == "custom" && model.Hero.Source == "" {
+		return fmt.Errorf("custom hero needs a picture filename")
+	}
+	return nil
 }
 
 // ryoHero is the embedded custom hero image inside an envelope: the bare file
@@ -57,9 +271,9 @@ type ryoEnvelope struct {
 // single .ryoprofile envelope at dstPath. A missing profile.json is treated as
 // an empty object.
 func exportProfile(dstPath string) error {
-	raw, err := os.ReadFile(profileConfigPath())
+	raw, err := readProfileFile(profileConfigPath(), maxProfileBytes)
 	if err != nil {
-		if !os.IsNotExist(err) {
+		if !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
 		raw = []byte("{}")
@@ -70,10 +284,18 @@ func exportProfile(dstPath string) error {
 	}
 	env := ryoEnvelope{Ryoprofile: 1, Profile: json.RawMessage(raw)}
 	if m.Hero.Kind == "custom" && m.Hero.Source != "" {
-		name := filepath.Base(m.Hero.Source)
-		if img, err := os.ReadFile(filepath.Join(profileHeroDir(), name)); err == nil {
-			env.Hero = &ryoHero{Name: name, B64: base64.StdEncoding.EncodeToString(img)}
+		name := m.Hero.Source
+		if !profilePictureName.MatchString(name) || len(name) > 128 {
+			return fmt.Errorf("custom hero needs a bare image filename")
 		}
+		img, err := readPictureFile(filepath.Join(profileHeroDir(), name))
+		if err != nil {
+			return err
+		}
+		if _, err := decodePicture(img); err != nil {
+			return fmt.Errorf("custom hero image: %w", err)
+		}
+		env.Hero = &ryoHero{Name: name, B64: base64.StdEncoding.EncodeToString(img)}
 	}
 	out, err := json.Marshal(env)
 	if err != nil {
@@ -86,7 +308,7 @@ func exportProfile(dstPath string) error {
 // Everything is decoded before any write, so a rejected file leaves the
 // existing profile untouched. Shared pictures belong in the binder instead.
 func importProfile(srcPath string) error {
-	raw, err := os.ReadFile(srcPath)
+	raw, err := readProfileFile(srcPath, maxProfileEnvelopeBytes)
 	if err != nil {
 		return err
 	}
@@ -97,24 +319,59 @@ func importProfile(srcPath string) error {
 	if env.Ryoprofile != 1 {
 		return fmt.Errorf("not a .ryoprofile file (ryoprofile != 1)")
 	}
+	profile := env.Profile
+	if len(profile) == 0 {
+		profile = []byte("{}")
+	}
+	model, err := validateProfile(profile)
+	if err != nil {
+		return fmt.Errorf("invalid .ryoprofile settings: %w", err)
+	}
 	var heroBytes []byte
+	heroPath := ""
 	if env.Hero != nil {
-		if env.Hero.Name == "" {
-			return fmt.Errorf(".ryoprofile hero is missing a name")
+		if model.Hero.Kind != "custom" || env.Hero.Name != model.Hero.Source || !profilePictureName.MatchString(env.Hero.Name) {
+			return fmt.Errorf(".ryoprofile hero must match its custom source filename")
+		}
+		if len(env.Hero.B64) > base64.StdEncoding.EncodedLen(maxPictureBytes) {
+			return fmt.Errorf(".ryoprofile hero image is too large")
 		}
 		heroBytes, err = base64.StdEncoding.DecodeString(env.Hero.B64)
 		if err != nil {
 			return fmt.Errorf(".ryoprofile hero image is not valid base64: %w", err)
 		}
-	}
-	profile := env.Profile
-	if len(profile) == 0 {
-		profile = []byte("{}")
+		img, err := decodePicture(heroBytes)
+		if err != nil {
+			return fmt.Errorf(".ryoprofile hero image: %w", err)
+		}
+		// Store only pixels, not a second decoder's animation or metadata input.
+		var clean bytes.Buffer
+		if err := png.Encode(&clean, img); err != nil {
+			return fmt.Errorf(".ryoprofile hero PNG: %w", err)
+		}
+		heroBytes = clean.Bytes()
+		if len(heroBytes) > maxPictureBytes {
+			return fmt.Errorf(".ryoprofile hero PNG is too large")
+		}
+		if model.Hero.Source != "hero.png" {
+			fields, _ := profileObject(profile)
+			hero, _ := profileObject(fields["hero"])
+			hero["source"] = json.RawMessage(`"hero.png"`)
+			fields["hero"], err = json.Marshal(hero)
+			if err != nil {
+				return err
+			}
+			profile, err = json.Marshal(fields)
+			if err != nil {
+				return err
+			}
+		}
+		heroPath = filepath.Join(profileHeroDir(), "hero.png")
+	} else if model.Hero.Kind == "custom" {
+		return fmt.Errorf(".ryoprofile custom hero image is missing")
 	}
 	paths := []string{profileConfigPath()}
-	heroPath := ""
-	if env.Hero != nil {
-		heroPath = filepath.Join(profileHeroDir(), filepath.Base(env.Hero.Name))
+	if heroPath != "" {
 		paths = append(paths, heroPath)
 	}
 	before, err := snapshotFiles(paths...)

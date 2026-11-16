@@ -1167,12 +1167,11 @@ func ditherFastfetchLogo(mode, source string) (string, error) {
 // genuine 1-bit indexed PNG. A fully transparent source pixel stays ground, so an
 // emblem's cut-out survives; the original is only read, never written.
 func ffBakeDither(src, dst string) error {
-	f, err := os.Open(src)
+	raw, err := readPictureFile(src)
 	if err != nil {
-		return fmt.Errorf("emblem not found: %s", src)
+		return fmt.Errorf("cannot read emblem image %s: %w", src, err)
 	}
-	defer f.Close()
-	img, _, err := image.Decode(f)
+	img, err := decodePicture(raw)
 	if err != nil {
 		return fmt.Errorf("cannot read emblem image %s: %w", src, err)
 	}

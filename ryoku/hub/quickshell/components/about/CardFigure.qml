@@ -14,6 +14,9 @@ Item {
 
     property color ink: Lithic.fg
     property var override: null
+    // The binder supplies its store context separately from the traded entry.
+    property string cardsStoreRoot: ""
+    property string tradedId: ""
     // a figure drawn at another size than its dots asks for soft sampling, or the dots beat
     property bool soft: false
     readonly property string configDir: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku"
@@ -25,6 +28,25 @@ Item {
     // the stock photograph is cut to its marble: whoever sizes the figure by it reads this
     readonly property real stockAspect: 665 / 874
     readonly property string src: hero.config.source || ""
+    readonly property string galleryName: hero.src.replace(/\.(png|gif)$/, "")
+    readonly property string gallerySource: /^[a-z0-9_-]+$/.test(hero.galleryName)
+        ? Ryodecors.dir + hero.galleryName + (/\.gif$/.test(hero.src) ? ".gif" : ".png") : ""
+    readonly property string customSource: {
+        if (hero.kind !== "custom")
+            return "";
+        if (!hero.override)
+            return /^hero\.(png|jpg|jpeg|webp|gif|bmp|avif)$/.test(hero.src)
+                ? hero.fileUrl(hero.configDir + "/profile/" + hero.src) : "";
+        // Never treat a card's embedded file field as an image URL or a store root.
+        if (!/^[0-9a-f]{6}$/.test(hero.tradedId) || hero.cardsStoreRoot.charAt(0) !== "/")
+            return "";
+        var expected = hero.cardsStoreRoot + "/" + hero.tradedId + ".png";
+        return hero.config.file === expected ? hero.fileUrl(expected) : "";
+    }
+
+    function fileUrl(path) {
+        return "file://" + path.split("/").map(encodeURIComponent).join("/");
+    }
     readonly property real zoom: hero.config.zoom !== undefined ? hero.config.zoom : 1
     readonly property real focalX: hero.config.focalX !== undefined ? hero.config.focalX : 0.5
     readonly property real focalY: hero.config.focalY !== undefined ? hero.config.focalY : 0.4
@@ -60,10 +82,10 @@ Item {
             height: hero.height * hero.zoom
             x: (hero.width - width) * hero.focalX
             y: (hero.height - height) * hero.focalY
-            source: hero.kind !== "custom" ? "" : hero.override ? "file://" + hero.config.file
-                : hero.src.length > 0 ? "file://" + hero.configDir + "/profile/" + hero.src : ""
+            source: hero.customSource
             fillMode: hero.fit ? Image.PreserveAspectFit : Image.PreserveAspectCrop
             sourceSize.width: 1600
+            sourceSize.height: 1600
             smooth: true
             mipmap: true
             asynchronous: true
@@ -105,8 +127,10 @@ Item {
         id: inked
         anchors.fill: parent
         visible: false
-        source: hero.kind === "gallery" && hero.src.length > 0 ? Ryodecors.dir + hero.src : ""
+        source: hero.kind === "gallery" ? hero.gallerySource : ""
         fillMode: Image.PreserveAspectFit
+        sourceSize.width: 1600
+        sourceSize.height: 1600
         smooth: hero.soft
         mipmap: hero.soft
         asynchronous: true

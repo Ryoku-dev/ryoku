@@ -142,6 +142,17 @@ exact plate.
 An invalid or corrupt `.ryoprofile` fails with a clear message and changes
 nothing, so a bad file cannot leave you half-imported.
 
+Imports accept at most 24 MiB for the envelope and 64 KiB for its settings.
+Unknown fields, markup, invisible controls and invalid field values are refused
+before anything changes. Gallery names contain only lowercase letters, digits,
+hyphens and underscores, with a `.png` or `.gif` suffix. Custom pictures are
+decoded and saved as `hero.png`, never opened through a path from the sender.
+Pictures are limited to 16 MiB, 8192 pixels per axis and 24 million pixels.
+
+Shared system cards contain only rendered PNG pixels, without text chunks or
+the original profile picture. Binder names render as plain text, invisible name
+controls are removed, and a collected picture stays inside the cards store.
+
 ## Hand-editing profile.json
 
 Everything edit mode writes lives in `~/.config/ryoku/profile.json`, and you can

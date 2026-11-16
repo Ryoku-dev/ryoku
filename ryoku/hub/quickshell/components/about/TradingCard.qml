@@ -21,6 +21,7 @@ Item {
     property vector2d foil: Qt.vector2d(0, 0)
     property bool live: false
     property var traded: null
+    property string cardsStoreRoot: ""
     readonly property var hw: card.traded ? card.traded.hw : null
     readonly property var code: card.traded ? { x: 40, ys: [550, 608, 666], pitch: 4, tick: 2, unit: 2.5, levels: card.traded.levels } : CardCode.code
     // a tier to show instead of the machine's own (About's rarity ladder previews them), or -1
@@ -246,6 +247,7 @@ Item {
             fragmentShader: Qt.resolvedUrl("../../shaders/foil.frag.qsb")
         }
         Text {
+            textFormat: Text.PlainText
             renderType: Text.QtRendering
             anchors.horizontalCenter: parent.horizontalCenter
             y: 24
@@ -259,6 +261,8 @@ Item {
         CardFigure {
             id: cardFigure
             override: card.traded ? card.traded.hero : null
+            cardsStoreRoot: card.cardsStoreRoot
+            tradedId: card.traded ? String(card.traded.id || "") : ""
             readonly property real aspect: card.heroKind === "default" ? stockAspect : 900 / 1157
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom

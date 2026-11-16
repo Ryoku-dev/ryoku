@@ -107,6 +107,9 @@ func designFromProfile(raw []byte) (codedDesign, error) {
 	}
 	switch p.Hero.Kind {
 	case "gallery":
+		if !validGalleryName(strings.TrimSuffix(p.Hero.Source, ".png")) {
+			return codedDesign{}, fmt.Errorf("invalid gallery figure")
+		}
 		d.kind, d.gallerySrc = 1, clip(strings.TrimSuffix(p.Hero.Source, ".png"), 10)
 	case "custom":
 		d.kind = 2
@@ -153,7 +156,7 @@ func (d codedDesign) bytes() []byte {
 }
 
 func parseDesign(b []byte) (codedDesign, error) {
-	if len(b) < 14 || b[0]>>4 != codeVersion || b[0]&3 != 0 || b[0]>>2&3 > 2 || b[5]>>5 > 5 || b[5]>>2&7 > 5 {
+	if len(b) < 14 || len(b) > codeBytes()-codeParity-3 || b[0]>>4 != codeVersion || b[0]&3 != 0 || b[0]>>2&3 > 2 || b[5]>>5 > 5 || b[5]>>2&7 > 5 {
 		return codedDesign{}, errNoCardCode
 	}
 	d := codedDesign{
@@ -173,12 +176,21 @@ func parseDesign(b []byte) (codedDesign, error) {
 		if !utf8.ValidString(strs[i]) {
 			return codedDesign{}, errNoCardCode
 		}
+		if i != 3 {
+			strs[i] = cleanCardText(strs[i])
+		}
 		rest = rest[1+n:]
 	}
 	if len(rest) != 0 {
 		return codedDesign{}, errNoCardCode
 	}
 	d.name, d.tagline, d.epithet, d.gallerySrc, d.gpu = strs[0], strs[1], strs[2], strs[3], strs[4]
+	if d.kind == 1 && !validGalleryName(d.gallerySrc) {
+		return codedDesign{}, errNoCardCode
+	}
+	if d.gallerySrc != "" && !validGalleryName(d.gallerySrc) {
+		return codedDesign{}, errNoCardCode
+	}
 	return d, nil
 }
 
@@ -234,8 +246,19 @@ func encodeLevels(d codedDesign) ([][]int, error) {
 }
 
 func decodeLevels(levels [][]int) (codedDesign, error) {
-	var ticks []int
+	if len(levels) != len(rulerY) {
+		return codedDesign{}, errNoCardCode
+	}
+	ticks := make([]int, 0, dataTicks())
 	for _, row := range levels {
+		if len(row) != rulerCount {
+			return codedDesign{}, errNoCardCode
+		}
+		for _, level := range row {
+			if level < 0 || level > 3 {
+				return codedDesign{}, errNoCardCode
+			}
+		}
 		ticks = append(ticks, row[1:len(row)-1]...)
 	}
 	var code []byte
@@ -266,7 +289,13 @@ func luma(c color.Color) float64 {
 
 // readLevels measures the rulers in a picture of the whole card, at any size
 func readLevels(img image.Image) ([][]int, error) {
+	if img == nil {
+		return nil, errNoCardCode
+	}
 	bounds := img.Bounds()
+	if !validPictureSize(bounds.Dx(), bounds.Dy()) {
+		return nil, errNoCardCode
+	}
 	w, h := float64(bounds.Dx()), float64(bounds.Dy())
 	s := w / cardW
 	if s < 0.74 || math.Abs(h/cardH-s) > s*0.03 {

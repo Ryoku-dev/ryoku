@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Fixed
+- **Shared cards and profiles cannot load outside pictures or hidden markup.**
+  Names stay plain text, picture sizes are bounded, and imported designs cannot
+  point outside their store or carry hidden PNG metadata.
 - **A card shared through a chat app opens as a card.** Chat apps re-encode
   pictures and drop their hidden data, so the card now carries its design in its
   pixels: the three tick rulers between its parts encode the name, words, figure

@@ -6,6 +6,7 @@ import ".."
 Item {
     id: root
     required property var entry
+    required property string cardsStoreRoot
     property bool interactive: true
     signal chosen()
     height: width * 880 / 630
@@ -25,6 +26,7 @@ Item {
     ]
     TradingCard {
         traded: root.entry
+        cardsStoreRoot: root.cardsStoreRoot
         transformOrigin: Item.TopLeft
         scale: root.width / designWidth
         foil: Qt.vector2d(tiltX.value, tiltY.value)

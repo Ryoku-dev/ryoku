@@ -10,6 +10,8 @@ Text {
     property bool numeric: false
     readonly property var token: Lithic.type[typeRole] || Lithic.type.body
 
+    // Labels carry names, paths and other external data. Markup must be an explicit opt-in.
+    textFormat: Text.PlainText
     color: ink
     font.family: token.family
     font.pixelSize: token.pixelSize

@@ -103,8 +103,11 @@ func rsEncode(msg []byte, nsym int) []byte {
 	return out
 }
 
-// rsDecode corrects a codeword in place and returns its message part
+// rsDecode validates the bounded GF(256) codeword before correcting a private copy.
 func rsDecode(code []byte, nsym int) ([]byte, error) {
+	if nsym <= 0 || nsym >= len(code) || len(code) > 255 {
+		return nil, errTooManyErrors
+	}
 	cw := append([]byte(nil), code...)
 	synd := make([]byte, nsym)
 	clean := true
@@ -138,7 +141,7 @@ func rsDecode(code []byte, nsym int) ([]byte, error) {
 		errLoc = errLoc[1:]
 	}
 	nerr := len(errLoc) - 1
-	if nerr*2 > nsym {
+	if nerr <= 0 || nerr*2 > nsym {
 		return nil, errTooManyErrors
 	}
 	// Chien search: roots of the locator give the error positions

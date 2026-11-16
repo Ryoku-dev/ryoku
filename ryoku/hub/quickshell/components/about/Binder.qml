@@ -19,6 +19,7 @@ Item {
     property string message: ""
     property real arrival: 1
     readonly property string configDir: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku"
+    readonly property string cardsStoreRoot: (Quickshell.env("XDG_DATA_HOME") || (Quickshell.env("HOME") + "/.local/share")) + "/ryoku/cards"
     visible: shade.opacity > 0
     focus: root.opened
     Keys.onEscapePressed: root.close()
@@ -92,7 +93,7 @@ Item {
             root.job = "convert";
             convert.source = "";
             convert.pending = file;
-            convert.source = "file://" + file;
+            convert.source = chooser.urlOf(file);
             return;
         }
         root.addPicture(file);
@@ -123,15 +124,27 @@ Item {
         Changes.set(bind, Object.assign({}, Changes.value(bind) || {}, patch), I18n.tr("Card picture"), "");
         root.message = I18n.tr("Your card uses their picture. Your words and machine stay yours.");
     }
+    function picturePath(entry) {
+        if (!entry || !entry.hero || !/^[0-9a-f]{6}$/.test(String(entry.id || "")))
+            return "";
+        var expected = root.cardsStoreRoot + "/" + entry.id + ".png";
+        return entry.hero.file === expected ? expected : "";
+    }
     function usePicture() {
         var hero = root.selected.hero;
         if (hero.kind === "gallery") {
-            root.setHero({ kind: "gallery", source: hero.source });
+            if (/^[a-z0-9_-]+(?:\.(png|gif))?$/.test(String(hero.source || "")))
+                root.setHero({ kind: "gallery", source: hero.source });
             return;
         }
         if (hero.kind !== "custom")
             return;
-        root.run("picture", ["install", "-D", "-m", "644", hero.file, root.configDir + "/profile/hero.png"], function () {
+        var picture = root.picturePath(root.selected);
+        if (picture === "") {
+            root.error = root.refusal("", 1, "picture");
+            return;
+        }
+        root.run("picture", ["install", "-D", "-m", "644", "--", picture, root.configDir + "/profile/hero.png"], function () {
             root.setHero({ kind: "custom", source: "hero.png", style: "photo", fit: false, zoom: 1,
                 focalX: 0.5, focalY: 0.5, brightness: 0, contrast: 0, saturation: 0 });
         });
@@ -156,8 +169,12 @@ Item {
         property string pending: ""
         parent: conversionFrame
         asynchronous: true
-        width: sourceSize.width
-        height: sourceSize.height
+        // Both axes must be bounded before Qt decodes a foreign image or grabs its conversion.
+        sourceSize.width: 2048
+        sourceSize.height: 2861
+        width: Math.min(2048, implicitWidth)
+        height: Math.min(2861, implicitHeight)
+        fillMode: Image.PreserveAspectFit
         onStatusChanged: {
             if (convert.pending === "" || status === Image.Loading || status === Image.Null)
                 return;
@@ -174,7 +191,7 @@ Item {
                     root.addPicture(file);
                 else
                     root.error = root.refusal("", 1, "add");
-            }, Qt.size(convert.sourceSize.width, convert.sourceSize.height));
+            }, Qt.size(convert.width, convert.height));
             if (!grabbed) {
                 root.job = "";
                 root.error = root.refusal("", 1, "add");
@@ -328,6 +345,7 @@ Item {
                         Behavior on y { NumberAnimation { duration: Tone.move; easing.type: Easing.OutCubic } }
                         width: grid.cardWidth
                         entry: slot.modelData
+                        cardsStoreRoot: root.cardsStoreRoot
                         onChosen: root.show(slot.modelData, false)
                     }
                     Label {
@@ -364,6 +382,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 width: detailRoot.cardWidth
                 entry: root.selected
+                cardsStoreRoot: root.cardsStoreRoot
                 interactive: false
                 opacity: 0.5 + 0.5 * root.arrival
                 scale: 0.94 + 0.06 * root.arrival
