@@ -295,6 +295,13 @@ func TestRecordPictureAndSyncSkipsUnchanged(t *testing.T) {
 	}))
 	defer srv.Close()
 	t.Setenv("RYOKU_TEAM_URL", srv.URL)
+	// a badge alone does not put the card online: its owner turns it on
+	if ok, e := recordSync([]string{"--threads", "16", "--picture", picturePath}); e != nil || ok || writes != 0 {
+		t.Fatal("published before being turned on", ok, e, writes)
+	}
+	if e := recordSetOnline(true); e != nil {
+		t.Fatal(e)
+	}
 	for range 2 {
 		ok, e := recordSync([]string{"--threads", "16", "--picture", picturePath})
 		if e != nil || !ok {
@@ -355,6 +362,9 @@ func TestRecordSyncRecoversFromGateRefusals(t *testing.T) {
 	}))
 	defer srv.Close()
 	t.Setenv("RYOKU_TEAM_URL", srv.URL)
+	if e := recordSetOnline(true); e != nil {
+		t.Fatal(e)
+	}
 	for threads := 8; threads <= 10; threads++ {
 		if ok, e := recordSync([]string{"--threads", strconv.Itoa(threads)}); !ok || e != nil {
 			t.Fatal(threads, ok, e)

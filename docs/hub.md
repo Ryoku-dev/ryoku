@@ -381,7 +381,7 @@ every ten minutes while open.
 **Live cards.** Anyone can keep their card online: the switch **Keep my card up
 to date for friends** (`components/about/CardOnlineSwitch.qml`, on the studio's
 Share and Badge tabs, with an info button that explains it plainly) runs
-`ryoku-hub badge online on|off` and is on by default only with a badge. While it
+`ryoku-hub badge online on|off` and starts off for everyone, badge holders too. While it
 is on, Settings publishes a signed card record three seconds after profile or
 hardware-code changes settle, and only once the machine's full read-out and the
 card's code (with its distro) are in; Settings starts the read-out for it when

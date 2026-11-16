@@ -25,8 +25,8 @@ func recordStatePath() (string, error) {
 	return filepath.Join(dir, "record.sha256"), nil
 }
 
-// recordOnline is whether this machine keeps its card on the team service. Badge holders were
-// always online, so without a choice of their own they stay so; everyone else opts in.
+// recordOnline is whether this machine keeps its card on the team service: only once its owner
+// turns it on, badge or not
 func recordOnline() (bool, error) {
 	dir, e := badgeDataDir()
 	if e != nil {
@@ -36,14 +36,7 @@ func recordOnline() (bool, error) {
 	if e != nil && !os.IsNotExist(e) {
 		return false, e
 	}
-	switch strings.TrimSpace(string(raw)) {
-	case "on":
-		return true, nil
-	case "off":
-		return false, nil
-	}
-	_, e = badgeActive()
-	return e == nil, nil
+	return strings.TrimSpace(string(raw)) == "on", nil
 }
 
 func recordSetOnline(on bool) error {
