@@ -145,6 +145,11 @@
   `../shell/matugen/config.toml`).
 
 ### Added
+- **Window Manager: a second display can run its own tiling layout.** With the
+  display link off, selecting a non-main output shows only its Tiling layout.
+  The choice applies live to that output's workspaces and comes back at login.
+  Linking again puts that output back on the shared layout. Save is unchanged
+  (`pages/WindowManagerPage.qml`).
 - **Credits names the Game Bar's sources.** The ii-p3drovfx row now covers the
   Discord Voice widget it is based on, and end-4's illogical-impulse is credited
   for the overlay design (`quickshell/pages/CreditsPage.qml`, `../../NOTICE`).
