@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# Per-output tiling for the Window Manager page (Hyprland).
+#   get                 print {"linked": bool, "outputs": {name: layout}}
+#   set <output> <lay>  apply the live workspace layout to every workspace on
+#                       that output, and remember it
+#   link <on|off>       record the display link; "off" lets restore re-apply
+#   restore             at login: re-apply remembered layouts, only when unlinked
+# Live rules do not survive a compositor restart, which is why restore exists.
+set -euo pipefail
+
+state="${XDG_CONFIG_HOME:-$HOME/.config}/ryoku/output-tiling.json"
+act=ryoku-wm-hyprland
+
+usage() {
+    echo "usage: ryoku-output-tiling get | set <output> <dwindle|master|scrolling> | link <on|off> | restore" >&2
+    exit 2
+}
+
+read_state() {
+    if [[ -f $state ]]; then cat "$state"; else echo '{"linked":true,"outputs":{}}'; fi
+}
+
+write_state() {
+    mkdir -p "$(dirname "$state")"
+    printf '%s\n' "$1" > "$state.tmp"
+    mv "$state.tmp" "$state"
+}
+
+apply_output() { # <output> <layout>
+    local out=$1 layout=$2 ws
+    for ws in $(hyprctl -j workspaces | jq -r --arg o "$out" '.[] | select(.monitor == $o) | .id'); do
+        "$act" act workspace.layout "$ws" "$layout"
+    done
+}
+
+case ${1:-} in
+get)
+    read_state
+    ;;
+set)
+    [[ $# -eq 3 ]] || usage
+    case $3 in dwindle|master|scrolling) ;; *) usage ;; esac
+    apply_output "$2" "$3"
+    write_state "$(read_state | jq --arg o "$2" --arg l "$3" '.outputs[$o] = $l')"
+    ;;
+link)
+    [[ $# -eq 2 ]] || usage
+    case $2 in
+        on) v=true ;;
+        off) v=false ;;
+        *) usage ;;
+    esac
+    if [[ $2 == on ]]; then
+        # Linking puts every output we changed back on the global layout (the
+        # store's appearance.layout, the same value eDP-1 runs), then forgets them.
+        global=$(jq -r '.desktop.appearance.layout // "dwindle"' "${XDG_CONFIG_HOME:-$HOME/.config}/ryoku/desktop.json" 2>/dev/null || echo dwindle)
+        [[ -n $global && $global != null ]] || global=dwindle
+        while IFS= read -r out; do
+            apply_output "$out" "$global"
+        done < <(read_state | jq -r '.outputs | keys[]')
+        write_state "$(read_state | jq '.linked = true | .outputs = {}')"
+    else
+        write_state "$(read_state | jq '.linked = false')"
+    fi
+    ;;
+restore)
+    # The compositor may still be starting; wait briefly for its monitors.
+    for _ in $(seq 1 20); do
+        hyprctl -j monitors >/dev/null 2>&1 && break
+        sleep 0.5
+    done
+    if [[ $(read_state | jq -r '.linked') == "false" ]]; then
+        while IFS=$'\t' read -r out layout; do
+            apply_output "$out" "$layout"
+        done < <(read_state | jq -r '.outputs | to_entries[] | [.key, .value] | @tsv')
+    fi
+    ;;
+*)
+    usage
+    ;;
+esac

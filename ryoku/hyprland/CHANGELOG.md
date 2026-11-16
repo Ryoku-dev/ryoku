@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Added
+- **Per-output tiling layout on Hyprland.** `ryoku-output-tiling` sets the live
+  layout of one output's workspaces, remembers it, and re-applies it at login
+  while the display link is off (`scripts/ryoku-output-tiling`,
+  `modules/autostart.lua`).
 - **Super+Alt+Space opens the Rashin app.** The companion window summons the
   single-instance way: a second press focuses the open window instead of
   spawning a twin, and a window rule floats and centres it like the other
