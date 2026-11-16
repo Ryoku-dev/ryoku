@@ -647,7 +647,7 @@ Item {
                 Plaque {
                     id: continuePlaque
                     anchors.verticalCenter: parent.verticalCenter
-                    visible: root.continuePage !== "" && x + implicitWidth < expandPlaque.x - LithicTokens.space.s2
+                    visible: root.continuePage !== "" && !shareError.visible && x + implicitWidth < expandPlaque.x - LithicTokens.space.s2
                     x: door.visible ? door.x + door.width + LithicTokens.space.s2 : 0
                     kind: "quiet"
                     small: true
@@ -674,25 +674,26 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     kind: "quiet"
                     small: true
-                    glyph: root.shareDone ? "check" : "share"
+                    glyph: homeShare.error !== "" && shareSaid.running ? "error" : root.shareDone ? "check" : "share"
                     text: topBar.width < 420 ? "" : root.shareDone ? I18n.tr("Copied") : I18n.tr("Share")
                     accessibleName: I18n.tr("Copy your system card to share it")
                     busy: root.sharePending || homeShare.job === "copy"
                     onClicked: root.shareCard()
                 }
-                // how the copy went, under the buttons, for a few seconds
+                // a copy that failed says why on the bar itself, in the room left of the buttons;
+                // one that worked says so on its button
                 Label {
-                    anchors.right: parent.right
-                    anchors.top: parent.bottom
-                    anchors.topMargin: LithicTokens.space.s1
-                    width: Math.min(implicitWidth, 420)
-                    visible: shareSaid.running && (homeShare.error !== "" || root.shareDone)
-                    text: homeShare.error !== "" ? homeShare.error : I18n.tr("Your card is on the clipboard. Paste it in a chat; anyone with Ryoku can open it as a card.")
+                    id: shareError
+                    anchors.right: expandPlaque.left
+                    anchors.rightMargin: LithicTokens.space.s3
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Math.min(implicitWidth, Math.max(0, expandPlaque.x - LithicTokens.space.s3))
+                    visible: shareSaid.running && homeShare.error !== ""
+                    text: homeShare.error
                     typeRole: "caption"
-                    ink: homeShare.error !== "" ? Lithic.jasper : Lithic.fg2
+                    ink: Lithic.jasper
                     horizontalAlignment: Text.AlignRight
-                    wrapMode: Text.Wrap
-                    elide: Text.ElideNone
+                    elide: Text.ElideRight
                 }
                 Plaque {
                     id: customisePlaque

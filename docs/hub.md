@@ -280,8 +280,8 @@ with no slab:
   Share and Customise; in a narrow window, whose sidebar is put away, the search too.
   Share copies the system card to the clipboard as a picture that carries its
   design (`CardShare`), drawing the card out of sight once the machine's full
-  read-out is in; the button says Copied, and a line under it says what to do
-  with it, or why it could not.
+  read-out is in; the button says Copied, and a copy that failed says why on
+  the bar, left of the buttons.
 
 Customise opens the **card studio** (`components/about/CardEditor.qml`), where
 everything about the reader's look and system card lives. Its preview shows
