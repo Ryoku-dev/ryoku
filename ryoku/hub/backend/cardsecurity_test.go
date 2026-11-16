@@ -26,11 +26,7 @@ func TestHostileCardTextThroughJPEG(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		read, err := readLevels(img)
-		if err != nil {
-			t.Fatal(err)
-		}
-		got, err := decodeLevels(read)
+		_, got, err := readCard(img)
 		if err != nil {
 			t.Fatal(err)
 		}

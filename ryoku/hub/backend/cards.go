@@ -92,11 +92,7 @@ func addCard(path string) (binderCard, error) {
 	if err != nil {
 		return entry, errors.Join(errNoCardCode, err)
 	}
-	levels, err := readLevels(img)
-	if err != nil {
-		return entry, err
-	}
-	d, err := decodeLevels(levels)
+	levels, d, err := readCard(img)
 	if err != nil {
 		return entry, err
 	}

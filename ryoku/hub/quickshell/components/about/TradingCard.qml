@@ -518,7 +518,10 @@ Item {
                     width: card.code.tick
                     height: (ruler.levels[index] + 1) * card.code.unit
                     color: card.palette ? card.ink : card.level >= 4 ? Lithic.gold : Lithic.fg2
-                    antialiasing: false
+                    // the share still is drawn at twice the display scale: at 133% a 2-unit tick
+                    // spans 5.33 pixels, and snapped edges made some ticks 5 wide and some 6, so a
+                    // wide tick read as the level above. Blended edges keep each tick's ink exact
+                    antialiasing: true
                 }
             }
         }

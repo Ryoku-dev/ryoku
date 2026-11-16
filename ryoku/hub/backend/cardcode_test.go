@@ -15,9 +15,16 @@ import (
 	"unicode/utf8"
 )
 
-// drawCard paints a card the way the card does at scale s: paper, the rulers' ticks
-// with fractional edges covered the way a renderer blends them, and a coloured window
+// drawCard paints a card the way an antialiasing renderer does at scale s: paper, the rulers'
+// ticks with fractional edge pixels covered in part, and a coloured window
 func drawCard(levels [][]int, s float64, paper, ink color.RGBA) *image.RGBA {
+	return paintCard(levels, s, paper, ink, false)
+}
+
+// paintCard paints paper, the window and the ticks. With snap, every tick edge is rounded to
+// a whole pixel the way Qt Quick draws a rectangle without antialiasing, so at a scale like
+// 8/3 (the share still on a 133% display) a 2-unit tick comes out 5 or 6 pixels wide
+func paintCard(levels [][]int, s float64, paper, ink color.RGBA, snap bool) *image.RGBA {
 	w, h := int(math.Round(cardW*s)), int(math.Round(cardH*s))
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
 	for y := range h {
@@ -35,16 +42,23 @@ func drawCard(levels [][]int, s float64, paper, ink color.RGBA) *image.RGBA {
 		}
 	}
 	blend := func(a, b uint8, t float64) uint8 { return uint8(float64(a)*(1-t) + float64(b)*t) }
+	// the part of pixel [p, p+1) a tick edge pair [lo, hi) covers
+	cover := func(p int, lo, hi float64) float64 {
+		if snap {
+			if c := float64(p) + 0.5; c >= lo && c < hi {
+				return 1
+			}
+			return 0
+		}
+		return math.Max(0, math.Min(float64(p+1), hi)-math.Max(float64(p), lo))
+	}
 	for r, y0 := range rulerY {
 		for k, lv := range levels[r] {
 			x0, x1 := rulerX+float64(k)*rulerPitch, rulerX+float64(k)*rulerPitch+rulerTick
 			y1 := y0 + float64(lv+1)*rulerUnit
 			for py := int(y0 * s); float64(py) < y1*s+1; py++ {
 				for px := int(x0 * s); float64(px) < x1*s+1; px++ {
-					cx := math.Max(0, math.Min(float64(px+1), x1*s)-math.Max(float64(px), x0*s))
-					cy := math.Max(0, math.Min(float64(py+1), y1*s)-math.Max(float64(py), y0*s))
-					t := cx * cy
-					if t > 0 {
+					if t := cover(px, x0*s, x1*s) * cover(py, y0*s, y1*s); t > 0 {
 						img.Set(px, py, color.RGBA{blend(paper.R, ink.R, t), blend(paper.G, ink.G, t), blend(paper.B, ink.B, t), 255})
 					}
 				}
@@ -85,15 +99,55 @@ func TestCardCodeSurvivesAChatApp(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				read, err := readLevels(img)
-				if err != nil {
-					t.Fatalf("kind %d scale %.2f: %v", kind, s, err)
-				}
-				got, err := decodeLevels(read)
+				_, got, err := readCard(img)
 				if err != nil || got != want {
 					t.Fatalf("kind %d scale %.2f: got %+v (%v), want %+v", kind, s, got, err, want)
 				}
 			}
+		}
+	}
+}
+
+// The share still is drawn at twice the display scale, so a 133% display hands over a card at
+// 8/3 whose ticks the renderer snapped to 5 or 6 pixels; 120%, 110% and 175% snap too. Such a
+// card has to read straight from a lossless upload and after a chat app re-encodes it.
+func TestCardCodeReadsTicksSnappedToWholePixels(t *testing.T) {
+	want := codedDesign{kind: 2, threads: 16, ramGb: 46, refresh: 164, width: 2560, gpuClass: 2, distro: 1, wm: 2,
+		cardID: [8]byte{0x3a, 0xa4, 0xcc, 0x71, 0xd7, 0x6d, 0xfb, 0xff},
+		name:   "nero", tagline: "For power and beauty", epithet: "Ryoku", gpu: "RTX 4060"}
+	levels, err := encodeLevels(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	paper, ink := color.RGBA{24, 20, 16, 255}, color.RGBA{232, 222, 206, 255}
+	for _, s := range []float64{2.0 * 4 / 3, 2 * 1.2, 2 * 1.1, 2 * 1.75} {
+		card := paintCard(levels, s, paper, ink, true)
+		reencoded, _, err := image.Decode(bytes.NewReader(jpegOf(t, card, 85)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for name, img := range map[string]image.Image{"lossless": card, "jpeg": reencoded} {
+			if _, got, err := readCard(img); err != nil || got != want {
+				t.Fatalf("scale %.3f %s: got %+v (%v), want %+v", s, name, got, err, want)
+			}
+		}
+	}
+}
+
+// A card that decodes cleanly but was made by another version of the code says which side has
+// to update, instead of blaming the picture.
+func TestCardCodeNamesTheVersionThatMadeIt(t *testing.T) {
+	body := (codedDesign{name: "friend", cardID: [8]byte{1, 2, 3, 4, 5, 6, 7, 8}}).bytes()
+	for version, want := range map[byte]error{1: errOldCardCode, 2: errOldCardCode, 4: errNewCardCode, 0: errNoCardCode} {
+		other := append([]byte{}, body...)
+		other[0] = version<<4 | other[0]&0x0f
+		levels, err := encodeFrame(other)
+		if err != nil {
+			t.Fatal(err)
+		}
+		card := drawCard(levels, 2, color.RGBA{18, 12, 0, 255}, color.RGBA{226, 214, 196, 255})
+		if _, _, err := readCard(card); !errors.Is(err, want) {
+			t.Fatalf("v%d card: %v, want %v", version, err, want)
 		}
 	}
 }
@@ -126,13 +180,6 @@ func TestCardCodeBodyBudgetAndClipping(t *testing.T) {
 		got := shortGPU(gpu)
 		if strings.Contains(got, "NVIDIA") || strings.Contains(got, "Radeon") || strings.Contains(got, "Intel") || len(got) > 8 {
 			t.Fatalf("short GPU = %q", got)
-		}
-	}
-	for _, version := range []byte{1, 2} {
-		old := d.bytes()
-		old[0] = version << 4
-		if _, err := parseDesign(old); !errors.Is(err, errNoCardCode) {
-			t.Fatalf("v%d accepted: %v", version, err)
 		}
 	}
 }
@@ -205,13 +252,15 @@ func TestProfileCodeFlags(t *testing.T) {
 	}
 }
 
+// A crop is not a card; a whole card shrunk below the code's resolution says it is too small,
+// so the reader knows to open the full picture rather than ask for another.
 func TestCardCodeRefusesWhatItCannotRead(t *testing.T) {
 	levels, _ := encodeLevels(codedDesign{name: "x"})
-	card := drawCard(levels, 1, color.RGBA{18, 12, 0, 255}, color.RGBA{226, 214, 196, 255})
-	cropped := card.SubImage(image.Rect(0, 0, 630, 700))
-	for _, img := range []image.Image{cropped, drawCard(levels, 0.5, color.RGBA{18, 12, 0, 255}, color.RGBA{226, 214, 196, 255})} {
-		if _, err := readLevels(img); !errors.Is(err, errNoCardCode) {
-			t.Fatalf("misread a card it should refuse: %v", err)
+	paper, ink := color.RGBA{18, 12, 0, 255}, color.RGBA{226, 214, 196, 255}
+	cropped := drawCard(levels, 1, paper, ink).SubImage(image.Rect(0, 0, 630, 700))
+	for img, want := range map[image.Image]error{cropped: errNoCardCode, drawCard(levels, 0.5, paper, ink): errSmallCardCode} {
+		if _, _, err := readCard(img); !errors.Is(err, want) {
+			t.Fatalf("refusal = %v, want %v", err, want)
 		}
 	}
 }

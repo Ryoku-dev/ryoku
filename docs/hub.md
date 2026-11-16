@@ -417,12 +417,19 @@ the first and last tick of each ruler stand full height to calibrate ink, paper
 and scale. Version 3 carries the name, the line under it, the first big word,
 the figure (stock, a gallery figure by name, or the reader's own picture),
 threads, memory, refresh rate, display width, graphics class and short name,
-distro, window manager and the eight-byte device-derived card id. Older code
-versions are refused. The body has a length, a CRC and 20 bytes of Reed-Solomon
-parity (`backend/reedsolomon.go`) that repair
+distro, window manager and the eight-byte device-derived card id. A card that
+decodes cleanly but carries another code version is refused by name: the binder
+says whether the friend or the reader has to update. The body has a length, a
+CRC and 20 bytes of Reed-Solomon parity (`backend/reedsolomon.go`) that repair
 up to 10 misread bytes. Ticks are measured by the ink they lay down over a
-period, so a resize keeps them readable. An own picture comes back lifted from
-the card's window. No hidden profile or full-size picture is attached to a share.
+period, so a resize keeps them readable. The still is drawn at twice the
+display scale, so on a 133% display a 2-unit tick spans 5.33 pixels; ticks are
+drawn with antialiased edges so each one lays down its exact ink. Cards shared
+before that from such a display have ticks snapped to 5 or 6 pixels, so when
+the ink alone does not decode, the reader divides each tick's ink by its own
+width along the first unit, which every tick covers, and tries again; the CRC
+and parity accept only a clean read. An own picture comes back lifted from the
+card's window. No hidden profile or full-size picture is attached to a share.
 
 **Binder** (`components/about/Binder.qml`) collects friends' cards. Ask a friend
 to press Share on their Home and send the picture, then **Paste a card** or

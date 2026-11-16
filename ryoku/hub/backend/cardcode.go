@@ -44,6 +44,16 @@ var windowRect = image.Rect(35, 112, 35+560, 112+390)
 
 var errNoCardCode = errors.New("this picture's card code could not be read: share the whole card picture at full size, not a crop or part of a screenshot")
 
+// a card that decodes cleanly but carries another version of the code, so one side has to update
+var (
+	errOldCardCode = errors.New("this card was made by an older Ryoku: ask its owner to update Ryoku and share the card again")
+	errNewCardCode = errors.New("this card was made by a newer Ryoku: update Ryoku, then add the card again")
+)
+
+// below about 470 pixels across a 2-unit tick is narrower than a pixel and no reading recovers
+// the code; a card-shaped picture that small is usually a chat app's preview, not the card
+var errSmallCardCode = errors.New("this copy of the card is too small to read: open the picture at full size, or save it, and add it again")
+
 type cardCode struct {
 	CardID string    `json:"cardId"`
 	X      float64   `json:"x"`
@@ -146,7 +156,16 @@ func (d codedDesign) bytes() []byte {
 }
 
 func parseDesign(b []byte) (codedDesign, error) {
-	if len(b) < 19 || len(b) > 78 || b[0]>>4 != codeVersion || b[0]&3 != 0 || b[0]>>2&3 > 2 || b[5]>>5 > 5 || b[5]>>2&7 > 5 {
+	if len(b) > 0 && b[0]>>4 != codeVersion {
+		switch v := b[0] >> 4; {
+		case v > 0 && v < codeVersion:
+			return codedDesign{}, errOldCardCode
+		case v > codeVersion:
+			return codedDesign{}, errNewCardCode
+		}
+		return codedDesign{}, errNoCardCode
+	}
+	if len(b) < 19 || len(b) > 78 || b[0]&3 != 0 || b[0]>>2&3 > 2 || b[5]>>5 > 5 || b[5]>>2&7 > 5 {
 		return codedDesign{}, errNoCardCode
 	}
 	d := codedDesign{
@@ -203,7 +222,11 @@ func codeBytes() int { return dataTicks() / 4 }
 
 // encodeLevels lays the design out as tick levels, ruler by ruler
 func encodeLevels(d codedDesign) ([][]int, error) {
-	body := d.bytes()
+	return encodeFrame(d.bytes())
+}
+
+// encodeFrame frames a body with its length, CRC and parity and lays it out as tick levels
+func encodeFrame(body []byte) ([][]int, error) {
 	frame := append([]byte{byte(len(body))}, body...)
 	c := crc16(frame)
 	frame = append(frame, byte(c>>8), byte(c))
@@ -277,8 +300,14 @@ func luma(c color.Color) float64 {
 	return (0.299*float64(r) + 0.587*float64(g) + 0.114*float64(b)) / 65535
 }
 
-// readLevels measures the rulers in a picture of the whole card, at any size
-func readLevels(img image.Image) ([][]int, error) {
+// rulerInk is one ruler as the reader measured it: each tick's ink over one pitch around it,
+// and its ink width along the first unit, which every tick covers whatever its level
+type rulerInk struct {
+	area, width []float64
+}
+
+// measureRulers measures the rulers in a picture of the whole card, at any size
+func measureRulers(img image.Image) ([]rulerInk, error) {
 	if img == nil {
 		return nil, errNoCardCode
 	}
@@ -288,13 +317,16 @@ func readLevels(img image.Image) ([][]int, error) {
 	}
 	w, h := float64(bounds.Dx()), float64(bounds.Dy())
 	s := w / cardW
-	if s < 0.74 || math.Abs(h/cardH-s) > s*0.03 {
+	if math.Abs(h/cardH-s) > s*0.03 {
 		return nil, errNoCardCode
+	}
+	if s < 0.74 {
+		return nil, errSmallCardCode
 	}
 	at := func(x, y float64) float64 {
 		return luma(img.At(bounds.Min.X+int(x*s), bounds.Min.Y+int(y*s)))
 	}
-	levels := make([][]int, len(rulerY))
+	rulers := make([]rulerInk, len(rulerY))
 	for r, y0 := range rulerY {
 		// paper from the gaps between ticks, ink from the full-height ticks at the ends
 		var paper, ink float64
@@ -309,43 +341,85 @@ func readLevels(img image.Image) ([][]int, error) {
 		if math.Abs(ink-paper) < 0.15 {
 			return nil, errNoCardCode
 		}
-		// each tick's height is the ink it lays down over one period around it: a resize
-		// spreads a tick across pixels but keeps its ink, whatever the tick's sub-pixel
-		// place. The full-height ticks at the ends set the ink of one level
-		px := func(v float64) int { return bounds.Min.X + int(math.Floor(v)) }
-		area := make([]float64, rulerCount)
-		top, bottom := (y0-1)*s, (y0+4*rulerUnit+1)*s
-		for k := range rulerCount {
-			left := (rulerX + float64(k)*rulerPitch - (rulerPitch-rulerTick)/2) * s
-			right := left + rulerPitch*s
-			for x := px(left); float64(x-bounds.Min.X) < right; x++ {
-				fx := float64(x - bounds.Min.X)
-				wx := math.Min(fx+1, right) - math.Max(fx, left)
+		// the ink inside a box of the picture, in pixels, edge pixels counted in part: a resize
+		// spreads a tick across pixels but keeps its ink, whatever the tick's sub-pixel place
+		covered := func(left, right, top, bottom float64) float64 {
+			var sum float64
+			for x := int(math.Floor(left)); float64(x) < right; x++ {
+				wx := math.Min(float64(x+1), right) - math.Max(float64(x), left)
 				if wx <= 0 {
 					continue
 				}
 				for y := int(math.Floor(top)); float64(y) < bottom; y++ {
-					fy := float64(y)
-					wy := math.Min(fy+1, bottom) - math.Max(fy, top)
+					wy := math.Min(float64(y+1), bottom) - math.Max(float64(y), top)
 					if wy <= 0 {
 						continue
 					}
-					v := (luma(img.At(x, bounds.Min.Y+y)) - paper) / (ink - paper)
-					area[k] += wx * wy * v
+					sum += wx * wy * (luma(img.At(bounds.Min.X+x, bounds.Min.Y+y)) - paper) / (ink - paper)
 				}
 			}
+			return sum
 		}
-		perLevel := (area[0] + area[rulerCount-1]) / 2 / 4
-		if perLevel <= 0 {
-			return nil, errNoCardCode
-		}
-		row := make([]int, rulerCount)
+		ruler := rulerInk{area: make([]float64, rulerCount), width: make([]float64, rulerCount)}
+		band := rulerUnit / 2 * s
 		for k := range rulerCount {
-			row[k] = int(math.Max(0, math.Min(3, math.Round(area[k]/perLevel)-1)))
+			left := (rulerX + float64(k)*rulerPitch - (rulerPitch-rulerTick)/2) * s
+			right := left + rulerPitch*s
+			ruler.area[k] = covered(left, right, (y0-1)*s, (y0+4*rulerUnit+1)*s)
+			ruler.width[k] = covered(left, right, (y0+rulerUnit/4)*s, (y0+rulerUnit/4)*s+band) / band
 		}
-		levels[r] = row
+		rulers[r] = ruler
 	}
-	return levels, nil
+	return rulers, nil
+}
+
+// levelsByArea reads each tick's level from its ink alone, which a resize or a blur keeps.
+// The full-height ticks at the ends set the ink of one level
+func (r rulerInk) levelsByArea() []int {
+	return levelsFrom(r.area)
+}
+
+// levelsByHeight first divides each tick's ink by its own width. A renderer that snaps edges
+// to whole pixels draws a 2-unit tick 5 or 6 pixels wide at a display scale like 133%, and a
+// wide tick then lays down the ink of the level above it
+func (r rulerInk) levelsByHeight() []int {
+	heights := make([]float64, rulerCount)
+	for k := range rulerCount {
+		heights[k] = r.area[k] / r.width[k]
+	}
+	return levelsFrom(heights)
+}
+
+func levelsFrom(measure []float64) []int {
+	per := (measure[0] + measure[rulerCount-1]) / 2 / 4
+	row := make([]int, rulerCount)
+	for k, m := range measure {
+		if v := m / per; per > 0 && !math.IsNaN(v) {
+			row[k] = int(math.Max(0, math.Min(3, math.Round(v)-1)))
+		}
+	}
+	return row
+}
+
+// readCard reads the code off a picture of a card and decodes it. Ink alone reads a card
+// however it was scaled; ink over each tick's own width reads one whose ticks were snapped to
+// whole pixels. Reed-Solomon and the CRC accept only a clean read, so trying both is safe
+func readCard(img image.Image) ([][]int, codedDesign, error) {
+	rulers, err := measureRulers(img)
+	if err != nil {
+		return nil, codedDesign{}, err
+	}
+	for _, read := range []func(rulerInk) []int{rulerInk.levelsByArea, rulerInk.levelsByHeight} {
+		levels := make([][]int, len(rulers))
+		for i, r := range rulers {
+			levels[i] = read(r)
+		}
+		// decoded, or decoded cleanly into another version's card: either way the read is right
+		if d, err := decodeLevels(levels); !errors.Is(err, errNoCardCode) {
+			return levels, d, err
+		}
+	}
+	return nil, codedDesign{}, errNoCardCode
 }
 
 // printCardCode prints the rulers' geometry and levels for the current profile.

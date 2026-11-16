@@ -19,6 +19,15 @@
   `release/team-badges/`).
 
 ### Fixed
+- **Cards shared from a 133% display open in every binder.** The share still is
+  drawn at twice the display scale, and at 133% the renderer snapped the code's
+  2-unit ticks to 5 or 6 pixels, so a wide tick read as the level above and the
+  card was refused everywhere. Ticks are now drawn with antialiased edges, and
+  the binder also reads each tick against its own width, so cards already
+  shared that way open too. A card made by an older or newer Ryoku now says
+  which side has to update instead of blaming the picture
+  (`backend/cardcode.go`, `quickshell/components/about/TradingCard.qml`,
+  `Binder.qml`).
 - **Shared cards and profiles cannot load outside pictures or hidden markup.**
   Names stay plain text, picture sizes are bounded, and imported designs cannot
   point outside their store or carry hidden PNG metadata.

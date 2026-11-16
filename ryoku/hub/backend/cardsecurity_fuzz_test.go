@@ -82,8 +82,6 @@ func FuzzCardPixels(f *testing.F) {
 			}
 			img = pixels
 		}
-		if levels, err := readLevels(img); err == nil {
-			_, _ = decodeLevels(levels)
-		}
+		_, _, _ = readCard(img)
 	})
 }

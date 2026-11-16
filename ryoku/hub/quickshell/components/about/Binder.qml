@@ -83,6 +83,12 @@ Item {
             return I18n.tr("That is your own card; your binder holds your friends'.");
         if (/no picture|clipboard.*empty/i.test(e))
             return I18n.tr("The clipboard holds no picture. Copy a friend's card picture, then paste it here.");
+        if (/older Ryoku/i.test(e))
+            return I18n.tr("That card was made by an older Ryoku. Ask your friend to update Ryoku and share their card again.");
+        if (/newer Ryoku/i.test(e))
+            return I18n.tr("That card was made by a newer Ryoku. Update Ryoku, then add it again.");
+        if (/too small to read/i.test(e))
+            return I18n.tr("That copy is too small to read, likely the chat's preview. Open the picture at full size first, or save it and use Open a card.");
         if (/card code|not a Ryoku card/i.test(e))
             return I18n.tr("That card could not be read. Ask for the whole card picture, not a crop or part of a screenshot.");
         if (/no space left/i.test(e))
