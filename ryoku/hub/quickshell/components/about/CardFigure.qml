@@ -13,10 +13,13 @@ Item {
     id: hero
 
     property color ink: Lithic.fg
+    property var override: null
     // a figure drawn at another size than its dots asks for soft sampling, or the dots beat
     property bool soft: false
     readonly property string configDir: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku"
-    readonly property var config: ProfileStore.get("hero", ({}))
+    readonly property var config: hero.override ? (hero.override.kind === "custom"
+        ? { kind: "custom", file: hero.override.file, style: "photo", focalX: 0.5, focalY: 0.5 } : hero.override)
+        : ProfileStore.get("hero", ({}))
     readonly property string kind: hero.config.kind || "default"
     readonly property bool stock: hero.kind === "default"
     // the stock photograph is cut to its marble: whoever sizes the figure by it reads this
@@ -57,7 +60,8 @@ Item {
             height: hero.height * hero.zoom
             x: (hero.width - width) * hero.focalX
             y: (hero.height - height) * hero.focalY
-            source: hero.kind === "custom" && hero.src.length > 0 ? "file://" + hero.configDir + "/profile/" + hero.src : ""
+            source: hero.kind !== "custom" ? "" : hero.override ? "file://" + hero.config.file
+                : hero.src.length > 0 ? "file://" + hero.configDir + "/profile/" + hero.src : ""
             fillMode: hero.fit ? Image.PreserveAspectFit : Image.PreserveAspectCrop
             sourceSize.width: 1600
             smooth: true

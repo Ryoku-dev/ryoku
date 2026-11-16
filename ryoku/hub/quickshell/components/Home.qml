@@ -122,6 +122,20 @@ Item {
         onLoaded: item.open()
     }
 
+    function openBinder() {
+        binderLoader.active = true;
+        if (binderLoader.item)
+            binderLoader.item.open();
+    }
+    Loader {
+        id: binderLoader
+        active: false
+        parent: root.hub ? root.hub.overlayItem : root
+        anchors.fill: parent
+        sourceComponent: Binder {}
+        onLoaded: item.open()
+    }
+
     Loader {
         id: editorLoader
         active: false
@@ -132,6 +146,7 @@ Item {
             item.parent = root.hub.overlayItem;
             item.hub = root.hub;
             item.pageId = "";
+            item.binderOpener = () => root.openBinder();
             if (root.wantCustomise !== "") {
                 var tab = root.wantCustomise;
                 root.wantCustomise = "";
@@ -621,7 +636,7 @@ Item {
                 }
                 Plaque {
                     id: expandPlaque
-                    anchors.right: sharePlaque.left
+                    anchors.right: binderPlaque.left
                     anchors.rightMargin: LithicTokens.space.s2
                     anchors.verticalCenter: parent.verticalCenter
                     kind: "quiet"
@@ -630,6 +645,17 @@ Item {
                     text: ""
                     accessibleName: I18n.tr("Show your system card large")
                     onClicked: root.expandCard()
+                }
+                Plaque {
+                    id: binderPlaque
+                    anchors.right: sharePlaque.left
+                    anchors.rightMargin: LithicTokens.space.s2
+                    anchors.verticalCenter: parent.verticalCenter
+                    kind: "quiet"
+                    small: true
+                    glyph: "collections_bookmark"
+                    text: I18n.tr("Binder")
+                    onClicked: root.openBinder()
                 }
                 Plaque {
                     id: sharePlaque

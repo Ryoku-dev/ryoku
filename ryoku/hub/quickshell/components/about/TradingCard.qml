@@ -20,6 +20,9 @@ Item {
     readonly property real designHeight: 880
     property vector2d foil: Qt.vector2d(0, 0)
     property bool live: false
+    property var traded: null
+    readonly property var hw: card.traded ? card.traded.hw : null
+    readonly property var code: card.traded ? { x: 40, ys: [550, 608, 666], pitch: 4, tick: 2, unit: 2.5, levels: card.traded.levels } : CardCode.code
     // a tier to show instead of the machine's own (About's rarity ladder previews them), or -1
     property int showLevel: -1
     // the figure, for whoever lets the reader drag it to frame it
@@ -44,7 +47,7 @@ Item {
     // the card prints the machine's whole read-out (cores, display, packages), which Settings
     // reads only when something asks for it
     Component.onCompleted: {
-        if (!SysInfo.loaded && !SysInfo.loading)
+        if (!card.traded && !SysInfo.loaded && !SysInfo.loading)
             SysInfo.load();
     }
 
@@ -55,13 +58,13 @@ Item {
     function known(v) { return v !== undefined && v !== null && String(v).length > 0 && String(v) !== "-"; }
     function num(re, s) { var m = re.exec(String(s || "")); return m ? parseInt(m[1]) : 0; }
 
-    readonly property string name: card.f("text.name", SysInfo.sysUser)
-    readonly property int threads: card.num(/(\d+)\s*T/, SysInfo.sysCpuCores) || card.num(/(\d+)/, SysInfo.sysCpuCores)
-    readonly property int ramGb: card.num(/\/\s*(\d+)/, SysInfo.sysRam) || Math.round(SysInfo.memoryKb / 1048576)
-    readonly property int refresh: card.num(/(\d+)/, SysInfo.sysRefresh)
-    readonly property bool discrete: Math.max(Rarity.gpuClass(SysInfo.sysGpu), Rarity.gpuClass(SysInfo.sysGpu2)) > 0
-    readonly property int screenWidth: card.num(/^(\d+)/, SysInfo.sysResolution)
-    readonly property var rarity: Rarity.of({ threads: card.threads, ramGb: card.ramGb, gpus: [SysInfo.sysGpu, SysInfo.sysGpu2],
+    readonly property string name: card.traded ? card.traded.name : card.f("text.name", SysInfo.sysUser)
+    readonly property int threads: card.hw ? card.hw.threads : card.num(/(\d+)\s*T/, SysInfo.sysCpuCores) || card.num(/(\d+)/, SysInfo.sysCpuCores)
+    readonly property int ramGb: card.hw ? card.hw.ramGb : card.num(/\/\s*(\d+)/, SysInfo.sysRam) || Math.round(SysInfo.memoryKb / 1048576)
+    readonly property int refresh: card.hw ? card.hw.refresh : card.num(/(\d+)/, SysInfo.sysRefresh)
+    readonly property bool discrete: card.hw ? card.hw.gpuClass > 0 : Math.max(Rarity.gpuClass(SysInfo.sysGpu), Rarity.gpuClass(SysInfo.sysGpu2)) > 0
+    readonly property int screenWidth: card.hw ? card.hw.width : card.num(/^(\d+)/, SysInfo.sysResolution)
+    readonly property var rarity: Rarity.of(card.hw || { threads: card.threads, ramGb: card.ramGb, gpus: [SysInfo.sysGpu, SysInfo.sysGpu2],
                                               refresh: card.refresh, width: card.screenWidth })
     readonly property int level: card.showLevel >= 0 ? card.showLevel : card.rarity.level
     readonly property var tier: Rarity.tiers[card.level]
@@ -71,33 +74,43 @@ Item {
     // the border: bone for the plain tiers, the sun for the rare ones, gold from Ultra rare
     readonly property color rim: card.level >= 4 ? Lithic.gold : card.level >= 2 ? Lithic.sel : Lithic.mix(Lithic.ground, Lithic.fg, 0.55)
     readonly property color shine: card.level >= 4 ? Lithic.gold : Lithic.fg
-    // its power, as a card's HP: the machine's threads, memory and a discrete card, in tens
-    readonly property int power: Math.max(30, Math.min(340, Math.round((card.threads * 8 + card.ramGb * 3 + (card.discrete ? 60 : 0)) / 10) * 10))
+    readonly property int power: Rarity.power(card.threads, card.ramGb, card.discrete)
     // a card number from the host's name, so every machine has its own
     readonly property string serial: {
+        if (card.traded)
+            return card.traded.id;
         var h = 7, s = String(SysInfo.sysHost || "ryoku");
         for (var i = 0; i < s.length; i++)
             h = (h * 31 + s.charCodeAt(i)) % 997;
         return ("00" + (h % 256 + 1)).slice(-3) + "/256";
     }
-    readonly property var hero: card.f("hero", ({}))
+    readonly property var hero: card.traded ? card.traded.hero : card.f("hero", ({}))
     readonly property string heroKind: card.hero.kind || "default"
     readonly property string illustrator: card.heroKind === "default" ? I18n.tr("Caracalla Farnese, Naples. Photo Marie-Lan Nguyen, CC BY 2.5")
         : card.heroKind === "custom" ? I18n.tr("Figure by %1").replace("%1", card.name)
         : I18n.tr("Figure from Ryoku's gallery")
-    readonly property string typeLine: [SysInfo.sysDistro !== "Linux" ? SysInfo.sysDistro : "", SysInfo.sysWM, card.known(SysInfo.sysGpu) ? SysInfo.sysGpu : ""]
+    readonly property string typeLine: (card.hw ? [card.hw.distro, card.hw.wm, card.hw.gpu]
+        : [SysInfo.sysDistro !== "Linux" ? SysInfo.sysDistro : "", SysInfo.sysWM, card.known(SysInfo.sysGpu) ? SysInfo.sysGpu : ""])
         .filter(s => card.known(s)).join("  ·  ")
-    readonly property var moves: [
+    readonly property var moves: (card.hw ? [
+        { glyph: "memory", name: I18n.tr("Processor"), detail: I18n.tr("%1 threads").replace("%1", card.threads), value: card.threads, unit: I18n.tr("threads") },
+        { glyph: "monitor", name: I18n.tr("Display"), detail: I18n.tr("%1 px wide").replace("%1", card.screenWidth), value: card.refresh, unit: "Hz" },
+        { glyph: "developer_board", name: I18n.tr("Memory"), detail: card.ramGb + " GB", value: card.ramGb, unit: "GB" }
+    ] : [
         { glyph: "memory", name: I18n.tr("Processor"), detail: SysInfo.sysCpu, value: card.threads, unit: I18n.tr("threads") },
         { glyph: "monitor", name: I18n.tr("Display"), detail: SysInfo.sysResolution, value: card.refresh, unit: "Hz" },
         { glyph: "developer_board", name: I18n.tr("Memory"), detail: SysInfo.sysRam, value: card.ramGb, unit: "GB" }
-    ].filter(m => m.value > 0)
-    readonly property var traits: [
+    ]).filter(m => m.value > 0)
+    readonly property var traits: card.traded ? [
+        { name: I18n.tr("From"), value: card.name },
+        { name: I18n.tr("Added"), value: Qt.formatDate(new Date(card.traded.added), "yyyy-MM-dd") },
+        { name: I18n.tr("Rarity points"), value: String(card.rarity.points) }
+    ] : [
         { name: I18n.tr("Up for"), value: SysInfo.sysUptime },
         { name: I18n.tr("Packages"), value: SysInfo.sysPackages },
         { name: I18n.tr("Kernel"), value: String(SysInfo.sysKernel).replace(/-.*/, "") }
     ]
-    readonly property string release: Updates.currentName || Updates.currentVersion || "Ryoku"
+    readonly property string release: card.traded ? "" : Updates.currentName || Updates.currentVersion || "Ryoku"
 
     // the card's border and its face. A Secret rare's border is cut like a diamond
     CutRect {
@@ -236,7 +249,7 @@ Item {
             renderType: Text.QtRendering
             anchors.horizontalCenter: parent.horizontalCenter
             y: 24
-            text: String(card.f("text.epithets", []).length > 0 ? card.f("text.epithets", [])[0] : "Ryoku")
+            text: card.traded ? card.traded.epithet : String(card.f("text.epithets", []).length > 0 ? card.f("text.epithets", [])[0] : "Ryoku")
             color: Lithic.alpha(Lithic.fg, 0.1)
             font.family: Lithic.font.sans
             font.weight: Font.Black
@@ -245,6 +258,7 @@ Item {
         }
         CardFigure {
             id: cardFigure
+            override: card.traded ? card.traded.hero : null
             readonly property real aspect: card.heroKind === "default" ? stockAspect : 900 / 1157
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom
@@ -298,7 +312,7 @@ Item {
         id: moveList
         x: 40
         width: card.width - 80
-        readonly property var bands: CardCode.code ? CardCode.code.ys : [550, 608, 666]
+        readonly property var bands: card.code ? card.code.ys : [550, 608, 666]
 
         Repeater {
             model: card.moves
@@ -375,20 +389,20 @@ Item {
     // opens as a card (Singletons/CardCode.qml, backend/cardcode.go). Where they stand,
     // the card keeps clear. The window above stays where the code reads an own picture
     Repeater {
-        model: CardCode.code ? CardCode.code.ys.length : 0
+        model: card.code ? card.code.ys.length : 0
         delegate: Item {
             id: ruler
             required property int index
-            readonly property var levels: CardCode.code.levels[ruler.index]
-            x: CardCode.code.x
-            y: CardCode.code.ys[ruler.index]
+            readonly property var levels: card.code.levels[ruler.index]
+            x: card.code.x
+            y: card.code.ys[ruler.index]
             Repeater {
                 model: ruler.levels.length
                 delegate: Rectangle {
                     required property int index
-                    x: index * CardCode.code.pitch
-                    width: CardCode.code.tick
-                    height: (ruler.levels[index] + 1) * CardCode.code.unit
+                    x: index * card.code.pitch
+                    width: card.code.tick
+                    height: (ruler.levels[index] + 1) * card.code.unit
                     color: card.level >= 4 ? Lithic.gold : Lithic.fg2
                     antialiasing: false
                 }
@@ -445,7 +459,7 @@ Item {
             anchors.right: gloss.left
             anchors.rightMargin: 10
             anchors.verticalCenter: parent.verticalCenter
-            text: card.f("text.tagline", I18n.tr("For the sake of power and beauty."))
+            text: card.traded ? card.traded.tagline : card.f("text.tagline", I18n.tr("For the sake of power and beauty."))
             typeRole: "proof"
             font.pixelSize: 14
             font.italic: true
@@ -455,7 +469,7 @@ Item {
         Label {
             renderType: Text.QtRendering
             id: gloss
-            visible: UiPreferences.showJapaneseGloss
+            visible: !card.traded && UiPreferences.showJapaneseGloss
             anchors.right: parent.right
             anchors.rightMargin: 14
             anchors.verticalCenter: parent.verticalCenter
@@ -481,7 +495,9 @@ Item {
         Label {
             renderType: Text.QtRendering
             anchors.verticalCenter: parent.verticalCenter
-            text: card.release + "  ·  " + card.serial
+            text: card.traded ? I18n.tr("TRADED · from %1").replace("%1", card.name) : card.release + "  ·  " + card.serial
+            width: 255
+            elide: Text.ElideRight
             typeRole: "monoSm"
             font.pixelSize: 10
             inkRole: "fg2"

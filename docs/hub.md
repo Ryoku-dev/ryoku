@@ -277,9 +277,9 @@ with no slab:
 - **The top bar** holds "Continue in" the page the reader left off on, an
   expand button that shows the system card large over a shade
   (`components/about/CardViewer.qml`; Escape or a click beside it closes it),
-  Share and Customise; in a narrow window, whose sidebar is put away, the search too.
+  Binder, Share and Customise; in a narrow window, whose sidebar is put away, the search too.
   Share copies the system card to the clipboard as a picture that carries its
-  design (`CardShare`), drawing the card out of sight once the machine's full
+  machine, words and figure (`CardShare`), drawing it out of sight once the full
   read-out is in; the button says Copied, and a copy that failed says why on
   the bar, left of the buttons.
 
@@ -299,12 +299,12 @@ the card or Home's plate as they will be; its tabs are:
 - **Layout**: whether Home shows the plate or the card (`homeView`), the
   plate's parts and the figure's side.
 - **Share**: the card's rarity, the tier ladder (resting on a tier shows its
-  look on the preview), Copy, Save, Open a card, Paste a card and Back to stock
-  (`components/about/CardShare.qml`).
+  look on the preview), Copy, Save, Binder and Back to stock
+  (`components/about/CardShare.qml`). Binder closes the studio and opens the collection.
 
 Search reaches the studio on its tabs: Customise Home, Adjust your card's
-picture, System card and Show the card on Home. The plate, the card and the
-studio share one design: they read `Ryoku.Ui.Singletons.ProfileStore`
+picture, System card and Show the card on Home. Card binder opens the collection
+from any page. The plate, the card and the studio share one design: they read `Ryoku.Ui.Singletons.ProfileStore`
 (`profile.json`), draw the figure with `components/about/CardFigure.qml`, and
 are edited through the `card` store, so every change has its notice and Undo.
 CardFigure frames the reader's picture (`zoom`, `focalX`, `focalY`, `fit`),
@@ -336,25 +336,40 @@ frames a second while the card is under the pointer. The foil is
 light, smooth and held under 60% opacity, sliding as the card tilts.
 
 **Copy** and **Save** draw a still card at twice its size (`CardShare`).
-The design travels in the card's pixels, because a chat app re-encodes a picture
+The card travels in its pixels, because a chat app re-encodes a picture
 and keeps nothing else: the three tick rulers that rule off the card's parts are
 its **card code** (`backend/cardcode.go`, read by `Singletons/CardCode.qml`
 through `ryoku-hub profile code`). Each tick is one of four heights, two bits;
 the first and last tick of each ruler stand full height to calibrate ink, paper
-and scale. The bits carry the name, the line under it, the first big word, the
-figure (stock, a gallery figure by name, or the reader's own picture) and the
-layout, with a length, a CRC and 20 bytes of Reed-Solomon parity
-(`backend/reedsolomon.go`) that repair up to 10 misread bytes. Ticks are
-measured by the ink they lay down over a period, so a resize keeps them
-readable: a card reads back from the full picture down to about 560 pixels wide,
-through JPEG and WebP. An own picture comes back lifted from the card's window.
-`ryoku-hub profile card` also writes the whole design, own picture at full size,
-into the PNG as a `tEXt` chunk named `ryoprofile`; a file sent as it is keeps it,
-and Open prefers it. **Open a card** and **Paste a card**
-(`ryoku-hub profile import <path>|--clipboard`) take the design back out of a
-card picture, the clipboard or a `.ryoprofile`; a picture Go cannot decode (WebP,
-AVIF) is turned into a PNG first. A crop, a screenshot of part of a card or a
-picture shrunk too far is refused and says so.
+and scale. Version 2 carries the name, the line under it, the first big word,
+the figure (stock, a gallery figure by name, or the reader's own picture),
+threads, memory, refresh rate, display width, graphics class and short name,
+distro, window manager and a short machine fingerprint. The body has a length,
+a CRC and 20 bytes of Reed-Solomon parity (`backend/reedsolomon.go`) that repair
+up to 10 misread bytes. Ticks are measured by the ink they lay down over a
+period, so a resize keeps them readable. An own picture comes back lifted from
+the card's window. No hidden profile or full-size picture is attached to a share.
+
+**Binder** (`components/about/Binder.qml`) collects friends' cards. Ask a friend
+to press Share on their Home and send the picture, then **Paste a card** or
+**Open a card** here (`ryoku-hub cards add <path>|--clipboard`). Pictures Qt can
+read but Go cannot, such as WebP, are turned into PNG first. A crop, part of a
+screenshot or a picture shrunk too far is refused. Cards live in
+`$XDG_DATA_HOME/ryoku/cards` (normally `~/.local/share/ryoku/cards`); adding a newer
+card from the same machine replaces it but keeps the original added date.
+
+The binder draws live cards, including their foil and pointer tilt. Open one
+to compare threads, memory, refresh rate, display width, graphics class, rarity
+points and power with your own machine; the higher number is gold. **Use their
+picture** takes only the custom picture or gallery figure through the `card`
+store, with Undo. Your words, layout and machine stay yours. Remove forgets the
+collected card. Trading never replaces your design.
+
+A traded card reads every fact from its saved entry, not from your computer.
+Its traits show From, Added and Rarity points, and its footer is stamped
+**TRADED · from the owner's name**. It has no copy, save or share action.
+Adding your own card is refused: the binder is for friends, and your own card
+always shows your own machine.
 
 A page drawn by `components/SettingsPage.qml` is a sheet, with the same shape
 everywhere:

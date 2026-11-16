@@ -674,10 +674,12 @@ FocusScope {
               kw: "profile hero picture image avatar banner name tagline figure dashboard" },
             { label: "Adjust your card's picture", detail: "Zoom, move and tune your own picture, as a photo or in dots", studio: "adjust",
               kw: "image photo zoom crop resize position brightness contrast colour dither dots black white" },
-            { label: "System card", detail: "Your computer as a trading card, its rarity, and copying or opening one", studio: "share",
-              kw: "system card trading card rarity holo secret rare share copy save paste open flex pokemon ryoprofile" },
+            { label: "System card", detail: "Your computer as a trading card, its rarity, and sharing its picture", studio: "share",
+              kw: "system card trading card rarity holo secret rare share copy save flex pokemon" },
             { label: "Show the card on Home", detail: "Home opens on the plate or on your system card", studio: "layout",
-              kw: "home view card plate layout start page" }
+              kw: "home view card plate layout start page" },
+            { label: "Card binder", detail: "Collect friends' cards and compare your machines", studio: "binder",
+              kw: "binder trade cards friends collection compare paste" }
         ];
         for (var k = 0; k < looks.length; k++)
             out.push({
@@ -731,6 +733,12 @@ FocusScope {
             content.item.customise(tab || "picture");
     }
 
+
+    function openBinder() {
+        hub.goHome();
+        if (content.item && typeof content.item.openBinder === "function")
+            content.item.openBinder();
+    }
     function choose(entry) {
         if (!entry)
             return;
@@ -739,7 +747,10 @@ FocusScope {
             return;
         }
         if (entry.kind === "home") {
-            hub.customiseHome(entry.studio);
+            if (entry.studio === "binder")
+                hub.openBinder();
+            else
+                hub.customiseHome(entry.studio);
             return;
         }
         hub.navigate(entry.page, entry.row);

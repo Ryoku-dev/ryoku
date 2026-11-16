@@ -25,6 +25,12 @@ test("the strongest of several graphics cards counts", () => {
     assert.equal(r.parts.find(p => p.id === "gpu").points, 4);
 });
 
+test("a traded graphics class takes precedence over names, including class zero", () => {
+    const machine = { threads: 16, ramGb: 32, refresh: 144, width: 2560 };
+    assert.equal(R.of({ ...machine, gpuClass: 3 }).points, R.of({ ...machine, gpus: ["RTX 4070"] }).points);
+    assert.equal(R.of({ ...machine, gpuClass: 0, gpus: ["RTX 4090"] }).parts.find(p => p.id === "gpu").points, 0);
+});
+
 test("tiers climb with the machine, from a thin laptop to a workstation", () => {
     const thin = R.of({ threads: 4, ramGb: 8, gpus: ["UHD Graphics 620"], refresh: 60, width: 1920 });
     const gamer = R.of({ threads: 16, ramGb: 46, gpus: ["GeForce RTX 4060 Max-Q", "Phoenix1"], refresh: 165, width: 2560 });
@@ -42,4 +48,11 @@ test("a tier starts exactly at its minimum", () => {
     const r = R.of({ threads: 16, ramGb: 32, gpus: ["RTX 4070"], refresh: 144, width: 2560 });
     assert.equal(r.points, 12);
     assert.equal(r.tier.id, "holo");
+});
+
+test("power counts in tens and stays between 30 and 340", () => {
+    assert.equal(R.power(16, 46, true), 330);
+    assert.equal(R.power(16, 46, false), 270);
+    assert.equal(R.power(0, 0, false), 30);
+    assert.equal(R.power(64, 256, true), 340);
 });

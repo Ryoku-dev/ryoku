@@ -13,7 +13,7 @@ import "../../registry/rarity.js" as Rarity
 // the card studio: everything about the system card in one place, beside a live copy of it.
 // Picture chooses the figure; Adjust frames and tunes your own picture (drag it on the
 // preview, scroll to zoom); Words and Layout set the rest and whether Home shows the plate
-// or the card; Share holds the card's rarity and Copy, Save, Open and Paste. Every change
+// or the card; Share holds the card's rarity, Copy, Save and the binder. Every change
 // applies at once through Changes, with Undo
 Dialog {
     id: root
@@ -21,6 +21,7 @@ Dialog {
     property string pageId: ""
     // Home loads this studio by URL, so hub arrives from the loader before it opens
     property var hub: null
+    property var binderOpener: null
     // the tab to open on: "picture", "adjust", "words", "layout" or "share"
     property string tab: "picture"
     readonly property var tabs: ["picture", "adjust", "words", "layout", "share"]
@@ -682,17 +683,13 @@ Dialog {
                             }
                             Plaque {
                                 kind: "quiet"
-                                glyph: "file_open"
-                                text: I18n.tr("Open a card")
-                                busy: share.job === "use"
-                                onClicked: share.open()
-                            }
-                            Plaque {
-                                kind: "quiet"
-                                glyph: "content_paste"
-                                text: I18n.tr("Paste a card")
-                                busy: share.job === "paste"
-                                onClicked: share.paste()
+                                glyph: "collections_bookmark"
+                                text: I18n.tr("Binder")
+                                enabled: typeof root.binderOpener === "function"
+                                onClicked: {
+                                    root.close();
+                                    root.binderOpener();
+                                }
                             }
                             Plaque {
                                 kind: "quiet"
@@ -720,7 +717,7 @@ Dialog {
                         }
                         Label {
                             width: parent.width
-                            text: I18n.tr("Copied or saved, the picture carries the card's design: anyone with Ryoku opens it with Open a card or Paste a card. Rest on a tier to see its look.")
+                            text: I18n.tr("Send your card picture to a friend. Collect their pictures in your Binder, compare your machines, or use their picture without changing your words. Rest on a tier to see its look.")
                             typeRole: "caption"
                             inkRole: "fg3"
                             wrapMode: Text.Wrap

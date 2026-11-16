@@ -42,13 +42,13 @@ function gpuClass(name) {
     return 0;
 }
 
-// m: { threads, ramGb, gpus: [names], refresh, width }
+// m: { threads, ramGb, gpuClass or gpus: [names], refresh, width }
 // -> { points, tier, next, toNext, parts: [{ id, points }] }
 function of(m) {
     var parts = [
         { id: "cpu", points: step(m.threads || 0, [4, 8, 12, 16, 24, 32]) },
         { id: "ram", points: step(m.ramGb || 0, [8, 16, 32, 64, 128]) },
-        { id: "gpu", points: (m.gpus || []).reduce((best, g) => Math.max(best, gpuClass(g)), 0) },
+        { id: "gpu", points: typeof m.gpuClass === "number" ? m.gpuClass : (m.gpus || []).reduce((best, g) => Math.max(best, gpuClass(g)), 0) },
         { id: "display", points: step(m.refresh || 0, [144, 240]) + step(m.width || 0, [2560, 3840]) }
     ];
     var points = parts.reduce((a, p) => a + p.points, 0);
@@ -58,4 +58,9 @@ function of(m) {
             at = i;
     var next = at + 1 < tiers.length ? tiers[at + 1] : null;
     return { points: points, tier: tiers[at], level: at, next: next, toNext: next ? next.min - points : 0, parts: parts };
+}
+
+// a card's HP: threads, memory and a discrete graphics card, in tens between 30 and 340
+function power(threads, ramGb, discrete) {
+    return Math.max(30, Math.min(340, Math.round((threads * 8 + ramGb * 3 + (discrete ? 60 : 0)) / 10) * 10));
 }

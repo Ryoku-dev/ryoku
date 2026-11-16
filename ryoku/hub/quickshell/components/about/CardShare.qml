@@ -5,11 +5,7 @@ import Ryoku.Ui.Singletons
 import "../../Singletons"
 import ".."
 
-// the system card's sharing: Copy and Save draw a still card at twice its size, its code
-// rulers carrying the design in its pixels, and `ryoku-hub profile card` adds the whole design
-// for a file sent as it is. Open and Paste take a design back out of a card picture (from the
-// pixels when a chat app re-encoded it), the clipboard or a .ryoprofile. `message` and
-// `error` say how the last one went, and retry() runs it again
+// Copy and Save draw only the owner's card. Friends collect the picture in their binder.
 Item {
     id: root
 
@@ -18,10 +14,9 @@ Item {
 
     property string message: ""
     property string error: ""
-    // the job running now ("copy", "save", "use", "paste"), or ""
+    // the job running now ("copy" or "save"), or ""
     property string job: ""
     property string last: ""
-    property string arg: ""
     readonly property var cardAll: ({ store: "card", key: "*" })
 
     // drawn, so the still card can be grabbed, but out of sight
@@ -91,29 +86,6 @@ Item {
         }
     }
 
-    // someone's card: a picture or .ryoprofile ("use", picked in Open), or the clipboard ("paste")
-    function open() {
-        if (root.job === "")
-            chooser.open();
-    }
-    function paste() {
-        if (root.job === "")
-            root.use("paste", "");
-    }
-    function use(job, file) {
-        // a picture the card tool cannot read (WebP, AVIF, ...) is turned into a PNG first
-        if (job === "use" && !/\.(png|jpe?g|gif|ryoprofile)$/i.test(file)) {
-            convert.pending = file;
-            convert.source = "file://" + file;
-            return;
-        }
-        root.hub.confirm({
-            title: I18n.tr("Use this card's design?"),
-            text: I18n.tr("Its figure, words and choices replace your card's. To keep yours, copy or save it first."),
-            actionText: I18n.tr("Use it"),
-            destructive: false
-        }, () => root.run(job, file, ""));
-    }
 
     function reset() {
         root.hub.confirm({
@@ -124,42 +96,25 @@ Item {
         }, () => Changes.set(root.cardAll, ({}), I18n.tr("System card"), root.pageId, I18n.tr("The card is back to stock")));
     }
 
-    // a refused job, in plain words with its next step; the tool's own words are not shown
     function refusal(job, err) {
         var e = String(err || "");
-        var use = job === "use" || job === "paste";
         if (/no space left/i.test(e))
-            return use ? I18n.tr("The disk is full, so the design could not be used. Free some space, then press Retry.")
-                       : I18n.tr("The disk is full, so the card could not be saved. Free some space, then press Retry.");
-        if (job === "paste" && /no picture/i.test(e))
-            return I18n.tr("The clipboard holds no picture. Copy a Ryoku card first, then press Paste.");
-        if (use && /card code|not a Ryoku card|stripped/i.test(e))
-            return I18n.tr("Settings could not read a card in that picture. Use the whole card picture as it was shared, not a crop or a screenshot of part of it.");
-        if (use && /could not be read/i.test(e))
-            return I18n.tr("That picture could not be read. Choose another with Open.");
-        if (use && /ryoprofile|hero|not a PNG|cut short|no end|invalid character|unexpected end|cannot unmarshal/i.test(e))
-            return I18n.tr("That file is not a card, or it is damaged. Choose a card picture with Open.");
+            return I18n.tr("The disk is full, so the card could not be saved. Free some space, then press Retry.");
         if (job === "copy" && /wl-copy/i.test(e))
             return I18n.tr("The card could not be put on the clipboard. Save it instead, or press Retry.");
         if (/permission denied|read-only file system|operation not permitted/i.test(e))
-            return use ? I18n.tr("Settings is not allowed to read that file or save your card. Check the file's permissions, then press Retry, or choose another with Open.")
-                       : I18n.tr("Settings is not allowed to write in %1. Check the folder's permissions, then press Retry.").replace("%1", root.tilde(Paths.picturesDir));
+            return I18n.tr("Settings is not allowed to write in %1. Check the folder's permissions, then press Retry.").replace("%1", root.tilde(Paths.picturesDir));
         if (/no such file|not a directory/i.test(e))
-            return use ? I18n.tr("That file is no longer there. Choose another with Open.")
-                       : I18n.tr("%1 is not there. Create it, then press Retry.").replace("%1", root.tilde(Paths.picturesDir));
-        return use ? I18n.tr("That design could not be used. Press Retry, or choose another with Open.")
-                   : I18n.tr("The card could not be made. Press Retry.");
+            return I18n.tr("%1 is not there. Create it, then press Retry.").replace("%1", root.tilde(Paths.picturesDir));
+        return I18n.tr("The card could not be made. Press Retry.");
     }
 
     function run(job, arg, rendered) {
         root.error = "";
         root.message = "";
         root.last = job;
-        root.arg = arg;
         root.job = job;
-        var argv = job === "use" ? ["ryoku-hub", "profile", "import", arg]
-            : job === "paste" ? ["ryoku-hub", "profile", "import", "--clipboard"]
-            : ["ryoku-hub", "profile", "card", rendered, arg];
+        var argv = ["ryoku-hub", "profile", "card", rendered, arg];
         Changes.run(argv, function (ok, out, err, code) {
             root.job = "";
             if (code === -1) {
@@ -173,52 +128,15 @@ Item {
                 return;
             }
             if (job === "copy")
-                root.message = I18n.tr("Copied. Paste it in a chat or anywhere; Ryoku Settings opens it as a card.");
+                root.message = I18n.tr("Copied. Send the picture to a friend; they can paste it into their binder.");
             else if (job === "save")
                 root.message = I18n.tr("Saved to %1").replace("%1", root.tilde(arg));
-            else
-                root.message = I18n.tr("Your card uses the shared design");
         }, { timeout: 30000 });
     }
 
     function retry() {
         if (root.last === "copy" || root.last === "save")
             root.take(root.last);
-        else if (root.last !== "")
-            root.run(root.last, root.arg, "");
     }
 
-    Image {
-        id: convert
-        property string pending: ""
-        asynchronous: true
-        onStatusChanged: {
-            if (convert.pending === "" || convert.status === Image.Loading || convert.status === Image.Null)
-                return;
-            var file = convert.pending;
-            convert.pending = "";
-            if (convert.status !== Image.Ready) {
-                root.error = I18n.tr("That picture could not be read. Choose another with Open.");
-                return;
-            }
-            var out = (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-card-open.png";
-            convert.grabToImage(function (result) {
-                if (result.saveToFile(out))
-                    root.use("use", out);
-                else
-                    root.error = I18n.tr("That picture could not be read. Choose another with Open.");
-            }, Qt.size(convert.sourceSize.width, convert.sourceSize.height));
-        }
-        width: sourceSize.width
-        height: sourceSize.height
-    }
-
-    // a card someone shared is a picture, so it is chosen by looking at it
-    ImageChooser {
-        id: chooser
-        overlayParent: root.hub ? root.hub.overlayItem : null
-        title: I18n.tr("Open a card")
-        extraFilters: ["*.ryoprofile"]
-        onAccepted: root.use("use", chooser.localPath(chooser.selectedFile))
-    }
 }

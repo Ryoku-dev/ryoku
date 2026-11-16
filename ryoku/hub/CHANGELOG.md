@@ -29,6 +29,15 @@
   `components/Home.qml`).
 
 ### Changed
+- **Friends' cards belong in a binder.** Paste or open a shared card picture
+  from Home's Binder to collect its live foil card and compare machines. A
+  traded card keeps its owner's facts, is stamped TRADED and cannot be shared
+  again. Use their picture changes only your figure; your words and machine
+  stay yours. The Share tab now opens the binder instead of replacing your
+  design with a friend's (`quickshell/components/about/Binder.qml`,
+  `BinderCard.qml`, `BinderCompare.qml`, `TradingCard.qml`, `CardFigure.qml`,
+  `CardEditor.qml`, `CardShare.qml`, `components/Home.qml`, `Hub.qml`,
+  `Singletons/CardCode.qml`, `registry/rarity.js`).
 - **Share your card from Home.** A Share button beside Customise copies your
   system card to the clipboard, ready to paste in a chat; anyone with Ryoku
   can open it as a card (`quickshell/components/Home.qml`).

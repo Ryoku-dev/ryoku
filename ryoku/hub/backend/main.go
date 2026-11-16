@@ -116,6 +116,11 @@ func main() {
 			fmt.Fprintln(os.Stderr, "ryoku-hub:", err)
 			os.Exit(1)
 		}
+	case "cards":
+		if err := runCards(args[1:]); err != nil {
+			fmt.Fprintln(os.Stderr, "ryoku-hub:", err)
+			os.Exit(1)
+		}
 	case "matugen":
 		if err := runMatugenCmd(args[1:]); err != nil {
 			fmt.Fprintln(os.Stderr, "ryoku-hub:", err)
@@ -245,9 +250,12 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  ryoku-hub clipboard stats|prune")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub activity [<days>]")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub profile export <path>")
-	fmt.Fprintln(os.Stderr, "  ryoku-hub profile import <path>|--clipboard")
+	fmt.Fprintln(os.Stderr, "  ryoku-hub profile import <path.ryoprofile>")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub profile card <rendered.png> <path>|--copy")
-	fmt.Fprintln(os.Stderr, "  ryoku-hub profile code")
+	fmt.Fprintln(os.Stderr, "  ryoku-hub profile code [--threads N --ram GB --refresh HZ --width PX --gpu-class N --gpu NAME --distro ID --wm ID]")
+	fmt.Fprintln(os.Stderr, "  ryoku-hub cards add <path>|--clipboard")
+	fmt.Fprintln(os.Stderr, "  ryoku-hub cards list")
+	fmt.Fprintln(os.Stderr, "  ryoku-hub cards remove <id>")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub import scan <path|url>")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub import apply <decisions.json|->")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub import undo [<ts>]")

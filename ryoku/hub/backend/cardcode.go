@@ -1,30 +1,22 @@
 package main
 
-// The card code: a system card's design carried in its pixels, so it survives a chat
-// app that re-encodes the picture and drops everything but the pixels. The card draws
-// three tick rulers (the measuring rule ryoku.dev and Home use); each tick's height is
-// one of four, two bits a tick. The first and last tick of every ruler stand full
-// height, so a reader can tell ink from paper on any theme and measure heights at any
-// scale. The bits spell a short design (the words, the figure, the layout) with a
-// length and a CRC, padded with filler so every card's rulers look alike in kind, and
-// Reed-Solomon parity (reedsolomon.go) repairs ticks a resize or recompression misread. A card
-// with the reader's own picture carries the picture as it shows in the card's window,
-// lifted from the pixels on the way back.
+// The card code carries a friend's card in pixels, so it survives a chat app
+// re-encoding the picture. Three tick rulers each carry two bits per tick, with
+// full-height ends to calibrate ink and scale. A length, CRC and Reed-Solomon
+// parity protect the words, figure, hardware and machine fingerprint.
 //
-// Geometry is in the card's design units (630 x 880); `ryoku-hub profile code` hands
-// it with the levels to the card that draws them (components/about/TradingCard.qml).
+// Geometry is in the card's design units (630 x 880); `ryoku-hub profile code`
+// hands it with the levels to components/about/TradingCard.qml.
 
 import (
-	"bytes"
-	"encoding/base64"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"image"
 	"image/color"
-	_ "image/gif"
-	_ "image/jpeg"
-	"image/png"
+	"io"
 	"math"
 	"os"
 	"strings"
@@ -39,13 +31,15 @@ const (
 	rulerTick   = 2.0
 	rulerCount  = 138
 	rulerUnit   = 2.5 // a level's height step; level n stands (n+1) units tall
-	codeVersion = 1
+	codeVersion = 2
 	codeParity  = 20 // parity bytes: up to 10 misread bytes are repaired
 )
 
 // the rulers' tops, in design units; each heads a band the card sets one move in, clear
 // of the tallest tick
 var rulerY = []float64{550, 608, 666}
+
+var machineIDPath = "/etc/machine-id"
 
 // the card's window, inside its stroke, where the reader's own picture fills it
 var windowRect = image.Rect(35, 112, 35+560, 112+390)
@@ -61,19 +55,30 @@ type cardCode struct {
 	Levels [][]int   `json:"levels"`
 }
 
-// the design a card code carries, read from and written to profile.json's shape
 type codedDesign struct {
 	kind       int // 0 stock, 1 gallery, 2 own picture
-	left       bool
-	cardHome   bool
-	minimal    bool
-	epithets   bool
-	telemetry  bool
-	specs      bool
+	threads    int
+	ramGb      int
+	refresh    int
+	width      int
+	gpuClass   int
+	distro     int
+	wm         int
+	owner      [3]byte
 	name       string
 	tagline    string
 	epithet    string
 	gallerySrc string
+	gpu        string
+}
+
+func ownerFingerprint() ([3]byte, error) {
+	raw, err := os.ReadFile(machineIDPath)
+	if err != nil {
+		return [3]byte{}, err
+	}
+	sum := sha256.Sum256([]byte(strings.TrimSpace(string(raw))))
+	return [3]byte{sum[0], sum[1], sum[2]}, nil
 }
 
 func dataTicks() int { return len(rulerY) * (rulerCount - 2) }
@@ -84,11 +89,7 @@ func designFromProfile(raw []byte) (codedDesign, error) {
 			Kind   string `json:"kind"`
 			Source string `json:"source"`
 		} `json:"hero"`
-		HeroSide string          `json:"heroSide"`
-		HomeView string          `json:"homeView"`
-		Preset   string          `json:"preset"`
-		Blocks   map[string]bool `json:"blocks"`
-		Text     struct {
+		Text struct {
 			Name     string   `json:"name"`
 			Tagline  string   `json:"tagline"`
 			Epithets []string `json:"epithets"`
@@ -97,21 +98,16 @@ func designFromProfile(raw []byte) (codedDesign, error) {
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return codedDesign{}, err
 	}
-	on := func(k string) bool {
-		v, ok := p.Blocks[k]
-		return !ok || v
-	}
-	d := codedDesign{
-		left: p.HeroSide == "left", cardHome: p.HomeView == "card", minimal: p.Preset == "minimal",
-		epithets: on("epithets"), telemetry: on("telemetry"), specs: on("specs"),
-		name: clip(p.Text.Name, 16), tagline: clip(p.Text.Tagline, 36),
+	d := codedDesign{name: clip(p.Text.Name, 14), tagline: clip(p.Text.Tagline, 22)}
+	if d.name == "" {
+		d.name = clip(os.Getenv("USER"), 14)
 	}
 	if len(p.Text.Epithets) > 0 {
-		d.epithet = clip(p.Text.Epithets[0], 9)
+		d.epithet = clip(p.Text.Epithets[0], 8)
 	}
 	switch p.Hero.Kind {
 	case "gallery":
-		d.kind, d.gallerySrc = 1, clip(strings.TrimSuffix(p.Hero.Source, ".png"), 12)
+		d.kind, d.gallerySrc = 1, clip(strings.TrimSuffix(p.Hero.Source, ".png"), 10)
 	case "custom":
 		d.kind = 2
 	}
@@ -130,19 +126,26 @@ func clip(s string, n int) string {
 	return s
 }
 
-func b2i(b bool) byte {
-	if b {
-		return 1
+func shortGPU(s string) string {
+	for _, part := range []string{"NVIDIA ", "GeForce ", "AMD ", "Radeon ", "Intel ", " Laptop GPU", " Max-Q"} {
+		s = strings.ReplaceAll(s, part, "")
 	}
-	return 0
+	return clip(strings.TrimSpace(s), 10)
 }
 
 func (d codedDesign) bytes() []byte {
 	out := []byte{
-		codeVersion<<4 | byte(d.kind)<<2 | b2i(d.left)<<1 | b2i(d.cardHome),
-		b2i(d.minimal)<<3 | b2i(d.epithets)<<2 | b2i(d.telemetry)<<1 | b2i(d.specs),
+		codeVersion<<4 | byte(d.kind)<<2,
+		byte(min(255, max(0, d.threads))),
+		byte(min(255, max(0, d.ramGb))),
+		byte(min(255, max(0, d.refresh/2))),
+		byte(min(255, max(0, d.width/32))),
+		byte(min(5, max(0, d.gpuClass)))<<5 | byte(min(5, max(0, d.distro)))<<2 | byte(min(3, max(0, d.wm))),
+		d.owner[0], d.owner[1], d.owner[2],
 	}
-	for _, s := range []string{d.name, d.tagline, d.epithet, d.gallerySrc} {
+	// Nine fixed bytes, five length bytes and at most 64 string bytes: 78
+	// bytes, leaving one byte spare in the 79-byte body budget.
+	for _, s := range []string{clip(d.name, 14), clip(d.tagline, 22), clip(d.epithet, 8), clip(d.gallerySrc, 10), shortGPU(d.gpu)} {
 		out = append(out, byte(len(s)))
 		out = append(out, s...)
 	}
@@ -150,24 +153,32 @@ func (d codedDesign) bytes() []byte {
 }
 
 func parseDesign(b []byte) (codedDesign, error) {
-	if len(b) < 2 || b[0]>>4 != codeVersion {
+	if len(b) < 14 || b[0]>>4 != codeVersion || b[0]&3 != 0 || b[0]>>2&3 > 2 || b[5]>>5 > 5 || b[5]>>2&7 > 5 {
 		return codedDesign{}, errNoCardCode
 	}
 	d := codedDesign{
-		kind: int(b[0]>>2) & 3, left: b[0]&2 != 0, cardHome: b[0]&1 != 0,
-		minimal: b[1]&8 != 0, epithets: b[1]&4 != 0, telemetry: b[1]&2 != 0, specs: b[1]&1 != 0,
+		kind: int(b[0]>>2) & 3, threads: int(b[1]), ramGb: int(b[2]),
+		refresh: int(b[3]) * 2, width: int(b[4]) * 32,
+		gpuClass: int(b[5] >> 5), distro: int(b[5]>>2) & 7, wm: int(b[5]) & 3,
+		owner: [3]byte{b[6], b[7], b[8]},
 	}
-	rest := b[2:]
-	var strs [4]string
-	for i := range strs {
-		if len(rest) < 1 || int(rest[0]) > len(rest)-1 {
+	rest := b[9:]
+	var strs [5]string
+	for i, limit := range []int{14, 22, 8, 10, 10} {
+		if len(rest) < 1 || int(rest[0]) > len(rest)-1 || int(rest[0]) > limit {
 			return codedDesign{}, errNoCardCode
 		}
 		n := int(rest[0])
 		strs[i] = string(rest[1 : 1+n])
+		if !utf8.ValidString(strs[i]) {
+			return codedDesign{}, errNoCardCode
+		}
 		rest = rest[1+n:]
 	}
-	d.name, d.tagline, d.epithet, d.gallerySrc = strs[0], strs[1], strs[2], strs[3]
+	if len(rest) != 0 {
+		return codedDesign{}, errNoCardCode
+	}
+	d.name, d.tagline, d.epithet, d.gallerySrc, d.gpu = strs[0], strs[1], strs[2], strs[3], strs[4]
 	return d, nil
 }
 
@@ -318,78 +329,33 @@ func readLevels(img image.Image) ([][]int, error) {
 	return levels, nil
 }
 
-// envelopeFromPixels reads a card picture's code and builds the .ryoprofile it stands
-// for; an own picture is lifted from the card's window
-func envelopeFromPixels(raw []byte) ([]byte, error) {
-	img, _, err := image.Decode(bytes.NewReader(raw))
+// printCardCode prints the rulers' geometry and levels for the current profile.
+func printCardCode(args []string) error {
+	flags := flag.NewFlagSet("profile code", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	var d codedDesign
+	var distro, wm string
+	flags.IntVar(&d.threads, "threads", 0, "")
+	flags.IntVar(&d.ramGb, "ram", 0, "")
+	flags.IntVar(&d.refresh, "refresh", 0, "")
+	flags.IntVar(&d.width, "width", 0, "")
+	flags.IntVar(&d.gpuClass, "gpu-class", 0, "")
+	flags.StringVar(&d.gpu, "gpu", "", "")
+	flags.StringVar(&distro, "distro", "", "")
+	flags.StringVar(&wm, "wm", "", "")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return fmt.Errorf("profile code accepts hardware flags only")
+	}
+	d.distro = map[string]int{"arch": 1, "cachyos": 2, "fedora": 3, "void": 4, "nixos": 5}[distro]
+	d.wm = map[string]int{"hyprland": 1, "niri": 2, "wayfire": 3}[wm]
+	var err error
+	d.owner, err = ownerFingerprint()
 	if err != nil {
-		return nil, fmt.Errorf("that picture could not be read: %w", err)
+		return err
 	}
-	levels, err := readLevels(img)
-	if err != nil {
-		return nil, err
-	}
-	d, err := decodeLevels(levels)
-	if err != nil {
-		return nil, err
-	}
-	prof := map[string]any{}
-	hero := map[string]any{"kind": "default", "source": ""}
-	env := ryoEnvelope{Ryoprofile: 1}
-	switch d.kind {
-	case 1:
-		hero = map[string]any{"kind": "gallery", "source": d.gallerySrc + ".png"}
-	case 2:
-		s := float64(img.Bounds().Dx()) / cardW
-		r := image.Rect(int(float64(windowRect.Min.X)*s), int(float64(windowRect.Min.Y)*s),
-			int(float64(windowRect.Max.X)*s), int(float64(windowRect.Max.Y)*s)).Add(img.Bounds().Min)
-		sub, ok := img.(interface {
-			SubImage(image.Rectangle) image.Image
-		})
-		if !ok {
-			return nil, errNoCardCode
-		}
-		var buf bytes.Buffer
-		if err := png.Encode(&buf, sub.SubImage(r)); err != nil {
-			return nil, err
-		}
-		env.Hero = &ryoHero{Name: "hero.png", B64: base64.StdEncoding.EncodeToString(buf.Bytes())}
-		hero = map[string]any{"kind": "custom", "source": "hero.png", "style": "photo", "fit": false,
-			"zoom": 1, "focalX": 0.5, "focalY": 0.5}
-	}
-	prof["hero"] = hero
-	if d.left {
-		prof["heroSide"] = "left"
-	}
-	if d.cardHome {
-		prof["homeView"] = "card"
-	}
-	if d.minimal {
-		prof["preset"] = "minimal"
-	}
-	prof["blocks"] = map[string]bool{"epithets": d.epithets, "telemetry": d.telemetry, "specs": d.specs}
-	text := map[string]any{}
-	if d.name != "" {
-		text["name"] = d.name
-	}
-	if d.tagline != "" {
-		text["tagline"] = d.tagline
-	}
-	if d.epithet != "" {
-		text["epithets"] = []string{d.epithet}
-	}
-	if len(text) > 0 {
-		prof["text"] = text
-	}
-	env.Profile, err = json.Marshal(prof)
-	if err != nil {
-		return nil, err
-	}
-	return json.Marshal(env)
-}
-
-// printCardCode prints the rulers' geometry and levels for the current profile
-func printCardCode() error {
 	raw, err := os.ReadFile(profileConfigPath())
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -397,10 +363,11 @@ func printCardCode() error {
 		}
 		raw = []byte("{}")
 	}
-	d, err := designFromProfile(raw)
+	profile, err := designFromProfile(raw)
 	if err != nil {
 		return fmt.Errorf("profile.json is not valid JSON: %w", err)
 	}
+	d.kind, d.name, d.tagline, d.epithet, d.gallerySrc = profile.kind, profile.name, profile.tagline, profile.epithet, profile.gallerySrc
 	levels, err := encodeLevels(d)
 	if err != nil {
 		return err
