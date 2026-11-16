@@ -71,7 +71,7 @@ export async function storeRecord(env, record, picture) {
       })) continue;
       published = true;
       if (stored?.customMetadata?.pictureKey) await env.BUCKET.delete(stored.customMetadata.pictureKey);
-      return old;
+      return;
     }
     conflict('Card record changed concurrently');
   } finally {

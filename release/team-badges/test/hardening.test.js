@@ -78,9 +78,8 @@ test('miss refreshes are throttled to five seconds and memo expires after thirty
   } finally { Date.now = realNow; }
 });
 
-test('record, picture and missing-record responses use 60-second query-independent Cache API entries', async () => {
+test('card records and pictures are read fresh past any edge copy, so a change reaches every binder at once', async () => {
   const state = await setup(); await publish(state);
-  const picture = jpeg(24, 32), sha = await digest(picture);
   const original = globalThis.caches, saved = new Map();
   globalThis.caches = { default: {
     async match(request) { return saved.get(request.url)?.clone(); },
@@ -88,18 +87,20 @@ test('record, picture and missing-record responses use 60-second query-independe
     async delete(request) { return saved.delete(request.url); },
   } };
   try {
-    assert.equal((await call(state.env, 'GET', `/v1/cards/${state.id}`)).status, 404);
-    assert.equal((await putRecord(state, await record(state.device, { picture: sha }), picture)).status, 200);
-    const paths = [`/v1/cards/${state.id}`, `/v1/cards/${state.id}/${sha}.jpg`, '/v1/cards/abcdef0000000000'];
-    const statuses = [200, 200, 404];
-    for (const [index, path] of paths.entries()) {
-      const response = await call(state.env, 'GET', path);
-      assert.equal(response.status, statuses[index]);
-      assert.equal(response.headers.get('Cache-Control'), 'public, max-age=60');
-    }
-    state.env.BUCKET.get = () => { throw new Error('cache hit must not read R2'); };
-    state.env.BUCKET.list = () => { throw new Error('cache hit must not list R2'); };
-    for (const [index, path] of paths.entries()) assert.equal((await call(state.env, 'GET', path + '?bypass=random')).status, statuses[index]);
+    const cardPath = `/v1/cards/${state.id}`;
+    assert.equal((await call(state.env, 'GET', cardPath)).status, 404);
+    const first = jpeg(24, 32), firstSHA = await digest(first);
+    const older = await record(state.device, { picture: firstSHA });
+    assert.equal((await putRecord(state, older, first)).status, 200);
+    assert.deepEqual(await (await call(state.env, 'GET', cardPath)).json(), older);
+    assert.equal((await call(state.env, 'GET', `${cardPath}/${firstSHA}.jpg`)).status, 200);
+    const second = jpeg(32, 24), secondSHA = await digest(second);
+    const newer = await record(state.device, { picture: secondSHA, updated: older.updated + 1 });
+    assert.equal((await putRecord(state, newer, second)).status, 200);
+    assert.deepEqual(await (await call(state.env, 'GET', cardPath)).json(), newer);
+    assert.deepEqual(new Uint8Array(await (await call(state.env, 'GET', `${cardPath}/${secondSHA}.jpg`)).arrayBuffer()), second);
+    assert.equal((await call(state.env, 'GET', `${cardPath}/${firstSHA}.jpg`)).status, 404);
+    assert.ok([...saved.keys()].every(url => !url.includes('/v1/cards/')), 'card responses were cached');
   } finally { if (original === undefined) delete globalThis.caches; else globalThis.caches = original; }
 });
 

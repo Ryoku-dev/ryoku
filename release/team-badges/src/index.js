@@ -1,4 +1,4 @@
-import { CARD_ID, SHA, InputError, cardPayload, digest, jpegDimensions, unbase64, verifyCard, verifyCode, verifyUpload } from './codec.js';
+import { CARD_ID, InputError, cardPayload, digest, jpegDimensions, unbase64, verifyCard, verifyCode, verifyUpload } from './codec.js';
 import { reserveBadge, storeDesign, storeRecord } from './storage.js';
 
 const TEXT_CAP = 2400; // At most 600 characters, including Unicode whitespace.
@@ -172,29 +172,19 @@ async function route(request, env, ctx) {
       await env.BUCKET.put(`revoked/${revoke.id}.txt`, revoke.code);
     }
     await refreshInventory(env, request);
-    if (badge) {
-      const cardPath = `/v1/cards/${badge.cardId}`;
-      const paths = [cardPath];
-      const stored = await env.BUCKET.get(`cards/${badge.cardId}.json`);
-      if (stored) {
-        try {
-          const record = JSON.parse(await stored.text());
-          if (typeof record.picture === 'string' && SHA.test(record.picture)) paths.push(`${cardPath}/${record.picture}.jpg`);
-        } catch { /* A corrupt stored record cannot identify a trusted picture. */ }
-      }
-      await deleteReadCache(request, paths);
-    }
     return json({ id: revoke.id });
   }
+  // Card records and pictures are read fresh: an edge copy outlived a change in every data
+  // centre but the writer's, and a binder holding a superseded record found its picture gone.
   const card = /^\/v1\/cards\/([0-9a-f]{16})$/.exec(path);
   if (card && (method === 'GET' || method === 'PUT')) {
     const id = card[1];
     if (!CARD_ID.test(id)) fail('Invalid card id');
-    if (method === 'GET') return cachedResponse(request, ctx, async () => {
+    if (method === 'GET') {
       const { active } = await inventory(env);
       const trusted = await trustedRecord(env, id, active);
       return trusted ? json(trusted.record) : json({ error: 'Not found' }, 404);
-    });
+    }
     const bytes = await bodyBytes(request, 'application/json', CARD_CAP);
     let input;
     try { input = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); } catch { fail('Invalid JSON'); }
@@ -214,17 +204,16 @@ async function route(request, env, ctx) {
       jpegDimensions(picture);
       if (!record.picture || await digest(picture) !== record.picture) fail('Picture hash mismatch');
     }
-    const old = await storeRecord(env, record, picture);
-    await deleteReadCache(request, [path, ...(record.picture ? [`${path}/${record.picture}.jpg`] : []), ...(old?.picture && old.picture !== record.picture ? [`${path}/${old.picture}.jpg`] : [])]);
+    await storeRecord(env, record, picture);
     return json({ id });
   }
   const picture = /^\/v1\/cards\/([0-9a-f]{16})\/([0-9a-f]{64})\.jpg$/.exec(path);
-  if (method === 'GET' && picture) return cachedResponse(request, ctx, async () => {
+  if (method === 'GET' && picture) {
     const { active } = await inventory(env);
     const trusted = await trustedRecord(env, picture[1], active);
     if (!trusted || trusted.record.picture !== picture[2] || !trusted.pictureKey) return json({ error: 'Not found' }, 404);
     return serveObject(env, trusted.pictureKey, 'image/jpeg');
-  });
+  }
   const pending = /^\/v1\/pending\/([0-9a-f]{64})$/.exec(path);
   if (method === 'PUT' && pending) {
     // Check the header window before reading the potentially large pack; authenticate its digest afterwards.

@@ -5,7 +5,7 @@ Cloudflare Worker for `https://team.ryoku.dev`. It publishes machine-bound Ed255
 ## Layout
 
 - `src/codec.js`: Crockford text encoding, request CRC, signed-code and card verification, upload authorization, JPEG frame limits.
-- `src/index.js`: HTTPS routes, bounded streaming reads, R2 persistence, listing and 60-second Cache API responses.
+- `src/index.js`: HTTPS routes, bounded streaming reads, R2 persistence, listing and the 60-second Cache API response for the list.
 - `test/*.test.js`: Node WebCrypto tests using fresh test-only signing keys. Optional `test/vectors.json` runs Go cross-language vectors too.
 - `wrangler.jsonc`: custom domain, public keys and `BUCKET` binding to `ryoku-team`.
 
@@ -51,7 +51,7 @@ curl --fail https://team.ryoku.dev/v1/list
 
 It returns `{ "v": 1, "badges": ["RYB-..."], "revoked": ["RYX-..."], "designs": ["RYD-..."] }`. It is cached for 60 seconds; listings paginate through all stored objects and cryptographically filter invalid entries. Consumers must verify the codes and apply revocations themselves. Design approvals require a current role 3–5 badge for their GitHub login. Newest approval day wins; equal days use accepted upload order.
 
-Each isolate memoizes the verified inventory for 30 seconds and shares any in-flight refresh. Card and picture GETs, including missing records, use the Cache API for 60 seconds too. Cache keys ignore query strings so they cannot bypass the cache. Writes first check the memo, and verification misses may refresh it at most once every five seconds per isolate. Accepted badge, revocation and design uploads update the local memo immediately, so a new badge can publish its card without waiting. Other isolates can take up to 30 seconds to observe a revocation, and an already-cached read can remain visible for its 60-second lifetime.
+Each isolate memoizes the verified inventory for 30 seconds and shares any in-flight refresh. Card records and pictures are read fresh from R2 on every GET, missing ones included: a Cache API copy is only purged in the data centre that took the write, so friends elsewhere kept a superseded record for a minute and found its picture already deleted. The list's cache keys ignore query strings so they cannot bypass the cache. Writes first check the memo, and verification misses may refresh it at most once every five seconds per isolate, so a badge published through another isolate a moment ago can be refused once with `No active badge verifies this record`; Settings sends the record again six seconds later. Accepted badge, revocation and design uploads update the local memo immediately. Other isolates can take up to 30 seconds to observe a revocation, and an already-cached list can remain visible for its 60-second lifetime.
 
 Workers rate-limit bindings allow approximately 120 reads and 20 writes per minute per `CF-Connecting-IP`, independently in each Cloudflare location. Exceeded limits return JSON 429 with `Retry-After: 60`. Requests without that header share the `unknown` key, which also covers local development. The limiter is skipped when its binding is absent, allowing Node tests and runtimes without the binding to run. Namespace IDs `2026111501` and `2026111502` must remain unique within the Cloudflare account unless sharing counters is intentional.
 
