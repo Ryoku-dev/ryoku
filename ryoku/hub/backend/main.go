@@ -116,6 +116,16 @@ func main() {
 			fmt.Fprintln(os.Stderr, "ryoku-hub:", err)
 			os.Exit(1)
 		}
+	case "badge":
+		if err := badgeCommand(args[1:]); err != nil {
+			fmt.Fprintln(os.Stderr, "ryoku-hub:", err)
+			os.Exit(1)
+		}
+	case "design":
+		if err := designCommand(args[1:]); err != nil {
+			fmt.Fprintln(os.Stderr, "ryoku-hub:", err)
+			os.Exit(1)
+		}
 	case "cards":
 		if err := runCards(args[1:]); err != nil {
 			fmt.Fprintln(os.Stderr, "ryoku-hub:", err)
@@ -200,6 +210,8 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  ryoku-hub keybinds")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub config get <key>")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub config set <key> <value>")
+	fmt.Fprintln(os.Stderr, "  ryoku-hub badge status|activate|sync|issue|revoke|inspect|holder|list")
+	fmt.Fprintln(os.Stderr, "  ryoku-hub design check|pack|upload-pending|fetch|approve")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub shell get|set|loaders <fish|bash|zsh>")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub desktop get|defaults|cursors|icons|layouts")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub desktop icon-theme [set <theme>|apply]")
@@ -254,7 +266,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  ryoku-hub profile card <rendered.png> <path>|--copy")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub profile code [--threads N --ram GB --refresh HZ --width PX --gpu-class N --gpu NAME --distro ID --wm ID]")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub cards add <path>|--clipboard")
-	fmt.Fprintln(os.Stderr, "  ryoku-hub cards list")
+	fmt.Fprintln(os.Stderr, "  ryoku-hub cards list|refresh")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub cards remove <id>")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub import scan <path|url>")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub import apply <decisions.json|->")

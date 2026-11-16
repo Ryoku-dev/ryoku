@@ -34,7 +34,7 @@ func TestHostileCardTextThroughJPEG(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := []string{cleanCardText(clip(text, 14)), cleanCardText(clip(text, 22)), cleanCardText(clip(text, 8)), cleanCardText(shortGPU(text))}
+		want := []string{cleanCardText(clip(text, 14)), cleanCardText(clip(text, 20)), cleanCardText(clip(text, 7)), cleanCardText(shortGPU(text))}
 		for i, value := range []string{got.name, got.tagline, got.epithet, got.gpu} {
 			if value != want[i] {
 				t.Fatalf("%q field %d = %q, want %q", text, i, value, want[i])
@@ -115,7 +115,7 @@ func TestGalleryAndIDsRejectTraversal(t *testing.T) {
 			t.Fatalf("gallery code accepted: %q", name)
 		}
 	}
-	for _, id := range []string{"../aaa", "AABBCC", "aabbc", "aabbccd", "gg0000", "aa/bbb", "00000\x00"} {
+	for _, id := range []string{"../aaa", "AABBCCDDEEFF0011", "aabbcc", "aabbccddeeff001", "aabbccddeeff00112", "gg00000000000000", "aa/bbb0000000000", "000000000000000\x00"} {
 		if validCardID(id) || removeCard(id) == nil {
 			t.Fatalf("id accepted: %q", id)
 		}
@@ -125,7 +125,7 @@ func TestGalleryAndIDsRejectTraversal(t *testing.T) {
 func TestStoredCardCannotOverridePictureOrWords(t *testing.T) {
 	setCardMachine(t)
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
-	entry, err := addCard(sharedCard(t, codedDesign{kind: 2, owner: [3]byte{1, 2, 3}, name: "friend"}, "png"))
+	entry, err := addCard(sharedCard(t, codedDesign{kind: 2, cardID: [8]byte{1, 2, 3}, name: "friend"}, "png"))
 	if err != nil {
 		t.Fatal(err)
 	}

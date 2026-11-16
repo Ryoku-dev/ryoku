@@ -17,6 +17,7 @@ Item {
     // The binder supplies its store context separately from the traded entry.
     property string cardsStoreRoot: ""
     property string tradedId: ""
+    property bool verifiedRecord: false
     // a figure drawn at another size than its dots asks for soft sampling, or the dots beat
     property bool soft: false
     readonly property string configDir: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku"
@@ -38,10 +39,11 @@ Item {
             return /^hero\.(png|jpg|jpeg|webp|gif|bmp|avif)$/.test(hero.src)
                 ? hero.fileUrl(hero.configDir + "/profile/" + hero.src) : "";
         // Never treat a card's embedded file field as an image URL or a store root.
-        if (!/^[0-9a-f]{6}$/.test(hero.tradedId) || hero.cardsStoreRoot.charAt(0) !== "/")
+        if (!/^[0-9a-f]{16}$/.test(hero.tradedId) || hero.cardsStoreRoot.charAt(0) !== "/")
             return "";
-        var expected = hero.cardsStoreRoot + "/" + hero.tradedId + ".png";
-        return hero.config.file === expected ? hero.fileUrl(expected) : "";
+        var base = hero.cardsStoreRoot + "/" + hero.tradedId;
+        var path = String(hero.config.file || "");
+        return path === base + ".png" || (hero.verifiedRecord && path === base + "-record.png") ? hero.fileUrl(path) : "";
     }
 
     function fileUrl(path) {
@@ -56,11 +58,15 @@ Item {
     readonly property real brightness: hero.config.brightness || 0
     readonly property real contrast: hero.config.contrast || 0
     readonly property real saturation: hero.config.saturation || 0
+    readonly property bool ready: hero.stock ? stockImage.status === Image.Ready
+        : hero.kind === "custom" ? (hero.customSource === "" || customImage.status === Image.Ready)
+        : hero.kind === "gallery" ? (hero.gallerySource === "" || inked.status === Image.Ready) : true
 
     clip: true
 
     // "Caracalla MAN Napoli Inv6033 n01" by Marie-Lan Nguyen, CC BY 2.5: see the root NOTICE
     Image {
+        id: stockImage
         anchors.fill: parent
         visible: hero.stock
         source: hero.stock ? Qt.resolvedUrl("../../art/caracalla.png") : ""
@@ -78,6 +84,7 @@ Item {
         visible: false
         clip: true
         Image {
+            id: customImage
             width: hero.width * hero.zoom
             height: hero.height * hero.zoom
             x: (hero.width - width) * hero.focalX

@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Added
+- **Ryoku badges for testers, contributors and the team.** Each machine has a
+  request code; Mika answers testers and contributors with a signed badge code,
+  and nero signs NixOS, Core and Founder codes. A code only works on the
+  machine that asked for it, with a device-key card id and at most eight active
+  badges per login. The badge is a seal drawn in the role's ink, with a
+  certificate view, and friends' binders show it only after checking the signed
+  record at team.ryoku.dev; unchecked records clearly use picture-supplied facts
+  without a badge. Team members can preview their own card and badge design
+  and send it to Mika; nero's newest approval wins and older approvals cannot
+  replace it. Design images have a pack-wide decoded-pixel budget and bounded
+  rendering sizes, with animations only while live (`quickshell/components/badge/`,
+  `components/about/BadgeTab.qml`, `components/about/design/`,
+  `Singletons/Badge.qml`, `backend/badge*.go`, `backend/design*.go`,
+  `release/team-badges/`).
+
 ### Fixed
 - **Shared cards and profiles cannot load outside pictures or hidden markup.**
   Names stay plain text, picture sizes are bounded, and imported designs cannot

@@ -10,6 +10,7 @@ import "Singletons"
 import "components"
 import "components/nav"
 import "components/sheet"
+import "components/about"
 import "registry/registry.js" as Registry
 import "registry/provider-map.js" as ProviderMap
 import "schema/index.js" as Schemas
@@ -19,6 +20,15 @@ import "registry/numbering.js" as Numbering
 // the Settings frame: a rail of categories, the category's pages, the page
 FocusScope {
     id: hub
+    Binding { target: Badge; property: "settingsOpen"; value: hub.visible }
+    // a badge holder's custom picture is published from a fresh still of the card, rendered here
+    CardShare {
+        id: badgeCapture
+        hub: hub
+        onCaptured: path => Badge.publish(path)
+        onCaptureFailed: reason => Badge.captureFailed(reason)
+    }
+    Connections { target: Badge; function onCaptureRequested() { badgeCapture.take("sync"); } }
 
     property string categoryId: "appearance"
     property string pageId: ""
@@ -676,6 +686,8 @@ FocusScope {
               kw: "image photo zoom crop resize position brightness contrast colour dither dots black white" },
             { label: "System card", detail: "Your computer as a trading card, its rarity, and sharing its picture", studio: "share",
               kw: "system card trading card rarity holo secret rare share copy save flex pokemon" },
+            { label: "Badge", detail: "Your badge, request code and team card design", studio: "badge",
+              kw: "badge team tester contributor code certificate request" },
             { label: "Show the card on Home", detail: "Home opens on the plate or on your system card", studio: "layout",
               kw: "home view card plate layout start page" },
             { label: "Card binder", detail: "Collect friends' cards and compare your machines", studio: "binder",

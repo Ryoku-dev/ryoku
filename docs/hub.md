@@ -301,9 +301,11 @@ the card or Home's plate as they will be; its tabs are:
 - **Share**: the card's rarity, the tier ladder (resting on a tier shows its
   look on the preview), Copy, Save, Binder and Back to stock
   (`components/about/CardShare.qml`). Binder closes the studio and opens the collection.
+- **Badge**: the badge and certificate, request code, activation, team design
+  checks and local preview, with issuing and revocation tools for the owner.
 
 Search reaches the studio on its tabs: Customise Home, Adjust your card's
-picture, System card and Show the card on Home. Card binder opens the collection
+picture, System card, Badge and Show the card on Home. Card binder opens the collection
 from any page. The plate, the card and the studio share one design: they read `Ryoku.Ui.Singletons.ProfileStore`
 (`profile.json`), draw the figure with `components/about/CardFigure.qml`, and
 are edited through the `card` store, so every change has its notice and Undo.
@@ -312,11 +314,79 @@ tunes it (`brightness`, `contrast`, `saturation`) and draws it in its `style`:
 `photo`, `mono`, or `dither` through `shaders/plate.frag` (a picture chosen
 before there was a style was dithered, and stays so).
 
+#### Badges and team designs
+
+Open **Home > Customise > Badge**, or search for Badge. Copy **Your request
+code** and use `/badge` in Discord for Tester or Contributor. Team members send
+the request code to nero instead. Paste the returned badge code into Activate.
+Codes are signed and tied to this machine's device key, not unlocked by a setting
+or by copying the codebase. The 16-hex card id comes from the first eight bytes
+of SHA-256 over `ryoku-card-id-v1`, a zero byte and the device public key, not
+from the hostname or machine-id. Keep the device key private.
+
+The badge is a seal Ryoku draws itself (`components/badge/Emblem.qml`), after
+the layout of certification badges: the role spelled round the rim with the
+Ryoku mark and its kanji, a short code read clockwise four times round a
+diamond, the card code's ruler ticks bent into the rim, and a hanko at the
+centre with the role's kanji knocked out of a plate in the role's ink (試
+tester, 貢 contributor, 雪 NixOS, 核 core, the Ryoku mark for the founder).
+Each role keeps one ink whatever the theme, matching its Discord role. While in
+view the rim turns slowly and a light runs round the code; reduced motion holds
+it still. **View certificate** opens the details beside a large seal. Mika can
+issue Tester and Contributor badges, and nero can issue every role, including
+NixOS, Core and Founder.
+Each GitHub login may hold at most eight active badges; revoke an old machine's
+badge before adding a ninth.
+The owner's signing tools appear only when the owner key is available in the
+keyring. **Make a code** takes the member's request, login and role, then returns
+a code to copy. **Revoke** accepts that code or its badge id.
+
+Team roles can load a design folder, read its check results and preview it on
+their own card. A preview is local and disappears when the studio closes.
+**Save for Mika** packs the checked folder to the chosen path, initially
+`~/Downloads/ryoku-design-<name>.zip`. Use `/card submit` in the team channel.
+Mika handles the submission and nero approves it before other people see it.
+An owner can paste the SHA from Mika's review to preview a pending submission.
+The newest signed approval timestamp per login wins. Reposting the same approval
+does nothing, and an older approval or a different one with the same timestamp
+cannot replace it.
+
+A design contains `design.json` and flat PNG, JPEG or WebP files. Animated WebP
+is allowed. There is no QML, JavaScript, shader, executable, external URL or
+subdirectory. The JSON gives the badge its centre mark, code word, kanji (up to
+four characters) and ink (the seal itself is always Ryoku's), then the card palette,
+background, one to four art layers, an optional frame and glow mask, up to six
+stock card effects, and optional tagline and epithet. Ryoku still draws the
+name, hardware, machine code, moves, traits and footer itself.
+
+The pack is at most 8 MB, expanding to at most 24 MB and 24 files. Images are
+bounded to 2048 x 2048, with at most 96 animation frames per image and 64 million
+decoded pixels across the whole pack, counting every frame's full canvas and
+each still once, including unused files. Design images decode at no more than
+twice their drawn dimensions; animations play only while live and do not cache
+all frames. Unknown fields, links, repeated names, traversal paths and overly
+compressed files are rejected. Numeric effect settings are clamped and text
+contrast must reach 4.5:1. Run `ryoku-hub design check <folder-or-zip>` for the
+JSON result and `ryoku-hub design pack <folder> <out.zip>` to make the checked,
+deterministic zip. Fetching a design verifies its hash before extraction.
+
+Settings reads badge status on opening, after badge or design actions and
+every ten minutes while open. An active badge publishes a signed card record
+three seconds after profile or hardware-code changes settle. A custom picture
+is drawn into a fresh temporary still, cropped and bounded by the backend,
+then the temporary still is deleted. A local design preview is never published.
+Binder **Refresh** checks the saved cards again. Verified cards show their
+role, issuer, date and certificate, with facts and pictures from the signed
+record rather than the shared image. Offline and unverified cards say so. When
+a signed record cannot be checked, the binder shows no badge and explains that
+the facts come from the picture.
+
+
 The system card is a trading card (`components/about/TradingCard.qml`, 630 x
 880, a playing card's shape): the name and its 力 power (threads, memory and a
 discrete graphics card, in tens), the figure in a holo window (the reader's
-own picture fills it), a type line with the card's number (from the host
-name), the distro, window manager and graphics card, the processor, display
+own picture fills it), a type line with the first six hex characters of the
+device-derived card id, the distro, window manager and graphics card, the processor, display
 and memory as its moves, uptime, packages and kernel as its traits, the motto
 as flavour text, and the figure's credit as "Illus.". Its text is drawn as outlines
 (`Text.QtRendering`), so it stays sharp at any scale it is shown or saved at. It asks SysInfo for the
@@ -341,11 +411,12 @@ and keeps nothing else: the three tick rulers that rule off the card's parts are
 its **card code** (`backend/cardcode.go`, read by `Singletons/CardCode.qml`
 through `ryoku-hub profile code`). Each tick is one of four heights, two bits;
 the first and last tick of each ruler stand full height to calibrate ink, paper
-and scale. Version 2 carries the name, the line under it, the first big word,
+and scale. Version 3 carries the name, the line under it, the first big word,
 the figure (stock, a gallery figure by name, or the reader's own picture),
 threads, memory, refresh rate, display width, graphics class and short name,
-distro, window manager and a short machine fingerprint. The body has a length,
-a CRC and 20 bytes of Reed-Solomon parity (`backend/reedsolomon.go`) that repair
+distro, window manager and the eight-byte device-derived card id. Older code
+versions are refused. The body has a length, a CRC and 20 bytes of Reed-Solomon
+parity (`backend/reedsolomon.go`) that repair
 up to 10 misread bytes. Ticks are measured by the ink they lay down over a
 period, so a resize keeps them readable. An own picture comes back lifted from
 the card's window. No hidden profile or full-size picture is attached to a share.

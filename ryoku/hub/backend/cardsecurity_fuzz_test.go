@@ -19,7 +19,7 @@ func codewordFromLevels(levels [][]int) []byte {
 }
 
 func FuzzCardBodyRS(f *testing.F) {
-	for _, d := range []codedDesign{{name: "friend"}, {kind: 1, gallerySrc: "hawk", name: "Nero 力", tagline: "Power and beauty", owner: [3]byte{1, 2, 3}}, {kind: 2, name: "<img src=//x>"}} {
+	for _, d := range []codedDesign{{name: "friend"}, {kind: 1, gallerySrc: "hawk", name: "Nero 力", tagline: "Power and beauty", cardID: [8]byte{1, 2, 3, 4, 5, 6, 7, 8}}, {kind: 2, name: "<img src=//x>"}} {
 		levels, err := encodeLevels(d)
 		if err != nil {
 			f.Fatal(err)
@@ -28,6 +28,11 @@ func FuzzCardBodyRS(f *testing.F) {
 		f.Add(codewordFromLevels(levels), codeParity)
 	}
 	f.Add([]byte{}, -1)
+	for _, version := range []byte{1, 2} {
+		body := (codedDesign{name: "old"}).bytes()
+		body[0] = version << 4
+		f.Add(body, codeParity)
+	}
 	f.Fuzz(func(t *testing.T, raw []byte, parity int) {
 		if len(raw) > 4096 {
 			return
@@ -52,7 +57,7 @@ func FuzzCardBodyRS(f *testing.F) {
 }
 
 func FuzzCardPixels(f *testing.F) {
-	for _, d := range []codedDesign{{name: "friend"}, {kind: 1, gallerySrc: "hawk", owner: [3]byte{1, 2, 3}}, {kind: 2, name: "custom"}} {
+	for _, d := range []codedDesign{{name: "friend"}, {kind: 1, gallerySrc: "hawk", cardID: [8]byte{1, 2, 3, 4, 5, 6, 7, 8}}, {kind: 2, name: "custom"}} {
 		f.Add(d.bytes(), uint16(472), uint16(660))
 	}
 	f.Add([]byte{0, 255, 0, 255}, uint16(0), uint16(1))

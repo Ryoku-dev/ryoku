@@ -22,12 +22,12 @@ Dialog {
     // Home loads this studio by URL, so hub arrives from the loader before it opens
     property var hub: null
     property var binderOpener: null
-    // the tab to open on: "picture", "adjust", "words", "layout" or "share"
+    // the tab to open on
     property string tab: "picture"
-    readonly property var tabs: ["picture", "adjust", "words", "layout", "share"]
+    readonly property var tabs: ["picture", "adjust", "words", "layout", "share", "badge"]
     // what the preview shows; Share always shows the card it copies
     property string view: "card"
-    readonly property string shownView: root.tab === "share" ? "card" : root.view
+    readonly property string shownView: root.tab === "share" || root.tab === "badge" ? "card" : root.view
     readonly property string configDir: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku"
     readonly property real bodyHeight: Math.max(380, (root.parent ? root.parent.height : 800) - 2 * LithicTokens.size.dialogMargin
                                                      - root.topPadding - root.bottomPadding - 140)
@@ -93,7 +93,7 @@ Dialog {
     title: I18n.tr("Card studio")
     dialogWidth: 1280
     actions: [{ text: I18n.tr("Done"), kind: "gold" }]
-    onClosed: root.previewTier = -1
+    onClosed: { root.previewTier = -1; Badge.clearPreview(); }
 
     // a picked image is copied beside profile.json so it stays and can travel; a new picture
     // starts as a photo, framed to fill
@@ -155,7 +155,7 @@ Dialog {
             Segmented {
                 id: viewChoice
                 anchors.horizontalCenter: parent.horizontalCenter
-                enabled: root.tab !== "share"
+                enabled: root.tab !== "share" && root.tab !== "badge"
                 opacity: enabled ? 1 : 0.4
                 model: [I18n.tr("The card"), I18n.tr("Home")]
                 Binding on currentIndex {
@@ -290,7 +290,7 @@ Dialog {
             Segmented {
                 id: tabChoice
                 width: parent.width
-                model: [I18n.tr("Picture"), I18n.tr("Adjust"), I18n.tr("Words"), I18n.tr("Layout"), I18n.tr("Share")]
+                model: [I18n.tr("Picture"), I18n.tr("Adjust"), I18n.tr("Words"), I18n.tr("Layout"), I18n.tr("Share"), I18n.tr("Badge")]
                 Binding on currentIndex {
                     value: root.tabs.indexOf(root.tab)
                 }
@@ -315,6 +315,12 @@ Dialog {
                     id: page
                     width: flick.width - LithicTokens.space.s4
                     spacing: LithicTokens.space.s5
+                    BadgeTab {
+                        visible: root.tab === "badge"
+                        width: parent.width
+                        hub: root.hub
+                        live: root.opened && root.tab === "badge"
+                    }
 
                     // Picture: the figure
                     Column {

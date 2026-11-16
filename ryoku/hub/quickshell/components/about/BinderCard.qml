@@ -17,7 +17,7 @@ Item {
     Keys.onEnterPressed: if (root.interactive) root.chosen()
     Keys.onSpacePressed: if (root.interactive) root.chosen()
 
-    readonly property bool pointed: pointer.containsMouse && !Lithic.reduceMotion
+    readonly property bool pointed: root.visible && pointer.containsMouse && !Lithic.reduceMotion
     Chase { id: tiltX; target: root.pointed ? (pointer.mouseX / root.width - 0.5) * 2 : 0 }
     Chase { id: tiltY; target: root.pointed ? (pointer.mouseY / root.height - 0.5) * 2 : 0 }
     transform: [

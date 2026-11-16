@@ -5,6 +5,7 @@ import Ryoku.Ui.Singletons
 import "../../Singletons"
 import ".."
 import "../../registry/rarity.js" as Rarity
+import "../badge"
 
 // A friend's card stays theirs. Only its picture may become part of your own design.
 Item {
@@ -23,6 +24,41 @@ Item {
     visible: shade.opacity > 0
     focus: root.opened
     Keys.onEscapePressed: root.close()
+    Certificate {
+        id: certificate
+        parent: root.parent
+        badge: root.selected && root.selected.verified === true && root.selected.badgeCheck === "ok" ? root.selected.badge || null : null
+        spec: certificate.badge && root.selected.design && root.selected.design.spec ? root.selected.design.spec.badge : null
+    }
+
+    function refresh() {
+        root.run("refresh", ["ryoku-hub", "cards", "refresh"], function(out) {
+            try {
+                var id = root.selected ? root.selected.id : "";
+                root.entries = JSON.parse(out);
+                if (id !== "")
+                    root.selected = root.entries.find(entry => entry.id === id) || null;
+                if (!root.selected)
+                    root.inspecting = false;
+                root.message = I18n.tr("Binder refreshed");
+            } catch (e) { root.error = I18n.tr("Your binder could not be refreshed. Try again."); }
+        });
+    }
+
+    function verification(entry) {
+        if (!entry)
+            return "";
+        if (entry.badgeCheck === "offline")
+            return I18n.tr("Offline: badge and card updates could not be checked. Connect and press Refresh.");
+        if (entry.badgeCheck === "unverified")
+            return I18n.tr("Unverified: the signed card record could not be checked, so these facts come from the picture.");
+        if (!entry.verified || !entry.badge)
+            return I18n.tr("Unverified: this card has no verified badge and signed card record.");
+        var badge = entry.badge;
+        var role = badge.role.charAt(0).toUpperCase() + badge.role.slice(1);
+        return I18n.tr("Verified %1 · issued by %2 · %3").replace("%1", role)
+            .replace("%2", badge.issuer === "owner" ? "nero" : "Mika").replace("%3", badge.issued);
+    }
 
     function open() {
         root.opened = true;
@@ -58,6 +94,8 @@ Item {
                 : I18n.tr("That took too long. Try again.");
         if (action === "list")
             return I18n.tr("Your binder could not be read. Close it and open it again to retry.");
+        if (action === "refresh")
+            return I18n.tr("Your binder could not be refreshed. Check your connection and try again.");
         if (action === "remove")
             return I18n.tr("That card could not be removed. Try again.");
         if (action === "picture")
@@ -125,10 +163,12 @@ Item {
         root.message = I18n.tr("Your card uses their picture. Your words and machine stay yours.");
     }
     function picturePath(entry) {
-        if (!entry || !entry.hero || !/^[0-9a-f]{6}$/.test(String(entry.id || "")))
+        if (!entry || !entry.hero || !/^[0-9a-f]{16}$/.test(String(entry.id || "")) || root.cardsStoreRoot.charAt(0) !== "/")
             return "";
-        var expected = root.cardsStoreRoot + "/" + entry.id + ".png";
-        return entry.hero.file === expected ? expected : "";
+        var verified = entry.verified === true && entry.badgeCheck === "ok";
+        var base = root.cardsStoreRoot + "/" + entry.id;
+        var path = String(entry.hero.file || "");
+        return path === base + ".png" || (verified && path === base + "-record.png") ? path : "";
     }
     function usePicture() {
         var hero = root.selected.hero;
@@ -241,6 +281,7 @@ Item {
             spacing: LithicTokens.space.s2
             Plaque { kind: "gold"; small: true; glyph: "content_paste"; text: I18n.tr("Paste a card"); enabled: root.job === ""; busy: root.job === "add"; onClicked: root.add("") }
             Plaque { kind: "line"; small: true; glyph: "file_open"; text: I18n.tr("Open a card"); enabled: root.job === ""; busy: root.job === "convert"; onClicked: chooser.open() }
+            Plaque { kind: "quiet"; small: true; glyph: "refresh"; text: I18n.tr("Refresh"); enabled: root.job === ""; busy: root.job === "refresh"; onClicked: root.refresh() }
             IconButton { glyph: "close"; accessibleName: I18n.tr("Close the binder"); onClicked: root.close() }
         }
         Label {
@@ -410,6 +451,21 @@ Item {
                         inkRole: "fg2"
                         wrapMode: Text.Wrap
                         elide: Text.ElideNone
+                    }
+                    Label {
+                        width: parent.width
+                        text: root.verification(root.selected)
+                        typeRole: "detail"
+                        ink: root.selected.verified ? Lithic.gold : Lithic.fg2
+                        wrapMode: Text.Wrap
+                        elide: Text.ElideNone
+                    }
+                    Plaque {
+                        visible: root.selected.verified === true && !!root.selected.badge && root.selected.badgeCheck === "ok"
+                        small: true
+                        kind: "line"
+                        text: I18n.tr("View certificate")
+                        onClicked: certificate.open()
                     }
                     Label { text: I18n.tr(Rarity.of(root.selected.hw).tier.name) + " · " + I18n.tr("%1 pts").replace("%1", Rarity.of(root.selected.hw).points); typeRole: "label"; ink: Lithic.gold }
                     BinderCompare { width: parent.width; entry: root.selected }

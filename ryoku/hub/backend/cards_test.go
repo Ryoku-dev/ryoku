@@ -49,7 +49,7 @@ func TestCardsAddStoresEntryAndLiftsOwnPicture(t *testing.T) {
 	if err := atomicWrite(profileConfigPath(), []byte(sampleProfile), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	d := codedDesign{kind: 2, owner: [3]byte{0x3f, 0xa2, 0xc1}, name: "friend", tagline: "hello", epithet: "Ryoku",
+	d := codedDesign{kind: 2, cardID: [8]byte{0x3f, 0xa2, 0xc1, 4, 5, 6, 7, 8}, name: "friend", tagline: "hello", epithet: "Ryoku",
 		threads: 16, ramGb: 46, refresh: 165, width: 2560, gpuClass: 2, gpu: "NVIDIA GeForce RTX 4060 Laptop GPU", distro: 1, wm: 2}
 	out := captureStdout(t, func() {
 		if err := runCards([]string{"add", sharedCard(t, d, "jpg")}); err != nil {
@@ -60,7 +60,7 @@ func TestCardsAddStoresEntryAndLiftsOwnPicture(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &entry); err != nil {
 		t.Fatal(err)
 	}
-	if entry.ID != "3fa2c1" || entry.Name != d.name || entry.Tagline != d.tagline || entry.Epithet != d.epithet || entry.Added.IsZero() {
+	if entry.ID != "3fa2c10405060708" || entry.Name != d.name || entry.Tagline != d.tagline || entry.Epithet != d.epithet || entry.Added.IsZero() {
 		t.Fatalf("bad entry: %+v", entry)
 	}
 	wantHW := cardHardware{Threads: 16, RamGb: 46, Refresh: 164, Width: 2560, GPUClass: 2, GPU: "RTX 4060", Distro: "Arch Linux", WM: "Niri"}
@@ -104,7 +104,7 @@ func TestCardsAddStoresEntryAndLiftsOwnPicture(t *testing.T) {
 func TestCardsSameOwnerReplacesKeepingAdded(t *testing.T) {
 	setCardMachine(t)
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
-	d := codedDesign{kind: 2, owner: [3]byte{1, 2, 3}, name: "first"}
+	d := codedDesign{kind: 2, cardID: [8]byte{1, 2, 3}, name: "first"}
 	entry, err := addCard(sharedCard(t, d, "png"))
 	if err != nil {
 		t.Fatal(err)
@@ -136,8 +136,7 @@ func TestCardsSameOwnerReplacesKeepingAdded(t *testing.T) {
 
 func TestCardsRefuseOwnCardAndGarbage(t *testing.T) {
 	owner := setCardMachine(t)
-	t.Setenv("XDG_DATA_HOME", t.TempDir())
-	if _, err := addCard(sharedCard(t, codedDesign{owner: owner}, "jpg")); err == nil || !strings.Contains(err.Error(), "your own card") {
+	if _, err := addCard(sharedCard(t, codedDesign{cardID: owner}, "jpg")); err == nil || !strings.Contains(err.Error(), "your own card") {
 		t.Fatalf("own card refusal = %v", err)
 	}
 	plain := filepath.Join(t.TempDir(), "plain.png")
@@ -169,7 +168,7 @@ func TestCardsListOrderAndRemove(t *testing.T) {
 	}
 	var entries []binderCard
 	for i := range 3 {
-		d := codedDesign{kind: 2, owner: [3]byte{byte(i + 1), 2, 3}, name: "friend"}
+		d := codedDesign{kind: 2, cardID: [8]byte{byte(i + 1), 2, 3}, name: "friend"}
 		entry, err := addCard(sharedCard(t, d, "png"))
 		if err != nil {
 			t.Fatal(err)
@@ -208,7 +207,7 @@ func TestCardsListOrderAndRemove(t *testing.T) {
 func TestCardsClipboardFallsBackToJPEG(t *testing.T) {
 	setCardMachine(t)
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
-	d := codedDesign{owner: [3]byte{4, 5, 6}, name: "clipboard"}
+	d := codedDesign{cardID: [8]byte{4, 5, 6}, name: "clipboard"}
 	path := sharedCard(t, d, "jpg")
 	bin := t.TempDir()
 	// A private wl-paste substitute leaves the real clipboard untouched.
@@ -218,7 +217,7 @@ func TestCardsClipboardFallsBackToJPEG(t *testing.T) {
 	t.Setenv("PATH", bin)
 	t.Setenv("CARD_CLIPBOARD_TEST", path)
 	entry, err := addCard("--clipboard")
-	if err != nil || entry.ID != hex.EncodeToString(d.owner[:]) || entry.Hero != (cardHero{Kind: "default"}) {
+	if err != nil || entry.ID != hex.EncodeToString(d.cardID[:]) || entry.Hero != (cardHero{Kind: "default"}) {
 		t.Fatalf("clipboard card = %+v (%v)", entry, err)
 	}
 }

@@ -17,6 +17,22 @@ Item {
     // the job running now ("copy" or "save"), or ""
     property string job: ""
     property string last: ""
+    property string syncPath: ""
+    signal captured(string path)
+    signal captureFailed(string reason)
+
+    function fail(reason) {
+        var syncing = root.job === "sync";
+        root.job = "";
+        root.error = reason;
+        stillLoader.active = false;
+        if (syncing) {
+            if (root.syncPath !== "")
+                Changes.run(["rm", "-f", "--", root.syncPath]);
+            root.syncPath = "";
+            root.captureFailed(reason);
+        }
+    }
     readonly property var cardAll: ({ store: "card", key: "*" })
 
     // drawn, so the still card can be grabbed, but out of sight
@@ -37,6 +53,20 @@ Item {
         root.message = "";
         root.last = job;
         root.job = job;
+        if (job === "sync") {
+            Changes.run(["mktemp", "--suffix=.png", (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-card-sync-XXXXXXXX"], function(ok, out) {
+                if (!ok) {
+                    root.fail(I18n.tr("A temporary card picture could not be created. Check the free space and try again."));
+                    return;
+                }
+                root.syncPath = out.trim();
+                root.prepare();
+            });
+        } else {
+            root.prepare();
+        }
+    }
+    function prepare() {
         stillLoader.active = true;
         if (!SysInfo.loaded && !SysInfo.loading)
             SysInfo.load();
@@ -49,13 +79,12 @@ Item {
         interval: 150
         repeat: true
         onTriggered: {
-            var ok = !!stillLoader.item && SysInfo.loaded === true && !SysInfo.loading && CardCode.ready;
+            var ok = !!stillLoader.item && stillLoader.item.imagesReady && SysInfo.loaded === true && !SysInfo.loading && CardCode.ready;
             if (!ok && ++ready.tries < 40)
                 return;
             ready.stop();
-            if (!CardCode.ready) {
-                root.job = "";
-                root.error = I18n.tr("The card's code could not be made. Update Ryoku, then try again.");
+            if (!ok) {
+                root.fail(I18n.tr("The card's picture or code could not be loaded. Update Ryoku, then try again."));
                 return;
             }
             root.draw(root.job);
@@ -64,25 +93,32 @@ Item {
     Loader {
         id: stillLoader
         active: false
-        sourceComponent: TradingCard {}
+        sourceComponent: TradingCard {
+            design: root.job === "sync" ? Badge.design : Badge.ownDesign
+        }
     }
 
     function draw(job) {
-        var rendered = (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-card-render.png";
+        var rendered = job === "sync" ? root.syncPath : (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-card-render.png";
         var name = String(SysInfo.sysUser || "card").replace(/[^A-Za-z0-9._-]/g, "") || "card";
         var dst = job === "copy" ? "--copy" : Paths.picturesDir + "/ryoku-card-" + name + "-" + Qt.formatDateTime(new Date(), "yyyyMMdd-HHmmss") + ".png";
         var card = stillLoader.item;
         var ok = card.grabToImage(function (result) {
             if (!result.saveToFile(rendered)) {
+                root.fail(I18n.tr("The card could not be drawn into a picture. Try again."));
+                return;
+            }
+            if (job === "sync") {
                 root.job = "";
-                root.error = I18n.tr("The card could not be drawn into a picture. Try again.");
+                root.syncPath = "";
+                root.captured(rendered);
+                stillLoader.active = false;
                 return;
             }
             root.run(job, dst, rendered);
         }, Qt.size(card.designWidth * 2, card.designHeight * 2));
         if (!ok) {
-            root.job = "";
-            root.error = I18n.tr("The card could not be drawn into a picture. Try again.");
+            root.fail(I18n.tr("The card could not be drawn into a picture. Try again."));
         }
     }
 
@@ -117,6 +153,7 @@ Item {
         var argv = ["ryoku-hub", "profile", "card", rendered, arg];
         Changes.run(argv, function (ok, out, err, code) {
             root.job = "";
+            stillLoader.active = false;
             if (code === -1) {
                 root.error = err === Changes.missingText(argv[0])
                     ? I18n.tr("The card tool is missing from this Ryoku install. Update Ryoku, then try again.")

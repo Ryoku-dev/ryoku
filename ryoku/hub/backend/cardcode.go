@@ -3,13 +3,13 @@ package main
 // The card code carries a friend's card in pixels, so it survives a chat app
 // re-encoding the picture. Three tick rulers each carry two bits per tick, with
 // full-height ends to calibrate ink and scale. A length, CRC and Reed-Solomon
-// parity protect the words, figure, hardware and machine fingerprint.
+// parity protect the words, figure, hardware and device-derived card identity.
 //
 // Geometry is in the card's design units (630 x 880); `ryoku-hub profile code`
 // hands it with the levels to components/about/TradingCard.qml.
 
 import (
-	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -31,7 +31,7 @@ const (
 	rulerTick   = 2.0
 	rulerCount  = 138
 	rulerUnit   = 2.5 // a level's height step; level n stands (n+1) units tall
-	codeVersion = 2
+	codeVersion = 3
 	codeParity  = 20 // parity bytes: up to 10 misread bytes are repaired
 )
 
@@ -39,14 +39,13 @@ const (
 // of the tallest tick
 var rulerY = []float64{550, 608, 666}
 
-var machineIDPath = "/etc/machine-id"
-
 // the card's window, inside its stroke, where the reader's own picture fills it
 var windowRect = image.Rect(35, 112, 35+560, 112+390)
 
 var errNoCardCode = errors.New("this picture's card code could not be read: share the whole card picture at full size, not a crop or part of a screenshot")
 
 type cardCode struct {
+	CardID string    `json:"cardId"`
 	X      float64   `json:"x"`
 	Ys     []float64 `json:"ys"`
 	Pitch  float64   `json:"pitch"`
@@ -64,21 +63,12 @@ type codedDesign struct {
 	gpuClass   int
 	distro     int
 	wm         int
-	owner      [3]byte
+	cardID     [8]byte
 	name       string
 	tagline    string
 	epithet    string
 	gallerySrc string
 	gpu        string
-}
-
-func ownerFingerprint() ([3]byte, error) {
-	raw, err := os.ReadFile(machineIDPath)
-	if err != nil {
-		return [3]byte{}, err
-	}
-	sum := sha256.Sum256([]byte(strings.TrimSpace(string(raw))))
-	return [3]byte{sum[0], sum[1], sum[2]}, nil
 }
 
 func dataTicks() int { return len(rulerY) * (rulerCount - 2) }
@@ -98,12 +88,12 @@ func designFromProfile(raw []byte) (codedDesign, error) {
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return codedDesign{}, err
 	}
-	d := codedDesign{name: clip(p.Text.Name, 14), tagline: clip(p.Text.Tagline, 22)}
+	d := codedDesign{name: clip(p.Text.Name, 14), tagline: clip(p.Text.Tagline, 20)}
 	if d.name == "" {
 		d.name = clip(os.Getenv("USER"), 14)
 	}
 	if len(p.Text.Epithets) > 0 {
-		d.epithet = clip(p.Text.Epithets[0], 8)
+		d.epithet = clip(p.Text.Epithets[0], 7)
 	}
 	switch p.Hero.Kind {
 	case "gallery":
@@ -133,7 +123,7 @@ func shortGPU(s string) string {
 	for _, part := range []string{"NVIDIA ", "GeForce ", "AMD ", "Radeon ", "Intel ", " Laptop GPU", " Max-Q"} {
 		s = strings.ReplaceAll(s, part, "")
 	}
-	return clip(strings.TrimSpace(s), 10)
+	return clip(strings.TrimSpace(s), 8)
 }
 
 func (d codedDesign) bytes() []byte {
@@ -144,11 +134,11 @@ func (d codedDesign) bytes() []byte {
 		byte(min(255, max(0, d.refresh/2))),
 		byte(min(255, max(0, d.width/32))),
 		byte(min(5, max(0, d.gpuClass)))<<5 | byte(min(5, max(0, d.distro)))<<2 | byte(min(3, max(0, d.wm))),
-		d.owner[0], d.owner[1], d.owner[2],
 	}
-	// Nine fixed bytes, five length bytes and at most 64 string bytes: 78
-	// bytes, leaving one byte spare in the 79-byte body budget.
-	for _, s := range []string{clip(d.name, 14), clip(d.tagline, 22), clip(d.epithet, 8), clip(d.gallerySrc, 10), shortGPU(d.gpu)} {
+	out = append(out, d.cardID[:]...)
+	// Fourteen fixed bytes, five length bytes and at most 59 string bytes fit
+	// within the 79-byte body budget without changing the ruler geometry.
+	for _, s := range []string{clip(d.name, 14), clip(d.tagline, 20), clip(d.epithet, 7), clip(d.gallerySrc, 10), shortGPU(d.gpu)} {
 		out = append(out, byte(len(s)))
 		out = append(out, s...)
 	}
@@ -156,18 +146,18 @@ func (d codedDesign) bytes() []byte {
 }
 
 func parseDesign(b []byte) (codedDesign, error) {
-	if len(b) < 14 || len(b) > codeBytes()-codeParity-3 || b[0]>>4 != codeVersion || b[0]&3 != 0 || b[0]>>2&3 > 2 || b[5]>>5 > 5 || b[5]>>2&7 > 5 {
+	if len(b) < 19 || len(b) > 78 || b[0]>>4 != codeVersion || b[0]&3 != 0 || b[0]>>2&3 > 2 || b[5]>>5 > 5 || b[5]>>2&7 > 5 {
 		return codedDesign{}, errNoCardCode
 	}
 	d := codedDesign{
 		kind: int(b[0]>>2) & 3, threads: int(b[1]), ramGb: int(b[2]),
 		refresh: int(b[3]) * 2, width: int(b[4]) * 32,
 		gpuClass: int(b[5] >> 5), distro: int(b[5]>>2) & 7, wm: int(b[5]) & 3,
-		owner: [3]byte{b[6], b[7], b[8]},
+		cardID: [8]byte(b[6:14]),
 	}
-	rest := b[9:]
+	rest := b[14:]
 	var strs [5]string
-	for i, limit := range []int{14, 22, 8, 10, 10} {
+	for i, limit := range []int{14, 20, 7, 10, 8} {
 		if len(rest) < 1 || int(rest[0]) > len(rest)-1 || int(rest[0]) > limit {
 			return codedDesign{}, errNoCardCode
 		}
@@ -360,6 +350,20 @@ func readLevels(img image.Image) ([][]int, error) {
 
 // printCardCode prints the rulers' geometry and levels for the current profile.
 func printCardCode(args []string) error {
+	d, err := cardDesignArgs(args)
+	if err != nil {
+		return err
+	}
+	levels, err := encodeLevels(d)
+	if err != nil {
+		return err
+	}
+	return printJSON(cardCode{CardID: hex.EncodeToString(d.cardID[:]), X: rulerX, Ys: rulerY, Pitch: rulerPitch, Tick: rulerTick, Unit: rulerUnit, Levels: levels})
+}
+
+// cardDesignArgs builds the card's coded design from the hardware flags Settings passes and the saved
+// profile; the rulers and a badge holder's published record both carry exactly this.
+func cardDesignArgs(args []string) (codedDesign, error) {
 	flags := flag.NewFlagSet("profile code", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	var d codedDesign
@@ -373,33 +377,29 @@ func printCardCode(args []string) error {
 	flags.StringVar(&distro, "distro", "", "")
 	flags.StringVar(&wm, "wm", "", "")
 	if err := flags.Parse(args); err != nil {
-		return err
+		return d, err
 	}
 	if flags.NArg() != 0 {
-		return fmt.Errorf("profile code accepts hardware flags only")
+		return d, fmt.Errorf("profile code accepts hardware flags only")
 	}
 	d.distro = map[string]int{"arch": 1, "cachyos": 2, "fedora": 3, "void": 4, "nixos": 5}[distro]
 	d.wm = map[string]int{"hyprland": 1, "niri": 2, "wayfire": 3}[wm]
 	var err error
-	d.owner, err = ownerFingerprint()
+	d.cardID, err = ownCardID()
 	if err != nil {
-		return err
+		return d, err
 	}
 	raw, err := os.ReadFile(profileConfigPath())
 	if err != nil {
 		if !os.IsNotExist(err) {
-			return err
+			return d, err
 		}
 		raw = []byte("{}")
 	}
 	profile, err := designFromProfile(raw)
 	if err != nil {
-		return fmt.Errorf("profile.json is not valid JSON: %w", err)
+		return d, fmt.Errorf("profile.json is not valid JSON: %w", err)
 	}
 	d.kind, d.name, d.tagline, d.epithet, d.gallerySrc = profile.kind, profile.name, profile.tagline, profile.epithet, profile.gallerySrc
-	levels, err := encodeLevels(d)
-	if err != nil {
-		return err
-	}
-	return printJSON(cardCode{X: rulerX, Ys: rulerY, Pitch: rulerPitch, Tick: rulerTick, Unit: rulerUnit, Levels: levels})
+	return d, nil
 }

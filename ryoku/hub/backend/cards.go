@@ -36,14 +36,18 @@ type cardHardware struct {
 }
 
 type binderCard struct {
-	ID      string       `json:"id"`
-	Added   time.Time    `json:"added"`
-	Name    string       `json:"name"`
-	Tagline string       `json:"tagline"`
-	Epithet string       `json:"epithet"`
-	Hero    cardHero     `json:"hero"`
-	HW      cardHardware `json:"hw"`
-	Levels  [][]int      `json:"levels"`
+	ID         string           `json:"id"`
+	Added      time.Time        `json:"added"`
+	Name       string           `json:"name"`
+	Tagline    string           `json:"tagline"`
+	Epithet    string           `json:"epithet"`
+	Hero       cardHero         `json:"hero"`
+	HW         cardHardware     `json:"hw"`
+	Levels     [][]int          `json:"levels"`
+	Badge      *badgeView       `json:"badge"`
+	Design     *badgeCardDesign `json:"design"`
+	Verified   bool             `json:"verified"`
+	BadgeCheck string           `json:"badgeCheck"`
 }
 
 func cardsDir() string {
@@ -55,7 +59,7 @@ func cardsDir() string {
 }
 
 func validCardID(id string) bool {
-	if len(id) != 6 || id != strings.ToLower(id) {
+	if len(id) != 16 || id != strings.ToLower(id) {
 		return false
 	}
 	_, err := hex.DecodeString(id)
@@ -96,11 +100,11 @@ func addCard(path string) (binderCard, error) {
 	if err != nil {
 		return entry, err
 	}
-	owner, err := ownerFingerprint()
+	owner, err := ownCardID()
 	if err != nil {
 		return entry, err
 	}
-	if d.owner == owner {
+	if d.cardID == owner {
 		return entry, fmt.Errorf("you cannot add your own card to the binder")
 	}
 	levels, err = encodeLevels(d)
@@ -144,6 +148,10 @@ func addCard(path string) (binderCard, error) {
 		}
 		entry.Hero = cardHero{Kind: "custom", File: imagePath}
 	}
+	list, listErr := teamList(false)
+	if listErr != nil {
+		entry.BadgeCheck = "offline"
+	}
 	encoded, err := json.Marshal(entry)
 	if err != nil {
 		return binderCard{}, err
@@ -166,23 +174,24 @@ func addCard(path string) (binderCard, error) {
 	if err != nil {
 		return binderCard{}, errors.Join(err, before.restore())
 	}
-	return entry, nil
+	return recordEnrichCard(entry, list, listErr), nil
 }
 
 func entryForDesign(d codedDesign, levels [][]int) binderCard {
 	return binderCard{
-		ID:   hex.EncodeToString(d.owner[:]),
+		ID:   hex.EncodeToString(d.cardID[:]),
 		Name: d.name, Tagline: d.tagline, Epithet: d.epithet,
 		Hero: cardHero{Kind: "default"},
 		HW: cardHardware{Threads: d.threads, RamGb: d.ramGb, Refresh: d.refresh, Width: d.width,
 			GPUClass: d.gpuClass, GPU: d.gpu,
 			Distro: []string{"", "Arch Linux", "CachyOS", "Fedora", "Void", "NixOS"}[d.distro],
 			WM:     []string{"", "Hyprland", "Niri", "Wayfire"}[d.wm]},
-		Levels: levels,
+		Levels:     levels,
+		BadgeCheck: "none",
 	}
 }
 
-func listCards() ([]binderCard, error) {
+func listCardsWithTeam(list teamVerifiedList, listErr error) ([]binderCard, error) {
 	cards := []binderCard{}
 	files, err := os.ReadDir(cardsDir())
 	if os.IsNotExist(err) {
@@ -204,7 +213,7 @@ func listCards() ([]binderCard, error) {
 			return nil, err
 		}
 		d, err := decodeLevels(entry.Levels)
-		if err != nil || entry.ID != strings.TrimSuffix(file.Name(), ".json") || entry.ID != hex.EncodeToString(d.owner[:]) {
+		if err != nil || entry.ID != strings.TrimSuffix(file.Name(), ".json") || entry.ID != hex.EncodeToString(d.cardID[:]) {
 			return nil, fmt.Errorf("invalid stored card")
 		}
 		safe := entryForDesign(d, entry.Levels)
@@ -224,7 +233,7 @@ func listCards() ([]binderCard, error) {
 			safe.Hero = cardHero{Kind: "custom", File: expected}
 		}
 		entry = safe
-		cards = append(cards, entry)
+		cards = append(cards, recordEnrichCard(entry, list, listErr))
 	}
 	sort.Slice(cards, func(i, j int) bool {
 		if cards[i].Added.Equal(cards[j].Added) {
@@ -239,7 +248,7 @@ func removeCard(id string) error {
 	if !validCardID(id) {
 		return fmt.Errorf("invalid card id: %s", id)
 	}
-	for _, ext := range []string{".json", ".png"} {
+	for _, ext := range []string{".json", ".png", "-record.png"} {
 		if err := os.Remove(filepath.Join(cardsDir(), id+ext)); err != nil && !os.IsNotExist(err) {
 			return err
 		}
@@ -249,7 +258,7 @@ func removeCard(id string) error {
 
 func runCards(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("cards needs add|list|remove")
+		return fmt.Errorf("cards needs add|list|refresh|remove")
 	}
 	switch args[0] {
 	case "add":
@@ -261,9 +270,18 @@ func runCards(args []string) error {
 			return err
 		}
 		return printJSON(entry)
-	case "list":
+	case "list", "refresh":
 		if len(args) != 1 {
-			return fmt.Errorf("cards list takes no arguments")
+			return fmt.Errorf("cards list|refresh takes no arguments")
+		}
+		if args[0] == "refresh" {
+			if _, err := teamList(true); err != nil {
+				cards, listErr := listCardsOffline()
+				if listErr != nil {
+					return listErr
+				}
+				return printJSON(cards)
+			}
 		}
 		cards, err := listCards()
 		if err != nil {

@@ -24,7 +24,7 @@ Singleton {
     readonly property var argv: ["ryoku-hub", "profile", "code", "--threads", String(root.threads), "--ram", String(root.ramGb),
         "--refresh", String(root.refreshRate), "--width", String(root.displayWidth), "--gpu-class", String(root.graphicsClass),
         "--gpu", root.gpu, "--distro", root.distro, "--wm", Settings.provider || ""]
-    onArgvChanged: root.refresh()
+    onArgvChanged: { root.refresh(); Badge.scheduleSync(); }
 
     function refresh() { settle.restart(); }
     Connections {

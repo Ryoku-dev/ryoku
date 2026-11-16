@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"image"
@@ -10,7 +9,6 @@ import (
 	"image/jpeg"
 	"math"
 	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -68,7 +66,7 @@ func jpegOf(t *testing.T, img image.Image, q int) []byte {
 // Recompression strips metadata, so every field must survive in the rulers.
 func TestCardCodeSurvivesAChatApp(t *testing.T) {
 	want := codedDesign{kind: 1, threads: 16, ramGb: 46, refresh: 164, width: 2560,
-		gpuClass: 2, distro: 1, wm: 2, owner: [3]byte{0x3f, 0xa2, 0xc1},
+		gpuClass: 2, distro: 1, wm: 2, cardID: [8]byte{0x3f, 0xa2, 0xc1, 4, 5, 6, 7, 8},
 		name: "Nero 力", tagline: "Power and beauty.", epithet: "Ryoku", gallerySrc: "hawk", gpu: "RTX 4060"}
 	themes := [][2]color.RGBA{
 		{{18, 12, 0, 255}, {226, 214, 196, 255}},
@@ -116,38 +114,40 @@ func TestCardCodeBodyBudgetAndClipping(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got.threads != 255 || got.ramGb != 255 || got.refresh != 510 || got.width != 8160 || got.gpuClass != 5 ||
-		len(got.name) != 14 || len(got.tagline) != 22 || len(got.epithet) != 8 || len(got.gallerySrc) != 10 || len(got.gpu) != 10 {
+		len(got.name) != 14 || len(got.tagline) != 20 || len(got.epithet) != 7 || len(got.gallerySrc) != 10 || len(got.gpu) != 8 {
 		t.Fatalf("clipping failed: %+v", got)
 	}
-	for _, n := range []int{8, 10, 14, 22} {
+	for _, n := range []int{7, 8, 10, 14, 20} {
 		if s := clip(strings.Repeat("力", 20), n); len(s) > n || !utf8.ValidString(s) {
 			t.Fatalf("clip split a character: %q", s)
 		}
 	}
 	for _, gpu := range []string{"NVIDIA GeForce RTX 4060 Laptop GPU Max-Q", "AMD Radeon RX 7900", "Intel Arc A770"} {
 		got := shortGPU(gpu)
-		if strings.Contains(got, "NVIDIA") || strings.Contains(got, "Radeon") || strings.Contains(got, "Intel") || len(got) > 10 {
+		if strings.Contains(got, "NVIDIA") || strings.Contains(got, "Radeon") || strings.Contains(got, "Intel") || len(got) > 8 {
 			t.Fatalf("short GPU = %q", got)
 		}
 	}
-	old := d.bytes()
-	old[0] = 1 << 4
-	if _, err := parseDesign(old); !errors.Is(err, errNoCardCode) {
-		t.Fatalf("v1 accepted: %v", err)
+	for _, version := range []byte{1, 2} {
+		old := d.bytes()
+		old[0] = version << 4
+		if _, err := parseDesign(old); !errors.Is(err, errNoCardCode) {
+			t.Fatalf("v%d accepted: %v", version, err)
+		}
 	}
 }
 
-func setCardMachine(t *testing.T) [3]byte {
+func setCardMachine(t *testing.T) [8]byte {
 	t.Helper()
-	old := machineIDPath
-	machineIDPath = filepath.Join(t.TempDir(), "machine-id")
-	t.Cleanup(func() { machineIDPath = old })
-	const machineID = "test-binder-machine"
-	if err := os.WriteFile(machineIDPath, []byte("  "+machineID+"\n"), 0o600); err != nil {
+	// Binder tests must never reach team.ryoku.dev or a real device key.
+	t.Setenv("RYOKU_TEAM_URL", "http://127.0.0.1:1")
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	id, err := ownCardID()
+	if err != nil {
 		t.Fatal(err)
 	}
-	sum := sha256.Sum256([]byte(machineID))
-	return [3]byte{sum[0], sum[1], sum[2]}
+	return id
 }
 
 func TestProfileCodeFlags(t *testing.T) {
@@ -179,7 +179,7 @@ func TestProfileCodeFlags(t *testing.T) {
 		}
 		got, err := decodeLevels(code.Levels)
 		want := codedDesign{kind: 1, name: "nero", tagline: "hello", epithet: "Ryoku", gallerySrc: "hawk",
-			threads: 16, ramGb: 46, refresh: 164, width: 2560, gpuClass: 2, gpu: "RTX 4060", distro: tc.d, wm: tc.w, owner: owner}
+			threads: 16, ramGb: 46, refresh: 164, width: 2560, gpuClass: 2, gpu: "RTX 4060", distro: tc.d, wm: tc.w, cardID: owner}
 		if err != nil || got != want {
 			t.Fatalf("got %+v (%v), want %+v", got, err, want)
 		}
@@ -197,7 +197,7 @@ func TestProfileCodeFlags(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := decodeLevels(code.Levels)
-	if want := (codedDesign{name: "fallback", owner: owner}); err != nil || got != want {
+	if want := (codedDesign{name: "fallback", cardID: owner}); err != nil || got != want {
 		t.Fatalf("missing flags: %+v (%v), want %+v", got, err, want)
 	}
 	if err := runProfile([]string{"code", "--threads", "not-a-number"}); err == nil {
