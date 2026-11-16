@@ -38,7 +38,7 @@ func BrandMarkWith(th *theme.Theme, size unit.Dp, mark BrandMarkFunc) layout.Wid
 		offset := image.Pt((dimensions.X-diameter)/2, (dimensions.Y-diameter)/2)
 		bounds := image.Rectangle{Min: offset, Max: offset.Add(image.Pt(diameter, diameter))}
 		cut := int(float32(diameter)*tokens.SizeBrandCutRatio + .5)
-		FillCut(gtx.Ops, bounds, cut, th.R.Sel)
+		Fill(gtx, th, bounds, cut, th.R.Sel)
 		if mark != nil {
 			drawHostMark(gtx, bounds.Inset(cut), mark)
 			return layout.Dimensions{Size: dimensions}

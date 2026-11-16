@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/design"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 )
@@ -21,6 +22,15 @@ type Theme struct {
 // palette.FromPalette with the reader's palette.Look instead.
 func NewTheme(mode palette.Mode) Theme {
 	return Theme{Roles: palette.FromPalette(palette.Load(mode), palette.Look{})}
+}
+
+// NewThemeFor builds a theme for what the desktop asks for (palette.ReadDesktop): Ryoku's
+// colours or the desktop's, light or dark, contrast and tint. The terminal draws only in
+// Lithic, with cut frames, so it takes the Lithic roles whatever the desktop's design
+// (Desktop.RolesFor(design.Lithic)): the toned ladder, where contrast and tint reach every
+// role, rather than the round designs' Material roles.
+func NewThemeFor(d palette.Desktop) Theme {
+	return Theme{Roles: d.RolesFor(design.Lithic)}
 }
 
 // CutBorder is the terminal translation of a four-corner cut frame.

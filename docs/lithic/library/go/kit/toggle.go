@@ -89,9 +89,9 @@ func (t *Toggle) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 			track := image.Rectangle{Max: size}
 			trackColor := palette.Mix(th.R.Stone4, th.R.Sel, tone)
 			trackColor = palette.Mix(trackColor, th.R.Fg, tokens.AlphaHoverPlane*hover)
-			FillCut(gtx.Ops, track, trackCut, disabledInk(gtx, trackColor))
+			Fill(gtx, th, track, trackCut, disabledInk(gtx, th, trackColor))
 			if tone < 1 {
-				StrokeCut(gtx.Ops, track, trackCut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), disabledInk(gtx, palette.WithAlpha(th.R.Vein, 1-tone)))
+				Stroke(gtx, th, track, trackCut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), disabledInk(gtx, th, palette.WithAlpha(th.R.Vein, 1-tone)))
 			}
 
 			knobSize := min(gtx.Dp(unit.Dp(tokens.SizeToggleKnob)), min(size.X, size.Y))
@@ -102,7 +102,7 @@ func (t *Toggle) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 			y := (size.Y - knobSize) / 2
 			knobColor := palette.Mix(th.R.Fg2, th.R.OnSel, position)
 			offset := op.Offset(image.Pt(x, y)).Push(gtx.Ops)
-			FillCut(gtx.Ops, image.Rect(0, 0, knobSize, knobSize), knobCut, disabledInk(gtx, knobColor))
+			Fill(gtx, th, image.Rect(0, 0, knobSize, knobSize), knobCut, disabledInk(gtx, th, knobColor))
 			offset.Pop()
 			return layout.Dimensions{Size: size}
 		})
@@ -110,7 +110,7 @@ func (t *Toggle) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 		if t.Label != "" {
 			children[count] = layout.Rigid(layout.Spacer{Width: unit.Dp(tokens.SizeToggleLabelGap)}.Layout)
 			count++
-			children[count] = layout.Rigid(rawText(th, th.T.Label, disabledInk(gtx, th.R.Fg), t.Label))
+			children[count] = layout.Rigid(rawText(th, th.T.Label, disabledInk(gtx, th, th.R.Fg), t.Label))
 			count++
 		}
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children[:count]...)

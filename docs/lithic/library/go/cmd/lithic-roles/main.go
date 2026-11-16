@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/design"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 )
 
@@ -17,6 +18,7 @@ func main() {
 	modeName := flag.String("mode", "dark", "dark, light or follow")
 	contrastName := flag.String("contrast", "standard", "standard or high")
 	tintName := flag.String("tint", "off", "off, low or medium")
+	designName := flag.String("design", "lithic", "lithic, material, adwaita or fluent")
 	flag.Parse()
 
 	mode, err := palette.ParseMode(*modeName)
@@ -32,9 +34,16 @@ func main() {
 		fmt.Fprintf(os.Stderr, "lithic-roles: unknown tint %q\n", *tintName)
 		os.Exit(2)
 	}
+	style, ok := design.Parse(*designName)
+	if !ok {
+		fmt.Fprintf(os.Stderr, "lithic-roles: unknown design %q\n", *designName)
+		os.Exit(2)
+	}
 
+	// the roles the design wears for this mode and look: Lithic.rolesFor
 	loaded := palette.Load(mode)
-	roles := palette.FromPalette(loaded, palette.ParseLook(*contrastName, *tintName))
+	look := palette.ParseLook(*contrastName, *tintName)
+	roles := palette.Desktop{Design: style, Mode: mode, Look: look, Palette: loaded}.RolesFor(style)
 	out := map[string]string{"source": loaded.Source}
 	value := reflect.ValueOf(roles)
 	for i := range value.NumField() {

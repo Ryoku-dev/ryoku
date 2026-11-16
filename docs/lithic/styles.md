@@ -171,17 +171,30 @@ the Lithic library ([working.md](working.md#upgrade-a-ryoku-qml-surface)).
 
 ### Go with Gio, and the terminal
 
-Use the Lithic Go library ([library/go/README.md](library/go/README.md)):
-`palette.Load` for the colours, `kit` for every shape. It does not read the
-desktop's choice yet: read the keys above, pass `palette.Dark` or
-`palette.Light` for Ryoku's colours and `palette.Follow` for the wallpaper's,
-pass `palette.ParseLook(contrast, tint)`, and redraw on a change. Every shape
-is drawn in the Lithic style.
+Use the Lithic Go library ([library/go/README.md](library/go/README.md)). It
+reads the choice as the QML library does. Your part:
+
+1. Read the desktop once with `palette.ReadDesktop()` and build the theme with
+   `theme.NewFor(desktop)`: it carries the roles, the style
+   (`theme.Theme.Design`) and reduced motion.
+2. Run `palette.WatchDesktop` for the life of the window, not only while
+   following the wallpaper: it calls back only when the look changed, and the
+   window's goroutine swaps in `theme.NewFor(next)` and invalidates.
+3. Draw every shape through `kit` (`kit.Fill`, `kit.Stroke` and the controls),
+   and size your own corners with `th.Corner(gtx, cut, bounds)`, never a cut
+   or radius of your own: Lithic cuts, the others round.
+4. Take the window's planes from `th.Planes()`, as the Hub's `Tone` does.
+5. For a preview of a style not in use, take its roles from
+   `desktop.RolesFor(design.Material)`.
+
+Do not offer a mode, contrast or tint of your own. The terminal (`term`)
+draws only in Lithic: `term.NewThemeFor(desktop)` gives it the desktop's
+colours, light or dark, contrast and tint.
 
 ### Web
 
 Use the Lithic web library ([library/web/README.md](library/web/README.md)).
-It does not read the desktop's choice either: the page passes the mode, and
+It does not read the desktop's choice yet: the page passes the mode, and
 every shape is drawn in the Lithic style.
 
 ## Where each stack stands
@@ -196,7 +209,7 @@ UI against the Hub (2026-11-16).
 | `Ryoku.Ui` Tokens | the Kit, quick settings, Ask, launcher, welcome, ryoshot, ryopin, keys hint, the Stage Editor pages, RyoStore, the session confirm, Orpheus's kit | Corners only, and always rounded (`Tokens.qml:138`) | The desktop palette only; never reads `theme.colours` (`Tokens.qml:319`) | Light and dark from the palette; no contrast or tint |
 | Shell `Theme` singleton | the bar frame, popouts, notifications, OSD, clipboard, the Ryoku dock, game bar, Kairos, store bar styles | No: a fixed radius, never reads `theme.design` | No: Matugen roles only | Light and dark from the palette |
 | Private theme copies | the launcher, workspace overview, desktop widgets, the Ryogami picker, the plugin kit | No | No: each keeps its own palette chain or fixed values | Their own |
-| Go library (Gio, terminal) | Rashin, Ryotunes | Not yet: always Lithic | Both exist, but each app picks and keeps its own setting | Yes |
+| Go library (Gio, terminal) | Rashin, Ryotunes | Yes (Gio; the terminal stays Lithic) | Yes: `palette.ReadDesktop` and `WatchDesktop`; the apps still keep their own setting until they move onto them | Yes |
 | Web library | Ryoku web pages | Not yet: always Lithic | Both exist, but each page picks | Yes |
 | Matugen app templates | terminals, GTK, Qt, editors | n/a | The wallpaper's palette whatever `theme.colours` says; the Hub tells the reader so (`components/style/PaletteStrip.qml:41`) | Light and dark from the palette |
 

@@ -50,23 +50,27 @@ func Load(mode Mode) Palette {
 // followed copies the desktop's palette into roles, the wallpaper first and a
 // named scheme over it, and returns the source that won.
 func followed(roles map[string]color.NRGBA) string {
+	return desktopRoles(roles, readObject(themeSettingsPath()), colorRoles(readObject(palettePath())), readObject(shellSettingsPath()))
+}
+
+// desktopRoles is Lithic.qml's _desktopRoles over the files: the wallpaper's
+// roles unless theme.json turns followWallpaper off, then shell.json's
+// themePalette over them key by key. It returns the source that won.
+func desktopRoles(roles map[string]color.NRGBA, theme map[string]any, wallpaperRoles map[string]color.NRGBA, shell map[string]any) string {
 	source := "signature"
 	wallpaper := true
-	if object := readObject(themeSettingsPath()); object != nil {
-		if value, ok := object["followWallpaper"].(bool); ok {
-			wallpaper = value
-		}
+	if value, ok := theme["followWallpaper"].(bool); ok {
+		wallpaper = value
 	}
 	if wallpaper {
-		found := colorRoles(readObject(palettePath()))
-		for key, value := range found {
+		for key, value := range wallpaperRoles {
 			roles[key] = value
 		}
-		if len(found) != 0 {
+		if len(wallpaperRoles) != 0 {
 			source = "wallpaper"
 		}
 	}
-	named := nestedRoles(readObject(shellSettingsPath()), "themePalette")
+	named := nestedRoles(shell, "themePalette")
 	for key, value := range named {
 		roles[key] = value
 	}
@@ -85,9 +89,15 @@ func followed(roles map[string]color.NRGBA) string {
 // action from its primary, the selection from its containers and jasper from
 // its error.
 func FromPalette(p Palette, look Look) Roles {
+	return rolesFrom(p, look, p.Source == "wallpaper" || p.Source == "scheme")
+}
+
+// rolesFrom is Lithic.qml's _rolesFrom: the signature table unless dyed, the
+// palette's hue and chroma on the tone ladder when dyed.
+func rolesFrom(p Palette, look Look, dyed bool) Roles {
 	steps := ladder(p.Dark, look.Contrast)
 	table := signatureTable(p.Dark, look.Contrast)
-	if p.Source != "wallpaper" && p.Source != "scheme" {
+	if !dyed {
 		r := signatureNeutrals(table, p)
 		r.Sel, r.OnSel, r.OnSel2 = tableColor(table, "sel"), tableColor(table, "onSel"), tableColor(table, "onSel2")
 		r.Gold, r.OnGold, r.GoldInk = tableColor(table, "gold"), tableColor(table, "onGold"), tableColor(table, "goldInk")
@@ -188,6 +198,11 @@ func withMinerals(r Roles, steps map[string]float64) Roles {
 	}
 	r.Jade, r.Lapis, r.Amber = tableColor(minerals, "jade"), tableColor(minerals, "lapis"), tableColor(minerals, "amber")
 	r.mineralTone = steps["mineralField"]
+	alpha := float32(0.14)
+	if r.Dark {
+		alpha = 0.16
+	}
+	r.Container, r.OnContainer = WithAlpha(r.Sel, alpha), r.Fg
 	return r
 }
 

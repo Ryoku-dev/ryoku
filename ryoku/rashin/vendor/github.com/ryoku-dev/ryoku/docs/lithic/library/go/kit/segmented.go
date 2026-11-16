@@ -10,7 +10,6 @@ import (
 	"gioui.org/unit"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
-	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 )
@@ -115,15 +114,15 @@ func (s *Segmented) Layout(gtx layout.Context, th *theme.Theme) layout.Dimension
 
 	track := image.Rectangle{Max: size}
 	trackCut := gtx.Dp(th.Cut.Mid)
-	FillCut(gtx.Ops, track, trackCut, disabledInk(gtx, th.R.Field))
-	StrokeCut(gtx.Ops, track, trackCut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), disabledInk(gtx, th.R.Vein))
+	Fill(gtx, th, track, trackCut, disabledInk(gtx, th, th.R.Field))
+	Stroke(gtx, th, track, trackCut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), disabledInk(gtx, th, th.R.Vein))
 
 	s.position.Duration, s.position.Ease = th.Motion.Select, anim.EaseChisel
 	s.position.Set(gtx, float32(s.Selected))
 	x := inset + int(float32(inner)*s.position.Value(gtx)/float32(count)+.5)
 	segmentCut := gtx.Dp(th.Cut.Segment)
 	selection := image.Rect(x, inset, x+inner/count, size.Y-inset)
-	FillCut(gtx.Ops, selection, segmentCut, disabledInk(gtx, th.R.Sel))
+	Fill(gtx, th, selection, segmentCut, disabledInk(gtx, th, th.R.Sel))
 
 	for i, label := range s.Labels[:count] {
 		width := edge(i+1) - edge(i)
@@ -143,10 +142,10 @@ func (s *Segmented) Layout(gtx layout.Context, th *theme.Theme) layout.Dimension
 			if i == s.Selected {
 				ink = th.R.OnSel
 			} else if hover > 0 {
-				FillCut(gtx.Ops, face, segmentCut, disabledInk(gtx, palette.WithAlpha(th.R.Fg2, tokens.AlphaHoverFill*min(hover, 1))))
+				Fill(gtx, th, face, segmentCut, faintInk(gtx, th, th.R.Fg2, th.R.Field, tokens.AlphaHoverFill*min(hover, 1)))
 			}
 			labelOffset := op.Offset(face.Min).Push(gtx.Ops)
-			layout.Center.Layout(exactContext(gtx, face.Size()), rawText(th, th.T.Label, disabledInk(gtx, ink), label))
+			layout.Center.Layout(exactContext(gtx, face.Size()), rawText(th, th.T.Label, disabledInk(gtx, th, ink), label))
 			labelOffset.Pop()
 			return layout.Dimensions{Size: gtx.Constraints.Min}
 		})

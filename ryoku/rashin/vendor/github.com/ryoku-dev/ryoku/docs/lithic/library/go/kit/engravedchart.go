@@ -105,7 +105,7 @@ func (chart EngravedChart) Layout(gtx layout.Context, th *theme.Theme) layout.Di
 	area.LineTo(f32.Pt(points[len(points)-1].X, float32(baselineY)))
 	area.LineTo(f32.Pt(points[0].X, float32(baselineY)))
 	area.Close()
-	Hatch(gtx.Ops, area.End(), plot, max(1, gtx.Dp(tokens.SizeChartHatchGap)), max(1, gtx.Dp(tokens.SizeChartHatchLine)), palette.WithAlpha(th.R.Fg, tokens.AlphaHatch))
+	Hatch(gtx.Ops, area.End(), plot, max(1, gtx.Dp(tokens.SizeChartHatchGap)), max(1, gtx.Dp(tokens.SizeChartHatchLine)), palette.SRGBAlpha(th.R.Fg, th.R.Ground, tokens.AlphaHatch))
 
 	var line clip.Path
 	line.Begin(gtx.Ops)

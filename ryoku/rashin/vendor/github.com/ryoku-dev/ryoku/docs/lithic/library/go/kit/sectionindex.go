@@ -88,14 +88,14 @@ func (index *SectionIndex) layoutRows(gtx layout.Context, th *theme.Theme, label
 				selected := item == current
 				ink := th.R.Fg2
 				if selected {
-					FillCut(gtx.Ops, bounds, cut, th.R.Sel)
+					Fill(gtx, th, bounds, cut, th.R.Sel)
 
 					ink = th.R.OnSel
 				} else {
 					hovered := index.rows[item].Hovered() || index.Preview == StateHover || index.Preview == StatePressed
 					hover := hoverValue(gtx, th, &index.hover[item], hovered)
 					if hover > 0 {
-						FillCut(gtx.Ops, bounds, cut, palette.Mix(th.R.Stone2, th.R.Stone3, hover))
+						Fill(gtx, th, bounds, cut, palette.Mix(th.R.Stone2, th.R.Stone3, hover))
 					}
 				}
 				semantic.Button.Add(gtx.Ops)

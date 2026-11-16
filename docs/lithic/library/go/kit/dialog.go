@@ -13,6 +13,7 @@ import (
 	"gioui.org/unit"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 )
@@ -195,12 +196,12 @@ func (d *Dialog) Layout(gtx layout.Context, th *theme.Theme, title string, body 
 		event.Op(gtx.Ops, &d.blockerTag)
 	}
 	catcher.Pop()
-	FillCut(gtx.Ops, overlayBounds, 0, th.R.Scrim)
+	FillCut(gtx.Ops, overlayBounds, 0, palette.SRGBAlpha(th.R.Scrim, th.R.Ground, 1))
 	offset := op.Offset(image.Pt(x, y)).Push(gtx.Ops)
 	bounds := image.Rect(0, 0, width, height)
 	cut := gtx.Dp(th.Cut.Large)
-	FillCut(gtx.Ops, bounds, cut, th.R.Stone4)
-	StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(tokens.SizeHairline)), th.R.Vein)
+	Fill(gtx, th, bounds, cut, th.R.Stone4)
+	Stroke(gtx, th, bounds, cut, max(1, gtx.Dp(tokens.SizeHairline)), th.R.Vein)
 	contentOffset := op.Offset(image.Pt(padding, padding)).Push(gtx.Ops)
 	insideCall.Add(gtx.Ops)
 	contentOffset.Pop()

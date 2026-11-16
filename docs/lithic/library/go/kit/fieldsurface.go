@@ -15,10 +15,10 @@ import (
 // drawFieldSurface paints the shared field recipe: fill with an edge hairline
 // at rest that turns fg2 with focus and jasper on error.
 func drawFieldSurface(gtx layout.Context, th *theme.Theme, bounds image.Rectangle, cut int, fill color.NRGBA, focus float32, invalid bool) {
-	FillCut(gtx.Ops, bounds, cut, disabledInk(gtx, fill))
+	Fill(gtx, th, bounds, cut, disabledInk(gtx, th, fill))
 	line := palette.Mix(th.R.Edge, th.R.Fg2, min(max(focus, 0), 1))
 	if invalid {
 		line = th.R.Jasper
 	}
-	StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), disabledInk(gtx, line))
+	Stroke(gtx, th, bounds, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), disabledInk(gtx, th, line))
 }

@@ -125,30 +125,35 @@ func (s *Slider) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 		trackY := (size.Y - trackHeight) / 2
 		track := image.Rect(0, trackY, size.X, trackY+trackHeight)
 		trackInk := palette.Mix(th.R.Field, th.R.Fg, tokens.AlphaHoverPlane*hover)
-		FillCut(gtx.Ops, track, 0, disabledInk(gtx, trackInk))
+		FillCut(gtx.Ops, track, 0, disabledInk(gtx, th, trackInk))
 
 		handleWidth := max(1, gtx.Dp(unit.Dp(tokens.SizeSliderHandleWidth)))
 		handleHeight := max(1, gtx.Dp(unit.Dp(tokens.SizeSliderHandleHeight)))
 		handleX := int(float32(max(0, size.X-handleWidth))*s.drag.Value + .5)
 		doneEnd := min(size.X, handleX+handleWidth/2)
 		if doneEnd > 0 {
-			Blade(gtx.Ops, image.Rect(0, trackY, doneEnd, trackY+trackHeight), disabledInk(gtx, th.R.Fg2))
+			Blade(gtx.Ops, image.Rect(0, trackY, doneEnd, trackY+trackHeight), disabledInk(gtx, th, th.R.Fg2))
 		}
 		handleBounds = image.Rect(handleX, (size.Y-handleHeight)/2, handleX+handleWidth, (size.Y+handleHeight)/2)
 		handleCut = min(handleBounds.Dx()/2, handleBounds.Dy()/4)
-		points := sliderHandlePoints(handleBounds)
 		handleInk := th.R.Sel
 		if hover > 0 || pressed {
 			handleInk = palette.Mix(handleInk, th.R.Fg, tokens.AlphaHoverFill*max(hover, 1))
 		}
-		paint.FillShape(gtx.Ops, disabledInk(gtx, handleInk), clip.Outline{Path: pathFromPoints(gtx.Ops, points[:])}.Op())
+		if th.Design.Profile().Round {
+			// a round design rounds the handle as Slider.qml's CutRect does
+			Fill(gtx, th, handleBounds, handleCut, disabledInk(gtx, th, handleInk))
+		} else {
+			points := sliderHandlePoints(handleBounds)
+			paint.FillShape(gtx.Ops, disabledInk(gtx, th, handleInk), clip.Outline{Path: pathFromPoints(gtx.Ops, points[:])}.Op())
+		}
 		return s.drag.Layout(exactContext(gtx, size), layout.Horizontal, unit.Dp(tokens.SizeSliderHandleWidth))
 	})
 	focus := previewTransition(original, &s.focus, s.Preview, StateFocus, original.Focused(&s.Clickable), th.Motion.FocusIn, th.Motion.FocusOut)
-	if focus > 0 {
-		gap := original.Dp(unit.Dp(tokens.SizeFocusRingGap))
-		width := max(1, original.Dp(unit.Dp(tokens.SizeFocusRingWidth)))
-		StrokeCutCorners(original.Ops, handleBounds.Inset(-gap), handleCut+gap, 0, handleCut+gap, 0, width, palette.WithAlpha(th.R.Fg2, focus))
+	if th.Design.Profile().Round {
+		FocusRingAlpha(original, th, handleBounds, handleCut, focus)
+	} else {
+		focusRingCorners(original, th, handleBounds, handleCut, 0, handleCut, 0, focus)
 	}
 	return dims
 }

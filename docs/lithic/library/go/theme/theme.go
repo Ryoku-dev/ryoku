@@ -9,6 +9,7 @@ import (
 	"gioui.org/text"
 	"gioui.org/unit"
 
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/design"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/fonts"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
@@ -87,6 +88,21 @@ type Motion struct {
 	Wheel        time.Duration
 	Working      time.Duration
 	Sweep        time.Duration
+
+	// The Hub's working durations (ryoku/hub/quickshell/Singletons/Tone.qml:40-43):
+	// Quick for interruptible feedback, Move for a plane or marker that travels,
+	// HubUnfold for an outline opening (the Hub's unfold; Unfold keeps Lithic's 200)
+	// and Stagger between the rows of one reveal. They keep their values under
+	// reduced motion; anim's tweens snap instead, as Tone.qml's fall to 0.
+	Quick     time.Duration
+	Move      time.Duration
+	HubUnfold time.Duration
+	Stagger   time.Duration
+	// RevealStagger spaces the groups of a page reveal; Highlight holds a found
+	// row lit; CountUp runs a number up to its value.
+	RevealStagger time.Duration
+	Highlight     time.Duration
+	CountUp       time.Duration
 }
 
 // Density changes row height without shrinking other controls.
@@ -106,6 +122,9 @@ type Theme struct {
 	Motion  Motion
 	Density Density
 	Shaper  *text.Shaper
+	// Design is the design language the theme draws in; the zero value is Lithic, so
+	// a theme from New draws exactly as before.
+	Design design.Style
 }
 
 type config struct {
@@ -153,6 +172,10 @@ func New(roles palette.Roles, options ...Option) *Theme {
 			TooltipDelay: tokens.MotionTooltipDelay, PlacardIn: tokens.MotionPlacardIn,
 			PlacardLife: tokens.MotionPlacardLife, Wheel: tokens.MotionWheel,
 			Working: tokens.MotionWorking, Sweep: tokens.MotionSweep,
+			Quick: 120 * time.Millisecond, Move: 240 * time.Millisecond,
+			HubUnfold: 260 * time.Millisecond, Stagger: 18 * time.Millisecond,
+			RevealStagger: tokens.MotionRevealStagger, Highlight: tokens.MotionHighlight,
+			CountUp: tokens.MotionCountUp,
 		},
 		Shaper: config.shaper,
 	}

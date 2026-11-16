@@ -96,8 +96,8 @@ func (tooltip *Tooltip) Layout(gtx layout.Context, th *theme.Theme, tip string, 
 	opacity := paint.PushOpacity(gtx.Ops, progress)
 	offset := op.Offset(position).Push(gtx.Ops)
 	bounds := image.Rectangle{Max: tipDimensions.Size}
-	FillCut(gtx.Ops, bounds, gtx.Dp(tokens.CutTooltip), th.R.Stone4)
-	StrokeCut(gtx.Ops, bounds, gtx.Dp(tokens.CutTooltip), max(1, gtx.Dp(tokens.SizeHairline)), th.R.Vein)
+	Fill(gtx, th, bounds, gtx.Dp(tokens.CutTooltip), th.R.Stone4)
+	Stroke(gtx, th, bounds, gtx.Dp(tokens.CutTooltip), max(1, gtx.Dp(tokens.SizeHairline)), th.R.Vein)
 	tipCall.Add(gtx.Ops)
 	offset.Pop()
 	opacity.Pop()

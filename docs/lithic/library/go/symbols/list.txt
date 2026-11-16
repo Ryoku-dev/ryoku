@@ -2,6 +2,7 @@
 # "fill" also generates the filled variant, used for the current navigation destination.
 # Regenerate with: go run ./cmd/lithic-symbols (from library/go); -check verifies.
 add
+album
 arrow_back
 arrow_downward
 arrow_forward
@@ -22,12 +23,17 @@ description
 desktop_windows
 device_hub
 difference
-download
+done_all
+download fill
+drag_handle
 drag_indicator
 edit
+equalizer
 error
 expand_less
 expand_more
+explicit fill
+favorite fill
 filter_list
 find_in_page fill
 folder fill
@@ -40,11 +46,12 @@ fullscreen
 fullscreen_exit
 group fill
 history
+home fill
 hourglass_empty
-home
 inbox fill
-key
 keep fill
+key
+library_music fill
 lightbulb
 link
 lock
@@ -55,28 +62,45 @@ more_vert
 my_location
 neurology
 open_in_new
-pause
+pause fill
 person
-play_arrow
-refresh
+picture_in_picture_alt
+play_arrow fill
+playlist_add
+playlist_play
+queue_music
+radio_button_checked
 redo
+refresh
 remove
+repeat
+repeat_one
 restart_alt
 schedule
 search
 settings fill
-side_navigation
+shuffle
+side_navigation fill
+skip_next fill
+skip_previous fill
 smart_toy fill
+sort
+star fill
 stars
 stop
 storage
 terminal
 timeline fill
+tune
 undo
 update fill
 upload
 verified_user
 visibility
 visibility_off
+volume_down
+volume_mute
+volume_off
+volume_up
 vpn_key fill
 warning

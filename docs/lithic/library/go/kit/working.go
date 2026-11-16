@@ -58,7 +58,7 @@ func (working Working) Layout(gtx layout.Context, th *theme.Theme) layout.Dimens
 		}
 		path := pathFromPoints(gtx.Ops, points[:])
 		shape := clip.Outline{Path: path}.Op()
-		paint.FillShape(gtx.Ops, palette.WithAlpha(th.R.Vein, tokens.AlphaWorkingBase), shape)
+		paint.FillShape(gtx.Ops, palette.SRGBAlpha(th.R.Vein, th.R.Ground, tokens.AlphaWorkingBase), shape)
 		fraction := float32(0)
 		if reduced {
 			fraction = 1

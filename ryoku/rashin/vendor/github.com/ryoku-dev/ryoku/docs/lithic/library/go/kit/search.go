@@ -68,7 +68,7 @@ func (s *Search) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 
 	iconSize := gtx.Dp(unit.Dp(tokens.SizeSearchIcon))
 	offset := op.Offset(image.Pt(gtx.Dp(unit.Dp(tokens.SizeSearchIconInset)), (size.Y-iconSize)/2)).Push(gtx.Ops)
-	iconSearchControl.Layout(exactContext(gtx, image.Pt(iconSize, iconSize)), disabledInk(gtx, th.R.Fg3))
+	iconSearchControl.Layout(exactContext(gtx, image.Pt(iconSize, iconSize)), disabledInk(gtx, th, th.R.Fg3))
 	offset.Pop()
 
 	right := gtx.Dp(unit.Dp(tokens.SizeTextFieldInset))
@@ -86,7 +86,7 @@ func (s *Search) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 		measureGTX := gtx
 		measureGTX.Constraints.Min = image.Point{}
 		record := op.Record(gtx.Ops)
-		hintDims := rawText(th, th.T.MonoSm, disabledInk(measureGTX, th.R.Fg3), s.Hint)(measureGTX)
+		hintDims := rawText(th, th.T.MonoSm, disabledInk(measureGTX, th, th.R.Fg3), s.Hint)(measureGTX)
 		call := record.Stop()
 		right = hintDims.Size.X + gtx.Dp(unit.Dp(tokens.SizePlaqueInset))
 		offset = op.Offset(image.Pt(size.X-right+gtx.Dp(th.Sp.S1), (size.Y-hintDims.Size.Y)/2)).Push(gtx.Ops)

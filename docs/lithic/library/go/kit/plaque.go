@@ -161,28 +161,34 @@ func plaquePalette(th *theme.Theme, kind PlaqueKind) plaqueColors {
 
 func interactivePlaqueColors(gtx layout.Context, th *theme.Theme, kind PlaqueKind, hover float32) plaqueColors {
 	colors := plaquePalette(th, kind)
+	solved := false
 	if hover > 0 {
 		amount := min(hover, 1)
 		switch {
 		case kind == PlaqueTonal:
 			colors.fill = palette.Mix(colors.fill, th.R.Fg, tokens.AlphaHoverPlane*amount)
 		case colors.fill.A == 0:
-			colors.fill = palette.WithAlpha(colors.ink, tokens.AlphaHoverFill*amount)
+			// a clear plaque's hover is a faint wash of its ink over what it
+			// stands on, solved for Qt's sRGB blend; it carries its own fade
+			colors.fill = faintInk(gtx, th, colors.ink, th.R.Ground, tokens.AlphaHoverFill*amount)
+			solved = true
 		default:
 			colors.fill = palette.Mix(colors.fill, color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff}, tokens.AlphaHoverFill*amount)
 		}
 	}
-	colors.fill = disabledInk(gtx, colors.fill)
-	colors.ink = disabledInk(gtx, colors.ink)
-	colors.outline = disabledInk(gtx, colors.outline)
+	if !solved {
+		colors.fill = disabledInk(gtx, th, colors.fill)
+	}
+	colors.ink = disabledInk(gtx, th, colors.ink)
+	colors.outline = disabledInk(gtx, th, colors.outline)
 	return colors
 }
 
 func drawPlaqueSurface(gtx layout.Context, th *theme.Theme, bounds image.Rectangle, cut int, kind PlaqueKind, hover float32) color.NRGBA {
 	colors := interactivePlaqueColors(gtx, th, kind, hover)
-	FillCut(gtx.Ops, bounds, cut, colors.fill)
+	Fill(gtx, th, bounds, cut, colors.fill)
 	if colors.stroke {
-		StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), colors.outline)
+		Stroke(gtx, th, bounds, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), colors.outline)
 	}
 	return colors.ink
 }

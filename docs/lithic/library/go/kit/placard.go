@@ -145,8 +145,8 @@ func (p *Placard) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions 
 			bounds := image.Rect(0, 0, width, height)
 			area := clip.Rect(bounds).Push(gtx.Ops)
 			entry.area.Add(gtx.Ops)
-			FillCut(gtx.Ops, bounds, gtx.Dp(tokens.CutPlacard), th.R.Sel)
-			StrokeCut(gtx.Ops, bounds, gtx.Dp(tokens.CutPlacard), max(1, gtx.Dp(tokens.SizeHairline)), th.R.Vein)
+			Fill(gtx, th, bounds, gtx.Dp(tokens.CutPlacard), th.R.Sel)
+			Stroke(gtx, th, bounds, gtx.Dp(tokens.CutPlacard), max(1, gtx.Dp(tokens.SizeHairline)), th.R.Vein)
 			layout.Inset{Left: unit.Dp(tokens.SizePlacardInset), Right: unit.Dp(tokens.SizePlacardTrailingInset)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return centerY(gtx, func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
@@ -173,9 +173,9 @@ func (p *Placard) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions 
 									hovered := entry.button.Hovered() || p.Preview == StateHover || p.Preview == StatePressed
 									hover := hoverValue(gtx, th, &entry.hover, hovered)
 									if hover > 0 {
-										FillCut(gtx.Ops, actionBounds, gtx.Dp(th.Cut.Small), palette.WithAlpha(th.R.OnSel, tokens.AlphaHoverInk*hover))
+										Fill(gtx, th, actionBounds, gtx.Dp(th.Cut.Small), palette.SRGBAlpha(th.R.OnSel, th.R.Sel, tokens.AlphaHoverInk*hover))
 									}
-									StrokeCut(gtx.Ops, actionBounds, gtx.Dp(th.Cut.Small), max(1, gtx.Dp(tokens.SizeHairline)), th.R.OnSel)
+									Stroke(gtx, th, actionBounds, gtx.Dp(th.Cut.Small), max(1, gtx.Dp(tokens.SizeHairline)), th.R.OnSel)
 									labelOffset := op.Offset(image.Pt((size.X-labelDimensions.Size.X)/2, (size.Y-labelDimensions.Size.Y)/2)).Push(gtx.Ops)
 									labelCall.Add(gtx.Ops)
 									labelOffset.Pop()
@@ -190,7 +190,16 @@ func (p *Placard) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions 
 			remaining = max(0, min(1, remaining))
 			bladeWidth := int(float64(width) * remaining)
 			if bladeWidth > 0 {
-				Blade(gtx.Ops, image.Rect(0, height-max(1, gtx.Dp(tokens.SizePlacardBlade)), bladeWidth, height), th.R.OnSel)
+				blade := image.Rect(0, height-max(1, gtx.Dp(tokens.SizePlacardBlade)), bladeWidth, height)
+				if th.Design.Profile().Round {
+					// a round plane keeps the blade inside its corners
+					cut := gtx.Dp(tokens.CutPlacard)
+					plane := clip.Outline{Path: Shape(gtx, th, bounds, cut, cut, cut, cut)}.Op().Push(gtx.Ops)
+					Blade(gtx.Ops, blade, th.R.OnSel)
+					plane.Pop()
+				} else {
+					Blade(gtx.Ops, blade, th.R.OnSel)
+				}
 			}
 			area.Pop()
 			offset.Pop()

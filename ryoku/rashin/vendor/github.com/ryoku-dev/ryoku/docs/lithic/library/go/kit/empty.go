@@ -26,7 +26,7 @@ func (empty Empty) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				diameter := gtx.Dp(tokens.SizeEmptyFrame)
 				size := gtx.Constraints.Constrain(image.Pt(diameter, diameter))
-				StrokeCut(gtx.Ops, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Large), max(1, gtx.Dp(tokens.SizeHairline)), th.R.Vein)
+				Stroke(gtx, th, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Large), max(1, gtx.Dp(tokens.SizeHairline)), th.R.Vein)
 				if empty.Icon != nil {
 					frameContext := gtx
 					frameContext.Constraints = layout.Exact(size)

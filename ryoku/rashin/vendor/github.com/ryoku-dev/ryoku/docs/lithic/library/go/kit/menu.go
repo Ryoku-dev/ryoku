@@ -292,8 +292,8 @@ func (m *Menu) Layout(gtx layout.Context, th *theme.Theme, items []MenuItem) lay
 
 	overlay := op.Record(gtx.Ops)
 	bounds := image.Rectangle{Max: dimensions.Size}
-	FillCut(gtx.Ops, bounds, gtx.Dp(tokens.CutMenu), th.R.Stone4)
-	StrokeCut(gtx.Ops, bounds, gtx.Dp(tokens.CutMenu), max(1, gtx.Dp(tokens.SizeHairline)), th.R.Vein)
+	Fill(gtx, th, bounds, gtx.Dp(tokens.CutMenu), th.R.Stone4)
+	Stroke(gtx, th, bounds, gtx.Dp(tokens.CutMenu), max(1, gtx.Dp(tokens.SizeHairline)), th.R.Vein)
 	contentCall.Add(gtx.Ops)
 	presentOverlay(gtx, overlay.Stop(), m.Preview != StateRest, dimensions.Size)
 	return dimensions

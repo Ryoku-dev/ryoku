@@ -16,14 +16,18 @@ trap 'rm -rf "$work"' EXIT
 
 failed=0
 
-# run <case> <mode> <web input file, or - when the case is a loader rule a browser never sees> [contrast] [tint]
+# run <case> <mode> <web input file, or - when the case is a loader rule a browser never sees> [contrast] [tint] [design]
 run() {
-	local name=$1 mode=$2 web=$3 contrast=${4:-standard} tint=${5:-off} dir=$work/$1
-	local look=$mode-$contrast-$tint
+	local name=$1 mode=$2 web=$3 contrast=${4:-standard} tint=${5:-off} design=${6:-lithic} dir=$work/$1
+	local look=$mode-$contrast-$tint label="$1 $2 ${4:-standard} ${5:-off}"
+	if [[ $design != lithic ]]; then
+		look+=-$design
+		label+=" $design"
+	fi
 	export XDG_CONFIG_HOME=$dir/config XDG_CACHE_HOME=$dir/cache
-	"$work/lithic-roles" --mode "$mode" --contrast "$contrast" --tint "$tint" >"$dir/go-$look.json"
+	"$work/lithic-roles" --mode "$mode" --contrast "$contrast" --tint "$tint" --design "$design" >"$dir/go-$look.json"
 	QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=offscreen QML_XHR_ALLOW_FILE_READ=1 LITHIC_MODE=$mode \
-		LITHIC_CONTRAST=$contrast LITHIC_TINT=$tint \
+		LITHIC_CONTRAST=$contrast LITHIC_TINT=$tint LITHIC_DESIGN=$design LITHIC_PALETTE_JSON='' \
 		timeout 30 "$qml" -I "$library/qml" "$here/Roles.qml" 2>&1 |
 		sed -n 's/.*ROLES //p' >"$dir/qml-$look.json"
 	local sets=("go=$dir/go-$look.json" "qml=$dir/qml-$look.json")
@@ -31,7 +35,7 @@ run() {
 		"$js" "$here/roles.mjs" "$web" "$mode" "$contrast" "$tint" >"$dir/web-$look.json"
 		sets+=("web=$dir/web-$look.json")
 	fi
-	"$js" "$here/compare.mjs" "$name $mode $contrast $tint" "${sets[@]}" || failed=1
+	"$js" "$here/compare.mjs" "$label" "${sets[@]}" || failed=1
 }
 
 # fresh <case>: an empty config and cache tree for one case
@@ -43,10 +47,11 @@ carried() {
 	echo "$work/$1/web.json"
 }
 
-# stock <case> <mode>: Go paints exactly the signature case's roles for this mode
+# stock <case> <mode> [design]: Go paints exactly the signature case's roles for this mode
 stock() {
-	"$js" "$here/compare.mjs" "$1 $2 is the signature" "signature=$work/signature/go-$2-standard-off.json" \
-		"$1=$work/$1/go-$2-standard-off.json" || failed=1
+	local look=$2-standard-off${3:+-$3}
+	"$js" "$here/compare.mjs" "$1 $2${3:+ $3} is the signature" "signature=$work/signature/go-$2-standard-off.json" \
+		"$1=$work/$1/go-$look.json" || failed=1
 }
 
 fresh signature
@@ -78,5 +83,23 @@ web=$(carried unfollowed "$here/testdata/wallpaper-dark.json" wallpaper)
 for mode in dark light; do run unfollowed "$mode" "$web" && stock unfollowed "$mode"; done
 run unfollowed follow - && stock unfollowed follow
 run unfollowed dark "$web" standard low
+
+# The round designs on the desktop's colours wear its Material roles as they are
+# (Lithic.qml _materialFrom); on Ryoku's colours they paint the signature like Lithic.
+# The web resolver has no designs, so these compare Go with QML.
+for design in material adwaita fluent; do
+	for mode in dark light; do run wallpaper-dark "$mode" - standard off "$design" && stock wallpaper-dark "$mode" "$design"; done
+	run wallpaper-dark follow - standard off "$design"
+	run wallpaper-light follow - standard off "$design"
+	run scheme follow - standard off "$design"
+	run unfollowed follow - standard off "$design" && stock unfollowed follow "$design"
+done
+# contrast and tint reach only scrim and the minerals there
+run wallpaper-dark follow - high medium material
+run wallpaper-light follow - high low adwaita
+# a palette missing roles keeps the toned ladder for them, the container among them
+fresh material-partial
+cp "$here/testdata/material-partial.json" "$work/material-partial/cache/ryoku/colors.json"
+for design in lithic material fluent; do run material-partial follow - standard off "$design"; done
 
 exit "$failed"

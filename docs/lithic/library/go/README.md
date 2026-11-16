@@ -23,6 +23,7 @@ The packages are imported separately:
 ```go
 import (
     "github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
+    "github.com/ryoku-dev/ryoku/docs/lithic/library/go/design"
     "github.com/ryoku-dev/ryoku/docs/lithic/library/go/fonts"
     "github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
     "github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
@@ -32,38 +33,63 @@ import (
 )
 ```
 
-A normal Gio setup is:
+A Ryoku app wears what the desktop asks for: read it once, build the theme from it, and follow it for the life of the window:
 
 ```go
-roles := palette.FromPalette(palette.Load(palette.Dark), palette.Look{})
-th := theme.New(roles)
+desktop := palette.ReadDesktop()
+th := theme.NewFor(desktop)
+
+themes := make(chan *theme.Theme, 1)
+go palette.WatchDesktop(ctx, func(d palette.Desktop) {
+    // keep the shaper: building one loads every face again
+    themes <- theme.NewFor(d, theme.WithShaper(th.Shaper)) // the window's goroutine swaps th and calls Invalidate
+})
 ```
+
+An app that does not belong to the desktop, a test, or a gallery picks its own colours with `theme.New(palette.FromPalette(palette.Load(palette.Dark), palette.Look{}))`, which reads no setting and draws in Lithic.
 
 `theme.New` loads Lithic's two faces, Geologica and Martian Mono, which package `fonts` embeds, so an application sets the same type on any system without installing anything; system fonts stay on for the scripts those faces do not cover. Pass `theme.WithFontCollection(faces)` to add the application's own faces beside them, and `theme.WithShaper(shaper)` when the application owns a configured shaper, which then needs `fonts.Collection()` in its collection.
 
 ## Palette API
 
-A Ryoku app wears the desktop's style and colours ([styles.md](../../styles.md)). This library does not read that choice yet: the app passes `Dark`, `Light` or `Follow` itself, from `theme.colours` and the desktop's light or dark, and every shape is drawn in the Lithic style. `palette` uses only the Go standard library. `Load(Dark)` and `Load(Light)` read only `/etc/os-release`, for the edition accent. `Load(Follow)` reads these files in precedence order:
+A Ryoku app wears the desktop's style and colours ([styles.md](../../styles.md)), and keeps no copy of either. `ReadDesktop` reads them as `Lithic.qml`'s `_load` does; `WatchDesktop` follows them. `palette` uses only the Go standard library and package `design`. The files, all optional:
 
-1. `$XDG_CONFIG_HOME/ryoku/shell.json`, key `themePalette`
-2. `$XDG_CACHE_HOME/ryoku/colors.json` unless `$XDG_CONFIG_HOME/ryoku/theme.json` sets `followWallpaper` to false
-3. the signature fallback, with the edition accent from `/etc/os-release`
+| File | Keys | Missing or invalid |
+|---|---|---|
+| `$XDG_CONFIG_HOME/ryoku/shell.json` | `theme.design` (`lithic`, `material`, `adwaita`, `fluent`), `theme.colours` (`ryoku`, `wallpaper`), `theme.contrast` (`standard`, `high`), `theme.tint` (`off`, `low`, `medium`), `theme.motion.reduce`, `showJapaneseGloss`, `themePalette` | Lithic, Ryoku's colours, standard, off, motion on, gloss on, no scheme |
+| `$XDG_CONFIG_HOME/ryoku/theme.json` | `followWallpaper` | true |
+| `$XDG_CONFIG_HOME/ryoku/matugen.json` | `mode` (`dark`, `light`, `smart`, `sun`) | the palette's surface decides |
+| `$XDG_CACHE_HOME/ryoku/colors.json` | the wallpaper's Material roles (`surface`, `onSurface`, `primary`, `surfaceContainerLow` ...) | none |
+| `/etc/os-release` | `ID`, `ID_LIKE`: the edition accent | none |
 
 `XDG_CONFIG_HOME` defaults to `~/.config`; `XDG_CACHE_HOME` defaults to `~/.cache`.
 
+How a reading resolves:
+
+1. Mode. On the desktop's colours (`theme.colours` `wallpaper`) the mode is `Follow`. On Ryoku's it is `Light` when `matugen.json` says `light`, `Dark` when it says `dark`, and for `smart`, `sun` or no word, light exactly when `colors.json`'s `surface` is (luma above 0.5); the shell daemon resolves smart and sun into that file, so `colors.json` matters on Ryoku's colours too.
+2. Palette. Only `Follow` reads one: `colors.json` unless `theme.json` turns `followWallpaper` off, with `shell.json`'s `themePalette` over it key by key; dark when its `surface` is. Otherwise, and when that is empty, the signature with the edition accent.
+3. Roles, `Desktop.RolesFor(design)`. Lithic, and every design on Ryoku's colours, wear the signature or the toned ladder (`FromPalette`). Material, Adwaita and Fluent on the desktop's colours wear the palette's own Material roles (`Material`) when it holds a `surface`.
+4. Environment, on by default (`WithEnv(false)` turns it off): `LITHIC_MODE` (`dark`, `light`, `follow`) forces the mode and skips colours, contrast, tint and `matugen.json`; `LITHIC_DESIGN` names the design over `theme.design`; `LITHIC_PALETTE_JSON` names a file whose roles (or its `themePalette`) replace the desktop's palette while following, source `host`.
+
 Exported API:
 
+- `Desktop`: `Design design.Style`, `Colours` (`Ryoku`, `Wallpaper`), `Mode`, `Look`, `ReduceMotion`, `Gloss`, `Palette`, `Roles` (the roles `Design` wears).
+- `ReadDesktop(options...) Desktop`: one reading of the files above. `Option`s: `WithEnv(bool)`; `WithDirs(config, cache, osRelease)` reads another config home, cache home and os-release (an empty string keeps the default), for tests.
+- `WatchDesktop(ctx, fn, options...) error`: watches `shell.json`, `theme.json`, `matugen.json` and `colors.json` (their parent directories, with inotify; a directory that appears is picked up), coalesces events over 150 ms so an atomic replace reads once, and calls `fn` only when the reading changed (`Desktop.Equal`), so the daemon's other `shell.json` writes call nothing. It runs always, not only while following, and returns nil when `ctx` ends. It does not call `fn` for its first reading: take that from `ReadDesktop`. `fn` runs on the watcher's goroutine. Linux only; elsewhere it returns an error.
+- `Desktop.RolesFor(design) Roles`: `Lithic.rolesFor`, the roles another design would wear now, for a preview. `Desktop.Equal(other) bool`.
+- `Material(Palette, Look) Roles`: `Lithic.qml`'s `_materialFrom`. Ground, stone2 and slab are `surface`; stone1, stone3, stone4 and field are `surfaceContainerLow`, `surfaceContainer`, `surfaceContainerHigh` and `surfaceContainerHighest`; vein and edge `outlineVariant` and `outline`; fg and fg2 `onSurface` and `onSurfaceVariant`, fg3 `onSurfaceVariant` 22 % toward `surface`; sel and onSel `primary` and `onPrimary`; gold, goldInk and onGold `tertiary` and `onTertiary`; jasper `error`; container and onContainer `secondaryContainer` and `onSecondaryContainer`. A role the palette lacks keeps the toned ladder's, and scrim, the minerals and the mineral fields stay toned, so contrast and tint reach only those in the round designs.
+- `Planes`: `Side`, `Pane`, `PaneStroke`, `Card`, `CardStroke`; a transparent stroke is the zero colour. `Roles.Planes(design) Planes` is `Lithic.planes`: Lithic lays ground, stone2 and slab with vein hairlines; Material ground, stone1 and stone3 with no lines; Adwaita stone3 for the side, ground for the pane and stone4 for cards; Fluent ground, stone3 and stone4 with a vein pane stroke and the vein at 0.7 round cards. Hosts lay their planes out from them; the library's controls keep their own fills.
 - `Mode`: `Dark` (the zero value and the default), `Light`, `Follow`. `Mode.String()` gives `dark`, `light` or `follow`.
 - `ParseMode(name) (Mode, error)`: reads `dark`, `light` or `follow`; an empty name is `Dark`, an unknown one is `Dark` and an error.
 - `Palette`: source `Roles`, resolved `Dark` and `Source` values before Lithic mapping.
-- `Load(mode) Palette`: the signature for `Dark` and `Light`; for `Follow`, the source precedence above, dark when the palette's `surface` is.
+- `Load(mode) Palette`: the palette without the desktop's choice: the signature for `Dark` and `Light`; for `Follow`, the palette of step 2 above. It reads no `shell.json` theme keys, so it stays a deterministic, setting-free path for tests and for apps outside the desktop.
 - `Contrast`: `Standard`, `High`. `Tint`: `TintOff`, `TintLow`, `TintMedium`.
 - `Look`: the reader's `Contrast` and `Tint`. The zero look (standard, off) is the library default.
 - `ParseLook(contrast, tint) Look`: reads `standard` or `high` and `off`, `low` or `medium`; an unknown string gives the zero value of its field.
 - `FromPalette(Palette, Look) Roles`: with no palette, returns the signature table for the mode and contrast, with an edition's colour as gold; with one, dyes every role at its step on the tone ladder for the mode and contrast (see [palette.md](../../palette.md#3-mapping-palette-roles-to-lithic-roles)).
-- `Watch(ctx, mode, fn)`: watches the three parent directories with inotify, coalesces file replacement, and calls `fn` only when the resolved palette changes. `mode` is a function so an application can change its mode without rebuilding the watcher. Only `Follow` reads the files, so run it only while following.
+- `Watch(ctx, mode, fn)`: the older, palette-only watcher: `shell.json`, `theme.json` and `colors.json`, calling `fn` only when `Load(mode())` changes. `WatchDesktop` replaces it in a desktop app.
 - `Tone`: `Idle`, `Alive`, `Becoming`, `Attention`, `Paused`, `Failed`.
-- `Roles`: `Ground`, `Stone1`, `Stone2`, `Stone3`, `Stone4`, `Slab`, `Field`, `Vein`, `Edge`, `Fg`, `Fg2`, `Fg3`, `Sel`, `OnSel`, `OnSel2`, `Gold`, `OnGold`, `GoldInk`, `Jade`, `Lapis`, `Amber`, `Jasper`, `Scrim`, `Dark`, `Source`.
+- `Roles`: `Ground`, `Stone1`, `Stone2`, `Stone3`, `Stone4`, `Slab`, `Field`, `Vein`, `Edge`, `Fg`, `Fg2`, `Fg3`, `Sel`, `OnSel`, `OnSel2`, `Gold`, `OnGold`, `GoldInk`, `Jade`, `Lapis`, `Amber`, `Jasper`, `Scrim`, `Container`, `OnContainer`, `Dark`, `Source`. `Container` is the soft tone under a chosen item (the selection at 0.16 dark, 0.14 light, on the ladder) and `OnContainer` the ink on it (`Fg`).
 - `Roles.Stone(tone)`: returns the mineral ink for a tone.
 - `Roles.MineralField(tone)`: returns the derived mineral field for a tone.
 - `Signature(dark)`: returns the signature roles at standard contrast.
@@ -72,7 +98,15 @@ Exported API:
 - `InkOn(background)`: picks black or white by contrast.
 - `ContrastRatio(a, b)`: returns the WCAG contrast ratio.
 
-Dark and light are the signature tables as they stand, with the edition's colour as gold; no palette file changes them. The tint applies only when following a palette, and it changes chroma, never lightness. Fixed minerals always come from tokens.
+Dark and light are the signature tables as they stand, with the edition's colour as gold; no palette file changes them, in any design. The tint applies only when following a palette, and it changes chroma, never lightness. Fixed minerals always come from tokens.
+
+## Design API
+
+`design` names the four design languages and their corner rule; it imports only the standard library.
+
+- `Style`: `Lithic` (the zero value), `Material`, `Adwaita`, `Fluent`. `Parse(name) (Style, bool)` reads the names `shell.json` writes (an unknown name is Lithic and false); `Style.String()` writes them.
+- `Profile`: `Round`, `Scale`, `Pill`, `Max` (dp) and `Desktop` (the style wears the desktop's palette). `Style.Profile()` is `Lithic.designs`: Lithic cut, 1, 0, 16, own palette; Material round, 2.6, 56, 28; Adwaita round, 1.6, 26, 14; Fluent round, 0.75, 22, 8.
+- `Style.Corner(cut, width, height) float32` is `Lithic.cornerRadius`, in dp: the cut itself in Lithic and for a cut of 0 or less; in a round style, a shape whose shorter side is at most `Pill` is a pill (half that side), a larger one gets `cut * Scale`, never past `Max` or half the shorter side.
 
 ## Fonts
 
@@ -86,18 +120,20 @@ To add a symbol, put its name in `symbols/list.txt` and run `go run ./cmd/lithic
 
 ## Theme API
 
-`theme.Theme` contains `R palette.Roles`, `T Type`, `Cut`, `Sp Space`, `Motion`, `Density`, and `Shaper`. `New(roles, options...)` fills every scale from `tokens`.
+`theme.Theme` contains `R palette.Roles`, `T Type`, `Cut`, `Sp Space`, `Motion`, `Density`, `Shaper` and `Design design.Style`. `New(roles, options...)` fills every scale from `tokens` and draws in Lithic; `NewFor(desktop, options...)` takes the desktop's roles and design and sets `anim.SetReduce` from its reduced motion, so swapping a theme from a `WatchDesktop` callback carries all three.
 
 Exported API:
 
 - `TextStyle`: `Face`, `Size`, `Line`.
 - `Type`: `Name`, `Sentence`, `Section`, `Title`, `Row`, `Body`, `Proof`, `Label`, `Detail`, `Caption`, `Group`, `Mono`, `MonoSm`.
-- `Cut`: `Token`, `Small`, `Mid`, `Large`, `Notch`, `Menu`, `Overlay`, `Placard`, `Tooltip`, `ToggleTrack`, `ToggleKnob`.
+- `Cut`: `Token`, `Small`, `Mid`, `Large`, `Notch`, `Menu`, `Overlay`, `Placard`, `Tooltip`, `ToggleTrack`, `ToggleKnob`, `Segment`.
 - `Space`: `S1` through `S6`.
-- `Motion`: `Press`, `HoverIn`, `HoverOut`, `FocusIn`, `FocusOut`, `Select`, `Field`, `Notch`, `Unfold`, `Navigate`, `MenuIn`, `MenuOut`, `DialogIn`, `DialogOut`, `TooltipIn`, `TooltipDelay`, `PlacardIn`, `PlacardLife`, `Wheel`, `Working`, `Sweep`.
+- `Motion`: `Press`, `HoverIn`, `HoverOut`, `FocusIn`, `FocusOut`, `Select`, `Field`, `Notch`, `Unfold`, `Navigate`, `MenuIn`, `MenuOut`, `DialogIn`, `DialogOut`, `TooltipIn`, `TooltipDelay`, `PlacardIn`, `PlacardLife`, `Wheel`, `Working`, `Sweep`; the Hub's `Quick` (120 ms), `Move` (240), `HubUnfold` (260; `Unfold` keeps Lithic's 200) and `Stagger` (18); `RevealStagger` (40), `Highlight` (1600) and `CountUp` (640).
 - `Density`: `Comfortable`, `Compact`.
 - `Theme.RowHeight()`: 56 dp when comfortable and 48 dp when compact.
-- `Option`, `WithShaper`, `WithFontCollection`, `New`, `NewShaper`.
+- `Theme.Corner(gtx, cut, bounds) int`: the corner a shape of these bounds and this cut wears in the theme's design, in pixels, through `gtx.Metric` because the design's thresholds are dp: the cut in Lithic, a radius in the round designs. The pill test compares the shorter side with `gtx.Dp(pill)`, so a control sized at the threshold through `gtx.Dp` stays a pill at any scale.
+- `Theme.Planes() palette.Planes`: the planes of the theme's design over its roles.
+- `Option`, `WithShaper`, `WithFontCollection`, `New`, `NewFor`, `NewShaper`.
 
 ## Motion API
 
@@ -142,15 +178,18 @@ Keep these Gio details in mind:
 | `Text`, `RawText` | Return one-line `layout.Widget` values. `Text` applies disabled ink. `RawText` keeps the supplied ink. |
 | `Icon` | `Icon(data []byte) *widget.Icon` decodes IconVG data such as a `symbols` value and panics for invalid data. |
 | `IconByName` | Returns the built-in `home`, `search`, `settings`, or `close` icon. It returns `nil` for any other name. |
-| `CutPath` | Builds a `clip.PathSpec` from bounds and independent northwest, northeast, southeast, and southwest cuts. |
-| `FillCut`, `FillCutCorners`, `FillCutTop` | Fill a cut rectangle, independent cut corners, or cut top corners. |
-| `StrokeCut`, `StrokeCutCorners` | Draw an inside stroke for equal or independent cuts. |
-| `Slab` | Records a child, paints the supplied cut background, then replays the child. |
+| `Fill`, `FillCorners` | `Fill(gtx, th, bounds, cut, ink)` and `FillCorners(gtx, th, bounds, nw, ne, se, sw, ink)` fill a shape in the theme's design: the cut in Lithic, a radius from `design.Style.Corner` in Material, Adwaita and Fluent (a pill when the shorter side is within the design's pill size). A cut of 0 stays square. Every kit control paints through these. |
+| `Stroke`, `StrokeCorners` | Draw an inside stroke in the theme's design; a round stroke is the ring between the outline and the outline inset by the width. |
+| `Shape` | `Shape(gtx, th, bounds, nw, ne, se, sw)` returns the outline in the theme's design, for clips and `Hatch`. |
+| `CutPath` | Builds a `clip.PathSpec` from bounds and independent northwest, northeast, southeast, and southwest cuts. Lithic's shape in every design: use it only for a mark that stays angular. |
+| `FillCut`, `FillCutCorners`, `FillCutTop` | Fill a cut rectangle, independent cut corners, or cut top corners, whatever the design. |
+| `StrokeCut`, `StrokeCutCorners` | Draw an inside stroke for equal or independent cuts, whatever the design. |
+| `Slab` | Records a child, paints the supplied cut background, then replays the child. It takes no theme, so it always cuts. |
 | `Notch` | Draws a right-triangle state mark at an `image.Point`. |
 | `Blade` | Draws a bar with a 45 degree leading edge. |
 | `Flake` | `Flake(gtx, th, tone, fraction, size)` draws idle, filled, or partially becoming state. |
 | `Hatch` | Engraves clipped 45 degree lines across a supplied `clip.PathSpec`. |
-| `FocusRingAlpha`, `FocusRing` | Draw the shared keyboard-focus ring around the supplied bounds and cut. |
+| `FocusRingAlpha`, `FocusRing` | Draw the shared keyboard-focus ring around the supplied bounds and cut, as `FocusRing.qml`: a gap of 2 outside the control, 2 wide, with the cut grown by 2, rounded in a round design. |
 
 ## Controls reference
 

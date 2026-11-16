@@ -41,8 +41,8 @@ func (pane Pane) Layout(gtx layout.Context, th *theme.Theme, body layout.Widget)
 	}
 	bounds := image.Rectangle{Max: dimensions.Size}
 	cut := gtx.Dp(th.Cut.Large)
-	FillCutTop(gtx.Ops, bounds, cut, ink)
-	StrokeCutCorners(gtx.Ops, bounds, cut, cut, 0, 0, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), th.R.Vein)
+	FillCorners(gtx, th, bounds, cut, cut, 0, 0, ink)
+	StrokeCorners(gtx, th, bounds, cut, cut, 0, 0, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), th.R.Vein)
 
 	call.Add(gtx.Ops)
 	return dimensions

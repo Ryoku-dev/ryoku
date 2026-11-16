@@ -112,11 +112,11 @@ func (t *DesignTile) layout(gtx layout.Context, th *theme.Theme, forceFocus bool
 			fill = palette.Mix(fill, th.R.Fg, tokens.AlphaHoverPlane*hover)
 		}
 		fill = palette.Mix(fill, th.R.Fg, tokens.AlphaPressRow*press)
-		FillCut(gtx.Ops, bounds, cut, disabledInk(gtx, fill))
+		Fill(gtx, th, bounds, cut, disabledInk(gtx, th, fill))
 		if !t.Selected {
-			StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), disabledInk(gtx, th.R.Vein))
+			Stroke(gtx, th, bounds, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), disabledInk(gtx, th, th.R.Vein))
 			if t.Current {
-				FillCutCorners(gtx.Ops, image.Rect(0, textTop, width, height), 0, 0, cut, cut, disabledInk(gtx, th.R.Sel))
+				FillCorners(gtx, th, image.Rect(0, textTop, width, height), 0, 0, cut, cut, disabledInk(gtx, th, th.R.Sel))
 			}
 		}
 
@@ -193,11 +193,11 @@ func (t *DesignTile) drawPreview(gtx layout.Context, th *theme.Theme, bounds ima
 	}
 	fade := paint.PushOpacity(gtx.Ops, opacity)
 	defer fade.Pop()
-	shape := CutPath(gtx.Ops, bounds, cut, cut, 0, 0)
+	shape := Shape(gtx, th, bounds, cut, cut, 0, 0)
 	picture := t.Image.Size()
 	if picture.X <= 0 || picture.Y <= 0 {
 		paint.FillShape(gtx.Ops, th.R.Field, clip.Outline{Path: shape}.Op())
-		Hatch(gtx.Ops, CutPath(gtx.Ops, bounds, cut, cut, 0, 0), bounds, gtx.Dp(tokens.SizeChartHatchGap), max(1, gtx.Dp(tokens.SizeChartHatchLine)), palette.WithAlpha(th.R.Fg, tokens.AlphaHatch))
+		Hatch(gtx.Ops, Shape(gtx, th, bounds, cut, cut, 0, 0), bounds, gtx.Dp(tokens.SizeChartHatchGap), max(1, gtx.Dp(tokens.SizeChartHatchLine)), palette.SRGBAlpha(th.R.Fg, th.R.Field, tokens.AlphaHatch))
 		return
 	}
 	area := clip.Outline{Path: shape}.Op().Push(gtx.Ops)

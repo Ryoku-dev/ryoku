@@ -82,7 +82,7 @@ func (p *IconPlaque) layoutWith(gtx layout.Context, th *theme.Theme, click *Clic
 		}
 		offset.Pop()
 		if p.Notch.A > 0 {
-			Notch(gtx.Ops, bounds.Min, gtx.Dp(th.Cut.Notch), disabledInk(original, p.Notch))
+			Notch(gtx.Ops, bounds.Min, gtx.Dp(th.Cut.Notch), disabledInk(original, th, p.Notch))
 		}
 		return layout.Dimensions{Size: bounds.Size()}
 	})

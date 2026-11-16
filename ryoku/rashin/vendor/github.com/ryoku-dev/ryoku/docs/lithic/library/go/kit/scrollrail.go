@@ -18,11 +18,11 @@ import (
 )
 
 // drawScrollThumb draws the cut thumb against the right edge of a pane right
-// pixels wide.
-func drawScrollThumb(gtx layout.Context, right, top, height int, ink color.NRGBA) {
+// pixels wide; a round design draws it as a pill.
+func drawScrollThumb(gtx layout.Context, th *theme.Theme, right, top, height int, ink color.NRGBA) {
 	width := max(1, gtx.Dp(tokens.SizeScrollThumb))
 	x := right - width
-	FillCut(gtx.Ops, image.Rect(x, top, x+width, top+height), min(width/2, height/2), ink)
+	Fill(gtx, th, image.Rect(x, top, x+width, top+height), min(width/2, height/2), ink)
 }
 
 // ScrollRail draws the Lithic scroll thumb for a vertical layout.List pane.
@@ -113,7 +113,7 @@ func (r *ScrollRail) Layout(gtx layout.Context, th *theme.Theme, list *layout.Li
 	if r.Preview == StatePressed {
 		hover = 1
 	}
-	drawScrollThumb(gtx, size.X, top, height, palette.Mix(th.R.Edge, th.R.Fg3, hover))
+	drawScrollThumb(gtx, th, size.X, top, height, palette.Mix(th.R.Edge, th.R.Fg3, hover))
 	return layout.Dimensions{Size: size}
 }
 

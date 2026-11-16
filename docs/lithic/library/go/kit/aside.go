@@ -2,9 +2,12 @@ package kit
 
 import (
 	"image"
+	"image/color"
 	"strings"
 
 	"gioui.org/layout"
+	"gioui.org/op"
+	"gioui.org/unit"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
@@ -60,7 +63,7 @@ func AsidePreview(th *theme.Theme, value string) layout.Widget {
 	lines := strings.Split(strings.TrimRight(value, "\n"), "\n")
 	return func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
-		return Slab(gtx, th.R.Field, th.Cut.Small, func(gtx layout.Context) layout.Dimensions {
+		return themedSlab(gtx, th, th.R.Field, th.Cut.Small, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = gtx.Constraints.Max.X
 			return layout.UniformInset(th.Sp.S3).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				children := make([]layout.FlexChild, len(lines))
@@ -77,4 +80,14 @@ func AsidePreview(th *theme.Theme, value string) layout.Widget {
 			})
 		})
 	}
+}
+
+// themedSlab is Slab in th's design: the cut plane behind widget.
+func themedSlab(gtx layout.Context, th *theme.Theme, ink color.NRGBA, cut unit.Dp, widget layout.Widget) layout.Dimensions {
+	record := op.Record(gtx.Ops)
+	dimensions := widget(gtx)
+	call := record.Stop()
+	Fill(gtx, th, image.Rectangle{Max: dimensions.Size}, gtx.Dp(cut), ink)
+	call.Add(gtx.Ops)
+	return dimensions
 }

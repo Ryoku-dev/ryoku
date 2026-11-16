@@ -110,11 +110,11 @@ func (t *Tabs) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 	indicatorWidth := int(t.width.Value(gtx) + .5)
 
 	baseline := max(1, gtx.Dp(unit.Dp(tokens.SizeTabsBaseline)))
-	FillCut(gtx.Ops, image.Rect(0, height-baseline, total, height), 0, disabledInk(gtx, th.R.Vein))
+	FillCut(gtx.Ops, image.Rect(0, height-baseline, total, height), 0, disabledInk(gtx, th, th.R.Vein))
 	bladeHeight := max(1, gtx.Dp(unit.Dp(tokens.SizeTabsBlade)))
 	bladeBounds := image.Rect(indicatorX, height-bladeHeight, indicatorX+indicatorWidth, height)
 	points := tabBladePoints(bladeBounds)
-	paint.FillShape(gtx.Ops, disabledInk(gtx, th.R.Fg), clip.Outline{Path: pathFromPoints(gtx.Ops, points[:])}.Op())
+	paint.FillShape(gtx.Ops, disabledInk(gtx, th, th.R.Fg), clip.Outline{Path: pathFromPoints(gtx.Ops, points[:])}.Op())
 
 	x := 0
 	for i, label := range t.Labels[:count] {
@@ -137,9 +137,9 @@ func (t *Tabs) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 				ink = palette.Mix(th.R.Fg3, th.R.Fg2, hover)
 			}
 			if itemPreview == StatePressed || t.tabs[i].Pressed() {
-				FillCut(gtx.Ops, image.Rect(0, 0, width, height), 0, disabledInk(gtx, palette.WithAlpha(th.R.Fg, tokens.AlphaPressRow)))
+				FillCut(gtx.Ops, image.Rect(0, 0, width, height), 0, faintInk(gtx, th, th.R.Fg, th.R.Ground, tokens.AlphaPressRow))
 			}
-			return layout.Center.Layout(gtx, rawText(th, th.T.Label, disabledInk(gtx, ink), label))
+			return layout.Center.Layout(gtx, rawText(th, th.T.Label, disabledInk(gtx, th, ink), label))
 		})
 		focus := previewTransition(gtx, &t.focus[i], itemPreview, StateFocus, gtx.Focused(&t.tabs[i].Clickable), th.Motion.FocusIn, th.Motion.FocusOut)
 		FocusRingAlpha(gtx, th, image.Rectangle{Max: dims.Size}, 0, focus)

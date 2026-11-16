@@ -132,7 +132,7 @@ func (r *Rail) layoutVertical(gtx layout.Context, th *theme.Theme, destinations 
 		y := int(r.placeSelection(gtx, th.Motion.Select, float32(positions[selected])) + .5)
 		offset := op.Offset(image.Pt(x, y)).Push(gtx.Ops)
 		tileBounds, tileCut := image.Rect(0, 0, tileWidth, r.heights[selected]), gtx.Dp(th.Cut.Mid)
-		FillCut(gtx.Ops, tileBounds, tileCut, th.R.Sel)
+		Fill(gtx, th, tileBounds, tileCut, th.R.Sel)
 
 		offset.Pop()
 	}
@@ -272,7 +272,7 @@ func (r *Rail) layoutBottom(gtx layout.Context, th *theme.Theme, destinations []
 		x := int(r.placeSelection(gtx, th.Motion.Select, float32(position(selected))) + .5)
 		offset := op.Offset(image.Pt(x, y)).Push(gtx.Ops)
 		tileBounds, tileCut := image.Rect(0, 0, columnWidth, tileHeight), gtx.Dp(th.Cut.Small)
-		FillCut(gtx.Ops, tileBounds, tileCut, th.R.Sel)
+		Fill(gtx, th, tileBounds, tileCut, th.R.Sel)
 
 		offset.Pop()
 	}
@@ -308,7 +308,7 @@ func (r *Rail) layoutHome(gtx layout.Context, th *theme.Theme, label bool) layou
 		hovered := r.home.Hovered() || r.Preview == StateHover || r.Preview == StatePressed
 		hover := hoverValue(gtx, th, &r.home.hover, hovered)
 		if hover > 0 {
-			FillCut(gtx.Ops, image.Rectangle{Max: gtx.Constraints.Max}, cut, palette.Mix(th.R.Stone1, th.R.Stone3, hover))
+			Fill(gtx, th, image.Rectangle{Max: gtx.Constraints.Max}, cut, palette.Mix(th.R.Stone1, th.R.Stone3, hover))
 		}
 		return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			markSize := unit.Dp(tokens.SizeBrandMark)
@@ -344,7 +344,7 @@ func (r *Rail) layoutDestination(gtx layout.Context, th *theme.Theme, state *rai
 		hovered := state.Hovered() || r.Preview == StateHover || r.Preview == StatePressed
 		hover := hoverValue(gtx, th, &state.hover, hovered && !selected)
 		if hover > 0 {
-			FillCut(gtx.Ops, image.Rectangle{Max: gtx.Constraints.Max}, cut, palette.Mix(th.R.Stone1, th.R.Stone3, hover))
+			Fill(gtx, th, image.Rectangle{Max: gtx.Constraints.Max}, cut, palette.Mix(th.R.Stone1, th.R.Stone3, hover))
 		}
 		state.notch.Duration = th.Motion.Notch
 		state.notch.Ease = anim.EaseChisel

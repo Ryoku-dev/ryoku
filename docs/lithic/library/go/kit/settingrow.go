@@ -100,7 +100,7 @@ func (r *SettingRow) Layout(gtx layout.Context, th *theme.Theme, control layout.
 	}
 	plane := max(tokens.AlphaHoverPlane*hover, tokens.AlphaHoverPlane*min(max(r.Highlight, 0), 1))
 	plane = max(plane, tokens.AlphaPressRow*press)
-	FillCut(gtx.Ops, bleed, cut, palette.WithAlpha(th.R.Fg, plane))
+	Fill(gtx, th, bleed, cut, palette.SRGBAlpha(th.R.Fg, th.R.Ground, plane))
 
 	rowFocused := false
 	if r.Activatable {

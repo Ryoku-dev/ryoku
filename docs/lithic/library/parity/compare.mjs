@@ -19,11 +19,15 @@ function near(a, b) {
 }
 
 // Every role in the reference must match in every stack. The web resolver also
-// exports conveniences CSS cannot compute (jasperInk), which are not compared.
+// exports conveniences CSS cannot compute (jasperInk), which are not compared, and
+// does not resolve the selection container (container, onContainer), which Go and
+// QML compare.
+const webless = new Set(['container', 'onContainer']);
 const problems = Object.keys(expected).length === 0 ? [`${reference} printed nothing`] : [];
 for (const [role, value] of Object.entries(expected)) {
   for (const [stack, roles] of sets.slice(1)) {
     if (role === 'source' && roles.source === undefined) continue;
+    if (stack === 'web' && webless.has(role)) continue;
     if (!near(value, roles[role])) problems.push(`${role}: ${reference} ${value}, ${stack} ${roles[role]}`);
   }
 }

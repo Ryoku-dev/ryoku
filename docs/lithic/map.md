@@ -34,19 +34,19 @@ stack has a counterpart.
 
 | Pattern | What it is for | Spec | Hub component | Lithic type | Web, Gio, terminal |
 |---|---|---|---|---|---|
-| Frame | the window: sidebar tree beside one page pane on one paper | [The frame](layout.md#the-frame) | `Hub.qml`, `ShellBody.qml` | `CutRect`, `Lithic.planes()` | - |
-| Registration sheet | the dots, plus marks and registration marks under every page | [The registration sheet](layout.md#the-registration-sheet) | `components/sheet/RegSheet.qml` | - | - |
-| Masthead | the mono line over the page: number, place, gloss, facts, tick ruler and scroll marker | [The masthead](layout.md#the-masthead) | `components/sheet/Masthead.qml` | `Label` | - |
+| Frame | the window: sidebar tree beside one page pane on one paper | [The frame](layout.md#the-frame) | `Hub.qml`, `ShellBody.qml` | `CutRect`, `Lithic.planes()` | Go `theme.Theme.Planes()`, `kit.Fill`, `kit.Stroke` |
+| Registration sheet | the dots, plus marks and registration marks under every page | [The registration sheet](layout.md#the-registration-sheet) | `components/sheet/RegSheet.qml` | - | Go `kit.RegistrationSheet` |
+| Masthead | the mono line over the page: number, place, gloss, facts, tick ruler and scroll marker | [The masthead](layout.md#the-masthead) | `components/sheet/Masthead.qml` | `Label` | Go `kit.Masthead`, `kit.SpacedCaps`, `kit.Clock` |
 | Colophon | the motto and the page's barcode at the sheet's foot | [The colophon](layout.md#the-colophon) | `components/sheet/Colophon.qml`, `components/about/CardBarcode.qml` | `Label` | - |
-| Folio | a short page's number, huge and faint, in its empty foot | [The folio](layout.md#the-folio) | `components/sheet/Folio.qml` | `Label` | - |
+| Folio | a short page's number, huge and faint, in its empty foot | [The folio](layout.md#the-folio) | `components/sheet/Folio.qml` | `Label` | Go `kit.Folio` |
 | Plate | a category's dithered sculpture beside the page head | [The page sheet](layout.md#the-page-sheet) | `components/sheet/Plate.qml`, `registry/plates.js`, `shaders/plate.frag` | - | - |
 | Tategaki | the page's kanji set vertically beside the plate or preview | [The page sheet](layout.md#the-page-sheet) | `components/sheet/Tategaki.qml` | `Label` | - |
-| Tick ruler | ticks 8 apart, every fifth tall, a first segment in the lead ink | [The cover](layout.md#the-cover) | `components/TickRuler.qml` | - | - |
+| Tick ruler | ticks 8 apart, every fifth tall, a first segment in the lead ink | [The cover](layout.md#the-cover) | `components/TickRuler.qml` | - | Go `kit.TickRuler` |
 | Sidebar tree | all of Settings as numbered folders and leaves | [The sidebar tree](layout.md#the-sidebar-tree) | `components/nav/HubSidebar.qml`, `NavTree.qml`, `NavFolder.qml`, `NavRow.qml` | `Search`, `ScrollRail`, `CutRect` | - |
 | Section outline | the open page's sections under its leaf, with section nodes | [The sidebar tree](layout.md#the-sidebar-tree) | `components/nav/NavOutline.qml` | - | - |
 | Activity map | the machine now and a contribution map of the hours it was on | [Charts on overview screens](components.md#charts-on-overview-screens) | `components/sheet/Activity.qml`, `Singletons/LiveStats.qml` | - | - |
 | Peek | a page's live summary beside its tree line | [The sidebar tree](layout.md#the-sidebar-tree) | `components/nav/HubSidebar.qml`, `registry/summaries.js` | `CutRect`, `Glyph`, `Label` | - |
-| Page sheet | one settings page: head, ruled sections, slabs, rows | [The page sheet](layout.md#the-page-sheet) | `components/SettingsPage.qml` | `Section`, `Slab`, `SettingRow`, `Disclosure`, `ScrollRail` | Go `kit.Section`, `kit.Slab`, `kit.SettingRow` |
+| Page sheet | one settings page: head, ruled sections, slabs, rows | [The page sheet](layout.md#the-page-sheet) | `components/SettingsPage.qml` | `Section`, `Slab`, `SettingRow`, `Disclosure`, `ScrollRail` | Go `kit.SectionStyle` (ruled, `kit.Ordinal` mark), `kit.Slab`, `kit.SettingRow` |
 | Page head | title, page actions, lead, state, note, spec strip, preview or plate | [The page sheet](layout.md#the-page-sheet) | `components/PageHeader.qml` | `Label`, `Plaque` | - |
 | Setting row control | the control a row's schema asks for | [Setting row](components.md#setting-row) | `components/RowControl.qml` | `Toggle`, `Segmented`, `Slider`, `Stepper`, `Picker`, `TextField`, `ColorField`, `ChordField`, `PathField`, `Plaque` | see the component index |
 | Search and results | find any page, section or setting | [Search](components.md#search) | `components/SearchResults.qml`, `components/SearchDoor.qml`, `components/PageRow.qml`, `Hub.qml:538-704` | `Search` | web `.l-search`, Go `kit.Search`, terminal `term.RenderSearch` |
@@ -63,7 +63,7 @@ stack has a counterpart.
 | Badge seal | a team badge's two-ink seal | [Emblem](components.md#emblem) | `components/badge/Emblem.qml` | - | - |
 | Certificate | the badge's signed certificate | [Certificate](components.md#certificate) | `components/badge/Certificate.qml` | `CutRect` | - |
 | Ryoku mark | the current Ryoku logo, the cut 力 | [The sidebar tree](layout.md#the-sidebar-tree) | `components/RyokuMark.qml` (`ryoku/assets/brand/logo-mark-v2.png`) | - | - |
-| Motion helpers | groups rising in turn; pointer follow without overshoot | [motion.md](motion.md) | `components/Reveal.qml`, `components/Chase.qml`, `Singletons/Ambient.qml`, `Singletons/Tone.qml` | `ChiselColorBehavior`, `ChiselNumberBehavior` | - |
+| Motion helpers | groups rising in turn; pointer follow without overshoot | [motion.md](motion.md) | `components/Reveal.qml`, `components/Chase.qml`, `Singletons/Ambient.qml`, `Singletons/Tone.qml` | `ChiselColorBehavior`, `ChiselNumberBehavior` | Go `anim.Reveal`, `anim.Chase`, `anim.Rise`, `anim.EaseOutCubic`, `kit.Ambient`, `theme.Motion.Quick/Move/HubUnfold/Stagger` |
 
 ## Component index
 

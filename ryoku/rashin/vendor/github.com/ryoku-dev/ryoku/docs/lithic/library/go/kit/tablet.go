@@ -139,7 +139,7 @@ func (tablet *Tablet) Layout(gtx layout.Context, th *theme.Theme, content Tablet
 		if selected {
 			FillCut(gtx.Ops, image.Rect(0, 0, width, height), 0, th.R.Sel)
 			if press > 0 {
-				FillCut(gtx.Ops, image.Rect(0, 0, width, height), 0, palette.WithAlpha(th.R.OnSel, tokens.AlphaPressRow*press))
+				FillCut(gtx.Ops, image.Rect(0, 0, width, height), 0, palette.SRGBAlpha(th.R.OnSel, th.R.Sel, tokens.AlphaPressRow*press))
 			}
 
 		} else {

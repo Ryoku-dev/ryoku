@@ -130,7 +130,7 @@ func (f *TextField) Layout(gtx layout.Context, th *theme.Theme) layout.Dimension
 	if message != "" {
 		children[count] = layout.Rigid(layout.Spacer{Height: unit.Dp(tokens.SizeTextFieldHelpGap)}.Layout)
 		count++
-		children[count] = layout.Rigid(Text(th, th.T.Caption, disabledInk(gtx, messageColor), message))
+		children[count] = layout.Rigid(Text(th, th.T.Caption, disabledInk(gtx, th, messageColor), message))
 		count++
 	}
 	return layout.Flex{Axis: layout.Vertical, Alignment: layout.Start}.Layout(gtx, children[:count]...)
@@ -143,8 +143,8 @@ func layoutTextEditor(gtx layout.Context, th *theme.Theme, editor *widget.Editor
 	lineGTX.Constraints.Max = size
 
 	record := op.Record(gtx.Ops)
-	textCall := textMaterial(gtx.Ops, disabledInk(gtx, th.R.Fg))
-	selectionCall := textMaterial(gtx.Ops, disabledInk(gtx, th.R.Sel))
+	textCall := textMaterial(gtx.Ops, disabledInk(gtx, th, th.R.Fg))
+	selectionCall := textMaterial(gtx.Ops, disabledInk(gtx, th, th.R.Sel))
 	editor.LineHeight = 0
 	noteOverlayFocus(gtx, editor)
 	editorDims := editor.Layout(lineGTX, th.Shaper, style.Face, style.Size, textCall, selectionCall)
@@ -159,7 +159,7 @@ func layoutTextEditor(gtx layout.Context, th *theme.Theme, editor *widget.Editor
 		hintGTX.Constraints.Min = image.Point{}
 		hintGTX.Constraints.Max = size
 		record = op.Record(gtx.Ops)
-		hintDims := rawText(th, style, disabledInk(gtx, th.R.Fg3), placeholder)(hintGTX)
+		hintDims := rawText(th, style, disabledInk(gtx, th, th.R.Fg3), placeholder)(hintGTX)
 		call = record.Stop()
 		hintY := max(0, (size.Y-hintDims.Size.Y)/2)
 		offset = op.Offset(image.Pt(0, hintY)).Push(gtx.Ops)

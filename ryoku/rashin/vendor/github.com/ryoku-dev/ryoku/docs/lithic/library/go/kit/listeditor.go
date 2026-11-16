@@ -15,7 +15,6 @@ import (
 	"gioui.org/unit"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
-	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/symbols"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
@@ -451,8 +450,8 @@ func (l *ListEditor) Layout(gtx layout.Context, th *theme.Theme, items []ListIte
 		if backing == (color.NRGBA{}) {
 			backing = th.R.Slab
 		}
-		FillCut(gtx.Ops, plane, gtx.Dp(th.Cut.Small), disabledInk(gtx, backing))
-		FillCut(gtx.Ops, plane, gtx.Dp(th.Cut.Small), disabledInk(gtx, palette.WithAlpha(th.R.Fg, tokens.AlphaHoverPlane)))
+		Fill(gtx, th, plane, gtx.Dp(th.Cut.Small), disabledInk(gtx, th, backing))
+		Fill(gtx, th, plane, gtx.Dp(th.Cut.Small), faintInk(gtx, th, th.R.Fg, backing, tokens.AlphaHoverPlane))
 		offset := op.Offset(image.Pt(0, top)).Push(gtx.Ops)
 		draggedCall.Add(gtx.Ops)
 		offset.Pop()
@@ -537,7 +536,7 @@ func (l *ListEditor) layoutHandle(gtx layout.Context, th *theme.Theme, row *list
 		semantic.EnabledOp(gtx.Source.Enabled()).Add(gtx.Ops)
 		icon := gtx.Dp(tokens.SizeIconPlaqueIcon)
 		offset := op.Offset(image.Pt((size.X-icon)/2, (size.Y-icon)/2)).Push(gtx.Ops)
-		iconListDrag.Layout(exactContext(gtx, image.Pt(icon, icon)), disabledInk(gtx, th.R.Fg3))
+		iconListDrag.Layout(exactContext(gtx, image.Pt(icon, icon)), disabledInk(gtx, th, th.R.Fg3))
 		offset.Pop()
 		return layout.Dimensions{Size: size}
 	})
@@ -609,7 +608,7 @@ func (l *ListEditor) layoutEditor(gtx layout.Context, th *theme.Theme, top int, 
 	call := record.Stop()
 	height := content.Size.Y + 2*pad
 	plane := image.Rect(-bleed, top, width+bleed, top+height)
-	FillCut(gtx.Ops, plane, gtx.Dp(th.Cut.Small), disabledInk(gtx, th.R.Field))
+	Fill(gtx, th, plane, gtx.Dp(th.Cut.Small), disabledInk(gtx, th, th.R.Field))
 	area := clip.Rect(plane).Push(gtx.Ops)
 	semantic.LabelOp(name).Add(gtx.Ops)
 	offset := op.Offset(image.Pt(-bleed+pad, top+pad)).Push(gtx.Ops)

@@ -31,7 +31,7 @@ func (label Label) Layout(gtx layout.Context, th *theme.Theme, value string) lay
 		Alignment: label.Align, MaxLines: label.MaxLines, Truncator: truncator,
 		LineHeight: label.Style.Line, LineHeightScale: 1,
 	}
-	return widgetLabel.Layout(gtx, th.Shaper, label.Style.Face, label.Style.Size, value, textMaterial(gtx.Ops, disabledInk(gtx, label.Color)))
+	return widgetLabel.Layout(gtx, th.Shaper, label.Style.Face, label.Style.Size, value, textMaterial(gtx.Ops, disabledInk(gtx, th, label.Color)))
 }
 
 // Text returns a one-line Lithic text widget that respects disabled state.

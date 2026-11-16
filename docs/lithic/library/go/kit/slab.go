@@ -41,10 +41,10 @@ func TonedSlabContent(gtx layout.Context, th *theme.Theme, tone palette.Tone, bo
 // alone; a toned slab is filled with its mineral field and carries no line.
 func SlabSurface(gtx layout.Context, th *theme.Theme, bounds image.Rectangle, cut int, fill color.NRGBA) {
 	if fill == th.R.Slab {
-		StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), th.R.Vein)
+		Stroke(gtx, th, bounds, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), th.R.Vein)
 		return
 	}
-	FillCut(gtx.Ops, bounds, cut, fill)
+	Fill(gtx, th, bounds, cut, fill)
 }
 
 // SlabRows lays out rows inside a standard slab at full width. Space, not a

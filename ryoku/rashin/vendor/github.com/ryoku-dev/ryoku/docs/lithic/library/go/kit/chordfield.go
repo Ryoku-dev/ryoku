@@ -163,9 +163,9 @@ func (f *ChordField) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensio
 		offset := op.Offset(image.Pt(inset, 0)).Push(gtx.Ops)
 		switch {
 		case recording:
-			centerY(inner, rawText(th, th.T.Body, disabledInk(gtx, th.R.Fg2), "Press a shortcut"))
+			centerY(inner, rawText(th, th.T.Body, disabledInk(gtx, th, th.R.Fg2), "Press a shortcut"))
 		case len(caps) == 0:
-			centerY(inner, rawText(th, th.T.Body, disabledInk(gtx, th.R.Fg3), placeholder))
+			centerY(inner, rawText(th, th.T.Body, disabledInk(gtx, th, th.R.Fg3), placeholder))
 		default:
 			centerY(inner, func(gtx layout.Context) layout.Dimensions { return layoutKeycaps(gtx, th, caps) })
 		}
@@ -189,7 +189,7 @@ func (f *ChordField) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensio
 	offset := op.Offset(image.Pt(0, dims.Size.Y+gap)).Push(gtx.Ops)
 	lineGTX := gtx
 	lineGTX.Constraints = layout.Constraints{Max: image.Pt(dims.Size.X, gtx.Constraints.Max.Y)}
-	conflict := Label{Style: th.T.Caption, Color: disabledInk(gtx, th.R.Jasper)}.Layout(lineGTX, th, f.Conflict)
+	conflict := Label{Style: th.T.Caption, Color: disabledInk(gtx, th, th.R.Jasper)}.Layout(lineGTX, th, f.Conflict)
 	offset.Pop()
 	return layout.Dimensions{Size: image.Pt(dims.Size.X, dims.Size.Y+gap+conflict.Size.Y), Baseline: dims.Baseline}
 }
@@ -208,15 +208,15 @@ func layoutKeycaps(gtx layout.Context, th *theme.Theme, caps []string) layout.Di
 		record := op.Record(gtx.Ops)
 		textGTX := gtx
 		textGTX.Constraints = layout.Constraints{Max: image.Pt(max(0, gtx.Constraints.Max.X-x-2*padX), gtx.Sp(th.T.Label.Line))}
-		text := rawText(th, th.T.Label, disabledInk(gtx, th.R.Fg), face)(textGTX)
+		text := rawText(th, th.T.Label, disabledInk(gtx, th, th.R.Fg), face)(textGTX)
 		call := record.Stop()
 		capWidth := text.Size.X + 2*padX
 		if x+capWidth > gtx.Constraints.Max.X {
 			break
 		}
 		bounds := image.Rect(x, 0, x+capWidth, height)
-		FillCut(gtx.Ops, bounds, cut, disabledInk(gtx, th.R.Field))
-		StrokeCut(gtx.Ops, bounds, cut, hairline, disabledInk(gtx, th.R.Edge))
+		Fill(gtx, th, bounds, cut, disabledInk(gtx, th, th.R.Field))
+		Stroke(gtx, th, bounds, cut, hairline, disabledInk(gtx, th, th.R.Edge))
 		offset := op.Offset(image.Pt(x+padX, padY)).Push(gtx.Ops)
 		call.Add(gtx.Ops)
 		offset.Pop()

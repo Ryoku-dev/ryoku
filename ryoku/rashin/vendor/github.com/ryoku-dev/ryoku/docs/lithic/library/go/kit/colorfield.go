@@ -215,7 +215,7 @@ func (f *ColorField) layoutRow(gtx layout.Context, th *theme.Theme) layout.Dimen
 	offset = op.Offset(image.Pt(x, height+gap)).Push(gtx.Ops)
 	lineGTX := gtx
 	lineGTX.Constraints = layout.Constraints{Max: image.Pt(fieldSize.X, gtx.Constraints.Max.Y)}
-	message := Label{Style: th.T.Caption, Color: disabledInk(gtx, th.R.Jasper)}.Layout(lineGTX, th, colorFieldInvalid)
+	message := Label{Style: th.T.Caption, Color: disabledInk(gtx, th, th.R.Jasper)}.Layout(lineGTX, th, colorFieldInvalid)
 	offset.Pop()
 	return layout.Dimensions{Size: image.Pt(size.X, height+gap+message.Size.Y)}
 }
@@ -289,8 +289,8 @@ func (f *ColorField) layoutPanel(gtx layout.Context, th *theme.Theme) layout.Dim
 	call := record.Stop()
 	bounds := image.Rectangle{Max: dims.Size}
 	cut := gtx.Dp(th.Cut.Menu)
-	FillCut(gtx.Ops, bounds, cut, th.R.Stone4)
-	StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(tokens.SizeHairline)), th.R.Vein)
+	Fill(gtx, th, bounds, cut, th.R.Stone4)
+	Stroke(gtx, th, bounds, cut, max(1, gtx.Dp(tokens.SizeHairline)), th.R.Vein)
 	call.Add(gtx.Ops)
 	return dims
 }
@@ -375,12 +375,12 @@ func (f *ColorField) layoutPanelFields(gtx layout.Context, th *theme.Theme) layo
 // drawColorPlate paints value over a hatch so its alpha shows, inside an edge
 // hairline.
 func drawColorPlate(gtx layout.Context, th *theme.Theme, bounds image.Rectangle, cut int, value color.NRGBA) {
-	FillCut(gtx.Ops, bounds, cut, disabledInk(gtx, th.R.Field))
+	Fill(gtx, th, bounds, cut, disabledInk(gtx, th, th.R.Field))
 	if value.A < 0xff {
-		Hatch(gtx.Ops, CutPath(gtx.Ops, bounds, cut, cut, cut, cut), bounds, gtx.Dp(tokens.SizeChartHatchGap), max(1, gtx.Dp(tokens.SizeChartHatchLine)), disabledInk(gtx, palette.WithAlpha(th.R.Fg, tokens.AlphaHatch)))
+		Hatch(gtx.Ops, Shape(gtx, th, bounds, cut, cut, cut, cut), bounds, gtx.Dp(tokens.SizeChartHatchGap), max(1, gtx.Dp(tokens.SizeChartHatchLine)), faintInk(gtx, th, th.R.Fg, th.R.Field, tokens.AlphaHatch))
 	}
-	FillCut(gtx.Ops, bounds, cut, disabledInk(gtx, value))
-	StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), disabledInk(gtx, th.R.Edge))
+	Fill(gtx, th, bounds, cut, disabledInk(gtx, th, value))
+	Stroke(gtx, th, bounds, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), disabledInk(gtx, th, th.R.Edge))
 }
 
 // parseHexColor reads #rgb or #rrggbb, plus #rgba or #rrggbbaa when alpha is

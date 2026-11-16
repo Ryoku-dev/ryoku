@@ -10,7 +10,6 @@ import (
 	"gioui.org/widget"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
-	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/symbols"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
@@ -81,10 +80,10 @@ func (s *SplitPlaque) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensi
 				call := record.Stop()
 				size := constrainSize(gtx, image.Pt(content.Size.X, height))
 				bounds := image.Rectangle{Max: size}
-				FillCutCorners(gtx.Ops, bounds, cut, 0, 0, cut, colors.fill)
+				FillCorners(gtx, th, bounds, cut, 0, 0, cut, colors.fill)
 
 				if colors.stroke {
-					StrokeCutCorners(gtx.Ops, bounds, cut, 0, 0, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), colors.outline)
+					StrokeCorners(gtx, th, bounds, cut, 0, 0, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), colors.outline)
 				}
 				offset := op.Offset(image.Pt((size.X-content.Size.X)/2, (height-content.Size.Y)/2+sink)).Push(gtx.Ops)
 				call.Add(gtx.Ops)
@@ -92,10 +91,7 @@ func (s *SplitPlaque) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensi
 				return layout.Dimensions{Size: size}
 			})
 			focus := previewTransition(gtx, &s.mainFocus, s.Preview, StateFocus, gtx.Focused(&s.Main.Clickable), th.Motion.FocusIn, th.Motion.FocusOut)
-			if focus > 0 {
-				pad := gtx.Dp(unit.Dp(tokens.SizeFocusRingGap))
-				StrokeCutCorners(gtx.Ops, image.Rectangle{Max: dims.Size}.Inset(-pad), cut+pad, 0, 0, cut+pad, max(1, gtx.Dp(unit.Dp(tokens.SizeFocusRingWidth))), palette.WithAlpha(th.R.Fg2, focus))
-			}
+			focusRingCorners(gtx, th, image.Rectangle{Max: dims.Size}, cut, 0, 0, cut, focus)
 			return dims
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -111,10 +107,10 @@ func (s *SplitPlaque) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensi
 				hover := previewTransition(gtx, &s.moreHover, s.Preview, StateHover, s.More.Hovered(), th.Motion.HoverIn, th.Motion.HoverOut)
 				colors := interactivePlaqueColors(gtx, th, s.Kind, hover)
 				bounds := image.Rect(0, 0, moreWidth, height)
-				FillCutCorners(gtx.Ops, bounds, 0, cut, cut, 0, colors.fill)
+				FillCorners(gtx, th, bounds, 0, cut, cut, 0, colors.fill)
 
 				if colors.stroke {
-					StrokeCutCorners(gtx.Ops, bounds, 0, cut, cut, 0, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), colors.outline)
+					StrokeCorners(gtx, th, bounds, 0, cut, cut, 0, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), colors.outline)
 				}
 				arrow := iconExpandMore
 				if s.Open {
@@ -127,10 +123,7 @@ func (s *SplitPlaque) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensi
 				return layout.Dimensions{Size: image.Pt(moreWidth, height)}
 			})
 			focus := previewTransition(gtx, &s.moreFocus, s.Preview, StateFocus, gtx.Focused(&s.More.Clickable), th.Motion.FocusIn, th.Motion.FocusOut)
-			if focus > 0 {
-				pad := gtx.Dp(unit.Dp(tokens.SizeFocusRingGap))
-				StrokeCutCorners(gtx.Ops, image.Rectangle{Max: dims.Size}.Inset(-pad), 0, cut+pad, cut+pad, 0, max(1, gtx.Dp(unit.Dp(tokens.SizeFocusRingWidth))), palette.WithAlpha(th.R.Fg2, focus))
-			}
+			focusRingCorners(gtx, th, image.Rectangle{Max: dims.Size}, 0, cut, cut, 0, focus)
 			return dims
 		}),
 	)

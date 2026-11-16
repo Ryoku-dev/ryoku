@@ -87,9 +87,9 @@ func (f *Filters) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions 
 				cut = gtx.Dp(th.Cut.Small) + int(float32(gtx.Dp(unit.Dp(tokens.SizeControlPressCutGrow)))*pressed+.5)
 				sink := int(float32(gtx.Dp(unit.Dp(tokens.SizeControlPressSink)))*pressed + .5)
 				hover := previewTransition(gtx, &f.chips[i].hover, itemPreview, StateHover, f.chips[i].Hovered() && i != f.Selected, th.Motion.HoverIn, th.Motion.HoverOut)
-				ink := disabledInk(gtx, th.R.Fg2)
+				ink := disabledInk(gtx, th, th.R.Fg2)
 				if i == f.Selected {
-					ink = disabledInk(gtx, th.R.OnSel)
+					ink = disabledInk(gtx, th, th.R.OnSel)
 				}
 
 				contentGTX := gtx
@@ -114,11 +114,11 @@ func (f *Filters) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions 
 				bounds := image.Rectangle{Max: size}
 				plate := op.Record(gtx.Ops)
 				if i != f.Selected {
-					FillCut(gtx.Ops, bounds, cut, disabledInk(gtx, palette.WithAlpha(th.R.Field, min(hover, 1))))
+					Fill(gtx, th, bounds, cut, disabledInk(gtx, th, palette.WithAlpha(th.R.Field, min(hover, 1))))
 				}
 				f.plates[i] = plate.Stop()
 				if i == f.Selected && pressed > 0 {
-					FillCut(gtx.Ops, bounds, cut, palette.WithAlpha(th.R.OnSel, tokens.AlphaPressRow*pressed))
+					Fill(gtx, th, bounds, cut, palette.SRGBAlpha(th.R.OnSel, th.R.Sel, tokens.AlphaPressRow*pressed))
 				}
 				offset := op.Offset(image.Pt((size.X-content.Size.X)/2, (size.Y-content.Size.Y)/2+sink)).Push(gtx.Ops)
 				call.Add(gtx.Ops)
@@ -153,7 +153,7 @@ func (f *Filters) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions 
 	width := int(f.width.Value(gtx) + .5)
 	selection := image.Rect(x, (dims.Size.Y-height)/2, x+width, (dims.Size.Y+height)/2)
 	selectionCut := gtx.Dp(th.Cut.Small)
-	FillCut(gtx.Ops, selection, selectionCut, disabledInk(gtx, th.R.Sel))
+	Fill(gtx, th, selection, selectionCut, disabledInk(gtx, th, th.R.Sel))
 
 	content.Add(gtx.Ops)
 	return dims

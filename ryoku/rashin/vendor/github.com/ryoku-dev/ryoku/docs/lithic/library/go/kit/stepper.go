@@ -228,13 +228,13 @@ func (s *Stepper) layoutField(gtx layout.Context, th *theme.Theme) layout.Dimens
 			return layoutTextEditor(exactContext(gtx, image.Pt(width, lineHeight)), th, &s.editor, th.T.Label, "")
 		})
 	} else {
-		children[count] = layout.Rigid(rawText(th, th.T.Label, disabledInk(gtx, th.R.Fg), strconv.Itoa(s.Value)))
+		children[count] = layout.Rigid(rawText(th, th.T.Label, disabledInk(gtx, th, th.R.Fg), strconv.Itoa(s.Value)))
 	}
 	count++
 	if s.Unit != "" {
 		children[count] = layout.Rigid(layout.Spacer{Width: unit.Dp(tokens.SizeStepperUnitGap)}.Layout)
 		count++
-		children[count] = layout.Rigid(rawText(th, th.T.Caption, disabledInk(gtx, th.R.Fg3), s.Unit))
+		children[count] = layout.Rigid(rawText(th, th.T.Caption, disabledInk(gtx, th, th.R.Fg3), s.Unit))
 		count++
 	}
 	valueGTX := gtx

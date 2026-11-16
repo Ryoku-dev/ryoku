@@ -47,10 +47,20 @@ type Roles struct {
 	Amber   color.NRGBA
 	Jasper  color.NRGBA
 	Scrim   color.NRGBA
-	Dark    bool
-	Source  string
+	// Container is the soft tone under a chosen item and OnContainer the ink on it
+	// (Lithic.container and Lithic.containerInk): the selection at .16 (dark) or .14
+	// (light) and Fg on Lithic's ladder, the secondary container and its ink on the
+	// Material path.
+	Container   color.NRGBA
+	OnContainer color.NRGBA
+	Dark        bool
+	Source      string
 
 	mineralTone float64
+	// fieldJasper is the toned jasper the failed field takes its hue from when the
+	// Material roles replaced Jasper with the palette's error (Lithic.qml computes the
+	// fields before _materialFrom overwrites jasper); zero otherwise.
+	fieldJasper color.NRGBA
 }
 
 // Signature returns the roles Lithic paints with no palette: the bone dye on
@@ -91,7 +101,11 @@ func (r Roles) MineralField(tone Tone) color.NRGBA {
 	default:
 		return r.Stone3
 	}
-	return toned(r.mineralTone, dye{C: tokens.DyeMineral[name], H: dyeOf(r.Stone(tone)).H})
+	ink := r.Stone(tone)
+	if tone == Failed && r.fieldJasper.A != 0 {
+		ink = r.fieldJasper
+	}
+	return toned(r.mineralTone, dye{C: tokens.DyeMineral[name], H: dyeOf(ink).H})
 }
 
 // WithAlpha returns c at a fraction of its current alpha.
