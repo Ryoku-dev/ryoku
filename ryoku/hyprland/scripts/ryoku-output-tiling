@@ -78,6 +78,8 @@ do_link() { # on|off
         global=$(global_layout)
         while IFS= read -r out; do
             [[ -n $out ]] || continue
+            # a disconnected output has no workspace now; skip it, its entry is cleared below
+            [[ -n $(workspaces_on "$out") ]] || continue
             apply_output "$out" "$global"
         done < <(read_state | jq -r '.outputs | keys[]')
         write_state "$(read_state | jq '.linked = true | .outputs = {}')"
@@ -90,6 +92,8 @@ do_restore() {
     [[ $(read_state | jq -r '.linked') == false ]] || return 0
     local out layout
     while IFS=$'\t' read -r out layout; do
+        # an output that is not connected right now keeps its remembered layout for later
+        [[ -n $(workspaces_on "$out") ]] || continue
         apply_output "$out" "$layout"
     done < <(read_state | jq -r '.outputs | to_entries[] | [.key, .value] | @tsv')
 }
