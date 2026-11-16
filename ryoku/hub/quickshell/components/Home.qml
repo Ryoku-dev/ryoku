@@ -132,7 +132,7 @@ Item {
         active: false
         parent: root.hub ? root.hub.overlayItem : root
         anchors.fill: parent
-        sourceComponent: Binder {}
+        sourceComponent: Binder { hub: root.hub }
         onLoaded: item.open()
     }
 

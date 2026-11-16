@@ -84,6 +84,10 @@
   `components/Home.qml`).
 
 ### Changed
+- **The binder shows the rarest cards first.** Cards as rare as each other are
+  newest first (`quickshell/components/about/Binder.qml`, `registry/rarity.js`).
+- **Removing a card from the binder asks first**
+  (`quickshell/components/about/Binder.qml`, `components/Home.qml`).
 - **Friends' cards belong in a binder.** Paste or open a shared card picture
   from Home's Binder to collect its live foil card and compare machines. A
   traded card keeps its owner's facts, is stamped TRADED and cannot be shared

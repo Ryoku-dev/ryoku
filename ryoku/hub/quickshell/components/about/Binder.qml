@@ -11,6 +11,8 @@ import "../badge"
 Item {
     id: root
     anchors.fill: parent
+    // asks before a card leaves the binder
+    required property var hub
     property bool opened: false
     property var entries: []
     property var selected: null
@@ -31,11 +33,15 @@ Item {
         spec: certificate.badge && root.selected.design && root.selected.design.spec ? root.selected.design.spec.badge : null
     }
 
+    // the rarest cards lead the binder; cards as rare as each other, the newest first
+    function ordered(list) {
+        return list.slice().sort((a, b) => Rarity.rarest(a.hw, b.hw) || Date.parse(b.added) - Date.parse(a.added));
+    }
     function refresh() {
         root.run("refresh", ["ryoku-hub", "cards", "refresh"], function(out) {
             try {
                 var id = root.selected ? root.selected.id : "";
-                root.entries = JSON.parse(out);
+                root.entries = root.ordered(JSON.parse(out));
                 if (id !== "")
                     root.selected = root.entries.find(entry => entry.id === id) || null;
                 if (!root.selected)
@@ -125,7 +131,7 @@ Item {
         if (root.job !== "")
             return;
         root.run("list", ["ryoku-hub", "cards", "list"], function (out) {
-            try { root.entries = JSON.parse(out); }
+            try { root.entries = root.ordered(JSON.parse(out)); }
             catch (e) { root.error = I18n.tr("Your binder could not be read. Close it and open it again to retry."); }
         });
     }
@@ -146,8 +152,7 @@ Item {
         root.run("add", ["ryoku-hub", "cards", "add", file || "--clipboard"], function (out) {
             try {
                 var entry = JSON.parse(out);
-                root.entries = [entry].concat(root.entries.filter(e => e.id !== entry.id))
-                    .sort((a, b) => Date.parse(b.added) - Date.parse(a.added));
+                root.entries = root.ordered([entry].concat(root.entries.filter(e => e.id !== entry.id)));
                 root.show(entry, true);
             } catch (e) {
                 root.error = I18n.tr("The card was added, but could not be displayed. Close the binder and open it again.");
@@ -155,11 +160,18 @@ Item {
         });
     }
     function remove() {
-        var id = root.selected.id;
-        root.run("remove", ["ryoku-hub", "cards", "remove", id], function () {
-            root.entries = root.entries.filter(e => e.id !== id);
-            root.inspecting = false;
-            root.message = I18n.tr("Card removed from your binder");
+        var card = root.selected;
+        root.hub.confirm({
+            title: I18n.tr("Remove %1's card?").replace("%1", card.name || I18n.tr("this")),
+            text: I18n.tr("It leaves your binder. To have it again, ask them for their card picture."),
+            actionText: I18n.tr("Remove card"),
+            destructive: true
+        }, function () {
+            root.run("remove", ["ryoku-hub", "cards", "remove", card.id], function () {
+                root.entries = root.entries.filter(e => e.id !== card.id);
+                root.inspecting = false;
+                root.message = I18n.tr("Card removed from your binder");
+            });
         });
     }
     function setHero(patch) {

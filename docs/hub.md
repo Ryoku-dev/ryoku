@@ -462,12 +462,14 @@ screenshot or a picture shrunk too far is refused. Cards live in
 `$XDG_DATA_HOME/ryoku/cards` (normally `~/.local/share/ryoku/cards`); adding a newer
 card from the same machine replaces it but keeps the original added date.
 
-The binder draws live cards, including their foil and pointer tilt. Open one
-to compare threads, memory, refresh rate, display width, graphics class, rarity
-points and power with your own machine; the higher number is gold. **Use their
-picture** takes only the custom picture or gallery figure through the `card`
-store, with Undo. Your words, layout and machine stay yours. Remove forgets the
-collected card. Trading never replaces your design.
+The binder lays the rarest cards first, and cards as rare as each other newest
+first (`rarity.js` `rarest`). It draws live cards, including their foil and
+pointer tilt. Open one to compare threads, memory, refresh rate, display width,
+graphics class, rarity points and power with your own machine; the higher
+number is gold. **Use their picture** takes only the custom picture or gallery
+figure through the `card` store, with Undo. Your words, layout and machine stay
+yours. **Remove** asks first, then forgets the collected card with its cached
+record and picture. Trading never replaces your design.
 
 A traded card reads every fact from its saved entry, not from your computer.
 Its traits show From, Added and Rarity points, and its footer is stamped

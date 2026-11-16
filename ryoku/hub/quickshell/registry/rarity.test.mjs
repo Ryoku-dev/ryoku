@@ -56,3 +56,12 @@ test("power counts in tens and stays between 30 and 340", () => {
     assert.equal(R.power(0, 0, false), 30);
     assert.equal(R.power(64, 256, true), 340);
 });
+
+test("a binder sorted by rarity puts the rarest machine first and keeps ties in order", () => {
+    const thin = { name: "thin", threads: 4, ramGb: 8, gpuClass: 0, refresh: 60, width: 1920 };
+    const gamer = { name: "gamer", threads: 16, ramGb: 32, gpuClass: 3, refresh: 144, width: 2560 };
+    const twin = { ...gamer, name: "twin" };
+    const beast = { name: "beast", threads: 32, ramGb: 128, gpuClass: 5, refresh: 240, width: 3840 };
+    const sorted = [thin, gamer, beast, twin].sort(R.rarest).map(m => m.name);
+    assert.deepEqual(sorted, ["beast", "gamer", "twin", "thin"]);
+});

@@ -60,6 +60,11 @@ function of(m) {
     return { points: points, tier: tiers[at], level: at, next: next, toNext: next ? next.min - points : 0, parts: parts };
 }
 
+// sort order for machines, the rarest first: negative when a outranks b, 0 when they tie
+function rarest(a, b) {
+    return of(b).points - of(a).points;
+}
+
 // a card's HP: threads, memory and a discrete graphics card, in tens between 30 and 340
 function power(threads, ramGb, discrete) {
     return Math.max(30, Math.min(340, Math.round((threads * 8 + ramGb * 3 + (discrete ? 60 : 0)) / 10) * 10));
