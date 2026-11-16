@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "ryoku-team-badges",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-10",
+  "workers_dev": false,
+  "routes": [{ "pattern": "team.ryoku.dev", "custom_domain": true }],
+  "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "ryoku-team" }],
+  "ratelimits": [
+    { "name": "READ_LIMITER", "namespace_id": "2026111501", "simple": { "limit": 120, "period": 60 } },
+    { "name": "WRITE_LIMITER", "namespace_id": "2026111502", "simple": { "limit": 20, "period": 60 } }
+  ],
+  "vars": {
+    "OWNER_KEY": "tlIg8prWfO0dMfd9IO3qxklONGHbSq7w3bUiu6QWuro=",
+    "MIKA_KEY": "TtnSdWqRm4UPQ4JXa5IG8yBKp/xbxTudgO/C/AeBnUg="
+  }
+}
