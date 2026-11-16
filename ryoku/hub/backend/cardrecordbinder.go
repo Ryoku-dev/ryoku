@@ -29,9 +29,11 @@ func recordEnrichCard(entry binderCard, list teamVerifiedList, listErr error) bi
 		return entry
 	}
 	entry.BadgeCheck = "unverified"
-	_, d, picture, e := recordFetch(b)
+	r, d, picture, e := recordFetch(b)
 	if e != nil {
-		return entry
+		if r, d, picture, e = recordCached(b); e != nil {
+			return entry
+		}
 	}
 	levels, e := encodeLevels(d)
 	if e != nil {
@@ -47,7 +49,8 @@ func recordEnrichCard(entry binderCard, list teamVerifiedList, listErr error) bi
 		if e != nil {
 			return entry
 		}
-		safe.Hero = cardHero{Kind: "custom", File: path}
+		// the file is rewritten in place, so its revision tells Settings to load it again
+		safe.Hero = cardHero{Kind: "custom", File: path, Rev: r.Picture[:12]}
 	}
 	safe.Badge = badgeViewFor(b, false)
 	if design := badgeDesignFor(list, b); design != nil {

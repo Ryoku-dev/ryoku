@@ -117,6 +117,7 @@ Dialog {
         stderr: StdioCollector { id: copyErr }
         onExited: (code, status) => {
             if (code === 0) {
+                ProfileStore.pictureReplaced();
                 root.setHero({ kind: "custom", source: "hero." + copyProc.ext, style: "photo", fit: false, zoom: 1, focalX: 0.5, focalY: 0.5,
                                brightness: 0, contrast: 0, saturation: 0 }, I18n.tr("Card figure"));
                 root.tab = "adjust";

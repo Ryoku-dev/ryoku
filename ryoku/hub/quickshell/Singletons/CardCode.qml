@@ -12,7 +12,9 @@ Singleton {
 
     property var code: null
     property string distro: ""
-    readonly property bool ready: root.code !== null && !reader.running && !settle.running
+    // os-release has been read: a code read before it says the distro is unknown
+    property bool distroRead: false
+    readonly property bool ready: root.distroRead && root.code !== null && !reader.running && !settle.running
     function num(re, s) { var m = re.exec(String(s || "")); return m ? parseInt(m[1]) : 0; }
     readonly property int threads: root.num(/(\d+)\s*T/, SysInfo.sysCpuCores) || root.num(/(\d+)/, SysInfo.sysCpuCores)
     readonly property int ramGb: root.num(/\/\s*(\d+)/, SysInfo.sysRam) || Math.round(SysInfo.memoryKb / 1048576)
@@ -48,6 +50,7 @@ Singleton {
             onStreamFinished: {
                 var match = /^ID=(.*)$/m.exec(text);
                 root.distro = match ? match[1].replace(/^["']|["']$/g, "").trim() : "";
+                root.distroRead = true;
                 root.refresh();
             }
         }

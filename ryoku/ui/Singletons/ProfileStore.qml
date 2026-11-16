@@ -18,6 +18,12 @@ Singleton {
     // whose file has not been read back yet
     property var outcome: null
     property string unsaved: ""
+    // bumped when the picture beside profile.json is replaced in place: Qt keeps an image it
+    // has loaded by its URL, so figures add this to theirs to load the new picture
+    property int pictureRevision: 0
+    function pictureReplaced() {
+        store.pictureRevision++;
+    }
 
     FileView {
         id: file

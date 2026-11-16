@@ -191,6 +191,7 @@ Item {
             return;
         }
         root.run("picture", ["install", "-D", "-m", "644", "--", picture, root.configDir + "/profile/hero.png"], function () {
+            ProfileStore.pictureReplaced();
             root.setHero({ kind: "custom", source: "hero.png", style: "photo", fit: false, zoom: 1,
                 focalX: 0.5, focalY: 0.5, brightness: 0, contrast: 0, saturation: 0 });
         });

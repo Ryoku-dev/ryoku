@@ -5,7 +5,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"image"
 	"image/color"
+	"image/draw"
 	"image/gif"
 	"image/png"
 	"os"
@@ -131,6 +133,45 @@ func TestCardsSameOwnerReplacesKeepingAdded(t *testing.T) {
 	cards, err := listCards()
 	if err != nil || len(cards) != 1 || !reflect.DeepEqual(cards[0], updated) {
 		t.Fatalf("replaced card list = %+v (%v)", cards, err)
+	}
+}
+
+// A friend's newer card brings its picture into the same file, so the picture's revision must
+// change with it or Settings goes on showing the picture it loaded first.
+func TestCardsReplacedPictureGetsANewRevision(t *testing.T) {
+	setCardMachine(t)
+	d := codedDesign{kind: 2, cardID: [8]byte{4, 5, 6}, name: "friend"}
+	painted := func(fill color.RGBA) string {
+		path := sharedCard(t, d, "png")
+		raw, _ := os.ReadFile(path)
+		img, err := png.Decode(bytes.NewReader(raw))
+		if err != nil {
+			t.Fatal(err)
+		}
+		card := image.NewRGBA(img.Bounds())
+		draw.Draw(card, card.Bounds(), img, img.Bounds().Min, draw.Src)
+		figure := image.Rect(windowRect.Min.X*3/2, windowRect.Min.Y*3/2, windowRect.Max.X*4/3, windowRect.Max.Y*4/3)
+		draw.Draw(card, figure, &image.Uniform{fill}, image.Point{}, draw.Src)
+		var out bytes.Buffer
+		if err := png.Encode(&out, card); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, out.Bytes(), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	first, err := addCard(painted(color.RGBA{200, 40, 40, 255}))
+	if err != nil || !validPictureRev(first.Hero.Rev) {
+		t.Fatalf("first card: %+v (%v)", first.Hero, err)
+	}
+	second, err := addCard(painted(color.RGBA{40, 40, 200, 255}))
+	if err != nil || second.Hero.File != first.Hero.File || second.Hero.Rev == first.Hero.Rev || !validPictureRev(second.Hero.Rev) {
+		t.Fatalf("replaced picture kept its revision: %+v then %+v (%v)", first.Hero, second.Hero, err)
+	}
+	cards, err := listCards()
+	if err != nil || len(cards) != 1 || cards[0].Hero.Rev != second.Hero.Rev {
+		t.Fatalf("listed revision: %+v (%v)", cards, err)
 	}
 }
 

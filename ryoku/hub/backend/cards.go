@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -18,10 +19,23 @@ import (
 	"time"
 )
 
+// Rev changes with the picture's content: the file is rewritten in place when a friend's newer
+// card replaces it, and Settings would otherwise keep showing the picture it loaded first
 type cardHero struct {
 	Kind   string `json:"kind"`
 	Source string `json:"source"`
 	File   string `json:"file"`
+	Rev    string `json:"rev,omitempty"`
+}
+
+func pictureRev(picture []byte) string {
+	sum := sha256.Sum256(picture)
+	return hex.EncodeToString(sum[:6])
+}
+
+func validPictureRev(rev string) bool {
+	_, err := hex.DecodeString(rev)
+	return len(rev) == 12 && err == nil && strings.ToLower(rev) == rev
 }
 
 type cardHardware struct {
@@ -142,7 +156,7 @@ func addCard(path string) (binderCard, error) {
 		if err := png.Encode(&picture, sub.SubImage(r)); err != nil {
 			return binderCard{}, err
 		}
-		entry.Hero = cardHero{Kind: "custom", File: imagePath}
+		entry.Hero = cardHero{Kind: "custom", File: imagePath, Rev: pictureRev(picture.Bytes())}
 	}
 	list, listErr := teamList(false)
 	if listErr != nil {
@@ -227,6 +241,9 @@ func listCardsWithTeam(list teamVerifiedList, listErr error) ([]binderCard, erro
 				return nil, fmt.Errorf("invalid stored card picture")
 			}
 			safe.Hero = cardHero{Kind: "custom", File: expected}
+			if validPictureRev(entry.Hero.Rev) {
+				safe.Hero.Rev = entry.Hero.Rev
+			}
 		}
 		entry = safe
 		cards = append(cards, recordEnrichCard(entry, list, listErr))
@@ -246,6 +263,16 @@ func removeCard(id string) error {
 	}
 	for _, ext := range []string{".json", ".png", "-record.png"} {
 		if err := os.Remove(filepath.Join(cardsDir(), id+ext)); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	// the friend's record and picture leave with their card
+	cache, err := teamCacheDir()
+	if err != nil {
+		return err
+	}
+	for _, ext := range []string{".json", ".jpg"} {
+		if err := os.Remove(filepath.Join(cache, "record-"+id+ext)); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 	}

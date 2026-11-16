@@ -16,8 +16,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 )
+
+// the gate's replicas read the badge list again at most every five seconds, so a badge
+// published a moment ago may not verify its first record yet
+var recordRetryWait = 6 * time.Second
 
 const recordPictureLimit = 400 * 1024
 
@@ -182,42 +188,67 @@ func recordSync(args []string) (bool, error) {
 	if e != nil {
 		return false, e
 	}
-	hashPath := filepath.Join(dir, "record.sha256")
-	old, _ := readBoundedFile(hashPath, 128)
-	if string(old) == hash {
+	// the hash of what was published last and its stamp: a new record is stamped after it, so a
+	// clock that stepped back since can't get the record refused as older than the last
+	statePath := filepath.Join(dir, "record.sha256")
+	state, _ := readBoundedFile(statePath, 128)
+	published := strings.Fields(string(state))
+	if len(published) > 0 && published[0] == hash {
 		return true, nil
+	}
+	var last int64
+	if len(published) > 1 {
+		last, _ = strconv.ParseInt(published[1], 10, 64)
 	}
 	seed, e := badgeDeviceSeed()
 	if e != nil {
 		return false, e
 	}
 	defer clear(seed)
-	record, e := recordSign(d, picture, seed, time.Now().Unix())
-	if e != nil {
-		return false, e
+	stamp := max(time.Now().Unix(), last+1)
+	clocked, waited := false, false
+	for {
+		record, e := recordSign(d, picture, seed, stamp)
+		if e != nil {
+			return false, e
+		}
+		request := struct {
+			Record  cardRecord `json:"record"`
+			Picture string     `json:"picture,omitempty"`
+		}{Record: record}
+		if len(picture) > 0 {
+			request.Picture = base64.StdEncoding.EncodeToString(picture)
+		}
+		raw, e := json.Marshal(request)
+		if e != nil {
+			return false, e
+		}
+		reply, e := teamExchange(http.MethodPut, "/v1/cards/"+record.ID, "application/json", raw, nil, 4096)
+		if e != nil {
+			return false, e
+		}
+		if reply.status == http.StatusOK {
+			if e = atomicWrite(statePath, []byte(hash+" "+strconv.FormatInt(stamp, 10)), 0600); e != nil {
+				return false, e
+			}
+			return true, nil
+		}
+		reason := teamRefusal(reply)
+		if reply.status == http.StatusBadRequest {
+			switch {
+			case reason == "Invalid card id or timestamp" && !clocked && !reply.date.IsZero():
+				// this computer's clock is more than ten minutes off: stamp the record in the gate's time
+				clocked = true
+				stamp = max(reply.date.Unix(), last+1)
+				continue
+			case reason == "No active badge verifies this record" && !waited:
+				waited = true
+				time.Sleep(recordRetryWait)
+				continue
+			}
+		}
+		return false, fmt.Errorf("the team service refused the card: %s", reason)
 	}
-	request := struct {
-		Record  cardRecord `json:"record"`
-		Picture string     `json:"picture,omitempty"`
-	}{Record: record}
-	if len(picture) > 0 {
-		request.Picture = base64.StdEncoding.EncodeToString(picture)
-	}
-	raw, e := json.Marshal(request)
-	if e != nil {
-		return false, e
-	}
-	_, status, e := teamSend(http.MethodPut, "/v1/cards/"+record.ID, "application/json", raw, nil, 4096)
-	if e != nil {
-		return false, e
-	}
-	if status != http.StatusOK {
-		return false, fmt.Errorf("card upload returned HTTP %d", status)
-	}
-	if e = atomicWrite(hashPath, []byte(hash), 0600); e != nil {
-		return false, e
-	}
-	return true, nil
 }
 func recordFetch(b badgeInfo) (cardRecord, codedDesign, []byte, error) {
 	raw, status, e := teamGet("/v1/cards/"+b.CardID, 4096)
@@ -248,8 +279,18 @@ func recordFetch(b badgeInfo) (cardRecord, codedDesign, []byte, error) {
 			}
 		}
 	}
+	// the picture is kept beside the record, so recordCached can stand in with both, and an
+	// unchanged picture isn't downloaded again on every refresh
+	picturePath := filepath.Join(dir, "record-"+b.CardID+".jpg")
 	var picture []byte
 	if r.Picture != "" {
+		if held, e := readBoundedFile(picturePath, recordPictureLimit); e == nil {
+			if sum := sha256.Sum256(held); hex.EncodeToString(sum[:]) == r.Picture {
+				picture = held
+			}
+		}
+	}
+	if r.Picture != "" && picture == nil {
 		picture, status, e = teamGet("/v1/cards/"+b.CardID+"/"+r.Picture+".jpg", recordPictureLimit)
 		if e != nil {
 			return r, d, nil, e
@@ -265,9 +306,48 @@ func recordFetch(b badgeInfo) (cardRecord, codedDesign, []byte, error) {
 		if e != nil || cfg.Width > 1120 || cfg.Height > 780 || cfg.Width < 1 || cfg.Height < 1 {
 			return r, d, nil, errors.New("invalid record JPEG")
 		}
+		if e = atomicWrite(picturePath, picture, 0600); e != nil {
+			return r, d, nil, e
+		}
+	}
+	if r.Picture == "" {
+		if e = os.Remove(picturePath); e != nil && !os.IsNotExist(e) {
+			return r, d, nil, e
+		}
 	}
 	if e = atomicWrite(path, raw, 0600); e != nil {
 		return r, d, nil, e
+	}
+	return r, d, picture, nil
+}
+
+// recordCached is the last record this binder verified for b, with its picture. It stands in
+// when the gate can't hand over a fresh one (a dropped connection, the rate limit, a copy from
+// before the owner's latest change) and is checked against the badge again, so only the badge
+// leaving the team list drops it
+func recordCached(b badgeInfo) (cardRecord, codedDesign, []byte, error) {
+	dir, e := teamCacheDir()
+	if e != nil {
+		return cardRecord{}, codedDesign{}, nil, e
+	}
+	raw, e := readBoundedFile(filepath.Join(dir, "record-"+b.CardID+".json"), 4096)
+	if e != nil {
+		return cardRecord{}, codedDesign{}, nil, e
+	}
+	var r cardRecord
+	if e = json.Unmarshal(raw, &r); e != nil {
+		return r, codedDesign{}, nil, e
+	}
+	d, e := recordVerify(r, b)
+	if e != nil || r.Picture == "" {
+		return r, d, nil, e
+	}
+	picture, e := readBoundedFile(filepath.Join(dir, "record-"+b.CardID+".jpg"), recordPictureLimit)
+	if e != nil {
+		return r, d, nil, e
+	}
+	if sum := sha256.Sum256(picture); hex.EncodeToString(sum[:]) != r.Picture {
+		return r, d, nil, errors.New("cached card picture digest mismatch")
 	}
 	return r, d, picture, nil
 }

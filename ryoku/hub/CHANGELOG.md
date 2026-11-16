@@ -19,6 +19,33 @@
   `release/team-badges/`).
 
 ### Fixed
+- **A friend's card keeps its rarity and points.** Settings published the card
+  record before the machine's full read-out was in, so a slow machine's record
+  said 0 threads, 0 Hz and 0 px wide and friends' binders showed its rarity
+  and colours dropping and coming back. The record now waits for the read-out
+  and the distro (`quickshell/Singletons/Badge.qml`, `CardCode.qml`).
+- **A changed card picture shows at once.** Your own picture, a friend's newer
+  card and a friend's newer record all rewrite the same file, and Settings kept
+  showing the first picture it loaded until it restarted; the picture's URL now
+  carries a revision (`quickshell/components/about/CardFigure.qml`,
+  `ui/Singletons/ProfileStore.qml`, `backend/cards.go`, `cardrecordbinder.go`).
+- **A badge's seal is no longer clipped into the card's picture.** The still
+  a record's picture is cut from leaves the seal off, so friends no longer see
+  a sliced copy of it (`quickshell/components/about/TradingCard.qml`,
+  `CardShare.qml`).
+- **Verified cards stay verified.** When team.ryoku.dev could not hand over a
+  fresh record, a friend's card fell back to its picture's facts without its
+  badge; the binder now keeps the last record it verified, does not download an
+  unchanged picture again, and team.ryoku.dev serves records and pictures fresh
+  instead of a minute-old copy whose picture was already gone
+  (`backend/cardrecord.go`, `cardrecordbinder.go`, `release/team-badges/`).
+- **A refused card upload says why, and a wrong clock no longer blocks it.**
+  The Badge tab showed "card upload returned HTTP 400" and kept it after the
+  next upload worked. Records are stamped after the last one published, sent
+  again in the gate's time when this computer's clock is off, retried once
+  when a just-published badge hasn't reached every gate replica, and any other
+  refusal names the gate's reason; the message clears once an upload works
+  (`backend/cardrecord.go`, `teamhttp.go`, `quickshell/Singletons/Badge.qml`).
 - **Cards shared from a 133% display open in every binder.** The share still is
   drawn at twice the display scale, and at 133% the renderer snapped the code's
   2-unit ticks to 5 or 6 pixels, so a wide tick read as the level above and the

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -31,16 +32,29 @@ func teamGet(path string, limit int64) ([]byte, int, error) {
 	return teamSend(http.MethodGet, path, "", nil, nil, limit)
 }
 func teamSend(method, path, contentType string, body []byte, header http.Header, limit int64) ([]byte, int, error) {
+	reply, e := teamExchange(method, path, contentType, body, header, limit)
+	return reply.body, reply.status, e
+}
+
+// teamReply carries the gate's clock with its answer, so a record can be stamped in the
+// gate's time when this computer's clock is off
+type teamReply struct {
+	body   []byte
+	status int
+	date   time.Time
+}
+
+func teamExchange(method, path, contentType string, body []byte, header http.Header, limit int64) (teamReply, error) {
 	base, e := teamURL()
 	if e != nil {
-		return nil, 0, e
+		return teamReply{}, e
 	}
 	if !strings.HasPrefix(path, "/") || strings.HasPrefix(path, "//") {
-		return nil, 0, errors.New("invalid team path")
+		return teamReply{}, errors.New("invalid team path")
 	}
 	req, e := http.NewRequest(method, base+path, bytes.NewReader(body))
 	if e != nil {
-		return nil, 0, e
+		return teamReply{}, e
 	}
 	req.Header = header.Clone()
 	if req.Header == nil {
@@ -52,17 +66,31 @@ func teamSend(method, path, contentType string, body []byte, header http.Header,
 	client := http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	resp, e := client.Do(req)
 	if e != nil {
-		return nil, 0, e
+		return teamReply{}, e
 	}
 	defer resp.Body.Close()
+	reply := teamReply{status: resp.StatusCode}
+	reply.date, _ = http.ParseTime(resp.Header.Get("Date"))
 	b, e := io.ReadAll(io.LimitReader(resp.Body, limit+1))
 	if e != nil {
-		return nil, resp.StatusCode, e
+		return reply, e
 	}
 	if int64(len(b)) > limit {
-		return nil, resp.StatusCode, fmt.Errorf("team response exceeds %d bytes", limit)
+		return reply, fmt.Errorf("team response exceeds %d bytes", limit)
 	}
-	return b, resp.StatusCode, nil
+	reply.body = b
+	return reply, nil
+}
+
+// teamRefusal is the gate's reason for refusing a request, or its HTTP status without one
+func teamRefusal(reply teamReply) string {
+	var answer struct {
+		Error string `json:"error"`
+	}
+	if json.Unmarshal(reply.body, &answer) == nil && answer.Error != "" {
+		return cleanCardText(answer.Error)
+	}
+	return fmt.Sprintf("HTTP %d", reply.status)
 }
 func teamCacheDir() (string, error) {
 	d, e := os.UserCacheDir()

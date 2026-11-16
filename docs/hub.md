@@ -375,14 +375,37 @@ deterministic zip. Fetching a design verifies its hash before extraction.
 
 Settings reads badge status on opening, after badge or design actions and
 every ten minutes while open. An active badge publishes a signed card record
-three seconds after profile or hardware-code changes settle. A custom picture
-is drawn into a fresh temporary still, cropped and bounded by the backend,
-then the temporary still is deleted. A local design preview is never published.
+three seconds after profile or hardware-code changes settle, and only once the
+machine's full read-out and the card's code (with its distro) are in; Settings
+starts the read-out for it when no page has. Published sooner, a record carried
+no threads, refresh rate or width and dropped the card's rarity in every binder.
+A custom picture is drawn into a fresh temporary still without the seal, which
+overlaps the figure's corner and would leave a clipped copy in the picture; the
+backend crops and bounds it, then the temporary still is deleted. A local
+design preview is never published. Each record is stamped after the last one
+this machine published, so a clock that stepped back can't get it refused as
+older. When the gate refuses a record because this computer's clock is more
+than ten minutes off, it is stamped again in the gate's time from its `Date`
+header; when a gate replica hasn't seen a badge published a moment ago, it is
+sent again six seconds later. Any other refusal is shown with the gate's
+reason. A sync or status error clears itself once the next one succeeds.
+
 Binder **Refresh** checks the saved cards again. Verified cards show their
 role, issuer, date and certificate, with facts and pictures from the signed
-record rather than the shared image. Offline and unverified cards say so. When
-a signed record cannot be checked, the binder shows no badge and explains that
-the facts come from the picture.
+record rather than the shared image. The record and its picture are kept in
+`$XDG_CACHE_HOME/ryoku/team` (`record-<card id>.json` and `.jpg`), so an
+unchanged picture isn't downloaded again, and when the gate can't hand over a
+fresh record (a dropped connection, the rate limit), the last one this binder
+verified stands in, checked against the badge again. Only the badge leaving the
+team list drops it. Offline and unverified cards say so. When no signed record
+can be checked, the binder shows no badge and explains that the facts come from
+the picture.
+
+A card's picture file is rewritten in place when it changes, and Qt keeps an
+image it has loaded by its URL, so the figure's URL carries a revision: a
+friend's picture has the picture's digest (`hero.rev` in `ryoku-hub cards`
+output), and your own `ProfileStore.pictureRevision`, bumped by the studio and
+Use their picture when they install a new one.
 
 
 The system card is a trading card (`components/about/TradingCard.qml`, 630 x

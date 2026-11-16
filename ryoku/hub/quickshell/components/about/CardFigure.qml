@@ -22,7 +22,7 @@ Item {
     property bool soft: false
     readonly property string configDir: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku"
     readonly property var config: hero.override ? (hero.override.kind === "custom"
-        ? { kind: "custom", file: hero.override.file, style: "photo", focalX: 0.5, focalY: 0.5 } : hero.override)
+        ? { kind: "custom", file: hero.override.file, rev: hero.override.rev, style: "photo", focalX: 0.5, focalY: 0.5 } : hero.override)
         : ProfileStore.get("hero", ({}))
     readonly property string kind: hero.config.kind || "default"
     readonly property bool stock: hero.kind === "default"
@@ -32,18 +32,22 @@ Item {
     readonly property string galleryName: hero.src.replace(/\.(png|gif)$/, "")
     readonly property string gallerySource: /^[a-z0-9_-]+$/.test(hero.galleryName)
         ? Ryodecors.dir + hero.galleryName + (/\.gif$/.test(hero.src) ? ".gif" : ".png") : ""
+    // a picture file is rewritten in place when it changes, and Qt would keep showing the one it
+    // loaded first: the URL carries the picture's revision so a new one loads
     readonly property string customSource: {
         if (hero.kind !== "custom")
             return "";
         if (!hero.override)
             return /^hero\.(png|jpg|jpeg|webp|gif|bmp|avif)$/.test(hero.src)
-                ? hero.fileUrl(hero.configDir + "/profile/" + hero.src) : "";
+                ? hero.fileUrl(hero.configDir + "/profile/" + hero.src) + "?v=" + ProfileStore.pictureRevision : "";
         // Never treat a card's embedded file field as an image URL or a store root.
         if (!/^[0-9a-f]{16}$/.test(hero.tradedId) || hero.cardsStoreRoot.charAt(0) !== "/")
             return "";
         var base = hero.cardsStoreRoot + "/" + hero.tradedId;
         var path = String(hero.config.file || "");
-        return path === base + ".png" || (hero.verifiedRecord && path === base + "-record.png") ? hero.fileUrl(path) : "";
+        var rev = String(hero.config.rev || "");
+        var url = path === base + ".png" || (hero.verifiedRecord && path === base + "-record.png") ? hero.fileUrl(path) : "";
+        return url !== "" && /^[0-9a-f]{12}$/.test(rev) ? url + "?v=" + rev : url;
     }
 
     function fileUrl(path) {

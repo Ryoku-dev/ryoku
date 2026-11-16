@@ -95,6 +95,7 @@ Item {
         active: false
         sourceComponent: TradingCard {
             design: root.job === "sync" ? Badge.design : Badge.ownDesign
+            sealed: root.job !== "sync"
         }
     }
 

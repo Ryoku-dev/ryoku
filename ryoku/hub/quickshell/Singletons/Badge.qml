@@ -27,16 +27,34 @@ Singleton {
     property bool reading: false
     property bool syncing: false
     property bool syncAgain: false
+    // the error came from a background sync or status read, so their next success clears it
+    property string errorFrom: ""
+    // a record carries the facts the share still shows: published before the machine's full
+    // read-out, it gave friends' binders a card with no threads, refresh or width
+    readonly property bool factsReady: SysInfo.baseLanded && !SysInfo.loading && CardCode.ready
 
     function words(err) {
-        var s = String(err || "").trim();
+        var s = String(err || "").trim().replace(/^ryoku-hub:\s*/, "");
         if (/timeout|deadline|timed out/i.test(s))
             return I18n.tr("The team service took too long. Try again when you are online.");
         if (/network|connection|no such host|dial tcp|TLS/i.test(s))
             return I18n.tr("The team service could not be reached. Check your connection and try again.");
         if (/keyring|secret-tool|owner key/i.test(s))
             return I18n.tr("The owner's signing key is not available in the keyring.");
+        var refused = /refused the card: (.*)$/i.exec(s);
+        if (refused)
+            return I18n.tr("The team service refused your card: %1").replace("%1", refused[1]);
         return s || I18n.tr("The badge tool could not finish. Update Ryoku and try again.");
+    }
+    function fail(from, err) {
+        root.error = root.words(err);
+        root.errorFrom = from;
+    }
+    function recovered(from) {
+        if (root.errorFrom === from) {
+            root.error = "";
+            root.errorFrom = "";
+        }
     }
     // fresh re-reads the team list so an approval made a moment ago shows; plain reads trust the
     // backend's ten-minute cache
@@ -53,11 +71,11 @@ Singleton {
                 Qt.callLater(root.refresh);
             }
             if (!ok) {
-                root.error = root.words(err);
+                root.fail("status", err);
                 return;
             }
-            try { root.status = JSON.parse(out); }
-            catch (e) { root.error = I18n.tr("The badge status could not be read. Try again."); }
+            try { root.status = JSON.parse(out); root.recovered("status"); }
+            catch (e) { root.error = I18n.tr("The badge status could not be read. Try again."); root.errorFrom = "status"; }
         }, { timeout: 45000 });
     }
     function run(action, argv, done) {
@@ -65,6 +83,7 @@ Singleton {
             return;
         root.job = action;
         root.error = "";
+        root.errorFrom = "";
         root.message = "";
         Changes.run(argv, function(ok, out, err) {
             root.job = "";
@@ -133,6 +152,12 @@ Singleton {
     function sync() {
         if (!root.badge)
             return;
+        if (!root.factsReady) {
+            // the full read-out runs only for pages that show it; onFactsReadyChanged comes back
+            if (!SysInfo.loaded && !SysInfo.loading)
+                SysInfo.load();
+            return;
+        }
         if (root.syncing) {
             root.syncAgain = true;
             return;
@@ -151,10 +176,10 @@ Singleton {
             argv = argv.concat(["--picture", picture]);
         Changes.run(argv, function(ok, out, err) {
             if (!ok)
-                root.error = root.words(err);
+                root.fail("sync", err);
             else {
-                try { root.status = Object.assign({}, root.status, JSON.parse(out)); }
-                catch (e) { root.error = I18n.tr("The card's publishing status could not be read."); }
+                try { root.status = Object.assign({}, root.status, JSON.parse(out)); root.recovered("sync"); }
+                catch (e) { root.error = I18n.tr("The card's publishing status could not be read."); root.errorFrom = "sync"; }
             }
             if (picture !== "")
                 Changes.run(["rm", "-f", "--", picture], function() { root.finishSync(); });
@@ -171,6 +196,7 @@ Singleton {
     // the card without importing the components that import it) and answers with publish() or this
     function captureFailed(reason) {
         root.error = reason;
+        root.errorFrom = "sync";
         root.finishSync();
     }
     signal captureRequested()
@@ -178,6 +204,7 @@ Singleton {
     Timer { interval: 600000; repeat: true; running: root.settingsOpen; onTriggered: root.refresh(true) }
     onSettingsOpenChanged: { if (root.settingsOpen) root.refresh(true); }
     onBadgeChanged: root.scheduleSync()
+    onFactsReadyChanged: { if (root.factsReady) root.scheduleSync(); }
     Connections { target: ProfileStore; function onDataChanged() { root.scheduleSync(); } }
     Component.onCompleted: root.refresh()
 }

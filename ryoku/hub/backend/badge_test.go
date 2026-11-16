@@ -7,13 +7,16 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"image"
 	"image/jpeg"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 var badgeWriteVectors = flag.Bool("write-vectors", false, "write deterministic team gate vectors")
@@ -306,6 +309,155 @@ func TestRecordPictureAndSyncSkipsUnchanged(t *testing.T) {
 	}
 	if writes != 1 {
 		t.Fatal("unchanged record uploaded", writes)
+	}
+}
+
+// A computer whose clock is hours off, and a first record that reaches a gate replica which has
+// not read the new badge yet, still publish; records stay ordered after the gate's clock; any
+// other refusal is reported with the gate's reason.
+func TestRecordSyncRecoversFromGateRefusals(t *testing.T) {
+	owner, _, _ := badgeTestKeys(t)
+	setCardMachine(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	seed, _ := badgeDeviceSeed()
+	code := badgeTestCode(t, 1, 4, owner, seed, "neur0map")
+	if e := badgeActivate(code); e != nil {
+		t.Fatal(e)
+	}
+	b, _ := badgeParse(code)
+	wait := recordRetryWait
+	recordRetryWait = 0
+	t.Cleanup(func() { recordRetryWait = wait })
+	gateNow := time.Now().Add(3 * time.Hour).Unix()
+	var stored int64
+	unseen, refuse := 1, ""
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Date", time.Unix(gateNow, 0).UTC().Format(http.TimeFormat))
+		if r.URL.Path == "/v1/list" {
+			json.NewEncoder(w).Encode(teamWireList{V: 1, Badges: []string{code}})
+			return
+		}
+		var request struct {
+			Record cardRecord `json:"record"`
+		}
+		json.NewDecoder(r.Body).Decode(&request)
+		if _, e := recordVerify(request.Record, b); e != nil {
+			t.Error(e)
+		}
+		fail := func(reason string) {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": reason})
+		}
+		switch updated := request.Record.Updated; {
+		case refuse != "":
+			fail(refuse)
+		case unseen > 0:
+			unseen--
+			fail("No active badge verifies this record")
+		case updated > gateNow+600 || updated < gateNow-600:
+			fail("Invalid card id or timestamp")
+		case updated <= stored:
+			fail("Card record is not newer")
+		default:
+			stored = updated
+			w.Write([]byte(`{}`))
+		}
+	}))
+	defer srv.Close()
+	t.Setenv("RYOKU_TEAM_URL", srv.URL)
+	for threads := 8; threads <= 10; threads++ {
+		if ok, e := recordSync([]string{"--threads", strconv.Itoa(threads)}); !ok || e != nil {
+			t.Fatal(threads, ok, e)
+		}
+	}
+	if stored != gateNow+2 {
+		t.Fatalf("records stamped %d, want the gate's clock %d plus two", stored, gateNow)
+	}
+	// the clock now agrees with the gate, but the last record went out while it ran five
+	// minutes fast: the next one is still stamped after it
+	gateNow = time.Now().Unix()
+	stored = gateNow + 300
+	dir, _ := badgeDataDir()
+	if e := atomicWrite(filepath.Join(dir, "record.sha256"), []byte("published "+strconv.FormatInt(stored, 10)), 0o600); e != nil {
+		t.Fatal(e)
+	}
+	if ok, e := recordSync([]string{"--threads", "11"}); !ok || e != nil || stored <= gateNow+300 {
+		t.Fatal("a clock that stepped back got its record refused", ok, e)
+	}
+	refuse = "Picture hash mismatch"
+	if _, e := recordSync([]string{"--threads", "12"}); e == nil || !strings.Contains(e.Error(), refuse) {
+		t.Fatal("refusal without the gate's reason", e)
+	}
+}
+
+// Once a friend's card verified, a gate that fails for a moment leaves it verified with the
+// record and picture last seen; a cached record that no longer verifies, or a badge gone from
+// the team list, leaves it unverified.
+func TestBinderKeepsTheLastVerifiedRecord(t *testing.T) {
+	owner, _, device := badgeTestKeys(t)
+	setCardMachine(t)
+	id := cardID(badgeDevicePublic(device))
+	code := badgeTestCode(t, 1, 4, owner, device, "friend")
+	b, _ := badgeParse(code)
+	picture := jpegOf(t, image.NewRGBA(image.Rect(0, 0, 56, 39)), 80)
+	record, e := recordSign(codedDesign{cardID: id, name: "record name", kind: 2, threads: 24}, picture, device, 1000)
+	if e != nil {
+		t.Fatal(e)
+	}
+	failing, listed, downloads := false, true, 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/v1/list":
+			list := teamWireList{V: 1}
+			if listed {
+				list.Badges = []string{code}
+			}
+			json.NewEncoder(w).Encode(list)
+		case failing:
+			w.WriteHeader(http.StatusTooManyRequests)
+		case r.URL.Path == "/v1/cards/"+b.CardID:
+			json.NewEncoder(w).Encode(record)
+		case r.URL.Path == "/v1/cards/"+b.CardID+"/"+record.Picture+".jpg":
+			downloads++
+			w.Write(picture)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	t.Setenv("RYOKU_TEAM_URL", srv.URL)
+	verified := func(c binderCard) bool {
+		return c.Verified && c.BadgeCheck == "ok" && c.Badge != nil && c.Name == "record name" && c.HW.Threads == 24 &&
+			c.Hero.Kind == "custom" && c.Hero.Rev == record.Picture[:12] && strings.HasSuffix(c.Hero.File, "-record.png")
+	}
+	entry, e := addCard(sharedCard(t, codedDesign{cardID: id, name: "picture name", kind: 2}, "png"))
+	if e != nil || !verified(entry) {
+		t.Fatal("record not applied", entry, e)
+	}
+	if cards, e := listCards(); e != nil || len(cards) != 1 || !verified(cards[0]) || downloads != 1 {
+		t.Fatal("an unchanged picture was downloaded again", downloads, cards, e)
+	}
+	failing = true
+	if cards, e := listCards(); e != nil || len(cards) != 1 || !verified(cards[0]) {
+		t.Fatal("a failing gate dropped the verified card", cards, e)
+	}
+	cache, _ := teamCacheDir()
+	path := filepath.Join(cache, "record-"+b.CardID+".json")
+	kept, _ := os.ReadFile(path)
+	tampered := record
+	tampered.Updated++
+	raw, _ := json.Marshal(tampered)
+	os.WriteFile(path, raw, 0o600)
+	if cards, _ := listCards(); len(cards) != 1 || cards[0].Verified || cards[0].BadgeCheck != "unverified" || cards[0].Name != "picture name" {
+		t.Fatal("a tampered cached record verified", cards)
+	}
+	os.WriteFile(path, kept, 0o600)
+	failing, listed = false, false
+	if _, e := teamList(true); e != nil {
+		t.Fatal(e)
+	}
+	if cards, _ := listCards(); len(cards) != 1 || cards[0].Verified || cards[0].BadgeCheck != "none" {
+		t.Fatal("a badge gone from the list kept its card verified", cards)
 	}
 }
 func TestTeamHTTPBoundariesAndCache(t *testing.T) {
