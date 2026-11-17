@@ -415,7 +415,7 @@ Singleton {
         if (root.isAura)
             root.poke("auraFlow", act.auraFlow === "clockwise" ? "counterclockwise" : "clockwise");
         else if (root.isPolar)
-            root.poke("spin", -root.spin);
+            root.poke("mirror", !root.mirror);
         else if (root.grow === "up")
             root.poke("grow", "down");
         else if (root.grow === "down")

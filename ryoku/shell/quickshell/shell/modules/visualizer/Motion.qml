@@ -58,22 +58,24 @@ Item {
     readonly property bool sounding: motion.sourceSounding || motion.activity > 0.02
     readonly property bool hardFrozen: Performance.visualizerHardFrozen
     readonly property bool wantIdleWave: motion.cfg.idleWave && !motion.hardFrozen
-    readonly property bool wantSpin: motion.cfg.spin > 0 && !motion.hardFrozen
+    readonly property bool wantSpin: motion.cfg.spin !== 0 && !motion.hardFrozen
     readonly property bool wantPeaks: motion.cfg.peaks
         && (motion.style === "bars" || motion.style === "segments")
     property bool idleSettled: false
     readonly property bool animating: motion.sourceSounding || motion.activity > 0.02
         || (motion.wantIdleWave ? !motion.idleSettled : motion.maxLevel > 0.004)
 
+    readonly property bool foldBands: motion.cfg.mirror && !motion.cfg.isPolar
+
     function rawLevel(i) {
         var l = Spectrum.levels;
-        var s = SpectrumMath.srcIndex(i, motion.bands, motion.cfg.mirror);
+        var s = SpectrumMath.srcIndex(i, motion.bands, motion.foldBands);
         var v = (l && s < l.length) ? l[s] : 0;
         return Math.min(1, Math.pow(v, 0.72) * motion.cfg.gain);
     }
     function idleLevel(i) {
         return 0.012 + 0.02 * (0.5 + 0.5 * Math.sin(
-            SpectrumMath.srcIndex(i, motion.bands, motion.cfg.mirror) * 0.4 + motion.idlePhase));
+            SpectrumMath.srcIndex(i, motion.bands, motion.foldBands) * 0.4 + motion.idlePhase));
     }
 
     Timer {

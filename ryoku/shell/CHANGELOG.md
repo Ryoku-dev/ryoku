@@ -33,6 +33,15 @@
   (`quickshell/shell/modules/stage/StageVisualizerPage.qml`,
   `quickshell/stage/modules/ii/editMode/EditModeDrawer.qml`,
   `quickshell/shell/modules/visualizer/Singletons/Config.qml`).
+- **Radial, orb and spiral visualizers spin both ways, and Flip mirrors the
+  look.** A negative Rotation stopped the spin dead because motion only
+  integrated speeds above zero; it now turns the other way. Flip on a polar
+  look used to just negate that speed (a no-op at 0); it now mirrors the whole
+  look, so a clockwise outward spiral becomes anticlockwise. The panel's
+  Rotation range matches (-30 to 30)
+  (`quickshell/shell/modules/visualizer/Motion.qml`, `VisualizerView.qml`,
+  `Singletons/Config.qml`, `ui/SpectrumField.qml`,
+  `quickshell/shell/modules/desktop/options/VisualizerOptions.qml`).
 - **Plugins installed from a store you added load like any other.**
   `plugins/discover.sh` also reads `ryoku/sources/<store>/plugins` and accepts
   each copy only with a receipt from its own store, so no store's copy can pose
