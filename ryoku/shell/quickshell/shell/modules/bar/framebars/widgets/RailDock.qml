@@ -195,7 +195,7 @@ Item {
                         Dock.togglePin(item.className);
                 }
                 onEntered: {
-                    if (item.count > 0) {
+                    if (item.count > 0 && Dock.cfg("windowPreviews", true)) {
                         const c = item.mapToGlobal(item.width / 2, item.height / 2);
                         DockPreview.gx = c.x;
                         DockPreview.gy = c.y;

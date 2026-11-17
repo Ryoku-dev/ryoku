@@ -1213,6 +1213,7 @@ func defaultDock() map[string]any {
 		"enabled": false, "edge": "auto", "edgeGap": dockEdgeGapDefault,
 		"autohide": false, "revealOnEmpty": true, "pinned": []string{},
 		"magnify": true, "frost": true, "shadow": true, "labels": true, "media": false,
+		"windowPreviews": true,
 	}
 }
 

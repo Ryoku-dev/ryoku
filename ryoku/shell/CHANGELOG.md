@@ -86,6 +86,11 @@
   once the start lands, the Python bar's network popup uses it too, and the
   adapter probe is paced while a scan runs instead of firing per device found.
   Covered by `tests/bluetooth-discovery-leak.sh`.
+- **The dock's window previews can be turned off, and crash less (#879).**
+  Hyprland can drop a capture request for a window that just closed, which
+  ends the shell with "invalid object". Window previews is a new switch in the
+  dock settings, tiles no longer rebuild on every title change, and the tile's
+  close button stops capturing before it closes the window.
 - **The wallpaper picker's tabs show again after an update (#818).** An older
   Ryoku.Ui left in the home folder hid the one the package ships, so the tabs
   failed with "UiPreferences is not defined"; a packaged picker now reads the

@@ -42,6 +42,14 @@ Popout {
     // falls back to the app icon tile and a focus click.
     readonly property var windows: root.shownClass === "" ? [] : Wm.windows.filter(w => w.appId === root.shownClass)
     readonly property int n: root.windows.length
+    // Tiles are keyed by window id so a title or focus update does not rebuild
+    // every capture; each rebuild opens and closes compositor frames.
+    readonly property var windowIds: root.windows.map(w => w.id)
+    readonly property var windowById: {
+        const byId = ({});
+        for (const w of root.windows) byId[w.id] = w;
+        return byId;
+    }
 
     // desktop-entry app label + icon for the header / capture fallback.
     readonly property var entry: root.shownClass !== "" ? DesktopEntries.heuristicLookup(root.shownClass) : null
@@ -111,11 +119,15 @@ Popout {
         Row {
             spacing: root.tileGap
             Repeater {
-                model: root.windows
+                model: ScriptModel { values: root.windowIds }
                 delegate: Item {
                     id: tile
-                    required property var modelData
-                    readonly property bool hasCapture: !!(tile.modelData && tile.modelData.toplevel)
+                    required property string modelData
+                    readonly property var win: root.windowById[tile.modelData] ?? null
+                    // Set by the X: the capture stops asking for frames, then the
+                    // window closes, so no request lands on a window already gone.
+                    property bool closing: false
+                    readonly property bool hasCapture: !!(tile.win && tile.win.toplevel)
                     // A handle is not a capture. Frames only arrive where the
                     // compositor offers a window-copy protocol, and a window on a
                     // hidden workspace never renders, so the tile must follow real
@@ -139,8 +151,8 @@ Popout {
                             id: sc
                             anchors.fill: parent
                             anchors.margins: Theme.borderWidth
-                            captureSource: tile.hasCapture ? tile.modelData.toplevel : null // qmllint disable unresolved-type
-                            live: root.prog > 0.004
+                            captureSource: tile.hasCapture ? tile.win.toplevel : null // qmllint disable unresolved-type
+                            live: root.prog > 0.004 && !tile.closing
                             visible: tile.shown
                         }
                         Image {
@@ -162,7 +174,7 @@ Popout {
                             // Focus the specific window so a tile for a window on
                             // another workspace switches to it; the provider handles
                             // the unmapped (hidden) case.
-                            onClicked: Wm.focusWindow(tile.modelData.id)
+                            onClicked: Wm.focusWindow(tile.modelData)
                         }
 
                         // close (X), revealed on hover of the tile
@@ -185,7 +197,10 @@ Popout {
                             MouseArea {
                                 anchors.fill: parent
                                 // The X closes the window.
-                                onClicked: Wm.closeWindow(tile.modelData.id)
+                                onClicked: {
+                                    tile.closing = true;
+                                    closeTimer.restart();
+                                }
                             }
                         }
                     }
@@ -193,12 +208,18 @@ Popout {
                     Text {
                         anchors { top: frame.bottom; topMargin: 4 * root.s; horizontalCenter: frame.horizontalCenter }
                         width: root.tileW
-                        text: tile.modelData.title || root.appLabel
+                        text: (tile.win && tile.win.title) || root.appLabel
                         color: Theme.onSurfaceVariant
                         font.family: Theme.fontPrimary
                         font.pixelSize: 10 * root.s
                         elide: Text.ElideRight
                         horizontalAlignment: Text.AlignHCenter
+                    }
+
+                    Timer {
+                        id: closeTimer
+                        interval: 150
+                        onTriggered: Wm.closeWindow(tile.modelData)
                     }
                 }
             }

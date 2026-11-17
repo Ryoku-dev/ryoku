@@ -411,6 +411,7 @@ Singleton {
                 "shadow": true,
                 "labels": true,
                 "media": false,
+                "windowPreviews": true,
                 "python": {
                     "onTop": true,
                     "floating": false,
