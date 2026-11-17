@@ -1,6 +1,13 @@
 # Release / Packaging Changelog
 
 ## Unreleased
+- **team.ryoku.dev approves card designs for every badge role.** `POST
+  /v1/designs`, the list and the binder batch now take an approved design for
+  any login holding an active badge, tester and contributor included (it was
+  role 3–5 only); a login with none gets 400 `Design requires an active
+  badge`, and revoking the badge still takes its design out of the list.
+  Deploy the Worker with this release, and Mika with `/card submit` open to
+  every badge in the claim-badge channel.
 - **team.ryoku.dev keeps each card style for its owner.** A styled `v:3` or
   `v:4` record is stored only when an active badge for the card has a login
   that owns the style (`CARD_STYLE_OWNERS`, `stand`: neur0map, matched without

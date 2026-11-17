@@ -123,7 +123,7 @@ async function loadInventory(env) {
   const active = badges.filter(b => !revokedIds.has(b.id));
   for await (const object of objects(env.BUCKET, 'designs/')) {
     const design = await parseStoredCode(env.BUCKET, object.key, 'RYD', env);
-    if (design && object.key === `designs/${design.login.toLowerCase()}.txt` && active.some(b => b.role >= 3 && b.login.toLowerCase() === design.login.toLowerCase()) && await env.BUCKET.head(`packs/${design.sha}.zip`)) designs.push(design);
+    if (design && object.key === `designs/${design.login.toLowerCase()}.txt` && active.some(b => b.login.toLowerCase() === design.login.toLowerCase()) && await env.BUCKET.head(`packs/${design.sha}.zip`)) designs.push(design);
   }
   return { badges, revoked, active, designs };
 }
@@ -239,13 +239,13 @@ async function pullCards(request, env) {
   const changed = ids.filter(id => Object.hasOwn(index.cards, id) && index.cards[id] > known[id]);
   const records = (await Promise.all(changed.map(id => trustedRecord(env, id, active, listedBy)))).filter(t => t && t.record.updated > known[t.record.id]).map(t => t.record);
   const badges = active.filter(b => Object.hasOwn(known, b.cardId));
-  const team = new Set(badges.filter(b => b.role >= 3).map(b => b.login.toLowerCase()));
+  const holders = new Set(badges.map(b => b.login.toLowerCase()));
   const now = seconds();
   return json({
     v: 1, now, next: early?.granted ? now : now + setting(env.PULL_SECONDS, 900), records,
     gone: ids.filter(id => !Object.hasOwn(index.cards, id)),
     badges: badges.map(b => b.code),
-    designs: designs.filter(d => team.has(d.login.toLowerCase())).map(d => d.code),
+    designs: designs.filter(d => holders.has(d.login.toLowerCase())).map(d => d.code),
     ...(early ? { holderLeft: early.left } : {}),
   }, 200, { 'Cache-Control': 'no-store' });
 }
@@ -315,7 +315,7 @@ async function route(request, env, ctx) {
   if (method === 'GET' && pack) return serveObject(env, `${pack[1]}/${pack[2]}.zip`, 'application/zip');
   if (method === 'POST' && path === '/v1/designs') {
     const design = await verifyCode('RYD', await textBody(request), env);
-    if (!await authorizedInventory(env, active => active.some(b => b.role >= 3 && b.login.toLowerCase() === design.login.toLowerCase()))) fail('Design requires an active team badge');
+    if (!await authorizedInventory(env, active => active.some(b => b.login.toLowerCase() === design.login.toLowerCase()))) fail('Design requires an active badge');
     await storeDesign(env, design);
     await refreshInventory(env, request);
     return json({ sha: design.sha });

@@ -93,12 +93,14 @@ test('picture hash, size and dimensions are checked and replaced pictures are de
   assert.ok(![...state.env.BUCKET.data.keys()].some(key => key.endsWith(`/${secondSha}.jpg`)));
 });
 
-test('approved designs require team membership and packs, honor ordering and disappear on revocation', async () => {
+test('approved designs require an active badge of any role and a pack, honor ordering and disappear on revocation', async () => {
   const state = await setup();
   const packBytes = new Uint8Array([80, 75, 3, 4]), sha = await pending(state, packBytes);
   const approval = await code('RYD', state.mika, { issuer: 2, sha, login: 'Neur0map' });
-  assert.equal((await call(state.env, 'POST', '/v1/designs', approval)).status, 400);
-  await publish(state, { role: 2 });
+  const refused = await call(state.env, 'POST', '/v1/designs', approval);
+  assert.equal(refused.status, 400);
+  assert.equal((await refused.json()).error, 'Design requires an active badge');
+  await publish(state, { login: 'someone-else', role: 5 });
   assert.equal((await call(state.env, 'POST', '/v1/designs', approval)).status, 400);
   const badge = await publish(state);
   const missing = await code('RYD', state.owner, { sha: 'ab'.repeat(32) });
@@ -119,6 +121,25 @@ test('approved designs require team membership and packs, honor ordering and dis
   assert.deepEqual((await (await call(state.env, 'GET', '/v1/list')).json()).designs, [newer]);
   await call(state.env, 'POST', '/v1/revoke', await code('RYX', state.owner, { id: badge.id }));
   assert.deepEqual((await (await call(state.env, 'GET', '/v1/list')).json()).designs, []);
+});
+
+test('tester and contributor designs are approved while the badge is active and refused once revoked', async () => {
+  for (const role of [1, 2]) {
+    const state = await setup(), login = role === 1 ? 'tester' : 'contributor';
+    const sha = await pending(state, new Uint8Array([80, 75, 3, 4, role]));
+    const badge = await publish(state, { issuer: 2, role, login });
+    const approval = await code('RYD', state.owner, { sha, login });
+    assert.equal((await call(state.env, 'POST', '/v1/designs', approval)).status, 200);
+    assert.deepEqual((await (await call(state.env, 'GET', '/v1/list')).json()).designs, [approval]);
+    const pulled = await (await call(state.env, 'POST', '/v1/cards/batch', JSON.stringify({ cards: { [state.id]: 0 } }), { 'Content-Type': 'application/json' })).json();
+    assert.deepEqual(pulled.designs, [approval]);
+    assert.equal((await call(state.env, 'POST', '/v1/revoke', await code('RYX', state.mika, { issuer: 2, id: badge.id }))).status, 200);
+    assert.deepEqual((await (await call(state.env, 'GET', '/v1/list')).json()).designs, []);
+    const again = await code('RYD', state.owner, { sha, login, approvedAt: 1794697300 });
+    const response = await call(state.env, 'POST', '/v1/designs', again);
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).error, 'Design requires an active badge');
+  }
 });
 
 test('pending uploads require correct signed authorization, hash and clock window', async () => {

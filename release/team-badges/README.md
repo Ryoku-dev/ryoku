@@ -1,6 +1,6 @@
 # Team badges gate
 
-Cloudflare Worker for `https://team.ryoku.dev`. It publishes machine-bound Ed25519 badges, revocations, approved team designs, and device-signed system-card records for anyone who turns live cards on. Public issuer keys are in `wrangler.jsonc`; no private key belongs in the Worker. All writes require signatures, not a shared password.
+Cloudflare Worker for `https://team.ryoku.dev`. It publishes machine-bound Ed25519 badges, revocations, approved card designs, and device-signed system-card records for anyone who turns live cards on. Public issuer keys are in `wrangler.jsonc`; no private key belongs in the Worker. All writes require signatures, not a shared password.
 
 ## Layout
 
@@ -50,7 +50,7 @@ Read and verify the public list:
 curl --fail https://team.ryoku.dev/v1/list
 ```
 
-It returns `{ "v": 1, "badges": ["RYB-..."], "revoked": ["RYX-..."], "designs": ["RYD-..."] }`. It is cached for 60 seconds; listings paginate through all stored objects and cryptographically filter invalid entries. Consumers must verify the codes and apply revocations themselves. Design approvals require a current role 3–5 badge for their GitHub login. Newest approval day wins; equal days use accepted upload order.
+It returns `{ "v": 1, "badges": ["RYB-..."], "revoked": ["RYX-..."], "designs": ["RYD-..."] }`. It is cached for 60 seconds; listings paginate through all stored objects and cryptographically filter invalid entries. Consumers must verify the codes and apply revocations themselves. A design approval needs a current active badge of any role (tester, contributor, NixOS, core or founder) for its GitHub login, when it is posted and whenever it is listed; otherwise `POST /v1/designs` answers 400 `Design requires an active badge`, and a revoked badge takes its login's design out of the list. Newest approval day wins; equal days use accepted upload order. A design a holder wears privately on their own machine before approval never reaches the gate.
 
 Each isolate memoizes the verified inventory for 30 seconds and shares any in-flight refresh. Card records and pictures are read fresh from R2 on every GET, missing ones included: a Cache API copy is only purged in the data centre that took the write, so friends elsewhere kept a superseded record for a minute and found its picture already deleted. The list's cache keys ignore query strings so they cannot bypass the cache. Writes first check the memo, and verification misses may refresh it at most once every five seconds per isolate, so a badge published through another isolate a moment ago can be refused once with `No active badge verifies this record`; Settings sends the record again six seconds later. Accepted badge, revocation and design uploads update the local memo immediately. Other isolates can take up to 30 seconds to observe a revocation, and an already-cached list can remain visible for its 60-second lifetime.
 
@@ -74,7 +74,7 @@ A classic (`"v":2`) record that carries `device`, the base64 Ed25519 public key 
 
 `DELETE /v1/cards/<fp>` takes `{"id","at","sig"}`, signed by the record's device (or the active badge's device) over `ryoku-card-delete-v1` NUL id | `at` u64, with `at` within 600 seconds. It removes the record, its picture and its index entry. The deleted record's timestamp is refused for an hour afterwards, so a copy someone fetched before the delete cannot put it back.
 
-`POST /v1/cards/batch` takes `{"cards":{"<fp>":<known updated>}}` (0 for never seen) and returns `{"v":1,"now","next","records","gone","badges","designs"}`: records newer than what the binder holds, ids the server no longer has, active badge codes for the requested ids, and approved designs for the team logins among them. `next` is `now + PULL_SECONDS`. The response is `Cache-Control: no-store`. Signatures were checked when each record was stored and binders check them again, so a batch only checks what can change afterwards: a device record's key must still derive its id, and a record without `device` needs an active badge for its id, so it drops out once that badge is revoked.
+`POST /v1/cards/batch` takes `{"cards":{"<fp>":<known updated>}}` (0 for never seen) and returns `{"v":1,"now","next","records","gone","badges","designs"}`: records newer than what the binder holds, ids the server no longer has, active badge codes for the requested ids, and approved designs for the badge holders' logins among them. `next` is `now + PULL_SECONDS`. The response is `Cache-Control: no-store`. Signatures were checked when each record was stored and binders check them again, so a batch only checks what can change afterwards: a device record's key must still derive its id, and a record without `device` needs an active badge for its id, so it drops out once that badge is revoked.
 
 ### Badge holders' early refreshes
 
@@ -88,7 +88,7 @@ Cost: a binder makes one batch request per `PULL_SECONDS` (15 minutes) instead o
 
 ## Card styles belong to their owners
 
-A built-in card style is one badge holder's own look, not a choice for every holder: each style belongs to GitHub logins in `CARD_STYLE_OWNERS` (`src/codec.js`, currently `{ "stand": ["neur0map"] }`, logins lowercase and matched without case). `ryoku-hub` keeps the same table (`cardStyleOwners` in `ryoku/hub/backend/cardstyles.go`) and writes it into `test/vectors.json` as the `styleOwners` vector; `test/vectors.test.js` fails when the two differ, so change both and regenerate the vectors. Every other badge holder makes their own look through a team design (`/card submit` and the owner's approval). Words (`tagline`, `standName`) are not owned: every active badge holder may send them.
+A built-in card style is one badge holder's own look, not a choice for every holder: each style belongs to GitHub logins in `CARD_STYLE_OWNERS` (`src/codec.js`, currently `{ "stand": ["neur0map"] }`, logins lowercase and matched without case). `ryoku-hub` keeps the same table (`cardStyleOwners` in `ryoku/hub/backend/cardstyles.go`) and writes it into `test/vectors.json` as the `styleOwners` vector; `test/vectors.test.js` fails when the two differ, so change both and regenerate the vectors. Every other badge holder makes their own look through a card design (`/card submit` and the owner's approval). Words (`tagline`, `standName`) are not owned: every active badge holder may send them.
 
 A style rides only in a `"v":3` record (or a `"v":4` one with words): the v2 fields plus `style`, an id from the table (`CARD_STYLES` is its keys). Classic cards stay `"v":2` and never carry `style`; a v2 record with `style`, a v3 record without it, or any other key is refused with 400 `Invalid record fields`. A style off the table, or anything that is not 1–32 ASCII `[a-z0-9-]` (no case folding, look-alike letters, zero-width or control characters), gets 400 `Unknown card style`. The style is signed: the record signs `ryoku-card-v3` NUL, the v2 card payload, the style's UTF-8 byte length as a big-endian u16, then the style bytes.
 
@@ -106,7 +106,7 @@ Words must be well-formed Unicode in NFC with no space (`\p{Zs}`) at either end,
 
 Only the badge decides, as for styles: `PUT /v1/cards/<fp>` stores a v4 record only for an active badge on that card id signed by that badge's device key, else 403 `Card words need an active team badge on this machine` (no badge) or 403 `Invalid card signature` (another key). Serving, revocation and the cron treat it as they treat a styled record: withheld at once once the badge is revoked, deleted by `POST /v1/revoke`, swept by the 03:17 cron. Deploy the Worker before clients that send v4: an older gate refuses v4 with 400 `Invalid record fields`. Binders from before v4 keep the last v2 or v3 copy they verified of a card that moved to v4.
 
-Everything else a non-holder can upload stays as before: a still JPEG picture (400 KiB, 1120×780, hash bound into the signed record; moving pictures never reach the Worker), and no team design: approvals need an owner or Mika signature, packs need a signed upload header, and designs are listed and served only for logins with an active role 3–5 badge.
+Everything else a non-holder can upload stays as before: a still JPEG picture (400 KiB, 1120×780, hash bound into the signed record; moving pictures never reach the Worker), and no card design: approvals need an owner or Mika signature, packs need a signed upload header, and designs are listed and served only for logins with an active badge.
 
 ## Bot Fight Mode stays off
 
