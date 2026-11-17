@@ -1493,6 +1493,7 @@ if [ -d /run/systemd/system ]; then
   dev_bin_dropin ryoku-idle.service
   dev_bin_dropin ryoku-clamshell.service
   dev_bin_dropin ryoku-ai-usage.service
+  dev_bin_dropin ryoku-bt-agent.service
   # Ryogami resolves the staged picker from XDG_DATA_HOME when it starts.
   dev_bin_dropin ryogami.service
   systemctl --user daemon-reload 2>/dev/null || true

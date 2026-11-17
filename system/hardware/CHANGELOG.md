@@ -3,6 +3,12 @@
 ## Unreleased
 
 ### Added
+- `bluetooth/ryoku-bt-agent`: **the pairing agent no longer floods the journal
+  (#869).** The agent unit ran an interactive `bluetoothctl`, so every
+  advertising packet from every nearby device during a scan became a journal
+  line (400-600 a minute). The shared helper keeps pairing prompts, errors and a
+  device's pair, trust, bond and connect changes, and drops the rest, on systemd
+  and runit alike. Covered by `tests/bt-agent-filter.sh`.
 - `audio/ryoku-media`: **one toggle per media tap.** Runs `playerctl` and drops
   a second call within 200 ms, for headphones that send play and pause together.
 - `display/ryoku-monitor`: **a hand-entered resolution is forced, not ignored.**

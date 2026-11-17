@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# The BlueZ pairing agent (#308), shared by the systemd unit and the runit service.
+#
+# KeyboardDisplay is the capability BLE HID devices (gamepads, keyboards) pair
+# with: they confirm a numeric passkey, and bluetoothd denies the bond when no
+# agent can answer. bluetoothctl exits at stdin EOF when it is not attached to a
+# terminal, so stdin is held open; the agent then sits idle and answers the
+# prompts bluetoothd sends it.
+#
+# bluetoothctl also prints a line for every advertising packet of every nearby
+# device while anything scans (hundreds a minute, #869), and that all lands in the
+# journal. Only the lines worth reading later get through: pairing prompts, errors
+# and a device's pair, trust, bond and connect changes. The control sequences and
+# prompt redraws readline adds are dropped with the rest.
+set -u
+
+filter() {
+  local line seq
+  local prompt='[bluetoothctl]> '
+  local esc=$'\e'
+  while IFS= read -r line; do
+    while [[ $line =~ $esc\[[0-9\;?]*[A-Za-z] ]]; do
+      seq=${BASH_REMATCH[0]}
+      line=${line//"$seq"/}
+    done
+    line=${line//[$'\r\001\002']/}
+    while [[ $line == "$prompt"* ]]; do
+      line=${line#"$prompt"}
+    done
+    [[ $line =~ [^[:space:]] ]] || continue
+    if [[ $line == *'[CHG] Device '* || $line == *'[NEW] Device '* || $line == *'[DEL] Device '* ]]; then
+      [[ $line =~ [[:space:]](Paired|Bonded|Trusted|Blocked|Connected):[[:space:]] ]] || continue
+    fi
+    printf '%s\n' "$line"
+  done
+}
+
+if [[ ${1:-} == --filter ]]; then
+  filter
+  exit
+fi
+
+tail -f /dev/null | bluetoothctl --agent KeyboardDisplay 2>&1 | filter
