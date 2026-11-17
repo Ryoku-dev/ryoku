@@ -3,6 +3,14 @@
 ## Unreleased
 
 ### Fixed
+- **The battery readout follows the real charge on two-battery laptops.** The
+  bar widget, the battery popout and the low-battery alerts bound to the first
+  battery UPower lists, which its controller can park at 99 % "Not charging"
+  for hours while the other pack carries the machine; the readout then froze
+  at "On AC · Full" and the warnings never armed. They read the aggregate
+  charge now (falling back to the active pack where a UPower version's
+  synthetic display device misbehaves), and only say "On AC" when a charger
+  is actually attached (#845).
 - **Fastfetch reads the wallpaper-tinted config again.** The effective config
   keeps the `// ryoku:` header comments from `config.jsonc`, so it is now
   cached as `fastfetch-effective.jsonc`; fastfetch rejects comments in a
