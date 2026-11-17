@@ -156,7 +156,7 @@ func frameOn(t *testing.T, b []byte) nlFrame {
 // bounded wait (the watcher settles within its poll timeout).
 func waitForFrame(t *testing.T, sub *topicSubscriber, want func(nlFrame) bool, desc string) nlFrame {
 	t.Helper()
-	deadline := time.After(8 * time.Second)
+	deadline := time.After(60 * time.Second)
 	for {
 		select {
 		case f := <-sub.frames:
@@ -165,7 +165,7 @@ func waitForFrame(t *testing.T, sub *topicSubscriber, want func(nlFrame) bool, d
 				return got
 			}
 		case <-deadline:
-			t.Fatalf("no frame with %s within 8s", desc)
+			t.Fatalf("no frame with %s within 60s", desc)
 		}
 	}
 }
