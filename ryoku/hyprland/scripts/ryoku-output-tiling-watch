@@ -1,25 +1,30 @@
 #!/usr/bin/env bash
-# Keeps remembered per-output layouts current as workspaces and displays change.
-# It blocks on the window-manager seam's event stream (`ryoku wm watch`) and runs
-# restore on each workspaces or outputs frame: a created or removed workspace, or
-# a display that connects or disconnects. There is no timer. When the stream ends
-# (the compositor restarted or was replaced) it reconnects; the stream replays the
-# current state first, so a fresh session is restored the same way.
-# restore is a no-op while the display link is on, and re-applying an unchanged
-# layout is harmless.
+# Keeps remembered per-output layouts current while the display link is off.
+# Started by ryoku-output-tiling, never at login on its own. It blocks on the
+# window-manager seam's event stream (`ryoku wm watch`) and runs restore on each
+# workspaces or outputs frame: a created workspace, or a display that connects or
+# disconnects. When the link is back on it exits. One instance at a time.
 set -uo pipefail
+
+runtime="${XDG_RUNTIME_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/ryoku}"
+mkdir -p "$runtime"
+exec 8>"$runtime/output-tiling-watch.lock"
+flock -n 8 || exit 0
 
 log="${XDG_STATE_HOME:-$HOME/.local/state}/ryoku/output-tiling-watch.log"
 mkdir -p "$(dirname "$log")"
 
-while true; do
+unlinked() { [[ $(ryoku-output-tiling get | jq -r '.linked') == false ]]; }
+
+while unlinked; do
     while IFS= read -r frame; do
         case $(jq -r '.kind // empty' <<<"$frame" 2>/dev/null) in
         workspaces|outputs)
+            unlinked || exit 0
             ryoku-output-tiling restore >/dev/null 2>&1 || true
             ;;
         esac
-    done < <(ryoku wm watch workspaces outputs 2>>"$log")
-    # the stream ended; back off briefly so a missing compositor does not spin
+    done < <(ryoku wm watch workspaces outputs 2>>"$log" 8>&-)
+    # the stream ended (compositor restarted); back off so a missing one does not spin
     sleep 1
 done

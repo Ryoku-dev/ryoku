@@ -3,13 +3,11 @@
 ## Unreleased
 
 ### Added
-- **Per-output layouts follow new workspaces.** A workspace created after login
-  on a display that has its own layout gets that layout, without a restart
-  (`scripts/ryoku-output-tiling-watch`).
 - **Per-output tiling layout on Hyprland.** `ryoku-output-tiling` sets the live
-  layout of one output's workspaces, remembers it, and re-applies it at login
-  while the display link is off (`scripts/ryoku-output-tiling`,
-  `modules/autostart.lua`).
+  layout of one output's workspaces and remembers it. While the display link is
+  off it re-applies at login and follows new workspaces and displays through
+  `ryoku-output-tiling-watch`, which starts only then and ends when the link is
+  back on (`scripts/ryoku-output-tiling`, `modules/autostart.lua`).
 - **Super+Alt+Space opens the Rashin app.** The companion window summons the
   single-instance way: a second press focuses the open window instead of
   spawning a twin, and a window rule floats and centres it like the other
