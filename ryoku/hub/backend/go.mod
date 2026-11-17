@@ -11,7 +11,7 @@ require (
 	ryostore v0.0.0
 )
 
-require golang.org/x/sys v0.27.0
+require golang.org/x/sys v0.44.0
 
 replace ryostore => ../../apps/ryostore/backend
 

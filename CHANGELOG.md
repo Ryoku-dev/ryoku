@@ -23,6 +23,7 @@ for finer detail.
   user is no longer in a mango session.
 
 ### Fixed
+- The shell IPC daemon, the Hub backend, the installer TUI and the shell installer now build against `golang.org/x/sys` v0.44.0, which clears GO-2026-5024. That advisory only reaches the Windows build of the package, so nothing on a Ryoku box was exposed. The CLI stays on v0.27.0 until its module moves past `go 1.23` (#888).
 - **Failed VM downloads clear their new partial folder so trying again keeps the real error**
 - **Dictation shows the current speech model, or Custom when it was set outside the Hub**
 - **The Italian translation keeps the Fish shell name unchanged after the next catalog sync**
