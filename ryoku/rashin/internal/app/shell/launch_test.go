@@ -25,12 +25,15 @@ func (s *stage) lastLaunch() (string, bool) {
 // the front: a terminal that took the keyboard out of sight read as "does
 // nothing". Both go through the user's own app for the role.
 func TestATerminalAndAFolderAreAskedToTheFront(t *testing.T) {
+	// the demo fixtures expand their folders against the home this process
+	// started with, before the stage moves HOME into its fixture tree
+	project := filepath.Join(os.Getenv("HOME"), "Work", "hyperion")
 	stage := newStage(t, image.Pt(1440, 900))
 	stage.open("projects/hyperion/overview")
 
 	stage.click("Open a terminal here")
 	command, fronted := stage.lastLaunch()
-	if !strings.HasPrefix(command, "ryoku-app terminal -- sh -c ") || !strings.HasSuffix(command, " sh /home/nero/Work/hyperion") {
+	if !strings.HasPrefix(command, "ryoku-app terminal -- sh -c ") || !strings.HasSuffix(command, " sh "+project) {
 		t.Errorf("the terminal was started as %q", command)
 	}
 	if !fronted {
@@ -39,7 +42,7 @@ func TestATerminalAndAFolderAreAskedToTheFront(t *testing.T) {
 
 	stage.click("Open the folder")
 	command, fronted = stage.lastLaunch()
-	if command != "ryoku-app files -- /home/nero/Work/hyperion" {
+	if command != "ryoku-app files -- "+project {
 		t.Errorf("the folder was opened as %q", command)
 	}
 	if !fronted {

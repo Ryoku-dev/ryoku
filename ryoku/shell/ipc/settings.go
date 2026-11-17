@@ -154,7 +154,6 @@ type gameBarSettings struct {
 	Dim       float64 `json:"dim"`
 	Fade      int     `json:"fade"`
 	Scale     float64 `json:"scale"`
-	Radius    int     `json:"radius"`
 	Snap      bool    `json:"snap"`
 	SnapReach int     `json:"snapReach"`
 	SnapGrid  int     `json:"snapGrid"`
@@ -526,7 +525,6 @@ func defaultSettings() *settings {
 			Dim:             0.62,
 			Fade:            200,
 			Scale:           1,
-			Radius:          14,
 			Snap:            true,
 			SnapReach:       9,
 			SnapGrid:        24,
@@ -649,7 +647,6 @@ func (g *gameBarSettings) normalize(v *validator) {
 	v.clampF(&g.Dim, 0, 1)
 	v.rangeI("gamebar.fade", &g.Fade, 0, 2000)
 	v.clampF(&g.Scale, 0.5, 2)
-	v.rangeI("gamebar.radius", &g.Radius, 0, 64)
 	v.rangeI("gamebar.snapReach", &g.SnapReach, 0, 64)
 	v.rangeI("gamebar.snapGrid", &g.SnapGrid, 4, 128)
 	v.rangeI("gamebar.gridStep", &g.GridStep, 8, 256)

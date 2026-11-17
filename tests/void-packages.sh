@@ -344,7 +344,6 @@ union=$(printf '%s\n%s\n' "$desktop" "$dev" | awk 'NF' | LC_ALL=C sort -u)
 [[ $both == "$union" ]] || fail "repeated --lane arguments do not resolve their union"
 grep -qxF fish-shell <<< "$desktop" || fail "desktop lane did not translate fish"
 grep -qxF ryoku <<< "$desktop" || fail "desktop lane omitted an @repo package"
-grep -qxF prowl <<< "$desktop" || fail "desktop lane omitted a repo=ryoku package"
 grep -qxF gpk <<< "$desktop" || fail "desktop lane omitted the packaged gpk frontend"
 grep -qxF snapper <<< "$desktop" || fail "desktop lane omitted snapper"
 

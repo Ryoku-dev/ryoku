@@ -12,7 +12,7 @@ vm.runInContext(fs.readFileSync(path.join(here, "game-bar.js"), "utf8").replace(
 
 // the daemon's ranges and defaults (ryoku/shell/ipc/settings.go gameBarSettings)
 const daemon = {
-    enabled: [true], dim: [0.62, 0, 1], fade: [200, 0, 2000], scale: [1, 0.5, 2], radius: [14, 0, 64],
+    enabled: [true], dim: [0.62, 0, 1], fade: [200, 0, 2000], scale: [1, 0.5, 2],
     snap: [true], snapReach: [9, 0, 64], snapGrid: [24, 4, 128], guideGrid: [true], gridStep: [48, 8, 256],
     gridAlpha: [0.28, 0, 1], spring: [3.2, 0.5, 20], damping: [0.58, 0.05, 1], mass: [1, 0.1, 10],
     voiceAvatars: [8, 1, 8], voiceDim: [true], voiceDimOpacity: [0.5, 0.2, 1], voiceAvatarSize: [52, 32, 72],

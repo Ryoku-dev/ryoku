@@ -9,7 +9,6 @@ import (
 	"reflect"
 	"slices"
 	"strings"
-	"syscall"
 	"testing"
 )
 
@@ -1596,20 +1595,31 @@ func TestFailedRiceCaptureLeavesNoRice(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var limit syscall.Rlimit
-	if err := syscall.Getrlimit(syscall.RLIMIT_FSIZE, &limit); err != nil {
+	dir := ricesDir()
+	aside := dir + ".aside"
+	if err := os.Rename(dir, aside); err != nil {
 		t.Fatal(err)
 	}
-	capped := limit
-	capped.Cur = uint64(len(earlier) - 200)
-	if err := syscall.Setrlimit(syscall.RLIMIT_FSIZE, &capped); err != nil {
+	restored := false
+	t.Cleanup(func() {
+		if restored {
+			return
+		}
+		_ = os.Remove(dir)
+		_ = os.Rename(aside, dir)
+	})
+	if err := os.WriteFile(dir, nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	_, errNew := captureRice("Probe B", nil)
 	_, errAgain := captureRice("Probe A", nil)
-	if err := syscall.Setrlimit(syscall.RLIMIT_FSIZE, &limit); err != nil {
+	if err := os.Remove(dir); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.Rename(aside, dir); err != nil {
+		t.Fatal(err)
+	}
+	restored = true
 
 	if errNew == nil || errAgain == nil {
 		t.Fatalf("captures past the size limit succeeded: %v, %v", errNew, errAgain)

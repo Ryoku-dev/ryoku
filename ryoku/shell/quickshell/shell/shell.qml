@@ -1,3 +1,4 @@
+//@ pragma Env QML_XHR_ALLOW_FILE_READ=1
 //@ pragma UseQApplication
 // Threaded render loop: the frame's blob melt is a per-frame spring plus live
 // scene-graph MultiEffects (menu glass blur, blobs); threaded is vsync-locked and

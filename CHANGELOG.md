@@ -5,6 +5,12 @@ for finer detail.
 
 ## Unreleased
 
+### Changed
+- The Game Bar is drawn in the desktop's design language: its strip, cards,
+  controls and charts take the style and colours chosen in Settings > Appearance
+  > Style, follow a change live without a restart, and no longer keep a corner
+  rounding of their own.
+
 ### Added
 - QS Bar adds per-monitor workspace isolation (`isolateMonitors`), allowing
   multi-monitor setups to show only the workspaces assigned to each screen on its

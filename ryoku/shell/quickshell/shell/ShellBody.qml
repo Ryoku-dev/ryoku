@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import Quickshell
 import shell.services
+import Lithic
 import "modules/visualizer/Singletons" as VizCfg
 import "modules/stage/Singletons" as StageCfg
 import "components"
@@ -809,6 +810,7 @@ Scope {
     Component.onCompleted: {
         Quickshell.watchFiles = !Quickshell.shellDir.startsWith(
             (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/quickshell/");
+        Lithic.translator = s => I18n.tr(s);
         Devices.restore();
         root.syncCaffeine(Flags.keepAwake ? "start" : "stop");
         if (Flags.gameMode)
@@ -991,6 +993,7 @@ Scope {
         function reloadPalette(): void {
             Tokens.reloadPalette();
             Scheme.reload();
+            Lithic.reload();
         }
     }
 
@@ -1201,6 +1204,46 @@ Scope {
         name: "install"
         description: I18n.tr("Open Tools to install a package")
         onPressed: root.toggleSurface("install")
+    }
+
+    Binding {
+        target: Lithic
+        property: "reduceMotion"
+        value: Motion.reduce
+    }
+
+    FileView {
+        path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku/shell.json"
+        watchChanges: true
+        printErrors: false
+        onFileChanged: Lithic.reload()
+    }
+    FileView {
+        path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku/theme.json"
+        watchChanges: true
+        printErrors: false
+        onFileChanged: Lithic.reload()
+    }
+    FileView {
+        path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku/matugen.json"
+        watchChanges: true
+        printErrors: false
+        onFileChanged: Lithic.reload()
+    }
+    FileView {
+        path: (Quickshell.env("XDG_CACHE_HOME") || (Quickshell.env("HOME") + "/.cache")) + "/ryoku/colors.json"
+        watchChanges: true
+        printErrors: false
+        onFileChanged: Lithic.reload()
+    }
+
+    Connections {
+        target: ShellSettings
+        function onChanged() {
+            if (ShellSettings.touches("theme", ShellSettings.lastPaths)
+                    || ShellSettings.touches("themePalette", ShellSettings.lastPaths))
+                Lithic.reload();
+        }
     }
 
 }

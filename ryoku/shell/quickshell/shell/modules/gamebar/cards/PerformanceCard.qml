@@ -5,12 +5,10 @@ import Quickshell.Io
 import shell.services
 import ".."
 import Ryoku.Ui.Singletons
+import Lithic
 import "../look"
 import "../../../utils/units.js" as Units
 
-// Performance: the machine's headroom while a game runs, read from the one
-// sysinfo sampler. The rate here is the display's compositor mode, never an
-// in-game frame counter; Ryoku does not read one, so it does not claim one.
 GameBarCard {
     id: card
 
@@ -26,6 +24,8 @@ GameBarCard {
         const base = card.displayMode.split("@")[0];
         if (base.length > 0)
             return base.replace("x", " x ");
+        if (card.monitorName.length === 0)
+            return I18n.tr("n/a");
         const out = Wm.outputByName(card.monitorName);
         return out ? out.width + " x " + out.height : I18n.tr("n/a");
     }
@@ -35,8 +35,6 @@ GameBarCard {
             card.displayMode = "";
         if (modeRead.running)
             modeRead.running = false;
-        // Clearing a stale mode is cheap; the read itself waits until the card
-        // is actually watched, where the polling timer starts it.
         if (card.polling)
             modeRestart.restart();
     }
@@ -56,11 +54,6 @@ GameBarCard {
         StatsFeed.setActive(card, false);
     }
 
-    // A game can switch resolution or refresh while the card stays up. Watch
-    // frames carry no mode, so re-read the full state now and then; the read
-    // takes a few milliseconds. Skip it while the surface is unmapped (a shot or
-    // a recording) or the session is dark. Power Saver only rests a card left
-    // pinned behind a closed bar: an open bar is being looked at.
     readonly property bool saverIdle: Perf.saver && card.pinned && !GameBarStore.open
     readonly property bool polling: (!card.host || (card.host.live && !card.host.suppressed))
         && !Presence.dark && !card.saverIdle
@@ -80,17 +73,12 @@ GameBarCard {
         onTriggered: card.readMode(false)
     }
 
-    // restarting the process in the same tick may coalesce into no new run, so
-    // let the property settle first.
     Timer {
         id: modeRestart
         interval: 1
         onTriggered: if (card.polling && !modeRead.running) modeRead.running = true
     }
 
-    // The watch frames carry no mode, so the full state read is the one place
-    // the current mode is reported. The Timer above refreshes it while the card
-    // is up, so a mode switch by the game does not leave a stale reading.
     Process {
         id: modeRead
         command: ["ryoku", "wm", "state"]
@@ -114,75 +102,130 @@ GameBarCard {
 
     Column {
         width: parent.width
-        spacing: 3 * card.s
+        spacing: card.space2
+
+        Grid {
+            width: parent.width
+            columns: 2
+            columnSpacing: card.space3
+            rowSpacing: card.space3
+
+            Column {
+                width: (parent.width - card.space3) / 2
+                spacing: card.space1
+
+                Label {
+                    text: I18n.tr("Processor")
+                    typeRole: "caption"
+                    inkRole: "fg2"
+                }
+                Label {
+                    text: Units.pct(card.mon.cpuPercent / 100)
+                    typeRole: "row"
+                    numeric: true
+                }
+                BladeMeter {
+                    width: parent.width
+                    value: card.mon.cpuPercent / 100
+                }
+            }
+
+            Column {
+                width: (parent.width - card.space3) / 2
+                spacing: card.space1
+
+                Label {
+                    text: I18n.tr("Graphics")
+                    typeRole: "caption"
+                    inkRole: "fg2"
+                }
+                Label {
+                    text: card.mon.gpuAvailable ? Units.pct(card.mon.gpuPercent / 100) : I18n.tr("n/a")
+                    typeRole: "row"
+                    numeric: true
+                }
+                BladeMeter {
+                    width: parent.width
+                    value: card.mon.gpuAvailable ? card.mon.gpuPercent / 100 : 0
+                }
+            }
+
+            Column {
+                width: (parent.width - card.space3) / 2
+                spacing: card.space1
+
+                Label {
+                    text: I18n.tr("Memory")
+                    typeRole: "caption"
+                    inkRole: "fg2"
+                }
+                Label {
+                    text: Units.gib(card.mon.memoryUsedGiB) + " / " + Units.gib(card.mon.memoryTotalGiB)
+                    typeRole: "row"
+                    numeric: true
+                }
+                BladeMeter {
+                    width: parent.width
+                    value: card.mon.memoryPercent / 100
+                }
+            }
+
+            Column {
+                width: (parent.width - card.space3) / 2
+                spacing: card.space1
+
+                Label {
+                    text: I18n.tr("Video memory")
+                    typeRole: "caption"
+                    inkRole: "fg2"
+                }
+                Label {
+                    text: card.mon.gpuMemoryAvailable
+                        ? Units.gib(card.mon.gpuMemoryUsedGiB) + " / " + Units.gib(card.mon.gpuMemoryTotalGiB)
+                        : I18n.tr("n/a")
+                    typeRole: "row"
+                    numeric: true
+                }
+                BladeMeter {
+                    width: parent.width
+                    value: card.mon.gpuMemoryAvailable && card.mon.gpuMemoryTotalGiB > 0
+                        ? card.mon.gpuMemoryUsedGiB / card.mon.gpuMemoryTotalGiB : 0
+                }
+            }
+        }
+
+        EngravedChart {
+            width: parent.width
+            height: 44 * card.s
+            values: card.mon.cpuHistory
+            minimum: 0
+            maximum: 1
+            emptyText: ""
+            Accessible.name: I18n.tr("Processor history")
+        }
 
         GameBarDataRow {
-            s: card.s
             width: parent.width
             label: I18n.tr("Display")
             value: card.resolution
         }
         GameBarDataRow {
-            s: card.s
             width: parent.width
             label: I18n.tr("Refresh")
             value: card.hz > 0 ? card.hz + " Hz" : I18n.tr("n/a")
         }
         GameBarDataRow {
-            s: card.s
             width: parent.width
             label: I18n.tr("Temperature")
             value: card.mon.gpuTempAvailable ? Units.temp(card.mon.gpuTemp, card.tempUnit)
                 : (card.mon.cpuTempAvailable ? Units.temp(card.mon.cpuTemp, card.tempUnit) : I18n.tr("n/a"))
         }
 
-        GameBarMeter {
-            s: card.s
-            width: parent.width
-            label: I18n.tr("CPU")
-            value: Units.pct(card.mon.cpuPercent / 100)
-            fraction: card.mon.cpuPercent / 100
-        }
-        GameBarMeter {
-            s: card.s
-            width: parent.width
-            label: I18n.tr("GPU")
-            value: card.mon.gpuAvailable ? Units.pct(card.mon.gpuPercent / 100) : I18n.tr("n/a")
-            fraction: card.mon.gpuAvailable ? card.mon.gpuPercent / 100 : 0
-            tint: Theme.tertiary
-        }
-        GameBarMeter {
-            s: card.s
-            width: parent.width
-            label: I18n.tr("Memory")
-            value: Units.gib(card.mon.memoryUsedGiB) + " / " + Units.gib(card.mon.memoryTotalGiB)
-            fraction: card.mon.memoryPercent / 100
-        }
-        GameBarMeter {
-            s: card.s
-            width: parent.width
-            label: I18n.tr("VRAM")
-            value: card.mon.gpuMemoryAvailable
-                ? Units.gib(card.mon.gpuMemoryUsedGiB) + " / " + Units.gib(card.mon.gpuMemoryTotalGiB)
-                : I18n.tr("n/a")
-            fraction: card.mon.gpuMemoryAvailable && card.mon.gpuMemoryTotalGiB > 0
-                ? card.mon.gpuMemoryUsedGiB / card.mon.gpuMemoryTotalGiB : 0
-            tint: Theme.tertiary
-        }
-
-        GameBarSpark {
-            width: parent.width
-            height: 34 * card.s
-            values: card.mon.cpuHistory
-            color: GameBarLook.accent
-        }
-
-        Text {
+        Label {
             width: parent.width
             text: I18n.tr("Display refresh, not a game's frame rate.")
-            color: GameBarLook.subtext
-            font.family: GameBarLook.face
-            font.pixelSize: GameBarLook.smallie * card.s
+            typeRole: "caption"
+            inkRole: "fg3"
         }
     }
 }

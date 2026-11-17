@@ -4,7 +4,9 @@ name: Docs
 # governance files. checks every relative link between them resolves, in
 # place of the Mintlify site validation the sibling repo used.
 # vendored dep trees are skipped: their upstream docs point at files we don't
-# vendor (matches .githooks + the lint gates).
+# vendor (matches .githooks + the lint gates). the Rashin skill sets are
+# upstream copies kept byte-identical by the sync tool, so their placeholders
+# and sibling links are not ours to resolve.
 
 on:
   pull_request:
@@ -55,7 +57,8 @@ jobs:
                 status=1
               fi
             done < <(grep -oE '\]\([^)]+\)' "$md" | sed -E 's/^\]\(//; s/\)$//')
-          done < <(git ls-files -z '*.md' ':(glob,exclude)**/vendor/**')
+          done < <(git ls-files -z '*.md' ':(glob,exclude)**/vendor/**' \
+            ':(exclude)ryoku/rashin/internal/skills/sets')
 
           if (( status == 0 )); then
             echo "All Markdown relative links resolve."

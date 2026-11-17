@@ -12,10 +12,11 @@ T.Control {
     signal activated(int index)
 
     readonly property Item _selectedItem: currentIndex >= 0 ? tabRepeater.itemAt(currentIndex) : null
+    readonly property real _scale: Lithic.scaleOf(root)
 
     focusPolicy: Qt.StrongFocus
     implicitWidth: contentItem.implicitWidth
-    implicitHeight: LithicTokens.size.tabsHeight
+    implicitHeight: LithicTokens.size.tabsHeight * root._scale
     opacity: enabled ? 1 : Lithic.disabledOpacity
 
     Accessible.role: Accessible.PageTabList
@@ -43,13 +44,13 @@ T.Control {
 
     contentItem: Item {
         implicitWidth: tabRow.implicitWidth
-        implicitHeight: LithicTokens.size.tabsHeight
+        implicitHeight: LithicTokens.size.tabsHeight * root._scale
 
         Rectangle {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
-            height: LithicTokens.size.tabsBaseline
+            height: LithicTokens.size.tabsBaseline * root._scale
             color: Lithic.vein
         }
 
@@ -74,8 +75,8 @@ T.Control {
 
                     hoverEnabled: true
                     focusPolicy: Qt.StrongFocus
-                    implicitWidth: tabLabel.implicitWidth + LithicTokens.size.tabsLabelExtra
-                    implicitHeight: LithicTokens.size.tabsHeight
+                    implicitWidth: tabLabel.implicitWidth + LithicTokens.size.tabsLabelExtra * root._scale
+                    implicitHeight: LithicTokens.size.tabsHeight * root._scale
                     enabled: root.enabled
 
                     Accessible.role: Accessible.PageTab
@@ -114,7 +115,7 @@ T.Control {
                         verticalAlignment: Text.AlignVCenter
 
                         transform: Translate {
-                            y: tab._pressActive ? Lithic.pressSink : 0
+                            y: tab._pressActive ? Lithic.pressSink * root._scale : 0
                             ChiselNumberBehavior on y { duration: LithicTokens.motion.press }
                         }
 
@@ -128,9 +129,9 @@ T.Control {
 
         CutRect {
             x: root._selectedItem ? root._selectedItem.x : 0
-            y: parent.height - LithicTokens.size.tabsBlade
+            y: parent.height - LithicTokens.size.tabsBlade * root._scale
             width: root._selectedItem ? root._selectedItem.width : 0
-            height: LithicTokens.size.tabsBlade
+            height: LithicTokens.size.tabsBlade * root._scale
             fill: Lithic.fg
             cutTopLeft: LithicTokens.size.tabsBlade
             cutTopRight: LithicTokens.size.tabsBlade

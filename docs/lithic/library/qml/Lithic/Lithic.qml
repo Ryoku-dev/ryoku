@@ -716,6 +716,14 @@ QtObject {
         return null;
     }
 
+    function scaleOf(item) {
+        for (var p = item ? item.parent : null; p; p = p.parent) {
+            if (typeof p.lithicScale === "number" && p.lithicScale > 0)
+                return p.lithicScale;
+        }
+        return 1;
+    }
+
     // every role a design would wear now, for the one in use or for a preview of another.
     // Ryoku's colours (dark or light) are the signature in every design; the desktop's
     // colours (follow) are the toned ladder in Lithic and the palette's own Material

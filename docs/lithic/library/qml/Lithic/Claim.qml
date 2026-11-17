@@ -13,7 +13,7 @@ Row {
         : tone.charAt(0).toUpperCase() + tone.slice(1)
     property real progress: tone === "becoming" ? 1 : tone === "idle" ? 0 : 1
 
-    spacing: LithicTokens.space.s2
+    spacing: LithicTokens.space.s2 * Lithic.scaleOf(root)
 
     Flake {
         anchors.verticalCenter: parent.verticalCenter

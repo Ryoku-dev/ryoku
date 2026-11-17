@@ -25,14 +25,15 @@ T.Control {
             widest = Math.max(widest, metrics.advanceWidth(_labels[index]));
         return Math.ceil(widest);
     }
-    readonly property real _inset: LithicTokens.size.segmentInset
+    readonly property real _scale: Lithic.scaleOf(root)
+    readonly property real _inset: LithicTokens.size.segmentInset * root._scale
     readonly property real _segmentWidth: _labels.length > 0 ? Math.max(0, width - _inset * 2) / _labels.length : 0
     readonly property int _previewIndex: currentIndex === 0 ? 1 : 0
     property real _shownIndex: currentIndex
 
     focusPolicy: Qt.StrongFocus
-    implicitWidth: _labels.length * (_widest + LithicTokens.space.s4 * 2) + _inset * 2
-    implicitHeight: LithicTokens.size.segmentHeight
+    implicitWidth: _labels.length * (_widest + LithicTokens.space.s4 * 2 * root._scale) + _inset * 2
+    implicitHeight: LithicTokens.size.segmentHeight * root._scale
     opacity: enabled ? 1 : Lithic.disabledOpacity
 
     Accessible.role: Accessible.List
@@ -69,7 +70,7 @@ T.Control {
     FontMetrics {
         id: metrics
         font.family: Lithic.type.label.family
-        font.pixelSize: Lithic.type.label.pixelSize
+        font.pixelSize: Lithic.type.label.pixelSize * root._scale
         font.weight: Lithic.type.label.weight
     }
 
@@ -153,7 +154,7 @@ T.Control {
                     verticalAlignment: Text.AlignVCenter
 
                     transform: Translate {
-                        y: segment._pressActive ? Lithic.pressSink : 0
+                        y: segment._pressActive ? Lithic.pressSink * root._scale : 0
                         ChiselNumberBehavior on y { duration: LithicTokens.motion.press }
                     }
 

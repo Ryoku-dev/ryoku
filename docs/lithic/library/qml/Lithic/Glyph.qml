@@ -9,7 +9,7 @@ Text {
 
     color: ink
     font.family: Lithic.font.icons
-    font.pixelSize: size
+    font.pixelSize: Math.round(root.size * Lithic.scaleOf(root))
     font.weight: Font.Normal
     renderType: Text.NativeRendering
     horizontalAlignment: Text.AlignHCenter

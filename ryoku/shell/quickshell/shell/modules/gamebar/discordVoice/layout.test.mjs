@@ -3,7 +3,7 @@ import test from "node:test";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { PAD, HEADER, SPACE, avatar, cell, columns, size } = require("./layout.js");
+const { PAD, HEADER, NAME, SPACE, avatar, cell, columns, size } = require("./layout.js");
 
 test("avatar size is clamped to the setting range", () => {
     assert.equal(avatar(undefined), 52);
@@ -34,7 +34,7 @@ test("a quiet call is only the header", () => {
 test("one row adds the gap, avatar and name", () => {
     const box = size(300, 1, 52, true);
     assert.equal(box.w, 300);
-    assert.equal(box.h, PAD * 2 + HEADER + 10 + 52 + 15);
+    assert.equal(box.h, PAD * 2 + HEADER + 10 + 52 + NAME);
 });
 
 test("the panel never grows past the frame the user placed", () => {

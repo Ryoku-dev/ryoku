@@ -2,12 +2,11 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import shell.services
+import Ryoku.Ui.Singletons
 import "../../components"
+import Lithic
 import "look"
 
-// The card frame: an 8px grab margin, an 18px panel with a 1px outline, a
-// 30px title bar and a 12px content area. The widget drags from its surface;
-// the body is the default property.
 Item {
     id: root
 
@@ -17,6 +16,7 @@ Item {
     property var host: null
     property bool resizable: false
     property bool minimalWhenPinned: false
+    property real preferredHeight: 0
 
     readonly property bool pinned: root.cardId.length > 0 && GameBarStore.isPinned(root.cardId)
     readonly property bool minimal: root.minimalWhenPinned && root.pinned && !GameBarStore.open
@@ -24,10 +24,14 @@ Item {
 
     default property alias body: bodyArea.data
 
+    readonly property real space1: LithicTokens.space.s1 * root.s
+    readonly property real space2: LithicTokens.space.s2 * root.s
+    readonly property real space3: LithicTokens.space.s3 * root.s
+    readonly property real space4: LithicTokens.space.s4 * root.s
     readonly property real grab: root.minimal ? 0 : 8 * root.s
-    readonly property real pad: 6 * root.s
-    readonly property real barHeight: 30 * root.s
-    readonly property real grip: 18 * root.s
+    readonly property real pad: root.minimal ? 0 : 8 * root.s
+    readonly property real head: 32 * root.s
+    readonly property real gripSize: 18 * root.s
 
     property string dragMode: ""
 
@@ -35,15 +39,13 @@ Item {
         id: drag
         target: null
         acceptedButtons: Qt.LeftButton
-        // Qt's default start distance reads as a dead beat before the card
-        // answers; three pixels still keeps a button click a click.
         dragThreshold: 3
         onActiveChanged: {
             if (!root.host)
                 return;
             if (active) {
                 const p = drag.centroid.pressPosition;
-                const edge = root.grab + root.grip;
+                const edge = root.grab + root.gripSize;
                 root.dragMode = root.resizable && !root.minimal
                     && p.x >= root.width - edge && p.y >= root.height - edge
                     ? "resize" : "move";
@@ -52,8 +54,6 @@ Item {
                     root.host.resizeBy(root.cardId, drag.translation.x, drag.translation.y);
                 } else {
                     root.host.beginDrag(root.cardId);
-                    // The threshold distance is already behind the pointer, so
-                    // take it now instead of waiting for the next move.
                     root.host.dragBy(root.cardId, drag.translation.x, drag.translation.y);
                 }
             } else {
@@ -72,125 +72,120 @@ Item {
         }
     }
 
-    Rectangle {
-        id: frame
+    Item {
+        id: logical
         anchors.fill: parent
-        anchors.margins: root.grab
-        radius: root.minimal ? 0 : GameBarLook.radiusWindow * root.s
-        color: root.minimal ? "transparent" : GameBarLook.panel
-        border.width: root.minimal ? 0 : 1
-        border.color: GameBarLook.border
+        readonly property real lithicScale: root.s
 
         Item {
-            id: titleBar
-            visible: !root.minimal
-            x: root.pad
-            y: root.pad
-            width: parent.width - root.pad * 2
-            height: root.barHeight
+            id: frame
+            anchors.fill: parent
+            anchors.margins: root.minimal ? 0 : root.grab
 
-            Row {
-                id: titleRow
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 0
-
-                Item {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 20 * root.s
-                    height: 20 * root.s
-
-                    MaterialIcon {
-                        anchors.fill: parent
-                        visible: root.iconGlyph.length === 0
-                        text: root.host ? root.host.symbolFor(root.cardId) : ""
-                        color: GameBarLook.fg
-                        font.pixelSize: 20 * root.s
-                    }
-
-                    GlyphIcon {
-                        anchors.fill: parent
-                        visible: root.iconGlyph.length > 0
-                        name: root.iconGlyph
-                        color: GameBarLook.fg
-                        stroke: 1.6
-                    }
-                }
-
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    leftPadding: 4 * root.s
-                    text: root.title
-                    color: GameBarLook.fg
-                    font.family: GameBarLook.face
-                    font.pixelSize: GameBarLook.small * root.s
-                    elide: Text.ElideRight
-                }
-            }
-
-            Row {
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 2 * root.s
-
-                GameBarIconButton {
-                    s: root.s
-                    glyph: "pin"
-                    toggled: root.pinned
-                    onClicked: if (root.cardId.length > 0) GameBarStore.togglePinned(root.cardId)
-                }
-
-                GameBarIconButton {
-                    s: root.s
-                    glyph: "close"
-                    onClicked: if (root.cardId.length > 0) GameBarStore.closeCard(root.cardId)
-                }
-            }
-        }
-
-        Item {
-            id: content
-            x: root.minimal ? 0 : root.pad
-            y: root.minimal ? 0 : titleBar.y + titleBar.height + 1
-            width: parent.width - (root.minimal ? 0 : root.pad * 2)
-            height: parent.height - y - (root.minimal ? 0 : root.pad)
-
-            Rectangle {
-                id: contentFill
+            CutRect {
                 anchors.fill: parent
-                radius: root.minimal ? 0 : GameBarLook.radiusSmall * root.s
-                color: root.minimal ? "transparent" : GameBarLook.content
+                visible: !root.minimal
+                fill: GameBarTone.pane
+                strokeColor: GameBarTone.paneStroke
+                strokeWidth: LithicTokens.size.hairline
+                cut: GameBarTone.paneCut
             }
 
             Item {
-                id: bodyArea
-                anchors.fill: parent
-                anchors.margins: root.minimal ? 0 : 8 * root.s
+                id: headArea
+                visible: !root.minimal
+                x: root.pad
+                y: root.pad
+                width: frame.width - root.pad * 2
+                height: root.head
+
+                GameBarGlyph {
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    size: 18
+                    ink: GameBarTone.ink2
+                    symbol: root.host ? root.host.symbolFor(root.cardId) : ""
+                    brand: root.iconGlyph
+                }
+
+                Row {
+                    id: headActions
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 4 * root.s
+
+                    IconPlaque {
+                        small: true
+                        kind: root.pinned ? "tonal" : "quiet"
+                        glyph: "push_pin"
+                        Accessible.name: root.pinned ? I18n.tr("Unpin card") : I18n.tr("Pin card")
+                        onClicked: if (root.cardId.length > 0) GameBarStore.togglePinned(root.cardId)
+                    }
+
+                    IconPlaque {
+                        small: true
+                        kind: "quiet"
+                        glyph: "close"
+                        Accessible.name: I18n.tr("Close card")
+                        onClicked: if (root.cardId.length > 0) GameBarStore.closeCard(root.cardId)
+                    }
+                }
+
+                Label {
+                    anchors.left: parent.left
+                    anchors.leftMargin: 26 * root.s
+                    anchors.right: headActions.left
+                    anchors.rightMargin: 8 * root.s
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: root.title
+                    typeRole: "title"
+                }
             }
-        }
 
-        Item {
-            id: gripArea
-            visible: root.resizable && !root.minimal
-            width: root.grip
-            height: root.grip
-            x: frame.width - width
-            y: frame.height - height
-            opacity: gripPointer.containsMouse || root.dragMode === "resize" ? 0.9 : 0.4
-
-            GlyphIcon {
-                anchors.fill: parent
-                name: "grip"
-                color: GameBarLook.onLayer
-                stroke: 1.6
+            Rectangle {
+                visible: !root.minimal
+                x: root.pad
+                y: root.pad + root.head + 3 * root.s
+                width: frame.width - root.pad * 2
+                height: LithicTokens.size.hairline
+                color: GameBarTone.line
             }
 
-            MouseArea {
-                id: gripPointer
-                anchors.fill: parent
-                hoverEnabled: true
-                acceptedButtons: Qt.NoButton
-                cursorShape: Qt.SizeFDiagCursor
+            Item {
+                id: content
+                x: root.minimal ? 0 : root.pad
+                y: root.minimal ? 0 : root.pad + root.head + 6 * root.s
+                width: frame.width - (root.minimal ? 0 : root.pad * 2)
+                height: frame.height - y - (root.minimal ? 0 : root.pad)
+
+                Item {
+                    id: bodyArea
+                    anchors.fill: parent
+                }
+            }
+
+            Item {
+                visible: root.resizable && !root.minimal
+                width: root.gripSize
+                height: root.gripSize
+                x: frame.width - width
+                y: frame.height - height
+                opacity: gripPointer.containsMouse || root.dragMode === "resize" ? 1 : 0.5
+
+                Glyph {
+                    anchors.centerIn: parent
+                    name: "south_east"
+                    size: 14
+                    ink: GameBarTone.ink3
+                }
+
+                MouseArea {
+                    id: gripPointer
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    acceptedButtons: Qt.NoButton
+                    cursorShape: Qt.SizeFDiagCursor
+                }
             }
         }
     }
