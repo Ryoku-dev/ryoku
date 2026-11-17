@@ -21,9 +21,10 @@ Item {
     readonly property bool isGif: /\.gif(\?|$)/.test(root.lc)
 
     readonly property bool displayed: root.visible && root.hasSource && width > 0 && height > 0
+    // 64 px steps so a live resize drag does not re-decode (and restart a gif) on every frame
     readonly property size decodeSize: Qt.size(
-        Math.max(1, Math.ceil(width * Screen.devicePixelRatio)),
-        Math.max(1, Math.ceil(height * Screen.devicePixelRatio)))
+        Math.max(64, Math.ceil(width * Screen.devicePixelRatio / 64) * 64),
+        Math.max(64, Math.ceil(height * Screen.devicePixelRatio / 64) * 64))
 
     // a bare filesystem path becomes a file URL; http(s)/file/qrc pass through.
     readonly property url srcUrl: !root.hasSource ? ""

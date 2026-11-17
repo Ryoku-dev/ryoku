@@ -47,6 +47,9 @@
 - **Update indicators can show system packages, Ryoku updates, or both (#877).**
   Pick the notification source in Hub > Updates; Ryoku only stays the default,
   and the existing check schedule covers every edition without another poll.
+- **Music widgets use less memory for artwork and local GIFs (#850).** The
+  backdrop decodes images at the widget's own size, releases its artwork while
+  the widget is hidden, and no longer keeps a second cached copy of stills.
 - **Wallpaper Engine video wallpapers animate on hover in the picker (#807).**
   Only local videos got the small preview clip, so workshop video cards stayed
   still; they now get one too, built on the thumbnail job limit and skipped
