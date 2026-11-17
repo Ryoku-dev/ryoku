@@ -50,6 +50,10 @@
 - **Music widgets use less memory for artwork and local GIFs (#850).** The
   backdrop decodes images at the widget's own size, releases its artwork while
   the widget is hidden, and no longer keeps a second cached copy of stills.
+- **The Game Bar's Audio card fits its app list and resizes (#839).** The card
+  was too short for three app rows, so the last one hung off the bottom, and it
+  had no grip. It is taller by default and drags to any size, with the list
+  filling the room.
 - **An external monitor's brightness slider shows its real level and stops flooding ddcutil (#840).**
   The Orpheus control card pinned the handle at 50% and spawned one `ddcutil`
   per pointer move; writes now go one at a time with the latest value winning,
