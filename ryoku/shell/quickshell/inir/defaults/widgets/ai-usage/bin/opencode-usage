@@ -497,6 +497,7 @@ def merge_message_stores(*stores: list[dict]) -> list[dict]:
                 matched.add(match)
                 if mid:
                     identities[identity] = match
+                    rows[match]["_message_id"] = mid
                 continue
             index = len(rows)
             rows.append(row)
