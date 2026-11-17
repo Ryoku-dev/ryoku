@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Wayland
 import shell.services
 import Ryoku.Ui.Singletons
+import Lithic
 import "look"
 import "cards"
 import "recording.js" as Recording
@@ -23,7 +24,7 @@ PanelWindow {
     readonly property int fadeMs: Motion.dur(win.cfg.fade)
 
     readonly property var catalogue: [
-        { id: "capture", label: I18n.tr("Capture"), symbol: "screenshot_region" },
+        { id: "capture", label: I18n.tr("Capture"), symbol: "photo_camera" },
         { id: "performance", label: I18n.tr("Performance"), symbol: "speed" },
         { id: "resources", label: I18n.tr("Resources"), symbol: "monitoring" },
         { id: "tasks", label: I18n.tr("Tasks"), symbol: "checklist" },
@@ -277,7 +278,8 @@ PanelWindow {
         const compact = win.sizeFor(id);
         // A saved spot can belong to a monitor that is gone or resized; clamp
         // the full frame it was placed on before anchoring the compact panel.
-        const frame = win.clampTo(full, saved.x, saved.y);
+        const k = typeof saved.us === "number" && saved.us > 0 ? win.us / saved.us : 1;
+        const frame = win.clampTo(full, saved.x * k, saved.y * k);
         const rightEdge = frame.x + full.w;
         const bottomEdge = frame.y + full.h;
         const reach = 120 * win.us;
@@ -299,8 +301,10 @@ PanelWindow {
                 && win.minimalCard(id))
             return win.compactPositionFor(id);
         const saved = GameBarStore.positionFor(id);
-        if (saved && typeof saved.x === "number" && typeof saved.y === "number")
-            return win.clampPos(id, saved.x, saved.y);
+        if (saved && typeof saved.x === "number" && typeof saved.y === "number") {
+            const k = typeof saved.us === "number" && saved.us > 0 ? win.us / saved.us : 1;
+            return win.clampPos(id, saved.x * k, saved.y * k);
+        }
         return win.defaultPos(id);
     }
 
@@ -331,7 +335,7 @@ PanelWindow {
         const settled = win.snapPosition(id, win.liveX, win.liveY);
         // Store the settled spot while liveX/liveY still pin the card, then
         // clear the drag so the slot's spring animates into place.
-        GameBarStore.place(id, settled.x, settled.y);
+        GameBarStore.place(id, settled.x, settled.y, win.us);
         win.settlingCard = id;
         settleTimer.restart();
         win.dragCard = "";
@@ -367,9 +371,10 @@ PanelWindow {
         // to persist the nudge a larger card needs at a screen edge.
         const saved = GameBarStore.positionFor(id);
         if (saved && typeof saved.x === "number" && typeof saved.y === "number") {
-            const clamped = win.clampPos(id, saved.x, saved.y);
-            if (clamped.x !== saved.x || clamped.y !== saved.y)
-                GameBarStore.place(id, clamped.x, clamped.y);
+            const k = typeof saved.us === "number" && saved.us > 0 ? win.us / saved.us : 1;
+            const clamped = win.clampPos(id, saved.x * k, saved.y * k);
+            if (clamped.x !== saved.x * k || clamped.y !== saved.y * k)
+                GameBarStore.place(id, clamped.x, clamped.y, win.us);
         }
     }
 
@@ -412,12 +417,34 @@ PanelWindow {
             win.shownCards = win.cards;
     }
     onCardsChanged: if (win.active) win.shownCards = win.cards
+    function migrateLayout() {
+        const list = GameBarStore.layout;
+        const out = [];
+        let migrated = false;
+        for (let i = 0; i < list.length; i++) {
+            const entry = list[i];
+            if (!entry || typeof entry.x !== "number" || typeof entry.y !== "number") {
+                out.push(entry);
+                continue;
+            }
+            if (typeof entry.us === "number" && entry.us > 0) {
+                out.push(entry);
+                continue;
+            }
+            migrated = true;
+            out.push({ id: entry.id, x: entry.x, y: entry.y, us: win.us });
+        }
+        if (migrated)
+            GameBarStore.setLayout(out);
+    }
+
     Component.onCompleted: {
         win.live = win.active;
         if (win.active)
             win.shownCards = win.cards;
         if (!win.cfg.enabled)
             GameBarStore.closeBar();
+        win.migrateLayout();
     }
 
     readonly property bool wanted: win.active && !win.suppressed
@@ -489,8 +516,8 @@ PanelWindow {
     Rectangle {
         id: scrim
         anchors.fill: parent
-        color: "#000000"
-        opacity: (win.stripUp ? win.cfg.dim : 0) * win.reveal
+        color: Qt.rgba(GameBarTone.scrim.r, GameBarTone.scrim.g, GameBarTone.scrim.b, win.cfg.dim)
+        opacity: (win.stripUp ? 1 : 0) * win.reveal
 
         Behavior on opacity {
             NumberAnimation {
@@ -507,7 +534,7 @@ PanelWindow {
         visible: win.dragCard !== "" && win.cfg.snap && win.cfg.guideGrid
         opacity: win.reveal
 
-        readonly property color line: Qt.rgba(GameBarLook.accent.r, GameBarLook.accent.g, GameBarLook.accent.b, win.cfg.gridAlpha)
+        readonly property color line: Lithic.alpha(Lithic.fg3, win.cfg.gridAlpha)
 
         Repeater {
             model: grid.visible && win.gridLine > 0 ? Math.ceil(win.width / win.gridLine) + 1 : 0
@@ -548,9 +575,11 @@ PanelWindow {
             readonly property var size: win.sizeFor(slot.cardId)
             readonly property var pos: win.positionFor(slot.cardId)
 
+            readonly property real preferred: cardLoader.item ? cardLoader.item.preferredHeight : 0
+
             visible: slot.on
             width: size.w
-            height: size.h
+            height: Math.max(slot.size.h, Math.min(slot.preferred, win.height - slot.pos.y - win.us))
             x: slot.pos.x
             y: slot.pos.y
             opacity: win.reveal

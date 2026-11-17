@@ -32,6 +32,20 @@ QML_IMPORT_PATH=/absolute/path/to/docs/lithic/library/qml qs -p /path/to/shell.q
 
 Ryoku ships the module compiled: `build.sh <qml-import-dir>` builds it to bytecode with Geologica and Martian Mono inside the plugin and installs `Lithic/` there, and `ryoku-desktop` runs it into `/usr/lib/qt6/qml`. A dev box runs `install.sh [<qml-import-root>]` instead, which copies the sources and the faces into `~/.local/lib/qt6/qml` by default, so an edit shows on the next load. Do not copy token values into the host.
 
+## Scaling
+
+A surface that draws larger than the design's own pixels names that magnification on a common ancestor:
+
+```qml
+Item {
+    readonly property real lithicScale: 1.25
+    Label { text: "Drawn larger" }
+    IconPlaque { glyph: "play_arrow" }
+}
+```
+
+`Label`, `Glyph`, `CutRect`, `Plaque`, `IconPlaque`, `Tabs`, `Segmented`, `Slider`, `FocusRing`, `Claim` and `BladeMeter` read `Lithic.scaleOf(item)` up the parent chain and grow their type, icons, cuts and boxes by it. The host still lays the surface out in the enlarged pixels; it never scales a finished item, which would blur its text.
+
 ## Palette lifecycle
 
 `Lithic` reads palette files through synchronous `file://` XHR only during startup and an explicit `reload()`. Plain QML therefore needs `QML_XHR_ALLOW_FILE_READ=1`. Set `QT_FORCE_STDERR_LOGGING=1` on every plain QML run so Qt writes warnings to stderr instead of sending them only to the journal. The library never polls and has no palette timer.

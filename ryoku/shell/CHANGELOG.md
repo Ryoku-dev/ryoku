@@ -1,6 +1,10 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The Game Bar wears the desktop's design language.** Its strip, cards,
+  controls and charts draw with Lithic, take the style and colours chosen in
+  Settings > Appearance > Style, and follow a change live; the bar's own corner
+  rounding setting is gone (`quickshell/shell/modules/gamebar`, `ipc/settings.go`).
 - **Plugins installed from a store you added load like any other.**
   `plugins/discover.sh` also reads `ryoku/sources/<store>/plugins` and accepts
   each copy only with a receipt from its own store, so no store's copy can pose

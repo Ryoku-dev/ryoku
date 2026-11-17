@@ -5,12 +5,11 @@ import shell.services
 import ".."
 import "../../../components"
 import Ryoku.Ui.Singletons
+import Lithic
 import "../look"
 import "../discordVoice"
 import "../discordVoice/layout.js" as VoiceLayout
 
-// Voice: the Discord channel the user is in, who is there, and who is talking.
-// The bridge reads Discord's own RPC or the Ryoku companion inside Vesktop.
 GameBarCard {
     id: card
 
@@ -23,11 +22,11 @@ GameBarCard {
     readonly property real dimOpacity: Math.max(0.2, Math.min(1, Config.gamebar.voiceDimOpacity || 0.5))
     readonly property real avatarSpacing: 4 * card.s
     readonly property real avatarCell: 58 * card.s
+    readonly property real avatarSize: 46 * card.s
     readonly property int avatarColumns: Math.max(1, Math.min(8,
         Math.floor((stage.width + card.avatarSpacing) / (card.avatarCell + card.avatarSpacing))))
 
     readonly property real miniAvatarLogical: VoiceLayout.avatar(Config.gamebar.voiceAvatarSize)
-    readonly property real miniAvatarSize: card.miniAvatarLogical * card.s
     readonly property bool miniNames: Config.gamebar.voiceNames !== false
     readonly property bool miniControls: Config.gamebar.voiceControls !== false
     readonly property real miniBgOpacity: {
@@ -38,9 +37,9 @@ GameBarCard {
     readonly property real miniGap: VoiceLayout.SPACE * card.s
     readonly property real miniHeaderHeight: VoiceLayout.HEADER * card.s
     readonly property real miniCell: VoiceLayout.cell(card.miniAvatarLogical, card.miniNames) * card.s
-    readonly property int miniColumns: VoiceLayout.columns(card.width / card.s,
+    readonly property int miniColumns: VoiceLayout.columns(card.width,
         Math.min(card.avatarLimit, card.voice.participantCount),
-        card.miniAvatarLogical, card.miniNames)
+        card.miniCell, card.miniNames)
     readonly property string miniSubtitle: {
         if (card.voice.inVoice) {
             const n = card.voice.participantCount;
@@ -48,7 +47,7 @@ GameBarCard {
                 : I18n.tr("%1 participants").arg(n);
         }
         if (card.voice.status === "authenticated")
-            return I18n.tr("No voice channel");
+            return I18n.tr("Not in a call");
         return card.subtitle;
     }
 
@@ -90,7 +89,6 @@ GameBarCard {
         case "unavailable": return I18n.tr("Discord's voice socket is not reachable. Retry in a moment.");
         case "disconnected": return I18n.tr("Discord went away. Reconnecting in a moment.");
         case "stopped": return I18n.tr("The bridge stopped. Retry to start it again.");
-        case "authenticated": return I18n.tr("Join a voice channel to see who is talking.");
         default: return I18n.tr("Connecting to Discord.");
         }
     }
@@ -106,50 +104,42 @@ GameBarCard {
             anchors.right: parent.right
             height: 40 * card.s
 
-            Rectangle {
+            CutRect {
                 id: glyphTile
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
-                width: 36 * card.s
-                height: 36 * card.s
-                radius: GameBarLook.radiusSmall * card.s
-                color: card.voice.inVoice ? GameBarLook.toggled : GameBarLook.raised
+                width: 40 * card.s
+                height: 40 * card.s
+                fill: card.voice.inVoice ? GameBarTone.select : GameBarTone.card
+                strokeColor: GameBarTone.cardStroke
+                strokeWidth: LithicTokens.size.hairline
+                cut: GameBarTone.cardCut
 
-                GlyphIcon {
+                GameBarGlyph {
                     anchors.centerIn: parent
-                    width: 19 * card.s
-                    height: 19 * card.s
-                    name: "discord"
-                    color: card.voice.inVoice ? GameBarLook.toggledInk : GameBarLook.onLayer
-                    stroke: 1.7
+                    brand: "discord"
+                    size: 20
+                    ink: card.voice.inVoice ? GameBarTone.selectInk : GameBarTone.ink2
                 }
             }
 
             Column {
                 anchors.left: glyphTile.right
-                anchors.leftMargin: 10 * card.s
+                anchors.leftMargin: card.space3
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 1 * card.s
 
-                Text {
+                Label {
                     width: parent.width
-                    textFormat: Text.PlainText
                     text: card.headline
-                    color: GameBarLook.fg
-                    font.family: GameBarLook.face
-                    font.pixelSize: GameBarLook.small * card.s
-                    font.weight: Font.DemiBold
-                    elide: Text.ElideRight
+                    typeRole: "title"
                 }
-
-                Text {
+                Label {
                     width: parent.width
                     text: card.subtitle
-                    color: GameBarLook.subtext
-                    font.family: GameBarLook.face
-                    font.pixelSize: GameBarLook.smaller * card.s
-                    elide: Text.ElideRight
+                    typeRole: "detail"
+                    inkRole: "fg2"
                 }
             }
         }
@@ -157,11 +147,11 @@ GameBarCard {
         Item {
             id: stage
             anchors.top: header.bottom
-            anchors.topMargin: 6 * card.s
+            anchors.topMargin: card.space2
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: footer.top
-            anchors.bottomMargin: 4 * card.s
+            anchors.bottomMargin: card.space1
 
             Grid {
                 anchors.centerIn: parent
@@ -175,7 +165,8 @@ GameBarCard {
                     delegate: ParticipantAvatar {
                         required property int index
                         participant: (card.voice.participantRevision, card.voice.participantAt(index))
-                        s: card.s
+                        width: card.avatarCell
+                        avatarSize: card.avatarSize
                         dimOthers: card.dimOthers
                         dimOpacity: card.dimOpacity
                     }
@@ -185,71 +176,88 @@ GameBarCard {
             Column {
                 anchors.centerIn: parent
                 width: parent.width
-                spacing: 8 * card.s
+                spacing: card.space1 + 2 * card.s
                 visible: card.voice.participantCount === 0
 
-                GlyphIcon {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    width: 26 * card.s
-                    height: 26 * card.s
-                    name: "discord"
-                    color: GameBarLook.subtext
-                    stroke: 1.6
-                }
-
-                Text {
+                Item {
                     width: parent.width
-                    text: card.emptyMessage
-                    color: GameBarLook.onLayer
-                    font.family: GameBarLook.face
-                    font.pixelSize: GameBarLook.smaller * card.s
-                    horizontalAlignment: Text.AlignHCenter
-                    wrapMode: Text.WordWrap
-                }
+                    height: 56 * card.s
 
-                GameBarTextButton {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    // A healthy authenticated bridge is not a reconnect case:
-                    // the only next step is to join a channel in Discord.
-                    visible: card.voice.status !== "authenticated"
-                    s: card.s
-                    compact: true
-                    primary: card.voice.status === "auth_required" || card.voice.status === "authorizing"
-                    label: card.voice.status === "authorizing"
-                        ? I18n.tr("Waiting for Discord")
-                        : (card.voice.status === "auth_required"
-                            ? I18n.tr("Authorize Discord")
-                            : I18n.tr("Retry"))
-                    enabled: card.voice.status !== "authorizing"
-                    onClicked: {
-                        if (card.voice.status === "auth_required")
-                            card.voice.authorize();
-                        else
-                            card.voice.connect();
+                    CutRect {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: 56 * card.s
+                        height: 56 * card.s
+                        fill: "transparent"
+                        strokeColor: GameBarTone.line
+                        strokeWidth: LithicTokens.size.hairline
+                        cut: GameBarTone.cardCut
+
+                        GameBarGlyph {
+                            anchors.centerIn: parent
+                            brand: "discord"
+                            size: 22
+                            ink: GameBarTone.ink3
+                        }
                     }
                 }
 
-                GameBarTextButton {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    visible: card.voice.companionNeeded && !card.voice.installerBusy
-                    s: card.s
-                    compact: true
-                    quiet: true
-                    label: I18n.tr("Install voice companion")
-                    onClicked: card.voice.installCompanion()
+                Label {
+                    width: parent.width
+                    visible: card.voice.status !== "authenticated"
+                    text: card.emptyMessage
+                    typeRole: "detail"
+                    inkRole: "fg2"
+                    wrapMode: Text.WordWrap
+                    horizontalAlignment: Text.AlignHCenter
                 }
 
-                Text {
+                Item {
+                    width: parent.width
+                    height: visible ? authPlaque.implicitHeight : 0
+                    visible: card.voice.status !== "authenticated"
+
+                    Plaque {
+                        id: authPlaque
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        kind: card.voice.status === "auth_required" || card.voice.status === "authorizing" ? "gold" : "line"
+                        text: card.voice.status === "authorizing"
+                            ? I18n.tr("Waiting for Discord")
+                            : (card.voice.status === "auth_required"
+                                ? I18n.tr("Authorize Discord")
+                                : I18n.tr("Retry"))
+                        enabled: card.voice.status !== "authorizing"
+                        onClicked: {
+                            if (card.voice.status === "auth_required")
+                                card.voice.authorize();
+                            else
+                                card.voice.connect();
+                        }
+                    }
+                }
+
+                Item {
+                    width: parent.width
+                    height: visible ? companionPlaque.implicitHeight : 0
+                    visible: card.voice.companionNeeded && !card.voice.installerBusy
+
+                    Plaque {
+                        id: companionPlaque
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        small: true
+                        kind: "quiet"
+                        text: I18n.tr("Install voice companion")
+                        onClicked: card.voice.installCompanion()
+                    }
+                }
+
+                Label {
                     width: parent.width
                     visible: card.voice.installerBusy || card.voice.installerState === "failed"
-                    textFormat: Text.PlainText
                     text: card.voice.installerBusy ? card.voice.installerLine
                         : I18n.tr("The companion install did not finish")
-                    color: GameBarLook.subtext
-                    font.family: GameBarLook.face
-                    font.pixelSize: GameBarLook.smallest * card.s
+                    typeRole: "caption"
+                    inkRole: "fg3"
                     horizontalAlignment: Text.AlignHCenter
-                    elide: Text.ElideRight
                 }
             }
         }
@@ -259,7 +267,7 @@ GameBarCard {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
-            height: visible ? 34 * card.s : 0
+            height: visible ? 32 * card.s : 0
             visible: card.voice.authenticated && card.voice.status !== "authorizing"
 
             Row {
@@ -267,44 +275,47 @@ GameBarCard {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 6 * card.s
 
-                GameBarVoiceToggle {
-                    s: card.s
-                    glyph: card.voice.muted ? "mic-off" : "mic"
-                    on: card.voice.muted
+                IconPlaque {
+                    small: true
+                    kind: card.voice.muted ? "tonal" : "quiet"
+                    glyph: card.voice.muted ? "mic_off" : "mic"
+                    Accessible.name: I18n.tr("Microphone")
                     onClicked: card.voice.setMuted(!card.voice.muted)
                 }
 
-                GameBarVoiceToggle {
-                    s: card.s
-                    glyph: card.voice.deafened ? "headphones-off" : "headphones"
-                    on: card.voice.deafened
+                IconPlaque {
+                    small: true
+                    kind: card.voice.deafened ? "tonal" : "quiet"
+                    glyph: card.voice.deafened ? "headphones" : "headphones"
+                    Accessible.name: I18n.tr("Headphones")
                     onClicked: card.voice.setDeafened(!card.voice.deafened)
                 }
             }
 
-            Text {
+            Label {
                 anchors.right: parent.right
-                anchors.rightMargin: card.resizable ? 16 * card.s : 0
+                anchors.rightMargin: card.resizable ? 22 * card.s : 0
                 anchors.verticalCenter: parent.verticalCenter
                 text: card.voice.deafened ? I18n.tr("Deafened")
                     : (card.voice.muted ? I18n.tr("Muted") : I18n.tr("Mic on"))
-                color: GameBarLook.subtext
-                font.family: GameBarLook.face
-                font.pixelSize: GameBarLook.smaller * card.s
+                typeRole: "detail"
+                inkRole: "fg2"
             }
         }
     }
 
-    // Pinned with the bar closed, the card becomes the overlay: a rounded
-    // translucent panel sized to its content, with the channel, mute and deafen
-    // state, and the people on an avatar grid.
-    Rectangle {
+    Item {
         id: mini
         anchors.fill: parent
         visible: card.minimal
-        radius: GameBarLook.radiusVeryLarge * card.s
-        color: Qt.rgba(GameBarLook.panel.r, GameBarLook.panel.g, GameBarLook.panel.b,
-            card.miniBgOpacity)
+
+        CutRect {
+            anchors.fill: parent
+            fill: Lithic.alpha(GameBarTone.pane, card.miniBgOpacity)
+            strokeColor: GameBarTone.paneStroke
+            strokeWidth: LithicTokens.size.hairline
+            cut: GameBarTone.paneCut
+        }
 
         Item {
             id: miniHeader
@@ -313,21 +324,22 @@ GameBarCard {
             width: parent.width - card.miniPad * 2
             height: card.miniHeaderHeight
 
-            Rectangle {
+            CutRect {
                 id: miniTile
+                anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
-                width: 36 * card.s
-                height: 36 * card.s
-                radius: GameBarLook.radiusSmall * card.s
-                color: card.voice.inVoice ? GameBarLook.toggled : GameBarLook.raised
+                width: 40 * card.s
+                height: 40 * card.s
+                fill: card.voice.inVoice ? GameBarTone.select : GameBarTone.card
+                strokeColor: GameBarTone.cardStroke
+                strokeWidth: LithicTokens.size.hairline
+                cut: GameBarTone.cardCut
 
-                GlyphIcon {
+                GameBarGlyph {
                     anchors.centerIn: parent
-                    width: 20 * card.s
-                    height: 20 * card.s
-                    name: "discord"
-                    color: card.voice.inVoice ? GameBarLook.toggledInk : GameBarLook.onLayer
-                    stroke: 1.7
+                    brand: "discord"
+                    size: 20
+                    ink: card.voice.inVoice ? GameBarTone.selectInk : GameBarTone.ink2
                 }
             }
 
@@ -340,47 +352,41 @@ GameBarCard {
                 visible: active
                 width: active ? implicitWidth : 0
 
-                GameBarVoiceToggle {
-                    diameter: 40 * card.s
-                    glyph: card.voice.muted ? "mic-off" : "mic"
-                    on: card.voice.muted
+                IconPlaque {
+                    small: true
+                    kind: card.voice.muted ? "tonal" : "quiet"
+                    glyph: card.voice.muted ? "mic_off" : "mic"
+                    Accessible.name: I18n.tr("Microphone")
                     onClicked: card.voice.setMuted(!card.voice.muted)
                 }
 
-                GameBarVoiceToggle {
-                    diameter: 40 * card.s
-                    glyph: card.voice.deafened ? "headphones-off" : "headphones"
-                    on: card.voice.deafened
+                IconPlaque {
+                    small: true
+                    kind: card.voice.deafened ? "tonal" : "quiet"
+                    glyph: "headphones"
+                    Accessible.name: I18n.tr("Headphones")
                     onClicked: card.voice.setDeafened(!card.voice.deafened)
                 }
             }
 
             Column {
                 anchors.left: miniTile.right
-                anchors.leftMargin: 9 * card.s
+                anchors.leftMargin: card.space3
                 anchors.right: miniButtons.left
                 anchors.rightMargin: 8 * card.s
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 0
 
-                Text {
+                Label {
                     width: parent.width
-                    textFormat: Text.PlainText
                     text: card.headline
-                    color: GameBarLook.fg
-                    font.family: GameBarLook.face
-                    font.pixelSize: GameBarLook.small * card.s
-                    font.weight: Font.DemiBold
-                    elide: Text.ElideRight
+                    typeRole: "title"
                 }
-
-                Text {
+                Label {
                     width: parent.width
                     text: card.miniSubtitle
-                    color: GameBarLook.subtext
-                    font.family: GameBarLook.face
-                    font.pixelSize: GameBarLook.smaller * card.s
-                    elide: Text.ElideRight
+                    typeRole: "detail"
+                    inkRole: "fg2"
                 }
             }
         }
@@ -388,7 +394,7 @@ GameBarCard {
         Grid {
             id: miniGrid
             anchors.horizontalCenter: parent.horizontalCenter
-            y: card.miniPad + card.miniHeaderHeight + VoiceLayout.GAP * card.s
+            y: card.miniPad + card.miniHeaderHeight + card.miniGap
             columns: card.miniColumns
             rowSpacing: card.miniGap
             columnSpacing: card.miniGap
@@ -401,8 +407,7 @@ GameBarCard {
                     required property int index
                     participant: (card.voice.participantRevision, card.voice.participantAt(index))
                     width: card.miniCell
-                    s: card.s
-                    avatarSize: card.miniAvatarSize
+                    avatarSize: card.miniAvatarLogical
                     showName: card.miniNames
                     dimOthers: card.dimOthers
                     dimOpacity: card.dimOpacity

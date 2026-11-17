@@ -21,8 +21,9 @@ Item {
     property string design: ""
     readonly property string _design: root.design !== "" ? root.design : root._scope ? root._scope.lithicDesign : ""
     readonly property bool rounded: (root._design !== "" ? (Lithic.designs[root._design] || Lithic.shape) : Lithic.shape).corner === "round"
+    readonly property real _scale: Lithic.scaleOf(root)
     function _radius(cut) {
-        return Lithic.cornerRadius(cut, root.width, root.height, root._design);
+        return Lithic.cornerRadius(cut * root._scale, root.width, root.height, root._design);
     }
     property Item _scope: null
     onParentChanged: root._scope = Lithic.designScope(root)
@@ -30,7 +31,7 @@ Item {
     default property alias content: contentItem.data
 
     function _bounded(value) {
-        return Math.max(0, Math.min(value, Math.min(width, height) / 2));
+        return Math.max(0, Math.min(value * root._scale, Math.min(width, height) / 2));
     }
 
     function _innerCut(value) {

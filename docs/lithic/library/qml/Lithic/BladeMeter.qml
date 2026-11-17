@@ -7,7 +7,7 @@ Blade {
     property color bladeInk: Lithic.fg2
     property real alertAt: LithicTokens.size.bladeMeterAlertAt
 
-    implicitHeight: LithicTokens.size.bladeTrack
+    implicitHeight: LithicTokens.size.bladeTrack * Lithic.scaleOf(root)
     fraction: Math.max(0, Math.min(1, value))
     fill: value >= alertAt ? Lithic.amber : bladeInk
 

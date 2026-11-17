@@ -11,10 +11,11 @@ T.AbstractButton {
     property string previewState: ""
     property string accessibleName: text
 
+    readonly property real _scale: Lithic.scaleOf(root)
     readonly property real controlCut: small ? LithicTokens.cut.small : LithicTokens.cut.mid
-    readonly property real sideInset: small ? LithicTokens.size.plaqueInsetSmall : LithicTokens.size.plaqueInset
+    readonly property real sideInset: (small ? LithicTokens.size.plaqueInsetSmall : LithicTokens.size.plaqueInset) * root._scale
     readonly property real glyphSize: small ? LithicTokens.size.plaqueIconSmall : LithicTokens.size.plaqueIcon
-    readonly property real contentGap: small ? LithicTokens.size.plaqueGapSmall : LithicTokens.size.plaqueGap
+    readonly property real contentGap: (small ? LithicTokens.size.plaqueGapSmall : LithicTokens.size.plaqueGap) * root._scale
     readonly property bool _hoverActive: enabled && !busy && (hovered || previewState === "hover")
     readonly property bool _pressActive: enabled && !busy && (pressed || previewState === "pressed")
     readonly property bool _focusActive: enabled && (visualFocus || previewState === "focus")
@@ -26,7 +27,7 @@ T.AbstractButton {
     leftPadding: sideInset
     rightPadding: sideInset
     implicitWidth: implicitContentWidth + leftPadding + rightPadding
-    implicitHeight: small ? LithicTokens.size.plaqueHeightSmall : LithicTokens.size.plaqueHeight
+    implicitHeight: (small ? LithicTokens.size.plaqueHeightSmall : LithicTokens.size.plaqueHeight) * root._scale
     opacity: enabled ? 1 : Lithic.disabledOpacity
 
     Accessible.role: Accessible.Button
@@ -86,7 +87,7 @@ T.AbstractButton {
             spacing: (working.visible || glyphItem.visible) && labelItem.visible ? root.contentGap : 0
 
             transform: Translate {
-                y: root._pressActive ? Lithic.pressSink : 0
+                y: root._pressActive ? Lithic.pressSink * root._scale : 0
                 ChiselNumberBehavior on y {
                     duration: LithicTokens.motion.press
                 }
@@ -97,14 +98,14 @@ T.AbstractButton {
                 visible: root.busy
                 active: root.busy
                 // the glyph's slot, so a busy plaque keeps its width
-                width: root.glyphSize
-                size: root.glyphSize
+                width: root.glyphSize * root._scale
+                size: root.glyphSize * root._scale
             }
 
             Glyph {
                 id: glyphItem
-                width: visible ? root.glyphSize : 0
-                height: root.glyphSize
+                width: visible ? root.glyphSize * root._scale : 0
+                height: root.glyphSize * root._scale
                 visible: !root.busy && root.glyph.length > 0
                 name: root.glyph
                 ink: root.ink

@@ -9,16 +9,17 @@ Text {
     // Counts, proofs and values that change in place keep their width
     property bool numeric: false
     readonly property var token: Lithic.type[typeRole] || Lithic.type.body
+    readonly property real scale: Lithic.scaleOf(root)
 
     // Labels carry names, paths and other external data. Markup must be an explicit opt-in.
     textFormat: Text.PlainText
     color: ink
     font.family: token.family
-    font.pixelSize: token.pixelSize
+    font.pixelSize: Math.round(token.pixelSize * root.scale)
     font.weight: token.weight
     font.features: numeric ? { "tnum": 1 } : {}
     lineHeightMode: Text.FixedHeight
-    lineHeight: token.lineHeight
+    lineHeight: Math.round(token.lineHeight * root.scale)
     renderType: Text.NativeRendering
     elide: Text.ElideRight
 

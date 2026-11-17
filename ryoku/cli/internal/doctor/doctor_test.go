@@ -1310,7 +1310,8 @@ func TestHyprFollowMouseNotDefault(t *testing.T) {
 func TestMigrateShellConfig(t *testing.T) {
 	legacy := []byte(`{
         "barEnabled": false, "barPosition": "bottom", "barHeight": 26, "atollVariant": "ryoku",
-        "sidebarLeftPanes": ["stash"], "sidebarRightPanes": ["weather", "calendar", "media"], "sidebarWidth": 360
+        "sidebarLeftPanes": ["stash"], "sidebarRightPanes": ["weather", "calendar", "media"], "sidebarWidth": 360,
+        "gamebar": {"radius": 14, "snap": true}
     }`)
 	out, changes, err := migrateShellConfig(legacy)
 	if err != nil || len(changes) == 0 {
@@ -1354,6 +1355,16 @@ func TestMigrateShellConfig(t *testing.T) {
 		if _, ok := cfg[key]; ok {
 			t.Errorf("retired key %s survived migration", key)
 		}
+	}
+	gameBar, ok := cfg["gamebar"].(map[string]any)
+	if !ok {
+		t.Fatal("gamebar settings must survive migration")
+	}
+	if _, ok := gameBar["radius"]; ok {
+		t.Error("retired gamebar.radius survived migration")
+	}
+	if _, ok := gameBar["snap"]; !ok {
+		t.Error("live gamebar settings must survive migration")
 	}
 	out, changes, err = migrateShellConfig(out)
 	if err != nil || out != nil || changes != nil {

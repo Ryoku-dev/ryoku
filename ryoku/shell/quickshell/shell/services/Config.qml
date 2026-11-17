@@ -115,7 +115,7 @@ Singleton {
     readonly property var gamebar: root.mergeGameBar(adapter.gamebar)
     function mergeGameBar(raw) {
         var out = {
-            enabled: true, dim: 0.62, fade: 200, scale: 1, radius: 14,
+            enabled: true, dim: 0.62, fade: 200, scale: 1,
             snap: true, snapReach: 9, snapGrid: 24,
             guideGrid: true, gridStep: 48, gridAlpha: 0.28,
             spring: 3.2, damping: 0.58, mass: 1,
@@ -495,7 +495,6 @@ Singleton {
             "dim": 0.62,
             "fade": 200,
             "scale": 1,
-            "radius": 14,
             "snap": true,
             "snapReach": 9,
             "snapGrid": 24,
