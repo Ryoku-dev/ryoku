@@ -1144,6 +1144,17 @@ func filterMatugenConfig(toml string, enabled func(group string) bool) string {
 	return strings.Join(out, "\n")
 }
 
+// expandMatugenHome resolves the shipped ~/.config, ~/.cache and ~/.local/share
+// paths against the XDG dirs: matugen expands ~ to $HOME only, so a session that
+// points XDG_CONFIG_HOME elsewhere would otherwise look in the wrong place.
+func expandMatugenHome(toml string) string {
+	return strings.NewReplacer(
+		"~/.config/", matugenConfigHome()+"/",
+		"~/.cache/", matugenCacheHome()+"/",
+		"~/.local/share/", matugenDataHome()+"/",
+	).Replace(toml)
+}
+
 // matugenRenderTemplates fans the palette into the deployed templates. The core
 // surface (config.toml: kitty, the window frame, btop, Qt) always themes,
 // per-app roster gated. The GTK / GUI-app suite (apps.toml) themes only when the
@@ -1252,7 +1263,7 @@ func matugenRenderFiltered(config, carrier string, enabled func(group string) bo
 		return false
 	}
 	active := filepath.Join(matugenCacheHome(), "ryoku", "active-"+filepath.Base(config))
-	if err := os.WriteFile(active, []byte(filterMatugenConfig(string(b), enabled)), 0o644); err != nil {
+	if err := os.WriteFile(active, []byte(expandMatugenHome(filterMatugenConfig(string(b), enabled))), 0o644); err != nil {
 		return false
 	}
 	return matugenRender(active, carrier)

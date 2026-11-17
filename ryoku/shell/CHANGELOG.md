@@ -1,6 +1,10 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Wallpaper colours reach every app when the session keeps its config
+  elsewhere (#814).** matugen reads the shipped templates through `~/.config`,
+  so a session with its own config directory skipped every template; the paths
+  now follow the XDG directories.
 - **Wallpaper Engine video wallpapers animate on hover in the picker (#807).**
   Only local videos got the small preview clip, so workshop video cards stayed
   still; they now get one too, built on the thumbnail job limit and skipped

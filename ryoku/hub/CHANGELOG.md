@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Fixed
+- **Re-rendering app themes works when the config directory is not `~/.config`
+  (#814).** The matugen templates are now rendered against the XDG directories
+  instead of the home directory.
 - **Graphics & Power offers Performance on laptops with a monitor port on the
   discrete GPU.** The page says it applies only while a monitor is plugged in
   there at login, and that the built-in screen can then stay dark after sleep.
