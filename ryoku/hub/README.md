@@ -102,10 +102,12 @@ changing a page's look.
   keys; **Mouse & touchpad** holds pointer feel, touchpad behaviour, gestures,
   and extra mouse buttons.
 - **Connections**: **Wi-Fi & internet**, **Bluetooth**, and **Phone**.
-- **Apps**: **Default apps**, **Startup apps** (commands run at login, after
-  the base Ryoku autostart, and session environment variables), **Terminal**
-  (login shell, prompt, and the fastfetch greeting), **Screen capture**,
-  **Voice typing**, **Rashin**, and **Add-ons**, which manages installed shell
+- **Apps**: **Installed apps** (every app with its size, Ryoku's own apps
+  pinned with their updates, removal, showing in app search, and a space
+  overview; RyoStore installs), **Defaults**, **At sign-in** (commands run at
+  login, after the base Ryoku autostart, and session environment variables),
+  **Terminal** (login shell, prompt, and the fastfetch greeting), **Screen
+  capture**, **Voice typing**, **Rashin**, and **Desktop add-ons**, which manages installed shell
   plugins and bundle components: plugin enablement, placement, and settings
   stay live here; RyoStore owns plugin updates and removal and all browsing,
   while `ryostore-install` owns bundle component state and removal.

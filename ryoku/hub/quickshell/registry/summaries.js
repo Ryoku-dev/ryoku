@@ -38,6 +38,7 @@ var still = {
     "wifi": "Networks and hotspot",
     "bluetooth": "Pair and connect devices",
     "phone": "Link an Android phone",
+    "installed-apps": "Every app, the space it takes, and removing it",
     "default-apps": "Browser, terminal, editor and files",
     "startup-apps": "Apps that start when you sign in",
     "terminal": "Login shell, prompt and greeting",
@@ -383,7 +384,7 @@ function categorySentence(id, ctx) {
         var blue = ctx.bluetooth();
         return blue.present ? said + " " + (blue.on ? ctx.tr("Bluetooth is on.") : ctx.tr("Bluetooth is off.")) : said;
     case "apps":
-        return ctx.tr("The apps Ryoku opens and what starts with it.");
+        return ctx.tr("The apps on this computer, the ones Ryoku opens and what starts with it.");
     case "accounts":
         return ctx.tr("People on this computer and how they sign in.");
     case "system":

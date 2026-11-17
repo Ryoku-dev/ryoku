@@ -1,6 +1,6 @@
 .pragma library
 
-var title = "Startup apps";
+var title = "At sign-in";
 var lead = "Apps and commands that start each time you sign in, on top of what Ryoku starts itself. Changes take effect at your next sign-in.";
 
 var sections = [

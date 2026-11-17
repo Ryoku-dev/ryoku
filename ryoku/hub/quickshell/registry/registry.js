@@ -13,7 +13,7 @@ var categories = [
     { id: "connections", label: "Connections", glyph: "wifi",
       pages: ["wifi", "bluetooth", "phone"] },
     { id: "apps", label: "Apps", glyph: "apps",
-      pages: ["default-apps", "startup-apps", "terminal", "screen-capture", "voice-typing", "rashin", "add-ons"] },
+      pages: ["installed-apps", "default-apps", "startup-apps", "terminal", "screen-capture", "voice-typing", "rashin", "add-ons"] },
     { id: "accounts", label: "Accounts", glyph: "group",
       pages: ["users", "sign-in"] },
     { id: "system", label: "System", glyph: "settings",
@@ -78,10 +78,13 @@ var pages = {
     "phone": { title: "Phone", category: "connections", file: "Phone",
         keywords: ["phone", "android", "kde connect", "scrcpy", "mirror", "webcam", "adb"] },
 
-    "default-apps": { title: "Default apps", category: "apps", file: "DefaultApps",
-        keywords: ["default apps", "browser", "terminal", "editor", "file manager", "notes"] },
-    "startup-apps": { title: "Startup apps", category: "apps", file: "StartupApps",
-        keywords: ["startup", "autostart", "login", "session", "environment", "variables", "env"] },
+    "installed-apps": { title: "Installed apps", category: "apps", file: "InstalledApps",
+        keywords: ["installed apps", "apps", "applications", "programs", "software", "uninstall", "remove", "disk space",
+                   "storage", "size", "flatpak", "aur", "packages", "gpk", "ryotunes", "ryoport", "ryomanager", "ryostore"] },
+    "default-apps": { title: "Defaults", category: "apps", file: "DefaultApps",
+        keywords: ["default apps", "defaults", "browser", "terminal", "editor", "file manager", "notes"] },
+    "startup-apps": { title: "At sign-in", category: "apps", file: "StartupApps",
+        keywords: ["startup apps", "at login", "at sign-in", "startup", "autostart", "login", "session", "environment", "variables", "env"] },
     "terminal": { title: "Terminal", category: "apps", file: "Terminal",
         keywords: ["terminal", "shell", "prompt", "starship", "fastfetch", "fish", "zsh", "bash"] },
     "screen-capture": { title: "Screen capture", category: "apps", file: "ScreenCapture",
@@ -90,8 +93,8 @@ var pages = {
         keywords: ["voice typing", "dictation", "speech", "whisper", "microphone", "stt"] },
     "rashin": { title: "Rashin", category: "apps", file: "Rashin",
         keywords: ["rashin", "agent", "ai", "ask", "chat", "models"] },
-    "add-ons": { title: "Add-ons", category: "apps", file: "AddOns",
-        keywords: ["add-ons", "addons", "plugins", "extensions", "store", "ryostore", "bundles", "omarchy"] },
+    "add-ons": { title: "Desktop add-ons", category: "apps", file: "AddOns",
+        keywords: ["add-ons", "addons", "desktop add-ons", "plugins", "extensions", "store", "ryostore", "bundles", "omarchy"] },
 
     "users": { title: "Users", category: "accounts", file: "Users",
         keywords: ["users", "accounts", "people", "password", "picture", "admin", "profiles"] },
@@ -127,7 +130,9 @@ var aliases = {
     "session": "startup-apps", "autostart": "startup-apps", "environment": "startup-apps",
     "recording": "screen-capture", "dictation": "voice-typing", "fastfetch": "terminal",
     "import": "backup-import", "addons": "add-ons", "appearance": "wallpaper-colours",
-    "gamebar": "game-bar"
+    "gamebar": "game-bar", "installed": "installed-apps", "uninstall": "installed-apps", "packages": "installed-apps",
+    "gpk": "installed-apps", "ryoku-apps": "installed-apps", "defaults": "default-apps", "at-login": "startup-apps",
+    "desktop-add-ons": "add-ons", "at-sign-in": "startup-apps"
 };
 
 // ryogami's settings, offered by search as hand-offs
@@ -198,7 +203,7 @@ var kanji = {
     "window-behaviour": "配置", "shortcuts": "操作", "app-rules": "規則", "window-manager": "合成",
     "displays": "画面", "keyboard": "鍵盤", "mouse-touchpad": "指針",
     "wifi": "無線", "bluetooth": "近接", "phone": "電話",
-    "default-apps": "既定", "startup-apps": "始動", "terminal": "端末", "screen-capture": "録画",
+    "installed-apps": "導入", "default-apps": "既定", "startup-apps": "始動", "terminal": "端末", "screen-capture": "録画",
     "voice-typing": "音声", "rashin": "羅針", "add-ons": "拡張",
     "users": "人々", "sign-in": "認証",
     "power": "電力", "graphics": "演算", "performance": "性能", "time-language": "言語",
@@ -220,7 +225,7 @@ var glyphs = {
     "window-manager": "layers",
     "displays": "monitor", "keyboard": "keyboard", "mouse-touchpad": "mouse",
     "wifi": "wifi", "bluetooth": "bluetooth", "phone": "smartphone",
-    "default-apps": "star", "startup-apps": "rocket_launch", "terminal": "terminal",
+    "installed-apps": "apps", "default-apps": "star", "startup-apps": "rocket_launch", "terminal": "terminal",
     "screen-capture": "screenshot_monitor", "voice-typing": "mic", "rashin": "explore", "add-ons": "extension",
     "users": "group", "sign-in": "fingerprint",
     "power": "battery_charging_full", "graphics": "developer_board", "performance": "speed",

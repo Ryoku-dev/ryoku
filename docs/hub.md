@@ -731,7 +731,34 @@ cannot). An error says what happened and offers Retry. There is no shared
 component for this, so a page copies the pattern from the closest one:
 `components/backup-import/WorkLine.qml` for a job the page runs itself,
 `components/add-ons/TaskLine.qml` for a task object that reports `working`,
-`longRunning` and `cancellable`.
+`longRunning` and `cancellable`. A package install, update or removal that
+prints gpk's progress events runs in `Ryoku.Ui`'s `PackageJob`, which Settings
+and RyoStore share, under `components/installed-apps/JobLine.qml`, whose
+counts fill the blade.
+
+### Installed apps
+
+Apps › Installed apps lists every app app search can open, read from
+`gpk apps --json` (`components/installed-apps/InstalledAppsStore.qml`, one row
+per shown desktop entry), with Ryoku's own apps from `ryoku apps list --json`
+pinned above them. `apps.js` holds the pure parts (size groups, source kinds,
+the space overview that counts each package once, the commands) and
+`apps.test.mjs` covers it; the progress events are read by `Ryoku.Ui`'s
+`PackageJob` and `lib/jobevents.js` (`jobevents.test.mjs`).
+Show in app search writes the launcher's `hiddenApps` (the `launcher` store),
+so it has Undo; a launcher style that cannot hide apps disables it. Remove
+first runs `gpk remove -m <manager> --json` as the reader: a package others
+need (`required_by`) is never offered, the row names them instead. Otherwise
+the confirmation names the apps of the same package and the space that comes
+back, and the removal runs where it may: `pkexec ryoku-host apps --stdin-cancel
+remove --manager <m>` spawned by Settings itself (so polkit's keep lasts the
+session; Cancel closes its stdin), `gpk remove -m flatpak|local --yes --events`
+as the reader (Cancel sends SIGTERM), or the AUR in a terminal. Ryoku's own
+apps update and remove through `ryoku-host apps --stdin-cancel ryoku
+update|remove <id>`; `ryoku-desktop` entries are never removable. Get more
+apps opens RyoStore (`ryostore open apps|ryoku-apps|sources`).
+`tests/ui/installed-apps-flow-probe.sh` drives the job and its line with a
+stand-in pkexec and ryoku-host.
 
 ## Needs you
 

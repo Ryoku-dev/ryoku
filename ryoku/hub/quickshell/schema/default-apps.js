@@ -1,6 +1,6 @@
 .pragma library
 
-var title = "Default apps";
+var title = "Defaults";
 var lead = "The app each job opens when you press its key or pick it in the launcher. Files and links still open in the app set for their type.";
 
 var sections = [

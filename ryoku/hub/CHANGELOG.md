@@ -3,6 +3,23 @@
 ## Unreleased
 
 ### Added
+- **Installed apps (Apps).** Every app you can open from app search, read from
+  `gpk apps --json`, with its size, where it came from and its version. Ryoku's
+  own apps (from `ryoku apps list --json`) are pinned on top with Update when a
+  newer version is ready (the Ryotunes 2 preview on Hyperion), Remove, and Get or
+  Open and Sources in RyoStore. The list sorts largest first or A to Z, groups by
+  size (over 1 GB, 100 MB to 1 GB, 10 to 100 MB, under 10 MB, unknown), filters
+  by system packages, AUR, Flatpak or this account and finds by name. Each app
+  can be left out of app search (the launcher's hidden list, with Undo) or
+  removed: Settings reads the removal plan first and says which packages need
+  it instead of offering a removal the package manager would refuse; the
+  confirmation names what goes with it and the space that comes back. System
+  packages are removed in place through `pkexec ryoku-host apps --stdin-cancel`,
+  Flatpak and your own apps through gpk as you, the AUR in a terminal; progress
+  comes from the tools' events, with Cancel and Retry. A space overview draws
+  engraved bars by source and by size group. Get more apps opens RyoStore.
+- **Apps renamed.** Default apps is now Defaults, Startup apps At sign-in and
+  Add-ons Desktop add-ons; their ids, old names and links still work.
 - **Ryoku badges for testers, contributors and the team.** Each machine has a
   request code; Mika answers testers and contributors with a signed badge code,
   and nero signs NixOS, Core and Founder codes. A code only works on the

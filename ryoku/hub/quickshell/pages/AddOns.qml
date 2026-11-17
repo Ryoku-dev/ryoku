@@ -735,7 +735,7 @@ Item {
                 kind: "quiet"
                 small: true
                 glyph: "arrow_back"
-                text: I18n.tr("Add-ons")
+                text: I18n.tr("Desktop add-ons")
                 onClicked: root.closeDetail()
             }
 
@@ -909,7 +909,7 @@ Item {
                 kind: "quiet"
                 small: true
                 glyph: "arrow_back"
-                text: I18n.tr("Add-ons")
+                text: I18n.tr("Desktop add-ons")
                 onClicked: root.closeDetail()
             }
 

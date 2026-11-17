@@ -1,6 +1,6 @@
 .pragma library
 
-var title = "Add-ons";
+var title = "Desktop add-ons";
 var lead = "Add-ons and bundles from RyoStore that are on this computer: turn them on, choose where they show, change their options, update or remove them.";
 
 var sections = [
