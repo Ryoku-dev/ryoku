@@ -36,11 +36,15 @@ export function cardBody(id, strings = ['', '', '', '', '']) {
   }));
 }
 export async function record(device, fields = {}) {
-  const { cardPayload } = await import('../src/codec.js');
+  const { cardDomain, cardPayload } = await import('../src/codec.js');
   const id = await cardId(device.raw);
   const record = { v: 2, id, updated: now(), body: base64(cardBody(id)), picture: '', sig: '', ...fields };
-  record.sig = base64(await sign(device, 'ryoku-card-v2', cardPayload(record)));
+  record.sig = base64(await sign(device, cardDomain(record), cardPayload(record)));
   return record;
+}
+// a v3 record carrying a built-in style, signed over the style too
+export async function styledRecord(device, fields = {}) {
+  return record(device, { v: 3, style: 'stand', ...fields });
 }
 export async function deviceRecord(device, fields = {}) {
   return record(device, { device: base64(device.raw), ...fields });

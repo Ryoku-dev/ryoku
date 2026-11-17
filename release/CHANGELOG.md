@@ -1,6 +1,15 @@
 # Release / Packaging Changelog
 
 ## Unreleased
+- **Only badge holders can sync a styled card to team.ryoku.dev.** The team
+  gate now takes built-in card styles (currently `stand`) only in signed `v:3`
+  records, and stores one only when an active badge exists for the card and
+  that badge's machine key signed it, style included. Anyone else gets 403
+  `Custom card styles need an active team badge on this machine`; unknown or
+  look-alike style names, extra fields and a style on a classic record are
+  refused. A revoked badge's styled card stops being served at once, is
+  deleted on revocation, and the daily cleanup removes any left behind.
+  Classic cards and still pictures work as before for everyone.
 - **gpk 0.7.0 on every edition.** The pinned GlazePKG moves to 0.7.0 on Arch,
   CachyOS, Fedora and Void, and `ryoku-desktop` requires it. It reports
   installed sizes, lists launchable apps and streams install and removal

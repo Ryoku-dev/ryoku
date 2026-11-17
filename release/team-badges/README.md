@@ -4,9 +4,9 @@ Cloudflare Worker for `https://team.ryoku.dev`. It publishes machine-bound Ed255
 
 ## Layout
 
-- `src/codec.js`: Crockford text encoding, request CRC, signed-code, card and card-delete verification, upload authorization, JPEG frame limits.
+- `src/codec.js`: Crockford text encoding, request CRC, signed-code, card (classic v2 and styled v3, with the style allowlist) and card-delete verification, upload authorization, JPEG frame limits.
 - `src/index.js`: HTTPS routes, bounded streaming reads, rate limits, the 60-second Cache API response for the list, and the daily cleanup entry point.
-- `src/storage.js`: conditional R2 writes for badges, designs, card records and the card index, plus the cleanup itself.
+- `src/storage.js`: conditional R2 writes for badges, designs, card records and the card index, plus the cleanups (90-day expiry, styled records without an active badge).
 - `test/*.test.js`: Node WebCrypto tests using fresh test-only signing keys. Optional `test/vectors.json` runs Go cross-language vectors too.
 - `wrangler.jsonc`: custom domain, public keys, `BUCKET` binding to `ryoku-team`, rate limiters, the cleanup cron and the card limits.
 
@@ -66,11 +66,11 @@ Workers rate-limit bindings allow approximately 120 reads and 20 writes per minu
 
 Every write needs an explicit `Content-Length`; chunked-only uploads are rejected before consuming their bodies. Card records must be within 600 seconds of server time and strictly newer than stored records. Upload authorization allows a 300-second clock difference and signs the method, exact path, time and body hash. ZIP structure/design-schema validation is performed by the signing `ryoku-hub` CLI before uploading; this gate authenticates issuers and pack digests, and never executes pack contents.
 
-Read individual records at `/v1/cards/<fp>`, pictures at `/v1/cards/<fp>/<sha>.jpg`, review packs at `/v1/pending/<sha>.zip`, and published packs at `/v1/packs/<sha>.zip`. Fingerprints and SHA-256 hashes are lowercase hexadecimal, 16 and 64 characters respectively. Other paths return JSON 404 errors. Rejected writes return JSON 400, 404 (missing design pack or card), 413 (size), 415 (content type), 429 (rate limit), or 507 (card service full), without stack traces.
+Read individual records at `/v1/cards/<fp>`, pictures at `/v1/cards/<fp>/<sha>.jpg`, review packs at `/v1/pending/<sha>.zip`, and published packs at `/v1/packs/<sha>.zip`. Fingerprints and SHA-256 hashes are lowercase hexadecimal, 16 and 64 characters respectively. Other paths return JSON 404 errors. Rejected writes return JSON 400, 403 (styled card without its active badge), 404 (missing design pack or card), 413 (size), 415 (content type), 429 (rate limit), or 507 (card service full), without stack traces.
 
 ## Live cards
 
-A record that carries `device`, the base64 Ed25519 public key of the machine, needs no badge: it is accepted when the key derives the card id and signs the record. A record without `device` (older clients) still needs an active badge for its id, and a device record may not name a key other than the one an active badge already holds for that id. Device records stay live when a badge is revoked; only team status goes away.
+A classic (`"v":2`) record that carries `device`, the base64 Ed25519 public key of the machine, needs no badge: it is accepted when the key derives the card id and signs the record. A record without `device` (older clients) still needs an active badge for its id, and a device record may not name a key other than the one an active badge already holds for that id. Device records stay live when a badge is revoked; only team status goes away. Styled `"v":3` records always need the badge, see below.
 
 `DELETE /v1/cards/<fp>` takes `{"id","at","sig"}`, signed by the record's device (or the active badge's device) over `ryoku-card-delete-v1` NUL id | `at` u64, with `at` within 600 seconds. It removes the record, its picture and its index entry. The deleted record's timestamp is refused for an hour afterwards, so a copy someone fetched before the delete cannot put it back.
 
@@ -80,6 +80,16 @@ A batch may also carry `"holder":{"badge":"RYB-...","at":<unix s>,"sig":"<base64
 
 `cards/index.json` maps every stored id to its record time. Card writes and deletes update it with etag-conditional writes, rebuilding each touched entry from the record read after the index, so racing writers cannot leave it behind the records. Batches read it once, memoised per isolate for 30 seconds and updated by writes in the same isolate. A missing index is rebuilt from the stored records on first use. `CARD_LIMIT` (20,000) caps the ids in the index: a new id over the cap gets 507 `Card service is full`, updates to existing ids still pass.
 
-A cron at 03:17 UTC deletes records not updated for 90 days, with their pictures and index entries, up to 300 per run so a run stays inside the R2 call budget of a free invocation. Friends' binders keep their copies.
+A cron at 03:17 UTC deletes records not updated for 90 days, with their pictures and index entries, up to 300 per run so a run stays inside the R2 call budget of a free invocation, then deletes styled records that no active badge holds any more. Friends' binders keep their copies of expired cards.
 
 Cost: a binder makes one batch request per `PULL_SECONDS` (15 minutes) instead of one request per card, and a batch costs one index read (usually memoised) plus one record read per card that actually changed. Each accepted card write costs the record write, at most one picture write and one index write. Idle cards cost nothing and leave storage after 90 days, and `CARD_LIMIT` bounds the index and storage at roughly 20,000 records.
+
+## Card styles are for badge holders only
+
+A built-in card style rides only in a `"v":3` record: the v2 fields plus `style`, an id from the Worker's allowlist (`CARD_STYLES` in `src/codec.js`, currently `["stand"]`). Classic cards stay `"v":2` and never carry `style`; a v2 record with `style`, a v3 record without it, or any other key is refused with 400 `Invalid record fields`. A style off the allowlist, or anything that is not 1–32 ASCII `[a-z0-9-]` (no case folding, look-alike letters, zero-width or control characters), gets 400 `Unknown card style`. The style is signed: the record signs `ryoku-card-v3` NUL, the v2 card payload, the style's UTF-8 byte length as a big-endian u16, then the style bytes.
+
+The Worker, not the client, decides who may store one. `PUT /v1/cards/<fp>` accepts a v3 record only when an active (not revoked) badge exists for that card id and that badge's device key signed it; when the record names `device`, it must be the badge's key. A machine's own key never vouches for a v3 record, so a self-signed device record without a badge cannot carry a style. With no active badge for the id the answer is 403 `Custom card styles need an active team badge on this machine`; with a badge but a signature from any other key, 403 `Invalid card signature`. v2 records are unaffected.
+
+Serving re-checks the badge every time: `GET /v1/cards/<fp>`, its picture and every batch return a v3 record only while an active badge still holds its id, so a revoked badge's styled card is withheld at once (within the 30-second inventory memo of other isolates). It is not downgraded to a classic card, because the classic signature does not exist on the server. `POST /v1/revoke` then deletes the styled record, its picture and index entry straight away, so binders see the id in `gone`, and the 03:17 cron deletes any styled record whose badges are all revoked, catching revocations that reached R2 without the route. A classic record under a revoked badge stays. The machine's next sync uploads its card as v2. A styled record whose badge file was removed from R2 outright, rather than revoked, is withheld the same way and leaves with the 90-day expiry.
+
+Everything else a non-holder can upload stays as before: a still JPEG picture (400 KiB, 1120×780, hash bound into the signed record; moving pictures never reach the Worker), and no team design: approvals need an owner or Mika signature, packs need a signed upload header, and designs are listed and served only for logins with an active role 3–5 badge.

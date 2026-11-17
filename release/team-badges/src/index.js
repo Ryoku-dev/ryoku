@@ -1,5 +1,5 @@
 import { CARD_ID, InputError, base64, cardId, cardPayload, digest, jpegDimensions, unbase64, verifyCard, verifyCode, verifyDelete, verifyDeviceCard, verifyHolder, verifyUpload } from './codec.js';
-import { admitRecord, cardIndex, deleteRecord, expireCards, objects, reconcileIndex, reserveBadge, storeDesign, storeRecord, storedRecord } from './storage.js';
+import { admitRecord, cardIndex, deleteRecord, dropStyledRecords, expireCards, objects, reconcileIndex, reserveBadge, storeDesign, storeRecord, storedRecord } from './storage.js';
 
 const TEXT_CAP = 2400; // At most 600 characters, including Unicode whitespace.
 const CARD_CAP = 600 * 1024;
@@ -127,18 +127,34 @@ async function loadInventory(env) {
   }
   return { badges, revoked, active, designs };
 }
-// a device record speaks for itself but never against the key an active badge holds for the id
+const STYLE_REFUSED = 'Custom card styles need an active team badge on this machine';
+// a styled v3 record needs an active badge for its id whose device key signed it, the record's
+// own device key never vouches for one
+async function styledBy(record, active) {
+  const badges = active.filter(b => b.cardId === record.id);
+  if (!badges.length || (record.device !== undefined && !badges.every(b => base64(b.device) === record.device))) return false;
+  for (const badge of badges) if (await verifyCard(record, badge.device)) return true;
+  return false;
+}
+// a v2 device record speaks for itself but never against the key an active badge holds for the id
 async function trustedBy(record, active) {
+  if (record.v === 3) return styledBy(record, active);
   const badges = active.filter(b => b.cardId === record.id);
   if (record.device !== undefined) return badges.every(b => base64(b.device) === record.device) && verifyDeviceCard(record);
   for (const badge of badges) if (await verifyCard(record, badge.device)) return true;
   return false;
 }
-// PUT verified these and binders verify again, so a batch only checks what can change after storing
+// PUT verified these and binders verify again, so a batch only checks what can change after storing:
+// a revoked badge takes its styled record out of every batch at once
 async function listedBy(record, active) {
   const badges = active.filter(b => b.cardId === record.id);
-  if (record.device === undefined) return badges.length > 0;
+  if (record.device === undefined || (record.v === 3 && !badges.length)) return badges.length > 0;
   return badges.every(b => base64(b.device) === record.device) && await cardId(unbase64(record.device)) === record.id;
+}
+// ids without an active badge lose their styled record; revocation calls this at once, the cron daily
+async function withdrawStyles(env, data, ids, now) {
+  const held = new Set(data.active.map(b => b.cardId));
+  await dropStyledRecords(env, [...new Set(ids)].filter(id => !held.has(id)), now);
 }
 async function trustedRecord(env, id, active, trusts = trustedBy) {
   const stored = await env.BUCKET.get(`cards/${id}.json`), record = await storedRecord(stored);
@@ -156,7 +172,11 @@ async function putCard(request, env, id) {
   const record = input.record, now = seconds();
   cardPayload(record);
   if (record.id !== id || Math.abs(now - record.updated) > 600) fail('Invalid card id or timestamp');
-  if (record.device !== undefined) {
+  if (record.v === 3) {
+    if (!await authorizedInventory(env, active => styledBy(record, active))) {
+      fail((await inventory(env)).active.some(b => b.cardId === id) ? 'Invalid card signature' : STYLE_REFUSED, 403);
+    }
+  } else if (record.device !== undefined) {
     if (!await trustedBy(record, (await inventory(env)).active)) fail('Invalid card signature');
   } else if (!await authorizedInventory(env, active => trustedBy(record, active))) fail('No active badge verifies this record');
   let picture;
@@ -247,6 +267,7 @@ async function route(request, env, ctx) {
       await env.BUCKET.put(`revoked/${revoke.id}.txt`, revoke.code);
     }
     await refreshInventory(env, request);
+    if (badge) await withdrawStyles(env, await inventory(env), [badge.cardId], seconds());
     return json({ id: revoke.id });
   }
   // Card records and pictures are read fresh: an edge copy outlived a change in every data
@@ -294,6 +315,10 @@ export default {
     catch (error) { return json({ error: error instanceof InputError ? error.message : 'Request could not be processed' }, error instanceof InputError ? error.status : 400); }
   },
   async scheduled(controller, env) {
-    await expireCards(env, Math.floor(controller.scheduledTime / 1000));
+    const now = Math.floor(controller.scheduledTime / 1000);
+    await expireCards(env, now);
+    // read fresh: a revocation stored without the route still takes its styled record down
+    const data = await loadInventory(env);
+    await withdrawStyles(env, data, data.badges.map(b => b.cardId), now);
   },
 };

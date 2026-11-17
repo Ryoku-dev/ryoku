@@ -114,10 +114,16 @@ export async function verifyCode(kind, text, env = {}) {
   requireThat(await verifySignature(key, signature, domains[kind], payload), 'Invalid signature');
   return { kind, code: encodeCode(kind, bytes), issuer, ...fields };
 }
+// styles a badge holder may sign into a v3 record; classic cards stay v2 and never name one
+export const CARD_STYLES = Object.freeze(['stand']);
+const STYLE = /^[a-z0-9-]{1,32}$/;
+const RECORD_FIELDS = { 2: 'body,id,picture,sig,updated,v', 3: 'body,id,picture,sig,style,updated,v' };
+// v2 signs the card bytes; v3 signs the same bytes followed by its u16 length-prefixed style
 export function cardPayload(record) {
   requireThat(record && typeof record === 'object' && !Array.isArray(record), 'Invalid card record');
-  requireThat(Object.keys(record).filter(key => key !== 'device').sort().join(',') === 'body,id,picture,sig,updated,v', 'Invalid record fields');
-  requireThat(record.v === 2 && typeof record.id === 'string' && CARD_ID.test(record.id) && Number.isSafeInteger(record.updated) && record.updated >= 0, 'Invalid card metadata');
+  requireThat((record.v === 2 || record.v === 3) && Object.keys(record).filter(key => key !== 'device').sort().join(',') === RECORD_FIELDS[record.v], 'Invalid record fields');
+  requireThat(typeof record.id === 'string' && CARD_ID.test(record.id) && Number.isSafeInteger(record.updated) && record.updated >= 0, 'Invalid card metadata');
+  requireThat(record.v === 2 || (typeof record.style === 'string' && STYLE.test(record.style) && CARD_STYLES.includes(record.style)), 'Unknown card style');
   requireThat(record.device === undefined || unbase64(record.device).length === 32, 'Invalid card device');
   requireThat(record.picture === '' || (typeof record.picture === 'string' && SHA.test(record.picture)), 'Invalid picture hash');
   const body = unbase64(record.body);
@@ -136,15 +142,21 @@ export function cardPayload(record) {
   requireThat(offset === body.length, 'Trailing card bytes');
   const numbers = new Uint8Array(10), view = new DataView(numbers.buffer);
   view.setBigUint64(0, BigInt(record.updated)); view.setUint16(8, body.length);
-  return concat(unhex(record.id), numbers, body, record.picture ? unhex(record.picture) : new Uint8Array(32));
+  const payload = concat(unhex(record.id), numbers, body, record.picture ? unhex(record.picture) : new Uint8Array(32));
+  if (record.v === 2) return payload;
+  const style = encoder.encode(record.style);
+  return concat(payload, new Uint8Array([style.length >> 8, style.length & 255]), style);
 }
+export const cardDomain = record => record.v === 3 ? 'ryoku-card-v3' : 'ryoku-card-v2';
 export async function verifyCard(record, device) {
-  return verifySignature(device, unbase64(record.sig), 'ryoku-card-v2', cardPayload(record));
+  const payload = cardPayload(record);
+  return verifySignature(device, unbase64(record.sig), cardDomain(record), payload);
 }
-// the id comes from the device key, so a record carrying that key vouches for itself
+// the id comes from the device key, so a v2 record carrying that key vouches for itself;
+// a styled v3 record never does, only an active badge's device key can vouch for one
 export async function verifyDeviceCard(record) {
   cardPayload(record);
-  if (record.device === undefined) return false;
+  if (record.device === undefined || record.v !== 2) return false;
   const device = unbase64(record.device);
   return await cardId(device) === record.id && verifyCard(record, device);
 }

@@ -121,6 +121,18 @@ export async function expireCards(env, now) {
   }
   await reconcileIndex(env, stale, now, { loaded });
 }
+// styled (v3) records only stand while an active badge vouches for them; the caller passes ids that
+// lost theirs, and only a stored v3 record goes, a classic record under the same id stays
+export async function dropStyledRecords(env, ids, now) {
+  if (!ids.length) return;
+  const loaded = await loadIndex(env), dropped = [];
+  for (const id of ids) {
+    if (!Object.hasOwn(loaded.cards, id)) continue;
+    const object = await env.BUCKET.get(`cards/${id}.json`);
+    if (object && (await storedRecord(object))?.v === 3) { await removeRecord(env, id, object); dropped.push(id); }
+  }
+  if (dropped.length) await reconcileIndex(env, dropped, now, { loaded });
+}
 
 export async function reserveBadge(env, badge, initialActive) {
   const key = `logins/${badge.login.toLowerCase()}.json`;
