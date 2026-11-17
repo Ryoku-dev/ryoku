@@ -6,6 +6,7 @@ var lead = "The design your lock screen and sign-in screen wear. A design change
 var sections = [
     { id: "design", title: "Lock screen design" },
     { id: "this-design", title: "This design" },
+    { id: "password-prompt", title: "Password prompt" },
     { id: "unlocking", title: "Unlocking" }
 ];
 
@@ -30,6 +31,11 @@ var rows = [
     { id: "clock", section: "this-design", label: "Clock", template: true,
       detail: "The lock screen's clock follows your 24-hour time setting",
       keywords: ["24-hour", "12-hour", "time format", "am", "pm"] },
+
+    { id: "retry-prompt", section: "password-prompt", label: "Retry a waiting password prompt",
+      detail: "An empty Enter, a click or moving the mouse restarts a prompt that is stuck waiting. Applies from the next lock.",
+      keywords: ["auth retry", "stuck", "waiting", "pam", "prompt", "restart prompt", "fingerprint wait", "password"],
+      control: "toggle", bind: { store: "lockprompt", key: "retry" }, "default": false },
 
     { id: "unlocking", section: "unlocking", label: "Unlocking", template: true,
       detail: "Password, fingerprint and security keys, in Sign-in & security",

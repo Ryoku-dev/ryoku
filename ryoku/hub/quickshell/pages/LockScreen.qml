@@ -156,6 +156,10 @@ Item {
             root.store.reload();
         else
             Changes.ensureStore("lockdesign", Qt.resolvedUrl("../components/lock-screen/LockDesignStore.qml"));
+        if (Changes.stores.lockprompt)
+            Changes.stores.lockprompt.load();
+        else
+            Changes.ensureStore("lockprompt", Qt.resolvedUrl("../components/lock-screen/LockPromptStore.qml"));
         root.readUnlocking();
     }
 
