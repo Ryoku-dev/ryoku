@@ -168,6 +168,9 @@ def estimate_spending(messages, *, state_dir=None, now=None):
         if parsed is None:
             invalid += 1
             continue
+        if not 0 < message["time"] <= now * 1000:
+            invalid += 1
+            continue
         identity, key, event = parsed
         if event["date"] > today:
             invalid += 1
@@ -228,6 +231,8 @@ def estimate_spending(messages, *, state_dir=None, now=None):
             for day in days.values():
                 day.update(cost=0.0, priced_tokens=0, unpriced_tokens=0, models={}, extra_tools=False)
             for event_key, event in events.items():
+                if event["date"] > today:
+                    continue
                 day = days[event["date"]]
                 price = price_event(event, day.get("prices", {}))
                 tokens = sum(event[name] for name in COUNTS)

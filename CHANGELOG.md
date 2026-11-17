@@ -126,10 +126,14 @@ for finer detail.
 
 ### Added
 - Shima includes an optional AI usage dashboard for OpenCode, Codex and Claude,
-  with token history, sessions, models, account limits, reset times and local
-  API value. Bundled collectors refresh private caches every 15 seconds while
-  the dashboard is on screen and stop when it is closed.
+  with token history, saved Codex session names, models, account limits,
+  reset times and local API value. Bundled collectors refresh private caches
+  every 15 seconds while the dashboard is on screen and stop when it is closed.
   Enable it in Island settings under Desktop page > Your modules.
+  Mixed native stores retain distinct requests without duplicate copies; future
+  timestamps and malformed data no longer corrupt current usage. Quotas follow
+  login changes, and stale session activity is shown as unavailable.
+  IDs learned from matched copies preserve distinct requests across all stores.
 - **Game Bar.** `Super+Shift+G` raises a passive overlay over the focused
   monitor: a strip of eight widgets and draggable cards for capture,
   performance, resources, tasks, media, audio, gallery and Discord voice. Cards

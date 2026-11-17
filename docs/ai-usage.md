@@ -42,7 +42,7 @@ Each collector uses the files and authentication already available to its agent:
 
 | Agent | Local history | Account limits |
 | --- | --- | --- |
-| OpenCode | Native SQLite session/message data, with legacy-store fallbacks | The dashboard does not show invented local token budgets as account limits. |
+| OpenCode | Native SQLite session/message data merged with legacy stores | The dashboard does not show invented local token budgets as account limits. |
 | Codex | Local rollout records and turn lifecycle | Existing CLI account-limit RPC, with measured rollout snapshots as fallback. |
 | Claude | Local Claude Code transcripts and native session metadata | Matching Claude Desktop usage captures or saved CLI subscription OAuth. |
 
@@ -51,11 +51,28 @@ native state and process identity rather than treating an open app as a live
 request. Usage is counted from local history regardless of who owns the login;
 switching accounts does not erase previously recorded local history.
 
+OpenCode merges distinct requests across its native stores and deduplicates
+migrated copies by message identity. All agents exclude future-dated usage from
+current accounting until its timestamp is reached. Malformed cached rows are
+ignored where recovery is possible; a failed dashboard parse clears its partial
+state. Stale session activity is shown as unavailable, preserving history
+without claiming that the old session is still running.
+
+Codex session names come from its local `CODEX_HOME/session_index.jsonl`, using
+the saved title shown in Codex. Renames appear on the next visible collection.
+If no saved name is available, the collector falls back to the first user
+prompt (up to 72 characters), then the working-directory name. Saved names stay
+complete in the cache; the card shortens long text to fit its single line.
+
 Account limit bars are account-wide, so use on another device can affect them.
 Their source and authentication govern how fresh they can be. The 15-second
 local collection interval does not bypass provider cooldowns or cause Desktop
 to obtain a fresh account response: Claude OAuth reads are spaced five minutes
 apart (sooner only after a limit resets) and Codex account-limit reads two.
+Codex quota caching is bound to login-file metadata and an opaque environment
+fingerprint, so a login change invalidates the old answer without reading
+credential-file contents. When the login context cannot be observed, quota
+answers are read again instead of reusing a potentially different account.
 Stale captures remain marked as last known.
 
 ## API Value and storage
