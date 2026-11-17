@@ -83,7 +83,8 @@ var rows = [
     { id: "wobbly", section: "wobbly", label: "Wobbly windows",
       detail: "A dragged window bends and springs back into shape",
       keywords: ["wobble", "jelly", "elastic", "spring", "compiz"],
-      control: "toggle", bind: d("appearance.wobblyWindows") }
+      control: "toggle", bind: d("appearance.wobblyWindows"),
+      when: { bind: d("appearance.animations"), is: [true] } }
 ];
 
 var related = ["window-style", "performance", "mouse-touchpad", "window-manager"];

@@ -1,6 +1,9 @@
 # Changelog: ryoku/hub/
 
 ## Unreleased
+- **Wobbly windows waits on Window animations, like the open and close effect.** Its switch did nothing
+  while animations were off; the section now shows with them on, and a search for it lands on Window
+  animations otherwise, as the old Hub's greyed switch did (`schema/animations.js`).
 - **Voice typing shows a model set outside Settings as Custom, and says so when its file is missing.**
   A configured model that is not one of the listed ones gets its own In use row with the file name and counts
   as ready when the file exists (`backend/dictation.go`, `pages/VoiceTyping.qml`, `components/voice-typing/DictationStore.qml`).
