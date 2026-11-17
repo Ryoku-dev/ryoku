@@ -35,9 +35,10 @@ var rows = [
       keywords: ["kill switch", "isolate", "offline", "firewall", "nftables", "ssh", "airplane mode", "ethernet", "ipv6"] },
 
     { id: "saved", section: "saved", label: "Saved networks",
-      detail: "Networks this computer joins, and Forget for the ones you no longer use",
+      detail: "Networks this computer joins, their IP settings, and Forget for the ones you no longer use",
       keywords: ["forget", "remove", "delete", "known networks", "remembered", "profiles", "auto-reconnect", "auto reconnect",
-                 "reconnect", "autoconnect", "join automatically"] },
+                 "reconnect", "autoconnect", "join automatically",
+                 "ip settings", "ip address", "static ip", "manual ip", "dhcp", "gateway", "dns servers", "ipv4"] },
 
     { id: "hotspot-on", section: "hotspot", label: "Hotspot",
       detail: "Share this computer's connection over Wi-Fi",

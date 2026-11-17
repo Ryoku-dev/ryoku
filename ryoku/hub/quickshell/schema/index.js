@@ -18,6 +18,9 @@
 .import "window-behaviour.js" as WindowBehaviour
 .import "window-manager.js" as WindowManager
 .import "wifi.js" as Wifi
+.import "ethernet.js" as Ethernet
+.import "vpn.js" as Vpn
+.import "dns.js" as Dns
 .import "bluetooth.js" as Bluetooth
 .import "add-ons.js" as AddOns
 .import "lock-screen.js" as LockScreen
@@ -64,6 +67,9 @@ var byFile = {
     "Rashin": Rashin,
     "AddOns": AddOns,
     "Wifi": Wifi,
+    "Ethernet": Ethernet,
+    "Vpn": Vpn,
+    "Dns": Dns,
     "Bluetooth": Bluetooth,
     "WindowBehaviour": WindowBehaviour,
     "WindowManager": WindowManager,

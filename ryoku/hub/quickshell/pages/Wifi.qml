@@ -5,6 +5,7 @@ import Lithic
 import Ryoku.Ui.Singletons
 import "../Singletons"
 import "../components"
+import "../components/network"
 import "../components/wifi"
 import "../schema/wifi.js" as Schema
 
@@ -69,6 +70,14 @@ Item {
     property var savedErrors: ({})
     property string forgetting: ""
     property string disconnecting: ""
+    // saved networks whose IP settings are open, by profile uuid
+    property var ipOpen: ({})
+
+    function toggleIp(uuid) {
+        var next = Object.assign({}, root.ipOpen);
+        next[uuid] = !next[uuid];
+        root.ipOpen = next;
+    }
 
     // the saved rows by uuid: only a change in which networks are saved, or their order,
     // rebuilds rows, so the row the keys or the pointer are on survives a switch and the
@@ -1176,64 +1185,90 @@ Item {
 
                 Repeater {
                     model: root.savedIds
-                    delegate: NetRow {
-                        id: savedRow
+                    delegate: Column {
+                        id: savedItem
                         required property var modelData
                         required property int index
-                        readonly property string uuid: String(savedRow.modelData)
-                        // the saved network as read last; a row about to go keeps its last values
-                        readonly property var p: (root.store && root.store.profile(savedRow.uuid)) || savedRow.last
-                        property var last: ({ uuid: savedRow.uuid, name: "", ssid: "", autoconnect: true, timestamp: 0, active: false, band: "" })
-                        onPChanged: savedRow.last = savedRow.p
-                        readonly property var bind: ({ store: "wifi", key: "autoconnect." + savedRow.uuid })
-                        readonly property bool going: root.forgetting === savedRow.uuid
-                        readonly property bool joinBusy: !!root.store && !!root.store.busy[savedRow.bind.key]
-                        host: page
-                        rowId: savedRow.index === 0 ? "saved" : ""
-                        first: savedRow.index === 0
-                        title: savedRow.p.ssid
-                        detail: savedRow.going ? I18n.tr("Forgetting…") : root.savedDetail(savedRow.p)
-                        activatable: true
-                        changed: savedRow.p.autoconnect === false
-                        error: root.savedErrors[savedRow.uuid] || Changes.error(savedRow.bind)
-                        onActivated: root.setAutoconnect(savedRow.p, !savedRow.p.autoconnect)
-                        onResetRequested: root.setAutoconnect(savedRow.p, true)
-                        onRetry: {
-                            if (root.savedErrors[savedRow.uuid]) {
-                                root.setError("savedErrors", savedRow.uuid, "");
-                                root.forget(savedRow.p);
-                            } else {
-                                Changes.retry(savedRow.bind);
+                        readonly property string uuid: String(savedItem.modelData)
+                        readonly property bool ipShown: root.ipOpen[savedItem.uuid] === true
+                        width: parent ? parent.width : 0
+
+                        NetRow {
+                            id: savedRow
+                            readonly property string uuid: savedItem.uuid
+                            readonly property int index: savedItem.index
+                            // the saved network as read last; a row about to go keeps its last values
+                            readonly property var p: (root.store && root.store.profile(savedRow.uuid)) || savedRow.last
+                            property var last: ({ uuid: savedRow.uuid, name: "", ssid: "", autoconnect: true, timestamp: 0, active: false, band: "" })
+                            onPChanged: savedRow.last = savedRow.p
+                            readonly property var bind: ({ store: "wifi", key: "autoconnect." + savedRow.uuid })
+                            readonly property bool going: root.forgetting === savedRow.uuid
+                            readonly property bool joinBusy: !!root.store && !!root.store.busy[savedRow.bind.key]
+                            host: page
+                            rowId: savedRow.index === 0 ? "saved" : ""
+                            first: savedRow.index === 0
+                            title: savedRow.p.ssid
+                            detail: savedRow.going ? I18n.tr("Forgetting…") : root.savedDetail(savedRow.p)
+                            activatable: true
+                            changed: savedRow.p.autoconnect === false
+                            error: root.savedErrors[savedRow.uuid] || Changes.error(savedRow.bind)
+                            onActivated: root.setAutoconnect(savedRow.p, !savedRow.p.autoconnect)
+                            onResetRequested: root.setAutoconnect(savedRow.p, true)
+                            onRetry: {
+                                if (root.savedErrors[savedRow.uuid]) {
+                                    root.setError("savedErrors", savedRow.uuid, "");
+                                    root.forget(savedRow.p);
+                                } else {
+                                    Changes.retry(savedRow.bind);
+                                }
+                            }
+
+                            // Forget and the auto-join switch end in 20 s at most; past 1 s the row says it is working
+                            Pace { id: savedPace; running: savedRow.going || savedRow.joinBusy }
+                            Working {
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: savedPace.slow
+                                active: visible
+                            }
+
+                            Plaque {
+                                anchors.verticalCenter: parent.verticalCenter
+                                kind: savedItem.ipShown ? "line" : "tonal"
+                                small: true
+                                glyph: savedItem.ipShown ? "expand_less" : "lan"
+                                text: I18n.tr("IP settings")
+                                accessibleName: I18n.tr("IP settings of %1").arg(savedRow.p.ssid)
+                                onClicked: root.toggleIp(savedItem.uuid)
+                            }
+                            Plaque {
+                                anchors.verticalCenter: parent.verticalCenter
+                                kind: "quiet"
+                                small: true
+                                glyph: "delete"
+                                text: I18n.tr("Forget")
+                                enabled: !savedRow.going
+                                accessibleName: I18n.tr("Forget %1").arg(savedRow.p.ssid)
+                                onClicked: root.forget(savedRow.p)
+                            }
+                            Toggle {
+                                id: autoToggle
+                                anchors.verticalCenter: parent.verticalCenter
+                                checked: savedRow.p.autoconnect
+                                Accessible.name: I18n.tr("Join %1 on its own").arg(savedRow.p.ssid)
+                                onToggled: {
+                                    var want = autoToggle.checked;
+                                    autoToggle.checked = Qt.binding(() => savedRow.p.autoconnect);
+                                    root.setAutoconnect(savedRow.p, want);
+                                }
                             }
                         }
 
-                        // Forget and the auto-join switch end in 20 s at most; past 1 s the row says it is working
-                        Pace { id: savedPace; running: savedRow.going || savedRow.joinBusy }
-                        Working {
-                            anchors.verticalCenter: parent.verticalCenter
-                            visible: savedPace.slow
-                            active: visible
-                        }
-
-                        Plaque {
-                            anchors.verticalCenter: parent.verticalCenter
-                            kind: "quiet"
-                            small: true
-                            glyph: "delete"
-                            text: I18n.tr("Forget")
-                            enabled: !savedRow.going
-                            accessibleName: I18n.tr("Forget %1").arg(savedRow.p.ssid)
-                            onClicked: root.forget(savedRow.p)
-                        }
-                        Toggle {
-                            id: autoToggle
-                            anchors.verticalCenter: parent.verticalCenter
-                            checked: savedRow.p.autoconnect
-                            Accessible.name: I18n.tr("Join %1 on its own").arg(savedRow.p.ssid)
-                            onToggled: {
-                                var want = autoToggle.checked;
-                                autoToggle.checked = Qt.binding(() => savedRow.p.autoconnect);
-                                root.setAutoconnect(savedRow.p, want);
+                        Loader {
+                            active: savedItem.ipShown
+                            visible: active
+                            width: parent.width
+                            sourceComponent: IpSettings {
+                                uuid: savedItem.uuid
                             }
                         }
                     }

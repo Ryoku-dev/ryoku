@@ -36,6 +36,9 @@ var still = {
     "keyboard": "Layouts, typing and special keys",
     "mouse-touchpad": "Speed, scrolling and gestures",
     "wifi": "Networks and hotspot",
+    "ethernet": "Wired adapters and their IP settings",
+    "vpn": "WireGuard tunnels and VPN profiles",
+    "dns": "Which servers look up names",
     "bluetooth": "Pair and connect devices",
     "phone": "Link an Android phone",
     "installed-apps": "Every app, the space it takes, and removing it",
@@ -129,6 +132,36 @@ function pageSummary(id, ctx) {
         if (net.wifi.enabled === false)
             return ctx.tr("Wi-Fi off");
         return net.wifi.ssid ? ctx.tr("Connected to %1").replace("%1", net.wifi.ssid) : ctx.tr("Not connected");
+    case "ethernet":
+        var wired = ctx.topic("network");
+        if (!wired || !Array.isArray(wired.ethernet))
+            return ctx.tr(still[id]);
+        if (wired.ethernet.length === 0)
+            return ctx.tr("No wired adapter");
+        var up = wired.ethernet.find(e => e.state === "connected");
+        if (up)
+            return up.speed ? ctx.tr("Connected, %1").replace("%1", up.speed >= 1000 ? (up.speed / 1000) + " Gb/s" : up.speed + " Mb/s") : ctx.tr("Connected");
+        return wired.ethernet.some(e => e.state === "connecting") ? ctx.tr("Connecting") : ctx.tr("No cable or not connected");
+    case "vpn":
+        var tun = ctx.topic("network");
+        if (!tun || !Array.isArray(tun.wireguard) || !Array.isArray(tun.vpn))
+            return ctx.tr(still[id]);
+        var all = tun.wireguard.concat(tun.vpn);
+        if (all.length === 0)
+            return ctx.tr("No tunnels or profiles yet");
+        var live = all.filter(c => c.active === true);
+        if (live.length === 1)
+            return ctx.tr("%1 is on").replace("%1", live[0].name);
+        return live.length > 1 ? ctx.tr("%1 connections on").replace("%1", live.length) : ctx.tr("All off");
+    case "dns":
+        var resolver = ctx.topic("network");
+        if (!resolver || !resolver.dns)
+            return ctx.tr(still[id]);
+        var names = { dhcp: "From the network (DHCP)", cloudflare: "Cloudflare", google: "Google" };
+        if (resolver.dns.provider === "custom")
+            return Array.isArray(resolver.dns.servers) && resolver.dns.servers.length > 0
+                ? ctx.tr("Custom: %1").replace("%1", resolver.dns.servers.join(", ")) : ctx.tr("Custom servers");
+        return ctx.tr(names[resolver.dns.provider] || names.dhcp);
     case "bluetooth":
         var bt = ctx.bluetooth();
         if (!bt.present)

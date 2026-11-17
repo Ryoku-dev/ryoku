@@ -73,3 +73,27 @@ test("the Game bar page sits under Desktop and the old id still opens it, with i
     assert.equal(R.resolve("gamebar/voice-names"), "game-bar");
     assert.equal(R.rowPart("gamebar/voice-names"), "voice-names");
 });
+
+test("the Ethernet, VPN and DNS pages open by their old deep links and sit under Connections", () => {
+    for (const id of ["ethernet", "vpn", "dns"]) {
+        assert.equal(R.resolve(id), id);
+        assert.equal(R.page(id).category, "connections");
+    }
+    assert.equal(R.resolve("vpn/wireguard-import"), "vpn");
+    assert.equal(R.rowPart("ethernet/ethernet-ip"), "ethernet-ip");
+});
+
+test("the network pages' lines come from the daemon's network frame and wait for it", () => {
+    const line = (id, frame) => S.pageSummary(id, { tr: s => s, topic: () => frame });
+    assert.equal(line("ethernet", undefined), "Wired adapters and their IP settings");
+    assert.equal(line("ethernet", { ethernet: [] }), "No wired adapter");
+    assert.equal(line("ethernet", { ethernet: [{ state: "unplugged", speed: 0 }, { state: "connected", speed: 2500 }] }), "Connected, 2.5 Gb/s");
+    assert.equal(line("ethernet", { ethernet: [{ state: "unplugged", speed: 0 }] }), "No cable or not connected");
+    assert.equal(line("vpn", { wireguard: [], vpn: [] }), "No tunnels or profiles yet");
+    assert.equal(line("vpn", { wireguard: [{ name: "home", active: true }], vpn: [{ name: "work", active: false }] }), "home is on");
+    assert.equal(line("vpn", { wireguard: [{ name: "a", active: true }], vpn: [{ name: "b", active: true }] }), "2 connections on");
+    assert.equal(line("vpn", { wireguard: [{ name: "a", active: false }], vpn: [] }), "All off");
+    assert.equal(line("dns", { dns: { provider: "dhcp", servers: [] } }), "From the network (DHCP)");
+    assert.equal(line("dns", { dns: { provider: "cloudflare", servers: ["1.1.1.1"] } }), "Cloudflare");
+    assert.equal(line("dns", { dns: { provider: "custom", servers: ["9.9.9.9", "1.1.1.1"] } }), "Custom: 9.9.9.9, 1.1.1.1");
+});
