@@ -93,6 +93,7 @@ Item {
 
     // ── fingerprint unlock state (fprintd, live; no root writes) ────────────
     property bool ffpEnabled: true            // ~/.config/qylock/fingerprint toggle
+    property bool aretryOn: false             // $XDG_CONFIG_HOME/qylock/auth-retry toggle
     property bool fdaemon: false              // fprintd service reachable
     property bool fready: false               // a device is present
     property string fdevice: ""               // D-Bus object path
@@ -265,7 +266,7 @@ Item {
 
     property bool settOpen: false
 
-    Component.onCompleted: { pg.reload(); pg.kreload(); pg.freload(); pg.fpamReload(); pg.skreload(); }
+    Component.onCompleted: { pg.reload(); pg.kreload(); pg.freload(); pg.fpamReload(); pg.skreload(); aretryReadProc.running = true; }
 
     function kreload() {
         kstatusProc.running = true;
@@ -413,6 +414,15 @@ Item {
             "mkdir -p \"$HOME/.config/qylock\"; printf '%s\\n' " + (v ? "on" : "off") + " > \"$HOME/.config/qylock/fingerprint\""
         ];
         fwriteProc.running = true;
+    }
+    function aretryToggle(v) {
+        pg.aretryOn = v;
+        aretryWriteProc.command = [
+            "bash", "-c",
+            "d=\"${XDG_CONFIG_HOME:-$HOME/.config}/qylock\"; mkdir -p \"$d\" && printf '%s\\n' \"$1\" > \"$d/auth-retry\"",
+            "qylock-auth-retry", v ? "on" : "off"
+        ];
+        aretryWriteProc.running = true;
     }
     function fparseNames(text) {
         try {
@@ -813,6 +823,16 @@ Item {
     Process {
         id: fwriteProc
         onExited: () => { pg.freload(); }
+    }
+    Process {
+        id: aretryReadProc
+        command: ["bash", "-c", "f=\"${XDG_CONFIG_HOME:-$HOME/.config}/qylock/auth-retry\"; [[ -r $f && -f $f ]] && head -c 64 -- \"$f\""]
+        stdout: StdioCollector { id: aretryReadOut }
+        onExited: () => { pg.aretryOn = aretryReadOut.text.trim() === "on"; }
+    }
+    Process {
+        id: aretryWriteProc
+        onExited: () => { aretryReadProc.running = true; }
     }
     Process {
         id: fnamesReadProc
@@ -1681,6 +1701,41 @@ Item {
                             text: I18n.tr("The security key covers sudo, admin prompts, the sign-in screen and the lock screen. On the lock screen it works beside your password, which always stays available.")
                             color: Tokens.inkMuted; font.family: Tokens.ui; font.pixelSize: Tokens.fSmall
                             wrapMode: Text.WordWrap
+                        }
+                    }
+                }
+
+                // ── Password prompt section ──
+                Column {
+                    width: parent.width
+                    spacing: Tokens.s2
+
+                    Rectangle { width: parent.width; height: Tokens.border; color: Tokens.line }
+
+                    Text { text: I18n.tr("Password prompt"); color: Tokens.ink; font.family: Tokens.ui; font.pixelSize: Tokens.fMicro; font.weight: Font.Medium; font.capitalization: Font.AllUppercase; font.letterSpacing: Tokens.trackMark }
+
+                    Item {
+                        width: parent.width
+                        height: Math.max(aretryCol.height, aretrySw.implicitHeight)
+
+                        Column {
+                            id: aretryCol
+                            anchors { left: parent.left; right: aretrySw.left; rightMargin: Tokens.s4; verticalCenter: parent.verticalCenter }
+                            spacing: 2
+                            Text { text: I18n.tr("Retry a waiting password prompt"); color: Tokens.ink; font.family: Tokens.ui; font.pixelSize: Tokens.fSmall }
+                            Text {
+                                width: parent.width
+                                text: pg.aretryOn ? I18n.tr("An empty Enter, a click or moving the mouse restarts a prompt that is stuck waiting. Applies from the next lock")
+                                                  : I18n.tr("Off: the lock keeps the prompt exactly as the sign-in stack opened it")
+                                color: Tokens.inkDim; font.family: Tokens.ui; font.pixelSize: Tokens.fSmall
+                                wrapMode: Text.WordWrap
+                            }
+                        }
+                        Sw {
+                            id: aretrySw
+                            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                            on: pg.aretryOn
+                            onToggled: (v) => pg.aretryToggle(v)
                         }
                     }
                 }

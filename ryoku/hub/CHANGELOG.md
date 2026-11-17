@@ -210,6 +210,9 @@
   `../shell/matugen/config.toml`).
 
 ### Added
+- **Lockscreen has a switch to retry a waiting password prompt.** It writes
+  `~/.config/qylock/auth-retry` and is off by default; it applies from the next
+  lock (`quickshell/pages/LockscreenPage.qml`).
 - **Credits names the Game Bar's sources.** The ii-p3drovfx row now covers the
   Discord Voice widget it is based on, and end-4's illogical-impulse is credited
   for the overlay design (`quickshell/pages/CreditsPage.qml`, `../../NOTICE`).

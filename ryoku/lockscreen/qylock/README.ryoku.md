@@ -53,7 +53,8 @@ The in-session shim diverges from upstream in three places:
 
 The in-session lock can restart a password PAM conversation that is waiting
 after an optional authentication method falls through. This is disabled by
-default. To enable it, create `$XDG_CONFIG_HOME/qylock/auth-retry`, or
+default. The Hub's Lockscreen page has a switch for it. To enable it by hand,
+create `$XDG_CONFIG_HOME/qylock/auth-retry`, or
 `~/.config/qylock/auth-retry` when `XDG_CONFIG_HOME` is unset, with exactly:
 
     on
