@@ -9,7 +9,6 @@ import (
 	"reflect"
 	"slices"
 	"strings"
-	"syscall"
 	"testing"
 )
 
@@ -1596,18 +1595,15 @@ func TestFailedRiceCaptureLeavesNoRice(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var limit syscall.Rlimit
-	if err := syscall.Getrlimit(syscall.RLIMIT_FSIZE, &limit); err != nil {
-		t.Fatal(err)
-	}
-	capped := limit
-	capped.Cur = uint64(len(earlier) - 200)
-	if err := syscall.Setrlimit(syscall.RLIMIT_FSIZE, &capped); err != nil {
+	// The rices folder stops taking writes, so the staging folder cannot be made
+	// for a new capture or a recapture. A process-wide file size limit here would
+	// also cap the test log the test binary writes to.
+	if err := os.Chmod(ricesDir(), 0o555); err != nil {
 		t.Fatal(err)
 	}
 	_, errNew := captureRice("Probe B", nil)
 	_, errAgain := captureRice("Probe A", nil)
-	if err := syscall.Setrlimit(syscall.RLIMIT_FSIZE, &limit); err != nil {
+	if err := os.Chmod(ricesDir(), 0o755); err != nil {
 		t.Fatal(err)
 	}
 
