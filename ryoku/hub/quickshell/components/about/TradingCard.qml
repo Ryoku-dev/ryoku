@@ -44,11 +44,11 @@ Item {
     readonly property color accent: card.palette ? card.palette.accent : Lithic.sel
     readonly property color plate: card.palette ? card.palette.plate : Lithic.stone1
     readonly property bool moving: card.live && card.visible && !Lithic.reduceMotion
-    // a badge holder's card style: "stand" draws it as a Stand card (styles/StandCard.qml). A
-    // friend's card wears it only from their verified live record; without the badge the
-    // classic card comes back
+    // a card style is one badge holder's own look: "stand" draws it as a Stand card
+    // (styles/StandCard.qml). Your card wears it only while your badge's login owns it; a friend's
+    // only from their verified live record, which the binder vouches for the same way
     readonly property string style: card.traded ? (card.badgeVerified && card.traded.style === "stand" ? "stand" : "classic")
-        : (!!card.badge && card.f("style", "classic") === "stand" ? "stand" : "classic")
+        : (Badge.ownStyles.indexOf("stand") >= 0 && card.f("style", "classic") === "stand" ? "stand" : "classic")
     readonly property bool classic: card.style === "classic"
     // the classic face's own motion; under another style it stays still and unseen
     readonly property bool classicMoving: card.classic && card.moving

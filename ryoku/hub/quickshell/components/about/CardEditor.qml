@@ -60,8 +60,11 @@ Dialog {
         ? imagePick.urlOf(root.configDir + "/profile/" + String(root.hero.source).replace(/^hero\.(mp4|webm|mkv)$/, "hero-$1.png")) : ""
     // moving pictures are a badge holder's, the rule the backend keeps too
     readonly property bool movingAllowed: !!Badge.ownBadge
-    // the card's style is a badge holder's choice too; without the badge the card is classic
-    readonly property bool standStyle: root.movingAllowed && root.val("style", "classic") === "stand"
+    // a card style is one badge holder's own look: the studio offers only the styles the badge's
+    // login owns, as the backend and team.ryoku.dev insist; everyone else's look is a team design
+    readonly property var styleNames: ({ stand: I18n.tr("Stand") })
+    readonly property var ownStyles: Badge.ownStyles.filter(style => root.styleNames[style] !== undefined)
+    readonly property bool standStyle: root.ownStyles.indexOf("stand") >= 0 && root.val("style", "classic") === "stand"
     property string cutoutError: ""
     property bool cutting: false
     // Ryogami's wallpaper when it is a video: { video, path, bytes, size, limit }
@@ -488,7 +491,7 @@ Dialog {
                         }
                         // a badge holder's cutout of their own picture's figure, for the Stand card
                         Slab {
-                            visible: root.movingAllowed && root.custom
+                            visible: root.ownStyles.indexOf("stand") >= 0 && root.custom
                             width: parent.width
                             SettingRow {
                                 width: parent.width
@@ -521,7 +524,7 @@ Dialog {
                         }
                         Label {
                             width: parent.width
-                            visible: root.movingAllowed && root.custom && root.cutoutError.length > 0
+                            visible: root.ownStyles.indexOf("stand") >= 0 && root.custom && root.cutoutError.length > 0
                             text: root.cutoutError
                             typeRole: "detail"
                             ink: Lithic.jasper
@@ -690,22 +693,22 @@ Dialog {
                             width: parent.width
                             SettingRow {
                                 width: parent.width
-                                visible: root.movingAllowed
+                                visible: root.ownStyles.length > 0
                                 first: true
                                 title: I18n.tr("Card style")
-                                detail: I18n.tr("The classic card, or a Stand card drawn as a manga page")
+                                detail: I18n.tr("The classic card, or the style that is yours alone")
                                 Segmented {
-                                    model: [I18n.tr("Classic"), I18n.tr("Stand")]
+                                    model: [I18n.tr("Classic")].concat(root.ownStyles.map(style => root.styleNames[style]))
                                     Binding on currentIndex {
-                                        value: root.standStyle ? 1 : 0
+                                        value: root.ownStyles.indexOf(root.val("style", "classic")) + 1
                                     }
                                     accessibleName: I18n.tr("Card style")
-                                    onActivated: index => root.put("style", "classic", index === 1 ? "stand" : "classic", I18n.tr("Card style"))
+                                    onActivated: index => root.put("style", "classic", index === 0 ? "classic" : root.ownStyles[index - 1], I18n.tr("Card style"))
                                 }
                             }
                             SettingRow {
                                 width: parent.width
-                                first: !root.movingAllowed
+                                first: root.ownStyles.length === 0
                                 title: I18n.tr("Home shows")
                                 detail: I18n.tr("The plate with your figure, or your system card")
                                 Segmented {

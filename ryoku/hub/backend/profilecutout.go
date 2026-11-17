@@ -26,8 +26,10 @@ const (
 
 var (
 	errCutoutNeedsBadge = errors.New("a cutout comes with a team badge")
-	errCutoutNotPNG     = errors.New("a cutout is a PNG with a clear ground")
-	errCutoutNoGround   = errors.New("this picture has no clear ground; a cutout keeps only the figure")
+	// only a card style draws the cutout, and a style is its owner's own look
+	errCutoutNotYours = errors.New("a cutout comes with a card style of your own; make your own look through a team design")
+	errCutoutNotPNG   = errors.New("a cutout is a PNG with a clear ground")
+	errCutoutNoGround = errors.New("this picture has no clear ground; a cutout keeps only the figure")
 )
 
 type savedCutout struct {
@@ -125,8 +127,12 @@ func cutoutHeroSize() (int, int, error) {
 // saveCutout validates the file at src and keeps it as the card's cutout. profile.json is
 // left to Settings, which turns hero.cutout on once this succeeds.
 func saveCutout(src string) (savedCutout, error) {
-	if !badgeHolder() {
+	b, held, _, _ := ownBadge(false)
+	if !held {
 		return savedCutout{}, errCutoutNeedsBadge
+	}
+	if len(stylesOwnedBy(b.Login)) == 0 {
+		return savedCutout{}, errCutoutNotYours
 	}
 	heroW, heroH, err := cutoutHeroSize()
 	if err != nil {

@@ -96,9 +96,10 @@ func recordEnrichCard(entry binderCard, s pullState, list teamVerifiedList) bind
 	}
 	safe.Verified = true
 	safe.BadgeCheck = "ok"
-	// recordCached verified this record through the badge's own device, so the style and the
-	// words are the holder's; a style this binder doesn't know yet is drawn classic
-	if slices.Contains(recordStyles, r.Style) {
+	// recordCached verified this record through the badge's own device, so the words are the
+	// holder's; the style is drawn only when that badge's login owns it, and a style this binder
+	// doesn't know yet is drawn classic
+	if styleOwnedBy(r.Style, b.Login) {
 		safe.Style = r.Style
 	}
 	if r.Tagline != "" {

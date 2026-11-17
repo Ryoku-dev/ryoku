@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -82,8 +81,10 @@ func cardWordsFrom(s string, limit int) string {
 	return s
 }
 
-// recordLookFor is the look this machine's published card wears: a badge holder's style and
-// words from the profile; anyone else's card goes out classic with Ryoku's words
+// recordLookFor is the look this machine's published card wears: a badge holder's words from the
+// profile, and its style only when the badge's login owns it; anyone else's card goes out classic
+// with Ryoku's words, and a holder whose profile names a style that isn't theirs goes out classic
+// with their words
 func recordLookFor() recordLook {
 	raw, e := readProfileFile(profileConfigPath(), maxProfileBytes)
 	var p struct {
@@ -93,11 +94,15 @@ func recordLookFor() recordLook {
 			StandName string `json:"standName"`
 		} `json:"text"`
 	}
-	if e != nil || json.Unmarshal(raw, &p) != nil || !badgeHolder() {
+	if e != nil || json.Unmarshal(raw, &p) != nil {
+		return recordLook{}
+	}
+	b, held, _, _ := ownBadge(false)
+	if !held {
 		return recordLook{}
 	}
 	var look recordLook
-	if slices.Contains(recordStyles, p.Style) {
+	if styleOwnedBy(p.Style, b.Login) {
 		look.Style = p.Style
 	}
 	if tagline := cardWordsFrom(p.Text.Tagline, recordTaglineLimit); tagline != recordStockTagline {

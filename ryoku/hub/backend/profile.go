@@ -51,7 +51,9 @@ const maxProfileBytes = 64 << 10
 // the hero and the cutout travel as base64, a third larger than their bytes
 const maxProfileEnvelopeBytes = (maxPictureBytes+maxCutoutBytes)/3*4 + 1<<20
 
-var errStandNeedsBadge = errors.New("the Stand card style comes with a team badge, and this machine holds none")
+var errStyleNeedsBadge = errors.New("a card style comes with a team badge, and this machine holds none")
+
+var errStyleNotYours = errors.New("this card style belongs to another badge holder; make your own look through a team design")
 
 var profilePictureName = regexp.MustCompile(`^[a-z0-9_-]+\.(png|jpg|jpeg|gif)$`)
 
@@ -223,8 +225,15 @@ func validateProfile(raw json.RawMessage) (profileModel, error) {
 	if err := json.Unmarshal(raw, &model); err != nil {
 		return model, err
 	}
-	if model.Style == "stand" && !badgeHolder() {
-		return model, errStandNeedsBadge
+	// a style is one badge holder's own look: only a badge whose login owns it may wear it
+	if model.Style != "" && model.Style != "classic" {
+		b, held, _, _ := ownBadge(false)
+		if !held {
+			return model, errStyleNeedsBadge
+		}
+		if !styleOwnedBy(model.Style, b.Login) {
+			return model, errStyleNotYours
+		}
 	}
 	return model, nil
 }

@@ -16,6 +16,8 @@ Singleton {
     // the card's signed record is published for friends' binders; anyone may opt in, badge or not
     readonly property bool online: status.online === true
     readonly property var design: status.design || null
+    // the built-in card styles this badge's login owns: a style is one holder's own look
+    readonly property var ownStyles: root.badge && Array.isArray(status.styles) ? status.styles : []
     property var preview: null
     property var checked: null
     property var candidate: null

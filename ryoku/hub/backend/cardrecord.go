@@ -29,10 +29,6 @@ var recordRetryWait = 6 * time.Second
 
 const recordPictureLimit = 400 * 1024
 
-// recordStyles are the built-in card styles a binder knows how to draw; a style id it doesn't
-// know yet is drawn classic
-var recordStyles = []string{"stand"}
-
 var recordStyleID = regexp.MustCompile(`^[a-z0-9-]{1,32}$`)
 
 type cardRecord struct {

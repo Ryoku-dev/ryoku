@@ -602,6 +602,8 @@ func TestWriteVectors(t *testing.T) {
 		add("upload", valid, map[string]any{"header": header, "method": method, "path": path, "sha": fmt.Sprintf("%x", sha), "now": clock})
 	}
 	add("upload", false, map[string]any{"header": header, "method": "POST", "path": path, "sha": fmt.Sprintf("%x", sha), "now": now})
+	// the gate keeps its own copy of who owns each style; its tests compare it to this one
+	add("styleOwners", true, map[string]any{"owners": cardStyleOwners})
 	rawJSON, e := json.MarshalIndent(vectors, "", "  ")
 	if e != nil {
 		t.Fatal(e)

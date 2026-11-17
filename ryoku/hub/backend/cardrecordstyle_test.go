@@ -115,13 +115,14 @@ func TestRecordSyncSendsStyleOnlyForHolder(t *testing.T) {
 }
 
 // A friend's style is drawn only when the gate vouches for an active badge whose device signed
-// the record; without one, or for a style this binder doesn't know, the card is drawn classic.
+// the record and whose login owns the style; without one, or for a style this binder doesn't
+// know, the card is drawn classic.
 func TestBinderDrawsStyleOnlyThroughItsBadge(t *testing.T) {
 	owner, _, device := badgeTestKeys(t)
 	setCardMachine(t)
 	g := newFakeGate(t)
 	id := cardID(badgeDevicePublic(device))
-	code := badgeTestCode(t, 1, 4, owner, device, "friend")
+	code := badgeTestCode(t, 1, 4, owner, device, "Neur0map")
 	d := codedDesign{cardID: id, name: "record name", kind: 2, threads: 24}
 	publish := func(updated int64, style string) cardRecord {
 		t.Helper()
@@ -150,6 +151,13 @@ func TestBinderDrawsStyleOnlyThroughItsBadge(t *testing.T) {
 	makeDue(t)
 	if c := listed(t).Cards[0]; c.Verified || c.Style != "" {
 		t.Fatal("another device's badge drew the style", c)
+	}
+	// this very machine's badge under a login that doesn't own the style vouches for the card,
+	// and its words, but never draws the owner's style
+	g.badges = []string{badgeTestCode(t, 1, 2, owner, device, "friend")}
+	makeDue(t)
+	if c := listed(t).Cards[0]; !c.Verified || c.Style != "" {
+		t.Fatal("a badge that doesn't own the style drew it", c)
 	}
 	g.badges = []string{code}
 	publish(1001, "future-style")

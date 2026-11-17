@@ -293,19 +293,20 @@ the card or Home's plate as they will be; its tabs are:
   gallery figure. A badge holder's picture may move (see Moving pictures
   below), and the tab offers **Use my live wallpaper** when Ryogami's wallpaper
   is a video within the size; everyone else reads that moving pictures come
-  with a team badge. A badge holder with their own picture also gets
-  **Cutout for the figure breaking the frame** (see Card styles below).
+  with a team badge. The owner of the Stand style with their own picture also
+  gets **Cutout for the figure breaking the frame** (see Card styles below).
 - **Adjust** (own picture): the look (Photo, Black & white or Dots), Fill or
   Whole picture, zoom, position, brightness, contrast, colour (photo) or dot
   size and ink (dots), and Reset. Dragging the picture on the preview moves it
   and the wheel zooms it. A new picture starts as a photo filling its frame.
 - **Words**: the name, the line under it and the big words; with the Stand
-  card style, the Stand's name too. A badge holder's line and Stand's name
-  reach friends' binders with their live card (see "A badge holder's own
-  words" below).
-- **Layout**: a badge holder's **Card style** (Classic or Stand), whether Home
-  shows the plate or the card (`homeView`), the plate's parts and the figure's
-  side.
+  card style (its owner only), the Stand's name too. A badge holder's line and
+  Stand's name reach friends' binders with their live card (see "A badge
+  holder's own words" below).
+- **Layout**: **Card style**, shown only to a badge holder whose login owns a
+  style and listing only the styles it owns (Classic, or Stand for its owner),
+  then whether Home shows the plate or the card (`homeView`), the plate's parts
+  and the figure's side.
 - **Share**: the card's rarity, the tier ladder (resting on a tier shows its
   look on the preview), Copy, Save, Binder and Back to stock
   (`components/about/CardShare.qml`). Binder closes the studio and opens the collection.
@@ -349,14 +350,26 @@ frame. A badge lost later leaves the still. The shared card picture, the
 record's picture and a `.ryoprofile` stay still: the card is grabbed at rest,
 and export packs the first frame as `hero.png`.
 
-**Card styles.** A badge holder chooses how their own card is drawn, per
-machine, in Layout: `style` in `profile.json`, `classic` (the trading card,
-the default) or `stand`. The rule is the moving pictures' one: TradingCard
-draws a style only while `Badge.ownBadge` holds, so a lost badge brings the
-classic card back, and a `.ryoprofile` whose `style` is `stand` is refused on a
-machine without a badge ("the Stand card style comes with a team badge, and
-this machine holds none"). A style is Ryoku's own code, never part of a team
-design pack, which carries no QML.
+**Card styles are personal.** A built-in card style is one badge holder's own
+look, never a choice every holder gets: each belongs to GitHub logins in one
+table, `cardStyleOwners` in `backend/cardstyles.go` (`stand`: neur0map), which
+team.ryoku.dev keeps word for word as `CARD_STYLE_OWNERS`; the shared test
+vectors compare the two. Logins match without case. Nobody may wear or copy
+another holder's style. Every other badge holder makes their own look through a
+team design: studio Badge tab, **Save for Mika**, `/card submit`, and the
+owner's approval (see Badges and team designs below). The style's owner chooses
+it per machine in Layout: `style` in `profile.json`, `classic` (the trading
+card, the default) or the style. `ryoku-hub badge status` lists the styles the
+badge's login owns (`styles`), and Settings offers only those
+(`Badge.ownStyles`). TradingCard draws a style only while the own badge's login
+owns it, so a lost badge brings the classic card back. Choosing or importing a
+style is refused without a badge ("a card style comes with a team badge, and
+this machine holds none") and with another holder's badge ("this card style
+belongs to another badge holder; make your own look through a team design"),
+for `profile.json` and a `.ryoprofile` alike. A holder whose profile still
+names a style they don't own publishes a classic card, with their own words. A
+style is Ryoku's own code, never part of a team design pack, which carries no
+QML.
 
 The Stand style (`components/about/styles/StandCard.qml`) draws the card as a
 JoJo Stand card on a manga page: the machine is the holder's Stand and its
@@ -398,7 +411,8 @@ A holder may add a cutout with `ryoku-hub profile cutout <path>`
 clear ground, and the Stand card lays it over the panel's border, above and
 beside the panel, never below it where the code runs. The cutout checks:
 
-- it needs a badge and the holder's own picture;
+- it needs a badge and the holder's own picture (Settings offers it only to
+  the Stand style's owner, whose card is the only one that draws it);
 - it is a PNG of up to 8 MB, 64 to 4096 pixels a side;
 - at least 2% of its pixels are clear and 2% solid;
 - its shape is within 2% of the picture's (still frame or video poster).
@@ -517,15 +531,18 @@ reason. A sync or status error clears itself once the next one succeeds.
 team.ryoku.dev deletes a record nobody has changed in 90 days; binders keep the
 copy they have.
 
-A card with a style is published as a version 3 record. It has the version 2
-fields plus `style`, signed with the domain `ryoku-card-v3` over the version 2
-payload, then the style's byte length as two big-endian bytes, then the style
-in UTF-8. Only a machine whose badge holds builds one. A classic card stays
-version 2 and never says `classic`. team.ryoku.dev refuses a styled record from
-a machine without an active badge. A binder draws a friend's style only when
+A card with a style is published as a version 3 record (version 4 when it
+carries words too). It has the version 2 fields plus `style`, signed with the
+domain `ryoku-card-v3` over the version 2 payload, then the style's byte length
+as two big-endian bytes, then the style in UTF-8. Only a machine whose badge's
+login owns the style builds one. A classic card stays version 2 and never says
+`classic`. team.ryoku.dev refuses a styled record from a machine without an
+active badge, and from one whose badges' logins don't own the style ("This card
+style belongs to another badge holder"); it withholds and deletes a stored one
+once its badges stop owning the style. A binder draws a friend's style only when
 the gate vouches for an active badge on that card whose device signed the
-record. A style id it doesn't know yet is drawn classic, and a card added from
-its picture alone is always classic.
+record and whose login owns the style. A style id it doesn't know yet is drawn
+classic, and a card added from its picture alone is always classic.
 
 **A badge holder's own words.** A holder's live card also carries their motto
 (the line under the name, up to 128 characters) and, with the Stand style, the

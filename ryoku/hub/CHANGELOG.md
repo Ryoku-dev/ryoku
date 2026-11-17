@@ -1,6 +1,15 @@
 # Changelog: ryoku/hub/
 
 ## Unreleased
+- **Card styles are personal.** The Stand style is its owner's own look, no
+  longer a switch every badge holder gets: each built-in style belongs to
+  GitHub logins (`backend/cardstyles.go`, `stand`: neur0map), the studio's Card
+  style row (and the cutout) shows only to a holder whose login owns one and
+  lists only those, and choosing or importing a style you don't own is refused.
+  A holder who had the Stand style set publishes a classic card with their own
+  words, and a friend's binder draws a style only when the vouching badge's
+  login owns it. Every other badge holder makes their own look through a team
+  design (Badge tab › Save for Mika › `/card submit`).
 - **A friend's Stand card has words in its balloon.** A traded card's record carries no motto, so the speech balloon stood empty in the binder; it now speaks Ryoku's motto, 力と美のために included, when the card brings none (`components/about/styles/StandCard.qml`).
 - **Badge holders' own words reach friends' binders.** With a badge, a live card
   carries your motto (up to 128 characters) and, on the Stand card, your Stand's
@@ -17,7 +26,7 @@
   the binder never spends one (`backend/cardpull.go`, `components/about/Binder.qml`).
 
 ### Added
-- **The Stand card style for badge holders.** Card studio > Layout > Card style
+- **The Stand card style, neur0map's own.** Card studio > Layout > Card style
   draws your card as a JoJo Stand card on a manga page
   (`components/about/styles/StandCard.qml`): 「NAMEの奇妙な機械」, your picture in
   an inked panel with a speech balloon of your motto, the sound effect and ゴゴゴ,
@@ -29,7 +38,7 @@
   CONTINUED. At rest and with reduced motion it is still. The card code,
   sharing, the seal and moving pictures work as on the classic card. Friends
   see the style through a signed version 3 live record, which only a machine
-  with a badge publishes. Without a badge the card is classic.
+  whose badge's login owns the style publishes. Everyone else's card is classic.
 - **Moving card pictures for badge holders.** With a badge, the card's picture
   can be an animated GIF or WebP or a short video (MP4, WebM or MKV, up to
   10 MB and 60 seconds), and the card studio offers your live wallpaper when it

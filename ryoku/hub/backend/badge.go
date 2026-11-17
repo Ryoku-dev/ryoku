@@ -51,6 +51,9 @@ type badgeStatusResult struct {
 	Design    *badgeDesign `json:"design"`
 	// Online is whether this machine keeps its card on the team service for friends' binders
 	Online bool `json:"online"`
+	// Styles are the built-in card styles this badge's login owns, and so the only ones the
+	// studio offers
+	Styles []string `json:"styles"`
 }
 
 func badgeDesignFor(list teamVerifiedList, b badgeInfo) *badgeDesign {
@@ -111,8 +114,10 @@ func badgeStatus(refresh bool) (badgeStatusResult, error) {
 	if out.Online, e = recordOnline(); e != nil {
 		return out, e
 	}
+	out.Styles = []string{}
 	if b, held, published, list := ownBadge(refresh); held {
 		out.Badge = badgeViewFor(b, true)
+		out.Styles = stylesOwnedBy(b.Login)
 		out.Published = published
 		if published {
 			out.Design = badgeDesignFor(list, b)

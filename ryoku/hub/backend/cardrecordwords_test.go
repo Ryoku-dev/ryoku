@@ -168,7 +168,7 @@ func TestBinderDrawsWordsOnlyThroughItsBadge(t *testing.T) {
 	setCardMachine(t)
 	g := newFakeGate(t)
 	id := cardID(badgeDevicePublic(device))
-	code := badgeTestCode(t, 1, 4, owner, device, "friend")
+	code := badgeTestCode(t, 1, 4, owner, device, "neur0map")
 	d := codedDesign{cardID: id, name: "record name", tagline: "first 20 bytes only", kind: 2, threads: 24}
 	look := recordLook{Style: "stand", Tagline: "The whole motto, longer than the card code carries.", StandName: "Hierophant Green"}
 	r, e := recordSign(d, nil, device, 1000, look)

@@ -50,9 +50,9 @@ func cutoutMachine(t *testing.T, holder bool, w, h int) {
 	}
 }
 
-func TestProfileStandStyleNeedsBadge(t *testing.T) {
+func TestProfileStandStyleNeedsItsOwner(t *testing.T) {
 	pictureMachine(t, false)
-	if _, err := validateProfile(json.RawMessage(`{"style":"stand"}`)); err == nil || err.Error() != "the Stand card style comes with a team badge, and this machine holds none" {
+	if _, err := validateProfile(json.RawMessage(`{"style":"stand"}`)); err == nil || err.Error() != "a card style comes with a team badge, and this machine holds none" {
 		t.Fatal("a machine without a badge chose the Stand style", err)
 	}
 	for _, accepted := range []string{`{"style":""}`, `{"style":"classic"}`, `{"text":{"standName":"` + strings.Repeat("星", 64) + `"}}`, `{"hero":{"cutout":true}}`, `{"hero":{"cutout":false}}`} {
@@ -68,7 +68,28 @@ func TestProfileStandStyleNeedsBadge(t *testing.T) {
 	}
 	pictureMachine(t, true)
 	if model, err := validateProfile(json.RawMessage(`{"style":"stand","text":{"standName":"Star Platinum"},"hero":{"cutout":true}}`)); err != nil || model.Style != "stand" || !model.Hero.Cutout {
-		t.Fatal("a badge holder could not choose the Stand style", err)
+		t.Fatal("the Stand style's owner could not choose it", err)
+	}
+	// another badge holder makes their own look through a team design, never by taking this one
+	otherHolder(t, "Friend")
+	if _, err := validateProfile(json.RawMessage(`{"style":"stand"}`)); err == nil || err.Error() != "this card style belongs to another badge holder; make your own look through a team design" {
+		t.Fatal("another badge holder chose the owner's style", err)
+	}
+	if _, err := validateProfile(json.RawMessage(`{"style":"classic","text":{"tagline":"my own words"}}`)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// otherHolder activates a badge for login on this machine, which owns no card style
+func otherHolder(t *testing.T, login string) {
+	t.Helper()
+	owner, _, _ := badgeTestKeys(t)
+	device, err := badgeDeviceSeed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := badgeActivate(badgeTestCode(t, 1, 2, owner, device, login)); err != nil || !badgeHolder() {
+		t.Fatal("badge not held", err)
 	}
 }
 
@@ -77,6 +98,20 @@ func TestCutoutRefusals(t *testing.T) {
 	good := writeChosen(t, "figure.png", testCutout(t, 200, 100, 20))
 	if _, err := saveCutout(good); err == nil || err.Error() != "a cutout comes with a team badge" {
 		t.Fatal("a machine without a badge kept a cutout", err)
+	}
+	// a badge whose login owns no card style keeps no cutout, but may still clear one
+	otherHolder(t, "friend")
+	if _, err := saveCutout(good); err == nil || err.Error() != "a cutout comes with a card style of your own; make your own look through a team design" {
+		t.Fatal("a holder who owns no style kept a cutout", err)
+	}
+	if err := atomicWrite(filepath.Join(profileHeroDir(), "hero-cutout.png"), testCutout(t, 200, 100, 20), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := runCutout([]string{"--clear"}); err != nil {
+		t.Fatal("a holder who owns no style could not clear a cutout", err)
+	}
+	if _, err := os.Stat(filepath.Join(profileHeroDir(), "hero-cutout.png")); !os.IsNotExist(err) {
+		t.Fatal("--clear left the cutout", err)
 	}
 	pictureMachine(t, true)
 	if _, err := saveCutout(good); err == nil || err.Error() != "choose your own picture first: the cutout is cut from it" {
@@ -243,12 +278,16 @@ func TestProfileCarriesCutout(t *testing.T) {
 		}
 	}
 
-	// importing a Stand profile takes a badge
+	// importing a Stand profile takes the style's owner: no badge, or another holder's, is refused
 	pictureMachine(t, false)
 	out, _ := json.Marshal(env)
 	os.WriteFile(share, out, 0o644)
-	if err := importProfile(share); err == nil || !strings.Contains(err.Error(), "the Stand card style comes with a team badge") {
+	if err := importProfile(share); err == nil || !strings.Contains(err.Error(), "a card style comes with a team badge") {
 		t.Fatal("a machine without a badge imported the Stand style", err)
+	}
+	otherHolder(t, "friend")
+	if err := importProfile(share); err == nil || !strings.Contains(err.Error(), "this card style belongs to another badge holder") {
+		t.Fatal("another badge holder imported the owner's style", err)
 	}
 	if _, err := os.Stat(profileConfigPath()); !os.IsNotExist(err) {
 		t.Fatal("a refused import wrote profile.json", err)
