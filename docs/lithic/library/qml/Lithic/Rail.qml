@@ -257,25 +257,29 @@ T.Control {
             }
         }
 
-        contentItem: Column {
-            spacing: showLabel ? LithicTokens.size.railItemLabelGap : 0
+        contentItem: Item {
+            Column {
+                anchors.horizontalCenter: parent.horizontalCenter
+                y: Math.round((parent.height - height) / 2)
+                spacing: showLabel ? LithicTokens.size.railItemLabelGap : 0
 
-            Glyph {
-                anchors.horizontalCenter: parent.horizontalCenter
-                name: glyphName
-                size: LithicTokens.size.railDestinationIcon
-                ink: selected ? Lithic.onSel : Lithic.fg2
-            }
-            Label {
-                visible: showLabel
-                anchors.horizontalCenter: parent.horizontalCenter
-                width: labelWidth > 0 ? labelWidth : undefined
-                text: shownLabel
-                typeRole: "caption"
-                ink: selected ? Lithic.onSel : Lithic.fg2
-                horizontalAlignment: Text.AlignHCenter
-                wrapMode: labelWidth > 0 ? Text.WordWrap : Text.NoWrap
-                maximumLineCount: labelLines
+                Glyph {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    name: glyphName
+                    size: LithicTokens.size.railDestinationIcon
+                    ink: selected ? Lithic.onSel : Lithic.fg2
+                }
+                Label {
+                    visible: showLabel
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: labelWidth > 0 ? labelWidth : undefined
+                    text: shownLabel
+                    typeRole: "caption"
+                    ink: selected ? Lithic.onSel : Lithic.fg2
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: labelWidth > 0 ? Text.WordWrap : Text.NoWrap
+                    maximumLineCount: labelLines
+                }
             }
         }
 
