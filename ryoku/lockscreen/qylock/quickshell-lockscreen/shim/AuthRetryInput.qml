@@ -67,7 +67,9 @@ Item {
             return false
         if (typeof item.echoMode !== "undefined")
             return true
-        if (typeof item.acceptedButtons === "undefined" || item.acceptedButtons === Qt.NoButton)
+        if (typeof item.acceptedButtons === "undefined")
+            return typeof item.clicked === "function"
+        if (item.acceptedButtons === Qt.NoButton)
             return false
         return !(item.z < 0 && passwordScope &&
             item.width >= passwordScope.width && item.height >= passwordScope.height)
@@ -100,13 +102,14 @@ Item {
         }
     }
 
-    TapHandler {
+    MouseArea {
+        anchors.fill: parent
+        z: 2147483646
         acceptedButtons: Qt.LeftButton
-        gesturePolicy: TapHandler.ReleaseWithinBounds
-        onTapped: (eventPoint) => {
-            const position = eventPoint.position
-            if (!root.isPointOverControl(root.passwordScope, position.x, position.y))
+        onPressed: (mouse) => {
+            if (!root.isPointOverControl(root.passwordScope, mouse.x, mouse.y))
                 root.requestRetry()
+            mouse.accepted = false
         }
     }
 }
