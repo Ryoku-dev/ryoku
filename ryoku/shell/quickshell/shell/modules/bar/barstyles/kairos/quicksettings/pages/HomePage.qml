@@ -50,7 +50,18 @@ Column {
             if (mons[i] && mons[i].label === page.focusedName) return mons[i].bus;
         return "";
     }
-    readonly property real brightness: Devices.backlightAvailable ? Devices.backlightPct / 100 : 0.5
+    readonly property int ddcLevel: {
+        var level = Devices.ddcLevels[String(page.ddcBus)];
+        return level === undefined ? -1 : level;
+    }
+    readonly property real brightness: Devices.backlightAvailable ? Devices.backlightPct / 100
+        : page.ddcLevel >= 0 ? page.ddcLevel / 100 : 0.5
+    function readDdc() {
+        if (page.ddcBus !== "" && !Devices.backlightAvailable)
+            Devices.readBrightness(page.ddcBus);
+    }
+    onDdcBusChanged: page.readDdc()
+    Component.onCompleted: page.readDdc()
     function setBrightness(v) {
         var pct = Math.round(v * 100);
         if (Devices.backlightAvailable) Devices.setBacklight(pct);

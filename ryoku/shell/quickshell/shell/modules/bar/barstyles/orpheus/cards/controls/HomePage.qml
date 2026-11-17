@@ -52,8 +52,14 @@ Item {
         return monitors.length > 0 && monitors[0] ? String(monitors[0].bus || "") : "";
     }
     readonly property bool brightnessAvailable: Devices.backlightAvailable || focusedDdcBus !== ""
+    readonly property int ddcLevel: {
+        const level = Devices.ddcLevels[focusedDdcBus];
+        return level === undefined ? -1 : level;
+    }
+    readonly property bool brightnessReady: Devices.backlightAvailable
+        || (focusedDdcBus !== "" && (ddcLevel >= 0 || Devices.ddcSettled[focusedDdcBus] === true))
     readonly property real brightnessValue: Devices.backlightAvailable
-        ? Devices.backlightPct / 100 : 0.5
+        ? Devices.backlightPct / 100 : ddcLevel >= 0 ? ddcLevel / 100 : 0.5
     readonly property var profileOptions: (PowerProfiles.profiles || []).map(function(name) {
         if (name === "power-saver")
             return { value: name, label: "Saver", icon: "battery_saver" };
@@ -78,6 +84,11 @@ Item {
             Devices.setBrightness(focusedDdcBus, percent);
     }
 
+    function readDdc() {
+        if (live && focusedDdcBus !== "" && !Devices.backlightAvailable)
+            ddcReadDelay.restart();
+    }
+
     function setLive(enabled) {
         if (enabled === live)
             return;
@@ -86,16 +97,23 @@ Item {
             Devices.startProbes(page);
             PowerProfiles.setActive(page, true);
             Session.watchers += 1;
+            readDdc();
         } else {
+            ddcReadDelay.stop();
             Devices.stopProbes(page);
             PowerProfiles.setActive(page, false);
             Session.watchers = Math.max(0, Session.watchers - 1);
         }
     }
 
-    onShownChanged: setLive(shown)
-    Component.onCompleted: setLive(shown)
-    Component.onDestruction: setLive(false)
+    onFocusedDdcBusChanged: readDdc()
+
+    // a DDC/CI read that overlaps the card's layer mapping stalls frames
+    Timer {
+        id: ddcReadDelay
+        interval: 250
+        onTriggered: if (!Devices.backlightAvailable) Devices.readBrightness(page.focusedDdcBus)
+    }
 
     component ConnectionTile: Item {
         id: tile
@@ -439,7 +457,7 @@ Item {
                 icon: "light_mode"
                 label: "Brightness"
                 value: page.brightnessValue
-                available: page.brightnessAvailable
+                available: page.brightnessReady
                 onAdjusted: value => page.setBrightness(value)
                 onOpened: if (page.card) page.card.go("display", true)
             }

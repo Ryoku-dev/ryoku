@@ -50,6 +50,10 @@
 - **Music widgets use less memory for artwork and local GIFs (#850).** The
   backdrop decodes images at the widget's own size, releases its artwork while
   the widget is hidden, and no longer keeps a second cached copy of stills.
+- **An external monitor's brightness slider shows its real level and stops flooding ddcutil (#840).**
+  The Orpheus control card pinned the handle at 50% and spawned one `ddcutil`
+  per pointer move; writes now go one at a time with the latest value winning,
+  and the level is read from the monitor when the card opens.
 - **Wallpaper Engine video wallpapers animate on hover in the picker (#807).**
   Only local videos got the small preview clip, so workshop video cards stayed
   still; they now get one too, built on the thumbnail job limit and skipped
