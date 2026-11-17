@@ -90,7 +90,7 @@ for package in $packages; do
   case $package in
     # the Ryoku apps and the launcher radio are installer choices, on by
     # default, outside the desktop lane
-    ryoku-keyring|ryoku-desktop|ryoku-desktop-niri|ryotunes|ryomanager|mpv|mpv-mpris) ;;
+    ryoku-keyring|ryoku-desktop|ryoku-desktop-niri|ryotunes|ryoport|ryomanager|mpv|mpv-mpris) ;;
     *) grep -Fxq "$package" "$resolved" ||
       fail "XBPS package transaction contains '$package', which the resolver did not return" ;;
   esac
