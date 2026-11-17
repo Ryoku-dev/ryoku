@@ -619,5 +619,16 @@
     "path": "/v1/pending/49b06a76ee36902a3f7f23b51e5407ef90c1db89bafb1de39a3493b1583d65df",
     "sha": "49b06a76ee36902a3f7f23b51e5407ef90c1db89bafb1de39a3493b1583d65df",
     "valid": false
+  },
+  {
+    "kind": "styleOwners",
+    "mikaKey": "gTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5Q=",
+    "ownerKey": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=",
+    "owners": {
+      "stand": [
+        "neur0map"
+      ]
+    },
+    "valid": true
   }
 ]

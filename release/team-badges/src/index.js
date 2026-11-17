@@ -1,4 +1,4 @@
-import { CARD_ID, InputError, base64, cardId, cardPayload, digest, jpegDimensions, unbase64, verifyCard, verifyCode, verifyDelete, verifyDeviceCard, verifyHolder, verifyUpload } from './codec.js';
+import { CARD_ID, InputError, base64, cardId, cardPayload, digest, jpegDimensions, styleOwnedBy, unbase64, verifyCard, verifyCode, verifyDelete, verifyDeviceCard, verifyHolder, verifyUpload } from './codec.js';
 import { admitRecord, cardIndex, claimHolderRefresh, deleteRecord, dropStyledRecords, expireCards, objects, reconcileIndex, reserveBadge, storeDesign, storeRecord, storedRecord } from './storage.js';
 
 const TEXT_CAP = 2400; // At most 600 characters, including Unicode whitespace.
@@ -129,6 +129,10 @@ async function loadInventory(env) {
 }
 const STYLE_REFUSED = 'Custom card styles need an active team badge on this machine';
 const WORDS_REFUSED = 'Card words need an active team badge on this machine';
+const STYLE_NOT_YOURS = 'This card style belongs to another badge holder';
+// a style is one badge holder's own look: a record wears it only while an active badge for its id
+// has a login that owns it; words alone need no owner
+const ownsStyle = (record, active) => record.style === undefined || active.some(b => b.cardId === record.id && styleOwnedBy(record.style, b.login));
 // a styled v3 or worded v4 record needs an active badge for its id whose device key signed it,
 // the record's own device key never vouches for one
 async function styledBy(record, active) {
@@ -139,23 +143,25 @@ async function styledBy(record, active) {
 }
 // a v2 device record speaks for itself but never against the key an active badge holds for the id
 async function trustedBy(record, active) {
-  if (record.v >= 3) return styledBy(record, active);
+  if (record.v >= 3) return ownsStyle(record, active) && styledBy(record, active);
   const badges = active.filter(b => b.cardId === record.id);
   if (record.device !== undefined) return badges.every(b => base64(b.device) === record.device) && verifyDeviceCard(record);
   for (const badge of badges) if (await verifyCard(record, badge.device)) return true;
   return false;
 }
 // PUT verified these and binders verify again, so a batch only checks what can change after storing:
-// a revoked badge takes its styled or worded record out of every batch at once
+// a revoked badge takes its styled or worded record out of every batch at once, and a login that
+// no longer owns the style takes the styled record out with it
 async function listedBy(record, active) {
+  if (record.v >= 3 && !ownsStyle(record, active)) return false;
   const badges = active.filter(b => b.cardId === record.id);
   if (record.device === undefined || (record.v >= 3 && !badges.length)) return badges.length > 0;
   return badges.every(b => base64(b.device) === record.device) && await cardId(unbase64(record.device)) === record.id;
 }
-// ids without an active badge lose their styled record; revocation calls this at once, the cron daily
+// styled and worded records stand only while an active badge holds their id, and a style only
+// while that badge's login owns it; revocation calls this at once, the cron daily
 async function withdrawStyles(env, data, ids, now) {
-  const held = new Set(data.active.map(b => b.cardId));
-  await dropStyledRecords(env, [...new Set(ids)].filter(id => !held.has(id)), now);
+  await dropStyledRecords(env, [...new Set(ids)], now, record => data.active.some(b => b.cardId === record.id) && ownsStyle(record, data.active));
 }
 async function trustedRecord(env, id, active, trusts = trustedBy) {
   const stored = await env.BUCKET.get(`cards/${id}.json`), record = await storedRecord(stored);
@@ -177,6 +183,7 @@ async function putCard(request, env, id) {
     if (!await authorizedInventory(env, active => styledBy(record, active))) {
       fail((await inventory(env)).active.some(b => b.cardId === id) ? 'Invalid card signature' : record.v === 4 ? WORDS_REFUSED : STYLE_REFUSED, 403);
     }
+    if (!ownsStyle(record, (await inventory(env)).active)) fail(STYLE_NOT_YOURS, 403);
   } else if (record.device !== undefined) {
     if (!await trustedBy(record, (await inventory(env)).active)) fail('Invalid card signature');
   } else if (!await authorizedInventory(env, active => trustedBy(record, active))) fail('No active badge verifies this record');

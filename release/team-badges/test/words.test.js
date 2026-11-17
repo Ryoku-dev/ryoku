@@ -146,7 +146,8 @@ test('revoking the badge withholds the words at once and deletes them, the cron 
   assert.equal(stored(state), false);
   assert.deepEqual((await pull(state, { [state.id]: 0 })).gone, [state.id]);
   // a revocation that reached R2 without the route: withheld once the inventory turns, then swept
-  const kept = await wordedRecord(keeper);
+  // a holder who owns no style sends words alone
+  const kept = await wordedRecord(keeper, { style: undefined });
   assert.equal((await putCard(state, kept)).status, 200);
   await state.env.BUCKET.put(`revoked/${keeperBadge}.txt`, await code('RYX', state.owner, { id: keeperBadge }));
   const realNow = Date.now;

@@ -114,8 +114,13 @@ export async function verifyCode(kind, text, env = {}) {
   requireThat(await verifySignature(key, signature, domains[kind], payload), 'Invalid signature');
   return { kind, code: encodeCode(kind, bytes), issuer, ...fields };
 }
-// styles a badge holder may sign into a v3 or v4 record; classic cards stay v2 and never name one
-export const CARD_STYLES = Object.freeze(['stand']);
+// each built-in card style belongs to GitHub logins (lowercase): a style is one badge holder's own
+// look, signed into a v3 or v4 record, and other holders make theirs through a team design.
+// ryoku-hub keeps the same table (cardStyleOwners in ryoku/hub/backend/cardstyles.go); the
+// shared vectors compare them. Classic cards stay v2 and never name a style.
+export const CARD_STYLE_OWNERS = Object.freeze({ stand: Object.freeze(['neur0map']) });
+export const CARD_STYLES = Object.freeze(Object.keys(CARD_STYLE_OWNERS));
+export const styleOwnedBy = (style, login) => typeof login === 'string' && Object.hasOwn(CARD_STYLE_OWNERS, style) && CARD_STYLE_OWNERS[style].includes(login.toLowerCase());
 const STYLE = /^[a-z0-9-]{1,32}$/;
 const RECORD_BASE = ['body', 'id', 'picture', 'sig', 'updated', 'v'];
 const RECORD_FIELDS = { 2: RECORD_BASE.join(','), 3: 'body,id,picture,sig,style,updated,v' };

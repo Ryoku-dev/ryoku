@@ -1,6 +1,14 @@
 # Release / Packaging Changelog
 
 ## Unreleased
+- **team.ryoku.dev keeps each card style for its owner.** A styled `v:3` or
+  `v:4` record is stored only when an active badge for the card has a login
+  that owns the style (`CARD_STYLE_OWNERS`, `stand`: neur0map, matched without
+  case); another badge holder gets 403 `This card style belongs to another
+  badge holder`, while their words-only `v:4` records pass. GET and batches
+  withhold, and revocation and the daily cleanup delete, a styled record whose
+  badges' logins no longer own its style. The table matches `ryoku-hub`'s
+  through the shared test vectors. Deploy the Worker with this release.
 - **team.ryoku.dev takes badge holders' own words and counts their early
   refreshes.** A `v:4` card record carries an optional style plus the owner's
   `tagline` (up to 128 characters) and `standName` (up to 64), each u16

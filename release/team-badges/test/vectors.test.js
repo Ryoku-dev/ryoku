@@ -1,12 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { isDeepStrictEqual } from 'node:util';
 import { readFile } from 'node:fs/promises';
-import { unbase64, verifyCard, verifyCode, verifyDelete, verifyDeviceCard, verifyHolder, verifyUpload } from '../src/codec.js';
+import { CARD_STYLE_OWNERS, unbase64, verifyCard, verifyCode, verifyDelete, verifyDeviceCard, verifyHolder, verifyUpload } from '../src/codec.js';
 import './helpers.js';
 
 const input = JSON.parse(await readFile(new URL('./vectors.json', import.meta.url), 'utf8'));
 const vectors = Array.isArray(input) ? input : input.vectors;
 assert.ok(Array.isArray(vectors) && vectors.length > 0, 'vectors.json must contain a nonempty array');
+
+// ryoku-hub writes its style owner table into the vectors, so the two tables can't drift apart
+test('ryoku-hub and the gate give each card style the same owners', () => {
+  const tables = vectors.filter(vector => vector.kind === 'styleOwners');
+  assert.equal(tables.length, 1);
+  assert.deepEqual(tables[0].owners, CARD_STYLE_OWNERS);
+});
 
 test('cross-language Go vectors', async t => {
   for (const [index, vector] of vectors.entries()) {
@@ -17,10 +25,11 @@ test('cross-language Go vectors', async t => {
         ...(vector.MIKA_KEY || vector.mikaKey ? { MIKA_KEY: vector.MIKA_KEY || vector.mikaKey } : {}),
       };
       const kind = { request: 'RYQ', badge: 'RYB', revoke: 'RYX', design: 'RYD' }[vector.kind] || vector.kind;
-      assert.ok(['RYQ', 'RYB', 'RYX', 'RYD', 'card', 'deviceCard', 'cardDelete', 'pullHolder', 'upload'].includes(kind), 'Unknown vector kind');
+      assert.ok(['RYQ', 'RYB', 'RYX', 'RYD', 'card', 'deviceCard', 'cardDelete', 'pullHolder', 'upload', 'styleOwners'].includes(kind), 'Unknown vector kind');
       let result, valid = false;
       try {
-        if (kind === 'card') valid = await verifyCard(vector.record, unbase64(vector.deviceKey));
+        if (kind === 'styleOwners') valid = isDeepStrictEqual(vector.owners, CARD_STYLE_OWNERS);
+        else if (kind === 'card') valid = await verifyCard(vector.record, unbase64(vector.deviceKey));
         else if (kind === 'deviceCard') valid = await verifyDeviceCard(vector.record);
         else if (kind === 'cardDelete') valid = await verifyDelete({ id: vector.id, at: vector.at, sig: vector.sig }, [unbase64(vector.deviceKey)], vector.now);
         else if (kind === 'pullHolder') { await verifyHolder(vector.holder, vector.cards, env, vector.now); valid = true; }

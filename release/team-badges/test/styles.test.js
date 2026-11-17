@@ -153,7 +153,8 @@ test('a revocation that skipped the route withholds the styled card at once and 
   const state = await setup(), friend = await keys(), keeper = await keys();
   const friendId = await cardId(friend.raw), keeperId = await cardId(keeper.raw);
   const badgeId = await publish(state), friendBadge = await publish(state, friend, { login: 'friend' });
-  await publish(state, keeper, { login: 'keeper' });
+  // the style's owner on a second machine, matched without case
+  await publish(state, keeper, { login: 'NEUR0MAP' });
   // the styled card names its own key too, which must not keep it in a batch once the badge is gone
   const styled = await styledRecord(state.device, { device: base64(state.device.raw) }), friendClassic = await deviceRecord(friend), kept = await styledRecord(keeper);
   for (const value of [styled, friendClassic, kept]) assert.equal((await putCard(state, value)).status, 200);
