@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Changed
+- `bluetooth/ryoku-bt-agent`: **the pairing agent no longer wakes every second.**
+  The helper holds `bluetoothctl`'s stdin open with `sleep infinity`, as the
+  Hyperion unit did, instead of `tail -f /dev/null`.
 - `audio/ryoku-volume`: **Volume boost reads the shared `audio.boost` setting.**
   The 150% limit no longer depends on which bar is active.
 

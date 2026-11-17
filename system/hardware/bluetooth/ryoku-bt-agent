@@ -4,8 +4,8 @@
 # KeyboardDisplay is the capability BLE HID devices (gamepads, keyboards) pair
 # with: they confirm a numeric passkey, and bluetoothd denies the bond when no
 # agent can answer. bluetoothctl exits at stdin EOF when it is not attached to a
-# terminal, so stdin is held open; the agent then sits idle and answers the
-# prompts bluetoothd sends it.
+# terminal, so sleep holds stdin open (tail -f wakes every second); the agent
+# then sits idle and answers the prompts bluetoothd sends it.
 #
 # bluetoothctl also prints a line for every advertising packet of every nearby
 # device while anything scans (hundreds a minute, #869), and that all lands in the
@@ -40,4 +40,4 @@ if [[ ${1:-} == --filter ]]; then
   exit
 fi
 
-tail -f /dev/null | bluetoothctl --agent KeyboardDisplay 2>&1 | filter
+sleep infinity | bluetoothctl --agent KeyboardDisplay 2>&1 | filter
