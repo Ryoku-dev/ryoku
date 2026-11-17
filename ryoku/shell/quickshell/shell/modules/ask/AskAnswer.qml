@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import Ryoku.Ui.Singletons
+import "../../services/lib/markdown.js" as Md
 
 Item {
     id: root
@@ -142,7 +143,7 @@ Item {
         TextEdit {
             width: parent.width
             visible: text.length > 0
-            text: String(root.sessionData.answer || "").replace(/([^\n])\n(?!\n)/g, "$1  \n")
+            text: Md.prepare(root.sessionData.answer)
             textFormat: TextEdit.MarkdownText
             color: Tokens.inkDim
             font.family: Tokens.ui
@@ -152,7 +153,11 @@ Item {
             selectByMouse: true
             selectionColor: Tokens.bone
             selectedTextColor: Tokens.inkOnBone
-            onLinkActivated: url => Spawn.runApp(["xdg-open", url], { label: "browser" })
+            onLinkActivated: url => {
+                const safe = Md.safeUrl(url);
+                if (safe.length > 0)
+                    Spawn.runApp(["xdg-open", safe], { label: "browser" });
+            }
         }
 
         Text {

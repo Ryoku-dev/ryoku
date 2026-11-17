@@ -5,6 +5,7 @@ import QtQuick.Controls
 import Quickshell
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
+import "../../services/lib/markdown.js" as Md
 
 Item {
     id: root
@@ -208,6 +209,7 @@ Item {
                                 visible: row.modelData.kind !== "tool" && text.length > 0
                                 text: row.modelData.kind === "user" && row.modelData.handoff
                                     ? I18n.tr("From Ask: %1").arg(row.modelData.handoff.question || row.modelData.text || "")
+                                    : row.modelData.kind === "text" ? Md.prepare(row.modelData.text)
                                     : String(row.modelData.text || "")
                                 textFormat: row.modelData.kind === "text" ? TextEdit.MarkdownText : TextEdit.PlainText
                                 color: row.modelData.kind === "thought" ? Tokens.inkMuted : Tokens.inkDim
@@ -217,7 +219,11 @@ Item {
                                 wrapMode: TextEdit.Wrap
                                 readOnly: true
                                 selectByMouse: true
-                                onLinkActivated: url => Spawn.runApp(["xdg-open", url], { label: "browser" })
+                                onLinkActivated: url => {
+                                    const safe = Md.safeUrl(url);
+                                    if (safe.length > 0)
+                                        Spawn.runApp(["xdg-open", safe], { label: "browser" });
+                                }
                             }
                             Rectangle {
                                 visible: row.modelData.kind === "tool"

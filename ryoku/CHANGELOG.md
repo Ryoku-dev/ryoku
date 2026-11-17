@@ -1,6 +1,11 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **Ask and the Agent chat no longer fetch images from a reply or open
+  arbitrary links.** Images in an answer show as their alt text, so a reply
+  cannot make the shell call out to a host, and only web and mail links open
+  (`shell/quickshell/shell/modules/ask/`,
+  `shell/quickshell/shell/services/lib/markdown.js`).
 - **Rashin names why Claude Code's adapter failed to start.** An agent error now
   carries the adapter's own reason (the log's last line only for a bare internal
   error, never a lone brace), `claude-agent-acp` is preferred over the
