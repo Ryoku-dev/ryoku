@@ -13,10 +13,9 @@ import (
 // bus, streams the raw device state to QML on the "battery" topic, and exposes
 // the same frame over the "battery.state" call. The QML service derives every
 // label, bucket, and signed rate from these raw fields; nothing here formats
-// text. The physical-battery pick mirrors the quirk the QML side carried: the
-// synthetic DisplayDevice drops capacity/health and can flip ready/isPresent
-// once a limited cell sits full on AC, so the readout follows the real
-// battery device when UPower lists one.
+// text. Level and charge state follow the aggregate DisplayDevice; presence,
+// health and capacity follow the physical pack, because the synthetic device
+// drops them and can flip isPresent once a limited cell sits full on AC.
 const (
 	batteryBus      = upowerBus
 	batteryRootPath = upowerPath
@@ -125,8 +124,10 @@ func (b *batteryState) kick() {
 	b.pending.Reset(100 * time.Millisecond)
 }
 
-// state enumerates the devices, picks the physical battery when UPower lists
-// one and the DisplayDevice otherwise, and reads the frame. Desktops without
+// state reads the frame from two devices: level, charge state, rate and times
+// follow the aggregate DisplayDevice (falling back to the active pack, then the
+// first pack), while presence, health and capacity stay on the first physical
+// pack, which keeps the metadata the synthetic device drops. Desktops without
 // a battery report present=false with the line-power state still live.
 func (b *batteryState) state() batteryFrame {
 	frame := batteryFrame{OnAc: true}
@@ -139,53 +140,52 @@ func (b *batteryState) state() batteryFrame {
 		}
 	}
 
-	dev := b.pickDevice()
-	if dev == nil {
-		return frame
+	packs := b.presentBatteries()
+	physical := b.objectFor(batteryDisplayPath)
+	if len(packs) > 0 {
+		physical = packs[0]
 	}
+	level := b.levelDevice(packs, physical)
 
-	var typ, state float64
-	if v, err := dev.GetProperty(batteryDevIface + ".Type"); err == nil {
+	var typ float64
+	if v, err := physical.GetProperty(batteryDevIface + ".Type"); err == nil {
 		typ, _ = toFloat(v.Value())
 	}
-	if v, err := dev.GetProperty(batteryDevIface + ".IsPresent"); err == nil {
+	if v, err := physical.GetProperty(batteryDevIface + ".IsPresent"); err == nil {
 		frame.Present, _ = v.Value().(bool)
 	}
 	frame.Present = frame.Present && int(typ) == upDeviceBattery
 
-	readInto := func(dst *float64, prop string) {
+	readFrom := func(dev batteryObject, dst *float64, prop string) {
 		if v, err := dev.GetProperty(batteryDevIface + "." + prop); err == nil {
 			*dst, _ = toFloat(v.Value())
 		}
 	}
-	readInto(&frame.Pct, "Percentage")
-	if v, err := dev.GetProperty(batteryDevIface + ".State"); err == nil {
-		f, _ := toFloat(v.Value())
-		state = f
-	}
+	var state float64
+	readFrom(level, &frame.Pct, "Percentage")
+	readFrom(level, &state, "State")
 	frame.State = int(state)
-	readInto(&frame.EnergyRate, "EnergyRate")
-	readInto(&frame.Energy, "Energy")
-	readInto(&frame.EnergyFull, "EnergyFull")
-	readInto(&frame.Health, "HealthPercentage")
-	readInto(&frame.TimeToEmpty, "TimeToEmpty")
-	readInto(&frame.TimeToFull, "TimeToFull")
-	if v, err := dev.GetProperty(batteryDevIface + ".HealthSupported"); err == nil {
+	readFrom(level, &frame.EnergyRate, "EnergyRate")
+	readFrom(level, &frame.Energy, "Energy")
+	readFrom(level, &frame.TimeToEmpty, "TimeToEmpty")
+	readFrom(level, &frame.TimeToFull, "TimeToFull")
+	readFrom(physical, &frame.EnergyFull, "EnergyFull")
+	readFrom(physical, &frame.Health, "HealthPercentage")
+	if v, err := physical.GetProperty(batteryDevIface + ".HealthSupported"); err == nil {
 		frame.HealthSupported, _ = v.Value().(bool)
 	}
 	return frame
 }
 
-// pickDevice returns the physical laptop battery when UPower enumerates one,
-// falling back to the synthetic DisplayDevice. The enumeration order is
-// UPower's; the first present battery wins, matching the device list the QML
-// side walked before.
-func (b *batteryState) pickDevice() batteryObject {
+// presentBatteries lists the physical batteries UPower enumerates, in its
+// order, skipping absent packs and the synthetic DisplayDevice.
+func (b *batteryState) presentBatteries() []batteryObject {
 	var paths []dbus.ObjectPath
 	call := b.root.Call(batteryIface+".EnumerateDevices", dbus.Flags(0))
 	if call.Err != nil || call.Store(&paths) != nil {
-		return b.objectFor(batteryDisplayPath)
+		return nil
 	}
+	var packs []batteryObject
 	for _, path := range paths {
 		if path == batteryDisplayPath {
 			continue
@@ -201,11 +201,35 @@ func (b *batteryState) pickDevice() batteryObject {
 		}
 		if pv, err := dev.GetProperty(batteryDevIface + ".IsPresent"); err == nil {
 			if present, ok := pv.Value().(bool); ok && present {
-				return dev
+				packs = append(packs, dev)
 			}
 		}
 	}
-	return b.objectFor(batteryDisplayPath)
+	return packs
+}
+
+// levelDevice is the aggregate unless it is unusable: some UPower versions
+// leave its state unknown once a cell sits full on AC. Then the pack that is
+// charging or discharging carries the machine, else the first pack. On a
+// two-battery laptop the first pack can sit parked at 99 % for hours.
+func (b *batteryState) levelDevice(packs []batteryObject, physical batteryObject) batteryObject {
+	agg := b.objectFor(batteryDisplayPath)
+	if v, err := agg.GetProperty(batteryDevIface + ".State"); err == nil {
+		if f, _ := toFloat(v.Value()); int(f) != upStateUnknown {
+			return agg
+		}
+	}
+	for _, pack := range packs {
+		v, err := pack.GetProperty(batteryDevIface + ".State")
+		if err != nil {
+			continue
+		}
+		f, _ := toFloat(v.Value())
+		if int(f) == upStateCharging || int(f) == upStateDischarging {
+			return pack
+		}
+	}
+	return physical
 }
 
 // publish marshals the whole battery state and hands it to the topic, which

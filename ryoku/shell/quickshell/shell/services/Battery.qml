@@ -62,8 +62,9 @@ Singleton {
         : (discharging ? fmt(timeToEmpty) : "")
 
     readonly property string stateLabel: charging ? I18n.tr("Charging")
-        : (full ? I18n.tr("On AC · Full")
-        : (discharging ? I18n.tr("Discharging") : I18n.tr("On AC")))
+        : (full ? (onAc ? I18n.tr("On AC · Full") : I18n.tr("Full"))
+        : (discharging ? I18n.tr("Discharging")
+        : (onAc ? I18n.tr("On AC") : I18n.tr("Not charging"))))
 
     function fmt(sec) {
         var s = Math.max(0, Math.round(sec));

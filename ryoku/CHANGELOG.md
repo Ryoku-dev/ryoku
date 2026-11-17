@@ -12,6 +12,11 @@
   deprecated `claude-code-acp`, and an adapter whose bundled Claude never
   installed runs on the Claude Code already on the box
   (`rashin/internal/harness/`).
+- **Two-battery laptops read the combined charge.** The daemon's battery
+  frame takes level, state, rate and time from UPower's aggregate (then the
+  active pack, then the first), keeps presence, health and capacity on the
+  physical pack, and the popout only says On AC when the adapter is plugged
+  in (`ryoku/shell/ipc/battery.go`).
 - **The bar's battery, brightness and volume readouts come from the shell
   daemon.** UPower, the panel backlight and the PipeWire default levels are
   read once in Go and streamed on the `battery`, `backlight` and `audio`

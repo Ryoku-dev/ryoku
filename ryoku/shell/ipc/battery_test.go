@@ -38,60 +38,119 @@ func batteryDeviceProps(typ uint32, present bool, extra map[string]dbus.Variant)
 	return props
 }
 
-func TestBatteryStatePicksPhysicalBatteryOverDisplayDevice(t *testing.T) {
-	// The quirk this pins: a cell held at a charge limit on AC reports
-	// pending-charge and full health only on the physical device; the synthetic
-	// DisplayDevice drops health and can flip presence. The readout must follow
-	// the physical battery.
-	bat := &fakeBatteryObject{props: batteryDeviceProps(upDeviceBattery, true, map[string]dbus.Variant{
-		batteryDevIface + ".Percentage":       dbus.MakeVariant(81.0),
-		batteryDevIface + ".State":            dbus.MakeVariant(uint32(upStatePendingCharge)),
-		batteryDevIface + ".EnergyRate":       dbus.MakeVariant(12.5),
-		batteryDevIface + ".Energy":           dbus.MakeVariant(40.0),
+const (
+	testBat0    = dbus.ObjectPath("/org/freedesktop/UPower/devices/battery_BAT0")
+	testBat1    = dbus.ObjectPath("/org/freedesktop/UPower/devices/battery_BAT1")
+	testAdapter = dbus.ObjectPath("/org/freedesktop/UPower/devices/line_power_ADP0")
+)
+
+func testBatteryState(onBattery bool, devices map[dbus.ObjectPath]*fakeBatteryObject) *batteryState {
+	paths := []dbus.ObjectPath{}
+	for _, path := range []dbus.ObjectPath{testAdapter, testBat0, testBat1, batteryDisplayPath} {
+		if _, ok := devices[path]; ok {
+			paths = append(paths, path)
+		}
+	}
+	root := &fakeBatteryObject{props: map[string]dbus.Variant{
+		batteryIface + ".OnBattery": dbus.MakeVariant(onBattery),
+		"__paths":                   dbus.MakeVariant(paths),
+	}}
+	return &batteryState{
+		root: root,
+		objectFor: func(path dbus.ObjectPath) batteryObject {
+			if dev, ok := devices[path]; ok {
+				return dev
+			}
+			return &fakeBatteryObject{props: map[string]dbus.Variant{}}
+		},
+	}
+}
+
+func packProps(pct float64, state uint32, extra map[string]dbus.Variant) *fakeBatteryObject {
+	props := map[string]dbus.Variant{
+		batteryDevIface + ".Percentage": dbus.MakeVariant(pct),
+		batteryDevIface + ".State":      dbus.MakeVariant(state),
+	}
+	for k, v := range extra {
+		props[k] = v
+	}
+	return &fakeBatteryObject{props: batteryDeviceProps(upDeviceBattery, true, props)}
+}
+
+func TestBatteryStateLevelFollowsAggregateHealthStaysOnPack(t *testing.T) {
+	// Two packs: BAT0 is parked at 99 % pending-charge while BAT1 carries the
+	// load. The aggregate says 55 % discharging; presence, health and capacity
+	// still come from the first physical pack.
+	bat0 := packProps(99, upStatePendingCharge, map[string]dbus.Variant{
 		batteryDevIface + ".EnergyFull":       dbus.MakeVariant(49.5),
 		batteryDevIface + ".HealthSupported":  dbus.MakeVariant(true),
 		batteryDevIface + ".HealthPercentage": dbus.MakeVariant(96.0),
-		batteryDevIface + ".TimeToEmpty":      dbus.MakeVariant(0.0),
-		batteryDevIface + ".TimeToFull":       dbus.MakeVariant(1800.0),
-	})}
-	line := &fakeBatteryObject{props: batteryDeviceProps(upDeviceLinePower, true, nil)}
-	display := &fakeBatteryObject{props: batteryDeviceProps(upDeviceBattery, true, map[string]dbus.Variant{
-		batteryDevIface + ".Percentage": dbus.MakeVariant(81.0),
-		batteryDevIface + ".State":      dbus.MakeVariant(uint32(upStateCharging)),
-	})}
-	root := &fakeBatteryObject{props: map[string]dbus.Variant{
-		batteryIface + ".OnBattery": dbus.MakeVariant(false),
-		"__paths": dbus.MakeVariant([]dbus.ObjectPath{
-			"/org/freedesktop/UPower/devices/line_power_ADP0",
-			"/org/freedesktop/UPower/devices/battery_BAT0",
-			batteryDisplayPath,
-		}),
-	}}
-	b := &batteryState{
-		root: root,
-		objectFor: func(path dbus.ObjectPath) batteryObject {
-			switch path {
-			case "/org/freedesktop/UPower/devices/battery_BAT0":
-				return bat
-			case "/org/freedesktop/UPower/devices/line_power_ADP0":
-				return line
-			}
-			return display
-		},
-	}
+	})
+	bat1 := packProps(20, upStateDischarging, nil)
+	display := packProps(55, upStateDischarging, map[string]dbus.Variant{
+		batteryDevIface + ".EnergyRate":  dbus.MakeVariant(11.5),
+		batteryDevIface + ".TimeToEmpty": dbus.MakeVariant(5400.0),
+		batteryDevIface + ".EnergyFull":  dbus.MakeVariant(99.0),
+	})
+	b := testBatteryState(true, map[dbus.ObjectPath]*fakeBatteryObject{
+		testAdapter:        {props: batteryDeviceProps(upDeviceLinePower, true, nil)},
+		testBat0:           bat0,
+		testBat1:           bat1,
+		batteryDisplayPath: display,
+	})
 
 	frame := b.state()
-	if !frame.Present || frame.Pct != 81.0 || frame.State != upStatePendingCharge {
-		t.Fatalf("frame = %+v, want BAT0 pending-charge at 81", frame)
+	if frame.Pct != 55 || frame.State != upStateDischarging {
+		t.Fatalf("level must follow the aggregate, got %+v", frame)
+	}
+	if frame.EnergyRate != 11.5 || frame.TimeToEmpty != 5400 {
+		t.Fatalf("rate and time must follow the aggregate: %+v", frame)
+	}
+	if !frame.Present || !frame.HealthSupported || frame.Health != 96 || frame.EnergyFull != 49.5 {
+		t.Fatalf("presence, health and capacity must stay on the physical pack: %+v", frame)
+	}
+	if frame.OnAc {
+		t.Fatalf("OnBattery=true must not read as on AC: %+v", frame)
+	}
+}
+
+func TestBatteryStateUnknownAggregateFallsBackToActivePack(t *testing.T) {
+	// Some UPower versions leave the aggregate state unknown with a cell full
+	// on AC; the charging pack then carries the readout, not the parked first.
+	bat0 := packProps(99, upStateFullyCharged, nil)
+	bat1 := packProps(40, upStateCharging, map[string]dbus.Variant{
+		batteryDevIface + ".EnergyRate": dbus.MakeVariant(20.0),
+		batteryDevIface + ".TimeToFull": dbus.MakeVariant(1800.0),
+	})
+	display := packProps(70, upStateUnknown, nil)
+	b := testBatteryState(false, map[dbus.ObjectPath]*fakeBatteryObject{
+		testBat0:           bat0,
+		testBat1:           bat1,
+		batteryDisplayPath: display,
+	})
+
+	frame := b.state()
+	if frame.Pct != 40 || frame.State != upStateCharging || frame.EnergyRate != 20 || frame.TimeToFull != 1800 {
+		t.Fatalf("expected the charging pack to win, got %+v", frame)
 	}
 	if !frame.OnAc {
-		t.Fatal("OnAc: OnBattery=false must read as on AC")
+		t.Fatalf("OnBattery=false must read as on AC: %+v", frame)
 	}
-	if !frame.HealthSupported || frame.Health != 96.0 || frame.EnergyFull != 49.5 {
-		t.Fatalf("health/energy not read from the physical device: %+v", frame)
-	}
-	if frame.TimeToFull != 1800.0 || frame.EnergyRate != 12.5 {
-		t.Fatalf("rates/times not read from the physical device: %+v", frame)
+}
+
+func TestBatteryStateUnknownAggregateWithIdlePacksUsesFirstPack(t *testing.T) {
+	bat0 := packProps(81, upStatePendingCharge, nil)
+	bat1 := packProps(30, upStateEmpty, nil)
+	display := packProps(0, upStateUnknown, nil)
+	b := testBatteryState(false, map[dbus.ObjectPath]*fakeBatteryObject{
+		testBat0:           bat0,
+		testBat1:           bat1,
+		batteryDisplayPath: display,
+	})
+
+	frame := b.state()
+	if frame.Pct != 81 || frame.State != upStatePendingCharge {
+		t.Fatalf("expected the first pack, got %+v", frame)
 	}
 }
 
