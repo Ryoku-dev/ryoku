@@ -1595,17 +1595,31 @@ func TestFailedRiceCaptureLeavesNoRice(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// The rices folder stops taking writes, so the staging folder cannot be made
-	// for a new capture or a recapture. A process-wide file size limit here would
-	// also cap the test log the test binary writes to.
-	if err := os.Chmod(ricesDir(), 0o555); err != nil {
+	dir := ricesDir()
+	aside := dir + ".aside"
+	if err := os.Rename(dir, aside); err != nil {
+		t.Fatal(err)
+	}
+	restored := false
+	t.Cleanup(func() {
+		if restored {
+			return
+		}
+		_ = os.Remove(dir)
+		_ = os.Rename(aside, dir)
+	})
+	if err := os.WriteFile(dir, nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	_, errNew := captureRice("Probe B", nil)
 	_, errAgain := captureRice("Probe A", nil)
-	if err := os.Chmod(ricesDir(), 0o755); err != nil {
+	if err := os.Remove(dir); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.Rename(aside, dir); err != nil {
+		t.Fatal(err)
+	}
+	restored = true
 
 	if errNew == nil || errAgain == nil {
 		t.Fatalf("captures past the size limit succeeded: %v, %v", errNew, errAgain)
