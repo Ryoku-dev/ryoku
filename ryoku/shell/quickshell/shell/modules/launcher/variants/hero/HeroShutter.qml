@@ -5,6 +5,7 @@ import Ryoku.Ui.Singletons
 import "../../shared/Singletons"
 import "../../shared/lib/launcherstate.js" as LauncherState
 import "../../shared/lib/weather.js" as WeatherMath
+import "../../shared/lib/dateline.js" as DateLine
 import "../../shared" as Shared
 import "." as HeroVariant
 
@@ -52,7 +53,7 @@ Item {
         return hour < 5 ? I18n.tr("GOOD NIGHT") : hour < 12 ? I18n.tr("GOOD MORNING")
             : hour < 18 ? I18n.tr("GOOD AFTERNOON") : I18n.tr("GOOD EVENING");
     }
-    readonly property string dateText: Qt.locale("en_US").toString(now, "ddd, MMM d")
+    readonly property string dateText: DateLine.dateLine(TimeFormat.locale, now, false)
 
     // The hero art and its text were authored light-on-dark: the edge vignette
     // and the raised-text emboss are black so light glyphs separate from the
@@ -253,7 +254,7 @@ Item {
         Text {
             anchors.right: parent.right
             visible: LauncherConfig.showWeather && Weather.available && !root.compressed
-            text: Weather.condition
+            text: Weather.conditionText
             color: Theme.subtle
             style: Text.Raised
             styleColor: Qt.rgba(root.shade, root.shade, root.shade, 0.86)

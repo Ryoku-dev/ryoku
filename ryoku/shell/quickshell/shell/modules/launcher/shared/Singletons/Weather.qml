@@ -2,6 +2,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Ryoku.Ui.Singletons
 import "../lib/weather.js" as Model
 
 // Live weather for HeroShutter. Open-Meteo needs no API key; location resolves
@@ -30,6 +31,18 @@ Singleton {
     // public contract, identical to the old wttr.in version.
     property string temp: ""
     property string condition: ""
+    // lib/weather.js labels stay English; this is the word the UI shows
+    readonly property string conditionText: {
+        switch (root.condition) {
+        case "Clear": return I18n.tr("Clear sky");
+        case "Cloudy": return I18n.tr("Cloudy");
+        case "Fog": return I18n.tr("Fog");
+        case "Thunder": return I18n.tr("Thunderstorm");
+        case "Snow": return I18n.tr("Snow");
+        case "Rain": return I18n.tr("Rain");
+        default: return root.condition;
+        }
+    }
     property string glyph: "cloud"
     property bool available: false
 

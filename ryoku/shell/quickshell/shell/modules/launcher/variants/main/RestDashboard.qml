@@ -4,6 +4,7 @@ import Quickshell.Widgets
 import "../../shared/Singletons"
 import "metrics.js" as MainMetrics
 import "../../shared/lib/weather.js" as Wx
+import "../../shared/lib/dateline.js" as DateLine
 import "../../shared" as Shared
 import "." as MainVariant
 import Ryoku.Ui.Singletons
@@ -36,7 +37,7 @@ Item {
     readonly property var now: clock.date
     readonly property string hh: TimeFormat.is24h ? Qt.formatTime(now, "HH") : String((now.getHours() % 12) || 12)
     readonly property string mm: Qt.formatTime(now, "mm")
-    readonly property string date: Qt.locale("en_US").toString(now, "dddd, MMM d")
+    readonly property string date: DateLine.dateLine(TimeFormat.locale, now, true)
     readonly property string greeting: {
         var h = now.getHours();
         return h < 5 ? I18n.tr("Good night") : h < 12 ? I18n.tr("Good morning") : h < 18 ? I18n.tr("Good afternoon") : I18n.tr("Good evening");
@@ -339,7 +340,7 @@ Item {
             Text {
                 anchors.right: parent.right
                 visible: root.wxReady
-                text: Weather.condition + (Weather.city.length ? "  \u00b7  " + Weather.city : "")
+                text: Weather.conditionText + (Weather.city.length ? "  \u00b7  " + Weather.city : "")
                 color: Theme.subtle
                 font.family: Theme.font
                 font.pixelSize: Metrics.fontSubtitle * root.s

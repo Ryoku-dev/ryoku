@@ -4,6 +4,7 @@ import QtQuick
 import Quickshell
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
+import "../../shared/lib/dateline.js" as DateLine
 
 Item {
     id: root
@@ -17,8 +18,7 @@ Item {
 
     property var now: new Date()
     readonly property string clockStr: TimeFormat.format(root.now)
-    readonly property string dateStr: Qt.locale("en_US").toString(
-        root.now, "dddd, MMM d")
+    readonly property string dateStr: DateLine.dateLine(TimeFormat.locale, root.now, true)
     readonly property string greeting: {
         var hour = root.now.getHours();
         return hour < 5 ? I18n.tr("GOOD NIGHT") : hour < 12 ? I18n.tr("GOOD MORNING")

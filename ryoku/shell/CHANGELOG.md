@@ -50,6 +50,9 @@
 - **Music widgets use less memory for artwork and local GIFs (#850).** The
   backdrop decodes images at the widget's own size, releases its artwork while
   the widget is hidden, and no longer keeps a second cached copy of stills.
+- **The launcher's date and weather follow the language (#838).** The day and
+  month were always English and the condition word was never translated; the
+  date now uses your regional formats and the condition goes through the catalog.
 - **The Game Bar's Audio card fits its app list and resizes (#839).** The card
   was too short for three app rows, so the last one hung off the bottom, and it
   had no grip. It is taller by default and drags to any size, with the list
