@@ -1,8 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
+	"os/exec"
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/godbus/dbus/v5"
 )
 
 // argbToRGBA rewrites each pixel from ARGB (network order) to RGBA.
@@ -91,6 +97,64 @@ func TestParseTrayService(t *testing.T) {
 		bus, path := parseTrayService(c.service, c.sender)
 		if bus != c.wantBus || string(path) != c.wantPath {
 			t.Errorf("parseTrayService(%q,%q) = (%q,%q), want (%q,%q)", c.service, c.sender, bus, path, c.wantBus, c.wantPath)
+		}
+	}
+}
+
+// A path-only registration (libayatana-appindicator) must be announced to hosts
+// as "busname/path": the bare path names no bus, so a host cannot reach it.
+func TestTrayRegisteredSignalCarriesBusName(t *testing.T) {
+	bin, err := exec.LookPath("dbus-daemon")
+	if err != nil {
+		t.Skip("dbus-daemon not installed")
+	}
+	cmd := exec.Command(bin, "--session", "--nofork", "--print-address=1")
+	out, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
+	addr, err := bufio.NewReader(out).ReadString('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr = strings.TrimSpace(addr)
+
+	connect := func() *dbus.Conn {
+		c, err := dbus.Connect(addr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = c.Close() })
+		return c
+	}
+	watcher, host := connect(), connect()
+	if err := host.AddMatchSignal(dbus.WithMatchInterface(watcherIface)); err != nil {
+		t.Fatal(err)
+	}
+	sigs := make(chan *dbus.Signal, 4)
+	host.Signal(sigs)
+
+	ts := &trayState{conn: watcher, items: map[string]*trayItem{}, isWatcher: true}
+	ts.addItem("/org/ayatana/NotificationItem/x", ":1.99")
+
+	want := ":1.99/org/ayatana/NotificationItem/x"
+	timeout := time.After(5 * time.Second)
+	for {
+		select {
+		case sig := <-sigs:
+			if sig.Name != watcherIface+".StatusNotifierItemRegistered" {
+				continue
+			}
+			if got, _ := sig.Body[0].(string); got != want {
+				t.Fatalf("StatusNotifierItemRegistered(%q), want %q", got, want)
+			}
+			return
+		case <-timeout:
+			t.Fatal("no StatusNotifierItemRegistered signal")
 		}
 	}
 }

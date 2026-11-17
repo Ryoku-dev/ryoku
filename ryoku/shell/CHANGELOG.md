@@ -61,6 +61,12 @@
   The Orpheus control card pinned the handle at 50% and spawned one `ddcutil`
   per pointer move; writes now go one at a time with the latest value winning,
   and the level is read from the monitor when the card opens.
+- **Spotify and other AppIndicator apps show in the tray again.** An app that
+  registers its tray item by object path only (libayatana-appindicator, e.g. the
+  Spotify Flatpak) was announced to tray hosts as that bare path, so a host that
+  joined before the app (the Quickshell bar) could not reach it and drew
+  nothing until the shell restarted. The watcher now announces the item as
+  `busname/path`, the same key it lists and unregisters (`ipc/tray.go`).
 - **Wallpaper Engine video wallpapers animate on hover in the picker (#807).**
   Only local videos got the small preview clip, so workshop video cards stayed
   still; they now get one too, built on the thumbnail job limit and skipped
