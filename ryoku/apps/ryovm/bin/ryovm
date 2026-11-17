@@ -277,6 +277,16 @@ create_special() {
 
 emit() { printf '%s\n' "$1"; }
 
+create_cleanup_partial() {
+	local name="$1" created="$2" disk
+	case "$name" in ""|.|..|*/*) return 0 ;; esac
+	[ "$created" = true ] && [ -d "$vms_dir/$name" ] && [ ! -L "$vms_dir/$name" ] || return 0
+	for disk in "$vms_dir/$name/"*.qcow2; do
+		[ ! -e "$disk" ] && [ ! -L "$disk" ] || return 0
+	done
+	rm -rf -- "${vms_dir:?}/${name:?}" || true
+}
+
 cmd_create() {
 	have quickget || { emit '{"phase":"error","message":"quickget is not installed"}'; exit 1; }
 	local os="${1:-}" release="${2:-}" edition="${3:-}"
@@ -284,6 +294,8 @@ cmd_create() {
 	mkdir -p "$vms_dir"; cd "$vms_dir"
 	local name="$os-$release"; [ -n "$edition" ] && name="$name-$edition"
 	[ -e "$vms_dir/$name.conf" ] && { emit "{\"phase\":\"error\",\"message\":\"$name already exists\"}"; exit 1; }
+	local new_dir=true
+	[ ! -e "$vms_dir/$name" ] && [ ! -L "$vms_dir/$name" ] || new_dir=false
 
 	local child="" stage=""
 	# set +e in the handler: wait returns the killed child's non-zero status, which
@@ -308,7 +320,7 @@ cmd_create() {
 				emit '{"phase":"config"}'
 				quickget --create-config "$name" "$stage/$base" >/dev/null 2>&1 & child=$!
 				local crc=0; wait "$child" || crc=$?; child=""
-				[ "$crc" -eq 0 ] || { rm -rf "$stage"; emit '{"phase":"error","message":"could not write the VM config"}'; exit 1; }
+				[ "$crc" -eq 0 ] || { rm -rf "$stage"; create_cleanup_partial "$name" "$new_dir"; emit '{"phase":"error","message":"could not write the VM config"}'; exit 1; }
 				rm -rf "$stage"
 				grep -q '^ryovm_os=' "$vms_dir/$name.conf" 2>/dev/null || echo "ryovm_os=\"$os\"" >>"$vms_dir/$name.conf"
 				emit "{\"phase\":\"done\",\"name\":\"$name\"}"
@@ -348,8 +360,7 @@ cmd_create() {
 		mi="$(conf_get "$vms_dir/$made.conf" iso)"
 		case "$mi" in ""|/*) : ;; *) mi="$vms_dir/$mi" ;; esac
 		if [ -n "$mi" ] && [ ! -f "$mi" ]; then
-			# never rm a dir that holds a real disk; a blocked download has none.
-			ls "${vms_dir:?}/${made:?}/"*.qcow2 >/dev/null 2>&1 || rm -rf "${vms_dir:?}/${made:?}"
+			[ "$made" != "$name" ] || create_cleanup_partial "$name" "$new_dir"
 			rm -f "${vms_dir:?}/${made:?}.conf"
 			case "$g" in
 				windows|windows-server)
@@ -375,6 +386,9 @@ cmd_create() {
 		esac
 		emit "{\"phase\":\"done\",\"name\":\"$made\"}"
 	else
+		if [ -z "$made" ] && [ ! -e "$vms_dir/$name.conf" ]; then
+			create_cleanup_partial "$name" "$new_dir"
+		fi
 		emit "$(jq -cn --arg m "download failed${lastline:+: $lastline}" '{phase:"error",message:$m}')"
 		exit 1
 	fi

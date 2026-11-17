@@ -23,6 +23,7 @@ for finer detail.
   user is no longer in a mango session.
 
 ### Fixed
+- **Failed VM downloads clear their new partial folder so trying again keeps the real error**
 - **Dictation shows the current speech model, or Custom when it was set outside the Hub**
 - **The Italian translation keeps the Fish shell name unchanged after the next catalog sync**
 - The Game Bar holds the pointer over the whole screen while it is open, so a
