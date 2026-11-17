@@ -107,6 +107,10 @@ func TestApplyIPv4Refuses(t *testing.T) {
 	}{
 		{ipConfig{Method: "manual", Address: "192.168.1.50"}, "192.168.1.50/24"},
 		{ipConfig{Method: "manual", Address: "fe80::1/64"}, "192.168.1.50/24"},
+		{ipConfig{Method: "manual", Address: "0.0.0.0/24"}, "cannot be"},
+		{ipConfig{Method: "manual", Address: "127.0.0.1/8"}, "cannot be"},
+		{ipConfig{Method: "manual", Address: "224.0.0.5/24"}, "cannot be"},
+		{ipConfig{Method: "manual", Address: "192.168.1.50/24", Gateway: "0.0.0.0"}, "invalid gateway"},
 		{ipConfig{Method: "manual", Address: "192.168.1.50/24", Gateway: "10.0.0.1"}, "outside"},
 		{ipConfig{Method: "manual", Address: "192.168.1.50/24", Gateway: "nope"}, "invalid gateway"},
 		{ipConfig{Method: "auto", DNS: []string{"2620:fe::fe"}}, "IPv4 DNS"},

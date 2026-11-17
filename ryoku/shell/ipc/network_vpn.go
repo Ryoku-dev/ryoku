@@ -312,11 +312,12 @@ func (n *networkState) wgSecrets(path dbus.ObjectPath) (map[string]dbus.Variant,
 
 // wgExportDir holds exported tunnels: under the runtime dir, which only the
 // user can read and which is cleared at logout, since a .conf carries the
-// private key.
+// private key. It is empty when there is no runtime dir; a key is never
+// written to a shared directory like /tmp.
 func wgExportDir() string {
 	base := os.Getenv("XDG_RUNTIME_DIR")
 	if base == "" {
-		base = os.TempDir()
+		return ""
 	}
 	return filepath.Join(base, "ryoku-wireguard")
 }
@@ -347,6 +348,9 @@ func (n *networkState) wgExport(uuid string) (string, error) {
 		iface = "wg0"
 	}
 	dir := wgExportDir()
+	if dir == "" {
+		return "", fmt.Errorf("no private runtime directory to write the tunnel's keys to")
+	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
@@ -480,7 +484,7 @@ func (n *networkState) wgReplace(uuid, path string) (string, error) {
 	if err := n.obj(old.path).Call(nmSettConnIface+".Delete", 0).Err; err != nil {
 		return "", err
 	}
-	if filepath.Dir(filepath.Clean(path)) == wgExportDir() {
+	if dir := wgExportDir(); dir != "" && filepath.Dir(filepath.Clean(path)) == dir {
 		_ = os.Remove(path)
 	}
 	return newUuid, nil

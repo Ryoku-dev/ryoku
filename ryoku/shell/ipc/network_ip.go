@@ -284,6 +284,9 @@ func applyIPv4(g map[string]dbus.Variant, cfg ipConfig) (map[string]dbus.Variant
 		if err != nil || !prefix.Addr().Is4() || prefix.Bits() < 1 || prefix.Bits() > 32 {
 			return nil, fmt.Errorf("enter the address as 192.168.1.50/24")
 		}
+		if !usableIPv4(prefix.Addr()) {
+			return nil, fmt.Errorf("%s cannot be this connection's address", prefix.Addr())
+		}
 		out["method"] = dbus.MakeVariant("manual")
 		out["address-data"] = dbus.MakeVariant([]map[string]dbus.Variant{{
 			"address": dbus.MakeVariant(prefix.Addr().String()),
@@ -291,7 +294,7 @@ func applyIPv4(g map[string]dbus.Variant, cfg ipConfig) (map[string]dbus.Variant
 		}})
 		if gw := strings.TrimSpace(cfg.Gateway); gw != "" {
 			addr, err := netip.ParseAddr(gw)
-			if err != nil || !addr.Is4() {
+			if err != nil || !addr.Is4() || !usableIPv4(addr) {
 				return nil, fmt.Errorf("invalid gateway %q", gw)
 			}
 			if !prefix.Masked().Contains(addr) {
@@ -323,4 +326,8 @@ func applyIPv4(g map[string]dbus.Variant, cfg ipConfig) (map[string]dbus.Variant
 		out["ignore-auto-dns"] = dbus.MakeVariant(true)
 	}
 	return out, nil
+}
+
+func usableIPv4(a netip.Addr) bool {
+	return !a.IsUnspecified() && !a.IsLoopback() && !a.IsMulticast() && a != netip.AddrFrom4([4]byte{255, 255, 255, 255})
 }

@@ -18,6 +18,10 @@
   The daemon now matches every profile by the SSID it joins, leaving out a
   hotspot that shares the name, for the bar popout, the sidebar Wi-Fi card and
   orpheus (`ipc/network.go`).
+- **A manual IP address, and a tunnel's keys, are checked harder.** A manual
+  address or gateway of 0.0.0.0, loopback, multicast or broadcast is refused,
+  and a tunnel's .conf is only written under the runtime directory, never
+  into /tmp when that is missing.
 - **An imported WireGuard tunnel starts switched off.** nmcli saves an
   imported tunnel with auto-connect on and brings it up at once, so a tunnel
   that routes everything took over the machine's traffic the moment it was

@@ -151,3 +151,15 @@ PersistentKeepalive = 25
 		t.Fatal("a tunnel without a private key was exported")
 	}
 }
+
+// A tunnel's private key is only ever written under the user's runtime dir.
+func TestWgExportDirNeedsRuntimeDir(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", "")
+	if dir := wgExportDir(); dir != "" {
+		t.Fatalf("export dir without a runtime dir = %q, want none", dir)
+	}
+	t.Setenv("XDG_RUNTIME_DIR", "/run/user/1000")
+	if dir := wgExportDir(); dir != "/run/user/1000/ryoku-wireguard" {
+		t.Fatalf("export dir = %q", dir)
+	}
+}
