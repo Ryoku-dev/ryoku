@@ -48,6 +48,9 @@ const maxProfileEnvelopeBytes = 24 << 20
 
 var profilePictureName = regexp.MustCompile(`^[a-z0-9_-]+\.(png|jpg|jpeg|gif)$`)
 
+// the pictures that may move stay home: a .ryoprofile carries their still frame
+var profileMovingName = regexp.MustCompile(`^hero\.(gif|webp|mp4|webm|mkv)$`)
+
 // JSON needs its own envelope bound and UTF-8 rejection before Unmarshal,
 // which otherwise silently replaces malformed bytes.
 func readProfileFile(path string, limit int64) ([]byte, error) {
@@ -70,6 +73,25 @@ func profileObject(raw json.RawMessage) (map[string]json.RawMessage, error) {
 		return nil, fmt.Errorf("expected a profile object")
 	}
 	return fields, nil
+}
+
+// profileWithSource points the custom hero at another file, the other fields kept.
+func profileWithSource(raw json.RawMessage, source string) (json.RawMessage, error) {
+	fields, err := profileObject(raw)
+	if err != nil {
+		return nil, err
+	}
+	hero, err := profileObject(fields["hero"])
+	if err != nil {
+		return nil, err
+	}
+	if hero["source"], err = json.Marshal(source); err != nil {
+		return nil, err
+	}
+	if fields["hero"], err = json.Marshal(hero); err != nil {
+		return nil, err
+	}
+	return json.Marshal(fields)
 }
 
 func profileChoice(raw json.RawMessage, choices ...string) error {
@@ -285,15 +307,26 @@ func exportProfile(dstPath string) error {
 	env := ryoEnvelope{Ryoprofile: 1, Profile: json.RawMessage(raw)}
 	if m.Hero.Kind == "custom" && m.Hero.Source != "" {
 		name := m.Hero.Source
-		if !profilePictureName.MatchString(name) || len(name) > 128 {
+		if !profilePictureName.MatchString(name) && !profileMovingName.MatchString(name) || len(name) > 128 {
 			return fmt.Errorf("custom hero needs a bare image filename")
 		}
-		img, err := readPictureFile(filepath.Join(profileHeroDir(), name))
-		if err != nil {
-			return err
-		}
-		if _, err := decodePicture(img); err != nil {
-			return fmt.Errorf("custom hero image: %w", err)
+		var img []byte
+		if profileMovingName.MatchString(name) {
+			// a picture that may move travels as one still frame, so the design stays a picture
+			if img, err = heroStill(name); err != nil {
+				return fmt.Errorf("custom hero image: %w", err)
+			}
+			if env.Profile, err = profileWithSource(env.Profile, "hero.png"); err != nil {
+				return err
+			}
+			name = "hero.png"
+		} else {
+			if img, err = readPictureFile(filepath.Join(profileHeroDir(), name)); err != nil {
+				return err
+			}
+			if _, err := decodePicture(img); err != nil {
+				return fmt.Errorf("custom hero image: %w", err)
+			}
 		}
 		env.Hero = &ryoHero{Name: name, B64: base64.StdEncoding.EncodeToString(img)}
 	}
@@ -354,15 +387,7 @@ func importProfile(srcPath string) error {
 			return fmt.Errorf(".ryoprofile hero PNG is too large")
 		}
 		if model.Hero.Source != "hero.png" {
-			fields, _ := profileObject(profile)
-			hero, _ := profileObject(fields["hero"])
-			hero["source"] = json.RawMessage(`"hero.png"`)
-			fields["hero"], err = json.Marshal(hero)
-			if err != nil {
-				return err
-			}
-			profile, err = json.Marshal(fields)
-			if err != nil {
+			if profile, err = profileWithSource(profile, "hero.png"); err != nil {
 				return err
 			}
 		}
@@ -394,7 +419,7 @@ func importProfile(srcPath string) error {
 
 func runProfile(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("profile needs export|import|card|code")
+		return fmt.Errorf("profile needs export|import|card|code|picture|wallpaper")
 	}
 	switch args[0] {
 	case "export":
@@ -414,6 +439,17 @@ func runProfile(args []string) error {
 			return fmt.Errorf("profile card needs the rendered picture and a path or --copy")
 		}
 		return writeCard(args[1], args[2])
+	case "picture":
+		if len(args) != 2 {
+			return fmt.Errorf("profile picture needs the chosen file's path")
+		}
+		saved, err := savePicture(args[1])
+		if err != nil {
+			return err
+		}
+		return printJSON(saved)
+	case "wallpaper":
+		return printJSON(liveWallpaper())
 	default:
 		return fmt.Errorf("unknown profile subcommand: %s", args[0])
 	}

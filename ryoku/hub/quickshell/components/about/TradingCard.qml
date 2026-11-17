@@ -335,6 +335,7 @@ Item {
             cardsStoreRoot: card.cardsStoreRoot
             tradedId: card.traded ? String(card.traded.id || "") : ""
             recordPicture: card.recordPicture
+            live: card.moving
             readonly property real aspect: card.heroKind === "default" ? stockAspect : 900 / 1157
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom

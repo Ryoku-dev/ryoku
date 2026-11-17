@@ -521,6 +521,7 @@ Item {
                     : Math.round((root.heroLeft ? root.gutter : column.x + column.width + LithicTokens.space.s5) + (figure.room - width) / 2)
                 y: root.roomy ? flick.height - height : Math.round(figure.sole - height)
                 soft: true
+                live: root.pointed
                 // a figure of dots is the lit side of the stone: bone on the black paper, and
                 // the lightest stone on the light paper, never a negative
                 ink: Lithic.dark ? Lithic.fg : Lithic.stone4

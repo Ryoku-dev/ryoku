@@ -3,6 +3,17 @@
 ## Unreleased
 
 ### Added
+- **Moving card pictures for badge holders.** With a badge, the card's picture
+  can be an animated GIF or WebP or a short video (MP4, WebM or MKV, up to
+  10 MB and 60 seconds), and the card studio offers your live wallpaper when it
+  is a video that fits. It plays, silent and looping, only while you point at
+  the card or Home's plate and Settings is in front with motion allowed; at
+  rest it shows its first frame and decodes nothing. Photo, Black & white and
+  Dots all work on it. Without a badge a moving GIF or WebP keeps its first
+  frame and videos are not offered. Every picture is now checked by its
+  content, not its name, by `ryoku-hub profile picture`; a file over the limit
+  is refused with its size. Shared card pictures and `.ryoprofile` files stay
+  still (`backend/profilepicture.go`, `components/about/CardMotion.qml`).
 - **Installed apps (Apps).** Every app you can open from app search, read from
   `gpk apps --json`, with its size, where it came from and its version. Ryoku's
   own apps (from `ryoku apps list --json`) are pinned on top with Update when a

@@ -24,6 +24,8 @@ Item {
     property Item overlayParent: null
     // more files to list beside pictures (a card design, "*.ryoprofile"); shown with a mark
     property var extraFilters: []
+    // list short videos too (a badge holder's card picture); shown with a mark and their size
+    property bool videos: false
     readonly property bool showing: dialog.visible
 
     signal accepted()
@@ -96,6 +98,7 @@ Item {
         id: files
         folder: host.path === "" ? "" : host.urlOf(host.path)
         nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.gif", "*.bmp", "*.PNG", "*.JPG", "*.JPEG", "*.WEBP"].concat(host.extraFilters)
+            .concat(host.videos ? ["*.mp4", "*.webm", "*.mkv", "*.MP4", "*.WEBM", "*.MKV"] : [])
         showDirsFirst: true
         showHidden: false
         showDotAndDotDot: false
@@ -181,8 +184,10 @@ Item {
                         required property string fileName
                         required property string filePath
                         required property bool fileIsDir
+                        required property real fileSize
                         readonly property bool isChosen: !fileIsDir && host.chosen === filePath
                         readonly property bool picture: !fileIsDir && /\.(png|jpe?g|webp|gif|bmp)$/i.test(fileName)
+                        readonly property bool video: !fileIsDir && /\.(mp4|webm|mkv)$/i.test(fileName)
                         width: grid.cellWidth
                         height: grid.cellHeight
 
@@ -201,7 +206,7 @@ Item {
                             Glyph {
                                 visible: !cell.picture
                                 anchors.centerIn: parent
-                                name: cell.fileIsDir ? "folder" : "description"
+                                name: cell.fileIsDir ? "folder" : cell.video ? "movie" : "description"
                                 size: 34
                                 ink: Lithic.fg3
                             }
@@ -224,7 +229,8 @@ Item {
                             anchors.top: frame.bottom
                             anchors.topMargin: 4
                             width: parent.width - 12
-                            text: cell.fileName
+                            text: !cell.video ? cell.fileName : cell.fileName + " · " + (cell.fileSize < 1048576
+                                ? Math.max(1, Math.round(cell.fileSize / 1024)) + " KB" : (cell.fileSize / 1048576).toFixed(1) + " MB")
                             typeRole: "caption"
                             ink: cell.isChosen ? Lithic.fg : Lithic.fg2
                             elide: Text.ElideMiddle
@@ -277,6 +283,13 @@ Item {
                         sourceSize.height: 720
                         fillMode: Image.PreserveAspectFit
                         asynchronous: true
+                    }
+                    Glyph {
+                        visible: /\.(mp4|webm|mkv)$/i.test(host.shown)
+                        anchors.centerIn: big
+                        name: "movie"
+                        size: 64
+                        ink: Lithic.fg3
                     }
                     Label {
                         anchors.centerIn: big

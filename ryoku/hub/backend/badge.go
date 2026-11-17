@@ -68,6 +68,30 @@ func badgeDesignFor(list teamVerifiedList, b badgeInfo) *badgeDesign {
 	return &badgeDesign{SHA: approval.SHA, Dir: pack.Dir, Name: pack.Design.Name, Approved: true, Spec: pack.Design}
 }
 
+// ownBadge is this machine's activated badge unless the team list has revoked it, and whether
+// the list carries it. Settings shows a held one as Badge.ownBadge, and moving card pictures
+// ask the same rule. A list that cannot be read revokes nothing.
+func ownBadge(refresh bool) (b badgeInfo, held, published bool, list teamVerifiedList) {
+	b, e := badgeActive()
+	if e != nil {
+		return b, false, false, list
+	}
+	if list, e = teamList(refresh); e != nil {
+		return b, true, false, list
+	}
+	for _, known := range list.Badges {
+		if known.ID == b.ID {
+			return b, true, true, list
+		}
+	}
+	for _, revoked := range list.Revoked {
+		if revoked.Target == b.ID {
+			return b, false, false, list
+		}
+	}
+	return b, true, false, list
+}
+
 // badgeStatus reports this machine's badge state; refresh re-reads the team list instead of trusting a cached copy
 // up to ten minutes old, so an owner approval made a moment ago shows on the next look.
 func badgeStatus(refresh bool) (badgeStatusResult, error) {
@@ -87,23 +111,11 @@ func badgeStatus(refresh bool) (badgeStatusResult, error) {
 	if out.Online, e = recordOnline(); e != nil {
 		return out, e
 	}
-	if b, e := badgeActive(); e == nil {
+	if b, held, published, list := ownBadge(refresh); held {
 		out.Badge = badgeViewFor(b, true)
-		if list, e := teamList(refresh); e == nil {
-			for _, known := range list.Badges {
-				if known.ID == b.ID {
-					out.Published = true
-					out.Design = badgeDesignFor(list, b)
-					break
-				}
-			}
-			if !out.Published {
-				for _, revoked := range list.Revoked {
-					if revoked.Target == b.ID {
-						out.Badge = nil
-					}
-				}
-			}
+		out.Published = published
+		if published {
+			out.Design = badgeDesignFor(list, b)
 		}
 	}
 	return out, nil

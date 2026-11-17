@@ -9,10 +9,11 @@ import (
 )
 
 // harmless utilities the tests' own scripts run, linked from the system directories
-// rather than looked up on PATH, so nothing else on the machine is reachable
+// rather than looked up on PATH, so nothing else on the machine is reachable; ffmpeg and
+// ffprobe only read and write the files a test names
 var testUtilities = []string{
 	"sh", "bash", "env", "cat", "cp", "mv", "rm", "mkdir", "install", "chmod", "ln",
-	"touch", "dirname", "basename", "awk", "sed", "grep", "sleep", "luac",
+	"touch", "dirname", "basename", "awk", "sed", "grep", "sleep", "luac", "ffmpeg", "ffprobe",
 }
 
 // TestMain keeps the suite off this machine: PATH holds only testUtilities, so no

@@ -233,6 +233,7 @@ Item {
     // the figure, inked in the card's own foreground so it reads on either ground
     CardFigure {
         id: hero
+        live: card.live
         height: parent.height + 96
         width: height * 900 / 1157
         anchors.verticalCenter: parent.verticalCenter

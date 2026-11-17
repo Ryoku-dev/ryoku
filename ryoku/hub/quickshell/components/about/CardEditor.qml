@@ -3,7 +3,6 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Effects
 import Quickshell
-import Quickshell.Io
 import Lithic
 import Ryoku.Ui.Singletons
 import "../../Singletons"
@@ -32,6 +31,8 @@ Dialog {
     readonly property real bodyHeight: Math.max(380, (root.parent ? root.parent.height : 800) - 2 * LithicTokens.size.dialogMargin
                                                      - root.topPadding - root.bottomPadding - 140)
     property string imageError: ""
+    // the line under the pictures is a note, not a refusal
+    property bool imageNote: false
     // a tier the Share tab's ladder previews on the card, or -1
     property int previewTier: -1
 
@@ -53,8 +54,15 @@ Dialog {
     readonly property var heroFallback: ({ kind: "default", source: "", zoom: 1, focalX: 0.5, focalY: 0.4, dither: 1, invert: false })
     readonly property var hero: Object.assign({}, root.heroFallback, root.val("hero", root.heroFallback) || {})
     readonly property bool custom: root.hero.kind === "custom"
-    readonly property string customPicture: root.custom && /^hero\.(png|jpg|jpeg|webp|gif|bmp|avif)$/.test(String(root.hero.source || ""))
-        ? imagePick.urlOf(root.configDir + "/profile/" + root.hero.source) : ""
+    // a video's tile shows the first frame ryoku-hub kept beside it
+    readonly property string customPicture: root.custom && /^hero\.(png|jpg|jpeg|webp|gif|bmp|avif|mp4|webm|mkv)$/.test(String(root.hero.source || ""))
+        ? imagePick.urlOf(root.configDir + "/profile/" + String(root.hero.source).replace(/^hero\.(mp4|webm|mkv)$/, "hero-$1.png")) : ""
+    // moving pictures are a badge holder's, the rule the backend keeps too
+    readonly property bool movingAllowed: !!Badge.ownBadge
+    // Ryogami's wallpaper when it is a video: { video, path, bytes, size, limit }
+    property var wallpaper: ({})
+    readonly property bool wallpaperFits: root.wallpaper.video === true && root.wallpaper.bytes <= root.wallpaper.limit
+    property bool adopting: false
     readonly property string style: root.hero.style || "dither"
     function setHero(patch, label) {
         root.put("hero", root.heroFallback, Object.assign({}, root.hero, patch), label);
@@ -95,37 +103,60 @@ Dialog {
     actions: [{ text: I18n.tr("Done"), kind: "gold" }]
     onClosed: { root.previewTier = -1; Badge.clearPreview(); }
 
-    // a picked image is copied beside profile.json so it stays and can travel; a new picture
-    // starts as a photo, framed to fill
+    // the picked file goes to ryoku-hub, which reads what it is from its bytes and keeps it
+    // beside profile.json; a new picture starts as a photo, framed to fill
     function adopt(url) {
         var path = imagePick.localPath(url);
-        var ext = path.slice(path.lastIndexOf(".") + 1).toLowerCase();
-        // Only local raster images may become profile art; SVG can refer to other resources.
-        if (path === "" || !/^(png|jpg|jpeg|webp|gif|bmp|avif)$/.test(ext)) {
-            root.imageError = I18n.tr("Choose another picture");
+        if (path === "" || root.adopting)
             return;
-        }
-        copyProc.ext = ext;
-        copyProc.command = ["install", "-D", "-m", "644", "--", path, root.configDir + "/profile/hero." + ext];
         root.imageError = "";
-        copyProc.running = true;
-    }
-
-    Process {
-        id: copyProc
-        property string ext: "png"
-        stderr: StdioCollector { id: copyErr }
-        onExited: (code, status) => {
-            if (code === 0) {
-                ProfileStore.pictureReplaced();
-                root.setHero({ kind: "custom", source: "hero." + copyProc.ext, style: "photo", fit: false, zoom: 1, focalX: 0.5, focalY: 0.5,
-                               brightness: 0, contrast: 0, saturation: 0 }, I18n.tr("Card figure"));
-                root.tab = "adjust";
-            } else {
-                root.imageError = I18n.tr("That image could not be copied: %1. Choose another, or check that it can be read.").replace("%1", copyErr.text.trim());
+        root.imageNote = false;
+        root.adopting = true;
+        Changes.run(["ryoku-hub", "profile", "picture", path], function (ok, out, err) {
+            root.adopting = false;
+            var saved = null;
+            try { saved = ok ? JSON.parse(out) : null; } catch (e) { saved = null; }
+            if (!saved || !/^hero\.[a-z0-9]+$/.test(String(saved.source || ""))) {
+                root.imageError = root.pictureWords(err);
+                return;
             }
-        }
+            ProfileStore.pictureReplaced();
+            root.setHero({ kind: "custom", source: saved.source, style: "photo", fit: false, zoom: 1, focalX: 0.5, focalY: 0.5,
+                           brightness: 0, contrast: 0, saturation: 0 }, I18n.tr("Card figure"));
+            if (saved.still) {
+                root.imageError = I18n.tr("Moving pictures come with a team badge, so the card keeps the first frame.");
+                root.imageNote = true;
+            } else {
+                root.tab = "adjust";
+            }
+        }, { timeout: 60000 });
     }
+    // ryoku-hub's refusals, in the reader's words; the sizes it names stay as it measured them
+    function pictureWords(err) {
+        var s = String(err || "").trim().replace(/^ryoku-hub:\s*/, "");
+        var m = /moving picture is ([\d.]+ MB); moving pictures can be up to ([\d.]+ MB)/.exec(s);
+        if (m)
+            return I18n.tr("This moving picture is %1. Moving pictures can be up to %2.").replace("%1", m[1]).replace("%2", m[2]);
+        if ((m = /file is ([\d.]+ MB); a picture can be up to ([\d.]+ MB)/.exec(s)))
+            return I18n.tr("This file is %1. A picture can be up to %2.").replace("%1", m[1]).replace("%2", m[2]);
+        if ((m = /video is (\d+) seconds long; a moving picture can be up to (\d+) seconds/.exec(s)))
+            return I18n.tr("This video is %1 seconds long. A moving picture can be up to %2 seconds.").replace("%1", m[1]).replace("%2", m[2]);
+        if (/come with a team badge/.test(s))
+            return I18n.tr("Moving pictures come with a team badge.");
+        if (/named as a video|named as a picture|not what its first bytes say/.test(s))
+            return I18n.tr("This file is not what its name says. Choose another.");
+        if (/need (ffprobe|ffmpeg)/.test(s))
+            return I18n.tr("Moving videos need ffmpeg, which Ryoku installs. Reinstall it and try again.");
+        return s !== "" ? I18n.tr("That picture could not be used: %1. Choose another.").replace("%1", s)
+            : I18n.tr("That picture could not be used. Choose another.");
+    }
+    function readWallpaper() {
+        Changes.run(["ryoku-hub", "profile", "wallpaper"], function (ok, out) {
+            try { root.wallpaper = ok ? JSON.parse(out) || ({}) : ({}); } catch (e) { root.wallpaper = ({}); }
+        });
+    }
+    onTabChanged: if (root.opened && root.tab === "picture" && root.movingAllowed) root.readWallpaper()
+    onOpenedChanged: if (root.opened && root.tab === "picture" && root.movingAllowed) root.readWallpaper()
 
     // the body takes its size from its first child, so the choosers live beside it
     ImageChooser {
@@ -134,6 +165,7 @@ Dialog {
         overlayParent: root.hub ? root.hub.overlayItem : null
         title: I18n.tr("Choose a picture for the card")
         currentFolder: "file://" + Paths.picturesDir
+        videos: root.movingAllowed
         onAccepted: root.adopt(imagePick.selectedFile)
     }
     CardShare {
@@ -356,12 +388,43 @@ Dialog {
                                 }
                             }
                         }
+                        // moving pictures: a badge holder's, with the live wallpaper offered when
+                        // it is a video within the size; everyone else is told where they come from
+                        Label {
+                            width: parent.width
+                            text: root.movingAllowed
+                                ? I18n.tr("Your picture may move: a GIF, an animated WebP or a video up to %1 seconds and 10 MB. It plays while you point at the card.").replace("%1", 60)
+                                : I18n.tr("Moving pictures come with a team badge.")
+                            typeRole: "detail"
+                            inkRole: "fg2"
+                            wrapMode: Text.Wrap
+                            elide: Text.ElideNone
+                        }
+                        Plaque {
+                            visible: root.movingAllowed && root.wallpaperFits
+                            small: true
+                            kind: "line"
+                            glyph: "wallpaper"
+                            text: I18n.tr("Use my live wallpaper")
+                            busy: root.adopting
+                            enabled: !root.adopting
+                            onClicked: root.adopt(imagePick.urlOf(root.wallpaper.path))
+                        }
+                        Label {
+                            width: parent.width
+                            visible: root.movingAllowed && root.wallpaper.video === true && !root.wallpaperFits
+                            text: I18n.tr("Your live wallpaper is %1, over the 10 MB a moving picture can be.").replace("%1", root.wallpaper.size || "")
+                            typeRole: "detail"
+                            inkRole: "fg2"
+                            wrapMode: Text.Wrap
+                            elide: Text.ElideNone
+                        }
                         Label {
                             width: parent.width
                             visible: root.imageError.length > 0
                             text: root.imageError
                             typeRole: "detail"
-                            ink: Lithic.jasper
+                            ink: root.imageNote ? Lithic.fg2 : Lithic.jasper
                             wrapMode: Text.Wrap
                             elide: Text.ElideNone
                         }

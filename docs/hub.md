@@ -290,7 +290,10 @@ the card or Home's plate as they will be; its tabs are:
 - **Picture**: the stock Caracalla, the reader's own picture, chosen by eye in
   `components/ImageChooser.qml` (a folder's pictures as thumbnails with a large
   preview, and Pictures, Wallpapers, Downloads and Home to jump to), or a
-  gallery figure.
+  gallery figure. A badge holder's picture may move (see Moving pictures
+  below), and the tab offers **Use my live wallpaper** when Ryogami's wallpaper
+  is a video within the size; everyone else reads that moving pictures come
+  with a team badge.
 - **Adjust** (own picture): the look (Photo, Black & white or Dots), Fill or
   Whole picture, zoom, position, brightness, contrast, colour (photo) or dot
   size and ink (dots), and Reset. Dragging the picture on the preview moves it
@@ -313,6 +316,33 @@ CardFigure frames the reader's picture (`zoom`, `focalX`, `focalY`, `fit`),
 tunes it (`brightness`, `contrast`, `saturation`) and draws it in its `style`:
 `photo`, `mono`, or `dither` through `shaders/plate.frag` (a picture chosen
 before there was a style was dithered, and stays so).
+
+**Moving pictures.** Every picture the studio takes goes through
+`ryoku-hub profile picture <path>` (`backend/profilepicture.go`), which reads
+what the file is from its bytes, never its name, and keeps it beside
+`profile.json` as `profile/hero.<ext>`. A name that says video on a picture,
+or picture on a video, is refused. The rule for who may move is the one
+Settings shows as `Badge.ownBadge`: an activated badge the team list has not
+revoked (`ownBadge` in `backend/badge.go`, which `badge status` reports too).
+A holder may keep an animated GIF or WebP, or an MP4, WebM or MKV video, up to
+10 MB; ffprobe must find one picture stream (sound is allowed and never
+played) and at most 60 seconds. ffmpeg keeps the first frame of a video or
+WebP beside it as `hero-<ext>.png`. Anyone else keeps a still: a moving GIF or
+WebP becomes its first frame as `hero.png`, and a video is refused. A refusal
+names the size or length it measured. `ryoku-hub profile wallpaper` reports
+Ryogami's current wallpaper (`~/.local/state/ryoku-wallpaper`, then its
+`outputs.json`) when it is a video, with its size, for **Use my live
+wallpaper**.
+
+CardFigure draws a moving picture through `components/about/CardMotion.qml`
+(`AnimatedImage`, or `MediaPlayer` and `VideoOutput` with no audio output),
+loaded by URL inside the same frame, so zoom, position, the three looks and the
+dither all apply to it. It plays only while its host passes `live` (the card or
+plate pointed at) and `Ambient.on` (Settings focused, motion not reduced); at
+rest the loader is inactive, nothing decodes, and the figure shows the first
+frame. A badge lost later leaves the still. The shared card picture, the
+record's picture and a `.ryoprofile` stay still: the card is grabbed at rest,
+and export packs the first frame as `hero.png`.
 
 #### Badges and team designs
 

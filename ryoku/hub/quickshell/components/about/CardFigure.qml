@@ -3,12 +3,15 @@ import QtQuick.Effects
 import Quickshell
 import Lithic
 import Ryoku.Ui.Singletons
+import "../../Singletons"
 
 // the profile's figure (profile.json hero). The stock one is a photograph, the Caracalla
 // Farnese, drawn as it is; a gallery figure is inked in one colour so it reads on either
 // ground. The reader's own picture is framed (zoom, position, fill or fit), adjusted
 // (brightness, contrast, colour) and shown as a photo, in black and white, or as a 1-bit
-// dither in the ink. The system card, Home and the card studio draw the same one
+// dither in the ink. A badge holder's picture may move (GIF, WebP, a short video): it plays
+// only while `live` (the card pointed at) and Settings' ambient motion runs, and rests on
+// its first frame. The system card, Home and the card studio draw the same one
 Item {
     id: hero
 
@@ -21,6 +24,8 @@ Item {
     property bool recordPicture: false
     // a figure drawn at another size than its dots asks for soft sampling, or the dots beat
     property bool soft: false
+    // the card is pointed at, so a moving picture may play
+    property bool live: false
     readonly property string configDir: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku"
     readonly property var config: hero.override ? (hero.override.kind === "custom"
         ? { kind: "custom", file: hero.override.file, rev: hero.override.rev, style: "photo", focalX: 0.5, focalY: 0.5 } : hero.override)
@@ -35,12 +40,18 @@ Item {
         ? Ryodecors.dir + hero.galleryName + (/\.gif$/.test(hero.src) ? ".gif" : ".png") : ""
     // a picture file is rewritten in place when it changes, and Qt would keep showing the one it
     // loaded first: the URL carries the picture's revision so a new one loads
+    readonly property string ownFile: !hero.override && hero.kind === "custom"
+        && /^hero\.(png|jpg|jpeg|webp|gif|bmp|avif|mp4|webm|mkv)$/.test(hero.src) ? hero.configDir + "/profile/" + hero.src : ""
+    readonly property bool video: /\.(mp4|webm|mkv)$/.test(hero.ownFile)
+    // a video rests on the first frame ryoku-hub kept beside it; a GIF or WebP is its own
+    readonly property string stillFile: hero.video ? hero.ownFile.replace(/hero\.(\w+)$/, "hero-$1.png") : hero.ownFile
+    readonly property bool mayMove: /\.(gif|webp|mp4|webm|mkv)$/.test(hero.ownFile) && !!Badge.ownBadge
+    readonly property bool playing: hero.mayMove && hero.live && hero.visible && Ambient.on
     readonly property string customSource: {
         if (hero.kind !== "custom")
             return "";
         if (!hero.override)
-            return /^hero\.(png|jpg|jpeg|webp|gif|bmp|avif)$/.test(hero.src)
-                ? hero.fileUrl(hero.configDir + "/profile/" + hero.src) + "?v=" + ProfileStore.pictureRevision : "";
+            return hero.stillFile !== "" ? hero.fileUrl(hero.stillFile) + "?v=" + ProfileStore.pictureRevision : "";
         // Never treat a card's embedded file field as an image URL or a store root.
         if (!/^[0-9a-f]{16}$/.test(hero.tradedId) || hero.cardsStoreRoot.charAt(0) !== "/")
             return "";
@@ -94,6 +105,8 @@ Item {
             height: hero.height * hero.zoom
             x: (hero.width - width) * hero.focalX
             y: (hero.height - height) * hero.focalY
+            // a moving GIF's clear pixels would show the still through it
+            opacity: motion.item && motion.item.ready ? 0 : 1
             source: hero.customSource
             fillMode: hero.fit ? Image.PreserveAspectFit : Image.PreserveAspectCrop
             sourceSize.width: 1600
@@ -101,6 +114,28 @@ Item {
             smooth: true
             mipmap: true
             asynchronous: true
+        }
+        // loaded by URL, so a system without Qt Multimedia still draws the still
+        Loader {
+            id: motion
+            x: customImage.x
+            y: customImage.y
+            width: customImage.width
+            height: customImage.height
+            active: hero.playing
+            source: Qt.resolvedUrl("CardMotion.qml")
+        }
+        Binding {
+            when: motion.status === Loader.Ready
+            target: motion.item
+            property: "url"
+            value: hero.fileUrl(hero.ownFile)
+        }
+        Binding {
+            when: motion.status === Loader.Ready
+            target: motion.item
+            property: "fit"
+            value: hero.fit
         }
     }
     // and adjusted; shown as it is for a photo, or handed to the dither
