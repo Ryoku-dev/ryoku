@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import QtTest
 import "../../../ryoku/lockscreen/qylock/quickshell-lockscreen/shim" as Lock
 
@@ -51,6 +52,11 @@ TestCase {
                     anchors.fill: parent
                     onClicked: { controlClicks += 1; controlFocus.forceActiveFocus() }
                 }
+            }
+            Button {
+                objectName: "button"
+                x: 480; y: 140; width: 140; height: 60
+                onClicked: controlClicks += 1
             }
             TextInput {
                 id: password
@@ -153,6 +159,12 @@ TestCase {
         mouseClick(control, control.width / 2, control.height / 2, Qt.LeftButton)
         compare(target.calls, 1)
         compare(controlClicks, 1)
+    }
+    function test_click_reaches_a_button_that_is_not_a_mouse_area() {
+        const button = findObject(input, "button")
+        mouseClick(button, button.width / 2, button.height / 2, Qt.LeftButton)
+        compare(controlClicks, 1)
+        compare(target.calls, 0)
     }
     function test_noecho_password_wins_after_focus_transfer() {
         const password = findObject(input, "password")

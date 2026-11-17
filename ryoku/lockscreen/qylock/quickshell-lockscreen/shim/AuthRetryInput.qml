@@ -100,15 +100,13 @@ Item {
         }
     }
 
-    MouseArea {
-        anchors.fill: parent
-        z: 2147483646
+    TapHandler {
         acceptedButtons: Qt.LeftButton
-        propagateComposedEvents: true
-        onClicked: (mouse) => {
-            if (!root.isPointOverControl(root.passwordScope, mouse.x, mouse.y))
+        gesturePolicy: TapHandler.ReleaseWithinBounds
+        onTapped: (eventPoint) => {
+            const position = eventPoint.position
+            if (!root.isPointOverControl(root.passwordScope, position.x, position.y))
                 root.requestRetry()
-            mouse.accepted = false
         }
     }
 }
