@@ -1,6 +1,7 @@
 # Changelog: ryoku/hub/
 
 ## Unreleased
+- **No card style switch in the studio.** The Stand style is its owner's own design, set up for them, so Layout no longer offers a Card style choice; a card already wearing Stand keeps it, and its cutout and Stand's name controls show only there (`components/about/CardEditor.qml`).
 - **A blocked team request says so.** When Cloudflare's bot check or an error page answers in front of team.ryoku.dev, card sync, the binder and badges now say the request was held back or the gate could not be reached, instead of "team response exceeds 4096 bytes" (`backend/teamhttp.go`).
 - **Card styles are personal.** The Stand style is its owner's own look, no
   longer a switch every badge holder gets: each built-in style belongs to

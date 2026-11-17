@@ -293,8 +293,9 @@ the card or Home's plate as they will be; its tabs are:
   gallery figure. A badge holder's picture may move (see Moving pictures
   below), and the tab offers **Use my live wallpaper** when Ryogami's wallpaper
   is a video within the size; everyone else reads that moving pictures come
-  with a team badge. The owner of the Stand style with their own picture also
-  gets **Cutout for the figure breaking the frame** (see Card styles below).
+  with a team badge. A card already wearing the Stand style, with its owner's
+  own picture, also gets **Cutout for the figure breaking the frame** (see Card
+  styles below).
 - **Adjust** (own picture): the look (Photo, Black & white or Dots), Fill or
   Whole picture, zoom, position, brightness, contrast, colour (photo) or dot
   size and ink (dots), and Reset. Dragging the picture on the preview moves it
@@ -303,10 +304,8 @@ the card or Home's plate as they will be; its tabs are:
   card style (its owner only), the Stand's name too. A badge holder's line and
   Stand's name reach friends' binders with their live card (see "A badge
   holder's own words" below).
-- **Layout**: **Card style**, shown only to a badge holder whose login owns a
-  style and listing only the styles it owns (Classic, or Stand for its owner),
-  then whether Home shows the plate or the card (`homeView`), the plate's parts
-  and the figure's side.
+- **Layout**: whether Home shows the plate or the card (`homeView`), the
+  plate's parts and the figure's side. There is no choice of card style here.
 - **Share**: the card's rarity, the tier ladder (resting on a tier shows its
   look on the preview), Copy, Save, Binder and Back to stock
   (`components/about/CardShare.qml`). Binder closes the studio and opens the collection.
@@ -357,11 +356,14 @@ team.ryoku.dev keeps word for word as `CARD_STYLE_OWNERS`; the shared test
 vectors compare the two. Logins match without case. Nobody may wear or copy
 another holder's style. Every other badge holder makes their own look through a
 team design: studio Badge tab, **Save for Mika**, `/card submit`, and the
-owner's approval (see Badges and team designs below). The style's owner chooses
-it per machine in Layout: `style` in `profile.json`, `classic` (the trading
-card, the default) or the style. `ryoku-hub badge status` lists the styles the
-badge's login owns (`styles`), and Settings offers only those
-(`Badge.ownStyles`). TradingCard draws a style only while the own badge's login
+owner's approval (see Badges and team designs below). A style is set up for its
+owner rather than picked: Settings has no switch for it. `style` in
+`profile.json` is `classic` (the trading card, the default) or a style the
+badge's login owns, written on that owner's machines by hand or with
+`ryoku-hub profile import`. `ryoku-hub badge status` lists the styles the
+badge's login owns (`styles`, `Badge.ownStyles`), and the studio shows a style's
+own controls (the Stand's cutout and name) only on a card already wearing it.
+TradingCard draws a style only while the own badge's login
 owns it, so a lost badge brings the classic card back. Choosing or importing a
 style is refused without a badge ("a card style comes with a team badge, and
 this machine holds none") and with another holder's badge ("this card style
