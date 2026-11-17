@@ -44,7 +44,7 @@ T.Control {
 
     contentItem: Item {
         implicitWidth: tabRow.implicitWidth
-        implicitHeight: LithicTokens.size.tabsHeight * root._scale * root._scale
+        implicitHeight: LithicTokens.size.tabsHeight * root._scale
 
         Rectangle {
             anchors.left: parent.left
@@ -76,7 +76,7 @@ T.Control {
                     hoverEnabled: true
                     focusPolicy: Qt.StrongFocus
                     implicitWidth: tabLabel.implicitWidth + LithicTokens.size.tabsLabelExtra * root._scale
-                    implicitHeight: LithicTokens.size.tabsHeight * root._scale * root._scale * root._scale
+                    implicitHeight: LithicTokens.size.tabsHeight * root._scale
                     enabled: root.enabled
 
                     Accessible.role: Accessible.PageTab
