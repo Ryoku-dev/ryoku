@@ -6,6 +6,7 @@
   sign-in screen took it, so Cancel or a refused password leaves both screens on
   the design they had and the page says so (`backend/lock.go`,
   `components/lock-screen/LockDesignStore.qml`, `pages/LockScreen.qml`).
+- **The update log keeps its drag and its tail.** Dragging the log's scroll rail no longer hands the drag to the page, and every scroll rail in a scrolling page keeps its own drag. The log follows the newest lines until you scroll away and again once you are back at the bottom, and a read that comes back empty mid-run no longer blanks it (`components/updates/UpdateLog.qml`, `docs/lithic/library/qml/Lithic/ScrollRail.qml`, #872).
 - **Rail icons sit in the middle of their tiles.** Each destination's icon and label were pinned to the top of the tile at any scale; they are now centred (`docs/lithic/library/qml/Lithic/Rail.qml`, #829).
 - **Every badge may have its own card design, and wear it at once.** Testers
   and contributors now get the studio's design section too (it was NixOS, Core
