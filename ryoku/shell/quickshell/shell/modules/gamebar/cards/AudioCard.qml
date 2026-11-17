@@ -31,7 +31,8 @@ GameBarCard {
     readonly property real rowSpacing: 2 * card.s
     readonly property real rowHeight: 40 * card.s
     readonly property real listHeight: card.streams.length > 0
-        ? card.streams.length * card.rowHeight + (card.streams.length - 1) * card.rowSpacing
+        ? Math.min(3 * card.rowHeight + 2 * card.rowSpacing,
+                   card.streams.length * card.rowHeight + (card.streams.length - 1) * card.rowSpacing)
         : card.rowHeight
     readonly property real contentHeight: output.implicitHeight + card.gap
         + input.implicitHeight + card.gap + LithicTokens.size.hairline + card.gap

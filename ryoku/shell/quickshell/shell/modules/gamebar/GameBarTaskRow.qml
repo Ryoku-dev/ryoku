@@ -76,7 +76,7 @@ Item {
 
         Item {
             width: coreLabel.implicitWidth
-            height: actions.height
+            height: coreLabel.implicitHeight
             visible: root.protectedName && !root.confirming
 
             Label {
