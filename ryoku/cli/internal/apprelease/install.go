@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -129,6 +130,10 @@ func (c *Client) verifyAndInstall(ctx context.Context, rel relInfo, ensure bool)
 	}
 
 	if err := c.checkFileOwners(ctx, pkgPath); err != nil {
+		var held *HeldError
+		if c.legacyInstall != nil && errors.As(err, &held) {
+			return c.legacyInstall(ctx, pkgPath, meta.Version)
+		}
 		return err
 	}
 

@@ -31,6 +31,10 @@ var (
 	appPackageOwner = func(path string) (string, error) {
 		return host.Default().PackageOwner(path)
 	}
+	ryoportCheckout = func() bool {
+		return sys.SourceLine() == apprelease.HyperionLine && sys.ResolveRepo() != ""
+	}
+	ryoportCheckoutVersion = apprelease.CheckoutRyoportVersion
 )
 
 type appReconcileSpec struct {
@@ -60,11 +64,33 @@ func reconcileRyotunes(checkOnly bool) recResult {
 func reconcileRyoport(checkOnly bool) recResult {
 	return reconcileIndependentApp(appReconcileSpec{
 		app: apprelease.Ryoport, ensure: ryoportEnsure,
+		staleUser: func() (string, func()) {
+			if !doctorPackageInstalled("ryoport") && ryoportCheckoutVersion() != "" {
+				return "", nil
+			}
+			if _, err := os.Stat(filepath.Join(sys.Home(), ".local/share/ryoku/ryoport-release")); err != nil {
+				return "", nil
+			}
+			return i18n.T("the checkout Ryoport files need retiring"), func() {
+				_ = apprelease.RemoveCheckoutRyoport()
+				if !doctorPackageInstalled("ryoport") && heldByLegacyOwner(apprelease.Ryoport) {
+					path := filepath.Join(sys.Xdg("XDG_DATA_HOME", ".local/share"), "applications", legacyRyoportDesktopFile)
+					_ = os.MkdirAll(filepath.Dir(path), 0o755)
+					_ = os.WriteFile(path, []byte("[Desktop Entry]\nType=Application\nName=Ryoport\nHidden=true\n"), 0o644)
+				}
+			}
+		},
 		legacyDrop: func() (bool, string, func()) {
 			path := filepath.Join(sys.Xdg("XDG_DATA_HOME", ".local/share"), "applications", legacyRyoportDesktopFile)
 			data, err := os.ReadFile(path)
 			if err != nil || !ryoportDesktopOptedOut(data) {
 				return false, "", nil
+			}
+			if ryoportCheckout() && heldByLegacyOwner(apprelease.Ryoport) {
+				if provisioned()["ryoport"] && ryoportCheckoutVersion() == "" {
+					return false, "", nil
+				}
+				return true, i18n.T("the old Ryoport launcher opt-out is still recorded"), func() { _ = apprelease.RemoveCheckoutRyoport() }
 			}
 			return true, i18n.T("the old Ryoport launcher opt-out is still recorded"), func() { _ = os.Remove(path) }
 		},
@@ -110,6 +136,9 @@ func reconcileIndependentApp(spec appReconcileSpec, checkOnly bool) recResult {
 	var problems, fixes []string
 	var apply []func()
 	installed := doctorPackageInstalled(spec.app.Name)
+	checkout := spec.app.Name == apprelease.Ryoport.Name && manager == host.Pacman && ryoportCheckout()
+	local := checkout && ryoportCheckoutVersion() != ""
+	installed = installed || local
 	if !checkOnly && installed {
 		recordProvisioned(spec.app.Name)
 	}
@@ -140,8 +169,8 @@ func reconcileIndependentApp(spec appReconcileSpec, checkOnly bool) recResult {
 		installFix = "ryoku update"
 	}
 	managedDesktop := sys.ResolveRepo() != "" || doctorPackageInstalled("ryoku-desktop")
-	removed := removedByUser(spec.app.Name) || legacyRemoved
-	held := !installed && heldByLegacyOwner(spec.app)
+	removed := provisioned()[spec.app.Name] && !installed || legacyRemoved
+	held := !installed && heldByLegacyOwner(spec.app) && !checkout
 	missing := managedDesktop && !installed && !removed && !held
 	if missing {
 		problems = append(problems, i18n.Tf("the %s package is not installed", spec.app.Name))
@@ -156,6 +185,12 @@ func reconcileIndependentApp(spec appReconcileSpec, checkOnly bool) recResult {
 	if len(problems) == 0 {
 		if held {
 			return heldNote(spec.app)
+		}
+		if checkout && removed {
+			return okRes(i18n.T("Ryoport was removed by the user"))
+		}
+		if local {
+			return okRes(i18n.T("Ryoport is the verified checkout release"))
 		}
 		if sys.Exists(spec.app.Binary) {
 			if owner, err := appPackageOwner(spec.app.Binary); err != nil || owner != spec.app.Name {
@@ -174,6 +209,9 @@ func reconcileIndependentApp(spec appReconcileSpec, checkOnly bool) recResult {
 		return wouldRes("%s", strings.Join(problems, "; ")).withFix(strings.Join(fixes, " && "))
 	}
 	if legacyRemoved {
+		if checkout {
+			_ = apprelease.RemoveCheckoutRyoport()
+		}
 		recordProvisioned(spec.app.Name)
 	}
 	for _, fix := range apply {

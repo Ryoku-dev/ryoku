@@ -53,6 +53,7 @@ type Client struct {
 	vercmp           func(a, b string) (int, error)                              // vercmp
 	listFiles        func(ctx context.Context, path string) ([]string, error)    // pacman -Qlpq
 	fileOwners       func(path string) []string                                  // pacman -Qoq
+	legacyInstall    func(context.Context, string, string) error
 }
 
 // pkgMeta is the identity a package file claims, read from its own pacman
@@ -70,7 +71,7 @@ func defaultClient(app App, opts Options) *Client {
 	if opts.Output != nil {
 		out = streams{stdout: opts.Output, stderr: opts.Output}
 	}
-	return &Client{
+	c := &Client{
 		app:              app,
 		Repo:             app.Repo,
 		APIBase:          apiBase(),
@@ -89,6 +90,23 @@ func defaultClient(app App, opts Options) *Client {
 		listFiles:  defaultListFiles,
 		fileOwners: defaultFileOwners,
 	}
+	if app.Name == Ryoport.Name && sys.SourceLine() == HyperionLine && sys.ResolveRepo() != "" && os.Geteuid() != 0 {
+		c.legacyInstall = func(ctx context.Context, path, version string) error {
+			return installCheckoutRyoport(ctx, sys.Home(), path, version)
+		}
+		c.installedVersion = func(pkg string) string {
+			if version := defaultInstalledVersion(pkg); version != "" {
+				return version
+			}
+			for _, owner := range defaultFileOwners(app.Binary) {
+				if owner == app.LegacyOwner {
+					return CheckoutRyoportVersion()
+				}
+			}
+			return ""
+		}
+	}
+	return c
 }
 
 // apiBase is the GitHub API root. RYOKU_GITHUB_API points it at a stub, the same

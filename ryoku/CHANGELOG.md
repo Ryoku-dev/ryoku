@@ -17,6 +17,9 @@
   (`ryoku/dictation/deploy.sh`, `release/packages/ryoku-dictation/PKGBUILD`).
 - **Both island gears open Kairos settings.** The separate control below the
   tiles opens Ryoku Settings.
+- **Ryoport opens on checkout boxes with an older desktop package.**
+  Its verified native release replaces the retired launcher without taking
+  files away from the installed package
 - **Checkout updates leave brand images and npm defaults ready for packages.**
   Identical unowned copies no longer block a later system upgrade
 - **The bar's battery, brightness and volume readouts come from the shell
