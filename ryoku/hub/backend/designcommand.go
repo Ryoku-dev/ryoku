@@ -127,7 +127,7 @@ func designFetch(sha string, pending bool) (designResult, error) {
 
 func designCommand(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: design check|pack|upload-pending|fetch|approve")
+		return fmt.Errorf("usage: design check|pack|wear|unwear|upload-pending|fetch|approve")
 	}
 	emit := func(v any) error { return json.NewEncoder(os.Stdout).Encode(v) }
 	switch args[0] {
@@ -166,6 +166,26 @@ func designCommand(args []string) error {
 			return err
 		}
 		return emit(map[string]bool{"ok": true})
+	case "wear", "unwear":
+		var err error
+		if args[0] == "wear" {
+			if len(args) != 2 {
+				return fmt.Errorf("usage: design wear <dir|zip>")
+			}
+			err = designWear(args[1])
+		} else if len(args) != 1 {
+			return fmt.Errorf("usage: design unwear")
+		} else {
+			err = designUnwear()
+		}
+		if err != nil {
+			return err
+		}
+		status, err := badgeStatus(false)
+		if err != nil {
+			return err
+		}
+		return emit(status)
 	case "fetch":
 		fs := flag.NewFlagSet("design fetch", flag.ContinueOnError)
 		fs.SetOutput(io.Discard)

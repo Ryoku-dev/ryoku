@@ -15,13 +15,20 @@ Singleton {
     readonly property bool owner: status.owner === true
     // the card's signed record is published for friends' binders; anyone may opt in, badge or not
     readonly property bool online: status.online === true
+    // the approved design friends see on this card
     readonly property var design: status.design || null
+    // a design this machine wears privately until it is approved: drawn on this machine's own
+    // card only, never on the published record or in friends' binders
+    readonly property var worn: status.worn || null
+    readonly property string wornError: status.wornError || ""
     // the built-in card styles this badge's login owns: a style is one holder's own look
     readonly property var ownStyles: root.badge && Array.isArray(status.styles) ? status.styles : []
     property var preview: null
     property var checked: null
     property var candidate: null
-    readonly property var ownDesign: root.preview || root.design
+    // what this machine's own card draws: the studio's preview, then the approved design, then the
+    // privately worn one
+    readonly property var ownDesign: root.preview || root.design || root.worn
     readonly property bool previewing: root.preview !== null
     property string job: ""
     property string error: ""
@@ -90,6 +97,8 @@ Singleton {
         root.errorFrom = "";
         root.message = "";
         Changes.run(argv, function(ok, out, err) {
+            // the action is over, so the next one (Wear after Load, Save after Wear) may run
+            root.job = "";
             if (!ok) {
                 if (action === "check") {
                     try { root.checked = JSON.parse(out); } catch (e) { root.checked = null; }
@@ -149,9 +158,23 @@ Singleton {
         });
     }
     function clearPreview() { root.preview = null; }
+    // keeps a checked design folder on this machine's card after the studio closes
+    function wear(dir) {
+        root.run("wear", ["ryoku-hub", "design", "wear", dir], function(result) {
+            root.status = result;
+            root.preview = null;
+            root.message = I18n.tr("Worn on this machine. Friends see your classic card until nero approves the design.");
+        });
+    }
+    function unwear() {
+        root.run("unwear", ["ryoku-hub", "design", "unwear"], function(result) {
+            root.status = result;
+            root.message = I18n.tr("Your card is back to its classic look.");
+        });
+    }
     function saveDesign(dir, out) {
         root.run("pack", ["ryoku-hub", "design", "pack", dir, out], function() {
-            root.message = I18n.tr("Saved to %1. Use /card submit in the team channel.").replace("%1", out);
+            root.message = I18n.tr("Saved to %1. Use /card submit in the claim-badge channel.").replace("%1", out);
         });
     }
     function scheduleSync() {

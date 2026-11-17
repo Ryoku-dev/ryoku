@@ -35,20 +35,27 @@ type badgeCardDesign struct {
 	Spec designSpec `json:"spec"`
 }
 type badgeDesign struct {
-	SHA      string     `json:"sha"`
-	Dir      string     `json:"dir"`
-	Name     string     `json:"name"`
-	Approved bool       `json:"approved"`
-	Spec     designSpec `json:"spec"`
+	SHA      string `json:"sha,omitempty"`
+	Dir      string `json:"dir"`
+	Name     string `json:"name"`
+	Approved bool   `json:"approved"`
+	// Worn is a design this machine wears privately before approval (designwear.go)
+	Worn bool       `json:"worn,omitempty"`
+	Spec designSpec `json:"spec"`
 }
 type badgeStatusResult struct {
-	Device    string       `json:"device"`
-	CardID    string       `json:"cardId"`
-	Request   string       `json:"request"`
-	Badge     *badgeView   `json:"badge"`
-	Published bool         `json:"published"`
-	Owner     bool         `json:"owner"`
-	Design    *badgeDesign `json:"design"`
+	Device    string     `json:"device"`
+	CardID    string     `json:"cardId"`
+	Request   string     `json:"request"`
+	Badge     *badgeView `json:"badge"`
+	Published bool       `json:"published"`
+	Owner     bool       `json:"owner"`
+	// Design is the approved design friends see; Worn is one this machine wears privately until
+	// then, never published. An approved design is drawn first, and drops the private copy
+	Design *badgeDesign `json:"design"`
+	Worn   *badgeDesign `json:"worn"`
+	// WornError says why the worn design no longer passes the pack checks, so it is not drawn
+	WornError string `json:"wornError,omitempty"`
 	// Online is whether this machine keeps its card on the team service for friends' binders
 	Online bool `json:"online"`
 	// Styles are the built-in card styles this badge's login owns, and so the only ones the
@@ -56,10 +63,8 @@ type badgeStatusResult struct {
 	Styles []string `json:"styles"`
 }
 
+// badgeDesignFor is the approved design of a badge's login; any active badge may have one
 func badgeDesignFor(list teamVerifiedList, b badgeInfo) *badgeDesign {
-	if b.RoleID < 3 {
-		return nil
-	}
 	approval, ok := teamApproval(list, b.Login)
 	if !ok {
 		return nil
@@ -121,6 +126,15 @@ func badgeStatus(refresh bool) (badgeStatusResult, error) {
 		out.Published = published
 		if published {
 			out.Design = badgeDesignFor(list, b)
+		}
+		if out.Design != nil {
+			if e := designUnwear(); e != nil {
+				return out, e
+			}
+		} else if worn, e := designWorn(); e != nil {
+			out.WornError = e.Error()
+		} else {
+			out.Worn = worn
 		}
 	}
 	return out, nil

@@ -36,8 +36,8 @@ func teamVerifyList(raw []byte) (teamVerifiedList, error) {
 	return teamVerifyWire(wire), nil
 }
 
-// teamVerifyWire keeps the codes that verify: badges not revoked, and each team login's newest
-// approved design
+// teamVerifyWire keeps the codes that verify: badges not revoked, and the newest approved design
+// of each login that holds an active badge, whatever its role
 func teamVerifyWire(wire teamWireList) teamVerifiedList {
 	out := teamVerifiedList{V: 1, Badges: []badgeInfo{}, Revoked: []revokeInfo{}, Designs: []rydInfo{}}
 	byID := map[string]badgeInfo{}
@@ -59,13 +59,11 @@ func teamVerifyWire(wire teamWireList) teamVerifiedList {
 			out.Revoked = append(out.Revoked, r)
 		}
 	}
-	teamLogins := map[string]bool{}
+	holders := map[string]bool{}
 	for _, b := range byID {
 		if !revoked[b.ID] {
 			out.Badges = append(out.Badges, b)
-			if b.RoleID >= 3 {
-				teamLogins[strings.ToLower(b.Login)] = true
-			}
+			holders[strings.ToLower(b.Login)] = true
 		}
 	}
 	sort.Slice(out.Badges, func(i, j int) bool { return out.Badges[i].ID < out.Badges[j].ID })
@@ -74,7 +72,7 @@ func teamVerifyWire(wire teamWireList) teamVerifiedList {
 	for _, text := range wire.Designs {
 		d, e := rydParse(text)
 		key := strings.ToLower(d.Login)
-		if e != nil || !teamLogins[key] {
+		if e != nil || !holders[key] {
 			continue
 		}
 		old, exists := newest[key]

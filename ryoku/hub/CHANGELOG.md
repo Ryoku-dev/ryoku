@@ -1,6 +1,18 @@
 # Changelog: ryoku/hub/
 
 ## Unreleased
+- **Every badge may have its own card design, and wear it at once.** Testers
+  and contributors now get the studio's design section too (it was NixOS, Core
+  and Founder only), and any active badge's approved design is drawn
+  (`backend/badge.go`, `teamlist.go`, `components/about/BadgeTab.qml`). A
+  checked design can be worn on this machine right away with **Wear on this
+  machine** (`ryoku-hub design wear|unwear`, `backend/designwear.go`): it is
+  copied to `profile/design/`, checked again with a pack's limits on every
+  badge status, needs this machine's own active badge, and shows on this
+  machine's card only (Home, the studio, the expanded card, and the pictures
+  Copy and Save make). It is never published: the card record and friends'
+  binders keep the classic card until nero approves the design, which then
+  takes its place and drops the private copy. **Stop wearing** removes it.
 - **No card style switch in the studio.** The Stand style is its owner's own design, set up for them, so Layout no longer offers a Card style choice; a card already wearing Stand keeps it, and its cutout and Stand's name controls show only there (`components/about/CardEditor.qml`).
 - **A blocked team request says so.** When Cloudflare's bot check or an error page answers in front of team.ryoku.dev, card sync, the binder and badges now say the request was held back or the gate could not be reached, instead of "team response exceeds 4096 bytes" (`backend/teamhttp.go`).
 - **Card styles are personal.** The Stand style is its owner's own look, no

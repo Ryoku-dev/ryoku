@@ -309,8 +309,9 @@ the card or Home's plate as they will be; its tabs are:
 - **Share**: the card's rarity, the tier ladder (resting on a tier shows its
   look on the preview), Copy, Save, Binder and Back to stock
   (`components/about/CardShare.qml`). Binder closes the studio and opens the collection.
-- **Badge**: the badge and certificate, request code, activation, team design
-  checks and local preview, with issuing and revocation tools for the owner.
+- **Badge**: the badge and certificate, request code, activation, and your own
+  card design (check, preview, wear on this machine, save for Mika), with
+  issuing and revocation tools for the owner.
 
 Search reaches the studio on its tabs: Customise Home, Adjust your card's
 picture, System card, Badge and Show the card on Home. Card binder opens the collection
@@ -355,8 +356,9 @@ table, `cardStyleOwners` in `backend/cardstyles.go` (`stand`: neur0map), which
 team.ryoku.dev keeps word for word as `CARD_STYLE_OWNERS`; the shared test
 vectors compare the two. Logins match without case. Nobody may wear or copy
 another holder's style. Every other badge holder makes their own look through a
-team design: studio Badge tab, **Save for Mika**, `/card submit`, and the
-owner's approval (see Badges and team designs below). A style is set up for its
+card design: wear it on their own machine at once, or send it with **Save for
+Mika** and `/card submit` for the owner's approval so friends see it too (see
+Badges and card designs below). A style is set up for its
 owner rather than picked: Settings has no switch for it. `style` in
 `profile.json` is `classic` (the trading card, the default) or a style the
 badge's login owns, written on that owner's machines by hand or with
@@ -444,14 +446,14 @@ the still. The share still and the record's picture are drawn at rest; the
 record's still keeps the panel clean of the balloon, sound effect, ゴゴゴ and
 cutout, as it leaves off the seal.
 
-#### Badges and team designs
+#### Badges and card designs
 
 Open **Home > Customise > Badge**, or search for Badge. Copy **Your request
 code** and run `/badge` in the **claim-badge** channel, under **Badges** on the
 Ryoku Discord, for Tester or Contributor. Team members send the request code to
 nero instead. Paste the returned badge code into Activate. The Badges category
-also holds the private **core** and **nixos-team** channels, where team designs
-are submitted, and nero's **card-review** channel, where they are approved.
+also holds the private **core** and **nixos-team** channels and nero's
+**card-review** channel, where card designs are approved.
 Codes are signed and tied to this machine's device key, not unlocked by a setting
 or by copying the codebase. The 16-hex card id comes from the first eight bytes
 of SHA-256 over `ryoku-card-id-v1`, a zero byte and the device public key, not
@@ -476,11 +478,39 @@ The owner's signing tools appear only when the owner key is available in the
 keyring. **Make a code** takes the member's request, login and role, then returns
 a code to copy. **Revoke** accepts that code or its badge id.
 
-Team roles can load a design folder, read its check results and preview it on
-their own card. A preview is local and disappears when the studio closes.
-**Save for Mika** packs the checked folder to the chosen path, initially
-`~/Downloads/ryoku-design-<name>.zip`. Use `/card submit` in the team channel.
-Mika handles the submission and nero approves it before other people see it.
+**Your own card design.** Every badge, tester and contributor as well as
+NixOS, Core and Founder, may have its own card design, one per GitHub login. A
+design is a folder holding `design.json` and its pictures: it sets the seal's
+centre mark, code word, kanji and ink, and the card's palette, background, art,
+frame, glow, effects and words (what a pack may hold is below). Ryoku still
+draws the seal, the name, the hardware and the code itself. In the studio's
+Badge tab, **Load design folder** checks it (`ryoku-hub design check`) and lists
+what needs changing; **Preview on my card** shows it while the studio is open.
+
+**Wear it now.** **Wear on this machine** keeps a checked design on this
+machine's card at once, with no approval: `ryoku-hub design wear
+<folder-or-zip>` (`backend/designwear.go`) copies it to
+`$XDG_CONFIG_HOME/ryoku/profile/design/`. It needs this machine's own active
+badge. Every `ryoku-hub badge status` reads the copy back through the checks
+and limits of a submitted pack and reports it as `worn`; a link in its place, an
+added file or a broken picture stops it being drawn, and `wornError` says why.
+It shows on this machine's own card only: Home, the studio and the expanded
+card. Copy and Save make a picture of that card, so they show it, by your
+choice. It is never published: the live card record and its still are drawn
+without it, nothing of it goes to team.ryoku.dev, and friends' binders show the
+classic card. **Stop wearing** (`ryoku-hub design unwear`) removes it. A badge
+revoked or missing on this machine stops it too.
+
+**Have friends see it.** **Save for Mika** packs the checked folder to the
+chosen path, initially `~/Downloads/ryoku-design-<name>.zip`. Run `/card submit`
+with it in the **claim-badge** channel (team members may use their team
+channel). Mika checks the pack and that the linked GitHub login holds an active
+badge, then posts it to card-review; nothing shows until nero approves it. An
+approval counts only while the login holds an active badge: team.ryoku.dev
+lists it, every machine of that login wears it, and friends' binders show it.
+The approved design comes first: it takes the worn one's place, the private
+copy is removed, and wearing another is refused while it stands. The owner's
+Stand style is still drawn over any design on a card that wears it.
 An owner can paste the SHA from Mika's review to preview a pending submission.
 The newest signed approval timestamp per login wins. Reposting the same approval
 does nothing, and an older approval or a different one with the same timestamp
@@ -572,8 +602,8 @@ none, Ryoku's motto with its gloss, and the Stand is named after that.
 
 **The binder's check.** One request (`POST /v1/cards/batch`,
 `backend/cardpull.go`) carries every card id with the version the binder holds,
-and returns only the records that changed, the active badges and team designs
-for those cards, and the server's next check time. The binder asks nothing
+and returns only the records that changed, the active badges and approved card
+designs for those cards, and the server's next check time. The binder asks nothing
 before that time (`$XDG_CACHE_HOME/ryoku/team/pull.json`); all times are the
 server's UTC epoch seconds, adjusted by the measured offset, so a time zone or
 clock change on the reader's machine buys no extra check, and the gate rate

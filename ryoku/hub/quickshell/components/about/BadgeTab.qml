@@ -14,7 +14,8 @@ Column {
     property bool live: false
     property string folder: ""
     property string copyError: ""
-    readonly property bool team: !!Badge.badge && Badge.badge.roleId >= 3
+    // every badge, tester to founder, may have its own card design
+    readonly property bool holder: !!Badge.badge
     readonly property bool idle: Badge.job === ""
     readonly property var roles: ["tester", "contributor", "nixos", "core", "founder"]
     readonly property var emblemSpec: Badge.ownDesign && Badge.ownDesign.spec ? Badge.ownDesign.spec.badge : null
@@ -28,7 +29,7 @@ Column {
         });
     }
     function filename() {
-        var name = Badge.candidate ? Badge.candidate.name : "team";
+        var name = Badge.candidate ? Badge.candidate.name : "card";
         return "ryoku-design-" + String(name).toLowerCase().replace(/[^a-z0-9_-]+/g, "-") + ".zip";
     }
     FolderChooser {
@@ -99,16 +100,25 @@ Column {
 
     Column {
         width: parent.width
-        visible: root.team
+        visible: root.holder
         spacing: LithicTokens.space.s3
-        Label { text: I18n.tr("Team design"); typeRole: "section" }
-        Note { text: Badge.design ? I18n.tr("Approved design: %1").replace("%1", Badge.design.name) : I18n.tr("No approved design yet. Your stock badge stays until nero approves a design.") }
+        Label { text: I18n.tr("Your card design"); typeRole: "section" }
+        Note {
+            text: Badge.design ? I18n.tr("Approved design: %1. Friends see it on your card.").replace("%1", Badge.design.name)
+                : Badge.worn ? I18n.tr("Wearing %1 on this machine. Friends see your classic card until nero approves it.").replace("%1", Badge.worn.name)
+                : I18n.tr("No design yet. Wear one on this machine now, and send it to Mika so friends see it too.")
+        }
+        Note {
+            visible: Badge.wornError !== ""
+            text: I18n.tr("The design you wear no longer passes the check, so your card is classic: %1").replace("%1", Badge.wornError)
+            ink: Lithic.jasper
+        }
         Note { text: I18n.tr("A design folder holds design.json and its pictures, including animated WebP. It cannot contain QML, shaders or scripts.") }
         Plaque { kind: "line"; text: I18n.tr("Load design folder"); enabled: root.idle; busy: Badge.job === "check"; onClicked: folderPick.open() }
         Note { visible: root.folder !== ""; text: root.folder }
         Note {
             visible: !!Badge.checked
-            text: !Badge.checked ? "" : Badge.checked.ok ? I18n.tr("Design checked · %1 files · %2 bytes").replace("%1", Badge.checked.files.length).replace("%2", Badge.checked.bytes) : I18n.tr("The design needs changes before it can be packed.")
+            text: !Badge.checked ? "" : Badge.checked.ok ? I18n.tr("Design checked · %1 files · %2 bytes").replace("%1", Badge.checked.files.length).replace("%2", Badge.checked.bytes) : I18n.tr("The design needs changes before it can be worn or packed.")
         }
         Repeater {
             model: Badge.checked ? Badge.checked.errors || [] : []
@@ -117,11 +127,25 @@ Column {
         SettingRow {
             width: parent.width
             title: I18n.tr("Preview on my card")
-            detail: I18n.tr("Only you see this until the design is approved")
+            detail: I18n.tr("Shows it while the studio is open")
             activatable: !!Badge.candidate
             onActivated: Badge.preview = Badge.previewing ? null : Badge.candidate
             Toggle { checked: Badge.previewing; enabled: !!Badge.candidate; Accessible.name: I18n.tr("Preview on my card"); onToggled: Badge.preview = checked ? Badge.candidate : null }
         }
+        Flow {
+            width: parent.width
+            spacing: LithicTokens.space.s2
+            Plaque {
+                kind: "line"
+                text: I18n.tr("Wear on this machine")
+                visible: !Badge.design
+                enabled: root.idle && !!Badge.checked && Badge.checked.ok && root.folder !== ""
+                busy: Badge.job === "wear"
+                onClicked: Badge.wear(root.folder)
+            }
+            Plaque { kind: "quiet"; text: I18n.tr("Stop wearing"); visible: !!Badge.worn; enabled: root.idle; busy: Badge.job === "unwear"; onClicked: Badge.unwear() }
+        }
+        Note { visible: !Badge.design; text: I18n.tr("A worn design stays on this machine's card. It is never sent to friends or the team service.") }
         TextField {
             id: output
             width: parent.width
@@ -134,7 +158,7 @@ Column {
             Plaque { small: true; kind: "quiet"; text: I18n.tr("Choose save folder"); onClicked: savePick.open() }
             Plaque { kind: "gold"; text: I18n.tr("Save for Mika"); enabled: root.idle && !!Badge.checked && Badge.checked.ok && root.folder !== "" && output.text.charAt(0) === "/"; busy: Badge.job === "pack"; onClicked: Badge.saveDesign(root.folder, output.text) }
         }
-        Note { text: I18n.tr("Use /card submit in the team channel to send the zip to Mika. Nero approves it before anyone else sees it.") }
+        Note { text: I18n.tr("To have friends see it, use /card submit in the claim-badge channel to send the zip to Mika. nero approves it first.") }
     }
     Column {
         width: parent.width

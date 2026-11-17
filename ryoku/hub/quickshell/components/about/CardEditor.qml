@@ -62,7 +62,7 @@ Dialog {
     readonly property bool movingAllowed: !!Badge.ownBadge
     // a card style is one badge holder's own look, set up for them rather than picked here: the
     // studio offers no choice of style, only the controls of a style the card already wears and
-    // the badge's login owns. Everyone else's look is a team design
+    // the badge's login owns. Everyone else's look is their own card design
     readonly property var styleNames: ({ stand: I18n.tr("Stand") })
     readonly property var ownStyles: Badge.ownStyles.filter(style => root.styleNames[style] !== undefined)
     readonly property bool standStyle: root.ownStyles.indexOf("stand") >= 0 && root.val("style", "classic") === "stand"
