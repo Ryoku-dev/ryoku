@@ -17,11 +17,11 @@ var rows = [
     {
         "tab": "",
         "group": "ENGINE & MODEL",
-        "key": "# ryoku-preset: <key>",
+        "key": "engine + whisper.model",
         "label": "Speech engine",
         "desc": "Curated English, multilingual, and cloud models",
         "ctl": "seg",
-        "src": "voxtype.go, mode 0600, atomicWrite. Selection is persisted as a TOML comment marker `# ryoku-preset: <key>` and read back by selectedPreset().",
+        "src": "voxtype.go, mode 0600, atomicWrite. selectedPreset() matches the configured engine, mode and model; unmatched configurations show Custom. The comment records the last Hub choice.",
         "opts": [
             "whisper-tiny-en",
             "whisper-fast",

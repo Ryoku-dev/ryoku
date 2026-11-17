@@ -29,7 +29,7 @@ Item {
 
     // ── live snapshot from `ryoku-hub voxtype get` ────────────────────────
     property var presets: []
-    property string selected: "whisper-fast"
+    property string selected: "custom"
     property bool voiceOn: false
     property bool installed: false
     property bool loaded: false
@@ -69,7 +69,7 @@ Item {
     readonly property bool keyOnFile: pg.openaiKeySet
     // can voice typing be switched on yet? a local model has to be downloaded,
     // or a cloud engine needs its key. otherwise the toggle stays locked.
-    readonly property bool usable: pg.sel !== null && (pg.sel.cloud ? pg.keyOnFile : pg.sel.present)
+    readonly property bool usable: pg.selected === "custom" || (pg.sel !== null && (pg.sel.cloud ? pg.keyOnFile : pg.sel.present))
 
     readonly property var pendingPreset: pg.presetFor(pg.pendingDownload)
 
@@ -190,7 +190,7 @@ Item {
                 try {
                     var d = JSON.parse(this.text);
                     pg.presets = d.presets || [];
-                    pg.selected = d.selected || "whisper-fast";
+                    pg.selected = d.selected || "custom";
                     pg.voiceOn = d.enabled === true;
                     pg.installed = d.installed === true;
                     pg.packageAvailable = d.packageAvailable !== false;
@@ -457,6 +457,14 @@ Item {
                             anchors { left: parent.left; right: parent.right; top: parent.top }
                             anchors.leftMargin: Tokens.s4; anchors.rightMargin: Tokens.s4; anchors.topMargin: Tokens.s3
                             spacing: Tokens.s2
+
+                            Text {
+                                visible: pg.selected === "custom"
+                                width: parent.width
+                                text: I18n.tr("Custom")
+                                color: Tokens.ink
+                                font.family: Tokens.ui; font.pixelSize: Tokens.fSmall
+                            }
 
                         Repeater {
                             model: pg.presets
