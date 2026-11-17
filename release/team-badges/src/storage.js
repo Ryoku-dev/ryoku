@@ -121,17 +121,42 @@ export async function expireCards(env, now) {
   }
   await reconcileIndex(env, stale, now, { loaded });
 }
-// styled (v3) records only stand while an active badge vouches for them; the caller passes ids that
-// lost theirs, and only a stored v3 record goes, a classic record under the same id stays
+// styled (v3) and worded (v4) records only stand while an active badge vouches for them; the
+// caller passes ids that lost theirs, and only such a record goes, a classic record under the
+// same id stays
 export async function dropStyledRecords(env, ids, now) {
   if (!ids.length) return;
   const loaded = await loadIndex(env), dropped = [];
   for (const id of ids) {
     if (!Object.hasOwn(loaded.cards, id)) continue;
     const object = await env.BUCKET.get(`cards/${id}.json`);
-    if (object && (await storedRecord(object))?.v === 3) { await removeRecord(env, id, object); dropped.push(id); }
+    if (object && (await storedRecord(object))?.v >= 3) { await removeRecord(env, id, object); dropped.push(id); }
   }
   if (dropped.length) await reconcileIndex(env, dropped, now, { loaded });
+}
+
+// A badge holder's binder may check ahead of the schedule `limit` times per UTC day, counted per
+// badge id in `holders/<id>.json` ({day, used, at}) with etag-conditional writes, so parallel
+// requests can't spend more than there are. `at` is the newest proof time taken: a proof is taken
+// once, so a copy of one replayed later spends nothing. Resolves to whether this proof got an
+// early refresh and how many are left today; a write that keeps losing races gets none.
+export async function claimHolderRefresh(env, badgeId, at, now, limit) {
+  const key = `holders/${badgeId}.json`, day = Math.floor(now / 86400);
+  let left = limit;
+  for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+    const stored = await env.BUCKET.get(key);
+    let held = { used: 0, at: -1 };
+    try {
+      const value = stored ? JSON.parse(await stored.text()) : null;
+      if (isMap(value) && [value.day, value.used, value.at].every(Number.isSafeInteger)) held = { used: value.day === day ? value.used : 0, at: value.at };
+    } catch { /* an unreadable counter starts the day again; its etag still guards the write */ }
+    left = Math.max(0, limit - held.used);
+    if (at <= held.at || !left) return { granted: false, left };
+    if (await env.BUCKET.put(key, JSON.stringify({ day, used: held.used + 1, at }), { onlyIf: condition(stored), httpMetadata: { contentType: 'application/json' } })) {
+      return { granted: true, left: left - 1 };
+    }
+  }
+  return { granted: false, left };
 }
 
 export async function reserveBadge(env, badge, initialActive) {

@@ -16,6 +16,7 @@
     "OWNER_KEY": "tlIg8prWfO0dMfd9IO3qxklONGHbSq7w3bUiu6QWuro=",
     "MIKA_KEY": "TtnSdWqRm4UPQ4JXa5IG8yBKp/xbxTudgO/C/AeBnUg=",
     "CARD_LIMIT": "20000",
-    "PULL_SECONDS": "900"
+    "PULL_SECONDS": "900",
+    "HOLDER_REFRESHES": "10"
   }
 }

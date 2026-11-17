@@ -114,16 +114,40 @@ export async function verifyCode(kind, text, env = {}) {
   requireThat(await verifySignature(key, signature, domains[kind], payload), 'Invalid signature');
   return { kind, code: encodeCode(kind, bytes), issuer, ...fields };
 }
-// styles a badge holder may sign into a v3 record; classic cards stay v2 and never name one
+// styles a badge holder may sign into a v3 or v4 record; classic cards stay v2 and never name one
 export const CARD_STYLES = Object.freeze(['stand']);
 const STYLE = /^[a-z0-9-]{1,32}$/;
-const RECORD_FIELDS = { 2: 'body,id,picture,sig,updated,v', 3: 'body,id,picture,sig,style,updated,v' };
-// v2 signs the card bytes; v3 signs the same bytes followed by its u16 length-prefixed style
+const RECORD_BASE = ['body', 'id', 'picture', 'sig', 'updated', 'v'];
+const RECORD_FIELDS = { 2: RECORD_BASE.join(','), 3: 'body,id,picture,sig,style,updated,v' };
+// a v4 record carries a badge holder's own words, at least one of them, with or without a style
+export const WORD_CAPS = Object.freeze({ tagline: 128, standName: 64 });
+function recordFieldsValid(record) {
+  const keys = Object.keys(record).filter(key => key !== 'device').sort();
+  if (record.v !== 4) return keys.join(',') === RECORD_FIELDS[record.v];
+  const extra = keys.filter(key => !RECORD_BASE.includes(key));
+  return RECORD_BASE.every(key => keys.includes(key)) && extra.every(key => key === 'style' || Object.hasOwn(WORD_CAPS, key))
+    && extra.some(key => Object.hasOwn(WORD_CAPS, key));
+}
+// characters that draw as nothing or as a space, which would let two different words read alike,
+// markup Qt might take for rich text, and spaces at either end; the client applies the same rule
+const HIDDEN_WORDS = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Co}\p{Cs}\p{Noncharacter_Code_Point}<>&\uFFFD\u115F\u1160\u3164\uFFA0]|^\p{Zs}|\p{Zs}$/u;
+export function cardWordsValid(text, cap) {
+  return typeof text === 'string' && text.length > 0 && [...text].length <= cap && text.isWellFormed()
+    && text === text.normalize('NFC') && !HIDDEN_WORDS.test(text);
+}
+function prefixed(text) {
+  const bytes = encoder.encode(text);
+  return concat(new Uint8Array([bytes.length >> 8, bytes.length & 255]), bytes);
+}
+// v2 signs the card bytes; v3 signs the same bytes followed by its u16 length-prefixed style; v4
+// follows the card bytes with the style, the tagline and the Stand's name, each u16
+// length-prefixed and empty when absent
 export function cardPayload(record) {
   requireThat(record && typeof record === 'object' && !Array.isArray(record), 'Invalid card record');
-  requireThat((record.v === 2 || record.v === 3) && Object.keys(record).filter(key => key !== 'device').sort().join(',') === RECORD_FIELDS[record.v], 'Invalid record fields');
+  requireThat([2, 3, 4].includes(record.v) && recordFieldsValid(record), 'Invalid record fields');
   requireThat(typeof record.id === 'string' && CARD_ID.test(record.id) && Number.isSafeInteger(record.updated) && record.updated >= 0, 'Invalid card metadata');
-  requireThat(record.v === 2 || (typeof record.style === 'string' && STYLE.test(record.style) && CARD_STYLES.includes(record.style)), 'Unknown card style');
+  requireThat(record.v === 2 || (record.v === 4 && record.style === undefined) || (typeof record.style === 'string' && STYLE.test(record.style) && CARD_STYLES.includes(record.style)), 'Unknown card style');
+  for (const [key, cap] of Object.entries(WORD_CAPS)) requireThat(record[key] === undefined || cardWordsValid(record[key], cap), 'Invalid card words');
   requireThat(record.device === undefined || unbase64(record.device).length === 32, 'Invalid card device');
   requireThat(record.picture === '' || (typeof record.picture === 'string' && SHA.test(record.picture)), 'Invalid picture hash');
   const body = unbase64(record.body);
@@ -144,16 +168,16 @@ export function cardPayload(record) {
   view.setBigUint64(0, BigInt(record.updated)); view.setUint16(8, body.length);
   const payload = concat(unhex(record.id), numbers, body, record.picture ? unhex(record.picture) : new Uint8Array(32));
   if (record.v === 2) return payload;
-  const style = encoder.encode(record.style);
-  return concat(payload, new Uint8Array([style.length >> 8, style.length & 255]), style);
+  const words = record.v === 4 ? [prefixed(record.tagline ?? ''), prefixed(record.standName ?? '')] : [];
+  return concat(payload, prefixed(record.style ?? ''), ...words);
 }
-export const cardDomain = record => record.v === 3 ? 'ryoku-card-v3' : 'ryoku-card-v2';
+export const cardDomain = record => `ryoku-card-v${record.v}`;
 export async function verifyCard(record, device) {
   const payload = cardPayload(record);
   return verifySignature(device, unbase64(record.sig), cardDomain(record), payload);
 }
 // the id comes from the device key, so a v2 record carrying that key vouches for itself;
-// a styled v3 record never does, only an active badge's device key can vouch for one
+// a styled v3 or worded v4 record never does, only an active badge's device key can vouch for one
 export async function verifyDeviceCard(record) {
   cardPayload(record);
   if (record.device === undefined || record.v !== 2) return false;
@@ -173,12 +197,19 @@ export async function verifyDelete(request, devices, now) {
   for (const device of devices) if (await verifySignature(device, signature, 'ryoku-card-delete-v1', payload)) return true;
   return false;
 }
-// resolves to the badge when its own device signed a recent pull, throws otherwise
-export async function verifyHolder(holder, env, now) {
+// the cards of a batch as a holder proof signs them: in id order, each id's 8 bytes then the
+// version held as a u64
+export function batchBytes(cards) {
+  return concat(...Object.keys(cards).sort().flatMap(id => [unhex(id), u64(cards[id])]));
+}
+// resolves to the badge when its own device signed this very batch recently, throws otherwise;
+// the proof covers the badge id, its time and SHA-256 of the batch's cards
+export async function verifyHolder(holder, cards, env, now) {
   requireThat(holder && typeof holder === 'object' && !Array.isArray(holder) && Object.keys(holder).sort().join(',') === 'at,badge,sig', 'Invalid holder');
   requireThat(fresh(holder.at, now), 'Invalid holder time');
   const badge = await verifyCode('RYB', holder.badge, env);
-  requireThat(await verifySignature(badge.device, unbase64(holder.sig), 'ryoku-pull-v1', concat(unhex(badge.id), u64(holder.at))), 'Invalid holder signature');
+  const payload = concat(unhex(badge.id), u64(holder.at), unhex(await digest(batchBytes(cards))));
+  requireThat(await verifySignature(badge.device, unbase64(holder.sig), 'ryoku-pull-v2', payload), 'Invalid holder signature');
   return badge;
 }
 export async function verifyUpload(header, method, path, sha, env, now) {

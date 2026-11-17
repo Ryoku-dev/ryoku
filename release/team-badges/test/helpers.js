@@ -46,6 +46,10 @@ export async function record(device, fields = {}) {
 export async function styledRecord(device, fields = {}) {
   return record(device, { v: 3, style: 'stand', ...fields });
 }
+// a v4 record carrying its owner's words, and the Stand style unless fields say otherwise
+export async function wordedRecord(device, fields = {}) {
+  return record(device, { v: 4, style: 'stand', tagline: 'Yare yare daze.', standName: 'Star Platinum', ...fields });
+}
 export async function deviceRecord(device, fields = {}) {
   return record(device, { device: base64(device.raw), ...fields });
 }
@@ -57,8 +61,10 @@ function u64(value) {
 export async function deleteRequest(device, id, at = now()) {
   return { id, at, sig: base64(await sign(device, 'ryoku-card-delete-v1', concat(unhex(id), u64(at)))) };
 }
-export async function holderProof(device, badge, badgeId, at = now()) {
-  return { badge, at, sig: base64(await sign(device, 'ryoku-pull-v1', concat(unhex(badgeId), u64(at)))) };
+// a holder proof for exactly this batch of cards
+export async function holderProof(device, badge, badgeId, cards, at = now()) {
+  const { batchBytes } = await import('../src/codec.js');
+  return { badge, at, sig: base64(await sign(device, 'ryoku-pull-v2', concat(unhex(badgeId), u64(at), unhex(await digest(batchBytes(cards)))))) };
 }
 export async function uploadHeader(signer, issuer, path, bytes, seconds = now(), method = 'PUT') {
   const payload = new TextEncoder().encode(`${method}\n${path}\n${seconds}\n${await digest(bytes)}`);

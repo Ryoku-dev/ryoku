@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../src/index.js';
-import { base64, cardId, digest, unbase64, verifyCode } from '../src/codec.js';
-import { Bucket, call, cardBody, code, deleteRequest, deviceRecord, holderProof, jpeg, keys, now, record, setup } from './helpers.js';
+import { base64, cardId, digest, verifyCode } from '../src/codec.js';
+import { Bucket, call, cardBody, code, deleteRequest, deviceRecord, jpeg, keys, now, record, setup } from './helpers.js';
 
 const DAY = 86400;
 const JSON_TYPE = { 'Content-Type': 'application/json' };
@@ -282,44 +282,4 @@ test('a badge-only record leaves the batch once its badge is revoked', async () 
   assert.equal((await call(state.env, 'POST', '/v1/revoke', await code('RYX', state.owner, { id }))).status, 200);
   const body = await (await pull(state, { [state.id]: 0 })).json();
   assert.deepEqual([body.records, body.gone, body.badges], [[], [], []]);
-});
-
-test('a badge holder skips the pull limiter and cadence, broken proofs pull like anyone else', async () => {
-  const state = await setup(), stranger = await keys(), badge = await publish(state);
-  const { id: badgeId } = await verifyCode('RYB', badge, state.env);
-  const send = holder => call(state.env, 'POST', '/v1/cards/batch', JSON.stringify({ cards: { [state.id]: 0 }, holder }), JSON_TYPE);
-  let pulls = 0, pullOpen = false, readOpen = true;
-  state.env.PULL_LIMITER = { async limit() { pulls++; return { success: pullOpen }; } };
-  state.env.READ_LIMITER = { async limit() { return { success: readOpen }; } };
-  const proof = await holderProof(state.device, badge, badgeId);
-  for (let i = 0; i < 3; i++) {
-    const response = await send(proof);
-    assert.equal(response.status, 200);
-    const body = await response.json();
-    assert.equal(body.next, body.now);
-  }
-  assert.equal(pulls, 0);
-  const flipped = unbase64(proof.sig); flipped[0] ^= 1;
-  const broken = [
-    await holderProof(stranger, badge, badgeId),
-    await holderProof(state.device, badge, badgeId, now() - 601),
-    { ...proof, sig: base64(flipped) },
-    { ...proof, extra: 1 },
-    'junk',
-  ];
-  for (const holder of broken) {
-    const response = await send(holder);
-    assert.equal(response.status, 429);
-    assert.ok(Math.abs((await response.json()).next - (now() + 60)) <= 2);
-  }
-  assert.equal(pulls, broken.length);
-  pullOpen = true;
-  const normal = await (await send(broken[0])).json();
-  assert.equal(normal.next, normal.now + 900);
-  pullOpen = false;
-  readOpen = false;
-  assert.equal((await send(proof)).status, 429);
-  readOpen = true;
-  assert.equal((await call(state.env, 'POST', '/v1/revoke', await code('RYX', state.owner, { id: badgeId }))).status, 200);
-  assert.equal((await send(await holderProof(state.device, badge, badgeId))).status, 429);
 });

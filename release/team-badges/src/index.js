@@ -1,5 +1,5 @@
 import { CARD_ID, InputError, base64, cardId, cardPayload, digest, jpegDimensions, unbase64, verifyCard, verifyCode, verifyDelete, verifyDeviceCard, verifyHolder, verifyUpload } from './codec.js';
-import { admitRecord, cardIndex, deleteRecord, dropStyledRecords, expireCards, objects, reconcileIndex, reserveBadge, storeDesign, storeRecord, storedRecord } from './storage.js';
+import { admitRecord, cardIndex, claimHolderRefresh, deleteRecord, dropStyledRecords, expireCards, objects, reconcileIndex, reserveBadge, storeDesign, storeRecord, storedRecord } from './storage.js';
 
 const TEXT_CAP = 2400; // At most 600 characters, including Unicode whitespace.
 const CARD_CAP = 600 * 1024;
@@ -128,8 +128,9 @@ async function loadInventory(env) {
   return { badges, revoked, active, designs };
 }
 const STYLE_REFUSED = 'Custom card styles need an active team badge on this machine';
-// a styled v3 record needs an active badge for its id whose device key signed it, the record's
-// own device key never vouches for one
+const WORDS_REFUSED = 'Card words need an active team badge on this machine';
+// a styled v3 or worded v4 record needs an active badge for its id whose device key signed it,
+// the record's own device key never vouches for one
 async function styledBy(record, active) {
   const badges = active.filter(b => b.cardId === record.id);
   if (!badges.length || (record.device !== undefined && !badges.every(b => base64(b.device) === record.device))) return false;
@@ -138,17 +139,17 @@ async function styledBy(record, active) {
 }
 // a v2 device record speaks for itself but never against the key an active badge holds for the id
 async function trustedBy(record, active) {
-  if (record.v === 3) return styledBy(record, active);
+  if (record.v >= 3) return styledBy(record, active);
   const badges = active.filter(b => b.cardId === record.id);
   if (record.device !== undefined) return badges.every(b => base64(b.device) === record.device) && verifyDeviceCard(record);
   for (const badge of badges) if (await verifyCard(record, badge.device)) return true;
   return false;
 }
 // PUT verified these and binders verify again, so a batch only checks what can change after storing:
-// a revoked badge takes its styled record out of every batch at once
+// a revoked badge takes its styled or worded record out of every batch at once
 async function listedBy(record, active) {
   const badges = active.filter(b => b.cardId === record.id);
-  if (record.device === undefined || (record.v === 3 && !badges.length)) return badges.length > 0;
+  if (record.device === undefined || (record.v >= 3 && !badges.length)) return badges.length > 0;
   return badges.every(b => base64(b.device) === record.device) && await cardId(unbase64(record.device)) === record.id;
 }
 // ids without an active badge lose their styled record; revocation calls this at once, the cron daily
@@ -172,9 +173,9 @@ async function putCard(request, env, id) {
   const record = input.record, now = seconds();
   cardPayload(record);
   if (record.id !== id || Math.abs(now - record.updated) > 600) fail('Invalid card id or timestamp');
-  if (record.v === 3) {
+  if (record.v >= 3) {
     if (!await authorizedInventory(env, active => styledBy(record, active))) {
-      fail((await inventory(env)).active.some(b => b.cardId === id) ? 'Invalid card signature' : STYLE_REFUSED, 403);
+      fail((await inventory(env)).active.some(b => b.cardId === id) ? 'Invalid card signature' : record.v === 4 ? WORDS_REFUSED : STYLE_REFUSED, 403);
     }
   } else if (record.device !== undefined) {
     if (!await trustedBy(record, (await inventory(env)).active)) fail('Invalid card signature');
@@ -207,23 +208,26 @@ async function limited(request, limiter) {
   return !(await limiter.limit({ key: request.headers.get('CF-Connecting-IP') || 'unknown' })).success;
 }
 // binders plan their next pull from next, so a refused pull says when to come back
-const refused = pull => json({ error: 'Rate limit exceeded', ...(pull ? { next: seconds() + 60 } : {}) }, 429, { 'Retry-After': '60' });
-async function holds(holder, env, active) {
-  if (holder === undefined) return false;
-  try {
-    const badge = await verifyHolder(holder, env, seconds());
-    return active.some(b => b.id === badge.id);
-  } catch { return false; }
+const refused = (pull, early) => json({ error: 'Rate limit exceeded', ...(pull ? { next: seconds() + 60 } : {}), ...(early ? { holderLeft: early.left } : {}) }, 429, { 'Retry-After': '60' });
+// a valid proof from an active badge spends one of its early refreshes for the day; anything else,
+// a broken or replayed proof included, just means a normal binder, never an error
+async function earlyRefresh(holder, cards, env) {
+  const now = seconds();
+  let badge;
+  try { badge = await verifyHolder(holder, cards, env, now); } catch { return null; }
+  if (!(await inventory(env)).active.some(b => b.id === badge.id)) return null;
+  return claimHolderRefresh(env, badge.id, holder.at, now, setting(env.HOLDER_REFRESHES, 10));
 }
 async function pullCards(request, env) {
   const input = await jsonBody(request, BATCH_CAP), known = input?.cards;
   if (!isMap(input) || Object.keys(input).some(k => !['cards', 'holder'].includes(k)) || !isMap(known)) fail('Invalid card batch');
   const ids = Object.keys(known);
   if (ids.length < 1 || ids.length > BATCH_IDS || !ids.every(id => CARD_ID.test(id) && Number.isSafeInteger(known[id]) && known[id] >= 0)) fail('Invalid card batch');
+  const early = input.holder === undefined ? null : await earlyRefresh(input.holder, known, env);
+  // an early refresh skips the cadence and the per-address limits; without one a batch is a read
+  // and a pull like any other
+  if (!early?.granted && (await limited(request, env.READ_LIMITER) || await limited(request, env.PULL_LIMITER))) return refused(true, early);
   const { active, designs } = await inventory(env);
-  // a broken holder proof just means a normal binder, never an error
-  const holder = await holds(input.holder, env, active);
-  if (!holder && await limited(request, env.PULL_LIMITER)) return refused(true);
   const index = await cardIndex(env);
   const changed = ids.filter(id => Object.hasOwn(index.cards, id) && index.cards[id] > known[id]);
   const records = (await Promise.all(changed.map(id => trustedRecord(env, id, active, listedBy)))).filter(t => t && t.record.updated > known[t.record.id]).map(t => t.record);
@@ -231,10 +235,11 @@ async function pullCards(request, env) {
   const team = new Set(badges.filter(b => b.role >= 3).map(b => b.login.toLowerCase()));
   const now = seconds();
   return json({
-    v: 1, now, next: holder ? now : now + setting(env.PULL_SECONDS, 900), records,
+    v: 1, now, next: early?.granted ? now : now + setting(env.PULL_SECONDS, 900), records,
     gone: ids.filter(id => !Object.hasOwn(index.cards, id)),
     badges: badges.map(b => b.code),
     designs: designs.filter(d => team.has(d.login.toLowerCase())).map(d => d.code),
+    ...(early ? { holderLeft: early.left } : {}),
   }, 200, { 'Cache-Control': 'no-store' });
 }
 async function serveObject(env, key, type) {
@@ -245,7 +250,8 @@ async function route(request, env, ctx) {
   const url = new URL(request.url), path = url.pathname, method = request.method;
   if (url.protocol !== 'https:') fail('HTTPS required');
   const batch = method === 'POST' && path === '/v1/cards/batch';
-  if (await limited(request, batch || method === 'GET' || method === 'HEAD' ? env.READ_LIMITER : env.WRITE_LIMITER)) return refused(batch);
+  // a batch takes its read limit once it knows whether a holder spent an early refresh on it
+  if (!batch && await limited(request, method === 'GET' || method === 'HEAD' ? env.READ_LIMITER : env.WRITE_LIMITER)) return refused(false);
   if (batch) return pullCards(request, env);
   if (method === 'GET' && path === '/v1/list') return cachedResponse(request, ctx, async () => {
     const data = await inventory(env);

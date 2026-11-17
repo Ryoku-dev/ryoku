@@ -23,7 +23,7 @@ test('cross-language Go vectors', async t => {
         if (kind === 'card') valid = await verifyCard(vector.record, unbase64(vector.deviceKey));
         else if (kind === 'deviceCard') valid = await verifyDeviceCard(vector.record);
         else if (kind === 'cardDelete') valid = await verifyDelete({ id: vector.id, at: vector.at, sig: vector.sig }, [unbase64(vector.deviceKey)], vector.now);
-        else if (kind === 'pullHolder') { await verifyHolder(vector.holder, env, vector.now); valid = true; }
+        else if (kind === 'pullHolder') { await verifyHolder(vector.holder, vector.cards, env, vector.now); valid = true; }
         else if (kind === 'upload') { await verifyUpload(vector.header, vector.method, vector.path, vector.sha, env, vector.now); valid = true; }
         else { result = await verifyCode(kind, vector.text, env); valid = true; }
       } catch { valid = false; }

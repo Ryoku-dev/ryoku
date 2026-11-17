@@ -1,6 +1,23 @@
 # Release / Packaging Changelog
 
 ## Unreleased
+- **team.ryoku.dev takes badge holders' own words and counts their early
+  refreshes.** A `v:4` card record carries an optional style plus the owner's
+  `tagline` (up to 128 characters) and `standName` (up to 64), each u16
+  length-prefixed and signed under `ryoku-card-v4`. The gate stores one only
+  for an active badge on that card signed by its machine key (403 `Card words
+  need an active team badge on this machine` otherwise), refuses markup,
+  control, format, bidi and zero-width characters, private-use and
+  non-characters, unnormalised (non-NFC) text and spaces at the ends with 400
+  `Invalid card words`, withholds it once the badge is revoked and deletes it
+  on revocation or in the daily cleanup. `v:2` and `v:3` records are
+  unchanged. Holder pull proofs move to `ryoku-pull-v2`, bound to the batch
+  they sign and taken once; each badge gets `HOLDER_REFRESHES` (10) early
+  refreshes per UTC day, counted in R2 with conditional writes, that skip the
+  cadence and the per-address limits, and every holder batch answers
+  `holderLeft`. Deploy the Worker before clients that send `v:4`.
+- **`ryoku-hub` vendors `golang.org/x/text` v0.36.0** (`unicode/norm` only) to
+  hold card words to NFC as the gate does.
 - **Only badge holders can sync a styled card to team.ryoku.dev.** The team
   gate now takes built-in card styles (currently `stand`) only in signed `v:3`
   records, and stores one only when an active badge exists for the card and
