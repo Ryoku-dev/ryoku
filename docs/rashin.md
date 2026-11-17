@@ -610,11 +610,22 @@ idempotent (wire replaces an existing block or appends a fresh one) and reversib
 <!-- ryoku-rashin:begin -->
 ## Ryoku Rashin system vault
 
-This machine runs Ryoku (Arch Linux, Hyprland desktop). A maintained map of the
-system lives at `~/.local/share/ryoku/rashin/`. Before exploring the machine or
-guessing paths, read `AGENTS.md` there: it says where every config lives, which
-binary owns it, and how to reload it. Write durable notes to `memory/` and
-dated notes to `journal/YYYY-MM-DD.md`.
+This machine runs a Ryoku Linux desktop. Its edition and compositor are named
+in `desktop.md` and by `ryoku wm status`; detect them, never assume. A maintained
+map of the system lives at `~/.local/share/ryoku/rashin/`. Before exploring the
+machine or guessing paths, read `AGENTS.md` there: it says where every config
+lives, which binary owns it, and how to reload it. Write durable notes to the
+vault's `memory/` and dated notes to its `journal/YYYY-MM-DD.md`; these are
+vault folders, not this agent's own memory store. Prowl is an optional
+external plug-in for its model gateway, code index, and skills; it never overrides
+the user's model pick. When available, prefer its cited code intelligence:
+`prowl search "<question>"`, `find`, `def`, `references`, `outline`, `impact`.
+The `ryoku` agent skill (safety rules, the GUI map, the bar and dock, the window-manager
+seam, building the Ryoku way, and the command catalogue) is wired into this
+agent's skills directory; read it before customising the desktop, and cite the
+vault's `wiki/` pages to someone new. Answer a desktop "how do I" question
+GUI-first: name the Ryoku Hub page, shell picker, or QS Bar Settings before
+naming any command.
 <!-- ryoku-rashin:end -->
 ```
 
