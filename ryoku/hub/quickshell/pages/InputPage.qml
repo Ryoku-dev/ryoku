@@ -490,10 +490,10 @@ Item {
     function he(path, v) { if (pg.hub) pg.hub.hyprEdit(path, v) }
 
     // ── keyboard layout: positional comma strings ───────────────────────────
-    // kb_layout may hold "fr,us" (primary + secondary). The variant applies to
-    // the primary, so a secondary keeps the variant's slot empty ("azerty,")
-    // because xkb aligns variants to layouts by position. `committed` reads disk
-    // for the struck default.
+    // kb_layout may hold "fr,us" (primary + secondary), and kb_variant one slot
+    // per layout in the same order ("azerty,", ",winkeys"), because xkb aligns
+    // variants to layouts by position. `committed` reads disk for the struck
+    // default.
     function kbLayoutStr(committed) {
         return String((committed ? pg.cv("desktop.input.kbLayout") : pg.hv("desktop.input.kbLayout")) || "");
     }
@@ -507,13 +507,40 @@ Item {
     }
     function primaryVariant(committed) { return pg.kbVariantStr(committed).split(",")[0]; }
 
+    function secondaryVariant(committed) {
+        var parts = pg.kbVariantStr(committed).split(",");
+        return parts.length > 1 ? parts[1] : "";
+    }
+    // "pv" alone, "pv," or ",sv": the slot of each layout, by position
+    function joinVariants(pv, sv, hasSecond) {
+        if (!hasSecond)
+            return pv;
+        return sv ? pv + "," + sv : (pv ? pv + "," : "");
+    }
+
     function setLayouts(primary, secondary) {
+        var oldSecondary = pg.secondaryLayout(false);
         pg.he("desktop.input.kbLayout", secondary ? primary + "," + secondary : primary);
-        var v = pg.primaryVariant(false);
-        pg.he("desktop.input.kbVariant", secondary && v ? v + "," : v);
+        // a variant belongs to its layout: it survives only while that layout does
+        var sv = secondary && secondary === oldSecondary ? pg.secondaryVariant(false) : "";
+        pg.he("desktop.input.kbVariant", pg.joinVariants(pg.primaryVariant(false), sv, secondary !== ""));
+        if (secondary && !oldSecondary)
+            pg.ensureSwitchKey();
     }
     function setVariant(v) {
-        pg.he("desktop.input.kbVariant", pg.secondaryLayout(false) && v ? v + "," : v);
+        pg.he("desktop.input.kbVariant", pg.joinVariants(v, pg.secondaryVariant(false), pg.secondaryLayout(false) !== ""));
+    }
+    function setSecondaryVariant(v) {
+        pg.he("desktop.input.kbVariant", pg.joinVariants(pg.primaryVariant(false), v, true));
+    }
+    // a second layout nobody can reach is how people lock themselves out at the
+    // login screen; only added when no switch key of any kind is set
+    function ensureSwitchKey() {
+        var toks = pg.optTokens(false);
+        for (var i = 0; i < toks.length; i++)
+            if (toks[i].indexOf("grp:") === 0)
+                return;
+        pg.setOption(pg.grpIds, "grp:alt_shift_toggle");
     }
 
     // ── curated remaps over kb_options ──────────────────────────────────────
@@ -648,34 +675,54 @@ Item {
         var q = m[1].trim();
         return q.charAt(0).toUpperCase() + q.slice(1);
     }
+    // one catalogue per layout slot; the second is only fetched while a second
+    // layout is set
+    property var secondVariantOptions: [{ "code": "", "name": I18n.tr("Default") }]
+    function variantList(text) {
+        var out = [{ "code": "", "name": I18n.tr("Default") }];
+        try {
+            var arr = JSON.parse(text);
+            for (var i = 0; i < arr.length; i++)
+                out.push({ "code": arr[i].code, "name": pg.variantLabel(arr[i].name) });
+        } catch (e) {}
+        return out;
+    }
     Process {
         id: variantsProc
         property string forLayout: ""
         command: ["ryoku-hub", "desktop", "variants", forLayout]
         stdout: StdioCollector {
-            onStreamFinished: {
-                var out = [{ "code": "", "name": I18n.tr("Default") }];
-                try {
-                    var arr = JSON.parse(this.text);
-                    for (var i = 0; i < arr.length; i++)
-                        out.push({ "code": arr[i].code, "name": pg.variantLabel(arr[i].name) });
-                } catch (e) {}
-                pg.variantOptions = out;
-            }
+            onStreamFinished: pg.variantOptions = pg.variantList(this.text)
+        }
+    }
+    Process {
+        id: secondVariantsProc
+        property string forLayout: ""
+        command: ["ryoku-hub", "desktop", "variants", forLayout]
+        stdout: StdioCollector {
+            onStreamFinished: pg.secondVariantOptions = pg.variantList(this.text)
         }
     }
     // guarded so the same layout never refetches and an empty layout is skipped;
-    // driven by the primary-layout change below plus first paint.
+    // driven by the layout changes below plus first paint.
     function refreshVariants() {
         var l = pg.primaryLayout(false);
-        if (l.length === 0 || variantsProc.forLayout === l)
-            return;
-        variantsProc.forLayout = l;
-        variantsProc.running = false;
-        variantsProc.running = true;
+        if (l.length > 0 && variantsProc.forLayout !== l) {
+            variantsProc.forLayout = l;
+            variantsProc.running = false;
+            variantsProc.running = true;
+        }
+        var s = pg.secondaryLayout(false);
+        if (s.length > 0 && secondVariantsProc.forLayout !== s) {
+            secondVariantsProc.forLayout = s;
+            secondVariantsProc.running = false;
+            secondVariantsProc.running = true;
+        }
     }
     readonly property string curPrimary: pg.primaryLayout(false)
     onCurPrimaryChanged: pg.refreshVariants()
+    readonly property string curSecondary: pg.secondaryLayout(false)
+    onCurSecondaryChanged: pg.refreshVariants()
 
     function nameIn(list, code) {
         for (var i = 0; i < list.length; i++)
@@ -688,7 +735,10 @@ Item {
     // Out of band: this writes to /etc and rebuilds the boot image, not the
     // draft, and escalates through polkit.
     property string sysApplyState: ""
-    function applyLayoutArg() { return pg.primaryLayout(false) || "us"; }
+    function applyLayoutArg() {
+        var parts = pg.kbLayoutStr(false).split(",").filter(function (l) { return l.trim().length > 0; });
+        return parts.length > 0 ? parts.join(",") : "us";
+    }
     function applyVariantArg() { return String(pg.hv("desktop.input.kbVariant") || ""); }
     function applyOptionsArg() { return String(pg.hv("desktop.input.kbOptions") || ""); }
     // The host seam applies the greeter and console layout, then rebuilds the
@@ -1201,6 +1251,16 @@ Item {
                     currentCode: pg.secondaryLayout(false)
                     committedCode: pg.secondaryLayout(true)
                     applyFn: function (code) { pg.setLayouts(pg.primaryLayout(false), code); }
+                }
+                PickCell {
+                    visible: pg.secondaryLayout(false).length > 0
+                    cellLabel: I18n.tr("Second layout style")
+                    cellDesc: I18n.tr("A tweak on the second layout, like Persian (Windows).")
+                    pickTitle: I18n.tr("SECOND LAYOUT STYLE")
+                    list: pg.secondVariantOptions
+                    currentCode: pg.secondaryVariant(false)
+                    committedCode: pg.secondaryVariant(true)
+                    applyFn: function (code) { pg.setSecondaryVariant(code); }
                 }
                 OptCell {
                     gate: pg.secondaryLayout(false).length > 0

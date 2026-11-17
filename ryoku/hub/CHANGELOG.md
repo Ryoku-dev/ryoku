@@ -65,6 +65,9 @@
   and rejects names beginning with a dash; the picker keeps its replacement warning.
 - **Exported rices point to the Ryogami picker's Rices tab (#813).**
   The sharing instructions no longer name a missing Settings page.
+- **Input offers a style for the second layout (#816).** Pick Persian (Windows)
+  or any other variant for the second layout; choosing a second layout also sets
+  Alt+Shift when no switch key is set, so it can be reached.
 - **Graphics & Power offers Performance on laptops with a monitor port on the
   discrete GPU.** The page says it applies only while a monitor is plugged in
   there at login, and that the built-in screen can then stay dark after sleep.

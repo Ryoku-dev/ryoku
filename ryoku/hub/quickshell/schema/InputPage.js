@@ -47,6 +47,20 @@ var rows = [
     {
         "tab": "",
         "group": "KEYBOARD",
+        "key": "desktop.input.kbVariant",
+        "label": "Second layout style",
+        "desc": "A tweak on the second layout, like Persian (Windows).",
+        "ctl": "seg",
+        "src": "desktop.json",
+        "caps": "keyboardLayoutSwitch",
+        "opts": [
+            "\"\"",
+            "<dynamic:"
+        ]
+    },
+    {
+        "tab": "",
+        "group": "KEYBOARD",
         "key": "desktop.input.kbOptions",
         "label": "Switch layouts",
         "desc": "The chord that flips between your two layouts.",
