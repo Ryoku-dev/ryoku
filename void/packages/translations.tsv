@@ -211,7 +211,6 @@ ryoku	@repo	desktop	Ryoku-owned package built from the checkout.
 ryoku-blobs	@repo	desktop	Ryoku-owned package built from the checkout.
 ryoku-cursor-material	ryoku-cursor-material	desktop	repo=ryoku
 ryoku-cursors	ryoku-cursors	desktop	repo=ryoku
-ryoku-dictation	@repo	desktop	Ryoku-owned package built from the checkout.
 ryoku-desktop	@repo	desktop	Ryoku-owned package built from the checkout.
 ryoku-desktop-compositor	-	desktop	Virtual dependency provided by a compositor meta-package.
 ryoku-desktop-hyprland	-	hyprland	Ryoku's Hyprland needs GCC 15 and Void still ships GCC 14.
