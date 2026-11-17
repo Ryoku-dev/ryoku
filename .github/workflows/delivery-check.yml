@@ -35,6 +35,9 @@ jobs:
       - name: Verify Fedora package dependencies
         run: bash tests/fedora-packages.sh
 
+      - name: Verify the voice engine deploy installs its Vulkan build tools
+        run: bash tests/dictation-deploy.sh
+
       - name: Verify Fedora's snapshot boot menu
         run: bash tests/snapshot-boot.sh
 

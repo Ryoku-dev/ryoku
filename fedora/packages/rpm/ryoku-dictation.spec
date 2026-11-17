@@ -16,6 +16,7 @@ BuildRequires:  wayland-devel
 BuildRequires:  libxkbcommon-devel
 BuildRequires:  vulkan-loader-devel
 BuildRequires:  vulkan-headers
+BuildRequires:  spirv-headers-devel
 BuildRequires:  glslc
 Requires:       glibc
 Requires:       libstdc++

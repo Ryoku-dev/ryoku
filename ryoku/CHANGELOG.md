@@ -1,6 +1,11 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **Updating no longer stops at the voice engine on a box without the SPIRV
+  headers.** The deploy check, the package recipes and the build host list now
+  name `spirv-headers` (Fedora `spirv-headers-devel`, Void `SPIRV-Headers`),
+  which ggml's Vulkan backend needs to configure
+  (`ryoku/dictation/deploy.sh`, `release/packages/ryoku-dictation/PKGBUILD`).
 - **The bar's battery, brightness and volume readouts come from the shell
   daemon.** UPower, the panel backlight and the PipeWire default levels are
   read once in Go and streamed on the `battery`, `backlight` and `audio`
