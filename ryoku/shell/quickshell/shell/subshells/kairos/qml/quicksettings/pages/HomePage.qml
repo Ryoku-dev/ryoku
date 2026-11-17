@@ -24,8 +24,20 @@ Column {
     }
     readonly property bool brightnessAvailable: Devices.backlightAvailable || page.ddcBus !== ""
     readonly property var ddcCache: page.host ? (page.host.ddcBrightness || {}) : {}
+    readonly property int ddcLevel: {
+        var level = Devices.ddcLevels[page.ddcBus];
+        if (level !== undefined) return level;
+        var cached = page.ddcCache[page.ddcBus];
+        return cached === undefined ? -1 : cached;
+    }
     readonly property real brightness: Devices.backlightAvailable ? Devices.backlightPct / 100
-        : page.ddcCache[page.ddcBus] !== undefined ? page.ddcCache[page.ddcBus] / 100 : 0.5
+        : page.ddcLevel >= 0 ? page.ddcLevel / 100 : 0.5
+    function readDdc() {
+        if (page.ddcBus !== "" && !Devices.backlightAvailable)
+            Devices.readBrightness(page.ddcBus);
+    }
+    onDdcBusChanged: page.readDdc()
+    Component.onCompleted: page.readDdc()
     function setBrightness(v, final) {
         var pct = Math.max(1, Math.round(v * 100));
         if (Devices.backlightAvailable) {

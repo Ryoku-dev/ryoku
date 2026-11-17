@@ -1,6 +1,12 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **An external monitor's brightness slider shows its real level in Orpheus and
+  Kairos (#840).** The Orpheus controls card opens its display probes again
+  (they stopped starting), reads the level from the monitor and shows it instead
+  of 50%, and Kairos prefers the level just read over its older cache
+  (`subshells/orpheus/qml/cards/controls/HomePage.qml`,
+  `subshells/kairos/qml/quicksettings/pages/HomePage.qml`).
 - **Plugins installed from a store you added load like any other.**
   `plugins/discover.sh` also reads `ryoku/sources/<store>/plugins` and accepts
   each copy only with a receipt from its own store, so no store's copy can pose
