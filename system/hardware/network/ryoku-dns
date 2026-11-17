@@ -16,9 +16,18 @@
 # again.
 set -euo pipefail
 
-conf=${RYOKU_DNS_NM_CONF:-/etc/NetworkManager/conf.d/20-ryoku-dns.conf}
-resolved_conf=${RYOKU_DNS_RESOLVED_CONF:-/etc/systemd/resolved.conf.d/20-ryoku-dns.conf}
-host=${RYOKU_DNS_HOST:-ryoku-host}
+conf=/etc/NetworkManager/conf.d/20-ryoku-dns.conf
+resolved_conf=/etc/systemd/resolved.conf.d/20-ryoku-dns.conf
+resolv_conf=/etc/resolv.conf
+resolve_dir=/run/systemd/resolve
+host=ryoku-host
+if [[ -n ${RYOKU_DNS_TEST:-} ]]; then
+  conf=${RYOKU_DNS_NM_CONF:-$conf}
+  resolved_conf=${RYOKU_DNS_RESOLVED_CONF:-$resolved_conf}
+  resolv_conf=${RYOKU_DNS_RESOLV_CONF:-$resolv_conf}
+  resolve_dir=${RYOKU_DNS_RESOLVE_DIR:-$resolve_dir}
+  host=${RYOKU_DNS_HOST:-$host}
+fi
 provider=${1:-}
 tmp=
 
@@ -27,15 +36,34 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# RYOKU_DNS_TEST lets the hermetic test run this unprivileged against temporary
-# paths; pkexec clears the environment, so it never reaches a privileged run.
+# RYOKU_DNS_TEST is the only way the paths and helpers above can be redirected,
+# so a privileged run never takes them from its environment
 if (( EUID != 0 )) && [[ -z ${RYOKU_DNS_TEST:-} ]]; then
   exec pkexec "$(readlink -f "$0")" "$@"
 fi
 
-uses_resolved() {
-  "$host" svc --system is-active systemd-resolved >/dev/null 2>&1
+active() {
+  "$host" svc --system is-active "$1" >/dev/null 2>&1
 }
+
+# NetworkManager only pushes DNS to resolved when resolv.conf is resolved's own
+managed_by_resolved() {
+  local real
+  real=$(readlink -f -- "$resolv_conf" 2>/dev/null) || return 1
+  case $real in
+    "$resolve_dir"/* | /usr/lib/systemd/resolv.conf) return 0 ;;
+  esac
+  return 1
+}
+
+resolved_active=0
+resolved=0
+active systemd-resolved && resolved_active=1
+if (( resolved_active )) && active NetworkManager && managed_by_resolved; then
+  resolved=1
+fi
+had_resolved_conf=0
+[[ ! -e $resolved_conf ]] || had_resolved_conf=1
 
 # write_file PATH CONTENT: replace PATH atomically, 0644
 write_file() {
@@ -52,7 +80,7 @@ write_file() {
 write_dns() {
   local list nm=""
   list=$(IFS=,; printf '%s' "$*")
-  if uses_resolved; then
+  if (( resolved )); then
     nm=$'[main]\ndns=none\n\n'
     write_file "$resolved_conf" "# Managed by ryoku-dns. Run ryoku-dns dhcp to restore connection-provided DNS.
 [Resolve]
@@ -71,7 +99,7 @@ servers=$list
 
 valid_server() {
   local server=$1 octet
-  if [[ $server =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+  if [[ $server =~ ^((0|[1-9][0-9]{0,2})\.){3}(0|[1-9][0-9]{0,2})$ ]]; then
     IFS=. read -r -a octets <<<"$server"
     for octet in "${octets[@]}"; do
       (( 10#$octet <= 255 )) || return 1
@@ -108,21 +136,26 @@ case "${provider,,}" in
     ;;
 esac
 
-resolved=0
-uses_resolved && resolved=1
-if (( resolved && ! override )); then
+if (( resolved_active && ! override && (resolved || had_resolved_conf) )); then
   # drop the global servers first, so connection DNS takes over as it returns
   "$host" svc --system reload systemd-resolved || true
 fi
-if "$host" svc --system is-active NetworkManager; then
+if active NetworkManager; then
   nmcli general reload conf >/dev/null || "$host" svc --system reload NetworkManager
   nmcli general reload dns-full >/dev/null 2>&1 || true
 fi
 if (( resolved && override )); then
   # NetworkManager has stopped pushing DNS but leaves what it pushed in place;
-  # revert every link so resolved asks only its global servers
+  # revert the links it manages so resolved asks only its global servers;
+  # links something else configures (a VPN client) keep their settings
+  mapfile -t nm_links < <(nmcli -g DEVICE,STATE device status 2>/dev/null | sed -nE '/:(unmanaged|unavailable)$/d; s/:[^:]*$//p')
   while read -r link; do
-    resolvectl revert "$link" || true
+    for nm_link in "${nm_links[@]}"; do
+      if [[ $nm_link == "$link" ]]; then
+        resolvectl revert -- "$link" || true
+        break
+      fi
+    done
   done < <(resolvectl dns | sed -nE 's/^Link [0-9]+ \(([^)]+)\).*/\1/p')
   "$host" svc --system reload systemd-resolved || true
 fi

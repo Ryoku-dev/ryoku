@@ -28,6 +28,11 @@
   DNS for every domain; `dhcp` removes both and connection DNS returns.
   `[global-dns]` is still written, so the bar shows the choice.
   Covered by `tests/ryoku-dns.sh`.
+- `network/ryoku-dns`: **the resolved takeover only runs where NetworkManager
+  feeds resolved.** It needs resolved and NetworkManager running and
+  `/etc/resolv.conf` pointing at resolved; it reverts only the links
+  NetworkManager manages (a VPN client's DNS stays), and a custom server with
+  a leading zero is refused.
 - `gpu/ryoku-gpu`: **Performance works again with a monitor on the discrete GPU.**
   When the laptop panel is on the built-in GPU but the dGPU has its own ports,
   Performance pins the dGPU at login only while a monitor is plugged into one.
