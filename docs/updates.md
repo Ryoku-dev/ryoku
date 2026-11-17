@@ -389,6 +389,15 @@ migration ledger: each is idempotent and safe on every update, and is retired
 once every supported install has run it. `reconcileShellConfig` migrates a stale
 `shell.json` (drops retired keys, revives the bar, clamps geometry).
 
+Use `ryoku doctor --dismiss "snapper configuration"` to acknowledge a current
+warning or todo, and `--restore "snapper configuration"` to undo it.
+`--dismissed` lists saved acknowledgements; `--check`, `--verbose` and `--json`
+keep matching findings visible as `dismissed`, without counting or repairing them.
+Errors cannot be dismissed. Choices live in
+`$XDG_STATE_HOME/ryoku/dismissed-findings.json` (normally
+`~/.local/state/ryoku/dismissed-findings.json`) and survive updates.
+A dismissal stops matching when its status, detail or remedy changes beyond whitespace, including a language change.
+
 ### 0.75.5 shell migration gate
 
 `TestShellMigrationFrom0755Fixture` runs the shipped 0.75.5 shell fixture

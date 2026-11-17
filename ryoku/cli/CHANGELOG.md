@@ -7,6 +7,9 @@
   failed with "no such file". It now reads the vendor stack when `/etc` has
   none, seeds `/etc` from it when turning fingerprint on, and removes that
   copy again when turning it off if nothing else was changed in it.
+- **Doctor can dismiss host-specific warnings and todos (#859).**
+  Use `--dismiss`, `--restore` and `--dismissed`; changed findings return,
+  errors cannot be hidden and full listings still show dismissed checks.
 - **Doctor clears the release manifest finding once its packages match (#860).**
   Read-only checks no longer call an already converged manifest unfinished.
 - **Doctor no longer pins Dolphin to the dock on every update (#802).**

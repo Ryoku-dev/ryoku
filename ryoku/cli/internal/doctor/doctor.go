@@ -42,6 +42,7 @@ import (
 const ryokuIssuesURL = "https://github.com/ryoku-dev/ryoku/issues"
 
 var (
+	doctorReconcilers    = reconcilers
 	doctorPackageManager = func() (host.PackageManager, error) {
 		return host.Default().PackageManager()
 	}
@@ -162,6 +163,7 @@ const (
 	recWouldFix
 	recWarn
 	recFailed
+	recDismissed
 )
 
 func (s recStatus) label() string {
@@ -178,6 +180,8 @@ func (s recStatus) label() string {
 		return "warn"
 	case recFailed:
 		return "fail"
+	case recDismissed:
+		return "dismissed"
 	}
 	return "?"
 }
@@ -408,9 +412,13 @@ func runReconcilers(checkOnly bool) []finding {
 	fetchFedoraReleaseStatus := doctorFedoraReleaseStatus
 	doctorFedoraReleaseStatus = sync.OnceValues(fetchFedoraReleaseStatus)
 	defer func() { doctorFedoraReleaseStatus = fetchFedoraReleaseStatus }()
+	saved, err := loadDismissals()
 	var out []finding
-	for _, r := range reconcilers() {
-		out = append(out, finding{name: r.name, res: r.run(checkOnly)})
+	if err != nil {
+		out = append(out, finding{name: i18n.T("doctor dismissals"), res: failRes("read dismissals: %v", err)})
+	}
+	for _, r := range doctorReconcilers() {
+		out = append(out, finding{name: r.name, res: runWithDismissals(r, checkOnly, saved)})
 	}
 	return out
 }
@@ -427,7 +435,7 @@ func printFindings(fs []finding, verbose bool) (warns, fails int) {
 		case recFailed:
 			fails++
 		}
-		if !verbose && (f.res.status == recOK || f.res.status == recNote) {
+		if !verbose && (f.res.status == recOK || f.res.status == recNote || f.res.status == recDismissed) {
 			continue
 		}
 		printed++
@@ -439,7 +447,7 @@ func printFindings(fs []finding, verbose bool) (warns, fails int) {
 		if f.res.detail != "" {
 			fmt.Fprintln(w, detailStyle(f.res.status, sys.Wrap(f.res.detail, width, "      ")))
 		}
-		if f.res.remedy != "" && (f.res.status >= recWouldFix || f.res.status == recNote) {
+		if f.res.remedy != "" && (f.res.status == recWouldFix || f.res.status == recWarn || f.res.status == recFailed || f.res.status == recNote) {
 			fmt.Fprintln(w, sys.Brand(sys.Wrap("↳ "+f.res.remedy, width, "      ")))
 		}
 	}
@@ -453,7 +461,7 @@ func statusGlyph(s recStatus) string {
 	switch s {
 	case recOK, recFixed:
 		return sys.Green("✓")
-	case recNote:
+	case recNote, recDismissed:
 		return sys.Dim("·")
 	case recWouldFix:
 		return sys.Amber("›")
@@ -473,11 +481,14 @@ func statusName(f finding) string {
 	if f.res.status == recFixed {
 		name += sys.Dim(" " + i18n.T("(fixed)"))
 	}
+	if f.res.status == recDismissed {
+		name += sys.Dim(" " + i18n.T("(dismissed)"))
+	}
 	return name
 }
 
 func detailStyle(s recStatus, text string) string {
-	if s == recOK || s == recFixed || s == recNote {
+	if s == recOK || s == recFixed || s == recNote || s == recDismissed {
 		return sys.Dim(text)
 	}
 	return text
@@ -485,6 +496,7 @@ func detailStyle(s recStatus, text string) string {
 
 func doctorUsage() {
 	fmt.Print(i18n.Tf("Usage: ryoku doctor [--check] [--verbose] [--report [file]] [--explain]\n\n  (no args)        check, and apply the safe automatic fixes\n  --check, -n      report what is wrong without changing anything\n  --verbose, -v    also list the checks that passed and advisory notes\n  --report [file]  write a shareable diagnostic report for the maintainers\n                   (default: %s)\n  --explain        ask your cloud model (Groq/OpenRouter) to reason over the report\n  --json           emit findings as JSON (read-only; powers the Hub System Check)\n", reportPath("")))
+	fmt.Print(i18n.T("\n  --dismiss <name>  dismiss a current warn or todo by its full check name\n  --restore <name>  restore a dismissed check\n  --dismissed       list saved dismissals (also accepts --json)\n  Dismissals expire when the status, detail or remedy changes beyond whitespace.\n"))
 }
 
 // Run: check, apply the safe fixes; on anything it can't fix, write a
@@ -492,6 +504,7 @@ func doctorUsage() {
 func Run(args []string) error {
 	checkOnly, wantReport, wantExplain, wantJSON, verboseFlag := false, false, false, false, false
 	reportTo := ""
+	dismissAction, dismissName := "", ""
 	for i := 0; i < len(args); i++ {
 		switch a := args[i]; a {
 		case "--check", "-n", "--dry-run":
@@ -508,12 +521,39 @@ func Run(args []string) error {
 			verboseFlag = true
 		case "--json":
 			wantJSON = true
+		case "--dismiss", "--restore", "--dismissed":
+			if dismissAction != "" {
+				return fmt.Errorf(i18n.T("choose only one dismissal action"))
+			}
+			dismissAction = strings.TrimPrefix(a, "--")
+			if a == "--dismissed" {
+				dismissAction = "list"
+			} else {
+				if i+1 >= len(args) || strings.HasPrefix(args[i+1], "-") || strings.TrimSpace(args[i+1]) == "" {
+					return fmt.Errorf(i18n.T("%s requires a check name"), a)
+				}
+				i++
+				dismissName = args[i]
+			}
 		case "-h", "--help":
 			doctorUsage()
 			return nil
 		default:
 			return fmt.Errorf(i18n.T("unknown argument: %s (try --help)"), a)
 		}
+	}
+	if dismissAction != "" {
+		if checkOnly || wantReport || wantExplain || verboseFlag || wantJSON && dismissAction != "list" {
+			return fmt.Errorf(i18n.T("dismissal actions cannot be combined with diagnostic flags"))
+		}
+		if err := configureDoctorUser(dismissAction == "list"); err != nil {
+			return err
+		}
+		var checks []reconciler
+		if dismissAction == "dismiss" {
+			checks = doctorReconcilers()
+		}
+		return manageDismissals(dismissAction, dismissName, checks, wantJSON)
 	}
 
 	// read-only modes never mutate; showAll also lists ok + advisory notes.

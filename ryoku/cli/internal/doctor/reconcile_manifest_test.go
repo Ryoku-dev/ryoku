@@ -65,6 +65,25 @@ func TestManifestConvergedCheckAndApply(t *testing.T) {
 			t.Fatalf("converged = %+v", got)
 		}
 	}
+	oldChecks, oldUID := doctorReconcilers, doctorEffectiveUID
+	t.Cleanup(func() { doctorReconcilers, doctorEffectiveUID = oldChecks, oldUID })
+	doctorEffectiveUID = func() int { return 1000 }
+	doctorReconcilers = func() []reconciler {
+		return []reconciler{{"release control manifest", reconcileManifest}}
+	}
+	for _, args := range [][]string{{"--check"}, {}, {"--json"}} {
+		out, err := captureDoctor(t, args...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("fake HOME ryoku doctor %s:\n%s", strings.Join(args, " "), out)
+		if len(args) > 0 && args[0] == "--json" {
+			var fs []findingJSON
+			if err := json.Unmarshal([]byte(out), &fs); err != nil || len(fs) != 1 || fs[0].Status != "ok" {
+				t.Fatalf("JSON result = %q, error = %v", out, err)
+			}
+		}
+	}
 	delete(installed, "base")
 	if err := updater.SaveApplied(manifest, []string{"yay-bin"}); err != nil {
 		t.Fatal(err)
