@@ -98,13 +98,11 @@
 - Route remaining dock, launcher, tray and notification theme icons through the
   shared file resolver, avoiding the Qt icon provider during asynchronous image
   loading at startup. Preserve non-theme image providers for app menu images.
+- **Dock, launcher, tray and notification icons load from files, not Qt's icon provider.**
+  This avoids the startup crash path through Qt's image-reader thread (#852).
 - **QS Bar keeps its widgets and readings when the shell starts on a busy box.**
-  Qt 6.12's incremental JS garbage collector could sweep the QML-declared
-  properties and functions of live objects when a collection overlapped the
-  shell's start, so the bar came up with only its plugin widgets, or with CPU
-  and memory stuck at zero, until the shell was reloaded. Every supervised
-  quickshell process now runs collections to completion
-  (`QV4_GC_TIMELIMIT=0` in `ipc/daemon.go`; a value you set yourself still wins).
+  The shell now runs QML garbage collection to completion, so a collection can no longer
+  sweep live properties mid-start. Set `QV4_GC_TIMELIMIT` to a number of ms to keep incremental GC.
 - **Wallpaper Engine video wallpapers animate on hover in the picker (#807).**
   Only local videos got the small preview clip, so workshop video cards stayed
   still; they now get one too, built on the thumbnail job limit and skipped

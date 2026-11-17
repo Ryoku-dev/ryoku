@@ -42,15 +42,10 @@ func TestQsEnvRespectsExistingMallocConf(t *testing.T) {
 }
 
 func TestQsEnvTurnsOffIncrementalGC(t *testing.T) {
-	old, had := os.LookupEnv(gcTimeLimitEnv)
-	os.Unsetenv(gcTimeLimitEnv)
-	t.Cleanup(func() {
-		if had {
-			os.Setenv(gcTimeLimitEnv, old)
-		} else {
-			os.Unsetenv(gcTimeLimitEnv)
-		}
-	})
+	t.Setenv(gcTimeLimitEnv, "")
+	if err := os.Unsetenv(gcTimeLimitEnv); err != nil {
+		t.Fatal(err)
+	}
 	want := gcTimeLimitEnv + "=0"
 	n := 0
 	for _, e := range qsEnv() {
