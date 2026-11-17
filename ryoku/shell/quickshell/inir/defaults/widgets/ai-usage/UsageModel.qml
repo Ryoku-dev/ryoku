@@ -146,14 +146,26 @@ Item {
         return tr(ts <= Date.now() / 1000 ? "reset was %1" : "resets %1").replace("%1", label)
     }
 
+    property bool _watching: false
+    function watchRefresh(on: bool): void {
+        if (root._watching === on) return
+        root._watching = on
+        Background.UsageRefresh.watch(on)
+    }
+
     Component.onCompleted: {
         root.collectionReady = Background.UsageRefresh.collectionReady
         cacheFile.reload()
-        root.refresh()
+        root.watchRefresh(root.visible)
+        if (root.visible) root.refresh()
     }
-    onVisibleChanged: if (root.visible) {
-        cacheFile.reload()
-        root.refresh()
+    Component.onDestruction: root.watchRefresh(false)
+    onVisibleChanged: {
+        root.watchRefresh(root.visible)
+        if (root.visible) {
+            cacheFile.reload()
+            root.refresh()
+        }
     }
     onToolChanged: {
         // Keep the current numbers visible while the other cache loads. A

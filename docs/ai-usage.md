@@ -28,12 +28,12 @@ another available agent without overwriting the saved selection.
 
 ## Collection and refresh
 
-After the first module load in a shell session, one widget-owned worker collects
-all available agents every 15 seconds, even after the page closes or unloads.
-Opening the page requests an earlier collection. An active collection is shared
-instead of starting overlapping processes; private-lock contention retries.
-The worker ends with the shell and starts again when the module first loads in
-the next session. It does not start a separate login daemon.
+While the dashboard or its tile is on screen, one widget-owned worker collects
+all available agents every 15 seconds. Opening the page requests a collection
+right away. When no card is visible, nothing polls and no collector runs. An
+active collection is shared instead of starting overlapping processes;
+private-lock contention retries while a card is visible. It does not start a
+separate login daemon.
 
 A configured Claude login can provide quota data before the first local project
 exists. Machines without Claude state do not gain an empty Claude entry.
@@ -51,10 +51,18 @@ native state and process identity rather than treating an open app as a live
 request. Usage is counted from local history regardless of who owns the login;
 switching accounts does not erase previously recorded local history.
 
+Codex session names come from its local `CODEX_HOME/session_index.jsonl`, using
+the saved title shown in Codex. Renames appear on the next visible collection.
+If no saved name is available, the collector falls back to the first user
+prompt (up to 72 characters), then the working-directory name. Saved names stay
+complete in the cache; the card shortens long text to fit its single line.
+
 Account limit bars are account-wide, so use on another device can affect them.
 Their source and authentication govern how fresh they can be. The 15-second
 local collection interval does not bypass provider cooldowns or cause Desktop
-to obtain a fresh account response. Stale captures remain marked as last known.
+to obtain a fresh account response: Claude OAuth reads are spaced five minutes
+apart (sooner only after a limit resets) and Codex account-limit reads two.
+Stale captures remain marked as last known.
 
 ## API Value and storage
 

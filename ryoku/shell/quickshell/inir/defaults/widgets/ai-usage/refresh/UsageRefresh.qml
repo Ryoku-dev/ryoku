@@ -8,8 +8,8 @@ import Quickshell.Io
 Singleton {
     id: root
 
-    property bool started: false
     property bool collectionReady: false
+    property int watchers: 0
     readonly property bool refreshing: collector.running
     signal collected(int exitCode)
 
@@ -20,12 +20,21 @@ Singleton {
         return custom.length > 0 ? [root.collectorPath, custom] : [root.collectorPath]
     }
 
+    function watch(on: bool): void {
+        root.watchers = Math.max(0, root.watchers + (on ? 1 : -1))
+        if (root.watchers === 0) {
+            pollTimer.stop()
+            retryTimer.stop()
+        } else if (!pollTimer.running) {
+            pollTimer.start()
+        }
+    }
+
     function refresh(): void {
-        root.started = true
         if (collector.running) return
         retryTimer.stop()
         collector.running = true
-        pollTimer.restart()
+        if (root.watchers > 0) pollTimer.restart()
     }
 
     Process {
@@ -33,17 +42,16 @@ Singleton {
         command: root.collectorCommand
         onExited: (exitCode, exitStatus) => {
             if (exitCode === 0) root.collectionReady = true
-            if (exitCode === 75) retryTimer.restart()
+            if (exitCode === 75 && root.watchers > 0) retryTimer.restart()
             root.collected(exitCode)
         }
     }
 
-    // A singleton survives destruction of the Island page that first used it.
+    // collectors rescan whole agent histories, so nothing polls while no card is on screen
     Timer {
         id: pollTimer
         interval: 15000
         repeat: true
-        running: root.started
         onTriggered: root.refresh()
     }
     Timer {

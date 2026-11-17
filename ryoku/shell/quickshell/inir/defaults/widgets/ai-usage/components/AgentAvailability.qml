@@ -126,7 +126,7 @@ Item {
         interval: 30000
         repeat: true
         triggeredOnStart: true
-        running: true
+        running: root.visible
         onTriggered: root.reloadAll()
     }
 }
