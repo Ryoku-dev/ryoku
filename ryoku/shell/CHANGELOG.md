@@ -1,6 +1,9 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Shima's weather matches the launcher (#885).** Shima read wttr.in, whose
+  reading can be degrees and an hour off; it now asks Open-Meteo like the
+  launcher and keeps wttr.in only as the fallback.
 - **Game Mode pauses the live wallpaper (#882).** The wallpaper keeps its
   current frame while Game Mode is on and resumes when it ends, for every
   wallpaper engine; "Pause in Game Mode" in Ryogami's Playback settings turns
