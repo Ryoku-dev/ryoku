@@ -138,7 +138,7 @@ func TestRiceSettingsOpenRyogami(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := strings.TrimSpace(string(raw)); got != "wallpaper ui rices" {
+	if got := strings.TrimSpace(string(raw)); got != "wallpaper collection rices" {
 		t.Fatalf("rice management command = %q", got)
 	}
 }

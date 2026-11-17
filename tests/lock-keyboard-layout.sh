@@ -19,9 +19,20 @@ tmp = sys.argv[1]
 path = tmp + "/runtime/ryoku-shell.sock"
 s = socket.socket(socket.AF_UNIX)
 s.bind(path)
-s.listen(1)
-c, _ = s.accept()
-c.recv(64)
+s.listen(8)
+others = []
+c = None
+while c is None:
+    conn, _ = s.accept()
+    conn.settimeout(2)
+    try:
+        first = conn.recv(256)
+    except socket.timeout:
+        first = b""
+    if first.startswith(b"subscribe wm"):
+        c = conn
+    else:
+        others.append(conn)
 def send(o): c.sendall((json.dumps(o) + "\n").encode())
 send({"caps": {"keyboardLayoutSwitch": True}, "keyboardLayout": "English (US)", "versions": {"keyboard": 3}})
 while "keyboard.cycleLayout" not in open(tmp + "/calls").read():

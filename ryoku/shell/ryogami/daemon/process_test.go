@@ -146,7 +146,7 @@ func TestRicePickerOpenSurvivesColdStart(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("rice handoff did not start the picker")
 	}
-	if !strings.Contains(strings.Join(cmd.Env, "\n"), "RYOGAMI_START_RICES=1") {
+	if !strings.Contains(strings.Join(cmd.Env, "\n"), "RYOGAMI_START_COLLECTION=rices") {
 		t.Fatal("cold picker did not receive the requested collection")
 	}
 	if got := d.wallpaperVerb("wallpaper ui rices"); got != "ok" {
@@ -156,7 +156,7 @@ func TestRicePickerOpenSurvivesColdStart(t *testing.T) {
 	d.ui.subscribed(1, func(name string, _ map[string]interface{}) {
 		delivered = name
 	})
-	if delivered != "ryogami.wall.rices" {
+	if delivered != "ryogami.wall.collection" {
 		t.Fatalf("handoff during startup delivered %q", delivered)
 	}
 }
