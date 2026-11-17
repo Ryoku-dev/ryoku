@@ -44,6 +44,10 @@
   loaded for 20 seconds after you leave it (up to five pages), so switching
   back skips the fresh load; a page left longer reloads, so its data is
   never older than that (`Hub.qml`).
+- **Every Connections tab fills the page width.** Wi-Fi was a 720 px column
+  in the middle of the page, Bluetooth was capped at 720 px and pinned left
+  with its device list narrower still, and the Hotspot form at 600 px, while
+  the other tabs span the page.
 - **Graphics & Power offers Performance on laptops with a monitor port on the
   discrete GPU.** The page says it applies only while a monitor is plugged in
   there at login, and that the built-in screen can then stay dark after sleep.
