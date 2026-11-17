@@ -107,3 +107,7 @@ Words must be well-formed Unicode in NFC with no space (`\p{Zs}`) at either end,
 Only the badge decides, as for styles: `PUT /v1/cards/<fp>` stores a v4 record only for an active badge on that card id signed by that badge's device key, else 403 `Card words need an active team badge on this machine` (no badge) or 403 `Invalid card signature` (another key). Serving, revocation and the cron treat it as they treat a styled record: withheld at once once the badge is revoked, deleted by `POST /v1/revoke`, swept by the 03:17 cron. Deploy the Worker before clients that send v4: an older gate refuses v4 with 400 `Invalid record fields`. Binders from before v4 keep the last v2 or v3 copy they verified of a card that moved to v4.
 
 Everything else a non-holder can upload stays as before: a still JPEG picture (400 KiB, 1120×780, hash bound into the signed record; moving pictures never reach the Worker), and no team design: approvals need an owner or Mika signature, packs need a signed upload header, and designs are listed and served only for logins with an active role 3–5 badge.
+
+## Bot Fight Mode stays off
+
+The ryoku.dev zone's Bot Fight Mode is off. It challenged Ryoku's own Go client (`Go-http-client`) from some networks with a browser page, so card sync and binder pulls failed; on the Free plan it can't be skipped for one hostname. The Worker does its own checking: signatures on every write, rate limiters, and size caps.

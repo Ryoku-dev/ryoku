@@ -1,6 +1,7 @@
 # Changelog: ryoku/hub/
 
 ## Unreleased
+- **A blocked team request says so.** When Cloudflare's bot check or an error page answers in front of team.ryoku.dev, card sync, the binder and badges now say the request was held back or the gate could not be reached, instead of "team response exceeds 4096 bytes" (`backend/teamhttp.go`).
 - **Card styles are personal.** The Stand style is its owner's own look, no
   longer a switch every badge holder gets: each built-in style belongs to
   GitHub logins (`backend/cardstyles.go`, `stand`: neur0map), the studio's Card

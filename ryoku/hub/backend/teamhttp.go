@@ -71,16 +71,26 @@ func teamExchange(method, path, contentType string, body []byte, header http.Hea
 	defer resp.Body.Close()
 	reply := teamReply{status: resp.StatusCode}
 	reply.date, _ = http.ParseTime(resp.Header.Get("Date"))
+	// Cloudflare's bot check answers before the gate does, with a page meant for a browser
+	if resp.Header.Get("Cf-Mitigated") == "challenge" {
+		return reply, errTeamChallenged
+	}
 	b, e := io.ReadAll(io.LimitReader(resp.Body, limit+1))
 	if e != nil {
 		return reply, e
 	}
 	if int64(len(b)) > limit {
+		// the gate's own answers are small; a large refusal is a page from in front of it
+		if resp.StatusCode < 200 || resp.StatusCode > 299 {
+			return reply, fmt.Errorf("team.ryoku.dev could not be reached (HTTP %d): try again later", resp.StatusCode)
+		}
 		return reply, fmt.Errorf("team response exceeds %d bytes", limit)
 	}
 	reply.body = b
 	return reply, nil
 }
+
+var errTeamChallenged = errors.New("team.ryoku.dev's protection held this request back: try again in a few minutes, and tell the Ryoku team if it keeps happening")
 
 // teamRefusal is the gate's reason for refusing a request, or its HTTP status without one
 func teamRefusal(reply teamReply) string {
