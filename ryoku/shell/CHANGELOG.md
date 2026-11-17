@@ -1,6 +1,9 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The recording status tells the truth from start to saved.** The clock leaves
+  pauses out, a stop stays shown until the file is saved and a crashed recorder
+  leaves no ghost (`scripts/ryoku-cmd-record`, `services/Recorder.qml`).
 - **Notification cards take the shape of the design in Style.** Lithic burns a
   tick fuse, Material drains a wavy ring round the app, Adwaita is GNOME's banner
   and Fluent the Windows toast (`modules/notifications/NotificationLook.qml`).

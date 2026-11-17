@@ -289,8 +289,9 @@ In the order to take them:
    rate changes about once a second at idle and redraws the bar each time. The
    shell daemon still wakes about 35 times a second, nearly all of it Go's own
    scheduler: its work at rest is a memory sample every few seconds and a
-   battery read when UPower reports a change. The recorder checks `gsr-cli
-   status` once a minute as a stale-state watchdog.
+   battery read when UPower reports a change. The recorder runs nothing at
+   rest: it watches its state files and asks `gsr-cli status` once a second
+   only while a capture is live.
 5. **Memory.** A fresh shell with Orpheus, the clock and calendar widgets and the overview
    backdrop measured 410 to 416 MB PSS at 2560x1600 on the NVIDIA laptop, and
    318 to 321 MB after five changes: English skips its identity catalog
