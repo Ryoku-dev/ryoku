@@ -105,7 +105,7 @@ run=("$ENGINE" run --rm --platform linux/amd64 --privileged
 	-v "$HOST_WORK:/work"
 	-v "$HOST_OUT:/out"
 	-v "$source_archive:/run/ryoku-source.tar.gz:ro"
-	-e "RYOKU_VOID_PACKAGES_REF=${RYOKU_VOID_PACKAGES_REF:-28a070ded186a89a4ff23102745a595df7a69cc1}"
+	-e "RYOKU_VOID_PACKAGES_REF=${RYOKU_VOID_PACKAGES_REF:-ce164576af9d043d84bc0dd83e1b9ab0812b8d13}"
 	-e "RYOKU_XBPS_PACKAGES=${RYOKU_XBPS_PACKAGES:-}"
 	-e "RYOKU_XBPS_WORKTREE=${RYOKU_XBPS_WORKTREE:-0}"
 	-e "RYOKU_XBPS_SOURCE_ARCHIVE=/run/ryoku-source.tar.gz"
