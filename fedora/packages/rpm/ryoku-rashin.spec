@@ -21,11 +21,24 @@ Requires:       ryoku-desktop = %{epoch}:%{version}-%{release}
 Requires:       libwayland-client
 Requires:       libwayland-cursor
 Requires:       libwayland-egl
+Requires:       libwayland-server
 Requires:       libxkbcommon
+Requires:       mesa-dri-drivers
+Requires:       mesa-libGL
 Requires:       mesa-libEGL
 Requires:       vulkan-loader
 Requires:       bubblewrap
 Requires:       hicolor-icon-theme
+Requires:       libwayland-cursor
+Requires:       libwayland-cursor
+Requires:       libwayland-cursor
+Requires:       libwayland-cursor
+Requires:       libwayland-cursor
+Requires:       libwayland-cursor
+Requires:       libwayland-cursor
+Requires:       libwayland-cursor
+Requires:       libwayland-cursor
+Requires:       libglvnd
 # Rashin installs Hindsight, its optional memory engine, with uv only when asked.
 Suggests:       uv
 

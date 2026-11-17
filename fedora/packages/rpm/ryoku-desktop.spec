@@ -102,6 +102,7 @@ Requires:       dracut
 Requires:       kernel-devel
 Requires:       kernel-headers
 Requires:       dkms
+Requires:       ryoku-dictation
 
 Recommends:     power-profiles-daemon
 Suggests:       mpv

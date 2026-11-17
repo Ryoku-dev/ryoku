@@ -54,7 +54,7 @@ fzf	fzf	desktop
 game-devices-udev	game-devices-udev	desktop	Ryoku-owned RPM.
 gamemode	gamemode	desktop	
 gamescope	gamescope	desktop	
-gcc	gcc	desktop	
+gcc	gcc	optional	
 gcc-libs	libgcc libstdc++	desktop	
 git	git	desktop	
 github-cli	gh	desktop	
@@ -149,7 +149,7 @@ neovim	neovim	desktop
 networkmanager	NetworkManager NetworkManager-wifi	desktop	Arch networkmanager includes the wifi plugin.
 nftables	nftables	desktop	
 niri	niri	desktop	
-nodejs	nodejs24	desktop,dev	
+nodejs	nodejs24	dev	
 noto-fonts	google-noto-sans-fonts google-noto-serif-fonts google-noto-sans-mono-fonts	desktop	
 noto-fonts-cjk	google-noto-sans-cjk-fonts	desktop	
 noto-fonts-emoji	google-noto-emoji-fonts	desktop	
@@ -207,6 +207,7 @@ ryoku	ryoku	desktop	Ryoku-owned RPM.
 ryoku-blobs	ryoku-blobs	desktop	Ryoku-owned RPM.
 ryoku-cursor-material	ryoku-cursor-material	desktop	Ryoku-owned RPM.
 ryoku-cursors	ryoku-extras	desktop	Bundled by the Ryoku extras RPM.
+ryoku-dictation	ryoku-dictation	desktop	Ryoku-owned RPM.
 ryoku-desktop	ryoku-desktop	desktop	Ryoku-owned RPM.
 ryoku-desktop-compositor	-	desktop	Virtual dependency provided by a Fedora compositor RPM.
 ryoku-desktop-hyprland	ryoku-desktop-hyprland	hyprland	Ryoku-owned RPM.
@@ -236,7 +237,6 @@ snapper	snapper	desktop,system
 socat	socat	desktop	
 songrec	songrec	desktop	Ryoku-owned RPM.
 spice-gtk	spice-gtk spice-gtk-tools	optional	
-sqlite	sqlite	optional	
 starship	starship	desktop	Provided by a restricted COPR.
 steamcmd	-	optional	No Fedora package provides this Arch package.
 sudo	sudo	system	
