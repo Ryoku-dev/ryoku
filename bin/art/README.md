@@ -32,6 +32,8 @@ looks flat, dither it.
 | `ryocompass --out f.gif` | draws the Rashin compass loop, a needle sweeping a degree ring and eight-point rose, as a grayscale gif source, to be baked smooth. Deterministic. `--frames 1` draws the still rose. |
 | `ryoneedle --out f.png` | draws "The Needle": a needle rising over a radiant north star, as a grayscale still for the Rashin poster. Deterministic. |
 | `regrade-svg.py` | maps a recraft `line_art` SVG onto the ink ramp. |
+| `qmlrecord.py` | the shared harness for previews made of real frames: a private headless weston, a QML scene stepped one display frame at a time (deterministic), true-alpha grabs and a looping WebP. A module, not a command. |
+| `osd-previews` | records Ryoku's own pop-up in each design, dark and light, into `ryoku/hub/quickshell/art/osd/` for Settings, on `qmlrecord.py`. Re-run after changing a look; `--kind mic\|brightness\|keyboard` records the others for review. |
 
 Both bakers default their output into `ryoku/assets/ryodecors`, so a new decor
 ships everywhere at once: the installer seeds it, the `ryoku-desktop` package

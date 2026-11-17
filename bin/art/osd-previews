@@ -1,0 +1,179 @@
+#!/usr/bin/env python3
+"""Record Ryoku's own pop-up, the base shell's OSD, for Settings' gallery.
+
+Settings > Notifications & pop-ups plays the shipped pop-up in the design the
+desktop wears. These are real frames of the shell's own looks
+(ryoku/shell/quickshell/shell/modules/osd/OsdLook.qml and designs/), not
+mockups: each design is loaded with the Lithic library, driven through one
+scripted volume sequence (rest, steps up into the 150% overdrive, mute, unmute,
+back down, leave, return) and grabbed frame by frame on a transparent window by the shared harness
+(bin/art/qmlrecord.py: a private headless weston, deterministic frames, true
+alpha). The look wears Ryoku's own colours (LITHIC_MODE=dark|light, an empty
+HOME, so no wallpaper palette leaks in).
+
+Output, per design and mode, an animated WebP with true alpha at 2x, 30 fps,
+looping, its first frame the look at rest (the still Settings shows under
+reduced motion):
+
+  ryoku/hub/quickshell/art/osd/<design>-<dark|light>.webp
+
+--gif also writes a GIF beside each one, for comparison only: GIF transparency
+is one bit, so its soft edges and shadows fringe.
+
+Requires what qmlrecord.py does: PySide6 for the system Qt, Pillow with WebP, weston.
+
+  bin/art/osd-previews                       # all four designs, dark and light
+  bin/art/osd-previews --design material --mode dark --out /tmp/osd
+"""
+import argparse
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from qmlrecord import Host  # noqa: E402
+
+REPO = Path(__file__).resolve().parents[2]
+OSD = REPO / "ryoku/shell/quickshell/shell/modules/osd"
+LITHIC = REPO / "docs/lithic/library/qml"
+OUT = REPO / "ryoku/hub/quickshell/art/osd"
+DESIGNS = ["lithic", "material", "adwaita", "fluent"]
+MODES = ["dark", "light"]
+KINDS = ["volume", "mic", "brightness", "keyboard"]
+SCALE = 2
+FPS = 30
+
+# Like the shell's window, the look is built when the pop-up shows and dropped
+# once its exit has finished, so every appearance enters fresh. The icon names
+# and the boost scale follow OsdSource.qml.
+SCENE = """
+import QtQuick
+
+Item {
+    id: scene
+    property string kind: "volume"
+    property real value: 0
+    property bool muted: false
+    property bool shown: false
+    property string label: ""
+    property bool lingering: false
+    property real lookWidth: 0
+    property real lookHeight: 0
+
+    Loader {
+        id: holder
+        anchors.fill: parent
+        active: scene.shown || scene.lingering
+        sourceComponent: OsdLook {
+            id: look
+            kind: scene.kind
+            u: %d
+            shown: scene.shown
+            maxValue: scene.kind === "volume" ? 1.5 : 1
+            value: Math.min(maxValue, scene.value)
+            muted: scene.muted && scene.kind !== "brightness" && scene.kind !== "keyboard"
+            label: scene.label
+            iconName: {
+                const pct = Math.round(look.value * 100);
+                if (scene.kind === "keyboard")
+                    return "input-keyboard";
+                if (scene.kind === "brightness")
+                    return pct > 66 ? "brightness-high" : pct > 33 ? "brightness-medium" : "brightness-low";
+                if (scene.kind === "mic")
+                    return (look.muted || pct <= 0) ? "microphone-sensitivity-muted"
+                        : pct > 66 ? "microphone-sensitivity-high"
+                        : pct > 33 ? "microphone-sensitivity-medium" : "microphone-sensitivity-low";
+                return (look.muted || pct <= 0) ? "audio-volume-muted"
+                    : pct > 66 ? "audio-volume-high"
+                    : pct > 33 ? "audio-volume-medium" : "audio-volume-low";
+            }
+            onRevealChanged: scene.lingering = look.reveal > 0.01
+            onImplicitWidthChanged: scene.lookWidth = Math.max(scene.lookWidth, look.implicitWidth)
+            onImplicitHeightChanged: scene.lookHeight = Math.max(scene.lookHeight, look.implicitHeight)
+        }
+    }
+}
+""" % SCALE
+
+# a layout switch for the keyboard kind, at the moments the level steps
+LAYOUTS = ["English (US)", "Deutsch", "Français (AZERTY)", "日本語", "English (US)"]
+
+# (seconds into the recording, property, value); the recording opens on the
+# look already at rest at 45%, and ends once it has returned and settled there
+TIMELINE = [
+    (0.50, "value", 0.55),
+    (0.80, "value", 0.70),
+    (1.10, "value", 0.85),
+    (1.40, "value", 1.00),
+    (1.70, "value", 1.15),
+    (2.00, "value", 1.30),
+    (2.80, "muted", True),
+    (3.60, "muted", False),
+    (4.00, "value", 0.80),
+    (4.30, "value", 0.45),
+    (5.00, "shown", False),
+    (5.90, "shown", True),
+]
+LENGTH = 7.40
+PREROLL = 1.60
+
+
+def record(kind, out, gif):
+    from qmlrecord import Recorder, save_webp
+
+    rec = Recorder(SCENE, base=OSD / "OsdPreviewScene.qml", imports=[LITHIC])
+    scene = rec.scene
+    scene.setProperty("kind", kind)
+    scene.setProperty("label", LAYOUTS[0])
+    scene.setProperty("value", 0.45)
+    scene.setProperty("shown", True)
+    rec.tick()
+    # the widest layout name sizes a keyboard window, as the shell's would grow
+    for name in LAYOUTS if kind == "keyboard" else []:
+        scene.setProperty("label", name)
+        rec.tick()
+    scene.setProperty("label", LAYOUTS[0])
+    rec.fit(scene.property("lookWidth"), scene.property("lookHeight"))
+    rec.tick(round(PREROLL * 60))
+
+    events = list(TIMELINE)
+    if kind == "keyboard":
+        names = iter(LAYOUTS[1:])
+        events = [(t, "label", next(names, LAYOUTS[0])) if name == "value" else (t, name, value)
+                  for t, name, value in events if name != "muted"]
+    frames = rec.play(events, LENGTH, fps=FPS)
+    save_webp(frames, out, fps=FPS, margin=2 * SCALE, gif=gif)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("--design", choices=DESIGNS, action="append")
+    parser.add_argument("--mode", choices=MODES, action="append")
+    parser.add_argument("--kind", choices=KINDS, default="volume",
+                        help="another pop-up, for review: written as <design>-<mode>-<kind>.webp")
+    parser.add_argument("--out", type=Path, default=OUT)
+    parser.add_argument("--gif", action="store_true", help="also write a GIF, for comparison only")
+    parser.add_argument("--record", nargs=2, metavar=("KIND", "FILE"), help=argparse.SUPPRESS)
+    args = parser.parse_args()
+
+    if args.record:
+        record(args.record[0], Path(args.record[1]), args.gif)
+        return
+
+    failed = False
+    with Host() as host:
+        for design in args.design or DESIGNS:
+            for mode in args.mode or MODES:
+                suffix = "" if args.kind == "volume" else "-" + args.kind
+                target = args.out / f"{design}-{mode}{suffix}.webp"
+                argv = [sys.executable, __file__, "--record", args.kind, str(target)]
+                if args.gif:
+                    argv.append("--gif")
+                env = host.env({"LITHIC_DESIGN": design, "LITHIC_MODE": mode})
+                if subprocess.run(argv, env=env).returncode != 0:
+                    failed = True
+    sys.exit(1 if failed else 0)
+
+
+if __name__ == "__main__":
+    main()

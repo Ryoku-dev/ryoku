@@ -455,10 +455,21 @@ below are what each surface becomes.
 - **Ask, clipboard, voice.** A `stone4` cut plane with one field. Rows take the
   hover plane, never a left accent bar; an answer streams as body text. Nothing
   breathes or glows while idle.
-- **Notifications and OSD.** A notification is a cut slab (cut 8, hairline),
-  title in `row`, body in `detail`, actions as quiet plaques. The OSD is one cut
-  slab with a blade meter and its value in tabular figures. Both leave on a
-  timer that pauses under the pointer, like the Hub's notice.
+- **Notifications.** A notification is a cut slab (cut 8, hairline), title in
+  `row`, body in `detail`, actions as quiet plaques. It leaves on a timer that
+  pauses under the pointer, like the Hub's notice.
+- **OSD.** The volume, microphone, brightness and keyboard layout pop-up is a
+  glance, not a panel: one small look per design, switched live from
+  `theme.design` (`modules/osd/OsdLook.qml`, `designs/`), each where its
+  platform puts it. Lithic is a 232x30 tab that slides out from under the bar
+  with a tick ruler and a rolling mono figure. Material is Android's 44x184
+  edge slider 12 from the right with a flowing squiggle level. Adwaita is
+  GNOME's 260x44 pill 56 above the bottom. Fluent is the Windows 11 196x48
+  flyout 28 above the bottom with a ringed thumb. There is no caption: past
+  100% reads in jasper beyond a 100 mark and muted greys the level. It animates
+  only while shown, holds still with reduced motion, and its window exists
+  only while it is up. `bin/art/osd-previews` records each look for Settings
+  on the shared harness `bin/art/qmlrecord.py`.
 - **Overview** (`Super+Tab`). Workspace numbers in zero-padded mono, cells as
   cut planes on hairlines, the focused one marked by the accent; no private
   palette.

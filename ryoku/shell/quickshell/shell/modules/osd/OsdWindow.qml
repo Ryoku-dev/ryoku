@@ -6,9 +6,11 @@ import Quickshell.Wayland
 import shell.services
 import Ryoku.Ui.Singletons
 
-// One passive overlay per output and kind. The shipped window spans the
-// desktop hole, centres its panel and rests it just above the bottom edge.
-// Its eased progress keeps the surface mapped until the slide-out has finished.
+// One passive overlay per output and kind (volume, mic, brightness, keyboard).
+// Ryoku's own look (OsdLook) follows the desktop's design and names its edge,
+// its gap from that edge and its reveal; a store design names its edge and
+// reveal the same way. The window is built on a trigger and kept mapped until
+// the look's exit has finished, so an idle desktop holds none of them.
 // a store design keeps its window since it loads async and owns its reveal
 Scope {
     id: host
@@ -17,6 +19,9 @@ Scope {
     required property string kind
 
     readonly property bool storeChosen: Designs.osd !== Designs.shipped && Designs.osdUrl !== ""
+    // Kairos and Orpheus draw their own volume and brightness feedback; the
+    // keyboard layout is still the shell's to show
+    readonly property bool styleOwns: host.kind !== "keyboard" && Config.styleOwnsFeedback
     // mirrored here so the loader never reads its own item
     property bool lingering: false
 
@@ -27,38 +32,27 @@ Scope {
 
     LazyLoader {
         id: windowLoader
-        active: !Config.styleOwnsFeedback
-            && (host.storeChosen || feed.flashing || host.lingering)
+        active: !host.styleOwns && (host.storeChosen || feed.flashing || host.lingering)
 
         PanelWindow {
             id: win
 
-            // Logical sizes follow this output's UI scale. The active item's OSD scale
-            // (Shells.osdScale) applies only to the shipped panel and its slide headroom.
+            // Logical sizes follow this output's UI scale; the active item's OSD
+            // scale (Shells.osdScale) sizes only Ryoku's own look.
             readonly property real us: Tokens.uiScaleFor(host.modelData ? host.modelData.name : "")
-            readonly property real pad: 16 * win.us
-            readonly property real osdScale: Shells.osdScale
-            readonly property real slide: 18 * win.us
-            // Store designs own their size and edge choice while the shell keeps the
-            // window, input policy and timing.
             readonly property bool storeRuns: designLoader.storeRuns
             readonly property bool stockRuns: Designs.osdReady && !win.storeRuns
-            readonly property bool lingering: (win.storeRuns ? designLoader.reveal : win.prog) > 0.01
+            readonly property bool lingering: (win.storeRuns ? designLoader.reveal : look.reveal) > 0.01
             onLingeringChanged: host.lingering = win.lingering
             Component.onDestruction: host.lingering = false
 
-            // starts at 0 and binds once built, so the reveal animates in even though the trigger is already on
-            property real prog: 0
-            Behavior on prog {
-                NumberAnimation {
-                    duration: Motion.effects
-                    easing.type: Easing.OutCubic
-                }
-            }
-            Component.onCompleted: win.prog = Qt.binding(() => feed.flashing ? 1 : 0)
+            // A single edge anchor lets layer shell centre the other axis, and none
+            // centres both. The gap is kept from that edge, outside any bar's or
+            // dock's exclusive zone, so a look anchored with no gap sits right
+            // against the system's chrome.
+            readonly property string placement: win.storeRuns ? designLoader.placement : look.placement
+            readonly property real gap: win.storeRuns ? 24 * win.us : look.gap
 
-            // A store design's reveal keeps its window mapped long enough to finish
-            // an exit animation; the shipped design uses the host's eased progress.
             screen: host.modelData
             visible: Designs.osdReady && (feed.flashing || win.lingering)
             color: "transparent"
@@ -66,54 +60,34 @@ Scope {
             exclusiveZone: 0
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
-            WlrLayershell.namespace: "ryoku-osd"
+            WlrLayershell.namespace: host.kind === "keyboard" ? "ryoku-keyboard-osd" : "ryoku-osd"
 
-            // Single-edge anchors let layer shell centre the other axis. Center leaves
-            // every edge free; the shipped panel keeps its original bottom span.
-            anchors.bottom: !win.storeRuns || designLoader.placement === "bottom"
-            anchors.top: win.storeRuns && designLoader.placement === "top"
-            anchors.left: !win.storeRuns || designLoader.placement === "left"
-            anchors.right: !win.storeRuns || designLoader.placement === "right"
-            margins.bottom: win.storeRuns && designLoader.placement === "bottom"
-                ? 24 * win.us : (!win.storeRuns ? 24 * win.osdScale * win.us : 0)
-            margins.top: win.storeRuns && designLoader.placement === "top" ? 24 * win.us : 0
-            margins.left: win.storeRuns && designLoader.placement === "left" ? 24 * win.us : 0
-            margins.right: win.storeRuns && designLoader.placement === "right" ? 24 * win.us : 0
+            anchors.top: win.placement === "top"
+            anchors.bottom: win.placement === "bottom"
+            anchors.left: win.placement === "left"
+            anchors.right: win.placement === "right"
+            margins.top: win.placement === "top" ? win.gap : 0
+            margins.bottom: win.placement === "bottom" ? win.gap : 0
+            margins.left: win.placement === "left" ? win.gap : 0
+            margins.right: win.placement === "right" ? win.gap : 0
 
-            implicitWidth: win.storeRuns && designLoader.item
-                ? designLoader.item.implicitWidth : 0
-            implicitHeight: win.storeRuns && designLoader.item
-                ? designLoader.item.implicitHeight
-                : box.height * win.osdScale + win.slide * win.osdScale
+            implicitWidth: win.storeRuns
+                ? (designLoader.item ? designLoader.item.implicitWidth : 0) : look.implicitWidth
+            implicitHeight: win.storeRuns
+                ? (designLoader.item ? designLoader.item.implicitHeight : 0) : look.implicitHeight
 
-            Rectangle {
-                id: box
-                visible: win.stockRuns
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.bottom: parent.bottom
-                width: osd.implicitWidth + win.pad * 2
-                height: osd.implicitHeight + win.pad * 2
-                radius: Theme.radiusWindow * win.us
-                color: Theme.surface
-                opacity: Theme.windowOpacity * win.prog
-                border.width: Theme.borderWidth
-                border.color: Theme.outline
-                antialiasing: true
-                scale: win.osdScale
-                transformOrigin: Item.Bottom
-                transform: Translate { y: -win.prog * win.slide * win.osdScale }
-
-                Osd {
-                    id: osd
-                    anchors.fill: parent
-                    anchors.margins: win.pad
-                    kind: host.kind
-                    us: win.us
-                    value: feed.value
-                    maxValue: feed.maxValue
-                    muted: feed.muted
-                    iconName: feed.iconName
-                }
+            OsdLook {
+                id: look
+                anchors.fill: parent
+                active: win.stockRuns
+                kind: host.kind
+                u: win.us * Shells.osdScale
+                shown: feed.flashing
+                value: feed.value
+                maxValue: feed.maxValue
+                muted: feed.muted
+                iconName: feed.iconName
+                label: feed.label
             }
 
             OsdDesignLoader {

@@ -526,8 +526,9 @@ Scope {
             LazyLoader {
                 id: osdKeyboardLoader
                 activeAsync: root.warm >= 1
-                KeyboardOsdWindow {
+                OsdWindow {
                     modelData: perScreen.modelData
+                    kind: "keyboard"
                 }
             }
             LazyLoader {

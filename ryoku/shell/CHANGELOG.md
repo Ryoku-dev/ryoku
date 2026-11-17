@@ -1,6 +1,9 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The volume, mic, brightness and keyboard pop-ups take the shape of the design
+  in Style.** Lithic hangs a small tab under the bar, Material an edge slider on
+  the right, Adwaita and Fluent a pill near the bottom (`modules/osd/OsdLook.qml`).
 - **Orpheus notifications resolve themed icon URLs through the shell's icon
   index (#852).** The notification card and the bar notice passed an
   `image://icon/` app icon straight to Qt's icon provider; they now resolve it
