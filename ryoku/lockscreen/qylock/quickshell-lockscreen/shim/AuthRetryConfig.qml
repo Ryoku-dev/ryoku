@@ -13,7 +13,7 @@ QtObject {
 
     property var reader: Process {
         running: true
-        command: ["bash", "-c", "[[ -r $1 && -f $1 ]] && cat -- \"$1\"", "qylock-auth-retry", root.path]
+        command: ["bash", "-c", "[[ -r $1 && -f $1 ]] && head -c 64 -- \"$1\"", "qylock-auth-retry", root.path]
         stdout: StdioCollector {
             onStreamFinished: root.apply(text, true)
         }
