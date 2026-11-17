@@ -953,6 +953,8 @@ const jemallocConf = "narenas:2,background_thread:true,dirty_decay_ms:5000,muzzy
 // render every second, forever, for nothing. Without the timeout a hidden
 // surface with nothing new to draw stays quiet, and one that does still paces
 // itself on the compositor's callbacks.
+//
+// And it runs the JS garbage collector to completion (see gcTimeLimitEnv).
 func qsEnv() []string {
 	env := nomarchyEnv()
 	if os.Getenv("MALLOC_CONF") == "" {
@@ -961,10 +963,23 @@ func qsEnv() []string {
 	if _, set := os.LookupEnv(frameCallbackTimeoutEnv); !set {
 		env = append(env, frameCallbackTimeoutEnv+"=0")
 	}
+	if _, set := os.LookupEnv(gcTimeLimitEnv); !set {
+		env = append(env, gcTimeLimitEnv+"=0")
+	}
 	return env
 }
 
 const frameCallbackTimeoutEnv = "QT_WAYLAND_FRAME_CALLBACK_TIMEOUT"
+
+// gcTimeLimitEnv is the time slice Qt's JS engine gives each garbage-collection
+// step; zero makes every collection run to completion instead of incrementally.
+// With the incremental collector (Qt 6.12.0, the default), a collection that
+// overlaps a busy shell start sweeps the QML-declared properties and functions
+// of objects that are still alive: they read back as their type's zero value
+// and every call fails with "is not a function" until the shell restarts. The
+// qsbar lost its saved widgets and its CPU and memory readings that way on a
+// cold login, when the box is busiest.
+const gcTimeLimitEnv = "QV4_GC_TIMELIMIT"
 
 // surfaceLog is where a supervised surface's stderr goes, one file per component
 // so a crash on start is still readable after the respawn.
