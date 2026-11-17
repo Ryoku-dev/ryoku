@@ -9,6 +9,11 @@
   line (400-600 a minute). The shared helper keeps pairing prompts, errors and a
   device's pair, trust, bond and connect changes, and drops the rest, on systemd
   and runit alike. Covered by `tests/bt-agent-filter.sh`.
+- `audio/ryoku-bt-audio`: **a choice for the headset mic switch (#878).**
+  `ryoku-bt-audio mic off` keeps headsets in stereo playback when an app opens
+  a microphone (the mic is then not offered), `mic on` goes back to the default,
+  and plain `mic` prints the current choice. It is a saved WirePlumber setting,
+  so it survives restarts and updates. Covered by `tests/bt-audio-codec.sh`.
 - `audio/ryoku-media`: **one toggle per media tap.** Runs `playerctl` and drops
   a second call within 200 ms, for headphones that send play and pause together.
 - `display/ryoku-monitor`: **a hand-entered resolution is forced, not ignored.**
