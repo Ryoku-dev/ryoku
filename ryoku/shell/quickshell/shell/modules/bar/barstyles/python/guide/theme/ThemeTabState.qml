@@ -425,25 +425,12 @@ GuideTab {
         let current = Config.getSetting("theme", themeTabRoot.defaultThemeSettings);
         current.activePreset = modelData.name;
         current.matugen = isMatugen;
-        if (!isMatugen) {
-            current.colors = modelData.colors;
-        }
+        current.colors = isMatugen ? {} : modelData.colors;
 
         Config.setSetting("theme", current);
 
         if (isMatugen) {
             if (typeof ThemeBackend !== "undefined") {
-                let applied = (typeof ThemeBackend.applyMatugenColors === "function") && ThemeBackend.applyMatugenColors();
-                if (!applied && themeTabRoot.matugenColors && Object.keys(themeTabRoot.matugenColors).length > 0) {
-                    ThemeBackend.applyColorObject(themeTabRoot.matugenColors.colors || themeTabRoot.matugenColors);
-                }
-            }
-
-            if (themeTabRoot.currentWallpaperPath && themeTabRoot.currentWallpaperPath !== "") {
-                if (typeof Matugen !== "undefined" && typeof Matugen.generate === "function") {
-                    Matugen.generate(themeTabRoot.currentWallpaperPath, current.mode, current.schemeType);
-                }
-            } else if (typeof ThemeBackend !== "undefined") {
                 ThemeBackend.reloadColors();
             }
         } else {

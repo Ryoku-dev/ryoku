@@ -5,6 +5,9 @@
   elsewhere (#814).** matugen reads the shipped templates through `~/.config`,
   so a session with its own config directory skipped every template; the paths
   now follow the XDG directories.
+- **Picking Matugen in Python's Theme tab brings the wallpaper colours back
+  (#827).** A bundled preset's palette stayed stored after switching back, so
+  the bar kept the preset's colours; Matugen now clears it.
 - **Wallpaper Engine video wallpapers animate on hover in the picker (#807).**
   Only local videos got the small preview clip, so workshop video cards stayed
   still; they now get one too, built on the thumbnail job limit and skipped
