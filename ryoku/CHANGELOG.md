@@ -14,6 +14,9 @@
 - **Rashin Ask and Agent no longer hang on "waking the needle" (#811).** The
   code index rebuilds in the background and the Prowl code tools join a chat
   once it is current, so a slow rebuild can't time the session out.
+- **A Hyprland plugin built for another Hyprland no longer fills the config with
+  errors (#828).** Such a copy is skipped for a matching packaged one, and a
+  plugin that pauses itself gets none of its settings applied (`wm/hyprland`).
 - **Fastfetch reads the wallpaper-tinted config again.** The effective config
   keeps the `// ryoku:` header comments from `config.jsonc`, so it is now
   cached as `fastfetch-effective.jsonc`; fastfetch rejects comments in a

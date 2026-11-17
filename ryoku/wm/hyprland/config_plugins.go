@@ -91,11 +91,23 @@ func pluginSoPath(id string) string {
 	if !target.ok() {
 		target, _ = headersABI()
 	}
-	c, ok, stale := pickCopy(pluginCopies(id), target)
+	c, ok, stale := pickCopy(builtForThisHyprland(pluginCopies(id), target.Commit), target)
 	if !ok || stale {
 		return ""
 	}
 	return c.Path
+}
+
+// builtForThisHyprland drops copies compiled for another Hyprland, whatever
+// their receipt says: such a plugin pauses itself and registers no keys.
+func builtForThisHyprland(copies []soCopy, commit string) []soCopy {
+	var out []soCopy
+	for _, c := range copies {
+		if foreignHyprland(c.Path, commit) == "" {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 // pluginBlock is one enabled plugin resolved for emission.
@@ -109,10 +121,13 @@ type pluginBlock struct {
 
 // luaPluginLoaded is the guard every plugin block runs its config behind:
 // hl.plugin.load only declares a path and Hyprland loads the set in a later pass,
-// so the config must wait for the plugin to actually be present.
+// so the config must wait for the plugin to actually be present. A plugin built
+// for another Hyprland lists itself as "Paused" and registers no keys.
 const luaPluginLoaded = `local function ryoku_plugin_loaded(name)
   for _, p in ipairs(hl.get_loaded_plugins()) do
-    if p.name == name then return true end
+    if p.name == name then
+      return not tostring(p.description or ""):find("^Paused")
+    end
   end
   return false
 end
