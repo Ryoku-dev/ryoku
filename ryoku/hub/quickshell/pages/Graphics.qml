@@ -44,7 +44,7 @@ Item {
     // a template row is drawn by the page itself, a section id by its section; any
     // other waits until it is in the layout
     function landPending(force) {
-        if (root.pendingRow === "" || page.layout.length === 0)
+        if (!root.visible || root.pendingRow === "" || page.layout.length === 0)
             return;
         var id = root.pendingRow;
         var template = Schema.rows.some(r => r.id === id && r.template === true);
@@ -58,7 +58,7 @@ Item {
         root.pendingRow = "";
         page.focusRow(id);
     }
-    onDataReadyChanged: settle.restart()
+    onDataReadyChanged: if (root.visible) settle.restart()
     // rows redraw while the cards' answers arrive; land once they rest
     Timer {
         id: settle
@@ -71,11 +71,17 @@ Item {
         onTriggered: root.landPending(true)
     }
 
+    function revisited() {
+        if (root.store && root.store.capsRead && !root.store.unsettled)
+            root.store.refresh();
+        if (root.pendingRow !== "")
+            settle.restart();
+    }
+
     Component.onCompleted: {
         Changes.ensureStore("graphics", Qt.resolvedUrl("../components/graphics/GraphicsStore.qml"));
         // a store kept from an earlier visit reads the hardware again
-        if (root.store && root.store.capsRead)
-            root.store.refresh();
+        root.revisited();
     }
 
     function cardName(slot) {

@@ -313,7 +313,12 @@ Item {
         return I18n.tr("%1 min").replace("%1", m);
     }
     property string network: ""
+    function revisited() {
+        if (root.visible && !networkRead.running)
+            networkRead.running = true;
+    }
     Process {
+        id: networkRead
         running: true
         command: ["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show", "--active"]
         stdout: StdioCollector {
@@ -378,7 +383,7 @@ Item {
     readonly property bool cardView: root.roomy && root.f("homeView", "plate") === "card"
     // the figure, for the studio to measure while the reader drags it
     readonly property Item figureItem: figure
-    readonly property bool pointed: root.depthOn && pointer.hovered
+    readonly property bool pointed: root.shown && root.depthOn && pointer.hovered
     // the pointer's place, -1..1 each way, and the light's, in the plate's pixels; each
     // follows its target at once and settles without overshoot (Chase)
     Chase { id: chaseX }

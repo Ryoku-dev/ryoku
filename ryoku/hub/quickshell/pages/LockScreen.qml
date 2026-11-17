@@ -41,6 +41,20 @@ Item {
     property bool keyPrompts: false
     property bool fingerprintOn: true
     property bool keyOn: false
+    property bool promptsDirty: false
+
+    function revisited() {
+        var prompt = Changes.stores.lockprompt;
+        var signin = Changes.stores.signin;
+        if (!root.visible || !root.store || root.pending !== "" || (prompt && prompt.busy)
+                || (signin && Object.keys(signin.busy).length > 0))
+            return;
+        root.store.reload();
+        root.readUnlocking();
+        if (prompt)
+            prompt.load();
+        root.readPrompts();
+    }
 
     readonly property var schema: ({
         title: Schema.title,
@@ -144,12 +158,19 @@ Item {
         unlockRead.running = true;
     }
 
-    onActiveSlugChanged: {
+    function readPrompts() {
+        if (!root.visible || promptsRead.running) {
+            root.promptsDirty = true;
+            return;
+        }
         if (root.activeSlug === "")
             return;
+        root.promptsDirty = false;
         promptsRead.command = ["sh", "-c", "grep -qs 'sddm.keyPrompts = true' \"${XDG_DATA_HOME:-$HOME/.local/share}/qylock/themes/$1/Main.qml\"", "sh", root.activeSlug];
         promptsRead.running = true;
     }
+
+    onActiveSlugChanged: root.readPrompts()
 
     Component.onCompleted: {
         if (root.store)
@@ -186,7 +207,11 @@ Item {
 
     Process {
         id: promptsRead
-        onExited: code => root.keyPrompts = code === 0
+        onExited: code => {
+            root.keyPrompts = code === 0;
+            if (root.promptsDirty && root.visible)
+                Qt.callLater(root.readPrompts);
+        }
     }
 
     // the lock's own switches: the fingerprint preference and the security key's lock conversation

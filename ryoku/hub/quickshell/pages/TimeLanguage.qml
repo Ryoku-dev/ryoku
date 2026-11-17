@@ -23,6 +23,11 @@ Item {
     readonly property bool zoneFailed: root.zone.length === 0 && root.zoneStore !== null && root.zoneStore.readFailed === true && root.zoneStore.reading !== true
     readonly property bool zoneBusy: root.zoneStore !== null && root.zoneStore.busy === true
 
+    function revisited() {
+        if (root.visible && root.zoneStore && !root.zoneBusy && !zoneMap.visible)
+            root.zoneStore.readZone();
+    }
+
     function focusRow(rowId) {
         page.focusRow(rowId);
     }

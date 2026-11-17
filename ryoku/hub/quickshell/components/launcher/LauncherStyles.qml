@@ -256,6 +256,11 @@ Item {
         storeRead.running = true;
     }
 
+    function refresh() {
+        if (!root.installProc && root.busyId === "" && !storeRead.running)
+            storeRead.running = true;
+    }
+
     function cancel() {
         if (!root.installProc || !root.installProc.running)
             return;

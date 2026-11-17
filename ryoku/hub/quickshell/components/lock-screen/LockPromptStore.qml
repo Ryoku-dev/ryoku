@@ -9,12 +9,15 @@ QtObject {
 
     property bool known: false
     property bool retry: false
+    property int writesRunning: 0
+    readonly property bool busy: store.writesRunning > 0
 
     function read(key) {
         return key === "retry" && store.known ? store.retry : undefined;
     }
 
     function write(key, v, done) {
+        store.writesRunning++;
         var was = store.retry;
         store.retry = v === true;
         store.known = true;
@@ -22,6 +25,7 @@ QtObject {
         var argv = ["sh", "-c", "d=\"${XDG_CONFIG_HOME:-$HOME/.config}/qylock\"; mkdir -p \"$d\" && printf '%s\\n' \"$1\" > \"$d/auth-retry\"",
                     "sh", v === true ? "on" : "off"];
         Changes.run(argv, function (ok) {
+            store.writesRunning--;
             if (!ok)
                 store.retry = was;
             Changes.touch();
@@ -32,6 +36,8 @@ QtObject {
 
     // what the file holds now; a missing file is off, the lock's own default
     function load() {
+        if (store.busy)
+            return;
         var argv = ["sh", "-c", "f=\"${XDG_CONFIG_HOME:-$HOME/.config}/qylock/auth-retry\"; [ -r \"$f\" ] && [ -f \"$f\" ] && head -c 64 -- \"$f\"; true"];
         Changes.run(argv, function (ok, out) {
             if (!ok)

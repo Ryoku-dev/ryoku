@@ -42,6 +42,29 @@ Item {
             Changes.stores.outputtiling.load();
     }
 
+    Binding {
+        target: root.tiling
+        property: "pageVisible"
+        value: root.visible
+        when: root.tiling !== null
+    }
+
+    Component.onDestruction: {
+        if (root.tiling)
+            root.tiling.pageVisible = false;
+    }
+
+    function revisited() {
+        if (!root.tiling)
+            return;
+        if (root.tiling.frameDirty) {
+            root.tiling.frameDirty = false;
+            Changes.touch();
+        }
+        if (!Changes.unsettled && root.tiling.writesInFlight === 0)
+            root.tiling.load();
+    }
+
     // the link and the display choice only mean something with two displays, or while the link is off
     function rowKept(row) {
         if (row.id === "layout-display")

@@ -17,6 +17,55 @@ Item {
 
     required property var hub
     property string pendingRow: ""
+    property bool savedDirty: false
+    property bool listDirty: false
+    property bool bandsDirty: false
+    property bool hotspotNameDraft: false
+    property bool hotspotPasswordDraft: false
+    property var ipEditors: ({})
+    readonly property bool refreshBlocked: root.connecting || root.scanning || root.killBusy
+        || root.forgetting !== "" || root.disconnecting !== "" || root.password !== ""
+        || root.hotspotNameDraft || root.hotspotPasswordDraft
+        || Object.keys(root.ipEditors).some(k => root.ipEditors[k].dirty || root.ipEditors[k].busy || root.ipEditors[k].revertLeft > 0)
+        || (root.store && (Object.keys(root.store.busy).length > 0
+            || Object.keys(root.bandPick).some(s => root.bandPick[s] !== (root.store.profileFor(s)?.band || ""))))
+
+    Binding {
+        target: root.store
+        property: "pageVisible"
+        value: root.visible && !root.refreshBlocked
+        when: root.store !== null
+    }
+
+    function trackIp(uuid, item) {
+        var next = Object.assign({}, root.ipEditors);
+        if (item)
+            next[uuid] = item;
+        else
+            delete next[uuid];
+        root.ipEditors = next;
+    }
+
+    function revisited() {
+        if (root.refreshBlocked)
+            return;
+        if (root.store) {
+            root.store.refreshDirty = false;
+            root.store.refresh();
+        }
+        root.syncSaved();
+        root.syncList(false);
+        root.bandsDirty = false;
+        bands.running = true;
+        root.readKill();
+        if (root.pendingRow !== "")
+            Qt.callLater(root.focusRow, root.pendingRow);
+    }
+
+    onVisibleChanged: {
+        if (!root.visible)
+            root.pointerOnList = false;
+    }
 
     readonly property var store: Changes.stores["wifi"] || null
     readonly property var devices: Networking.devices ? Networking.devices.values : []
@@ -84,6 +133,11 @@ Item {
     // read that follows it
     property var savedIds: []
     function syncSaved() {
+        if (!root.visible) {
+            root.savedDirty = true;
+            return;
+        }
+        root.savedDirty = false;
         var ids = root.store ? root.store.profiles.map(p => p.uuid) : [];
         if (ids.join("\n") !== root.savedIds.join("\n"))
             root.savedIds = ids;
@@ -162,6 +216,11 @@ Item {
     // newcomers join by signal, unless a scan asks for a fresh order. rows move rather than
     // rebuild, so a half-typed password survives
     function syncList(fresh) {
+        if (!root.visible) {
+            root.listDirty = true;
+            return;
+        }
+        root.listDirty = false;
         if (!fresh && root.pointerOnList && netModel.count > 0) {
             root.syncHeld = true;
             return;
@@ -678,11 +737,23 @@ Item {
     Timer {
         id: bandsRead
         interval: 1200
-        onTriggered: bands.running = true
+        onTriggered: {
+            if (root.visible) {
+                root.bandsDirty = false;
+                bands.running = true;
+            } else {
+                root.bandsDirty = true;
+            }
+        }
     }
     Connections {
         target: root
-        function onListKeyChanged() { bandsRead.restart(); }
+        function onListKeyChanged() {
+            if (root.visible)
+                bandsRead.restart();
+            else
+                root.bandsDirty = true;
+        }
     }
 
     Process {
@@ -743,9 +814,9 @@ Item {
         bands.running = true;
     }
 
-    // the status runs through the privileged helper, so it is read when More options opens, not on every visit
+    // the status runs through the privileged helper
     onMoreOpenChanged: {
-        if (root.moreOpen && root.killState === "checking")
+        if (root.visible && root.moreOpen && root.killState === "checking")
             root.readKill();
     }
 
@@ -758,7 +829,7 @@ Item {
         stateLine: root.stateLine
         bodies: ({ wifi: wifiBody, saved: savedBody, hotspot: hotspotBody })
         onLayoutChanged: {
-            if (root.pendingRow !== "") {
+            if (root.visible && root.pendingRow !== "") {
                 var id = root.pendingRow;
                 root.pendingRow = "";
                 Qt.callLater(root.focusRow, id);
@@ -1264,6 +1335,9 @@ Item {
                         }
 
                         Loader {
+                            id: ipLoader
+                            onItemChanged: root.trackIp(savedItem.uuid, ipLoader.item)
+                            Component.onDestruction: root.trackIp(savedItem.uuid, null)
                             active: savedItem.ipShown
                             visible: active
                             width: parent.width
@@ -1350,7 +1424,9 @@ Item {
                         text: Changes.value(hs.nameBind) || ""
                         errorText: nameField.text.trim().length === 0 && nameField.activeFocus ? I18n.tr("Give the hotspot a name") : ""
                         Accessible.name: I18n.tr("Hotspot name")
+                        onTextEdited: root.hotspotNameDraft = true
                         onEditingFinished: {
+                            root.hotspotNameDraft = false;
                             var v = nameField.text.trim();
                             nameField.text = Qt.binding(() => Changes.value(hs.nameBind) || "");
                             if (v.length > 0 && v !== Changes.value(hs.nameBind))
@@ -1379,16 +1455,22 @@ Item {
                         text: Changes.value(hs.passBind) || ""
                         errorText: passField.tooShort ? I18n.tr("Use at least 8 characters") : ""
                         Accessible.name: I18n.tr("Hotspot password")
-                        onTextEdited: passField.tooShort = false
+                        onTextEdited: {
+                            passField.tooShort = false;
+                            root.hotspotPasswordDraft = true;
+                        }
                         onEditingFinished: {
                             var v = passField.text;
-                            if (v === Changes.value(hs.passBind))
+                            if (v === Changes.value(hs.passBind)) {
+                                root.hotspotPasswordDraft = false;
                                 return;
+                            }
                             if (v.length < 8) {
                                 passField.tooShort = true;
                                 return;
                             }
                             passField.text = Qt.binding(() => Changes.value(hs.passBind) || "");
+                            root.hotspotPasswordDraft = false;
                             Changes.set(hs.passBind, v, I18n.tr("Hotspot password"), "wifi");
                         }
                     }

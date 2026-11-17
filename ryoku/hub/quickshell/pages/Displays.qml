@@ -596,8 +596,15 @@ Item {
 
     // a missing program or a window manager that does not answer reads as a failure, not as no displays
     property bool listing: false
-    function reload() {
-        if (page.listing)
+    function revisited() {
+        if (page.applying || page.dirty || page.layoutsWorking !== "")
+            return;
+        page.reload(true);
+        page.reloadSaved();
+    }
+
+    function reload(quiet) {
+        if (page.listing || (quiet === true && (page.applying || page.dirty)))
             return;
         page.listing = true;
         Changes.run(["ryoku-hub", "outputs"], function (ok, out, err) {
@@ -609,14 +616,15 @@ Item {
                 if (!Array.isArray(arr))
                     throw "not a list";
                 page.liveRows = arr;
-                page.loadRows(arr, true);
+                if (quiet !== true || (!page.dirty && !page.applying))
+                    page.loadRows(arr, quiet !== true);
                 page.listFailed = false;
             } catch (e) {
                 console.warn("displays could not be read:", String(e).trim());
                 page.listFailed = true;
             }
             page.listed = true;
-            if (page.pendingRow !== "") {
+            if (page.visible && page.pendingRow !== "") {
                 Qt.callLater(page.focusRow, page.pendingRow);
                 page.pendingRow = "";
             }

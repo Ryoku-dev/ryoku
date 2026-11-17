@@ -17,6 +17,18 @@ Item {
 
     readonly property var store: Changes.stores["signin"] || null
     readonly property var busy: root.store ? root.store.busy : ({})
+    property Item passwordField: null
+    property Item printEditorList: null
+
+    function revisited() {
+        if (!root.visible || !root.store || root.keyFlow === "waiting" || root.keyringJob !== ""
+                || Object.keys(root.busy).length > 0 || fingerprintDialog.visible
+                || (root.passwordField && root.passwordField.text.length > 0)
+                || (root.printEditorList && root.printEditorList.editingIndex >= 0))
+            return;
+        root.store.reload();
+    }
+
     // groups whose write has run past a second, and past ten (they offer Stop waiting)
     property var slowGroups: ({})
     property var longGroups: ({})
@@ -561,6 +573,7 @@ Item {
                     }
                     TextField {
                         id: keyringPassword
+                        Component.onCompleted: root.passwordField = this
                         width: Math.min(parent.width, LithicTokens.size.settingsControlMax)
                         label: I18n.tr("Keyring password")
                         secret: true
@@ -665,6 +678,7 @@ Item {
 
                 ListEditor {
                     id: printList
+                    Component.onCompleted: root.printEditorList = this
                     visible: !!root.store && root.store.fready
                     width: parent.width
                     accessibleName: I18n.tr("Fingerprints")

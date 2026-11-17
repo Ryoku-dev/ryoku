@@ -14,6 +14,11 @@ Item {
 
     Component.onCompleted: Changes.ensureStore("launcher", Qt.resolvedUrl("../components/launcher/LauncherStore.qml"))
 
+    function revisited() {
+        if (!Changes.unsettled)
+            styles.refresh();
+    }
+
     function offered(row) {
         return !row.offers || styles.supports(row.offers);
     }

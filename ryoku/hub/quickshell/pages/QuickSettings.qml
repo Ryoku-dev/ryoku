@@ -15,6 +15,19 @@ Item {
     property string pendingRow: ""
     property Item blockList: null
 
+    function revisited() {
+        var store = Changes.stores["quicksettings"];
+        if (store && !store.placing && !Changes.unsettled)
+            store.refreshCards();
+        if (root.pendingRow !== "")
+            landRetry.restart();
+    }
+
+    onVisibleChanged: {
+        if (!root.visible)
+            landRetry.stop();
+    }
+
     readonly property var schema: ({
         title: Schema.title,
         lead: Schema.lead,

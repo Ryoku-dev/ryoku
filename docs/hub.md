@@ -132,7 +132,10 @@ Home and each page stay loaded for 20 seconds after the reader leaves, up to fiv
 at a time, hidden and disabled, so going back to one is instant; a page left
 longer is unloaded and loads fresh. A hidden page is still alive, so anything it
 polls, scans or plays must stop while it is not `visible`, and anything it opens
-from a callback must check `visible` first.
+from a callback must check `visible` first. A page that read live data when it
+loaded defines `revisited()` on its root: the frame calls it when a kept page is
+shown again, and it re-reads in the background without clearing the rows, unless
+an action or an unsaved edit is under way.
 
 - **The sidebar** (`components/nav/HubSidebar.qml`). Its title line holds the
   Ryoku mark and SETTINGS, quiet, with one action at its end that shuts every

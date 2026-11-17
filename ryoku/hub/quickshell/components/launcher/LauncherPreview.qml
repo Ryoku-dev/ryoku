@@ -38,6 +38,7 @@ Item {
 
         Loader {
             id: preview
+            active: root.visible
             anchors.centerIn: parent
             width: item ? item.implicitWidth : 0
             height: item ? item.implicitHeight : 0

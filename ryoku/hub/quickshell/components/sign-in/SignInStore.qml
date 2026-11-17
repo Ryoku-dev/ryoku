@@ -364,7 +364,6 @@ QtObject {
     }
 
     function readFingerprints() {
-        store.freadError = "";
         fpTimeout.restart();
         if (!store.flistProc.running)
             store.flistProc.running = true;
@@ -427,6 +426,7 @@ QtObject {
         store.fdaemon = store.fready && t.trim() !== "" && t.indexOf("no devices") === -1;
         store.fingers = fingers;
         store.floaded = true;
+        store.freadError = "";
         // names of prints that are gone go too
         var names = Object.assign({}, store.fnames), stale = false;
         for (var k in names)

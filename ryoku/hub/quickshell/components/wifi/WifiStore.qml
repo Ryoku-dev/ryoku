@@ -8,6 +8,9 @@ import "../../Singletons"
 // store: NetworkManager is the truth, every write is a command, so undo works from any page
 QtObject {
     id: store
+    property bool pageVisible: false
+    property bool refreshDirty: false
+
 
     // the hotspot profile the old Settings created; kept so existing hotspots carry over
     readonly property string hotspotId: "RyokuHotspot"
@@ -405,14 +408,24 @@ QtObject {
 
     property Connections radio: Connections {
         target: Networking
-        function onWifiEnabledChanged() { Changes.touch(); }
+        function onWifiEnabledChanged() {
+            if (store.pageVisible)
+                Changes.touch();
+            else
+                store.refreshDirty = true;
+        }
     }
 
     // a hotspot started or stopped elsewhere shows up as the radio's mode
     property Connections mode: Connections {
         target: store.wifiDevice
         ignoreUnknownSignals: true
-        function onModeChanged() { store.refresh(); }
+        function onModeChanged() {
+            if (store.pageVisible)
+                store.refresh();
+            else
+                store.refreshDirty = true;
+        }
     }
 
     Component.onCompleted: {

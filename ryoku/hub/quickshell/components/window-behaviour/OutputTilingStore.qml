@@ -15,6 +15,9 @@ QtObject {
     // output -> layout just written, until the topic shows it
     property var pending: ({})
     property string selected: ""
+    property bool pageVisible: false
+    property bool frameDirty: false
+    property int writesInFlight: 0
 
     readonly property var frame: Live.topic("wm") || ({})
     readonly property var outputs: (store.frame.outputs || []).filter(o => o && o.name && !o.disabled).map(o => o.name)
@@ -23,7 +26,12 @@ QtObject {
     // a display other than the main one is chosen while the link is off
     readonly property bool scoped: !store.linked && store.active !== "" && store.active !== store.main
 
-    onFrameChanged: Changes.touch()
+    onFrameChanged: {
+        if (store.pageVisible)
+            Changes.touch();
+        else
+            store.frameDirty = true;
+    }
 
     function liveLayout(output) {
         var ws = store.frame.workspaces || [];
@@ -76,7 +84,9 @@ QtObject {
             store.pending = next;
         }
         Changes.touch();
+        store.writesInFlight++;
         Changes.run(argv, function (ok, out, err, code) {
+            store.writesInFlight--;
             if (key === "linked" && !ok)
                 store.linked = undo;
             if (key !== "linked" && !ok) {

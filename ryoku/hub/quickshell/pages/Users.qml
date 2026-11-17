@@ -27,6 +27,11 @@ Item {
     property bool awaitPlaced: false
 
     readonly property var store: Changes.stores["users"] || null
+    readonly property bool refreshBlocked: root.ready && (root.store.working || root.store.pictureBusy || root.store.queue.length > 0 || root.store.current !== null)
+        || (dialogs.item !== null && [dialogs.item.add, dialogs.item.password, dialogs.item.limit,
+            dialogs.item.remove, dialogs.item.setup, dialogs.item.checkpoints, dialogs.item.reset,
+            dialogs.item.removeProfile].some(d => d.visible))
+    property bool profileRequestDirty: false
     readonly property Item pageItem: page
     readonly property bool ready: root.store !== null
     readonly property bool inProfile: root.ready && root.store.inProfileAccount
@@ -64,11 +69,28 @@ Item {
         return people + " " + (root.store.canManage ? I18n.tr("You are an administrator.") : I18n.tr("Only an administrator can change accounts."));
     }
 
+    Binding {
+        target: root.store
+        property: "pageVisible"
+        value: root.visible && !root.refreshBlocked
+        when: root.store !== null
+    }
+
+    function revisited() {
+        if (root.refreshBlocked)
+            return;
+        if (root.store) {
+            root.store.refreshDirty = false;
+            root.store.start();
+        }
+        root.takeProfileRequest();
+        root.openWantedProfile();
+        root.retryFocus();
+    }
+
     Component.onCompleted: {
         Changes.ensureStore("users", Qt.resolvedUrl("../components/users/AccountsStore.qml"));
-        if (root.store)
-            root.store.start();
-        root.takeProfileRequest();
+        root.revisited();
     }
 
     // ryostore's Create account and `ryoku-shell hub open users <id>` land here
@@ -78,6 +100,11 @@ Item {
     }
 
     function takeProfileRequest() {
+        if (!root.visible) {
+            root.profileRequestDirty = true;
+            return;
+        }
+        root.profileRequestDirty = false;
         var id = String(root.hub.usersProfileId || "");
         if (id === "")
             return;
@@ -88,7 +115,7 @@ Item {
     }
 
     function openWantedProfile() {
-        if (root.wantedProfile === "" || !root.ready || !root.store.profilesLoaded)
+        if (!root.visible || root.wantedProfile === "" || !root.ready || !root.store.profilesLoaded)
             return;
         var id = root.wantedProfile;
         root.wantedProfile = "";
@@ -110,7 +137,7 @@ Item {
         function onProfileAccountsChanged() { root.retryFocus(); }
     }
     onReadyChanged: {
-        if (root.ready) {
+        if (root.ready && root.visible) {
             root.store.start();
             Qt.callLater(root.openWantedProfile);
         }
@@ -132,7 +159,7 @@ Item {
     }
 
     function retryFocus() {
-        if (root.pendingRow === "")
+        if (!root.visible || root.pendingRow === "")
             return;
         Qt.callLater(root.land);
     }
@@ -188,7 +215,7 @@ Item {
 
     Connections {
         target: root.Window.window
-        enabled: root.awaitPlaced
+        enabled: root.visible && root.awaitPlaced
         function onFrameSwapped() {
             root.awaitPlaced = false;
             root.land();

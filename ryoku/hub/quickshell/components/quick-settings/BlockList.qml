@@ -58,13 +58,16 @@ Slab {
         return "";
     }
     function giveBack() {
+        if (!root.visible)
+            return;
         var f = root.Window.activeFocusItem;
         if (root.keptRow !== "" && !(f && f.activeFocusOnTab))
             root.refocus(root.keptRow);
     }
-    onOrderChanged: Qt.callLater(root.giveBack)
+    onOrderChanged: if (root.visible) Qt.callLater(root.giveBack)
     Connections {
         target: root.Window
+        enabled: root.visible
         function onActiveFocusItemChanged() {
             var f = root.Window.activeFocusItem;
             // focus passing through the window mid-rebuild keeps the row

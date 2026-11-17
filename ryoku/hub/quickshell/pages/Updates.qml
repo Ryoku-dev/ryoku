@@ -29,6 +29,15 @@ Item {
     property bool checkLong: false
     property string checkError: ""
 
+    function revisited() {
+        Updates.tick++;
+        updateRun.revisited();
+        if (root.landingDirty) {
+            root.landingDirty = false;
+            root.reland();
+        }
+    }
+
     function check() {
         if (root.checking)
             return;
@@ -80,6 +89,10 @@ Item {
 
     // an answer or a window resize reflows the page under a landing made just before it, so it is redone
     function reland() {
+        if (!root.visible) {
+            root.landingDirty = true;
+            return;
+        }
         if (root.landedRow !== "" && Date.now() - root.landedAt < 30000
                 && (landSettle.running || (root.Window.activeFocusItem === root.landedFocus && page.currentSection === root.landedSection)))
             frameLand.restart();
@@ -92,12 +105,17 @@ Item {
         id: frameLand
         interval: 150
         onTriggered: {
+            if (!root.visible) {
+                root.landingDirty = true;
+                return;
+            }
             root.focusRow(root.landedRow, true);
             landSettle.restart();
         }
     }
 
     // the last deep landing, and where the keys and the reading were once it settled
+    property bool landingDirty: false
     property string landedRow: ""
     property double landedAt: 0
     property Item landedFocus: null
@@ -309,7 +327,7 @@ Item {
             Changes.stores.updates.load("system");
             Changes.stores.updates.load("notifications");
         }
-        Updates.clockShown = true;
+        Updates.clockShown = Qt.binding(() => root.visible);
     }
     Component.onDestruction: Updates.clockShown = false
 

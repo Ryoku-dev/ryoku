@@ -15,6 +15,7 @@ Item {
 
     required property var hub
     property string pendingRow: ""
+    property bool refreshDirty: false
 
     readonly property var store: Changes.stores["dictation"] || null
     readonly property bool loaded: root.store !== null && root.store.loaded
@@ -143,18 +144,31 @@ Item {
             page.chooseSection(at);
     }
 
+    function revisited() {
+        if (!root.store || root.store.downloading !== "" || root.store.removing !== "" || root.store.writing > 0)
+            return;
+        root.refreshDirty = false;
+        root.store.reload();
+        if (root.pendingRow !== "")
+            Qt.callLater(root.focusRow, root.pendingRow);
+    }
+
     // a terminal that installed or removed the engine hands focus back here
     readonly property bool windowActive: Window.active
     onWindowActiveChanged: {
-        if (root.windowActive && root.store && root.store.downloading === "")
-            root.store.reload();
+        if (root.windowActive) {
+            if (root.visible)
+                root.revisited();
+            else
+                root.refreshDirty = true;
+        }
     }
 
     Component.onCompleted: {
         var had = !!Changes.stores["dictation"];
         Changes.ensureStore("dictation", Qt.resolvedUrl("../components/voice-typing/DictationStore.qml"));
         if (had)
-            Changes.stores["dictation"].reload();
+            root.revisited();
     }
 
     SettingsPage {
@@ -171,7 +185,7 @@ Item {
         })
         controls: root.controls
         onLayoutChanged: {
-            if (root.pendingRow !== "") {
+            if (root.visible && root.pendingRow !== "") {
                 var id = root.pendingRow;
                 root.pendingRow = "";
                 Qt.callLater(root.focusRow, id);
@@ -404,13 +418,30 @@ Item {
             id: modelNote
             spacing: LithicTokens.space.s3
             readonly property string error: root.store.modelError !== "" ? root.store.modelError : root.deviceError
+            property bool revealDirty: false
+            function revealError() {
+                if (modelNote.error === "")
+                    return;
+                if (root.visible) {
+                    modelNote.revealDirty = false;
+                    revealLater.restart();
+                } else {
+                    modelNote.revealDirty = true;
+                }
+            }
             // the note sits below every model, so a new error is brought into view once it is placed
-            onErrorChanged: if (modelNote.error !== "") revealLater.restart()
-            Component.onCompleted: if (modelNote.error !== "") revealLater.restart()
+            onErrorChanged: modelNote.revealError()
+            onVisibleChanged: if (visible && modelNote.revealDirty) modelNote.revealError()
+            Component.onCompleted: modelNote.revealError()
             Timer {
                 id: revealLater
                 interval: 120
-                onTriggered: page.reveal(modelNote)
+                onTriggered: {
+                    if (root.visible)
+                        page.reveal(modelNote);
+                    else
+                        modelNote.revealDirty = true;
+                }
             }
             Label {
                 anchors.verticalCenter: parent.verticalCenter

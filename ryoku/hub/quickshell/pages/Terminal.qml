@@ -27,6 +27,18 @@ Item {
     property var retryPictureAction: null
     property string textArtError: ""
     property real shellWait: 0
+    property Item lineList: null
+
+    function revisited() {
+        if (!root.visible || !root.store || root.busyId !== "" || root.store.shellBusy
+                || root.store.unsettled || root.store.writesRunning > 0
+                || (root.lineList && root.lineList.editingIndex >= 0))
+            return;
+        root.store.shellGet.running = true;
+        root.store.starshipGet.running = true;
+        root.store.reloadGreeting();
+    }
+
     // the folder each file dialog last chose from, so reopening starts there
     property string pictureFolder: ""
     property string textArtFolder: ""
@@ -399,7 +411,7 @@ Item {
     Timer {
         interval: 1000
         repeat: true
-        running: !!root.store && root.store.shellBusy
+        running: root.visible && !!root.store && root.store.shellBusy
         onRunningChanged: root.shellWait = 0
         onTriggered: root.shellWait = (Date.now() - root.store.shellBusySince) / 1000
     }
@@ -576,6 +588,7 @@ Item {
                 width: parent.width
 
                 ListEditor {
+                    Component.onCompleted: root.lineList = this
                     width: parent.width
                     model: root.ff ? root.ff.rows : []
                     reorderable: true

@@ -196,11 +196,17 @@ Item {
     property var jobRun: null
     property int jobSeq: 0
 
+    function revisited() {
+        if (root.job === "" && root.deviceBusy === "")
+            root.refresh();
+        if (root.pendingRow !== "")
+            Qt.callLater(root.focusRow, root.pendingRow);
+    }
+
     function refresh() {
         if (root.statusReading)
             return;
         root.statusReading = true;
-        root.statusError = "";
         Changes.run(["ryoku-hub", "phone", "status"], function (ok, out, err) {
             root.statusReading = false;
             root.statusRead(ok, out, err);
@@ -217,6 +223,7 @@ Item {
             var s = JSON.parse(out || "{}");
             s.devices = Array.isArray(s.devices) ? s.devices : [];
             root.status = s;
+            root.statusError = "";
         } catch (e) {
             root.statusError = I18n.tr("the status check returned something unreadable");
         }
@@ -460,7 +467,7 @@ Item {
             : ({ link: linkBody })
         moreBodies: root.active ? ({ notifications: alarmListsBody, mirroring: folderBody }) : ({})
         onLayoutChanged: {
-            if (root.pendingRow !== "") {
+            if (root.visible && root.pendingRow !== "") {
                 var id = root.pendingRow;
                 root.pendingRow = "";
                 Qt.callLater(root.focusRow, id);

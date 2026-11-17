@@ -19,6 +19,8 @@ Column {
     property string error: ""
     property string method: "auto"
     property bool dirty: false
+    property bool refreshDirty: false
+    property bool reading: false
     // seconds left before the daemon reverts, 0 when nothing waits
     property int revertLeft: 0
     property real revertUntil: 0
@@ -54,13 +56,33 @@ Column {
         ed.load();
     }
 
-    function load() {
-        if (ed.uuid === "")
+    function revisited() {
+        if (ed.dirty || ed.busy || ed.revertLeft > 0)
             return;
-        ed.loaded = false;
+        ed.refreshDirty = false;
+        if (ed.shownUuid !== ed.uuid)
+            ed.begin();
+        else
+            ed.load(true);
+    }
+
+    function load(quiet) {
+        if (ed.uuid === "" || ed.reading)
+            return;
+        if (quiet !== true)
+            ed.loaded = false;
+        ed.reading = true;
         var uuid = ed.uuid;
         NetworkLink.ipGet(uuid, function (ok, error, result) {
-            if (uuid !== ed.uuid)
+            ed.reading = false;
+            if (uuid !== ed.uuid) {
+                if (ed.visible)
+                    ed.begin();
+                else
+                    ed.refreshDirty = true;
+                return;
+            }
+            if (quiet === true && (ed.dirty || ed.busy))
                 return;
             if (!ok || !result) {
                 ed.error = error || I18n.tr("Could not read this network's IP settings.");
@@ -127,7 +149,15 @@ Column {
     }
 
     property bool built: false
-    onUuidChanged: if (ed.built) ed.begin()
+    onUuidChanged: {
+        if (!ed.built)
+            return;
+        if (ed.visible)
+            ed.begin();
+        else
+            ed.refreshDirty = true;
+    }
+    onVisibleChanged: if (ed.visible && ed.built) ed.revisited()
     Component.onCompleted: {
         ed.built = true;
         ed.begin();
@@ -136,7 +166,11 @@ Column {
     Connections {
         target: NetworkLink
         function onUsableChanged() {
-            if (NetworkLink.usable && !ed.loaded)
+            if (!ed.visible) {
+                ed.refreshDirty = true;
+                return;
+            }
+            if (NetworkLink.usable && !ed.loaded && !ed.dirty && !ed.busy)
                 ed.load();
         }
     }

@@ -19,6 +19,7 @@ Item {
 
     property var categories: []
     property bool legendLoaded: false
+    property bool legendDirty: false
     property string query: ""
     property Item recordingField: null
     property int recordCustom: -1
@@ -285,9 +286,10 @@ Item {
     // that fails or hangs ends in plain words with Retry, keeping the list it had
     property string legendError: ""
     property int legendGen: 0
-    function loadLegend() {
+    function loadLegend(quiet) {
         var gen = ++page.legendGen;
-        page.legendError = "";
+        if (!quiet)
+            page.legendError = "";
         Changes.run(["ryoku-hub", "keybinds"], (ok, out, err, code, late) => {
             if (gen !== page.legendGen)
                 return;
@@ -300,6 +302,7 @@ Item {
                 page.legendError = page.readError(err, code, late);
                 return;
             }
+            page.legendError = "";
             page.categories = parsed.categories;
         }, { timeout: 15000 });
     }
@@ -316,13 +319,24 @@ Item {
         return lead + " " + I18n.tr("Retry, and if it fails again, update Ryoku.") + (why ? " (" + why + ")" : "");
     }
 
+    function revisited() {
+        if (Changes.unsettled || page.recordingField || page.draftShown())
+            return;
+        page.legendDirty = false;
+        page.loadLegend(true);
+    }
+
     Component.onCompleted: page.loadLegend()
 
     // the saved legend names custom shortcuts the window manager cannot run
     Connections {
         target: Changes
         function onDesktopCommittedChanged() {
-            page.loadLegend();
+            if (!page.visible || Changes.unsettled || page.recordingField || page.draftShown()) {
+                page.legendDirty = true;
+                return;
+            }
+            page.loadLegend(true);
         }
     }
 

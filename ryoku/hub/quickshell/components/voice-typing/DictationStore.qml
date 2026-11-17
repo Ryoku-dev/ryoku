@@ -11,6 +11,7 @@ QtObject {
     id: store
 
     property bool loaded: false
+    property int writing: 0
     // the engine binary: a Ryoku package on every edition, so this is a package
     // question rather than an AUR one
     property bool installed: false
@@ -158,7 +159,9 @@ QtObject {
 
     // a write that hangs ends after 10 s with an error and Retry, never a spinner forever
     function send(body, callback) {
+        store.writing++;
         Changes.run(["ryoku-hub", "dictation", "set", JSON.stringify(body)], function (ok, out, err) {
+            store.writing--;
             callback(ok, ok ? "" : store.reason(err));
         }, { timeout: 10000 });
     }

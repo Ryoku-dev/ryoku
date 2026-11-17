@@ -84,10 +84,18 @@ Item {
         return ms > 0 ? run.human(run.now - ms) : "";
     }
 
+    function revisited() {
+        run.now = Date.now();
+        if (run.live) {
+            run.checkOwner();
+            stateFile.reload();
+        }
+    }
+
     // the clock ticks only while a run is on screen and moving
     Timer {
         interval: 1000
-        running: run.live || run.starting
+        running: (run.live || run.starting) && run.visible
         repeat: true
         triggeredOnStart: true
         onTriggered: run.now = Date.now()
@@ -98,14 +106,14 @@ Item {
     // is recorded as stopped
     Timer {
         interval: 2000
-        running: run.live
+        running: run.live && run.visible
         repeat: true
         triggeredOnStart: true
         onTriggered: run.checkOwner()
     }
 
     function checkOwner() {
-        if (!run.live)
+        if (!run.live || !run.visible)
             return;
         if (run.ownerPid < 2) {
             run.dismiss();

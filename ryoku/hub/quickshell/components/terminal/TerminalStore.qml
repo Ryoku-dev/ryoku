@@ -38,6 +38,7 @@ QtObject {
     property var starshipDone: null
     property var ffDone: []
     property var ffSaving: null
+    property int writesRunning: 0
 
     readonly property string configPath: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/fastfetch/config.jsonc"
 
@@ -89,6 +90,12 @@ QtObject {
     }
 
     function write(key, v, done) {
+        store.writesRunning++;
+        var finished = done;
+        done = function (ok, err) {
+            store.writesRunning--;
+            finished(ok, err);
+        };
         switch (key) {
         case "shell":
             store.setShell(String(v), done);

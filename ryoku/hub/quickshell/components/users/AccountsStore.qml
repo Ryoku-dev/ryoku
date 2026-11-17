@@ -10,6 +10,9 @@ import "../../Singletons"
 Scope {
     id: store
 
+    property bool pageVisible: false
+    property bool refreshDirty: false
+
     property var users: []
     property string self: ""
     property bool listLoaded: false
@@ -398,9 +401,18 @@ Scope {
         Changes.registerStore("users", store);
     }
 
+    function refreshForPage() {
+        if (!store.pageVisible) {
+            store.refreshDirty = true;
+            return;
+        }
+        store.refreshDirty = false;
+        store.start();
+    }
+
     Connections {
         target: Host
-        function onReadyChanged() { store.start(); }
-        function onUsersChanged() { store.start(); }
+        function onReadyChanged() { store.refreshForPage(); }
+        function onUsersChanged() { store.refreshForPage(); }
     }
 }

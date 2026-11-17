@@ -55,10 +55,12 @@ Item {
 
     // a reload supersedes the one still running; only the newest answer counts
     property int listGen: 0
-    function reloadProviders() {
+    function reloadProviders(quiet) {
         var gen = ++root.listGen;
-        root.listed = false;
-        root.listError = "";
+        if (!quiet) {
+            root.listed = false;
+            root.listError = "";
+        }
         Changes.run(["ryoku-hub", "wm", "list"], (ok, out, err, code, late) => {
             if (gen !== root.listGen)
                 return;
@@ -71,6 +73,7 @@ Item {
                 root.listError = root.readError(I18n.tr("The list of window managers could not be read."), err, code, late);
                 return;
             }
+            root.listError = "";
             root.providers = parsed;
         }, { timeout: 15000 });
     }
@@ -288,11 +291,12 @@ Item {
     readonly property string extraBase: "wm." + Settings.provider + ".plugins.extra."
 
     property int rosterGen: 0
-    function refreshRoster() {
+    function refreshRoster(quiet) {
         if (!root.pluginsOn)
             return;
         var gen = ++root.rosterGen;
-        root.rosterError = "";
+        if (!quiet)
+            root.rosterError = "";
         Changes.run(["ryoku-hub", "desktop", "plugins", "list"], (ok, out, err, code, late) => {
             if (gen !== root.rosterGen)
                 return;
@@ -304,6 +308,7 @@ Item {
                 root.rosterError = root.readError(I18n.tr("The plugin list could not be read."), err, code, late);
                 return;
             }
+            root.rosterError = "";
             root.roster = r;
             root.rosterLoaded = true;
         }, { timeout: 15000 });
@@ -593,11 +598,27 @@ Item {
         page.focusRow(rowId);
     }
 
+    property bool rosterDirty: false
+    function revisited() {
+        if (!root.visible || useProc.running || actProc.running || root.swPhase === "running"
+                || root.busy !== "")
+            return;
+        root.rosterDirty = false;
+        root.reloadProviders(true);
+        root.refreshRoster(true);
+    }
+
     Component.onCompleted: {
         root.reloadProviders();
         root.refreshRoster();
     }
-    onPluginsOnChanged: root.refreshRoster()
+    onPluginsOnChanged: {
+        if (!root.visible || useProc.running || actProc.running || root.swPhase === "running") {
+            root.rosterDirty = true;
+            return;
+        }
+        root.refreshRoster();
+    }
 
     SettingsPage {
         id: page

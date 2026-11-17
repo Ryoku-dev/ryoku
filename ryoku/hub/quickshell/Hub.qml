@@ -987,6 +987,7 @@ FocusScope {
                         delete content.hiddenAt[key];
                         content.shownKey = key;
                         var slot = content.slots[key];
+                        var cached = !!slot;
                         if (!slot) {
                             slot = pageSlot.createObject(content, { key: key });
                             slot.setSource(url, { hub: hub });
@@ -1001,6 +1002,9 @@ FocusScope {
                         }
                         content.item = slot.item;
                         content.trim();
+                        // a page loaded before it was parked reads its live data again, rows kept meanwhile
+                        if (cached && typeof slot.item.revisited === "function")
+                            slot.item.revisited();
                     }
 
                     function trim() {

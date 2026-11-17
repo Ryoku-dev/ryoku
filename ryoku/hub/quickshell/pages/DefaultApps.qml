@@ -21,6 +21,7 @@ Item {
     property bool rolesLoaded: false
     property var categories: []
     property bool legendLoaded: false
+    property bool legendDirty: false
     property Item recordingField: null
     property var otherRow: null
 
@@ -202,9 +203,28 @@ Item {
         page.focusRow(rowId);
     }
 
+    function revisited() {
+        if (Changes.unsettled || root.recordingField || otherDialog.visible)
+            return;
+        if (!apps.running)
+            apps.running = true;
+        root.refreshLegend();
+    }
+
+    function refreshLegend() {
+        if (!root.visible || Changes.unsettled || root.recordingField || otherDialog.visible) {
+            root.legendDirty = true;
+            return;
+        }
+        root.legendDirty = false;
+        if (!legend.running)
+            legend.running = true;
+    }
+
     Component.onCompleted: Changes.ensureStore("launch-keys", Qt.resolvedUrl("../components/default-apps/LaunchKeysStore.qml"))
 
     Process {
+        id: apps
         command: ["ryoku-hub", "apps"]
         running: true
         stdout: StdioCollector {
@@ -239,8 +259,7 @@ Item {
     Connections {
         target: Changes
         function onDesktopCommittedChanged() {
-            if (!legend.running)
-                legend.running = true;
+            root.refreshLegend();
         }
     }
 

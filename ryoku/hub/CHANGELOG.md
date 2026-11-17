@@ -85,8 +85,9 @@
   many are left and when they come back, then keeps the usual schedule. Opening
   the binder never spends one (`backend/cardpull.go`, `components/about/Binder.qml`).
 - **Going back to a Settings section you just left is instant.** A page stays loaded for 20 seconds after you
-  leave it (up to five, Home included), so switching back skips the fresh load and shows the page at once; a page
-  left longer reloads, so its data is never older than that (`Hub.qml`, `components/SettingsPage.qml`).
+  leave it (up to five, Home included), so switching back skips the fresh load and shows the page at once. A page
+  you return to re-reads its live data in the background (displays, Wi-Fi, accounts and so on), and a page left
+  longer reloads. Pages kept out of sight stop polling and spawning work (`Hub.qml`, `components/SettingsPage.qml`, `pages/`).
 
 ### Added
 - **The Stand card style, neur0map's own.** Card studio > Layout > Card style

@@ -48,13 +48,16 @@ Slab {
         return "";
     }
     function giveBack() {
+        if (!root.visible)
+            return;
         var f = root.Window.activeFocusItem;
         if (root.keptCard !== "" && !(f && f.activeFocusOnTab))
             root.refocus(root.keptCard);
     }
-    onCardsChanged: Qt.callLater(root.giveBack)
+    onCardsChanged: if (root.visible) Qt.callLater(root.giveBack)
     Connections {
         target: root.Window
+        enabled: root.visible
         function onActiveFocusItemChanged() {
             var f = root.Window.activeFocusItem;
             // focus passing through the window mid-rebuild keeps the card

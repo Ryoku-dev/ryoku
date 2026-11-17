@@ -126,11 +126,18 @@ Item {
         page.focusRow("rashin-enabled");
     }
 
+    function revisited() {
+        if (root.store && root.store.switching === "")
+            root.store.refresh();
+        if (root.pendingRow !== "")
+            Qt.callLater(root.focusRow, root.pendingRow);
+    }
+
     Component.onCompleted: {
         var had = !!Changes.stores["rashin"];
         Changes.ensureStore("rashin", Qt.resolvedUrl("../components/rashin/RashinStore.qml"));
         if (had)
-            Changes.stores["rashin"].refresh();
+            root.revisited();
     }
 
     SettingsPage {
@@ -146,7 +153,7 @@ Item {
                           : root.loaded && root.store.readError !== "" ? readFooter : null })
         controls: ({ "rashin-enabled": switchControl })
         onLayoutChanged: {
-            if (root.pendingRow !== "") {
+            if (root.visible && root.pendingRow !== "") {
                 var id = root.pendingRow;
                 root.pendingRow = "";
                 Qt.callLater(root.focusRow, id);
