@@ -368,6 +368,7 @@ var settingsSchema = []settingSpec{
 	{Key: "playback.fullWidthPause", Type: "bool", Default: false},
 	{Key: "playback.fullscreen", Type: "bool", Default: false},
 	{Key: "playback.fullscreenScope", Type: "enum", Default: "all", Options: []string{"all", "display"}},
+	{Key: "playback.gameMode", Type: "bool", Default: true},
 	{Key: "playback.maximized", Type: "bool", Default: false},
 	{Key: "playback.muteOnOtherAudio", Type: "bool", Default: false},
 	{Key: "playback.overviewOnly", Type: "bool", Default: false},

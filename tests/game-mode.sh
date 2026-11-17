@@ -82,6 +82,14 @@ esac
 EOF
   chmod +x "$1"
 }
+# ryogami stub notes whether the request is on at the moment it is asked, which
+# is what the real daemon reads to decide between pause and resume.
+cat >"$bin/ryogami" <<EOF
+#!/usr/bin/env bash
+if [[ -f "$tmp/state/game-mode.enabled" ]]; then st=on; else st=off; fi
+echo "ryogami \$* [request \$st]" >>"$calls"
+exit 0
+EOF
 mk_ryoku "$bin/ryoku" "animations, configReload, cursorSet, liveConfigEval, windowRules"
 chmod +x "$bin"/*
 
@@ -99,6 +107,7 @@ export RYOKU_GAME_TUNE_BIN="$bin/ryoku-game-tune"
 export RYOKU_IDLE_BIN="$bin/ryoku-idle"
 export RYOKU_SHELL_BIN="$bin/ryoku-shell"
 export RYOKU_BIN="$bin/ryoku"
+export RYOKU_RYOGAMI_BIN="$bin/ryogami"
 state="$RYOKU_GAMEMODE_STATE_FILE"
 
 fail() { echo "FAIL: $1" >&2; exit 1; }
@@ -114,6 +123,8 @@ on || fail "start did not persist the request"
 grep -qF 'ryoku-game-tune apply' "$calls" || fail "system tune not applied"
 grep -qE 'pkexec .*ryoku-wifi-powersave off' "$calls" || fail "WiFi helper not asked to disable power-save"
 [[ "$(cat "$profile")" == performance ]] || fail "profile did not actually reach performance"
+grep -qF 'ryogami wallpaper playback-sync [request on]' "$calls" ||
+  fail "start did not ask the wallpaper daemon to re-check with the request already stored"
 "$gm" status || fail "status reported off while on"
 
 # --- stop: reload + tune restored + the PRIOR profile back -----------------
@@ -125,6 +136,8 @@ grep -qF 'ryoku-game-tune restore' "$calls" || fail "system tune not restored"
 grep -qE 'pkexec .*ryoku-wifi-powersave on' "$calls" || fail "WiFi helper not asked to restore power-save"
 [[ "$(cat "$profile")" == balanced ]] ||
   fail "restored the wrong profile (want the prior 'balanced', got '$(cat "$profile")')"
+grep -qF 'ryogami wallpaper playback-sync [request off]' "$calls" ||
+  fail "stop did not ask the wallpaper daemon to re-check after the request was cleared"
 "$gm" status && fail "status reported on after stop"
 
 # --- the prior profile is whatever was there, not a hardcoded default ------
@@ -171,6 +184,14 @@ RYOKU_WIFI_POWERSAVE_BIN="$tmp/nope" RYOKU_GAME_TUNE_BIN="$tmp/nope" "$gm" start
 grep -qF 'ryoku-wifi-powersave' "$calls" && fail "tried to call an absent WiFi helper"
 grep -qF 'ryoku-game-tune' "$calls" && fail "tried to call an absent tune helper"
 RYOKU_WIFI_POWERSAVE_BIN="$tmp/nope" RYOKU_GAME_TUNE_BIN="$tmp/nope" "$gm" stop
+
+# --- no ryogami: Game Mode still turns on and off, the wallpaper is a no-op ---
+: >"$calls"
+RYOKU_RYOGAMI_BIN="$tmp/nope" "$gm" start
+on || fail "start failed without the wallpaper daemon"
+RYOKU_RYOGAMI_BIN="$tmp/nope" "$gm" stop
+on && fail "stop failed without the wallpaper daemon"
+grep -qF 'ryogami' "$calls" && fail "called an absent wallpaper helper"
 
 # --- a compositor with no live config eval: power still boosts, the desktop is
 #     left untouched (no eval on start, no reload on stop) --------------------

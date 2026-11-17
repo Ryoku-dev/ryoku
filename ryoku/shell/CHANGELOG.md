@@ -383,6 +383,10 @@
   OSD, polkit prompts, the dock, desktop widgets and the window close follow
   the active item, and `ryoku-shell bar` is replaced by QS Bar's own `qsbar` IPC
   target while QS Bar is active.
+- **Game Mode pauses the live wallpaper (#882).** The wallpaper keeps its
+  current frame while Game Mode is on and resumes when it ends, for every
+  wallpaper engine; "Pause in Game Mode" in Ryogami's Playback settings turns
+  it off, and a manual pause or your other pause rules still hold afterwards.
 - **Wallpaper colours reach every app when the session keeps its config
   elsewhere (#814).** matugen reads the shipped templates through `~/.config`,
   so a session with its own config directory skipped every template; the paths
