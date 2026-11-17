@@ -71,6 +71,10 @@
   `busname/path`, the same key it lists and unregisters (`ipc/tray.go`).
 - **RyoStore opens rice management directly in the picker (#813).**
   The handoff opens the Rices tab even while the picker is already open or starting.
+- **Screen recording works on a display placed above or left of the main one (#871).**
+  A region or "Capture this monitor" box with a negative offset was refused as
+  an invalid region; it now records, and the recording island and region
+  outline show on the right screen.
 - **Wallpaper Engine video wallpapers animate on hover in the picker (#807).**
   Only local videos got the small preview clip, so workshop video cards stayed
   still; they now get one too, built on the thumbnail job limit and skipped

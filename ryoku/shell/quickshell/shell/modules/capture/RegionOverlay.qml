@@ -27,7 +27,7 @@ PanelWindow {
 
     // Recorder.regionGeom is "WxH+X+Y" (global logical); parse to this screen's coords.
     readonly property var box: {
-        var m = /^(\d+)x(\d+)\+(\d+)\+(\d+)$/.exec(Recorder.regionGeom);
+        var m = /^(\d+)x(\d+)\+(-?\d+)\+(-?\d+)$/.exec(Recorder.regionGeom);
         if (!m)
             return null;
         return {
