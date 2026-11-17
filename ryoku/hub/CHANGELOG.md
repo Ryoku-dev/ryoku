@@ -60,6 +60,9 @@
   in the middle of the page, Bluetooth was capped at 720 px and pinned left
   with its device list narrower still, and the Hotspot form at 600 px, while
   the other tabs span the page.
+- **Saving a rice from the command line no longer silently replaces it (#867).**
+  Capture refuses an existing name without `--force`, supports `--help` and `-h`,
+  and rejects names beginning with a dash; the picker keeps its replacement warning.
 - **Exported rices point to the Ryogami picker's Rices tab (#813).**
   The sharing instructions no longer name a missing Settings page.
 - **Graphics & Power offers Performance on laptops with a monitor port on the

@@ -1762,14 +1762,7 @@ func runRice(args []string) error {
 	case "list":
 		return printJSON(listRiceEntries())
 	case "capture":
-		if len(args) < 2 {
-			return fmt.Errorf("rice capture needs a name")
-		}
-		r, err := captureRice(args[1], args[2:])
-		if err != nil {
-			return err
-		}
-		return printJSON(r)
+		return runRiceCapture(args[1:])
 	case "apply":
 		if len(args) < 2 {
 			return fmt.Errorf("rice apply needs a slug")
