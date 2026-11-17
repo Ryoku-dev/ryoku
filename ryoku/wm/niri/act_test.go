@@ -360,6 +360,73 @@ func TestActNamesTheMissingCapability(t *testing.T) {
 	}
 }
 
+// A recoloured cursor keeps its theme name, and niri reloads the images only
+// when the cursor block changes value. The re-assert alternates the theme name
+// between the real theme and a persistent mirror directory holding the same
+// cursors. The size must NEVER change (niri renders size x output scale, so a
+// size nudge would visibly grow/shrink the pointer at a fractional scale), and
+// both directories must always fully exist so niri never falls back to its
+// built-in 64px cursor.
+func TestActCursorReassertForcesReload(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	t.Setenv("HOME", t.TempDir())
+	dir := niriHome(t)
+	restore := stubRequest(t, func(any) (json.RawMessage, error) { return nil, nil })
+	defer restore()
+	store := writeStore(t, `{"desktop":{"cursor":{"theme":"DYNAMIC","size":24}}}`)
+
+	// Seed the real theme with a cursor file so the mirror has something to copy.
+	themeDir := filepath.Join(cursorIconsDir(), wm.CursorThemeMaterial)
+	if err := os.MkdirAll(filepath.Join(themeDir, "cursors"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(themeDir, "index.theme"), []byte("[Icon Theme]\nName=x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(themeDir, "cursors", "left_ptr"), []byte("cursor-data"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	mirror := cursorMirrorName(wm.CursorThemeMaterial)
+
+	// First re-assert flips real -> mirror.
+	if err := cursorReassertWithStore(store); err != nil {
+		t.Fatalf("reassert 1: %v", err)
+	}
+	settings := readGen(t, dir, "settings.kdl")
+	if !strings.Contains(settings, `xcursor-theme "`+mirror+`"`) {
+		t.Fatalf("first re-assert did not flip to the mirror:\n%s", settings)
+	}
+	if !strings.Contains(settings, "xcursor-size 24") {
+		t.Fatalf("the re-assert changed the cursor size:\n%s", settings)
+	}
+	// The mirror must be a real directory holding the same cursor, not a symlink.
+	mirrorDir := filepath.Join(cursorIconsDir(), mirror)
+	fi, err := os.Lstat(mirrorDir)
+	if err != nil || !fi.IsDir() || fi.Mode()&os.ModeSymlink != 0 {
+		t.Fatalf("mirror is not a persistent real directory: %v %v", fi, err)
+	}
+	got, err := os.ReadFile(filepath.Join(mirrorDir, "cursors", "left_ptr"))
+	if err != nil || string(got) != "cursor-data" {
+		t.Fatalf("mirror does not hold the recoloured cursor: %q %v", got, err)
+	}
+
+	// Second re-assert flips mirror -> real, still size 24, mirror still present.
+	if err := cursorReassertWithStore(store); err != nil {
+		t.Fatalf("reassert 2: %v", err)
+	}
+	settings = readGen(t, dir, "settings.kdl")
+	if !strings.Contains(settings, `xcursor-theme "`+wm.CursorThemeMaterial+`"`) {
+		t.Fatalf("second re-assert did not flip back to the real theme:\n%s", settings)
+	}
+	if !strings.Contains(settings, "xcursor-size 24") {
+		t.Fatalf("the second re-assert changed the cursor size:\n%s", settings)
+	}
+	if _, err := os.Stat(mirrorDir); err != nil {
+		t.Fatalf("mirror was removed (it must persist): %v", err)
+	}
+}
+
 func TestActRejectsUnknownAction(t *testing.T) {
 	restore := stubRequest(t, func(any) (json.RawMessage, error) { return nil, nil })
 	defer restore()

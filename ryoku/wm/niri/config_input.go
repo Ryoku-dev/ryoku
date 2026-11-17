@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -172,9 +174,13 @@ func writeClipboard(b *strings.Builder, in Input) {
 }
 
 func writeCursor(b *strings.Builder, c Cursor) {
+	theme := c.Theme
+	if alias := cursorReassertTheme(); alias != "" {
+		theme = alias
+	}
 	b.WriteString("cursor {\n")
-	if c.Theme != "" {
-		fmt.Fprintf(b, "    xcursor-theme %s\n", kdlStr(c.Theme))
+	if theme != "" {
+		fmt.Fprintf(b, "    xcursor-theme %s\n", kdlStr(theme))
 	}
 	if c.Size > 0 {
 		fmt.Fprintf(b, "    xcursor-size %d\n", c.Size)
@@ -186,4 +192,127 @@ func writeCursor(b *strings.Builder, c Cursor) {
 		b.WriteString("    hide-when-typing\n")
 	}
 	b.WriteString("}\n\n")
+}
+
+// The cursor re-assert forces niri to re-read recoloured images without ever
+// changing the rendered size. niri reloads the cursor only when the config's
+// cursor block changes value, and a recolour keeps the theme name, so an
+// identical tree is a no-op. Nudging xcursor-size would change the rendered
+// size (niri loads size x output scale, so at a fractional scale a neighbouring
+// nominal size resolves to a different image), which the user sees as the
+// pointer growing/shrinking on every palette change.
+//
+// Instead the theme NAME alternates between the real theme and a persistent
+// mirror directory holding the same cursors. Both directories always fully
+// exist, so niri never fails to resolve the named theme and never falls back to
+// its built-in 64px cursor (the size jump a transient symlink alias caused while
+// it was created/removed mid-reload). The size is untouched, and both themes
+// carry the same images, so the alternation is invisible. The state file records
+// which theme the config currently names; writeCursor emits it over the store
+// theme, and each re-assert flips it after refreshing the mirror.
+func cursorReassertThemePath() string {
+	dir := os.Getenv("XDG_STATE_HOME")
+	if dir == "" {
+		dir = filepath.Join(os.Getenv("HOME"), ".local", "state")
+	}
+	return filepath.Join(dir, "ryoku", "cursor-reassert-theme")
+}
+
+func writeCursorReassertTheme(name string) error {
+	return atomicWrite(cursorReassertThemePath(), []byte(name), 0o644)
+}
+
+func clearCursorReassertTheme() error {
+	err := os.Remove(cursorReassertThemePath())
+	if os.IsNotExist(err) {
+		return nil
+	}
+	return err
+}
+
+// cursorReassertTheme reads the theme the config currently names; empty means
+// the store theme (no re-assert has flipped it yet).
+func cursorReassertTheme() string {
+	b, err := os.ReadFile(cursorReassertThemePath())
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
+}
+
+// cursorIconsDir is the user icon root the recolour tool installs into, which
+// shadows /usr/share/icons in the xcursor search order.
+func cursorIconsDir() string {
+	return filepath.Join(os.Getenv("HOME"), ".local", "share", "icons")
+}
+
+// cursorMirrorName is the persistent second theme directory the re-assert
+// alternates with. It is a real copy, never a symlink and never removed, so the
+// config can always name a fully-present theme.
+func cursorMirrorName(theme string) string { return theme + "-ryoku-alt" }
+
+// syncCursorMirror copies the real theme's cursors into the mirror directory so
+// both name the same recoloured images. The mirror persists across re-asserts;
+// only its contents are refreshed. A copy (not a symlink) means niri resolves it
+// even mid-recolour, when the real theme's cursors/ is briefly being replaced.
+func syncCursorMirror(theme string) error {
+	src := filepath.Join(cursorIconsDir(), theme)
+	dst := filepath.Join(cursorIconsDir(), cursorMirrorName(theme))
+	if err := os.MkdirAll(dst, 0o755); err != nil {
+		return err
+	}
+	for _, part := range []string{"index.theme", "cursors"} {
+		s := filepath.Join(src, part)
+		d := filepath.Join(dst, part)
+		fi, err := os.Stat(s)
+		if err != nil {
+			continue
+		}
+		if fi.IsDir() {
+			if err := os.RemoveAll(d); err != nil {
+				return err
+			}
+			if err := copyDir(s, d); err != nil {
+				return err
+			}
+		} else {
+			b, err := os.ReadFile(s)
+			if err != nil {
+				return err
+			}
+			if err := os.WriteFile(d, b, 0o644); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func copyDir(src, dst string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+		if info.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			link, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			_ = os.Remove(target)
+			return os.Symlink(link, target)
+		}
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(target, b, info.Mode().Perm())
+	})
 }

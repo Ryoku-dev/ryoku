@@ -3,6 +3,7 @@ import colorsys
 import fcntl
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -16,8 +17,16 @@ INSTALL = HOME / ".local/share/icons"
 CFG = HOME / ".config/ryoku/desktop.json"
 COLORS = HOME / ".cache/ryoku/colors.json"
 LOCK = Path(os.environ.get("XDG_CACHE_HOME", str(HOME / ".cache"))) / "ryoku" / "cursor-material.lock"
+FASTLOCK = LOCK.with_name("cursor-material-fast.lock")
+BUILT = LOCK.with_name("cursor-material.built")
+FAST = LOCK.with_name("cursor-material.fast")
+LADDER = (16, 20, 22, 24, 28, 32, 48, 64, 72, 84, 96)
 INDEX = ("[Icon Theme]\nName=Material Bibata Cursor Ryoku\n"
          "Comment=Material Bibata Cursor, wallpaper accent\nInherits=Adwaita\n")
+
+
+class BuildAborted(Exception):
+    pass
 
 
 def read_json(path):
@@ -37,6 +46,28 @@ def cursor_size():
         return int(read_json(CFG).get("desktop", {}).get("cursor", {}).get("size", 24))
     except Exception:
         return 24
+
+
+def _nearest_ladder(n):
+    return min(LADDER, key=lambda s: abs(s - n))
+
+
+def display_sizes():
+    size = cursor_size()
+    targets = set()
+    try:
+        out = subprocess.run(["niri", "msg", "--json", "outputs"],
+                             capture_output=True, text=True, timeout=3)
+        if out.returncode == 0:
+            data = json.loads(out.stdout)
+            for o in data.values():
+                scale = (o.get("logical") or {}).get("scale") or o.get("scale") or 1
+                targets.add(int(round(size * float(scale))))
+    except Exception:
+        pass
+    if not targets:
+        targets.add(size)
+    return sorted({_nearest_ladder(t) for t in targets})
 
 
 def hexval(value):
@@ -67,7 +98,7 @@ def accent():
     return tohex(hexval(primary)) if primary and hexval(primary) else "#e2342a"
 
 
-def compile_theme(flags, body, primary, watch):
+def compile_theme(flags, body, primary, watch, sizes=None, abort=None, nice=False):
     if not (SRC / "src/cursor_utils.py").is_file():
         sys.exit(f"bibata source missing at {SRC}")
     work = Path(tempfile.mkdtemp(prefix="ryoku-cursor-"))
@@ -80,10 +111,38 @@ def compile_theme(flags, body, primary, watch):
     data[theme]["colors"][1]["replace"] = primary
     data[theme]["colors"][2]["replace"] = watch
     render.write_text(json.dumps(data, indent=2))
-    subprocess.run([sys.executable, "src/cursor_utils.py", *flags,
-                    "--theme", theme, "--out-dir", "out"],
-                   cwd=work, check=True, stdout=subprocess.DEVNULL,
-                   stderr=subprocess.DEVNULL)
+    if sizes is not None:
+        bt = work / "config/build.toml"
+        text = bt.read_text()
+        text = re.sub(r"x11_sizes = \[[^\]]*\]",
+                      "x11_sizes = [" + ", ".join(str(s) for s in sizes) + "]",
+                      text, count=1)
+        bt.write_text(text)
+    tmp = work / "tmp"
+    tmp.mkdir()
+    env = dict(os.environ, TMPDIR=str(tmp))
+    cmd = [sys.executable, "src/cursor_utils.py", *flags,
+           "--theme", theme, "--out-dir", "out"]
+    if nice:
+        cmd = ["nice", "-n", "19", *cmd]
+    proc = subprocess.Popen(cmd, cwd=work, env=env, stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL)
+    try:
+        while True:
+            try:
+                proc.wait(timeout=0.2)
+                break
+            except subprocess.TimeoutExpired:
+                if abort is not None and abort():
+                    proc.kill()
+                    proc.wait()
+                    raise BuildAborted()
+        if proc.returncode != 0:
+            raise subprocess.CalledProcessError(proc.returncode, "cursor_utils")
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
     return work, work / "out" / theme
 
 
@@ -111,8 +170,9 @@ def build_hypr(body, primary, watch):
         shutil.rmtree(work, ignore_errors=True)
 
 
-def build_x11(body, primary, watch):
-    work, compiled = compile_theme(["--x11"], body, primary, watch)
+def build_x11(body, primary, watch, sizes=None, abort=None, nice=False):
+    work, compiled = compile_theme(["--x11"], body, primary, watch,
+                                   sizes=sizes, abort=abort, nice=nice)
     try:
         install_parts(compiled, ["cursors"])
     finally:
@@ -120,7 +180,7 @@ def build_x11(body, primary, watch):
 
 
 def apply_live():
-    subprocess.run(["ryoku", "wm", "act", "cursor.set", THEME, str(cursor_size())],
+    subprocess.run(["ryoku", "wm", "act", "cursor.reassert"],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
@@ -129,26 +189,71 @@ def colors_from(value):
     return relit(rgb, 0.16, 0.35), value, relit(rgb, 0.06, 0.40)
 
 
-def x11_locked(function):
-    LOCK.parent.mkdir(parents=True, exist_ok=True)
-    lock = open(LOCK, "w")
+def _marker_matches(path, acc):
+    return path.exists() and path.read_text().strip() == acc
+
+
+def _fast_build():
+    FASTLOCK.parent.mkdir(parents=True, exist_ok=True)
+    lock = open(FASTLOCK, "w")
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
         lock.close()
         return
     try:
-        function()
+        while True:
+            acc = accent()
+            if _marker_matches(FAST, acc):
+                return
+            body, primary, watch = colors_from(acc)
+            build_x11(body, primary, watch, sizes=display_sizes())
+            apply_live()
+            FAST.write_text(acc)
+            if accent() == acc:
+                return
     finally:
         fcntl.flock(lock, fcntl.LOCK_UN)
         lock.close()
 
 
+def _full_build():
+    LOCK.parent.mkdir(parents=True, exist_ok=True)
+    lock = open(LOCK, "w")
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    try:
+        while True:
+            acc = accent()
+            if (_marker_matches(BUILT, acc)
+                    and (INSTALL / THEME / "cursors/left_ptr").exists()):
+                return
+            body, primary, watch = colors_from(acc)
+            try:
+                build_x11(body, primary, watch, abort=lambda: accent() != acc,
+                          nice=True)
+            except BuildAborted:
+                continue
+            apply_live()
+            BUILT.write_text(acc)
+            if accent() == acc:
+                return
+    finally:
+        fcntl.flock(lock, fcntl.LOCK_UN)
+        lock.close()
+
+
+def x11_pass(full=False):
+    if full:
+        _full_build()
+        return
+    _fast_build()
+    _full_build()
+
+
 def main():
     args = sys.argv[1:]
     if "--x11only" in args:
-        body, primary, watch = colors_from(accent())
-        x11_locked(lambda: build_x11(body, primary, watch))
+        x11_pass()
         return
     if "--force" not in args and active_theme() != THEME:
         return
@@ -156,10 +261,9 @@ def main():
     build_hypr(body, primary, watch)
     apply_live()
     if "--full" in args:
-        x11_locked(lambda: build_x11(body, primary, watch))
-        apply_live()
+        x11_pass(full=True)
     else:
-        subprocess.Popen([sys.executable, os.path.abspath(__file__), "--x11only", primary],
+        subprocess.Popen([sys.executable, os.path.abspath(__file__), "--x11only"],
                          start_new_session=True, stdout=subprocess.DEVNULL,
                          stderr=subprocess.DEVNULL)
 

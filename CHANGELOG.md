@@ -26,6 +26,28 @@ for finer detail.
   user is no longer in a mango session.
 
 ### Fixed
+- The wallpaper-following pointer now recolours on niri within a few seconds
+  of the palette, not ~30 s, its size never changes, and it reaches the apps
+  you launch, not just the compositor's own pointer. The bitmap set niri
+  displays is rebuilt for the newest accent even when palette changes arrive
+  mid-build (the old pass dropped them). Only the size the compositor actually
+  renders is rasterised first, on a lock of its own so it never queues behind
+  the full-ladder build; that full build runs at low CPU priority, aborts when
+  a newer accent arrives, and fills the remaining sizes in the background. To
+  make niri re-read the recoloured images under an unchanged theme name, the
+  provider alternates the config between the real theme and a persistent mirror
+  directory holding the same cursors, never the size, which at a fractional
+  output scale would visibly grow/shrink the pointer. Both directories always
+  fully exist, so niri never falls back to its built-in 64px cursor (the size
+  jump a transient symlink alias caused while it was created/removed mid-reload).
+  And the niri provider now exports the resolved cursor pick as
+  `XCURSOR_THEME`/`XCURSOR_SIZE` in the config's environment block (the Hyprland
+  twin already did): without it, spawned apps inherited the static
+  session-default Bibata set that never recolours, so the pointer only changed
+  over the desktop, not inside app windows
+  (`release/packages/ryoku-cursor-material/ryoku-cursor-material-recolor`,
+  `ryoku/wm/niri/act.go`, `ryoku/wm/niri/config_input.go`,
+  `ryoku/wm/niri/config_misc.go`).
 - The Game Bar holds the pointer over the whole screen while it is open, so a
   game under it no longer takes the cursor and hides it in the gaps between
   widgets. A pinned card left behind after closing still takes no input.

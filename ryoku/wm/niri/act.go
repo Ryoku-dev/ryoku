@@ -65,9 +65,7 @@ func runAct(args []string) error {
 
 	switch act {
 	case wm.ActionCursorReassert:
-		// The cursor is a config block on niri: regenerating the tree is the
-		// re-assert, and niri watches its config file.
-		return runApply([]string{storePath()})
+		return cursorReassert()
 
 	case wm.ActionWindowFocus:
 		id, err := argID(rest, 0, "window id")
@@ -403,6 +401,38 @@ func touchpadStatePath() string {
 func touchpadDisabled() bool {
 	_, err := os.Stat(touchpadStatePath())
 	return err == nil
+}
+
+// cursorReassert forces niri to re-read the cursor images after a recolour,
+// without ever changing the rendered size. niri reloads the cursor only when
+// the config's cursor block changes value, and a recolour keeps the theme name,
+// so regenerating an identical tree would leave the old pixels cached. The
+// theme name alternates between the real theme and a persistent mirror directory
+// holding the same cursors: the block changes (forcing a reload), the size does
+// not, and both directories always fully exist, so niri never falls back to its
+// built-in 64px cursor. One flip per call, no transient symlink to race a reload.
+func cursorReassert() error {
+	return cursorReassertWithStore(storePath())
+}
+
+func cursorReassertWithStore(store string) error {
+	c := loadStore(store).Cursor
+	if c.Theme == "" {
+		return runApply([]string{store})
+	}
+	if err := syncCursorMirror(c.Theme); err != nil {
+		return runApply([]string{store})
+	}
+	// Flip to whichever of the two themes the config does not currently name.
+	current := cursorReassertTheme()
+	next := c.Theme
+	if current != cursorMirrorName(c.Theme) {
+		next = cursorMirrorName(c.Theme)
+	}
+	if err := writeCursorReassertTheme(next); err != nil {
+		return err
+	}
+	return runApply([]string{store})
 }
 
 // setBorderPalette records the live palette's border colours and regenerates

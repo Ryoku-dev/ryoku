@@ -63,7 +63,7 @@ func genSettings(s niriStore) []byte {
 	writeAnimations(&b, s.Appearance, s.Niri)
 	writeCursor(&b, s.Cursor)
 	writeMisc(&b, s.Niri)
-	writeEnvironment(&b, s.Env, s.Apps)
+	writeEnvironment(&b, s.Env, s.Apps, s.Cursor)
 	writeAutostart(&b, s.Autostart)
 	writeWindowRules(&b, s.Appearance, s.WindowRules, s.AppOverrides)
 	writeBlockOut(&b, s.Niri.BlockOutApps)

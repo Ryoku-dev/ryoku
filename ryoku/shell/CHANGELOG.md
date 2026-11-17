@@ -5,6 +5,25 @@
   `plugins/discover.sh` also reads `ryoku/sources/<store>/plugins` and accepts
   each copy only with a receipt from its own store, so no store's copy can pose
   as another's (`quickshell/plugins/discover.sh`, `discover.test.sh`).
+- **The wallpaper-following pointer recolours on niri within a few seconds,
+  not ~30 s, its size never changes, and it reaches the apps you launch.** The
+  recolor tool's bitmap pass (the set niri and XWayland apps display) rebuilds
+  for the newest accent instead of dropping mid-build changes. It rasterises
+  only the size the compositor actually renders (cursor size x output scale)
+  first, on a lock of its own so it never queues behind the full-ladder build,
+  and applies that live at once. The full ladder runs at low CPU priority,
+  aborts when a newer accent arrives, and fills the remaining sizes in the
+  background. To make niri re-read the recoloured images under an unchanged
+  theme name, `cursor.reassert` alternates the config between the real theme and
+  a persistent mirror directory holding the same cursors, never the size, which
+  at a fractional output scale would visibly grow/shrink the pointer. Both
+  directories always fully exist, so niri never falls back to its built-in 64px
+  cursor (the size jump a transient symlink alias caused mid-reload). The
+  provider also exports the resolved pick as `XCURSOR_THEME`/`XCURSOR_SIZE` in
+  the config environment block, so spawned apps wear the recolouring cursor
+  instead of the static session-default Bibata set
+  (`release/packages/ryoku-cursor-material/ryoku-cursor-material-recolor`,
+  `wm/niri/act.go`, `wm/niri/config_input.go`, `wm/niri/config_misc.go`).
 - **One design language for the whole desktop.** The shell settings gain
   `theme.design` (Lithic, Material, Adwaita or Fluent; Lithic by default),
   validated by the daemon. Settings and every Lithic surface redraw their

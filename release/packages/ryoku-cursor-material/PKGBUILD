@@ -21,7 +21,7 @@
 # Bump pkgver when the vendored recipe changes; bump pkgrel alone for a rebuild.
 pkgname=ryoku-cursor-material
 pkgver=1.0.0
-pkgrel=2
+pkgrel=6
 pkgdesc="Material Bibata pointer in the Ryoku accent (optional cursor theme)"
 arch=('any')
 url="https://github.com/SakibShahariar/material-bibata-cursor"

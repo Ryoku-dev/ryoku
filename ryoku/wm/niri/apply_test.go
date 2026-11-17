@@ -194,6 +194,25 @@ func TestApplyEmitsValidKDL(t *testing.T) {
 	validateGen(t, dir, "settings.kdl", "rebinds.kdl")
 }
 
+// The picked cursor must reach spawned apps, not just niri's own pointer. The
+// environment.d baseline names a fixed Bibata set, so without an XCURSOR export
+// in the config's environment block a wallpaper-following pick only recolours
+// the compositor pointer and every app window keeps the static default. A
+// DYNAMIC pick must export the resolved Material theme at the user's size.
+func TestApplyExportsCursorToSpawnedApps(t *testing.T) {
+	dir := niriHome(t)
+	store := writeStore(t, `{"desktop":{"cursor":{"theme":"DYNAMIC","size":28}}}`)
+	capApply(t, store)
+	settings := readGen(t, dir, "settings.kdl")
+	if !strings.Contains(settings, `XCURSOR_THEME "`+wm.CursorThemeMaterial+`"`) {
+		t.Fatalf("resolved cursor theme not exported to spawned apps:\n%s", settings)
+	}
+	if !strings.Contains(settings, `XCURSOR_SIZE "28"`) {
+		t.Fatalf("cursor size not exported to spawned apps:\n%s", settings)
+	}
+	validateGen(t, dir, "settings.kdl", "rebinds.kdl")
+}
+
 // A near-empty store still boots Ryoku's look: both files are written, carry the
 // full baseline, validate, and two applies produce identical bytes.
 func TestApplyAlwaysWritesBothAndIsDeterministic(t *testing.T) {
@@ -611,6 +630,9 @@ func TestOverviewBackdropAndSingleColumnCentring(t *testing.T) {
 // the concrete wallpaper-following theme into the KDL, or niri opens a theme
 // that does not exist and the pointer falls back to a bitmap.
 func TestLoadStoreResolvesDynamicCursor(t *testing.T) {
+	// writeCursor overlays a pending re-assert theme from XDG_STATE_HOME; pin a
+	// clean dir so the live session's re-assert state cannot leak into the KDL.
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	store := writeStore(t, `{"desktop":{"cursor":{"theme":"DYNAMIC","size":18}}}`)
 	s := loadStore(store)
 	if s.Cursor.Theme != wm.CursorThemeMaterial {

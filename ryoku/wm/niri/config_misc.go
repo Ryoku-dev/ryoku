@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -114,7 +115,7 @@ func writeWorkspaceShadow(b *strings.Builder, n Niri) {
 // writeEnvironment folds the user env vars and the browser/terminal app roles into
 // one environment block, so the CLI and xdg-open honour the same choice the
 // keybinds launch.
-func writeEnvironment(b *strings.Builder, env []EnvVar, apps map[string]string) {
+func writeEnvironment(b *strings.Builder, env []EnvVar, apps map[string]string, c Cursor) {
 	type kv struct{ k, v string }
 	var rows []kv
 	for _, e := range env {
@@ -128,6 +129,17 @@ func writeEnvironment(b *strings.Builder, env []EnvVar, apps map[string]string) 
 	}
 	if v := strings.TrimSpace(apps["terminal"]); v != "" {
 		rows = append(rows, kv{"TERMINAL", v})
+	}
+	// Spawned apps must wear the picked cursor, not the session default. The
+	// environment.d baseline names a fixed Bibata set; without this export a
+	// wallpaper-following (or any diverged) pick only reaches niri's own
+	// pointer, and every app window keeps the static default that never
+	// recolours. This is the niri twin of Hyprland's settings.lua cursor env.
+	if c.Theme != "" {
+		rows = append(rows, kv{"XCURSOR_THEME", c.Theme})
+	}
+	if c.Size > 0 {
+		rows = append(rows, kv{"XCURSOR_SIZE", strconv.Itoa(c.Size)})
 	}
 	if len(rows) == 0 {
 		return

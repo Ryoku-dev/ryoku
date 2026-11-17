@@ -32,7 +32,8 @@ import (
 // watches it, so there is nothing to evaluate and nothing to trigger.
 //
 // CapCursorSet: the cursor is a config block, so apply sets it and niri picks
-// it up. There is no imperative call to re-assert it after a reload.
+// it up. Re-asserting recoloured images under an unchanged theme name needs a
+// forced reload (cursorReassert), not an imperative call.
 //
 // CapTiledLayout: the layout is scrollable tiling, with no per-workspace choice
 // to make.

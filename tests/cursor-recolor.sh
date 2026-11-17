@@ -88,4 +88,134 @@ got="$(probe '{"desktop.json":{"desktop":{"cursor":{"theme":"Bibata-Material-Ryo
 got="$(probe '{"desktop.json":{"desktop":{"cursor":{"theme":"Bibata-Material-Ryoku"}}},"argv":["--force","--full"]}')"
 [[ $(jq -r .accent <<<"$got") == "#e2342a" ]] || fail "missing palette did not fall back: $got"
 
-echo "cursor-recolor: store shape, DYNAMIC role, flag scan all hold"
+# 8. The fast path never queues behind a full-ladder build. That queue is what
+#    made a wallpaper change wait ~30 s: the fast build sat behind the previous
+#    change's full build on one shared lock. With a full build holding its lock,
+#    a new accent's fast build must still apply promptly on its own lock.
+got="$(python3 - "$tool" <<'PY'
+import importlib.machinery
+import importlib.util
+import json
+import sys
+import threading
+import time
+from pathlib import Path
+
+tool_path = sys.argv[1]
+spec = importlib.util.spec_from_loader(
+    "recolor", importlib.machinery.SourceFileLoader("recolor", tool_path))
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+
+colors = Path.home() / ".cache/ryoku/colors.json"
+colors.write_text(json.dumps({"primary": "#aaaaaa"}))
+left_ptr = m.INSTALL / m.THEME / "cursors/left_ptr"
+left_ptr.parent.mkdir(parents=True, exist_ok=True)
+left_ptr.write_text("stub")
+m.display_sizes = lambda: [32]
+m.apply_live = lambda: None
+
+def build_x11(body, primary, watch, sizes=None, abort=None, nice=False):
+    # fast build ~0.3 s, full build ~3 s; honour the abort poll like the real one
+    end = time.time() + (0.3 if sizes else 3.0)
+    while time.time() < end:
+        if abort and abort():
+            raise m.BuildAborted()
+        time.sleep(0.05)
+
+m.build_x11 = build_x11
+
+tf = threading.Thread(target=m._full_build)
+tf.start()
+time.sleep(0.2)
+colors.write_text(json.dumps({"primary": "#bbbbbb"}))
+t0 = time.time()
+m._fast_build()
+fast_elapsed = time.time() - t0
+tf.join()
+print(json.dumps({"fast_elapsed": fast_elapsed,
+                  "fast": m.FAST.read_text().strip()}))
+PY
+)"
+awk -v e="$(jq -r .fast_elapsed <<<"$got")" 'BEGIN{exit !(e<1.0)}' || fail "fast build waited on the full lock: $got"
+[[ $(jq -r .fast <<<"$got") == "#bbbbbb" ]] || fail "fast marker does not carry the newest accent: $got"
+
+# 8b. A full build aborts when a newer accent arrives mid-raster, then rebuilds
+#     onto that accent, so a stale ladder never lands over the current palette.
+got="$(python3 - "$tool" <<'PY'
+import importlib.machinery
+import importlib.util
+import json
+import sys
+import threading
+import time
+from pathlib import Path
+
+tool_path = sys.argv[1]
+spec = importlib.util.spec_from_loader(
+    "recolor", importlib.machinery.SourceFileLoader("recolor", tool_path))
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+
+colors = Path.home() / ".cache/ryoku/colors.json"
+colors.write_text(json.dumps({"primary": "#111111"}))
+left_ptr = m.INSTALL / m.THEME / "cursors/left_ptr"
+left_ptr.parent.mkdir(parents=True, exist_ok=True)
+left_ptr.write_text("stub")
+m.display_sizes = lambda: [32]
+m.apply_live = lambda: None
+
+completed = []
+def build_x11(body, primary, watch, sizes=None, abort=None, nice=False):
+    end = time.time() + 3.0
+    while time.time() < end:
+        if abort and abort():
+            raise m.BuildAborted()
+        time.sleep(0.05)
+    completed.append(primary)
+
+m.build_x11 = build_x11
+tf = threading.Thread(target=m._full_build)
+tf.start()
+time.sleep(0.3)
+colors.write_text(json.dumps({"primary": "#222222"}))
+tf.join()
+print(json.dumps({"completed": completed,
+                  "built": m.BUILT.read_text().strip()}))
+PY
+)"
+[[ $(jq -c .completed <<<"$got") == '["#222222"]' ]] || fail "stale full build was not aborted: $got"
+[[ $(jq -r .built <<<"$got") == "#222222" ]] || fail "built marker does not carry the newest accent: $got"
+
+# 9. A pass whose accent already landed skips the raster pass entirely.
+got="$(python3 - "$tool" <<'PY'
+import importlib.machinery
+import importlib.util
+import json
+import sys
+from pathlib import Path
+
+tool_path = sys.argv[1]
+spec = importlib.util.spec_from_loader(
+    "recolor", importlib.machinery.SourceFileLoader("recolor", tool_path))
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+
+Path.home().joinpath(".cache/ryoku/colors.json").write_text(
+    json.dumps({"primary": "#123456"}))
+left_ptr = m.INSTALL / m.THEME / "cursors/left_ptr"
+left_ptr.parent.mkdir(parents=True, exist_ok=True)
+left_ptr.write_text("stub")
+m.BUILT.write_text("#123456")
+m.FAST.write_text("#123456")
+
+builds = []
+m.build_x11 = lambda *a, **k: builds.append(1)
+m.apply_live = lambda: builds.append("apply")
+m.x11_pass()
+print(json.dumps({"builds": builds}))
+PY
+)"
+[[ $(jq -c .builds <<<"$got") == '[]' ]] || fail "already-built accent rasterised again: $got"
+
+echo "cursor-recolor: store shape, DYNAMIC role, flag scan, X11 coalescing all hold"
