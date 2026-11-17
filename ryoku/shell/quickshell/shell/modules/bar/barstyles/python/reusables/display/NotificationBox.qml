@@ -1,3 +1,4 @@
+import shell.services as ShellIcons
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -723,7 +724,7 @@ Item {
                                                         }
                                                         if (!ic) return "";
                                                         if (ic.startsWith("file://") || ic.startsWith("image://") || ic.startsWith("http://") || ic.startsWith("https://")) return ic;
-                                                        return ic.startsWith("/") ? "file://" + ic : "image://icon/" + ic;
+                                                        return ShellIcons.Icons.path(ic, true);
                                                     }
                                                     sourceSize: Qt.size(48, 48)
                                                     fillMode: Image.PreserveAspectFit

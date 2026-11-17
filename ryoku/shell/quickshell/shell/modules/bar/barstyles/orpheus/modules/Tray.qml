@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 
+import shell.services as ShellIcons
 import QtQuick
 import Quickshell
 import shell.services
@@ -86,7 +87,7 @@ Item {
                     height: K.Style.barIcon
                     source: trayItem.modelData.iconPath
                         ? "file://" + trayItem.modelData.iconPath
-                        : Quickshell.iconPath(trayItem.modelData.iconName || "", true)
+                        : ShellIcons.Icons.path(trayItem.modelData.iconName || "", true)
                     sourceSize: Qt.size(
                         Math.max(1, Math.round(width * Screen.devicePixelRatio * 2)),
                         Math.max(1, Math.round(height * Screen.devicePixelRatio * 2)))

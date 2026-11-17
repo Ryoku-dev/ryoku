@@ -1,3 +1,4 @@
+import shell.services as ShellIcons
 import QtQuick 6.11
 import Quickshell
 import Quickshell.Io
@@ -57,16 +58,16 @@ Item {
 
   function iconSource(icon) {
     var value = String(icon || "")
-    if (value.length === 0) return Quickshell.iconPath("application-x-executable", true)
+    if (value.length === 0) return ShellIcons.Icons.path("application-x-executable", true)
     if (value.indexOf("file://") === 0 || value.indexOf("image://") === 0) return value
     if (value.charAt(0) === "/") return Util.fileUrl(value)
     // Prefer the context-limited app/device index. An unconstrained themed
     // lookup can resolve an app name such as "zoom" to an action icon instead.
     var found = root.iconIndex[value]
     if (found) return Util.fileUrl(found)
-    var themed = Quickshell.iconPath(value, true)
+    var themed = ShellIcons.Icons.path(value, true)
     if (themed.length > 0) return themed
-    return Quickshell.iconPath("application-x-executable", true)
+    return ShellIcons.Icons.path("application-x-executable", true)
   }
 
   // The shell may start before first-install packages have finished placing

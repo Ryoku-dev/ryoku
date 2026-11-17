@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 
+import shell.services as ShellIcons
 import QtQuick
 import QtQuick.Controls
 import Ryoku.Ui
@@ -332,7 +333,7 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 16 * root.s
                 height: width
-                source: "image://icon/rashin-app"
+                source: ShellIcons.Icons.path("rashin-app", true)
                 sourceSize: Qt.size(width, height)
                 smooth: true
             }
