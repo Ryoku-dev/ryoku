@@ -25,3 +25,7 @@ focus transfer, pending and submitted password guards, real Return and keypad
 Enter events, background clicks, control exclusion, settled motion, first-entry
 suppression, cooldown, proof and foreground guards, recognition overlap, and
 security-key ownership including activation during a pending retry.
+
+The Orbital cases load the shipped skin itself inside the retry input, with a
+stub `sddm` and a stub `SddmComponents` import, to cover its own Return handler
+and full-size background mouse area.
