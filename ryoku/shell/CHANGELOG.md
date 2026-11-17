@@ -17,6 +17,10 @@
   points of one name and security kind collapse into one row labelled 2.4, 5 or
   6 GHz, saved networks first, and a join picks the strongest radio
   (`subshells/orpheus/qml/cards/controls/WifiPage.qml`, `wifinets.js`).
+- **The Orpheus Bluetooth list keeps its rows still while a scan runs.**
+  Connected and saved devices stay on top, found devices wait for a real name
+  and keep their place, so a Connect click lands
+  (`subshells/orpheus/qml/cards/controls/BluetoothPage.qml`, `btrows.js`).
 - **Plugins installed from a store you added load like any other.**
   `plugins/discover.sh` also reads `ryoku/sources/<store>/plugins` and accepts
   each copy only with a receipt from its own store, so no store's copy can pose

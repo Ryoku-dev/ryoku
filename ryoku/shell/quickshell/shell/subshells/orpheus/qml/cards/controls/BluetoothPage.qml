@@ -3,8 +3,10 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell.Bluetooth
 import Quickshell.Io
+import Ryoku.Ui as RU
 import shell.services
 import "../../kit" as K
+import "btrows.js" as Rows
 
 Item {
     id: page
@@ -22,22 +24,54 @@ Item {
     readonly property bool powered: !!adapter && adapter.enabled
     readonly property bool scanning: powered && adapter.discovering
     readonly property bool busy: pairProcess.running
-    readonly property var devices: {
+    readonly property var byAddress: {
+        const out = ({});
         if (!powered || !Bluetooth.devices)
-            return [];
-        const values = (Bluetooth.devices.values || []).filter(function(device) {
-            return device && (device.connected || device.paired || device.bonded
-                || String(device.name || "").length > 0
-                || String(device.deviceName || "").length > 0);
-        });
-        values.sort(function(left, right) {
-            const leftRank = left.connected ? 0 : (left.paired || left.bonded ? 1 : 2);
-            const rightRank = right.connected ? 0 : (right.paired || right.bonded ? 1 : 2);
-            if (leftRank !== rightRank)
-                return leftRank - rightRank;
-            return BtLink.label(left).localeCompare(BtLink.label(right));
-        });
-        return values;
+            return out;
+        for (const device of (Bluetooth.devices.values || []))
+            if (device && device.address)
+                out[device.address] = device;
+        return out;
+    }
+    // a device with only an address for a name stays out of the list until it is named
+    readonly property var wanted: {
+        const out = [];
+        for (const address in page.byAddress) {
+            const device = page.byAddress[address];
+            const saved = device.paired || device.bonded;
+            const label = RU.BtName.label(device);
+            if (device.connected || saved || !RU.BtName.looksLikeAddress(label))
+                out.push({ address: address, label: label,
+                    rank: device.connected ? 0 : (saved ? 1 : 2) });
+        }
+        return out;
+    }
+    onWantedChanged: syncRows()
+
+    // keyed by address, so a row under the pointer survives the scan filling in
+    ListModel { id: deviceRows }
+
+    function syncRows() {
+        const current = [];
+        for (let i = 0; i < deviceRows.count; i++)
+            current.push(deviceRows.get(i).address);
+        const keys = Rows.order(current, page.wanted);
+        for (let i = deviceRows.count - 1; i >= 0; i--)
+            if (keys.indexOf(deviceRows.get(i).address) < 0)
+                deviceRows.remove(i);
+        for (let j = 0; j < keys.length; j++) {
+            let at = -1;
+            for (let k = j; k < deviceRows.count; k++) {
+                if (deviceRows.get(k).address === keys[j]) {
+                    at = k;
+                    break;
+                }
+            }
+            if (at < 0)
+                deviceRows.insert(j, { address: keys[j] });
+            else if (at !== j)
+                deviceRows.move(at, j, 1);
+        }
     }
 
     function updateDiscovery() {
@@ -71,7 +105,10 @@ Item {
     onShownChanged: updateDiscovery()
     onPoweredChanged: updateDiscovery()
     onAdapterChanged: updateDiscovery()
-    Component.onCompleted: updateDiscovery()
+    Component.onCompleted: {
+        syncRows();
+        updateDiscovery();
+    }
     Component.onDestruction: BluetoothDiscovery.setDiscovering(page, adapter, false)
 
     Process {
@@ -123,26 +160,26 @@ Item {
             spacing: K.Style.s2
 
             Repeater {
-                model: page.devices
+                model: deviceRows
 
                 delegate: K.ListRow {
                     id: deviceRow
 
                     required property int index
-                    required property var modelData
-                    readonly property string address: String(modelData && modelData.address || "")
+                    required property string address
+                    readonly property var device: page.byAddress[address] || null
                     readonly property bool pairing: page.busy
                         && page.pairingAddress === address
-                    readonly property int batteryLevel: BtLink.batteryLevel(modelData)
+                    readonly property int batteryLevel: BtLink.batteryLevel(device)
 
                     width: parent.width
-                    icon: BtLink.glyphFor(modelData)
-                    title: BtLink.label(modelData)
-                    subtitle: pairing ? "Connecting…" : page.subtitle(modelData)
-                    selected: !!modelData && modelData.connected
+                    icon: BtLink.glyphFor(device)
+                    title: BtLink.label(device)
+                    subtitle: pairing ? "Connecting…" : page.subtitle(device)
+                    selected: !!device && device.connected
                     enabled: !page.busy
                     divider: index > 0
-                    onClicked: page.activate(modelData)
+                    onClicked: page.activate(device)
 
                     K.Label {
                         visible: deviceRow.batteryLevel >= 0
@@ -155,17 +192,17 @@ Item {
                     K.Button {
                         z: 2
                         text: deviceRow.pairing ? "Connecting…"
-                            : (deviceRow.modelData && deviceRow.modelData.connected
+                            : (deviceRow.device && deviceRow.device.connected
                                 ? "Disconnect" : "Connect")
                         variant: deviceRow.selected ? "filled" : "outline"
                         enabled: !page.busy
-                        onClicked: page.activate(deviceRow.modelData)
+                        onClicked: page.activate(deviceRow.device)
                     }
                 }
             }
 
             K.Label {
-                visible: page.devices.length === 0
+                visible: deviceRows.count === 0
                 width: parent.width
                 text: page.scanning
                     ? "Put a device in pairing mode."
