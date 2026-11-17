@@ -101,7 +101,7 @@ Item {
     // a pack you add shows in the Sound profile list once the window manager lists it again:
     // on opening the page, and when the window comes back from the file manager
     readonly property bool windowActive: root.Window.active
-    onWindowActiveChanged: if (root.windowActive && root.keysoundsListed) ProviderSchema.reload()
+    onWindowActiveChanged: if (root.windowActive && root.visible && root.keysoundsListed) ProviderSchema.reload()
     Component.onCompleted: if (ProviderSchema.ready && root.keysoundsListed) ProviderSchema.reload()
 
     // provider rows that install a key sound engine instead of setting a value
@@ -295,7 +295,7 @@ Item {
             }
             implicitWidth: inst.installed ? done.implicitWidth : go.implicitWidth
             implicitHeight: go.implicitHeight
-            onWindowActiveChanged: if (inst.windowActive) inst.check()
+            onWindowActiveChanged: if (inst.windowActive && inst.visible) inst.check()
             onRowChanged: inst.check()
 
             // the package is set here, not bound, so a probe never starts before the row names it

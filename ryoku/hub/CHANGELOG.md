@@ -81,6 +81,9 @@
   ten times per badge per UTC day as the gate counts them; the binder says how
   many are left and when they come back, then keeps the usual schedule. Opening
   the binder never spends one (`backend/cardpull.go`, `components/about/Binder.qml`).
+- **Going back to a Settings section you just left is instant.** A page stays loaded for 20 seconds after you
+  leave it (up to five, Home included), so switching back skips the fresh load and shows the page at once; a page
+  left longer reloads, so its data is never older than that (`Hub.qml`, `components/SettingsPage.qml`).
 
 ### Added
 - **The Stand card style, neur0map's own.** Card studio > Layout > Card style

@@ -184,18 +184,32 @@ Item {
     Component.onCompleted: {
         page.rebuild();
     }
+    // a page the Hub keeps loaded while hidden catches up when it is shown again
+    property bool stale: false
+    function refresh() {
+        if (page.visible)
+            page.rebuild();
+        else
+            page.stale = true;
+    }
+    onVisibleChanged: {
+        if (page.visible && page.stale) {
+            page.stale = false;
+            page.rebuild();
+        }
+    }
     Connections {
         target: Changes
-        function onRevisionChanged() { page.rebuild(); }
+        function onRevisionChanged() { page.refresh(); }
     }
     Connections {
         target: Settings
-        function onRevisionChanged() { page.rebuild(); }
-        function onOverlayRevisionChanged() { page.rebuild(); }
+        function onRevisionChanged() { page.refresh(); }
+        function onOverlayRevisionChanged() { page.refresh(); }
     }
     Connections {
         target: ProviderSchema
-        function onRevisionChanged() { page.rebuild(); }
+        function onRevisionChanged() { page.refresh(); }
     }
 
     function sectionOfRow(rowId) {

@@ -166,6 +166,8 @@ Item {
     }
 
     function useSetup(rice) {
+        if (!root.visible)
+            return;
         var name = rice.name || rice.slug;
         root.hub.confirm({
             title: I18n.tr("Use %1?").replace("%1", name),

@@ -128,6 +128,12 @@ the ground and the page pane beside it; `Singletons/Tone.qml` takes every
 surface from the design and palette in use, and every shape is a `CutRect`, so
 its corners follow the design.
 
+Home and each page stay loaded for 20 seconds after the reader leaves, up to five
+at a time, hidden and disabled, so going back to one is instant; a page left
+longer is unloaded and loads fresh. A hidden page is still alive, so anything it
+polls, scans or plays must stop while it is not `visible`, and anything it opens
+from a callback must check `visible` first.
+
 - **The sidebar** (`components/nav/HubSidebar.qml`). Its title line holds the
   Ryoku mark and SETTINGS, quiet, with one action at its end that shuts every
   folder but the open page's. The search field sits under it, then the tree,

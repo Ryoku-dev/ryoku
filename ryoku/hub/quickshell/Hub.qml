@@ -510,9 +510,9 @@ FocusScope {
             hub.loadedKey = key;
             var p = hub.pageId === "" ? null : Registry.page(hub.pageId);
             if (p && p.file)
-                content.setSource(Qt.resolvedUrl("pages/" + p.file + ".qml"), { hub: hub });
+                content.show(key, Qt.resolvedUrl("pages/" + p.file + ".qml"));
             else
-                content.setSource(Qt.resolvedUrl("components/Home.qml"), { hub: hub });
+                content.show(key, Qt.resolvedUrl("components/Home.qml"));
             rise.restart();
         }
         if (rowId && content.item)
@@ -960,7 +960,8 @@ FocusScope {
                 height: colophon.y - y
                 clip: true
 
-                Loader {
+                // a left page stays loaded, hidden and disabled, for keepMs so going back is instant
+                Item {
                     id: content
                     readonly property bool flush: hub.loadedKey === "home"
                     anchors.fill: parent
@@ -970,6 +971,78 @@ FocusScope {
                     anchors.rightMargin: content.flush ? 0 : 4
                     anchors.topMargin: content.flush ? 1 : 8
                     anchors.bottomMargin: 1
+
+                    // the page on show
+                    property Item item: null
+                    property string shownKey: ""
+                    property var slots: ({})
+                    property var hiddenAt: ({})
+                    readonly property int keepMs: 20000
+                    readonly property int keepMax: 5
+
+                    function show(key, url) {
+                        var left = content.shownKey;
+                        if (left !== "" && left !== key && content.slots[left])
+                            content.hiddenAt[left] = Date.now();
+                        delete content.hiddenAt[key];
+                        content.shownKey = key;
+                        var slot = content.slots[key];
+                        if (!slot) {
+                            slot = pageSlot.createObject(content, { key: key });
+                            slot.setSource(url, { hub: hub });
+                            if (!slot.item) {
+                                slot.destroy();
+                                content.shownKey = "";
+                                content.item = null;
+                                content.trim();
+                                return;
+                            }
+                            content.slots[key] = slot;
+                        }
+                        content.item = slot.item;
+                        content.trim();
+                    }
+
+                    function trim() {
+                        var now = Date.now();
+                        var parked = Object.keys(content.hiddenAt).sort(function (a, b) {
+                            return content.hiddenAt[a] - content.hiddenAt[b];
+                        });
+                        var over = Object.keys(content.slots).length - content.keepMax;
+                        for (var i = 0; i < parked.length; i++) {
+                            var k = parked[i];
+                            if (over > 0 || now - content.hiddenAt[k] > content.keepMs) {
+                                content.slots[k].destroy();
+                                delete content.slots[k];
+                                delete content.hiddenAt[k];
+                                over--;
+                            }
+                        }
+                        var oldest = Object.keys(content.hiddenAt).map(function (k) { return content.hiddenAt[k]; });
+                        if (oldest.length === 0) {
+                            trimTimer.stop();
+                            return;
+                        }
+                        trimTimer.interval = Math.max(50, Math.min.apply(null, oldest) + content.keepMs - now + 25);
+                        trimTimer.restart();
+                    }
+
+                    // runs only while a page is parked
+                    Timer {
+                        id: trimTimer
+                        onTriggered: content.trim()
+                    }
+
+                    Component {
+                        id: pageSlot
+                        Loader {
+                            id: slot
+                            property string key: ""
+                            anchors.fill: parent
+                            visible: slot.key === content.shownKey
+                            enabled: slot.key === content.shownKey
+                        }
+                    }
                 }
             }
 

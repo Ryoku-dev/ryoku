@@ -133,6 +133,8 @@ Item {
 
     // the question names what goes, the space that comes back and how it runs
     function confirmRemove(app) {
+        if (!root.visible)
+            return;
         var how = Apps.removeCommand(app);
         if (!how)
             return;

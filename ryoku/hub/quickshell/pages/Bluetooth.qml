@@ -423,8 +423,15 @@ Item {
             root.stopScan();
     }
 
-    // leaving the page mid-scan ends discovery so the radio is not left searching; a link or
-    // the service start ends with the page too, as nothing is left to report it
+    // the page stays loaded a while after it is left, but discovery, pairing and the service start end with it
+    onVisibleChanged: {
+        if (!root.visible) {
+            root.stopScan();
+            root.cancelLink();
+            root.cancelService();
+        }
+    }
+
     Component.onDestruction: {
         root.stop(root.scanJob);
         root.stop(root.linkJob);

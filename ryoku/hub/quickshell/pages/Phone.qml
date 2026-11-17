@@ -269,6 +269,8 @@ Item {
     }
 
     function confirmOff(packages) {
+        if (!root.visible)
+            return;
         var list = (packages || []).join(", ");
         root.hub.confirm({
             title: I18n.tr("Turn off phone link?"),
