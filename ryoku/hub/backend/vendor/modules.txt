@@ -5,8 +5,8 @@ github.com/BurntSushi/toml/internal
 # github.com/godbus/dbus/v5 v5.2.2
 ## explicit; go 1.20
 github.com/godbus/dbus/v5
-# golang.org/x/sys v0.27.0
-## explicit; go 1.18
+# golang.org/x/sys v0.44.0
+## explicit; go 1.25.0
 golang.org/x/sys/unix
 # ryoku-wm v0.0.0 => ../../wm
 ## explicit; go 1.22
