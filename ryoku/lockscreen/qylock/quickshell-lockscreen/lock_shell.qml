@@ -390,28 +390,29 @@ ShellRoot {
                         // don't leak through to the desktop underneath.
                         PinchHandler { target: null }
                         WheelHandler { target: null }
-                        MouseArea {
+                        AuthRetryInput {
+                            id: authRetryInput
                             anchors.fill: parent
-                            acceptedButtons: Qt.AllButtons
-                            hoverEnabled: true
-                            onWheel: (wheel) => { wheel.accepted = true }
-                        }
+                            retryTarget: sddmShim
+                            passwordScope: themeSurface.item
+                            retryAllowed: sddmShim.authRetryInputAllowed
 
-                        Loader {
-                            id: themeSurface
-                            anchors.fill: parent
-                            focus: true
-                            sourceComponent: themeComponent
-                            onLoaded: lockSurface.focusTheme()
-                            // keyboards that return after a paused session never reactivate the window
-                            onActiveFocusChanged: {
-                                if (!activeFocus)
-                                    lockSurface.focusTheme();
+                            Loader {
+                                id: themeSurface
+                                anchors.fill: parent
+                                focus: true
+                                sourceComponent: themeComponent
+                                onLoaded: lockSurface.focusTheme()
+                                // keyboards that return after a paused session never reactivate the window
+                                onActiveFocusChanged: {
+                                    if (!activeFocus)
+                                        lockSurface.focusTheme();
+                                }
                             }
-                        }
-                        Loader {
-                            anchors.fill: parent
-                            sourceComponent: fpOverlayComponent
+                            Loader {
+                                anchors.fill: parent
+                                sourceComponent: fpOverlayComponent
+                            }
                         }
                         LayoutBadge {
                             feed: layoutFeed

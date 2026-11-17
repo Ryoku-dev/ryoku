@@ -24,6 +24,12 @@
   reconnecting after resume stayed black with Orbital, which waits for a reveal.
 
 ### Added
+- **Optional PAM retry can wake a waiting password conversation.** Users whose
+  PAM stack tries an optional method before requesting a password can opt in
+  with `~/.config/qylock/auth-retry` containing `on`. Empty submit and deliberate
+  background gestures then request one guarded restart, while typed passwords,
+  security-key input, controls, foreground loss, and unlock state retain
+  priority. The default remains off.
 - **A security key unlocks the in-session lock.** `ryoku security-key set lock
   on` (or the Hub's Lockscreen row) writes `~/.config/qylock/pam/ryoku-lock-key`,
   and the lock runs it as a third PAM conversation beside password and
