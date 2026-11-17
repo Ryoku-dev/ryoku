@@ -102,6 +102,7 @@ type trayItem struct {
 
 	busName   string
 	owner     string
+	alias     string
 	path      dbus.ObjectPath
 	menuPath  dbus.ObjectPath
 	menuTimer *time.Timer
@@ -228,7 +229,17 @@ func trayCacheDir() string {
 // work runs off the method handler so a blocking property read cannot stall the
 // bus connection.
 func (t *trayState) RegisterStatusNotifierItem(service string, sender dbus.Sender) *dbus.Error {
-	go t.addItem(service, string(sender))
+	busName, path := parseTrayService(service, string(sender))
+	if busName == "" || !path.IsValid() {
+		return dbus.NewError("org.freedesktop.DBus.Error.InvalidArgs", nil)
+	}
+	if busName != string(sender) {
+		var owner string
+		if t.conn.BusObject().Call("org.freedesktop.DBus.GetNameOwner", 0, busName).Store(&owner) != nil || owner != string(sender) {
+			return dbus.NewError("org.freedesktop.DBus.Error.AccessDenied", nil)
+		}
+	}
+	t.addItem(service, string(sender))
 	return nil
 }
 
@@ -298,28 +309,36 @@ func (t *trayState) adoptExisting() {
 
 func (t *trayState) addItem(service, sender string) {
 	busName, path := parseTrayService(service, sender)
-	if busName == "" {
+	if busName == "" || !path.IsValid() {
 		return
 	}
-	key := busName + string(path)
 	owner := t.nameOwner(busName)
+	registeredName := busName
+	if sender != "" {
+		if owner != sender {
+			return
+		}
+		busName = sender
+	}
+	key := busName + string(path)
 	t.mu.Lock()
 	if _, ok := t.items[key]; ok {
 		t.mu.Unlock()
 		return
 	}
-	it := &trayItem{Service: key, busName: busName, owner: owner, path: path}
+	it := &trayItem{Service: key, busName: busName, owner: owner, alias: registeredName, path: path}
 	t.items[key] = it
 	t.order = append(t.order, key)
 	t.mu.Unlock()
 
 	if t.isWatcher {
-		// Emit the resolved key, not the raw argument: a path-only registration
-		// (libayatana-appindicator) carries no bus name, and hosts cannot reach it.
+		// hosts need the sender as well as the path to reach the item
 		_ = t.conn.Emit(dbus.ObjectPath(watcherPath), watcherIface+".StatusNotifierItemRegistered", key)
 	}
-	t.refreshItem(it)
-	t.refreshMenu(it)
+	go func() {
+		t.refreshItem(it)
+		t.refreshMenu(it)
+	}()
 }
 
 func (t *trayState) removeItemByService(service string) {
@@ -356,7 +375,7 @@ func (t *trayState) ownerLost(name string) {
 	t.mu.Lock()
 	var gone []string
 	for key, it := range t.items {
-		if it.busName == name || it.owner == name {
+		if it.busName == name || it.owner == name || it.alias == name {
 			gone = append(gone, key)
 		}
 	}
@@ -456,15 +475,16 @@ func (t *trayState) watchSignals() {
 
 func (t *trayState) dispatchSignal(sig *dbus.Signal) {
 	switch {
-	case sig.Name == "org.freedesktop.DBus.NameOwnerChanged":
+	case sig.Name == "org.freedesktop.DBus.NameOwnerChanged" && sig.Sender == "org.freedesktop.DBus":
 		if len(sig.Body) == 3 {
 			name, _ := sig.Body[0].(string)
+			oldOwner, _ := sig.Body[1].(string)
 			newOwner, _ := sig.Body[2].(string)
-			if name != "" && newOwner == "" {
+			if name != "" && oldOwner != "" && oldOwner != newOwner {
 				go t.ownerLost(name)
 			}
 		}
-	case strings.HasPrefix(sig.Name, watcherIface+".StatusNotifierItem"):
+	case !t.isWatcher && strings.HasPrefix(sig.Name, watcherIface+".StatusNotifierItem") && sig.Sender == t.nameOwner(watcherName):
 		if len(sig.Body) >= 1 {
 			svc, _ := sig.Body[0].(string)
 			switch {

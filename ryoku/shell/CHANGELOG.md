@@ -61,6 +61,8 @@
   The Orpheus control card pinned the handle at 50% and spawned one `ddcutil`
   per pointer move; writes now go one at a time with the latest value winning,
   and the level is read from the monitor when the card opens.
+- **Tray registrations stay with the app that sent them.** Invalid paths and
+  attempts to register another app are rejected, and owner changes clear items.
 - **Spotify and other AppIndicator apps show in the tray again.** An app that
   registers its tray item by object path only (libayatana-appindicator, e.g. the
   Spotify Flatpak) was announced to tray hosts as that bare path, so a host that
