@@ -1,6 +1,7 @@
 # Changelog: ryoku/hub/
 
 ## Unreleased
+- **A friend's Stand card has words in its balloon.** A traded card's record carries no motto, so the speech balloon stood empty in the binder; it now speaks Ryoku's motto, 力と美のために included, when the card brings none (`components/about/styles/StandCard.qml`).
 
 ### Added
 - **The Stand card style for badge holders.** Card studio > Layout > Card style

@@ -53,6 +53,9 @@ Item {
         threads: stand.host.threads, width: stand.host.screenWidth, ramGb: stand.host.ramGb,
         refresh: stand.host.refresh, points: stand.host.tier.min
     })
+    // a traded card's record carries no motto, so its balloon speaks Ryoku's own rather than
+    // standing empty
+    readonly property string words: String(stand.host.tagline).trim() !== "" ? stand.host.tagline : stand.host.stockTagline
     readonly property string standName: {
         var own = stand.own ? String(stand.host.f("text.standName", "")).trim() : "";
         return own !== "" ? own : Stand.standName(stand.host.tagline, stand.host.stockTagline);
@@ -592,12 +595,12 @@ Item {
                     wrapMode: Text.WordWrap
                     maximumLineCount: 4
                     elide: Text.ElideRight
-                    text: stand.host.tagline.toUpperCase()
+                    text: stand.words.toUpperCase()
                     font.pixelSize: text.length > 44 ? 10 : 12
                     lineHeight: 0.9
                 }
                 Kanji {
-                    visible: stand.host.stockWords
+                    visible: stand.words === stand.host.stockTagline
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: "力と美のために"
                     font.pixelSize: 9
