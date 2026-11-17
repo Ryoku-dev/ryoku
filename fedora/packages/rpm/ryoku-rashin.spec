@@ -26,6 +26,9 @@ Requires:       libxkbcommon
 Requires:       mesa-dri-drivers
 Requires:       mesa-libGL
 Requires:       mesa-libEGL
+Requires:       libglvnd
+Requires:       mesa-libGL
+Requires:       mesa-dri-drivers
 Requires:       vulkan-loader
 Requires:       bubblewrap
 Requires:       hicolor-icon-theme

@@ -19,9 +19,13 @@ BuildRequires:  vulkan-headers
 BuildRequires:  spirv-headers-devel
 BuildRequires:  glslc
 Requires:       glibc
+Requires:       libgcc
 Requires:       libstdc++
 Requires:       pipewire
 Requires:       libwayland-client
+Requires:       libwayland-cursor
+Requires:       libwayland-egl
+Requires:       libwayland-server
 Requires:       libxkbcommon
 Requires:       wl-clipboard
 Requires:       vulkan-loader

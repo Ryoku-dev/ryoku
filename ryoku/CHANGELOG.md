@@ -1,6 +1,11 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **Fedora and Void install every library Rashin and the voice engine are
+  built to expect.** The RPM specs and the Void template name the full Wayland,
+  Mesa and GCC runtime sets the Arch recipes depend on, and the Void gate no
+  longer asks for a package that is gone
+  (`fedora/packages/rpm/ryoku-rashin.spec`, `void/packages/srcpkgs/ryoku-rashin/template`).
 - **Fedora and Void know the voice engine again.** `ryoku-dictation` has its
   translation rows and is a dependency of `ryoku-desktop` on both, and the rows
   Voxtype left behind are gone (`fedora/packages/translations.tsv`,
