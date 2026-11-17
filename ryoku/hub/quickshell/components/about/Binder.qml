@@ -25,6 +25,11 @@ Item {
     property real next: 0
     // "", "busy", "daily" or "offline": why the last pull did not reach the team service
     property string paused: ""
+    // a badge holder's binder: the early refreshes the gate has left them today (-1 before it has
+    // said), and when, at the gate's UTC midnight, they come back
+    property bool holder: false
+    property int holderLeft: -1
+    property real holderReset: 0
     // Refresh asked before the next check is due: the backend answers from its cache, so no spinner
     property bool quiet: false
     property real arrival: 1
@@ -52,14 +57,19 @@ Item {
         root.checked = Number(pull.checked) || 0;
         root.next = Number(pull.next) || 0;
         root.paused = String(pull.paused || "");
+        root.holder = pull.holder === true;
+        root.holderLeft = Number.isInteger(pull.holderLeft) ? pull.holderLeft : -1;
+        root.holderReset = Number(pull.holderReset) || 0;
     }
-    // the gate paces binders by a next check; a badge holder's binder gets none (next <= checked)
+    // the gate paces binders by a next check, which an early refresh skips (next <= checked)
     readonly property bool paced: root.next > root.checked
+    // a holder's Refresh asks the gate at once until it says the day's early refreshes are used
+    readonly property bool early: root.holder && root.holderLeft !== 0
     function refresh() {
         if (root.job !== "")
             return;
         var before = root.checked;
-        root.quiet = root.paced && root.next > Date.now() / 1000;
+        root.quiet = !root.early && root.paced && root.next > Date.now() / 1000;
         root.run("refresh", ["ryoku-hub", "cards", "refresh"], function(out) {
             try {
                 var id = root.selected ? root.selected.id : "";
@@ -82,18 +92,32 @@ Item {
         return d.toDateString() === new Date().toDateString() ? time
             : Qt.formatDate(d, TimeFormat.locale.dateFormat(Locale.ShortFormat)) + " " + time;
     }
-    readonly property string pulse: {
-        if (root.paused === "daily")
-            return I18n.tr("Card updates are paused for today. Your cards stay as you last saw them. They resume at %1.").replace("%1", root.clock(root.next));
-        if (root.paused === "busy")
-            return I18n.tr("Too many checks at once. Try again in a minute.");
-        if (root.paused === "offline")
-            return I18n.tr("Card updates could not be checked. Your cards stay as you last saw them. Connect and press Refresh.");
-        if (root.checked <= 0)
+    // what the gate said of a badge holder's early refreshes, said plainly
+    readonly property string holderLine: {
+        if (!root.holder)
             return "";
-        if (!root.paced)
-            return I18n.tr("Checked %1").replace("%1", root.clock(root.checked));
-        return I18n.tr("Checked %1 · next check after %2").replace("%1", root.clock(root.checked)).replace("%2", root.clock(root.next));
+        if (root.holderLeft === 0)
+            return I18n.tr("Your badge's early refreshes for today are used. They come back at %1; until then cards update on the usual schedule.").replace("%1", root.clock(root.holderReset));
+        if (root.holderLeft === 1)
+            return I18n.tr("Your badge can refresh early once more today.");
+        if (root.holderLeft > 1)
+            return I18n.tr("Your badge can refresh early %1 more times today.").replace("%1", root.holderLeft);
+        return I18n.tr("Your badge lets Refresh check at once a few times a day.");
+    }
+    readonly property string pulse: {
+        var line = "";
+        if (root.paused === "daily")
+            line = root.early ? I18n.tr("The team service has used up today's requests, for badges too. Your cards stay as you last saw them; Refresh asks again.")
+                : I18n.tr("Card updates are paused for today. Your cards stay as you last saw them. They resume at %1.").replace("%1", root.clock(root.next));
+        else if (root.paused === "busy")
+            line = root.early ? I18n.tr("The team service turned this check away as too many at once. Press Refresh to ask again.")
+                : I18n.tr("Too many checks at once. Try again in a minute.");
+        else if (root.paused === "offline")
+            line = I18n.tr("Card updates could not be checked. Your cards stay as you last saw them. Connect and press Refresh.");
+        else if (root.checked > 0)
+            line = !root.paced ? I18n.tr("Checked %1").replace("%1", root.clock(root.checked))
+                : I18n.tr("Checked %1 · next check after %2").replace("%1", root.clock(root.checked)).replace("%2", root.clock(root.next));
+        return [line, root.holderLine].filter(s => s !== "").join(" ");
     }
 
     function badgeVerified(entry) {

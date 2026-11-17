@@ -53,12 +53,14 @@ Item {
         threads: stand.host.threads, width: stand.host.screenWidth, ramGb: stand.host.ramGb,
         refresh: stand.host.refresh, points: stand.host.tier.min
     })
-    // a traded card's record carries no motto, so its balloon speaks Ryoku's own rather than
-    // standing empty
+    // the balloon speaks the card's motto (a friend's own, from their badge-vouched record), or
+    // Ryoku's when there is none
     readonly property string words: String(stand.host.tagline).trim() !== "" ? stand.host.tagline : stand.host.stockTagline
+    // the holder's own name for the Stand: the Words field here, the record's on a friend's card;
+    // without one the Stand is named after the motto
     readonly property string standName: {
-        var own = stand.own ? String(stand.host.f("text.standName", "")).trim() : "";
-        return own !== "" ? own : Stand.standName(stand.host.tagline, stand.host.stockTagline);
+        var named = String(stand.own ? stand.host.f("text.standName", "") : (stand.host.traded.standName || "")).trim();
+        return named !== "" ? named : Stand.standName(stand.words, stand.host.stockTagline);
     }
     readonly property string partLine: stand.own
         ? "第" + Stand.part(Updates.currentVersion) + "部  PART " + Stand.part(Updates.currentVersion) + " · " + String(stand.host.release).toUpperCase()

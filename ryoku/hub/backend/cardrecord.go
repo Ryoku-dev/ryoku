@@ -18,7 +18,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -46,22 +45,45 @@ type cardRecord struct {
 	// Device is the signing machine's public key: its hash is the card id, so the record
 	// proves itself without a badge
 	Device string `json:"device,omitempty"`
-	// Style is a v3 record's built-in card style, signed with the rest; a classic card is v2
-	// and carries none, so binders that predate styles keep verifying it
+	// Style is a v3 or v4 record's built-in card style, signed with the rest; a classic card is
+	// v2 and carries none, so binders that predate styles keep verifying it
 	Style string `json:"style,omitempty"`
+	// Tagline and StandName are a v4 record's own words, signed with the rest
+	Tagline   string `json:"tagline,omitempty"`
+	StandName string `json:"standName,omitempty"`
 }
 
 func recordDomain(r cardRecord) string {
-	if r.V == 3 {
-		return "ryoku-card-v3"
-	}
-	return "ryoku-card-v2"
+	return "ryoku-card-v" + strconv.Itoa(r.V)
 }
 
+// recordHeader checks what a version may carry: v2 nothing, v3 a known-shaped style, v4 an
+// optional style and at least one of the words, each within the gate's rule
+func recordHeader(r cardRecord) bool {
+	styled := recordStyleID.MatchString(r.Style)
+	switch r.V {
+	case 2:
+		return r.Style == "" && r.Tagline == "" && r.StandName == ""
+	case 3:
+		return styled && r.Tagline == "" && r.StandName == ""
+	case 4:
+		return (r.Style == "" || styled) && (r.Tagline != "" || r.StandName != "") &&
+			(r.Tagline == "" || cardWordsValid(r.Tagline, recordTaglineLimit)) &&
+			(r.StandName == "" || cardWordsValid(r.StandName, recordStandNameLimit))
+	}
+	return false
+}
+
+func appendPrefixed(out []byte, s string) []byte {
+	return append(binary.BigEndian.AppendUint16(out, uint16(len(s))), s...)
+}
+
+// recordPayload is what a record signs: the card bytes (v2); then the style, its byte length as
+// a big-endian u16 first (v3); then, in v4, the style, the tagline and the Stand's name, each
+// so prefixed and empty when absent
 func recordPayload(r cardRecord) ([]byte, error) {
 	id, e := hex.DecodeString(r.ID)
-	styled := r.V == 3 && recordStyleID.MatchString(r.Style)
-	if e != nil || len(id) != 8 || !validCardID(r.ID) || !styled && (r.V != 2 || r.Style != "") || r.Updated < 0 {
+	if e != nil || len(id) != 8 || !validCardID(r.ID) || !recordHeader(r) || r.Updated < 0 {
 		return nil, errors.New("invalid record header")
 	}
 	body, e := base64.StdEncoding.DecodeString(r.Body)
@@ -84,26 +106,25 @@ func recordPayload(r cardRecord) ([]byte, error) {
 	out = binary.BigEndian.AppendUint16(out, uint16(len(body)))
 	out = append(out, body...)
 	out = append(out, picture...)
-	if styled {
-		out = binary.BigEndian.AppendUint16(out, uint16(len(r.Style)))
-		out = append(out, r.Style...)
+	if r.V >= 3 {
+		out = appendPrefixed(out, r.Style)
+	}
+	if r.V == 4 {
+		out = appendPrefixed(appendPrefixed(out, r.Tagline), r.StandName)
 	}
 	return out, nil
 }
 
-// recordSign signs a classic v2 record, or a v3 one when style names a built-in card style
-func recordSign(d codedDesign, picture []byte, seed []byte, updated int64, style string) (cardRecord, error) {
+// recordSign signs the card in the version its look needs: classic v2, a style alone v3, words v4
+func recordSign(d codedDesign, picture []byte, seed []byte, updated int64, look recordLook) (cardRecord, error) {
 	if len(seed) != 32 || d.cardID != cardID(badgeDevicePublic(seed)) {
 		return cardRecord{}, errors.New("record id does not match device")
 	}
-	r := cardRecord{V: 2, ID: hex.EncodeToString(d.cardID[:]), Updated: updated, Body: base64.StdEncoding.EncodeToString(d.bytes()), Style: style,
-		Device: base64.StdEncoding.EncodeToString(badgeDevicePublic(seed))}
+	r := cardRecord{V: look.version(), ID: hex.EncodeToString(d.cardID[:]), Updated: updated, Body: base64.StdEncoding.EncodeToString(d.bytes()),
+		Style: look.Style, Tagline: look.Tagline, StandName: look.StandName, Device: base64.StdEncoding.EncodeToString(badgeDevicePublic(seed))}
 	if len(picture) > 0 {
 		sum := sha256.Sum256(picture)
 		r.Picture = hex.EncodeToString(sum[:])
-	}
-	if style != "" {
-		r.V = 3
 	}
 	p, e := recordPayload(r)
 	if e != nil {
@@ -198,17 +219,6 @@ func recordPicturePNG(path string) ([]byte, error) {
 	return nil, errors.New("card picture cannot fit within 400 KB")
 }
 
-// recordStyle is the built-in style the published card wears: the profile's choice, which only
-// a badge holder publishes, so anyone else's card goes out classic
-func recordStyle() string {
-	raw, e := readProfileFile(profileConfigPath(), maxProfileBytes)
-	var p profileModel
-	if e != nil || json.Unmarshal(raw, &p) != nil || !slices.Contains(recordStyles, p.Style) || !badgeHolder() {
-		return ""
-	}
-	return p.Style
-}
-
 func recordSync(args []string) (bool, error) {
 	picturePath := ""
 	hardware := []string{}
@@ -237,11 +247,15 @@ func recordSync(args []string) (bool, error) {
 			return false, e
 		}
 	}
-	style := recordStyle()
+	look := recordLookFor()
 	material := append(d.bytes(), picture...)
-	if style != "" {
+	if look.Style != "" {
 		// a classic card hashes as it always did, so updating doesn't republish it
-		material = append(append(material, 0), style...)
+		material = append(append(material, 0), look.Style...)
+	}
+	if look.words() {
+		// the style is [a-z0-9-], so the 1 can't be part of it, and each word is length-prefixed
+		material = appendPrefixed(appendPrefixed(append(material, 1), look.Tagline), look.StandName)
 	}
 	sum := sha256.Sum256(material)
 	hash := hex.EncodeToString(sum[:])
@@ -266,7 +280,7 @@ func recordSync(args []string) (bool, error) {
 	stamp := max(time.Now().Unix(), last+1)
 	clocked, waited := false, false
 	for {
-		record, e := recordSign(d, picture, seed, stamp, style)
+		record, e := recordSign(d, picture, seed, stamp, look)
 		if e != nil {
 			return false, e
 		}
@@ -305,7 +319,7 @@ func recordSync(args []string) (bool, error) {
 				continue
 			}
 		}
-		if reply.status == http.StatusForbidden && reason == "Custom card styles need an active team badge on this machine" && !waited {
+		if reply.status == http.StatusForbidden && (reason == "Custom card styles need an active team badge on this machine" || reason == "Card words need an active team badge on this machine") && !waited {
 			// a badge activated a moment ago may not have reached the replica that answered
 			waited = true
 			time.Sleep(recordRetryWait)

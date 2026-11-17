@@ -16,11 +16,11 @@ func TestStyledRecordSignsV3(t *testing.T) {
 	id := cardID(badgeDevicePublic(device))
 	b, _ := badgeParse(badgeTestCode(t, 1, 4, owner, device, "neur0map"))
 	d := codedDesign{cardID: id, name: "stand user", kind: 1, gallerySrc: "hawk", threads: 32}
-	classic, e := recordSign(d, nil, device, 1000, "")
+	classic, e := recordSign(d, nil, device, 1000, recordLook{})
 	if e != nil || classic.V != 2 || classic.Style != "" {
 		t.Fatal(classic, e)
 	}
-	stand, e := recordSign(d, nil, device, 1000, "stand")
+	stand, e := recordSign(d, nil, device, 1000, recordLook{Style: "stand"})
 	if e != nil || stand.V != 3 || stand.Style != "stand" {
 		t.Fatal(stand, e)
 	}
@@ -56,7 +56,7 @@ func TestStyledRecordSignsV3(t *testing.T) {
 			t.Fatal(name, "record verified")
 		}
 	}
-	if _, e := recordSign(d, nil, device, 1000, "Stand!"); e == nil {
+	if _, e := recordSign(d, nil, device, 1000, recordLook{Style: "Stand!"}); e == nil {
 		t.Fatal("malformed style signed")
 	}
 }
@@ -125,7 +125,7 @@ func TestBinderDrawsStyleOnlyThroughItsBadge(t *testing.T) {
 	d := codedDesign{cardID: id, name: "record name", kind: 2, threads: 24}
 	publish := func(updated int64, style string) cardRecord {
 		t.Helper()
-		r, e := recordSign(d, nil, device, updated, style)
+		r, e := recordSign(d, nil, device, updated, recordLook{Style: style})
 		if e != nil {
 			t.Fatal(e)
 		}

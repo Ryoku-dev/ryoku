@@ -68,6 +68,9 @@ type binderCard struct {
 	RecordUpdated int64  `json:"recordUpdated"`
 	// Style is the built-in card style of a badge-verified record; a shared picture is classic
 	Style string `json:"style,omitempty"`
+	// StandName is a badge-verified record's own name for the Stand; Tagline then holds the
+	// record's whole motto rather than the card code's first 20 bytes of it
+	StandName string `json:"standName,omitempty"`
 }
 
 func cardsDir() string {
@@ -300,8 +303,8 @@ func runCards(args []string) error {
 		if len(args) != 1 {
 			return fmt.Errorf("cards list|refresh takes no arguments")
 		}
-		// refresh asks no sooner than list: the gate sets when the binder may check again
-		view, err := listCards()
+		// refresh asks no sooner than list, except that a badge holder's may spend an early refresh
+		view, err := listCards(args[0] == "refresh")
 		if err != nil {
 			return err
 		}

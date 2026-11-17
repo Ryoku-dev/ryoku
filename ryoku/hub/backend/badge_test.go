@@ -199,7 +199,7 @@ func TestCardRecordVerifiesByBadgeOrDevice(t *testing.T) {
 	id := cardID(badgeDevicePublic(device))
 	b, _ := badgeParse(badgeTestCode(t, 1, 4, owner, device, "neur0map"))
 	d := codedDesign{cardID: id, name: "record name", tagline: "real words", kind: 1, gallerySrc: "hawk", threads: 32}
-	record, e := recordSign(d, nil, device, 1000, "")
+	record, e := recordSign(d, nil, device, 1000, recordLook{})
 	if e != nil || record.Device != base64.StdEncoding.EncodeToString(badgeDevicePublic(device)) {
 		t.Fatal(record, e)
 	}
@@ -403,7 +403,7 @@ func TestBinderKeepsTheLastVerifiedRecord(t *testing.T) {
 	g.badges = []string{code}
 	picture := jpegOf(t, image.NewRGBA(image.Rect(0, 0, 56, 39)), 80)
 	d := codedDesign{cardID: id, name: "record name", kind: 2, threads: 24}
-	record, e := recordSign(d, picture, device, 1000, "")
+	record, e := recordSign(d, picture, device, 1000, recordLook{})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -441,7 +441,7 @@ func TestBinderKeepsTheLastVerifiedRecord(t *testing.T) {
 	if c := listed(t).Cards[0]; c.Verified || c.BadgeCheck != "none" || c.Badge != nil || c.Record != "live" || c.Name != "record name" {
 		t.Fatal("a badge gone from the gate's answer kept its card verified, or the device record was dropped", c)
 	}
-	old, _ := recordSign(d, picture, device, 1001, "")
+	old, _ := recordSign(d, picture, device, 1001, recordLook{})
 	old.Device = ""
 	g.records[old.ID], g.badges = old, []string{code}
 	makeDue(t)
@@ -525,7 +525,7 @@ func TestWriteVectors(t *testing.T) {
 	add("badge", false, map[string]any{"text": codeText("RYB", append(payload, signDomain(mika, "ryoku-badge-v2", payload)...))})
 	add("badge", false, map[string]any{"text": strings.Replace(code, "RYB", "RYD", 1)})
 	d := codedDesign{cardID: id, name: "neur0map", tagline: "test vector", kind: 1, gallerySrc: "hawk"}
-	record, _ := recordSign(d, nil, device, 1794787200, "")
+	record, _ := recordSign(d, nil, device, 1794787200, recordLook{})
 	add("card", true, map[string]any{"record": record, "deviceKey": base64.StdEncoding.EncodeToString(badgeDevicePublic(device))})
 	bad := record
 	bad.Updated++
@@ -553,26 +553,42 @@ func TestWriteVectors(t *testing.T) {
 	claimed, _ := recordPayload(bad)
 	bad.Sig = base64.StdEncoding.EncodeToString(signDomain(owner, "ryoku-card-v2", claimed))
 	add("deviceCard", false, map[string]any{"record": bad})
+	// a styled and a worded record, which only a badge's device key vouches for
+	deviceKey := base64.StdEncoding.EncodeToString(badgeDevicePublic(device))
+	styled, _ := recordSign(d, nil, device, 1794787200, recordLook{Style: "stand"})
+	worded, _ := recordSign(d, nil, device, 1794787200, recordLook{Style: "stand", Tagline: "力と美のために, Café 😀", StandName: "Star Platinum"})
+	wordsOnly, _ := recordSign(d, nil, device, 1794787200, recordLook{Tagline: "Yare yare daze."})
+	for _, r := range []cardRecord{styled, worded, wordsOnly} {
+		add("card", true, map[string]any{"record": r, "deviceKey": deviceKey})
+		add("deviceCard", false, map[string]any{"record": r})
+	}
+	bad = worded
+	bad.Tagline = "Muda muda muda."
+	add("card", false, map[string]any{"record": bad, "deviceKey": deviceKey})
+	bad = worded
+	bad.Tagline, bad.StandName = worded.StandName, worded.Tagline
+	add("card", false, map[string]any{"record": bad, "deviceKey": deviceKey})
 	at := int64(1794787200)
 	withdrawal, _ := recordDeletePayload(record.ID, at)
 	deleteSig := base64.StdEncoding.EncodeToString(signDomain(device, "ryoku-card-delete-v1", withdrawal))
-	deviceKey := base64.StdEncoding.EncodeToString(badgeDevicePublic(device))
 	add("cardDelete", true, map[string]any{"id": record.ID, "at": at, "sig": deleteSig, "deviceKey": deviceKey, "now": at + 600})
 	add("cardDelete", false, map[string]any{"id": record.ID, "at": at, "sig": deleteSig, "deviceKey": deviceKey, "now": at + 601})
 	add("cardDelete", false, map[string]any{"id": record.ID, "at": at + 1, "sig": deleteSig, "deviceKey": deviceKey, "now": at})
 	add("cardDelete", false, map[string]any{"id": record.ID, "at": at, "sig": deleteSig, "deviceKey": base64.StdEncoding.EncodeToString(badgeDevicePublic(owner)), "now": at})
-	holderPayload, _ := pullHolderPayload(badge.ID, at)
+	batch := map[string]int64{record.ID: 1794787000, "0000000000000001": 0}
+	holderPayload, _ := pullHolderPayload(badge.ID, at, batch)
 	holder := func(seed []byte) map[string]any {
-		return map[string]any{"badge": code, "at": at, "sig": base64.StdEncoding.EncodeToString(signDomain(seed, "ryoku-pull-v1", holderPayload))}
+		return map[string]any{"badge": code, "at": at, "sig": base64.StdEncoding.EncodeToString(signDomain(seed, "ryoku-pull-v2", holderPayload))}
 	}
-	add("pullHolder", true, map[string]any{"holder": holder(device), "now": at + 600})
-	add("pullHolder", false, map[string]any{"holder": holder(owner), "now": at})
-	add("pullHolder", false, map[string]any{"holder": holder(device), "now": at + 601})
+	add("pullHolder", true, map[string]any{"holder": holder(device), "cards": batch, "now": at + 600})
+	add("pullHolder", false, map[string]any{"holder": holder(device), "cards": map[string]int64{record.ID: 1794787000}, "now": at})
+	add("pullHolder", false, map[string]any{"holder": holder(owner), "cards": batch, "now": at})
+	add("pullHolder", false, map[string]any{"holder": holder(device), "cards": batch, "now": at + 601})
 	flipped := holder(device)
 	flippedSig, _ := base64.StdEncoding.DecodeString(flipped["sig"].(string))
 	flippedSig[0] ^= 1
 	flipped["sig"] = base64.StdEncoding.EncodeToString(flippedSig)
-	add("pullHolder", false, map[string]any{"holder": flipped, "now": at})
+	add("pullHolder", false, map[string]any{"holder": flipped, "cards": batch, "now": at})
 	now := int64(1794787200)
 	path := "/v1/pending/" + fmt.Sprintf("%x", sha)
 	method := "PUT"

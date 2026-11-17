@@ -32,10 +32,12 @@ type fakeGate struct {
 	block   func(w http.ResponseWriter)
 	batches []map[string]int64
 	// holders has, per batch that carried a holder proof, whether the proof verified
-	holders     []bool
-	puts        int
-	deletes     int
-	pictureGets int
+	holders []bool
+	// holderUsed counts the early refreshes spent today, ten at most, and holderAt the newest proof
+	holderUsed, holderAt int64
+	puts                 int
+	deletes              int
+	pictureGets          int
 }
 
 func newFakeGate(t *testing.T) *fakeGate {
@@ -62,14 +64,18 @@ func (g *fakeGate) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		g.batches = append(g.batches, ask.Cards)
 		next := g.now + 900
+		reply := map[string]any{}
 		if ask.Holder != nil {
 			b, e := badgeParse(ask.Holder.Badge)
-			payload, _ := pullHolderPayload(b.ID, ask.Holder.At)
+			payload, _ := pullHolderPayload(b.ID, ask.Holder.At, ask.Cards)
 			sig, _ := base64.StdEncoding.DecodeString(ask.Holder.Sig)
-			valid := e == nil && verifyDomain(b.device, "ryoku-pull-v1", payload, sig) && ask.Holder.At <= g.now+600 && ask.Holder.At >= g.now-600
+			valid := e == nil && verifyDomain(b.device, "ryoku-pull-v2", payload, sig) && ask.Holder.At <= g.now+600 && ask.Holder.At >= g.now-600
 			g.holders = append(g.holders, valid)
 			if valid {
-				next = g.now
+				if ask.Holder.At > g.holderAt && g.holderUsed < 10 {
+					g.holderUsed, g.holderAt, next = g.holderUsed+1, ask.Holder.At, g.now
+				}
+				reply["holderLeft"] = 10 - g.holderUsed
 			}
 		}
 		if g.block != nil {
@@ -85,8 +91,9 @@ func (g *fakeGate) serve(w http.ResponseWriter, r *http.Request) {
 				records = append(records, record)
 			}
 		}
-		json.NewEncoder(w).Encode(map[string]any{"v": 1, "now": g.now, "next": next, "records": append(records, g.extra...),
+		maps.Copy(reply, map[string]any{"v": 1, "now": g.now, "next": next, "records": append(records, g.extra...),
 			"gone": gone, "badges": append([]string{}, g.badges...), "designs": append([]string{}, g.designs...)})
+		json.NewEncoder(w).Encode(reply)
 	case r.Method == http.MethodGet && strings.HasSuffix(rest, ".jpg"):
 		g.pictureGets++
 		picture, ok := g.pictures[strings.TrimSuffix(rest, ".jpg")]
@@ -245,11 +252,11 @@ func TestBinderPullsEveryCardInOneBatch(t *testing.T) {
 	picture := jpegOf(t, image.NewRGBA(image.Rect(0, 0, 56, 39)), 80)
 	liveDesign := design(liveID, "live words")
 	liveDesign.kind, liveDesign.threads = 2, 24
-	live, _ := recordSign(liveDesign, picture, liveSeed, 1000, "")
+	live, _ := recordSign(liveDesign, picture, liveSeed, 1000, recordLook{})
 	g.records[liveID], g.pictures[live.Picture] = live, picture
 	heldDesign := design(heldID, "badge words")
 	heldDesign.kind, heldDesign.gallerySrc = 1, "hawk"
-	held, _ := recordSign(heldDesign, nil, heldSeed, 1000, "")
+	held, _ := recordSign(heldDesign, nil, heldSeed, 1000, recordLook{})
 	g.records[heldID] = held
 	g.badges = []string{badgeTestCode(t, 1, 4, owner, heldSeed, "friend")}
 	sha := sha256.Sum256([]byte("pack"))
@@ -277,7 +284,7 @@ func TestBinderPullsEveryCardInOneBatch(t *testing.T) {
 		t.Fatal("adding a card did not ask for that card alone", g.batches)
 	}
 	g.batches = nil
-	view, e := listCards()
+	view, e := listCards(false)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -306,7 +313,7 @@ func TestBinderPullsEveryCardInOneBatch(t *testing.T) {
 		t.Fatal("the gate's designs were taken without a team badge behind them", s)
 	}
 
-	view, _ = listCards()
+	view, _ = listCards(false)
 	if len(g.batches) != 1 || view.Checked != g.now {
 		t.Fatal("asked the gate before its next check time", g.batches)
 	}
@@ -314,9 +321,9 @@ func TestBinderPullsEveryCardInOneBatch(t *testing.T) {
 	// the live card changes, a replayed older copy of the badge holder's card comes along, and
 	// the badge is no longer vouched for
 	liveDesign.name = "newer words"
-	newer, _ := recordSign(liveDesign, picture, liveSeed, 1001, "")
+	newer, _ := recordSign(liveDesign, picture, liveSeed, 1001, recordLook{})
 	g.records[liveID] = newer
-	older, _ := recordSign(design(heldID, "replayed words"), nil, heldSeed, 999, "")
+	older, _ := recordSign(design(heldID, "replayed words"), nil, heldSeed, 999, recordLook{})
 	g.extra = []any{older}
 	g.badges = nil
 	makeDue(t)
@@ -341,12 +348,18 @@ func TestBinderPullsEveryCardInOneBatch(t *testing.T) {
 	}
 }
 
-// A badge holder's binder checks on every look, proving itself with the badge's device, and still
-// waits out a pause the gate asks for.
-func TestBadgeHolderPullsOnEveryLook(t *testing.T) {
+// A badge holder's Refresh asks the gate at once with a proof bound to its batch, ignoring the
+// next check time and any pause, until the gate says the day's early refreshes are used; then
+// the binder keeps the schedule like anyone's until the gate's UTC day turns over. Opening the
+// binder never spends one.
+func TestBadgeHolderRefreshSpendsTheGatesEarlyRefreshes(t *testing.T) {
 	owner, _, _ := badgeTestKeys(t)
 	setCardMachine(t)
 	g := newFakeGate(t)
+	g.now = time.Date(2026, 11, 17, 9, 0, 0, 0, time.UTC).Unix()
+	clock := pullClock
+	pullClock = func() time.Time { return time.Unix(g.now, 0) }
+	t.Cleanup(func() { pullClock = clock })
 	seed, e := badgeDeviceSeed()
 	if e != nil {
 		t.Fatal(e)
@@ -356,34 +369,95 @@ func TestBadgeHolderPullsOnEveryLook(t *testing.T) {
 	}
 	friend := bytes.Repeat([]byte{31}, 32)
 	id := cardID(badgeDevicePublic(friend))
-	record, _ := recordSign(codedDesign{cardID: id, name: "record words"}, nil, friend, 1000, "")
+	record, _ := recordSign(codedDesign{cardID: id, name: "record words"}, nil, friend, 1000, recordLook{})
 	g.records[record.ID] = record
 	if _, e = addCard(sharedCard(t, codedDesign{cardID: id, name: "picture name"}, "png")); e != nil {
 		t.Fatal(e)
 	}
-	for range 2 {
-		if view := listed(t); view.Next != view.Checked || view.Cards[0].Name != "record words" {
-			t.Fatal("holder binder", view)
+	if view := listed(t); !view.Holder || view.HolderLeft != -1 || view.Next != g.now+900 || len(g.holders) != 0 {
+		t.Fatal("adding a card or opening the binder spent an early refresh", view, g.holders)
+	}
+	if listed(t); len(g.batches) != 2 {
+		t.Fatal("opening the binder again asked before the next check", len(g.batches))
+	}
+	midnight := time.Date(2026, 11, 18, 0, 0, 0, 0, time.UTC).Unix()
+	for i := range 10 {
+		g.now++
+		if i == 3 {
+			// a pause the gate asked for earlier holds no early refresh back
+			s, _ := pullLoad()
+			s.Paused, s.Next = "busy", g.now+10000
+			s.save()
 		}
+		view := refreshed(t)
+		if view.Paused != "" || view.Next != g.now || view.Checked != g.now || view.HolderLeft != 9-i || view.HolderReset != midnight || view.Cards[0].Name != "record words" {
+			t.Fatal("early refresh", i+1, view)
+		}
+		// the early refresh left the binder due, so the next look checks without spending one
+		listed(t)
 	}
-	// a gate that once set a later check time does not hold a holder back
-	s, _ := pullLoad()
-	s.Next = g.now + 10000
-	s.save()
-	listed(t)
-	if len(g.batches) != 4 || len(g.holders) != 4 || slices.Contains(g.holders, false) {
-		t.Fatal("holder binder did not check every time with a verified proof", len(g.batches), g.holders)
+	if len(g.holders) != 10 || slices.Contains(g.holders, false) || g.holderUsed != 10 {
+		t.Fatal("holder proofs", g.holders, g.holderUsed)
 	}
+	batches := len(g.batches)
+	g.now++
+	if view := refreshed(t); view.HolderLeft != 0 || len(g.batches) != batches || view.Next <= g.now {
+		t.Fatal("a used-up holder's refresh asked before the schedule", view, len(g.batches)-batches)
+	}
+	// the gate's day turns over: the due check spends nothing and says nothing of them, then
+	// Refresh asks early again and hears the ten are back
+	g.now, g.holderUsed = midnight+30, 0
+	if view := refreshed(t); view.HolderLeft != -1 || len(g.batches) != batches+1 || len(g.holders) != 10 {
+		t.Fatal("a due check after midnight", view)
+	}
+	g.now++
+	if view := refreshed(t); len(g.batches) != batches+2 || view.HolderLeft != 9 || view.Next != g.now {
+		t.Fatal("the next UTC day brought no early refreshes back", view)
+	}
+	// a refusal from the gate itself is what pauses a holder, and the next Refresh asks again
 	g.block = func(w http.ResponseWriter) {
 		w.WriteHeader(http.StatusTooManyRequests)
-		json.NewEncoder(w).Encode(map[string]any{"error": "Rate limit exceeded", "next": g.now + 60})
+		json.NewEncoder(w).Encode(map[string]any{"error": "Rate limit exceeded", "next": g.now + 60, "holderLeft": 8})
 	}
-	if view := listed(t); view.Paused != "busy" {
-		t.Fatal(view)
+	g.now++
+	if view := refreshed(t); view.Paused != "busy" || view.HolderLeft != 8 {
+		t.Fatal("busy gate", view)
 	}
-	if listed(t); len(g.batches) != 5 {
-		t.Fatal("a holder ignored the gate's pause", len(g.batches))
+	g.now++
+	if refreshed(t); len(g.batches) != batches+4 {
+		t.Fatal("a holder waited out a pause instead of asking", len(g.batches)-batches)
 	}
+}
+
+// Without a badge, Refresh keeps the gate's schedule and never sends a proof.
+func TestRefreshKeepsTheScheduleWithoutABadge(t *testing.T) {
+	setCardMachine(t)
+	g := newFakeGate(t)
+	friend := bytes.Repeat([]byte{32}, 32)
+	id := cardID(badgeDevicePublic(friend))
+	record, _ := recordSign(codedDesign{cardID: id, name: "record words"}, nil, friend, 1000, recordLook{})
+	g.records[record.ID] = record
+	if _, e := addCard(sharedCard(t, codedDesign{cardID: id, name: "picture name"}, "png")); e != nil {
+		t.Fatal(e)
+	}
+	listed(t)
+	for range 3 {
+		if view := refreshed(t); view.Holder || view.HolderLeft != -1 || view.Next != g.now+900 {
+			t.Fatal(view)
+		}
+	}
+	if len(g.batches) != 2 || len(g.holders) != 0 {
+		t.Fatal("a badge-less Refresh asked early", len(g.batches), g.holders)
+	}
+}
+
+func refreshed(t *testing.T) binderView {
+	t.Helper()
+	view, e := listCards(true)
+	if e != nil {
+		t.Fatal(e)
+	}
+	return view
 }
 
 func TestBinderPullTimingComesFromTheGate(t *testing.T) {
@@ -391,7 +465,7 @@ func TestBinderPullTimingComesFromTheGate(t *testing.T) {
 	g := newFakeGate(t)
 	seed := bytes.Repeat([]byte{21}, 32)
 	id := cardID(badgeDevicePublic(seed))
-	record, _ := recordSign(codedDesign{cardID: id, name: "record words"}, nil, seed, 1000, "")
+	record, _ := recordSign(codedDesign{cardID: id, name: "record words"}, nil, seed, 1000, recordLook{})
 	g.records[record.ID] = record
 	g.now = time.Date(2026, 11, 16, 20, 30, 0, 0, time.UTC).Unix()
 	skew := -2 * time.Hour
@@ -447,7 +521,7 @@ func TestBinderPullTimingComesFromTheGate(t *testing.T) {
 
 func listed(t *testing.T) binderView {
 	t.Helper()
-	view, e := listCards()
+	view, e := listCards(false)
 	if e != nil {
 		t.Fatal(e)
 	}

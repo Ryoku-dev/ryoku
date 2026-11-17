@@ -130,7 +130,7 @@ func TestCardsSameOwnerReplacesKeepingAdded(t *testing.T) {
 	if _, err := os.Stat(entry.Hero.File); !os.IsNotExist(err) {
 		t.Fatalf("replacement left the old own picture: %v", err)
 	}
-	view, err := listCards()
+	view, err := listCards(false)
 	cards := view.Cards
 	if err != nil || len(cards) != 1 || !reflect.DeepEqual(cards[0], updated) {
 		t.Fatalf("replaced card list = %+v (%v)", cards, err)
@@ -170,7 +170,7 @@ func TestCardsReplacedPictureGetsANewRevision(t *testing.T) {
 	if err != nil || second.Hero.File != first.Hero.File || second.Hero.Rev == first.Hero.Rev || !validPictureRev(second.Hero.Rev) {
 		t.Fatalf("replaced picture kept its revision: %+v then %+v (%v)", first.Hero, second.Hero, err)
 	}
-	view, err := listCards()
+	view, err := listCards(false)
 	cards := view.Cards
 	if err != nil || len(cards) != 1 || cards[0].Hero.Rev != second.Hero.Rev {
 		t.Fatalf("listed revision: %+v (%v)", cards, err)
@@ -206,7 +206,9 @@ func TestCardsListOrderAndRemove(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-	if strings.TrimSpace(out) != `{"cards":[],"checked":0,"next":0,"paused":""}` {
+	var empty binderView
+	if e := json.Unmarshal([]byte(out), &empty); e != nil || empty.Cards == nil || len(empty.Cards) != 0 || empty.Checked != 0 || empty.Next != 0 || empty.Paused != "" ||
+		empty.Holder || empty.HolderLeft != -1 || empty.HolderReset%86400 != 0 || empty.HolderReset <= time.Now().Unix() {
 		t.Fatalf("empty binder = %q", out)
 	}
 	var entries []binderCard
@@ -226,7 +228,7 @@ func TestCardsListOrderAndRemove(t *testing.T) {
 		}
 		entries = append(entries, entry)
 	}
-	view, err := listCards()
+	view, err := listCards(false)
 	cards := view.Cards
 	if err != nil || len(cards) != 3 || cards[0].ID != entries[2].ID || cards[1].ID != entries[1].ID || cards[2].ID != entries[0].ID {
 		t.Fatalf("list order = %+v (%v)", cards, err)
@@ -239,7 +241,7 @@ func TestCardsListOrderAndRemove(t *testing.T) {
 			t.Fatalf("remove left %s: %v", ext, err)
 		}
 	}
-	view, err = listCards()
+	view, err = listCards(false)
 	cards = view.Cards
 	if err != nil || len(cards) != 2 {
 		t.Fatalf("list after remove = %+v (%v)", cards, err)

@@ -107,8 +107,12 @@ Item {
     readonly property string name: card.traded ? card.traded.name : card.f("text.name", SysInfo.sysUser)
     readonly property string stockTagline: I18n.tr("For the sake of power and beauty.")
     readonly property bool designTagline: !!(card.cardSpec && card.cardSpec.words && card.cardSpec.words.tagline !== undefined)
-    readonly property string tagline: card.designTagline ? card.cardSpec.words.tagline : card.traded ? card.traded.tagline : card.f("text.tagline", card.stockTagline)
-    readonly property bool stockWords: !card.traded && !card.designTagline && card.tagline === card.stockTagline
+    // a friend's card reads its words from the binder: the badge holder's own motto from their
+    // record, else the card code's line, else Ryoku's, never an empty box
+    readonly property string tradedTagline: card.traded ? String(card.traded.tagline || "").trim() : ""
+    readonly property string tagline: card.designTagline ? card.cardSpec.words.tagline
+        : card.traded ? (card.tradedTagline !== "" ? card.tradedTagline : card.stockTagline) : card.f("text.tagline", card.stockTagline)
+    readonly property bool stockWords: !card.designTagline && card.tagline === card.stockTagline
     readonly property int threads: card.hw ? card.hw.threads : card.num(/(\d+)\s*T/, SysInfo.sysCpuCores) || card.num(/(\d+)/, SysInfo.sysCpuCores)
     readonly property int ramGb: card.hw ? card.hw.ramGb : card.num(/\/\s*(\d+)/, SysInfo.sysRam) || Math.round(SysInfo.memoryKb / 1048576)
     readonly property int refresh: card.hw ? card.hw.refresh : card.num(/(\d+)/, SysInfo.sysRefresh)

@@ -5,15 +5,22 @@ import (
 	"sort"
 )
 
-// binderView is the binder with when the gate last answered for it and when it will be asked again
+// binderView is the binder with when the gate last answered for it and when it will be asked
+// again; for a badge holder, how many early refreshes the gate has left them today (-1 before it
+// has said) and when, at the gate's next UTC midnight, they come back
 type binderView struct {
-	Cards   []binderCard `json:"cards"`
-	Checked int64        `json:"checked"`
-	Next    int64        `json:"next"`
-	Paused  string       `json:"paused"`
+	Cards       []binderCard `json:"cards"`
+	Checked     int64        `json:"checked"`
+	Next        int64        `json:"next"`
+	Paused      string       `json:"paused"`
+	Holder      bool         `json:"holder"`
+	HolderLeft  int          `json:"holderLeft"`
+	HolderReset int64        `json:"holderReset"`
 }
 
-func listCards() (binderView, error) {
+// listCards shows the binder, asking the gate when its next check is due; refresh is the reader
+// pressing Refresh, which a badge holder may spend an early refresh on
+func listCards(refresh bool) (binderView, error) {
 	cards, e := storedCards()
 	if e != nil {
 		return binderView{}, e
@@ -22,7 +29,8 @@ func listCards() (binderView, error) {
 	for i, c := range cards {
 		ids[i] = c.ID
 	}
-	s, e := binderPull(ids)
+	holder := badgeHolder()
+	s, e := binderPull(ids, refresh && holder)
 	if e != nil {
 		return binderView{}, e
 	}
@@ -36,15 +44,16 @@ func listCards() (binderView, error) {
 		}
 		return cards[i].Added.After(cards[j].Added)
 	})
-	return binderView{Cards: cards, Checked: s.Checked, Next: s.Next, Paused: s.Paused}, nil
+	return binderView{Cards: cards, Checked: s.Checked, Next: s.Next, Paused: s.Paused,
+		Holder: holder, HolderLeft: s.holderLeft(), HolderReset: (s.now()/86400 + 1) * 86400}, nil
 }
 
 // recordEnrichCard shows the card as its owner's latest verified record when the binder holds
 // one, live while the gate still has it and kept once the gate let it go; the badge, and with it
-// the verified mark, team design and card style, comes only from what the gate vouched for
+// the verified mark, team design, card style and the owner's own words, comes only from what the
+// gate vouched for
 func recordEnrichCard(entry binderCard, s pullState, list teamVerifiedList) binderCard {
-	entry.Badge, entry.Design, entry.Verified, entry.BadgeCheck, entry.Style = nil, nil, false, "none", ""
-	entry.Record, entry.RecordUpdated = "", 0
+	entry.Badge, entry.Design, entry.Verified, entry.BadgeCheck, entry.Style, entry.StandName = nil, nil, false, "none", "", ""
 	if s.Checked == 0 {
 		entry.BadgeCheck = "offline"
 		return entry
@@ -87,10 +96,14 @@ func recordEnrichCard(entry binderCard, s pullState, list teamVerifiedList) bind
 	}
 	safe.Verified = true
 	safe.BadgeCheck = "ok"
-	// recordCached verified this record through the badge's own device, so the style is the
-	// holder's choice; one this binder doesn't know yet is drawn classic
+	// recordCached verified this record through the badge's own device, so the style and the
+	// words are the holder's; a style this binder doesn't know yet is drawn classic
 	if slices.Contains(recordStyles, r.Style) {
 		safe.Style = r.Style
 	}
+	if r.Tagline != "" {
+		safe.Tagline = r.Tagline
+	}
+	safe.StandName = r.StandName
 	return safe
 }

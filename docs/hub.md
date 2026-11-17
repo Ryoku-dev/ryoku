@@ -300,7 +300,9 @@ the card or Home's plate as they will be; its tabs are:
   size and ink (dots), and Reset. Dragging the picture on the preview moves it
   and the wheel zooms it. A new picture starts as a photo filling its frame.
 - **Words**: the name, the line under it and the big words; with the Stand
-  card style, the Stand's name too.
+  card style, the Stand's name too. A badge holder's line and Stand's name
+  reach friends' binders with their live card (see "A badge holder's own
+  words" below).
 - **Layout**: a badge holder's **Card style** (Classic or Stand), whether Home
   shows the plate or the card (`homeView`), the plate's parts and the figure's
   side.
@@ -372,7 +374,8 @@ holds:
   with the power;
 - the three parts, each with the grade of the parameter it feeds;
 - the Stand's parameter chart (`StandChart.qml`) and the Stand's name in 『』:
-  the Words field, or one taken from the motto's last words
+  the Words field (on a friend's card, the name their badge-vouched record
+  carries), or one taken from the motto's last words
   (`registry/stand.js standName`); the stock motto names it POWER & BEAUTY;
 - TO BE CONTINUED, carrying the card number, tier and points.
 
@@ -524,6 +527,30 @@ the gate vouches for an active badge on that card whose device signed the
 record. A style id it doesn't know yet is drawn classic, and a card added from
 its picture alone is always classic.
 
+**A badge holder's own words.** A holder's live card also carries their motto
+(the line under the name, up to 128 characters) and, with the Stand style, the
+Stand's name from Words (up to 64), as a version 4 record: the version 2 fields,
+an optional `style`, and `tagline` and `standName`, each present only when set.
+It is signed with the domain `ryoku-card-v4` over the version 2 payload, then
+the style, the tagline and the Stand's name, each as its UTF-8 byte length in
+two big-endian bytes followed by its bytes (an absent one is length 0). A style
+alone stays version 3, so binders from before words keep reading it. The words
+go out trimmed, in NFC and cut to their cap (`backend/cardwords.go`); the stock
+motto, an empty line, and words that break the rule are not sent, and a Stand's
+name goes only with the Stand style. Words may not hold markup (`<`, `>`, `&`),
+control or format characters (bidi overrides and isolates, zero-width spaces
+and joiners, the soft hyphen), line or paragraph separators, private-use
+characters, non-characters, Hangul fillers, the replacement character or
+spaces at either end, and must be in NFC: team.ryoku.dev and the binder apply
+the same rule. Changing the words publishes the card again. team.ryoku.dev
+refuses a worded record from a machine without an active badge, and withholds
+and deletes it as it does a styled one. A friend's binder shows the words only
+when the gate vouches for an active badge on that card whose device signed the
+record: the classic card's flavour box then holds the whole motto, and the
+Stand card's balloon and 『』 name read the friend's own. Otherwise the flavour
+box keeps the card code's line (its first 20 bytes) or, when the card carries
+none, Ryoku's motto with its gloss, and the Stand is named after that.
+
 **The binder's check.** One request (`POST /v1/cards/batch`,
 `backend/cardpull.go`) carries every card id with the version the binder holds,
 and returns only the records that changed, the active badges and team designs
@@ -531,11 +558,21 @@ for those cards, and the server's next check time. The binder asks nothing
 before that time (`$XDG_CACHE_HOME/ryoku/team/pull.json`); all times are the
 server's UTC epoch seconds, adjusted by the measured offset, so a time zone or
 clock change on the reader's machine buys no extra check, and the gate rate
-limits checks per address on its side. A badge holder signs each check with the
-badge's device key and is exempt: no wait between checks and no per-address
-check limit, only the 120-a-minute flood limit everyone has. When Cloudflare's
-daily request cap is reached, the binder says updates are paused and resume at
-the next UTC midnight, taken from the server's `Date` header. Cards show as
+limits checks per address on its side. A badge holder's **Refresh** may check
+early: it asks at once, whatever the next check time or a pause says, with a
+proof signed by the badge's device over the badge id, the proof's time and the
+exact batch (`ryoku-pull-v2`). team.ryoku.dev gives each badge ten early
+refreshes per UTC day, counted on its side per badge id, so neither the clock,
+the time zone, a reinstall nor a second address buys more; an early refresh
+skips the schedule and the per-address limits, and the gate takes each proof
+once. Every answer to a proof says how many are left (`holderLeft`), and the
+binder's line under its header says it plainly, with the time they come back
+(the gate's next UTC midnight). Once they are used, Refresh keeps the usual
+schedule until then. Opening the binder, or a check that is due anyway, never
+spends one. When Cloudflare's daily request cap is reached, the binder says
+updates are paused and resume at the next UTC midnight, taken from the server's
+`Date` header; a holder with early refreshes left can still press Refresh to
+ask again. Cards show as
 **Live** (its owner's changes reach you), **no longer online** (the last
 version you got, after its owner turned the switch off or left it unchanged for
 90 days), or a picture only. Verified badges still show their role, issuer,

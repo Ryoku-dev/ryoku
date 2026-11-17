@@ -2,6 +2,19 @@
 
 ## Unreleased
 - **A friend's Stand card has words in its balloon.** A traded card's record carries no motto, so the speech balloon stood empty in the binder; it now speaks Ryoku's motto, 力と美のために included, when the card brings none (`components/about/styles/StandCard.qml`).
+- **Badge holders' own words reach friends' binders.** With a badge, a live card
+  carries your motto (up to 128 characters) and, on the Stand card, your Stand's
+  name (up to 64) in a signed version 4 record; the stock motto is never sent,
+  and changing either publishes again. A friend's binder draws them in the
+  classic card's flavour box and the Stand card's balloon and 『』 name only when
+  the team service vouches for an active badge on that card; otherwise it keeps
+  the card's own line, or Ryoku's motto when there is none, so the flavour box
+  is never empty (`backend/cardwords.go`, `cardrecord.go`, `cardrecordbinder.go`).
+- **Badge holders get ten early binder refreshes a day.** A holder's Refresh
+  asks team.ryoku.dev at once, whatever the next check time or a pause says,
+  ten times per badge per UTC day as the gate counts them; the binder says how
+  many are left and when they come back, then keeps the usual schedule. Opening
+  the binder never spends one (`backend/cardpull.go`, `components/about/Binder.qml`).
 
 ### Added
 - **The Stand card style for badge holders.** Card studio > Layout > Card style

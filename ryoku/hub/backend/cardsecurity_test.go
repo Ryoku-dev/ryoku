@@ -131,7 +131,7 @@ func TestStoredCardCannotOverridePictureOrWords(t *testing.T) {
 	if err := os.WriteFile(path, raw, 0600); err != nil {
 		t.Fatal(err)
 	}
-	view, err := listCards()
+	view, err := listCards(false)
 	cards := view.Cards
 	if err != nil || len(cards) != 1 || cards[0].Name != "friend" {
 		t.Fatalf("unsafe stored words: %+v (%v)", cards, err)
@@ -141,7 +141,7 @@ func TestStoredCardCannotOverridePictureOrWords(t *testing.T) {
 	if err := os.WriteFile(path, raw, 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := listCards(); err == nil {
+	if _, err := listCards(false); err == nil {
 		t.Fatal("outside-store picture accepted")
 	}
 	entry.Hero.File = filepath.Join(cardsDir(), entry.ID+".png")
@@ -155,7 +155,7 @@ func TestStoredCardCannotOverridePictureOrWords(t *testing.T) {
 	if err := os.Symlink("/etc/passwd", entry.Hero.File); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := listCards(); err == nil {
+	if _, err := listCards(false); err == nil {
 		t.Fatal("symlinked picture accepted")
 	}
 }

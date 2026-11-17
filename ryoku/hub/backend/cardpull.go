@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"image/jpeg"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -24,15 +25,20 @@ var pullClock = time.Now
 
 // pullState is the binder's view of the team service: when the gate last answered and when it
 // wants to be asked again (both in the gate's time), the badges and designs it vouched for, and
-// the cards it no longer holds
+// the cards it no longer holds. A badge holder's binder also keeps how many early refreshes the
+// gate said were left on which of its UTC days, and the last proof time it signed, which the
+// gate wants to rise with every proof.
 type pullState struct {
-	Checked int64    `json:"checked"`
-	Next    int64    `json:"next"`
-	Paused  string   `json:"paused"`
-	Offset  int64    `json:"offset"`
-	Badges  []string `json:"badges"`
-	Designs []string `json:"designs"`
-	Gone    []string `json:"gone"`
+	Checked    int64    `json:"checked"`
+	Next       int64    `json:"next"`
+	Paused     string   `json:"paused"`
+	Offset     int64    `json:"offset"`
+	Badges     []string `json:"badges"`
+	Designs    []string `json:"designs"`
+	Gone       []string `json:"gone"`
+	HolderLeft int      `json:"holderLeft"`
+	HolderDay  int64    `json:"holderDay"`
+	HolderAt   int64    `json:"holderAt"`
 }
 
 type pullReply struct {
@@ -43,6 +49,8 @@ type pullReply struct {
 	Gone    []string     `json:"gone"`
 	Badges  []string     `json:"badges"`
 	Designs []string     `json:"designs"`
+	// HolderLeft answers a batch that carried a holder proof: the early refreshes left today
+	HolderLeft *int `json:"holderLeft"`
 }
 
 func pullStatePath() (string, error) {
@@ -91,20 +99,40 @@ func (s pullState) team() teamVerifiedList {
 	return teamVerifyWire(teamWireList{V: 1, Badges: s.Badges, Designs: s.Designs})
 }
 
-// binderPull refreshes every card in the binder once the gate's next check time has come. Badge
-// holders check on every look, but wait out a pause the gate asked for like everyone else.
-func binderPull(ids []string) (pullState, error) {
+// holderLeft is how many early refreshes the gate last said this badge has left today, or -1
+// when it hasn't said since the gate's day turned over
+func (s pullState) holderLeft() int {
+	if s.HolderDay != s.now()/86400 {
+		return -1
+	}
+	return s.HolderLeft
+}
+
+// heard keeps what the gate said of this badge's early refreshes, on the gate's day
+func (s *pullState) heard(left *int, now int64) {
+	if left != nil && *left >= 0 {
+		s.HolderLeft, s.HolderDay = *left, now/86400
+	}
+}
+
+// binderPull refreshes every card in the binder once the gate's next check time has come.
+// early is a badge holder pressing Refresh: while the gate hasn't said their early refreshes for
+// the day are used, it asks at once with a proof, whatever the schedule or a pause says, and the
+// gate decides; a due check needs no proof and spends none.
+func binderPull(ids []string, early bool) (pullState, error) {
 	s, e := pullLoad()
 	if e != nil || len(ids) == 0 {
 		return s, e
 	}
-	_, holderErr := badgeActive()
-	if s.now() < s.Next && (holderErr != nil || s.Paused == "busy" || s.Paused == "daily") {
+	due := s.now() >= s.Next
+	early = early && !due && s.holderLeft() != 0
+	if !due && !early {
 		return s, nil
 	}
 	var last pullReply
 	for start := 0; start < len(ids); start += pullBatchLimit {
-		reply, ok, e := s.pull(ids[start:min(len(ids), start+pullBatchLimit)])
+		// one early refresh covers the binder: the batches after the first are ordinary checks
+		reply, ok, e := s.pull(ids[start:min(len(ids), start+pullBatchLimit)], early && start == 0)
 		if e != nil {
 			return s, e
 		}
@@ -130,7 +158,7 @@ func binderPullAdded(id string) (pullState, error) {
 	if e != nil {
 		return s, e
 	}
-	reply, ok, e := s.pull([]string{id})
+	reply, ok, e := s.pull([]string{id}, false)
 	if e != nil {
 		return s, e
 	}
@@ -147,8 +175,9 @@ func binderPullAdded(id string) (pullState, error) {
 }
 
 // pull asks the gate for the cards in ids that changed since this binder last saw them and folds
-// its answer into s; false when the gate didn't answer, with the reason in s.Paused
-func (s *pullState) pull(ids []string) (pullReply, bool, error) {
+// its answer into s; false when the gate didn't answer, with the reason in s.Paused. holder signs
+// the request with the badge's device to spend one of its early refreshes.
+func (s *pullState) pull(ids []string, holder bool) (pullReply, bool, error) {
 	list := s.team()
 	known := map[string]int64{}
 	for _, id := range ids {
@@ -161,8 +190,12 @@ func (s *pullState) pull(ids []string) (pullReply, bool, error) {
 		Cards  map[string]int64 `json:"cards"`
 		Holder *pullHolder      `json:"holder,omitempty"`
 	}{Cards: known}
-	if holder, e := pullHolderProof(s.now()); e == nil {
-		request.Holder = &holder
+	if holder {
+		// the gate takes each proof once, so its time only ever rises
+		at := max(s.now(), s.HolderAt+1)
+		if proof, e := pullHolderProof(at, known); e == nil {
+			request.Holder, s.HolderAt = &proof, at
+		}
 	}
 	body, e := json.Marshal(request)
 	if e != nil {
@@ -184,13 +217,16 @@ func (s *pullState) pull(ids []string) (pullReply, bool, error) {
 			break
 		}
 		s.Offset = answer.Now - local
+		s.heard(answer.HolderLeft, answer.Now)
 		s.fold(ids, answer, known)
 		return answer, true, nil
 	case http.StatusTooManyRequests, http.StatusServiceUnavailable:
 		var busy struct {
-			Next int64 `json:"next"`
+			Next       int64 `json:"next"`
+			HolderLeft *int  `json:"holderLeft"`
 		}
 		if reply.status == http.StatusTooManyRequests && json.Unmarshal(reply.body, &busy) == nil && busy.Next > 0 {
+			s.heard(busy.HolderLeft, s.now())
 			s.Paused, s.Next = "busy", busy.Next
 			return pullReply{}, false, nil
 		}
@@ -317,29 +353,42 @@ func pictureSHA(picture []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// pullHolder proves the binder belongs to a badge holder, whom the gate lets check without its cadence
+// pullHolder proves a badge holder asked for this very batch, spending one of the badge's early
+// refreshes for the day
 type pullHolder struct {
 	Badge string `json:"badge"`
 	At    int64  `json:"at"`
 	Sig   string `json:"sig"`
 }
 
-func pullHolderPayload(badgeID string, at int64) ([]byte, error) {
+// pullHolderPayload is what a holder proof signs under ryoku-pull-v2: the badge id, the proof's
+// time as a u64, and SHA-256 over the batch's cards in id order, each id's 8 bytes then the
+// version held as a u64, so a proof speaks for one request and nothing else
+func pullHolderPayload(badgeID string, at int64, cards map[string]int64) ([]byte, error) {
 	raw, e := hex.DecodeString(badgeID)
 	if e != nil || len(raw) != 8 || at < 0 {
 		return nil, errors.New("invalid holder proof")
 	}
-	return binary.BigEndian.AppendUint64(raw, uint64(at)), nil
+	batch := []byte{}
+	for _, id := range slices.Sorted(maps.Keys(cards)) {
+		card, e := hex.DecodeString(id)
+		if e != nil || len(card) != 8 || !validCardID(id) || cards[id] < 0 {
+			return nil, errors.New("invalid holder proof")
+		}
+		batch = binary.BigEndian.AppendUint64(append(batch, card...), uint64(cards[id]))
+	}
+	sum := sha256.Sum256(batch)
+	return append(binary.BigEndian.AppendUint64(raw, uint64(at)), sum[:]...), nil
 }
 
-// pullHolderProof signs at, the gate's time as this binder reckons it, with the device of the
-// active badge; it fails on a machine without one
-func pullHolderProof(at int64) (pullHolder, error) {
+// pullHolderProof signs the batch at at, the gate's time as this binder reckons it, with the
+// device of the active badge; it fails on a machine without one
+func pullHolderProof(at int64, cards map[string]int64) (pullHolder, error) {
 	b, e := badgeActive()
 	if e != nil {
 		return pullHolder{}, e
 	}
-	payload, e := pullHolderPayload(b.ID, at)
+	payload, e := pullHolderPayload(b.ID, at, cards)
 	if e != nil {
 		return pullHolder{}, e
 	}
@@ -348,5 +397,5 @@ func pullHolderProof(at int64) (pullHolder, error) {
 		return pullHolder{}, e
 	}
 	defer clear(seed)
-	return pullHolder{Badge: b.Code, At: at, Sig: base64.StdEncoding.EncodeToString(signDomain(seed, "ryoku-pull-v1", payload))}, nil
+	return pullHolder{Badge: b.Code, At: at, Sig: base64.StdEncoding.EncodeToString(signDomain(seed, "ryoku-pull-v2", payload))}, nil
 }
