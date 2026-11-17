@@ -104,39 +104,26 @@ func widgetsConfigPath() string {
 }
 
 // installedShellItems lists every store subshell and bar style with a packed
-// receipt. A receipt that cannot be read, or a legacy loose install still
-// waiting for its migration, is reported in problems and left out.
+// receipt, from the official stores and every store the user added. A receipt
+// that cannot be read, or a legacy loose install still waiting for its
+// migration, is reported in problems and left out.
 func installedShellItems() ([]shellInventoryItem, []string, error) {
 	items := []shellInventoryItem{}
 	problems := []string{}
 	for _, category := range []string{"subshells", "barstyles"} {
-		entries, err := os.ReadDir(filepath.Join(storeStateDir(), category))
-		if os.IsNotExist(err) {
-			continue
-		}
+		receipts, unreadable, err := installedReceipts(category)
 		if err != nil {
 			return nil, nil, err
 		}
-		for _, entry := range entries {
-			if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
-				continue
-			}
-			id := strings.TrimSuffix(entry.Name(), ".json")
-			if !productIDPattern.MatchString(id) {
-				continue
-			}
-			receipt, err := readReceipt(category, id)
-			if err != nil {
-				problems = append(problems, fmt.Sprintf("%s/%s: %v", category, id, err))
-				continue
-			}
+		problems = append(problems, unreadable...)
+		for _, receipt := range receipts {
 			if receipt.Shell == nil {
-				problems = append(problems, fmt.Sprintf("%s/%s: legacy install waits for migration", category, id))
+				problems = append(problems, fmt.Sprintf("%s/%s: legacy install waits for migration", category, receipt.ID))
 				continue
 			}
 			stored := receipt
 			items = append(items, shellInventoryItem{
-				ID: id, Category: category, Source: "store", Name: receipt.Name,
+				ID: receipt.ID, Category: category, Source: "store", Name: receipt.Name,
 				Version: receipt.Version, Summary: receipt.Summary, Shell: cloneShellManifest(*receipt.Shell),
 				Receipt: &stored, Digest: shellReceiptDigest(receipt),
 			})
@@ -424,7 +411,7 @@ func prepareShellItem(item shellInventoryItem, root string) error {
 	if err := os.Chmod(stage, 0o755); err != nil {
 		return err
 	}
-	destination, _, err := productDestination(item.Category, item.ID)
+	destination, _, err := sourceProductDestination(item.Receipt.Source, item.Category, item.ID)
 	if err != nil {
 		return err
 	}

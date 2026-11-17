@@ -4,7 +4,8 @@ name: Shell unit tests
 # ryoshot coords/keymap/annotation libs, and the hub display-arrangement lib). no
 # display, no Quickshell dep, so unlike the advisory qmllint job this one is a
 # real blocking gate. the runner (tests/shell-unit-tests.sh) discovers every
-# ryoku/{shell,hub}/**/*.test.mjs; adding a test needs no change here.
+# ryoku/{shell,hub,ui,apps}/**/*.test.mjs; adding a test needs no change here. the
+# plugin discovery script that loads store plugins has its own bash test.
 
 on:
   pull_request:
@@ -13,6 +14,10 @@ on:
       - 'ryoku/shell/**/*.js'
       - 'ryoku/hub/**/*.mjs'
       - 'ryoku/hub/**/*.js'
+      - 'ryoku/apps/**/*.mjs'
+      - 'ryoku/apps/**/*.js'
+      - 'ryoku/shell/quickshell/plugins/discover.sh'
+      - 'ryoku/shell/quickshell/plugins/discover.test.sh'
       - 'tests/shell-unit-tests.sh'
       - '.github/workflows/shell-unit-tests.yml'
   push:
@@ -23,6 +28,10 @@ on:
       - 'ryoku/shell/**/*.js'
       - 'ryoku/hub/**/*.mjs'
       - 'ryoku/hub/**/*.js'
+      - 'ryoku/apps/**/*.mjs'
+      - 'ryoku/apps/**/*.js'
+      - 'ryoku/shell/quickshell/plugins/discover.sh'
+      - 'ryoku/shell/quickshell/plugins/discover.test.sh'
       - 'tests/shell-unit-tests.sh'
       - '.github/workflows/shell-unit-tests.yml'
   workflow_dispatch:
@@ -46,3 +55,7 @@ jobs:
       - name: Run shell unit tests
         shell: bash
         run: RYOKU_PATH="$PWD" tests/shell-unit-tests.sh
+
+      - name: Plugin discovery
+        shell: bash
+        run: bash ryoku/shell/quickshell/plugins/discover.test.sh

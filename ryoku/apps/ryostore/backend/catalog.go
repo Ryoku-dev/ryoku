@@ -116,23 +116,29 @@ func BuildCatalog(ctx context.Context, provs []Provider, refresh bool) Catalog {
 		c.CachedAt = r.state.CachedAt
 		if r.err != nil {
 			c.Error = r.err.Error()
-		} else {
-			c.Count = len(r.items)
-			settings := hasSettingsSection(c.ID)
-			for j := range r.items {
-				r.items[j].HasSettings = settings
-				if r.items[j].owned() {
-					c.InstalledCount++
-				}
-				if !isBuiltinCatalogItem(r.items[j]) {
-					hasRemoteItems = true
-				}
-			}
-			if shellCategory(c.ID) {
-				adviseShellItems(r.items, cat.Machine)
-			}
-			cat.Items = append(cat.Items, r.items...)
 		}
+		// A failing provider returns no items, except a category joined with
+		// user stores: their items still list when the official store fails.
+		c.Count = len(r.items)
+		settings := hasSettingsSection(c.ID)
+		for j := range r.items {
+			item := &r.items[j]
+			item.HasSettings = settings
+			if item.Source == "" {
+				item.Source, item.SourceName = officialItemSource(*item)
+				item.Official = true
+			}
+			if item.owned() {
+				c.InstalledCount++
+			}
+			if !isBuiltinCatalogItem(*item) {
+				hasRemoteItems = true
+			}
+		}
+		if shellCategory(c.ID) {
+			adviseShellItems(r.items, cat.Machine)
+		}
+		cat.Items = append(cat.Items, r.items...)
 		if c.Offline || c.Error != "" {
 			anyFailure = true
 		}

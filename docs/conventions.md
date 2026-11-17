@@ -53,6 +53,16 @@ rendered from a topic is a `BusListModel` and one value inside a topic a
 that `Bus` sits on), so a frame changes only the rows and values that moved.
 The protocol is described at the top of `ryoku/shell/ipc/bus.go`.
 
+## A package job runs through PackageJob
+
+Installing, updating or removing packages from QML is a `PackageJob` from
+`Ryoku.Ui`, never a page's own process: it reads the progress events gpk and
+`ryoku-host apps` print (`ryoku/ui/lib/jobevents.js`), keeps the timing every
+Ryoku surface uses (Working after one second, a blade past ten), counts when
+the tool counts, stops a job run as the user with SIGTERM and one run as root
+through `ryoku-host apps --stdin-cancel`, and words pkexec's refusals the same
+way everywhere. Each app draws its own line under it.
+
 ## Launching a process goes through Spawn
 
 Anything a surface starts that can end up running Quickshell (an app, a desktop

@@ -31,7 +31,10 @@ type ReceiptComponent struct {
 }
 
 // Receipt is the authoritative ownership record for one installed product.
+// Source is empty for the official stores and names the user store otherwise;
+// a user store's receipts and files live under their own sources/<id>/ folders.
 type Receipt struct {
+	Source      string             `json:"source,omitempty"`
 	Category    string             `json:"category"`
 	ID          string             `json:"id"`
 	Version     string             `json:"version"`
@@ -49,6 +52,7 @@ type Receipt struct {
 // every successful install, update, or removal.
 type StoreRevision struct {
 	Revision  uint64 `json:"revision"`
+	Source    string `json:"source,omitempty"`
 	Category  string `json:"category"`
 	ID        string `json:"id"`
 	Version   string `json:"version"`
@@ -67,7 +71,17 @@ func storeStateDir() string {
 }
 
 func receiptPath(category, id string) string {
-	return filepath.Join(storeStateDir(), category, id+".json")
+	return sourceReceiptPath("", category, id)
+}
+
+// sourceReceiptPath is where one source's receipt for category/id lives: the
+// official stores keep the original store/<category>/<id>.json, a user store
+// store/sources/<source>/<category>/<id>.json.
+func sourceReceiptPath(source, category, id string) string {
+	if source == "" {
+		return filepath.Join(storeStateDir(), category, id+".json")
+	}
+	return filepath.Join(userSourceStateDir(source), category, id+".json")
 }
 
 func storeRevisionPath() string {
@@ -75,23 +89,31 @@ func storeRevisionPath() string {
 }
 
 func readReceipt(category, id string) (Receipt, error) {
-	if !validProductCategory(category) || !productIDPattern.MatchString(id) {
-		return Receipt{}, fmt.Errorf("invalid receipt identity %s/%s", category, id)
+	return readSourceReceipt("", category, id)
+}
+
+func readSourceReceipt(source, category, id string) (Receipt, error) {
+	if err := validateProductIdentity(source, category, id); err != nil {
+		return Receipt{}, err
 	}
-	info, err := os.Lstat(receiptPath(category, id))
+	path := sourceReceiptPath(source, category, id)
+	info, err := os.Lstat(path)
 	if err != nil {
 		return Receipt{}, err
 	}
 	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
 		return Receipt{}, fmt.Errorf("receipt %s/%s is not a regular file", category, id)
 	}
-	raw, err := os.ReadFile(receiptPath(category, id))
+	raw, err := os.ReadFile(path)
 	if err != nil {
 		return Receipt{}, err
 	}
 	var receipt Receipt
 	if err := decodeOneJSON(raw, &receipt); err != nil {
 		return Receipt{}, fmt.Errorf("receipt %s/%s: %w", category, id, err)
+	}
+	if receipt.Source != source {
+		return Receipt{}, fmt.Errorf("receipt %s/%s names source %q, not %q", category, id, receipt.Source, source)
 	}
 	if err := validateReceipt(category, id, receipt); err != nil {
 		return Receipt{}, err
@@ -108,18 +130,18 @@ func writeReceipt(receipt Receipt) error {
 		return err
 	}
 	raw = append(raw, '\n')
-	return atomicWrite(receiptPath(receipt.Category, receipt.ID), raw, 0o600)
+	return atomicWrite(sourceReceiptPath(receipt.Source, receipt.Category, receipt.ID), raw, 0o600)
 }
 
 func validateReceipt(category, id string, receipt Receipt) error {
 	label := category + "/" + id
-	if !validProductCategory(category) || !productIDPattern.MatchString(id) {
-		return fmt.Errorf("invalid receipt identity %s", label)
+	if err := validateProductIdentity(receipt.Source, category, id); err != nil {
+		return err
 	}
 	if receipt.Category != category || receipt.ID != id || receipt.Version == "" {
 		return fmt.Errorf("receipt %s identity or version mismatch", label)
 	}
-	_, expected, err := productDestination(category, id)
+	_, expected, err := sourceProductDestination(receipt.Source, category, id)
 	if err != nil {
 		return err
 	}
@@ -179,7 +201,7 @@ func receiptOwnsFile(receipt Receipt, destination string) bool {
 }
 
 func writeStoreRevision(change StoreRevision) error {
-	if !validProductCategory(change.Category) || !productIDPattern.MatchString(change.ID) || change.Version == "" {
+	if validateProductIdentity(change.Source, change.Category, change.ID) != nil || change.Version == "" {
 		return fmt.Errorf("invalid Store revision identity")
 	}
 	switch change.Operation {
@@ -220,8 +242,8 @@ func readStoreRevision() (StoreRevision, error) {
 	if err := decodeOneJSON(raw, &revision); err != nil {
 		return StoreRevision{}, fmt.Errorf("Store revision: %w", err)
 	}
-	if revision.Revision == 0 || !validProductCategory(revision.Category) ||
-		!productIDPattern.MatchString(revision.ID) || revision.Version == "" {
+	if revision.Revision == 0 || validateProductIdentity(revision.Source, revision.Category, revision.ID) != nil ||
+		revision.Version == "" {
 		return StoreRevision{}, fmt.Errorf("Store revision has invalid identity")
 	}
 	switch revision.Operation {

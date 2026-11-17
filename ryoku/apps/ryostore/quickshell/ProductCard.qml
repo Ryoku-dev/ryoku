@@ -58,6 +58,42 @@ Item {
             reducedMotion: card.reducedMotion
         }
 
+        // items from a store the user added wear its name on the cover
+        Rectangle {
+            id: sourceBadge
+            objectName: "ryostore-card-source-badge"
+            readonly property bool userSource: !!card.item && card.item.official === false && String(card.item.source || "") !== ""
+            visible: userSource
+            anchors { left: cover.left; top: cover.top; margins: Tokens.s2 }
+            width: Math.min(cover.width - Tokens.s2 * 2, sourceBadgeLabel.implicitWidth + Tokens.s2 * 2)
+            height: sourceBadgeLabel.implicitHeight + Tokens.s1 * 2
+            radius: Tokens.radius
+            color: Tokens.paper
+            border.width: Tokens.border
+            border.color: card.hovered || card.selected ? Tokens.lineStrong : Tokens.line
+            opacity: card.hovered || card.selected ? 1 : 0.92
+            Behavior on border.color {
+                enabled: !card.reducedMotion
+                ColorAnimation { duration: Tokens.snap }
+            }
+            Behavior on opacity {
+                enabled: !card.reducedMotion
+                NumberAnimation { duration: Tokens.snap }
+            }
+
+            Text {
+                id: sourceBadgeLabel
+                anchors.centerIn: parent
+                width: Math.min(implicitWidth, cover.width - Tokens.s2 * 4)
+                text: String(card.item && (card.item.sourceName || card.item.source) || "").toUpperCase()
+                color: Tokens.ink
+                font.family: Tokens.mono
+                font.pixelSize: Tokens.fMicro
+                font.letterSpacing: Tokens.trackLabel
+                elide: Text.ElideRight
+            }
+        }
+
         Column {
             objectName: "ryostore-cover-metadata"
             anchors {

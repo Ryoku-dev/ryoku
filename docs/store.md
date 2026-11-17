@@ -177,18 +177,29 @@ The field beside the sort strip narrows the loaded catalogue in place, and the
 shelf steps aside while a category or a filter is active. The strip sorts the
 union of Flathub's popular, trending, recently added and recently updated
 collections by the matching ranking field, so the tabs describe the catalogue
-rather than reshuffling one popular page. A header search for Flathub keeps
-its relevance order and uses the same compact tiles.
+rather than reshuffling one popular page.
 
-The rail exposes one semantic route order:
+The **Ryoku apps** shelf leads the rail (`ryostore open ryoku-apps`): Ryotunes,
+Ryoport and Ryomanager from `ryoku apps list --json`, installed, updated and
+removed in place through `pkexec ryoku-host apps ryoku <verb> <id>`.
+In Apps, the rail search and the Apps field are one search: past two letters it
+goes through `gpk search --json` across Flathub, the system packages and the
+AUR (`ryostore open apps`), and `ryostore open sources` opens the store sources
+(see [Store sources](#store-sources)).
+
+The rail exposes one semantic route order, in two groups:
 
 ```text
 Search
-Discover
-Lockscreens · Rices · Themes · Subshells · Bar styles · Docks · App launchers
-On-screen displays · Notifications · Sidebars · Fastfetch · Plugins
-Omarchy plugins · Bundles · Profiles
-Library
+01 BROWSE
+  Ryoku apps (red dot when an app update waits)
+  Discover
+  Lockscreens · Rices · Themes · Subshells · Bar styles · Docks · App launchers
+  On-screen displays · Notifications · Sidebars · Fastfetch · Plugins
+  Omarchy plugins · Bundles · Profiles
+02 YOUR STORE
+  Library
+  Sources (red dot when a source is unreachable)
 ```
 
 **Library** is a first-class cross-category collection. Every item writes its
@@ -285,6 +296,8 @@ ryoku/apps/ryostore/
     provider_profiles.go
     machine.go
     resource_tier.go
+    sources.go
+    sources_cli.go
   quickshell/
     shell.qml
     App.qml
@@ -327,7 +340,8 @@ Category
   id, name, group, description, count, installedCount
 
 Item
-  id, category, name, summary, description
+  id, category, source, sourceName, official, installedFrom
+  name, summary, description
   art, screenshots, initials, accent, author, version, compatibility
   kind, license, stars, verificationStatus, listedAt
   installed, active, enabled, installedCount, totalCount
@@ -335,6 +349,11 @@ Item
   requiredWindowManager, requiredPackageManagers, unavailable,
   unavailableEdition, unavailableReason, notRecommended, metadata
 ```
+
+`source` names where the item comes from: `ryostore` or `ryostore-revamped`
+for the official stores, `ryoku` for what ships with Ryoku, `flathub`, `omarchy`,
+or the id of a store the user added. `official` is true only for the built-in
+sources. See [Store sources](#store-sources).
 
 A source may pause a product's downloads without delisting it: the registry
 entry carries `downloadPaused` and a human `downloadPauseReason`, which flow
@@ -373,10 +392,10 @@ The public command surface is deliberately small:
 
 ```text
 ryostore catalog [--refresh]
-ryostore install <category> <id>
-ryostore remove <category> <id>
-ryostore search <category> <query>
-ryostore open <discover|library|category>
+ryostore install <category> <id> [--source <id>]
+ryostore remove <category> <id> [--source <id>]
+ryostore sources list --json | add <url> [--name N] | remove <id> | enable <id> | disable <id>
+ryostore open <discover|library|category|ryoku-apps|apps|sources>
 ryostore settings <category> [id]
 ```
 
@@ -404,6 +423,73 @@ Resource tiers). Marketplace categories with explicit ranking controls
 keep those controls; Apps also offers **A to Z** alongside Flathub's Trending,
 Popular, New, and Updated rankings.
 
+## Store sources
+
+Ryostore reads two official stores, always on and not removable:
+`ryostore` (ryoku-dev/ryostore) and `ryostore-revamped`
+(ryoku-dev/ryostore-revamped). Users can add more in Ryostore's Sources view or
+with `ryostore sources add <url>`. The list lives in
+`$XDG_CONFIG_HOME/ryoku/ryostore-sources.json`:
+
+```json
+{"schema": 1, "sources": [{"id": "example-store", "name": "Example store",
+  "url": "https://example.org/store", "enabled": true, "added": "2026-11-16T12:00:00Z"}]}
+```
+
+A store is a static tree with a `ryostore.json` index (`schema`, `name`,
+`description`, `homepage`, `categories`) and one canonical `<category>/registry.json`
+per category, in the same format as the official stores. Authors follow
+[ryostore-revamped/docs/host-a-store.md](https://github.com/ryoku-dev/ryostore-revamped/blob/main/docs/host-a-store.md).
+
+- **Addresses.** `https://`, `http://` only on 127.0.0.1, localhost and `[::1]`,
+  and `file:///absolute`. No credentials, query or fragment. `add` reads and
+  validates the index and every registry it lists before it saves anything.
+- **Categories.** A user store may serve only subshells, bar styles, docks,
+  launchers, OSDs, notifications, sidebars and plugins. Each of these installs
+  through the hashed manifest transaction and runs from Ryostore's own receipt-built
+  index. Profiles, bundles, installers, rices, colour schemes, Nautilus packs,
+  live wallpapers, lock screens, fastfetch, Ryotunes skins, Vesktop themes and the
+  picture categories come only from the official stores. A store that lists any
+  of them is refused as a whole, and the backend checks the same rule again on
+  every path it builds.
+- **Official is a property of the source.** An item from a user store has
+  `official: false` and a plugin is marked community, whatever its registry says.
+  Ryostore shows the store's name as a badge on its cards and the warning
+  *From <store>, a store you added. Ryoku does not review it: it runs inside your
+  shell with your permissions, so only install it if you trust the store.* on
+  its detail.
+- **Namespaces.** A user store's receipts are
+  `$XDG_STATE_HOME/ryoku/store/sources/<id>/<category>/<item>.json`, its files
+  `$XDG_DATA_HOME/ryoku/sources/<id>/<category>/<item>/`, and its transaction
+  journals `store/transactions/sources/<id>/`. Every receipt, journal and Store
+  revision records `source`, and a receipt is read only as the source whose
+  folder holds it. `store/sources/<id>/source.json` keeps the store's name and
+  address for as long as anything installed from it remains.
+- **One copy per id.** The shell, its indexes and the user's selections know a
+  product by `<category>/<id>`. Both stores' items are listed, each with its own
+  installed and update state, but installing one while another store's copy is
+  installed is refused (`plugins/clock is already installed from Acme; remove it
+  first`), and the other item carries `installedFrom`. No store can replace,
+  adopt or shadow another store's install. The plugin index, the shell QML
+  indexes, `shells.json` and the shell's `plugins/discover.sh` include user
+  store installs, and each one is checked against a receipt from its own store.
+- **Turning off and removing.** `disable` and `remove` keep installed items
+  working. They stay listed with `metadata.sourceUnavailable` and can be
+  removed, but they get no updates. `sources list` reports a removed store that
+  still owns installs with `status: "removed"`. `ryostore remove <category> <id>`
+  without `--source` removes whichever store's copy is installed. When the last
+  install of a removed store goes, its folders go with it.
+- **Snapshot.** The launch snapshot is keyed by the set of enabled user stores
+  (`catalog.json` with none, `catalog-<hash>.json` otherwise), and every change
+  to the source list drops the old snapshots.
+
+`ryostore sources list --json` prints
+`{schema: 1, sources: [{id, name, url, official, enabled, status, error?,
+description?, homepage?, added?, items?, categories?, installed, note?}]}`. The
+status is `ok` or `error` for a store that was read, `disabled` for one the
+user turned off, and `removed` for a removed store that still owns installs.
+`add` prints one such object, `enable` and `disable` print the updated one, and
+`remove` prints `{id, removed, installed, note?}`.
 
 ## Provider behavior
 
@@ -458,13 +544,10 @@ Popular, New, and Updated rankings.
   installation that holds one, with `flatpak remote-ls --updates`, best effort
   and bounded) shows UPDATE, which runs `flatpak update` in the installation
   that holds it. The ranking is cached on disk and served flagged offline when
-  Flathub is unreachable. A search started from the Apps category also asks
-  Flathub's own search (`ryostore search flatpak <query>`, live, up to 30
-  results, queries of two characters or more, debounced in the UI), so an
-  application outside the ranking is still found; the catalogue's own copy
-  retains update state and matches a loose live result by ID.
-  Flathub matches loosely (typos, keywords, descriptions), so a result need not
-  contain the query text. Only Flathub CDN icons load lazily, like the Omarchy marketplace's
+  Flathub is unreachable. Searching from Apps does not go through this
+  provider: the rail search and the Apps field are one `gpk search --json`
+  across Flathub, the system packages and the AUR. Only Flathub CDN icons load
+  lazily, like the Omarchy marketplace's
   media. A host without the `flatpak` command lists the apps greyed out with the
   reason.
 - **Bundles:** fetch the `ryostore` bundle registry and join it with

@@ -47,7 +47,7 @@ func (v productViews) path(id string, receipt Receipt) string {
 // ensure leaves a verified view untouched and rebuilds a missing or damaged one
 // from the installed product, swapping it in only once the copy verifies.
 func (v productViews) ensure(id, view string, receipt Receipt) error {
-	destination, _, err := productDestination(v.category, id)
+	destination, _, err := sourceProductDestination(receipt.Source, v.category, id)
 	if err != nil {
 		return err
 	}

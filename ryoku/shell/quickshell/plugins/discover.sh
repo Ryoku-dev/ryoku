@@ -6,6 +6,7 @@
 # sources, first wins on duplicate id:
 #   $RYOSTORE_PLUGINS_DIR (dev override, colon-separated; legacy RYOKU_PLUGINS_DIR still read)
 #   ~/.local/share/ryoku/plugins (receipt-owned Store products only)
+#   ~/.local/share/ryoku/sources/<store>/plugins (receipt-owned, from stores the user added)
 # placement + per-plugin settings live in ~/.config/ryoku/plugins.json:
 #   { "<id>": { "enabled": bool, "host": "...", "<host>": {...}, "key": "...",
 #               "settings": {...} } }
@@ -48,19 +49,26 @@ if [ -n "$plugins_dir" ]; then
 	IFS=':' read -r -a extra <<<"$plugins_dir"
 	dirs+=("${extra[@]}")
 fi
+pins=()
+for d in "${dirs[@]}"; do pins+=(0); done
 dirs+=("$installed_root")
+pins+=(1)
+# ryostore installs one copy of an id at a time, from whichever store, so a
+# user store's copy never meets an official one here
+for d in "$data_home"/ryoku/sources/*/plugins; do
+	dirs+=("$d")
+	src="${d%/plugins}"
+	pins+=("s:${src##*/}")
+done
 
-for d in "${dirs[@]}"; do
+for k in "${!dirs[@]}"; do
+	d="${dirs[$k]}"
 	[ -d "$d" ] || continue
 	for m in "$d"/*/manifest.json; do
 		[ -f "$m" ] || continue
 		manifest_files+=("$m")
 		manifest_dirs+=("${m%/manifest.json}")
-		if [ "$d" = "$installed_root" ]; then
-			manifest_pinned+=(1)
-		else
-			manifest_pinned+=(0)
-		fi
+		manifest_pinned+=("${pins[$k]}")
 	done
 done
 
@@ -73,10 +81,21 @@ for f in "$state_root"/plugin-views/*/*/manifest.json; do
 	[ -f "$f" ] || continue
 	view_files+=("$f")
 done
+# receipts go in keyed <id> for the official stores, <store>/<id> otherwise
 receipt_files=()
+receipt_keys=()
 for f in "$state_root"/plugins/*.json; do
 	[ -f "$f" ] || continue
 	receipt_files+=("$f")
+	key="${f##*/}"
+	receipt_keys+=("${key%.json}")
+done
+for f in "$state_root"/sources/*/plugins/*.json; do
+	[ -f "$f" ] || continue
+	receipt_files+=("$f")
+	key="${f#"$state_root"/sources/}"
+	key="${key%.json}"
+	receipt_keys+=("${key%%/*}/${key##*/}")
 done
 
 rawfiles=()
@@ -112,7 +131,7 @@ sep=$'\x1e'
 printf -v manifest_dirs_raw '%s'"$sep" "${manifest_dirs[@]}"
 printf -v manifest_pinned_raw '%s'"$sep" "${manifest_pinned[@]}"
 printf -v view_paths_raw '%s'"$sep" "${view_files[@]}"
-printf -v receipt_paths_raw '%s'"$sep" "${receipt_files[@]}"
+printf -v receipt_keys_raw '%s'"$sep" "${receipt_keys[@]}"
 
 jq -c -n "${rawfiles[@]}" \
 	--argjson all "$all" \
@@ -123,7 +142,7 @@ jq -c -n "${rawfiles[@]}" \
 	--arg manifest_dirs "$manifest_dirs_raw" \
 	--arg manifest_pinned "$manifest_pinned_raw" \
 	--arg view_paths "$view_paths_raw" \
-	--arg receipt_paths "$receipt_paths_raw" \
+	--arg receipt_keys "$receipt_keys_raw" \
 	'
 	def text($k): $ARGS.named[$k] // "";
 	def parsed($k): (text($k) | try fromjson catch null);
@@ -139,11 +158,15 @@ jq -c -n "${rawfiles[@]}" \
 	# an installed product is real only when its receipt, its index row and the
 	# pinned content view all agree, and its version comes from the receipt and
 	# not from the manifest. any missing link = not installed, not an error.
-	def store_entry($id; $user; $receipts; $index; $views; $state_root):
-		at($receipts; $id) as $receipt
+	# $src is the store the copy came from, "" for the official ones: its
+	# receipt has to name that store and the folder of that store.
+	def store_entry($id; $src; $user; $receipts; $index; $views; $state_root):
+		at($receipts; (if $src == "" then $id else $src + "/" + $id end)) as $receipt
 		| if ($receipt | type) != "object"
 				or $receipt.category != "plugins"
-				or $receipt.destination != ("ryoku/plugins/" + $id) then null
+				or str($receipt.source) != $src
+				or $receipt.destination != (if $src == "" then "ryoku/plugins/" + $id
+					else "ryoku/sources/" + $src + "/plugins/" + $id end) then null
 			else (str($receipt.version)) as $version
 			| if ($version | length) == 0 then null
 				else ($index | map(select(.id == $id and .version == $version)) | .[0]) as $row
@@ -168,30 +191,31 @@ jq -c -n "${rawfiles[@]}" \
 	| parts("manifest_dirs") as $pdirs
 	| parts("manifest_pinned") as $pinned
 	| parts("view_paths") as $vpaths
-	| parts("receipt_paths") as $rpaths
+	| parts("receipt_keys") as $rkeys
 	| (reduce range(0; $vpaths | length) as $i ({};
 			.[$vpaths[$i]] = parsed("v\($i)"))) as $views
-	| (reduce range(0; $rpaths | length) as $i ({};
-			.[($rpaths[$i] | split("/") | last | sub("\\.json$"; ""))] = parsed("r\($i)"))) as $receipts
+	| (reduce range(0; $rkeys | length) as $i ({};
+			.[$rkeys[$i]] = parsed("r\($i)"))) as $receipts
 	# walk the candidates in precedence order and keep the first entry per id,
 	# enabled or not: a disabled dev-override copy still shadows the installed
-	# one behind it, exactly as the shell would have resolved it.
+	# one behind it, exactly as the shell would have resolved it. an installed
+	# copy whose receipt chain does not hold claims nothing, so it never hides
+	# the copy another store really installed.
 	| reduce range(0; $pdirs | length) as $i (
 		{ seen: {}, out: [] };
 		(obj(parsed("m\($i)"))) as $man
 		| (str($man.id)) as $id
+		| ($pinned[$i] // "0") as $pin
 		| if ($id | test("^[a-z0-9][a-z0-9-]*$") | not) or (.seen[$id] == true) then .
-			else
+			elif ($all == 1 or on($user; $id)) | not then .seen[$id] = true
+			elif $pin == "0" then
 				.seen[$id] = true
-				| if ($all == 1 or on($user; $id)) | not then .
-					else
-						(if ($pinned[$i] // "0") == "1"
-							then store_entry($id; $user; $receipts; $index; $views; $state_root)
-							else { id: $id, dir: $pdirs[$i], version: str($man.version), manifest: $man,
-								placement: (at($user; $id) // {}) }
-							end) as $entry
-						| if $entry == null then . else .out += [$entry] end
-					end
+				| .out += [{ id: $id, dir: $pdirs[$i], version: str($man.version), manifest: $man,
+					placement: (at($user; $id) // {}) }]
+			else
+				store_entry($id; (if $pin == "1" then "" else ($pin | ltrimstr("s:")) end);
+					$user; $receipts; $index; $views; $state_root) as $entry
+				| if $entry == null then . else .seen[$id] = true | .out += [$entry] end
 			end
 	)
 	| .out

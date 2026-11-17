@@ -19,6 +19,8 @@ const products = [
 ];
 
 eq(Store.itemKey(products[0]), "rices:hero", "stable item key");
+eq(Store.itemKey({ id: "clock", category: "plugins", source: "ryostore", official: true }), "plugins:clock", "official items keep the plain key");
+eq(Store.itemKey({ id: "clock", category: "plugins", source: "friend", official: false }), "friend/plugins:clock", "a user store's item is keyed by its source");
 eq(Store.collection(products, { view: "discover", categoryID: "lockscreens" }).map(Store.itemKey), ["lockscreens:lock"], "category collection");
 eq(Store.collection(products, { view: "library" }).map(Store.itemKey), ["lockscreens:lock", "bundles:partial"], "library collection");
 eq(Store.collection(products, { view: "discover", query: "hero" }).map(Store.itemKey), ["rices:hero"], "search collection");
@@ -292,20 +294,6 @@ eq(Store.isShipped(shellProducts[0]), true, "a shipped subshell is marked core")
 eq(Store.isShipped(shellProducts[1]), false, "a store subshell is not shipped");
 eq(Store.secondaryAction({ id: "orpheus", category: "subshells", installed: true, hasSettings: true, metadata: { core: true } }),
    "OPEN IN SETTINGS", "a shipped subshell offers its settings, never removal");
-
-eq(
-    Store.filter([
-        { id: "local", category: "flatpak", name: "Local", summary: "no match here" },
-        { id: "live", category: "flatpak", name: "Live", summary: "no match here", remoteMatch: true }
-    ], { query: "discord" }).map(i => i.id),
-    ["live"],
-    "a live search result is kept even when its text does not contain the query"
-);
-eq(
-    Store.filter([{ id: "live", category: "flatpak", name: "Live", remoteMatch: true }], { category: "plugins", query: "discord" }).length,
-    0,
-    "a live search result still respects the category filter"
-);
 
 // the backend decides what a modest machine isn't recommended, the app only shows it
 const measured = { id: "obi", category: "barstyles", name: "Obi", art: "obi.png",

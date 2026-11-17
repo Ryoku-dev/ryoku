@@ -18,7 +18,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 )
 
 const (
@@ -27,9 +26,6 @@ const (
 	flathubRepoURL     = "https://dl.flathub.org/repo/"
 	flathubAPI         = "https://flathub.org/api/v2"
 	flathubPageSize    = 300
-	flathubSearchHits  = 30
-	flathubQueryMin    = 2
-	flathubQueryMax    = 100
 	flathubCache       = "flathub-catalogue.json"
 	flatpakTimeout     = 30 * time.Minute
 	flatpakUpdateProbe = 20 * time.Second
@@ -450,10 +446,10 @@ func decodeFlathub(raw []byte) ([]flathubHit, error) {
 }
 
 func (p flatpakProvider) fetchCollection(ctx context.Context, name string) ([]byte, error) {
-	return p.flathub(ctx, http.MethodGet, fmt.Sprintf("/collection/%s?page=1&per_page=%d", url.PathEscape(name), flathubPageSize), nil)
+	return p.flathub(ctx, fmt.Sprintf("/collection/%s?page=1&per_page=%d", url.PathEscape(name), flathubPageSize))
 }
 
-func (p flatpakProvider) flathub(ctx context.Context, method, path string, payload any) ([]byte, error) {
+func (p flatpakProvider) flathub(ctx context.Context, path string) ([]byte, error) {
 	base, err := url.Parse(p.api)
 	if err != nil {
 		return nil, err
@@ -461,20 +457,9 @@ func (p flatpakProvider) flathub(ctx context.Context, method, path string, paylo
 	endpoint := strings.TrimRight(p.api, "/") + path
 	ctx, cancel := context.WithTimeout(ctx, cacheTimeout)
 	defer cancel()
-	var body io.Reader
-	if payload != nil {
-		encoded, err := json.Marshal(payload)
-		if err != nil {
-			return nil, err
-		}
-		body = bytes.NewReader(encoded)
-	}
-	req, err := http.NewRequestWithContext(ctx, method, endpoint, body)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
-	}
-	if payload != nil {
-		req.Header.Set("Content-Type", "application/json")
 	}
 	client := http.Client{CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if len(via) >= 10 || req.URL.Scheme != base.Scheme || req.URL.Host != base.Host {
@@ -676,35 +661,4 @@ func flatpakError(action string, out []byte, err error) error {
 func lastLine(out []byte) string {
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	return strings.TrimSpace(lines[len(lines)-1])
-}
-
-func (p flatpakProvider) Search(ctx context.Context, query string) ([]Item, error) {
-	query = strings.Join(strings.Fields(query), " ")
-	if r := []rune(query); len(r) > flathubQueryMax {
-		query = string(r[:flathubQueryMax])
-	}
-	if utf8.RuneCountInString(query) < flathubQueryMin {
-		return []Item{}, nil
-	}
-	raw, err := p.flathub(ctx, http.MethodPost, "/search", map[string]any{
-		"query": query, "page": 1, "hits_per_page": flathubSearchHits,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("flathub search: %w", err)
-	}
-	var found flathubCollection
-	if err := json.Unmarshal(raw, &found); err != nil {
-		return nil, fmt.Errorf("flathub search: %w", err)
-	}
-	unavailable := ""
-	var installed []installedFlatpak
-	if p.present() && p.installed != nil {
-		installed, _ = p.installed(ctx)
-	}
-	reasons := p.remoteReasons(ctx, installed)
-	_, unavailable = newFlatpakInstallation(reasons)
-	if !p.present() {
-		unavailable = "Flatpak is not installed on this system."
-	}
-	return flatpakItems(found.Hits, ownedFlathub(installed, reasons), unavailable, nil), nil
 }

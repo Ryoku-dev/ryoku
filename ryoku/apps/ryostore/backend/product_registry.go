@@ -55,6 +55,17 @@ func loadProductRegistry(ctx context.Context, cache *Cache, category string, ref
 }
 
 func productEntryItem(base, category string, entry ProductEntry) (Item, error) {
+	return sourceEntryItem("", base, category, entry)
+}
+
+// cacheEntryItem is productEntryItem for the store a cache serves.
+func cacheEntryItem(cache *Cache, category string, entry ProductEntry) (Item, error) {
+	return sourceEntryItem(cache.source, cache.base, category, entry)
+}
+
+// sourceEntryItem reads installed state from source's own receipt, so one
+// store's install never reads as another's.
+func sourceEntryItem(source, base, category string, entry ProductEntry) (Item, error) {
 	item := Item{
 		ID: entry.ID, Category: category, Name: entry.Name,
 		Summary: entry.Summary, Description: entry.Description,
@@ -83,7 +94,7 @@ func productEntryItem(base, category string, entry ProductEntry) (Item, error) {
 	// local problem, not a source outage: leave the product installable
 	// (reinstalling rewrites the receipt) rather than erroring the provider,
 	// which BuildCatalog would fold into a misleading store-wide "offline".
-	if receipt, err := readReceipt(category, entry.ID); err == nil {
+	if receipt, err := readSourceReceipt(source, category, entry.ID); err == nil {
 		item.Installed = true
 		item.InstalledVersion = receipt.Version
 		item.UpdateAvailable = receipt.Version != entry.Version

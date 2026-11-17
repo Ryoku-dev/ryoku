@@ -30,8 +30,11 @@ type Cache struct {
 	// self-heals to the canonical default instead of stranding the store.
 	fallback string
 	dir      string
-	mu       sync.Mutex
-	memo     map[string]memoEntry
+	// source is the user store this cache serves, empty for the official
+	// stores; products installed through it land under that store's namespace.
+	source string
+	mu     sync.Mutex
+	memo   map[string]memoEntry
 }
 
 // memoEntry is a path's answer for this process: the bytes plus the source state

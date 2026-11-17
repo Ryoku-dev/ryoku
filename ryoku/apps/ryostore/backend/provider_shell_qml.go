@@ -12,9 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
-	"strings"
 )
 
 type shellQMLProduct struct {
@@ -163,21 +161,23 @@ func (p shellQMLProvider) Load(ctx context.Context, refresh bool) ([]Item, Sourc
 		if p.product.builtins[entry.ID] {
 			continue
 		}
-		item, err := productEntryItem(p.cache.base, category, entry)
+		item, err := cacheEntryItem(p.cache, category, entry)
 		if err != nil {
 			return nil, state, fmt.Errorf("%s/%s: installed state: %w", category, entry.ID, err)
 		}
-		if row, runnable := rows[entry.ID]; runnable {
-			item.Active = item.Installed && entry.ID == active
+		// an index row is this source's only when this source holds the receipt
+		if row, runnable := rows[entry.ID]; runnable && item.Installed {
+			item.Active = entry.ID == active
 			item.Metadata = p.product.metadata(row)
 		}
 		items = append(items, item)
 		seen[entry.ID] = true
 	}
 	// A product that is installed but no longer listed, or whose source is out
-	// of reach, stays usable and removable.
+	// of reach, stays usable and removable. Rows another store installed are
+	// that store's to list.
 	for _, row := range local {
-		if seen[row.ID] {
+		if seen[row.ID] || !receiptExists(p.cache.source, category, row.ID) {
 			continue
 		}
 		items = append(items, Item{
@@ -242,29 +242,22 @@ func (s shellQMLProduct) writeIndexLocked() error {
 
 func (s shellQMLProduct) rebuildIndexLocked() ([]shellQMLIndexRow, error) {
 	category := s.category.ID
-	entries, err := os.ReadDir(filepath.Join(storeStateDir(), category))
-	if os.IsNotExist(err) {
-		entries = nil
-	} else if err != nil {
+	// Official and user store receipts alike; one install per id. A broken
+	// receipt (unreadable, no entry, or drifted from disk) is quarantined: it
+	// reads as installable again and a reinstall heals it, while the rest of the
+	// index stays usable.
+	receipts, _, err := installedReceipts(category)
+	if err != nil {
 		return nil, err
 	}
-	rows := make([]shellQMLIndexRow, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+	rows := make([]shellQMLIndexRow, 0, len(receipts))
+	seen := map[string]bool{}
+	for _, receipt := range receipts {
+		id := receipt.ID
+		if seen[id] || s.builtins[id] || !receiptOwnsFile(receipt, s.entry) {
 			continue
 		}
-		id := strings.TrimSuffix(entry.Name(), ".json")
-		// A broken receipt (bad name, unreadable, no entry, or drifted from
-		// disk) is quarantined: it reads as installable again and a reinstall
-		// heals it, while the rest of the index stays usable.
-		if !productIDPattern.MatchString(id) || s.builtins[id] {
-			continue
-		}
-		receipt, err := readReceipt(category, id)
-		if err != nil || !receiptOwnsFile(receipt, s.entry) {
-			continue
-		}
-		destination, _, err := productDestination(category, id)
+		destination, _, err := sourceProductDestination(receipt.Source, category, id)
 		if err != nil {
 			continue
 		}
@@ -278,6 +271,7 @@ func (s shellQMLProduct) rebuildIndexLocked() ([]shellQMLIndexRow, error) {
 		if err := s.views.ensure(id, row.View, receipt); err != nil {
 			continue
 		}
+		seen[id] = true
 		rows = append(rows, row)
 	}
 	live := make(map[string]string, len(rows))

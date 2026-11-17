@@ -91,7 +91,12 @@ FocusScope {
     readonly property bool isOmarchyPlugin: String(actionItem.category || "") === "omarchy-plugins"
     readonly property bool isFlathubApp: String(actionItem.category || "") === "flatpak"
     readonly property bool isProfile: String(actionItem.category || "") === "profiles"
-    readonly property bool isUnsandboxedPlugin: isCommunityPlugin || isOmarchyPlugin
+    // a store the user added: its own badge and warning replace the community ones
+    readonly property bool isUserSource: actionItem.official === false && String(actionItem.source || "") !== ""
+    readonly property string sourceName: String(actionItem.sourceName || actionItem.source || "")
+    readonly property bool sourceGone: !!(actionItem.metadata && actionItem.metadata.sourceUnavailable === true)
+    readonly property string installedFrom: actionItem.installed === true ? "" : String(actionItem.installedFrom || "")
+    readonly property bool isUnsandboxedPlugin: (isCommunityPlugin || isOmarchyPlugin) && !isUserSource
     readonly property string trustLabel: isFlathubApp
             ? I18n.tr("FLATHUB %1").arg(String(actionItem.verificationStatus || "unverified").toUpperCase())
             : (isOmarchyPlugin
@@ -150,7 +155,7 @@ FocusScope {
     // Bundle component lists need the dossier body. Media stays in the adjacent
     // gallery plate; richer dossiers still pin copy and actions to opposite ends.
     readonly property bool hasBodyContent: isBundle
-    readonly property bool dossierAnchored: isBundle || isProfile || screenshotCount > 0 || isUnsandboxedPlugin || isFlathubApp
+    readonly property bool dossierAnchored: isBundle || isProfile || screenshotCount > 0 || isUnsandboxedPlugin || isFlathubApp || isUserSource
     readonly property real targetHeight: Math.max(1, height - Tokens.s6 * 2)
     readonly property rect effectiveOrigin: originRect.width > 0 && originRect.height > 0
             ? originRect
@@ -642,6 +647,34 @@ FocusScope {
                     }
                 }
 
+                Rectangle {
+                    id: sourceTag
+                    objectName: "ryostore-detail-source-tag"
+                    visible: detail.isUserSource
+                    width: Math.min(parent.width, sourceTagLabel.implicitWidth + Tokens.s3 * 2)
+                    height: sourceTagLabel.implicitHeight + Tokens.s2
+                    radius: Tokens.radius
+                    color: sourceTagHover.hovered ? Tokens.tint5 : "transparent"
+                    border.width: Tokens.border
+                    border.color: sourceTagHover.hovered ? Tokens.lineStrong : Tokens.line
+                    Behavior on color { ColorAnimation { duration: Tokens.snap } }
+                    Behavior on border.color { ColorAnimation { duration: Tokens.snap } }
+
+                    HoverHandler { id: sourceTagHover }
+
+                    Text {
+                        id: sourceTagLabel
+                        anchors.centerIn: parent
+                        width: Math.min(implicitWidth, sourceTag.parent.width - Tokens.s3 * 2)
+                        text: I18n.tr("FROM %1").arg(detail.sourceName.toUpperCase())
+                        color: Tokens.inkDim
+                        font.family: Tokens.mono
+                        font.pixelSize: Tokens.fMicro
+                        font.letterSpacing: Tokens.trackLabel
+                        elide: Text.ElideRight
+                    }
+                }
+
                 // heavy reads in full ink so it's the one that stands out
                 Rectangle {
                     objectName: "ryostore-detail-resource-tier"
@@ -804,7 +837,7 @@ FocusScope {
             Rectangle {
                 objectName: "ryostore-detail-community-warning"
                 width: parent.width
-                visible: detail.isUnsandboxedPlugin || detail.isFlathubApp
+                visible: detail.isUserSource || detail.isUnsandboxedPlugin || detail.isFlathubApp
                 implicitHeight: communityWarningRow.implicitHeight
                         + (dossier.compact ? Tokens.s2 : Tokens.s3) * 2
                 height: implicitHeight
@@ -835,7 +868,14 @@ FocusScope {
                         width: parent.width
                                 - (communityWarningMark.visible
                                    ? communityWarningMark.width + parent.spacing : 0)
-                        text: detail.isFlathubApp
+                        text: detail.isUserSource
+                                ? (dossier.compact
+                                   ? I18n.tr("From %1, a store you added. Ryoku does not review it.").arg(detail.sourceName)
+                                   : I18n.tr("From %1, a store you added. Ryoku does not review it: it runs inside your shell with your permissions, so only install it if you trust the store.").arg(detail.sourceName))
+                                  + (detail.sourceGone
+                                     ? " " + I18n.tr("The store is removed, turned off or out of reach, so this gets no updates.")
+                                     : "")
+                                : detail.isFlathubApp
                                 ? I18n.tr("Flathub application. Ryostore does not review it. Check its source and permissions. New apps install system-wide when available (authorization may be required), otherwise through an existing user remote.")
                                 : (detail.isOmarchyPlugin
                                    ? (dossier.compact
@@ -850,6 +890,19 @@ FocusScope {
                         wrapMode: Text.Wrap
                     }
                 }
+            }
+            // one copy of an id runs at a time, so another store's copy blocks this one
+            Text {
+                objectName: "ryostore-detail-installed-from"
+                width: parent.width
+                visible: detail.installedFrom !== ""
+                text: I18n.tr("%1 from %2 is installed. Remove it first to install this one.")
+                        .arg(String(detail.actionItem.name || detail.actionItem.id || ""))
+                        .arg(detail.installedFrom)
+                color: Tokens.inkDim
+                font.family: Tokens.ui
+                font.pixelSize: Tokens.fSmall
+                wrapMode: Text.Wrap
             }
             Text {
                 objectName: "ryostore-detail-selected"

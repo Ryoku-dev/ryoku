@@ -49,8 +49,10 @@ KeypressStack 1.0 KeypressStack.qml
 BusTopic 1.0 BusTopic.qml
 BusIpcHandler 1.0 BusIpcHandler.qml
 ShellSetting 1.0 ShellSetting.qml
+PackageJob 1.0 PackageJob.qml
 SpectrumMath 1.0 lib/spectrum.js
 PlaceMath 1.0 lib/place.js
 KeypressMath 1.0 lib/keypress.js
 BtName 1.0 lib/bluetooth.js
 AuraMath 1.0 lib/aura.js
+JobEvents 1.0 lib/jobevents.js

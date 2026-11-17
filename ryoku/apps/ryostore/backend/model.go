@@ -45,8 +45,19 @@ type Category struct {
 // Metadata carries category-specific facts and stays nil for a provider that has
 // none.
 type Item struct {
-	ID                  string `json:"id"`
-	Category            string `json:"category"`
+	ID       string `json:"id"`
+	Category string `json:"category"`
+	// Source names the store the item comes from (an id from `ryostore sources
+	// list`), SourceName its display name, and Official whether that store ships
+	// with Ryoku. Official belongs to the source: an item from a store the user
+	// added is never official, whatever its registry entry says.
+	Source     string `json:"source"`
+	SourceName string `json:"sourceName"`
+	Official   bool   `json:"official"`
+	// InstalledFrom names the source whose copy of this category/id is
+	// installed when that is not this item's source: one copy runs at a time,
+	// so installing this one is refused until the other is removed.
+	InstalledFrom       string `json:"installedFrom,omitempty"`
 	Name                string `json:"name"`
 	Summary             string `json:"summary,omitempty"`
 	Description         string `json:"description,omitempty"`

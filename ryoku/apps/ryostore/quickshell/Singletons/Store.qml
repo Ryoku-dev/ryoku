@@ -33,14 +33,6 @@ Singleton {
     property bool _forced: false
     property string _checkOutput: ""
     property bool _reloadAfterCheck: false
-    property var remoteItems: []
-    property string remoteResultQuery: ""
-    property bool remoteSearching: false
-    property string remoteError: ""
-    property string _remoteWanted: ""
-    property string _remoteRunning: ""
-    property string _remoteOutput: ""
-    property string _remoteErrorText: ""
     property string _checkRevision: ""
     property bool _autoRefreshAttempted: false
     property string _op: "install"            // which flow installProc is running
@@ -128,7 +120,12 @@ Singleton {
     }
 
     function itemKey(item) {
-        return item ? String(item.category || "") + ":" + String(item.id || "") : "";
+        return StoreLogic.itemKey(item);
+    }
+
+    // an item from a user's store names its source, so the backend installs that copy
+    function sourceArgs(item) {
+        return item && item.official === false && item.source ? ["--source", String(item.source)] : [];
     }
 
     function category(id) {
@@ -136,36 +133,6 @@ Singleton {
             if (categories[i].id === id)
                 return categories[i];
         return null;
-    }
-
-    function searchRemote(category, query) {
-        const wanted = String(category) + "\n" + String(query);
-        if (wanted === _remoteWanted)
-            return;
-        _remoteWanted = wanted;
-        remoteResultQuery = "";
-        remoteItems = [];
-        remoteError = "";
-        remoteSearching = true;
-        if (!remoteProc.running)
-            _startRemote();
-    }
-
-    function clearRemote() {
-        _remoteWanted = "";
-        remoteResultQuery = "";
-        remoteItems = [];
-        remoteError = "";
-        remoteSearching = false;
-    }
-
-    function _startRemote() {
-        const parts = _remoteWanted.split("\n");
-        _remoteRunning = _remoteWanted;
-        _remoteOutput = "";
-        _remoteErrorText = "";
-        remoteProc.command = ["ryostore", "search", parts[0], parts.slice(1).join("\n")];
-        remoteProc.running = true;
     }
 
     function refresh(force) {
@@ -205,8 +172,6 @@ Singleton {
         catalogProc.running = false;
         installProc.running = false;
         checkProc.running = false;
-        clearRemote();
-        remoteProc.running = false;
     }
 
     function install(item, dither, components) {
@@ -237,7 +202,7 @@ Singleton {
         installErrorKey = "";
         root._failedOp = "";
         _installError = "";
-        var cmd = ["ryostore", "install", String(item.category), String(item.id)];
+        var cmd = ["ryostore", "install", String(item.category), String(item.id)].concat(sourceArgs(item));
         // what you see is what you install: the catalogue leads with the colour
         // original, so an install with no explicit choice takes that one
         var wantDither = (dither === undefined) ? false : dither;
@@ -282,7 +247,7 @@ Singleton {
         installErrorKey = "";
         root._failedOp = "";
         _installError = "";
-        installProc.command = ["ryostore", "remove", String(item.category), String(item.id)];
+        installProc.command = ["ryostore", "remove", String(item.category), String(item.id)].concat(sourceArgs(item));
         installProc.running = true;
     }
 
@@ -352,6 +317,16 @@ Singleton {
     Component.onCompleted: {
         refresh(false);
         check();
+    }
+
+    // a Flatpak installed or removed from the Apps search changes the
+    // catalogue's installed state for the same app
+    Connections {
+        target: Jobs.app
+        function onFinished(key, action, ok) {
+            if (ok && String(key).startsWith("flatpak:"))
+                root.refresh(true);
+        }
     }
 
     Process {
@@ -430,40 +405,6 @@ Singleton {
             root.installStage = "VERIFYING";
             root._clearBusyAfterRefresh = true;
             root.refresh(true);
-        }
-    }
-
-    Process {
-        id: remoteProc
-        stdout: StdioCollector { onStreamFinished: root._remoteOutput = text }
-        stderr: StdioCollector { onStreamFinished: root._remoteErrorText = text }
-        onExited: code => {
-            const answered = root._remoteRunning;
-            root._remoteRunning = "";
-            if (root._remoteWanted === "") {
-                root.remoteSearching = false;
-                return;
-            }
-            if (root._remoteWanted !== answered) {
-                root._startRemote();
-                return;
-            }
-            root.remoteSearching = false;
-            if (code !== 0) {
-                root.remoteItems = [];
-                root.remoteError = root._remoteErrorText.trim() || I18n.tr("Search failed");
-                return;
-            }
-            try {
-                const res = JSON.parse(root._remoteOutput);
-                if (!Array.isArray(res.items))
-                    throw new Error("search items are missing");
-                root.remoteResultQuery = answered.split("\n").slice(1).join("\n");
-                root.remoteItems = res.items.slice();
-            } catch (e) {
-                root.remoteItems = [];
-                root.remoteError = I18n.tr("Search failed");
-            }
         }
     }
 

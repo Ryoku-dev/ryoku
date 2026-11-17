@@ -97,10 +97,6 @@ function matchesQuery(item, query) {
     var terms = String(query || "").trim().toLowerCase().split(/\s+/).filter(Boolean);
     if (terms.length === 0)
         return true;
-    // A live search result was matched by its source (typos, keywords and
-    // translations included), so the literal text test would wrongly drop it.
-    if (item && item.remoteMatch === true)
-        return true;
     var haystack = searchText(item);
     return terms.every(function(term) { return haystack.indexOf(term) !== -1; });
 }
@@ -229,8 +225,13 @@ function installed(items) {
     return (Array.isArray(items) ? items : []).filter(isInstalled);
 }
 
+// An official item keeps its plain key; one from a user's store is keyed by its
+// source too, so two stores can list the same category/id side by side.
 function itemKey(item) {
-    return item ? String(item.category || "") + ":" + String(item.id || "") : "";
+    if (!item)
+        return "";
+    var key = String(item.category || "") + ":" + String(item.id || "");
+    return item.official === false && item.source ? String(item.source) + "/" + key : key;
 }
 
 function sortOmarchyPlugins(items, mode) {

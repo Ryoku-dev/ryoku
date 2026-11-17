@@ -26,6 +26,7 @@ var (
 
 type productTransactionJournal struct {
 	Schema           int      `json:"schema"`
+	Source           string   `json:"source,omitempty"`
 	Category         string   `json:"category"`
 	ID               string   `json:"id"`
 	Version          string   `json:"version"`
@@ -67,8 +68,14 @@ func installProductFrom(ctx context.Context, cache *Cache, category string, entr
 // and reads the file bytes from a local directory instead. Every other check is
 // identical either way: destination allowlist, symlink rejection, per-file hash
 // verification, receipt, journal, setPluginPlacementEnabled, and syncProductDerivedState.
+// The cache's source decides where the product lands: a store the user added
+// installs under its own namespaced folder and receipt.
 func installProductTransaction(ctx context.Context, cache *Cache, category string, entry ProductEntry, local *localProductSource, allowPaused bool) error {
-	dst, expectedDestination, err := productDestination(category, entry.ID)
+	source := ""
+	if local == nil && cache != nil {
+		source = cache.source
+	}
+	dst, expectedDestination, err := sourceProductDestination(source, category, entry.ID)
 	if err != nil {
 		return err
 	}
@@ -97,7 +104,7 @@ func installProductTransaction(ctx context.Context, cache *Cache, category strin
 			return err
 		}
 	}
-	if manifest.Destination != expectedDestination {
+	if manifest.Destination != canonicalProductDestination(category, entry.ID) {
 		return fmt.Errorf("%s/%s: destination %q is outside the category allowlist", category, entry.ID, manifest.Destination)
 	}
 	vesktopThemeFile, vesktopThemeSHA256 := "", ""
@@ -117,6 +124,12 @@ func installProductTransaction(ctx context.Context, cache *Cache, category strin
 	if err := recoverStoreTransactions(); err != nil {
 		return err
 	}
+	// One copy of a category/id runs at a time: the shell, its indexes and the
+	// user's selections know a product by id alone. Another store's install is
+	// never replaced or adopted; the user removes it first.
+	if owner, taken := otherProductOwner(source, category, entry.ID); taken {
+		return fmt.Errorf("%s/%s is already installed from %s; remove it first", category, entry.ID, sourceDisplayName(owner))
+	}
 	if err := rejectSymlinkPath(productDestinationRoot(category), filepath.FromSlash(expectedDestination)); err != nil {
 		return err
 	}
@@ -129,7 +142,7 @@ func installProductTransaction(ctx context.Context, cache *Cache, category strin
 		return err
 	}
 
-	prior, receiptErr := readReceipt(category, entry.ID)
+	prior, receiptErr := readSourceReceipt(source, category, entry.ID)
 	hadReceipt := receiptErr == nil
 	if receiptErr != nil && !os.IsNotExist(receiptErr) {
 		return receiptErr
@@ -205,6 +218,7 @@ func installProductTransaction(ctx context.Context, cache *Cache, category strin
 	}
 
 	receipt := Receipt{
+		Source:      source,
 		Category:    category,
 		ID:          entry.ID,
 		Version:     entry.Version,
@@ -229,6 +243,7 @@ func installProductTransaction(ctx context.Context, cache *Cache, category strin
 	}
 	journal := productTransactionJournal{
 		Schema:             1,
+		Source:             source,
 		Category:           category,
 		ID:                 entry.ID,
 		Version:            entry.Version,
@@ -281,6 +296,9 @@ func installProductTransaction(ctx context.Context, cache *Cache, category strin
 		return rollback(err)
 	}
 	if err := productTransactionCheckpoint(journal.Phase); err != nil {
+		return rollback(err)
+	}
+	if err := recordUserSource(source); err != nil {
 		return rollback(err)
 	}
 	if err := writeReceipt(receipt); err != nil {
@@ -406,8 +424,15 @@ func stageProductFiles(ctx context.Context, stage string, cache *Cache, category
 	return receiptFiles, nil
 }
 
-func removeProduct(_ context.Context, category, id string) error {
-	dst, expectedDestination, err := productDestination(category, id)
+func removeProduct(ctx context.Context, category, id string) error {
+	return removeSourceProduct(ctx, "", category, id)
+}
+
+// removeSourceProduct removes one source's install of category/id. It needs
+// only the receipt, so a store the user removed or turned off still lets its
+// installs go.
+func removeSourceProduct(_ context.Context, source, category, id string) error {
+	dst, expectedDestination, err := sourceProductDestination(source, category, id)
 	if err != nil {
 		return err
 	}
@@ -431,7 +456,7 @@ func removeProduct(_ context.Context, category, id string) error {
 	}
 	defer unlock()
 
-	receipt, err := readReceipt(category, id)
+	receipt, err := readSourceReceipt(source, category, id)
 	if err != nil {
 		return err
 	}
@@ -474,6 +499,7 @@ func removeProduct(_ context.Context, category, id string) error {
 	}
 	journal := productTransactionJournal{
 		Schema:         1,
+		Source:         source,
 		Category:       category,
 		ID:             id,
 		Version:        receipt.Version,
@@ -518,7 +544,7 @@ func removeProduct(_ context.Context, category, id string) error {
 	if err := productTransactionCheckpoint(journal.Phase); err != nil {
 		return rollback(err)
 	}
-	if err := os.Remove(receiptPath(category, id)); err != nil {
+	if err := os.Remove(sourceReceiptPath(source, category, id)); err != nil {
 		return rollback(err)
 	}
 	journal.Phase = "remove-receipt"
@@ -554,44 +580,21 @@ func removeProduct(_ context.Context, category, id string) error {
 func recoverStoreTransactions() error {
 	root := storeTransactionsDir()
 	for _, category := range []string{"rices", "lockscreens", "subshells", "barstyles", "launchers", "docks", "osds", "notifications", "sidebars", "fastfetch", "plugins", "bundles", "profiles", vesktopThemesCategory} {
-		directory := filepath.Join(root, category)
-		entries, err := os.ReadDir(directory)
-		if os.IsNotExist(err) {
-			continue
-		}
-		if err != nil {
+		if err := recoverJournalDirectory("", category, filepath.Join(root, category)); err != nil {
 			return err
 		}
-		for _, entry := range entries {
-			journalPath := filepath.Join(directory, entry.Name())
-			info, err := os.Lstat(journalPath)
-			if err != nil {
-				return err
-			}
-			if strings.HasPrefix(entry.Name(), ".tmp-") && info.Mode().IsRegular() {
-				if err := os.Remove(journalPath); err != nil {
-					return err
-				}
-				continue
-			}
-			if !info.Mode().IsRegular() || filepath.Ext(entry.Name()) != ".json" {
-				return fmt.Errorf("invalid Store transaction journal %s", journalPath)
-			}
-			raw, err := os.ReadFile(journalPath)
-			if err != nil {
-				return err
-			}
-			var journal productTransactionJournal
-			if err := decodeOneJSON(raw, &journal); err != nil {
-				return fmt.Errorf("Store transaction journal: %w", err)
-			}
-			if err := validateProductJournal(journal); err != nil {
-				return err
-			}
-			if entry.Name() != journal.ID+".json" || journal.Category != category {
-				return fmt.Errorf("Store transaction journal path does not match %s/%s", journal.Category, journal.ID)
-			}
-			if err := recoverProductJournal(journal); err != nil {
+	}
+	// Journals of stores the user added sit under transactions/sources/<id>/.
+	sources, err := os.ReadDir(filepath.Join(root, "sources"))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	for _, source := range sources {
+		if !source.IsDir() || !validUserSourceID(source.Name()) {
+			return fmt.Errorf("invalid Store transaction source %s", source.Name())
+		}
+		for _, category := range userSourceCategories {
+			if err := recoverJournalDirectory(source.Name(), category, filepath.Join(root, "sources", source.Name(), category)); err != nil {
 				return err
 			}
 		}
@@ -599,8 +602,52 @@ func recoverStoreTransactions() error {
 	return nil
 }
 
+func recoverJournalDirectory(source, category, directory string) error {
+	entries, err := os.ReadDir(directory)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		journalPath := filepath.Join(directory, entry.Name())
+		info, err := os.Lstat(journalPath)
+		if err != nil {
+			return err
+		}
+		if strings.HasPrefix(entry.Name(), ".tmp-") && info.Mode().IsRegular() {
+			if err := os.Remove(journalPath); err != nil {
+				return err
+			}
+			continue
+		}
+		if !info.Mode().IsRegular() || filepath.Ext(entry.Name()) != ".json" {
+			return fmt.Errorf("invalid Store transaction journal %s", journalPath)
+		}
+		raw, err := os.ReadFile(journalPath)
+		if err != nil {
+			return err
+		}
+		var journal productTransactionJournal
+		if err := decodeOneJSON(raw, &journal); err != nil {
+			return fmt.Errorf("Store transaction journal: %w", err)
+		}
+		if err := validateProductJournal(journal); err != nil {
+			return err
+		}
+		if entry.Name() != journal.ID+".json" || journal.Category != category || journal.Source != source {
+			return fmt.Errorf("Store transaction journal path does not match %s/%s", journal.Category, journal.ID)
+		}
+		if err := recoverProductJournal(journal); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func recoverProductJournal(journal productTransactionJournal) error {
-	dst, expected, err := productDestination(journal.Category, journal.ID)
+	dst, expected, err := sourceProductDestination(journal.Source, journal.Category, journal.ID)
 	if err != nil {
 		return err
 	}
@@ -667,7 +714,7 @@ func rollbackProductJournalWithCause(journal productTransactionJournal, cause er
 }
 
 func rollbackProductJournal(journal productTransactionJournal) error {
-	dst, _, err := productDestination(journal.Category, journal.ID)
+	dst, _, err := sourceProductDestination(journal.Source, journal.Category, journal.ID)
 	if err != nil {
 		return err
 	}
@@ -693,7 +740,7 @@ func rollbackProductJournal(journal productTransactionJournal) error {
 			if err := writeReceipt(*journal.PriorReceipt); err != nil {
 				return err
 			}
-		} else if err := os.Remove(receiptPath(journal.Category, journal.ID)); err != nil && !os.IsNotExist(err) {
+		} else if err := os.Remove(sourceReceiptPath(journal.Source, journal.Category, journal.ID)); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 	case "remove":
@@ -768,7 +815,7 @@ func rollbackProductJournal(journal productTransactionJournal) error {
 	if err := cleanupProductStages(filepath.Dir(dst), journal.ID); err != nil {
 		return err
 	}
-	if err := os.Remove(productJournalPath(journal.Category, journal.ID)); err != nil && !os.IsNotExist(err) {
+	if err := os.Remove(productJournalPath(journal.Source, journal.Category, journal.ID)); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	return nil
@@ -780,7 +827,7 @@ func cleanupCommittedProductJournal(journal productTransactionJournal) error {
 			return err
 		}
 	}
-	dst, _, err := productDestination(journal.Category, journal.ID)
+	dst, _, err := sourceProductDestination(journal.Source, journal.Category, journal.ID)
 	if err != nil {
 		return err
 	}
@@ -794,7 +841,7 @@ func cleanupCommittedProductJournal(journal productTransactionJournal) error {
 	if err := cleanupProductStages(filepath.Dir(dst), journal.ID); err != nil {
 		return err
 	}
-	return os.Remove(productJournalPath(journal.Category, journal.ID))
+	return os.Remove(productJournalPath(journal.Source, journal.Category, journal.ID))
 }
 
 func writeProductJournal(journal productTransactionJournal) error {
@@ -805,14 +852,17 @@ func writeProductJournal(journal productTransactionJournal) error {
 	if err != nil {
 		return err
 	}
-	return atomicWrite(productJournalPath(journal.Category, journal.ID), append(raw, '\n'), 0o600)
+	return atomicWrite(productJournalPath(journal.Source, journal.Category, journal.ID), append(raw, '\n'), 0o600)
 }
 
 func validateProductJournal(journal productTransactionJournal) error {
-	if journal.Schema != 1 || !validProductCategory(journal.Category) || !productIDPattern.MatchString(journal.ID) || journal.Version == "" {
+	if journal.Schema != 1 || validateProductIdentity(journal.Source, journal.Category, journal.ID) != nil || journal.Version == "" {
 		return fmt.Errorf("invalid product transaction journal identity")
 	}
 	if journal.PriorReceipt != nil {
+		if journal.PriorReceipt.Source != journal.Source {
+			return fmt.Errorf("invalid prior receipt: source %q, not %q", journal.PriorReceipt.Source, journal.Source)
+		}
 		if err := validateReceipt(journal.Category, journal.ID, *journal.PriorReceipt); err != nil {
 			return fmt.Errorf("invalid prior receipt: %w", err)
 		}
@@ -901,7 +951,7 @@ func syncProductDerivedState(journal productTransactionJournal, committed bool) 
 }
 
 func journalRevision(journal productTransactionJournal) StoreRevision {
-	return StoreRevision{Category: journal.Category, ID: journal.ID, Version: journal.Version, Operation: journal.Operation}
+	return StoreRevision{Source: journal.Source, Category: journal.Category, ID: journal.ID, Version: journal.Version, Operation: journal.Operation}
 }
 
 func currentStoreRevisionNumber() (uint64, error) {
@@ -916,7 +966,8 @@ func currentStoreRevisionNumber() (uint64, error) {
 }
 
 func storeRevisionChangeMatches(current, change StoreRevision) bool {
-	return current.Category == change.Category &&
+	return current.Source == change.Source &&
+		current.Category == change.Category &&
 		current.ID == change.ID &&
 		current.Version == change.Version &&
 		current.Operation == change.Operation
@@ -930,8 +981,11 @@ func storeTransactionLockPath() string {
 	return filepath.Join(storeStateDir(), "transactions.lock")
 }
 
-func productJournalPath(category, id string) string {
-	return filepath.Join(storeTransactionsDir(), category, id+".json")
+func productJournalPath(source, category, id string) string {
+	if source == "" {
+		return filepath.Join(storeTransactionsDir(), category, id+".json")
+	}
+	return filepath.Join(storeTransactionsDir(), "sources", source, category, id+".json")
 }
 
 func productInstallBackupPath(dst string) string {
@@ -943,17 +997,33 @@ func productRemovalHoldPath(dst string) string {
 }
 
 func productDestination(category, id string) (string, string, error) {
-	if !validProductCategory(category) || !productIDPattern.MatchString(id) {
-		return "", "", fmt.Errorf("invalid product identity %s/%s", category, id)
-	}
-	var relative string
+	return sourceProductDestination("", category, id)
+}
+
+// canonicalProductDestination is the destination a product manifest declares,
+// whichever store serves it.
+func canonicalProductDestination(category, id string) string {
 	switch category {
 	case "rices":
-		relative = path.Join("ryoku", "rices", id)
+		return path.Join("ryoku", "rices", id)
 	case "lockscreens":
-		relative = path.Join("qylock", "themes", id)
+		return path.Join("qylock", "themes", id)
 	default:
-		relative = path.Join("ryoku", category, id)
+		return path.Join("ryoku", category, id)
+	}
+}
+
+// sourceProductDestination is where one source installs category/id: the
+// canonical destination for the official stores, and ryoku/sources/<source>/
+// <category>/<id> for a store the user added, so two stores never write the
+// same folder.
+func sourceProductDestination(source, category, id string) (string, string, error) {
+	if err := validateProductIdentity(source, category, id); err != nil {
+		return "", "", err
+	}
+	relative := canonicalProductDestination(category, id)
+	if source != "" {
+		relative = path.Join("ryoku", "sources", source, category, id)
 	}
 	root := productDestinationRoot(category)
 	return filepath.Join(root, filepath.FromSlash(relative)), relative, nil
@@ -1080,7 +1150,7 @@ func verifyProductStage(ctx context.Context, root string, receipt Receipt) error
 }
 
 func verifyInstalledReceipt(dst string, receipt Receipt) error {
-	stored, err := readReceipt(receipt.Category, receipt.ID)
+	stored, err := readSourceReceipt(receipt.Source, receipt.Category, receipt.ID)
 	if err != nil {
 		return err
 	}

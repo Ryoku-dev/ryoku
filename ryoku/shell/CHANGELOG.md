@@ -1,6 +1,10 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Plugins installed from a store you added load like any other.**
+  `plugins/discover.sh` also reads `ryoku/sources/<store>/plugins` and accepts
+  each copy only with a receipt from its own store, so no store's copy can pose
+  as another's (`quickshell/plugins/discover.sh`, `discover.test.sh`).
 - **One design language for the whole desktop.** The shell settings gain
   `theme.design` (Lithic, Material, Adwaita or Fluent; Lithic by default),
   validated by the daemon. Settings and every Lithic surface redraw their

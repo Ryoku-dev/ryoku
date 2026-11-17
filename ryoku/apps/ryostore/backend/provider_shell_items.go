@@ -37,8 +37,11 @@ func (p shellItemProvider) Category() Category {
 }
 
 func (p shellItemProvider) Load(ctx context.Context, refresh bool) ([]Item, SourceState, error) {
-	// A failed migration is retried on the next load; shells-require reports it.
-	_ = migrateLegacyShellProducts(ctx, p.cache)
+	official := p.cache.source == ""
+	if official {
+		// A failed migration is retried on the next load; shells-require reports it.
+		_ = migrateLegacyShellProducts(ctx, p.cache)
+	}
 	active := readShellSelections().BarStyle
 	items := []Item{}
 	seen := map[string]bool{}
@@ -48,7 +51,10 @@ func (p shellItemProvider) Load(ctx context.Context, refresh bool) ([]Item, Sour
 			return nil, SourceState{}, err
 		}
 		for _, shell := range shipped {
-			items = append(items, shippedShellCatalogItem(shell, active))
+			// a user store never lists a subshell under a shipped one's id
+			if official {
+				items = append(items, shippedShellCatalogItem(shell, active))
+			}
 			seen[shell.ID] = true
 		}
 	}
@@ -64,7 +70,7 @@ func (p shellItemProvider) Load(ctx context.Context, refresh bool) ([]Item, Sour
 		if seen[entry.ID] {
 			continue
 		}
-		item, err := productEntryItem(p.cache.base, p.category, entry)
+		item, err := cacheEntryItem(p.cache, p.category, entry)
 		if err != nil {
 			return nil, state, fmt.Errorf("%s/%s: installed state: %w", p.category, entry.ID, err)
 		}
@@ -85,7 +91,7 @@ func (p shellItemProvider) Load(ctx context.Context, refresh bool) ([]Item, Sour
 		return nil, state, err
 	}
 	for _, shell := range installed {
-		if shell.Category != p.category || seen[shell.ID] {
+		if shell.Category != p.category || seen[shell.ID] || shell.Receipt == nil || shell.Receipt.Source != p.cache.source {
 			continue
 		}
 		provides := shellProvidesSummary(shell.Shell.Provides)

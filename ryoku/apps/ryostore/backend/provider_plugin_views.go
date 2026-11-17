@@ -2,9 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	"os"
 	"path/filepath"
-	"strings"
 )
 
 type pluginIndexRow struct {
@@ -35,31 +33,23 @@ func writePluginIndexLocked() error {
 }
 
 func rebuildPluginIndexLocked() ([]pluginIndexRow, error) {
-	receiptDir := filepath.Join(storeStateDir(), "plugins")
-	entries, err := os.ReadDir(receiptDir)
-	if os.IsNotExist(err) {
-		entries = nil
-	} else if err != nil {
+	// Official and user store receipts alike: the collision rule keeps one
+	// install per id, so the index and its views stay keyed by id. A broken
+	// receipt (unreadable, malformed, or drifted from disk) is quarantined:
+	// skipped so it can't blank the whole plugins tab. It then reads as
+	// installable and a reinstall heals it; only index writes below are fatal.
+	receipts, _, err := installedReceipts("plugins")
+	if err != nil {
 		return nil, err
 	}
-	rows := make([]pluginIndexRow, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+	rows := make([]pluginIndexRow, 0, len(receipts))
+	seen := map[string]bool{}
+	for _, receipt := range receipts {
+		id := receipt.ID
+		if seen[id] {
 			continue
 		}
-		id := strings.TrimSuffix(entry.Name(), ".json")
-		// A broken receipt (unreadable, malformed, or drifted from disk) is
-		// quarantined: skipped so it can't blank the whole plugins tab. It then
-		// reads as installable and a reinstall heals it; only index writes below
-		// are fatal.
-		if !productIDPattern.MatchString(id) {
-			continue
-		}
-		receipt, err := readReceipt("plugins", id)
-		if err != nil {
-			continue
-		}
-		destination, _, err := productDestination("plugins", id)
+		destination, _, err := sourceProductDestination(receipt.Source, "plugins", id)
 		if err != nil {
 			continue
 		}
@@ -74,6 +64,7 @@ func rebuildPluginIndexLocked() ([]pluginIndexRow, error) {
 		if err := pluginViews.ensure(id, row.View, receipt); err != nil {
 			continue
 		}
+		seen[id] = true
 		rows = append(rows, row)
 	}
 	live := make(map[string]string, len(rows))

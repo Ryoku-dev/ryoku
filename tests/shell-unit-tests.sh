@@ -4,7 +4,7 @@
 # coordinate/keymap/annotation libs, hub display arrangement). no Quickshell or
 # display dep, so they run anywhere node is around, and unlike the advisory
 # qmllint job this one is a real gate. nothing to maintain: the runner finds
-# every ryoku/{shell,hub,ui}/**/*.test.mjs, so a new file is picked up on landing.
+# every ryoku/{shell,hub,ui,apps}/**/*.test.mjs, so a new file is picked up on landing.
 set -euo pipefail
 
 ROOT=${RYOKU_PATH:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}
@@ -14,10 +14,10 @@ if ! command -v node >/dev/null 2>&1; then
   exit 1
 fi
 
-mapfile -d '' tests < <(find "$ROOT/ryoku/shell" "$ROOT/ryoku/hub" "$ROOT/ryoku/ui" -name '*.test.mjs' -type f -print0 | sort -z)
+mapfile -d '' tests < <(find "$ROOT/ryoku/shell" "$ROOT/ryoku/hub" "$ROOT/ryoku/ui" "$ROOT/ryoku/apps" -name '*.test.mjs' -type f -print0 | sort -z)
 
 if (( ${#tests[@]} == 0 )); then
-  echo "::error::no unit tests found under ryoku/shell, ryoku/hub, or ryoku/ui" >&2
+  echo "::error::no unit tests found under ryoku/shell, ryoku/hub, ryoku/ui, or ryoku/apps" >&2
   exit 1
 fi
 

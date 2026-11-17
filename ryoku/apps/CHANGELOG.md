@@ -22,6 +22,18 @@
   refusal is reported to the caller.
 
 ### Added
+- `ryostore/`: **Ryoku's own apps lead Ryostore.** A Ryoku apps shelf, first in the rail (`ryostore open ryoku-apps`), shows Ryotunes, Ryoport and Ryomanager with what each is, the installed version, its size and any update (a Hyperion prerelease is named as one), and installs, updates or removes them in place through `pkexec ryoku-host apps ryoku ...`, so the password is asked once while Ryostore stays open (`quickshell/RyokuAppsView.qml`, `RyokuAppCard.qml`, `Singletons/RyokuApps.qml`).
+- `ryostore/`: **The Apps search covers Flathub, the system packages and the AUR.** Past two letters the Apps category searches through `gpk search --json`; each result names its source, Flatpaks install as the user, system packages through `ryoku-host apps install --manager`, and AUR packages open a terminal. A removal reads gpk's plan first and names the installed packages that still need it (`quickshell/AppSearchView.qml`, `Singletons/AppSearch.qml`).
+- `ryostore/`: **Sources in Ryostore.** The official sources and yours, with their state; yours turn on and off or go away, and a new one is added only after a warning that Ryoku does not review it, with a link to the guide on hosting a store (`quickshell/SourcesView.qml`, `AddSourceDialog.qml`, `Singletons/Sources.qml`).
+- `ryostore/`: **App installs show their progress.** Nothing for the first second, then Working, then a progress bar with Cancel past ten seconds or as soon as real counts arrive; Cancel reaches the root helper through its stdin (`ryoku-host apps --stdin-cancel`), and a failure says why (a closed password prompt and a failed authentication have their own words) with Retry (`quickshell/JobLine.qml`, `Singletons/AppJob.qml`, `lib/apps.js`).
+- `ryostore/`: **Ryostore can install from stores you add.** `ryostore sources
+  add <url>` checks a store's index and every registry first, and items from it
+  carry the store's name as a badge with a warning that Ryoku does not review
+  them. A store you add serves only plugins, subshells, bar styles and the
+  shell QML categories, its installs live in their own folders, and only one
+  copy of an id is installed at a time (`backend/sources.go`,
+  `backend/sources_cli.go`, `quickshell/ProductCard.qml`,
+  `quickshell/ProductDetail.qml`).
 - `ryostore/`: **Subshells and bar styles install from the ryostore-revamped
   catalogue and stay packed until used.** Installed ones show Apply, Orpheus and
   Kairos show as shipped and cannot be removed, and bar styles installed by an
@@ -224,6 +236,11 @@
   `PassthroughPage.qml`, `bin/ryovm` lg verb, `bin/ryoport`).
 - `fastfetch/`: **the OS line carries the release name** ("Ryoku Onogoro
   v0.56.0-beta.19") via `ryoku version --pretty` (`config.jsonc`).
+
+### Removed
+- `ryostore/`: **`ryostore search` is gone.** The Apps search goes through
+  gpk now, so the Flathub-only search command and the provider's search had no
+  caller left (`backend/main.go`, `backend/provider_flatpak.go`).
 
 ### Fixed
 - `fish/`, `bash/`, `zsh/`: **Light terminal palettes keep typed commands

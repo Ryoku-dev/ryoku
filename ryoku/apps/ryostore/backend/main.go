@@ -3,8 +3,9 @@
 // activating them. The Quickshell front end shells out to these subcommands.
 //
 //	ryostore catalog [--refresh] [--category <id>]   normalized catalogue, JSON
-//	ryostore install <category> <id> [--from <dir>]  install-only, no activation
-//	ryostore remove <category> <id>                  receipt-owned removal
+//	ryostore install <category> <id> [--source <id>] [--from <dir>]  install-only, no activation
+//	ryostore remove <category> <id> [--source <id>]  receipt-owned removal
+//	ryostore sources list|add|remove|enable|disable  the stores the catalogue reads
 //
 // A full catalog answers from a disk snapshot so every launch after the first is
 // instant; --refresh rebuilds it live. --category always probes live.
@@ -21,7 +22,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 func main() {
@@ -36,7 +36,7 @@ func main() {
 // the caller reports one useful line and exits nonzero.
 func dispatch(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("no command; expected catalog, install, remove, search, check, open, settings, or internal")
+		return fmt.Errorf("no command; expected catalog, install, remove, check, sources, open, settings, or internal")
 	}
 	switch args[0] {
 	case "catalog":
@@ -45,12 +45,12 @@ func dispatch(args []string) error {
 		return runInstall(providers(), args[1:])
 	case "remove":
 		return runRemove(providers(), args[1:])
-	case "search":
-		return runSearch(os.Stdout, providers(), args[1:])
 	case "warm":
 		return runWarm(args[1:])
 	case "check":
 		return runCheck(os.Stdout, providers())
+	case "sources":
+		return runSources(os.Stdout, args[1:])
 	case "open":
 		return runOpen(args[1:])
 	case "settings":
@@ -58,13 +58,22 @@ func dispatch(args []string) error {
 	case "internal":
 		return runInternal(args[1:])
 	default:
-		return fmt.Errorf("unknown command %q; expected catalog, install, remove, search, check, warm, open, settings, or internal", args[0])
+		return fmt.Errorf("unknown command %q; expected catalog, install, remove, check, sources, warm, open, settings, or internal", args[0])
 	}
 }
 
-// snapshotPath is the instant-launch catalogue snapshot.
+// snapshotPath is the instant-launch catalogue snapshot. With stores the user
+// added it is keyed by the set of enabled stores, so adding, removing or
+// turning one off never serves another set's catalogue.
 func snapshotPath() string {
-	return filepath.Join(extrasCacheDir(), "catalog.json")
+	key := ""
+	if config, err := readSourcesConfig(); err == nil {
+		key = enabledSourcesKey(config)
+	}
+	if key == "" {
+		return filepath.Join(extrasCacheDir(), "catalog.json")
+	}
+	return filepath.Join(extrasCacheDir(), "catalog-"+key+".json")
 }
 
 // encodeSnapshot renders a catalogue for the store: previews already in the
@@ -117,7 +126,7 @@ func runCatalog(w io.Writer, provs []Provider, args []string) error {
 			return fmt.Errorf("unknown category %q", category)
 		}
 		// A single-category probe is a subset of the store, never the snapshot.
-		cat := BuildCatalog(ctx, []Provider{p}, refresh)
+		cat := BuildCatalog(ctx, catalogProviders(ctx, []Provider{p}, refresh), refresh)
 		cat.Revision = catalogRevision(cat)
 		return json.NewEncoder(w).Encode(cat)
 	}
@@ -139,7 +148,7 @@ func runCatalog(w io.Writer, provs []Provider, args []string) error {
 			return err
 		}
 	}
-	cat := BuildCatalog(ctx, provs, refresh)
+	cat := BuildCatalog(ctx, catalogProviders(ctx, provs, refresh), refresh)
 	cat.Revision = catalogRevision(cat)
 	data, err := encodeSnapshot(cat)
 	if err != nil {
@@ -284,7 +293,7 @@ func runWarm(_ []string) error {
 		return nil
 	}
 	defer unlock()
-	snapshot := filepath.Join(extrasCacheDir(), "catalog.json")
+	snapshot := snapshotPath()
 	data, err := os.ReadFile(snapshot)
 	if err != nil {
 		return nil
@@ -309,7 +318,7 @@ func runWarm(_ []string) error {
 // change. It never writes the seen revision: only viewing the fresh catalogue
 // (runCatalog) acknowledges it.
 func runCheck(w io.Writer, provs []Provider) error {
-	cat := BuildCatalog(context.Background(), provs, true)
+	cat := BuildCatalog(context.Background(), catalogProviders(context.Background(), provs, true), true)
 	cat.Revision = catalogRevision(cat)
 	// The probe already built the catalogue live, so keep that build as the
 	// launch snapshot. Installed state is local and never part of the revision,
@@ -332,9 +341,16 @@ func runCheck(w io.Writer, provs []Provider) error {
 	return json.NewEncoder(w).Encode(out)
 }
 
+// userSourceFlag reports whether a --source value names a store the user
+// added; empty and the official ids mean the official stores.
+func userSourceFlag(source string) bool {
+	return source != "" && source != officialExtrasSourceID && source != officialRevampedSourceID
+}
+
 func runInstall(provs []Provider, args []string) error {
 	dither := false
 	from := ""
+	source := ""
 	var only []string
 	rest := make([]string, 0, len(args))
 	i := 0
@@ -347,6 +363,11 @@ func runInstall(provs []Provider, args []string) error {
 		case "--from":
 			if i < len(args) {
 				from = args[i]
+				i++
+			}
+		case "--source":
+			if i < len(args) {
+				source = args[i]
 				i++
 			}
 		case "--only":
@@ -369,6 +390,24 @@ func runInstall(provs []Provider, args []string) error {
 	p, ok := providerFor(provs, category)
 	if !ok {
 		return fmt.Errorf("unknown category %q", category)
+	}
+	if userSourceFlag(source) {
+		if from != "" || len(only) > 0 || dither {
+			return fmt.Errorf("--source cannot be combined with --from, --only or --dither")
+		}
+		if !validUserSourceID(source) {
+			return fmt.Errorf("invalid store source %q", source)
+		}
+		ctx := withProgress(context.Background(), newProgressReporter(os.Stderr))
+		up, err := userSourceInstallProvider(ctx, source, category)
+		if err != nil {
+			return err
+		}
+		if err := up.Install(ctx, id); err != nil {
+			return err
+		}
+		reportProgressNow(ctx, "apply", 1, 1)
+		return nil
 	}
 	ctx := withProgress(context.Background(), newProgressReporter(os.Stderr))
 	finish := func(err error) error {
@@ -397,40 +436,6 @@ func runInstall(provs []Provider, args []string) error {
 	return finish(p.Install(ctx, id))
 }
 
-type searcher interface {
-	Search(ctx context.Context, query string) ([]Item, error)
-}
-
-const searchTimeout = 20 * time.Second
-
-func runSearch(w io.Writer, provs []Provider, args []string) error {
-	if len(args) != 2 {
-		return fmt.Errorf("search needs <category> <query>")
-	}
-	p, ok := providerFor(provs, args[0])
-	if !ok {
-		return fmt.Errorf("unknown category %q", args[0])
-	}
-	s, ok := p.(searcher)
-	if !ok {
-		return fmt.Errorf("category %q does not support search", args[0])
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), searchTimeout)
-	defer cancel()
-	items, err := s.Search(ctx, args[1])
-	if err != nil {
-		return err
-	}
-	if items == nil {
-		items = []Item{}
-	}
-	return json.NewEncoder(w).Encode(struct {
-		Category string `json:"category"`
-		Query    string `json:"query"`
-		Items    []Item `json:"items"`
-	}{args[0], args[1], items})
-}
-
 // localInstaller is a provider that can install a product from a local
 // directory (the plugins provider, for `ryoku plugin add`).
 type localInstaller interface {
@@ -450,14 +455,41 @@ type componentInstaller interface {
 	InstallComponents(ctx context.Context, id string, only []string) error
 }
 
+// runRemove removes one install. --source picks a store; without it the store
+// whose copy is installed is found from its receipt, so an install from a
+// store the user removed or turned off still goes.
 func runRemove(provs []Provider, args []string) error {
-	if len(args) != 2 {
+	source := ""
+	rest := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--source" {
+			if i+1 >= len(args) {
+				return fmt.Errorf("--source needs a source id")
+			}
+			source = args[i+1]
+			i++
+			continue
+		}
+		rest = append(rest, args[i])
+	}
+	if len(rest) != 2 {
 		return fmt.Errorf("remove needs <category> <id>")
 	}
-	category, id := args[0], args[1]
+	category, id := rest[0], rest[1]
 	p, ok := providerFor(provs, category)
 	if !ok {
 		return fmt.Errorf("unknown category %q", category)
+	}
+	if source == "" && productIDPattern.MatchString(id) {
+		if owners := productOwners(category, id); len(owners) == 1 && owners[0] != "" {
+			source = owners[0]
+		}
+	}
+	if userSourceFlag(source) {
+		if !validUserSourceID(source) {
+			return fmt.Errorf("invalid store source %q", source)
+		}
+		return removeUserSourceProduct(context.Background(), source, category, id)
 	}
 	return p.Remove(context.Background(), id)
 }

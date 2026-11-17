@@ -1,8 +1,8 @@
 import QtQuick
 import Ryoku.Ui.Singletons
 
-// A local category filter. Typing narrows the loaded category in place; the
-// header search still reaches the whole store or Flathub.
+// A category's own search field. Typing narrows the loaded category in place
+// (in Apps it drives the gpk search instead); the rail search reaches the store.
 Item {
     id: field
 

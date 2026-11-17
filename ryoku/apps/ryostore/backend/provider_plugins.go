@@ -40,14 +40,15 @@ func (p pluginProvider) Load(ctx context.Context, refresh bool) ([]Item, SourceS
 	placements := readPluginPlacements()
 	items := make([]Item, 0, len(entries))
 	for _, entry := range entries {
-		item, err := productEntryItem(p.cache.base, "plugins", entry)
+		item, err := cacheEntryItem(p.cache, "plugins", entry)
 		if err != nil {
 			return nil, state, fmt.Errorf("plugins/%s: installed state: %w", entry.ID, err)
 		}
 		placement, placed := placements[entry.ID]
 		item.Enabled = item.Installed && placed && placement.Enabled
 		metadata := map[string]any{}
-		if entry.Official {
+		// a store the user added is never official, whatever its registry says
+		if entry.Official && p.cache.source == "" {
 			metadata["official"] = true
 		} else {
 			metadata["community"] = true

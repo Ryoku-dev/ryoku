@@ -32,56 +32,20 @@ Rectangle {
     property var detailContext: null
     property rect detailOriginRect: Qt.rect(0, 0, 0, 0)
     property bool reducedMotion: performance.lowPowerMode || Tokens.reduceMotion
-    readonly property bool catalogLoading: Store.loading && Store.items.length === 0
-    readonly property bool catalogError: !Store.loading && Store.items.length === 0 && Store.error !== ""
+    readonly property bool catalogLoading: Store.loading && Store.items.length === 0 && !panelView
+    readonly property bool catalogError: !Store.loading && Store.items.length === 0 && Store.error !== "" && !panelView
+    // Ryoku apps and Sources are panels of their own, not product collections
+    readonly property bool panelView: (view === "ryoku-apps" || view === "sources") && !searchOpen
     // A nav-open (from `ryostore open` / `settings`) can arrive before the
     // catalogue's categories load, with nothing to validate the route against;
     // stash it and apply once the categories arrive so the store lands right.
     property string pendingRoute: ""
     onNavigationCategoriesChanged: if (app.pendingRoute !== "" && app.validRoute(app.pendingRoute)) app.openRoute(app.pendingRoute)
 
-    readonly property bool remoteScope: searchOpen && searchContext !== null
-            && String(searchContext.categoryID || "") === "flatpak"
-    readonly property string remoteQuery: remoteScope ? query.trim() : ""
-    readonly property var remoteMatches: {
-        const matches = {};
-        if (remoteScope && Store.remoteResultQuery === remoteQuery)
-            Store.remoteItems.forEach(item => matches[StoreLogic.itemKey(item)] = true);
-        return matches;
-    }
-    readonly property var remoteExtras: {
-        if (!remoteScope || Store.remoteResultQuery !== remoteQuery)
-            return [];
-        const known = {};
-        Store.items.forEach(item => known[StoreLogic.itemKey(item)] = true);
-        return Store.remoteItems
-                .filter(item => !known[StoreLogic.itemKey(item)])
-                .map(item => {
-                    const copy = {};
-                    Object.keys(item).forEach(key => copy[key] = item[key]);
-                    copy.remoteMatch = true;
-                    return copy;
-                });
-    }
-    onRemoteQueryChanged: {
-        Store.clearRemote();
-        if (remoteQuery.length < 2)
-            remoteDebounce.stop();
-        else
-            remoteDebounce.restart();
-    }
-    Timer {
-        id: remoteDebounce
-        interval: 350
-        onTriggered: if (app.remoteQuery.length >= 2) Store.searchRemote("flatpak", app.remoteQuery)
-    }
-
-    readonly property var searchableItems: Store.items.concat(app.remoteExtras)
+    readonly property var searchableItems: Store.items
             .map(item => {
                 const copy = {};
                 Object.keys(item).forEach(key => copy[key] = item[key]);
-                if (app.remoteMatches[StoreLogic.itemKey(item)] === true)
-                    copy.remoteMatch = true;
                 const category = Store.category(item.category);
                 copy.categoryName = StoreLogic.categoryName(item, category);
                 copy.searchIndex = StoreLogic.searchText(copy);
@@ -99,7 +63,7 @@ Rectangle {
     // StoreLogic.collection, so the landing holds still while you browse but
     // changes each day. Absent on category/search/library views, which ignore it.
     readonly property int discoverSeed: Math.floor(Date.now() / 86400000)
-    readonly property var collection: StoreLogic.collection(searchableItems, {
+    readonly property var collection: app.panelView ? [] : StoreLogic.collection(searchableItems, {
         view: view,
         categoryID: categoryID,
         query: app.appsBrowse ? app.appsQuery : (app.categoryBrowse ? app.categoryQuery : query),
@@ -125,8 +89,31 @@ Rectangle {
     readonly property bool showHero: view === "discover" && categoryID === "" && !searchOpen && collection.length > 0
     readonly property bool appsBrowse: categoryID === "flatpak" && view === "discover" && !searchOpen
     readonly property bool categoryBrowse: view === "discover" && categoryID !== "" && !searchOpen
+    // past two letters the Apps search leaves the catalogue for gpk: Flathub,
+    // the system packages and the AUR in one list
+    readonly property bool appSearchActive: appsBrowse && appsQuery.trim().length >= 2
+    onAppSearchActiveChanged: {
+        if (appSearchActive) {
+            appSearchDebounce.restart();
+        } else {
+            appSearchDebounce.stop();
+            AppSearch.clear();
+        }
+    }
+    // the timer re-checks, so the order this and appSearchActive update in does not matter
+    onAppsQueryChanged: appSearchDebounce.restart()
+    Timer {
+        id: appSearchDebounce
+        interval: 350
+        onTriggered: if (app.appSearchActive) AppSearch.search(app.appsQuery)
+    }
+    readonly property var catalogueKeys: {
+        const keys = {};
+        Store.items.forEach(item => { if (item.category === "flatpak") keys[StoreLogic.itemKey(item)] = true; });
+        return keys;
+    }
     property string categoryQuery: ""
-    readonly property bool appsScope: appsBrowse || remoteScope
+    readonly property bool appsScope: appsBrowse
     readonly property bool narrowAppsTools: width < 980
             || (Window.window && Window.window.width < 980)
     property string appsTag: ""
@@ -149,21 +136,37 @@ Rectangle {
     readonly property var currentCategory: categoryID !== "" ? Store.category(categoryID) : null
     readonly property string pageTitle: searchOpen ? I18n.tr("Search")
             : (view === "library" ? I18n.tr("Library")
-               : (currentCategory ? I18n.tr(String(currentCategory.name || currentCategory.id))
-                  : I18n.tr("Discover")))
+               : (view === "ryoku-apps" ? I18n.tr("Ryoku apps")
+                  : (view === "sources" ? I18n.tr("Sources")
+                     : (currentCategory ? I18n.tr(String(currentCategory.name || currentCategory.id))
+                        : I18n.tr("Discover")))))
     readonly property string pageGroup: searchOpen ? I18n.tr("SEARCH")
-            : (view === "library" ? I18n.tr("YOUR STORE") : I18n.tr("BROWSE"))
+            : (view === "library" || view === "sources" ? I18n.tr("YOUR STORE")
+               : (view === "ryoku-apps" ? I18n.tr("MADE BY RYOKU") : I18n.tr("BROWSE")))
     readonly property string pageDescription: searchOpen
-            ? (remoteScope
-               ? I18n.tr("Results from the whole of Flathub, with installed state kept in view.")
-               : I18n.tr("Results from every category, with installed state kept in view."))
+            ? I18n.tr("Results from every category, with installed state kept in view.")
             : (view === "library"
                ? (updateCount > 0
                   ? I18n.tr("%1 installed pieces, %2 ready to update.").arg(libraryCount).arg(updateCount)
                   : I18n.tr("%1 installed pieces, all current.").arg(libraryCount))
-               : (currentCategory
-                  ? String(currentCategory.description || I18n.tr("Browse this collection."))
-                  : I18n.tr("A changing edit of additions from across Ryoku.")))
+               : (view === "ryoku-apps"
+                  ? I18n.tr("Ryoku's own apps. Your password is asked once while Ryostore stays open.")
+                  : (view === "sources"
+                     ? I18n.tr("The stores Ryostore reads from. Add one a friend or a project hosts, at your own risk.")
+                     : (app.appSearchActive
+                        ? I18n.tr("One search across Flathub, this system's packages and the AUR.")
+                        : (app.appsBrowse
+                           ? I18n.tr("A Flathub shelf to browse. Search to reach Flathub, this system's packages and the AUR at once.")
+                           : (currentCategory
+                              ? String(currentCategory.description || I18n.tr("Browse this collection."))
+                              : I18n.tr("A changing edit of additions from across Ryoku.")))))))
+    readonly property int panelCount: view === "ryoku-apps" ? RyokuApps.apps.length
+            : (view === "sources" ? Sources.official.length + Sources.mine.length
+               : (app.appSearchActive ? AppSearch.rows.length : collection.length))
+    // the Flathub shelf is a capped listing, not everything the search reaches
+    readonly property string panelUnit: view === "ryoku-apps" ? I18n.tr("APPS")
+            : (view === "sources" ? I18n.tr("SOURCES")
+               : (app.appSearchActive ? I18n.tr("RESULTS") : (app.appsBrowse ? I18n.tr("ON THE SHELF") : I18n.tr("PIECES"))))
     // The Themes category browses per provider through a subtab strip; the filter
     // narrows the collection to one provider or to the installed library.
     readonly property bool themesBrowse: app.categoryID === "colorschemes" && app.view === "discover" && !app.searchOpen
@@ -270,7 +273,7 @@ Rectangle {
     }
 
     function validRoute(route) {
-        if (route === "discover" || route === "library")
+        if (route === "discover" || route === "library" || route === "ryoku-apps" || route === "sources")
             return true;
         return Store.categories.some(category => category.id === route);
     }
@@ -311,7 +314,9 @@ Rectangle {
         });
     }
 
-    function openRoute(route) {
+    function openRoute(requested) {
+        // `ryostore open apps` names the Apps category by what it is
+        const route = requested === "apps" ? "flatpak" : requested;
         if (!validRoute(route)) {
             app.pendingRoute = route;
             return;
@@ -332,13 +337,17 @@ Rectangle {
         searchContext = null;
         query = "";
         previewItem = null;
-        if (route === "discover" || route === "library") {
+        if (route === "discover" || route === "library" || route === "ryoku-apps" || route === "sources") {
             view = route;
             categoryID = "";
         } else {
             view = "discover";
             categoryID = route;
         }
+        if (route === "ryoku-apps")
+            RyokuApps.refresh();
+        else if (route === "sources")
+            Sources.refresh();
         reconcileSelection(0);
         Qt.callLater(function() { productGrid.forceActiveFocus(); });
     }
@@ -443,7 +452,9 @@ Rectangle {
     }
 
     function escapeLayer() {
-        if (detailOpen && productDetail.lightboxOpen)
+        if (addSource.open)
+            addSource.close();
+        else if (detailOpen && productDetail.lightboxOpen)
             productDetail.closeLightbox();
         else if (detailOpen)
             closeDetail();
@@ -453,10 +464,24 @@ Rectangle {
             openRoute("discover");
     }
 
+    // a Flathub result the catalogue also lists opens its full page
+    function openCatalogueItem(key) {
+        const item = itemForKey(key, searchableItems);
+        if (!item)
+            return;
+        detailClear.stop();
+        detailContext = snapshotContext();
+        detailOriginRect = Qt.rect(0, 0, 0, 0);
+        detailItem = item;
+        detailOpen = true;
+        previewItem = null;
+        Qt.callLater(function() { productDetail.focusInitialAction(); });
+    }
+
     function requestQuit() {
         // An in-flight install runs a backend transaction that is not safe to
         // interrupt: poll until the store is idle, then quit.
-        if (Store.busyKey !== "") {
+        if (Store.busyKey !== "" || Jobs.app.running) {
             if (!quitArm.running)
                 quitArm.start();
             return;
@@ -466,6 +491,9 @@ Rectangle {
         // engine tears down with nothing in flight. Quitting straight out of the
         // window close handler races that teardown into a pure-virtual crash.
         Store.shutdown();
+        RyokuApps.shutdown();
+        AppSearch.shutdown();
+        Sources.shutdown();
         Qt.callLater(Qt.quit);
     }
 
@@ -484,7 +512,7 @@ Rectangle {
     Keys.onPressed: event => {
         if (event.text === "/" && event.modifiers === Qt.NoModifier) {
             header.focusSearch();
-        } else if (!detailOpen && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) {
+        } else if (!detailOpen && !panelView && !appSearchActive && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) {
             openSelectedDetail();
         } else {
             return;
@@ -522,7 +550,8 @@ Rectangle {
         view: app.view
         categoryID: app.categoryID
         categories: app.navigationCategories
-        query: app.query
+        // inside Apps the rail search is the Apps search: one query, one gpk search
+        query: app.appsBrowse ? app.appsQuery : app.query
         libraryCount: app.libraryCount
         updateCount: app.updateCount
         updateAvailable: Store.updateAvailable
@@ -531,11 +560,21 @@ Rectangle {
         searchActive: app.searchOpen
         resultCount: app.collection.length
         reducedMotion: app.reducedMotion
+        ryokuAppsNote: RyokuApps.updateCount === 1 ? I18n.tr("1 update ready")
+                : (RyokuApps.updateCount > 1 ? I18n.tr("%1 updates ready").arg(RyokuApps.updateCount)
+                   : I18n.tr("Made by Ryoku"))
+        ryokuAppsFlagged: RyokuApps.updateCount > 0
+        sourcesNote: Sources.attention > 0
+                ? (Sources.attention === 1 ? I18n.tr("1 needs attention") : I18n.tr("%1 need attention").arg(Sources.attention))
+                : (Sources.mine.length === 1 ? I18n.tr("Official and 1 of yours")
+                   : (Sources.mine.length > 1 ? I18n.tr("Official and %1 of yours").arg(Sources.mine.length)
+                      : I18n.tr("Official only")))
+        sourcesFlagged: Sources.attention > 0
         onRouteRequested: (routeView, routeCategory) => app.openRoute(routeCategory || routeView)
         onRefreshRequested: Store.refresh(true)
-        onQueryEdited: value => app.searchFor(value)
-        onSearchActivated: app.enterSearch()
-        onSearchEscaped: app.exitSearch()
+        onQueryEdited: value => app.appsBrowse ? app.setAppsQuery(value) : app.searchFor(value)
+        onSearchActivated: if (!app.appsBrowse) app.enterSearch()
+        onSearchEscaped: app.appsBrowse ? app.setAppsQuery("") : app.exitSearch()
     }
 
     Item {
@@ -586,15 +625,15 @@ Rectangle {
             spacing: Tokens.s1
             Text {
                 anchors.right: parent.right
-                text: String(app.collection.length).padStart(2, "0")
+                text: String(app.panelCount).padStart(2, "0")
                 color: Tokens.ink
                 font.family: Tokens.mono
                 font.pixelSize: Tokens.fValue
             }
             Text {
                 anchors.right: parent.right
-                text: Store.offline ? I18n.tr("OFFLINE CACHE") : I18n.tr("PIECES")
-                color: Store.offline ? Tokens.alert : Tokens.inkMuted
+                text: Store.offline && !app.panelView ? I18n.tr("OFFLINE CACHE") : app.panelUnit
+                color: Store.offline && !app.panelView ? Tokens.alert : Tokens.inkMuted
                 font.family: Tokens.mono
                 font.pixelSize: Tokens.fTiny
                 font.letterSpacing: Tokens.trackLabel
@@ -751,7 +790,7 @@ Rectangle {
         id: appsTabs
         objectName: "ryostore-apps-tabs"
         anchors { left: header.right; right: parent.right; top: appsHero.bottom }
-        visible: app.appsBrowse
+        visible: app.appsBrowse && !app.appSearchActive
         height: visible ? implicitHeight : 0
         enabled: !app.detailOpen
         providers: app.appTabs
@@ -774,6 +813,7 @@ Rectangle {
         ProviderTabs {
             id: appsSort
             objectName: "ryostore-apps-sort"
+            visible: !app.appSearchActive
             anchors {
                 left: parent.left
                 right: app.narrowAppsTools ? parent.right : appsSearch.left
@@ -789,28 +829,42 @@ Rectangle {
             onPicked: key => app.setAppSort(key)
         }
 
+        // while searching, the sort strip gives way to what the search covers
+        Text {
+            objectName: "ryostore-apps-search-scope"
+            visible: app.appSearchActive && !app.narrowAppsTools
+            anchors { left: parent.left; leftMargin: Tokens.s6; verticalCenter: appsSearch.verticalCenter }
+            text: I18n.tr("FLATHUB  ·  SYSTEM PACKAGES  ·  AUR")
+            color: Tokens.inkMuted
+            font.family: Tokens.mono
+            font.pixelSize: Tokens.fTiny
+            font.letterSpacing: Tokens.trackLabel
+        }
+
         CategorySearch {
             id: appsSearch
             objectName: "ryostore-apps-search"
             anchors { right: parent.right; rightMargin: Tokens.s6 }
             y: app.narrowAppsTools ? 52 : 4
-            width: Tokens.px(240)
+            width: app.appSearchActive && !app.narrowAppsTools ? Tokens.px(420) : Tokens.px(260)
+            Behavior on width { enabled: !app.reducedMotion; NumberAnimation { duration: Tokens.move; easing.type: Tokens.ease } }
             height: 36
             value: app.appsQuery
-            placeholder: I18n.tr("Search apps")
+            placeholder: I18n.tr("Search Flathub, packages and AUR")
             fieldObjectName: "ryostore-apps-search-field"
             onEdited: value => app.setAppsQuery(value)
             onCleared: {
                 app.setAppsQuery("");
                 productGrid.forceActiveFocus();
             }
-            onAccepted: if (app.selectedItem) app.openSelectedDetail()
+            onAccepted: if (!app.appSearchActive && app.selectedItem) app.openSelectedDetail()
         }
     }
 
     ProductGrid {
         id: productGrid
         objectName: "ryostore-grid"
+        visible: !app.panelView && !app.appSearchActive
         anchors {
             left: header.right; leftMargin: Tokens.s6
             top: app.appsBrowse ? appsTools.bottom : stage.bottom
@@ -829,6 +883,45 @@ Rectangle {
         onActivated: item => {
             app.selectKey(StoreLogic.itemKey(item));
             app.openSelectedDetail();
+        }
+    }
+
+    AppSearchView {
+        id: appSearchView
+        objectName: "ryostore-apps-search-view"
+        anchors {
+            left: header.right; leftMargin: Tokens.s6
+            top: appsTools.bottom; topMargin: Tokens.s2
+            right: parent.right; rightMargin: Tokens.s6
+            bottom: actionBar.top
+        }
+        visible: app.appSearchActive
+        enabled: !app.detailOpen
+        query: app.appsQuery
+        reducedMotion: app.reducedMotion
+        catalogueKeys: app.catalogueKeys
+        onOpenCatalogue: key => app.openCatalogueItem(key)
+    }
+
+    RyokuAppsView {
+        id: ryokuAppsView
+        objectName: "ryostore-ryoku-apps-view"
+        anchors { left: header.right; top: pageHead.bottom; right: parent.right; bottom: actionBar.top }
+        visible: app.panelView && app.view === "ryoku-apps"
+        enabled: !app.detailOpen
+        reducedMotion: app.reducedMotion
+    }
+
+    SourcesView {
+        id: sourcesView
+        objectName: "ryostore-sources-view"
+        anchors { left: header.right; top: pageHead.bottom; right: parent.right; bottom: actionBar.top }
+        visible: app.panelView && app.view === "sources"
+        enabled: !app.detailOpen && !addSource.open
+        reducedMotion: app.reducedMotion
+        onAddRequested: {
+            addSource.show();
+            addSource.forceActiveFocus();
         }
     }
     Item {
@@ -852,12 +945,16 @@ Rectangle {
                 anchors { left: parent.left; leftMargin: Tokens.s6; verticalCenter: parent.verticalCenter }
                 text: Store.busyKey !== ""
                         ? I18n.tr(Store.installStage)
-                        : (Store.offline
-                           ? I18n.tr("OFFLINE · REFRESH TO RETRY")
-                           : (app.view === "library" && app.updateCount > 0
-                              ? I18n.tr("%1 UPDATES READY").arg(app.updateCount)
-                              : I18n.tr("READY")))
-                color: Store.busyKey !== "" || Store.offline || app.updateCount > 0 ? Tokens.ink : Tokens.inkMuted
+                        : (Jobs.app.running && Jobs.app.working
+                           ? (Jobs.app.action === "remove" ? I18n.tr("REMOVING %1").arg(Jobs.app.label.toUpperCase())
+                              : (Jobs.app.action === "update" ? I18n.tr("UPDATING %1").arg(Jobs.app.label.toUpperCase())
+                                 : I18n.tr("INSTALLING %1").arg(Jobs.app.label.toUpperCase())))
+                           : (Store.offline
+                              ? I18n.tr("OFFLINE · REFRESH TO RETRY")
+                              : (app.view === "library" && app.updateCount > 0
+                                 ? I18n.tr("%1 UPDATES READY").arg(app.updateCount)
+                                 : I18n.tr("READY"))))
+                color: Store.busyKey !== "" || Jobs.app.running || Store.offline || app.updateCount > 0 ? Tokens.ink : Tokens.inkMuted
                 font.family: Tokens.mono
                 font.pixelSize: Tokens.fMicro
                 font.letterSpacing: Tokens.trackLabel
@@ -1009,21 +1106,18 @@ Rectangle {
         anchors.centerIn: productGrid
         spacing: Tokens.s4
         visible: app.collection.length === 0 && !app.catalogLoading && !app.catalogError
+                && !app.panelView && !app.appSearchActive
         z: 2
 
         Empty {
             anchors.horizontalCenter: parent.horizontalCenter
             caption: app.view === "library"
                     ? I18n.tr("Installed pieces appear here, with updates called out in place.")
-                    : (app.remoteScope && Store.remoteSearching
-                       ? I18n.tr("Searching Flathub.")
-                       : (app.remoteScope && Store.remoteError !== ""
-                          ? Store.remoteError
-                          : (app.appsFiltered
-                             ? I18n.tr("No apps match this filter.")
-                             : (app.query !== ""
-                                ? I18n.tr("No products match this search.")
-                                : I18n.tr("Nothing has been published to this collection yet.")))))
+                    : (app.appsFiltered
+                       ? I18n.tr("No apps match this filter.")
+                       : (app.query !== ""
+                          ? I18n.tr("No products match this search.")
+                          : I18n.tr("Nothing has been published to this collection yet.")))
         }
 
         Btn {
@@ -1060,5 +1154,14 @@ Rectangle {
         onSettingsRequested: item => Store.openSettings(item)
         onRemoveRequested: item => Store.remove(item)
         onEnabledRequested: (item, enabled) => Store.setOmarchyEnabled(item, enabled)
+    }
+
+    AddSourceDialog {
+        id: addSource
+        objectName: "ryostore-add-source"
+        anchors.fill: parent
+        z: 40
+        reducedMotion: app.reducedMotion
+        onOpenChanged: if (!open) Qt.callLater(function() { productGrid.forceActiveFocus(); })
     }
 }

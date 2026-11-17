@@ -13,6 +13,9 @@ var storeSections = map[string]struct{}{
 	"fastfetch": {}, "plugins": {}, "omarchy-plugins": {}, "bundles": {}, "decors": {},
 	"launcher-images": {}, "fastfetch-emblems": {}, "ryotunes-skins": {},
 	"vesktop-themes": {}, "flatpak": {}, "profiles": {},
+	// views that are not catalogue categories: the featured Ryoku apps, the
+	// one search across Flathub and system packages, and the store sources
+	"ryoku-apps": {}, "apps": {}, "sources": {},
 }
 
 func storeSection(section string) bool {

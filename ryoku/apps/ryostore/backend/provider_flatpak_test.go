@@ -21,8 +21,6 @@ type flatpakFixture struct {
 	bodies    map[string]map[string]any
 	failPaths map[string]bool
 	remotes   map[string]string
-	found     map[string]any
-	searched  []map[string]any
 }
 
 func hit(id, name, kind string, verified bool, arches ...string) map[string]any {
@@ -71,11 +69,6 @@ func newFlatpakFixture(t *testing.T, installed []installedFlatpak) *flatpakFixtu
 				return
 			}
 			_ = json.NewEncoder(w).Encode(body)
-		case r.Method == http.MethodPost && r.URL.Path == "/search":
-			var sent map[string]any
-			_ = json.NewDecoder(r.Body).Decode(&sent)
-			fx.searched = append(fx.searched, sent)
-			_ = json.NewEncoder(w).Encode(fx.found)
 		default:
 			http.NotFound(w, r)
 		}
@@ -410,11 +403,6 @@ func TestFlatpakUserRemoteImpostorIsNotAFlathubInstall(t *testing.T) {
 			t.Fatalf("spoofed app mutated: %v", fx.calls)
 		}
 	}
-	fx.found = searchResult(hit("org.example.Alpha", "Alpha", "desktop-application", true, flathubArch()))
-	results, err := fx.provider.Search(context.Background(), "alpha")
-	if err != nil || len(results) != 1 || results[0].Installed {
-		t.Fatalf("search claimed spoofed installation: %+v, %v", results, err)
-	}
 }
 
 func TestFlatpakRemoteProbeFailureRefusesInstallation(t *testing.T) {
@@ -732,111 +720,6 @@ func searchResult(hits ...map[string]any) map[string]any {
 		list[i] = h
 	}
 	return map[string]any{"hits": list}
-}
-
-func TestFlatpakSearchFindsAppsOutsideTheRanking(t *testing.T) {
-	arch := flathubArch()
-	fx := newFlatpakFixture(t, []installedFlatpak{
-		{ID: "org.example.Rare", Name: "Rare", Version: "2", Installation: "user", Origin: "flathub"},
-	})
-	fx.found = searchResult(
-		hit("org.example.Rare", "Rare", "desktop-application", true, arch),
-		hit("org.example.Obscure", "Obscure", "desktop-application", false, arch),
-		hit("org.example.Cli", "Cli", "console-application", true, arch),
-		hit("org.example.Foreign", "Foreign", "desktop-application", true, "riscv64"),
-		hit("--evil", "Evil", "desktop-application", true, arch),
-	)
-	items, err := fx.provider.Search(context.Background(), "  rare   thing ")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var ids []string
-	for _, it := range items {
-		ids = append(ids, it.ID)
-	}
-	if want := []string{"org.example.Rare", "org.example.Obscure"}; !reflect.DeepEqual(ids, want) {
-		t.Fatalf("ids = %v, want %v", ids, want)
-	}
-	if !items[0].Installed || items[0].InstalledVersion != "2" || items[1].Installed {
-		t.Fatalf("installed state not joined: %+v / %+v", items[0], items[1])
-	}
-	if len(fx.searched) != 1 || fx.searched[0]["query"] != "rare thing" || fx.searched[0]["hits_per_page"] != float64(flathubSearchHits) {
-		t.Fatalf("request = %v", fx.searched)
-	}
-}
-
-func TestFlatpakSearchIgnoresTooShortQueriesWithoutAsking(t *testing.T) {
-	fx := newFlatpakFixture(t, nil)
-	for _, q := range []string{"", " ", "a", "  b "} {
-		items, err := fx.provider.Search(context.Background(), q)
-		if err != nil || len(items) != 0 || items == nil {
-			t.Fatalf("Search(%q) = %v, %v; want an empty non-nil list", q, items, err)
-		}
-	}
-	if len(fx.searched) != 0 {
-		t.Fatalf("a short query must not reach Flathub: %v", fx.searched)
-	}
-}
-
-func TestFlatpakSearchCapsTheQueryLength(t *testing.T) {
-	fx := newFlatpakFixture(t, nil)
-	fx.found = searchResult()
-	if _, err := fx.provider.Search(context.Background(), strings.Repeat("é", 500)); err != nil {
-		t.Fatal(err)
-	}
-	if got := fx.searched[0]["query"].(string); len([]rune(got)) != flathubQueryMax {
-		t.Fatalf("query is %d runes, want %d", len([]rune(got)), flathubQueryMax)
-	}
-}
-
-func TestFlatpakSearchReportsAnUnreachableFlathub(t *testing.T) {
-	fx := newFlatpakFixture(t, nil)
-	fx.failing = true
-	if _, err := fx.provider.Search(context.Background(), "discord"); err == nil || !strings.Contains(err.Error(), "flathub search") {
-		t.Fatalf("error = %v", err)
-	}
-}
-
-type plainProvider struct{}
-
-func (plainProvider) Category() Category { return Category{ID: "plain"} }
-func (plainProvider) Load(context.Context, bool) ([]Item, SourceState, error) {
-	return nil, SourceState{}, nil
-}
-func (plainProvider) Install(context.Context, string) error { return nil }
-func (plainProvider) Remove(context.Context, string) error  { return nil }
-
-func TestRunSearchPrintsItemsAndRejectsBadInvocations(t *testing.T) {
-	fx := newFlatpakFixture(t, nil)
-	fx.found = searchResult(hit("org.example.Obscure", "Obscure", "desktop-application", false, flathubArch()))
-	provs := []Provider{fx.provider, plainProvider{}}
-
-	var out strings.Builder
-	if err := runSearch(&out, provs, []string{"flatpak", "-obscure"}); err != nil {
-		t.Fatal(err)
-	}
-	var got struct {
-		Category string `json:"category"`
-		Query    string `json:"query"`
-		Items    []Item `json:"items"`
-	}
-	if err := json.Unmarshal([]byte(out.String()), &got); err != nil {
-		t.Fatal(err)
-	}
-	if got.Category != "flatpak" || got.Query != "-obscure" || len(got.Items) != 1 || got.Items[0].ID != "org.example.Obscure" {
-		t.Fatalf("output = %+v (a query that looks like a flag is still just the query)", got)
-	}
-
-	for name, args := range map[string][]string{
-		"missing query":      {"flatpak"},
-		"unknown category":   {"nope", "x"},
-		"no search support":  {"plain", "xx"},
-		"too many arguments": {"flatpak", "a", "b"},
-	} {
-		if err := runSearch(&strings.Builder{}, provs, args); err == nil {
-			t.Errorf("%s: expected an error", name)
-		}
-	}
 }
 
 func TestFlatpakIconRejectsUntrustedOrigins(t *testing.T) {

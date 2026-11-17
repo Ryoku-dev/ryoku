@@ -179,12 +179,17 @@ func findMissingShellSelections(ctx context.Context, cache *Cache, catalogue she
 	return missing, nil
 }
 
+// productInstalled reports an install of category/id from any store.
 func productInstalled(category, id string) bool {
 	if !productIDPattern.MatchString(id) {
 		return false
 	}
-	_, err := readReceipt(category, id)
-	return err == nil
+	for _, owner := range productOwners(category, id) {
+		if _, err := readSourceReceipt(owner, category, id); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 // offeredWidgetSet reads one desktop widget set, with its roster, from the

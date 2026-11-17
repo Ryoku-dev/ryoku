@@ -18,6 +18,11 @@ Item {
     property int resultCount: 0
     property bool updateAvailable: false
     property bool reducedMotion: false
+    // Ryoku's own apps lead the rail; Sources sits with the library
+    property string ryokuAppsNote: ""
+    property bool ryokuAppsFlagged: false
+    property string sourcesNote: ""
+    property bool sourcesFlagged: false
 
     signal routeRequested(string view, string categoryID)
     signal refreshRequested()
@@ -30,6 +35,8 @@ Item {
     function activateDiscover() { routeRequested("discover", ""); }
     function activateCategory(id) { routeRequested("discover", id); }
     function activateLibrary() { routeRequested("library", ""); }
+    function activateRyokuApps() { routeRequested("ryoku-apps", ""); }
+    function activateSources() { routeRequested("sources", ""); }
     function focusSearch() { searchField.forceActiveFocus(); }
     function sealFor(id) {
         const seals = {
@@ -396,6 +403,16 @@ Item {
             }
 
             RailItem {
+                objectName: "ryostore-header-ryoku-apps"
+                label: I18n.tr("Ryoku apps")
+                note: header.ryokuAppsNote
+                seal: UiPreferences.brandMark("力")
+                current: header.view === "ryoku-apps" && !header.searchActive
+                flagged: header.ryokuAppsFlagged
+                onChose: header.activateRyokuApps()
+            }
+
+            RailItem {
                 objectName: "ryostore-header-discover"
                 label: I18n.tr("Discover")
                 note: I18n.tr("A changing edit")
@@ -410,7 +427,9 @@ Item {
                     required property var modelData
                     objectName: "ryostore-category-" + String(modelData.id)
                     label: String(modelData.name || modelData.id)
-                    note: I18n.tr("%1 pieces").arg(Number(modelData.count || 0))
+                    // Apps searches beyond the catalogue, so its count would undersell it
+                    note: String(modelData.id) === "flatpak" ? I18n.tr("Flathub, system, AUR")
+                          : I18n.tr("%1 pieces").arg(Number(modelData.count || 0))
                     seal: header.sealFor(modelData.id)
                     current: header.view === "discover" && header.categoryID === String(modelData.id) && !header.searchActive
                     onChose: header.activateCategory(String(modelData.id))
@@ -439,6 +458,16 @@ Item {
                 current: header.view === "library" && !header.searchActive
                 flagged: header.updateCount > 0
                 onChose: header.activateLibrary()
+            }
+
+            RailItem {
+                objectName: "ryostore-header-sources"
+                label: I18n.tr("Sources")
+                note: header.sourcesNote
+                seal: UiPreferences.text("源", "")
+                current: header.view === "sources" && !header.searchActive
+                flagged: header.sourcesFlagged
+                onChose: header.activateSources()
             }
         }
 
