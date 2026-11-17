@@ -620,8 +620,8 @@ Item {
 
                 SearchDoor {
                     id: door
-                    visible: !root.hub.wide
-                    width: Math.min(LithicTokens.size.searchWidth, topBar.width - customisePlaque.width - LithicTokens.space.s2)
+                    visible: !root.hub.wide && width >= LithicTokens.size.searchWidth / 2
+                    width: Math.max(0, Math.min(LithicTokens.size.searchWidth, expandPlaque.x - LithicTokens.space.s2))
                     onClicked: root.hub.focusSearch()
                 }
                 Plaque {
