@@ -6,7 +6,6 @@ import Ryoku.Ui.Singletons
 import Quickshell.Io
 import ".."
 import "../Singletons"
-import "../OutputScope.js" as OutputScope
 
 // Window Manager (COMPOSITOR). Every window-manager setting on one page: the
 // neutral window rows the Hub ships (shape, gaps, borders, motion) and the
@@ -77,26 +76,20 @@ Item {
         return d;
     }
 
-    // the neutral gate applied; the shared renderer then drops caps and dead-key
-    // rows, so the page and its gate read the same set the rail does.
-    // scopedDraft shows each row as its output sees it: per-output keys read
-    // through the scope with a fallback to the global value.
-    readonly property var scopedDraft: {
+    // a non-main output is selected with the link off: it shows the layout it has
+    // live (the shared value when it has none) and only its tiling row; the
+    // compositor tab (picker, cannot-do list) stays on the main screen
+    readonly property var viewDraft: {
+        if (!pg.scopedView) return pg.draft;
         var d = {};
-        for (var i = 0; i < pg.rows.length; i++) {
-            var k = pg.rows[i].key;
-            if (k) d[k] = OutputScope.readValue(pg.draft, pg.linked, pg.activeOutput, k);
-        }
-        // a non-main output shows the layout it has live; with none it shows the
-        // shared value, the same as the main screen
-        if (pg.scopedView)
-            d["desktop.appearance.layout"] = pg.liveLayout(pg.activeOutput) || pg.draft["desktop.appearance.layout"];
+        for (var k in pg.draft) d[k] = pg.draft[k];
+        d["desktop.appearance.layout"] = pg.liveLayout(pg.activeOutput) || pg.draft["desktop.appearance.layout"];
         return d;
     }
-    // a non-main output is selected with the link off: only its tiling row
-    // shows, and the compositor tab (picker, cannot-do list) stays on the main screen
+    // the neutral gate applied; the shared renderer then drops caps and dead-key
+    // rows, so the page and its gate read the same set the rail does.
     readonly property var settingsSchema: {
-        var d = pg.scopedDraft, out = [];
+        var d = pg.viewDraft, out = [];
         for (var i = 0; i < pg.rows.length; i++) {
             if (pg.scopedView && pg.rows[i].key !== "desktop.appearance.layout") continue;
             if (pg.gateOk(pg.rows[i].key, d)) out.push(pg.rows[i]);
@@ -133,7 +126,7 @@ Item {
     Process {
         id: tilingGet
         command: ["ryoku-output-tiling", "get"]
-        running: true
+        running: pg.perOutput
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
@@ -161,22 +154,14 @@ Item {
             tilingGet.running = true;
         }
     }
-    property var outputNames: []
-    Process {
-        id: outputsProc
-        command: ["ryoku-hub", "outputs", "list"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    var list = JSON.parse(this.text), names = [];
-                    for (var i = 0; i < list.length; i++) if (list[i] && list[i].name) names.push(list[i].name);
-                    pg.outputNames = names;
-                } catch (e) { pg.outputNames = []; }
-            }
-        }
+    // connected outputs in the compositor's order; the first is the main screen
+    readonly property var outputNames: {
+        var outs = Wm.outputs || [], names = [];
+        for (var i = 0; i < outs.length; i++)
+            if (outs[i] && outs[i].name && !outs[i].disabled) names.push(outs[i].name);
+        return names;
     }
-    readonly property string activeOutput: OutputScope.resolveOutput(pg.outputNames, pg.selectedOutput)
+    readonly property string activeOutput: pg.outputNames.indexOf(pg.selectedOutput) >= 0 ? pg.selectedOutput : (pg.outputNames[0] || "")
     // the layout each non-main output has live, read from the compositor's own
     // workspace list; empty when the output has no workspace of its own
     function liveLayout(output) {
@@ -231,7 +216,7 @@ Item {
         id: sp
         anchors.fill: parent
         schema: pg.settingsSchema
-        draft: pg.scopedDraft
+        draft: pg.viewDraft
         defaults: pg.committed
         advanced: pg.hub ? pg.hub.advanced : false
         title: pg.pTitle
