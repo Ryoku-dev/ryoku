@@ -1,3 +1,4 @@
+import shell.services as ShellIcons
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -534,7 +535,7 @@ GuideTab {
     function iconSource(ic) {
         if (!ic) return "";
         if (ic.startsWith("file://") || ic.startsWith("image://") || ic.startsWith("http://") || ic.startsWith("https://")) return ic;
-        return ic.startsWith("/") ? "file://" + ic : "image://icon/" + ic;
+        return ShellIcons.Icons.path(ic, true);
     }
 
     function appInfo(appClass) {
