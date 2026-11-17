@@ -40,7 +40,7 @@ type definition struct {
 
 var definitions = []definition{
 	{
-		id: "claude", name: "Claude Code", commands: [][]string{{"claude-code-acp"}, {"claude-agent-acp"}}, installURL: "https://github.com/zed-industries/claude-agent-acp",
+		id: "claude", name: "Claude Code", commands: [][]string{{"claude-agent-acp"}, {"claude-code-acp"}}, installURL: "https://github.com/agentclientprotocol/claude-agent-acp",
 		state:   []string{".claude", ".claude.json", ".config/claude"},
 		guarded: []string{".claude/CLAUDE.md", ".claude/settings.json", ".claude/settings.local.json", ".claude/agents", ".claude/commands", ".claude/skills", ".claude/hooks", ".claude/plugins", ".claude/output-styles", ".claude/rules"},
 		login:   []string{"claude", "auth", "login"},
@@ -296,14 +296,15 @@ func (r *Registry) NewAgent(_ context.Context, opts core.HarnessOptions) (core.R
 		options := []runnerOption{withCapabilityReporter(func(capabilities protocol.HarnessCapabilities) {
 			r.recordCapabilities(id, path, home, capabilities)
 		})}
-		if c.custom {
-			options = append(options, withEnvironment(c.env))
+		env := withClaudeExecutable(c.env, c.command)
+		if c.custom || len(env) != 0 {
+			options = append(options, withEnvironment(env))
 		}
 		switch {
 		case opts.Sandbox != nil && opts.Ask:
-			options = append(options, withAskSandbox(askSandboxFor(*opts.Sandbox, c.id, c.command, c.env)))
+			options = append(options, withAskSandbox(askSandboxFor(*opts.Sandbox, c.id, c.command, env)))
 		case opts.Sandbox != nil:
-			spec, sandboxErr := sandboxFor(*opts.Sandbox, c.id, opts.Session.Team, c.command, c.env)
+			spec, sandboxErr := sandboxFor(*opts.Sandbox, c.id, opts.Session.Team, c.command, env)
 			if sandboxErr != nil {
 				return nil, sandboxErr
 			}

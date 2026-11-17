@@ -808,6 +808,16 @@ func (r *runner) withAgentError(err error) error {
 	if r.stderr == nil || r.stderr.String() == "" {
 		return err
 	}
+	var failed *requestError
+	if errors.As(err, &failed) {
+		if failed.explains || failed.code != rpcInternalError {
+			return err
+		}
+		if why := r.stderr.reason(); why != "" {
+			return fmt.Errorf("%w: %s", err, why)
+		}
+		return err
+	}
 	return fmt.Errorf("%w: %s", err, r.stderr.String())
 }
 

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"unicode"
 	"unicode/utf8"
 
 	"ryoku-i18n"
@@ -324,6 +325,23 @@ func (b *tailBuffer) Write(data []byte) (int, error) {
 	}
 	b.mu.Unlock()
 	return len(data), nil
+}
+
+// reason is the last line that says something; the closing brace of a
+// dumped object does not.
+func (b *tailBuffer) reason() string {
+	lines := strings.Split(b.String(), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if !strings.ContainsFunc(line, unicode.IsLetter) {
+			continue
+		}
+		if runes := []rune(line); len(runes) > 200 {
+			line = string(runes[:200])
+		}
+		return line
+	}
+	return ""
 }
 
 func (b *tailBuffer) String() string {

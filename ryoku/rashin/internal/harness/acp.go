@@ -22,8 +22,60 @@ const (
 )
 
 type rpcError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
+	Code    int             `json:"code"`
+	Message string          `json:"message"`
+	Data    json.RawMessage `json:"data,omitempty"`
+}
+
+// detail is the agent's own explanation: adapters put the real cause of a
+// bare "Internal error" in data.details, or send data as a plain string.
+func (e *rpcError) detail() string {
+	if len(e.Data) == 0 {
+		return ""
+	}
+	var fields struct {
+		Details string `json:"details"`
+		Message string `json:"message"`
+		Error   string `json:"error"`
+	}
+	if json.Unmarshal(e.Data, &fields) == nil {
+		for _, text := range []string{fields.Details, fields.Message, fields.Error} {
+			if text = strings.TrimSpace(text); text != "" {
+				return text
+			}
+		}
+		return ""
+	}
+	var text string
+	if json.Unmarshal(e.Data, &text) == nil {
+		return strings.TrimSpace(text)
+	}
+	return ""
+}
+
+const rpcInternalError = -32603
+
+// requestError is a failed request as the agent answered it; withAgentError
+// reads it to decide whether the agent's log can add anything.
+type requestError struct {
+	error
+	code     int
+	explains bool
+}
+
+func (e *requestError) Unwrap() error { return e.error }
+
+func newRequestError(e *rpcError) error {
+	message := e.Message
+	why := e.detail()
+	if why != "" {
+		message += ": " + why
+	}
+	return &requestError{
+		error:    errors.New(i18n.Tf("The agent request failed: %s. Check the harness logs and try again.", message)),
+		code:     e.Code,
+		explains: why != "",
+	}
 }
 
 type rpcMessage struct {
@@ -181,7 +233,7 @@ func (c *connection) readLoop(out io.Reader) {
 			c.mu.Unlock()
 			if ch != nil {
 				if message.Error != nil {
-					ch <- rpcReply{err: errors.New(i18n.Tf("The agent request failed: %s. Check the harness logs and try again.", message.Error.Message))}
+					ch <- rpcReply{err: newRequestError(message.Error)}
 				} else {
 					ch <- rpcReply{result: message.Result}
 				}

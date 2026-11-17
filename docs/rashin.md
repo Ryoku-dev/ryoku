@@ -847,7 +847,7 @@ when the session is created, default the home directory).
 
 | Id | Harness | Command |
 |---|---|---|
-| `claude` | Claude Code | `claude-code-acp`, else `claude-agent-acp` |
+| `claude` | Claude Code | `claude-agent-acp`, else the deprecated `claude-code-acp` |
 | `codex` | Codex | `codex-acp` |
 | `opencode` | OpenCode | `opencode acp` |
 | `gemini` | Gemini CLI | `gemini --experimental-acp` |

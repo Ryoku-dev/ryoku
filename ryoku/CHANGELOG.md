@@ -1,6 +1,12 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **Rashin names why Claude Code's adapter failed to start.** An agent error now
+  carries the adapter's own reason (the log's last line only for a bare internal
+  error, never a lone brace), `claude-agent-acp` is preferred over the
+  deprecated `claude-code-acp`, and an adapter whose bundled Claude never
+  installed runs on the Claude Code already on the box
+  (`rashin/internal/harness/`).
 - **The bar's battery, brightness and volume readouts come from the shell
   daemon.** UPower, the panel backlight and the PipeWire default levels are
   read once in Go and streamed on the `battery`, `backlight` and `audio`
