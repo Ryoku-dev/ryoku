@@ -198,6 +198,11 @@
 - **Vesktop keeps following wallpaper changes.** Palette updates preserve the
   QuickCSS file inode so Vencord's file watcher continues receiving changes
   after the first update (`palette-bridge/vesktop/quickcss.sh`).
+- **Rashin's agent pointer says whose notes folders it means.** The block it
+  writes into each agent's instructions named `memory/` and `journal/` without
+  saying they are the vault's, which read as the agent's own memory store; it
+  now names both as vault folders, and the docs example matches the block the
+  code writes (`rashin/backend/`).
 
 ### Added
 - **Ryogami offers opt-in Spotify styling and palette bridge controls.**

@@ -26,8 +26,9 @@ const PointerBlock = pointerBegin + "\n" +
 	"in `desktop.md` and by `ryoku wm status`; detect them, never assume. A maintained\n" +
 	"map of the system lives at `~/.local/share/ryoku/rashin/`. Before exploring the\n" +
 	"machine or guessing paths, read `AGENTS.md` there: it says where every config\n" +
-	"lives, which binary owns it, and how to reload it. Write durable notes to\n" +
-	"`memory/` and dated notes to `journal/YYYY-MM-DD.md`. Prowl is an optional\n" +
+	"lives, which binary owns it, and how to reload it. Write durable notes to the\n" +
+	"vault's `memory/` and dated notes to its `journal/YYYY-MM-DD.md`; these are\n" +
+	"vault folders, not this agent's own memory store. Prowl is an optional\n" +
 	"external plug-in for its model gateway, code index, and skills; it never overrides\n" +
 	"the user's model pick. When available, prefer its cited code intelligence:\n" +
 	"`prowl search \"<question>\"`, `find`, `def`, `references`, `outline`, `impact`.\n" +
