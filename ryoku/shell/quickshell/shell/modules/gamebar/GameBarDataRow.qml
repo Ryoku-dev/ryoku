@@ -25,6 +25,7 @@ Item {
         id: valueLabel
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
+        width: Math.min(implicitWidth, Math.max(0, root.width * 0.6))
         text: root.value
         typeRole: "detail"
         ink: GameBarTone.ink

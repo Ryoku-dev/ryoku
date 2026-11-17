@@ -79,9 +79,17 @@ Item {
 
                     small: true
                     kind: widgetButton.on ? "tonal" : "quiet"
-                    glyph: widgetButton.modelData.symbol
+                    glyph: widgetButton.modelData.glyph ? "" : widgetButton.modelData.symbol
                     Accessible.name: widgetButton.modelData.label
                     onClicked: root.picked(widgetButton.modelData.id)
+
+                    GameBarGlyph {
+                        anchors.centerIn: parent
+                        visible: !!widgetButton.modelData.glyph
+                        brand: widgetButton.modelData.glyph || ""
+                        size: LithicTokens.size.iconPlaqueIconSmall
+                        ink: widgetButton.ink
+                    }
                 }
             }
 

@@ -61,6 +61,24 @@ PanelWindow {
         audio: { w: 350, h: 282 },
         gallery: { w: 350, h: 290 }
     })
+    property var cardPreferred: ({})
+
+    function reportPreferred(id, value) {
+        if (win.cardPreferred[id] === value)
+            return;
+        const next = Object.assign({}, win.cardPreferred);
+        next[id] = value;
+        win.cardPreferred = next;
+    }
+
+    function extentFor(id) {
+        const size = win.sizeFor(id);
+        const preferred = win.cardPreferred[id] || 0;
+        if (preferred <= size.h)
+            return size;
+        return { w: size.w, h: Math.max(size.h, Math.min(preferred, win.height - win.us)) };
+    }
+
     readonly property real maxCardW: 358 * win.us
     readonly property real maxCardH: 356 * win.us
     readonly property real gap: 12 * win.us
@@ -184,13 +202,13 @@ PanelWindow {
     }
 
     function clampPos(id, x, y) {
-        return win.clampTo(win.sizeFor(id), x, y);
+        return win.clampTo(win.extentFor(id), x, y);
     }
 
     // With snapping on, a released card settles onto the nearest edge or centre
     // line; otherwise it stays where it was let go.
     function snapPosition(id, x, y) {
-        const size = win.sizeFor(id);
+        const size = win.extentFor(id);
         if (!win.cfg.snap)
             return win.clampPos(id, x, y);
 
@@ -212,7 +230,7 @@ PanelWindow {
             if (other === id)
                 continue;
             const o = win.positionFor(other);
-            const os = win.sizeFor(other);
+            const os = win.extentFor(other);
             xs.push(o.x, o.x + os.w, o.x - size.w, o.x + os.w - size.w);
             ys.push(o.y, o.y + os.h, o.y - size.h, o.y + os.h - size.h);
         }
@@ -264,7 +282,7 @@ PanelWindow {
     }
 
     function defaultPos(id) {
-        return win.defaultPosFor(id, win.sizeFor(id));
+        return win.defaultPosFor(id, win.extentFor(id));
     }
 
     // The pinned card is placed against its full frame. When it shrinks, anchor
@@ -572,14 +590,16 @@ PanelWindow {
 
             readonly property string cardId: slot.modelData.id
             readonly property bool on: win.shown(slot.cardId)
-            readonly property var size: win.sizeFor(slot.cardId)
+            readonly property var size: win.extentFor(slot.cardId)
             readonly property var pos: win.positionFor(slot.cardId)
 
             readonly property real preferred: cardLoader.item ? cardLoader.item.preferredHeight : 0
+            onPreferredChanged: win.reportPreferred(slot.cardId, slot.preferred)
+            Component.onCompleted: win.reportPreferred(slot.cardId, slot.preferred)
 
             visible: slot.on
             width: size.w
-            height: Math.max(slot.size.h, Math.min(slot.preferred, win.height - slot.pos.y - win.us))
+            height: size.h
             x: slot.pos.x
             y: slot.pos.y
             opacity: win.reveal

@@ -37,9 +37,9 @@ GameBarCard {
     readonly property real miniGap: VoiceLayout.SPACE * card.s
     readonly property real miniHeaderHeight: VoiceLayout.HEADER * card.s
     readonly property real miniCell: VoiceLayout.cell(card.miniAvatarLogical, card.miniNames) * card.s
-    readonly property int miniColumns: VoiceLayout.columns(card.width,
+    readonly property int miniColumns: VoiceLayout.columns(card.width / card.s,
         Math.min(card.avatarLimit, card.voice.participantCount),
-        card.miniCell, card.miniNames)
+        card.miniAvatarLogical, card.miniNames)
     readonly property string miniSubtitle: {
         if (card.voice.inVoice) {
             const n = card.voice.participantCount;
@@ -72,6 +72,8 @@ GameBarCard {
             return card.voice.backendLabel.length > 0
                 ? line + "  " + card.voice.backendLabel : line;
         }
+        if (card.voice.errorMessage.length > 0)
+            return card.voice.errorMessage;
         if (card.voice.status === "authenticated")
             return I18n.tr("Join a channel to see who is talking");
         return card.voice.backendLabel.length > 0
@@ -89,6 +91,7 @@ GameBarCard {
         case "unavailable": return I18n.tr("Discord's voice socket is not reachable. Retry in a moment.");
         case "disconnected": return I18n.tr("Discord went away. Reconnecting in a moment.");
         case "stopped": return I18n.tr("The bridge stopped. Retry to start it again.");
+        case "authenticated": return I18n.tr("Join a voice channel to see who is talking.");
         default: return I18n.tr("Connecting to Discord.");
         }
     }
@@ -203,7 +206,6 @@ GameBarCard {
 
                 Label {
                     width: parent.width
-                    visible: card.voice.status !== "authenticated"
                     text: card.emptyMessage
                     typeRole: "detail"
                     inkRole: "fg2"

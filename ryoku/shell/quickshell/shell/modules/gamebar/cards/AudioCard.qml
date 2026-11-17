@@ -16,6 +16,10 @@ GameBarCard {
     readonly property var sourceAudio: Audio.source && Audio.source.audio ? Audio.source.audio : null
     readonly property var streams: Audio.streams ? Audio.streams.filter(Audio.alive) : []
 
+    readonly property bool saverIdle: Perf.saver && card.pinned && !GameBarStore.open
+    readonly property bool polling: (!card.host || (card.host.live && !card.host.suppressed))
+        && !Presence.dark && !card.saverIdle
+
     function glyphFor(node) {
         if (!node)
             return "volume_up";
@@ -56,6 +60,8 @@ GameBarCard {
                 : I18n.tr("n/a")
             muted: card.sinkAudio ? card.sinkAudio.muted : false
             available: !!card.sinkAudio
+            peakNode: Audio.sink
+            peakEnabled: card.polling && !!Audio.sink
             onMoved: v => { if (card.sinkAudio) card.sinkAudio.volume = v; }
             onIconTapped: { if (card.sinkAudio) card.sinkAudio.muted = !card.sinkAudio.muted; }
         }
@@ -74,6 +80,8 @@ GameBarCard {
                 : I18n.tr("n/a")
             muted: card.sourceAudio ? card.sourceAudio.muted : false
             available: !!card.sourceAudio
+            peakNode: Audio.source
+            peakEnabled: card.polling && !!Audio.source
             onMoved: v => { if (card.sourceAudio) card.sourceAudio.volume = v; }
             onIconTapped: { if (card.sourceAudio) card.sourceAudio.muted = !card.sourceAudio.muted; }
         }
@@ -116,6 +124,7 @@ GameBarCard {
                 required property var modelData
                 width: apps.width
                 stream: modelData
+                open: card.polling
             }
         }
 

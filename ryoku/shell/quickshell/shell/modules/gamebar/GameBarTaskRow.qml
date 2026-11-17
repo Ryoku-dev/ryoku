@@ -38,6 +38,8 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         width: Math.max(0, cpu.x - 8 * root._scale)
         text: root.task ? root.task.name : ""
+        textFormat: Text.PlainText
+        elide: Text.ElideRight
         typeRole: "detail"
         ink: GameBarTone.ink
     }

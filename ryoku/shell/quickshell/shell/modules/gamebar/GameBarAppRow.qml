@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import Quickshell.Widgets
+import Quickshell.Services.Pipewire
 import shell.services
 import Ryoku.Ui.Singletons
 import Lithic
@@ -11,6 +12,7 @@ Row {
     id: root
 
     property var stream: null
+    property bool open: false
 
     readonly property var appAudio: root.stream ? root.stream.audio : null
     readonly property bool appMuted: root.appAudio ? root.appAudio.muted : false
@@ -19,6 +21,12 @@ Row {
 
     height: 40 * root._scale
     spacing: 8 * root._scale
+
+    PwNodePeakMonitor {
+        id: vu
+        node: root.stream
+        enabled: root.open && !!root.stream
+    }
 
     Item {
         width: 20 * root._scale
@@ -68,15 +76,29 @@ Row {
             }
         }
 
-        Slider {
+        Item {
             width: parent.width
             height: 22 * root._scale
-            from: 0
-            to: 1
-            stepSize: 0.01
-            value: root.appAudio ? root.appAudio.volume : 0
-            plane: GameBarTone.pane
-            onMoved: if (root.appAudio) root.appAudio.volume = value
+
+            Slider {
+                anchors.fill: parent
+                from: 0
+                to: 1
+                stepSize: 0.01
+                value: root.appAudio ? root.appAudio.volume : 0
+                plane: GameBarTone.pane
+                onMoved: if (root.appAudio) root.appAudio.volume = value
+            }
+
+            Rectangle {
+                anchors.left: parent.left
+                anchors.bottom: parent.bottom
+                height: LithicTokens.size.hairline
+                width: Math.max(0, Math.min(1, vu.peak)) * parent.width
+                visible: root.open && !root.appMuted
+                color: GameBarTone.select
+                opacity: 0.55
+            }
         }
     }
 }

@@ -44,6 +44,7 @@ GameBarCard {
             anchors.top: parent.top
             height: Math.max(0, parent.height - 48 * card.s)
             opacity: card.lyricsOpen ? 0 : 1
+            visible: opacity > 0
 
             Behavior on opacity {
                 NumberAnimation { duration: Lithic.duration(180); easing.type: Easing.OutCubic }
