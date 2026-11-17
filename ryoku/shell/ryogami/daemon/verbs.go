@@ -149,6 +149,9 @@ func (d *daemon) wallpaperVerb(line string) string {
 			d.surface.republish()
 		}
 		return "ok"
+	case "playback-sync":
+		d.reevaluatePause()
+		return "ok"
 	case "":
 		return "err wallpaper: missing mode"
 	default:

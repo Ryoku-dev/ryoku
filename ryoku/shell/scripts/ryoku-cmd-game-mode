@@ -34,6 +34,7 @@ wifi_helper="${RYOKU_WIFI_POWERSAVE_BIN-$(command -v ryoku-wifi-powersave || tru
 tune_helper="${RYOKU_GAME_TUNE_BIN-$(command -v ryoku-game-tune || true)}"
 idle_helper="${RYOKU_IDLE_BIN-$(command -v ryoku-idle || true)}"
 shell_helper="${RYOKU_SHELL_BIN-$(command -v ryoku-shell || true)}"
+wallpaper_helper="${RYOKU_RYOGAMI_BIN-$(command -v ryogami || true)}"
 
 # The provider owns the live decoration strip, while its config reads the
 # persisted request on every reload. Other compositors keep their own look.
@@ -113,6 +114,15 @@ profile_restore() {
   power_profile_set "$prior" || true
 }
 
+# ── live wallpaper ────────────────────────────────────────────────────────────
+# ryogami owns every engine's playback and reads the state file itself, so this
+# only asks it to re-check: pause while game mode is on, resume on stop unless
+# a manual pause or the user's own pause rules still hold.
+wallpaper_sync() {
+  [[ -n $wallpaper_helper && -x $wallpaper_helper ]] || return 0
+  "$wallpaper_helper" wallpaper playback-sync >/dev/null 2>&1 || true
+}
+
 # ── system knobs (root, via polkit) ───────────────────────────────────────────
 # Deep idle states, the NMI watchdog, split/bus-lock mitigation and three VM
 # knobs. The helper saves every prior value and restores it exactly; see
@@ -157,6 +167,7 @@ start() {
     return 1
   fi
   profile_fast
+  wallpaper_sync
   tune apply
   wifi_set off
   if (( stripped )); then
@@ -169,6 +180,7 @@ start() {
 stop() {
   local failed=0
   rm -f "$state_file" || failed=1
+  wallpaper_sync
   deco_restore || failed=1
   tune restore || failed=1
   profile_restore || failed=1

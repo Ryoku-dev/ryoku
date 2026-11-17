@@ -18,6 +18,7 @@ type pauseRules struct {
 	maximized        bool
 	fullWidth        bool
 	overviewOnly     bool
+	gameMode         bool
 	scopeDisplay     bool
 	capOverviewState bool
 	capColumnFill    bool
@@ -65,6 +66,9 @@ func evaluatePause(r pauseRules, s wmSnapshot, running map[string]bool) (bool, [
 				break
 			}
 		}
+	}
+	if r.gameMode {
+		reasons = append(reasons, "gameMode")
 	}
 	if r.overviewOnly && r.capOverviewState && !s.overviewOpen {
 		reasons = append(reasons, "overview")
@@ -150,6 +154,7 @@ func (d *daemon) currentPauseRules() pauseRules {
 		fullWidth:      d.settingBool("playback.fullWidthPause"),
 		overviewOnly:   d.settingBool("playback.overviewOnly"),
 		scopeDisplay:   d.settingString("playback.fullscreenScope") == "display",
+		gameMode:       d.settingBool("playback.gameMode") && gameModeOn(),
 	}
 	if caps, err := wmClient.Caps(); err == nil {
 		r.capOverviewState = caps.Has(wm.CapOverviewState)
