@@ -1266,6 +1266,32 @@ if command -v sudo >/dev/null 2>&1 && command -v pacman >/dev/null 2>&1; then
   else
     say "  ryotunes not installed from [ryoku] (channel unreachable or not published yet); see $_plog"
   fi
+  # gpk: Settings and Ryostore drive its event stream, which the checkout's pin
+  # carries before the channel this box takes [ryoku] from may serve it. When
+  # the pinned gpk is newer than the installed one, build that PKGBUILD (it
+  # repackages the upstream release binary after checking its sha256) and
+  # install it. Once the channel serves the pin, -Syu keeps it and this is a no-op.
+  _gpk_pkgbuild="$repo_root/release/packages/gpk/PKGBUILD"
+  _gpk_pin="$(sed -n 's/^pkgver=//p' "$_gpk_pkgbuild" 2>/dev/null)-$(sed -n 's/^pkgrel=//p' "$_gpk_pkgbuild" 2>/dev/null)"
+  _gpk_have="$(pacman -Q gpk 2>/dev/null | awk '{print $2}')"
+  if [[ $_gpk_pin != -* && $_gpk_pin != *- ]] &&
+     { [[ -z $_gpk_have ]] || (($(vercmp "$_gpk_have" "$_gpk_pin") < 0)); }; then
+    if [[ $EUID -eq 0 ]] || ! command -v makepkg >/dev/null 2>&1; then
+      say "  gpk ${_gpk_have:-absent} is older than the pinned $_gpk_pin; building it needs makepkg as a regular user"
+    else
+      _gpk_build="$(mktemp -d)"
+      cp "$_gpk_pkgbuild" "$_gpk_build/PKGBUILD"
+      # shellcheck disable=SC2024
+      if (cd "$_gpk_build" && PKGDEST="$_gpk_build" makepkg --force --noconfirm --nodeps) >>"$_plog" 2>&1 &&
+         _gpk_file="$(find "$_gpk_build" -maxdepth 1 -name 'gpk-*.pkg.tar.*' ! -name '*.sig' -print -quit)" &&
+         [[ -n $_gpk_file ]] && sudo pacman -U --needed --noconfirm "$_gpk_file" >>"$_plog" 2>&1; then
+        say "gpk from the checkout's pin: $(pacman -Q gpk 2>/dev/null | awk '{print $2}')"
+      else
+        say "  gpk $_gpk_pin not built from the checkout's pin; see $_plog"
+      fi
+      rm -rf "$_gpk_build"
+    fi
+  fi
 elif [[ $package_manager == dnf ]]; then
   say "skipping packaged externals that are not in the Fedora Ryoku package set"
 else

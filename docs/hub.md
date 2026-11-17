@@ -756,7 +756,12 @@ session; Cancel closes its stdin), `gpk remove -m flatpak|local --yes --events`
 as the reader (Cancel sends SIGTERM), or the AUR in a terminal. Ryoku's own
 apps update and remove through `ryoku-host apps --stdin-cancel ryoku
 update|remove <id>`; `ryoku-desktop` entries are never removable. Get more
-apps opens RyoStore (`ryostore open apps|ryoku-apps|sources`).
+apps opens RyoStore (`ryostore open apps|ryoku-apps|sources`). The store asks
+`gpk --version` first: a gpk older than 0.7.0 takes `apps` for a search, so the
+page says plainly that listing apps needs gpk 0.7.0, which comes with the next
+update, and points at Updates; Ryoku's own apps still show. Output that is a
+package search rather than desktop entries reads the same way, never as an
+empty list.
 `tests/ui/installed-apps-flow-probe.sh` drives the job and its line with a
 stand-in pkexec and ryoku-host.
 

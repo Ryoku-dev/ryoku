@@ -46,11 +46,37 @@ function desktopId(id) {
     return String(id || "").replace(/\.desktop$/, "");
 }
 
-// every app that shows in app search, one per desktop entry; throws on output that is not gpk's
+// the gpk that lists apps (`gpk apps`, `--events`, sizes) is 0.7.0
+var gpkNeeded = "0.7.0";
+
+// the version `gpk --version` names ("gpk v0.6.8", "gpk 0.7.0"), or "" for a build without one
+function gpkVersion(text) {
+    var m = /(\d+)\.(\d+)\.(\d+)/.exec(String(text || ""));
+    return m ? m[1] + "." + m[2] + "." + m[3] : "";
+}
+
+// false only for a gpk that names a version older than gpkNeeded; a development build lists
+function gpkListsApps(text) {
+    var v = gpkVersion(text);
+    if (v === "")
+        return true;
+    var have = v.split(".").map(Number), need = gpkNeeded.split(".").map(Number);
+    for (var i = 0; i < 3; i++)
+        if (have[i] !== need[i])
+            return have[i] > need[i];
+    return true;
+}
+
+// every app that shows in app search, one per desktop entry; throws on output that is not gpk's.
+// An older gpk takes `apps` for a search and prints packages with no desktop entry: that throws
+// "old gpk", so it never reads as an empty list
 function parseApps(text) {
     var out = [];
     var seen = {};
-    rowsOf(text).forEach(r => {
+    var rows = rowsOf(text);
+    if (rows.length > 0 && !rows.some(r => r && typeof r === "object" && "desktop_id" in r))
+        throw new Error("old gpk");
+    rows.forEach(r => {
         if (!r || typeof r !== "object" || r.no_display === true)
             return;
         var id = desktopId(r.desktop_id);

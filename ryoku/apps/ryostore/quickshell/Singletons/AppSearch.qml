@@ -103,6 +103,7 @@ Singleton {
                 return;
             }
             try {
+                Gpk.seen(AppsLogic.searchVersion(root._out));
                 root.rows = AppsLogic.parseSearch(root._out);
                 root.error = "";
             } catch (e) {

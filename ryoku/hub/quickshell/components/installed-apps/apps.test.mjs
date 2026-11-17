@@ -171,3 +171,17 @@ test("showing or hiding an app edits the launcher's hidden list once", () => {
     assert.deepEqual(plain(A.withHidden(["a", "c", "c"], "c", false)), ["a"]);
     assert.deepEqual(plain(A.withHidden(undefined, "c", true)), ["c"]);
 });
+
+test("a gpk older than 0.7.0 is told apart, and its search output never reads as an empty list", () => {
+    assert.equal(A.gpkListsApps("gpk v0.6.8\n"), false);
+    assert.equal(A.gpkListsApps("gpk 0.6.10-1"), false);
+    assert.equal(A.gpkListsApps("gpk v0.7.0"), true);
+    assert.equal(A.gpkListsApps("gpk v0.7.0-dev"), true);
+    assert.equal(A.gpkListsApps("gpk 1.0.0"), true);
+    assert.equal(A.gpkListsApps("gpk dev"), true, "a development build is asked");
+    assert.equal(A.gpkVersion("gpk v0.6.8"), "0.6.8");
+    // gpk 0.6 takes `apps` for a search and prints packages
+    assert.throws(() => A.parseApps(JSON.stringify({ gpk_version: "v0.6.8", schema: 1,
+        data: [{ name: "apps", version: "0.2.2", source: "cargo" }] })), /old gpk/);
+    assert.equal(A.parseApps(JSON.stringify({ data: [] })).length, 0, "no apps at all is still a list");
+});

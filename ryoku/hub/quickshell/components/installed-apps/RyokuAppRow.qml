@@ -15,6 +15,9 @@ Column {
     readonly property string target: "ryoku:" + item.app.id
     readonly property bool busy: item.host.store.job.running && item.host.store.job.target === item.target
     readonly property bool shown: item.host.hidden.indexOf(item.app.desktopId) < 0
+    // ryoku-host updates and removes through gpk's progress events, which an older gpk lacks
+    readonly property bool gpkOld: item.host.store.gpkOld
+    readonly property bool writes: item.app.installed && (item.app.update || item.app.removable)
 
     width: parent ? parent.width : 0
     spacing: LithicTokens.space.s1
@@ -32,7 +35,7 @@ Column {
             glyph: "download"
             text: I18n.tr("Update")
             busy: item.busy && item.host.store.job.action === "update"
-            enabled: !item.host.store.job.running
+            enabled: !item.host.store.job.running && !item.gpkOld
             accessibleName: I18n.tr("Update %1 to %2").arg(item.app.name).arg(item.app.latest)
             onClicked: item.host.store.changeRyoku(item.app.id, "update")
         }
@@ -43,7 +46,7 @@ Column {
             glyph: "delete"
             text: I18n.tr("Remove")
             busy: item.busy && item.host.store.job.action === "remove"
-            enabled: !item.host.store.job.running
+            enabled: !item.host.store.job.running && !item.gpkOld
             accessibleName: I18n.tr("Remove %1").arg(item.app.name)
             onClicked: item.host.askRyoku(item.app)
         }
@@ -89,5 +92,15 @@ Column {
         doing: item.host.store.job.action === "update"
             ? I18n.tr("Updating %1").arg(item.app.name)
             : I18n.tr("Removing %1").arg(item.app.name)
+    }
+
+    Label {
+        width: parent.width
+        visible: item.gpkOld && item.writes
+        text: I18n.tr("Needs gpk 0.7.0, which comes with the next Ryoku update.")
+        typeRole: "detail"
+        inkRole: "fg3"
+        wrapMode: Text.Wrap
+        elide: Text.ElideNone
     }
 }

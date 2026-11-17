@@ -16,6 +16,10 @@ Scope {
     property var apps: []
     property bool appsLoaded: false
     property string appsError: ""
+    // the gpk here is older than the one that lists apps, and the version it names ("" when it
+    // named none)
+    property bool gpkOld: false
+    property string gpkHave: ""
     property var ryoku: []
     property bool ryokuLoaded: false
     property string ryokuError: ""
@@ -34,14 +38,50 @@ Scope {
         done(false, I18n.tr("Installed apps keeps no settings of its own."));
     }
 
+    // gpk's version first: an older gpk takes `apps` for a search across every repository,
+    // which is slow and lists no app
     function refresh() {
-        if (!appsProc.running) {
-            appsProc.command = store.fresh ? ["gpk", "apps", "--json", "--no-cache"] : ["gpk", "apps", "--json"];
-            appsProc.running = true;
+        if (!versionProc.running && !appsProc.running) {
+            versionProc.started = false;
+            versionProc.running = true;
         }
         if (!ryokuProc.running)
             ryokuProc.running = true;
+    }
+
+    function readApps() {
+        appsProc.command = store.fresh ? ["gpk", "apps", "--json", "--no-cache"] : ["gpk", "apps", "--json"];
         store.fresh = false;
+        appsProc.running = true;
+    }
+
+    Process {
+        id: versionProc
+        property bool started: false
+        command: ["gpk", "--version"]
+        stdout: StdioCollector {
+            id: versionOut
+        }
+        onStarted: versionProc.started = true
+        onExited: (code, status) => {
+            store.gpkOld = code === 0 && !Apps.gpkListsApps(versionOut.text);
+            store.gpkHave = store.gpkOld ? Apps.gpkVersion(versionOut.text) : "";
+            if (!store.gpkOld) {
+                store.readApps();
+                return;
+            }
+            store.apps = [];
+            store.appsError = "";
+            store.appsLoaded = true;
+        }
+        // gpk not there at all
+        onRunningChanged: {
+            if (!versionProc.running && !versionProc.started) {
+                store.gpkOld = false;
+                store.appsError = I18n.tr("The list of apps could not be read: gpk is missing. Update Ryoku, then try again.");
+                store.appsLoaded = true;
+            }
+        }
     }
 
     function app(id) {
@@ -90,6 +130,14 @@ Scope {
         }
         onExited: (code, status) => {
             if (code !== 0) {
+                // a gpk that does not know `apps` yet, whatever version it named
+                if (/unknown (sub)?command|unknown option|flag provided but not defined/.test(appsErr.text)) {
+                    store.gpkOld = true;
+                    store.apps = [];
+                    store.appsError = "";
+                    store.appsLoaded = true;
+                    return;
+                }
                 var said = appsErr.text.trim().split("\n").pop();
                 store.appsError = I18n.tr("The list of apps could not be read.") + (said ? " " + I18n.tr("It said: %1").arg(said) : "");
                 store.appsLoaded = true;
@@ -99,16 +147,11 @@ Scope {
                 store.apps = Apps.parseApps(appsOut.text);
                 store.appsError = "";
             } catch (e) {
-                store.appsError = I18n.tr("The list of apps could not be read. Update Ryoku, then try again.");
+                store.gpkOld = e.message === "old gpk";
+                store.apps = [];
+                store.appsError = store.gpkOld ? "" : I18n.tr("The list of apps could not be read. Update Ryoku, then try again.");
             }
             store.appsLoaded = true;
-        }
-        // gpk not there at all
-        onRunningChanged: {
-            if (!appsProc.running && appsProc.processId === null && !store.appsLoaded) {
-                store.appsError = I18n.tr("The list of apps could not be read: gpk is missing. Update Ryoku, then try again.");
-                store.appsLoaded = true;
-            }
         }
     }
 

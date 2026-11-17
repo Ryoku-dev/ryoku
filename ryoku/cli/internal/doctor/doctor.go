@@ -360,6 +360,7 @@ func reconcilers() []reconciler {
 		{i18n.T("rice fastfetch emblem"), reconcileRiceEmblem},
 		{i18n.T("ryotunes"), reconcileRyotunes},
 		{i18n.T("ryoport"), reconcileRyoport},
+		{i18n.T("gpk version on a checkout"), reconcileGpkPin},
 		{i18n.T("fastfetch OS line"), reconcileFastfetchOSLine},
 		{i18n.T("brand mark image"), reconcileBrandLogo},
 		{i18n.T("this account's Ryoku files"), reconcileAccountSeed},

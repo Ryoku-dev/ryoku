@@ -92,6 +92,34 @@ function displayVersion(version) {
     return String(version || "").replace(/^[0-9]+:/, "");
 }
 
+// gpk 0.7.0 brought the progress events installs are read from and the
+// required_by a removal checks; an older gpk still searches
+var gpkEventsVersion = [0, 7, 0];
+
+// "gpk v0.6.8" (--version) or "v0.7.0-dev" (a JSON envelope) as [0, 6, 8]; a
+// pre-release counts as its release, since it was built for it
+function gpkVersion(text) {
+    var match = String(text || "").match(/v?([0-9]+)\.([0-9]+)\.([0-9]+)/);
+    return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
+}
+
+// false only for a gpk known to be older than 0.7.0; an unknown one is let
+// through and its job reports what went wrong
+function gpkCanInstall(text) {
+    var v = gpkVersion(text);
+    if (!v)
+        return true;
+    for (var i = 0; i < 3; i++)
+        if (v[i] !== gpkEventsVersion[i])
+            return v[i] > gpkEventsVersion[i];
+    return true;
+}
+
+function searchVersion(text) {
+    var doc = JSON.parse(String(text || ""));
+    return doc && typeof doc.gpk_version === "string" ? doc.gpk_version : "";
+}
+
 // `gpk search --json`: one row per installable result; managers outside the
 // Apps search (pip, npm, ...) never reach it, and Flatpak rows install by
 // their application id when gpk reports one.
@@ -224,4 +252,4 @@ function sourceUrlProblem(url) {
 }
 
 if (typeof module !== "undefined" && module.exports)
-    module.exports = { sourceKind, sourceChip, formatBytes, parseRyokuApps, ryokuActions, ryokuCommand, displayVersion, parseSearch, searchCommand, packageCommand, removePlanCommand, requiredBy, aurLine, shellQuote, parseSources, sourceUrlProblem };
+    module.exports = { sourceKind, sourceChip, formatBytes, parseRyokuApps, ryokuActions, ryokuCommand, displayVersion, gpkVersion, gpkCanInstall, searchVersion, parseSearch, searchCommand, packageCommand, removePlanCommand, requiredBy, aurLine, shellQuote, parseSources, sourceUrlProblem };

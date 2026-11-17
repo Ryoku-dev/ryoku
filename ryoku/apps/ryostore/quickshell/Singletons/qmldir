@@ -3,3 +3,4 @@ singleton Jobs Jobs.qml
 singleton AppSearch AppSearch.qml
 singleton RyokuApps RyokuApps.qml
 singleton Sources Sources.qml
+singleton Gpk Gpk.qml

@@ -44,7 +44,8 @@ Rectangle {
 
     function run(action) {
         card.confirming = false;
-        Jobs.app.start(card.key, action, card.app.name, AppsLogic.ryokuCommand(card.app, action));
+        if (Gpk.canInstall)
+            Jobs.app.start(card.key, action, card.app.name, AppsLogic.ryokuCommand(card.app, action));
     }
 
     function open() {
@@ -213,8 +214,8 @@ Rectangle {
                         required property string modelData
                         required property int index
                         objectName: "ryostore-ryoku-app-" + modelData + "-" + card.app.id
-                        primary: index === 0 && modelData !== "open" && modelData !== "remove"
-                        armed: modelData === "open" ? card.entry !== null : !Jobs.app.running
+                        primary: index === 0 && modelData !== "open" && modelData !== "remove" && Gpk.canInstall
+                        armed: modelData === "open" ? card.entry !== null : !Jobs.app.running && Gpk.canInstall
                         motionEnabled: !card.reducedMotion
                         text: modelData === "install" ? I18n.tr("INSTALL")
                               : (modelData === "update" ? I18n.tr("UPDATE")
@@ -255,7 +256,7 @@ Rectangle {
                         objectName: "ryostore-ryoku-app-confirm-remove-" + card.app.id
                         text: I18n.tr("REMOVE")
                         primary: true
-                        armed: !Jobs.app.running
+                        armed: !Jobs.app.running && Gpk.canInstall
                         motionEnabled: !card.reducedMotion
                         onAct: card.run("remove")
                     }
@@ -276,6 +277,18 @@ Rectangle {
             font.family: Tokens.ui
             font.pixelSize: Tokens.fTiny
             elide: Text.ElideRight
+        }
+
+        // the host helper installs through gpk's progress events, which an older gpk lacks
+        Text {
+            objectName: "ryostore-ryoku-app-gpk-old-" + card.app.id
+            width: parent.width
+            visible: !Gpk.canInstall && card.actions.some(a => a !== "open")
+            text: I18n.tr("Needs gpk 0.7.0, which comes with the next Ryoku update. Run ryoku update first.")
+            color: Tokens.alert
+            font.family: Tokens.ui
+            font.pixelSize: Tokens.fTiny
+            wrapMode: Text.Wrap
         }
 
         JobLine {

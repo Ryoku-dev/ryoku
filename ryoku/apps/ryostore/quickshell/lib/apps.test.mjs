@@ -30,6 +30,14 @@ eq(JobEvents.cancellable(Apps.packageCommand({ kind: "system", source: "pacman",
 eq(JobEvents.cancellable(Apps.packageCommand({ kind: "flatpak", source: "flatpak", installName: "a" }, "install")), true, "a Flatpak job can be stopped");
 eq(Apps.displayVersion("1:2.0.0-1"), "2.0.0-1", "the epoch is not shown");
 eq(Apps.displayVersion("0.3.0"), "0.3.0", "plain versions stay");
+eq(Apps.gpkVersion("gpk v0.6.8\n"), [0, 6, 8], "version from --version");
+eq(Apps.gpkVersion("v0.7.0-dev"), [0, 7, 0], "a pre-release reads as its release");
+eq(Apps.gpkCanInstall("gpk v0.6.8"), false, "0.6 cannot report progress");
+eq(Apps.gpkCanInstall("v0.6.10"), false, "0.6.10 is still older than 0.7.0");
+eq(Apps.gpkCanInstall("v0.7.0-dev"), true, "0.7.0 builds install");
+eq(Apps.gpkCanInstall("v1.0.0"), true, "newer majors install");
+eq(Apps.gpkCanInstall(""), true, "an unknown gpk is let through");
+eq(Apps.searchVersion('{"gpk_version":"v0.6.8","schema":1,"data":[]}'), "v0.6.8", "version from the envelope");
 assert.throws(() => Apps.parseRyokuApps("{}"), /apps are missing/);
 
 // gpk search

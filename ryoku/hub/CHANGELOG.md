@@ -18,6 +18,8 @@
   Flatpak and your own apps through gpk as you, the AUR in a terminal; progress
   comes from the tools' events, with Cancel and Retry. A space overview draws
   engraved bars by source and by size group. Get more apps opens RyoStore.
+  With a gpk older than 0.7.0 the page says that listing apps waits for the
+  next update and points at Updates, while Ryoku's own apps still show.
 - **Apps renamed.** Default apps is now Defaults, Startup apps At sign-in and
   Add-ons Desktop add-ons; their ids, old names and links still work.
 - **Ryoku badges for testers, contributors and the team.** Each machine has a

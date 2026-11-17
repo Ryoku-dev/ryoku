@@ -232,7 +232,7 @@ Item {
         hub: root.hub
         pageId: root.pageId
         schema: root.schema
-        stateLine: root.store && root.store.appsLoaded && root.store.appsError === ""
+        stateLine: root.store && root.store.appsLoaded && root.store.appsError === "" && !root.store.gpkOld
             ? I18n.tr("%1 apps, %2 in all").arg(root.space.apps).arg(root.size(root.space.total)) : ""
         bodies: ({ ryoku: ryokuBody, space: spaceBody, apps: appsBody })
         onLayoutChanged: {
@@ -269,6 +269,37 @@ Item {
             glyph: "refresh"
             text: I18n.tr("Retry")
             onClicked: errorLine.retry()
+        }
+    }
+
+    // the gpk here predates the one that lists apps; it comes with the next update, so the
+    // place says so and points at Updates, where it arrives
+    component GpkNeeded: Row {
+        id: needed
+        width: parent ? parent.width : 0
+        visible: !!root.store && root.store.gpkOld
+        spacing: LithicTokens.space.s3
+
+        Label {
+            anchors.verticalCenter: parent.verticalCenter
+            width: Math.min(implicitWidth, needed.width - toUpdates.width - needed.spacing)
+            text: (root.store && root.store.gpkHave !== ""
+                ? I18n.tr("Listing your apps needs gpk 0.7.0, and this computer has gpk %1.").arg(root.store.gpkHave)
+                : I18n.tr("Listing your apps needs gpk 0.7.0, and this computer has an older one."))
+                + " " + I18n.tr("It comes with the next Ryoku update: open Updates, or run ryoku update in a terminal. Ryoku's own apps are above.")
+            typeRole: "body"
+            inkRole: "fg2"
+            wrapMode: Text.Wrap
+            elide: Text.ElideNone
+        }
+        Plaque {
+            id: toUpdates
+            anchors.verticalCenter: parent.verticalCenter
+            kind: "tonal"
+            small: true
+            glyph: "arrow_forward"
+            text: I18n.tr("Updates")
+            onClicked: root.hub.navigate("updates", "")
         }
     }
 
@@ -388,6 +419,10 @@ Item {
             spacing: LithicTokens.space.s4
             readonly property bool wide: width >= 760
 
+            QuietLine {
+                visible: root.store.gpkOld
+                text: I18n.tr("The space your apps take shows here once gpk 0.7.0 is in; see Apps below.")
+            }
             LoadingLine {
                 active: !root.store.appsLoaded
                 text: I18n.tr("Measuring the space apps take")
@@ -467,6 +502,7 @@ Item {
                 text: root.store.appsError
                 onRetry: root.store.refresh()
             }
+            GpkNeeded {}
             LoadingLine {
                 active: !root.store.appsLoaded
                 text: I18n.tr("Looking for installed apps")
@@ -564,7 +600,7 @@ Item {
                     : I18n.tr("No apps from there.")
             }
             QuietLine {
-                visible: root.store.appsLoaded && root.store.appsError === "" && root.listed.length === 0
+                visible: root.store.appsLoaded && root.store.appsError === "" && !root.store.gpkOld && root.listed.length === 0
                 text: I18n.tr("No apps yet. Get some from RyoStore, below.")
             }
 

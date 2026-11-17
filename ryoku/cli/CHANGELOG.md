@@ -1,6 +1,13 @@
 # Ryoku CLI Changelog
 
 ## Unreleased
+- **A checkout box gets the gpk its checkout pins.** Checkout boxes take
+  `[ryoku]` from the stable channel, which can serve an older gpk than the
+  checkout's Settings and Ryostore need. On Arch and CachyOS the dev deploy now
+  builds `release/packages/gpk/PKGBUILD` (the upstream binary, sha256 checked)
+  and installs it when the installed gpk is older than the pin; `ryoku doctor`
+  reports an older gpk on any checkout box without changing it
+  (`internal/doctor/reconcile_gpk_pin.go`, `../shell/deploy.sh`).
 - **`ryoku plugin list` and `remove` see plugins from stores you added.**
   Receipts under `store/sources/<store>/plugins/` count as installed; the list
   names the store (`store:<id>`, and `store` in JSON) and removal still goes

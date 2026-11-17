@@ -51,7 +51,8 @@ Item {
             terminal.running = true;
             return;
         }
-        const command = AppsLogic.packageCommand(row, action);
+        // an older gpk would fail halfway; the notice above says why
+        const command = Gpk.canInstall ? AppsLogic.packageCommand(row, action) : null;
         if (command)
             Jobs.app.start(row.key, action, row.name, command);
     }
@@ -130,10 +131,46 @@ Item {
         }
     }
 
+    // an older gpk searches but cannot install or remove here; said before any job starts
+    Rectangle {
+        id: gpkNotice
+        objectName: "ryostore-apps-gpk-old"
+        anchors { left: parent.left; right: parent.right; top: searchTrack.bottom; topMargin: Tokens.s2 }
+        visible: !Gpk.canInstall
+        height: visible ? gpkRow.implicitHeight + Tokens.s3 * 2 : 0
+        radius: Tokens.radius
+        color: Tokens.paperLift
+        border.width: Tokens.border
+        border.color: Tokens.alert
+
+        Row {
+            id: gpkRow
+            anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: Tokens.s3 }
+            spacing: Tokens.s3
+
+            Text {
+                text: "!"
+                color: Tokens.alert
+                font.family: Tokens.mono
+                font.pixelSize: Tokens.fBody
+                font.weight: Font.Bold
+            }
+            Text {
+                width: parent.width - Tokens.s5
+                text: I18n.tr("Installing and removing apps here needs gpk 0.7.0, and this computer has %1. It comes with the next Ryoku update: run ryoku update, then open Ryostore again. Search works meanwhile, and AUR packages still install in a terminal.")
+                      .arg(Gpk.version.replace(/^gpk\s+/, ""))
+                color: Tokens.ink
+                font.family: Tokens.ui
+                font.pixelSize: Tokens.fSmall
+                wrapMode: Text.Wrap
+            }
+        }
+    }
+
     Rectangle {
         id: notice
         objectName: "ryostore-apps-search-warning"
-        anchors { left: parent.left; right: parent.right; top: searchTrack.bottom; topMargin: Tokens.s2 }
+        anchors { left: parent.left; right: parent.right; top: gpkNotice.bottom; topMargin: gpkNotice.visible ? Tokens.s2 : 0 }
         visible: view.anyUnreviewed && AppSearch.rows.length > 0
         height: visible ? noticeRow.implicitHeight + Tokens.s3 * 2 : 0
         radius: Tokens.radius
@@ -332,8 +369,9 @@ Item {
                             Btn {
                                 objectName: "ryostore-apps-action-" + rowItem.row.key
                                 compact: true
-                                primary: !rowItem.row.installed && rowItem.row.kind !== "aur"
-                                armed: !Jobs.app.running && !(rowItem.row.kind === "aur" && terminal.running)
+                                primary: !rowItem.row.installed && rowItem.row.kind !== "aur" && Gpk.canInstall
+                                armed: rowItem.row.kind === "aur" ? !terminal.running
+                                       : !Jobs.app.running && Gpk.canInstall
                                 motionEnabled: !view.reducedMotion
                                 text: rowItem.row.installed ? I18n.tr("REMOVE")
                                       : (rowItem.row.kind === "aur" ? I18n.tr("INSTALL IN TERMINAL") : I18n.tr("INSTALL"))
@@ -369,7 +407,7 @@ Item {
                                 compact: true
                                 primary: true
                                 text: I18n.tr("REMOVE")
-                                armed: !Jobs.app.running && !view.planReading && view.neededBy.length === 0
+                                armed: !Jobs.app.running && Gpk.canInstall && !view.planReading && view.neededBy.length === 0
                                 motionEnabled: !view.reducedMotion
                                 onAct: view.run(rowItem.row, "remove")
                             }
