@@ -11,6 +11,9 @@
   charge now (falling back to the active pack where a UPower version's
   synthetic display device misbehaves), and only say "On AC" when a charger
   is actually attached (#845).
+- **Rashin Ask and Agent no longer hang on "waking the needle" (#811).** The
+  code index rebuilds in the background and the Prowl code tools join a chat
+  once it is current, so a slow rebuild can't time the session out.
 - **Fastfetch reads the wallpaper-tinted config again.** The effective config
   keeps the `// ryoku:` header comments from `config.jsonc`, so it is now
   cached as `fastfetch-effective.jsonc`; fastfetch rejects comments in a

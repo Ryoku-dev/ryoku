@@ -628,7 +628,7 @@ func (c *acpConn) Initialize(cwd string) error {
 		return err
 	}
 	c.applyInitResult(res)
-	return c.openSession("session/new", map[string]any{"cwd": cwd, "mcpServers": prowlMCPServers()})
+	return c.openSession("session/new", map[string]any{"cwd": cwd, "mcpServers": prowlSessionMCPServers()})
 }
 
 // applyInitResult records the negotiated protocol version and the agent's
@@ -696,7 +696,7 @@ func (c *acpConn) openSession(method string, params map[string]any) error {
 
 // NewSession abandons the current session for a fresh one in the same cwd.
 func (c *acpConn) NewSession() error {
-	return c.openSession("session/new", map[string]any{"cwd": c.cwd, "mcpServers": prowlMCPServers()})
+	return c.openSession("session/new", map[string]any{"cwd": c.cwd, "mcpServers": prowlSessionMCPServers()})
 }
 
 // LoadSession switches to a stored session; hermes replays its transcript as
@@ -709,7 +709,7 @@ func (c *acpConn) LoadSession(id string) error {
 	defer c.sessionMu.Unlock()
 	c.emit(AcpEvent{Type: "replay_start", SessionID: id})
 	err := c.openSessionLocked("session/load", map[string]any{
-		"sessionId": id, "cwd": c.cwd, "mcpServers": prowlMCPServers(),
+		"sessionId": id, "cwd": c.cwd, "mcpServers": prowlSessionMCPServers(),
 	})
 	c.emit(AcpEvent{Type: "replay_end", SessionID: id})
 	return err
