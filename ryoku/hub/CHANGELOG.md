@@ -28,6 +28,14 @@
   `Singletons/NetworkTopic.qml`).
 - **Updates lets you choose Ryoku notifications, system notifications, or both (#877).**
   This does not change which packages Update now installs.
+- **Window Manager: a second display can run its own tiling layout.** With the
+  display link off, selecting a non-main output shows only its Tiling layout.
+  The choice applies live to that output's workspaces and comes back at login.
+  Linking again puts that output back on the shared layout. Save is unchanged
+  (`pages/WindowManagerPage.qml`).
+- **The per-display tiling choice shows only where the compositor supports it.**
+  Other compositors keep one shared layout and show no display link
+  (`pages/WindowManagerPage.qml`, capability `perWorkspaceLayout`).
 
 ### Fixed
 - **Re-rendering app themes works when the config directory is not `~/.config`

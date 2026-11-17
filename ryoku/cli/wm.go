@@ -38,6 +38,8 @@ func cmdWm(args []string) {
 		cmdWmCompat(args[1:])
 	case "state":
 		cmdWmState()
+	case "watch":
+		cmdWmWatch(args[1:])
 	case "outputs":
 		cmdWmOutputs(args[1:])
 	case "act":
@@ -60,6 +62,8 @@ func cmdWm(args []string) {
 func wmUsage() {
 	fmt.Print(i18n.T("Usage: ryoku wm <command>\n\n  status            print the detected provider, its capabilities and workspace model\n  caps              print the active provider's capability manifest (JSON)\n  compat <dir>      check a plugin directory against the active provider (JSON)\n  state             print the active provider's current state (JSON)\n  config [name]     print a provider's config dir and the files it owns (JSON)\n  reset-paths       print the config files a factory reset clears (one path per line)\n  handles           print the session IPC handle variables (one per line)\n  use <name>        preview and switch to another compositor (installs its package)\n  act <id> [args]   dispatch a window-manager action through the provider\n  session           print the provider's wayland-session desktop entry\n"))
 	fmt.Print(i18n.T("  outputs <file>    apply and persist a neutral output layout (JSON)\n"))
+	// added after the usage text was translated; a separate string keeps the existing translations matching
+	fmt.Print(i18n.T("  watch <kind>...   stream state frames as JSON when outputs, workspaces, ... change\n"))
 }
 
 func cmdWmStatus() {
@@ -130,6 +134,25 @@ func cmdWmState() {
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(state); err != nil {
+		die("%v", err)
+	}
+}
+
+// cmdWmWatch streams the provider's state frames as newline-delimited JSON for
+// the kinds named (outputs, workspaces, focus, ...). It blocks until the stream
+// ends, so a caller reacts to events instead of polling.
+func cmdWmWatch(args []string) {
+	kinds := make([]wm.FrameKind, 0, len(args))
+	for _, a := range args {
+		kinds = append(kinds, wm.FrameKind(a))
+	}
+	enc := json.NewEncoder(os.Stdout)
+	err := wm.Open().WatchKinds(context.Background(), kinds, func(f wm.Frame) {
+		if encErr := enc.Encode(f); encErr != nil {
+			os.Exit(1)
+		}
+	})
+	if err != nil {
 		die("%v", err)
 	}
 }
