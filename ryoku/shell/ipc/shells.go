@@ -53,12 +53,30 @@ type shellSnapshot struct {
 	InUse  []string
 }
 
+// ryostoreBeside is the ryostore installed next to this daemon, so the pair
+// always comes from one deploy whatever order PATH lists its directories in.
+func ryostoreBeside(dir string) string {
+	sibling := filepath.Join(dir, "ryostore")
+	if info, err := os.Stat(sibling); err == nil && info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0 {
+		return sibling
+	}
+	return "ryostore"
+}
+
+func ryostoreCommand() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return "ryostore"
+	}
+	return ryostoreBeside(filepath.Dir(exe))
+}
+
 var runRyostoreShellsSync = func(prune bool) error {
 	args := []string{"internal", "shells-sync"}
 	if prune {
 		args = append(args, "--prune")
 	}
-	out, err := exec.Command("ryostore", args...).CombinedOutput()
+	out, err := exec.Command(ryostoreCommand(), args...).CombinedOutput()
 	if err != nil {
 		message := strings.TrimSpace(string(out))
 		if message != "" {

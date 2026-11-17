@@ -42,6 +42,11 @@
   (`quickshell/shell/modules/visualizer/Motion.qml`, `VisualizerView.qml`,
   `Singletons/Config.qml`, `ui/SpectrumField.qml`,
   `quickshell/shell/modules/desktop/options/VisualizerOptions.qml`).
+- **A source checkout deploys its own ryostore.** `deploy.sh` builds and
+  installs `apps/ryostore/backend` beside `ryoku-shell`, and the daemon runs
+  the ryostore next to itself before the one on PATH, so a packaged ryostore
+  older than the checkout can no longer break the shells sync or the doctor
+  (`deploy.sh`, `ipc/shells.go`).
 - **Plugins installed from a store you added load like any other.**
   `plugins/discover.sh` also reads `ryoku/sources/<store>/plugins` and accepts
   each copy only with a receipt from its own store, so no store's copy can pose

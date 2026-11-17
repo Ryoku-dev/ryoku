@@ -701,6 +701,14 @@ piece_end
 install -m755 "$here/../hub/backend/ryoku-hub" "$bindir/ryoku-hub"
 say "installed $bindir/ryoku-hub"
 
+# The daemon's shells sync and the doctor call `ryostore internal ...`; a
+# packaged ryostore older than this checkout fails them and the bar goes with it.
+piece ryostore "ryostore, the store backend"
+build_go "$here/../apps/ryostore/backend" ryostore
+piece_end
+install -m755 "$here/../apps/ryostore/backend/ryostore" "$bindir/ryostore"
+say "installed $bindir/ryostore"
+
 # Build beside the destination so a failed build keeps the working copy.
 piece rashin "Rashin, the optional AI system"
 rashin_module="$here/../rashin"
