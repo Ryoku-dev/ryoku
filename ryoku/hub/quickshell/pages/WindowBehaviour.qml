@@ -15,9 +15,40 @@ Item {
 
     readonly property var layoutRow: Schema.rows.find(r => r.id === "tiling-layout")
     readonly property bool layoutShown: root.hub.rowAvailable(root.layoutRow)
+
+    // a window manager that tiles each workspace by itself lets every display have its own layout
+    readonly property bool perOutput: Settings.supports("perWorkspaceLayout")
+    readonly property var tiling: Changes.stores.outputtiling || null
+    readonly property var displays: root.tiling ? root.tiling.outputs : []
+    readonly property bool scoped: !!root.tiling && root.tiling.scoped
+    // with the link off, a display other than the main one shows the layout it has live, and the shared one until it has any
+    readonly property var layoutBind: root.scoped
+        ? { store: "outputtiling", key: "layout:" + root.tiling.active, fallback: Changes.value(root.layoutRow.bind) }
+        : root.layoutRow.bind
     readonly property string layout: {
-        var v = Changes.value(root.layoutRow.bind);
+        var v = Changes.value(root.layoutBind);
         return v === "master" || v === "scrolling" ? v : "dwindle";
+    }
+
+    function ensureTiling() {
+        if (root.perOutput)
+            Changes.ensureStore("outputtiling", Qt.resolvedUrl("../components/window-behaviour/OutputTilingStore.qml"));
+    }
+    onPerOutputChanged: root.ensureTiling()
+    Component.onCompleted: {
+        var had = !!Changes.stores.outputtiling;
+        root.ensureTiling();
+        if (had)
+            Changes.stores.outputtiling.load();
+    }
+
+    // the link and the display choice only mean something with two displays, or while the link is off
+    function rowKept(row) {
+        if (row.id === "layout-display")
+            return root.displays.length >= 2;
+        if (row.id === "link-displays")
+            return root.displays.length >= 2 || (!!root.tiling && root.tiling.known && !root.tiling.linked);
+        return true;
     }
 
     // some window managers keep finer focus modes; the one in use stays visible and choosable
@@ -29,7 +60,13 @@ Item {
         lead: Schema.lead,
         sections: Schema.sections,
         related: Schema.related,
-        rows: Schema.rows.map(r => {
+        rows: Schema.rows.filter(r => root.rowKept(r)).map(r => {
+            if (r.id === "tiling-layout" && root.scoped)
+                return Object.assign({}, r, {
+                    bind: root.layoutBind,
+                    detail: I18n.tr("How new windows share the screen on %1").arg(root.tiling.active),
+                    changeLabel: I18n.tr("Tiling layout on %1").arg(root.tiling.active)
+                });
             if (r.id !== "focus-follows" || !root.extraFocus)
                 return r;
             return Object.assign({}, r, { control: "picker", options: r.options.concat([root.extraFocus]) });
@@ -47,7 +84,20 @@ Item {
         pageId: "window-behaviour"
         headerPreview: Component { TilingPreview {} }
         schema: root.schema
+        controls: ({ "layout-display": displayChooser })
         bodies: root.layoutShown ? { tiling: sketchBody } : {}
+    }
+
+    Component {
+        id: displayChooser
+        Segmented {
+            property var row
+            width: Math.min(implicitWidth, LithicTokens.size.settingsControlMax)
+            model: root.displays
+            currentIndex: Math.max(0, root.displays.indexOf(root.tiling ? root.tiling.active : ""))
+            accessibleName: I18n.tr("Display")
+            onActivated: index => root.tiling.select(root.displays[index])
+        }
     }
 
     Component {

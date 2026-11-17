@@ -4,6 +4,13 @@
 - **Ethernet, VPN and DNS are pages under Connections, and a saved Wi-Fi network has IP settings.**
   A manual address on the connection in use is undone after 20 seconds unless kept; `ryoku-shell hub open ethernet`,
   `vpn` or `dns` opens them (`pages/Ethernet.qml`, `Vpn.qml`, `Dns.qml`, `components/network/`, `Singletons/NetworkLink.qml`).
+- **Window behaviour gives each display its own tiling layout (#866).** With two
+  displays and a window manager that tiles each workspace by itself
+  (`perWorkspaceLayout`), Tiling offers Same layout on every display. Turn it off
+  and pick a display to set its layout, which applies live and is kept through
+  `ryoku-output-tiling`. The display list follows a display being plugged in or
+  out; other window managers keep one shared layout and show neither row
+  (`pages/WindowBehaviour.qml`, `components/window-behaviour/OutputTilingStore.qml`).
 - **Settings > Updates chooses what the bar's update dot counts (#877).** Under
   Automatic checks, Update notifications picks Ryoku only (the default), System
   only or Both. It does not change what Update now installs

@@ -33,6 +33,16 @@ var extraFocus = [
 ];
 
 var rows = [
+    { id: "link-displays", section: "tiling", label: "Same layout on every display",
+      detail: "Every display tiles the same way. Turn it off to give each display its own layout.",
+      keywords: ["display link", "link displays", "per display", "per monitor", "second monitor", "each screen", "multi monitor", "outputs"],
+      control: "toggle", bind: { store: "outputtiling", key: "linked", fallback: true }, "default": true,
+      needs: { cap: "perWorkspaceLayout" } },
+    { id: "layout-display", section: "tiling", label: "Display",
+      detail: "The display whose layout you are setting. The other settings on this page stay the same on every display.",
+      keywords: ["output", "monitor", "screen", "second display"], control: "custom",
+      when: { bind: { store: "outputtiling", key: "linked", fallback: true }, is: [false] },
+      needs: { cap: "perWorkspaceLayout" } },
     { id: "tiling-layout", section: "tiling", label: "Tiling layout",
       detail: "How new windows share the screen",
       keywords: ["dwindle", "master", "stack", "scrolling", "columns", "split", "layout"],
