@@ -44,6 +44,8 @@
   loaded for 20 seconds after you leave it (up to five pages), so switching
   back skips the fresh load; a page left longer reloads, so its data is
   never older than that (`Hub.qml`).
+- **The Ethernet tab says when it is waiting for the shell daemon.** It was
+  an empty page until the daemon answered.
 - **Every Connections tab fills the page width.** Wi-Fi was a 720 px column
   in the middle of the page, Bluetooth was capped at 720 px and pinned left
   with its device list narrower still, and the Hotspot form at 600 px, while

@@ -137,6 +137,18 @@ Item {
                 }
             }
 
+            SettingCard {
+                visible: !NetworkTopic.ready
+                width: parent.width
+                title: I18n.tr("ETHERNET")
+                collapsible: false
+                SettingRow {
+                    width: parent.width
+                    label: I18n.tr("Waiting for the shell daemon...")
+                    desc: I18n.tr("Wired adapters show here once it answers.")
+                }
+            }
+
             Repeater {
                 model: NetworkTopic.ethernet
                 delegate: SettingCard {
