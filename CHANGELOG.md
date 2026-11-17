@@ -32,6 +32,8 @@ for finer detail.
   user is no longer in a mango session.
 
 ### Fixed
+- The Game Bar's Audio card grows to show every playing app (up to most of the
+  screen height) and can be resized by its bottom-right grip.
 - The wallpaper-following pointer now recolours on niri within a few seconds
   of the palette, not ~30 s, its size never changes, and it reaches the apps
   you launch, not just the compositor's own pointer. The bitmap set niri

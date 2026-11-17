@@ -59,8 +59,8 @@ and use the Capture card's Stop button.
 - **Voice** shows the Discord call (see below).
 - **Audio** carries the same output and application faders as the audio menu.
   A level set here is the level PipeWire holds everywhere. The card grows with
-  the list so every playing app stays visible; if it would pass the screen edge
-  the list scrolls.
+  the list so every playing app stays visible, up to most of the screen height;
+  past that the list scrolls. Drag the bottom-right grip for more room.
 - **Gallery** shows the newest screenshots as their own thumbnails and
   recordings as titled play tiles, with a switch between the two lists and a
   button to open the current folder.
@@ -72,9 +72,10 @@ another card pulls to that line; when nothing is near it falls back to the
 snapping grid. The guide grid appears while a drag can snap. The grid button in
 the strip turns snapping on and off, and the choice is saved.
 
-Only the Voice card resizes: drag its bottom-right grip. A card that does not
-fit after a monitor change is pulled back onto the screen. Each card keeps its
-own position and the Voice card keeps its size, both in the persisted state.
+The Voice, Media and Audio cards resize: drag the bottom-right grip. A card that
+does not fit after a monitor change is pulled back onto the screen. Each card
+keeps its own position and a resized card keeps its size, both in the persisted
+state.
 
 Snap reach, grid spacing, guide spacing and visibility, and the settle spring
 are all adjustable; see **Settings**.

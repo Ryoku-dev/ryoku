@@ -11,6 +11,7 @@ GameBarCard {
     id: card
 
     title: I18n.tr("Audio")
+    resizable: true
 
     readonly property var sinkAudio: Audio.sink && Audio.sink.audio ? Audio.sink.audio : null
     readonly property var sourceAudio: Audio.source && Audio.source.audio ? Audio.source.audio : null
@@ -34,15 +35,19 @@ GameBarCard {
     readonly property real gap: card.space2
     readonly property real rowSpacing: 2 * card.s
     readonly property real rowHeight: 40 * card.s
-    readonly property real listHeight: card.streams.length > 0
-        ? Math.min(3 * card.rowHeight + 2 * card.rowSpacing,
-                   card.streams.length * card.rowHeight + (card.streams.length - 1) * card.rowSpacing)
+    readonly property real chromeHeight: card.grab * 2 + card.pad * 2 + card.head + 6 * card.s
+        + output.implicitHeight + card.gap + input.implicitHeight + card.gap
+        + LithicTokens.size.hairline + card.gap + appsLabel.implicitHeight + card.gap + card.gap
+    readonly property real allRowsHeight: card.streams.length > 0
+        ? card.streams.length * card.rowHeight + (card.streams.length - 1) * card.rowSpacing
         : card.rowHeight
-    readonly property real contentHeight: output.implicitHeight + card.gap
-        + input.implicitHeight + card.gap + LithicTokens.size.hairline + card.gap
-        + appsLabel.implicitHeight + card.gap + card.listHeight + card.gap
+    readonly property real threeRowsHeight: Math.min(card.allRowsHeight,
+        3 * card.rowHeight + 2 * card.rowSpacing)
+    readonly property real roomHeight: card.host ? card.host.height * 0.8 - card.chromeHeight : 0
+    readonly property real listHeight: Math.max(card.threeRowsHeight,
+        Math.min(card.allRowsHeight, card.roomHeight))
 
-    preferredHeight: card.grab * 2 + card.pad * 2 + card.head + 6 * card.s + card.contentHeight
+    preferredHeight: card.chromeHeight + card.listHeight
 
     Item {
         anchors.fill: parent

@@ -99,7 +99,8 @@ PanelWindow {
     // Only cards that can resize carry limits; the rest keep their drawn size.
     readonly property var cardLimits: ({
         voice: { minW: 300, minH: 280, maxW: 640, maxH: 640 },
-        media: { minW: 300, minH: 200, maxW: 640, maxH: 560 }
+        media: { minW: 300, minH: 200, maxW: 640, maxH: 560 },
+        audio: { minW: 300, minH: 240, maxW: 640, maxH: 640 }
     })
 
     function glyphFor(id) {
@@ -360,7 +361,7 @@ PanelWindow {
     }
 
     function beginResize(id) {
-        const size = win.sizeFor(id);
+        const size = win.extentFor(id);
         win.settlingCard = "";
         settleTimer.stop();
         win.liveW = size.w;
