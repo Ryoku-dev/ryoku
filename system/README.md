@@ -18,7 +18,8 @@ How an installed Ryoku machine is put together, separate from the desktop in
 - `policy/` System authorization rules (polkit).
   `52-ryoku-timedate.rules` lets the active desktop user set the time zone
   without a password, while `dev.ryoku.users.policy` gives the typed
-  `ryoku-host users` API retained administrator authentication.
+  `ryoku-host users` API retained administrator authentication and
+  `dev.ryoku.apps.policy` does the same for `ryoku-host apps`.
 
 ## Networking and services
 

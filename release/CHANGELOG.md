@@ -1,6 +1,15 @@
 # Release / Packaging Changelog
 
 ## Unreleased
+- **gpk 0.7.0 on every edition.** The pinned GlazePKG moves to 0.7.0 on Arch,
+  CachyOS, Fedora and Void, and `ryoku-desktop` requires it. It reports
+  installed sizes, lists launchable apps and streams install and removal
+  progress, which Settings and Ryostore use to install and remove apps.
+- **`ryoku-desktop` ships the app install authorization.** The
+  `dev.ryoku.apps.manage` polkit action and `56-ryoku-apps.rules` reach Arch,
+  CachyOS, Fedora and Void through the shared payload, and a dev deploy lays
+  them too, so Settings and Ryostore ask for the password once per session
+  when they install or remove apps.
 - **The R2 bucket keeps three ISO versions and six package snapshots.**
   `r2-retention/` now keeps the current ISO and the two releases before it per
   variant (only the newest build of each version) and six frozen package

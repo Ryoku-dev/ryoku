@@ -56,7 +56,7 @@ QML running against a stale plugin.
 | `gpk` | GlazePKG, the RyokuArch package manager |
 | `ryogami` | The wallpaper daemon the shell drives: static, live, and shader transitions |
 | `ryomanager` | RyoManager, the system monitor and process manager. It is selected by default in the installer and can be removed without doctor putting it back |
-| `ryostore` | RyoStore: the catalogue of rices, bundles, subshells and bar styles |
+| `ryostore` (in `ryoku-desktop`) | RyoStore: the catalogue of rices, bundles, subshells and bar styles. It ships inside the desktop package, so it updates with Ryoku and is never removed on its own |
 | `ryotunes` | Ryotunes, the music player. It is selected by default in the installer and remains optional |
 | `ryoport` | Ryoport, the fleet dashboard for virtual machines, SSH servers, and remote consoles. It is selected by default in the installer and remains optional |
 | `ryoku-hypr-plugins`, `hyprglass`, `imgborders`, `hypr-dynamic-cursors` | Hyprland compositor plugins Ryoku Settings can toggle |
@@ -68,6 +68,11 @@ QML running against a stale plugin.
 | `limine-mkinitcpio-hook`, `limine-snapper-sync` | Boot-menu regeneration and the snapshots submenu |
 
 `ryoshot` (the screenshot studio) and the launcher live inside `ryoku-shell`.
+
+Ryotunes, Ryoport and RyoManager can be added back or removed later from
+Ryostore and Ryoku Settings, which call `ryoku-host apps` with one password per
+session; `ryoku apps list` shows which are installed and whether an update is
+waiting (`docs/cli.md`).
 
 The desktop package also includes two ready-to-apply rices: **Default** and
 **NOC**. Each carries its own wallpaper, preview, shell look, and Fastfetch

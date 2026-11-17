@@ -324,7 +324,7 @@ func cmdPluginRemove(args []string) error {
 		return fmt.Errorf(i18n.T("plugin %q is not installed"), id)
 	}
 	// Remove THROUGH ryostore so the receipt, the content-hashed view, and the
-	// index entry are torn down together.
+	// index entry are torn down together; it finds the store that owns the id.
 	if err := sys.Run(storeTool(), "remove", "plugins", id); err != nil {
 		return fmt.Errorf(i18n.T("remove %q: %w"), id, err)
 	}
@@ -385,7 +385,8 @@ func addAllowed(allow map[string]bool, list string) {
 }
 
 // pluginRow is one `plugin list` element. source is "store" for a receipt-owned
-// install and "dev" for a RYOSTORE_PLUGINS_DIR override.
+// install and "dev" for a RYOSTORE_PLUGINS_DIR override; store names the store a
+// user added that the plugin came from, empty for the official stores.
 type pluginRow struct {
 	ID           string         `json:"id"`
 	Name         string         `json:"name"`
@@ -395,6 +396,7 @@ type pluginRow struct {
 	Enabled      bool           `json:"enabled"`
 	Host         string         `json:"host"`
 	Source       string         `json:"source"`
+	Store        string         `json:"store,omitempty"`
 	Capabilities map[string]any `json:"capabilities,omitempty"`
 }
 
@@ -420,7 +422,11 @@ func cmdPluginList(args []string) error {
 		if r.Enabled {
 			state = i18n.T("on:") + r.Host
 		}
-		fmt.Printf("%-20s %-10s %-6s %-12s %s\n", r.ID, r.Version, r.Source, state, strings.Join(r.Hosts, ","))
+		source := r.Source
+		if r.Store != "" {
+			source += ":" + r.Store
+		}
+		fmt.Printf("%-20s %-10s %-6s %-12s %s\n", r.ID, r.Version, source, state, strings.Join(r.Hosts, ","))
 	}
 	return nil
 }
@@ -432,7 +438,7 @@ func pluginListRows() []pluginRow {
 	state := readPluginsState()
 	rows := []pluginRow{}
 	seen := map[string]bool{}
-	add := func(id, dir, version, source string) {
+	add := func(id, dir, version, source, store string) {
 		if id == "" || seen[id] {
 			return
 		}
@@ -446,7 +452,7 @@ func pluginListRows() []pluginRow {
 		rows = append(rows, pluginRow{
 			ID: id, Name: manifestName(m, id), Version: version,
 			Hosts: manifestHosts(m), Dir: dir,
-			Enabled: st.enabled, Host: st.host, Source: source,
+			Enabled: st.enabled, Host: st.host, Source: source, Store: store,
 			Capabilities: caps,
 		})
 	}
@@ -461,18 +467,11 @@ func pluginListRows() []pluginRow {
 			}
 			pdir := filepath.Join(dir, e.Name())
 			id := manifestString(readManifestMap(filepath.Join(pdir, "manifest.json")), "id")
-			add(id, pdir, "", "dev")
+			add(id, pdir, "", "dev", "")
 		}
 	}
-	entries, err := os.ReadDir(storeReceiptDir())
-	if err == nil {
-		for _, e := range entries {
-			if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
-				continue
-			}
-			id := strings.TrimSuffix(e.Name(), ".json")
-			add(id, filepath.Join(pluginsInstallRoot(), id), receiptVersion(id), "store")
-		}
+	for _, r := range pluginReceipts() {
+		add(r.id, r.dir, receiptVersion(r.path), "store", r.store)
 	}
 	return rows
 }
@@ -499,17 +498,59 @@ func devPluginDirs() []string {
 // package.
 func storeTool() string { return "ryostore" }
 
-// storeReceiptDir is where the store writes plugin receipts.
-func storeReceiptDir() string {
-	return filepath.Join(sys.Xdg("XDG_STATE_HOME", ".local/state"), "ryoku", "store", "plugins")
+// storeStateDir is the store's state root; the official stores' plugin
+// receipts sit in plugins/, a store the user added keeps its own under
+// sources/<store>/plugins/.
+func storeStateDir() string {
+	return filepath.Join(sys.Xdg("XDG_STATE_HOME", ".local/state"), "ryoku", "store")
+}
+
+// pluginReceipt is one store-installed plugin: its receipt, the directory its
+// files live in, and the user-added store it came from ("" for official).
+type pluginReceipt struct {
+	id, path, dir, store string
+}
+
+// pluginReceipts lists every store-installed plugin, official stores first.
+// Ryostore installs one copy of an id at a time, whichever store it came from.
+func pluginReceipts() []pluginReceipt {
+	var out []pluginReceipt
+	scan := func(receipts, files, store string) {
+		entries, err := os.ReadDir(receipts)
+		if err != nil {
+			return
+		}
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+				continue
+			}
+			id := strings.TrimSuffix(e.Name(), ".json")
+			out = append(out, pluginReceipt{id: id, path: filepath.Join(receipts, e.Name()), dir: filepath.Join(files, id), store: store})
+		}
+	}
+	scan(filepath.Join(storeStateDir(), "plugins"), pluginsInstallRoot(), "")
+	stores, _ := os.ReadDir(filepath.Join(storeStateDir(), "sources"))
+	for _, store := range stores {
+		if store.IsDir() {
+			scan(filepath.Join(storeStateDir(), "sources", store.Name(), "plugins"),
+				filepath.Join(sys.Xdg("XDG_DATA_HOME", ".local/share"), "ryoku", "sources", store.Name(), "plugins"),
+				store.Name())
+		}
+	}
+	return out
 }
 
 func pluginHasReceipt(id string) bool {
-	return sys.Exists(filepath.Join(storeReceiptDir(), id+".json"))
+	for _, r := range pluginReceipts() {
+		if r.id == id {
+			return true
+		}
+	}
+	return false
 }
 
-func receiptVersion(id string) string {
-	b, err := os.ReadFile(filepath.Join(storeReceiptDir(), id+".json"))
+func receiptVersion(path string) string {
+	b, err := os.ReadFile(path)
 	if err != nil {
 		return ""
 	}

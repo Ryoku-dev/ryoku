@@ -25,7 +25,7 @@ depends="
  xdg-desktop-portal-gtk
  gnome-themes-extra
  adw-gtk-theme
- gpk
+ gpk>=0.7.0_1
  papirus-icon-theme
  ryoku-cursors
  ryoku-cursor-material

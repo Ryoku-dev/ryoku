@@ -2,6 +2,15 @@ package host
 
 import "fmt"
 
+// AppsUsage is the `apps` section of the help. Its verbs live in
+// internal/ryokuapps, which cmd/ryoku-host routes `apps` to: they install Ryoku's
+// GitHub-released apps through apprelease, which itself builds on this package.
+const AppsUsage = `Apps (pkexec action dev.ryoku.apps.manage; NDJSON progress events on stdout):
+  apps install --manager <pacman|dnf|xbps> <name>...
+  apps remove --manager <pacman|dnf|xbps> [--with-deps] <name>...
+  apps ryoku <install|update|remove> <app-id>
+`
+
 const Usage = `Usage: ryoku-host <verb> [arguments]
        ryoku-host --help
 
@@ -78,6 +87,7 @@ Users:
   users provision <name> [--rice <slug>] [--rashin] [--hide-app <id>]... [--skip-welcome]
   users seed-self [--rice <slug>] [--rashin] [--hide-app <id>]... [--skip-welcome]
 
+` + AppsUsage + `
 Packages (names use the Arch/Ryoku catalogue):
   pkg [--overlay TABLE] <verb> ...   TABLE (or RYOKU_HOST_PKG_OVERLAY) maps names
                                      Ryoku's edition table does not list

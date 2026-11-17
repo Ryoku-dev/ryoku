@@ -33,6 +33,9 @@ func (c *Client) installRelease(ctx context.Context, rel relInfo, installed stri
 	if installed == "" {
 		op = "install"
 	}
+	if c.resolved != nil {
+		c.resolved(installed, rel.Version)
+	}
 	if err := c.verifyAndInstall(ctx, rel, ensure); err != nil {
 		return fmt.Errorf("%s %s: %w", c.app.Name, op, err)
 	}

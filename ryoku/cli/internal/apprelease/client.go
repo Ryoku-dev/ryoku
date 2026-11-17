@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -42,6 +43,7 @@ type Client struct {
 	now      func() time.Time
 	cacheDir string
 	checkTTL time.Duration
+	resolved func(installed, latest string)
 
 	// System dependencies, injected so the install path is testable without
 	// pacman, sudo, or a real package on disk.
@@ -63,7 +65,11 @@ type pkgMeta struct {
 }
 
 // defaultClient wires a Client to the real system.
-func defaultClient(app App) *Client {
+func defaultClient(app App, opts Options) *Client {
+	out := streams{stdout: os.Stdout, stderr: os.Stderr}
+	if opts.Output != nil {
+		out = streams{stdout: opts.Output, stderr: opts.Output}
+	}
 	return &Client{
 		app:              app,
 		Repo:             app.Repo,
@@ -73,10 +79,11 @@ func defaultClient(app App) *Client {
 		now:              time.Now,
 		cacheDir:         filepath.Join(sys.StateDir(), app.Name+"-release"),
 		checkTTL:         checkCacheTTL,
+		resolved:         opts.Resolved,
 		installedVersion: defaultInstalledVersion,
 		inspect:          defaultInspect,
 		install: func(ctx context.Context, path string, digest []byte) error {
-			return defaultInstall(ctx, app.Name, path, digest)
+			return defaultInstall(ctx, out, app.Name, path, digest)
 		},
 		vercmp:     defaultVercmp,
 		listFiles:  defaultListFiles,
@@ -230,23 +237,23 @@ func parsePkgInfo(out string) pkgMeta {
 // It removes the root-owned directory on every path, drops the sudo wrapper when
 // already root, and never interpolates a shell or a helper script: only fixed
 // arguments and the two file paths are passed.
-func defaultInstall(ctx context.Context, appName, path string, digest []byte) error {
+func defaultInstall(ctx context.Context, out streams, appName, path string, digest []byte) error {
 	root := os.Geteuid() == 0
 
-	out, err := privOut(ctx, root, "mktemp", "-d", "/var/tmp/"+appName+"-release.XXXXXXXXXX")
+	dirOut, err := privOut(ctx, root, "mktemp", "-d", "/var/tmp/"+appName+"-release.XXXXXXXXXX")
 	if err != nil {
 		return fmt.Errorf("root staging dir: %w", err)
 	}
-	dir := strings.TrimSpace(out)
+	dir := strings.TrimSpace(dirOut)
 	if dir == "" {
 		return errors.New("root staging dir: mktemp returned no path")
 	}
 	// Clean up on every path, with a fresh context so a cancelled ctx cannot leak
 	// the root-owned tree.
-	defer func() { _ = privRun(context.Background(), root, "rm", "-rf", "--", dir) }()
+	defer func() { _ = privRun(context.Background(), out, root, "rm", "-rf", "--", dir) }()
 
 	staged := filepath.Join(dir, filepath.Base(path))
-	if err := privRun(ctx, root, "install", "-m", "0644", "--", path, staged); err != nil {
+	if err := privRun(ctx, out, root, "install", "-m", "0644", "--", path, staged); err != nil {
 		return fmt.Errorf("stage package as root: %w", err)
 	}
 
@@ -258,7 +265,7 @@ func defaultInstall(ctx context.Context, appName, path string, digest []byte) er
 		return err
 	}
 
-	return privRun(ctx, root, "pacman", "-U", "--noconfirm", staged)
+	return privRun(ctx, out, root, "pacman", "-U", "--noconfirm", staged)
 }
 
 // verifyStagedDigest parses `sha256sum` output and constant-time compares its
@@ -279,19 +286,33 @@ func verifyStagedDigest(sha256sumOutput string, want []byte) error {
 	return nil
 }
 
-// privCommand wraps a command in sudo unless the process is already root.
+// privCommand wraps a command in sudo unless the process is already root. A
+// cancelled ctx interrupts the command rather than killing it, so pacman
+// handles the interruption itself instead of dying with its lock held.
 func privCommand(ctx context.Context, root bool, name string, args ...string) *exec.Cmd {
-	if root {
-		return exec.CommandContext(ctx, name, args...)
+	cmd := exec.CommandContext(ctx, name, args...)
+	if !root {
+		cmd = exec.CommandContext(ctx, "sudo", append([]string{name}, args...)...)
 	}
-	return exec.CommandContext(ctx, "sudo", append([]string{name}, args...)...)
+	cmd.Cancel = func() error { return cmd.Process.Signal(os.Interrupt) }
+	return cmd
 }
 
-// privRun runs a privileged command with the terminal wired through, so pacman
-// streams and any sudo password prompt reach the user.
-func privRun(ctx context.Context, root bool, name string, args ...string) error {
+// streams is where a privileged command's output goes: the terminal, or one
+// writer a caller turns into its event stream.
+type streams struct {
+	stdout, stderr io.Writer
+}
+
+// privRun runs a privileged command with its output on out, so pacman streams
+// reach the terminal or the caller's event stream. Stdin reaches only sudo's
+// password prompt; as root the command reads nothing.
+func privRun(ctx context.Context, out streams, root bool, name string, args ...string) error {
 	cmd := privCommand(ctx, root, name, args...)
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	cmd.Stdout, cmd.Stderr = out.stdout, out.stderr
+	if !root {
+		cmd.Stdin = os.Stdin
+	}
 	return cmd.Run()
 }
 
@@ -299,7 +320,10 @@ func privRun(ctx context.Context, root bool, name string, args ...string) error 
 // stderr on the terminal so a sudo prompt still works.
 func privOut(ctx context.Context, root bool, name string, args ...string) (string, error) {
 	cmd := privCommand(ctx, root, name, args...)
-	cmd.Stdin, cmd.Stderr = os.Stdin, os.Stderr
+	cmd.Stderr = os.Stderr
+	if !root {
+		cmd.Stdin = os.Stdin
+	}
 	out, err := cmd.Output()
 	return string(out), err
 }

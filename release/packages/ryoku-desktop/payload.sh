@@ -606,6 +606,13 @@ EOF
   install -Dm644 "$_repo/system/policy/55-ryoku-profiles.rules" \
     "$pkgdir/usr/share/polkit-1/rules.d/55-ryoku-profiles.rules"
 
+  # App installs and removals from Settings and Ryostore: one administrator
+  # authentication kept for the session, on the typed `ryoku-host apps` API only.
+  install -Dm644 "$_repo/system/policy/dev.ryoku.apps.policy" \
+    "$pkgdir/usr/share/polkit-1/actions/dev.ryoku.apps.policy"
+  install -Dm644 "$_repo/system/policy/56-ryoku-apps.rules" \
+    "$pkgdir/usr/share/polkit-1/rules.d/56-ryoku-apps.rules"
+
   install -Dm755 "$_repo/system/policy/ryoku-polkit-reload" \
     "$pkgdir/usr/bin/ryoku-polkit-reload"
 

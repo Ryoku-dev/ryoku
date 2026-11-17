@@ -251,9 +251,9 @@ func TestParseXBPSRepoPackagesAndInstalledSet(t *testing.T) {
 		case joined == "xbps-query -p pkgver ryogami":
 			return Result{Code: 2}
 		case strings.HasPrefix(joined, "xbps-uhelper cmpver 0.74.0_1"):
-			return Result{Output: "-1\n"}
+			return Result{Code: 255}
 		case strings.HasPrefix(joined, "xbps-uhelper cmpver 0.76.0_1"):
-			return Result{Output: "1\n"}
+			return Result{Code: 1}
 		default:
 			return Result{Code: 1}
 		}

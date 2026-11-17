@@ -1,6 +1,33 @@
 # Ryoku CLI Changelog
 
 ## Unreleased
+- **`ryoku plugin list` and `remove` see plugins from stores you added.**
+  Receipts under `store/sources/<store>/plugins/` count as installed; the list
+  names the store (`store:<id>`, and `store` in JSON) and removal still goes
+  through `ryostore remove plugins <id>`, which finds the owning store
+  (`plugin.go`).
+- **Ryoku's own apps install and update from Settings and Ryostore.**
+  `ryoku apps list --json` reports Ryotunes, Ryoport, Ryomanager and Ryostore
+  with the installed and latest version, size, lane and channel. `ryoku-host
+  apps install|remove --manager <m> <names>` and `ryoku-host apps ryoku
+  install|update|remove <app>` run under the new `dev.ryoku.apps.manage`
+  polkit action: gpk does the package work as root with its own home and
+  streams progress as one JSON event per line; Ryotunes and Ryoport on Arch and
+  CachyOS keep the verified GitHub release lane. AUR packages are refused with
+  "needs a terminal", and nothing that ryoku-desktop depends on can be removed.
+  `--stdin-cancel` lets a caller that cannot signal a root process stop a run
+  by closing stdin (`internal/ryokuapps/`, `cmd/ryoku-host/`).
+- **Ryotunes 2 reaches boxes on the hyperion line.** There the release lane
+  reads the release list and takes the newest 2.x package, prereleases
+  included, kept apart from the stable line's cache and still only ever moving
+  forward; every other line keeps following stable 1.x releases. The line
+  comes only from files the account keeps (the channel `ryoku track` recorded,
+  else the branch of the recorded checkout), so `ryoku apps list` and the
+  root install through pkexec always agree; the list is paged, ten pages at
+  most (`internal/apprelease/`, `internal/sys/repo.go`).
+- **Void package updates compare versions correctly.** `xbps-uhelper cmpver`
+  answers through its exit status; the version compare read its output, so
+  every pair looked equal (`internal/host/repo.go`).
 - **Settings' own colours become the desktop's.** `ryoku doctor` carries
   `hub.colours`, `hub.contrast` and `hub.tint` in shell.json into
   `theme.colours`, `theme.contrast` and `theme.tint` while those still hold

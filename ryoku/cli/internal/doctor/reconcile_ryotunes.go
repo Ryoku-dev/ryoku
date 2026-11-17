@@ -24,7 +24,9 @@ const (
 )
 
 var (
-	ryotunesEnsure  = apprelease.Ryotunes.Ensure
+	ryotunesEnsure = func(ctx context.Context) (apprelease.Status, error) {
+		return apprelease.Ryotunes.OnLine(sys.SourceLine()).Ensure(ctx)
+	}
 	ryoportEnsure   = apprelease.Ryoport.Ensure
 	appPackageOwner = func(path string) (string, error) {
 		return host.Default().PackageOwner(path)
@@ -42,7 +44,7 @@ type appReconcileSpec struct {
 func reconcileRyotunes(checkOnly bool) recResult {
 	bin := filepath.Join(sys.Home(), ".local", "bin", "ryotunes")
 	return reconcileIndependentApp(appReconcileSpec{
-		app: apprelease.Ryotunes, ensure: ryotunesEnsure, socketUnit: ryotunesSocketUnit,
+		app: apprelease.Ryotunes.OnLine(sys.SourceLine()), ensure: ryotunesEnsure, socketUnit: ryotunesSocketUnit,
 		staleUser: func() (string, func()) {
 			stale := staleUserRyotunes(bin)
 			if stale == "" {

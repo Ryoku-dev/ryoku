@@ -30,7 +30,7 @@ Requires:       ryoku-keyring
 Requires:       sddm-theme-ryoku = %{epoch}:%{version}-%{release}
 Requires:       ryoku-desktop-compositor
 Requires:       dnf
-Requires:       gpk
+Requires:       gpk >= 0.7.0
 Requires:       quickshell >= 0.3.0
 Requires:       gpu-screen-recorder
 Requires:       wl-clip-persist

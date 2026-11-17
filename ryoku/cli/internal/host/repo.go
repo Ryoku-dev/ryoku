@@ -725,7 +725,7 @@ func (a *App) RepoInstalledSet(allowDowngrade bool, excluded map[string]bool) ([
 		if !ok {
 			continue
 		}
-		compared := a.compareVersions(manager, installed, pkg.Version)
+		compared := a.CompareVersions(manager, installed, pkg.Version)
 		if manager == DNF {
 			if !allowDowngrade {
 				if compared > 0 {
@@ -785,19 +785,23 @@ func (a *App) installedVersion(manager PackageManager, name string) (string, boo
 	return value, value != ""
 }
 
-func (a *App) compareVersions(manager PackageManager, installed, available string) int {
-	if manager == DNF {
+// CompareVersions orders two versions the way manager does: negative when
+// installed is older than available, zero when equal or unknown, positive when
+// newer. xbps-uhelper answers through its exit status (0, 1 or 255).
+func (a *App) CompareVersions(manager PackageManager, installed, available string) int {
+	switch manager {
+	case DNF:
 		return compareRPMEVR(installed, available)
+	case XBPS:
+		switch a.probe("xbps-uhelper", "cmpver", installed, available).Code {
+		case 1:
+			return 1
+		case 255:
+			return -1
+		}
+		return 0
 	}
-	command := "vercmp"
-	if manager == XBPS {
-		command = "xbps-uhelper"
-	}
-	args := []string{installed, available}
-	if manager == XBPS {
-		args = append([]string{"cmpver"}, args...)
-	}
-	result := a.query(command, args...)
+	result := a.query("vercmp", installed, available)
 	if result.Code != 0 {
 		return 0
 	}

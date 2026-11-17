@@ -836,6 +836,10 @@ if command -v sudo >/dev/null 2>&1; then
     /usr/share/polkit-1/actions/dev.ryoku.hosts.policy 644
   _priv_install "$repo_root/system/policy/55-ryoku-profiles.rules" \
     /usr/share/polkit-1/rules.d/55-ryoku-profiles.rules 644
+  _priv_install "$repo_root/system/policy/dev.ryoku.apps.policy" \
+    /usr/share/polkit-1/actions/dev.ryoku.apps.policy 644
+  _priv_install "$repo_root/system/policy/56-ryoku-apps.rules" \
+    /usr/share/polkit-1/rules.d/56-ryoku-apps.rules 644
   _priv_install "$repo_root/ryoku/apps/npm/npmrc" /usr/share/ryoku/npmrc 644
   _priv_tree "$repo_root/ryoku/assets/brand" /usr/share/ryoku/brand
   # `ryoku-host svc` and the doctor read the manifest ryoku-desktop ships; a

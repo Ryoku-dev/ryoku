@@ -42,6 +42,7 @@ command below.
 |`doctor`|Run idempotent reconcilers for stateful drift|both|you, the updater|
 |`plugin <cmd>`|Install, remove, list, or validate a shell plugin from git|both|you, an agent|
 |`profile <verb>`|Inspect, repair or scope the profile attached to this account|profile account|you, session hooks|
+|`apps list [--json]`|Ryoku's own apps: installed and latest version, size, lane and channel|both|you, Ryoku Settings, Ryostore|
 
 ## Everyday commands
 
@@ -193,6 +194,26 @@ These commands run as the current profile account:
 `status`, `scope`, `reset` and `check` are safe troubleshooting surfaces.
 Profile creation, tool changes, checkpoints and removal go through the reviewed
 Hub flow because they change the machine.
+
+### `ryoku apps list [--json]`
+
+Reports Ryoku's own apps: Ryotunes, Ryoport, Ryomanager and Ryostore. Each row
+carries the installed version, the newest one this box can take, whether that
+is an update, the installed size, whether the app may be removed on its own,
+its lane and its channel. It never changes the system. `--json` prints
+`{"schema":1,"apps":[...]}` with the keys `id`, `name`, `summary`, `package`,
+`homepage`, `installed`, `version`, `latest`, `update`, `size_bytes`,
+`removable`, `builtin`, `desktop_id`, `lane` and `channel`; empty values are
+left out.
+
+`lane` is `apprelease` for Ryotunes and Ryoport on Arch and CachyOS, which
+install the verified package from the app's GitHub release, and `repo` for
+everything Ryoku's own repository serves (every app on Fedora and Void).
+`channel` is `prerelease` only for Ryotunes on a box that tracks the
+`hyperion` branch, where the newest Ryotunes 2 release counts even when it is a
+prerelease; it is `stable` everywhere else. Ryostore is part of
+`ryoku-desktop`: always installed, updated with Ryoku, never removed alone.
+Release lookups use the same one-hour cache as `ryoku update`.
 
 ### `ryoku rollback [id]`
 
@@ -346,6 +367,31 @@ Profile host verbs return JSON lines:
   account.
 - `profile refresh` is the root-only pacman-hook target that refreshes
   capability copies and extracted wordlists after their packages change.
+
+App installs and removals run through `pkexec` under the
+`dev.ryoku.apps.manage` action, which keeps one administrator authentication
+for the session. Ryoku Settings and Ryostore start `pkexec ryoku-host apps ...`
+themselves so the kept authentication belongs to their process:
+
+- `apps install --manager <pacman|dnf|xbps> <name>...` and
+  `apps remove --manager <pacman|dnf|xbps> [--with-deps] <name>...` run gpk as
+  root (`--yes --events --privilege none`) with a gpk home of its own in
+  `/var/cache/ryoku-host/gpk`. The manager must be this system's; Flatpak apps
+  install for the account with gpk itself, not here. AUR is refused with exit 3
+  and "needs a terminal". A removal of `ryoku-desktop`, anything it depends
+  on, its compositor variants, gpk, polkit or the package manager is refused
+  with exit 3.
+- `apps ryoku <install|update|remove> <app-id>` does the same for one app of
+  the catalogue `ryoku apps list` reports. Ryotunes and Ryoport install and
+  update through the verified GitHub release lane on Arch and CachyOS; every
+  other case is a gpk install, upgrade or remove. Ryostore is refused (exit 3).
+  The release line is read from the calling account (`PKEXEC_UID`).
+- Stdout is gpk's progress stream, one JSON object per line: `plan`, `step`
+  start, `log`, `progress`, `step` done and a final `done` with `ok`, `exit`
+  and `error`. Every call that names a verb ends with exactly one `done`, also
+  for refusals (whose reason is on stderr as well). `--stdin-cancel` right
+  after `apps` stops the run when stdin ends or reads a line `cancel`; SIGINT,
+  SIGTERM and SIGHUP do the same. A stopped run ends with exit 130.
 
 The lab hosts seam is separate from general host-file editing:
 

@@ -2,6 +2,7 @@ package sys
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -59,17 +60,83 @@ func ResolveRepo() string {
 // live RYOKU_CHANNEL is unset on a just-switched box; reading the file keeps the
 // CLI on the tracked channel without waiting for a relogin.
 func TrackedChannel() string {
-	b, err := os.ReadFile(filepath.Join(ConfigHome(), "environment.d", "ryoku.conf"))
-	if err != nil {
-		return ""
-	}
-	for _, line := range strings.Split(string(b), "\n") {
+	return envFileChannel(filepath.Join(ConfigHome(), "environment.d", "ryoku.conf"))
+}
+
+func envFileChannel(path string) string {
+	for _, line := range strings.Split(readSmall(path), "\n") {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "RYOKU_CHANNEL=") {
 			return strings.TrimSpace(strings.TrimPrefix(line, "RYOKU_CHANNEL="))
 		}
 	}
 	return ""
+}
+
+// readSmall reads at most 4 KiB of a small state file. The release-line files
+// live in a user's home and a root helper reads them too, so a file swapped for
+// something endless costs nothing.
+func readSmall(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	b, _ := io.ReadAll(io.LimitReader(f, 4<<10))
+	return string(b)
+}
+
+// SourceLine is the branch this account's source checkout follows, "" on a box
+// on packages. Independently released apps choose their release line from it.
+func SourceLine() string {
+	return sourceLineIn(ConfigHome(), StateDir())
+}
+
+// SourceLineAt is SourceLine for the account whose home is home. A root helper
+// started through pkexec uses it for the calling account, whose environment
+// pkexec does not pass on; it reads the same two files SourceLine does.
+func SourceLineAt(home string) string {
+	if home == "" {
+		return ""
+	}
+	return sourceLineIn(filepath.Join(home, ".config"), filepath.Join(home, ".local", "state", "ryoku"))
+}
+
+// sourceLineIn decides the line from what the account keeps on disk, never
+// from the session environment, so the user's report and the root install
+// agree: the channel `ryoku track` recorded in environment.d, else the branch
+// checked out in the checkout the last deploy recorded.
+func sourceLineIn(configHome, stateDir string) string {
+	if channel := envFileChannel(filepath.Join(configHome, "environment.d", "ryoku.conf")); channel != "" {
+		return channel
+	}
+	repo := strings.TrimSpace(readSmall(filepath.Join(stateDir, "repo")))
+	if repo == "" {
+		return ""
+	}
+	return checkoutBranch(repo)
+}
+
+// checkoutBranch reads the branch HEAD names in a checkout, a linked worktree
+// included, from git's files rather than by running git, which refuses a
+// repository another account owns.
+func checkoutBranch(repo string) string {
+	gitDir := filepath.Join(repo, ".git")
+	if info, err := os.Stat(gitDir); err == nil && !info.IsDir() {
+		dir, ok := strings.CutPrefix(strings.TrimSpace(readSmall(gitDir)), "gitdir:")
+		if !ok {
+			return ""
+		}
+		gitDir = strings.TrimSpace(dir)
+		if !filepath.IsAbs(gitDir) {
+			gitDir = filepath.Join(repo, gitDir)
+		}
+	}
+	branch, ok := strings.CutPrefix(strings.TrimSpace(readSmall(filepath.Join(gitDir, "HEAD"))), "ref: refs/heads/")
+	if !ok {
+		return ""
+	}
+	return branch
 }
 
 // KeepLocalCommits saves the commits HEAD holds that upstream lacks under

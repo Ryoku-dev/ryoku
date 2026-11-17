@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -41,14 +42,27 @@ type ghRelease struct {
 }
 
 var (
-	tagRe        = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+$`)
-	ryoportTagRe = regexp.MustCompile(`^v1\.[0-9]+\.[0-9]$`)
-	pkgRelRe     = regexp.MustCompile(`^[1-9][0-9]*$`)
+	tagRe         = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+$`)
+	ryoportTagRe  = regexp.MustCompile(`^v1\.[0-9]+\.[0-9]$`)
+	hyperionTagRe = regexp.MustCompile(`^v2\.[0-9]+\.[0-9]+$`)
+	pkgRelRe      = regexp.MustCompile(`^[1-9][0-9]*$`)
+)
+
+// The prerelease line pages through the release list, newest first, a hundred
+// releases a page. Each page is capped in bytes and has its own metadata
+// timeout, and the walk stops after maxListPages, so a lookup is bounded.
+const (
+	maxListBytes = 16 << 20
+	listPageSize = 100
+	maxListPages = 10
 )
 
 func validTag(app App, tag string) bool {
-	if app.Name == Ryoport.Name {
+	switch {
+	case app.Name == Ryoport.Name:
 		return ryoportTagRe.MatchString(tag)
+	case app.Prerelease():
+		return hyperionTagRe.MatchString(tag)
 	}
 	return tagRe.MatchString(tag)
 }
@@ -125,10 +139,15 @@ func validRelInfo(app App, rel relInfo) bool {
 	return rel.ShaAsset == rel.PkgAsset+".sha256"
 }
 
-// latestRelease resolves the newest stable app release, using the one-hour
-// check cache unless fresh is requested.
+// latestRelease resolves the newest release on the app's line, using the
+// one-hour check cache unless fresh is requested. Each line keeps its own cache,
+// so moving a box between lines never serves the other line's release.
 func (c *Client) latestRelease(ctx context.Context, fresh bool) (relInfo, error) {
-	cachePath := filepath.Join(c.cacheDir, "latest.json")
+	cacheName := "latest.json"
+	if c.app.Line != "" {
+		cacheName = "latest-" + c.app.Line + ".json"
+	}
+	cachePath := filepath.Join(c.cacheDir, cacheName)
 
 	if !fresh {
 		if rel, ok := c.readCache(cachePath, true); ok {
@@ -136,7 +155,11 @@ func (c *Client) latestRelease(ctx context.Context, fresh bool) (relInfo, error)
 		}
 	}
 
-	rel, err := c.fetchLatest(ctx)
+	fetch := c.fetchLatest
+	if c.app.Prerelease() {
+		fetch = c.fetchNewestOnLine
+	}
+	rel, err := fetch(ctx)
 	if err != nil {
 		if !fresh {
 			// Fall back to whatever we last saw, ignoring its age: a stale
@@ -212,13 +235,70 @@ func (c *Client) writeCache(path string, rel relInfo) {
 
 // fetchLatest asks the GitHub API for the newest stable app release.
 func (c *Client) fetchLatest(ctx context.Context) (relInfo, error) {
+	var gr ghRelease
+	if err := c.getJSON(ctx, "/releases/latest", maxMetaBytes, &gr); err != nil {
+		return relInfo{}, err
+	}
+	if gr.Draft || gr.Prerelease {
+		return relInfo{}, fmt.Errorf("%s release %q is a draft/prerelease, not a stable build", c.app.Name, gr.TagName)
+	}
+	return c.releaseInfo(gr)
+}
+
+// fetchNewestOnLine reads the release list, not /latest, and takes the highest
+// version the line's tag contract admits, prereleases included. Drafts, every
+// other major version, and releases that carry no package (the source-only
+// 2.5 tags Ryotunes published before its epoch) are skipped. It pages until a
+// page holds a release on the line or the list ends, so newer releases of
+// other lines can never push the line's releases out of reach.
+func (c *Client) fetchNewestOnLine(ctx context.Context) (relInfo, error) {
+	var best *relInfo
+	for page := 1; page <= maxListPages && best == nil; page++ {
+		var list []ghRelease
+		path := fmt.Sprintf("/releases?per_page=%d&page=%d", listPageSize, page)
+		if err := c.getJSON(ctx, path, maxListBytes, &list); err != nil {
+			return relInfo{}, err
+		}
+		for _, gr := range list {
+			if gr.Draft || !validTag(c.app, gr.TagName) || (best != nil && !tagAfter(gr.TagName, best.Tag)) {
+				continue
+			}
+			if rel, err := c.releaseInfo(gr); err == nil {
+				best = &rel
+			}
+		}
+		if len(list) < listPageSize {
+			break
+		}
+	}
+	if best == nil {
+		return relInfo{}, fmt.Errorf("%s lists no package release on the %s line", c.app.Repo, c.app.Line)
+	}
+	return *best, nil
+}
+
+// tagAfter orders two validated vX.Y.Z tags numerically.
+func tagAfter(a, b string) bool {
+	pa, pb := strings.Split(pkgVer(a), "."), strings.Split(pkgVer(b), ".")
+	for i := range pa {
+		x, _ := strconv.Atoi(pa[i])
+		y, _ := strconv.Atoi(pb[i])
+		if x != y {
+			return x > y
+		}
+	}
+	return false
+}
+
+// getJSON decodes one bounded GitHub API response for the app's repo.
+func (c *Client) getJSON(ctx context.Context, path string, limit int64, into any) error {
 	ctx, cancel := context.WithTimeout(ctx, metadataTimeout)
 	defer cancel()
 
-	url := strings.TrimSuffix(c.APIBase, "/") + "/repos/" + c.Repo + "/releases/latest"
+	url := strings.TrimSuffix(c.APIBase, "/") + "/repos/" + c.Repo + path
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return relInfo{}, err
+		return err
 	}
 	// GitHub 403s an API request with no User-Agent; the media type pins the
 	// response shape.
@@ -227,20 +307,20 @@ func (c *Client) fetchLatest(ctx context.Context) (relInfo, error) {
 
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
-		return relInfo{}, err
+		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return relInfo{}, fmt.Errorf("%s release lookup: GitHub returned %s", c.app.Name, resp.Status)
+		return fmt.Errorf("%s release lookup: GitHub returned %s", c.app.Name, resp.Status)
 	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, limit)).Decode(into); err != nil {
+		return fmt.Errorf("%s release lookup: %w", c.app.Name, err)
+	}
+	return nil
+}
 
-	var gr ghRelease
-	if err := json.NewDecoder(io.LimitReader(resp.Body, maxMetaBytes)).Decode(&gr); err != nil {
-		return relInfo{}, fmt.Errorf("%s release lookup: %w", c.app.Name, err)
-	}
-	if gr.Draft || gr.Prerelease {
-		return relInfo{}, fmt.Errorf("%s release %q is a draft/prerelease, not a stable build", c.app.Name, gr.TagName)
-	}
+// releaseInfo checks one release against the line's tag and asset contract.
+func (c *Client) releaseInfo(gr ghRelease) (relInfo, error) {
 	if !validTag(c.app, gr.TagName) {
 		return relInfo{}, fmt.Errorf("%s release tag %q does not match its stable tag contract", c.app.Name, gr.TagName)
 	}

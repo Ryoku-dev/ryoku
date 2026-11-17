@@ -1,5 +1,5 @@
 Name:           gpk
-Version:        0.6.10
+Version:        0.7.0
 Release:        1%{?dist}
 Summary:        Cross-distribution package manager dashboard
 License:        GPL-3.0-or-later

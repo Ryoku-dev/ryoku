@@ -35,7 +35,7 @@ depends=(
   "ryoku=$epoch:$pkgver"
   'ryoku-keyring'
   # the RyokuArch package manager (GlazePKG)
-  'gpk'
+  'gpk>=0.7.0'
   # a compositor variant provides this virtual; an installed base pulls the sole
   # provider (ryoku-desktop-hyprland) on the next -Syu with no user action.
   'ryoku-desktop-compositor'

@@ -297,3 +297,54 @@ func TestPluginListDevShadowsStore(t *testing.T) {
 		t.Fatalf("dev override must win: %+v", rows[0])
 	}
 }
+
+// A plugin installed from a store the user added lists with its store, and
+// removing it goes to ryostore, which finds the owning store itself.
+func TestPluginFromUserStore(t *testing.T) {
+	data, cfg, state, bin := t.TempDir(), t.TempDir(), t.TempDir(), t.TempDir()
+	t.Setenv("XDG_DATA_HOME", data)
+	t.Setenv("XDG_CONFIG_HOME", cfg)
+	t.Setenv("XDG_STATE_HOME", state)
+	t.Setenv("RYOSTORE_PLUGINS_DIR", "")
+	t.Setenv("RYOKU_PLUGINS_DIR", "")
+	t.Setenv("RYOKU_REPO", "")
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	pdir := filepath.Join(data, "ryoku", "sources", "acme", "plugins", "weathercard")
+	receipts := filepath.Join(state, "ryoku", "store", "sources", "acme", "plugins")
+	for _, dir := range []string{pdir, receipts} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(pdir, "manifest.json"), []byte(goodManifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(receipts, "weathercard.json"),
+		[]byte(`{"category":"plugins","id":"weathercard","version":"1.3.0"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	rows := pluginListRows()
+	if len(rows) != 1 || rows[0].Source != "store" || rows[0].Store != "acme" || rows[0].Version != "1.3.0" || rows[0].Dir != pdir {
+		t.Fatalf("rows = %+v", rows)
+	}
+	if !pluginHasReceipt("weathercard") || pluginHasReceipt("other") {
+		t.Fatal("receipt lookup ignores user stores")
+	}
+
+	calls := filepath.Join(bin, "calls")
+	fake := "#!/bin/sh\necho \"$@\" >> " + calls + "\n"
+	if err := os.WriteFile(filepath.Join(bin, "ryostore"), []byte(fake), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := cmdPluginRemove([]string{"weathercard"}); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	if got, _ := os.ReadFile(calls); string(got) != "remove plugins weathercard\n" {
+		t.Fatalf("ryostore calls = %q", got)
+	}
+	if err := cmdPluginRemove([]string{"other"}); err == nil {
+		t.Fatal("removing an absent plugin succeeded")
+	}
+}

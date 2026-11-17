@@ -1,6 +1,11 @@
 # Changelog: system/
 
 ## Unreleased
+- **App installs have their own narrow administrator authorization.**
+  `pkexec` selects `dev.ryoku.apps.manage` only when `/usr/bin/ryoku-host`
+  receives `apps` as its first argument and keeps a successful
+  authentication for the session (`policy/dev.ryoku.apps.policy`,
+  `policy/56-ryoku-apps.rules`).
 - **Bluetooth can turn back on after a legacy rfkill block.** Power-off now
   records the user's choice through BlueZ without soft-blocking platform radio
   switches, while power-on clears old blocks and waits for the controller to

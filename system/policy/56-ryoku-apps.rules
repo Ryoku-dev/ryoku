@@ -1,0 +1,9 @@
+// The argv1 annotation selects this action only for the typed apps API; the
+// helper validates the package manager and every name again as root.
+polkit.addRule(function (action, subject) {
+    if (action.id === "dev.ryoku.apps.manage" &&
+        action.lookup("program") === "/usr/bin/ryoku-host" &&
+        subject.local && subject.active) {
+        return polkit.Result.AUTH_ADMIN_KEEP;
+    }
+});

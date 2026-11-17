@@ -6,15 +6,20 @@ import (
 
 	"ryoku-cli/internal/apprelease"
 	"ryoku-cli/internal/host"
+	"ryoku-cli/internal/sys"
 
 	i18n "ryoku-i18n"
 )
 
 var (
-	checkRyotunesRelease   = apprelease.Ryotunes.Check
-	upgradeRyotunesRelease = apprelease.Ryotunes.Upgrade
-	checkRyoportRelease    = apprelease.Ryoport.Check
-	upgradeRyoportRelease  = apprelease.Ryoport.Upgrade
+	checkRyotunesRelease = func(ctx context.Context) (apprelease.Status, error) {
+		return apprelease.Ryotunes.OnLine(sys.SourceLine()).Check(ctx)
+	}
+	upgradeRyotunesRelease = func(ctx context.Context) (apprelease.Status, error) {
+		return apprelease.Ryotunes.OnLine(sys.SourceLine()).Upgrade(ctx)
+	}
+	checkRyoportRelease   = apprelease.Ryoport.Check
+	upgradeRyoportRelease = apprelease.Ryoport.Upgrade
 )
 
 type independentReleaseApp struct {

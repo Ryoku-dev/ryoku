@@ -167,15 +167,18 @@ truth for the live desktop.
   (`ui/Singletons/I18n.qml`), the Go runtime and the installer's shell
   (`installation/backend/lib/i18n.sh`) all read. See `docs/i18n.md`.
 - `cli/` the user-facing control CLI and the host seam. `ryoku` provides
-  `update`, `rollback`, `snapshots`, `status`, `channel`, `profile`,
+  `update`, `rollback`, `snapshots`, `status`, `channel`, `profile`, `apps`,
   `materialize`, and `reload`; `main.go` is a thin dispatcher over
   `internal/updater`, `internal/doctor`, `internal/profile`, and the shared
   primitives in `internal/sys`. `cmd/ryoku-host` builds
   `/usr/bin/ryoku-host`, the one runtime boundary for init-system, package
-  manager, user, profile and managed lab-host operations. Its implementation in
-  `internal/host` selects systemd or runit and pacman, XBPS, or DNF, so scripts,
-  daemons, QML, and other Go modules do not grow host checks. Per-command
-  reference, user- vs developer-facing, is in `docs/cli.md`.
+  manager, user, profile, app and managed lab-host operations. Its implementation
+  in `internal/host` selects systemd or runit and pacman, XBPS, or DNF, so
+  scripts, daemons, QML, and other Go modules do not grow host checks.
+  `internal/ryokuapps` is the table of Ryoku's own apps, the `ryoku apps list`
+  report and the `ryoku-host apps` verbs; `internal/apprelease` installs the
+  GitHub-released apps on Arch and CachyOS. Per-command reference, user- vs
+  developer-facing, is in `docs/cli.md`.
 - `vault/` the Ryoku-core machine map, read-only wiki, and `ryoku` agent skill.
   The CLI refreshes the live copy at `~/.local/share/ryoku/vault/`, wires its
   pointer into installed harnesses, and keeps user-owned memory and journal
@@ -246,8 +249,10 @@ System-level definition installed into the target.
 - `policy/` contains the narrow polkit actions and rules for privileged desktop
   seams. Profile management and managed lab hosts use
   `dev.ryoku.profiles.manage`, `dev.ryoku.hosts.manage` and
-  `55-ryoku-profiles.rules`; both require administrator authentication from a
-  local active session and permit only the matching `ryoku-host` verb.
+  `55-ryoku-profiles.rules`; app installs and removals from Settings and
+  Ryostore use `dev.ryoku.apps.manage` and `56-ryoku-apps.rules`. Each requires
+  administrator authentication from a local active session, keeps it for the
+  session, and permits only the matching `ryoku-host` verb.
 
 ## `installation/` the build
 

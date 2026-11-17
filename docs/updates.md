@@ -163,6 +163,17 @@ On Arch and CachyOS:
 - The scheduled refresh imports both official packages byte for byte, signs
   them with the Ryoku release key, and updates stable and testing without
   rebuilding the desktop or changing frozen release snapshots.
+- **A box that tracks the `hyperion` branch follows Ryotunes 2.** There the
+  Ryotunes release client reads the release list rather than GitHub's latest
+  release and takes the highest `v2.x.y` that carries a package, prereleases
+  included. The epoch, the checks above and the only-forward rule are the
+  same, and the line keeps its own lookup cache. Every other line, and
+  Ryoport everywhere, follows stable releases. Fedora and Void keep their
+  native 1.x packages.
+- **Settings and Ryostore install and update the apps on request.**
+  `ryoku-host apps ryoku install|update <app>` runs the same release client as
+  root, on the calling account's line, and streams its progress as events; the
+  repository-lane apps go through gpk (`docs/cli.md`).
 
 ## `ryoku update`
 
