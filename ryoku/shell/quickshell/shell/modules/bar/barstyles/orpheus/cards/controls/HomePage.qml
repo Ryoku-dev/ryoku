@@ -106,6 +106,9 @@ Item {
         }
     }
 
+    onShownChanged: setLive(shown)
+    Component.onCompleted: setLive(shown)
+    Component.onDestruction: setLive(false)
     onFocusedDdcBusChanged: readDdc()
 
     // a DDC/CI read that overlaps the card's layer mapping stalls frames
