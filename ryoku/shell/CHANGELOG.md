@@ -42,6 +42,11 @@
   (`quickshell/shell/modules/visualizer/Motion.qml`, `VisualizerView.qml`,
   `Singletons/Config.qml`, `ui/SpectrumField.qml`,
   `quickshell/shell/modules/desktop/options/VisualizerOptions.qml`).
+- **The bar never goes blank when the store sync fails.** A bar already drawn
+  stays while its replacement cannot be prepared; a shell that has none draws
+  Orpheus after six seconds, and Orpheus and Kairos stay selectable when
+  `shells.json` does not list them (`quickshell/shell/services/Shells.qml`,
+  `modules/bar/Frame.qml`).
 - **A source checkout deploys its own ryostore.** `deploy.sh` builds and
   installs `apps/ryostore/backend` beside `ryoku-shell`, and the daemon runs
   the ryostore next to itself before the one on PATH, so a packaged ryostore
