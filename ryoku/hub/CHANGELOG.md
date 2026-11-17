@@ -1,6 +1,9 @@
 # Changelog: ryoku/hub/
 
 ## Unreleased
+- **Notifications & pop-ups shows Ryoku's own card and pop-up moving, in the design in use.** The Ryoku
+  tiles and an example above each gallery play a real recording, light or dark like the desktop, and hold
+  still with reduced motion (`pages/Notifications.qml`, `components/notifications/DesignExample.qml`).
 - **Tester certificates name the Ryoku version that tester tested.** A badge code can carry a signed
   program (version 3, `ryoku-hub badge issue --program "Ryoku v2 Hyperion"`); the certificate shows it
   beside Issued by and Issued on, the Badge tab under the issue date, and `badge inspect`, `status` and

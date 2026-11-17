@@ -15,6 +15,8 @@ Item {
     property string pageId: ""
     // the Undo notice after a switch; %1 is the design's name
     property string useNotice: I18n.tr("Now using %1")
+    // a moving picture of Ryoku's own design at work, played on its tile, when the page has one
+    property url shippedArt: ""
 
     property var catalogue: []
     property string busyId: ""
@@ -29,7 +31,8 @@ Item {
     readonly property var bind: ({ store: "settings", key: root.settingKey, fallback: "ryoku" })
     readonly property string active: String(Changes.value(root.bind) || "ryoku")
     readonly property var shipped: ({
-        id: "ryoku", name: "Ryoku", summary: I18n.tr("The look that comes with Ryoku"), art: "",
+        id: "ryoku", name: "Ryoku", summary: I18n.tr("The look that comes with Ryoku"),
+        art: root.shippedArt.toString(), animated: root.shippedArt.toString() !== "",
         installed: true, source: "shipped", version: "", installedVersion: "", updateAvailable: false,
         unavailable: false, unavailableEdition: false, unavailableReason: "", requiredWindowManager: "",
         downloadPaused: false, downloadPauseReason: ""
@@ -156,6 +159,7 @@ Item {
             status: root.statusOf(c),
             resource: c.resourceTier || "",
             source: c.art,
+            animated: c.animated === true,
             current: c.id === root.active && root.wearable(c),
             unavailable: root.blockedReason(c),
             busy: root.busyId === c.id,

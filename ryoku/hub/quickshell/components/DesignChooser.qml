@@ -108,6 +108,7 @@ Column {
             status: modelData.status
             resource: modelData.resource
             source: modelData.source
+            animated: modelData.animated === true
             current: modelData.current
             unavailable: modelData.unavailable
             busy: modelData.busy

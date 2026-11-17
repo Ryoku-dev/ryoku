@@ -231,6 +231,16 @@ an action or an unsaved edit is under way.
 - **Sizes.** From 880 wide the sidebar stands beside the pane. Narrower, it is
   a drawer the pane's menu button draws out over a shade, and the search on
   Home draws it out too. Compact Home lists the categories under the profile.
+- **Moving design previews.** A `DesignTile` with `animated` plays its picture
+  (an animated WebP or GIF) fitted on the tile's own plane, only while it is on
+  screen, and holds the first frame under reduced motion. Notifications &
+  pop-ups uses it for Ryoku's own notification card and pop-up: each shipped
+  tile and an Example above its gallery (`components/notifications/DesignExample.qml`,
+  one component for both sections) play `art/notifications/` or `art/osd/`
+  `<design>-<dark|light>.webp`, the design and the light or dark in use, recorded
+  from the shell's real looks by `bin/art/notification-previews` and
+  `bin/art/osd-previews` on the shared `bin/art/qmlrecord.py` (deterministic
+  frames, true alpha, 2x, 30 fps). Re-run them after changing a look.
 
 ### Home
 
