@@ -24,6 +24,15 @@
   Connected and saved devices stay on top, found devices wait for a real name
   and keep their place, so a Connect click lands
   (`subshells/orpheus/qml/cards/controls/BluetoothPage.qml`, `btrows.js`).
+- **The desktop visualizer's colour hex fields take typed colours in the Stage
+  Editor.** The editor's surface never held the keyboard, so the field showed
+  the hex but dropped every key. It now asks for the keyboard the way the
+  Style page's name field does, applies a full `#rrggbb` as you type, accepts
+  `#rgb` on Enter, restores the last good colour on junk or Escape, and the
+  Auto button still hands the colour back to the wallpaper
+  (`quickshell/shell/modules/stage/StageVisualizerPage.qml`,
+  `quickshell/stage/modules/ii/editMode/EditModeDrawer.qml`,
+  `quickshell/shell/modules/visualizer/Singletons/Config.qml`).
 - **Plugins installed from a store you added load like any other.**
   `plugins/discover.sh` also reads `ryoku/sources/<store>/plugins` and accepts
   each copy only with a receipt from its own store, so no store's copy can pose

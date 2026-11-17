@@ -1116,6 +1116,15 @@ Item {
                         return dockRootPage;
                     }
                 }
+
+                // A provider page with a text field asks for the keyboard the
+                // way the Style page does; most pages carry no such signal.
+                Connections {
+                    target: pageLoader.item
+                    ignoreUnknownSignals: true
+                    function onFieldFocusRequested(field) { root.requestFieldFocus(field); }
+                    function onFieldFocusReleased() { root.releaseFieldFocus(); }
+                }
             }
         }
     }
