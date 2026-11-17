@@ -8,6 +8,13 @@
 - **Picking Matugen in Python's Theme tab brings the wallpaper colours back
   (#827).** A bundled preset's palette stayed stored after switching back, so
   the bar kept the preset's colours; Matugen now clears it.
+- **Forget and auto-reconnect in the bar reach every saved profile of a
+  network.** The shell daemon acted on the first profile it found for an SSID,
+  so a second one NetworkManager named `<ssid> 1`, or one imported under
+  another name, survived Forget and kept rejoining with auto-reconnect off.
+  The daemon now matches every profile by the SSID it joins, leaving out a
+  hotspot that shares the name, for the bar popout, the sidebar Wi-Fi card and
+  orpheus (`ipc/network.go`).
 - **Wallpaper Engine video wallpapers animate on hover in the picker (#807).**
   Only local videos got the small preview clip, so workshop video cards stayed
   still; they now get one too, built on the thumbnail job limit and skipped
