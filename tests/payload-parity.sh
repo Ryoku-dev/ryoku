@@ -365,7 +365,18 @@ for pkg in "${packages[@]}"; do
   wait_for_jobs "$pkg staging failed" "${jobs[@]}"
   stage_fedora_spec_install "$pkg" "$work/staged/$pkg-fedora" "$work/staged/$pkg-fedora-spec"
 
+  if [[ $pkg == ryoku-shell ]]; then
+    adapter="$work/staged/$pkg-arch/usr/bin/ryoku-terminal"
+    [[ -x $adapter ]] || fail "ryoku-shell Arch package is missing the terminal role adapter"
+    cmp -s "$root/ryoku/shell/scripts/ryoku-terminal" "$adapter" \
+      || fail "ryoku-shell Arch package has a different terminal role adapter"
+  fi
+
   if [[ $pkg == ryoku-desktop ]]; then
+    helper="$work/staged/$pkg-arch/usr/share/ryoku/config/xfce4/helpers.rc"
+    [[ -f $helper ]] || fail "ryoku-desktop Arch package is missing Exo's terminal helper config"
+    cmp -s "$root/ryoku/apps/xfce4/helpers.rc" "$helper" \
+      || fail "ryoku-desktop Arch package has a different Exo terminal helper config"
     [[ -f $work/staged/$pkg-arch/usr/share/libalpm/hooks/96-ryoku-polkit-reload.hook ]] \
       || fail "ryoku-desktop Arch package is missing the polkit reload hook"
     for edition in arch void fedora fedora-spec; do
