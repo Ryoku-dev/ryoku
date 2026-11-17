@@ -244,6 +244,17 @@ func runMatugenCmd(args []string) error {
 	}
 }
 
+// expandMatugenHome resolves the shipped ~/.config, ~/.cache and ~/.local/share
+// paths against the XDG dirs: matugen expands ~ to $HOME only, so a session that
+// points XDG_CONFIG_HOME elsewhere would otherwise look in the wrong place.
+func expandMatugenHome(toml string) string {
+	return strings.NewReplacer(
+		"~/.config/", configHome()+"/",
+		"~/.cache/", cacheHome()+"/",
+		"~/.local/share/", dataHome()+"/",
+	).Replace(toml)
+}
+
 // renderActiveTemplates generates matugen configs for enabled templates
 func renderActiveTemplates(cfg matugenConfig, pal map[string]string) {
 	matugenDir := filepath.Join(configHome(), "matugen")
@@ -288,7 +299,11 @@ func renderActiveTemplates(cfg matugenConfig, pal map[string]string) {
 		return
 	}
 	// Always render core surface
-	runMatugen(filepath.Join(matugenDir, "config.toml"), carrierPath)
+	if core, err := os.ReadFile(filepath.Join(matugenDir, "config.toml")); err == nil {
+		activeCore := filepath.Join(cacheDir, "active-config.toml")
+		_ = os.WriteFile(activeCore, []byte(expandMatugenHome(string(core))), 0o644)
+		runMatugen(activeCore, carrierPath)
+	}
 
 	// Filter apps.toml entries based on cfg.Templates
 	appsTomlPath := filepath.Join(matugenDir, "apps.toml")
@@ -334,7 +349,7 @@ func renderActiveTemplates(cfg matugenConfig, pal map[string]string) {
 	}
 
 	activeAppsToml := filepath.Join(cacheDir, "active-apps.toml")
-	_ = os.WriteFile(activeAppsToml, []byte(strings.Join(activeSections, "\n")), 0o644)
+	_ = os.WriteFile(activeAppsToml, []byte(expandMatugenHome(strings.Join(activeSections, "\n"))), 0o644)
 
 	runMatugen(activeAppsToml, carrierPath)
 }

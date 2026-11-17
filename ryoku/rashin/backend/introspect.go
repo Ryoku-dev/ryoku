@@ -118,8 +118,12 @@ func parseFrontmatter(s string) (name, desc, version string) {
 // first, hub lock second, anything else is agent-grown.
 func SkillsReportNow() SkillsReport {
 	rep := SkillsReport{
-		Counts:   map[string]int{"bundled": 0, "hub": 0, "agent": 0},
-		Toolbelt: toolbeltNow(),
+		Counts:     map[string]int{"bundled": 0, "hub": 0, "agent": 0},
+		Categories: []SkillCategory{},
+		Toolbelt:   toolbeltNow(),
+	}
+	if rep.Toolbelt == nil {
+		rep.Toolbelt = []ToolFamily{}
 	}
 	root := hermesSkillsDir()
 	if !dirExists(root) {

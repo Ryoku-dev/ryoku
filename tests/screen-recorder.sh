@@ -148,6 +148,11 @@ record --region --geometry 960x600+480+300
 has_args "-w 960x600+480+300" || fail "region box did not reach -w: $(argv)"
 [[ " $(argv) " != *" -region "* ]] || fail "the deprecated -region option is still passed: $(argv)"
 
+# 8b. An output left of or above the primary one has negative layout offsets.
+info_with h264
+record --region --geometry 1440x900+0+-900
+has_args "-w 1440x900+0+-900" || fail "region on a negative offset was refused: $(argv)"
+
 # 9. GSR dies after an NVIDIA update that has not been restarted into: the
 # loaded module is older than the installed libraries. Say restart, and journal it.
 llvmpipe="gsr error: your opengl environment is not properly setup. It's using llvmpipe (software rendering) for opengl instead of your graphics card."

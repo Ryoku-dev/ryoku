@@ -3,7 +3,7 @@ Type=Application
 Name=Ryostore
 GenericName=Ryoku Store
 Comment=Discover and install Ryoku lockscreens, rices, bar styles, plugins and bundles
-Exec=flock -n -o /tmp/ryostore.lock qs -c ryostore
+Exec=env DISABLE_MANGOHUD=1 flock -n -o /tmp/ryostore.lock qs -c ryostore
 Terminal=false
 Icon=ryostore
 Categories=Utility;Settings;

@@ -1,6 +1,22 @@
 # Ryoku CLI Changelog
 
 ## Unreleased
+- **Fingerprint for the admin pop-up can be turned on with polkit 128.**
+  polkit now ships its PAM stack only in `/usr/lib/pam.d`, and `ryoku-host
+  auth fingerprint` read only `/etc/pam.d`, so the Hub's Lockscreen switch
+  failed with "no such file". It now reads the vendor stack when `/etc` has
+  none, seeds `/etc` from it when turning fingerprint on, and removes that
+  copy again when turning it off if nothing else was changed in it.
+- **Doctor can dismiss host-specific warnings and todos (#859).**
+  Use `--dismiss`, `--restore` and `--dismissed`; changed findings return,
+  errors cannot be hidden and full listings still show dismissed checks.
+- **Doctor clears the release manifest finding once its packages match (#860).**
+  Read-only checks no longer call an already converged manifest unfinished.
+- **`ryoku wm watch` streams compositor events.** Scripts can follow outputs and
+  workspaces as JSON frames instead of polling (`ryoku wm watch outputs workspaces`).
+- **Apply system-wide keeps your second layout (#875).** The login screen got
+  only the first layout, so a password typed on the other one could not be
+  entered. Every layout and its variant now go to the login screen, on Void too.
 - **Doctor no longer pins Dolphin to the dock on every update (#802).**
   It read the Stage Editor's own default pins as a user's old ones; it now
   skips them, keeps an edited pin list as it is and only moves installed apps.

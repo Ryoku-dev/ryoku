@@ -1,3 +1,4 @@
+import shell.services as ShellIcons
 import QtQuick
 import Quickshell
 import stage.modules.common.functions
@@ -41,7 +42,7 @@ MouseArea {
         GlobalStates.fileDragActive = true;
         try {
             dragProxy.Drag.mimeData = { "text/uri-list": UtilityFiles.uriList(area.paths) };
-            dragProxy.Drag.imageSource = Quickshell.iconPath(area.dragIcon, "text-x-generic");
+            dragProxy.Drag.imageSource = ShellIcons.Icons.path(area.dragIcon, "text-x-generic");
             dragProxy.Drag.active = true;
             const result = dragProxy.Drag.startDrag(Qt.CopyAction);
             dropAction = typeof result === "number" ? result : Qt.IgnoreAction;

@@ -90,6 +90,7 @@ eq(Store.primaryAction({ installed: true }), "INSTALLED", "installed action");
 eq(Store.primaryAction({ installed: true, updateAvailable: true }), "UPDATE", "installed update action");
 eq(Store.primaryAction({ installed: false, busy: true }), "INSTALLING", "busy action");
 eq(Store.secondaryAction({ installed: true, hasSettings: true }), "OPEN IN SETTINGS", "management handoff when the product has a settings page");
+eq(Store.secondaryAction({ category: "rices", installed: true, hasSettings: true }), "OPEN IN RYOGAMI", "rice management belongs to the picker");
 eq(Store.secondaryAction({ installed: true }), "", "installed product without a settings page has no handoff");
 eq(Store.secondaryAction({ installed: false }), "", "available item has no management handoff");
 eq(Store.competingActionLabel("lockscreens:clock", "lockscreens:broken", "FETCHING"), "DOWNLOADING ANOTHER ITEM", "another product explains the single-flight download");

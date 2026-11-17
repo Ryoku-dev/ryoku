@@ -71,6 +71,27 @@ func TestUpdateSystem(t *testing.T) {
 	}
 }
 
+func TestUpdateNotifications(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	if v, ok := configGet("update_notifications"); !ok || v != "ryoku" {
+		t.Fatalf("default notification choice = %q ok=%v, want ryoku", v, ok)
+	}
+	for _, choice := range []string{"system", "both", "ryoku"} {
+		if err := configSet("update_notifications", choice); err != nil {
+			t.Fatal(err)
+		}
+		if v, ok := configGet("update_notifications"); !ok || v != choice {
+			t.Fatalf("notification choice = %q ok=%v, want %q", v, ok, choice)
+		}
+	}
+	if err := configSet("update_notifications", "all"); err == nil {
+		t.Fatal("invalid notification choice accepted")
+	}
+	if v, _ := configGet("update_notifications"); v != "ryoku" {
+		t.Fatalf("invalid choice changed saved preference to %q", v)
+	}
+}
+
 func TestAdvanced(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 

@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/BurntSushi/toml"
 )
 
 // Voxtype dictation backend for Ryoku Settings' Dictation page. Voxtype owns a
@@ -185,21 +187,24 @@ func voxtypeSet(arg string) error {
 		return fmt.Errorf("bad JSON: %w", err)
 	}
 	p, ok := presetByKey(req.Preset)
-	if !ok {
+	custom := req.Preset == "custom"
+	if !ok && !custom {
 		return fmt.Errorf("unknown preset: %s", req.Preset)
 	}
-	if p.Key == reduxPresetKey && !reduxInstalled() {
-		return fmt.Errorf("install Redux and its adapter from the model card first")
-	}
-	openaiKey := req.OpenAIKey
-	if openaiKey == "" {
-		openaiKey = extractConfigString(readFileString(voxtypeConfigPath()), "remote_api_key")
-	}
-	if err := atomicWrite(voxtypeConfigPath(), []byte(buildVoxtypeConfig(p, openaiKey)), 0o600); err != nil {
-		return err
-	}
-	if err := configureReduxService(p.Key == reduxPresetKey, req.Enabled); err != nil {
-		return err
+	if !custom {
+		if p.Key == reduxPresetKey && !reduxInstalled() {
+			return fmt.Errorf("install Redux and its adapter from the model card first")
+		}
+		openaiKey := req.OpenAIKey
+		if openaiKey == "" {
+			openaiKey = extractConfigString(readFileString(voxtypeConfigPath()), "remote_api_key")
+		}
+		if err := atomicWrite(voxtypeConfigPath(), []byte(buildVoxtypeConfig(p, openaiKey)), 0o600); err != nil {
+			return err
+		}
+		if err := configureReduxService(p.Key == reduxPresetKey, req.Enabled); err != nil {
+			return err
+		}
 	}
 	if req.Enabled {
 		ensureVoxtypeUnit()
@@ -214,7 +219,7 @@ func voxtypeSet(arg string) error {
 			return err
 		}
 	}
-	if p.Key != reduxPresetKey || !req.Enabled {
+	if !custom && (p.Key != reduxPresetKey || !req.Enabled) {
 		if reduxInstalled() {
 			if err := userService("disable", "--now", "voxtype-redux"); err != nil {
 				return err
@@ -323,11 +328,7 @@ func voxtypeRmModel(key string) error {
 	return nil
 }
 
-// buildVoxtypeConfig renders a minimal, schema-valid config.toml for the preset,
-// matching Voxtype's own default layout (as shipped by Omarchy): built-in hotkey
-// off, type mode, media paused while recording. A preset marker lets the Hub read
-// the selection back. No modifier-suppress submap is needed: Super+` is a tap, so
-// the keys are released well before Voxtype types.
+// the marker records the last Hub choice, not the active engine
 func buildVoxtypeConfig(p voxtypePreset, openaiKey string) string {
 	var b strings.Builder
 	b.WriteString(voxtypeManagedConfigMarker + "\n")
@@ -451,13 +452,42 @@ func hostUsesSystemd() bool {
 }
 
 func selectedPreset(configText string) string {
-	for _, ln := range strings.Split(configText, "\n") {
-		ln = strings.TrimSpace(ln)
-		if strings.HasPrefix(ln, "# ryoku-preset:") {
-			return strings.TrimSpace(strings.TrimPrefix(ln, "# ryoku-preset:"))
+	var config struct {
+		Engine  string
+		Whisper struct {
+			Mode           string
+			Model          string
+			RemoteModel    string `toml:"remote_model"`
+			RemoteEndpoint string `toml:"remote_endpoint"`
+			CLIPath        string `toml:"whisper_cli_path"`
 		}
 	}
-	return "whisper-fast"
+	if _, err := toml.Decode(configText, &config); err != nil {
+		return "custom"
+	}
+	if config.Engine != "" && config.Engine != "whisper" {
+		return "custom"
+	}
+	for _, p := range voxtypePresets() {
+		switch config.Whisper.Mode {
+		case "", "local":
+			if !p.Cloud && p.Key != reduxPresetKey &&
+				(config.Whisper.Model == p.model || config.Whisper.Model == modelFilePath(p)) {
+				return p.Key
+			}
+		case "remote":
+			if p.Cloud && config.Whisper.RemoteModel == p.model &&
+				strings.TrimRight(config.Whisper.RemoteEndpoint, "/") == "https://api.openai.com/v1" {
+				return p.Key
+			}
+		case "cli":
+			if p.Key == reduxPresetKey && config.Whisper.Model == reduxModelPath() &&
+				config.Whisper.CLIPath == reduxAdapterPath() {
+				return p.Key
+			}
+		}
+	}
+	return "custom"
 }
 
 // extractConfigString pulls a simple `key = "value"` string out of the config.

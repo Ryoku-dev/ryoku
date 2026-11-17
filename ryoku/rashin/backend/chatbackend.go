@@ -35,10 +35,7 @@ type chatAgentSelection struct {
 // chatBackends lists the agents Rashin can run as an ACP session, in
 // preference order.
 func chatBackends() []chatBackend {
-	claudeACP := "claude-code-acp"
-	if _, err := exec.LookPath(claudeACP); err != nil {
-		claudeACP = "claude-agent-acp"
-	}
+	claudeACP := claudeAdapterArgv()
 	return []chatBackend{
 		{ID: "hermes", Name: "Hermes", Argv: hermesACPArgv(), Recommended: true},
 		{ID: "codex", Name: "Codex", Argv: []string{"codex-acp"}},

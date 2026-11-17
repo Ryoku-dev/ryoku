@@ -1,3 +1,4 @@
+import shell.services as ShellIcons
 import QtQuick
 import QtQuick.Layouts
 import "../../"
@@ -59,7 +60,7 @@ RowLayout {
 
     Image {
         visible: header.inApp && header.tab.selectedAppIcon !== ""
-        source: (header.tab.selectedAppIcon && header.tab.selectedAppIcon !== "") ? (header.tab.selectedAppIcon.startsWith("/") ? "file://" + header.tab.selectedAppIcon : "image://icon/" + header.tab.selectedAppIcon) : ""
+        source: (header.tab.selectedAppIcon && header.tab.selectedAppIcon !== "") ? ShellIcons.Icons.path(header.tab.selectedAppIcon, true) : ""
         sourceSize: Qt.size(rootObj.s(22), rootObj.s(22))
         Layout.preferredWidth: rootObj.s(22)
         Layout.preferredHeight: rootObj.s(22)

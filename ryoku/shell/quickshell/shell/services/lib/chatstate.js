@@ -180,7 +180,10 @@ function applyEvent(state, ev) {
         s.commands = ev.commands || [];
         return s;
     case "session_info":
-        s.session = { id: ev.sessionId || "", title: ev.title || "" };
+        s.session = {
+            id: ev.sessionId || "",
+            title: ev.title || (state.session.id === ev.sessionId ? state.session.title : "")
+        };
         return s;
     case "usage":
         s.usage = { size: ev.size || 0, used: ev.used || 0 };
@@ -195,6 +198,10 @@ function applyEvent(state, ev) {
         s.items = [];
         s.permissions = [];
         s.replaying = true;
+        if (ev.sessionId && ev.sessionId !== state.session.id) {
+            var known = state.history.filter(function (h) { return h.id === ev.sessionId; })[0];
+            s.session = { id: ev.sessionId, title: known ? known.title || "" : "" };
+        }
         return s;
     case "replay_end":
         s.replaying = false;

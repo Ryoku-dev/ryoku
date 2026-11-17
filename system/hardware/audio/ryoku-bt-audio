@@ -21,6 +21,11 @@
 # /etc/bluetooth/main.conf, while this touches nothing but the PipeWire session,
 # exactly like ryoku-mic and ryoku-volume beside it.
 #
+# `mic` is the one global knob next to the per-device codec memory: WirePlumber
+# switches a headset to the call profile whenever an app opens its microphone, and
+# that is a single setting for every device, so it is saved and applied through
+# `wpctl settings` rather than a per-device rule. The setting survives restarts.
+#
 # usage:
 #   ryoku-bt-audio list [<addr>]        codecs for a device: "<name>\t<active|available>"
 #   ryoku-bt-audio cards               connected bluez cards: "<addr>\t<card>"
@@ -28,11 +33,14 @@
 #   ryoku-bt-audio forget <addr>        stop remembering; the global order wins again
 #   ryoku-bt-audio apply                put remembered codecs back on connected devices
 #   ryoku-bt-audio watch                apply on every card change (login autostart)
+#   ryoku-bt-audio mic [on|off]         headset mic switching: print or choose (default on)
 set -u
 
 PACTL="${RYOKU_BT_PACTL:-pactl}"
 CONFIG="${RYOKU_BT_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/ryoku/bluetooth.json}"
 WATCH_LOCK="${RYOKU_BT_WATCH_LOCK:-${XDG_RUNTIME_DIR:-/tmp}/ryoku-bt-audio-${UID}.watch.lock}"
+WPCTL="${RYOKU_BT_WPCTL:-wpctl}"
+MIC_KEY=bluetooth.autoswitch-to-headset-profile
 
 log() { printf 'ryoku-bt-audio: %s\n' "$*" >&2; }
 
@@ -183,6 +191,34 @@ forget)
 apply)
   apply_all
   ;;
+mic)
+  want="${2:-status}"
+  case "$want" in
+  on | off)
+    value=true
+    [[ $want == off ]] && value=false
+    "$WPCTL" settings --save "$MIC_KEY" "$value" >/dev/null 2>&1 \
+      || { log "could not change the setting (is WirePlumber running?)"; exit 1; }
+    if [[ $want == on ]]; then
+      log "an app opening the microphone switches a headset to call mode (mono) until it lets go"
+    else
+      log "headsets stay in stereo playback; their microphone is not offered to apps"
+    fi
+    ;;
+  status)
+    out="$("$WPCTL" settings "$MIC_KEY" 2>/dev/null)" || { log "WirePlumber is not running"; exit 1; }
+    case "$out" in
+    *"Value: true"*) echo on ;;
+    *"Value: false"*) echo off ;;
+    *) log "$MIC_KEY is not known to this WirePlumber"; exit 1 ;;
+    esac
+    ;;
+  *)
+    echo "usage: ryoku-bt-audio mic [on|off]" >&2
+    exit 2
+    ;;
+  esac
+  ;;
 watch)
   # Compositor reloads and switches can both revisit autostart. Keep one event
   # stream per user; the lock remains held by this shell for the subscription.
@@ -201,7 +237,7 @@ watch)
   done < <("$PACTL" subscribe 9>&- 2>/dev/null | grep --line-buffered -F "on card" 9>&-)
   ;;
 *)
-  echo "usage: ryoku-bt-audio cards | list [<addr>] | set <addr> <codec> | forget <addr> | apply | watch" >&2
+  echo "usage: ryoku-bt-audio cards | list [<addr>] | set <addr> <codec> | forget <addr> | apply | watch | mic [on|off]" >&2
   exit 2
   ;;
 esac

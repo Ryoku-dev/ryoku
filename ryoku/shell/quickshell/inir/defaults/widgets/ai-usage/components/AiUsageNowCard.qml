@@ -151,7 +151,8 @@ AiUsageGlassCard {
                 role: IrisText.Meta
                 color: IrisStyle.muted
                 font.pixelSize: Math.round(10 * IrisStyle.density)
-                text: page.activeTool === "claude" && usage.sessions.some(
+                text: usage.has && !usage.fresh ? Translation.tr("session status unavailable")
+                    : page.activeTool === "claude" && usage.sessions.some(
                     session => session?.activityState === "unknown"
                         && session?.activityEvidence !== "no_lifecycle")
                     ? Translation.tr("session status unavailable") : Translation.tr("no session running")

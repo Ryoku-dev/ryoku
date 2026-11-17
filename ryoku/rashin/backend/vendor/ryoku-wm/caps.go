@@ -58,6 +58,10 @@ const (
 	CapOutputHdr    Capability = "outputHdr"
 	CapWindowFloat  Capability = "windowFloat"
 	CapTiledLayout  Capability = "tiledLayout"
+	// CapPerWorkspaceLayout is set when the provider can give each workspace its
+	// own tiling layout live, so one output can differ from the rest. Without it
+	// the layout is one global choice and per-output layout is not offered.
+	CapPerWorkspaceLayout Capability = "perWorkspaceLayout"
 	// CapColumnFill is set when the provider can tell the active window spans
 	// its output's width, the full-width column a scrolling tiler makes.
 	CapColumnFill Capability = "columnFill"
@@ -123,7 +127,7 @@ func All() []Capability {
 		CapOverviewState, CapOutputPower,
 		CapKeyboardLayoutSwitch, CapMonitorConfig, CapOutputMirror,
 		CapOutputHdr, CapWindowFloat,
-		CapTiledLayout, CapColumnFill, CapDeckLayout, CapSessionExit, CapNightLight,
+		CapTiledLayout, CapPerWorkspaceLayout, CapColumnFill, CapDeckLayout, CapSessionExit, CapNightLight,
 		CapTouchpadToggle, CapPaletteBorder, CapPersistentScreenCapture,
 		CapKeyboardGrabSharesPointer, CapSystemLidEdgeSource,
 	}

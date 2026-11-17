@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"time"
 )
@@ -25,7 +26,6 @@ func storeSection(section string) bool {
 // of them appear here and none shows an "open in settings" action.
 func settingsSection(category string) (string, bool) {
 	section, ok := map[string]string{
-		"rices":     "appearance",
 		"plugins":   "addons",
 		"bundles":   "addons",
 		"barstyles": "bar-studio",
@@ -50,7 +50,7 @@ func editorSection(category string) (string, bool) {
 func hasSettingsSection(category string) bool {
 	_, hub := settingsSection(category)
 	_, editor := editorSection(category)
-	return hub || editor
+	return hub || editor || category == "rices"
 }
 
 func runOpen(args []string) error {
@@ -63,6 +63,12 @@ func runOpen(args []string) error {
 func runSettings(args []string) error {
 	if len(args) < 1 || len(args) > 2 {
 		return fmt.Errorf("settings needs <category> [id]")
+	}
+	if args[0] == "rices" {
+		if err := exec.Command("ryogami", "wallpaper", "ui", "rices").Run(); err != nil {
+			return fmt.Errorf("open Ryogami's rices: %w", err)
+		}
+		return nil
 	}
 	if section, ok := editorSection(args[0]); ok {
 		return openEditorSection(section)
@@ -85,6 +91,10 @@ func openEditorSection(section string) error {
 
 func openConfig(config, lock, section string) error {
 	start := exec.Command("flock", "-n", "-o", lock, "qs", "-c", config)
+	if config == "ryostore" {
+		// MangoHud's Vulkan layer can crash Qt Multimedia during startup
+		start.Env = append(os.Environ(), "DISABLE_MANGOHUD=1")
+	}
 	if err := start.Start(); err != nil {
 		return fmt.Errorf("start %s: %w", config, err)
 	}

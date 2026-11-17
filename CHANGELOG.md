@@ -23,6 +23,9 @@ for finer detail.
   user is no longer in a mango session.
 
 ### Fixed
+- **Failed VM downloads clear their new partial folder so trying again keeps the real error**
+- **Dictation shows the current speech model, or Custom when it was set outside the Hub**
+- **The Italian translation keeps the Fish shell name unchanged after the next catalog sync**
 - The Game Bar holds the pointer over the whole screen while it is open, so a
   game under it no longer takes the cursor and hides it in the gaps between
   widgets. A pinned card left behind after closing still takes no input.
@@ -123,10 +126,14 @@ for finer detail.
 
 ### Added
 - Shima includes an optional AI usage dashboard for OpenCode, Codex and Claude,
-  with token history, sessions, models, account limits, reset times and local
-  API value. Bundled collectors refresh private caches every 15 seconds while
-  the dashboard is on screen and stop when it is closed.
+  with token history, saved Codex session names, models, account limits,
+  reset times and local API value. Bundled collectors refresh private caches
+  every 15 seconds while the dashboard is on screen and stop when it is closed.
   Enable it in Island settings under Desktop page > Your modules.
+  Mixed native stores retain distinct requests without duplicate copies; future
+  timestamps and malformed data no longer corrupt current usage. Quotas follow
+  login changes, and stale session activity is shown as unavailable.
+  IDs learned from matched copies preserve distinct requests across all stores.
 - **Game Bar.** `Super+Shift+G` raises a passive overlay over the focused
   monitor: a strip of eight widgets and draggable cards for capture,
   performance, resources, tasks, media, audio, gallery and Discord voice. Cards

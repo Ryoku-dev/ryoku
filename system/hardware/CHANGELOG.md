@@ -3,6 +3,17 @@
 ## Unreleased
 
 ### Added
+- `bluetooth/ryoku-bt-agent`: **the pairing agent no longer floods the journal
+  (#869).** The agent unit ran an interactive `bluetoothctl`, so every
+  advertising packet from every nearby device during a scan became a journal
+  line (400-600 a minute). The shared helper keeps pairing prompts, errors and a
+  device's pair, trust, bond and connect changes, and drops the rest, on systemd
+  and runit alike. Covered by `tests/bt-agent-filter.sh`.
+- `audio/ryoku-bt-audio`: **a choice for the headset mic switch (#878).**
+  `ryoku-bt-audio mic off` keeps headsets in stereo playback when an app opens
+  a microphone (the mic is then not offered), `mic on` goes back to the default,
+  and plain `mic` prints the current choice. It is a saved WirePlumber setting,
+  so it survives restarts and updates. Covered by `tests/bt-audio-codec.sh`.
 - `audio/ryoku-media`: **one toggle per media tap.** Runs `playerctl` and drops
   a second call within 200 ms, for headphones that send play and pause together.
 - `display/ryoku-monitor`: **a hand-entered resolution is forced, not ignored.**
@@ -19,6 +30,20 @@
   headless one exits at once.
 
 ### Fixed
+- `network/ryoku-dns`: **the DNS picker changes DNS where systemd-resolved
+  does the lookups.** NetworkManager stores `[global-dns]` but does not apply it
+  with its systemd-resolved backend, so every connection kept the DNS its
+  network handed out and choosing Cloudflare, Google or custom servers changed
+  nothing. With resolved running, ryoku-dns now stops NetworkManager pushing
+  connection DNS (`dns=none`) and gives the servers to resolved as its global
+  DNS for every domain; `dhcp` removes both and connection DNS returns.
+  `[global-dns]` is still written, so the bar shows the choice.
+  Covered by `tests/ryoku-dns.sh`.
+- `network/ryoku-dns`: **the resolved takeover only runs where NetworkManager
+  feeds resolved.** It needs resolved and NetworkManager running and
+  `/etc/resolv.conf` pointing at resolved; it reverts only the links
+  NetworkManager manages (a VPN client's DNS stays), and a custom server with
+  a leading zero is refused.
 - `gpu/ryoku-gpu`: **Performance works again with a monitor on the discrete GPU.**
   When the laptop panel is on the built-in GPU but the dGPU has its own ports,
   Performance pins the dGPU at login only while a monitor is plugged into one.

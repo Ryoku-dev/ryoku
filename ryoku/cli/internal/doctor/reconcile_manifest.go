@@ -103,10 +103,12 @@ func reconcileManifest(checkOnly bool) recResult {
 	unavailable = union(unavailable, skipped)
 
 	if checkOnly {
-		return withUnavailablePackages(withProvidedManifestPackages(
-			wouldRes("%s", planSummary(manager, &plan)).
-				withFix(i18n.T("run `ryoku doctor` (or `ryoku update`) to apply")),
-			provided), unavailable)
+		result := okRes("%s", planSummary(manager, &plan))
+		if applied == nil || len(plan.Install)+len(plan.AUR) > 0 {
+			result = wouldRes("%s", planSummary(manager, &plan)).
+				withFix(i18n.T("run `ryoku doctor` (or `ryoku update`) to apply"))
+		}
+		return withUnavailablePackages(withProvidedManifestPackages(result, provided), unavailable)
 	}
 
 	// The provisioned lane (the deliver-once apps) is reconcileShippedApps'

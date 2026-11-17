@@ -1,6 +1,122 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Shima's weather matches the launcher (#885).** Shima read wttr.in, whose
+  reading can be degrees and an hour off; it now asks Open-Meteo like the
+  launcher and keeps wttr.in only as the fallback.
+- **Game Mode pauses the live wallpaper (#882).** The wallpaper keeps its
+  current frame while Game Mode is on and resumes when it ends, for every
+  wallpaper engine; "Pause in Game Mode" in Ryogami's Playback settings turns
+  it off, and a manual pause or your other pause rules still hold afterwards.
+- **Wallpaper colours reach every app when the session keeps its config
+  elsewhere (#814).** matugen reads the shipped templates through `~/.config`,
+  so a session with its own config directory skipped every template; the paths
+  now follow the XDG directories.
+- **Picking Matugen in Python's Theme tab brings the wallpaper colours back
+  (#827).** A bundled preset's palette stayed stored after switching back, so
+  the bar kept the preset's colours; Matugen now clears it.
+- **Joining a Wi-Fi network never picks a hotspot profile.** A saved hotspot
+  that shares the network's name could be given the password and started in
+  place of the client profile; the daemon now skips it (`ipc/network.go`).
+- **Forget and auto-reconnect in the bar reach every saved profile of a
+  network.** The shell daemon acted on the first profile it found for an SSID,
+  so a second one NetworkManager named `<ssid> 1`, or one imported under
+  another name, survived Forget and kept rejoining with auto-reconnect off.
+  The daemon now matches every profile by the SSID it joins, leaving out a
+  hotspot that shares the name, for the bar popout, the sidebar Wi-Fi card and
+  orpheus (`ipc/network.go`).
+- **A manual IP address, and a tunnel's keys, are checked harder.** A manual
+  address or gateway of 0.0.0.0, loopback, multicast or broadcast is refused,
+  and a tunnel's .conf is only written under the runtime directory, never
+  into /tmp when that is missing.
+- **An imported WireGuard tunnel starts switched off.** nmcli saves an
+  imported tunnel with auto-connect on and brings it up at once, so a tunnel
+  that routes everything took over the machine's traffic the moment it was
+  imported; `network.wgImport` now leaves it off with auto-connect off.
+- **The shell daemon reads and edits a VPN connection's settings.** New
+  `network.vpnGet` (details, and a tunnel's traffic while up),
+  `network.vpnSetAutoconnect`, `network.wgEdit` (a tunnel's name and peer),
+  `network.wgExport` (the tunnel as a private .conf) and `network.wgReplace`
+  (an edited .conf loaded back in its place); the `network` topic's
+  WireGuard and VPN entries carry auto-connect (`ipc/network_vpn.go`).
+- **The shell daemon reports wired adapters and saved Ethernet profiles.** The
+  `network` topic gains `ethernet` (each adapter's state, speed, address and
+  profile in use) and `ethernetProfiles`, and new `network.ethernetConnect`,
+  `network.ethernetDisconnect` and `network.ethernetSetAutoconnect` act on
+  them; a wired call refuses a Wi-Fi or VPN profile and any adapter that is
+  not wired (`ipc/network_ethernet.go`).
+- **The shell daemon edits a saved connection's IPv4 settings.** New
+  `network.ipGet` and `network.ipSet` read and write DHCP or a manual address,
+  gateway and DNS; on a live connection the old settings come back after 20
+  seconds unless `network.ipConfirm` keeps the new ones (`network.ipRevert`
+  undoes at once), so a wrong address that cuts the machine off undoes itself
+  (`ipc/network_ip.go`).
+- **Update indicators can show system packages, Ryoku updates, or both (#877).**
+  Pick the notification source in Hub > Updates; Ryoku only stays the default,
+  and the existing check schedule covers every edition without another poll.
+- **Music widgets use less memory for artwork and local GIFs (#850).** The
+  backdrop decodes images at the widget's own size, releases its artwork while
+  the widget is hidden, and no longer keeps a second cached copy of stills.
+- **The launcher's date and weather follow the language (#838).** The day and
+  month were always English and the condition word was never translated; the
+  date now uses your regional formats and the condition goes through the catalog.
+- **The Game Bar's Audio card fits its app list and resizes (#839).** The card
+  was too short for three app rows, so the last one hung off the bottom, and it
+  had no grip. It is taller by default and drags to any size, with the list
+  filling the room.
+- **An external monitor's brightness slider shows its real level and stops flooding ddcutil (#840).**
+  The Orpheus control card pinned the handle at 50% and spawned one `ddcutil`
+  per pointer move; writes now go one at a time with the latest value winning,
+  and the level is read from the monitor when the card opens.
+- **Tray registrations stay with the app that sent them.** Invalid paths and
+  attempts to register another app are rejected, and owner changes clear items.
+- **Spotify and other AppIndicator apps show in the tray again.** An app that
+  registers its tray item by object path only (libayatana-appindicator, e.g. the
+  Spotify Flatpak) was announced to tray hosts as that bare path, so a host that
+  joined before the app (the Quickshell bar) could not reach it and drew
+  nothing until the shell restarted. The watcher now announces the item as
+  `busname/path`, the same key it lists and unregisters (`ipc/tray.go`).
+- **RyoStore opens rice management directly in the picker (#813).**
+  The handoff opens the Rices tab even while the picker is already open or starting.
+- **Screen recording works on a display placed above or left of the main one (#871).**
+  A region or "Capture this monitor" box with a negative offset was refused as
+  an invalid region; it now records, and the recording island and region
+  outline show on the right screen.
+- **The Alt+Space Ask answer shows Markdown as formatted text (#817).** Bold,
+  code and lists showed as raw syntax; the Ask and Agent tabs now render the
+  same Markdown, never fetch images a reply points at, and open only web and
+  mail links. The recent-asks list no longer logs a ReferenceError on hover.
+- **A Bluetooth scan the shell started no longer keeps running after nothing
+  wants it (#869).** Quickshell drops a stop that equals the state it last
+  heard, so closing a Bluetooth panel before the radio confirmed the scan left
+  it scanning until the shell restarted. The shared scan owner now asks again
+  once the start lands, the Python bar's network popup uses it too, and the
+  adapter probe is paced while a scan runs instead of firing per device found.
+  Covered by `tests/bluetooth-discovery-leak.sh`.
+- **The dock's window previews can be turned off, and crash less (#879).**
+  Hyprland can drop a capture request for a window that just closed, which
+  ends the shell with "invalid object". Window previews is a new switch in the
+  dock settings, tiles no longer rebuild on every title change, and the tile's
+  close button stops capturing before it closes the window.
+- **The wallpaper picker's tabs show again after an update (#818).** An older
+  Ryoku.Ui left in the home folder hid the one the package ships, so the tabs
+  failed with "UiPreferences is not defined"; a packaged picker now reads the
+  packaged one first.
+- Route remaining dock, launcher, tray and notification theme icons through the
+  shared file resolver, avoiding the Qt icon provider during asynchronous image
+  loading at startup. Preserve non-theme image providers for app menu images.
+- **Dock, launcher, tray and notification icons load from files, not Qt's icon provider.**
+  This avoids the startup crash path through Qt's image-reader thread (#852).
+- **QS Bar keeps its widgets and readings when the shell starts on a busy box.**
+  The shell now runs QML garbage collection to completion, so a collection can no longer
+  sweep live properties mid-start. Set `QV4_GC_TIMELIMIT` to a number of ms to keep incremental GC.
+- **Wallpaper Engine video wallpapers animate on hover in the picker (#807).**
+  Only local videos got the small preview clip, so workshop video cards stayed
+  still; they now get one too, built on the thumbnail job limit and skipped
+  while video previews are off.
+- **Wallpaper Engine scenes follow the cursor (#808).** Scenes with
+  camera parallax or mouse effects never moved, because the desktop sits above
+  the scene and takes the pointer; the shell now hands the position on through ryogami.
 - **The launcher's weather follows the Celsius or Fahrenheit setting (#803).** A
   unit change that arrived while the first forecast was still loading was
   dropped, so the hero kept the locale's unit until the next refresh 15 minutes

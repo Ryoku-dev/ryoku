@@ -22,6 +22,16 @@ var rows = [
     },
     {
         "tab": "",
+        "group": "UPDATE NOTIFICATIONS",
+        "key": "update_notifications",
+        "label": "Update notifications",
+        "desc": "Show Ryoku updates, system package updates, or both in the bar",
+        "ctl": "seg",
+        "src": "hub.toml), TOML table [ui], field update_notifications",
+        "opts": ["ryoku", "system", "both"]
+    },
+    {
+        "tab": "",
         "group": "UPDATE NOW",
         "key": "update_system",
         "label": "Include system packages",

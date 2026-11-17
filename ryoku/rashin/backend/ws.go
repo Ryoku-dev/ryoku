@@ -79,6 +79,7 @@ type chatHub struct {
 	last       wsOut
 	models     wsOut
 	commands   wsOut
+	session    wsOut
 	transcript []wsOut
 	perms      []wsOut
 	introduced bool
@@ -291,6 +292,7 @@ func (h *chatHub) ensureConnLocked() (spawned bool) {
 			h.dropConn(conn)
 			return
 		}
+		h.announceSession(conn)
 		h.broadcast(wsOut{Type: "state", State: "ready"})
 	}()
 	go h.pump(conn)
@@ -304,6 +306,20 @@ func (h *chatHub) dropConn(c *acpConn) {
 	}
 	h.mu.Unlock()
 	c.Close()
+}
+
+// announceSession tells every surface which session is live, so the history
+// list can mark it.
+func (h *chatHub) announceSession(c *acpConn) {
+	_, id := c.backendSession()
+	if id == "" {
+		return
+	}
+	m := wsOut{Type: "session_info", SessionID: id}
+	h.mu.Lock()
+	h.session = m
+	h.mu.Unlock()
+	h.broadcast(m)
 }
 
 // resetConn drops a live public session so switching harnesses takes effect on
@@ -339,6 +355,7 @@ func (h *chatHub) resetConn() {
 	// shows the previous backend's model; the next session re-emits its own.
 	h.mu.Lock()
 	h.models = wsOut{Type: "models", Current: "", Agent: ""}
+	h.session = wsOut{}
 	h.mu.Unlock()
 	h.broadcast(h.models)
 	h.broadcast(wsOut{Type: "state", State: "ready"})
@@ -346,6 +363,9 @@ func (h *chatHub) resetConn() {
 
 func (h *chatHub) pump(c *acpConn) {
 	for ev := range c.Events() {
+		if ev.Type != "replay_start" && ev.Type != "replay_end" && c.isLeft(ev.SessionID) {
+			continue
+		}
 		switch ev.Type {
 		case "state":
 			h.broadcast(wsOut{Type: "state", State: ev.State, Error: ev.Err})
@@ -390,7 +410,11 @@ func (h *chatHub) pump(c *acpConn) {
 			h.mu.Unlock()
 			h.broadcast(m)
 		case "session_info":
-			h.broadcast(wsOut{Type: "session_info", SessionID: ev.SessionID, Title: ev.SessionTitle})
+			m := wsOut{Type: "session_info", SessionID: ev.SessionID, Title: ev.SessionTitle}
+			h.mu.Lock()
+			h.session = m
+			h.mu.Unlock()
+			h.broadcast(m)
 		case "usage":
 			h.broadcast(wsOut{Type: "usage", Size: ev.UsageSize, Used: ev.UsageUsed})
 		case "replay_start":
@@ -426,6 +450,9 @@ func (h *chatHub) handle(ctx context.Context, ws *websocket.Conn) {
 	}
 	if h.commands.Type != "" {
 		greeting = append(greeting, h.commands)
+	}
+	if h.session.Type != "" {
+		greeting = append(greeting, h.session)
 	}
 	greeting = append(greeting, approvalsFrame())
 	// Replay the current conversation, then approvals still waiting for a
@@ -514,6 +541,7 @@ func (h *chatHub) handle(ctx context.Context, ws *websocket.Conn) {
 						h.broadcast(wsOut{Type: "state", State: "ready", Error: "load failed: " + err.Error()})
 						return
 					}
+					h.announceSession(c)
 					h.broadcast(wsOut{Type: "state", State: "ready"})
 				}(conn, in.SessionID)
 			}
@@ -534,6 +562,7 @@ func (h *chatHub) handle(ctx context.Context, ws *websocket.Conn) {
 					h.broadcast(wsOut{Type: "state", State: "dead", Error: err.Error()})
 					return
 				}
+				h.announceSession(c)
 				h.broadcast(wsOut{Type: "state", State: "ready"})
 			}(conn, spawned)
 		}

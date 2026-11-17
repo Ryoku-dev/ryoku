@@ -23,7 +23,9 @@ type frameEntry struct {
 	// Preview marks a paint wall.preview published but the daemon has not
 	// committed: no assignment, count, or applied event backs it, so
 	// downstream readers must not treat the entry as the wallpaper.
-	Preview    bool        `json:"preview,omitempty"`
+	Preview bool `json:"preview,omitempty"`
+	// a scene renderer under the desktop surface never sees the pointer itself
+	Pointer    bool        `json:"pointer,omitempty"`
 	Mute       bool        `json:"mute"`
 	Volume     int         `json:"volume"`
 	Transition interface{} `json:"transition"`
@@ -98,11 +100,15 @@ type videoClip struct {
 // video's still; clip.path, when set, is the in-shell clip (video_engine
 // "in_shell") and carries its audio.
 func (w *wallSurface) show(pic, fit string, tr interface{}, live, isVideo bool, clip videoClip) {
-	w.showEntry(pic, fit, tr, live, isVideo, false, clip)
+	w.showEntry(pic, fit, tr, live, isVideo, false, false, clip)
 }
 
 func (w *wallSurface) showPreview(pic, fit string, tr interface{}, live, isVideo bool, clip videoClip) {
-	w.showEntry(pic, fit, tr, live, isVideo, true, clip)
+	w.showEntry(pic, fit, tr, live, isVideo, true, false, clip)
+}
+
+func (w *wallSurface) showScene(pic, fit string) {
+	w.showEntry(pic, fit, nil, true, false, false, true, videoClip{})
 }
 
 func commitMatchingPreview(e *frameEntry, pic, fit string, live, isVideo, preview bool, clip videoClip) bool {
@@ -120,7 +126,7 @@ func commitMatchingPreview(e *frameEntry, pic, fit string, live, isVideo, previe
 	return true
 }
 
-func (w *wallSurface) showEntry(pic, fit string, tr interface{}, live, isVideo, preview bool, clip videoClip) {
+func (w *wallSurface) showEntry(pic, fit string, tr interface{}, live, isVideo, preview, pointer bool, clip videoClip) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if commitMatchingPreview(&w.def, pic, fit, live, isVideo, preview, clip) {
@@ -136,20 +142,25 @@ func (w *wallSurface) showEntry(pic, fit string, tr interface{}, live, isVideo, 
 	w.def.Preview = preview
 	w.def.Mute = clip.mute
 	w.def.Volume = clip.volume
+	w.def.Pointer = pointer
 	w.outputs = map[string]frameEntry{}
 	w.publishLocked()
 }
 
 // showOutput writes one per-output override, leaving the rest intact.
 func (w *wallSurface) showOutput(name, pic, fit string, tr interface{}, live, isVideo bool, clip videoClip) {
-	w.showOutputEntry(name, pic, fit, tr, live, isVideo, false, clip)
+	w.showOutputEntry(name, pic, fit, tr, live, isVideo, false, false, clip)
 }
 
 func (w *wallSurface) showOutputPreview(name, pic, fit string, tr interface{}, live, isVideo bool, clip videoClip) {
-	w.showOutputEntry(name, pic, fit, tr, live, isVideo, true, clip)
+	w.showOutputEntry(name, pic, fit, tr, live, isVideo, true, false, clip)
 }
 
-func (w *wallSurface) showOutputEntry(name, pic, fit string, tr interface{}, live, isVideo, preview bool, clip videoClip) {
+func (w *wallSurface) showOutputScene(name, pic, fit string) {
+	w.showOutputEntry(name, pic, fit, nil, true, false, false, true, videoClip{})
+}
+
+func (w *wallSurface) showOutputEntry(name, pic, fit string, tr interface{}, live, isVideo, preview, pointer bool, clip videoClip) {
 	if name == "" {
 		return
 	}
@@ -168,6 +179,7 @@ func (w *wallSurface) showOutputEntry(name, pic, fit string, tr interface{}, liv
 	e.Preview = preview
 	e.Mute = clip.mute
 	e.Volume = clip.volume
+	e.Pointer = pointer
 	w.outputs[name] = e
 	w.publishLocked()
 }

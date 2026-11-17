@@ -15,6 +15,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
 )
 
 // acp.go speaks the Agent Client Protocol: newline-delimited JSON-RPC 2.0
@@ -90,8 +91,35 @@ type rpcMsg struct {
 }
 
 type rpcError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
+	Code    int             `json:"code"`
+	Message string          `json:"message"`
+	Data    json.RawMessage `json:"data,omitempty"`
+}
+
+// detail is the agent's own explanation: ACP adapters put the real cause of a
+// bare "Internal error" in data.details, or send data as a plain string.
+func (e *rpcError) detail() string {
+	if len(e.Data) == 0 {
+		return ""
+	}
+	var obj struct {
+		Details string `json:"details"`
+		Message string `json:"message"`
+		Error   string `json:"error"`
+	}
+	if json.Unmarshal(e.Data, &obj) == nil {
+		for _, s := range []string{obj.Details, obj.Message, obj.Error} {
+			if s = strings.TrimSpace(s); s != "" {
+				return s
+			}
+		}
+		return ""
+	}
+	var s string
+	if json.Unmarshal(e.Data, &s) == nil {
+		return strings.TrimSpace(s)
+	}
+	return ""
 }
 
 type acpConn struct {
@@ -116,6 +144,9 @@ type acpConn struct {
 	// can release every one of them. Each is replied to exactly once, even
 	// when the dashboard and the terminal race to answer it.
 	openPerms map[int64][]PermOption
+	// left holds sessions this connection moved away from; their late
+	// frames must not land in whichever chat is showing now.
+	left map[string]bool
 	// askOnly is set before an internal Ask session starts. askDenied carries
 	// the first write title back to the one-shot result.
 	askOnly   bool
@@ -199,12 +230,15 @@ func (t *tailBuffer) String() string {
 func (t *tailBuffer) reason() string {
 	lines := strings.Split(t.String(), "\n")
 	for i := len(lines) - 1; i >= 0; i-- {
-		if l := strings.TrimSpace(lines[i]); l != "" {
-			if len(l) > 200 {
-				l = l[:200]
-			}
-			return l
+		l := strings.TrimSpace(lines[i])
+		// the closing brace of a dumped object says nothing
+		if !strings.ContainsFunc(l, unicode.IsLetter) {
+			continue
 		}
+		if len(l) > 200 {
+			l = l[:200]
+		}
+		return l
 	}
 	return ""
 }
@@ -295,10 +329,11 @@ func (c *acpConn) request(method string, params any) (json.RawMessage, error) {
 	}
 	if resp.Error != nil {
 		msg := resp.Error.Message
-		// Hermes answers a failed session/new with a bare "Internal error";
-		// its log stream carries the real cause. Ride the last line along so
-		// the banner and `ryoku-rashin logs` can name what broke.
-		if c.errTail != nil {
+		if why := resp.Error.detail(); why != "" {
+			return nil, fmt.Errorf("acp %s: %s: %s", method, msg, why)
+		}
+		// a bare internal error has its cause only in the agent's log stream
+		if resp.Error.Code == -32603 && c.errTail != nil {
 			if why := c.errTail.reason(); why != "" {
 				msg += ": " + why
 			}
@@ -628,7 +663,7 @@ func (c *acpConn) Initialize(cwd string) error {
 		return err
 	}
 	c.applyInitResult(res)
-	return c.openSession("session/new", map[string]any{"cwd": cwd, "mcpServers": prowlMCPServers()})
+	return c.openSession("session/new", map[string]any{"cwd": cwd, "mcpServers": prowlSessionMCPServers()})
 }
 
 // applyInitResult records the negotiated protocol version and the agent's
@@ -654,6 +689,16 @@ func (c *acpConn) applyInitResult(res json.RawMessage) {
 }
 
 func (c *acpConn) openSessionLocked(method string, params map[string]any) error {
+	opening, _ := params["sessionId"].(string)
+	c.retireSession(opening)
+	opened := false
+	defer func() {
+		if !opened {
+			c.mu.Lock()
+			delete(c.left, c.sessionID)
+			c.mu.Unlock()
+		}
+	}()
 	c.mu.Lock()
 	c.sessionReady = false
 	c.mu.Unlock()
@@ -675,6 +720,7 @@ func (c *acpConn) openSessionLocked(method string, params map[string]any) error 
 	st := out.modelState()
 	c.mu.Lock()
 	c.sessionID = out.SessionID
+	delete(c.left, out.SessionID)
 	c.startedModel = st.current
 	c.currentModel = st.current
 	c.mu.Unlock()
@@ -684,7 +730,31 @@ func (c *acpConn) openSessionLocked(method string, params map[string]any) error 
 	c.mu.Lock()
 	c.sessionReady = true
 	c.mu.Unlock()
+	opened = true
 	return nil
+}
+
+// retireSession marks the session being left and the one being
+// opened (empty for a new session) as live again.
+func (c *acpConn) retireSession(opening string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.left == nil {
+		c.left = map[string]bool{}
+	}
+	delete(c.left, opening)
+	if c.sessionID != "" && c.sessionID != opening {
+		c.left[c.sessionID] = true
+	}
+}
+
+func (c *acpConn) isLeft(id string) bool {
+	if id == "" {
+		return false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.left[id]
 }
 
 // openSession issues new/load and installs the returned session id.
@@ -696,7 +766,7 @@ func (c *acpConn) openSession(method string, params map[string]any) error {
 
 // NewSession abandons the current session for a fresh one in the same cwd.
 func (c *acpConn) NewSession() error {
-	return c.openSession("session/new", map[string]any{"cwd": c.cwd, "mcpServers": prowlMCPServers()})
+	return c.openSession("session/new", map[string]any{"cwd": c.cwd, "mcpServers": prowlSessionMCPServers()})
 }
 
 // LoadSession switches to a stored session; hermes replays its transcript as
@@ -707,9 +777,10 @@ func (c *acpConn) LoadSession(id string) error {
 	}
 	c.sessionMu.Lock()
 	defer c.sessionMu.Unlock()
+	c.retireSession(id)
 	c.emit(AcpEvent{Type: "replay_start", SessionID: id})
 	err := c.openSessionLocked("session/load", map[string]any{
-		"sessionId": id, "cwd": c.cwd, "mcpServers": prowlMCPServers(),
+		"sessionId": id, "cwd": c.cwd, "mcpServers": prowlSessionMCPServers(),
 	})
 	c.emit(AcpEvent{Type: "replay_end", SessionID: id})
 	return err
@@ -910,7 +981,7 @@ func (c *acpConn) Prompt(text string, images []PromptImage) {
 			"prompt":    blocks,
 		})
 		if err != nil {
-			c.emit(AcpEvent{Type: "state", State: "dead", Err: err.Error()})
+			c.emit(AcpEvent{Type: "state", State: "dead", Err: err.Error(), SessionID: sid})
 			return
 		}
 		var out struct {
@@ -920,7 +991,7 @@ func (c *acpConn) Prompt(text string, images []PromptImage) {
 			} `json:"usage"`
 		}
 		_ = json.Unmarshal(res, &out)
-		c.emit(AcpEvent{Type: "turn_end", StopReason: out.StopReason})
+		c.emit(AcpEvent{Type: "turn_end", StopReason: out.StopReason, SessionID: sid})
 	}()
 }
 
@@ -1068,14 +1139,19 @@ func (c *acpConn) handleAgentRequest(msg rpcMsg) {
 	switch msg.Method {
 	case "session/request_permission":
 		var p struct {
-			ToolCall acpToolCall `json:"toolCall"`
-			Options  []struct {
+			SessionID string      `json:"sessionId"`
+			ToolCall  acpToolCall `json:"toolCall"`
+			Options   []struct {
 				OptionID string `json:"optionId"`
 				Name     string `json:"name"`
 				Kind     string `json:"kind"`
 			} `json:"options"`
 		}
 		_ = json.Unmarshal(msg.Params, &p)
+		if c.isLeft(p.SessionID) {
+			c.respond(*msg.ID, map[string]any{"outcome": map[string]any{"outcome": "cancelled"}})
+			return
+		}
 		opts := make([]PermOption, 0, len(p.Options))
 		for _, o := range p.Options {
 			opts = append(opts, PermOption{ID: o.OptionID, Name: o.Name, Kind: o.Kind})
@@ -1250,6 +1326,9 @@ func (c *acpConn) handleUpdate(params json.RawMessage) {
 	if json.Unmarshal(params, &p) != nil {
 		return
 	}
+	if c.isLeft(p.SessionID) {
+		return
+	}
 	u := p.Update
 	chunk := func() string {
 		var b struct {
@@ -1260,17 +1339,17 @@ func (c *acpConn) handleUpdate(params json.RawMessage) {
 	}
 	switch u.SessionUpdate {
 	case "agent_message_chunk":
-		c.emit(AcpEvent{Type: "agent_text", Text: chunk()})
+		c.emit(AcpEvent{Type: "agent_text", Text: chunk(), SessionID: p.SessionID})
 	case "agent_thought_chunk":
-		c.emit(AcpEvent{Type: "agent_thought", Text: chunk()})
+		c.emit(AcpEvent{Type: "agent_thought", Text: chunk(), SessionID: p.SessionID})
 	case "user_message_chunk":
 		raw := chunk()
 		if question, answer, rest, ok := splitHandoffBlock(raw); ok {
-			c.emit(AcpEvent{Type: "handoff", Text: question, Answer: answer})
-			c.emit(AcpEvent{Type: "user_text", Text: rest})
+			c.emit(AcpEvent{Type: "handoff", Text: question, Answer: answer, SessionID: p.SessionID})
+			c.emit(AcpEvent{Type: "user_text", Text: rest, SessionID: p.SessionID})
 			break
 		}
-		c.emit(AcpEvent{Type: "user_text", Text: stripIdentityPreamble(raw)})
+		c.emit(AcpEvent{Type: "user_text", Text: stripIdentityPreamble(raw), SessionID: p.SessionID})
 	case "tool_call", "tool_call_update":
 		var call struct {
 			Update acpToolCall `json:"update"`
@@ -1284,7 +1363,7 @@ func (c *acpConn) handleUpdate(params json.RawMessage) {
 		if tool.Status == "" && u.SessionUpdate == "tool_call" {
 			tool.Status = "pending"
 		}
-		c.emit(AcpEvent{Type: "tool", Tool: tool})
+		c.emit(AcpEvent{Type: "tool", Tool: tool, SessionID: p.SessionID})
 	case "available_commands_update":
 		cmds := make([]CommandInfo, 0, len(u.AvailableCommands))
 		for _, cm := range u.AvailableCommands {
@@ -1311,7 +1390,7 @@ func (c *acpConn) handleUpdate(params json.RawMessage) {
 			c.emit(c.currentModelsEvent())
 		}
 	case "usage_update":
-		c.emit(AcpEvent{Type: "usage", UsageSize: u.Size, UsageUsed: u.Used})
+		c.emit(AcpEvent{Type: "usage", UsageSize: u.Size, UsageUsed: u.Used, SessionID: p.SessionID})
 	case "session_info_update":
 		c.emit(AcpEvent{Type: "session_info", SessionID: p.SessionID, SessionTitle: cleanTitle(u.Title)})
 	}
@@ -1331,6 +1410,11 @@ func startACP(cwd string) (*acpConn, error) {
 	stamp := hermesConfigStamp()
 	cmd := exec.Command(b.Argv[0], b.Argv[1:]...)
 	cmd.Dir = cwd
+	if b.ID == "claude" {
+		if env := claudeAdapterEnv(b.Argv[0]); len(env) > 0 {
+			cmd.Env = append(os.Environ(), env...)
+		}
+	}
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err

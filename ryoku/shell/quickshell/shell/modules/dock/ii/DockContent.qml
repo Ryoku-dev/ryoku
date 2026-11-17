@@ -1,3 +1,4 @@
+import shell.services as ShellIcons
 import QtQuick
 import QtQuick.Effects
 import QtQuick.Layouts
@@ -2157,7 +2158,7 @@ Item {
                 ? { "text/uri-list": "file://" + encodeURI(entry.path).replace(/#/g, "%23").replace(/\?/g, "%3F") }
                 : { "application/x-ii-desktop-shortcut": JSON.stringify({
                     type: entry.type === "appGroup" ? "group" : "app", apps: appIds }) };
-            shortcutDrag.Drag.imageSource = Quickshell.iconPath(utilityExport ? utilityExport.icon
+            shortcutDrag.Drag.imageSource = ShellIcons.Icons.path(utilityExport ? utilityExport.icon
                 : entry.type === "file" ? "folder"
                 : TaskbarApps.getCachedIcon(appIds[0]), "image-missing");
             root.exportingShortcut = true;

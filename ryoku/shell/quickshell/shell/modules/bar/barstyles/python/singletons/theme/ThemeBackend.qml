@@ -34,7 +34,7 @@ Item {
     readonly property real elementOpacity: liquidGlass ? liquidGlassOpacity : configuredOpacity
     readonly property bool glassActive: blurBackground && elementOpacity < 0.999
 
-    readonly property var palette: (overrides && overrides.colors) ? overrides.colors : ({})
+    readonly property var palette: (overrides && overrides.colors && overrides.matugen !== true) ? overrides.colors : ({})
     readonly property string dockLauncherColorMode: {
         const mode = overrides.dockLauncherColorMode;
         return mode === "accent" || mode === "custom" ? mode : "bar";

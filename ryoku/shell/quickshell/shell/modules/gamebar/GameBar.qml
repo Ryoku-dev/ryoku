@@ -57,7 +57,7 @@ PanelWindow {
         tasks: { w: 350, h: 270 },
         media: { w: 358, h: 235 },
         voice: { w: 358, h: 336 },
-        audio: { w: 350, h: 282 },
+        audio: { w: 350, h: 326 },
         gallery: { w: 350, h: 290 }
     })
     readonly property real maxCardW: 358 * win.us
@@ -80,7 +80,8 @@ PanelWindow {
     // Only cards that can resize carry limits; the rest keep their drawn size.
     readonly property var cardLimits: ({
         voice: { minW: 300, minH: 280, maxW: 640, maxH: 640 },
-        media: { minW: 300, minH: 200, maxW: 640, maxH: 560 }
+        media: { minW: 300, minH: 200, maxW: 640, maxH: 560 },
+        audio: { minW: 300, minH: 240, maxW: 640, maxH: 640 }
     })
 
     function glyphFor(id) {

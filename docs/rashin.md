@@ -3,7 +3,7 @@
 Rashin (羅針, "compass needle") is Ryoku's optional agent OS: a machine-generated
 knowledge vault, a local daemon, and frontends for installed agent harnesses.
 The Agent can run Hermes, Codex through `codex-acp`, Claude Code through
-`claude-code-acp` or `claude-agent-acp`, omp, opencode, or Gemini CLI. Prowl is
+`claude-agent-acp` (or the deprecated `claude-code-acp`), omp, opencode, or Gemini CLI. Prowl is
 an external model gateway, code index, and skill source that plugs into those
 harnesses without owning their model choices.
 Everything is local, off by default, and enabled from Ryoku Settings under
@@ -316,7 +316,7 @@ choice: it selects Agent model or a Prowl route without changing the harness
 model.
 
 The Agent supports Hermes, Codex through `codex-acp`, Claude Code through
-`claude-code-acp` or `claude-agent-acp`, omp, opencode, and Gemini CLI. **Open
+`claude-agent-acp` (or the deprecated `claude-code-acp`), omp, opencode, and Gemini CLI. **Open
 in terminal** runs `ryoku-rashin terminal` and resumes the current Agent session
 in the harness's own TUI when that harness supports resume. Hermes, omp, Claude
 Code, and Codex currently do.

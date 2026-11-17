@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -365,5 +366,55 @@ func TestPluginNvidiaNote(t *testing.T) {
 		if unloaded == "" || unloaded == loaded {
 			t.Errorf("%s unloaded note = %q, want a distinct warning", c.id, unloaded)
 		}
+	}
+}
+
+// A receipt that names the running Hyprland is not proof the binary was built for
+// it: a stale object relinked after a bump carries the old commit, and settings.lua
+// must fall through to a copy that really matches.
+func TestBuiltForThisHyprlandPassesOverMislabelledCopies(t *testing.T) {
+	const running = "efb50993780079460b0cbed1363e2166a2de1d9f"
+	const previous = "acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9"
+	dir := t.TempDir()
+	write := func(name, body string) soCopy {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(body), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		return soCopy{Path: p}
+	}
+	stale := write("stale.so", "\x00built for "+previous+"\x00")
+	good := write("good.so", "\x00built for "+running+"\x00")
+	untagged := write("untagged.so", "\x00no commit in here\x00")
+
+	got := builtForThisHyprland([]soCopy{stale, good, untagged}, running)
+	if len(got) != 2 || got[0].Path != good.Path || got[1].Path != untagged.Path {
+		t.Fatalf("copies kept = %+v, want the matching and the commit-less one", got)
+	}
+	if got := builtForThisHyprland([]soCopy{stale}, running); len(got) != 0 {
+		t.Fatalf("a lone mislabelled copy was kept: %+v", got)
+	}
+}
+
+// Hyprland lists a plugin built for another version as loaded but paused, and a
+// paused plugin never registers its keys, so config behind the guard errors.
+func TestPluginGuardIgnoresAPausedPlugin(t *testing.T) {
+	lua, err := exec.LookPath("lua")
+	if err != nil {
+		t.Skip("no lua interpreter")
+	}
+	script := "hl = { get_loaded_plugins = function() return {\n" +
+		"  { name = 'hyprglass', description = 'Paused (hyprland_version): built for acc1aa0' },\n" +
+		"  { name = 'hyprbars', description = 'Title bars' },\n" +
+		"  { name = 'nodesc' },\n" +
+		"} end }\n" + luaPluginLoaded +
+		"print(tostring(ryoku_plugin_loaded('hyprglass')), tostring(ryoku_plugin_loaded('hyprbars')), " +
+		"tostring(ryoku_plugin_loaded('nodesc')), tostring(ryoku_plugin_loaded('absent')))\n"
+	out, err := exec.Command(lua, "-e", script).CombinedOutput()
+	if err != nil {
+		t.Fatalf("guard did not run: %v\n%s", err, out)
+	}
+	if got, want := strings.TrimSpace(string(out)), "false\ttrue\ttrue\tfalse"; got != want {
+		t.Fatalf("guard answers = %q, want %q (paused, loaded, no description, absent)", got, want)
 	}
 }

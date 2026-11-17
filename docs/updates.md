@@ -42,6 +42,13 @@ packaged lane, every `ryoku update` reports what the distribution lane is
 holding (`N system package(s) waiting`), `ryoku status` prints it as `system:`,
 and the Hub lists it under SYSTEM PACKAGES.
 
+Hub > Updates > Update notifications chooses which pending updates the bar
+shows: Ryoku only (the default), System only, or Both, with separate counts.
+It uses the existing automatic-check schedule and the system package list from
+`ryoku status --json` on every edition, without an extra package check. This
+choice does not change what Update now installs; Include system packages
+remains a separate, opt-in choice.
+
 The desktop package's post-transaction power cutover also makes a direct
 package update safe while graphical sessions are live. One temporary login1
 sleep block covers the systemd reload; then each Ryoku user session (never the
@@ -381,6 +388,15 @@ can't state declaratively (disk, boot, session, and the user-owned
 migration ledger: each is idempotent and safe on every update, and is retired
 once every supported install has run it. `reconcileShellConfig` migrates a stale
 `shell.json` (drops retired keys, revives the bar, clamps geometry).
+
+Use `ryoku doctor --dismiss "snapper configuration"` to acknowledge a current
+warning or todo, and `--restore "snapper configuration"` to undo it.
+`--dismissed` lists saved acknowledgements; `--check`, `--verbose` and `--json`
+keep matching findings visible as `dismissed`, without counting or repairing them.
+Errors cannot be dismissed. Choices live in
+`$XDG_STATE_HOME/ryoku/dismissed-findings.json` (normally
+`~/.local/state/ryoku/dismissed-findings.json`) and survive updates.
+A dismissal stops matching when its status, detail or remedy changes beyond whitespace, including a language change.
 
 ### 0.75.5 shell migration gate
 

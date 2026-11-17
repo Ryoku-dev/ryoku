@@ -935,7 +935,9 @@ thickness, the image path, the GitHub account, and the visualizer's
 The style's palette follows Ryoku's live wallpaper palette, with one exception:
 picking a preset in the guide's Theme tab stores that palette under
 `python.theme.colors` and Python paints itself with it (the ported Catppuccin
-slot names map onto the Material roles in `ThemeBackend`). The font picker
+slot names map onto the Material roles in `ThemeBackend`). Picking Matugen again
+clears it, and `ThemeBackend` ignores stored colours while `python.theme.matugen`
+is true. The font picker
 writes Ryoku's single global `fontFamily`, so the whole desktop retunes, and
 the blue-light rows drive the daemon's night light. Serpantinum writes its
 icons into ordinary text, so Python follows the global font only when it is a

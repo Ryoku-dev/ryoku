@@ -776,3 +776,16 @@ func TestSettingsWindowSchemaAndDefaults(t *testing.T) {
 		}
 	}
 }
+
+func TestApplyKeepsSecondLayoutVariantSlot(t *testing.T) {
+	dir := niriHome(t)
+	store := writeStore(t, `{"desktop":{"input":{"kbLayout":"us,ir","kbVariant":",winkeys","kbOptions":"grp:alt_shift_toggle"}}}`)
+	capApply(t, store)
+	settings := readGen(t, dir, "settings.kdl")
+	for _, want := range []string{`layout "us,ir"`, `variant ",winkeys"`, `options "grp:alt_shift_toggle"`} {
+		if !strings.Contains(settings, want) {
+			t.Errorf("settings.kdl lacks %s\n%s", want, settings)
+		}
+	}
+	validateGen(t, dir, "settings.kdl", "rebinds.kdl")
+}

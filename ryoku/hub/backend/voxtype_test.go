@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -268,5 +269,63 @@ func TestEnsureVoxtypeUnitRunsSetupOnSystemd(t *testing.T) {
 	ensureVoxtypeUnit()
 	if _, err := os.Stat(marker); err != nil {
 		t.Fatalf("voxtype systemd setup did not run: %v", err)
+	}
+}
+
+func TestSelectedPresetUsesConfigInsteadOfMarker(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "ryoku-host"), []byte("#!/bin/sh\nprintf 'systemd\\n'\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	for _, p := range voxtypePresets() {
+		config := strings.Replace(buildVoxtypeConfig(p, ""), "# ryoku-preset: "+p.Key, "# ryoku-preset: stale", 1)
+		if got := selectedPreset(config); got != p.Key {
+			t.Errorf("%s selected = %q", p.Key, got)
+		}
+	}
+	tests := []struct {
+		name, config, want string
+	}{
+		{"external whisper", "# ryoku-preset: whisper-accurate\n[whisper]\nmodel='base.en' # picked outside the Hub\n", "whisper-fast"},
+		{"explicit engine", "engine='whisper'\n[whisper]\nmode='local'\nmodel='small.en'\n", "whisper-small-en"},
+		{"model path", "[whisper]\nmodel=" + fmt.Sprintf("%q", modelFilePath(voxtypePreset{model: "base.en"})) + "\n", "whisper-fast"},
+		{"different path", "[whisper]\nmodel='/elsewhere/ggml-base.en.bin'\n", "custom"},
+		{"external parakeet", "# ryoku-preset: whisper-accurate\nengine='parakeet'\n[whisper]\nmodel='base.en'\n[parakeet]\nmodel='parakeet-tdt-0.6b-v3-Q8_0.gguf'\n", "custom"},
+		{"other table", "[parakeet]\nmodel='base.en'\n", "custom"},
+		{"unknown model", "[whisper]\nmodel='custom.bin'\n", "custom"},
+		{"other remote", "[whisper]\nmode='remote'\nremote_model='whisper-1'\nremote_endpoint='https://example.com/v1'\n", "custom"},
+		{"other cli", "[whisper]\nmode='cli'\nmodel='base.en'\nwhisper_cli_path='/other/cli'\n", "custom"},
+		{"empty", "", "custom"},
+		{"invalid", "engine = [", "custom"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := selectedPreset(tt.config); got != tt.want {
+				t.Fatalf("selected = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestVoxtypeCustomTogglePreservesConfig(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "ryoku-host"), []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	config := "# ryoku-preset: whisper-accurate\nengine='parakeet'\n[parakeet]\nmodel='custom.gguf'\n"
+	if err := atomicWrite(voxtypeConfigPath(), []byte(config), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, enabled := range []bool{false, true} {
+		if err := voxtypeSet(fmt.Sprintf(`{"preset":"custom","enabled":%t}`, enabled)); err != nil {
+			t.Fatal(err)
+		}
+		if got := readFileString(voxtypeConfigPath()); got != config {
+			t.Fatalf("custom config changed:\n%s", got)
+		}
 	}
 }

@@ -2,7 +2,81 @@
 
 ## Unreleased
 
+### Added
+- **A WireGuard tunnel's or VPN profile's settings open under its row in
+  Connections > VPN.** Both get auto-connect and what they connect to; a
+  tunnel also shows its traffic while up, edits its name, endpoint, allowed
+  IPs and keepalive, sets its address and DNS with the IP settings box, and
+  opens as a .conf in the text editor to load back with Load changes;
+  Remove moved there from the row (`pages/ConnectionsVpnDetails.qml`).
+- **Connections has an Ethernet tab.** Each wired adapter gets a card with
+  its link (profile, speed and address), Connect or Disconnect, the saved
+  profile to use when there are several, Auto-connect, and the same IP
+  settings a saved Wi-Fi network has. It goes through the shell daemon, and
+  `ryoku-shell hub open ethernet` opens the tab
+  (`pages/ConnectionsEthernetTab.qml`).
+- **A saved Wi-Fi network's IP settings can be changed in Connections.** IP
+  settings, beside Auto-reconnect, switches between DHCP and a manual address
+  and gateway and sets the network's DNS servers. A change on the network in
+  use reverts after 20 seconds unless it is kept (`pages/ConnectionsIpEditor.qml`).
+- **Connections has VPN and DNS tabs.** VPN lists the saved WireGuard
+  tunnels, with on/off, import from a .conf and remove, and NetworkManager VPN
+  profiles with on/off; DNS picks the system resolver (DHCP, Cloudflare,
+  Google or custom servers). Both go through the shell daemon, the same calls
+  the bar makes, and `ryoku-shell hub open vpn` or `dns` opens the tab
+  (`pages/ConnectionsVpnTab.qml`, `pages/ConnectionsDnsTab.qml`,
+  `Singletons/NetworkTopic.qml`).
+- **Updates lets you choose Ryoku notifications, system notifications, or both (#877).**
+  This does not change which packages Update now installs.
+- **Window Manager: a second display can run its own tiling layout.** With the
+  display link off, selecting a non-main output shows only its Tiling layout.
+  The choice applies live to that output's workspaces and comes back at login.
+  Linking again puts that output back on the shared layout. Save is unchanged
+  (`pages/WindowManagerPage.qml`).
+- **The per-display tiling choice shows only where the compositor supports it.**
+  Other compositors keep one shared layout and show no display link
+  (`pages/WindowManagerPage.qml`, capability `perWorkspaceLayout`).
+- **Connections' Bluetooth tab has a headset mic switch (#878).** "Switch
+  headsets to call mode for the mic" is on by default, as before; turn it off to
+  keep headsets in stereo when an app opens a microphone. It reads and writes the
+  saved WirePlumber setting through `ryoku-bt-audio mic`, and is disabled with a
+  reason when WirePlumber or `wpctl` is missing (`quickshell/pages/ConnectionsPage.qml`).
+
 ### Fixed
+- **Re-rendering app themes works when the config directory is not `~/.config`
+  (#814).** The matugen templates are now rendered against the XDG directories
+  instead of the home directory.
+- **Switching Hub sections no longer flashes both pages and snaps.** The
+  outgoing page stayed drawn under the incoming one (pages paint no
+  background), took the incoming page's frame on framed and full-width
+  switches, and the incoming page appeared before its cards were laid out,
+  stacked over each other. The outgoing page now hides as the new one
+  slides in and keeps its own frame until then, and a new page appears once
+  its card grids report `settled` (capped at 250 ms), laid out while it
+  waits. Graphics & Power also waits for its first backend reads
+  (`Hub.qml`, `pages/GpuPage.qml`, `ryoku/ui/CardColumns.qml`).
+- **Going back to a Hub section you just left is instant.** A page stays
+  loaded for 20 seconds after you leave it (up to five pages), so switching
+  back skips the fresh load; a page left longer reloads, so its data is
+  never older than that (`Hub.qml`).
+- **The Ethernet tab says when it is waiting for the shell daemon.** It was
+  an empty page until the daemon answered.
+- **Every Connections tab fills the page width.** Wi-Fi was a 720 px column
+  in the middle of the page, Bluetooth was capped at 720 px and pinned left
+  with its device list narrower still, and the Hotspot form at 600 px, while
+  the other tabs span the page.
+- **Saving a rice from the command line no longer silently replaces it (#867).**
+  Capture refuses an existing name without `--force`, supports `--help` and `-h`,
+  and rejects names beginning with a dash; the picker keeps its replacement warning.
+- **Exported rices point to the Ryogami picker's Rices tab (#813).**
+  The sharing instructions no longer name a missing Settings page.
+- **Input offers a style for the second layout (#816).** Pick Persian (Windows)
+  or any other variant for the second layout; choosing a second layout also sets
+  Alt+Shift when no switch key is set, so it can be reached.
+- **Connections' Bluetooth scan stops itself after 25 seconds (#869).** The
+  timer was armed from the adapter state right after the write that started the
+  scan, before BlueZ confirmed it, so it never ran; it now starts from the
+  confirmed state.
 - **Graphics & Power offers Performance on laptops with a monitor port on the
   discrete GPU.** The page says it applies only while a monitor is plugged in
   there at login, and that the built-in screen can then stay dark after sleep.
@@ -145,6 +219,9 @@
   `../shell/matugen/config.toml`).
 
 ### Added
+- **Lockscreen has a switch to retry a waiting password prompt.** It writes
+  `~/.config/qylock/auth-retry` and is off by default; it applies from the next
+  lock (`quickshell/pages/LockscreenPage.qml`).
 - **Credits names the Game Bar's sources.** The ii-p3drovfx row now covers the
   Discord Voice widget it is based on, and end-4's illogical-impulse is credited
   for the overlay design (`quickshell/pages/CreditsPage.qml`, `../../NOTICE`).

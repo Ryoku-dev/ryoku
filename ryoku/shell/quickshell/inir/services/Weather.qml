@@ -353,9 +353,9 @@ Singleton {
         return Qt.formatDate(d, "ddd")
     }
 
-    function refineOpenMeteoData(apiData): void {
+    function refineOpenMeteoData(apiData): bool {
         const current = apiData?.current
-        if (!current) return
+        if (!current || typeof current.temperature_2m !== "number") return false
 
         const units = apiData?.current_units ?? {}
         const daily = apiData?.daily ?? {}
@@ -373,11 +373,14 @@ Singleton {
         result.description = root.describeWeather(result.wCode, root.isNightNow())
         result.city = root.location.name || "Unknown"
 
-        result.temp = (current.temperature_2m ?? 0) + (units.temperature_2m ?? (root.useUSCS ? "°F" : "°C"))
-        result.tempFeelsLike = (current.apparent_temperature ?? 0) + (units.apparent_temperature ?? (root.useUSCS ? "°F" : "°C"))
-        result.wind = (current.wind_speed_10m ?? 0) + " " + (units.wind_speed_10m ?? (root.useUSCS ? "mph" : "km/h"))
+        const imperial = units.temperature_2m === "°F"
+        const speedUnit = String(units.wind_speed_10m ?? "").replace("mp/h", "mph")
+        const sight = Number(current.visibility ?? 0)
+        result.temp = Math.round(current.temperature_2m) + (units.temperature_2m ?? (root.useUSCS ? "°F" : "°C"))
+        result.tempFeelsLike = Math.round(current.apparent_temperature ?? current.temperature_2m) + (units.apparent_temperature ?? (root.useUSCS ? "°F" : "°C"))
+        result.wind = (current.wind_speed_10m ?? 0) + " " + (speedUnit || (root.useUSCS ? "mph" : "km/h"))
         result.precip = (current.precipitation ?? 0) + " " + (units.precipitation ?? (root.useUSCS ? "in" : "mm"))
-        result.visib = (current.visibility ?? 0) + " " + (units.visibility ?? (root.useUSCS ? "mi" : "km"))
+        result.visib = imperial ? (Math.round(sight / 528) / 10) + " mi" : (Math.round(sight / 100) / 10) + " km"
         result.press = (current.pressure_msl ?? 0) + " " + (units.pressure_msl ?? (root.useUSCS ? "inHg" : "hPa"))
 
         // Daily forecast
@@ -402,7 +405,9 @@ Singleton {
         const hTimes = apiData?.hourly?.time ?? []
         const hTemps = apiData?.hourly?.temperature_2m ?? []
         const hCodes = apiData?.hourly?.weather_code ?? []
-        const nowMs = new Date().getTime()
+        // hourly stamps are the location's wall clock, so compare against its own "now"
+        const reported = new Date(current.time).getTime()
+        const nowMs = isNaN(reported) ? new Date().getTime() : reported
         let hourly = []
         for (let i = 0; i < hTimes.length && hourly.length < 8; i++) {
             const t = new Date(hTimes[i])
@@ -423,9 +428,10 @@ Singleton {
         root._stamp()
         console.info("[Weather] Updated via Open-Meteo:", result.temp, root.redactedLogCity(result.city))
         root.fetchAirQuality()
+        return true
     }
 
-    function fetchWeatherFallback(): void {
+    function fetchOpenMeteo(): void {
         const lat = root.location.lat
         const lon = root.location.lon
         if ((lat === 0 && lon === 0) || openMeteoFetcher.running) {
@@ -550,24 +556,29 @@ Singleton {
         ipLocator.running = true;
     }
 
-    // Step 2: Fetch weather using coordinates (precise) or city name (fallback)
+    // Step 2: Open-Meteo by coordinates (same provider as the launcher), wttr.in when
+    // there are no coordinates or Open-Meteo keeps failing
     function fetchWeather(): void {
-        if (!root.location.valid || fetcher.running) return;
+        if (!root.location.valid || fetcher.running || openMeteoFetcher.running) return;
 
-        // Skip primary provider (wttr.in) if it has failed repeatedly — go straight to Open-Meteo
-        if (root._primaryFailCount >= 3 && Date.now() < root._primaryFailUntil) {
-            root.fetchWeatherFallback();
+        const hasCoords = root.location.lat !== 0 || root.location.lon !== 0;
+        const skipOpenMeteo = root._primaryFailCount >= 3 && Date.now() < root._primaryFailUntil;
+        if (hasCoords && !skipOpenMeteo) {
+            root.fetchOpenMeteo();
             return;
         }
-        
+        root.fetchWttr();
+    }
+
+    function fetchWttr(): void {
+        if (fetcher.running) return;
         let query;
         if (root.location.lat !== 0 || root.location.lon !== 0) {
             query = root.location.lat + "," + root.location.lon;
         } else {
             query = encodeURIComponent(root.location.name.split(',')[0].trim());
         }
-        const cmd = `curl -s --max-time 15 'https://wttr.in/${query}?format=j1'`;
-        fetcher.command = ["/usr/bin/bash", "-c", cmd];
+        fetcher.command = ["/usr/bin/curl", "-s", "--max-time", "15", `https://wttr.in/${query}?format=j1`];
         fetcher.running = true;
     }
 
@@ -1000,12 +1011,18 @@ Singleton {
     }
 
     // Weather fetcher
+    // wttr.in: used when there are no coordinates to hand Open-Meteo, or when Open-Meteo is down
     Process {
         id: fetcher
-        // Guard: prevent double fallback invocation from both onStreamFinished and onExited
-        property bool _fallbackTriggered: false
+        // Guard: prevent double retry from both onStreamFinished and onExited
+        property bool _failHandled: false
         command: ["/usr/bin/bash", "-c", ""]
-        onRunningChanged: if (running) _fallbackTriggered = false
+        onRunningChanged: if (running) _failHandled = false
+        function failed(): void {
+            if (_failHandled) return
+            _failHandled = true
+            retryTimer.start()
+        }
         stdout: StdioCollector {
             onStreamFinished: {
                 const payload = text.trim();
@@ -1016,12 +1033,7 @@ Singleton {
                     } else {
                         console.info("[Weather] Empty response, retrying");
                     }
-                    if (!fetcher._fallbackTriggered) {
-                        fetcher._fallbackTriggered = true;
-                        root._primaryFailCount++;
-                        root._primaryFailUntil = Date.now() + 30 * 60 * 1000; // Skip primary for 30min after 3 fails
-                        root.fetchWeatherFallback();
-                    }
+                    fetcher.failed();
                     return;
                 }
 
@@ -1032,12 +1044,7 @@ Singleton {
                     } else {
                         console.info("[Weather] Transient weather response, retrying");
                     }
-                    if (!fetcher._fallbackTriggered) {
-                        fetcher._fallbackTriggered = true;
-                        root._primaryFailCount++;
-                        root._primaryFailUntil = Date.now() + 30 * 60 * 1000;
-                        root.fetchWeatherFallback();
-                    }
+                    fetcher.failed();
                     return;
                 }
 
@@ -1051,7 +1058,6 @@ Singleton {
                     }
                     root.refineData(normalized);
                     root._emptyResponseCount = 0;
-                    root._primaryFailCount = 0; // Reset on success
                 } catch (e) {
                     root._emptyResponseCount++;
                     if (root._emptyResponseCount >= 3) {
@@ -1059,50 +1065,52 @@ Singleton {
                     } else {
                         console.info("[Weather] Parse error, retrying");
                     }
-                    if (!fetcher._fallbackTriggered) {
-                        fetcher._fallbackTriggered = true;
-                        root._primaryFailCount++;
-                        root._primaryFailUntil = Date.now() + 30 * 60 * 1000;
-                        root.fetchWeatherFallback();
-                    }
+                    fetcher.failed();
                 }
             }
         }
         onExited: (code) => {
-            if (code !== 0 && !fetcher._fallbackTriggered) {
-                fetcher._fallbackTriggered = true;
-                root._primaryFailCount++;
-                root._primaryFailUntil = Date.now() + 30 * 60 * 1000;
-                console.warn("[Weather] Primary provider failed, switching fallback. code:", code);
-                root.fetchWeatherFallback();
+            if (code !== 0) {
+                console.warn("[Weather] wttr.in fetch failed. code:", code);
+                fetcher.failed();
             }
         }
     }
 
     Process {
         id: openMeteoFetcher
+        property bool _failHandled: false
         command: ["/usr/bin/curl", "-s", "--max-time", "15", ""]
+        onRunningChanged: if (running) _failHandled = false
+        function failed(why): void {
+            if (_failHandled) return
+            _failHandled = true
+            console.warn("[Weather] Open-Meteo failed (" + why + "), trying wttr.in")
+            root._primaryFailCount++
+            root._primaryFailUntil = Date.now() + 30 * 60 * 1000
+            root.fetchWttr()
+        }
         stdout: StdioCollector {
             onStreamFinished: {
                 const payload = text.trim()
                 if (payload.length === 0) {
-                    retryTimer.start()
+                    openMeteoFetcher.failed("empty response")
                     return
                 }
                 try {
-                    root.refineOpenMeteoData(JSON.parse(payload))
+                    if (!root.refineOpenMeteoData(JSON.parse(payload))) {
+                        openMeteoFetcher.failed("no current conditions")
+                        return
+                    }
                     root._emptyResponseCount = 0
+                    root._primaryFailCount = 0
                 } catch (e) {
-                    console.warn("[Weather] Open-Meteo parse error:", e.message)
-                    retryTimer.start()
+                    openMeteoFetcher.failed("parse error: " + e.message)
                 }
             }
         }
         onExited: (code) => {
-            if (code !== 0) {
-                console.warn("[Weather] Open-Meteo fetch failed, code:", code)
-                retryTimer.start()
-            }
+            if (code !== 0) openMeteoFetcher.failed("code " + code)
         }
     }
 

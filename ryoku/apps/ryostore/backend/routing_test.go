@@ -9,7 +9,6 @@ import (
 
 func TestSettingsSectionRoutesStoreCategories(t *testing.T) {
 	cases := map[string]string{
-		"rices":     "appearance",
 		"plugins":   "addons",
 		"bundles":   "addons",
 		"barstyles": "bar-studio",
@@ -64,6 +63,29 @@ func TestDockSettingsOpenTheDesktopEditor(t *testing.T) {
 	}
 }
 
+func TestRiceSettingsOpenRyogami(t *testing.T) {
+	if _, hub := settingsSection("rices"); hub || !hasSettingsSection("rices") {
+		t.Fatal("rices must offer management outside the Hub")
+	}
+	dir := t.TempDir()
+	log := filepath.Join(dir, "argv")
+	t.Setenv("RYOKU_TEST_PICKER_LOG", log)
+	if err := os.WriteFile(filepath.Join(dir, "ryogami"), []byte("#!/bin/sh\nprintf '%s\\n' \"$*\" > \"$RYOKU_TEST_PICKER_LOG\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if err := dispatch([]string{"settings", "rices", "penrose-512"}); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(string(raw)); got != "wallpaper ui rices" {
+		t.Fatalf("rice management command = %q", got)
+	}
+}
+
 func TestStoreSectionIncludesShowroomRoutesAndEveryCategory(t *testing.T) {
 	for _, section := range []string{"discover", "library", "rices", "lockscreens", "subshells", "barstyles", "docks", "launchers", "fastfetch", "plugins", "bundles", "ryotunes-skins"} {
 		if !storeSection(section) {
@@ -84,6 +106,9 @@ func TestDispatchRoutesHandoffCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if err := os.WriteFile(filepath.Join(dir, "ryogami"), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	for name, args := range map[string][]string{
 		"open":     {"open", "library"},

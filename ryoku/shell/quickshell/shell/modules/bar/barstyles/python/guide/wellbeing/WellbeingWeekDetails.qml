@@ -1,3 +1,4 @@
+import shell.services as ShellIcons
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -103,7 +104,7 @@ Item {
                             let ic = model.icon || "";
                             if (!ic) return "";
                             if (ic.startsWith("file://") || ic.startsWith("image://") || ic.startsWith("http://") || ic.startsWith("https://")) return ic;
-                            return ic.startsWith("/") ? "file://" + ic : "image://icon/" + ic;
+                            return ShellIcons.Icons.path(ic, true);
                         }
                     }
 

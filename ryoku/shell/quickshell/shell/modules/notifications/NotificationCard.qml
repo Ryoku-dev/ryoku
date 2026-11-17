@@ -124,6 +124,8 @@ Rectangle {
         }
         if (raw.charAt(0) === "/" || raw.indexOf("file:") === 0)
             return raw.indexOf("file:") === 0 ? raw : "file://" + raw;
+        if (raw.indexOf("image://icon/") === 0)
+            return Icons.path(raw, true);
         if (raw.indexOf(":") > 0)
             return raw;
         return themed ? Icons.path(raw, true) : raw;

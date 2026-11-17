@@ -48,7 +48,7 @@ def collect(config, cache):
                     unidentified += 1
                     continue
                 stamp = shared["iso_epoch"](str(event.get("timestamp") or ""))
-                if not stamp:
+                if not stamp or stamp > now:
                     continue
                 counts = {}
                 valid = True

@@ -1,7 +1,6 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import Quickshell.Io
 import shell.services
 import "../../kit" as K
 
@@ -12,9 +11,6 @@ Item {
     property var card: null
     property bool shown: false
     property bool live: false
-    property var ddcValues: ({})
-    property var ddcQueue: []
-    property string readingBus: ""
 
     implicitWidth: 320
     implicitHeight: content.implicitHeight
@@ -25,40 +21,27 @@ Item {
         (Number(Nightlight.temperature || 4000) - 2500) / 4000))
 
     function ddcValue(bus) {
-        const value = ddcValues[String(bus)];
+        const value = Devices.ddcLevels[String(bus)];
         return value === undefined ? 0.5 : Math.max(0, Math.min(1, value / 100));
     }
 
+    function ddcReady(bus) {
+        return Devices.ddcLevels[String(bus)] !== undefined
+            || Devices.ddcSettled[String(bus)] === true;
+    }
+
     function setDdc(bus, value) {
-        const percent = Math.max(1, Math.min(100, Math.round(value * 100)));
-        const next = Object.assign({}, ddcValues);
-        next[String(bus)] = percent;
-        ddcValues = next;
-        Devices.setBrightness(bus, percent);
+        Devices.setBrightness(bus, Math.max(1, Math.round(value * 100)));
     }
 
     function queueReads() {
         if (!shown)
             return;
-        const queued = [];
         for (let index = 0; index < monitors.length; ++index) {
             const monitor = monitors[index];
-            if (!monitor || monitor.bus === undefined || monitor.bus === null)
-                continue;
-            const bus = String(monitor.bus);
-            if (ddcValues[bus] === undefined && queued.indexOf(bus) < 0)
-                queued.push(bus);
+            if (monitor && monitor.bus !== undefined && monitor.bus !== null)
+                Devices.readBrightness(monitor.bus);
         }
-        ddcQueue = queued;
-        runRead();
-    }
-
-    function runRead() {
-        if (!shown || ddcRead.running || ddcQueue.length === 0)
-            return;
-        readingBus = ddcQueue[0];
-        ddcRead.command = ["ddcutil", "getvcp", "10", "--bus", readingBus, "--brief"];
-        ddcRead.running = true;
     }
 
     function setLive(enabled) {
@@ -67,12 +50,10 @@ Item {
         live = enabled;
         if (enabled) {
             Devices.startProbes(page);
-            Qt.callLater(page.queueReads);
+            ddcReadDelay.restart();
         } else {
+            ddcReadDelay.stop();
             Devices.stopProbes(page);
-            ddcQueue = [];
-            readingBus = "";
-            ddcRead.running = false;
         }
     }
 
@@ -90,22 +71,10 @@ Item {
         function onDdcMonitorsChanged() { page.queueReads(); }
     }
 
-    Process {
-        id: ddcRead
-        command: []
-        stdout: StdioCollector { id: ddcOutput }
-        onExited: {
-            const bus = page.readingBus;
-            const percent = Devices.parseBrightness(ddcOutput.text || "");
-            if (page.shown && bus !== "" && percent >= 0) {
-                const next = Object.assign({}, page.ddcValues);
-                next[bus] = percent;
-                page.ddcValues = next;
-            }
-            page.ddcQueue = page.ddcQueue.slice(1);
-            page.readingBus = "";
-            Qt.callLater(page.runRead);
-        }
+    Timer {
+        id: ddcReadDelay
+        interval: 250
+        onTriggered: page.queueReads()
     }
 
     component MonitorBrightness: Item {
@@ -132,6 +101,7 @@ Item {
             anchors.topMargin: K.Style.s1
             width: parent.width
             value: page.ddcValue(monitorRow.bus)
+            enabled: page.ddcReady(monitorRow.bus)
             icon: "light_mode"
             valueText: Math.round(value * 100) + "%"
             onMoved: value => page.setDdc(monitorRow.bus, value)

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	wm "ryoku-wm"
@@ -37,6 +38,39 @@ func TestQsEnvRespectsExistingMallocConf(t *testing.T) {
 		if e == "MALLOC_CONF="+jemallocConf {
 			t.Errorf("qsEnv() overrode a user-pinned MALLOC_CONF")
 		}
+	}
+}
+
+func TestQsEnvTurnsOffIncrementalGC(t *testing.T) {
+	t.Setenv(gcTimeLimitEnv, "")
+	if err := os.Unsetenv(gcTimeLimitEnv); err != nil {
+		t.Fatal(err)
+	}
+	want := gcTimeLimitEnv + "=0"
+	n := 0
+	for _, e := range qsEnv() {
+		if e == want {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Errorf("qsEnv() has %d copies of %q, want exactly 1", n, want)
+	}
+}
+
+func TestQsEnvRespectsExistingGCTimeLimit(t *testing.T) {
+	t.Setenv(gcTimeLimitEnv, "5")
+	n := 0
+	for _, e := range qsEnv() {
+		if strings.HasPrefix(e, gcTimeLimitEnv+"=") {
+			n++
+			if e != gcTimeLimitEnv+"=5" {
+				t.Errorf("qsEnv() overrode a user-pinned %s: %q", gcTimeLimitEnv, e)
+			}
+		}
+	}
+	if n != 1 {
+		t.Errorf("qsEnv() has %d %s entries, want exactly 1", n, gcTimeLimitEnv)
 	}
 }
 

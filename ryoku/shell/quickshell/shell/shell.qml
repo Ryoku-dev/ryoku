@@ -224,6 +224,7 @@ ShellRoot {
                 wallpaperTransition: wallpaper.transition
                 videoUrl: wallpaper.videoUrl
                 wallpaperLive: wallpaper.live
+                scenePointer: wallpaper.scenePointer
                 videoMuted: wallpaper.videoMuted
                 videoVolume: wallpaper.videoVolume
                 videoPaused: wallpaper.videoPaused
@@ -530,7 +531,7 @@ ShellRoot {
                 id: recordIslandLoader
                 readonly property bool isTarget: {
                     var s = perScreen.modelData;
-                    var m = /^(\d+)x(\d+)\+(\d+)\+(\d+)$/.exec(Recorder.regionGeom);
+                    var m = /^(\d+)x(\d+)\+(-?\d+)\+(-?\d+)$/.exec(Recorder.regionGeom);
                     if (m) {
                         var ox = parseInt(m[3]);
                         var oy = parseInt(m[4]);

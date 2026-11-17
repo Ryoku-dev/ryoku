@@ -1597,7 +1597,7 @@ func exportReadme(r Rice) string {
 	if len(r.Look["decor"]) > 0 {
 		b.WriteString("  decor-*      the desktop decors' pictures\n")
 	}
-	fmt.Fprintf(&b, "\nDrop this folder into ~/.config/ryoku/rices/ and apply it from\nRyoku Settings > Appearance > Rices, or `ryoku-hub rice apply %s`.\n", r.Slug)
+	fmt.Fprintf(&b, "\nDrop this folder into ~/.config/ryoku/rices/ and apply it from\nthe Ryogami picker's Rices tab, or `ryoku-hub rice apply %s`.\n", r.Slug)
 	return b.String()
 }
 
@@ -1762,14 +1762,7 @@ func runRice(args []string) error {
 	case "list":
 		return printJSON(listRiceEntries())
 	case "capture":
-		if len(args) < 2 {
-			return fmt.Errorf("rice capture needs a name")
-		}
-		r, err := captureRice(args[1], args[2:])
-		if err != nil {
-			return err
-		}
-		return printJSON(r)
+		return runRiceCapture(args[1:])
 	case "apply":
 		if len(args) < 2 {
 			return fmt.Errorf("rice apply needs a slug")

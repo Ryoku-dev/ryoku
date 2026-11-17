@@ -1,6 +1,8 @@
 # Changelog: ryoku/apps/
 
 ## Unreleased
+- **Thunar follows the terminal picked in Settings.** Folder paths and quoted
+  commands stay intact with or without the Xfce preferred-app helper.
 
 ### Added
 - `ryostore/`: **Apps is a marketplace page.** The Apps catalogue opens with a
@@ -200,6 +202,15 @@
   v0.56.0-beta.19") via `ryoku version --pretty` (`config.jsonc`).
 
 ### Fixed
+- `ryostore/`: **Opening the store opts out of MangoHud (#831).**
+  A session-wide gaming overlay can crash Qt's video initialization; games keep their overlay.
+- `ryostore/`: **Installed rices open the Ryogami picker's Rices tab (#813).**
+  The management action and installation hint no longer point at a missing Hub page.
+- `wireplumber/`: **the Bluetooth drop-in no longer promises a per-device
+  A2DP pin (#878).** Its comments pointed at a Settings control and a per-device
+  rule that do not exist; they now describe `ryoku-bt-audio set` for codecs and
+  `ryoku-bt-audio mic` for the headset mic switch, which WirePlumber only offers
+  as one global setting.
 - `fish/`, `bash/`, `zsh/`: **Light terminal palettes keep typed commands
   readable.** Shell syntax now follows the same generated wallpaper colours as
   the terminal, with the existing dark scheme kept as the offline fallback.

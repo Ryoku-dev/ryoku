@@ -136,14 +136,28 @@ func (d *daemon) driveWE(weID, itemDir string, outputs []string, mute map[string
 	}
 	d.beginPaint(outputs, "we:"+weID)
 	still := d.weStill(weID, itemDir)
+	scene := weIsScene(itemDir)
 	if len(outputs) == 0 || contains(outputs, "*") {
-		d.surface.show(still, fit, nil, true, false, videoClip{})
+		if scene {
+			d.surface.showScene(still, fit)
+		} else {
+			d.surface.show(still, fit, nil, true, false, videoClip{})
+		}
 	} else {
 		for _, out := range outputs {
-			d.surface.showOutput(out, still, fit, nil, true, false, videoClip{})
+			if scene {
+				d.surface.showOutputScene(out, still, fit)
+			} else {
+				d.surface.showOutput(out, still, fit, nil, true, false, videoClip{})
+			}
 		}
 	}
 	return nil
+}
+
+func weIsScene(itemDir string) bool {
+	project, err := resolveProject(itemDir)
+	return err == nil && projectType(project.document) == "scene"
 }
 
 func (d *daemon) weStill(weID, itemDir string) string {

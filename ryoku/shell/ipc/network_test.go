@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -669,5 +670,52 @@ func TestLiveNetworkFrame(t *testing.T) {
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("no network frame published")
+	}
+}
+
+// wifiProfiles returns every stored profile that joins an SSID, whatever its
+// name ("<ssid> 1", an imported one), and leaves out a hotspot that shares the
+// SSID, other SSIDs and other connection types.
+func TestWifiProfiles(t *testing.T) {
+	saved := []savedConn{
+		{path: "/a", typ: "802-11-wireless", id: "home", ssid: "home"},
+		{path: "/b", typ: "802-11-wireless", id: "home 1", ssid: "home"},
+		{path: "/c", typ: "802-11-wireless", id: "Imported", ssid: "home", mode: "infrastructure"},
+		{path: "/d", typ: "802-11-wireless", id: "home hotspot", ssid: "home", mode: "ap"},
+		{path: "/e", typ: "802-11-wireless", id: "cafe", ssid: "cafe"},
+		{path: "/f", typ: "802-3-ethernet", id: "home", ssid: "home"},
+	}
+	got := wifiProfiles("home", saved)
+	var paths []string
+	for _, c := range got {
+		paths = append(paths, string(c.path))
+	}
+	if strings.Join(paths, " ") != "/a /b /c" {
+		t.Fatalf("wifiProfiles(home) = %v, want /a /b /c", paths)
+	}
+	if len(wifiProfiles("unknown", saved)) != 0 {
+		t.Fatal("an unknown SSID matched a profile")
+	}
+	if ssidSaved("guest", []savedConn{{typ: "802-11-wireless", ssid: "guest", mode: "ap"}}) {
+		t.Fatal("a hotspot alone read as a saved network")
+	}
+}
+
+// With duplicate profiles, autoconnect reads on while any of them is on, since
+// that one still rejoins, and off only once all are off.
+func TestSsidAutoconnectAcrossDuplicates(t *testing.T) {
+	mixed := []savedConn{
+		{typ: "802-11-wireless", id: "home", ssid: "home", autoconnect: false},
+		{typ: "802-11-wireless", id: "home 1", ssid: "home", autoconnect: true},
+	}
+	if !ssidAutoconnect("home", mixed) {
+		t.Error("one profile still autoconnects, so the network should read on")
+	}
+	off := []savedConn{
+		{typ: "802-11-wireless", id: "home", ssid: "home", autoconnect: false},
+		{typ: "802-11-wireless", id: "home 1", ssid: "home", autoconnect: false},
+	}
+	if ssidAutoconnect("home", off) {
+		t.Error("every profile is off, so the network should read off")
 	}
 }

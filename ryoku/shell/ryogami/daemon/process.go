@@ -351,11 +351,14 @@ func (m *managedProcess) refreshIfStale() {
 }
 
 // The daemon spawns quickshell itself and a session does not always export these paths.
+// Without a home-built Ryoku.Ryogami the picker is the packaged one, so the
+// packaged Ryoku.Ui goes first: an older home copy would hide singletons it needs.
 func pickerImportDirs() string {
-	dirs := []string{
-		filepath.Join(home(), ".local", "lib", "qt6", "qml"),
-		"/usr/lib/qt6/qml",
-		"/usr/lib64/qt6/qml",
+	local := filepath.Join(home(), ".local", "lib", "qt6", "qml")
+	system := []string{"/usr/lib/qt6/qml", "/usr/lib64/qt6/qml"}
+	dirs := append([]string{local}, system...)
+	if _, err := os.Stat(filepath.Join(local, "Ryoku", "Ryogami", "qmldir")); err != nil {
+		dirs = append(system, local)
 	}
 	return strings.Join(dirs, string(os.PathListSeparator))
 }
@@ -451,6 +454,13 @@ func (m *managedProcess) ensure(extra ...string) bool {
 				data: map[string]interface{}{},
 			}
 			for _, entry := range extra {
+				if entry == "RYOGAMI_START_RICES=1" {
+					pending = pickerPendingEvent{
+						name: "ryogami.wall.rices",
+						data: map[string]interface{}{},
+					}
+					break
+				}
 				if tab, ok := strings.CutPrefix(entry, "RYOGAMI_START_SETTINGS="); ok {
 					pending = pickerPendingEvent{
 						name: "ryogami.wall.settings",

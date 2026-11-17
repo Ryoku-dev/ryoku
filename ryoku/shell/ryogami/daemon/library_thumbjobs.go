@@ -41,18 +41,6 @@ func processItemsParallel(items []scanned, prior map[string]Entry, onItem func(E
 	}
 
 	result := make(map[string]Entry, len(unique))
-	if len(unique) == 0 {
-		return result
-	}
-
-	workers := int(thumbJobLimit.Load())
-	if workers < 1 {
-		workers = 1
-	}
-	if workers > len(unique) {
-		workers = len(unique)
-	}
-
 	var itemMu sync.Mutex
 	emit := func(e Entry) {
 		if onItem == nil {
@@ -64,6 +52,27 @@ func processItemsParallel(items []scanned, prior map[string]Entry, onItem func(E
 	}
 
 	var resMu sync.Mutex
+	forEachThumbJob(unique, func(it scanned) {
+		e := processOne(it, prior, emit)
+		resMu.Lock()
+		result[it.key] = e
+		resMu.Unlock()
+	})
+	return result
+}
+
+// forEachThumbJob runs fn over items on at most performance.maxThumbJobs workers.
+func forEachThumbJob(items []scanned, fn func(scanned)) {
+	if len(items) == 0 {
+		return
+	}
+	workers := int(thumbJobLimit.Load())
+	if workers < 1 {
+		workers = 1
+	}
+	if workers > len(items) {
+		workers = len(items)
+	}
 	var wg sync.WaitGroup
 	jobs := make(chan scanned)
 	for range workers {
@@ -71,17 +80,13 @@ func processItemsParallel(items []scanned, prior map[string]Entry, onItem func(E
 		go func() {
 			defer wg.Done()
 			for it := range jobs {
-				e := processOne(it, prior, emit)
-				resMu.Lock()
-				result[it.key] = e
-				resMu.Unlock()
+				fn(it)
 			}
 		}()
 	}
-	for _, it := range unique {
+	for _, it := range items {
 		jobs <- it
 	}
 	close(jobs)
 	wg.Wait()
-	return result
 }

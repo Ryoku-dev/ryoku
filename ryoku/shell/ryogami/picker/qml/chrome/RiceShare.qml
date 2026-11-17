@@ -179,7 +179,7 @@ Item {
     function commit() {
         if (!root.ready) return
         if (root.shownMode === "save")
-            root._run("capture", ["ryoku-hub", "rice", "capture", nameField.text.trim(), "all"])
+            root._run("capture", ["ryoku-hub", "rice", "capture", "--force", nameField.text.trim(), "all"])
         else if (root.shownMode === "export")
             root._run("export", ["ryoku-hub", "rice", "export", root.slug, browser.path])
         else if (root.shownMode === "import")

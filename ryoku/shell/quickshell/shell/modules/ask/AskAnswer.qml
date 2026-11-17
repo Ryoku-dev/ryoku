@@ -7,6 +7,7 @@ import Ryoku.Ui
 import Ryoku.Ui.Singletons
 import shell.services
 import "../../services" as Services
+import "../../services/lib/markdown.js" as Md
 
 Item {
     id: root
@@ -190,7 +191,7 @@ Item {
                         elide: Text.ElideRight
                     }
                 }
-                HoverHandler { cursorShape: Qt.PointingHandCursor; onHoveredChanged: if (hovered) recentList.currentIndex = recentRow.index }
+                HoverHandler { id: recentHover; cursorShape: Qt.PointingHandCursor; onHoveredChanged: if (hovered) recentList.currentIndex = recentRow.index }
                 TapHandler {
                     onTapped: {
                         recentList.currentIndex = recentRow.index;
@@ -205,7 +206,8 @@ Item {
             readonly property bool shown: root.session.phase === "done" && !root.session.recentOpen
             width: parent.width
             visible: opacity > 0.001
-            text: root.session.answerText
+            text: Md.prepare(root.session.answerText)
+            textFormat: TextEdit.MarkdownText
             color: Tokens.inkDim
             font.family: Tokens.ui
             font.pixelSize: Tokens.fBody * root.s
@@ -214,6 +216,11 @@ Item {
             selectByMouse: true
             selectionColor: Tokens.bone
             selectedTextColor: Tokens.inkOnBone
+            onLinkActivated: url => {
+                const safe = Md.safeUrl(url);
+                if (safe.length > 0)
+                    Spawn.runApp(["xdg-open", safe], { label: "browser" });
+            }
             opacity: shown ? 1 : 0
             transform: Translate {
                 y: answerText.shown ? 0 : Tokens.s2 * root.s

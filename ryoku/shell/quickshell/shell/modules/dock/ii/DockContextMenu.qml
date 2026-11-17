@@ -1,3 +1,4 @@
+import shell.services as ShellIcons
 import QtQuick
 import stage.services
 import "common"
@@ -37,7 +38,7 @@ DockContextMenuBase {
             block: "appActions",
             text: action.name ?? "",
             icon: "arrow_outward",
-            iconSource: action.icon ? Quickshell.iconPath(action.icon, true) : ""
+            iconSource: action.icon ? ShellIcons.Icons.path(action.icon, true) : ""
         })),
         [
             { id: "launch", icon: "launch", text: Translation.tr("Launch") },

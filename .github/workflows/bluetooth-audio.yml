@@ -30,6 +30,8 @@ on:
       - 'ryoku/shell/scripts/ryoku-bluetooth-link'
       - 'tests/bluetooth-tune.sh'
       - 'tests/bluetooth-link.sh'
+      - 'system/hardware/bluetooth/ryoku-bt-agent'
+      - 'tests/bt-agent-filter.sh'
       - '.github/workflows/bluetooth-audio.yml'
   push:
     branches:
@@ -48,6 +50,8 @@ on:
       - 'ryoku/shell/scripts/ryoku-bluetooth-link'
       - 'tests/bluetooth-tune.sh'
       - 'tests/bluetooth-link.sh'
+      - 'system/hardware/bluetooth/ryoku-bt-agent'
+      - 'tests/bt-agent-filter.sh'
       - '.github/workflows/bluetooth-audio.yml'
   workflow_dispatch:
 
@@ -72,6 +76,10 @@ jobs:
       - name: Bluetooth power choice
         shell: bash
         run: bash tests/bluetooth-power-persist.sh
+
+      - name: Pairing agent keeps prompts, drops scan chatter
+        shell: bash
+        run: bash tests/bt-agent-filter.sh
 
       - name: Bluetooth bonding and link completion
         shell: bash
