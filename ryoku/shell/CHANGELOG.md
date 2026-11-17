@@ -13,6 +13,10 @@
   shell's own card, so an admin prompt is no longer waiting on a surface nothing
   draws (`quickshell/shell/modules/polkit/PolkitPrompt.qml`, `ShellBody.qml`,
   `services/ShellState.qml`, `modules/bar/FrameMenuManager.qml`).
+- **The Orpheus Wi-Fi list shows each network once, with its bands.** Access
+  points of one name and security kind collapse into one row labelled 2.4, 5 or
+  6 GHz, saved networks first, and a join picks the strongest radio
+  (`subshells/orpheus/qml/cards/controls/WifiPage.qml`, `wifinets.js`).
 - **Plugins installed from a store you added load like any other.**
   `plugins/discover.sh` also reads `ryoku/sources/<store>/plugins` and accepts
   each copy only with a receipt from its own store, so no store's copy can pose
