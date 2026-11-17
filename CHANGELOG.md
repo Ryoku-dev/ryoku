@@ -23,6 +23,7 @@ for finer detail.
   user is no longer in a mango session.
 
 ### Fixed
+- **The Italian translation keeps the Fish shell name unchanged after the next catalog sync**
 - The Game Bar holds the pointer over the whole screen while it is open, so a
   game under it no longer takes the cursor and hides it in the gaps between
   widgets. A pinned card left behind after closing still takes no input.
