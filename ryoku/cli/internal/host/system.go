@@ -13,6 +13,12 @@ import (
 
 var keymapPattern = regexp.MustCompile(`^[A-Za-z0-9_+.-]+$`)
 
+// an X11 layout may be a list ("ru,us"); the console keymap is only its first
+var layoutListPattern = regexp.MustCompile(`^[A-Za-z0-9_+.-]+(,[A-Za-z0-9_+.-]+)*$`)
+
+// variants and xkb options are positional, comma separated tokens
+var x11OptionPattern = regexp.MustCompile(`^[A-Za-z0-9_+.,:()-]*$`)
+
 var excludedZoneinfoFiles = map[string]bool{
 	"+VERSION":    true,
 	"SECURITY":    true,
@@ -193,7 +199,7 @@ func (a *App) Keymap(args []string) int {
 	if len(args) > 3 {
 		options = args[3]
 	}
-	if !keymapPattern.MatchString(layout) {
+	if !layoutListPattern.MatchString(layout) {
 		return ExitUsage
 	}
 	if action == "apply" && a.cfg.UID != 0 {
@@ -219,10 +225,28 @@ func (a *App) setKeymap(layout, variant, options string, original []string) int 
 	if a.cfg.UID != 0 {
 		return commandExit(a.run("pkexec", append([]string{"ryoku-host", "keymap"}, original...)...))
 	}
-	if err := writeKeymap(a.cfg.RCConfPath, layout); err != nil {
+	console, _, _ := strings.Cut(layout, ",")
+	if err := writeKeymap(a.cfg.RCConfPath, console); err != nil {
 		return a.failf("set the console keymap: %v", err)
 	}
+	if err := writeX11Keymap(a.cfg.X11KeymapPath, layout, variant, options); err != nil {
+		return a.failf("set the login screen keymap: %v", err)
+	}
 	return ExitOK
+}
+
+// the login screen reads this file; systemd boxes get it from localectl, so
+// without it a runit box's greeter only knows the first console keymap
+func writeX11Keymap(path, layout, variant, options string) error {
+	if !x11OptionPattern.MatchString(variant) || !x11OptionPattern.MatchString(options) {
+		return fmt.Errorf("invalid variant or options")
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	body := "Section \"InputClass\"\n    Identifier \"system-keyboard\"\n    MatchIsKeyboard \"on\"\n" +
+		fmt.Sprintf("    Option \"XkbLayout\" %q\n    Option \"XkbVariant\" %q\n    Option \"XkbOptions\" %q\nEndSection\n", layout, variant, options)
+	return os.WriteFile(path, []byte(body), 0o644)
 }
 
 func writeKeymap(path, keymap string) error {

@@ -14,6 +14,9 @@
   Read-only checks no longer call an already converged manifest unfinished.
 - **`ryoku wm watch` streams compositor events.** Scripts can follow outputs and
   workspaces as JSON frames instead of polling (`ryoku wm watch outputs workspaces`).
+- **Apply system-wide keeps your second layout (#875).** The login screen got
+  only the first layout, so a password typed on the other one could not be
+  entered. Every layout and its variant now go to the login screen, on Void too.
 - **Doctor no longer pins Dolphin to the dock on every update (#802).**
   It read the Stage Editor's own default pins as a user's old ones; it now
   skips them, keeps an edited pin list as it is and only moves installed apps.

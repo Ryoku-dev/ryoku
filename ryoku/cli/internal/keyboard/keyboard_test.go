@@ -215,10 +215,10 @@ func TestApplySystemDelegatesToHostKeymap(t *testing.T) {
 		return 0
 	}
 
-	if err := ApplySystem(Layout{Layout: "de,us", Variant: "nodeadkeys", Options: "ctrl:nocaps"}); err != nil {
+	if err := ApplySystem(Layout{Layout: "de, us,", Variant: ",nodeadkeys", Options: "ctrl:nocaps"}); err != nil {
 		t.Fatal(err)
 	}
-	if layout != "de" || variant != "nodeadkeys" || options != "ctrl:nocaps" {
+	if layout != "de,us" || variant != ",nodeadkeys" || options != "ctrl:nocaps" {
 		t.Fatalf("host keymap args = %q %q %q", layout, variant, options)
 	}
 }

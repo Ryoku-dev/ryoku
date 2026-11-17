@@ -68,7 +68,11 @@ func reconcileKeymap(checkOnly bool) recResult {
 	// needed whenever we touched it or the image was already stale; one
 	// unconditional rebuild covers both.
 	if consoleDrifted {
-		if err := keyboard.ApplySystem(keyboard.Layout{Layout: layout}); err != nil {
+		l := keyboard.DesktopLayout()
+		if l.Primary() == "" {
+			l = keyboard.Layout{Layout: layout}
+		}
+		if err := keyboard.ApplySystem(l); err != nil {
 			return warnRes(i18n.T("console keymap is %q but the session uses %q"), km, layout).
 				withFix("ryoku keyboard apply")
 		}

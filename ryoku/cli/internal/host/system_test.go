@@ -120,6 +120,47 @@ func TestRunitKeymapWritesRCConfAndEscalates(t *testing.T) {
 	}
 }
 
+func TestKeymapSetKeepsEveryLayoutOnSystemdAndOnlyTheFirstOnRunit(t *testing.T) {
+	runner := &fakeRunner{}
+	app, _, _ := testApp(runner, map[string]string{"RYOKU_HOST_INIT": "systemd"})
+	if code := app.Keymap([]string{"set", "ir,us", ",winkeys", "grp:alt_shift_toggle"}); code != ExitOK {
+		t.Fatal(code)
+	}
+	if got := argv(runner.commands[0]); got != "localectl set-x11-keymap ir,us  ,winkeys grp:alt_shift_toggle" {
+		t.Fatalf("argv = %q", got)
+	}
+	if code := app.Keymap([]string{"set", "ir,,us"}); code != ExitUsage {
+		t.Fatalf("an empty layout slot was accepted: %d", code)
+	}
+
+	dir := t.TempDir()
+	rc, x11 := filepath.Join(dir, "rc.conf"), filepath.Join(dir, "xorg.conf.d", "00-keyboard.conf")
+	app, _, _ = testApp(&fakeRunner{}, map[string]string{"RYOKU_HOST_INIT": "runit"})
+	app.cfg.RCConfPath, app.cfg.X11KeymapPath, app.cfg.UID, app.cfg.UIDSet = rc, x11, 0, true
+	if code := app.Keymap([]string{"set", "ir,us", ",winkeys", "grp:alt_shift_toggle"}); code != ExitOK {
+		t.Fatal(code)
+	}
+	body, err := os.ReadFile(rc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != "KEYMAP=\"ir\"\n" {
+		t.Fatalf("rc.conf = %q", body)
+	}
+	body, err = os.ReadFile(x11)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`Option "XkbLayout" "ir,us"`, `Option "XkbVariant" ",winkeys"`, `Option "XkbOptions" "grp:alt_shift_toggle"`} {
+		if !strings.Contains(string(body), want) {
+			t.Fatalf("X11 keyboard config lacks %s:\n%s", want, body)
+		}
+	}
+	if code := app.Keymap([]string{"set", "ir", "", `x" "y`}); code == ExitOK {
+		t.Fatal("an option with a quote was written into the X11 config")
+	}
+}
+
 func TestTimeZonesUsesSystemdList(t *testing.T) {
 	runner := &fakeRunner{answer: func(command Command) Result {
 		if argv(command) == "timedatectl list-timezones" {
