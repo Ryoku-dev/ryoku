@@ -1375,7 +1375,11 @@ Rectangle {
         // above, never the loaded item, so the chrome holds still through an
         // async page swap (only the page content fades). A porting page (no
         // file) stays framed too.
-        readonly property bool full: hub.pageFile(hub.section) !== "" && !hub.framedSet[hub.section]
+        // the section on screen, not the one just clicked: the incoming page
+        // loads async, and until it reveals the outgoing page keeps its own
+        // frame (a porting page never loads, so it takes the click).
+        readonly property string laidOut: hub.pageFile(hub.section) === "" ? hub.section : pageHost.shown
+        readonly property bool full: hub.pageFile(pageArea.laidOut) !== "" && !hub.framedSet[pageArea.laidOut]
         anchors.top: parent.top
         anchors.bottom: pageArea.full ? parent.bottom : bar.top
         anchors.topMargin: pageArea.full ? 0 : Tokens.s5
@@ -1391,20 +1395,21 @@ Rectangle {
             ? 0
             : Math.max(Tokens.s6, Math.round((parent.width - rail.width - width) / 2)))
 
-        // Two loaders swap the page: the incoming page loads async into the
+        // Each page has its own loader: the incoming page loads async into a
         // hidden loader, then takes over with a settle slide in the direction
         // of the navigation, so the content never blanks to bare paper
         // mid-swap (that blank was the "flicker on section change") and never
         // sits half-transparent over its successor (the crossfade read as the
-        // words flashing). The new page always loads into the non-front
-        // loader, so the visible page is never disturbed even on rapid
-        // switches, and a stale load from a superseded switch never reveals.
+        // words flashing). The visible page is never disturbed while another
+        // loads, even on rapid switches, and a stale load from a superseded
+        // switch never reveals. A page left recently is still loaded and
+        // takes over at once.
         Item {
             id: pageHost
             anchors.fill: parent
             clip: true
             readonly property string src: hub.pageFile(hub.section)
-            property Item front: lb
+            property Item front: null
             // the loader parked mid-slide, waiting for its exit to finish
             property Item parking: null
             // the settle slide: content enters from the direction of travel and
@@ -1436,12 +1441,53 @@ Rectangle {
             }
             onSrcChanged: pageHost.swap()
             Component.onCompleted: pageHost.swap()
+            // A page stays loaded for a short while after it is left, so
+            // going back to it is instant instead of a fresh load. Kept short
+            // and few: pages read their data when they load and some poll
+            // while loaded, so one left alone longer reloads fresh.
+            property var cache: ({})
+            property var hiddenAt: ({})
+            readonly property int keepMs: 20000
+            readonly property int keepMax: 5
             function swap() {
-                var incoming = pageHost.front === la ? lb : la;
-                if (incoming.source == pageHost.src && incoming.status === Loader.Ready)
-                    pageHost.reveal(incoming);
-                else
-                    incoming.source = pageHost.src;
+                var src = "" + pageHost.src;
+                var l = pageHost.cache[src];
+                if (l && l.status === Loader.Ready) {
+                    pageHost.reveal(l);
+                    return;
+                }
+                if (l || !src.length)
+                    return;
+                l = pageLoader.createObject(pageHost, { source: src });
+                pageHost.cache[src] = l;
+                pageHost.trim();
+            }
+            function trim() {
+                var now = Date.now(), keys = Object.keys(pageHost.cache);
+                var cur = "" + pageHost.src;
+                var idle = keys.filter(function(k) {
+                    var l = pageHost.cache[k];
+                    return k !== cur && l !== pageHost.front && l !== pageHost.settling;
+                });
+                idle.sort(function(a, b) { return (pageHost.hiddenAt[a] || 0) - (pageHost.hiddenAt[b] || 0); });
+                var over = keys.length - pageHost.keepMax;
+                for (var i = 0; i < idle.length; i++) {
+                    var k = idle[i];
+                    if (over > 0 || now - (pageHost.hiddenAt[k] || 0) > pageHost.keepMs) {
+                        if (pageHost.parking === pageHost.cache[k])
+                            pageHost.parking = null;
+                        pageHost.cache[k].destroy();
+                        delete pageHost.cache[k];
+                        delete pageHost.hiddenAt[k];
+                        over--;
+                    }
+                }
+            }
+            Timer {
+                interval: 5000
+                repeat: true
+                running: true
+                onTriggered: pageHost.trim()
             }
             function reveal(l) {
                 if (l.source != pageHost.src)
@@ -1461,13 +1507,78 @@ Rectangle {
                 l.opacity = 1;
                 inAnim.target = l; inAnim.from = pageHost.dir * pageHost.slide; inAnim.to = 0;
                 inAnim.restart();
-                if (out && out !== l && out.item) {
-                    out.z = 0;
-                    pageHost.parking = out;
-                    outAnim.target = out; outAnim.from = out.x; outAnim.to = -pageHost.dir * pageHost.slide;
-                    outAnim.restart();
-                } else if (out && out !== l) {
-                    out.opacity = 0; out.x = 0;
+                // pages paint no background, so an outgoing page left on screen
+                // shows through the incoming one and then vanishes in one frame
+                // (the "snap"). Hide it as the incoming page takes over.
+                if (out && out !== l) {
+                    outAnim.stop();
+                    out.z = 0; out.opacity = 0; out.x = 0;
+                    pageHost.parking = null;
+                    pageHost.hiddenAt["" + out.source] = Date.now();
+                }
+            }
+            // A page's card grids (CardColumns) re-lay for a while after it
+            // loads, as its cards' heights settle (a heavy page like
+            // Animations takes a couple of hundred ms). Revealing on onLoaded
+            // showed those unlaid frames (cards stacked over each other) and
+            // then a snap, so the incoming page stays hidden until every grid
+            // on it reports `settled` and the page is not still fetching
+            // (`loading`), capped so a page that never settles still shows.
+            // The waiting page stays visible at opacity 0 (and takes no
+            // input): Qt lays out only visible items, so a page hidden while
+            // it waited reported settled cards that re-laid the moment it
+            // appeared.
+            property Item settling: null
+            property var settleGrids: []
+            function settleThenReveal(l) {
+                pageHost.endSettle();
+                pageHost.settling = l;
+                var grids = [], stack = l.item ? [l.item] : [];
+                while (stack.length) {
+                    var it = stack.pop();
+                    if (it.settled !== undefined && it.colWidth !== undefined) {
+                        grids.push(it);
+                        continue;
+                    }
+                    var kids = it.children;
+                    if (kids) for (var i = 0; i < kids.length; i++) stack.push(kids[i]);
+                }
+                pageHost.settleGrids = grids;
+                for (var g = 0; g < grids.length; g++)
+                    grids[g].settledChanged.connect(pageHost.checkSettled);
+                if (l.item && l.item.loading !== undefined)
+                    l.item.loadingChanged.connect(pageHost.checkSettled);
+                settleCap.restart();
+                pageHost.checkSettled();
+            }
+            function endSettle() {
+                settleCap.stop();
+                var l = pageHost.settling;
+                for (var g = 0; g < pageHost.settleGrids.length; g++)
+                    pageHost.settleGrids[g].settledChanged.disconnect(pageHost.checkSettled);
+                if (l && l.item && l.item.loading !== undefined)
+                    l.item.loadingChanged.disconnect(pageHost.checkSettled);
+                pageHost.settleGrids = [];
+                pageHost.settling = null;
+            }
+            function checkSettled() {
+                var l = pageHost.settling;
+                if (!l || (l.item && l.item.loading === true))
+                    return;
+                for (var g = 0; g < pageHost.settleGrids.length; g++)
+                    if (!pageHost.settleGrids[g].settled)
+                        return;
+                pageHost.endSettle();
+                pageHost.reveal(l);
+            }
+            Timer {
+                id: settleCap
+                interval: 250
+                onTriggered: {
+                    var l = pageHost.settling;
+                    pageHost.endSettle();
+                    if (l)
+                        pageHost.reveal(l);
                 }
             }
             NumberAnimation {
@@ -1491,36 +1602,23 @@ Rectangle {
             }
             // sized, not anchors.fill: an anchor would silently win over the
             // slide's x and pin the page back in place.
-            Loader {
-                id: la
-                width: pageHost.width
-                height: pageHost.height
-                x: 0
-                asynchronous: true
-                opacity: 1
-                // hidden once parked, so the idle page stops taking hover
-                // (a stale tooltip was leaking through the overlay layer).
-                visible: opacity > 0.01
-                onLoaded: {
-                    if (item) {
-                        item.hub = hub;
+            Component {
+                id: pageLoader
+                Loader {
+                    id: pl
+                    width: pageHost.width
+                    height: pageHost.height
+                    x: 0
+                    asynchronous: true
+                    opacity: 0
+                    visible: opacity > 0.01 || pageHost.settling === pl
+                    enabled: opacity > 0.01
+                    onLoaded: {
+                        if (item)
+                            item.hub = hub;
+                        if (pl.source == pageHost.src)
+                            pageHost.settleThenReveal(pl);
                     }
-                    pageHost.reveal(la);
-                }
-            }
-            Loader {
-                id: lb
-                width: pageHost.width
-                height: pageHost.height
-                x: 0
-                asynchronous: true
-                opacity: 0
-                visible: opacity > 0.01
-                onLoaded: {
-                    if (item) {
-                        item.hub = hub;
-                    }
-                    pageHost.reveal(lb);
                 }
             }
         }
