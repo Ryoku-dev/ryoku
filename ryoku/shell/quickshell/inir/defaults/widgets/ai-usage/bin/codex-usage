@@ -217,6 +217,32 @@ def fetch_rpc() -> dict | None:
     }
 
 
+def rpc_context() -> str | None:
+    """Identify login changes using file metadata and opaque environment hashes.
+
+    Credential files stay unread. Without observable login state, do not reuse
+    quota answers from a potentially different keyring or host-managed account.
+    """
+    markers = [str(CODEX_HOME.resolve())]
+    has_auth = False
+    for name in ("auth.json", "config.toml"):
+        try:
+            stat = (CODEX_HOME / name).stat()
+            markers.append([name, stat.st_dev, stat.st_ino, stat.st_size,
+                            stat.st_mtime_ns, stat.st_ctime_ns])
+            has_auth |= name == "auth.json"
+        except FileNotFoundError:
+            markers.append([name, None])
+        except OSError:
+            return None
+    api_key = os.environ.get("OPENAI_API_KEY") or ""
+    if not has_auth and not api_key:
+        return None
+    markers.extend([hashlib.sha256(api_key.encode()).hexdigest(),
+                    os.environ.get("OPENAI_BASE_URL") or ""])
+    return hashlib.sha256(json.dumps(markers).encode()).hexdigest()
+
+
 def cached_rpc() -> tuple[dict | None, bool]:
     try:
         saved = json.loads(RPC_FILE.read_text())
@@ -224,6 +250,9 @@ def cached_rpc() -> tuple[dict | None, bool]:
     except (OSError, ValueError, KeyError, TypeError):
         return None, False
     if not 0 <= age < RPC_COOLDOWN_SECS:
+        return None, False
+    context = rpc_context()
+    if context is None or saved.get("context") != context:
         return None, False
     data = saved.get("data")
     return (data if isinstance(data, dict) else None), True
@@ -233,9 +262,16 @@ def throttled_rpc() -> dict | None:
     data, fresh = cached_rpc()
     if fresh:
         return data
+    context = rpc_context()
     data = fetch_rpc()
+    if rpc_context() != context:
+        # A concurrent login change invalidates this answer and historical
+        # quota fallback alike. The next collection can read the new account.
+        return {"rateLimits": {}, "rateLimitsByLimitId": None, "plan": "", "source": "local"}
+    if context is None:
+        return data
     try:
-        atomic_write_json(RPC_FILE, {"checked_at": now_epoch(), "data": data})
+        atomic_write_json(RPC_FILE, {"checked_at": now_epoch(), "context": context, "data": data})
     except OSError:
         pass
     return data
@@ -606,7 +642,8 @@ def scan_activity(messages=None) -> tuple[int, int, dict[int, dict], list[dict]]
     # Match the retained daily history, so replaying yesterday's file cannot
     # add its tokens again after its rolling-hour events have been pruned.
     seen_cutoff = day_start - 8 * 86400
-    seen = {key: stamp for key, stamp in (state.get("seenTokenEvents") or {}).items()
+    raw_seen = state.get("seenTokenEvents")
+    seen = {key: stamp for key, stamp in (raw_seen if isinstance(raw_seen, dict) else {}).items()
             if as_float(stamp) >= seen_cutoff}
     initial_rate_limit_scan = not files and not rate_limit_events
 
@@ -879,9 +916,10 @@ def history_records() -> tuple[list[dict], dict]:
     _RECONSTRUCTED_DATES = set()
     now = now_epoch()
     cutoff = now - HISTORY_DAYS * 86400
-    retained = load_activity_state().get("usageRecords") or {}
+    retained = load_activity_state().get("usageRecords")
+    retained = retained if isinstance(retained, dict) else {}
     records = {key: dict(row) for key, row in retained.items()
-               if isinstance(row, dict) and as_int(row.get("time")) >= cutoff * 1000}
+               if isinstance(row, dict) and cutoff * 1000 <= as_int(row.get("time")) <= now * 1000}
     sessions = {}
     pages = []
     for root in (CODEX_HOME / "sessions", CODEX_HOME / "archived_sessions"):
@@ -968,6 +1006,8 @@ def history_records() -> tuple[list[dict], dict]:
             kind = event.get("type")
             payload = event["payload"]
             stamp = iso_epoch(str(event.get("timestamp") or ""))
+            if stamp > now:
+                continue
             updated = max(updated, stamp)
             if kind == "session_meta":
                 started = iso_epoch(str(payload.get("timestamp") or "")) or stamp
@@ -1094,7 +1134,8 @@ def history_records() -> tuple[list[dict], dict]:
         if any(not turn or not row.get("turn_id") or turn == row["turn_id"] for turn in snapshots.get(key, [])):
             records.pop(identity)
             _RETIRED_USAGE_IDS.add(identity)
-    messages = sorted(records.values(), key=lambda row: (row["time"], row["event_id"]))
+    messages = sorted((row for row in records.values() if 0 < row["time"] <= now * 1000),
+                      key=lambda row: (row["time"], row["event_id"]))
     for message in messages:
         session = sessions.get(message["session_id"])
         if session is not None:
@@ -1269,6 +1310,8 @@ def merge_published(key: str, fresh: list[dict], previous: dict) -> list[dict]:
         # widget normalises them, but the cache itself must not carry ghosts.
         migrated = []
         for old in old_rows:
+            if not isinstance(old, dict):
+                continue
             row = dict(old)
             start = as_int(row.get("start"))
             if 0 < start < 10 ** 11:
@@ -1277,9 +1320,13 @@ def merge_published(key: str, fresh: list[dict], previous: dict) -> list[dict]:
                 migrated.append(row)
         old_rows = migrated
     merged = {str(row.get(field)): dict(row) for row in fresh}
-    covered = {datetime.fromtimestamp(row["time"] / 1000).astimezone().strftime("%Y-%m-%d")
-               for row in (load_activity_state().get("usageRecords") or {}).values()} | _RECONSTRUCTED_DATES
+    retained = load_activity_state().get("usageRecords")
+    covered = {datetime.fromtimestamp(as_int(row.get("time")) / 1000).astimezone().strftime("%Y-%m-%d")
+               for row in (retained if isinstance(retained, dict) else {}).values()
+               if isinstance(row, dict) and 0 < as_int(row.get("time")) <= now_epoch() * 1000} | _RECONSTRUCTED_DATES
     for old in old_rows:
+        if not isinstance(old, dict):
+            continue
         slot = str(old.get(field) or "")
         if not slot:
             continue
@@ -1368,6 +1415,8 @@ def estimate_spending(messages: list[dict]) -> dict:
                "priced_days": [], "unpriced_days": [], "stale_prices": False}
     grouped = {}
     for message in messages:
+        if not 0 < message["time"] <= now * 1000:
+            continue
         day = datetime.fromtimestamp(message["time"] / 1000).astimezone().strftime("%Y-%m-%d")
         grouped.setdefault(day[:7], []).append((day, message))
     grouped.setdefault(month, [])
@@ -1428,6 +1477,8 @@ def estimate_spending(messages: list[dict]) -> dict:
         for day in days:
             days[day].update(cost=0.0, priced_tokens=0, unpriced_tokens=0, models={})
         for event in events.values():
+            if event["date"] > today:
+                continue
             day = days[event["date"]]
             price = price_event(event, day.get("prices", {}))
             tokens = sum(event[name] for name in ("input", "output", "cache_read", "cache_write"))

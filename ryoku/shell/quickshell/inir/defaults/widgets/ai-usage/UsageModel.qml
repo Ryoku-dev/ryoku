@@ -23,6 +23,8 @@ Item {
     // -- parsed state --
     property bool has: false
     property bool fresh: false
+    property double _modifiedAt: 0
+    property bool _sourceStale: true
     property int pct5h: 0
     property int percent7d: 0
     property double reset5hTs: 0
@@ -41,7 +43,8 @@ Item {
     property var windows: []           // [{label, pct, caption, resetTs}] server-reported quota windows
     property var spending: ({})        // Local API-equivalent estimate and coverage; not account charges.
     property var quota: ({})           // Claude account source, capture time and freshness.
-    readonly property var runningSessions: root.sessions.filter(s => s && s.running)
+    readonly property var runningSessions: root.fresh ? root.sessions.filter(s => s && s.running) : []
+    onTickChanged: root.updateFreshness()
     // A provider plan is what makes a 5h/7d window meaningful. The local
     // OpenCode collector says "local messages" and invents its budgets, so
     // those percentages would be fiction and the card stays away.
@@ -179,6 +182,8 @@ Item {
     function empty() {
         root.has = false
         root.fresh = false
+        root._modifiedAt = 0
+        root._sourceStale = true
         root.pct5h = 0
         root.percent7d = 0
         root.reset5hTs = 0
@@ -219,15 +224,21 @@ Item {
         staleTimer.restart()
     }
 
+    function updateFreshness(): void {
+        const age = Date.now() / 1000 - root._modifiedAt
+        root.fresh = root.has && root._modifiedAt > 0 && age >= -120 && age < 900
+            && !root._sourceStale
+    }
+
     function parse(text: string, modifiedAt: double): void {
         root.empty()
         try {
             const data = JSON.parse(String(text || "").trim())
             if (!data || typeof data !== "object" || Array.isArray(data) || Object.keys(data).length === 0) return
             root.has = true
-            const age = Date.now() / 1000 - modifiedAt
-            root.fresh = modifiedAt > 0 && age >= -120 && age < 900
-                && data._source !== "stale" && data._stale !== true
+            root._modifiedAt = modifiedAt
+            root._sourceStale = data._source === "stale" || data._stale === true
+            root.updateFreshness()
             root.pct5h = root.pct(data["5h-utilization"])
             root.percent7d = root.pct(data["7d-utilization"])
             root.reset5hTs = parseInt(data["5h-reset"]) || 0
@@ -302,6 +313,7 @@ Item {
             root.periods = (data._periods && typeof data._periods === "object")
                 ? root.normalizePeriods(data._periods) : ({})
         } catch (e) {
+            root.empty()
             console.warn("[ai-usage] parse failed:", e)
         } finally {
             // The load has landed, as data or as a genuine empty cache.

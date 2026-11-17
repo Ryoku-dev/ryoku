@@ -3,7 +3,7 @@
 
 Reads OpenCode's local session store and writes the cache shape the widget
 understands, with soft caps for the bars. No API tokens, no network. Storage
-moved across versions, so try each in turn:
+moved across versions, so merge the available stores without counting copies:
 
   - legacy: storage/message/<session>/<message>.json files
   - 2.x: sqlite `session_message` rows with their own tokens, model, cost and
@@ -125,10 +125,14 @@ def parse_message(data: dict, session_hint: str = "") -> dict | None:
     if not isinstance(data, dict) or data.get("role") != "assistant":
         return None
     model_id = data.get("modelID") or ""
-    if not model_id:
+    if not isinstance(model_id, str) or not model_id:
         return None
     tokens = data.get("tokens") or {}
+    if not isinstance(tokens, dict):
+        return None
     cache = tokens.get("cache") or {}
+    if not isinstance(cache, dict):
+        return None
     inp = as_int(tokens.get("input"))
     output = as_int(tokens.get("output"))
     reasoning = as_int(tokens.get("reasoning"))
@@ -136,9 +140,10 @@ def parse_message(data: dict, session_hint: str = "") -> dict | None:
     cache_write = as_int(cache.get("write"))
     total = inp + output + reasoning + cache_write
     return {
-        "session_id": data.get("sessionID") or session_hint,
+        "session_id": str(data.get("sessionID") or session_hint),
+        "_message_id": data.get("id") if isinstance(data.get("id"), str) else "",
         "model_id": model_id,
-        "provider_id": data.get("providerID") or "",
+        "provider_id": str(data.get("providerID") or ""),
         "input": inp,
         "output": output,
         "reasoning": reasoning,
@@ -171,6 +176,7 @@ def load_fs_messages(cutoff_s: float) -> list[dict]:
             session_hint = os.path.basename(os.path.dirname(path))
             rec = parse_message(data, session_hint)
             if rec is not None:
+                rec["_message_id"] = rec["_message_id"] or Path(path).stem
                 out.append(rec)
     return out
 
@@ -191,12 +197,13 @@ def load_sqlite_messages(cutoff_ms: int) -> list[dict]:
     out: list[dict] = []
     try:
         with con:
+            identity = "id" if "id" in _table_columns(con, "message") else "''"
             rows = con.execute(
-                "select session_id, time_created, time_updated, data "
+                f"select session_id, time_created, time_updated, data, {identity} "
                 "from message where time_updated >= ? order by time_updated asc",
                 (cutoff_ms,),
             ).fetchall()
-        for session_id, time_created, time_updated, raw in rows:
+        for session_id, time_created, time_updated, raw, message_id in rows:
             try:
                 data = json.loads(raw or "{}")
             except ValueError:
@@ -206,6 +213,7 @@ def load_sqlite_messages(cutoff_ms: int) -> list[dict]:
                 continue
             if not rec["time"]:
                 rec["time"] = as_int(time_updated or time_created)
+            rec["_message_id"] = rec["_message_id"] or str(message_id or "")
             out.append(rec)
     except sqlite3.Error:
         return []
@@ -221,15 +229,21 @@ def parse_v2_message(kind: str, data: dict, session_id: str, fallback_ms: int = 
     compaction is a real model call and session_v2 counts it, so it belongs in
     the history too.
     """
-    if kind not in ("assistant", "compaction"):
+    if kind not in ("assistant", "compaction") or not isinstance(data, dict):
         return None
     model = data.get("model") or {}
+    if not isinstance(model, dict):
+        return None
     model_id = str(model.get("id") or model.get("modelID") or "")
     if not model_id:
         return None
     provider_id = str(model.get("providerID") or "")
     tokens = data.get("tokens") or {}
+    if not isinstance(tokens, dict):
+        return None
     cache = tokens.get("cache") or {}
+    if not isinstance(cache, dict):
+        return None
     inp = as_int(tokens.get("input"))
     output = as_int(tokens.get("output"))
     reasoning = as_int(tokens.get("reasoning"))
@@ -240,6 +254,7 @@ def parse_v2_message(kind: str, data: dict, session_id: str, fallback_ms: int = 
     total = inp + output + reasoning + cache_write
     return {
         "session_id": session_id,
+        "_message_id": data.get("id") if isinstance(data.get("id"), str) else "",
         "model_id": model_id,
         "provider_id": provider_id,
         "input": inp,
@@ -291,22 +306,24 @@ def load_session_messages(cutoff_ms: int) -> list[dict]:
         if not {sid, kind, blob} <= columns:
             return []
         stamp = stamped or "0"
+        identity = next((name for name in ("id", "message_id") if name in columns), "''")
         with con:
             rows = con.execute(
-                f"select {sid}, {kind}, {stamp}, {blob} "
+                f"select {sid}, {kind}, {stamp}, {blob}, {identity} "
                 "from session_message "
                 f"where {kind} in ('assistant', 'compaction') "
                 + (f"and {stamp} >= ? " if stamped else "")
                 + (f"order by {stamp} asc" if stamped else ""),
                 (cutoff_ms,) if stamped else (),
             ).fetchall()
-        for session_id, row_kind, row_time, raw in rows:
+        for session_id, row_kind, row_time, raw, message_id in rows:
             try:
                 data = json.loads(raw or "{}")
             except ValueError:
                 continue
             rec = parse_v2_message(str(row_kind), data, str(session_id or ""), as_int(row_time))
             if rec is not None:
+                rec["_message_id"] = rec["_message_id"] or str(message_id or "")
                 out.append(rec)
     except sqlite3.Error:
         return []
@@ -382,6 +399,8 @@ def load_session_v2_aggregates(cutoff_ms: int, skip_session_ids: set | None = No
                 m = json.loads(model_raw or "{}")
             except ValueError:
                 m = {}
+            if not isinstance(m, dict):
+                continue
             model_id = str(m.get("id") or "")
             if not model_id:
                 continue
@@ -453,15 +472,51 @@ def load_sessions(limit: int = 10) -> list[dict]:
     return out
 
 
-def load_messages(horizon_s: float = WINDOW_HORIZON_S) -> list[dict]:
-    cutoff_s = time.time() - horizon_s
+def merge_message_stores(*stores: list[dict]) -> list[dict]:
+    """Prefer newer stores by native identity, pairing ID-less copies once.
+
+    Fingerprints only match across stores when a native ID is missing. Distinct
+    IDs, and identical requests within one store, must remain distinct usage.
+    """
+    rows, origins, identities, signatures = [], [], {}, {}
+    fields = ("session_id", "model_id", "provider_id", "time", "input", "output",
+              "reasoning", "cache_read", "cache_write", "cost")
+    for source, store in enumerate(stores):
+        matched = set()
+        for row in store:
+            mid = row.get("_message_id") or ""
+            identity = (row["session_id"], mid)
+            if mid and identity in identities:
+                matched.add(identities[identity])
+                continue
+            signature = tuple(row[field] for field in fields)
+            match = next((index for index in signatures.get(signature, [])
+                          if origins[index] < source and index not in matched
+                          and (not mid or not rows[index].get("_message_id"))), None)
+            if match is not None:
+                matched.add(match)
+                if mid:
+                    identities[identity] = match
+                continue
+            index = len(rows)
+            rows.append(row)
+            origins.append(source)
+            signatures.setdefault(signature, []).append(index)
+            if mid:
+                identities[identity] = index
+    return rows
+
+
+def load_messages(horizon_s: float = WINDOW_HORIZON_S, now: float | None = None) -> list[dict]:
+    now = time.time() if now is None else now
+    cutoff_s = now - horizon_s
     cutoff_ms = int(cutoff_s * 1000)
-    msgs = load_session_messages(cutoff_ms)
-    per_message_v2 = bool(msgs)
-    if not msgs:
-        msgs = load_fs_messages(cutoff_s)
-    if not msgs:
-        msgs = load_sqlite_messages(cutoff_ms)
+    upper_ms = int(now * 1000)
+    stores = [[row for row in store if cutoff_ms <= row["time"] <= upper_ms]
+              for store in (load_session_messages(cutoff_ms), load_fs_messages(cutoff_s),
+                            load_sqlite_messages(cutoff_ms))]
+    v2_sessions = {row["session_id"] for row in stores[0]}
+    msgs = merge_message_stores(*stores)
     covered = {str(m.get("session_id") or "") for m in msgs if m.get("session_id")}
     aggs = load_session_v2_aggregates(cutoff_ms)
     by_session: dict[str, list[dict]] = {}
@@ -470,8 +525,10 @@ def load_messages(horizon_s: float = WINDOW_HORIZON_S) -> list[dict]:
         if sid:
             by_session.setdefault(sid, []).append(msg)
     for agg in aggs:
+        if not cutoff_ms <= agg["time"] <= upper_ms:
+            continue
         sid = str(agg.get("session_id") or "")
-        rows = by_session.get(sid) if per_message_v2 else None
+        rows = by_session.get(sid) if sid in v2_sessions else None
         # A lifetime residual cannot be dated when the session predates the
         # loaded message horizon, or when its creation time is unknown.
         if rows and agg.get("_history_complete", False):
@@ -760,6 +817,8 @@ def merge_day_history(days: list[dict], previous: dict) -> list[dict]:
         return days
     by_date: dict[str, dict] = {str(d["date"]): d for d in days}
     for old in old_days:
+        if not isinstance(old, dict):
+            continue
         date = str(old.get("date") or "")
         if not date:
             continue
@@ -796,6 +855,8 @@ def merge_hour_history(hours: list[dict], previous: dict) -> list[dict]:
     last = as_int(hours[-1].get("start"))
     by_start: dict[int, dict] = {as_int(hour.get("start")): hour for hour in hours}
     for old in old_hours:
+        if not isinstance(old, dict):
+            continue
         start = as_int(old.get("start"))
         if start < first or start > last:
             continue
@@ -861,7 +922,7 @@ def _run() -> None:
     now = time.time()
     # Read the long history once; the shared counters keep their 8-day window
     # so the shell's chips read exactly what they read before.
-    msgs_all = load_messages(HISTORY_DAYS * 24 * 3600)
+    msgs_all = load_messages(HISTORY_DAYS * 24 * 3600, now=now)
     if not msgs_all:
         stale_last()
         return
