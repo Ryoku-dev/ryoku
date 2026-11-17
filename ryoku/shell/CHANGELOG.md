@@ -75,6 +75,10 @@
   A region or "Capture this monitor" box with a negative offset was refused as
   an invalid region; it now records, and the recording island and region
   outline show on the right screen.
+- **The Alt+Space Ask answer shows Markdown as formatted text (#817).** Bold,
+  code and lists showed as raw syntax; the Ask and Agent tabs now render the
+  same Markdown, never fetch images a reply points at, and open only web and
+  mail links. The recent-asks list no longer logs a ReferenceError on hover.
 - **Wallpaper Engine video wallpapers animate on hover in the picker (#807).**
   Only local videos got the small preview clip, so workshop video cards stayed
   still; they now get one too, built on the thumbnail job limit and skipped

@@ -5,6 +5,7 @@ import QtQuick.Controls
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
 import shell.services
+import "../../services/lib/markdown.js" as Md
 
 Item {
     id: root
@@ -497,7 +498,7 @@ Item {
                     TextEdit {
                         visible: !row.isTool && !row.isHandoff && !row.isUser && row.body.length > 0
                         width: parent.width
-                        text: row.body.replace(/([^\n])\n(?!\n)/g, "$1  \n")
+                        text: Md.prepare(row.body)
                         textFormat: TextEdit.MarkdownText
                         color: Tokens.inkDim
                         font.family: Tokens.ui
@@ -507,7 +508,11 @@ Item {
                         selectByMouse: true
                         selectionColor: Tokens.bone
                         selectedTextColor: Tokens.inkOnBone
-                        onLinkActivated: url => Spawn.runApp(["xdg-open", url], { label: "browser" })
+                        onLinkActivated: url => {
+                            const safe = Md.safeUrl(url);
+                            if (safe.length > 0)
+                                Spawn.runApp(["xdg-open", safe], { label: "browser" });
+                        }
                     }
 
                     Rectangle {
