@@ -401,3 +401,92 @@ func TestReceiptLockSlug(t *testing.T) {
 		}
 	}
 }
+
+// a stand-in pkexec: records what it was asked to run, prints out, exits with code
+func stubPkexec(t *testing.T, code int, out string) string {
+	t.Helper()
+	bin := t.TempDir()
+	log := filepath.Join(t.TempDir(), "args")
+	script := fmt.Sprintf("#!/bin/sh\nprintf '%%s\\n' \"$*\" > %q\nprintf '%%s\\n' %q\nexit %d\n", log, out, code)
+	if err := os.WriteFile(filepath.Join(bin, "pkexec"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	return log
+}
+
+func lockBox(t *testing.T) (pref string) {
+	t.Helper()
+	data, conf := t.TempDir(), t.TempDir()
+	t.Setenv("XDG_DATA_HOME", data)
+	t.Setenv("XDG_CONFIG_HOME", conf)
+	mkSkin(t, filepath.Join(data, "qylock", "themes"), "clockwork/orbital", false)
+	mkSkin(t, filepath.Join(data, "qylock", "themes"), "clockwork/tape", false)
+	pref = filepath.Join(conf, "qylock", "theme")
+	if err := os.MkdirAll(filepath.Dir(pref), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(pref, []byte("clockwork/orbital\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return pref
+}
+
+func TestSetLockSkinChangesBothAfterThePasswordIsAccepted(t *testing.T) {
+	pref := lockBox(t)
+	args := stubPkexec(t, 0, "")
+
+	if err := setLockSkin("clockwork/tape"); err != nil {
+		t.Fatalf("set after an accepted password: %v", err)
+	}
+	if got := readLockPref(pref); got != "clockwork/tape" {
+		t.Fatalf("lock preference = %q, want clockwork/tape", got)
+	}
+	asked, _ := os.ReadFile(args)
+	if !strings.Contains(string(asked), "lock apply-greeter clockwork/tape false") {
+		t.Fatalf("pkexec was asked for %q, want the greeter install of clockwork/tape", asked)
+	}
+}
+
+func TestSetLockSkinLeavesTheLockAloneWhenThePromptFails(t *testing.T) {
+	cases := []struct {
+		name string
+		code int
+		out  string
+		want string
+	}{
+		{"cancelled", 126, "Error executing command as another user: Request dismissed", "cancelled"},
+		{"refused", 127, "Error executing command as another user: Not authorized", "not accepted"},
+		{"install failed", 1, "ryoku-hub: install greeter theme: exit status 2", "install greeter theme: exit status 2"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			pref := lockBox(t)
+			stubPkexec(t, c.code, c.out)
+
+			err := setLockSkin("clockwork/tape")
+			if err == nil || !strings.Contains(err.Error(), c.want) {
+				t.Fatalf("error = %v, want it to say %q", err, c.want)
+			}
+			if strings.Contains(err.Error(), "Error executing") {
+				t.Fatalf("pkexec's own chatter leaked into %q", err)
+			}
+			if got := readLockPref(pref); got != "clockwork/orbital" {
+				t.Fatalf("lock preference = %q after a failed prompt, want it unchanged", got)
+			}
+		})
+	}
+}
+
+func TestSetLockSkinWithoutPkexecChangesNothing(t *testing.T) {
+	pref := lockBox(t)
+	t.Setenv("PATH", t.TempDir())
+
+	err := setLockSkin("clockwork/tape")
+	if err == nil || !strings.Contains(err.Error(), "pkexec is not installed") {
+		t.Fatalf("error = %v, want a missing pkexec message", err)
+	}
+	if got := readLockPref(pref); got != "clockwork/orbital" {
+		t.Fatalf("lock preference = %q, want it unchanged", got)
+	}
+}

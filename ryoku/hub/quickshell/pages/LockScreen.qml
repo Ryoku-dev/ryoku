@@ -234,8 +234,7 @@ Item {
                 return {
                     id: s.slug,
                     title: s.name,
-                    status: busy && !current ? I18n.tr("Applying")
-                        : current && busy ? I18n.tr("Waiting for your password")
+                    status: busy ? (root.store.adminPrompt ? I18n.tr("Waiting for your password") : I18n.tr("Applying"))
                         : current ? I18n.tr("In use")
                         : (s.theme !== "" ? s.theme : I18n.tr("Installed")),
                     source: s.preview,
@@ -450,7 +449,7 @@ Item {
 
             Label {
                 width: parent.width
-                text: I18n.tr("Using a design restyles the sign-in screen too, so your computer asks for your password. If you cancel, only the lock screen changes.")
+                text: I18n.tr("Using a design restyles the sign-in screen too, so your computer asks for your password. If you cancel, nothing changes.")
                 typeRole: "detail"
                 inkRole: "fg3"
                 wrapMode: Text.Wrap
@@ -471,8 +470,8 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     width: parent.width - LithicTokens.space.s2 - LithicTokens.size.iconPlaqueIcon
                     text: !root.store ? ""
-                        : root.store.greeterPending
-                        ? I18n.tr("Your lock screen now uses %1. Enter your password in the admin prompt to restyle the sign-in screen too.").arg(root.store.nameOf(root.pending))
+                        : root.store.adminPrompt
+                        ? I18n.tr("Enter your password in the admin prompt to switch the lock screen and the sign-in screen to %1. Cancel keeps %2.").arg(root.store.nameOf(root.pending)).arg(root.store.nameOf(root.store.inUse))
                         : I18n.tr("Switching to %1").arg(root.store.nameOf(root.pending))
                     typeRole: "detail"
                     wrapMode: Text.Wrap

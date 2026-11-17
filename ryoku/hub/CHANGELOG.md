@@ -1,6 +1,11 @@
 # Changelog: ryoku/hub/
 
 ## Unreleased
+- **A lock screen design changes only after the admin password is accepted.** Use
+  asks for the password first and writes the lock screen's own choice after the
+  sign-in screen took it, so Cancel or a refused password leaves both screens on
+  the design they had and the page says so (`backend/lock.go`,
+  `components/lock-screen/LockDesignStore.qml`, `pages/LockScreen.qml`).
 - **Every badge may have its own card design, and wear it at once.** Testers
   and contributors now get the studio's design section too (it was NixOS, Core
   and Founder only), and any active badge's approved design is drawn
