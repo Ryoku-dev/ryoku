@@ -3,6 +3,11 @@
 ## Unreleased
 
 ### Fixed
+- **The lock screen and sign-in screen show your keyboard layout and let you
+  switch it (#841, #875).** The lock gets a small control with the active layout
+  that cycles on click or Ctrl+Alt+Space, whatever your desktop keybinds are; the
+  sign-in screen keeps every layout you set, adds Alt+Shift when none was chosen,
+  and shows the layouts and the switch key.
 - **New installs wire the login keyring once.** The SDDM setup counts the stock
   `-auth`/`-session` keyring lines, so it no longer adds a second copy on Arch.
 - **A picked skin stays on the Fedora sign-in screen.** `sddm-theme-ryoku` owned
