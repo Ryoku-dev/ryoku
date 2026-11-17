@@ -36,6 +36,11 @@
 - **The per-display tiling choice shows only where the compositor supports it.**
   Other compositors keep one shared layout and show no display link
   (`pages/WindowManagerPage.qml`, capability `perWorkspaceLayout`).
+- **Connections' Bluetooth tab has a headset mic switch (#878).** "Switch
+  headsets to call mode for the mic" is on by default, as before; turn it off to
+  keep headsets in stereo when an app opens a microphone. It reads and writes the
+  saved WirePlumber setting through `ryoku-bt-audio mic`, and is disabled with a
+  reason when WirePlumber or `wpctl` is missing (`quickshell/pages/ConnectionsPage.qml`).
 
 ### Fixed
 - **Re-rendering app themes works when the config directory is not `~/.config`

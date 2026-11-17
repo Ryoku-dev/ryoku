@@ -1837,6 +1837,39 @@ Item {
             }
         }
 
+        // WirePlumber's own setting, read and written through ryoku-bt-audio;
+        // unknown until the first read lands, so a missing helper or a stopped
+        // WirePlumber leaves the row disabled with the reason shown.
+        property bool micKnown: false
+        property bool micOn: true
+
+        function setMic(on) {
+            if (!bt.micKnown || micWrite.running)
+                return;
+            micWrite.command = ["ryoku-bt-audio", "mic", on ? "on" : "off"];
+            micWrite.running = true;
+        }
+
+        Process {
+            id: micRead
+            command: ["ryoku-bt-audio", "mic"]
+            running: true
+            stdout: StdioCollector { id: micOut }
+            onExited: function(exitCode) {
+                var v = micOut.text.trim();
+                bt.micKnown = exitCode === 0 && (v === "on" || v === "off");
+                if (bt.micKnown)
+                    bt.micOn = v === "on";
+            }
+        }
+
+        Process {
+            id: micWrite
+            stdout: StdioCollector {}
+            stderr: StdioCollector {}
+            onExited: micRead.running = true
+        }
+
         Process {
             id: pairProc
             stdout: StdioCollector {}
@@ -1970,7 +2003,8 @@ Item {
                 anchors.topMargin: Tokens.s5
                 anchors.left: parent.left
                 anchors.right: parent.right
-                anchors.bottom: parent.bottom
+                anchors.bottom: btMicRow.top
+                anchors.bottomMargin: btMicRow.visible ? Tokens.s3 : 0
 
                 // off / empty placeholder, centred so the page never looks broken.
                 Column {
@@ -2180,6 +2214,63 @@ Item {
                             }
                         }
                     }
+                }
+            }
+
+            Item {
+                id: btMicRow
+                visible: bt.hasAdapter
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                height: visible ? 56 : 0
+                opacity: bt.micKnown ? 1 : 0.5
+
+                Rectangle {
+                    anchors.top: parent.top
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    height: 1
+                    color: Tokens.lineSoft
+                }
+
+                Column {
+                    anchors.left: parent.left
+                    anchors.right: micSw.left
+                    anchors.rightMargin: Tokens.s3
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 2
+
+                    Text {
+                        width: parent.width
+                        text: I18n.tr("Switch headsets to call mode for the mic")
+                        color: Tokens.ink
+                        font.family: Tokens.ui
+                        font.pixelSize: Tokens.fBody
+                        font.weight: Font.Medium
+                        elide: Text.ElideRight
+                    }
+
+                    Text {
+                        width: parent.width
+                        text: !bt.micKnown ? I18n.tr("Needs WirePlumber running and wpctl installed.")
+                            : bt.micOn ? I18n.tr("Sound turns mono while an app uses the mic.")
+                            : I18n.tr("Headsets stay in stereo; their mic is not offered to apps.")
+                        color: Tokens.inkMuted
+                        font.family: Tokens.ui
+                        font.pixelSize: Tokens.fSmall
+                        font.weight: Font.Medium
+                        elide: Text.ElideRight
+                    }
+                }
+
+                Sw {
+                    id: micSw
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    enabled: bt.micKnown && !micWrite.running
+                    on: bt.micOn
+                    onToggled: (v) => bt.setMic(v)
                 }
             }
         }
