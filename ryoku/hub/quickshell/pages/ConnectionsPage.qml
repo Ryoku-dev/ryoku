@@ -9,12 +9,15 @@ import Quickshell.Networking
 import Quickshell.Bluetooth
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
+import "../Singletons"
 
 // Connections (SYSTEM). A self-contained, full-bleed pluggable page: its own
-// head, a bone-pill tab strip (Wi-Fi / Bluetooth / Hotspot), and a Loader that
-// swaps between three live subtabs. Every backend is a system tool -- the
-// Quickshell Networking/Bluetooth services plus nmcli/bluetoothctl -- so the
-// page applies immediately; Bluetooth power also records the user's choice.
+// head, a bone-pill tab strip (Wi-Fi / Ethernet / Bluetooth / Hotspot / VPN /
+// DNS / Phone), and a Loader that swaps between the three live subtabs drawn
+// here; Ethernet, VPN, DNS and Phone live in their own files (fileTabs). Every
+// backend is a system tool -- the Quickshell Networking/Bluetooth services plus
+// nmcli/bluetoothctl, and the shell daemon for Ethernet, VPN and DNS -- so the page
+// applies immediately; Bluetooth power also records the user's choice.
 // The subtab bodies are
 // process wiring, identical logic; only the presentation is recast to
 // monochrome. State is by word and inversion, never colour; signal strength is
@@ -50,10 +53,21 @@ Item {
 
     readonly property var tabs: [
         { "key": "wifi", "label": I18n.tr("Wi-Fi") },
+        { "key": "ethernet", "label": I18n.tr("Ethernet") },
         { "key": "bluetooth", "label": I18n.tr("Bluetooth") },
         { "key": "hotspot", "label": I18n.tr("Hotspot") },
+        { "key": "vpn", "label": I18n.tr("VPN") },
+        { "key": "dns", "label": I18n.tr("DNS") },
         { "key": "phone", "label": I18n.tr("Phone") }
     ]
+    // subtabs that live in their own file, loaded beside the body Loader
+    readonly property var fileTabs: ({
+        "ethernet": "ConnectionsEthernetTab.qml",
+        "vpn": "ConnectionsVpnTab.qml",
+        "dns": "ConnectionsDnsTab.qml",
+        "phone": "PhoneConnectionTab.qml"
+    })
+    readonly property bool onFileTab: pg.fileTabs[pg.sub] !== undefined
     readonly property int tabW: 120
     function tabIndex(k) {
         for (var i = 0; i < tabs.length; i++)
@@ -547,6 +561,8 @@ Item {
 
         property string authFailedSsid: ""
         property string forgetArmed: ""
+        // the saved network whose IP settings are open (ConnectionsIpEditor)
+        property string ipOpen: ""
         property bool forgetBusy: false
 
         readonly property real colMax: 720
@@ -1451,6 +1467,17 @@ Item {
                                         armed: !wifi.autoBusy
                                         onAct: wifi.setAutoconnect(netItem.ssid, !autoRow.on)
                                     }
+
+                                    Btn {
+                                        compact: true
+                                        text: I18n.tr("IP settings") + (wifi.ipOpen === netItem.ssid ? " \u25b4" : " \u25be")
+                                        primary: wifi.ipOpen === netItem.ssid
+                                        onAct: {
+                                            if (wifi.ipOpen !== netItem.ssid)
+                                                NetworkTopic.ipOpened(wifi.uuidsFor(netItem.ssid)[0] || "");
+                                            wifi.ipOpen = wifi.ipOpen === netItem.ssid ? "" : netItem.ssid;
+                                        }
+                                    }
                                 }
 
                                 Btn {
@@ -1462,6 +1489,23 @@ Item {
                                     primary: wifi.forgetArmed === netItem.ssid
                                     armed: !wifi.forgetBusy
                                     onAct: wifi.requestForget(netItem.ssid)
+                                }
+                            }
+
+                            // IPv4 settings of the saved network, under its settings row
+                            Item {
+                                width: parent.width
+                                height: netItem.known && wifi.ipOpen === netItem.ssid && ipEditor.item
+                                    ? ipEditor.item.implicitHeight + Tokens.s3 : 0
+                                clip: true
+                                visible: height > 0.5
+                                Loader {
+                                    id: ipEditor
+                                    x: bars.x + bars.width + Tokens.s3
+                                    width: parent.width - x - Tokens.s4
+                                    active: netItem.known && wifi.ipOpen === netItem.ssid
+                                    source: Qt.resolvedUrl("ConnectionsIpEditor.qml")
+                                    onLoaded: item.uuid = Qt.binding(function() { return wifi.uuidsFor(netItem.ssid)[0] || ""; })
                                 }
                             }
 
@@ -2462,7 +2506,7 @@ Item {
             }
             Text {
                 width: Math.min(parent.width, 720)
-                text: I18n.tr("Wi-Fi, Bluetooth, hotspot and phone connections, applied live.")
+                text: I18n.tr("Wi-Fi, Ethernet, Bluetooth, hotspot, VPN, DNS and phone connections, applied live.")
                 color: Tokens.inkMuted; font.family: Tokens.ui
                 font.pixelSize: Tokens.fBody; wrapMode: Text.WordWrap
             }
@@ -2561,8 +2605,8 @@ Item {
                 top: tabStrip.bottom; bottom: parent.bottom
                 topMargin: Tokens.s5
             }
-            opacity: pg.sub === "phone" ? 0 : 1
-            x: pg.sub === "phone" ? -Tokens.s3 : 0
+            opacity: pg.onFileTab ? 0 : 1
+            x: pg.onFileTab ? -Tokens.s3 : 0
             visible: opacity > 0.01
             Behavior on opacity {
                 enabled: !Tokens.reduceMotion
@@ -2584,10 +2628,10 @@ Item {
                 bottom: parent.bottom
                 topMargin: Tokens.s5
             }
-            active: pg.sub === "phone"
-            source: Qt.resolvedUrl("PhoneConnectionTab.qml")
-            opacity: pg.sub === "phone" ? 1 : 0
-            x: pg.sub === "phone" ? 0 : Tokens.s3
+            active: pg.onFileTab
+            source: pg.onFileTab ? Qt.resolvedUrl(pg.fileTabs[pg.sub]) : ""
+            opacity: pg.onFileTab ? 1 : 0
+            x: pg.onFileTab ? 0 : Tokens.s3
             visible: opacity > 0.01
             Behavior on opacity {
                 enabled: !Tokens.reduceMotion

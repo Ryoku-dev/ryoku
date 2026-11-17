@@ -93,8 +93,8 @@ Rectangle {
             editorHandoff.running = true;
             return;
         }
-        if (target === "phone") {
-            hub.connectionSub = "phone";
+        if (target === "phone" || target === "ethernet" || target === "vpn" || target === "dns") {
+            hub.connectionSub = target;
             target = "connections";
         } else if (target === "connections") {
             hub.connectionSub = "";
