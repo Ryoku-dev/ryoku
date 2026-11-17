@@ -4,6 +4,13 @@
 - **Ethernet, VPN and DNS are pages under Connections, and a saved Wi-Fi network has IP settings.**
   A manual address on the connection in use is undone after 20 seconds unless kept; `ryoku-shell hub open ethernet`,
   `vpn` or `dns` opens them (`pages/Ethernet.qml`, `Vpn.qml`, `Dns.qml`, `components/network/`, `Singletons/NetworkLink.qml`).
+- **Keyboard has a style for the second layout (#816).** Second layout style
+  lists the xkb styles of the second layout, like Persian (Windows), and keeps
+  them in the second slot of `kb_variant` (`,winkeys`). Changing the first
+  layout's style leaves it alone, and choosing another second layout clears it.
+  A first second layout also adds Alt+Shift unless a switch key is already set,
+  and Copy sends every layout and style to the sign-in screen
+  (`components/keyboard/KeyboardStore.qml`, `keymap.js`).
 - **Lock screen has a switch to retry a waiting password prompt (#790).** Under
   Password prompt it writes `~/.config/qylock/auth-retry` (`$XDG_CONFIG_HOME` when
   set), is off by default, and applies from the next lock

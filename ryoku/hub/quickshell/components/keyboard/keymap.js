@@ -22,6 +22,11 @@ function secondary(s) {
     return p.length > 1 ? p[1].trim() : "";
 }
 
+function secondaryVariant(s) {
+    var p = parts(s);
+    return p.length > 1 ? p[1].trim() : "";
+}
+
 function tokens(options) {
     return parts(options).map(t => t.trim()).filter(t => t.length > 0);
 }
@@ -63,9 +68,24 @@ function layoutString(first, second) {
     return second ? first + "," + second : first;
 }
 
-// the variant belongs to the first layout; a second layout keeps its slot empty
-function variantString(variant, second) {
-    return second && variant ? variant + "," : String(variant || "");
+// xkb aligns variants to layouts by position: "pv" for one layout, then "pv," or ",sv" or
+// "pv,sv" for two; an empty slot after an empty first one is left out
+function variantString(variant, secondVariant, hasSecond) {
+    var first = String(variant || ""), second = String(secondVariant || "");
+    if (!hasSecond)
+        return first;
+    return second ? first + "," + second : (first ? first + "," : "");
+}
+
+// whether some option already switches layouts, whichever key it names
+function hasSwitchKey(options) {
+    return tokens(options).some(t => t.indexOf("grp:") === 0);
+}
+
+// a second layout nobody can reach locks people out at the sign-in screen, so Alt+Shift
+// joins the options unless a switch key of any kind is already there
+function withSwitchKey(options) {
+    return hasSwitchKey(options) ? String(options || "") : withFamily(options, switchIds, "grp:alt_shift_toggle");
 }
 
 // xkb names a variant after its language ("French (AZERTY)"); inside the

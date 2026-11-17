@@ -41,6 +41,7 @@ QtObject {
         case "layout": return Keymap.primary(layout);
         case "variant": return Keymap.primary(store.desk(store.variantBind));
         case "second": return Keymap.secondary(layout);
+        case "secondVariant": return Keymap.secondaryVariant(store.desk(store.variantBind));
         case "hasSecond": return Keymap.secondary(layout) !== "";
         case "switch": return Keymap.pick(options, Keymap.switchIds);
         case "caps": return Keymap.pick(options, Keymap.capsIds);
@@ -64,23 +65,32 @@ QtObject {
     function write(key, v, done) {
         var layout = store.desk(store.layoutBind), options = store.desk(store.optionsBind);
         var first = Keymap.primary(layout), second = Keymap.secondary(layout);
-        var variant = Keymap.primary(store.desk(store.variantBind));
+        var variantText = store.desk(store.variantBind);
+        var variant = Keymap.primary(variantText), secondVariant = Keymap.secondaryVariant(variantText);
         switch (key) {
         case "layout":
             var memory = Object.assign({}, store.variantFor);
             memory[first] = variant;
             store.variantFor = memory;
             var chosen = String(v || "us");
-            store.put(store.layoutBind, Keymap.layoutString(chosen, second === chosen ? "" : second), key, v);
-            store.put(store.variantBind, Keymap.variantString(memory[chosen] || "", second === chosen ? "" : second), key, v);
+            // a second layout the same as the first goes, and its style with it
+            var kept = second === chosen ? "" : second;
+            store.put(store.layoutBind, Keymap.layoutString(chosen, kept), key, v);
+            store.put(store.variantBind, Keymap.variantString(memory[chosen] || "", kept ? secondVariant : "", kept !== ""), key, v);
             break;
         case "variant":
-            store.put(store.variantBind, Keymap.variantString(String(v || ""), second), key, v);
+            store.put(store.variantBind, Keymap.variantString(String(v || ""), secondVariant, second !== ""), key, v);
             break;
         case "second":
             var next = String(v || "") === first ? "" : String(v || "");
+            // a style belongs to its layout, so a different second layout starts on its default
             store.put(store.layoutBind, Keymap.layoutString(first, next), key, v);
-            store.put(store.variantBind, Keymap.variantString(variant, next), key, v);
+            store.put(store.variantBind, Keymap.variantString(variant, next === second ? secondVariant : "", next !== ""), key, v);
+            if (next && !second)
+                store.put(store.optionsBind, Keymap.withSwitchKey(options), key, v);
+            break;
+        case "secondVariant":
+            store.put(store.variantBind, Keymap.variantString(variant, String(v || ""), true), key, v);
             break;
         case "switch":
             store.put(store.optionsBind, Keymap.withFamily(options, Keymap.switchIds, String(v || "")), key, v);
@@ -154,8 +164,10 @@ QtObject {
             done(false, I18n.tr("Copying is still running. Try again when it finishes."));
             return;
         }
-        var argv = ["ryoku-host", "keymap", "apply", Keymap.primary(store.desk(store.layoutBind)) || "us",
-                    Keymap.primary(store.desk(store.variantBind)), store.desk(store.optionsBind)];
+        // every layout and each one's style go to the sign-in screen, so the second one works there too
+        var layouts = store.desk(store.layoutBind).split(",").map(l => l.trim()).filter(l => l.length > 0).join(",");
+        var argv = ["ryoku-host", "keymap", "apply", layouts || "us",
+                    store.desk(store.variantBind), store.desk(store.optionsBind)];
         store.applyDone = done;
         store.cancelled = false;
         store.slow = false;

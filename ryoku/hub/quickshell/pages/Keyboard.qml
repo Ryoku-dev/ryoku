@@ -21,6 +21,10 @@ Item {
     // a read that failed says so under the layouts, with Look again, instead of an empty list
     property bool layoutsFailed: false
     property bool variantsFailed: false
+    property var secondVariants: []
+    property bool secondVariantsLoaded: false
+    property bool secondVariantsFailed: false
+    property string secondVariantsFor: ""
     property bool reading: false
     property string variantsFor: ""
 
@@ -28,6 +32,7 @@ Item {
     readonly property string first: String(Changes.value(root.kb("layout")) || "")
     readonly property string second: String(Changes.value(root.kb("second")) || "")
     readonly property string variant: String(Changes.value(root.kb("variant")) || "")
+    readonly property string secondVariant: String(Changes.value(root.kb("secondVariant")) || "")
     readonly property string switchKeys: String(Changes.value(root.kb("switch")) || "")
     readonly property string phase: String(Changes.value(root.kb("everywhere")) || "")
 
@@ -47,7 +52,12 @@ Item {
         return code ? Keymap.nameOf(root.variants, code) : I18n.tr("Default");
     }
 
+    function secondVariantName(code) {
+        return code ? Keymap.nameOf(root.secondVariants, code) : I18n.tr("Default");
+    }
+
     readonly property var variantOptions: [{ code: "", name: I18n.tr("Default") }].concat(root.variants)
+    readonly property var secondVariantOptions: [{ code: "", name: I18n.tr("Default") }].concat(root.secondVariants)
     readonly property var secondOptions: [{ code: "", name: I18n.tr("None") }].concat(root.layouts.filter(l => l.code !== root.first))
 
     function prepared(row) {
@@ -57,6 +67,10 @@ Item {
             return Object.assign({}, row, { unavailable: I18n.tr("The styles of this layout could not be read") });
         if (row.id === "variant" && root.variantsLoaded && root.variants.length === 0)
             return Object.assign({}, row, { unavailable: I18n.tr("This layout has no other styles") });
+        if (row.id === "second-variant" && root.secondVariantsFailed)
+            return Object.assign({}, row, { unavailable: I18n.tr("The styles of the second layout could not be read") });
+        if (row.id === "second-variant" && root.secondVariantsLoaded && root.secondVariants.length === 0)
+            return Object.assign({}, row, { unavailable: I18n.tr("The second layout has no other styles") });
         // xkb's Super+Space switch redefines Space in every layout
         if (row.id === "switch-layouts" && root.switchKeys === "grp:win_space_toggle")
             return Object.assign({}, row, { detail: I18n.tr("Super+Space takes over the Space key, so Shift+Space and AltGr+Space type a plain space. Alt+Shift keeps them.") });
@@ -140,11 +154,46 @@ Item {
         root.variantsFor = wanted;
         root.variantsLoaded = false;
         root.variantsFailed = false;
-        Changes.run(["ryoku-hub", "desktop", "variants", wanted], function (ok, out) {
+        root.readVariants(wanted, function (found, failed) {
             // an answer for a layout chosen before the current one is dropped
             if (root.variantsFor !== wanted)
                 return;
-            var found = [];
+            root.variantsFailed = failed;
+            root.variants = found;
+            root.variantsLoaded = true;
+        });
+    }
+    onFirstChanged: root.refreshVariants(false)
+
+    // the second layout's styles, read only while it is set
+    function refreshSecondVariants(again) {
+        if (root.second.length === 0) {
+            root.secondVariantsFor = "";
+            root.secondVariants = [];
+            root.secondVariantsLoaded = false;
+            root.secondVariantsFailed = false;
+            return;
+        }
+        if (!again && root.secondVariantsFor === root.second)
+            return;
+        var wanted = root.second;
+        root.secondVariantsFor = wanted;
+        root.secondVariantsLoaded = false;
+        root.secondVariantsFailed = false;
+        root.readVariants(wanted, function (found, failed) {
+            if (root.secondVariantsFor !== wanted)
+                return;
+            root.secondVariantsFailed = failed;
+            root.secondVariants = found;
+            root.secondVariantsLoaded = true;
+        });
+    }
+    onSecondChanged: root.refreshSecondVariants(false)
+
+    // done(found, failed): the styles of one layout, read with a deadline
+    function readVariants(layout, done) {
+        Changes.run(["ryoku-hub", "desktop", "variants", layout], function (ok, out) {
+            var found = [], failed = false;
             try {
                 var list = ok ? JSON.parse(out) : null;
                 if (!Array.isArray(list))
@@ -152,17 +201,16 @@ Item {
                 for (var i = 0; i < list.length; i++)
                     found.push({ code: String(list[i].code), name: Keymap.variantLabel(list[i].name) });
             } catch (e) {
-                root.variantsFailed = true;
+                failed = true;
             }
-            root.variants = found;
-            root.variantsLoaded = true;
+            done(found, failed);
         }, { timeout: 15000 });
     }
-    onFirstChanged: root.refreshVariants(false)
 
     function lookAgain() {
         root.loadLayouts();
         root.refreshVariants(true);
+        root.refreshSecondVariants(true);
     }
 
     Component.onCompleted: {
@@ -171,6 +219,7 @@ Item {
             root.store.refreshStatus();
         root.loadLayouts();
         root.refreshVariants(false);
+        root.refreshSecondVariants(false);
     }
 
     SettingsPage {
@@ -180,8 +229,9 @@ Item {
         pageId: "keyboard"
         schema: root.schema
         stateLine: root.stateLine
-        controls: ({ "layout": layoutControl, "variant": variantControl, "second-layout": secondControl, "everywhere": copyControl })
-        footers: root.layoutsFailed || root.variantsFailed ? ({ layouts: readFailed, everywhere: everywhereFooter })
+        controls: ({ "layout": layoutControl, "variant": variantControl, "second-layout": secondControl,
+                      "second-variant": secondVariantControl, "everywhere": copyControl })
+        footers: root.layoutsFailed || root.variantsFailed || root.secondVariantsFailed ? ({ layouts: readFailed, everywhere: everywhereFooter })
                                                          : ({ everywhere: everywhereFooter })
     }
 
@@ -234,6 +284,20 @@ Item {
             onClicked: secondChoice.activate()
             function activate() {
                 chooser.openWith(I18n.tr("Second layout"), root.secondOptions, secondChoice.current, code => secondChoice.commit(code), secondChoice);
+            }
+        }
+    }
+
+    Component {
+        id: secondVariantControl
+        Choice {
+            id: secondVariantChoice
+            text: root.secondVariantName(secondVariantChoice.current)
+            accessibleName: I18n.tr("Second layout style, %1. Choose another").arg(secondVariantChoice.text)
+            onClicked: secondVariantChoice.activate()
+            function activate() {
+                chooser.openWith(I18n.tr("Style of %1").arg(root.layoutName(root.second)), root.secondVariantOptions, secondVariantChoice.current,
+                                 code => secondVariantChoice.commit(code), secondVariantChoice);
             }
         }
     }
