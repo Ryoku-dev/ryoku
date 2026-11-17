@@ -8,6 +8,9 @@
 - **Picking Matugen in Python's Theme tab brings the wallpaper colours back
   (#827).** A bundled preset's palette stayed stored after switching back, so
   the bar kept the preset's colours; Matugen now clears it.
+- **Joining a Wi-Fi network never picks a hotspot profile.** A saved hotspot
+  that shares the network's name could be given the password and started in
+  place of the client profile; the daemon now skips it (`ipc/network.go`).
 - **Forget and auto-reconnect in the bar reach every saved profile of a
   network.** The shell daemon acted on the first profile it found for an SSID,
   so a second one NetworkManager named `<ssid> 1`, or one imported under

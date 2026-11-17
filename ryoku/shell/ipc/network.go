@@ -729,24 +729,23 @@ func (n *networkState) wifiConnect(ssid, password, bssid string, hidden bool) er
 		nmBand = nmBandForFrequency(ap.Frequency)
 	}
 
-	for _, c := range n.savedConnections() {
-		if c.typ == "802-11-wireless" && c.ssid == ssid {
-			if password != "" {
-				if err := n.updatePassword(c.path, password, keyMgmtForSecurity(apSec)); err != nil {
-					return err
-				}
-			}
-			if bssid != "" && nmBand != "" {
-				if err := n.updateBand(c.path, nmBand); err != nil {
-					return err
-				}
-			}
-			var active dbus.ObjectPath
-			if err := n.obj(nmPath).Call(nmIface+".ActivateConnection", 0, c.path, dbus.ObjectPath(wifiDev), specific).Store(&active); err != nil {
+	if profiles := wifiProfiles(ssid, n.savedConnections()); len(profiles) > 0 {
+		c := profiles[0]
+		if password != "" {
+			if err := n.updatePassword(c.path, password, keyMgmtForSecurity(apSec)); err != nil {
 				return err
 			}
-			return n.waitForActivation(active)
 		}
+		if bssid != "" && nmBand != "" {
+			if err := n.updateBand(c.path, nmBand); err != nil {
+				return err
+			}
+		}
+		var active dbus.ObjectPath
+		if err := n.obj(nmPath).Call(nmIface+".ActivateConnection", 0, c.path, dbus.ObjectPath(wifiDev), specific).Store(&active); err != nil {
+			return err
+		}
+		return n.waitForActivation(active)
 	}
 	settings := wifiConnectSettings(ssid, password, bssid, ap, hidden)
 	var newConn, newActive dbus.ObjectPath
