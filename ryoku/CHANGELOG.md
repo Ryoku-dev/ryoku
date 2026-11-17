@@ -15,6 +15,8 @@
   name `spirv-headers` (Fedora `spirv-headers-devel`, Void `SPIRV-Headers`),
   which ggml's Vulkan backend needs to configure
   (`ryoku/dictation/deploy.sh`, `release/packages/ryoku-dictation/PKGBUILD`).
+- **Both island gears open Kairos settings.** The separate control below the
+  tiles opens Ryoku Settings.
 - **The bar's battery, brightness and volume readouts come from the shell
   daemon.** UPower, the panel backlight and the PipeWire default levels are
   read once in Go and streamed on the `battery`, `backlight` and `audio`

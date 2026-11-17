@@ -113,11 +113,8 @@ Item {
         IconButton {
             anchors.verticalCenter: parent.verticalCenter
             icon: "settings"
-            tip: I18n.tr("Ryoku Settings")
-            onClicked: {
-                header.pane.close();
-                Bus.run("hub open");
-            }
+            tip: I18n.tr("Island settings")
+            onClicked: header.pane.openIslandSettings()
         }
         IconButton {
             anchors.verticalCenter: parent.verticalCenter
