@@ -110,6 +110,7 @@ Ryoku turns its own version off for that time:
 | `widgets` | its desktop widgets and deck frost |
 | `cheatsheet` | its shortcuts sheet |
 | `windowClose` | its close keybind handling; the item answers IPC target `closeConfirm`, function `trigger` |
+| `recording` | its floating recording island; the item shows the capture state itself (`Recorder` in `shell.services` holds the phase, the recorded length and the target) |
 
 `[shell.ownsSetting]` maps an owned surface to a dotted `shell.json` key. The
 ownership lapses while that key is `false`, so the item's own settings can hand
@@ -199,12 +200,36 @@ rounding, a bone plate for whatever is on or chosen). All text and numbers
 follow the global font.
 
 The voice shows the time, date, and weather at rest. It turns into the current
-track while music plays, into the newest notification for a few seconds when one
-arrives, and into a timer while the screen is recorded. While it is busy the time
-moves into a small bubble beside it, and a recording over music puts the cover in
-a second bubble. Click the voice to open the page it shows (Today, the player,
-notifications, or the recording), scroll over it to step through those pages,
-middle-click to play or pause, and right-click to open Controls.
+track while music plays and into the newest notification for a few seconds when
+one arrives. While it is busy the time moves into a small bubble beside it.
+Click the voice to open the page it shows (Today, the player, or
+notifications), scroll over it to step through those pages (and the recording
+page while a capture runs), middle-click to play or pause, and right-click to
+open Controls.
+
+Orpheus owns Ryoku's `recording` surface, so Ryoku's floating recording pill
+stays away while it is active. A capture gets one small drop in the bar band on
+the bar of each output it covers: off the island's right end in `fused`, beside
+the voice's right side in `islands`, and at the start of the right lane in
+`full` or wherever a separate drop would not fit. It is always this drop, never
+the voice's face, so nothing else in the bar moves or resizes when a capture
+starts or its time ticks, and the fused island stays centred without it. It
+reads [mark][time][audio]: the mark is an emptying ring with the count while
+arming, a hollow ring while starting, a steady solid dot while recording, two
+ink bars while paused, a sweeping arc while saving, then a check for 2.4 s or
+an alert `!` for 4 s with the reason in its hint. The time is the recorded
+length, pauses left out, in a slot sized for `00:00` from the start, and the
+speaker and microphone glyphs show the sources being recorded (a lost half of a
+mix stays, faint). Phase changes morph in under 200 ms, changed digits other
+than the last roll in, and nothing animates while a recording just runs, so the
+bar draws about once a second. Click the drop to open the recording page (the
+state and target, the time, both audio sources, Pause or Resume, and a held
+Stop; while arming the count and Cancel), right-click it to stop at once or
+cancel the countdown. With auto-hide on, the drop stays docked under the top
+edge while the rest of the bar is hidden, so a capture is always findable
+without bringing the whole bar into the video. The Bar page's **Show recording
+in the bar** switch (`orpheus.recordingInBar`) hands the surface back to Ryoku:
+off shows Ryoku's pill and no mark in Orpheus.
 
 Pages grow out of the bar and stay joined to the drop they came from; a page
 that reaches a side edge melts into it. Click anywhere outside one, over a
@@ -226,8 +251,8 @@ why. On Layout, drag a module between the left, centre, and right lanes, or into
 Not shown to remove it; click a hidden module to add it back, or right-click a
 placed one to remove it. The logo and the voice stay put. The modules are logo;
 workspaces as dots, numbers, kanji, Greek, dashes, or app icons; window title;
-voice; media; weather; system monitor; keyboard layout; recording and microphone
-activity; coding-agent limits; a paired phone; VPN (Tailscale, with its exit
+voice; media; weather; system monitor; keyboard layout; microphone activity;
+coding-agent limits; a paired phone; VPN (Tailscale, with its exit
 node picker, LAN access and run-as-exit-node switches, and NetworkManager VPN
 and WireGuard profiles, each with its own switch in the VPN card, which also
 shows the public IP); updates; tray; notifications; controls; battery; clock; shortcuts for the
@@ -274,6 +299,7 @@ Its settings use the `orpheus` namespace in `shell.json`:
 | `statusItems` | subset of `wifi`, `bluetooth`, `volume`, `mic` | all four | Choose the icons in the Controls module. |
 | `aiTools` | subset of `claude`, `codex`, `opencode` | all three | Choose which coding agents the AI usage module counts. Modules page, AI usage. An empty list hides the module. |
 | `aiAlertAt` | `50` to `100` | `80` | Share of a window at which the AI usage icon turns to the alert colour. |
+| `recordingInBar` | boolean | `true` | Show a screen recording as Orpheus's bar drop. Off hands the `recording` surface back to Ryoku's floating pill. |
 
 The name is Orpheus, the musician of Greek myth whose lyre moved rivers and
 stones. Made by neur0map.

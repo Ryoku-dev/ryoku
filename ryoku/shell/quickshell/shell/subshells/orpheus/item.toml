@@ -14,8 +14,11 @@ official = true
 [shell]
 entry = "qml/Scene.qml"
 frameHost = "each"
-owns = []
+owns = ["recording"]
 modules = []
+
+[shell.ownsSetting]
+recording = "orpheus.recordingInBar"
 
 [shell.settings]
 ipc = "orpheus"

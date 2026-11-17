@@ -582,7 +582,9 @@ Scope {
             // style, a standalone layer-shell surface rather than frame chrome. It
             // shows on the output being recorded -- the screen holding the region
             // box, else the focused output, else the first screen -- so a
-            // multi-monitor setup gets one island on the right screen.
+            // multi-monitor setup gets one island on the right screen. While the
+            // active item owns "recording" it draws the status itself, so the
+            // island stays closed, and closes at once if ownership arrives mid-capture.
             LazyLoader {
                 id: recordIslandLoader
                 readonly property bool isTarget: {
@@ -598,7 +600,8 @@ Scope {
                     return ShellState.screens.length > 0 && ShellState.screens[0].name === s.name;
                 }
                 property bool open: isTarget && (Recorder.anyActive || Recorder.countingDown)
-                activeAsync: open || recordIslandHold.running
+                    && !Config.styleOwnsRecording
+                activeAsync: open || (recordIslandHold.running && !Config.styleOwnsRecording)
                 onOpenChanged: if (!open && active) recordIslandHold.restart()
                 RecordIsland {
                     modelData: perScreen.modelData

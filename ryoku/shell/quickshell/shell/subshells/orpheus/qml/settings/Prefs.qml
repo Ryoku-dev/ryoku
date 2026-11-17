@@ -151,7 +151,8 @@ Singleton {
             trayLimit: 6,
             statusItems: ["wifi", "bluetooth", "volume", "mic"],
             aiTools: ["claude", "codex", "opencode"],
-            aiAlertAt: 80
+            aiAlertAt: 80,
+            recordingInBar: true
         };
     }
 
@@ -212,6 +213,7 @@ Singleton {
         case "aiTools": return subset(value,
             ["claude", "codex", "opencode"], ["claude", "codex", "opencode"]);
         case "aiAlertAt": return Math.round(clamp(value, 50, 100, 80));
+        case "recordingInBar": return flag(value, true);
         default: return value;
         }
     }
@@ -246,6 +248,7 @@ Singleton {
     readonly property var statusItems: clean("statusItems", value("statusItems"))
     readonly property var aiTools: clean("aiTools", value("aiTools"))
     readonly property int aiAlertAt: clean("aiAlertAt", value("aiAlertAt"))
+    readonly property bool recordingInBar: clean("recordingInBar", value("recordingInBar"))
     readonly property bool clock12h: own(_previews, "clock12h")
         ? _previews.clock12h === true : !TimeFormat.is24h
 

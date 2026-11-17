@@ -1,6 +1,10 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Orpheus shows a recording in its own bubble on the bar.** It buds off the
+  island with the recorded length and the audio sources, opens a recording card,
+  and Ryoku's floating pill stays away unless Bar settings hand it back
+  (`subshells/orpheus/qml/recording/`, `services/Shells.qml`).
 - **The recording status tells the truth from start to saved.** The clock leaves
   pauses out, a stop stays shown until the file is saved and a crashed recorder
   leaves no ghost (`scripts/ryoku-cmd-record`, `services/Recorder.qml`).

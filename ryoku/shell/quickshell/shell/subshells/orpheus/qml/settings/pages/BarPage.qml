@@ -324,6 +324,20 @@ Item {
                     onToggled: value => S.Prefs.set("hoverSwitch", value)
                 }
             }
+
+            SettingRow {
+                width: parent.width
+                label: "Show recording in the bar"
+                desc: "Mark a screen recording beside the bar. Off shows Ryoku's floating recording pill."
+                controlWidth: 54
+                divider: true
+
+                K.Switch {
+                    anchors.right: parent.right
+                    checked: S.Prefs.recordingInBar
+                    onToggled: value => S.Prefs.set("recordingInBar", value)
+                }
+            }
         }
     }
 }

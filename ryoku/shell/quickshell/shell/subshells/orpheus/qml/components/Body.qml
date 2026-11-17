@@ -17,7 +17,8 @@ Item {
     property real waveX: 0
     property real waveW: 0
     property var bubbleLeft: ({ x: 0, w: 0, visible: false, key: "" })
-    property var bubbleRight: ({ x: 0, w: 0, visible: false, key: "" })
+    // drawn in every span, `y` docks it under the top edge while the bar is hidden
+    property var recordBubble: ({ x: 0, w: 0, y: 0 })
     property string cardKey: ""
     property real originX: voiceDrop.x
     property real originW: voiceDrop.w
@@ -188,7 +189,10 @@ Item {
     Shoulder { drop: ({ x: body.waveX, w: body.waveW }) }
     Shoulder { drop: body.rightDrop }
     Shoulder { drop: body.span === "islands" ? body.bubbleLeft : ({ x: 0, w: 0 }) }
-    Shoulder { drop: body.span === "islands" ? body.bubbleRight : ({ x: 0, w: 0 }) }
+    Shoulder {
+        drop: body.recordBubble
+        dock: Number(body.recordBubble.y) || 0
+    }
 
     // The side drops never blend with the voice: where a fused body covers
     // them, blending would square the shared corners and drip at the seams.
@@ -241,10 +245,10 @@ Item {
 
     BlobRect {
         group: liquid
-        visible: body.span === "islands" && body.bubbleRight.w > 0.5
-        x: body.bubbleRight.x
-        y: 0
-        width: body.span === "islands" && body.bubbleRight.w > 0.5 ? body.bubbleRight.w : 0
+        visible: body.recordBubble.w > 0.5
+        x: body.recordBubble.x
+        y: Number(body.recordBubble.y) || 0
+        width: body.recordBubble.w > 0.5 ? body.recordBubble.w : 0
         height: K.Style.barH
         topLeftRadius: 0
         topRightRadius: 0
@@ -309,11 +313,12 @@ Item {
 
     component Shoulder: BlobRect {
         required property var drop
+        property real dock: 0
         readonly property bool active: body.shown(drop)
         group: liquid
         visible: active
         x: Number(drop.x) - M.shoulderReach
-        y: -M.shoulder - 2
+        y: dock - M.shoulder - 2
         width: active ? Number(drop.w) + M.shoulderReach * 2 : 0
         height: M.shoulder
         radius: 0

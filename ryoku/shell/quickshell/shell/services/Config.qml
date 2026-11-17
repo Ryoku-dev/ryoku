@@ -77,6 +77,7 @@ Singleton {
     readonly property bool styleOwnsBanners: Shells.owns("notifications")
     readonly property bool styleOwnsNotificationSound: Shells.owns("notificationSound")
     readonly property bool styleOwnsFeedback: Shells.owns("osd")
+    readonly property bool styleOwnsRecording: Shells.owns("recording")
 
     // frame: the whole parsed shell.json, for keys the adapter does not declare
     // (an item's own switches). value() reads it by dotted path.

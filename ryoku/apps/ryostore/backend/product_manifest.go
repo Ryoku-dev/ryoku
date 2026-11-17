@@ -96,7 +96,7 @@ type ShellManifest struct {
 // shellOwnedSurfaces are the Ryoku surfaces an item may draw itself while active.
 var shellOwnedSurfaces = map[string]bool{
 	"notifications": true, "notificationSound": true, "osd": true, "polkit": true,
-	"dock": true, "widgets": true, "cheatsheet": true, "windowClose": true,
+	"dock": true, "widgets": true, "cheatsheet": true, "windowClose": true, "recording": true,
 }
 
 func shellCategory(category string) bool {
