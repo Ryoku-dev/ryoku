@@ -4,6 +4,12 @@
 - **Ethernet, VPN and DNS are pages under Connections, and a saved Wi-Fi network has IP settings.**
   A manual address on the connection in use is undone after 20 seconds unless kept; `ryoku-shell hub open ethernet`,
   `vpn` or `dns` opens them (`pages/Ethernet.qml`, `Vpn.qml`, `Dns.qml`, `components/network/`, `Singletons/NetworkLink.qml`).
+- **Bluetooth has a headset mic switch (#878).** Under Headsets, "Switch headsets
+  to call mode for the mic" is on by default, as before; turn it off to keep
+  headsets in stereo when an app opens a microphone. It reads and writes
+  WirePlumber's saved setting through `ryoku-bt-audio mic`, and is off with a
+  reason when WirePlumber or `wpctl` is missing (`pages/Bluetooth.qml`,
+  `components/bluetooth/BluetoothStore.qml`).
 - **Window behaviour gives each display its own tiling layout (#866).** With two
   displays and a window manager that tiles each workspace by itself
   (`perWorkspaceLayout`), Tiling offers Same layout on every display. Turn it off

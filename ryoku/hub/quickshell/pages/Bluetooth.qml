@@ -70,8 +70,16 @@ Item {
         lead: Schema.lead,
         sections: Schema.sections,
         related: Schema.related,
-        rows: []
+        rows: root.hasAdapter ? Schema.rows.filter(r => r.id === "headset-mic").map(r => root.preparedMic(r)) : []
     })
+
+    // off with its reason until WirePlumber answers; once it does the row says what each state does
+    function preparedMic(row) {
+        if (!root.store || !root.store.micKnown)
+            return Object.assign({}, row, { unavailable: I18n.tr("Needs WirePlumber running and wpctl installed.") });
+        return Object.assign({}, row, { detail: root.store.micOn ? I18n.tr("Sound turns mono while an app uses the mic")
+            : I18n.tr("Headsets stay in stereo; their mic is not offered to apps") });
+    }
 
     readonly property string stateLine: !root.hasAdapter ? ""
         : !root.powered ? I18n.tr("Bluetooth is off.")
@@ -425,6 +433,8 @@ Item {
 
     Component.onCompleted: {
         Changes.ensureStore("bluetooth", Qt.resolvedUrl("../components/bluetooth/BluetoothStore.qml"));
+        if (Changes.stores.bluetooth)
+            Changes.stores.bluetooth.loadMic();
         root.syncList();
         rfkill.running = true;
     }
