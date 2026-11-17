@@ -26,6 +26,12 @@
   `claude-agent-acp` is preferred over the deprecated `claude-code-acp`, and an
   adapter whose bundled Claude never installed runs on the Claude Code already
   on the box (`rashin/backend/`).
+- **A new Agent chat no longer picks up the old chat's reply, and the chat
+  list marks the one you are in (#847, #848).** A turn still running when you
+  started a new chat or opened another kept streaming into the chat on screen,
+  and the list kept marking the latest chat. Frames now stay with their own
+  session and the list follows the chat you open, in the Alt+Space bar and the
+  Rashin console.
 - **Fastfetch reads the wallpaper-tinted config again.** The effective config
   keeps the `// ryoku:` header comments from `config.jsonc`, so it is now
   cached as `fastfetch-effective.jsonc`; fastfetch rejects comments in a

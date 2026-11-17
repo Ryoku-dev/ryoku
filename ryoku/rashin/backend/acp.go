@@ -144,6 +144,9 @@ type acpConn struct {
 	// can release every one of them. Each is replied to exactly once, even
 	// when the dashboard and the terminal race to answer it.
 	openPerms map[int64][]PermOption
+	// left holds sessions this connection moved away from; their late
+	// frames must not land in whichever chat is showing now.
+	left map[string]bool
 	// askOnly is set before an internal Ask session starts. askDenied carries
 	// the first write title back to the one-shot result.
 	askOnly   bool
@@ -686,6 +689,16 @@ func (c *acpConn) applyInitResult(res json.RawMessage) {
 }
 
 func (c *acpConn) openSessionLocked(method string, params map[string]any) error {
+	opening, _ := params["sessionId"].(string)
+	c.retireSession(opening)
+	opened := false
+	defer func() {
+		if !opened {
+			c.mu.Lock()
+			delete(c.left, c.sessionID)
+			c.mu.Unlock()
+		}
+	}()
 	c.mu.Lock()
 	c.sessionReady = false
 	c.mu.Unlock()
@@ -707,6 +720,7 @@ func (c *acpConn) openSessionLocked(method string, params map[string]any) error 
 	st := out.modelState()
 	c.mu.Lock()
 	c.sessionID = out.SessionID
+	delete(c.left, out.SessionID)
 	c.startedModel = st.current
 	c.currentModel = st.current
 	c.mu.Unlock()
@@ -716,7 +730,31 @@ func (c *acpConn) openSessionLocked(method string, params map[string]any) error 
 	c.mu.Lock()
 	c.sessionReady = true
 	c.mu.Unlock()
+	opened = true
 	return nil
+}
+
+// retireSession marks the session being left and the one being
+// opened (empty for a new session) as live again.
+func (c *acpConn) retireSession(opening string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.left == nil {
+		c.left = map[string]bool{}
+	}
+	delete(c.left, opening)
+	if c.sessionID != "" && c.sessionID != opening {
+		c.left[c.sessionID] = true
+	}
+}
+
+func (c *acpConn) isLeft(id string) bool {
+	if id == "" {
+		return false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.left[id]
 }
 
 // openSession issues new/load and installs the returned session id.
@@ -739,6 +777,7 @@ func (c *acpConn) LoadSession(id string) error {
 	}
 	c.sessionMu.Lock()
 	defer c.sessionMu.Unlock()
+	c.retireSession(id)
 	c.emit(AcpEvent{Type: "replay_start", SessionID: id})
 	err := c.openSessionLocked("session/load", map[string]any{
 		"sessionId": id, "cwd": c.cwd, "mcpServers": prowlSessionMCPServers(),
@@ -942,7 +981,7 @@ func (c *acpConn) Prompt(text string, images []PromptImage) {
 			"prompt":    blocks,
 		})
 		if err != nil {
-			c.emit(AcpEvent{Type: "state", State: "dead", Err: err.Error()})
+			c.emit(AcpEvent{Type: "state", State: "dead", Err: err.Error(), SessionID: sid})
 			return
 		}
 		var out struct {
@@ -952,7 +991,7 @@ func (c *acpConn) Prompt(text string, images []PromptImage) {
 			} `json:"usage"`
 		}
 		_ = json.Unmarshal(res, &out)
-		c.emit(AcpEvent{Type: "turn_end", StopReason: out.StopReason})
+		c.emit(AcpEvent{Type: "turn_end", StopReason: out.StopReason, SessionID: sid})
 	}()
 }
 
@@ -1100,14 +1139,19 @@ func (c *acpConn) handleAgentRequest(msg rpcMsg) {
 	switch msg.Method {
 	case "session/request_permission":
 		var p struct {
-			ToolCall acpToolCall `json:"toolCall"`
-			Options  []struct {
+			SessionID string      `json:"sessionId"`
+			ToolCall  acpToolCall `json:"toolCall"`
+			Options   []struct {
 				OptionID string `json:"optionId"`
 				Name     string `json:"name"`
 				Kind     string `json:"kind"`
 			} `json:"options"`
 		}
 		_ = json.Unmarshal(msg.Params, &p)
+		if c.isLeft(p.SessionID) {
+			c.respond(*msg.ID, map[string]any{"outcome": map[string]any{"outcome": "cancelled"}})
+			return
+		}
 		opts := make([]PermOption, 0, len(p.Options))
 		for _, o := range p.Options {
 			opts = append(opts, PermOption{ID: o.OptionID, Name: o.Name, Kind: o.Kind})
@@ -1282,6 +1326,9 @@ func (c *acpConn) handleUpdate(params json.RawMessage) {
 	if json.Unmarshal(params, &p) != nil {
 		return
 	}
+	if c.isLeft(p.SessionID) {
+		return
+	}
 	u := p.Update
 	chunk := func() string {
 		var b struct {
@@ -1292,17 +1339,17 @@ func (c *acpConn) handleUpdate(params json.RawMessage) {
 	}
 	switch u.SessionUpdate {
 	case "agent_message_chunk":
-		c.emit(AcpEvent{Type: "agent_text", Text: chunk()})
+		c.emit(AcpEvent{Type: "agent_text", Text: chunk(), SessionID: p.SessionID})
 	case "agent_thought_chunk":
-		c.emit(AcpEvent{Type: "agent_thought", Text: chunk()})
+		c.emit(AcpEvent{Type: "agent_thought", Text: chunk(), SessionID: p.SessionID})
 	case "user_message_chunk":
 		raw := chunk()
 		if question, answer, rest, ok := splitHandoffBlock(raw); ok {
-			c.emit(AcpEvent{Type: "handoff", Text: question, Answer: answer})
-			c.emit(AcpEvent{Type: "user_text", Text: rest})
+			c.emit(AcpEvent{Type: "handoff", Text: question, Answer: answer, SessionID: p.SessionID})
+			c.emit(AcpEvent{Type: "user_text", Text: rest, SessionID: p.SessionID})
 			break
 		}
-		c.emit(AcpEvent{Type: "user_text", Text: stripIdentityPreamble(raw)})
+		c.emit(AcpEvent{Type: "user_text", Text: stripIdentityPreamble(raw), SessionID: p.SessionID})
 	case "tool_call", "tool_call_update":
 		var call struct {
 			Update acpToolCall `json:"update"`
@@ -1316,7 +1363,7 @@ func (c *acpConn) handleUpdate(params json.RawMessage) {
 		if tool.Status == "" && u.SessionUpdate == "tool_call" {
 			tool.Status = "pending"
 		}
-		c.emit(AcpEvent{Type: "tool", Tool: tool})
+		c.emit(AcpEvent{Type: "tool", Tool: tool, SessionID: p.SessionID})
 	case "available_commands_update":
 		cmds := make([]CommandInfo, 0, len(u.AvailableCommands))
 		for _, cm := range u.AvailableCommands {
@@ -1343,7 +1390,7 @@ func (c *acpConn) handleUpdate(params json.RawMessage) {
 			c.emit(c.currentModelsEvent())
 		}
 	case "usage_update":
-		c.emit(AcpEvent{Type: "usage", UsageSize: u.Size, UsageUsed: u.Used})
+		c.emit(AcpEvent{Type: "usage", UsageSize: u.Size, UsageUsed: u.Used, SessionID: p.SessionID})
 	case "session_info_update":
 		c.emit(AcpEvent{Type: "session_info", SessionID: p.SessionID, SessionTitle: cleanTitle(u.Title)})
 	}

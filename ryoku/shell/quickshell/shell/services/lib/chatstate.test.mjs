@@ -133,6 +133,23 @@ test("replay_start clears the stream and stale approvals, replay_end resumes liv
     assert.equal(s.replaying, false);
 });
 
+test("the active session follows a load, a new chat and a late title", () => {
+    let s = run([
+        { type: "session_info", sessionId: "a", title: "First" },
+        { type: "history", sessions: [{ id: "a", title: "First" }, { id: "b", title: "Second" }] }
+    ]);
+    assert.equal(s.session.id, "a");
+    s = applyEvent(s, { type: "replay_start", sessionId: "b" });
+    assert.deepEqual(s.session, { id: "b", title: "Second" });
+    s = applyEvent(s, { type: "session_info", sessionId: "b", title: "" });
+    assert.deepEqual(s.session, { id: "b", title: "Second" });
+    s = applyEvent(s, { type: "session_info", sessionId: "c", title: "" });
+    assert.deepEqual(s.session, { id: "c", title: "" });
+    // a rejoin replay carries no session id and must not move the highlight
+    s = applyEvent(s, { type: "replay_start" });
+    assert.equal(s.session.id, "c");
+});
+
 test("models frame records model, pick, and Prowl routing state", () => {
     const initial = initialState();
     assert.equal(initial.pick, "");
