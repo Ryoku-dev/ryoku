@@ -9,7 +9,8 @@ maps to a place under `~/.config` (except the small helper script noted below).
   shell. `kitty.conf` includes `current-theme.conf`, which carries the Ryoku dark
   palette (background `#171717`, foreground `#CCD0CF`, accent `#F25623`).
 - `xfce4/helpers.rc` routes Exo's terminal launches through `ryoku-terminal`,
-  which uses the terminal selected in Ryoku Hub > Keybinds > Apps.
+  which uses the terminal selected in Ryoku Hub > Keybinds > Apps. The packaged
+  `ryoku-terminal.desktop` helper also supports systems with xfce4-mime-helper.
 - `fastfetch/` The branded system readout. `config.jsonc` owns its emblem,
   content and fixed colours. `ryoku-fastfetch` can merge the Matugen palette
   sibling into a cached effective config, leaving the user's file untouched.

@@ -377,6 +377,11 @@ for pkg in "${packages[@]}"; do
     [[ -f $helper ]] || fail "ryoku-desktop Arch package is missing Exo's terminal helper config"
     cmp -s "$root/ryoku/apps/xfce4/helpers.rc" "$helper" \
       || fail "ryoku-desktop Arch package has a different Exo terminal helper config"
+    for edition in arch void fedora fedora-spec; do
+      helper="$work/staged/$pkg-$edition/usr/share/xfce4/helpers/ryoku-terminal.desktop"
+      cmp -s "$root/ryoku/apps/xfce4/helpers/ryoku-terminal.desktop" "$helper" \
+        || fail "ryoku-desktop $edition package is missing the Xfce terminal helper"
+    done
     [[ -f $work/staged/$pkg-arch/usr/share/libalpm/hooks/96-ryoku-polkit-reload.hook ]] \
       || fail "ryoku-desktop Arch package is missing the polkit reload hook"
     for edition in arch void fedora fedora-spec; do

@@ -1,6 +1,8 @@
 # Changelog: ryoku/apps/
 
 ## Unreleased
+- **Thunar follows the terminal picked in Settings.** Folder paths and quoted
+  commands stay intact with or without the Xfce preferred-app helper.
 
 ### Added
 - `ryostore/`: **Apps is a marketplace page.** The Apps catalogue opens with a

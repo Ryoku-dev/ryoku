@@ -1,8 +1,20 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/usr/bin/env python3
+import os
+import shlex
+import sys
 
-if (($#)); then
-	exec ryoku-app terminal -- "$@"
-fi
+args = sys.argv[1:]
+if args[:1] == ["--"]:
+    args = args[1:]
+elif len(args) == 1:
+    # Exo without xfce4-mime-helper passes one quoted command line
+    try:
+        args = shlex.split(args[0])
+    except ValueError as error:
+        print(f"ryoku-terminal: {error}", file=sys.stderr)
+        sys.exit(2)
 
-exec ryoku-app terminal
+command = ["ryoku-app", "terminal"]
+if args:
+    command += ["--", *args]
+os.execvp(command[0], command)
