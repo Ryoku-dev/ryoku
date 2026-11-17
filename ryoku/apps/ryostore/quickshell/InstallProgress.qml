@@ -20,7 +20,7 @@ Item {
         if (!installed)
             return "";
         if (category === "rices")
-            return I18n.tr("Switch it in Ryoku Hub → Appearance → Rices.");
+            return I18n.tr("Switch it in the Ryogami picker's Rices tab.");
         if (category === "decors")
             return I18n.tr("Choose it in Ryoku Hub → Profile → Hero.");
         if (category === "barstyles")

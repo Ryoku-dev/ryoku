@@ -63,6 +63,11 @@ PanelWindow {
         picker.show()
         pickerState.openSheet("settings", tab ? { tab: tab } : ({}))
     }
+    function openRices() {
+        pickerState.closeSheet()
+        pickerState.setCollection("rices")
+        picker.show()
+    }
 
     function _screenByName(name) {
         var ss = Quickshell.screens

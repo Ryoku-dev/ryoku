@@ -60,6 +60,8 @@
   in the middle of the page, Bluetooth was capped at 720 px and pinned left
   with its device list narrower still, and the Hotspot form at 600 px, while
   the other tabs span the page.
+- **Exported rices point to the Ryogami picker's Rices tab (#813).**
+  The sharing instructions no longer name a missing Settings page.
 - **Graphics & Power offers Performance on laptops with a monitor port on the
   discrete GPU.** The page says it applies only while a monitor is plugged in
   there at login, and that the built-in screen can then stay dark after sleep.

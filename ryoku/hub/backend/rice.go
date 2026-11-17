@@ -1597,7 +1597,7 @@ func exportReadme(r Rice) string {
 	if len(r.Look["decor"]) > 0 {
 		b.WriteString("  decor-*      the desktop decors' pictures\n")
 	}
-	fmt.Fprintf(&b, "\nDrop this folder into ~/.config/ryoku/rices/ and apply it from\nRyoku Settings > Appearance > Rices, or `ryoku-hub rice apply %s`.\n", r.Slug)
+	fmt.Fprintf(&b, "\nDrop this folder into ~/.config/ryoku/rices/ and apply it from\nthe Ryogami picker's Rices tab, or `ryoku-hub rice apply %s`.\n", r.Slug)
 	return b.String()
 }
 

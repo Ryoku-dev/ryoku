@@ -408,7 +408,9 @@ function competingActionLabel(busyKey, actionKey, installStage) {
 }
 
 function secondaryAction(item) {
-    return (item && item.hasSettings && isInstalled(item)) ? "OPEN IN SETTINGS" : "";
+    if (!item || !item.hasSettings || !isInstalled(item))
+        return "";
+    return item.category === "rices" ? "OPEN IN RYOGAMI" : "OPEN IN SETTINGS";
 }
 
 function sortCategories(categories) {

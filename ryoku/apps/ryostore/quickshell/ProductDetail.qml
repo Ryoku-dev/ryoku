@@ -919,7 +919,7 @@ FocusScope {
                 }
                 Btn {
                     objectName: "ryostore-detail-settings"
-                    text: I18n.tr("OPEN IN SETTINGS")
+                    text: I18n.tr(StoreLogic.secondaryAction(detail.actionItem))
                     visible: StoreLogic.secondaryAction(detail.actionItem) !== ""
                     armed: visible
                     Accessible.role: Accessible.Button

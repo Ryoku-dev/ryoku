@@ -69,6 +69,8 @@
   joined before the app (the Quickshell bar) could not reach it and drew
   nothing until the shell restarted. The watcher now announces the item as
   `busname/path`, the same key it lists and unregisters (`ipc/tray.go`).
+- **RyoStore opens rice management directly in the picker (#813).**
+  The handoff opens the Rices tab even while the picker is already open or starting.
 - **Wallpaper Engine video wallpapers animate on hover in the picker (#807).**
   Only local videos got the small preview clip, so workshop video cards stayed
   still; they now get one too, built on the thumbnail job limit and skipped

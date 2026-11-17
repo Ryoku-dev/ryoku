@@ -202,6 +202,8 @@
   v0.56.0-beta.19") via `ryoku version --pretty` (`config.jsonc`).
 
 ### Fixed
+- `ryostore/`: **Installed rices open the Ryogami picker's Rices tab (#813).**
+  The management action and installation hint no longer point at a missing Hub page.
 - `fish/`, `bash/`, `zsh/`: **Light terminal palettes keep typed commands
   readable.** Shell syntax now follows the same generated wallpaper colours as
   the terminal, with the existing dark scheme kept as the offline fallback.

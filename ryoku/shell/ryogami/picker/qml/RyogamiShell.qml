@@ -9,6 +9,7 @@ Scope {
 
     readonly property bool _startVisible: Quickshell.env("RYOGAMI_START_VISIBLE") === "1"
     readonly property var _startSettings: Quickshell.env("RYOGAMI_START_SETTINGS")
+    readonly property bool _startRices: Quickshell.env("RYOGAMI_START_RICES") === "1"
     property bool _startupPending: false
 
     Picker { id: picker }
@@ -17,6 +18,7 @@ Scope {
     function hide() { picker.hide() }
     function toggle() { picker.toggle() }
     function settings(tab) { picker.openSettings(tab) }
+    function rices() { picker.openRices() }
     function reportState() {
         if (Daemon.connected)
             Daemon.call("picker.state", { visible: picker.active, busy: picker.busy })
@@ -24,7 +26,9 @@ Scope {
 
     function completeStartup() {
         shell._startupPending = false
-        if (typeof shell._startSettings === "string")
+        if (shell._startRices)
+            shell.rices()
+        else if (typeof shell._startSettings === "string")
             shell.settings(shell._startSettings)
         else if (shell._startVisible)
             shell.show()
@@ -43,6 +47,8 @@ Scope {
                 shell.toggle()
             else if (name === "ryogami.wall.settings")
                 shell.settings(data && data.tab ? data.tab : "")
+            else if (name === "ryogami.wall.rices")
+                shell.rices()
         }
         function onReconnected() {
             if (shell._startupPending)

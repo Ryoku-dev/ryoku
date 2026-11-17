@@ -451,6 +451,13 @@ func (m *managedProcess) ensure(extra ...string) bool {
 				data: map[string]interface{}{},
 			}
 			for _, entry := range extra {
+				if entry == "RYOGAMI_START_RICES=1" {
+					pending = pickerPendingEvent{
+						name: "ryogami.wall.rices",
+						data: map[string]interface{}{},
+					}
+					break
+				}
 				if tab, ok := strings.CutPrefix(entry, "RYOGAMI_START_SETTINGS="); ok {
 					pending = pickerPendingEvent{
 						name: "ryogami.wall.settings",
