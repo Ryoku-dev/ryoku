@@ -245,11 +245,11 @@ func TestBinderPullsEveryCardInOneBatch(t *testing.T) {
 	picture := jpegOf(t, image.NewRGBA(image.Rect(0, 0, 56, 39)), 80)
 	liveDesign := design(liveID, "live words")
 	liveDesign.kind, liveDesign.threads = 2, 24
-	live, _ := recordSign(liveDesign, picture, liveSeed, 1000)
+	live, _ := recordSign(liveDesign, picture, liveSeed, 1000, "")
 	g.records[liveID], g.pictures[live.Picture] = live, picture
 	heldDesign := design(heldID, "badge words")
 	heldDesign.kind, heldDesign.gallerySrc = 1, "hawk"
-	held, _ := recordSign(heldDesign, nil, heldSeed, 1000)
+	held, _ := recordSign(heldDesign, nil, heldSeed, 1000, "")
 	g.records[heldID] = held
 	g.badges = []string{badgeTestCode(t, 1, 4, owner, heldSeed, "friend")}
 	sha := sha256.Sum256([]byte("pack"))
@@ -314,9 +314,9 @@ func TestBinderPullsEveryCardInOneBatch(t *testing.T) {
 	// the live card changes, a replayed older copy of the badge holder's card comes along, and
 	// the badge is no longer vouched for
 	liveDesign.name = "newer words"
-	newer, _ := recordSign(liveDesign, picture, liveSeed, 1001)
+	newer, _ := recordSign(liveDesign, picture, liveSeed, 1001, "")
 	g.records[liveID] = newer
-	older, _ := recordSign(design(heldID, "replayed words"), nil, heldSeed, 999)
+	older, _ := recordSign(design(heldID, "replayed words"), nil, heldSeed, 999, "")
 	g.extra = []any{older}
 	g.badges = nil
 	makeDue(t)
@@ -356,7 +356,7 @@ func TestBadgeHolderPullsOnEveryLook(t *testing.T) {
 	}
 	friend := bytes.Repeat([]byte{31}, 32)
 	id := cardID(badgeDevicePublic(friend))
-	record, _ := recordSign(codedDesign{cardID: id, name: "record words"}, nil, friend, 1000)
+	record, _ := recordSign(codedDesign{cardID: id, name: "record words"}, nil, friend, 1000, "")
 	g.records[record.ID] = record
 	if _, e = addCard(sharedCard(t, codedDesign{cardID: id, name: "picture name"}, "png")); e != nil {
 		t.Fatal(e)
@@ -391,7 +391,7 @@ func TestBinderPullTimingComesFromTheGate(t *testing.T) {
 	g := newFakeGate(t)
 	seed := bytes.Repeat([]byte{21}, 32)
 	id := cardID(badgeDevicePublic(seed))
-	record, _ := recordSign(codedDesign{cardID: id, name: "record words"}, nil, seed, 1000)
+	record, _ := recordSign(codedDesign{cardID: id, name: "record words"}, nil, seed, 1000, "")
 	g.records[record.ID] = record
 	g.now = time.Date(2026, 11, 16, 20, 30, 0, 0, time.UTC).Unix()
 	skew := -2 * time.Hour

@@ -293,14 +293,17 @@ the card or Home's plate as they will be; its tabs are:
   gallery figure. A badge holder's picture may move (see Moving pictures
   below), and the tab offers **Use my live wallpaper** when Ryogami's wallpaper
   is a video within the size; everyone else reads that moving pictures come
-  with a team badge.
+  with a team badge. A badge holder with their own picture also gets
+  **Cutout for the figure breaking the frame** (see Card styles below).
 - **Adjust** (own picture): the look (Photo, Black & white or Dots), Fill or
   Whole picture, zoom, position, brightness, contrast, colour (photo) or dot
   size and ink (dots), and Reset. Dragging the picture on the preview moves it
   and the wheel zooms it. A new picture starts as a photo filling its frame.
-- **Words**: the name, the line under it and the big words.
-- **Layout**: whether Home shows the plate or the card (`homeView`), the
-  plate's parts and the figure's side.
+- **Words**: the name, the line under it and the big words; with the Stand
+  card style, the Stand's name too.
+- **Layout**: a badge holder's **Card style** (Classic or Stand), whether Home
+  shows the plate or the card (`homeView`), the plate's parts and the figure's
+  side.
 - **Share**: the card's rarity, the tier ladder (resting on a tier shows its
   look on the preview), Copy, Save, Binder and Back to stock
   (`components/about/CardShare.qml`). Binder closes the studio and opens the collection.
@@ -343,6 +346,84 @@ rest the loader is inactive, nothing decodes, and the figure shows the first
 frame. A badge lost later leaves the still. The shared card picture, the
 record's picture and a `.ryoprofile` stay still: the card is grabbed at rest,
 and export packs the first frame as `hero.png`.
+
+**Card styles.** A badge holder chooses how their own card is drawn, per
+machine, in Layout: `style` in `profile.json`, `classic` (the trading card,
+the default) or `stand`. The rule is the moving pictures' one: TradingCard
+draws a style only while `Badge.ownBadge` holds, so a lost badge brings the
+classic card back, and a `.ryoprofile` whose `style` is `stand` is refused on a
+machine without a badge ("the Stand card style comes with a team badge, and
+this machine holds none"). A style is Ryoku's own code, never part of a team
+design pack, which carries no QML.
+
+The Stand style (`components/about/styles/StandCard.qml`) draws the card as a
+JoJo Stand card on a manga page: the machine is the holder's Stand and its
+parts are its parameters. TradingCard keeps computing every fact and keeps
+drawing the card code's rulers over the page, so the code, the seal (`Emblem`,
+stuck on as a sticker with a star), the picture (`CardFigure`, moving pictures
+included), sharing and the binder all work as on the classic card. The page
+holds:
+
+- the title 「NAMEの奇妙な機械」 with "NAME'S BIZARRE MACHINE", set smaller to fit
+  a long name, and the part line, whose part is the release's major version;
+- the holder's own picture in the panel, with a speech balloon of the motto, the
+  オラオラオラ sound effect in its burst and ゴゴゴ and ドドド at the edges;
+- the Stand user's bar: name, edition line, up time, packages and kernel, and 力
+  with the power;
+- the three parts, each with the grade of the parameter it feeds;
+- the Stand's parameter chart (`StandChart.qml`) and the Stand's name in 『』:
+  the Words field, or one taken from the motto's last words
+  (`registry/stand.js standName`); the stock motto names it POWER & BEAUTY;
+- TO BE CONTINUED, carrying the card number, tier and points.
+
+The grades (`registry/stand.js`, tested in `stand.test.mjs`) are A 超スゴイ to E
+超ニガテ: the highest letter whose floor the value reaches, else E. Floors run D,
+C, B, A on the steps `registry/rarity.js` already scores, and the card prints
+them as a legend.
+
+| Parameter | Read from | D | C | B | A |
+|---|---|---|---|---|---|
+| 破壊力 Destructive power | graphics class | 2 | 3 | 4 | 5 |
+| スピード Speed | threads | 4 | 8 | 16 | 32 |
+| 射程距離 Range | display width | 1280 | 1920 | 2560 | 3840 |
+| 持続力 Durability | memory, GB | 8 | 16 | 32 | 64 |
+| 精密動作性 Precision | refresh, Hz | 60 | 90 | 144 | 240 |
+| 成長性 Potential | rarity points (the tier's) | 6 | 9 | 12 | 15 |
+
+A holder may add a cutout with `ryoku-hub profile cutout <path>`
+(`backend/profilecutout.go`). It is the figure cut from their own picture on a
+clear ground, and the Stand card lays it over the panel's border, above and
+beside the panel, never below it where the code runs. The cutout checks:
+
+- it needs a badge and the holder's own picture;
+- it is a PNG of up to 8 MB, 64 to 4096 pixels a side;
+- at least 2% of its pixels are clear and 2% solid;
+- its shape is within 2% of the picture's (still frame or video poster).
+
+It is kept as `profile/hero-cutout.png` with `hero.cutout: true`, and
+`--clear` removes it. A new picture clears it, and a moving picture draws
+without it. The cutout also lays the focus lines and a purple Stand behind the
+figure. Without a cutout, the panel is a clean manga panel. A `.ryoprofile`
+carries the cutout beside the picture. Import checks it as a PNG with a clear
+ground, and sets `hero.cutout` to false when none came with it.
+
+At rest the page is one still and nothing runs. Pointed at, THE WORLD stops time
+from the pointer: an inverted sphere with a magenta and a cyan skin covers the
+page, 「ザ・ワールド」 lands, and after 「時は動き出す」 the sphere closes. The card
+code's rulers are drawn above it and never change. Then the chart draws in
+corner by corner, each grade landing, and the page stirs:
+
+- the menacing glyphs rise and throb;
+- the focus lines flicker;
+- the picture splits red and cyan;
+- the Stand pulses;
+- the sound effect shakes.
+
+Let go, the frame freezes yellowed (`shaders/stand-world.frag`), TO BE
+CONTINUED slides in above the tint, and the page settles. Reduced motion keeps
+the still. The share still and the record's picture are drawn at rest; the
+record's still keeps the panel clean of the balloon, sound effect, ゴゴゴ and
+cutout, as it leaves off the seal.
 
 #### Badges and team designs
 
@@ -432,6 +513,16 @@ sent again six seconds later. Any other refusal is shown with the gate's
 reason. A sync or status error clears itself once the next one succeeds.
 team.ryoku.dev deletes a record nobody has changed in 90 days; binders keep the
 copy they have.
+
+A card with a style is published as a version 3 record. It has the version 2
+fields plus `style`, signed with the domain `ryoku-card-v3` over the version 2
+payload, then the style's byte length as two big-endian bytes, then the style
+in UTF-8. Only a machine whose badge holds builds one. A classic card stays
+version 2 and never says `classic`. team.ryoku.dev refuses a styled record from
+a machine without an active badge. A binder draws a friend's style only when
+the gate vouches for an active badge on that card whose device signed the
+record. A style id it doesn't know yet is drawn classic, and a card added from
+its picture alone is always classic.
 
 **The binder's check.** One request (`POST /v1/cards/batch`,
 `backend/cardpull.go`) carries every card id with the version the binder holds,

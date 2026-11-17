@@ -34,17 +34,24 @@ func profileConfigPath() string { return filepath.Join(profileDir(), "profile.js
 
 func profileHeroDir() string { return filepath.Join(profileDir(), "profile") }
 
-// profileModel peeks at the hero fields. Other fields stay byte-exact unless
-// import must rewrite a custom hero's source to the canonical PNG filename.
+// profileModel peeks at the card style and hero fields. Other fields stay byte-exact unless
+// import must rewrite a custom hero's source to the canonical PNG filename or drop a cutout
+// that didn't travel with it.
 type profileModel struct {
-	Hero struct {
+	Style string `json:"style"`
+	Hero  struct {
 		Kind   string `json:"kind"`
 		Source string `json:"source"`
+		Cutout bool   `json:"cutout"`
 	} `json:"hero"`
 }
 
 const maxProfileBytes = 64 << 10
-const maxProfileEnvelopeBytes = 24 << 20
+
+// the hero and the cutout travel as base64, a third larger than their bytes
+const maxProfileEnvelopeBytes = (maxPictureBytes+maxCutoutBytes)/3*4 + 1<<20
+
+var errStandNeedsBadge = errors.New("the Stand card style comes with a team badge, and this machine holds none")
 
 var profilePictureName = regexp.MustCompile(`^[a-z0-9_-]+\.(png|jpg|jpeg|gif)$`)
 
@@ -75,8 +82,8 @@ func profileObject(raw json.RawMessage) (map[string]json.RawMessage, error) {
 	return fields, nil
 }
 
-// profileWithSource points the custom hero at another file, the other fields kept.
-func profileWithSource(raw json.RawMessage, source string) (json.RawMessage, error) {
+// profileWithHero sets one hero field, the other fields kept.
+func profileWithHero(raw json.RawMessage, key string, value any) (json.RawMessage, error) {
 	fields, err := profileObject(raw)
 	if err != nil {
 		return nil, err
@@ -85,7 +92,7 @@ func profileWithSource(raw json.RawMessage, source string) (json.RawMessage, err
 	if err != nil {
 		return nil, err
 	}
-	if hero["source"], err = json.Marshal(source); err != nil {
+	if hero[key], err = json.Marshal(value); err != nil {
 		return nil, err
 	}
 	if fields["hero"], err = json.Marshal(hero); err != nil {
@@ -155,6 +162,8 @@ func validateProfile(raw json.RawMessage) (profileModel, error) {
 	for key, value := range fields {
 		err = nil
 		switch key {
+		case "style":
+			err = profileChoice(value, "", "classic", "stand")
 		case "preset":
 			err = profileChoice(value, "", "full", "minimal")
 		case "heroSide":
@@ -187,6 +196,8 @@ func validateProfile(raw json.RawMessage) (profileModel, error) {
 				switch field {
 				case "name", "watermarkGlyph":
 					err = profilePlainText(content, 128)
+				case "standName":
+					err = profilePlainText(content, 64)
 				case "tagline", "marginalia":
 					err = profilePlainText(content, 512)
 				case "epithets", "verse":
@@ -212,6 +223,9 @@ func validateProfile(raw json.RawMessage) (profileModel, error) {
 	if err := json.Unmarshal(raw, &model); err != nil {
 		return model, err
 	}
+	if model.Style == "stand" && !badgeHolder() {
+		return model, errStandNeedsBadge
+	}
 	return model, nil
 }
 
@@ -232,7 +246,7 @@ func validateProfileHero(raw json.RawMessage) error {
 			}
 		case "style":
 			err = profileChoice(value, "", "photo", "mono", "dither")
-		case "fit", "invert":
+		case "fit", "invert", "cutout":
 			if string(bytes.TrimSpace(value)) != "true" && string(bytes.TrimSpace(value)) != "false" {
 				err = fmt.Errorf("hero flag must be boolean")
 			}
@@ -282,11 +296,13 @@ type ryoHero struct {
 }
 
 // ryoEnvelope is the .ryoprofile file: a version tag, the profile.json object
-// verbatim, and (only for a custom hero) the packed image, else null.
+// verbatim, (only for a custom hero) the packed image, else null, and the hero's
+// cutout when the card stands one in front of it.
 type ryoEnvelope struct {
 	Ryoprofile int             `json:"ryoprofile"`
 	Profile    json.RawMessage `json:"profile"`
 	Hero       *ryoHero        `json:"hero"`
+	Cutout     *ryoHero        `json:"cutout,omitempty"`
 }
 
 // exportProfile packs profile.json (and a custom hero image, if any) into a
@@ -316,7 +332,7 @@ func exportProfile(dstPath string) error {
 			if img, err = heroStill(name); err != nil {
 				return fmt.Errorf("custom hero image: %w", err)
 			}
-			if env.Profile, err = profileWithSource(env.Profile, "hero.png"); err != nil {
+			if env.Profile, err = profileWithHero(env.Profile, "source", "hero.png"); err != nil {
 				return err
 			}
 			name = "hero.png"
@@ -329,6 +345,14 @@ func exportProfile(dstPath string) error {
 			}
 		}
 		env.Hero = &ryoHero{Name: name, B64: base64.StdEncoding.EncodeToString(img)}
+		// a cutout that can't be read stays home, and the importer draws the card without one
+		if m.Hero.Cutout {
+			if cutout, err := readPictureFile(filepath.Join(profileHeroDir(), profileCutoutName)); err == nil {
+				if clean, _, err := cutoutImage(cutout); err == nil {
+					env.Cutout = &ryoHero{Name: profileCutoutName, B64: base64.StdEncoding.EncodeToString(clean)}
+				}
+			}
+		}
 	}
 	out, err := json.Marshal(env)
 	if err != nil {
@@ -387,7 +411,7 @@ func importProfile(srcPath string) error {
 			return fmt.Errorf(".ryoprofile hero PNG is too large")
 		}
 		if model.Hero.Source != "hero.png" {
-			if profile, err = profileWithSource(profile, "hero.png"); err != nil {
+			if profile, err = profileWithHero(profile, "source", "hero.png"); err != nil {
 				return err
 			}
 		}
@@ -395,31 +419,47 @@ func importProfile(srcPath string) error {
 	} else if model.Hero.Kind == "custom" {
 		return fmt.Errorf(".ryoprofile custom hero image is missing")
 	}
-	paths := []string{profileConfigPath()}
-	if heroPath != "" {
-		paths = append(paths, heroPath)
+	cutoutBytes, cutoutPath := []byte(nil), ""
+	if model.Hero.Cutout {
+		if model.Hero.Kind == "custom" {
+			cutoutBytes = packedCutout(env.Cutout)
+		}
+		if cutoutBytes == nil {
+			if profile, err = profileWithHero(profile, "cutout", false); err != nil {
+				return err
+			}
+		} else {
+			cutoutPath = filepath.Join(profileHeroDir(), profileCutoutName)
+		}
 	}
+	// the pictures land before profile.json, which is what points the card at them
+	var paths []string
+	var files [][]byte
+	if heroPath != "" {
+		paths, files = append(paths, heroPath), append(files, heroBytes)
+	}
+	if cutoutPath != "" {
+		paths, files = append(paths, cutoutPath), append(files, cutoutBytes)
+	}
+	paths, files = append(paths, profileConfigPath()), append(files, profile)
 	before, err := snapshotFiles(paths...)
 	if err != nil {
 		return err
 	}
-	if heroPath != "" {
-		if err := atomicWrite(heroPath, heroBytes, 0o644); err != nil {
+	for i, path := range paths {
+		if err := atomicWrite(path, files[i], 0o644); err != nil {
+			if rerr := before.restore(); rerr != nil {
+				return errors.Join(err, fmt.Errorf("restore profile: %w", rerr))
+			}
 			return err
 		}
-	}
-	if err := atomicWrite(profileConfigPath(), profile, 0o644); err != nil {
-		if rerr := before.restore(); rerr != nil {
-			return errors.Join(err, fmt.Errorf("restore profile: %w", rerr))
-		}
-		return err
 	}
 	return nil
 }
 
 func runProfile(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("profile needs export|import|card|code|picture|wallpaper")
+		return fmt.Errorf("profile needs export|import|card|code|picture|cutout|wallpaper")
 	}
 	switch args[0] {
 	case "export":
@@ -448,6 +488,8 @@ func runProfile(args []string) error {
 			return err
 		}
 		return printJSON(saved)
+	case "cutout":
+		return runCutout(args[1:])
 	case "wallpaper":
 		return printJSON(liveWallpaper())
 	default:

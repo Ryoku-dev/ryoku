@@ -115,7 +115,7 @@ func TestRecordSelectsOnlyMatchingCardID(t *testing.T) {
 	id := cardID(badgeDevicePublic(device))
 	other := bytes.Repeat([]byte{8}, 32)
 	g.badges = []string{badgeTestCode(t, 1, 5, owner, other, "other"), badgeTestCode(t, 1, 4, owner, device, "neur0map")}
-	record, e := recordSign(codedDesign{cardID: id, name: "real"}, nil, device, 1000)
+	record, e := recordSign(codedDesign{cardID: id, name: "real"}, nil, device, 1000, "")
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -199,11 +199,11 @@ func TestRecordCannotClaimAnotherDeviceCardID(t *testing.T) {
 	b, _ := badgeParse(badgeTestCode(t, 1, 4, owner, device, "victim"))
 	attacker, _ := badgeParse(badgeTestCode(t, 1, 1, owner, other, "attacker"))
 	d := codedDesign{cardID: cardID(b.device), name: "victim"}
-	record, e := recordSign(d, nil, device, 1000)
+	record, e := recordSign(d, nil, device, 1000, "")
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e := recordSign(d, nil, other, 1000); e == nil {
+	if _, e := recordSign(d, nil, other, 1000, ""); e == nil {
 		t.Fatal("signed another device's namespace")
 	}
 	payload, _ := recordPayload(record)
@@ -213,7 +213,7 @@ func TestRecordCannotClaimAnotherDeviceCardID(t *testing.T) {
 			t.Fatal("foreign device record verified")
 		}
 	}
-	record, _ = recordSign(d, nil, device, 1000)
+	record, _ = recordSign(d, nil, device, 1000, "")
 	body, _ := base64.StdEncoding.DecodeString(record.Body)
 	body[6] ^= 1
 	record.Body = base64.StdEncoding.EncodeToString(body)

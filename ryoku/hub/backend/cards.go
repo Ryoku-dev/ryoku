@@ -66,6 +66,8 @@ type binderCard struct {
 	// last one verified after the service let it go, and empty for the shared picture alone
 	Record        string `json:"record"`
 	RecordUpdated int64  `json:"recordUpdated"`
+	// Style is the built-in card style of a badge-verified record; a shared picture is classic
+	Style string `json:"style,omitempty"`
 }
 
 func cardsDir() string {

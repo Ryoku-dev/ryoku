@@ -3,6 +3,19 @@
 ## Unreleased
 
 ### Added
+- **The Stand card style for badge holders.** Card studio > Layout > Card style
+  draws your card as a JoJo Stand card on a manga page
+  (`components/about/styles/StandCard.qml`): 「NAMEの奇妙な機械」, your picture in
+  an inked panel with a speech balloon of your motto, the sound effect and ゴゴゴ,
+  and the machine graded A to E on the Stand's six parameters
+  (`registry/stand.js`). A cutout of your picture's figure (Picture > Cutout,
+  `ryoku-hub profile cutout`) lets it break out over the panel's border. The
+  Stand gets its name from your motto, or from Words. Pointed at, THE WORLD
+  stops time and the chart draws in; let go, it freezes yellowed under TO BE
+  CONTINUED. At rest and with reduced motion it is still. The card code,
+  sharing, the seal and moving pictures work as on the classic card. Friends
+  see the style through a signed version 3 live record, which only a machine
+  with a badge publishes. Without a badge the card is classic.
 - **Moving card pictures for badge holders.** With a badge, the card's picture
   can be an animated GIF or WebP or a short video (MP4, WebM or MKV, up to
   10 MB and 60 seconds), and the card studio offers your live wallpaper when it

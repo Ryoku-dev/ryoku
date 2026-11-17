@@ -8,6 +8,7 @@ import Ryoku.Ui.Singletons
 import "../../Singletons"
 import ".."
 import "../../registry/rarity.js" as Rarity
+import "../../registry/stand.js" as Stand
 
 // the card studio: everything about the system card in one place, beside a live copy of it.
 // Picture chooses the figure; Adjust frames and tunes your own picture (drag it on the
@@ -59,6 +60,10 @@ Dialog {
         ? imagePick.urlOf(root.configDir + "/profile/" + String(root.hero.source).replace(/^hero\.(mp4|webm|mkv)$/, "hero-$1.png")) : ""
     // moving pictures are a badge holder's, the rule the backend keeps too
     readonly property bool movingAllowed: !!Badge.ownBadge
+    // the card's style is a badge holder's choice too; without the badge the card is classic
+    readonly property bool standStyle: root.movingAllowed && root.val("style", "classic") === "stand"
+    property string cutoutError: ""
+    property bool cutting: false
     // Ryogami's wallpaper when it is a video: { video, path, bytes, size, limit }
     property var wallpaper: ({})
     readonly property bool wallpaperFits: root.wallpaper.video === true && root.wallpaper.bytes <= root.wallpaper.limit
@@ -104,7 +109,8 @@ Dialog {
     onClosed: { root.previewTier = -1; Badge.clearPreview(); }
 
     // the picked file goes to ryoku-hub, which reads what it is from its bytes and keeps it
-    // beside profile.json; a new picture starts as a photo, framed to fill
+    // beside profile.json; a new picture starts as a photo, framed to fill, and the cutout of
+    // the last one no longer fits it
     function adopt(url) {
         var path = imagePick.localPath(url);
         if (path === "" || root.adopting)
@@ -121,8 +127,10 @@ Dialog {
                 return;
             }
             ProfileStore.pictureReplaced();
+            if (root.hero.cutout === true)
+                Changes.run(["ryoku-hub", "profile", "cutout", "--clear"], function () {});
             root.setHero({ kind: "custom", source: saved.source, style: "photo", fit: false, zoom: 1, focalX: 0.5, focalY: 0.5,
-                           brightness: 0, contrast: 0, saturation: 0 }, I18n.tr("Card figure"));
+                           brightness: 0, contrast: 0, saturation: 0, cutout: false }, I18n.tr("Card figure"));
             if (saved.still) {
                 root.imageError = I18n.tr("Moving pictures come with a team badge, so the card keeps the first frame.");
                 root.imageNote = true;
@@ -130,6 +138,48 @@ Dialog {
                 root.tab = "adjust";
             }
         }, { timeout: 60000 });
+    }
+    // a badge holder's cutout: the figure cut from the card picture on a clear ground, which the
+    // Stand card lays over its panel's border
+    function adoptCutout(url) {
+        var path = cutPick.localPath(url);
+        if (path === "" || root.cutting)
+            return;
+        root.cutoutError = "";
+        root.cutting = true;
+        Changes.run(["ryoku-hub", "profile", "cutout", path], function (ok, out, err) {
+            root.cutting = false;
+            var saved = null;
+            try { saved = ok ? JSON.parse(out) : null; } catch (e) { saved = null; }
+            if (!saved || saved.cutout !== "hero-cutout.png") {
+                root.cutoutError = root.cutoutWords(err);
+                return;
+            }
+            ProfileStore.pictureReplaced();
+            root.setHero({ cutout: true }, I18n.tr("Card cutout"));
+        }, { timeout: 30000 });
+    }
+    function clearCutout() {
+        root.cutoutError = "";
+        Changes.run(["ryoku-hub", "profile", "cutout", "--clear"], function () {});
+        root.setHero({ cutout: false }, I18n.tr("Card cutout"));
+    }
+    function cutoutWords(err) {
+        var s = String(err || "").trim().replace(/^ryoku-hub:\s*/, "");
+        var m = /needs your picture's shape \((\d+x\d+)\); this one is (\d+x\d+)/.exec(s);
+        if (m)
+            return I18n.tr("The cutout needs your picture's shape (%1); this one is %2. Cut it from the same picture.").replace("%1", m[1]).replace("%2", m[2]);
+        if (/no clear ground/.test(s))
+            return I18n.tr("This picture has no clear ground. A cutout keeps only the figure, on transparency.");
+        if (/PNG with a clear ground/.test(s))
+            return I18n.tr("A cutout is a PNG with a clear ground.");
+        if (/choose your own picture first/.test(s))
+            return I18n.tr("Choose your own picture first: the cutout is cut from it.");
+        if (/come with a team badge/.test(s))
+            return I18n.tr("A cutout comes with a team badge.");
+        if ((m = /file is ([\d.]+ MB); a cutout can be up to ([\d.]+ MB)/.exec(s)))
+            return I18n.tr("This file is %1. A cutout can be up to %2.").replace("%1", m[1]).replace("%2", m[2]);
+        return s !== "" ? I18n.tr("That cutout could not be used: %1.").replace("%1", s) : I18n.tr("That cutout could not be used.");
     }
     // ryoku-hub's refusals, in the reader's words; the sizes it names stay as it measured them
     function pictureWords(err) {
@@ -167,6 +217,14 @@ Dialog {
         currentFolder: "file://" + Paths.picturesDir
         videos: root.movingAllowed
         onAccepted: root.adopt(imagePick.selectedFile)
+    }
+    ImageChooser {
+        id: cutPick
+        parent: root.parent
+        overlayParent: root.hub ? root.hub.overlayItem : null
+        title: I18n.tr("Choose a cutout of your picture's figure")
+        currentFolder: "file://" + Paths.picturesDir
+        onAccepted: root.adoptCutout(cutPick.selectedFile)
     }
     CardShare {
         id: share
@@ -428,6 +486,48 @@ Dialog {
                             wrapMode: Text.Wrap
                             elide: Text.ElideNone
                         }
+                        // a badge holder's cutout of their own picture's figure, for the Stand card
+                        Slab {
+                            visible: root.movingAllowed && root.custom
+                            width: parent.width
+                            SettingRow {
+                                width: parent.width
+                                first: true
+                                title: I18n.tr("Cutout for the figure breaking the frame")
+                                detail: root.hero.cutout === true
+                                    ? (root.standStyle ? I18n.tr("The Stand card lays it over its panel's border") : I18n.tr("Shown by the Stand card style, in Layout"))
+                                    : I18n.tr("A PNG of your picture's figure on a clear ground, the picture's own shape")
+                                Row {
+                                    spacing: LithicTokens.space.s2
+                                    Plaque {
+                                        small: true
+                                        kind: "line"
+                                        glyph: "content_cut"
+                                        text: root.hero.cutout === true ? I18n.tr("Change") : I18n.tr("Choose")
+                                        busy: root.cutting
+                                        enabled: !root.cutting
+                                        onClicked: cutPick.open()
+                                    }
+                                    Plaque {
+                                        visible: root.hero.cutout === true
+                                        small: true
+                                        kind: "quiet"
+                                        glyph: "close"
+                                        text: I18n.tr("Remove")
+                                        onClicked: root.clearCutout()
+                                    }
+                                }
+                            }
+                        }
+                        Label {
+                            width: parent.width
+                            visible: root.movingAllowed && root.custom && root.cutoutError.length > 0
+                            text: root.cutoutError
+                            typeRole: "detail"
+                            ink: Lithic.jasper
+                            wrapMode: Text.Wrap
+                            elide: Text.ElideNone
+                        }
                     }
 
                     // Adjust: your own picture's look, framing and tone
@@ -549,7 +649,10 @@ Dialog {
                                     { key: "text.tagline", label: I18n.tr("Line under the name"), fallback: I18n.tr("For the sake of power and beauty.") },
                                     // the first is the word carved behind the figure; the card prints it in its window
                                     { key: "text.epithets", label: I18n.tr("Big words"), fallback: "Ryoku", list: true }
-                                ]
+                                ].concat(root.standStyle ? [
+                                    // the Stand card names its Stand after the motto unless named here
+                                    { key: "text.standName", label: I18n.tr("Stand's name"), fallback: Stand.standName(liveCard.tagline, liveCard.stockTagline) }
+                                ] : [])
                                 delegate: SettingRow {
                                     id: wordRow
                                     required property var modelData
@@ -587,7 +690,22 @@ Dialog {
                             width: parent.width
                             SettingRow {
                                 width: parent.width
+                                visible: root.movingAllowed
                                 first: true
+                                title: I18n.tr("Card style")
+                                detail: I18n.tr("The classic card, or a Stand card drawn as a manga page")
+                                Segmented {
+                                    model: [I18n.tr("Classic"), I18n.tr("Stand")]
+                                    Binding on currentIndex {
+                                        value: root.standStyle ? 1 : 0
+                                    }
+                                    accessibleName: I18n.tr("Card style")
+                                    onActivated: index => root.put("style", "classic", index === 1 ? "stand" : "classic", I18n.tr("Card style"))
+                                }
+                            }
+                            SettingRow {
+                                width: parent.width
+                                first: !root.movingAllowed
                                 title: I18n.tr("Home shows")
                                 detail: I18n.tr("The plate with your figure, or your system card")
                                 Segmented {

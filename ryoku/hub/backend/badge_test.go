@@ -199,7 +199,7 @@ func TestCardRecordVerifiesByBadgeOrDevice(t *testing.T) {
 	id := cardID(badgeDevicePublic(device))
 	b, _ := badgeParse(badgeTestCode(t, 1, 4, owner, device, "neur0map"))
 	d := codedDesign{cardID: id, name: "record name", tagline: "real words", kind: 1, gallerySrc: "hawk", threads: 32}
-	record, e := recordSign(d, nil, device, 1000)
+	record, e := recordSign(d, nil, device, 1000, "")
 	if e != nil || record.Device != base64.StdEncoding.EncodeToString(badgeDevicePublic(device)) {
 		t.Fatal(record, e)
 	}
@@ -403,7 +403,7 @@ func TestBinderKeepsTheLastVerifiedRecord(t *testing.T) {
 	g.badges = []string{code}
 	picture := jpegOf(t, image.NewRGBA(image.Rect(0, 0, 56, 39)), 80)
 	d := codedDesign{cardID: id, name: "record name", kind: 2, threads: 24}
-	record, e := recordSign(d, picture, device, 1000)
+	record, e := recordSign(d, picture, device, 1000, "")
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -441,7 +441,7 @@ func TestBinderKeepsTheLastVerifiedRecord(t *testing.T) {
 	if c := listed(t).Cards[0]; c.Verified || c.BadgeCheck != "none" || c.Badge != nil || c.Record != "live" || c.Name != "record name" {
 		t.Fatal("a badge gone from the gate's answer kept its card verified, or the device record was dropped", c)
 	}
-	old, _ := recordSign(d, picture, device, 1001)
+	old, _ := recordSign(d, picture, device, 1001, "")
 	old.Device = ""
 	g.records[old.ID], g.badges = old, []string{code}
 	makeDue(t)
@@ -525,7 +525,7 @@ func TestWriteVectors(t *testing.T) {
 	add("badge", false, map[string]any{"text": codeText("RYB", append(payload, signDomain(mika, "ryoku-badge-v2", payload)...))})
 	add("badge", false, map[string]any{"text": strings.Replace(code, "RYB", "RYD", 1)})
 	d := codedDesign{cardID: id, name: "neur0map", tagline: "test vector", kind: 1, gallerySrc: "hawk"}
-	record, _ := recordSign(d, nil, device, 1794787200)
+	record, _ := recordSign(d, nil, device, 1794787200, "")
 	add("card", true, map[string]any{"record": record, "deviceKey": base64.StdEncoding.EncodeToString(badgeDevicePublic(device))})
 	bad := record
 	bad.Updated++

@@ -265,6 +265,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  ryoku-hub profile import <path.ryoprofile>")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub profile card <rendered.png> <path>|--copy")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub profile picture <path>")
+	fmt.Fprintln(os.Stderr, "  ryoku-hub profile cutout <path>|--clear")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub profile wallpaper")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub profile code [--threads N --ram GB --refresh HZ --width PX --gpu-class N --gpu NAME --distro ID --wm ID]")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub cards add <path>|--clipboard")

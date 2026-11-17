@@ -273,8 +273,9 @@ func firstFrame(ctx context.Context, src string) ([]byte, error) {
 	return clean.Bytes(), nil
 }
 
-// readPictureSource reads the chosen file whole, naming its size when it is too large.
-func readPictureSource(path string) ([]byte, error) {
+// readChosenFile reads the file the reader chose whole, naming its size when it is over limit;
+// what names the kind of file in that message, e.g. "a picture"
+func readChosenFile(path string, limit int64, what string) ([]byte, error) {
 	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return nil, err
@@ -287,10 +288,10 @@ func readPictureSource(path string) ([]byte, error) {
 	if !info.Mode().IsRegular() {
 		return nil, fmt.Errorf("not a regular file")
 	}
-	if info.Size() > maxPictureBytes {
-		return nil, fmt.Errorf("this file is %s; a picture can be up to %s", sizeText(info.Size()), sizeText(maxPictureBytes))
+	if info.Size() > limit {
+		return nil, fmt.Errorf("this file is %s; %s can be up to %s", sizeText(info.Size()), what, sizeText(limit))
 	}
-	return readBounded(f, maxPictureBytes)
+	return readBounded(f, limit)
 }
 
 type savedPicture struct {
@@ -302,7 +303,7 @@ type savedPicture struct {
 
 // savePicture validates the file at src and keeps it as the card's picture.
 func savePicture(src string) (savedPicture, error) {
-	raw, err := readPictureSource(src)
+	raw, err := readChosenFile(src, maxPictureBytes, "a picture")
 	if err != nil {
 		return savedPicture{}, err
 	}

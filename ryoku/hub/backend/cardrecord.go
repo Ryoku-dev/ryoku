@@ -17,6 +17,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -28,6 +30,12 @@ var recordRetryWait = 6 * time.Second
 
 const recordPictureLimit = 400 * 1024
 
+// recordStyles are the built-in card styles a binder knows how to draw; a style id it doesn't
+// know yet is drawn classic
+var recordStyles = []string{"stand"}
+
+var recordStyleID = regexp.MustCompile(`^[a-z0-9-]{1,32}$`)
+
 type cardRecord struct {
 	V       int    `json:"v"`
 	ID      string `json:"id"`
@@ -38,11 +46,22 @@ type cardRecord struct {
 	// Device is the signing machine's public key: its hash is the card id, so the record
 	// proves itself without a badge
 	Device string `json:"device,omitempty"`
+	// Style is a v3 record's built-in card style, signed with the rest; a classic card is v2
+	// and carries none, so binders that predate styles keep verifying it
+	Style string `json:"style,omitempty"`
+}
+
+func recordDomain(r cardRecord) string {
+	if r.V == 3 {
+		return "ryoku-card-v3"
+	}
+	return "ryoku-card-v2"
 }
 
 func recordPayload(r cardRecord) ([]byte, error) {
 	id, e := hex.DecodeString(r.ID)
-	if e != nil || len(id) != 8 || !validCardID(r.ID) || r.V != 2 || r.Updated < 0 {
+	styled := r.V == 3 && recordStyleID.MatchString(r.Style)
+	if e != nil || len(id) != 8 || !validCardID(r.ID) || !styled && (r.V != 2 || r.Style != "") || r.Updated < 0 {
 		return nil, errors.New("invalid record header")
 	}
 	body, e := base64.StdEncoding.DecodeString(r.Body)
@@ -65,23 +84,32 @@ func recordPayload(r cardRecord) ([]byte, error) {
 	out = binary.BigEndian.AppendUint16(out, uint16(len(body)))
 	out = append(out, body...)
 	out = append(out, picture...)
+	if styled {
+		out = binary.BigEndian.AppendUint16(out, uint16(len(r.Style)))
+		out = append(out, r.Style...)
+	}
 	return out, nil
 }
-func recordSign(d codedDesign, picture []byte, seed []byte, updated int64) (cardRecord, error) {
+
+// recordSign signs a classic v2 record, or a v3 one when style names a built-in card style
+func recordSign(d codedDesign, picture []byte, seed []byte, updated int64, style string) (cardRecord, error) {
 	if len(seed) != 32 || d.cardID != cardID(badgeDevicePublic(seed)) {
 		return cardRecord{}, errors.New("record id does not match device")
 	}
-	r := cardRecord{V: 2, ID: hex.EncodeToString(d.cardID[:]), Updated: updated, Body: base64.StdEncoding.EncodeToString(d.bytes()),
+	r := cardRecord{V: 2, ID: hex.EncodeToString(d.cardID[:]), Updated: updated, Body: base64.StdEncoding.EncodeToString(d.bytes()), Style: style,
 		Device: base64.StdEncoding.EncodeToString(badgeDevicePublic(seed))}
 	if len(picture) > 0 {
 		sum := sha256.Sum256(picture)
 		r.Picture = hex.EncodeToString(sum[:])
 	}
+	if style != "" {
+		r.V = 3
+	}
 	p, e := recordPayload(r)
 	if e != nil {
 		return r, e
 	}
-	sig := signDomain(seed, "ryoku-card-v2", p)
+	sig := signDomain(seed, recordDomain(r), p)
 	if len(sig) != 64 {
 		return r, errors.New("invalid device seed")
 	}
@@ -123,7 +151,7 @@ func recordVerifyKey(r cardRecord, device []byte) (codedDesign, error) {
 		return codedDesign{}, e
 	}
 	sig, e := base64.StdEncoding.DecodeString(r.Sig)
-	if e != nil || !verifyDomain(device, "ryoku-card-v2", payload, sig) {
+	if e != nil || !verifyDomain(device, recordDomain(r), payload, sig) {
 		return codedDesign{}, errors.New("invalid device signature")
 	}
 	body, _ := base64.StdEncoding.DecodeString(r.Body)
@@ -169,6 +197,18 @@ func recordPicturePNG(path string) ([]byte, error) {
 	}
 	return nil, errors.New("card picture cannot fit within 400 KB")
 }
+
+// recordStyle is the built-in style the published card wears: the profile's choice, which only
+// a badge holder publishes, so anyone else's card goes out classic
+func recordStyle() string {
+	raw, e := readProfileFile(profileConfigPath(), maxProfileBytes)
+	var p profileModel
+	if e != nil || json.Unmarshal(raw, &p) != nil || !slices.Contains(recordStyles, p.Style) || !badgeHolder() {
+		return ""
+	}
+	return p.Style
+}
+
 func recordSync(args []string) (bool, error) {
 	picturePath := ""
 	hardware := []string{}
@@ -197,7 +237,13 @@ func recordSync(args []string) (bool, error) {
 			return false, e
 		}
 	}
-	sum := sha256.Sum256(append(d.bytes(), picture...))
+	style := recordStyle()
+	material := append(d.bytes(), picture...)
+	if style != "" {
+		// a classic card hashes as it always did, so updating doesn't republish it
+		material = append(append(material, 0), style...)
+	}
+	sum := sha256.Sum256(material)
 	hash := hex.EncodeToString(sum[:])
 	statePath, e := recordStatePath()
 	if e != nil {
@@ -220,7 +266,7 @@ func recordSync(args []string) (bool, error) {
 	stamp := max(time.Now().Unix(), last+1)
 	clocked, waited := false, false
 	for {
-		record, e := recordSign(d, picture, seed, stamp)
+		record, e := recordSign(d, picture, seed, stamp, style)
 		if e != nil {
 			return false, e
 		}
@@ -258,6 +304,12 @@ func recordSync(args []string) (bool, error) {
 				time.Sleep(recordRetryWait)
 				continue
 			}
+		}
+		if reply.status == http.StatusForbidden && reason == "Custom card styles need an active team badge on this machine" && !waited {
+			// a badge activated a moment ago may not have reached the replica that answered
+			waited = true
+			time.Sleep(recordRetryWait)
+			continue
 		}
 		return false, fmt.Errorf("the team service refused the card: %s", reason)
 	}

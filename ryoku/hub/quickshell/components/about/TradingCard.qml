@@ -6,6 +6,7 @@ import "../../Singletons"
 import ".."
 import "../badge"
 import "design"
+import "styles"
 import "../../registry/rarity.js" as Rarity
 
 // the system card as a collectible: a portrait trading card of this computer, drawn at its
@@ -43,8 +44,18 @@ Item {
     readonly property color accent: card.palette ? card.palette.accent : Lithic.sel
     readonly property color plate: card.palette ? card.palette.plate : Lithic.stone1
     readonly property bool moving: card.live && card.visible && !Lithic.reduceMotion
-    readonly property vector2d tilt: card.moving ? card.foil : Qt.vector2d(0, 0)
-    readonly property bool imagesReady: background.ready && artLayers.ready && frameOverlay.ready && (card.cardSpec || cardFigure.ready) && (!card.badge || badgeSeal.ready)
+    // a badge holder's card style: "stand" draws it as a Stand card (styles/StandCard.qml). A
+    // friend's card wears it only from their verified live record; without the badge the
+    // classic card comes back
+    readonly property string style: card.traded ? (card.badgeVerified && card.traded.style === "stand" ? "stand" : "classic")
+        : (!!card.badge && card.f("style", "classic") === "stand" ? "stand" : "classic")
+    readonly property bool classic: card.style === "classic"
+    // the classic face's own motion; under another style it stays still and unseen
+    readonly property bool classicMoving: card.classic && card.moving
+    readonly property vector2d tilt: card.classicMoving ? card.foil : Qt.vector2d(0, 0)
+    readonly property bool imagesReady: card.classic
+        ? background.ready && artLayers.ready && frameOverlay.ready && (card.cardSpec || cardFigure.ready) && (!card.badge || badgeSeal.ready)
+        : !!standFace.item && standFace.item.ready
     readonly property var designEffects: card.cardSpec ? card.cardSpec.effects || [] : []
     readonly property real glitchStrength: {
         for (var i = 0; i < card.designEffects.length; ++i)
@@ -61,17 +72,17 @@ Item {
     // a tier to show instead of the machine's own (About's rarity ladder previews them), or -1
     property int showLevel: -1
     // the figure, for whoever lets the reader drag it to frame it
-    readonly property Item figure: cardFigure
+    readonly property Item figure: standFace.item ? standFace.item.figure : cardFigure
     readonly property bool secret: card.level >= 5
     // One clock drives all live effects. Still renders always read phase zero.
     property real elapsed: 0
-    readonly property real clock: card.moving ? card.elapsed : 0
+    readonly property real clock: card.classicMoving ? card.elapsed : 0
     NumberAnimation on elapsed {
         from: 0
         to: 3600
         duration: 3600000
         loops: Animation.Infinite
-        running: card.moving && (card.secret || card.designEffects.length > 0)
+        running: card.classicMoving && (card.secret || card.designEffects.length > 0)
     }
     // the sweep's place across the card: crosses in 1.2 s, then rests 3 s off the card
     readonly property real sweepAt: {
@@ -147,356 +158,542 @@ Item {
     ]
     readonly property string release: card.traded ? "" : Updates.currentName || Updates.currentVersion || "Ryoku"
 
-    // the card's border and its face. A Secret rare's border is cut like a diamond
-    CutRect {
+    // the classic card: its border, face, figure window, parts and flavour text
+    Item {
+        id: classicFace
         anchors.fill: parent
-        cut: 22
-        fill: card.rim
-    }
-    ShaderEffect {
-        visible: card.secret && !card.cardSpec
-        anchors.fill: parent
-        property color c1: Lithic.jasper
-        property color c2: Lithic.gold
-        property color c3: Lithic.jade
-        property color c4: Lithic.lapis
-        property color c5: Lithic.sel
-        property vector2d size: Qt.vector2d(width, height)
-        property vector2d shift: card.tilt
-        property real time: card.clock
-        property real cut: 22
-        property real facet: 9
-        fragmentShader: Qt.resolvedUrl("../../shaders/diamond.frag.qsb")
-    }
-    DesignEffects {
-        anchors.fill: parent
-        effects: card.designEffects
-        borderOnly: true
-        accent: card.accent
-        ink: card.ink
-        time: card.clock
-        tilt: card.tilt
-    }
-    CutRect {
-        id: face
-        anchors.fill: parent
-        // a Secret rare's diamond border is set wider, so the stone shows
-        anchors.margins: card.secret ? 20 : 14
-        cut: 14
-        fill: card.plate
-        // from Holo rare the face is edged in gold
-        strokeWidth: card.level >= 3 ? 2 : 1
-        strokeColor: card.palette ? card.accent : card.level >= 3 ? Lithic.gold : Lithic.alpha(Lithic.fg, 0.2)
-        clip: true
+        visible: card.classic
 
-        DesignImage {
-            id: background
+        // the card's border and its face. A Secret rare's border is cut like a diamond
+        CutRect {
             anchors.fill: parent
-            source: card.cardSpec && card.cardSpec.background ? "file://" + card.cardSpec.background : ""
-            live: card.moving
+            cut: 22
+            fill: card.rim
         }
-        // the face's own foil, from Rare up; a Secret rare's is every mineral, etched
         ShaderEffect {
-            visible: card.faceFoil > 0 && !card.cardSpec
+            visible: card.secret && !card.cardSpec
             anchors.fill: parent
-            property color c1: card.secret ? Lithic.jasper : Lithic.sel
+            property color c1: Lithic.jasper
             property color c2: Lithic.gold
-            property color c3: card.secret ? Lithic.jade : Lithic.lapis
-            property color c4: card.secret ? Lithic.lapis : Lithic.jade
+            property color c3: Lithic.jade
+            property color c4: Lithic.lapis
+            property color c5: Lithic.sel
             property vector2d size: Qt.vector2d(width, height)
             property vector2d shift: card.tilt
-            property real strength: card.secret ? 0.42 : card.faceFoil
-            property real cut: 14
-            property real etch: card.secret ? 1 : 0
-            fragmentShader: Qt.resolvedUrl("../../shaders/foil.frag.qsb")
-        }
-    }
-    // Frame art stays below Ryoku's locked lanes, never over the code or labels.
-    DesignImage {
-        id: frameOverlay
-        anchors.fill: parent
-        source: card.cardSpec && card.cardSpec.frame ? "file://" + card.cardSpec.frame : ""
-        live: card.moving
-    }
-    CutRect {
-        visible: !!card.cardSpec
-        x: 28; y: 22; width: card.width - 56; height: 74
-        cut: 8
-        fill: card.plate
-    }
-    CutRect {
-        visible: !!card.cardSpec
-        x: 28; y: 530; width: card.width - 56; height: 332
-        cut: 8
-        fill: card.plate
-    }
-
-    // the head: its stage, its name, its power
-    Label {
-        // drawn as outlines, so it stays sharp at any scale the card is shown or saved at
-        renderType: Text.QtRendering
-        x: 34
-        y: 26
-        text: I18n.tr("Ryoku machine") + "  ·  " + I18n.tr(card.tier.name) + (UiPreferences.showJapaneseGloss ? "  ·  力の機械" : "")
-        typeRole: "monoSm"
-        font.pixelSize: 12
-        font.letterSpacing: 1.6
-        font.capitalization: Font.AllUppercase
-        ink: card.mutedInk
-    }
-    Label {
-        renderType: Text.QtRendering
-        id: nameLabel
-        x: 32
-        y: 42
-        width: 400
-        text: card.name
-        ink: card.ink
-        typeRole: "name"
-        font.pixelSize: 42
-        lineHeight: 50
-        elide: Text.ElideRight
-    }
-    Label {
-        renderType: Text.QtRendering
-        id: powerLabel
-        anchors.right: parent.right
-        anchors.rightMargin: 34
-        y: 40
-        text: String(card.power)
-        typeRole: "name"
-        font.pixelSize: 44
-        font.weight: Font.Black
-        ink: card.shine
-    }
-    Label {
-        renderType: Text.QtRendering
-        anchors.right: powerLabel.left
-        anchors.rightMargin: 6
-        anchors.baseline: powerLabel.baseline
-        text: "力"
-        typeRole: "title"
-        font.pixelSize: 22
-        ink: card.accent
-    }
-    // a Secret rare's name is gilded too
-    Binding {
-        target: nameLabel
-        property: "ink"
-        value: card.shine
-        when: card.secret && !card.cardSpec
-    }
-
-    // the figure in its holo window
-    CutRect {
-        id: window
-        x: 30
-        y: 104
-        width: card.width - 60
-        height: 400
-        cut: 8
-        fill: card.palette ? card.plate : Lithic.ground
-        strokeWidth: 3
-        strokeColor: card.palette ? card.rim : card.level >= 4 ? Lithic.gold : Lithic.mix(card.rim, Lithic.fg, 0.35)
-        clip: true
-
-        ShaderEffect {
-            visible: card.windowFoil > 0 && !card.cardSpec
-            anchors.fill: parent
-            anchors.margins: 3
-            property color c1: card.secret ? Lithic.jasper : Lithic.sel
-            property color c2: Lithic.gold
-            property color c3: card.secret ? Lithic.jade : Lithic.lapis
-            property color c4: card.secret ? Lithic.lapis : Lithic.jade
-            property vector2d size: Qt.vector2d(width, height)
-            property vector2d shift: card.tilt
-            property real strength: card.windowFoil
-            property real cut: 6
-            property real etch: card.secret ? 0.6 : 0
-            fragmentShader: Qt.resolvedUrl("../../shaders/foil.frag.qsb")
-        }
-        Text {
-            textFormat: Text.PlainText
-            visible: !card.cardSpec
-            renderType: Text.QtRendering
-            anchors.horizontalCenter: parent.horizontalCenter
-            y: 24
-            text: card.cardSpec && card.cardSpec.words && card.cardSpec.words.epithet !== undefined ? card.cardSpec.words.epithet : card.traded ? card.traded.epithet : String(card.f("text.epithets", []).length > 0 ? card.f("text.epithets", [])[0] : "Ryoku")
-            color: Lithic.alpha(card.ink, 0.1)
-            font.family: Lithic.font.sans
-            font.weight: Font.Black
-            font.capitalization: Font.AllUppercase
-            font.pixelSize: 120
-        }
-        CardFigure {
-            id: cardFigure
-            override: card.traded ? card.traded.hero : null
-            visible: !card.cardSpec
-            cardsStoreRoot: card.cardsStoreRoot
-            tradedId: card.traded ? String(card.traded.id || "") : ""
-            recordPicture: card.recordPicture
-            live: card.moving
-            readonly property real aspect: card.heroKind === "default" ? stockAspect : 900 / 1157
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.bottom: parent.bottom
-            // your own picture fills the window, as a photo card's art does; a figure stands
-            // in it, and from Ultra rare fills it, a full art
-            readonly property bool fills: card.heroKind === "custom"
-            height: fills ? parent.height - 6 : card.level >= 4 ? parent.height + 20 : parent.height - 18
-            width: fills ? parent.width - 6 : Math.round(height * aspect)
-            soft: true
-            ink: Lithic.dark ? Lithic.fg : Lithic.stone4
-        }
-        ArtLayers {
-            id: artLayers
-            anchors.fill: parent
-            anchors.margins: 3
-            layers: card.cardSpec ? card.cardSpec.art || [] : []
-            epithet: card.cardSpec && card.cardSpec.words ? card.cardSpec.words.epithet || "" : ""
-            ink: card.ink
-            live: card.moving
-            tilt: card.tilt
-            time: card.clock * card.glitchSpeed
-            glitch: card.glitchStrength
+            property real time: card.clock
+            property real cut: 22
+            property real facet: 9
+            fragmentShader: Qt.resolvedUrl("../../shaders/diamond.frag.qsb")
         }
         DesignEffects {
-            anchors.fill: artLayers
+            anchors.fill: parent
             effects: card.designEffects
-            glow: card.cardSpec ? card.cardSpec.glow || "" : ""
+            borderOnly: true
             accent: card.accent
             ink: card.ink
             time: card.clock
             tilt: card.tilt
         }
-    }
-    Emblem {
-        id: badgeSeal
-        visible: card.sealed && !!card.badge
-        x: 502; y: 78
-        size: 104
-        role: card.badge ? card.badge.role : "tester"
-        spec: card.designSpec ? card.designSpec.badge : null
-        live: card.moving
-        layer.enabled: visible
-        layer.effect: MultiEffect {
-            shadowEnabled: true
-            shadowColor: Lithic.ground
-            shadowOpacity: 0.8
-            shadowBlur: 0.55
-            shadowVerticalOffset: 5
+        CutRect {
+            id: face
+            anchors.fill: parent
+            // a Secret rare's diamond border is set wider, so the stone shows
+            anchors.margins: card.secret ? 20 : 14
+            cut: 14
+            fill: card.plate
+            // from Holo rare the face is edged in gold
+            strokeWidth: card.level >= 3 ? 2 : 1
+            strokeColor: card.palette ? card.accent : card.level >= 3 ? Lithic.gold : Lithic.alpha(Lithic.fg, 0.2)
+            clip: true
+
+            DesignImage {
+                id: background
+                anchors.fill: parent
+                source: card.cardSpec && card.cardSpec.background ? "file://" + card.cardSpec.background : ""
+                live: card.classicMoving
+            }
+            // the face's own foil, from Rare up; a Secret rare's is every mineral, etched
+            ShaderEffect {
+                visible: card.faceFoil > 0 && !card.cardSpec
+                anchors.fill: parent
+                property color c1: card.secret ? Lithic.jasper : Lithic.sel
+                property color c2: Lithic.gold
+                property color c3: card.secret ? Lithic.jade : Lithic.lapis
+                property color c4: card.secret ? Lithic.lapis : Lithic.jade
+                property vector2d size: Qt.vector2d(width, height)
+                property vector2d shift: card.tilt
+                property real strength: card.secret ? 0.42 : card.faceFoil
+                property real cut: 14
+                property real etch: card.secret ? 1 : 0
+                fragmentShader: Qt.resolvedUrl("../../shaders/foil.frag.qsb")
+            }
         }
-    }
-    // the type line and who made the figure, under the window as a card prints them
-    CutRect {
-        x: 54
-        y: window.y + window.height - 6
-        width: card.width - 108
-        height: 30
-        cut: 6
-        fill: card.palette ? card.plate : Lithic.mix(Lithic.ground, Lithic.gold, 0.22)
-        strokeWidth: 1
-        strokeColor: card.palette ? Lithic.alpha(card.accent, 0.5) : Lithic.alpha(Lithic.fg, 0.25)
+        // Frame art stays below Ryoku's locked lanes, never over the code or labels.
+        DesignImage {
+            id: frameOverlay
+            anchors.fill: parent
+            source: card.cardSpec && card.cardSpec.frame ? "file://" + card.cardSpec.frame : ""
+            live: card.classicMoving
+        }
+        CutRect {
+            visible: !!card.cardSpec
+            x: 28; y: 22; width: card.width - 56; height: 74
+            cut: 8
+            fill: card.plate
+        }
+        CutRect {
+            visible: !!card.cardSpec
+            x: 28; y: 530; width: card.width - 56; height: 332
+            cut: 8
+            fill: card.plate
+        }
+
+        // the head: its stage, its name, its power
+        Label {
+            // drawn as outlines, so it stays sharp at any scale the card is shown or saved at
+            renderType: Text.QtRendering
+            x: 34
+            y: 26
+            text: I18n.tr("Ryoku machine") + "  ·  " + I18n.tr(card.tier.name) + (UiPreferences.showJapaneseGloss ? "  ·  力の機械" : "")
+            typeRole: "monoSm"
+            font.pixelSize: 12
+            font.letterSpacing: 1.6
+            font.capitalization: Font.AllUppercase
+            ink: card.mutedInk
+        }
         Label {
             renderType: Text.QtRendering
-            anchors.centerIn: parent
-            width: parent.width - 24
-            horizontalAlignment: Text.AlignHCenter
-            text: "No. " + card.serial + "    " + card.typeLine
-            typeRole: "monoSm"
-            font.pixelSize: 11
+            id: nameLabel
+            x: 32
+            y: 42
+            width: 400
+            text: card.name
             ink: card.ink
+            typeRole: "name"
+            font.pixelSize: 42
+            lineHeight: 50
             elide: Text.ElideRight
         }
-    }
-    Label {
-        renderType: Text.QtRendering
-        x: 40
-        y: window.y + window.height + 30
-        width: card.width - 80
-        horizontalAlignment: Text.AlignRight
-        text: card.cardSpec ? I18n.tr("Design · %1").replace("%1", card.designSpec.name) : "Illus. " + card.illustrator
-        typeRole: "monoSm"
-        font.pixelSize: 9
-        ink: card.quietInk
-        elide: Text.ElideRight
-    }
+        Label {
+            renderType: Text.QtRendering
+            id: powerLabel
+            anchors.right: parent.right
+            anchors.rightMargin: 34
+            y: 40
+            text: String(card.power)
+            typeRole: "name"
+            font.pixelSize: 44
+            font.weight: Font.Black
+            ink: card.shine
+        }
+        Label {
+            renderType: Text.QtRendering
+            anchors.right: powerLabel.left
+            anchors.rightMargin: 6
+            anchors.baseline: powerLabel.baseline
+            text: "力"
+            typeRole: "title"
+            font.pixelSize: 22
+            ink: card.accent
+        }
+        // a Secret rare's name is gilded too
+        Binding {
+            target: nameLabel
+            property: "ink"
+            value: card.shine
+            when: card.secret && !card.cardSpec
+        }
 
-    // the moves: each part, what it is, and its number
-    // each move stands in the band under its ruler, clear of the tallest tick
-    Item {
-        id: moveList
-        x: 40
-        width: card.width - 80
-        readonly property var bands: card.code ? card.code.ys : [550, 608, 666]
+        // the figure in its holo window
+        CutRect {
+            id: window
+            x: 30
+            y: 104
+            width: card.width - 60
+            height: 400
+            cut: 8
+            fill: card.palette ? card.plate : Lithic.ground
+            strokeWidth: 3
+            strokeColor: card.palette ? card.rim : card.level >= 4 ? Lithic.gold : Lithic.mix(card.rim, Lithic.fg, 0.35)
+            clip: true
 
-        Repeater {
-            model: card.moves
-            delegate: Item {
-                required property var modelData
-                required property int index
-                y: moveList.bands[Math.min(index, moveList.bands.length - 1)] + 12
-                width: moveList.width
-                height: 44
-                CutRect {
-                    x: 0
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 30
-                    height: 30
-                    cut: 6
-                    fill: Lithic.alpha(card.accent, 0.18)
-                    Glyph {
+            ShaderEffect {
+                visible: card.windowFoil > 0 && !card.cardSpec
+                anchors.fill: parent
+                anchors.margins: 3
+                property color c1: card.secret ? Lithic.jasper : Lithic.sel
+                property color c2: Lithic.gold
+                property color c3: card.secret ? Lithic.jade : Lithic.lapis
+                property color c4: card.secret ? Lithic.lapis : Lithic.jade
+                property vector2d size: Qt.vector2d(width, height)
+                property vector2d shift: card.tilt
+                property real strength: card.windowFoil
+                property real cut: 6
+                property real etch: card.secret ? 0.6 : 0
+                fragmentShader: Qt.resolvedUrl("../../shaders/foil.frag.qsb")
+            }
+            Text {
+                textFormat: Text.PlainText
+                visible: !card.cardSpec
+                renderType: Text.QtRendering
+                anchors.horizontalCenter: parent.horizontalCenter
+                y: 24
+                text: card.cardSpec && card.cardSpec.words && card.cardSpec.words.epithet !== undefined ? card.cardSpec.words.epithet : card.traded ? card.traded.epithet : String(card.f("text.epithets", []).length > 0 ? card.f("text.epithets", [])[0] : "Ryoku")
+                color: Lithic.alpha(card.ink, 0.1)
+                font.family: Lithic.font.sans
+                font.weight: Font.Black
+                font.capitalization: Font.AllUppercase
+                font.pixelSize: 120
+            }
+            CardFigure {
+                id: cardFigure
+                override: card.traded ? card.traded.hero : null
+                visible: !card.cardSpec
+                cardsStoreRoot: card.cardsStoreRoot
+                tradedId: card.traded ? String(card.traded.id || "") : ""
+                recordPicture: card.recordPicture
+                live: card.classicMoving
+                readonly property real aspect: card.heroKind === "default" ? stockAspect : 900 / 1157
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+                // your own picture fills the window, as a photo card's art does; a figure stands
+                // in it, and from Ultra rare fills it, a full art
+                readonly property bool fills: card.heroKind === "custom"
+                height: fills ? parent.height - 6 : card.level >= 4 ? parent.height + 20 : parent.height - 18
+                width: fills ? parent.width - 6 : Math.round(height * aspect)
+                soft: true
+                ink: Lithic.dark ? Lithic.fg : Lithic.stone4
+            }
+            ArtLayers {
+                id: artLayers
+                anchors.fill: parent
+                anchors.margins: 3
+                layers: card.cardSpec ? card.cardSpec.art || [] : []
+                epithet: card.cardSpec && card.cardSpec.words ? card.cardSpec.words.epithet || "" : ""
+                ink: card.ink
+                live: card.classicMoving
+                tilt: card.tilt
+                time: card.clock * card.glitchSpeed
+                glitch: card.glitchStrength
+            }
+            DesignEffects {
+                anchors.fill: artLayers
+                effects: card.designEffects
+                glow: card.cardSpec ? card.cardSpec.glow || "" : ""
+                accent: card.accent
+                ink: card.ink
+                time: card.clock
+                tilt: card.tilt
+            }
+        }
+        Emblem {
+            id: badgeSeal
+            visible: card.sealed && !!card.badge
+            x: 502; y: 78
+            size: 104
+            role: card.badge ? card.badge.role : "tester"
+            spec: card.designSpec ? card.designSpec.badge : null
+            live: card.classicMoving
+            layer.enabled: visible
+            layer.effect: MultiEffect {
+                shadowEnabled: true
+                shadowColor: Lithic.ground
+                shadowOpacity: 0.8
+                shadowBlur: 0.55
+                shadowVerticalOffset: 5
+            }
+        }
+        // the type line and who made the figure, under the window as a card prints them
+        CutRect {
+            x: 54
+            y: window.y + window.height - 6
+            width: card.width - 108
+            height: 30
+            cut: 6
+            fill: card.palette ? card.plate : Lithic.mix(Lithic.ground, Lithic.gold, 0.22)
+            strokeWidth: 1
+            strokeColor: card.palette ? Lithic.alpha(card.accent, 0.5) : Lithic.alpha(Lithic.fg, 0.25)
+            Label {
+                renderType: Text.QtRendering
+                anchors.centerIn: parent
+                width: parent.width - 24
+                horizontalAlignment: Text.AlignHCenter
+                text: "No. " + card.serial + "    " + card.typeLine
+                typeRole: "monoSm"
+                font.pixelSize: 11
+                ink: card.ink
+                elide: Text.ElideRight
+            }
+        }
+        Label {
+            renderType: Text.QtRendering
+            x: 40
+            y: window.y + window.height + 30
+            width: card.width - 80
+            horizontalAlignment: Text.AlignRight
+            text: card.cardSpec ? I18n.tr("Design · %1").replace("%1", card.designSpec.name) : "Illus. " + card.illustrator
+            typeRole: "monoSm"
+            font.pixelSize: 9
+            ink: card.quietInk
+            elide: Text.ElideRight
+        }
+
+        // the moves: each part, what it is, and its number
+        // each move stands in the band under its ruler, clear of the tallest tick
+        Item {
+            id: moveList
+            x: 40
+            width: card.width - 80
+            readonly property var bands: card.code ? card.code.ys : [550, 608, 666]
+
+            Repeater {
+                model: card.moves
+                delegate: Item {
+                    required property var modelData
+                    required property int index
+                    y: moveList.bands[Math.min(index, moveList.bands.length - 1)] + 12
+                    width: moveList.width
+                    height: 44
+                    CutRect {
+                        x: 0
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 30
+                        height: 30
+                        cut: 6
+                        fill: Lithic.alpha(card.accent, 0.18)
+                        Glyph {
+                            renderType: Text.QtRendering
+                            anchors.centerIn: parent
+                            name: modelData.glyph
+                            size: 18
+                            ink: card.accent
+                        }
+                    }
+                    Column {
+                        x: 44
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: parent.width - 44 - 120
+                        Label {
+                            renderType: Text.QtRendering
+                            text: modelData.name
+                            ink: card.ink
+                            typeRole: "label"
+                            font.pixelSize: 19
+                            font.weight: Font.Bold
+                        }
+                        Label {
+                            renderType: Text.QtRendering
+                            width: parent.width
+                            text: modelData.detail
+                            typeRole: "detail"
+                            font.pixelSize: 13
+                            ink: card.mutedInk
+                            elide: Text.ElideRight
+                        }
+                    }
+                    Label {
                         renderType: Text.QtRendering
-                        anchors.centerIn: parent
-                        name: modelData.glyph
-                        size: 18
-                        ink: card.accent
+                        id: amount
+                        anchors.right: unit.left
+                        anchors.rightMargin: 4
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: String(modelData.value)
+                        typeRole: "name"
+                        font.pixelSize: 30
+                        font.weight: Font.Black
+                        ink: card.shine
+                    }
+                    Label {
+                        renderType: Text.QtRendering
+                        id: unit
+                        anchors.right: parent.right
+                        anchors.baseline: amount.baseline
+                        text: modelData.unit
+                        typeRole: "monoSm"
+                        font.pixelSize: 11
+                        ink: card.mutedInk
                     }
                 }
-                Column {
-                    x: 44
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width - 44 - 120
+            }
+        }
+
+        // its traits, as a card's weakness, resistance and retreat
+        Row {
+            x: 40
+            y: 734
+            width: card.width - 80
+            Repeater {
+                model: card.traits
+                delegate: Column {
+                    required property var modelData
+                    width: (card.width - 80) / 3
+                    spacing: 2
                     Label {
                         renderType: Text.QtRendering
                         text: modelData.name
-                        ink: card.ink
-                        typeRole: "label"
-                        font.pixelSize: 19
-                        font.weight: Font.Bold
+                        typeRole: "monoSm"
+                        font.pixelSize: 10
+                        font.letterSpacing: 1.2
+                        font.capitalization: Font.AllUppercase
+                        ink: card.quietInk
                     }
                     Label {
                         renderType: Text.QtRendering
-                        width: parent.width
-                        text: modelData.detail
-                        typeRole: "detail"
+                        width: parent.width - 8
+                        text: card.known(modelData.value) ? modelData.value : "-"
+                        ink: card.ink
+                        typeRole: "mono"
                         font.pixelSize: 13
-                        ink: card.mutedInk
                         elide: Text.ElideRight
                     }
                 }
-                Label {
-                    renderType: Text.QtRendering
-                    id: amount
-                    anchors.right: unit.left
-                    anchors.rightMargin: 4
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: String(modelData.value)
-                    typeRole: "name"
-                    font.pixelSize: 30
-                    font.weight: Font.Black
-                    ink: card.shine
-                }
-                Label {
-                    renderType: Text.QtRendering
-                    id: unit
-                    anchors.right: parent.right
-                    anchors.baseline: amount.baseline
-                    text: modelData.unit
-                    typeRole: "monoSm"
-                    font.pixelSize: 11
-                    ink: card.mutedInk
+            }
+        }
+
+        // the flavour text: the reader's line, and its gloss
+        CutRect {
+            x: 40
+            y: 780
+            width: card.width - 80
+            height: 46
+            cut: 6
+            fill: card.palette ? card.plate : "transparent"
+            strokeWidth: 1
+            strokeColor: Lithic.alpha(card.palette ? card.accent : Lithic.gold, 0.6)
+            Label {
+                renderType: Text.QtRendering
+                anchors.left: parent.left
+                anchors.leftMargin: 14
+                anchors.right: gloss.visible ? gloss.left : parent.right
+                anchors.rightMargin: 10
+                anchors.verticalCenter: parent.verticalCenter
+                text: card.tagline
+                typeRole: "proof"
+                font.pixelSize: 14
+                font.italic: true
+                ink: card.mutedInk
+                elide: Text.ElideRight
+            }
+            Label {
+                renderType: Text.QtRendering
+                id: gloss
+                visible: card.stockWords && UiPreferences.showJapaneseGloss
+                anchors.right: parent.right
+                anchors.rightMargin: 14
+                anchors.verticalCenter: parent.verticalCenter
+                text: "力と美のために"
+                typeRole: "caption"
+                font.pixelSize: 12
+                ink: card.quietInk
+            }
+        }
+
+        // the set's mark, its release and the card's rarity
+        Row {
+            x: 40
+            y: 838
+            spacing: 8
+            RyokuMark {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 16
+                height: 14
+                ink: card.mutedInk
+                accent: card.accent
+            }
+            Label {
+                renderType: Text.QtRendering
+                anchors.verticalCenter: parent.verticalCenter
+                text: card.traded ? I18n.tr("TRADED · from %1").replace("%1", card.name) : card.release + "  ·  " + card.serial
+                width: 255
+                elide: Text.ElideRight
+                typeRole: "monoSm"
+                font.pixelSize: 10
+                ink: card.mutedInk
+            }
+        }
+        // its rarity, as a card prints it in its corner
+        Row {
+            anchors.right: parent.right
+            anchors.rightMargin: 40
+            y: 836
+            spacing: 8
+            Label {
+                renderType: Text.QtRendering
+                anchors.verticalCenter: parent.verticalCenter
+                text: I18n.tr(card.tier.name).toUpperCase() + "  ·  " + I18n.tr("%1 pts").replace("%1", card.rarity.points)
+                typeRole: "monoSm"
+                font.pixelSize: 10
+                font.letterSpacing: 1.2
+                ink: card.palette ? card.accent : card.level >= 3 ? Lithic.gold : Lithic.fg2
+            }
+            Label {
+                renderType: Text.QtRendering
+                anchors.verticalCenter: parent.verticalCenter
+                text: card.tier.mark
+                typeRole: "label"
+                font.pixelSize: 15
+                ink: card.palette ? card.accent : card.level >= 2 ? Lithic.gold : Lithic.fg2
+                property real beat: 1
+                scale: card.classicMoving ? beat : 1
+                // a Secret rare's stars beat while it is live
+                SequentialAnimation on beat {
+                    running: card.secret && card.classicMoving
+                    loops: Animation.Infinite
+                    NumberAnimation { to: 1.25; duration: 260; easing.type: Easing.OutCubic }
+                    NumberAnimation { to: 1; duration: 520; easing.type: Easing.InOutSine }
+                    PauseAnimation { duration: 1400 }
                 }
             }
+        }
+
+        // from Ultra rare up, sparkles over the figure; they twinkle while the card is live. A
+        // Secret rare has twice as many, and they drift up and turn
+        Repeater {
+            model: card.cardSpec || card.level < 4 ? []
+                : [[0.12, 0.2, 18], [0.86, 0.14, 24], [0.78, 0.52, 14], [0.18, 0.62, 20], [0.52, 0.08, 12], [0.92, 0.78, 16]]
+                  .concat(card.secret ? [[0.3, 0.4, 10], [0.66, 0.3, 16], [0.08, 0.86, 12], [0.44, 0.7, 14], [0.62, 0.9, 10], [0.96, 0.4, 12]] : [])
+            delegate: Text {
+                id: spark
+                required property var modelData
+                required property int index
+                readonly property real rise: card.secret ? ((card.clock * 0.05 + spark.index * 0.137) % 1) : 0
+                x: window.x + window.width * modelData[0] - width / 2 + (card.secret ? Math.sin(card.clock * 0.9 + spark.index) * 6 : 0)
+                y: window.y + window.height * (card.secret ? (modelData[1] + 1 - spark.rise * 0.35) % 1 : modelData[1]) - height / 2
+                rotation: card.secret ? card.clock * (spark.index % 2 ? 40 : -30) : 0
+                text: "✦"
+                font.pixelSize: modelData[2]
+                color: card.secret ? [Lithic.gold, Lithic.fg, Lithic.jade, Lithic.lapis][spark.index % 4] : spark.index % 2 ? Lithic.gold : Lithic.fg
+                property real glimmer: 0.85
+                opacity: card.classicMoving ? glimmer : 0.85
+                SequentialAnimation on glimmer {
+                    running: card.classicMoving
+                    loops: Animation.Infinite
+                    PauseAnimation { duration: 400 * spark.index }
+                    NumberAnimation { to: 0.15; duration: 700; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: 0.95; duration: 700; easing.type: Easing.InOutSine }
+                    PauseAnimation { duration: 1200 }
+                }
+            }
+        }
+
+        // the light that crosses a Secret rare now and then, over everything on it
+        ShaderEffect {
+            visible: card.secret && !card.cardSpec && card.sweepAt > -0.5
+            anchors.fill: parent
+            property color tint: Lithic.gold
+            property vector2d size: Qt.vector2d(width, height)
+            property real pos: card.sweepAt
+            property real cut: 22
+            fragmentShader: Qt.resolvedUrl("../../shaders/sweep.frag.qsb")
+        }
+    }
+
+    // a badge holder's Stand card, drawn from this card's facts
+    Loader {
+        id: standFace
+        active: !card.classic
+        sourceComponent: StandCard {
+            host: card
         }
     }
 
@@ -516,7 +713,7 @@ Item {
             Rectangle {
                 x: -4; y: -2
                 width: card.width - 72; height: 14
-                color: card.plate
+                color: standFace.item ? standFace.item.paper : card.plate
             }
             Repeater {
                 model: ruler.levels.length
@@ -525,7 +722,7 @@ Item {
                     x: index * card.code.pitch
                     width: card.code.tick
                     height: (ruler.levels[index] + 1) * card.code.unit
-                    color: card.palette ? card.ink : card.level >= 4 ? Lithic.gold : Lithic.fg2
+                    color: standFace.item ? standFace.item.ink : card.palette ? card.ink : card.level >= 4 ? Lithic.gold : Lithic.fg2
                     // the share still is drawn at twice the display scale: at 133% a 2-unit tick
                     // spans 5.33 pixels, and snapped edges made some ticks 5 wide and some 6, so a
                     // wide tick read as the level above. Blended edges keep each tick's ink exact
@@ -533,175 +730,5 @@ Item {
                 }
             }
         }
-    }
-
-    // its traits, as a card's weakness, resistance and retreat
-    Row {
-        x: 40
-        y: 734
-        width: card.width - 80
-        Repeater {
-            model: card.traits
-            delegate: Column {
-                required property var modelData
-                width: (card.width - 80) / 3
-                spacing: 2
-                Label {
-                    renderType: Text.QtRendering
-                    text: modelData.name
-                    typeRole: "monoSm"
-                    font.pixelSize: 10
-                    font.letterSpacing: 1.2
-                    font.capitalization: Font.AllUppercase
-                    ink: card.quietInk
-                }
-                Label {
-                    renderType: Text.QtRendering
-                    width: parent.width - 8
-                    text: card.known(modelData.value) ? modelData.value : "-"
-                    ink: card.ink
-                    typeRole: "mono"
-                    font.pixelSize: 13
-                    elide: Text.ElideRight
-                }
-            }
-        }
-    }
-
-    // the flavour text: the reader's line, and its gloss
-    CutRect {
-        x: 40
-        y: 780
-        width: card.width - 80
-        height: 46
-        cut: 6
-        fill: card.palette ? card.plate : "transparent"
-        strokeWidth: 1
-        strokeColor: Lithic.alpha(card.palette ? card.accent : Lithic.gold, 0.6)
-        Label {
-            renderType: Text.QtRendering
-            anchors.left: parent.left
-            anchors.leftMargin: 14
-            anchors.right: gloss.visible ? gloss.left : parent.right
-            anchors.rightMargin: 10
-            anchors.verticalCenter: parent.verticalCenter
-            text: card.tagline
-            typeRole: "proof"
-            font.pixelSize: 14
-            font.italic: true
-            ink: card.mutedInk
-            elide: Text.ElideRight
-        }
-        Label {
-            renderType: Text.QtRendering
-            id: gloss
-            visible: card.stockWords && UiPreferences.showJapaneseGloss
-            anchors.right: parent.right
-            anchors.rightMargin: 14
-            anchors.verticalCenter: parent.verticalCenter
-            text: "力と美のために"
-            typeRole: "caption"
-            font.pixelSize: 12
-            ink: card.quietInk
-        }
-    }
-
-    // the set's mark, its release and the card's rarity
-    Row {
-        x: 40
-        y: 838
-        spacing: 8
-        RyokuMark {
-            anchors.verticalCenter: parent.verticalCenter
-            width: 16
-            height: 14
-            ink: card.mutedInk
-            accent: card.accent
-        }
-        Label {
-            renderType: Text.QtRendering
-            anchors.verticalCenter: parent.verticalCenter
-            text: card.traded ? I18n.tr("TRADED · from %1").replace("%1", card.name) : card.release + "  ·  " + card.serial
-            width: 255
-            elide: Text.ElideRight
-            typeRole: "monoSm"
-            font.pixelSize: 10
-            ink: card.mutedInk
-        }
-    }
-    // its rarity, as a card prints it in its corner
-    Row {
-        anchors.right: parent.right
-        anchors.rightMargin: 40
-        y: 836
-        spacing: 8
-        Label {
-            renderType: Text.QtRendering
-            anchors.verticalCenter: parent.verticalCenter
-            text: I18n.tr(card.tier.name).toUpperCase() + "  ·  " + I18n.tr("%1 pts").replace("%1", card.rarity.points)
-            typeRole: "monoSm"
-            font.pixelSize: 10
-            font.letterSpacing: 1.2
-            ink: card.palette ? card.accent : card.level >= 3 ? Lithic.gold : Lithic.fg2
-        }
-        Label {
-            renderType: Text.QtRendering
-            anchors.verticalCenter: parent.verticalCenter
-            text: card.tier.mark
-            typeRole: "label"
-            font.pixelSize: 15
-            ink: card.palette ? card.accent : card.level >= 2 ? Lithic.gold : Lithic.fg2
-            property real beat: 1
-            scale: card.moving ? beat : 1
-            // a Secret rare's stars beat while it is live
-            SequentialAnimation on beat {
-                running: card.secret && card.moving
-                loops: Animation.Infinite
-                NumberAnimation { to: 1.25; duration: 260; easing.type: Easing.OutCubic }
-                NumberAnimation { to: 1; duration: 520; easing.type: Easing.InOutSine }
-                PauseAnimation { duration: 1400 }
-            }
-        }
-    }
-
-    // from Ultra rare up, sparkles over the figure; they twinkle while the card is live. A
-    // Secret rare has twice as many, and they drift up and turn
-    Repeater {
-        model: card.cardSpec || card.level < 4 ? []
-            : [[0.12, 0.2, 18], [0.86, 0.14, 24], [0.78, 0.52, 14], [0.18, 0.62, 20], [0.52, 0.08, 12], [0.92, 0.78, 16]]
-              .concat(card.secret ? [[0.3, 0.4, 10], [0.66, 0.3, 16], [0.08, 0.86, 12], [0.44, 0.7, 14], [0.62, 0.9, 10], [0.96, 0.4, 12]] : [])
-        delegate: Text {
-            id: spark
-            required property var modelData
-            required property int index
-            readonly property real rise: card.secret ? ((card.clock * 0.05 + spark.index * 0.137) % 1) : 0
-            x: window.x + window.width * modelData[0] - width / 2 + (card.secret ? Math.sin(card.clock * 0.9 + spark.index) * 6 : 0)
-            y: window.y + window.height * (card.secret ? (modelData[1] + 1 - spark.rise * 0.35) % 1 : modelData[1]) - height / 2
-            rotation: card.secret ? card.clock * (spark.index % 2 ? 40 : -30) : 0
-            text: "✦"
-            font.pixelSize: modelData[2]
-            color: card.secret ? [Lithic.gold, Lithic.fg, Lithic.jade, Lithic.lapis][spark.index % 4] : spark.index % 2 ? Lithic.gold : Lithic.fg
-            property real glimmer: 0.85
-            opacity: card.moving ? glimmer : 0.85
-            SequentialAnimation on glimmer {
-                running: card.moving
-                loops: Animation.Infinite
-                PauseAnimation { duration: 400 * spark.index }
-                NumberAnimation { to: 0.15; duration: 700; easing.type: Easing.InOutSine }
-                NumberAnimation { to: 0.95; duration: 700; easing.type: Easing.InOutSine }
-                PauseAnimation { duration: 1200 }
-            }
-        }
-    }
-
-    // the light that crosses a Secret rare now and then, over everything on it
-    ShaderEffect {
-        visible: card.secret && !card.cardSpec && card.sweepAt > -0.5
-        anchors.fill: parent
-        property color tint: Lithic.gold
-        property vector2d size: Qt.vector2d(width, height)
-        property real pos: card.sweepAt
-        property real cut: 22
-        fragmentShader: Qt.resolvedUrl("../../shaders/sweep.frag.qsb")
     }
 }

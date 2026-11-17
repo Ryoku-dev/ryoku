@@ -41,9 +41,9 @@ func listCards() (binderView, error) {
 
 // recordEnrichCard shows the card as its owner's latest verified record when the binder holds
 // one, live while the gate still has it and kept once the gate let it go; the badge, and with it
-// the verified mark and team design, comes only from what the gate vouched for
+// the verified mark, team design and card style, comes only from what the gate vouched for
 func recordEnrichCard(entry binderCard, s pullState, list teamVerifiedList) binderCard {
-	entry.Badge, entry.Design, entry.Verified, entry.BadgeCheck = nil, nil, false, "none"
+	entry.Badge, entry.Design, entry.Verified, entry.BadgeCheck, entry.Style = nil, nil, false, "none", ""
 	entry.Record, entry.RecordUpdated = "", 0
 	if s.Checked == 0 {
 		entry.BadgeCheck = "offline"
@@ -87,5 +87,10 @@ func recordEnrichCard(entry binderCard, s pullState, list teamVerifiedList) bind
 	}
 	safe.Verified = true
 	safe.BadgeCheck = "ok"
+	// recordCached verified this record through the badge's own device, so the style is the
+	// holder's choice; one this binder doesn't know yet is drawn classic
+	if slices.Contains(recordStyles, r.Style) {
+		safe.Style = r.Style
+	}
 	return safe
 }
