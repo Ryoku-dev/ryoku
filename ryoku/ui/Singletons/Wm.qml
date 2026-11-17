@@ -61,7 +61,8 @@ Singleton {
         persistentScreenCapture: false,
         keyboardGrabSharesPointer: false,
         systemLidEdgeSource: false,
-        nestedSession: false
+        nestedSession: false,
+        perWorkspaceLayout: false
     })
     property var _caps: root.emptyCaps
     property string _workspaceModel: "fixed"

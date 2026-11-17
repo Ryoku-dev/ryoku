@@ -93,6 +93,7 @@ func generatedSeedSet() map[string]bool {
 		"starship/ryoku-colors.toml":     true,
 		"kitty/current-theme.conf":       true,
 		"ghostty/config":                 true,
+		"xfce4/helpers.rc":               true,
 		"ghostty/ryoku-colors":           true,
 		"vesktop/settings/settings.json": true,
 		"equibop/settings/settings.json": true,

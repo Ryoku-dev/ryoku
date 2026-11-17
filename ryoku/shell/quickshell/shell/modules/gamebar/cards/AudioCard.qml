@@ -13,6 +13,7 @@ GameBarCard {
     id: card
 
     title: I18n.tr("Audio")
+    resizable: true
 
     readonly property var sinkAudio: Audio.sink && Audio.sink.audio ? Audio.sink.audio : null
     readonly property var sourceAudio: Audio.source && Audio.source.audio ? Audio.source.audio : null
@@ -26,6 +27,7 @@ GameBarCard {
         && !Presence.dark && !card.saverIdle
 
     Column {
+        id: head
         width: parent.width
         spacing: 8 * card.s
 
@@ -73,34 +75,40 @@ GameBarCard {
             font.family: GameBarLook.face
             font.pixelSize: GameBarLook.smallie * card.s
         }
+    }
 
-        ListView {
-            id: apps
-            width: parent.width
-            height: Math.min(contentHeight, 3 * 46 * card.s)
-            clip: true
-            spacing: 4 * card.s
-            boundsBehavior: Flickable.StopAtBounds
-            interactive: contentHeight > height
-            model: card.streams
+    ListView {
+        id: apps
+        anchors.top: head.bottom
+        anchors.topMargin: 8 * card.s
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 4 * card.s
+        clip: true
+        spacing: 4 * card.s
+        boundsBehavior: Flickable.StopAtBounds
+        interactive: contentHeight > height
+        model: card.streams
 
-            delegate: AudioAppRow {
-                required property var modelData
-                width: apps.width
-                s: card.s
-                stream: modelData
-                open: card.polling
-            }
+        delegate: AudioAppRow {
+            required property var modelData
+            width: apps.width
+            s: card.s
+            stream: modelData
+            open: card.polling
         }
+    }
 
-        Text {
-            visible: card.streams.length === 0
-            width: parent.width
-            text: I18n.tr("Nothing playing")
-            color: GameBarLook.subtext
-            horizontalAlignment: Text.AlignHCenter
-            font.family: GameBarLook.face
-            font.pixelSize: GameBarLook.small * card.s
-        }
+    Text {
+        visible: card.streams.length === 0
+        anchors.top: head.bottom
+        anchors.topMargin: 8 * card.s
+        width: parent.width
+        text: I18n.tr("Nothing playing")
+        color: GameBarLook.subtext
+        horizontalAlignment: Text.AlignHCenter
+        font.family: GameBarLook.face
+        font.pixelSize: GameBarLook.small * card.s
     }
 }

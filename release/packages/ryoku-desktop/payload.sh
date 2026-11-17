@@ -213,6 +213,9 @@ EOF
   install -Dm644 "$_repo/ryoku/apps/fish/conf.d/rashin.fish" "$cfg/fish/conf.d/rashin.fish"
   install -Dm644 "$_repo/ryoku/apps/fish/conf.d/desktop-display.fish" \
     "$cfg/fish/conf.d/desktop-display.fish"
+  install -Dm644 "$_repo/ryoku/apps/xfce4/helpers.rc" "$cfg/xfce4/helpers.rc"
+  install -Dm644 "$_repo/ryoku/apps/xfce4/helpers/ryoku-terminal.desktop" \
+    "$pkgdir/usr/share/xfce4/helpers/ryoku-terminal.desktop"
   install -Dm644 "$_repo/ryoku/shell/qt6ct/qt6ct.conf"     "$cfg/qt6ct/qt6ct.conf"
   install -Dm644 "$_repo/ryoku/apps/terminal-shell/env.sh"  "$cfg/ryoku-terminal/env.sh"
   install -Dm644 "$_repo/ryoku/apps/terminal-shell/desktop-display.sh" \

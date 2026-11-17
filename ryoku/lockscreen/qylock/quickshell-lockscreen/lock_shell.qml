@@ -110,6 +110,14 @@ ShellRoot {
         themePath: shellRoot.themePath
     }
 
+    // fixed on purpose: it has to work with the desktop keybinds and the xkb
+    // switch option both off
+    readonly property string layoutShortcut: "Ctrl+Alt+Space"
+
+    LayoutFeed {
+        id: layoutFeed
+    }
+
     // Publish and clear are serialized. Authentication is armed only after the
     // current generation has reached disk, so an older publish can never land
     // after an authenticated clear.
@@ -382,28 +390,39 @@ ShellRoot {
                         // don't leak through to the desktop underneath.
                         PinchHandler { target: null }
                         WheelHandler { target: null }
-                        MouseArea {
+                        AuthRetryInput {
+                            id: authRetryInput
                             anchors.fill: parent
-                            acceptedButtons: Qt.AllButtons
-                            hoverEnabled: true
-                            onWheel: (wheel) => { wheel.accepted = true }
-                        }
+                            retryTarget: sddmShim
+                            passwordScope: themeSurface.item
+                            retryAllowed: sddmShim.authRetryInputAllowed
 
-                        Loader {
-                            id: themeSurface
-                            anchors.fill: parent
-                            focus: true
-                            sourceComponent: themeComponent
-                            onLoaded: lockSurface.focusTheme()
-                            // keyboards that return after a paused session never reactivate the window
-                            onActiveFocusChanged: {
-                                if (!activeFocus)
-                                    lockSurface.focusTheme();
+                            Loader {
+                                id: themeSurface
+                                anchors.fill: parent
+                                focus: true
+                                sourceComponent: themeComponent
+                                onLoaded: lockSurface.focusTheme()
+                                // keyboards that return after a paused session never reactivate the window
+                                onActiveFocusChanged: {
+                                    if (!activeFocus)
+                                        lockSurface.focusTheme();
+                                }
+                            }
+                            Loader {
+                                anchors.fill: parent
+                                sourceComponent: fpOverlayComponent
                             }
                         }
-                        Loader {
-                            anchors.fill: parent
-                            sourceComponent: fpOverlayComponent
+                        LayoutBadge {
+                            feed: layoutFeed
+                            accent: shellRoot.fpAccent
+                            shortcut: shellRoot.layoutShortcut
+                        }
+                        Shortcut {
+                            sequences: [shellRoot.layoutShortcut]
+                            context: Qt.WindowShortcut
+                            onActivated: layoutFeed.cycle()
                         }
                     }
                 }

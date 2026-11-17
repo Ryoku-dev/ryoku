@@ -111,6 +111,12 @@ func (d *daemon) wallpaperVerb(line string) string {
 		d.restoreOutputs()
 		return "ok"
 	case "ui":
+		if strings.TrimSpace(strings.TrimPrefix(rest, mode)) == "rices" {
+			if err := d.openCollection("rices"); err != nil {
+				return "err wallpaper: " + err.Error()
+			}
+			return "ok"
+		}
 		// Resident picker: flip its surface over the event hub; a dead or
 		// not-yet-started instance cold-launches already visible instead.
 		if d.ui.ensure() {

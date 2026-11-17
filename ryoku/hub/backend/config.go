@@ -17,14 +17,15 @@ type Config struct {
 }
 
 type UIConfig struct {
-	Section        string `toml:"section"`
-	UpdateInterval string `toml:"update_interval"`
-	UpdateSystem   string `toml:"update_system"`
-	WMSwitch       string `toml:"wm_switch"`
+	Section             string `toml:"section"`
+	UpdateInterval      string `toml:"update_interval"`
+	UpdateSystem        string `toml:"update_system"`
+	WMSwitch            string `toml:"wm_switch"`
+	UpdateNotifications string `toml:"update_notifications"`
 }
 
 func defaultConfig() Config {
-	return Config{UI: UIConfig{Section: "displays", UpdateInterval: "daily", UpdateSystem: "off"}}
+	return Config{UI: UIConfig{Section: "displays", UpdateInterval: "daily", UpdateSystem: "off", UpdateNotifications: "ryoku"}}
 }
 
 func configPath() string {
@@ -87,6 +88,8 @@ func configGet(key string) (string, bool) {
 		return c.UI.UpdateInterval, true
 	case "update_system":
 		return c.UI.UpdateSystem, true
+	case "update_notifications":
+		return c.UI.UpdateNotifications, true
 	}
 	return "", false
 }
@@ -103,6 +106,11 @@ func configSet(key, value string) error {
 			return fmt.Errorf("update_system takes on or off, not %q", value)
 		}
 		c.UI.UpdateSystem = value
+	case "update_notifications":
+		if value != "ryoku" && value != "system" && value != "both" {
+			return fmt.Errorf("update_notifications takes ryoku, system or both, not %q", value)
+		}
+		c.UI.UpdateNotifications = value
 	default:
 		return fmt.Errorf("unknown config key: %s", key)
 	}

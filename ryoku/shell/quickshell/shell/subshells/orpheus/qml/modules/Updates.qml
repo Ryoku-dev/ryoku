@@ -8,12 +8,8 @@ Item {
     required property var scene
     required property string lane
 
-    property bool present: Updates.pending > 0
-    readonly property string hintText: {
-        const count = Updates.pending;
-        const base = count + (count === 1 ? " update" : " updates");
-        return Updates.channel.length > 0 ? base + ", " + Updates.channel : base;
-    }
+    property bool present: Updates.available
+    readonly property string hintText: Updates.notificationSummary
 
     implicitWidth: present ? body.implicitWidth + 2 * K.Style.hitPad : 0
     implicitHeight: K.Style.barH

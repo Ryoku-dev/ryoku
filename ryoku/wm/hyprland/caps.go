@@ -55,6 +55,7 @@ var capsManifest = []wm.Capability{
 	wm.CapOutputHdr,
 	wm.CapWindowFloat,
 	wm.CapTiledLayout,
+	wm.CapPerWorkspaceLayout,
 	wm.CapSessionExit,
 	wm.CapNightLight,
 	wm.CapTouchpadToggle,

@@ -70,6 +70,19 @@ new clock choice the next time its skin is applied or Ryoku updates. Skins not y
 present download into `~/.local/share/qylock/themes` first. The login/auth flow is
 untouched.
 
+## Keyboard layout
+
+Both screens can be reached with a layout other than the one a password was set
+on, so neither may depend on a desktop keybind. The in-session lock draws a
+control above any skin (`LayoutBadge.qml`) with the active layout; a click or
+Ctrl+Alt+Space cycles it through `ryoku wm act keyboard.cycleLayout`, and the
+name follows the shell daemon's window-manager topic, so it works the same on
+every compositor. The sign-in screen cannot read or set the layout from QML
+under SDDM's Wayland greeter, so `ryoku-greeter` hands weston every layout in
+`/etc/X11/xorg.conf.d/00-keyboard.conf`, adds `grp:alt_shift_toggle` when more
+than one is set and no `grp:` option is, and `sddm-host/Main.qml` names the
+layouts and the key.
+
 ## What owns the lock, the lid and sleep
 
 qylock draws the lock surface and nothing more: `lock_shell.qml` uses

@@ -2728,6 +2728,14 @@ func seededKeymap(e *engine) (layout, variant, options, source string, explicit 
 	if source == "" {
 		source = "localectl"
 	}
+	// KDE and GNOME keep their layout switch in the shortcut store, not in the
+	// xkb options, so a carried pair would otherwise have no way to switch
+	if strings.Contains(layout, ",") && !strings.Contains(","+options, ",grp:") {
+		if options != "" {
+			options += ","
+		}
+		options += "grp:alt_shift_toggle"
+	}
 	return layout, variant, options, source, explicit
 }
 

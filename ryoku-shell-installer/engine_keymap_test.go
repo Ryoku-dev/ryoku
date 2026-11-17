@@ -145,6 +145,31 @@ func TestSeedDesktopKeymapSkipsPlainUS(t *testing.T) {
 	}
 }
 
+// A KDE or GNOME pair carries no xkb switch key (their own shortcut does not
+// come along), so the seeded layouts would be unreachable at the login screen.
+func TestSeedDesktopKeymapGivesACarriedPairASwitchKey(t *testing.T) {
+	for _, tc := range []struct{ name, layout, variant, options, wantLayout, wantVariant, wantOptions string }{
+		{"no options", "ru,us", ",", "", "ru,us", ",", "grp:alt_shift_toggle"},
+		{"other options kept", "ru,us", "", "ctrl:nocaps", "ru,us", "", "ctrl:nocaps,grp:alt_shift_toggle"},
+		{"own switch key kept", "ru,us", "", "grp:win_space_toggle", "ru,us", "", "grp:win_space_toggle"},
+		{"single layout untouched", "ru", "", "", "ru", "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			home := t.TempDir()
+			e := &engine{f: &facts{
+				homeDir: home, kbLayout: tc.layout, kbVariant: tc.variant, kbOptions: tc.options, kbSource: "KDE",
+			}, p: &plan{}}
+			if _, err := seedDesktopKeymap(e); err != nil {
+				t.Fatal(err)
+			}
+			input := desktopInput(t, desktopStore(t, home))
+			if input["kbLayout"] != tc.wantLayout || input["kbVariant"] != tc.wantVariant || input["kbOptions"] != tc.wantOptions {
+				t.Fatalf("seeded input = %#v", input)
+			}
+		})
+	}
+}
+
 // The console and login screen follow the carried layout through localectl
 // under the installer's own sudo, and the restore script puts the previous
 // X11 keymap back.

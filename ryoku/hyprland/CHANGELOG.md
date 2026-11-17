@@ -3,6 +3,11 @@
 ## Unreleased
 
 ### Added
+- **Per-output tiling layout on Hyprland.** `ryoku-output-tiling` sets the live
+  layout of one output's workspaces and remembers it. While the display link is
+  off it re-applies at login and follows new workspaces and displays through
+  `ryoku-output-tiling-watch`, which starts only then and ends when the link is
+  back on (`scripts/ryoku-output-tiling`, `modules/autostart.lua`).
 - **Super+Alt+Space opens the Rashin app.** The companion window summons the
   single-instance way: a second press focuses the open window instead of
   spawning a twin, and a window rule floats and centres it like the other
@@ -50,6 +55,11 @@
   (`modules/window_rules.lua`, `user.lua`).
 
 ### Fixed
+- **Unplugging the external monitor no longer leaves an invalid layout.** A
+  panel turned off in Displays was saved with the 0x0 at -1x-1 placeholder
+  Hyprland reports for a disabled output, and the hotplug fallback woke it with
+  that geometry. `ryoku-monitor` now swaps the placeholder for preferred/auto on
+  every apply, save and recall, which also repairs layouts saved before (#854).
 - **Taking headphones off no longer starts paused music.** The pause media key
   now only pauses on Hyprland, niri and Wayfire, while the play key still
   toggles, and one tap that sends both keys still acts once (#764).

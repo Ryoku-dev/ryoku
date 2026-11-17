@@ -270,10 +270,22 @@ type Layout struct {
 	Options string
 }
 
-// Primary is the first layout of a "fr,us" pair, which is the one a login
-// screen and a boot prompt need: they have no way to switch.
+// Primary is the first layout of a "fr,us" pair, which names the console
+// keymap and the layout the login screen opens on.
 func (l Layout) Primary() string {
 	return strings.TrimSpace(strings.SplitN(l.Layout, ",", 2)[0])
+}
+
+// list is the layouts in order with blanks dropped, so a stored "fr,us," never
+// reaches the system as an empty slot.
+func (l Layout) list() string {
+	var out []string
+	for _, part := range strings.Split(l.Layout, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, part)
+		}
+	}
+	return strings.Join(out, ",")
 }
 
 var applySystemKeymap = func(layout, variant, options string) int {
@@ -281,13 +293,13 @@ var applySystemKeymap = func(layout, variant, options string) int {
 }
 
 // ApplySystem writes the layout to the greeter and console through the host
-// seam so the same caller works with localectl and Void's rc.conf.
+// seam so the same caller works with localectl and Void's rc.conf. Every
+// layout goes, not just the first: the login screen switches between them.
 func ApplySystem(l Layout) error {
-	p := l.Primary()
-	if p == "" {
+	if l.Primary() == "" {
 		return fmt.Errorf(i18n.T("no layout to apply"))
 	}
-	if code := applySystemKeymap(p, l.Variant, l.Options); code != host.ExitOK {
+	if code := applySystemKeymap(l.list(), l.Variant, l.Options); code != host.ExitOK {
 		return fmt.Errorf(i18n.T("set the greeter and console keymap: ryoku-host exited %d"), code)
 	}
 	return nil

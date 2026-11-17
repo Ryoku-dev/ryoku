@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +19,26 @@ func TestPickerImportDirsCoverSystemLibdirs(t *testing.T) {
 		if !have[want] {
 			t.Errorf("picker import dirs %q do not include %q", dirs, want)
 		}
+	}
+}
+
+func TestPickerImportDirsLetHomeBuildWinOnlyWhenPresent(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	local := filepath.Join(home(), ".local", "lib", "qt6", "qml")
+	first := func() string {
+		return strings.Split(pickerImportDirs(), string(os.PathListSeparator))[0]
+	}
+	if got := first(); got != "/usr/lib/qt6/qml" {
+		t.Fatalf("packaged picker: first import dir = %q, want the system dir", got)
+	}
+	if err := os.MkdirAll(filepath.Join(local, "Ryoku", "Ryogami"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(local, "Ryoku", "Ryogami", "qmldir"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := first(); got != local {
+		t.Fatalf("home-built picker: first import dir = %q, want %q", got, local)
 	}
 }
 
@@ -102,6 +123,41 @@ func TestSecondOpenDuringVisibleColdStartDoesNotQueueToggle(t *testing.T) {
 	})
 	if delivered != 0 {
 		t.Fatalf("visible cold start delivered %d redundant toggle events", delivered)
+	}
+}
+
+func TestRicePickerOpenSurvivesColdStart(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	t.Setenv("RYOGAMI_HEADLESS", "")
+	d := newSettingsDaemon(t)
+	d.ui = &managedProcess{
+		qml: "/tmp/ryogami-rice-launch-test.qml",
+		command: func(string, ...string) *exec.Cmd {
+			return exec.Command("sleep", "30")
+		},
+	}
+	t.Cleanup(d.ui.kill)
+	if got := d.wallpaperVerb("wallpaper ui rices"); got != "ok" {
+		t.Fatal(got)
+	}
+	d.ui.mu.Lock()
+	cmd := d.ui.cmd
+	d.ui.mu.Unlock()
+	if cmd == nil {
+		t.Fatal("rice handoff did not start the picker")
+	}
+	if !strings.Contains(strings.Join(cmd.Env, "\n"), "RYOGAMI_START_RICES=1") {
+		t.Fatal("cold picker did not receive the requested collection")
+	}
+	if got := d.wallpaperVerb("wallpaper ui rices"); got != "ok" {
+		t.Fatal(got)
+	}
+	delivered := ""
+	d.ui.subscribed(1, func(name string, _ map[string]interface{}) {
+		delivered = name
+	})
+	if delivered != "ryogami.wall.rices" {
+		t.Fatalf("handoff during startup delivered %q", delivered)
 	}
 }
 

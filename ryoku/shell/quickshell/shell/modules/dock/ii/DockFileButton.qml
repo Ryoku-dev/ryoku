@@ -1,3 +1,4 @@
+import shell.services as ShellIcons
 import Qt5Compat.GraphicalEffects
 import QtQuick
 import QtQuick.Effects
@@ -87,14 +88,14 @@ DockButton {
                 [dirs.publicshare]: "folder-publicshare",
                 [dirs.templates]: "folder-templates"
             };
-            return Quickshell.iconPath(map[filePath.toString()] ?? "folder", "folder");
+            return ShellIcons.Icons.path(map[filePath.toString()] ?? "folder", "folder");
         }
 
         if (root.isImage)
             return "";
         if (root.cachedXdgIcon !== "")
-            return Quickshell.iconPath(root.cachedXdgIcon, "text-x-generic");
-        return Quickshell.iconPath("text-x-generic", "application-x-generic");
+            return ShellIcons.Icons.path(root.cachedXdgIcon, "text-x-generic");
+        return ShellIcons.Icons.path("text-x-generic", "application-x-generic");
     }
 
     width: root.slotWidth

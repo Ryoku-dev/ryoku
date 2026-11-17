@@ -363,3 +363,18 @@ When something is unfamiliar, look it up against primary sources (the Arch Wiki,
 the Hyprland wiki, Quickshell and Qt docs, each tool's own docs), cross-check
 anything load-bearing, and confirm the result on the running system. Match
 existing patterns in the repo over introducing a new one.
+
+## Theme icon startup check
+
+Shell theme icons should use `shell.services.Icons.path(name, fallback)` rather
+than `Quickshell.iconPath` or constructed `image://icon/` URLs. The shared resolver
+returns file URLs and updates bindings when its asynchronous index arrives.
+Keep other image providers and remote notification images intact.
+
+`bun tests/shell-icons-runtime.ts` exercises the checkout's real resolver and Qt
+image decoder across three cold starts, 300 indexed icons and repeated size
+changes. It checks missing names, fallbacks, provider-name inputs and successful
+image decoding. It requires installed `qs`, `ryoku-shell` and an icon theme.
+It defaults to offscreen; `QT_QPA_PLATFORM=wayland bun tests/shell-icons-runtime.ts`
+opens a temporary test window on the current session. This focused integration
+check does not prove a complete desktop boot or validate other compositors.

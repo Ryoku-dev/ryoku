@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Fixed
+- **Layouts carried over from KDE or GNOME come with a way to switch (#875).**
+  Those desktops keep the switch in their own shortcuts, so the pair arrived
+  with none. The installer adds Alt+Shift unless a switch key came along.
+
 ### Added
 - **The script installer now uses the ISO install catalogue.** It offers the
   file manager, Rashin, Ryoku apps, required edition components, and the

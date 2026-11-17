@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -120,6 +121,10 @@ func runReporting(name string, args ...string) error {
 
 func openConfig(config, lock, section string) error {
 	start := exec.Command("flock", "-n", "-o", lock, "qs", "-c", config)
+	if config == "ryostore" {
+		// MangoHud's Vulkan layer can crash Qt Multimedia during startup
+		start.Env = append(os.Environ(), "DISABLE_MANGOHUD=1")
+	}
 	if err := start.Start(); err != nil {
 		return fmt.Errorf("start %s: %w", config, err)
 	}

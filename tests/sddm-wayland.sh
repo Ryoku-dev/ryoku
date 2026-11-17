@@ -106,9 +106,16 @@ Section "InputClass"
 EndSection
 KB
 gini=$(gdry RYOKU_GREETER_KB_CONF="$gtmp/kb")
-for line in keymap_layout=fr keymap_variant=oss keymap_options=compose:ralt; do
+for line in keymap_layout=fr,us 'keymap_variant=oss,' keymap_options=compose:ralt,grp:alt_shift_toggle; do
   grep -Fxq "$line" <<<"$gini" || fail "greeter config omits $line from the X11 keyboard config"
 done
+sed -i 's/"compose:ralt"/"compose:ralt,grp:win_space_toggle"/' "$gtmp/kb"
+gini=$(gdry RYOKU_GREETER_KB_CONF="$gtmp/kb")
+grep -Fxq 'keymap_options=compose:ralt,grp:win_space_toggle' <<<"$gini" ||
+  fail "greeter replaced the user's own layout switch key"
+sed -i 's/"fr,us"/"fr"/; s/"oss,"/"oss"/; s/compose:ralt,grp:win_space_toggle/compose:ralt/' "$gtmp/kb"
+gini=$(gdry RYOKU_GREETER_KB_CONF="$gtmp/kb")
+grep -Fxq 'keymap_options=compose:ralt' <<<"$gini" || fail "greeter added a switch key to a single layout"
 printf 'KEYMAP=de-latin1\n' >"$gtmp/vconsole"
 gini=$(gdry RYOKU_GREETER_VCONSOLE="$gtmp/vconsole")
 grep -Fxq 'keymap_layout=de' <<<"$gini" || fail "greeter config omits the console keymap's layout"

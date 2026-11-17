@@ -1,3 +1,4 @@
+import shell.services as ShellIcons
 import Qt5Compat.GraphicalEffects
 import QtQuick
 import QtQuick.Effects
@@ -32,7 +33,7 @@ Item {
         const _ = TaskbarApps.iconThemeRevision;
 
         if (root.desktopEntry && root.desktopEntry.icon) {
-            let path = Quickshell.iconPath(root.desktopEntry.icon, true).toString();
+            let path = ShellIcons.Icons.path(root.desktopEntry.icon, true).toString();
             if (path !== "" && !path.includes("image-missing"))
                 return path;
         }
@@ -40,7 +41,7 @@ Item {
         if (root.appId) {
             let guessed = TaskbarApps.getCachedIcon(root.appId);
             if (guessed && guessed !== "image-missing") {
-                let path = Quickshell.iconPath(guessed, true).toString();
+                let path = ShellIcons.Icons.path(guessed, true).toString();
                 if (path !== "" && !path.includes("image-missing"))
                     return path;
             }
@@ -49,14 +50,14 @@ Item {
         if (root.desktopEntry && root.desktopEntry.icon) {
             let guessed = AppSearch.guessIcon(root.desktopEntry.icon);
             if (guessed && guessed !== "image-missing") {
-                let path = Quickshell.iconPath(guessed, true).toString();
+                let path = ShellIcons.Icons.path(guessed, true).toString();
                 if (path !== "" && !path.includes("image-missing"))
                     return path;
             }
         }
 
         let fallback = root.desktopEntry?.icon || root.appId || "image-missing";
-        return Quickshell.iconPath(fallback, "image-missing").toString();
+        return ShellIcons.Icons.path(fallback, "image-missing").toString();
     }
 
     readonly property bool isThemedIcon: {

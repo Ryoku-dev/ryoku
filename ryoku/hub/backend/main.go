@@ -253,6 +253,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  ryoku-hub palette-bridge status|install|service|integration|doctor [<source>]")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub share status")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub rice list|preflight|capture|apply|restore|save|fork|delete|import|publish|setwall|files|export")
+	fmt.Fprintln(os.Stderr, "  ryoku-hub rice capture [--force] <name> [all|layer ...]")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub fastfetch get|preview <json>")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub fastfetch save <json>|effective <path>|palette <fixed|wallpaper>")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub fastfetch import-logo <path>")

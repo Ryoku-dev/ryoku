@@ -1,8 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
+	"os/exec"
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/godbus/dbus/v5"
 )
 
 // argbToRGBA rewrites each pixel from ARGB (network order) to RGBA.
@@ -93,4 +99,120 @@ func TestParseTrayService(t *testing.T) {
 			t.Errorf("parseTrayService(%q,%q) = (%q,%q), want (%q,%q)", c.service, c.sender, bus, path, c.wantBus, c.wantPath)
 		}
 	}
+}
+
+func TestTrayRegisteredSignalCarriesBusName(t *testing.T) {
+	bin, err := exec.LookPath("dbus-daemon")
+	if err != nil {
+		t.Skip("dbus-daemon not installed")
+	}
+	cmd := exec.Command(bin, "--session", "--nofork", "--print-address=1")
+	out, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
+	addr, err := bufio.NewReader(out).ReadString('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	connect := func() *dbus.Conn {
+		c, err := dbus.Connect(strings.TrimSpace(addr))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = c.Close() })
+		return c
+	}
+	watcher, host, app := connect(), connect(), connect()
+	ts := &trayState{conn: watcher, items: map[string]*trayItem{}, isWatcher: true}
+	if err := watcher.Export(ts, dbus.ObjectPath(watcherPath), watcherIface); err != nil {
+		t.Fatal(err)
+	}
+	if err := host.AddMatchSignal(dbus.WithMatchInterface(watcherIface)); err != nil {
+		t.Fatal(err)
+	}
+	sigs := make(chan *dbus.Signal, 16)
+	host.Signal(sigs)
+	if err := watcher.AddMatchSignal(dbus.WithMatchSender("org.freedesktop.DBus"),
+		dbus.WithMatchInterface("org.freedesktop.DBus"), dbus.WithMatchMember("NameOwnerChanged")); err != nil {
+		t.Fatal(err)
+	}
+	owners := make(chan *dbus.Signal, 16)
+	watcher.Signal(owners)
+	go func() {
+		for sig := range owners {
+			ts.dispatchSignal(sig)
+		}
+	}()
+	register := func(service string) error {
+		return app.Object(watcher.Names()[0], dbus.ObjectPath(watcherPath)).
+			Call(watcherIface+".RegisterStatusNotifierItem", 0, service).Err
+	}
+	waitSignal := func(member, want string) {
+		t.Helper()
+		timeout := time.After(5 * time.Second)
+		for {
+			select {
+			case sig := <-sigs:
+				if sig.Name != watcherIface+"."+member {
+					continue
+				}
+				if len(sig.Body) != 1 || sig.Body[0] != want {
+					t.Fatalf("%s body = %v, want [%s]", member, sig.Body, want)
+				}
+				return
+			case <-timeout:
+				t.Fatalf("no %s signal", member)
+			}
+		}
+	}
+	path := "/org/ayatana/NotificationItem/x"
+	want := app.Names()[0] + path
+	if err := register(path); err != nil {
+		t.Fatal(err)
+	}
+	waitSignal("StatusNotifierItemRegistered", want)
+	if err := register(path); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{"/bad-path", "/bad//path", "/bad\npath", host.Names()[0]} {
+		if err := register(bad); err == nil {
+			t.Fatalf("accepted invalid or foreign registration %q", bad)
+		}
+	}
+	ts.addItem("/bad-path", app.Names()[0])
+	if got := ts.serviceList(); len(got) != 1 || got[0] != want {
+		t.Fatalf("items = %v, want [%s]", got, want)
+	}
+	select {
+	case sig := <-sigs:
+		t.Fatalf("duplicate registration emitted %s", sig.Name)
+	case <-time.After(50 * time.Millisecond):
+	}
+	if err := app.Close(); err != nil {
+		t.Fatal(err)
+	}
+	waitSignal("StatusNotifierItemUnregistered", want)
+	if got := ts.serviceList(); len(got) != 0 {
+		t.Fatalf("disconnected app left items: %v", got)
+	}
+
+	app = connect()
+	name := "org.example.TrayTest"
+	if _, err := app.RequestName(name, dbus.NameFlagAllowReplacement); err != nil {
+		t.Fatal(err)
+	}
+	if err := register(name); err != nil {
+		t.Fatal(err)
+	}
+	want = app.Names()[0] + "/StatusNotifierItem"
+	waitSignal("StatusNotifierItemRegistered", want)
+	if _, err := host.RequestName(name, dbus.NameFlagReplaceExisting); err != nil {
+		t.Fatal(err)
+	}
+	waitSignal("StatusNotifierItemUnregistered", want)
 }

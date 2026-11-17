@@ -424,7 +424,7 @@ Rectangle {
                 width: parent.width; height: 30 * s
                 TextInput {
                     id: passInput; anchors.fill: parent; echoMode: TextInput.Password; passwordCharacter: "✦"; color: root.dimText; font.family: outfitFont.name; font.pixelSize: 14 * s; font.letterSpacing: 10 * s; horizontalAlignment: TextInput.AlignRight; verticalAlignment: TextInput.AlignVCenter; focus: true; property bool wasClicked: false; cursorVisible: false; cursorDelegate: Item { width: 0; height: 0 }
-                    Keys.onReturnPressed: startLoginSequence()
+                    Keys.onReturnPressed: (event) => { event.accepted = passInput.text.length > 0; startLoginSequence() }
                     Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.inputHint; font.family: outfitFont.name; font.pixelSize: 10 * s; font.letterSpacing: 4 * s; color: root.fidoInfo ? root.mainText : root.inputWaitColor; opacity: passInput.text.length === 0 ? 0.55 : 0; Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.InOutSine } } }
                     Rectangle {
                         id: needleCursor; width: 1.5 * s; height: 12 * s; color: root.mainText; anchors.verticalCenter: parent.verticalCenter; x: passInput.cursorRectangle.x; visible: passInput.focus && (passInput.text.length > 0 || passInput.wasClicked)

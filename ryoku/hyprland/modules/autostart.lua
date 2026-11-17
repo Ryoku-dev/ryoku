@@ -25,6 +25,8 @@ hl.on("hyprland.start", function()
     -- harmless when it was never started.
     hl.exec_cmd("systemctl --user stop hyprpolkitagent 2>/dev/null || true")
     hl.exec_cmd("command -v ryoku-monitor >/dev/null 2>&1 && ryoku-monitor autoscale")
+    -- per-output tiling kept while the display link is off; does nothing when linked
+    hl.exec_cmd("command -v ryoku-output-tiling >/dev/null 2>&1 && ryoku-output-tiling restore")
     -- Per-device Bluetooth codec memory. WirePlumber restores a device's PROFILE
     -- across reconnects but not its A2DP codec, so a user who picked one has to
     -- pick it again every single time the buds come back. `watch` reconciles on

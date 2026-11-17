@@ -176,14 +176,15 @@ StyledFlickable {
                 { key: "frost", title: Translation.tr("Frosted surface"), symbol: "blur_on", fallback: true },
                 { key: "shadow", title: Translation.tr("Depth shadow"), symbol: "layers", fallback: true },
                 { key: "labels", title: Translation.tr("Hover labels"), symbol: "label", fallback: true },
-                { key: "media", title: Translation.tr("Now playing card"), symbol: "music_note", fallback: false }
+                { key: "media", title: Translation.tr("Now playing card"), symbol: "music_note", fallback: false },
+                { key: "windowPreviews", title: Translation.tr("Window previews"), symbol: "preview", fallback: true }
             ] : []
             delegate: EditPanelRow {
                 required property var modelData
                 required property int index
                 Layout.fillWidth: true
                 first: index === 0
-                last: index === 3
+                last: index === 4
                 symbol: modelData.symbol
                 title: modelData.title
                 trailingKind: "switch"

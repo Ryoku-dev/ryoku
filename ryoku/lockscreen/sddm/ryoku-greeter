@@ -175,10 +175,14 @@ kb_conf=${RYOKU_GREETER_KB_CONF:-/etc/X11/xorg.conf.d/00-keyboard.conf}
 vconsole_conf=${RYOKU_GREETER_VCONSOLE:-/etc/vconsole.conf}
 if [ -r "$kb_conf" ]; then
   xkb_opt() { sed -n "s/.*Option[[:space:]]*\"$1\"[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$kb_conf" | head -n1; }
-  layout=$(xkb_opt XkbLayout); layout=${layout%%,*}
+  layout=$(xkb_opt XkbLayout)
   if [ -n "$layout" ]; then
-    variant=$(xkb_opt XkbVariant); variant=${variant%%,*}
+    variant=$(xkb_opt XkbVariant)
     options=$(xkb_opt XkbOptions)
+    # a second layout with no way to reach it locks out a password typed on it
+    case "$layout" in
+      *,*) case ",$options," in *,grp:*) ;; *) options="${options:+$options,}grp:alt_shift_toggle" ;; esac ;;
+    esac
   fi
 fi
 if [ -z "$layout" ] && [ -r "$vconsole_conf" ]; then

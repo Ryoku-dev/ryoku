@@ -251,7 +251,7 @@ Item {
         DockPreview.gy = g.y;
         DockPreview.edge = band.edge;
         DockPreview.margin = band.reservedDepth + 14;
-        DockPreview.hoveredClass = Dock.countFor(cn) > 0 ? cn : "";
+        DockPreview.hoveredClass = Dock.cfg("windowPreviews", true) && Dock.countFor(cn) > 0 ? cn : "";
     }
 
     // rail / ledger draw ONE plate behind the whole app run; the per-item marks

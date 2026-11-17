@@ -713,8 +713,19 @@ apply_specs() {
 # checkable; highrr/preferred entries pass through (their pixel size is not
 # known here, and every generated seed uses scale 1).
 sanitize_layout() {
+  # Hyprland reports a disabled output as 0x0 at -1x-1, and the Hub saves that
+  # placeholder back as the output's mode and position. Re-enabled as written
+  # (the hotplug fallback, or the Hub turning it back on) it is an invalid
+  # monitor rule, so a placeholder is swapped for preferred/auto on every path.
+  # -1x-1 is also a legal position for an enabled output with a real mode, so
+  # it only counts as the placeholder beside a zero-sized mode or on an output
+  # that is off.
   jq -c "$jq_scale_lib"'
-    map(if (.disabled // false) or ((.scale // null) == null)
+    map(((.mode // "") | test("^0+x|^[0-9]+x0+(@|$)")) as $placeholder
+        | if $placeholder then .mode = "preferred" else . end
+        | if ($placeholder or (.disabled // false)) and (.position // "") == "-1x-1"
+          then .position = "auto" else . end)
+    | map(if (.disabled // false) or ((.scale // null) == null)
            or (((.mode // "") | test("^[0-9]+x[0-9]+")) | not) then .
         else ((.mode | capture("^(?<w>[0-9]+)x(?<h>[0-9]+)")) as $d
               | .scale = snap(($d.w | tonumber); ($d.h | tonumber); .scale))

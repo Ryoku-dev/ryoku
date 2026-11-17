@@ -6,7 +6,7 @@ ryoku/shell/systemd/user/ryogami.service	translated	void/init/user/ryogami	same 
 ryoku/shell/systemd/user/ryoku-idle.service	translated	void/init/user/ryoku-idle	Restart=on-failure becomes a finish script (exit 0 parks, non-zero restarts)
 ryoku/shell/systemd/user/ryoku-clamshell.service	translated	void/init/user/ryoku-clamshell	same on-failure finish translation; TimeoutStopSec has no runit analogue (sv down waits for the run child)
 ryoku/shell/systemd/user/ryoku-eq.service	translated	void/init/user/ryoku-eq	PartOf=pipewire becomes a dbus-name wait plus finish downs the service when pipewire is gone
-ryoku/shell/systemd/user/ryoku-bt-agent.service	translated	void/init/user/ryoku-bt-agent	After/Wants/PartOf=bluetooth becomes a dbus-name wait for org.freedesktop.DBus plus a bluetoothd readiness check; the tail -f stdin hold is kept
+ryoku/shell/systemd/user/ryoku-bt-agent.service	translated	void/init/user/ryoku-bt-agent	After/Wants/PartOf=bluetooth becomes a dbus-name wait for org.freedesktop.DBus plus a bluetoothd readiness check; both run the shared ryoku-bt-agent helper, which keeps the stdin hold and filters scan chatter
 ryoku/rashin/systemd/ryoku-ai-usage.service	translated	void/init/user/ryoku-ai-usage	loop service: the timer's schedule becomes a run loop with env-overridable delays
 ryoku/rashin/systemd/ryoku-ai-usage.timer	translated	void/init/user/ryoku-ai-usage	OnBootSec/OnUnitActiveSec/Persistent fold into the loop service above; runit has no timer units
 ryoku/rashin/systemd/rashind-routines.service	translated	void/init/user/rashind-routines	loop service: the timer's schedule becomes a run loop with env-overridable delays; rashin routines wake decides on each pass whether to start the daemon

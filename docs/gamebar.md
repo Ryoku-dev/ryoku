@@ -65,9 +65,11 @@ another card pulls to that line; when nothing is near it falls back to the
 snapping grid. The guide grid appears while a drag can snap. The grid button in
 the strip turns snapping on and off, and the choice is saved.
 
-Only the Voice card resizes: drag its bottom-right grip. A card that does not
-fit after a monitor change is pulled back onto the screen. Each card keeps its
-own position and the Voice card keeps its size, both in the persisted state.
+The Voice, Media and Audio cards resize: drag the bottom-right grip. The Audio
+card's app list takes the room the card gives it and scrolls when it runs out.
+A card that does not fit after a monitor change is pulled back onto the screen.
+Each card keeps its own position, and a resized card keeps its size, both in
+the persisted state.
 
 Snap reach, grid spacing, guide spacing and visibility, and the settle spring
 are all adjustable; see **Settings**.

@@ -159,6 +159,46 @@ RYOKU_BT_WATCH_LOCK="$tmp/watch.lock" timeout 20 "$helper" watch >/dev/null 2>&1
 passes="$(wc -l <"$tmp/passes")"
 [[ $passes -eq 3 ]] || fail "watch should run 3 passes (startup + one per burst), got $passes"
 
+# ---- the headset mic switch is a saved WirePlumber setting ------------------
+# `mic` talks to wpctl only: a fake one keeps the value and fails like the real
+# one when WirePlumber is down, so what is asserted is the setting that was
+# written and the answer that comes back, not that some command ran.
+cat >"$tmp/wpctl" <<'EOF'
+#!/usr/bin/env bash
+[[ -e ${RYOKU_TEST_DIR:?}/WP_DOWN ]] && exit 1
+[[ ${1:-} == settings ]] || exit 2
+shift
+save=0
+[[ ${1:-} == --save ]] && { save=1; shift; }
+key=$1
+if [[ $# -ge 2 ]]; then
+  printf '%s %s %s\n' "$save" "$key" "$2" >>"$RYOKU_TEST_DIR/wpctl.calls"
+  printf '%s' "$2" >"$RYOKU_TEST_DIR/MIC"
+  exit 0
+fi
+[[ $key == bluetooth.autoswitch-to-headset-profile ]] || { echo "Setting '$key' not found"; exit 0; }
+echo "Value: $(cat "$RYOKU_TEST_DIR/MIC")"
+EOF
+chmod +x "$tmp/wpctl"
+export RYOKU_TEST_DIR="$tmp" RYOKU_BT_WPCTL="$tmp/wpctl"
+printf 'true' >"$tmp/MIC"
+
+[[ "$("$helper" mic)" == on ]] || fail "mic should report the shipped default as on"
+"$helper" mic off >/dev/null 2>&1 || fail "mic off should succeed"
+[[ "$(cat "$tmp/wpctl.calls")" == "1 bluetooth.autoswitch-to-headset-profile false" ]] \
+  || fail "mic off should save false for the autoswitch setting, got: $(cat "$tmp/wpctl.calls")"
+[[ "$("$helper" mic status)" == off ]] || fail "mic should report off after mic off"
+"$helper" mic on >/dev/null 2>&1 || fail "mic on should succeed"
+[[ "$("$helper" mic)" == on ]] || fail "mic should report on after mic on"
+touch "$tmp/WP_DOWN"
+rc=0; "$helper" mic off >/dev/null 2>&1 || rc=$?
+[[ $rc -eq 1 ]] || fail "mic off with WirePlumber down should exit 1, got $rc"
+rc=0; "$helper" mic >/dev/null 2>&1 || rc=$?
+[[ $rc -eq 1 ]] || fail "mic status with WirePlumber down should exit 1, got $rc"
+rm -f "$tmp/WP_DOWN"
+rc=0; "$helper" mic maybe >/dev/null 2>&1 || rc=$?
+[[ $rc -eq 2 ]] || fail "mic with an unknown choice should exit 2, got $rc"
+
 # ---- unknown verbs are refused ---------------------------------------------
 for v in "" bogus --help; do
   rc=0; "$helper" "$v" >/dev/null 2>&1 || rc=$?

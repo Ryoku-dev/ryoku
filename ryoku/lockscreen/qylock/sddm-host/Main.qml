@@ -27,6 +27,67 @@ Item {
         }
     }
 
+    // The Wayland greeter cannot report or change the layout from QML, so this
+    // names what weston loaded and the key it switches with.
+    Item {
+        id: layoutHint
+        property var codes: []
+        property string chord: "Alt+Shift"
+        readonly property real unit: Math.max(1, Screen.height / 768)
+        readonly property var chords: ({
+            "alt_shift_toggle": "Alt+Shift", "ctrl_shift_toggle": "Ctrl+Shift",
+            "win_space_toggle": "Super+Space", "ctrl_space_toggle": "Ctrl+Space",
+            "alt_space_toggle": "Alt+Space", "caps_toggle": "Caps Lock",
+            "shift_caps_toggle": "Shift+Caps Lock", "alt_caps_toggle": "Alt+Caps Lock",
+            "ctrl_alt_toggle": "Ctrl+Alt", "menu_toggle": "Menu"
+        })
+
+        function field(text, name) {
+            const m = text.match(new RegExp('Option\\s+"' + name + '"\\s+"([^"]*)"', "i"))
+            return m ? m[1] : ""
+        }
+
+        function load(text) {
+            const list = field(text, "XkbLayout").split(",").map(s => s.trim().toUpperCase()).filter(s => s.length > 0)
+            const grp = field(text, "XkbOptions").split(",").filter(s => s.indexOf("grp:") === 0)
+            if (grp.length > 0)
+                chord = chords[grp[0].slice(4)] || ""
+            codes = list
+        }
+
+        visible: codes.length > 1
+        z: 1000000
+        anchors.left: parent.left
+        anchors.bottom: parent.bottom
+        anchors.margins: 24 * unit
+        width: hintText.implicitWidth + 24 * unit
+        height: hintText.implicitHeight + 14 * unit
+
+        Component.onCompleted: {
+            const req = new XMLHttpRequest()
+            req.open("GET", "file:///etc/X11/xorg.conf.d/00-keyboard.conf")
+            req.onreadystatechange = () => {
+                if (req.readyState === XMLHttpRequest.DONE && req.responseText.length > 0)
+                    layoutHint.load(req.responseText)
+            }
+            req.send()
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            radius: 6 * layoutHint.unit
+            color: "#99000000"
+        }
+        Text {
+            id: hintText
+            anchors.centerIn: parent
+            color: "#ffffff"
+            opacity: 0.85
+            font.pixelSize: 14 * layoutHint.unit
+            text: layoutHint.codes.join("  \u00b7  ") + (layoutHint.chord.length > 0 ? "   |   " + layoutHint.chord : "")
+        }
+    }
+
     // Weston does not advertise the cursor-shape protocol used by Qt on the
     // desktop. Keep the login pointer in the scene so every selected skin has
     // one even when the legacy cursor surface cannot be scanned out.

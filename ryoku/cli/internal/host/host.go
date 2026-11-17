@@ -147,6 +147,7 @@ type Config struct {
 	ZoneinfoDir          string
 	LocaltimePath        string
 	RCConfPath           string
+	X11KeymapPath        string
 	InitLibDir           string
 	PacmanConf           string
 	PacmanSyncDir        string
@@ -156,6 +157,7 @@ type Config struct {
 	SnapperRootConfig    string
 	ProcCmdline          string
 	PAMDir               string
+	VendorPAMDir         string
 	PAMModulePaths       []string
 	UIDSet               bool
 	UID                  int
@@ -235,6 +237,9 @@ func New(cfg Config) *App {
 	if cfg.RCConfPath == "" {
 		cfg.RCConfPath = "/etc/rc.conf"
 	}
+	if cfg.X11KeymapPath == "" {
+		cfg.X11KeymapPath = "/etc/X11/xorg.conf.d/00-keyboard.conf"
+	}
 	if cfg.InitLibDir == "" {
 		cfg.InitLibDir = "/usr/lib/ryoku/runit"
 	}
@@ -261,6 +266,9 @@ func New(cfg Config) *App {
 	}
 	if cfg.PAMDir == "" {
 		cfg.PAMDir = "/etc/pam.d"
+	}
+	if cfg.VendorPAMDir == "" {
+		cfg.VendorPAMDir = "/usr/lib/pam.d"
 	}
 	if len(cfg.PAMModulePaths) == 0 {
 		cfg.PAMModulePaths = []string{

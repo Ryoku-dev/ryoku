@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 
+import shell.services as ShellIcons
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs
@@ -247,7 +248,7 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 16 * root.s
                 height: width
-                source: "image://icon/dev.ryoku.rashin"
+                source: ShellIcons.Icons.path("dev.ryoku.rashin", true)
                 sourceSize: Qt.size(width, height)
             }
             Text {

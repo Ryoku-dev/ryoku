@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+# Per-output tiling state for the Window Manager page. The live change goes
+# through the window-manager seam (`ryoku wm act workspace.layout`), so this
+# script names no compositor. It only keeps the user's own state:
+#   get                 print {"linked": bool, "outputs": {name: layout}}
+#   set <output> <lay>  apply a layout to every workspace on that output, and remember it
+#   link <on|off>       record the display link; "on" puts remembered outputs back on the shared layout
+#   restore             at login: re-apply remembered layouts, only while unlinked
+# Live layouts do not survive a compositor restart, which is why restore exists.
+# While unlinked, a watcher (ryoku-output-tiling-watch) keeps new workspaces in
+# line; it is started here and ends itself once the link is back on.
+set -euo pipefail
+
+state="${XDG_CONFIG_HOME:-$HOME/.config}/ryoku/output-tiling.json"
+desktop="${XDG_CONFIG_HOME:-$HOME/.config}/ryoku/desktop.json"
+lock="$state.lock"
+
+usage() {
+    echo "usage: ryoku-output-tiling get | set <output> <dwindle|master|scrolling> | link <on|off> | restore" >&2
+    exit 2
+}
+
+die() {
+    echo "ryoku-output-tiling: $*" >&2
+    exit 1
+}
+
+read_state() {
+    if [[ -f $state ]]; then cat "$state"; else echo '{"linked":true,"outputs":{}}'; fi
+}
+
+write_state() { # <json>
+    mkdir -p "$(dirname "$state")"
+    local tmp
+    tmp=$(mktemp "$state.XXXXXX")
+    printf '%s\n' "$1" > "$tmp"
+    mv "$tmp" "$state"
+}
+
+# Every read-modify-write holds one lock, so concurrent calls cannot interleave.
+locked() {
+    mkdir -p "$(dirname "$state")"
+    exec 9>"$lock"
+    flock -x 9
+    "$@"
+}
+
+# "<id> <layout>" per workspace on one output, from the seam. A failed query is an
+# error, not an empty list: recording a layout that was never applied is the bug
+# to avoid.
+workspaces_on() { # <output>
+    local out=$1 json
+    json=$(ryoku wm state) || die "cannot read window-manager state"
+    jq -r --arg o "$out" '.workspaces[]? | select(.output == $o and .special != true) | "\(.id) \(.layout // "")"' <<<"$json"
+}
+
+apply_output() { # <output> <layout>
+    local out=$1 layout=$2 ws cur ids
+    ids=$(workspaces_on "$out") || die "cannot list workspaces on $out"
+    [[ -n $ids ]] || die "no workspace on $out"
+    while read -r ws cur; do
+        [[ -n $ws && $cur != "$layout" ]] || continue
+        ryoku wm act workspace.layout "$ws" "$layout" || die "could not set $layout on workspace $ws"
+    done <<<"$ids"
+}
+
+start_watch() {
+    command -v ryoku-output-tiling-watch >/dev/null 2>&1 || return 0
+    [[ $(read_state | jq -r '.linked') == false ]] || return 0
+    setsid -f ryoku-output-tiling-watch </dev/null >/dev/null 2>&1 9>&- || true
+}
+
+global_layout() {
+    local g
+    g=$(jq -r '.desktop.appearance.layout // empty' "$desktop" 2>/dev/null || true)
+    case $g in dwindle|master|scrolling) printf '%s\n' "$g" ;; *) printf 'dwindle\n' ;; esac
+}
+
+do_set() { # <output> <layout>
+    apply_output "$1" "$2"
+    write_state "$(read_state | jq --arg o "$1" --arg l "$2" '.outputs[$o] = $l')"
+}
+
+do_link() { # on|off
+    if [[ $1 == on ]]; then
+        local global out
+        global=$(global_layout)
+        while IFS= read -r out; do
+            [[ -n $out ]] || continue
+            # a disconnected output has no workspace now; skip it, its entry is cleared below
+            [[ -n $(workspaces_on "$out") ]] || continue
+            apply_output "$out" "$global"
+        done < <(read_state | jq -r '.outputs | keys[]')
+        write_state "$(read_state | jq '.linked = true | .outputs = {}')"
+    else
+        write_state "$(read_state | jq '.linked = false')"
+    fi
+}
+
+do_restore() {
+    [[ $(read_state | jq -r '.linked') == false ]] || return 0
+    local out layout
+    while IFS=$'\t' read -r out layout; do
+        # an output that is not connected right now keeps its remembered layout for later
+        [[ -n $(workspaces_on "$out") ]] || continue
+        apply_output "$out" "$layout"
+    done < <(read_state | jq -r '.outputs | to_entries[] | [.key, .value] | @tsv')
+}
+
+case ${1:-} in
+get)
+    read_state
+    ;;
+set)
+    [[ $# -eq 3 ]] || usage
+    case $3 in dwindle|master|scrolling) ;; *) usage ;; esac
+    locked do_set "$2" "$3"
+    start_watch
+    ;;
+link)
+    [[ $# -eq 2 ]] || usage
+    case $2 in on|off) ;; *) usage ;; esac
+    locked do_link "$2"
+    start_watch
+    ;;
+restore)
+    [[ $(read_state | jq -r '.linked') == false ]] || exit 0
+    # The compositor may still be starting; wait until the seam answers.
+    for _ in $(seq 1 20); do
+        ryoku wm state >/dev/null 2>&1 && break
+        sleep 0.5
+    done
+    locked do_restore
+    start_watch
+    ;;
+*)
+    usage
+    ;;
+esac

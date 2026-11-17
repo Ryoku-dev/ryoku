@@ -259,7 +259,7 @@ Singleton {
             else if (a[i] === "--geometry" && i + 1 < a.length)
                 geom = a[i + 1];
         }
-        if (isRegion && /^\d+x\d+\+\d+\+\d+$/.test(geom)) {
+        if (isRegion && /^\d+x\d+\+-?\d+\+-?\d+$/.test(geom)) {
             root.regionGeom = geom;
             root.regionLayoutSig = root.layoutSig;
         } else {

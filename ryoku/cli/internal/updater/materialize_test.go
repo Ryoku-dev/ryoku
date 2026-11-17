@@ -119,6 +119,24 @@ func TestMaterializeCommandLeavesCheckoutConfig(t *testing.T) {
 	wantFile(t, filepath.Join(dest, "quickshell/shell/shell.qml"), "explicit base\n")
 }
 
+func TestMaterializeSeedsExoPreferenceOnce(t *testing.T) {
+	base, dest := t.TempDir(), t.TempDir()
+	t.Setenv("RYOKU_CONFIG_BASE", base)
+	t.Setenv("XDG_CONFIG_HOME", dest)
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	rel := "xfce4/helpers.rc"
+	writeFile(t, filepath.Join(base, rel), "TerminalEmulator=ryoku-terminal\n")
+	if err := Materialize(); err != nil {
+		t.Fatal(err)
+	}
+	wantFile(t, filepath.Join(dest, rel), "ryoku-terminal")
+	writeFile(t, filepath.Join(dest, rel), "TerminalEmulator=custom-terminal\n")
+	if err := Materialize(); err != nil {
+		t.Fatal(err)
+	}
+	wantFile(t, filepath.Join(dest, rel), "custom-terminal")
+}
+
 // A user who symlinks a seed slot (hypr/user.lua, keyboard.lua, ...) at its live
 // path into a dotfiles repo owns it. materialize must leave the symlink alone --
 // even when the link dangles because the repo is not mounted yet at this point

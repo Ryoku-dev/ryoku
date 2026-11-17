@@ -3,6 +3,11 @@
 ## Unreleased
 
 ### Fixed
+- **The lock screen and sign-in screen show your keyboard layout and let you
+  switch it (#841, #875).** The lock gets a small control with the active layout
+  that cycles on click or Ctrl+Alt+Space, whatever your desktop keybinds are; the
+  sign-in screen keeps every layout you set, adds Alt+Shift when none was chosen,
+  and shows the layouts and the switch key.
 - **New installs wire the login keyring once.** The SDDM setup counts the stock
   `-auth`/`-session` keyring lines, so it no longer adds a second copy on Arch.
 - **A picked skin stays on the Fedora sign-in screen.** `sddm-theme-ryoku` owned
@@ -19,6 +24,12 @@
   reconnecting after resume stayed black with Orbital, which waits for a reveal.
 
 ### Added
+- **Optional PAM retry can wake a waiting password conversation.** Users whose
+  PAM stack tries an optional method before requesting a password can opt in
+  with `~/.config/qylock/auth-retry` containing `on`. Empty submit and deliberate
+  background gestures then request one guarded restart, while typed passwords,
+  security-key input, controls, foreground loss, and unlock state retain
+  priority. The default remains off.
 - **A security key unlocks the in-session lock.** `ryoku security-key set lock
   on` (or the Hub's Lockscreen row) writes `~/.config/qylock/pam/ryoku-lock-key`,
   and the lock runs it as a third PAM conversation beside password and

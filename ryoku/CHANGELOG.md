@@ -432,6 +432,35 @@
   command block and skills name `ryoku-shell ipc call`, it probes the QS Bar
   catalogue only while QS Bar is active, and its read-only classifier knows the
   new verb (`rashin/backend`).
+- **The battery readout follows the real charge on two-battery laptops.** The
+  bar widget, the battery popout and the low-battery alerts bound to the first
+  battery UPower lists, which its controller can park at 99 % "Not charging"
+  for hours while the other pack carries the machine; the readout then froze
+  at "On AC · Full" and the warnings never armed. They read the aggregate
+  charge now (falling back to the active pack where a UPower version's
+  synthetic display device misbehaves), and only say "On AC" when a charger
+  is actually attached (#845).
+- **Rashin Ask and Agent no longer hang on "waking the needle" (#811).** The
+  code index rebuilds in the background and the Prowl code tools join a chat
+  once it is current, so a slow rebuild can't time the session out.
+- **A Hyprland plugin built for another Hyprland no longer fills the config with
+  errors (#828).** Such a copy is skipped for a matching packaged one, and a
+  plugin that pauses itself gets none of its settings applied (`wm/hyprland`).
+- **The Rashin console's Skills tab opens on a box without Hermes.** The page
+  broke on the empty skill list the daemon sent and kept saying it was reading
+  skills; it now shows the agents' skills, or says what went wrong
+  (`rashin/backend/`, `rashin/web/`).
+- **Rashin names why Claude Code's adapter failed to start.** The error now
+  carries the adapter's own reason instead of the last log line, the current
+  `claude-agent-acp` is preferred over the deprecated `claude-code-acp`, and an
+  adapter whose bundled Claude never installed runs on the Claude Code already
+  on the box (`rashin/backend/`).
+- **A new Agent chat no longer picks up the old chat's reply, and the chat
+  list marks the one you are in (#847, #848).** A turn still running when you
+  started a new chat or opened another kept streaming into the chat on screen,
+  and the list kept marking the latest chat. Frames now stay with their own
+  session and the list follows the chat you open, in the Alt+Space bar and the
+  Rashin console.
 - **Fastfetch reads the wallpaper-tinted config again.** The effective config
   keeps the `// ryoku:` header comments from `config.jsonc`, so it is now
   cached as `fastfetch-effective.jsonc`; fastfetch rejects comments in a

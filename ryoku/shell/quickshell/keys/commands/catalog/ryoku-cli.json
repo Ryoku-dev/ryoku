@@ -5992,7 +5992,7 @@
       "group": "ryoku-import",
       "title": "Capture the current rice",
       "command": "ryoku-hub rice capture <name>",
-      "description": "Captures the current wallpaper, desktop settings, and supported app configuration as a rice.",
+      "description": "Captures the current wallpaper, desktop settings, and supported app configuration as a rice. Replacing a saved rice requires --force; use --help for usage.",
       "tool": "ryoku-hub",
       "level": "advanced",
       "compositors": [

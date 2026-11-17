@@ -333,3 +333,18 @@ func TestBorderFollowsPaletteGatesConfigAndAct(t *testing.T) {
 		}
 	})
 }
+
+// A second layout's variant rides its own slot of kb_variant (",winkeys"), and
+// the switch key stays in kb_options: the Hub writes all three and the config
+// has to carry them through untouched.
+func TestGenConfigKeepsSecondLayoutVariantSlot(t *testing.T) {
+	o := defaultOverrides()
+	o.inputSaved = true
+	o.Input.KbLayout, o.Input.KbVariant, o.Input.KbOptions = "us,ir", ",winkeys", "grp:alt_shift_toggle"
+	cfg := genConfig(o, false)
+	for _, want := range []string{`kb_layout = "us,ir"`, `kb_variant = ",winkeys"`, `kb_options = "grp:alt_shift_toggle"`} {
+		if !strings.Contains(cfg, want) {
+			t.Errorf("settings.lua lacks %s\n%s", want, cfg)
+		}
+	}
+}

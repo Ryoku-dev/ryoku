@@ -13,11 +13,9 @@ Type=simple
 # KeyboardDisplay is the capability BLE HID devices (gamepads, keyboards)
 # pair with: they confirm a numeric passkey, and bluetoothd denies the bond
 # when no agent can answer (#308). Devices that need nothing (headphones,
-# Just Works) are unaffected. bluetoothctl exits at stdin EOF when it is not
-# attached to a terminal, so sleep holds stdin open (tail -f wakes every
-# second) and the agent sits idle and
-# auto-confirms the comparison prompts bluetoothd sends it.
-ExecStart=/bin/sh -c 'sleep infinity | bluetoothctl --agent KeyboardDisplay'
+# Just Works) are unaffected. The helper holds stdin open and keeps scan
+# chatter out of the journal (#869).
+ExecStart=/usr/bin/ryoku-bt-agent
 Restart=on-failure
 RestartSec=2
 Slice=session.slice
