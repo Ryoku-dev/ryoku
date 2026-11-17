@@ -34,6 +34,7 @@ looks flat, dither it.
 | `regrade-svg.py` | maps a recraft `line_art` SVG onto the ink ramp. |
 | `qmlrecord.py` | the shared harness for previews made of real frames: a private headless weston, a QML scene stepped one display frame at a time (deterministic), true-alpha grabs and a looping WebP. A module, not a command. |
 | `osd-previews` | records Ryoku's own pop-up in each design, dark and light, into `ryoku/hub/quickshell/art/osd/` for Settings, on `qmlrecord.py`. Re-run after changing a look; `--kind mic\|brightness\|keyboard` records the others for review. |
+| `notification-previews` | records Ryoku's own notification card in each design, dark and light, into `ryoku/hub/quickshell/art/notifications/` for Settings, on `qmlrecord.py`. Re-run after changing a look. |
 
 Both bakers default their output into `ryoku/assets/ryodecors`, so a new decor
 ships everywhere at once: the installer seeds it, the `ryoku-desktop` package

@@ -1,6 +1,9 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Notification cards take the shape of the design in Style.** Lithic burns a
+  tick fuse, Material drains a wavy ring round the app, Adwaita is GNOME's banner
+  and Fluent the Windows toast (`modules/notifications/NotificationLook.qml`).
 - **The volume, mic, brightness and keyboard pop-ups take the shape of the design
   in Style.** Lithic hangs a small tab under the bar, Material an edge slider on
   the right, Adwaita and Fluent a pill near the bottom (`modules/osd/OsdLook.qml`).

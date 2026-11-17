@@ -3,21 +3,32 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
+import Lithic
 import shell.services
 import Ryoku.Ui.Singletons
+import "designs/Stack.js" as Stack
 
 // Notification popup surface (contract 07 sec 1/2.4, sec 8; contract 12 sec 1).
 // A per-monitor overlay layer surface anchored to the top edge, on the left or
-// right (or centred) per the position setting, reserving nothing (exclusive
-// zone 0) and never taking keyboard focus. It holds the flat, newest-first popup
-// list (newest at index 0) at a fixed 400 px content width with 14 px between
-// cards, floating 16 px off the corner. Each card arrives from off the edge it
-// is anchored to (slide + fade + a small scale settle, Motion.notifIn) and, on
-// close, is flicked back out the same way (slide + shrink + fade, Motion.notifOut)
-// while the cards below hold their slot until it clears, then rise. The surface
-// holds its height for a card that is still leaving and unmaps Motion.notifHide
-// after the list empties, so the last exit is neither clipped nor cut short; a
-// popup arriving in that wait cancels the unmap.
+// right (or centred) per the position setting, or to the bottom right, reserving
+// nothing (exclusive zone 0) and never taking keyboard focus. It holds the flat,
+// newest-first popup list (newest at index 0).
+//
+// Ryoku's own cards are NotificationLook, in the desktop's design: each look
+// sets the column's width, the gap between cards, the breathing room off the
+// screen edge and how the stack settles (designs/Stack.js), and plays its own
+// arrival and exit. A leaving card holds its slot (delayRemove) until its exit
+// has finished; then the cards below settle into the gap. The window leaves room
+// round the column for the cards' shadows and takes input only over the column.
+//
+// A store design keeps the column it was made for: 400 px wide, 14 px apart,
+// 16 px off the corner, arriving from off its edge (Motion.notifIn) and flicked
+// back out (Motion.notifOut) while the cards below hold their slot until it
+// clears, then rise.
+//
+// The surface holds its height for a card that is still leaving and unmaps once
+// the list is empty and every exit has finished; a popup arriving in that wait
+// cancels the unmap.
 //
 // `Notifs.popups` is reassigned as a whole array on every change, which resets a
 // plain view (no per-item add/remove animation). A local `cards` ListModel is
@@ -31,22 +42,10 @@ PanelWindow {
     // surface's own logical sizes so one monitor's toasts shrink/grow without
     // touching the compositor scale. Default 1.0 is a byte-identical no-op.
     readonly property real us: Tokens.uiScaleFor(modelData ? modelData.name : "")
-    // Base logical px: content width 400, inter-card spacing 14, corner float 16.
-    // These are multiplied by `us` above (1.0 = the base), the only scale term;
-    // the column does not otherwise grow with monitor or accessibility font scale.
 
     property string position: Config.notifications && Config.notifications.notification_position
         ? Config.notifications.notification_position : "Right"
     readonly property real margin: (Config.notifications?.popup_window_margins ?? 0) * win.us
-
-    // Base breathing room off the screen corner, on top of the configurable
-    // popup margin, so the toast column floats instead of sitting flush.
-    readonly property real inset: 16 * win.us
-
-    // How far off its own edge a card starts and leaves. Centred popups have no
-    // edge to come from, so they only fade.
-    readonly property real slideFrom: position === "Left" ? -implicitWidth
-        : position === "Center" ? 0 : implicitWidth
 
     readonly property var popups: Notifs.popups
     property bool mapped: false
@@ -55,6 +54,33 @@ PanelWindow {
     readonly property string notificationUrl: host.notificationUrl
     onMappedChanged: host.mapped = win.mapped
     Component.onDestruction: host.mapped = false
+
+    readonly property bool storeRuns: Designs.notification !== Designs.shipped
+        && Designs.notificationReady
+        && win.notificationUrl !== ""
+        && win.notificationUrl !== win.host.failedNotificationUrl
+
+    // The column's measure, in base logical px times `us`. A store card has no
+    // shadow room of its own to leave.
+    readonly property var stack: win.storeRuns
+        ? ({ width: 400, spacing: 14, inset: 16, bleed: 0, settleMs: 0, settleCurve: [0, 0, 1, 1, 1, 1] })
+        : Stack.of(Lithic.design)
+    readonly property real inset: win.stack.inset * win.us
+    readonly property real bleed: win.stack.bleed * win.us
+    // the inset on the edges the column hangs from, the shadow room on the rest
+    readonly property real padLeft: win.position === "Left" ? win.inset : win.bleed
+    readonly property real padRight: win.position === "Right" || win.position === "BottomRight" ? win.inset : win.bleed
+    readonly property real padTop: win.position === "BottomRight" ? win.bleed : win.inset
+    readonly property real padBottom: win.position === "BottomRight" ? win.inset : win.bleed
+
+    // How far off its own edge a store card starts and leaves. Centred popups
+    // have no edge to come from, so they only fade.
+    readonly property real slideFrom: position === "Left" ? -list.width
+        : position === "Center" ? 0 : list.width
+
+    // Ryoku's cards still playing their exit; the window stays until they finish
+    property int leaving: 0
+    onLeavingChanged: if (win.leaving === 0 && win.popups.length === 0) unmapTimer.restart()
 
     screen: modelData
     visible: mapped && !Config.styleOwnsBanners
@@ -71,21 +97,24 @@ PanelWindow {
     anchors.bottom: position === "BottomRight"
     anchors.left: position === "Left"
     anchors.right: position === "Right" || position === "BottomRight"
-    margins.top: inset + margin
-    margins.left: inset + margin
-    margins.right: inset + margin
-    margins.bottom: inset + margin
+    margins.top: margin
+    margins.left: margin
+    margins.right: margin
+    margins.bottom: margin
+    // the shadow room passes the pointer through to what is underneath
+    mask: Region { item: list }
 
-    implicitWidth: 400 * win.us
+    implicitWidth: Math.ceil(win.stack.width * win.us + win.padLeft + win.padRight)
     // ListView skips relayout for a card that grows mid-arrival; follow the painted cards too
     readonly property real paintedHeight: cards.count === 0 ? 0
         : position === "BottomRight" ? list.height - list.contentItem.y - list.contentItem.childrenRect.y
         : list.contentItem.y + list.contentItem.childrenRect.y + list.contentItem.childrenRect.height
-    implicitHeight: Math.max(1, list.contentHeight, paintedHeight, exitFloor)
-    // Height held for a leaving card, released once its exit has finished. This
-    // must outlast the whole dismiss: the flicked card slides out over notifOut,
-    // then the cards below wait that long and rise over durFastSpatial. Releasing
-    // sooner would drop the surface under a card still rising and clip its foot.
+    implicitHeight: Math.ceil(Math.max(1, list.contentHeight, paintedHeight, exitFloor) + win.padTop + win.padBottom)
+    // Height held for a leaving store card, released once its exit has finished.
+    // This must outlast the whole dismiss: the flicked card slides out over
+    // notifOut, then the cards below wait that long and rise over durFastSpatial.
+    // Releasing sooner would drop the surface under a card still rising and clip
+    // its foot.
     property real exitFloor: 0
     Timer {
         id: exitHold
@@ -115,7 +144,7 @@ PanelWindow {
         if (!list.Window.window)
             return;
         var incoming = win.popups;
-        // Drop cards whose notification is gone (this triggers the remove slide).
+        // Drop cards whose notification is gone (this starts the exit).
         for (var i = cards.count - 1; i >= 0; i--) {
             var id = cards.get(i).nid;
             var keep = false;
@@ -141,11 +170,11 @@ PanelWindow {
         }
     }
 
-    // Map immediately on the first popup; unmap 260 ms after the list empties,
-    // re-checking emptiness so a popup arriving during the wait cancels it.
     // Map before the first card lands. A ListView does not animate its initial
     // population, so syncing in the same frame the surface maps skipped the
-    // arrival entirely and left the window resize as the only motion.
+    // arrival entirely and left the window resize as the only motion. Unmap once
+    // the list has emptied and every exit has played, re-checking emptiness so a
+    // popup arriving during the wait cancels it.
     onPopupsChanged: {
         if (popups.length > 0) {
             unmapTimer.stop();
@@ -164,26 +193,45 @@ PanelWindow {
     Timer {
         id: unmapTimer
         interval: Motion.notifHide
-        onTriggered: if (win.popups.length === 0) win.mapped = false
+        onTriggered: if (win.popups.length === 0 && win.leaving === 0) win.mapped = false
     }
 
     ListView {
         id: list
-        anchors.left: parent.left
-        anchors.right: parent.right
+        x: win.padLeft
+        width: win.stack.width * win.us
         anchors.top: win.position === "BottomRight" ? undefined : parent.top
+        anchors.topMargin: win.padTop
         anchors.bottom: win.position === "BottomRight" ? parent.bottom : undefined
+        anchors.bottomMargin: win.padBottom
         // never the content's height: that fed every card back into the layout
         height: win.modelData ? win.modelData.height : 0
-        spacing: 14 * win.us
+        spacing: win.stack.spacing * win.us
         interactive: false
         model: cards
         verticalLayoutDirection: win.position === "BottomRight" ? ListView.BottomToTop : ListView.TopToBottom
         Window.onWindowChanged: if (list.Window.window) Qt.callLater(win.sync)
 
-        // Physical dismiss and arrival (contract 12 sec 5, eye-candy pass): a
-        // toast is flicked off the edge it lives on rather than fading in place,
-        // and the stack settles up behind it instead of teleporting.
+        // Ryoku's cards arrive and leave on their own; the column only settles the
+        // rest of the stack round them, on the look's own curve.
+        add: win.storeRuns ? storeAdd : null
+        remove: win.storeRuns ? storeRemove : null
+        displaced: win.storeRuns ? storeDisplaced : lookSettle
+        removeDisplaced: win.storeRuns ? storeRemoveDisplaced : lookSettle
+
+        Transition {
+            id: lookSettle
+            NumberAnimation {
+                properties: "y"
+                duration: Lithic.duration(win.stack.settleMs)
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: win.stack.settleCurve
+            }
+        }
+
+        // A store card (contract 12 sec 5, eye-candy pass) is flicked off the
+        // edge it lives on rather than fading in place, and the stack settles up
+        // behind it instead of teleporting.
         //
         // add: the card arrives from off its own edge on the emphasized settle,
         // with a small scale settle so it reads as landing, not just sliding.
@@ -196,23 +244,27 @@ PanelWindow {
         // also restores x/opacity/scale for a card caught mid-arrival, so an
         // interrupted card never sticks half-flicked. displaced does the same for
         // an arrival-time reorder.
-        add: Transition {
+        Transition {
+            id: storeAdd
             NumberAnimation { properties: "opacity"; from: 0; to: 1; duration: Motion.notifIn; easing.type: Motion.easeType; easing.bezierCurve: Motion.notifInCurve }
             NumberAnimation { property: "x"; from: win.slideFrom; to: 0; duration: Motion.notifIn; easing.type: Motion.easeType; easing.bezierCurve: Motion.notifInCurve }
             NumberAnimation { property: "scale"; from: 0.96; to: 1; duration: Motion.notifIn; easing.type: Motion.easeType; easing.bezierCurve: Motion.notifInCurve }
         }
-        displaced: Transition {
+        Transition {
+            id: storeDisplaced
             NumberAnimation { properties: "y"; duration: Motion.notifIn; easing.type: Motion.easeType; easing.bezierCurve: Motion.notifInCurve }
             NumberAnimation { properties: "opacity"; to: 1; duration: Motion.notifIn; easing.type: Motion.easeType; easing.bezierCurve: Motion.notifInCurve }
             NumberAnimation { property: "x"; to: 0; duration: Motion.notifIn; easing.type: Motion.easeType; easing.bezierCurve: Motion.notifInCurve }
             NumberAnimation { property: "scale"; to: 1; duration: Motion.notifIn; easing.type: Motion.easeType; easing.bezierCurve: Motion.notifInCurve }
         }
-        remove: Transition {
+        Transition {
+            id: storeRemove
             NumberAnimation { property: "x"; to: win.slideFrom; duration: Motion.notifOut; easing.type: Motion.easeType; easing.bezierCurve: Tokens.curveDefaultSpatial }
             NumberAnimation { property: "scale"; to: 0.8; duration: Motion.notifOut; easing.type: Motion.easeType; easing.bezierCurve: Tokens.curveDefaultEffects }
             NumberAnimation { properties: "opacity"; to: 0; duration: Motion.notifOut; easing.type: Motion.easeType; easing.bezierCurve: Tokens.curveDefaultEffects }
         }
-        removeDisplaced: Transition {
+        Transition {
+            id: storeRemoveDisplaced
             SequentialAnimation {
                 PauseAnimation { duration: Motion.notifOut }
                 NumberAnimation { properties: "y"; duration: Tokens.durFastSpatial; easing.type: Motion.easeType; easing.bezierCurve: Tokens.curveDefaultSpatial }
@@ -230,45 +282,75 @@ PanelWindow {
                 const ttl = Notifs.popupTtl(popupDelegate.entry);
                 return ttl < 0 ? 0 : ttl;
             }
-            readonly property bool storeRuns: Designs.notification !== Designs.shipped
-                && Designs.notificationReady
-                && win.notificationUrl !== ""
-                && win.notificationUrl !== win.host.failedNotificationUrl
-            readonly property real shippedHeight: shippedLoader.item
-                ? Math.max(shippedLoader.item.implicitHeight, shippedLoader.item.targetImplicitHeight)
-                : 0
+            readonly property bool storeShown: storeLoader.visible && storeLoader.item !== null
+            // the card's own heights, never the loader's: the loader sizes the card to
+            // this, so reading it back fed the slot its own height and it could not shrink
+            readonly property real lookHeight: look.item
+                ? Math.max(look.item.implicitHeight, look.item.targetImplicitHeight) : 0
 
             width: ListView.view ? ListView.view.width : implicitWidth
-            implicitHeight: storeLoader.visible && storeLoader.item
-                ? storeLoader.item.implicitHeight
-                : popupDelegate.shippedHeight
+            implicitHeight: popupDelegate.storeShown ? storeLoader.item.implicitHeight : popupDelegate.lookHeight
             transformOrigin: win.position === "Left" ? Item.TopLeft
                 : win.position === "Center" ? Item.Top
                 : win.position === "BottomRight" ? Item.BottomRight : Item.TopRight
 
-            Loader {
-                id: shippedLoader
+            // the short time ("now", "3 min") moves on while the card is up
+            property string timeText: ""
+            function refreshTime() {
+                if (popupDelegate.entry)
+                    popupDelegate.timeText = Notifs.shortTimeLabel(popupDelegate.entry, Date.now());
+            }
+            Component.onCompleted: popupDelegate.refreshTime()
+            Timer {
+                interval: 30000
+                repeat: true
+                running: look.active
+                onTriggered: popupDelegate.refreshTime()
+            }
+
+            // Ryoku's card plays its own exit; the slot is held until it is done
+            property bool held: false
+            ListView.onRemove: {
+                if (popupDelegate.storeShown || !look.item)
+                    return;
+                popupDelegate.held = true;
+                popupDelegate.ListView.delayRemove = true;
+                win.leaving++;
+                look.leave();
+            }
+            function release() {
+                if (!popupDelegate.held)
+                    return;
+                popupDelegate.held = false;
+                win.leaving--;
+                popupDelegate.ListView.delayRemove = false;
+            }
+            Component.onDestruction: popupDelegate.release()
+
+            NotificationLook {
+                id: look
 
                 width: popupDelegate.width
-                height: popupDelegate.shippedHeight
-                active: !popupDelegate.storeRuns || storeLoader.status === Loader.Error
+                height: popupDelegate.lookHeight
+                active: !win.storeRuns || storeLoader.status === Loader.Error
                 visible: active
-                sourceComponent: Component {
-                    NotificationCard {
-                        width: popupDelegate.width
-                        height: implicitHeight
-                        notif: popupDelegate.entry
-                        us: win.us
-                        // Popups are compact and expand on demand; the grow/collapse scales
-                        // about the anchored corner (top-right, top-left or top-centre).
-                        compact: true
-                        transformOrigin: popupDelegate.transformOrigin
-                        // The popup drains its countdown frame over its own display lifespan;
-                        // a persistent popup (ttl -1) passes 0 and draws no frame.
-                        lifespanMs: popupDelegate.lifespanMs
-                        // The popup has no menu to close, so it ignores actionInvoked.
-                    }
-                }
+                notif: popupDelegate.entry
+                us: win.us
+                // Popups are compact and expand on demand.
+                compact: true
+                // The card counts down its own display lifespan; a persistent
+                // popup (ttl -1) passes 0 and draws no countdown.
+                lifespanMs: popupDelegate.lifespanMs
+                position: win.position
+                timeText: popupDelegate.timeText
+                showImages: Config.notifications?.show_images === true
+                imageSource: look.showImages ? Notifs.imageUrl(popupDelegate.entry?.image, false) : ""
+                appIconSource: look.showImages ? Notifs.imageUrl(popupDelegate.entry?.appIcon, true) : ""
+                enterDelay: Stack.enterDelay(win.stack, list.count)
+                shadows: !Perf.shadowsDisabled
+                onCloseRequested: Notifs.dismiss(popupDelegate.entry)
+                // The popup has no menu to close, so it ignores actionInvoked.
+                onDeparted: popupDelegate.release()
             }
 
             Loader {
@@ -280,7 +362,7 @@ PanelWindow {
 
                 width: popupDelegate.width
                 height: item ? item.implicitHeight : 0
-                active: popupDelegate.storeRuns
+                active: win.storeRuns
                 visible: active && status === Loader.Ready
                 // Built in the same frame the card is inserted, so the column
                 // lays it out at its real height. Loaded later, a taller card

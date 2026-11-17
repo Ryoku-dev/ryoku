@@ -115,20 +115,7 @@ Rectangle {
 
     readonly property bool imagesEnabled: Config.notifications?.show_images === true
     function imageSource(value, themed) {
-        let raw = String(value || "");
-        if (raw.length === 0)
-            return "";
-        if (raw.indexOf("image://icon/") === 0) {
-            raw = decodeURIComponent(raw.substring(13));
-            themed = true;
-        }
-        if (raw.charAt(0) === "/" || raw.indexOf("file:") === 0)
-            return raw.indexOf("file:") === 0 ? raw : "file://" + raw;
-        if (raw.indexOf("image://icon/") === 0)
-            return Icons.path(raw, true);
-        if (raw.indexOf(":") > 0)
-            return raw;
-        return themed ? Icons.path(raw, true) : raw;
+        return Notifs.imageUrl(value, themed);
     }
     readonly property string notificationImageSource: card.imagesEnabled
         ? card.imageSource(card.n().image, false) : ""

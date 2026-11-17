@@ -455,9 +455,22 @@ below are what each surface becomes.
 - **Ask, clipboard, voice.** A `stone4` cut plane with one field. Rows take the
   hover plane, never a left accent bar; an answer streams as body text. Nothing
   breathes or glows while idle.
-- **Notifications.** A notification is a cut slab (cut 8, hairline), title in
-  `row`, body in `detail`, actions as quiet plaques. It leaves on a timer that
-  pauses under the pointer, like the Hub's notice.
+- **Notifications.** Ryoku's own card takes the design in use, switched live
+  from `theme.design` (`modules/notifications/NotificationLook.qml`,
+  `designs/`). Each look sets the column's width, gap and settle
+  (`designs/Stack.js`), arrives from the edge `notification_position` names
+  and holds its slot until its exit ends. Every card has the app and a short
+  time ("now", "3 min"), open, expand and close, the summary, the body clamped
+  to two lines until expanded, actions on expand, the image or app icon when
+  `show_images`, and a mark for critical urgency. Lithic is a 360 slip cut
+  top-left and bottom-right with a hairline, a mono `APP · NOW` header, cut
+  plaque actions, a tick fuse that burns down the lifespan and a jasper URGENT
+  stamp. Material is a 360 M3 card with the app in a tonal circle wrapped by a
+  draining wavy ring. Adwaita is GNOME's 380 banner with no countdown. Fluent
+  is the Windows 11 364 toast with acrylic grain and one reveal light round
+  its outline. Countdowns step on a timer and hold still with reduced motion,
+  and the window exists only while a card is up.
+  `bin/art/notification-previews` records each look for Settings.
 - **OSD.** The volume, microphone, brightness and keyboard layout pop-up is a
   glance, not a panel: one small look per design, switched live from
   `theme.design` (`modules/osd/OsdLook.qml`, `designs/`), each where its
