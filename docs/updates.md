@@ -828,6 +828,11 @@ quiet. `tests/ryoku-discord.sh` builds every kind of message offline.
   a box with `ryoku-desktop` installed `deploy.sh` lays a new path through
   `_desktop_install` only once the installed package owns it, and clears an
   unowned copy an earlier deploy left; the package upgrade brings the file.
+  Brand images and the npm defaults follow the same rule even on a checkout
+  without a desktop package. Deploy and doctor remove only regular unowned
+  copies matching the checkout byte for byte; local edits and owned files stay.
+  Fedora and Void keep their native package-manager adoption and do not run
+  pacman's ownership cleanup.
 - **Generated power policy and long-running helpers must be adopted as one live
   transaction.** `hypridle.conf` is rendered state, not materialized payload,
   and a running shell-script daemon keeps executing its old file after the

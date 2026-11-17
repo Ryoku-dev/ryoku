@@ -5149,8 +5149,8 @@ func reconcileConflictingRyokuFiles(checkOnly bool) recResult {
 		return result
 	}
 	// source updates keep the base package installed too
-	if sys.ResolveRepo() != "" {
-		return okRes(i18n.T("source checkout; deploy-seeded helpers are expected"))
+	if repo := sys.ResolveRepo(); repo != "" {
+		return reconcileCheckoutAssets(checkOnly, repo, "/")
 	}
 	if !sys.PkgInstalled("ryoku-desktop") {
 		return okRes(i18n.T("dev checkout (no ryoku-desktop); deploy-seeded helpers are expected"))
