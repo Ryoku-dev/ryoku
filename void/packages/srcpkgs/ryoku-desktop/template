@@ -13,6 +13,7 @@ depends="
  ryoku-dictation>=${version}
  ryoku>=${version}
  ryoku-keyring
+ ryoku-dictation
  virtual?ryoku-desktop-compositor
  xorg-server-xwayland
  qt6-wayland

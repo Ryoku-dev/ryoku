@@ -1,6 +1,10 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **Fedora and Void know the voice engine again.** `ryoku-dictation` has its
+  translation rows and is a dependency of `ryoku-desktop` on both, and the rows
+  Voxtype left behind are gone (`fedora/packages/translations.tsv`,
+  `void/packages/translations.tsv`).
 - **Updating no longer stops at the voice engine on a box without the SPIRV
   headers.** The deploy check, the package recipes and the build host list now
   name `spirv-headers` (Fedora `spirv-headers-devel`, Void `SPIRV-Headers`),

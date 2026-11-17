@@ -213,6 +213,7 @@ ryoku-desktop-compositor	-	desktop	Virtual dependency provided by a Fedora compo
 ryoku-desktop-hyprland	ryoku-desktop-hyprland	hyprland	Ryoku-owned RPM.
 ryoku-desktop-niri	ryoku-desktop-niri	desktop	Ryoku-owned RPM.
 ryoku-desktop-wayfire	-	wayfire	Fedora ships Wayfire 0.10.1; Ryoku's Wayfire desktop requires 0.11.
+ryoku-dictation	ryoku-dictation	desktop	Ryoku-owned RPM.
 ryoku-hub	ryoku-hub	desktop	Ryoku-owned RPM.
 ryoku-hypr-plugins	ryoku-hypr-plugins	hyprland	Ryoku-owned RPM.
 ryoku-keyring	ryoku-keyring	desktop	Ryoku-owned RPM.
