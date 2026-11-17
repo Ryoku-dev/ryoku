@@ -14,9 +14,10 @@ Item {
     property bool shown: false
     property string passwordSsid: ""
     property string passwordKey: ""
+    property string passwordBssid: ""
     property string password: ""
     property int pendingId: -1
-    property string connectingSsid: ""
+    property string connectingKey: ""
     property string errorText: ""
 
     implicitWidth: 320
@@ -27,7 +28,7 @@ Item {
     readonly property string activeSecurity: Nets.activeSecurity(Network.accessPoints)
     readonly property string activeBand: Nets.activeBand(Network.accessPoints)
     readonly property var networks: Nets.networks(Network.accessPoints, Network.activeSsid,
-        page.activeSecurity)
+        page.activeSecurity, page.activeBand)
     // keyed so an open password field keeps its focus while the list re-sorts
     BusListModel {
         id: networkRows
@@ -48,12 +49,12 @@ Item {
         return "network_wifi_1_bar";
     }
 
-    function beginConnect(ssid, passwordValue) {
+    function beginConnect(ssid, passwordValue, bssid, key) {
         if (connecting || !ssid)
             return;
         errorText = "";
-        connectingSsid = ssid;
-        pendingId = Network.connectWifi(ssid, passwordValue || "", "");
+        connectingKey = key;
+        pendingId = Network.connectWifi(ssid, passwordValue || "", bssid || "");
     }
 
     function choose(ap) {
@@ -62,19 +63,21 @@ Item {
         if (ap.saved || openNetwork(ap)) {
             passwordSsid = "";
             passwordKey = "";
+            passwordBssid = "";
             password = "";
-            beginConnect(ap.ssid, "");
+            beginConnect(ap.ssid, "", ap.bssid, String(ap.key || ""));
             return;
         }
         passwordSsid = String(ap.ssid || "");
         passwordKey = String(ap.key || "");
+        passwordBssid = String(ap.bssid || "");
         password = "";
         errorText = "";
     }
 
     function submitPassword() {
         if (passwordSsid && password.length > 0)
-            beginConnect(passwordSsid, password);
+            beginConnect(passwordSsid, password, passwordBssid, passwordKey);
     }
 
     function cancelPassword() {
@@ -82,6 +85,7 @@ Item {
             return;
         passwordSsid = "";
         passwordKey = "";
+        passwordBssid = "";
         password = "";
         errorText = "";
     }
@@ -92,10 +96,11 @@ Item {
             if (id !== page.pendingId)
                 return;
             page.pendingId = -1;
-            page.connectingSsid = "";
+            page.connectingKey = "";
             if (ok) {
                 page.passwordSsid = "";
                 page.passwordKey = "";
+                page.passwordBssid = "";
                 page.password = "";
                 page.errorText = "";
             } else {
@@ -187,7 +192,7 @@ Item {
             icon: page.strengthIcon(Network.wifi && Network.wifi.strength)
             title: Network.activeSsid || "Wi-Fi"
             subtitle: page.activeBand.length > 0
-                ? "Connected · " + Nets.bandLabel([page.activeBand]) : "Connected"
+                ? "Connected · " + Nets.bandLabel(page.activeBand) : "Connected"
             selected: true
 
             K.Button {
@@ -237,24 +242,18 @@ Item {
                         width: parent.width
                         icon: page.strengthIcon(accessPoint.modelData.strength)
                         title: accessPoint.modelData.ssid || "Hidden network"
-                        subtitle: page.connectingSsid === String(accessPoint.modelData.ssid || "")
-                            ? "Connecting…"
-                            : (accessPoint.modelData.saved ? "Saved"
-                                : (page.openNetwork(accessPoint.modelData) ? "Open"
-                                    : String(accessPoint.modelData.security || "Secured")))
+                        subtitle: {
+                            const row = accessPoint.modelData;
+                            const state = page.connectingKey === String(row.key || "") ? "Connecting…"
+                                : (row.saved ? "Saved"
+                                    : (page.openNetwork(row) ? "Open" : String(row.security || "Secured")));
+                            return row.bandLabel ? state + " · " + row.bandLabel : state;
+                        }
                         divider: accessPoint.index > 0 || page.connected
                         enabled: !page.connecting
                         onClicked: page.choose(accessPoint.modelData)
                         onRightClicked: if (accessPoint.modelData.saved)
                             Network.forgetWifi(accessPoint.modelData.ssid)
-
-                        K.Label {
-                            visible: String(accessPoint.modelData.bandLabel || "").length > 0
-                            text: String(accessPoint.modelData.bandLabel || "")
-                            role: "caption"
-                            tone: "dim"
-                            numeric: true
-                        }
 
                         K.Glyph {
                             visible: !page.openNetwork(accessPoint.modelData)

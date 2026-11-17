@@ -5,12 +5,12 @@ function securityClass(security) {
     return value === "enterprise" ? "enterprise" : "secured";
 }
 
-function bandLabel(bands) {
-    return bands.length > 0 ? bands.join(" · ") + " GHz" : "";
+function bandLabel(band) {
+    return band ? band + " GHz" : "";
 }
 
-// access points of one name and security kind collapse into a row led by the strongest
-function networks(aps, activeSsid, activeSecurity) {
+// access points of one name, security kind and band collapse into a row led by the strongest
+function networks(aps, activeSsid, activeSecurity, activeBand) {
     var groups = {};
     var order = [];
     var list = aps || [];
@@ -19,16 +19,19 @@ function networks(aps, activeSsid, activeSecurity) {
         if (!ap)
             continue;
         var ssid = String(ap.ssid || "");
-        if (ssid !== "" && ssid === activeSsid && securityClass(ap.security) === securityClass(activeSecurity))
+        var band = ap.band ? String(ap.band) : "";
+        if (ssid !== "" && ssid === activeSsid && securityClass(ap.security) === securityClass(activeSecurity)
+                && (!activeBand || band === activeBand))
             continue;
         // a hidden network has no name to share, so each access point stays alone
         var key = ssid === ""
             ? "\u0001" + String(ap.bssid || i)
-            : ssid + "\u0000" + securityClass(ap.security);
+            : ssid + "\u0000" + securityClass(ap.security) + "\u0000" + band;
         var group = groups[key];
         if (!group) {
             group = { key: key, ssid: ssid, security: ap.security || "", bssid: ap.bssid || "",
-                strength: Number(ap.strength || 0), saved: false, autoconnect: false, bands: [] };
+                band: band, bandLabel: bandLabel(band), strength: Number(ap.strength || 0),
+                saved: false, autoconnect: false };
             groups[key] = group;
             order.push(key);
         } else if (Number(ap.strength || 0) > group.strength) {
@@ -38,13 +41,9 @@ function networks(aps, activeSsid, activeSecurity) {
         }
         group.saved = group.saved || !!ap.saved;
         group.autoconnect = group.autoconnect || !!ap.autoconnect;
-        if (ap.band && group.bands.indexOf(String(ap.band)) < 0)
-            group.bands.push(String(ap.band));
     }
     var out = order.map(function(k) {
         var g = groups[k];
-        g.bands.sort(function(a, b) { return Number(a) - Number(b); });
-        g.bandLabel = bandLabel(g.bands);
         // steps of ten so a flickering reading does not shuffle rows
         g.tier = Math.floor(g.strength / 10);
         return g;
@@ -54,7 +53,8 @@ function networks(aps, activeSsid, activeSecurity) {
             return a.saved ? -1 : 1;
         if (a.tier !== b.tier)
             return b.tier - a.tier;
-        return a.ssid.localeCompare(b.ssid);
+        var byName = a.ssid.localeCompare(b.ssid);
+        return byName !== 0 ? byName : Number(a.band) - Number(b.band);
     });
     return out;
 }

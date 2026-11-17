@@ -16,6 +16,9 @@
 - **The Orpheus Wi-Fi list shows each network once, with its bands.** Access
   points of one name and security kind collapse into one row labelled 2.4, 5 or
   6 GHz, saved networks first, and a join picks the strongest radio
+- **The Orpheus Wi-Fi list shows one row per network and band.** Access points
+  of one name, security kind and band collapse into a row marked 2.4, 5 or
+  6 GHz, saved networks first, and the connected row says which band it is on
   (`subshells/orpheus/qml/cards/controls/WifiPage.qml`, `wifinets.js`).
 - **The Orpheus Bluetooth list keeps its rows still while a scan runs.**
   Connected and saved devices stay on top, found devices wait for a real name

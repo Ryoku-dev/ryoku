@@ -23,25 +23,29 @@ const scan = [
     ap("Mesh", "c2", "5", 45, { security: "Wpa3" }),
 ];
 
-const rows = networks(scan, "", "");
-eq(rows.map(r => r.ssid + ":" + r.security), ["Home:Wpa2", "Cafe:Wpa2", "Mesh:Wpa2", "Cafe:None"],
-    "one row per name and security kind, saved first, then by signal");
-eq(rows[0].bandLabel, "2.4 · 5 GHz", "a dual-band network lists both bands once");
-eq(rows[0].bssid, "a2", "the strongest access point speaks for the row");
-eq(rows.find(r => r.ssid === "Mesh").bandLabel, "5 · 6 GHz", "bands sort numerically");
-eq(rows.find(r => r.ssid === "Mesh").security, "Wpa2", "Wpa2 and Wpa3 radios of one network collapse; strongest reports security");
+const rows = networks(scan, "", "", "");
+eq(rows.map(r => r.ssid + ":" + r.security + ":" + r.band),
+    ["Home:Wpa2:2.4", "Home:Wpa2:5", "Cafe:Wpa2:2.4", "Mesh:Wpa2:6", "Mesh:Wpa3:5", "Cafe:None:2.4"],
+    "one row per name, security kind and band, saved first, then by signal");
+eq(rows[0].bandLabel, "2.4 GHz", "each row carries its band");
+eq(rows.find(r => r.ssid === "Home" && r.band === "5").bssid, "a2", "the strongest access point of the band speaks for the row");
+eq(rows.filter(r => r.ssid === "Home" && r.band === "5").length, 1, "mesh access points of one band collapse");
+eq(rows.find(r => r.ssid === "Mesh" && r.band === "5").security, "Wpa3", "each band reports its own security");
+eq(rows.map(r => r.saved).join(), "true,false,false,false,false,false", "saved rows sort first");
 
-eq(networks(scan, "Home", "Wpa2").map(r => r.ssid), ["Cafe", "Mesh", "Cafe"],
-    "the connected network leaves the list on every band");
-eq(networks(scan, "Cafe", "None").map(r => r.ssid + ":" + r.security), ["Home:Wpa2", "Cafe:Wpa2", "Mesh:Wpa2"],
-    "an open network of the same name is a different row");
+eq(networks(scan, "Home", "Wpa2", "5").map(r => r.ssid + ":" + r.band).slice(0, 2), ["Home:2.4", "Cafe:2.4"],
+    "only the connected band leaves the list, the other band stays pickable");
+eq(networks(scan, "Home", "Wpa2", "").filter(r => r.ssid === "Home").length, 0,
+    "an unknown connected band hides every band of that network");
+eq(networks(scan, "Cafe", "None", "2.4").map(r => r.ssid + ":" + r.security).filter(x => x.startsWith("Cafe")),
+    ["Cafe:Wpa2"], "an open network of the same name is a different row");
 
 const jitter = [ap("A", "1", "5", 61), ap("B", "2", "5", 64)];
 const jittered = [ap("A", "1", "5", 66), ap("B", "2", "5", 62)];
-eq(networks(jitter, "", "").map(r => r.ssid), networks(jittered, "", "").map(r => r.ssid),
+eq(networks(jitter, "", "", "").map(r => r.ssid), networks(jittered, "", "", "").map(r => r.ssid),
     "a small signal change does not reorder rows");
 
-eq(networks([ap("", "x1", "5", 50), ap("", "x2", "5", 49)], "", "").length, 2,
+eq(networks([ap("", "x1", "5", 50), ap("", "x2", "5", 49)], "", "", "").length, 2,
     "hidden networks are not merged");
 
 const live = [ap("Home", "a1", "2.4", 60), ap("Home", "a2", "5", 80, { active: true })];
