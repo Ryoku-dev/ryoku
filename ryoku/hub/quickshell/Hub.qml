@@ -1456,6 +1456,13 @@ Rectangle {
                     pageHost.reveal(l);
                     return;
                 }
+                if (l && l.status === Loader.Error) {
+                    if (pageHost.settling === l)
+                        pageHost.endSettle();
+                    l.destroy();
+                    delete pageHost.cache[src];
+                    l = null;
+                }
                 if (l || !src.length)
                     return;
                 l = pageLoader.createObject(pageHost, { source: src });
@@ -1492,6 +1499,8 @@ Rectangle {
             function reveal(l) {
                 if (l.source != pageHost.src)
                     return;
+                if (pageHost.settling === l)
+                    pageHost.endSettle();
                 var out = pageHost.front;
                 pageHost.front = l;
                 pageHost.shown = hub.section;
@@ -1545,9 +1554,9 @@ Rectangle {
                 }
                 pageHost.settleGrids = grids;
                 for (var g = 0; g < grids.length; g++)
-                    grids[g].settledChanged.connect(pageHost.checkSettled);
+                    grids[g].settledChanged.connect(pageHost.recheck);
                 if (l.item && l.item.loading !== undefined)
-                    l.item.loadingChanged.connect(pageHost.checkSettled);
+                    l.item.loadingChanged.connect(pageHost.recheck);
                 settleCap.restart();
                 pageHost.checkSettled();
             }
@@ -1555,12 +1564,15 @@ Rectangle {
                 settleCap.stop();
                 var l = pageHost.settling;
                 for (var g = 0; g < pageHost.settleGrids.length; g++)
-                    pageHost.settleGrids[g].settledChanged.disconnect(pageHost.checkSettled);
+                    pageHost.settleGrids[g].settledChanged.disconnect(pageHost.recheck);
                 if (l && l.item && l.item.loading !== undefined)
-                    l.item.loadingChanged.disconnect(pageHost.checkSettled);
+                    l.item.loadingChanged.disconnect(pageHost.recheck);
                 pageHost.settleGrids = [];
                 pageHost.settling = null;
             }
+            // revealing from inside the settled write re-enters its binding
+            function recheck() { recheckTimer.restart(); }
+            Timer { id: recheckTimer; interval: 0; onTriggered: pageHost.checkSettled() }
             function checkSettled() {
                 var l = pageHost.settling;
                 if (!l || (l.item && l.item.loading === true))
@@ -1844,7 +1856,7 @@ Rectangle {
         interval: 90; repeat: false
         property int tries: 0
         onTriggered: {
-            var it = pageHost.front ? pageHost.front.item : null;
+            var it = pageHost.shown === hub.section && pageHost.front ? pageHost.front.item : null;
             if (it && typeof it.focusKey === "function") { it.focusKey(hub.pendingFocusKey); hub.pendingFocusKey = ""; focusTimer.tries = 0; return; }
             if (focusTimer.tries < 15) { focusTimer.tries++; focusTimer.restart(); } else focusTimer.tries = 0;
         }
