@@ -21,6 +21,11 @@
   broke on the empty skill list the daemon sent and kept saying it was reading
   skills; it now shows the agents' skills, or says what went wrong
   (`rashin/backend/`, `rashin/web/`).
+- **Rashin names why Claude Code's adapter failed to start.** The error now
+  carries the adapter's own reason instead of the last log line, the current
+  `claude-agent-acp` is preferred over the deprecated `claude-code-acp`, and an
+  adapter whose bundled Claude never installed runs on the Claude Code already
+  on the box (`rashin/backend/`).
 - **Fastfetch reads the wallpaper-tinted config again.** The effective config
   keeps the `// ryoku:` header comments from `config.jsonc`, so it is now
   cached as `fastfetch-effective.jsonc`; fastfetch rejects comments in a

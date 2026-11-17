@@ -15,6 +15,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
 )
 
 // acp.go speaks the Agent Client Protocol: newline-delimited JSON-RPC 2.0
@@ -90,8 +91,35 @@ type rpcMsg struct {
 }
 
 type rpcError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
+	Code    int             `json:"code"`
+	Message string          `json:"message"`
+	Data    json.RawMessage `json:"data,omitempty"`
+}
+
+// detail is the agent's own explanation: ACP adapters put the real cause of a
+// bare "Internal error" in data.details, or send data as a plain string.
+func (e *rpcError) detail() string {
+	if len(e.Data) == 0 {
+		return ""
+	}
+	var obj struct {
+		Details string `json:"details"`
+		Message string `json:"message"`
+		Error   string `json:"error"`
+	}
+	if json.Unmarshal(e.Data, &obj) == nil {
+		for _, s := range []string{obj.Details, obj.Message, obj.Error} {
+			if s = strings.TrimSpace(s); s != "" {
+				return s
+			}
+		}
+		return ""
+	}
+	var s string
+	if json.Unmarshal(e.Data, &s) == nil {
+		return strings.TrimSpace(s)
+	}
+	return ""
 }
 
 type acpConn struct {
@@ -199,12 +227,15 @@ func (t *tailBuffer) String() string {
 func (t *tailBuffer) reason() string {
 	lines := strings.Split(t.String(), "\n")
 	for i := len(lines) - 1; i >= 0; i-- {
-		if l := strings.TrimSpace(lines[i]); l != "" {
-			if len(l) > 200 {
-				l = l[:200]
-			}
-			return l
+		l := strings.TrimSpace(lines[i])
+		// the closing brace of a dumped object says nothing
+		if !strings.ContainsFunc(l, unicode.IsLetter) {
+			continue
 		}
+		if len(l) > 200 {
+			l = l[:200]
+		}
+		return l
 	}
 	return ""
 }
@@ -295,10 +326,11 @@ func (c *acpConn) request(method string, params any) (json.RawMessage, error) {
 	}
 	if resp.Error != nil {
 		msg := resp.Error.Message
-		// Hermes answers a failed session/new with a bare "Internal error";
-		// its log stream carries the real cause. Ride the last line along so
-		// the banner and `ryoku-rashin logs` can name what broke.
-		if c.errTail != nil {
+		if why := resp.Error.detail(); why != "" {
+			return nil, fmt.Errorf("acp %s: %s: %s", method, msg, why)
+		}
+		// a bare internal error has its cause only in the agent's log stream
+		if resp.Error.Code == -32603 && c.errTail != nil {
 			if why := c.errTail.reason(); why != "" {
 				msg += ": " + why
 			}
@@ -1331,6 +1363,11 @@ func startACP(cwd string) (*acpConn, error) {
 	stamp := hermesConfigStamp()
 	cmd := exec.Command(b.Argv[0], b.Argv[1:]...)
 	cmd.Dir = cwd
+	if b.ID == "claude" {
+		if env := claudeAdapterEnv(b.Argv[0]); len(env) > 0 {
+			cmd.Env = append(os.Environ(), env...)
+		}
+	}
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err

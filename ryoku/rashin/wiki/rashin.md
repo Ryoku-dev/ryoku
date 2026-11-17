@@ -49,7 +49,7 @@ The Ask route picker is separate. It offers **Agent model** first, followed by
 available Prowl routes. Changing the Ask route never changes the harness model.
 
 The Agent can run Hermes, Codex through `codex-acp`, Claude Code through
-`claude-code-acp` or `claude-agent-acp`, omp, opencode, or Gemini CLI. **Open
+`claude-agent-acp` (or the deprecated `claude-code-acp`), omp, opencode, or Gemini CLI. **Open
 in terminal** resumes the current session in the harness's own TUI where that
 harness supports it.
 
