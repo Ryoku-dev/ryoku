@@ -109,6 +109,9 @@ Singleton {
     // opens/closes only when the request targets its screen (mon "" broadcasts to
     // every monitor, matching the reference). Ported from the reference pill root
     // (shell.qml 32-35, 317-339).
+    // Frame menu managers mounted by the active style; each one draws surface
+    // requests such as the polkit island, so the shell's own prompt stands down.
+    property int surfaceHosts: 0
     signal surfaceRequested(string id, string mon, var context)
     signal surfaceClosed(string id, string mon)
     signal keyringPromptChanged(int promptId)

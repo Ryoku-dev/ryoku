@@ -8,6 +8,11 @@
 - **The Game Bar Audio card shows every playing app and resizes.** The card
   grows with its list up to 80% of the screen height, then scrolls, and takes
   the bottom-right resize grip (`modules/gamebar/cards/AudioCard.qml`, `GameBar.qml`).
+- **The administrator password card shows on every bar style.** Orpheus, Kairos
+  and any style that neither owns polkit nor hosts frame menus now get the
+  shell's own card, so an admin prompt is no longer waiting on a surface nothing
+  draws (`quickshell/shell/modules/polkit/PolkitPrompt.qml`, `ShellBody.qml`,
+  `services/ShellState.qml`, `modules/bar/FrameMenuManager.qml`).
 - **Plugins installed from a store you added load like any other.**
   `plugins/discover.sh` also reads `ryoku/sources/<store>/plugins` and accepts
   each copy only with a receipt from its own store, so no store's copy can pose

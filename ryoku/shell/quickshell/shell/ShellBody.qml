@@ -13,6 +13,7 @@ import "modules/desktop"
 import "modules/visualizer" as Viz
 import "modules/bar"
 import "modules/dictation"
+import "modules/polkit"
 import "modules/sidebar"
 import "modules/dock"
 import "modules/launcher"
@@ -228,6 +229,13 @@ Scope {
     LazyLoader {
         activeAsync: Dictation.active
         DictationSurface {}
+    }
+
+    // The administrator password card, for every style that neither owns polkit
+    // nor hosts it through the surface bus.
+    LazyLoader {
+        activeAsync: Polkit.active && !Shells.owns("polkit") && ShellState.surfaceHosts === 0
+        PolkitPrompt {}
     }
 
     // One per-monitor surface stack. Each screen gets a Scope carrying its
@@ -934,12 +942,13 @@ Scope {
     }
 
     // The polkit agent streams its prompt on a topic rather than pushing a
-    // surface, so raise and drop the island from the state itself, unless the
-    // active subshell or bar style draws its own prompt. (pill 321-329)
+    // surface, so a style that hosts surfaces on the bus gets the island raised
+    // and dropped from the state itself. Any other style that does not draw its
+    // own prompt gets PolkitPrompt above. (pill 321-329)
     Connections {
         target: Polkit
         function onActiveChanged() {
-            if (Polkit.active && !Shells.owns("polkit"))
+            if (Polkit.active && ShellState.surfaceHosts > 0 && !Shells.owns("polkit"))
                 ShellState.requestSurface("polkit", "", undefined);
             else
                 ShellState.closeSurface("polkit", "");
