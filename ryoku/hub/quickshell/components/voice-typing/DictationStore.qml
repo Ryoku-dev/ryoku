@@ -27,6 +27,8 @@ QtObject {
     property int typeDelayMs: 2
     property string model: ""
     property var models: []
+    // {path, file, present} when the configured model is not in the catalogue
+    property var customModel: null
     property var sources: []
     property string gpu: "none"
     property string backends: "cpu"
@@ -86,6 +88,10 @@ QtObject {
         return m !== null && m.installed === true;
     }
 
+    // a configured file that is no catalogue model: the engine loads it all the same
+    readonly property bool customMissing: store.customModel !== null && store.customModel.present !== true
+    readonly property bool usable: store.customModel !== null ? store.customModel.present === true : store.usableWith(store.activeId())
+
     // "model@<id>" is one model row's way to choose the model: the same value as "model"
     function read(key) {
         if (key.indexOf("model@") === 0)
@@ -95,7 +101,7 @@ QtObject {
         case "installed": return store.loaded ? store.installed : undefined;
         case "enabled": return store.loaded ? store.enabled : undefined;
         case "model": return store.loaded ? store.activeId() : undefined;
-        case "modelLabel": return store.current ? store.current.label : undefined;
+        case "modelLabel": return store.current ? store.current.label : store.customModel !== null && store.customModel.present === true ? "Custom" : undefined;
         case "device": return store.loaded ? store.device : undefined;
         case "mode": return store.loaded ? store.mode : undefined;
         case "source": return store.loaded ? store.source : undefined;
@@ -186,6 +192,7 @@ QtObject {
         store.typeDelayMs = d.typeDelayMs === undefined ? 2 : d.typeDelayMs;
         store.model = d.model || "";
         store.models = d.models || [];
+        store.customModel = d.customModel || null;
         store.sources = d.sources || [];
         store.gpu = d.gpu || "none";
         store.backends = d.backends || "cpu";

@@ -79,6 +79,14 @@ type dictationSource struct {
 	Default     bool   `json:"default"`
 }
 
+// a configured model that is not one of the catalogue's files: the engine
+// still loads it, so the page shows it instead of claiming nothing is chosen
+type dictationCustomModel struct {
+	Path    string `json:"path"`
+	File    string `json:"file"`
+	Present bool   `json:"present"`
+}
+
 type dictationSnapshot struct {
 	Enabled     bool   `json:"enabled"`
 	Source      string `json:"source"`
@@ -100,11 +108,12 @@ type dictationSnapshot struct {
 	Backends         string `json:"backends"`
 	ActiveModel      string `json:"activeModel"`
 	// the compute backend the running daemon reports, e.g. "Vulkan0" or "CPU"
-	ActiveBackend string            `json:"activeBackend"`
-	Running       bool              `json:"running"`
-	State         string            `json:"state"`
-	Models        []dictationModel  `json:"models"`
-	Sources       []dictationSource `json:"sources"`
+	ActiveBackend string                `json:"activeBackend"`
+	Running       bool                  `json:"running"`
+	State         string                `json:"state"`
+	CustomModel   *dictationCustomModel `json:"customModel"`
+	Models        []dictationModel      `json:"models"`
+	Sources       []dictationSource     `json:"sources"`
 }
 
 func dictationConfPath() string {
@@ -235,6 +244,19 @@ func dictationModelInventory(configured string) []dictationModel {
 	return models
 }
 
+func dictationCustomFor(configured string, models []dictationModel) *dictationCustomModel {
+	if configured == "" {
+		return nil
+	}
+	clean := filepath.Clean(configured)
+	for _, m := range models {
+		if m.Installed && filepath.Clean(m.Path) == clean {
+			return nil
+		}
+	}
+	return &dictationCustomModel{Path: configured, File: filepath.Base(clean), Present: fileExists(configured)}
+}
+
 func dictationGet() error {
 	values := dictationValues()
 	engine := dictationEnginePath()
@@ -261,6 +283,7 @@ func dictationGet() error {
 	}
 	snapshot.PackageAvailable, snapshot.PackageReason = dictationPackageAvailability()
 	snapshot.ActiveModel, snapshot.State, snapshot.Running, snapshot.ActiveBackend = dictationStatus()
+	snapshot.CustomModel = dictationCustomFor(snapshot.Model, snapshot.Models)
 	body, err := json.Marshal(snapshot)
 	if err != nil {
 		return err

@@ -1,6 +1,9 @@
 # Changelog: ryoku/hub/
 
 ## Unreleased
+- **Voice typing shows a model set outside Settings as Custom, and says so when its file is missing.**
+  A configured model that is not one of the listed ones gets its own In use row with the file name and counts
+  as ready when the file exists (`backend/dictation.go`, `pages/VoiceTyping.qml`, `components/voice-typing/DictationStore.qml`).
 - **Ethernet, VPN and DNS are pages under Connections, and a saved Wi-Fi network has IP settings.**
   A manual address on the connection in use is undone after 20 seconds unless kept; `ryoku-shell hub open ethernet`,
   `vpn` or `dns` opens them (`pages/Ethernet.qml`, `Vpn.qml`, `Dns.qml`, `components/network/`, `Singletons/NetworkLink.qml`).

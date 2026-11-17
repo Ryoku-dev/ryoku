@@ -281,3 +281,73 @@ func TestDictationRequiresExplicitOptIn(t *testing.T) {
 		}
 	}
 }
+
+func TestDictationReportsAModelOutsideTheCatalogue(t *testing.T) {
+	isolate(t)
+	read := func() dictationSnapshot {
+		t.Helper()
+		out := captureStdout(t, func() {
+			if err := dictationGet(); err != nil {
+				t.Fatal(err)
+			}
+		})
+		var state dictationSnapshot
+		if err := json.Unmarshal([]byte(out), &state); err != nil {
+			t.Fatal(err)
+		}
+		return state
+	}
+	set := func(update string) {
+		t.Helper()
+		captureStdout(t, func() {
+			if err := dictationSet(update); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+
+	catalogue := filepath.Join(dictationModelsDir(), dictationCatalogue()[0].File)
+	custom := filepath.Join(t.TempDir(), "my-own-model.gguf")
+	for _, path := range []string{catalogue, custom} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("weights"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if state := read(); state.CustomModel != nil {
+		t.Fatalf("nothing configured reported a custom model: %+v", state.CustomModel)
+	}
+
+	set(`{"model":"` + catalogue + `"}`)
+	if state := read(); state.CustomModel != nil {
+		t.Fatalf("a catalogue model reported as custom: %+v", state.CustomModel)
+	}
+
+	set(`{"model":"` + custom + `"}`)
+	state := read()
+	if state.CustomModel == nil || state.CustomModel.File != "my-own-model.gguf" || !state.CustomModel.Present {
+		t.Fatalf("a present custom model: %+v", state.CustomModel)
+	}
+
+	set(`{"enabled":true}`)
+	set(`{"enabled":false}`)
+	if got := read().Model; got != custom {
+		t.Fatalf("switching voice typing on and off changed the model to %q", got)
+	}
+
+	if err := os.Remove(custom); err != nil {
+		t.Fatal(err)
+	}
+	state = read()
+	if state.CustomModel == nil || state.CustomModel.Present || state.CustomModel.Path != custom {
+		t.Fatalf("a missing custom model: %+v", state.CustomModel)
+	}
+
+	set(`{"model":"` + catalogue + `"}`)
+	if state := read(); state.CustomModel != nil || state.Model != catalogue {
+		t.Fatalf("choosing a catalogue model kept the custom one: %+v model=%q", state.CustomModel, state.Model)
+	}
+}

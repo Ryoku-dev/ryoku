@@ -20,7 +20,13 @@ Item {
     readonly property bool loaded: root.store !== null && root.store.loaded
     readonly property bool installed: root.loaded && root.store.installed
     readonly property var current: root.store ? root.store.current : null
-    readonly property bool usable: root.store !== null && root.store.usableWith(root.store.activeId())
+    readonly property bool usable: root.store !== null && root.store.usable
+    readonly property var custom: root.store ? root.store.customModel : null
+    readonly property bool customMissing: root.store !== null && root.store.customMissing
+    // the model voice typing is using, by name; empty when none is in use
+    readonly property string modelName: root.current ? I18n.tr(root.current.label)
+        : root.custom !== null && root.custom.present === true ? I18n.tr("Custom (%1)").arg(root.custom.file)
+        : ""
     readonly property var deviceBind: ({ store: "dictation", key: "device" })
     readonly property string deviceError: Changes.error(root.deviceBind)
 
@@ -34,11 +40,12 @@ Item {
 
     readonly property string stateLine: !root.loaded ? ""
         : !root.installed ? I18n.tr("The Ryoku engine is not installed.")
+        : root.customMissing ? I18n.tr("The configured model file %1 is missing. Choose or download a speech model below.").arg(root.custom.file)
         : !root.store.enabled ? I18n.tr("Off.")
         : !root.usable ? I18n.tr("Choose or download a speech model below to use voice typing.")
-        : root.store.state === "recording" && root.current && root.store.activeBackend !== ""
-            ? I18n.tr("Listening with %1 on %2.").arg(I18n.tr(root.current.label)).arg(root.store.activeBackend)
-        : root.current ? I18n.tr("On, ready to use %1.").arg(I18n.tr(root.current.label))
+        : root.store.state === "recording" && root.modelName !== "" && root.store.activeBackend !== ""
+            ? I18n.tr("Listening with %1 on %2.").arg(root.modelName).arg(root.store.activeBackend)
+        : root.modelName !== "" ? I18n.tr("On, ready to use %1.").arg(root.modelName)
         : I18n.tr("Off.")
 
     // model rows carry the accuracy and size that decide them, in mono because
@@ -53,6 +60,12 @@ Item {
         else
             parts.push(m.installed === true ? I18n.tr("Installed") : m.size);
         return parts.join(" · ") + "\n" + I18n.tr(m.detail);
+    }
+
+    function customDetail() {
+        return root.custom.file + "\n" + (root.custom.present === true
+            ? I18n.tr("A model file chosen outside Settings. Pick a model below to replace it.")
+            : I18n.tr("The configured model file is missing, so voice typing cannot use it. Pick a model below to replace it."));
     }
 
     // "model@<id>" is one model row's way to choose the model: the same value as "model"
@@ -170,13 +183,22 @@ Item {
         var rows = Schema.rows.filter(r => r.template !== true
             && (r.id !== "vt-install" || (root.loaded && !root.installed))
             && (r.id !== "vt-remove" || root.installed)).map(function (r) {
-                if (r.id !== "vt-enabled" || !root.installed || !root.current)
+                if (r.id !== "vt-enabled" || !root.installed || root.modelName === "")
                     return r;
                 return Object.assign({}, r, {
-                    detail: I18n.tr("Using %1.").arg(I18n.tr(root.current.label)) + " " + I18n.tr(r.detail)
+                    detail: I18n.tr("Using %1.").arg(root.modelName) + " " + I18n.tr(r.detail)
                 });
             });
         if (root.store) {
+            if (root.custom !== null) {
+                rows.push({
+                    id: "model-custom",
+                    section: "model",
+                    label: "Custom",
+                    detail: root.customDetail(),
+                    control: "custom"
+                });
+            }
             rows = rows.concat(root.store.models.map(m => ({
                 id: "model-" + m.id,
                 section: "model",
@@ -196,6 +218,7 @@ Item {
         var c = { "vt-install": installControl, "vt-source": sourceControl, "vt-remove": removeControl };
         if (root.store)
             root.store.models.forEach(m => c["model-" + m.id] = modelControl);
+        c["model-custom"] = customControl;
         return c;
     }
 
@@ -322,6 +345,16 @@ Item {
                 accessibleName: ctl.model ? I18n.tr("Remove %1").arg(I18n.tr(ctl.model.label)) : ""
                 onClicked: root.removeModel(ctl.model.id)
             }
+        }
+    }
+
+    Component {
+        id: customControl
+        Label {
+            property var row: null
+            text: root.customMissing ? I18n.tr("File missing") : I18n.tr("In use")
+            typeRole: "label"
+            ink: root.customMissing ? Lithic.jasper : Lithic.fg
         }
     }
 
