@@ -47,6 +47,14 @@ var rows = [
           { label: "Daily", value: "daily" }, { label: "Weekly", value: "weekly" }
       ], bind: store("interval", "daily"), "default": "daily" },
 
+    { id: "update-notifications", section: "checks", label: "Update notifications",
+      detail: "Which waiting updates show in the bar. Only the indicator changes, not what Update now installs.",
+      keywords: ["notify", "indicator", "badge", "bar", "system packages", "ryoku only", "both", "dot"],
+      control: "segmented", options: [
+          { label: "Ryoku only", value: "ryoku" }, { label: "System only", value: "system" },
+          { label: "Both", value: "both" }
+      ], bind: store("notifications", "ryoku"), "default": "ryoku" },
+
     { id: "snapshots", section: "rollback", label: "Snapshots", template: true,
       detail: "A copy of the whole system saved before each update, restored from the boot menu",
       keywords: ["rollback", "roll back", "undo update", "restore", "snapper", "boot menu", "limine", "btrfs"] },

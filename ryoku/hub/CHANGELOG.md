@@ -4,6 +4,10 @@
 - **Ethernet, VPN and DNS are pages under Connections, and a saved Wi-Fi network has IP settings.**
   A manual address on the connection in use is undone after 20 seconds unless kept; `ryoku-shell hub open ethernet`,
   `vpn` or `dns` opens them (`pages/Ethernet.qml`, `Vpn.qml`, `Dns.qml`, `components/network/`, `Singletons/NetworkLink.qml`).
+- **Settings > Updates chooses what the bar's update dot counts (#877).** Under
+  Automatic checks, Update notifications picks Ryoku only (the default), System
+  only or Both. It does not change what Update now installs
+  (`schema/updates.js`, `components/updates/UpdatesStore.qml`).
 - **Every badge may have its own card design, and wear it at once.** Testers
   and contributors now get the studio's design section too (it was NixOS, Core
   and Founder only), and any active badge's approved design is drawn

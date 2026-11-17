@@ -307,6 +307,7 @@ Item {
         if (had) {
             Changes.stores.updates.load("interval");
             Changes.stores.updates.load("system");
+            Changes.stores.updates.load("notifications");
         }
         Updates.clockShown = true;
     }
