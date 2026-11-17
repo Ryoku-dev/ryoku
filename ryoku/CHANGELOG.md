@@ -17,6 +17,10 @@
 - **A Hyprland plugin built for another Hyprland no longer fills the config with
   errors (#828).** Such a copy is skipped for a matching packaged one, and a
   plugin that pauses itself gets none of its settings applied (`wm/hyprland`).
+- **The Rashin console's Skills tab opens on a box without Hermes.** The page
+  broke on the empty skill list the daemon sent and kept saying it was reading
+  skills; it now shows the agents' skills, or says what went wrong
+  (`rashin/backend/`, `rashin/web/`).
 - **Fastfetch reads the wallpaper-tinted config again.** The effective config
   keeps the `// ryoku:` header comments from `config.jsonc`, so it is now
   cached as `fastfetch-effective.jsonc`; fastfetch rejects comments in a

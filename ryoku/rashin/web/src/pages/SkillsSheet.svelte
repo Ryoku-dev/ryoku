@@ -4,23 +4,13 @@
   import { api } from "$lib/api/client";
   import { filterCategories, groupByOrigin } from "$lib/pages/skills/filter";
   import { loadHarnesses, type Harness, type Skill } from "$lib/pages/skills/harnesses";
+  import { readSkillsReport, type SkillsReport } from "$lib/pages/skills/report";
   import SkillGroups from "$lib/pages/skills/SkillGroups.svelte";
   import Button from "$lib/ui/Button.svelte";
   import Chip from "$lib/ui/Chip.svelte";
   import Empty from "$lib/ui/Empty.svelte";
   import Field from "$lib/ui/Field.svelte";
   import Tabs from "$lib/ui/Tabs.svelte";
-
-  interface ToolFamily {
-    family: string;
-    tools: string[];
-  }
-
-  interface SkillsReport {
-    counts: Record<string, number>;
-    categories: Array<{ name: string; skills: Skill[] }>;
-    toolbelt: ToolFamily[];
-  }
 
   interface TabSpec {
     value: string;
@@ -76,19 +66,24 @@
     if (force) refreshing = true;
     else loading = true;
     error = "";
-    const [skillsResult, harnessResult] = await Promise.allSettled([
-      api.hermesSkills() as Promise<unknown>,
-      loadHarnesses(),
-    ]);
-    if (skillsResult.status === "fulfilled") hermes = skillsResult.value as SkillsReport;
-    else hermes = null;
-    if (harnessResult.status === "fulfilled") harnesses = harnessResult.value;
-    else harnesses = [];
-    if (!hermes && !harnesses.length) error = "The skills ledger is out of reach. Start the Rashin daemon, then refresh.";
-    const available = tabs;
-    if (!available.some((tab) => tab.value === active)) active = available[0]?.value || "hermes";
-    loading = false;
-    refreshing = false;
+    try {
+      const [skillsResult, harnessResult] = await Promise.allSettled([
+        api.hermesSkills() as Promise<unknown>,
+        loadHarnesses(),
+      ]);
+      if (skillsResult.status === "fulfilled") hermes = readSkillsReport(skillsResult.value as Partial<SkillsReport>);
+      else hermes = null;
+      if (harnessResult.status === "fulfilled") harnesses = harnessResult.value;
+      else harnesses = [];
+      if (!hermes && !harnesses.length) error = "The skills ledger is out of reach. Start the Rashin daemon, then refresh.";
+      const available = tabs;
+      if (!available.some((tab) => tab.value === active)) active = available[0]?.value || "hermes";
+    } catch (cause) {
+      error = cause instanceof Error ? cause.message : "The skills ledger could not be read.";
+    } finally {
+      loading = false;
+      refreshing = false;
+    }
   }
 
   function changeHarness(id: string): void {

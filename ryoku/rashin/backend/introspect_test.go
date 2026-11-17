@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -119,5 +120,22 @@ func TestMemoryReportNotesMissingSQLite(t *testing.T) {
 	}
 	if len(rep.Sessions) != 0 {
 		t.Fatalf("sessions = %+v, want none without sqlite3", rep.Sessions)
+	}
+}
+
+func TestSkillsReportEmptyListsAreArrays(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	b, err := json.Marshal(SkillsReportNow())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(b, &raw); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"categories", "toolbelt"} {
+		if string(raw[key]) != "[]" {
+			t.Fatalf("%s = %s, want [] (the console reads .reduce on it)", key, raw[key])
+		}
 	}
 }
