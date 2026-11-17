@@ -13,6 +13,10 @@
   of 50%, and Kairos prefers the level just read over its older cache
   (`subshells/orpheus/qml/cards/controls/HomePage.qml`,
   `subshells/kairos/qml/quicksettings/pages/HomePage.qml`).
+- **The dock's window previews switch ships on (#879).** `dock.windowPreviews`
+  is on in the shell's dock defaults and in the dock command's complete write; a
+  missing key already read as on (`quickshell/shell/services/Config.qml`,
+  `ipc/dock_cli.go`).
 - **Plugins installed from a store you added load like any other.**
   `plugins/discover.sh` also reads `ryoku/sources/<store>/plugins` and accepts
   each copy only with a receipt from its own store, so no store's copy can pose

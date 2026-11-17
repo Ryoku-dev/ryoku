@@ -55,7 +55,7 @@ func TestDockVerbsThroughStore(t *testing.T) {
 
 	// The shipped fields the CLI never sets survive the write.
 	dock, _ := d.settingsFrame()["dock"].(map[string]any)
-	if dock["magnify"] != true || dock["frost"] != true || dock["revealOnEmpty"] != true {
+	if dock["magnify"] != true || dock["frost"] != true || dock["revealOnEmpty"] != true || dock["windowPreviews"] != true {
 		t.Fatalf("dock write dropped untouched fields: %+v", dock)
 	}
 
