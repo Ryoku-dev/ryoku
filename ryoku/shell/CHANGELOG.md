@@ -17,6 +17,57 @@
   is on in the shell's dock defaults and in the dock command's complete write; a
   missing key already read as on (`quickshell/shell/services/Config.qml`,
   `ipc/dock_cli.go`).
+- **The Game Bar wears the desktop's design language.** Its strip, cards,
+  controls and charts draw with Lithic, take the style and colours chosen in
+  Settings > Appearance > Style, and follow a change live; the bar's own corner
+  rounding setting is gone (`quickshell/shell/modules/gamebar`, `ipc/settings.go`).
+- **The Game Bar Audio card shows every playing app and resizes.** The card
+  grows with its list up to 80% of the screen height, then scrolls, and takes
+  the bottom-right resize grip (`modules/gamebar/cards/AudioCard.qml`, `GameBar.qml`).
+- **The administrator password card shows on every bar style.** Orpheus, Kairos
+  and any style that neither owns polkit nor hosts frame menus now get the
+  shell's own card, so an admin prompt is no longer waiting on a surface nothing
+  draws (`quickshell/shell/modules/polkit/PolkitPrompt.qml`, `ShellBody.qml`,
+  `services/ShellState.qml`, `modules/bar/FrameMenuManager.qml`).
+- **The Orpheus Wi-Fi list shows each network once, with its bands.** Access
+  points of one name and security kind collapse into one row labelled 2.4, 5 or
+  6 GHz, saved networks first, and a join picks the strongest radio
+- **The Orpheus Wi-Fi list shows one row per network and band.** Access points
+  of one name, security kind and band collapse into a row marked 2.4, 5 or
+  6 GHz, saved networks first, and the connected row says which band it is on
+  (`subshells/orpheus/qml/cards/controls/WifiPage.qml`, `wifinets.js`).
+- **The Orpheus Bluetooth list keeps its rows still while a scan runs.**
+  Connected and saved devices stay on top, found devices wait for a real name
+  and keep their place, so a Connect click lands
+  (`subshells/orpheus/qml/cards/controls/BluetoothPage.qml`, `btrows.js`).
+- **The desktop visualizer's colour hex fields take typed colours in the Stage
+  Editor.** The editor's surface never held the keyboard, so the field showed
+  the hex but dropped every key. It now asks for the keyboard the way the
+  Style page's name field does, applies a full `#rrggbb` as you type, accepts
+  `#rgb` on Enter, restores the last good colour on junk or Escape, and the
+  Auto button still hands the colour back to the wallpaper
+  (`quickshell/shell/modules/stage/StageVisualizerPage.qml`,
+  `quickshell/stage/modules/ii/editMode/EditModeDrawer.qml`,
+  `quickshell/shell/modules/visualizer/Singletons/Config.qml`).
+- **Radial, orb and spiral visualizers spin both ways, and Flip mirrors the
+  look.** A negative Rotation stopped the spin dead because motion only
+  integrated speeds above zero; it now turns the other way. Flip on a polar
+  look used to just negate that speed (a no-op at 0); it now mirrors the whole
+  look, so a clockwise outward spiral becomes anticlockwise. The panel's
+  Rotation range matches (-30 to 30)
+  (`quickshell/shell/modules/visualizer/Motion.qml`, `VisualizerView.qml`,
+  `Singletons/Config.qml`, `ui/SpectrumField.qml`,
+  `quickshell/shell/modules/desktop/options/VisualizerOptions.qml`).
+- **The bar never goes blank when the store sync fails.** A bar already drawn
+  stays while its replacement cannot be prepared; a shell that has none draws
+  Orpheus after six seconds, and Orpheus and Kairos stay selectable when
+  `shells.json` does not list them (`quickshell/shell/services/Shells.qml`,
+  `modules/bar/Frame.qml`).
+- **A source checkout deploys its own ryostore.** `deploy.sh` builds and
+  installs `apps/ryostore/backend` beside `ryoku-shell`, and the daemon runs
+  the ryostore next to itself before the one on PATH, so a packaged ryostore
+  older than the checkout can no longer break the shells sync or the doctor
+  (`deploy.sh`, `ipc/shells.go`).
 - **Plugins installed from a store you added load like any other.**
   `plugins/discover.sh` also reads `ryoku/sources/<store>/plugins` and accepts
   each copy only with a receipt from its own store, so no store's copy can pose

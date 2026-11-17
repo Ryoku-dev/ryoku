@@ -329,3 +329,23 @@ func TestRuntimeFailureFallsBackThroughIndex(t *testing.T) {
 		t.Fatalf("fallback active item = %q", got)
 	}
 }
+
+func TestRyostoreBesideTheDaemonWinsOverPath(t *testing.T) {
+	dir := t.TempDir()
+	if got := ryostoreBeside(dir); got != "ryostore" {
+		t.Fatalf("no sibling: got %q, want the PATH name", got)
+	}
+	sibling := filepath.Join(dir, "ryostore")
+	if err := os.WriteFile(sibling, []byte("#!/bin/sh\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := ryostoreBeside(dir); got != "ryostore" {
+		t.Fatalf("a sibling that cannot run was chosen: %q", got)
+	}
+	if err := os.Chmod(sibling, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got := ryostoreBeside(dir); got != sibling {
+		t.Fatalf("got %q, want the sibling %q", got, sibling)
+	}
+}

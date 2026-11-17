@@ -54,7 +54,7 @@ fzf	fzf	desktop
 game-devices-udev	game-devices-udev	desktop	repo=ryoku
 gamemode	gamemode	desktop	
 gamescope	gamescope	desktop	
-gcc	gcc	desktop	
+gcc	gcc	optional	
 gcc-libs	libgcc	desktop	
 git	git	desktop	
 github-cli	github-cli	desktop	
@@ -153,7 +153,7 @@ neovim	neovim	desktop
 networkmanager	NetworkManager	desktop	
 nftables	nftables	desktop	
 niri	niri	desktop	
-nodejs	nodejs	desktop,dev	
+nodejs	nodejs	dev	
 noto-fonts	noto-fonts-ttf	desktop	
 noto-fonts-cjk	noto-fonts-cjk	desktop	
 noto-fonts-emoji	noto-fonts-emoji	desktop	
@@ -216,6 +216,7 @@ ryoku-desktop-compositor	-	desktop	Virtual dependency provided by a compositor m
 ryoku-desktop-hyprland	-	hyprland	Ryoku's Hyprland needs GCC 15 and Void still ships GCC 14.
 ryoku-desktop-niri	@repo	desktop	Ryoku-owned package built from the checkout.
 ryoku-desktop-wayfire	-	wayfire	Void ships Wayfire 0.11, but the Ryoku provider and depthdeck variant are not packaged or VM-verified.
+ryoku-dictation	@repo	desktop	Ryoku-owned package built from the checkout.
 ryoku-hub	@repo	desktop	Ryoku-owned package built from the checkout.
 ryoku-hypr-plugins	-	hyprland	Hyprland is not packaged on Void.
 ryoku-keyring	ryoku-keyring	desktop	repo=ryoku
@@ -240,7 +241,6 @@ snapper	snapper	desktop,system
 socat	socat	desktop	
 songrec	songrec	desktop	
 spice-gtk	spice-gtk	optional	
-sqlite	sqlite	optional	
 starship	starship	desktop	
 steam	steam	desktop	repo=nonfree
 steamcmd	-	optional	No Void repository package.
@@ -268,7 +268,6 @@ v4l2loopback-dkms	v4l2loopback	optional
 vdirsyncer	vdirsyncer	desktop	
 vimix-cursors	vimix-cursors	desktop	repo=ryoku
 virglrenderer	virglrenderer	desktop	
-voxtype-bin	voxtype	extra	repo=ryoku
 vulkan-icd-loader	vulkan-loader	desktop	
 vulkan-intel	mesa-vulkan-intel	hardware:intel	
 vulkan-radeon	mesa-vulkan-radeon	hardware:amd	

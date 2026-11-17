@@ -321,7 +321,7 @@ With a switch off, the ownership lapses and Ryoku's own OSD or banners return.
 The OSD reads `shell.barkit`'s `OsdSource`, so its triggers and startup grace are
 Ryoku's own.
 
-Its settings open from the gear on the glance, from Bar Studio's OPEN
+Its settings open from either island gear, from Bar Studio's OPEN
 SETTINGS, or with `ryoku-shell ipc call kairos settings`. The window is laid
 out like Android's large-screen Settings: a searchable list of categories with
 coloured icons and live summaries on the left, the selected page on the right.
@@ -335,11 +335,11 @@ The glance's expand button (or `ryoku-shell ipc call kairos quickSettings`,
 which a keybind can run) grows the island into an Android-style shade. This is
 not a second window: the island's own pill morphs to the shade on the same
 surface and grows to its page's height. Top to bottom it holds the
-time, date and weather with the battery, Ryoku Settings and the power menu;
+time, date and weather with the battery, Kairos settings and the power menu;
 brightness and volume sliders, each with a button to its detail page; paged
-tiles (four columns, three rows a page) with an edit button and page dots; the
-media control while something plays; and the notifications grouped by app,
-which swipe away. Tiles toggle on a click and open their detail page from the
+tiles (four columns, three rows a page) with edit and Ryoku Settings buttons
+and page dots; the media control while something plays; and the notifications
+grouped by app, which swipe away. Tiles toggle on a click and open their detail page from the
 chevron of a large Wi-Fi or Bluetooth tile or on a right click. The edit page
 moves, resizes, removes and adds tiles; the order lives in `kairos.tiles` as
 `[{id, large}]`. The power menu locks and sleeps at once and asks for a second

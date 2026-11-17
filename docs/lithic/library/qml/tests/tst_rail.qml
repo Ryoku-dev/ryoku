@@ -98,5 +98,28 @@ Item {
             keyClick(Qt.Key_Enter);
             compare(frame.currentDestination, 1, "so does the keypad Enter");
         }
+
+        function test_tileContentSitsInTheMiddleOfItsTile() {
+            const rail = host.railOf(frame);
+            for (const name of ["Appearance", "Updates"]) {
+                const tile = host.named(rail, name);
+                verify(tile !== null, name + " tile");
+                let glyph = null, label = null;
+                (function walk(item) {
+                    for (const kid of item.children || []) {
+                        if (kid.name !== undefined && kid.size !== undefined && !glyph)
+                            glyph = kid;
+                        if (kid.typeRole === "caption" && !label)
+                            label = kid;
+                        walk(kid);
+                    }
+                })(tile.contentItem);
+                verify(glyph !== null && label !== null, name + " draws a glyph and a label");
+                const top = glyph.mapToItem(tile, 0, 0).y;
+                const bottom = label.mapToItem(tile, 0, label.height).y;
+                verify(Math.abs(top - (tile.height - bottom)) <= 1,
+                       name + " is centred in its tile: " + top + " above, " + (tile.height - bottom) + " below");
+            }
+        }
     }
 }

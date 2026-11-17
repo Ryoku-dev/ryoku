@@ -142,6 +142,7 @@ Item {
         tiltX: root.cfg.tiltX
         tiltY: root.cfg.tiltY
         spin: motion.spinDeg
+        flipped: root.cfg.mirror
     }
 
     // The edge field: one pass over the whole screen, lit by the same wallpaper

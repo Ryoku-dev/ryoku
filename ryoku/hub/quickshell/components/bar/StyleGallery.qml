@@ -308,4 +308,15 @@ Column {
             onClicked: root.styles.install(root.styles.failed.id, root.styles.failed.verb)
         }
     }
+
+    Label {
+        width: parent.width
+        visible: root.styles.applyError !== ""
+        text: I18n.tr("The bar did not switch: %1. Your choice is saved; the bar that was running stays until it works.")
+            .arg(root.styles.applyError.replace(/^shells commit( prune)?:\s*/, "").replace(/[.\s]+$/, ""))
+        typeRole: "detail"
+        ink: Lithic.jasper
+        wrapMode: Text.Wrap
+        elide: Text.ElideNone
+    }
 }

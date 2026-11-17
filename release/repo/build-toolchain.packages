@@ -42,9 +42,11 @@ qt6-quick3d
 vulkan-headers
 mesa
 
-# dictation's Vulkan backend needs glslc and the Vulkan loader at build time
+# dictation's Vulkan backend needs glslc, the Vulkan loader and the SPIRV-Headers
+# CMake package (ggml-vulkan runs find_package(SPIRV-Headers CONFIG REQUIRED))
 shaderc
 vulkan-icd-loader
+spirv-headers
 
 # ryoku-desktop and ryomanager still build their GTK3/WebKit hosts.
 gtk3

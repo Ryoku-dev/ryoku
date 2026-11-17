@@ -78,9 +78,13 @@ Singleton {
         return null;
     }
 
-    function place(id, x, y) {
+    function setLayout(list) {
+        root.layout = list;
+    }
+
+    function place(id, x, y, us) {
         const next = root.asList(root.layout).filter(e => e && e.id !== id);
-        next.push({ id: id, x: Math.round(x), y: Math.round(y) });
+        next.push({ id: id, x: Math.round(x), y: Math.round(y), us: us });
         root.layout = next;
     }
 

@@ -47,6 +47,7 @@ Item {
         return String(Settings.get("barStyle") || "") || root.index.fallback;
     }
     readonly property var styleBind: ({ store: "settings", key: "barStyle", fallback: root.index.fallback, after: "shells commit" })
+    readonly property string applyError: Changes.error(root.styleBind)
     readonly property var cards: root.cardModel()
     readonly property var activeCard: root.card(root.active)
 

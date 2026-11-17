@@ -4,11 +4,9 @@ import QtQuick
 import shell.services
 import ".."
 import Ryoku.Ui.Singletons
+import Lithic
 import "../look"
 
-// Capture: the four shot targets and the screen recorder, each one hiding the
-// Game Bar first so the overlay is never in its own shot. The recorder is the
-// existing Recorder singleton, not a second capture path.
 GameBarCard {
     id: card
 
@@ -16,87 +14,103 @@ GameBarCard {
 
     Column {
         width: parent.width
-        spacing: 12 * card.s
+        spacing: card.space3
 
-        Row {
+        Grid {
+            id: targets
             width: parent.width
-            spacing: 14 * card.s
+            columns: 2
+            spacing: card.space2
 
-            Grid {
-                id: targets
-                columns: 2
-                spacing: 8 * card.s
-
-                GameBarAction {
-                    s: card.s
-                    icon: "region"
-                    label: I18n.tr("Region")
-                    onClicked: if (card.host) card.host.shoot("region")
-                }
-                GameBarAction {
-                    s: card.s
-                    icon: "window"
-                    label: I18n.tr("Window")
-                    onClicked: if (card.host) card.host.shoot("window")
-                }
-                GameBarAction {
-                    s: card.s
-                    icon: "monitor"
-                    label: I18n.tr("Screen")
-                    onClicked: if (card.host) card.host.shoot("monitor")
-                }
-                GameBarAction {
-                    s: card.s
-                    icon: "screens"
-                    label: I18n.tr("All")
-                    onClicked: if (card.host) card.host.shoot("all")
-                }
+            Plaque {
+                width: (targets.width - card.space2) / 2
+                small: true
+                kind: "quiet"
+                glyph: "crop_free"
+                text: I18n.tr("Region")
+                onClicked: if (card.host) card.host.shoot("region")
             }
 
-            Column {
-                width: parent.width - targets.width - 14 * card.s
-                spacing: 4 * card.s
+            Plaque {
+                width: (targets.width - card.space2) / 2
+                small: true
+                kind: "quiet"
+                glyph: "select_window"
+                text: I18n.tr("Window")
+                onClicked: if (card.host) card.host.shoot("window")
+            }
 
-                Text {
-                    text: I18n.tr("Recording")
-                    color: GameBarLook.subtext
-                    font.family: GameBarLook.face
-                    font.pixelSize: GameBarLook.smallie * card.s
-                }
+            Plaque {
+                width: (targets.width - card.space2) / 2
+                small: true
+                kind: "quiet"
+                glyph: "screenshot_monitor"
+                text: I18n.tr("Screen")
+                onClicked: if (card.host) card.host.shoot("monitor")
+            }
 
-                Text {
-                    text: Recorder.countingDown
-                        ? I18n.tr("Starting in %1").arg(Recorder.countdownSec)
-                        : (Recorder.anyActive ? Recorder.elapsedText : I18n.tr("Idle"))
-                    color: Recorder.anyActive || Recorder.countingDown ? GameBarLook.accent : GameBarLook.fg
-                    font.family: GameBarLook.face
-                    font.pixelSize: GameBarLook.huge * card.s
-                }
+            Plaque {
+                width: (targets.width - card.space2) / 2
+                small: true
+                kind: "quiet"
+                glyph: "fullscreen"
+                text: I18n.tr("All")
+                onClicked: if (card.host) card.host.shoot("all")
+            }
+        }
 
-                GameBarTextButton {
-                    s: card.s
-                    label: Recorder.countingDown ? I18n.tr("Cancel")
-                        : (Recorder.anyActive ? I18n.tr("Stop") : I18n.tr("Record"))
-                    primary: !Recorder.anyActive && !Recorder.countingDown
-                    danger: Recorder.anyActive || Recorder.countingDown
-                    onClicked: {
-                        if (!card.host)
-                            return;
-                        if (Recorder.anyActive || Recorder.countingDown)
-                            Recorder.stop();
-                        else
-                            card.host.startRecording();
-                    }
+        Row {
+            id: recording
+            width: parent.width
+            spacing: card.space2
+
+            Claim {
+                id: state
+                tone: Recorder.anyActive || Recorder.countingDown ? "alive" : "idle"
+                text: Recorder.anyActive
+                    ? I18n.tr("Recording")
+                    : (Recorder.countingDown ? I18n.tr("Starting") : I18n.tr("Idle"))
+            }
+
+            Label {
+                id: elapsed
+                text: Recorder.countingDown
+                    ? I18n.tr("Starting in %1").arg(Recorder.countdownSec)
+                    : (Recorder.anyActive ? Recorder.elapsedText : I18n.tr("Ready"))
+                typeRole: "mono"
+                inkRole: "fg2"
+                numeric: true
+            }
+
+            Item {
+                width: parent.width - state.width - elapsed.width - record.width
+                    - 3 * recording.spacing
+                height: 1
+            }
+
+            Plaque {
+                id: record
+                small: true
+                kind: Recorder.anyActive || Recorder.countingDown ? "dangerLine" : "gold"
+                glyph: Recorder.anyActive || Recorder.countingDown ? "stop" : "fiber_manual_record"
+                text: Recorder.countingDown ? I18n.tr("Cancel")
+                    : (Recorder.anyActive ? I18n.tr("Stop") : I18n.tr("Record"))
+                onClicked: {
+                    if (!card.host)
+                        return;
+                    if (Recorder.anyActive || Recorder.countingDown)
+                        Recorder.stop();
+                    else
+                        card.host.startRecording();
                 }
             }
         }
 
-        Text {
+        Label {
             width: parent.width
             text: I18n.tr("The bar hides while it captures.")
-            color: GameBarLook.subtext
-            font.family: GameBarLook.face
-            font.pixelSize: GameBarLook.smallie * card.s
+            typeRole: "detail"
+            inkRole: "fg3"
             wrapMode: Text.WordWrap
         }
     }

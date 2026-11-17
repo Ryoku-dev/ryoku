@@ -32,6 +32,18 @@
   Automatic checks, Update notifications picks Ryoku only (the default), System
   only or Both. It does not change what Update now installs
   (`schema/updates.js`, `components/updates/UpdatesStore.qml`).
+- **A lock screen design changes only after the admin password is accepted.** Use
+  asks for the password first and writes the lock screen's own choice after the
+  sign-in screen took it, so Cancel or a refused password leaves both screens on
+  the design they had and the page says so (`backend/lock.go`,
+  `components/lock-screen/LockDesignStore.qml`, `pages/LockScreen.qml`).
+- **Home's search never sits under its buttons.** In a narrow window the search door kept its full width and ran under the expand and Binder buttons; it now takes only the room they leave (`components/Home.qml`, #836).
+- **The update log keeps its drag and its tail.** Dragging the log's scroll rail no longer hands the drag to the page, and every scroll rail in a scrolling page keeps its own drag. The log follows the newest lines until you scroll away and again once you are back at the bottom, and a read that comes back empty mid-run no longer blanks it (`components/updates/UpdateLog.qml`, `docs/lithic/library/qml/Lithic/ScrollRail.qml`, #872).
+- **Rail icons sit in the middle of their tiles.** Each destination's icon and label were pinned to the top of the tile at any scale; they are now centred (`docs/lithic/library/qml/Lithic/Rail.qml`, #829).
+- **A bar style that cannot be switched on says so.** When the shell's
+  `shells commit` fails after Use, the Bar page shows why instead of calling the
+  style in use, and the bar that was running stays (`Singletons/Changes.qml`,
+  `components/bar/BarStyles.qml`, `StyleGallery.qml`).
 - **Every badge may have its own card design, and wear it at once.** Testers
   and contributors now get the studio's design section too (it was NixOS, Core
   and Founder only), and any active badge's approved design is drawn

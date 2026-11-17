@@ -10,6 +10,7 @@ T.Slider {
     // ListEditor form), else the work pane
     property color plane: _holderPlane()
 
+    readonly property real _scale: Lithic.scaleOf(root)
     readonly property bool _onField: Qt.colorEqual(plane, Lithic.field)
 
     function _holderPlane() {
@@ -31,8 +32,8 @@ T.Slider {
     to: 100
     hoverEnabled: true
     focusPolicy: Qt.StrongFocus
-    implicitWidth: LithicTokens.size.sliderWidth
-    implicitHeight: LithicTokens.size.sliderHeight
+    implicitWidth: LithicTokens.size.sliderWidth * root._scale
+    implicitHeight: LithicTokens.size.sliderHeight * root._scale
     opacity: enabled ? 1 : Lithic.disabledOpacity
 
     Accessible.role: Accessible.Slider
@@ -63,9 +64,9 @@ T.Slider {
 
     background: Item {
         x: root.leftPadding
-        y: root.topPadding + root.availableHeight / 2 - LithicTokens.size.sliderTrack / 2
+        y: root.topPadding + root.availableHeight / 2 - LithicTokens.size.sliderTrack * root._scale / 2
         width: root.availableWidth
-        height: LithicTokens.size.sliderTrack
+        height: LithicTokens.size.sliderTrack * root._scale
 
 
         Blade {
@@ -92,9 +93,9 @@ T.Slider {
         id: sliderHandle
         x: root.leftPadding + root.visualPosition * (root.availableWidth - width)
         y: root.topPadding + root.availableHeight / 2 - height / 2
-           + (root._pressActive ? Lithic.pressSink : 0)
-        width: LithicTokens.size.sliderHandleWidth
-        height: LithicTokens.size.sliderHandleHeight
+           + (root._pressActive ? Lithic.pressSink * root._scale : 0)
+        width: LithicTokens.size.sliderHandleWidth * root._scale
+        height: LithicTokens.size.sliderHandleHeight * root._scale
         fill: root._hoverActive ? Lithic.hoverFill(Lithic.sel) : Lithic.sel
         cut: Math.min(width / 2, height / 4)
         FocusRing {

@@ -6,12 +6,9 @@ import shell.services
 import ".."
 import "../../../components"
 import Ryoku.Ui.Singletons
+import Lithic
 import "../look"
 
-// Gallery: the newest screenshots and recordings, live from the folders the
-// capture path writes, plus one press to open the current folder. A shot is its
-// own thumbnail; a recording is a play tile with its name, so there is no
-// separate index to fall out of date.
 GameBarCard {
     id: card
 
@@ -22,7 +19,6 @@ GameBarCard {
 
     property string mode: "shots"
 
-    // a folder name with a space or a # must still open as one file URL
     function fileUrl(path) {
         return path ? "file://" + String(path).split("/").map(encodeURIComponent).join("/") : "";
     }
@@ -33,11 +29,6 @@ GameBarCard {
             ? value.getTime() : Date.parse(value) || 0) : 0;
     }
 
-    // Both folder models sort by modification time, so read only the rows the
-    // card draws instead of scanning and sorting a whole capture folder on
-    // every change. Inferred from the timestamps so a Qt release changing what
-    // sortReversed means cannot flip the order; when both ends share a stamp,
-    // the configured direction is the only signal left.
     function newest(model, count, kind) {
         const total = model.count;
         if (total === 0)
@@ -63,9 +54,6 @@ GameBarCard {
         return out;
     }
 
-    // FolderListModel can replace a file without changing the row count, so a
-    // count binding alone can stay stale. Bump a revision on every model signal
-    // and let both lists read it as their dependency.
     property int revision: 0
 
     Connections {
@@ -113,130 +101,108 @@ GameBarCard {
         sortReversed: false
     }
 
-    Column {
-        width: parent.width
-        spacing: 8 * card.s
+    Item {
+        anchors.fill: parent
 
         Item {
-            width: parent.width
-            height: 24 * card.s
+            id: header
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            height: LithicTokens.size.plaqueHeightSmall * card.s
 
-            Text {
+            Label {
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
                 text: card.items.length === 1
                     ? (card.mode === "clips" ? I18n.tr("1 recent clip") : I18n.tr("1 recent shot"))
                     : (card.mode === "clips"
                         ? I18n.tr("%1 recent clips") : I18n.tr("%1 recent shots")).arg(card.items.length)
-                color: GameBarLook.subtext
-                font.family: GameBarLook.face
-                font.pixelSize: GameBarLook.smallie * card.s
+                typeRole: "detail"
+                inkRole: "fg2"
             }
 
-            GameBarTextButton {
+            Plaque {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                s: card.s
-                compact: true
-                label: I18n.tr("Folder")
+                small: true
+                kind: "quiet"
+                glyph: "folder_open"
+                text: I18n.tr("Folder")
                 onClicked: Spawn.run(["xdg-open", card.folder])
             }
         }
 
         Grid {
             id: grid
-            width: parent.width
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: header.bottom
+            anchors.topMargin: card.space2
             columns: 3
-            spacing: 6 * card.s
+            spacing: card.space2
 
             Repeater {
                 model: card.items
 
-                delegate: Item {
+                delegate: GameBarPlate {
                     id: thumb
                     required property var modelData
 
                     width: (grid.width - (grid.columns - 1) * grid.spacing) / grid.columns
-                    height: 62 * card.s
+                    height: 56 * card.s
+                    cut: GameBarTone.controlCut
+                    source: thumb.modelData.kind === "shot" ? thumb.modelData.url : ""
 
-                    Rectangle {
+                    MouseArea {
                         anchors.fill: parent
-                        radius: GameBarLook.radiusVerySmall * card.s
-                        color: GameBarLook.raised
-                        clip: true
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: Spawn.run(["xdg-open", thumb.modelData.path])
+                    }
 
-                        Image {
-                            anchors.fill: parent
-                            source: thumb.modelData.kind === "shot" ? thumb.modelData.url : ""
-                            sourceSize.width: Math.ceil(thumb.width)
-                            sourceSize.height: Math.ceil(thumb.height)
-                            visible: thumb.modelData.kind === "shot"
-                            asynchronous: true
-                            fillMode: Image.PreserveAspectCrop
-                        }
+                    Glyph {
+                        visible: thumb.modelData.kind === "clip"
+                        anchors.centerIn: parent
+                        name: "play_arrow"
+                        size: 22
+                        ink: GameBarTone.ink2
+                    }
 
-                        GlyphIcon {
-                            anchors.centerIn: parent
-                            anchors.verticalCenterOffset: -5 * card.s
-                            width: 24 * card.s
-                            height: 24 * card.s
-                            visible: thumb.modelData.kind === "clip"
-                            name: "play"
-                            color: GameBarLook.fg
-                        }
-
-                        Text {
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.bottom: parent.bottom
-                            anchors.margins: 4 * card.s
-                            visible: thumb.modelData.kind === "clip"
-                            textFormat: Text.PlainText
-                            text: thumb.modelData.name
-                            color: GameBarLook.fg
-                            font.family: GameBarLook.face
-                            font.pixelSize: GameBarLook.smallest * card.s
-                            elide: Text.ElideMiddle
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: Spawn.run(["xdg-open", thumb.modelData.path])
-                        }
+                    Label {
+                        visible: thumb.modelData.kind === "clip"
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        anchors.margins: 4 * card.s
+                        text: thumb.modelData.name
+                        typeRole: "monoSm"
+                        inkRole: "fg2"
+                        horizontalAlignment: Text.AlignHCenter
                     }
                 }
             }
         }
 
-        Text {
+        Label {
             visible: card.items.length === 0
+            anchors.top: grid.top
+            anchors.topMargin: card.space4
             width: parent.width
             text: card.mode === "clips"
                 ? I18n.tr("No recordings yet") : I18n.tr("No screenshots yet")
-            color: GameBarLook.subtext
+            typeRole: "detail"
+            inkRole: "fg3"
             horizontalAlignment: Text.AlignHCenter
-            font.family: GameBarLook.face
-            font.pixelSize: GameBarLook.small * card.s
         }
 
-        Row {
-            width: parent.width
-            spacing: 8 * card.s
-
-            GameBarTextButton {
-                s: card.s
-                primary: card.mode === "shots"
-                label: I18n.tr("Screenshots")
-                onClicked: card.mode = "shots"
-            }
-            GameBarTextButton {
-                s: card.s
-                primary: card.mode === "clips"
-                label: I18n.tr("Recordings")
-                onClicked: card.mode = "clips"
-            }
+        Segmented {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom
+            width: 220 * card.s
+            model: [I18n.tr("Screenshots"), I18n.tr("Recordings")]
+            currentIndex: card.mode === "clips" ? 1 : 0
+            onActivated: index => card.mode = index === 1 ? "clips" : "shots"
         }
     }
 }

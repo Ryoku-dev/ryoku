@@ -17,6 +17,27 @@
   active pack, then the first), keeps presence, health and capacity on the
   physical pack, and the popout only says On AC when the adapter is plugged
   in (`ryoku/shell/ipc/battery.go`).
+- **Fedora and Void install every library Rashin and the voice engine are
+  built to expect.** The RPM specs and the Void template name the full Wayland,
+  Mesa and GCC runtime sets the Arch recipes depend on, and the Void gate no
+  longer asks for a package that is gone
+  (`fedora/packages/rpm/ryoku-rashin.spec`, `void/packages/srcpkgs/ryoku-rashin/template`).
+- **Fedora and Void know the voice engine again.** `ryoku-dictation` has its
+  translation rows and is a dependency of `ryoku-desktop` on both, and the rows
+  Voxtype left behind are gone (`fedora/packages/translations.tsv`,
+  `void/packages/translations.tsv`).
+- **Updating no longer stops at the voice engine on a box without the SPIRV
+  headers.** The deploy check, the package recipes and the build host list now
+  name `spirv-headers` (Fedora `spirv-headers-devel`, Void `SPIRV-Headers`),
+  which ggml's Vulkan backend needs to configure
+  (`ryoku/dictation/deploy.sh`, `release/packages/ryoku-dictation/PKGBUILD`).
+- **Both island gears open Kairos settings.** The separate control below the
+  tiles opens Ryoku Settings.
+- **Ryoport opens on checkout boxes with an older desktop package.**
+  Its verified native release replaces the retired launcher without taking
+  files away from the installed package
+- **Checkout updates leave brand images and npm defaults ready for packages.**
+  Identical unowned copies no longer block a later system upgrade
 - **The bar's battery, brightness and volume readouts come from the shell
   daemon.** UPower, the panel backlight and the PipeWire default levels are
   read once in Go and streamed on the `battery`, `backlight` and `audio`

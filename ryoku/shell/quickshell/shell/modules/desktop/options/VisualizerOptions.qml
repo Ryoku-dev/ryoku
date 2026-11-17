@@ -412,7 +412,7 @@ Column {
         id: spinSld
         visible: opts.polarSet
         label: I18n.tr("Rotation")
-        from: 0; to: 30; step: 1; decimals: 0
+        from: -30; to: 30; step: 1; decimals: 0
         value: opts.inst.spin
         valueText: String(Math.round(spinSld.value))
         onMoved: (v) => opts.cfg.poke("spin", v)

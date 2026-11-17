@@ -266,6 +266,8 @@ Singleton {
         var t = ("" + hex).trim();
         if (t.length > 0 && t[0] !== "#")
             t = "#" + t;
+        if (/^#[0-9a-fA-F]{3}$/.test(t))
+            t = "#" + t[1] + t[1] + t[2] + t[2] + t[3] + t[3];
         return /^#[0-9a-fA-F]{6}$/.test(t) ? t.toLowerCase() : "";
     }
     function setColor(hex) {
@@ -413,7 +415,7 @@ Singleton {
         if (root.isAura)
             root.poke("auraFlow", act.auraFlow === "clockwise" ? "counterclockwise" : "clockwise");
         else if (root.isPolar)
-            root.poke("spin", -root.spin);
+            root.poke("mirror", !root.mirror);
         else if (root.grow === "up")
             root.poke("grow", "down");
         else if (root.grow === "down")

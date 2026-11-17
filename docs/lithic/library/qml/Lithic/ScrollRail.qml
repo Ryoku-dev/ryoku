@@ -81,6 +81,8 @@ Item {
         anchors.leftMargin: -LithicTokens.space.s2
         hoverEnabled: true
         acceptedButtons: Qt.LeftButton
+        // a rail inside a Flickable keeps its drag; the page behind it never takes it
+        preventStealing: true
 
         onPressed: function(mouse) {
             if (mouse.y >= root._thumbY && mouse.y <= root._thumbY + root._thumbHeight) {

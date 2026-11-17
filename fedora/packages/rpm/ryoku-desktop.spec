@@ -27,6 +27,7 @@ Requires:       ryoku-palette-bridge = %{epoch}:%{version}-%{release}
 Requires:       ryoku-blobs = %{epoch}:%{version}-%{release}
 Requires:       ryoku-extras = %{epoch}:%{version}-%{release}
 Requires:       ryoku-keyring
+Requires:       ryoku-dictation
 Requires:       sddm-theme-ryoku = %{epoch}:%{version}-%{release}
 Requires:       ryoku-desktop-compositor
 Requires:       dnf
@@ -102,6 +103,7 @@ Requires:       dracut
 Requires:       kernel-devel
 Requires:       kernel-headers
 Requires:       dkms
+Requires:       ryoku-dictation
 
 Recommends:     power-profiles-daemon
 Suggests:       mpv

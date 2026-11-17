@@ -16,14 +16,22 @@ BuildRequires:  wayland-devel
 BuildRequires:  libxkbcommon-devel
 BuildRequires:  vulkan-loader-devel
 BuildRequires:  vulkan-headers
+BuildRequires:  spirv-headers-devel
 BuildRequires:  glslc
 Requires:       glibc
+Requires:       libgcc
 Requires:       libstdc++
 Requires:       pipewire
 Requires:       libwayland-client
+Requires:       libwayland-cursor
+Requires:       libwayland-egl
+Requires:       libwayland-server
 Requires:       libxkbcommon
 Requires:       wl-clipboard
 Requires:       vulkan-loader
+Requires:       libwayland-cursor
+Requires:       libwayland-egl
+Requires:       libwayland-server
 
 %description
 Ryoku's own voice typing engine: a small daemon that records through PipeWire,

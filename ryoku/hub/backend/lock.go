@@ -2,7 +2,9 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,7 +16,8 @@ import (
 )
 
 // ryoku-hub lock manages installed qylock skins behind Ryoku Settings. Picking
-// one swaps the in-session lock preference plus the SDDM greeter theme. Ryostore
+// one swaps the SDDM greeter theme (admin password) and then the in-session lock
+// preference. Ryostore
 // owns upstream browsing and install-only downloads; Hub owns activation.
 //
 //	ryoku-hub lock list                              installed skins + active one, as JSON
@@ -356,24 +359,23 @@ func lockSkinTags(slug string) []string {
 	return nil
 }
 
-const lockSessionApplied = "session-applied"
+// printed before the admin prompt opens: the Hub stops timing the switch and waits for the person
+const lockAdminPrompt = "admin-prompt"
 
+// setLockSkin changes the sign-in screen first, because that is the half that needs the admin
+// password. The lock screen's own preference is written only after it took, so a cancelled or
+// refused prompt leaves both screens on the design they had.
 func setLockSkin(slug string) error {
 	dir := qylockThemesDir()
 	if !fileExists(filepath.Join(dir, slug, "Main.qml")) {
 		return fmt.Errorf("unknown lock skin: %s", slug)
 	}
-	// The session lock is the user's own file and needs no privilege, so it is
-	// written first. Escalating first meant a cancelled admin prompt threw the
-	// whole pick away: the page snapped back to the old skin even though the
-	// in-session half could always have honoured it.
-	if err := setLockSkinIn(dir, qylockThemePref(), slug); err != nil {
+	fmt.Println(lockAdminPrompt)
+	if err := escalateGreeter(slug, clockFormat24h()); err != nil {
 		return err
 	}
-	// the Hub marks the skin active on this line, while the admin prompt waits
-	fmt.Println(lockSessionApplied)
-	if err := escalateGreeter(slug, clockFormat24h()); err != nil {
-		return fmt.Errorf("lock skin set for this session; the sign-in screen keeps its old one: %w", err)
+	if err := setLockSkinIn(dir, qylockThemePref(), slug); err != nil {
+		return fmt.Errorf("the sign-in screen now uses %s, but the lock screen could not be changed: %w", lockSkinMeta(dir, slug).Name, err)
 	}
 	return nil
 }
@@ -423,21 +425,42 @@ func validSlug(slug string) error {
 }
 
 // escalateGreeter re-execs this binary under pkexec to install the skin as the
-// SDDM greeter (it has to write /usr/share/sddm + /etc). pkexec pops the
-// graphical polkit prompt; cancel -> error.
+// SDDM greeter (it has to write /usr/share/sddm + /etc). pkexec asks through the
+// session's polkit agent. A stop signal goes on to pkexec so an open prompt
+// closes with the Hub's own cancel instead of installing later.
 func escalateGreeter(slug string, clock24h bool) error {
-	self, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	cmd := exec.Command("pkexec", self, "lock", "apply-greeter", slug, strconv.FormatBool(clock24h))
+	cmd := exec.Command("pkexec", selfExe(), "lock", "apply-greeter", slug, strconv.FormatBool(clock24h))
+	var out bytes.Buffer
 	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stderr
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("sign-in screen needs admin authentication: %w", err)
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	err := runForwardingStop(cmd)
+	if err == nil {
+		return nil
 	}
-	return nil
+	if errors.Is(err, exec.ErrNotFound) {
+		return fmt.Errorf("pkexec is not installed, so the admin password cannot be asked")
+	}
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
+		switch exit.ExitCode() {
+		case 126:
+			return fmt.Errorf("the admin prompt was cancelled")
+		case 127:
+			return fmt.Errorf("the admin password was not accepted, or no admin prompt could be shown")
+		}
+	}
+	if msg := strings.TrimSpace(out.String()); msg != "" {
+		return fmt.Errorf("the sign-in screen could not be installed: %s", lastLine(msg))
+	}
+	return fmt.Errorf("the sign-in screen could not be installed: %w", err)
+}
+
+func lastLine(s string) string {
+	if i := strings.LastIndex(s, "\n"); i >= 0 {
+		s = s[i+1:]
+	}
+	return strings.TrimPrefix(strings.TrimSpace(s), "ryoku-hub: ")
 }
 
 // applyGreeter = the privileged half, run as root by pkexec. installs the

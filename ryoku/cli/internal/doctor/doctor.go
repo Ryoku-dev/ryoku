@@ -2886,6 +2886,18 @@ var retiredShellKeys = []string{
 	"washiVariant",
 }
 
+func removeRetiredGameBarRadius(cfg map[string]any) bool {
+	gameBar, ok := cfg["gamebar"].(map[string]any)
+	if !ok {
+		return false
+	}
+	if _, present := gameBar["radius"]; !present {
+		return false
+	}
+	delete(gameBar, "radius")
+	return true
+}
+
 func removeRetiredShellFrameKey(cfg map[string]any) bool {
 	bars, ok := cfg["bars"].(map[string]any)
 	if !ok {
@@ -2998,6 +3010,9 @@ func migrateShellConfig(raw []byte) ([]byte, []string, error) {
 	}
 	if removeRetiredShellFrameKey(cfg) {
 		changes = append(changes, i18n.T("removed retired bars.frame.enable_frame setting"))
+	}
+	if removeRetiredGameBarRadius(cfg) {
+		changes = append(changes, i18n.T("removed retired gamebar.radius setting"))
 	}
 	if len(changes) == 0 {
 		return nil, nil, nil
@@ -5174,8 +5189,8 @@ func reconcileConflictingRyokuFiles(checkOnly bool) recResult {
 		return result
 	}
 	// source updates keep the base package installed too
-	if sys.ResolveRepo() != "" {
-		return okRes(i18n.T("source checkout; deploy-seeded helpers are expected"))
+	if repo := sys.ResolveRepo(); repo != "" {
+		return reconcileCheckoutAssets(checkOnly, repo, "/")
 	}
 	if !sys.PkgInstalled("ryoku-desktop") {
 		return okRes(i18n.T("dev checkout (no ryoku-desktop); deploy-seeded helpers are expected"))

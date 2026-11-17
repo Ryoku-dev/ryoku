@@ -10,8 +10,10 @@ depends="
  ryoku-hub>=${version}
  ryoku-palette-bridge>=${version}
  ryoku-blobs>=${version}
+ ryoku-dictation>=${version}
  ryoku>=${version}
  ryoku-keyring
+ ryoku-dictation
  virtual?ryoku-desktop-compositor
  xorg-server-xwayland
  qt6-wayland

@@ -20,8 +20,14 @@ Scope {
     readonly property bool shouldHost: !root.retainedPrimaryHosted || root.primaryScreen
 
     function syncActiveScene() {
-        if (Shells.activePending)
+        if (Shells.activePending) {
+            if (String(root.retainedEntry) !== "" || !Shells.pendingExpired || String(Shells.fallbackEntry) === "")
+                return;
+            root.retainedEntry = Shells.fallbackEntry;
+            root.retainedId = Shells.fallbackId;
+            root.retainedPrimaryHosted = Shells.fallbackItem.frameHost === "primary";
             return;
+        }
         root.retainedEntry = Shells.activeEntry;
         root.retainedId = Shells.active;
         root.retainedPrimaryHosted = Shells.primaryHosted;
@@ -80,6 +86,7 @@ Scope {
         }
         function onActiveEntryChanged() { root.syncActiveScene(); }
         function onActivePendingChanged() { root.syncActiveScene(); }
+        function onPendingExpiredChanged() { root.syncActiveScene(); }
         function onPrimaryHostedChanged() { root.syncActiveScene(); }
     }
 }

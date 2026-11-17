@@ -138,7 +138,7 @@ seed_intent="$(grep -F 'DRYRUN: users seed-self account=ryoku ' <<<"$out" | tail
   || fail "the delegated account seed did not leave Rashin off by default: $seed_intent"
 grep -qF 'DRYRUN: set nautilus as the default file manager (inode/directory + desktop.apps.files)' <<<"$out" \
   || fail "the empty file-manager choice did not default to nautilus"
-grep -qF 'ryotunes ryomanager nautilus nautilus-python' <<<"$out" \
+grep -qF 'ryotunes ryoport ryomanager nautilus nautilus-python' <<<"$out" \
   || fail "fresh-install app and file-manager packages were not in the desktop transaction"
 base_n=$(pcount "$out")
 [[ -n $base_n ]] || fail "no pacstrap package count in the default dry run"

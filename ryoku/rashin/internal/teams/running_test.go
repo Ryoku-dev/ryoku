@@ -135,7 +135,12 @@ func TestARestartArmsTheTimeLimitFromTheStart(t *testing.T) {
 	}
 	again.now = h.clock.now
 	again.defaultHarness = h.s.defaultHarness
-	t.Cleanup(func() { _ = again.Close() })
+	t.Cleanup(func() {
+		_ = again.Close()
+		// a recovered task can still be filing its last snapshot as the test
+		// ends; let those writes settle before the temp trees are removed
+		time.Sleep(250 * time.Millisecond)
+	})
 	again.Bind(h.sessions)
 	waitFor(t, "the restarted task to run out of time", func() bool {
 		recovered, _ := again.state.task(task.ID)

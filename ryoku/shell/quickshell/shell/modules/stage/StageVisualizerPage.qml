@@ -23,9 +23,12 @@ Item {
     readonly property bool reflSet: page.growSet && page.inst.grow === "up"
     readonly property real aspect: page.provider ? page.provider.aspect() : 1
     property string tab: "Look"
+    onTabChanged: page.fieldFocusReleased()
     onAuraChanged: if (!page.aura && page.tab === "Field") page.tab = "Look"
     property var placeBefore: null
     property string placeId: ""
+    signal fieldFocusRequested(Item field)
+    signal fieldFocusReleased()
 
     function cap(s) {
         const text = "" + (s || "");
@@ -227,16 +230,43 @@ Item {
                 }
             }
             Field {
+                id: hexField
                 width: Tokens.s7 * 2
                 text: row.current
                 placeholder: "#RRGGBB"
                 tabular: true
+                clearOnEscape: false
+                function apply(value) {
+                    const hex = page.cfg.normalizeHex(value);
+                    if (hex === "" || !row.writeValue)
+                        return false;
+                    row.writeValue(hex);
+                    return true;
+                }
+                function revert() {
+                    hexField.text = Qt.binding(() => row.current);
+                }
+                function release() {
+                    page.fieldFocusReleased();
+                }
+                onEdited: value => {
+                    if (/^#?[0-9a-fA-F]{6}$/.test(String(value).trim()))
+                        hexField.apply(value);
+                }
                 onCommitted: value => {
-                    let next = String(value).trim();
-                    if (next.length > 0 && next[0] !== "#")
-                        next = "#" + next;
-                    if (/^#[0-9a-fA-F]{6}$/.test(next) && row.writeValue)
-                        row.writeValue(next);
+                    if (!hexField.apply(value))
+                        hexField.revert();
+                    hexField.release();
+                }
+                onEscaped: {
+                    hexField.revert();
+                    hexField.release();
+                }
+                TapHandler {
+                    onPressedChanged: if (pressed) {
+                        page.fieldFocusRequested(hexField);
+                        Qt.callLater(hexField.grabFocus);
+                    }
                 }
             }
         }

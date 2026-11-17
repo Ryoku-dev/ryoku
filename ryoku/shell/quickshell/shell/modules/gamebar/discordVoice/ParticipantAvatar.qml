@@ -1,21 +1,18 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import Qt5Compat.GraphicalEffects
 import shell.services
+import ".."
 import "../../../components"
+import Lithic
 import "../look"
 
-// One voice participant: a round avatar with a speaking ring, a mute or deaf
-// badge, and the display name under it. Everyone who is not speaking fades back
-// so the active speaker reads at a glance.
 Item {
     id: root
 
     required property var participant
 
-    property real s: 1
-    property real avatarSize: 46 * root.s
+    property real avatarSize: 46
     property bool showName: true
     property bool dimOthers: true
     property real dimOpacity: 0.5
@@ -28,117 +25,71 @@ Item {
             return "";
         return root.participant.nick || root.participant.username || "?";
     }
+    readonly property real _scale: Lithic.scaleOf(root)
     readonly property string initial: root.displayName.length > 0
         ? root.displayName.charAt(0).toUpperCase() : "?"
 
-    implicitWidth: root.showName ? Math.max(root.avatarSize, 58 * root.s) : root.avatarSize
-    implicitHeight: root.avatarSize + (root.showName ? 15 * root.s : 0)
+    implicitWidth: root.showName ? Math.max(root.avatarSize, 58 * root._scale) : root.avatarSize
+    implicitHeight: root.avatarSize + (root.showName
+        ? Math.round(Lithic.type.caption.lineHeight * root._scale) : 0)
     opacity: root.dimOthers && !root.active && DiscordVoice.participantCount > 1
         ? root.dimOpacity : 1
 
     Behavior on opacity {
-        NumberAnimation { duration: 140 }
-    }
-
-    Rectangle {
-        id: ring
-        anchors.horizontalCenter: parent.horizontalCenter
-        y: 0
-        width: root.avatarSize + 4 * root.s
-        height: width
-        radius: width / 2
-        color: "transparent"
-        border.width: root.active ? 2 * root.s : 0
-        border.color: GameBarLook.accent
-
-        Behavior on border.width {
-            NumberAnimation { duration: 120 }
-        }
+        NumberAnimation { duration: Lithic.duration(140) }
     }
 
     Item {
-        id: circle
+        id: plate
         anchors.horizontalCenter: parent.horizontalCenter
-        anchors.top: parent.top
         width: root.avatarSize
         height: root.avatarSize
 
-        Rectangle {
+        CutRect {
             anchors.fill: parent
-            radius: width / 2
-            color: GameBarLook.raised
+            anchors.margins: -3 * root._scale
+            visible: root.active
+            fill: "transparent"
+            strokeColor: GameBarTone.select
+            strokeWidth: 2 * root._scale
+            cut: LithicTokens.cut.small + 3
         }
 
-        Image {
-            id: photo
+        GameBarPlate {
             anchors.fill: parent
+            cut: LithicTokens.cut.small
             source: DiscordVoice.avatarUrl(root.participant, 128)
-            sourceSize.width: Math.ceil(root.avatarSize * Screen.devicePixelRatio)
-            sourceSize.height: Math.ceil(root.avatarSize * Screen.devicePixelRatio)
-            fillMode: Image.PreserveAspectCrop
-            asynchronous: true
-            cache: true
-            visible: false
-            layer.enabled: true
+            placeholder: root.initial
+            decodeSize: 128
         }
 
-        Rectangle {
-            id: photoMask
-            anchors.fill: photo
-            radius: height / 2
-            visible: false
-            layer.enabled: true
-        }
-
-        OpacityMask {
-            anchors.fill: photo
-            source: photo
-            maskSource: photoMask
-            visible: photo.status === Image.Ready
-        }
-
-        Text {
-            anchors.centerIn: parent
-            visible: photo.status !== Image.Ready
-            text: root.initial
-            color: GameBarLook.onLayer
-            font.family: GameBarLook.face
-            font.pixelSize: 17 * root.s
-            font.weight: Font.DemiBold
-        }
-
-        Rectangle {
+        CutRect {
             visible: root.muted || root.deafened
+            width: 16 * root._scale
+            height: 16 * root._scale
             anchors.right: parent.right
             anchors.bottom: parent.bottom
-            width: 16 * root.s
-            height: 16 * root.s
-            radius: width / 2
-            color: GameBarLook.danger
+            fill: GameBarTone.danger
+            cut: LithicTokens.cut.token
 
-            GlyphIcon {
+            Glyph {
                 anchors.centerIn: parent
-                width: 10 * root.s
-                height: 10 * root.s
-                name: root.deafened ? "headphones-off" : "mic-off"
-                color: GameBarLook.onDanger
-                stroke: 2
+                name: root.deafened ? "headphones" : "mic_off"
+                size: 10
+                ink: GameBarTone.dangerInk
             }
         }
     }
 
-    Text {
+    Label {
         anchors.horizontalCenter: parent.horizontalCenter
-        anchors.top: circle.bottom
-        anchors.topMargin: 2 * root.s
+        anchors.top: plate.bottom
+        anchors.topMargin: 1 * root._scale
         width: root.width
         visible: root.showName
-        textFormat: Text.PlainText
         text: root.displayName
-        color: GameBarLook.onLayer
-        font.family: GameBarLook.face
-        font.pixelSize: GameBarLook.smallest * root.s
+        typeRole: "caption"
+        ink: root.active ? GameBarTone.ink : GameBarTone.ink2
         horizontalAlignment: Text.AlignHCenter
-        elide: Text.ElideRight
     }
 }

@@ -1,39 +1,34 @@
-pragma ComponentBehavior: Bound
-
 import QtQuick
+import Lithic
 import "look"
 
-// A label and value pair: a subtext label on the left, the value in the body
-// size on the right.
 Item {
     id: root
 
-    property real s: 1
     property string label: ""
     property string value: ""
 
-    implicitHeight: 24 * root.s
+    readonly property real _scale: Lithic.scaleOf(root)
 
-    Text {
+    implicitHeight: 20 * root._scale
+
+    Label {
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
+        width: Math.max(0, root.width - valueLabel.width - 8 * root._scale)
         text: root.label
-        color: GameBarLook.subtext
-        font.family: GameBarLook.face
-        font.pixelSize: GameBarLook.smallie * root.s
-        elide: Text.ElideRight
-        width: Math.min(implicitWidth, root.width * 0.45)
+        typeRole: "detail"
+        inkRole: "fg3"
     }
 
-    Text {
+    Label {
+        id: valueLabel
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
+        width: Math.min(implicitWidth, Math.max(0, root.width * 0.6))
         text: root.value
-        color: GameBarLook.fg
-        font.family: GameBarLook.face
-        font.pixelSize: GameBarLook.small * root.s
-        elide: Text.ElideRight
-        width: Math.min(implicitWidth, root.width * 0.55)
-        horizontalAlignment: Text.AlignRight
+        typeRole: "detail"
+        ink: GameBarTone.ink
+        numeric: true
     }
 }

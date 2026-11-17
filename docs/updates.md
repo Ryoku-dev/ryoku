@@ -163,13 +163,18 @@ On Arch and CachyOS:
 - The release client trusts only each app's `ryoku-dev` release path. Ryotunes
   retains its epoch-1 package identity; Ryoport uses `ryoport <version>-1`
   without an epoch.
-- No app install takes a file another package owns. Where an older
-  `ryoku-desktop` still ships Ryoport's commands (a box on a newer checkout
-  keeps its v1 package), doctor notes that and leaves Ryoport there; the
-  package installs once `ryoku-desktop` no longer ships them.
-- The scheduled refresh imports both official packages byte for byte, signs
-  them with the Ryoku release key, and updates stable and testing without
-  rebuilding the desktop or changing frozen release snapshots.
+- No app install takes a file another package owns. On a Hyperion checkout
+  with Ryoport still owned by an older `ryoku-desktop`, doctor deploys the
+  verified official release to `~/.local/share/ryoku/ryoport-release` instead.
+  The commands in `~/.local/bin` and the user launcher open the native app,
+  masking the old Quickshell entry without changing the package database.
+  Removing `~/.local/bin/ryoport` opts out; doctor retires the remaining local
+  commands and respects that removal. Once the native package is installed,
+  doctor retires the checkout copy automatically.
+- The scheduled refresh imports official packages byte for byte, signs them
+  with the Ryoku release key, and updates stable and testing without rebuilding
+  the desktop or changing frozen release snapshots. Unpublished checkout apps
+  can use the verified release directly without changing the public channel.
 - **A box that tracks the `hyperion` branch follows Ryotunes 2.** There the
   Ryotunes release client reads the release list rather than GitHub's latest
   release and takes the highest `v2.x.y` that carries a package, prereleases
@@ -844,6 +849,11 @@ quiet. `tests/ryoku-discord.sh` builds every kind of message offline.
   a box with `ryoku-desktop` installed `deploy.sh` lays a new path through
   `_desktop_install` only once the installed package owns it, and clears an
   unowned copy an earlier deploy left; the package upgrade brings the file.
+  Brand images and the npm defaults follow the same rule even on a checkout
+  without a desktop package. Deploy and doctor remove only regular unowned
+  copies matching the checkout byte for byte; local edits and owned files stay.
+  Fedora and Void keep their native package-manager adoption and do not run
+  pacman's ownership cleanup.
 - **Generated power policy and long-running helpers must be adopted as one live
   transaction.** `hypridle.conf` is rendered state, not materialized payload,
   and a running shell-script daemon keeps executing its old file after the

@@ -257,6 +257,10 @@ func TestNightlightClockTickEdges(t *testing.T) {
 		schedStopMin:   nlDefaultClockStop,
 	}
 
+	// The watcher is the live publisher: if the backend's marker lands a beat
+	// after the intent's own frame, the watcher still pushes the settled state.
+	go n.watch()
+
 	now := time.Now()
 	cur := now.Hour()*60 + now.Minute()
 	all := cur

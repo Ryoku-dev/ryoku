@@ -701,6 +701,14 @@ piece_end
 install -m755 "$here/../hub/backend/ryoku-hub" "$bindir/ryoku-hub"
 say "installed $bindir/ryoku-hub"
 
+# The daemon's shells sync and the doctor call `ryostore internal ...`; a
+# packaged ryostore older than this checkout fails them and the bar goes with it.
+piece ryostore "ryostore, the store backend"
+build_go "$here/../apps/ryostore/backend" ryostore
+piece_end
+install -m755 "$here/../apps/ryostore/backend/ryostore" "$bindir/ryostore"
+say "installed $bindir/ryostore"
+
 # Build beside the destination so a failed build keeps the working copy.
 piece rashin "Rashin, the optional AI system"
 rashin_module="$here/../rashin"
@@ -809,10 +817,6 @@ if command -v sudo >/dev/null 2>&1; then
     sudo install -d -m755 "$(dirname "$2")" || return 0
     sudo ln -sfn "$1" "$2" || true
   }
-  _priv_tree() { # src dest
-    sudo install -d -m755 "$2" || return 0
-    sudo cp -a "$1/." "$2/" || true
-  }
   # an unowned copy of a path a newer ryoku-desktop ships blocks a plain pacman -Syu
   _desktop_install() { # src dest mode
     if [[ $package_manager == pacman ]] && pacman -Q ryoku-desktop >/dev/null 2>&1; then
@@ -840,8 +844,9 @@ if command -v sudo >/dev/null 2>&1; then
     /usr/share/polkit-1/actions/dev.ryoku.apps.policy 644
   _priv_install "$repo_root/system/policy/56-ryoku-apps.rules" \
     /usr/share/polkit-1/rules.d/56-ryoku-apps.rules 644
-  _priv_install "$repo_root/ryoku/apps/npm/npmrc" /usr/share/ryoku/npmrc 644
-  _priv_tree "$repo_root/ryoku/assets/brand" /usr/share/ryoku/brand
+  source "$here/deploy-assets.sh"
+  _deploy_asset "$package_manager" "$repo_root/ryoku/apps/npm/npmrc" /usr/share/ryoku/npmrc 644
+  _deploy_assets "$package_manager" "$repo_root/ryoku/assets/brand" /usr/share/ryoku/brand
   # `ryoku-host svc` and the doctor read the manifest ryoku-desktop ships; a
   # Fedora checkout box has no such package. Void lays it with its runit tree.
   if [[ $package_manager == dnf ]]; then
@@ -1242,7 +1247,7 @@ if command -v sudo >/dev/null 2>&1 && command -v pacman >/dev/null 2>&1; then
   # the boot configs); once ryoku-desktop packages them an unowned copy otherwise
   # aborts the whole -Syu with "exists in filesystem" and nothing upgrades.
   # Mirrors updater.RyokuOverwriteGlob / the doctor's ryokuSystemGlobs.
-  _rovw='/usr/bin/ryoku-*,/usr/lib/systemd/system/ryoku-*,/usr/lib/initcpio/install/ryoku-*,/usr/lib/wayfire/libryoku-*,/usr/share/polkit-1/rules.d/*ryoku*.rules,/usr/share/plymouth/themes/ryoku/*,/usr/share/ryoku/boot/*,/usr/share/ryoku/lockscreen/ryoku-*,/usr/share/ryoku/lockscreen/install-qylock,/usr/share/ryoku/config/wayfire/*,/usr/share/ryoku/config/xdg-desktop-portal/wayfire-portals.conf,/usr/share/wayfire/metadata/ryoku-*,/etc/systemd/logind.conf.d/10-ryoku-lid.conf,/etc/boot/hooks/post.d/*ryoku*,/etc/modules-load.d/*ryoku*,/usr/lib/udev/rules.d/*ryoku*.rules,/usr/local/share/applications/mimeapps.list,/usr/lib/environment.d/*ryoku*,/usr/share/ryoku/xdg/dbus-1/services/*'
+  _rovw='/usr/bin/ryoku-*,/usr/lib/systemd/system/ryoku-*,/usr/lib/initcpio/install/ryoku-*,/usr/lib/wayfire/libryoku-*,/usr/share/polkit-1/rules.d/*ryoku*.rules,/usr/share/plymouth/themes/ryoku/*,/usr/share/ryoku/boot/*,/usr/share/ryoku/lockscreen/ryoku-*,/usr/share/ryoku/lockscreen/install-qylock,/usr/share/ryoku/config/wayfire/*,/usr/share/ryoku/config/xdg-desktop-portal/wayfire-portals.conf,/usr/share/wayfire/metadata/ryoku-*,/etc/systemd/logind.conf.d/10-ryoku-lid.conf,/etc/boot/hooks/post.d/*ryoku*,/etc/modules-load.d/*ryoku*,/usr/lib/udev/rules.d/*ryoku*.rules,/usr/lib/environment.d/*ryoku*,/usr/share/ryoku/xdg/dbus-1/services/*,/usr/share/ryoku/brand/*,/usr/share/ryoku/npmrc,/usr/local/share/applications/mimeapps.list'
   # LC_ALL=C: the stray parse below reads pacman's English "exists in filesystem"
   _pac_ryotunes() { sudo env LC_ALL=C pacman -Syu --needed --noconfirm --overwrite "$_rovw" ryotunes; }
   # shellcheck disable=SC2024

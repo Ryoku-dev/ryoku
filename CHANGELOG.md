@@ -5,6 +5,12 @@ for finer detail.
 
 ## Unreleased
 
+### Changed
+- The Game Bar is drawn in the desktop's design language: its strip, cards,
+  controls and charts take the style and colours chosen in Settings > Appearance
+  > Style, follow a change live without a restart, and no longer keep a corner
+  rounding of their own.
+
 ### Added
 - QS Bar adds per-monitor workspace isolation (`isolateMonitors`), allowing
   multi-monitor setups to show only the workspaces assigned to each screen on its
@@ -26,6 +32,8 @@ for finer detail.
   user is no longer in a mango session.
 
 ### Fixed
+- The Game Bar's Audio card grows to show every playing app (up to most of the
+  screen height) and can be resized by its bottom-right grip.
 - The wallpaper-following pointer now recolours on niri within a few seconds
   of the palette, not ~30 s, its size never changes, and it reaches the apps
   you launch, not just the compositor's own pointer. The bitmap set niri

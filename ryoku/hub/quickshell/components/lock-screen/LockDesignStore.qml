@@ -13,10 +13,10 @@ QtObject {
     property bool loading: true
     property bool loadFailed: false
     property bool listed: false
-    // the design being applied, and whether the lock half already took it
+    // the design being applied, and whether the admin prompt is up for it
     property string pending: ""
-    property bool greeterPending: false
-    // the last finished switch: { slug, ok, sessionApplied }
+    property bool adminPrompt: false
+    // the last finished switch: { slug, ok }
     property var result: null
 
     property var doneCallback: null
@@ -62,11 +62,11 @@ QtObject {
             return;
         }
         store.pending = slug;
-        store.greeterPending = false;
+        store.adminPrompt = false;
         store.result = null;
         store.doneCallback = done;
         store.setProc.slug = slug;
-        store.setProc.sessionApplied = false;
+        store.setProc.promptShown = false;
         store.setProc.command = ["ryoku-hub", "lock", "set", slug];
         store.setProc.launched = false;
         store.setProc.late = false;
@@ -81,26 +81,25 @@ QtObject {
             return;
         store.limit.stop();
         var slug = store.setProc.slug;
-        var applied = store.setProc.sessionApplied;
         var late = store.setProc.late;
-        var why = setErr.text.trim();
+        var why = setErr.text.trim().replace(/^ryoku-hub:\s*/, "");
         var done = store.doneCallback;
         store.doneCallback = null;
         store.pending = "";
-        store.greeterPending = false;
-        store.result = { slug: slug, ok: code === 0, sessionApplied: applied };
+        store.adminPrompt = false;
+        store.result = { slug: slug, ok: code === 0 };
+        // the design shows as in use only once the privileged install took; every failure leaves
+        // the one that was in use before
         if (code === 0) {
             store.active = slug;
             if (done)
                 done(true, "");
-        } else if (applied) {
-            if (done)
-                done(false, I18n.tr("%1 is your lock screen now, but the sign-in screen kept its old design because the admin prompt was cancelled or failed. Retry to ask for your password again.").arg(store.nameOf(slug)));
         } else if (done) {
-            // a missing backend or a hang already says what to do; a refusal names the design
+            var kept = store.inUse !== "" ? store.nameOf(store.inUse) : "";
+            var tail = kept !== "" ? " " + I18n.tr("%1 is still your lock screen and sign-in screen.").arg(kept) : "";
             done(false, code === -1 ? Changes.missingText("ryoku-hub")
                 : late ? I18n.tr("%1 did not finish in time. Try again.").replace("%1", "ryoku-hub")
-                : I18n.tr("Could not switch to %1: %2. Retry, or pick another design.").arg(store.nameOf(slug)).arg(why || I18n.tr("the settings backend did not answer")));
+                : I18n.tr("Nothing changed: %1.").arg(why || I18n.tr("the settings backend did not answer")) + tail);
         }
         Changes.touch();
         store.reload();
@@ -141,12 +140,12 @@ QtObject {
         }
     }
 
-    // until the session half is written a switch is the backend's own work, so a hang ends
-    // after 10 s; once the admin prompt is up it waits for the person, as long as they need
+    // until the admin prompt is up a switch is the backend's own work, so a hang ends
+    // after 10 s; once the prompt is up it waits for the person, as long as they need
     property Timer limit: Timer {
         interval: 10000
         onTriggered: {
-            if (!store.setProc.running || store.setProc.sessionApplied)
+            if (!store.setProc.running || store.setProc.promptShown)
                 return;
             store.setProc.late = true;
             store.setProc.running = false;
@@ -156,7 +155,7 @@ QtObject {
 
     property Process setProc: Process {
         property string slug: ""
-        property bool sessionApplied: false
+        property bool promptShown: false
         property bool launched: false
         property bool late: false
         onStarted: store.setProc.launched = true
@@ -167,11 +166,10 @@ QtObject {
         }
         stdout: SplitParser {
             onRead: line => {
-                if (line.trim() !== "session-applied")
+                if (line.trim() !== "admin-prompt")
                     return;
-                store.setProc.sessionApplied = true;
-                store.active = store.setProc.slug;
-                store.greeterPending = true;
+                store.setProc.promptShown = true;
+                store.adminPrompt = true;
                 Changes.touch();
             }
         }

@@ -17,6 +17,9 @@ Item {
 
     anchors.fill: parent
 
+    Component.onCompleted: ShellState.surfaceHosts++
+    Component.onDestruction: ShellState.surfaceHosts--
+
     required property string monitorName
     required property real scale
     required property var group

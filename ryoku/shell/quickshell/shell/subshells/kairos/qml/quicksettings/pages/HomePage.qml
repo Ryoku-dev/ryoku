@@ -145,8 +145,11 @@ Column {
         IconButton {
             anchors { right: parent.right; verticalCenter: parent.verticalCenter }
             icon: "tune"
-            tip: I18n.tr("Island settings")
-            onClicked: page.host.openIslandSettings()
+            tip: I18n.tr("Ryoku Settings")
+            onClicked: {
+                page.host.close();
+                Bus.run("hub open");
+            }
         }
     }
 

@@ -4,6 +4,7 @@ import QtQuick
 import Ryoku.Bus
 import shell.services
 import "../../kit" as K
+import "wifinets.js" as Nets
 
 Item {
     id: page
@@ -12,10 +13,11 @@ Item {
     property var card: null
     property bool shown: false
     property string passwordSsid: ""
+    property string passwordKey: ""
     property string passwordBssid: ""
     property string password: ""
     property int pendingId: -1
-    property string connectingSsid: ""
+    property string connectingKey: ""
     property string errorText: ""
 
     implicitWidth: 320
@@ -23,22 +25,16 @@ Item {
 
     readonly property bool connected: Network.wifiConnectivity === "Connected"
     readonly property bool connecting: pendingId >= 0
-    readonly property var accessPoints: {
-        const source = (Network.accessPoints || []).slice();
-        source.sort(function(left, right) {
-            if (!!left.active !== !!right.active)
-                return left.active ? -1 : 1;
-            return Number(right.strength || 0) - Number(left.strength || 0);
-        });
-        return source.filter(function(ap) { return ap && !ap.active; });
-    }
+    readonly property string activeSecurity: Nets.activeSecurity(Network.accessPoints)
+    readonly property string activeBand: Nets.activeBand(Network.accessPoints)
+    readonly property var networks: Nets.networks(Network.accessPoints, Network.activeSsid,
+        page.activeSecurity, page.activeBand)
     // keyed so an open password field keeps its focus while the list re-sorts
     BusListModel {
-        id: accessPointRows
-        key: "bssid"
-        roles: ["ssid", "strength", "security", "bssid", "frequency", "band", "saved",
-            "active", "autoconnect"]
-        rows: page.accessPoints
+        id: networkRows
+        key: "key"
+        roles: ["key", "ssid", "strength", "security", "bssid", "bandLabel", "saved", "autoconnect"]
+        rows: page.networks
     }
 
     function openNetwork(ap) {
@@ -53,11 +49,11 @@ Item {
         return "network_wifi_1_bar";
     }
 
-    function beginConnect(ssid, passwordValue, bssid) {
+    function beginConnect(ssid, passwordValue, bssid, key) {
         if (connecting || !ssid)
             return;
         errorText = "";
-        connectingSsid = ssid;
+        connectingKey = key;
         pendingId = Network.connectWifi(ssid, passwordValue || "", bssid || "");
     }
 
@@ -66,11 +62,14 @@ Item {
             return;
         if (ap.saved || openNetwork(ap)) {
             passwordSsid = "";
+            passwordKey = "";
+            passwordBssid = "";
             password = "";
-            beginConnect(ap.ssid, "", ap.bssid);
+            beginConnect(ap.ssid, "", ap.bssid, String(ap.key || ""));
             return;
         }
         passwordSsid = String(ap.ssid || "");
+        passwordKey = String(ap.key || "");
         passwordBssid = String(ap.bssid || "");
         password = "";
         errorText = "";
@@ -78,13 +77,14 @@ Item {
 
     function submitPassword() {
         if (passwordSsid && password.length > 0)
-            beginConnect(passwordSsid, password, passwordBssid);
+            beginConnect(passwordSsid, password, passwordBssid, passwordKey);
     }
 
     function cancelPassword() {
         if (connecting)
             return;
         passwordSsid = "";
+        passwordKey = "";
         passwordBssid = "";
         password = "";
         errorText = "";
@@ -96,9 +96,10 @@ Item {
             if (id !== page.pendingId)
                 return;
             page.pendingId = -1;
-            page.connectingSsid = "";
+            page.connectingKey = "";
             if (ok) {
                 page.passwordSsid = "";
+                page.passwordKey = "";
                 page.passwordBssid = "";
                 page.password = "";
                 page.errorText = "";
@@ -190,7 +191,8 @@ Item {
             width: parent.width
             icon: page.strengthIcon(Network.wifi && Network.wifi.strength)
             title: Network.activeSsid || "Wi-Fi"
-            subtitle: "Connected"
+            subtitle: page.activeBand.length > 0
+                ? "Connected · " + Nets.bandLabel(page.activeBand) : "Connected"
             selected: true
 
             K.Button {
@@ -221,7 +223,7 @@ Item {
             spacing: K.Style.s2
 
             Repeater {
-                model: accessPointRows
+                model: networkRows
 
                 delegate: Item {
                     id: accessPoint
@@ -230,7 +232,7 @@ Item {
                     required property int index
                     width: networkList.width
                     implicitHeight: networkRow.implicitHeight
-                        + (page.passwordSsid === String(modelData.ssid || "")
+                        + (page.passwordKey === String(modelData.key || "")
                             ? passwordPanel.implicitHeight + K.Style.s2 : 0)
                     height: implicitHeight
 
@@ -240,11 +242,13 @@ Item {
                         width: parent.width
                         icon: page.strengthIcon(accessPoint.modelData.strength)
                         title: accessPoint.modelData.ssid || "Hidden network"
-                        subtitle: page.connectingSsid === String(accessPoint.modelData.ssid || "")
-                            ? "Connecting…"
-                            : (accessPoint.modelData.saved ? "Saved"
-                                : (page.openNetwork(accessPoint.modelData) ? "Open"
-                                    : String(accessPoint.modelData.security || "Secured")))
+                        subtitle: {
+                            const row = accessPoint.modelData;
+                            const state = page.connectingKey === String(row.key || "") ? "Connecting…"
+                                : (row.saved ? "Saved"
+                                    : (page.openNetwork(row) ? "Open" : String(row.security || "Secured")));
+                            return row.bandLabel ? state + " · " + row.bandLabel : state;
+                        }
                         divider: accessPoint.index > 0 || page.connected
                         enabled: !page.connecting
                         onClicked: page.choose(accessPoint.modelData)
@@ -265,7 +269,7 @@ Item {
                         anchors.top: networkRow.bottom
                         anchors.topMargin: K.Style.s2
                         width: parent.width
-                        visible: page.passwordSsid === String(accessPoint.modelData.ssid || "")
+                        visible: page.passwordKey === String(accessPoint.modelData.key || "")
                         spacing: K.Style.s2
 
                         Row {
@@ -275,10 +279,10 @@ Item {
                             PasswordField {
                                 width: Math.max(100, parent.width - connectButton.width
                                     - cancelButton.width - 2 * parent.spacing)
-                                text: page.passwordSsid === String(accessPoint.modelData.ssid || "")
+                                text: page.passwordKey === String(accessPoint.modelData.key || "")
                                     ? page.password : ""
                                 enabled: !page.connecting
-                                onTextChanged: if (page.passwordSsid === String(accessPoint.modelData.ssid || ""))
+                                onTextChanged: if (page.passwordKey === String(accessPoint.modelData.key || ""))
                                     page.password = text
                                 onAccepted: page.submitPassword()
                                 onCancelled: page.cancelPassword()
@@ -316,7 +320,7 @@ Item {
             }
 
             K.Label {
-                visible: page.accessPoints.length === 0
+                visible: page.networks.length === 0
                 width: parent.width
                 text: Network.wifiConnectivity === "Connecting"
                     ? "Looking for networks…" : "No networks found"

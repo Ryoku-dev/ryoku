@@ -20,7 +20,7 @@ pkgs.stdenv.mkDerivation {
   dontConfigure = true;
 
   nativeBuildInputs = [ pkgs.cmake pkgs.ninja pkgs.pkg-config pkgs.shaderc ];
-  buildInputs = [ pkgs.pipewire pkgs.wayland pkgs.libxkbcommon pkgs.vulkan-headers pkgs.vulkan-loader ];
+  buildInputs = [ pkgs.pipewire pkgs.wayland pkgs.libxkbcommon pkgs.vulkan-headers pkgs.vulkan-loader pkgs.spirv-headers ];
 
   buildPhase = ''
     runHook preBuild

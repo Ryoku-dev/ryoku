@@ -6,11 +6,12 @@ Item {
 
     property bool keyboardFocusVisible: false
     property real cut: 0
-    property real gap: Lithic.focusGap
-    property real ringWidth: Lithic.focusWidth
+    readonly property real _scale: Lithic.scaleOf(root)
+    property real gap: Lithic.focusGap * root._scale
+    property real ringWidth: Lithic.focusWidth * root._scale
     property color color: Lithic.focusColor
     readonly property real outset: gap + ringWidth
-    readonly property real _grownCut: cut + LithicTokens.size.focusCutGrow
+    readonly property real _grownCut: (cut + LithicTokens.size.focusCutGrow) * root._scale
     visible: keyboardFocusVisible
     // the nearest DesignScope's design, else the desktop's
     property Item _scope: null

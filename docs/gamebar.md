@@ -11,6 +11,12 @@ game-bar`). Changes apply live; the shell never restarts for them. The bar is
 meant for a game, but nothing requires one: it opens over whatever is on that
 monitor.
 
+The overlay is drawn in the desktop's design language, like every other Ryoku
+surface. The style chosen once in **Settings > Appearance > Style** sets its
+cuts, planes, type and motion, and the colour source, light or dark, contrast
+and tint chosen beside it dye it. Change any of them while the bar is open and
+it redraws in place. The game bar has no style or colour setting of its own.
+
 While the bar is open it takes the pointer across its monitor, so a click
 beside the cards lands on the dimmed backdrop and leaves the bar open. It never
 takes keyboard focus, so the game keeps the keyboard while the bar is visible
@@ -49,11 +55,12 @@ and use the Capture card's Stop button.
   so the list cannot offer to kill the compositor or the shell it floats above.
   Other users' processes are never listed.
 - **Media** follows the one now-playing pick the whole shell shares, with art,
-  title, artist and transport.
+  title, artist, transport and the track's lyrics when they are opened.
 - **Voice** shows the Discord call (see below).
 - **Audio** carries the same output and application faders as the audio menu.
-  A level set here is the level PipeWire holds everywhere. The app list scrolls
-  when more than three apps are playing.
+  A level set here is the level PipeWire holds everywhere. The card grows with
+  the list so every playing app stays visible, up to most of the screen height;
+  past that the list scrolls. Drag the bottom-right grip for more room.
 - **Gallery** shows the newest screenshots as their own thumbnails and
   recordings as titled play tiles, with a switch between the two lists and a
   button to open the current folder.
@@ -65,11 +72,10 @@ another card pulls to that line; when nothing is near it falls back to the
 snapping grid. The guide grid appears while a drag can snap. The grid button in
 the strip turns snapping on and off, and the choice is saved.
 
-The Voice, Media and Audio cards resize: drag the bottom-right grip. The Audio
-card's app list takes the room the card gives it and scrolls when it runs out.
-A card that does not fit after a monitor change is pulled back onto the screen.
-Each card keeps its own position, and a resized card keeps its size, both in
-the persisted state.
+The Voice, Media and Audio cards resize: drag the bottom-right grip. A card that
+does not fit after a monitor change is pulled back onto the screen. Each card
+keeps its own position and a resized card keeps its size, both in the persisted
+state.
 
 Snap reach, grid spacing, guide spacing and visibility, and the settle spring
 are all adjustable; see **Settings**.
@@ -148,12 +154,15 @@ the shell daemon, which checks the range, saves it and hands it to the live
 shell, so nothing restarts. `ryoku-shell hub open game-bar/<row>` opens the page
 at one row, for example `game-bar/dim`.
 
+The Look group sets only the overlay's own behaviour: the dim behind it, the
+size of its contents and how long it fades. How its corners, planes, type and
+colours look is the desktop's appearance, not a game bar setting.
+
 | Key | Default | Effect |
 |---|---|---|
 | `enabled` | `true` | Turn the game bar on. Off, it closes and the shortcut does nothing. |
 | `dim` | `0.62` | How far the game darkens behind the open bar. |
 | `scale` | `1` | Scale the strip, cards and text together. |
-| `radius` | `14` | Rounding of the strip and card frames. |
 | `fade` | `200` | Opening and closing duration in milliseconds. |
 | `snap` | `true` | Pull a released card to edges, centre lines and other cards. |
 | `snapReach` | `9` | How close a card must come before it snaps. |
@@ -203,7 +212,7 @@ level, with an exclusive zone of `-1` so it spans the bar and the dock.
 ## Files
 
 - `ryoku/shell/quickshell/shell/modules/gamebar/` the surface, strip, cards,
-  look tokens, Discord bridge and companion, and their layout tests.
+  design tone, Discord bridge and companion, and their layout tests.
 - `ryoku/shell/quickshell/shell/services/GameBarStore.qml` persisted state,
   card order, pins, positions and sizes.
 - `ryoku/shell/quickshell/shell/services/DiscordVoice.qml` the bridge process,

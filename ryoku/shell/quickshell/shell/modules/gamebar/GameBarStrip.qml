@@ -1,15 +1,12 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import Quickshell
 import shell.services
-import "../../components"
-import "look"
 import Ryoku.Ui.Singletons
+import Lithic
+import "look"
 
-// The overlay taskbar: widget buttons, a separator, the clock and the
-// battery. A button shows its widget, a second press hides it.
-Rectangle {
+Item {
     id: root
 
     property real s: 1
@@ -23,16 +20,11 @@ Rectangle {
     readonly property real padding: 8 * root.s
     readonly property real button: 32 * root.s
 
-    implicitWidth: row.implicitWidth + root.padding * 2
+    implicitWidth: bar.width
     implicitHeight: root.button + root.padding * 2
-    radius: GameBarLook.radiusWindow * root.s
-    color: GameBarLook.bar
-    border.width: 1
-    border.color: GameBarLook.border
 
     property string clock: ""
 
-    // the hour cycle follows the one clock preference every other clock reads
     function tick() {
         root.clock = TimeFormat.format(new Date());
     }
@@ -55,154 +47,133 @@ Rectangle {
         function onFormatLocaleChanged() { root.tick(); }
     }
 
-    Row {
-        id: row
-        anchors.fill: parent
-        anchors.margins: root.padding
-        spacing: 6 * root.s
+    Item {
+        id: bar
+        width: row.implicitWidth + root.padding * 2
+        height: root.button + root.padding * 2
+        readonly property real lithicScale: root.s
+
+        CutRect {
+            anchors.fill: parent
+            fill: GameBarTone.pane
+            strokeColor: GameBarTone.paneStroke
+            strokeWidth: LithicTokens.size.hairline
+            cut: GameBarTone.paneCut
+        }
 
         Row {
+            id: row
+            x: root.padding
+            y: root.padding
+            height: root.button
             spacing: 4 * root.s
-            anchors.verticalCenter: parent.verticalCenter
 
             Repeater {
                 model: root.cards
 
-                delegate: Item {
-                    id: button
+                delegate: IconPlaque {
+                    id: widgetButton
                     required property var modelData
 
-                    readonly property bool on: root.activeIds.indexOf(modelData.id) !== -1
+                    readonly property bool on: root.activeIds.indexOf(widgetButton.modelData.id) !== -1
 
-                    width: root.button
-                    height: root.button
+                    small: true
+                    kind: widgetButton.on ? "tonal" : "quiet"
+                    glyph: widgetButton.modelData.glyph ? "" : widgetButton.modelData.symbol
+                    Accessible.name: widgetButton.modelData.label
+                    onClicked: root.picked(widgetButton.modelData.id)
 
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: Math.max(0, (GameBarLook.radiusNormal - 8) * root.s)
-                        color: button.on ? GameBarLook.toggled
-                            : (pointer.containsMouse ? GameBarLook.hover : "transparent")
+                    GameBarGlyph {
+                        anchors.centerIn: parent
+                        visible: !!widgetButton.modelData.glyph
+                        brand: widgetButton.modelData.glyph || ""
+                        size: LithicTokens.size.iconPlaqueIconSmall
+                        ink: widgetButton.ink
+                    }
+                }
+            }
 
-                        Behavior on color {
-                            ColorAnimation { duration: 120 }
-                        }
+            Item {
+                width: LithicTokens.size.hairline
+                height: row.height
+
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: LithicTokens.size.hairline
+                    height: 18 * root.s
+                    color: GameBarTone.line
+                }
+            }
+
+            IconPlaque {
+                small: true
+                kind: root.snapping ? "tonal" : "quiet"
+                glyph: "grid_view"
+                Accessible.name: I18n.tr("Snapping")
+                onClicked: root.snapToggled()
+            }
+
+            Item {
+                width: clockLabel.implicitWidth
+                height: row.height
+
+                Label {
+                    id: clockLabel
+                    anchors.verticalCenter: parent.verticalCenter
+                    leftPadding: 8 * root.s
+                    rightPadding: 4 * root.s
+                    text: root.clock
+                    typeRole: "proof"
+                    font.pixelSize: Math.round(22 * root.s)
+                    lineHeight: Math.round(26 * root.s)
+                    ink: GameBarTone.ink
+                    numeric: true
+                }
+            }
+
+            Item {
+                visible: Battery.present
+                width: LithicTokens.size.hairline
+                height: row.height
+
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: LithicTokens.size.hairline
+                    height: 18 * root.s
+                    color: GameBarTone.line
+                }
+            }
+
+            Item {
+                visible: Battery.present
+                width: batteryRow.width
+                height: row.height
+
+                Row {
+                    id: batteryRow
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 6 * root.s
+
+                    GameBarGlyph {
+                        brand: "battery"
+                        size: 20
+                        ink: Battery.low && !Battery.charging ? GameBarTone.danger : GameBarTone.ink2
                     }
 
                     Item {
-                        anchors.centerIn: parent
-                        width: root.button
-                        height: root.button
+                        width: batteryPct.implicitWidth
+                        height: batteryRow.height
 
-                        MaterialIcon {
-                            anchors.fill: parent
-                            visible: !button.modelData.glyph
-                            text: button.modelData.symbol
-                            color: GameBarLook.onLayer
-                            font.pixelSize: 21 * root.s
-                        }
-
-                        GlyphIcon {
-                            anchors.centerIn: parent
-                            width: 20 * root.s
-                            height: 20 * root.s
-                            visible: !!button.modelData.glyph
-                            name: button.modelData.glyph || ""
-                            color: GameBarLook.onLayer
-                            stroke: 1.6
+                        Label {
+                            id: batteryPct
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: Battery.pct + "%"
+                            typeRole: "mono"
+                            ink: Battery.low && !Battery.charging ? GameBarTone.danger : GameBarTone.ink
+                            numeric: true
                         }
                     }
-
-                    MouseArea {
-                        id: pointer
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.picked(button.modelData.id)
-                    }
                 }
-            }
-        }
-
-        Rectangle {
-            width: 1
-            height: root.button - 20 * root.s
-            anchors.verticalCenter: parent.verticalCenter
-            color: GameBarLook.border
-        }
-
-        Item {
-            id: snapButton
-            width: root.button
-            height: root.button
-            anchors.verticalCenter: parent.verticalCenter
-
-            Rectangle {
-                anchors.fill: parent
-                radius: GameBarLook.radiusNormal * root.s
-                color: root.snapping ? GameBarLook.toggled
-                    : (snapPointer.containsMouse ? GameBarLook.hover : "transparent")
-
-                Behavior on color {
-                    ColorAnimation { duration: 120 }
-                }
-            }
-
-            MaterialIcon {
-                anchors.centerIn: parent
-                width: root.button
-                height: root.button
-                text: "grid_view"
-                color: GameBarLook.onLayer
-                font.pixelSize: 21 * root.s
-            }
-
-            MouseArea {
-                id: snapPointer
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: root.snapToggled()
-            }
-        }
-
-        Text {
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: 8 * root.s
-            anchors.rightMargin: 6 * root.s
-            text: root.clock
-            color: GameBarLook.fg
-            font.family: GameBarLook.face
-            font.pixelSize: GameBarLook.huge * root.s
-        }
-
-        Rectangle {
-            visible: Battery.present
-            width: 1
-            height: root.button - 20 * root.s
-            anchors.verticalCenter: parent.verticalCenter
-            color: GameBarLook.border
-        }
-
-        Row {
-            visible: Battery.present
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: 2 * root.s
-
-            GlyphIcon {
-                anchors.verticalCenter: parent.verticalCenter
-                width: 24 * root.s
-                height: 24 * root.s
-                name: "battery"
-                color: Battery.low && !Battery.charging ? GameBarLook.danger : GameBarLook.fg
-                stroke: 1.7
-            }
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: Battery.pct + "%"
-                color: Battery.low && !Battery.charging ? GameBarLook.danger : GameBarLook.fg
-                font.family: GameBarLook.face
-                font.pixelSize: 18 * root.s
             }
         }
     }

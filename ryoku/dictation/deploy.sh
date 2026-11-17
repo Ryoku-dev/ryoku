@@ -20,16 +20,17 @@ esac
 
 if ! command -v cmake >/dev/null 2>&1 || ! command -v ninja >/dev/null 2>&1 ||
    ! command -v c++ >/dev/null 2>&1 || ! command -v glslc >/dev/null 2>&1 ||
-   ! pkg-config --exists libpipewire-0.3 wayland-client xkbcommon vulkan; then
+   ! pkg-config --exists libpipewire-0.3 wayland-client xkbcommon vulkan ||
+   ! cmake --find-package -DNAME=SPIRV-Headers -DCOMPILER_ID=GNU -DLANGUAGE=CXX -DMODE=EXIST >/dev/null 2>&1; then
   case "$("$host" pkgmgr)" in
     pacman)
-      sudo pacman -S --needed --noconfirm cmake ninja gcc pkgconf libpipewire wayland libxkbcommon shaderc vulkan-headers vulkan-icd-loader
+      sudo pacman -S --needed --noconfirm cmake ninja gcc pkgconf libpipewire wayland libxkbcommon shaderc vulkan-headers vulkan-icd-loader spirv-headers
       ;;
     xbps)
-      sudo xbps-install -Sy cmake ninja gcc pkgconf pipewire-devel wayland-devel libxkbcommon-devel shaderc Vulkan-Headers vulkan-loader-devel
+      sudo xbps-install -Sy cmake ninja gcc pkgconf pipewire-devel wayland-devel libxkbcommon-devel shaderc Vulkan-Headers vulkan-loader-devel SPIRV-Headers
       ;;
     dnf)
-      sudo "$host" pkg install cmake ninja-build gcc-c++ pkgconf-pkg-config pipewire-devel wayland-devel libxkbcommon-devel glslc vulkan-headers vulkan-loader-devel
+      sudo "$host" pkg install cmake ninja-build gcc-c++ pkgconf-pkg-config pipewire-devel wayland-devel libxkbcommon-devel glslc vulkan-headers vulkan-loader-devel spirv-headers-devel
       ;;
     *)
       printf 'dictation: the native compiler, PipeWire, Wayland, xkbcommon and Vulkan development tools are required\n' >&2

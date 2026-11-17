@@ -465,7 +465,10 @@ Singleton {
             // a value the shell applies in a second step (bar style: shells commit)
             if (bind.after) {
                 Settings.flushWrites();
-                Settings.afterWrites(() => Bus.run(bind.after));
+                Settings.afterWrites(() => Bus.run(bind.after, function (ok, out, err) {
+                    if (!ok)
+                        root.setError(bind, String(err || "").trim() || "The change did not apply.", v, label, page);
+                }));
             }
             root.revision++;
             break;

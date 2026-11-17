@@ -77,6 +77,11 @@ Singleton {
         || String(root.index.active || "") === root.active)
     readonly property string active: Config.barStyle
     readonly property string fallbackId: "orpheus"
+    readonly property var fallbackItem: item(fallbackId)
+    readonly property url fallbackEntry: fallbackItem === null ? "" : url(fallbackItem, fallbackItem.entry)
+    // pendingExpired: the selection could not be prepared in time; a bar that is
+    // already drawn stays, and a shell with none draws the fallback
+    property bool pendingExpired: false
     property string brokenId: ""
     readonly property var selectedItem: item(active)
     readonly property bool activePending: !root.indexCurrent
@@ -114,15 +119,20 @@ Singleton {
         }
     }
 
-    function item(id) {
-        const wanted = String(id || "");
-        const items = root.index && Array.isArray(root.index.items)
-            ? root.index.items : [];
+    function listed(index, wanted) {
+        const items = index && Array.isArray(index.items) ? index.items : [];
         for (let i = 0; i < items.length; ++i) {
             if (String(items[i]?.id || "") === wanted)
                 return items[i];
         }
         return null;
+    }
+
+    // an index that does not list a shipped item (a failed or stale sync) must
+    // not take the shipped bars away
+    function item(id) {
+        const wanted = String(id || "");
+        return root.listed(root.index, wanted) || root.listed(root.builtInIndex, wanted);
     }
 
     function url(record, relPath) {
@@ -197,6 +207,7 @@ Singleton {
         activeBarEdge = "top";
     }
     onIndexCurrentChanged: if (indexRead && !indexCurrent) requestSync()
+    onActivePendingChanged: if (!activePending) pendingExpired = false
 
     FileView {
         id: indexFile
@@ -220,5 +231,12 @@ Singleton {
         id: syncDebounce
         interval: 150
         onTriggered: Bus.run("shells sync")
+    }
+
+    Timer {
+        id: pendingGrace
+        interval: 6000
+        running: root.activePending
+        onTriggered: root.pendingExpired = true
     }
 }

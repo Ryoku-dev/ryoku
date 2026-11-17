@@ -12,6 +12,19 @@ Item {
     property bool active: false
     property bool following: false
     property string tailText: ""
+    // the reader wants the newest lines: kept until they scroll away, back when they return to the end
+    property bool tail: true
+
+    onActiveChanged: {
+        if (drawer.active) {
+            drawer.tail = true;
+            Qt.callLater(flick.toEnd);
+        }
+    }
+    onPathChanged: {
+        drawer.tailText = "";
+        drawer.tail = true;
+    }
 
     FileView {
         id: logFile
@@ -19,14 +32,17 @@ Item {
         watchChanges: true
         atomicWrites: false
         onFileChanged: logFile.reload()
+        // a read that lands while the run truncates or rewrites the file keeps the last good text
         onLoaded: {
-            // follow the tail unless the reader scrolled up to read
-            var follow = flick.atEnd;
-            drawer.tailText = logFile.text().split("\n").slice(-400).join("\n");
-            if (follow)
-                Qt.callLater(flick.toEnd);
+            var text = logFile.text();
+            if (text === "" && drawer.following)
+                return;
+            drawer.tailText = text.split("\n").slice(-400).join("\n");
         }
-        onLoadFailed: drawer.tailText = ""
+        onLoadFailed: {
+            if (!drawer.following)
+                drawer.tailText = "";
+        }
     }
 
     // appends are not reported on every filesystem
@@ -52,9 +68,36 @@ Item {
         clip: true
         boundsBehavior: Flickable.StopAtBounds
 
-        readonly property bool atEnd: contentHeight <= height || contentY >= contentHeight - height - 24
+        property bool pinning: false
+        // the flickable re-seats contentY as its size changes; only a move at a steady size is the reader's
+        property string seenSize: ""
+        function sizeSteady() {
+            var now = contentHeight + ":" + height;
+            var steady = now === flick.seenSize;
+            flick.seenSize = now;
+            return steady;
+        }
+        function atEnd() {
+            return contentHeight <= height || contentY >= contentHeight - height - 2;
+        }
         function toEnd() {
+            flick.pinning = true;
             contentY = Math.max(0, contentHeight - height);
+            flick.pinning = false;
+        }
+        onContentYChanged: {
+            if (!flick.pinning && flick.sizeSteady())
+                drawer.tail = flick.atEnd();
+        }
+        onContentHeightChanged: {
+            flick.sizeSteady();
+            if (drawer.tail)
+                flick.toEnd();
+        }
+        onHeightChanged: {
+            flick.sizeSteady();
+            if (drawer.tail)
+                flick.toEnd();
         }
 
         Label {

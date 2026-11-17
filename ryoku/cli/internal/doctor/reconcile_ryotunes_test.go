@@ -396,3 +396,57 @@ func TestRyoportForeignOwnerStillFails(t *testing.T) {
 		t.Fatalf("status = %s, detail = %q", result.status.label(), result.detail)
 	}
 }
+
+func TestRyoportCheckoutReplacesLegacyLauncherWithoutTakingOwnership(t *testing.T) {
+	oldManager, oldInstalled, oldEnsure := doctorPackageManager, doctorPackageInstalled, ryoportEnsure
+	oldCheckout, oldVersion := ryoportCheckout, ryoportCheckoutVersion
+	t.Cleanup(func() {
+		doctorPackageManager, doctorPackageInstalled, ryoportEnsure = oldManager, oldInstalled, oldEnsure
+		ryoportCheckout, ryoportCheckoutVersion = oldCheckout, oldVersion
+	})
+	isolateProvisioned(t)
+	stubAppOwner(t, "ryoku-desktop")
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local/share"))
+	doctorPackageManager = func() (host.PackageManager, error) { return host.Pacman, nil }
+	packaged, version, installs := false, "", 0
+	doctorPackageInstalled = func(name string) bool { return name == "ryoku-desktop" || name == "ryoport" && packaged }
+	ryoportCheckout = func() bool { return true }
+	ryoportCheckoutVersion = func() string { return version }
+	ryoportEnsure = func(context.Context) (apprelease.Status, error) {
+		installs++
+		version = "1.0.0-1"
+		return apprelease.Status{Installed: version, Updated: true}, nil
+	}
+	if result := reconcileRyoport(true); result.status != recWouldFix || installs != 0 {
+		t.Fatalf("check = %+v, installs=%d", result, installs)
+	}
+	if result := reconcileRyoport(false); result.status != recFixed || installs != 1 {
+		t.Fatalf("apply = %+v, installs=%d", result, installs)
+	}
+	if result := reconcileRyoport(false); result.status != recOK || installs != 1 {
+		t.Fatalf("second apply = %+v, installs=%d", result, installs)
+	}
+	dir := filepath.Join(home, ".local/share/ryoku/ryoport-release")
+	writeFile(t, filepath.Join(dir, "version"), "1.0.0-1\n")
+	version = ""
+	if result := reconcileRyoport(false); result.status != recFixed || installs != 1 {
+		t.Fatalf("user removal was not respected: %+v, installs=%d", result, installs)
+	}
+	data, err := os.ReadFile(filepath.Join(home, ".local/share/applications/ryovm.desktop"))
+	if err != nil || !ryoportDesktopOptedOut(data) {
+		t.Fatalf("user removal exposed the old launcher: %q, %v", data, err)
+	}
+	if result := reconcileRyoport(false); result.status != recOK || installs != 1 {
+		t.Fatalf("user removal repeated: %+v, installs=%d", result, installs)
+	}
+	packaged = true
+	writeFile(t, filepath.Join(dir, "version"), "1.0.0-1\n")
+	if result := reconcileRyoport(false); result.status != recFixed {
+		t.Fatalf("package takeover = %+v", result)
+	}
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("package takeover left user deployment: %v", err)
+	}
+}

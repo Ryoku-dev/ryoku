@@ -6,12 +6,10 @@ import Quickshell.Io
 import shell.services
 import ".."
 import Ryoku.Ui.Singletons
+import Lithic
 import "../look"
 import "../../../utils/tasks.js" as Tasks
 
-// Tasks: the five busiest processes by average CPU, with a two-step End. The
-// protected set is the desktop itself, so the list cannot offer to kill the
-// compositor or the shell it floats above.
 GameBarCard {
     id: card
 
@@ -27,10 +25,6 @@ GameBarCard {
 
     Component.onCompleted: card.refresh()
 
-    // A pinned card keeps the surface mapped while the strip is closed, but a
-    // shot or a recording unmaps it and the session can be dark. Do not scan
-    // processes the user cannot see. Power Saver rests only a card left pinned
-    // behind a closed bar; an open bar is being looked at.
     readonly property bool saverIdle: Perf.saver && card.pinned && !GameBarStore.open
     readonly property bool polling: (!card.host || (card.host.live && !card.host.suppressed))
         && !Presence.dark && !card.saverIdle
@@ -51,10 +45,6 @@ GameBarCard {
         }
     }
 
-    // The list refreshes every two seconds, so a pid can already belong to a
-    // new process by the time Stop is clicked. The helper opens a pidfd before
-    // it checks the start time, so the signal cannot reach a process that took
-    // the pid after the row was confirmed.
     Process {
         id: ender
         onExited: (code, status) => {
@@ -75,23 +65,22 @@ GameBarCard {
 
         Item {
             width: parent.width
-            height: 22 * card.s
+            height: 20 * card.s
 
-            Text {
+            Label {
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
                 text: I18n.tr("Process")
-                color: GameBarLook.subtext
-                font.family: GameBarLook.face
-                font.pixelSize: GameBarLook.smallie * card.s
+                typeRole: "group"
+                inkRole: "fg3"
             }
-            Text {
+
+            Label {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                text: I18n.tr("CPU    MEM")
-                color: GameBarLook.subtext
-                font.family: GameBarLook.face
-                font.pixelSize: GameBarLook.smallie * card.s
+                text: I18n.tr("CPU") + "    " + I18n.tr("Memory")
+                typeRole: "group"
+                inkRole: "fg3"
             }
         }
 
@@ -100,7 +89,6 @@ GameBarCard {
 
             delegate: GameBarTaskRow {
                 required property var modelData
-                s: card.s
                 width: parent.width
                 task: modelData
                 protectedName: Tasks.isProtected(modelData.name)
@@ -115,15 +103,14 @@ GameBarCard {
             }
         }
 
-        Text {
+        Label {
             visible: card.rows.length === 0
             width: parent.width
-            topPadding: 10 * card.s
+            topPadding: card.space2
             text: I18n.tr("Reading processes")
-            color: GameBarLook.subtext
+            typeRole: "detail"
+            inkRole: "fg3"
             horizontalAlignment: Text.AlignHCenter
-            font.family: GameBarLook.face
-            font.pixelSize: GameBarLook.small * card.s
         }
     }
 }

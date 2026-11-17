@@ -30,7 +30,8 @@ Item {
     property int segments: 10
     property bool peakCaps: false
     property real glow: 0.6
-    property real spin: 0                // degrees, integrated by the caller
+    property real spin: 0                // degrees, integrated by the caller; negative turns the other way
+    property bool flipped: false         // polar looks only: the whole ring as seen in a mirror
 
     // The box the look lives in, as fractions of this surface: move it and size
     // it anywhere. Bands grow from the box edge named by `grow`; a polar look
@@ -134,16 +135,22 @@ Item {
         y: root.frame ? 0 : root.by - root.margin
         width: root.frame ? root.width : root.bw + 2 * root.margin
         height: root.frame ? root.height : root.bh + 2 * root.margin
-        transform: Matrix4x4 {
-            matrix: {
-                var m = root.frame
-                    ? PlaceMath.flat(PlaceMath.boxMatrix(0, 0, 0, pass.width, pass.height))
-                    : PlaceMath.flat(PlaceMath.boxMatrix(root.angle, root.tiltX, root.tiltY,
-                                                         pass.width, pass.height));
-                return Qt.matrix4x4(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7],
-                                    m[8], m[9], m[10], m[11], m[12], m[13], m[14], m[15]);
+        transform: [
+            Scale {
+                origin.x: pass.width / 2
+                xScale: root.polar && root.flipped ? -1 : 1
+            },
+            Matrix4x4 {
+                matrix: {
+                    var m = root.frame
+                        ? PlaceMath.flat(PlaceMath.boxMatrix(0, 0, 0, pass.width, pass.height))
+                        : PlaceMath.flat(PlaceMath.boxMatrix(root.angle, root.tiltX, root.tiltY,
+                                                             pass.width, pass.height));
+                    return Qt.matrix4x4(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7],
+                                        m[8], m[9], m[10], m[11], m[12], m[13], m[14], m[15]);
+                }
             }
-        }
+        ]
 
         ShaderEffect {
             id: fx
