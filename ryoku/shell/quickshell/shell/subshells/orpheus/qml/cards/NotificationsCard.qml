@@ -61,7 +61,7 @@ K.Sheet {
         if (!source)
             return "";
         if (source.indexOf("/") === 0 || source.indexOf("file:") === 0
-                || source.indexOf("image:") === 0)
+                || (source.indexOf("image:") === 0 && source.indexOf("image://icon/") !== 0))
             return source;
         return Icons.path(source, true);
     }

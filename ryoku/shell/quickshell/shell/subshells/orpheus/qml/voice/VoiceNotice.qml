@@ -16,7 +16,7 @@ Item {
         if (!appIcon)
             return "";
         if (appIcon.indexOf("/") === 0 || appIcon.indexOf("file:") === 0
-                || appIcon.indexOf("image:") === 0)
+                || (appIcon.indexOf("image:") === 0 && appIcon.indexOf("image://icon/") !== 0))
             return appIcon;
         return Icons.path(appIcon, true);
     }

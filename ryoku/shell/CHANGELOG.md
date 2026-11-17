@@ -1,6 +1,12 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Orpheus notifications resolve themed icon URLs through the shell's icon
+  index (#852).** The notification card and the bar notice passed an
+  `image://icon/` app icon straight to Qt's icon provider; they now resolve it
+  to a file like the dock, tray and launcher do
+  (`subshells/orpheus/qml/cards/NotificationsCard.qml`,
+  `subshells/orpheus/qml/voice/VoiceNotice.qml`).
 - **An external monitor's brightness slider shows its real level in Orpheus and
   Kairos (#840).** The Orpheus controls card opens its display probes again
   (they stopped starting), reads the level from the monitor and shows it instead
