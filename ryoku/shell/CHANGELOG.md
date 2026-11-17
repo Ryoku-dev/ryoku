@@ -79,6 +79,13 @@
   code and lists showed as raw syntax; the Ask and Agent tabs now render the
   same Markdown, never fetch images a reply points at, and open only web and
   mail links. The recent-asks list no longer logs a ReferenceError on hover.
+- **A Bluetooth scan the shell started no longer keeps running after nothing
+  wants it (#869).** Quickshell drops a stop that equals the state it last
+  heard, so closing a Bluetooth panel before the radio confirmed the scan left
+  it scanning until the shell restarted. The shared scan owner now asks again
+  once the start lands, the Python bar's network popup uses it too, and the
+  adapter probe is paced while a scan runs instead of firing per device found.
+  Covered by `tests/bluetooth-discovery-leak.sh`.
 - **Wallpaper Engine video wallpapers animate on hover in the picker (#807).**
   Only local videos got the small preview clip, so workshop video cards stayed
   still; they now get one too, built on the thumbnail job limit and skipped

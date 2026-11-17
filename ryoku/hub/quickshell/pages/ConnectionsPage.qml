@@ -1778,7 +1778,6 @@ Item {
         function pairDevice(d) {
             if (!d || !d.address || pairProc.running)
                 return;
-            scanTimer.stop();
             if (bt.adapter && bt.adapter.discovering)
                 bt.adapter.discovering = false;
             bt.pairingAddress = d.address;
@@ -1803,15 +1802,17 @@ Item {
         // leaving the subtab (or closing the hub) mid-scan stops discovery so
         // BlueZ isn't left chewing the radio in the background.
         Component.onDestruction: {
-            scanTimer.stop();
             if (bt.adapter && bt.adapter.discovering)
                 bt.adapter.discovering = false;
         }
 
+        // armed by BlueZ confirming the scan, not by the write that asked for
+        // it, so a start that lands late still gets its stop.
         Timer {
             id: scanTimer
             interval: 25000
             repeat: false
+            running: bt.discovering
             onTriggered: if (bt.adapter) bt.adapter.discovering = false
         }
 
@@ -1939,10 +1940,6 @@ Item {
                             if (!bt.adapter)
                                 return;
                             bt.adapter.discovering = !bt.adapter.discovering;
-                            if (bt.adapter.discovering)
-                                scanTimer.restart();
-                            else
-                                scanTimer.stop();
                         }
                     }
 

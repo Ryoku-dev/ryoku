@@ -27,6 +27,7 @@ Singleton {
     property bool cliEnabled: false
     property bool softBlocked: false
     property bool hardBlocked: false
+    readonly property bool scanning: root.adapter !== null && root.adapter.discovering
 
     function setEnabled(on: bool): void {
         Quickshell.execDetached(["ryoku-bluetooth-power", on ? "on" : "off"]);
@@ -34,6 +35,16 @@ Singleton {
 
     function toggle(): void {
         setEnabled(!enabled);
+    }
+
+    // every device a scan turns up fires an ObjectManager signal, and each probe
+    // below registers an advertisement monitor with bluetoothd, so while a scan
+    // runs the refresh is paced instead of restarted per device
+    function queueRefresh(): void {
+        if (!root.scanning)
+            adapterRefresh.restart();
+        else if (!adapterRefresh.running)
+            adapterRefresh.start();
     }
 
     Component.onCompleted: adapterState.running = true
@@ -45,7 +56,7 @@ Singleton {
 
     Timer {
         id: adapterRefresh
-        interval: 100
+        interval: root.scanning ? 3000 : 100
         onTriggered: {
             adapterState.running = false;
             adapterState.running = true;
@@ -74,7 +85,7 @@ Singleton {
         ]
         running: true
         stdout: SplitParser {
-            onRead: adapterRefresh.restart()
+            onRead: root.queueRefresh()
         }
         onExited: adapterMonitorRestart.restart()
     }
