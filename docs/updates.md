@@ -42,6 +42,13 @@ packaged lane, every `ryoku update` reports what the distribution lane is
 holding (`N system package(s) waiting`), `ryoku status` prints it as `system:`,
 and the Hub lists it under SYSTEM PACKAGES.
 
+Hub > Updates > Update notifications chooses which pending updates the bar
+shows: Ryoku only (the default), System only, or Both, with separate counts.
+It uses the existing automatic-check schedule and the system package list from
+`ryoku status --json` on every edition, without an extra package check. This
+choice does not change what Update now installs; Include system packages
+remains a separate, opt-in choice.
+
 The desktop package's post-transaction power cutover also makes a direct
 package update safe while graphical sessions are live. One temporary login1
 sleep block covers the systemd reload; then each Ryoku user session (never the

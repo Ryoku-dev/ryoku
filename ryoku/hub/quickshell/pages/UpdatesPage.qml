@@ -83,6 +83,44 @@ Item {
 
     Process { id: saveInterval }
 
+    property string notificationScope: "ryoku"
+    property bool notificationTouched: false
+    property bool notificationSavePending: false
+    readonly property var notificationKeys: ["ryoku", "system", "both"]
+    readonly property var notificationLabels: [I18n.tr("Ryoku only"), I18n.tr("System only"), I18n.tr("Both")]
+
+    function saveNotificationScope() {
+        if (saveNotifications.running) {
+            pg.notificationSavePending = true;
+            return;
+        }
+        saveNotifications.command = ["ryoku-hub", "config", "set", "update_notifications", pg.notificationScope];
+        saveNotifications.running = true;
+    }
+
+    Process {
+        command: ["ryoku-hub", "config", "get", "update_notifications"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var scope = this.text.trim();
+                if (!pg.notificationTouched && pg.notificationKeys.indexOf(scope) >= 0)
+                    pg.notificationScope = scope;
+            }
+        }
+    }
+    Process {
+        id: saveNotifications
+        onExited: code => {
+            if (code !== 0)
+                pg.actionError = I18n.tr("Couldn't save the update notification choice.");
+            if (pg.notificationSavePending) {
+                pg.notificationSavePending = false;
+                Qt.callLater(() => pg.saveNotificationScope());
+            }
+        }
+    }
+
     property bool systemFull: false
     readonly property bool pendingAction: Updates.available
         || (pg.systemFull && Updates.packages.length > 0)
@@ -812,6 +850,33 @@ Item {
                         color: Tokens.inkMuted; font.family: Tokens.ui
                         font.pixelSize: Tokens.fSmall
                     }
+                }
+            }
+
+            Column {
+                width: idleCol.width
+                spacing: Tokens.s2
+                Text {
+                    text: I18n.tr("UPDATE NOTIFICATIONS")
+                    color: Tokens.inkMuted; font.family: Tokens.ui
+                    font.pixelSize: Tokens.fMicro; font.weight: Font.Medium
+                    font.letterSpacing: Tokens.trackMark
+                }
+                Seg {
+                    options: pg.notificationLabels
+                    current: pg.notificationLabels[pg.notificationKeys.indexOf(pg.notificationScope)]
+                    onChose: label => {
+                        pg.notificationTouched = true;
+                        pg.notificationScope = pg.notificationKeys[pg.notificationLabels.indexOf(label)];
+                        pg.saveNotificationScope();
+                    }
+                }
+                Text {
+                    text: I18n.tr("Only changes the update indicator, not what Update now installs.")
+                    color: Tokens.inkMuted; font.family: Tokens.ui
+                    font.pixelSize: Tokens.fSmall
+                    width: parent.width
+                    wrapMode: Text.Wrap
                 }
             }
 

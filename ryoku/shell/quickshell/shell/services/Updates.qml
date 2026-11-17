@@ -2,6 +2,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Ryoku.Ui.Singletons
 
 // Live view of the daemon "updates" topic (ryoku status --json). The background
 // check lives in the daemon; this just parses the streamed frame so the bar glyph
@@ -12,8 +13,22 @@ Singleton {
     readonly property string sockPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
 
     property var frame: ({})
-    readonly property bool available: root.frame.available === true
-    readonly property int pending: root.frame.pendingUpdates || 0
+    property string notificationScope: "ryoku"
+    readonly property bool notifyRyoku: root.notificationScope !== "system"
+    readonly property bool notifySystem: root.notificationScope === "system" || root.notificationScope === "both"
+    readonly property bool ryokuAvailable: root.frame.available === true
+    readonly property int ryokuPending: root.frame.pendingUpdates || 0
+    readonly property int systemPending: root.frame.systemUpdates || 0
+    readonly property bool available: (root.notifyRyoku && root.ryokuAvailable) || (root.notifySystem && root.systemPending > 0)
+    readonly property int pending: (root.notifyRyoku ? root.ryokuPending : 0) + (root.notifySystem ? root.systemPending : 0)
+    readonly property string notificationSummary: {
+        var lines = [];
+        if (root.notifyRyoku && root.ryokuAvailable)
+            lines.push(I18n.tr("Ryoku updates: %1").arg(root.ryokuPending));
+        if (root.notifySystem && root.systemPending > 0)
+            lines.push(I18n.tr("System packages: %1").arg(root.systemPending));
+        return lines.join("\n");
+    }
     readonly property string channel: root.frame.channel || ""
     // a packaged box on a named release reports the release it runs and the
     // one its channel serves; show those, and fall back to the commit pair a
@@ -42,6 +57,39 @@ Singleton {
     readonly property string checkCommit: root.frame.channelCheck ? String(root.frame.channelCheck.commit || "").slice(0, 7) : ""
     readonly property string checkRun: root.frame.channelCheck ? (root.frame.channelCheck.run || "") : ""
 
+
+    function loadNotificationScope() {
+        if (notificationConfig.running)
+            notificationConfig.reloadPending = true;
+        else
+            notificationConfig.running = true;
+    }
+
+    FileView {
+        path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku/hub.toml"
+        watchChanges: true
+        printErrors: false
+        onFileChanged: root.loadNotificationScope()
+    }
+
+    Process {
+        id: notificationConfig
+        property bool reloadPending: false
+        command: ["ryoku-hub", "config", "get", "update_notifications"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var scope = this.text.trim();
+                root.notificationScope = scope === "system" || scope === "both" ? scope : "ryoku";
+            }
+        }
+        onExited: {
+            if (reloadPending) {
+                reloadPending = false;
+                Qt.callLater(() => root.loadNotificationScope());
+            }
+        }
+    }
 
     function check() { root.send("updates.check", {}); }
 

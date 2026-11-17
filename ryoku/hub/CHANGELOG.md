@@ -26,6 +26,8 @@
   the bar makes, and `ryoku-shell hub open vpn` or `dns` opens the tab
   (`pages/ConnectionsVpnTab.qml`, `pages/ConnectionsDnsTab.qml`,
   `Singletons/NetworkTopic.qml`).
+- **Updates lets you choose Ryoku notifications, system notifications, or both (#877).**
+  This does not change which packages Update now installs.
 
 ### Fixed
 - **Re-rendering app themes works when the config directory is not `~/.config`

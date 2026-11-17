@@ -14,9 +14,9 @@ Item {
     readonly property color contentColor: root.widgetContentColor("G8", root.seal)
 
     readonly property bool updateAvailable: Updates.available
-    readonly property int pending: Updates.pending
+    readonly property int pending: Updates.notifyRyoku ? Updates.ryokuPending : 0
     readonly property var commits: Updates.commits
-    readonly property var packages: Updates.packages
+    readonly property var packages: Updates.notifySystem ? Updates.packages : []
 
     readonly property int tooltipCommitLimit: 8
 
@@ -52,11 +52,11 @@ Item {
         }
         if (packages.length > 0) {
             if (lines.length > 0) lines.push("")
-            lines.push(packages.length === 1
-                ? I18n.tr("%1 package").arg(packages.length) : I18n.tr("%1 packages").arg(packages.length))
+            lines.push(I18n.tr("System packages: %1").arg(Updates.systemPending))
         }
         lines.push("")
-        lines.push(I18n.tr("Click to update"))
+        lines.push(Updates.notifySystem && Updates.systemPending > 0
+            ? I18n.tr("Click to review updates") : I18n.tr("Click to update"))
         return lines.join("\n")
     }
 
@@ -68,8 +68,9 @@ Item {
     // The update runs in the background and reports to Ryoku Settings, which
     // opens on its Updates page to show the run and ask for the password.
     function startUpdate() {
-        Quickshell.execDetached(["ryoku", "update", "--gui"])
-        Quickshell.execDetached(["ryoku-shell", "hub", "open", "updates"])
+        if (!(Updates.notifySystem && Updates.systemPending > 0))
+            Spawn.run(["ryoku", "update", "--gui"])
+        Spawn.run(["ryoku-shell", "hub", "open", "updates"])
     }
 
     IconText {

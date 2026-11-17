@@ -44,6 +44,9 @@
   seconds unless `network.ipConfirm` keeps the new ones (`network.ipRevert`
   undoes at once), so a wrong address that cuts the machine off undoes itself
   (`ipc/network_ip.go`).
+- **Update indicators can show system packages, Ryoku updates, or both (#877).**
+  Pick the notification source in Hub > Updates; Ryoku only stays the default,
+  and the existing check schedule covers every edition without another poll.
 - **Wallpaper Engine video wallpapers animate on hover in the picker (#807).**
   Only local videos got the small preview clip, so workshop video cards stayed
   still; they now get one too, built on the thumbnail job limit and skipped
