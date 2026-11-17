@@ -170,7 +170,7 @@ Item {
                 Image {
                     id: art
                     anchors.fill: parent
-                    source: root.player ? (root.player.trackArtUrl || "") : ""
+                    source: Music.coverFor(root.player)
                     asynchronous: true
                     cache: true
                     smooth: true

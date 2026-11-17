@@ -27,10 +27,15 @@ func (a *App) Initramfs(args []string) int {
 	}
 	switch manager {
 	case Pacman:
+		// the bare mkinitcpio can be limine-mkinitcpio-hook's /usr/local/bin
+		// wrapper, which builds nothing on a UKI box and then asks [Y/n]
+		if a.cfg.Runner.LookPath("limine-mkinitcpio") {
+			return commandExit(a.run("limine-mkinitcpio"))
+		}
 		if !a.cfg.Runner.LookPath("mkinitcpio") {
 			return a.initramfsMissing("mkinitcpio")
 		}
-		return commandExit(a.run("mkinitcpio", "-P"))
+		return commandExit(a.run("/usr/bin/mkinitcpio", "-P"))
 	case DNF:
 		if !a.cfg.Runner.LookPath("dracut") {
 			return a.initramfsMissing("dracut")

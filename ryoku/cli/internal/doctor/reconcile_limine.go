@@ -61,7 +61,7 @@ var (
 	limineWriteBootFile        = writeBootFile
 	limineUEFIBoot             = func() bool { _, err := os.Stat("/sys/firmware/efi"); return err == nil }
 	clearLimineLastBootedEntry = func() error {
-		return limineefi.ClearLastBootedEntryWithSudo(limineefi.LastBootedEntryPath, sys.Sudo)
+		return limineefi.ClearLastBootedEntryWithSudo(limineefi.EFIVarsDir, sys.Sudo)
 	}
 )
 

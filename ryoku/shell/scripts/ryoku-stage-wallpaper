@@ -31,8 +31,7 @@ if [[ $lockscreen -eq 1 ]]; then
 fi
 
 if [[ $noswitch -eq 0 && -n $image ]] && command -v ryogami >/dev/null 2>&1; then
-    args=(ryogami wallpaper set "$image")
-    [[ -n $screen ]] && args+=(--screen "$screen")
-    exec "${args[@]}"
+    # no --screen is the Stage Editor's all-displays apply, never the focused one
+    exec ryogami wallpaper set "$image" --screen "${screen:-*}"
 fi
 exit 0

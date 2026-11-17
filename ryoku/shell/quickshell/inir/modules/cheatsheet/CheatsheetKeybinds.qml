@@ -123,7 +123,7 @@ Item {
                                 Layout.rightMargin: Math.round(9 * IrisStyle.density)
                                 Layout.topMargin: Math.round(4 * IrisStyle.density)
                                 Layout.bottomMargin: Math.round(6 * IrisStyle.density)
-                                text: category.modelData.name
+                                text: Translation.tr(category.modelData.name)
                                 color: IrisStyle.label
                                 font.weight: IrisStyle.weight(Font.DemiBold)
                             }

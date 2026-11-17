@@ -1,0 +1,175 @@
+pragma Singleton
+
+import QtQuick
+import Quickshell
+import Quickshell.Io
+import Ryoku.Ui.Singletons
+
+// Game Bar state: whether the strip is up, which monitor it belongs to, the
+// cards on screen, and each card's saved spot and size. All of it persists.
+Singleton {
+    id: root
+
+    readonly property var order: ["capture", "performance", "resources", "tasks", "media", "voice", "audio", "gallery"]
+    readonly property string defaultCard: "performance"
+
+    // The state file is the shell's own, but it survives edits and older
+    // versions: a value of the wrong shape must read as empty instead of
+    // breaking every card binding that touches it.
+    function asList(value) {
+        return Array.isArray(value) ? value : [];
+    }
+
+    // The strip shows the remembered set; closing it leaves only pinned cards.
+    readonly property var visibleCards: {
+        const out = [];
+        const pinned = root.asList(root.pinned);
+        const opened = root.open ? root.asList(root.opened) : [];
+        for (let i = 0; i < root.order.length; i++) {
+            const id = root.order[i];
+            if (pinned.indexOf(id) !== -1 || opened.indexOf(id) !== -1)
+                out.push(id);
+        }
+        return out;
+    }
+
+    function isPinned(id) {
+        return root.asList(root.pinned).indexOf(id) !== -1;
+    }
+
+    function toggleCard(id) {
+        const open = root.asList(root.opened).slice();
+        const pinned = root.asList(root.pinned).slice();
+        const listed = open.indexOf(id) !== -1 || pinned.indexOf(id) !== -1;
+        if (listed) {
+            root.opened = open.filter(x => x !== id);
+            root.pinned = pinned.filter(x => x !== id);
+            return;
+        }
+        root.opened = open.concat([id]);
+    }
+
+    function setPinned(id, on) {
+        if (on === root.isPinned(id))
+            return;
+        const opened = root.asList(root.opened);
+        const pinned = root.asList(root.pinned);
+        if (!on && root.open && opened.indexOf(id) === -1)
+            root.opened = opened.concat([id]);
+        root.pinned = on ? pinned.concat([id])
+            : pinned.filter(x => x !== id);
+    }
+
+    function togglePinned(id) {
+        root.setPinned(id, !root.isPinned(id));
+    }
+
+    function closeCard(id) {
+        root.opened = root.asList(root.opened).filter(x => x !== id);
+        root.pinned = root.asList(root.pinned).filter(x => x !== id);
+    }
+
+    function positionFor(id) {
+        const list = root.asList(root.layout);
+        for (let i = 0; i < list.length; i++) {
+            if (list[i] && list[i].id === id)
+                return list[i];
+        }
+        return null;
+    }
+
+    function place(id, x, y) {
+        const next = root.asList(root.layout).filter(e => e && e.id !== id);
+        next.push({ id: id, x: Math.round(x), y: Math.round(y) });
+        root.layout = next;
+    }
+
+    function sizeFor(id) {
+        const list = root.asList(root.sizes);
+        for (let i = 0; i < list.length; i++) {
+            if (list[i] && list[i].id === id)
+                return list[i];
+        }
+        return null;
+    }
+
+    function resize(id, w, h) {
+        const next = root.asList(root.sizes).filter(e => e && e.id !== id);
+        next.push({ id: id, w: Math.round(w), h: Math.round(h) });
+        root.sizes = next;
+    }
+
+    function openBar(mon) {
+        if (root.open)
+            return;
+        root.monitor = mon && mon.length > 0 ? mon : (Wm.focusedOutput || root.monitor);
+        root.open = true;
+    }
+
+    function closeBar() {
+        root.open = false;
+    }
+
+    function toggleBar(mon) {
+        if (root.open)
+            root.closeBar();
+        else
+            root.openBar(mon);
+    }
+
+    FileView {
+        id: file
+        path: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")) + "/ryoku/gamebar.json"
+        blockLoading: true
+        printErrors: false
+        atomicWrites: true
+        onAdapterUpdated: writeAdapter()
+
+        JsonAdapter {
+            id: adapter
+            property bool open: false
+            property var pinned: []
+            property var cards: []
+            property var layout: []
+            property var sizes: []
+            property string monitor: ""
+            property int resourceTab: 0
+        }
+    }
+
+    property alias open: adapter.open
+    property alias pinned: adapter.pinned
+    property alias opened: adapter.cards
+    property alias layout: adapter.layout
+    property alias sizes: adapter.sizes
+    property alias monitor: adapter.monitor
+    property alias resourceTab: adapter.resourceTab
+
+    // The shell is the only writer, so the file is read once and never watched:
+    // a watch would reload the state just after saving it and could put back a
+    // card the pointer had already turned off.
+    //
+    // A file from before the open set was saved has no cards key, so seed it
+    // once from the pins, or with the card the bar used to open on.
+    Component.onCompleted: {
+        let saved = null;
+        try {
+            saved = JSON.parse(file.text() || "null");
+        } catch (e) {
+            saved = null;
+        }
+        // JsonAdapter hands nested lists back as QML sequences, which asList rejects
+        if (saved && typeof saved === "object") {
+            const lists = ["pinned", "cards", "layout", "sizes"];
+            for (let i = 0; i < lists.length; i++) {
+                if (Array.isArray(saved[lists[i]]))
+                    adapter[lists[i]] = saved[lists[i]];
+            }
+            if ("cards" in saved)
+                return;
+        }
+        const pinned = root.asList(root.pinned);
+        root.opened = pinned.length > 0 ? pinned.slice() : [root.defaultCard];
+        file.writeAdapter();
+    }
+}

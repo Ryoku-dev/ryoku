@@ -38,8 +38,8 @@ for pkg in "${zsh_stack[@]}"; do
 done
 test -f "$repo/release/packages/ryoku-oh-my-zsh/PKGBUILD" ||
   fail "Ryoku Oh My Zsh must remain a signed package"
-# shellcheck disable=SC2016  # matching the literal $pkgver text inside the PKGBUILD
-grep -Fq 'provides=("oh-my-zsh=$pkgver" "oh-my-zsh-git=$pkgver")' \
+# shellcheck disable=SC2016  # matching the literal $epoch:$pkgver text inside the PKGBUILD
+grep -Fq 'provides=("oh-my-zsh=$epoch:$pkgver" "oh-my-zsh-git=$epoch:$pkgver")' \
   "$repo/release/packages/ryoku-oh-my-zsh/PKGBUILD" ||
   fail "Ryoku Oh My Zsh must version-provide both replacement package names"
 for field in conflicts replaces; do

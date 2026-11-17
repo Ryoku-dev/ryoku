@@ -6,6 +6,11 @@
 #       -> v<VERSION>                       (e.g. v0.1.0)
 #   --channel unstable-dev --build-number <N> --sha <SHA>
 #       -> v<VERSION>.dev.<N>+g<short-sha>  (e.g. v0.1.0.dev.42+gabc1234)
+#   --pkgver
+#       -> <core>.r<commit count>.g<short-sha>  (e.g. 1.0.9.r6200.gabc1234)
+#   --superseded
+#       -> the --pkgver of every ancestor whose VERSION core is above this one,
+#          one per line (XBPS has no epoch; build-repo.sh lists them in reverts=)
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -17,12 +22,14 @@ channel=main
 build_number=0
 sha=""
 pkgver_mode=0
+superseded_mode=0
 while (($#)); do
   case "$1" in
     --channel) channel=${2:?}; shift 2 ;;
     --build-number) build_number=${2:?}; shift 2 ;;
     --sha) sha=${2:-}; shift 2 ;;
     --pkgver) pkgver_mode=1; shift ;;
+    --superseded) superseded_mode=1; shift ;;
     *) echo "ryoku-release-version: unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -41,6 +48,44 @@ if (( pkgver_mode )); then
   fi
   count=$(git -C "$ROOT" rev-list --count HEAD 2>/dev/null || echo 0)
   printf '%s.r%s.g%s\n' "$core" "$count" "$short"
+  exit 0
+fi
+
+core_above() {
+  local a b i
+  IFS=. read -r -a a <<<"$1"
+  IFS=. read -r -a b <<<"$2"
+  for i in 0 1 2; do
+    (( 10#${a[i]:-0} > 10#${b[i]:-0} )) && return 0
+    (( 10#${a[i]:-0} < 10#${b[i]:-0} )) && return 1
+  done
+  return 1
+}
+
+if (( superseded_mode )); then
+  core=${base%%-*}
+  declare -A rev_blob=() blob_core=()
+  revs=()
+  while read -r blob rev; do
+    [[ $rev == missing ]] && continue
+    rev_blob[$rev]=$blob
+    blob_core[$blob]=
+    revs+=("$rev")
+  done < <(git -C "$ROOT" rev-list HEAD | awk '{print $1 ":VERSION " $1}' \
+    | git -C "$ROOT" cat-file --batch-check='%(objectname) %(rest)')
+  while read -r blob type size; do
+    [[ $type == blob ]] || continue
+    IFS= read -r -N "$size" content
+    read -r _ || true
+    content=${content//[[:space:]]/}
+    blob_core[$blob]=${content%%-*}
+  done < <(printf '%s\n' "${!blob_core[@]}" | git -C "$ROOT" cat-file --batch)
+  for rev in "${revs[@]}"; do
+    old=${blob_core[${rev_blob[$rev]}]}
+    [[ $old =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || continue
+    core_above "$old" "$core" || continue
+    printf '%s.r%s.g%s\n' "$old" "$(git -C "$ROOT" rev-list --count "$rev")" "${rev:0:7}"
+  done
   exit 0
 fi
 

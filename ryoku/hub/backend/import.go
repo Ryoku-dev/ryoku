@@ -485,6 +485,7 @@ var keyNames = map[string]string{
 	"XF86AudioLowerVolume": "Vol \u2212",
 	"XF86AudioMute":        "Mute",
 	"XF86AudioPlay":        "Play",
+	"XF86AudioPause":       "Pause",
 	"XF86AudioNext":        "Next",
 	"XF86AudioPrev":        "Prev",
 	"XF86TouchpadToggle":   "Touchpad",

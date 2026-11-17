@@ -256,6 +256,48 @@ func TestApplyMatchingPreviewDoesNotRestartReveal(t *testing.T) {
 	}
 }
 
+// #750: a preview wider than the apply stayed painted where the apply missed
+func TestNarrowerApplyRepaintsTheRestOfThePreview(t *testing.T) {
+	for _, previewOn := range [][]string{nil, {"DP-1", "DP-2"}} {
+		t.Run(strings.Join(append([]string{"preview"}, previewOn...), "-"), func(t *testing.T) {
+			t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+			d := previewTestDaemon(t)
+			base := previewTestStill(t, d, "base.png")
+			right := previewTestStill(t, d, "right.png")
+			hovered := previewTestStill(t, d, "hovered.png")
+			if err := d.applyWallpaper("static", base, "set", nil, nil, nil); err != nil {
+				t.Fatal(err)
+			}
+			if err := d.applyWallpaper("static", right, "set", []string{"DP-2"}, nil, nil); err != nil {
+				t.Fatal(err)
+			}
+			if err := d.previewWallpaper(hovered, previewOn); err != nil {
+				t.Fatal(err)
+			}
+			revision := d.surface.snapshot().Default.Revision
+			if entry, ok := d.surface.snapshot().Outputs["DP-1"]; ok {
+				revision = entry.Revision
+			}
+			if err := d.applyWallpaper("static", hovered, "set", []string{"DP-1"}, nil, nil); err != nil {
+				t.Fatal(err)
+			}
+			frame := d.surface.snapshot()
+			if e := frame.Outputs["DP-1"]; e.Path != hovered || e.Preview || e.Revision != revision {
+				t.Fatalf("DP-1 = %+v, want the hovered still committed in place", e)
+			}
+			if e := frame.Outputs["DP-2"]; e.Path != right || e.Preview {
+				t.Fatalf("DP-2 = %+v, want its committed still back", e)
+			}
+			if frame.Default.Path != base || frame.Default.Preview {
+				t.Fatalf("default = %+v, want the committed shared still", frame.Default)
+			}
+			if d.preview != nil {
+				t.Fatal("the apply left preview state behind")
+			}
+		})
+	}
+}
+
 func TestClearPreviewWithoutPreviewIsNoOp(t *testing.T) {
 	d := previewTestDaemon(t)
 	if err := d.clearPreview(); err != nil {

@@ -742,6 +742,19 @@ func (c *acpConn) ListSessions() []SessionMeta {
 	return list
 }
 
+// RenameSession retitles a stored session. ACP has no rename, so only agents
+// with their own session store can do it.
+func (c *acpConn) RenameSession(id, title string) error {
+	title = strings.Join(strings.Fields(title), " ")
+	if title == "" {
+		return errors.New("a session needs a title")
+	}
+	if c.backend() != "hermes" {
+		return errors.New("this agent cannot rename sessions")
+	}
+	return renameHermesSession(id, title)
+}
+
 func mergeHermesSessions(agent, stored []SessionMeta) []SessionMeta {
 	if len(stored) == 0 {
 		return agent
@@ -790,7 +803,7 @@ func cleanTitle(t string) string {
 	return rest
 }
 
-var injectedBlocks = []string{"[system:", "[handoff from Ask]"}
+var injectedBlocks = []string{noteOpen, "[system:", "[handoff from Ask]"}
 
 func hasInjectedBlock(s string) bool {
 	for _, p := range injectedBlocks {
@@ -804,14 +817,31 @@ func hasInjectedBlock(s string) bool {
 // stripIdentityPreamble removes only identity notes. Hand-off blocks need
 // their own parser so replay can preserve the card's question and answer.
 func stripIdentityPreamble(s string) string {
-	for strings.HasPrefix(s, "[system:") {
-		end := strings.Index(s, "] ")
-		if end < 0 {
-			return s
+	rest, _ := cutIdentityNotes(s)
+	return rest
+}
+
+// cutIdentityNotes drops every leading identity note; ok is false when one
+// never closes. Sessions stored before the tag form still open with "[system: ...] ".
+func cutIdentityNotes(s string) (rest string, ok bool) {
+	for {
+		switch {
+		case strings.HasPrefix(s, noteOpen):
+			end := strings.Index(s, noteClose)
+			if end < 0 {
+				return s, false
+			}
+			s = strings.TrimLeft(s[end+len(noteClose):], "\n")
+		case strings.HasPrefix(s, "[system:"):
+			end := strings.Index(s, "] ")
+			if end < 0 {
+				return s, false
+			}
+			s = s[end+2:]
+		default:
+			return s, true
 		}
-		s = s[end+2:]
 	}
-	return s
 }
 
 // SetModel switches the session's model, through the model config option when

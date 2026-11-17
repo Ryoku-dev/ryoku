@@ -18,6 +18,7 @@ Item {
     property string faceId: "clock_cookie"
     property string prefix: "iiClockCookie"
     property var screen: null
+    property real scaleCfg: 1
     // Hosted faces draw their own cards and effects. WidgetSlot must not flatten
     // them into its generic bare-widget layer, which clips effects to the face's
     // implicit box before they can extend over the wallpaper.
@@ -30,8 +31,22 @@ Item {
     readonly property Component faceComp: Qt.createComponent(faceUrl, Component.Asynchronous)
     property Item faceItem: null
 
-    implicitWidth: faceItem ? faceItem.implicitWidth : 240
-    implicitHeight: faceItem ? faceItem.implicitHeight : 240
+    // the face never reads the slot's persisted scale, so the host applies it
+    readonly property real _scale: adapter.scaleCfg > 0 ? adapter.scaleCfg : 1
+    implicitWidth: (faceItem ? faceItem.implicitWidth : 240) * adapter._scale
+    implicitHeight: (faceItem ? faceItem.implicitHeight : 240) * adapter._scale
+
+    Item {
+        id: faceHost
+        width: adapter.faceItem ? adapter.faceItem.implicitWidth : 0
+        height: adapter.faceItem ? adapter.faceItem.implicitHeight : 0
+        transform: Scale {
+            origin.x: 0
+            origin.y: 0
+            xScale: adapter._scale
+            yScale: adapter._scale
+        }
+    }
 
     readonly property int _screenW: adapter.screen ? adapter.screen.width : 1920
     readonly property int _screenH: adapter.screen ? adapter.screen.height : 1080
@@ -64,7 +79,7 @@ Item {
         // The landscape EasyEffects preset is the portrait face lying down.
         if (adapter.faceId === "easyeffects_preset_landscape")
             props.landscape = true;
-        adapter.faceItem = comp.createObject(adapter, props);
+        adapter.faceItem = comp.createObject(faceHost, props);
         if (adapter.faceItem === null)
             console.warn("ii face", adapter.faceId, "could not be created:", comp.errorString());
     }

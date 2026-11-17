@@ -194,7 +194,7 @@ func TestCompareFrozenVersions(t *testing.T) {
 	}{
 		{"v0.94.1-beta.20.dev.9+gaaaaaaa", "v0.94.1-beta.20.dev.12+gbbbbbbb", -1},
 		{"v0.94.1-beta.20.dev.12+gaaaaaaa", "v0.94.1-beta.20.dev.12+gbbbbbbb", 0},
-		{"v0.94.1-beta.20.dev.12+gaaaaaaa", "v0.95.0-beta.20.dev.1+gbbbbbbb", -1},
+		{"v1.11.4.dev.1030+gaaaaaaa", "v1.0.9.dev.1040+gbbbbbbb", -1}, // VERSION reset to the next release
 		{"v0.75.3-beta.19", "v0.75.3-beta.20", -1},
 	}
 	for _, c := range cases {

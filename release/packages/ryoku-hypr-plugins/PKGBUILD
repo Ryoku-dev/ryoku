@@ -25,6 +25,7 @@
 pkgname=ryoku-hypr-plugins
 pkgver=${RYOKU_PKGVER:-0.1.0}
 pkgrel=1
+epoch=1
 pkgdesc="Hyprland plugins for Ryoku: hyprbars (title bars), hyprfocus (focus animation), borders-plus-plus (extra borders)"
 arch=('x86_64')
 url="https://github.com/hyprwm/hyprland-plugins"

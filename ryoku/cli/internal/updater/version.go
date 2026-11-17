@@ -80,8 +80,8 @@ func ReleaseName() string {
 
 // versionParts returns (base semver, short sha) for the running Ryoku. On a
 // checkout: the VERSION file + git HEAD. On a packaged install: parsed from the
-// pacman version "<core>.r<count>.g<sha>-<rel>" the repo build embeds (the
-// r<count> token is skipped). Any field comes back "" when undeterminable.
+// pacman version (packagedVersionParts). Any field comes back "" when
+// undeterminable.
 func versionParts() (base, sha string) {
 	if repo := sys.ResolveRepo(); repo != "" {
 		if b, err := os.ReadFile(filepath.Join(repo, "VERSION")); err == nil {
@@ -92,10 +92,17 @@ func versionParts() (base, sha string) {
 		}
 		return base, sha
 	}
+	return packagedVersionParts(sys.InstalledVersion())
+}
 
-	// packaged: split off the pkgrel, then read the g<sha> token the PKGBUILD
-	// pkgver appends; the leading dot-parts before r<count>/g<sha> are the core.
-	ver := strings.SplitN(sys.InstalledVersion(), "-", 2)[0]
+// packagedVersionParts splits the pacman version the repo build embeds,
+// "[<epoch>:]<core>.r<count>.g<sha>-<rel>", into the core and the sha; the
+// epoch, the r<count> token and the pkgrel are dropped.
+func packagedVersionParts(installed string) (base, sha string) {
+	ver := strings.SplitN(installed, "-", 2)[0]
+	if _, rest, ok := strings.Cut(ver, ":"); ok {
+		ver = rest
+	}
 	var core []string
 	seen := false
 	for _, tok := range strings.Split(ver, ".") {

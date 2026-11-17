@@ -2,6 +2,7 @@
 %global hyprland_evr %(rpm -q --qf '%%{EVR}' hyprland)
 Name:           hyprgrass
 Version:        0.1
+Epoch:          1
 Release:        1%{?dist}
 Summary:        Touch gesture plugin for Hyprland
 License:        Apache-2.0

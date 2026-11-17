@@ -58,8 +58,8 @@ case $name in
       off|on) exec ryoku wm act output.power "$1" ;;
       +*%) value=${1#+}; exec ryoku-cmd-brightness "+${value%%%}" ;;
       *%-) value=${1%'-'}; exec ryoku-cmd-brightness "-${value%%%}" ;;
-      [0-9]*%) value=${1%%%}; ((value>=0 && value<=100)) || exit 2; brightnessctl set "$value%" >/dev/null; command -v ddcutil >/dev/null 2>&1 && ddcutil --noverify setvcp 10 "$value" >/dev/null 2>&1 || true ;;
-      '') brightnessctl -m | awk -F, 'NR==1{print $4; exit}' ;;
+      [0-9]*%) value=${1%%%}; ((value>=0 && value<=100)) || exit 2; BL=$(ryoku-hw-backlight 2>/dev/null || true); brightnessctl -c backlight ${BL:+-d "$BL"} set "$value%" >/dev/null 2>&1 || true; command -v ddcutil >/dev/null 2>&1 && ddcutil --noverify setvcp 10 "$value" >/dev/null 2>&1 || true ;;
+      '') BL=$(ryoku-hw-backlight 2>/dev/null || true); brightnessctl -c backlight ${BL:+-d "$BL"} -m 2>/dev/null | awk -F, 'NR==1{print $4; exit}' ;;
       *) unavailable ;;
     esac
     ;;

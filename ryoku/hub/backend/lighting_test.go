@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -286,6 +287,104 @@ func TestDeviceKeyIgnoresThePort(t *testing.T) {
 	}
 	if deviceKey(orgbDevice{Name: "Board"}) == deviceKey(a) {
 		t.Fatal("a serial must distinguish two boards")
+	}
+}
+
+func dramStick(address uint32, bus int, slot string) orgbDevice {
+	return orgbDevice{
+		Name: "ENE DRAM", Vendor: "ENE", Type: "DRAM", Address: address,
+		Location: fmt.Sprintf("I2C: SMBus PIIX4 adapter port 0 at 0b00 (/dev/i2c-%d), address %s", bus, slot),
+		Modes: []orgbMode{
+			{Name: "Direct", Value: 0, Flags: modeHasPerLEDColor},
+			{Name: "Breathing", Value: 2, Flags: modeHasSpeed | modeHasPerLEDColor},
+			{Name: "Rainbow", Value: 5, Flags: modeHasSpeed},
+		},
+	}
+}
+
+func TestDeviceKeySeparatesIdenticalSMBusSticks(t *testing.T) {
+	first, second := dramStick(0, 8, "0x71"), dramStick(1, 8, "0x73")
+	if deviceKey(first) == deviceKey(second) {
+		t.Fatalf("two sticks share %q", deviceKey(first))
+	}
+	if moved := dramStick(0, 9, "0x71"); deviceKey(moved) != deviceKey(first) {
+		t.Fatalf("a renumbered i2c bus moved the stick from %q to %q", deviceKey(first), deviceKey(moved))
+	}
+	if got, want := deviceKey(first), "ENE DRAM#smbus:SMBus PIIX4 adapter port 0 at 0b00@0x71"; got != want {
+		t.Fatalf("key = %q, want %q", got, want)
+	}
+	if got := deviceKey(orgbDevice{Name: "Pad", Location: "HID: /dev/hidraw4"}); got != "Pad" {
+		t.Fatalf("a serial-less USB device keyed as %q, want its bare name", got)
+	}
+}
+
+func TestFirstSightGivesEverySharedStickItsOwnCopy(t *testing.T) {
+	setupFollowTest(t)
+	if err := saveLighting(lightingState{Enabled: true, Devices: map[string]*lightingSettings{
+		"ENE DRAM": {
+			Name: "ENE DRAM", Managed: true, Mode: "Breathing", Effect: "pulse", Source: "accent",
+			Colors: []string{"#E79389"}, Brightness: -1, Speed: 40, Restore: "Rainbow",
+		},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	first, second := dramStick(0, 8, "0x71"), dramStick(1, 8, "0x73")
+
+	st := rememberFirstSight([]orgbDevice{first, second})
+	if _, ok := st.Devices["ENE DRAM"]; ok {
+		t.Fatal("the shared entry outlived the migration")
+	}
+	a, b := st.Devices[deviceKey(first)], st.Devices[deviceKey(second)]
+	for _, s := range []*lightingSettings{a, b} {
+		if s == nil || !s.Managed || s.Mode != "Breathing" || s.Effect != "pulse" ||
+			s.Speed != 40 || s.Restore != "Rainbow" || len(s.Colors) != 1 {
+			t.Fatalf("stick settings = %+v, want the shared look", s)
+		}
+	}
+	a.Colors[0] = "#000000"
+	if b.Colors[0] != "#E79389" {
+		t.Fatal("the sticks still share one settings value")
+	}
+	if saved := loadLighting(); len(saved.Devices) != 2 {
+		t.Fatalf("saved devices = %d, want 2", len(saved.Devices))
+	}
+}
+
+func TestReleaseRestoresOnlyTheChosenStick(t *testing.T) {
+	setupFollowTest(t)
+	first, second := dramStick(4, 8, "0x71"), dramStick(7, 8, "0x73")
+	managed := func() *lightingSettings {
+		return &lightingSettings{Name: "ENE DRAM", Managed: true, Mode: "Breathing",
+			Source: "accent", Brightness: -1, Speed: -1, Restore: "Rainbow"}
+	}
+	if err := saveLighting(lightingState{Enabled: true, Devices: map[string]*lightingSettings{
+		deviceKey(first): managed(), deviceKey(second): managed(),
+	}}); err != nil {
+		t.Fatal(err)
+	}
+
+	oldAccess := lightingAccess
+	t.Cleanup(func() { lightingAccess = oldAccess })
+	packet := captureWrite(t, 5, func(conn *orgbConn) error {
+		lightingAccess = func(_ bool, _ bool, _ lightingProviders, fn func(*orgbConn, []orgbDevice) error) error {
+			return fn(conn, []orgbDevice{first, second})
+		}
+		captureStdout(t, func() {
+			if err := lightingRelease(deviceKey(second)); err != nil {
+				t.Fatal(err)
+			}
+		})
+		return nil
+	})
+	if packet.id != pktUpdateMode || packet.device != second.Address {
+		t.Fatalf("restore went to device %d (packet %d), want %d", packet.device, packet.id, second.Address)
+	}
+	st := loadLighting()
+	if st.Devices[deviceKey(second)].Managed {
+		t.Fatal("the released stick is still managed")
+	}
+	if !st.Devices[deviceKey(first)].Managed {
+		t.Fatal("releasing one stick released the other")
 	}
 }
 

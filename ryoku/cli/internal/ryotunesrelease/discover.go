@@ -3,12 +3,15 @@ package ryotunesrelease
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -40,10 +43,21 @@ type ghRelease struct {
 	Assets     []asset `json:"assets"`
 }
 
-// tagRe is the tag shape Ryotunes publishes: vX.Y.Z. Anything else (a moving
-// dev tag, a malformed name) is not a stable release and is refused, so a bad
-// tag never reaches URL construction.
-var tagRe = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+$`)
+// tagRe is the only tag shape this lane follows: v1.Y.Z. Ryotunes 2 and the
+// retired 2.x tags share the repo and must never reach a v1 box; anything else
+// (a moving dev tag, a malformed name) is refused before URL construction.
+var tagRe = regexp.MustCompile(`^v1\.[0-9]+\.[0-9]+$`)
+
+// ErrNoRelease means the repo lists no stable 1.x release, so the installed
+// build stays as it is.
+var ErrNoRelease = errors.New("no Ryotunes 1.x release is published")
+
+// The release list is newest-created first; a few pages reach past a long run
+// of 2.x releases without walking the whole history.
+const (
+	releasePageSize = 100
+	maxReleasePages = 10
+)
 
 // pkgRelRe is a valid, positive pkgrel: a plain integer with no leading zero.
 // Ryotunes pins pkgrel to 1 and only ever bumps it (2, 3, ...) for a rebuild, so
@@ -118,12 +132,13 @@ func validRelInfo(rel relInfo) bool {
 	return rel.ShaAsset == rel.PkgAsset+".sha256"
 }
 
-// latestRelease resolves the newest published stable Ryotunes release. When
+// latestRelease resolves the newest published stable Ryotunes 1.x release. When
 // fresh is false it serves a cached lookup within checkCacheTTL and, if the
 // network fails, falls back to the last cached result (so a doctor run offline
 // still reports the last-known latest). When fresh is true it always hits the
 // network and never falls back to a stale cache: an install decision is made
-// only against what GitHub serves right now.
+// only against what GitHub serves right now. ErrNoRelease is never papered over
+// with the cache: GitHub answered, it just lists nothing this lane may follow.
 func (c *Client) latestRelease(ctx context.Context, fresh bool) (relInfo, error) {
 	cachePath := filepath.Join(c.cacheDir, "latest.json")
 
@@ -135,7 +150,7 @@ func (c *Client) latestRelease(ctx context.Context, fresh bool) (relInfo, error)
 
 	rel, err := c.fetchLatest(ctx)
 	if err != nil {
-		if !fresh {
+		if !fresh && !errors.Is(err, ErrNoRelease) {
 			// Fall back to whatever we last saw, ignoring its age: a stale
 			// "latest" beats pretending we could not tell. Only Check does this.
 			if rel, ok := c.readCache(cachePath, false); ok {
@@ -192,19 +207,36 @@ func (c *Client) writeCache(path string, rel relInfo) {
 	_ = os.WriteFile(path, b, 0o644)
 }
 
-// fetchLatest asks the GitHub API for the newest release and turns it into a
-// relInfo, validating the tag shape and locating the x86_64 package asset and
-// its checksum sidecar. A draft or prerelease is refused (releases/latest should
-// never return one, but the check is cheap and closes the gap if the endpoint is
-// ever stubbed).
+// fetchLatest lists the repo's releases and turns the newest stable 1.x one into
+// a relInfo, validating the tag shape and locating the x86_64 package asset and
+// its checksum sidecar. GitHub's "latest" release is not used: it follows
+// whatever was published last, which can be a Ryotunes 2 build. The scan stops at
+// the first page holding a 1.x release, or at the end of the list.
 func (c *Client) fetchLatest(ctx context.Context) (relInfo, error) {
 	ctx, cancel := context.WithTimeout(ctx, metadataTimeout)
 	defer cancel()
 
-	url := strings.TrimSuffix(c.APIBase, "/") + "/repos/" + c.Repo + "/releases/latest"
+	for page := 1; page <= maxReleasePages; page++ {
+		list, err := c.fetchReleasePage(ctx, page)
+		if err != nil {
+			return relInfo{}, err
+		}
+		if gr, ok := newestV1(list); ok {
+			return releaseInfo(gr)
+		}
+		if len(list) < releasePageSize {
+			break
+		}
+	}
+	return relInfo{}, ErrNoRelease
+}
+
+func (c *Client) fetchReleasePage(ctx context.Context, page int) ([]ghRelease, error) {
+	url := strings.TrimSuffix(c.APIBase, "/") + "/repos/" + c.Repo +
+		"/releases?per_page=" + strconv.Itoa(releasePageSize) + "&page=" + strconv.Itoa(page)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return relInfo{}, err
+		return nil, err
 	}
 	// GitHub 403s an API request with no User-Agent; the media type pins the
 	// response shape.
@@ -213,24 +245,54 @@ func (c *Client) fetchLatest(ctx context.Context) (relInfo, error) {
 
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
-		return relInfo{}, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return relInfo{}, fmt.Errorf("ryotunes release lookup: GitHub returned %s", resp.Status)
+		return nil, fmt.Errorf("ryotunes release lookup: GitHub returned %s", resp.Status)
 	}
 
-	var gr ghRelease
-	if err := json.NewDecoder(io.LimitReader(resp.Body, maxMetaBytes)).Decode(&gr); err != nil {
-		return relInfo{}, fmt.Errorf("ryotunes release lookup: %w", err)
+	var list []ghRelease
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxMetaBytes)).Decode(&list); err != nil {
+		return nil, fmt.Errorf("ryotunes release lookup: %w", err)
 	}
-	if gr.Draft || gr.Prerelease {
-		return relInfo{}, fmt.Errorf("ryotunes release %q is a draft/prerelease, not a stable build", gr.TagName)
-	}
-	if !tagRe.MatchString(gr.TagName) {
-		return relInfo{}, fmt.Errorf("ryotunes release tag %q is not a vX.Y.Z stable tag", gr.TagName)
-	}
+	return list, nil
+}
 
+// newestV1 picks the highest-versioned stable 1.x release by version, not by
+// list order, skipping drafts, prereleases and every other tag shape.
+func newestV1(list []ghRelease) (ghRelease, bool) {
+	var best ghRelease
+	var bestKey []int
+	for _, gr := range list {
+		if gr.Draft || gr.Prerelease || !tagRe.MatchString(gr.TagName) {
+			continue
+		}
+		key, ok := tagKey(gr.TagName)
+		if ok && (bestKey == nil || slices.Compare(bestKey, key) < 0) {
+			best, bestKey = gr, key
+		}
+	}
+	return best, bestKey != nil
+}
+
+// tagKey is the numeric X.Y.Z of a tag that already matched tagRe.
+func tagKey(tag string) ([]int, bool) {
+	parts := strings.Split(pkgVer(tag), ".")
+	key := make([]int, len(parts))
+	for i, p := range parts {
+		n, err := strconv.Atoi(p)
+		if err != nil {
+			return nil, false
+		}
+		key[i] = n
+	}
+	return key, true
+}
+
+// releaseInfo validates the chosen release's assets under the strict naming
+// rules and returns what the installer needs.
+func releaseInfo(gr ghRelease) (relInfo, error) {
 	name, ver, err := resolveAsset(gr.TagName, gr.Assets)
 	if err != nil {
 		return relInfo{}, err

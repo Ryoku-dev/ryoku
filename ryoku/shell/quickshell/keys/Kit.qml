@@ -15,12 +15,20 @@ Item {
     signal requestClose()
 
     readonly property var tabs: [
-        { id: "keys", label: "Keys", source: "tabs/KeysTab.qml" },
-        { id: "commands", label: "Commands", source: "commands/CommandsTab.qml" },
-        { id: "phone", label: "Phone", source: "phone/PhoneTab.qml" },
-        { id: "devtools", label: "Dev tools", source: "devtools/DevToolsTab.qml" },
-        { id: "typing", label: "Typing test", source: "typing/TypingTab.qml" }
+        { id: "keys", source: "tabs/KeysTab.qml" },
+        { id: "commands", source: "commands/CommandsTab.qml" },
+        { id: "phone", source: "phone/PhoneTab.qml" },
+        { id: "devtools", source: "devtools/DevToolsTab.qml" },
+        { id: "typing", source: "typing/TypingTab.qml" }
     ]
+    // kept apart from tabs so a catalogue reload never rebuilds the tab loaders
+    readonly property var tabLabels: ({
+        keys: I18n.tr("Keys"),
+        commands: I18n.tr("Commands"),
+        phone: I18n.tr("Phone"),
+        devtools: I18n.tr("Dev tools"),
+        typing: I18n.tr("Typing test")
+    })
     property int currentIndex: 0
     property int tabRevision: 0
     property bool searchAutoSwitchArmed: false
@@ -392,7 +400,7 @@ Item {
             anchors.verticalCenter: closeButton.verticalCenter
             kana: "\u9053\u5177"
             index: (kitCard.currentIndex < 9 ? "0" : "") + String(kitCard.currentIndex + 1)
-            label: I18n.tr(kitCard.tabs[kitCard.currentIndex].label).toUpperCase()
+            label: kitCard.tabLabels[kitCard.tabs[kitCard.currentIndex].id].toUpperCase()
             glyph: "meander"
             glyph2: "torii"
             visible: card.width >= 720
@@ -546,7 +554,7 @@ Item {
                             spacing: Tokens.s2
 
                             Text {
-                                text: I18n.tr(tabPlate.modelData.label).toUpperCase()
+                                text: kitCard.tabLabels[tabPlate.modelData.id].toUpperCase()
                                 color: tabPlate.selected ? Tokens.inkOnBone : Tokens.inkDim
                                 font.family: Tokens.ui
                                 font.pixelSize: Tokens.fMicro

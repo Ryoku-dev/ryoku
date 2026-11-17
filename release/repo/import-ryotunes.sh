@@ -23,7 +23,7 @@
 #
 # usage:
 #   import-ryotunes.sh <OUT_DIR>
-#       resolve the latest release, download + verify the package (and its
+#       resolve the newest 1.x release, download + verify the package (and its
 #       sha256), verify its .PKGINFO identity/epoch, place it in <OUT_DIR>, sign
 #       it when RYOKU_REPO_KEY is set, and print the package path on the last
 #       stdout line. All progress goes to stderr, so `pkg=$(import-ryotunes.sh
@@ -41,10 +41,14 @@
 #                             (1:<pkgver>-<pkgrel>) and exit WITHOUT downloading,
 #                             so a poll can decide whether a refresh is even
 #                             needed before spending a download.
+#
+# exit 3 means the repo lists no Ryotunes 1.x release (see
+# resolve-ryotunes-release.sh); nothing is imported.
 set -euo pipefail
 
 REPO=${RYOKU_RYOTUNES_REPO:-ryoku-dev/ryotunes}
 API=${RYOKU_GITHUB_API:-https://api.github.com}
+HERE=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 DL=${RYOKU_GITHUB_DL:-https://github.com}
 WANT_ARCH=x86_64
 WANT_EPOCH=1
@@ -61,23 +65,15 @@ for tool in curl jq bsdtar sha256sum; do
 done
 [[ -z ${RYOKU_REPO_KEY:-} ]] || command -v gpg >/dev/null 2>&1 || die "gpg not found but RYOKU_REPO_KEY is set"
 
-# curl for the API: authenticated when a token is present (higher rate limit),
-# never required for the public asset download below.
-api_get() {
-  local url=$1
-  local -a auth=()
-  local tok=${GH_TOKEN:-${GITHUB_TOKEN:-}}
-  [[ -n $tok ]] && auth=(-H "Authorization: Bearer $tok")
-  curl -fsSL --retry 3 -H 'Accept: application/vnd.github+json' \
-    -H 'User-Agent: ryoku-repo-import' "${auth[@]}" "$url"
-}
-
-# 1. resolve the newest published stable release. A draft/prerelease is never
-#    returned by releases/latest; the tag must be a clean vX.Y.Z.
-release_json=$(api_get "$API/repos/$REPO/releases/latest") \
-  || die "could not fetch the latest $REPO release"
+# 1. resolve the newest stable 1.x release. GitHub's "latest" can be a
+#    Ryotunes 2 build, which never belongs in this Ryoku line's repo.
+rc=0
+release_json=$(RYOKU_RYOTUNES_REPO=$REPO RYOKU_GITHUB_API=$API \
+  bash "$HERE/resolve-ryotunes-release.sh") || rc=$?
+(( rc != 3 )) || { printf 'import-ryotunes.sh: %s lists no Ryotunes 1.x release\n' "$REPO" >&2; exit 3; }
+(( rc == 0 )) || die "could not resolve the newest $REPO 1.x release"
 tag=$(jq -r '.tag_name // empty' <<<"$release_json")
-[[ $tag =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "latest $REPO tag '$tag' is not a vX.Y.Z stable tag"
+[[ $tag =~ ^v1\.[0-9]+\.[0-9]+$ ]] || die "$REPO tag '$tag' is not a v1.Y.Z stable tag"
 pkgver=${tag#v}
 
 # 2. locate THE single package asset for this version. The name is matched

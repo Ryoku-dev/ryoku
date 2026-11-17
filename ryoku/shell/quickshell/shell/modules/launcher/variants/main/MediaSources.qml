@@ -3,6 +3,7 @@ import QtQuick.Shapes
 import Quickshell.Widgets
 import Quickshell.Services.Mpris
 import "../../shared/Singletons"
+import shell.services as Svc
 import "metrics.js" as MainMetrics
 
 // The other-players strip: extends under the now-playing card so every media
@@ -71,7 +72,7 @@ Column {
             border.width: hover.containsMouse ? 1 : 0
             border.color: Theme.lineStrong
 
-            readonly property string cover: modelData.trackArtUrl && modelData.trackArtUrl.length > 0 ? modelData.trackArtUrl : ""
+            readonly property string cover: Svc.Music.coverFor(modelData)
             readonly property string trackName: modelData.trackTitle || ""
             readonly property string who: Theme.joinArtists(modelData.trackArtists, modelData.trackArtist)
 

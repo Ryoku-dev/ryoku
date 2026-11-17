@@ -17,7 +17,7 @@ var rows = [
         "key": "AQ_DRM_DEVICES",
         "label": "Graphics mode",
         "desc": "Which GPU renders the desktop; next login",
-        "gate": "ryoku-gpu status --json: performance_available",
+        "gate": "ryoku-gpu status --json: performance_available, performance_route (external: pinned only while a dGPU port has a monitor at login)",
         "unavailable": "Switch the laptop's graphics MUX to discrete first.",
         "ctl": "seg",
         "src": "gpu.lua (override path via $RYOKU_GPU_CONF; base honours $XDG_CONFIG_HOME)",

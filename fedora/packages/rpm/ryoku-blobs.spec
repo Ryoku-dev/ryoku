@@ -1,5 +1,6 @@
 Name:           ryoku-blobs
 Version:        0.1
+Epoch:          1
 Release:        1%{?dist}
 Summary:        ryoku-blobs desktop component
 License:        GPL-3.0-or-later

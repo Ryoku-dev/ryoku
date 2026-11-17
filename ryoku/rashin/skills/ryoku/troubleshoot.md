@@ -53,6 +53,10 @@ writer and where the change belongs. Then:
   names it) or a fork under `~/.config/ryoku/user_edits/`, never in a shipped file.
 - If a package regressed, that is a system problem, not a config one: see the
   rollback paths below.
+- If a systemd user unit needs an override (`systemctl --user edit <unit>`),
+  write paths in it with `%h` (the user's home) instead of a literal
+  `/home/<name>`: user units and drop-ins can apply to every account, and
+  another user cannot read your home.
 
 Then reload with the tool that owns the surface (`ryoku reload` for the shell,
 `ryoku-idle apply` for idle, and so on), not by killing processes.

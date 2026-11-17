@@ -1,6 +1,37 @@
 # Ryoku CLI Changelog
 
 ## Unreleased
+- **Doctor no longer pins Dolphin to the dock on every update (#802).**
+  It read the Stage Editor's own default pins as a user's old ones; it now
+  skips them, keeps an edited pin list as it is and only moves installed apps.
+- **Snapshot cleanup works again after an account is renamed or removed (#798).**
+  Snapper refuses every command while `ALLOW_USERS` names a missing account;
+  doctor now drops such names, and removing a person in the Hub drops theirs.
+- **A testing build named for 1.0.9 reads as newer than a 1.11 one.** Unstable
+  builds order by build number, so `ryoku status` and doctor no longer call a
+  newer pin stale, and `ryoku version` drops the package epoch.
+- **Reboots after an update no longer stop at the Limine menu.** Limine 12.9.5
+  moved its remembered-entry EFI variable to a new vendor GUID; doctor and the
+  boot guard now clear it under both GUIDs.
+- **Doctor drops the duplicate keyring lines older installs left in SDDM's PAM stack.**
+  It removes only the bare lines Ryoku's setup added beside the stock ones and
+  still just warns about a stack someone edited by hand.
+- **Updates adopt the keyring's D-Bus files left behind by a deploy.** The
+  update overwrite list and the doctor's stray cleanup now cover
+  `/usr/lib/environment.d` and the Secret Service override.
+- **The keymap heal no longer hangs `ryoku update` on a Limine box.** The boot
+  image rebuild prefers `limine-mkinitcpio`, never reads the terminal and gives
+  up after ten minutes; a rebuild with unchanged content now clears the finding.
+- **`ryoku update` and doctor follow only the Ryotunes 1.x line.** They pick the
+  newest stable `v1.Y.Z` release instead of GitHub's latest, so a Ryotunes 2
+  release never installs here; with no 1.x release the installed build stays.
+- **A second account on a shared machine gets the same desktop as the first.**
+  Its first login and `ryoku doctor` lay the brand art, decor art and npm prefix
+  the installer gave the first account; a brand-new account starts on the default rice.
+- **Doctor no longer locks other accounts out of snapshots.** Granting snapshot
+  read access adds the account beside the ones snapper already allows.
+- **Accounts added in Ryoku Hub log into the administrator's shell.** They used
+  to get bash, which skips Ryoku's terminal setup.
 - **Doctor recognizes the shell's own visualizer and file watchers.** Memory
   checks no longer report those helpers as user apps left inside the desktop
   service (`internal/doctor/memory.go`).

@@ -17,7 +17,7 @@ Item {
     readonly property string title: player ? String(player.trackTitle || "") : ""
     readonly property string artist: player
         ? Theme.joinArtists(player.trackArtists, player.trackArtist) : ""
-    readonly property url art: player ? (player.trackArtUrl || "") : ""
+    readonly property url art: Music.coverFor(player)
     readonly property bool hasText: title.length > 0 || artist.length > 0
     readonly property real coverSize: Math.round(22 * K.Style.scale)
     readonly property real contentGap: hasText ? Math.round(6 * K.Style.scale) : 0

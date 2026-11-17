@@ -129,6 +129,10 @@ function qtKeyName(event) {
         case Qt.Key_Period: case Qt.Key_Comma: return "KP_Decimal";
         }
     }
+    // number row by position: Shift+1 is Key_Exclam, binds still name the digit
+    var code = event.nativeScanCode;
+    if (code >= 10 && code <= 19)
+        return "" + ((code - 9) % 10);
     if (k >= Qt.Key_A && k <= Qt.Key_Z)
         return String.fromCharCode(k);
     if (k >= Qt.Key_0 && k <= Qt.Key_9)

@@ -646,6 +646,9 @@ func (w *workshopLib) scanEntries(cacheDir string, prior map[string]Entry, onIte
 		result[key] = e
 		onItem(e)
 	}
+	if wkBool(w.d.setting("videoPreview.enabled"), true) {
+		buildWeVideoPreviews(cacheDir, result, onItem)
+	}
 	return result
 }
 

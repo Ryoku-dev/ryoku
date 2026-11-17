@@ -3,6 +3,7 @@ import QtQuick.Shapes
 import QtQuick.Effects
 import Quickshell.Widgets
 import "../../shared/Singletons"
+import shell.services as Svc
 import "metrics.js" as MainMetrics
 import "../../shared/lib/radio.js" as RadioLib
 import "." as MainVariant
@@ -38,8 +39,7 @@ Item {
     readonly property string artist: radio
         ? (Radio.fellBack ? I18n.tr("internet radio · fallback station") : I18n.tr("internet radio · 24/7 live"))
         : (hasPlayer ? Theme.joinArtists(player.trackArtists, player.trackArtist) : "")
-    readonly property string artUrl:
-        hasPlayer && player.trackArtUrl ? player.trackArtUrl : ""
+    readonly property string artUrl: Svc.Music.coverFor(player)
     readonly property string effectiveArt:
         radio ? Radio.artUrl : artUrl
     readonly property real positionSec: hasPlayer ? player.position : 0

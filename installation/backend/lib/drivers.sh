@@ -50,7 +50,7 @@ ryoku_drivers() {
 # the TUI collects it on hybrid (iGPU + dGPU) machines but nothing consumed it.
 # map the UI names to ryoku-gpu's host graphics modes:
 #   offload -> hybrid       (no pin; compositor chooses the panel-safe renderer)
-#   sync    -> performance  (dGPU pin, only when the dGPU owns the laptop panel)
+#   sync    -> performance  (dGPU pin; over an iGPU panel only with a dGPU monitor)
 #   vfio    -> passthrough  (pin the iGPU alone, freeing the dGPU for a VM)
 # run `ryoku-gpu mode <mapped>` as the user against the provider's render pin,
 # via runuser like deploy.sh's materialize. the pin file is the seam's answer
@@ -67,7 +67,8 @@ ryoku_drivers() {
 # `ryoku-gpu persist` every login, which rewrites gpu.lua from the policy in
 # ryoku-gpu-detect beneficial(): pin the strongest GPU only when it also owns a
 # laptop's internal panel. Stored hybrid/passthrough choices remain unpinned;
-# Performance is refused until a hardware MUX routes the panel to the dGPU.
+# with the panel on the iGPU, Performance pins the dGPU only while a monitor is
+# plugged into one of its ports at login, and is refused when it has none.
 # `ryoku-gpu mode <m>` writes the accepted choice, so it survives every login.
 # gpu.lua is also the single file the Hub GPU page, `ryoku doctor`, and
 # `ryoku materialize` all manage; user.lua would survive persist on every box

@@ -24,6 +24,8 @@ CONF="${RYOKU_WIFI_BACKEND_CONF:-/etc/NetworkManager/conf.d/wifi-backend.conf}"
 # this file exists and unlinks it when it is gone.
 IWD_STATE="${RYOKU_WIFI_IWD_STATE:-/var/lib/ryoku/wifi-iwd.enabled}"
 HOST="${RYOKU_WIFI_BACKEND_HOST:-ryoku-host}"
+PHYS="${RYOKU_WIFI_BACKEND_PHYS:-/sys/class/ieee80211}"
+IW="${RYOKU_WIFI_BACKEND_IW:-iw}"
 
 # systemd iff its runtime directory exists, else runit; the path is a knob so a
 # hermetic test can run both lanes on one box.
@@ -55,6 +57,36 @@ supervise_iwd() {
   "$HOST" svc reconcile --system
 }
 
+# iwd replaces each radio's default interface with one of its own and deletes
+# that one when it stops, so leaving iwd left wpa_supplicant no interface to
+# drive until a reboot. radios_with_interfaces, read before the stop, names
+# the radios to watch; restore_interfaces gives each one that ends up bare a
+# managed interface again. The kernel deletes iwd's interface just after iwd
+# exits, not before the stop returns, and one radio at a time, so each radio
+# is watched for up to 3 s.
+radios_with_interfaces() {
+  local phy
+  for phy in "$PHYS"/phy*; do
+    [[ -d $phy ]] && compgen -G "$phy/device/net/*" >/dev/null && echo "${phy##*/}"
+  done
+}
+
+restore_interfaces() {
+  local phy i left=("$@") next
+  for ((i = 0; i < 30 && ${#left[@]}; i++)); do
+    next=()
+    for phy in "${left[@]}"; do
+      if compgen -G "$PHYS/$phy/device/net/*" >/dev/null; then
+        next+=("$phy")
+        continue
+      fi
+      "$IW" phy "$phy" interface add "wlan${phy#phy}" type managed || true
+    done
+    left=("${next[@]}")
+    ((${#left[@]})) && sleep 0.1
+  done
+}
+
 apply() {
   local backend=$1
   mkdir -p "$(dirname "$CONF")"
@@ -71,7 +103,10 @@ EOF
   # under runit the reconcile above starts iwd (a fresh runsv needs a moment,
   # so the explicit start is only a shortcut).
   if [[ $backend == wpa_supplicant ]]; then
+    local radios
+    mapfile -t radios < <(radios_with_interfaces)
     "$HOST" svc --system stop iwd 2>/dev/null || true
+    restore_interfaces "${radios[@]}"
   else
     "$HOST" svc --system stop wpa_supplicant 2>/dev/null || true
     on_systemd || "$HOST" svc --system start iwd 2>/dev/null || true

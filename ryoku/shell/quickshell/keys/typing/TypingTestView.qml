@@ -143,7 +143,7 @@ Item {
             Btn {
                 text: test.languages.currentPack
                     ? String(test.languages.currentPack.name || test.languages.currentLanguageId)
-                    : qsTr("Loading language")
+                    : I18n.tr("Loading language")
                 compact: true
                 armed: !testEngine.isRunning && test.languages.ready
                 onAct: { test.cycleLanguage(); test.focusInput(); }
@@ -204,8 +204,8 @@ Item {
             }
             Text {
                 text: testEngine.isRunning
-                    ? (testEngine.mode === "zen" ? qsTr("Ctrl+Enter to finish") : qsTr("Test in progress"))
-                    : qsTr("Type to begin")
+                    ? (testEngine.mode === "zen" ? I18n.tr("Ctrl+Enter to finish") : I18n.tr("Test in progress"))
+                    : I18n.tr("Type to begin")
                 color: Tokens.inkMuted
                 font.family: Tokens.ui
                 font.pixelSize: Tokens.fSmall
@@ -228,7 +228,7 @@ Item {
             Text {
                 anchors.fill: parent
                 visible: !testEngine.hasTarget
-                text: testEngine.inputText.length ? testEngine.inputText : qsTr("Free typing. Begin anywhere.")
+                text: testEngine.inputText.length ? testEngine.inputText : I18n.tr("Free typing. Begin anywhere.")
                 color: testEngine.inputText.length ? Tokens.ink : Tokens.inkMuted
                 font.family: Tokens.mono
                 font.pixelSize: test.store.fontSize
@@ -241,7 +241,7 @@ Item {
                 anchors.centerIn: parent
                 visible: testEngine.state === "loading"
                 spacing: Tokens.s2
-                Text { anchors.horizontalCenter: parent.horizontalCenter; text: qsTr("LOADING WORDS"); color: Tokens.inkDim; font.family: Tokens.mono; font.pixelSize: Tokens.fMicro; font.letterSpacing: Tokens.trackLabel }
+                Text { anchors.horizontalCenter: parent.horizontalCenter; text: I18n.tr("LOADING WORDS"); color: Tokens.inkDim; font.family: Tokens.mono; font.pixelSize: Tokens.fMicro; font.letterSpacing: Tokens.trackLabel }
                 Text { anchors.horizontalCenter: parent.horizontalCenter; visible: test.languages.errorText !== ""; text: test.languages.errorText; color: Tokens.alert; font.family: Tokens.ui; font.pixelSize: Tokens.fSmall }
             }
         }
@@ -262,7 +262,7 @@ Item {
             Layout.fillWidth: true
             Item { Layout.fillWidth: true }
             Btn {
-                text: testEngine.mode === "zen" && testEngine.isRunning ? qsTr("Finish") : qsTr("Restart")
+                text: testEngine.mode === "zen" && testEngine.isRunning ? I18n.tr("Finish") : I18n.tr("Restart")
                 primary: testEngine.mode === "zen" && testEngine.isRunning
                 onAct: {
                     if (testEngine.mode === "zen" && testEngine.isRunning) test.finishZen();

@@ -69,6 +69,7 @@ Scope {
     // The ryogami-live yield flag (default "ryogami" engine): hide the painter
     // while the C player owns the background layer.
     property bool wallpaperLive: false
+    property bool scenePointer: false
 
     // Stage z-ordering (docs/stage.md): behind-layers sit below the widgets
     // while front layers and explicit lifts sit above; video and live walls have no artifacts.
@@ -571,6 +572,7 @@ Scope {
             redo: () => p.enqueue(cmd)
         });
     }
+    property var _settingsQueue: []
     function _runSettingsQueue() {
         if (settingsProc.running)
             return;
@@ -783,6 +785,11 @@ Scope {
             videoVolume: root.videoVolume
             videoPaused: root.videoPaused
         }
+        WallpaperMod.ScenePointer {
+            anchors.fill: parent
+            output: root.monitorName
+            active: root.scenePointer && root.wallpaperLive
+        }
 
         // Host Gokko widgets beside the wallpaper, below ordinary windows.
         // A Store package cannot create a second competing Bottom surface.
@@ -894,7 +901,7 @@ Scope {
         Image {
             id: glassBackdrop
             anchors.fill: parent
-            source: desktopContent.glassWanted ? root.wallpaperUrl : ""
+            source: desktopContent.glassWanted && backdrop.decoded ? root.wallpaperUrl : ""
             cache: false
             asynchronous: true
             smooth: true
@@ -1495,6 +1502,7 @@ Scope {
                             IiFaceWidget {
                                 faceId: iiLoader.modelData.id
                                 prefix: iiLoader.modelData.prefix
+                                scaleCfg: root.widgetValue(iiLoader.modelData.prefix, "Scale")
                                 screen: root.screen
                             }
                         }

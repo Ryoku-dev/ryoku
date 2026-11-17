@@ -10,6 +10,7 @@
 pkgname=ryoku-hub
 pkgver=${RYOKU_PKGVER:-0.1.0}
 pkgrel=1
+epoch=1
 pkgdesc="Ryoku Hub backend: keybind legend and config service"
 arch=('x86_64')
 url="https://ryoku.dev"

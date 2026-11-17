@@ -32,6 +32,19 @@ func hexToRGB(hex string) (int, int, int) {
 	return 0, 0, 0
 }
 
+// light or dark from the surface luma, for templates that pick a default look
+func paletteMode(pal map[string]string) string {
+	bg := pal["surface"]
+	if bg == "" {
+		bg = pal["background"]
+	}
+	r, g, b := hexToRGB(bg)
+	if 0.299*float64(r)+0.587*float64(g)+0.114*float64(b) >= 127.5 {
+		return "light"
+	}
+	return "dark"
+}
+
 func paletteCarrier(pal map[string]string) map[string]any {
 	c := map[string]any{}
 	put := func(name, hex string) {
@@ -270,7 +283,7 @@ func renderActiveTemplates(cfg matugenConfig, pal map[string]string) {
 	}
 
 	carrierPath := filepath.Join(cacheDir, "matugen-carrier.json")
-	carrier := map[string]any{"colors": paletteCarrier(pal)}
+	carrier := map[string]any{"colors": paletteCarrier(pal), "mode": paletteMode(pal)}
 	if err := atomicWrite(carrierPath, mustJSON(carrier), 0o644); err != nil {
 		return
 	}

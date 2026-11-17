@@ -204,6 +204,7 @@ AbstractBackgroundWidget {
 
                         // Layer 2: Masked Fill Overlay Row (ColOnPrimary/ColOnSecondary/ColOnTertiary over liquid fill)
                         RowLayout {
+                            id: fillRow
                             anchors.fill: parent
                             anchors.leftMargin: 10
                             anchors.rightMargin: 10
@@ -212,12 +213,18 @@ AbstractBackgroundWidget {
                             layer.enabled: true
                             layer.smooth: true
                             layer.effect: OpacityMask {
-                                maskSource: Rectangle {
-                                    x: fillBar.x
-                                    y: fillBar.y
-                                    width: fillBar.width
-                                    height: fillBar.height
-                                    radius: fillBar.radius
+                                // the mask is stretched over the whole layer, so it must be the row's size
+                                maskSource: Item {
+                                    width: fillRow.width
+                                    height: fillRow.height
+
+                                    Rectangle {
+                                        x: fillBar.x - fillRow.x
+                                        y: fillBar.y - fillRow.y
+                                        width: fillBar.width
+                                        height: fillBar.height
+                                        radius: fillBar.radius
+                                    }
                                 }
                             }
 

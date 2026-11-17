@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import Quickshell.Io
+import Ryoku.Ui.Singletons
 
 QtObject {
     id: languages
@@ -47,7 +48,7 @@ QtObject {
         const entry = languageFor(requestedLanguageId) ?? languageFor(fallbackLanguageId);
         if (!entry) {
             loading = false;
-            errorText = qsTr("No bundled typing language is available.");
+            errorText = I18n.tr("No bundled typing language is available.");
             return;
         }
         const cached = cache[entry.id];
@@ -79,12 +80,12 @@ QtObject {
                 languages.loadRequested();
             } catch (error) {
                 languages.loading = false;
-                languages.errorText = qsTr("Typing language catalogue could not be read.");
+                languages.errorText = I18n.tr("Typing language catalogue could not be read.");
             }
         }
         onLoadFailed: {
             languages.loading = false;
-            languages.errorText = qsTr("Typing language catalogue is unavailable.");
+            languages.errorText = I18n.tr("Typing language catalogue is unavailable.");
         }
     }
 
@@ -117,18 +118,18 @@ QtObject {
                 languages.errorText = "";
             } catch (error) {
                 languages.loading = false;
-                languages.errorText = qsTr("Typing language pack could not be read.");
+                languages.errorText = I18n.tr("Typing language pack could not be read.");
             }
         }
         onLoadFailed: {
             if (languages.requestedLanguageId !== languages.fallbackLanguageId
                     && languages.languageFor(languages.fallbackLanguageId)) {
                 languages.requestedLanguageId = languages.fallbackLanguageId;
-                languages.errorText = qsTr("Language pack unavailable; using English.");
+                languages.errorText = I18n.tr("Language pack unavailable; using English.");
                 languages.loadRequested();
             } else {
                 languages.loading = false;
-                languages.errorText = qsTr("Typing language pack is unavailable.");
+                languages.errorText = I18n.tr("Typing language pack is unavailable.");
             }
         }
     }

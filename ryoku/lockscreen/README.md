@@ -24,8 +24,8 @@ niri serve, so the same lock runs on both.
   unlock. If the daemon is between generations, it holds a transient login1
   block until the replacement daemon publishes equivalent protection.
 - `sddm/setup` The install-time SDDM wiring: enable the service, default to the
-  graphical target, drop `pam_gnome_keyring` from the SDDM PAM stack, and make
-  sure a Hyprland wayland session exists.
+  graphical target, wire `pam_gnome_keyring` once into the SDDM PAM stack (or
+  strip it under autologin), and make sure a Hyprland wayland session exists.
 - `sddm/ryoku-greeter` SDDM's `[Wayland] CompositorCommand`: weston in kiosk
   mode on the card that can show the login screen, at each output's top mode.
   weston runs supervised: SDDM 0.21 reads any death of the Wayland greeter as a

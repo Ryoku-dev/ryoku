@@ -50,6 +50,7 @@ Item {
     // The ryogami-live yield flag: hide the in-shell painter while the C
     // player owns the background layer; false for the in-shell engine.
     readonly property bool live: frame.live
+    readonly property bool scenePointer: frame.pointer
     // The first topic frame gates readiness, not the in-shell decode: the
     // backdrop itself waits on the Image decode before revealing.
     readonly property bool reloadReady: frame.ready

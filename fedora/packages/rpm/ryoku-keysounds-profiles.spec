@@ -1,5 +1,6 @@
 Name:           ryoku-keysounds-profiles
 Version:        0.1
+Epoch:          1
 Release:        1%{?dist}
 Summary:        Key-sound sample profiles and the Mechvibes importer
 License:        GPL-3.0-or-later AND MIT

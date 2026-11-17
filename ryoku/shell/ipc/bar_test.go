@@ -21,8 +21,9 @@ const catalogueFixture = `[
       { "key": "launcherLogoIcon", "type": "choice", "label": "Glyph", "options": ["ryoku", "arch", "dragon"] } ] },
   { "id": "workspaces", "gid": "G2",  "label": "Workspaces",      "gloss": "間",   "category": "Bar",
     "settings": [
-      { "key": "workspaceMode",  "type": "choice", "label": "Shown", "options": ["active", "5", "10"] },
-      { "key": "workspaceStyle", "type": "choice", "label": "Marker", "options": ["default", "numbers", "magic", "kanji", "rings", "aurora", "pacman"] } ] },
+      { "key": "workspaceMode",     "type": "choice", "label": "Shown",            "options": ["active", "5", "10"] },
+      { "key": "workspaceStyle",    "type": "choice", "label": "Marker",           "options": ["default", "numbers", "magic", "kanji", "rings", "aurora", "pacman"] },
+      { "key": "isolateMonitors",   "type": "toggle", "label": "Isolate monitors" } ] },
   { "id": "status",     "gid": "G3",  "label": "Status",          "visKey": "status",   "desc": "Arch update, tray, notifications" },
   { "id": "memory",     "gid": "G4",  "label": "Memory",          "visKey": "memory" },
   { "id": "cpu",        "gid": "G5",  "label": "CPU",             "visKey": "cpu" },
@@ -444,6 +445,28 @@ func TestBarVerbsThroughStore(t *testing.T) {
 	}
 	if !w["status"] || !w["weather"] {
 		t.Fatalf("defaults did not ship the on-set on: %+v", w)
+	}
+}
+
+// TestBarWorkspacesIsolateMonitors verifies that the isolateMonitors toggle
+// is accepted by the bar-set verb and round-trips through the settings store.
+func TestBarWorkspacesIsolateMonitors(t *testing.T) {
+	d := barTestDaemon(t)
+
+	// Turn the toggle on.
+	if got := d.dispatch("bar set workspaces isolateMonitors on"); got != "ok" {
+		t.Fatalf("bar set isolateMonitors on: %s", got)
+	}
+	if qs, _ := d.frame(t)["qsbar"].(map[string]any); qs["isolateMonitors"] != true {
+		t.Fatalf("qsbar.isolateMonitors = %v, want true", qs["isolateMonitors"])
+	}
+
+	// Turn it back off.
+	if got := d.dispatch("bar set workspaces isolateMonitors off"); got != "ok" {
+		t.Fatalf("bar set isolateMonitors off: %s", got)
+	}
+	if qs, _ := d.frame(t)["qsbar"].(map[string]any); qs["isolateMonitors"] != false {
+		t.Fatalf("qsbar.isolateMonitors = %v, want false", qs["isolateMonitors"])
 	}
 }
 

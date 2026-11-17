@@ -2,7 +2,9 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -86,5 +88,34 @@ func TestHermesStatusUsesItsProviderScopedModelPick(t *testing.T) {
 	got = HermesStatus()
 	if got.Provider != "openrouter" || got.Model != "z-ai/glm-5.3" {
 		t.Fatalf("unscoped pick changed config default to %q / %q", got.Provider, got.Model)
+	}
+}
+
+// hermes prints a refusal and still exits 0, so only its success line may
+// count as a rename.
+func TestRenameHermesSession(t *testing.T) {
+	sh, err := exec.LookPath("sh")
+	if err != nil {
+		t.Skip("no sh")
+	}
+	t.Setenv("HOME", t.TempDir())
+	bin := t.TempDir()
+	argsFile := filepath.Join(bin, "args")
+	script := "#!" + sh + "\nprintf '%s\\n' \"$@\" > " + argsFile + "\n" +
+		"if [ \"$4\" = known ]; then printf \"Session '%s' renamed to: %s\\n\" \"$4\" \"$5\"; else printf \"Session '%s' not found.\\n\" \"$4\"; fi\n"
+	if err := os.WriteFile(filepath.Join(bin, "hermes"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+
+	if err := renameHermesSession("known", "-v flicker after suspend"); err != nil {
+		t.Fatalf("rename = %v", err)
+	}
+	args, _ := os.ReadFile(argsFile)
+	if got := strings.TrimSpace(string(args)); got != "sessions\nrename\n--\nknown\n-v flicker after suspend" {
+		t.Fatalf("argv = %q", got)
+	}
+	if err := renameHermesSession("gone", "x"); err == nil || !strings.Contains(err.Error(), "not found") {
+		t.Fatalf("missing session err = %v, want hermes's refusal", err)
 	}
 }

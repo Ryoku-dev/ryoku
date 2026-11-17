@@ -27,7 +27,7 @@ Item {
         anchors.right: caps.left
         anchors.rightMargin: Math.round(10 * IrisStyle.density)
         anchors.verticalCenter: parent.verticalCenter
-        text: String(root.keybindData?.label ?? root.keybindData?.desc ?? "")
+        text: Translation.tr(String(root.keybindData?.label ?? root.keybindData?.desc ?? ""))
         color: IrisStyle.text
         font.pixelSize: IrisStyle.typeLabel
         elide: Text.ElideRight

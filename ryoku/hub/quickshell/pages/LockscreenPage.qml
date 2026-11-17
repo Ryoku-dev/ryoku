@@ -29,6 +29,7 @@ Item {
     property bool loading: true
     property bool loadFailed: false
     property string pendingSlug: ""   // "" idle, else the slug being applied
+    property bool greeterPending: false   // lock already switched, sign-in screen awaits the admin prompt
     property string error: ""
     // "none installed" is a valid empty result; loadFailed is a read failure.
     // Kept apart so the page shows a Store nudge for the first and a retry for
@@ -641,11 +642,20 @@ Item {
     }
     Process {
         id: actProc
+        stdout: SplitParser {
+            onRead: line => {
+                if (line.trim() === "session-applied" && pg.pendingSlug !== "") {
+                    pg.active = pg.pendingSlug;
+                    pg.greeterPending = true;
+                }
+            }
+        }
         stderr: StdioCollector { id: actErr }
         onExited: code => {
             if (code !== 0)
                 pg.error = I18n.tr("Couldn't switch skin: %1").arg(actErr.text.trim() || ("exit " + code));
             pg.pendingSlug = "";
+            pg.greeterPending = false;
             pg.reload();
         }
     }
@@ -1038,6 +1048,13 @@ Item {
             text: pg.error
             color: Tokens.ink; font.family: Tokens.ui
             font.pixelSize: Tokens.fSmall; font.weight: Font.Medium; wrapMode: Text.WordWrap
+        }
+        Text {
+            width: Math.min(parent.width, 720)
+            visible: pg.greeterPending
+            text: I18n.tr("Your lock screen has switched. Enter your password to reskin the sign-in screen too.")
+            color: Tokens.inkMuted; font.family: Tokens.ui
+            font.pixelSize: Tokens.fSmall; wrapMode: Text.WordWrap
         }
     }
 
@@ -2011,7 +2028,7 @@ Item {
                             skin: modelData
                             ordinal: modelData.ordinal || 0
                             active: modelData.slug === pg.active
-                            busy: pg.pendingSlug === modelData.slug
+                            busy: pg.pendingSlug === modelData.slug && !pg.greeterPending
                             onApplied: pg.select(modelData)
                             onPreviewed: pg.preview(modelData.slug)
                         }

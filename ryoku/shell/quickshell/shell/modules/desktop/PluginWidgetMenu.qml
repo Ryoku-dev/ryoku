@@ -13,9 +13,9 @@ import "../stage/Singletons" as StageCfg
 // opening Settings.
 //
 // Controls are mouse-only (wallpaper layer = no keyboard):
-//   choice -> chips, toggle -> switch, slider -> slider,
+//   choice -> chips, toggle -> switch, slider -> slider, int -> stepper,
 //   image  -> thumbnail strip scanned from ~/Pictures + a file chooser.
-// Text fields are left to the hub. Each change emits
+// Text fields (and bar-only types) are left to the hub. Each change emits
 // settingChanged(id, key, value); the host persists via ryoku-plugins-place
 // and the shell retunes live.
 Item {
@@ -38,6 +38,7 @@ Item {
 
     readonly property var schema: (manifest && manifest.metadata && manifest.metadata.settings) || []
     readonly property bool hasImage: schema.some(function (f) { return f.type === "image"; })
+    readonly property bool hasShownFields: schema.some(function (f) { return menu.renders(f); })
 
     // host-chrome (placement) values shown as menu controls: size and opacity
     // live in the tile's desktopWidget block, not the plugin's settings schema,
@@ -83,6 +84,26 @@ Item {
             picScan.running = true;
     }
     function close() { shell.open = false; }
+
+    readonly property var menuTypes: ["choice", "toggle", "slider", "int", "image"]
+    function renders(field) {
+        return !!field && menu.menuTypes.indexOf(field.type) >= 0;
+    }
+    // the eyebrow rides the first drawn field, so a hub-only group shows no empty header
+    function opensGroup(index) {
+        const f = menu.schema[index];
+        if (!menu.renders(f))
+            return false;
+        const grp = f.group || "";
+        for (let i = index - 1; i >= 0; i--) {
+            const prev = menu.schema[i];
+            if ((prev.group || "") !== grp)
+                return true;
+            if (menu.renders(prev))
+                return false;
+        }
+        return true;
+    }
 
     function val(field) {
         return (menu.vals && menu.vals[field.key] !== undefined) ? menu.vals[field.key] : field.default;
@@ -131,7 +152,7 @@ Item {
         id: shell
         title: (menu.manifest && menu.manifest.name) ? menu.manifest.name : menu.scope
         gloss: "部品"
-        cardWidth: menu.schema.length > 0 ? 300 : 248
+        cardWidth: menu.hasShownFields ? 300 : 248
 
         MenuRow {
             label: I18n.tr("Lock")
@@ -224,7 +245,7 @@ Item {
 
         // ── settings, rendered from the plugin's schema ────────────────
         Column {
-            visible: menu.schema.length > 0
+            visible: menu.hasShownFields
             width: parent.width
             spacing: Theme.s3
 
@@ -242,10 +263,9 @@ Item {
 
                     readonly property var f: fieldWrap.modelData
                     readonly property string grp: fieldWrap.f.group || ""
-                    readonly property bool startsGroup: fieldWrap.index === 0
-                        || ((menu.schema[fieldWrap.index - 1].group || "") !== fieldWrap.grp)
+                    readonly property bool startsGroup: menu.opensGroup(fieldWrap.index)
                     // no keyboard on the wallpaper layer -- text fields live in the hub.
-                    readonly property bool shown: fieldWrap.f.type !== "text"
+                    readonly property bool shown: menu.renders(fieldWrap.f)
 
                     visible: fieldWrap.shown
 
@@ -319,6 +339,63 @@ Item {
                             }
                             TapHandler { onTapped: menu.set(fieldWrap.f.key, !sw.on) }
                             HoverHandler { cursorShape: Qt.PointingHandCursor }
+                        }
+                    }
+
+                    // int -> stepper, the bar's control, clamped to min/max.
+                    Item {
+                        id: intRow
+                        visible: fieldWrap.f.type === "int"
+                        width: parent.width
+                        height: Theme.ctlH
+                        readonly property real lo: fieldWrap.f.min !== undefined ? Number(fieldWrap.f.min) : -Infinity
+                        readonly property real hi: fieldWrap.f.max !== undefined ? Number(fieldWrap.f.max) : Infinity
+                        readonly property real stepBy: fieldWrap.f.step > 0 ? Number(fieldWrap.f.step) : 1
+                        readonly property real cur: {
+                            const v = Math.round(Number(menu.val(fieldWrap.f)));
+                            return isNaN(v) ? (isFinite(intRow.lo) ? intRow.lo : 0) : v;
+                        }
+                        function bump(dir) {
+                            const next = Math.max(intRow.lo, Math.min(intRow.hi, intRow.cur + dir * intRow.stepBy));
+                            if (next !== intRow.cur)
+                                menu.set(fieldWrap.f.key, next);
+                        }
+                        Text {
+                            anchors { left: parent.left; right: intCtl.left; rightMargin: Theme.s3; verticalCenter: parent.verticalCenter }
+                            elide: Text.ElideRight
+                            text: fieldWrap.f.label || fieldWrap.f.key
+                            color: Theme.inkSoft
+                            font.family: Theme.font
+                            font.pixelSize: Theme.fSmall
+                            font.weight: Font.Medium
+                        }
+                        Row {
+                            id: intCtl
+                            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                            spacing: Theme.s1
+                            MenuChip {
+                                width: 26
+                                label: "−"
+                                opacity: intRow.cur > intRow.lo ? 1 : 0.38
+                                onClicked: intRow.bump(-1)
+                            }
+                            Text {
+                                width: 42
+                                height: 26
+                                verticalAlignment: Text.AlignVCenter
+                                horizontalAlignment: Text.AlignHCenter
+                                text: String(intRow.cur)
+                                color: Theme.inkDim
+                                font.family: Theme.mono
+                                font.pixelSize: Theme.fMicro
+                                font.weight: Font.Medium
+                            }
+                            MenuChip {
+                                width: 26
+                                label: "+"
+                                opacity: intRow.cur < intRow.hi ? 1 : 0.38
+                                onClicked: intRow.bump(1)
+                            }
                         }
                     }
 

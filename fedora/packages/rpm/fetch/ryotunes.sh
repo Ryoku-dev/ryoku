@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo=Ryoku-dev/ryotunes
-api=${RYOKU_GITHUB_API:-https://api.github.com}
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../../.." && pwd)
 download=${RYOKU_GITHUB_DL:-https://github.com}
 sources=${RYOKU_FETCH_SOURCES:?RYOKU_FETCH_SOURCES is required}
 
@@ -19,22 +19,12 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$sources"
 
-auth=()
-token=${GH_TOKEN:-${GITHUB_TOKEN:-}}
-[[ -z $token ]] || auth=(-H "Authorization: Bearer $token")
-release=$(curl -fsSL --retry 3 \
-  -H 'Accept: application/vnd.github+json' \
-  -H 'User-Agent: ryoku-fedora-source-fetch' \
-  "${auth[@]}" "$api/repos/$repo/releases/latest") \
-  || die "could not resolve the latest $repo release"
-
-[[ $(jq -r '.draft' <<<"$release") == false ]] \
-  || die 'latest release is a draft'
-[[ $(jq -r '.prerelease' <<<"$release") == false ]] \
-  || die 'latest release is a prerelease'
+# GitHub's "latest" can be a Ryotunes 2 build, which never belongs on this line
+release=$(RYOKU_RYOTUNES_REPO=$repo bash "$root/release/repo/resolve-ryotunes-release.sh") \
+  || die "could not resolve the newest $repo 1.x release"
 tag=$(jq -r '.tag_name // empty' <<<"$release")
-[[ $tag =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] \
-  || die "latest release tag '$tag' is not vX.Y.Z"
+[[ $tag =~ ^v1\.[0-9]+\.[0-9]+$ ]] \
+  || die "release tag '$tag' is not v1.Y.Z"
 version=${tag#v}
 archive="ryotunes-$version.tar.gz"
 sidecar="$archive.sha256"

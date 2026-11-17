@@ -20,11 +20,12 @@
 pkgname=ryoku-keysounds
 pkgver=${RYOKU_PKGVER:-0.1.0}
 pkgrel=1
+epoch=1
 pkgdesc="Hyprland plugin: a keyboard sound on every key press, real switch recordings"
 arch=('x86_64')
 url="https://ryoku.dev"
 license=('GPL-3.0-or-later')
-depends=('hyprland' 'libcanberra' "ryoku-keysounds-profiles=$pkgver")
+depends=('hyprland' 'libcanberra' "ryoku-keysounds-profiles=$epoch:$pkgver")
 makedepends=('hyprland' 'pkgconf' 'make' 'gcc' 'libcanberra' 'pixman' 'libdrm')
 source=()
 

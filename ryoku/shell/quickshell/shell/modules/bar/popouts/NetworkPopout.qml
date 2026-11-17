@@ -102,11 +102,18 @@ Item {
                 best[key] = ap;
         }
         const out = [];
-        for (const k in best)
-            out.push(best[k]);
+        for (const k in best) {
+            const ap = best[k];
+            // NetworkManager saves a profile as a first join starts; until the
+            // join settles the row stays unsaved, so it neither moves lists nor
+            // loses its password field
+            out.push(root.joining[ap.ssid] ? Object.assign({}, ap, { saved: false }) : ap);
+        }
         out.sort((x, y) => (y.strength || 0) - (x.strength || 0));
         return out;
     }
+    readonly property var savedNets: root.availableNets.filter(n => !!n.saved)
+    readonly property var otherNets: root.availableNets.filter(n => !n.saved)
 
     // SSIDs seen on more than one band in the scan: a row shows its band chip
     // only for these, so single-band networks read exactly as before. Counted
@@ -163,40 +170,123 @@ Item {
 
     PopoutCard { anchors.fill: parent }
 
+    // Row state is kept here, keyed by SSID and band (one row each): the list
+    // is rebuilt from a fresh array on every network frame, which destroyed a
+    // row mid-join along with its field, its pending reply and its error.
+    property var rowState: ({})
+    property var pendingJoins: ({})
+    property var joining: ({})
+    readonly property var pwDrafts: ({})
+    property string focusKey: ""
+    property bool heroOpen: false
+    property bool heroConfirm: false
+    onActiveSsidChanged: {
+        root.heroOpen = false;
+        root.heroConfirm = false;
+    }
+
+    function rowKey(ap) { return ap.ssid + "\u0000" + (ap.band || ""); }
+    function st(key) { return root.rowState[key] || ({}); }
+    function setSt(key, patch) {
+        const m = Object.assign({}, root.rowState);
+        m[key] = Object.assign({}, m[key] || ({}), patch);
+        root.rowState = m;
+    }
+    function toggleExpanded(key) {
+        const open = !root.st(key).expanded;
+        root.setSt(key, { expanded: open });
+        if (open)
+            root.focusKey = key;
+    }
+    function setJoining(ssid, on) {
+        const m = Object.assign({}, root.joining);
+        if (on)
+            m[ssid] = true;
+        else
+            delete m[ssid];
+        root.joining = m;
+    }
+    function join(ap, pw) {
+        const key = root.rowKey(ap);
+        root.setSt(key, { connecting: true, error: false });
+        if (!ap.saved)
+            root.setJoining(ap.ssid, true);
+        const id = Network.connectWifi(ap.ssid, pw, ap.bssid);
+        root.pendingJoins[id] = { ssid: ap.ssid, key: key };
+    }
+    function forget(ssid) {
+        const m = Object.assign({}, root.rowState);
+        for (const k in m) {
+            if (k.split("\u0000")[0] !== ssid)
+                continue;
+            m[k] = Object.assign({}, m[k], { expanded: false, reprompt: false, error: false, connecting: false });
+            root.pwDrafts[k] = "";
+        }
+        root.rowState = m;
+        Network.forgetWifi(ssid);
+    }
+    Connections {
+        target: Network
+        function onReplied(id, ok, error) {
+            const j = root.pendingJoins[id];
+            if (!j)
+                return;
+            delete root.pendingJoins[id];
+            root.setJoining(j.ssid, false);
+            root.pwDrafts[j.key] = "";
+            // pwEpoch tells the row to empty its field, so a failed password is
+            // never left for the next attempt to be typed onto
+            const epoch = (root.st(j.key).pwEpoch || 0) + 1;
+            if (ok) {
+                root.setSt(j.key, { connecting: false, expanded: false, error: false, reprompt: false, pwEpoch: epoch });
+            } else {
+                // ask for the password again, also when the network reads as
+                // saved: a stored secret failed, or a failed first join left
+                // its profile behind
+                root.setSt(j.key, { connecting: false, expanded: true, error: true,
+                    reprompt: true, pwEpoch: epoch });
+                root.focusKey = j.key;
+            }
+        }
+    }
+
     // an available-network row: signal + SSID (+ lock), tap to join or, when a
     // password is needed, expand an inline field.
     component ApRow: Column {
         id: apr
         required property var ap
-        property bool expanded: false
-        property bool connecting: false
-        property bool errorShown: false
-        property int pendingId: -1
+        readonly property string key: root.rowKey(apr.ap)
+        readonly property var rs: root.st(apr.key)
+        readonly property bool expanded: !!apr.rs.expanded
+        readonly property bool connecting: !!apr.rs.connecting
+        readonly property bool errorShown: !!apr.rs.error
         readonly property bool sec: root.secured(apr.ap)
-        readonly property bool needsPw: apr.sec && !apr.ap.saved
+        readonly property bool reprompt: !!apr.rs.reprompt
+        readonly property bool needsPw: apr.sec && (!apr.ap.saved || apr.reprompt)
+        property int seenEpoch: 0
 
         width: parent ? parent.width : 0
         spacing: 4 * root.s
 
         function doConnect() {
-            apr.errorShown = false;
-            apr.connecting = true;
-            apr.pendingId = Network.connectWifi(apr.ap.ssid, apr.needsPw ? pwField.text : "", apr.ap.bssid);
+            root.join(apr.ap, apr.needsPw ? pwField.text : "");
         }
-        Connections {
-            target: Network
-            function onReplied(id, ok, error) {
-                if (id !== apr.pendingId)
-                    return;
-                apr.connecting = false;
-                apr.pendingId = -1;
-                if (ok) {
-                    apr.expanded = false;
-                    pwField.text = "";
-                } else {
-                    apr.errorShown = true;
-                    pwField.text = "";
-                }
+        function focusField() {
+            if (apr.expanded && apr.needsPw && root.focusKey === apr.key)
+                pwField.forceActiveFocus();
+        }
+        Component.onCompleted: {
+            apr.seenEpoch = apr.rs.pwEpoch || 0;
+            pwField.text = root.pwDrafts[apr.key] || "";
+            apr.focusField();
+        }
+        onExpandedChanged: apr.focusField()
+        onRsChanged: {
+            const e = apr.rs.pwEpoch || 0;
+            if (e !== apr.seenEpoch) {
+                apr.seenEpoch = e;
+                pwField.text = "";
+                apr.focusField();
             }
         }
 
@@ -239,7 +329,7 @@ Item {
             Row {
                 id: apMeta
                 anchors.right: parent.right
-                anchors.rightMargin: 8 * root.s
+                anchors.rightMargin: (apr.ap.saved ? 30 : 8) * root.s
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 5 * root.s
                 Text {
@@ -272,24 +362,49 @@ Item {
                 id: apTap
                 anchors.fill: parent
                 onClicked: {
-                    if (apr.needsPw) {
-                        apr.expanded = !apr.expanded;
-                        if (apr.expanded)
-                            pwField.forceActiveFocus();
-                    } else {
+                    if (apr.needsPw)
+                        root.toggleExpanded(apr.key);
+                    else
                         apr.doConnect();
-                    }
+                }
+            }
+            // a saved row's drawer holds Forget; above the row's tap area
+            Rectangle {
+                visible: apr.ap.saved
+                z: 2
+                anchors.right: parent.right
+                anchors.rightMargin: 3 * root.s
+                anchors.verticalCenter: parent.verticalCenter
+                width: 24 * root.s
+                height: 20 * root.s
+                radius: 3 * root.s
+                color: optMa.containsMouse || apr.expanded ? Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.14) : "transparent"
+                Text {
+                    anchors.centerIn: parent
+                    text: "\u22EF"
+                    color: root.ink
+                    font.family: Theme.fontPrimary
+                    font.pixelSize: 14 * root.s
+                }
+                MouseArea {
+                    id: optMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.toggleExpanded(apr.key)
                 }
             }
         }
 
-        // inline password (secured, unsaved).
+        // the drawer: the password (secured and unsaved, or saved with a failed
+        // password) and, for a saved network, Forget
         Column {
             width: parent.width
             spacing: 4 * root.s
-            visible: apr.needsPw && apr.expanded
+            visible: apr.expanded && (apr.needsPw || apr.ap.saved)
 
             Rectangle {
+                visible: apr.needsPw
                 width: parent.width
                 height: 26 * root.s
                 radius: 3 * root.s
@@ -308,6 +423,7 @@ Item {
                     font.pixelSize: 11 * root.s
                     echoMode: eye.show ? TextInput.Normal : TextInput.Password
                     clip: true
+                    onTextEdited: root.pwDrafts[apr.key] = text
                     onAccepted: apr.doConnect()
                     Text {
                         anchors.fill: parent
@@ -335,18 +451,33 @@ Item {
             Text {
                 width: parent.width
                 visible: apr.errorShown
-                text: I18n.tr("Wrong password or connection failed")
+                text: apr.ap.saved
+                    ? I18n.tr("Wrong password, or a different network with the same name?")
+                    : I18n.tr("Wrong password or connection failed")
                 color: Theme.error
                 wrapMode: Text.WordWrap
                 font.family: Theme.fontPrimary
                 font.pixelSize: 9.5 * root.s
             }
             PopoutAction {
+                visible: apr.needsPw
                 width: parent.width
                 s: root.s
                 enabled: !apr.connecting
                 label: apr.connecting ? I18n.tr("Connecting…") : I18n.tr("Connect")
                 onClicked: apr.doConnect()
+            }
+            PopoutAction {
+                visible: apr.ap.saved
+                width: parent.width
+                s: root.s
+                destructive: true
+                enabled: !apr.connecting
+                label: I18n.tr("Forget network")
+                onClicked: {
+                    pwField.text = "";
+                    root.forget(apr.ap.ssid);
+                }
             }
         }
     }
@@ -451,9 +582,37 @@ Item {
                     color: (root.wiredUp || root.wifiUp) ? root.ink : root.inkDim
                 }
             }
+            Rectangle {
+                id: heroOpt
+                visible: root.wifiUp
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                width: 22 * root.s
+                height: 22 * root.s
+                radius: 3 * root.s
+                color: heroOptMa.containsMouse || root.heroOpen ? Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.14) : "transparent"
+                Text {
+                    anchors.centerIn: parent
+                    text: "\u22EF"
+                    color: root.ink
+                    font.family: Theme.fontPrimary
+                    font.pixelSize: 14 * root.s
+                }
+                MouseArea {
+                    id: heroOptMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        root.heroOpen = !root.heroOpen;
+                        root.heroConfirm = false;
+                    }
+                }
+            }
             PopoutAction {
                 id: disc
-                anchors.right: parent.right
+                anchors.right: heroOpt.visible ? heroOpt.left : parent.right
+                anchors.rightMargin: heroOpt.visible ? 4 * root.s : 0
                 anchors.verticalCenter: parent.verticalCenter
                 visible: root.wifiUp
                 s: root.s
@@ -497,12 +656,59 @@ Item {
                 }
             }
         }
+        // forgetting the network you are on also disconnects, so it is armed
+        // by a first press
+        PopoutAction {
+            width: parent.width
+            visible: root.wifiUp && root.heroOpen
+            s: root.s
+            destructive: true
+            label: root.heroConfirm ? I18n.tr("Press again to forget %1").arg(root.activeSsid) : I18n.tr("Forget network")
+            onClicked: {
+                if (!root.heroConfirm) {
+                    root.heroConfirm = true;
+                    heroDisarm.restart();
+                    return;
+                }
+                root.heroConfirm = false;
+                root.heroOpen = false;
+                root.forget(root.activeSsid);
+            }
+            Timer {
+                id: heroDisarm
+                interval: 3000
+                onTriggered: root.heroConfirm = false
+            }
+        }
 
-        // available networks.
+        // saved networks in range, then the rest
+        Text {
+            width: parent.width
+            visible: root.wifiOn && root.savedNets.length > 0
+            text: I18n.tr("SAVED")
+            color: root.inkDim
+            font.family: Theme.mono
+            font.pixelSize: 8.5 * root.s
+            font.letterSpacing: 1.5
+        }
+        Column {
+            width: parent.width
+            spacing: 5 * root.s
+            visible: root.wifiOn && root.savedNets.length > 0
+            Repeater {
+                model: root.savedNets
+                delegate: ApRow {
+                    required property var modelData
+                    ap: modelData
+                }
+            }
+        }
         Text {
             width: parent.width
             visible: root.wifiOn
-            text: root.scanning ? I18n.tr("NETWORKS · SCANNING") : I18n.tr("NETWORKS")
+            text: root.savedNets.length > 0
+                ? (root.scanning ? I18n.tr("OTHER NETWORKS · SCANNING") : I18n.tr("OTHER NETWORKS"))
+                : (root.scanning ? I18n.tr("NETWORKS · SCANNING") : I18n.tr("NETWORKS"))
             color: root.inkDim
             font.family: Theme.mono
             font.pixelSize: 8.5 * root.s
@@ -513,7 +719,7 @@ Item {
             spacing: 5 * root.s
             visible: root.wifiOn
             Repeater {
-                model: root.availableNets
+                model: root.otherNets
                 delegate: ApRow {
                     required property var modelData
                     ap: modelData

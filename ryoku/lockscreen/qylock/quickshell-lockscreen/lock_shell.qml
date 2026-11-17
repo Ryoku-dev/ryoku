@@ -87,6 +87,12 @@ ShellRoot {
         }
     }
 
+    // a surface created after the reveal (an output that came back) would stay hidden
+    function revealLateSurface() {
+        if (surfaceAnnounced && lockSecure)
+            sddmShim.sddm.surfaceRevealed()
+    }
+
     function recoverUnlock(showFailure) {
         quitTimer.stop()
         authenticated = false
@@ -250,6 +256,8 @@ ShellRoot {
                 if (item.clockLocale !== undefined)
                     item.clockLocale = Qt.binding(() => TimeFormat.locale);
                 Qt.callLater(() => forceActiveFocus(Qt.OtherFocusReason));
+                if (shellRoot.surfaceAnnounced)
+                    Qt.callLater(shellRoot.revealLateSurface);
             }
             onStatusChanged: {
                 if (status === Loader.Error) {
@@ -387,6 +395,11 @@ ShellRoot {
                             focus: true
                             sourceComponent: themeComponent
                             onLoaded: lockSurface.focusTheme()
+                            // keyboards that return after a paused session never reactivate the window
+                            onActiveFocusChanged: {
+                                if (!activeFocus)
+                                    lockSurface.focusTheme();
+                            }
                         }
                         Loader {
                             anchors.fill: parent

@@ -41,7 +41,7 @@ Item {
             Image {
                 id: cover
                 anchors.fill: parent
-                source: root.player ? (root.player.trackArtUrl || "") : ""
+                source: Music.coverFor(root.player)
                 sourceSize.width: Math.round(parent.width * 2)
                 sourceSize.height: Math.round(parent.height * 2)
                 fillMode: Image.PreserveAspectCrop

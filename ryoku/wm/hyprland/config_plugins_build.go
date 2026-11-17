@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -264,6 +266,46 @@ func runBuildSteps(dir string, steps []string, log io.Writer) error {
 	return nil
 }
 
+// pristineSource drops what an earlier build left in a plugin's tree: upstream
+// Makefiles track no header dependency, so old objects would just be relinked.
+func pristineSource(dir, output string, log io.Writer) error {
+	if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+		if err := gitRun(dir, log, "clean", "-ffdxq"); err != nil {
+			return fmt.Errorf("git clean %s: %w", dir, err)
+		}
+		if fileExists(filepath.Join(dir, ".gitmodules")) {
+			_ = gitRun(dir, log, "submodule", "foreach", "--quiet", "--recursive", "git", "clean", "-ffdxq")
+		}
+		return nil
+	}
+	if output != "" {
+		if err := os.Remove(filepath.Join(dir, output)); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return filepath.Walk(dir, func(p string, fi os.FileInfo, err error) error {
+		if err != nil || fi.IsDir() || !strings.HasSuffix(p, ".o") {
+			return err
+		}
+		return os.Remove(p)
+	})
+}
+
+var commitLiteralRe = regexp.MustCompile(`(?:^|[^0-9a-f])([0-9a-f]{40})(?:[^0-9a-f]|$)`)
+
+// foreignHyprland names the Hyprland commit baked into a plugin .so when it is
+// not the given one ("" when it matches or the .so names no commit at all).
+func foreignHyprland(so, commit string) string {
+	b, err := os.ReadFile(so)
+	if err != nil || commit == "" || bytes.Contains(b, []byte(commit)) {
+		return ""
+	}
+	if m := commitLiteralRe.FindSubmatch(b); m != nil {
+		return string(m[1])
+	}
+	return ""
+}
+
 // installSo lays a built .so into the user tier with its .abi receipt, to a fresh
 // inode: truncating a .so the running compositor has mapped crashes it.
 func installSo(built, id string, abi hyprABI) (string, error) {
@@ -384,11 +426,20 @@ func buildPlugins(jobs []buildJob, checkout string, log io.Writer) buildResult {
 			res.Failed[d.ID] = fmt.Sprintf("hyprpm.toml has no [%s]", d.Plugin)
 			continue
 		}
+		if err := pristineSource(dir, p.Output, log); err != nil {
+			res.Failed[d.ID] = err.Error()
+			continue
+		}
 		if err := runBuildSteps(dir, p.Build, log); err != nil {
 			res.Failed[d.ID] = err.Error()
 			continue
 		}
-		so, err := installSo(filepath.Join(dir, p.Output), d.ID, hdr)
+		built := filepath.Join(dir, p.Output)
+		if other := foreignHyprland(built, hdr.Commit); other != "" {
+			res.Failed[d.ID] = fmt.Sprintf("the build came out for Hyprland %s, not the installed %s; kept the old copy", shortCommit(other), shortCommit(hdr.Commit))
+			continue
+		}
+		so, err := installSo(built, d.ID, hdr)
 		if err != nil {
 			res.Failed[d.ID] = err.Error()
 			continue
@@ -441,7 +492,7 @@ func repoDirFor(url string, fetched map[string]string, log io.Writer) (string, e
 func needsBuild(d pluginDef, hdr hyprABI, checkout string) (bool, string) {
 	copies := pluginCopies(d.ID)
 	for _, c := range copies {
-		if c.Tier == "hyprpm" || !c.ABI.ok() || c.ABI != hdr {
+		if c.Tier == "hyprpm" || !c.ABI.ok() || c.ABI != hdr || foreignHyprland(c.Path, hdr.Commit) != "" {
 			continue
 		}
 		if d.Local != "" && c.Tier == "built" {

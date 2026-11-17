@@ -30,11 +30,29 @@ grep -qE '^for service in .*\biwd\b' "$live_setup" || fail "post-setup.sh does n
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/bin" "$work/systemd"
+# Stopping iwd deletes the interfaces it made the way the kernel does, after
+# the stop returns and one radio at a time: phy1 at once, phy2 half a second
+# later. phy0's interface is not iwd's and stays; phy3 had none to begin with.
 cat >"$work/bin/ryoku-host" <<'EOF'
 #!/usr/bin/env bash
 printf 'ryoku-host %s\n' "$*" >>"$RYOKU_TEST_LOG"
+if [[ $* == "svc --system stop iwd" ]]; then
+  rm -rf "$RYOKU_TEST_PHYS/phy1/device/net/wlan1"
+  (sleep 0.5; rm -rf "$RYOKU_TEST_PHYS/phy2/device/net/wlan2") &
+fi
 EOF
 chmod +x "$work/bin/ryoku-host"
+cat >"$work/bin/iw" <<'EOF'
+#!/usr/bin/env bash
+printf 'iw %s\n' "$*" >>"$RYOKU_TEST_LOG"
+EOF
+chmod +x "$work/bin/iw"
+reset_phys() {
+  rm -rf "$work/phys"
+  mkdir -p "$work/phys/phy0/device/net/wlan0" "$work/phys/phy1/device/net/wlan1" \
+    "$work/phys/phy2/device/net/wlan2" "$work/phys/phy3/device/net"
+}
+reset_phys
 
 run_helper() {
   : >"$work/log"
@@ -43,7 +61,10 @@ run_helper() {
   RYOKU_WIFI_IWD_STATE="$work/state/wifi-iwd.enabled" \
   RYOKU_WIFI_BACKEND_HOST="$work/bin/ryoku-host" \
   RYOKU_WIFI_BACKEND_SYSTEMD_DIR="$1" \
+  RYOKU_WIFI_BACKEND_PHYS="$work/phys" \
+  RYOKU_WIFI_BACKEND_IW="$work/bin/iw" \
   RYOKU_TEST_LOG="$work/log" \
+  RYOKU_TEST_PHYS="$work/phys" \
     "$helper" "$2"
 }
 
@@ -57,6 +78,11 @@ logged "ryoku-host svc reconcile --system" || fail "no reconcile after switching
 logged "ryoku-host svc --system stop iwd" || fail "iwd not stopped when leaving it"
 logged "ryoku-host svc --system restart NetworkManager" || fail "NetworkManager not restarted"
 ! logged "ryoku-host svc --system start iwd" || fail "iwd started while switching away from it"
+# leaving iwd restores every radio iwd left bare, the late one too, and only those
+logged "iw phy phy1 interface add wlan1 type managed" || fail "no interface restored for a bare radio after leaving iwd"
+logged "iw phy phy2 interface add wlan2 type managed" || fail "a radio iwd left bare late was not restored"
+! logged "iw phy phy0 interface add wlan0 type managed" || fail "interface added to a radio that still has one"
+! logged "iw phy phy3 interface add wlan3 type managed" || fail "a radio that had no interface before was touched"
 [[ $(run_helper "$work/absent" get) == wpa_supplicant ]] || fail "get does not read the pinned wpa_supplicant"
 
 # runit: switching back to iwd records the marker, reconciles, and raises iwd.
@@ -65,6 +91,7 @@ run_helper "$work/absent" iwd
 logged "ryoku-host svc reconcile --system" || fail "no reconcile after switching to iwd"
 logged "ryoku-host svc --system stop wpa_supplicant" || fail "wpa_supplicant not stopped when leaving it"
 logged "ryoku-host svc --system start iwd" || fail "iwd not started under runit"
+! grep -q '^iw ' "$work/log" || fail "interfaces touched while switching to iwd"
 [[ $(run_helper "$work/absent" get) == iwd ]] || fail "get does not read the pinned iwd"
 
 # systemd: NetworkManager activates iwd itself; no marker, no reconcile, no start.

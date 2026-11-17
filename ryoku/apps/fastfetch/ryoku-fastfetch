@@ -55,7 +55,7 @@ effective="$config"
 # config verbatim in fixed mode and rebuilds it tinted with the live Material
 # palette in wallpaper mode. Always run it; fall back to the raw config if the
 # backend is missing or errors, so a broken theme path never eats the readout.
-cache="${XDG_CACHE_HOME:-$HOME/.cache}/ryoku/fastfetch-effective.json"
+cache="${XDG_CACHE_HOME:-$HOME/.cache}/ryoku/fastfetch-effective.jsonc"
 if ryoku-hub fastfetch effective "$cache" 2>/dev/null; then
   effective="$cache"
 fi

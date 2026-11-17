@@ -2,6 +2,7 @@ package doctor
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -133,6 +134,9 @@ func ryotunesUpdateNote() (recResult, bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 	st, err := ryotunesrelease.Check(ctx)
+	if errors.Is(err, ryotunesrelease.ErrNoRelease) {
+		return noteRes(i18n.T("no Ryotunes 1.x release is published; keeping Ryotunes %s"), st.Installed), true
+	}
 	if err != nil {
 		return noteRes(i18n.T("could not check Ryotunes releases: %v"), err), true
 	}

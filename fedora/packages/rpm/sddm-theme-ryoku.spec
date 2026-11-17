@@ -1,5 +1,6 @@
 Name:           sddm-theme-ryoku
 Version:        0.1
+Epoch:          1
 Release:        1%{?dist}
 Summary:        Ryoku SDDM greeter directory and the Qt modules its skins need
 License:        GPL-3.0-or-later

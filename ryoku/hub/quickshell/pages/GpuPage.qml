@@ -31,6 +31,7 @@ Item {
     property string mode: "hybrid"
     property bool performanceAvailable: true
     property string performanceReason: ""
+    property string performanceRoute: ""
     readonly property var modeOptions: GpuSchema.graphicsModeOptions(pg.performanceAvailable)
     property string planText: ""
     property bool planning: false
@@ -297,9 +298,11 @@ Item {
                     pg.mode = status.mode || "hybrid";
                     pg.performanceAvailable = status.performance_available !== false;
                     pg.performanceReason = status.performance_reason || "";
+                    pg.performanceRoute = status.performance_route || "";
                 } catch (e) {
                     pg.performanceAvailable = true;
                     pg.performanceReason = "";
+                    pg.performanceRoute = "";
                 }
             }
         }
@@ -682,13 +685,15 @@ done
                     }
 
                     Text {
-                        visible: !pg.performanceAvailable
+                        visible: !pg.performanceAvailable || pg.performanceRoute === "external"
                         width: parent.width
                         leftPadding: Tokens.s4; rightPadding: Tokens.s4
                         topPadding: Tokens.s2
                         wrapMode: Text.WordWrap
-                        text: I18n.tr("Performance unavailable. %1").arg(
-                            I18n.tr(pg.performanceReason || "Switch the laptop's graphics MUX to discrete first."))
+                        text: pg.performanceAvailable
+                            ? I18n.tr("Performance renders on %1 only when a monitor is plugged into one of its ports at login; otherwise the built-in GPU keeps rendering. While it renders, the built-in screen can stay dark after login or sleep.").arg(pg.dgpuName)
+                            : I18n.tr("Performance unavailable. %1").arg(
+                                I18n.tr(pg.performanceReason || "Switch the laptop's graphics MUX to discrete first."))
                         color: Tokens.inkFaint; font.family: Tokens.ui; font.pixelSize: Tokens.fSmall
                     }
 

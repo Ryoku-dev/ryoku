@@ -18,6 +18,7 @@
 pkgname=ryoku-desktop-wayfire
 pkgver=${RYOKU_PKGVER:-0.1.0}
 pkgrel=1
+epoch=1
 pkgdesc="Ryoku desktop: Wayfire, Ryoku window decoration, depthdeck and the ryoku-wm-wayfire provider"
 # The Go provider and two native plugins make the payload arch-specific.
 arch=('x86_64')
@@ -25,7 +26,7 @@ url="https://ryoku.dev"
 license=('GPL-3.0-or-later')
 makedepends=('go' 'meson' 'ninja' 'pkgconf' 'git')
 depends=(
-  "ryoku-desktop=$pkgver"
+  "ryoku-desktop=$epoch:$pkgver"
   # compositor + Wayland session (ships /usr/share/wayland-sessions/wayfire.desktop)
   'wayfire'
   # wayfire manages XWayland but does not pull the server: without

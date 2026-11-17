@@ -24,7 +24,7 @@ Popout {
     readonly property var player: Media.player
     readonly property bool present: Media.present
     readonly property bool playing: Media.playing
-    readonly property string artUrl: root.player ? (root.player.trackArtUrl || "") : ""
+    readonly property string artUrl: Music.coverFor(root.player)
     readonly property bool seekable: root.present && !Media.radio && root.player !== null && root.player.length > 0
     readonly property real posn: root.player ? root.player.position : 0
     readonly property real len: root.seekable ? root.player.length : 0
@@ -146,7 +146,7 @@ Popout {
                     Image {
                         id: art
                         anchors.fill: parent
-                        source: Music.artUrl.length > 0 ? Music.artUrl : root.artUrl
+                        source: root.artUrl
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
                         cache: true

@@ -371,6 +371,9 @@ EOF
   # seeds a fresh install straight from the repo. the chmod below covers it.
   install -d "$pkgdir/usr/share/ryoku/ryodecors"
   cp -a "$_repo/ryoku/assets/ryodecors/." "$pkgdir/usr/share/ryoku/ryodecors/"
+  install -d "$pkgdir/usr/share/ryoku/brand"
+  cp -a "$_repo/ryoku/assets/brand/." "$pkgdir/usr/share/ryoku/brand/"
+  install -Dm644 "$_repo/ryoku/apps/npm/npmrc" "$pkgdir/usr/share/ryoku/npmrc"
 
   # packaged rices are immutable source looks; the Hub copies one into the
   # user's rice library on first apply so later edits stay user-owned.

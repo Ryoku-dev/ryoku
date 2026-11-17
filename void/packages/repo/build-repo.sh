@@ -7,7 +7,7 @@ SRCPKGS=$ROOT/void/packages/srcpkgs
 WORK=${RYOKU_XBPS_WORK:-${TMPDIR:-/tmp}/ryoku-xbps-$UID}
 OUT=${RYOKU_XBPS_OUT:-$SCRIPT_DIR/out}
 ARCH=${RYOKU_XBPS_ARCH:-x86_64}
-VOID_PACKAGES_REF=${RYOKU_VOID_PACKAGES_REF:-7023eba97f43b92c4d36e830677d27ab33e2d4ae}
+VOID_PACKAGES_REF=${RYOKU_VOID_PACKAGES_REF:-7860eca545b73e612b83c8eed43b57741ef5b0fb}
 VOID_PACKAGES_URL=${RYOKU_VOID_PACKAGES_URL:-https://github.com/void-linux/void-packages.git}
 KEY=${RYOKU_XBPS_KEY:-}
 KEYRING_DIR=${RYOKU_XBPS_KEYRING_DIR:-}
@@ -46,6 +46,11 @@ VERSION=${raw_version//-/.}
 VERSION=${VERSION//_/.}
 [[ $VERSION =~ ^[0-9][A-Za-z0-9.]*$ ]] \
 	|| die "version '$raw_version' cannot be made into an XBPS version"
+# XBPS has no epoch, so the monorepo packages revert every ancestor's version
+# above this one (the 1.1-1.11 testing builds before VERSION named the release)
+REVERTS=${RYOKU_XBPS_REVERTS-$("$ROOT/bin/ryoku-release-version" --superseded)}
+REVERTS=$(tr -s '[:space:]' '\n' <<<"$REVERTS" | sort -u | tr '\n' ' ')
+[[ $REVERTS =~ ^[0-9A-Za-z.[:space:]]*$ ]] || die "invalid superseded versions: $REVERTS"
 
 prepared_archive=
 if [[ -z $SOURCE_ARCHIVE && ${RYOKU_XBPS_WORKTREE:-0} == 1 ]]; then
@@ -202,9 +207,19 @@ for pkg in "${all_packages[@]}"; do
 	template=${template_for[$pkg]}
 	if grep -qF 'https://repo.ryoku.dev/sources/ryoku-${version}.tar.gz' "$template"; then
 		stamped=$VP/srcpkgs/$pkg/template
-		awk -v version="$VERSION" -v checksum="$archive_sha" '
+		awk -v version="$VERSION" -v checksum="$archive_sha" -v reverts="$REVERTS" '
 			!version_done && /^version=/ { print "version=" version; version_done=1; next }
 			!checksum_done && /^checksum=/ { print "checksum=" checksum; checksum_done=1; next }
+			!revision_done && /^revision=/ {
+				print
+				revision_done=1
+				n = split(reverts, old, " ")
+				if (n == 0) next
+				line = ""
+				for (i = 1; i <= n; i++) line = line (i > 1 ? " " : "") old[i] "_" substr($0, 10)
+				print "reverts=\"" line "\""
+				next
+			}
 			{ print }
 		' "$stamped" > "$stamped.tmp"
 		mv "$stamped.tmp" "$stamped"
@@ -218,7 +233,7 @@ for pkg in "${all_packages[@]}"; do
 	fi
 done
 
-# container-runner.sh resolves Ryotunes' latest release; xbps-src then fetches
+# container-runner.sh resolves Ryotunes' newest 1.x release; xbps-src then fetches
 # that release and verifies it against the release's own checksum.
 if [[ -n ${template_for[ryotunes]:-} ]]; then
 	[[ $RYOTUNES_VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && $RYOTUNES_SHA256 =~ ^[0-9a-f]{64}$ ]] \
@@ -230,7 +245,7 @@ if [[ -n ${template_for[ryotunes]:-} ]]; then
 		{ print }
 	' "$stamped" > "$stamped.tmp"
 	mv "$stamped.tmp" "$stamped"
-	log "Building Ryotunes $RYOTUNES_VERSION, its latest release"
+	log "Building Ryotunes $RYOTUNES_VERSION, its newest 1.x release"
 fi
 
 {

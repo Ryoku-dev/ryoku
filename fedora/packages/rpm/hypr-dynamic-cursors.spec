@@ -2,6 +2,7 @@
 %global hyprland_evr %(rpm -q --qf '%%{EVR}' hyprland)
 Name:           hypr-dynamic-cursors
 Version:        0.1
+Epoch:          1
 Release:        1%{?dist}
 Summary:        Dynamic cursor effects for Hyprland
 License:        GPL-3.0-or-later

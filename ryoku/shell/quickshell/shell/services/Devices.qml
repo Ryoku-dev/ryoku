@@ -146,8 +146,10 @@ Singleton {
         // internal panel. brightnessctl's own default pick lands on a phantom
         // nvidia_*/acpi_video device on a laptop with a discrete GPU, and the
         // write then succeeds against a device that changes nothing (#221).
+        // With no backlight at all the selector prints nothing, and the class
+        // keeps brightnessctl off its fallback pick, a keyboard LED.
         Quickshell.execDetached(["bash", "-c",
-            "BL=$(ryoku-hw-backlight 2>/dev/null); brightnessctl ${BL:+-d \"$BL\"} set \"$1%\" >/dev/null 2>&1",
+            "BL=$(ryoku-hw-backlight 2>/dev/null); brightnessctl -c backlight ${BL:+-d \"$BL\"} set \"$1%\" >/dev/null 2>&1",
             "_", String(p)]);
     }
 
@@ -199,7 +201,7 @@ Singleton {
 
     Process {
         id: blRead
-        command: ["bash", "-c", "BL=$(ryoku-hw-backlight 2>/dev/null); brightnessctl ${BL:+-d \"$BL\"} -m 2>/dev/null | awk -F, 'NR==1{print substr($4,1,length($4)-1)}'"]
+        command: ["bash", "-c", "BL=$(ryoku-hw-backlight 2>/dev/null); brightnessctl -c backlight ${BL:+-d \"$BL\"} -m 2>/dev/null | awk -F, 'NR==1{print substr($4,1,length($4)-1)}'"]
         running: false
         stdout: StdioCollector {
             onStreamFinished: {

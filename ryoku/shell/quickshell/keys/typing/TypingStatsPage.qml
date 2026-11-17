@@ -52,8 +52,8 @@ Item {
                 Layout.alignment: Qt.AlignCenter
                 visible: stats.store.results.length === 0
                 caption: stats.store.historyEnabled
-                    ? qsTr("Finish a few tests to reveal pace, consistency and activity.")
-                    : qsTr("Enable history to collect local statistics.")
+                    ? I18n.tr("Finish a few tests to reveal pace, consistency and activity.")
+                    : I18n.tr("Enable history to collect local statistics.")
             }
 
             RowLayout {
@@ -61,8 +61,8 @@ Item {
                 Layout.fillWidth: true
                 spacing: Tokens.s2
                 Repeater {
-                    model: [{ label: qsTr("7 DAYS"), days: 7 }, { label: qsTr("30 DAYS"), days: 30 },
-                        { label: qsTr("90 DAYS"), days: 90 }, { label: qsTr("ALL TIME"), days: 0 }]
+                    model: [{ label: I18n.tr("7 DAYS"), days: 7 }, { label: I18n.tr("30 DAYS"), days: 30 },
+                        { label: I18n.tr("90 DAYS"), days: 90 }, { label: I18n.tr("ALL TIME"), days: 0 }]
                     delegate: Btn {
                         required property var modelData
                         text: modelData.label
@@ -73,7 +73,7 @@ Item {
                 }
                 Item { Layout.fillWidth: true }
                 Text {
-                    text: qsTr("%1 TESTS").arg(String(stats.ranged.length))
+                    text: I18n.tr("%1 TESTS").arg(String(stats.ranged.length))
                     color: Tokens.inkMuted
                     font.family: Tokens.mono
                     font.pixelSize: Tokens.fTiny
@@ -89,10 +89,10 @@ Item {
                 rowSpacing: Tokens.s2
                 Repeater {
                     model: [
-                        { label: qsTr("AVERAGE WPM"), value: Math.round(stats.averageWpm) },
-                        { label: qsTr("BEST WPM"), value: Math.round(stats.bestWpm) },
-                        { label: qsTr("ACCURACY"), value: Math.round(stats.averageAccuracy) + "%" },
-                        { label: qsTr("TIME TYPING"), value: Math.round(stats.store.secondsTyping / 60) + "m" }
+                        { label: I18n.tr("AVERAGE WPM"), value: Math.round(stats.averageWpm) },
+                        { label: I18n.tr("BEST WPM"), value: Math.round(stats.bestWpm) },
+                        { label: I18n.tr("ACCURACY"), value: Math.round(stats.averageAccuracy) + "%" },
+                        { label: I18n.tr("TIME TYPING"), value: Math.round(stats.store.secondsTyping / 60) + "m" }
                     ]
                     delegate: Rectangle {
                         required property var modelData
@@ -134,7 +134,7 @@ Item {
 
             Text {
                 visible: stats.store.results.length > 0
-                text: qsTr("PERSONAL BESTS")
+                text: I18n.tr("PERSONAL BESTS")
                 color: Tokens.inkDim
                 font.family: Tokens.mono
                 font.pixelSize: Tokens.fMicro
@@ -195,7 +195,7 @@ Item {
 
             Text {
                 visible: stats.store.results.length > 0
-                text: qsTr("ACTIVITY · 52 WEEKS")
+                text: I18n.tr("ACTIVITY · 52 WEEKS")
                 color: Tokens.inkDim
                 font.family: Tokens.mono
                 font.pixelSize: Tokens.fMicro
@@ -239,7 +239,7 @@ Item {
                     radius: Tokens.radius
                     border.width: Tokens.border
                     border.color: Tokens.lineSoft
-                    Text { anchors.left: parent.left; anchors.top: parent.top; anchors.margins: Tokens.s3; text: qsTr("PACE OVER TIME"); color: Tokens.inkMuted; font.family: Tokens.mono; font.pixelSize: Tokens.fTiny; font.letterSpacing: Tokens.trackLabel }
+                    Text { anchors.left: parent.left; anchors.top: parent.top; anchors.margins: Tokens.s3; text: I18n.tr("PACE OVER TIME"); color: Tokens.inkMuted; font.family: Tokens.mono; font.pixelSize: Tokens.fTiny; font.letterSpacing: Tokens.trackLabel }
                     Canvas {
                         id: pace
                         anchors.fill: parent
@@ -262,7 +262,7 @@ Item {
                             ctx.strokeStyle = Tokens.ink; ctx.lineWidth = 2; ctx.stroke();
                         }
                     }
-                    Text { anchors.centerIn: parent; visible: stats.ranged.length < 2; text: qsTr("More tests needed"); color: Tokens.inkMuted; font.family: Tokens.ui; font.pixelSize: Tokens.fSmall }
+                    Text { anchors.centerIn: parent; visible: stats.ranged.length < 2; text: I18n.tr("More tests needed"); color: Tokens.inkMuted; font.family: Tokens.ui; font.pixelSize: Tokens.fSmall }
                 }
 
                 Rectangle {
@@ -276,7 +276,7 @@ Item {
                         anchors.fill: parent
                         anchors.margins: Tokens.s4
                         spacing: Tokens.s2
-                        Text { text: qsTr("SPEED DISTRIBUTION"); color: Tokens.inkMuted; font.family: Tokens.mono; font.pixelSize: Tokens.fTiny; font.letterSpacing: Tokens.trackLabel }
+                        Text { text: I18n.tr("SPEED DISTRIBUTION"); color: Tokens.inkMuted; font.family: Tokens.mono; font.pixelSize: Tokens.fTiny; font.letterSpacing: Tokens.trackLabel }
                         Repeater {
                             model: [
                                 { label: "0–29", n: stats.bucket(0, 30) }, { label: "30–59", n: stats.bucket(30, 60) },

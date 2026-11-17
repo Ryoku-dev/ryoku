@@ -15,12 +15,9 @@ func formatHandoffBlock(question, answer, text string) string {
 // splitHandoffBlock accepts the identity notes that may precede a first turn,
 // then returns only the user-authored remainder after the hand-off card.
 func splitHandoffBlock(s string) (question, answer, rest string, ok bool) {
-	for strings.HasPrefix(s, "[system:") {
-		end := strings.Index(s, "] ")
-		if end < 0 {
-			return "", "", "", false
-		}
-		s = s[end+2:]
+	s, ok = cutIdentityNotes(s)
+	if !ok {
+		return "", "", "", false
 	}
 	if !strings.HasPrefix(s, handoffPrefix) {
 		return "", "", "", false

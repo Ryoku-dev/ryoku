@@ -2,7 +2,9 @@ package keyring
 
 import (
 	"fmt"
+	"os"
 
+	"ryoku-cli/internal/sys"
 	i18n "ryoku-i18n"
 )
 
@@ -21,9 +23,10 @@ type Drift struct {
 // a reconciler must warn about but never fix silently. Safe, idempotent, and
 // scoped to the user's own files: it records the inferred mode when nothing is
 // recorded yet, and repoints the default keyring at login for unlock-on-login.
-// It never edits /etc/pam.d/sddm (root) or rekeys a keyring (needs a password);
-// those surface as warnings with the command that resolves them. checkOnly
-// reports the intended fixes without applying them.
+// The one root edit it makes is dropping duplicate pam_gnome_keyring lines an
+// older Ryoku setup added to /etc/pam.d/sddm; any other PAM drift, or a keyring
+// that needs a password, surfaces as a warning with the command that resolves
+// it. checkOnly reports the intended fixes without applying them.
 func Reconcile(checkOnly bool) Drift {
 	st := gatherStatus()
 	d := Drift{Mode: st.Mode}
@@ -53,13 +56,22 @@ func Reconcile(checkOnly bool) Drift {
 		}
 	}
 
-	// PAM drift: the stack is a root file, so doctor only warns and hands over
-	// the exact privileged command.
+	// PAM drift: the stack is a root file, so doctor only heals duplicates Ryoku
+	// itself wrote and otherwise hands over the exact privileged command.
 	wantPAM := st.Mode == ModeUnlockOnLogin
 	switch {
 	case wantPAM && !st.PamWired:
 		d.Warnings = append(d.Warnings, fmt.Sprintf(i18n.T("the SDDM PAM stack does not carry both pam_gnome_keyring lines but mode is %s"), st.Mode))
 		d.Remedy = fmt.Sprintf("sudo ryoku keyring apply-pam %s", st.Mode)
+	case wantPAM && st.PamDuplicates && pamDuplicatesHealable():
+		if checkOnly {
+			d.Fixes = append(d.Fixes, i18n.T("drop the duplicate pam_gnome_keyring lines from the SDDM PAM stack"))
+		} else if err := healPAMDuplicates(st.Mode); err != nil {
+			d.Warnings = append(d.Warnings, fmt.Sprintf(i18n.T("could not drop the duplicate pam_gnome_keyring lines from the SDDM PAM stack: %v"), err))
+			d.Remedy = fmt.Sprintf("sudo ryoku keyring apply-pam %s", st.Mode)
+		} else {
+			d.Fixes = append(d.Fixes, i18n.T("dropped the duplicate pam_gnome_keyring lines from the SDDM PAM stack"))
+		}
 	case wantPAM && st.PamDuplicates:
 		d.Warnings = append(d.Warnings, i18n.T("the SDDM PAM stack carries duplicate pam_gnome_keyring lines"))
 		d.Remedy = fmt.Sprintf("sudo ryoku keyring apply-pam %s", st.Mode)
@@ -91,4 +103,21 @@ func Reconcile(checkOnly bool) Drift {
 	}
 
 	return d
+}
+
+func pamDuplicatesHealable() bool {
+	raw, err := os.ReadFile(pamFilePath())
+	if err != nil {
+		return false
+	}
+	_, ok := pamHealDuplicates(string(raw))
+	return ok
+}
+
+func healPAMDuplicates(mode string) error {
+	path := pamFilePath()
+	if os.Getenv("RYOKU_PAM_FILE") != "" && pamWritable(path) {
+		return applyPAMFile(path, mode)
+	}
+	return sys.Sudo(selfExe(), "keyring", "apply-pam", mode)
 }

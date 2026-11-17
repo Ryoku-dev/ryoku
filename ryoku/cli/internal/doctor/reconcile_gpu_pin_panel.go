@@ -100,5 +100,5 @@ func reconcileRenderPinPanel(checkOnly bool) recResult {
 	}
 	_ = checkOnly // the GPU-pin reconciler owns repair; this check adds diagnosis
 	return noteRes(i18n.T("render pin puts NVIDIA first while the panel is driven by %s (reverse PRIME); this can leave the panel black at login or after DPMS (#270)"), panel).
-		withFix(i18n.T("use `ryoku-gpu mode hybrid`; Performance is available after a hardware MUX routes the panel to the dGPU"))
+		withFix(i18n.T("if the panel stays black, `ryoku-gpu mode hybrid` renders on the panel's GPU; a hardware MUX set to discrete removes the cross-GPU path"))
 }

@@ -30,6 +30,9 @@ func (d *daemon) startWM() {
 		// caller; actions that print nothing answer with an empty result.
 		return d.wmc.ActOutput(wm.Action(a.Action), a.Args...)
 	})
+	d.kbMemory = newKbLayoutMemory(kbLayoutPath(), func() error {
+		return d.wmc.Act(wm.ActionKeyboardCycleLayout)
+	})
 	go d.watchWindowManager()
 }
 
@@ -93,6 +96,9 @@ func (d *daemon) onWMFrame(f wm.Frame) {
 	// the screen cold while the bar still reads on. See rearmOnOutputs.
 	if f.Kind == wm.FrameOutputs && d.nightlight != nil {
 		d.nightlight.rearmOnOutputs(f.Outputs)
+	}
+	if f.Kind == wm.FrameKeyboard && d.kbMemory != nil {
+		d.kbMemory.observe(f.KeyboardLayout, f.KeyboardLayouts)
 	}
 	if f.Kind == wm.FrameFocus {
 		d.publishWMFocus()
@@ -217,6 +223,9 @@ func (d *daemon) watchWindowManager() {
 			case <-ctx.Done():
 			}
 		}()
+		if d.kbMemory != nil {
+			d.kbMemory.newStream()
+		}
 		gotFrame := false
 		_ = d.wmc.Watch(ctx, func(f wm.Frame) {
 			gotFrame = true

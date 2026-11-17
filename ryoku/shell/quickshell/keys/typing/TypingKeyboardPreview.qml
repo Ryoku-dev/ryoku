@@ -35,9 +35,9 @@ Item {
     property int selectedKey: -1
 
     function fingerName(value) {
-        if (value === 6) return qsTr("either thumb");
-        const side = value < 0 ? qsTr("left") : qsTr("right");
-        const names = ["", qsTr("thumb"), qsTr("index"), qsTr("middle"), qsTr("ring"), qsTr("little")];
+        if (value === 6) return I18n.tr("either thumb");
+        const side = value < 0 ? I18n.tr("left") : I18n.tr("right");
+        const names = ["", I18n.tr("thumb"), I18n.tr("index"), I18n.tr("middle"), I18n.tr("ring"), I18n.tr("little")];
         return side + " " + names[Math.abs(value)];
     }
 
@@ -127,8 +127,8 @@ Item {
         spacing: Tokens.s4
         Repeater {
             model: [
-                { label: qsTr("LEFT"), values: [-5, -4, -3, -2, -1] },
-                { label: qsTr("RIGHT"), values: [1, 2, 3, 4, 5] }
+                { label: I18n.tr("LEFT"), values: [-5, -4, -3, -2, -1] },
+                { label: I18n.tr("RIGHT"), values: [1, 2, 3, 4, 5] }
             ]
             delegate: Row {
                 required property var modelData
@@ -197,7 +197,7 @@ Item {
             Text {
                 Layout.fillWidth: true
                 text: preview.selectedKey >= 0
-                    ? qsTr("Finger for %1").arg(preview.entries[preview.selectedKey].label) : ""
+                    ? I18n.tr("Finger for %1").arg(preview.entries[preview.selectedKey].label) : ""
                 color: Tokens.ink
                 font.family: Tokens.ui
                 font.pixelSize: Tokens.fRow
@@ -208,12 +208,12 @@ Item {
                 spacing: Tokens.s2
                 Repeater {
                     model: [
-                        { label: qsTr("L5"), value: -5 }, { label: qsTr("L4"), value: -4 },
-                        { label: qsTr("L3"), value: -3 }, { label: qsTr("L2"), value: -2 },
-                        { label: qsTr("L1"), value: -1 }, { label: qsTr("Thumb"), value: 6 },
-                        { label: qsTr("R1"), value: 1 }, { label: qsTr("R2"), value: 2 },
-                        { label: qsTr("R3"), value: 3 }, { label: qsTr("R4"), value: 4 },
-                        { label: qsTr("R5"), value: 5 }
+                        { label: I18n.tr("L5"), value: -5 }, { label: I18n.tr("L4"), value: -4 },
+                        { label: I18n.tr("L3"), value: -3 }, { label: I18n.tr("L2"), value: -2 },
+                        { label: I18n.tr("L1"), value: -1 }, { label: I18n.tr("Thumb"), value: 6 },
+                        { label: I18n.tr("R1"), value: 1 }, { label: I18n.tr("R2"), value: 2 },
+                        { label: I18n.tr("R3"), value: 3 }, { label: I18n.tr("R4"), value: 4 },
+                        { label: I18n.tr("R5"), value: 5 }
                     ]
                     delegate: Btn {
                         required property var modelData
@@ -227,7 +227,7 @@ Item {
                 Layout.fillWidth: true
                 Item { Layout.fillWidth: true }
                 Btn {
-                    text: qsTr("Use automatic")
+                    text: I18n.tr("Use automatic")
                     compact: true
                     onAct: {
                         if (preview.selectedKey >= 0) {
@@ -239,7 +239,7 @@ Item {
                         preview.requestInputFocus();
                     }
                 }
-                Btn { text: qsTr("Cancel"); compact: true; onAct: { preview.selectedKey = -1; preview.requestInputFocus(); } }
+                Btn { text: I18n.tr("Cancel"); compact: true; onAct: { preview.selectedKey = -1; preview.requestInputFocus(); } }
             }
         }
     }

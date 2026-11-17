@@ -2,6 +2,7 @@
 %global hyprland_evr %(rpm -q --qf '%%{EVR}' hyprland)
 Name:           imgborders
 Version:        0.1
+Epoch:          1
 Release:        1%{?dist}
 Summary:        Image border plugin for Hyprland
 License:        GPL-3.0-or-later

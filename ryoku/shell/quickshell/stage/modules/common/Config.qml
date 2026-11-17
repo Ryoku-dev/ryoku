@@ -2357,6 +2357,23 @@ Singleton {
         root.blockWrites = true;
     }
 
+    function seedMissingConfig() {
+        if (root.ready)
+            return;
+        // Stamp the schema version so a brand-new file is not mistaken
+        // for a pre-versioning one and re-migrated on next start.
+        root.options.configVersion = root.currentConfigVersion;
+        root.writeMergedConfig(true);
+        // Mark ready so subsequent user-triggered writes go through
+        // (fileWriteTimer guards on `root.ready`).
+        root.ready = true;
+        // config.json was genuinely missing and defaults were just
+        // seeded — reconcile (restore before pull) so the protected
+        // machine-local settings come back from local-preferences.json.
+        LocalPreferences.reconcile();
+        root.syncClockFormat();
+    }
+
     FileView {
         id: configFileView
         path: root.filePath
@@ -2397,18 +2414,8 @@ Singleton {
                 // Singleton has been alive past the grace window and the file
                 // is still gone — legitimately missing (first-run install or
                 // user manually deleted it). Safe to seed defaults.
-                // Stamp the schema version so a brand-new file is not mistaken
-                // for a pre-versioning one and re-migrated on next start.
-                root.options.configVersion = root.currentConfigVersion;
-                root.writeMergedConfig(true);
-                // Mark ready so subsequent user-triggered writes go through
-                // (fileWriteTimer guards on `root.ready`).
-                root.ready = true;
-                // config.json was genuinely missing and defaults were just
-                // seeded — reconcile (restore before pull) so the protected
-                // machine-local settings come back from local-preferences.json.
-                LocalPreferences.reconcile();
-                root.syncClockFormat();
+                // a write started inside this handler is orphaned when the read finishes
+                Qt.callLater(root.seedMissingConfig);
             } else {
                 // Likely transient: schedule a reload. If it succeeds,
                 // `onLoaded` flips `root.ready` and nothing is overwritten. If

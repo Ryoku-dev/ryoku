@@ -37,7 +37,7 @@ Rectangle {
 
     readonly property real extend: Math.max(surface.peek, surface.full)
     readonly property real peekVis: surface.peek * (1 - surface.full)
-    readonly property string artUrl: surface.player ? (surface.player.trackArtUrl || "") : ""
+    readonly property string artUrl: Music.coverFor(surface.player)
     readonly property bool hasArt: surface.artUrl.length > 0
     readonly property bool playing: surface.player !== null && surface.player.isPlaying
     readonly property real length: Music.duration

@@ -14,6 +14,7 @@
 pkgname=ryoku-keysounds-niri
 pkgver=${RYOKU_PKGVER:-0.1.0}
 pkgrel=1
+epoch=1
 pkgdesc="niri key-press sounds: a small evdev+libcanberra engine, niri's plugin substitute"
 arch=('x86_64')
 url="https://ryoku.dev"
@@ -21,7 +22,7 @@ license=('GPL-3.0-or-later')
 # rust builds the daemon; the samples and the importer come from the shared
 # profiles package, so niri and Hyprland key sounds never double up on disk.
 makedepends=('rust' 'libcanberra')
-depends=("ryoku-keysounds-profiles=$pkgver" 'libcanberra')
+depends=("ryoku-keysounds-profiles=$epoch:$pkgver" 'libcanberra')
 source=()
 
 _repo="$startdir/../../.."

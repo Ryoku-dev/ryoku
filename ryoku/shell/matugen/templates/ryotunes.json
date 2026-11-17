@@ -7,7 +7,7 @@
   "license": "CC0-1.0",
   "generated": "matugen",
   "description": "Generated from your wallpaper by matugen (Material 3 roles). Regenerated on every palette change: do not edit - fork it from Settings to make it yours.",
-  "default": "dark",
+  "default": "{{mode}}",
   "modes": {
     "dark": {
       "paper": "{{colors.surface.dark.hex}}",

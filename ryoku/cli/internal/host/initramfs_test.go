@@ -16,7 +16,13 @@ func TestInitramfsRebuildBackends(t *testing.T) {
 		{
 			name: "pacman", manager: "pacman",
 			paths:    map[string]bool{"mkinitcpio": true},
-			commands: []string{"mkinitcpio -P"},
+			commands: []string{"/usr/bin/mkinitcpio -P"},
+		},
+		{
+			// a Limine UKI box has no presets, so mkinitcpio -P builds nothing
+			name: "pacman with limine", manager: "pacman",
+			paths:    map[string]bool{"mkinitcpio": true, "limine-mkinitcpio": true},
+			commands: []string{"limine-mkinitcpio "},
 		},
 		{
 			name: "dnf", manager: "dnf",

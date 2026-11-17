@@ -72,6 +72,12 @@ GuideTab {
         return false;
     }
 
+    property bool visHideWhenIdle: {
+        let bs = Config.getSetting("bar", {});
+        if (bs && bs.visHideWhenIdle !== undefined) return Boolean(bs.visHideWhenIdle);
+        return false;
+    }
+
     property string sysmonStyle: {
         let bs = Config.getSetting("bar", {});
         if (bs && bs.sysmonStyle) return bs.sysmonStyle;
@@ -199,6 +205,12 @@ GuideTab {
         return 120;
     }
 
+    property bool mediaFitWidth: {
+        let bs = Config.getSetting("bar", {});
+        if (bs && bs.mediaFitWidth !== undefined) return Boolean(bs.mediaFitWidth);
+        return false;
+    }
+
     property bool mediaShowIcon: {
         let bs = Config.getSetting("bar", {});
         if (bs && bs.mediaShowIcon !== undefined) return Boolean(bs.mediaShowIcon);
@@ -209,6 +221,12 @@ GuideTab {
         let bs = Config.getSetting("bar", {});
         if (bs && bs.mediaShowControls !== undefined) return Boolean(bs.mediaShowControls);
         return true;
+    }
+
+    property bool mediaHideWhenIdle: {
+        let bs = Config.getSetting("bar", {});
+        if (bs && bs.mediaHideWhenIdle !== undefined) return Boolean(bs.mediaHideWhenIdle);
+        return false;
     }
 
     property string batStyle: {
@@ -290,6 +308,8 @@ GuideTab {
         } else {
             barModulesRoot.visContinuous = false;
         }
+
+        barModulesRoot.visHideWhenIdle = (bs && bs.visHideWhenIdle !== undefined) ? Boolean(bs.visHideWhenIdle) : false;
 
         if (bs && bs.sysmonStyle) {
             barModulesRoot.sysmonStyle = bs.sysmonStyle;
@@ -403,6 +423,7 @@ GuideTab {
 
         barModulesRoot.mediaInfoMode = (bs && bs.mediaInfoMode) ? bs.mediaInfoMode : "duration";
         barModulesRoot.mediaWidth = (bs && bs.mediaWidth !== undefined) ? Math.round(Number(bs.mediaWidth)) : 120;
+        barModulesRoot.mediaFitWidth = (bs && bs.mediaFitWidth !== undefined) ? Boolean(bs.mediaFitWidth) : false;
 
         if (bs && bs.mediaShowIcon !== undefined) {
             barModulesRoot.mediaShowIcon = Boolean(bs.mediaShowIcon);
@@ -415,6 +436,8 @@ GuideTab {
         } else {
             barModulesRoot.mediaShowControls = true;
         }
+
+        barModulesRoot.mediaHideWhenIdle = (bs && bs.mediaHideWhenIdle !== undefined) ? Boolean(bs.mediaHideWhenIdle) : false;
 
         if (!barModulesRoot.batShowPercent && !barModulesRoot.batShowIcon) {
             barModulesRoot.batShowIcon = true;
@@ -492,6 +515,13 @@ GuideTab {
         barModulesRoot.visContinuous = val;
         let current = Config.getSetting("bar", {});
         current.visContinuous = val;
+        Config.setSetting("bar", current);
+    }
+
+    function setVisHideWhenIdle(val) {
+        barModulesRoot.visHideWhenIdle = val;
+        let current = Config.getSetting("bar", {});
+        current.visHideWhenIdle = val;
         Config.setSetting("bar", current);
     }
 
@@ -668,6 +698,13 @@ GuideTab {
         Config.setSetting("bar", current);
     }
 
+    function setMediaFitWidth(val) {
+        barModulesRoot.mediaFitWidth = val;
+        let current = Config.getSetting("bar", {});
+        current.mediaFitWidth = val;
+        Config.setSetting("bar", current);
+    }
+
     function setMediaShowIcon(val) {
         barModulesRoot.mediaShowIcon = val;
         let current = Config.getSetting("bar", {});
@@ -679,6 +716,13 @@ GuideTab {
         barModulesRoot.mediaShowControls = val;
         let current = Config.getSetting("bar", {});
         current.mediaShowControls = val;
+        Config.setSetting("bar", current);
+    }
+
+    function setMediaHideWhenIdle(val) {
+        barModulesRoot.mediaHideWhenIdle = val;
+        let current = Config.getSetting("bar", {});
+        current.mediaHideWhenIdle = val;
         Config.setSetting("bar", current);
     }
 

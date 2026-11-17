@@ -167,7 +167,7 @@ QtObject {
             return
         }
         var full = Library.entry(state.collection, e.key)
-        var outs = (state._bool(state._applyOnMonitor) && state.monitor) ? [state.monitor] : []
+        var outs = state.applyTargets()
         state._applyWall(full && full.key ? full : e, outs, ({}), ({}))
         if (state._bool(state._closeOnSelection))
             state.hideRequested()
@@ -180,6 +180,10 @@ QtObject {
         state.multipickerOpen = false
         if (state._bool(state._closeOnSelection))
             state.hideRequested()
+    }
+
+    function applyTargets() {
+        return (state._bool(state._applyOnMonitor) && state.monitor) ? [state.monitor] : []
     }
 
     function _applyWall(entry, outputs, audioMap, volumeMap, target) {
@@ -316,7 +320,7 @@ QtObject {
                 // The desktop previews the hovered still beside its palette;
                 // a video or a scene has no still for the daemon to paint.
                 if (state.hoverType === "static")
-                    Daemon.call("wall.preview", { key: key })
+                    Daemon.call("wall.preview", { key: key, outputs: state.applyTargets() })
                 else
                     Daemon.call("wall.preview.clear", {})
             } else {

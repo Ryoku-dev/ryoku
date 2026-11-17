@@ -138,6 +138,78 @@ func dedupeKeyring(content string) string {
 	return strings.Join(out, "\n")
 }
 
+func pamParsable(content string) bool {
+	for _, line := range strings.Split(content, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 || strings.HasPrefix(fields[0], "#") {
+			continue
+		}
+		if strings.HasPrefix(fields[0], "@include") {
+			if len(fields) != 2 {
+				return false
+			}
+			continue
+		}
+		switch strings.TrimPrefix(fields[0], "-") {
+		case "auth", "account", "password", "session":
+			if len(fields) < 3 {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// only the bare lines older sddm setups added beside the stack's own ones go,
+// and only when that is exactly what apply-pam would write
+func pamHealDuplicates(content string) (out string, ok bool) {
+	if !pamHasDuplicates(content) || !pamParsable(content) {
+		return content, false
+	}
+	ours := map[string]string{
+		"auth":    strings.Join(strings.Fields(pamAuthLine), " "),
+		"session": strings.Join(strings.Fields(pamSessionLine), " "),
+	}
+	lines := strings.Split(content, "\n")
+	drop := make(map[int]bool)
+	for _, kind := range []string{"auth", "session"} {
+		var mine, theirs []int
+		for i, line := range lines {
+			k, _, isKeyring := pamKeyringLine(line)
+			if !isKeyring || k != kind {
+				continue
+			}
+			if strings.Join(strings.Fields(line), " ") == ours[kind] {
+				mine = append(mine, i)
+			} else {
+				theirs = append(theirs, i)
+			}
+		}
+		switch {
+		case len(theirs) > 1:
+			return content, false
+		case len(theirs) == 0 && len(mine) > 0:
+			mine = mine[1:]
+		}
+		for _, i := range mine {
+			drop[i] = true
+		}
+	}
+	kept := make([]string, 0, len(lines))
+	for i, line := range lines {
+		if !drop[i] {
+			kept = append(kept, line)
+		}
+	}
+	out = strings.Join(kept, "\n")
+	if want, missing := applyPAMText(content, true); len(missing) > 0 || want != out {
+		return content, false
+	}
+	return out, true
+}
+
 // applyPAMText converges the stack for want (unlock-on-login wants the lines
 // present, the other modes want them stripped). Idempotent. missing reports any
 // insert anchor that was absent so unlock-on-login can warn instead of silently

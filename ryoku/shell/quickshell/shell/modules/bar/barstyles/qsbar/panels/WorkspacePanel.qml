@@ -1,5 +1,6 @@
 import QtQuick
 import "../modules"
+import "../modules/WorkspaceIsolation.js" as WorkspaceIsolation
 import Quickshell
 import Quickshell.Wayland
 import Ryoku.Ui.Singletons
@@ -34,13 +35,26 @@ PanelWindow {
     Rectangle {
         id: card
         property int navIndex: -1
-        readonly property var wsIds: {
-            var a = []
+        readonly property var filteredWorkspaces: {
+            var res = []
             var vs = Wm.workspaces
-            for (var i = 0; i < vs.length; i++) if (!vs[i].special) a.push(vs[i].name)
-            a.sort(function(x, y) { return Number(x) - Number(y) })
+            for (var i = 0; i < vs.length; i++) {
+                if (vs[i].special) continue
+                if (root.isolateMonitors && root.activePopupScreenName && vs[i].output && vs[i].output !== root.activePopupScreenName)
+                    continue
+                res.push(vs[i])
+            }
+            res.sort(function(x, y) { return Number(x.name) - Number(y.name) })
+            return res
+        }
+        readonly property var wsIds: {
+            var vs = card.filteredWorkspaces
+            var a = []
+            for (var i = 0; i < vs.length; i++) a.push(vs[i].id)
             return a
         }
+        readonly property var activeWs: WorkspaceIsolation.activeWorkspace(
+            Wm.workspaces, root.activePopupScreenName, root.isolateMonitors, Wm.focusedWorkspace)
         width: 240
         height: col.implicitHeight + 24
         radius: reveal > 0.001 ? root.panelRadius : 0
@@ -102,13 +116,12 @@ PanelWindow {
                 width: parent.width
                 spacing: 4
                 Repeater {
-                    model: Wm.workspaces
+                    model: card.filteredWorkspaces
 
                     delegate: Rectangle {
                         required property var modelData
-                        visible: !modelData.special
-                        readonly property bool isActive: Wm.focusedWorkspace && Wm.focusedWorkspace.name === modelData.name
-                        readonly property bool navOn: card.navIndex >= 0 && card.navIndex < card.wsIds.length && card.wsIds[card.navIndex] === modelData.name
+                        readonly property bool isActive: !!card.activeWs && card.activeWs.id === modelData.id
+                        readonly property bool navOn: card.navIndex >= 0 && card.navIndex < card.wsIds.length && card.wsIds[card.navIndex] === modelData.id
                         width: col.width
                         height: 30; radius: root.panelButtonRadius
                         color: isActive ? root.fillActive
@@ -138,7 +151,7 @@ PanelWindow {
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
-                                root.gotoWorkspace(modelData.name)
+                                root.gotoWorkspace(modelData.id)
                                 root.workspaceVisible = false
                             }
                         }

@@ -22,6 +22,9 @@ base_version=${base_version//_/.}
 	printf 'container-runner.sh: invalid XBPS package version: %s\n' "$raw_version" >&2
 	exit 1
 }
+# git history stays on the host; build-repo.sh turns these into reverts=
+reverts=${RYOKU_XBPS_REVERTS-$("$ROOT/bin/ryoku-release-version" --superseded)}
+reverts=$(tr -s '[:space:]' ' ' <<<"$reverts")
 
 source_tmp=$(mktemp -d "${TMPDIR:-/tmp}/ryoku-xbps-source.XXXXXX")
 trap 'rm -rf "$source_tmp"' EXIT HUP INT TERM
@@ -62,22 +65,18 @@ channel=${RYOKU_CHANNEL:-local}
 name=${RYOKU_NAME:-$(tr -d '[:space:]' < "$ROOT/CODENAME")}
 commit=$(git -C "$ROOT" rev-parse HEAD)
 
-# Ryotunes ships on its own release train. Build its latest stable release, as
-# the Arch importer and the Fedora fetch hook do; a pin in the template only
-# ever fell behind. The token stays on the host: only the version and the
-# release's own checksum enter the build container.
+# Ryotunes ships on its own release train. Build its newest stable 1.x release,
+# as the Arch importer and the Fedora fetch hook do; a pin in the template only
+# ever fell behind, and GitHub's "latest" can be a Ryotunes 2 build. The token
+# stays on the host: only the version and the release's own checksum enter the
+# build container.
 latest_ryotunes() {
-	local api=${RYOKU_GITHUB_API:-https://api.github.com}
 	local download=${RYOKU_GITHUB_DL:-https://github.com}
-	local token=${GH_TOKEN:-${GITHUB_TOKEN:-}} release tag version sums sum file extra
-	local -a auth=()
-	[[ -z $token ]] || auth=(-H "Authorization: Bearer $token")
-	release=$(curl -fsSL --retry 3 -H 'Accept: application/vnd.github+json' \
-		"${auth[@]}" "$api/repos/Ryoku-dev/ryotunes/releases/latest") || return 1
-	[[ $(jq -r '.draft' <<<"$release") == false && $(jq -r '.prerelease' <<<"$release") == false ]] \
+	local release tag version sums sum file extra
+	release=$(RYOKU_RYOTUNES_REPO=Ryoku-dev/ryotunes bash "$ROOT/release/repo/resolve-ryotunes-release.sh") \
 		|| return 1
 	tag=$(jq -r '.tag_name // empty' <<<"$release")
-	[[ $tag =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
+	[[ $tag =~ ^v1\.[0-9]+\.[0-9]+$ ]] || return 1
 	version=${tag#v}
 	sums=$(curl -fsSL --retry 3 \
 		"$download/Ryoku-dev/ryotunes/releases/download/$tag/ryotunes-$version.tar.gz.sha256") || return 1
@@ -88,7 +87,7 @@ latest_ryotunes() {
 	printf '%s %s\n' "$version" "${sum,,}"
 }
 read -r ryotunes_version ryotunes_sha256 < <(latest_ryotunes) || {
-	printf 'container-runner.sh: could not resolve the latest Ryoku-dev/ryotunes release\n' >&2
+	printf 'container-runner.sh: could not resolve the newest Ryoku-dev/ryotunes 1.x release\n' >&2
 	exit 1
 }
 
@@ -106,7 +105,7 @@ run=("$ENGINE" run --rm --platform linux/amd64 --privileged
 	-v "$HOST_WORK:/work"
 	-v "$HOST_OUT:/out"
 	-v "$source_archive:/run/ryoku-source.tar.gz:ro"
-	-e "RYOKU_VOID_PACKAGES_REF=${RYOKU_VOID_PACKAGES_REF:-7023eba97f43b92c4d36e830677d27ab33e2d4ae}"
+	-e "RYOKU_VOID_PACKAGES_REF=${RYOKU_VOID_PACKAGES_REF:-7860eca545b73e612b83c8eed43b57741ef5b0fb}"
 	-e "RYOKU_XBPS_PACKAGES=${RYOKU_XBPS_PACKAGES:-}"
 	-e "RYOKU_XBPS_WORKTREE=${RYOKU_XBPS_WORKTREE:-0}"
 	-e "RYOKU_XBPS_SOURCE_ARCHIVE=/run/ryoku-source.tar.gz"
@@ -115,6 +114,7 @@ run=("$ENGINE" run --rm --platform linux/amd64 --privileged
 	-e "RYOKU_CHANNEL=$channel"
 	-e "RYOKU_NAME=$name"
 	-e "RYOKU_PKGVER=$package_version"
+	-e "RYOKU_XBPS_REVERTS=$reverts"
 	-e "RYOKU_XBPS_PRODUCTION=${RYOKU_XBPS_PRODUCTION:-0}"
 	-e "XBPS_PASSPHRASE=${XBPS_PASSPHRASE:-}"
 	-e "RYOKU_RYOTUNES_VERSION=$ryotunes_version"
@@ -173,6 +173,7 @@ inner='
 		RYOKU_CHANNEL="$RYOKU_CHANNEL" \
 		RYOKU_NAME="$RYOKU_NAME" \
 		RYOKU_PKGVER="$RYOKU_PKGVER" \
+		RYOKU_XBPS_REVERTS="$RYOKU_XBPS_REVERTS" \
 		XBPS_PASSPHRASE="$XBPS_PASSPHRASE" \
 		RYOKU_RYOTUNES_VERSION="$RYOKU_RYOTUNES_VERSION" \
 		RYOKU_RYOTUNES_SHA256="$RYOKU_RYOTUNES_SHA256" \

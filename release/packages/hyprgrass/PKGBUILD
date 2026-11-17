@@ -19,6 +19,7 @@
 pkgname=hyprgrass
 pkgver=${RYOKU_PKGVER:-0.1.0}
 pkgrel=1
+epoch=1
 pkgdesc="Hyprland plugin: touchscreen gestures for windows and workspaces"
 arch=('x86_64')
 url="https://github.com/horriblename/hyprgrass"

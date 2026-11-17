@@ -24,7 +24,7 @@ import (
 const (
 	metadataTimeout = 10 * time.Second // the release JSON lookup
 	downloadTimeout = 5 * time.Minute  // the package + checksum download
-	maxMetaBytes    = 2 << 20          // release JSON is small; cap the decode
+	maxMetaBytes    = 8 << 20          // one page of 100 releases, notes included
 	maxShaBytes     = 4 << 10          // a checksum sidecar is one short line
 	maxPkgBytes     = 512 << 20        // a hard ceiling on the package stream
 	maxCacheBytes   = 4 << 10          // the on-disk cache is a few short fields

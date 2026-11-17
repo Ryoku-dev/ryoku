@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Fixed
+- **New installs wire the login keyring once.** The SDDM setup counts the stock
+  `-auth`/`-session` keyring lines, so it no longer adds a second copy on Arch.
 - **A picked skin stays on the Fedora sign-in screen.** `sddm-theme-ryoku` owned
   the skin files in `/usr/share/sddm/themes/ryoku`, so each package update put
   Orbital back while the Hub still named the pick. The package now owns only the
@@ -10,6 +12,11 @@
 - **Unsafe security-key services can no longer arm the lock.** Every attempt
   validates the CLI-generated service before PAM sees it, and password submits
   now have a separate path from security-key PIN responses.
+- **The password field takes typing again after waking from sleep.** On boxes
+  where the session pauses across suspend, the returning keyboard never handed
+  focus back to the lock, so keys went nowhere until a click.
+- **A screen that comes back while locked shows the lock again.** A display
+  reconnecting after resume stayed black with Orbital, which waits for a reveal.
 
 ### Added
 - **A security key unlocks the in-session lock.** `ryoku security-key set lock

@@ -47,6 +47,7 @@ firefox	firefox	desktop
 fish	fish-shell	desktop	
 flatpak	flatpak	desktop	
 freerdp	freerdp	optional	
+freetype2	freetype	desktop	
 fuzzel	fuzzel	desktop	
 fzf	fzf	desktop	
 game-devices-udev	game-devices-udev	desktop	repo=ryoku

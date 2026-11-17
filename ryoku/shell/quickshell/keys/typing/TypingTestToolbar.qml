@@ -54,23 +54,27 @@ Flow {
     }
 
     ToggleChip {
-        label: qsTr("punctuation")
+        label: I18n.tr("punctuation")
         selected: toolbar.store.punctuation
         onChosen: { toolbar.store.punctuation = !toolbar.store.punctuation; toolbar.refocus(); }
     }
     ToggleChip {
-        label: qsTr("numbers")
+        label: I18n.tr("numbers")
         selected: toolbar.store.numbers
         onChosen: { toolbar.store.numbers = !toolbar.store.numbers; toolbar.refocus(); }
     }
 
     Repeater {
-        model: ["time", "words", "zen"]
+        model: [
+            { mode: "time", label: I18n.tr("time") },
+            { mode: "words", label: I18n.tr("words") },
+            { mode: "zen", label: I18n.tr("zen") }
+        ]
         delegate: ToggleChip {
-            required property string modelData
-            label: modelData
-            selected: toolbar.store.mode === modelData
-            onChosen: { toolbar.store.mode = modelData; toolbar.refocus(); }
+            required property var modelData
+            label: modelData.label
+            selected: toolbar.store.mode === modelData.mode
+            onChosen: { toolbar.store.mode = modelData.mode; toolbar.refocus(); }
         }
     }
 
@@ -92,7 +96,7 @@ Flow {
 
     ToggleChip {
         visible: toolbar.store.mode === "zen"
-        label: qsTr("guided")
+        label: I18n.tr("guided")
         selected: toolbar.store.zenGuided
         onChosen: { toolbar.store.zenGuided = !toolbar.store.zenGuided; toolbar.refocus(); }
     }

@@ -2,10 +2,12 @@ import Ryoku.Ui.Singletons
 import QtQuick
 import QtQuick.Shapes
 import shell.services
+import "WorkspaceIsolation.js" as WorkspaceIsolation
 
 Item {
     id: wsWidget
     required property var root
+    property string screenName: ""
 
     // Workspace cells intentionally stay dense without a local surface. A widget
     // border needs its own breathing room, though: make that padding part of the
@@ -16,47 +18,40 @@ Item {
     implicitHeight: 28
     readonly property color contentColor: root.widgetContentColor("G2", root.seal)
 
-    // The focused workspace name only when it is a real workspace beyond the
-    // persist range, else "". Renotifies on value change only, so switching
-    // between in-range workspaces keeps the model stable and the delegate
-    // Behaviors animating.
+    // Per-monitor active workspace: when isolateMonitors is active, this monitor's
+    // active workspace takes precedence over the globally focused one.
+    readonly property var monitorActiveWs: WorkspaceIsolation.activeWorkspace(
+        Wm.workspaces, wsWidget.screenName, root.isolateMonitors, Wm.focusedWorkspace)
+
+    // Indicates whether this monitor holds the keyboard/window input focus.
+    readonly property bool hasMonitorFocus: WorkspaceIsolation.hasMonitorFocus(
+        root.isolateMonitors, wsWidget.screenName, Wm.focusedOutput)
+
     readonly property bool dynamicModel: Wm.workspaceModel === "dynamic"
+    readonly property var workspaceData: WorkspaceIsolation.needsWorkspaceData(
+        root.workspaceMode, wsWidget.dynamicModel, root.isolateMonitors) ? Wm.workspaces : []
+    readonly property var listActiveWorkspace: root.workspaceMode === "active"
+        ? (root.isolateMonitors ? wsWidget.monitorActiveWs : Wm.focusedWorkspace) : null
     readonly property string extraWs: {
         if (root.workspaceMode === "active" || wsWidget.dynamicModel) return ""
-        var n = root.workspaceMode === "5" ? 5 : 10
-        var f = Wm.focusedWorkspace
-        var num = f ? Number(f.name) : 0
-        return (num > n) ? f.name : ""
+        var focused = root.isolateMonitors ? wsWidget.monitorActiveWs : Wm.focusedWorkspace
+        return WorkspaceIsolation.extraWorkspace(focused, root.workspaceMode)
     }
 
     // A dynamic model follows the live workspace list with no invented slots; a
     // fixed model shows a stable numbered row plus the focused-beyond-range one.
-    readonly property var workspaceList: {
-        if (wsWidget.dynamicModel) {
-            var live = []
-            var lw = Wm.workspaces
-            for (var k = 0; k < lw.length; k++) if (!lw[k].special) live.push(lw[k].name)
-            return live
-        }
-        if (root.workspaceMode === "active") {
-            var ids = {}
-            var ws = Wm.workspaces
-            for (var i = 0; i < ws.length; i++) if (!ws[i].special) ids[ws[i].name] = true
-            if (Wm.focusedWorkspace && !Wm.focusedWorkspace.special) ids[Wm.focusedWorkspace.name] = true
-            return Object.keys(ids).sort(function(a, b) { return Number(a) - Number(b) })
-        }
-        var n = root.workspaceMode === "5" ? 5 : 10
-        var list = []; for (var j = 1; j <= n; j++) list.push(String(j))
-        if (extraWs !== "") list.push(extraWs)
-        return list
-    }
+    readonly property var workspaceList: WorkspaceIsolation.workspaceList(
+        wsWidget.workspaceData, root.workspaceMode, wsWidget.dynamicModel, wsWidget.screenName,
+        root.isolateMonitors, wsWidget.listActiveWorkspace, wsWidget.extraWs)
 
     // ── PACMAN style state: pacman rests on the focused cell, pellet glyphs
     //    mark occupied cells, dimmed dots the empty ones. On a focus change a
     //    runner pacman travels from the old cell to the new one, chomping as it
     //    goes; the destination pellet is eaten (fades/shrinks) as it arrives. ──
-    readonly property string focusedWorkspaceKey: Wm.focusedWorkspace
-        && !Wm.focusedWorkspace.special ? Wm.focusedWorkspace.name : ""
+    readonly property string focusedWorkspaceKey: {
+        var fw = root.isolateMonitors ? wsWidget.monitorActiveWs : Wm.focusedWorkspace
+        return fw && !fw.special ? fw.name : ""
+    }
 
     property string pacmanLastFocusedWorkspaceKey: ""
     property string pacmanTargetWorkspaceKey: ""
@@ -194,18 +189,19 @@ Item {
                 id: wsCell
                 required property var modelData
                 readonly property string wsKey: String(modelData)
+                readonly property var workspace: WorkspaceIsolation.workspaceOn(
+                    Wm.workspaces, wsKey, wsWidget.screenName, root.isolateMonitors)
 
                 // hover feedback works in every style (the old code scaled the
                 // default-only `dot`, invisible in numbers/magic)
                 Behavior on scale { NumberAnimation { duration: 120 } }
 
-                readonly property bool isFocused: Wm.focusedWorkspace !== null
-                                               && Wm.focusedWorkspace.name === wsKey
-
-                readonly property bool isOccupied: {
-                    var w = Wm.workspaceByName(wsKey)
-                    return !!w && w.occupied && !isFocused
+                readonly property bool isFocused: {
+                    var act = root.isolateMonitors ? wsWidget.monitorActiveWs : Wm.focusedWorkspace
+                    return act !== null && act.name === wsKey
                 }
+
+                readonly property bool isOccupied: !!workspace && workspace.occupied && !isFocused
 
                 readonly property bool isEmpty: !isFocused && !isOccupied
 
@@ -222,7 +218,13 @@ Item {
                     NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
                 }
 
-                // ── DEFAULT style: glow + dot ──
+                Item {
+                    id: wsCellVisual
+                    anchors.fill: parent
+                    opacity: wsCell.isFocused ? WorkspaceIsolation.markerOpacity(wsWidget.hasMonitorFocus) : 1.0
+                    Behavior on opacity { NumberAnimation { duration: 150 } }
+
+                    // ── DEFAULT style: glow + dot ──
                 // glow - alle states, nur opacity variiert
                 Rectangle {
                     visible: root.workspaceStyle === "default"
@@ -405,13 +407,14 @@ Item {
                     emptyColor: wsWidget.contentColor
                     hoverColor: wsWidget.contentColor
                 }
+                }
 
                 MouseArea {
                     id: wsMa
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
                     hoverEnabled: true
-                    onClicked: root.gotoWorkspace(wsKey)
+                    onClicked: root.gotoWorkspace(wsCell.workspace ? wsCell.workspace.id : wsKey)
                     onEntered: wsCell.scale = root.workspaceStyle === "rings" ? 1.0
                         : root.workspaceStyle === "pacman" ? 1.0
                         : root.workspaceStyle === "aurora" ? 1.04 : 1.15
@@ -429,9 +432,11 @@ Item {
         anchors.fill: parent
         z: 0
         visible: root.workspaceStyle === "rings" && targetIndex >= 0
+        opacity: WorkspaceIsolation.markerOpacity(wsWidget.hasMonitorFocus)
+        Behavior on opacity { NumberAnimation { duration: 150 } }
 
         readonly property int targetIndex: {
-            var focused = Wm.focusedWorkspace
+            var focused = root.isolateMonitors ? wsWidget.monitorActiveWs : Wm.focusedWorkspace
             if (!focused || focused.special) return -1
             return wsWidget.workspaceList.indexOf(focused.name)
         }
@@ -500,6 +505,8 @@ Item {
     Item {
         id: pacmanRunner
         visible: wsWidget.pacmanTraveling && root.workspaceStyle === "pacman"
+        opacity: !wsWidget.hasMonitorFocus ? 0.72 : 1.0
+        Behavior on opacity { NumberAnimation { duration: 150 } }
         z: 4
         x: wsWidget.pacmanTravelX - width / 2
         y: Math.round((parent.height - height) / 2)

@@ -187,12 +187,12 @@ Item {
             introPlayTimer.stop();
             focusTimer.stop();
             mainPollerTimer.stop();
-            window.pendingWifiId = "";
-            window.pendingWifiSsid = "";
-            window.btOpsInFlight = ({});
-            window.hoveredCardCount = 0;
-            window.disconnectHoverCount = 0;
-            window.introState = 0.0;
+            popupWindowRoot.pendingWifiId = "";
+            popupWindowRoot.pendingWifiSsid = "";
+            popupWindowRoot.btOpsInFlight = ({});
+            popupWindowRoot.hoveredCardCount = 0;
+            popupWindowRoot.disconnectHoverCount = 0;
+            popupWindowRoot.introState = 0.0;
         }
     }
 
@@ -274,10 +274,10 @@ Item {
         Connections {
             target: BluetoothPower
             function onAvailableChanged() {
-                window.rebuildBtData(false);
+                popupWindowRoot.rebuildBtData(false);
             }
             function onBlockedChanged() {
-                window.rebuildBtData(false);
+                popupWindowRoot.rebuildBtData(false);
             }
         }
         Connections {
@@ -308,14 +308,14 @@ Item {
                 Connections {
                     target: device || null
                     ignoreUnknownSignals: true
-                    function onConnectedChanged() { window.requestBtRebuild(); }
-                    function onBatteryChanged() { window.requestBtRebuild(); }
-                    function onBatteryAvailableChanged() { window.requestBtRebuild(); }
-                    function onStateChanged() { window.requestBtRebuild(); }
-                    function onPairedChanged() { window.requestBtRebuild(); }
-                    function onTrustedChanged() { window.requestBtRebuild(); }
-                    function onNameChanged() { window.requestBtRebuild(); }
-                    function onDeviceNameChanged() { window.requestBtRebuild(); }
+                    function onConnectedChanged() { popupWindowRoot.requestBtRebuild(); }
+                    function onBatteryChanged() { popupWindowRoot.requestBtRebuild(); }
+                    function onBatteryAvailableChanged() { popupWindowRoot.requestBtRebuild(); }
+                    function onStateChanged() { popupWindowRoot.requestBtRebuild(); }
+                    function onPairedChanged() { popupWindowRoot.requestBtRebuild(); }
+                    function onTrustedChanged() { popupWindowRoot.requestBtRebuild(); }
+                    function onNameChanged() { popupWindowRoot.requestBtRebuild(); }
+                    function onDeviceNameChanged() { popupWindowRoot.requestBtRebuild(); }
                 }
             }
         }
@@ -569,7 +569,7 @@ Item {
 
     FileView {
         id: networkSettingsFile
-        path: window.settingsFilePath
+        path: popupWindowRoot.settingsFilePath
         blockLoading: true
         watchChanges: true
         printErrors: false
@@ -581,8 +581,8 @@ Item {
             property string lastWifiSsid: ""
             property string lastBtJson: ""
 
-            onLastWifiSsidChanged: if (window.cacheReady) networkSettingsFile.writeAdapter()
-            onLastBtJsonChanged: if (window.cacheReady) networkSettingsFile.writeAdapter()
+            onLastWifiSsidChanged: if (popupWindowRoot.cacheReady) networkSettingsFile.writeAdapter()
+            onLastBtJsonChanged: if (popupWindowRoot.cacheReady) networkSettingsFile.writeAdapter()
         }
     }
 
@@ -654,10 +654,10 @@ Item {
     }
 
     Component.onCompleted: {
-        window.cacheReady = true;
+        popupWindowRoot.cacheReady = true;
         if (!networkSettingsFile.text()) networkSettingsFile.writeAdapter();
 
-        Quickshell.execDetached(["bash", "-c", "mkdir -p '" + window.cacheDir + "'; if [ ! -f '" + window.modeFilePath + "' ]; then echo '" + activeMode + "' > '" + window.modeFilePath + "'; fi"]);
+        Quickshell.execDetached(["bash", "-c", "mkdir -p '" + popupWindowRoot.cacheDir + "'; if [ ! -f '" + popupWindowRoot.modeFilePath + "' ]; then echo '" + activeMode + "' > '" + popupWindowRoot.modeFilePath + "'; fi"]);
 
         popupWindowRoot.findDevices();
         popupWindowRoot.rebuildEthData();
@@ -740,7 +740,7 @@ Item {
         stdout: StdioCollector {}
         stderr: StdioCollector {}
         onExited: function(exitCode) {
-            if (window.activeConnectId !== btLinkProcess.attemptId)
+            if (popupWindowRoot.activeConnectId !== btLinkProcess.attemptId)
                 return;
             if (exitCode === 0) {
                 btConnectSimTimer.targetId = btLinkProcess.targetId;
@@ -748,19 +748,19 @@ Item {
                 btConnectSimTimer.restart();
                 return;
             }
-            let busy = window.busyTasks;
+            let busy = popupWindowRoot.busyTasks;
             delete busy[btLinkProcess.targetId];
-            window.busyTasks = Object.assign({}, busy);
-            window.connectingId = "";
-            window.failedId = btLinkProcess.targetId;
+            popupWindowRoot.busyTasks = Object.assign({}, busy);
+            popupWindowRoot.connectingId = "";
+            popupWindowRoot.failedId = btLinkProcess.targetId;
             failClearTimer.restart();
         }
     }
 
-    Timer { id: ethPendingReset; interval: 8000; onTriggered: { window.ethPowerPending = false; window.expectedEthPower = ""; } }
-    Timer { id: wifiPendingReset; interval: 8000; onTriggered: { window.wifiPowerPending = false; window.expectedWifiPower = ""; } }
-    Timer { id: btPendingReset; interval: 8000; onTriggered: { window.btPowerPending = false; window.expectedBtPower = ""; } }
-    Timer { id: powerMinSpinTimer; interval: 800; onTriggered: { if (window.activeMode === "eth") window.rebuildEthData(); else if (window.activeMode === "wifi") window.rebuildWifiData(); else window.rebuildBtData(false); } }
+    Timer { id: ethPendingReset; interval: 8000; onTriggered: { popupWindowRoot.ethPowerPending = false; popupWindowRoot.expectedEthPower = ""; } }
+    Timer { id: wifiPendingReset; interval: 8000; onTriggered: { popupWindowRoot.wifiPowerPending = false; popupWindowRoot.expectedWifiPower = ""; } }
+    Timer { id: btPendingReset; interval: 8000; onTriggered: { popupWindowRoot.btPowerPending = false; popupWindowRoot.expectedBtPower = ""; } }
+    Timer { id: powerMinSpinTimer; interval: 800; onTriggered: { if (popupWindowRoot.activeMode === "eth") popupWindowRoot.rebuildEthData(); else if (popupWindowRoot.activeMode === "wifi") popupWindowRoot.rebuildWifiData(); else popupWindowRoot.rebuildBtData(false); } }
 
     property bool showInfoView: false
     onShowInfoViewChanged: {
@@ -779,10 +779,10 @@ Item {
     function connectDevice(mode, id, macOrSsid, password) {
         if (mode !== "eth" && mode !== "wifi" && btLinkProcess.running)
             return;
-        window.activeConnectId++;
-        window.connectingId = id || "";
-        window.failedId = "";
-        let bt = window.busyTasks;
+        popupWindowRoot.activeConnectId++;
+        popupWindowRoot.connectingId = id || "";
+        popupWindowRoot.failedId = "";
+        let bt = popupWindowRoot.busyTasks;
         if (id) bt[id] = true;
         popupWindowRoot.busyTasks = Object.assign({}, bt);
         busyTimeout.restart();
@@ -810,8 +810,8 @@ Item {
             let mac = macOrSsid;
             if (popupWindowRoot.isBtOpBusy(mac)) return;
 
-            window.withBtOpLock(mac, function() {
-                let devList = window.getBtDevicesList();
+            popupWindowRoot.withBtOpLock(mac, function() {
+                let devList = popupWindowRoot.getBtDevicesList();
                 let found = false;
                 for (let i = 0; i < devList.length; i++) {
                     if (devList[i] && devList[i].address === mac) {
@@ -820,16 +820,16 @@ Item {
                     }
                 }
                 if (!found) {
-                    let busy = window.busyTasks;
+                    let busy = popupWindowRoot.busyTasks;
                     delete busy[id];
-                    window.busyTasks = Object.assign({}, busy);
-                    window.connectingId = "";
-                    window.failedId = id || "";
+                    popupWindowRoot.busyTasks = Object.assign({}, busy);
+                    popupWindowRoot.connectingId = "";
+                    popupWindowRoot.failedId = id || "";
                     failClearTimer.restart();
                     return;
                 }
                 btLinkProcess.targetId = id || mac;
-                btLinkProcess.attemptId = window.activeConnectId;
+                btLinkProcess.attemptId = popupWindowRoot.activeConnectId;
                 btLinkProcess.command = BtLink.linkCommand(mac);
                 btLinkProcess.running = true;
             });
@@ -1129,7 +1129,7 @@ Item {
                     nodes.push({ id: "sec_" + i, name: obj.security || I18n.t("network.status.open") || "Open", icon: "󰦝", action: "", isInfoNode: true, isActionable: false, parentIndex: cIndex });
                     if (obj.ip) nodes.push({ id: "ip_" + i, name: obj.ip, icon: "󰩟", action: "", isInfoNode: true, isActionable: true, cmdStr: "printf '%s' " + popupWindowRoot.shEsc(obj.ip) + " | wl-copy", parentIndex: cIndex });
                     if (obj.freq) nodes.push({ id: "freq_" + i, name: obj.freq, icon: "󰖧", action: "", isInfoNode: true, isActionable: false, parentIndex: cIndex });
-                    if (window.connectivityState === "portal") nodes.push({ id: "action_portal", name: I18n.t("network.actions.sign_in") || "Sign in", icon: "󰖟", action: "", isInfoNode: true, isActionable: true, launchApp: true, cmdStr: "command -v xdg-open >/dev/null 2>&1 && exec xdg-open " + window.shEsc(window.portalProbeUrl), parentIndex: cIndex });
+                    if (popupWindowRoot.connectivityState === "portal") nodes.push({ id: "action_portal", name: I18n.t("network.actions.sign_in") || "Sign in", icon: "󰖟", action: "", isInfoNode: true, isActionable: true, launchApp: true, cmdStr: "command -v xdg-open >/dev/null 2>&1 && exec xdg-open " + popupWindowRoot.shEsc(popupWindowRoot.portalProbeUrl), parentIndex: cIndex });
                 } else if (obj.mac) {
                     nodes.push({ id: "bat_" + obj.mac, name: (obj.battery || "0") + "%", icon: "󰥉", action: "", isInfoNode: true, isActionable: false, parentIndex: cIndex });
                     if (obj.profile) {
@@ -1343,9 +1343,9 @@ Item {
         }
         let adapter = Bluetooth.defaultAdapter;
         if (!adapter) {
-            window.btMissCount++;
-            window.btPresent = BluetoothPower.available;
-            window.btPower = "off";
+            popupWindowRoot.btMissCount++;
+            popupWindowRoot.btPresent = BluetoothPower.available;
+            popupWindowRoot.btPower = "off";
             if (!isCache) validateActiveMode();
             return;
         }

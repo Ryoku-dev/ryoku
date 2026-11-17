@@ -18,11 +18,16 @@
 package keyboard
 
 import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 
 	"ryoku-cli/internal/host"
@@ -217,10 +222,25 @@ func BootImageTime() (time.Time, string) {
 	return newest, which
 }
 
-// BootStale reports whether the boot image predates /etc/vconsole.conf, meaning
-// the passphrase prompt still carries the keymap baked in when it was built.
-// This is the check a plain config comparison misses: every file under /etc can
-// agree while the prompt is still wrong.
+// BootKeymapStamp holds the sha256 of vconsole.conf at Ryoku's last rebuild.
+var BootKeymapStamp = "/var/lib/ryoku/boot-keymap"
+
+func vconsoleDigest() string {
+	b, err := os.ReadFile(VconsolePath)
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
+}
+
+// BootStale reports whether the boot image predates the current
+// /etc/vconsole.conf, meaning the passphrase prompt still carries the keymap
+// baked in when it was built. This is the check a plain config comparison
+// misses: every file under /etc can agree while the prompt is still wrong.
+//
+// mtimes alone never clear: a reproducible rebuild keeps the image's old mtime,
+// and a clock that ran ahead at install dates vconsole.conf in the future
 func BootStale() (bool, string) {
 	when, path := BootImageTime()
 	if when.IsZero() {
@@ -230,7 +250,15 @@ func BootStale() (bool, string) {
 	if err != nil {
 		return false, path
 	}
-	return fi.ModTime().After(when), path
+	changed, future := fi.ModTime(), fi.ModTime().After(time.Now())
+	if !future && !changed.After(when) {
+		return false, path
+	}
+	recorded, err := os.ReadFile(BootKeymapStamp)
+	if err != nil {
+		return !future, path
+	}
+	return strings.TrimSpace(string(recorded)) != vconsoleDigest(), path
 }
 
 // ---- pushing a layout out ----------------------------------------------------
@@ -266,26 +294,86 @@ func ApplySystem(l Layout) error {
 }
 
 var (
-	hasBootImageTool = sys.Has
-	runBootImageTool = sys.Sudo
+	// /usr/local/bin is left out: limine-mkinitcpio-hook puts a mkinitcpio
+	// wrapper there that builds nothing and then asks [Y/n] on stdin
+	bootToolDirs     = []string{"/usr/bin", "/usr/sbin", "/bin", "/sbin"}
+	bootImageTimeout = 10 * time.Minute
+	bootImageAsRoot  = func() []string {
+		if os.Geteuid() == 0 {
+			return nil
+		}
+		return []string{"sudo"}
+	}
 )
 
-// RebuildBootImage regenerates every initramfs so the passphrase prompt picks
-// up the console keymap. It prefers mkinitcpio when available and otherwise
-// uses dracut. Rebuilding also updates any UKI managed by the host generator,
-// so callers decide when this slow operation runs.
-func RebuildBootImage() error {
-	var command []string
-	switch {
-	case hasBootImageTool("mkinitcpio"):
-		command = []string{"mkinitcpio", "-P"}
-	case hasBootImageTool("dracut"):
-		command = []string{"dracut", "--regenerate-all", "--force"}
-	default:
-		return fmt.Errorf(i18n.T("neither mkinitcpio nor dracut is installed"))
+func systemTool(name string) string {
+	for _, dir := range bootToolDirs {
+		p := filepath.Join(dir, name)
+		if fi, err := os.Stat(p); err == nil && fi.Mode().IsRegular() && fi.Mode()&0o111 != 0 {
+			return p
+		}
 	}
-	if err := runBootImageTool(command...); err != nil {
+	return ""
+}
+
+// limine-mkinitcpio first: a Limine UKI box has no presets for mkinitcpio -P
+func bootImageCommand() ([]string, error) {
+	if p := systemTool("limine-mkinitcpio"); p != "" {
+		return []string{p}, nil
+	}
+	if p := systemTool("mkinitcpio"); p != "" {
+		return []string{p, "-P"}, nil
+	}
+	if p := systemTool("dracut"); p != "" {
+		return []string{p, "--regenerate-all", "--force"}, nil
+	}
+	return nil, fmt.Errorf(i18n.T("neither mkinitcpio nor dracut is installed"))
+}
+
+// BootImageRebuildHint is the rebuild to run by hand.
+func BootImageRebuildHint() string {
+	argv, err := bootImageCommand()
+	if err != nil {
+		return "sudo mkinitcpio -P"
+	}
+	argv[0] = filepath.Base(argv[0])
+	return "sudo " + strings.Join(argv, " ")
+}
+
+// no terminal on stdin and a deadline: the update hides child output, so a
+// question would wait forever. sudo still prompts for a password on the tty
+func runBootImageTool(argv []string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), bootImageTimeout)
+	defer cancel()
+	full := append(bootImageAsRoot(), argv...)
+	cmd := exec.CommandContext(ctx, full[0], full[1:]...)
+	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	// sudo relays SIGTERM to the generator; SIGKILL would orphan it
+	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
+	cmd.WaitDelay = 30 * time.Second
+	err := cmd.Run()
+	if ctx.Err() == context.DeadlineExceeded {
+		return fmt.Errorf(i18n.T("%s did not finish within %s"), filepath.Base(argv[0]), bootImageTimeout)
+	}
+	return err
+}
+
+// RebuildBootImage regenerates every initramfs so the passphrase prompt picks
+// up the console keymap, then records which vconsole.conf the images carry.
+// Rebuilding also updates any UKI managed by the host generator, so callers
+// decide when this slow operation runs.
+func RebuildBootImage() error {
+	argv, err := bootImageCommand()
+	if err != nil {
+		return err
+	}
+	digest := vconsoleDigest()
+	if err := runBootImageTool(argv); err != nil {
 		return fmt.Errorf(i18n.T("rebuild the boot image: %w"), err)
+	}
+	if digest != "" {
+		// a missing stamp only costs one more rebuild on the next doctor
+		_ = sys.WriteRootFile(BootKeymapStamp, digest+"\n", "0644")
 	}
 	return nil
 }

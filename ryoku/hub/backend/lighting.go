@@ -137,14 +137,61 @@ func saveLighting(s lightingState) error {
 }
 
 // deviceKey: an identity that survives a reboot. The USB path and the SDK index
-// both move, so the name plus the serial is the stable pair. Two identical
-// devices with no serial share one entry, which is honest: nothing about them
-// distinguishes one from the other between sessions.
+// both move, so the name plus the serial is the stable pair. An SMBus device
+// (RAM sticks, some boards and graphics cards) reports no serial, but its
+// adapter and address are fixed by the slot it sits in, so that pair tells
+// identical sticks apart. Two identical devices with neither share one entry,
+// which is honest: nothing about them distinguishes one from the other between
+// sessions.
 func deviceKey(d orgbDevice) string {
 	if d.Serial != "" {
 		return d.Name + "#" + d.Serial
 	}
+	if slot, ok := smbusSlot(d.Location); ok {
+		return d.Name + "#" + slot
+	}
 	return d.Name
+}
+
+var (
+	smbusLocation = regexp.MustCompile(`^I2C: (.*), address (0x[0-9A-Fa-f]+)$`)
+	// the bus number follows driver load order, so it can move between boots
+	// while the adapter name and the address stay put.
+	smbusBusNode = regexp.MustCompile(`\s*\(?/dev/i2c-\d+\)?`)
+)
+
+// smbusSlot reads "smbus:<adapter>@<address>" out of an OpenRGB I2C location.
+func smbusSlot(location string) (string, bool) {
+	m := smbusLocation.FindStringSubmatch(location)
+	if m == nil {
+		return "", false
+	}
+	adapter := strings.TrimSpace(smbusBusNode.ReplaceAllString(m[1], ""))
+	return "smbus:" + adapter + "@" + strings.ToLower(m[2]), true
+}
+
+// legacyKeys: the keys this device's settings may still be stored under. An
+// SMBus device was once keyed by its bare name, shared by every identical stick.
+func legacyKeys(d orgbDevice) []string {
+	keys := d.Aliases
+	if d.Serial == "" {
+		if _, ok := smbusSlot(d.Location); ok {
+			keys = append(append([]string(nil), keys...), d.Name)
+		}
+	}
+	return keys
+}
+
+func cloneSettings(s *lightingSettings) *lightingSettings {
+	c := *s
+	c.Colors = append([]string(nil), s.Colors...)
+	if s.ZoneColors != nil {
+		c.ZoneColors = make(map[string]string, len(s.ZoneColors))
+		for z, hex := range s.ZoneColors {
+			c.ZoneColors[z] = hex
+		}
+	}
+	return &c
 }
 
 // ── the wire shape the Hub renders ──────────────────────────────────────────
@@ -321,28 +368,32 @@ func lightingScan() lightReport {
 func rememberFirstSight(live []orgbDevice) lightingState {
 	st := loadLighting()
 	dirty := false
+	// a legacy entry is dropped only after every device it stood for has taken
+	// its own copy, so identical sticks that shared one all keep the look.
+	claimed := map[string]bool{}
 	for _, d := range live {
 		key := deviceKey(d)
 		s := st.Devices[key]
-		for _, alias := range d.Aliases {
+		for _, alias := range legacyKeys(d) {
 			old := st.Devices[alias]
-			if old == nil {
+			if old == nil || alias == key {
 				continue
 			}
 			if s == nil || firstSightDefaults(s) {
-				old.Name = d.Name
-				st.Devices[key] = old
-				s = old
+				moved := cloneSettings(old)
+				moved.Name = d.Name
+				st.Devices[key] = moved
+				s = moved
 				if d.Provider == auraProvider {
-					if old.Effect != "" {
-						old.Mode = auraModeForEffect(old.Effect, d)
-						old.Effect = ""
+					if moved.Effect != "" {
+						moved.Mode = auraModeForEffect(moved.Effect, d)
+						moved.Effect = ""
 					} else {
-						old.Mode = auraModeForLegacyMode(old.Mode, d)
+						moved.Mode = auraModeForLegacyMode(moved.Mode, d)
 					}
 				}
 			}
-			delete(st.Devices, alias)
+			claimed[alias] = true
 			dirty = true
 		}
 		if s == nil {
@@ -353,6 +404,11 @@ func rememberFirstSight(live []orgbDevice) lightingState {
 		if _, _, ok := d.mode(s.Restore); !ok && len(d.Modes) > 0 {
 			s.Restore = d.Modes[d.ActiveMode].Name
 			dirty = true
+		}
+	}
+	for alias := range claimed {
+		if !liveKey(live, alias) {
+			delete(st.Devices, alias)
 		}
 	}
 	if dirty {
@@ -482,13 +538,16 @@ func savedView(key string, s *lightingSettings) lightDevice {
 }
 
 // sortDevices: online devices first, then by name, so the list a user sees does
-// not reshuffle between scans.
+// not reshuffle between scans. Identical sticks fall back to their key.
 func sortDevices(ds []lightDevice) {
 	sort.SliceStable(ds, func(i, j int) bool {
 		if ds[i].Online != ds[j].Online {
 			return ds[i].Online
 		}
-		return ds[i].Name < ds[j].Name
+		if ds[i].Name != ds[j].Name {
+			return ds[i].Name < ds[j].Name
+		}
+		return ds[i].Key < ds[j].Key
 	})
 }
 
@@ -1021,6 +1080,11 @@ func findLive(live []orgbDevice, key string) (orgbDevice, bool) {
 		}
 	}
 	return orgbDevice{}, false
+}
+
+func liveKey(live []orgbDevice, key string) bool {
+	_, ok := findLive(live, key)
+	return ok
 }
 
 // ── applying one device ─────────────────────────────────────────────────────

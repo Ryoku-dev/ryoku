@@ -453,8 +453,8 @@ Item {
     // master on/off, rescan (spins ~10s), live list sorted by signal. security
     // + known-profile ground truth come from nmcli; the Quickshell service
     // doesn't expose them. tap a secured unknown net -> inline password row that
-    // runs `nmcli --ask dev wifi connect`, secret piped through stdin so it
-    // never lands in /proc/<pid>/cmdline.
+    // joins through the shell daemon (nmcli when it cannot), secret piped
+    // through stdin so it never lands in /proc/<pid>/cmdline.
     component WifiBody: Item {
         id: wifi
 
@@ -464,15 +464,30 @@ Item {
         readonly property var wifiDev: devices.find(function(d) { return d && d.type === DeviceType.Wifi }) || null
         readonly property bool wifiOn: (typeof Networking !== "undefined" && Networking) ? Networking.wifiEnabled : false
         readonly property var nets: (wifiDev && wifiDev.networks) ? wifiDev.networks.values : []
+        // saved networks in range lead (the connected one first), then the
+        // rest, each by signal; the list heads each group
+        function isSaved(n) { return !!n && (n.connected === true || wifi.knownProfiles[n.name] === true); }
         readonly property var netsSorted: nets
             .slice()
             .filter(function(n) { return n && n.name && n.name.length > 0; })
             .sort(function(a, b) {
+                if ((a.connected === true) !== (b.connected === true))
+                    return a.connected === true ? -1 : 1;
+                var sa = wifi.isSaved(a), sb = wifi.isSaved(b);
+                if (sa !== sb)
+                    return sa ? -1 : 1;
                 return ((b ? b.signalStrength : 0) || 0) - ((a ? a.signalStrength : 0) || 0);
             })
+        readonly property int savedCount: netsSorted.filter(function(n) { return wifi.isSaved(n); }).length
 
         property var securityMap: ({})
+        // saved profiles keyed by the SSID they join, never by profile name:
+        // NetworkManager names a second profile for an SSID `<ssid> 1`, and an
+        // imported one can carry any name. profileUuids lists each SSID's
+        // profiles, most recently used first.
         property var knownProfiles: ({})
+        property var profileUuids: ({})
+        function uuidsFor(ssid) { return wifi.profileUuids[ssid] || []; }
 
         // per-saved-network autoconnect, read live from `nmcli`. a profile
         // rejoins on its own by default; turning it off stops the machine
@@ -486,6 +501,20 @@ Item {
         // the user's per-SSID pick ("" means let NM choose, which favours the
         // 2.4 GHz AP at any range).
         property var bandMap: ({})
+        // Details shows each row's access points, so two networks sharing a
+        // name can be told apart; off by default, not persisted
+        property bool showDetails: false
+        function detailsLine(ssid) {
+            var entries = wifi.bandMap[ssid] || [];
+            var parts = [];
+            for (var i = 0; i < entries.length; i++) {
+                if (!entries[i].bssid.length)
+                    continue;
+                parts.push(wifi.bandLabel(entries[i].band) + " " + entries[i].bssid
+                    + (entries[i].active ? " " + I18n.tr("(connected)") : ""));
+            }
+            return parts.join("  \u00b7  ");
+        }
         property var selectedBands: ({})
 
         property string expandedSsid: ""
@@ -507,6 +536,18 @@ Item {
         property string attemptSsid: ""
         property string attemptBand: ""
         property bool attemptWasKnown: false
+        property bool attemptAutoOff: false
+        // a password join runs through the daemon, which removes the profile
+        // its rejected join created; a join it could not run falls back to
+        // nmcli below, whose failure the page cleans up as before
+        property bool attemptViaDaemon: false
+        // the passphrase, held only while a daemon join runs, for the nmcli
+        // fallback when the daemon does not answer
+        property string fallbackPw: ""
+
+        property string authFailedSsid: ""
+        property string forgetArmed: ""
+        property bool forgetBusy: false
 
         readonly property real colMax: 720
 
@@ -515,19 +556,24 @@ Item {
             return sec !== undefined && sec !== "" && sec !== "--";
         }
 
+        // bumped after a failed attempt so an open field empties instead of
+        // keeping the rejected text for the next try to be typed onto
+        property int pwEpoch: 0
         function refresh() {
             secProc.running = true;
             profProc.running = true;
         }
 
-        // flip a saved profile's autoconnect. the profile name equals the SSID
-        // for a network the row reads as saved (nmcli names it after the SSID),
-        // so the same key targets it. refresh re-reads the map on completion.
+        // flip autoconnect on every profile of the SSID, since any one left on
+        // rejoins it. refresh re-reads the map on completion.
         function setAutoconnect(ssid, enabled) {
-            if (wifi.autoBusy || !ssid.length)
+            var uuids = wifi.uuidsFor(ssid);
+            if (wifi.autoBusy || !uuids.length)
                 return;
             wifi.autoBusy = true;
-            autoProc.command = ["nmcli", "connection", "modify", ssid, "connection.autoconnect", enabled ? "yes" : "no"];
+            autoProc.command = ["sh", "-c",
+                'v=$1; shift; r=0; for u; do nmcli connection modify uuid "$u" connection.autoconnect "$v" || r=1; done; exit $r',
+                "sh", enabled ? "yes" : "no"].concat(uuids);
             autoProc.running = true;
         }
 
@@ -628,13 +674,13 @@ Item {
             var secKnown = wifi.securityMap[ssid] !== undefined;
             if (wifi.knownProfiles[ssid] === true || (secKnown && !wifi.isSecured(ssid))) {
                 wifi.expandedSsid = "";
+                wifi.connectFailed = false;
+                wifi.authFailedSsid = "";
                 if (wifi.pickedBand(ssid).length) {
                     wifi.connectBand(ssid);
                     return;
                 }
-                if (typeof net.connect === "function")
-                    net.connect();
-                wifi.refresh();
+                wifi.connectSaved(ssid);
                 return;
             }
             wifi.connectFailed = false;
@@ -642,8 +688,49 @@ Item {
             wifi.expandedSsid = ssid;
         }
 
-        // `nmcli --ask`, password through stdin. /proc/<pid>/cmdline is world-
-        // readable for the whole attempt, so it MUST NOT be in argv.
+        // a saved secured network whose stored secret was refused: reopen its
+        // password row, emptied so the next try is not typed onto the old text
+        function savedJoinRejected(ssid) {
+            if (!ssid.length)
+                return;
+            wifi.connectFailed = true;
+            wifi.authFailedSsid = ssid;
+            wifi.pwDraft = "";
+            wifi.pwEpoch++;
+            wifi.expandedSsid = ssid;
+        }
+
+        function requestForget(ssid) {
+            if (wifi.forgetBusy || !ssid.length)
+                return;
+            if (wifi.forgetArmed !== ssid) {
+                wifi.forgetArmed = ssid;
+                forgetReset.restart();
+                return;
+            }
+            var uuids = wifi.uuidsFor(ssid);
+            forgetReset.stop();
+            if (!uuids.length) {
+                wifi.forgetArmed = "";
+                return;
+            }
+            wifi.forgetBusy = true;
+            var cmd = ["nmcli", "connection", "delete"];
+            for (var i = 0; i < uuids.length; i++)
+                cmd.push("uuid", uuids[i]);
+            forgetProc.command = cmd;
+            forgetProc.running = true;
+        }
+
+        // Password through stdin: /proc/<pid>/cmdline is world-readable for the
+        // whole attempt, so it MUST NOT be in argv, and never through `nmcli
+        // connection edit`, which keeps every line it reads in
+        // ~/.cache/nmcli-history. The join goes through the shell daemon, which
+        // owns Wi-Fi joins: with no secret agent a rejected password fails as
+        // soon as NetworkManager drops it, where `nmcli --ask` waited out its
+        // 90-second timeout. The SSID's saved profiles are replaced once the
+        // daemon's socket answers, and a failed join cleans up like a first
+        // join.
         function connectWithPassword(ssid, pw) {
             if (connProc.running || !pw.length)
                 return;
@@ -651,9 +738,47 @@ Item {
             wifi.connectFailed = false;
             wifi.attemptSsid = ssid;
             wifi.attemptBand = wifi.pickedBand(ssid);
-            wifi.attemptWasKnown = wifi.knownProfiles[ssid] === true;
+            wifi.attemptWasKnown = false;
+            wifi.attemptViaDaemon = true;
+            wifi.attemptAutoOff = wifi.knownProfiles[ssid] === true && wifi.autoconnectMap[ssid] === false;
             wifi.pendingPw = pw;
-            connProc.command = ["nmcli", "--ask", "dev", "wifi", "connect", ssid];
+            wifi.fallbackPw = pw;
+            connProc.command = ["ryoku-hub", "wifi", "connect", ssid];
+            connProc.stdinEnabled = true;
+            connProc.running = true;
+        }
+
+        // the join without the daemon, as the page ran it before: it works, but
+        // a rejected password waits out nmcli's 90-second --ask timeout
+        function joinWithNmcli() {
+            wifi.attemptViaDaemon = false;
+            wifi.pendingPw = wifi.fallbackPw;
+            wifi.fallbackPw = "";
+            connProc.command = ["sh", "-c",
+                's=$1; shift; for u; do nmcli connection delete uuid "$u" </dev/null >/dev/null 2>&1; done; exec nmcli --ask dev wifi connect "$s"',
+                "sh", wifi.attemptSsid].concat(wifi.uuidsFor(wifi.attemptSsid));
+            connProc.stdinEnabled = true;
+            connProc.running = true;
+        }
+
+        // a saved network joins through nmcli too, so a refused stored secret
+        // comes back as connProc's exit code; Quickshell's connectionFailed is
+        // not always emitted for it
+        function connectSaved(ssid) {
+            if (connProc.running)
+                return;
+            wifi.connecting = true;
+            wifi.connectFailed = false;
+            wifi.attemptSsid = ssid;
+            wifi.attemptBand = "";
+            wifi.attemptWasKnown = wifi.knownProfiles[ssid] === true;
+            wifi.attemptViaDaemon = false;
+            wifi.attemptAutoOff = false;
+            wifi.pendingPw = "";
+            connProc.command = wifi.attemptWasKnown
+                ? ["nmcli", "connection", "up", "uuid", wifi.uuidsFor(ssid)[0]]
+                : ["nmcli", "dev", "wifi", "connect", ssid];
+            connProc.stdinEnabled = true;
             connProc.running = true;
         }
 
@@ -668,8 +793,11 @@ Item {
             wifi.attemptSsid = ssid;
             wifi.attemptBand = wifi.pickedBand(ssid);
             wifi.attemptWasKnown = wifi.knownProfiles[ssid] === true;
+            wifi.attemptViaDaemon = false;
+            wifi.attemptAutoOff = false;
             wifi.pendingPw = "";
             connProc.command = ["nmcli", "dev", "wifi", "connect", ssid];
+            connProc.stdinEnabled = true;
             connProc.running = true;
         }
 
@@ -707,11 +835,12 @@ Item {
         Process {
             id: rescanProc
             command: ["nmcli", "dev", "wifi", "rescan"]
+            onExited: wifi.refresh()
         }
 
         Process {
             id: secProc
-            command: ["nmcli", "-t", "-f", "SSID,SECURITY,FREQ", "dev", "wifi", "list"]
+            command: ["nmcli", "-t", "-f", "SSID,SECURITY,FREQ,BSSID,SIGNAL,ACTIVE", "dev", "wifi", "list"]
             stdout: StdioCollector {
                 onStreamFinished: {
                     var secs = {};
@@ -728,15 +857,21 @@ Item {
                         var band = wifi.bandForFreq(mhz);
                         if (!band.length)
                             continue;
+                        // one entry per band: the connected AP, else the strongest,
+                        // whose BSSID the Details view shows
+                        var ap = { band: band, freq: mhz, bssid: f[3] || "",
+                            signal: parseInt(f[4], 10) || 0, active: f[5] === "yes" };
                         var entries = bands[f[0]] || [];
-                        var seen = false;
+                        var at = -1;
                         for (var j = 0; j < entries.length; j++)
                             if (entries[j].band === band) {
-                                seen = true;
+                                at = j;
                                 break;
                             }
-                        if (!seen)
-                            entries.push({ band: band, freq: mhz });
+                        if (at < 0)
+                            entries.push(ap);
+                        else if (ap.active || (!entries[at].active && ap.signal > entries[at].signal))
+                            entries[at] = ap;
                         bands[f[0]] = entries;
                     }
                     for (var s in bands)
@@ -749,21 +884,38 @@ Item {
 
         Process {
             id: profProc
-            command: ["nmcli", "-t", "-f", "NAME,TYPE,AUTOCONNECT", "connection", "show"]
+            // the profile list has no SSID column, so each Wi-Fi profile is read
+            // on its own; -g prints one field per line, the SSID last and
+            // unescaped so it is taken whole, then one tab-separated row each.
+            // A hotspot (mode ap) is not a saved network, even when it shares
+            // a scanned network's name.
+            command: ["sh", "-c",
+                'nmcli -t -f UUID,TYPE connection show | while IFS=: read -r u t; do '
+                + '[ "$t" = 802-11-wireless ] || continue; '
+                + 'nmcli -e no -g connection.autoconnect,connection.timestamp,802-11-wireless.mode,802-11-wireless.ssid connection show uuid "$u" '
+                + '| { read -r a; read -r ts; read -r m; IFS= read -r s; [ "$m" = ap ] || printf "%s\\t%s\\t%s\\t%s\\n" "$u" "$a" "$ts" "$s"; }; done']
             stdout: StdioCollector {
                 onStreamFinished: {
-                    var set = {};
-                    var auto = {};
+                    var rows = [];
                     var lines = this.text.split("\n");
                     for (var i = 0; i < lines.length; i++) {
-                        var f = wifi.terseFields(lines[i]);
-                        if (f.length >= 3 && f[0].length && f[1] === "802-11-wireless") {
-                            set[f[0]] = true;
-                            auto[f[0]] = f[2] === "yes";
-                        }
+                        var f = lines[i].split("\t");
+                        if (f.length >= 4 && f[0].length && f.slice(3).join("\t").length)
+                            rows.push({ uuid: f[0], auto: f[1] === "yes", ts: parseInt(f[2], 10) || 0, ssid: f.slice(3).join("\t") });
+                    }
+                    rows.sort(function(a, b) { return b.ts - a.ts; });
+                    var set = {};
+                    var auto = {};
+                    var uuids = {};
+                    for (var j = 0; j < rows.length; j++) {
+                        var r = rows[j];
+                        set[r.ssid] = true;
+                        auto[r.ssid] = auto[r.ssid] === true || r.auto;
+                        (uuids[r.ssid] = uuids[r.ssid] || []).push(r.uuid);
                     }
                     wifi.knownProfiles = set;
                     wifi.autoconnectMap = auto;
+                    wifi.profileUuids = uuids;
                 }
             }
         }
@@ -772,47 +924,101 @@ Item {
             id: connProc
             stdinEnabled: true
             stdout: StdioCollector {}
-            stderr: StdioCollector {}
+            stderr: StdioCollector { id: connErr }
+            // stdin closes after the password: on a wrong one NetworkManager asks
+            // nmcli's --ask agent for another, and with stdin left open nmcli
+            // waited there for its 90-second timeout instead of failing
             onStarted: {
                 write(wifi.pendingPw + "\n");
                 wifi.pendingPw = "";
+                stdinEnabled = false;
             }
             onExited: function(exitCode) {
+                // ryoku-hub exits 3 when the daemon did not run the join (it never
+                // answered, or answered with anything but a rejected password),
+                // so the join falls back to nmcli
+                if (wifi.attemptViaDaemon && exitCode === 3 && wifi.fallbackPw.length) {
+                    Qt.callLater(wifi.joinWithNmcli);
+                    return;
+                }
+                wifi.fallbackPw = "";
                 wifi.connecting = false;
                 if (exitCode === 0) {
                     wifi.expandedSsid = "";
                     wifi.pwDraft = "";
                     wifi.connectFailed = false;
-                    if (wifi.attemptBand.length && wifi.attemptSsid.length) {
-                        bandProc.command = ["nmcli", "connection", "modify", wifi.attemptSsid,
-                            "802-11-wireless.band", wifi.attemptBand];
+                    wifi.authFailedSsid = "";
+                    var mods = [];
+                    if (wifi.attemptBand.length)
+                        mods.push("802-11-wireless.band", wifi.attemptBand);
+                    if (wifi.attemptAutoOff)
+                        mods.push("connection.autoconnect", "no");
+                    if (mods.length && wifi.attemptSsid.length) {
+                        bandProc.command = ["sh", "-c",
+                            's=$1; shift; for u in $(nmcli -t -f UUID,TYPE connection show --active | awk -F: \'$2 == "802-11-wireless" { print $1 }\'); do '
+                            + '[ "$(nmcli -e no -g 802-11-wireless.ssid connection show uuid "$u")" = "$s" ] && exec nmcli connection modify uuid "$u" "$@"; done',
+                            "sh", wifi.attemptSsid].concat(mods);
                         bandProc.running = true;
                         return;
                     }
                     wifi.refresh();
                 } else {
                     wifi.connectFailed = true;
-                    if (!wifi.attemptWasKnown && wifi.attemptSsid.length) {
-                        cleanupProc.command = ["nmcli", "connection", "delete", "id", wifi.attemptSsid];
+                    wifi.pwDraft = "";
+                    wifi.pwEpoch++;
+                    if (wifi.attemptWasKnown) {
+                        if (wifi.isSecured(wifi.attemptSsid) && /secret|supplicant|password/i.test(connErr.text))
+                            wifi.savedJoinRejected(wifi.attemptSsid);
+                    } else if (wifi.attemptSsid.length && !wifi.attemptViaDaemon) {
+                        cleanupProc.command = ["sh", "-c",
+                            'nmcli -t -f UUID,TYPE connection show | while IFS=: read -r u t; do '
+                            + '[ "$t" = 802-11-wireless ] && [ "$(nmcli -e no -g 802-11-wireless.ssid connection show uuid "$u")" = "$1" ] '
+                            + '&& [ "$(nmcli -g 802-11-wireless.mode connection show uuid "$u")" != ap ] '
+                            + '&& nmcli connection delete uuid "$u"; done; exit 0',
+                            "sh", wifi.attemptSsid];
                         cleanupProc.running = true;
                     }
                 }
             }
         }
 
-        // a failed `nmcli dev wifi connect` leaves a profile named after the
-        // SSID (nmcli names it after the SSID), so the cleanup keys on
-        // attemptSsid. without deleting it the next click reads the network as
-        // known and silently fails forever.
+        Process {
+            id: forgetProc
+            stdout: StdioCollector {}
+            stderr: StdioCollector {}
+            onExited: {
+                if (wifi.expandedSsid === wifi.forgetArmed)
+                    wifi.expandedSsid = "";
+                if (wifi.authFailedSsid === wifi.forgetArmed)
+                    wifi.authFailedSsid = "";
+                wifi.forgetArmed = "";
+                wifi.forgetBusy = false;
+                wifi.refresh();
+            }
+        }
+
+        Timer {
+            id: forgetReset
+            interval: 3000
+            onTriggered: wifi.forgetArmed = ""
+        }
+
+        // a failed `nmcli dev wifi connect` leaves a profile behind, and
+        // without deleting it the next click reads the network as known and
+        // silently fails forever. Only a join that left no saved profile of
+        // the SSID gets here (a password join deletes them first), so every
+        // profile of the SSID is the failed one, a hotspot aside; it is matched
+        // by SSID because nmcli names it `<ssid> 1` when the name is taken.
         Process {
             id: cleanupProc
             onExited: wifi.refresh()
         }
 
-        // lock the just-joined profile to the picked band. nmcli's `dev wifi
-        // connect` takes no settings, so the band rides on the profile after
-        // the join; the profile name equals the SSID (nmcli names it after the
-        // SSID), the same keying the autoconnect toggle uses.
+        // carry the picked band (and an auto-reconnect the user had off) onto
+        // the just-joined profile. nmcli's `dev wifi connect` takes no
+        // settings, so they ride on the profile after the join. The join may
+        // reuse a profile named other than the SSID, so the target is the
+        // active Wi-Fi profile for that SSID.
         Process {
             id: bandProc
             stdout: StdioCollector {}
@@ -837,7 +1043,9 @@ Item {
         Timer {
             id: secRefresh
             interval: 1200
-            onTriggered: if (wifi.active) secProc.running = true
+            // a network saved or forgotten elsewhere (the bar, nmcli) shows up
+            // as a network-list change; re-read the saved profiles with it
+            onTriggered: if (wifi.active) { secProc.running = true; profProc.running = true; }
         }
 
         // Read the current NM Wi-Fi backend through the host seam.
@@ -908,11 +1116,22 @@ Item {
                 Rectangle {
                     anchors.left: wifiSecLabel.right
                     anchors.leftMargin: Tokens.s3
-                    anchors.right: scanBtn.visible ? scanBtn.left : parent.right
-                    anchors.rightMargin: scanBtn.visible ? Tokens.s3 : 0
+                    anchors.right: detailsBtn.visible ? detailsBtn.left : parent.right
+                    anchors.rightMargin: detailsBtn.visible ? Tokens.s3 : 0
                     anchors.verticalCenter: parent.verticalCenter
                     height: 1
                     color: Tokens.lineSoft
+                }
+
+                Btn {
+                    id: detailsBtn
+                    anchors.right: scanBtn.left
+                    anchors.rightMargin: Tokens.s2
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: wifi.wifiOn
+                    text: I18n.tr("Details")
+                    primary: wifi.showDetails
+                    onAct: wifi.showDetails = !wifi.showDetails
                 }
 
                 Btn {
@@ -1020,6 +1239,7 @@ Item {
                         delegate: Column {
                             id: netItem
                             required property var modelData
+                            required property int index
 
                             readonly property string ssid: (modelData && modelData.name) ? modelData.name : ""
                             readonly property bool isActive: modelData ? modelData.connected === true : false
@@ -1040,14 +1260,34 @@ Item {
                             }
 
                             onExpandedChanged: if (expanded) Qt.callLater(syncPwField)
+                            Connections {
+                                target: wifi
+                                function onPwEpochChanged() { if (netItem.expanded) netItem.syncPwField(); }
+                            }
                             Component.onCompleted: if (expanded) Qt.callLater(syncPwField)
+
+                            Text {
+                                readonly property bool firstSaved: netItem.index === 0 && wifi.savedCount > 0
+                                readonly property bool firstOther: netItem.index === wifi.savedCount
+                                visible: firstSaved || firstOther
+                                width: parent.width
+                                topPadding: firstOther && wifi.savedCount > 0 ? Tokens.s4 : 0
+                                bottomPadding: Tokens.s1
+                                text: firstSaved ? I18n.tr("SAVED") : (wifi.savedCount > 0 ? I18n.tr("OTHER NETWORKS") : I18n.tr("NETWORKS"))
+                                color: Tokens.inkMuted
+                                font.family: Tokens.ui
+                                font.pixelSize: Tokens.fMicro
+                                font.weight: Font.Medium
+                                font.letterSpacing: Tokens.trackLabel
+                            }
 
                             // the row. connected = the ON member of the exclusive
                             // Wi-Fi set, so it inverts to bone (DESIGN section 1).
                             Rectangle {
                                 id: rowBg
+                                readonly property string details: wifi.showDetails ? wifi.detailsLine(netItem.ssid) : ""
                                 width: parent.width
-                                height: 46
+                                height: details.length ? 60 : 46
                                 radius: Tokens.radius
                                 color: netItem.isActive
                                     ? Tokens.bone
@@ -1095,6 +1335,16 @@ Item {
                                         font.family: Tokens.ui
                                         font.pixelSize: Tokens.fMicro
                                         font.weight: Font.Medium
+                                        elide: Text.ElideRight
+                                    }
+
+                                    Text {
+                                        visible: rowBg.details.length > 0
+                                        width: parent.width
+                                        text: rowBg.details
+                                        color: netItem.isActive ? Tokens.inkOnBoneDim : Tokens.inkMuted
+                                        font.family: Tokens.mono
+                                        font.pixelSize: Tokens.fMicro
                                         elide: Text.ElideRight
                                     }
                                 }
@@ -1171,18 +1421,21 @@ Item {
                                 id: autoRow
                                 readonly property bool on: wifi.autoconnectMap[netItem.ssid] !== false
                                 width: parent.width
-                                height: netItem.known ? 30 : 0
+                                height: netItem.known ? 36 : 0
                                 clip: true
                                 visible: height > 0.5
 
+                                // the setting lines up under the network name,
+                                // Forget under the signal readout on the right
                                 Row {
                                     anchors.left: parent.left
-                                    anchors.leftMargin: Tokens.s4
+                                    anchors.leftMargin: bars.x + bars.width + Tokens.s3
                                     anchors.verticalCenter: parent.verticalCenter
                                     spacing: Tokens.s2
 
                                     Text {
-                                        anchors.verticalCenter: parent.verticalCenter
+                                        height: autoBtn.height
+                                        verticalAlignment: Text.AlignVCenter
                                         text: I18n.tr("Auto-reconnect")
                                         color: Tokens.inkMuted
                                         font.family: Tokens.ui
@@ -1191,7 +1444,7 @@ Item {
                                     }
 
                                     Btn {
-                                        anchors.verticalCenter: parent.verticalCenter
+                                        id: autoBtn
                                         compact: true
                                         text: autoRow.on ? I18n.tr("On") : I18n.tr("Off")
                                         primary: autoRow.on
@@ -1199,9 +1452,20 @@ Item {
                                         onAct: wifi.setAutoconnect(netItem.ssid, !autoRow.on)
                                     }
                                 }
+
+                                Btn {
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: Tokens.s4
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    compact: true
+                                    text: wifi.forgetArmed === netItem.ssid ? I18n.tr("Confirm \u00b7 Forget") : I18n.tr("Forget")
+                                    primary: wifi.forgetArmed === netItem.ssid
+                                    armed: !wifi.forgetBusy
+                                    onAct: wifi.requestForget(netItem.ssid)
+                                }
                             }
 
-                            // password row. secured + unknown only.
+                            // password row. secured + unknown, or saved with a rejected secret.
                             Item {
                                 width: parent.width
                                 height: netItem.expanded ? 44 : 0
@@ -1244,7 +1508,7 @@ Item {
                                         Text {
                                             anchors.fill: parent
                                             visible: pwField.text === ""
-                                            text: I18n.tr("Password")
+                                            text: netItem.known ? I18n.tr("New password") : I18n.tr("Password")
                                             color: Tokens.inkMuted
                                             font: pwField.font
                                             verticalAlignment: Text.AlignVCenter
@@ -1292,11 +1556,28 @@ Item {
                                 visible: height > 0.5
                                 Behavior on height { NumberAnimation { duration: Tokens.move; easing.type: Tokens.ease } }
 
-                                ErrChip {
+                                Row {
                                     anchors.left: parent.left
                                     anchors.leftMargin: Tokens.s4
                                     anchors.verticalCenter: parent.verticalCenter
-                                    text: I18n.tr("Connection failed")
+                                    spacing: Tokens.s3
+
+                                    ErrChip {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: wifi.authFailedSsid === netItem.ssid
+                                            ? I18n.tr("Wrong password, or a different network with the same name?")
+                                            : I18n.tr("Connection failed")
+                                    }
+
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        visible: netItem.known && wifi.authFailedSsid === netItem.ssid
+                                        text: I18n.tr("A new password replaces the saved one.")
+                                        color: Tokens.inkMuted
+                                        font.family: Tokens.ui
+                                        font.pixelSize: Tokens.fMicro
+                                        font.weight: Font.Medium
+                                    }
                                 }
                             }
                         }

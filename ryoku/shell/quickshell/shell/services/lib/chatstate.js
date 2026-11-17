@@ -23,6 +23,7 @@ function initialState() {
         session: { id: "", title: "" },
         usage: null,
         history: [],
+        historyError: "", // why the last rename failed, shown in the drawer
         replaying: false,
         activity: "" // what the agent is doing right now ("" = idle)
     };
@@ -186,6 +187,7 @@ function applyEvent(state, ev) {
         return s;
     case "history":
         s.history = ev.sessions || [];
+        s.historyError = ev.error || "";
         return s;
     case "replay_start":
         // A load, a /new or a fresh join replays the whole transcript: clear the

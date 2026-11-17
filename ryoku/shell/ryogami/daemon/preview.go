@@ -122,9 +122,14 @@ func (d *daemon) previewWallpaperKey(key string, outputs []string) error {
 func (d *daemon) clearPreview() error {
 	d.previewMu.Lock()
 	defer d.previewMu.Unlock()
+	d.clearPreviewLocked()
+	return nil
+}
+
+func (d *daemon) clearPreviewLocked() {
 	st := d.preview
 	if st == nil {
-		return nil
+		return
 	}
 	d.preview = nil
 	writeWallPreviewPalette(nil)
@@ -132,7 +137,20 @@ func (d *daemon) clearPreview() error {
 	if st.prevName != "" {
 		d.setCurrent(st.prevName)
 	}
-	return nil
+}
+
+// outputs the preview painted but the commit misses get their committed paint back
+func (d *daemon) supersedePreviewLocked(outputs []string) {
+	st := d.preview
+	if st == nil {
+		return
+	}
+	d.preview = nil
+	writeWallPreviewPalette(nil)
+	if len(outputs) == 0 || contains(outputs, "*") {
+		return
+	}
+	d.surface.restorePreviewKeeping(st.committed, st.outputs, outputs)
 }
 
 func (d *daemon) publishPreviewPalette(state *previewState, epoch uint64, path string, colors map[string]string) {

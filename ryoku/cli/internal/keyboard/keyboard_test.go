@@ -84,52 +84,126 @@ func TestLayoutPrimary(t *testing.T) {
 	}
 }
 
-func TestRebuildBootImageSelectsHostGenerator(t *testing.T) {
-	oldHas, oldRun := hasBootImageTool, runBootImageTool
-	t.Cleanup(func() {
-		hasBootImageTool, runBootImageTool = oldHas, oldRun
-	})
-
-	var command string
-	var args []string
-	runBootImageTool = func(got ...string) error {
-		if len(got) == 0 {
-			t.Fatal("boot rebuild ran an empty command")
+// fakeBootBox points the rebuild at a temp dir of fake generators and the
+// staleness check at temp files, so nothing here reaches sudo or /boot.
+func fakeBootBox(t *testing.T, tools map[string]string) (dir, log string) {
+	t.Helper()
+	dir = t.TempDir()
+	log = filepath.Join(dir, "ran.log")
+	for name, body := range tools {
+		script := "#!/bin/sh\nLOG=" + log + "\necho " + name + " \"$@\" >>\"$LOG\"\n" + body + "\n"
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(script), 0o755); err != nil {
+			t.Fatal(err)
 		}
-		command = got[0]
-		args = append([]string(nil), got[1:]...)
-		return nil
 	}
+	globs, vconsole, stamp := BootImageGlobs, VconsolePath, BootKeymapStamp
+	dirs, asRoot, timeout := bootToolDirs, bootImageAsRoot, bootImageTimeout
+	t.Cleanup(func() {
+		BootImageGlobs, VconsolePath, BootKeymapStamp = globs, vconsole, stamp
+		bootToolDirs, bootImageAsRoot, bootImageTimeout = dirs, asRoot, timeout
+	})
+	BootImageGlobs = []string{filepath.Join(dir, "*.efi")}
+	VconsolePath = filepath.Join(dir, "vconsole.conf")
+	BootKeymapStamp = filepath.Join(dir, "boot-keymap")
+	bootToolDirs = []string{dir}
+	bootImageAsRoot = func() []string { return nil }
+	return dir, log
+}
 
-	t.Run("mkinitcpio is preferred", func(t *testing.T) {
-		command, args = "", nil
-		hasBootImageTool = func(string) bool { return true }
+func readLog(t *testing.T, log string) string {
+	t.Helper()
+	b, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.TrimSpace(string(b))
+}
+
+func TestBootImageCommandSelectsHostGenerator(t *testing.T) {
+	t.Run("limine-mkinitcpio beats mkinitcpio", func(t *testing.T) {
+		_, log := fakeBootBox(t, map[string]string{"limine-mkinitcpio": "", "mkinitcpio": ""})
 		if err := RebuildBootImage(); err != nil {
 			t.Fatal(err)
 		}
-		if command != "mkinitcpio" || strings.Join(args, " ") != "-P" {
-			t.Fatalf("rebuild command = %q %q", command, args)
+		// mkinitcpio -P builds nothing on a Limine UKI box (no presets)
+		if got := readLog(t, log); got != "limine-mkinitcpio" {
+			t.Fatalf("ran %q, want limine-mkinitcpio alone", got)
+		}
+		if got := BootImageRebuildHint(); got != "sudo limine-mkinitcpio" {
+			t.Errorf("hint = %q", got)
+		}
+	})
+
+	t.Run("mkinitcpio by absolute path", func(t *testing.T) {
+		dir, _ := fakeBootBox(t, map[string]string{"mkinitcpio": "", "dracut": ""})
+		argv, err := bootImageCommand()
+		if err != nil {
+			t.Fatal(err)
+		}
+		// a bare name lets sudo's secure_path pick the /usr/local/bin wrapper
+		if strings.Join(argv, " ") != filepath.Join(dir, "mkinitcpio")+" -P" {
+			t.Fatalf("rebuild command = %q", argv)
 		}
 	})
 
 	t.Run("dracut is the fallback", func(t *testing.T) {
-		command, args = "", nil
-		hasBootImageTool = func(name string) bool { return name == "dracut" }
-		if err := RebuildBootImage(); err != nil {
+		dir, _ := fakeBootBox(t, map[string]string{"dracut": ""})
+		argv, err := bootImageCommand()
+		if err != nil {
 			t.Fatal(err)
 		}
-		if command != "dracut" || strings.Join(args, " ") != "--regenerate-all --force" {
-			t.Fatalf("rebuild command = %q %q", command, args)
+		if strings.Join(argv, " ") != filepath.Join(dir, "dracut")+" --regenerate-all --force" {
+			t.Fatalf("rebuild command = %q", argv)
 		}
 	})
 
 	t.Run("missing generators name both tools", func(t *testing.T) {
-		hasBootImageTool = func(string) bool { return false }
+		fakeBootBox(t, nil)
 		err := RebuildBootImage()
 		if err == nil || !strings.Contains(err.Error(), "mkinitcpio") || !strings.Contains(err.Error(), "dracut") {
 			t.Fatalf("missing generator error = %v", err)
 		}
 	})
+}
+
+// The update hides child output, so a generator that asks a question on stdin
+// hung it forever (#748). The rebuild must never hand over the terminal.
+func TestRebuildBootImageNeverReadsTheTerminal(t *testing.T) {
+	_, log := fakeBootBox(t, map[string]string{
+		"limine-mkinitcpio": `if read -r answer; then echo "answered $answer" >>"$LOG"; else echo eof >>"$LOG"; fi`,
+	})
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	defer w.Close()
+	if _, err := w.WriteString("y\n"); err != nil {
+		t.Fatal(err)
+	}
+	keep := os.Stdin
+	os.Stdin = r
+	t.Cleanup(func() { os.Stdin = keep })
+
+	if err := RebuildBootImage(); err != nil {
+		t.Fatal(err)
+	}
+	if got := readLog(t, log); got != "limine-mkinitcpio\neof" {
+		t.Fatalf("generator log %q, want it to see end of file on stdin", got)
+	}
+}
+
+func TestRebuildBootImageTimesOut(t *testing.T) {
+	fakeBootBox(t, map[string]string{"limine-mkinitcpio": "exec sleep 30"})
+	bootImageTimeout = 200 * time.Millisecond
+	start := time.Now()
+	err := RebuildBootImage()
+	if err == nil || !strings.Contains(err.Error(), "did not finish") {
+		t.Fatalf("error = %v, want a timeout", err)
+	}
+	if took := time.Since(start); took > 10*time.Second {
+		t.Fatalf("rebuild took %v past its deadline", took)
+	}
 }
 
 func TestApplySystemDelegatesToHostKeymap(t *testing.T) {
@@ -238,10 +312,10 @@ func TestBootStaleWhenVconsoleIsNewer(t *testing.T) {
 	touch(t, img, base)
 	touch(t, vc, base.Add(10*time.Minute))
 
-	origG, origV := BootImageGlobs, VconsolePath
+	origG, origV, origS := BootImageGlobs, VconsolePath, BootKeymapStamp
 	BootImageGlobs = []string{filepath.Join(dir, "*.efi")}
-	VconsolePath = vc
-	t.Cleanup(func() { BootImageGlobs, VconsolePath = origG, origV })
+	VconsolePath, BootKeymapStamp = vc, filepath.Join(dir, "boot-keymap")
+	t.Cleanup(func() { BootImageGlobs, VconsolePath, BootKeymapStamp = origG, origV, origS })
 
 	stale, got := BootStale()
 	if !stale {
@@ -255,6 +329,49 @@ func TestBootStaleWhenVconsoleIsNewer(t *testing.T) {
 	touch(t, img, base.Add(20*time.Minute))
 	if stale, _ := BootStale(); stale {
 		t.Error("a boot image newer than vconsole.conf must not read as stale")
+	}
+}
+
+// A reproducible rebuild leaves the image byte-identical with its old mtime, so
+// a vconsole.conf rewritten with the same content (or stamped by a clock that
+// ran ahead) stayed "newer" forever and every update healed it again (#748).
+func TestBootStaleClearsAfterARebuildWithSameContent(t *testing.T) {
+	dir, _ := fakeBootBox(t, map[string]string{"limine-mkinitcpio": ""})
+	base := time.Now().Add(-time.Hour)
+	touch(t, filepath.Join(dir, "ryoku_linux.efi"), base)
+	if err := os.WriteFile(VconsolePath, []byte("KEYMAP=us\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if stale, _ := BootStale(); !stale {
+		t.Fatal("vconsole.conf written after the image must read as stale before any rebuild")
+	}
+	if err := RebuildBootImage(); err != nil {
+		t.Fatal(err)
+	}
+	if stale, _ := BootStale(); stale {
+		t.Fatal("a successful rebuild must clear the finding even when the image keeps its mtime")
+	}
+	// the same layout written again moves only the mtime
+	if err := os.WriteFile(VconsolePath, []byte("KEYMAP=us\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if stale, _ := BootStale(); stale {
+		t.Error("a same-content rewrite of vconsole.conf must not read as stale")
+	}
+	if err := os.WriteFile(VconsolePath, []byte("KEYMAP=fr\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if stale, _ := BootStale(); !stale {
+		t.Error("a new keymap after the last rebuild must read as stale")
+	}
+}
+
+func TestBootStaleIgnoresAFutureMtime(t *testing.T) {
+	dir, _ := fakeBootBox(t, nil)
+	touch(t, filepath.Join(dir, "ryoku_linux.efi"), time.Now().Add(-time.Hour))
+	touch(t, VconsolePath, time.Now().Add(8*time.Hour))
+	if stale, _ := BootStale(); stale {
+		t.Error("a vconsole.conf dated in the future proves nothing about the image")
 	}
 }
 
@@ -278,10 +395,10 @@ func TestReadReportsDriftOnAFrenchBox(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	og, ov, ox := BootImageGlobs, VconsolePath, X11Path
+	og, ov, ox, ost := BootImageGlobs, VconsolePath, X11Path, BootKeymapStamp
 	BootImageGlobs = []string{filepath.Join(dir, "*.efi")}
-	VconsolePath, X11Path = vc, x11
-	t.Cleanup(func() { BootImageGlobs, VconsolePath, X11Path = og, ov, ox })
+	VconsolePath, X11Path, BootKeymapStamp = vc, x11, filepath.Join(dir, "boot-keymap")
+	t.Cleanup(func() { BootImageGlobs, VconsolePath, X11Path, BootKeymapStamp = og, ov, ox, ost })
 
 	if got := ConsoleKeymap(); got != "fr-latin1" {
 		t.Fatalf("console = %q, want fr-latin1", got)

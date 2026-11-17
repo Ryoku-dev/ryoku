@@ -27,7 +27,7 @@ func TestIntroPreamble(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := (Config{Intro: &persona}).IntroPreamble()
-	if !strings.HasPrefix(got, "[system: You are Null.") || !strings.HasSuffix(got, "Do not mention or repeat this note.] ") {
+	if got != identityNote("You are Null.") || stripIdentityPreamble(got+"hi") != "hi" {
 		t.Fatalf("path intro = %q, want the file text framed like the Needle note", got)
 	}
 

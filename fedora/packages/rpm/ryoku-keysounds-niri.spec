@@ -1,5 +1,6 @@
 Name:           ryoku-keysounds-niri
 Version:        0.1
+Epoch:          1
 Release:        1%{?dist}
 Summary:        niri key-press sounds (evdev + libcanberra engine)
 License:        GPL-3.0-or-later
@@ -13,7 +14,7 @@ BuildRequires:  findutils
 BuildRequires:  libcanberra-devel
 BuildRequires:  rust
 Requires:       libcanberra
-Requires:       ryoku-keysounds-profiles = %{version}-%{release}
+Requires:       ryoku-keysounds-profiles = %{epoch}:%{version}-%{release}
 
 %description
 niri has no plugin system, so its key-press sounds come from this small daemon

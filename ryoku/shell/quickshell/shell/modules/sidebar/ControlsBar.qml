@@ -11,6 +11,8 @@ Item {
     required property real s
     required property var screen
     required property bool active
+    // the panel's window can reach past its card, so the card bounds the settings popup
+    property Item card: null
     signal session(string action)
     signal openExtensions()
     signal requestClose()
@@ -48,11 +50,11 @@ Item {
         Row {
             id: sessionActions
             readonly property var allActions: [
-                { id: "lock", action: "lock", glyph: "lock", label: I18n.tr("Lock") },
-                { id: "sleep", action: "suspend", glyph: "dark_mode", label: I18n.tr("Sleep") },
-                { id: "logout", action: "logout", glyph: "logout", label: I18n.tr("Log out") },
-                { id: "restart", action: "reboot", glyph: "restart_alt", label: I18n.tr("Restart") },
-                { id: "powerOff", action: "shutdown", glyph: "power_settings_new", label: I18n.tr("Power off") }
+                { id: "lock", action: "lock", glyph: "lock", label: I18n.tr("Lock"), tip: I18n.tr("Hold to lock") },
+                { id: "sleep", action: "suspend", glyph: "dark_mode", label: I18n.tr("Sleep"), tip: I18n.tr("Hold to sleep") },
+                { id: "logout", action: "logout", glyph: "logout", label: I18n.tr("Log out"), tip: I18n.tr("Hold to log out") },
+                { id: "restart", action: "reboot", glyph: "restart_alt", label: I18n.tr("Restart"), tip: I18n.tr("Hold to restart") },
+                { id: "powerOff", action: "shutdown", glyph: "power_settings_new", label: I18n.tr("Power off"), tip: I18n.tr("Hold to power off") }
             ]
             readonly property var actions: allActions.filter(entry => root.elementVisible(entry.id))
             readonly property int actionCount: actions.length
@@ -84,6 +86,7 @@ Item {
                     s: root.s
                     glyph: modelData.glyph
                     text: modelData.label
+                    tip: modelData.tip
                     subtle: true
                     labelled: sessionActions.labelled
                     onHeld: root.session(modelData.action)
@@ -169,25 +172,26 @@ Item {
 
     ControlsSettingsPopup {
         id: settings
+        readonly property Item bounds: root.card ?? host
         parent: root
         x: {
-            if (!host)
+            if (!bounds)
                 return 0;
-            const origin = root.mapToItem(host, 0, 0);
-            return Math.max(0, Math.min(host.width - width, origin.x + root.width - width)) - origin.x;
+            const origin = root.mapToItem(bounds, 0, 0);
+            return Math.max(0, Math.min(bounds.width - width, origin.x + root.width - width)) - origin.x;
         }
         y: {
-            if (!host)
+            if (!bounds)
                 return 0;
-            const origin = root.mapToItem(host, 0, 0);
+            const origin = root.mapToItem(bounds, 0, 0);
             const preferred = origin.y - height - Tokens.s2 * root.s;
-            return Math.max(0, Math.min(host.height - height, preferred)) - origin.y;
+            return Math.max(0, Math.min(bounds.height - height, preferred)) - origin.y;
         }
         s: root.s
         active: root.active
         // keep the popup wholly above the bar so it never covers the gear that closes
         // it, measured on every open because the bar settles after the popup exists
-        onAboutToShow: maxHeight = host ? Math.max(1, root.mapToItem(host, 0, 0).y - Tokens.s2 * root.s) : hostHeight
+        onAboutToShow: maxHeight = bounds ? Math.max(1, root.mapToItem(bounds, 0, 0).y - Tokens.s2 * root.s) : hostHeight
         onOpenExtensions: root.openExtensions()
         onRequestClose: root.requestClose()
     }

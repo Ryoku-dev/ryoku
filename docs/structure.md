@@ -20,8 +20,8 @@ Start with the guide that matches the job:
   [kernels and CachyOS gaming](kernels.md).
 - **Understand the desktop:** [what Ryoku is](ryoku.md), [UI and motion
   rules](ui-ux.md), [bar styles](barstyles.md), [sidebars](sidebars.md),
-  [launcher](launcher.md), [frame](frame.md), [Stage Editor](stage.md),
-  [AI usage dashboard](ai-usage.md),
+  [Game Bar](gamebar.md), [launcher](launcher.md), [frame](frame.md),
+  [Stage Editor](stage.md), [AI usage dashboard](ai-usage.md),
   [Ryogami](ryogami.md), [RyoStore](store.md), [profiles](profile.md),
   [theming](theming.md), [performance](performance.md), [power](power.md) and
   [plugins](plugins.md).
@@ -90,6 +90,7 @@ truth for the live desktop.
   `sidebarCard` plugin host (see `docs/sidebars.md`); `dock` the app dock on the
   edge opposite the bar (its own surface, shared by every bar style), `launcher`,
   `overview` (`Super+Tab`),
+  `gamebar` the in-game overlay with its widget cards (see `docs/gamebar.md`),
   `wallpaper`, `visualizer` (a click-through spectrum layer that renders through
   the shared `Ryoku.Ui` spectrum field, keeping only its per-frame band math in
   its own `Motion.qml`), `osd`, `notifications`, `capture`, `confirm`, and
@@ -118,7 +119,8 @@ truth for the live desktop.
   dev-loop tools.
   The bundled Shima AI usage dashboard lives under
   `quickshell/inir/defaults/widgets/ai-usage/`, with its own collectors,
-  private-cache model and background refresh worker. See [AI usage](ai-usage.md).
+  private-cache model and a refresh worker that polls only while a card is on
+  screen. See [AI usage](ai-usage.md).
 - `ui/` `Ryoku.Ui`, the shared QML module the shell, the Hub and the apps all
   import for one look: the design tokens (`Singletons/Tokens.qml`), the shared
   primitives, and the wallpaper palette. It also hosts the desktop spectrum
@@ -396,5 +398,6 @@ downgrades.
   lane; the three `publish-repo*.yml` publishers run the same gate before they
   upload; `i18n.yml` runs only by hand. `docs/updates.md`, "Publishing", has the
   channel layout they write.
-- `VERSION` the base semver; `.woke.yml` the inclusive-language config;
+- `VERSION` the base semver (on `unstable-dev`, the next stable release);
+  `.woke.yml` the inclusive-language config;
   `.rashin-reviewer.yaml` the pre-commit review gate's settings.

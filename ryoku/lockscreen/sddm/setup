@@ -118,13 +118,12 @@ sddm_autologin() {
   return 1
 }
 
+# stock sddm carries -auth/-session keyring lines; a bare copy runs it twice
 wire_keyring_pam() {
-  local prefix=
-  [ -d /run/systemd/system ] || prefix='-?'
-  if ! grep -qE "^[[:space:]]*${prefix}auth.*pam_gnome_keyring\\.so" "$PAM_FILE"; then
+  if ! grep -qE '^[[:space:]]*-?auth[[:space:]].*pam_gnome_keyring\.so' "$PAM_FILE"; then
     priv sed -i '/^[[:space:]]*auth[[:space:]].*include[[:space:]].*system-login/a auth optional pam_gnome_keyring.so' "$PAM_FILE"
   fi
-  if ! grep -qE "^[[:space:]]*${prefix}session.*pam_gnome_keyring\\.so" "$PAM_FILE"; then
+  if ! grep -qE '^[[:space:]]*-?session[[:space:]].*pam_gnome_keyring\.so' "$PAM_FILE"; then
     priv sed -i '/^[[:space:]]*session[[:space:]].*include[[:space:]].*system-login/a session optional pam_gnome_keyring.so auto_start' "$PAM_FILE"
   fi
 }

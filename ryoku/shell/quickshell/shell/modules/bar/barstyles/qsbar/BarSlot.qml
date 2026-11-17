@@ -941,6 +941,7 @@ PanelWindow {
         id: compWorkspace
         WorkspaceWidget {
             root: barSlot.root
+            screenName: barSlot.screenName
             readonly property real barContentLeftInset: 0
             readonly property real barContentRightInset: 0
         }

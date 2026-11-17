@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/netip"
@@ -750,8 +751,18 @@ func (n *networkState) wifiConnect(ssid, password, bssid string, hidden bool) er
 	if err := n.obj(nmPath).Call(nmIface+".AddAndActivateConnection", 0, settings, dbus.ObjectPath(wifiDev), specific).Store(&newConn, &newActive); err != nil {
 		return err
 	}
-	return n.waitForActivation(newActive)
+	err := n.waitForActivation(newActive)
+	if errors.Is(err, errActivationFailed) {
+		// NetworkManager keeps the profile it just created even when the
+		// passphrase is wrong, so the network would read as saved and every
+		// later join would retry the bad secret without asking for a new one.
+		// A timeout keeps it: that join may still be coming up.
+		_ = n.obj(newConn).Call(nmSettConnIface+".Delete", 0).Err
+	}
+	return err
 }
+
+var errActivationFailed = errors.New("could not connect (check the password)")
 
 // waitForActivation blocks until the connection activates, so a wrong passphrase
 // or a timeout returns an error instead of the old silent "success".
@@ -759,18 +770,31 @@ func (n *networkState) waitForActivation(active dbus.ObjectPath) error {
 	if active == "" || active == "/" {
 		return nil
 	}
-	const stateActivated, stateDeactivated = 2, 4
 	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
-		switch n.uintProp(n.obj(active), nmActiveIface+".State") {
-		case stateActivated:
-			return nil
-		case stateDeactivated:
-			return fmt.Errorf("could not connect (check the password)")
+		v, err := n.obj(active).GetProperty(nmActiveIface + ".State")
+		state, _ := v.Value().(uint32)
+		if done, result := activationOutcome(state, err); done {
+			return result
 		}
 		time.Sleep(250 * time.Millisecond)
 	}
 	return fmt.Errorf("connection timed out")
+}
+
+// activationOutcome reads one poll of an active connection's State. A failed
+// activation is torn down within milliseconds, so its object vanishing from the
+// bus (the read failing) is a failure too; reading that as "still activating"
+// held every wrong-password join for the full timeout. Pure for unit tests.
+func activationOutcome(state uint32, readErr error) (bool, error) {
+	const stateActivated, stateDeactivated = 2, 4
+	if readErr != nil || state == stateDeactivated {
+		return true, errActivationFailed
+	}
+	if state == stateActivated {
+		return true, nil
+	}
+	return false, nil
 }
 
 // editableSettings reads a saved profile's settings in a shape that can be

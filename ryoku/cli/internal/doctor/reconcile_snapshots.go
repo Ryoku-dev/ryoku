@@ -150,6 +150,17 @@ func configValue(contents, key string) string {
 	return ""
 }
 
+func withConfigValue(contents, key, value string) string {
+	lines := strings.Split(contents, "\n")
+	for i, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), key+"=") {
+			lines[i] = key + `="` + value + `"`
+			return strings.Join(lines, "\n")
+		}
+	}
+	return strings.TrimRight(contents, "\n") + "\n" + key + `="` + value + `"` + "\n"
+}
+
 // disableTimelineInConfig rewrites TIMELINE_CREATE to "no" in the config text,
 // leaving every other key and comment untouched.
 func disableTimelineInConfig(contents string) string {

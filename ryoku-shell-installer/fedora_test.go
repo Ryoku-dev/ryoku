@@ -225,6 +225,12 @@ func TestFedoraPackagePlanUsesDesktopDevHardwareAndHyprlandLanes(t *testing.T) {
 	if got["ryoku-desktop-niri"] {
 		t.Fatal("Hyprland package plan also installed the niri compositor variant")
 	}
+	// a compositor bump in the COPR must not make the install unsolvable
+	for _, weak := range []string{"hyprglass", "hypr-dynamic-cursors"} {
+		if got[weak] {
+			t.Errorf("Fedora plan names %s, which the variant only recommends", weak)
+		}
+	}
 }
 
 type httpDoerFunc func(*http.Request) (*http.Response, error)

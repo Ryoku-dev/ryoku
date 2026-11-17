@@ -15,6 +15,7 @@ BarModuleCard {
         BarPreviewWidget {
             property string mediaInfoMode: tab.mediaInfoMode
             property int mediaWidth: tab.mediaWidth
+            property bool mediaFitWidth: tab.mediaFitWidth
             property bool mediaShowIcon: tab.mediaShowIcon
             property bool mediaShowControls: tab.mediaShowControls
         }
@@ -93,6 +94,31 @@ BarModuleCard {
 
     SettingsRow {
         rootObj: card.rootObj
+        settingId: "bar_media_fit_width"
+        searchKeywords: "media song track size width fit auto adaptive shrink title artist"
+        baseColor: Qt.alpha(ThemeBackend.surface1, 0.35)
+        icon: "󰩨"
+        title: I18n.t("guide.bar.media.fit_width.title", "Fit to the track")
+        description: I18n.t("guide.bar.media.fit_width.desc", "Size the title area to the longer of the title and second line, up to the width above")
+        visible: !card.tab.isSideBar
+        searchable: !card.tab.isSideBar
+        hiddenByConfig: card.tab.isSideBar
+
+        Toggle {
+            Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+            checked: card.tab.mediaFitWidth
+            accentColor: ThemeBackend.mauve
+            baseColor: ThemeBackend.surface1
+            handleColor: ThemeBackend.crust
+            handleOffColor: ThemeBackend.text
+            onToggled: function(c) {
+                card.tab.setMediaFitWidth(c);
+            }
+        }
+    }
+
+    SettingsRow {
+        rootObj: card.rootObj
         settingId: "bar_media_show_icon"
         searchKeywords: "media song track icon album art cover thumbnail"
         baseColor: Qt.alpha(ThemeBackend.surface1, 0.35)
@@ -131,6 +157,28 @@ BarModuleCard {
             handleOffColor: ThemeBackend.text
             onToggled: function(c) {
                 card.tab.setMediaShowControls(c);
+            }
+        }
+    }
+
+    SettingsRow {
+        rootObj: card.rootObj
+        settingId: "bar_media_hide_when_idle"
+        searchKeywords: "media song track hide idle nothing playing empty stopped auto"
+        baseColor: Qt.alpha(ThemeBackend.surface1, 0.35)
+        icon: "󰝛"
+        title: I18n.t("guide.bar.media.hide_when_idle.title", "Hide when nothing is playing")
+        description: I18n.t("guide.bar.media.hide_when_idle.desc", "Hide the widget from the bar while no media is active")
+
+        Toggle {
+            Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+            checked: card.tab.mediaHideWhenIdle
+            accentColor: ThemeBackend.mauve
+            baseColor: ThemeBackend.surface1
+            handleColor: ThemeBackend.crust
+            handleOffColor: ThemeBackend.text
+            onToggled: function(c) {
+                card.tab.setMediaHideWhenIdle(c);
             }
         }
     }

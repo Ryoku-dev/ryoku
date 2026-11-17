@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"golang.org/x/sys/unix"
 )
 
 // fakeBacklight lays a minimal /sys/class/backlight/<dev> tree: max, the live
@@ -147,5 +149,57 @@ func TestIdleDimDoesNotReplaceOrRestoreSavedBrightness(t *testing.T) {
 	}
 	if got := strings.TrimSpace(string(b)); got != "8000" {
 		t.Fatalf("idle dim replaced saved user level with %s, want 8000", got)
+	}
+}
+
+// A dead backlight node must read as an error so the watcher reopens it; a
+// readable but unparsable value must not, or a glitch would churn the fd.
+// Returning ok-and-continue on a dead node busy-looped poll(2) at 100% CPU
+// after nvidia re-registered its backlight on resume.
+func TestReadActualClassifiesDeadNode(t *testing.T) {
+	dev := fakeBacklight(t, 100, 42)
+	buf := make([]byte, 32)
+	open := func(name string) int {
+		t.Helper()
+		fd, err := unix.Open(filepath.Join(dev, name), unix.O_RDONLY, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return fd
+	}
+
+	fd := open("actual_brightness")
+	if v, err := readActual(fd, buf); err != nil || v != 42 {
+		t.Fatalf("readActual = (%d,%v), want (42,nil)", v, err)
+	}
+	unix.Close(fd)
+	if _, err := readActual(fd, buf); err == nil || err == errBacklightValue {
+		t.Fatalf("closed fd read = %v, want a dead-node error", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(dev, "actual_brightness"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fd = open("actual_brightness")
+	defer unix.Close(fd)
+	if _, err := readActual(fd, buf); err == nil || err == errBacklightValue {
+		t.Fatalf("empty read = %v, want a dead-node error", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(dev, "actual_brightness"), []byte("junk\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readActual(fd, buf); err != errBacklightValue {
+		t.Fatalf("garbage read = %v, want errBacklightValue", err)
+	}
+}
+
+func TestWatchBacklightNodeReturnsOnMissingNode(t *testing.T) {
+	o := &osdState{}
+	if o.watchBacklightNode(filepath.Join(t.TempDir(), "gone"), 100) {
+		t.Fatal("a missing node must report it was never read")
+	}
+	if o.watchBacklightNode("", 100) {
+		t.Fatal("no device must report it was never read")
 	}
 }

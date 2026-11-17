@@ -111,7 +111,7 @@ Item {
 
             K.CoverArt {
                 id: cover
-                source: root.player ? (root.player.trackArtUrl || "") : ""
+                source: Music.coverFor(root.player)
                 size: 112
                 round: S.Prefs.coverSpin === true
                 spinning: root.shown && root.playing && S.Prefs.coverSpin === true

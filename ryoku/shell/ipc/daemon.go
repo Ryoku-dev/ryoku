@@ -152,6 +152,7 @@ type daemon struct {
 	wmVersions   map[string]int // frame kind -> publishes since daemon start
 	wmTopic      *stateTopic
 	wmFocusTopic *stateTopic
+	kbMemory     *kbLayoutMemory
 	nightlight   *nightlightState         // night-light self-heal (nil until started)
 	gateMu       sync.Mutex               // guards gateWant / gateWake
 	gateWant     map[string]bool          // component -> may run now (absent = yes)
@@ -1299,6 +1300,7 @@ var surfaceCommands = map[string]string{
 	"quicksettings":       "sidebar-left",
 	"wallpaper-menu":      "wallpaper",
 	"clipboard":           "clipboard",
+	"gamebar":             "gamebar",
 	"settings":            "settings",
 	"cheatsheet":          "cheatsheet",
 	"tools":               "tools",

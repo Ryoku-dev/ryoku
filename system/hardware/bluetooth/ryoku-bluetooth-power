@@ -38,36 +38,51 @@ powered_off() {
   bluetoothctl show 2>/dev/null | command grep -q '^[[:space:]]*Powered:[[:space:]]*no'
 }
 
+# after a bluetoothd restart the controller can register seconds late and AutoEnable answers Busy
+wait_seconds=${RYOKU_BLUETOOTH_WAIT:-15}
+
+retry_until_deadline() {
+  local deadline=$((SECONDS + wait_seconds))
+  until "$@"; do
+    ((SECONDS < deadline)) || return 1
+    sleep 0.1
+  done
+}
+
+power_off_confirmed() {
+  controller_available && bluetoothctl power off >/dev/null 2>&1 && powered_off
+}
+
+power_on_accepted() {
+  controller_available && { bluetoothctl power on >/dev/null 2>&1 || powered; }
+}
+
+superseded() {
+  [[ $(saved_state) != "$1" ]]
+}
+
+# a newer choice from the bar or the Hub ends an older loop still waiting on the controller
+attempt_while_wanted() {
+  local lock="$state_file.lock"
+  if command -v flock >/dev/null 2>&1 && mkdir -p "${state_file%/*}" 2>/dev/null && : 2>/dev/null >>"$lock"; then
+    (flock -w 5 9 || exit 1; superseded "$1" || "${@:2}") 9>>"$lock"
+  else
+    superseded "$1" || "${@:2}"
+  fi
+}
+
 apply_state() {
-  local state=$1 attempt
-  case $state in
+  case $1 in
     off)
       command -v bluetoothctl >/dev/null 2>&1 || return 1
-      # Right after bluetoothd (re)starts, AutoEnable is still powering the
-      # controller on: power off fails with org.bluez.Error.Busy and the radio
-      # comes up on against the saved choice. Retry until BlueZ reports it off.
-      for ((attempt = 0; attempt < 50; attempt++)); do
-        if controller_available && bluetoothctl power off >/dev/null 2>&1 && powered_off; then
-          return 0
-        fi
-        ((attempt == 49)) || sleep 0.1
-      done
-      return 1
+      retry_until_deadline attempt_while_wanted off power_off_confirmed
       ;;
     on)
       if command -v rfkill >/dev/null 2>&1; then
         rfkill unblock bluetooth >/dev/null 2>&1 || true
       fi
       command -v bluetoothctl >/dev/null 2>&1 || return 1
-      # The same Busy window refuses power on, so retry until the controller
-      # accepts it.
-      for ((attempt = 0; attempt < 50; attempt++)); do
-        if controller_available && bluetoothctl power on >/dev/null 2>&1; then
-          return 0
-        fi
-        ((attempt == 49)) || sleep 0.1
-      done
-      return 1
+      retry_until_deadline attempt_while_wanted on power_on_accepted
       ;;
   esac
 }

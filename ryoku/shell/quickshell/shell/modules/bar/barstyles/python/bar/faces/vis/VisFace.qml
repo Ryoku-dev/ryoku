@@ -4,6 +4,7 @@ import QtQuick.Window
 import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
+import Quickshell.Services.Mpris
 import "../../../../../../visualizer/Singletons" as VizCfg
 import "../../../reusables"
 import "../../../"
@@ -23,8 +24,8 @@ Item {
     readonly property bool isPreview: activeTarget ? !!activeTarget.isPreview : (!barWindow)
 
     property bool showLayout: isPreview || !barWindow || barWindow.isStartupReady
-    property bool isVisVisible: (activeTarget ? activeTarget.moduleActive : true) && showLayout
-    property bool isFaceVisible: showLayout
+    property bool isVisVisible: (activeTarget ? activeTarget.moduleActive : true) && showLayout && !idleHidden
+    property bool isFaceVisible: showLayout && !idleHidden
     property bool isSubscribed: false
     readonly property bool shouldSubscribe: isVisVisible
 
@@ -74,6 +75,20 @@ Item {
         return false;
     }
 
+    property bool hideWhenIdle: {
+        if (widget && widget !== root && widget.visHideWhenIdle !== undefined) return Boolean(widget.visHideWhenIdle);
+        if (module && module.visHideWhenIdle !== undefined) return Boolean(module.visHideWhenIdle);
+        let dummy = configRevision;
+        if (typeof Config !== "undefined" && Config.rawSettings) {
+            let bs = Config.rawSettings.bar || {};
+            if (bs.visHideWhenIdle !== undefined) return Boolean(bs.visHideWhenIdle);
+        }
+        return false;
+    }
+    readonly property var mediaPlayer: MprisController.activePlayer
+    readonly property bool hasMedia: mediaPlayer !== null && mediaPlayer.playbackState !== MprisPlaybackState.Stopped && mediaPlayer.trackTitle !== ""
+    readonly property bool idleHidden: hideWhenIdle && !isPreview && !hasMedia
+
     onShouldSubscribeChanged: updateSubscription()
 
     function updateSubscription() {
@@ -116,7 +131,7 @@ Item {
     readonly property real contentLength: root.barCount * barThickness + Math.max(0, root.barCount - 1) * barSp
     readonly property real padding: isVertical ? (barWindow ? barWindow.cs(root.isCompact ? 18 : 22) : (root.isCompact ? 18 : 22)) : (barWindow ? barWindow.cs(root.isCompact ? 20 : 24) : (root.isCompact ? 20 : 24))
 
-    property real targetLength: ((activeTarget ? activeTarget.moduleActive : true) && contentLength > 0) ? (contentLength + padding) : 0
+    property real targetLength: ((activeTarget ? activeTarget.moduleActive : true) && !idleHidden && contentLength > 0) ? (contentLength + padding) : 0
 
     readonly property real crossSize: (barWindow && typeof barWindow.s === "function") ? barWindow.cs(root.isCompact ? 24 : 32) : (root.isCompact ? 24 : 32)
     implicitWidth: isVertical ? crossSize : targetLength
