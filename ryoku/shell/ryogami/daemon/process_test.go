@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +19,26 @@ func TestPickerImportDirsCoverSystemLibdirs(t *testing.T) {
 		if !have[want] {
 			t.Errorf("picker import dirs %q do not include %q", dirs, want)
 		}
+	}
+}
+
+func TestPickerImportDirsLetHomeBuildWinOnlyWhenPresent(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	local := filepath.Join(home(), ".local", "lib", "qt6", "qml")
+	first := func() string {
+		return strings.Split(pickerImportDirs(), string(os.PathListSeparator))[0]
+	}
+	if got := first(); got != "/usr/lib/qt6/qml" {
+		t.Fatalf("packaged picker: first import dir = %q, want the system dir", got)
+	}
+	if err := os.MkdirAll(filepath.Join(local, "Ryoku", "Ryogami"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(local, "Ryoku", "Ryogami", "qmldir"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := first(); got != local {
+		t.Fatalf("home-built picker: first import dir = %q, want %q", got, local)
 	}
 }
 

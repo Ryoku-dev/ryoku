@@ -86,6 +86,10 @@
   once the start lands, the Python bar's network popup uses it too, and the
   adapter probe is paced while a scan runs instead of firing per device found.
   Covered by `tests/bluetooth-discovery-leak.sh`.
+- **The wallpaper picker's tabs show again after an update (#818).** An older
+  Ryoku.Ui left in the home folder hid the one the package ships, so the tabs
+  failed with "UiPreferences is not defined"; a packaged picker now reads the
+  packaged one first.
 - **Wallpaper Engine video wallpapers animate on hover in the picker (#807).**
   Only local videos got the small preview clip, so workshop video cards stayed
   still; they now get one too, built on the thumbnail job limit and skipped
