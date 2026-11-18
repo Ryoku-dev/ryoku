@@ -322,6 +322,10 @@ reset_case
 set_lid open
 lid_watch_events="$tmp/lid-watch-events"
 (
+  for _ in {1..200}; do
+    [[ -s $lid_watch_events ]] && break
+    sleep 0.01
+  done
   sleep 0.05
   set_lid closed
   sleep 0.05
@@ -819,7 +823,7 @@ bash -c '
   printf 'the undocked edge did not keep the session awake\n' >&2
   exit 1
 }
-expect_events 'shell lock'
+expect_events $'shell lock\nryoku wm act output.power off eDP-1'
 
 # A subsequent evaluate with the lock already confirmed does not re-lock.
 : >"$events"
@@ -871,7 +875,7 @@ bash -c '
   printf 'second undock did not keep the session awake\n' >&2
   exit 1
 }
-expect_events 'shell lock'
+expect_events $'shell lock\nryoku wm act output.power off eDP-1'
 [[ -f $keep_state ]] || {
   printf 'second undock did not confirm the fresh lock\n' >&2
   exit 1

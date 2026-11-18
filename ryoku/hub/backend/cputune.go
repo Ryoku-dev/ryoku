@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"os"
 	"os/exec"
 	"strconv"
 )
@@ -354,7 +355,8 @@ func lidStoredValue(id, value string) (string, error) {
 // lidSet persists the closed-lid policy and re-runs the shared sync so a lid
 // already shut is re-evaluated at once. The sync can decline (an inactive
 // session, a lid owner that is not ready); the setting is still saved, so a
-// failed sync is not reported as a failed save.
+// failed sync is not reported as a failed save. The sync error is logged
+// separately so the user knows a lid that is already shut was not re-evaluated.
 func lidSet(id, value string) error {
 	stored, err := lidStoredValue(id, value)
 	if err != nil {
@@ -363,6 +365,8 @@ func lidSet(id, value string) error {
 	if err := ttyRun(ryokuHostBin, "power", "lid", "set", id, stored); err != nil {
 		return err
 	}
-	_ = exec.Command("ryoku-clamshell", "lid", "sync").Run()
+	if err := exec.Command("ryoku-clamshell", "lid", "sync").Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "ryoku-hub: lid sync: %v (setting saved; a lid already shut will be re-evaluated on the next policy event)\n", err)
+	}
 	return nil
 }

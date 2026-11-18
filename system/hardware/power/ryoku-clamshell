@@ -779,6 +779,11 @@ evaluate() {
   elif close_event_current && keep_closed_desired && ! keep_lock_confirmed; then
     if lock_for_keep_running; then
       confirm_keep_lock
+      # The undocked transition transitions from docked (panel off via the
+      # compositor) to keep-running. The panel handoff has not happened yet,
+      # so blank the internal panels here just as a fresh keep-running close
+      # would.
+      panel_session_active && power_off_internal_panels
     else
       journal_note "closed-lid keep-running refused: the session could not be locked; suspending"
       CLOSE_KEEP_REFUSED=1
