@@ -102,6 +102,9 @@ func buildBindRows(modulesDir string, o Overrides) []wm.BindRow {
 // family is matched when every one of its ten chords is bound; a numpad family
 // also consumes the NumLock-off twin of each chord.
 func matchCatalog(c wm.CatalogBind, bound map[string]parsedBind, consumed map[string]bool) bool {
+	if c.Kind == wm.BindDaemon {
+		return false
+	}
 	var required, extra []string
 	if !c.Family {
 		required = []string{wm.NormChord(c.Chord)}
@@ -147,18 +150,26 @@ func catalogRow(c wm.CatalogBind, matched bool, rebinds map[string]string, off m
 			chord = t
 		}
 	}
+	if c.Kind == wm.BindDaemon {
+		chord = c.Chord
+	}
 	row := wm.BindRow{
-		ID:         c.ID,
-		Category:   c.Category,
-		Label:      c.Label,
-		Hint:       c.Hint,
-		Keys:       wm.DisplayKeys(chord),
-		Default:    c.Chord,
-		Chord:      chord,
-		Kind:       c.Kind,
-		Rebindable: rebindableCombo(c.Chord),
-		Locked:     c.Locked,
-		Disabled:   off[c.Chord],
+		ID:                c.ID,
+		Category:          c.Category,
+		Label:             c.Label,
+		Hint:              c.Hint,
+		Keys:              wm.DisplayKeys(chord),
+		Default:           c.Chord,
+		Chord:             chord,
+		Kind:              c.Kind,
+		Taps:              c.Taps,
+		WhileHighlighting: c.WhileHighlighting,
+		Rebindable:        rebindableCombo(c.Chord),
+		Locked:            c.Locked,
+		Disabled:          c.Kind != wm.BindDaemon && off[c.Chord],
+	}
+	if c.Kind == wm.BindDaemon {
+		return row
 	}
 	// A switched-off bind holds no chord, so the sheet must not print the one it
 	// would have had. The row stays, which is the point: the action is still

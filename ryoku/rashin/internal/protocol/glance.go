@@ -2,28 +2,39 @@ package protocol
 
 import "strings"
 
-const (
-	GlanceExplain   = "In two to four short sentences, explain what the image or text shows and what matters about it. No headings. Use the user's language. The user can ask a follow-up for more."
-	GlanceAsk       = "Answer the user's question about the image or text briefly and directly, in the user's language. Go into detail only when the question asks for it."
-	GlanceRead      = "Transcribe every piece of text exactly. Output nothing else."
-	GlanceTranslate = "Translate the supplied text, or the image's text if no text is supplied. Output only the translation."
-)
+const GlanceRead = "Transcribe every piece of text exactly. Output nothing else."
 
 // GlanceInstruction is shared by the provider and harness lanes.
 func GlanceInstruction(p GlanceParams) string {
+	language := strings.TrimSpace(p.Language)
+	if language == "" {
+		language = "the user's language"
+	}
+	// Name what the turn carries, so the model never remarks on what it lacks.
+	subject, shows := "the image or text", "shows"
+	switch {
+	case len(p.Images) > 0:
+		subject = "the image"
+	case strings.TrimSpace(p.Text) != "":
+		subject, shows = "the text", "says"
+	}
 	switch p.Mode {
 	case "explain":
-		return GlanceExplain
+		return "In two to four short sentences, explain what " + subject + " " + shows + " and what matters about it. No headings. Answer in " + language + ". The user can ask a follow-up for more."
 	case "ask":
-		return GlanceAsk
+		return "Answer the user's question about " + subject + " briefly and directly. Go into detail only when the question asks for it. Answer in " + language + "."
 	case "read":
 		return GlanceRead
 	case "translate":
 		target := strings.TrimSpace(p.Target)
 		if target == "" {
-			target = "the user's language"
+			target = language
 		}
-		return GlanceTranslate + " Target language: " + target + "."
+		source := strings.TrimSpace(p.Source)
+		if source != "" {
+			source = "from " + source + " "
+		}
+		return "Translate the supplied text, or the image's text if no text is supplied, " + source + "into " + target + ". Output only the translation."
 	default:
 		return ""
 	}

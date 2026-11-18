@@ -1,1 +1,5 @@
 RashinStore 1.0 RashinStore.qml
+SightStore 1.0 SightStore.qml
+SightLanguages 1.0 SightLanguages.qml
+SightModel 1.0 SightModel.qml
+SightShortcut 1.0 SightShortcut.qml

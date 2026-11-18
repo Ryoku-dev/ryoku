@@ -166,6 +166,10 @@ add_lane ryoku-keyring desktop
 add_lane ryoku-palette-bridge desktop
 add_lane udev desktop
 for pkg in dualsensectl dbus hidapi libusb; do add_lane "$pkg" optional; done
+# Sight installs trained data only when a recognition language is enabled.
+for code in ara chi_sim chi_tra deu fra hin ita jpn kor nld pol por rus spa tha tur ukr vie; do
+	add_lane "tesseract-data-$code" optional
+done
 # Ryoport ships from its own repository, but it still installs and advises these
 # clients through ryoku-host, so their translations stay.
 for pkg in freerdp inetutils libisoburn picocom quickemu spice-gtk tigervnc; do

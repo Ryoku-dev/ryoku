@@ -101,9 +101,11 @@ function holders(binds, rebinds, disabled, custom) {
     }
     for (var b = 0; b < (binds || []).length; b++) {
         var bind = binds[b];
-        if (bind.unhonored || isOff(disabled, bind.combo))
-            continue;
-        add(effective(rebinds, bind.combo), { kind: "bind", id: bind.id, label: bind.label });
+        if (bind.kind === "daemon") {
+            add(bind.chord || bind.combo, { kind: "bind", id: bind.id, label: bind.label });
+        } else if (!bind.unhonored && !isOff(disabled, bind.combo)) {
+            add(effective(rebinds, bind.combo), { kind: "bind", id: bind.id, label: bind.label });
+        }
     }
     for (var c = 0; c < (custom || []).length; c++)
         add((custom[c] || {}).keys || "", { kind: "custom", index: c });

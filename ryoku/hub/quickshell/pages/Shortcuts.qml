@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Wayland
 import Lithic
+import Ryoku.Ui as RyokuUi
 import Ryoku.Ui.Singletons
 import "../Singletons"
 import "../components"
@@ -18,6 +19,7 @@ Item {
     readonly property string pageId: "shortcuts"
 
     property var categories: []
+    property var gestureKeys: []
     property bool legendLoaded: false
     property bool legendDirty: false
     property string query: ""
@@ -40,6 +42,13 @@ Item {
     readonly property var offBind: ({ store: "desktop", key: "keybindDisabled" })
     readonly property var customBind: ({ store: "desktop", key: "keybinds" })
 
+    RyokuUi.ShellSetting { id: sightTapKey; path: "sight.tapKey"; fallback: "Alt_R"; onValueChanged: page.rebuild() }
+    RyokuUi.ShellSetting { id: sightHighlightKey; path: "sight.highlightKey"; fallback: "Alt_L"; onValueChanged: page.rebuild() }
+    RyokuUi.ShellSetting { id: sightEnabled; path: "sight.enabled"; fallback: true }
+    RyokuUi.ShellSetting { id: sightHighlight; path: "sight.highlight"; fallback: true }
+    RyokuUi.BusTopic { id: sightTopic; topic: "sight" }
+    readonly property bool sightNeedsRashin: !!sightTopic.data && sightTopic.data.reason === "rashin-off"
+
     readonly property bool ready: Changes.desktopReady && Settings.loaded && ProviderSchema.ready && page.legendLoaded
     readonly property var rebinds: Changes.value(page.rebindsBind) || ({})
     readonly property var disabled: Changes.value(page.offBind) || []
@@ -47,7 +56,8 @@ Item {
     readonly property var binds: {
         var out = [];
         for (var c = 0; c < page.categories.length; c++)
-            out = out.concat((page.categories[c].binds || []).filter(b => b.kind !== "custom"));
+            out = out.concat((page.categories[c].binds || []).filter(b => b.kind !== "custom").map(b =>
+                b.kind === "daemon" ? Object.assign({}, b, { chord: page.effectiveBind(b) }) : b));
         return out;
     }
     readonly property var holders: Binds.holders(page.binds, page.rebinds, page.disabled, page.custom)
@@ -113,15 +123,69 @@ Item {
         return I18n.tr("%1 shortcut").arg(I18n.tr(bind.label));
     }
 
+    function gesturePath(bind) {
+        return bind.whileHighlighting ? "sight.highlightKey" : "sight.tapKey";
+    }
+
+    function gestureDefault(bind) {
+        return bind.whileHighlighting ? "Alt_L" : "Alt_R";
+    }
+
+    function effectiveBind(bind) {
+        if (bind.kind !== "daemon")
+            return Binds.effective(page.rebinds, bind.combo);
+        var value = bind.whileHighlighting ? sightHighlightKey.value : sightTapKey.value;
+        return page.gestureKeys.some(k => k.Name === value) ? value : page.gestureDefault(bind);
+    }
+
+    function gestureLabel(bind) {
+        var key = page.gestureKeys.find(k => k.Name === page.effectiveBind(bind));
+        return I18n.tr(key ? key.Label : (bind.whileHighlighting ? "Left Alt" : "Right Alt"));
+    }
+
+    function gestureOtherKey(bind) {
+        return page.effectiveBind({ kind: "daemon", whileHighlighting: !bind.whileHighlighting });
+    }
+
+    function gestureOff(bind) {
+        return (bind.whileHighlighting ? sightHighlight.value : sightEnabled.value) === false;
+    }
+
+    function gestureRebound(bind) {
+        return page.effectiveBind(bind) !== page.gestureDefault(bind);
+    }
+
+    function setGestureKey(bind, key, done) {
+        if (key === page.gestureOtherKey(bind))
+            return;
+        ShellSettings.patch(page.gesturePath(bind), key, (ok, result, error) => {
+            if (done)
+                done(ok ? "" : String(error || I18n.tr("Could not save the shortcut. Try again.")));
+        });
+    }
+
     function rebind(bind, chord) {
         Changes.set(page.rebindsBind, Binds.withRebind(page.rebinds, bind.combo, chord), page.bindLabel(bind), page.pageId);
     }
 
     function setOff(bind, off) {
+        if (bind.kind === "daemon") {
+            ShellSettings.patch(bind.whileHighlighting ? "sight.highlight" : "sight.enabled", !off);
+            return;
+        }
         Changes.set(page.offBind, Binds.withOff(page.disabled, bind.combo, off), page.bindLabel(bind), page.pageId);
     }
 
     function resetBind(bind) {
+        if (bind.kind === "daemon") {
+            if (page.gestureDefault(bind) === page.gestureOtherKey(bind)) {
+                var other = { kind: "daemon", whileHighlighting: !bind.whileHighlighting };
+                ShellSettings.patch(page.gesturePath(other), page.effectiveBind(bind));
+            }
+            ShellSettings.patch(page.gesturePath(bind), page.gestureDefault(bind));
+            Bus.call("settings.reset", { path: bind.whileHighlighting ? "sight.highlight" : "sight.enabled" });
+            return;
+        }
         if (Binds.isRebound(page.rebinds, bind.combo))
             page.rebind(bind, "");
         if (Binds.isOff(page.disabled, bind.combo))
@@ -215,8 +279,10 @@ Item {
     function bindText(bind, title) {
         return [I18n.tr(bind.label), bind.label, bind.hint ? I18n.tr(bind.hint) : "", bind.hint || "",
                 title, I18n.tr(title), (bind.keys || []).join(" "),
-                Binds.toField(Binds.effective(page.rebinds, bind.combo)).split("+").join(" "),
-                Binds.familyWords(bind.combo)].join(" ");
+                Binds.toField(page.effectiveBind(bind)).split("+").join(" "),
+                Binds.familyWords(bind.combo), bind.taps > 0 ? I18n.tr("Tap %1 times").arg(bind.taps) : "",
+                bind.whileHighlighting ? I18n.tr("Hold while highlighting") : "",
+                bind.kind === "daemon" ? page.gestureLabel(bind) : ""].join(" ");
     }
 
     function customText(entry) {
@@ -304,6 +370,7 @@ Item {
             }
             page.legendError = "";
             page.categories = parsed.categories;
+            page.gestureKeys = parsed.gestureKeys || [];
         }, { timeout: 15000 });
     }
 
@@ -369,7 +436,7 @@ Item {
         var bind = page.binds.find(b => b.id === rowId);
         if (!bind)
             return "";
-        var cat = page.categories.find(c => (c.binds || []).indexOf(bind) >= 0);
+        var cat = page.categories.find(c => (c.binds || []).some(b => b.id === bind.id));
         return cat ? page.sectionFor(cat.name).id : "";
     }
 

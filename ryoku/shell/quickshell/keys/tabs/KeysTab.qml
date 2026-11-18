@@ -51,6 +51,10 @@ Item {
             return true;
         if (bind.hint && bind.hint.toLowerCase().indexOf(text) >= 0)
             return true;
+        if (bind.taps > 0 && I18n.tr("Tap %1 times").arg(bind.taps).toLowerCase().indexOf(text) >= 0)
+            return true;
+        if (bind.whileHighlighting && I18n.tr("Hold while highlighting").toLowerCase().indexOf(text) >= 0)
+            return true;
         var keys = bind.keys ? bind.keys.join(" ").toLowerCase() : "";
         return keys.indexOf(text) >= 0;
     }

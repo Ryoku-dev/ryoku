@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -68,9 +69,12 @@ type clipOffer struct {
 }
 
 type clipWatcher struct {
-	conn   *net.UnixConn
-	ingest func(string, []byte)
-	offers map[uint32]*clipOffer
+	mu             sync.Mutex
+	primaryID      uint32
+	conn           *net.UnixConn
+	ingest         func(string, []byte)
+	offers         map[uint32]*clipOffer
+	primaryChanged func()
 }
 
 func (s *clipState) watch() {
@@ -80,7 +84,7 @@ func (s *clipState) watch() {
 	for {
 		conn, err := dialWayland()
 		if err == nil {
-			err = runClipWatchSession(conn, s.ingest)
+			err = runClipWatchSession(conn, s.ingest, &s.primary)
 			_ = conn.Close()
 		}
 		if errors.Is(err, errClipWatchNoControl) {
@@ -107,8 +111,12 @@ func dialWayland() (*net.UnixConn, error) {
 	return net.DialUnix("unix", nil, &net.UnixAddr{Name: path, Net: "unix"})
 }
 
-func runClipWatchSession(conn *net.UnixConn, ingest func(string, []byte)) error {
+func runClipWatchSession(conn *net.UnixConn, ingest func(string, []byte), primary ...*primarySelectionState) error {
 	watcher := &clipWatcher{conn: conn, ingest: ingest, offers: make(map[uint32]*clipOffer)}
+	if len(primary) != 0 {
+		primary[0].set(watcher)
+		defer primary[0].set(nil)
+	}
 	if err := watcher.send(wlDisplayID, wlDisplayGetRegistryRequest, wlUint(wlRegistryID), -1); err != nil {
 		return err
 	}
@@ -196,13 +204,16 @@ func runClipWatchSession(conn *net.UnixConn, ingest func(string, []byte)) error 
 			}
 			continue
 		}
+		watcher.mu.Lock()
 		if offer := watcher.offers[msg.object]; offer != nil && msg.opcode == dataOfferMimeEvent {
 			mime, _, err := wlString(msg.payload)
 			if err != nil {
+				watcher.mu.Unlock()
 				return err
 			}
 			offer.types = append(offer.types, mime)
 		}
+		watcher.mu.Unlock()
 	}
 }
 
@@ -215,6 +226,8 @@ func (w *clipWatcher) bind(name uint32, iface string, version, id uint32) error 
 }
 
 func (w *clipWatcher) handleDeviceEvent(msg wlMessage) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	switch msg.opcode {
 	case dataDeviceDataOfferEvent:
 		id, err := wlFirstUint(msg.payload)
@@ -237,8 +250,14 @@ func (w *clipWatcher) handleDeviceEvent(msg wlMessage) error {
 		if err != nil {
 			return err
 		}
-		if id != 0 {
-			return w.destroyOffer(id)
+		if previous := w.primaryID; previous != 0 && previous != id {
+			if err := w.destroyOffer(previous); err != nil {
+				return err
+			}
+		}
+		w.primaryID = id
+		if w.primaryChanged != nil {
+			w.primaryChanged()
 		}
 	}
 	return nil

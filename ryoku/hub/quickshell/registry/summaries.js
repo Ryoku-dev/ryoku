@@ -47,7 +47,7 @@ var still = {
     "terminal": "Login shell, prompt and greeting",
     "screen-capture": "Recording and screenshots",
     "voice-typing": "Type with your voice",
-    "rashin": "The system assistant",
+    "rashin": "The system assistant and Sight screen reader",
     "add-ons": "Installed add-ons and RyoStore",
     "users": "People, passwords and account profiles",
     "sign-in": "Keyring, fingerprint and security keys",
@@ -231,7 +231,7 @@ function pageSummary(id, ctx) {
     case "rashin":
         var rashinStates = { absent: "Not installed", off: "Off", idle: "On", running: "On and running" };
         var rs = rashinStates[ctx.value({ store: "rashin", key: "state" })];
-        return ctx.tr(rs || still[id]);
+        return rs ? ctx.tr("%1 · Sight screen reader").replace("%1", ctx.tr(rs)) : ctx.tr(still[id]);
     case "add-ons":
         var plugins = ctx.config("plugins.json");
         if (!plugins || typeof plugins !== "object")

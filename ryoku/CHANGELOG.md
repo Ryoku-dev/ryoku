@@ -5,10 +5,17 @@
   temporary Ask with no tools on Rashin's fast route, or on the harness Ask
   uses with the model set for it; local Ollama and llama.cpp models count when
   their server reports vision, pictures over 8 MiB are scaled down instead of
-  refused, a kept capture conversation keeps its picture, and `rashin glance`
-  tries it from a terminal (`rashin/internal/daemon/glance.go`,
-  `rashin/internal/ask/glance.go`, `rashin/internal/gateway/local.go`,
+  refused, a kept capture conversation keeps its picture, answers name the
+  user's language instead of guessing it from the capture, translations name
+  their source and target, and `rashin glance` tries it from a terminal
+  (`rashin/internal/daemon/glance.go`, `rashin/internal/ask/glance.go`,
+  `rashin/internal/protocol/glance.go`, `rashin/internal/gateway/local.go`,
   `rashin/internal/attachment/shrink.go`).
+- **The shortcut list carries gestures the shell daemon reads itself.** A
+  daemon row is a key tapped a number of times or held while highlighting,
+  chosen from a short list of modifiers (`GestureKeys`); it shows on every
+  window manager and is never written into a compositor's config
+  (`wm/binds.go`).
 - **Ask and the Agent chat no longer fetch images from a reply or open
   arbitrary links.** Images in an answer show as their alt text, so a reply
   cannot make the shell call out to a host, and only web and mail links open

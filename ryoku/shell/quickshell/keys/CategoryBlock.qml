@@ -64,6 +64,8 @@ Column {
             keys: modelData.keys
             desc: modelData.desc
             hint: modelData.hint || ""
+            taps: modelData.taps || 0
+            whileHighlighting: modelData.whileHighlighting === true
             unhonored: modelData.unhonored || ""
             searching: block.searching
             opacity: entryProgress

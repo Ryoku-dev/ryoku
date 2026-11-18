@@ -13,6 +13,8 @@ Item {
     property var keys: []
     property string desc: ""
     property string hint: ""
+    property int taps: 0
+    property bool whileHighlighting: false
     // A short reason, set only when the running compositor cannot express this
     // bind. Empty means the bind is honoured.
     property string unhonored: ""
@@ -142,6 +144,14 @@ Item {
         // A bind that cannot fire on this compositor reads as inert, not active.
         opacity: row.unavailable ? 0.5 : 1
 
+        Text {
+            visible: row.whileHighlighting
+            anchors.verticalCenter: parent.verticalCenter
+            text: I18n.tr("Hold")
+            color: Tokens.inkDim
+            font.family: Tokens.ui
+            font.pixelSize: Tokens.fSmall
+        }
         Repeater {
             model: row.keys
             delegate: Row {
@@ -162,6 +172,14 @@ Item {
                     text: capWrap.modelData
                 }
             }
+        }
+        Text {
+            visible: row.taps > 0 || row.whileHighlighting
+            anchors.verticalCenter: parent.verticalCenter
+            text: row.whileHighlighting ? I18n.tr("while highlighting") : "×" + row.taps
+            color: Tokens.inkDim
+            font.family: Tokens.ui
+            font.pixelSize: Tokens.fSmall
         }
     }
 }

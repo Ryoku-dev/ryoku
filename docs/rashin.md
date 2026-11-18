@@ -839,6 +839,93 @@ asks, `--last` prints the last answer again. Fish, Bash and Zsh hooks
 (`ryoku/apps/*/rashin.*`) wrap the command and bind Alt+R to turn the current
 command line into a proposed command; they do nothing while `rashin` is absent.
 
+## Sight
+
+Sight reads part of the screen with Rashin. Tap Right Alt three times: the
+screen freezes, a single hint reads "Drag over anything", and the box you drag
+stays on screen as a frozen plate with its answer beside it. There is no mode to
+choose first: the answer starts the moment you release. For text you can
+highlight, hold Left Alt while you highlight it; when you let go, a small
+Translate, Explain, Ask bubble appears above the pointer.
+
+- **Selecting** (`shell/modules/sight/SightSelect.qml`): the box's size shows
+  beside the pointer only while dragging; Space moves the box, Alt shows a
+  magnifier, and a click without a drag takes the window under it where the
+  compositor reports window geometry. Enter reuses the last box on that screen,
+  Escape or another triple tap cancels.
+- **Highlighted text** (`SightBubble.qml`): the bubble takes no keyboard focus
+  and dims nothing. It puts Translate first when the text is in another
+  language than yours and Explain first when it is in yours, leaves after six
+  seconds unless the pointer rests on it, and goes at the next key press or new
+  selection. Choosing an action opens the panel beside the pointer on that text.
+  The shell finds the pointer by mapping a transparent surface under it for a
+  moment, so it works the same on every compositor.
+- **The panel** (`SightPanel.qml`): one plane beside the plate, placed once on
+  whichever side has room, growing with its answer without moving. Explain,
+  Text, Translate and Ask switch in place (Tab, or 1 to 4); Settings > Apps >
+  Rashin > Sight > "Start with" picks which one opens. Each keeps its own
+  thread, and the field at the bottom asks a follow-up about the same capture.
+  Text runs Tesseract and zbar on this machine and shows editable text plus any
+  QR or barcode; Read with Rashin asks the model to transcribe what OCR missed;
+  Translate leads with the translation and folds the original away. Its row
+  reads `[source] → [target]`: the source is detected on this machine
+  (`ipc/sight_language.go`: the script, then common words for Latin-script
+  languages) and can be overridden for one capture; the target you pick is
+  saved as Settings > Apps > Rashin > Sight > "Translate into" and used next
+  time. Text already in the target language is not sent; the panel says so and
+  offers "Translate anyway". Captures send the OCR text with the picture, so the
+  model can read past what OCR got wrong.
+  Copy copies what the panel shows, Pin floats the capture where it was taken
+  (`ryoku-cmd-pin`), and More holds Keep on screen, Open in editor, Copy image,
+  Continue in Rashin and Hand off to an agent. A quiet line at the bottom names
+  the model and whether it runs on this computer; clicking it shows the details.
+  Keys: Ctrl+C copies what is shown, Ctrl+Shift+C the image, Escape closes a
+  menu, then stops an answer, then closes. A click outside closes plate and
+  panel together; Keep on screen leaves them up and clicks pass around them.
+- **Answers**: the panel calls `glance` on the socket. Its engine and model come
+  from Settings > Apps > Rashin > Sight: "Same as Ask" follows `ask.harness`
+  (a harness such as omp over ACP, or Rashin's providers when unset), and the
+  model is the engine's default unless one is named there. Nothing in Sight
+  names a model. Explain asks for a few sentences; detail comes from
+  follow-ups. Answers name your language explicitly, translations use the source
+  and target language names, and Read only transcribes. The providers lane is a
+  quick runner: no tools, a short per-mode prompt, no vault brief or memory,
+  route `auto:fast`. Every glance session is
+  temporary; Keep forks it into history (images under the runtime dir are
+  copied into Rashin's data dir), Continue opens it in the app, and the agent
+  hand-off works as from Ask. "Local models only" keeps the screen off the
+  network.
+- **No model reads pictures**: `glance` fails with `no_vision` and the panel
+  offers to add a provider. Local Ollama and llama.cpp models count once their
+  server reports vision (`/api/show` capabilities, `/props` modalities).
+  Pictures over 8 MiB are scaled down before they are sent.
+- **The gestures** (`ipc/sight_gesture.go`): the shell daemon reads the
+  keyboards read-only, never grabs them, and only matches two patterns: three
+  quick taps of one key (each under 250 ms, at most 350 ms apart, with nothing
+  else pressed), and one key held while the PRIMARY selection changes. A change
+  that lands up to 400 ms after the key comes up still counts, because apps
+  such as Chromium set PRIMARY on mouse-up. The clipboard watcher reports each
+  PRIMARY change without reading it; the text is read once, after the
+  selection settles. The reader runs only while Rashin is on and a gesture is
+  enabled, and never fires on a locked screen. It needs the
+  active-seat keyboard access Ryoku already ships
+  (`72-ryoku-keyboard-uaccess.rules`); without it the Rashin page says so.
+  No compositor binds these keys, so Alt keeps working in shortcuts and as
+  AltGr, and Hyprland, niri and Wayfire behave the same. The keys come from a
+  short list of modifiers (`wm.GestureKeys`), chosen in Settings > Keyboard
+  shortcuts. On a layout where Right Alt is Alt rather than AltGr, apps that
+  show a menu bar on an Alt tap (Firefox, VS Code) may toggle it. At the second
+  tap the daemon captures every output with grim into the runtime dir, so the
+  frozen screen is ready at the third; a missing third tap deletes the
+  captures. The shell draws the selection itself (`sight` topic `select`), and
+  `sight.commit` crops the box at full pixel density.
+- **Off is zero**: with Rashin off or Sight disabled there is no reader, timer
+  or process; the Sight surface loads with a selection or its first panel and
+  unloads 15 s after the last one closes.
+- **Testing without the gestures**: `ryoku-shell sight` freezes the screen now;
+  `rashin glance --mode explain --image shot.png [--engine omp --model ID]`
+  streams an answer in a terminal.
+
 ## Agent
 
 The harness runner (`internal/harness`) speaks ACP version 1 over the agent's

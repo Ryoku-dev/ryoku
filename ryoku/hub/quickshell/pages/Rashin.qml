@@ -4,7 +4,9 @@ import Ryoku.Ui.Singletons
 import "../Singletons"
 import "../components"
 import "../components/screen-capture"
+import "../components/rashin"
 import "../schema/rashin.js" as Schema
+import "../components/rashin/sight.js" as Sight
 
 // turning Rashin on or off, what it is doing, and opening it; reading its status
 // never starts it, so this page costs Rashin nothing while it is off
@@ -15,6 +17,7 @@ Item {
     property string pendingRow: ""
 
     readonly property var store: Changes.stores["rashin"] || null
+    readonly property var sightStore: Changes.stores["sight"] || null
     readonly property bool loaded: root.store !== null && root.store.loaded
     readonly property string state: root.loaded ? root.store.state : ""
     readonly property bool switching: root.store !== null && root.store.switching !== ""
@@ -50,6 +53,25 @@ Item {
         var out = Object.assign({}, row);
         var s = root.store;
         switch (row.id) {
+        case "sight-enabled":
+            out.label = I18n.tr("Tap %1 three times").arg(root.sightStore.tapLabel);
+            break;
+        case "sight-highlight":
+            out.label = I18n.tr("Hold %1 while highlighting").arg(root.sightStore.highlightLabel);
+            break;
+        case "sight-target":
+            out.options = Sight.targetOptions(I18n.langs, text => I18n.tr(text));
+            break;
+        case "sight-engine":
+            out.options = root.sightStore.engines;
+            break;
+        case "sight-shortcut":
+            out.detail = I18n.tr("%1 ×3").arg(root.sightStore.tapLabel) + " · "
+                + I18n.tr("Hold %1 while highlighting").arg(root.sightStore.highlightLabel);
+            break;
+        case "sight-status":
+            out.detail = root.sightStore.statusLine;
+            break;
         case "rashin-enabled":
             out.detail = root.enabledDetail();
             break;
@@ -71,6 +93,8 @@ Item {
     function shown(row) {
         if (!root.loaded)
             return false;
+        if (row.section === "sight")
+            return root.sightStore !== null && root.store.enabled && !root.switching;
         if (row.section === "status")
             return root.store.installed;
         if (row.section === "open")
@@ -129,11 +153,14 @@ Item {
     function revisited() {
         if (root.store && root.store.switching === "")
             root.store.refresh();
+        if (root.sightStore)
+            root.sightStore.refresh();
         if (root.pendingRow !== "")
             Qt.callLater(root.focusRow, root.pendingRow);
     }
 
     Component.onCompleted: {
+        Changes.ensureStore("sight", Qt.resolvedUrl("../components/rashin/SightStore.qml"));
         var had = !!Changes.stores["rashin"];
         Changes.ensureStore("rashin", Qt.resolvedUrl("../components/rashin/RashinStore.qml"));
         if (had)
@@ -151,7 +178,8 @@ Item {
         // a switch that failed says so first; a status re-read that failed says the page may be out of date
         footers: ({ rashin: root.store && root.store.error !== "" ? errorFooter
                           : root.loaded && root.store.readError !== "" ? readFooter : null })
-        controls: ({ "rashin-enabled": switchControl })
+        controls: ({ "rashin-enabled": switchControl, "sight-languages": sightLanguagesControl,
+                     "sight-model": sightModelControl, "sight-shortcut": sightShortcutControl })
         onLayoutChanged: {
             if (root.visible && root.pendingRow !== "") {
                 var id = root.pendingRow;
@@ -159,6 +187,38 @@ Item {
                 Qt.callLater(root.focusRow, id);
             }
         }
+    }
+
+    Binding {
+        target: root.sightStore
+        property: "active"
+        value: root.visible && root.loaded && root.store.enabled && !root.switching
+        when: root.sightStore !== null
+    }
+    Binding {
+        target: root.sightStore
+        property: "roster"
+        value: root.store ? root.store.installedHarnesses : []
+        when: root.sightStore !== null
+    }
+    Binding {
+        target: root.sightStore
+        property: "askHarness"
+        value: root.store ? root.store.askHarness : ""
+        when: root.sightStore !== null
+    }
+
+    Component {
+        id: sightLanguagesControl
+        SightLanguages { store: root.sightStore }
+    }
+    Component {
+        id: sightModelControl
+        SightModel { store: root.sightStore }
+    }
+    Component {
+        id: sightShortcutControl
+        SightShortcut { hub: root.hub }
     }
 
     Component {

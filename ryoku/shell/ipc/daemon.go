@@ -177,8 +177,9 @@ type daemon struct {
 	battery         *batteryState          // UPower battery readout (nil when no system bus)
 	audioLevels     *audioState            // default-device volume readout (PipeWire via pactl)
 	keypress        *keypressManager       // evdev key stream while the overlay is enabled
-	mousemap        *mouseMapManager       // per-mouse evdev grab + uinput clone remapper
-	sun             *sunState              // latest weather sunrise/sunset window
+	sight           *sightService
+	mousemap        *mouseMapManager // per-mouse evdev grab + uinput clone remapper
+	sun             *sunState        // latest weather sunrise/sunset window
 	sleepMu         sync.RWMutex
 	sleep           *sleepCycle // coordinated login1 suspend transaction; guarded by sleepMu
 	suspendReqMu    sync.Mutex
@@ -468,6 +469,7 @@ func (d *daemon) bootstrap() {
 	d.startRecord()
 	d.startMouseMap()
 	d.startClipboard()
+	d.startSight()
 	d.startTray()
 	d.startWeather()
 	d.startMusic()
@@ -1271,6 +1273,7 @@ var surfaceCommands = map[string]string{
 	"cheatsheet":          "cheatsheet",
 	"tools":               "tools",
 	"screenshot":          "screenshot",
+	"sight":               "sight",
 	"ask":                 "ask",
 	"ask chat":            "ask#chat",
 	"ask tools":           "ask#tools",
@@ -1308,6 +1311,18 @@ func (d *daemon) dispatch(line string) string {
 	}
 	cmd, args := fields[0], fields[1:]
 	routeCmd := cmd
+	if cmd == "sight" {
+		if len(args) != 0 {
+			return "err sight: unexpected arguments"
+		}
+		if d.sight == nil {
+			return "err sight: unavailable"
+		}
+		if err := d.sight.trigger(); err != nil {
+			return "err sight: " + err.Error()
+		}
+		return "ok"
+	}
 	switch cmd {
 	case "menu":
 		// menu close clears every open menu. App launcher and dedicated surface

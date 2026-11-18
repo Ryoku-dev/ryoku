@@ -15,6 +15,12 @@ import (
 func TestEveryCatalogueIdMappedOrReasoned(t *testing.T) {
 	defs := defaultBinds()
 	for _, cb := range wm.ShippedBinds() {
+		if cb.Kind == wm.BindDaemon {
+			if _, ok := defs[cb.ID]; ok {
+				t.Errorf("daemon id %q must not have a compositor mapping", cb.ID)
+			}
+			continue
+		}
 		wb, ok := defs[cb.ID]
 		if !ok {
 			t.Errorf("%s is missing from defaultBinds", cb.ID)
@@ -516,5 +522,44 @@ func TestBindRowsCustoms(t *testing.T) {
 		t.Errorf("wheel row unhonored = %q", customs[2].Unhonored)
 	case !strings.Contains(customs[3].Unhonored, "needs a command"):
 		t.Errorf("empty command row unhonored = %q", customs[3].Unhonored)
+	}
+}
+
+func TestDaemonBindsStayOutsideCompositor(t *testing.T) {
+	old := hasProgram
+	hasProgram = func(string) bool { return false }
+	t.Cleanup(func() { hasProgram = old })
+	s := defaultStore()
+	s.KeybindRebinds = map[string]string{"Alt_R": "SUPER + F12", "Alt_L": "SUPER + F11"}
+	s.KeybindDisabled = []string{"Alt_R", "Alt_L"}
+	rows := bindRows(s)
+	out, report := resolveBinds(defaultStore())
+	for _, cb := range wm.ShippedBinds() {
+		if cb.Kind != wm.BindDaemon {
+			continue
+		}
+		found := false
+		for _, row := range rows {
+			if row.ID == cb.ID {
+				found = true
+				if row.Taps != cb.Taps || row.WhileHighlighting != cb.WhileHighlighting || row.Chord != cb.Chord || row.Unhonored != "" || row.Disabled || !row.Rebindable {
+					t.Errorf("daemon row = %+v, want gesture, available, independently rebindable %s", row, cb.ID)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("daemon row %s missing", cb.ID)
+		}
+		chord, _ := toWayfireActivator(cb.Chord)
+		for _, bind := range out {
+			if bind.activator == chord {
+				t.Errorf("daemon chord %s emitted", bind.activator)
+			}
+		}
+		for _, refusal := range report {
+			if refusal.Key == "desktop.keybinds (default "+cb.Chord+")" {
+				t.Errorf("daemon bind reported unhonored: %+v", refusal)
+			}
+		}
 	}
 }

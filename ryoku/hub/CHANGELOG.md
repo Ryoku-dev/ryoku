@@ -1,6 +1,14 @@
 # Changelog: ryoku/hub/
 
 ## Unreleased
+- **Rashin has a Sight section.** Turn triple-tap Right Alt or Left Alt while highlighting on or off, pick what it starts with, the
+  language it translates into, what answers (the same engine as Ask, Rashin's providers or a harness)
+  and the model (the engine's default unless you name one), keep captures on local models only, and add
+  text recognition languages, installed on demand for Arch, Fedora and Void (`pages/Rashin.qml`,
+  `components/rashin/Sight*.qml`, `schema/rashin.js`).
+- **Keyboard shortcuts offers menus for Sight's gesture keys.** Choose one of six modifier keys
+  for triple-tap screen boxes and another for highlighted text, with keycaps in Shortcuts and the
+  Super+K sheet. Each row says when it needs Rashin on (`pages/Shortcuts.qml`, `components/shortcuts/`).
 - **Notifications & pop-ups shows Ryoku's own card and pop-up moving, in the design in use.** The Ryoku
   tiles and an example above each gallery play a real recording, light or dark like the desktop, and hold
   still with reduced motion (`pages/Notifications.qml`, `components/notifications/DesignExample.qml`).

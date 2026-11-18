@@ -1,11 +1,26 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Tap Right Alt three times to explain, read, translate or ask about part of
+  the screen, or hold Left Alt while you highlight text.** A triple tap freezes
+  the screen, you drag over anything, and the box stays where it was with
+  Rashin's answer beside it, already streaming. Highlighted text gets a small
+  Translate, Explain, Ask bubble at the pointer instead, without freezing
+  anything. One panel switches between Explain, Text, Translate and Ask and
+  takes follow-ups in your own language, with local OCR and QR reading, the
+  text's language detected on this machine, the target language remembered,
+  Copy, Pin and Keep on screen. It only listens while Rashin is on; the shell
+  daemon reads the keyboard without grabbing it, no compositor binds the keys,
+  and the surface unloads once closed (`ipc/sight.go`, `ipc/sight_gesture.go`,
+  `ipc/sight_capture.go`, `ipc/sight_language.go`, `ipc/sight_ocr.go`,
+  `ipc/primary_selection.go`, `quickshell/shell/modules/sight/`).
 - **Pinned screenshots float where they were taken and can be traced over.**
   A pin lands on its own spot and monitor above full-screen apps, fades with
   Ctrl+wheel or 0 to 9, goes click-through for tracing with a blink toggle,
   hides with the rest or alone, and drags out into other apps as a file
   (`quickshell/ryopin/`, `scripts/ryoku-cmd-pin`).
+- **The key-press overlay finds keyboards when they appear instead of looking
+  every two seconds** (`ipc/keyboard_reader.go`, `ipc/keypress.go`).
 - **Orpheus shows a recording in its own bubble on the bar.** It buds off the
   island with the recorded length and the audio sources, opens a recording card,
   and Ryoku's floating pill stays away unless Bar settings hand it back

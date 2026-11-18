@@ -510,6 +510,9 @@ func resolveBinds(s wayfireStore) ([]outBind, []wm.Unhonored) {
 	// Behaviours wayfire cannot perform: report each once, unless the user
 	// removed the chord anyway.
 	for _, cb := range cat {
+		if cb.Kind == wm.BindDaemon {
+			continue
+		}
 		wb := defs[cb.ID]
 		if wb.reason == "" || unbind[cb.Chord] {
 			continue
@@ -536,6 +539,9 @@ func resolveBinds(s wayfireStore) ([]outBind, []wm.Unhonored) {
 	// onto another default's chord wins and the static default is dropped.
 	claimDefaults := func(rebound bool) {
 		for _, cb := range cat {
+			if cb.Kind == wm.BindDaemon {
+				continue
+			}
 			wb := defs[cb.ID]
 			if wb.reason != "" {
 				continue
@@ -688,6 +694,9 @@ func bindRows(s wayfireStore) []wm.BindRow {
 		if cb.Family {
 			eff, _ = wm.FamilyRebind(cb.Chord, s.KeybindRebinds)
 		}
+		if cb.Kind == wm.BindDaemon {
+			eff = cb.Chord
+		}
 		label := cb.Label
 		if wb.label != "" {
 			label = wb.label
@@ -697,23 +706,25 @@ func bindRows(s wayfireStore) []wm.BindRow {
 			hint = wb.hint
 		}
 		row := wm.BindRow{
-			ID:         cb.ID,
-			Category:   cb.Category,
-			Label:      label,
-			Hint:       hint,
-			Keys:       wm.DisplayKeys(eff),
-			Default:    cb.Chord,
-			Chord:      eff,
-			Kind:       cb.Kind,
-			Rebindable: wb.reason == "" && rebindable(cb),
-			Locked:     cb.Locked,
-			Disabled:   off[cb.Chord],
+			ID:                cb.ID,
+			Category:          cb.Category,
+			Label:             label,
+			Hint:              hint,
+			Keys:              wm.DisplayKeys(eff),
+			Default:           cb.Chord,
+			Chord:             eff,
+			Kind:              cb.Kind,
+			Taps:              cb.Taps,
+			WhileHighlighting: cb.WhileHighlighting,
+			Rebindable:        wb.reason == "" && rebindable(cb),
+			Locked:            cb.Locked,
+			Disabled:          cb.Kind != wm.BindDaemon && off[cb.Chord],
 		}
 		if row.Disabled {
 			row.Keys = nil
 			row.Chord = ""
 		}
-		if wb.reason != "" {
+		if cb.Kind != wm.BindDaemon && wb.reason != "" {
 			row.Unhonored = wb.reason
 		}
 		rows = append(rows, row)

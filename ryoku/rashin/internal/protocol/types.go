@@ -276,6 +276,8 @@ type GlanceParams struct {
 	Question string       `json:"question,omitempty"`
 	Text     string       `json:"text,omitempty"`
 	Images   []Attachment `json:"images,omitempty"`
+	Language string       `json:"language,omitempty"`
+	Source   string       `json:"source,omitempty"`
 	Target   string       `json:"target,omitempty"`
 	Engine   string       `json:"engine,omitempty"`
 	Model    string       `json:"model,omitempty"`

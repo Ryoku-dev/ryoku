@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"io"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -446,30 +445,17 @@ func configureKeyEventClock(file *os.File) error {
 	if info.Mode()&os.ModeCharDevice == 0 {
 		return nil
 	}
-	return unix.IoctlSetPointerInt(int(file.Fd()), evIoCsClockID, unix.CLOCK_MONOTONIC)
-}
-
-func keyboardEventPaths(sysRoot, devRoot string) ([]string, error) {
-	entries, err := os.ReadDir(sysRoot)
+	connection, err := file.SyscallConn()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	paths := make([]string, 0, 2)
-	for _, entry := range entries {
-		name := entry.Name()
-		if !strings.HasPrefix(name, "event") {
-			continue
-		}
-		raw, err := os.ReadFile(filepath.Join(sysRoot, name, "device", "capabilities", "key"))
-		if err != nil || !isKeyboardCapabilities(string(raw)) {
-			continue
-		}
-		devPath := filepath.Join(devRoot, name)
-		if _, err := os.Stat(devPath); err == nil {
-			paths = append(paths, devPath)
-		}
+	var clockErr error
+	if err := connection.Control(func(fd uintptr) {
+		clockErr = unix.IoctlSetPointerInt(int(fd), evIoCsClockID, unix.CLOCK_MONOTONIC)
+	}); err != nil {
+		return err
 	}
-	return paths, nil
+	return clockErr
 }
 
 func decodeKeypressConfigure(raw json.RawMessage) (enabled bool, mode string, err error) {
@@ -761,61 +747,6 @@ func sendKeyDeviceMessage(ctx context.Context, messages chan<- keyDeviceMessage,
 	}
 }
 
-func readKeyDevice(runCtx, deviceCtx context.Context, path string, readerID uint64, messages chan<- keyDeviceMessage) {
-	file, err := os.Open(path)
-	if err != nil {
-		sendKeyDeviceMessage(runCtx, messages, keyDeviceMessage{
-			path: path, readerID: readerID, timestampUS: monotonicTimestampUS(), err: err,
-		})
-		return
-	}
-	defer file.Close()
-	if err := configureKeyEventClock(file); err != nil {
-		sendKeyDeviceMessage(runCtx, messages, keyDeviceMessage{
-			path: path, readerID: readerID, timestampUS: monotonicTimestampUS(), err: err,
-		})
-		return
-	}
-	sendKeyDeviceMessage(runCtx, messages, keyDeviceMessage{
-		path: path, readerID: readerID, opened: true, timestampUS: monotonicTimestampUS(),
-	})
-
-	stopped := make(chan struct{})
-	go func() {
-		select {
-		case <-deviceCtx.Done():
-			_ = file.Close()
-		case <-stopped:
-		}
-	}()
-	defer close(stopped)
-
-	raw := make([]byte, linuxInputEventSize)
-	for {
-		if _, err := io.ReadFull(file, raw); err != nil {
-			message := keyDeviceMessage{
-				path: path, readerID: readerID, timestampUS: monotonicTimestampUS(),
-			}
-			if deviceCtx.Err() == nil && err != io.EOF && err != io.ErrUnexpectedEOF {
-				message.err = err
-			}
-			sendKeyDeviceMessage(runCtx, messages, message)
-			return
-		}
-		event, ok := decodeLinuxInputEvent(raw)
-		if !ok {
-			continue
-		}
-		sendKeyDeviceMessage(runCtx, messages, keyDeviceMessage{
-			path:        path,
-			readerID:    readerID,
-			hasEvent:    true,
-			event:       event,
-			timestampUS: event.timestampUS,
-		})
-	}
-}
-
 type keyDeviceReader struct {
 	id       uint64
 	cancel   context.CancelFunc
@@ -863,11 +794,7 @@ func drainKeyDeviceBatch(
 }
 
 func (m *keypressManager) run(ctx context.Context, generation uint64) {
-	messages := make(chan keyDeviceMessage, 80)
-	active := map[string]keyDeviceReader{}
 	var composer keyComposer
-	var nextReaderID uint64
-
 	publishEvent := func(event *keypressEvent) {
 		if event == nil {
 			return
@@ -879,148 +806,27 @@ func (m *keypressManager) run(ctx context.Context, generation uint64) {
 		}
 		serial := m.eventSerial
 		m.mu.Unlock()
-		if !current {
-			return
-		}
-		body, err := marshalKeypressEvent(event, time.Now().UnixMilli(), serial)
-		if err == nil {
-			m.topic.publish(body)
-		}
-	}
-
-	pending := make([]keyDeviceMessage, 0, 8)
-	var reorderTimer *time.Timer
-	var reorderReady <-chan time.Time
-	var batchHadRemoval bool
-	var batchRemovalErr error
-
-	refresh := func() {
-		paths, err := keyboardEventPaths(m.sysRoot, m.devRoot)
-		if err != nil {
-			m.publish(generation, keypressFrame{
-				Status: "error",
-				Keys:   []string{},
-				Error:  "Keyboard devices are unavailable",
-			})
-			return
-		}
-		present := make(map[string]bool, len(paths))
-		for _, path := range paths {
-			present[path] = true
-			if _, exists := active[path]; exists {
-				continue
-			}
-			nextReaderID++
-			deviceCtx, cancel := context.WithCancel(ctx)
-			reader := keyDeviceReader{id: nextReaderID, cancel: cancel}
-			active[path] = reader
-			go readKeyDevice(ctx, deviceCtx, path, reader.id, messages)
-		}
-		for path, reader := range active {
-			if !present[path] && !reader.removing {
-				reader.removing = true
-				active[path] = reader
-				reader.cancel()
+		if current {
+			body, err := marshalKeypressEvent(event, time.Now().UnixMilli(), serial)
+			if err == nil {
+				m.topic.publish(body)
 			}
 		}
-		if len(paths) == 0 {
-			m.publish(generation, keypressFrame{
-				Status: "error",
-				Keys:   []string{},
-				Error:  "No keyboard input device found",
-			})
-		}
 	}
-
-	processOrdered := func(message keyDeviceMessage) {
-		reader, current := active[message.path]
-		if !current || reader.id != message.readerID {
-			return
-		}
-		if message.hasEvent {
-			publishEvent(composer.handleSource(
-				message.readerID, message.event.code, message.event.value, m.currentMode()))
-			return
-		}
-		if message.opened {
-			reader.opened = true
-			active[message.path] = reader
+	runKeyboardReader(ctx, m.sysRoot, m.devRoot, func(message keyDeviceMessage, remaining int) {
+		switch {
+		case message.hasEvent:
+			publishEvent(composer.handleSource(message.readerID, message.event.code, message.event.value, m.currentMode()))
+		case message.opened:
 			composer.source(message.readerID)
-			if !reader.removing {
-				m.publish(generation, keypressFrame{Status: "ready", Keys: []string{}})
+			m.publish(generation, keypressFrame{Status: "ready", Keys: []string{}})
+		default:
+			for _, event := range composer.removeSource(message.readerID) {
+				publishEvent(event)
 			}
-			return
+			m.publish(generation, keyDeviceRemovalFrame(message.err, remaining))
 		}
-
-		reader.cancel()
-		delete(active, message.path)
-		for _, event := range composer.removeSource(message.readerID) {
-			publishEvent(event)
-		}
-		batchHadRemoval = true
-		if message.err != nil {
-			batchRemovalErr = message.err
-		}
-	}
-	flushPending := func() {
-		for _, message := range pending {
-			processOrdered(message)
-		}
-		pending = pending[:0]
-		if batchHadRemoval {
-			m.publish(generation,
-				keyDeviceRemovalFrame(batchRemovalErr, healthyKeyDeviceCount(active)))
-			batchHadRemoval = false
-			batchRemovalErr = nil
-		}
-	}
-	queueMessage := func(message keyDeviceMessage) {
-		reader, current := active[message.path]
-		if !current || reader.id != message.readerID {
-			return
-		}
-		wasEmpty := len(pending) == 0
-		pending = appendKeyDeviceBatch(pending, message)
-		if !wasEmpty {
-			return
-		}
-		if reorderTimer == nil {
-			reorderTimer = time.NewTimer(keyEventReorderDelay)
-		} else {
-			reorderTimer.Reset(keyEventReorderDelay)
-		}
-		reorderReady = reorderTimer.C
-	}
-	drainReady := func() {
-		reorderReady = nil
-		pending = drainKeyDeviceBatch(messages, active, pending)
-		flushPending()
-	}
-
-	refresh()
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-	defer func() {
-		if reorderTimer != nil {
-			reorderTimer.Stop()
-		}
-		for _, reader := range active {
-			reader.cancel()
-		}
-	}()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			refresh()
-		case <-reorderReady:
-			drainReady()
-		case message := <-messages:
-			queueMessage(message)
-		}
-	}
+	})
 }
 
 func (d *daemon) startKeypress() {

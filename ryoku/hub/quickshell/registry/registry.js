@@ -98,7 +98,7 @@ var pages = {
     "voice-typing": { title: "Voice typing", category: "apps", file: "VoiceTyping",
         keywords: ["voice typing", "dictation", "speech", "whisper", "microphone", "stt"] },
     "rashin": { title: "Rashin", category: "apps", file: "Rashin",
-        keywords: ["rashin", "agent", "ai", "ask", "chat", "models"] },
+        keywords: ["rashin", "agent", "ai", "ask", "chat", "models", "sight", "screen", "hold", "ocr", "translate", "explain"] },
     "add-ons": { title: "Desktop add-ons", category: "apps", file: "AddOns",
         keywords: ["add-ons", "addons", "desktop add-ons", "plugins", "extensions", "store", "ryostore", "bundles", "omarchy"] },
 
