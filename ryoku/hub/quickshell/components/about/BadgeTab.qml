@@ -78,6 +78,15 @@ Column {
                 wrapMode: Text.Wrap
                 elide: Text.ElideNone
             }
+            Label {
+                width: parent.width
+                text: Badge.badge && Badge.badge.program ? I18n.tr("Program: %1").replace("%1", Badge.badge.program) : ""
+                visible: text !== ""
+                typeRole: "detail"
+                inkRole: "fg2"
+                wrapMode: Text.Wrap
+                elide: Text.ElideNone
+            }
             Plaque { visible: !!Badge.badge; small: true; kind: "line"; text: I18n.tr("View certificate"); onClicked: certificate.open() }
         }
     }
@@ -168,7 +177,8 @@ Column {
         TextField { id: memberRequest; width: parent.width; placeholderText: I18n.tr("Member's request code"); Accessible.name: placeholderText }
         TextField { id: login; width: parent.width; placeholderText: I18n.tr("GitHub login"); Accessible.name: placeholderText }
         Segmented { id: role; width: parent.width; model: [I18n.tr("Tester"), I18n.tr("Contributor"), I18n.tr("NixOS"), I18n.tr("Core"), I18n.tr("Founder")]; accessibleName: I18n.tr("Badge role") }
-        Plaque { kind: "gold"; text: I18n.tr("Make a code"); enabled: root.idle && memberRequest.text.trim() !== "" && login.text.trim() !== ""; busy: Badge.job === "issue"; onClicked: Badge.issue({ request: memberRequest.text, login: login.text, role: root.roles[role.currentIndex] }) }
+        TextField { id: program; width: parent.width; placeholderText: I18n.tr("Program tested, optional (for example Ryoku v2 Hyperion)"); Accessible.name: placeholderText }
+        Plaque { kind: "gold"; text: I18n.tr("Make a code"); enabled: root.idle && memberRequest.text.trim() !== "" && login.text.trim() !== ""; busy: Badge.job === "issue"; onClicked: Badge.issue({ request: memberRequest.text, login: login.text, role: root.roles[role.currentIndex], program: program.text }) }
         TextField { width: parent.width; visible: Badge.issuedCode !== ""; text: Badge.issuedCode; readOnly: true; Accessible.name: I18n.tr("Issued badge code") }
         Plaque { small: true; visible: Badge.issuedCode !== ""; kind: "line"; text: I18n.tr("Copy code"); onClicked: root.copy(Badge.issuedCode) }
         Label { text: I18n.tr("Preview a submitted design"); typeRole: "label" }

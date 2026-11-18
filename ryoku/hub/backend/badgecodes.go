@@ -15,21 +15,27 @@ import (
 )
 
 var badgeLoginPattern = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$`)
+var badgeProgramPattern = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9 .+-]{0,38}[A-Za-z0-9])?$`)
 var badgeRoles = []string{"", "tester", "contributor", "nixos", "core", "founder"}
+var badgeDomains = map[byte]string{2: "ryoku-badge-v2", 3: "ryoku-badge-v3"}
+
+// every v2 tester badge was issued in the first tester round, which tested Hyperion
+const badgeV2TesterProgram = "Ryoku v2 Hyperion"
 
 type badgeInfo struct {
-	Code   string `json:"code"`
-	ID     string `json:"id"`
-	Role   string `json:"role"`
-	RoleID byte   `json:"roleId"`
-	Login  string `json:"login"`
-	Issuer string `json:"issuer"`
-	Issued string `json:"issued"`
-	CardID string `json:"cardId"`
-	Device string `json:"device"`
-	issuer byte
-	day    uint16
-	device []byte
+	Code    string `json:"code"`
+	ID      string `json:"id"`
+	Role    string `json:"role"`
+	RoleID  byte   `json:"roleId"`
+	Login   string `json:"login"`
+	Issuer  string `json:"issuer"`
+	Issued  string `json:"issued"`
+	CardID  string `json:"cardId"`
+	Device  string `json:"device"`
+	Program string `json:"program,omitempty"`
+	issuer  byte
+	day     uint16
+	device  []byte
 }
 type requestInfo struct {
 	CardID string `json:"cardId"`
@@ -88,32 +94,62 @@ func requestParse(text string) (requestInfo, error) {
 	}
 	return requestInfo{CardID: cardIDText(b[1:33]), Device: base64.StdEncoding.EncodeToString(b[1:33]), device: b[1:33]}, nil
 }
-func badgeSign(issuer, role byte, seed []byte, req requestInfo, login string, day uint16) (string, error) {
-	if !badgeRoleAllowed(issuer, role) || !badgeLoginPattern.MatchString(login) || len(req.device) != 32 || len(seed) != 32 {
+func badgeProgramValid(program string) bool {
+	return badgeProgramPattern.MatchString(program) && !strings.Contains(program, "  ")
+}
+func badgeSign(issuer, role byte, seed []byte, req requestInfo, login, program string, day uint16) (string, error) {
+	if !badgeRoleAllowed(issuer, role) || !badgeLoginPattern.MatchString(login) || len(req.device) != 32 || len(seed) != 32 || (program != "" && !badgeProgramValid(program)) {
 		return "", errors.New("invalid badge fields or issuer role")
 	}
-	b := []byte{2, issuer, role}
+	version := byte(2)
+	if program != "" {
+		version = 3
+	}
+	b := []byte{version, issuer, role}
 	b = append(b, req.device...)
 	b = binary.BigEndian.AppendUint16(b, day)
 	b = append(b, byte(len(login)))
 	b = append(b, login...)
-	return codeText("RYB", append(b, signDomain(seed, "ryoku-badge-v2", b)...)), nil
+	if program != "" {
+		b = append(b, byte(len(program)))
+		b = append(b, program...)
+	}
+	return codeText("RYB", append(b, signDomain(seed, badgeDomains[version], b)...)), nil
 }
 func badgeParse(text string) (badgeInfo, error) {
 	b, e := parseCodeText("RYB", text)
 	if e != nil {
 		return badgeInfo{}, e
 	}
-	if len(b) < 103 || b[0] != 2 || !badgeRoleAllowed(b[1], b[2]) || int(b[37])+102 != len(b) || !badgeLoginPattern.Match(b[38:len(b)-64]) {
+	if len(b) < 103 || !badgeRoleAllowed(b[1], b[2]) {
 		return badgeInfo{}, errors.New("invalid badge fields")
 	}
+	domain, known := badgeDomains[b[0]]
+	body, loginEnd := b[:len(b)-64], 38+int(b[37])
+	if !known || loginEnd > len(body) || !badgeLoginPattern.Match(b[38:loginEnd]) {
+		return badgeInfo{}, errors.New("invalid badge fields")
+	}
+	program := ""
+	if b[0] == 2 {
+		if loginEnd != len(body) {
+			return badgeInfo{}, errors.New("invalid badge fields")
+		}
+		if b[2] == 1 {
+			program = badgeV2TesterProgram
+		}
+	} else {
+		if loginEnd >= len(body) || loginEnd+1+int(body[loginEnd]) != len(body) || !badgeProgramValid(string(body[loginEnd+1:])) {
+			return badgeInfo{}, errors.New("invalid badge fields")
+		}
+		program = string(body[loginEnd+1:])
+	}
 	pub, ok := issuerPublic(b[1])
-	if !ok || !verifyDomain(pub, "ryoku-badge-v2", b[:len(b)-64], b[len(b)-64:]) {
+	if !ok || !verifyDomain(pub, domain, body, b[len(b)-64:]) {
 		return badgeInfo{}, errors.New("invalid badge signature")
 	}
 	sum := sha256.Sum256(b)
 	day := binary.BigEndian.Uint16(b[35:37])
-	return badgeInfo{Code: codeText("RYB", b), ID: hex.EncodeToString(sum[:8]), Role: badgeRoles[b[2]], RoleID: b[2], Login: string(b[38 : len(b)-64]), Issuer: badgeIssuerName(b[1]), Issued: badgeDate(day), CardID: cardIDText(b[3:35]), Device: base64.StdEncoding.EncodeToString(b[3:35]), issuer: b[1], day: day, device: b[3:35]}, nil
+	return badgeInfo{Code: codeText("RYB", b), ID: hex.EncodeToString(sum[:8]), Role: badgeRoles[b[2]], RoleID: b[2], Login: string(b[38:loginEnd]), Issuer: badgeIssuerName(b[1]), Issued: badgeDate(day), CardID: cardIDText(b[3:35]), Device: base64.StdEncoding.EncodeToString(b[3:35]), Program: program, issuer: b[1], day: day, device: b[3:35]}, nil
 }
 func revokeSign(issuer byte, seed []byte, id string, day uint16) (string, error) {
 	target, e := hex.DecodeString(id)
@@ -205,6 +241,9 @@ func badgeInspect(text string) map[string]any {
 			out["issued"] = x.Issued
 			out["cardId"] = x.CardID
 			out["device"] = x.Device
+			if x.Program != "" {
+				out["program"] = x.Program
+			}
 		case revokeInfo:
 			out["issuer"] = x.Issuer
 			out["target"] = x.Target

@@ -1,6 +1,12 @@
 # Changelog: ryoku/hub/
 
 ## Unreleased
+- **Tester certificates name the Ryoku version that tester tested.** A badge code can carry a signed
+  program (version 3, `ryoku-hub badge issue --program "Ryoku v2 Hyperion"`); the certificate shows it
+  beside Issued by and Issued on, the Badge tab under the issue date, and `badge inspect`, `status` and
+  `list` report it. Tester badges from the first round read Ryoku v2 Hyperion; codes without a program are
+  unchanged, and Make a code in the owner tools takes an optional program (`backend/badgecodes.go`,
+  `components/badge/Certificate.qml`, `components/about/BadgeTab.qml`).
 - **Wobbly windows waits on Window animations, like the open and close effect.** Its switch did nothing
   while animations were off; the section now shows with them on, and a search for it lands on Window
   animations otherwise, as the old Hub's greyed switch did (`schema/animations.js`).

@@ -37,7 +37,7 @@ func badgeTestCode(t *testing.T, issuer, role byte, seed, device []byte, login s
 	if e != nil {
 		t.Fatal(e)
 	}
-	code, e := badgeSign(issuer, role, seed, req, login, 318)
+	code, e := badgeSign(issuer, role, seed, req, login, "", 318)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -58,7 +58,7 @@ func TestBadgeCodesRoundTripAndForgeries(t *testing.T) {
 	}
 	for issuer, seed := range map[byte][]byte{1: owner, 2: mika} {
 		for role := byte(1); role <= 5; role++ {
-			code, e := badgeSign(issuer, role, seed, req, "Ryoku-dev", 318)
+			code, e := badgeSign(issuer, role, seed, req, "Ryoku-dev", "", 318)
 			if !badgeRoleAllowed(issuer, role) {
 				if e == nil {
 					t.Fatal("Mika signed team role")
@@ -85,14 +85,14 @@ func TestBadgeCodesRoundTripAndForgeries(t *testing.T) {
 					t.Fatal("Mika core forgery")
 				}
 			}
-			wrong, _ := badgeSign(issuer, role, bytes.Repeat([]byte{9}, 32), req, "Ryoku-dev", 318)
+			wrong, _ := badgeSign(issuer, role, bytes.Repeat([]byte{9}, 32), req, "Ryoku-dev", "", 318)
 			if _, e := badgeParse(wrong); e == nil {
 				t.Fatal("wrong key accepted")
 			}
 		}
 	}
 	for _, login := range []string{"", "-bad", "bad-", "a_b", strings.Repeat("a", 40)} {
-		if _, e := badgeSign(1, 1, owner, req, login, 0); e == nil {
+		if _, e := badgeSign(1, 1, owner, req, login, "", 0); e == nil {
 			t.Fatal("bad login", login)
 		}
 	}
@@ -524,6 +524,27 @@ func TestWriteVectors(t *testing.T) {
 	payload := raw[:len(raw)-64]
 	add("badge", false, map[string]any{"text": codeText("RYB", append(payload, signDomain(mika, "ryoku-badge-v2", payload)...))})
 	add("badge", false, map[string]any{"text": strings.Replace(code, "RYB", "RYD", 1)})
+	// a v3 badge names the program its holder tested; the program is signed with the rest
+	program := badgeTestProgramCode(t, 2, 1, mika, device, "tester", "Ryoku v2 Hyperion")
+	programBadge, _ := badgeParse(program)
+	add("badge", true, map[string]any{"text": program, "id": programBadge.ID, "cardId": programBadge.CardID, "role": 1, "issuer": 2, "login": "tester", "day": 318, "program": "Ryoku v2 Hyperion"})
+	longest := strings.Repeat("Ryoku v3.0+ ", 3) + "Edge"
+	add("badge", true, map[string]any{"text": badgeTestProgramCode(t, 1, 2, owner, device, "Ryoku-dev", longest), "program": longest})
+	raw, _ = parseCodeText("RYB", program)
+	raw[len(raw)-65] ^= 1
+	add("badge", false, map[string]any{"text": codeText("RYB", raw)})
+	raw, _ = parseCodeText("RYB", program)
+	payload = raw[:len(raw)-64]
+	add("badge", false, map[string]any{"text": codeText("RYB", append(payload, signDomain(mika, "ryoku-badge-v2", payload)...))})
+	v4 := append([]byte{4}, payload[1:]...)
+	add("badge", false, map[string]any{"text": codeText("RYB", append(v4, signDomain(mika, "ryoku-badge-v3", v4)...))})
+	for _, text := range []string{"Ryoku  v2", "Ryoku_v2", " Ryoku", "Ryoku.", strings.Repeat("a", 41)} {
+		add("badge", false, map[string]any{"text": badgeTestRawProgram(mika, 2, 1, device, "tester", text)})
+	}
+	raw, _ = parseCodeText("RYB", badgeTestCode(t, 2, 1, mika, device, "tester"))
+	raw[0] = 3
+	payload = raw[:len(raw)-64]
+	add("badge", false, map[string]any{"text": codeText("RYB", append(payload, signDomain(mika, "ryoku-badge-v3", payload)...))})
 	d := codedDesign{cardID: id, name: "neur0map", tagline: "test vector", kind: 1, gallerySrc: "hawk"}
 	record, _ := recordSign(d, nil, device, 1794787200, recordLook{})
 	add("card", true, map[string]any{"record": record, "deviceKey": base64.StdEncoding.EncodeToString(badgeDevicePublic(device))})
@@ -589,6 +610,8 @@ func TestWriteVectors(t *testing.T) {
 	flippedSig[0] ^= 1
 	flipped["sig"] = base64.StdEncoding.EncodeToString(flippedSig)
 	add("pullHolder", false, map[string]any{"holder": flipped, "cards": batch, "now": at})
+	programHolder, _ := pullHolderPayload(programBadge.ID, at, batch)
+	add("pullHolder", true, map[string]any{"holder": map[string]any{"badge": program, "at": at, "sig": base64.StdEncoding.EncodeToString(signDomain(device, "ryoku-pull-v2", programHolder))}, "cards": batch, "now": at})
 	now := int64(1794787200)
 	path := "/v1/pending/" + fmt.Sprintf("%x", sha)
 	method := "PUT"

@@ -481,11 +481,19 @@ sign Tester and Contributor badges, and nero can sign every role, including
 NixOS, Core and Founder. Every badge reads as issued by neur0map; the
 certificate's fine print names the key that signed it (Mika or neur0map), and
 Mika keeps revoking the tester badges it signed when someone leaves the testers.
+A tester badge names the program its tester round tested, such as Ryoku v2
+Hyperion: the issuer signs it into the code (`ryoku-hub badge issue --program`,
+a version 3 code), so it can't be edited afterwards, and the certificate shows it
+beside Issued by and Issued on, the Badge tab under the issue date. Badges from
+the first round carry no program and read Ryoku v2 Hyperion, the version that
+round tested. A program is 1 to 40 letters, digits, spaces, `.`, `+` and `-`,
+starting and ending with a letter or digit, never two spaces in a row.
 Each GitHub login may hold at most eight active badges; revoke an old machine's
 badge before adding a ninth.
 The owner's signing tools appear only when the owner key is available in the
-keyring. **Make a code** takes the member's request, login and role, then returns
-a code to copy. **Revoke** accepts that code or its badge id.
+keyring. **Make a code** takes the member's request, login, role and an optional
+program tested, then returns a code to copy. **Revoke** accepts that code or its
+badge id.
 
 **Your own card design.** Every badge, tester and contributor as well as
 NixOS, Core and Founder, may have its own card design, one per GitHub login. A
