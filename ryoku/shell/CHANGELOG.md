@@ -1,6 +1,13 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **QS Bar workspaces can show an icon each.** The Workspaces widget's Marker
+  gains Icons: the numbers cell with a Material Symbol in place of the digit.
+  With it chosen, the Workspaces row under QS Bar Settings > Widgets shows
+  Icons: pick a workspace, then one of 39 symbols, its number, or any Material
+  Symbols name.
+  Stored at `qsbar.workspaceIcons` in `shell.json`, one name per workspace in
+  order (`terminal,language,sticky_note_2,forum,music_note` by default).
 - **Shima's weather matches the launcher (#885).** Shima read wttr.in, whose
   reading can be degrees and an hour off; it now asks Open-Meteo like the
   launcher and keeps wttr.in only as the fallback.

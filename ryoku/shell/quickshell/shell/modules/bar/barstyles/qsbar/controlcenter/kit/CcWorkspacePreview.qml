@@ -57,6 +57,7 @@ Item {
                     readonly property bool isEmpty: !isFocused && !isOccupied
 
                     implicitWidth: style === "numbers" ? 22
+                                 : style === "icons"   ? 22
                                  : style === "magic"   ? (isFocused ? 20 : 18)
                                  : style === "kanji"   ? 22
                                  : style === "rings"   ? 20
@@ -103,6 +104,42 @@ Item {
                                                : Qt.rgba(cell.seal.r, cell.seal.g, cell.seal.b, 0.04)
                         Behavior on color { ColorAnimation { duration: 200 } }
                         UiText {
+                            anchors.centerIn: parent
+                            text: cell.modelData
+                            color: cell.isFocused  ? Qt.lighter(cell.seal, 1.3)
+                                 : cell.isOccupied ? Qt.rgba(cell.seal.r, cell.seal.g, cell.seal.b, 0.5)
+                                                   : Qt.rgba(cell.seal.r, cell.seal.g, cell.seal.b, 0.28)
+                            font.family: prev.root ? prev.root.mono : "monospace"
+                            font.pixelSize: cell.isFocused ? 13 : 12
+                            font.weight: cell.isFocused ? Font.Bold : Font.Normal
+                        }
+                    }
+
+                    // ICONS - the configured symbol on the numbers badge
+                    Rectangle {
+                        id: iconBadge
+                        readonly property string icon: prev.root ? prev.root.workspaceIcon(cell.modelData) : ""
+                        visible: cell.style === "icons"
+                        anchors.centerIn: parent
+                        width: 20
+                        height: 20
+                        radius: prev.root ? prev.root.panelButtonRadius : 6
+                        color: cell.isFocused  ? Qt.rgba(cell.seal.r, cell.seal.g, cell.seal.b, 0.30)
+                             : cell.isOccupied ? Qt.rgba(cell.seal.r, cell.seal.g, cell.seal.b, 0.12)
+                                               : Qt.rgba(cell.seal.r, cell.seal.g, cell.seal.b, 0.04)
+                        Behavior on color { ColorAnimation { duration: 200 } }
+                        IconText {
+                            visible: iconBadge.icon !== ""
+                            anchors.centerIn: parent
+                            text: iconBadge.icon
+                            fill: cell.isFocused ? 1 : 0
+                            color: cell.isFocused  ? cell.seal
+                                 : cell.isOccupied ? Qt.rgba(cell.seal.r, cell.seal.g, cell.seal.b, 0.5)
+                                                   : Qt.rgba(cell.seal.r, cell.seal.g, cell.seal.b, 0.28)
+                            font.pixelSize: cell.isFocused ? 16 : 15
+                        }
+                        UiText {
+                            visible: iconBadge.icon === ""
                             anchors.centerIn: parent
                             text: cell.modelData
                             color: cell.isFocused  ? Qt.lighter(cell.seal, 1.3)
