@@ -384,6 +384,20 @@ slot_drives_screen() {
   return 1
 }
 
+# A monitor lit on any GPU but the renderer gets its cursor across GPUs.
+other_slot_drives_screen() {
+  local path base slot
+  for path in "$DRM_ROOT"/card[0-9]*; do
+    [[ -d $path ]] || continue
+    base="$(basename "$path")"
+    [[ $base == *-* ]] && continue
+    slot="$(gpu_field "$path" PCI_SLOT_NAME)"
+    [[ -n $slot && $slot != "$1" ]] || continue
+    slot_drives_screen "$slot" && return 0
+  done
+  return 1
+}
+
 # The panel stays on the iGPU, but a dGPU port can carry the desktop: a pin
 # there only holds while a monitor is plugged into that GPU at login.
 external_route() {

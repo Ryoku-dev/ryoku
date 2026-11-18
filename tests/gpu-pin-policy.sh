@@ -251,5 +251,46 @@ if run order --effective >/dev/null 2>&1; then
   fail "order --effective must exit 1 on an unpinned machine"
 fi
 
+# --- 13. a desktop rendering on its dGPU keeps hardware cursors until a monitor
+# is lit on the iGPU's motherboard ports: at load, or by a hotplug
+drmd="$tmp/drmd"
+mkdir -p "$drmd/card0/device/drm/renderD128" "$drmd/card1/device/drm/renderD129" \
+  "$drmd/card0-HDMI-A-3" "$drmd/card1-DP-2"
+printf 'DRIVER=amdgpu\nPCI_SLOT_NAME=0000:01:00.0\n' >"$drmd/card0/device/uevent"
+printf '2000000000\n' >"$drmd/card0/device/mem_info_vram_total"
+printf '2000000000\n' >"$drmd/card0/device/mem_info_vis_vram_total"
+printf 'DRIVER=nvidia\nPCI_SLOT_NAME=0000:02:00.0\n' >"$drmd/card1/device/uevent"
+printf 'disconnected\n' >"$drmd/card0-HDMI-A-3/status"
+printf 'connected\n' >"$drmd/card1-DP-2/status"
+desk() { RYOKU_GPU_DRM_ROOT="$drmd" RYOKU_GPU_DRI_DIR="$dri" RYOKU_GPU_CONF="$tmp/conf-desk" \
+         RYOKU_GPU_NIRI_CONF="$niri" RYOKU_ASSUME_LAPTOP=0 "$gpu" "$@"; }
+rm -f "$tmp/conf-desk"
+desk persist >/dev/null
+grep -q 'ryoku-gpu-primary: 0000:02:00.0' "$tmp/conf-desk" || fail "desktop did not pin its dGPU"
+[[ "$(desk other-screen 0000:02:00.0)" == "disconnected" ]] \
+  || fail "other-screen counted the renderer's own monitor"
+# Prints the cursor setting gpu.lua makes at load, then "|", then what its
+# monitor.added handler makes after the given iGPU port status is written.
+desk_cursor() {
+  RYOKU_GPU_DRM_ROOT="$drmd" "$lua_bin" -e '
+    hl = { env = function() end,
+           config = function(t)
+             if t.cursor then io.write("software=" .. tostring(t.cursor.no_hardware_cursors)) end
+           end,
+           on = function(event, fn) if event == "monitor.added" then added = fn end end }' \
+    -e "dofile('$tmp/conf-desk')" \
+    -e "io.write('|'); os.execute([[printf '$1\n' >'$drmd/card0-HDMI-A-3/status']]); if added then added() end"
+}
+if [[ -n $lua_bin ]]; then
+  [[ "$(desk_cursor disconnected)" == "|" ]] \
+    || fail "desktop forced software cursors with no monitor on the iGPU: $(desk_cursor disconnected)"
+  printf 'disconnected\n' >"$drmd/card0-HDMI-A-3/status"
+  [[ "$(desk_cursor connected)" == "|software=true" ]] \
+    || fail "a hotplug onto the iGPU did not switch to software cursors"
+  [[ "$(desk_cursor connected)" == "software=true|software=true" ]] \
+    || fail "a monitor lit on the iGPU at load kept hardware cursors"
+else
+  echo "gpu-pin-policy: no lua interpreter, desktop cursor evaluation skipped" >&2
+fi
 
 echo "gpu-pin-policy: all cases passed"
