@@ -1,6 +1,11 @@
 # Changelog: ryoku/hub/
 
 ## Unreleased
+- **Long dropdowns scroll and stay inside the window.** A menu holds about ten
+  rows with the next one showing, opens below its control or above it when that
+  has more room, never covers the control, scrolls with the wheel, touchpad and
+  keys, and opens on the current choice; labels that mix writing systems keep
+  one baseline (`docs/lithic/library/qml/Lithic/Menu.qml`, `Popover.qml`).
 - **Rashin has a Sight section.** Turn triple-tap Right Alt or Left Alt while highlighting on or off, pick what it starts with, the
   language it translates into, what answers (the same engine as Ask, Rashin's providers or a harness)
   and the model (the engine's default unless you name one), keep captures on local models only, and add

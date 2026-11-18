@@ -3,6 +3,7 @@ import {register} from './core.js';
 const states = new WeakMap();
 let anchorSequence = 0;
 let sectionPickerSequence = 0;
+const menuCanvases = new WeakMap();
 
 function documentFor(root) {
   return root.nodeType === Node.DOCUMENT_NODE ? root : root.ownerDocument;
@@ -86,6 +87,84 @@ function focusableItems(menu) {
     .filter(item => !item.matches(':disabled, [aria-disabled="true"], [hidden]'));
 }
 
+function menuFor(overlay) {
+  return overlay.matches('.l-menu') ? overlay : overlay.querySelector('.l-menu');
+}
+
+function menuViewport(menu) {
+  return menu.querySelector(':scope > .l-menu__viewport');
+}
+
+function alignMenuLabels(menu) {
+  const documentRoot = documentFor(menu);
+  let context = menuCanvases.get(documentRoot);
+  if (!context) {
+    context = documentRoot.createElement('canvas').getContext('2d');
+    if (!context) return;
+    menuCanvases.set(documentRoot, context);
+  }
+  menu.querySelectorAll('.l-menu-item-label').forEach(label => {
+    const style = getComputedStyle(label);
+    context.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    const reference = context.measureText('H');
+    const text = context.measureText(label.textContent);
+    // Fallback scripts must not move the primary face's cap-glyph baseline.
+    const shift = (reference.fontBoundingBoxAscent - reference.fontBoundingBoxDescent -
+      text.fontBoundingBoxAscent + text.fontBoundingBoxDescent) / 2;
+    if (Number.isFinite(shift)) label.style.setProperty('--l-menu-label-shift', `${shift}px`);
+  });
+}
+
+function keepMenuItemVisible(menu, item) {
+  const viewport = menuViewport(menu);
+  if (!viewport || !item || !menu.contains(item)) return;
+  const bounds = viewport.getBoundingClientRect();
+  const style = getComputedStyle(viewport);
+  const top = bounds.top + Number.parseFloat(style.paddingTop);
+  const bottom = bounds.bottom - Number.parseFloat(style.paddingBottom);
+  const row = item.getBoundingClientRect();
+  if (row.top < top) viewport.scrollTop += row.top - top;
+  else if (row.bottom > bottom) viewport.scrollTop += row.bottom - bottom;
+}
+
+function prepareMenu(menu) {
+  if (menuViewport(menu)) return;
+  const viewport = documentFor(menu).createElement('div');
+  viewport.className = 'l-menu__viewport l-scroll';
+  while (menu.firstChild) viewport.append(menu.firstChild);
+  menu.append(viewport);
+  menu.addEventListener('wheel', event => {
+    if (event.ctrlKey) return;
+    const unit = event.deltaMode === 1
+      ? tokenNumber(menu, '--lithic-size-menu-item')
+      : event.deltaMode === 2 ? viewport.clientHeight : 1;
+    viewport.scrollTop += event.deltaY * unit;
+    event.preventDefault();
+    event.stopPropagation();
+  }, {passive: false});
+  let touch = null;
+  menu.addEventListener('touchstart', event => {
+    if (event.touches.length === 1) {
+      const point = event.touches[0];
+      touch = {id: point.identifier, y: point.clientY};
+    } else touch = null;
+  }, {passive: true});
+  menu.addEventListener('touchmove', event => {
+    if (!touch || event.touches.length !== 1) return;
+    const point = [...event.touches].find(candidate => candidate.identifier === touch.id);
+    if (!point) return;
+    viewport.scrollTop += touch.y - point.clientY;
+    touch.y = point.clientY;
+    event.preventDefault();
+    event.stopPropagation();
+  }, {passive: false});
+  for (const type of ['touchend', 'touchcancel']) {
+    menu.addEventListener(type, () => { touch = null; }, {passive: true});
+  }
+  menu.addEventListener('focusin', event => keepMenuItemVisible(menu, event.target.closest('.l-menu-item')));
+  alignMenuLabels(menu);
+}
+
 function canAnchor() {
   return CSS.supports('anchor-name: --lithic-anchor') &&
     CSS.supports('position-anchor: --lithic-anchor') &&
@@ -98,36 +177,57 @@ function anchorOverlay(anchor, overlay, gapProperty, edgeProperty = null) {
   if (overlay.hasAttribute('data-l-static-open')) return;
   const view = documentFor(overlay).defaultView;
   const margin = edgeProperty ? tokenNumber(overlay, edgeProperty) : 0;
-  if (canAnchor()) {
+  const popover = !overlay.matches('.l-tooltip');
+  const menu = menuFor(overlay);
+  if (!popover && canAnchor()) {
     const name = `--lithic-anchor-${++anchorSequence}`;
     anchor.style.anchorName = name;
     overlay.style.positionAnchor = name;
     overlay.style.left = '';
     overlay.style.top = '';
     overlay.setAttribute('data-l-native-anchor', '');
-    // native anchoring flips but cannot keep a margin from the window edge;
-    // placed too near one, the overlay falls back to the clamped placement
+    // Tooltips can use native anchors; menu placement always reserves one side.
     const placed = overlay.getBoundingClientRect();
     if (placed.left >= margin && placed.top >= margin &&
         placed.right <= view.innerWidth - margin && placed.bottom <= view.innerHeight - margin) return;
   }
 
   overlay.removeAttribute('data-l-native-anchor');
+  overlay.style.positionAnchor = '';
+  overlay.style.maxHeight = '';
+  overlay.style.removeProperty('--l-menu-available');
   const anchorRect = anchor.getBoundingClientRect();
-  const overlayRect = overlay.getBoundingClientRect();
+  const overlayWidth = overlay.offsetWidth;
+  const desired = overlay.offsetHeight;
   const gap = tokenNumber(overlay, gapProperty);
   const below = anchorRect.bottom + gap;
-  const above = anchorRect.top - gap - overlayRect.height;
-  const clamp = (value, size, extent) => Math.max(margin, Math.min(value, extent - size - margin));
-  const top = below + overlayRect.height <= view.innerHeight - margin
-    ? below
-    : above >= margin
-      ? above
-      : clamp(below, overlayRect.height, view.innerHeight);
-  const left = clamp(anchorRect.left, overlayRect.width, view.innerWidth);
+  if (!popover) {
+    const above = anchorRect.top - gap - desired;
+    const clamp = (value, size, extent) => Math.max(margin, Math.min(value, extent - size - margin));
+    const top = below + desired <= view.innerHeight - margin ? below
+      : above >= margin ? above : clamp(below, desired, view.innerHeight);
+    overlay.style.left = `${clamp(anchorRect.left, overlayWidth, view.innerWidth)}px`;
+    overlay.style.top = `${top}px`;
+    overlay.dataset.lSide = top < anchorRect.top ? 'above' : 'below';
+    return;
+  }
+  const belowRoom = Math.max(0, view.innerHeight - margin - below);
+  const aboveRoom = Math.max(0, anchorRect.top - gap - margin);
+  const side = desired <= belowRoom ? 'below'
+    : desired <= aboveRoom ? 'above'
+      : belowRoom >= aboveRoom ? 'below' : 'above';
+  const room = side === 'below' ? belowRoom : aboveRoom;
+  const height = Math.min(desired, room);
+  if (menu) {
+    const chrome = Math.max(0, desired - menu.offsetHeight);
+    overlay.style.setProperty('--l-menu-available', `${Math.max(0, height - chrome)}px`);
+  }
+  overlay.style.maxHeight = `${height}px`;
+  const top = side === 'below' ? below : anchorRect.top - gap - height;
+  const left = Math.max(margin, Math.min(anchorRect.left, view.innerWidth - overlayWidth - margin));
   overlay.style.left = `${left}px`;
   overlay.style.top = `${top}px`;
-  overlay.dataset.lSide = top < anchorRect.top ? 'above' : 'below';
+  overlay.dataset.lSide = side;
 }
 
 function revealPopover(target) {
@@ -155,6 +255,8 @@ function concealPopover(target) {
 function finishPopoverClose(state, target, returnFocus) {
   const opener = state.openers.get(target);
   concealPopover(target);
+  target.style.maxHeight = '';
+  target.style.removeProperty('--l-menu-available');
   target.removeAttribute('data-l-closing');
   target.removeAttribute('inert');
   if (state.popover === target) state.popover = null;
@@ -164,7 +266,7 @@ function finishPopoverClose(state, target, returnFocus) {
 }
 
 function closePopover(state, target = state.popover, {returnFocus = true, immediate = false} = {}) {
-  if (!target || target.hasAttribute('data-l-closing')) return;
+  if (!target || target.hasAttribute('data-l-static-open') || target.hasAttribute('data-l-closing')) return;
   const opener = state.openers.get(target);
   if (opener) opener.setAttribute('aria-expanded', 'false');
   target.setAttribute('data-l-closing', '');
@@ -189,12 +291,20 @@ function openPopover(state, opener, target) {
   state.popover = target;
   opener.setAttribute('aria-expanded', 'true');
   target.removeAttribute('data-l-closing');
+  const menu = menuFor(target);
+  if (menu) {
+    prepareMenu(menu);
+    alignMenuLabels(menu);
+  }
   revealPopover(target);
   anchorOverlay(opener, target, '--lithic-size-popover-anchor-gap', '--lithic-size-popover-anchor-gap');
   emit(target, 'lithic:open', {opener});
   const items = focusableItems(target);
-  if (items.length) items[0].focus({preventScroll: true});
-  else if (target.tabIndex >= 0) target.focus({preventScroll: true});
+  const current = items.find(item => item.matches('[aria-checked="true"], [aria-selected="true"], [aria-current]:not([aria-current="false"])')) || items[0];
+  if (current) {
+    current.focus({preventScroll: true});
+    if (menu) keepMenuItemVisible(menu, current);
+  } else if (target.tabIndex >= 0) target.focus({preventScroll: true});
 }
 
 function togglePopover(state, opener, target) {
@@ -252,7 +362,8 @@ function selectMenuItem(state, item) {
   if (item.matches(':disabled, [aria-disabled="true"]')) return;
   const menu = item.closest('.l-menu');
   if (!menu) return;
-  const opener = state.openers.get(menu);
+  const overlay = menu.closest('.l-popover') || menu;
+  const opener = state.openers.get(overlay);
   if (opener?.classList.contains('l-picker')) {
     menu.querySelectorAll('[role="option"]').forEach(option => option.setAttribute('aria-selected', String(option === item)));
     const value = item.dataset.value || item.querySelector('.l-menu-item-label')?.textContent.trim() || item.textContent.trim();
@@ -268,7 +379,7 @@ function selectMenuItem(state, item) {
     menu.querySelectorAll('[role="menuitemradio"]').forEach(radio => radio.setAttribute('aria-checked', String(radio === item)));
   }
   emit(menu, 'lithic:select', {item, value: item.dataset.value});
-  closePopover(state, menu);
+  closePopover(state, overlay);
 }
 
 function moveMenuFocus(menu, key) {
@@ -280,7 +391,14 @@ function moveMenuFocus(menu, key) {
   if (key === 'ArrowUp') next = current < 0 ? items.length - 1 : (current - 1 + items.length) % items.length;
   if (key === 'Home') next = 0;
   if (key === 'End') next = items.length - 1;
+  if (key === 'PageDown' || key === 'PageUp') {
+    const viewport = menuViewport(menu);
+    const row = tokenNumber(menu, '--lithic-size-menu-item');
+    const page = Math.max(1, Math.floor((viewport?.clientHeight || row) / row));
+    next = Math.max(0, Math.min(items.length - 1, (current < 0 ? 0 : current) + (key === 'PageDown' ? page : -page)));
+  }
   items[next].focus({preventScroll: true});
+  keepMenuItemVisible(menu, items[next]);
 }
 
 function showTooltip(state, anchor, tooltip) {
@@ -555,6 +673,7 @@ function initOverlays(root) {
       item.setAttribute('role', menu.getAttribute('role') === 'listbox' ? 'option' : 'menuitem');
     });
     focusableItems(menu).forEach(item => item.tabIndex = -1);
+    prepareMenu(menu);
   });
 
   root.querySelectorAll('[data-l-popover]').forEach(opener => {
@@ -562,8 +681,9 @@ function initOverlays(root) {
     if (!target) return;
     opener.setAttribute('aria-controls', target.id);
     if (!opener.hasAttribute('aria-expanded')) opener.setAttribute('aria-expanded', 'false');
-    if (!opener.hasAttribute('aria-haspopup') && target.classList.contains('l-menu')) {
-      opener.setAttribute('aria-haspopup', target.getAttribute('role') === 'listbox' ? 'listbox' : 'menu');
+    const menu = menuFor(target);
+    if (!opener.hasAttribute('aria-haspopup') && menu) {
+      opener.setAttribute('aria-haspopup', menu.getAttribute('role') === 'listbox' ? 'listbox' : 'menu');
     }
   });
 
@@ -635,6 +755,24 @@ function initOverlays(root) {
     if (!sectionFrame) sectionFrame = requestAnimationFrame(updateIndexes);
   }, {passive: true});
   updateIndexes();
+
+  const repositionPopover = () => {
+    const target = state.popover;
+    const opener = target && state.openers.get(target);
+    if (!opener || target.hasAttribute('data-l-closing')) return;
+    anchorOverlay(opener, target, '--lithic-size-popover-anchor-gap', '--lithic-size-popover-anchor-gap');
+    const menu = menuFor(target);
+    if (menu) keepMenuItemVisible(menu, menu.getRootNode().activeElement || documentRoot.activeElement);
+  };
+  documentRoot.defaultView.addEventListener('resize', repositionPopover);
+  documentRoot.addEventListener('scroll', event => {
+    if (state.popover?.contains(event.target)) return;
+    repositionPopover();
+  }, {capture: true, passive: true});
+  documentRoot.fonts?.ready.then(() => {
+    root.querySelectorAll('.l-menu').forEach(alignMenuLabels);
+    repositionPopover();
+  });
 
   root.addEventListener('pointerdown', event => {
     if (state.blocking > 0) {
@@ -713,8 +851,9 @@ function initOverlays(root) {
 
   root.addEventListener('keydown', event => {
     const menu = event.target.closest('.l-menu');
-    if (menu && ['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+    if (menu && ['ArrowDown', 'ArrowUp', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key)) {
       event.preventDefault();
+      event.stopPropagation();
       moveMenuFocus(menu, event.key);
       return;
     }

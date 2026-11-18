@@ -226,7 +226,9 @@ slab (`Tone.card`, cut 7, inset 21; `Lithic/Slab.qml`), an optional footer,
 and the `missing` note in `detail` `fg3` when every row is hidden
 (`SettingsPage.qml:789-871`). Rows inside a slab are
 [setting rows](components.md#setting-row), 13 apart with a centred `vein`
-hairline. "More options" is a Lithic `Disclosure` at the slab's foot, 13 below
+hairline. Short controls sit beside the text; taller single controls align
+at the top, while groups and lists stack below full-width text with a 13 px
+gap. "More options" is a Lithic `Disclosure` at the slab's foot, 13 below
 the last row; its rows are built the first time it opens
 (`SettingsPage.qml:820-852`). A closing "Related" section holds `tonal` small
 plaques with `arrow_forward`, 8 apart (`SettingsPage.qml:876-898`).

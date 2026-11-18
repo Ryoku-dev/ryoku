@@ -904,15 +904,60 @@
   max-inline-size: var(--lithic-size-settings-control-max);
 }
 
+.l-setting-row[data-l-top-aligned] {
+  align-items: flex-start;
+}
+
+.l-setting-row[data-l-stacked] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: var(--lithic-space-s2);
+  row-gap: var(--lithic-space-s3);
+}
+
+.l-setting-row[data-l-stacked] > .l-setting-row__text {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.l-setting-row[data-l-stacked]:not([data-l-changed]) > .l-setting-row__text {
+  grid-column: 1 / -1;
+}
+
+.l-setting-row[data-l-stacked][data-l-changed] .l-setting-row__title {
+  display: inline-block;
+  max-inline-size: 100%;
+  min-block-size: var(--lithic-size-icon-plaque-small);
+}
+
+.l-setting-row[data-l-stacked][data-l-changed] .l-setting-row__detail {
+  inline-size: calc(100% + var(--lithic-size-icon-plaque-small) + var(--lithic-space-s2));
+}
+
+.l-setting-row[data-l-stacked] > .l-setting-row__reset {
+  grid-column: 2;
+  grid-row: 1;
+  margin-inline-end: 0;
+}
+
+.l-setting-row[data-l-stacked] > .l-setting-row__control {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  inline-size: 100%;
+  max-inline-size: none;
+  justify-content: flex-start;
+}
+
 .l-setting-row[data-l-activatable]:not([aria-disabled="true"]) {
   cursor: pointer;
 }
 
-.l-setting-row[data-l-activatable]:not([aria-disabled="true"]):is(:hover, [data-l-state="hover"]) {
+.l-setting-row:is([data-l-activatable], [data-l-stacked]):not([aria-disabled="true"]):is(:hover, [data-l-state="hover"]) {
   --l-row-plane: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-hover-plane) * 100%), transparent);
 }
 
-.l-setting-row[data-l-activatable]:not([aria-disabled="true"]):is(:hover, [data-l-state="hover"])::before {
+.l-setting-row:is([data-l-activatable], [data-l-stacked]):not([aria-disabled="true"]):is(:hover, [data-l-state="hover"])::before {
   transition-duration: var(--lithic-motion-hover-in);
 }
 
@@ -921,7 +966,7 @@
 }
 
 /* the keyboard ring follows the plane's cut, grown like FocusRing */
-.l-setting-row[data-l-activatable]::after {
+.l-setting-row:is([data-l-activatable], [data-l-stacked])::after {
   --l-ring-cut: calc(var(--lithic-cut-small) + min(var(--lithic-cut-small), var(--lithic-size-focus-cut-grow)));
   --l-ring-out: calc(var(--lithic-size-focus-ring-width) + var(--lithic-size-focus-ring-gap));
   --l-ring-w: var(--lithic-size-focus-ring-width);
@@ -953,8 +998,8 @@
   transition: opacity var(--lithic-motion-focus-out) var(--lithic-motion-curve);
 }
 
-[data-l-keyboard] .l-setting-row[data-l-activatable]:focus-visible::after,
-.l-setting-row[data-l-activatable][data-l-state="focus"]::after {
+[data-l-keyboard] .l-setting-row:is([data-l-activatable]:focus-visible, [data-l-stacked]:focus-within)::after,
+.l-setting-row:is([data-l-activatable], [data-l-stacked])[data-l-state="focus"]::after {
   opacity: 1;
   transition-duration: var(--lithic-motion-focus-in);
 }

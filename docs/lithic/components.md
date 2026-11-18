@@ -148,20 +148,41 @@ Library: QML `IconPlaque`, web `.l-icon-plaque`, Go `kit.IconPlaque`, terminal -
 
 One setting on a section's slab: the Lithic `SettingRow`, wrapped by
 `SettingsPage.RowItem`, with its control picked by `RowControl`
-(`Lithic/SettingRow.qml`; `components/SettingsPage.qml:921-991`;
+(`Lithic/SettingRow.qml`; `components/SettingsPage.qml`;
 `components/RowControl.qml`). Render: [a page](media/hub-page-dark.png).
 
 | Part | Geometry | Source |
 |---|---|---|
-| title | `row` in `fg`; wraps, never elides | `SettingRow.qml:176-183` |
-| detail | `detail` in `fg2`, 2 below; wraps | `SettingRow.qml:197-205` |
-| height | the tallest of 44, the text and the control | `SettingRow.qml:41-43` |
-| between rows | 13, with a 1 px `vein` hairline centred in the gap; the first row has none | `SettingRow.qml:22, 122-130` |
-| control | right-aligned, vertically centred, at most 320 wide (`settingsControlMax`), 21 from the text | `SettingRow.qml:38-40, 227-233`; `RowControl.qml:21` |
-| Changed tag | "Changed" in `detail` `fg3`, 13 after the title on its baseline, or on its own line when it does not fit | `SettingRow.qml:169-194` |
-| reset plaque | a small quiet `restart_alt` IconPlaque 8 before the control; its slot is kept while the row is changed, so the control never shifts; it shows while the row is hovered or holds focus | `SettingRow.qml:36-38, 208-225` |
-| hover plane | on whole-row toggle, hand-off, action and link rows only: bleeds 8 to each side and 4 above and below, cut 6, `fg` at 0.06 | `SettingRow.qml:132-146` |
-| unavailable | the control disabled and the reason in `fg3` in place of the detail | `SettingRow.qml:197-205` |
+| title | `row` in `fg`; wraps, never elides | `SettingRow.qml:186-193` |
+| detail | `detail` in `fg2`, 2 below the title slot; wraps; a changed stacked row reserves the 32 px reset height in its title slot | `SettingRow.qml:179-215` |
+| height | at least 44; the taller of text and control side by side, or their sum plus 13 when stacked | `SettingRow.qml` |
+| between rows | 13, with a 1 px `vein` hairline centred in the gap; the first row has none | `SettingRow.qml:24, 131-139` |
+| control | short controls stay right-aligned, vertically centred, at most 320 wide (`settingsControlMax`), 21 from the text; taller single controls opt into top alignment; groups and lists sit below the text at full row width | `SettingRow.qml`; `RowControl.qml` |
+| Changed tag | "Changed" in `detail` `fg3`, 13 after the title on its baseline, or on its own line when it does not fit | `SettingRow.qml:178-205` |
+| reset plaque | a small quiet `restart_alt` IconPlaque 8 before a side-by-side control, or at a stacked title's far end; its slot is kept while changed, and it shows while the row is hovered or holds focus | `SettingRow.qml:42-44, 218-235` |
+| hover plane | on stacked groups and whole-row toggle, hand-off, action and link rows: bleeds 8 to each side and 4 above and below, cut 6, `fg` at 0.06 | `SettingRow.qml:141-155` |
+| unavailable | the control disabled and the reason in `fg3` in place of the detail | `SettingRow.qml:207-215` |
+
+**Stacked rows** put choice groups, ordered picks, lists and sample editors
+below their full-width title and detail, left-aligned, with `s3` (13) between
+text and control. The Changed tag stays beside the title and the reset plaque
+sits at the title line's far end; its reserved slot never narrows the control.
+The hover plane, keyboard ring and search spotlight enclose the entire row.
+The host opts in with QML `stacked`, web `data-l-stacked` or Go `Stacked`;
+Settings accepts schema `stacked: true` or a custom control's `wide: true`.
+A taller single field or picker with helper actions keeps the two columns
+but opts into `topAligned`, `data-l-top-aligned` or `TopAligned`, aligning
+the title with the control's top. These variants are explicit, never chosen
+by measuring their own resulting layout.
+
+Inside a stacked group, single controls keep their own measure rather than
+stretching with the host. Pickers cap at `settingsControlMax` (320); entry
+fields cap at `settingsFieldMax` (420), with their action beside them when
+there is room. Writing samples cap at `settingsTextMeasureMax` (720).
+Toggle lists flow across then down in cells between `settingsChoiceMin`
+(240) and `settingsControlMax`, separated by `s3` (13); keyboard order
+matches that reading order. Word and app lists use compact rows or chips,
+not full-width bars.
 
 **A search landing** lights the row at the hover tone and fades it over
 1600 ms on the chisel curve, once; with reduced motion it holds for the
@@ -225,9 +246,9 @@ Library: QML `Stepper`, web `.l-stepper`, Go `kit.Stepper`, terminal `term.Rende
 
 For one of many values. A 44-tall field anchor (`field` fill, `edge`
 hairline, cut 7, inset 14) with the value in `body` and a 20 `expand_more` in
-`fg2`; it opens a Menu in a Popover with the current choice checked. In a row
-it is as wide as its widest option plus its insets and arrow, at least 160
-and at most 320 (`RowControl.qml:187-230`).
+`fg2`; it opens a Menu in a Popover with the current choice checked and
+scrolled into view. The menu never covers its field. In a row it is as wide
+as its widest option plus its insets and arrow, at least 160 and at most 320.
 
 Library: QML `Picker`, web `.l-picker`, Go `kit.Picker`, terminal `term.RenderPicker`
 
@@ -472,18 +493,36 @@ Library: QML `Dialog` and `Confirm`, web `.l-dialog` and `.l-confirm`, Go `kit.D
 
 ## Popovers, menus and info buttons
 
-**Popover** (`Lithic/Popover.qml`): anchored 8 from its control, below when
-there is room and above otherwise, kept 8 inside the window. A press outside
-closes it and is swallowed. It enters over 160 ms sliding the last 6, and
-leaves over 100 ms sliding 4. Closing hands focus back to the control that
-opened it.
+**Popover** (`Lithic/Popover.qml`): anchored 8 from its control and kept 8
+inside the window. It opens below when its content fits, otherwise above
+when that fits. When neither fits, it uses the side with more room and
+shrinks to that room, never across the control that opened it. A press
+outside closes it and is swallowed. It enters over 160 ms sliding the last
+6, and leaves over 100 ms sliding 4. Closing hands focus back to the control
+that opened it.
+
+Go hosts drawing an anchor away from the window origin pass the window
+rectangle in anchor-local coordinates through `Popover.Viewport` or
+`Picker.Viewport`. An empty rectangle uses the local layout constraints;
+it never invents space above the anchor.
 
 **Menu** (`Lithic/Menu.qml`): `stone4`, cut 8, 220 to 360 wide, 6 above and
 below; items 40 tall, inset 16, a 20 icon, 12 gap, `label` text, a shortcut 13
 after in `fg3`; a checked item shows `check` in `fg2` at its end, never a `sel`
-fill; dividers are 1 px `vein` inset 8. The Hub's choosers and time zone
-search use menus (`components/app-rules/ChooserPopover.qml`;
-`components/time-language/LocationField.qml`).
+fill; dividers are 1 px `vein` inset 8. A menu shows at most ten and a half
+items (`menuVisibleItemsCount`): the part of the next item makes the overflow
+readable. Available room inside the window can make it shorter. Overflow
+scrolls inside the cut shape with wheel, touchpad, drag, and a ScrollRail
+thumb. Wheel events stop here, including at either end, never on the page
+behind it. Items are created as they enter view, not all at open.
+
+Opening brings the current choice into view. Up, Down, Home, End, PageUp,
+and PageDown keep the focused item visible; pointer-opened menus keep the
+keyboard mark quiet until a key moves focus. Labels share the primary font's
+reference-cap baseline, so a fallback script never lowers a row's text.
+The Hub's choosers and time zone search use these same menus
+(`components/app-rules/ChooserPopover.qml`;
+`components/time-language/LocationField.qml`), including embedded previews.
 
 **An info button** is an `info` IconButton beside a row's control that opens
 a popover of explanation: `stone4`, a `vein` hairline, cut 8, 360 wide (the

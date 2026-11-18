@@ -104,6 +104,8 @@ Item {
                 id: popoverFrame
                 width: (specimens.width - specimens.columnSpacing) / specimens.columns
                 title: "Popover"
+                stageHeight: popoverAnchor.y + popoverAnchor.height + openPopover.implicitHeight
+                             + LithicTokens.size.popoverAnchorGap * 2
 
                 Plaque {
                     id: popoverAnchor
@@ -152,8 +154,12 @@ Item {
                 id: pickerFrame
                 width: (specimens.width - specimens.columnSpacing) / specimens.columns
                 title: "Picker"
-                stageHeight: LithicTokens.space.s6 * 6
+                stageHeight: previewPicker.y + previewPicker.height
+                             + LithicTokens.size.menuItem * previewPicker.options.length
+                             + LithicTokens.size.menuPaddingVertical * 2
+                             + LithicTokens.size.popoverAnchorGap * 2
                 Picker {
+                    id: previewPicker
                     x: LithicTokens.space.s5
                     y: LithicTokens.space.s5
                     width: LithicTokens.size.pickerWidthMin + LithicTokens.space.s6 * 2

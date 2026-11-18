@@ -129,6 +129,7 @@ const (
 	SizeMenuItem                   = 40
 	SizeMenuPaddingVertical        = 6
 	SizeMenuShortcutGap            = 13
+	SizeMenuVisibleItemsCount      = 10.5
 	SizeMenuWidthMax               = 360
 	SizeMenuWidthMin               = 220
 	SizeNewPlaqueHeight            = 52
@@ -207,13 +208,16 @@ const (
 	SizeSectionIndexWidth          = 200
 	SizeSegmentHeight              = 36
 	SizeSegmentInset               = 4
+	SizeSettingsChoiceMin          = 240
 	SizeSettingsControlMax         = 320
 	SizeSettingsDetailGap          = 2
 	SizeSettingsExpandedMax        = 994
+	SizeSettingsFieldMax           = 420
 	SizeSettingsInsetSide          = 36
 	SizeSettingsInsetVertical      = 34
 	SizeSettingsMediumMax          = 760
 	SizeSettingsRowGap             = 13
+	SizeSettingsTextMeasureMax     = 720
 	SizeSkeletonBarGap             = 8
 	SizeSkeletonBarHeight          = 8
 	SizeSkeletonBarLongFraction    = 0.6

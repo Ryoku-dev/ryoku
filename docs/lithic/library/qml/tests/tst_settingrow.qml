@@ -56,6 +56,28 @@ Item {
                 width: 120
             }
         }
+        SettingRow {
+            id: stackedRow
+            width: parent.width
+            title: "Highlight actions"
+            detail: "Choose their order"
+            stacked: true
+            changed: true
+            Item {
+                id: stackedControl
+                width: stackedRow.width
+                implicitHeight: 120
+                TextField { id: stackedField; width: parent.width }
+            }
+        }
+        SettingRow {
+            id: topRow
+            width: parent.width
+            title: "Model"
+            detail: "A field with a helper action"
+            topAligned: true
+            Item { id: tallControl; width: 200; implicitHeight: 120 }
+        }
     }
 
     SignalSpy {
@@ -146,6 +168,42 @@ Item {
             verify(!reset.activeFocus, "the keys leave the hidden reset button");
             verify(resetField.activeFocus, "the keys land on the row's own control");
             compare(resetField.focusReason, Qt.TabFocusReason, "with the keyboard mark");
+        }
+
+        function test_stackedGeometry_data() {
+            return [{ tag: "narrow", width: 320 }, { tag: "wide", width: 600 },
+                    { tag: "page maximum", width: 960 }];
+        }
+
+        function test_stackedGeometry(data) {
+            stackedRow.width = data.width;
+            wait(0);
+            const title = labelWithText(stackedRow, stackedRow.title);
+            const detail = labelWithText(stackedRow, stackedRow.detail);
+            const reset = named(stackedRow, "Reset Highlight actions");
+            const controlPosition = stackedControl.mapToItem(stackedRow.contentItem, 0, 0);
+            const detailBottom = detail.mapToItem(stackedRow.contentItem, 0, detail.height).y;
+            fuzzyCompare(controlPosition.x, 0, 0.5);
+            fuzzyCompare(stackedControl.width, data.width, 0.5);
+            fuzzyCompare(detail.width, data.width, 0.5);
+            fuzzyCompare(controlPosition.y - detailBottom, LithicTokens.space.s3, 0.5);
+            fuzzyCompare(reset.mapToItem(stackedRow.contentItem, reset.width, 0).x, data.width, 0.5);
+            fuzzyCompare(title.mapToItem(stackedRow.contentItem, 0, 0).y, 0, 0.5);
+            verify(stackedRow._boxHeight >= controlPosition.y + stackedControl.height);
+        }
+
+        function test_topAlignedSingleControl() {
+            const title = labelWithText(topRow, topRow.title);
+            fuzzyCompare(title.mapToItem(topRow.contentItem, 0, 0).y,
+                         tallControl.mapToItem(topRow.contentItem, 0, 0).y, 0.5);
+        }
+
+        function test_stackedKeyboardRingEnclosesChildren() {
+            stackedField.forceActiveFocus(Qt.TabFocusReason);
+            verify(stackedRow._focusActive);
+            host.forceActiveFocus();
+            stackedField.forceActiveFocus(Qt.MouseFocusReason);
+            verify(!stackedRow._focusActive);
         }
     }
 }

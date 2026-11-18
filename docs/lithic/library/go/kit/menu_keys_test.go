@@ -1,6 +1,7 @@
 package kit
 
 import (
+	"fmt"
 	"image"
 	"testing"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"gioui.org/io/input"
 	"gioui.org/io/key"
 	"gioui.org/io/pointer"
+	"gioui.org/io/semantic"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/unit"
@@ -16,6 +18,7 @@ import (
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 )
 
 // keyHarness drives real frames through a Gio input router, so focus moves
@@ -276,5 +279,162 @@ func TestPickerKeyboardRingFollowsTheKeys(t *testing.T) {
 	f.click()
 	if f.menuRing(1) {
 		t.Fatal("a click after a key open drew the keyboard ring")
+	}
+}
+
+func TestLongPickerLaysOutOnlyVisibleRowsAndRevealsKeyboardFocus(t *testing.T) {
+	th := theme.New(palette.Signature(true))
+	options := make([]string, 400)
+	for index := range options {
+		options[index] = fmt.Sprintf("Choice %03d", index)
+	}
+	var picker Picker
+	selected := 350
+	harness := newKeyHarness(t, func(gtx layout.Context) {
+		picker.Layout(gtx, th, "Long choices", options, selected)
+		if index, ok := picker.Changed(gtx); ok {
+			selected = index
+		}
+	})
+	harness.settle()
+	harness.frame(func(gtx layout.Context) { picker.Focus(gtx) })
+	harness.press(key.NameDownArrow)
+	assertVisible := func(index int) {
+		t.Helper()
+		if !harness.focused(&picker.menu.clicks[index].Clickable) {
+			t.Fatalf("choice %d does not hold keyboard focus", index)
+		}
+		position := picker.menu.list.Position
+		top := picker.menu.offsets[position.First] + position.Offset
+		if picker.menu.offsets[index] < top || picker.menu.offsets[index+1] > top+picker.menu.viewport {
+			t.Fatalf("focused choice %d is outside the viewport: position=%+v height=%d", index, position, picker.menu.viewport)
+		}
+		if position.Count > 12 {
+			t.Fatalf("400 choices laid out %d visible rows", position.Count)
+		}
+		shown := make(map[string]struct{})
+		for _, node := range harness.router.AppendSemantics(nil) {
+			if node.Desc.Class == semantic.Button && len(node.Desc.Label) >= len("Choice ") && node.Desc.Label[:len("Choice ")] == "Choice " {
+				shown[node.Desc.Label] = struct{}{}
+			}
+		}
+		if len(shown) > 14 {
+			t.Fatalf("400 choices registered %d row labels, want only the viewport and overscan", len(shown))
+		}
+	}
+	if got, want := picker.popover.contentRect.Dy(), int(tokens.SizeMenuVisibleItemsCount*tokens.SizeMenuItem+2*tokens.SizeMenuPaddingVertical); got != want {
+		t.Fatalf("menu height = %d, want %d", got, want)
+	}
+	assertVisible(350)
+	harness.press(key.NameHome)
+	assertVisible(0)
+	harness.press(key.NamePageDown)
+	assertVisible(10)
+	harness.press(key.NamePageUp)
+	assertVisible(0)
+	harness.press(key.NameEnd)
+	assertVisible(399)
+	harness.press(key.NameReturn)
+	if selected != 399 || picker.Open() {
+		t.Fatalf("End, Return selected %d, open=%v", selected, picker.Open())
+	}
+}
+
+func TestLongMenuWheelAndThumbKeepTheirOwnViewport(t *testing.T) {
+	th := theme.New(palette.Signature(true))
+	items := make([]MenuItem, 400)
+	for index := range items {
+		items[index].Label = fmt.Sprintf("Command %03d", index)
+	}
+	var popover Popover
+	var menu Menu
+	harness := newKeyHarness(t, func(gtx layout.Context) {
+		popover.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Dimensions{Size: image.Pt(200, 40)}
+		}, func(gtx layout.Context) layout.Dimensions {
+			return menu.Layout(gtx, th, items)
+		})
+	})
+	popover.Open = true
+	harness.settle()
+	at := f32.Pt(float32(popover.contentRect.Min.X+40), float32(popover.contentRect.Min.Y+80))
+	harness.router.Queue(pointer.Event{Kind: pointer.Scroll, Source: pointer.Mouse, Position: at, Scroll: f32.Pt(0, 240)})
+	harness.settle()
+	if menu.list.Position.First == 0 {
+		t.Fatal("the wheel did not scroll the long menu")
+	}
+	if !harness.focused(&menu.clicks[0].Clickable) {
+		t.Fatal("scrolling the focused row out of view lost overlay focus")
+	}
+	top, height, ok := rowListThumb(menu.viewport, menu.list.Position.Length, menu.list.Position.First, menu.list.Position.Offset, len(items), 12)
+	if !ok {
+		t.Fatal("the long menu has no scroll thumb")
+	}
+	x := float32(popover.contentRect.Max.X - 1)
+	y := float32(popover.contentRect.Min.Y + int(tokens.SizeMenuPaddingVertical) + top + height/2)
+	harness.router.Queue(pointer.Event{Kind: pointer.Press, Source: pointer.Mouse, Buttons: pointer.ButtonPrimary, Position: f32.Pt(x, y)})
+	harness.settle()
+	harness.router.Queue(pointer.Event{Kind: pointer.Move, Source: pointer.Mouse, Buttons: pointer.ButtonPrimary, Position: f32.Pt(x, float32(popover.contentRect.Max.Y-10))})
+	harness.settle()
+	harness.router.Queue(pointer.Event{Kind: pointer.Release, Source: pointer.Mouse, Position: f32.Pt(x, float32(popover.contentRect.Max.Y-10))})
+	harness.settle()
+	if menu.list.Position.First < 300 {
+		t.Fatalf("dragging the thumb to the bottom stopped at row %d", menu.list.Position.First)
+	}
+	harness.press(key.NameHome)
+	if menu.list.Position.First != 0 || menu.list.Position.Offset != 0 {
+		t.Fatalf("Home did not reveal the first row after pointer scrolling: %+v", menu.list.Position)
+	}
+}
+
+func TestMenuTextKeepsMixedScriptsOnThePrimaryBaseline(t *testing.T) {
+	th := theme.New(palette.Signature(true))
+	var baselines []int
+	harness := newKeyHarness(t, func(gtx layout.Context) {
+		gtx.Constraints = layout.Exact(image.Pt(300, 40))
+		baselines = baselines[:0]
+		for _, label := range []string{"English", "日本語", "العربية", "हिन्दी", "Русский"} {
+			dimensions := menuText(th, th.T.Label, th.R.Fg, label)(gtx)
+			baselines = append(baselines, dimensions.Size.Y-dimensions.Baseline)
+		}
+	})
+	harness.frame(nil)
+	for index, baseline := range baselines {
+		if baseline != baselines[0] {
+			t.Fatalf("script %d baseline = %d, primary baseline = %d", index, baseline, baselines[0])
+		}
+	}
+}
+
+func TestLongPopoverMeasuresItsMenuWithinTheLargerSide(t *testing.T) {
+	th := theme.New(palette.Signature(true))
+	items := make([]MenuItem, 400)
+	for index := range items {
+		items[index].Label = fmt.Sprintf("Command %03d", index)
+	}
+	var popover Popover
+	var menu Menu
+	origin := image.Pt(20, 300)
+	measuredHeight := 0
+	harness := newKeyHarness(t, func(gtx layout.Context) {
+		popover.Viewport = image.Rectangle{Max: gtx.Constraints.Max}.Sub(origin)
+		offset := op.Offset(origin).Push(gtx.Ops)
+		popover.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Dimensions{Size: image.Pt(200, 40)}
+		}, func(gtx layout.Context) layout.Dimensions {
+			measuredHeight = gtx.Constraints.Max.Y
+			return menu.Layout(gtx, th, items)
+		})
+		offset.Pop()
+	})
+	popover.Open = true
+	harness.settle()
+	if measuredHeight != 284 || popover.contentRect.Dy() != 284 {
+		t.Fatalf("menu measured at %d and drew %d high, want the larger side's 284 pixels", measuredHeight, popover.contentRect.Dy())
+	}
+	bounds := popover.contentRect.Add(origin)
+	anchor := image.Rect(20, 300, 220, 340)
+	if !bounds.In(image.Rect(8, 8, 792, 592)) || bounds.Max.Y != anchor.Min.Y-8 {
+		t.Fatalf("shrinking menu %v did not stay above anchor %v inside the window", bounds, anchor)
 	}
 }
