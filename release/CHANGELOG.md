@@ -1,6 +1,10 @@
 # Release / Packaging Changelog
 
 ## Unreleased
+- **Rashin includes its grammar, dictionary and word list notices on every edition**
+  The Harper Go port keeps Apache-2.0, the dictionary keeps its full source
+  notices, foldhash keeps Zlib and the writing checks' word lists keep MIT and
+  BSD-3-Clause, declared for Arch, Fedora, Void and Nix.
 - **team.ryoku.dev takes version 3 badges that name a tested program.** A
   `RYB` code may be version 3: the version 2 fields, then a u8
   length-prefixed program (1 to 40 ASCII characters, letters and digits at

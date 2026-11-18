@@ -115,6 +115,16 @@ pkgs.buildGoModule {
       pkgs.lib.licenses.asl20
       pkgs.lib.licenses.ofl
       pkgs.lib.licenses.mit
+      pkgs.lib.licenses.bsd3
+      pkgs.lib.licenses.zlib
+      {
+        shortName = "SCOWL";
+        fullName = "SCOWL dictionary and included source notices";
+        spdxId = "LicenseRef-SCOWL";
+        url = "https://github.com/LibreOffice/dictionaries/blob/master/en/README_en_US.txt";
+        free = true;
+        redistributable = true;
+      }
     ];
     mainProgram = "rashin-app";
     platforms = [ "x86_64-linux" ];
