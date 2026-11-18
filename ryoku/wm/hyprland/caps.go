@@ -44,6 +44,7 @@ var capsManifest = []wm.Capability{
 	wm.CapWorkspaceSlideStyle,
 	wm.CapScreenShader,
 	wm.CapPlugins,
+	wm.CapHyprdrive,
 	wm.CapLiveConfigEval,
 	wm.CapConfigReload,
 	wm.CapAnimations,

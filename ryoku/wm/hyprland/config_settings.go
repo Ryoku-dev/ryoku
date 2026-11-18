@@ -133,8 +133,8 @@ func genConfig(o Overrides, follow bool) string {
 	if a.BorderSize != da.BorderSize {
 		general = append(general, fmt.Sprintf("border_size = %d", a.BorderSize))
 	}
-	if a.Layout != da.Layout {
-		general = append(general, fmt.Sprintf("layout = %s", luaStr(a.Layout)))
+	if coreLayout(a.Layout) != da.Layout {
+		general = append(general, fmt.Sprintf("layout = %s", luaStr(coreLayout(a.Layout))))
 	}
 	if a.ResizeOnBorder != da.ResizeOnBorder {
 		general = append(general, fmt.Sprintf("resize_on_border = %t", a.ResizeOnBorder))
@@ -614,7 +614,7 @@ func fullConfigLua(o Overrides, follow bool) string {
 		fmt.Sprintf("gaps_in = %d", a.GapsIn),
 		fmt.Sprintf("gaps_out = %d", a.GapsOut),
 		fmt.Sprintf("border_size = %d", a.BorderSize),
-		fmt.Sprintf("layout = %s", luaStr(a.Layout)),
+		fmt.Sprintf("layout = %s", luaStr(coreLayout(a.Layout))),
 		fmt.Sprintf("resize_on_border = %t", a.ResizeOnBorder),
 		fmt.Sprintf("snap = { enabled = %t }", a.SnapEnabled),
 		fmt.Sprintf("extend_border_grab_area = %d", a.ExtendBorderGrab),
@@ -852,6 +852,6 @@ func genAnimatedBorder(o Overrides, follow, full bool) string {
 func liveLua(o Overrides) string {
 	follow := borderFollowsPalette(o)
 	return fullConfigLua(o, follow) + genMotion(o, true) + genAnimatedBorder(o, follow, true) +
-		genAnimBlock(o) + genLayoutWorkspaceAnimation(o) + genGesture(o) + genPluginConfig(o) +
+		genAnimBlock(o) + genLayoutWorkspaceAnimation(o) + genGesture(o) + genPluginConfig(o) + mosaicLiveLua(o) +
 		fmt.Sprintf("hl.exec_cmd(%s)\n", luaStr(fmt.Sprintf("hyprctl setcursor %s %d", o.Cursor.Theme, o.Cursor.Size)))
 }

@@ -32,6 +32,9 @@ var extraFocus = [
     { value: 3, label: "Keyboard only, clicks leave focus alone" }
 ];
 
+// Hyprdrive's layout: the page adds it to the tiling layout row while Hyprdrive is on
+var mosaicOption = { value: "mosaic", label: "Mosaic" };
+
 var rows = [
     { id: "link-displays", section: "tiling", label: "Same layout on every display",
       detail: "Every display tiles the same way. Turn it off to give each display its own layout.",
@@ -45,7 +48,7 @@ var rows = [
       needs: { cap: "perWorkspaceLayout" } },
     { id: "tiling-layout", section: "tiling", label: "Tiling layout",
       detail: "How new windows share the screen",
-      keywords: ["dwindle", "master", "stack", "scrolling", "columns", "split", "layout"],
+      keywords: ["dwindle", "master", "stack", "scrolling", "columns", "split", "layout", "mosaic", "hyprdrive"],
       control: "segmented",
       options: [
           { value: "dwindle", label: "Split" },

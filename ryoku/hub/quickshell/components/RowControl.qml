@@ -17,6 +17,10 @@ Item {
     // a control the page draws itself, for control: "custom"; its root may
     // declare `property var row` (set on load) and `function activate()`
     property Component custom: null
+    // a light running round the control's rim (RimLight), for a page that asks for one,
+    // and the page's clock that turns it
+    property bool rimLight: false
+    property real rimTurn: 135
     readonly property var value: root.row ? Changes.value(root.row.bind) : undefined
     readonly property real maxWidth: LithicTokens.size.settingsControlMax
 
@@ -142,6 +146,23 @@ Item {
         }
     }
     property bool takesValue: false
+
+    Loader {
+        active: root.rimLight && !!loader.item
+        z: 1
+        sourceComponent: RimLight {
+            target: loader
+            turn: root.rimTurn
+            cut: {
+                switch (root.row ? root.row.control : "") {
+                case "toggle": return LithicTokens.cut.toggleTrack;
+                case "segmented":
+                case "picker": return LithicTokens.cut.mid;
+                }
+                return LithicTokens.cut.small;
+            }
+        }
+    }
 
     Binding {
         target: loader.item

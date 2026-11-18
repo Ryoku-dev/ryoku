@@ -119,6 +119,8 @@ func runDesktop(args []string) error {
 		return setRebind(args[1], chosen)
 	case "plugins":
 		return pluginsDesktop(args[1:])
+	case "hyprdrive":
+		return hyprdriveDesktop(args[1:])
 	case "cursors":
 		return printJSON(listCursorThemes())
 	case "icons":
@@ -389,6 +391,20 @@ func pluginsDesktop(args []string) error {
 				return nil
 			})
 		}
+	}
+	os.Stdout.Write(b)
+	if len(b) == 0 || b[len(b)-1] != '\n' {
+		fmt.Println()
+	}
+	return nil
+}
+
+// hyprdriveDesktop forwards Hyprdrive's status (its binds and what each would
+// take over) or a layout cycle to the window manager that offers it.
+func hyprdriveDesktop(args []string) error {
+	b, err := desktopClient().Hyprdrive(args...)
+	if err != nil {
+		return err
 	}
 	os.Stdout.Write(b)
 	if len(b) == 0 || b[len(b)-1] != '\n' {

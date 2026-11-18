@@ -102,8 +102,17 @@ func readManifest(dir string) (hyprpmManifest, error) {
 
 // tipManifest reads hyprpm.toml as the default branch's tip has it: the pin table
 // only grows at the tip, and a pinned commit's own copy predates later pins.
-func tipManifest(dir string) (hyprpmManifest, error) {
-	text := gitOut(dir, "show", "origin/HEAD:hyprpm.toml")
+// tipRef is the remote branch a plugin builds from when nothing pins it: the
+// named branch, else the repository's default.
+func tipRef(branch string) string {
+	if branch != "" {
+		return "origin/" + branch
+	}
+	return "origin/HEAD"
+}
+
+func tipManifest(dir, branch string) (hyprpmManifest, error) {
+	text := gitOut(dir, "show", tipRef(branch)+":hyprpm.toml")
 	if text == "" {
 		return readManifest(dir)
 	}
@@ -175,12 +184,14 @@ func fetchRepo(url string, log io.Writer) (string, error) {
 
 // checkoutFor puts the clone on the commit the manifest pins for the Hyprland
 // being built against, or the default branch's tip when there is no pin.
-func checkoutFor(dir string, m hyprpmManifest, hyprlandCommit string, log io.Writer) (string, error) {
+func checkoutFor(dir string, m hyprpmManifest, hyprlandCommit, branch string, log io.Writer) (string, error) {
 	ref := m.pinFor(hyprlandCommit)
 	if ref == "" {
-		head := gitOut(dir, "symbolic-ref", "--short", "refs/remotes/origin/HEAD")
-		if head == "" {
-			head = "origin/HEAD"
+		head := tipRef(branch)
+		if branch == "" {
+			if h := gitOut(dir, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"); h != "" {
+				head = h
+			}
 		}
 		ref = head
 		fmt.Fprintf(log, "no pin for Hyprland %s in hyprpm.toml; building %s\n", shortCommit(hyprlandCommit), ref)
@@ -406,13 +417,13 @@ func buildPlugins(jobs []buildJob, checkout string, log io.Writer) buildResult {
 			res.Failed[d.ID] = "no source to build from"
 			continue
 		}
-		m, err := tipManifest(dir)
+		m, err := tipManifest(dir, d.Branch)
 		if err != nil {
 			res.Failed[d.ID] = err.Error()
 			continue
 		}
 		if d.Repo != "" {
-			if commit, err = checkoutFor(dir, m, hdr.Commit, log); err != nil {
+			if commit, err = checkoutFor(dir, m, hdr.Commit, d.Branch, log); err != nil {
 				res.Failed[d.ID] = err.Error()
 				continue
 			}
@@ -642,7 +653,7 @@ func runPluginAdd(args []string) error {
 	if err != nil {
 		return err
 	}
-	m, err := tipManifest(dir)
+	m, err := tipManifest(dir, "")
 	if err != nil {
 		return err
 	}

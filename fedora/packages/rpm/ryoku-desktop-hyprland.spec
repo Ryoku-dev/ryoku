@@ -15,6 +15,7 @@ Requires:       ryoku-desktop = %{epoch}:%{version}-%{release}
 Requires:       hyprland
 Recommends:     ryoku-hypr-plugins = %{epoch}:%{version}-%{release}
 Recommends:     ryoku-keysounds = %{epoch}:%{version}-%{release}
+Recommends:     ryoku-hyprdrive = %{epoch}:%{version}-%{release}
 Recommends:     hypr-dynamic-cursors = %{epoch}:%{version}-%{release}
 Recommends:     hyprglass = %{epoch}:%{version}-%{release}
 Recommends:     hyprgrass = %{epoch}:%{version}-%{release}

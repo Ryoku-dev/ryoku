@@ -308,6 +308,7 @@ type Plugins struct {
 	Hyprscrolling   Hyprscrolling          `json:"hyprscrolling"`
 	BordersPlusPlus BordersPlusPlus        `json:"borders-plus-plus"`
 	Hyprgrass       Hyprgrass              `json:"hyprgrass"`
+	Hyprdrive       Hyprdrive              `json:"hyprdrive"`
 	Extra           map[string]ExtraPlugin `json:"extra,omitempty"`
 }
 
@@ -404,6 +405,7 @@ func defaultOverrides() Overrides {
 			Hyprscrolling:   Hyprscrolling{ColumnWidth: 0.5, FollowFocus: true},
 			BordersPlusPlus: BordersPlusPlus{Enabled: false, Count: 1, NaturalRounding: true, Color: "#e0563b", Size: 2},
 			Hyprgrass:       Hyprgrass{Enabled: false, Sensitivity: 1.0, LongPressDelay: 400, EdgeMargin: 10, ResizeOnBorder: false, ThreeFingerTap: false},
+			Hyprdrive:       Hyprdrive{Enabled: false, Config: hyprdriveDefaults()},
 		},
 	}
 }

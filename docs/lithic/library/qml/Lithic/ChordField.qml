@@ -12,7 +12,12 @@ T.Control {
     readonly property bool recording: _recording || previewState === "recording"
     readonly property var keys: displayKeys(chord)
 
+    // a chord of modifiers alone (Super+Alt) is recorded too, once they are let go
+    property bool modifiersAlone: false
+
     property bool _recording: false
+    // the modifiers held so far while recording, for modifiersAlone
+    property var _heldMods: []
     readonly property bool _hoverActive: enabled && (hover.hovered || previewState === "hover")
     readonly property bool _pressActive: enabled && (tap.pressed || previewState === "pressed")
     readonly property bool _focusActive: enabled && !recording && (visualFocus || previewState === "focus")
@@ -199,7 +204,17 @@ T.Control {
         if (!enabled)
             return;
         forceActiveFocus(Qt.OtherFocusReason);
+        _heldMods = [];
         _recording = true;
+    }
+
+    // the modifier a key press is, or ""
+    function _modifierKey(key) {
+        if (key === Qt.Key_Meta || key === Qt.Key_Super_L || key === Qt.Key_Super_R) return "Super";
+        if (key === Qt.Key_Control) return "Ctrl";
+        if (key === Qt.Key_Alt || key === Qt.Key_AltGr) return "Alt";
+        if (key === Qt.Key_Shift) return "Shift";
+        return "";
     }
 
     function cancelRecording() {
@@ -241,10 +256,31 @@ T.Control {
             cleared();
             return;
         }
+        if (modifiersAlone) {
+            const held = _heldMods.slice();
+            mods.concat([_modifierKey(event.key)]).forEach(m => {
+                if (m.length > 0 && held.indexOf(m) < 0)
+                    held.push(m);
+            });
+            _heldMods = held;
+        }
         const name = keyName(event);
         if (name.length === 0 || (mods.length === 0 && !_alone(name)))
             return;
         const result = mods.concat([name]).join("+");
+        _heldMods = [];
+        _recording = false;
+        chord = result;
+        recorded(result);
+    }
+
+    // modifiersAlone: letting go of the modifiers with no other key pressed records them
+    Keys.onReleased: function(event) {
+        if (!_recording || !modifiersAlone || event.isAutoRepeat || _modifierKey(event.key).length === 0 || _heldMods.length === 0)
+            return;
+        event.accepted = true;
+        const result = _heldMods.slice().sort((a, b) => _modifierOrder.indexOf(a) - _modifierOrder.indexOf(b)).join("+");
+        _heldMods = [];
         _recording = false;
         chord = result;
         recorded(result);

@@ -62,7 +62,8 @@ Singleton {
         keyboardGrabSharesPointer: false,
         systemLidEdgeSource: false,
         nestedSession: false,
-        perWorkspaceLayout: false
+        perWorkspaceLayout: false,
+        hyprdrive: false
     })
     property var _caps: root.emptyCaps
     property string _workspaceModel: "fixed"
