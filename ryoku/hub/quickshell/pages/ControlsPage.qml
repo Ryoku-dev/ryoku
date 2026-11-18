@@ -20,9 +20,9 @@ Item {
     property string writeError: ""
     readonly property var selectedModel: ControlsSchema.section(selectedSection)
     readonly property string footerText: writePending
-        ? "SAVING CONTROLS…"
-        : writeError !== "" ? "CONTROLS NOT SAVED · RETRY IN PAGE"
-        : "SAVED · LIVE ON YOUR DESKTOP"
+        ? I18n.tr("SAVING CONTROLS…")
+        : writeError !== "" ? I18n.tr("CONTROLS NOT SAVED · RETRY IN PAGE")
+        : I18n.tr("SAVED · LIVE ON YOUR DESKTOP")
 
     function sameConfig(a, b) {
         return JSON.stringify(ControlsSchema.normalize(a)) === JSON.stringify(ControlsSchema.normalize(b));

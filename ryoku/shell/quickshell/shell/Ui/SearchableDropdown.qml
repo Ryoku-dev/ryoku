@@ -1,6 +1,7 @@
 import QtQuick 6.11
 import QtQuick.Controls as QQC
 import qs.Commons
+import Ryoku.Ui.Singletons
 
 // Searchable single-select dropdown. Same trigger shape as Dropdown, but
 // the popup leads with an embedded TextField that filters the option
@@ -21,8 +22,8 @@ Item {
   property string label: ""
   property string value: ""
   property var options: []
-  property string placeholderText: "Search..."
-  property string emptyText: "No matches"
+  property string placeholderText: I18n.tr("Search...")
+  property string emptyText: I18n.tr("No matches")
   property string triggerLabel: ""
 
   property color foreground: Color.popups.text

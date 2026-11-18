@@ -783,7 +783,7 @@ Item {
                     expanded: false
                     summary: I18n.tr("WIRELESS, APP WINDOWS, ALARMS")
 
-                    PhoneGroupLabel { title: "WIRELESS DEBUGGING" }
+                    PhoneGroupLabel { title: I18n.tr("WIRELESS DEBUGGING") }
                     Repeater {
                         model: pg.advancedWirelessRows
                         delegate: PhoneSettingEntry {
@@ -793,7 +793,7 @@ Item {
                             rowIndex: index
                         }
                     }
-                    PhoneGroupLabel { title: "SESSIONS" }
+                    PhoneGroupLabel { title: I18n.tr("SESSIONS") }
                     Repeater {
                         model: pg.advancedSessionRows
                         delegate: PhoneSettingEntry {
@@ -803,7 +803,7 @@ Item {
                             rowIndex: index
                         }
                     }
-                    PhoneGroupLabel { title: "APP WINDOWS" }
+                    PhoneGroupLabel { title: I18n.tr("APP WINDOWS") }
                     Repeater {
                         model: pg.advancedAppRows
                         delegate: PhoneSettingEntry {
@@ -813,7 +813,7 @@ Item {
                             rowIndex: index
                         }
                     }
-                    PhoneGroupLabel { title: "DEVICES" }
+                    PhoneGroupLabel { title: I18n.tr("DEVICES") }
                     Repeater {
                         model: pg.advancedDeviceRows
                         delegate: PhoneSettingEntry {
@@ -823,7 +823,7 @@ Item {
                             rowIndex: index
                         }
                     }
-                    PhoneGroupLabel { title: "ALARMS" }
+                    PhoneGroupLabel { title: I18n.tr("ALARMS") }
                     Repeater {
                         model: pg.advancedAlarmRows
                         delegate: PhoneSettingEntry {
