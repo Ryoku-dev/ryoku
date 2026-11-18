@@ -288,6 +288,15 @@ fi
 [[ "$(lid_get keepRunningOnAc)" == false ]] \
   || fail "a rejected lid set still wrote the config"
 
+# Malformed JSON must not be clobbered by a failed lid set.
+cfgCorrupt="$tmp/cfgCorrupt/power.json"; mkdir -p "$(dirname "$cfgCorrupt")"
+printf 'not valid json\n' >"$cfgCorrupt"
+if rp "$nops" "$noaspm" "$cfgCorrupt" 1 lid set keepRunningOnAc true >/dev/null 2>&1; then
+  fail "lid set succeeded on malformed json config"
+fi
+[[ "$(<"$cfgCorrupt")" == "not valid json" ]] \
+  || fail "lid set corrupted malformed config on jq failure"
+
 # A desktop has no lid, so capabilities omit the policy entirely.
 capsP="$(rp "$nops" "$noaspm" "$cfgP" 1 capabilities --json)"
 jq -e '.lid == {"keepRunningOnAc":false}' <<<"$capsP" >/dev/null \

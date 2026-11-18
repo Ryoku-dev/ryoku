@@ -40,6 +40,7 @@ daemon_state="$run/clamshell.daemon"
 event_state="$run/clamshell.lid"
 panel_state="$run/clamshell.panels"
 power_state="$run/clamshell.panels-off"
+keep_state="$run/clamshell.keep-locked"
 suspend_state="$run/clamshell.suspend"
 power_cfg="$tmp/power.json"
 mkdir -p "$bin" "$ps/AC" "$drm/card0-eDP-1" "$drm/card0-HDMI-A-1" "$lid" "$run"
@@ -166,6 +167,7 @@ export RYOKU_CLAMSHELL_EVENT_FIFO="$event_fifo"
 export RYOKU_CLAMSHELL_ACTIVITY_STATE="$activity_state"
 export RYOKU_CLAMSHELL_PANEL_STATE="$panel_state"
 export RYOKU_CLAMSHELL_POWER_STATE="$power_state"
+export RYOKU_CLAMSHELL_KEEP_STATE="$keep_state"
 export RYOKU_POWER_CONFIG="$power_cfg"
 export RYOKU_CLAMSHELL_SYNC_LOCK="$run/clamshell.sync.lock"
 export RYOKU_CLAMSHELL_SUSPEND_STATE="$suspend_state"
@@ -182,7 +184,7 @@ set_lid() { printf 'state:      %s\n' "$1" >"$lid/state"; }
 reset_case() {
   : >"$events"
   rm -f "$state" "$daemon_state" "$event_state" "$panel_state" "$power_state" \
-    "$suspend_state" "$power_cfg"
+    "$suspend_state" "$power_cfg" "$keep_state"
   export INHIBIT_JSON='{"type":"a(ssssuu)","data":[[]]}'
   unset RYOKU_SHELL_FAIL || true
   unset RYOKU_SHELL_LOCK_FAIL || true
@@ -793,9 +795,116 @@ run_helper lid close
 expect_events $'shell lock\nshell suspend'
 release_lid_owner
 
+# A docked close hands the panel to the external display without locking. If
+# that display goes away while the lid stays shut, the hardware edge must lock
+# before the opt-in keeps the session awake; a stale docked decision may never
+# carry over.
+reset_case
+set_ac 1
+set_external connected
+set_lid closed
+keep_running_cfg true
+hold_lid_owner
+run_helper policy close
+expect_events ''
+set_external disconnected
+# shellcheck disable=SC2016
+bash -c '
+  source "$1"
+  DAEMON_SESSION_ACTIVE=1
+  PREV_WANTED=1
+  evaluate
+  [[ $PREV_WANTED == 1 ]]
+' _ "$helper" || {
+  printf 'the undocked edge did not keep the session awake\n' >&2
+  exit 1
+}
+expect_events 'shell lock'
+
+# A subsequent evaluate with the lock already confirmed does not re-lock.
+: >"$events"
+# shellcheck disable=SC2016
+bash -c '
+  source "$1"
+  DAEMON_SESSION_ACTIVE=1
+  PREV_WANTED=1
+  evaluate
+  [[ $PREV_WANTED == 1 ]]
+' _ "$helper" || {
+  printf 'a subsequent evaluate failed with keep-running confirmed\n' >&2
+  exit 1
+}
+expect_events ''
+
+# Reconnecting the external monitor clears the keep-lock confirmation so that
+# unlocking while docked cannot leave a later undocked edge unprotected.
+: >"$events"
+set_external connected
+# shellcheck disable=SC2016
+bash -c '
+  source "$1"
+  DAEMON_SESSION_ACTIVE=1
+  PREV_WANTED=1
+  evaluate
+  [[ $PREV_WANTED == 1 ]]
+' _ "$helper" || {
+  printf 're-docked evaluate failed\n' >&2
+  exit 1
+}
+expect_events ''
+[[ ! -f $keep_state ]] || {
+  printf 're-docking did not clear the keep-lock confirmation\n' >&2
+  exit 1
+}
+
+# Disconnecting again requires and confirms a fresh lock.
+: >"$events"
+set_external disconnected
+# shellcheck disable=SC2016
+bash -c '
+  source "$1"
+  DAEMON_SESSION_ACTIVE=1
+  PREV_WANTED=1
+  evaluate
+  [[ $PREV_WANTED == 1 ]]
+' _ "$helper" || {
+  printf 'second undock did not keep the session awake\n' >&2
+  exit 1
+}
+expect_events 'shell lock'
+[[ -f $keep_state ]] || {
+  printf 'second undock did not confirm the fresh lock\n' >&2
+  exit 1
+}
+release_lid_owner
+
+# The same edge falls back to suspend when that lock cannot be confirmed.
+reset_case
+set_ac 1
+set_external connected
+set_lid closed
+keep_running_cfg true
+hold_lid_owner
+run_helper policy close
+set_external disconnected
+export RYOKU_SHELL_LOCK_FAIL=1
+# shellcheck disable=SC2016
+bash -c '
+  source "$1"
+  DAEMON_SESSION_ACTIVE=1
+  PREV_WANTED=1
+  evaluate
+  [[ $PREV_WANTED == 0 ]]
+' _ "$helper" || {
+  printf 'the undocked edge stayed awake after a refused lock\n' >&2
+  exit 1
+}
+expect_events $'shell lock\nshell suspend'
+release_lid_owner
+
 # An in-flight secure suspend is never cancelled by the opt-in: only a live
-# docked close may stop it, because the opt-in has not locked the session and
-# stopping the transaction could leave it unlocked behind the lid.
+# docked close, or a lock confirmed for this very close, may stop it, because
+# anything less could leave the session unlocked behind the lid.
 reset_case
 set_ac 1
 set_external disconnected
@@ -829,12 +938,14 @@ release_lid_owner
 expect_events 'shell suspend'
 
 # Unplugging AC while the lid is already shut is a fresh suspend edge, even
-# though no closed-lid event arrives from the compositor.
+# though no closed-lid event arrives from the compositor. The confirmed lock is
+# what let the lid stay shut awake in the first place.
 reset_case
 set_ac 1
 set_external disconnected
 set_lid closed
 keep_running_cfg true
+printf 'locked\n' >"$keep_state"
 # shellcheck disable=SC2016
 bash -c '
   source "$1"

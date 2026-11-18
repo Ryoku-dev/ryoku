@@ -50,6 +50,7 @@ SUSPEND_STATE="${RYOKU_CLAMSHELL_SUSPEND_STATE:-$RUNTIME_DIR/ryoku-clamshell-${U
 SUSPEND_LOCK="${RYOKU_CLAMSHELL_SUSPEND_LOCK:-$RUNTIME_DIR/ryoku-clamshell-${UID:-$(id -u)}.suspend.lock}"
 SUSPEND_REASON="${RYOKU_CLAMSHELL_SUSPEND_REASON:-$RUNTIME_DIR/ryoku-clamshell-${UID:-$(id -u)}.suspend.reason}"
 POWER_STATE="${RYOKU_CLAMSHELL_POWER_STATE:-$RUNTIME_DIR/ryoku-clamshell-${UID:-$(id -u)}.panels-off}"
+KEEP_LOCK_STATE="${RYOKU_CLAMSHELL_KEEP_STATE:-$RUNTIME_DIR/ryoku-clamshell-${UID:-$(id -u)}.keep-locked}"
 # ryoku-power owns the closed-lid policy; this reader only trusts an explicit
 # true, so a missing file, a missing key, or a malformed value means off.
 POWER_CONFIG="${RYOKU_POWER_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/ryoku/power.json}"
@@ -346,12 +347,21 @@ dispatch_system_lid_edge() {
 }
 
 write_lid_event_state() {
-  local state=$1 tmp="${LID_EVENT_STATE}.$$"
+  local state=$1 previous="" tmp="${LID_EVENT_STATE}.$$"
+  if [[ -r $LID_EVENT_STATE ]]; then
+    read -r previous 2>/dev/null <"$LID_EVENT_STATE" || true
+  fi
+  # A lock confirmed for the close already in force survives a sync or reload;
+  # a fresh close edge needs its own. Only the two edges end a close.
+  if [[ $state == open || $previous != closed ]]; then
+    clear_keep_lock
+  fi
   (umask 077; printf '%s\n' "$state" >"$tmp")
   mv -f "$tmp" "$LID_EVENT_STATE"
 }
 
 reset_lid_event_generation() {
+  clear_keep_lock
   rm -f "$LID_EVENT_STATE"
 }
 
@@ -410,23 +420,40 @@ lid_keep_running() {
   jq -e '.lid.keepRunningOnAc == true' "$POWER_CONFIG" >/dev/null 2>&1
 }
 
-# keep_closed_wanted is that opt-in with a verified lid owner, which is what makes
-# a shut lid allowed to stay awake. A refused lock disables the opt-in until a
-# fresh close edge retries it, so the suspend fallback is never vetoed by the
-# same policy that just refused to keep the session.
+# keep_closed_desired is the opt-in's switch state: the user asked for it, the
+# charger is attached, and this helper owns the lid switch. It says the policy
+# applies, not that the session is safe to leave readable behind the lid.
 CLOSE_KEEP_REFUSED=0
-keep_closed_wanted() {
+keep_closed_desired() {
   (( CLOSE_KEEP_REFUSED == 0 )) && lid_keep_running && on_ac && inhibitor_active
 }
 
-# An in-flight secure suspend is cancelled only by a live docked close. The
-# keep-running opt-in never cancels one: it has not locked the session, so
-# stopping the transaction could leave an unlocked session behind the lid.
-awake_confirmed() { clamshell_wanted && inhibitor_active; }
+# The lock is part of the state, not one event: a keep-running close leaves an
+# unlocked session behind a dark panel, so a lock is only confirmed for the
+# close it was taken for, and every lid edge ends that confirmation.
+keep_lock_confirmed() {
+  [[ -r $KEEP_LOCK_STATE && $(<"$KEEP_LOCK_STATE") == locked ]]
+}
+
+confirm_keep_lock() {
+  local tmp="${KEEP_LOCK_STATE}.$$"
+  (umask 077; printf 'locked\n' >"$tmp")
+  mv -f "$tmp" "$KEEP_LOCK_STATE"
+}
+
+clear_keep_lock() { rm -f "$KEEP_LOCK_STATE"; }
+
+# keep_closed_wanted is the opt-in a shut lid may stay awake in: desired, with
+# the lock for this close confirmed. A refused lock disables the opt-in until a
+# fresh close edge retries it, so the suspend fallback is never vetoed by the
+# same policy that just refused to keep the session.
+keep_closed_wanted() { keep_closed_desired && keep_lock_confirmed; }
 
 # awake_wanted is every reason a shut lid may keep the session running: a live
-# docked close, or the opt-in above. Everything else suspends.
-awake_wanted() { awake_confirmed || keep_closed_wanted; }
+# docked close, or the opt-in with its lock confirmed. The bare setting is never
+# enough, so an in-flight secure suspend is only cancelled once stopping it
+# cannot leave the session unlocked.
+awake_wanted() { { clamshell_wanted && inhibitor_active; } || keep_closed_wanted; }
 
 # --- lid ownership: a supervised child holding handle-lid-switch -------------
 INHIBIT_PID=""
@@ -665,7 +692,7 @@ suspend_while_closed_locked() {
     if ! suspend_retry_session_owned; then
       return 0
     fi
-    if awake_confirmed; then
+    if awake_wanted; then
       return 0
     fi
     request_token="$(new_suspend_token)"
@@ -682,7 +709,7 @@ suspend_while_closed_locked() {
     while process_alive "$request_pid"; do
       if ! close_event_current ||
         ! suspend_retry_session_owned ||
-        awake_confirmed; then
+        awake_wanted; then
         cancel_suspend_token "$request_token" || true
         kill -TERM "$request_pid" 2>/dev/null || true
         wait "$request_pid" 2>/dev/null || true
@@ -743,6 +770,20 @@ evaluate() {
     return 0
   fi
   local wanted=0
+  # The opt-in may hold a shut lid open only behind a lock confirmed right here.
+  # A docked close hands the panel to the external display without locking, so
+  # if that display goes away, or the session was unlocked while docked, this
+  # hardware edge is the moment to lock before staying up.
+  if { clamshell_wanted && inhibitor_active; }; then
+    clear_keep_lock
+  elif close_event_current && keep_closed_desired && ! keep_lock_confirmed; then
+    if lock_for_keep_running; then
+      confirm_keep_lock
+    else
+      journal_note "closed-lid keep-running refused: the session could not be locked; suspending"
+      CLOSE_KEEP_REFUSED=1
+    fi
+  fi
   awake_wanted && wanted=1
   if (( wanted == 0 && PREV_WANTED != 0 )) && close_event_current; then
     log "clamshell condition absent with the lid shut; requesting secure suspend"
@@ -989,6 +1030,7 @@ run_daemon() {
       wait "$owner_monitor_pid" 2>/dev/null || true
     fi
     rm -f "$EVENT_FIFO" "$ACTIVITY_STATE" "$OWNER_MONITOR_STATE" "$LID_EVENT_STATE"
+    clear_keep_lock
     exec 8>&-
     stop_inhibitor
     if [[ -r $DAEMON_STATE ]] && [[ $(<"$DAEMON_STATE") == "$$" ]]; then
@@ -1277,8 +1319,9 @@ apply_close_policy() {
     CLOSE_EVENT_DOCKED=1
     return 0
   fi
-  if keep_closed_wanted; then
+  if keep_closed_desired; then
     if lock_for_keep_running; then
+      confirm_keep_lock
       CLOSE_EVENT_KEEP_AWAKE=1
       return 0
     fi

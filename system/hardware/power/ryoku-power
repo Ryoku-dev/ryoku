@@ -640,9 +640,15 @@ lid_cfg_set() {
   mkdir -p "$(dirname "$CONFIG")"
   tmp="$(mktemp "${CONFIG}.XXXXXX")"
   if [[ -f $CONFIG ]]; then
-    jq --argjson v "$val" --arg k "$key" 'setpath(["lid", $k]; $v)' "$CONFIG" >"$tmp"
+    if ! jq --argjson v "$val" --arg k "$key" 'setpath(["lid", $k]; $v)' "$CONFIG" >"$tmp"; then
+      rm -f "$tmp"
+      return 1
+    fi
   else
-    jq -n --argjson v "$val" --arg k "$key" '{lid: {($k): $v}}' >"$tmp"
+    if ! jq -n --argjson v "$val" --arg k "$key" '{lid: {($k): $v}}' >"$tmp"; then
+      rm -f "$tmp"
+      return 1
+    fi
   fi
   mv -f "$tmp" "$CONFIG"
 }
