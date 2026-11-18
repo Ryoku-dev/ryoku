@@ -1,0 +1,293 @@
+#!/usr/bin/env python3
+"""Print the link targets in one Markdown file, ignoring code.
+
+The check only has to know which parts of a file are code, so this walks the
+block structure the way Markdown renders it. Block quote and list markers are
+containers: they are consumed before a line's content is read, a fenced block
+ends with the container it opened in, and a list item's continuation lines
+stay in the item. Inside a paragraph, inline code spans open and close on
+complete backtick runs of the same length, never cross a blank line or a new
+block, and a backtick escaped by a backslash is literal. Code is blanked
+before links are read, so a code sample never turns into a link, while a
+code-formatted link text keeps its target because the target sits outside the
+span.
+
+    ryoku-docs-link-targets FILE
+    ryoku-docs-link-targets --self-test
+"""
+
+from __future__ import annotations
+
+import re
+import sys
+
+QUOTE = re.compile(r"^[ ]{0,3}>[ \t]?")
+LIST = re.compile(r"^[ ]{0,3}(?:[-+*]|\d{1,9}[.)])(?:[ \t]+|$)")
+FENCE = re.compile(r"^[ ]{0,3}(`{3,}|~{3,})(.*)$")
+ATX = re.compile(r"^[ ]{0,3}#{1,6}(?:[ \t]|$)")
+THEMATIC = re.compile(
+    r"^[ ]{0,3}(?:(?:-[ \t]*){3,}|(?:\*[ \t]*){3,}|(?:_[ \t]*){3,})$"
+)
+SETEXT = re.compile(r"^[ ]{0,3}=+[ \t]*$")
+HTML = re.compile(r"^[ ]{0,3}<[A-Za-z!/?]")
+LINK = re.compile(r"\]\(([^)\n]+)\)")
+
+CODE, INLINE, RAW = "code", "inline", "raw"
+LEAF_ENDS = (ATX, THEMATIC, SETEXT)
+
+
+def escaped(text: str, index: int) -> bool:
+    """True when the character at index is backslash-escaped."""
+    slashes = 0
+    scan = index - 1
+    while scan >= 0 and text[scan] == "\\":
+        slashes += 1
+        scan -= 1
+    return slashes % 2 == 1
+
+
+def blank_block(text: str) -> str:
+    """Blank inline code spans inside one paragraph or heading."""
+    out: list[str] = []
+    index, size = 0, len(text)
+    while index < size:
+        if text[index] != "`":
+            out.append(text[index])
+            index += 1
+            continue
+        if escaped(text, index):
+            # a backslash escapes the first backtick only; the rest still run
+            out.append("`")
+            index += 1
+            continue
+        start = index
+        while index < size and text[index] == "`":
+            index += 1
+        run_len = index - start
+        scan = index
+        close = None
+        while scan < size:
+            if text[scan] != "`":
+                scan += 1
+                continue
+            run_start = scan
+            while scan < size and text[scan] == "`":
+                scan += 1
+            if scan - run_start == run_len:
+                close = scan
+                break
+        if close is None:
+            out.append(text[start:index])
+        else:
+            chunk = text[start:close]
+            out.append("".join("\n" if char == "\n" else " " for char in chunk))
+            index = close
+    return "".join(out)
+
+
+def blocks(text: str) -> list[tuple[str, str]]:
+    """Split text into code, inline and filler blocks, in order.
+
+    Containers (quotes, list items) are tracked as a stack, so content is
+    matched against the container it belongs to rather than the raw line.
+    """
+    out: list[tuple[str, str]] = []
+    stack: list[tuple[str, int]] = []
+    fence: tuple[str, int, int] | None = None
+    para: list[str] = []
+
+    def flush() -> None:
+        if para:
+            out.append((INLINE, "".join(para)))
+            para.clear()
+
+    for raw in text.splitlines(keepends=True):
+        body = raw.rstrip("\r\n")
+        newline = "\n" if raw.endswith("\n") else ""
+        blank = not body.strip()
+        rest = body
+        matched = 0
+
+        for kind, indent in stack:
+            if kind == "quote":
+                marker = QUOTE.match(rest)
+                if marker:
+                    rest = rest[marker.end() :]
+                    matched += 1
+                    continue
+            else:
+                indented = not rest[:indent].strip()
+                lazy = bool(para) and not blank and not LIST.match(rest)
+                if indented:
+                    rest = rest[indent:]
+                    matched += 1
+                    continue
+                if lazy:
+                    matched += 1
+                    continue
+            break
+
+        if matched < len(stack):
+            del stack[matched:]
+            flush()
+            if fence is not None and fence[2] > len(stack):
+                fence = None
+
+        if fence is None:
+            while True:
+                marker = QUOTE.match(rest) or LIST.match(rest)
+                if marker is None:
+                    break
+                stack.append(("quote" if marker.re is QUOTE else "list", marker.end()))
+                flush()
+                rest = rest[marker.end() :]
+
+        if blank:
+            flush()
+            out.append((RAW, newline))
+            continue
+
+        if fence is not None:
+            char, length, _ = fence
+            if re.fullmatch(
+                r"[ ]{0,3}%s{%d,}[ \t]*" % (re.escape(char), length), rest
+            ):
+                fence = None
+            out.append((CODE, newline))
+            continue
+
+        marker = FENCE.match(rest)
+        if marker and not (marker.group(1)[0] == "`" and "`" in marker.group(2)):
+            fence = (marker.group(1)[0], len(marker.group(1)), len(stack))
+            flush()
+            out.append((CODE, newline))
+            continue
+
+        if not para and rest.startswith("    "):
+            out.append((CODE, newline))
+            continue
+
+        if para and any(leaf.match(rest) for leaf in LEAF_ENDS + (HTML,)):
+            flush()
+
+        para.append(rest + newline)
+        if any(leaf.match(rest) for leaf in LEAF_ENDS):
+            flush()
+
+    flush()
+    return out
+
+
+def targets(text: str) -> list[str]:
+    """Return the raw link targets in text, in order, outside code."""
+    found: list[str] = []
+    for kind, chunk in blocks(text):
+        if kind == INLINE:
+            found.extend(match.group(1) for match in LINK.finditer(blank_block(chunk)))
+    return found
+
+
+CASES: list[tuple[str, str, list[str]]] = [
+    ("code-formatted link text", "[`name`](missing.md)\n", ["missing.md"]),
+    ("span holding a backtick", "``[`x`](inside.md)``\n", []),
+    ("longer run inside a span", "`one `` two [x](inside2.md) three`\n", []),
+    ("plain link", "[ok](ok.md)\n", ["ok.md"]),
+    ("unmatched opener stays literal", "`unclosed [bad](bad.md)\n", ["bad.md"]),
+    ("unmatched double run stays literal", "`` [bad](bad2.md)\n", ["bad2.md"]),
+    ("escaped opener stays literal", "\\`[a](escaped.md)\\`\n", ["escaped.md"]),
+    (
+        "escaped first backtick leaves the run",
+        "\\``[b](escaped2.md)``\n",
+        ["escaped2.md"],
+    ),
+    (
+        "span does not cross a blank line",
+        "`unclosed\n\n[between](between.md) and `another\n",
+        ["between.md"],
+    ),
+    ("span does not cross an ATX heading", "`unclosed\n## [`c`](bad3.md)\n", ["bad3.md"]),
+    ("span does not cross a list item", "`unclosed\n- [`d`](bad4.md)\n", ["bad4.md"]),
+    ("span does not cross a block quote", "`unclosed\n> [`e`](bad5.md)\n", ["bad5.md"]),
+    (
+        "span continues in a list item",
+        "- `code\n  [bad](inside3.md)`\n",
+        [],
+    ),
+    (
+        "span continues as a lazy list item line",
+        "- `code\n[bad](inside4.md)`\n",
+        [],
+    ),
+    ("longer closing fence", "```\n[fenced](nope.md)\n````\n[fine](fine.md)\n", ["fine.md"]),
+    ("shorter closing fence does not close", "````\n[fenced](nope2.md)\n```\n", []),
+    ("tilde fence", "~~~\n[fenced](nope3.md)\n~~~\n[ok](ok2.md)\n", ["ok2.md"]),
+    (
+        "fence inside a block quote",
+        "> ```\n> [fenced](nope4.md)\n> ```\n[ok](ok3.md)\n",
+        ["ok3.md"],
+    ),
+    (
+        "fence ends with its block quote",
+        "> ```\n> [fenced](nope5.md)\n\n[ok](ok4.md)\n",
+        ["ok4.md"],
+    ),
+    (
+        "fence ends with its nested list item",
+        "- item\n\n  ```\n  [fenced](nope6.md)\n\n[ok](ok5.md)\n",
+        ["ok5.md"],
+    ),
+    (
+        "fence inside a list item",
+        "- item\n\n  ```\n  [fenced](nope7.md)\n  ```\n\n[ok](ok6.md)\n",
+        ["ok6.md"],
+    ),
+    (
+        "fence four spaces into a list item",
+        "- item\n\n    ```\n    [fenced](nope8.md)\n    ```\n\n[ok](ok7.md)\n",
+        ["ok7.md"],
+    ),
+    (
+        "indented code is not a link",
+        "text\n\n    [code](nope9.md)\n\n[ok](ok8.md)\n",
+        ["ok8.md"],
+    ),
+    ("regex in inline code", "`^[A-Za-z0-9](?:[A-Za-z0-9 .+-]{0,38}[A-Za-z0-9])?$`\n", []),
+    ("mixed links and code", "[`a`](a.md) and ``[`b`](b.md)``\n", ["a.md"]),
+]
+
+
+def self_test() -> int:
+    failed = 0
+    for name, text, want in CASES:
+        got = targets(text)
+        if got != want:
+            failed += 1
+            print(f"FAIL {name}: got {got}, want {want}", file=sys.stderr)
+    if failed:
+        print(f"{failed} of {len(CASES)} cases failed", file=sys.stderr)
+        return 1
+    print(f"{len(CASES)} cases pass")
+    return 0
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) == 2 and argv[1] == "--self-test":
+        return self_test()
+    if len(argv) == 2 and argv[1] == "-":
+        sys.stdout.write("".join(target + "\n" for target in targets(sys.stdin.read())))
+        return 0
+    if len(argv) == 2:
+        try:
+            with open(argv[1], encoding="utf-8") as handle:
+                found = targets(handle.read())
+        except (OSError, UnicodeError) as err:
+            print(f"ryoku-docs-link-targets: {err}", file=sys.stderr)
+            return 1
+        sys.stdout.write("".join(target + "\n" for target in found))
+        return 0
+    print("usage: ryoku-docs-link-targets FILE | - | --self-test", file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))
