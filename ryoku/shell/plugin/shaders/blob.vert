@@ -25,6 +25,7 @@ layout(std140, binding = 0) uniform buf {
     vec4 rectData[80];
     vec4 borderColor;
     float borderWidth;
+    float cutCorners;
     vec4 waveInfo[4];
     vec4 waveData[64];
     vec4 waveColor;

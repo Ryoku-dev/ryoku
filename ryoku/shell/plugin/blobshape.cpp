@@ -462,6 +462,7 @@ QSGNode* BlobShape::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*) {
     material->m_shadowSize = static_cast<float>(m_group->shadowSize());
     material->m_borderColor = m_group->borderColor();
     material->m_borderWidth = static_cast<float>(m_group->borderWidth());
+    material->m_cutCorners = m_group->cutCorners() ? 1.0f : 0.0f;
     material->m_waveColor = m_group->waveColor();
     memcpy(material->m_invertedOuter, m_cachedInvertedOuter, sizeof(m_cachedInvertedOuter));
     memcpy(material->m_invertedInner, m_cachedInvertedInner, sizeof(m_cachedInvertedInner));

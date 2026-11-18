@@ -33,6 +33,7 @@ bool BlobMaterialShader::updateUniformData(RenderState& state, QSGMaterial* newM
     QByteArray* buf = state.uniformData();
     Q_ASSERT(buf->size() >= 2576);
 
+
     if (state.isMatrixDirty()) {
         const QMatrix4x4 m = state.combinedMatrix();
         memcpy(buf->data(), m.constData(), 64);
@@ -109,6 +110,9 @@ bool BlobMaterialShader::updateUniformData(RenderState& state, QSGMaterial* newM
     };
     memcpy(buf->data() + 1440, border, 16);
     memcpy(buf->data() + 1456, &mat->m_borderWidth, 4);
+    // Cut-corner flag in the vec4 padding slot after borderWidth (offset 1460).
+    memcpy(buf->data() + 1460, &mat->m_cutCorners, 4);
+
 
     // std140 offsets: waveInfo 1472, waveData 1536, waveColor 2560
     memcpy(buf->data() + 1472, mat->m_waveInfo, 64);
