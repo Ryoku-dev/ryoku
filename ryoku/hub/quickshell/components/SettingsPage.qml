@@ -19,6 +19,18 @@ Item {
     property var footers: ({})
     // row id -> Component drawn as the control of a row with control: "custom"
     property var controls: ({})
+    // a light runs round every row's control (RimLight); one clock turns them all, a lap
+    // in four seconds at 30 steps a second, and stops while the window is hidden or
+    // motion is reduced
+    property bool rimLight: false
+    property real rimTurn: 135
+    Timer {
+        interval: 33
+        repeat: true
+        running: page.rimLight && page.visible && !Lithic.reduceMotion
+            && !!page.Window.window && page.Window.window.visibility !== Window.Hidden && page.Window.window.visibility !== Window.Minimized
+        onTriggered: page.rimTurn = page.rimTurn - 360 * 33 / 4000 < -225 ? page.rimTurn - 360 * 33 / 4000 + 360 : page.rimTurn - 360 * 33 / 4000
+    }
     // section id -> Component drawn inside the section's More options, after its rows
     property var moreBodies: ({})
     // section id -> its More options is open; a rebuild recreates sections, this keeps them as they were
@@ -92,14 +104,18 @@ Item {
     readonly property real columnWidth: Math.min(page.usableWidth, 960)
     readonly property real columnX: Math.max(0, Math.min((page.width - page.columnWidth) / 2, page.usableWidth - page.columnWidth))
 
+    // a row's condition, and every further one in when.also, all have to hold
+    function conditionMet(cond) {
+        var v = Changes.value(cond.bind);
+        for (var i = 0; i < cond.is.length; i++)
+            if (JSON.stringify(cond.is[i]) === JSON.stringify(v))
+                return true;
+        return false;
+    }
     function whenMet(row) {
         if (!row.when)
             return true;
-        var v = Changes.value(row.when.bind);
-        for (var i = 0; i < row.when.is.length; i++)
-            if (JSON.stringify(row.when.is[i]) === JSON.stringify(v))
-                return true;
-        return false;
+        return [row.when].concat(row.when.also || []).every(c => page.conditionMet(c));
     }
 
     // rows with template: true only feed search; the page draws them itself,
@@ -230,7 +246,10 @@ Item {
         var rows = page.allRows();
         var target = rows.find(r => r.id === rowId);
         if (target && target.when) {
-            var key = Changes.keyOf(target.when.bind);
+            // the first condition that does not hold is the row to show
+            var conds = [target.when].concat(target.when.also || []);
+            var cond = conds.find(c => !page.conditionMet(c)) || target.when;
+            var key = Changes.keyOf(cond.bind);
             var parentRow = rows.find(r => r.bind && Changes.keyOf(r.bind) === key);
             if (parentRow && page.sectionOfRow(parentRow.id))
                 return parentRow.id;
@@ -976,6 +995,8 @@ Item {
                 overlayParent: item.host.hub.overlayItem
                 hub: item.host.hub
                 custom: item.host.controls[item.modelData.id] || null
+                rimLight: item.host.rimLight
+                rimTurn: item.host.rimTurn
             }
         }
 

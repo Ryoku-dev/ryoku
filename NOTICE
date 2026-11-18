@@ -43,6 +43,16 @@ depth services, gives it the Ryoku look, and leaves out its lock screen, bar and
 dock editing. ii-p3drovfx is released under the GNU General Public License
 version 3; the ported portions keep that license, compatible with Ryoku's GPL-3.
 
+Hyprdrive, the Hyprland plugin the ryoku-hyprdrive package builds (the
+mission-control overview, Mosaic layouts and window motion), lives in its own
+repository, https://github.com/Ryoku-dev/ryoku-hyprdrive (the ryoku branch). It
+is a fork of Hyprdrive by dragos and contributors
+(https://github.com/dragosol/Hyprdrive), itself descended from
+hyprland-plugins' scrolloverview by Vaxry and yayuuu, without its dock, its
+folder stacks and its Omarchy integration, and drawn in the desktop's Lithic
+style. It is released under the BSD 3-Clause License, which the package
+installs with it, compatible with Ryoku's GPL-3 distribution.
+
 The Stage Editor's symbolic icons (ryoku/shell/quickshell/stage/assets/icons/)
 come from end-4's illogical-impulse (https://github.com/end-4/dots-hyprland) by
 way of iNiR by snowarch (https://github.com/snowarch/inir). They are released

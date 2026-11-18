@@ -1,7 +1,7 @@
 # Hyprland compositor plugins
 
 A compositor plugin is a `.so` Hyprland dlopens into itself: title bars, glass,
-image borders, cursor motion, focus flash, key sounds. Ryoku bundles six as
+image borders, cursor motion, focus flash, key sounds, an overview. Ryoku bundles seven as
 `[ryoku]` packages, Ryoku Settings manages every one of them (and any the user adds)
 on Windows > Window manager, and the machinery below keeps them loading across Hyprland
 updates. Shell plugins (the Quickshell widgets under `docs/plugins.md`) are a
@@ -152,6 +152,45 @@ engine on demand from Ryoku Settings > Desktop > Sounds.
 The plugin looks for a profile in the user's `~/.local/share/ryoku/keysounds/`,
 then beside its own `.so` (where a local build lays it), then the packaged
 `/usr/share/ryoku/keysounds/`. The user's guide is `ryoku/keysounds/usage.md`.
+
+## Hyprdrive
+
+Hyprdrive lives in its own repository,
+[Ryoku-dev/ryoku-hyprdrive](https://github.com/Ryoku-dev/ryoku-hyprdrive), on its
+`ryoku` branch: a fork of Hyprdrive (dragosol/Hyprdrive, BSD-3-Clause) without
+its dock, its folder stacks or its Omarchy integration. It brings the
+mission-control overview with its desktop strip and search, Mosaic layouts and
+the infinite canvas, show desktop and the other window behaviours, and one
+motion curve with motion blur. Ryoku keeps only its side here: the provider,
+the settings page and the packages. It is a bundled plugin like the others for
+building, receipts and the doctor, built from that branch rather than the
+repository's default (`Branch` in its entry: the rebuild reads that branch's
+`hyprpm.toml` and builds its tip, and the packages clone it), with three
+differences:
+
+- **It is never loaded from `settings.lua`.** Its load, settings, binds and
+  each desktop's layout live in one fenced block at the end of
+  `~/.config/hypr/user.lua` (`-- ryoku-hyprdrive:begin` to `:end`), which
+  `apply` writes from `plugins.hyprdrive` in the store and removes when the
+  plugin is off (`ryoku/wm/hyprland/hyprdrive.go`). Lines outside the block
+  are the user's and never change.
+- **Its binds are offered, not taken.** `ryoku-wm-hyprland hyprdrive status`
+  lists every bind it adds with the Ryoku bind it would replace, read from the
+  same catalogue and rebinds as the shortcuts page (`buildBindRows`). A bind
+  that would replace one is off until the user turns it on on Windows >
+  Hyprdrive; `defaults` hands the Hub that answer for every bind.
+- **It draws in the desktop's style.** The plugin cannot link the Lithic
+  library, so `ryoku-hyprdrive-look --watch` (the repository's `look/` module,
+  on a vendored copy of the Lithic Go library) prints the resolved roles, planes and corner rule whenever the
+  style or colours change, and the plugin reads them on its event loop
+  (`src/platform/Look.hpp`). Its chrome is cut in Lithic and rounded in the
+  other styles through the rect shader's corner power (1 cuts, 2 rounds).
+
+The page is Ryoku Settings > Windows > Hyprdrive (`ryoku-shell hub open
+hyprdrive`), shown where the provider reports the `hyprdrive` capability. The
+plugin's own guide is its README. To work on the plugin, clone that repository
+beside a Ryoku checkout; `make lithic` there refreshes its copy of the Lithic
+library from it.
 
 ## Convergence: the doctor, deploy.sh, the packages
 

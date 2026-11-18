@@ -1,0 +1,81 @@
+# Maintainer: Ryoku <releases@ryoku.dev>
+#
+# ryoku-hyprdrive: Hyprdrive, the Hyprland compositor plugin with a
+# mission-control overview, Mosaic layouts and window motion, from its own
+# repository (Ryoku-dev/ryoku-hyprdrive, the ryoku branch: a fork of
+# dragosol/Hyprdrive without its dock). Off until the user turns it on in Ryoku
+# Settings > Windows > Hyprdrive; the provider then writes its block into
+# ~/.config/hypr/user.lua.
+#
+# Installed as hyprdrive.so under /usr/lib/hyprland/plugins/ with its .abi
+# receipt, agent-run beside it (the search's agent rows), the look bridge
+# ryoku-hyprdrive-look (the desktop's Lithic look, for a plugin that cannot link
+# the library) and Lithic's two faces. A rebuild for a newer Hyprland
+# (`ryoku-hub desktop plugins rebuild hyprdrive`) clones the same branch.
+pkgname=ryoku-hyprdrive
+pkgver=${RYOKU_PKGVER:-0.1.0}
+pkgrel=1
+epoch=1
+pkgdesc="Hyprland plugin: a mission-control overview, Mosaic layouts and window motion"
+arch=('x86_64')
+url="https://ryoku.dev"
+# Hyprdrive is BSD-3-Clause; Geologica and Martian Mono are OFL-1.1; the bridge
+# is Ryoku's own.
+license=('BSD-3-Clause' 'OFL-1.1' 'GPL-3.0-or-later')
+depends=('hyprland' 'glib2' 'systemd-libs' 'fontconfig' 'libxcb' 'pango' 'cairo')
+optdepends=(
+  'python: the search types a prompt into an AI agent through agent-run'
+  'ffmpeg: the search easter egg plays its video'
+  'curl: the search dictionary and translator'
+)
+makedepends=('hyprland' 'pkgconf' 'make' 'gcc' 'git' 'go' 'pixman' 'libdrm' 'libinput' 'wayland' 'libxkbcommon' 'lua')
+source=("hyprdrive::git+https://github.com/Ryoku-dev/ryoku-hyprdrive.git#branch=ryoku")
+sha256sums=('SKIP')
+
+# Lithic's faces come from this checkout
+_repo="$startdir/../../.."
+
+# the plugin ABI this build locks to, Hyprland's own client-hash formula:
+# commit + major.minor of aquamarine, hyprutils, hyprgraphics, hyprcursor and
+# hyprlang, read from the installed version.h.
+_abi() {
+  local h; h="$(pkg-config --variable=prefix hyprland)/hyprland/src/version.h"
+  local v; v() { sed -n "s/^#define $1 *\"\([^\"]*\)\".*/\1/p" "$h" | sed 's/\.[^.]*$//'; }
+  printf '%s_aq_%s_hu_%s_hg_%s_hc_%s_hlg_%s\n' \
+    "$(sed -n 's/^#define GIT_COMMIT_HASH *"\([^"]*\)".*/\1/p' "$h")" \
+    "$(v AQUAMARINE_VERSION)" "$(v HYPRUTILS_VERSION)" "$(v HYPRGRAPHICS_VERSION)" \
+    "$(v HYPRCURSOR_VERSION)" "$(v HYPRLANG_VERSION)"
+}
+
+prepare() {
+  cd "$srcdir/hyprdrive"
+  local hv commit
+  hv="$(pkg-config --modversion hyprland)"
+  # hyprpm.toml lines: ["<hyprland-commit>", "<plugin-commit>"], # <version>
+  commit="$(grep -F "$hv" hyprpm.toml | grep -oE '[0-9a-f]{40}' | sed -n 2p || true)"
+  if [[ -n "$commit" ]]; then
+    echo "PKGBUILD: $pkgname -> $commit (Hyprland $hv)"
+    git checkout -q "$commit"
+  else
+    # the ryoku branch tracks the Hyprland Ryoku ships and carries no pins
+    echo "PKGBUILD: building $pkgname from the ryoku branch tip"
+  fi
+}
+
+build() {
+  make -C "$srcdir/hyprdrive" hyprdrive.so look
+}
+
+check() {
+  make -C "$srcdir/hyprdrive" check
+}
+
+package() {
+  install -Dm755 "$srcdir/hyprdrive/hyprdrive.so" "$pkgdir/usr/lib/hyprland/plugins/hyprdrive.so"
+  _abi | install -Dm644 /dev/stdin "$pkgdir/usr/lib/hyprland/plugins/hyprdrive.abi"
+  install -Dm755 "$srcdir/hyprdrive/bin/agent-run" "$pkgdir/usr/lib/hyprland/plugins/agent-run"
+  install -Dm755 "$srcdir/hyprdrive/ryoku-hyprdrive-look" "$pkgdir/usr/bin/ryoku-hyprdrive-look"
+  install -Dm644 -t "$pkgdir/usr/share/ryoku/hyprdrive/fonts" "$_repo"/docs/lithic/library/go/fonts/*.ttf
+  install -Dm644 "$srcdir/hyprdrive/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 -t "$pkgdir/usr/share/licenses/$pkgname" "$_repo"/docs/lithic/library/go/fonts/*-OFL.txt
+}

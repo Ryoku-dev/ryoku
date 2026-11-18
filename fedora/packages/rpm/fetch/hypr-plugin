@@ -9,7 +9,8 @@ set -euo pipefail
 dest="$RYOKU_FETCH_TREE/.rpm-$package/$source_name"
 rm -rf "$dest"
 mkdir -p "${dest%/*}"
-git clone -q "$repo" "$dest"
+# branch: a repository whose plugin is not on its default branch (Hyprdrive)
+git clone -q ${branch:+--branch "$branch"} "$repo" "$dest"
 
 hyprland_version=$(pkg-config --modversion hyprland)
 commit=$(grep -F "$hyprland_version" "$dest/hyprpm.toml" | grep -oE '[0-9a-f]{40}' | sed -n '2p' || true)

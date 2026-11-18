@@ -24,10 +24,13 @@ import (
 
 // pluginDef is one plugin Ryoku bundles.
 type pluginDef struct {
-	ID            string
-	Name          string
-	Desc          string
-	Repo          string // upstream git URL; "" for a plugin authored in this repo
+	ID   string
+	Name string
+	Desc string
+	Repo string // upstream git URL; "" for a plugin authored in this repo
+	// Branch is the Repo branch Ryoku builds when it is not the repository's
+	// default (Hyprdrive: the fork's ryoku branch); "" builds the default branch.
+	Branch        string
 	Plugin        string // the [table] in the repo's hyprpm.toml
 	Local         string // in-tree source dir for a Ryoku-authored plugin
 	Package       string // the native package that ships the .so
@@ -93,6 +96,16 @@ var bundledPlugins = []pluginDef{
 		Package: "hyprgrass",
 		Docs:    "https://github.com/horriblename/hyprgrass/blob/master/docs/configuration.md",
 		Loaded:  "hyprgrass", ConfigSection: "hyprgrass",
+	},
+	{
+		// Loaded from its own block in user.lua (hyprdrive.go), never from
+		// settings.lua; its switch and binds are on Windows > Hyprdrive.
+		ID: "hyprdrive", Name: "Hyprdrive",
+		Desc: "A mission-control overview of every window, Mosaic layouts and window motion.",
+		Repo: "https://github.com/Ryoku-dev/ryoku-hyprdrive", Branch: "ryoku", Plugin: "hyprdrive",
+		Package: "ryoku-hyprdrive",
+		Docs:    "https://github.com/Ryoku-dev/ryoku-hyprdrive/tree/ryoku#readme",
+		Loaded:  "hyprdrive", ConfigSection: "hyprdrive",
 	},
 	{
 		ID: "keysounds", Name: "Key sounds",
@@ -697,6 +710,8 @@ func pluginEnabled(o Overrides, id string) bool {
 		return o.Plugins.BordersPlusPlus.Enabled
 	case "hyprgrass":
 		return o.Plugins.Hyprgrass.Enabled
+	case "hyprdrive":
+		return o.Plugins.Hyprdrive.Enabled
 	}
 	return o.Plugins.Extra[id].Enabled
 }

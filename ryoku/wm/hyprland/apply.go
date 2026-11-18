@@ -58,12 +58,19 @@ func runApply(args []string) error {
 	if err := writeOverlayLua("rebinds.lua", renderRebinds(o)); err != nil {
 		return err
 	}
+	// The block first, then the plugin: an unload makes Hyprland read its config
+	// again, and a block still there would load the plugin straight back.
+	if err := writeHyprdriveBlock(o); err != nil {
+		return err
+	}
+	syncHyprdriveLive(o)
 	wm.PublishGreeterNumlock(o.Input.NumlockByDefault)
 	rep := wm.ApplyReport{
 		Provider: wm.ProviderHyprland,
 		Written: []string{
 			filepath.Join(hyprConfigDir(), "settings.lua"),
 			filepath.Join(hyprConfigDir(), "rebinds.lua"),
+			userLuaPath(),
 		},
 		Unhonored:    unhonored(storePath),
 		ReloadNeeded: true,
@@ -112,6 +119,7 @@ func runDefaults() error {
 	o := defaultOverrides()
 	liveKbDefaults(&o.Input)
 	o.Anim.Items, o.Anim.Curves = probeAnimations()
+	o.Plugins.Hyprdrive.Binds = hyprdriveBindDefaults(loadStore(desktopStorePath()))
 	ns, err := splitStore(o)
 	if err != nil {
 		return err

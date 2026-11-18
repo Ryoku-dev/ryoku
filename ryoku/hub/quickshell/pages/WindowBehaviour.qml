@@ -25,9 +25,12 @@ Item {
     readonly property var layoutBind: root.scoped
         ? { store: "outputtiling", key: "layout:" + root.tiling.active, fallback: Changes.value(root.layoutRow.bind) }
         : root.layoutRow.bind
+    // Hyprdrive's Mosaic is a fourth layout while Hyprdrive is on
+    readonly property bool mosaic: Settings.supports("hyprdrive")
+        && Changes.value({ store: "desktop", key: "wm.hyprland.plugins.hyprdrive.enabled" }) === true
     readonly property string layout: {
         var v = Changes.value(root.layoutBind);
-        return v === "master" || v === "scrolling" ? v : "dwindle";
+        return v === "master" || v === "scrolling" || (v === "mosaic" && root.mosaic) ? v : "dwindle";
     }
 
     function ensureTiling() {
@@ -84,12 +87,16 @@ Item {
         sections: Schema.sections,
         related: Schema.related,
         rows: Schema.rows.filter(r => root.rowKept(r)).map(r => {
-            if (r.id === "tiling-layout" && root.scoped)
-                return Object.assign({}, r, {
+            if (r.id === "tiling-layout") {
+                var layoutRow = root.mosaic ? Object.assign({}, r, { options: r.options.concat([Schema.mosaicOption]) }) : r;
+                if (!root.scoped)
+                    return layoutRow;
+                return Object.assign({}, layoutRow, {
                     bind: root.layoutBind,
                     detail: I18n.tr("How new windows share the screen on %1").arg(root.tiling.active),
                     changeLabel: I18n.tr("Tiling layout on %1").arg(root.tiling.active)
                 });
+            }
             if (r.id !== "focus-follows" || !root.extraFocus)
                 return r;
             return Object.assign({}, r, { control: "picker", options: r.options.concat([root.extraFocus]) });
@@ -142,7 +149,8 @@ Item {
                 Label {
                     width: parent.width
                     text: root.layout === "master" ? I18n.tr("Main and stack")
-                        : root.layout === "scrolling" ? I18n.tr("Scrolling") : I18n.tr("Split")
+                        : root.layout === "scrolling" ? I18n.tr("Scrolling")
+                        : root.layout === "mosaic" ? I18n.tr("Mosaic") : I18n.tr("Split")
                     typeRole: "row"
                 }
                 Label {
@@ -151,6 +159,8 @@ Item {
                         ? I18n.tr("One large window holds the focus; the others stack beside it.")
                         : root.layout === "scrolling"
                         ? I18n.tr("Windows stand in one long row of columns, and the row slides to keep the focused one in view.")
+                        : root.layout === "mosaic"
+                        ? I18n.tr("Windows keep their own size and gather in one tight cluster, and tile only once they no longer fit. From Hyprdrive.")
                         : I18n.tr("Each new window splits the focused one in two, so windows get smaller as you open more.")
                     typeRole: "detail"
                     inkRole: "fg2"
