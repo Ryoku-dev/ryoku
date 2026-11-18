@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -169,5 +171,28 @@ func TestHideCursorWaitsATickWhenProbeFails(t *testing.T) {
 	defer restore()
 
 	hideAndReport(t, evals)
+	wantTickWait(t)
+}
+
+// A stalled screencopy must not hold the hide forever: the capture gives up
+// after captureTimeout, the probe fails, and hiding waits the tick out.
+func TestHideCursorWaitsATickWhenCaptureStalls(t *testing.T) {
+	stall := filepath.Join(t.TempDir(), "grim")
+	if err := os.WriteFile(stall, []byte("#!/bin/sh\nexec sleep 10\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	prevCmd, prevTimeout := grimCommand, captureTimeout
+	grimCommand, captureTimeout = stall, 50*time.Millisecond
+	defer func() { grimCommand, captureTimeout = prevCmd, prevTimeout }()
+
+	realCapture := captureBox
+	evals, restore := cursorFrameStubs(t, realCapture)
+	defer restore()
+
+	start := time.Now()
+	hideAndReport(t, evals)
+	if took := time.Since(start); took > 2*time.Second {
+		t.Errorf("hide took %v with a stalled capture, want it bounded by the timeout", took)
+	}
 	wantTickWait(t)
 }

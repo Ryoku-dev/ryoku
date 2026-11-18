@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"math/rand/v2"
@@ -32,6 +33,16 @@ const (
 	cursorTickWait  = 550 * time.Millisecond
 )
 
+// grimCommand and captureTimeout bound each probe capture. A screencopy that
+// stalls must not hold the hide, and the screenshot behind it, forever; a
+// timed-out capture fails the probe, so hiding waits the tick out. A probe
+// capture normally takes about 40 ms. Package variables so tests can point
+// them at a stalling command.
+var (
+	grimCommand    = "grim"
+	captureTimeout = 250 * time.Millisecond
+)
+
 // captureBox grabs one small region of the composed frame as raw PPM, with or
 // without the cursor overlay. A package variable so tests run without a
 // compositor.
@@ -40,7 +51,11 @@ var captureBox = func(x, y, w, h int, withCursor bool) ([]byte, error) {
 	if withCursor {
 		args = append([]string{"-c"}, args...)
 	}
-	return exec.Command("grim", append(args, "-")...).Output()
+	ctx, cancel := context.WithTimeout(context.Background(), captureTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, grimCommand, append(args, "-")...)
+	cmd.WaitDelay = captureTimeout
+	return cmd.Output()
 }
 
 var cursorFrameSleep = time.Sleep
