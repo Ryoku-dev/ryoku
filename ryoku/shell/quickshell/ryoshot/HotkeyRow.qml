@@ -3,8 +3,8 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import "lib/keymap.js" as Keymap
-import "Singletons"
 import Ryoku.Ui.Singletons
+import "look"
 
 // The launch-key rebind. ryoku-hub owns desktop.json, so the chosen chord is
 // written there as a keybind rebind and the provider emits it; this row only
@@ -12,6 +12,7 @@ import Ryoku.Ui.Singletons
 Item {
     id: hk
 
+    property real u: 1
     // The shipped chord desktop.keybindRebinds is keyed by.
     property string defaultChord: ""
     property string hotkey: "-"
@@ -59,42 +60,38 @@ Item {
     RowLayout {
         id: row
         anchors.fill: parent
-        spacing: 10
+        spacing: Math.round(10 * hk.u)
 
-        Text {
-            text: hk.hotkey
-            color: Theme.inkDim
-            font.family: Theme.mono
-            font.pixelSize: 13
-            verticalAlignment: Text.AlignVCenter
-        }
-
-        Item { Layout.fillWidth: true }
-
-        Rectangle {
-            id: recBtn
-            Layout.preferredHeight: 28
-            Layout.preferredWidth: recLabel.implicitWidth + 24
-            radius: 6
-            color: hk.listening ? Theme.accent : (recHover.hovered ? Theme.press : Theme.hover)
-            border.color: hk.listening ? Theme.accent : Theme.hair
-            border.width: 1
+        Column {
+            Layout.fillWidth: true
+            spacing: Math.round(2 * hk.u)
 
             Text {
-                id: recLabel
-                anchors.centerIn: parent
-                text: hk.listening ? I18n.tr("Press a key…") : I18n.tr("Record")
-                color: hk.listening ? Theme.accentInk : Theme.inkDim
-                font.family: Theme.mono
-                font.pixelSize: 13
+                text: Look.lithic ? I18n.tr("Launch key").toUpperCase() : I18n.tr("Launch key")
+                color: Look.lithic ? Look.fg3 : Look.fg2
+                font.family: Look.lithic ? Look.mono : Look.sans
+                font.pixelSize: Math.round((Look.lithic ? 9 : 12) * hk.u)
+                font.weight: Look.lithic ? Font.Bold : Font.Medium
+                font.letterSpacing: Look.lithic ? Look.tracking * hk.u : 0
+                renderType: Text.CurveRendering
             }
+            Text {
+                text: hk.hotkey
+                color: Look.fg
+                font.family: Look.mono
+                font.pixelSize: Math.round(12 * hk.u)
+                renderType: Text.CurveRendering
+            }
+        }
 
-            HoverHandler { id: recHover }
-            TapHandler {
-                onTapped: {
-                    hk.listening = !hk.listening;
-                    if (hk.listening) keyCatcher.forceActiveFocus();
-                }
+        TextButton {
+            u: hk.u
+            primary: hk.listening
+            cellHeight: 28
+            text: hk.listening ? I18n.tr("Press a key…") : I18n.tr("Record")
+            onClicked: {
+                hk.listening = !hk.listening;
+                if (hk.listening) keyCatcher.forceActiveFocus();
             }
         }
     }

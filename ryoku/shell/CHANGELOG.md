@@ -51,6 +51,9 @@
   (`quickshell/ryopin/`, `scripts/ryoku-cmd-pin`).
 - **The key-press overlay finds keyboards when they appear instead of looking
   every two seconds** (`ipc/keyboard_reader.go`, `ipc/keypress.go`).
+- **The capture UI takes the shape of the design in Style.** Bar, selection
+  and dock follow it, and Beautify gets a button that lifts the shot into a
+  card beside its edits (`ryoshot/CaptureBar.qml`, `ryoshot/beautify/`).
 - **Orpheus shows a recording in its own bubble on the bar.** It buds off the
   island with the recorded length and the audio sources, opens a recording card,
   and Ryoku's floating pill stays away unless Bar settings hand it back

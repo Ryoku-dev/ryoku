@@ -4,8 +4,8 @@ import Quickshell.Io
 import Quickshell.Wayland
 import "lib/coords.js" as Coords
 import "lib/capture-backend.js" as CaptureBackend
-import "Singletons"
 import Ryoku.Ui.Singletons
+import "look"
 
 Item {
     id: overlay
@@ -29,6 +29,13 @@ Item {
     property var selectedIndex: null
     property var moveOffset: null
     property var hoverWindow: null
+    // the hover rect is a whole output (the Screen target), not a window
+    property bool hoverScreen: false
+    // where the live drag started, so the chrome knows which corner is moving
+    property var pressPoint: null
+    property bool recordIntent: false
+    // Beautify is up over this frame
+    property bool chromeAway: false
 
     signal pressedAt(real gx, real gy, int mods)
     signal movedTo(real gx, real gy, int mods)
@@ -46,6 +53,8 @@ Item {
     readonly property int sx: screenData.x
     readonly property int sy: screenData.y
     readonly property string scrName: screenData.name
+    readonly property real u: Look.scaleFor(scrName)
+    readonly property real dpr: overlay.QsWindow.window ? overlay.QsWindow.window.devicePixelRatio : 1
 
     readonly property var localSel: globalSel
         ? Coords.intersectRect(globalSel, { x: sx, y: sy, width: width, height: height })
@@ -58,7 +67,7 @@ Item {
         Quickshell.env("XDG_CURRENT_DESKTOP"),
         Quickshell.env("NIRI_SOCKET"))
     property bool fallbackActive: false
-    readonly property string fallbackPath: "/tmp/ryoshot-fallback-" + scrName + ".png"
+    readonly property string fallbackPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoshot-fallback-" + scrName + ".png"
 
     function selectionBox() {
         if (selectedIndex === null || !model
@@ -195,203 +204,57 @@ Item {
 
     Component.onCompleted: if (overlay.forceFallback) overlay.startFallback()
 
-    Rectangle {
-        anchors.fill: parent
-        color: Theme.scrim
-        visible: overlay.ready && overlay.localSel === null
-    }
-
-    Item {
-        anchors.fill: parent
-        visible: overlay.ready && overlay.localSel !== null
-        Rectangle {
-            color: Theme.scrim
-            x: 0; y: 0; width: parent.width
-            height: overlay.localSel ? overlay.localSel.y : 0
-        }
-        Rectangle {
-            color: Theme.scrim
-            x: 0; width: parent.width
-            y: overlay.localSel ? overlay.localSel.y + overlay.localSel.h : 0
-            height: overlay.localSel ? parent.height - (overlay.localSel.y + overlay.localSel.h) : 0
-        }
-        Rectangle {
-            color: Theme.scrim
-            x: 0
-            y: overlay.localSel ? overlay.localSel.y : 0
-            width: overlay.localSel ? overlay.localSel.x : 0
-            height: overlay.localSel ? overlay.localSel.h : 0
-        }
-        Rectangle {
-            color: Theme.scrim
-            x: overlay.localSel ? overlay.localSel.x + overlay.localSel.w : 0
-            y: overlay.localSel ? overlay.localSel.y : 0
-            width: overlay.localSel ? parent.width - (overlay.localSel.x + overlay.localSel.w) : 0
-            height: overlay.localSel ? overlay.localSel.h : 0
-        }
-    }
-
-    // Crosshair guides that track the pointer while the front chooses a region,
-    // shown only on the monitor the cursor is over.
-    Item {
-        anchors.fill: parent
-        visible: overlay.frontActive && overlay.ready && input.containsMouse
-        z: 15
-        Rectangle {
-            x: Math.round(input.mouseX)
-            y: 0
-            width: 1
-            height: parent.height
-            color: Theme.accent
-            opacity: 0.35
-        }
-        Rectangle {
-            x: 0
-            y: Math.round(input.mouseY)
-            width: parent.width
-            height: 1
-            color: Theme.accent
-            opacity: 0.35
-        }
-    }
-
-    // Colour-pick loupe: a magnified window on the frozen plate under the pointer,
-    // hyprpicker-style, but sampled from ScreencopyView so it works on any
-    // compositor. The pixel is read on click (see sampleAt).
-    Item {
-        id: loupe
-        readonly property int box: 128
-        readonly property real zoom: 8
-        visible: overlay.pickMode && overlay.ready && input.containsMouse
-        z: 30
-        width: box
-        height: box
-        x: Math.max(8, Math.min(input.mouseX + 22, overlay.width - box - 8))
-        y: Math.max(8, Math.min(input.mouseY + 22, overlay.height - box - 8))
-
-        Rectangle {
-            anchors.fill: parent
-            radius: width / 2
-            color: Theme.panelSolid
-            border.color: Theme.hair
-            border.width: 1
-            clip: true
-
-            ShaderEffectSource {
-                anchors.centerIn: parent
-                width: loupe.box - 8
-                height: loupe.box - 8
-                sourceItem: plate
-                smooth: false
-                live: overlay.pickMode
-                sourceRect: Qt.rect(input.mouseX - (loupe.box / loupe.zoom) / 2,
-                                    input.mouseY - (loupe.box / loupe.zoom) / 2,
-                                    loupe.box / loupe.zoom, loupe.box / loupe.zoom)
-            }
-
-            Rectangle {
-                anchors.centerIn: parent
-                width: loupe.zoom
-                height: loupe.zoom
-                color: "transparent"
-                border.color: Theme.accent
-                border.width: 1
-            }
-        }
-    }
-
-    Item {
+    SelectionChrome {
         id: chrome
-        visible: overlay.ready && overlay.localSel !== null
-        x: overlay.localSel ? overlay.localSel.x : 0
-        y: overlay.localSel ? overlay.localSel.y : 0
-        width: overlay.localSel ? overlay.localSel.w : 0
-        height: overlay.localSel ? overlay.localSel.h : 0
+        anchors.fill: parent
+        u: overlay.u
+        dpr: overlay.dpr
+        ready: overlay.ready
+        plate: plate
+        sx: overlay.sx
+        sy: overlay.sy
+        screenName: overlay.scrName
+        globalSel: overlay.globalSel
+        pressPoint: overlay.pressPoint
+        front: overlay.frontActive
+        capturing: overlay.capturing
+        editing: overlay.resizable
+        record: overlay.recordIntent && overlay.frontActive
+        picking: overlay.pickMode || overlay.eyedropArmed
+        pickHex: probe.hex
+        annBox: overlay.selBox
+        gripRole: grips.downRole
+        hotGrip: grips.hotRole
+        pointerIn: input.containsMouse
+        px: input.mouseX
+        py: input.mouseY
+        hoverRect: overlay.hoverWindow
+        hoverScreen: overlay.hoverScreen
+        away: overlay.chromeAway
+    }
 
-        Rectangle {
-            anchors.fill: parent
-            color: "transparent"
-            border.color: Theme.accent
-            border.width: 1.5
-        }
-
-        Text {
-            text: overlay.globalSel
-                ? Math.round(overlay.globalSel.w) + "\u00d7" + Math.round(overlay.globalSel.h)
-                : ""
-            color: Theme.accent
-            font.family: Theme.mono
-            font.pixelSize: 13
-            x: 0
-            y: -height - 4
-        }
+    PixelProbe {
+        id: probe
+        source: plate
+        dpr: overlay.dpr
+        tracking: chrome.picking && input.containsMouse && overlay.ready
+        cx: input.mouseX
+        cy: input.mouseY
     }
 
     ResizeHandles {
+        id: grips
         anchors.fill: parent
         // above the drawing MouseArea, or a grip press would start a stroke
         z: 20
         visible: overlay.ready && overlay.resizable && overlay.globalSel !== null
+        u: overlay.u
         globalRect: overlay.globalSel
         sx: overlay.sx
         sy: overlay.sy
         onStarted: (role, gx, gy) => overlay.resizeStarted(role, gx, gy)
         onMoved: (gx, gy) => overlay.resizeMoved(gx, gy)
         onEnded: overlay.resizeEnded()
-    }
-
-    Item {
-        id: winHighlight
-        readonly property var hw: overlay.hoverWindow
-            ? Coords.intersectRect(overlay.hoverWindow, { x: overlay.sx, y: overlay.sy, width: overlay.width, height: overlay.height })
-            : null
-        visible: overlay.ready && overlay.globalSel === null && hw !== null
-        x: hw ? hw.x : 0
-        y: hw ? hw.y : 0
-        width: hw ? hw.w : 0
-        height: hw ? hw.h : 0
-
-        Rectangle {
-            anchors.fill: parent
-            color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.16)
-            border.color: Theme.accent
-            border.width: 2.5
-            antialiasing: true
-        }
-    }
-
-    Item {
-        id: annSelection
-        visible: overlay.ready && overlay.selBox !== null
-        x: overlay.selBox ? overlay.selBox.x : 0
-        y: overlay.selBox ? overlay.selBox.y : 0
-        width: overlay.selBox ? overlay.selBox.w : 0
-        height: overlay.selBox ? overlay.selBox.h : 0
-
-        Rectangle {
-            anchors.fill: parent
-            color: "transparent"
-            border.color: Theme.accent
-            border.width: 1
-            antialiasing: true
-        }
-
-        Repeater {
-            model: [
-                { hx: 0, hy: 0 },
-                { hx: 1, hy: 0 },
-                { hx: 0, hy: 1 },
-                { hx: 1, hy: 1 }
-            ]
-            Rectangle {
-                required property var modelData
-                width: 7; height: 7
-                radius: 1
-                color: Theme.accent
-                x: modelData.hx * (annSelection.width - width)
-                y: modelData.hy * (annSelection.height - height)
-            }
-        }
     }
 
     ClipGrab {
@@ -430,27 +293,11 @@ Item {
         plateClip.grab(path, cb, targetSize || null);
     }
 
-    // The eyedropper reads one pixel back through imagemagick because QML has no
-    // path from a grab result to a colour value.
-    Process {
-        id: pickProc
-        stdout: StdioCollector { id: pickOut }
-        function read() {
-            command = ["magick", "/tmp/ryoshot-pick.png", "-alpha", "off", "-format", "#%[hex:p{0,0}]", "info:"];
-            running = true;
-        }
-        onExited: (code) => {
-            var hex = pickOut.text.trim();
-            if (code === 0 && /^#[0-9A-Fa-f]{6}$/.test(hex)) overlay.sampled(hex);
-            else console.log("ryoshot: colour sample failed, exit " + code + " value " + JSON.stringify(hex));
-        }
-    }
-
     function sampleAt(lx, ly) {
-        plateClip.rect = { x: Math.max(0, lx - 0.5), y: Math.max(0, ly - 0.5), w: 1, h: 1 };
-        plateClip.grab("/tmp/ryoshot-pick.png", function (ok) {
-            if (ok) pickProc.read();
-        }, Qt.size(1, 1));
+        probe.sample(lx, ly, function (hex) {
+            if (hex) overlay.sampled(hex);
+            else console.log("ryoshot: colour sample failed at " + lx + "," + ly);
+        });
     }
 
     MouseArea {
@@ -487,7 +334,7 @@ Item {
         x: mine ? overlay.draft.points[0].x - overlay.sx : 0
         y: mine ? overlay.draft.points[0].y - overlay.sy : 0
         color: mine ? overlay.draft.color : "transparent"
-        font.family: Theme.ui
+        font.family: Look.ui
         font.pixelSize: mine ? overlay.draft.size : 16
         renderType: Text.NativeRendering
         cursorVisible: mine

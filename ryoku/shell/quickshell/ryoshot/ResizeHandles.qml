@@ -1,24 +1,27 @@
 import QtQuick
-import "Singletons"
 import "lib/hittest.js" as Hit
 
-// The eight grips on the captured region. Centres are computed from the global
-// selection and drawn only by the monitor that actually contains them, so a
-// selection spanning two heads shows one grip per edge rather than a duplicate
-// pair at the seam.
+// The eight grip targets on the captured region; the design's selection draws
+// the grips themselves from hotRole and downRole. Centres are computed from the
+// global selection and placed only by the monitor that actually contains them,
+// so a selection spanning two heads has one grip per edge rather than a
+// duplicate pair at the seam.
 Item {
     id: grips
 
     required property var globalRect
     required property int sx
     required property int sy
+    property real u: 1
+
+    property string hotRole: ""
+    property string downRole: ""
 
     signal started(string role, real gx, real gy)
     signal moved(real gx, real gy)
     signal ended()
 
-    readonly property int hit: 20
-    readonly property int dot: 11
+    readonly property real hit: 22 * grips.u
 
     readonly property var cursors: ({
         "tl": Qt.SizeFDiagCursor, "br": Qt.SizeFDiagCursor,
@@ -34,6 +37,11 @@ Item {
             id: grip
             required property var modelData
             readonly property string role: modelData
+            readonly property bool hot: ma.containsMouse && grip.visible
+            onHotChanged: {
+                if (grip.hot) grips.hotRole = grip.role;
+                else if (grips.hotRole === grip.role) grips.hotRole = "";
+            }
             readonly property var centre: grips.globalRect
                 ? Hit.handleCenter(grips.globalRect, grip.role)
                 : null
@@ -49,28 +57,23 @@ Item {
             width: grips.hit
             height: grips.hit
 
-            Rectangle {
-                anchors.centerIn: parent
-                width: grips.dot
-                height: grips.dot
-                radius: 2
-                color: ma.pressed ? Theme.accent : Theme.ink
-                border.color: Theme.accent
-                border.width: 1.5
-                scale: ma.containsMouse ? 1.25 : 1.0
-                Behavior on scale { NumberAnimation { duration: Theme.snap } }
-            }
-
             MouseArea {
                 id: ma
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: grips.cursors[grip.role]
-                onPressed: grips.started(grip.role, grip.lx + grips.sx, grip.ly + grips.sy)
+                onPressed: {
+                    grips.downRole = grip.role;
+                    grips.started(grip.role, grip.lx + grips.sx, grip.ly + grips.sy);
+                }
                 onPositionChanged: (m) => {
                     if (pressed) grips.moved(m.x + grip.x + grips.sx, m.y + grip.y + grips.sy);
                 }
-                onReleased: grips.ended()
+                onReleased: {
+                    grips.downRole = "";
+                    grips.ended();
+                }
+                onCanceled: grips.downRole = ""
             }
         }
     }

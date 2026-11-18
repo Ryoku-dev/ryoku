@@ -1,15 +1,20 @@
 import QtQuick
 import QtQuick.Shapes
-import "Singletons"
+import "look"
 
 Item {
     id: icon
 
     property string name: ""
-    property color tint: Theme.inkDim
+    property color tint: Look.fg2
     property real size: 18
+    // solid glyphs (the record dot) fill their path as well as stroking it
+    property bool filled: false
 
     readonly property real vb: 24
+
+    implicitWidth: icon.size
+    implicitHeight: icon.size
 
     readonly property var defs: ({
         "select":  "M4 3l7 17 2-7 7-2z",
@@ -40,7 +45,7 @@ Item {
         "check":     "M5 13l4 4L19 6",
         "camera":    "M3.2 8.6a1.6 1.6 0 0 1 1.6 -1.6h2l1.3 -2h6.4l1.3 2h2a1.6 1.6 0 0 1 1.6 1.6v8.8a1.6 1.6 0 0 1 -1.6 1.6H4.8a1.6 1.6 0 0 1 -1.6 -1.6z M15.5 13a3.5 3.5 0 1 1 -7 0a3.5 3.5 0 0 1 7 0z",
         "video":     "M3.5 7.5a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v9a1 1 0 0 1 -1 1h-9a1 1 0 0 1 -1 -1z M14.5 10.5l6 -3.5v10l-6 -3.5z",
-        "eyedropper":"M20.4 3.6a2 2 0 0 0 -2.8 0l-2.3 2.3 2.8 2.8 2.3 -2.3a2 2 0 0 0 0 -2.8z M14.3 7.2L5 16.5 4 20l3.5 -1 9.3 -9.3z",
+        "eyedropper":"M17.2 3.6a3.2 3.2 0 1 1 -0.01 0z M12.8 7l4.2 4.2 M13.35 8.95L5.65 16.65 4.5 19.5 7.35 18.35 15.05 10.65",
         "fullscreen":"M4 9V4h5 M15 4h5v5 M20 15v5h-5 M9 20H4v-5",
         "sound":     "M4 9.5h3l4 -3.5v12l-4 -3.5H4z M15 9a3.5 3.5 0 0 1 0 6 M17.5 6.5a7 7 0 0 1 0 11",
         "timer":     "M9 3h6 M12 3v3 M17.5 6.5l1.5 -1.5 M12 7a7 7 0 1 1 -0.01 0z M12 10v3l2 2",
@@ -48,7 +53,32 @@ Item {
         "keyboard":  "M3 6h18v12H3z M6 9h1 M10 9h1 M14 9h1 M18 9h1 M6 12h1 M10 12h1 M14 12h1 M18 12h1 M7 15h10",
         "webcam":    "M5 7h14v10H5z M15 12a3 3 0 1 1 -6 0a3 3 0 0 1 6 0z M12 17v3 M9 20h6",
         "folder":    "M3 6h7l2 2h9v11H3z",
-        "phone":     "M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1 -2 2H6a2 2 0 0 1 -2 -2V4a2 2 0 0 1 2 -2z M11 5h2 M12 18h.01"
+        "more":      "M12 4.3a1.2 1.2 0 1 1 -0.01 0z M12 10.8a1.2 1.2 0 1 1 -0.01 0z M12 17.3a1.2 1.2 0 1 1 -0.01 0z",
+        "moreH":     "M5.5 10.8a1.2 1.2 0 1 1 -0.01 0z M12 10.8a1.2 1.2 0 1 1 -0.01 0z M18.5 10.8a1.2 1.2 0 1 1 -0.01 0z",
+        "menu":      "M4 7h16 M4 12h16 M4 17h16",
+        "grip":      "M9 4.8a1.2 1.2 0 1 1 -0.01 0z M15 4.8a1.2 1.2 0 1 1 -0.01 0z M9 10.8a1.2 1.2 0 1 1 -0.01 0z M15 10.8a1.2 1.2 0 1 1 -0.01 0z M9 16.8a1.2 1.2 0 1 1 -0.01 0z M15 16.8a1.2 1.2 0 1 1 -0.01 0z",
+        "region":    "M3 7V3h4 M17 3h4v4 M21 17v4h-4 M7 21H3v-4",
+        "window":    "M3.5 5.5h17v13h-17z M3.5 9h17",
+        "screen":    "M3 4.5h18v12H3z M9 20h6 M12 16.5V20",
+        "chevron":   "M7 10l5 5 5-5",
+        "record":    "M12 7a5 5 0 1 1 -0.01 0z",
+        "phone":     "M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1 -2 2H6a2 2 0 0 1 -2 -2V4a2 2 0 0 1 2 -2z M11 5h2 M12 18h.01",
+        "beautify":  "M13 6.5H5.5A1.5 1.5 0 0 0 4 8v10.5A1.5 1.5 0 0 0 5.5 20H16a1.5 1.5 0 0 0 1.5 -1.5V11 M4 16.5l4 -4 3.5 3.5 2 -2 4 4 M18.5 2c.4 2.2 1.3 3.1 3.5 3.5c-2.2 .4 -3.1 1.3 -3.5 3.5c-.4 -2.2 -1.3 -3.1 -3.5 -3.5c2.2 -.4 3.1 -1.3 3.5 -3.5z",
+        "back":      "M19 12H5M11 6l-6 6 6 6",
+        "chevronRight": "M10 7l5 5-5 5",
+        "plus":      "M12 5v14M5 12h14",
+        "image":     "M4 5h16v14H4z M4 16l4.5-4.5 4 4 2.5-2.5 5 5 M15.5 7.8a1.2 1.2 0 1 1 -0.01 0z",
+        "padding":   "M4 4h16v16H4z M8.5 8.5h7v7h-7z",
+        "corners":   "M4 20v-8a8 8 0 0 1 8 -8h8",
+        "shadow":    "M4 4h12v12H4z M8 20h12V8",
+        "aspect":    "M3 6.5h18v11H3z M7.5 10l-2 2 2 2 M16.5 10l2 2-2 2",
+        "sun":       "M12 8a4 4 0 1 1 -0.01 0z M12 2.5v2 M12 19.5v2 M5.3 5.3l1.4 1.4 M17.3 17.3l1.4 1.4 M2.5 12h2 M19.5 12h2 M5.3 18.7l1.4-1.4 M17.3 6.7l1.4-1.4",
+        "contrast":  "M12 3a9 9 0 1 1 -0.01 0z M12 3v18 M12 7h4.5 M12 11h5.8 M12 15h5 M12 19h2",
+        "drop":      "M12 3.5c3 4 6 7 6 10.5a6 6 0 0 1 -12 0c0 -3.5 3 -6.5 6 -10.5z",
+        "stamp":     "M10 3.5h4v5.5h-4z M5.5 9h13l1 5h-15z M5 18.5h14",
+        "hd":        "M3 6h18v12H3z M7 9.5v5 M7 12h3 M10 9.5v5 M13.5 9.5v5h1.5a2.5 2.5 0 0 0 0 -5z",
+        "repeat":    "M17 3l3 3-3 3 M4 11V10a4 4 0 0 1 4 -4h12 M7 21l-3-3 3-3 M20 13v1a4 4 0 0 1 -4 4H4",
+        "compass":   "M12 3a9 9 0 1 1 -0.01 0z M15.5 8.5l-2 5-5 2 2-5z"
     })
 
     readonly property string d: defs[name] !== undefined ? defs[name] : ""
@@ -63,8 +93,8 @@ Item {
 
         ShapePath {
             strokeColor: icon.tint
-            strokeWidth: 1.7
-            fillColor: "transparent"
+            strokeWidth: Look.glyphStroke
+            fillColor: icon.filled ? icon.tint : "transparent"
             capStyle: ShapePath.RoundCap
             joinStyle: ShapePath.RoundJoin
             PathSvg { path: icon.d }

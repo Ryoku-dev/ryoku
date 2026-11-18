@@ -1,4 +1,7 @@
 //@ pragma DefaultEnv QSG_RENDER_LOOP = threaded
+//@ pragma Env QML_XHR_ALLOW_FILE_READ=1
+// Lithic reads the desktop's style and palette files through file:// requests
+// as it loads, so the first frame already wears the chosen design and colours.
 
 import QtQuick
 import Quickshell
@@ -6,6 +9,9 @@ import Quickshell.Io
 import Quickshell.Wayland
 import Ryoku.Ui.Singletons
 import "Singletons"
+import "look"
+import "beautify"
+import "beautify/stage"
 import "lib/coords.js" as Coords
 import "lib/AnnotationModel.js" as Ann
 import "lib/hittest.js" as Hit
@@ -19,7 +25,7 @@ ShellRoot {
     property bool capturing: false
     property string phase: "selecting"
     property string activeTool: "rect"
-    property color activeColor: Theme.accent
+    property color activeColor: Look.accent
     property int activeWidth: 4
     property bool activeFill: false
     property bool activeRough: false
@@ -77,7 +83,8 @@ ShellRoot {
             var c = wins[j];
             if (!c.workspace || !active[c.workspace]) continue;
             if (c.width <= 0 || c.height <= 0) continue;
-            rects.push({ x: c.x, y: c.y, w: c.width, h: c.height, z: c.focusOrder });
+            rects.push({ x: c.x, y: c.y, w: c.width, h: c.height, z: c.focusOrder,
+                         appId: c.appId || "", title: c.title || "" });
         }
         return rects;
     }
@@ -92,6 +99,14 @@ ShellRoot {
     property bool composeActive: false
     property string composeMode: ""
     readonly property bool beautifyHasDefault: bcfg.hasDefault
+    // the studio on the anchor output, made the first time Beautify opens and
+    // kept, so Back and a second open keep the session's edits
+    property var studio: null
+    property bool studioMade: false
+    // between the Beautify press and the grab landing: the dock and the
+    // selection chrome already step out
+    property bool beautifyOpening: false
+    property var studioEntryRect: null
 
     function textSize() { return activeWidth * 5 + 8; }
 
@@ -101,18 +116,21 @@ ShellRoot {
     property bool captureReadySent: false
 
     readonly property bool testRect: Quickshell.env("RYOSHOT_TESTRECT") === "1"
-    readonly property string mode: Quickshell.env("RYOSHOT_MODE") === "monitor" ? "monitor" : "region"
-    // The hover target starts from the launch mode and Space cycles it, so one
-    // keybind reaches a region or a whole monitor; over a region it also snaps to
-    // the window under the pointer wherever the compositor reports window geometry
-    // (see windowRects).
+    readonly property string envMode: Quickshell.env("RYOSHOT_MODE") || ""
+    readonly property string mode: envMode === "monitor" || envMode === "window" ? envMode : "region"
+    // The target starts from the launch mode and Space cycles it: a region (a
+    // drag, or a click that takes the window under it), a window (a click on a
+    // highlighted window) or a whole monitor. Window needs the compositor to
+    // report window geometry (see windowRects).
     property string target: mode
+    readonly property bool windowTargets: Wm.caps.windowGeometry === true
 
     // The region-selector front. Choosing an action up front and then a region
     // is the iNiR flow: the drawn region carries out the chosen action rather
     // than always dropping into the annotator. RYOSHOT_ACTION preselects it (the
     // iRiS region IPC and Control Center use that); otherwise the last choice is
-    // restored from Config. Edit is the annotate path; the rest fire and quit.
+    // restored from Config. Beautify (id "edit", kept for those callers) opens
+    // the studio over the region; the rest fire and quit.
     readonly property string envAction: Quickshell.env("RYOSHOT_ACTION") || ""
     readonly property bool envAudio: Quickshell.env("RYOSHOT_AUDIO") === "1"
     property string frontAction: "shot"
@@ -130,12 +148,33 @@ ShellRoot {
     // The last pointer position in global coordinates, so the front's whole-monitor
     // capture and colour pick know which output the cursor sits on.
     property var lastPointer: null
+    // The capture bar stands on one output: the one under the pointer, else the
+    // focused one, else the first.
+    readonly property string barOutput: {
+        var scr = Quickshell.screens;
+        if (lastPointer) {
+            for (var i = 0; i < scr.length; i++) {
+                var s = scr[i];
+                if (lastPointer.x >= s.x && lastPointer.x < s.x + s.width
+                        && lastPointer.y >= s.y && lastPointer.y < s.y + s.height)
+                    return s.name;
+            }
+        }
+        for (var j = 0; j < scr.length; j++)
+            if (scr[j].name === Wm.focusedOutput) return scr[j].name;
+        return scr.length ? scr[0].name : "";
+    }
+    // the capture bar's open menu: "", "more" or "delay"
+    property string barMenu: ""
+    // What panels with an exclusive zone (the top bar, a dock) hold back on each
+    // output, so a capture bar at the top stands clear of the bar under it.
+    property var reserved: ({})
     readonly property var frontActions: [
         { id: "shot",   icon: "camera", label: I18n.tr("Shot") },
-        { id: "edit",   icon: "pen",    label: I18n.tr("Edit") },
+        { id: "edit",   icon: "beautify", label: I18n.tr("Beautify") },
         { id: "ocr",    icon: "ocr",    label: I18n.tr("OCR") },
         { id: "search", icon: "magnify", label: I18n.tr("Search") },
-        { id: "record", icon: "video",  label: I18n.tr("Record") }
+        { id: "record", icon: "video",  label: I18n.tr("Record"), short: I18n.tr("Rec") }
     ]
     // RYOSHOT_OPEN=<path>: skip selection and open that image straight in the
     // beautify editor. fromFile makes Escape / close quit, since there is no live
@@ -194,7 +233,7 @@ ShellRoot {
         root.eyedropArmed = false;
         activeTool = t;
         var s = toolStyle[t];
-        activeColor = s && s.color ? s.color : Theme.accent;
+        activeColor = s && s.color ? s.color : Look.accent;
         activeWidth = s && s.width ? s.width : 4;
         activeFill = s ? (s.filled === true) : false;
     }
@@ -250,12 +289,13 @@ ShellRoot {
             // env wins over the remembered choice so the IPC callers stay exact.
             var a = root.envAction.length > 0 ? root.envAction : Config.lastAction;
             if (root.isFrontAction(a)) root.frontAction = a;
+            if (root.seenPending) { root.seenPending = false; root.noteBeautifySeen(); }
         }
     }
 
     // open an existing image straight into beautify (RYOSHOT_OPEN). anchorOverlay
-    // needs a globalSel to pick which monitor shows the editor, so seed it to the
-    // first screen; beautify itself sizes from the file, not the selection.
+    // needs a globalSel to pick which monitor shows the studio, so seed it to the
+    // first screen; the studio sizes from the file, not the selection.
     function openForBeautify(path) {
         var scr = Quickshell.screens;
         if (scr.length > 0)
@@ -265,6 +305,9 @@ ShellRoot {
         composeMode = "";
         beautifyBgImage = "";
         beautifySrc = path;
+        studioEntryRect = null;
+        studioMade = true;
+        noteBeautifySeen();
         phase = "beautify";
     }
     Component.onCompleted: {
@@ -489,8 +532,13 @@ ShellRoot {
     }
     function cycleTarget() {
         if (phase !== "selecting") return;
-        target = target === "region" ? "monitor" : "region";
-        hoverWindow = null;
+        setTarget(target === "region" ? (windowTargets ? "window" : "monitor")
+            : target === "window" ? "monitor" : "region");
+    }
+    function setTarget(t) {
+        if (phase !== "selecting") return;
+        target = t === "window" && !windowTargets ? "region" : t;
+        hoverWindow = lastPointer ? targetAt(lastPointer.x, lastPointer.y) : null;
     }
 
     function windowAt(gx, gy) {
@@ -501,7 +549,7 @@ ShellRoot {
                 if (best === null || r.z < best.z) best = r;
             }
         }
-        return best ? { x: best.x, y: best.y, w: best.w, h: best.h } : null;
+        return best ? { x: best.x, y: best.y, w: best.w, h: best.h, appId: best.appId, title: best.title } : null;
     }
     function monitorAt(gx, gy) {
         var scr = Quickshell.screens;
@@ -518,6 +566,17 @@ ShellRoot {
         globalSel = m;
         hoverWindow = null;
         dispatchFront();
+    }
+    /** The window target: a click takes the highlighted window, with no drag. */
+    function selectWindow(gx, gy) {
+        var w = windowAt(gx, gy);
+        if (!w) return;
+        globalSel = { x: w.x, y: w.y, w: w.w, h: w.h };
+        hoverWindow = null;
+        dispatchFront();
+    }
+    function targetAt(gx, gy) {
+        return target === "monitor" ? monitorAt(gx, gy) : windowAt(gx, gy);
     }
     /** Ctrl+A during selection takes the whole monitor under the pointer. */
     function wholeMonitor() {
@@ -541,13 +600,15 @@ ShellRoot {
     function pointerHover(gx, gy) {
         lastPointer = { x: gx, y: gy };
         if (phase !== "selecting") { if (hoverWindow !== null) hoverWindow = null; return; }
-        hoverWindow = target === "monitor" ? monitorAt(gx, gy) : windowAt(gx, gy);
+        hoverWindow = targetAt(gx, gy);
     }
     function pointerPressed(gx, gy, mods) {
         root.openPopover = "";
         root.shortcutsOpen = false;
+        root.barMenu = "";
         if (phase === "selecting") {
             if (target === "monitor") selectMonitor(gx, gy);
+            else if (target === "window") selectWindow(gx, gy);
             else beginSelection(gx, gy);
         }
         else if (activeTool === "select") beginSelect(gx, gy);
@@ -592,6 +653,11 @@ ShellRoot {
         var delays = [0, 1, 3, 5, 10];
         var index = delays.indexOf(Config.delaySeconds);
         Config.delaySeconds = delays[(index + 1) % delays.length];
+        Config.save();
+    }
+    function setDelay(seconds) {
+        if (Config.delaySeconds === seconds) return;
+        Config.delaySeconds = seconds;
         Config.save();
     }
 
@@ -676,8 +742,8 @@ ShellRoot {
         if (Config.delaySeconds > 0) { beginDelayedFront(); return; }
         // The choice was persisted when it was picked; saving here would race the
         // quit and drop the write.
-        // Shot keeps ryoshot's own flow: the markup bar, whose logo opens
-        // Beautify; Edit skips straight to Beautify.
+        // Shot keeps ryoshot's own flow: the markup dock, whose Beautify button
+        // opens the studio; Beautify goes straight to the studio.
         switch (frontAction) {
             case "edit":   phase = "editing"; openBeautify(); break;
             case "ocr":    runOcrRegion(); break;
@@ -721,6 +787,7 @@ ShellRoot {
     function startColorPick() {
         if (phase !== "selecting") return;
         root.openPopover = "";
+        root.barMenu = "";
         colorPicking = true;
     }
     // Sample the colour under the pointer without a click, for keyboard use.
@@ -1247,9 +1314,11 @@ ShellRoot {
         }
     }
 
-    // toolbar Copy/Save with a saved beautify default: bake the default and export
-    // straight away, skipping the editor.
+    // The dock's Copy/Save with "Use every time" on: bake the default and export
+    // straight away. The phase stays put and the studio draws nothing, so the
+    // screen shows no trace of it.
     function styledExport(mode) {
+        if (root.composeActive) return;
         if (root.textEditing) root.commitText();
         root.clearSelection();
         root.beautifySrc = "";
@@ -1258,22 +1327,41 @@ ShellRoot {
             root.shutter();
             root.composeMode = mode;
             root.composeActive = true;
+            root.studioMade = true;
             root.beautifySrc = "/tmp/ryoshot-beautify-src.png";
-            root.phase = "beautify";
         });
     }
     function exportCopyOrStyled() { if (root.beautifyHasDefault) styledExport("copy"); else root.doCopy(); }
     function exportSaveOrStyled() { if (root.beautifyHasDefault) styledExport("save"); else root.doSave(); }
 
     function openBeautify() {
+        if (root.beautifyOpening || root.phase === "beautify" || root.composeActive) return;
         if (root.textEditing) root.commitText();
         root.clearSelection();
+        root.openPopover = "";
+        root.settingsOpen = false;
+        var w = root.anchorOverlay();
+        root.studioEntryRect = w ? w.dockBeautifyRect() : null;
+        root.beautifyOpening = true;
         root.beautifySrc = "";
         root.grabTo("/tmp/ryoshot-beautify-src.png", function (ok) {
-            if (!ok) return;
+            if (!ok) { root.beautifyOpening = false; return; }
             root.beautifySrc = "/tmp/ryoshot-beautify-src.png";
+            root.studioMade = true;
+            root.noteBeautifySeen();
             root.phase = "beautify";
+            root.beautifyOpening = false;
         });
+    }
+
+    // The dock stops pointing Beautify out once it has been opened. The store
+    // is only written after its first read, or the write would drop the rest.
+    property bool seenPending: false
+    function noteBeautifySeen() {
+        if (Config.beautifySeen) return;
+        if (!root.configAdopted) { root.seenPending = true; return; }
+        Config.beautifySeen = true;
+        Config.save();
     }
 
     FileView {
@@ -1559,27 +1647,60 @@ ShellRoot {
         if (testRect && frozenCount >= Quickshell.screens.length) testDriver.start();
     }
 
+    // The dock stands while editing, and through Beautify so it can step out
+    // and back in; `away` hides it there.
     function toolbarFor(win) {
-        if (phase !== "editing" || !globalSel) return { visible: false, x: 0, y: 0 };
+        if ((phase !== "editing" && phase !== "beautify") || !globalSel || fromFile) return { visible: false, x: 0, y: 0 };
         if (anchorOverlay() !== win) return { visible: false, x: 0, y: 0 };
         return { visible: true };
     }
+    readonly property bool dockAway: phase === "beautify" || beautifyOpening
 
     /** The staged Escape ladder: the innermost open thing closes first. */
     function escapeStep() {
         if (root.colorPicking) { root.colorPicking = false; return; }
         if (root.eyedropArmed) { root.eyedropArmed = false; return; }
         if (root.textEditing) { root.cancelText(); return; }
+        if (root.barMenu.length > 0) { root.barMenu = ""; return; }
         if (root.openPopover.length > 0) { root.openPopover = ""; return; }
         if (root.shortcutsOpen) { root.shortcutsOpen = false; return; }
         if (root.settingsOpen) { root.settingsOpen = false; return; }
         if (root.selectedIndex !== null) { root.clearSelection(); return; }
         if (root.phase === "beautify") {
-            if (root.fromFile) Qt.quit();
+            if (root.studio) root.studio.back();
+            else if (root.fromFile) Qt.quit();
             else root.phase = "editing";
             return;
         }
         Qt.quit();
+    }
+
+    /**
+     * Keys in the Beautify studio. Markup's tool keys never reach it: Ctrl+C
+     * and Ctrl+S export the styled shot, 1 to 7 pick the looks in order, and
+     * [ and ] change the padding by 8. Escape is the ladder's.
+     */
+    function beautifyKey(e) {
+        var s = root.studio;
+        if (!s || s.composeOnly) return true;
+        var ctrl = (e.modifiers & Qt.ControlModifier) !== 0;
+        if (ctrl) {
+            if (e.key === Qt.Key_C) { s.copy(); return true; }
+            if (e.key === Qt.Key_S) { s.save(); return true; }
+            return true;
+        }
+        if (e.key >= Qt.Key_1 && e.key <= Qt.Key_7) {
+            var look = s.looks[e.key - Qt.Key_1];
+            if (look) s.applyLook(look.cfg);
+            return true;
+        }
+        if (e.key === Qt.Key_BracketLeft) { s.nudgePadding(-8); return true; }
+        if (e.key === Qt.Key_BracketRight) { s.nudgePadding(8); return true; }
+        if (e.key === Qt.Key_Question || ((e.modifiers & Qt.ShiftModifier) && e.key === Qt.Key_Slash)) {
+            root.shortcutsOpen = !root.shortcutsOpen;
+            return true;
+        }
+        return false;
     }
 
     /** Keys that apply once a region exists. Returns true when one matched. */
@@ -1605,7 +1726,7 @@ ShellRoot {
         if (e.key === Qt.Key_BracketLeft) { root.adjustWidth(-1); return true; }
         if (e.key === Qt.Key_BracketRight) { root.adjustWidth(1); return true; }
         if (e.key >= Qt.Key_1 && e.key <= Qt.Key_8) {
-            var sw = Theme.swatches[e.key - Qt.Key_1];
+            var sw = Look.swatches[e.key - Qt.Key_1];
             if (sw !== undefined) { root.setToolColor(sw); return true; }
             return false;
         }
@@ -1656,6 +1777,31 @@ ShellRoot {
         return false;
     }
 
+    // A zone-0 surface is fitted by the compositor inside what exclusive zones
+    // leave; its height against the output's tells how much they hold back.
+    Variants {
+        model: Quickshell.screens
+
+        PanelWindow {
+            id: workArea
+            required property var modelData
+            screen: modelData
+            anchors { top: true; bottom: true; left: true; right: true }
+            exclusionMode: ExclusionMode.Normal
+            exclusiveZone: 0
+            color: "transparent"
+            mask: Region {}
+            WlrLayershell.layer: WlrLayer.Background
+            WlrLayershell.namespace: "ryoshot-workarea"
+            onHeightChanged: {
+                if (workArea.height <= 0) return;
+                var r = Object.assign({}, root.reserved);
+                r[workArea.modelData.name] = Math.max(0, workArea.modelData.height - workArea.height);
+                root.reserved = r;
+            }
+        }
+    }
+
     Variants {
         model: Quickshell.screens
 
@@ -1692,7 +1838,9 @@ ShellRoot {
                 Keys.onEscapePressed: root.escapeStep()
                 Keys.onPressed: (e) => {
                     if (root.textEditing) return;
-                    var handled = root.phase === "selecting" ? root.selectKey(e) : root.editKey(e);
+                    var handled = root.phase === "selecting" ? root.selectKey(e)
+                        : root.phase === "beautify" ? root.beautifyKey(e)
+                        : root.editKey(e);
                     if (handled) e.accepted = true;
                 }
 
@@ -1713,6 +1861,10 @@ ShellRoot {
                     eyedropArmed: root.eyedropArmed
                     frontActive: root.phase === "selecting" && !root.colorPicking
                     pickMode: root.colorPicking
+                    hoverScreen: root.target === "monitor" || root.target === "screen"
+                    pressPoint: root.pressPoint
+                    recordIntent: root.frontAction === "record"
+                    chromeAway: root.dockAway
 
                     onPressedAt: (gx, gy, mods) => root.pointerPressed(gx, gy, mods)
                     onMovedTo: (gx, gy, mods) => root.pointerMoved(gx, gy, mods)
@@ -1731,34 +1883,50 @@ ShellRoot {
                     }
                 }
 
-                RegionBar {
-                    id: regionBar
-                    visible: root.phase === "selecting" && !root.colorPicking && ov.ready
+                CaptureBar {
+                    id: captureBar
+                    anchors.fill: parent
+                    u: Look.scaleFor(win.scrName)
+                    topInset: root.reserved[win.scrName] || 0
+                    active: root.phase === "selecting" && ov.ready && root.barOutput === win.scrName
+                    // a drag that has grown a region, a colour pick or a delay takes the bar away
+                    aside: root.colorPicking || root.overlaysHidden
+                        || (root.capturing && root.globalSel !== null && (root.globalSel.w > 2 || root.globalSel.h > 2))
                     actions: root.frontActions
                     activeAction: root.frontAction
+                    target: root.target
+                    windowTarget: root.windowTargets
                     audioOn: root.recordAudio
                     micOn: Config.recordMic
                     keypressesOn: root.keypressesActive
                     webcamOn: root.webcamActive
                     delaySeconds: Config.delaySeconds
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    anchors.bottom: parent.bottom
-                    anchors.bottomMargin: 28
+                    menu: root.barMenu
                     onActionPicked: (id) => root.setFrontAction(id)
-                    onColorPickRequested: root.startColorPick()
-                    onFullscreenRequested: root.frontMonitor({ x: win.modelData.x, y: win.modelData.y, w: win.width, h: win.height })
-                    onAudioToggled: root.recordAudio = !root.recordAudio
+                    onTargetPicked: (t) => root.setTarget(t)
+                    onDelayPicked: (s) => root.setDelay(s)
                     onDelayCycled: root.cycleDelay()
+                    onColorPickRequested: root.startColorPick()
+                    onScreenRequested: root.frontMonitor({ x: win.modelData.x, y: win.modelData.y, w: win.width, h: win.height })
+                    onAudioToggled: root.recordAudio = !root.recordAudio
                     onMicToggled: root.toggleRecordMic()
                     onKeypressesToggled: root.toggleKeypresses()
                     onWebcamToggled: root.toggleWebcam()
                     onFolderRequested: root.openScreenshotsFolder()
+                    onSettingsRequested: root.settingsOpen = true
+                    onMenuRequested: (name) => root.barMenu = name
                     onCloseRequested: Qt.quit()
                 }
 
                 Toolbar {
                     id: toolbar
-                    visible: win.showToolbar && win.selLocal !== null
+                    visible: win.showToolbar && win.selLocal !== null && (!toolbar.away || toolbar.reveal > 0)
+                    away: root.dockAway
+                    styled: root.beautifyHasDefault
+                    u: Look.scaleFor(win.scrName)
+                    sel: win.selLocal
+                    dragX: root.toolbarDX
+                    dragY: root.toolbarDY
                     tools: root.toolDescriptors
                     activeTool: root.activeTool
                     activeColor: root.activeColor
@@ -1766,112 +1934,137 @@ ShellRoot {
                     activeFill: root.activeFill
                     activeRough: root.activeRough
                     hasFill: root.toolHasFill(root.activeTool)
+                    hasRough: root.isRoughable(root.activeTool)
                     openPopover: root.openPopover
                     canUndo: { root.annRevision; return root.model ? root.model.canUndo() : false; }
                     canRedo: { root.annRevision; return root.model ? root.model.canRedo() : false; }
                     settingsOpen: root.settingsOpen
-                    phoneAvailable: root.phoneAvailable
-                    phoneDevices: root.phoneDevices
-                    phoneReady: root.phoneTempReady
-                    phoneBusy: root.phoneBusy
-
-                    x: {
-                        if (!win.selLocal) return 0;
-                        var cx = win.selLocal.x + win.selLocal.w / 2 - width / 2 + root.toolbarDX;
-                        return Math.max(8, Math.min(cx, win.width - width - 8));
-                    }
-                    y: {
-                        if (!win.selLocal) return 0;
-                        var below = win.selLocal.y + win.selLocal.h + 12;
-                        if (below + height > win.height - 8) below = win.selLocal.y - height - 12;
-                        return Math.max(8, Math.min(below + root.toolbarDY, win.height - height - 8));
-                    }
 
                     onToolPicked: (t) => root.selectTool(t)
                     onColorButtonClicked: root.openPopover = root.openPopover === "color" ? "" : "color"
                     onWidthButtonClicked: root.openPopover = root.openPopover === "width" ? "" : "width"
+                    onMoreButtonClicked: root.openPopover = root.openPopover === "more" ? "" : "more"
                     onFillToggled: root.setToolFill(!root.activeFill)
                     onRoughToggled: root.activeRough = !root.activeRough
                     onUndoRequested: root.undo()
                     onRedoRequested: root.redo()
                     onCopyRequested: root.exportCopyOrStyled()
                     onSaveRequested: root.exportSaveOrStyled()
-                    onUploadRequested: root.doUpload()
-                    onPhoneRequested: root.doSendPhone()
-                    onPinRequested: root.doPin()
-                    onHelpRequested: root.shortcutsOpen = !root.shortcutsOpen
-                    onSettingsRequested: root.settingsOpen = !root.settingsOpen
                     onBeautifyRequested: root.openBeautify()
                     onDragged: (dx, dy) => { root.toolbarDX += dx; root.toolbarDY += dy; }
                 }
 
+                MoreMenu {
+                    u: toolbar.u
+                    open: toolbar.visible && root.openPopover === "more"
+                    anchor: toolbar.moreAnchor
+                    preferAbove: toolbar.side !== "below"
+                    phoneAvailable: root.phoneAvailable
+                    phoneDevices: root.phoneDevices
+                    phoneReady: root.phoneTempReady
+                    phoneBusy: root.phoneBusy
+                    onDismissed: if (root.openPopover === "more") root.openPopover = ""
+                    onPinRequested: root.doPin()
+                    onUploadRequested: root.doUpload()
+                    onPhoneRequested: root.doSendPhone()
+                    onHelpRequested: root.shortcutsOpen = !root.shortcutsOpen
+                    onSettingsRequested: root.settingsOpen = !root.settingsOpen
+                }
+
                 ColorPopover {
-                    visible: toolbar.visible && root.openPopover === "color"
+                    u: toolbar.u
+                    open: toolbar.visible && root.openPopover === "color"
+                    anchorRect: toolbar.colorRect
+                    preferAbove: toolbar.side !== "below"
                     selected: root.activeColor
                     eyedropArmed: root.eyedropArmed
-                    x: Math.max(8, Math.min(toolbar.x + toolbar.colorCenterX - width / 2,
-                                            win.width - width - 8))
-                    y: toolbar.y - height - 6
                     onPicked: (c) => root.setToolColor(c)
                     onEyedropRequested: { root.openPopover = ""; root.eyedropArmed = true; }
                     onCloseRequested: root.openPopover = ""
                 }
 
                 WidthPopover {
-                    visible: toolbar.visible && root.openPopover === "width"
+                    u: toolbar.u
+                    open: toolbar.visible && root.openPopover === "width"
+                    anchorRect: toolbar.widthRect
+                    preferAbove: toolbar.side !== "below"
                     selected: root.activeWidth
-                    x: Math.max(8, Math.min(toolbar.x + toolbar.widthCenterX - width / 2,
-                                            win.width - width - 8))
-                    y: toolbar.y - height - 6
                     onPicked: (w) => root.setToolWidth(w)
                     onCloseRequested: root.openPopover = ""
                 }
 
                 PhonePopover {
-                    visible: toolbar.visible && root.openPopover === "phone"
+                    u: toolbar.u
+                    open: toolbar.visible && root.openPopover === "phone"
+                    anchor: toolbar.moreAnchor
+                    preferAbove: toolbar.side !== "below"
                     devices: root.phoneDevices
-                    x: Math.max(8, Math.min(toolbar.x + toolbar.phoneCenterX - width / 2,
-                                            win.width - width - 8))
-                    y: toolbar.y - height - 6
+                    onDismissed: if (root.openPopover === "phone") root.openPopover = ""
                     onPicked: (deviceId, deviceName) => root.sendPhoneTo(deviceId, deviceName)
-                    onCloseRequested: root.openPopover = ""
                 }
 
                 SettingsPanel {
                     id: hotkeyPopover
-                    visible: toolbar.visible && root.settingsOpen
+                    // opened from the dock's More while editing, or from the
+                    // capture bar's menu while choosing, over the bar
+                    readonly property bool fromBar: !toolbar.visible
+                    u: Look.scaleFor(win.scrName)
+                    open: root.settingsOpen
+                        && (toolbar.visible || (root.phase === "selecting" && win.scrName === root.barOutput))
+                    anchorRect: fromBar ? captureBar.plane : toolbar.moreRect
+                    preferAbove: fromBar ? captureBar.plane.y > win.height / 2 : toolbar.side !== "below"
+                    align: fromBar ? "center" : (Look.lithic ? "start" : "center")
+                    gap: fromBar ? 12 : 6
                     defaultChord: "Print"
-                    x: Math.max(8, Math.min(toolbar.x + toolbar.gearCenterX - width / 2,
-                                            win.width - width - 8))
-                    y: Math.max(8, toolbar.y - height - 6)
                     onCloseRequested: root.settingsOpen = false
                     onRebound: Qt.quit()
                 }
 
+                // the other outputs dim with the studio's lift
+                Scrim {
+                    anchors.fill: parent
+                    hole: win.selLocal
+                    level: root.phase === "beautify" && root.anchorOverlay() !== win && root.studio ? root.studio.level : 0
+                }
+
+                Loader {
+                    id: studioLoader
+                    anchors.fill: parent
+                    active: root.studioMade && root.anchorOverlay() === win
+                    onItemChanged: {
+                        if (item) root.studio = item;
+                        else if (root.studio && !root.studioMade) root.studio = null;
+                    }
+                    sourceComponent: Studio {
+                        srcPath: root.beautifySrc
+                        bgImagePath: root.beautifyBgImage
+                        composeOnly: root.composeActive
+                        composeMode: root.composeMode
+                        // a selection spanning outputs has no one place to lift from
+                        originRect: root.fromFile || root.spansMonitors() ? null : win.selLocal
+                        holeRect: win.selLocal
+                        entryRect: root.studioEntryRect
+                        u: Look.scaleFor(win.scrName)
+                        dpr: ov.dpr
+                        fromFile: root.fromFile
+                        open: root.phase === "beautify"
+                        onCopyRequested: (p) => root.copyImageAndQuit(p)
+                        onSaveRequested: (p) => root.saveToScreenshots(p)
+                        onPickImageRequested: { root.dialogMode = true; bgDialog.open(); }
+                        onCloseRequested: {
+                            root.composeActive = false;
+                            if (root.fromFile) Qt.quit();
+                            else root.phase = "editing";
+                        }
+                    }
+                }
+
                 ShortcutSheet {
-                    anchors.centerIn: parent
-                    visible: root.shortcutsOpen && root.anchorOverlay() === win
+                    anchors.fill: parent
+                    u: Look.scaleFor(win.scrName)
+                    open: root.shortcutsOpen && root.anchorOverlay() === win
                     tools: root.toolDescriptors
                     onCloseRequested: root.shortcutsOpen = false
-                }
-
-                Rectangle {
-                    anchors.fill: parent
-                    visible: root.phase === "beautify" && root.anchorOverlay() !== win
-                    color: Theme.panelSolid
-                }
-
-                Beautify {
-                    anchors.fill: parent
-                    visible: root.phase === "beautify" && root.anchorOverlay() === win
-                    srcPath: root.beautifySrc
-                    bgImagePath: root.beautifyBgImage
-                    composeOnly: root.composeActive
-                    composeMode: root.composeMode
-                    onCopyRequested: (p) => root.copyImageAndQuit(p)
-                    onSaveRequested: (p) => root.saveToScreenshots(p)
-                    onPickImageRequested: { root.dialogMode = true; bgDialog.open(); }
-                    onCloseRequested: { root.composeActive = false; if (root.fromFile) Qt.quit(); else root.phase = "editing"; }
                 }
             }
 
@@ -1881,6 +2074,12 @@ ShellRoot {
             function grabRegion(rect, path, cb) { ov.grabRegion(rect, path, cb); }
             function grabPlate(rect, path, cb, targetSize) { ov.grabPlate(rect, path, cb, targetSize); }
             function samplePixel(gx, gy) { ov.sampleAt(gx - win.modelData.x, gy - win.modelData.y); }
+            // where the dock's Beautify button stands, for the studio's entry
+            function dockBeautifyRect() {
+                if (!toolbar.visible || toolbar.away) return null;
+                var r = toolbar.beautifyRect;
+                return { x: r.x, y: r.y, w: r.width, h: r.height };
+            }
             function grabToolbar(path, cb) {
                 var sched = toolbar.grabToImage(function (r) {
                     var ok = false;

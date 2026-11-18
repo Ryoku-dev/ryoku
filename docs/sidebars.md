@@ -112,15 +112,39 @@ complete Quick settings board, individual Quick settings sections, frame, and bu
 
 ## ryoshot
 
-ryoshot is the capture UI. Its floating bar offers Shot, Edit, OCR, Search, and
-Record, alongside colour picking, monitor capture, and close controls. Shot can
-select a region, window, or monitor; Edit opens the result directly in the
-annotation editor.
+ryoshot is the capture UI. Its bar offers Shot, Beautify, OCR, Search, and
+Record (keys 1 to 5), a target (Region, Window, Screen; Space cycles them, and
+Window needs a compositor that reports window geometry), colour picking (C),
+the screenshots folder, and close. Enter takes the screen under the pointer.
+Beautify opens the region straight in the Beautify studio.
 
-The bar also carries a delay timer (0, 1, 3, 5, or 10 seconds, shown as a badge)
-that captures the live region after the wait, and the screenshots folder. With
-Record selected it adds desktop audio, microphone, key-press overlay, and webcam
-overlay toggles. The delay and microphone choices persist in `ryoshot.json`.
+The bar wears the design chosen in Style and stands where that platform puts
+it: Lithic a ruled strip flush on the bottom edge, Material a floating toolbar
+24 px up with a FAB that takes the screen, Adwaita GNOME's capture panel with
+its shutter, Fluent the Snipping Tool bar 16 px under the top bar. It shows on
+the output under the pointer and steps aside while a region is dragged, a
+colour picked or a delay runs.
+
+The selection follows the same design: its scrim, frame, grips, a live size
+readout, a loupe at the moving corner (with the hex while picking a colour), a
+tag naming the hovered window, and the design's alert colour when the drag will
+record. Lithic adds rulers and dimension lines. Once a region is taken, the
+editing dock opens below it (above it, or inside, when there is no room) in two
+rows: the tools in groups, then colour, width, fill, sketch, undo, redo,
+Beautify (Ctrl+B), Copy, Save and More (pin, upload, send to phone, shortcuts,
+settings).
+
+Beautify lifts the selection in place into a card over the dimmed screen: its
+background blooms out, the corners round and the shadow drops, and a panel of
+edits floats beside it in the design's own idiom. Dragging the background's
+edges sets the padding; 1 to 7 pick the looks, [ and ] change the padding,
+Ctrl+C and Ctrl+S export, and Esc folds the card back into the selection with
+the markup intact. "Use every time" saves the style as the default, and the
+dock's Copy then carries a dot and styles every shot it copies or saves.
+
+The delay (0, 1, 3, 5, or 10 seconds) captures the live region after the wait.
+With Record selected the bar adds desktop audio, microphone, key-press overlay,
+and webcam toggles. The delay and microphone choices persist in `ryoshot.json`.
 The settings popover keeps the save behaviour and links to **Ryoku Settings >
 Apps > Screen capture**.
 

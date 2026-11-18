@@ -471,6 +471,20 @@ below are what each surface becomes.
   its outline. Countdowns step on a timer and hold still with reduced motion,
   and the window exists only while a card is up.
   `bin/art/notification-previews` records each look for Settings.
+- **Capture** (ryoshot, `Super+Shift+S`). One model, four placements, switched
+  live from `theme.design` (`ryoshot/CaptureBar.qml`, `designs/`, primitives in
+  `look/`). Lithic is a 36-tall ruled strip flush on the bottom edge: mono
+  slugs with their keys, ticks lit over the chosen action, a shine once on
+  entry. Material is a 56-tall floating toolbar 24 up with a connected action
+  group and a FAB for the screen. Adwaita is GNOME's capture panel 36 up with
+  big target toggles and a shutter. Fluent is the Snipping Tool bar 16 under
+  the top bar's zone with sliding indicators. The bar shows only on the output
+  under the pointer and steps aside while dragging, picking or waiting.
+  Beautify (`ryoshot/beautify/`) lifts the selection into a card beside its
+  panel: Lithic's numbered sheet flush on the right edge, Material's side
+  sheet, Adwaita's sidebar card, Fluent's acrylic pane. One `Composition.qml`
+  draws the stage, the look thumbnails and the export, which is rendered on
+  demand at the exact style.
 - **OSD.** The volume, microphone, brightness and keyboard layout pop-up is a
   glance, not a panel: one small look per design, switched live from
   `theme.design` (`modules/osd/OsdLook.qml`, `designs/`), each where its

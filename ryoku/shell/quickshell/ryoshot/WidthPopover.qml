@@ -1,30 +1,21 @@
-import QtQuick
-import QtQuick.Layouts
-import "Singletons"
+pragma ComponentBehavior: Bound
 
-Item {
+import QtQuick
+import Lithic
+import Ryoku.Ui.Singletons
+import "look"
+import "."
+
+Flyout {
     id: pop
 
     /** Externally driven current stroke width in the 1..20 range. */
     property int selected: 4
 
-    /** Emitted on a preset tap or a stepper change. */
+    /** Emitted on a preset tap or a slider move. */
     signal picked(int w)
 
-    signal closeRequested()
-
-    focus: visible
-    Keys.onEscapePressed: pop.closeRequested()
-
-    readonly property int arrow: 7
-    implicitWidth: card.implicitWidth
-    implicitHeight: card.implicitHeight + arrow
-
-    readonly property var presets: [
-        { width: 2, dot: 5 },
-        { width: 4, dot: 9 },
-        { width: 7, dot: 13 }
-    ]
+    readonly property var presets: [2, 4, 7, 12]
 
     /** Clamps to 1..20 and emits only when the value actually moves. */
     function apply(w) {
@@ -32,132 +23,69 @@ Item {
         if (c !== pop.selected) pop.picked(c);
     }
 
-    opacity: 0
-    scale: 0.92
-    transformOrigin: Item.Top
-    Component.onCompleted: appear.start()
-    ParallelAnimation {
-        id: appear
-        NumberAnimation { target: pop; property: "opacity"; from: 0; to: 1; duration: Theme.snap; easing.type: Easing.OutCubic }
-        NumberAnimation { target: pop; property: "scale"; from: 0.92; to: 1; duration: Theme.snap; easing.type: Easing.OutCubic }
-    }
+    Column {
+        width: Math.round(184 * pop.u)
+        spacing: Math.round(10 * pop.u)
 
-    Rectangle {
-        id: card
-        width: parent.width
-        height: parent.height - pop.arrow
-        radius: Theme.radius
-        color: Theme.panel
-        border.color: Theme.hair
-        border.width: 1
-        implicitWidth: content.implicitWidth + 24
-        implicitHeight: content.implicitHeight + 20
-
-        ColumnLayout {
-            id: content
-            anchors.centerIn: parent
-            spacing: 10
-
-            RowLayout {
-                Layout.alignment: Qt.AlignHCenter
-                spacing: 4
-                Repeater {
-                    model: pop.presets
-                    Rectangle {
-                        id: cell
-                        required property var modelData
-                        Layout.preferredWidth: 30
-                        Layout.preferredHeight: 30
-                        radius: 6
-                        readonly property bool sel: pop.selected === modelData.width
-                        color: sel ? Qt.rgba(1, 1, 1, 0.08)
-                            : (cellHover.hovered ? Qt.rgba(1, 1, 1, 0.04) : Qt.rgba(0, 0, 0, 0))
-                        border.color: sel ? Theme.accent : Qt.rgba(0, 0, 0, 0)
-                        border.width: 1
-
-                        Rectangle {
-                            anchors.centerIn: parent
-                            width: cell.modelData.dot
-                            height: cell.modelData.dot
-                            radius: width / 2
-                            color: cell.sel ? Theme.accent : Theme.ink
-                        }
-
-                        HoverHandler { id: cellHover }
-                        TapHandler { onTapped: pop.apply(cell.modelData.width) }
-                    }
-                }
-            }
-
-            RowLayout {
-                Layout.alignment: Qt.AlignHCenter
-                spacing: 8
-
-                Rectangle {
-                    id: minus
-                    Layout.preferredWidth: 26
-                    Layout.preferredHeight: 26
-                    radius: 6
-                    color: minusHover.hovered ? Qt.rgba(1, 1, 1, 0.06) : Qt.rgba(0, 0, 0, 0)
-                    border.color: Theme.hair
-                    border.width: 1
-                    Text {
-                        anchors.centerIn: parent
-                        text: "\u2212"
-                        color: Theme.ink
-                        font.family: Theme.mono
-                        font.pixelSize: 16
-                    }
-                    HoverHandler { id: minusHover }
-                    TapHandler { onTapped: pop.apply(pop.selected - 1) }
-                }
-
-                Text {
-                    Layout.preferredWidth: 28
-                    horizontalAlignment: Text.AlignHCenter
-                    text: pop.selected
-                    color: Theme.ink
-                    font.family: Theme.mono
-                    font.pixelSize: 14
-                }
-
-                Rectangle {
-                    id: plus
-                    Layout.preferredWidth: 26
-                    Layout.preferredHeight: 26
-                    radius: 6
-                    color: plusHover.hovered ? Qt.rgba(1, 1, 1, 0.06) : Qt.rgba(0, 0, 0, 0)
-                    border.color: Theme.hair
-                    border.width: 1
-                    Text {
-                        anchors.centerIn: parent
-                        text: "+"
-                        color: Theme.ink
-                        font.family: Theme.mono
-                        font.pixelSize: 16
-                    }
-                    HoverHandler { id: plusHover }
-                    TapHandler { onTapped: pop.apply(pop.selected + 1) }
-                }
-            }
+        Slider {
+            width: parent.width
+            u: pop.u
+            label: I18n.tr("Width")
+            from: 1
+            to: 20
+            value: pop.selected
+            onMoved: (v) => pop.apply(v)
         }
-    }
 
-    Canvas {
-        width: pop.arrow * 2
-        height: pop.arrow
-        anchors.bottom: card.top
-        anchors.horizontalCenter: card.horizontalCenter
-        onPaint: {
-            var ctx = getContext("2d");
-            ctx.reset();
-            ctx.beginPath();
-            ctx.moveTo(0, height);
-            ctx.lineTo(width, height);
-            ctx.lineTo(width / 2, 0);
-            ctx.closePath();
-            ctx.fillStyle = Theme.panel;
-            ctx.fill();
+        Row {
+            id: presetRow
+            width: parent.width
+            readonly property real cell: Math.round(36 * pop.u)
+            spacing: (width - pop.presets.length * cell) / (pop.presets.length - 1)
+
+            Repeater {
+                model: pop.presets
+                Item {
+                    id: cell
+                    required property int modelData
+                    width: presetRow.cell
+                    height: Math.round(30 * pop.u)
+                    readonly property bool chosen: pop.selected === modelData
+                    readonly property color fillNow: cell.chosen ? (Look.adwaita ? Look.checkedFill : Look.lithic ? Look.well : Look.container)
+                        : cellHover.hovered ? Look.hover : Lithic.alpha(Look.hover, 0)
+                    readonly property color inkNow: cell.chosen ? (Look.lithic ? Look.sel : Look.material ? Look.containerInk : Look.fg) : Look.fg2
+
+                    CutRect {
+                        visible: Look.lithic
+                        anchors.fill: parent
+                        design: "lithic"
+                        cut: 3 * pop.u
+                        fill: cell.fillNow
+                        strokeColor: cell.chosen ? Look.sel : "transparent"
+                        strokeWidth: Math.max(1, Math.round(pop.u))
+                    }
+                    Rectangle {
+                        visible: !Look.lithic
+                        anchors.fill: parent
+                        radius: Look.material ? height / 2 : (Look.adwaita ? 6 : 4) * pop.u
+                        color: cell.fillNow
+                        Behavior on color {
+                            ColorAnimation { duration: Look.dur(Look.stateMs) }
+                        }
+                    }
+                    // the stroke itself, at its weight
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: Math.round(18 * pop.u)
+                        height: Math.max(1, Math.round(Math.min(10, cell.modelData * 0.75) * pop.u))
+                        radius: Look.lithic ? 0 : height / 2
+                        color: cell.inkNow
+                    }
+
+                    HoverHandler { id: cellHover; cursorShape: Qt.PointingHandCursor }
+                    TapHandler { onTapped: pop.apply(cell.modelData) }
+                }
+            }
         }
     }
 }
