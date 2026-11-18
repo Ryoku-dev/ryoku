@@ -2347,18 +2347,25 @@ Item {
     // for workspace N. An empty or missing entry shows the workspace number.
     property string workspaceIcons: "terminal,language,sticky_note_2,forum,music_note"
     function workspaceIcon(name) {
+        if (!/^\d+$/.test(String(name))) return ""
         var n = Number(name)
-        if (!(n >= 1)) return ""
+        if (n < 1) return ""
         var icons = workspaceIcons.split(",")
         return n <= icons.length ? icons[n - 1].trim() : ""
     }
-    // Symbol names are [a-z0-9_]; anything else (a comma above all) would shift
-    // every later workspace's entry. Trailing empty entries are dropped.
+    // Symbol names are [a-z0-9_], so a typed space or hyphen becomes "_" and
+    // anything else (a comma above all, which would shift every later
+    // workspace's entry) is dropped.
+    function workspaceIconName(name) {
+        return String(name || "").trim().toLowerCase()
+            .replace(/[\s-]+/g, "_").replace(/[^a-z0-9_]/g, "")
+    }
+    // Trailing empty entries are dropped.
     function setWorkspaceIcon(n, name) {
         if (!(n >= 1)) return
         var icons = workspaceIcons === "" ? [] : workspaceIcons.split(",")
         while (icons.length < n) icons.push("")
-        icons[n - 1] = String(name || "").toLowerCase().replace(/[^a-z0-9_]/g, "")
+        icons[n - 1] = workspaceIconName(name)
         while (icons.length > 0 && icons[icons.length - 1].trim() === "") icons.pop()
         workspaceIcons = icons.join(",")
     }
@@ -2940,9 +2947,7 @@ Item {
                     // cache layouts keep stable offsets.
                     if (parts.length > wsField + 8) {
                         var wss = parts[wsField + 8]
-                        if (wss === "numbers" || wss === "magic" || wss === "kanji"
-                                || wss === "rings" || wss === "aurora" || wss === "icons"
-                                || wss === "default")
+                        if (theme.workspaceStyleOptions.some(o => o.key === wss))
                             theme.workspaceStyle = wss
                     }
                     if (parts.length > wsField + 9) {

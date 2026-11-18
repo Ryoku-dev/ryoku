@@ -8,6 +8,9 @@
   Symbols name.
   Stored at `qsbar.workspaceIcons` in `shell.json`, one name per workspace in
   order (`terminal,language,sticky_note_2,forum,music_note` by default).
+- **QS Bar keeps the Pacman marker when it restores from its cache.** The cache
+  reader checked a hand-written list of markers that left Pacman out; it now
+  checks the marker options themselves.
 - **Shima's weather matches the launcher (#885).** Shima read wttr.in, whose
   reading can be degrees and an hour off; it now asks Open-Meteo like the
   launcher and keeps wttr.in only as the fallback.

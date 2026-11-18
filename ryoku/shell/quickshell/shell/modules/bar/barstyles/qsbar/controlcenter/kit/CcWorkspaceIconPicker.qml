@@ -19,8 +19,32 @@ Column {
 
     spacing: picker.tk ? picker.tk.gap : 12
 
+    onSlotCountChanged: if (picker.slot > picker.slotCount) picker.slot = picker.slotCount
+
     function choose(name) {
         if (picker.root) picker.root.setWorkspaceIcon(picker.slot, name)
+    }
+    // A known name shapes into one em-wide glyph; an unknown one lays out as
+    // letters, which the bar would draw as text, so it is not saved.
+    function commitText(text) {
+        if (!picker.root) return
+        var name = picker.root.workspaceIconName(text)
+        glyphProbe.text = name
+        if (name === "" || glyphProbe.advanceWidth <= glyphProbe.font.pixelSize * 1.2)
+            picker.choose(name)
+        nameField.text = Qt.binding(() => picker.current)
+    }
+    // A click takes no focus, so the field never reports its edit; save what was
+    // typed before the binding refills the field with the next workspace's symbol.
+    function select(n) {
+        if (nameField.focused && nameField.text !== picker.current) picker.commitText(nameField.text)
+        picker.slot = n
+    }
+
+    TextMetrics {
+        id: glyphProbe
+        font.family: "Material Symbols Rounded"
+        font.pixelSize: 20
     }
 
     component Tile: Rectangle {
@@ -32,6 +56,7 @@ Column {
 
         height: picker.cellH
         radius: Tokens.radius
+        clip: true
         color: tileMa.containsMouse ? Tokens.tint5 : "transparent"
         border.width: tile.selected ? 2 : 1
         border.color: tile.selected ? Tokens.bone : (tileMa.containsMouse ? Tokens.ink : Tokens.line)
@@ -78,7 +103,7 @@ Column {
                 icon: picker.root ? picker.root.workspaceIcon(index + 1) : ""
                 fallback: String(index + 1)
                 selected: picker.slot === index + 1
-                onPicked: picker.slot = index + 1
+                onPicked: picker.select(index + 1)
             }
         }
     }
@@ -114,10 +139,11 @@ Column {
     }
 
     Field {
+        id: nameField
         width: Math.min(parent.width, 260)
         tabular: true
         placeholder: I18n.tr("Any Material Symbols name")
         text: picker.current
-        onCommitted: (v) => picker.choose(v)
+        onCommitted: (v) => picker.commitText(v)
     }
 }

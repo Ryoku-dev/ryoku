@@ -124,6 +124,7 @@ Item {
                         width: 20
                         height: 20
                         radius: prev.root ? prev.root.panelButtonRadius : 6
+                        clip: true
                         color: cell.isFocused  ? Qt.rgba(cell.seal.r, cell.seal.g, cell.seal.b, 0.30)
                              : cell.isOccupied ? Qt.rgba(cell.seal.r, cell.seal.g, cell.seal.b, 0.12)
                                                : Qt.rgba(cell.seal.r, cell.seal.g, cell.seal.b, 0.04)
