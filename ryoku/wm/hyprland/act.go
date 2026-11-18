@@ -234,11 +234,13 @@ func runAct(args []string) error {
 		if err != nil {
 			return err
 		}
-		invisible := state == "hidden"
 		if _, err := fmt.Fprintln(stdout, previous); err != nil {
 			return err
 		}
-		return evalLua(fmt.Sprintf(`hl.config({ cursor = { invisible = %t } })`, invisible))
+		if state == "hidden" && previous == "visible" {
+			return hideCursorInFrame()
+		}
+		return evalLua(fmt.Sprintf(`hl.config({ cursor = { invisible = %t } })`, state == "hidden"))
 
 	case wm.ActionScreenShader:
 		// A shader NAME, not a path: callers must not know the config layout.
