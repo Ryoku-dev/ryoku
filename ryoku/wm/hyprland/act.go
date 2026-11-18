@@ -234,11 +234,16 @@ func runAct(args []string) error {
 		if err != nil {
 			return err
 		}
-		invisible := state == "hidden"
 		if _, err := fmt.Fprintln(stdout, previous); err != nil {
 			return err
 		}
-		return evalLua(fmt.Sprintf(`hl.config({ cursor = { invisible = %t } })`, invisible))
+		// Every hide waits, not only the first: a second capture that starts
+		// while an earlier hide is still waiting for Hyprland's tick would
+		// otherwise find the cursor "hidden" and take the frame with it in.
+		if state == "hidden" {
+			return hideCursorInFrame()
+		}
+		return evalLua(`hl.config({ cursor = { invisible = false } })`)
 
 	case wm.ActionScreenShader:
 		// A shader NAME, not a path: callers must not know the config layout.

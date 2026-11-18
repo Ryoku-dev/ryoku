@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Every action is pinned to the exact hyprctl argv it emits, because the dialect
@@ -409,6 +410,9 @@ func TestActFocusFollowsMouseReportsConfiguredMode(t *testing.T) {
 func TestActCursorVisibilityReportsAndRestoresState(t *testing.T) {
 	var evals []string
 	optionJSON := `{"bool":true}`
+	prevSleep := cursorFrameSleep
+	cursorFrameSleep = func(time.Duration) {}
+	defer func() { cursorFrameSleep = prevSleep }()
 	restore := stubCtl(t, func(args ...string) ([]byte, error) {
 		if len(args) == 3 && args[0] == "getoption" && args[1] == "cursor:invisible" {
 			return []byte(optionJSON), nil

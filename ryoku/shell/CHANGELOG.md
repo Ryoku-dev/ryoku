@@ -1,6 +1,11 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Ryoshot and screenshots leave a software cursor out.** A software cursor
+  is drawn into the frame, and Hyprland hides it only on its next 500 ms tick,
+  so it outlived the fixed 80 ms wait. `ryoku-cmd-ryoshot` and
+  `ryoku-cmd-grim` drop the sleep and rely on `cursor.visibility hidden`,
+  which now waits out that tick when needed.
 - **Shima's weather matches the launcher (#885).** Shima read wttr.in, whose
   reading can be degrees and an hour off; it now asks Open-Meteo like the
   launcher and keeps wttr.in only as the fallback.
