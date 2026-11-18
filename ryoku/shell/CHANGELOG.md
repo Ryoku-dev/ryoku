@@ -1,6 +1,12 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Battery health reads on every UPower build.** The daemon's battery scan
+  falls back to the pack's Capacity (the wear percentage every UPower carries)
+  when HealthPercentage/HealthSupported are absent, so the Orpheus power card
+  and the bar popout show a health figure instead of "Unavailable". QML keeps
+  reading the battery topic; no new probes
+  (`ipc/battery.go`).
 - **Tap Right Alt three times to explain, read, translate or ask about part of
   the screen, or hold Left Alt while you highlight text.** A triple tap freezes
   the screen, you drag over anything, and the box stays where it was with

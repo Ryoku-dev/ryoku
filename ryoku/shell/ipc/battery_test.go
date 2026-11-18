@@ -204,3 +204,61 @@ func TestBatteryStateSkipsAbsentBattery(t *testing.T) {
 		t.Fatalf("absent battery with OnBattery=true: %+v", frame)
 	}
 }
+
+func TestBatteryStateHealthFallsBackToCapacity(t *testing.T) {
+	// UPower builds without HealthPercentage/HealthSupported (e.g. 1.91.5)
+	// still report Capacity, the wear percentage. The daemon must surface it
+	// as health so the bar card reads a value instead of "Unavailable".
+	bat0 := packProps(80, upStatePendingCharge, map[string]dbus.Variant{
+		batteryDevIface + ".EnergyFull": dbus.MakeVariant(60.226),
+		batteryDevIface + ".Capacity":   dbus.MakeVariant(79.2447),
+	})
+	b := testBatteryState(false, map[dbus.ObjectPath]*fakeBatteryObject{
+		testAdapter:        {props: batteryDeviceProps(upDeviceLinePower, true, nil)},
+		testBat0:           bat0,
+		batteryDisplayPath: packProps(80, upStatePendingCharge, nil),
+	})
+
+	frame := b.state()
+	if !frame.HealthSupported || frame.Health != 79.2447 {
+		t.Fatalf("Capacity must surface as health when the Health properties are absent: %+v", frame)
+	}
+}
+
+func TestBatteryStateHealthPrefersHealthPercentageOverCapacity(t *testing.T) {
+	// When the pack ships both, HealthPercentage wins: it is the vendor's
+	// own health figure, not the derived wear ratio.
+	bat0 := packProps(80, upStatePendingCharge, map[string]dbus.Variant{
+		batteryDevIface + ".HealthSupported":  dbus.MakeVariant(true),
+		batteryDevIface + ".HealthPercentage": dbus.MakeVariant(96.0),
+		batteryDevIface + ".Capacity":         dbus.MakeVariant(79.2447),
+	})
+	b := testBatteryState(false, map[dbus.ObjectPath]*fakeBatteryObject{
+		testAdapter:        {props: batteryDeviceProps(upDeviceLinePower, true, nil)},
+		testBat0:           bat0,
+		batteryDisplayPath: packProps(80, upStatePendingCharge, nil),
+	})
+
+	frame := b.state()
+	if !frame.HealthSupported || frame.Health != 96 {
+		t.Fatalf("HealthPercentage must win over Capacity: %+v", frame)
+	}
+}
+
+func TestBatteryStateNoHealthSourceStaysUnsupported(t *testing.T) {
+	// Neither Health properties nor a usable Capacity: health stays
+	// unsupported rather than reporting a bogus 0 % wear.
+	bat0 := packProps(80, upStatePendingCharge, map[string]dbus.Variant{
+		batteryDevIface + ".Capacity": dbus.MakeVariant(0.0),
+	})
+	b := testBatteryState(false, map[dbus.ObjectPath]*fakeBatteryObject{
+		testAdapter:        {props: batteryDeviceProps(upDeviceLinePower, true, nil)},
+		testBat0:           bat0,
+		batteryDisplayPath: packProps(80, upStatePendingCharge, nil),
+	})
+
+	frame := b.state()
+	if frame.HealthSupported || frame.Health != 0 {
+		t.Fatalf("a zero Capacity must not read as supported health: %+v", frame)
+	}
+}
