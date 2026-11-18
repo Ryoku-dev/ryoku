@@ -17,11 +17,14 @@ import (
 // the time.
 //
 // So hiding waits out one full tick unless the pointer is provably off the
-// frame. A hardware cursor is: a plain capture under the pointer differs from
-// an include-cursor one while two plain captures agree. Anything else (a
-// software cursor, moving content such as a video or live wallpaper, a failed
-// capture) waits, because watching the frame for change cannot tell the cursor
-// leaving from the content underneath moving.
+// frame. A hardware cursor is: plain and include-cursor captures under the
+// pointer, alternated five times, give three identical plain frames, two
+// identical include-cursor frames, and a difference between the two kinds.
+// Anything else (a software cursor, moving content such as a video or live
+// wallpaper, a failed capture) waits, because watching the frame for change
+// cannot tell the cursor leaving from the content underneath moving. Content
+// that changes and changes back between captures would have to repeat the same
+// two frames twice in step with the probe to pass for a hardware cursor.
 
 const (
 	cursorProbeSize = 32
@@ -65,13 +68,16 @@ func hardwareCursor() bool {
 		return false
 	}
 	x, y := pos.X-cursorProbeSize/4, pos.Y-cursorProbeSize/4
-	shots := make([][]byte, 3)
-	for i, withCursor := range []bool{false, true, false} {
+	order := []bool{false, true, false, true, false}
+	shots := make([][]byte, len(order))
+	for i, withCursor := range order {
 		shot, err := captureBox(x, y, cursorProbeSize, cursorProbeSize, withCursor)
 		if err != nil || len(shot) == 0 {
 			return false
 		}
 		shots[i] = shot
 	}
-	return bytes.Equal(shots[0], shots[2]) && !bytes.Equal(shots[0], shots[1])
+	plain, overlay := shots[0], shots[1]
+	return bytes.Equal(shots[2], plain) && bytes.Equal(shots[4], plain) &&
+		bytes.Equal(shots[3], overlay) && !bytes.Equal(plain, overlay)
 }
