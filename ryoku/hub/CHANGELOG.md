@@ -1,6 +1,11 @@
 # Changelog: ryoku/hub/
 
 ## Unreleased
+- **Notifications & pop-ups steps the volume and brightness keys.** Two steppers,
+  Volume step and Brightness step (1 to 25 percent, 5 shipped), sit in the
+  section now named Volume and brightness, stored as `audio.step` and
+  `display.brightnessStep`, so the keys that raise those pop-ups move by the
+  amount the user picks (`schema/notifications.js`).
 - **Rashin has a Sight section.** Turn triple-tap Right Alt or Left Alt while highlighting on or off, pick what it starts with, the
   language it translates into, what answers (the same engine as Ask, Rashin's providers or a harness)
   and the model (the engine's default unless you name one), keep captures on local models only, and add

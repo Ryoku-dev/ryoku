@@ -140,7 +140,7 @@ func TestResolveEmitsCatalogue(t *testing.T) {
 		"command.always_binding_media_pause":                {activator: "KEY_PAUSECD", commandOpt: "command_media_pause", cmd: "ryoku-media pause"},
 		"command.always_binding_media_mute":                 {activator: "KEY_MUTE", commandOpt: "command_media_mute", cmd: "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"},
 		"command.always_binding_media_mic_mute":             {activator: "KEY_MICMUTE", commandOpt: "command_media_mic_mute", cmd: "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"},
-		"command.repeatable_binding_hardware_brightness_up": {activator: "KEY_BRIGHTNESSUP", commandOpt: "command_hardware_brightness_up", cmd: "ryoku-cmd-brightness +5"},
+		"command.repeatable_binding_hardware_brightness_up": {activator: "KEY_BRIGHTNESSUP", commandOpt: "command_hardware_brightness_up", cmd: "ryoku-cmd-brightness up"},
 		"command.always_binding_hardware_touchpad_toggle":   {activator: "KEY_TOUCHPAD_TOGGLE", commandOpt: "command_hardware_touchpad_toggle", cmd: "ryoku-wm-wayfire act input.touchpad toggle"},
 		"command.binding_shell_screenshot_print":            {activator: "KEY_PRINT", commandOpt: "command_shell_screenshot_print"},
 		"command.binding_workspace_hide_window":             {activator: "<super> KEY_H", commandOpt: "command_workspace_hide_window", cmd: "ryoku-wm-wayfire act window.hide focused"},

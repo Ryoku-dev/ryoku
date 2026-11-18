@@ -1,11 +1,11 @@
 .pragma library
 
 var title = "Notifications & pop-ups";
-var lead = "How notification cards and the volume and brightness pop-ups look, and what notifications show.";
+var lead = "How notification cards and the volume and brightness pop-ups look, how far their keys step, and what notifications show.";
 
 var sections = [
     { id: "design", title: "Notification design" },
-    { id: "popups", title: "Volume and brightness pop-ups" }
+    { id: "popups", title: "Volume and brightness" }
 ];
 
 function s(key, fallback) {
@@ -32,6 +32,16 @@ var rows = [
     { id: "popup-design", section: "popups", label: "Pop-up design", template: true,
       detail: "Choose how the volume and brightness pop-ups look",
       keywords: ["osd", "volume popup", "brightness popup", "on-screen display", "overlay", "style", "look", "install"] },
+    { id: "volume-step", section: "popups", label: "Volume step",
+      detail: "How far each press of the volume keys moves the volume",
+      keywords: ["volume keys", "volume step", "volume wheel", "increment", "media keys", "percent"],
+      control: "stepper", min: 1, max: 25, step: 1, unit: "%",
+      bind: s("audio.step", 5), "default": 5 },
+    { id: "brightness-step", section: "popups", label: "Brightness step",
+      detail: "How far each press of the brightness keys moves the screen",
+      keywords: ["brightness keys", "brightness step", "backlight", "increment", "external monitor", "percent"],
+      control: "stepper", min: 1, max: 25, step: 1, unit: "%",
+      bind: s("display.brightnessStep", 5), "default": 5 },
     { id: "test-popup", section: "popups", label: "Show a test pop-up",
       detail: "See the design in use on your desktop",
       keywords: ["try", "preview", "sample", "osd"], control: "custom", activatable: true },

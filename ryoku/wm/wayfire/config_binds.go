@@ -336,8 +336,8 @@ func shippedBinds() map[string]wayfireBind {
 		"media.prev":       {key: "media_prev", cmd: "playerctl previous", always: true},
 
 		// Hardware
-		"hardware.brightnessUp":   {key: "hardware_brightness_up", cmd: "ryoku-cmd-brightness +5", repeatable: true},
-		"hardware.brightnessDown": {key: "hardware_brightness_down", cmd: "ryoku-cmd-brightness -5", repeatable: true},
+		"hardware.brightnessUp":   {key: "hardware_brightness_up", cmd: "ryoku-cmd-brightness up", repeatable: true},
+		"hardware.brightnessDown": {key: "hardware_brightness_down", cmd: "ryoku-cmd-brightness down", repeatable: true},
 		"hardware.touchpadToggle": {key: "hardware_touchpad_toggle", cmd: "ryoku-wm-wayfire act input.touchpad toggle", always: true},
 		"hardware.touchpadOn":     {key: "hardware_touchpad_on", cmd: "ryoku-wm-wayfire act input.touchpad on", always: true},
 		"hardware.touchpadOff":    {key: "hardware_touchpad_off", cmd: "ryoku-wm-wayfire act input.touchpad off", always: true},

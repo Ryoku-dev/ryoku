@@ -19,19 +19,46 @@ import (
 // socket transport: the menu, audio, brightness, lock-status, and hub verbs.
 // Each mirrors one reference control method (menu <name> / close-all, audio
 // volume-up/down/mute, brightness up/down, lock check, settings open/close).
-// The volume and brightness steps are the reference literals: 5% of the [0,1]
-// output-volume range and 5 of the [0,100] brightness range.
+// The volume and brightness steps are Ryoku Settings choices in shell.json
+// (audio.step and display.brightnessStep), so the bar's wheel and the media
+// keys move by the same amount; 5% is the shipped default for both.
+
+// stepDefault is the step both verbs and the media-key helpers ship with.
+const stepDefault = 5
+
+// stepRange keeps a hand-edited store from turning a keypress into a no-op or a
+// jump across the whole range.
+const (
+	stepMin = 1
+	stepMax = 25
+)
+
+// stepAt reads one step setting, clamped to the range the Hub's stepper offers.
+// A daemon whose settings store has not started yet keeps the shipped default.
+func (d *daemon) stepAt(path string) int {
+	if d.settings == nil {
+		return stepDefault
+	}
+	step := d.settings.intAt(path, stepDefault)
+	if step < stepMin {
+		return stepMin
+	}
+	if step > stepMax {
+		return stepMax
+	}
+	return step
+}
 
 // audioArgv maps an audio subcommand to the wpctl invocation that carries it
-// out: up/down step 5% of the sink volume, up clamps at 1.0 (100%) to match the
-// reference's [0,1] clamp, and mute toggles. These match the media-key binds, so
-// the keybind and the IPC verb drive one behaviour.
-func audioArgv(sub string) ([]string, bool) {
+// out: up/down step by the configured percentage, up clamps at 1.0 (100%) to
+// match the reference's [0,1] clamp, and mute toggles. These match the media-key
+// binds, so the keybind and the IPC verb drive one behaviour.
+func audioArgv(sub string, step int) ([]string, bool) {
 	switch sub {
 	case "up":
-		return []string{"set-volume", "-l", "1", "@DEFAULT_AUDIO_SINK@", "5%+"}, true
+		return []string{"set-volume", "-l", "1", "@DEFAULT_AUDIO_SINK@", fmt.Sprintf("%d%%+", step)}, true
 	case "down":
-		return []string{"set-volume", "@DEFAULT_AUDIO_SINK@", "5%-"}, true
+		return []string{"set-volume", "@DEFAULT_AUDIO_SINK@", fmt.Sprintf("%d%%-", step)}, true
 	case "mute":
 		return []string{"set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"}, true
 	}
@@ -39,14 +66,14 @@ func audioArgv(sub string) ([]string, bool) {
 }
 
 // brightnessArgv maps a brightness subcommand to a ryoku-cmd-brightness step.
-// The reference stepped brightness by 5 on a 0..100 scale (5%); the helper
-// drives both the laptop backlight and any DDC/CI external monitor at once.
-func brightnessArgv(sub string) ([]string, bool) {
+// The helper drives both the laptop backlight and any DDC/CI external monitor at
+// once, by the configured percentage.
+func brightnessArgv(sub string, step int) ([]string, bool) {
 	switch sub {
 	case "up":
-		return []string{"+5"}, true
+		return []string{fmt.Sprintf("+%d", step)}, true
 	case "down":
-		return []string{"-5"}, true
+		return []string{fmt.Sprintf("-%d", step)}, true
 	}
 	return nil, false
 }
@@ -55,7 +82,7 @@ func brightnessArgv(sub string) ([]string, bool) {
 // moves, so the verb only performs the change; that OSD flash is the reference's
 // documented side effect.
 func (d *daemon) audio(sub string) string {
-	argv, ok := audioArgv(sub)
+	argv, ok := audioArgv(sub, d.stepAt("audio.step"))
 	if !ok {
 		return "err audio: expected up, down, or mute"
 	}
@@ -70,7 +97,7 @@ func (d *daemon) audio(sub string) string {
 
 // brightness runs a backlight change through the shared brightness helper.
 func (d *daemon) brightness(sub string) string {
-	argv, ok := brightnessArgv(sub)
+	argv, ok := brightnessArgv(sub, d.stepAt("display.brightnessStep"))
 	if !ok {
 		return "err brightness: expected up or down"
 	}

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -12,9 +13,8 @@ import (
 	wm "ryoku-wm"
 )
 
-// The audio verb steps volume by the reference literal (5% of the [0,1] range),
-// clamps the rise at 1.0, and toggles mute; those argv are the behaviour, so
-// pin them.
+// The audio verb steps volume by the configured percentage, clamps the rise at
+// 1.0, and toggles mute; those argv are the behaviour, so pin them.
 func TestAudioArgv(t *testing.T) {
 	cases := map[string][]string{
 		"up":   {"set-volume", "-l", "1", "@DEFAULT_AUDIO_SINK@", "5%+"},
@@ -22,30 +22,65 @@ func TestAudioArgv(t *testing.T) {
 		"mute": {"set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"},
 	}
 	for sub, want := range cases {
-		got, ok := audioArgv(sub)
+		got, ok := audioArgv(sub, stepDefault)
 		if !ok || !reflect.DeepEqual(got, want) {
 			t.Errorf("audioArgv(%q) = (%v,%v), want (%v,true)", sub, got, ok, want)
 		}
 	}
-	if _, ok := audioArgv("sideways"); ok {
+	if _, ok := audioArgv("sideways", stepDefault); ok {
 		t.Errorf("audioArgv(sideways) accepted, want rejection")
+	}
+	if got, _ := audioArgv("up", 10); got[4] != "10%+" {
+		t.Errorf("audioArgv(up, 10) = %v, want a 10%% step", got)
 	}
 }
 
-// The brightness verb steps by the reference literal (5 of the [0,100] range).
+// The brightness verb steps by the configured percentage.
 func TestBrightnessArgv(t *testing.T) {
 	cases := map[string][]string{
 		"up":   {"+5"},
 		"down": {"-5"},
 	}
 	for sub, want := range cases {
-		got, ok := brightnessArgv(sub)
+		got, ok := brightnessArgv(sub, stepDefault)
 		if !ok || !reflect.DeepEqual(got, want) {
 			t.Errorf("brightnessArgv(%q) = (%v,%v), want (%v,true)", sub, got, ok, want)
 		}
 	}
-	if _, ok := brightnessArgv("sideways"); ok {
+	if _, ok := brightnessArgv("sideways", stepDefault); ok {
 		t.Errorf("brightnessArgv(sideways) accepted, want rejection")
+	}
+	if got, _ := brightnessArgv("down", 3); !reflect.DeepEqual(got, []string{"-3"}) {
+		t.Errorf("brightnessArgv(down, 3) = %v, want -3", got)
+	}
+}
+
+// A daemon whose settings store has not started, or whose store holds a bad
+// value, still moves by the shipped step instead of stalling or jumping.
+func TestStepAt(t *testing.T) {
+	d := &daemon{}
+	if got := d.stepAt("audio.step"); got != stepDefault {
+		t.Fatalf("stepAt with no store = %d, want %d", got, stepDefault)
+	}
+	for _, tc := range []struct {
+		name, stored, path string
+		want               int
+	}{
+		{"volume step", `{"audio":{"step":9}}`, "audio.step", 9},
+		{"brightness step", `{"display":{"brightnessStep":9}}`, "display.brightnessStep", 9},
+		{"below the range clamps up", `{"audio":{"step":0}}`, "audio.step", stepMin},
+		{"above the range clamps down", `{"audio":{"step":90}}`, "audio.step", stepMax},
+		{"a missing key keeps the default", `{"audio":{"boost":false}}`, "audio.step", stepDefault},
+		{"a fractional value keeps the default", `{"audio":{"step":2.5}}`, "audio.step", stepDefault},
+	} {
+		path := filepath.Join(t.TempDir(), "shell.json")
+		if err := os.WriteFile(path, []byte(tc.stored), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		d := &daemon{settings: newSettingsStore(path)}
+		if got := d.stepAt(tc.path); got != tc.want {
+			t.Errorf("%s: stepAt(%q) = %d, want %d", tc.name, tc.path, got, tc.want)
+		}
 	}
 }
 

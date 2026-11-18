@@ -71,10 +71,17 @@ Item {
         return Network.wifiRadio ? "Wi-Fi disconnected" : "Wi-Fi off";
     }
 
+    // the volume keys' step from Ryoku Settings (audio.step), so the wheel and
+    // the keys move by one amount; 5% is the shipped default
+    readonly property int volumeStep: {
+        const n = Math.round(Number(Config.audio && Config.audio.step));
+        return n >= 1 && n <= 25 ? n : 5;
+    }
+
     function stepVolume(steps) {
         if (!sinkAudio || steps === 0)
             return;
-        sinkAudio.volume = Math.max(0, Math.min(1, volume + steps * 0.05));
+        sinkAudio.volume = Math.max(0, Math.min(1, volume + steps * root.volumeStep / 100));
     }
 
     function hit(item, pointX) {

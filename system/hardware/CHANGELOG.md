@@ -3,6 +3,11 @@
 ## Unreleased
 
 ### Changed
+- `audio/ryoku-volume`: **the volume keys step by a setting.** The grid comes
+  from `audio.step` in shell.json (1 to 25 percent, 5 shipped), so Ryoku
+  Settings and the keys agree and one number replaces the five-point literal.
+  The old 65 to 67 detour before 70 is gone: every press lands on the grid, and
+  `audio.boost` still caps the range at 150%.
 - `bluetooth/ryoku-bt-agent`: **the pairing agent no longer wakes every second.**
   The helper holds `bluetoothctl`'s stdin open with `sleep infinity`, as the
   Hyperion unit did, instead of `tail -f /dev/null`.

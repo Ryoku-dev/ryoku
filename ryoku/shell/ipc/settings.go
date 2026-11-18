@@ -1014,6 +1014,23 @@ func (s *settingsStore) boolAt(path string) bool {
 	return b
 }
 
+// intAt reads an integer leaf ("audio.step") out of the loaded file, schema keys
+// and passthrough alike. A missing, non-numeric or fractional value reads as
+// fallback, so a hand-edited store can never turn a keypress into a no-op.
+func (s *settingsStore) intAt(path string, fallback int) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	v, err := getByPath(s.raw, strings.Split(path, "."))
+	if err != nil {
+		return fallback
+	}
+	f, ok := v.(float64)
+	if !ok || f != float64(int(f)) {
+		return fallback
+	}
+	return int(f)
+}
+
 // deepCopyMap clones a decoded JSON object so a patch can be validated on a copy
 // and only committed if it holds together.
 func deepCopyMap(m map[string]any) map[string]any {

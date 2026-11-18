@@ -1,6 +1,14 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The volume and brightness keys step by a setting, not a literal.** The
+  `audio` and `brightness` IPC verbs read `audio.step` and
+  `display.brightnessStep` from shell.json (1 to 25 percent, 5 shipped), so the
+  bar's volume wheel and the media keys move by one amount, and
+  `ryoku-cmd-brightness` takes `up`/`down` beside its `+N` form. Orpheus's own
+  wheel follows `audio.step` too (`ipc/control.go`, `ipc/settings.go`,
+  `scripts/ryoku-cmd-brightness`,
+  `quickshell/shell/subshells/orpheus/qml/modules/Controls.qml`).
 - **Battery health reads on every UPower build.** The daemon's battery scan
   falls back to the pack's Capacity (the wear percentage every UPower carries)
   when HealthPercentage/HealthSupported are absent, so the Orpheus power card

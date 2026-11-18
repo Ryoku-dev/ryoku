@@ -198,8 +198,8 @@ func shippedBinds() map[string]niriBind {
 		"media.prev":       {action: spawnArgs("playerctl", "previous")},
 
 		// Hardware
-		"hardware.brightnessUp":   {action: spawnArgs("ryoku-cmd-brightness", "+5")},
-		"hardware.brightnessDown": {action: spawnArgs("ryoku-cmd-brightness", "-5")},
+		"hardware.brightnessUp":   {action: spawnArgs("ryoku-cmd-brightness", "up")},
+		"hardware.brightnessDown": {action: spawnArgs("ryoku-cmd-brightness", "down")},
 		"hardware.touchpadToggle": {action: spawnArgs("ryoku-wm-niri", "act", "input.touchpad", "toggle")},
 		"hardware.touchpadOn":     {action: spawnArgs("ryoku-wm-niri", "act", "input.touchpad", "on")},
 		"hardware.touchpadOff":    {action: spawnArgs("ryoku-wm-niri", "act", "input.touchpad", "off")},

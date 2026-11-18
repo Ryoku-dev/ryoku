@@ -1,6 +1,12 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **The brightness keys move by the step Ryoku Settings names.** The media-key
+  binds on Hyprland, niri and Wayfire pass `up`/`down` instead of a literal 5,
+  so changing the step needs no compositor reload or config rewrite; the
+  explicit `+N`/`-N` forms still work for scripts
+  (`hyprland/modules/binds.lua`, `wm/niri/config_binds.go`,
+  `wm/wayfire/config_binds.go`).
 - **Rashin answers screen captures through a quick glance.** `glance` runs a
   temporary Ask with no tools on Rashin's fast route, or on the harness Ask
   uses with the model set for it; local Ollama and llama.cpp models count when
