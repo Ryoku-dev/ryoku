@@ -793,6 +793,41 @@ run_helper lid close
 expect_events $'shell lock\nshell suspend'
 release_lid_owner
 
+# An in-flight secure suspend is never cancelled by the opt-in: only a live
+# docked close may stop it, because the opt-in has not locked the session and
+# stopping the transaction could leave it unlocked behind the lid.
+reset_case
+set_ac 1
+set_external disconnected
+set_lid closed
+keep_running_cfg false
+hold_lid_owner
+block_dir="$tmp/keep-block"
+mkdir -p "$block_dir"
+export RYOKU_SHELL_BLOCK_DIR="$block_dir"
+run_helper policy close &
+policy_pid=$!
+for _ in {1..100}; do
+  compgen -G "$block_dir/started-*" >/dev/null && break
+  sleep 0.01
+done
+compgen -G "$block_dir/started-*" >/dev/null || {
+  printf 'keep-running regression test never entered the suspend transaction\n' >&2
+  exit 1
+}
+keep_running_cfg true
+sleep 0.2
+if compgen -G "$block_dir/cancelled-*" >/dev/null; then
+  printf 'the keep-running opt-in cancelled an in-flight secure suspend\n' >&2
+  exit 1
+fi
+set_lid open
+run_helper policy open
+wait "$policy_pid"
+policy_pid=""
+release_lid_owner
+expect_events 'shell suspend'
+
 # Unplugging AC while the lid is already shut is a fresh suspend edge, even
 # though no closed-lid event arrives from the compositor.
 reset_case

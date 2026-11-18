@@ -655,7 +655,7 @@ cmd_lid() {
       if [[ -z $key ]]; then
         lid_merged
       else
-        lid_merged | jq -er --arg k "$key" '
+        lid_merged | jq -r --arg k "$key" '
           if has($k) then .[$k] else error("unknown lid key: \($k)") end
         '
       fi

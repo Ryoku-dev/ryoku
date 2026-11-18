@@ -257,7 +257,14 @@ jq -e '(has("battery")|not) and (has("aspm")|not)' <<<"$capsJ" >/dev/null \
 # --- closed-lid policy: off by default, boolean, one key, siblings kept -------
 cfgP="$tmp/cfgP/power.json"; mkdir -p "$(dirname "$cfgP")"
 printf '{"chargeLimit":80}\n' >"$cfgP"
-[[ "$(rp "$nops" "$noaspm" "$cfgP" 1 lid get keepRunningOnAc)" == false ]] \
+# A false value is still a successful read: `jq -e` would treat it as failure.
+lid_get() { # <key>
+  local out
+  out="$(rp "$nops" "$noaspm" "$cfgP" 1 lid get "$1")" ||
+    fail "lid get $1 exited nonzero"
+  printf '%s\n' "$out"
+}
+[[ "$(lid_get keepRunningOnAc)" == false ]] \
   || fail "lid keepRunningOnAc did not default to false"
 jq -e '.keepRunningOnAc == false' <(rp "$nops" "$noaspm" "$cfgP" 1 lid get) >/dev/null \
   || fail "lid get did not print the default policy object"
@@ -265,12 +272,12 @@ rp "$nops" "$noaspm" "$cfgP" 1 lid set keepRunningOnAc true \
   || fail "lid set rejected true"
 jq -e '.lid.keepRunningOnAc == true and .chargeLimit == 80' "$cfgP" >/dev/null \
   || fail "lid set did not persist true or dropped a sibling key"
-[[ "$(rp "$nops" "$noaspm" "$cfgP" 1 lid get keepRunningOnAc)" == true ]] \
+[[ "$(lid_get keepRunningOnAc)" == true ]] \
   || fail "lid get did not read back true"
 # A stored false must survive a merge: jq `//` would flip it back to the default.
 rp "$nops" "$noaspm" "$cfgP" 1 lid set keepRunningOnAc false \
   || fail "lid set rejected false"
-[[ "$(rp "$nops" "$noaspm" "$cfgP" 1 lid get keepRunningOnAc)" == false ]] \
+[[ "$(lid_get keepRunningOnAc)" == false ]] \
   || fail "a stored false was merged back to the default"
 if rp "$nops" "$noaspm" "$cfgP" 1 lid set keepRunningOnAc yes >/dev/null 2>&1; then
   fail "lid set accepted a non-boolean value"
@@ -278,7 +285,7 @@ fi
 if rp "$nops" "$noaspm" "$cfgP" 1 lid set bogus true >/dev/null 2>&1; then
   fail "lid set accepted an unknown key"
 fi
-[[ "$(rp "$nops" "$noaspm" "$cfgP" 1 lid get keepRunningOnAc)" == false ]] \
+[[ "$(lid_get keepRunningOnAc)" == false ]] \
   || fail "a rejected lid set still wrote the config"
 
 # A desktop has no lid, so capabilities omit the policy entirely.

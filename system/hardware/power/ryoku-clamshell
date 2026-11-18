@@ -419,9 +419,14 @@ keep_closed_wanted() {
   (( CLOSE_KEEP_REFUSED == 0 )) && lid_keep_running && on_ac && inhibitor_active
 }
 
+# An in-flight secure suspend is cancelled only by a live docked close. The
+# keep-running opt-in never cancels one: it has not locked the session, so
+# stopping the transaction could leave an unlocked session behind the lid.
+awake_confirmed() { clamshell_wanted && inhibitor_active; }
+
 # awake_wanted is every reason a shut lid may keep the session running: a live
 # docked close, or the opt-in above. Everything else suspends.
-awake_wanted() { { clamshell_wanted && inhibitor_active; } || keep_closed_wanted; }
+awake_wanted() { awake_confirmed || keep_closed_wanted; }
 
 # --- lid ownership: a supervised child holding handle-lid-switch -------------
 INHIBIT_PID=""
@@ -660,7 +665,7 @@ suspend_while_closed_locked() {
     if ! suspend_retry_session_owned; then
       return 0
     fi
-    if awake_wanted; then
+    if awake_confirmed; then
       return 0
     fi
     request_token="$(new_suspend_token)"
@@ -677,7 +682,7 @@ suspend_while_closed_locked() {
     while process_alive "$request_pid"; do
       if ! close_event_current ||
         ! suspend_retry_session_owned ||
-        awake_wanted; then
+        awake_confirmed; then
         cancel_suspend_token "$request_token" || true
         kill -TERM "$request_pid" 2>/dev/null || true
         wait "$request_pid" 2>/dev/null || true

@@ -1125,7 +1125,6 @@ done
                     }
                 }
 
-                // ── LID ──
                 SettingCard {
                     width: gfxCol.colWidth
                     visible: pg.lidTune.length > 0
