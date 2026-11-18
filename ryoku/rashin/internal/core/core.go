@@ -41,6 +41,7 @@ type PromptInput struct {
 	Run string
 	// History is the session log before this turn.
 	History []protocol.SessionEvent
+	Glance  *protocol.GlanceParams
 }
 
 // TurnResult is how a turn ended.

@@ -213,6 +213,24 @@ func DefaultID(settings protocol.Settings) string {
 	return defaultOf(candidates(settings), settings.Agent.Harness)
 }
 
+// Installed reads executable discovery and cached models without executing a
+// harness, so the settings picker also works while Rashin is off.
+func Installed(settings protocol.Settings) []protocol.InstalledHarness {
+	r := New()
+	list := make([]protocol.InstalledHarness, 0)
+	for _, c := range candidates(settings) {
+		if !c.installed || c.collides {
+			continue
+		}
+		info := protocol.InstalledHarness{ID: c.id, Name: c.name}
+		if caps := r.capabilitiesFor(c.id, c.path, userHome); caps != nil {
+			info.Models = caps.ModelList
+		}
+		list = append(list, info)
+	}
+	return list
+}
+
 // Name is how a harness id reads: its definition's name, else its instance's
 // name or id, else the id itself.
 func Name(id string, settings protocol.Settings) string {

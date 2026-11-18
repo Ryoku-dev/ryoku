@@ -130,7 +130,7 @@ func (g *Gateway) Stream(ctx context.Context, request llm.Request) (llm.Stream, 
 		return nil, err
 	}
 	if len(candidates) == 0 && hasImages(request) {
-		return nil, &llm.NoRoute{Reason: g.noPictureModel()}
+		return nil, &llm.NoRoute{Reason: g.noPictureModel(), NoVision: true}
 	}
 	if len(candidates) == 0 {
 		return nil, &llm.NoRoute{Reason: i18n.T("No free model is available. Add a free key in Rashin > Settings > Providers, or start a model on this computer.")}
@@ -231,6 +231,9 @@ func (g *Gateway) candidates(ctx context.Context, request llm.Request) ([]routeC
 	pictures := hasImages(request)
 	var candidates []routeCandidate
 	for _, p := range g.providers(ctx, false) {
+		if request.LocalOnly && p.Tier != protocol.TierLocal {
+			continue
+		}
 		if enabled, err := g.store.providerEnabled(p.ID); err != nil {
 			return nil, err
 		} else if !enabled {
@@ -256,7 +259,7 @@ func (g *Gateway) candidates(ctx context.Context, request llm.Request) ([]routeC
 			m := &p.Models[j]
 			picked := modelRoute == p.ID+"/"+m.ID
 			// a model whose tool support nobody knows answers only when picked by name
-			if m.toolsUnknown && !picked {
+			if len(request.Tools) > 0 && m.toolsUnknown && !picked {
 				continue
 			}
 			if len(request.Tools) > 0 && !m.Tools && !m.toolsUnknown {
@@ -270,7 +273,7 @@ func (g *Gateway) candidates(ctx context.Context, request llm.Request) ([]routeC
 			}
 			if pictures && !m.Vision {
 				if strictPinned {
-					return nil, &llm.NoRoute{Reason: i18n.Tf("%s cannot read pictures. Choose Auto, or a model that can.", m.Name)}
+					return nil, &llm.NoRoute{Reason: i18n.Tf("%s cannot read pictures. Choose Auto, or a model that can.", m.Name), NoVision: true}
 				}
 				continue
 			}
@@ -287,6 +290,9 @@ func (g *Gateway) candidates(ctx context.Context, request llm.Request) ([]routeC
 		}
 	}
 	if strictPinned && len(candidates) == 0 {
+		if pictures {
+			return nil, &llm.NoRoute{Reason: g.noPictureModel(), NoVision: true}
+		}
 		return nil, &llm.NoRoute{Reason: i18n.Tf("The model you chose is not available now: %s. Choose Auto, or wait for it.", modelRoute)}
 	}
 	sortCandidates(candidates, modelRoute)

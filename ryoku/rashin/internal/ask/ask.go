@@ -104,6 +104,9 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 	if model == "" {
 		model = protocol.RouteAuto
 	}
+	if in.Glance != nil || r.opts.Session.Origin == protocol.OriginSight {
+		return r.glance(ctx, in, sink, model)
+	}
 	var asked llm.Message
 	if in.Run == "" {
 		var err error
@@ -382,6 +385,9 @@ func modelError(err error) error {
 	// the router has already said why nothing could take this and what to do
 	var refused *llm.NoRoute
 	if errors.As(err, &refused) {
+		if refused.NoVision {
+			return protocol.Errorf(protocol.CodeNoVision, "%s", refused.Reason)
+		}
 		return protocol.Errorf(protocol.CodeUnavailable, "%s", refused.Reason)
 	}
 	return protocol.Errorf(protocol.CodeUnavailable, "%s", i18n.Tf("Ask could not start an answer: %v. See which providers can answer in Rashin > Settings > Providers.", err))

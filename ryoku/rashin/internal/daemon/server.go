@@ -480,6 +480,12 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 			return nil, err
 		}
 		return d.ask(ctx, c, p)
+	case protocol.MGlance:
+		p, err := unmarshal[protocol.GlanceParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.glance(ctx, c, p)
 	case protocol.MProvidersList:
 		providers, err := d.deps.Gateway.Providers(ctx)
 		return protocol.ProvidersResult{Providers: providers}, err
@@ -914,6 +920,7 @@ func (d *Daemon) status(ctx context.Context) protocol.Status {
 		Version: d.deps.Version, Enabled: settings.Enabled, Running: true, PID: os.Getpid(),
 		UptimeSec: int64(time.Since(d.started).Seconds()), Clients: clients, Sessions: d.manager.counts(),
 		Gateway: d.deps.Gateway.Status(ctx), API: d.apiInfo(), Unscoped: !sandbox.Scoped(),
+		InstalledHarnesses: harness.Installed(settings),
 	}
 	if list, err := d.deps.Harnesses.List(ctx, false); err == nil {
 		for _, h := range list {

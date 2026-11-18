@@ -2,7 +2,9 @@ package attachment
 
 import (
 	"bytes"
-	"errors"
+	"image"
+	pngcodec "image/png"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"testing"
@@ -47,11 +49,39 @@ func TestWhatIsNotAPictureIsNotAnError(t *testing.T) {
 	}
 }
 
-func TestAPictureOverTheLimitIsRefusedWhole(t *testing.T) {
+func TestAnUndecodableLargePictureIsRefused(t *testing.T) {
 	large := append(append([]byte(nil), png...), make([]byte, MaxImage)...)
 	image, ok, err := ReadImage(write(t, "large.png", large))
-	if !ok || !errors.Is(err, ErrTooLarge) || len(image.Data) != 0 {
-		t.Fatalf("a picture over the limit read as %v, %v with %d bytes", ok, err, len(image.Data))
+	if !ok || err == nil || len(image.Data) != 0 {
+		t.Fatalf("an undecodable picture read as %v, %v with %d bytes", ok, err, len(image.Data))
+	}
+}
+
+func TestAnOversizedPictureIsDownscaledAndStillDecodes(t *testing.T) {
+	picture := image.NewNRGBA(image.Rect(0, 0, 1800, 1400))
+	random := rand.NewChaCha8([32]byte{1})
+	_, _ = random.Read(picture.Pix)
+	var encoded bytes.Buffer
+	encoder := pngcodec.Encoder{CompressionLevel: pngcodec.NoCompression}
+	if err := encoder.Encode(&encoded, picture); err != nil {
+		t.Fatal(err)
+	}
+	if encoded.Len() <= MaxImage {
+		t.Fatal("fixture is not over the image limit")
+	}
+	shrunk, ok, err := ReadImage(write(t, "capture.png", encoded.Bytes()))
+	if err != nil || !ok || len(shrunk.Data) > MaxImage || shrunk.Mime != "image/png" {
+		t.Fatalf("shrunk picture = %d bytes, %q, %v, %v", len(shrunk.Data), shrunk.Mime, ok, err)
+	}
+	decoded, _, err := image.Decode(bytes.NewReader(shrunk.Data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Bounds().Dx() >= picture.Bounds().Dx() || decoded.Bounds().Dy() >= picture.Bounds().Dy() {
+		t.Fatalf("picture did not shrink: %v", decoded.Bounds())
+	}
+	if ratio := float64(decoded.Bounds().Dx()) / float64(decoded.Bounds().Dy()); ratio < 1.28 || ratio > 1.29 {
+		t.Fatalf("aspect ratio changed: %v", decoded.Bounds())
 	}
 }
 

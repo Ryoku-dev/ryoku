@@ -20,6 +20,7 @@ import (
 	"ryoku-rashin/internal/ask/command"
 	"ryoku-rashin/internal/core"
 	gitcore "ryoku-rashin/internal/git"
+	"ryoku-rashin/internal/harness"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 	"ryoku-rashin/internal/redact"
@@ -70,6 +71,7 @@ type promptTurn struct {
 	reserved bool
 	goal     bool
 	say      string
+	glance   *protocol.GlanceParams
 }
 
 type sessionManager struct {
@@ -267,6 +269,19 @@ func (m *sessionManager) create(p protocol.SessionNewParams) (protocol.SessionIn
 func (m *sessionManager) persist(s *managedSession, kind string, data any) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if kind == protocol.EvModel {
+		var model protocol.ChoiceData
+		if decode(data, &model) {
+			if id := s.log.Info().Harness; id != "" {
+				model.Engine = harness.Name(id, m.settings())
+				model.Local = false
+			} else if model.Engine == "" {
+				model.Engine = "providers"
+				model.Local = strings.HasPrefix(model.Current, protocol.ProviderOllamaLocal+"/") || strings.HasPrefix(model.Current, protocol.ProviderLlamaCpp+"/")
+			}
+			data = model
+		}
+	}
 	ev, err := s.log.Append(kind, data)
 	if err != nil {
 		return err
@@ -618,8 +633,14 @@ func (m *sessionManager) ensureRunner(ctx context.Context, s *managedSession) (c
 }
 
 func (m *sessionManager) prompt(ctx context.Context, p protocol.PromptParams, handoff *protocol.Handoff) (protocol.PromptResult, int64, error) {
-	if handled, err := m.goalCommand(ctx, p.ID, p.Text); handled {
-		return protocol.PromptResult{}, 0, err
+	return m.promptOptions(ctx, p, promptTurn{handoff: handoff})
+}
+
+func (m *sessionManager) promptOptions(ctx context.Context, p protocol.PromptParams, options promptTurn) (protocol.PromptResult, int64, error) {
+	if options.glance == nil {
+		if handled, err := m.goalCommand(ctx, p.ID, p.Text); handled {
+			return protocol.PromptResult{}, 0, err
+		}
 	}
 	s, err := m.get(p.ID)
 	if err != nil {
@@ -650,7 +671,7 @@ func (m *sessionManager) prompt(ctx context.Context, p protocol.PromptParams, ha
 			return protocol.PromptResult{}, 0, ctx.Err()
 		}
 	}
-	return m.startPrompt(ctx, s, p, promptTurn{handoff: handoff})
+	return m.startPrompt(ctx, s, p, options)
 }
 
 func (m *sessionManager) startPrompt(ctx context.Context, s *managedSession, p protocol.PromptParams, turnOptions promptTurn) (protocol.PromptResult, int64, error) {
@@ -774,6 +795,7 @@ func (m *sessionManager) startPrompt(ctx context.Context, s *managedSession, p p
 		return protocol.PromptResult{}, before, err
 	}
 	input := core.PromptInput{Turn: turn, Text: p.Text, Images: p.Images, Terminal: p.Terminal, Handoff: handoff, Origin: info.Origin, Run: p.Run, History: history}
+	input.Glance = turnOptions.glance
 	if turnOptions.say != "" {
 		input.Text = turnOptions.say
 	}
@@ -799,7 +821,7 @@ func (m *sessionManager) runTurn(ctx context.Context, s *managedSession, runner 
 			stop = protocol.StopCancelled
 		} else {
 			stop = protocol.StopError
-			_ = s.coalescer.Emit(protocol.EvError, protocol.ErrorData{Message: err.Error(), Code: protocol.CodeInternal})
+			_ = s.coalescer.Emit(protocol.EvError, protocol.ErrorData{Message: err.Error(), Code: protocol.AsError(err).Code})
 		}
 	} else if ctx.Err() != nil {
 		stop = protocol.StopCancelled
@@ -1186,6 +1208,13 @@ func (m *sessionManager) fork(ctx context.Context, p protocol.ForkParams) (proto
 	target, err := m.get(info.ID)
 	if err != nil {
 		return protocol.SessionInfo{}, err
+	}
+	if sourceInfo.Temporary {
+		copied, err = keepRuntimeImages(copied, info.ID)
+		if err != nil {
+			_ = m.delete(info.ID)
+			return protocol.SessionInfo{}, err
+		}
 	}
 	for _, event := range copied {
 		if err := target.log.AppendCopy(event); err != nil {

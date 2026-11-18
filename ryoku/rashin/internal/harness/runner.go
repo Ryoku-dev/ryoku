@@ -873,8 +873,7 @@ func (r *runner) resolveAllPermissions(outcome, by string) {
 
 // attachedBlock is one attachment as a prompt block. A picture goes as image
 // data to an agent that takes pictures. Anything else, and a picture for an
-// agent that takes none or one too large to send whole, goes as a link to
-// the file, which every agent takes and opens with its own tools.
+// agent that takes none, goes as a link to the file.
 func attachedBlock(attached protocol.Attachment, images bool) (map[string]any, error) {
 	unreadable := func(err error) error {
 		return fmt.Errorf("%s %w", i18n.Tf("Could not read the attachment %s. Check that the file still exists.", attached.Path), err)
@@ -882,7 +881,6 @@ func attachedBlock(attached protocol.Attachment, images bool) (map[string]any, e
 	if images {
 		image, ok, err := attachment.ReadImage(attached.Path)
 		switch {
-		case errors.Is(err, attachment.ErrTooLarge):
 		case err != nil:
 			return nil, unreadable(err)
 		case ok:

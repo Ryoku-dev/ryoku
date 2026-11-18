@@ -73,6 +73,8 @@ const (
 	CodeUnsupported = "unsupported"
 	CodeForbidden   = "forbidden"
 	CodeInternal    = "internal"
+	CodeNoVision    = "no_vision"
+	CodeLocalOnly   = "local_only"
 )
 
 // Error is a method failure. Message is a full sentence a user can read.

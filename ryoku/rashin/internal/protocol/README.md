@@ -17,8 +17,8 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
 - Requests on one connection may be in flight together; responses carry the
   request id and may come back in any order. Events interleave with responses.
 - Error codes: `bad_request`, `not_found`, `unavailable`, `conflict`,
-  `disabled`, `unsupported`, `forbidden`, `internal`. Messages are sentences
-  for people.
+  `disabled`, `unsupported`, `forbidden`, `internal`, `no_vision`, `local_only`.
+  Messages are sentences for people.
 - `forbidden` refuses a Teams or vault method that only the user may call
   (`teams.UserOnly`), and `harnesses.probe`, to any connection not opened by
   the Rashin app binary (`rashin-app` beside the daemon, or
@@ -64,6 +64,7 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
 | `screen.act` | `ScreenActParams` (by the agent or the user) | `ScreenActResult` (`waiting` when an agent's action was not done yet) |
 | `screen.control` | `ScreenControlParams` (take, release, ask, watch, unwatch, stop) | `ScreenState` |
 | `ask` | `AskParams` | `AskResult`, caller attached |
+| `glance` | `GlanceParams` (capture modes, engine, model and local-only routing) | `AskResult`, caller attached |
 | `providers.list` | | `ProvidersResult` |
 | `providers.add_key` | `AddKeyParams` | `ProviderInfo` |
 | `providers.remove_key` | `RemoveKeyParams` | `ProviderInfo` |
@@ -206,6 +207,28 @@ remembers the last `seq`; reattaching with that `since` resumes without gaps.
 A replay that does not fit one frame comes in pages: while the result has
 `more`, the client attaches again with `since` set to the last event's `seq`.
 The connection receives live `session.event`s only after the last page.
+
+`glance` takes `session`, `mode` (`explain`, `ask`, `read`, `translate`),
+`question`, `text`, `images`, `target`, `engine`, `model` and `local`.
+Without `session` it creates a temporary Ask with origin `sight`, and with one
+it continues that conversation. Origins are `app`, `bar`, `cli`, `terminal`,
+`fix`, `import`, `team` and `sight`.
+
+Engine `ask` follows `settings.ask.harness`, or uses providers when empty.
+Engine `providers` uses a short mode prompt without tools, vault context or
+memory recall, routing to `model` or `auto:fast`. Other engines name a known
+harness, with an empty model keeping its default. `local:true` filters the
+providers to local servers and refuses harness engines with `local_only`.
+No picture-capable route produces `no_vision` with the provider guidance.
+
+Model events also carry `local` and `engine`, so a capture can show where its
+answer came from. Keeping a temporary session with `session.fork` copies its
+runtime-directory images into Rashin's data directory before keeping the log.
+Oversized images are downscaled below 8 MiB without changing their shape.
+
+`status.installedHarnesses` lists `{id,name,models?}` without running a harness,
+with model choices coming from its cached ACP capabilities, and `rashin status
+--json` includes the same list even when the daemon is off.
 
 | Kind | Data type |
 |---|---|

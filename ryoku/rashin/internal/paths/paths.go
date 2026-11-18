@@ -149,6 +149,9 @@ func ScreensDir() string { return filepath.Join(RuntimeDir(), "screens") }
 // screen home, the team homes and the built-in skills written out.
 func DataDir() string { return filepath.Join(DataHome(), "ryoku", "rashin") }
 
+// AttachmentsDir holds images in conversations kept past the login session.
+func AttachmentsDir() string { return filepath.Join(DataDir(), "attachments") }
+
 // SkillsDir holds the built-in skills written out of the program, in one
 // folder named for their content hash.
 func SkillsDir() string { return filepath.Join(DataDir(), "skills") }

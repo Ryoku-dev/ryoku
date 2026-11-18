@@ -58,6 +58,7 @@ type Tool struct {
 type Request struct {
 	Model       string
 	Strict      bool
+	LocalOnly   bool
 	Messages    []Message
 	Tools       []Tool
 	Temperature *float64
@@ -111,7 +112,10 @@ type Stream interface {
 
 // NoRoute is the error for a request that nothing in use can take. Its text
 // already says why and what to do, so a caller shows it as it is.
-type NoRoute struct{ Reason string }
+type NoRoute struct {
+	Reason   string
+	NoVision bool
+}
 
 func (e *NoRoute) Error() string { return e.Reason }
 

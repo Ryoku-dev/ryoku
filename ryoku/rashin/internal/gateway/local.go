@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -137,7 +138,7 @@ func (g *Gateway) localModels(ctx context.Context, id, address string, fresh boo
 	if !fresh && found.address == address && !found.at.IsZero() && now.Sub(found.at) < localTTL {
 		return found.running, found.models, false
 	}
-	running, models := g.askLocal(ctx, address)
+	running, models := g.askLocal(ctx, id, address)
 	changed := !found.at.IsZero() && found.address == address && (running != found.running || !sameModels(models, found.models))
 	found.address, found.at, found.running, found.models = address, now, running, models
 	return running, models, changed
@@ -146,7 +147,7 @@ func (g *Gateway) localModels(ctx context.Context, id, address string, fresh boo
 // askLocal reads GET {address}/models, the OpenAI listing Ollama and
 // llama-server both serve. A server that does not answer is not running,
 // which is never an error.
-func (g *Gateway) askLocal(ctx context.Context, address string) (bool, []model) {
+func (g *Gateway) askLocal(ctx context.Context, providerID, address string) (bool, []model) {
 	ctx, cancel := context.WithTimeout(ctx, localAskBudget)
 	defer cancel()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(address, "/")+"/models", nil)
@@ -177,10 +178,48 @@ func (g *Gateway) askLocal(ctx context.Context, address string) (bool, []model) 
 		if id == "" || strings.Contains(strings.ToLower(id), "embed") || slices.ContainsFunc(models, func(m model) bool { return m.ID == id }) {
 			continue
 		}
-		// tools are assumed: a model that refuses them cools down like any other
-		models = append(models, model{ID: id, Name: localModelName(id), Tools: true})
+		vision, tools := g.localCapabilities(ctx, providerID, address, id)
+		models = append(models, model{ID: id, Name: localModelName(id), Vision: vision, Tools: tools})
 	}
 	return true, models
+}
+
+func (g *Gateway) localCapabilities(ctx context.Context, providerID, address, modelID string) (vision, tools bool) {
+	root := strings.TrimSuffix(strings.TrimRight(address, "/"), "/v1")
+	method, endpoint := http.MethodGet, root+"/props"
+	var body io.Reader
+	if providerID == protocol.ProviderOllamaLocal {
+		method, endpoint = http.MethodPost, root+"/api/show"
+		data, _ := json.Marshal(map[string]string{"model": modelID})
+		body = bytes.NewReader(data)
+	}
+	request, err := http.NewRequestWithContext(ctx, method, endpoint, body)
+	if err != nil {
+		return false, true
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, err := g.local.client.Do(request)
+	if err != nil {
+		return false, true
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return false, true
+	}
+	var props struct {
+		Capabilities []string `json:"capabilities"`
+		Modalities   struct {
+			Vision bool `json:"vision"`
+		} `json:"modalities"`
+	}
+	if json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&props) != nil {
+		return false, true
+	}
+	if providerID == protocol.ProviderOllamaLocal {
+		return slices.Contains(props.Capabilities, "vision"), slices.Contains(props.Capabilities, "tools")
+	}
+	// A multimodal server says nothing about tool calls in /props.
+	return props.Modalities.Vision, !props.Modalities.Vision
 }
 
 // localModelName reads a model's id as a name: llama-server may give the
@@ -191,5 +230,7 @@ func localModelName(id string) string {
 }
 
 func sameModels(a, b []model) bool {
-	return slices.EqualFunc(a, b, func(left, right model) bool { return left.ID == right.ID })
+	return slices.EqualFunc(a, b, func(left, right model) bool {
+		return left.ID == right.ID && left.Vision == right.Vision && left.Tools == right.Tools
+	})
 }

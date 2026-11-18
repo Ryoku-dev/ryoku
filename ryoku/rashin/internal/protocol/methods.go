@@ -32,6 +32,7 @@ const (
 	MSessionRevertTurn = "session.revert_turn"
 	MSessionGoal       = "session.goal"
 	MAsk               = "ask"
+	MGlance            = "glance"
 
 	MScreenList    = "screen.list"
 	MScreenAct     = "screen.act"
@@ -291,6 +292,7 @@ var Methods = []Method{
 	m(MScreenControl, ScreenControlParams{}, ScreenState{}, "Take, hand back, watch or stop a session's screen, or have the agent ask the user."),
 	m(MSessionRevertTurn, TurnParams{}, GitOpResult{}, "Restore the worktree files to the checkpoint taken before a turn."),
 	m(MAsk, AskParams{}, AskResult{}, "Create or continue an Ask session, attach and prompt."),
+	m(MGlance, GlanceParams{}, AskResult{}, "Create or continue a temporary capture conversation, attach and prompt."),
 
 	m(MProvidersList, Empty{}, ProvidersResult{}, "Catalogue providers and their keys."),
 	m(MProvidersAddKey, AddKeyParams{}, ProviderInfo{}, "Store a provider key."),

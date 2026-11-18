@@ -45,6 +45,7 @@ const (
 	OriginFix      = "fix"
 	OriginImport   = "import"
 	OriginTeam     = "team"
+	OriginSight    = "sight"
 )
 
 // SessionInfo describes one session. The daemon owns every field.
@@ -373,6 +374,8 @@ type Choice struct {
 type ChoiceData struct {
 	Current string   `json:"current"`
 	Options []Choice `json:"options,omitempty"`
+	Local   bool     `json:"local"`
+	Engine  string   `json:"engine,omitempty"`
 }
 
 // SessionOption is one setting a harness offers beside its model and mode,

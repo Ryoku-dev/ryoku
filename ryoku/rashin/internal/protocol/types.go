@@ -72,21 +72,29 @@ type APIKey struct {
 
 // Status is the daemon's state at a glance.
 type Status struct {
-	Version   string        `json:"version"`
-	Enabled   bool          `json:"enabled"`
-	Running   bool          `json:"running"`
-	PID       int           `json:"pid,omitempty"`
-	UptimeSec int64         `json:"uptimeSec,omitempty"`
-	Clients   int           `json:"clients"`
-	Sessions  SessionCounts `json:"sessions"`
-	Gateway   GatewayStatus `json:"gateway"`
-	API       APIInfo       `json:"api"`
-	Harnesses int           `json:"harnesses"`
-	Indexes   int           `json:"indexes"`
+	Version            string             `json:"version"`
+	Enabled            bool               `json:"enabled"`
+	Running            bool               `json:"running"`
+	PID                int                `json:"pid,omitempty"`
+	UptimeSec          int64              `json:"uptimeSec,omitempty"`
+	Clients            int                `json:"clients"`
+	Sessions           SessionCounts      `json:"sessions"`
+	Gateway            GatewayStatus      `json:"gateway"`
+	API                APIInfo            `json:"api"`
+	Harnesses          int                `json:"harnesses"`
+	Indexes            int                `json:"indexes"`
+	InstalledHarnesses []InstalledHarness `json:"installedHarnesses"`
 	// Unscoped says this kernel cannot keep sandboxed programs from abstract
 	// Unix sockets and from signalling what runs outside them (Landlock ABI
 	// 6, Linux 6.12).
 	Unscoped bool `json:"unscoped,omitempty"`
+}
+
+// InstalledHarness is discovery and cached models, without starting an agent.
+type InstalledHarness struct {
+	ID     string   `json:"id"`
+	Name   string   `json:"name"`
+	Models []Choice `json:"models,omitempty"`
 }
 
 // Snapshot is the subscribe result: everything a client renders at start.
@@ -259,6 +267,19 @@ type AskParams struct {
 	Model    string           `json:"model,omitempty"`
 	Images   []Attachment     `json:"images,omitempty"`
 	Terminal *TerminalContext `json:"terminal,omitempty"`
+}
+
+// GlanceParams asks about a capture without tools or system context.
+type GlanceParams struct {
+	Session  string       `json:"session,omitempty"`
+	Mode     string       `json:"mode"`
+	Question string       `json:"question,omitempty"`
+	Text     string       `json:"text,omitempty"`
+	Images   []Attachment `json:"images,omitempty"`
+	Target   string       `json:"target,omitempty"`
+	Engine   string       `json:"engine,omitempty"`
+	Model    string       `json:"model,omitempty"`
+	Local    bool         `json:"local,omitempty"`
 }
 
 // AskResult names the session and turn; session.event frames with a seq above

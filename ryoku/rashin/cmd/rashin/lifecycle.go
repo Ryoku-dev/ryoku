@@ -15,6 +15,7 @@ import (
 	i18n "ryoku-i18n"
 	"ryoku-rashin/internal/client"
 	"ryoku-rashin/internal/config"
+	"ryoku-rashin/internal/harness"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 )
@@ -107,6 +108,7 @@ func runStatus(args []string) int {
 			conn.Close()
 		}
 	}
+	status.InstalledHarnesses = harness.Installed(settings)
 	if jsonMode {
 		value := struct {
 			protocol.Status

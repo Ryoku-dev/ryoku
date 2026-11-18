@@ -1,9 +1,7 @@
 package ask
 
 import (
-	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	i18n "ryoku-i18n"
@@ -63,8 +61,6 @@ func earlierMessage(data protocol.UserData, imageRoom, textRoom *int) llm.Messag
 func (with *carried) add(path string, imageRoom, textRoom *int) error {
 	image, isImage, err := attachment.ReadImage(path)
 	switch {
-	case errors.Is(err, attachment.ErrTooLarge):
-		return fmt.Errorf("%s", i18n.Tf("%s is too large to send. A picture can be up to 8 MB.", filepath.Base(path)))
 	case err != nil:
 		return fmt.Errorf("%s", i18n.Tf("Could not read the attachment %s. Check that the file still exists.", path))
 	case isImage && (imageRoom == nil || len(image.Data) <= *imageRoom):

@@ -1,6 +1,14 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **Rashin answers screen captures through a quick glance.** `glance` runs a
+  temporary Ask with no tools on Rashin's fast route, or on the harness Ask
+  uses with the model set for it; local Ollama and llama.cpp models count when
+  their server reports vision, pictures over 8 MiB are scaled down instead of
+  refused, a kept capture conversation keeps its picture, and `rashin glance`
+  tries it from a terminal (`rashin/internal/daemon/glance.go`,
+  `rashin/internal/ask/glance.go`, `rashin/internal/gateway/local.go`,
+  `rashin/internal/attachment/shrink.go`).
 - **Ask and the Agent chat no longer fetch images from a reply or open
   arbitrary links.** Images in an answer show as their alt text, so a reply
   cannot make the shell call out to a host, and only web and mail links open
