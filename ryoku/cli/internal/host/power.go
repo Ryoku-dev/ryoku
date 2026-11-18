@@ -5,7 +5,7 @@ func (a *App) Power(args []string) int {
 		return ExitUsage
 	}
 	switch args[0] {
-	case "capabilities", "profile", "idle", "charge-limit", "aspm":
+	case "capabilities", "profile", "idle", "lid", "charge-limit", "aspm":
 		return commandExit(a.run("ryoku-power", args...))
 	case "poweroff", "reboot", "suspend", "hibernate":
 		if len(args) != 1 {

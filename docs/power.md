@@ -237,6 +237,33 @@ instability, but the saving was not separately measured, so treat it as a small
 bonus rather than a headline. Set it back to `default` if you ever suspect a
 device is misbehaving after a link-state change.
 
+## Closing the lid
+
+By default a lid close on a laptop locks the session and suspends through
+`ryoku-shell`'s secure transaction, so a machine shut in a bag sleeps. On AC with
+an external display attached, Ryoku keeps running and hands the covered panel to
+the external output instead.
+
+Some people want the machine to keep running with the lid shut even without a
+dock: a long build, a download, a compile while the laptop sits closed on a
+shelf. Turn on **Keep running with the lid closed** in the Hub's Machine page
+under **LID**, or from a terminal:
+
+```bash
+ryoku-power lid set keepRunningOnAc true
+```
+
+With that on and the charger attached, a lid close locks the session and blanks
+the internal panel instead of suspending; opening the lid lights it again and
+leaves the output layout untouched. It applies only on AC: unplugging the charger
+while the lid is shut suspends at once, so the setting cannot quietly drain a
+battery in a bag. If the session cannot be locked, the close falls back to the
+normal suspend.
+
+It is independent of Keep Awake: Keep Awake stops idle suspend, this stops the
+lid-close suspend, and neither implies the other. `ryoku-clamshell status` shows
+`keep-running=on|off`, and `ryoku-power lid get` prints the policy.
+
 ## The desktop's own footprint
 
 What the shell costs at idle is Ryoku's to fix, not the laptop's. Measured on

@@ -100,6 +100,8 @@ Item {
     readonly property var idleGeneral: pg.idleTune.filter(t => t.id === "enabled" || t.id === "onDesktops")
     readonly property var idleBattery: pg.idleTune.filter(t => t.id.indexOf("battery.") === 0)
     readonly property var idleAc: pg.idleTune.filter(t => t.id.indexOf("ac.") === 0)
+    // The closed-lid policy rides the same seam: one toggle, laptop only.
+    readonly property var lidTune: (pg.cpu || []).filter(t => t.gpu === "lid")
     readonly property bool idleOn: {
         var e = (pg.idleTune || []).find(t => t.id === "enabled");
         return e ? e.value === "on" : false;
@@ -134,7 +136,7 @@ Item {
 
     // short role tag for a gpu slot, so a tuning row reads "dGPU · Power limit".
     function tag(gpu) {
-        if (gpu === "idle")
+        if (gpu === "idle" || gpu === "lid")
             return "";
         if (gpu === "cpu")
             return "CPU";
@@ -1118,6 +1120,22 @@ done
                             required property var modelData
                             tunable: modelData
                             scope: "idle"
+                            divider: true
+                        }
+                    }
+                }
+
+                SettingCard {
+                    width: gfxCol.colWidth
+                    visible: pg.lidTune.length > 0
+                    title: I18n.tr("LID")
+
+                    Repeater {
+                        model: pg.lidTune
+                        delegate: TuneCell {
+                            required property var modelData
+                            tunable: modelData
+                            scope: "lid"
                             divider: true
                         }
                     }

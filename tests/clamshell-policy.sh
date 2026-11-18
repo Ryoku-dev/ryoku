@@ -39,7 +39,10 @@ activity_state="$run/clamshell.activity"
 daemon_state="$run/clamshell.daemon"
 event_state="$run/clamshell.lid"
 panel_state="$run/clamshell.panels"
+power_state="$run/clamshell.panels-off"
+keep_state="$run/clamshell.keep-locked"
 suspend_state="$run/clamshell.suspend"
+power_cfg="$tmp/power.json"
 mkdir -p "$bin" "$ps/AC" "$drm/card0-eDP-1" "$drm/card0-HDMI-A-1" "$lid" "$run"
 printf 'Mains\n' >"$ps/AC/type"
 printf 'connected\n' >"$drm/card0-eDP-1/status"
@@ -52,6 +55,14 @@ cat >"$bin/ryoku-shell" <<'EOF'
 #!/usr/bin/env bash
 if [[ ${1:-} == suspend-cancel && ${2:-} == transaction ]]; then
   [[ -z ${RYOKU_SHELL_BLOCK_DIR:-} ]] || : >"$RYOKU_SHELL_BLOCK_DIR/cancelled-$3"
+  exit 0
+fi
+if [[ ${1:-} == lock ]]; then
+  printf 'shell lock\n' >>"$CLAMSHELL_EVENTS"
+  if [[ ${RYOKU_SHELL_LOCK_FAIL:-0} == 1 ]]; then
+    printf 'ryoku-shell: %s\n' "${RYOKU_SHELL_LOCK_FAIL_REASON:-qylock did not report locked}" >&2
+    exit 1
+  fi
   exit 0
 fi
 if [[ ${1:-} == suspend && ${2:-} == transaction ]]; then
@@ -155,6 +166,9 @@ export RYOKU_CLAMSHELL_LID_EVENT_STATE="$event_state"
 export RYOKU_CLAMSHELL_EVENT_FIFO="$event_fifo"
 export RYOKU_CLAMSHELL_ACTIVITY_STATE="$activity_state"
 export RYOKU_CLAMSHELL_PANEL_STATE="$panel_state"
+export RYOKU_CLAMSHELL_POWER_STATE="$power_state"
+export RYOKU_CLAMSHELL_KEEP_STATE="$keep_state"
+export RYOKU_POWER_CONFIG="$power_cfg"
 export RYOKU_CLAMSHELL_SYNC_LOCK="$run/clamshell.sync.lock"
 export RYOKU_CLAMSHELL_SUSPEND_STATE="$suspend_state"
 export RYOKU_PGREP_BIN="$bin/pgrep"
@@ -169,9 +183,12 @@ set_external() { printf '%s\n' "$1" >"$drm/card0-HDMI-A-1/status"; }
 set_lid() { printf 'state:      %s\n' "$1" >"$lid/state"; }
 reset_case() {
   : >"$events"
-  rm -f "$state" "$daemon_state" "$event_state" "$panel_state" "$suspend_state"
+  rm -f "$state" "$daemon_state" "$event_state" "$panel_state" "$power_state" \
+    "$suspend_state" "$power_cfg" "$keep_state"
   export INHIBIT_JSON='{"type":"a(ssssuu)","data":[[]]}'
   unset RYOKU_SHELL_FAIL || true
+  unset RYOKU_SHELL_LOCK_FAIL || true
+  unset RYOKU_SHELL_LOCK_FAIL_REASON || true
   unset RYOKU_CLAMSHELL_RETRY || true
   unset RYOKU_FAIL_PANEL_ONCE || true
   unset RYOKU_CLAMSHELL_WM_TIMEOUT || true
@@ -305,6 +322,10 @@ reset_case
 set_lid open
 lid_watch_events="$tmp/lid-watch-events"
 (
+  for _ in {1..200}; do
+    [[ -s $lid_watch_events ]] && break
+    sleep 0.01
+  done
   sleep 0.05
   set_lid closed
   sleep 0.05
@@ -694,6 +715,257 @@ export RYOKU_CLAMSHELL_RETRY=0.01
 run_helper lid open
 expect_events $'ryoku wm act output.enable eDP-1 on\nryoku wm act output.enable eDP-1 on'
 unset RYOKU_FAIL_PANEL_ONCE
+
+# The opt-in closed-lid policy: on AC a shut lid locks and blanks the panel
+# instead of suspending, and reopening lights it again without touching the
+# saved output layout.
+keep_running_cfg() { printf '{"lid":{"keepRunningOnAc":%s}}\n' "$1" >"$power_cfg"; }
+hold_lid_owner() {
+  sleep 60 &
+  holder=$!
+  printf '%s\n' "$holder" >"$state"
+  export INHIBIT_JSON="{\"type\":\"a(ssssuu)\",\"data\":[[[\"handle-lid-switch\",\"ryoku-clamshell\",\"test\",\"block\",$uid,$holder]]]}"
+}
+release_lid_owner() {
+  kill "$holder" 2>/dev/null || true
+  wait "$holder" 2>/dev/null || true
+  holder=""
+}
+
+reset_case
+set_ac 1
+set_external disconnected
+set_lid closed
+keep_running_cfg true
+hold_lid_owner
+run_helper lid close
+expect_events $'shell lock\nryoku wm act output.power off eDP-1'
+[[ $(<"$power_state") == eDP-1 ]] || {
+  printf 'keep-running close never recorded the blanked internal panel\n' >&2
+  exit 1
+}
+set_lid open
+run_helper lid open
+expect_events $'shell lock\nryoku wm act output.power off eDP-1\nryoku wm act output.power on eDP-1'
+[[ ! -e $power_state ]] || {
+  printf 'keep-running panel restore left stale ownership state\n' >&2
+  exit 1
+}
+release_lid_owner
+
+# A reload while the lid is already shut runs the same close policy, so it must
+# lock and blank rather than reach the suspend transaction.
+reset_case
+set_ac 1
+set_external disconnected
+set_lid closed
+keep_running_cfg true
+hold_lid_owner
+run_helper lid sync
+expect_events $'shell lock\nryoku wm act output.power off eDP-1'
+set_lid open
+run_helper lid open
+release_lid_owner
+
+# Battery never keeps running, even with the setting on: a laptop shut in a bag
+# still suspends.
+reset_case
+set_ac 0
+set_external disconnected
+set_lid closed
+keep_running_cfg true
+run_helper policy close
+expect_events 'shell suspend'
+
+# Off by default is the same as an explicit false on AC.
+reset_case
+set_ac 1
+set_external disconnected
+set_lid closed
+keep_running_cfg false
+run_helper policy close
+expect_events 'shell suspend'
+
+# An unconfirmed lock leaves the session readable behind the lid, so the close
+# falls back to the secure suspend transaction.
+reset_case
+set_ac 1
+set_external disconnected
+set_lid closed
+keep_running_cfg true
+hold_lid_owner
+export RYOKU_SHELL_LOCK_FAIL=1
+run_helper lid close
+expect_events $'shell lock\nshell suspend'
+release_lid_owner
+
+# A docked close hands the panel to the external display without locking. If
+# that display goes away while the lid stays shut, the hardware edge must lock
+# before the opt-in keeps the session awake; a stale docked decision may never
+# carry over.
+reset_case
+set_ac 1
+set_external connected
+set_lid closed
+keep_running_cfg true
+hold_lid_owner
+run_helper policy close
+expect_events ''
+set_external disconnected
+# shellcheck disable=SC2016
+bash -c '
+  source "$1"
+  DAEMON_SESSION_ACTIVE=1
+  PREV_WANTED=1
+  evaluate
+  [[ $PREV_WANTED == 1 ]]
+' _ "$helper" || {
+  printf 'the undocked edge did not keep the session awake\n' >&2
+  exit 1
+}
+expect_events $'shell lock\nryoku wm act output.power off eDP-1'
+
+# A subsequent evaluate with the lock already confirmed does not re-lock.
+: >"$events"
+# shellcheck disable=SC2016
+bash -c '
+  source "$1"
+  DAEMON_SESSION_ACTIVE=1
+  PREV_WANTED=1
+  evaluate
+  [[ $PREV_WANTED == 1 ]]
+' _ "$helper" || {
+  printf 'a subsequent evaluate failed with keep-running confirmed\n' >&2
+  exit 1
+}
+expect_events ''
+
+# Reconnecting the external monitor clears the keep-lock confirmation so that
+# unlocking while docked cannot leave a later undocked edge unprotected.
+: >"$events"
+set_external connected
+# shellcheck disable=SC2016
+bash -c '
+  source "$1"
+  DAEMON_SESSION_ACTIVE=1
+  PREV_WANTED=1
+  evaluate
+  [[ $PREV_WANTED == 1 ]]
+' _ "$helper" || {
+  printf 're-docked evaluate failed\n' >&2
+  exit 1
+}
+expect_events ''
+[[ ! -f $keep_state ]] || {
+  printf 're-docking did not clear the keep-lock confirmation\n' >&2
+  exit 1
+}
+
+# Disconnecting again requires and confirms a fresh lock.
+: >"$events"
+set_external disconnected
+# shellcheck disable=SC2016
+bash -c '
+  source "$1"
+  DAEMON_SESSION_ACTIVE=1
+  PREV_WANTED=1
+  evaluate
+  [[ $PREV_WANTED == 1 ]]
+' _ "$helper" || {
+  printf 'second undock did not keep the session awake\n' >&2
+  exit 1
+}
+expect_events $'shell lock\nryoku wm act output.power off eDP-1'
+[[ -f $keep_state ]] || {
+  printf 'second undock did not confirm the fresh lock\n' >&2
+  exit 1
+}
+release_lid_owner
+
+# The same edge falls back to suspend when that lock cannot be confirmed.
+reset_case
+set_ac 1
+set_external connected
+set_lid closed
+keep_running_cfg true
+hold_lid_owner
+run_helper policy close
+set_external disconnected
+export RYOKU_SHELL_LOCK_FAIL=1
+# shellcheck disable=SC2016
+bash -c '
+  source "$1"
+  DAEMON_SESSION_ACTIVE=1
+  PREV_WANTED=1
+  evaluate
+  [[ $PREV_WANTED == 0 ]]
+' _ "$helper" || {
+  printf 'the undocked edge stayed awake after a refused lock\n' >&2
+  exit 1
+}
+expect_events $'shell lock\nshell suspend'
+release_lid_owner
+
+# An in-flight secure suspend is never cancelled by the opt-in: only a live
+# docked close, or a lock confirmed for this very close, may stop it, because
+# anything less could leave the session unlocked behind the lid.
+reset_case
+set_ac 1
+set_external disconnected
+set_lid closed
+keep_running_cfg false
+hold_lid_owner
+block_dir="$tmp/keep-block"
+mkdir -p "$block_dir"
+export RYOKU_SHELL_BLOCK_DIR="$block_dir"
+run_helper policy close &
+policy_pid=$!
+for _ in {1..100}; do
+  compgen -G "$block_dir/started-*" >/dev/null && break
+  sleep 0.01
+done
+compgen -G "$block_dir/started-*" >/dev/null || {
+  printf 'keep-running regression test never entered the suspend transaction\n' >&2
+  exit 1
+}
+keep_running_cfg true
+sleep 0.2
+if compgen -G "$block_dir/cancelled-*" >/dev/null; then
+  printf 'the keep-running opt-in cancelled an in-flight secure suspend\n' >&2
+  exit 1
+fi
+set_lid open
+run_helper policy open
+wait "$policy_pid"
+policy_pid=""
+release_lid_owner
+expect_events 'shell suspend'
+
+# Unplugging AC while the lid is already shut is a fresh suspend edge, even
+# though no closed-lid event arrives from the compositor. The confirmed lock is
+# what let the lid stay shut awake in the first place.
+reset_case
+set_ac 1
+set_external disconnected
+set_lid closed
+keep_running_cfg true
+printf 'locked\n' >"$keep_state"
+# shellcheck disable=SC2016
+bash -c '
+  source "$1"
+  DAEMON_SESSION_ACTIVE=1
+  PREV_WANTED=1
+  inhibitor_active() { return 0; }
+  awake_wanted || exit 10
+  printf "0\n" >"$RYOKU_POWER_SUPPLY_DIR/AC/online"
+  evaluate
+  [[ $PREV_WANTED == 0 ]]
+' _ "$helper" || {
+  printf 'unplugging AC with the lid shut did not release the keep-running hold\n' >&2
+  exit 1
+}
+expect_events 'shell suspend'
+
 
 # The login1 activity watcher keeps the daemon alive but transfers low-level
 # lid ownership away from an inactive session and back on activation.

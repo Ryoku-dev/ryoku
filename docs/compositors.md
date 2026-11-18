@@ -253,7 +253,7 @@ cannot be sits behind the seam like everything else. Four owners, no overlap:
 |**qylock**|the lock surface only, through Quickshell's `WlSessionLock` -- the Wayland session-lock protocol every provider serves, so the same lock runs on any compositor. The greeter is SDDM rendering the same skin; both halves are qylock.|
 |**the shell daemon**|the fail-closed login1 transaction behind `ryoku-shell suspend`: the foreground-bound daemon owns one delay inhibitor and hard `sleep` block, secure lock-before-suspend, a confirmed guard release before the `Suspend` call (login1 must stop reporting the block, so the daemon's own inhibitor can never deny its own transaction), output wake on resume, and lighting restore. Before the singleton moves it proves the outgoing session's qylock; all other online same-user sessions have direct session-scoped qylock clients and login1 observers. Only the foreground session may request sleep or unlock. Lost login1 signal or owner connections reconnect in-process without dropping valid protection. Display work reaches the compositor solely through the seam's `output.power`, with a deadline on each wake attempt.|
 |**`hypridle`**|the idle timers only -- dim, lock, screen-off, suspend. A suspend timer calls `ryoku-shell suspend`; hypridle never talks to login1 itself.|
-|**`ryoku-clamshell`**|lid ownership for the active graphical session: a `handle-lid-switch` inhibitor, the docked AC-plus-external decision, and routing every non-docked close through `ryoku-shell suspend`. It drops ownership when that session becomes inactive, reacquires it when active, and recovers across login1 restarts.|
+|**`ryoku-clamshell`**|lid ownership for the active graphical session: a `handle-lid-switch` inhibitor, the docked AC-plus-external decision, and routing every non-docked close through `ryoku-shell suspend`. With `ryoku-power lid set keepRunningOnAc true` and AC attached, a non-docked close instead locks through `ryoku-shell` and blanks the internal panel; battery always suspends. It drops ownership when that session becomes inactive, reacquires it when active, and recovers across login1 restarts.|
 
 The lid's panel handoff is the one compositor-shaped piece. Hyprland binds the
 lid switch to `ryoku-clamshell lid close|open` from
@@ -266,7 +266,8 @@ therefore declares `systemLidEdgeSource` in its caps. Only for a provider
 making that declaration, `ryoku-clamshell` polls the live ACPI lid state, with
 UPower as the fallback, and sends ordered edges through the same `lid` path.
 The panel handoff still reaches the compositor only through the neutral
-`output.enable` action.
+`output.enable` action, and the keep-running close blanks a covered panel
+through `output.power`.
 
 Only the active Ryoku session inhibits logind, so without a live owner logind's
 safe fallback suspends on lid close. A provider-delivered edge remains

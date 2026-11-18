@@ -255,3 +255,51 @@ func TestIdleStoredValue(t *testing.T) {
 		}
 	}
 }
+
+const lidCapsJSON = `{
+  "profiles": ["power-saver","balanced","performance"],
+  "cpu": {},
+  "lid": {"keepRunningOnAc": true}
+}`
+
+func TestCpuTunablesLid(t *testing.T) {
+	m := byID(cpuTunables(mustCaps(t, lidCapsJSON), profileDef{}))
+	kr, ok := m["keepRunningOnAc"]
+	if !ok {
+		t.Fatal("keepRunningOnAc missing from tunables")
+	}
+	if kr.GPU != "lid" || kr.Kind != "toggle" || kr.Value != "on" {
+		t.Errorf("keepRunningOnAc = %+v, want lid/toggle/on", kr)
+	}
+
+	// A desktop gets no .lid capability, so the row must not render empty.
+	m = byID(cpuTunables(mustCaps(t, noBatteryCaps), profileDef{}))
+	if _, ok := m["keepRunningOnAc"]; ok {
+		t.Error("keepRunningOnAc rendered without a lid capability")
+	}
+}
+
+func TestLidStoredValue(t *testing.T) {
+	cases := []struct {
+		id, in, want string
+		wantErr      bool
+	}{
+		{"keepRunningOnAc", "on", "true", false},
+		{"keepRunningOnAc", "true", "true", false},
+		{"keepRunningOnAc", "off", "false", false},
+		{"keepRunningOnAc", "false", "false", false},
+		{"unknown", "on", "", true},
+	}
+	for _, c := range cases {
+		got, err := lidStoredValue(c.id, c.in)
+		if c.wantErr {
+			if err == nil {
+				t.Errorf("lidStoredValue(%q,%q) = %q, want error", c.id, c.in, got)
+			}
+			continue
+		}
+		if err != nil || got != c.want {
+			t.Errorf("lidStoredValue(%q,%q) = %q,%v, want %q,nil", c.id, c.in, got, err, c.want)
+		}
+	}
+}
