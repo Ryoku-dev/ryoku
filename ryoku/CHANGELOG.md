@@ -3,6 +3,15 @@
 ## Unreleased
 
 ### Fixed
+- **A Russian desktop is Russian everywhere.** The Russian catalog covered
+  about a third of the interface (9048 keys, 5408 of them translated), so the
+  bar, the Hub, the launcher, widgets and the `ryoku` CLI fell back to English
+  for most strings after picking Russian in the installer. Every catalog string
+  now has a Russian translation, except command lines, file names and brand or
+  unit tokens that stay as they are (`i18n/catalog/ru.json`). A few labels that
+  were shown but never wrapped (the Controls page footer, the phone page group
+  titles, the shell's confirm, search and speed-test controls) now go through
+  `I18n.tr` so every language picks them up.
 - **The battery readout follows the real charge on two-battery laptops.** The
   bar widget, the battery popout and the low-battery alerts bound to the first
   battery UPower lists, which its controller can park at 99 % "Not charging"
