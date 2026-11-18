@@ -229,8 +229,9 @@ Scope {
                 id: liquid
 
                 color: K.Style.base
-                smoothing: 12
-                borderWidth: 1
+                smoothing: K.Look.liquidSmoothing
+                cutCorners: K.Look.lithic
+                borderWidth: K.Style.border
                 borderColor: K.Style.lineSoft
                 shadowStrength: 0
                 shadowSize: 0
@@ -304,7 +305,7 @@ Scope {
                         color: K.Style.lineSoft
                     }
 
-                    Rectangle {
+                    K.Shape {
                         id: masthead
 
                         anchors.top: parent.top
@@ -314,10 +315,10 @@ Scope {
                         anchors.leftMargin: K.Style.s4
                         anchors.rightMargin: K.Style.s4
                         height: 72
-                        radius: K.Style.radius
-                        color: "transparent"
-                        border.width: 1
-                        border.color: K.Style.lineSoft
+                        cutSize: K.Look.cutMd
+                        fill: "transparent"
+                        strokeWidth: K.Style.border
+                        strokeColor: K.Style.lineSoft
 
                         Pill.BrandMark {
                             id: mastheadSeal
@@ -350,7 +351,7 @@ Scope {
 
                             K.Label {
                                 width: parent.width
-                                text: "//SETTINGS_"
+                                text: K.Look.lithic ? "//SETTINGS_" : "Settings"
                                 role: "tag"
                                 tone: "faint"
                             }
@@ -382,15 +383,15 @@ Scope {
                                 height: 38
                                 scale: navPress.pressScale
 
-                                Rectangle {
+                                K.Shape {
                                     anchors.fill: parent
-                                    radius: K.Style.radius
-                                    color: navItem.active ? K.Style.bone
+                                    cutSize: K.Look.cutSm
+                                    fill: navItem.active ? K.Style.bone
                                         : navPress.pressed ? K.Style.tint16
                                         : navPress.hovered ? K.Style.tint5
                                         : "transparent"
 
-                                    Behavior on color {
+                                    Behavior on fill {
                                         enabled: !K.Style.still
                                         ColorAnimation { duration: K.Style.snap }
                                     }
@@ -401,11 +402,11 @@ Scope {
                                     anchors.left: parent.left
                                     anchors.leftMargin: K.Style.s3
                                     anchors.verticalCenter: parent.verticalCenter
-                                    width: 18
+                                    width: K.Look.lithic ? 18 : 0
                                     text: "//"
                                     role: "micro"
                                     tone: navItem.active ? "onBone" : "faint"
-                                    opacity: navItem.active ? 1 : 0
+                                    opacity: K.Look.lithic && navItem.active ? 1 : 0
                                 }
 
                                 K.Label {
@@ -426,7 +427,8 @@ Scope {
                                     anchors.right: parent.right
                                     anchors.rightMargin: K.Style.s3
                                     anchors.verticalCenter: parent.verticalCenter
-                                    text: UiPreferences.text(navItem.modelData.kana, "")
+                                    text: K.Look.kanjiGloss ? UiPreferences.text(navItem.modelData.kana, "") : ""
+                                    visible: K.Look.kanjiGloss
                                     color: navItem.active ? K.Style.inkOnBone : K.Style.inkFaint
                                     font.family: K.Style.jp
                                     font.pixelSize: 12

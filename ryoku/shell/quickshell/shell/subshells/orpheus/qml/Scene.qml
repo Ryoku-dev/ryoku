@@ -671,7 +671,8 @@ Item {
         anchors { top: true; left: true; right: true }
         implicitHeight: frameLayer.extent
         WlrLayershell.layer: WlrLayer.Top
-        WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+        WlrLayershell.keyboardFocus: scene.cardKey !== ""
+            ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
         WlrLayershell.namespace: "ryoku-bar"
 
         property string layoutSpan: "islands"
@@ -684,7 +685,8 @@ Item {
         readonly property bool fused: layoutSpan === "fused"
         readonly property bool full: layoutSpan === "full"
         readonly property bool needsFullHeight: scene.surfaceOpening
-            || scene.settingsSurfaceHeld || morphAnimation.running
+            || scene.settingsSurfaceHeld || scene.cardSurfaceHeld
+            || morphAnimation.running
 
         readonly property real inset: 8 * K.Style.scale
         readonly property real clearance: 10 * K.Style.scale
@@ -855,6 +857,17 @@ Item {
                 height: scene.prefs.autoHide !== "off"
                     ? Math.round(win.framedRevealRect.height) : 0
             }
+            // While a card is open the whole output below the bar is a dismiss
+            // surface: a click anywhere off the card closes it. The card itself
+            // sits above this region and swallows its own clicks.
+            Region {
+                intersection: Intersection.Combine
+                x: 0
+                y: K.Style.barH
+                width: scene.cardKey !== "" ? win.width : 0
+                height: scene.cardKey !== ""
+                    ? Math.max(0, win.height - K.Style.barH) : 0
+            }
         }
 
 
@@ -877,6 +890,39 @@ Item {
                 // An open card belongs to the real screen: it closes as the
                 // bar steps into the card.
                 onFramedChanged: if (framed) scene.closeCard()
+            }
+
+            // The card's dismiss backdrop: a click anywhere off the card closes
+            // it. It sits under the rail and the card content, over the grown
+            // window's full output below the bar.
+            MouseArea {
+                id: cardDismiss
+                z: 0
+                anchors.fill: parent
+                enabled: scene.cardKey !== ""
+                acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+                onPressed: mouse => {
+                    mouse.accepted = true;
+                    Qt.callLater(scene.closeCard);
+                }
+            }
+
+            Shortcut {
+                sequences: [StandardKey.Cancel]
+                enabled: scene.cardKey !== ""
+                onActivated: scene.closeCard()
+            }
+
+            // The card content rides the bar's own surface so its blob welds
+            // into the drop it grows from (one window, one blob field). The
+            // liquid paper is drawn by Body's cardShape; this is the content.
+            C.CardHost {
+                id: cards
+                z: 2
+                scene: scene
+                body: liquidBody
+                cardKey: scene.cardKey
+                cardArgs: scene.cardArgs
             }
 
             Item {
@@ -1125,105 +1171,9 @@ Item {
                 HoverHandler { id: bandHover }
             }
         }
-    }
 
-    // Cards use their own full-output dismiss surface so opening one never
-    // resizes the bar's layer surface and invalidates its visible buffer.
-    PanelWindow {
-        id: cardWindow
-
-        visible: scene.cardSurfaceHeld
-        screen: scene.screen
-        color: "transparent"
-        exclusionMode: ExclusionMode.Ignore
-        exclusiveZone: 0
-        anchors { top: true; bottom: true; left: true; right: true }
-        WlrLayershell.layer: WlrLayer.Top
-        WlrLayershell.keyboardFocus: scene.cardKey !== ""
-            ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
-        WlrLayershell.namespace: "ryoku-bar-card"
-
-        mask: Region {
-            Region {
-                width: scene.cardKey !== "" ? cardWindow.width : 0
-                height: scene.cardKey !== "" ? cardWindow.height : 0
-            }
-            Region {
-                intersection: Intersection.Subtract
-                width: cardWindow.width
-                height: K.Style.barH
-            }
-        }
-
-        FocusScope {
-            anchors.fill: parent
-            focus: scene.cardKey !== ""
-
-            Shortcut {
-                sequences: [StandardKey.Cancel]
-                enabled: scene.cardKey !== ""
-                onActivated: scene.closeCard()
-            }
-
-            MouseArea {
-                z: 0
-                anchors.fill: parent
-                enabled: scene.cardKey !== ""
-                acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
-                onPressed: mouse => {
-                    mouse.accepted = true;
-                    Qt.callLater(scene.closeCard);
-                }
-            }
-
-            Item {
-                id: cardPaper
-
-                z: 1
-                x: liquidBody.cardX
-                y: liquidBody.cardY
-                width: liquidBody.cardCurW
-                height: liquidBody.cardCurH
-                visible: liquidBody.cardActive
-                opacity: liquidBody.opacity
-
-                BlobGroup {
-                    id: cardLiquid
-                    color: K.Style.base
-                    smoothing: liquidBody.smoothing
-                    borderWidth: scene.prefs.rim ? 1 : 0
-                    borderColor: K.Style.rim
-                    shadowStrength: 0
-                    shadowSize: 0
-                }
-
-                BlobRect {
-                    group: cardLiquid
-                    width: cardPaper.width
-                    height: cardPaper.height
-                    topLeftRadius: liquidBody.leftOverhang ? liquidBody.radius : 0
-                    topRightRadius: liquidBody.rightOverhang ? liquidBody.radius : 0
-                    bottomLeftRadius: liquidBody.edgeRadius(
-                        liquidBody.cardX, liquidBody.cardCurW, "left")
-                    bottomRightRadius: liquidBody.edgeRadius(
-                        liquidBody.cardX, liquidBody.cardCurW, "right")
-                    stiffness: 180
-                    damping: 16
-                    deformScale: 0
-                    sinks: false
-                }
-            }
-
-            C.CardHost {
-                id: cards
-                z: 2
-                scene: scene
-                body: liquidBody
-                cardKey: scene.cardKey
-                cardArgs: scene.cardArgs
-            }
-        }
-
+        // The card surface releases once the melt finishes and no new card is
+        // pending, so the bar window shrinks back to its resting strip.
         Connections {
             target: liquidBody
             function onCardProgressChanged() {

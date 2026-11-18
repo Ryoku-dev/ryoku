@@ -13,17 +13,17 @@ Item {
     implicitHeight: 84
     scale: tilePress.pressScale
 
-    Rectangle {
+    Shape {
         anchors.fill: parent
-        radius: Style.radius
-        color: tilePress.pressed ? Style.tint16
+        cutSize: Look.cutMd
+        fill: tilePress.pressed ? Style.tint16
             : root.selected ? Style.tint10
             : tilePress.hovered ? Style.tint5 : "transparent"
-        border.width: Style.border
-        border.color: root.selected ? Style.ink
+        strokeWidth: Style.border
+        strokeColor: root.selected ? Style.ink
             : tilePress.hovered ? Style.lineStrong : Style.line
 
-        Behavior on color {
+        Behavior on fill {
             enabled: !Style.still
             ColorAnimation { duration: Style.snap }
         }

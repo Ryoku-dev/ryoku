@@ -25,17 +25,18 @@ Item {
         }
     }
 
-    Rectangle {
+    Shape {
         anchors.fill: parent
-        radius: Style.radius
-        color: root.filled ? Style.bone
+        cutSize: Look.cutSm
+        fill: root.filled ? Style.bone
             : buttonPress.pressed ? Style.tint16
             : buttonPress.hovered ? Style.tint10 : "transparent"
-        border.width: Style.border
-        border.color: root.filled ? Style.bone
+        // Material draws tonal fills with no outline; the others rule the plaque.
+        strokeWidth: Look.material && !root.filled ? 0 : Style.border
+        strokeColor: root.filled ? Style.bone
             : root.activeFocus || buttonPress.hovered ? Style.lineStrong : Style.line
 
-        Behavior on color {
+        Behavior on fill {
             enabled: !Style.still
             ColorAnimation { duration: Style.snap }
         }

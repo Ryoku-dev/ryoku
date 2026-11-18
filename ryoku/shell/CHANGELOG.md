@@ -7,6 +7,30 @@
   and the bar popout show a health figure instead of "Unavailable". QML keeps
   reading the battery topic; no new probes
   (`ipc/battery.go`).
+- **Orpheus wears the desktop's design language.** The bar body, its cards and
+  its settings now follow `theme.design` live, in all four styles: Lithic cuts
+  its corners (the blob field itself chamfers, not just the kit chrome) and
+  rules them with hairlines and tracked mono labels, Material rounds them into
+  tonal pills with no outline, Adwaita softens them into rounded cards, Fluent
+  keeps small corners and layered outlines. Colour stays on the shell palette,
+  so switching the design never touches it, and there is no per-bar picker. Each
+  design carries its own motion personality; micro-animations answer the hand
+  whenever motion is allowed, while the passive music wave only runs with
+  headroom (Balanced or Performance, never Power Saver). The blob plugin gains a
+  `cutCorners` mode so a welded bar can chamfer its corners while keeping the
+  liquid smooth-min weld
+  (`subshells/orpheus/qml/kit/Look.qml`, `kit/Shape.qml`, `kit/Style.qml`,
+  `components/Body.qml`, `settings/SettingsWindow.qml`,
+  `plugin/shaders/blob.frag`, `plugin/blobgroup.cpp`).
+- **Orpheus cards bud out of the bar and melt back into it.** The card now
+  rides the bar's own surface and blob field, so its neck smooth-mins into the
+  drop it grows from: opening swells the bar open into the page, closing drains
+  the fillet back into the band until the card melts shut, and travelling
+  between anchors stretches the page liquidly (content rides the blob's velocity
+  deform). The separate card window and its rim-seam overlap are gone; dismissal
+  and keyboard focus move into the bar window
+  (`subshells/orpheus/qml/components/Body.qml`, `qml/components/CardHost.qml`,
+  `qml/Scene.qml`, `qml/Metrics.js`).
 - **Tap Right Alt three times to explain, read, translate or ask about part of
   the screen, or hold Left Alt while you highlight text.** A triple tap freezes
   the screen, you drag over anything, and the box stays where it was with

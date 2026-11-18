@@ -17,17 +17,17 @@ Item {
     opacity: enabled ? 1 : 0.38
     scale: chipPress.pressScale
 
-    Rectangle {
+    Shape {
         anchors.fill: parent
-        radius: Style.radius
-        color: root.selected ? Style.bone
+        cutSize: Look.cutSm
+        fill: root.selected ? Style.bone
             : chipPress.pressed ? Style.tint16
             : chipPress.hovered ? Style.tint10 : "transparent"
-        border.width: Style.border
-        border.color: root.selected ? Style.bone
+        strokeWidth: Look.material && !root.selected ? 0 : Style.border
+        strokeColor: root.selected ? Style.bone
             : chipPress.hovered ? Style.lineStrong : Style.line
 
-        Behavior on color {
+        Behavior on fill {
             enabled: !Style.still
             ColorAnimation { duration: Style.snap }
         }

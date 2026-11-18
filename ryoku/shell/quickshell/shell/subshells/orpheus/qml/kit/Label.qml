@@ -8,7 +8,9 @@ Text {
     property bool numeric: false
     property bool strong: false
 
-    readonly property bool technical: role === "micro" || role === "tag"
+    // Lithic sets its micro labels in tracked mono capitals; the round designs
+    // set them plainly in the sans face (Look.monoMicro).
+    readonly property bool technical: (role === "micro" || role === "tag") && Look.monoMicro
 
     function roleSize(name) {
         switch (name) {
@@ -66,7 +68,7 @@ Text {
     font.weight: strong ? stronger(roleWeight(role)) : roleWeight(role)
     font.features: numeric ? Style.tabular : ({})
     font.capitalization: technical ? Font.AllUppercase : Font.MixedCase
-    font.letterSpacing: technical ? Style.track : 0
+    font.letterSpacing: technical ? Style.track : Look.tracking
     renderType: font.pixelSize < 20 ? Text.NativeRendering : Text.QtRendering
     elide: wrapMode === Text.NoWrap ? Text.ElideRight : Text.ElideNone
     maximumLineCount: wrapMode === Text.NoWrap ? 1 : 2147483647

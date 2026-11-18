@@ -11,12 +11,12 @@ Item {
     implicitHeight: 44
     scale: playPress.pressScale
 
-    Rectangle {
+    Shape {
         anchors.fill: parent
-        radius: Style.plateRadius
-        color: Style.bone
-        border.width: Style.border
-        border.color: Style.bone
+        cutSize: Look.cutMd
+        fill: Style.bone
+        strokeWidth: Style.border
+        strokeColor: Style.bone
     }
 
     Glyph {

@@ -49,12 +49,15 @@ Singleton {
     readonly property real track: Tokens.trackLabel
     readonly property int icon: 20
 
-    readonly property int radius: Tokens.radius
-    readonly property int plateRadius: 9
+    // Corners follow the desktop design (Look): a cut for Lithic, a radius for
+    // the round styles. The blob bar keeps its liquid/square form; these drive
+    // the kit chrome and the settings sheet.
+    readonly property int radius: Math.round(Look.corner(Look.cutSm, 200, 200))
+    readonly property int plateRadius: Math.round(Look.corner(Look.cutMd, 200, 200))
     readonly property int liquidRadius: Math.round(14 * scale)
     readonly property int squareRadius: Math.round(5 * scale)
-    readonly property int sheetRadius: 14
-    readonly property real border: 1
+    readonly property int sheetRadius: Math.round(Look.corner(Look.cutXl, 600, 400))
+    readonly property real border: Look.hairline
     readonly property int s1: 4
     readonly property int s2: 8
     readonly property int s3: 12
@@ -71,18 +74,22 @@ Singleton {
     readonly property real hitPad: 6 * scale
 
     readonly property bool still: Motion.reduce
-    readonly property var spatialCurve: [0.38, 1.21, 0.22, 1.00, 1, 1]
-    readonly property var spatialFastCurve: [0.42, 1.67, 0.21, 0.90, 1, 1]
-    readonly property var effectsCurve: [0.34, 0.80, 0.34, 1.00, 1, 1]
-    readonly property var enterCurve: [0.05, 0.70, 0.10, 1.00, 1, 1]
-    readonly property var exitCurve: [0.30, 0.00, 0.80, 0.15, 1, 1]
+    // Motion personality follows the design (Look); micro-animations answer the
+    // hand whenever motion is allowed, ambient eye-candy only with headroom.
+    readonly property bool microMotion: Look.microMotion
+    readonly property bool ambientMotion: Look.ambientMotion
+    readonly property var spatialCurve: Look.springDefault
+    readonly property var spatialFastCurve: Look.springFast
+    readonly property var effectsCurve: Look.effects
+    readonly property var enterCurve: Look.enterCurve
+    readonly property var exitCurve: Look.exitCurve
     readonly property int spatial: ms(500)
     readonly property int spatialFast: ms(350)
     readonly property int effects: ms(200)
-    readonly property int enter: ms(400)
-    readonly property int exit: ms(200)
-    readonly property int quick: ms(120)
-    readonly property int snap: Tokens.snap
+    readonly property int enter: ms(Look.enterMs)
+    readonly property int exit: ms(Look.exitMs)
+    readonly property int quick: ms(Look.stateMs)
+    readonly property int snap: ms(Look.pressMs)
     readonly property int move: Tokens.move
     readonly property int swap: Tokens.swap
 

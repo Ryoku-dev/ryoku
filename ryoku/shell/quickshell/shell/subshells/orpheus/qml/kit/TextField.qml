@@ -13,15 +13,15 @@ FocusScope {
         Math.max(input.contentWidth, placeholderLabel.implicitWidth) + Style.s4)
     implicitHeight: 32
 
-    Rectangle {
+    Shape {
         anchors.fill: parent
-        radius: Style.radius
-        color: "transparent"
-        border.width: Style.border
-        border.color: input.activeFocus ? Style.bone
+        cutSize: Look.cutSm
+        fill: "transparent"
+        strokeWidth: Style.border
+        strokeColor: input.activeFocus ? Style.bone
             : fieldHover.hovered ? Style.lineStrong : Style.line
 
-        Behavior on border.color {
+        Behavior on strokeColor {
             enabled: !Style.still
             ColorAnimation { duration: Style.snap }
         }
