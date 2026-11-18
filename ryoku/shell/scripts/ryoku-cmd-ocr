@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
-# Select a screen region, OCR it with tesseract, and copy the recognized text to
-# the clipboard. Pre-processes the crop (contrast stretching, polarity inversion,
-# adaptive scaling) in memory, preserves code indentation, strips edge overhangs,
-# and offers interactive notification actions (Open URL, Search, QR to phone).
-# Falls back to zbarimg for QR/barcodes. Optional --file IMAGE skips region grab.
+# Select a screen region, OCR with tesseract, and copy recognized text to clipboard.
+# Supports in-memory preprocessing, code indentation preservation, and notification actions.
 set -euo pipefail
 
 app="OCR"
@@ -56,7 +53,6 @@ EOF
   esac
 done
 
-# Resolve OCR language
 resolve_lang() {
   local desired="${cli_lang:-}"
   if [[ -z $desired ]]; then
@@ -88,7 +84,6 @@ resolve_lang() {
 
 lang="$(resolve_lang)"
 
-# Temporary directories
 runtime="${XDG_RUNTIME_DIR:-/tmp}"
 shm_dir="/dev/shm"
 [[ -d $shm_dir && -w $shm_dir ]] || shm_dir="$runtime"
@@ -102,7 +97,6 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
-# Capture or use input file
 if [[ -n $input_file ]]; then
   [[ -r $input_file ]] || { notify-send -u critical "$app" "Cannot read image at $input_file"; exit 1; }
   source_img="$input_file"
@@ -160,7 +154,6 @@ if ! $is_qr; then
     psm="7"
   fi
 
-  # Grayscale conversion with contrast stretching and sharpening
   magick "$source_img" $upscale -colorspace Gray -contrast-stretch 0.5%x0.5% -sharpen 0x1 -depth 8 "$pnm_tmp"
 
   # Invert dark backgrounds so tesseract receives dark text on light ground
@@ -169,7 +162,6 @@ if ! $is_qr; then
     magick "$pnm_tmp" -negate "$pnm_tmp"
   fi
 
-  # Extract word boxes with TSV geometry
   tsv_data="$(tesseract "$pnm_tmp" stdout -l "$lang" --psm "$psm" --oem 1 -c preserve_interword_spaces=1 tsv 2>/dev/null || true)"
 
   # Polarity fallback if very little text was recognized
@@ -185,7 +177,6 @@ if ! $is_qr; then
   fi
 fi
 
-# Prune sliced border fragments and reconstruct text with indentations
 if ! $is_qr; then
   if $raw_mode; then
     text="$(printf '%s' "$tsv_data" | awk -F'\t' '$1 == "5" {printf "%s%s", (line && line != $5 ? "\n" : (NR > 2 ? " " : "")), $12; line = $5} END {print ""}')"
@@ -255,7 +246,6 @@ if ! $is_qr; then
         fi = line_first[l]
         li = line_last[l]
 
-        # Left edge overflow
         if (keep[fi]) {
           word = words[fi]
           wlen = length(word)
@@ -268,7 +258,6 @@ if ! $is_qr; then
           }
         }
 
-        # Right edge overflow
         if (keep[li]) {
           word = words[li]
           wlen = length(word)
@@ -282,7 +271,6 @@ if ! $is_qr; then
         }
       }
 
-      # Reconstruct text with indentation preservation
       avg_char_w = (total_len > 0) ? (total_w / total_len) : 10
       out = ""
       cur_line = -1
@@ -331,11 +319,9 @@ if ! $is_qr; then
     ')"
   fi
 
-  # Post-processing
   if $single_line; then
     text="$(printf '%s' "$text" | tr '\n' ' ' | sed -E 's/[[:space:]]+/ /g; s/^[[:space:]]+//; s/[[:space:]]+$//')"
   else
-    # Clean up trailing spaces per line and multiple blank lines
     text="$(printf '%s' "$text" | sed 's/[[:space:]]*$//' | awk 'NF {p=1} p' | awk '/^[[:space:]]*$/ {if (++b <= 1) print ""; next} {b=0; print}')"
   fi
 fi
@@ -345,7 +331,6 @@ if [[ -z ${text//[[:space:]]/} ]]; then
   exit 0
 fi
 
-# URL trailing punctuation cleanup
 is_url=false
 url_target=""
 if [[ $text =~ ^(https?://|www\.) ]]; then
@@ -374,13 +359,11 @@ if [[ "$stripped_math" =~ ^[0-9[:space:].+*/%^()xX-]+$ ]] && [[ "$stripped_math"
   fi
 fi
 
-# Detect hex colors for notification preview
 is_color=false
 if [[ $text =~ ^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$ ]]; then
   is_color=true
 fi
 
-# Ingest into clipboard
 copy_to_clip() {
   local payload="$1"
   if command -v ryoku-shell >/dev/null 2>&1 && ryoku-shell ping >/dev/null 2>&1; then
@@ -396,7 +379,6 @@ copy_to_clip() {
 
 copy_to_clip "$text"
 
-# Prepare notification preview
 preview="$(printf '%s' "$text" | tr '\n' ' ' | sed -E 's/[[:space:]]+/ /g; s/^[[:space:]]+//; s/[[:space:]]+$//')"
 preview_body="$(printf '%s' "$preview" | head -c 110)"
 if (( ${#preview} > 110 )); then
@@ -411,21 +393,18 @@ elif $is_math; then
   preview_body="$stripped_math = $math_result"
 elif $is_color; then
   notif_title="Color Copied"
-  preview_body="🎨 $text"
+  preview_body="$text"
 fi
 
-# Dispatch notification action handlers asynchronously in the background
 (
   action_args=()
   if $is_url; then
     action_args+=("-A" "open=󰏚 Open Link")
-    action_args+=("-A" "show_qr=󰐲 QR to Phone")
   elif $is_math; then
     action_args+=("-A" "copy_ans=󰆏 Copy Answer ($math_result)")
     action_args+=("-A" "search=󰍉 Search Web")
   else
     action_args+=("-A" "search=󰍉 Search Web")
-    action_args+=("-A" "show_qr=󰐲 QR to Phone")
     action_args+=("-A" "translate=󰊿 Translate")
   fi
 
@@ -433,14 +412,6 @@ fi
   case "$action" in
     open)
       xdg-open "$url_target" >/dev/null 2>&1 &
-      ;;
-    show_qr)
-      if command -v qrencode >/dev/null 2>&1; then
-        qr_file="$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/ryoku-qr-view.XXXXXX.png")"
-        qrencode -s 8 -m 3 -o "$qr_file" "$text" 2>/dev/null || true
-        notify-send -u normal -i "$qr_file" "Scan with Phone" "$preview_body" -t 12000 >/dev/null 2>&1 || true
-        rm -f "$qr_file"
-      fi
       ;;
     copy_ans)
       copy_to_clip "$math_result"
