@@ -25,10 +25,14 @@ Column {
         typeRole: "sentence"
         ink: Lithic.gold
     }
-    Note {
+    Label {
+        width: parent.width
         visible: Progression.error !== ""
         text: Progression.error
+        typeRole: "detail"
         ink: Lithic.jasper
+        wrapMode: Text.Wrap
+        elide: Text.ElideNone
     }
     Label {
         text: I18n.tr("Achievements")
@@ -54,8 +58,13 @@ Column {
         text: I18n.tr("Card palettes")
         typeRole: "section"
     }
-    Note {
+    Label {
+        width: parent.width
         text: I18n.tr("Palettes recolour your stock card locally. Approved designs keep their own colours. Rarity and battle stats never change.")
+        typeRole: "detail"
+        inkRole: "fg2"
+        wrapMode: Text.Wrap
+        elide: Text.ElideNone
     }
     Repeater {
         model: Progression.cosmetics
