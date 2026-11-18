@@ -37,9 +37,16 @@ jobs:
         run: |
           set -euo pipefail
 
+          bin/ryoku-docs-link-targets --self-test
+
           status=0
           while IFS= read -r -d '' md; do
             dir=$(dirname "$md")
+            if ! links=$(bin/ryoku-docs-link-targets "$md"); then
+              echo "::error file=$md::could not read link targets"
+              status=1
+              continue
+            fi
             while IFS= read -r target; do
               case "$target" in
                 http://*|https://*|mailto:*|\#*|"") continue ;;
@@ -56,7 +63,7 @@ jobs:
                 echo "::error file=$md::broken relative link: $target"
                 status=1
               fi
-            done < <(grep -oE '\]\([^)]+\)' "$md" | sed -E 's/^\]\(//; s/\)$//')
+            done <<<"$links"
           done < <(git ls-files -z '*.md' ':(glob,exclude)**/vendor/**' \
             ':(exclude)ryoku/rashin/internal/skills/sets')
 
