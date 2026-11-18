@@ -10,6 +10,7 @@ arrow_upward
 assignment fill
 assignment_turned_in
 attachment
+auto_fix_high
 bedtime fill
 call_split
 check
@@ -29,6 +30,7 @@ download_done
 drag_handle
 drag_indicator
 edit
+edit_note
 equalizer
 error
 expand_less
@@ -95,6 +97,7 @@ stop
 storage
 terminal
 timeline fill
+toggle_on
 tune
 undo
 update fill
