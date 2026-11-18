@@ -28,10 +28,15 @@ SettingRow {
     readonly property Item focusTarget: row.daemon ? gesture : (field.enabled ? field : (offPlaque.visible ? offPlaque : null))
 
     title: I18n.tr(row.bind.label)
+    // the in-place gesture is the one that starts off, and needs Theia itself on
+    readonly property bool inPlace: row.bind.id === "shell.sightInPlace"
+
     detail: row.daemon && row.attemptNote.length > 0 ? row.attemptNote
             : row.daemon && row.host.sightNeedsRashin ? I18n.tr("Needs Rashin on")
+            : row.inPlace && !row.host.theiaMasterOn ? I18n.tr("Needs Theia on")
+            : row.inPlace && row.off ? I18n.tr("Off until you turn it on here or in Theia settings")
             : row.bind.hint ? I18n.tr(row.bind.hint) : (row.editable ? "" : I18n.tr("Uses its own key, so it cannot be changed"))
-    changed: row.rebound || row.off
+    changed: row.rebound || (row.daemon ? row.host.gestureOffChanged(row.bind) : row.off)
     highlighted: row.host.highlightId === row.bind.id
     onResetRequested: row.host.resetBind(row.bind)
 
@@ -124,7 +129,7 @@ SettingRow {
     T.AbstractButton {
         id: gesture
         visible: row.daemon
-        enabled: row.host.ready
+        enabled: row.host.ready && !row.off
         width: field.width
         height: LithicTokens.size.textFieldHeight
         hoverEnabled: true
@@ -212,7 +217,7 @@ SettingRow {
             items: row.host.gestureKeys.map(key => ({
                 label: I18n.tr(key.Label),
                 checked: key.Name === row.current,
-                disabled: key.Name === row.host.gestureOtherKey(row.bind)
+                disabled: row.host.gestureTakenBy(row.bind, key.Name)
             }))
             onTriggered: index => {
                 row.host.setGestureKey(row.bind, row.host.gestureKeys[index].Name, error => row.attemptNote = error);

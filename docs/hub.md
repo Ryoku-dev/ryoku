@@ -935,6 +935,68 @@ leave. `components/performance/PerformanceStore.qml` (a JSON file kept key by
 key) and `components/graphics/GraphicsStore.qml` (`ryoku-hub gpu` calls, with
 prompts and a Needs you probe) are the two to read first.
 
+### The Rashin page and Theia
+
+`schema/rashin.js` holds the Rashin page, opened from Apps > Rashin, with the
+Theia hero first. Its sections, in order:
+Rashin (the master switch and app features), Theia, Reading, Writing,
+Translate, Listening, Quiet places, Model, Status and Open Rashin.
+Theia is what Sight used to be called; the row ids that existed keep their
+`sight-` names (`sight-enabled`, `sight-highlight`, `sight-mode`,
+`sight-target`, `sight-languages`, `sight-local-only`, `sight-engine`,
+`sight-model`, `sight-shortcut`, `sight-status`) so deep links and search keep
+working, and the registry's keywords keep "sight". Deep links are
+`rashin/theia-on`, `rashin/theia-f-<id>` and the existing `rashin/sight-*`.
+
+- **The master row** (`theia-on`) is a custom `TheiaHero`: the Theia switch,
+  a sentence saying what is listening ("Listening for Right Alt three times
+  and Left Alt while you highlight."), a keycap for each gesture and how many
+  of the 21 desktop features are on, all live. Gestures and Start with sit under it.
+- **A row per feature**, `theia-f-<id>`. Theia's 21 features (`inplace`,
+  `summarize`, `deepread`, `math`, `learn`, `readaloud`, `proofread`,
+  `rewrite`, `tone`, `fluent`, `humanize`, `aicheck`, `inclusive`, `reactions`,
+  `reply`, `voice`, `translatestyle`, `dictionary`, `overimage`,
+  `quiet`, `save`) bind to `{ store: "sight", key:
+  "features.<id>", fallback: false }`. Each draws with `TheiaFeatureSwitch`:
+  chips for where it shows and a switch, grouped by what it does. All are off
+  by default.
+  `theia-f-save` writes `sight.features.save` and Rashin's `collections`
+  together, inside `SightStore`, so Reset and Undo put both back.
+- **Rashin app features** replaces the app's per-feature switches with a count,
+  "N of 20 on", and Open in Rashin, which runs
+  `rashin open --tab settings --view features`. Rashin's own Settings > Features
+  groups the switches under Ask, Answers, Agents and Teams, and Memory and
+  Index, with links to any further settings while the feature is on.
+- **Options**, `theia-o-<key>`, bind to `{ store: "sight", key: "<key without
+  sight.>", fallback: <default> }` and show `when` their feature is on and
+  Theia is on; a feature with more than two options folds the rest under More
+  options.
+- **Custom editors** in `components/rashin/`: `TheiaBubblePicker` (up to four
+  bubble actions as chips, the core four and the features that are on, with
+  arrows to reorder), `TheiaPinnedPicker` (up to two extra tabs),
+  `TheiaTones` (the 23 tones as chips, which ones show first),
+  `TheiaCategories` (the 14 writing check categories, listing those turned
+  off), `TheiaVoice` (My voice: your samples, Learn, the notes it writes that
+  you can edit, Save and Clear, through `rashin call writing.voice.*`),
+  `TheiaQuietApps` (quiet apps, added from the running windows listed once each
+  by `ryoku wm state`), `TheiaVoices` (the reading voice from `sight.voices`
+  with a Test button, installing `espeak-ng` with the usual package job when it
+  is missing) and `TheiaWords` (Your words, the personal spelling dictionary
+  used by the built-in English checker, through `writing.words`,
+  `writing.words.add` and `writing.words.remove`). Fix writing needs no grammar
+  package; Automatic uses English on this computer, other languages with your
+  model, with US, UK, CA, AU and IN dialects for English.
+- **Two stores.** `SightStore` is `shell.json`'s `sight.*` through the bus.
+  `RashinFeaturesStore` (store name `rashinFeatures`) reads `features` from
+  `rashin status --json`, which shows Rashin's status without starting
+  rashind, so opening the page never wakes it. Its write path remains for
+  Save's paired `collections` switch, through `rashin call settings.set`.
+- **Shortcuts.** The In place gesture has a key menu like the other two there,
+  writing `sight.inplace.key`.
+
+Every "Sight" a person can read is "Theia". The behaviour of each feature is in
+`docs/rashin.md`.
+
 ## Changes
 
 `Singletons/Changes.qml` is the one write path. A row that writes anywhere else

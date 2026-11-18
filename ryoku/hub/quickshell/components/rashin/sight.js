@@ -39,13 +39,90 @@ function missingLanguages(selected, installed) {
         && installed.indexOf(code) < 0 && languages.some(l => l.code === code));
 }
 
-function modelSuggestions(text) {
+function modelSuggestions(payload, query) {
+    var data = typeof payload === "string" ? JSON.parse(payload) : payload;
     var seen = Object.create(null);
-    return String(text || "").split("\n").map(line => line.split("\t")[0].trim())
-        .filter(id => {
-            if (!id || seen[id])
+    var search = String(query || "").toLowerCase();
+    return (data.routes || []).concat((data.models || []).filter(m => m.available === true))
+        .filter(m => {
+            if (!m.id || seen[m.id])
                 return false;
-            seen[id] = true;
-            return true;
-        }).map(id => ({ id: id, name: id }));
+            seen[m.id] = true;
+            return !search || (m.id + " " + (m.name || "") + " " + (m.provider || "")).toLowerCase().indexOf(search) >= 0;
+        }).slice(0, 100).map(m => ({ id: m.id, name: m.name ? m.name + " · " + m.id : m.id }));
+}
+
+function modelUnavailable(payload, id, providers) {
+    var data = typeof payload === "string" ? JSON.parse(payload) : payload;
+    if (!id || (data.routes || []).some(route => route.id === id))
+        return "";
+    var model = (data.models || []).find(m => m.id === id);
+    if (model && model.available === true)
+        return "";
+    var provider = (providers || []).find(p => p.id === (model ? model.provider : id.split("/")[0]));
+    return provider && provider.configured === false ? "no-key" : "unavailable";
+}
+
+function modelIdentity(payload, id, providers) {
+    var data = typeof payload === "string" ? JSON.parse(payload) : payload;
+    var model = (data.models || []).find(m => m.id === id);
+    var providerID = model && model.provider || id.split("/")[0];
+    var provider = (providers || []).find(p => p.id === providerID);
+    return { model: model && model.name || id, provider: provider && provider.name || providerID };
+}
+
+var featureIDs = [
+    "inplace", "summarize", "deepread", "math", "learn", "readaloud", "proofread",
+    "rewrite", "tone", "fluent", "humanize", "aicheck", "inclusive", "reactions",
+    "reply", "voice", "translatestyle", "dictionary", "overimage", "quiet", "save"
+];
+
+var rashinFeatureIDs = [
+    "compare", "research", "schedules", "prompts", "enhance", "askwriting",
+    "analyze", "audio", "video", "share", "quote", "history", "searchsteps",
+    "mindmap", "artifacts", "collections", "profile", "setupcards",
+    "mcp", "diskcare"
+];
+
+function defaults() {
+    var values = {
+        on: true, enabled: true, tapKey: "Alt_R", highlightKey: "Alt_L",
+        highlight: true, mode: "explain", target: "", ocrLanguages: ["eng"],
+        localOnly: false, engine: "ask", model: "",
+        bubble: ["translate", "explain", "ask"], pinned: [],
+        "summarize.style": "points",
+        "deepread.lenses": ["factcheck", "assumptions", "concepts", "contrasts", "related", "passages", "section"],
+        "learn.count": 5, "readaloud.voice": "", "readaloud.rate": 1.0,
+        "proofread.engine": "auto", "proofread.dialect": "us", "proofread.off": [],
+        "rewrite.variant": "rephrase", "rewrite.audience": "general",
+        "tone.favorites": ["formal", "friendly", "confident", "direct", "empathetic"],
+        "voice.use": true, "translate.style": "natural", "translate.simpler": false,
+        "translate.back": false, "inplace.key": "Control_R", "inplace.action": "auto",
+        "inplace.paste": true, "quiet.apps": [], "quiet.snooze": 0
+    };
+    featureIDs.forEach(function (id) { values["features." + id] = false; });
+    return values;
+}
+
+function readFeatures(payload) {
+    var settings = payload && payload.settings ? payload.settings : payload;
+    if (!settings || typeof settings !== "object" || Array.isArray(settings))
+        throw new Error("Rashin settings could not be read");
+    var source = settings.features || {};
+    if (typeof source !== "object" || Array.isArray(source))
+        throw new Error("Rashin features could not be read");
+    var values = {};
+    rashinFeatureIDs.forEach(function (id) { values[id] = source[id] === true; });
+    return values;
+}
+
+function once(done) {
+    var finished = false;
+    return function (ok, error) {
+        if (finished)
+            return;
+        finished = true;
+        if (done)
+            done(ok, error || "");
+    };
 }

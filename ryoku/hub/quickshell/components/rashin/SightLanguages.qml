@@ -7,6 +7,7 @@ import "sight.js" as Sight
 
 Column {
     id: root
+    readonly property bool wide: true
 
     required property var store
     property var row: null
@@ -20,7 +21,7 @@ Column {
     spacing: LithicTokens.space.s2
 
     Row {
-        width: parent.width
+        width: Math.min(parent.width, LithicTokens.size.settingsControlMax + languageToggle.implicitWidth + spacing)
         spacing: LithicTokens.space.s3
         Picker {
             id: picker

@@ -3,3 +3,14 @@ SightStore 1.0 SightStore.qml
 SightLanguages 1.0 SightLanguages.qml
 SightModel 1.0 SightModel.qml
 SightShortcut 1.0 SightShortcut.qml
+RashinFeaturesStore 1.0 RashinFeaturesStore.qml
+TheiaHero 1.0 TheiaHero.qml
+TheiaFeatureSwitch 1.0 TheiaFeatureSwitch.qml
+TheiaBubblePicker 1.0 TheiaBubblePicker.qml
+TheiaPinnedPicker 1.0 TheiaPinnedPicker.qml
+TheiaTones 1.0 TheiaTones.qml
+TheiaCategories 1.0 TheiaCategories.qml
+TheiaVoice 1.0 TheiaVoice.qml
+TheiaQuietApps 1.0 TheiaQuietApps.qml
+TheiaVoices 1.0 TheiaVoices.qml
+TheiaWords 1.0 TheiaWords.qml

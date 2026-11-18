@@ -6,15 +6,44 @@
   has more room, never covers the control, scrolls with the wheel, touchpad and
   keys, and opens on the current choice; labels that mix writing systems keep
   one baseline (`docs/lithic/library/qml/Lithic/Menu.qml`, `Popover.qml`).
+- **Groups and lists use the whole setting row.** Chip groups, ordered picks,
+  toggle lists and editors sit under their title at full width instead of
+  beside empty space, Writing checks lays its switches out in columns, fields
+  and pickers keep comfortable widths, and taller single controls line up with
+  their titles (`docs/lithic/library/qml/Lithic/SettingRow.qml`,
+  `components/RowControl.qml`).
 - **Search, section links and deep links land on the setting you asked for.**
   This includes rows under More options on the Rashin page, which no longer
   shifts as it finishes loading (`components/SettingsPage.qml`).
-- **Rashin has a Sight section.** Turn triple-tap Right Alt or Left Alt while highlighting on or off, pick what it starts with, the
+- **The Rashin settings page opens without holding up the window.** Its sections
+  build across frames, unchanged controls stay in place when status arrives, and
+  hidden sidebar outlines no longer build copies of the open page's section links.
+- **Theia's model picker offers models that can run.** It reads availability
+  from Rashin, checks a saved model in the background and uses display names to
+  explain missing keys or unavailable models, pointing to Providers or Use Auto.
+  Provider and harness menus load on request with at most 100 searchable matches.
+- **In place starts with Fix or translate.** Text already in the target language
+  gets spelling, grammar and punctuation fixes without changing its meaning.
+- **Fix writing has a built-in English checker and Your words**
+  Save spellings you use, choose an English dialect and see the Harper 3.2.0
+  Go port, SCOWL-derived dictionary and foldhash word identity hash credited in About
+  (`components/rashin/TheiaWords.qml`, `schema/about.js`, `../../NOTICE`).
+- **Theia's 21 optional features have switches on the Rashin page**
+  Options appear while each feature is on, and Save to Rashin also sets Collections
+- **Rashin app features open in Rashin's own Features settings**
+  The Hub shows how many of its 20 optional features are on without starting Rashin
+- **Credits name the tools behind Theia and Ask**
+  The Harper Go port, write-good, weasel-words, too-wordy, proselint,
+  retext-equality, blocklint, textstat, eSpeak NG, Piper and yt-dlp
+- **Rashin has a Theia section.** Turn triple-tap Right Alt or Left Alt while highlighting on or off, pick what it starts with, the
   language it translates into, what answers (the same engine as Ask, Rashin's providers or a harness)
   and the model (the engine's default unless you name one), keep captures on local models only, and add
   text recognition languages, installed on demand for Arch, Fedora and Void (`pages/Rashin.qml`,
   `components/rashin/Sight*.qml`, `schema/rashin.js`).
-- **Keyboard shortcuts offers menus for Sight's gesture keys.** Choose one of six modifier keys
+- **Keyboard shortcuts has a key menu for Theia in place.** Pick the key you
+  tap three times with text selected, Right Ctrl unless you change it
+  (`pages/Shortcuts.qml`, `components/shortcuts/BindRow.qml`).
+- **Keyboard shortcuts offers menus for Theia's gesture keys.** Choose one of six modifier keys
   for triple-tap screen boxes and another for highlighted text, with keycaps in Shortcuts and the
   Super+K sheet. Each row says when it needs Rashin on (`pages/Shortcuts.qml`, `components/shortcuts/`).
 - **Notifications & pop-ups shows Ryoku's own card and pop-up moving, in the design in use.** The Ryoku

@@ -9,7 +9,7 @@ Plaque {
     required property var hub
     property var row: null
     function activate() { root.hub.navigate("shortcuts", "shell.sight"); }
-    text: I18n.tr("Change shortcuts")
+    text: I18n.tr("Theia shortcuts")
     kind: "quiet"
     small: true
     glyph: "arrow_forward"

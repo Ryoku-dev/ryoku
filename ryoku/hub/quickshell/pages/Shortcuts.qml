@@ -46,8 +46,19 @@ Item {
     RyokuUi.ShellSetting { id: sightHighlightKey; path: "sight.highlightKey"; fallback: "Alt_L"; onValueChanged: page.rebuild() }
     RyokuUi.ShellSetting { id: sightEnabled; path: "sight.enabled"; fallback: true }
     RyokuUi.ShellSetting { id: sightHighlight; path: "sight.highlight"; fallback: true }
+    RyokuUi.ShellSetting { id: theiaInPlaceKey; path: "sight.inplace.key"; fallback: "Control_R"; onValueChanged: page.rebuild() }
+    RyokuUi.ShellSetting { id: theiaInPlaceOn; path: "sight.features.inplace"; fallback: false }
+    RyokuUi.ShellSetting { id: theiaOn; path: "sight.on"; fallback: true }
     RyokuUi.BusTopic { id: sightTopic; topic: "sight" }
     readonly property bool sightNeedsRashin: !!sightTopic.data && sightTopic.data.reason === "rashin-off"
+    readonly property bool theiaMasterOn: theiaOn.value !== false
+
+    // the three Theia gestures: the setting that holds each key, its default, and what turns it off
+    readonly property var gestureSpecs: ({
+        "shell.sight": { keyPath: "sight.tapKey", def: "Alt_R", face: "Right Alt", offPath: "sight.enabled", offIsDefault: false },
+        "shell.sightHighlight": { keyPath: "sight.highlightKey", def: "Alt_L", face: "Left Alt", offPath: "sight.highlight", offIsDefault: false },
+        "shell.sightInPlace": { keyPath: "sight.inplace.key", def: "Control_R", face: "Right Ctrl", offPath: "sight.features.inplace", offIsDefault: true }
+    })
 
     readonly property bool ready: Changes.desktopReady && Settings.loaded && ProviderSchema.ready && page.legendLoaded
     readonly property var rebinds: Changes.value(page.rebindsBind) || ({})
@@ -123,32 +134,58 @@ Item {
         return I18n.tr("%1 shortcut").arg(I18n.tr(bind.label));
     }
 
+    function gestureSpec(bind) {
+        return page.gestureSpecs[bind.id] || page.gestureSpecs[bind.whileHighlighting ? "shell.sightHighlight" : "shell.sight"];
+    }
+
     function gesturePath(bind) {
-        return bind.whileHighlighting ? "sight.highlightKey" : "sight.tapKey";
+        return page.gestureSpec(bind).keyPath;
     }
 
     function gestureDefault(bind) {
-        return bind.whileHighlighting ? "Alt_L" : "Alt_R";
+        return page.gestureSpec(bind).def;
+    }
+
+    function gestureValue(bind) {
+        var path = page.gestureSpec(bind).keyPath;
+        return path === "sight.inplace.key" ? theiaInPlaceKey.value
+            : (path === "sight.highlightKey" ? sightHighlightKey.value : sightTapKey.value);
     }
 
     function effectiveBind(bind) {
         if (bind.kind !== "daemon")
             return Binds.effective(page.rebinds, bind.combo);
-        var value = bind.whileHighlighting ? sightHighlightKey.value : sightTapKey.value;
+        var value = page.gestureValue(bind);
         return page.gestureKeys.some(k => k.Name === value) ? value : page.gestureDefault(bind);
     }
 
     function gestureLabel(bind) {
         var key = page.gestureKeys.find(k => k.Name === page.effectiveBind(bind));
-        return I18n.tr(key ? key.Label : (bind.whileHighlighting ? "Left Alt" : "Right Alt"));
+        return I18n.tr(key ? key.Label : page.gestureSpec(bind).face);
     }
 
-    function gestureOtherKey(bind) {
-        return page.effectiveBind({ kind: "daemon", whileHighlighting: !bind.whileHighlighting });
+    // the keys the other two gestures hold; a key belongs to one gesture
+    function gestureOtherKeys(bind) {
+        var mine = page.gestureSpec(bind);
+        return Object.keys(page.gestureSpecs)
+            .filter(id => page.gestureSpecs[id] !== mine)
+            .map(id => page.effectiveBind({ kind: "daemon", id: id }));
+    }
+
+    function gestureTakenBy(bind, key) {
+        return page.gestureOtherKeys(bind).indexOf(key) >= 0;
     }
 
     function gestureOff(bind) {
-        return (bind.whileHighlighting ? sightHighlight.value : sightEnabled.value) === false;
+        var spec = page.gestureSpec(bind);
+        if (spec.offPath === "sight.features.inplace")
+            return theiaInPlaceOn.value !== true;
+        return (spec.offPath === "sight.highlight" ? sightHighlight.value : sightEnabled.value) === false;
+    }
+
+    // changed means the on/off state differs from the gesture's own default: Theia in place starts off
+    function gestureOffChanged(bind) {
+        return page.gestureOff(bind) !== page.gestureSpec(bind).offIsDefault;
     }
 
     function gestureRebound(bind) {
@@ -156,7 +193,7 @@ Item {
     }
 
     function setGestureKey(bind, key, done) {
-        if (key === page.gestureOtherKey(bind))
+        if (page.gestureTakenBy(bind, key))
             return;
         ShellSettings.patch(page.gesturePath(bind), key, (ok, result, error) => {
             if (done)
@@ -170,7 +207,7 @@ Item {
 
     function setOff(bind, off) {
         if (bind.kind === "daemon") {
-            ShellSettings.patch(bind.whileHighlighting ? "sight.highlight" : "sight.enabled", !off);
+            ShellSettings.patch(page.gestureSpec(bind).offPath, !off);
             return;
         }
         Changes.set(page.offBind, Binds.withOff(page.disabled, bind.combo, off), page.bindLabel(bind), page.pageId);
@@ -178,12 +215,18 @@ Item {
 
     function resetBind(bind) {
         if (bind.kind === "daemon") {
-            if (page.gestureDefault(bind) === page.gestureOtherKey(bind)) {
-                var other = { kind: "daemon", whileHighlighting: !bind.whileHighlighting };
-                ShellSettings.patch(page.gesturePath(other), page.effectiveBind(bind));
-            }
-            ShellSettings.patch(page.gesturePath(bind), page.gestureDefault(bind));
-            Bus.call("settings.reset", { path: bind.whileHighlighting ? "sight.highlight" : "sight.enabled" });
+            var spec = page.gestureSpec(bind);
+            // the default key may sit on another gesture now: hand that one the key this one leaves
+            Object.keys(page.gestureSpecs).forEach(id => {
+                var other = { kind: "daemon", id: id };
+                if (page.gestureSpecs[id] !== spec && page.effectiveBind(other) === spec.def)
+                    ShellSettings.patch(page.gesturePath(other), page.effectiveBind(bind));
+            });
+            ShellSettings.patch(spec.keyPath, spec.def);
+            if (spec.offIsDefault)
+                ShellSettings.patch(spec.offPath, false);
+            else
+                Bus.call("settings.reset", { path: spec.offPath });
             return;
         }
         if (Binds.isRebound(page.rebinds, bind.combo))
@@ -282,7 +325,7 @@ Item {
                 Binds.toField(page.effectiveBind(bind)).split("+").join(" "),
                 Binds.familyWords(bind.combo), bind.taps > 0 ? I18n.tr("Tap %1 times").arg(bind.taps) : "",
                 bind.whileHighlighting ? I18n.tr("Hold while highlighting") : "",
-                bind.kind === "daemon" ? page.gestureLabel(bind) : ""].join(" ");
+                bind.kind === "daemon" ? page.gestureLabel(bind) + " Theia sight" : ""].join(" ");
     }
 
     function customText(entry) {
