@@ -137,6 +137,17 @@ loaded defines `revisited()` on its root: the frame calls it when a kept page is
 shown again, and it re-reads in the background without clearing the rows, unless
 an action or an unsaved edit is under way.
 
+Large schema pages can set `SettingsPage.asynchronousSections`. Rashin uses it
+to paint its first section before building the rest in reading order, spread
+across frames. Completed sections stay in the page cache; unfinished sections
+stop building while hidden. Search and outline jumps wait for the target and
+preceding sections' rows, finish their layout and open More options when needed.
+If the unfinished tail would clamp the scroll too early, enough of it is built
+to reach the landing position before scrolling. Later read results keep the
+landed row in position until the reader scrolls. A status refresh keeps each
+unchanged section's row model, so it does not recreate unrelated controls or
+open editors. Only the shown page's sidebar outline builds section links.
+
 - **The sidebar** (`components/nav/HubSidebar.qml`). Its title line holds the
   Ryoku mark and SETTINGS, quiet, with one action at its end that shuts every
   folder but the open page's. The search field sits under it, then the tree,

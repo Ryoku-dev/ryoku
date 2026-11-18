@@ -5,7 +5,7 @@ import Ryoku.Ui as RyokuUi
 import Ryoku.Ui.Singletons
 import "../Singletons"
 
-// the control on the right of a setting row, chosen by the row's `control`
+// The control slot of a setting row, chosen by the row's `control`.
 Item {
     id: root
 
@@ -19,6 +19,11 @@ Item {
     property Component custom: null
     readonly property var value: root.row ? Changes.value(root.row.bind) : undefined
     readonly property real maxWidth: LithicTokens.size.settingsControlMax
+    readonly property bool wide: root.row.stacked === true
+        || !!(loader.item && loader.item.wide === true)
+    readonly property bool topAligned: root.row.topAligned === true
+        || !!(loader.item && loader.item.topAligned === true)
+    readonly property bool ready: loader.sourceComponent === null || loader.status === Loader.Ready
 
     // the width the control really takes, so the row's text wraps before it
     implicitWidth: loader.item ? loader.item.width : 0
@@ -142,6 +147,14 @@ Item {
         }
     }
     property bool takesValue: false
+
+    Binding {
+        target: loader.item
+        property: "width"
+        value: root.width
+        when: root.wide && loader.item !== null
+        restoreMode: Binding.RestoreBindingOrValue
+    }
 
     Binding {
         target: loader.item

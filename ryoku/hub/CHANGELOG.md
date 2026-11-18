@@ -6,6 +6,9 @@
   has more room, never covers the control, scrolls with the wheel, touchpad and
   keys, and opens on the current choice; labels that mix writing systems keep
   one baseline (`docs/lithic/library/qml/Lithic/Menu.qml`, `Popover.qml`).
+- **Search, section links and deep links land on the setting you asked for.**
+  This includes rows under More options on the Rashin page, which no longer
+  shifts as it finishes loading (`components/SettingsPage.qml`).
 - **Rashin has a Sight section.** Turn triple-tap Right Alt or Left Alt while highlighting on or off, pick what it starts with, the
   language it translates into, what answers (the same engine as Ask, Rashin's providers or a harness)
   and the model (the engine's default unless you name one), keep captures on local models only, and add
