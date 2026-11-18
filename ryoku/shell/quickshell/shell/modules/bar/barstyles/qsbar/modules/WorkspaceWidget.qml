@@ -261,37 +261,12 @@ Item {
                     Behavior on color { ColorAnimation { duration: 200 } }
                 }
 
-                // ── NUMBERS style: a digit on the shared 6px V2 button shape. ──
+                // ── NUMBERS style: a digit on the shared 6px V2 button shape.
+                //    ICONS is the same cell with the workspace's symbol, if it has one. ──
                 Rectangle {
-                    visible: root.workspaceStyle === "numbers"
-                    anchors.centerIn: parent
-                    width:  20
-                    height: 20
-                    radius: root.panelButtonRadius
-                    color: isFocused  ? Qt.rgba(wsWidget.contentColor.r, wsWidget.contentColor.g, wsWidget.contentColor.b, 0.30)
-                         : isOccupied ? Qt.rgba(wsWidget.contentColor.r, wsWidget.contentColor.g, wsWidget.contentColor.b, 0.12)
-                                      : Qt.rgba(wsWidget.contentColor.r, wsWidget.contentColor.g, wsWidget.contentColor.b, 0.04)
-                    Behavior on color { ColorAnimation { duration: 200 } }
-                    Text {
-                        anchors.centerIn: parent
-                        text: wsKey
-                        // focused = the only BRIGHT digit (lightened seal + bold + bigger);
-                        // others dimmed so the active workspace is unmistakable
-                        color: isFocused  ? wsWidget.contentColor
-                             : isOccupied ? Qt.rgba(wsWidget.contentColor.r, wsWidget.contentColor.g, wsWidget.contentColor.b, 0.5)
-                                          : Qt.rgba(wsWidget.contentColor.r, wsWidget.contentColor.g, wsWidget.contentColor.b, 0.28)
-                        font.family: root.mono
-                        font.pixelSize: isFocused ? 13 : 12
-                        font.weight: isFocused ? Font.Bold : Font.Normal
-                    }
-                }
-
-                // ── ICONS style: the numbers cell with the workspace's configured
-                //    Material Symbol in place of the digit; no icon shows the digit. ──
-                Rectangle {
-                    id: iconsCell
-                    readonly property string icon: root.workspaceIcon(wsKey)
-                    visible: root.workspaceStyle === "icons"
+                    id: numbersCell
+                    readonly property string icon: root.workspaceStyle === "icons" ? root.workspaceIcon(wsKey) : ""
+                    visible: root.workspaceStyle === "numbers" || root.workspaceStyle === "icons"
                     anchors.centerIn: parent
                     width:  20
                     height: 20
@@ -302,9 +277,9 @@ Item {
                                       : Qt.rgba(wsWidget.contentColor.r, wsWidget.contentColor.g, wsWidget.contentColor.b, 0.04)
                     Behavior on color { ColorAnimation { duration: 200 } }
                     IconText {
-                        visible: iconsCell.icon !== ""
+                        visible: numbersCell.icon !== ""
                         anchors.centerIn: parent
-                        text: iconsCell.icon
+                        text: numbersCell.icon
                         fill: isFocused ? 1 : 0
                         color: isFocused  ? wsWidget.contentColor
                              : isOccupied ? Qt.rgba(wsWidget.contentColor.r, wsWidget.contentColor.g, wsWidget.contentColor.b, 0.5)
@@ -313,9 +288,11 @@ Item {
                         font.weight: isFocused ? Font.Bold : Font.Normal
                     }
                     Text {
-                        visible: iconsCell.icon === ""
+                        visible: numbersCell.icon === ""
                         anchors.centerIn: parent
                         text: wsKey
+                        // focused = the only BRIGHT digit (lightened seal + bold + bigger);
+                        // others dimmed so the active workspace is unmistakable
                         color: isFocused  ? wsWidget.contentColor
                              : isOccupied ? Qt.rgba(wsWidget.contentColor.r, wsWidget.contentColor.g, wsWidget.contentColor.b, 0.5)
                                           : Qt.rgba(wsWidget.contentColor.r, wsWidget.contentColor.g, wsWidget.contentColor.b, 0.28)

@@ -4,5 +4,6 @@ CcScrollRail CcScrollRail.qml
 BarSilhouette BarSilhouette.qml
 CcWorkspacePreview CcWorkspacePreview.qml
 CcWorkspaceIconPicker CcWorkspaceIconPicker.qml
+CcGlyphTile CcGlyphTile.qml
 CcWidgetColorPopover CcWidgetColorPopover.qml
 CcWidgetList CcWidgetList.qml

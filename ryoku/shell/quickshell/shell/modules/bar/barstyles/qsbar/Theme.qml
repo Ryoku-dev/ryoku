@@ -2346,12 +2346,12 @@ Item {
     // The icons marker's glyphs: comma-separated Material Symbols names, entry N
     // for workspace N. An empty or missing entry shows the workspace number.
     property string workspaceIcons: "terminal,language,sticky_note_2,forum,music_note"
+    readonly property var workspaceIconList: workspaceIcons === ""
+        ? [] : workspaceIcons.split(",").map(s => s.trim())
     function workspaceIcon(name) {
         if (!/^\d+$/.test(String(name))) return ""
         var n = Number(name)
-        if (n < 1) return ""
-        var icons = workspaceIcons.split(",")
-        return n <= icons.length ? icons[n - 1].trim() : ""
+        return n >= 1 && n <= workspaceIconList.length ? workspaceIconList[n - 1] : ""
     }
     // Symbol names are [a-z0-9_], so a typed space or hyphen becomes "_" and
     // anything else (a comma above all, which would shift every later
@@ -2363,10 +2363,10 @@ Item {
     // Trailing empty entries are dropped.
     function setWorkspaceIcon(n, name) {
         if (!(n >= 1)) return
-        var icons = workspaceIcons === "" ? [] : workspaceIcons.split(",")
+        var icons = workspaceIconList.slice()
         while (icons.length < n) icons.push("")
         icons[n - 1] = workspaceIconName(name)
-        while (icons.length > 0 && icons[icons.length - 1].trim() === "") icons.pop()
+        while (icons.length > 0 && icons[icons.length - 1] === "") icons.pop()
         workspaceIcons = icons.join(",")
     }
     // The symbols the workspace icon picker offers; any other Material Symbols name can

@@ -15,9 +15,11 @@ Column {
     property int slot: 1
     readonly property int slotCount: picker.root && picker.root.workspaceMode === "5" ? 5 : 10
     readonly property string current: picker.root ? picker.root.workspaceIcon(picker.slot) : ""
-    readonly property real cellH: picker.tk ? picker.tk.rowH : 40
+    readonly property real cellH: picker.tk ? picker.tk.rowH : Tokens.px(40)
+    readonly property real cellGap: picker.tk ? picker.tk.gap / 2 : Tokens.s2
+    readonly property color ink: picker.root ? picker.root.seal : Tokens.ink
 
-    spacing: picker.tk ? picker.tk.gap : 12
+    spacing: picker.tk ? picker.tk.gap : Tokens.s3
 
     onSlotCountChanged: if (picker.slot > picker.slotCount) picker.slot = picker.slotCount
 
@@ -44,47 +46,7 @@ Column {
     TextMetrics {
         id: glyphProbe
         font.family: "Material Symbols Rounded"
-        font.pixelSize: 20
-    }
-
-    component Tile: Rectangle {
-        id: tile
-        property string icon: ""
-        property string fallback: ""
-        property bool selected: false
-        signal picked()
-
-        height: picker.cellH
-        radius: Tokens.radius
-        clip: true
-        color: tileMa.containsMouse ? Tokens.tint5 : "transparent"
-        border.width: tile.selected ? 2 : 1
-        border.color: tile.selected ? Tokens.bone : (tileMa.containsMouse ? Tokens.ink : Tokens.line)
-        Behavior on color { ColorAnimation { duration: Tokens.move } }
-        Behavior on border.color { ColorAnimation { duration: Tokens.move } }
-
-        IconText {
-            visible: tile.icon !== ""
-            anchors.centerIn: parent
-            text: tile.icon
-            color: picker.root ? picker.root.seal : Tokens.ink
-            font.pixelSize: 18
-        }
-        UiText {
-            visible: tile.icon === ""
-            anchors.centerIn: parent
-            text: tile.fallback
-            color: picker.root ? picker.root.seal : Tokens.ink
-            font.family: Tokens.mono
-            font.pixelSize: Tokens.fBody
-        }
-        MouseArea {
-            id: tileMa
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: tile.picked()
-        }
+        font.pixelSize: Tokens.fRow
     }
 
     // the workspaces, each wearing its current symbol (or its number)
@@ -92,14 +54,16 @@ Column {
         id: slotGrid
         width: parent.width
         columns: 10
-        spacing: picker.tk ? picker.tk.gap / 2 : 6
+        spacing: picker.cellGap
         readonly property real cellW: (width - spacing * (columns - 1)) / columns
 
         Repeater {
             model: picker.slotCount
-            delegate: Tile {
+            delegate: CcGlyphTile {
                 required property int index
                 width: slotGrid.cellW
+                height: picker.cellH
+                ink: picker.ink
                 icon: picker.root ? picker.root.workspaceIcon(index + 1) : ""
                 fallback: String(index + 1)
                 selected: picker.slot === index + 1
@@ -122,14 +86,16 @@ Column {
         id: symbolGrid
         width: parent.width
         columns: 8
-        spacing: picker.tk ? picker.tk.gap / 2 : 6
+        spacing: picker.cellGap
         readonly property real cellW: (width - spacing * (columns - 1)) / columns
 
         Repeater {
             model: [""].concat(picker.root ? picker.root.workspaceIconOptions : [])
-            delegate: Tile {
+            delegate: CcGlyphTile {
                 required property string modelData
                 width: symbolGrid.cellW
+                height: picker.cellH
+                ink: picker.ink
                 icon: modelData
                 fallback: String(picker.slot)
                 selected: picker.current === modelData
