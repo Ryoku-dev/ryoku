@@ -168,6 +168,11 @@ func (n *nightlightState) runSchedule() {
 	timer := time.NewTimer(0)
 	defer timer.Stop()
 	for {
+		select {
+		case <-n.quit:
+			return
+		default:
+		}
 		n.tickSchedule()
 		wait := n.nextScheduleWait(time.Now())
 		if !timer.Stop() {
@@ -178,6 +183,8 @@ func (n *nightlightState) runSchedule() {
 		}
 		timer.Reset(wait)
 		select {
+		case <-n.quit:
+			return
 		case <-n.schedKick:
 		case <-timer.C:
 		}

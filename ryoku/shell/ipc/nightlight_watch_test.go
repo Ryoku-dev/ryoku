@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -37,9 +39,9 @@ func writeNlFakeBackend(t *testing.T, path string) {
 // as a pushed frame with no polling anywhere. The injected backend name is one no
 // real process shares, so the watcher cannot see a real backend on the dev box.
 func TestNightlightWatcherEndToEnd(t *testing.T) {
-	const backend = "nlfakelight"
 
 	state := t.TempDir()
+	backend := nightlightFakeName(state)
 	t.Setenv("XDG_STATE_HOME", state)
 
 	bin := t.TempDir()
@@ -92,8 +94,9 @@ exit 0
 	// fake backend.
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	d := &daemon{wmc: wm.OpenNamed("testwm")}
+	d := &daemon{wmc: wm.OpenNamed("testwm"), quit: make(chan struct{})}
 	d.startNightlight()
+	t.Cleanup(func() { close(d.quit); d.nightlight.workers.Wait() })
 	topic := d.topic("nightlight")
 	sub := topic.subscribe()
 	defer topic.unsubscribe(sub)
@@ -190,6 +193,7 @@ func buildNlFake(t *testing.T, backend string, capsFailFirst bool) nlFake {
 	t.Helper()
 	state := t.TempDir()
 	bin := t.TempDir()
+	backend = nightlightFakeName(state)
 
 	// The fake backend stays alive under <backend>, the name the watcher greps
 	// for and the provider reports.
@@ -295,7 +299,7 @@ func TestNightlightWatcherSettlesMarkerBeforeBackend(t *testing.T) {
 	defer topic.unsubscribe(sub)
 	n := &nightlightState{topic: topic, wmc: wm.OpenNamed("testwm"), stateDir: f.state, tempFile: f.temp}
 
-	go n.watch()
+	watchNightlightTest(t, n)
 
 	// The startup frame is off: no marker, no backend. Consume it so the marker
 	// write below is a fresh inotify wake.
@@ -466,4 +470,18 @@ func TestNightlightHotplugAfterOffDoesNotRevive(t *testing.T) {
 	if n.running() {
 		t.Fatal("a hotplug after an explicit off must not revive the backend")
 	}
+}
+
+func nightlightFakeName(path string) string {
+	sum := sha256.Sum256([]byte(path))
+	return "nl" + hex.EncodeToString(sum[:6])
+}
+
+func watchNightlightTest(t *testing.T, n *nightlightState) {
+	t.Helper()
+	quit := make(chan struct{})
+	n.quit = quit
+	n.workers.Add(1)
+	go func() { defer n.workers.Done(); n.watch() }()
+	t.Cleanup(func() { close(quit); n.workers.Wait() })
 }

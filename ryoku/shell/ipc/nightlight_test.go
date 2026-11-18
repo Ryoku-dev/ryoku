@@ -66,8 +66,9 @@ func TestNightlightFrameShape(t *testing.T) {
 
 func TestNightlightRegistration(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
-	d := &daemon{wmc: wm.OpenNamed("does-not-exist")}
+	d := &daemon{wmc: wm.OpenNamed("does-not-exist"), quit: make(chan struct{})}
 	d.startNightlight()
+	t.Cleanup(func() { close(d.quit); d.nightlight.workers.Wait() })
 
 	if d.topic("nightlight") == nil {
 		t.Fatal("nightlight topic not registered")

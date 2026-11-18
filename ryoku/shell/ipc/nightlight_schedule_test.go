@@ -259,7 +259,10 @@ func TestNightlightClockTickEdges(t *testing.T) {
 
 	// The watcher is the live publisher: if the backend's marker lands a beat
 	// after the intent's own frame, the watcher still pushes the settled state.
-	go n.watch()
+	watchNightlightTest(t, n)
+	if first := waitForFrame(t, sub, func(nlFrame) bool { return true }, "startup"); first.On {
+		t.Fatalf("startup frame should be off: %s", first.Raw)
+	}
 
 	now := time.Now()
 	cur := now.Hour()*60 + now.Minute()
@@ -272,8 +275,10 @@ func TestNightlightClockTickEdges(t *testing.T) {
 		t.Fatalf("all-day window must turn the light on: %s", got.Raw)
 	}
 
-	outStart := (cur + 1) % (24 * 60)
-	outStop := (cur - 1 + 24*60) % (24 * 60)
+	now = time.Now()
+	cur = now.Hour()*60 + now.Minute()
+	outStart := (cur + 120) % (24 * 60)
+	outStop := (cur - 120 + 24*60) % (24 * 60)
 	if err := n.setSchedule(nlSchedClock, nil, &outStart, &outStop); err != nil {
 		t.Fatalf("setSchedule away: %v", err)
 	}
