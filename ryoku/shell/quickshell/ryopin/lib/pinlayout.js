@@ -46,6 +46,47 @@ function clamp(pos, size, screenW, screenH, inset) {
     return { x: x, y: y };
 }
 
+function outputFor(placement, screens, focusedOutput) {
+    var names = [];
+    for (var i = 0; i < screens.length; ++i) names.push(screens[i].name);
+    if (placement && names.indexOf(placement.output) >= 0) return placement.output;
+    if (placement && !placement.output && validPosition(placement)) {
+        for (var j = 0; j < screens.length; ++j) {
+            var screen = screens[j];
+            if (placement.x >= screen.x && placement.x < screen.x + screen.width
+                    && placement.y >= screen.y && placement.y < screen.y + screen.height)
+                return screen.name;
+        }
+    }
+    if (names.indexOf(focusedOutput) >= 0) return focusedOutput;
+    return names.length ? names[0] : "";
+}
+
+function validPosition(placement) {
+    return placement && typeof placement.x === "number" && isFinite(placement.x)
+        && typeof placement.y === "number" && isFinite(placement.y);
+}
+
+function initialPosition(placement, index, size, output) {
+    if (validPosition(placement) && (!placement.output || placement.output === output.name)) {
+        return { x: placement.x - output.x, y: placement.y - output.y };
+    }
+    return clamp(slotPosition(index || 0, size, output.width, output.height),
+        size, output.width, output.height);
+}
+
+function zoom(geometry, factor, screenW, screenH) {
+    var minScale = Math.max(16 / geometry.w, 16 / geometry.h);
+    var maxScale = Math.min(screenW / geometry.w, screenH / geometry.h);
+    var scale = Math.max(Math.min(minScale, maxScale), Math.min(factor, maxScale));
+    var w = Math.max(1, Math.round(geometry.w * scale));
+    var h = Math.max(1, Math.round(geometry.h * scale));
+    var pos = clamp({ x: geometry.x + (geometry.w - w) / 2,
+        y: geometry.y + (geometry.h - h) / 2 }, { w: w, h: h }, screenW, screenH);
+    return { x: pos.x, y: pos.y, w: w, h: h };
+}
+
 if (typeof module !== "undefined" && module.exports) {
-    module.exports = { MAX_W_SHARE, MAX_H_SHARE, GAP, MARGIN, fitSize, slotPosition, clamp };
+    module.exports = { MAX_W_SHARE, MAX_H_SHARE, GAP, MARGIN, fitSize, slotPosition, clamp,
+        outputFor, initialPosition, zoom };
 }

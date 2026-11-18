@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+if (($# == 0)) || [[ ! -f $1 || ! -r $1 ]]; then
+    printf 'ryoku-cmd-pin: image-required\n' >&2
+    exit 2
+fi
+image=$1
+shift
+x=''
+y=''
+output=''
+while (($#)); do
+    case $1 in
+        --at)
+            if (($# < 2)) || [[ ! $2 =~ ^(-?[0-9]+([.][0-9]+)?),(-?[0-9]+([.][0-9]+)?)$ ]]; then
+                printf 'ryoku-cmd-pin: invalid-position\n' >&2
+                exit 2
+            fi
+            x=${BASH_REMATCH[1]}
+            y=${BASH_REMATCH[3]}
+            shift 2
+            ;;
+        --output)
+            if (($# < 2)); then
+                printf 'ryoku-cmd-pin: output-required\n' >&2
+                exit 2
+            fi
+            output=$2
+            shift 2
+            ;;
+        *)
+            printf 'ryoku-cmd-pin: unknown-option: %s\n' "$1" >&2
+            exit 2
+            ;;
+    esac
+done
+
+pins_dir=${XDG_RUNTIME_DIR:-/tmp}/ryoku/pins
+mkdir -p -- "$pins_dir"
+staging=$(mktemp "$pins_dir/.pin-XXXXXXXX")
+name=${staging##*/}
+pin=$pins_dir/${name#.}.png
+trap 'rm -f -- "$staging" "$staging.json"' EXIT
+cp -- "$image" "$staging"
+jq -n --arg x "$x" --arg y "$y" --arg output "$output" \
+    '{x: (if $x == "" then null else ($x | tonumber) end), y: (if $y == "" then null else ($y | tonumber) end), output: $output}' > "$staging.json"
+mv -- "$staging.json" "${pin%.png}.json"
+mv -- "$staging" "$pin"
+printf '%s\n' "${pin##*/}" > "$pins_dir/.poke"
+# Neither the caller's pipes nor a recovered Quickshell crash handle may survive.
+setsid env -u __QUICKSHELL_CRASH_INFO_FD -u __QUICKSHELL_CRASH_DUMP_PID \
+    flock -n -o /tmp/ryopin.lock qs -c ryopin </dev/null >/dev/null 2>&1 &

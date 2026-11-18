@@ -1,6 +1,11 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Pinned screenshots float where they were taken and can be traced over.**
+  A pin lands on its own spot and monitor above full-screen apps, fades with
+  Ctrl+wheel or 0 to 9, goes click-through for tracing with a blink toggle,
+  hides with the rest or alone, and drags out into other apps as a file
+  (`quickshell/ryopin/`, `scripts/ryoku-cmd-pin`).
 - **Orpheus shows a recording in its own bubble on the bar.** It buds off the
   island with the recorded length and the audio sources, opens a recording card,
   and Ryoku's floating pill stays away unless Bar settings hand it back
