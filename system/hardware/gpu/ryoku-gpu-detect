@@ -384,7 +384,7 @@ slot_drives_screen() {
   return 1
 }
 
-# A monitor lit on any GPU but the renderer gets its cursor across GPUs.
+# A monitor connected to any GPU but the renderer gets its cursor across GPUs.
 other_slot_drives_screen() {
   local path base slot
   for path in "$DRM_ROOT"/card[0-9]*; do

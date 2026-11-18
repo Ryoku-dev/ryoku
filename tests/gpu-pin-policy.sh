@@ -252,7 +252,7 @@ if run order --effective >/dev/null 2>&1; then
 fi
 
 # --- 13. a desktop rendering on its dGPU keeps hardware cursors until a monitor
-# is lit on the iGPU's motherboard ports: at load, or by a hotplug
+# is connected to the iGPU's motherboard ports: at load, or by a hotplug
 drmd="$tmp/drmd"
 mkdir -p "$drmd/card0/device/drm/renderD128" "$drmd/card1/device/drm/renderD129" \
   "$drmd/card0-HDMI-A-3" "$drmd/card1-DP-2"
@@ -288,7 +288,7 @@ if [[ -n $lua_bin ]]; then
   [[ "$(desk_cursor connected)" == "|software=true" ]] \
     || fail "a hotplug onto the iGPU did not switch to software cursors"
   [[ "$(desk_cursor connected)" == "software=true|software=true" ]] \
-    || fail "a monitor lit on the iGPU at load kept hardware cursors"
+    || fail "a monitor connected to the iGPU at load kept hardware cursors"
 else
   echo "gpu-pin-policy: no lua interpreter, desktop cursor evaluation skipped" >&2
 fi
