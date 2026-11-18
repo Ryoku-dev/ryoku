@@ -25,10 +25,6 @@ Dialog {
     // the tab to open on
     property string tab: "picture"
     readonly property var tabs: ["picture", "adjust", "words", "layout", "share", "rewards", "badge"]
-    onTabChanged: {
-        if (root.tab === "share")
-            Progression.award("explorer");
-    }
     Connections {
         target: ProfileStore
         function onDataChanged() { Progression.inspectProfile(ProfileStore.data); }
@@ -220,7 +216,12 @@ Dialog {
             try { root.wallpaper = ok ? JSON.parse(out) || ({}) : ({}); } catch (e) { root.wallpaper = ({}); }
         });
     }
-    onTabChanged: if (root.opened && root.tab === "picture" && root.movingAllowed) root.readWallpaper()
+    onTabChanged: {
+        if (root.tab === "share")
+            Progression.award("explorer");
+        if (root.opened && root.tab === "picture" && root.movingAllowed)
+            root.readWallpaper();
+    }
     onOpenedChanged: if (root.opened && root.tab === "picture" && root.movingAllowed) root.readWallpaper()
 
     // the body takes its size from its first child, so the choosers live beside it
