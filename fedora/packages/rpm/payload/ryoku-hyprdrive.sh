@@ -20,4 +20,7 @@ package() {
   install -Dm755 "$srcdir/hyprdrive/bin/agent-run" "$pkgdir/usr/lib/hyprland/plugins/agent-run"
   install -Dm755 "$srcdir/hyprdrive/ryoku-hyprdrive-look" "$pkgdir/usr/bin/ryoku-hyprdrive-look"
   install -Dm644 -t "$pkgdir/usr/share/ryoku/hyprdrive/fonts" "$_repo"/docs/lithic/library/go/fonts/*.ttf
+  # the plugin's BSD-3-Clause and the fonts' OFL texts, as the Arch package ships them
+  install -Dm644 "$srcdir/hyprdrive/LICENSE" "$pkgdir/usr/share/licenses/ryoku-hyprdrive/LICENSE"
+  install -Dm644 -t "$pkgdir/usr/share/licenses/ryoku-hyprdrive" "$_repo"/docs/lithic/library/go/fonts/*-OFL.txt
 }

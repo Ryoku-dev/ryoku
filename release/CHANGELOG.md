@@ -5,9 +5,9 @@
   lives in `Ryoku-dev/ryoku-hyprdrive` on its `ryoku` branch; the PKGBUILD clones
   that branch and Fedora's fetch hook takes it (`fetch/hypr-plugin` takes a
   `branch`). It installs the plugin with its `.abi` receipt, `agent-run`, the
-  look bridge `ryoku-hyprdrive-look` and Lithic's faces, and
-  `ryoku-desktop-hyprland` depends on it (Fedora recommends it), off until
-  turned on (`release/packages/ryoku-hyprdrive/PKGBUILD`,
+  look bridge `ryoku-hyprdrive-look`, Lithic's faces, their BSD-3-Clause and OFL
+  license texts, and `ryoku-desktop-hyprland` depends on it (Fedora recommends
+  it), off until turned on (`release/packages/ryoku-hyprdrive/PKGBUILD`,
   `fedora/packages/rpm/payload/ryoku-hyprdrive.sh`).
 - **team.ryoku.dev takes version 3 badges that name a tested program.** A
   `RYB` code may be version 3: the version 2 fields, then a u8
