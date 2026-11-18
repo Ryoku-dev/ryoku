@@ -258,7 +258,8 @@ func (b *batteryState) publish() {
 }
 
 // toFloat widens the dbus numeric kinds to float64 so one reader covers the
-// uint32 enums and the double measurements UPower mixes on the device.
+// uint32 enums, the int64 times and the double measurements UPower mixes on
+// the device.
 func toFloat(v any) (float64, bool) {
 	switch n := v.(type) {
 	case float64:
@@ -268,6 +269,8 @@ func toFloat(v any) (float64, bool) {
 	case int32:
 		return float64(n), true
 	case uint64:
+		return float64(n), true
+	case int64:
 		return float64(n), true
 	case int:
 		return float64(n), true

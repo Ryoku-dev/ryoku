@@ -89,7 +89,7 @@ func TestBatteryStateLevelFollowsAggregateHealthStaysOnPack(t *testing.T) {
 	bat1 := packProps(20, upStateDischarging, nil)
 	display := packProps(55, upStateDischarging, map[string]dbus.Variant{
 		batteryDevIface + ".EnergyRate":  dbus.MakeVariant(11.5),
-		batteryDevIface + ".TimeToEmpty": dbus.MakeVariant(5400.0),
+		batteryDevIface + ".TimeToEmpty": dbus.MakeVariant(int64(5400)),
 		batteryDevIface + ".EnergyFull":  dbus.MakeVariant(99.0),
 	})
 	b := testBatteryState(true, map[dbus.ObjectPath]*fakeBatteryObject{
@@ -120,7 +120,7 @@ func TestBatteryStateUnknownAggregateFallsBackToActivePack(t *testing.T) {
 	bat0 := packProps(99, upStateFullyCharged, nil)
 	bat1 := packProps(40, upStateCharging, map[string]dbus.Variant{
 		batteryDevIface + ".EnergyRate": dbus.MakeVariant(20.0),
-		batteryDevIface + ".TimeToFull": dbus.MakeVariant(1800.0),
+		batteryDevIface + ".TimeToFull": dbus.MakeVariant(int64(1800)),
 	})
 	display := packProps(70, upStateUnknown, nil)
 	b := testBatteryState(false, map[dbus.ObjectPath]*fakeBatteryObject{
@@ -260,5 +260,14 @@ func TestBatteryStateNoHealthSourceStaysUnsupported(t *testing.T) {
 	frame := b.state()
 	if frame.HealthSupported || frame.Health != 0 {
 		t.Fatalf("a zero Capacity must not read as supported health: %+v", frame)
+	}
+}
+
+func TestToFloatWidensUPowerKinds(t *testing.T) {
+	// UPower's TimeToEmpty and TimeToFull are int64 ("x") on the bus
+	for _, v := range []any{float64(16831), uint32(16831), int32(16831), uint64(16831), int64(16831), 16831} {
+		if f, ok := toFloat(v); !ok || f != 16831 {
+			t.Fatalf("toFloat(%T) = %v, %v", v, f, ok)
+		}
 	}
 }
