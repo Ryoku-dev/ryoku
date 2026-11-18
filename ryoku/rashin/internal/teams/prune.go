@@ -17,7 +17,7 @@ const pruneEvery = 24 * time.Hour
 // day until the service closes.
 func (s *Service) pruneDaily() {
 	s.pruneTasks(s.background, protocol.TeamPruneParams{}, protocol.InitiatorRashin)
-	go func() {
+	s.startWorker(func() {
 		ticker := time.NewTicker(pruneEvery)
 		defer ticker.Stop()
 		for {
@@ -28,7 +28,7 @@ func (s *Service) pruneDaily() {
 				s.pruneTasks(s.background, protocol.TeamPruneParams{}, protocol.InitiatorRashin)
 			}
 		}
-	}()
+	})
 }
 
 // prune serves teams.prune for the user.

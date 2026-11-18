@@ -7,6 +7,7 @@ import (
 	i18n "ryoku-i18n"
 	"ryoku-rashin/internal/harness"
 	"ryoku-rashin/internal/protocol"
+	"ryoku-rashin/internal/writing"
 )
 
 func glanceEngine(p protocol.GlanceParams, settings protocol.Settings) (string, error) {
@@ -28,10 +29,10 @@ func glanceEngine(p protocol.GlanceParams, settings protocol.Settings) (string, 
 
 func validateGlance(p protocol.GlanceParams) error {
 	if protocol.GlanceInstruction(p) == "" {
-		return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Choose explain, ask, read or translate."))
+		return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Choose a supported Theia action."))
 	}
 	if p.Session == "" && len(p.Images) == 0 && strings.TrimSpace(p.Text) == "" {
-		return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Show Sight an image or some text first."))
+		return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Show Theia an image or some text first."))
 	}
 	if p.Mode == "ask" && strings.TrimSpace(p.Question) == "" {
 		return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Ask a question about this capture."))
@@ -65,13 +66,13 @@ func (d *Daemon) glance(ctx context.Context, c *connection, p protocol.GlancePar
 	}
 	info := s.log.Info()
 	if info.Kind != protocol.KindAsk {
-		return protocol.AskResult{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Sight can only continue an Ask conversation."))
+		return protocol.AskResult{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Theia can only continue an Ask conversation."))
 	}
 	if p.Local && info.Harness != "" {
 		return protocol.AskResult{}, protocol.Errorf(protocol.CodeLocalOnly, "%s", i18n.T("This conversation uses an external harness. Start a new capture with Providers for local-only answers."))
 	}
 	if !c.app && info.Mode != "" && info.Mode != protocol.ApprovalsReadOnly {
-		return protocol.AskResult{}, protocol.Errorf(protocol.CodeForbidden, "%s", i18n.T("Sight cannot use a conversation that allows changes to the machine."))
+		return protocol.AskResult{}, protocol.Errorf(protocol.CodeForbidden, "%s", i18n.T("Theia cannot use a conversation that allows changes to the machine."))
 	}
 	since := info.LastSeq
 	if _, err := d.manager.attach(id, since, c); err != nil {
@@ -83,7 +84,13 @@ func (d *Daemon) glance(ctx context.Context, c *connection, p protocol.GlancePar
 	}
 	options := promptTurn{glance: &p}
 	if info.Harness != "" {
-		options.say = protocol.GlanceInstruction(p) + "\n\n" + text
+		var instruction string
+		if p.Options["voice"] == "on" {
+			instruction = protocol.GlanceInstructionWithVoice(p, writing.VoiceNotes())
+		} else {
+			instruction = protocol.GlanceInstruction(p)
+		}
+		options.say = instruction + "\n\n" + text
 	}
 	result, _, err := d.manager.promptOptions(ctx, protocol.PromptParams{ID: id, Text: text, Images: p.Images}, options)
 	if err != nil {

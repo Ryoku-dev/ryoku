@@ -212,6 +212,43 @@ const (
 	MSkillsList   = "skills.list"
 	MSkillsGet    = "skills.get"
 	MSkillsSearch = "skills.search"
+
+	MWritingCheck       = "writing.check"
+	MWritingTransform   = "writing.transform"
+	MWritingCancel      = "writing.cancel"
+	MWritingVoiceGet    = "writing.voice.get"
+	MWritingVoiceSet    = "writing.voice.set"
+	MWritingVoiceLearn  = "writing.voice.learn"
+	MWritingWords       = "writing.words"
+	MWritingWordsAdd    = "writing.words.add"
+	MWritingWordsRemove = "writing.words.remove"
+	MPromptsList        = "prompts.list"
+	MPromptsSave        = "prompts.save"
+	MPromptsDelete      = "prompts.delete"
+	MPromptsExpand      = "prompts.expand"
+	MCompareStart       = "compare.start"
+	MCompareKeep        = "compare.keep"
+	MSessionSetFlags    = "session.set_flags"
+	MMCPList            = "mcp.list"
+	MMCPSave            = "mcp.save"
+	MMCPDelete          = "mcp.delete"
+	MMCPCheck           = "mcp.check"
+	MMCPSignIn          = "mcp.signin"
+	MDiskUsage          = "disk.usage"
+	MDiskClean          = "disk.clean"
+	MArtifactOpen       = "artifact.open"
+	MArtifactErrors     = "artifact.errors"
+	MArtifactRepair     = "artifact.repair"
+	MArtifactClose      = "artifact.close"
+	MCollectionsList    = "collections.list"
+	MCollectionsSave    = "collections.save"
+	MCollectionsAdd     = "collections.add"
+	MCollectionsItems   = "collections.items"
+	MCollectionsRemove  = "collections.remove"
+	MCollectionsCheck   = "collections.check"
+	MCollectionsChat    = "collections.chat"
+	MTeamsRoutineRuns   = "teams.routine_runs"
+	MTeamsAgentSetup    = "teams.agent_setup"
 )
 
 // Event names.
@@ -466,6 +503,43 @@ var Methods = []Method{
 	m(MSkillsList, Empty{}, SkillsResult{}, "The built-in skill sets, their skills and where they lie."),
 	m(MSkillsGet, SkillParams{}, SkillContent{}, "Read a skill's SKILL.md or one of its files."),
 	m(MSkillsSearch, SkillsSearchParams{}, SkillsSearchResult{}, "Skills that fit what is about to be done, best first."),
+
+	m(MWritingCheck, WritingCheckParams{}, WritingCheckResult{}, "Check writing and return fixes."),
+	m(MWritingTransform, WritingTransformParams{}, WritingTransformResult{}, "Transform a piece of writing."),
+	m(MWritingCancel, WritingCancelParams{}, Empty{}, "Cancel a writing request."),
+	m(MWritingVoiceGet, WritingVoiceGetParams{}, WritingVoice{}, "Read your writing voice."),
+	m(MWritingVoiceSet, WritingVoiceSetParams{}, WritingVoice{}, "Save your writing voice."),
+	m(MWritingVoiceLearn, WritingVoiceLearnParams{}, WritingVoice{}, "Learn your writing voice from samples."),
+	m(MWritingWords, WritingWordsParams{}, WritingWords{}, "Read your dictionary."),
+	m(MWritingWordsAdd, WritingWordParams{}, WritingWords{}, "Add a word to your dictionary."),
+	m(MWritingWordsRemove, WritingWordParams{}, WritingWords{}, "Remove a word from your dictionary."),
+	m(MPromptsList, PromptsListParams{}, PromptsListResult{}, "List prompts and templates."),
+	m(MPromptsSave, PromptSaveParams{}, Prompt{}, "Save a prompt or template."),
+	m(MPromptsDelete, PromptDeleteParams{}, Empty{}, "Delete a saved prompt."),
+	m(MPromptsExpand, PromptExpandParams{}, PromptExpandResult{}, "Fill a prompt's variables."),
+	m(MCompareStart, CompareStartParams{}, CompareStartResult{}, "Ask other models the same question."),
+	m(MCompareKeep, CompareKeepParams{}, SessionInfo{}, "Keep one comparison conversation."),
+	m(MSessionSetFlags, SessionFlagsParams{}, SessionInfo{}, "Star or archive a conversation."),
+	m(MMCPList, MCPListParams{}, MCPListResult{}, "List tool servers and their state."),
+	m(MMCPSave, MCPServer{}, MCPServerInfo{}, "Save a tool server; app only."),
+	m(MMCPDelete, MCPDeleteParams{}, Empty{}, "Delete a tool server; app only."),
+	m(MMCPCheck, MCPCheckParams{}, MCPServerInfo{}, "Check a tool server and read its tools."),
+	m(MMCPSignIn, MCPSignInParams{}, MCPSignInResult{}, "Sign in to a tool server; app only."),
+	m(MDiskUsage, DiskUsageParams{}, DiskUsage{}, "Read agent storage and free space."),
+	m(MDiskClean, DiskCleanParams{}, DiskUsage{}, "Clean selected agent storage; app only."),
+	m(MArtifactOpen, ArtifactOpenParams{}, ArtifactOpenResult{}, "Open a local page preview."),
+	m(MArtifactErrors, ArtifactErrorsParams{}, ArtifactErrorsResult{}, "Read problems reported by a preview."),
+	m(MArtifactRepair, ArtifactRepairParams{}, AskResult{}, "Ask the conversation to fix a preview."),
+	m(MArtifactClose, ArtifactCloseParams{}, Empty{}, "Close a page preview."),
+	m(MCollectionsList, CollectionsListParams{}, CollectionsListResult{}, "List saved collections."),
+	m(MCollectionsSave, CollectionSaveParams{}, Collection{}, "Create or rename a collection."),
+	m(MCollectionsAdd, CollectionAddParams{}, CollectionItem{}, "Save text or a file to a collection."),
+	m(MCollectionsItems, CollectionItemsParams{}, CollectionItemsResult{}, "Read a collection's items."),
+	m(MCollectionsRemove, CollectionRemoveParams{}, Empty{}, "Remove a saved collection item."),
+	m(MCollectionsCheck, CollectionCheckParams{}, CollectionItem{}, "Check whether a saved source changed."),
+	m(MCollectionsChat, CollectionChatParams{}, AskResult{}, "Ask about a whole collection."),
+	m(MTeamsRoutineRuns, RoutineRunsParams{}, RoutineRunsResult{}, "Read a routine's run history."),
+	m(MTeamsAgentSetup, AgentSetupParams{}, AgentAnswer{}, "Ask the user to complete setup steps."),
 }
 
 var methodIndex = func() map[string]Method {

@@ -132,7 +132,7 @@ func (r *reader) card() string {
 			kept = append(kept, strings.TrimSpace(line))
 		}
 	}
-	return pick(kept, render.Fit(kept, protocol.MemoryCardMax+1))
+	return r.e.profileCard(protocol.MemoryCard{Text: pick(kept, render.Fit(kept, protocol.MemoryCardMax+1))}).Text
 }
 
 // usable drops the facts a conversation set aside and those that read as an

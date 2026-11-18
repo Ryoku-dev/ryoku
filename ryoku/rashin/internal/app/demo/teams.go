@@ -23,14 +23,15 @@ const (
 
 // everything Teams mode shows, kept apart from the snapshot because the daemon builds that part fresh on each read
 type teamsFixtures struct {
-	teams     []protocol.Team
-	tasks     []protocol.TeamTask
-	approvals []protocol.Approval
-	routines  []protocol.Routine
-	vault     protocol.VaultInfo
-	vaultLog  []protocol.VaultEvent
-	activity  []protocol.Activity
-	spend     map[string]protocol.TeamSpend
+	teams       []protocol.Team
+	tasks       []protocol.TeamTask
+	approvals   []protocol.Approval
+	routines    []protocol.Routine
+	routineRuns []protocol.RoutineRun
+	vault       protocol.VaultInfo
+	vaultLog    []protocol.VaultEvent
+	activity    []protocol.Activity
+	spend       map[string]protocol.TeamSpend
 	// the sessions that work team tasks, which the daemon keeps out of the snapshot's session list
 	sessions []protocol.SessionInfo
 	// the exact action each approval would run, kept beside it as the daemon keeps it

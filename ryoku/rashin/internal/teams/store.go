@@ -254,6 +254,23 @@ func (st *state) removeTask(id string) error {
 	return nil
 }
 
+func (st *state) removeTaskConfined(id string, root *os.Root, eligible func(protocol.TeamTask) bool) (bool, error) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	task, ok := st.taskSet[id]
+	if !ok {
+		return false, nil
+	}
+	if root == nil || !safeID(id) || !eligible(task) {
+		return false, protocol.Errorf(protocol.CodeConflict, "%s", i18n.T("This task is still in use or inside the history window."))
+	}
+	if err := root.Remove(id + ".json"); err != nil {
+		return false, err
+	}
+	delete(st.taskSet, id)
+	return true, nil
+}
+
 // routines lists every routine by team, then title.
 func (st *state) routines() []protocol.Routine {
 	st.mu.Lock()
@@ -533,5 +550,6 @@ func cloneTask(t protocol.TeamTask) protocol.TeamTask {
 func cloneApproval(rec approvalRecord) approvalRecord {
 	rec.Action = append(json.RawMessage(nil), rec.Action...)
 	rec.Options = slices.Clone(rec.Options)
+	rec.Steps = slices.Clone(rec.Steps)
 	return rec
 }

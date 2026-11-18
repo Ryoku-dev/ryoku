@@ -57,15 +57,16 @@ type SessionInfo struct {
 	Model   string      `json:"model,omitempty"`
 	// Pinned marks Model as one the user picked for this Ask session: it is
 	// asked alone and never fails over to another model.
-	Pinned  bool         `json:"pinned,omitempty"`
-	Mode    string       `json:"mode,omitempty"`
-	Cwd     string       `json:"cwd,omitempty"`
-	Origin  string       `json:"origin"`
-	State   SessionState `json:"state"`
-	Created time.Time    `json:"created"`
-	Updated time.Time    `json:"updated"`
-	Turns   int          `json:"turns"`
-	LastSeq int64        `json:"lastSeq"`
+	Pinned        bool         `json:"pinned,omitempty"`
+	Mode          string       `json:"mode,omitempty"`
+	Cwd           string       `json:"cwd,omitempty"`
+	Origin        string       `json:"origin"`
+	State         SessionState `json:"state"`
+	Created       time.Time    `json:"created"`
+	Updated       time.Time    `json:"updated"`
+	Turns         int          `json:"turns"`
+	LastSeq       int64        `json:"lastSeq"`
+	LastMessageAt time.Time    `json:"lastMessageAt,omitzero"`
 	// Preview is the latest visible text, at most 140 runes.
 	Preview string `json:"preview,omitempty"`
 	// Pending counts open permission requests.
@@ -88,7 +89,9 @@ type SessionInfo struct {
 	// once it ended.
 	Steps int `json:"steps,omitempty"`
 	// Unread is set when a turn ends and cleared by session.read.
-	Unread bool `json:"unread,omitempty"`
+	Unread   bool `json:"unread,omitempty"`
+	Starred  bool `json:"starred,omitempty"`
+	Archived bool `json:"archived,omitempty"`
 	// Queue holds follow-ups sent when the running turn ends.
 	Queue []QueuedPrompt `json:"queue,omitempty"`
 	// Checkpoints is true when the session's turns have file checkpoints.

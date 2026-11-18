@@ -1,6 +1,53 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **Rashin's glance reads and writes in more ways for Theia.** It summarizes,
+  deep reads, solves, makes a quiz, defines a word, rewrites, changes tone,
+  smooths phrasing, sounds like you, says how a message reads, drafts three
+  replies and gives a rough machine-writing check; `rashin glance --option
+  key=value` tries each from a terminal
+  (`rashin/internal/protocol/glance.go`, `rashin/internal/ask/glance.go`,
+  `rashin/internal/daemon/glance.go`, `rashin/cmd/rashin/glance.go`).
+- **English spelling and grammar checks are built in**
+  Short passages with a typo stay on this computer, saved words keep their
+  casing and work in every dialect, and checked words show without raw backticks
+  (`rashin/internal/grammar/`, `rashin/internal/writing/`,
+  `rashin/internal/daemon/writing.go`).
+- **Rashin's 20 optional features start off and have their own Features settings**
+  The Hub shows how many are on and opens the app to change them without starting it just to read settings
+- **Ask's composer has a prompt library, Improve, writing tools and Analyze a
+  file.** Type a slash for your prompts and built-in templates, improve or fix
+  a draft with Ctrl+Z to undo, and attach a file with a question already
+  written (`rashin/internal/prompts/`, `rashin/internal/app/chat/composer.go`).
+- **Ask's writing review shows each replacement before you apply it, and Writing opens a menu of actions without a selected placeholder**
+  Longer reviews scroll above the action row, and replacement previews use the same mono text as the explanations
+- **Ask can read an audio file or a video link.** A recording becomes a
+  transcript and a summary, and a video link gets a summary with key moments
+  from its subtitles or its sound; only public internet links work, and
+  downloads go through a guarded local proxy
+  (`rashin/internal/media/`, `rashin/internal/ask/attach.go`).
+- **Ask answers can be compared, shared and tidied away.** Ask two more
+  models and keep the lane you like, turn an answer into a picture, ask again
+  about an earlier picture, star or archive conversations and pick up where
+  you left off (`rashin/internal/app/chat/compare.go`, `share.go`,
+  `rashin/internal/app/pages/ask/list.go`).
+- **Ask shows its search steps, mind maps and page previews**
+  See what it searched and read, explore a mind map and choose whether a page it made can run scripts
+- **Agents can use your own MCP servers and ask you to set something up.**
+  Add a server with its sign-in and a health check, agents reach signed-in
+  servers through a local proxy so they never see a token, and an agent that
+  needs you shows numbered steps with Done and Skip (`rashin/internal/mcpservers/`,
+  `rashin/internal/teams/approvals.go`).
+- **Dreams can do deep research, and routines can run on a schedule on their
+  own.** A research dream plans, gathers sources and presents a cited report,
+  and a routine can ask a question or start a dream, with a record of every run
+  (`rashin/internal/teams/dream.go`, `routines.go`, `runs.go`).
+- **Rashin has Collections, About you and Disk care.** Save answers and
+  excerpts, check saved links against public addresses only, chat with a whole
+  collection that loads 20 items at a time, tell Rashin your name and how you
+  like answers, and see what agents keep on disk and clear it safely
+  (`rashin/internal/collections/`, `rashin/internal/app/pages/index/`,
+  `rashin/internal/daemon/disk.go`).
 - **Rashin answers screen captures through a quick glance.** `glance` runs a
   temporary Ask with no tools on Rashin's fast route, or on the harness Ask
   uses with the model set for it; local Ollama and llama.cpp models count when

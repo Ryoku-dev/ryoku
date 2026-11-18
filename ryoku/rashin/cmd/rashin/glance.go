@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	i18n "ryoku-i18n"
@@ -21,19 +22,37 @@ func (p *glanceImages) Set(path string) error {
 	return nil
 }
 
+type glanceOptions map[string]string
+
+func (o *glanceOptions) String() string { return "" }
+func (o *glanceOptions) Set(value string) error {
+	key, value, ok := strings.Cut(value, "=")
+	key = strings.TrimSpace(key)
+	if !ok || key == "" {
+		return fmt.Errorf("%s", i18n.T("Use --option key=value."))
+	}
+	if *o == nil {
+		*o = make(glanceOptions)
+	}
+	(*o)[key] = value
+	return nil
+}
+
 func init() {
-	register(&Command{Name: "glance", Group: "ask", Usage: "--mode explain|ask|read|translate [options]", Summary: "Read or explain a capture with Rashin.", Run: runGlance})
+	register(&Command{Name: "glance", Group: "ask", Usage: "--mode <action> [--option key=value] [options]", Summary: "Read, explain or work with a capture in Theia.", Run: runGlance})
 }
 
 func runGlance(args []string) int {
 	var p protocol.GlanceParams
 	var images glanceImages
+	var options glanceOptions
 	flags := flag.NewFlagSet("glance", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
-	flags.StringVar(&p.Mode, "mode", "explain", i18n.T("Explain, ask, read or translate."))
+	flags.StringVar(&p.Mode, "mode", "explain", i18n.T("Theia action: explain, ask, read, translate, summarize, deepread, solve, learn, define, rewrite, tone, fluent, humanize, reactions, reply or aicheck."))
 	flags.StringVar(&p.Question, "question", "", i18n.T("Question about the capture."))
 	flags.StringVar(&p.Text, "text", "", i18n.T("Text to read or translate."))
 	flags.Var(&images, "image", i18n.T("Image path; may be repeated."))
+	flags.Var(&options, "option", i18n.T("Action option as key=value; may be repeated."))
 	flags.StringVar(&p.Target, "target", "", i18n.T("Translation language."))
 	flags.StringVar(&p.Engine, "engine", "ask", i18n.T("Ask, providers, or a harness id."))
 	flags.StringVar(&p.Model, "model", "", i18n.T("Model id; empty uses the engine's default."))
@@ -43,9 +62,10 @@ func runGlance(args []string) int {
 		return 1
 	}
 	if flags.NArg() != 0 {
-		return usageError("glance --mode explain|ask|read|translate [options]")
+		return usageError("glance --mode <action> [--option key=value] [options]")
 	}
 	p.Images = images
+	p.Options = options
 	conn, cancel, err := dial(true)
 	if err != nil {
 		return report(err)

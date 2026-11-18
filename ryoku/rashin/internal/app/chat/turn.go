@@ -23,6 +23,8 @@ import (
 type turnVisual struct {
 	hovered bool
 	show    anim.Tween
+	answers AnswerOptions
+	compare *compareVisual
 }
 
 func (state *viewState) turnVisual(turn int) *turnVisual {
@@ -65,6 +67,20 @@ func (state *viewState) layoutTurnFoot(gtx layout.Context, th *look.Theme, block
 	if turn == nil || turn.end == nil {
 		return layout.Dimensions{}
 	}
+	if state.feature("compare") {
+		state.syncComparison(block)
+	}
+	if state.feature("compare") && state.turnVisual(block.turn).compare != nil {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return state.layoutTurnFootBase(gtx, th, block) }),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return state.layoutComparison(gtx, th, block) }),
+		)
+	}
+	return state.layoutTurnFootBase(gtx, th, block)
+}
+
+func (state *viewState) layoutTurnFootBase(gtx layout.Context, th *look.Theme, block blockContext) layout.Dimensions {
+	turn := block.row.turn
 	visual := state.turnVisual(block.turn)
 	show := look.Transition(gtx, &visual.show, visual.hovered || block.last, th.Motion.HoverIn, th.Motion.HoverOut)
 	height := gtx.Dp(28)
@@ -120,6 +136,16 @@ func (state *viewState) layoutTurnActions(gtx layout.Context, th *look.Theme, bl
 				state.act(item.action)
 			}
 			return dimensions
+		}))
+	}
+	if block.info.Kind == protocol.KindAsk && state.feature("compare") {
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return state.answerPlaque(gtx, th, key+":compare", i18n.T("Compare"), func() { state.openCompare(block) })
+		}))
+	}
+	if block.info.Kind == protocol.KindAsk && state.feature("share") {
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return state.answerPlaque(gtx, th, key+":share", i18n.T("Share as a picture"), func() { state.shareAnswer(gtx, th, block) })
 		}))
 	}
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children...)

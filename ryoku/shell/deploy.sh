@@ -741,6 +741,7 @@ rm -f "$bindir/ryoku-rashin"
 if [[ -L $bindir/rashin && $(readlink "$bindir/rashin") == ryoku-rashin ]]; then
   rm -f "$bindir/rashin"
 fi
+rm -f "$datadir/applications/rashin-app.desktop" "$datadir/icons/hicolor/scalable/apps/rashin-app.svg"
 for binary in rashind rashin rashin-app; do
   rashin_build_install "$binary"
 done

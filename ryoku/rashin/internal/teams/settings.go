@@ -15,7 +15,10 @@ func (s *Service) SettingsChanged(settings protocol.Settings) {
 	s.mu.Lock()
 	prev := s.teamsSettings
 	s.teamsSettings = next
+	before := s.features
+	s.features = readTeamFeatures(settings)
 	s.mu.Unlock()
+	s.followFeatureSettings(before, readTeamFeatures(settings))
 	switch {
 	case next.Paused && !prev.Paused:
 		s.pauseEvery()
@@ -50,4 +53,32 @@ func (s *Service) pauseEvery() {
 		Actor: protocol.InitiatorYou, Action: "teams.pause", Target: i18n.T("Every team"), OK: true,
 		Initiator: protocol.InitiatorYou, Detail: i18n.T("Paused every team and stopped their tasks."),
 	})
+}
+
+type teamFeatures struct {
+	research, schedules, setupcards bool
+}
+
+func readTeamFeatures(settings protocol.Settings) teamFeatures {
+	return teamFeatures{
+		research: settings.Features["research"], schedules: settings.Features["schedules"], setupcards: settings.Features["setupcards"],
+	}
+}
+
+func (s *Service) followFeatureSettings(before, next teamFeatures) {
+	if before.setupcards && !next.setupcards {
+		s.skipSetupCards()
+	}
+	if before.research && !next.research {
+		for _, team := range s.state.teams() {
+			if !s.dreamAvailable(team) {
+				s.stopTeamTasks(team.ID, i18n.T("Deep research was turned off."))
+			}
+		}
+	}
+	if before.schedules && !next.schedules {
+		s.stopScheduledQuestions()
+	} else if !before.schedules && next.schedules {
+		s.recoverRoutineHistory()
+	}
 }

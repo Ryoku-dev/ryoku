@@ -7,6 +7,7 @@ import (
 	"gioui.org/io/event"
 	"gioui.org/io/key"
 	"gioui.org/io/pointer"
+	"gioui.org/io/semantic"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -63,10 +64,18 @@ func (state *composerState) processSlash(gtx layout.Context, options ComposerOpt
 		slash.dismissed = ""
 	}
 	query, typing := slashQuery(text)
+	prompts := state.ask != nil && state.ask.feature("prompts")
+	if prompts {
+		query, typing = state.promptQuery()
+	}
 	slash.open = typing && options.Commands != nil && !options.Disabled &&
 		slash.dismissed == "" && state.recall.back == 0 && gtx.Focused(&state.editor)
 	if slash.open {
-		slash.matches = matchCommands(options.Commands(), query)
+		if prompts {
+			slash.matches = state.promptMatches(query)
+		} else {
+			slash.matches = matchCommands(options.Commands(), query)
+		}
 		slash.open = len(slash.matches) > 0
 	}
 	if !slash.open {
@@ -84,7 +93,7 @@ func (state *composerState) processSlash(gtx layout.Context, options ComposerOpt
 			case pointer.Enter:
 				slash.cursor = index
 			case pointer.Press:
-				state.completeCommand(index)
+				state.completeCommand(gtx, index)
 				return
 			}
 		}
@@ -97,7 +106,7 @@ func (state *composerState) processSlash(gtx layout.Context, options ComposerOpt
 		key.Filter{Focus: &state.editor, Name: key.NameEscape},
 	}
 	// a command typed in full is sent by Enter, anything shorter is completed by it
-	if !strings.EqualFold(commandName(slash.matches[slash.cursor]), query) {
+	if prompts || !strings.EqualFold(commandName(slash.matches[slash.cursor]), query) {
 		filters = append(filters, key.Filter{Focus: &state.editor, Name: key.NameReturn})
 	}
 	for {
@@ -118,13 +127,22 @@ func (state *composerState) processSlash(gtx layout.Context, options ComposerOpt
 			slash.open, slash.dismissed = false, text
 			return
 		default:
-			state.completeCommand(slash.cursor)
+			state.completeCommand(gtx, slash.cursor)
 			return
 		}
 	}
 }
 
-func (state *composerState) completeCommand(index int) {
+func (state *composerState) completeCommand(gtx layout.Context, index int) {
+	if a := state.ask; a != nil && a.feature("prompts") {
+		for _, item := range a.prompts {
+			if item.ID == state.slash.matches[index].Name {
+				state.choosePrompt(gtx, item)
+				return
+			}
+		}
+		return
+	}
 	state.setText("/" + commandName(state.slash.matches[index]) + " ")
 	state.slash.open, state.slash.cursor = false, 0
 }
@@ -136,6 +154,10 @@ func (state *composerState) layoutSlash(gtx layout.Context, th *theme.Theme, opt
 		return
 	}
 	row, inset, edge := gtx.Dp(slashRow), gtx.Dp(13), gtx.Dp(4)
+	prompts := state.ask != nil && state.ask.feature("prompts")
+	if prompts {
+		row = gtx.Dp(56)
+	}
 	height := len(slash.matches)*row + 2*edge
 	bounds := image.Rect(0, 0, width, height)
 	cut := gtx.Dp(th.Cut.Mid)
@@ -147,6 +169,8 @@ func (state *composerState) layoutSlash(gtx layout.Context, th *theme.Theme, opt
 		top := edge + index*row
 		area := clip.Rect(image.Rect(edge, top, width-edge, top+row)).Push(gtx.Ops)
 		event.Op(gtx.Ops, &slash.rows[index])
+		semantic.LabelOp(state.slashLabel(command) + ": " + command.Description).Add(gtx.Ops)
+		semantic.Button.Add(gtx.Ops)
 		pointer.CursorPointer.Add(gtx.Ops)
 		area.Pop()
 		if index == slash.cursor {
@@ -155,13 +179,26 @@ func (state *composerState) layoutSlash(gtx layout.Context, th *theme.Theme, opt
 		offset := op.Offset(image.Pt(inset, top)).Push(gtx.Ops)
 		line := gtx
 		line.Constraints = layout.Exact(image.Pt(max(0, width-2*inset), row))
-		layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(line,
-			layout.Rigid(kit.RawText(th, th.T.Mono, th.R.Fg, "/"+commandName(command))),
-			layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
-			layout.Rigid(kit.RawText(th, th.T.MonoSm, th.R.Fg3, command.Hint)),
-			layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
-			layout.Flexed(1, kit.RawText(th, th.T.Caption, th.R.Fg2, command.Description)),
-		)
+		if prompts {
+			layout.Inset{Top: 6, Bottom: 6}.Layout(line, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return kit.Label{Style: th.T.Detail, Color: th.R.Fg, MaxLines: 1}.Layout(gtx, th, state.slashLabel(command))
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return kit.Label{Style: th.T.Caption, Color: th.R.Fg2, MaxLines: 1}.Layout(gtx, th, command.Description)
+					}),
+				)
+			})
+		} else {
+			layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(line,
+				layout.Rigid(kit.RawText(th, th.T.Mono, th.R.Fg, state.slashLabel(command))),
+				layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
+				layout.Rigid(kit.RawText(th, th.T.MonoSm, th.R.Fg3, command.Hint)),
+				layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
+				layout.Flexed(1, kit.RawText(th, th.T.Caption, th.R.Fg2, command.Description)),
+			)
+		}
 		offset.Pop()
 	}
 	call := macro.Stop()
@@ -169,4 +206,31 @@ func (state *composerState) layoutSlash(gtx layout.Context, th *theme.Theme, opt
 	offset := op.Offset(image.Pt(0, -height-gtx.Dp(4))).Push(gtx.Ops)
 	op.Defer(gtx.Ops, call)
 	offset.Pop()
+}
+
+func (state *composerState) promptMatches(query string) []protocol.Command {
+	var leading, inside []protocol.Command
+	for index, item := range state.ask.prompts {
+		name := strings.ToLower(item.Name)
+		command := state.ask.commands[index]
+		switch {
+		case strings.HasPrefix(name, query):
+			leading = append(leading, command)
+		case strings.Contains(name, query), strings.Contains(strings.ToLower(item.Text), query):
+			inside = append(inside, command)
+		}
+	}
+	items := append(leading, inside...)
+	return items[:min(len(items), slashLimit)]
+}
+
+func (state *composerState) slashLabel(command protocol.Command) string {
+	if a := state.ask; a != nil && a.feature("prompts") {
+		for _, item := range a.prompts {
+			if item.ID == command.Name {
+				return item.Name
+			}
+		}
+	}
+	return "/" + commandName(command)
 }

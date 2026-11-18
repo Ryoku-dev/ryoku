@@ -10,6 +10,7 @@ import (
 	i18n "ryoku-i18n"
 	"ryoku-rashin/internal/config"
 	"ryoku-rashin/internal/core"
+	"ryoku-rashin/internal/mcpservers"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 	"ryoku-rashin/internal/skills"
@@ -72,7 +73,14 @@ type Daemon struct {
 	learnedMu sync.Mutex
 	learned   *time.Timer
 	// migrations are the session scrub passes running in the background
-	migrations migrations
+	migrations  migrations
+	infraMu     sync.Mutex
+	infra       *mcpservers.Store
+	diskMu      sync.Mutex
+	diskCached  protocol.DiskUsage
+	diskAt      time.Time
+	diskPlans   map[string][]protocol.DiskFile
+	comparisons compareGroups
 }
 
 func New(deps Deps) *Daemon {
@@ -84,6 +92,7 @@ func New(deps Deps) *Daemon {
 	d.manager = newSessionManager(deps.Asker, deps.Harnesses, deps.Work, d.Settings, d.Broadcast, d.stateChanged, d.warn)
 	d.manager.brief = d.agentBrief
 	d.manager.askBrief = d.askBrief
+	d.manager.prepareAsk = d.prepareAskMedia
 	d.manager.tools = d.agentTools
 	d.manager.prepare = d.indexSession
 	d.screens = newScreenManager(d.Broadcast, d.manager.ask, screenable)
@@ -93,6 +102,7 @@ func New(deps Deps) *Daemon {
 	d.manager.ended = func(id string) {
 		d.screens.stop(id)
 		d.closeAgentSocket(id)
+		d.closeComparisons(id)
 	}
 	d.manager.watched = d.watched
 	if deps.Work != nil {
@@ -335,6 +345,7 @@ func secureDir(path string) error {
 func (d *Daemon) Shutdown() {
 	d.stopOnce.Do(func() {
 		close(d.stop)
+		artifactPreviews.CloseAll()
 		d.mu.Lock()
 		if d.idle != nil {
 			d.idle.Stop()
@@ -358,6 +369,8 @@ func (d *Daemon) closeAll() error {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
+		artifactPreviews.CloseAll()
+		d.cancelMCPSignIns()
 		d.migrations.stop()
 		d.manager.shutdown(shutdownTimeout - time.Second)
 		d.screens.stopAll()
@@ -484,5 +497,5 @@ func (d *Daemon) restingBesideMemory() bool {
 	d.mu.RLock()
 	connections := len(d.clients)
 	d.mu.RUnlock()
-	return connections == 0 && !d.manager.busy() && !d.screens.busy() && (d.deps.Indexer == nil || !d.deps.Indexer.Busy()) && (d.deps.Work == nil || !d.deps.Work.Busy()) && (d.deps.Teams == nil || !d.deps.Teams.Busy())
+	return connections == 0 && !d.manager.busy() && !d.screens.busy() && !artifactPreviews.Busy() && (d.deps.Indexer == nil || !d.deps.Indexer.Busy()) && (d.deps.Work == nil || !d.deps.Work.Busy()) && (d.deps.Teams == nil || !d.deps.Teams.Busy())
 }

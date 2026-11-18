@@ -72,13 +72,20 @@ type Place struct {
 	Credential string
 	Draft      string
 	Template   string
+	DreamDraft *protocol.DreamCreateParams
 }
 
 // a project's tabs share one key, and so do a team's
 func (place Place) key() string {
+	draft := ""
+	if place.DreamDraft != nil {
+		d := place.DreamDraft
+		draft = strings.Join([]string{d.Statement, d.Preset, d.Name, d.Folder, d.Harness, d.Model, strconv.FormatInt(d.MonthTokens, 10)}, "\x00")
+	}
 	return strings.Join([]string{
 		place.Tab, place.Session, place.Project, place.Team, place.TeamTask, place.Routine, place.Credential, place.Draft, place.Template,
 		place.MemoryFilter, place.MemoryScope, place.Memory, strconv.FormatBool(place.MemoryCard),
+		draft,
 	}, "\x00")
 }
 

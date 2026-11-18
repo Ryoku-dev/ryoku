@@ -185,8 +185,27 @@ func (p *Page) layoutTranscript(gtx layout.Context, e *env.Env, attached state.A
 	defer opacity.Pop()
 	view := gtx
 	view.Constraints = layout.Exact(size)
-	p.lines.Sync(e, e.Snapshot(), &p.view, attached.Model)
+	snapshot := e.Snapshot()
+	p.lines.Sync(e, snapshot, &p.view, attached.Model)
 	p.view.SetMemoryText(chat.MemoryText{Fact: memoryui.FactText, Plain: env.PlainMemory})
+	p.view.SetFeatures(e.Feature)
+	p.view.SetArtifactActions(e.Call, e.Open, e.Notify)
+	p.view.SetAnswers(chat.AnswerOptions{
+		SessionID: p.selected,
+		Epoch:     snapshot.Epoch,
+		Choices:   func(current string) ([]look.SelectOption, []string, int) { return p.menu.Choices(current) },
+		Call:      e.Call,
+		Attach:    e.Attach,
+		Session:   func(id string) *chat.Model { return snapshot.Attached[id].Model },
+		Navigate:  func(id string) { e.Navigate(protocol.TabAsk, id) },
+		Quote: func(path string) {
+			p.composer.AddAttachment(path)
+			p.composer.Focus()
+		},
+		Notify:       e.Notify,
+		NotifyAction: e.NotifyAction,
+		OpenFolder:   e.OpenPath,
+	})
 	p.rise.Layout(view, e.Theme, p.selected, 8, func(gtx layout.Context) layout.Dimensions {
 		return p.view.Layout(gtx, e.Theme, e.Overlays, attached.Model)
 	})
@@ -265,6 +284,31 @@ func suggestionTexts() [4]string {
 func (p *Page) layoutComposer(gtx layout.Context, e *env.Env, attached state.Attached, open bool, width int) layout.Dimensions {
 	options := chat.ComposerOptions{Placeholder: i18n.T("Ask anything about this machine"), CanAttach: true}
 	e.ComposerDesktop(&p.composer, &options)
+	p.composer.AskTools(&options, chat.AskToolsOptions{
+		Feature:  e.Feature,
+		Call:     e.Call,
+		Notify:   e.Notify,
+		Language: i18n.Lang(),
+		Overlays: e.Overlays,
+		Analyze: func() {
+			e.ChooseFiles(i18n.T("Analyze a file"), func(paths []string) {
+				if !e.Feature("analyze") {
+					return
+				}
+				for _, path := range paths {
+					p.composer.AddAttachment(path)
+				}
+				p.composer.ReplaceDraft(i18n.T("What is in this file? Give the key numbers and anything odd."), i18n.T("File question ready, Ctrl+Z to undo"))
+				p.composer.Focus()
+			}, func() {
+				if !e.Feature("analyze") {
+					return
+				}
+				p.composer.ReplaceDraft(i18n.T("What is in this file? Give the key numbers and anything odd."), i18n.T("File question ready, Ctrl+Z to undo"))
+				p.composer.ShowAttachField()
+			})
+		},
+	})
 	// with no conversation open the choice is what the next one starts with
 	settings := e.Snapshot().Settings.Ask
 	current, may := p.draftRoute, settings.Approvals

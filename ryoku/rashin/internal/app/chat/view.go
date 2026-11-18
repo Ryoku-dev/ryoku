@@ -39,8 +39,13 @@ type viewState struct {
 	visible []int
 	turnOf  []int
 	// a finished turn's work folds into its first work row
-	folds    map[int]*foldInfo
-	overlays *look.Overlays
+	folds          map[int]*foldInfo
+	overlays       *look.Overlays
+	features       func(string) bool
+	session        string
+	artifactCall   func(string, any, any, func(error))
+	artifactOpen   func(string)
+	artifactNotify func(string)
 
 	jump     kit.IconPlaque
 	jumpShow anim.Tween
@@ -138,6 +143,7 @@ func (state *viewState) layout(
 	state.updateTurnHover(gtx)
 	busy := model.activeTurn != nil
 	state.busy, state.runsHere = busy, info.Kind == protocol.KindAsk
+	state.session = info.ID
 	class := look.ClassFor(float32(gtx.Constraints.Max.X) / max(gtx.Metric.PxPerDp, .001))
 	lastTurn := state.lastTurn(model)
 
@@ -151,6 +157,11 @@ func (state *viewState) layout(
 		row := &model.rows[index]
 		block := blockContext{info: info, model: model, row: row, index: index, turn: state.turnOf[index], last: state.turnOf[index] == lastTurn}
 		return layout.Inset{Top: state.gapBefore(model, position)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			if state.feature("compare") && state.hasComparison() {
+				return state.trackTurn(gtx, block.turn, func(gtx layout.Context) layout.Dimensions {
+					return state.layoutRow(gtx, th, block)
+				})
+			}
 			return look.ReadingColumn(gtx, class, func(gtx layout.Context) layout.Dimensions {
 				return state.trackTurn(gtx, block.turn, func(gtx layout.Context) layout.Dimensions {
 					return state.layoutRow(gtx, th, block)
@@ -242,6 +253,9 @@ func (state *viewState) gapBefore(model *modelState, position int) unit.Dp {
 
 func (state *viewState) layoutRow(gtx layout.Context, th *look.Theme, block blockContext) layout.Dimensions {
 	row, key := block.row, block.key()
+	if state.feature("compare") && state.comparisonFor(block) && (row.kind == rowText || row.kind == rowAnswer) {
+		return layout.Dimensions{}
+	}
 	switch row.kind {
 	case rowUser:
 		if row.user.Goal {

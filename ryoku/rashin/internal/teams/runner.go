@@ -65,6 +65,9 @@ func (s *Service) newTask(ctx context.Context, team, member, title, brief, origi
 	if !ok {
 		return protocol.TeamTask{}, protocol.Errorf(protocol.CodeNotFound, "%s", i18n.Tf("No team %s.", team))
 	}
+	if !s.dreamAvailable(t) {
+		return protocol.TeamTask{}, protocol.Errorf(protocol.CodeForbidden, "%s", i18n.T("Deep research is off in Settings."))
+	}
 	brief = strings.TrimSpace(brief)
 	if brief == "" {
 		return protocol.TeamTask{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("A task needs a brief: what the team should do."))
@@ -261,7 +264,7 @@ func (s *Service) stopTeamTasks(team, reason string) {
 // task held on the user or its members does not count; a paused team, or
 // every team while the teams settings pause them all, starts nothing.
 func (s *Service) pump() {
-	if s.sessions == nil {
+	if s.sessions == nil || s.background.Err() != nil {
 		return
 	}
 	settings := s.settings().Teams
@@ -289,7 +292,7 @@ func (s *Service) pump() {
 			continue
 		}
 		team, ok := s.state.team(t.Team)
-		if !ok || team.Paused || perTeam[t.Team] >= teamLimit(team, settings) {
+		if !ok || !s.dreamAvailable(team) || team.Paused || perTeam[t.Team] >= teamLimit(team, settings) {
 			continue
 		}
 		member, _ := taskMember(team, t.Member)
@@ -307,7 +310,7 @@ func (s *Service) pump() {
 	s.mu.Unlock()
 	for _, t := range starts {
 		s.emitTask(t)
-		go s.start(t)
+		s.startWorker(func() { s.start(t) })
 	}
 }
 
@@ -354,6 +357,10 @@ func (s *Service) start(task protocol.TeamTask) {
 	team, ok := s.state.team(task.Team)
 	if !ok {
 		fail("", i18n.T("Its team no longer exists."))
+		return
+	}
+	if !s.dreamAvailable(team) {
+		fail("", i18n.T("Deep research is off in Settings."))
 		return
 	}
 	member, ok := taskMember(team, task.Member)
@@ -499,7 +506,11 @@ func (s *Service) live(task, session string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	r := s.runs[task]
-	return r != nil && r.Session == session
+	if r == nil || r.Session != session {
+		return false
+	}
+	team, ok := s.state.team(r.Team)
+	return ok && s.dreamAvailable(team)
 }
 
 // endTask finishes an open task once: change sets how it ended, the run is
@@ -586,7 +597,7 @@ func (s *Service) release(taskID, text string) {
 		s.mu.Unlock()
 		return
 	}
-	if team, known := s.state.team(t.Team); !known || team.Paused {
+	if team, known := s.state.team(t.Team); !known || !s.dreamAvailable(team) || team.Paused {
 		s.mu.Unlock()
 		return
 	}
@@ -605,7 +616,10 @@ func (s *Service) release(taskID, text string) {
 	}
 	s.emitTask(t)
 	session := t.Session
-	go func() {
+	s.startWorker(func() {
+		if team, ok := s.state.team(t.Team); !ok || !s.dreamAvailable(team) {
+			return
+		}
 		if err := s.sessions.Continue(s.background, session, text); err != nil && s.background.Err() == nil {
 			ended, ok := s.endTask(taskID, func(t *protocol.TeamTask) {
 				t.Status, t.Reason = protocol.TaskBlocked, i18n.Tf("Rashin could not continue the task: %v", err)
@@ -616,7 +630,7 @@ func (s *Service) release(taskID, text string) {
 				s.afterEnd(ended)
 			}
 		}
-	}()
+	})
 }
 
 // pendingApprovals counts the approvals a task still waits on.
@@ -650,12 +664,12 @@ func (s *Service) halt(session string) {
 	if session == "" || s.sessions == nil {
 		return
 	}
-	go func() {
+	s.startWorker(func() {
 		if info, ok := s.sessions.Info(session); ok && info.Goal != nil && (info.Goal.Status == protocol.GoalActive || info.Goal.Status == protocol.GoalPaused) {
 			_, _ = s.sessions.Goal(s.background, protocol.GoalParams{ID: session, Op: protocol.GoalStop})
 		}
 		_ = s.sessions.Stop(s.background, session)
-	}()
+	})
 }
 
 // retire lets an ended task's session go: at once when no turn runs, else
@@ -669,7 +683,7 @@ func (s *Service) retire(session string) {
 	if !ok || info.State == protocol.StateWorking || info.State == protocol.StateWaiting {
 		return
 	}
-	go func() { _ = s.sessions.Stop(s.background, session) }()
+	s.startWorker(func() { _ = s.sessions.Stop(s.background, session) })
 }
 
 // recoverRuns picks up the tasks a daemon restart left: one working with an
@@ -699,6 +713,11 @@ func (s *Service) recoverRuns() {
 			continue
 		}
 		team, _ := s.state.team(t.Team)
+		if !s.dreamAvailable(team) {
+			_, _ = s.stopTask(s.background, t.ID, i18n.T("Deep research is off in Settings."))
+			s.halt(t.Session)
+			continue
+		}
 		member, _ := taskMember(team, t.Member)
 		started := s.now()
 		if t.Started != nil {
@@ -742,9 +761,12 @@ func (s *Service) recoverRuns() {
 		}
 	}
 	for _, session := range carryOn {
-		go func(session string) {
+		s.startWorker(func() {
+			if info, ok := s.sessions.Info(session); !ok || !s.live(info.TeamTask, session) {
+				return
+			}
 			_ = s.sessions.Continue(s.background, session, i18n.T("Rashin restarted while you worked. Carry on with the task."))
-		}(session)
+		})
 	}
 }
 

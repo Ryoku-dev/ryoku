@@ -167,6 +167,9 @@ func (c *NeedCards) card(key string) *needCard {
 // Layout draws one need's card: the decision while it is open, one line of
 // record once it was answered here.
 func (c *NeedCards) Layout(gtx layout.Context, e *env.Env, need Need) layout.Dimensions {
+	if need.Approval != nil && need.Approval.Kind == protocol.ApprovalSetup && !e.Feature("setupcards") {
+		return layout.Dimensions{}
+	}
 	th := e.Theme
 	key := NeedKey(need)
 	card := c.card(key)
@@ -241,6 +244,8 @@ func (c *NeedCards) approvalField(gtx layout.Context, e *env.Env, snapshot state
 		// the options are the answers, so only a refusal of them all stays a plaque
 		plaques = plaques[:0]
 		card.deny.Label = i18n.T("None of these")
+	case approval.Kind == protocol.ApprovalSetup:
+		card.approve.Label, card.deny.Label = i18n.T("Done, carry on"), i18n.T("Skip")
 	case approval.Kind == protocol.ApprovalBudget:
 		card.approve.Label, card.deny.Label = i18n.T("Raise the limit by half"), i18n.T("Keep it paused")
 	case request:
@@ -273,6 +278,8 @@ func (c *NeedCards) approvalField(gtx layout.Context, e *env.Env, snapshot state
 			// the value goes to the vault once and never stays in the field
 			card.value.SetText("")
 			c.decide(e, need, protocol.DecideProvide, note, value, i18n.Tf("Added to the vault: %s", approval.Title))
+		case protocol.ApprovalSetup:
+			c.decide(e, need, protocol.DecideOnce, note, "", i18n.Tf("Setup finished: %s", approval.Title))
 		default:
 			c.decide(e, need, protocol.DecideOnce, note, "", i18n.Tf("Approved: %s", approval.Title))
 		}
@@ -288,12 +295,18 @@ func (c *NeedCards) approvalField(gtx layout.Context, e *env.Env, snapshot state
 			line = i18n.Tf("Chose none: %s", approval.Title)
 		case approval.Kind == protocol.ApprovalBudget:
 			line = i18n.Tf("Kept paused: %s", approval.Title)
+		case approval.Kind == protocol.ApprovalSetup:
+			line = i18n.Tf("Setup skipped: %s", approval.Title)
 		}
 		c.decide(e, need, protocol.DecideDeny, note, "", line)
 	}
 
+	word := ApprovalWord(approval.Kind)
+	if approval.Kind == protocol.ApprovalSetup {
+		word = i18n.T("Setup")
+	}
 	children := []layout.FlexChild{
-		layout.Rigid(claimRow(th, palette.Attention, ApprovalWord(approval.Kind), look.Ago(gtx.Now, approval.Created))),
+		layout.Rigid(claimRow(th, palette.Attention, word, look.Ago(gtx.Now, approval.Created))),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 		layout.Rigid(look.Paragraph(th, th.T.Title, th.R.Fg, approval.Title)),
 	}
@@ -302,6 +315,20 @@ func (c *NeedCards) approvalField(gtx layout.Context, e *env.Env, snapshot state
 			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return layoutDetail(gtx, th, card, approval) }),
 		)
+	}
+	if approval.Kind == protocol.ApprovalSetup {
+		for index, step := range approval.Steps {
+			children = append(children,
+				layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+				layout.Rigid(look.Paragraph(th, th.T.Body, th.R.Fg, i18n.Tf("%d. %s", index+1, step))),
+			)
+		}
+		if approval.Check != "" {
+			children = append(children,
+				layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+				layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg2, i18n.Tf("Check: %s", approval.Check))),
+			)
+		}
 	}
 	children = append(children,
 		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),

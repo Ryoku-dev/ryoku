@@ -44,6 +44,7 @@ var runningValues = [...]int{0, 1, 2, 3, protocol.TeamsPerTeamMax}
 type settingsTab struct {
 	scroll  look.Scroller
 	index   kit.SectionIndex
+	picker  look.Select
 	current int
 	// the group just picked, until the list has moved to it
 	jumped bool
@@ -140,6 +141,9 @@ func (s *settingsTab) choose() {
 	if selected, ok := s.index.Selected(); ok && selected < sectionCount {
 		s.jump(selected)
 	}
+	if selected, ok := s.picker.Changed(); ok && selected < sectionCount {
+		s.jump(selected)
+	}
 }
 
 func (s *settingsTab) identity() identity {
@@ -206,8 +210,8 @@ func (s *settingsTab) layout(gtx layout.Context, e *env.Env, p *Page, team proto
 	picker := 0
 	if size.X >= gtx.Dp(520) {
 		picker = look.Place(gtx, image.Rect(left, gtx.Dp(13), left+width, size.Y), func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Min = image.Point{}
-			return s.index.Layout(gtx, th.Theme, labels, s.current, kit.FrameMedium)
+			gtx.Constraints.Min = image.Pt(gtx.Constraints.Max.X, 0)
+			return s.picker.Layout(gtx, th, e.Overlays, labels, s.current)
 		}).Size.Y + gtx.Dp(13)
 		s.choose()
 	}

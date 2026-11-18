@@ -31,6 +31,8 @@ type createDialog struct {
 	limit     teamsui.TokenStepper
 	folder    env.PathField
 	signIn    look.Select
+	preset    look.Select
+	presetID  string
 	// the sign-in picked among the dialog's setup sources
 	source int
 
@@ -56,6 +58,7 @@ func (d *createDialog) open() {
 	d.engine.Set("", "", nil)
 	d.budget.Selected, d.limit.Value = 0, dreamCap
 	d.signIn, d.source = look.Select{}, 0
+	d.preset, d.presetID = look.Select{}, ""
 	d.start.Busy = false
 	d.statement.Focus()
 }
@@ -133,6 +136,11 @@ func (d *createDialog) rows(e *env.Env, harness protocol.HarnessInfo, signs bool
 	d.statement.Label, d.statement.Lines = i18n.T("Your dream"), 5
 	d.statement.Placeholder = i18n.T("What you want made, in your own words.")
 	d.statement.Help = i18n.T("More detail helps: what it is for, what it must do and how you will know it is done. The manager asks you about the rest.")
+	if e.Feature("research") && d.presetID == "research" {
+		d.statement.Label = i18n.T("Research question")
+		d.statement.Placeholder = i18n.T("What do you want to understand or compare?")
+		d.statement.Help = i18n.T("The manager plans the questions, gathers independent sources and presents a cited report.")
+	}
 	d.name.Label, d.name.Placeholder = i18n.T("Name"), i18n.T("Optional")
 	d.name.Help = i18n.T("Empty takes a name from your dream.")
 	d.folder.Label, d.folder.Title = i18n.T("Folder"), i18n.T("The dream's folder")
@@ -164,6 +172,23 @@ func (d *createDialog) rows(e *env.Env, harness protocol.HarnessInfo, signs bool
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 		},
 		func(gtx layout.Context) layout.Dimensions { return d.folder.Layout(gtx, e) },
+	}
+	if e.Feature("research") {
+		rows = append([]layout.Widget{func(gtx layout.Context) layout.Dimensions {
+			d.preset.Label = i18n.T("Dream preset")
+			selected := 0
+			if d.presetID == "research" {
+				selected = 1
+			}
+			dimensions := d.preset.Layout(gtx, th, e.Overlays, []string{i18n.T("Make something"), i18n.T("Deep research")}, selected)
+			if index, changed := d.preset.Changed(); changed {
+				d.presetID = ""
+				if index == 1 {
+					d.presetID = "research"
+				}
+			}
+			return dimensions
+		}}, rows...)
 	}
 	if signs {
 		rows = append(rows,
@@ -202,6 +227,9 @@ func (d *createDialog) submit(e *env.Env, statement string, harness protocol.Har
 	params := protocol.DreamCreateParams{
 		Statement: statement, Name: strings.TrimSpace(d.name.Text()), Folder: d.folder.Path(),
 		Harness: harnessID, Model: model, Options: options,
+	}
+	if e.Feature("research") {
+		params.Preset = d.presetID
 	}
 	if d.budget.Selected == 1 {
 		params.MonthTokens = d.limit.Value

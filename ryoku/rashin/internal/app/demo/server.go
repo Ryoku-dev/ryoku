@@ -17,10 +17,11 @@ import (
 
 	"ryoku-i18n"
 
+	"ryoku-rashin/internal/config"
 	"ryoku-rashin/internal/protocol"
 )
 
-func Serve(ctx context.Context, socket string) error {
+func Serve(ctx context.Context, socket string, features ...string) error {
 	if err := os.MkdirAll(filepath.Dir(socket), 0o700); err != nil {
 		return err
 	}
@@ -31,7 +32,7 @@ func Serve(ctx context.Context, socket string) error {
 	}
 	defer listener.Close()
 	defer os.Remove(socket)
-	server := &server{data: makeFixtures()}
+	server := &server{data: makeFixtures(features...)}
 	go func() { <-ctx.Done(); _ = listener.Close() }()
 	for {
 		connection, err := listener.Accept()
@@ -46,8 +47,11 @@ func Serve(ctx context.Context, socket string) error {
 }
 
 type server struct {
-	mu   sync.Mutex
-	data fixtures
+	mu          sync.Mutex
+	data        fixtures
+	prompts     []protocol.Prompt
+	infra       agentInfraDemo
+	collections *collectionFixtures
 	// session events a method wrote, for the client to hear after its answer
 	told []protocol.SessionEventData
 }
@@ -342,6 +346,7 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 		if err := s.syncLocalProviders(); err != nil {
 			return nil, err
 		}
+		config.Validate(&s.data.snapshot.Settings)
 		s.syncCustomHarnesses()
 		if s.data.snapshot.Settings.Teams.Paused != paused {
 			s.holdEveryTeam(!paused)
@@ -883,6 +888,27 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 	case protocol.MShutdown:
 		return protocol.Empty{}, nil
 	default:
+		if answer, handled, err := s.callWriting(method, raw); handled {
+			return answer, err
+		}
+		if answer, handled, err := s.callPrompts(method, raw); handled {
+			return answer, err
+		}
+		if answer, handled, err := s.callCompare(method, raw); handled {
+			return answer, err
+		}
+		if answer, handled, err := s.callFlags(method, raw); handled {
+			return answer, err
+		}
+		if answer, handled, err := s.callAgentInfra(method, raw); handled {
+			return answer, err
+		}
+		if answer, handled, err := s.callArtifacts(method, raw); handled {
+			return answer, err
+		}
+		if answer, handled, err := s.callCollections(method, raw); handled {
+			return answer, err
+		}
 		if answer, handled, err := s.callDreams(method, raw); handled {
 			return answer, err
 		}

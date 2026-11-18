@@ -15,6 +15,7 @@ var Icon struct {
 	Diff, Graph, Tasks, Activity, Lock, Unlock, Check                *widget.Icon
 	Error, Warning, Fork, Undo, ArrowDown, Key, Link, Play, Filter   *widget.Icon
 	Thought, Steps, File, Remove, FolderOpen, Show, Hide             *widget.Icon
+	Features                                                         *widget.Icon
 	Quote, Goal, Pause, Screen                                       *widget.Icon
 	Teams, Inbox, Routine, Vault, Report, Approval, Member, Mail     *widget.Icon
 	Schedule, Spend, Import, Export, Lead                            *widget.Icon
@@ -78,6 +79,7 @@ func init() {
 	Icon.Remove = kit.Icon(symbols.Remove)
 	Icon.FolderOpen = kit.Icon(symbols.FolderOpen)
 	Icon.Show = kit.Icon(symbols.Visibility)
+	Icon.Features = kit.Icon(symbols.ToggleOn)
 	Icon.Hide = kit.Icon(symbols.VisibilityOff)
 	Icon.Quote = kit.Icon(symbols.FormatQuote)
 	Icon.Goal = kit.Icon(symbols.MyLocation)

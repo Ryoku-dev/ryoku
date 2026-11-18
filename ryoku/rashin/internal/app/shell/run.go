@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -179,7 +180,7 @@ func startRuntime(options Options, mode palette.Mode) (*runtime, error) {
 		r.tempDir = directory
 		socket := filepath.Join(directory, "rashin.sock")
 		clientOptions.Socket, clientOptions.Start = socket, false
-		go func() { r.serveErr <- demo.Serve(ctx, socket) }()
+		go func() { r.serveErr <- demo.Serve(ctx, socket, demoFeatures(options)...) }()
 		deadline := time.Now().Add(time.Second)
 		for {
 			if _, err := os.Stat(socket); err == nil {
@@ -203,6 +204,44 @@ func startRuntime(options Options, mode palette.Mode) (*runtime, error) {
 	r.client = conn.NewOptions(r.store, clientOptions)
 	r.watch(mode)
 	return r, nil
+}
+
+func demoFeatures(options Options) []string {
+	switch options.Route {
+	case protocol.TabAsk:
+		switch options.Session {
+		case "ask-compare":
+			return []string{"compare"}
+		case "ask-artifacts":
+			return []string{"artifacts", "mindmap"}
+		case "ask-searchsteps-live", "ask-searchsteps-done":
+			return []string{"searchsteps"}
+		}
+	case protocol.TabIndex:
+		if strings.HasPrefix(options.Session, "collections/") {
+			return []string{"collections"}
+		}
+	case protocol.TabSettings:
+		switch options.SettingsSection {
+		case "ask":
+			return []string{"prompts", "history"}
+		case "agents":
+			return []string{"mcp"}
+		case "teams":
+			return []string{"diskcare"}
+		case "memory":
+			return []string{"profile"}
+		}
+	case protocol.TabDreams:
+		if options.Teams.Team == "dream-research" {
+			return []string{"research"}
+		}
+	case protocol.TabRoutines:
+		if options.Teams.Routine == "routine-personal-ask" {
+			return []string{"schedules"}
+		}
+	}
+	return nil
 }
 
 func (r *runtime) Theme() *look.Theme {

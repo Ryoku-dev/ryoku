@@ -50,6 +50,7 @@ func (p *Page) layoutRashin(gtx layout.Context, e *env.Env) layout.Dimensions {
 				},
 			})
 		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.featuresOff(gtx, e) }),
 	)
 }
 

@@ -47,9 +47,10 @@ type Page struct {
 	open    int
 	focus   bool
 
-	add    addDialog
-	remove removeDialog
-	start  kit.Plaque
+	add         addDialog
+	remove      removeDialog
+	start       kit.Plaque
+	collections collectionsPanel
 }
 
 type hitRow struct {
@@ -65,12 +66,32 @@ func New() *Page { return &Page{open: -1} }
 
 func (p *Page) New(e *env.Env) { p.add.ask(e, p) }
 
+func (p *Page) Open(e *env.Env, route string) {
+	if !e.Feature("collections") {
+		return
+	}
+	if route == "" {
+		p.collections.selected = ""
+		return
+	}
+	if route == "collections" || strings.HasPrefix(route, "collections/") {
+		p.collections.selected = strings.TrimPrefix(route, "collections/")
+		if p.collections.selected == "collections" {
+			p.collections.selected = "saved"
+		}
+		p.collections.load(e)
+	}
+}
+
 func (p *Page) NewLabel() string { return i18n.T("Add folder") }
 
 func (p *Page) Overlay(gtx layout.Context, e *env.Env) bool {
 	p.add.layout(gtx, e, p)
 	p.remove.layout(gtx, e, p)
-	return look.AnyOpen(&p.add.dialog, &p.remove.confirm.Dialog)
+	if e.Feature("collections") {
+		p.collections.overlay(gtx, e)
+	}
+	return look.AnyOpen(&p.add.dialog, &p.remove.confirm.Dialog) || e.Feature("collections") && p.collections.dialog.Open
 }
 
 func (p *Page) selectedIndex(e *env.Env) (protocol.IndexInfo, bool) {
@@ -89,6 +110,9 @@ func (p *Page) selectedIndex(e *env.Env) (protocol.IndexInfo, bool) {
 
 func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 	snapshot := e.Snapshot()
+	if e.Feature("collections") {
+		p.collections.ensure(e)
+	}
 	selected, _ := p.selectedIndex(e)
 	rows := make([]look.SideRow, 0, len(snapshot.Indexes))
 	for _, info := range snapshot.Indexes {
@@ -105,10 +129,38 @@ func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 		rows = append(rows, row)
 	}
 	p.list.Empty = i18n.T("Folders Rashin has read are listed here.")
-	dimensions := p.list.Layout(gtx, e.Theme, e.Overlays, []look.SideGroup{{Title: i18n.T("Indexes"), Rows: rows}}, selected.ID)
+	groups := []look.SideGroup{{Title: i18n.T("Indexes"), Rows: rows}}
+	selectedID := selected.ID
+	if e.Feature("collections") {
+		saved := []look.SideRow{{ID: "collection:new", Title: i18n.T("New collection")}}
+		for _, collection := range p.collections.list {
+			updated := collection.Updated
+			if date, err := time.Parse(time.RFC3339, updated); err == nil {
+				updated = look.Ago(gtx.Now, date)
+			}
+			saved = append(saved, look.SideRow{ID: "collection:" + collection.ID, Title: collection.Name, Facts: i18n.Tf("%d items · %s", collection.Items, updated)})
+		}
+		groups = append(groups, look.SideGroup{Title: i18n.T("Collections"), Rows: saved})
+		if p.collections.selected != "" {
+			selectedID = "collection:" + p.collections.selected
+		}
+	}
+	dimensions := p.list.Layout(gtx, e.Theme, e.Overlays, groups, selectedID)
 	for _, event := range p.list.Events() {
 		switch event.Kind {
 		case look.SideOpen:
+			if e.Feature("collections") && strings.HasPrefix(event.ID, "collection:") {
+				id := strings.TrimPrefix(event.ID, "collection:")
+				if id == "new" {
+					p.collections.edit("", "")
+				} else {
+					p.collections.selected = id
+					p.collections.load(e)
+					e.Navigate(protocol.TabIndex, "collections/"+id)
+				}
+				continue
+			}
+			p.collections.selected = ""
 			if p.selected != event.ID {
 				p.selected, p.hits, p.asked, p.open = event.ID, nil, "", -1
 				p.runSearch(e)
@@ -163,6 +215,12 @@ func refresh(e *env.Env, id string) {
 }
 
 func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
+	if e.Feature("collections") {
+		p.collections.ensure(e)
+		if p.collections.selected != "" {
+			return p.collections.layout(gtx, e)
+		}
+	}
 	info, ok := p.selectedIndex(e)
 	if !ok {
 		return p.layoutEmpty(gtx, e)
@@ -180,7 +238,17 @@ func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
 func (p *Page) layoutEmpty(gtx layout.Context, e *env.Env) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return p.header.Layout(gtx, e.Theme, e.Overlays, look.PaneHeaderContent{Title: i18n.T("Index")})
+			content := look.PaneHeaderContent{Title: i18n.T("Index")}
+			if e.Feature("collections") {
+				content.Actions = []look.HeaderAction{{Icon: look.Icon.Quote, Description: i18n.T("Collections")}}
+			}
+			d := p.header.Layout(gtx, e.Theme, e.Overlays, content)
+			if _, clicked := p.header.ActionClicked(); clicked && e.Feature("collections") {
+				p.collections.selected = "saved"
+				p.collections.load(e)
+				e.Navigate(protocol.TabIndex, "collections/saved")
+			}
+			return d
 		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			p.start.Kind, p.start.Label = kit.PlaqueGold, i18n.T("Add folder")
@@ -213,9 +281,18 @@ func (p *Page) layoutHeader(gtx layout.Context, e *env.Env, info protocol.IndexI
 	case protocol.IndexError:
 		content.Claim, content.ClaimTone = i18n.T("Failed"), palette.Failed
 	}
+	if e.Feature("collections") {
+		content.Actions = append(content.Actions, look.HeaderAction{Icon: look.Icon.Quote, Description: i18n.T("Collections")})
+	}
 	dimensions := p.header.Layout(gtx, e.Theme, e.Overlays, content)
-	if _, ok := p.header.ActionClicked(); ok {
-		refresh(e, info.ID)
+	if action, ok := p.header.ActionClicked(); ok {
+		if action == 1 && e.Feature("collections") {
+			p.collections.selected = "saved"
+			p.collections.load(e)
+			e.Navigate(protocol.TabIndex, "collections/saved")
+		} else {
+			refresh(e, info.ID)
+		}
 	}
 	if item, ok := p.header.MenuClicked(); ok {
 		if item == 0 {

@@ -721,6 +721,227 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 		}
 		c.setWatch(p.Project, p.Watch)
 		return protocol.Empty{}, nil
+	case protocol.MWritingCancel:
+		p, err := unmarshal[protocol.WritingCancelParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.writingCancel(ctx, c, p)
+	case protocol.MWritingCheck:
+		p, err := unmarshal[protocol.WritingCheckParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.writingCheck(ctx, c, p)
+	case protocol.MWritingTransform:
+		p, err := unmarshal[protocol.WritingTransformParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.writingTransform(ctx, c, p)
+	case protocol.MWritingWords:
+		p, err := unmarshal[protocol.WritingWordsParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.writingWords(ctx, c, p)
+	case protocol.MWritingWordsAdd:
+		p, err := unmarshal[protocol.WritingWordParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.writingWordsAdd(ctx, c, p)
+	case protocol.MWritingWordsRemove:
+		p, err := unmarshal[protocol.WritingWordParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.writingWordsRemove(ctx, c, p)
+	case protocol.MWritingVoiceGet:
+		p, err := unmarshal[protocol.WritingVoiceGetParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.writingVoiceGet(ctx, c, p)
+	case protocol.MWritingVoiceSet:
+		p, err := unmarshal[protocol.WritingVoiceSetParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.writingVoiceSet(ctx, c, p)
+	case protocol.MWritingVoiceLearn:
+		p, err := unmarshal[protocol.WritingVoiceLearnParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.writingVoiceLearn(ctx, c, p)
+	case protocol.MPromptsList:
+		p, err := unmarshal[protocol.PromptsListParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.promptsList(ctx, c, p)
+	case protocol.MPromptsSave:
+		p, err := unmarshal[protocol.PromptSaveParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.promptsSave(ctx, c, p)
+	case protocol.MPromptsDelete:
+		p, err := unmarshal[protocol.PromptDeleteParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.promptsDelete(ctx, c, p)
+	case protocol.MPromptsExpand:
+		p, err := unmarshal[protocol.PromptExpandParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.promptsExpand(ctx, c, p)
+	case protocol.MCompareStart:
+		p, err := unmarshal[protocol.CompareStartParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.compareStart(ctx, c, p)
+	case protocol.MCompareKeep:
+		p, err := unmarshal[protocol.CompareKeepParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.compareKeep(ctx, c, p)
+	case protocol.MSessionSetFlags:
+		p, err := unmarshal[protocol.SessionFlagsParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.sessionSetFlags(ctx, c, p)
+	case protocol.MMCPList:
+		p, err := unmarshal[protocol.MCPListParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.mcpList(ctx, c, p)
+	case protocol.MMCPSave:
+		if err := requireApp(c); err != nil {
+			return nil, err
+		}
+		p, err := unmarshal[protocol.MCPServer](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.mcpSave(ctx, c, p)
+	case protocol.MMCPDelete:
+		if err := requireApp(c); err != nil {
+			return nil, err
+		}
+		p, err := unmarshal[protocol.MCPDeleteParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.mcpDelete(ctx, c, p)
+	case protocol.MMCPCheck:
+		p, err := unmarshal[protocol.MCPCheckParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.mcpCheck(ctx, c, p)
+	case protocol.MMCPSignIn:
+		if err := requireApp(c); err != nil {
+			return nil, err
+		}
+		p, err := unmarshal[protocol.MCPSignInParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.mcpSignIn(ctx, c, p)
+	case protocol.MDiskUsage:
+		p, err := unmarshal[protocol.DiskUsageParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.diskUsage(ctx, c, p)
+	case protocol.MDiskClean:
+		if err := requireApp(c); err != nil {
+			return nil, err
+		}
+		p, err := unmarshal[protocol.DiskCleanParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.diskClean(ctx, c, p)
+	case protocol.MArtifactOpen:
+		p, err := unmarshal[protocol.ArtifactOpenParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.artifactOpen(ctx, c, p)
+	case protocol.MArtifactErrors:
+		p, err := unmarshal[protocol.ArtifactErrorsParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.artifactErrors(ctx, c, p)
+	case protocol.MArtifactRepair:
+		p, err := unmarshal[protocol.ArtifactRepairParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.artifactRepair(ctx, c, p)
+	case protocol.MArtifactClose:
+		p, err := unmarshal[protocol.ArtifactCloseParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.artifactClose(ctx, c, p)
+	case protocol.MCollectionsList:
+		p, err := unmarshal[protocol.CollectionsListParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.collectionsList(ctx, c, p)
+	case protocol.MCollectionsSave:
+		p, err := unmarshal[protocol.CollectionSaveParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.collectionsSave(ctx, c, p)
+	case protocol.MCollectionsAdd:
+		p, err := unmarshal[protocol.CollectionAddParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.collectionsAdd(ctx, c, p)
+	case protocol.MCollectionsItems:
+		p, err := unmarshal[protocol.CollectionItemsParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.collectionsItems(ctx, c, p)
+	case protocol.MCollectionsRemove:
+		p, err := unmarshal[protocol.CollectionRemoveParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.collectionsRemove(ctx, c, p)
+	case protocol.MCollectionsCheck:
+		p, err := unmarshal[protocol.CollectionCheckParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.collectionsCheck(ctx, c, p)
+	case protocol.MCollectionsChat:
+		p, err := unmarshal[protocol.CollectionChatParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.collectionsChat(ctx, c, p)
+	case protocol.MTeamsRoutineRuns, protocol.MTeamsAgentSetup:
+		if d.deps.Teams == nil {
+			return nil, protocol.Errorf(protocol.CodeUnavailable, "%s", i18n.T("Teams are not available."))
+		}
+		return d.deps.Teams.Handle(ctx, method, raw)
 	default:
 		if isWorkMethod(method) {
 			if d.deps.Work == nil {
@@ -752,12 +973,20 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 	}
 }
 
+func (d *Daemon) feature(id string) bool { return d.Settings().Features[id] }
+
 // applySettings merges patch into the settings, saves them and tells every
 // part that follows them. The caller has already checked who may change
 // what the patch reaches.
 func (d *Daemon) applySettings(ctx context.Context, patch json.RawMessage) (protocol.Settings, error) {
 	d.settingsMu.Lock()
-	defer d.settingsMu.Unlock()
+	stopSignIns := false
+	defer func() {
+		d.settingsMu.Unlock()
+		if stopSignIns {
+			d.cancelMCPSignIns()
+		}
+	}()
 	current := d.Settings()
 	next, err := config.Merge(current, patch)
 	if err != nil {
@@ -775,6 +1004,13 @@ func (d *Daemon) applySettings(ctx context.Context, patch json.RawMessage) (prot
 	d.mu.Lock()
 	d.settings = next
 	d.mu.Unlock()
+	if current.Features["artifacts"] && !next.Features["artifacts"] {
+		artifactPreviews.CloseAll()
+	}
+	if current.Features["compare"] && !next.Features["compare"] {
+		d.closeComparisons("")
+	}
+	stopSignIns = current.Features["mcp"] && !next.Features["mcp"]
 	d.Broadcast(protocol.EvtSettingsChanged, next)
 	if d.deps.Teams != nil {
 		d.deps.Teams.SettingsChanged(next)

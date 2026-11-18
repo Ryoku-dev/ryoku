@@ -46,12 +46,25 @@ var legacyKeys = []string{
 }
 
 // known are the version 2 keys this package owns.
-var known = []string{"version", "enabled", "ask", "agent", "daemon", "index", "api", "teams", "providers", "memory", "skills"}
+var known = []string{"version", "enabled", "ask", "agent", "daemon", "index", "api", "teams", "providers", "memory", "skills", "features"}
 
 // Validate normalises s in place: unknown enums fall back to the defaults and
 // numbers are clamped to sane ranges.
 func Validate(s *protocol.Settings) {
 	d := Defaults()
+	s.Ask.ResumeMinutes = max(0, min(s.Ask.ResumeMinutes, 120))
+	for id := range s.Features {
+		known := false
+		for _, feature := range protocol.FeatureIDs {
+			if id == feature {
+				known = true
+				break
+			}
+		}
+		if !known {
+			delete(s.Features, id)
+		}
+	}
 	s.Ask.Model = strings.TrimSpace(s.Ask.Model)
 	if !validModel(s.Ask.Model) {
 		s.Ask.Model = d.Ask.Model
@@ -158,6 +171,7 @@ func fromRaw(raw map[string]json.RawMessage) protocol.Settings {
 	decodeInto(raw["providers"], &s.Providers)
 	decodeInto(raw["memory"], &s.Memory)
 	decodeInto(raw["skills"], &s.Skills)
+	decodeInto(raw["features"], &s.Features)
 	Validate(&s)
 	return s
 }
@@ -240,6 +254,7 @@ func saveUnlocked(s protocol.Settings) error {
 		"providers": s.Providers,
 		"memory":    s.Memory,
 		"skills":    s.Skills,
+		"features":  s.Features,
 	} {
 		if err := set(k, v); err != nil {
 			return err

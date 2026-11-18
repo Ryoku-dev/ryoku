@@ -79,8 +79,8 @@ func (c *scheduler) start() {
 	c.plan(now, true)
 	c.arm(now)
 	c.mu.Unlock()
-	go c.watchResume()
-	go c.syncWake()
+	c.s.startWorker(c.watchResume)
+	c.s.startWorker(c.syncWake)
 }
 
 // stop disarms the clock. The wake unit stays as it is, so routines wake
@@ -114,7 +114,7 @@ func (c *scheduler) rearm() {
 	c.plan(now, false)
 	c.arm(now)
 	c.mu.Unlock()
-	go c.syncWake()
+	c.s.startWorker(c.syncWake)
 }
 
 // due is when the clock next fires a routine, zero when it does not.
@@ -145,13 +145,9 @@ func (c *scheduler) live() []protocol.Routine {
 	if c.s.settings().Teams.Paused {
 		return nil
 	}
-	working := make(map[string]bool)
-	for _, team := range c.s.state.teams() {
-		working[team.ID] = !team.Paused
-	}
 	var out []protocol.Routine
 	for _, r := range c.s.state.routines() {
-		if r.Enabled && working[r.Team] {
+		if r.Enabled && c.s.routineAvailable(r) {
 			out = append(out, r)
 		}
 	}
@@ -214,7 +210,7 @@ func (c *scheduler) arm(now time.Time) {
 		}
 	}
 	if !first.IsZero() {
-		c.timer = time.AfterFunc(max(first.Sub(now), 0), c.tick)
+		c.timer = time.AfterFunc(max(first.Sub(now), 0), func() { c.s.startWorker(c.tick) })
 	}
 }
 
@@ -257,7 +253,7 @@ func (c *scheduler) tick() {
 // Without logind on the system bus the clock still runs, it only notices
 // missed runs at the next timer.
 func (c *scheduler) watchResume() {
-	bus, err := dbus.ConnectSystemBus()
+	bus, err := dbus.ConnectSystemBus(dbus.WithContext(c.s.background))
 	if err != nil {
 		return
 	}
@@ -280,12 +276,20 @@ func (c *scheduler) watchResume() {
 	}
 	c.bus = bus
 	c.mu.Unlock()
-	for signal := range signals {
-		if signal.Name != login1Manager+"."+prepareForSleep || len(signal.Body) != 1 {
-			continue
-		}
-		if sleeping, ok := signal.Body[0].(bool); ok && !sleeping {
-			c.tick()
+	for {
+		select {
+		case <-c.s.background.Done():
+			return
+		case signal, ok := <-signals:
+			if !ok {
+				return
+			}
+			if signal.Name != login1Manager+"."+prepareForSleep || len(signal.Body) != 1 {
+				continue
+			}
+			if sleeping, ok := signal.Body[0].(bool); ok && !sleeping {
+				c.tick()
+			}
 		}
 	}
 }

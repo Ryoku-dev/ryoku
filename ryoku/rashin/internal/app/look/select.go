@@ -66,6 +66,12 @@ func (selection *Select) Opened(overlays *Overlays) bool {
 	return overlays != nil && overlays.IsOpen(&selection.click.Clickable)
 }
 
+func (selection *Select) Close(overlays *Overlays) {
+	if overlays != nil {
+		overlays.Close(&selection.click.Clickable)
+	}
+}
+
 func (selection *Select) Layout(
 	gtx layout.Context,
 	th *Theme,

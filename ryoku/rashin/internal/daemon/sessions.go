@@ -91,7 +91,8 @@ type sessionManager struct {
 	askBrief func(protocol.SessionInfo) string
 	prepare  func(protocol.SessionInfo)
 	// tools are the MCP servers an agent session is handed
-	tools func(protocol.SessionInfo) []core.MCPServer
+	tools      func(protocol.SessionInfo) []core.MCPServer
+	prepareAsk func(context.Context, protocol.SessionInfo, core.PromptInput, core.Sink) (core.PromptInput, error)
 	// ended hears that a session was stopped or deleted, so what it held ends too
 	ended func(id string)
 	// teams runs team tasks as Agent sessions and hears how their turns and
@@ -811,7 +812,15 @@ func questionTitle(question string) string {
 }
 
 func (m *sessionManager) runTurn(ctx context.Context, s *managedSession, runner core.Runner, input core.PromptInput, done chan struct{}) {
-	result, err := runner.Prompt(ctx, input, &runnerSink{manager: m, session: s})
+	sink := &runnerSink{manager: m, session: s}
+	var result core.TurnResult
+	var err error
+	if info := s.log.Info(); info.Kind == protocol.KindAsk && m.prepareAsk != nil {
+		input, err = m.prepareAsk(ctx, info, input, sink)
+	}
+	if err == nil {
+		result, err = runner.Prompt(ctx, input, sink)
+	}
 	stop := result.Stop
 	if stop == "" {
 		stop = protocol.StopEnd
@@ -873,6 +882,11 @@ func (m *sessionManager) runTurn(ctx context.Context, s *managedSession, runner 
 	}
 	if m.teams != nil && info.TeamTask != "" {
 		m.teams.AfterTurn(context.Background(), info, protocol.TurnEndData{Turn: input.Turn, Stop: stop, Usage: result.Usage})
+	}
+	if routines, ok := m.teams.(interface {
+		RoutineSessionEnded(protocol.SessionInfo, protocol.TurnEndData)
+	}); ok {
+		routines.RoutineSessionEnded(ended, protocol.TurnEndData{Turn: input.Turn, Stop: stop, Usage: result.Usage})
 	}
 	// a temporary conversation is never learned from, so memory never hears of it
 	if m.memory != nil && !ended.Temporary {

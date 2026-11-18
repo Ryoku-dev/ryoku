@@ -113,12 +113,15 @@ type HarnessOptions struct {
 	Ask bool
 }
 
-// MCPServer is a stdio MCP server an agent starts for its session.
+// MCPServer is an MCP connection handed to an agent session.
 type MCPServer struct {
 	Name    string
 	Command string
 	Args    []string
 	Env     map[string]string
+	Type    string
+	URL     string
+	Headers map[string]string
 }
 
 // Harnesses discovers external harnesses and starts their runners.

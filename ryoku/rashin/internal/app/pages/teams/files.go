@@ -13,6 +13,7 @@ import (
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"ryoku-i18n"
 
+	"ryoku-rashin/internal/app/chat"
 	"ryoku-rashin/internal/app/env"
 	"ryoku-rashin/internal/app/look"
 	"ryoku-rashin/internal/app/pages/teamsui"
@@ -35,10 +36,11 @@ type teamFile struct {
 }
 
 type fileRow struct {
-	link   linkRow
-	report kit.Click
-	reveal kit.IconPlaque
-	tip    look.Tip
+	link    linkRow
+	report  kit.Click
+	reveal  kit.IconPlaque
+	tip     look.Tip
+	preview chat.View
 }
 
 // the newest files in the team's folder, read off the frame when the page opens and when a task ends
@@ -97,6 +99,8 @@ func (f *teamFiles) layout(gtx layout.Context, e *env.Env, snapshot appstate.Sna
 	for index, file := range f.files {
 		row := f.row(file.path)
 		kept[file.path] = row
+		row.preview.SetFeatures(e.Feature)
+		row.preview.SetArtifactActions(e.Call, e.Open, e.Notify)
 		task, fromReport := reports[file.path]
 		row.reveal.Kind, row.reveal.Small, row.reveal.Icon = kit.PlaqueQuiet, true, look.Icon.FolderOpen
 		row.reveal.Description = i18n.T("Show in folder")
@@ -124,6 +128,9 @@ func (f *teamFiles) layout(gtx layout.Context, e *env.Env, snapshot appstate.Sna
 							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 								return fileFacts(gtx, th, row, file, where, task, fromReport)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return row.preview.LayoutArtifactFile(gtx, th, task.Session, file.path)
 							}),
 						)
 					}),

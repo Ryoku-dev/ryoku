@@ -19,6 +19,8 @@ type presentationView struct {
 	body, tests   chat.Prose
 	accept, notes kit.Plaque
 	files         []kit.Click
+	sources       []kit.Click
+	artifacts     chat.View
 }
 
 func (v *presentationView) section(gtx layout.Context, e *env.Env, p *Page, dream protocol.Team) layout.Widget {
@@ -43,6 +45,16 @@ func (v *presentationView) section(gtx layout.Context, e *env.Env, p *Page, drea
 	for index, file := range presentation.Files {
 		if v.files[index].Clicked(gtx) {
 			e.OpenPath(file)
+		}
+	}
+	if e.Feature("research") {
+		for len(v.sources) < len(presentation.Sources) {
+			v.sources = append(v.sources, kit.Click{})
+		}
+		for index, source := range presentation.Sources {
+			if v.sources[index].Clicked(gtx) {
+				e.Open(source)
+			}
 		}
 	}
 	presented := i18n.Tf("Presented %s", look.Ago(gtx.Now, presentation.At))
@@ -73,11 +85,34 @@ func (v *presentationView) section(gtx layout.Context, e *env.Env, p *Page, drea
 		)
 	}
 	if len(presentation.Files) > 0 {
+		session := ""
+		for _, task := range e.Snapshot().TeamTasks {
+			if task.ID == dream.Dream.Task {
+				session = task.Session
+				break
+			}
+		}
+		v.artifacts.SetFeatures(e.Feature)
+		v.artifacts.SetArtifactActions(e.Call, e.Open, e.Notify)
 		widgets = append(widgets, gap(th.Sp.S4), kit.Text(th.Theme, th.T.Label, th.R.Fg, i18n.T("Files")), gap(th.Sp.S2))
 		for index, file := range presentation.Files {
 			click := &v.files[index]
 			widgets = append(widgets, func(gtx layout.Context) layout.Dimensions {
-				return look.Link(gtx, th, click, paths.Short(file))
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return look.Link(gtx, th, click, paths.Short(file)) }),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return v.artifacts.LayoutArtifactFile(gtx, th, session, file)
+					}),
+				)
+			})
+		}
+	}
+	if e.Feature("research") && len(presentation.Sources) > 0 {
+		widgets = append(widgets, gap(th.Sp.S4), kit.Text(th.Theme, th.T.Label, th.R.Fg, i18n.T("Sources")), gap(th.Sp.S2))
+		for index, source := range presentation.Sources {
+			click := &v.sources[index]
+			widgets = append(widgets, func(gtx layout.Context) layout.Dimensions {
+				return look.Link(gtx, th, click, source)
 			})
 		}
 	}

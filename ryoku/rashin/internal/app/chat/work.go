@@ -203,6 +203,42 @@ func (state *viewState) layoutThought(gtx layout.Context, th *look.Theme, key, v
 
 // while any runs each is its own line, once all have finished they fold into one line that counts them
 func (state *viewState) layoutTools(gtx layout.Context, th *look.Theme, model *modelState, tools []*protocol.ToolData, key string) layout.Dimensions {
+	if state.feature("searchsteps") && model.activeTurn != nil {
+		first := ""
+		var progress searchWork
+		start := 0
+		for index := len(model.rows) - 1; index >= 0; index-- {
+			if model.rows[index].kind == rowUser || model.rows[index].kind == rowTurnEnd {
+				start = index + 1
+				break
+			}
+		}
+		for index := start; index < len(model.rows); index++ {
+			row := &model.rows[index]
+			if row.kind != rowTool {
+				continue
+			}
+			if first == "" {
+				first = "tool:" + row.key
+			}
+			progress.add(row.tools)
+		}
+		if first == key && progress.text() != "" {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return state.layoutRecord(gtx, th, key+":searchsteps", look.Icon.Search, progress.text(), "")
+				}),
+				layout.Rigid(layout.Spacer{Height: 2}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return state.layoutToolsBody(gtx, th, model, tools, key)
+				}),
+			)
+		}
+	}
+	return state.layoutToolsBody(gtx, th, model, tools, key)
+}
+
+func (state *viewState) layoutToolsBody(gtx layout.Context, th *look.Theme, model *modelState, tools []*protocol.ToolData, key string) layout.Dimensions {
 	live := make([]*protocol.ToolData, 0, len(tools))
 	running := false
 	boxed := false
@@ -305,9 +341,21 @@ func (state *viewState) layoutTool(gtx layout.Context, th *look.Theme, model *mo
 	} else {
 		visual.since = time.Time{}
 	}
-	return state.layoutUnfolding(gtx, th, visual, line, func(gtx layout.Context) layout.Dimensions {
-		return state.layoutToolDetail(gtx, th, model, tool, visual, key)
-	})
+	row := func(gtx layout.Context) layout.Dimensions {
+		return state.layoutUnfolding(gtx, th, visual, line, func(gtx layout.Context) layout.Dimensions {
+			return state.layoutToolDetail(gtx, th, model, tool, visual, key)
+		})
+	}
+	if !state.feature("artifacts") || len(tool.Locations) == 0 {
+		return row(gtx)
+	}
+	children := []layout.FlexChild{layout.Rigid(row)}
+	for index, location := range tool.Locations {
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return state.layoutArtifactFile(gtx, th, fmt.Sprintf("%s:artifact:%d", key, index), location.Path)
+		}))
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
 const waitedFrom = 3 * time.Second
@@ -566,4 +614,42 @@ func hasDetail(model *modelState, tool *protocol.ToolData) bool {
 	}
 	return tool.Diff != nil || strings.TrimSpace(tool.Output) != "" ||
 		strings.Contains(strings.TrimSpace(tool.Input), "\n") || len(tool.Locations) > 1
+}
+
+type searchWork struct {
+	searches, pages, files int
+}
+
+func (work *searchWork) add(tools []*protocol.ToolData) {
+	for _, tool := range tools {
+		if tool == nil {
+			continue
+		}
+		switch tool.Kind {
+		case protocol.ToolSearch:
+			work.searches++
+		case protocol.ToolFetch:
+			work.pages++
+		case protocol.ToolRead:
+			work.files++
+		}
+	}
+}
+
+func (work searchWork) text() string {
+	var parts []string
+	if work.searches > 0 {
+		parts = append(parts, i18n.Tf("Searched %d", work.searches))
+	}
+	if work.pages == 1 {
+		parts = append(parts, i18n.T("Read 1 page"))
+	} else if work.pages > 1 {
+		parts = append(parts, i18n.Tf("Read %d pages", work.pages))
+	}
+	if work.files == 1 {
+		parts = append(parts, i18n.T("Read 1 file"))
+	} else if work.files > 1 {
+		parts = append(parts, i18n.Tf("Read %d files", work.files))
+	}
+	return strings.Join(parts, " · ")
 }

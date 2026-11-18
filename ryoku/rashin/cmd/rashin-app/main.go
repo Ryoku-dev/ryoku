@@ -148,6 +148,9 @@ func openParams(target routeTarget) protocol.UIOpenParams {
 		Session: target.session, Tab: target.tab, Project: target.project, View: target.workTab, Worktree: target.worktree,
 		Team: target.teams.Team, TeamTask: target.teams.Task, Routine: target.teams.Routine, Credential: target.teams.Credential,
 	}
+	if target.tab == protocol.TabSettings {
+		params.View = target.settingsSection
+	}
 	if target.teams.View != "" {
 		params.View = target.teams.View
 	}
@@ -185,7 +188,11 @@ func applyLaunchTarget(target routeTarget, tab, session, project, view, worktree
 		target.project = project
 	}
 	if view != "" {
-		target.workTab = view
+		if target.tab == protocol.TabSettings && target.project == "" {
+			target.settingsSection = view
+		} else {
+			target.workTab = view
+		}
 	}
 	if worktree != "" {
 		target.worktree = worktree
@@ -218,6 +225,10 @@ func parseRouteTarget(value string) routeTarget {
 	case protocol.TabAsk, protocol.TabAgent:
 		if len(parts) > 1 && parts[1] != "new" {
 			target.session = parts[1]
+		}
+	case protocol.TabIndex:
+		if len(parts) > 1 && parts[1] == "collections" {
+			target.session = strings.Join(parts[1:], "/")
 		}
 	case protocol.TabProjects:
 		if len(parts) > 1 {

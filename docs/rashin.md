@@ -293,6 +293,18 @@ XDG variables; `RASHIN_SOCKET` overrides the socket for a client.
   ones with their conversations.
 - `skills.off`: the built-in skill sets turned off for every model (see
   Skills); every set is on unless named here.
+- `features`: the optional features, id to true or false, every one off unless
+  set. The ids are `compare`, `research`, `schedules`, `prompts`, `enhance`,
+  `askwriting`, `analyze`, `audio`, `video`, `share`, `quote`, `history`,
+  `searchsteps`, `mindmap`, `artifacts`, `collections`, `profile`,
+  `setupcards`, `mcp` and `diskcare`; others are dropped. A feature that is
+  off has no UI and does no work: the app asks `Env.Feature(id)` and the
+  daemon `feature(id)` against the live settings, and turning off Scheduled
+  runs, Deep research, Setup cards, Compare models or Artifacts also stops
+  what they have running. Settings > Features in the Rashin app has their
+  switches, and any client may change them. The sections below say what each
+  one does. Theia's own features are separate, in `shell.json`.
+- `ask.resumeMinutes`: 0 (off) or 1 to 120, used with the `history` feature.
 
 Clients change settings only through `settings.set`; the daemon writes the file
 atomically and broadcasts `settings.changed`. A patch that touches `teams`,
@@ -325,7 +337,8 @@ start, rename, delete, stop, handoff, queue, unqueue, steer, fork, read,
 revert_turn), `ask`
 (new session, attach, prompt in one call), `providers.*`, `models.list`,
 `gateway.usage|api|api_key`, `harnesses.*`, `index.*`, `settings.get|set`,
-`ui.open`,
+`ui.open`, `writing.*`, `prompts.*`, `compare.*`, `session.set_flags`,
+`mcp.*`, `disk.*`, `artifact.*`, `collections.*`,
 Work: `projects.*`, `worktrees.*`, `git.*`, `review.*`, `tasks.*`,
 `activity.list`, and Teams: `teams.*` and `vault.*` (see Teams; most of them
 answer only the Rashin app).
@@ -827,6 +840,92 @@ The Ask runner (`internal/ask`) is Rashin's own agent loop on the gateway.
   answered by Rashin's providers whatever `ask.harness` says. Only the app
   reads `ask.harness` and passes it at `session.new`.
 
+### Optional features in Ask
+
+Each is a switch (see Settings, `features`), off by default.
+
+- **Prompt library** (`prompts`): your prompts, templates and snippets in
+  `prompts.json` in Rashin's data folder, plus built-in templates (apology,
+  thank-you note, email reply, meeting agenda, outline, TL;DR, project update,
+  cover letter, pros and cons and more) that are read-only and can be copied.
+  Typing `/` in the composer opens the slash menu with them; choosing one
+  fills the draft. `{{content}}` and `{{selection}}` come from the draft or the
+  clipboard, `{{lang}}` from the interface language, `{{date}}` from today, and
+  any other `{{name}}` is asked for in a small row (`prompts.expand`).
+  Settings > Ask lists your prompts with add, edit and delete, and keeps the
+  built-in ones folded under "Built-in prompts (14)", each with View and Copy.
+- **Improve my prompt** (`enhance`): an Improve plaque in the composer rewrites
+  the draft to be specific and complete without changing what it asks
+  (`writing.transform`). Ctrl+Z brings the original back.
+- **Writing tools in Ask** (`askwriting`): a Writing menu in the composer with
+  Fix writing, Rewrite, Shorter, More formal, More friendly and, once My voice
+  has notes, Sound like me, applied to the draft with undo. Both send a request
+  id and cancel it (`writing.cancel`) when you edit or switch the draft, turn
+  the feature off, leave Ask, the call fails or times out, or the app closes.
+- **Analyze a file** (`analyze`): the attach menu gains "Analyze a file", which
+  attaches it and prefills a question about what is in it, the key numbers
+  and anything odd. The question stays editable.
+- **Audio files** (`audio`): an audio attachment (wav, mp3, m4a, ogg, opus,
+  flac, webm) is converted with `ffmpeg` to 16 kHz mono and transcribed with
+  `ryoku-dictate --selftest`; the transcript goes into the message, cut at
+  60,000 characters with a note, and the turn shows "Transcribing <file>"
+  while it works. Without the voice engine or a model, the turn says to
+  download one in Settings > Voice typing.
+- **Video links** (`video`): a video link in the question (YouTube, Vimeo or
+  anything `yt-dlp` accepts) has its subtitles fetched and turned into
+  `[mm:ss] text` lines, or, when there are none, its audio (up to 90 minutes)
+  split into minute chunks and transcribed with their times; the model is asked
+  for a summary and key moments with timestamps. The turn shows "Reading the
+  video" while it works, a cancel or a timeout stops the tools, and temporary
+  files are removed. Video links work without the `audio` feature too. Only
+  public internet links work: every probe and download goes through a
+  loopback proxy that refuses private and local addresses, including after a
+  redirect, and a loopback or LAN video says so.
+- **Compare models** (`compare`): a Compare plaque on a finished answer takes
+  up to two more models, forks the conversation up to that turn and asks each
+  again. The lanes stream side by side (tabs below 900 dp); "Keep this one"
+  makes that lane the conversation and drops the rest (`compare.start`,
+  `compare.keep`; the lanes arrive as a `compare` session event). It works on
+  any finished answer; on one a harness gave, that lane keeps its harness and
+  the other lanes use provider models.
+- **Share as a picture** (`share`): an answer and its question rendered into a
+  1080 px PNG in the app's look with the Rashin mark and the date, copied to
+  the clipboard and saved to `~/Pictures/Rashin/`, with an Open folder notice.
+- **Ask again about a picture** (`quote`): a picture on an earlier question
+  has "Ask about this again", which puts it back into the composer.
+- **Star and archive** (`history`): Star and Archive in the conversation
+  menu (`session.set_flags`, kept on the session). Starred conversations sit
+  on top; archived ones leave the day groups for a folded Archived group.
+  With `ask.resumeMinutes` set (Settings > Ask, "Pick up where you left
+  off"), opening Ask within that time of the last message reopens that
+  conversation.
+- **Search steps** (`searchsteps`): while a turn runs, a line above the work
+  rows counts what it searched and read ("Searched 2 · Read 4 pages") and
+  folds into the turn's "Worked for" line when done.
+- **Mind maps** (`mindmap`): an answer may include a fenced `mindmap` block
+  (one root, an outline with two spaces per level), drawn as a radial tree
+  whose branches fold when clicked, with "Save as picture" to
+  `~/Pictures/Rashin/mindmap-*.png`. The Ask prompt says so only while the
+  feature is on.
+- **Artifacts** (`artifacts`): a fenced `html` or `svg` block, or an agent's
+  `.html` or `.svg` report, gets a Preview plaque. `artifact.open` serves it
+  from a loopback-only server (random port, random token in the path, a
+  Content-Security-Policy that blocks the network, only that artifact's
+  folder, a 1 MiB cap on pages and bodies, no listings, at most 16 previews
+  open) and opens the default browser. The page opens inside a trusted wrapper
+  with scripts off (a sandboxed frame on its own token, `script-src 'none'`).
+  "Run scripts" turns them on for that preview only and is never remembered;
+  the frame then gets `allow-scripts` and nothing else, so it has an opaque
+  origin and no top navigation, popups or same-origin access. A page that runs
+  scripts can still move its own frame away, so run scripts only from pages you
+  trust. Once scripts are on, a small reporter relays the page's runtime errors
+  to the wrapper (checked against the page's own host and origin, up to 100),
+  and the transcript offers "N problems in the preview · Fix them", which sends
+  them to the same conversation as a follow-up (`artifact.repair`). Close
+  preview, or `artifact.close`, stops the server at once; turning the feature
+  off or shutting Rashin down closes every preview, and one idles out after 15
+  minutes.
+
 ### In a terminal
 
 `rashin <question>` (or `rashin ask <question>`) asks with origin `terminal`
@@ -1053,6 +1152,24 @@ sandbox (see Teams), is offered neither: Rashin refuses its `fs/` and
 - The harness keeps its own model and provider configuration; Rashin never
   edits a harness's files.
 
+### Optional features for agents
+
+- **MCP servers** (`mcp`): Settings > Agents lists your own MCP servers (stdio
+  command, or http or sse URL) with a state dot: ready, needs sign-in, failing
+  or off. Header values go to the vault and are never shown again. Check
+  starts or connects, runs `initialize` and `tools/list` with a 10 second
+  timeout and records the tool count. Sign in runs a PKCE flow with a loopback
+  redirect on 127.0.0.1 and keeps its tokens in the vault. Ready servers are
+  added to every agent session. A server that needs headers or a sign-in is
+  reached through a loopback proxy the daemon runs: the agent gets only a
+  capability URL, never a header or token, and the proxy adds the vault
+  headers and refreshes the sign-in on each request, rewrites an older SSE
+  endpoint to loopback and refuses a wrong host or path. It stops when the
+  feature is turned off or the daemon exits. `mcp.save`, `mcp.delete` and
+  `mcp.signin` answer only the app.
+- **Artifacts** also cover an agent's file reports, as in Ask.
+- **Setup cards** (`setupcards`): see Approvals under Teams.
+
 ## Index
 
 The index engine (`internal/index`) is pure Go.
@@ -1121,6 +1238,24 @@ Command line: `rashin index add|remove|list|refresh|status`, `rashin search`,
 `changed`, each with `--index <id>` and `--format human|json|toon` (human on a
 terminal, TOON when piped). The daemon runs the engine; the command line is a
 client, so it says Rashin is off when it is.
+
+### Collections
+
+With `collections` on, the Index page has a Collections section: lists of
+answers, excerpts, files, links and captures you saved
+(`collections/` under the data folder, one JSON per collection, files copied
+in up to 20 MB each). A default "Saved" collection is made when something is
+saved without a name. A collection shows its items with their kind, source
+and date, and a "Changed since you saved it" badge after Check again re-reads
+a link or file and the saved text no longer appears. You can rename, remove
+and make collections. "Chat with this collection" opens a new Ask whose first
+message carries the items (text inlined up to 48 KB, files attached, the rest
+named). Files can also be added by hand. Collections load 20 items at a time
+(40 at most) with "Load more", showing previews until you read an item in full
+by its id (`collections.items`). Check again refuses links that do not point
+to a public internet address. Theia's Save adds to a collection with
+`collections.add`, source `theia`, and needs `collections` on like everything
+else here, which is why its switch turns on both.
 
 ## Work
 
@@ -1449,6 +1584,11 @@ such as effort.
   is answered. Nor does a proposed team.
 - They are answered in the Inbox or on the task's page, and every decision
   goes into Activity.
+- **Setup cards** (`setupcards`): kind `setup`. An agent that needs you to set
+  something up calls `request_setup {title, steps, why}` (with an optional
+  check hint), in team and dream agents, which holds the task like `ask_user`.
+  The Inbox and the task page show numbered steps with "Done, carry on" and
+  "Skip", and the answer resumes the agent.
 
 ### Routines
 
@@ -1472,6 +1612,13 @@ such as effort.
   Lifecycle). The daemon enables the unit when the first routine turns on and
   disables it when the last turns off. The Teams board says what keeps
   Rashin up and when the next run is.
+- **Scheduled runs** (`schedules`): a routine has a kind: task (as above),
+  dream (starts a dream from a preset and a statement) or ask (asks a question
+  in a new Ask session, with no team needed, and posts a notice); the dream and
+  ask kinds need no team and are kept under a reserved personal owner. Every run
+  writes a record (`teams/runs.jsonl`, the last 1,000) shown as Runs on the
+  routine page with its status, how long it took and a link to the task, dream
+  or session (`teams.routine_runs`).
 
 ### Budgets
 
@@ -1893,6 +2040,24 @@ across turns, a dream is a team's, and only the user ends it.
   team `new` or an id opens the same. The Teams list and board leave dreams
   out. The demo has "ESP32 Wi-Fi setup page" building with a question
   waiting and "Receipt renamer" presenting.
+- **Deep research** (`research`): the New dream dialog has a preset picker and
+  `rashin dreams start --preset research` does the same. The manager plans
+  its questions first, gathers from several independent sources, notes each
+  one, checks claims across them and presents a report with Summary,
+  Findings, Disagreements and Sources; the presentation page lists the sources
+  as links.
+
+### Disk care
+
+With `diskcare` on, Settings > Teams has a Disk block. `disk.usage` sizes team
+folders, dream folders, harness homes, session logs and checkpoints (a 5
+second budget for each, cached for 60 seconds) and the free and total space
+of the home filesystem, drawn as a stacked bar with one row per item. Clean
+shows on an item that can go safely (finished tasks older than the keep
+setting, ended sessions' logs, harness caches) and lists exactly what will be
+removed before it does (`disk.clean`, app only). A clean runs one plan once
+and refuses a file that changed since the list was made; projects and sign-ins
+stay. A line warns when free space is under 5 GB.
 
 ### Limits
 
@@ -1997,6 +2162,14 @@ no file is opened, no model is loaded, no timer is set.
   2,000 characters). With Reads you on, members also get the card. New teams
   take Settings > Teams, New teams start with; removing a team forgets
   everything it remembers.
+
+### About you
+
+With `profile` on, Settings > Memory has an About you block: the name to call
+you, what you do and how you like answers (trait chips: brief, detailed, plain
+words, technical, warm, direct, with examples, step by step, and a free line).
+It is saved as `memory.profile` and, while memory is on, rendered as the first
+lines of the memory card and Ask's memory section.
 
 ### Memory engines
 
@@ -2329,9 +2502,9 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
 - **Settings** is a full page whose sections stand in the sidebar's list, under
   a search (Ctrl F) that finds them by name and a few words each; with the
   sidebar folded or in a narrower window a picker tops the column instead:
-  Rashin (on and off, version, the log), Providers (each unfolds to its keys
-  and says what it answered this week), Local API (the switch, the address,
-  the key, the port),
+  Rashin (on and off, version, the log), Features (the 20 optional app features),
+  Providers (each unfolds to its keys and says what it answered this week),
+  Local API (the switch, the address, the key, the port),
   Ask (the model route, what a new ask may do, shell habits), Agents (the
   default harness, approvals, notices, the idle stop, the harnesses found with
   what each will run with, how to install the rest, your own harnesses), Teams
@@ -2339,6 +2512,15 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
   Keyboard (every shortcut). Its list runs to the pane's edge, so the wheel
   moves it from beside the column too.
   Project settings live with the project.
+- **Features**, after Rashin in the settings index, groups the optional tools
+  under Ask, Answers, Agents and Teams, and Memory and Index. Every row says
+  what it adds and has a switch; features with more settings link straight to
+  their block while on. The count says how many of 20 are on, with Turn all on
+  and Turn all off. All start off, and Settings > Rashin points here when none
+  are on. Theia on your desktop opens Ryoku Settings at Theia for the separate
+  desktop features. `rashin open --tab settings --view features` opens this
+  section in a running window or a new one; the demo route is
+  `settings/features`.
 - **Colours**: Rashin opens in the ryoku.dev stock (Ryoku: black, bone and the
   orange sun; Ryoku light on warm grey), whatever the wallpaper is. Wallpaper
   in Settings > Appearance takes the desktop's palette instead, and only then
@@ -2392,7 +2574,14 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
   --zoom N]` renders against an in-process demo daemon (`--mode` paints that
   run only, over the stored Colours); with `--script` and `--shots` it plays a
   motion story and returns its frames side by side. The stories live in
-  `internal/app/shell/testdata/motion`.
+  `internal/app/shell/testdata/motion`. Optional features stay off in the
+  default demo too; a startup route enables only what it shows. Ask fixtures
+  are `ask/ask-compare`, `ask/ask-artifacts` and
+  `ask/ask-searchsteps-live`. Settings routes `settings/ask`,
+  `settings/agents`, `settings/teams` and `settings/memory` show their optional
+  groups. Collections, research and scheduled Ask use
+  `index/collections/saved`, `dreams/dream-research` and
+  `routines/routine-personal-ask`.
 - **Driven like a person** (`internal/app/shell/stage_test.go`): the tests run
   the whole app against the demo daemon with a real input router and no
   window, find controls by the name a screen reader would say, and press and

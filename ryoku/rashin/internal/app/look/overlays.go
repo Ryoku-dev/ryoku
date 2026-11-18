@@ -224,7 +224,9 @@ func (overlays *Overlays) Layout(gtx layout.Context, th *Theme) {
 	overlays.Track(gtx)
 	top, hasTop := overlays.Top()
 	if hasTop {
+		focusArea := clip.Rect(image.Rectangle{Max: overlays.window}).Push(gtx.Ops)
 		event.Op(gtx.Ops, &overlays.focus)
+		focusArea.Pop()
 		var holder any = &overlays.focus
 		if entry := overlays.entry(top); entry != nil && entry.placement.Focus != nil {
 			holder = entry.placement.Focus
@@ -324,7 +326,13 @@ func (overlays *Overlays) layoutEntry(
 ) {
 	measure := gtx
 	measure.Constraints.Min = image.Point{}
-	measure.Constraints.Max = image.Pt(max(0, overlays.window.X-32), max(0, overlays.window.Y-32))
+	gap := gtx.Dp(entry.placement.Gap)
+	if gap == 0 {
+		gap = gtx.Dp(8)
+	}
+	margin := gtx.Dp(8)
+	below, above := overlayRoom(overlays.window, entry.anchor, gap, margin)
+	measure.Constraints.Max = image.Pt(max(0, overlays.window.X-2*margin), max(below, above))
 	framed := entry.tip || entry.placement.Frame
 	inset := layout.Inset{}
 	switch {
@@ -347,8 +355,8 @@ func (overlays *Overlays) layoutEntry(
 		overlays.window,
 		entry.anchor,
 		dimensions.Size,
-		gtx.Dp(entry.placement.Gap),
-		8,
+		gap,
+		margin,
 		entry.placement.Prefer,
 		entry.placement.Align,
 	)
@@ -375,7 +383,13 @@ func (overlays *Overlays) layoutEntry(
 		kit.FillCut(gtx.Ops, bounds, gtx.Dp(cut), th.R.Stone4)
 		kit.StrokeCut(gtx.Ops, bounds, gtx.Dp(cut), max(1, gtx.Dp(1)), th.R.Vein)
 	}
+	cut := gtx.Dp(th.Cut.Menu)
+	if entry.tip {
+		cut = gtx.Dp(th.Cut.Tooltip)
+	}
+	area := clip.Outline{Path: kit.Shape(gtx, th.Theme, bounds, cut, cut, cut, cut)}.Op().Push(gtx.Ops)
 	call.Add(gtx.Ops)
+	area.Pop()
 	opacity.Pop()
 	offset.Pop()
 }
@@ -393,22 +407,27 @@ func placeOverlay(
 		x = anchor.Max.X - content.X
 	}
 	x = min(max(x, margin), max(margin, window.X-margin-content.X))
-	below := anchor.Max.Y + gap
-	above := anchor.Min.Y - gap - content.Y
-	fitsBelow := below+content.Y <= window.Y-margin
-	fitsAbove := above >= margin
-	actual := prefer
-	if prefer == Below && !fitsBelow && fitsAbove {
+	below, above := overlayRoom(window, anchor, gap, margin)
+	content.Y = min(content.Y, max(below, above))
+	actual := Below
+	switch {
+	case prefer == Above && content.Y <= above:
 		actual = Above
-	} else if prefer == Above && !fitsAbove && fitsBelow {
-		actual = Below
+	case content.Y <= below:
+	case content.Y <= above || above > below:
+		actual = Above
 	}
-	y := below
+	y := max(anchor.Max.Y+gap, margin)
 	if actual == Above {
-		y = above
+		y = min(anchor.Min.Y-gap, window.Y-margin) - content.Y
 	}
-	y = min(max(y, margin), max(margin, window.Y-margin-content.Y))
 	return image.Pt(x, y), actual
+}
+
+func overlayRoom(window image.Point, anchor image.Rectangle, gap, margin int) (below, above int) {
+	below = max(0, window.Y-margin-max(anchor.Max.Y+gap, margin))
+	above = max(0, min(anchor.Min.Y-gap, window.Y-margin)-margin)
+	return
 }
 
 func place(

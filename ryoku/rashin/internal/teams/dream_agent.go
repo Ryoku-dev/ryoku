@@ -235,6 +235,7 @@ func (s *Service) agentPresent(ctx context.Context, p protocol.AgentPresentParam
 	}
 	presented := &protocol.DreamPresentation{
 		Title: s.redact(title), Body: s.redact(body), Tests: s.redact(strings.TrimSpace(p.Tests)), Files: teamFiles(team.Folder, p.Files), At: s.now(),
+		Sources: slices.Clone(p.Sources),
 	}
 	team, err = s.changeDream(team.ID, func(_ *protocol.Team, d *protocol.Dream) error {
 		if d.Phase == protocol.DreamPresenting {

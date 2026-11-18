@@ -9,10 +9,11 @@ import (
 	"ryoku-rashin/internal/core"
 	"ryoku-rashin/internal/llm"
 	"ryoku-rashin/internal/protocol"
+	"ryoku-rashin/internal/writing"
 )
 
 func (r *runner) glance(ctx context.Context, in core.PromptInput, sink core.Sink, model string) (core.TurnResult, error) {
-	p := protocol.GlanceParams{Mode: "ask"}
+	p := protocol.GlanceParams{Mode: "ask", Text: in.Text, Images: in.Images}
 	if in.Glance != nil {
 		p = *in.Glance
 		if p.Model != "" {
@@ -23,10 +24,21 @@ func (r *runner) glance(ctx context.Context, in core.PromptInput, sink core.Sink
 	if err != nil {
 		return core.TurnResult{Stop: protocol.StopError}, err
 	}
-	messages := []llm.Message{{Role: llm.RoleSystem, Content: protocol.GlanceInstruction(p)}}
+	var instruction string
+	if p.Options["voice"] == "on" {
+		instruction = protocol.GlanceInstructionWithVoice(p, writing.VoiceNotes())
+	} else {
+		instruction = protocol.GlanceInstruction(p)
+	}
+	messages := []llm.Message{{Role: llm.RoleSystem, Content: instruction}}
 	messages = append(messages, historyMessages(in.History, historyBudgetBytes)...)
 	messages = append(messages, asked)
-	stream, err := r.factory.client.Stream(ctx, llm.Request{Model: model, Strict: pinned(model), LocalOnly: p.Local, Messages: messages, MaxTokens: 4096})
+	maxTokens := 4096
+	switch p.Mode {
+	case "learn", "define", "reply", "aicheck":
+		maxTokens = 8192
+	}
+	stream, err := r.factory.client.Stream(ctx, llm.Request{Model: model, Strict: pinned(model), LocalOnly: p.Local, Messages: messages, MaxTokens: maxTokens})
 	if err != nil {
 		return core.TurnResult{Stop: protocol.StopError}, modelError(err)
 	}

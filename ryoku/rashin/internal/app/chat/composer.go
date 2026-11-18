@@ -1,10 +1,18 @@
 package chat
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"image"
+	"io"
+	"sort"
 	"strings"
 
+	"gioui.org/io/clipboard"
+	"gioui.org/io/event"
 	"gioui.org/io/key"
+	"gioui.org/io/pointer"
+	"gioui.org/io/transfer"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -15,10 +23,12 @@ import (
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/symbols"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme"
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/look"
+	"ryoku-rashin/internal/prompts"
 	"ryoku-rashin/internal/protocol"
 )
 
@@ -51,6 +61,7 @@ type composerState struct {
 	recall recallState
 	slash  slashState
 
+	ask       *askComposerState
 	submitted *Submission
 	actions   []Action
 	stopReady bool
@@ -100,7 +111,9 @@ func (state *composerState) layout(gtx layout.Context, th *theme.Theme, options 
 	state.processRecall(gtx, options)
 	state.processAnswer(gtx, options)
 	state.processPaste(gtx, options)
+	state.processDraftUndo(gtx, options)
 	state.processEditorEvents(gtx, options)
+	state.cancelChangedWriting()
 	state.processAttach(gtx, options)
 	state.processControls(gtx, options)
 
@@ -134,6 +147,11 @@ func (state *composerState) layoutField(gtx layout.Context, th *theme.Theme, opt
 	if state.attachOpen && options.CanAttach {
 		y += gap + state.at(gtx, side, y+gap, inner, func(gtx layout.Context) layout.Dimensions {
 			return state.layoutAttachField(gtx, th)
+		})
+	}
+	if state.askToolsVisible() {
+		y += gap + state.at(gtx, side, y+gap, inner, func(gtx layout.Context) layout.Dimensions {
+			return state.layoutAskTools(gtx, th)
 		})
 	}
 	row := gtx.Dp(controlRow)
@@ -181,10 +199,29 @@ func (state *composerState) layoutEditor(gtx layout.Context, th *theme.Theme, pl
 func (state *composerState) layoutControls(gtx layout.Context, th *theme.Theme, options ComposerOptions) layout.Dimensions {
 	children := make([]layout.FlexChild, 0, len(options.Controls)+8)
 	if options.CanAttach {
-		state.attach.Icon, state.attach.Description = look.Icon.Attach, i18n.T("Attach a file")
-		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return state.attach.Layout(gtx, &state.look, th.R.Fg2)
-		}))
+		if a := state.ask; a != nil && a.feature("analyze") {
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				a.attach.Form, a.attach.Label, a.attach.Icon = look.SelectQuiet, i18n.T("Attach"), look.Icon.Attach
+				a.attach.Return = &state.editor
+				if a.attachChoices == nil {
+					a.attachChoices = []look.SelectOption{{Label: i18n.T("Attach"), Disabled: true}, {Label: i18n.T("Attach a file")}, {Label: i18n.T("Analyze a file…")}}
+				}
+				dims := a.attach.LayoutOptions(gtx, &state.look, a.hooks.Overlays, a.attachChoices, 0)
+				if index, changed := a.attach.Changed(); changed {
+					if index == 2 && a.hooks.Analyze != nil {
+						a.hooks.Analyze()
+					} else if index == 1 && options.Attach != nil {
+						options.Attach()
+					}
+				}
+				return dims
+			}))
+		} else {
+			state.attach.Icon, state.attach.Description = look.Icon.Attach, i18n.T("Attach a file")
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return state.attach.Layout(gtx, &state.look, th.R.Fg2)
+			}))
+		}
 	}
 	if len(options.Controls) > 0 {
 		// Send and the queue plaques are laid out after these, so their room is held back here
@@ -471,6 +508,9 @@ func (state *composerState) processControls(gtx layout.Context, options Composer
 }
 
 func (state *composerState) setText(text string) {
+	if a := state.ask; a != nil && a.request != "" && text != a.requestDraft {
+		state.cancelWriting()
+	}
 	state.editor.SetText(text)
 	end := state.editor.Len()
 	state.editor.SetCaret(end, end)
@@ -492,6 +532,7 @@ func (state *composerState) quote(text string) {
 
 func (state *composerState) setDraft(draft Draft) {
 	state.setText(draft.Text)
+	state.undoDraftReset()
 	state.images = append(state.images[:0], draft.Attachments...)
 	clear(state.remove)
 	state.attachOpen = false
@@ -526,4 +567,612 @@ func (state *composerState) takeStop() bool {
 	ready := state.stopReady
 	state.stopReady = false
 	return ready
+}
+
+type AskToolsOptions struct {
+	Feature  func(string) bool
+	Call     func(string, any, any, func(error))
+	Notify   func(string)
+	Language string
+	Overlays *look.Overlays
+	Analyze  func()
+}
+
+type promptVariable struct {
+	name     string
+	field    kit.TextField
+	resolved bool
+}
+
+type askComposerState struct {
+	hooks                                 AskToolsOptions
+	library, attach                       look.Select
+	writing                               kit.Plaque
+	writingMenu                           kit.Menu
+	writingMenuSize                       image.Point
+	writingChoices                        []kit.MenuItem
+	improve                               kit.IconPlaque
+	insert, cancel                        kit.Plaque
+	prompts                               []protocol.Prompt
+	commands                              []protocol.Command
+	promptChoices, attachChoices          []look.SelectOption
+	loaded, loading, busy, voiceRead      bool
+	voice, libraryOpen, slashTyping       bool
+	variableFocus                         bool
+	picked                                *protocol.Prompt
+	variables                             []promptVariable
+	variableList                          layout.List
+	vars                                  map[string]string
+	lastDraft                             string
+	undoBefore, undoAfter                 string
+	undoReady                             bool
+	clipboard                             struct{}
+	clipboardPending                      bool
+	epoch                                 uint64
+	request, requestFeature, requestDraft string
+	writingResult                         *protocol.WritingCheckResult
+	writingDraft                          string
+	issueActions                          []draftIssueActions
+	issueList                             look.Scroller
+	applyWriting, dismissWriting          kit.Plaque
+}
+
+var improvePromptIcon = kit.Icon(symbols.AutoFixHigh)
+var writingPromptIcon = kit.Icon(symbols.EditNote)
+
+func (a *askComposerState) feature(id string) bool {
+	return a.hooks.Feature != nil && a.hooks.Feature(id)
+}
+
+func (a *askComposerState) active() bool {
+	return a.feature("prompts") || a.feature("enhance") || a.feature("askwriting") || a.feature("analyze")
+}
+
+func (state *composerState) askToolsVisible() bool {
+	a := state.ask
+	return a != nil && (a.feature("prompts") ||
+		strings.TrimSpace(state.editor.Text()) != "" && (a.feature("enhance") || a.feature("askwriting")))
+}
+
+func (c *Composer) AskTools(options *ComposerOptions, hooks AskToolsOptions) {
+	state := c.ensureState()
+	if hooks.Feature == nil {
+		return
+	}
+	on := hooks.Feature("prompts") || hooks.Feature("enhance") || hooks.Feature("askwriting") || hooks.Feature("analyze")
+	if !on && state.ask == nil {
+		return
+	}
+	if state.ask == nil {
+		state.ask = &askComposerState{}
+	}
+	a := state.ask
+	a.hooks = hooks
+	if a.request != "" && !a.feature(a.requestFeature) {
+		state.cancelWriting()
+	}
+	if !a.feature("prompts") {
+		a.library.Close(hooks.Overlays)
+		a.picked, a.variables, a.clipboardPending = nil, nil, false
+		a.loaded, a.slashTyping = false, false
+	}
+	if !a.feature("askwriting") {
+		a.closeWritingMenu()
+		a.writingResult = nil
+		a.voiceRead = false
+	}
+	if !a.feature("analyze") {
+		a.attach.Close(hooks.Overlays)
+	}
+	if !on {
+		a.picked, a.variables, a.clipboardPending = nil, nil, false
+		a.loaded, a.voiceRead = false, false
+		a.epoch++
+		return
+	}
+	_, typing := state.promptQuery()
+	if !typing {
+		a.lastDraft = state.editor.Text()
+	}
+	if typing && !a.slashTyping {
+		a.loaded = false
+	}
+	a.slashTyping = typing
+	if a.feature("askwriting") && strings.TrimSpace(state.editor.Text()) != "" && !a.voiceRead {
+		a.voiceRead = true
+		voice := new(protocol.WritingVoice)
+		hooks.Call(protocol.MWritingVoiceGet, protocol.WritingVoiceGetParams{}, voice, func(err error) {
+			if err == nil {
+				a.voice = strings.TrimSpace(voice.Notes) != ""
+			}
+		})
+	}
+	if a.feature("prompts") {
+		options.Commands = func() []protocol.Command { return a.commands }
+		if a.promptChoices == nil {
+			a.promptChoices = []look.SelectOption{{Label: i18n.T("Prompt library"), Disabled: true}}
+		}
+		if !a.loaded && !a.loading {
+			a.loading = true
+			result := new(protocol.PromptsListResult)
+			hooks.Call(protocol.MPromptsList, protocol.PromptsListParams{}, result, func(err error) {
+				a.loading = false
+				if err != nil {
+					a.loaded = true
+					hooks.Notify(err.Error())
+					return
+				}
+				a.prompts = result.Prompts
+				a.commands = make([]protocol.Command, len(a.prompts))
+				a.promptChoices = make([]look.SelectOption, len(a.prompts)+1)
+				a.promptChoices[0] = look.SelectOption{Label: i18n.T("Prompt library"), Disabled: true}
+				for index, item := range a.prompts {
+					a.commands[index] = protocol.Command{Name: item.ID, Description: promptFirstLine(item.Text), Hint: item.Kind}
+					a.promptChoices[index+1] = look.SelectOption{Label: item.Name, Detail: promptFirstLine(item.Text)}
+				}
+				a.loaded = true
+			})
+		}
+	}
+}
+
+func promptFirstLine(text string) string {
+	line, _, _ := strings.Cut(text, "\n")
+	return line
+}
+
+func (state *composerState) promptQuery() (string, bool) {
+	text := state.editor.Text()
+	if index := strings.LastIndexByte(text, '\n'); index >= 0 {
+		text = text[index+1:]
+	}
+	return slashQuery(text)
+}
+
+func (state *composerState) layoutAskTools(gtx layout.Context, th *theme.Theme) layout.Dimensions {
+	a := state.ask
+	if a.feature("prompts") {
+		state.processPromptClipboard(gtx)
+	}
+	var tools []layout.Widget
+	if a.feature("prompts") {
+		tools = append(tools, func(gtx layout.Context) layout.Dimensions {
+			a.library.Form, a.library.Label, a.library.Icon = look.SelectQuiet, i18n.T("Prompt library"), look.Icon.Skills
+			a.library.Return, a.library.Searched = &state.editor, true
+			dims := a.library.LayoutOptions(gtx, &state.look, a.hooks.Overlays, a.promptChoices, 0)
+			open := a.library.Opened(a.hooks.Overlays)
+			if !open && a.libraryOpen && !a.loading {
+				a.loaded = false
+			}
+			a.libraryOpen = open
+			if index, changed := a.library.Changed(); changed && index > 0 && index <= len(a.prompts) {
+				state.choosePrompt(gtx, a.prompts[index-1])
+			}
+			return dims
+		})
+	}
+	if a.feature("enhance") && strings.TrimSpace(state.editor.Text()) != "" {
+		tools = append(tools, func(gtx layout.Context) layout.Dimensions {
+			a.improve.Kind, a.improve.Small = kit.PlaqueQuiet, true
+			a.improve.Icon, a.improve.Description = improvePromptIcon, i18n.T("Improve my prompt")
+			a.improve.Busy = a.busy
+			if a.improve.Clicked(gtx) {
+				state.transformDraft("enhance", nil, i18n.T("Improved, Ctrl+Z to undo"))
+			}
+			return a.improve.Layout(gtx, th)
+		})
+	}
+	if a.feature("askwriting") && strings.TrimSpace(state.editor.Text()) != "" {
+		tools = append(tools, func(gtx layout.Context) layout.Dimensions {
+			return state.layoutWritingMenu(gtx, th)
+		})
+	}
+	if a.writingResult != nil && a.writingDraft != state.editor.Text() {
+		a.writingResult = nil
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return look.Flow{Gap: 8, LineGap: 8}.Layout(gtx, len(tools), func(gtx layout.Context, index int) layout.Dimensions {
+				return tools[index](gtx)
+			})
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return state.layoutWritingIssues(gtx, th)
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if a.picked == nil || !a.feature("prompts") {
+				return layout.Dimensions{}
+			}
+			return state.layoutPromptVariables(gtx, th)
+		}),
+	)
+}
+
+func (state *composerState) choosePrompt(gtx layout.Context, item protocol.Prompt) {
+	a := state.ask
+	if a.busy {
+		return
+	}
+	a.epoch++
+	a.picked = &item
+	a.variables = nil
+	content := a.lastDraft
+	if _, typing := state.promptQuery(); typing {
+		if index := strings.LastIndexByte(state.editor.Text(), '\n'); index >= 0 {
+			content = strings.TrimRight(state.editor.Text()[:index], "\n")
+		}
+	}
+	a.vars = map[string]string{"lang": a.hooks.Language, "content": content, "selection": content}
+	a.clipboardPending = false
+	for _, name := range prompts.Variables(item.Text) {
+		if name == "date" || name == "lang" {
+			continue
+		}
+		if (name == "content" || name == "selection") && content != "" {
+			continue
+		}
+		field := promptVariable{name: name}
+		field.field.Label = i18n.Tf("Fill %s", name)
+		field.field.Editor.SingleLine = name != "content" && name != "selection"
+		a.variables = append(a.variables, field)
+		if name == "content" || name == "selection" {
+			a.clipboardPending = true
+		}
+	}
+	a.variableFocus = len(a.variables) > 0
+	if a.clipboardPending {
+		a.clipboardTarget(gtx)
+		gtx.Execute(clipboard.ReadCmd{Tag: &a.clipboard})
+	}
+	state.slash.open = false
+	state.slash.dismissed = state.editor.Text()
+	if len(a.variables) == 0 {
+		state.expandPrompt()
+	}
+}
+
+func (state *composerState) processPromptClipboard(gtx layout.Context) {
+	a := state.ask
+	a.clipboardTarget(gtx)
+	for {
+		raw, ok := gtx.Event(transfer.TargetFilter{Target: &a.clipboard, Type: "text/plain"})
+		if !ok {
+			break
+		}
+		data, ok := raw.(transfer.DataEvent)
+		if !ok {
+			continue
+		}
+		reader := data.Open()
+		text, err := io.ReadAll(io.LimitReader(reader, 64<<10))
+		reader.Close()
+		if err == nil && len(text) > 0 && a.clipboardPending && a.picked != nil {
+			unfilled := 0
+			for index := range a.variables {
+				field := &a.variables[index]
+				if field.name == "content" || field.name == "selection" {
+					value := field.field.Text()
+					if value == "" {
+						value = string(text)
+					}
+					a.vars[field.name], field.resolved = value, true
+				} else {
+					unfilled++
+				}
+			}
+			a.variableFocus = unfilled > 0
+			if unfilled == 0 {
+				state.expandPrompt()
+			}
+		}
+		a.clipboardPending = false
+	}
+}
+
+func (state *composerState) layoutPromptVariables(gtx layout.Context, th *theme.Theme) layout.Dimensions {
+	a := state.ask
+	if a.variableFocus {
+		for index := range a.variables {
+			if !a.variables[index].resolved {
+				gtx.Execute(key.FocusCmd{Tag: &a.variables[index].field.Editor})
+				break
+			}
+		}
+		a.variableFocus = false
+	}
+	children := []layout.FlexChild{
+		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+		layout.Rigid(kit.Text(th, th.T.Detail, th.R.Fg2, i18n.Tf("Fill in %s", a.picked.Name))),
+	}
+	children = append(children,
+		layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			a.variableList.Axis = layout.Vertical
+			gtx.Constraints.Max.Y = min(gtx.Constraints.Max.Y, gtx.Dp(240))
+			return a.variableList.Layout(gtx, 1, func(gtx layout.Context, _ int) layout.Dimensions {
+				return look.Flow{Gap: 8, LineGap: 8}.Layout(gtx, len(a.variables), func(gtx layout.Context, index int) layout.Dimensions {
+					field := &a.variables[index]
+					if field.resolved {
+						return layout.Dimensions{}
+					}
+					width := gtx.Constraints.Max.X
+					if field.name != "content" && field.name != "selection" {
+						width = min(width, gtx.Dp(220))
+					}
+					gtx.Constraints.Min.X, gtx.Constraints.Max.X = width, width
+					gtx.Constraints.Max.Y = min(gtx.Constraints.Max.Y, gtx.Dp(110))
+					return field.field.Layout(gtx, th)
+				})
+			})
+		}),
+	)
+	a.insert.Kind, a.insert.Small, a.insert.Label, a.insert.Busy = kit.PlaqueTonal, true, i18n.T("Use prompt"), a.busy
+	a.cancel.Kind, a.cancel.Small, a.cancel.Label = kit.PlaqueQuiet, true, i18n.T("Cancel")
+	if a.insert.Clicked(gtx) {
+		for index := range a.variables {
+			variable := &a.variables[index]
+			if !variable.resolved {
+				a.vars[variable.name] = variable.field.Text()
+			}
+		}
+		state.expandPrompt()
+	}
+	if a.cancel.Clicked(gtx) {
+		a.picked, a.variables, a.clipboardPending = nil, nil, false
+		a.epoch++
+		state.wantFocus = true
+	}
+	children = append(children,
+		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions { return a.insert.Layout(gtx, th) }),
+				layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions { return a.cancel.Layout(gtx, th) }),
+			)
+		}),
+	)
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+}
+
+func (state *composerState) expandPrompt() {
+	a := state.ask
+	if a.busy || a.picked == nil || !a.feature("prompts") {
+		return
+	}
+	before, epoch := state.editor.Text(), a.epoch
+	result := new(protocol.PromptExpandResult)
+	a.busy = true
+	a.hooks.Call(protocol.MPromptsExpand, protocol.PromptExpandParams{ID: a.picked.ID, Vars: a.vars}, result, func(err error) {
+		a.busy = false
+		if err != nil {
+			a.hooks.Notify(err.Error())
+			return
+		}
+		if epoch != a.epoch || !a.feature("prompts") || state.editor.Text() != before {
+			a.hooks.Notify(i18n.T("Your draft changed, choose the prompt again"))
+			return
+		}
+		state.replaceDraft(result.Text, i18n.T("Prompt inserted, Ctrl+Z to undo"))
+		a.picked, a.variables, a.clipboardPending = nil, nil, false
+	})
+}
+
+func (state *composerState) transformDraft(action string, options map[string]string, notice string) {
+	a := state.ask
+	feature := "askwriting"
+	if action == "enhance" {
+		feature = "enhance"
+	}
+	if a.busy || !a.feature(feature) {
+		return
+	}
+	before, epoch := state.editor.Text(), a.epoch
+	if strings.TrimSpace(before) == "" {
+		return
+	}
+	result := new(protocol.WritingTransformResult)
+	request := state.beginWriting(feature, before)
+	if request == "" {
+		return
+	}
+	a.hooks.Call(protocol.MWritingTransform, protocol.WritingTransformParams{Request: request, Text: before, Action: action, Options: options, Language: a.hooks.Language}, result, func(err error) {
+		if !state.finishWriting(request, err) {
+			return
+		}
+		if epoch != a.epoch || !a.feature(feature) || state.editor.Text() != before {
+			a.hooks.Notify(i18n.T("Your draft changed, try the writing tool again"))
+			return
+		}
+		state.replaceDraft(result.Text, notice)
+	})
+}
+
+func (state *composerState) checkDraft() {
+	a := state.ask
+	if a.busy || !a.feature("askwriting") {
+		return
+	}
+	before, epoch := state.editor.Text(), a.epoch
+	if strings.TrimSpace(before) == "" {
+		return
+	}
+	result := new(protocol.WritingCheckResult)
+	request := state.beginWriting("askwriting", before)
+	if request == "" {
+		return
+	}
+	a.hooks.Call(protocol.MWritingCheck, protocol.WritingCheckParams{Request: request, Text: before, Kinds: []string{"grammar"}, Language: a.hooks.Language}, result, func(err error) {
+		if !state.finishWriting(request, err) {
+			return
+		}
+		if epoch != a.epoch || !a.feature("askwriting") || state.editor.Text() != before {
+			a.hooks.Notify(i18n.T("Your draft changed, check the writing again"))
+			return
+		}
+		a.reviewWriting(before, result)
+	})
+}
+
+func applyDraftFixes(text string, issues []protocol.WritingIssue) string {
+	if len(issues) == 0 {
+		return text
+	}
+	offsets := make([]int, 0, len(text)+1)
+	for at, r := range text {
+		offsets = append(offsets, at)
+		if r > 0xffff {
+			offsets = append(offsets, -1)
+		}
+	}
+	offsets = append(offsets, len(text))
+	sort.SliceStable(issues, func(i, j int) bool { return issues[i].Start < issues[j].Start })
+	var out strings.Builder
+	out.Grow(len(text))
+	cursor := 0
+	for _, issue := range issues {
+		if len(issue.Replacements) == 0 || issue.Start < 0 || issue.End < issue.Start || issue.End >= len(offsets) {
+			continue
+		}
+		start, end := offsets[issue.Start], offsets[issue.End]
+		if start < cursor || end < 0 {
+			continue
+		}
+		out.WriteString(text[cursor:start])
+		out.WriteString(issue.Replacements[0])
+		cursor = end
+	}
+	out.WriteString(text[cursor:])
+	return out.String()
+}
+
+func (state *composerState) replaceDraft(text, notice string) {
+	a := state.ask
+	if text == state.editor.Text() {
+		a.hooks.Notify(i18n.T("No changes needed"))
+		return
+	}
+	a.undoBefore, a.undoAfter = state.editor.Text(), text
+	a.undoReady = true
+	state.setText(text)
+	state.wantFocus = true
+	a.hooks.Notify(notice)
+}
+
+func (state *composerState) undoDraftReset() {
+	state.cancelWriting()
+	if a := state.ask; a != nil {
+		a.undoBefore, a.undoAfter = "", ""
+		a.undoReady = false
+		a.picked, a.variables, a.clipboardPending = nil, nil, false
+		a.lastDraft = state.editor.Text()
+		a.epoch++
+	}
+}
+
+func (state *composerState) processDraftUndo(gtx layout.Context, options ComposerOptions) {
+	a := state.ask
+	if a == nil || !a.active() || options.Disabled || !a.undoReady || state.editor.Text() != a.undoAfter {
+		return
+	}
+	for {
+		raw, ok := gtx.Event(key.Filter{Focus: &state.editor, Name: "Z", Required: key.ModShortcut})
+		if !ok {
+			return
+		}
+		if pressed, ok := raw.(key.Event); ok && pressed.State == key.Press {
+			state.setText(a.undoBefore)
+			a.undoBefore, a.undoAfter = "", ""
+			a.undoReady = false
+			a.hooks.Notify(i18n.T("Draft restored"))
+		}
+	}
+}
+
+func (c *Composer) ReplaceDraft(text, notice string) {
+	state := c.ensureState()
+	if state.ask != nil && state.ask.active() {
+		state.replaceDraft(text, notice)
+	} else {
+		state.setText(text)
+	}
+}
+
+func (c *Composer) RefreshAskTools() {
+	if a := c.ensureState().ask; a != nil {
+		a.loaded, a.voiceRead = false, false
+	}
+}
+
+func (state *composerState) beginWriting(feature, draft string) string {
+	a := state.ask
+	var id [16]byte
+	if _, err := rand.Read(id[:]); err != nil {
+		a.hooks.Notify(err.Error())
+		return ""
+	}
+	request := "composer-" + hex.EncodeToString(id[:])
+	a.request, a.requestFeature, a.requestDraft = request, feature, draft
+	a.busy = true
+	return request
+}
+
+func (state *composerState) finishWriting(request string, err error) bool {
+	a := state.ask
+	if a == nil || a.request != request {
+		return false
+	}
+	if err != nil {
+		state.cancelWriting()
+		a.hooks.Notify(err.Error())
+		return false
+	}
+	a.request, a.requestFeature, a.requestDraft = "", "", ""
+	a.busy = false
+	return true
+}
+
+func (state *composerState) cancelChangedWriting() {
+	if a := state.ask; a != nil && a.request != "" && state.editor.Text() != a.requestDraft {
+		state.cancelWriting()
+	}
+}
+
+func (state *composerState) cancelWriting() {
+	a := state.ask
+	if a == nil || a.request == "" {
+		return
+	}
+	request := a.request
+	a.request, a.requestFeature, a.requestDraft = "", "", ""
+	a.busy = false
+	a.epoch++
+	a.hooks.Call(protocol.MWritingCancel, protocol.WritingCancelParams{Request: request}, new(protocol.Empty), nil)
+}
+
+func (c *Composer) WritingRequest() string {
+	if c.state != nil && c.state.ask != nil {
+		return c.state.ask.request
+	}
+	return ""
+}
+
+func (c *Composer) CancelAskTools() {
+	if c.state == nil || c.state.ask == nil {
+		return
+	}
+	state, a := c.state, c.state.ask
+	state.cancelWriting()
+	a.epoch++
+	a.picked, a.variables, a.clipboardPending = nil, nil, false
+	a.library.Close(a.hooks.Overlays)
+	a.closeWritingMenu()
+	a.attach.Close(a.hooks.Overlays)
+	state.slash.open = false
+}
+
+func (a *askComposerState) clipboardTarget(gtx layout.Context) {
+	pass := pointer.PassOp{}.Push(gtx.Ops)
+	event.Op(gtx.Ops, &a.clipboard)
+	pass.Pop()
 }

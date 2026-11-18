@@ -1,7 +1,11 @@
 package chat
 
 import (
+	"bytes"
 	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"strings"
 
 	"gioui.org/io/event"
@@ -9,16 +13,20 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
+	"gioui.org/op/paint"
+	"gioui.org/widget"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/look"
+	"ryoku-rashin/internal/attachment"
 	"ryoku-rashin/internal/protocol"
 )
 
 type messageTarget struct {
-	armed bool
+	armed   bool
+	picture *questionPicture
 }
 
 func (state *viewState) layoutQuestion(gtx layout.Context, th *look.Theme, user protocol.UserData, key string) layout.Dimensions {
@@ -43,6 +51,13 @@ func (state *viewState) layoutQuestion(gtx layout.Context, th *look.Theme, user 
 					layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
 					layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, note)),
 				)
+			}
+			if state.feature("quote") {
+				for _, attached := range user.Images {
+					children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return state.layoutQuestionPicture(gtx, th, attached.Path)
+					}))
+				}
 			}
 			if user.Handoff != nil {
 				children = append(children,
@@ -78,6 +93,50 @@ func questionNotes(user protocol.UserData) []string {
 		notes = append(notes, attachmentName(attachment.Path))
 	}
 	return notes
+}
+
+type questionPicture struct {
+	image widget.Image
+	ok    bool
+}
+
+func (state *viewState) layoutQuestionPicture(gtx layout.Context, th *look.Theme, path string) layout.Dimensions {
+	key := "picture:" + path
+	target := state.messages[key]
+	if target == nil {
+		target = &messageTarget{picture: new(questionPicture)}
+		state.messages[key] = target
+		data, ok, err := attachment.ReadImage(path)
+		if ok && err == nil {
+			config, _, err := image.DecodeConfig(bytes.NewReader(data.Data))
+			if err == nil && config.Width > 0 && config.Height > 0 && int64(config.Width)*int64(config.Height) <= 32<<20 {
+				picture, _, err := image.Decode(bytes.NewReader(data.Data))
+				if err == nil {
+					target.picture.image = widget.Image{Src: paint.NewImageOp(picture), Fit: widget.Contain}
+					target.picture.ok = true
+				}
+			}
+		}
+	}
+	if target.picture == nil || !target.picture.ok {
+		return layout.Dimensions{}
+	}
+	return layout.Inset{Top: th.Sp.S2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical, Alignment: layout.End}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				gtx.Constraints.Min = image.Point{}
+				gtx.Constraints.Max.Y = min(gtx.Constraints.Max.Y, gtx.Dp(240))
+				return target.picture.image.Layout(gtx)
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return state.answerPlaque(gtx, th, key+":quote", i18n.T("Ask about this again"), func() {
+					if quote := state.answerSettings().Quote; quote != nil {
+						quote(path)
+					}
+				})
+			}),
+		)
+	})
 }
 
 func (state *viewState) layoutHandoff(gtx layout.Context, th *look.Theme, handoff *protocol.Handoff, key string) layout.Dimensions {

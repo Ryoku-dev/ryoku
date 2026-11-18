@@ -85,6 +85,8 @@ type Env struct {
 
 func (e *Env) Snapshot() state.Snapshot { return e.Store.Snapshot() }
 
+func (e *Env) Feature(id string) bool { return e.Store.Feature(id) }
+
 func (e *Env) Call(method string, params, result any, done func(error)) {
 	e.Client.GoCall(method, params, result, func(err error) {
 		if e.Post != nil {

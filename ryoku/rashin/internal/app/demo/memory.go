@@ -351,7 +351,7 @@ func (s *server) tellMemory(change *protocol.MemoryChange) {
 // a settings patch that moved memory is heard as memory.changed too, after the method's own events
 func (s *server) takeMemoryEvents() []protocol.Event {
 	m := s.memory()
-	if m.settings != s.data.snapshot.Settings.Memory {
+	if !reflect.DeepEqual(m.settings, s.data.snapshot.Settings.Memory) {
 		m.settings = s.data.snapshot.Settings.Memory
 		s.tellMemory(nil)
 	}

@@ -657,8 +657,16 @@ func (s *server) listRoutines(team string) protocol.RoutinesResult {
 func (s *server) checkRoutine(routine protocol.Routine) error {
 	t := &s.data.teams
 	team := t.teamIndex(routine.Team)
-	if team < 0 {
+	if team < 0 && !(routine.Team == protocol.RoutinePersonal && routine.Kind != "" && routine.Kind != protocol.RoutineTask && s.data.snapshot.Settings.Features["schedules"]) {
 		return notFound("team")
+	}
+	if routine.Kind != "" && routine.Kind != protocol.RoutineTask {
+		if !s.data.snapshot.Settings.Features["schedules"] || (routine.Kind != protocol.RoutineAsk && routine.Kind != protocol.RoutineDream) {
+			return badRequest(i18n.T("Choose an enabled routine kind."))
+		}
+	}
+	if routine.Preset != "" && (routine.Kind != protocol.RoutineDream || routine.Preset != "research" || !s.data.snapshot.Settings.Features["research"]) {
+		return badRequest(i18n.T("Choose an enabled dream preset."))
 	}
 	if strings.TrimSpace(routine.Title) == "" {
 		return badRequest(i18n.T("A routine needs a title."))
@@ -667,6 +675,9 @@ func (s *server) checkRoutine(routine protocol.Routine) error {
 		return badRequest(i18n.T("Say what the routine should do."))
 	}
 	if routine.Member != "" {
+		if team < 0 {
+			return badRequest(i18n.T("A personal routine has no team member."))
+		}
 		if _, ok := teamMember(t.teams[team], routine.Member); !ok {
 			return badRequest(i18n.T("That member is not on the team."))
 		}
@@ -698,6 +709,13 @@ func (s *server) createRoutine(p protocol.RoutineCreateParams) (protocol.Routine
 	routine := protocol.Routine{
 		ID: t.newID("routine"), Team: p.Team, Title: strings.TrimSpace(p.Title), Brief: strings.TrimSpace(p.Brief), Member: p.Member,
 		Schedule: strings.TrimSpace(p.Schedule), Enabled: p.Enabled, Missed: p.Missed, Overlap: p.Overlap, Created: now, Updated: now,
+		Kind: p.Kind, Preset: p.Preset,
+	}
+	if routine.Team == "" && (routine.Kind == protocol.RoutineAsk || routine.Kind == protocol.RoutineDream) {
+		routine.Team = protocol.RoutinePersonal
+	}
+	if routine.Kind == protocol.RoutineAsk || routine.Kind == protocol.RoutineDream {
+		routine.Member = ""
 	}
 	if routine.Missed != protocol.MissedOnce {
 		routine.Missed = protocol.MissedSkip
@@ -734,6 +752,9 @@ func (s *server) updateRoutine(p protocol.RoutineUpdateParams) (protocol.Routine
 	routine.ID, routine.Team, routine.Created, routine.Failures = before.ID, before.Team, before.Created, before.Failures
 	routine.LastRun, routine.LastTask, routine.LastStatus, routine.NextRun, routine.Sentence = before.LastRun, before.LastTask, before.LastStatus, nil, ""
 	routine.Title, routine.Brief, routine.Schedule = strings.TrimSpace(routine.Title), strings.TrimSpace(routine.Brief), strings.TrimSpace(routine.Schedule)
+	if routine.Kind == protocol.RoutineAsk || routine.Kind == protocol.RoutineDream {
+		routine.Member = ""
+	}
 	if routine.Enabled && !before.Enabled {
 		routine.Failures = 0
 	}
@@ -776,6 +797,9 @@ func (s *server) runRoutine(id string) (protocol.TeamTask, error) {
 		return protocol.TeamTask{}, notFound("routine")
 	}
 	routine := t.routines[index]
+	if routine.Kind == protocol.RoutineAsk || routine.Kind == protocol.RoutineDream {
+		return s.runScheduledDemo(routine)
+	}
 	teamIndex := t.teamIndex(routine.Team)
 	if teamIndex < 0 {
 		return protocol.TeamTask{}, notFound("team")

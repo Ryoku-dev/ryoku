@@ -72,6 +72,22 @@ func (s *server) tellSessions(out *outbox, method string, raw json.RawMessage) {
 			}
 		}
 	}
+	if method == protocol.MSessionSetFlags {
+		var params protocol.SessionFlagsParams
+		if decode(raw, &params) == nil {
+			s.mu.Lock()
+			info, ok := s.session(params.ID)
+			s.mu.Unlock()
+			if ok {
+				events = append(events,
+					protocol.Event{Event: protocol.EvtSessionInfo, Data: marshal(info)},
+					protocol.Event{Event: protocol.EvtSessionsChanged, Data: marshal(protocol.SessionsChanged{})})
+			}
+		}
+	}
+	if method == protocol.MCompareStart || method == protocol.MCompareKeep {
+		events = append(events, protocol.Event{Event: protocol.EvtSessionsChanged, Data: marshal(protocol.SessionsChanged{})})
+	}
 	for _, event := range events {
 		if out.send(event) != nil {
 			return

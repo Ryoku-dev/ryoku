@@ -17,6 +17,14 @@ func live(snapshot state.Snapshot, routine protocol.Routine) bool {
 	if !routine.Enabled {
 		return false
 	}
+	if kindOf(routine) != protocol.RoutineTask {
+		if !snapshot.Settings.Features["schedules"] || (routine.Preset == "research" && !snapshot.Settings.Features["research"]) {
+			return false
+		}
+		if routine.Team == protocol.RoutinePersonal {
+			return true
+		}
+	}
 	team, ok := teamsui.TeamByID(snapshot.Teams, routine.Team)
 	return ok && !team.Paused
 }
@@ -70,4 +78,15 @@ func routineByID(snapshot state.Snapshot, id string) (protocol.Routine, bool) {
 		}
 	}
 	return protocol.Routine{}, false
+}
+
+func kindOf(routine protocol.Routine) string {
+	if routine.Kind == "" {
+		return protocol.RoutineTask
+	}
+	return routine.Kind
+}
+
+func visible(snapshot state.Snapshot, routine protocol.Routine) bool {
+	return kindOf(routine) == protocol.RoutineTask || snapshot.Settings.Features["schedules"]
 }

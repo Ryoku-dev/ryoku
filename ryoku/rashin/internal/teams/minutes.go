@@ -40,9 +40,7 @@ func (s *Service) armMinutesLocked(taskID string) {
 	}
 	left := s.minutesEnd(t, team.Budget.TaskMinutes).Sub(s.now())
 	r.timer = time.AfterFunc(max(left, 0), func() {
-		if s.background.Err() == nil {
-			s.overrun(taskID)
-		}
+		s.startWorker(func() { s.overrun(taskID) })
 	})
 }
 

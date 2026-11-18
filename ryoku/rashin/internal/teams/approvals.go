@@ -307,9 +307,7 @@ func (s *Service) armExpiry() {
 		next = sweep
 	}
 	s.state.armExpiry(next, now, func() {
-		if s.background.Err() == nil {
-			s.armExpiry()
-		}
+		s.startWorker(s.armExpiry)
 	})
 }
 
@@ -331,4 +329,63 @@ func (s *Service) expireApproval(id string) {
 // emitApproval tells clients an approval was asked or answered.
 func (s *Service) emitApproval(a protocol.Approval) {
 	s.broadcast(protocol.EvtApproval, a)
+}
+
+func (s *Service) agentSetup(ctx context.Context, p protocol.AgentSetupParams) (protocol.AgentAnswer, error) {
+	if !s.feature("setupcards") {
+		return protocol.AgentAnswer{}, protocol.Errorf(protocol.CodeForbidden, "%s", i18n.T("Setup cards are off in Settings."))
+	}
+	c, err := s.caller(ctx, p.AgentRef)
+	if err != nil {
+		return protocol.AgentAnswer{}, err
+	}
+	title, why := strings.TrimSpace(p.Title), strings.TrimSpace(p.Why)
+	if title == "" || why == "" || len(p.Steps) == 0 || len(p.Steps) > 20 {
+		return protocol.AgentAnswer{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Give a title, why setup is needed and 1 to 20 steps."))
+	}
+	steps := make([]string, len(p.Steps))
+	for index, step := range p.Steps {
+		step = strings.TrimSpace(step)
+		if step == "" || len(step) > 4000 {
+			return protocol.AgentAnswer{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Each setup step needs text of at most 4000 bytes."))
+		}
+		steps[index] = s.redact(step)
+	}
+	_, err = s.ask(ctx, c, protocol.Approval{
+		Kind: protocol.ApprovalSetup, Title: title, Detail: why, Steps: steps, Check: s.redact(strings.TrimSpace(p.Check)),
+	}, nil)
+	if err != nil {
+		return protocol.AgentAnswer{}, err
+	}
+	if !s.feature("setupcards") {
+		s.skipSetupCards()
+	}
+	return protocol.AgentAnswer{Text: i18n.T("Waiting for setup. End your turn now; Rashin continues this task when the user finishes or skips it.")}, nil
+}
+
+func (s *Service) effectSetup(_ context.Context, rec *approvalRecord, p protocol.ApprovalDecideParams) (string, error) {
+	outcome := i18n.Tf("The user finished setup: %s. Check that it works before carrying on.", rec.Title)
+	if p.Decision != protocol.DecideOnce {
+		outcome = i18n.Tf("The user skipped setup: %s. Do not assume these steps were completed; continue only with work that does not need them.", rec.Title)
+	}
+	rec.Result = outcome
+	if p.Note != "" {
+		outcome += "\n" + p.Note
+	}
+	return outcome, nil
+}
+
+func (s *Service) skipSetupCards() {
+	pending := s.state.approvals(func(rec approvalRecord) bool {
+		return rec.Kind == protocol.ApprovalSetup && rec.Status == protocol.ApprovalPending
+	})
+	for _, waiting := range pending {
+		note := i18n.T("Setup cards were turned off.")
+		rec, err := s.claimApproval(waiting.ID, protocol.ApprovalDenied, protocol.DecideDeny, note)
+		if err != nil {
+			continue
+		}
+		p := protocol.ApprovalDecideParams{ID: waiting.ID, Decision: protocol.DecideDeny, Note: note}
+		_, _ = s.settleApproval(s.background, rec, p, "approval.deny", "Rashin", protocol.InitiatorRashin)
+	}
 }

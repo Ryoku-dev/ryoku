@@ -78,6 +78,19 @@ func TestParseRouteTargetSupportsWorkAndSettings(t *testing.T) {
 	}
 }
 
+func TestCollectionRoutesReachStartupAndUIOpen(t *testing.T) {
+	for _, id := range []string{"saved", "reading"} {
+		target := launchTarget("index/collections/"+id, "", "", "", "", "")
+		if target.tab != protocol.TabIndex || target.session != "collections/"+id {
+			t.Fatalf("collection startup target: %#v", target)
+		}
+		params := openParams(target)
+		if params.Tab != protocol.TabIndex || params.Session != "collections/"+id {
+			t.Fatalf("collection ui.open target: %#v", params)
+		}
+	}
+}
+
 func TestParseRouteTargetSupportsNewAskAndAgentBoard(t *testing.T) {
 	newAsk := parseRouteTarget("ask/new")
 	if newAsk.tab != protocol.TabAsk || newAsk.session != "" {
@@ -119,5 +132,26 @@ func TestATeamsRouteOpensItsPlaceAndAsksARunningAppForIt(t *testing.T) {
 	}
 	if project := launchTarget("work/task-6f1c2a9e", "", "", "hyperion", "", ""); project.tab != protocol.TabProjects || project.teams.Task != "" {
 		t.Fatalf("a named project kept the Teams place: %#v", project)
+	}
+}
+
+func TestFeaturesSettingsRouteReachesStartupAndUIOpen(t *testing.T) {
+	for _, check := range []struct {
+		name, route, tab, view string
+	}{
+		{name: "demo route", route: "settings/features"},
+		{name: "open flags", tab: protocol.TabSettings, view: "features"},
+		{name: "explicit view overrides route", route: "settings/ask", tab: protocol.TabSettings, view: "features"},
+	} {
+		t.Run(check.name, func(t *testing.T) {
+			target := launchTarget(check.route, check.tab, "", "", check.view, "")
+			if target.tab != protocol.TabSettings || target.settingsSection != "features" || target.workTab != "" {
+				t.Fatalf("startup target = %#v, want settings/features", target)
+			}
+			want := protocol.UIOpenParams{Tab: protocol.TabSettings, View: "features"}
+			if got := openParams(target); got != want {
+				t.Fatalf("ui.open target = %#v, want %#v", got, want)
+			}
+		})
 	}
 }

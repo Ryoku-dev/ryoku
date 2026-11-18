@@ -2,8 +2,10 @@ package chat
 
 import (
 	"image"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -17,14 +19,30 @@ import (
 	"ryoku-rashin/internal/protocol"
 )
 
+func (v *View) SetFeatures(f func(string) bool) { v.ensureState().features = f }
+
+func (v *View) SetArtifactActions(call func(string, any, any, func(error)), open func(string), notify func(string)) {
+	state := v.ensureState()
+	state.artifactCall, state.artifactOpen, state.artifactNotify = call, open, notify
+}
+
+func (state *viewState) feature(id string) bool {
+	return state.features != nil && state.features(id)
+}
+
 type markdownState struct {
 	source string
 	blocks []markdownBlock
 }
 
 type codeVisual struct {
-	hover  look.Hover
-	scroll layout.List
+	hover   look.Hover
+	scroll  layout.List
+	mindmap *mindmapVisual
+	preview protocol.ArtifactOpenResult
+	errors  []protocol.ArtifactError
+	check   time.Time
+	pending bool
 }
 
 // plan is what the turn's answer offers to run, nil when it offers nothing
@@ -81,6 +99,19 @@ func (state *viewState) layoutMarkdownBlock(gtx layout.Context, th *look.Theme, 
 	case markdownQuote:
 		return state.layoutMarkdownQuote(gtx, th, key, block.text)
 	case markdownCode:
+		if block.language == "mindmap" && state.feature("mindmap") {
+			return state.layoutMindmap(gtx, th, key, block.text)
+		}
+		if (block.language == "html" || block.language == "svg") && state.feature("artifacts") {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return state.layoutCodeBlock(gtx, th, key, block.language, block.text)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return state.layoutArtifact(gtx, th, key, protocol.ArtifactOpenParams{Session: state.session, Code: block.text, Kind: block.language})
+				}),
+			)
+		}
 		return state.layoutCodeBlock(gtx, th, key, block.language, block.text)
 	case markdownTable:
 		return state.layoutMarkdownTable(gtx, th, key, block.head, block.rows)
@@ -223,4 +254,135 @@ func languageLabel(language string) string {
 		return language
 	}
 	return i18n.T("code")
+}
+
+func (state *viewState) layoutArtifactFile(gtx layout.Context, th *look.Theme, key, path string) layout.Dimensions {
+	if !state.feature("artifacts") {
+		return layout.Dimensions{}
+	}
+	kind := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
+	if kind != "html" && kind != "svg" {
+		return layout.Dimensions{}
+	}
+	return state.layoutArtifact(gtx, th, key, protocol.ArtifactOpenParams{Session: state.session, Path: path, Kind: kind})
+}
+
+func (state *viewState) layoutArtifact(gtx layout.Context, th *look.Theme, key string, params protocol.ArtifactOpenParams) layout.Dimensions {
+	visual := state.codeVisual(key)
+	if state.artifactCall == nil {
+		return layout.Dimensions{}
+	}
+	if visual.preview.ID != "" && !visual.pending {
+		if !gtx.Now.Before(visual.check) {
+			visual.pending = true
+			visual.check = gtx.Now.Add(2 * time.Second)
+			var result protocol.ArtifactErrorsResult
+			state.artifactCall(protocol.MArtifactErrors, protocol.ArtifactErrorsParams{ID: visual.preview.ID}, &result, func(err error) {
+				visual.pending = false
+				if err == nil {
+					visual.errors = result.Errors
+				} else {
+					visual.preview = protocol.ArtifactOpenResult{}
+					visual.errors = nil
+				}
+			})
+		}
+		gtx.Execute(op.InvalidateCmd{At: visual.check})
+	}
+	return layout.Inset{Top: th.Sp.S2, Bottom: th.Sp.S2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		children := []layout.FlexChild{layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			button := state.plaque(key + ":preview")
+			button.Kind, button.Label = kit.PlaqueTonal, i18n.T("Preview")
+			if button.Clicked(gtx) && !visual.pending {
+				if visual.preview.URL != "" && state.artifactOpen != nil {
+					state.artifactOpen(visual.preview.URL)
+					return button.Layout(gtx, th.Theme)
+				}
+				visual.pending = true
+				var result protocol.ArtifactOpenResult
+				state.artifactCall(protocol.MArtifactOpen, params, &result, func(err error) {
+					visual.pending = false
+					if err != nil {
+						state.artifactNotice(err.Error())
+					} else {
+						visual.preview = result
+						if state.artifactOpen != nil {
+							state.artifactOpen(result.URL)
+						}
+					}
+				})
+			}
+			if visual.pending {
+				gtx = gtx.Disabled()
+			}
+			return button.Layout(gtx, th.Theme)
+		})}
+		if visual.preview.ID != "" {
+			children = append(children, layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
+				layout.Rigid(kit.RawText(th.Theme, th.T.Caption, th.R.Fg2, i18n.Tf("%d problems in the preview", len(visual.errors)))))
+			if len(visual.errors) > 0 {
+				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					button := state.plaque(key + ":repair")
+					button.Kind, button.Label = kit.PlaqueTonal, i18n.T("Fix them")
+					if button.Clicked(gtx) && !visual.pending {
+						visual.pending = true
+						state.artifactCall(protocol.MArtifactRepair, protocol.ArtifactRepairParams{ID: visual.preview.ID}, new(protocol.AskResult), func(err error) {
+							visual.pending = false
+							if err != nil {
+								state.artifactNotice(err.Error())
+							} else {
+								state.artifactNotice(i18n.T("Sent the preview problems to this conversation"))
+							}
+						})
+					}
+					return button.Layout(gtx, th.Theme)
+				}))
+			}
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				button := state.plaque(key + ":close")
+				button.Kind, button.Label = kit.PlaqueQuiet, i18n.T("Close preview")
+				if button.Clicked(gtx) {
+					state.artifactCall(protocol.MArtifactClose, protocol.ArtifactCloseParams{ID: visual.preview.ID}, new(protocol.Empty), func(err error) {
+						if err != nil {
+							state.artifactNotice(err.Error())
+						} else {
+							visual.preview = protocol.ArtifactOpenResult{}
+							visual.errors = nil
+						}
+					})
+				}
+				return button.Layout(gtx, th.Theme)
+			}))
+		}
+		axis := layout.Horizontal
+		if gtx.Constraints.Max.X < gtx.Dp(600) {
+			axis = layout.Vertical
+		}
+		return layout.Flex{Axis: axis, Alignment: layout.Middle}.Layout(gtx, children...)
+	})
+}
+
+func (state *viewState) artifactNotice(text string) {
+	if state.artifactNotify != nil {
+		state.artifactNotify(text)
+	}
+}
+
+func (state *viewState) codeVisual(key string) *codeVisual {
+	visual := state.codes[key]
+	if visual == nil {
+		visual = new(codeVisual)
+		visual.scroll.Axis = layout.Horizontal
+		state.codes[key] = visual
+	}
+	return visual
+}
+
+func (v *View) LayoutArtifactFile(gtx layout.Context, th *look.Theme, session, path string) layout.Dimensions {
+	state := v.ensureState()
+	state.session = session
+	if session == "" {
+		return layout.Dimensions{}
+	}
+	return state.layoutArtifactFile(gtx, th, "file:"+path, path)
 }

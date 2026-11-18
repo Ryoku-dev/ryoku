@@ -119,3 +119,27 @@ func TestParseOpenSupportsProjectViewsAndWorktree(t *testing.T) {
 		t.Fatal("invalid view was accepted")
 	}
 }
+
+func TestParseOpenAcceptsTheFeaturesSettingsViewInEitherOrder(t *testing.T) {
+	for _, args := range [][]string{
+		{"--tab", protocol.TabSettings, "--view", "features"},
+		{"--view", "features", "--tab", protocol.TabSettings},
+	} {
+		params, err := parseOpen(args)
+		if err != nil {
+			t.Fatalf("%q: %v", args, err)
+		}
+		if params.Tab != protocol.TabSettings || params.View != "features" {
+			t.Fatalf("%q opens %#v, want settings/features", args, params)
+		}
+	}
+	for _, args := range [][]string{
+		{"--view", "features"},
+		{"--tab", protocol.TabProjects, "--view", "features"},
+		{"--tab", protocol.TabSettings, "--project", "hyperion", "--view", "features"},
+	} {
+		if _, err := parseOpen(args); err == nil {
+			t.Fatalf("%q accepted the Features settings view outside Settings", args)
+		}
+	}
+}

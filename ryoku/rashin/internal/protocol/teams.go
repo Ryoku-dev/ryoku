@@ -486,12 +486,45 @@ const (
 	RoutineFailuresMax = 5
 )
 
+const (
+	RoutineTask     = "task"
+	RoutineDream    = "dream"
+	RoutineAsk      = "ask"
+	RoutinePersonal = "personal"
+)
+
+type RoutineRun struct {
+	ID      string     `json:"id"`
+	Routine string     `json:"routine"`
+	Kind    string     `json:"kind"`
+	Team    string     `json:"team,omitempty"`
+	Task    string     `json:"task,omitempty"`
+	Dream   string     `json:"dream,omitempty"`
+	Session string     `json:"session,omitempty"`
+	Started time.Time  `json:"started"`
+	Ended   *time.Time `json:"ended,omitempty"`
+	Status  string     `json:"status"`
+	Detail  string     `json:"detail,omitempty"`
+	Tokens  int64      `json:"tokens,omitempty"`
+}
+
+type RoutineRunsParams struct {
+	Routine string `json:"routine,omitempty"`
+	Limit   int    `json:"limit,omitempty"`
+}
+
+type RoutineRunsResult struct {
+	Runs []RoutineRun `json:"runs"`
+}
+
 // Routine is a task a team takes on by itself on a schedule.
 type Routine struct {
-	ID    string `json:"id"`
-	Team  string `json:"team"`
-	Title string `json:"title"`
-	Brief string `json:"brief"`
+	ID     string `json:"id"`
+	Team   string `json:"team"`
+	Title  string `json:"title"`
+	Brief  string `json:"brief"`
+	Kind   string `json:"kind,omitempty"`
+	Preset string `json:"preset,omitempty"`
 	// Member empty hands each run to the lead.
 	Member string `json:"member,omitempty"`
 	// Schedule is a five-field cron expression in the computer's time zone:
@@ -536,6 +569,8 @@ type RoutineCreateParams struct {
 	Team     string `json:"team"`
 	Title    string `json:"title"`
 	Brief    string `json:"brief"`
+	Kind     string `json:"kind,omitempty"`
+	Preset   string `json:"preset,omitempty"`
 	Member   string `json:"member,omitempty"`
 	Schedule string `json:"schedule"`
 	Missed   string `json:"missed,omitempty"`
@@ -576,6 +611,7 @@ const (
 	ApprovalCredential = "credential"
 	ApprovalRequest    = "request"
 	ApprovalAction     = "action"
+	ApprovalSetup      = "setup"
 	ApprovalBudget     = "budget"
 	// ApprovalTeam is a proposed team: approving it creates the team.
 	ApprovalTeam = "team"
@@ -652,6 +688,8 @@ type Approval struct {
 	// Options make the approval a choice question: the user picks one with
 	// DecideChoose, or denies them all.
 	Options []string `json:"options,omitempty"`
+	Steps   []string `json:"steps,omitempty"`
+	Check   string   `json:"check,omitempty"`
 	// Choice is the option the user picked, kept for the record.
 	Choice string `json:"choice,omitempty"`
 	// Result is what came of an approved action, for the record.
@@ -818,6 +856,14 @@ type AgentAskParams struct {
 	Title   string   `json:"title"`
 	Detail  string   `json:"detail,omitempty"`
 	Options []string `json:"options,omitempty"`
+}
+
+type AgentSetupParams struct {
+	AgentRef
+	Title string   `json:"title"`
+	Steps []string `json:"steps"`
+	Why   string   `json:"why"`
+	Check string   `json:"check,omitempty"`
 }
 
 // AgentHTTPParams makes one HTTPS request with a credential the team may

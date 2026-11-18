@@ -95,7 +95,8 @@ type modelState struct {
 	options  protocol.OptionsData
 	commands protocol.CommandsData
 	// counts changes to the three above, so a composer rebuilds its lists only then
-	choices uint64
+	choices     uint64
+	comparisons map[int64]protocol.CompareStartResult
 }
 
 func newModelState() *modelState {
@@ -143,6 +144,14 @@ func (state *modelState) apply(model *Model, event protocol.SessionEvent) {
 		} else {
 			state.messages[key] = len(state.rows)
 			state.rows = append(state.rows, transcriptRow{kind: kind, key: key, seq: event.Seq, text: data.Delta, turn: state.activeTurn})
+		}
+	case protocol.EvCompare:
+		var result protocol.CompareStartResult
+		if decodeEvent(event, &result) {
+			if state.comparisons == nil {
+				state.comparisons = make(map[int64]protocol.CompareStartResult)
+			}
+			state.comparisons[result.Seq] = result
 		}
 	case protocol.EvTool:
 		state.applyTool(event)

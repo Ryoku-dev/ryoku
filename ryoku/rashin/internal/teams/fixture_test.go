@@ -29,15 +29,18 @@ func (k fixedKeeper) Key(context.Context, bool, bool) ([]byte, error) {
 // fakeClock is the service's clock. It moves a millisecond on every read, so
 // things made one after another keep their order, and jumps when told.
 type fakeClock struct {
-	mu sync.Mutex
-	at time.Time
+	mu     sync.Mutex
+	at     time.Time
+	frozen bool
 	// hook runs once at the next read, outside the lock
 	hook func()
 }
 
 func (c *fakeClock) now() time.Time {
 	c.mu.Lock()
-	c.at = c.at.Add(time.Millisecond)
+	if !c.frozen {
+		c.at = c.at.Add(time.Millisecond)
+	}
 	at, hook := c.at, c.hook
 	c.hook = nil
 	c.mu.Unlock()

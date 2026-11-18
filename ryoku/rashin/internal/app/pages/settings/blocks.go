@@ -17,8 +17,9 @@ type blockList struct {
 	builtAt [sectionCount]int
 	built   [sectionCount][]layout.Widget
 	// counted when last built, so an index keeps meaning the same block until then
-	extra [sectionCount]int
-	moved bool
+	extra     [sectionCount]int
+	moved     bool
+	featureAt map[string]int
 }
 
 func (b *blockList) total() int {
@@ -54,11 +55,40 @@ func (p *Page) sectionBlocks(gtx layout.Context, e *env.Env, section int) []layo
 		return b.built[section]
 	}
 	blocks := b.built[section][:0]
+	if b.featureAt == nil {
+		b.featureAt = make(map[string]int)
+	}
 	switch section {
+	case sectionFeatures:
+		blocks = p.featuresBlocks(gtx, e, blocks)
+	case sectionAsk:
+		blocks = append(blocks, func(gtx layout.Context) layout.Dimensions { return p.layoutAsk(gtx, e) })
+		if e.Feature("history") {
+			b.featureAt["history"] = len(blocks)
+			blocks = p.resumeBlocks(gtx, e, blocks)
+		}
+		if e.Feature("prompts") {
+			b.featureAt["prompts"] = len(blocks)
+			blocks = p.promptsBlocks(gtx, e, blocks)
+		}
+	case sectionAgents:
+		blocks = append(blocks, func(gtx layout.Context) layout.Dimensions { return p.layoutAgents(gtx, e) })
+		if e.Feature("mcp") {
+			b.featureAt["mcp"] = len(blocks)
+			blocks = p.mcpBlocks(gtx, e, blocks)
+		}
 	case sectionTeams:
 		blocks = p.teamsBlocks(gtx, e, blocks)
+		if e.Feature("diskcare") {
+			b.featureAt["diskcare"] = len(blocks)
+			blocks = p.diskBlocks(gtx, e, blocks)
+		}
 	case sectionMemory:
 		blocks = p.memoryBlocks(gtx, e, blocks)
+		if e.Feature("profile") {
+			b.featureAt["profile"] = len(blocks)
+			blocks = p.profileBlocks(gtx, e, blocks)
+		}
 	case sectionSkills:
 		blocks = p.skillsBlocks(gtx, e, blocks)
 	default:
@@ -106,14 +136,21 @@ func (p *Page) layoutWhole(gtx layout.Context, e *env.Env, section int) layout.D
 func (p *Page) prepare(gtx layout.Context, e *env.Env) {
 	b, position := &p.blocks, &p.scroll.Position
 	section, block := b.locate(max(position.First, 0))
+	if p.jumped {
+		section, block = p.current, p.jumpBlock
+	}
 	for each := range section + 1 {
-		if b.builtAt[each] == 0 {
+		if p.jumped || b.builtAt[each] == 0 {
 			p.sectionBlocks(gtx, e, each)
 		}
 	}
 	sets, _ := p.skills.list.Sets(e)
 	b.extra[sectionSkills] = len(sets.Sets)
-	position.First = b.first(section) + min(block, b.extra[section])
+	if p.jumped {
+		p.scroll.ScrollTo(b.first(section) + p.jumpBlock)
+	} else {
+		position.First = b.first(section) + min(block, b.extra[section])
+	}
 	b.moved = false
 }
 
@@ -123,6 +160,11 @@ func (p *Page) layoutSections(gtx layout.Context, e *env.Env, inset, width int) 
 	p.blocks.frame++
 	// the wheel moves the list over the blocks it knew, before any count moves
 	p.scroll.UpdateInput(gtx)
+	anchorSection, anchorBlock := p.blocks.locate(max(p.scroll.Position.First, 0))
+	anchorOffset := p.scroll.Position.Offset
+	if p.jumped {
+		anchorSection, anchorBlock, anchorOffset = p.current, p.jumpBlock, 0
+	}
 	p.prepare(gtx, e)
 	dimensions := p.scroll.Layout(gtx, th, p.blocks.total(), func(gtx layout.Context, index int) layout.Dimensions {
 		section, block := p.blocks.locate(index)
@@ -149,7 +191,11 @@ func (p *Page) layoutSections(gtx layout.Context, e *env.Env, inset, width int) 
 		return layout.Dimensions{Size: image.Pt(full, dimensions.Size.Y)}
 	})
 	if p.blocks.moved {
+		p.scroll.AnchorTo(p.blocks.first(anchorSection)+min(anchorBlock, p.blocks.extra[anchorSection]), -anchorOffset)
 		p.blocks.moved = false
+		gtx.Execute(op.InvalidateCmd{})
+	} else if p.jumped {
+		p.jumped = false
 		gtx.Execute(op.InvalidateCmd{})
 	}
 	return dimensions

@@ -4,6 +4,8 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	i18n "ryoku-i18n"
 	"ryoku-rashin/internal/protocol"
@@ -61,11 +63,34 @@ func validateMemory(m *protocol.MemorySettings, d protocol.MemorySettings) {
 		m.Honcho.Workspace = d.Honcho.Workspace
 	}
 	m.Honcho.Key = strings.TrimSpace(m.Honcho.Key)
+	m.Profile.Name = cleanProfile(m.Profile.Name, 80)
+	m.Profile.Work = cleanProfile(m.Profile.Work, 240)
+	m.Profile.About = cleanProfile(m.Profile.About, 600)
+	traits := make([]string, 0, len(m.Profile.Traits))
+	for _, trait := range m.Profile.Traits {
+		if slices.Contains(profileTraits, trait) && !slices.Contains(traits, trait) {
+			traits = append(traits, trait)
+		}
+	}
+	m.Profile.Traits = traits
 }
 
 // checkMemory refuses a patch that points an engine at something that is not
 // an http or https address, or names a workspace Honcho would refuse.
 func checkMemory(m protocol.MemorySettings) error {
+	for _, field := range []struct {
+		text string
+		max  int
+	}{{m.Profile.Name, 80}, {m.Profile.Work, 240}, {m.Profile.About, 600}} {
+		if !utf8.ValidString(field.text) || utf8.RuneCountInString(field.text) > field.max || strings.IndexFunc(field.text, func(r rune) bool { return unicode.IsControl(r) && r != '\n' && r != '\t' }) >= 0 {
+			return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Keep profile fields within their character limits and leave out control characters."))
+		}
+	}
+	for _, trait := range m.Profile.Traits {
+		if !slices.Contains(profileTraits, trait) {
+			return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Choose one of the listed answer styles."))
+		}
+	}
 	for _, address := range []string{m.Hindsight.URL, m.Honcho.URL} {
 		if !engineAddress(strings.TrimSpace(address)) {
 			return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Use an http or https address, such as http://127.0.0.1:8000."))
@@ -88,4 +113,20 @@ func engineAddress(address string) bool {
 		return false
 	}
 	return u.Scheme == "http" || u.Scheme == "https"
+}
+
+var profileTraits = []string{"brief", "detailed", "plain words", "technical", "warm", "direct", "with examples", "step by step"}
+
+func cleanProfile(text string, limit int) string {
+	text = strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) && r != '\n' && r != '\t' {
+			return -1
+		}
+		return r
+	}, strings.ToValidUTF8(text, ""))
+	runes := []rune(strings.TrimSpace(text))
+	if len(runes) > limit {
+		runes = runes[:limit]
+	}
+	return string(runes)
 }

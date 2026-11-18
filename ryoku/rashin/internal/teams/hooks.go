@@ -195,7 +195,7 @@ func (s *Service) AfterTurn(_ context.Context, info protocol.SessionInfo, end pr
 	}
 	if !ok || !taskIsOpen(t) || t.Session != info.ID {
 		session := info.ID
-		go func() { _ = s.sessions.Stop(s.background, session) }()
+		s.startWorker(func() { _ = s.sessions.Stop(s.background, session) })
 	}
 }
 
@@ -214,7 +214,7 @@ func (s *Service) Hold(info protocol.SessionInfo) bool {
 		return true
 	}
 	team, ok := s.state.team(t.Team)
-	return !ok || team.Paused || s.settings().Teams.Paused
+	return !ok || !s.dreamAvailable(team) || team.Paused || s.settings().Teams.Paused
 }
 
 // ScreenGranted reports a session whose team was given a screen, so it

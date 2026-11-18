@@ -35,6 +35,15 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
   only the `teams.agent_*` methods as that session, its own `session.goal`, its
   own `screen.act` as the agent and `screen.control` ask and stop, and the
   index methods that read; everything else is `forbidden`.
+- Optional app features live in `Settings.features`, keyed by `FeatureIDs`.
+  They start off, unknown ids are dropped, and any ordinary client can patch
+  them with `settings.set`. `ask.resumeMinutes` is 0 for off or 1 to 120,
+  clamped on read and write. `memory.profile` holds `name`, `work`, `about`
+  and `traits`, and stays behind the existing app-only memory settings gate.
+- `SessionInfo.starred` and `archived` are independent conversation flags,
+  changed with `session.set_flags`.
+  `lastMessageAt` records conversation activity separately from metadata
+  updates, so reopening a conversation does not extend its resume window.
 
 ## Methods
 
@@ -65,6 +74,42 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
 | `screen.control` | `ScreenControlParams` (take, release, ask, watch, unwatch, stop) | `ScreenState` |
 | `ask` | `AskParams` | `AskResult`, caller attached |
 | `glance` | `GlanceParams` (capture modes, engine, model and local-only routing) | `AskResult`, caller attached |
+| `writing.check` | `WritingCheckParams` | `WritingCheckResult` |
+| `writing.transform` | `WritingTransformParams` | `WritingTransformResult` |
+| `writing.cancel` | `WritingCancelParams` | `Empty` |
+| `writing.voice.get` | `WritingVoiceGetParams` | `WritingVoice` |
+| `writing.voice.set` | `WritingVoiceSetParams` | `WritingVoice` |
+| `writing.voice.learn` | `WritingVoiceLearnParams` | `WritingVoice` |
+| `writing.words` | `WritingWordsParams` | `WritingWords` |
+| `writing.words.add` | `WritingWordParams` (`word`) | `WritingWords` |
+| `writing.words.remove` | `WritingWordParams` (`word`) | `WritingWords` |
+| `prompts.list` | `PromptsListParams` | `PromptsListResult` |
+| `prompts.save` | `PromptSaveParams` | `Prompt` |
+| `prompts.delete` | `PromptDeleteParams` | `Empty` |
+| `prompts.expand` | `PromptExpandParams` | `PromptExpandResult` |
+| `compare.start` | `CompareStartParams` | `CompareStartResult` |
+| `compare.keep` | `CompareKeepParams` | `SessionInfo` |
+| `session.set_flags` | `SessionFlagsParams` | `SessionInfo` |
+| `mcp.list` | `MCPListParams` | `MCPListResult` |
+| `mcp.save` | `MCPServer` (app only) | `MCPServerInfo` |
+| `mcp.delete` | `MCPDeleteParams` (app only) | `Empty` |
+| `mcp.check` | `MCPCheckParams` | `MCPServerInfo` |
+| `mcp.signin` | `MCPSignInParams` (app only) | `MCPSignInResult` |
+| `disk.usage` | `DiskUsageParams` | `DiskUsage` |
+| `disk.clean` | `DiskCleanParams` (app only) | `DiskUsage` |
+| `artifact.open` | `ArtifactOpenParams` | `ArtifactOpenResult` |
+| `artifact.errors` | `ArtifactErrorsParams` | `ArtifactErrorsResult` |
+| `artifact.repair` | `ArtifactRepairParams` | `AskResult` |
+| `artifact.close` | `ArtifactCloseParams` | `Empty` |
+| `collections.list` | `CollectionsListParams` | `CollectionsListResult` |
+| `collections.save` | `CollectionSaveParams` | `Collection` |
+| `collections.add` | `CollectionAddParams` | `CollectionItem` |
+| `collections.items` | `CollectionItemsParams` | `CollectionItemsResult` |
+| `collections.remove` | `CollectionRemoveParams` | `Empty` |
+| `collections.check` | `CollectionCheckParams` | `CollectionItem` |
+| `collections.chat` | `CollectionChatParams` | `AskResult` |
+| `teams.routine_runs` | `RoutineRunsParams` | `RoutineRunsResult` |
+| `teams.agent_setup` | `AgentSetupParams` | `AgentAnswer` |
 | `providers.list` | | `ProvidersResult` |
 | `providers.add_key` | `AddKeyParams` | `ProviderInfo` |
 | `providers.remove_key` | `RemoveKeyParams` | `ProviderInfo` |
@@ -94,7 +139,7 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
 | `index.changed` | `WipParams` | `WipResult` |
 | `settings.get` | | `Settings` |
 | `settings.set` | `SettingsSetParams` (merge patch) | `Settings` |
-| `ui.open` | `UIOpenParams` | `UIOpenResult` |
+| `ui.open` | `UIOpenParams` (`dreamDraft` prefills the app's dream creation sheet) | `UIOpenResult` |
 | `teams.list` | | `TeamsResult` |
 | `teams.templates` | | `TeamTemplatesResult` |
 | `teams.create` | `TeamCreateParams` | `Team` (with its routines) |
@@ -208,8 +253,25 @@ A replay that does not fit one frame comes in pages: while the result has
 `more`, the client attaches again with `since` set to the last event's `seq`.
 The connection receives live `session.event`s only after the last page.
 
-`glance` takes `session`, `mode` (`explain`, `ask`, `read`, `translate`),
-`question`, `text`, `images`, `target`, `engine`, `model` and `local`.
+`writing.check` always uses the built-in checker for `engine:"local"`, regardless
+of language. `auto` checks likely English on this computer and uses the model
+for other languages when a provider is configured, otherwise it checks locally.
+`model` always uses the model. Dialects are `us`, `uk`, `ca`, `au` and `in`.
+Issue offsets are UTF-16 units, including for text with emoji. Categories in
+`off` suppress matching issues. `writing.words` returns `{words:[...]}`.
+Add and remove accept `{word:"..."}` and return the updated dictionary.
+Words keep their typed casing, are deduplicated case-insensitively with the
+newest spelling kept, and are accepted in every English dialect. Up to 5,000
+words are saved privately in `words.txt` in Rashin's data directory.
+These writing methods are open to bar, CLI and Hub.
+
+
+`glance` takes `session`, `mode`, `question`, `text`, `images`, `language`,
+`source`, `target`, `engine`, `model`, `local` and string-valued `options`.
+Modes are `explain`, `ask`, `read`, `translate`, `summarize`, `deepread`,
+`solve`, `learn`, `define`, `rewrite`, `tone`, `fluent`, `humanize`,
+`reactions`, `reply` and `aicheck`. Options select each mode's style, lens,
+form, count, audience or tone; `voice:"on"` uses the saved writing voice.
 Without `session` it creates a temporary Ask with origin `sight`, and with one
 it continues that conversation. Origins are `app`, `bar`, `cli`, `terminal`,
 `fix`, `import`, `team` and `sight`.
@@ -248,3 +310,7 @@ with model choices coming from its cached ACP capabilities, and `rashin status
 | `answer` | `AnswerData` |
 | `title` | `TitleData` |
 | `goal` | `GoalData` (the goal as it now stands) |
+| `compare` | `CompareStartResult` (`id`, `source`, `seq`, `lanes`; an empty id and lanes clear the comparison at `seq`) |
+
+Comparison lanes are independent temporary sessions. The source conversation
+records the comparison event so reattaching restores its lanes.

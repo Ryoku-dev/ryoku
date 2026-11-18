@@ -90,11 +90,11 @@ func (s *Service) dreamGoalEnded(info protocol.SessionInfo, goal protocol.Goal) 
 		return false
 	}
 	team, ok := s.state.team(t.Team)
-	if !ok || !isDream(team) || team.Dream.Done != nil {
+	if !ok || !isDream(team) || !s.dreamAvailable(team) || team.Dream.Done != nil {
 		return false
 	}
 	if goal.Status == protocol.GoalStopped && goal.MaxTurns > 0 && goal.Turns >= goal.MaxTurns {
-		go s.ensureGoal(t.ID)
+		s.startWorker(func() { s.ensureGoal(t.ID) })
 		return true
 	}
 	if !standing(team, t) {
@@ -102,13 +102,13 @@ func (s *Service) dreamGoalEnded(info protocol.SessionInfo, goal protocol.Goal) 
 	}
 	switch {
 	case goal.Status == protocol.GoalDone:
-		go s.ensureGoal(t.ID)
+		s.startWorker(func() { s.ensureGoal(t.ID) })
 		return true
 	case goal.Status == protocol.GoalPaused && goal.Reason == noProgress():
 		if s.dreamCardOpen(t.ID, cardStall) {
 			return true
 		}
-		go s.ensureGoal(t.ID)
+		s.startWorker(func() { s.ensureGoal(t.ID) })
 		return true
 	case goal.Status == protocol.GoalBlocked:
 		reason := strings.TrimSpace(goal.Reason)
@@ -130,6 +130,9 @@ func (s *Service) dreamGoalEnded(info protocol.SessionInfo, goal protocol.Goal) 
 func (s *Service) ensureGoal(taskID string) {
 	t, ok := s.state.task(taskID)
 	if !ok || !taskIsOpen(t) || t.Session == "" || s.sessions == nil {
+		return
+	}
+	if team, ok := s.state.team(t.Team); !ok || !s.dreamAvailable(team) {
 		return
 	}
 	info, ok := s.sessions.Info(t.Session)

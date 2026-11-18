@@ -33,6 +33,21 @@ func New() *Page { return &Page{} }
 func (p *Page) Select(e *env.Env, place env.TeamsPlace) {
 	if place.Draft == env.DraftDream {
 		p.create.open()
+		if draft := place.DreamDraft; draft != nil {
+			p.create.statement.SetText(draft.Statement)
+			p.create.name.SetText(draft.Name)
+			p.create.folder.SetText(draft.Folder)
+			p.create.engine.Set(draft.Harness, draft.Model, draft.Options)
+			if draft.MonthTokens > 0 {
+				p.create.budget.Selected, p.create.limit.Value = 1, draft.MonthTokens
+			}
+			if e.Feature("research") && draft.Preset == "research" {
+				p.create.presetID = "research"
+			} else if draft.Preset == "research" {
+				e.Notify(i18n.T("Turn on Deep research in Settings to use this preset"))
+			}
+		}
+		place.DreamDraft = nil
 		place.Draft = ""
 	}
 	p.place = place

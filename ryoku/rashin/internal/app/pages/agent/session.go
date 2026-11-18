@@ -175,6 +175,8 @@ func (p *Page) layoutConversation(gtx layout.Context, e *env.Env, attached state
 	view.Constraints = layout.Exact(image.Pt(size.X, max(0, top-gtx.Dp(8))))
 	p.lines.Sync(e, e.Snapshot(), &p.view, attached.Model)
 	p.view.SetMemoryText(chat.MemoryText{Fact: memoryui.FactText, Plain: env.PlainMemory})
+	p.view.SetFeatures(e.Feature)
+	p.view.SetArtifactActions(e.Call, e.Open, e.Notify)
 	p.view.Layout(view, e.Theme, e.Overlays, attached.Model)
 	p.handleActions(gtx, e, attached.Info, p.view.Actions())
 

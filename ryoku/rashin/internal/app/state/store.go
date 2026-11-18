@@ -2,8 +2,10 @@ package state
 
 import (
 	"encoding/json"
+	"maps"
 	"sort"
 	"sync"
+	"sync/atomic"
 
 	"ryoku-rashin/internal/app/chat"
 	"ryoku-rashin/internal/protocol"
@@ -78,6 +80,7 @@ type Store struct {
 	sessions   map[string]protocol.SessionInfo
 	order      []string
 	settings   protocol.Settings
+	features   atomic.Pointer[map[string]bool]
 	providers  []protocol.ProviderInfo
 	indexes    []protocol.IndexInfo
 	harnesses  []protocol.HarnessInfo
@@ -118,6 +121,18 @@ func New(invalidate func()) *Store {
 	}
 }
 
+// Feature reads outside the store lock because transcript layout holds its model lock.
+func (s *Store) Feature(id string) bool {
+	features := s.features.Load()
+	return features != nil && (*features)[id]
+}
+
+func (s *Store) setSettingsLocked(settings protocol.Settings) {
+	s.settings = settings
+	features := maps.Clone(settings.Features)
+	s.features.Store(&features)
+}
+
 func (s *Store) changedLocked() func() {
 	s.revision++
 	return s.invalidate
@@ -151,7 +166,7 @@ func (s *Store) SetConnection(connection Connection) {
 func (s *Store) ApplySnapshot(snapshot protocol.Snapshot) {
 	s.mu.Lock()
 	s.status = snapshot.Status
-	s.settings = snapshot.Settings
+	s.setSettingsLocked(snapshot.Settings)
 	s.providers = cloneProviders(snapshot.Providers)
 	s.harnesses = cloneHarnesses(snapshot.Harnesses)
 	s.indexes = cloneIndexes(snapshot.Indexes)
@@ -338,7 +353,10 @@ func (s *Store) Apply(event protocol.Event) error {
 			s.rebuildOrderLocked()
 		}
 	case protocol.EvtSettingsChanged:
-		err = json.Unmarshal(event.Data, &s.settings)
+		var settings protocol.Settings
+		if err = json.Unmarshal(event.Data, &settings); err == nil {
+			s.setSettingsLocked(settings)
+		}
 	case protocol.EvtAPIChanged:
 		err = json.Unmarshal(event.Data, &s.status.API)
 	case protocol.EvtProvidersChanged:

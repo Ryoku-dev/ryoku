@@ -271,17 +271,18 @@ type AskParams struct {
 
 // GlanceParams asks about a capture without tools or system context.
 type GlanceParams struct {
-	Session  string       `json:"session,omitempty"`
-	Mode     string       `json:"mode"`
-	Question string       `json:"question,omitempty"`
-	Text     string       `json:"text,omitempty"`
-	Images   []Attachment `json:"images,omitempty"`
-	Language string       `json:"language,omitempty"`
-	Source   string       `json:"source,omitempty"`
-	Target   string       `json:"target,omitempty"`
-	Engine   string       `json:"engine,omitempty"`
-	Model    string       `json:"model,omitempty"`
-	Local    bool         `json:"local,omitempty"`
+	Session  string            `json:"session,omitempty"`
+	Mode     string            `json:"mode"`
+	Question string            `json:"question,omitempty"`
+	Text     string            `json:"text,omitempty"`
+	Images   []Attachment      `json:"images,omitempty"`
+	Language string            `json:"language,omitempty"`
+	Source   string            `json:"source,omitempty"`
+	Target   string            `json:"target,omitempty"`
+	Engine   string            `json:"engine,omitempty"`
+	Model    string            `json:"model,omitempty"`
+	Local    bool              `json:"local,omitempty"`
+	Options  map[string]string `json:"options,omitempty"`
 }
 
 // AskResult names the session and turn; session.event frames with a seq above
@@ -898,10 +899,11 @@ func KnownApprovals(value string) bool {
 // own providers; the app passes it when it creates the session, so asks from
 // the bar and the terminal stay on the providers.
 type AskSettings struct {
-	Model     string `json:"model"`
-	Habits    bool   `json:"habits"`
-	Approvals string `json:"approvals"`
-	Harness   string `json:"harness,omitempty"`
+	Model         string `json:"model"`
+	Habits        bool   `json:"habits"`
+	Approvals     string `json:"approvals"`
+	Harness       string `json:"harness,omitempty"`
+	ResumeMinutes int    `json:"resumeMinutes,omitempty"`
 }
 
 // AgentSettings configures Agent sessions.
@@ -1147,6 +1149,7 @@ type Settings struct {
 	Providers ProvidersSettings `json:"providers"`
 	Memory    MemorySettings    `json:"memory"`
 	Skills    SkillsSettings    `json:"skills"`
+	Features  map[string]bool   `json:"features,omitempty"`
 }
 
 // ProvidersSettings are the providers' settings that are not keys. Local maps
@@ -1194,10 +1197,11 @@ type UIOpenParams struct {
 	Worktree string `json:"worktree,omitempty"`
 	// Team, TeamTask, Routine and Credential open Teams mode on one of them;
 	// View then names a team page tab.
-	Team       string `json:"team,omitempty"`
-	TeamTask   string `json:"teamTask,omitempty"`
-	Routine    string `json:"routine,omitempty"`
-	Credential string `json:"credential,omitempty"`
+	Team       string             `json:"team,omitempty"`
+	TeamTask   string             `json:"teamTask,omitempty"`
+	Routine    string             `json:"routine,omitempty"`
+	Credential string             `json:"credential,omitempty"`
+	DreamDraft *DreamCreateParams `json:"dreamDraft,omitempty"`
 }
 
 // UIOpenResult reports whether a running app received the request.

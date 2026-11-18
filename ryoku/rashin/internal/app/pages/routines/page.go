@@ -59,6 +59,9 @@ func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
 		}
 		if p.editor.id != "" {
 			if routine, ok := p.editor.sync(e.Snapshot()); ok {
+				if !visible(e.Snapshot(), routine) {
+					return p.board.layout(gtx, e, p)
+				}
 				return p.editor.layout(gtx, e, p, routine)
 			}
 			// a routine deleted while open leaves for the board; one not heard of yet is waited for

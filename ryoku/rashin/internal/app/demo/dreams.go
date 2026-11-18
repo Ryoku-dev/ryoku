@@ -165,6 +165,7 @@ func addDemoDreams(result *fixtures, now time.Time, settings protocol.Settings) 
 	fx.spend[receipts.ID] = dreamSpend(now, receipts, 409_000, 2)
 	signInDreams(result.snapshot.Harnesses, now, esp32, receipts)
 	sort.SliceStable(fx.tasks, func(i, j int) bool { return fx.tasks[i].Created.After(fx.tasks[j].Created) })
+	addResearchDemo(result, now, settings)
 }
 
 // a dream's month: its tokens spread over the days since it started, its finished tasks on the last of them
@@ -217,6 +218,38 @@ Two faded scans have no readable date. They stay as they are and are listed in `
 // the dream methods the demo answers itself, and what a dream changes in pause and approvals; false leaves the call to callTeams
 func (s *server) callDreams(method string, raw json.RawMessage) (any, bool, error) {
 	switch method {
+	case protocol.MTeamsRoutineRuns:
+		if !s.data.snapshot.Settings.Features["schedules"] {
+			return nil, true, protocol.Errorf(protocol.CodeForbidden, "%s", i18n.T("Scheduled runs are off in Settings."))
+		}
+		var p protocol.RoutineRunsParams
+		if err := decode(raw, &p); err != nil {
+			return nil, true, err
+		}
+		result := protocol.RoutineRunsResult{Runs: []protocol.RoutineRun{}}
+		for _, run := range s.data.teams.routineRuns {
+			if p.Routine == "" || p.Routine == run.Routine {
+				result.Runs = append(result.Runs, run)
+			}
+		}
+		for _, task := range s.data.teams.tasks {
+			if task.Routine == "" || (p.Routine != "" && p.Routine != task.Routine) {
+				continue
+			}
+			if slices.ContainsFunc(result.Runs, func(run protocol.RoutineRun) bool { return run.Task == task.ID }) {
+				continue
+			}
+			run := protocol.RoutineRun{ID: task.ID, Routine: task.Routine, Kind: protocol.RoutineTask, Team: task.Team, Task: task.ID, Session: task.Session, Started: task.Created, Ended: task.Ended, Status: task.Status}
+			if task.Report != nil {
+				run.Detail = task.Report.Title
+			}
+			result.Runs = append(result.Runs, run)
+		}
+		sort.SliceStable(result.Runs, func(i, j int) bool { return result.Runs[i].Started.After(result.Runs[j].Started) })
+		if p.Limit > 0 {
+			result.Runs = result.Runs[:min(p.Limit, len(result.Runs))]
+		}
+		return result, true, nil
 	case protocol.MTeamsDreamCreate:
 		var p protocol.DreamCreateParams
 		if err := decode(raw, &p); err != nil {
@@ -244,6 +277,10 @@ func (s *server) callDreams(method string, raw json.RawMessage) (any, bool, erro
 			return nil, false, nil
 		}
 		index := s.data.teams.approvalIndex(p.ID)
+		if index >= 0 && s.data.teams.approvals[index].Kind == protocol.ApprovalSetup {
+			approval, err := s.answerSetupDemo(index, p)
+			return approval, true, err
+		}
 		if index < 0 || !s.presentationApproval(s.data.teams.approvals[index]) {
 			return nil, false, nil
 		}
@@ -258,6 +295,28 @@ func (s *server) callDreams(method string, raw json.RawMessage) (any, bool, erro
 		return s.data.teams.approvals[index], true, nil
 	}
 	return nil, false, nil
+}
+
+func (s *server) answerSetupDemo(index int, p protocol.ApprovalDecideParams) (protocol.Approval, error) {
+	approval := &s.data.teams.approvals[index]
+	if approval.Status != protocol.ApprovalPending || (p.Decision != protocol.DecideOnce && p.Decision != protocol.DecideDeny) {
+		return protocol.Approval{}, badRequest(i18n.T("This setup card needs Done or Skip and can be answered only once."))
+	}
+	outcome := i18n.Tf("The user finished setup: %s. Check that it works before carrying on.", approval.Title)
+	if p.Decision == protocol.DecideDeny {
+		outcome = i18n.Tf("The user skipped setup: %s. Do not assume these steps were completed; continue only with work that does not need them.", approval.Title)
+	}
+	approval.Result, approval.Note = outcome, strings.TrimSpace(p.Note)
+	if approval.Note != "" {
+		outcome += "\n" + approval.Note
+	}
+	s.settleApproval(index, p.Decision, approval.Note)
+	if !slices.ContainsFunc(s.data.teams.approvals, func(other protocol.Approval) bool {
+		return other.Task == approval.Task && other.Status == protocol.ApprovalPending
+	}) {
+		s.releaseTeamTask(approval.Task, outcome)
+	}
+	return s.data.teams.approvals[index], nil
 }
 
 func (s *server) dreamIndex(id string) int {
@@ -278,6 +337,9 @@ func (s *server) presentationApproval(approval protocol.Approval) bool {
 // a dream as the daemon starts one: a team of its manager alone, run without confirmations, its standing task started or waiting for a sign-in
 func (s *server) createDream(p protocol.DreamCreateParams) (protocol.Team, error) {
 	t := &s.data.teams
+	if p.Preset != "" && (p.Preset != "research" || !s.data.snapshot.Settings.Features["research"]) {
+		return protocol.Team{}, badRequest(i18n.T("Turn on Deep research in Settings to use the research preset."))
+	}
 	statement := strings.TrimSpace(p.Statement)
 	if statement == "" {
 		return protocol.Team{}, badRequest(i18n.T("Say what you dream of first."))
@@ -298,7 +360,7 @@ func (s *server) createDream(p protocol.DreamCreateParams) (protocol.Team, error
 		ID: t.newID("dream"), Name: name, Purpose: statement, Folder: p.Folder, Members: []protocol.Member{manager},
 		Approvals: protocol.ApprovalsAuto, Budget: protocol.TeamBudget{MonthTokens: p.MonthTokens, WarnPercent: 80},
 		Notify: protocol.NotifyAll, Created: now, Updated: now,
-		Dream: &protocol.Dream{Statement: statement, Phase: protocol.DreamInterviewing, Manager: manager.ID, Started: now},
+		Dream: &protocol.Dream{Statement: statement, Preset: p.Preset, Phase: protocol.DreamInterviewing, Manager: manager.ID, Started: now},
 	}
 	if team.Folder == "" {
 		team.Folder = paths.DreamsHome() + "/" + slugName(name)
@@ -432,4 +494,79 @@ func (s *server) answerDream(id, verdict, note string) (protocol.Team, error) {
 	}
 	s.emitTeam(team.ID)
 	return s.teamWithStats(team), nil
+}
+
+func addResearchDemo(result *fixtures, now time.Time, settings protocol.Settings) {
+	fx := &result.teams
+	if settings.Features["research"] {
+		started, presented := now.Add(-3*time.Hour), now.Add(-15*time.Minute)
+		manager := protocol.Member{ID: "member-research-manager", Name: i18n.T("Manager"), Title: i18n.T("Runs the dream"), Lead: true, Harness: "claude", Model: "sonnet"}
+		reviewer := protocol.Member{ID: "member-research-reviewer", Name: i18n.T("Reviewer"), Title: i18n.T("Checks the sources"), Harness: "claude", Model: "haiku"}
+		dream := protocol.Team{
+			ID: "dream-research", Name: i18n.T("How Linux reports battery health"), Purpose: i18n.T("Compare the Linux battery capacity fields and explain when a health percentage is trustworthy."),
+			Folder: paths.DreamsHome() + "/battery-health-research", Members: []protocol.Member{manager, reviewer}, Approvals: protocol.ApprovalsAuto, Notify: protocol.NotifyAll, Created: started, Updated: presented,
+			Dream: &protocol.Dream{
+				Preset: "research", Statement: i18n.T("Compare the Linux battery capacity fields and explain when a health percentage is trustworthy."),
+				Phase: protocol.DreamPresenting, Manager: manager.ID, Task: "task-research-report", Hired: 1, Rounds: 1, Started: started,
+				Summary: i18n.T("The report separates charge level from health and explains missing design-capacity readings."),
+				Presentation: &protocol.DreamPresentation{
+					Title:   i18n.T("Battery health needs a design-capacity reading"),
+					Body:    i18n.T("## Summary\nBattery charge and battery health are different readings.\n\n## Findings\nThe kernel exposes the fields the hardware supplies. UPower documents capacity as an estimate of how much energy the battery can hold compared with its design capacity.\n\n## Disagreements\nNot every battery supplies every field, so a missing design value cannot be treated as a healthy battery.\n\n## Sources\nThe kernel power-supply documentation and the UPower device reference are linked below."),
+					Sources: []string{"https://docs.kernel.org/power/power_supply_class.html", "https://upower.freedesktop.org/docs/Device.html"}, At: presented,
+				},
+			},
+		}
+		fx.teams = append(fx.teams, dream)
+		fx.addTask(settings, result.events, dream, protocol.TeamTask{ID: dream.Dream.Task, Member: manager.ID, Title: dream.Name, Brief: dream.Purpose, Origin: protocol.TaskFromYou, Status: protocol.TaskNeedsYou, Waiting: protocol.WaitingOnYou, Session: "agent-dream-research", Created: started, Started: &started, Updated: presented}, dream.Dream.Summary, "", said(dream.Dream.Presentation.Body))
+		fx.addTask(settings, result.events, dream, protocol.TeamTask{ID: "task-research-review", Member: reviewer.ID, Parent: dream.Dream.Task, Title: i18n.T("Check the battery-health sources"), Origin: protocol.TaskFromLead, Status: protocol.TaskDone, Created: started, Ended: &presented, Updated: presented, Report: &protocol.TeamReport{Title: i18n.T("Both references distinguish capacity from charge"), Body: i18n.T("Checked the report against the two linked references."), At: presented}}, i18n.T("The references agree on the distinction."), "")
+		fx.approvals = append(fx.approvals, protocol.Approval{ID: "approval-research-present", Team: dream.ID, Task: dream.Dream.Task, Session: "agent-dream-research", Member: manager.ID, Kind: protocol.ApprovalAction, Title: i18n.Tf("%s is ready: %s", dream.Name, dream.Dream.Presentation.Title), Detail: dream.Dream.Presentation.Body, Options: presentOptions(), Status: protocol.ApprovalPending, Created: presented})
+	}
+	if settings.Features["setupcards"] {
+		fx.approvals = append(fx.approvals, protocol.Approval{ID: "approval-esp32-setup", Team: demoDreamESP32, Task: demoDreamESP32 + "-run", Session: "agent-dream-esp32-run", Member: "member-esp32-manager", Kind: protocol.ApprovalSetup, Title: i18n.T("Connect the board for its final check"), Detail: i18n.T("The emulated checks passed. The last check needs the board on your desk."), Steps: []string{i18n.T("Connect the ESP32 board with its USB cable"), i18n.T("Open the serial monitor in your terminal"), i18n.T("Tell the manager which serial port appeared")}, Check: i18n.T("The board prints its setup-network name"), Status: protocol.ApprovalPending, Created: now.Add(-4 * time.Minute)})
+	}
+	if settings.Features["schedules"] {
+		started, ended := now.Add(-time.Hour), now.Add(-time.Hour+42*time.Second)
+		routine := protocol.Routine{ID: "routine-personal-ask", Team: protocol.RoutinePersonal, Kind: protocol.RoutineAsk, Title: i18n.T("Morning plan"), Brief: i18n.T("Give me three ways to plan a focused morning."), Schedule: "0 8 * * 1-5", Enabled: true, Missed: protocol.MissedSkip, Overlap: protocol.OverlapSkip, LastRun: &started, LastTask: "ask-scheduled-morning", LastStatus: protocol.TaskDone, Created: now.Add(-7 * 24 * time.Hour), Updated: now}
+		fx.routines = append(fx.routines, routine)
+		result.snapshot.Sessions = append(result.snapshot.Sessions, protocol.SessionInfo{ID: "ask-scheduled-morning", Kind: protocol.KindAsk, Title: routine.Title, Origin: protocol.OriginTeam, State: protocol.StateIdle, Created: started, Updated: ended, Turns: 1, LastSeq: 4, Preview: i18n.T("Choose one important task, protect a quiet block, and leave room for a break.")})
+		result.snapshot.Status.Sessions.Ask++
+		result.events["ask-scheduled-morning"] = []protocol.SessionEvent{event(1, protocol.EvUser, protocol.UserData{Text: routine.Brief}), event(2, protocol.EvTurnStart, protocol.TurnStartData{Turn: 1}), event(3, protocol.EvText, protocol.TextData{Message: "morning", Delta: i18n.T("1. Choose one important task.\n2. Protect a quiet block on your calendar.\n3. Leave room for a proper break.")}), event(4, protocol.EvTurnEnd, protocol.TurnEndData{Turn: 1})}
+		fx.routineRuns = append(fx.routineRuns, protocol.RoutineRun{ID: "run-personal-morning", Routine: routine.ID, Kind: protocol.RoutineAsk, Team: protocol.RoutinePersonal, Session: "ask-scheduled-morning", Started: started, Ended: &ended, Status: protocol.TaskDone, Detail: i18n.T("Three ways to plan a focused morning")})
+	}
+}
+
+func (s *server) runScheduledDemo(routine protocol.Routine) (protocol.TeamTask, error) {
+	if !s.data.snapshot.Settings.Features["schedules"] || s.data.snapshot.Settings.Teams.Paused {
+		return protocol.TeamTask{}, badRequest(i18n.T("Scheduled runs are off or paused."))
+	}
+	if index := s.data.teams.teamIndex(routine.Team); index >= 0 && s.data.teams.teams[index].Paused {
+		return protocol.TeamTask{}, badRequest(i18n.T("The routine's team is paused."))
+	}
+	now := time.Now()
+	run := protocol.RoutineRun{ID: s.data.teams.newID("run"), Routine: routine.ID, Kind: routine.Kind, Team: routine.Team, Started: now}
+	var task protocol.TeamTask
+	if routine.Kind == protocol.RoutineDream {
+		dream, err := s.createDream(protocol.DreamCreateParams{Statement: routine.Brief, Name: routine.Title, Preset: routine.Preset})
+		if err != nil {
+			return task, err
+		}
+		index := s.data.teams.taskIndex(dream.Dream.Task)
+		task = s.data.teams.tasks[index]
+		task.Routine = routine.ID
+		s.data.teams.tasks[index] = task
+		run.Task, run.Dream, run.Session, run.Status = task.ID, dream.ID, task.Session, task.Status
+	} else {
+		session := s.newSession(protocol.KindAsk, "", "", "", "", "", "", "")
+		session.Title, session.Preview, session.Turns, session.LastSeq = routine.Title, i18n.T("This is the demo's scheduled answer."), 1, 4
+		s.replaceSession(session)
+		s.data.events[session.ID] = []protocol.SessionEvent{event(1, protocol.EvUser, protocol.UserData{Text: routine.Brief}), event(2, protocol.EvTurnStart, protocol.TurnStartData{Turn: 1}), event(3, protocol.EvText, protocol.TextData{Message: "scheduled-demo", Delta: session.Preview}), event(4, protocol.EvTurnEnd, protocol.TurnEndData{Turn: 1})}
+		run.Session, run.Status, run.Ended, run.Detail = session.ID, protocol.TaskDone, &now, session.Preview
+		task = protocol.TeamTask{ID: session.ID, Session: session.ID, Routine: routine.ID, Title: routine.Title, Status: protocol.TaskDone, Created: now, Ended: &now}
+	}
+	s.data.teams.routineRuns = append([]protocol.RoutineRun{run}, s.data.teams.routineRuns...)
+	index := s.data.teams.routineIndex(routine.ID)
+	routine.LastRun, routine.LastTask, routine.LastStatus = &now, task.ID, run.Status
+	s.data.teams.routines[index] = routine
+	s.emitRoutine(routine)
+	return task, nil
 }

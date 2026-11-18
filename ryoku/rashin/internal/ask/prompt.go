@@ -48,6 +48,9 @@ func askIdentity(mode string) string {
 func (f *Factory) systemPrompt(settings protocol.Settings, terminal *protocol.TerminalContext, mode, memory, skills string) string {
 	var b strings.Builder
 	b.WriteString(askIdentity(mode))
+	if settings.Features["mindmap"] {
+		b.WriteString("\n\nYou can draw a mind map with a fenced mindmap block containing one root and an indented outline with two spaces per level.")
+	}
 	b.WriteString("\n\n# Ryoku vault\n\n")
 	b.WriteString(brief.Vault(vaultBudgetBytes))
 	b.WriteString("\n\n# Rashin\n\n")
@@ -221,6 +224,7 @@ func historyTail(path string, limit int64) []string {
 }
 
 func historyMessages(events []protocol.SessionEvent, budget int) []llm.Message {
+	events = mediaHistory(events)
 	var messages []llm.Message
 	asked := make(map[int]protocol.UserData)
 	assistantByID := make(map[string]int)

@@ -2,6 +2,7 @@ package teams
 
 import (
 	"context"
+	"net/url"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -42,6 +43,10 @@ const (
 // isDream reports a team that is a dream.
 func isDream(team protocol.Team) bool { return team.Dream != nil }
 
+func (s *Service) dreamAvailable(team protocol.Team) bool {
+	return team.Dream == nil || team.Dream.Preset != "research" || s.feature("research")
+}
+
 // withoutDreams leaves the dreams out of a list of teams: teams.list, the
 // teams agents read and the CLI's list, never shows them.
 func withoutDreams(result protocol.TeamsResult) protocol.TeamsResult {
@@ -55,6 +60,9 @@ func withoutDreams(result protocol.TeamsResult) protocol.TeamsResult {
 // starts at once. A harness the dream is not signed in to blocks that task
 // as any team's would; resuming the dream starts it again.
 func (s *Service) dreamCreate(ctx context.Context, p protocol.DreamCreateParams) (protocol.Team, error) {
+	if p.Preset != "" && (!s.feature("research") || p.Preset != "research") {
+		return protocol.Team{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Turn on Deep research in Settings to use the research preset."))
+	}
 	statement := strings.TrimSpace(p.Statement)
 	if statement == "" {
 		return protocol.Team{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("A dream needs a statement: what you want made."))
@@ -85,7 +93,7 @@ func (s *Service) dreamCreate(ctx context.Context, p protocol.DreamCreateParams)
 		},
 		Running: protocol.TeamsPerTeamMax,
 	}, now)
-	team.Dream = &protocol.Dream{Statement: statement, Phase: protocol.DreamInterviewing, Started: now}
+	team.Dream = &protocol.Dream{Statement: statement, Preset: p.Preset, Phase: protocol.DreamInterviewing, Started: now}
 	created, err := s.addTeam(ctx, team, nil, "dream.start", func(t protocol.Team) string {
 		return i18n.Tf("Started the dream, working in %s.", paths.Short(t.Folder))
 	})
@@ -115,6 +123,9 @@ func (s *Service) standingTask(ctx context.Context, teamID string) (protocol.Tea
 	team, ok := s.state.team(teamID)
 	if !ok || !isDream(team) {
 		return protocol.TeamTask{}, protocol.Errorf(protocol.CodeNotFound, "%s", i18n.Tf("No dream %s.", teamID))
+	}
+	if !s.dreamAvailable(team) {
+		return protocol.TeamTask{}, protocol.Errorf(protocol.CodeForbidden, "%s", i18n.T("Deep research is off in Settings."))
 	}
 	if open, ok := s.openStanding(team); ok {
 		return open, nil
@@ -194,7 +205,7 @@ func (s *Service) openStanding(team protocol.Team) (protocol.TeamTask, bool) {
 // dream goes back to testing and the manager presents again.
 func (s *Service) runDream(teamID, initiator string) {
 	team, ok := s.state.team(teamID)
-	if !ok || !isDream(team) || team.Paused || team.Dream.Done != nil {
+	if !ok || !isDream(team) || !s.dreamAvailable(team) || team.Paused || team.Dream.Done != nil {
 		return
 	}
 	if _, open := s.openStanding(team); open {
@@ -250,6 +261,7 @@ func cloneDream(d protocol.Dream) protocol.Dream {
 	if d.Presentation != nil {
 		presentation := *d.Presentation
 		presentation.Files = slices.Clone(presentation.Files)
+		presentation.Sources = slices.Clone(presentation.Sources)
 		d.Presentation = &presentation
 	}
 	if d.Done != nil {
@@ -257,6 +269,31 @@ func cloneDream(d protocol.Dream) protocol.Dream {
 		d.Done = &done
 	}
 	return d
+}
+
+func (s *Service) presentWithSources(ctx context.Context, p protocol.AgentPresentParams) (protocol.AgentAnswer, error) {
+	if len(p.Sources) == 0 {
+		return s.agentPresent(ctx, p)
+	}
+	if !s.feature("research") {
+		return protocol.AgentAnswer{}, protocol.Errorf(protocol.CodeForbidden, "%s", i18n.T("Deep research is off in Settings."))
+	}
+	if len(p.Sources) > 100 {
+		return protocol.AgentAnswer{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("A presentation takes at most 100 sources."))
+	}
+	sources := make([]string, 0, len(p.Sources))
+	for _, source := range p.Sources {
+		source = strings.TrimSpace(source)
+		u, err := url.Parse(source)
+		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Hostname() == "" || u.User != nil || len(source) > 4000 {
+			return protocol.AgentAnswer{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Each source needs a full http or https link without a password."))
+		}
+		if !slices.Contains(sources, source) {
+			sources = append(sources, source)
+		}
+	}
+	p.Sources = sources
+	return s.agentPresent(ctx, p)
 }
 
 // dreamAnswer takes the user's verdict on a presentation through its Inbox

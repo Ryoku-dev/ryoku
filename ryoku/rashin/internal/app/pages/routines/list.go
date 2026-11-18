@@ -12,16 +12,21 @@ import (
 	"ryoku-rashin/internal/app/env"
 	"ryoku-rashin/internal/app/look"
 	"ryoku-rashin/internal/app/pages/teamsui"
+	"ryoku-rashin/internal/protocol"
 )
 
 func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 	th := e.Theme
 	snapshot := e.Snapshot()
 	groups := make([]look.SideGroup, 0, len(snapshot.Teams))
-	for _, team := range snapshot.Teams {
+	teams := snapshot.Teams
+	if e.Feature("schedules") {
+		teams = append(append([]protocol.Team(nil), teams...), protocol.Team{ID: protocol.RoutinePersonal, Name: i18n.T("Personal")})
+	}
+	for _, team := range teams {
 		var rows []look.SideRow
 		for _, routine := range snapshot.Routines {
-			if routine.Team != team.ID {
+			if routine.Team != team.ID || !visible(snapshot, routine) {
 				continue
 			}
 			facts := p.schedules.Sentence(routine)

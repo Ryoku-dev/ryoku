@@ -51,7 +51,7 @@ type fixtures struct {
 // the moment the demo data is told from, a headless render starts its clock here so pictures don't depend on the time
 var Epoch = time.Date(2026, 11, 10, 10, 45, 0, 0, time.UTC)
 
-func makeFixtures() fixtures {
+func makeFixtures(features ...string) fixtures {
 	now := Epoch
 	ask := protocol.SessionInfo{
 		ID:      "ask-20261110-094200-a17c",
@@ -223,7 +223,17 @@ func makeFixtures() fixtures {
 		Memory: protocol.MemorySettings{
 			Asked: true, Use: true, Learn: true, Sessions: true, Agents: true,
 			TeamSuggestions: protocol.TeamSuggestAsk, Model: protocol.LearnLocalFirst, QuietMinutes: 10, Engine: protocol.MemoryBuiltin,
+			Profile: protocol.MemoryProfile{
+				Name:   "Rae",
+				Work:   "Product designer",
+				Traits: []string{"brief", "with examples"},
+				About:  "Use metric units and tell me when something is uncertain",
+			},
 		},
+	}
+	settings.Features = make(map[string]bool, len(protocol.FeatureIDs))
+	for _, id := range features {
+		settings.Features[id] = true
 	}
 	provider := protocol.ProviderInfo{
 		ID:         "openrouter",
@@ -627,6 +637,13 @@ func makeFixtures() fixtures {
 	result.events[failed.ID] = agentEvents(failed, false)
 	result.teams = demoTeams(now, settings, result.events)
 	addDemoDreams(&result, now, settings)
+	addFlagFixtures(&result)
+	if settings.Features["compare"] {
+		addCompareFixtures(&result)
+	}
+	if settings.Features["artifacts"] || settings.Features["mindmap"] {
+		addArtifactFixtures(&result)
+	}
 	return result
 }
 

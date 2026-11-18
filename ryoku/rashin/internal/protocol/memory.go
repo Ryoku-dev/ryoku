@@ -137,6 +137,14 @@ type MemorySettings struct {
 	Engine    string            `json:"engine"`
 	Hindsight HindsightSettings `json:"hindsight"`
 	Honcho    HonchoSettings    `json:"honcho"`
+	Profile   MemoryProfile     `json:"profile"`
+}
+
+type MemoryProfile struct {
+	Name   string   `json:"name,omitempty"`
+	Work   string   `json:"work,omitempty"`
+	About  string   `json:"about,omitempty"`
+	Traits []string `json:"traits,omitempty"`
 }
 
 // HindsightSettings say how Hindsight keeps memory: run on this computer by

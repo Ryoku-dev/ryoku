@@ -148,7 +148,6 @@ func newShell(r *runtime, options Options) *uiShell {
 	s.router.OnEscape = s.escape
 	s.router.OnPlace = s.applyPlace
 	s.posts.invalidate = r.hub.Invalidate
-	s.settings.OpenSection(options.SettingsSection)
 	if route == protocol.TabMemory {
 		s.router.Replace(memoryPlace(options.Memory))
 	}
@@ -157,6 +156,8 @@ func newShell(r *runtime, options Options) *uiShell {
 		s.navigateWork(options.Project, options.WorkTab, options.Worktree)
 	case options.Teams.Tab != "":
 		s.router.Replace(teamsPlace(options.Teams))
+	case route == protocol.TabSettings:
+		s.router.Replace(Place{Tab: protocol.TabSettings, SettingsSection: options.SettingsSection})
 	}
 	// the mode the window did not open in still goes back to where it stood
 	if s.router.lastRashin.Tab == "" {
@@ -227,6 +228,11 @@ func (r *runtime) runWindow(options Options) error {
 			shell.Frame(gtx)
 			event.Frame(&operations)
 		case gioapp.DestroyEvent:
+			if request := shell.ask.WritingRequest(); request != "" && r.client != nil {
+				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				_ = r.client.Call(ctx, protocol.MWritingCancel, protocol.WritingCancelParams{Request: request}, new(protocol.Empty))
+				cancel()
+			}
 			_ = state.SaveAppPreferences(shell.persistedPreferences(preferences))
 			return event.Err
 		}
@@ -357,6 +363,9 @@ func (s *uiShell) applyPlace(place Place) {
 	if place.Tab != protocol.TabProjects {
 		s.projects.Hidden(e)
 	}
+	if place.Tab != protocol.TabAsk {
+		s.ask.Hidden(e)
+	}
 	switch place.Tab {
 	case protocol.TabAgent:
 		s.agent.Select(e, place.Session)
@@ -367,6 +376,8 @@ func (s *uiShell) applyPlace(place Place) {
 		s.projects.Open(e, place.Project, normalizeProjectView(place.ProjectView), place.Worktree)
 	case protocol.TabMemory:
 		s.memory.Open(e, env.MemoryPlace{Filter: place.MemoryFilter, Scope: place.MemoryScope, ID: place.Memory, Card: place.MemoryCard})
+	case protocol.TabIndex:
+		s.index.Open(e, place.Session)
 	case protocol.TabSettings:
 		section := place.SettingsSection
 		// from teams mode settings opens on what every team shares, the rest of settings is a scroll away
@@ -515,6 +526,10 @@ func (s *uiShell) applyFocus(e *env.Env) {
 	}
 	if place, ok := focusedTeams(focus); ok {
 		s.navigateTeams(place)
+		return
+	}
+	if focus.Tab == protocol.TabSettings {
+		s.openSettings(focus.View)
 		return
 	}
 	if focus.Tab == "" && focus.Session == "" {

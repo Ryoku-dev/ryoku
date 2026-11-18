@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"regexp"
@@ -36,7 +37,7 @@ func init() {
 	register(&Command{Name: "sessions", Group: "sessions", Usage: "[ask|agent]", Summary: "List saved sessions.", Run: runSessions})
 	register(&Command{Name: "show", Group: "sessions", Usage: "<id>", Summary: "Show a saved session.", Run: runShow})
 	register(&Command{Name: "rm", Group: "sessions", Usage: "<id>", Summary: "Delete a saved session.", Run: runRemove})
-	register(&Command{Name: "open", Group: "sessions", Usage: "[--session id] [--tab tab] [--project id-or-path] [--view overview|graph|changes|tasks|activity] [--worktree path] [--route route]", Summary: "Open the Rashin app.", Run: runOpen})
+	register(&Command{Name: "open", Group: "sessions", Usage: "[--session id] [--tab tab] [--project id-or-path] [--view overview|graph|changes|tasks|activity|features] [--worktree path] [--route route]", Summary: "Open the Rashin app.", Run: runOpen})
 	register(&Command{Name: "fix", Group: "sessions", Usage: "doctor | app <name> [what happened]", Summary: "Open a repair session from machine evidence.", Run: runFix})
 }
 
@@ -131,10 +132,10 @@ func parseOpen(args []string) (protocol.UIOpenParams, error) {
 			p.Project = args[1]
 		case "--view":
 			switch args[1] {
-			case "overview", "graph", "changes", "tasks", "activity":
+			case "overview", "graph", "changes", "tasks", "activity", "features":
 				p.View = args[1]
 			default:
-				return p, fmt.Errorf("%s", i18n.T("Open view must be overview, graph, changes, tasks, or activity."))
+				return p, fmt.Errorf("%s", i18n.T("Open view must be overview, graph, changes, tasks, activity, or features for Settings."))
 			}
 		case "--worktree":
 			path, err := absoluteUserPath(args[1])
@@ -150,6 +151,9 @@ func parseOpen(args []string) (protocol.UIOpenParams, error) {
 			return p, fmt.Errorf("unknown option %s", args[0])
 		}
 		args = args[2:]
+	}
+	if p.View == "features" && (p.Tab != protocol.TabSettings || p.Project != "") {
+		return p, fmt.Errorf("%s", i18n.T("The features view opens with --tab settings."))
 	}
 	return p, nil
 }
@@ -252,6 +256,22 @@ func launchApp(p protocol.UIOpenParams) int {
 // what it is about: inbox, teams[/<team>[/<view>]], dreams[/<dream>|new],
 // work[/<task>], routines[/<routine>], vault[/<credential>] or activity
 func parseTeamsRoute(route string, p *protocol.UIOpenParams) error {
+	path, query, hasQuery := strings.Cut(route, "?")
+	if hasQuery {
+		if path != protocol.TabDreams+"/new" || len(query) > protocol.DreamDraftMaxBytes*3+32 {
+			return fmt.Errorf("%s", i18n.T("The dream draft route is not valid."))
+		}
+		values, err := url.ParseQuery(query)
+		if err != nil || len(values) != 1 || len(values["draft"]) != 1 || len(values.Get("draft")) > protocol.DreamDraftMaxBytes {
+			return fmt.Errorf("%s", i18n.T("The dream draft is too large or is not valid."))
+		}
+		var draft protocol.DreamCreateParams
+		if err := json.Unmarshal([]byte(values.Get("draft")), &draft); err != nil {
+			return err
+		}
+		p.DreamDraft = &draft
+		route = path
+	}
 	parts := strings.Split(strings.Trim(route, "/"), "/")
 	invalid := fmt.Errorf("%s", i18n.Tf("%s is not a Teams route.", route))
 	switch parts[0] {
@@ -313,7 +333,14 @@ func teamsRoute(p protocol.UIOpenParams) string {
 		}
 		return route
 	case protocol.TabDreams:
-		return joinRoute(p.Tab, p.Team)
+		route := joinRoute(p.Tab, p.Team)
+		if p.Team == "new" && p.DreamDraft != nil {
+			data, err := json.Marshal(p.DreamDraft)
+			if err == nil && len(data) <= protocol.DreamDraftMaxBytes {
+				route += "?draft=" + url.QueryEscape(string(data))
+			}
+		}
+		return route
 	case protocol.TabWork:
 		return joinRoute(p.Tab, p.TeamTask)
 	case protocol.TabRoutines:

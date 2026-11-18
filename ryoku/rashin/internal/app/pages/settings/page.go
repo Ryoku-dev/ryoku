@@ -22,6 +22,7 @@ import (
 
 const (
 	sectionRashin = iota
+	sectionFeatures
 	sectionProviders
 	sectionAPI
 	sectionAsk
@@ -43,16 +44,18 @@ type Page struct {
 	// the sections stand in the sidebar's list with a search over them, a picker tops the column while the sidebar can't show them
 	sections look.SideList
 	find     kit.Search
-	index    kit.SectionIndex
+	index    look.Select
 	listed   bool
 	current  int
 	// the section just picked, until the list has moved to it
-	jumped bool
+	jumped    bool
+	jumpBlock int
 
-	turnOff kit.Plaque
-	off     kit.Confirm
-	offOpen bool
-	log     kit.Plaque
+	turnOff  kit.Plaque
+	off      kit.Confirm
+	offOpen  bool
+	log      kit.Plaque
+	features featuresPanel
 
 	providers map[string]*providerRow
 	open      string
@@ -75,6 +78,11 @@ type Page struct {
 	teams     teamsPanel
 	memory    memoryPanel
 	skills    skillsPanel
+	prompts   promptsBlock
+	mcp       mcpBlock
+	disk      diskBlock
+	profile   profileBlock
+	resume    resumeBlock
 	install   env.HarnessInstall
 	instances map[string]*instanceEditor
 	fresh     instanceEditor
@@ -116,8 +124,7 @@ func (p *Page) OpenSection(name string) {
 func (p *Page) AskTurnOff() { p.offOpen, p.off.Dialog.Open, p.off.Danger = true, true, true }
 
 func (p *Page) jump(section int) {
-	p.current, p.jumped = section, true
-	p.scroll.ScrollTo(p.blocks.first(section))
+	p.current, p.jumped, p.jumpBlock = section, true, 0
 }
 
 func (p *Page) ListShown(shown bool) { p.listed = shown }
@@ -185,7 +192,7 @@ func (p *Page) New(*env.Env) {}
 func (p *Page) NewLabel() string { return "" }
 
 func (p *Page) Overlay(gtx layout.Context, e *env.Env) bool {
-	if p.api.overlay(gtx, e) || p.memory.overlay(gtx, e) {
+	if p.api.overlay(gtx, e) || p.memory.overlay(gtx, e) || p.mcp.overlay(gtx, e) || p.disk.overlay(gtx, e) {
 		return true
 	}
 	if !p.offOpen {
@@ -213,12 +220,13 @@ type section struct {
 func sections() [sectionCount]section {
 	return [sectionCount]section{
 		{"rashin", i18n.T("Rashin"), look.Icon.Thought, i18n.T("on off turn daemon log about version")},
+		{"features", i18n.T("Features"), look.Icon.Features, i18n.T("optional on off compare research schedules prompts enhance writing analyze audio video share quote history search steps mind maps artifacts collections profile setup cards mcp disk care Theia desktop")},
 		{"providers", i18n.T("Providers"), look.Icon.Graph, i18n.T("models routing route keys usage spend free paid local ollama llama.cpp address")},
 		{"api", i18n.T("Local API"), look.Icon.Link, i18n.T("address port key token exports openai")},
-		{"ask", i18n.T("Ask"), look.Icon.Ask, i18n.T("answers answer with engine harness codex claude omp model memory habits shell approvals changes")},
-		{"agents", i18n.T("Agents"), look.Icon.Agents, i18n.T("harness harnesses omp approvals notices idle")},
-		{"teams", i18n.T("Teams"), look.Icon.Teams, i18n.T("ledger budget spend members sandbox mail sign-in login harness hidden secrets")},
-		{"memory", i18n.T("Memory"), look.Icon.Memory, i18n.T("memory remember forget learn temporary privacy Honcho Hindsight")},
+		{"ask", i18n.T("Ask"), look.Icon.Ask, i18n.T("answers answer with engine harness codex claude omp model memory habits shell approvals changes resume history minutes pick up prompts library templates snippets variables")},
+		{"agents", i18n.T("Agents"), look.Icon.Agents, i18n.T("harness harnesses omp approvals notices idle mcp servers tools connections check sign-in")},
+		{"teams", i18n.T("Teams"), look.Icon.Teams, i18n.T("ledger budget spend members sandbox mail sign-in login harness hidden secrets disk care usage storage clean free space")},
+		{"memory", i18n.T("Memory"), look.Icon.Memory, i18n.T("memory remember forget learn temporary privacy Honcho Hindsight profile about me you name work traits answers brief detailed plain technical warm direct examples step by step")},
 		{"skills", i18n.T("Skills"), look.Icon.Skills, i18n.T("skills built in sets specs plans designs reviews debugging tests teams")},
 		{"index", i18n.T("Index"), look.Icon.Index, i18n.T("search meaning semantic system folders hide code")},
 		{"appearance", i18n.T("Appearance"), look.Icon.Show, i18n.T("theme colours colors dark light contrast tint zoom motion")},
@@ -273,8 +281,8 @@ func (p *Page) layoutBody(gtx layout.Context, e *env.Env) layout.Dimensions {
 			labels = append(labels, item.label)
 		}
 		top = look.Place(gtx, image.Rect(left, gtx.Dp(13), left+width, size.Y), func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Min = image.Point{}
-			return p.index.Layout(gtx, th.Theme, labels, p.current, kit.FrameMedium)
+			gtx.Constraints.Min = image.Pt(gtx.Constraints.Max.X, 0)
+			return p.index.Layout(gtx, th, e.Overlays, labels, p.current)
 		}).Size.Y + gtx.Dp(13)
 		p.choose()
 	}
@@ -286,16 +294,15 @@ func (p *Page) layoutBody(gtx layout.Context, e *env.Env) layout.Dimensions {
 
 // follows the section at the top of the column, unless one was just picked and the list is still on its way
 func (p *Page) follow() {
-	first, _ := p.blocks.locate(max(p.scroll.Position.First, 0))
 	if p.jumped {
-		p.jumped = first != p.current
 		return
 	}
+	first, _ := p.blocks.locate(max(p.scroll.Position.First, 0))
 	p.current = first
 }
 
 func (p *Page) choose() {
-	if selected, ok := p.index.Selected(); ok && selected < sectionCount {
+	if selected, ok := p.index.Changed(); ok && selected < sectionCount {
 		p.jump(selected)
 	}
 }

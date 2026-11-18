@@ -13,18 +13,26 @@ import (
 	"ryoku-rashin/internal/screen"
 )
 
-// agentTools hands an agent session Rashin's own MCP server, which serves the
-// code search over its folder, the session's goal, Rashin's teams and their
-// templates with propose_team, where the desktop can host one its screen,
-// the memory tools when the session uses memory and, for a team task, the
-// team's tools. Without the rashin command beside the daemon or on PATH the
-// session gets none.
 func (d *Daemon) agentTools(info protocol.SessionInfo) []core.MCPServer {
 	command := d.commandPath()
+	var servers []core.MCPServer
+	if d.feature("mcp") {
+		if store, err := d.mcpStore(); err == nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			servers = store.Ready(ctx)
+			cancel()
+		}
+	}
 	if command == "" {
-		return nil
+		return servers
 	}
 	env := map[string]string{"RASHIN_SESSION": info.ID, "RASHIN_CWD": info.Cwd}
+	if info.Team != "" && d.feature("setupcards") {
+		env["RASHIN_SETUPCARDS"] = "1"
+	}
+	if info.Team != "" && d.feature("research") {
+		env["RASHIN_RESEARCH"] = "1"
+	}
 	if d.screenFor(info) {
 		env["RASHIN_SCREEN"] = "1"
 	}
@@ -40,7 +48,7 @@ func (d *Daemon) agentTools(info protocol.SessionInfo) []core.MCPServer {
 			env[key] = value
 		}
 	}
-	return []core.MCPServer{{Name: "rashin", Command: command, Args: []string{"mcp"}, Env: env}}
+	return append(servers, core.MCPServer{Name: "rashin", Command: command, Args: []string{"mcp"}, Env: env})
 }
 
 // screenFor says a session may be offered a screen of its own: it is not an

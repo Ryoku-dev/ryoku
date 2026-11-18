@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"slices"
 	"strings"
 
@@ -174,6 +175,30 @@ func teamTools(session mcpSession) []mcp.Tool {
 			},
 		},
 	}
+	if os.Getenv("RASHIN_SETUPCARDS") == "1" {
+		tools = append(tools, mcp.Tool{
+			Name:        "request_setup",
+			Description: "Ask the user to finish setup you cannot do. Give clear ordered steps and why they are needed. End your turn after asking; Rashin continues you when the user finishes or skips.",
+			Input: schema([]string{"title", "steps", "why"}, map[string]any{
+				"title": stringProperty("What needs setting up."),
+				"steps": arrayProperty("Ordered steps the user can follow."),
+				"why":   stringProperty("Why this setup is needed."),
+				"check": stringProperty("An optional way to check it worked."),
+			}),
+			Call: func(ctx context.Context, raw json.RawMessage) mcp.Result {
+				var args struct {
+					Title string   `json:"title"`
+					Steps []string `json:"steps"`
+					Why   string   `json:"why"`
+					Check string   `json:"check"`
+				}
+				if err := toolArguments(raw, &args, "title", "steps", "why"); err != nil {
+					return mcp.Failure(err)
+				}
+				return teamAnswer(ctx, session, protocol.MTeamsAgentSetup, protocol.AgentSetupParams{AgentRef: session.agent(), Title: args.Title, Steps: args.Steps, Why: args.Why, Check: args.Check})
+			},
+		})
+	}
 	if session.dream {
 		tools = slices.DeleteFunc(tools, func(tool mcp.Tool) bool { return tool.Name == "report" })
 	}
@@ -328,6 +353,15 @@ const dreamAsk = "Ask the CEO, the user, a design or task question; never ask fo
 // members, saying where the dream stands and presenting it
 func dreamTools(session mcpSession) []mcp.Tool {
 	phases := []string{protocol.DreamInterviewing, protocol.DreamDesigning, protocol.DreamPlanning, protocol.DreamBuilding, protocol.DreamTesting}
+	presentation := map[string]any{
+		"title": stringProperty("One line naming what was built."),
+		"body":  stringProperty("In Markdown: what was built, how to use it, and the evidence it works."),
+		"tests": stringProperty("The tests you ran and what they showed."),
+		"files": arrayProperty("Paths of the files to look at, inside the dream's folder."),
+	}
+	if os.Getenv("RASHIN_RESEARCH") == "1" {
+		presentation["sources"] = arrayProperty("Source URLs for a research report.")
+	}
 	return []mcp.Tool{
 		{
 			Name: "hire",
@@ -408,18 +442,14 @@ func dreamTools(session mcpSession) []mcp.Tool {
 		{
 			Name:        "present",
 			Description: "Present the finished dream to the user once it is built, tested and reviewed: what was built, how to use it, the tests you ran and what they showed, and the files to look at. The user accepts it, which ends the dream, or sends notes, which continue you. End your turn after presenting.",
-			Input: schema([]string{"title", "body"}, map[string]any{
-				"title": stringProperty("One line naming what was built."),
-				"body":  stringProperty("In Markdown: what was built, how to use it, and the evidence it works."),
-				"tests": stringProperty("The tests you ran and what they showed."),
-				"files": arrayProperty("Paths of the files to look at, inside the dream's folder."),
-			}),
+			Input:       schema([]string{"title", "body"}, presentation),
 			Call: func(ctx context.Context, raw json.RawMessage) mcp.Result {
 				var args struct {
-					Title string   `json:"title"`
-					Body  string   `json:"body"`
-					Tests string   `json:"tests"`
-					Files []string `json:"files"`
+					Title   string   `json:"title"`
+					Body    string   `json:"body"`
+					Tests   string   `json:"tests"`
+					Files   []string `json:"files"`
+					Sources []string `json:"sources"`
 				}
 				if err := toolArguments(raw, &args, "title", "body"); err != nil {
 					return mcp.Failure(err)
@@ -428,7 +458,7 @@ func dreamTools(session mcpSession) []mcp.Tool {
 				for _, file := range args.Files {
 					files = append(files, session.path(file))
 				}
-				return teamAnswer(ctx, session, protocol.MTeamsAgentPresent, protocol.AgentPresentParams{AgentRef: session.agent(), Title: args.Title, Body: args.Body, Tests: args.Tests, Files: files})
+				return teamAnswer(ctx, session, protocol.MTeamsAgentPresent, protocol.AgentPresentParams{AgentRef: session.agent(), Title: args.Title, Body: args.Body, Tests: args.Tests, Files: files, Sources: args.Sources})
 			},
 		},
 	}

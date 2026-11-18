@@ -75,7 +75,7 @@ func (b *board) layout(gtx layout.Context, e *env.Env, page *Page) layout.Dimens
 
 func (b *board) items(snapshot state.Snapshot, runs []run) []boardItem {
 	items := []boardItem{{kind: itemLead}}
-	if len(snapshot.Teams) == 0 {
+	if len(snapshot.Teams) == 0 && !snapshot.Settings.Features["schedules"] {
 		return append(items, boardItem{kind: itemNoTeam})
 	}
 	items = append(items, boardItem{kind: itemRuns})
@@ -88,7 +88,14 @@ func (b *board) items(snapshot state.Snapshot, runs []run) []boardItem {
 	var listed []protocol.Routine
 	for _, team := range snapshot.Teams {
 		for _, routine := range snapshot.Routines {
-			if routine.Team == team.ID {
+			if routine.Team == team.ID && visible(snapshot, routine) {
+				listed = append(listed, routine)
+			}
+		}
+	}
+	if snapshot.Settings.Features["schedules"] {
+		for _, routine := range snapshot.Routines {
+			if routine.Team == protocol.RoutinePersonal {
 				listed = append(listed, routine)
 			}
 		}

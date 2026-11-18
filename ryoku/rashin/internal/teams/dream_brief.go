@@ -7,6 +7,15 @@ import (
 	"ryoku-rashin/internal/protocol"
 )
 
+type dreamPreset struct {
+	id, name, brief string
+}
+
+var dreamPresets = []dreamPreset{{
+	id: "research", name: "Deep research",
+	brief: `This is deep research. Plan the questions first, then have your members gather evidence from several independent sources and note every source with its URL. Verify claims across sources, distinguish what is known from what remains uncertain, and explain disagreements rather than hiding them. Present a cited report with Summary, Findings, Disagreements and Sources, and pass the source URLs in present.sources. Never invent a source or a URL.`,
+}}
+
 // The manager's standing instructions are a model prompt: Go constants, not
 // translated, and never shown in the app.
 
@@ -114,6 +123,14 @@ func managerBrief(team protocol.Team) string {
 	for _, part := range []string{managerFirst, managerPhases, managerTools, managerSkills, managerAsking, managerHiring, managerDelegating, managerWorking, managerFinishing, managerStall, managerLimits} {
 		b.WriteString(part)
 		b.WriteString("\n")
+		if part == managerSkills {
+			for _, preset := range dreamPresets {
+				if preset.id == d.Preset {
+					b.WriteString(preset.brief)
+					b.WriteString("\n")
+				}
+			}
+		}
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
