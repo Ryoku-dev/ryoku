@@ -5,6 +5,11 @@
   commands stay intact with or without the Xfce preferred-app helper.
 
 ### Added
+- `ryovm/`: **CI builds and tests the fetch and monitor helpers.** Unit tests
+  cover the monitor reply parsers (status, balloon, vCPUs) and the PID file
+  reader in ryovm-mon. The go-unit-tests workflow now builds, vets, and tests
+  both ryovm/fetch and ryovm/mon on pull requests and pushes, and the push
+  trigger covers ryovm/remote.
 - `ryostore/`: **Apps is a marketplace page.** The Apps catalogue opens with a
   featured shelf, a row of Flathub category plates with counts, a Trending /
   Popular / New / Updated strip, a filter field, and compact icon and text

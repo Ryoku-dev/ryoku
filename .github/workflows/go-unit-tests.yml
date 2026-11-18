@@ -3,8 +3,8 @@ name: Go unit tests
 # Build + test gates for the Go modules no other workflow covered: the ryoku
 # CLI (update / doctor / materialize, the no-migrations delivery spine), the
 # shell IPC daemon, the window-manager seam (ryoku/wm, vendored into every Go
-# consumer), the standalone shell installer, the ryoport ssh helper, and the
-# four app backends (store, hub, rashin, ryossh). The build step alone is load-bearing: these ship as
+# consumer), the standalone shell installer, the ryoport helpers (ssh, fetch,
+# mon), and the three app backends (store, hub, rashin). The build step alone is load-bearing: these ship as
 # prebuilt binaries or compile during ISO and package builds, and an ipc
 # compile break once reached unstable-dev unseen because nothing built the
 # package in CI. The store, hub and rashin backends carry 46 test files
@@ -22,6 +22,8 @@ on:
       - 'ryoku-shell-installer/**'
       - 'installation/installerplan/**'
       - 'ryoku/apps/ryostore/backend/**'
+      - 'ryoku/apps/ryovm/fetch/**'
+      - 'ryoku/apps/ryovm/mon/**'
       - 'ryoku/apps/ryovm/remote/**'
       - 'ryoku/hub/backend/**'
       - 'ryoku/rashin/backend/**'
@@ -37,6 +39,9 @@ on:
       - 'ryoku-shell-installer/**'
       - 'installation/installerplan/**'
       - 'ryoku/apps/ryostore/backend/**'
+      - 'ryoku/apps/ryovm/fetch/**'
+      - 'ryoku/apps/ryovm/mon/**'
+      - 'ryoku/apps/ryovm/remote/**'
       - 'ryoku/hub/backend/**'
       - 'ryoku/rashin/backend/**'
       - '.github/workflows/go-unit-tests.yml'
@@ -216,6 +221,46 @@ jobs:
       - name: Build, vet, and test
         shell: bash
         working-directory: ryoku/apps/ryovm/remote
+        run: |
+          go build ./...
+          go vet ./...
+          go test ./...
+
+  ryovm-fetch:
+    name: ryovm download helper
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ryoku/apps/ryovm/fetch/go.mod
+
+      - name: Build, vet, and test
+        shell: bash
+        working-directory: ryoku/apps/ryovm/fetch
+        run: |
+          go build ./...
+          go vet ./...
+          go test ./...
+
+  ryovm-mon:
+    name: ryovm monitor helper
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ryoku/apps/ryovm/mon/go.mod
+
+      - name: Build, vet, and test
+        shell: bash
+        working-directory: ryoku/apps/ryovm/mon
         run: |
           go build ./...
           go vet ./...
