@@ -170,10 +170,11 @@ func (b *batteryState) state() batteryFrame {
 	readFrom(level, &frame.TimeToEmpty, "TimeToEmpty")
 	readFrom(level, &frame.TimeToFull, "TimeToFull")
 	readFrom(physical, &frame.EnergyFull, "EnergyFull")
-	readFrom(physical, &frame.Health, "HealthPercentage")
-	if v, err := physical.GetProperty(batteryDevIface + ".HealthSupported"); err == nil {
-		frame.HealthSupported, _ = v.Value().(bool)
-	}
+	// health is UPower's Capacity, the pack's full charge against its design
+	// charge in percent; UPower has no health-named property. A pack that
+	// cannot report it leaves Capacity at 0
+	readFrom(physical, &frame.Health, "Capacity")
+	frame.HealthSupported = frame.Health > 0
 	return frame
 }
 

@@ -82,9 +82,8 @@ func TestBatteryStateLevelFollowsAggregateHealthStaysOnPack(t *testing.T) {
 	// load. The aggregate says 55 % discharging; presence, health and capacity
 	// still come from the first physical pack.
 	bat0 := packProps(99, upStatePendingCharge, map[string]dbus.Variant{
-		batteryDevIface + ".EnergyFull":       dbus.MakeVariant(49.5),
-		batteryDevIface + ".HealthSupported":  dbus.MakeVariant(true),
-		batteryDevIface + ".HealthPercentage": dbus.MakeVariant(96.0),
+		batteryDevIface + ".EnergyFull": dbus.MakeVariant(49.5),
+		batteryDevIface + ".Capacity":   dbus.MakeVariant(96.0),
 	})
 	bat1 := packProps(20, upStateDischarging, nil)
 	display := packProps(55, upStateDischarging, map[string]dbus.Variant{
@@ -202,6 +201,24 @@ func TestBatteryStateSkipsAbsentBattery(t *testing.T) {
 	frame := b.state()
 	if frame.Present || frame.OnAc {
 		t.Fatalf("absent battery with OnBattery=true: %+v", frame)
+	}
+}
+
+func TestBatteryStateWithoutCapacityHasNoHealth(t *testing.T) {
+	// a pack that cannot report its health leaves Capacity at 0, and one on a
+	// bus without the property never sets it: neither may read as 0 % health
+	for _, extra := range []map[string]dbus.Variant{
+		nil,
+		{batteryDevIface + ".Capacity": dbus.MakeVariant(0.0)},
+	} {
+		bat0 := packProps(64, upStateDischarging, extra)
+		b := testBatteryState(true, map[dbus.ObjectPath]*fakeBatteryObject{
+			testBat0:           bat0,
+			batteryDisplayPath: packProps(64, upStateDischarging, nil),
+		})
+		if frame := b.state(); frame.HealthSupported || frame.Health != 0 {
+			t.Fatalf("no capacity must leave health unsupported, got %+v", frame)
+		}
 	}
 }
 
