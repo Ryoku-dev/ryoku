@@ -14,6 +14,9 @@ import (
 // slept records every wait the code under test asked for.
 var slept []time.Duration
 
+// gaps counts the random pauses taken between probe captures.
+var gaps int
+
 // invisibleBefore is cursor:invisible as the stubbed compositor reports it
 // before the hide.
 var invisibleBefore = `{"int":0}`
@@ -33,14 +36,16 @@ func cursorFrameStubs(t *testing.T, capture func(x, y, w, h int, withCursor bool
 		}
 		return nil, nil
 	})
-	prevCapture, prevSleep := captureBox, cursorFrameSleep
+	prevCapture, prevSleep, prevGap := captureBox, cursorFrameSleep, probeGap
 	captureBox = capture
 	cursorFrameSleep = func(d time.Duration) { slept = append(slept, d) }
+	gaps = 0
+	probeGap = func() { gaps++ }
 	prevOut := stdout
 	stdout = bufio.NewWriter(&bytes.Buffer{})
 	return &evals, func() {
 		restoreCtl()
-		captureBox, cursorFrameSleep = prevCapture, prevSleep
+		captureBox, cursorFrameSleep, probeGap = prevCapture, prevSleep, prevGap
 		stdout = prevOut
 	}
 }
@@ -98,6 +103,9 @@ func TestHideCursorSkipsWaitForHardwareCursor(t *testing.T) {
 	hideAndReport(t, evals)
 	if len(slept) != 0 {
 		t.Errorf("slept %v for a hardware cursor, want no wait", slept)
+	}
+	if gaps != 4 {
+		t.Errorf("took %d random gaps between the 5 probe captures, want 4", gaps)
 	}
 }
 

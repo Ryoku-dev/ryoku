@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math/rand/v2"
 	"os/exec"
 	"time"
 )
@@ -22,9 +23,9 @@ import (
 // identical include-cursor frames, and a difference between the two kinds.
 // Anything else (a software cursor, moving content such as a video or live
 // wallpaper, a failed capture) waits, because watching the frame for change
-// cannot tell the cursor leaving from the content underneath moving. Content
-// that changes and changes back between captures would have to repeat the same
-// two frames twice in step with the probe to pass for a hardware cursor.
+// cannot tell the cursor leaving from the content underneath moving. A random
+// gap between captures keeps content that alternates between two frames from
+// staying in step with the probe and passing for a hardware cursor.
 
 const (
 	cursorProbeSize = 32
@@ -43,6 +44,10 @@ var captureBox = func(x, y, w, h int, withCursor bool) ([]byte, error) {
 }
 
 var cursorFrameSleep = time.Sleep
+
+// probeGap waits a random 0 to 15 ms between probe captures. A package variable
+// so tests run without the delay.
+var probeGap = func() { time.Sleep(time.Duration(rand.IntN(16)) * time.Millisecond) }
 
 func hideCursorInFrame() error {
 	offFrame := hardwareCursor()
@@ -71,6 +76,9 @@ func hardwareCursor() bool {
 	order := []bool{false, true, false, true, false}
 	shots := make([][]byte, len(order))
 	for i, withCursor := range order {
+		if i > 0 {
+			probeGap()
+		}
 		shot, err := captureBox(x, y, cursorProbeSize, cursorProbeSize, withCursor)
 		if err != nil || len(shot) == 0 {
 			return false
