@@ -170,6 +170,8 @@ for pkg in dualsensectl dbus hidapi libusb; do add_lane "$pkg" optional; done
 for code in ara chi_sim chi_tra deu fra hin ita jpn kor nld pol por rus spa tha tur ukr vie; do
 	add_lane "tesseract-data-$code" optional
 done
+# Theia installs its reading voice on demand
+add_lane espeak-ng optional
 # Ryoport ships from its own repository, but it still installs and advises these
 # clients through ryoku-host, so their translations stay.
 for pkg in freerdp inetutils libisoburn picocom quickemu spice-gtk tigervnc; do

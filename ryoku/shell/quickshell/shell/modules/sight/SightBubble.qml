@@ -9,6 +9,7 @@ Item {
     property real s: 1
     property rect bounds: Qt.rect(0, 0, 0, 0)
     property var context: null
+    required property var catalog
     property point pointer: Qt.point(0, 0)
     property bool shown: false
     property real reveal: 0
@@ -18,10 +19,20 @@ Item {
     readonly property color plane: Lithic.design === "lithic" ? planes.pane : Lithic.design === "fluent" ? Lithic.mix(planes.card, Lithic.sel, 0.025) : Lithic.stone4
     readonly property color stroke: Lithic.design === "material" ? "transparent" : Lithic.design === "adwaita" ? Lithic.alpha(Lithic.fg, Lithic.dark ? 0.10 : 0.16) : Lithic.design === "fluent" ? planes.cardStroke : Lithic.vein
     readonly property real lithicScale: s
-    readonly property var modes: context && context.language && String(context.language) === String(I18n.lang)
-        ? ["explain", "translate", "ask"] : ["translate", "explain", "ask"]
+    readonly property var modes: {
+        var ids = catalog.bubble.slice();
+        const foreign = !context || !context.language || String(context.language).split(/[_-]/)[0] !== String(I18n.lang).split(/[_-]/)[0];
+        const at = ids.indexOf("translate");
+        if (at >= 0 && foreign) { ids.splice(at, 1); ids.unshift("translate"); }
+        else if (!foreign && ids.join(",") === "translate,explain,ask") ids = ["explain", "translate", "ask"];
+        return ids;
+    }
+    readonly property bool hasMore: catalog.actions.some(function(row) {
+        return row.group !== "core" && catalog.enabled(row.id);
+    })
     signal actionRequested(string mode)
     signal dismissRequested()
+    signal moreRequested()
 
     implicitWidth: actions.implicitWidth
     implicitHeight: 32 * s
@@ -105,7 +116,8 @@ Item {
                 id: action
                 required property string modelData
                 required property int index
-                readonly property string label: I18n.tr(modelData === "translate" ? "Translate" : modelData === "explain" ? "Explain" : "Ask")
+                readonly property var entry: root.catalog.action(modelData)
+                readonly property string label: entry ? entry.label : modelData
                 width: title.implicitWidth + 20 * root.s + (index > 0 ? 1 : 0)
                 height: root.height
                 Accessible.role: Accessible.Button
@@ -127,6 +139,24 @@ Item {
                 }
                 CutRect { visible: action.index > 0; x: 0; y: (action.height - 16 * root.s) / 2; width: 1; height: 16 * root.s; cut: 0; fill: Lithic.vein }
             }
+        }
+        Item {
+            visible: root.hasMore
+            width: visible ? 34 * root.s : 0
+            height: root.height
+            Accessible.role: Accessible.Button
+            Accessible.name: I18n.tr("More")
+            Accessible.onPressAction: root.moreRequested()
+            scale: moreTap.pressed ? 0.97 : 1
+            Behavior on scale { NumberAnimation { duration: Lithic.duration(90) } }
+            CutRect {
+                anchors.fill: parent; cut: 8; fill: Lithic.alpha(Lithic.fg, 0.08)
+                opacity: moreHover.hovered ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: Lithic.duration(moreHover.hovered ? 160 : 100) } }
+            }
+            Glyph { anchors.centerIn: parent; name: "apps"; size: 17; ink: Lithic.fg2 }
+            HoverHandler { id: moreHover; enabled: root.shown; cursorShape: Qt.PointingHandCursor }
+            TapHandler { id: moreTap; enabled: root.shown; onTapped: root.moreRequested() }
         }
     }
 }

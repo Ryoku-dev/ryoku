@@ -27,6 +27,13 @@ Item {
             rows.push({ key: "breaks", label: I18n.tr("Keep line breaks"), checked: panel.keepBreaks });
             rows.push({ key: "read", label: I18n.tr("Read with Rashin"), glyph: "text_fields", disabled: panel.session.busy });
         }
+        if (panel.catalog.feature("quiet") || panel.catalog.feature("save")) {
+            rows.push({ divider: true });
+            if (panel.catalog.feature("save"))
+                rows.push({ key: "save", label: I18n.tr("Save to Rashin"), glyph: "bookmark_add", disabled: !String(panel.resultText || "").trim().length || panel.busy });
+            if (panel.catalog.feature("quiet"))
+                rows.push({ key: "quiet", label: I18n.tr("Not now in %1").arg(String(panel.card.app || I18n.tr("this app"))), glyph: "notifications_paused" });
+        }
         return rows;
     }
     function toggle() { if (popup.visible) popup.close(); else popup.open(); }
@@ -41,22 +48,30 @@ Item {
         else if (key === "handoff") panel.session.handoff();
         else if (key === "breaks") panel.keepBreaks = !panel.keepBreaks;
         else if (key === "read") panel.readWithRashin();
+        else if (key === "quiet") panel.notNow();
+        else if (key === "save") {
+            const action = panel.catalog.action(panel.action);
+            panel.save(panel.resultText, action ? action.label : I18n.tr("Theia"));
+        }
     }
     Popover {
         id: popup
         parent: root.anchorItem ? root.anchorItem.parent : root.parent
         anchorItem: root.anchorItem; opener: root.anchorItem
         closePolicy: T.Popup.CloseOnEscape | T.Popup.CloseOnPressOutsideParent
-        width: Math.min(290 * root.s, Math.max(1, root.panel.usable.width - 16 * root.s))
-        height: Math.min(menu.implicitHeight, Math.max(1, root.panel.usable.height - 16 * root.s))
-        function calculatePlacement() { return root.panel.popupPlacement(root.anchorItem, width, height, parent); }
-        contentItem: Flickable {
-            readonly property real lithicScale: root.s
-            transform: Translate { y: popup.slideOffset }
-            contentWidth: width; contentHeight: menu.implicitHeight
-            clip: true; boundsBehavior: Flickable.StopAtBounds
-            Menu { id: menu; width: parent.width; items: root.entries; onTriggered: index => root.fire(index) }
+        implicitWidth: Math.min(290 * root.s, Math.max(1, root.panel.usable.width
+                                  - LithicTokens.size.popoverAnchorGap * 2 * root.s))
+        implicitHeight: menu.implicitHeight
+        function calculatePlacement() {
+            return root.panel.popupPlacement(root.anchorItem, implicitWidth, implicitHeight, parent);
         }
-        onOpened: { placeAtAnchor(); Qt.callLater(function() { menu.focusItem(-1, false); }); }
+        Menu {
+            id: menu
+            readonly property real lithicScale: root.s
+            menuWidth: popup.implicitWidth
+            items: root.entries
+            onTriggered: index => root.fire(index)
+        }
+        onOpened: Qt.callLater(function() { menu.focusItem(-1, false); })
     }
 }

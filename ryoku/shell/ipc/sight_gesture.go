@@ -32,7 +32,7 @@ func sightGestureKey(name, fallback string) wm.GestureKey {
 			return key
 		}
 	}
-	panic("missing default Sight gesture key")
+	panic("missing default Theia gesture key")
 }
 
 // Both machines observe keys without grabbing them. Device identity keeps one
@@ -239,6 +239,13 @@ func (h *sightHighlightGesture) removeDevice(source uint64) {
 // Prewarming must not replace a visible selection: the third tap toggles that
 // selection off instead. Calls share the same cancellation path as sight.cancel.
 func (s *sightService) gestureTap(ctx context.Context, action string, captureID *string, workers *sync.WaitGroup) {
+	if (action == "prewarm" || action == "fire") && s.quietBlocked() {
+		if *captureID != "" {
+			s.cancelCapture(*captureID)
+			*captureID = ""
+		}
+		return
+	}
 	switch action {
 	case "prewarm":
 		s.mu.Lock()
@@ -280,6 +287,7 @@ func (s *sightService) watchGestures(ctx context.Context, options sightOptions, 
 	}()
 	taps := newSightTap(sightGestureKey(options.TapKey, "Alt_R").Code)
 	highlights := newSightHighlightGesture(sightGestureKey(options.HighlightKey, "Alt_L").Code)
+	inplace := newSightTap(sightGestureKey(options.InPlace.Key, "Control_R").Code)
 	var primary *primarySelectionState
 	var changes <-chan struct{}
 	var lastPrimary time.Time
@@ -310,6 +318,9 @@ func (s *sightService) watchGestures(ctx context.Context, options sightOptions, 
 		if next := highlights.deadline(); !next.IsZero() && (deadline.IsZero() || next.Before(deadline)) {
 			deadline = next
 		}
+		if next := inplace.deadline; !next.IsZero() && (deadline.IsZero() || next.Before(deadline)) {
+			deadline = next
+		}
 		if !deadline.IsZero() {
 			timer.Reset(time.Until(deadline.Add(time.Nanosecond)))
 			ready = timer.C
@@ -319,8 +330,11 @@ func (s *sightService) watchGestures(ctx context.Context, options sightOptions, 
 	lock := func(locked bool) {
 		act(taps.lock(locked))
 		highlights.lock(locked)
+		inplace.lock(locked)
 		if locked {
 			s.clearHighlight()
+			s.inplaceDone("")
+			s.stopOutputs()
 		}
 	}
 	// Read the coalesced timestamp at every keyboard boundary too: a release
@@ -338,21 +352,27 @@ func (s *sightService) watchGestures(ctx context.Context, options sightOptions, 
 		}
 	}
 	type highlightResult struct {
-		text, language, output string
-		epoch                  uint64
-		primary                time.Time
+		text, language, output, app string
+		inplace                     bool
+		epoch                       uint64
+		primary                     time.Time
 	}
 	results := make(chan highlightResult, 1)
-	readHighlight := func() {
-		if primary == nil {
+	readPrimary := func(inPlace bool) {
+		if primary == nil || s.quietBlocked() {
 			return
 		}
 		s.mu.Lock()
 		epoch := s.highlightEpoch
+		if inPlace {
+			s.inplaceEpoch++
+			epoch = s.inplaceEpoch
+		}
 		s.mu.Unlock()
 		s.daemon.wmMu.Lock()
 		output := s.daemon.activeMon
 		s.daemon.wmMu.Unlock()
+		app := s.focusedApp()
 		stamp := lastPrimary
 		workers.Add(1)
 		go func() {
@@ -361,16 +381,22 @@ func (s *sightService) watchGestures(ctx context.Context, options sightOptions, 
 			if err != nil || strings.TrimSpace(text) == "" {
 				return
 			}
-			result := highlightResult{text: text, language: detectSightLanguage(text), output: output, epoch: epoch, primary: stamp}
+			result := highlightResult{text: text, language: detectSightLanguage(text), output: output, app: app, inplace: inPlace, epoch: epoch, primary: stamp}
 			select {
 			case results <- result:
 			case <-ctx.Done():
 			}
 		}()
 	}
+	inplaceAct := func(action string) {
+		if action == "fire" {
+			readPrimary(true)
+		}
+	}
 	defer func() {
 		stopTimer()
 		s.clearHighlight()
+		s.inplaceDone("")
 		s.cancelCapture("")
 		workers.Wait()
 		<-done
@@ -392,19 +418,26 @@ func (s *sightService) watchGestures(ctx context.Context, options sightOptions, 
 			syncPrimary()
 			now := time.Now()
 			act(taps.tick(now))
+			inplaceAct(inplace.tick(now))
 			if options.Highlight && highlights.tick(now) {
-				readHighlight()
+				readPrimary(false)
 			}
 		case result := <-results:
 			lock(s.sessionLocked())
 			syncPrimary()
-			s.mu.Lock()
-			if !highlights.locked && s.highlightEpoch == result.epoch && lastPrimary.Equal(result.primary) && ctx.Err() == nil {
-				s.next++
-				s.frame.Highlight = &sightHighlight{ID: fmt.Sprintf("h%x-%x", time.Now().UnixNano(), s.next), Text: result.text, Language: result.language, Output: result.output, Created: time.Now().UnixMilli()}
-				s.publishLocked()
+			if result.inplace {
+				if !inplace.locked && ctx.Err() == nil {
+					s.publishInPlace(result.text, result.app, result.output, result.epoch)
+				}
+			} else {
+				s.mu.Lock()
+				if s.options.On && !highlights.locked && s.highlightEpoch == result.epoch && lastPrimary.Equal(result.primary) && ctx.Err() == nil && !s.quietBlockedLocked(s.focusedApp(), time.Now()) {
+					s.next++
+					s.frame.Highlight = &sightHighlight{ID: fmt.Sprintf("h%x-%x", time.Now().UnixNano(), s.next), Text: result.text, Language: result.language, Output: result.output, App: result.app, Created: time.Now().UnixMilli()}
+					s.publishLocked()
+				}
+				s.mu.Unlock()
 			}
-			s.mu.Unlock()
 		case message := <-messages:
 			lock(s.sessionLocked())
 			syncPrimary()
@@ -421,9 +454,13 @@ func (s *sightService) watchGestures(ctx context.Context, options sightOptions, 
 				if options.Enabled {
 					act(taps.event(message.readerID, message.event.code, message.event.value, now))
 				}
+				if options.feature("inplace") {
+					inplaceAct(inplace.event(message.readerID, message.event.code, message.event.value, now))
+				}
 			} else if !message.opened {
 				act(taps.removeDevice(message.readerID))
 				highlights.removeDevice(message.readerID)
+				inplace.removeDevice(message.readerID)
 				s.clearHighlight()
 			}
 		}

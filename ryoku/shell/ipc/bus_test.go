@@ -347,6 +347,61 @@ func TestBusCallsOrderedPerNamespaceParallelAcross(t *testing.T) {
 	}
 }
 
+func TestBusCallLanesStayOrderedWithoutBlockingNamespace(t *testing.T) {
+	d := &daemon{}
+	release := make(chan struct{})
+	defer func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	}()
+	var mu sync.Mutex
+	var order []string
+	note := func(value string) {
+		mu.Lock()
+		order = append(order, value)
+		mu.Unlock()
+	}
+	d.registerCall("sight.ocr", func(json.RawMessage) (any, error) {
+		<-release
+		note("ocr")
+		return nil, nil
+	})
+	d.registerCall("sight.ocrBoxes", func(json.RawMessage) (any, error) {
+		note("boxes")
+		return nil, nil
+	})
+	d.registerCall("sight.close", func(json.RawMessage) (any, error) { return nil, nil })
+	d.setCallLane("sight.ocr", "ocr")
+	d.setCallLane("sight.ocrBoxes", "ocr")
+	c := shellHello(t, d,
+		map[string]any{"op": "call", "id": 1, "method": "sight.ocr"},
+		map[string]any{"op": "call", "id": 2, "method": "sight.ocrBoxes"},
+		map[string]any{"op": "call", "id": 3, "method": "sight.close"},
+	)
+	if reply := c.next(); string(reply.ID) != "3" || !reply.OK {
+		t.Fatalf("plain sight call blocked behind OCR: %+v", reply)
+	}
+	mu.Lock()
+	early := append([]string(nil), order...)
+	mu.Unlock()
+	if len(early) != 0 {
+		t.Fatalf("same-lane call overtook blocked OCR: %v", early)
+	}
+	close(release)
+	first, second := c.next(), c.next()
+	if string(first.ID) != "1" || string(second.ID) != "2" {
+		t.Fatalf("same-lane replies out of order: %+v, %+v", first, second)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if !reflect.DeepEqual(order, []string{"ocr", "boxes"}) {
+		t.Fatalf("same-lane execution order = %v", order)
+	}
+}
+
 func TestBusCallRunsAfterClientLeaves(t *testing.T) {
 	d := &daemon{}
 	ran := make(chan struct{})

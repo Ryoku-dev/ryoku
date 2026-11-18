@@ -37,15 +37,18 @@ Item {
     }
     Label {
         x: 13 * root.s; width: Math.max(1, root.width - 56 * root.s)
-        anchors.verticalCenter: parent.verticalCenter
+        y: viewport.y; height: viewport.height
+        verticalAlignment: Text.AlignVCenter
         visible: editor.text.length === 0 && editor.preeditText.length === 0
         text: root.placeholder; typeRole: "body"; inkRole: "fg3"
         Accessible.ignored: true
     }
     Flickable {
         id: viewport
-        x: 13 * root.s; y: 10 * root.s
-        width: Math.max(1, parent.width - 56 * root.s); height: 20 * root.s
+        x: 13 * root.s
+        y: (root.height - height) / 2
+        width: Math.max(1, parent.width - 56 * root.s)
+        height: Math.min(root.height - LithicTokens.space.s2 * 2 * root.s, editor.cursorRectangle.height)
         contentWidth: width; contentHeight: editor.implicitHeight
         clip: true; interactive: false
         TextEdit {

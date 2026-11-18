@@ -54,6 +54,7 @@ import stage as Stage
 Scope {
     id: root
     BusTopic { id: sightTopic; topic: "sight" }
+    ShellSetting { id: theiaOn; path: "sight.on"; fallback: true }
     property var desktopLayersReady: ({})
     function markDesktopLayerReady(name) {
         const next = Object.assign({}, desktopLayersReady);
@@ -396,9 +397,14 @@ Scope {
                     return frames.length > 0 ? Object.assign({}, select, { frames: frames }) : null;
                 }
                 readonly property var highlight: sightTopic.data && sightTopic.data.highlight || null
-                property bool open: cards.length > 0 || selection !== null || highlight !== null
+                readonly property var inplace: {
+                    const value = sightTopic.data && sightTopic.data.inplace;
+                    return value && String(value.output || (ShellState.primary ? ShellState.primary.name : "")) === String(perScreen.modelData.name) ? value : null;
+                }
+                readonly property var speaking: sightTopic.data && sightTopic.data.speaking || null
+                property bool open: theiaOn.value !== false && (cards.length > 0 || selection !== null || highlight !== null || inplace !== null)
                 property bool showNow: false
-                activeAsync: open || sightHold.running
+                activeAsync: theiaOn.value !== false && (open || sightHold.running)
                 onItemChanged: if (item) Qt.callLater(function() { sightLoader.showNow = sightLoader.open; })
                 onActiveChanged: if (!active) sightCollect.restart()
                 onOpenChanged: {
@@ -415,6 +421,8 @@ Scope {
                     cards: sightLoader.cards
                     selection: sightLoader.selection
                     highlight: sightLoader.highlight
+                    inplace: sightLoader.inplace
+                    speaking: sightLoader.speaking
                     hidden: sightTopic.data ? sightTopic.data.hidden === true : false
                 }
             }

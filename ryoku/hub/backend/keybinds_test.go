@@ -152,35 +152,36 @@ func TestKeybindsEmptyOnProviderError(t *testing.T) {
 }
 
 func TestSightEffectiveGestureKeys(t *testing.T) {
-	stubProvider(t, "stub", `[{"id":"shell.sight","category":"Shell","label":"Sight","keys":["Right Alt"],"default":"Alt_R","chord":"Alt_R","kind":"daemon","taps":3,"rebindable":true},{"id":"shell.sightHighlight","category":"Shell","label":"Sight on highlighted text","keys":["Left Alt"],"default":"Alt_L","chord":"Alt_L","kind":"daemon","whileHighlighting":true,"rebindable":true}]`)
+	stubProvider(t, "stub", `[{"id":"shell.sight","category":"Shell","label":"Theia","keys":["Right Alt"],"default":"Alt_R","chord":"Alt_R","kind":"daemon","taps":3,"rebindable":true},{"id":"shell.sightHighlight","category":"Shell","label":"Theia on highlighted text","keys":["Left Alt"],"default":"Alt_L","chord":"Alt_L","kind":"daemon","whileHighlighting":true,"rebindable":true},{"id":"shell.sightInPlace","category":"Shell","label":"Theia in place","keys":["Right Ctrl"],"default":"Control_R","chord":"Control_R","kind":"daemon","taps":3,"rebindable":true}]`)
 	config := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", config)
 	if err := os.MkdirAll(filepath.Join(config, "ryoku"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct {
-		name, settings, tap, highlight string
+		name, settings, tap, highlight, inPlace string
 	}{
-		{"default", `{}`, "Alt_R", "Alt_L"},
-		{"chosen", `{"sight":{"tapKey":"Control_R","highlightKey":"Shift_L"}}`, "Control_R", "Shift_L"},
-		{"unknown", `{"sight":{"tapKey":"Super_L","highlightKey":"Q"}}`, "Alt_R", "Alt_L"},
-		{"invalid", `{`, "Alt_R", "Alt_L"},
+		{"default", `{}`, "Alt_R", "Alt_L", "Control_R"},
+		{"chosen", `{"sight":{"tapKey":"Control_R","highlightKey":"Shift_L","inplace":{"key":"Shift_R"}}}`, "Control_R", "Shift_L", "Shift_R"},
+		{"in place only", `{"sight":{"inplace":{"key":"Control_L"}}}`, "Alt_R", "Alt_L", "Control_L"},
+		{"unknown", `{"sight":{"tapKey":"Super_L","highlightKey":"Q","inplace":{"key":"Super_L"}}}`, "Alt_R", "Alt_L", "Control_R"},
+		{"invalid", `{`, "Alt_R", "Alt_L", "Control_R"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if err := os.WriteFile(filepath.Join(config, "ryoku", "shell.json"), []byte(tc.settings), 0o644); err != nil {
 				t.Fatal(err)
 			}
 			l := keybinds()
-			if len(l.Categories) != 1 || len(l.Categories[0].Binds) != 2 {
+			if len(l.Categories) != 1 || len(l.Categories[0].Binds) != 3 {
 				t.Fatalf("missing Sight rows: %+v", l)
 			}
 			if len(l.GestureKeys) != len(wm.GestureKeys) {
 				t.Fatalf("gesture keys missing: %+v", l.GestureKeys)
 			}
-			for i, want := range []string{tc.tap, tc.highlight} {
+			for i, want := range []string{tc.tap, tc.highlight, tc.inPlace} {
 				row := l.Categories[0].Binds[i]
-				def := []string{"Alt_R", "Alt_L"}[i]
-				if row.Chord != want || row.Combo != def || row.Unhonored != "" || row.WhileHighlighting != (i == 1) || (i == 0 && row.Taps != 3) {
+				def := []string{"Alt_R", "Alt_L", "Control_R"}[i]
+				if row.Chord != want || row.Combo != def || row.Unhonored != "" || row.WhileHighlighting != (i == 1) || (i != 1 && row.Taps != 3) {
 					t.Errorf("Sight row = %+v, want key %q and stable default %q", row, want, def)
 				}
 				if !reflect.DeepEqual(row.Keys, wm.DisplayKeys(want)) {
@@ -194,7 +195,7 @@ func TestSightEffectiveGestureKeys(t *testing.T) {
 				if err := json.Unmarshal(raw, &wire); err != nil {
 					t.Fatal(err)
 				}
-				if i == 0 && wire["taps"] != float64(3) || i == 1 && wire["whileHighlighting"] != true {
+				if i != 1 && wire["taps"] != float64(3) || i == 1 && wire["whileHighlighting"] != true {
 					t.Errorf("gesture lost on QML boundary: %s", raw)
 				}
 			}

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"os"
 	"reflect"
 	"sync"
@@ -166,7 +167,7 @@ func TestSightHighlightQuietPeriodCapAndClearing(t *testing.T) {
 }
 
 func TestSightHighlightOpenAndDismiss(t *testing.T) {
-	s := &sightService{topic: newStateTopic(), frame: sightFrame{Cards: []sightCard{}}}
+	s := &sightService{topic: newStateTopic(), options: sightOptionsFromFrame(nil), frame: sightFrame{Cards: []sightCard{}}}
 	if _, err := s.openHighlight("stale", "translate", 10, 20, "DP-1"); err == nil || err.Error() != "stale-highlight" {
 		t.Fatalf("stale id = %v", err)
 	}
@@ -175,8 +176,8 @@ func TestSightHighlightOpenAndDismiss(t *testing.T) {
 	if s.frame.Highlight == nil {
 		t.Fatal("stale dismiss cleared another highlight")
 	}
-	if _, err := s.openHighlight("h1", "invalid", 10, 20, "DP-1"); err == nil {
-		t.Fatal("accepted invalid mode")
+	if _, err := s.openHighlight("h1", "ask", math.NaN(), 20, "DP-1"); err == nil {
+		t.Fatal("accepted invalid position")
 	}
 	result, err := s.openHighlight("h1", "ask", 10, 20, "DP-1")
 	if err != nil {
@@ -303,7 +304,7 @@ func TestSightHighlightWireShape(t *testing.T) {
 	if err := json.Unmarshal(wire, &fields); err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]any{"id": "h1", "text": "Some text", "language": "en", "output": "DP-1", "created": float64(123)}
+	want := map[string]any{"id": "h1", "text": "Some text", "language": "en", "output": "DP-1", "app": "", "created": float64(123)}
 	if !reflect.DeepEqual(fields, want) {
 		t.Fatalf("highlight = %s", wire)
 	}

@@ -40,6 +40,7 @@ dosfstools	dosfstools	system
 easyeffects	easyeffects	desktop	
 edk2-ovmf	edk2-ovmf	desktop	
 efibootmgr	efibootmgr	system	
+espeak-ng	espeak-ng	optional	
 eza	eza	desktop	
 fastfetch	fastfetch	desktop	
 fd	fd	desktop	

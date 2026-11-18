@@ -21,6 +21,19 @@ func TestShippedBindsIDsUnique(t *testing.T) {
 func TestSightGestureCatalogue(t *testing.T) {
 	tap := find(t, "shell.sight")
 	highlight := find(t, "shell.sightHighlight")
+	inPlace := find(t, "shell.sightInPlace")
+	if tap.Label != "Theia" || tap.Hint != "Tap three times to look at part of the screen with Theia" {
+		t.Errorf("tap labels = %q / %q", tap.Label, tap.Hint)
+	}
+	if highlight.Label != "Theia on highlighted text" || highlight.Hint != "Hold while you highlight text to see Theia's actions" {
+		t.Errorf("highlight labels = %q / %q", highlight.Label, highlight.Hint)
+	}
+	if inPlace.Label != "Theia in place" || inPlace.Hint != "Tap three times with text selected to translate or fix it where it is" {
+		t.Errorf("in place labels = %q / %q", inPlace.Label, inPlace.Hint)
+	}
+	if inPlace.Category != "Shell" || inPlace.Chord != "Control_R" || inPlace.Taps != 3 || inPlace.WhileHighlighting || inPlace.Kind != BindDaemon || inPlace.Needs != "rashind" {
+		t.Errorf("in place gesture = %+v", inPlace)
+	}
 	if tap.Chord != "Alt_R" || tap.Taps != 3 || tap.WhileHighlighting || tap.Kind != BindDaemon || tap.Needs != "rashind" {
 		t.Errorf("tap gesture = %+v", tap)
 	}

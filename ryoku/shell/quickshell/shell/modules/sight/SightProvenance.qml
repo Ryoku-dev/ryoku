@@ -16,11 +16,11 @@ Item {
     property bool copied: false
     readonly property bool popupOpen: details.visible
     readonly property string shortModel: model.split("/").pop().replace(/[_-]/g, " ").replace(/\b(\d+) (\d+)\b/g, "$1.$2").replace(/\b[a-z]/g, function(letter) { return letter.toUpperCase(); })
-    implicitHeight: 16 * s
+    implicitHeight: Math.max(provenance.implicitHeight, LithicTokens.space.s4 * s)
     function close() { details.close(); }
     T.AbstractButton {
         id: source
-        width: Math.min(parent.width, provenance.implicitWidth); height: 20 * root.s
+        width: Math.min(parent.width, provenance.implicitWidth); height: root.height
         hoverEnabled: true; focusPolicy: Qt.StrongFocus
         Accessible.role: Accessible.Button
         Accessible.name: root.copied ? I18n.tr("Copied") : I18n.tr("Answered by %1").arg(root.shortModel)
@@ -36,25 +36,30 @@ Item {
             }
             FocusRing { anchors.fill: parent; cut: 3; keyboardFocusVisible: source.visualFocus }
         }
-        contentItem: Row {
+        contentItem: Item {
             id: provenance
-            spacing: 6 * root.s
-            Glyph { anchors.verticalCenter: parent.verticalCenter; name: root.copied ? "check" : root.localModel ? "computer" : "cloud"; size: 15; ink: Lithic.fg3 }
-            Label { anchors.verticalCenter: parent.verticalCenter; text: root.copied ? I18n.tr("Copied") : root.shortModel; typeRole: "caption"; inkRole: "fg3" }
+            implicitWidth: modelLabel.implicitWidth + 21 * root.s
+            implicitHeight: Math.max(modelLabel.implicitHeight, modelIcon.implicitHeight)
+            Glyph { id: modelIcon; anchors.verticalCenter: parent.verticalCenter; name: root.copied ? "check" : root.localModel ? "computer" : "cloud"; size: 15; ink: Lithic.fg3 }
+            Label { id: modelLabel; x: 21 * root.s; width: Math.max(0, parent.width - x); anchors.verticalCenter: parent.verticalCenter; text: root.copied ? I18n.tr("Copied") : root.shortModel; typeRole: "caption"; inkRole: "fg3" }
         }
     }
     Popover {
         id: details
         parent: root; anchorItem: source; opener: source; menuFocus: false
         closePolicy: T.Popup.CloseOnEscape | T.Popup.CloseOnPressOutsideParent
-        width: Math.min(300 * root.s, Math.max(1, root.panel.usable.width - 16 * root.s))
-        height: info.implicitHeight + 26 * root.s
-        function calculatePlacement() { return root.panel.popupPlacement(source, width, height, root); }
+        implicitWidth: Math.min(300 * root.s, Math.max(1, root.panel.usable.width
+                                   - LithicTokens.size.popoverAnchorGap * 2 * root.s))
+        implicitHeight: info.implicitHeight + 26 * root.s
+        function calculatePlacement() {
+            return root.panel.popupPlacement(source, implicitWidth, implicitHeight, root);
+        }
         background: CutRect { cut: 8; fill: Lithic.stone4; strokeColor: Lithic.vein; strokeWidth: 1; transform: Translate { y: details.slideOffset } }
         padding: 13 * root.s
         contentItem: Column {
             id: info
             transform: Translate { y: details.slideOffset }
+            clip: true
             width: details.availableWidth
             readonly property real lithicScale: root.s
             spacing: 8 * root.s

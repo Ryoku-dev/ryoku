@@ -538,10 +538,32 @@ func (c *busConn) unsubscribe(name string) {
 	c.out.dropTopic(name)
 }
 
+func (d *daemon) setCallLane(method, lane string) {
+	d.callsMu.Lock()
+	defer d.callsMu.Unlock()
+	if d.callLanes == nil {
+		d.callLanes = make(map[string]string)
+	}
+	if lane == "" {
+		delete(d.callLanes, method)
+	} else {
+		d.callLanes[method] = lane
+	}
+}
+
+func (d *daemon) callLane(method string) string {
+	d.callsMu.Lock()
+	defer d.callsMu.Unlock()
+	return d.callLanes[method]
+}
+
 func (c *busConn) call(m busReq) {
 	ns := m.Method
 	if i := strings.IndexByte(ns, '.'); i >= 0 {
 		ns = ns[:i]
+	}
+	if lane := c.d.callLane(m.Method); lane != "" {
+		ns += "/" + lane
 	}
 	method, id, args := m.Method, m.ID, m.Args
 	if len(args) == 0 || string(args) == "null" {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/xml"
@@ -9,8 +10,10 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"log"
+	"math"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -34,7 +37,8 @@ func (b *sightOutput) Write(data []byte) (int, error) {
 }
 
 var runSightCommand = func(ctx context.Context, name string, args ...string) ([]byte, error) {
-	command := exec.CommandContext(ctx, name, args...)
+	command := sightOutputCommand(ctx, name, args...)
+	sightPrepareCommand(command)
 	var output sightOutput
 	command.Stdout = &output
 	err := command.Run()
@@ -84,7 +88,10 @@ func sightLanguageIntersection(requested, installed []string) []string {
 	return result
 }
 func sightInstalledLanguages() ([]string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	return sightInstalledLanguagesContext(context.Background())
+}
+func sightInstalledLanguagesContext(parent context.Context) ([]string, error) {
+	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
 	raw, err := runSightCommand(ctx, "tesseract", "--list-langs")
 	if err != nil {
@@ -148,7 +155,7 @@ func (s *sightService) ocr(id string) (result any, err error) {
 	if err != nil {
 		return nil, err
 	}
-	installed, err := sightInstalledLanguages()
+	installed, err := sightInstalledLanguagesContext(s.outputContext())
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +169,7 @@ func (s *sightService) ocr(id string) (result any, err error) {
 	if err != nil {
 		return nil, errors.New("bad-image")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(s.outputContext(), 30*time.Second)
 	defer cancel()
 	input := path
 	if dimensions.Height < 400 {
@@ -197,4 +204,162 @@ func (s *sightService) ocr(id string) (result any, err error) {
 	}
 	transcript := string(text)
 	return sightOCRResult{Text: transcript, Language: detectSightLanguage(transcript), Codes: codes}, nil
+}
+
+type sightOCRBoxes struct {
+	Width  int            `json:"width"`
+	Height int            `json:"height"`
+	Lines  []sightOCRLine `json:"lines"`
+}
+
+type sightOCRLine struct {
+	Text   string  `json:"text"`
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
+	Width  float64 `json:"width"`
+	Height float64 `json:"height"`
+}
+
+func parseSightOCRBoxes(raw []byte, width, height int) ([]sightOCRLine, error) {
+	if width <= 0 || height <= 0 {
+		return nil, errors.New("bad-image")
+	}
+	type lineBox struct {
+		text                  []string
+		left, top, right, end float64
+	}
+	boxes := []lineBox{}
+	indices := map[string]int{}
+	scanner := bufio.NewScanner(bytes.NewReader(raw))
+	scanner.Buffer(make([]byte, 4096), 4<<20)
+	for scanner.Scan() {
+		fields := strings.SplitN(scanner.Text(), "\t", 12)
+		if len(fields) != 12 || fields[0] != "5" {
+			continue
+		}
+		text := strings.TrimSpace(fields[11])
+		if text == "" {
+			continue
+		}
+		var coords [4]float64
+		for i := range coords {
+			n, err := strconv.Atoi(fields[6+i])
+			if err != nil {
+				return nil, err
+			}
+			coords[i] = float64(n)
+		}
+		if coords[2] <= 0 || coords[3] <= 0 {
+			continue
+		}
+		left := math.Max(0, math.Min(float64(width), coords[0]))
+		top := math.Max(0, math.Min(float64(height), coords[1]))
+		right := math.Max(left, math.Min(float64(width), coords[0]+coords[2]))
+		end := math.Max(top, math.Min(float64(height), coords[1]+coords[3]))
+		if right == left || end == top {
+			continue
+		}
+		key := strings.Join(fields[1:5], "/")
+		index, exists := indices[key]
+		if !exists {
+			index = len(boxes)
+			indices[key] = index
+			boxes = append(boxes, lineBox{left: left, top: top, right: right, end: end})
+		}
+		box := &boxes[index]
+		box.text = append(box.text, text)
+		box.left = math.Min(box.left, left)
+		box.top = math.Min(box.top, top)
+		box.right = math.Max(box.right, right)
+		box.end = math.Max(box.end, end)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	lines := make([]sightOCRLine, 0, len(boxes))
+	for _, box := range boxes {
+		lines = append(lines, sightOCRLine{
+			Text: strings.Join(box.text, " "),
+			X:    box.left / float64(width), Y: box.top / float64(height),
+			Width: (box.right - box.left) / float64(width), Height: (box.end - box.top) / float64(height),
+		})
+	}
+	return lines, nil
+}
+
+type sightOCRRequest struct {
+	cancel context.CancelFunc
+}
+
+func (s *sightService) cancelOCRLocked(id string) {
+	for card, request := range s.ocrRequests {
+		if id == "" || card == id {
+			request.cancel()
+			delete(s.ocrRequests, card)
+		}
+	}
+}
+
+func (s *sightService) ocrBoxes(id string) (result sightOCRBoxes, err error) {
+	defer func() { err = sightOCRError(err) }()
+	s.mu.Lock()
+	if !s.options.On || !s.rashin || s.outputContext().Err() != nil {
+		s.mu.Unlock()
+		return result, errors.New("ocr-failed")
+	}
+	path := ""
+	for _, card := range s.frame.Cards {
+		if card.ID == id && card.Kind == "image" {
+			path = card.Image
+			break
+		}
+	}
+	requested := append([]string(nil), s.options.OCRLanguages...)
+	if path == "" {
+		s.mu.Unlock()
+		return result, errors.New("bad-image")
+	}
+	s.cancelOCRLocked(id)
+	ctx, cancel := context.WithTimeout(s.outputContext(), 30*time.Second)
+	request := &sightOCRRequest{cancel: cancel}
+	if s.ocrRequests == nil {
+		s.ocrRequests = make(map[string]*sightOCRRequest)
+	}
+	s.ocrRequests[id] = request
+	s.mu.Unlock()
+	defer func() {
+		cancel()
+		s.mu.Lock()
+		if s.ocrRequests[id] == request {
+			delete(s.ocrRequests, id)
+		}
+		s.mu.Unlock()
+	}()
+	path, err = validateSightImage(s.root, path)
+	if err != nil {
+		return result, err
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return result, err
+	}
+	dimensions, _, err := image.DecodeConfig(file)
+	file.Close()
+	if err != nil || dimensions.Width <= 0 || dimensions.Height <= 0 {
+		return result, errors.New("bad-image")
+	}
+	installed, err := sightInstalledLanguagesContext(ctx)
+	if err != nil {
+		return result, err
+	}
+	languages := sightLanguageIntersection(requested, installed)
+	raw, err := runSightCommand(ctx, "tesseract", path, "stdout", "-l", strings.Join(languages, "+"), "--psm", "3", "tsv")
+	if err != nil {
+		return result, err
+	}
+	lines, err := parseSightOCRBoxes(raw, dimensions.Width, dimensions.Height)
+	if err != nil {
+		return result, err
+	}
+	return sightOCRBoxes{Width: dimensions.Width, Height: dimensions.Height, Lines: lines}, nil
 }

@@ -16,7 +16,7 @@ import (
 
 func testSightCaptureService(t *testing.T, frames []sightCaptureFrame, preferred *string) *sightService {
 	t.Helper()
-	s := &sightService{root: t.TempDir(), topic: newStateTopic(), daemon: &daemon{quit: make(chan struct{})}, options: sightOptions{Mode: "translate"}, frame: sightFrame{Cards: []sightCard{}}, locked: func() bool { return false }}
+	s := &sightService{root: t.TempDir(), topic: newStateTopic(), daemon: &daemon{quit: make(chan struct{})}, options: sightOptions{On: true, Mode: "translate"}, frame: sightFrame{Cards: []sightCard{}}, locked: func() bool { return false }}
 	s.snapshot = func() ([]sightCaptureFrame, string) {
 		return append([]sightCaptureFrame(nil), frames...), *preferred
 	}

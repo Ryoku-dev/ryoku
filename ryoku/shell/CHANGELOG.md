@@ -1,6 +1,39 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Theia checks English without installing another program**
+  Automatic uses the built-in checker for English and your model for other
+  languages, and spelling fixes use the exact word you selected
+  (`quickshell/shell/modules/sight/TheiaIssues.qml`).
+- **Sight is now Theia, with a switch for the whole thing.** Every name you read
+  says Theia, one Theia switch turns off the gestures and the surface, and the
+  settings and shell.json keys keep their `sight` names (`ipc/sight.go`,
+  `quickshell/shell/modules/sight/`).
+- **Theia's panel has a More tile for what you turn on.** It opens a sheet of
+  actions grouped Read, Write and Translate, you can pin two as tabs, and the
+  highlight bubble's buttons are the ones you choose, with a More chip
+  (`modules/sight/SightPanel.qml`, `TheiaActionSheet.qml`, `TheiaCatalog.qml`, `SightBubble.qml`).
+- **Theia can summarize, deep read, solve, quiz you and read answers aloud.**
+  Key points, a TL;DR or the main point, seven lenses including a fact check,
+  maths in steps or LaTeX, a short quiz, and a voice on this computer that
+  stops when you close the panel (`modules/sight/TheiaSummary.qml`, `TheiaLenses.qml`,
+  `TheiaSolve.qml`, `TheiaQuiz.qml`, `ipc/sight_speak.go`).
+- **Theia fixes and rewrites what you write.** Spelling and grammar fixes you
+  accept one by one or all at once, rewrites, tones, fluent English, a
+  machine-writing check that says it is a rough guide, inclusive wording, how a
+  message reads, three replies and your own voice; Replace shows only for a
+  highlight with In place on, and only for results that are text to put back
+  (`modules/sight/TheiaIssues.qml`, `TheiaScore.qml`, `TheiaRewrite.qml`).
+- **Theia translates in more ways.** Pick natural, literal, formal or casual,
+  see it translated back, look a word up in the sense it is used, or have the
+  translation drawn over a picture (`modules/sight/SightTranslateRow.qml`,
+  `TheiaOverlay.qml`, `TheiaDefine.qml`, `ipc/sight_ocr.go`).
+- **Select text in any field, tap Right Ctrl three times, and Theia translates
+  or fixes it where it is.** A toast offers Undo, your clipboard is put back,
+  and Esc cancels (`ipc/sight_inplace.go`, `ipc/sight_replace.go`, `modules/sight/TheiaToast.qml`).
+- **Theia stays out of the apps you pick and has a Not now.** Choose apps where
+  no gesture fires, or keep it away until you switch app, for 15 minutes or for
+  an hour (`ipc/sight_quiet.go`).
 - **Battery health reads on every UPower build.** The daemon's battery scan
   falls back to the pack's Capacity (the wear percentage every UPower carries)
   when HealthPercentage/HealthSupported are absent, so the Orpheus power card

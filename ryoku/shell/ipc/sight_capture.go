@@ -99,6 +99,12 @@ func (s *sightService) beginCapture(ctx context.Context) string {
 	s.captureMu.Lock()
 	defer s.captureMu.Unlock()
 	s.cancelCapture("")
+	s.mu.Lock()
+	on := s.options.On
+	s.mu.Unlock()
+	if !on {
+		return ""
+	}
 	if s.sessionLocked() {
 		return ""
 	}
@@ -117,6 +123,11 @@ func (s *sightService) beginCapture(ctx context.Context) string {
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	s.mu.Lock()
+	if !s.options.On || ctx.Err() != nil {
+		s.mu.Unlock()
+		cancel()
+		return ""
+	}
 	s.next++
 	id := fmt.Sprintf("%x-%x", time.Now().UnixNano(), s.next)
 	for i := range frames {
@@ -210,7 +221,7 @@ func (s *sightService) fireCapture(ctx context.Context, id string) bool {
 		s.mu.Unlock()
 		return false
 	}
-	if ctx.Err() != nil {
+	if ctx.Err() != nil || !s.options.On || s.quietBlockedLocked(s.focusedApp(), time.Now()) {
 		s.mu.Unlock()
 		s.cancelCapture(id)
 		return false
@@ -250,9 +261,12 @@ func sightCropRect(frame sightCaptureFrame, box sightBox, bounds image.Rectangle
 	return pixels, sightBox{Output: frame.Output, X: left, Y: top, Width: right - left, Height: bottom - top}, nil
 }
 
-func (s *sightService) commit(id string, box sightBox) (any, error) {
+func (s *sightService) commit(id string, box sightBox, modes ...string) (any, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if !s.options.On {
+		return nil, errors.New("theia-off")
+	}
 	capture := s.capture
 	if capture == nil || capture.id != id || s.frame.Select == nil || s.frame.Select.ID != id {
 		return nil, errors.New("stale-selection")
@@ -295,13 +309,12 @@ func (s *sightService) commit(id string, box sightBox) (any, error) {
 		os.Remove(path)
 		return nil, errors.New("bad-image")
 	}
-	mode := s.options.Mode
-	switch mode {
-	case "explain", "text", "translate", "ask":
-	default:
-		mode = "explain"
+	mode := ""
+	if len(modes) > 0 {
+		mode = modes[0]
 	}
-	card := sightCard{ID: cardID, Kind: "image", Image: path, X: box.X, Y: box.Y, Width: box.Width, Height: box.Height, Output: box.Output, Mode: mode, Plate: true, Created: time.Now().UnixMilli()}
+	mode = sightMode(mode, s.options.Mode)
+	card := sightCard{ID: cardID, Kind: "image", Image: path, X: box.X, Y: box.Y, Width: box.Width, Height: box.Height, Output: box.Output, Mode: mode, App: s.focusedApp(), Source: "look", Plate: true, Created: time.Now().UnixMilli()}
 	if s.previous == nil {
 		s.previous = make(map[string]sightBox)
 	}

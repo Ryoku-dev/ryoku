@@ -165,7 +165,7 @@ func TestSightCardLifetime(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	s := &sightService{root: root, topic: newStateTopic(), frame: sightFrame{Cards: []sightCard{}}}
+	s := &sightService{root: root, topic: newStateTopic(), options: sightOptionsFromFrame(nil), frame: sightFrame{Cards: []sightCard{}}}
 	if _, err := s.open(sightCard{Kind: "image", Image: first}); err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,7 @@ func TestSightCardLifetime(t *testing.T) {
 }
 
 func TestSightGateReasonsAndDefaults(t *testing.T) {
-	s := &sightService{topic: newStateTopic()}
+	s := &sightService{topic: newStateTopic(), options: sightOptionsFromFrame(nil)}
 	s.setWatching(true)
 	if s.frame.Watching || s.frame.Reason != "rashin-off" {
 		t.Fatalf("off state = %#v", s.frame)
@@ -222,6 +222,19 @@ func TestSightGateReasonsAndDefaults(t *testing.T) {
 	defaults := sightOptionsFromFrame([]byte(`{}`))
 	if !defaults.Enabled || !defaults.Highlight || defaults.TapKey != "Alt_R" || defaults.HighlightKey != "Alt_L" {
 		t.Fatalf("defaults = %#v", defaults)
+	}
+	if defaults.InPlace.Action != "auto" || !sightInPlaceAction("auto") {
+		t.Fatalf("in-place default = %q", defaults.InPlace.Action)
+	}
+	for _, action := range []string{"auto", "translate", "proofread", "rewrite", "fluent", "tone:friendly", "unknown"} {
+		got := sightOptionsFromFrame([]byte(`{"sight":{"inplace":{"action":"` + action + `"}}}`)).InPlace.Action
+		want := action
+		if action == "unknown" {
+			want = "auto"
+		}
+		if got != want {
+			t.Fatalf("in-place action %q = %q, want %q", action, got, want)
+		}
 	}
 	options := sightOptionsFromFrame([]byte(`{"sight":{"enabled":false,"highlight":false,"tapKey":"bad","highlightKey":"Super_L","ocrLanguages":[]}}`))
 	if options.Enabled || options.Highlight || options.TapKey != "Alt_R" || options.HighlightKey != "Alt_L" || len(options.OCRLanguages) != 0 {

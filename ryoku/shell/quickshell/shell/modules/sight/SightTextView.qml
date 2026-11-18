@@ -13,6 +13,8 @@ Column {
     property bool done: false
     property bool busy: false
     property var keyTarget: null
+    property var catalog: null
+    property var panel: null
     readonly property bool typing: visible && editor.activeFocus
     signal edited(string text)
     signal copyRequested(string text)
@@ -42,6 +44,14 @@ Column {
         spacing: 8 * root.s
         Label { width: parent.width; typeRole: "body"; inkRole: "fg2"; text: I18n.tr("No text was found."); wrapMode: Text.Wrap; elide: Text.ElideNone }
         SightActionButton { s: root.s; text: I18n.tr("Read with Rashin"); enabled: !root.busy; onClicked: root.readRequested() }
+    }
+    SightActionButton {
+        s: root.s
+        visible: root.catalog !== null && root.catalog.feature("math")
+        enabled: !root.busy && root.panel !== null && root.done
+        text: I18n.tr("Read as math")
+        glyph: "function"
+        onClicked: root.panel.runAction("solve", { form: "latex" })
     }
     Repeater {
         model: root.codes

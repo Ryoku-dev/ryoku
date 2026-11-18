@@ -938,14 +938,27 @@ asks, `--last` prints the last answer again. Fish, Bash and Zsh hooks
 (`ryoku/apps/*/rashin.*`) wrap the command and bind Alt+R to turn the current
 command line into a proposed command; they do nothing while `rashin` is absent.
 
-## Sight
+## Theia
 
-Sight reads part of the screen with Rashin. Tap Right Alt three times: the
-screen freezes, a single hint reads "Drag over anything", and the box you drag
-stays on screen as a frozen plate with its answer beside it. There is no mode to
-choose first: the answer starts the moment you release. For text you can
-highlight, hold Left Alt while you highlight it; when you let go, a small
-Translate, Explain, Ask bubble appears above the pointer.
+Theia is Rashin's lens on the screen. Point at anything, or highlight any
+text, and Rashin explains, translates, fixes or answers right there. It used
+to be called Sight and the code keeps that name (`sight.*` in `shell.json`,
+the `sight` bus topic, `ipc/sight*.go`, `modules/sight/`); everything a person
+reads says Theia. `sight.on` is the master switch and is on by default; off,
+there is no gesture reader and no surface.
+
+Three gestures, each a key the shell daemon reads and never grabs:
+
+- **Look**: tap Right Alt three times. The screen freezes, a single hint reads
+  "Drag over anything", and the box you drag stays on screen as a frozen plate
+  with its answer beside it. There is no mode to choose first: the answer
+  starts the moment you release.
+- **Highlight**: hold Left Alt while you highlight text. When you let go, a
+  small bubble appears above the pointer (Translate, Explain and Ask unless
+  you chose others).
+- **In place** (feature `inplace`, off by default): select text in any field
+  and tap Right Ctrl three times. Theia translates or fixes it where it is
+  and a small toast offers Undo.
 
 - **Selecting** (`shell/modules/sight/SightSelect.qml`): the box's size shows
   beside the pointer only while dragging; Space moves the box, Alt shows a
@@ -953,77 +966,328 @@ Translate, Explain, Ask bubble appears above the pointer.
   compositor reports window geometry. Enter reuses the last box on that screen,
   Escape or another triple tap cancels.
 - **Highlighted text** (`SightBubble.qml`): the bubble takes no keyboard focus
-  and dims nothing. It puts Translate first when the text is in another
-  language than yours and Explain first when it is in yours, leaves after six
-  seconds unless the pointer rests on it, and goes at the next key press or new
-  selection. Choosing an action opens the panel beside the pointer on that text.
-  The shell finds the pointer by mapping a transparent surface under it for a
-  moment, so it works the same on every compositor.
+  and dims nothing. Its buttons are the ones chosen in Settings (`sight.bubble`,
+  up to four, in order); Translate goes first when the text is in another
+  language than yours and Explain first when it is in yours. A More chip shows
+  when other actions are on and opens the panel on that text with the action
+  sheet open. The bubble leaves after six seconds unless the pointer rests on
+  it, and goes at the next key press or new selection. Choosing an action
+  opens the panel beside the pointer on that text. The shell finds the pointer
+  by mapping a transparent surface under it for a moment, so it works the same
+  on every compositor.
 - **The panel** (`SightPanel.qml`): one plane beside the plate, placed once on
-  whichever side has room, growing with its answer without moving. Explain,
-  Text, Translate and Ask switch in place (Tab, or 1 to 4); Settings > Apps >
-  Rashin > Sight > "Start with" picks which one opens. Each keeps its own
-  thread, and the field at the bottom asks a follow-up about the same capture.
-  Text runs Tesseract and zbar on this machine and shows editable text plus any
-  QR or barcode; Read with Rashin asks the model to transcribe what OCR missed;
-  Translate leads with the translation and folds the original away. Its row
-  reads `[source] → [target]`: the source is detected on this machine
-  (`ipc/sight_language.go`: the script, then common words for Latin-script
-  languages) and can be overridden for one capture; the target you pick is
-  saved as Settings > Apps > Rashin > Sight > "Translate into" and used next
-  time. Text already in the target language is not sent; the panel says so and
-  offers "Translate anyway". Captures send the OCR text with the picture, so the
-  model can read past what OCR got wrong.
-  Copy copies what the panel shows, Pin floats the capture where it was taken
-  (`ryoku-cmd-pin`), and More holds Keep on screen, Open in editor, Copy image,
-  Continue in Rashin and Hand off to an agent. A quiet line at the bottom names
-  the model and whether it runs on this computer; clicking it shows the details.
-  Keys: Ctrl+C copies what is shown, Ctrl+Shift+C the image, Escape closes a
-  menu, then stops an answer, then closes. A click outside closes plate and
-  panel together; Keep on screen leaves them up and clicks pass around them.
-- **Answers**: the panel calls `glance` on the socket. Its engine and model come
-  from Settings > Apps > Rashin > Sight: "Same as Ask" follows `ask.harness`
-  (a harness such as omp over ACP, or Rashin's providers when unset), and the
-  model is the engine's default unless one is named there. Nothing in Sight
-  names a model. Explain asks for a few sentences; detail comes from
-  follow-ups. Answers name your language explicitly, translations use the source
-  and target language names, and Read only transcribes. The providers lane is a
-  quick runner: no tools, a short per-mode prompt, no vault brief or memory,
-  route `auto:fast`. Every glance session is
-  temporary; Keep forks it into history (images under the runtime dir are
-  copied into Rashin's data dir), Continue opens it in the app, and the agent
-  hand-off works as from Ask. "Local models only" keeps the screen off the
-  network.
+  whichever side has room, growing with its answer without moving. Its tabs are
+  Explain, Text, Translate and Ask, then up to two pinned actions
+  (`sight.pinned`), then a More tile that shows only when at least one other
+  action is on. Tab, or 1 to 6, follows the visible tabs. More opens the
+  action sheet: every action that fits the capture, grouped Read, Write and
+  Translate, each with a pin to keep it as a tab. An action chosen there shows
+  as a temporary seventh tab until another tab is chosen. Settings > Apps >
+  Rashin > Theia > "Start with" picks which core tab opens. Each tab keeps its
+  own thread, and the field at the bottom asks a follow-up about the same
+  capture.
+- **Core tabs**: Text runs Tesseract and zbar on this machine and shows
+  editable text plus any QR or barcode; Read with Rashin asks the model to
+  transcribe what OCR missed. Translate leads with the translation and folds
+  the original away. Its row reads `[source] → [target]`: the source is
+  detected on this machine (`ipc/sight_language.go`: the script, then common
+  words for Latin-script languages) and can be overridden for one capture; the
+  target you pick is saved as Settings > Apps > Rashin > Theia > "Translate
+  into" and used next time. Text already in the target language is not sent;
+  the panel says so and offers "Translate anyway". Captures send the OCR text
+  with the picture, so the model can read past what OCR got wrong.
+- **The output bar** (`TheiaOutputBar.qml`): under a result. Replace shows
+  only with In place on, on a capture that came from a highlight, and for an
+  action whose result is text to put back (Translate, Summarize, Fix writing,
+  Rewrite, Tone, Fluent, Sound like you and Inclusive, and each Reply). It
+  closes the panel so focus goes back to the app, puts the result over the
+  highlighted text, and a toast offers Undo for 4 seconds. Read aloud shows
+  with the `readaloud` feature and Save with
+  `save`. Copy copies what the panel shows, Pin floats the capture where it was
+  taken (`ryoku-cmd-pin`), and More holds Keep on screen, Open in editor, Copy
+  image, Continue in Rashin and Hand off to an agent, plus "Not now in <app>"
+  with `quiet` and "Save to Rashin" with `save`. A quiet line at the bottom
+  names the model and whether it runs on this computer; clicking it shows the
+  details. Keys: Ctrl+C copies what is shown, Ctrl+Shift+C the image, Escape
+  closes a menu, then stops an answer, then closes. A click outside closes
+  plate and panel together; Keep on screen leaves them up and clicks pass
+  around them.
+
+### What Theia can do
+
+Each feature below is a switch in Settings, stored as `sight.features.<id>`,
+and every one is off by default. The three the panel always had (Look,
+Highlight and the four core tabs) stay on. A feature that is off shows
+nowhere and costs nothing.
+
+Reading:
+
+- **Summarize** (`summarize`): Key points (three to seven bullets), TL;DR (one
+  sentence) or Main point (one short paragraph), chosen with a segmented
+  control (`sight.summarize.style`), with "Saves about N min of reading" when
+  that is a minute or more.
+- **Deep read** (`deepread`): one lens at a time over the text: Fact check
+  (each claim marked Holds up, Unclear or Doubtful, with why), Assumptions, Key
+  ideas, Contrasts, Related reading (searchable titles, never invented links),
+  Passages and Section. `sight.deepread.lenses` picks which are offered.
+- **Math** (`math`, tab Solve): reads an equation as LaTeX, or solves it as
+  numbered steps ending in an "Answer:" line, with a Steps or LaTeX switch and
+  Copy LaTeX. The Text tab offers "Read as math" while it is on.
+- **Learn** (`learn`): turns what you read into 3, 5 or 8 multiple-choice
+  questions (`sight.learn.count`), one at a time, with the reason after each
+  answer and "You got N of M" at the end.
+- **Read aloud** (`readaloud`): speaks an answer or summary on this computer.
+  One voice speaks at a time and it stops on Stop, on a new reading, or when
+  the panel closes. Voice and speed (0.75 to 1.5) are in Settings.
+
+Writing:
+
+- **Fix writing** (`proofread`): the built-in checker underlines English spelling
+  and grammar issues, accepted one by one or all at once, with the engine named
+  ("Checked on this computer" or "Checked by <model>"). Automatic means
+  "English on this computer, other languages with your model", falling back to
+  this computer when no provider is configured, and This computer never refuses
+  text based on its language. Categories can be hidden (`sight.proofread.off`),
+  the dialect is US, UK, CA, AU or IN (`us`, `uk`, `ca`, `au`, `in`), and Your
+  words keeps typed casing, accepts words in every dialect and treats different
+  capitalization as the same entry, keeping the newest spelling.
+- **Rewrite** (`rewrite`): Rephrase, Shorter, Longer or Simpler, for a general,
+  expert or non-native reader (`sight.rewrite.audience`), and "Another version".
+- **Tone** (`tone`): 23 tones as chips (formal, friendly, confident and more);
+  five show by default and the rest are one More away (`sight.tone.favorites`).
+- **Fluent English** (`fluent`): smooths phrasing so it reads naturally, with a
+  simple-English audience.
+- **Sound like you** (`humanize`): rewrites stiff text to read like a person
+  wrote it and shows the machine-writing check before and after.
+- **Machine-writing check** (`aicheck`): a score from 0 to 100 on an arc, a
+  verdict (Reads human, Mixed or Reads machine-written), the signals behind it
+  as bars and the phrases that give it away. It is made of local heuristics
+  and says "A rough guide, not proof." "Ask the model too" adds a second
+  opinion.
+- **Inclusive language** (`inclusive`): flags wording that may exclude or hurt
+  people, each with kinder alternatives, from term lists on this computer.
+- **How it reads** (`reactions`): how a reader is likely to take the message,
+  what lands, what may misfire and one suggestion.
+- **Reply** (`reply`): three replies to a highlighted message, Short, Warm and
+  Detailed, each with Copy and Replace.
+- **My voice** (`voice`): you give Rashin samples of your writing and notes on
+  how you write; Rewrite, Tone, Sound like you and Reply can then write in it
+  (an "In my voice" chip, on by default with `sight.voice.use`). It is kept in
+  `voice.json` in Rashin's data folder, readable only by you.
+
+Translate (a row of extras under the Translate answer):
+
+- **Translation style** (`translatestyle`): a Style chip for Natural, Literal,
+  Formal or Casual, with Simpler words and "Show it translated back", so you can
+  check a translation by reading it in your own language. The back
+  translation sits under the finished answer and can be retried.
+- **Dictionary** (`dictionary`): on one to three words, the meanings in the
+  sense the text uses, with a reading, examples and a translation. Its chip
+  shows only for a one to three word selection or recognised text.
+- **Translate on the picture** (`overimage`): on a captured picture, the
+  translated lines drawn over the original text, each box filled so it reads.
+  It is display only: the capture itself is not changed.
+
+Around the panel:
+
+- **In place** (`inplace`): see the gestures. Right Ctrl, three taps, with text
+  selected. The default action, Fix or translate (`auto`), translates into your
+  chosen language, or fixes only spelling, grammar and punctuation when the
+  selection is already in that language, keeping its meaning, tone and layout.
+  Translate, Fix writing, Rewrite, Fluent English and tones remain explicit
+  choices (`sight.inplace.action`). The result replaces the selection by paste
+  or by typing (`sight.inplace.paste`). Esc or a click on the toast cancels.
+  Failures show the model's reason, or explain why the result cannot be pasted.
+  Terminal selections cannot be replaced. In a focused terminal, including the
+  configured Default Apps terminal, Theia leaves the result on the clipboard,
+  sends no typing or paste shortcut, and offers no Undo.
+- **Quiet places** (`quiet`): apps where no gesture fires (`sight.quiet.apps`),
+  added from the running windows, and "Not now in <app>" in the panel menu,
+  which keeps Theia away until you switch apps, for 15 minutes or for an hour
+  (`sight.quiet.snooze`). Apps are matched by their exact app id.
+- **Save to Rashin** (`save`): saves an answer or an excerpt to a Rashin
+  collection (see Index, Collections). Settings writes this switch together
+  with `features.collections`, so it is one row for two stores.
+
+### Settings
+
+Settings > Apps > Rashin has a Theia section for the master switch and
+how many of its 21 desktop features are on, then Reading, Writing, Translate,
+Listening, Quiet places and Model. Each desktop feature has a switch and
+chips for where it shows; its options appear while it is on. Values live in
+`shell.json`; the daemon owns the file. The Rashin app features row shows
+how many of the app's 20 features are on and opens Settings > Features in
+Rashin, rather than keeping a second set of switches.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `sight.on` | true | master switch |
+| `sight.enabled`, `sight.highlight` | true | Look and Highlight |
+| `sight.tapKey`, `sight.highlightKey`, `sight.inplace.key` | Alt_R, Alt_L, Control_R | the gesture keys, from `wm.GestureKeys` |
+| `sight.mode` | explain | the core tab that opens first |
+| `sight.bubble` | translate, explain, ask | bubble actions, at most four |
+| `sight.pinned` | none | extra tabs, at most two |
+| `sight.features.<id>` | false | each feature above |
+| `sight.summarize.style` | points | points, tldr or main |
+| `sight.deepread.lenses` | all seven | lenses offered |
+| `sight.learn.count` | 5 | 3, 5 or 8 questions |
+| `sight.readaloud.voice`, `.rate` | engine default, 1.0 | voice id and speed |
+| `sight.proofread.engine` | auto | auto, local or model |
+| `sight.proofread.dialect`, `.off` | us, none | dialect and hidden categories |
+| `sight.rewrite.variant`, `.audience` | rephrase, general | default chip and reader |
+| `sight.tone.favorites` | five tones | tone chips shown first |
+| `sight.voice.use` | true | write in My voice by default |
+| `sight.translate.style`, `.simpler`, `.back` | natural, off, off | translation extras |
+| `sight.inplace.action`, `.paste` | auto, true | Fix or translate, and how it lands |
+| `sight.quiet.apps`, `.snooze` | none, 0 | quiet apps and Not now (0 is until you switch apps) |
+| `sight.target`, `sight.ocrLanguages` | system, `eng` | translate target, OCR languages |
+| `sight.localOnly`, `sight.engine`, `sight.model` | false, ask, none | where answers come from |
+
+### Engines and what they cost
+
+Nothing runs until you ask. The built-in writing checker runs in Rashin without
+starting another program; external engines run for one request and stop when it
+is cancelled or the panel closes. Views load only while shown, nothing polls
+while a surface is hidden, and no animation loops at rest.
+
+| Engine | For | Notes |
+|---|---|---|
+| Built-in English checker | Fix writing, `local` or `auto` | native Go port of Harper 3.2.0, no package to install; Automatic uses English on this computer, other languages with your model |
+| `espeak-ng`, `piper`, `pw-play` | Read aloud | `espeak-ng` voices, plus Piper `.onnx` voices in `$XDG_DATA_HOME/piper/voices/`, which Piper renders to a temporary WAV that `pw-play` plays; Settings installs `espeak-ng` when missing |
+| `tesseract`, zbar | Text, Translate on the picture | boxes come from `tesseract ... tsv` |
+| `wtype`, `wl-copy` | Replace, In place, Undo | `wtype` ships with ryoku-desktop |
+| `ffmpeg`, `ryoku-dictate --selftest` | audio in Ask | uses the voice model from Settings > Voice typing |
+| `yt-dlp` | video links in Ask | checked with a 15 second timeout |
+
+Which model answers is the Model section: "Same as Ask" follows `ask.harness`
+(a harness such as omp over ACP, or Rashin's providers when unset), and the
+model is the engine's default unless one is named. Nothing in Theia names a
+model. Local only keeps the screen off the network. The Harper port and its
+dictionary, espeak-ng, Piper, yt-dlp, and the word lists and formulas behind the
+writing checks are credited in `NOTICE` and Settings > About > Credits.
+
+The provider model picker reads `models.list` JSON and offers routes and models
+marked available. Provider and harness menus load only on List models, with at
+most 100 matches at once; typing finds other names. A saved provider model is
+checked asynchronously only while the page is shown. If its provider has no key,
+or it is unavailable now, the row uses the model and provider display names,
+points to Rashin > Settings > Providers and offers Use Auto.
+
+### Answers
+
+The panel calls `glance` on the socket. Explain asks for a few sentences;
+detail comes from follow-ups. Answers name your language explicitly,
+translations use the source and target language names, and Read only
+transcribes. The providers lane is a quick runner: no tools, a short per-mode
+prompt, no vault brief or memory, route `auto:fast`. Every glance session is
+temporary; Keep forks it into history (images under the runtime dir are
+copied into Rashin's data dir), Continue opens it in the app, and the agent
+hand-off works as from Ask.
+
+`GlanceParams.Options` (strings) carries a mode's settings. Modes beyond the
+core four:
+
+| Mode | Options | Output |
+|---|---|---|
+| `summarize` | `style`: points, tldr, main | Markdown |
+| `deepread` | `lens` | Markdown, short |
+| `solve` | `form`: steps, latex | numbered steps and an "Answer:" line, or one `latex` block |
+| `learn` | `count`: 3, 5, 8 | JSON questions with choices, the answer and why |
+| `define` | none | JSON term, reading, senses and translation |
+| `rewrite` | `variant`, `audience`, `voice` | the rewritten text only |
+| `tone` | `tone`, `voice` | the rewritten text only |
+| `fluent` | `audience` | the rewritten text only |
+| `humanize` | `voice` | the rewritten text only |
+| `reactions` | none | Markdown |
+| `reply` | `tone`, `voice` | JSON with three replies |
+| `aicheck` | none | JSON score, verdict, phrases and a note |
+| `translate` | adds `style`, `simpler` | unchanged |
+
+`voice: on` makes the daemon add your voice notes to the instruction. JSON
+modes are told to reply with JSON only and the panel strips code fences before
+it reads them. Writing checks and transforms that need no screen go through
+`writing.check` and `writing.transform`: `check` runs the built-in English
+spelling and grammar checker, then local style checks (passive voice, weasel
+words, adverbs, cliches, wordiness, repeated words, mixed quotes), inclusive
+wording and reading statistics (Flesch reading ease and grade, reading time at
+230 words a minute). Automatic uses the model for other languages, and
+`engine: model` always asks the model for corrections. `writing.words` lists
+your saved words as `{"words":[]}`; `writing.words.add` and
+`writing.words.remove` take `{"word":"..."}` and return the same list shape.
+`transform` runs one model call per action (translate, proofread,
+rewrite, tone, fluent, humanize, enhance, lines). The panel's session
+sends each check or transform with a request id and can cancel one or all
+(`writing.cancel {request}`); closing the panel or stopping an answer cancels
+every call still out, and a late reply is dropped. A cancel that arrives
+before its call has registered still wins, so order does not matter. Learning
+your voice (`writing.voice.learn`) takes a request id too: cancelling it, or
+hiding the My voice editor in Settings, stops the model call and leaves
+`voice.json` as it was.
+
 - **No model reads pictures**: `glance` fails with `no_vision` and the panel
   offers to add a provider. Local Ollama and llama.cpp models count once their
   server reports vision (`/api/show` capabilities, `/props` modalities).
   Pictures over 8 MiB are scaled down before they are sent.
-- **The gestures** (`ipc/sight_gesture.go`): the shell daemon reads the
-  keyboards read-only, never grabs them, and only matches two patterns: three
-  quick taps of one key (each under 250 ms, at most 350 ms apart, with nothing
-  else pressed), and one key held while the PRIMARY selection changes. A change
-  that lands up to 400 ms after the key comes up still counts, because apps
-  such as Chromium set PRIMARY on mouse-up. The clipboard watcher reports each
-  PRIMARY change without reading it; the text is read once, after the
-  selection settles. The reader runs only while Rashin is on and a gesture is
-  enabled, and never fires on a locked screen. It needs the
-  active-seat keyboard access Ryoku already ships
-  (`72-ryoku-keyboard-uaccess.rules`); without it the Rashin page says so.
-  No compositor binds these keys, so Alt keeps working in shortcuts and as
-  AltGr, and Hyprland, niri and Wayfire behave the same. The keys come from a
-  short list of modifiers (`wm.GestureKeys`), chosen in Settings > Keyboard
-  shortcuts. On a layout where Right Alt is Alt rather than AltGr, apps that
-  show a menu bar on an Alt tap (Firefox, VS Code) may toggle it. At the second
-  tap the daemon captures every output with grim into the runtime dir, so the
-  frozen screen is ready at the third; a missing third tap deletes the
-  captures. The shell draws the selection itself (`sight` topic `select`), and
-  `sight.commit` crops the box at full pixel density.
-- **Off is zero**: with Rashin off or Sight disabled there is no reader, timer
-  or process; the Sight surface loads with a selection or its first panel and
-  unloads 15 s after the last one closes.
-- **Testing without the gestures**: `ryoku-shell sight` freezes the screen now;
-  `rashin glance --mode explain --image shot.png [--engine omp --model ID]`
-  streams an answer in a terminal.
+
+### The gestures
+
+(`ipc/sight_gesture.go`) The shell daemon reads the keyboards read-only, never
+grabs them, and only matches two patterns: three quick taps of one key (each
+under 250 ms, at most 350 ms apart, with nothing else pressed), and one key
+held while the PRIMARY selection changes. In place is a third tap machine on
+its own key, the same timing, that reads PRIMARY when it fires. A change that
+lands up to 400 ms after the key comes up still counts, because apps such as
+Chromium set PRIMARY on mouse-up. The clipboard watcher reports each PRIMARY
+change without reading it; the text is read once, after the selection settles.
+The reader runs only while Rashin is on, Theia is on and a gesture is
+enabled, and never fires on a locked screen. It needs the active-seat
+keyboard access Ryoku already ships (`72-ryoku-keyboard-uaccess.rules`);
+without it the Rashin page says so. No compositor binds these keys, so Alt
+keeps working in shortcuts and as AltGr, and Hyprland, niri and Wayfire
+behave the same. The keys come from a short list of modifiers
+(`wm.GestureKeys`), chosen in Settings > Keyboard shortcuts. On a layout
+where Right Alt is Alt rather than AltGr, apps that show a menu bar on an Alt
+tap (Firefox, VS Code) may toggle it. At the second tap the daemon captures
+every output with grim into the runtime dir, so the frozen screen is ready at
+the third; a missing third tap deletes the captures. The shell draws the
+selection itself (`sight` topic `select`), and `sight.commit` crops the box
+at full pixel density.
+
+The `sight` topic frame carries `watching`, a `reason` (`rashin-off`,
+`disabled`, `no-keyboard-access`, `theia-off` or empty), `hidden`, `cards`,
+`select`, `highlight`, `inplace` (the text, its language, the app and the
+action) and `speaking`. Every card and highlight records the focused app when
+it is made, which is what Quiet places and "Not now in <app>" match.
+
+Calls beyond the capture ones (`sight.open`, `sight.highlightOpen`,
+`sight.commit`, which accept any action id):
+
+| Call | Does |
+|---|---|
+| `sight.replace {text, mode}` | puts text over the selection: `paste` keeps your clipboard, copies the text, sends Ctrl+V with `wtype` and puts your clipboard back after 700 ms; `type` types it with `wtype -d 3` |
+| `sight.undo` | sends Ctrl+Z |
+| `sight.speak {id, card, text, voice, rate}`, `sight.stopSpeaking` | speaks with Piper when the voice starts `piper:` and its model exists, else `espeak-ng`, one at a time; the process group is killed on stop |
+| `sight.voices` | the engine, its voices, and which engine is missing |
+| `sight.ocrBoxes {id}` | the card's text lines with normalised boxes, for Translate on the picture |
+| `sight.quietNow {app?}` | snoozes the given or focused app |
+| `sight.inplaceDone {id}` | clears the in-place request |
+
+### Off is zero
+
+With Rashin off, Theia off or no gesture enabled there is no reader, timer or
+process; the surface loads with a selection or its first panel and unloads
+15 s after the last one closes.
+
+### Testing without the gestures
+
+`ryoku-shell sight` freezes the screen now; `rashin glance --mode explain
+--image shot.png [--engine omp --model ID]` streams an answer in a terminal.
+A mode's options go in with `--option key=value`, repeated as needed (the last
+repeat of a key wins and a value may contain `=`), for example `rashin glance
+--mode summarize --text '...' --option style=tldr`. With `voice=on` the saved
+voice notes are added on the providers and on a harness alike. The JSON modes
+(`learn`, `define`, `reply`, `aicheck`) may answer up to 8192 tokens; the
+others keep 4096.
 
 ## Agent
 

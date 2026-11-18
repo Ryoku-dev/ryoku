@@ -16,6 +16,15 @@ Scope {
     property var cards: []
     property var selection: null
     property var highlight: null
+    property var inplace: null
+    property var speaking: null
+    property string handledInplaceId: ""
+    property var inplaceContext: null
+    property var inplaceWorker: null
+    property bool inplaceWaiting: false
+    property var replacement: null
+    property string sheetCardId: ""
+    property bool highlightSheet: false
     property string handledHighlightId: ""
     property bool probingPointer: false
     property bool highlightOpening: false
@@ -54,14 +63,161 @@ Scope {
     readonly property bool popupOpen: { revision; return surfaces.some(function(group) { return group.panelItem && group.panelItem.popupOpen === true; }); }
     property real frameReveal: selecting ? 1 : 0
     property real scrimReveal: selecting ? 1 : modal && modal.card.kind !== "text" && !hidden ? 0.55 : 0
-    readonly property bool fullInput: selecting || pendingCommit || modal !== null || scrimReveal > 0.001 || dragging || popupOpen || probingPointer
+    readonly property bool fullInput: selecting || pendingCommit || modal !== null || scrimReveal > 0.001 || dragging || popupOpen || probingPointer || inplaceWaiting
     readonly property bool windowShown: selecting || pendingCommit || frameReveal > 0.001 || scrimReveal > 0.001
-        || (!hidden && (surfaces.length > 0 || probingPointer || bubble.presented || highlightOpening))
+        || (!hidden && (surfaces.length > 0 || probingPointer || bubble.presented || highlightOpening || inplaceWaiting || toast.presented))
     Behavior on frameReveal { enabled: !root.selecting; NumberAnimation { duration: Lithic.duration(150); easing.type: Easing.OutCubic } }
     Behavior on scrimReveal { NumberAnimation { duration: Lithic.duration(150); easing.type: Easing.OutCubic } }
 
     ShellSetting { id: scaleSetting; path: ["displays", "ui_scale", root.screen ? root.screen.name : ""]; fallback: 1 }
     RashinClient { id: rashin }
+    TheiaCatalog { id: actionCatalog }
+
+    function languageName(code) {
+        if (code === "zh-Hans") code = "zh_CN";
+        else if (code === "zh-Hant") code = "zh_TW";
+        for (var i = 0; i < I18n.langs.length; ++i)
+            if (String(I18n.langs[i].code) === String(code)) return String(I18n.langs[i].name);
+        return String(code || "English");
+    }
+    function finishInplace() {
+        const context = inplaceContext;
+        inplaceContext = null;
+        inplaceWaiting = false;
+        if (inplaceWorker) { inplaceWorker.destroy(); inplaceWorker = null; }
+        if (context) Bus.call("sight.inplaceDone", { id: String(context.id) });
+    }
+    function cancelInplace() {
+        if (replacement && replacement.inplace) { replacement = null; replaceWait.stop(); }
+        if (inplaceWorker) inplaceWorker.cancel();
+        finishInplace();
+        toast.dismiss();
+    }
+    function syncInplace() {
+        if (!completed) return;
+        if (!inplace || !actionCatalog.feature("inplace")) {
+            if (inplaceContext) cancelInplace();
+            return;
+        }
+        const id = String(inplace.id || "");
+        if (!id || id === handledInplaceId) return;
+        cancelInplace();
+        handledInplaceId = id;
+        inplaceContext = inplace;
+        for (var i = 0; i < surfaces.length; ++i) surfaces[i].kept = true;
+        revision++;
+        probingPointer = false;
+        bubble.dismissBubble(true);
+        inplaceWaiting = true;
+        pointerWait.restart();
+    }
+    function startInplace(point) {
+        if (!inplaceContext || !inplaceWaiting) return;
+        inplaceWaiting = false;
+        const action = String(inplaceContext.action || "auto");
+        toast.show(action === "auto" ? I18n.tr("Fixing or translating…") : action === "translate" ? I18n.tr("Translating…") : action === "proofread" ? I18n.tr("Fixing…") : I18n.tr("Rewriting…"), "working", false, point);
+        inplaceWorker = transformComponent.createObject(root, { context: inplaceContext });
+        canvas.forceActiveFocus();
+    }
+    function transformed(context, result, error) {
+        if (!inplaceContext || String(inplaceContext.id) !== String(context.id)) return;
+        const text = String(result && result.text || "");
+        if (error || !text.trim()) {
+            finishInplace();
+            toast.show(error && error.message ? String(error.message) : I18n.tr("The writing model returned no text."), "error", false);
+            return;
+        }
+        const action = String(context.action || "");
+        const label = action === "auto" ? I18n.tr("Replaced") : action === "translate" ? I18n.tr("Translated") : action === "proofread" ? I18n.tr("Fixed") : I18n.tr("Rewritten");
+        if (inplaceWorker) { inplaceWorker.destroy(); inplaceWorker = null; }
+        queueReplace(text, label, true);
+    }
+    function queueReplace(text, label, fromInplace) {
+        replacement = { text: text, label: label, inplace: fromInplace === true, context: fromInplace ? inplaceContext : null };
+        replaceWait.restart();
+    }
+    function replaceCard(group, text) {
+        if (!text.trim()) return;
+        const target = group.panelTarget;
+        const point = target ? Qt.point(target.x + group.offsetX + target.width / 2, target.y + group.offsetY) : Qt.point(usable.x + usable.width / 2, usable.y + usable.height / 2);
+        toast.pointer = point;
+        group.kept = true;
+        closeCard(String(group.card.id));
+        canvas.forceActiveFocus();
+        queueReplace(text, I18n.tr("Replaced"), false);
+    }
+    function undoReplace() {
+        toast.dismiss();
+        canvas.forceActiveFocus();
+        replacement = { undo: true };
+        replaceWait.restart();
+    }
+    Timer {
+        id: replaceWait
+        interval: 150
+        onTriggered: {
+            const request = root.replacement;
+            root.replacement = null;
+            if (!request) return;
+            Bus.call(request.undo ? "sight.undo" : "sight.replace", request.undo ? ({}) : {
+                text: request.text, mode: actionCatalog.option("inplace.paste", true) === false ? "type" : "paste"
+            }, function(ok, result, error) {
+                if (request.inplace && root.inplaceContext !== request.context) return;
+                if (request.inplace) root.finishInplace();
+                const code = String(error || "");
+                const reason = code === "no-wtype" ? I18n.tr("Install wtype to replace selected text.") : code === "no-text" ? I18n.tr("There is no text to replace.") : I18n.tr("The text could not be pasted here.");
+                const copied = ok && result && result.copied === true;
+                const label = copied ? I18n.tr("Copied. Terminals cannot change selected text, paste it where you need it.") : request.undo ? I18n.tr("Undone") : request.label;
+                toast.show(ok ? label : reason, ok ? "done" : "error", ok && !request.undo && !copied);
+            });
+        }
+    }
+    Component {
+        id: transformComponent
+        Scope {
+            id: worker
+            required property var context
+            property bool sent: false
+            readonly property string requestId: "theia-" + String(context.id)
+            function cancel() {
+                if (!sent) return;
+                const transport = rashin.ready ? rashin : transformClient;
+                transport.call("writing.cancel", { request: requestId });
+            }
+            function run() {
+                if (sent || !transformClient.ready) return;
+                sent = true;
+                var action = String(context.action || "auto");
+                var options = {};
+                if (action === "auto") { action = "translate"; options.fix = "on"; }
+                if (action.indexOf("tone:") === 0) { options.tone = action.slice(5); action = "tone"; }
+                if (action === "rewrite") {
+                    options.variant = String(actionCatalog.option("rewrite.variant", "rephrase"));
+                    options.audience = String(actionCatalog.option("rewrite.audience", "general"));
+                }
+                if (action === "translate") {
+                    options.style = String(actionCatalog.option("translate.style", "natural"));
+                    if (actionCatalog.option("translate.simpler", false) === true) options.simpler = "on";
+                }
+                if (actionCatalog.feature("voice") && actionCatalog.option("voice.use", true) !== false) options.voice = "on";
+                transformClient.call("writing.transform", {
+                    request: requestId, text: String(context.text || ""), action: action, options: options,
+                    language: root.languageName(context.language || I18n.lang),
+                    target: root.languageName(actionCatalog.option("target", "") || I18n.lang),
+                    model: String(actionCatalog.option("model", "")), local: actionCatalog.option("localOnly", false) === true
+                }, function(result, error) { root.transformed(worker.context, result, error); });
+            }
+            RashinClient {
+                id: transformClient
+                onBecameReady: worker.run()
+                onStateChanged: {
+                    if (state === "off" || state === "not-installed" || state === "error")
+                        root.transformed(worker.context, null, { message: state === "off" ? I18n.tr("Turn on Rashin to change selected text.") : state === "not-installed" ? I18n.tr("Install Rashin to change selected text.") : transformClient.errorText || I18n.tr("Rashin could not be reached.") });
+                }
+            }
+            Component.onCompleted: run()
+        }
+    }
 
     function syncHighlight() {
         if (!completed) return;
@@ -78,6 +234,7 @@ Scope {
         if (probingPointer) pointerWait.restart();
     }
     function foundPointer(x, y) {
+        if (inplaceWaiting) { startInplace(Qt.point(x, y)); return; }
         if (!probingPointer || !highlight || selecting || modal || hidden) return;
         const context = highlight;
         probingPointer = false;
@@ -89,7 +246,7 @@ Scope {
         bubble.dismissBubble(false);
         if (id) Bus.call("sight.highlightDismiss", { id: id });
     }
-    function openHighlight(mode) {
+    function openHighlight(mode, sheet) {
         if (!bubble.shown || !bubble.context || highlightOpening) return;
         const id = String(bubble.context.id || "");
         if (!highlight || id !== String(highlight.id || "")) {
@@ -97,14 +254,37 @@ Scope {
             return;
         }
         highlightOpening = true;
+        highlightSheet = sheet === true;
         bubble.dismissBubble(false);
         Bus.call("sight.highlightOpen", { id: id, mode: mode,
             x: bubble.pointer.x + Number(screen.x), y: bubble.pointer.y + Number(screen.y), output: screen.name }, function(ok, result) {
             root.highlightOpening = false;
-            if (ok) root.reconcile();
+            if (ok) {
+                if (root.highlightSheet) root.sheetCardId = String(result.id || "");
+                root.reconcile();
+                root.openHighlightSheet();
+            }
+            root.highlightSheet = false;
         });
     }
-    Timer { id: pointerWait; interval: 1500; running: root.probingPointer; onTriggered: root.probingPointer = false }
+    function openHighlightSheet() {
+        if (!sheetCardId) return;
+        for (var i = 0; i < surfaces.length; ++i) {
+            if (String(surfaces[i].card.id) !== sheetCardId || !surfaces[i].panelItem) continue;
+            surfaces[i].panelItem.sheetOpen = true;
+            sheetCardId = "";
+            return;
+        }
+    }
+    Timer {
+        id: pointerWait
+        interval: 1500
+        running: root.probingPointer || root.inplaceWaiting
+        onTriggered: {
+            root.probingPointer = false;
+            if (root.inplaceWaiting) root.startInplace(Qt.point(root.usable.x + root.usable.width / 2, root.usable.y + root.usable.height / 2));
+        }
+    }
 
     function frameFor(context) {
         const frames = context && context.frames || [];
@@ -183,6 +363,7 @@ Scope {
     function keep(group) { group.kept = true; revision++; }
     function dismiss(group, notify) {
         if (!group || group.closing) return;
+        if (speaking && String(speaking.card || "") === String(group.card.id)) Bus.call("sight.stopSpeaking", {});
         group.notifyClose = notify !== false;
         group.closing = true;
         group.finishTimer.restart();
@@ -205,7 +386,7 @@ Scope {
     function retire(group) {
         const regions = inputRegion.regions;
         for (var i = regions.length - 1; i >= 0; --i)
-            if (regions[i] === group.plateInput || regions[i] === group.panelInput) regions.splice(i, 1);
+            if (regions[i] === group.plateInput || regions[i] === group.panelInput || regions[i] === group.overlayInput) regions.splice(i, 1);
         surfaces = surfaces.filter(function(item) { return item !== group; });
         if (group.notifyClose) closeCard(String(group.card.id));
         group.destroy();
@@ -231,6 +412,7 @@ Scope {
                 if (existing) {
                     inputRegion.regions.push(existing.plateInput);
                     inputRegion.regions.push(existing.panelInput);
+                    inputRegion.regions.push(existing.overlayInput);
                 }
             }
             if (existing) {
@@ -249,14 +431,20 @@ Scope {
         }
         surfaces = next;
         revision++;
+        openHighlightSheet();
     }
     onSelectionChanged: syncSelection()
     onCardsChanged: reconcile()
     onHighlightChanged: syncHighlight()
-    onSelectingChanged: if (selecting) { probingPointer = false; bubble.dismissBubble(true); }
+    onInplaceChanged: syncInplace()
+    onSelectingChanged: if (selecting) { if (inplaceContext) cancelInplace(); probingPointer = false; bubble.dismissBubble(true); }
     onModalChanged: if (modal) { probingPointer = false; bubble.dismissBubble(!highlightOpening); }
-    onHiddenChanged: if (hidden) { probingPointer = false; bubble.dismissBubble(true); }
-    Component.onCompleted: { completed = true; syncSelection(); reconcile(); syncHighlight(); }
+    onHiddenChanged: if (hidden) { if (inplaceContext) cancelInplace(); probingPointer = false; bubble.dismissBubble(true); toast.dismiss(); }
+    Component.onCompleted: { completed = true; syncSelection(); reconcile(); syncHighlight(); syncInplace(); }
+    Component.onDestruction: {
+        if (inplaceWorker) inplaceWorker.cancel();
+        if (inplaceContext) Bus.call("sight.inplaceDone", { id: String(inplaceContext.id) });
+    }
 
     property Component answerPanel: Component { SightPanel {} }
     Component {
@@ -278,6 +466,7 @@ Scope {
                 : Qt.rect(Number(card.x) - Number(root.screen.x), Number(card.y) - Number(root.screen.y), Number(card.width), Number(card.height))
             readonly property var plateInput: plateRegion
             readonly property var panelInput: panelRegion
+            readonly property var overlayInput: overlayRegion
             readonly property var finishTimer: finish
             readonly property var pinProcess: pinProc
             property real plateReveal: closing && !pinned ? 0 : 1
@@ -302,6 +491,13 @@ Scope {
                 height: group.panelTarget ? group.panelTarget.height : 0
                 intersection: Intersection.Combine
             }
+            Region {
+                id: overlayRegion
+                x: group.plateRect.x + group.offsetX; y: group.plateRect.y + group.offsetY
+                width: overlay.item && overlay.item.interactive && group.visible && !group.closing ? group.plateRect.width : 0
+                height: overlay.item && overlay.item.interactive && group.visible && !group.closing ? group.plateRect.height : 0
+                intersection: Intersection.Combine
+            }
             SightPlate {
                 id: plate
                 rect: group.plateRect; source: group.card.kind === "text" ? "" : "file://" + group.card.image
@@ -309,6 +505,14 @@ Scope {
                 committed: true; s: root.s
                 opacity: group.plateReveal; scale: group.plateScale
                 MouseArea { anchors.fill: parent; onPressed: root.touch(group) }
+            }
+            Loader {
+                id: overlay
+                active: group.visible && !group.closing && group.panelItem !== null && group.panelItem.overlayLines.length > 0
+                sourceComponent: Component {
+                    TheiaOverlay { plateRect: group.plateRect; lines: group.panelItem ? group.panelItem.overlayLines : []; s: root.s }
+                }
+                opacity: group.plateReveal
             }
             Item {
                 id: panelMotion
@@ -327,6 +531,11 @@ Scope {
                 function onKeep() { root.keep(group); }
                 function onPin() { root.pin(group); }
                 function onTouched() { root.touch(group); }
+                function onReplaceRequested(text) { root.replaceCard(group, text); }
+                function onNotNow() {
+                    Bus.call("sight.quietNow", { app: String(group.card.app || "") });
+                    root.dismiss(group, true);
+                }
                 function onDragMoved(dx, dy) {
                     if (!group.kept || !group.panelTarget || group.closing) return;
                     const target = group.panelTarget;
@@ -350,6 +559,8 @@ Scope {
                     panelItem.kept = Qt.binding(function() { return group.kept; });
                     panelItem.closing = Qt.binding(function() { return group.closing; });
                     panelItem.dragOffset = Qt.binding(function() { return Qt.point(group.offsetX, group.offsetY); });
+                    panelItem.speakingId = Qt.binding(function() { return root.speaking ? String(root.speaking.id || "") : ""; });
+                    root.openHighlightSheet();
                 }
             }
             Timer { id: finish; interval: Lithic.duration(150); onTriggered: root.retire(group) }
@@ -375,10 +586,10 @@ Scope {
         anchors { top: true; bottom: true; left: true; right: true }
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.namespace: "ryoku-sight"
-        // The open panel answers keys the moment it appears; only a kept one hands the keyboard back.
-        WlrLayershell.keyboardFocus: root.selecting || (root.modal && !root.hidden) ? WlrKeyboardFocus.Exclusive
-            : root.probingPointer || bubble.presented || root.highlightOpening ? WlrKeyboardFocus.None
-            : root.focused || root.popupOpen ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+        // release focus before replacing text in the source app
+        WlrLayershell.keyboardFocus: root.selecting || (root.modal && !root.hidden) || root.inplaceWorker !== null ? WlrKeyboardFocus.Exclusive
+            : root.probingPointer || bubble.presented || root.highlightOpening || root.inplaceWaiting ? WlrKeyboardFocus.None
+            : root.focused || root.popupOpen || (toast.presented && toast.undoable) ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
         mask: Region {
             id: inputRegion
             width: root.fullInput ? panel.width : 0
@@ -389,13 +600,20 @@ Scope {
                 height: bubble.presented ? bubble.height : 0
                 intersection: Intersection.Combine
             }
+            Region {
+                x: toast.x; y: toast.y
+                width: toast.presented ? toast.width : 0
+                height: toast.presented ? toast.height : 0
+                intersection: Intersection.Combine
+            }
         }
         FocusScope {
             id: canvas
             anchors.fill: parent
             readonly property real lithicScale: root.s
             Keys.onEscapePressed: {
-                if (root.selecting) root.cancelSelection();
+                if (root.inplaceContext) root.cancelInplace();
+                else if (root.selecting) root.cancelSelection();
                 else if (root.modal) root.dismiss(root.modal, true);
             }
             Image {
@@ -447,7 +665,7 @@ Scope {
                 id: pointerProbe
                 anchors.fill: parent
                 z: 1000001
-                enabled: root.probingPointer
+                enabled: root.probingPointer || root.inplaceWaiting
                 hoverEnabled: true
                 acceptedButtons: Qt.NoButton
                 onEntered: root.foundPointer(mouseX, mouseY)
@@ -457,9 +675,19 @@ Scope {
                 id: bubble
                 z: 1000002
                 s: root.s
+                catalog: actionCatalog
                 bounds: Qt.rect(0, 0, panel.width, panel.height)
                 onActionRequested: mode => root.openHighlight(mode)
+                onMoreRequested: root.openHighlight("explain", true)
                 onDismissRequested: root.dismissHighlight()
+            }
+            TheiaToast {
+                id: toast
+                z: 1000003
+                s: root.s
+                bounds: root.usable
+                onCancelRequested: root.cancelInplace()
+                onUndoRequested: root.undoReplace()
             }
         }
     }

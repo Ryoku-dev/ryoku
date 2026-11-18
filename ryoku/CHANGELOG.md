@@ -1,6 +1,24 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **Theia's and Rashin's long menus scroll inside the screen.** Theia's language
+  and "..." menus and the Rashin app's pickers hold about ten rows, open on the
+  side with room without covering their button, and scroll with the wheel and
+  keys (`shell/quickshell/shell/modules/sight/`,
+  `docs/lithic/library/go/kit/menu.go`).
+- **Theia fixes or translates selected text by default.** In place keeps text
+  in your language and corrects its spelling, grammar and punctuation, translating
+  other languages instead. Failure toasts explain the model or paste problem.
+- **In place copies terminal results instead of pretending to replace them.**
+  The result stays on the clipboard with an explanation; no text or paste
+  shortcut is sent to the terminal and no Undo is offered.
+- **Theia's panel text sits where it should.** Tab labels share one baseline,
+  pinned actions included, and sit centred with the selected tab in their
+  track; More sheet rows have room around their description and keyboard
+  focus, the follow-up text and caret line up, model names stay inside the
+  footer, In place errors wrap to show their full reason, and the answer no
+  longer shows through the sheet's corner
+  (`shell/quickshell/shell/modules/sight/`).
 - **Rashin's glance reads and writes in more ways for Theia.** It summarizes,
   deep reads, solves, makes a quiz, defines a word, rewrites, changes tone,
   smooths phrasing, sounds like you, says how a message reads, drafts three
@@ -48,6 +66,12 @@
   like answers, and see what agents keep on disk and clear it safely
   (`rashin/internal/collections/`, `rashin/internal/app/pages/index/`,
   `rashin/internal/daemon/disk.go`).
+- **The shortcut list has Theia in place, and Sight's rows read Theia.** Right
+  Ctrl tapped three times with text selected, read by the shell daemon like the
+  other two gestures (`wm/binds.go`).
+- **Fedora and Void can install Theia's reading voice on request**
+  English writing checks need no extra package on any edition
+  (`fedora/packages/translations.tsv`, `void/packages/translations.tsv`).
 - **Rashin answers screen captures through a quick glance.** `glance` runs a
   temporary Ask with no tools on Rashin's fast route, or on the harness Ask
   uses with the model set for it; local Ollama and llama.cpp models count when

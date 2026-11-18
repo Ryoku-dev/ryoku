@@ -46,7 +46,7 @@ func keybinds() legend {
 		return l
 	}
 	at := map[string]int{}
-	tapKey, highlightKey := sightGestureKeys()
+	tapKey, highlightKey, inPlaceKey := sightGestureKeys()
 	for _, r := range rows {
 		switch r.ID {
 		case "shell.sight":
@@ -55,6 +55,9 @@ func keybinds() legend {
 		case "shell.sightHighlight":
 			r.Chord = highlightKey
 			r.Keys = wm.DisplayKeys(highlightKey)
+		case "shell.sightInPlace":
+			r.Chord = inPlaceKey
+			r.Keys = wm.DisplayKeys(inPlaceKey)
 		}
 		i, ok := at[r.Category]
 		if !ok {
@@ -71,11 +74,14 @@ func keybinds() legend {
 	return l
 }
 
-func sightGestureKeys() (string, string) {
+func sightGestureKeys() (string, string, string) {
 	var settings struct {
 		Sight struct {
 			TapKey       string `json:"tapKey"`
 			HighlightKey string `json:"highlightKey"`
+			InPlace      struct {
+				Key string `json:"key"`
+			} `json:"inplace"`
 		} `json:"sight"`
 	}
 	if raw, err := os.ReadFile(shellStorePath()); err == nil {
@@ -89,5 +95,5 @@ func sightGestureKeys() (string, string) {
 		}
 		return fallback
 	}
-	return allowed(settings.Sight.TapKey, "Alt_R"), allowed(settings.Sight.HighlightKey, "Alt_L")
+	return allowed(settings.Sight.TapKey, "Alt_R"), allowed(settings.Sight.HighlightKey, "Alt_L"), allowed(settings.Sight.InPlace.Key, "Control_R")
 }

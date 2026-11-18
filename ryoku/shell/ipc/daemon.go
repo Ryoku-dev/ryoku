@@ -167,6 +167,7 @@ type daemon struct {
 	topics          map[string]*stateTopic // subsystem name -> pub/sub state topic
 	callsMu         sync.Mutex             // guards calls
 	calls           map[string]callFunc    // "topic.method" -> control handler
+	callLanes       map[string]string      // optional ordered lane within a call namespace
 	clip            *clipState             // clipboard history state (nil until started)
 	tray            *trayState             // system tray watcher/host state (nil until started)
 	ryoWallMu       sync.Mutex             // guards ryoWall
@@ -469,7 +470,6 @@ func (d *daemon) bootstrap() {
 	d.startRecord()
 	d.startMouseMap()
 	d.startClipboard()
-	d.startSight()
 	d.startTray()
 	d.startWeather()
 	d.startMusic()
@@ -496,6 +496,7 @@ func (d *daemon) bootstrap() {
 	go d.watchMatugenKnobs()
 	go d.ledsWorker()
 	d.startWM()
+	d.startSight()
 	go d.watchPowerSounds()
 	go d.watchAutoPowerSaver()
 	go d.watchPerformanceFlags()
