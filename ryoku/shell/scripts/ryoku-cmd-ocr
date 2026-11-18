@@ -1,52 +1,458 @@
 #!/usr/bin/env bash
 # Select a screen region, OCR it with tesseract, and copy the recognized text to
-# the clipboard. Self-contained: grim + slurp + tesseract + wl-copy. Optional
-# --file IMAGE skips the region grab and recognizes an existing image.
+# the clipboard. Pre-processes the crop (contrast stretching, polarity inversion,
+# adaptive scaling) in memory, preserves code indentation, strips edge overhangs,
+# and offers interactive notification actions (Open URL, Search, QR to phone).
+# Falls back to zbarimg for QR/barcodes. Optional --file IMAGE skips region grab.
 set -euo pipefail
 
 app="OCR"
 need() { command -v "$1" >/dev/null 2>&1 || { notify-send -u normal "$app" "$1 is not installed"; exit 1; }; }
 
+for c in tesseract wl-copy notify-send magick awk; do need "$c"; done
+
 input_file=""
-if [[ ${1:-} == "--file" ]]; then
-  [[ -n ${2:-} ]] || { notify-send -u critical "$app" "Missing image path"; exit 2; }
-  input_file="$2"; shift 2
-fi
-(( $# == 0 )) || { notify-send -u critical "$app" "Usage: ryoku-cmd-ocr [--file IMAGE]"; exit 2; }
+raw_mode=false
+single_line=false
+cli_lang=""
 
-for c in tesseract wl-copy notify-send; do need "$c"; done
+while (( $# > 0 )); do
+  case "$1" in
+    --file)
+      [[ -n ${2:-} ]] || { notify-send -u critical "$app" "Missing image path"; exit 2; }
+      input_file="$2"
+      shift 2
+      ;;
+    -r|--raw)
+      raw_mode=true
+      shift
+      ;;
+    -s|--single-line)
+      single_line=true
+      shift
+      ;;
+    -l|--lang)
+      [[ -n ${2:-} ]] || { notify-send -u critical "$app" "Missing language"; exit 2; }
+      cli_lang="$2"
+      shift 2
+      ;;
+    -h|--help)
+      cat <<EOF
+Usage: ryoku-cmd-ocr [OPTIONS]
 
-tmp="$input_file"
-if [[ -z $tmp ]]; then
-  for c in grim slurp; do need "$c"; done
-  tmp="$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/ryoku-ocr.XXXXXX.png")"
-  trap 'rm -f "$tmp"' EXIT
-fi
+Options:
+  --file IMAGE       Recognize existing image instead of selecting a screen region
+  -s, --single-line  Flatten newlines into a single line
+  -r, --raw          Preserve raw OCR text without smart neighbor/edge filtering
+  -l, --lang LANG    Specify OCR language (e.g. eng, eng+hin)
+  -h, --help         Show this help message
+EOF
+      exit 0
+      ;;
+    *)
+      notify-send -u critical "$app" "Unknown argument: $1"
+      exit 2
+      ;;
+  esac
+done
 
+# Resolve OCR language
+resolve_lang() {
+  local desired="${cli_lang:-}"
+  if [[ -z $desired ]]; then
+    desired="${RYOKU_OCR_LANG:-}"
+  fi
+  local cfg="${XDG_CONFIG_HOME:-$HOME/.config}/ryoku/ocr.json"
+  if [[ -z $desired && -f "$cfg" ]] && command -v jq >/dev/null 2>&1; then
+    desired=$(jq -r '.language // empty' "$cfg" 2>/dev/null || true)
+  fi
+  desired="${desired:-eng}"
+
+  local available
+  available="$(tesseract --list-langs 2>/dev/null | tail -n +2)"
+  local valid=()
+  IFS='+' read -ra parts <<< "$desired"
+  for part in "${parts[@]}"; do
+    if grep -qwF "$part" <<< "$available"; then
+      valid+=("$part")
+    fi
+  done
+
+  if (( ${#valid[@]} > 0 )); then
+    local IFS='+'
+    echo "${valid[*]}"
+  else
+    echo "eng"
+  fi
+}
+
+lang="$(resolve_lang)"
+
+# Temporary directories
+runtime="${XDG_RUNTIME_DIR:-/tmp}"
+shm_dir="/dev/shm"
+[[ -d $shm_dir && -w $shm_dir ]] || shm_dir="$runtime"
+
+raw_tmp=""
+pnm_tmp="$shm_dir/ryoku-ocr-$$-$(date +%s%N).pnm"
+
+cleanup() {
+  [[ -z $raw_tmp || ! -f $raw_tmp ]] || rm -f "$raw_tmp"
+  [[ ! -f $pnm_tmp ]] || rm -f "$pnm_tmp"
+}
+trap cleanup EXIT HUP INT TERM
+
+# Capture or use input file
 if [[ -n $input_file ]]; then
-  [[ -r $tmp ]] || { notify-send -u critical "$app" "Cannot read image at $tmp"; exit 1; }
+  [[ -r $input_file ]] || { notify-send -u critical "$app" "Cannot read image at $input_file"; exit 1; }
+  source_img="$input_file"
 else
+  for c in slurp; do need "$c"; done
   # slurp non-zero is a cancel (Esc); leave quietly.
   geometry="$(slurp 2>/dev/null)" || exit 130
   [[ -n $geometry ]] || exit 0
-  ryoku-cmd-grim -g "$geometry" "$tmp"
+
+  raw_tmp="$(mktemp "$runtime/ryoku-ocr-grab.XXXXXX.png")"
+  if command -v ryoku-cmd-grim >/dev/null 2>&1; then
+    ryoku-cmd-grim -g "$geometry" "$raw_tmp"
+  else
+    grim -g "$geometry" "$raw_tmp"
+  fi
+  source_img="$raw_tmp"
 fi
 
-# Command substitution trims trailing newlines.
-text="$(tesseract "$tmp" - 2>/dev/null || true)"
+# Fast QR and barcode check via zbarimg before running OCR
+is_qr=false
+if command -v zbarimg >/dev/null 2>&1; then
+  # Direct scan, inverted pass (dark mode), and padded quiet-zone passes
+  qr_candidate="$(zbarimg -q --raw "$source_img" 2>/dev/null || true)"
+  if [[ -z ${qr_candidate//[[:space:]]/} ]]; then
+    qr_candidate="$(magick "$source_img" -negate png:- 2>/dev/null | zbarimg -q --raw - 2>/dev/null || true)"
+  fi
+  if [[ -z ${qr_candidate//[[:space:]]/} ]]; then
+    qr_candidate="$(magick "$source_img" -bordercolor white -border 20 png:- 2>/dev/null | zbarimg -q --raw - 2>/dev/null || true)"
+  fi
+  if [[ -z ${qr_candidate//[[:space:]]/} ]]; then
+    qr_candidate="$(magick "$source_img" -bordercolor black -border 20 -negate png:- 2>/dev/null | zbarimg -q --raw - 2>/dev/null || true)"
+  fi
+  if [[ -n ${qr_candidate//[[:space:]]/} ]]; then
+    text="$qr_candidate"
+    is_qr=true
+  fi
+fi
+
+if ! $is_qr; then
+  # Upscale small crops so tesseract has sufficient pixel density
+  read -r w h < <(magick "$source_img" -format "%w %h\n" info: 2>/dev/null || echo "0 0") || true
+  w="${w:-0}"
+  h="${h:-0}"
+
+  upscale=""
+  area=$(( w * h ))
+  if (( h > 0 && h < 30 )); then
+    upscale="-resize 400%"
+  elif (( area > 0 && area < 40000 )); then
+    upscale="-resize 200%"
+  fi
+
+  psm="6"
+  if (( h > 0 && (h < 50 || w / h > 10) )); then
+    psm="7"
+  fi
+
+  # Grayscale conversion with contrast stretching and sharpening
+  magick "$source_img" $upscale -colorspace Gray -contrast-stretch 0.5%x0.5% -sharpen 0x1 -depth 8 "$pnm_tmp"
+
+  # Invert dark backgrounds so tesseract receives dark text on light ground
+  is_dark="$(magick "$pnm_tmp" -format "%[fx:mean<0.5?1:0]" info: 2>/dev/null || echo "0")"
+  if [[ $is_dark == "1" ]]; then
+    magick "$pnm_tmp" -negate "$pnm_tmp"
+  fi
+
+  # Extract word boxes with TSV geometry
+  tsv_data="$(tesseract "$pnm_tmp" stdout -l "$lang" --psm "$psm" --oem 1 -c preserve_interword_spaces=1 tsv 2>/dev/null || true)"
+
+  # Polarity fallback if very little text was recognized
+  clean_len=$(printf '%s' "$tsv_data" | awk -F'\t' '$1 == "5" {print $12}' | tr -d '[:space:]' | wc -c)
+  if (( clean_len < 3 )); then
+    magick "$pnm_tmp" -negate "$pnm_tmp"
+    tsv_data2="$(tesseract "$pnm_tmp" stdout -l "$lang" --psm "$psm" --oem 1 -c preserve_interword_spaces=1 tsv 2>/dev/null || true)"
+    clean_len2=$(printf '%s' "$tsv_data2" | awk -F'\t' '$1 == "5" {print $12}' | tr -d '[:space:]' | wc -c)
+    if (( clean_len2 > clean_len )); then
+      tsv_data="$tsv_data2"
+      clean_len="$clean_len2"
+    fi
+  fi
+fi
+
+# Prune sliced border fragments and reconstruct text with indentations
+if ! $is_qr; then
+  if $raw_mode; then
+    text="$(printf '%s' "$tsv_data" | awk -F'\t' '$1 == "5" {printf "%s%s", (line && line != $5 ? "\n" : (NR > 2 ? " " : "")), $12; line = $5} END {print ""}')"
+  else
+    text="$(printf '%s' "$tsv_data" | awk -F'\t' '
+    NR == 2 && $1 == "1" {
+      img_w = $9 + 0
+      img_h = $10 + 0
+    }
+    $1 == "5" && $12 != "" {
+      txt = $12
+      gsub(/\r/, "", txt)
+      if (txt == "") next
+      n++
+      words[n] = txt
+      left[n] = $7 + 0
+      top[n] = $8 + 0
+      w[n] = $9 + 0
+      h[n] = $10 + 0
+      conf[n] = $11 + 0
+      line[n] = $5 + 0
+      total_w += $9 + 0
+      total_len += length(txt)
+      keep[n] = 1
+
+      l = $5 + 0
+      if (!(l in line_first_orig)) {
+        line_first_orig[l] = n
+        if (min_x == "" || left[n] < min_x) min_x = left[n]
+      }
+    }
+    END {
+      if (n == 0) exit
+
+      # Dominant word heuristic in short single-line selections (ignore drag overflow)
+      if (n >= 2 && n <= 4) {
+        max_len = 0
+        max_idx = -1
+        tot_chars = 0
+        for (i = 1; i <= n; i++) {
+          l = length(words[i])
+          tot_chars += l
+          if (l > max_len) {
+            max_len = l
+            max_idx = i
+          }
+        }
+        if (max_len >= 4 && (max_len / tot_chars) >= 0.70) {
+          for (i = 1; i <= n; i++) {
+            if (i != max_idx && length(words[i]) <= 2) {
+              keep[i] = 0
+            }
+          }
+        }
+      }
+
+      # Edge-chopped neighbor fragments on line boundaries
+      delete line_first
+      delete line_last
+      for (i = 1; i <= n; i++) {
+        l = line[i]
+        if (!(l in line_first)) line_first[l] = i
+        line_last[l] = i
+      }
+
+      for (l in line_first) {
+        fi = line_first[l]
+        li = line_last[l]
+
+        # Left edge overflow
+        if (keep[fi]) {
+          word = words[fi]
+          wlen = length(word)
+          dist_left = left[fi]
+          if (dist_left <= 5 && wlen <= 2 && !(word ~ /^(a|A|I|[0-9])$/)) {
+            keep[fi] = 0
+          }
+          if (wlen == 1 && word ~ /^[|_\/~\\:;,-]$/ && dist_left <= 10) {
+            keep[fi] = 0
+          }
+        }
+
+        # Right edge overflow
+        if (keep[li]) {
+          word = words[li]
+          wlen = length(word)
+          dist_right = img_w - (left[li] + w[li])
+          if (dist_right <= 5 && wlen <= 2 && !(word ~ /^(a|A|I|[0-9])$/)) {
+            keep[li] = 0
+          }
+          if (wlen == 1 && word ~ /^[|_\/~\\:;,-]$/ && dist_right <= 10) {
+            keep[li] = 0
+          }
+        }
+      }
+
+      # Reconstruct text with indentation preservation
+      avg_char_w = (total_len > 0) ? (total_w / total_len) : 10
+      out = ""
+      cur_line = -1
+      kept_count = 0
+      for (i = 1; i <= n; i++) {
+        if (!keep[i]) continue
+        kept_count++
+        if (line[i] != cur_line) {
+          if (out != "") out = out "\n"
+          cur_line = line[i]
+          # Preserve leading indentation
+          indent_px = left[i] - min_x
+          if (indent_px >= avg_char_w * 1.5) {
+            num_sp = int((indent_px / avg_char_w) + 0.5)
+            for (s = 0; s < num_sp; s++) out = out " "
+          }
+        } else {
+          # Preserve multi-space gaps
+          gap = left[i] - (left[i-1] + w[i-1])
+          if (gap >= avg_char_w * 1.8) {
+            num_sp = int((gap / avg_char_w) + 0.5)
+            for (s = 0; s < num_sp; s++) out = out " "
+          } else {
+            out = out " "
+          }
+        }
+        out = out words[i]
+      }
+
+      # Safety fallback if all words were pruned
+      if (kept_count == 0) {
+        out = ""
+        cur_line = -1
+        for (i = 1; i <= n; i++) {
+          if (line[i] != cur_line) {
+            if (out != "") out = out "\n"
+            cur_line = line[i]
+          } else {
+            out = out " "
+          }
+          out = out words[i]
+        }
+      }
+      print out
+    }
+    ')"
+  fi
+
+  # Post-processing
+  if $single_line; then
+    text="$(printf '%s' "$text" | tr '\n' ' ' | sed -E 's/[[:space:]]+/ /g; s/^[[:space:]]+//; s/[[:space:]]+$//')"
+  else
+    # Clean up trailing spaces per line and multiple blank lines
+    text="$(printf '%s' "$text" | sed 's/[[:space:]]*$//' | awk 'NF {p=1} p' | awk '/^[[:space:]]*$/ {if (++b <= 1) print ""; next} {b=0; print}')"
+  fi
+fi
+
 if [[ -z ${text//[[:space:]]/} ]]; then
-  notify-send -u normal "$app" "No text recognized in the selected region"
+  notify-send -u normal "$app" "No text or QR code recognized"
   exit 0
 fi
 
-# Prefer the daemon: it owns the selection and ingests the entry into clipboard
-# history, which a bare wl-copy never reaches.
-if command -v ryoku-shell >/dev/null 2>&1 && ryoku-shell ping >/dev/null 2>&1; then
-  out="$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/ryoku-ocr-text.XXXXXX")"
-  printf '%s' "$text" > "$out"
-  ryoku-shell clip-copy text/plain "$out"
-  rm -f "$out"
-else
-  printf '%s' "$text" | wl-copy
+# URL trailing punctuation cleanup
+is_url=false
+url_target=""
+if [[ $text =~ ^(https?://|www\.) ]]; then
+  clean_url="$(printf '%s' "$text" | sed -E 's/[.,;:!?)>"'\''\x60]+$//')"
+  text="$clean_url"
+  is_url=true
+  if [[ $text =~ ^www\. ]]; then
+    url_target="https://$text"
+  else
+    url_target="$text"
+  fi
 fi
-notify-send -u low "$app" "Recognized text copied to clipboard"
+
+# Evaluate simple math expressions via ryoku-cmd-calc
+is_math=false
+math_result=""
+stripped_math="${text%=}"
+if [[ "$stripped_math" =~ ^[0-9[:space:].+*/%^()xX-]+$ ]] && [[ "$stripped_math" =~ [+*/%^xX-] ]] && [[ "$stripped_math" =~ [0-9] ]]; then
+  num_count=$(grep -oE "[0-9]+" <<< "$stripped_math" | wc -l)
+  if (( num_count >= 2 )) && command -v ryoku-cmd-calc >/dev/null 2>&1; then
+    calc_out="$(ryoku-cmd-calc "$stripped_math" 2>/dev/null || true)"
+    if [[ -n $calc_out && $calc_out != "$stripped_math" ]]; then
+      is_math=true
+      math_result="$calc_out"
+    fi
+  fi
+fi
+
+# Detect hex colors for notification preview
+is_color=false
+if [[ $text =~ ^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$ ]]; then
+  is_color=true
+fi
+
+# Ingest into clipboard
+copy_to_clip() {
+  local payload="$1"
+  if command -v ryoku-shell >/dev/null 2>&1 && ryoku-shell ping >/dev/null 2>&1; then
+    local out
+    out="$(mktemp "$runtime/ryoku-ocr-text.XXXXXX")"
+    printf '%s' "$payload" > "$out"
+    ryoku-shell clip-copy text/plain "$out"
+    rm -f "$out"
+  else
+    printf '%s' "$payload" | wl-copy
+  fi
+}
+
+copy_to_clip "$text"
+
+# Prepare notification preview
+preview="$(printf '%s' "$text" | tr '\n' ' ' | sed -E 's/[[:space:]]+/ /g; s/^[[:space:]]+//; s/[[:space:]]+$//')"
+preview_body="$(printf '%s' "$preview" | head -c 110)"
+if (( ${#preview} > 110 )); then
+  preview_body="${preview_body}..."
+fi
+
+notif_title="Recognized Text Copied"
+if $is_qr; then
+  notif_title="QR Code Decoded"
+elif $is_math; then
+  notif_title="Math Calculated: $math_result"
+  preview_body="$stripped_math = $math_result"
+elif $is_color; then
+  notif_title="Color Copied"
+  preview_body="🎨 $text"
+fi
+
+# Dispatch notification action handlers asynchronously in the background
+(
+  action_args=()
+  if $is_url; then
+    action_args+=("-A" "open=󰏚 Open Link")
+    action_args+=("-A" "show_qr=󰐲 QR to Phone")
+  elif $is_math; then
+    action_args+=("-A" "copy_ans=󰆏 Copy Answer ($math_result)")
+    action_args+=("-A" "search=󰍉 Search Web")
+  else
+    action_args+=("-A" "search=󰍉 Search Web")
+    action_args+=("-A" "show_qr=󰐲 QR to Phone")
+    action_args+=("-A" "translate=󰊿 Translate")
+  fi
+
+  action=$(notify-send -u low "$notif_title" "$preview_body" "${action_args[@]}" 2>/dev/null || true)
+  case "$action" in
+    open)
+      xdg-open "$url_target" >/dev/null 2>&1 &
+      ;;
+    show_qr)
+      if command -v qrencode >/dev/null 2>&1; then
+        qr_file="$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/ryoku-qr-view.XXXXXX.png")"
+        qrencode -s 8 -m 3 -o "$qr_file" "$text" 2>/dev/null || true
+        notify-send -u normal -i "$qr_file" "Scan with Phone" "$preview_body" -t 12000 >/dev/null 2>&1 || true
+        rm -f "$qr_file"
+      fi
+      ;;
+    copy_ans)
+      copy_to_clip "$math_result"
+      notify-send -u low "Answer Copied" "$math_result" -t 2000 2>/dev/null || true
+      ;;
+    search)
+      q=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1]))" "$preview" 2>/dev/null || true)
+      xdg-open "https://www.google.com/search?q=$q" >/dev/null 2>&1 &
+      ;;
+    translate)
+      q=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1]))" "$preview" 2>/dev/null || true)
+      xdg-open "https://translate.google.com/?text=$q" >/dev/null 2>&1 &
+      ;;
+  esac
+) >/dev/null 2>&1 &
