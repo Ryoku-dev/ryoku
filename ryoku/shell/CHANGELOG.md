@@ -1,6 +1,9 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The battery's time left shows again (#887).** UPower sends the times as
+  int64, which the daemon's battery reader dropped, so the bar tooltip, the
+  battery popout and Orpheus lost the time to empty or full (`ipc/battery.go`).
 - **Orpheus notifications resolve themed icon URLs through the shell's icon
   index (#852).** The notification card and the bar notice passed an
   `image://icon/` app icon straight to Qt's icon provider; they now resolve it
