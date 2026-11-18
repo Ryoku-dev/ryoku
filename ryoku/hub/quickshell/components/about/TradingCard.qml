@@ -37,7 +37,7 @@ Item {
     property var design: card.traded ? (card.badgeVerified ? card.traded.design || null : null) : Badge.ownDesign
     readonly property var designSpec: card.design ? card.design.spec || card.design : null
     readonly property var cardSpec: card.designSpec && card.designSpec.card ? card.designSpec.card : null
-    readonly property var palette: card.cardSpec ? card.cardSpec.palette : null
+    readonly property var palette: card.cardSpec ? card.cardSpec.palette : card.traded ? null : Progression.activePalette
     readonly property color ink: card.palette ? card.palette.ink : Lithic.fg
     readonly property color mutedInk: card.palette ? Lithic.mix(card.palette.plate, card.palette.ink, 0.72) : Lithic.fg2
     readonly property color quietInk: card.palette ? Lithic.mix(card.palette.plate, card.palette.ink, 0.58) : Lithic.fg3
@@ -119,8 +119,9 @@ Item {
     readonly property bool discrete: card.hw ? Rarity.discrete(card.hw.gpuClass, card.hw.gpu)
         : Rarity.discrete(CardCode.graphicsClass, CardCode.strongestGpu)
     readonly property int screenWidth: card.hw ? card.hw.width : card.num(/^(\d+)/, SysInfo.sysResolution)
-    readonly property var rarity: Rarity.of(card.hw || { threads: card.threads, ramGb: card.ramGb, gpus: [SysInfo.sysGpu, SysInfo.sysGpu2],
-                                              refresh: card.refresh, width: card.screenWidth })
+    readonly property var rarity: Rarity.of(card.hw || { threads: card.threads, cpu: SysInfo.sysCpu,
+                                              ramGb: card.ramGb, gpus: [SysInfo.sysGpu, SysInfo.sysGpu2],
+                                              displays: CardCode.displays, refresh: card.refresh, width: card.screenWidth })
     readonly property int level: card.showLevel >= 0 ? card.showLevel : card.rarity.level
     readonly property var tier: Rarity.tiers[card.level]
     // each tier's shine: how strong the window's holo is, and the face's

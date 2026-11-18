@@ -24,7 +24,15 @@ Dialog {
     property var binderOpener: null
     // the tab to open on
     property string tab: "picture"
-    readonly property var tabs: ["picture", "adjust", "words", "layout", "share", "badge"]
+    readonly property var tabs: ["picture", "adjust", "words", "layout", "share", "rewards", "badge"]
+    onTabChanged: {
+        if (root.tab === "share")
+            Progression.award("explorer");
+    }
+    Connections {
+        target: ProfileStore
+        function onDataChanged() { Progression.inspectProfile(ProfileStore.data); }
+    }
     // what the preview shows; Share always shows the card it copies
     property string view: "card"
     readonly property string shownView: root.tab === "share" || root.tab === "badge" ? "card" : root.view
@@ -39,6 +47,9 @@ Dialog {
 
     function openOn(tab) {
         root.tab = root.tabs.indexOf(tab) >= 0 ? tab : "picture";
+        CardCode.updateDisplays();
+        Progression.award("welcome");
+        Progression.inspectProfile(ProfileStore.data);
         root.open();
     }
 
@@ -250,7 +261,7 @@ Dialog {
             Segmented {
                 id: viewChoice
                 anchors.horizontalCenter: parent.horizontalCenter
-                enabled: root.tab !== "share" && root.tab !== "badge"
+                enabled: root.tab !== "share" && root.tab !== "badge" && root.tab !== "rewards"
                 opacity: enabled ? 1 : 0.4
                 model: [I18n.tr("The card"), I18n.tr("Home")]
                 Binding on currentIndex {
@@ -385,7 +396,7 @@ Dialog {
             Segmented {
                 id: tabChoice
                 width: parent.width
-                model: [I18n.tr("Picture"), I18n.tr("Adjust"), I18n.tr("Words"), I18n.tr("Layout"), I18n.tr("Share"), I18n.tr("Badge")]
+                model: [I18n.tr("Picture"), I18n.tr("Adjust"), I18n.tr("Words"), I18n.tr("Layout"), I18n.tr("Share"), I18n.tr("Rewards"), I18n.tr("Badge")]
                 Binding on currentIndex {
                     value: root.tabs.indexOf(root.tab)
                 }
@@ -410,6 +421,10 @@ Dialog {
                     id: page
                     width: flick.width - LithicTokens.space.s4
                     spacing: LithicTokens.space.s5
+                    ProgressionTab {
+                        visible: root.tab === "rewards"
+                        width: parent.width
+                    }
                     BadgeTab {
                         visible: root.tab === "badge"
                         width: parent.width
