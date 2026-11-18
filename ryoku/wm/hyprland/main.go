@@ -61,6 +61,8 @@ func main() {
 		err = runBinds(os.Args[2:])
 	case "environment":
 		err = runEnvironment(os.Args[2:])
+	case "hyprdrive":
+		err = runHyprdrive(os.Args[2:])
 	case "plugins":
 		// Separate from act because plugins are a subsystem with list and
 		// rebuild semantics; folding them in would make act a passthrough.

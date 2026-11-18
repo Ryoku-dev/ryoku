@@ -365,6 +365,18 @@ func (c *Client) Plugins(args ...string) ([]byte, error) {
 	return c.run(append([]string{"plugins"}, args...)...)
 }
 
+// Hyprdrive runs the provider's hyprdrive verb: its status (the binds it offers
+// and what each would take over) or a layout cycle.
+func (c *Client) Hyprdrive(args ...string) ([]byte, error) {
+	if c.bin == "" {
+		return nil, ErrNoProvider
+	}
+	if !c.Can(CapHyprdrive) {
+		return nil, fmt.Errorf("%w: hyprdrive", ErrUnsupported)
+	}
+	return c.run(append([]string{"hyprdrive"}, args...)...)
+}
+
 // Watch streams frames until ctx is done or the provider exits. onFrame runs on
 // the reader goroutine, so a consumer doing real work should hand off.
 //

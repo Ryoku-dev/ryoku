@@ -19,6 +19,17 @@ var table = {
     "plugins|Cursor motion|*": ["mouse-touchpad", "pointer"],
     "plugins|Extra borders|*": ["window-style", "borders"],
     "plugins|Focus flash|*": ["animations", "focus-flash"],
+    "plugins|Hyprdrive|HYPRDRIVE": ["hyprdrive", "on"],
+    "plugins|Hyprdrive|SHORTCUTS": ["hyprdrive", "keys"],
+    "plugins|Hyprdrive|OVERVIEW": ["hyprdrive", "overview"],
+    "plugins|Hyprdrive|HOT CORNER": ["hyprdrive", "hot-corner"],
+    "plugins|Hyprdrive|SEARCH": ["hyprdrive", "search"],
+    "plugins|Hyprdrive|MOSAIC": ["hyprdrive", "mosaic"],
+    "plugins|Hyprdrive|INFINITE CANVAS": ["hyprdrive", "canvas"],
+    "plugins|Hyprdrive|WINDOWS": ["hyprdrive", "windows"],
+    "plugins|Hyprdrive|SWITCHING DESKTOPS": ["hyprdrive", "desktops"],
+    "plugins|Hyprdrive|MOTION": ["hyprdrive", "motion"],
+    "plugins|Hyprdrive|MOTION BLUR": ["hyprdrive", "motion-blur"],
     "plugins|Glass|*": ["window-style", "blur"],
     "plugins|Image borders|*": ["window-style", "borders"],
     "plugins|Key sounds|*": ["sounds", "key-sounds"],
@@ -95,7 +106,12 @@ function whenOf(when) {
     var keys = Object.keys(when);
     if (keys.length === 0)
         return null;
-    return { bind: { store: "desktop", key: storeKey(keys[0]) }, is: when[keys[0]] };
+    // every key has to hold: the first is the row's condition, the rest ride in `also`
+    var conds = keys.map(k => ({ bind: { store: "desktop", key: storeKey(k) }, is: when[k] }));
+    var out = conds[0];
+    if (conds.length > 1)
+        out.also = conds.slice(1);
+    return out;
 }
 
 function optionsOf(row) {

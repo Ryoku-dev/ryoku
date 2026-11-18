@@ -32,6 +32,7 @@ depends=(
   "hyprglass=$epoch:$pkgver"
   "imgborders=$epoch:$pkgver"
   "ryoku-keysounds=$epoch:$pkgver"
+  "ryoku-hyprdrive=$epoch:$pkgver"
   "hyprgrass=$epoch:$pkgver"
   'hyprpolkitagent'
   # [ryoku] pins the post-1.4.1 DMA-BUF renegotiation and Start-timeout fixes;

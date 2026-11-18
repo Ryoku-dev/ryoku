@@ -16,7 +16,7 @@ desktop="${XDG_CONFIG_HOME:-$HOME/.config}/ryoku/desktop.json"
 lock="$state.lock"
 
 usage() {
-    echo "usage: ryoku-output-tiling get | set <output> <dwindle|master|scrolling> | link <on|off> | restore" >&2
+    echo "usage: ryoku-output-tiling get | set <output> <dwindle|master|scrolling|mosaic> | link <on|off> | restore" >&2
     exit 2
 }
 
@@ -73,7 +73,7 @@ start_watch() {
 global_layout() {
     local g
     g=$(jq -r '.desktop.appearance.layout // empty' "$desktop" 2>/dev/null || true)
-    case $g in dwindle|master|scrolling) printf '%s\n' "$g" ;; *) printf 'dwindle\n' ;; esac
+    case $g in dwindle|master|scrolling|mosaic) printf '%s\n' "$g" ;; *) printf 'dwindle\n' ;; esac
 }
 
 do_set() { # <output> <layout>
@@ -113,7 +113,7 @@ get)
     ;;
 set)
     [[ $# -eq 3 ]] || usage
-    case $3 in dwindle|master|scrolling) ;; *) usage ;; esac
+    case $3 in dwindle|master|scrolling|mosaic) ;; *) usage ;; esac
     locked do_set "$2" "$3"
     start_watch
     ;;

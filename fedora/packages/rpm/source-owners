@@ -9,6 +9,7 @@ ryoku/i18n/catalog ryoku-desktop
 .rpm-hypr-dynamic-cursors hypr-dynamic-cursors
 .rpm-hyprglass hyprglass
 .rpm-hyprgrass hyprgrass
+.rpm-ryoku-hyprdrive ryoku-hyprdrive
 .rpm-imgborders imgborders
 .rpm-hyprland-preview-share-picker hyprland-preview-share-picker
 ryoku-shell-installer/ryoku-shell-install -

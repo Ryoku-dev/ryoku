@@ -2070,5 +2070,1501 @@
       ]
     },
     "page": "plugins"
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "HYPRDRIVE",
+    "key": "wm.hyprland.plugins.hyprdrive.enabled",
+    "label": "Hyprdrive",
+    "desc": "An overview of every window, Mosaic layouts and smooth window motion. Off until you turn it on; the shortcuts it would take over are listed below first",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "overview mission control expose mosaic plugin"
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "OVERVIEW",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:scale",
+    "label": "Window size in the overview",
+    "desc": "How large each desktop is drawn while the overview is open",
+    "ctl": "slid",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "zoom scale",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ]
+    },
+    "lo": 0.5,
+    "hi": 0.9
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "OVERVIEW",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:overview_tile_order",
+    "label": "Window order",
+    "desc": "Which window comes first in the overview's grid",
+    "ctl": "seg",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "sort arrange",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ]
+    },
+    "opts": [
+      "recent",
+      "created",
+      "position"
+    ],
+    "optLabels": {
+      "recent": "Last used",
+      "created": "Opened",
+      "position": "As placed"
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "OVERVIEW",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:mission_control",
+    "label": "Spread the desktop's windows",
+    "desc": "The desktop you are on is laid out as a grid of its windows",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "grid expose",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "OVERVIEW",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:backdrop",
+    "label": "Behind the desktops",
+    "desc": "What the overview shows behind its desktop cards",
+    "ctl": "seg",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "wallpaper blur background",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ]
+    },
+    "opts": [
+      "off",
+      "wallpaper",
+      "snapshot",
+      "live"
+    ],
+    "optLabels": {
+      "off": "Dimmed",
+      "wallpaper": "Wallpaper",
+      "snapshot": "Blurred",
+      "live": "Live blur"
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "OVERVIEW",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:strip",
+    "label": "Desktop strip",
+    "desc": "Every desktop as a thumbnail across the top; drag a window onto one to move it there",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "workspaces thumbnails",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "OVERVIEW",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:strip_cleanup_button",
+    "label": "Clean up empty desktops",
+    "desc": "Hold Super over the strip for a button that closes the empty desktops between the others",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "empty workspaces tidy",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:strip": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "HOT CORNER",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:hot_corner:enabled",
+    "label": "Hot corner",
+    "desc": "Rest the pointer in a corner of the screen to open the overview, and again to close it",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "corner activities",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "HOT CORNER",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:hot_corner:corner",
+    "label": "Corner",
+    "desc": "Which corner opens the overview",
+    "ctl": "seg",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:hot_corner:enabled": [
+        true
+      ]
+    },
+    "opts": [
+      "top-left",
+      "top-right",
+      "bottom-left",
+      "bottom-right"
+    ],
+    "optLabels": {
+      "top-left": "Top left",
+      "top-right": "Top right",
+      "bottom-left": "Bottom left",
+      "bottom-right": "Bottom right"
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "HOT CORNER",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:hot_corner:delay_ms",
+    "label": "Wait before opening",
+    "desc": "How long the pointer rests in the corner first",
+    "ctl": "step",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "delay",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:hot_corner:enabled": [
+        true
+      ]
+    },
+    "lo": 0,
+    "hi": 2000,
+    "unit": "ms"
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "HOT CORNER",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:hot_corner:ripple",
+    "label": "Ripple",
+    "desc": "A ripple runs across the screen from the corner",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "effect wave",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:hot_corner:enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "SEARCH",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:search:browse_on_click",
+    "label": "Results on click",
+    "desc": "Clicking the empty search field shows the menu, folders and tools before you type",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "menu browse",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "SEARCH",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:search:dictionary",
+    "label": "Define words",
+    "desc": "Typing define and a word looks it up on Wiktionary; the word is sent there",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "dictionary wiktionary",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "SEARCH",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:search:translate",
+    "label": "Translate",
+    "desc": "Typing tr, a language and some text translates it; the text is sent to the translate service",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "translate language",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOSAIC",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:mosaic:enabled",
+    "label": "Mosaic layout",
+    "desc": "Windows keep their own size and gather in one tight cluster; they tile only once they no longer fit",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "layout natural size cluster",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOSAIC",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:mosaic:default",
+    "label": "New desktops use Mosaic",
+    "desc": "A desktop with no layout of its own starts in Mosaic",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "default layout",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:mosaic:enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOSAIC",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:mosaic:spawn_at_cursor",
+    "label": "Open at the pointer",
+    "desc": "A new window opens where the pointer is, the others packed around it",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "new window placement",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:mosaic:enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOSAIC",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:mosaic:quiet_new_windows",
+    "label": "Quiet new windows",
+    "desc": "A window you did not open, such as a loading screen, opens without taking the focus",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "focus steal",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:mosaic:enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOSAIC",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:mosaic:zoom_labels",
+    "label": "Titles while Super is held",
+    "desc": "Window titles shown while you hold Super and move the pointer",
+    "ctl": "seg",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "names labels",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ]
+    },
+    "opts": [
+      "none",
+      "hover",
+      "all"
+    ],
+    "optLabels": {
+      "none": "None",
+      "hover": "Under the pointer",
+      "all": "All"
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "INFINITE CANVAS",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:mosaic:infinite_canvas",
+    "label": "Infinite canvas",
+    "desc": "On a desktop using Mosaic, windows that no longer fit keep their size on a canvas you pan across, instead of tiling. Pick Mosaic in Window behaviour, or press Super+Shift+L on a desktop",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "pan canvas spill mosaic infinite",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:mosaic:enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "INFINITE CANVAS",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:mosaic:canvas_directions",
+    "label": "Canvas grows",
+    "desc": "A strip you pan sideways, or a grid in every direction",
+    "ctl": "seg",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:mosaic:enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:mosaic:infinite_canvas": [
+        true
+      ]
+    },
+    "opts": [
+      "horizontal",
+      "all"
+    ],
+    "optLabels": {
+      "horizontal": "Sideways",
+      "all": "Every way"
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "INFINITE CANVAS",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:mosaic:edge_push",
+    "label": "Push past the edge",
+    "desc": "Pushing the pointer firmly against a screen edge slides the canvas to the windows past it",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "canvas edge pan",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:mosaic:enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:mosaic:infinite_canvas": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "INFINITE CANVAS",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:mosaic:edge_push_resistance",
+    "label": "How hard to push",
+    "desc": "How far the pointer keeps pushing into the edge before the canvas gives way; the bottom edge takes half again as much",
+    "ctl": "step",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "lo": 50,
+    "hi": 1500,
+    "unit": "px",
+    "adv": true,
+    "keywords": "canvas edge resistance",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:mosaic:enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:mosaic:infinite_canvas": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:mosaic:edge_push": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "INFINITE CANVAS",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:animation:canvas_pan_ms",
+    "label": "Pan and zoom time",
+    "desc": "How long the canvas takes to pan a window into view and to zoom; 0 is instant",
+    "ctl": "step",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "lo": 0,
+    "hi": 2000,
+    "unit": "ms",
+    "adv": true,
+    "keywords": "canvas speed animation",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:mosaic:enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:mosaic:infinite_canvas": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "WINDOWS",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:general:fullscreen_desktop",
+    "label": "Fullscreen apps",
+    "desc": "Where an app goes when it turns fullscreen; it comes back when it leaves",
+    "ctl": "seg",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "fullscreen desktop",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ]
+    },
+    "opts": [
+      "next",
+      "free",
+      "stay"
+    ],
+    "optLabels": {
+      "next": "Own desktop",
+      "free": "Next free desktop",
+      "stay": "Stay"
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "WINDOWS",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:general:open_tiled",
+    "label": "Tile every window",
+    "desc": "A window an app opens floating, such as a dialog, is tiled; your own float rules still float",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "float tile dialog",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "WINDOWS",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:drag:hold_to_swap",
+    "label": "Hold to swap",
+    "desc": "In the overview, hold a dragged window over another and let go to swap them",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "swap drag",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "WINDOWS",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:drag:spring_edges",
+    "label": "Drag to the next desktop",
+    "desc": "Hold a dragged window or file at the left or right edge to carry it to the next desktop",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "edge spring",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "WINDOWS",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:general:scratchpad_bar_exit",
+    "label": "Leave the scratchpad from the bar",
+    "desc": "While the scratchpad is shown, rest on the bar to hide it again",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "scratchpad exit",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "SWITCHING DESKTOPS",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:animation:desktop_jump_through",
+    "label": "Slide through desktops",
+    "desc": "A jump of several desktops slides through the ones between",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "workspace jump",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "SWITCHING DESKTOPS",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:animation:desktop_row_bounce",
+    "label": "Bounce at the ends",
+    "desc": "The row of desktops stretches a little past its first and last desktop",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "elastic overscroll",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "SHORTCUTS",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:binds:scroll_desktops_smooth",
+    "label": "Smooth wheel",
+    "desc": "The desktops follow the wheel continuously and settle on the nearest",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "scroll wheel",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "SHORTCUTS",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:mosaic:super_zoom",
+    "label": "Zoom out on the canvas",
+    "desc": "Hold the keys to see every window on the infinite canvas at once; let go to zoom back in on the window under the pointer. Three fingers down zoom out too",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "super zoom canvas hold key alt ctrl shift",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "SWITCHING DESKTOPS",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:gestures:keep_swipe",
+    "label": "Keep swiping",
+    "desc": "A swipe keeps going while one of the fingers that started it is still down",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "trackpad",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "SWITCHING DESKTOPS",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:gestures:swipe_while_dragging",
+    "label": "Swipe while dragging",
+    "desc": "With one finger holding a drag, three more can still swipe desktops",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "trackpad drag",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "SWITCHING DESKTOPS",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:gesture_detent",
+    "label": "Snap to desktops",
+    "desc": "How strongly a swipe pulls toward the nearest desktop",
+    "ctl": "slid",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "magnetic detent",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ]
+    },
+    "lo": 0,
+    "hi": 0.9
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOTION",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:animation:curve",
+    "label": "Motion curve",
+    "desc": "The curve every Hyprdrive animation moves on",
+    "ctl": "pick",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "easing bezier",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ]
+    },
+    "opts": [
+      "hyprdrive",
+      "serpantinum",
+      "serpantinum_glide",
+      "serpantinum_soft",
+      "swift",
+      "springy",
+      "linear"
+    ],
+    "optLabels": {
+      "hyprdrive": "Hyprdrive",
+      "serpantinum": "Serpantinum",
+      "serpantinum_glide": "Glide",
+      "serpantinum_soft": "Soft",
+      "swift": "Swift",
+      "springy": "Springy",
+      "linear": "Linear"
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOTION",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:smooth_frames",
+    "label": "Render ahead",
+    "desc": "When the graphics card runs late, frames are rendered ahead so a late one costs a single refresh",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "stutter fps vrr",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ]
+    },
+    "adv": true
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOTION BLUR",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:enabled",
+    "label": "Motion blur",
+    "desc": "Moving windows and desktops smear a little, as a camera sees them",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "blur smear",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOTION BLUR",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:layout_motion_blur",
+    "label": "Samples while windows move",
+    "desc": "While windows retile, open and slide. More samples are smoother and cost more; 0 turns it off there",
+    "ctl": "step",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "keywords": "quality",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:enabled": [
+        true
+      ]
+    },
+    "lo": 0,
+    "hi": 32
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOTION BLUR",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:samples",
+    "label": "Samples in the overview",
+    "desc": "In the overview, the search and a drag. More samples are smoother and cost more; 0 turns it off there",
+    "ctl": "step",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "lo": 0,
+    "hi": 32,
+    "keywords": "quality blur",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOTION BLUR",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:layout:strength",
+    "label": "Windows retiling and opening",
+    "desc": "How much of the motion is smeared; 0 turns it off here",
+    "ctl": "slid",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "lo": 0,
+    "hi": 1,
+    "unit": "%",
+    "pct": true,
+    "keywords": "blur strength",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOTION BLUR",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:flick:strength",
+    "label": "Scrolling layout flick",
+    "desc": "How much of the motion is smeared; 0 turns it off here",
+    "ctl": "slid",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "lo": 0,
+    "hi": 1,
+    "unit": "%",
+    "pct": true,
+    "keywords": "blur strength",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOTION BLUR",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:swipe:strength",
+    "label": "Trackpad desktop swipe",
+    "desc": "How much of the motion is smeared; 0 turns it off here",
+    "ctl": "slid",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "lo": 0,
+    "hi": 1,
+    "unit": "%",
+    "pct": true,
+    "keywords": "blur strength",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOTION BLUR",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:scratchpad:strength",
+    "label": "Scratchpad slide",
+    "desc": "How much of the motion is smeared; 0 turns it off here",
+    "ctl": "slid",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "lo": 0,
+    "hi": 1,
+    "unit": "%",
+    "pct": true,
+    "keywords": "blur strength",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOTION BLUR",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:overview:strength",
+    "label": "Overview opening and closing",
+    "desc": "How much of the motion is smeared; 0 turns it off here",
+    "ctl": "slid",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "lo": 0,
+    "hi": 1,
+    "unit": "%",
+    "pct": true,
+    "keywords": "blur strength",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOTION BLUR",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:desktop_switch:strength",
+    "label": "Desktop switch in the overview",
+    "desc": "How much of the motion is smeared; 0 turns it off here",
+    "ctl": "slid",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "lo": 0,
+    "hi": 1,
+    "unit": "%",
+    "pct": true,
+    "keywords": "blur strength",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOTION BLUR",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:search_tiles:strength",
+    "label": "Search tiles",
+    "desc": "How much of the motion is smeared; 0 turns it off here",
+    "ctl": "slid",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "lo": 0,
+    "hi": 1,
+    "unit": "%",
+    "pct": true,
+    "keywords": "blur strength",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOTION BLUR",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:search_pane:strength",
+    "label": "Search results",
+    "desc": "How much of the motion is smeared; 0 turns it off here",
+    "ctl": "slid",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "lo": 0,
+    "hi": 1,
+    "unit": "%",
+    "pct": true,
+    "keywords": "blur strength",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOTION BLUR",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:drag:strength",
+    "label": "Resizing by drag in the overview",
+    "desc": "How much of the motion is smeared; 0 turns it off here",
+    "ctl": "slid",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "lo": 0,
+    "hi": 1,
+    "unit": "%",
+    "pct": true,
+    "keywords": "blur strength",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOTION BLUR",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:desktop_slide:strength",
+    "label": "Desktop slide outside the overview",
+    "desc": "How much of the motion is smeared; 0 turns it off here",
+    "ctl": "slid",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "lo": 0,
+    "hi": 1,
+    "unit": "%",
+    "pct": true,
+    "keywords": "blur strength",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOTION BLUR",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:wheel_pan:strength",
+    "label": "Wheel through desktops in the overview",
+    "desc": "How much of the motion is smeared; 0 turns it off here",
+    "ctl": "slid",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "lo": 0,
+    "hi": 1,
+    "unit": "%",
+    "pct": true,
+    "keywords": "blur strength",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOTION BLUR",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:layout:fade",
+    "label": "Windows retiling and opening: fade",
+    "desc": "When the smear fades over the move: early, over the whole move, late, evenly, or not at all",
+    "ctl": "seg",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "opts": [
+      "early",
+      "full",
+      "late",
+      "linear",
+      "constant"
+    ],
+    "optLabels": {
+      "early": "Early",
+      "full": "Whole move",
+      "late": "Late",
+      "linear": "Even",
+      "constant": "Constant"
+    },
+    "adv": true,
+    "keywords": "blur fade",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOTION BLUR",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:flick:fade",
+    "label": "Scrolling layout flick: fade",
+    "desc": "When the smear fades over the move: early, over the whole move, late, evenly, or not at all",
+    "ctl": "seg",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "opts": [
+      "early",
+      "full",
+      "late",
+      "linear",
+      "constant"
+    ],
+    "optLabels": {
+      "early": "Early",
+      "full": "Whole move",
+      "late": "Late",
+      "linear": "Even",
+      "constant": "Constant"
+    },
+    "adv": true,
+    "keywords": "blur fade",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOTION BLUR",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:swipe:fade",
+    "label": "Trackpad desktop swipe: fade",
+    "desc": "When the smear fades over the move: early, over the whole move, late, evenly, or not at all",
+    "ctl": "seg",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "opts": [
+      "early",
+      "full",
+      "late",
+      "linear",
+      "constant"
+    ],
+    "optLabels": {
+      "early": "Early",
+      "full": "Whole move",
+      "late": "Late",
+      "linear": "Even",
+      "constant": "Constant"
+    },
+    "adv": true,
+    "keywords": "blur fade",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOTION BLUR",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:scratchpad:fade",
+    "label": "Scratchpad slide: fade",
+    "desc": "When the smear fades over the move: early, over the whole move, late, evenly, or not at all",
+    "ctl": "seg",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "opts": [
+      "early",
+      "full",
+      "late",
+      "linear",
+      "constant"
+    ],
+    "optLabels": {
+      "early": "Early",
+      "full": "Whole move",
+      "late": "Late",
+      "linear": "Even",
+      "constant": "Constant"
+    },
+    "adv": true,
+    "keywords": "blur fade",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOTION BLUR",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:overview:fade",
+    "label": "Overview opening and closing: fade",
+    "desc": "When the smear fades over the move: early, over the whole move, late, evenly, or not at all",
+    "ctl": "seg",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "opts": [
+      "early",
+      "full",
+      "late",
+      "linear",
+      "constant"
+    ],
+    "optLabels": {
+      "early": "Early",
+      "full": "Whole move",
+      "late": "Late",
+      "linear": "Even",
+      "constant": "Constant"
+    },
+    "adv": true,
+    "keywords": "blur fade",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOTION BLUR",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:desktop_switch:fade",
+    "label": "Desktop switch in the overview: fade",
+    "desc": "When the smear fades over the move: early, over the whole move, late, evenly, or not at all",
+    "ctl": "seg",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "opts": [
+      "early",
+      "full",
+      "late",
+      "linear",
+      "constant"
+    ],
+    "optLabels": {
+      "early": "Early",
+      "full": "Whole move",
+      "late": "Late",
+      "linear": "Even",
+      "constant": "Constant"
+    },
+    "adv": true,
+    "keywords": "blur fade",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOTION BLUR",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:search_tiles:fade",
+    "label": "Search tiles: fade",
+    "desc": "When the smear fades over the move: early, over the whole move, late, evenly, or not at all",
+    "ctl": "seg",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "opts": [
+      "early",
+      "full",
+      "late",
+      "linear",
+      "constant"
+    ],
+    "optLabels": {
+      "early": "Early",
+      "full": "Whole move",
+      "late": "Late",
+      "linear": "Even",
+      "constant": "Constant"
+    },
+    "adv": true,
+    "keywords": "blur fade",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOTION BLUR",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:search_pane:fade",
+    "label": "Search results: fade",
+    "desc": "When the smear fades over the move: early, over the whole move, late, evenly, or not at all",
+    "ctl": "seg",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "opts": [
+      "early",
+      "full",
+      "late",
+      "linear",
+      "constant"
+    ],
+    "optLabels": {
+      "early": "Early",
+      "full": "Whole move",
+      "late": "Late",
+      "linear": "Even",
+      "constant": "Constant"
+    },
+    "adv": true,
+    "keywords": "blur fade",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOTION BLUR",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:drag:fade",
+    "label": "Resizing by drag in the overview: fade",
+    "desc": "When the smear fades over the move: early, over the whole move, late, evenly, or not at all",
+    "ctl": "seg",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "opts": [
+      "early",
+      "full",
+      "late",
+      "linear",
+      "constant"
+    ],
+    "optLabels": {
+      "early": "Early",
+      "full": "Whole move",
+      "late": "Late",
+      "linear": "Even",
+      "constant": "Constant"
+    },
+    "adv": true,
+    "keywords": "blur fade",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOTION BLUR",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:desktop_slide:fade",
+    "label": "Desktop slide outside the overview: fade",
+    "desc": "When the smear fades over the move: early, over the whole move, late, evenly, or not at all",
+    "ctl": "seg",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "opts": [
+      "early",
+      "full",
+      "late",
+      "linear",
+      "constant"
+    ],
+    "optLabels": {
+      "early": "Early",
+      "full": "Whole move",
+      "late": "Late",
+      "linear": "Even",
+      "constant": "Constant"
+    },
+    "adv": true,
+    "keywords": "blur fade",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:enabled": [
+        true
+      ]
+    }
+  },
+  {
+    "tab": "Hyprdrive",
+    "group": "MOTION BLUR",
+    "key": "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:wheel_pan:fade",
+    "label": "Wheel through desktops in the overview: fade",
+    "desc": "When the smear fades over the move: early, over the whole move, late, evenly, or not at all",
+    "ctl": "seg",
+    "src": "desktop.json",
+    "caps": "hyprdrive",
+    "page": "plugins",
+    "opts": [
+      "early",
+      "full",
+      "late",
+      "linear",
+      "constant"
+    ],
+    "optLabels": {
+      "early": "Early",
+      "full": "Whole move",
+      "late": "Late",
+      "linear": "Even",
+      "constant": "Constant"
+    },
+    "adv": true,
+    "keywords": "blur fade",
+    "when": {
+      "wm.hyprland.plugins.hyprdrive.enabled": [
+        true
+      ],
+      "wm.hyprland.plugins.hyprdrive.config.hyprdrive:motion_blur:enabled": [
+        true
+      ]
+    }
   }
 ]

@@ -64,7 +64,7 @@ QtObject {
 
     function write(key, v, done) {
         // an undo back to a layout nothing ever read has no value to apply
-        if (key !== "linked" && ["dwindle", "master", "scrolling"].indexOf(v) < 0) {
+        if (key !== "linked" && ["dwindle", "master", "scrolling", "mosaic"].indexOf(v) < 0) {
             done(true, "");
             return;
         }

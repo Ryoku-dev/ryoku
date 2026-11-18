@@ -293,6 +293,7 @@ func TestPluginEnabledCoversBundled(t *testing.T) {
 	o.Plugins.Keysounds.Enabled = true
 	o.Plugins.BordersPlusPlus.Enabled = true
 	o.Plugins.Hyprgrass.Enabled = true
+	o.Plugins.Hyprdrive.Enabled = true
 	for _, d := range bundledPlugins {
 		if !pluginEnabled(o, d.ID) {
 			t.Fatalf("%s enabled in the store but not seen by pluginEnabled", d.ID)

@@ -119,6 +119,10 @@ const (
 	// session must take virtual pointer and keyboard input and answer
 	// wlr-screencopy, so a caller can drive it and see it.
 	CapNestedSession Capability = "nestedSession"
+	// CapHyprdrive is set when the provider offers Hyprdrive, the compositor
+	// plugin with a mission-control overview, Mosaic layouts and window
+	// motion, through the hyprdrive verb.
+	CapHyprdrive Capability = "hyprdrive"
 )
 
 // All is every capability, so a caps payload can carry an explicit boolean for
@@ -136,7 +140,7 @@ func All() []Capability {
 		CapOutputHdr, CapWindowFloat,
 		CapTiledLayout, CapPerWorkspaceLayout, CapColumnFill, CapDeckLayout, CapSessionExit, CapNightLight,
 		CapTouchpadToggle, CapPaletteBorder, CapPersistentScreenCapture,
-		CapKeyboardGrabSharesPointer, CapSystemLidEdgeSource, CapNestedSession,
+		CapKeyboardGrabSharesPointer, CapSystemLidEdgeSource, CapNestedSession, CapHyprdrive,
 	}
 }
 

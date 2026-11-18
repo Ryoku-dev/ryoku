@@ -1,6 +1,24 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **Hyprdrive, an optional overview and the Mosaic layout, for Hyprland.** Off
+  until it is turned on in Settings > Windows > Hyprdrive, which first lists
+  every shortcut it adds and every Ryoku one it would replace; a shortcut that
+  replaces one stays off until turned on, and each takes new keys there. The
+  provider writes one fenced block at the end of `~/.config/hypr/user.lua` and
+  gives the file back byte for byte when it is off. Mosaic joins the tiling
+  layouts in Window behaviour while it is on, its chrome follows the style, it
+  numbers desktops in Ryoku's blocks of ten, and its keys follow the keymap
+  (`ryoku/wm/hyprland/hyprdrive.go`, `hub/quickshell/pages/Hyprdrive.qml`).
+- **A Hyprland plugin can build from a branch other than its repository's
+  default.** A plugin entry's `Branch` is the branch the rebuild reads
+  `hyprpm.toml` from and builds without a pin (`ryoku/wm/hyprland/config_plugins_build.go`).
+- **A settings row can depend on several settings at once.** `when` with more
+  than one key requires all of them (`when.also`), and a row hidden by one leads
+  a search to the setting that hides it (`hub/quickshell/components/SettingsPage.qml`).
+- **Lithic's ChordField can record modifiers alone.** With `modifiersAlone`,
+  holding Super+Alt and letting go records `Super+Alt`
+  (`docs/lithic/library/qml/Lithic/ChordField.qml`).
 - **Ask and the Agent chat no longer fetch images from a reply or open
   arbitrary links.** Images in an answer show as their alt text, so a reply
   cannot make the shell call out to a host, and only web and mail links open
