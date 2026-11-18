@@ -18,10 +18,13 @@ case "$init" in
   *) printf 'dictation: unsupported init system: %s\n' "$init" >&2; exit 1 ;;
 esac
 
+# cmake's package probe drops CMakeFiles/ in its cwd, so it runs in a scratch dir
+probe="$(mktemp -d)"
+trap 'rm -rf "$probe"' EXIT
 if ! command -v cmake >/dev/null 2>&1 || ! command -v ninja >/dev/null 2>&1 ||
    ! command -v c++ >/dev/null 2>&1 || ! command -v glslc >/dev/null 2>&1 ||
    ! pkg-config --exists libpipewire-0.3 wayland-client xkbcommon vulkan ||
-   ! cmake --find-package -DNAME=SPIRV-Headers -DCOMPILER_ID=GNU -DLANGUAGE=CXX -DMODE=EXIST >/dev/null 2>&1; then
+   ! (cd "$probe" && cmake --find-package -DNAME=SPIRV-Headers -DCOMPILER_ID=GNU -DLANGUAGE=CXX -DMODE=EXIST >/dev/null 2>&1); then
   case "$("$host" pkgmgr)" in
     pacman)
       sudo pacman -S --needed --noconfirm cmake ninja gcc pkgconf libpipewire wayland libxkbcommon shaderc vulkan-headers vulkan-icd-loader spirv-headers
@@ -38,6 +41,7 @@ if ! command -v cmake >/dev/null 2>&1 || ! command -v ninja >/dev/null 2>&1 ||
       ;;
   esac
 fi
+rm -rf "$probe"
 
 export RYOKU_SRC="$repo" RYOKU_BUILD_DIR="$here"
 "$payload" build

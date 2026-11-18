@@ -41,6 +41,9 @@
   translation rows and is a dependency of `ryoku-desktop` on both, and the rows
   Voxtype left behind are gone (`fedora/packages/translations.tsv`,
   `void/packages/translations.tsv`).
+- **Updating a source checkout no longer leaves a CMakeFiles folder at its
+  root.** The SPIRV headers check runs cmake's package probe in a scratch
+  directory (`ryoku/dictation/deploy.sh`).
 - **Updating no longer stops at the voice engine on a box without the SPIRV
   headers.** The deploy check, the package recipes and the build host list now
   name `spirv-headers` (Fedora `spirv-headers-devel`, Void `SPIRV-Headers`),
