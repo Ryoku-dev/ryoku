@@ -26,6 +26,13 @@ type cpuCaps struct {
 	} `json:"battery"`
 	ASPM *segmentCap `json:"aspm"`
 	Idle *idleCaps   `json:"idle"`
+	Lid  *lidCaps    `json:"lid"`
+}
+
+// lidCaps mirrors `ryoku-power capabilities --json` .lid, present only on a
+// laptop: the closed-lid policy ryoku-clamshell applies.
+type lidCaps struct {
+	KeepRunningOnAC bool `json:"keepRunningOnAc"`
 }
 
 type cpuKnobCaps struct {
@@ -247,6 +254,14 @@ func cpuTunables(caps cpuCaps, def profileDef) []Tunable {
 			idleStepper("ac.suspendSec", "Suspend", idle.AC.SuspendSec, 240),
 		)
 	}
+	if lid := caps.Lid; lid != nil {
+		out = append(out, Tunable{
+			GPU: "lid", ID: "keepRunningOnAc", Label: "Keep running with the lid closed",
+			Kind: "toggle", Value: onOff(lid.KeepRunningOnAC),
+			Risk: "safe", Src: "power.json lid.keepRunningOnAc",
+			Desc: "On AC, a lid close locks and blanks the panel instead of suspending",
+		})
+	}
 	return out
 }
 
@@ -263,6 +278,8 @@ func cpuSet(scope, id, value string) error {
 		}
 	case "idle":
 		return idleSet(id, value)
+	case "lid":
+		return lidSet(id, value)
 	}
 	return ttyRun(ryokuHostBin, "power", "profile", "set", scope, id, value)
 }
@@ -320,4 +337,32 @@ func idleSet(id, value string) error {
 		return err
 	}
 	return exec.Command("ryoku-idle", "apply").Run()
+}
+
+// lidStoredValue maps the page's toggle to what power.json stores. Pure, so the
+// conversion is unit-tested without shelling out.
+func lidStoredValue(id, value string) (string, error) {
+	if id != "keepRunningOnAc" {
+		return "", fmt.Errorf("unknown lid knob: %s", id)
+	}
+	if value == "on" || value == "true" {
+		return "true", nil
+	}
+	return "false", nil
+}
+
+// lidSet persists the closed-lid policy and re-runs the shared sync so a lid
+// already shut is re-evaluated at once. The sync can decline (an inactive
+// session, a lid owner that is not ready); the setting is still saved, so a
+// failed sync is not reported as a failed save.
+func lidSet(id, value string) error {
+	stored, err := lidStoredValue(id, value)
+	if err != nil {
+		return err
+	}
+	if err := ttyRun(ryokuHostBin, "power", "lid", "set", id, stored); err != nil {
+		return err
+	}
+	_ = exec.Command("ryoku-clamshell", "lid", "sync").Run()
+	return nil
 }

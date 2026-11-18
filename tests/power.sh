@@ -254,6 +254,41 @@ jq -e '.cpu.maxFreqPct == {min:20,max:100,current:100}' <<<"$capsJ" >/dev/null \
 jq -e '(has("battery")|not) and (has("aspm")|not)' <<<"$capsJ" >/dev/null \
   || fail "capabilities emitted battery/aspm whose sources were absent"
 
+# --- closed-lid policy: off by default, boolean, one key, siblings kept -------
+cfgP="$tmp/cfgP/power.json"; mkdir -p "$(dirname "$cfgP")"
+printf '{"chargeLimit":80}\n' >"$cfgP"
+[[ "$(rp "$nops" "$noaspm" "$cfgP" 1 lid get keepRunningOnAc)" == false ]] \
+  || fail "lid keepRunningOnAc did not default to false"
+jq -e '.keepRunningOnAc == false' <(rp "$nops" "$noaspm" "$cfgP" 1 lid get) >/dev/null \
+  || fail "lid get did not print the default policy object"
+rp "$nops" "$noaspm" "$cfgP" 1 lid set keepRunningOnAc true \
+  || fail "lid set rejected true"
+jq -e '.lid.keepRunningOnAc == true and .chargeLimit == 80' "$cfgP" >/dev/null \
+  || fail "lid set did not persist true or dropped a sibling key"
+[[ "$(rp "$nops" "$noaspm" "$cfgP" 1 lid get keepRunningOnAc)" == true ]] \
+  || fail "lid get did not read back true"
+# A stored false must survive a merge: jq `//` would flip it back to the default.
+rp "$nops" "$noaspm" "$cfgP" 1 lid set keepRunningOnAc false \
+  || fail "lid set rejected false"
+[[ "$(rp "$nops" "$noaspm" "$cfgP" 1 lid get keepRunningOnAc)" == false ]] \
+  || fail "a stored false was merged back to the default"
+if rp "$nops" "$noaspm" "$cfgP" 1 lid set keepRunningOnAc yes >/dev/null 2>&1; then
+  fail "lid set accepted a non-boolean value"
+fi
+if rp "$nops" "$noaspm" "$cfgP" 1 lid set bogus true >/dev/null 2>&1; then
+  fail "lid set accepted an unknown key"
+fi
+[[ "$(rp "$nops" "$noaspm" "$cfgP" 1 lid get keepRunningOnAc)" == false ]] \
+  || fail "a rejected lid set still wrote the config"
+
+# A desktop has no lid, so capabilities omit the policy entirely.
+capsP="$(rp "$nops" "$noaspm" "$cfgP" 1 capabilities --json)"
+jq -e '.lid == {"keepRunningOnAc":false}' <<<"$capsP" >/dev/null \
+  || fail "capabilities did not report the closed-lid policy on a laptop"
+capsP="$(rp "$nops" "$noaspm" "$cfgP" 0 capabilities --json)"
+jq -e '(has("lid")|not)' <<<"$capsP" >/dev/null \
+  || fail "capabilities emitted a closed-lid policy on a desktop"
+
 # --- profile set: validates against live caps, persists, preserves siblings ---
 cpuK="$tmp/cpuK"; mk_cpu "$cpuK" 2
 ppK="$tmp/ppK/platform_profile"; mkdir -p "$(dirname "$ppK")"

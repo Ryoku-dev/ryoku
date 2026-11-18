@@ -76,7 +76,7 @@ Packages (names use the Arch/Ryoku catalogue):
 
 System settings:
   power <poweroff|reboot|suspend|hibernate>
-  power <capabilities|profile|idle|charge-limit|aspm> [arguments...]
+  power <capabilities|profile|idle|lid|charge-limit|aspm> [arguments...]
   time zone
   time zones
   time set-zone <Area/City>

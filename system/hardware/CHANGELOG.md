@@ -14,6 +14,16 @@
   a microphone (the mic is then not offered), `mic on` goes back to the default,
   and plain `mic` prints the current choice. It is a saved WirePlumber setting,
   so it survives restarts and updates. Covered by `tests/bt-audio-codec.sh`.
+- `power/ryoku-clamshell`: **run on AC with the lid closed (#906).** With the
+  new `ryoku-power lid set keepRunningOnAc true` opt-in, a non-docked close on
+  AC locks the session through `ryoku-shell` and blanks the internal panel
+  through the window-manager seam's `output.power` action instead of
+  suspending; opening the lid restores it without changing the saved layout.
+  Battery always suspends, an unconfirmed lock falls back to the secure suspend
+  transaction, and unplugging AC while the lid is shut suspends at once.
+  `ryoku-clamshell lid sync` applies the same policy on a config reload with
+  the lid already shut. Covered by `tests/clamshell-policy.sh` and
+  `tests/power.sh`.
 - `audio/ryoku-media`: **one toggle per media tap.** Runs `playerctl` and drops
   a second call within 200 ms, for headphones that send play and pause together.
 - `display/ryoku-monitor`: **a hand-entered resolution is forced, not ignored.**

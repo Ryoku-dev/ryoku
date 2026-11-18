@@ -615,11 +615,76 @@ cmd_idle() {
   esac
 }
 
+# ── closed-lid policy ────────────────────────────────────────────────────────
+#
+# The one opt-in that lets a laptop run with its lid shut: on AC, ryoku-clamshell
+# locks the session and blanks the internal panel instead of asking the shell for
+# the secure suspend. It stays off by default and never applies on battery, so a
+# laptop closed in a bag still sleeps unless someone chose otherwise.
+lid_defaults() { jq -n '{keepRunningOnAc: false}'; }
+
+# the stored lid object overlaid on the defaults. Booleans merge by presence:
+# jq `//` treats false as empty and would flip a stored false back on.
+lid_merged() {
+  local stored="{}"
+  [[ -f $CONFIG ]] && stored="$(jq -c '.lid // {}' "$CONFIG" 2>/dev/null || printf '{}')"
+  lid_defaults | jq -c --argjson s "$stored" '
+    .keepRunningOnAc =
+      (if ($s | has("keepRunningOnAc")) then $s.keepRunningOnAc else .keepRunningOnAc end)
+  '
+}
+
+lid_cfg_set() {
+  escalated && return 0
+  local key="$1" val="$2" tmp
+  mkdir -p "$(dirname "$CONFIG")"
+  tmp="$(mktemp "${CONFIG}.XXXXXX")"
+  if [[ -f $CONFIG ]]; then
+    jq --argjson v "$val" --arg k "$key" 'setpath(["lid", $k]; $v)' "$CONFIG" >"$tmp"
+  else
+    jq -n --argjson v "$val" --arg k "$key" '{lid: {($k): $v}}' >"$tmp"
+  fi
+  mv -f "$tmp" "$CONFIG"
+}
+
+cmd_lid() {
+  local action="${1:-get}"
+  case "$action" in
+    get)
+      local key="${2:-}"
+      if [[ -z $key ]]; then
+        lid_merged
+      else
+        lid_merged | jq -er --arg k "$key" '
+          if has($k) then .[$k] else error("unknown lid key: \($k)") end
+        '
+      fi
+      ;;
+    set)
+      local key="${2:-}" val="${3:-}"
+      [[ -n $key ]] || { log "lid set needs <key> <value>"; exit 2; }
+      case "$key" in
+        keepRunningOnAc)
+          case "$val" in
+            true|false) ;;
+            *) log "lid $key must be true or false"; exit 2 ;;
+          esac
+          lid_cfg_set "$key" "$val" ;;
+        *)
+          log "unknown lid key: $key (keepRunningOnAc)"; exit 2 ;;
+      esac
+      ;;
+    *)
+      log "lid needs get [<key>] | set <key> <value>"; exit 2 ;;
+  esac
+}
+
 cmd_capabilities() {
   [[ -z ${1:-} || ${1:-} == --json ]] || { log "capabilities takes only --json"; exit 2; }
 
   local gov_opts gov_cur epp_opts epp_cur pp_opts pp_cur
   local maxpct="" charge_cur="" charge_opts="" aspm_opts="" aspm_cur="" active="" idle_cur=""
+  local lid_cur=""
   local power_state="" profiles='["power-saver","balanced","performance"]'
 
   gov_opts="$(governor_options)"; gov_cur=""
@@ -662,6 +727,8 @@ cmd_capabilities() {
     aspm_opts="$(aspm_options)"; aspm_cur="$(aspm_read || true)"
   fi
   idle_cur="$(idle_merged)"
+  # A desktop has no lid, so the page never grows a closed-lid control there.
+  hw_laptop && lid_cur="$(lid_merged)"
 
   jq -n \
     --arg gov_opts "$gov_opts" --arg gov_cur "$gov_cur" \
@@ -672,7 +739,8 @@ cmd_capabilities() {
     --arg aspm_opts "$aspm_opts" --arg aspm_cur "$aspm_cur" \
     --arg active "$active" \
     --argjson profiles "$profiles" \
-    --argjson idle "$idle_cur" '
+    --argjson idle "$idle_cur" \
+    --arg lid "$lid_cur" '
     def words($s): ($s | split(" ") | map(select(length > 0)));
     def seg($o; $c): {options: words($o), current: $c};
     {}
@@ -689,6 +757,7 @@ cmd_capabilities() {
        else . end)
     | (if $aspm_opts != "" then .aspm = seg($aspm_opts; $aspm_cur) else . end)
     | .idle = $idle
+    | (if $lid != "" then .lid = ($lid | fromjson) else . end)
   '
 }
 
@@ -869,6 +938,10 @@ idle get [<path>]            print the idle policy, or one dotted key (seconds)
 idle set <path> <value>      set an idle key: enabled|onDesktops (true|false) or
                              {battery,ac}.{dimSec,lockSec,screenOffSec,suspendSec}
                              in seconds; ryoku-idle renders hypridle from these
+lid get [<key>]              print the closed-lid policy, or one key
+lid set <key> <value>        keepRunningOnAc (true|false): on AC, a lid close
+                             locks and blanks the panel instead of suspending;
+                             ryoku-clamshell applies it
 apply                        converge the hardware to ~/.config/ryoku/power.json
                              (globals are laptop-only; CPU profile applies anywhere)
 
@@ -891,6 +964,7 @@ case "$cmd" in
   profile)      shift; cmd_profile "$@" ;;
   apply-profile) shift; cmd_apply_profile "$@" ;;
   idle)         shift; cmd_idle "$@" ;;
+  lid)          shift; cmd_lid "$@" ;;
   apply)        cmd_apply ;;
   -h|--help|help) usage ;;
   *)

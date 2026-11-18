@@ -41,6 +41,12 @@
   keep headsets in stereo when an app opens a microphone. It reads and writes the
   saved WirePlumber setting through `ryoku-bt-audio mic`, and is disabled with a
   reason when WirePlumber or `wpctl` is missing (`quickshell/pages/ConnectionsPage.qml`).
+- **Machine offers "Keep running with the lid closed" (#906).** A new LID card
+  on the Machine page carries the opt-in that keeps a laptop running on AC when
+  the lid shuts, locking the session and blanking the panel instead of
+  suspending. It is off by default, never applies on battery, and re-runs the
+  lid policy as soon as it is switched, so a lid already shut is handled
+  without a logout.
 
 ### Fixed
 - **Re-rendering app themes works when the config directory is not `~/.config`

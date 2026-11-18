@@ -1,5 +1,6 @@
 -- ryoku-clamshell owns the shared lid-close policy. It sends non-docked closes
--- through the shell's secure suspend transaction; live docked mode hands the
+-- through the shell's secure suspend transaction, except when the opt-in
+-- keep-running policy locks and blanks instead; live docked mode hands the
 -- covered panel to the external display. Opening clears only the panel's
 -- disabled flag, preserving mode, scale and position. locked = fires while
 -- qylock is active too, so display handoff remains correct across resume.

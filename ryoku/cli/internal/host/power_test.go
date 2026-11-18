@@ -52,6 +52,7 @@ func TestPowerRoutesProfileControlsThroughRyokuPower(t *testing.T) {
 		{"profile", "get", "balanced"},
 		{"profile", "set", "balanced", "epp", "balance_power"},
 		{"idle", "set", "ac.lockSec", "600"},
+		{"lid", "set", "keepRunningOnAc", "true"},
 		{"charge-limit", "set", "80"},
 		{"aspm", "set", "powersave"},
 	} {
