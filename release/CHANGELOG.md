@@ -1,6 +1,15 @@
 # Release / Packaging Changelog
 
 ## Unreleased
+- **team.ryoku.dev takes version 3 badges that name a tested program.** A
+  `RYB` code may be version 3: the version 2 fields, then a u8
+  length-prefixed program (1 to 40 ASCII characters, letters and digits at
+  the ends, space, `.`, `+` and `-` between, never two spaces in a row),
+  signed under `ryoku-badge-v3`. `verifyCode` returns it as `program`, and
+  badges, revocations, card records, holder proofs and designs take either
+  version. Requests, revocations and approvals stay version 2; any other
+  version gets 400 `Unsupported code version`. Deploy the Worker before Mika
+  issues version 3 codes, which an older gate refuses.
 - **team.ryoku.dev approves card designs for every badge role.** `POST
   /v1/designs`, the list and the binder batch now take an approved design for
   any login holding an active badge, tester and contributor included (it was

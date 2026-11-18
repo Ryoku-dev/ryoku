@@ -38,6 +38,8 @@ test('cross-language Go vectors', async t => {
       } catch { valid = false; }
       assert.equal(valid, vector.valid);
       if (valid && result) for (const field of ['id', 'cardId', 'role', 'login', 'issuer', 'sha', 'day', 'approvedAt']) if (vector[field] !== undefined) assert.equal(result[field], vector[field], `Mismatched ${field}`);
+      // a badge names a program only when its v3 bytes carry one
+      if (valid && kind === 'RYB') assert.equal(result.program, vector.program, 'Mismatched program');
     });
   }
 });

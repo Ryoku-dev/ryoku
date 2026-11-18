@@ -44,6 +44,38 @@ test('every signed code verifies, rejects forgery, tampering, malformed fields a
   await assert.rejects(verifyCode('RYD', encodeCode('RYD', bytes), env));
 });
 
+test('a v3 badge carries its signed program; v2 still verifies and other versions do not', async () => {
+  const { owner, mika, device, env } = await setup();
+  const longest = 'Ryoku v3.0+ '.repeat(3) + 'Edge';
+  for (const program of ['Ryoku v2 Hyperion', 'a', longest]) {
+    const text = await code('RYB', mika, { device, issuer: 2, role: 1, login: 'tester', program });
+    const badge = await verifyCode('RYB', text, env);
+    assert.equal(badge.program, program);
+    assert.equal(badge.login, 'tester');
+    assert.equal(badge.id, (await digest(decodeCode('RYB', text))).slice(0, 16));
+    const tampered = decodeCode('RYB', text); tampered[tampered.length - 65] ^= 1;
+    await assert.rejects(verifyCode('RYB', encodeCode('RYB', tampered), env), /Invalid program|Invalid signature/);
+  }
+  const v2 = await verifyCode('RYB', await code('RYB', mika, { device, issuer: 2, role: 1, login: 'tester' }), env);
+  assert.equal(v2.program, undefined);
+  assert.equal(v2.login, 'tester');
+  for (const program of [' Ryoku', 'Ryoku ', 'Ryoku  v2', 'Ryoku_v2', '-Ryoku', 'Ryoku.', 'Ryokú', 'a'.repeat(41)]) {
+    await assert.rejects(verifyCode('RYB', await code('RYB', mika, { device, issuer: 2, role: 1, program }), env), /Invalid program/, program);
+  }
+  // the version picks the domain, so neither layout verifies under the other's signature
+  await assert.rejects(verifyCode('RYB', await code('RYB', owner, { device, program: 'Ryoku v2 Hyperion', domain: 'ryoku-badge-v2' }), env), /Invalid signature/);
+  await assert.rejects(verifyCode('RYB', await code('RYB', owner, { device, domain: 'ryoku-badge-v3' }), env), /Invalid signature/);
+  const v4 = decodeCode('RYB', await code('RYB', owner, { device, program: 'Ryoku v2 Hyperion' })); v4[0] = 4;
+  await assert.rejects(verifyCode('RYB', encodeCode('RYB', v4), env), /Unsupported code version/);
+  // the codes that stay v2 never take version 3
+  for (const kind of ['RYX', 'RYD']) {
+    const bytes = decodeCode(kind, await code(kind, owner, { id: v2.id, sha: 'ab'.repeat(32) })); bytes[0] = 3;
+    await assert.rejects(verifyCode(kind, encodeCode(kind, bytes), env), /Unsupported code version/);
+  }
+  const request = decodeCode('RYQ', requestCode(device)); request[0] = 3;
+  await assert.rejects(verifyCode('RYQ', encodeCode('RYQ', request)), /Unsupported code version/);
+});
+
 test('card records bind timestamp, body, key-derived id and picture to the device', async () => {
   const { device } = await setup(), other = await keys();
   const valid = await record(device);
