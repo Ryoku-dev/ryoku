@@ -62,7 +62,8 @@ Singleton {
         keyboardGrabSharesPointer: false,
         systemLidEdgeSource: false,
         nestedSession: false,
-        perWorkspaceLayout: false
+        perWorkspaceLayout: false,
+        pointerPosition: false
     })
     property var _caps: root.emptyCaps
     property string _workspaceModel: "fixed"
@@ -432,6 +433,21 @@ Singleton {
     function setScreenShader(name) { root._act("decoration.screenShader", "screenShader", [String(name || "")]); }
     function setFocusFollowsMouse(mode, cb) { root._actResult("input.focusFollowsMouse", "liveConfigEval", [String(mode)], cb); }
     function setWorkspaceLayout(ws, layout) { root._act("workspace.layout", "tiledLayout", [String(ws), String(layout)]); }
+
+    // Where the pointer is, for a surface that opens under a pointer that is
+    // not moving: cb receives { output, x, y } in output-local logical pixels,
+    // or null where the compositor cannot say.
+    function locatePointer(cb) {
+        root._actResult("pointer.locate", "pointerPosition", [], result => {
+            let position = null;
+            try {
+                position = result ? JSON.parse(result) : null;
+            } catch (e) {
+                position = null;
+            }
+            cb(position && typeof position.output === "string" && isFinite(position.x) && isFinite(position.y) ? position : null);
+        });
+    }
 
     // ---- transport ----
     // The full topic moves only the sections that changed. Focus arrives on a

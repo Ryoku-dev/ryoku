@@ -98,6 +98,11 @@ const (
 	// prints the previous state so callers can restore exactly what they found.
 	ActionCursorVisibility Action = "cursor.visibility"
 
+	// ActionPointerLocate prints where the pointer is as one JSON object,
+	// {"output":"<connector>","x":<n>,"y":<n>}, in logical pixels relative to
+	// that output's top-left corner. Needs CapPointerPosition.
+	ActionPointerLocate Action = "pointer.locate"
+
 	// Transient live overrides, not persisted settings: the launcher suppresses
 	// focus-follows-mouse while it is open and restores it on close.
 	// ActionFocusFollowsMouse prints the PREVIOUS value so the caller can hand
@@ -187,8 +192,18 @@ func (a Action) Capability() Capability {
 		return CapTouchpadToggle
 	case ActionOutputCycle, ActionOutputEnable, ActionOutputRefresh:
 		return CapMonitorConfig
+	case ActionPointerLocate:
+		return CapPointerPosition
 	}
 	return ""
+}
+
+// PointerPosition is what pointer.locate prints: the output under the pointer
+// and the pointer's place on it, in logical pixels from its top-left corner.
+type PointerPosition struct {
+	Output string  `json:"output"`
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
 }
 
 // ClosestRefreshMode returns the advertised mode at the current physical

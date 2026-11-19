@@ -1,6 +1,15 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Theia's highlight actions show on Hyprland.** Holding the highlight key
+  while selecting text and letting go showed nothing on Hyprland unless the
+  mouse moved within a second and a half: Hyprland sends no pointer enter to an
+  overlay it opens under a still pointer, so the bubble never learned where to
+  appear. The overlay now asks the compositor where the pointer is through the
+  new `pointer.locate` action (`pointerPosition` capability, Hyprland only), and
+  In place places its toast the same way (`modules/sight/SightSurface.qml`,
+  `ryoku/ui/Singletons/Wm.qml`, `ryoku/wm/hyprland/act.go`). niri already sends
+  that enter and is unchanged.
 - **Alt+Space opens the Rashin bar, a Raycast-style command bar.** One field
   and one ranked list: a calculator answer, `Download <host>` for a pasted link
   or magnet, live and recent downloads, recent asks, and the `Ask Rashin` and

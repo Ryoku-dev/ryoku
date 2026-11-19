@@ -61,6 +61,7 @@ var capsManifest = []wm.Capability{
 	wm.CapTouchpadToggle,
 	wm.CapPaletteBorder,
 	wm.CapPersistentScreenCapture,
+	wm.CapPointerPosition,
 }
 
 // appOverrideFields are the per-app look fields genAppOverride writes: all of

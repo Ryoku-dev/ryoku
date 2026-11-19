@@ -139,8 +139,8 @@ Shared by Hyprland and wayfire:
 Hyprland only:
 
     configReload  cursorSet  focusGrab  globalShortcuts  liveConfigEval
-    persistentScreenCapture  plugins  screenShader  submap  tiledLayout
-    workspaceSlideStyle
+    persistentScreenCapture  plugins  pointerPosition  screenShader  submap
+    tiledLayout  workspaceSlideStyle
 
 niri only:
 
@@ -215,6 +215,11 @@ that change what a user sees:
   weston a nest starts on, because its backend needs a newer `wl_compositor`
   than weston offers, and wayfire has no nest verb, so Rashin offers agents no
   screen on either.
+- **`pointerPosition`** is Hyprland's alone, and only Hyprland needs it.
+  Hyprland sends no pointer enter to a layer surface it maps under a pointer
+  that is not moving, so Theia's highlight bubble and in-place toast ask
+  `pointer.locate` where the pointer is. niri sends that enter the moment the
+  overlay maps and has no pointer query, so the overlay learns it there.
 
 `nightLight` is the one shared capability the desktop drives through named
 actions rather than a settings row:

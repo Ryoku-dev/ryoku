@@ -119,6 +119,12 @@ const (
 	// session must take virtual pointer and keyboard input and answer
 	// wlr-screencopy, so a caller can drive it and see it.
 	CapNestedSession Capability = "nestedSession"
+	// CapPointerPosition is set when the provider can say where the pointer is
+	// through the pointer.locate action. A shell surface that opens under a
+	// pointer that is not moving asks for it, because a compositor may send no
+	// pointer enter to a newly mapped surface until the pointer moves, and the
+	// surface would otherwise never learn where to appear.
+	CapPointerPosition Capability = "pointerPosition"
 )
 
 // All is every capability, so a caps payload can carry an explicit boolean for
@@ -136,7 +142,7 @@ func All() []Capability {
 		CapOutputHdr, CapWindowFloat,
 		CapTiledLayout, CapPerWorkspaceLayout, CapColumnFill, CapDeckLayout, CapSessionExit, CapNightLight,
 		CapTouchpadToggle, CapPaletteBorder, CapPersistentScreenCapture,
-		CapKeyboardGrabSharesPointer, CapSystemLidEdgeSource, CapNestedSession,
+		CapKeyboardGrabSharesPointer, CapSystemLidEdgeSource, CapNestedSession, CapPointerPosition,
 	}
 }
 

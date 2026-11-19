@@ -110,6 +110,7 @@ Scope {
         bubble.dismissBubble(true);
         inplaceWaiting = true;
         pointerWait.restart();
+        locatePointer();
     }
     function startInplace(point) {
         if (!inplaceContext || !inplaceWaiting) return;
@@ -231,7 +232,18 @@ Scope {
         handledHighlightId = id;
         bubble.dismissBubble(true);
         probingPointer = !selecting && !modal && !hidden;
-        if (probingPointer) pointerWait.restart();
+        if (probingPointer) { pointerWait.restart(); locatePointer(); }
+    }
+    // The overlay waits for the pointer to enter it, and a compositor may send
+    // no enter to a surface it maps under a pointer that is not moving. Where it
+    // can say where the pointer is, ask instead, so a still hand gets its bubble.
+    function locatePointer() {
+        if (!Wm.caps.pointerPosition) return;
+        Wm.locatePointer(function(position) {
+            if (!position) return;
+            if (String(position.output) === String(root.screen.name)) root.foundPointer(position.x, position.y);
+            else root.probingPointer = false;
+        });
     }
     function foundPointer(x, y) {
         if (inplaceWaiting) { startInplace(Qt.point(x, y)); return; }
