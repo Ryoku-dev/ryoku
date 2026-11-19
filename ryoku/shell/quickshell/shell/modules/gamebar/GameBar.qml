@@ -115,10 +115,17 @@ PanelWindow {
         const base = win.cardLimits[id] || { minW: 220, minH: 160, maxW: 800, maxH: 700 };
         if (id !== "voice")
             return base;
-        // A horizontal card can spread across the output; a vertical stack
-        // only needs one column, so keep it compact and never wider than the
-        // screen at the current scale.
-        const wanted = win.cfg.voiceVertical !== false ? 640 : base.maxW;
+        // A horizontal card can spread across the output. A vertical stack
+        // only needs one column, so cap it at the avatar plus the widest name
+        // the current settings can draw, with padding and spacing.
+        var wanted = base.maxW;
+        if (win.cfg.voiceVertical !== false) {
+            const avatar = VoiceLayout.avatar(win.cfg.voiceAvatarSize);
+            const gap = typeof win.cfg.voiceNameGap === "number" ? win.cfg.voiceNameGap : 1;
+            const chars = typeof win.cfg.voiceNameChars === "number" ? win.cfg.voiceNameChars : 12;
+            const cell = VoiceLayout.cell(avatar, true, win.voiceNameSide(), gap, chars);
+            wanted = cell + 32 + 4;
+        }
         const screenW = Math.floor((win.width - win.sidePad * 2) / win.us);
         return { minW: base.minW, minH: base.minH, maxH: base.maxH,
             maxW: Math.max(base.minW, Math.min(wanted, screenW)) };
@@ -387,24 +394,10 @@ PanelWindow {
         const saved = GameBarStore.positionFor(id);
         if (!saved || typeof saved.x !== "number" || typeof saved.y !== "number")
             return win.defaultPosFor(id, win.sizeFor(id));
-        const full = win.fullSizeFor(id);
-        const compact = win.sizeFor(id);
-        // A saved spot can belong to a monitor that is gone or resized; clamp
-        // the full frame it was placed on before anchoring the compact panel.
+        // Keep the panel at the card's saved spot. Anchoring it to the card's
+        // edge made it jump sideways when a layout change altered its size.
         const k = typeof saved.us === "number" && saved.us > 0 ? win.us / saved.us : 1;
-        const frame = win.clampTo(full, saved.x * k, saved.y * k);
-        const rightEdge = frame.x + full.w;
-        const bottomEdge = frame.y + full.h;
-        const reach = 120 * win.us;
-        const right = win.width - rightEdge <= reach;
-        const left = frame.x <= reach;
-        const bottom = win.height - bottomEdge <= reach;
-        const top = frame.y <= reach;
-        const x = right ? rightEdge - compact.w
-            : (left ? frame.x : frame.x + (full.w - compact.w) / 2);
-        const y = bottom ? bottomEdge - compact.h
-            : (top ? frame.y : frame.y + (full.h - compact.h) / 2);
-        return win.clampPos(id, x, y);
+        return win.clampPos(id, saved.x * k, saved.y * k);
     }
 
     function positionFor(id) {
