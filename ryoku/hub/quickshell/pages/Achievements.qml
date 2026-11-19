@@ -9,32 +9,65 @@ import "../components/about"
 Item {
     id: root
     required property var hub
+    property string section: "book"
 
     Component.onCompleted: Progression.award("ryoku-first-steps")
 
-    Flickable {
-        id: scroll
+    Column {
         anchors.fill: parent
-        contentHeight: content.implicitHeight + LithicTokens.space.s5 * 2
-        clip: true
-        boundsBehavior: Flickable.StopAtBounds
+        spacing: LithicTokens.space.s3
 
-        Column {
-            id: content
-            x: LithicTokens.space.s5
-            y: LithicTokens.space.s5
-            width: Math.max(0, scroll.width - 2 * LithicTokens.space.s5 - 16)
-            spacing: LithicTokens.space.s5
+        Row {
+            width: parent.width
+            spacing: LithicTokens.space.s3
+            Plaque {
+                kind: root.section === "book" ? "gold" : "quiet"
+                small: true
+                glyph: "auto_stories"
+                text: I18n.tr("Achievement book")
+                onClicked: root.section = "book"
+            }
+            Plaque {
+                kind: root.section === "workshop" ? "gold" : "quiet"
+                small: true
+                glyph: "palette"
+                text: I18n.tr("Profile workshop")
+                onClicked: root.section = "workshop"
+            }
+            Plaque {
+                kind: "line"
+                small: true
+                text: I18n.tr("View profile")
+                onClicked: root.hub.goHome()
+            }
+        }
 
-            ProgressionTab {
-                width: parent.width
+        Flickable {
+            id: scroll
+            width: parent.width
+            height: parent.height - y - LithicTokens.space.s3
+            contentHeight: sectionBody.implicitHeight + LithicTokens.space.s5 * 2
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+
+            Column {
+                id: sectionBody
+                x: LithicTokens.space.s5
+                y: LithicTokens.space.s5
+                width: Math.max(0, scroll.width - 2 * LithicTokens.space.s5 - 18)
+                spacing: LithicTokens.space.s5
+
+                ProgressionTab {
+                    width: parent.width
+                    visible: root.section === "book"
+                }
+                ProfileStudio {
+                    width: parent.width
+                    hub: root.hub
+                    visible: root.section === "workshop"
+                }
             }
         }
     }
-    ScrollRail {
-        flickable: scroll
-        anchors.top: scroll.top
-        anchors.bottom: scroll.bottom
-        anchors.right: parent.right
-    }
+
 }

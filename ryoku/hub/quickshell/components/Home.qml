@@ -457,6 +457,52 @@ Item {
             width: flick.width
             height: Math.max(flick.height, column.y + column.height + LithicTokens.space.s5 + (root.hub.noticeInset || 0))
 
+            Item {
+                id: profileBackground
+                anchors.fill: parent
+                readonly property string chosen: Progression.canvas.background || ""
+                readonly property string customImage: Progression.canvas.image || ""
+                visible: chosen !== "" || customImage !== ""
+                Image {
+                    anchors.fill: parent
+                    source: profileBackground.customImage
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    sourceSize.width: Math.min(1920, Math.round(width))
+                    sourceSize.height: Math.min(1200, Math.round(height))
+                    visible: profileBackground.customImage !== ""
+                    opacity: 0.8
+                }
+                Rectangle {
+                    anchors.fill: parent
+                    visible: profileBackground.customImage === ""
+                    color: profileBackground.chosen === "bg-blueprint" ? "#132335" :
+                           profileBackground.chosen === "bg-ember" ? "#271a19" : "#1b1d23"
+                }
+                Repeater {
+                    model: profileBackground.customImage !== "" ? 0 : Math.ceil(profileBackground.width / 62)
+                    delegate: Rectangle {
+                        x: index * 62
+                        width: 1
+                        height: profileBackground.height
+                        color: profileBackground.chosen === "bg-blueprint" ? "#627f9f" :
+                               profileBackground.chosen === "bg-ember" ? "#a26e56" : "#777e8b"
+                        opacity: 0.16
+                    }
+                }
+                Repeater {
+                    model: profileBackground.customImage !== "" ? 0 : Math.ceil(profileBackground.height / 62)
+                    delegate: Rectangle {
+                        y: index * 62
+                        width: profileBackground.width
+                        height: 1
+                        color: profileBackground.chosen === "bg-blueprint" ? "#627f9f" :
+                               profileBackground.chosen === "bg-ember" ? "#a26e56" : "#777e8b"
+                        opacity: 0.16
+                    }
+                }
+            }
+
             HoverHandler {
                 id: pointer
                 enabled: root.depthOn
@@ -612,6 +658,52 @@ Item {
                 }
             }
 
+            Repeater {
+                model: Progression.canvas.stickers || []
+                delegate: Item {
+                    id: placedSticker
+                    required property var modelData
+                    readonly property var art: Progression.stickerArt(modelData.item)
+                    width: modelData.size
+                    height: width
+                    x: Math.min(modelData.x * plate.width, Math.max(0, plate.width - width * 1.15))
+                    y: Math.min(modelData.y * plate.height, Math.max(0, plate.height - height * 1.15))
+                    rotation: modelData.rotation
+                    z: 2
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: width / 2
+                        color: Lithic.mix(Lithic.ground, placedSticker.art ? placedSticker.art.tint : Lithic.gold, 0.16)
+                        border.width: Progression.editMode ? 2 : 1
+                        border.color: placedSticker.art ? placedSticker.art.tint : Lithic.gold
+                        opacity: 0.93
+                    }
+                    Glyph {
+                        anchors.centerIn: parent
+                        name: placedSticker.art ? placedSticker.art.glyph : "star"
+                        size: Math.round(placedSticker.width * 0.57)
+                        ink: placedSticker.art ? placedSticker.art.tint : Lithic.gold
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        enabled: Progression.editMode && !root.preview
+                        cursorShape: Qt.OpenHandCursor
+                        drag.target: placedSticker
+                        drag.minimumX: 0
+                        drag.maximumX: Math.max(0, plate.width - placedSticker.width)
+                        drag.minimumY: 0
+                        drag.maximumY: Math.max(0, plate.height - placedSticker.height)
+                        onReleased: {
+                            Progression.moveSticker(placedSticker.modelData.slot,
+                                placedSticker.x / Math.max(1, plate.width),
+                                placedSticker.y / Math.max(1, plate.height),
+                                placedSticker.width, placedSticker.rotation);
+                        }
+                    }
+                }
+            }
+
             // the top bar: where the reader left off, and the look; a narrow window, whose
             // sidebar is put away, keeps the search here too, clear of the drawer's button
             Item {
@@ -727,6 +819,7 @@ Item {
                         width: parent.width
                         text: root.f("text.name", SysInfo.sysUser)
                         typeRole: root.width >= 640 ? "name" : "sentence"
+                        font.family: Progression.fontFamily("name", Lithic.font.sans)
                     }
                     Row {
                         spacing: LithicTokens.space.s3
@@ -734,6 +827,7 @@ Item {
                             anchors.baseline: clock.baseline
                             text: SysInfo.sysUser + "@" + SysInfo.sysHost
                             typeRole: "mono"
+                            font.family: Progression.fontFamily("hostname", Lithic.font.mono)
                             inkRole: "fg2"
                         }
                         Label {
@@ -755,11 +849,30 @@ Item {
                         }
                         onClicked: root.hub.navigate("achievements", "")
                     }
+                    Row {
+                        visible: !root.preview
+                        spacing: LithicTokens.space.s2
+                        Plaque {
+                            small: true
+                            kind: Progression.editMode ? "gold" : "quiet"
+                            glyph: "draw"
+                            text: Progression.editMode ? I18n.tr("Finish decorating") : I18n.tr("Decorate")
+                            onClicked: Progression.editMode = !Progression.editMode
+                        }
+                        Plaque {
+                            small: true
+                            kind: "quiet"
+                            glyph: "auto_stories"
+                            text: I18n.tr("Profile workshop")
+                            onClicked: root.hub.navigate("achievements", "")
+                        }
+                    }
                     Label {
                         width: parent.width
                         visible: text.length > 0
                         text: root.f("text.tagline", I18n.tr("For the sake of power and beauty."))
                         typeRole: "proof"
+                        font.family: Progression.fontFamily("tagline", Lithic.font.sans)
                         inkRole: "fg2"
                         wrapMode: Text.Wrap
                         elide: Text.ElideNone

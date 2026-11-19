@@ -15,9 +15,13 @@ Singleton {
     property bool directoryReady: false
     property string error: ""
     property var pending: []
+    property bool editMode: false
     readonly property int balance: data.balance || 0
     readonly property var achievements: Model.achievements
     readonly property var cosmetics: Model.cosmetics
+    readonly property var groups: Model.groups
+    readonly property var stickers: Model.availableStickers(root.data)
+    readonly property var canvas: data.canvas || ({ background: "", fonts: {}, stickers: [] })
     readonly property var activePalette: Model.palette(root.data)
     readonly property var visited: data.visited || ({})
     readonly property string featuredBadge: data.featured || ""
@@ -90,6 +94,14 @@ Singleton {
             root.save(result.state);
     }
 
+    function claim(id) {
+        if (!root.ready || root.error !== "")
+            return;
+        var result = Model.claim(root.data, id);
+        if (result.changed)
+            root.save(result.state);
+    }
+
     function purchase(id) {
         if (!root.ready || root.error !== "")
             return;
@@ -112,6 +124,64 @@ Singleton {
         var result = Model.visit(root.data, page, category);
         if (result.changed)
             root.save(result.state);
+    }
+
+    function setBackground(id) {
+        if (!root.ready || root.error !== "")
+            return;
+        var result = Model.background(root.data, id);
+        if (result.changed)
+            root.save(result.state);
+    }
+
+    function setCustomImage(url) {
+        if (!root.ready || root.error !== "")
+            return;
+        var result = Model.customImage(root.data, String(url));
+        if (result.changed)
+            root.save(result.state);
+    }
+
+    function setFont(role, id) {
+        if (!root.ready || root.error !== "")
+            return;
+        var result = Model.font(root.data, role, id);
+        if (result.changed)
+            root.save(result.state);
+    }
+
+    function addSticker(id) {
+        if (!root.ready || root.error !== "")
+            return;
+        var result = Model.addSticker(root.data, id);
+        if (result.changed)
+            root.save(result.state);
+    }
+
+    function moveSticker(slot, x, y, size, rotation) {
+        if (!root.ready || root.error !== "")
+            return;
+        var result = Model.moveSticker(root.data, slot, x, y, size, rotation);
+        if (result.changed)
+            root.save(result.state);
+    }
+
+    function removeSticker(slot) {
+        if (!root.ready || root.error !== "")
+            return;
+        var result = Model.removeSticker(root.data, slot);
+        if (result.changed)
+            root.save(result.state);
+    }
+
+    function fontFamily(role, fallback) {
+        var id = root.canvas.fonts ? root.canvas.fonts[role] : "";
+        var item = Model.cosmetic(id);
+        return item && item.type === "font" ? item.family : fallback;
+    }
+
+    function stickerArt(id) {
+        return Model.stamp(id);
     }
 
     function featureBadge(id) {
