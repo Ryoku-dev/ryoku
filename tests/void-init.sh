@@ -97,6 +97,7 @@ done < <(find \
 	"$ROOT/ryoku/shell/systemd/user" \
 	"$ROOT/ryoku/rashin/systemd" \
 	"$ROOT/ryoku/palette-bridge/packaging/systemd" \
+	"$ROOT/ryoku/shell/ryoget/packaging/systemd" \
 	"$ROOT/ryoku/cli/systemd" \
 	"$ROOT/system/hardware/network" \
 	"$ROOT/system/hardware/bluetooth" \
@@ -268,6 +269,8 @@ check_parity "$ROOT/ryoku/shell/systemd/user/ryoku-eq.service" "$INIT/user/ryoku
 check_parity "$ROOT/ryoku/shell/systemd/user/ryoku-bt-agent.service" "$INIT/user/ryoku-bt-agent"
 check_parity "$ROOT/ryoku/shell/systemd/user/ryoku-bootstrap.service" "$INIT/user/ryoku-bootstrap"
 check_parity "$ROOT/ryoku/palette-bridge/packaging/systemd/ryoku-palette-bridge.service" "$INIT/user/ryoku-palette-bridge"
+check_parity "$ROOT/ryoku/shell/ryoget/packaging/systemd/ryoget.service" "$INIT/user/ryoget"
+check_parity "$ROOT/ryoku/shell/ryoget/packaging/systemd/ryoseek.service" "$INIT/user/ryoseek"
 check_parity "$ROOT/system/hardware/bluetooth/ryoku-bluetooth-reset.service" "$INIT/user/ryoku-bluetooth-reset"
 # the loop runs the collector guard, which launches only the installed tools'
 # collectors; tests/void-init-runit.sh covers the guard's own choice

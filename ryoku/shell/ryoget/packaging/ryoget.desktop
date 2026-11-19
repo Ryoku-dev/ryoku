@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Ryoget
+Comment=Download files and torrents
+Exec=ryoget add %u
+NoDisplay=true
+Terminal=false
+MimeType=x-scheme-handler/magnet;application/x-bittorrent;

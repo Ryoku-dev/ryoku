@@ -198,8 +198,8 @@ Tools the desktop, the pill, and the capture stack shell out to by name.
 | `openrgb` | Per-device keyboard, mouse, RAM and motherboard lighting that follows the wallpaper palette, configurable from the wallpaper picker (Super + W) > Settings > Lighting |
 | `asusctl` | Native built-in Aura keyboard lighting on supported ASUS laptops; selected by hardware rather than installed everywhere |
 | `ddcutil` | External-monitor brightness over DDC/CI (the pill's DISPLAY faders) |
-| `ffmpeg`, `yt-dlp` | Media transcode and download; also the launcher's live-radio play path |
-| `curl`, `libnotify`, `xdg-utils`, `desktop-file-utils`, `python` | The plumbing the stash, scripts, and helpers rely on |
+| `ffmpeg`, `yt-dlp` | Media transcode; the Downloads engine's merges and its fallback for sites it has no resolver for; also the launcher's live-radio play path |
+| `curl`, `libnotify`, `xdg-utils`, `desktop-file-utils`, `python` | The plumbing the scripts and helpers rely on |
 
 ## Screen and capture toolkit
 

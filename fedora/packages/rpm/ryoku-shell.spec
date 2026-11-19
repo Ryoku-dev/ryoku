@@ -43,6 +43,7 @@ Requires:       inotify-tools
 Requires:       easyeffects
 Requires:       lsp-plugins-lv2
 Requires:       lv2-calf-plugins
+Requires:       yt-dlp
 Suggests:       kde-connect
 Suggests:       git
 Suggests:       qt6-qtimageformats

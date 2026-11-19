@@ -709,6 +709,37 @@ piece_end
 install -m755 "$here/../apps/ryostore/backend/ryostore" "$bindir/ryostore"
 say "installed $bindir/ryostore"
 
+piece ryoget "ryoget, downloads"
+CGO_ENABLED=0 build_go "$here/ryoget" ryoget . -trimpath -mod=vendor \
+  -tags nosqlite,purego_utp
+piece_end
+install -m755 "$here/ryoget/ryoget" "$bindir/ryoget"
+say "installed $bindir/ryoget"
+if [ -d /run/systemd/system ]; then
+  mkdir -p "$cfg/systemd/user"
+  unit_tmp="$cfg/systemd/user/.ryoget.service.new.$$"
+  sed "s|/usr/bin/ryoget|$bindir/ryoget|g" \
+    "$here/ryoget/packaging/systemd/ryoget.service" > "$unit_tmp"
+  chmod 644 "$unit_tmp"
+  mv -f "$unit_tmp" "$cfg/systemd/user/ryoget.service"
+  systemctl --user daemon-reload 2>/dev/null || true
+fi
+
+piece ryoseek "ryoseek, search"
+CGO_ENABLED=0 build_go "$here/ryoget" ryoseek ./cmd/ryoseek -trimpath -mod=vendor
+piece_end
+install -m755 "$here/ryoget/ryoseek" "$bindir/ryoseek"
+say "installed $bindir/ryoseek"
+if [ -d /run/systemd/system ]; then
+  mkdir -p "$cfg/systemd/user"
+  unit_tmp="$cfg/systemd/user/.ryoseek.service.new.$$"
+  sed "s|/usr/bin/ryoseek|$bindir/ryoseek|g" \
+    "$here/ryoget/packaging/systemd/ryoseek.service" > "$unit_tmp"
+  chmod 644 "$unit_tmp"
+  mv -f "$unit_tmp" "$cfg/systemd/user/ryoseek.service"
+  systemctl --user daemon-reload 2>/dev/null || true
+fi
+
 # Build beside the destination so a failed build keeps the working copy.
 piece rashin "Rashin, the optional AI system"
 rashin_module="$here/../rashin"

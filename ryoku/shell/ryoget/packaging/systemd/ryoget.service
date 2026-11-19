@@ -1,0 +1,13 @@
+[Unit]
+Description=Ryoku download engine
+# Started on demand by the bar's Downloads view when the socket is missing;
+# the daemon exits when idle, so nothing runs while the manager is closed.
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/ryoget serve
+Restart=no
+
+[Install]
+WantedBy=ryoku-session.target

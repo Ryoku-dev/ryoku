@@ -1,6 +1,18 @@
 # Release / Packaging Changelog
 
 ## Unreleased
+- **`ryoku-shell` ships `ryoget`, the download engine, and `ryoseek`, the web
+  search daemon.** Every edition builds both from one Go module and its
+  committed `vendor/` tree with `CGO_ENABLED=0` (`ryoget` with `-tags
+  nosqlite,purego_utp`; `ryoseek` links only the search code, about 8 MB), and
+  installs `/usr/bin/ryoget` and `/usr/bin/ryoseek`, their on-demand user units
+  (`ryoget.service`, `ryoseek.service`; runit services on Void; one row each in
+  `system/services/manifest.tsv`) and `ryoget.desktop`, which offers it for
+  magnet links and `.torrent` files without becoming the default. yt-dlp comes
+  along for sites without a native resolver, optional on Arch. `ryoget` links
+  anacrolix/torrent (MPL-2.0), whose source ships in the vendor tree
+  (`packages/ryoku-shell/`, `../void/packages/srcpkgs/ryoku-shell/`,
+  `../fedora/packages/rpm/ryoku-shell.spec`, `../nix/packages/ryoku-ryoget.nix`).
 - **Rashin no longer needs external coding harnesses.** Arch, CachyOS, Fedora,
   Void and Nix package its native engine; llama.cpp and model weights are
   downloads the user chooses, not shipped files. Adapted engine work credits

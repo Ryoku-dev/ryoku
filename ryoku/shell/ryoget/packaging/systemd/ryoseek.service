@@ -1,0 +1,14 @@
+[Unit]
+Description=Ryoku search daemon
+Documentation=man:ryoseek(1)
+# Started on demand by the bar's Web view when the socket is missing; the
+# daemon exits when idle, so nothing runs while the search view is closed.
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/ryoseek serve
+Restart=no
+
+[Install]
+WantedBy=ryoku-session.target
