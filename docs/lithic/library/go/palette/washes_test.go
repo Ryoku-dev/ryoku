@@ -118,3 +118,25 @@ func TestWashesFollowRoles(t *testing.T) {
 		}
 	}
 }
+
+// TestSelectWearsThePalettesContainer: a round design on the desktop's colours marks the open
+// line with the palette's own secondary container, as the Hub's Tone.select does, while the
+// ladder's translucent container stays the solved wash.
+func TestSelectWearsThePalettesContainer(t *testing.T) {
+	container := color.NRGBA{R: 0x4a, G: 0x45, B: 0x58, A: 0xff}
+	surface := color.NRGBA{R: 0x14, G: 0x12, B: 0x18, A: 0xff}
+	material := Material(Palette{
+		Roles:  map[string]color.NRGBA{"surface": surface, "secondaryContainer": container},
+		Dark:   true,
+		Source: "wallpaper",
+	}, Look{})
+	if got := material.Select(); got != container {
+		t.Errorf("select on Material roles is %v, want the secondary container %v", got, container)
+	}
+	for _, dark := range []bool{true, false} {
+		roles := Signature(dark)
+		if got := roles.Select(); got.A == 255 || got == roles.Container {
+			t.Errorf("dark=%v: the ladder's select %v is not the solved wash", dark, got)
+		}
+	}
+}

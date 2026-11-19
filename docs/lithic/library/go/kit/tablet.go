@@ -32,10 +32,26 @@ type TabletContent struct {
 	Action      *Plaque
 }
 
-// Tablet is an interactive resource row.
+// Tablet is an interactive resource row in the theme's design.
+//
+// Lithic draws the documented tablet: a square stone2 plane with the tone's
+// notch at its north-west corner and a blade along its foot for progress.
+// Material, Adwaita and Fluent draw a row that lies on whatever it stands on,
+// in the design's row corner (a pill in Material), with the tone as a ToneMark
+// dot and a round progress line inside its insets. In every design the pointer
+// and a press are fg washes and the selection is the Hub's selection wash with
+// its ink, never a sel fill.
 type Tablet struct {
 	Click
-	Pane    color.NRGBA
+	// Pane is the plane the tablet lies on. Lithic cuts an idle tablet's notch
+	// in it; the zero value is the design's page pane, which hides the idle
+	// notch on a page. A list and detail window sets its list pane's stone1.
+	// Round designs do not read it.
+	Pane color.NRGBA
+	// Listed says a RowList draws the selection under this tablet: the tablet
+	// lays no plane of its own and wears only the selected inks, so the list's
+	// gliding wash shows through and is not painted twice.
+	Listed  bool
 	Preview State
 
 	hover, press, focus, notch anim.Tween
@@ -103,6 +119,8 @@ func (tablet *Tablet) DoubleClicked(gtx layout.Context) bool {
 }
 
 // Layout draws the tablet and owns its pointer and keyboard interaction.
+// selected marks the chosen row; listFocused lights it as the pointer would
+// while its list holds keyboard focus.
 func (tablet *Tablet) Layout(gtx layout.Context, th *theme.Theme, content TabletContent, selected, listFocused bool) layout.Dimensions {
 	tablet.poll(gtx)
 	tablet.notch.Duration = th.Motion.Notch
@@ -136,29 +154,38 @@ func (tablet *Tablet) Layout(gtx layout.Context, th *theme.Theme, content Tablet
 			press = transitionValue(gtx, &tablet.press, realPressed, th.Motion.Press, th.Motion.Press)
 		}
 		focused := realFocused || tablet.Preview == StateFocus
-		if selected {
-			FillCut(gtx.Ops, image.Rect(0, 0, width, height), 0, th.R.Sel)
-			if press > 0 {
-				FillCut(gtx.Ops, image.Rect(0, 0, width, height), 0, palette.SRGBAlpha(th.R.OnSel, th.R.Sel, tokens.AlphaPressRow*press))
-			}
-
-		} else {
-			fill := palette.Mix(th.R.Stone2, th.R.Stone3, hover)
-			fill = palette.Mix(fill, th.R.Fg, tokens.AlphaPressRow*press)
-			FillCut(gtx.Ops, image.Rect(0, 0, width, height), 0, fill)
+		round := th.Design.Profile().Round
+		bounds := image.Rect(0, 0, width, height)
+		cut := 0
+		if round {
+			cut = gtx.Dp(th.Cut.Small)
+		} else if !tablet.Listed {
+			FillCut(gtx.Ops, bounds, 0, th.R.Stone2)
+		}
+		selectWash, selectInk, selectQuiet := selectionInks(th)
+		if selected && !tablet.Listed {
+			Fill(gtx, th, bounds, cut, selectWash)
+		}
+		// the Hub's row shows the press wash in place of the hover wash
+		if lit := hover * (1 - press); lit > 0 {
+			Fill(gtx, th, bounds, cut, palette.WithAlpha(th.R.Hover(), lit))
+		}
+		if press > 0 {
+			Fill(gtx, th, bounds, cut, palette.WithAlpha(th.R.Press(), press))
 		}
 
-		notchInk := th.R.Stone(content.Tone)
+		markInk := th.R.Stone(content.Tone)
 		if content.Tone == palette.Idle {
-			notchInk = tablet.Pane
-			if notchInk == (color.NRGBA{}) {
-				notchInk = th.R.Stone1
+			markInk = color.NRGBA{}
+			if !round && !tablet.Listed {
+				// an idle Lithic tablet's corner is cut in the plane beneath it
+				markInk = tablet.Pane
+				if markInk == (color.NRGBA{}) {
+					markInk = th.Planes().Pane
+				}
 			}
 		}
-		notchSize := int(math.Round(float64(gtx.Dp(th.Cut.Notch)) * float64(tablet.notch.Value(gtx))))
-		if notchSize > 0 {
-			Notch(gtx.Ops, image.Point{}, notchSize, notchInk)
-		}
+		toneMark(gtx, th, bounds, gtx.Dp(th.Cut.Notch), markInk, tablet.notch.Value(gtx))
 
 		titleInk, quietInk := th.R.Fg, th.R.Fg3
 		claimInk := th.R.Stone(content.Tone)
@@ -166,7 +193,10 @@ func (tablet *Tablet) Layout(gtx layout.Context, th *theme.Theme, content Tablet
 			claimInk = th.R.Fg2
 		}
 		if selected {
-			titleInk, quietInk, claimInk = th.R.OnSel, th.R.OnSel2, th.R.OnSel
+			titleInk, quietInk = selectInk, selectQuiet
+			if content.Tone == palette.Idle {
+				claimInk = selectInk
+			}
 		}
 		body := func(gtx layout.Context) layout.Dimensions {
 			mark := func(gtx layout.Context) layout.Dimensions {
@@ -218,17 +248,47 @@ func (tablet *Tablet) Layout(gtx layout.Context, th *theme.Theme, content Tablet
 			tablet.progress.Rest = .001
 			tablet.progress.Set(float32(min(max(content.Progress, 0), 1)))
 			fraction := tablet.progress.Value(gtx)
-			bladeWidth := int(math.Round(float64(width) * float64(fraction)))
-			if bladeWidth > 0 {
-				Blade(gtx.Ops, image.Rect(0, height-max(1, gtx.Dp(tokens.SizeTabletProgress)), bladeWidth, height), th.R.Lapis)
+			progressHeight := max(1, gtx.Dp(tokens.SizeTabletProgress))
+			if round {
+				// a round row keeps the line inside its insets, clear of its corners
+				left := gtx.Dp(tokens.SizeTabletInsetLeft)
+				span := max(0, width-left-gtx.Dp(tokens.SizeTabletInsetRight))
+				foot := height - gtx.Dp(th.Sp.S1)
+				if barWidth := int(math.Round(float64(span) * float64(fraction))); barWidth > 0 {
+					FillBlade(gtx, th, image.Rect(left, foot-progressHeight, left+barWidth, foot), th.R.Lapis)
+				}
+			} else if bladeWidth := int(math.Round(float64(width) * float64(fraction))); bladeWidth > 0 {
+				Blade(gtx.Ops, image.Rect(0, height-progressHeight, bladeWidth, height), th.R.Lapis)
 			}
 		}
-		focusAlpha := float32(1)
-		if tablet.Preview != StateFocus {
-			focusAlpha = focusValue(gtx, th, &tablet.focus, realFocused)
-		}
-		FocusRingAlpha(gtx, th, image.Rect(0, 0, width, height), 0, focusAlpha)
 		return layout.Dimensions{Size: image.Pt(width, height)}
 	})
+	// drawn outside the click's clip: the ring stands a gap outside the row
+	focusAlpha := float32(1)
+	if tablet.Preview != StateFocus {
+		focusAlpha = focusValue(gtx, th, &tablet.focus, gtx.Focused(&tablet.Click.Clickable))
+	}
+	ringCut := 0
+	if th.Design.Profile().Round {
+		ringCut = gtx.Dp(th.Cut.Small)
+	}
+	FocusRingAlpha(gtx, th, image.Rectangle{Max: dimensions.Size}, ringCut, focusAlpha)
 	return dimensions
+}
+
+// selectionInks returns the Hub's selection mark in th: the wash under a
+// chosen row (Tone.select), the ink on it (Tone.selectInk) and a quiet ink
+// for its second line. On Lithic's ladder the wash is faint, so the quiet ink
+// stays fg3; an opaque container from the desktop's palette takes a quiet ink
+// of its own, as onSel2 is made for sel.
+func selectionInks(th *theme.Theme) (wash, ink, quiet color.NRGBA) {
+	wash, ink = th.R.Select(), th.R.OnContainer
+	if ink.A == 0 {
+		ink = th.R.Fg
+	}
+	quiet = th.R.Fg3
+	if wash.A == 255 {
+		quiet = palette.Mix(ink, wash, tokens.AlphaOnSel2)
+	}
+	return wash, ink, quiet
 }

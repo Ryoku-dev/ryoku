@@ -20,8 +20,10 @@ import (
 // (design.Style.Corner, Lithic.cornerRadius), so a shape whose shorter side is
 // within the design's pill size becomes a pill. A cut of 0 stays a square
 // corner in every design. In Lithic they delegate to the cut primitives, so
-// Lithic output is the same as before. Angular marks (Notch, Blade, Flake,
-// Hatch's lines, the tab blade) keep their own painters in every design.
+// Lithic output is the same as before. Notch and Blade are Lithic's own marks
+// and stay angular whatever the design: ToneMark and FillBlade below pick the
+// mark the design wears. Flake, Hatch's lines and the tab blade keep their own
+// painters in every design.
 
 // arcHandle places the cubic control points of a quarter circle.
 const arcHandle = 0.5522847498
@@ -171,4 +173,26 @@ func StrokeCorners(gtx layout.Context, th *theme.Theme, bounds image.Rectangle, 
 		appendRoundRect(&path, float32(inner.Min.X), float32(inner.Min.Y), float32(inner.Max.X), float32(inner.Max.Y), innerRadii, true)
 	}
 	paint.FillShape(gtx.Ops, ink, clip.Outline{Path: path.End()}.Op())
+}
+
+// barCut is the cut a thin bar (a meter's track, a progress line, a slider's
+// track) hands the painters: 0 in Lithic, whose bars are square, and half the
+// shorter side in a round design, which closes the bar into round ends.
+func barCut(th *theme.Theme, bounds image.Rectangle) int {
+	if th == nil || !th.Design.Profile().Round {
+		return 0
+	}
+	return max(1, min(bounds.Dx(), bounds.Dy())/2)
+}
+
+// FillBlade fills the measured part of a meter or a progress line in th's
+// design: Blade's 45 degree leading edge in Lithic, round ends in Material,
+// Adwaita and Fluent. Clip to the track's Shape first when the bar must stay
+// inside a round track.
+func FillBlade(gtx layout.Context, th *theme.Theme, bounds image.Rectangle, ink color.NRGBA) {
+	if th == nil || !th.Design.Profile().Round {
+		Blade(gtx.Ops, bounds, ink)
+		return
+	}
+	Fill(gtx, th, bounds, barCut(th, bounds), ink)
 }

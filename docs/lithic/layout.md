@@ -416,8 +416,9 @@ see [components.md](components.md#the-list-and-detail-frame).
 
 Panes start 10 below the top, stand 8 apart on the ground and cut their top
 corners at 16. The rail holds Home, Fleet, New (its one gold plaque) and
-Activity, with Settings at the foot; the current destination is a `sel` tile
-that travels to its new place over 240 ms.
+Activity, with Settings at the foot; the current destination wears the
+selected-row wash (`Roles.Select()` in Go) and `OnContainer` text. In round
+styles the selection can be opaque, so fade the wash deliberately.
 
 #### The list pane
 
@@ -437,6 +438,10 @@ it from 820.
 
 Activity and Settings take the list pane's room as well. A settings page in
 such a window is a [page sheet](#the-page-sheet) like the Hub's.
+
+For a full page in Gio, `kit.Pane{Kind: kit.PanePage}` uses
+`th.Planes().Pane` and `PaneStroke`, with the large cut at its head and a
+mid cut at its foot. List and work panes keep their square foot.
 
 ### The player window
 
@@ -524,7 +529,7 @@ own shape. Rashin is the reference.
 |---|---|---|---|
 | top bar | 56 on ground: mark and name over the sidebar, the sidebar toggle, back and forward, the one search field, window controls | same, the mark alone over the rail | mark and the list toggle; search opens across the bar |
 | navigation | 264 sidebar: the new action, destinations, then the current destination's list, Settings at the foot; folds to the 72 rail from the toggle and remembers it | 72 rail; the toggle opens the 264 sidebar as a sheet | 56 bottom bar for the destinations; the toggle raises the new action and the list as a sheet |
-| content | `stone2`, top corners cut by the pane cut: a 52 header, then one reading column, centred and at most 760 wide, with the composer standing at its foot | same, the column inset 21 | full width, the column inset 13 |
+| content | the design's page pane, a 52 header, then one reading column, centred and at most 760 wide, with the composer standing at its foot | same, the column inset 21 | full width, the column inset 13 |
 | side panel | the work beside the conversation, 440 wide, docked while the content keeps 480 | docked or a sheet | a sheet, opened only by the reader |
 
 It takes its size classes and effective dp from the player window: expanded
@@ -535,19 +540,22 @@ the window's sides and foot.
 the current destination (a question, a session, a project to add), the
 destinations as rows 40 high with a 20 icon and a `label`, then the list that
 belongs to the current destination, and Settings under a vein at the foot.
-The current destination is a `sel` fill that travels between destinations.
-The list is the destination's own: questions by day, sessions by state,
-projects with their worktrees. Rows in it are not tablets. They lie flat on
-the pane, 36 high for one line and 48 for a name over one facts line, 2
-apart, and take `stone3` under the pointer and the `sel` fill when current.
+The current destination takes `Roles.Select()` and `OnContainer` text,
+instead of a solid accent tile. The list is the destination's own: questions
+by day, sessions by state, projects with their worktrees. Rows in it are not
+tablets. They lie flat on the pane, 36 high for one line and 48 for a name
+over one facts line, 2 apart. Hover has its own wash and the current row
+uses the selected wash. In a round style the wash can be opaque; preserve
+the title's contrast through its `OnContainer` ink.
 The trailing 44 of a row holds what the row claims (the Working flakes, a
 count, a time); under the pointer or the list cursor the claim gives way to
 the row's one action, as on a tablet.
 
 **A row says a state only when it has one.** A session that needs the reader
-carries an amber notch and stands under a Needs you group header; one at work
-shows the Working flakes; one at rest shows no mark and no word. A list never
-repeats a state word on every row.
+carries an amber `ToneMark` (a notch in Lithic and a dot in round styles)
+and stands under a Needs you group header; one at work shows the Working
+flakes; one at rest shows no mark and no word. A list never repeats a state
+word on every row.
 
 **The reading column.** Everything said sits in one column: the question, the
 answer, the work in between and the composer share its two edges. A question

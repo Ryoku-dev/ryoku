@@ -114,7 +114,7 @@ func (p *Picker) Layout(gtx layout.Context, th *theme.Theme, label string, optio
 					hovered = true
 				}
 				hover := hoverValue(gtx, th, &p.hover, hovered)
-				drawFieldSurface(gtx, th, bounds, finalCut, palette.Mix(th.R.Field, th.R.Fg, tokens.AlphaHoverPlane*hover), focus, false)
+				FieldSurface(gtx, th, bounds, finalCut, palette.Mix(th.R.Field, th.R.Fg, tokens.AlphaHoverPlane*hover), focus, false)
 				gtx.Constraints = layout.Exact(bounds.Max)
 				return layout.Inset{Left: unit.Dp(tokens.SizePickerInset), Right: unit.Dp(tokens.SizePickerInset)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return centerY(gtx, func(gtx layout.Context) layout.Dimensions {

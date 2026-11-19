@@ -209,7 +209,7 @@ UI against the Hub (2026-11-16).
 | `Ryoku.Ui` Tokens | the Kit, quick settings, Ask, launcher, welcome, ryopin, keys hint, the Stage Editor pages, RyoStore, the session confirm, Orpheus's kit | Corners only, and always rounded (`Tokens.qml:138`) | The desktop palette only; never reads `theme.colours` (`Tokens.qml:319`) | Light and dark from the palette; no contrast or tint |
 | Shell `Theme` singleton | the bar frame, popouts, the notification history, clipboard, the Ryoku dock, Kairos, store bar styles | No: a fixed radius, never reads `theme.design` | No: Matugen roles only | Light and dark from the palette |
 | Private theme copies | the launcher, workspace overview, desktop widgets, the Ryogami picker, the plugin kit | No | No: each keeps its own palette chain or fixed values | Their own |
-| Go library (Gio, terminal) | Rashin, Ryotunes | Yes (Gio; the terminal stays Lithic) | Yes: `palette.ReadDesktop` and `WatchDesktop`; the apps still keep their own setting until they move onto them | Yes |
+| Go library (Gio, terminal) | Rashin, Ryotunes | Yes (Gio; the terminal stays Lithic) | Yes: `palette.ReadDesktop` and `WatchDesktop`; Rashin follows the desktop without a second style or colour setting | Yes |
 | Web library | Ryoku web pages | Not yet: always Lithic | Both exist, but each page picks | Yes |
 | Matugen app templates | terminals, GTK, Qt, editors | n/a | The wallpaper's palette whatever `theme.colours` says; the Hub tells the reader so (`components/style/PaletteStrip.qml:41`) | Light and dark from the palette |
 

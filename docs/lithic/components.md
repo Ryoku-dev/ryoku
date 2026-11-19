@@ -163,6 +163,10 @@ One setting on a section's slab: the Lithic `SettingRow`, wrapped by
 | hover plane | on stacked groups and whole-row toggle, hand-off, action and link rows: bleeds 8 to each side and 4 above and below, cut 6, `fg` at 0.06 | `SettingRow.qml:141-155` |
 | unavailable | the control disabled and the reason in `fg3` in place of the detail | `SettingRow.qml:207-215` |
 
+In Go `kit.SettingRow.NoReset` keeps the Changed mark when there is no reset
+action, without reserving space for a plaque. `look.SettingsSlab` uses it
+when `Setting.Reset` is nil.
+
 **Stacked rows** put choice groups, ordered picks, lists and sample editors
 below their full-width title and detail, left-aligned, with `s3` (13) between
 text and control. The Changed tag stays beside the title and the reset plaque
@@ -262,6 +266,9 @@ row holds literal text, and writes only text the reader typed
 
 Library: QML `TextField`, web `.l-text-field`, Go `kit.TextField`, terminal `term.RenderTextField`
 
+For a Go field whose content is custom, `kit.FieldSurface` paints the fill,
+edge, focus and invalid state as one recipe; do not hand-paint them again.
+
 ### ChordField
 
 One keyboard shortcut, on the text field's surface: 44 tall, cut 7, at least
@@ -271,6 +278,9 @@ line in `jasper` 4 below. The Hub uses it in shortcut rows and Default apps
 (`components/shortcuts/BindRow.qml`; `components/default-apps/KeyControl.qml`).
 
 Library: QML `ChordField`, web `.l-chord-field`, Go `kit.ChordField`, terminal -
+
+In Go `kit.Keycap` draws one 24-tall key face, `kit.Keycaps` a chord, and
+`kit.ChordFaces` splits a shortcut into the displayed faces.
 
 ### ColorField
 
@@ -368,8 +378,9 @@ Library: QML `Facts`, web `.l-facts`, Go `kit.Facts`, terminal `term.RenderFacts
 
 ### RowList
 
-A navigable list with one `sel` selection that glides between rows over
-240 ms; rows 4 apart; a 3-wide `vein` scroll thumb. The Hub's choosers use it:
+A navigable list with one selected-row wash (`Roles.Select()` in Go) that
+glides between rows over 240 ms; rows 4 apart; a 3-wide `vein` scroll thumb.
+The Hub's choosers use it:
 folders, fonts and icons, keyboard layouts, launcher apps
 (`components/FolderChooser.qml`; `components/keyboard/LayoutChooser.qml`).
 
@@ -377,12 +388,14 @@ Library: QML `RowList`, web `.l-row-list`, Go `kit.RowList`, terminal `term.Rend
 
 ### Tablet
 
-A resource row: a `stone2` tablet 56 tall (48 compact), square apart from
-its 12 notch, a 32 mark, the title in `row` over one facts line, and a
-trailing claim and proof that give way to the row's one action under the
-pointer. The Hub's launcher app list uses it
-(`components/launcher/AppListEditor.qml`); Rashin and Ryotunes list their
-resources with it.
+A resource row, 56 tall (48 compact), with a 32 mark, title over one facts
+line, and a trailing action. In Lithic it stands as a cut tablet with a
+corner state mark. Round designs draw a plane-less rounded row and a tone
+dot. In Go `kit.Tablet` uses the selected wash and `OnContainer` text, not
+a solid `sel` plane; hover and press are separate foreground washes. Set
+`Listed` when it sits inside `kit.RowList`, which paints the wash. The Hub's
+launcher app list uses it (`components/launcher/AppListEditor.qml`); Rashin
+and Ryotunes list their resources with it.
 
 Library: QML `Tablet`, web `.l-tablet`, Go `kit.Tablet`, terminal `term.RenderTablet`
 
@@ -722,21 +735,24 @@ The Hub does not use these parts. Other Ryoku apps do, for window shapes the
 Hub does not have ([layout.md](layout.md#other-window-shapes)); each keeps the
 Hub's language for everything else.
 
-### Notch
+### ToneMark and Notch
 
-The top-left triangle `(x, y) (x+12, y) (x, y+12)` that marks one state on a
-tablet or one pending change on an icon plaque. Rashin marks a session that
-needs the reader with an amber notch (`ryoku/rashin/internal/app/`).
+`kit.ToneMark` marks a state on a plane: a top-left notch in Lithic and a
+dot inside the corner in Material, Adwaita and Fluent. Use
+`kit.ToneMarkInk` for a literal ink. Paint it after the plane and before
+content. `kit.Notch` remains an angular primitive for intentional Lithic
+shapes, not the cross-style state mark.
 
-Library: QML `Notch`, web `.l-notch`, Go `kit.Notch`, terminal `term.RenderNotch`
+Library: QML `Notch`, web `.l-notch`, Go `kit.ToneMark`, `kit.ToneMarkInk`, `kit.Notch`, terminal `term.RenderNotch`
 
-### Blade
+### FillBlade and Blade
 
-A bar with a 45° leading edge, its trailing top corner cut by its height:
-the shape under progress, meters and the current tab. Ryotunes draws it
-directly (`ryotunes-gio/internal/client/ui/`).
+For progress and meters in Go, `kit.FillBlade` fills the measured portion:
+angular in Lithic and round-ended in the round styles. `kit.BladeMeter` and
+`kit.BladeProgress` use the same recipe. `kit.Blade` remains the angular
+primitive for a deliberately Lithic-only shape.
 
-Library: QML `Blade`, web `.l-blade`, Go `kit.Blade`, terminal `term.RenderBlade`
+Library: QML `Blade`, web `.l-blade`, Go `kit.FillBlade`, `kit.Blade`, terminal `term.RenderBlade`
 
 ### Tabs
 
@@ -810,12 +826,16 @@ copies of them (Ryoport `ui/app/`, `ui/kit/`, `ui/pages/common/`):
 | Part | What it is |
 |---|---|
 | `AppFrame` | fills the window, picks the size class at 1280 and 760, and composes the rail, the list pane, the work pane, the overlays and the window controls |
-| `Rail` | the destinations: 88 wide with 64 tiles expanded, 72 with 56 tiles medium, a 64 bottom bar compact; the current tile a travelling `sel` fill |
+| `Rail` | the destinations: 88 wide with 64 tiles expanded, 72 with 56 tiles medium, a 64 bottom bar compact; the current tile takes a selected-row wash |
 | `NewPlaque` | the rail's one gold plaque, 62 × 52 expanded, 48 × 40 compact |
-| `Pane` | a plane with its top corners cut 16 and bottom corners square, 10 below the top, 8 apart |
+| `Pane` | the list and work planes cut at the top; Go `kit.PanePage` is a page pane with the design's `Pane` plane and stroke, large top cut and mid foot cut |
 | `Header` | a selected resource's mark, name, proof, marks and actions, inset 30 top, 36 sides, 26 bottom |
 | `MineralField` | the header's field, `stone2` mixed toward the resource's mineral |
 | `SplitPlaque` | a main action and a 40-wide menu segment 2 apart |
 | `BecomingName` | a resource's name filled from the left as it is made |
 
 Library: QML `AppFrame`, `Rail`, `NewPlaque`, `Pane`, `Header`, `MineralField`, `SplitPlaque`, `BecomingName`; web `.l-app-frame`, `.l-rail`, `.l-new-plaque`, `.l-pane`, `.l-header`, `.l-mineral-field`, `.l-split-plaque`, `.l-becoming-name`; Go `kit.` with the same names; terminal `term.RenderMineralField` and `term.RenderSplitPlaque`
+
+Rashin's sidebar uses a separate `kit.PlaqueLine` New action, with a small
+line icon plaque when folded (`ryoku/rashin/internal/app/shell/sidebar.go`).
+It does not borrow Ryoport's gold `NewPlaque`.

@@ -343,8 +343,14 @@ func (list *RowList) Layout(gtx layout.Context, th *theme.Theme, count, selected
 		y := int(list.slabY.Value(gtx) + .5)
 		stack := clip.Rect(image.Rectangle{Max: dimensions.Size}).Push(gtx.Ops)
 		slab := image.Rect(0, y, dimensions.Size.X, y+slabHeight)
-		FillCut(gtx.Ops, slab, 0, th.R.Sel)
-
+		// the Hub's selection wash in the design's row corner, never a sel
+		// fill; a row that paints its own planes over it says Tablet.Listed
+		wash, _, _ := selectionInks(th)
+		slabCut := 0
+		if th.Design.Profile().Round {
+			slabCut = gtx.Dp(th.Cut.Small)
+		}
+		Fill(gtx, th, slab, slabCut, wash)
 		stack.Pop()
 	}
 	list.selected, list.selectedReady, list.slabVisible = selected, true, visible

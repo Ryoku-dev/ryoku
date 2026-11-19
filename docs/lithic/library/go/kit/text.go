@@ -27,6 +27,9 @@ func (label Label) Layout(gtx layout.Context, th *theme.Theme, value string) lay
 	if label.MaxLines > 0 {
 		truncator = "…"
 	}
+	if label.MaxLines == 1 {
+		gtx = oneLineContext(gtx, label.Style)
+	}
 	widgetLabel := widget.Label{
 		Alignment: label.Align, MaxLines: label.MaxLines, Truncator: truncator,
 		LineHeight: label.Style.Line, LineHeightScale: 1,
@@ -46,10 +49,19 @@ func RawText(th *theme.Theme, style theme.TextStyle, ink color.NRGBA, value stri
 	return rawText(th, style, ink, value)
 }
 
+// oneLineContext keeps Gio's label semantic viewport near a single text line
+// when a vertical flex gives the label an effectively unbounded height.
+func oneLineContext(gtx layout.Context, style theme.TextStyle) layout.Context {
+	height := max(gtx.Sp(style.Line), 2*gtx.Sp(style.Size), gtx.Constraints.Min.Y)
+	gtx.Constraints.Max.Y = min(gtx.Constraints.Max.Y, height)
+	return gtx
+}
+
 func rawText(th *theme.Theme, style theme.TextStyle, ink color.NRGBA, value string) layout.Widget {
 	return func(gtx layout.Context) layout.Dimensions {
 		child := gtx
 		child.Constraints.Min.Y = 0
+		child = oneLineContext(child, style)
 		record := op.Record(gtx.Ops)
 		label := widget.Label{MaxLines: 1, Truncator: "…", LineHeight: style.Line, LineHeightScale: 1}
 		dimensions := label.Layout(child, th.Shaper, style.Face, style.Size, value, textMaterial(gtx.Ops, ink))

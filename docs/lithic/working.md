@@ -102,22 +102,24 @@ attributes.
 
 ### Go with Gio
 
-Use the module `github.com/ryoku-dev/ryoku/docs/lithic/library/go`, resolve
-roles once and build one theme:
+Use the module `github.com/ryoku-dev/ryoku/docs/lithic/library/go`. Read
+the desktop once, build its theme and watch for changes through the window's
+life, as Rashin does:
 
 ```go
-roles := palette.FromPalette(palette.Load(palette.Dark), palette.Look{})
-th := theme.New(roles)
+desktop := palette.ReadDesktop()
+th := theme.NewFor(desktop)
+palette.WatchDesktop(ctx, onChange)
 ```
 
-`palette.Dark`, the zero `palette.Mode`, is Ryoku's signature;
-`palette.Light` is its light table. Pass `palette.Follow` when the desktop's
-`theme.colours` is `wallpaper`, and run `palette.Watch` only while following.
-`palette.ParseMode` reads `dark`, `light` or `follow`;
-`palette.ParseLook(contrast, tint)` reads the reader's contrast and tint.
-Keep `kit` values in the owning view and call their `Layout` methods. Set a
-component's `Preview` field to `kit.StateHover`, `kit.StatePressed` or
-`kit.StateFocus` for a forced gallery state. From `docs/lithic/library/go`,
+The window wears the new reading on its own goroutine and invalidates. It
+does not keep a separate colour, style, tint or reduced-motion setting.
+Paint page planes through `th.Planes()`, `kit.Pane{Kind: kit.PanePage}`,
+cards through `kit.SlabContent`, selected rows through `th.R.Select()`
+and controls with `kit.FieldSurface`, `kit.ToneMark`, `kit.FillBlade`
+and `kit.Keycap`. Keep `kit` values in the owning view and set `Preview`
+only for a forced gallery state.
+From `docs/lithic/library/go`,
 `go run ./cmd/lithic-roles --mode follow` prints the roles resolved from
 this machine's palette. Gio icons come from package `symbols`; add a name to
 `symbols/list.txt` and run `go run ./cmd/lithic-symbols`. Read the

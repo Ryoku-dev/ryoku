@@ -198,6 +198,8 @@ func (page *controlsPage) Layout(gtx layout.Context, th *theme.Theme) layout.Dim
 			page.textFieldSection(th),
 			page.searchSection(th),
 			page.surfaceSection(th),
+			fieldSurfaceSection(th),
+			keycapSection(th),
 			page.toggleSection(th),
 			page.sliderSection(th),
 			page.stepperSection(th),
@@ -398,6 +400,42 @@ func (page *controlsPage) surfaceSection(th *theme.Theme) layout.Widget {
 					}),
 				)
 			},
+		})
+	})
+}
+
+// fieldSurfaceSection is the surface every kit field shares, as a host draws
+// it for a field the library does not carry.
+func fieldSurfaceSection(th *theme.Theme) layout.Widget {
+	return section(th, "FieldSurface", func(gtx layout.Context) layout.Dimensions {
+		return grid(gtx, 3, th.Sp.S3, []layout.Widget{
+			specimen(th, "Rest", designFieldSurface(th, "A host's own field", 0, false, tokens.SizeTextFieldHeight)),
+			specimen(th, "Focus", designFieldSurface(th, "With keyboard focus", 1, false, tokens.SizeTextFieldHeight)),
+			specimen(th, "Invalid", designFieldSurface(th, "Holding a value it rejects", 0, true, tokens.SizeTextFieldHeight)),
+			specimen(th, "A multi-line field keeps the design's corner", designFieldSurface(th, "Ask about this machine", 0, false, 96)),
+		})
+	})
+}
+
+func keycapSection(th *theme.Theme) layout.Widget {
+	chord := func(value string) layout.Widget {
+		return kit.Keycaps(th, kit.ChordFaces(value)...)
+	}
+	return section(th, "Keycap", func(gtx layout.Context) layout.Dimensions {
+		return grid(gtx, 3, th.Sp.S3, []layout.Widget{
+			specimen(th, "One key", kit.Keycap(th, "Esc")),
+			specimen(th, "A stored chord", chord("Super+Shift+Return")),
+			specimen(th, "A lone media key", chord("XF86AudioRaiseVolume")),
+			specimen(th, "Disabled", func(gtx layout.Context) layout.Dimensions {
+				return chord("Ctrl+K")(gtx.Disabled())
+			}),
+			specimen(th, "Beside its command", func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+					layout.Rigid(kit.Text(th, th.T.Body, th.R.Fg2, "Open the command palette")),
+					layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
+					layout.Rigid(chord("Ctrl+K")),
+				)
+			}),
 		})
 	})
 }

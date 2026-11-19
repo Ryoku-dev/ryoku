@@ -3,6 +3,7 @@ package kit
 import (
 	"image"
 
+	"gioui.org/io/semantic"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -64,6 +65,11 @@ func (section SectionStyle) head(gtx layout.Context, th *theme.Theme) (layout.Di
 	titleGtx := gtx
 	titleGtx.Constraints.Min = image.Point{}
 	title := layoutTracked(titleGtx, th, th.T.Section, disabledInk(gtx, th, th.R.Fg), 0, section.Title, false)
+	if section.Title != "" {
+		area := clip.Rect(image.Rectangle{Max: title.Size}).Push(gtx.Ops)
+		semantic.LabelOp(section.Title).Add(gtx.Ops)
+		area.Pop()
+	}
 	width := max(gtx.Constraints.Max.X, title.Size.X)
 	end := width
 	if section.Mark != "" {
