@@ -31,9 +31,10 @@ test("two monitors prefer highest physical resolution regardless of focus and or
         assert.equal(result.count, 2);
         assert.equal(result.best.width, 2560);
         assert.equal(result.best.height, 1440);
-        assert.equal(result.points, 4);
+        assert.equal(result.points, 14);
+        assert.equal(result.extras, 2);
     }
-    assert.equal(R.displayStats({ displays: [hi] }).points, 3);
+    assert.equal(R.displayStats({ displays: [hi] }).points, 12);
 });
 
 test("disabled displays are excluded and duplicate screen counts have limited impact", () => {
@@ -43,7 +44,8 @@ test("disabled displays are excluded and duplicate screen counts have limited im
     assert.equal(only.best.width, 2560);
     assert.equal(only.count, 1);
     const many = R.displayStats({ displays: Array(20).fill(hi) });
-    assert.ok(many.points <= 6);
+    assert.ok(many.points <= 25);
+    assert.ok(many.extras <= 8);
 });
 
 test("rarity is deterministic and does not influence battle HP", () => {

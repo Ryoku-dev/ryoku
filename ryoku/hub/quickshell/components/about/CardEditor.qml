@@ -912,6 +912,44 @@ Dialog {
                             }
                         }
 
+                        Column {
+                            width: parent.width
+                            spacing: LithicTokens.space.s2
+                            visible: liveCard.rarity.displays.count > 1
+
+                            Label {
+                                text: I18n.tr("%1 connected displays · %2 extra points")
+                                    .replace("%1", liveCard.rarity.displays.count)
+                                    .replace("%2", liveCard.rarity.displays.extras)
+                                typeRole: "detail"
+                                inkRole: "fg2"
+                            }
+                            Repeater {
+                                model: liveCard.rarity.displays.screens.slice(0, 6)
+                                delegate: Row {
+                                    id: monitorCredit
+                                    required property var modelData
+                                    width: parent.width
+                                    spacing: LithicTokens.space.s2
+
+                                    Label {
+                                        width: Math.max(0, monitorCredit.width - 70)
+                                        text: (modelData.name || I18n.tr("Display")) +
+                                            " · " + modelData.width + "×" + modelData.height +
+                                            " · " + Math.round(modelData.refresh) + " Hz"
+                                        typeRole: "monoSm"
+                                        inkRole: "fg2"
+                                        elide: Text.ElideRight
+                                    }
+                                    Label {
+                                        text: "+" + modelData.points
+                                        typeRole: "mono"
+                                        ink: modelData.points > 0 ? Lithic.fg : Lithic.fg3
+                                    }
+                                }
+                            }
+                        }
+
                         // every tier, this card's lit; resting on one shows its look
                         Column {
                             width: parent.width
