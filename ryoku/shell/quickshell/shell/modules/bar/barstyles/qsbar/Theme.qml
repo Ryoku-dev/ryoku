@@ -2342,7 +2342,42 @@ Item {
     property string workspaceMode: "active"   // "10", "5", "active"
     // ── workspace display style (orthogonal to mode; persisted) ──
     // "rings" is the stable cache token for the user-facing Frame style.
-    property string workspaceStyle: "default"   // default, numbers, magic, kanji, rings, aurora
+    property string workspaceStyle: "default"   // default, numbers, magic, kanji, rings, aurora, pacman, icons
+    // The icons marker's glyphs: comma-separated Material Symbols names, entry N
+    // for workspace N. An empty or missing entry shows the workspace number.
+    property string workspaceIcons: "terminal,language,sticky_note_2,forum,music_note"
+    readonly property var workspaceIconList: workspaceIcons === ""
+        ? [] : workspaceIcons.split(",").map(s => s.trim())
+    function workspaceIcon(name) {
+        if (!/^\d+$/.test(String(name))) return ""
+        var n = Number(name)
+        return n >= 1 && n <= workspaceIconList.length ? workspaceIconList[n - 1] : ""
+    }
+    // Symbol names are [a-z0-9_], so a typed space or hyphen becomes "_" and
+    // anything else (a comma above all, which would shift every later
+    // workspace's entry) is dropped.
+    function workspaceIconName(name) {
+        return String(name || "").trim().toLowerCase()
+            .replace(/[\s-]+/g, "_").replace(/[^a-z0-9_]/g, "")
+    }
+    // Trailing empty entries are dropped.
+    function setWorkspaceIcon(n, name) {
+        if (!(n >= 1)) return
+        var icons = workspaceIconList.slice()
+        while (icons.length < n) icons.push("")
+        icons[n - 1] = workspaceIconName(name)
+        while (icons.length > 0 && icons[icons.length - 1] === "") icons.pop()
+        workspaceIcons = icons.join(",")
+    }
+    // The symbols the workspace icon picker offers; any other Material Symbols name can
+    // still be typed in.
+    readonly property var workspaceIconOptions: [
+        "terminal", "code", "data_object", "bug_report", "language", "mail", "chat", "forum",
+        "sms", "call", "videocam", "groups", "smart_toy", "music_note", "headphones", "movie",
+        "play_circle", "photo", "palette", "brush", "edit_note", "sticky_note_2", "description", "folder",
+        "menu_book", "school", "work", "calendar_month", "task_alt", "sports_esports", "shopping_cart", "build",
+        "settings", "monitoring", "cloud", "home", "favorite", "star", "bolt"
+    ]
     property bool isolateMonitors: false
     // The marker styles this variant offers (continuous V2 adds Kanji, Frame,
     // Aurora; "rings" is the persisted cache token for the Frame style).
@@ -2353,7 +2388,8 @@ Item {
         { key: "kanji",   label: I18n.tr("Kanji") },
         { key: "rings",   label: I18n.tr("Frame") },
         { key: "aurora",  label: I18n.tr("Aurora") },
-        { key: "pacman",  label: I18n.tr("Pacman") }
+        { key: "pacman",  label: I18n.tr("Pacman") },
+        { key: "icons",   label: I18n.tr("Icons") }
     ]
 
     // ── bar screen position (persisted) ──
@@ -2716,6 +2752,7 @@ Item {
     onWeatherImperialChanged: if (_widgetsLoaded) saveWidgets()
     onWorkspaceStyleChanged:   if (_widgetsLoaded) saveWidgets()
     onIsolateMonitorsChanged:  if (_widgetsLoaded) persistWidgetsToConfig()
+    onWorkspaceIconsChanged:   if (_widgetsLoaded) persistWidgetsToConfig()
     onBarPositionChanged:      if (_widgetsLoaded) saveWidgets()
     onBarScaleChanged:         if (_widgetsLoaded) saveWidgets()
     onBarShellStyleChanged:    if (_widgetsLoaded) saveWidgets()
@@ -2910,8 +2947,7 @@ Item {
                     // cache layouts keep stable offsets.
                     if (parts.length > wsField + 8) {
                         var wss = parts[wsField + 8]
-                        if (wss === "numbers" || wss === "magic" || wss === "kanji"
-                                || wss === "rings" || wss === "aurora" || wss === "default")
+                        if (theme.workspaceStyleOptions.some(o => o.key === wss))
                             theme.workspaceStyle = wss
                     }
                     if (parts.length > wsField + 9) {
@@ -3013,6 +3049,7 @@ Item {
         q.barPosition = barPosition
         q.workspaceMode = workspaceMode
         q.workspaceStyle = workspaceStyle
+        q.workspaceIcons = workspaceIcons
         q.isolateMonitors = isolateMonitors
         q.pickerStyle = pickerStyle
         q.launcherLogoMode = launcherLogoMode
@@ -3083,6 +3120,7 @@ Item {
         if (q.barPosition === "top" || q.barPosition === "bottom") barPosition = q.barPosition
         if (q.workspaceMode !== undefined) workspaceMode = q.workspaceMode
         if (q.workspaceStyle  !== undefined) workspaceStyle  = q.workspaceStyle
+        if (typeof q.workspaceIcons === "string") workspaceIcons = q.workspaceIcons
         if (q.isolateMonitors !== undefined) isolateMonitors = q.isolateMonitors === true
         if (q.pickerStyle     !== undefined) pickerStyle     = q.pickerStyle
         if (q.launcherLogoMode !== undefined) launcherLogoMode = q.launcherLogoMode

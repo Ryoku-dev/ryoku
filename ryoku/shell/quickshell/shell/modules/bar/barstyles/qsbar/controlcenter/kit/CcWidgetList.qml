@@ -406,6 +406,29 @@ SettingCard {
                         }
                     }
 
+                    // the icons marker's symbols: one per workspace, so not a
+                    // catalogue row; shown only while that marker is chosen.
+                    Column {
+                        id: wsIcons
+                        width: parent.width
+                        visible: wr.wid === "workspaces" && !!list.root && list.root.workspaceStyle === "icons"
+                        spacing: list.tk ? list.tk.gap / 2 : 6
+                        UiText {
+                            text: I18n.tr("Icons")
+                            color: Tokens.inkMuted
+                            font.family: Tokens.mono
+                            font.pixelSize: Tokens.fTiny
+                            font.letterSpacing: Tokens.trackLabel
+                        }
+                        Loader {
+                            width: parent.width
+                            active: wsIcons.visible
+                            sourceComponent: Component {
+                                CcWorkspaceIconPicker { root: list.root; tk: list.tk }
+                            }
+                        }
+                    }
+
                     // a community plugin: who wrote it, and its three doors: out
                     // (REMOVE), to a folder (EXPORT), to the catalogue (SHARE).
                     Column {

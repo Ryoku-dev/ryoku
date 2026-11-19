@@ -57,6 +57,7 @@ Item {
                     readonly property bool isEmpty: !isFocused && !isOccupied
 
                     implicitWidth: style === "numbers" ? 22
+                                 : style === "icons"   ? 22
                                  : style === "magic"   ? (isFocused ? 20 : 18)
                                  : style === "kanji"   ? 22
                                  : style === "rings"   ? 20
@@ -91,18 +92,34 @@ Item {
                         Behavior on color { ColorAnimation { duration: 200 } }
                     }
 
-                    // NUMBERS - digit on a rounded badge
+                    // NUMBERS - digit on a rounded badge; ICONS puts the symbol there
                     Rectangle {
-                        visible: cell.style === "numbers"
+                        id: numberBadge
+                        readonly property string icon: cell.style === "icons" && prev.root
+                            ? prev.root.workspaceIcon(cell.modelData) : ""
+                        visible: cell.style === "numbers" || cell.style === "icons"
                         anchors.centerIn: parent
                         width: 20
                         height: 20
                         radius: height / 2
+                        clip: cell.style === "icons"
                         color: cell.isFocused  ? Qt.rgba(cell.seal.r, cell.seal.g, cell.seal.b, 0.30)
                              : cell.isOccupied ? Qt.rgba(cell.seal.r, cell.seal.g, cell.seal.b, 0.12)
                                                : Qt.rgba(cell.seal.r, cell.seal.g, cell.seal.b, 0.04)
                         Behavior on color { ColorAnimation { duration: 200 } }
+                        IconText {
+                            visible: numberBadge.icon !== ""
+                            anchors.centerIn: parent
+                            text: numberBadge.icon
+                            fill: cell.isFocused ? 1 : 0
+                            color: cell.isFocused  ? cell.seal
+                                 : cell.isOccupied ? Qt.rgba(cell.seal.r, cell.seal.g, cell.seal.b, 0.5)
+                                                   : Qt.rgba(cell.seal.r, cell.seal.g, cell.seal.b, 0.28)
+                            font.pixelSize: cell.isFocused ? 16 : 15
+                            font.weight: cell.isFocused ? Font.Bold : Font.Normal
+                        }
                         UiText {
+                            visible: numberBadge.icon === ""
                             anchors.centerIn: parent
                             text: cell.modelData
                             color: cell.isFocused  ? Qt.lighter(cell.seal, 1.3)

@@ -22,7 +22,7 @@ const catalogueFixture = `[
   { "id": "workspaces", "gid": "G2",  "label": "Workspaces",      "gloss": "間",   "category": "Bar",
     "settings": [
       { "key": "workspaceMode",     "type": "choice", "label": "Shown",            "options": ["active", "5", "10"] },
-      { "key": "workspaceStyle",    "type": "choice", "label": "Marker",           "options": ["default", "numbers", "magic", "kanji", "rings", "aurora", "pacman"] },
+      { "key": "workspaceStyle",    "type": "choice", "label": "Marker",           "options": ["default", "numbers", "magic", "kanji", "rings", "aurora", "pacman", "icons"] },
       { "key": "isolateMonitors",   "type": "toggle", "label": "Isolate monitors" } ] },
   { "id": "status",     "gid": "G3",  "label": "Status",          "visKey": "status",   "desc": "Arch update, tray, notifications" },
   { "id": "memory",     "gid": "G4",  "label": "Memory",          "visKey": "memory" },
@@ -467,6 +467,18 @@ func TestBarWorkspacesIsolateMonitors(t *testing.T) {
 	}
 	if qs, _ := d.frame(t)["qsbar"].(map[string]any); qs["isolateMonitors"] != false {
 		t.Fatalf("qsbar.isolateMonitors = %v, want false", qs["isolateMonitors"])
+	}
+}
+
+// TestBarWorkspacesIcons selects the icons marker through the catalogue.
+func TestBarWorkspacesIcons(t *testing.T) {
+	d := barTestDaemon(t)
+
+	if got := d.dispatch("bar set workspaces workspaceStyle icons"); got != "ok" {
+		t.Fatalf("bar set workspaceStyle icons: %s", got)
+	}
+	if qs, _ := d.frame(t)["qsbar"].(map[string]any); qs["workspaceStyle"] != "icons" {
+		t.Fatalf("qsbar.workspaceStyle = %v, want icons", qs["workspaceStyle"])
 	}
 }
 
